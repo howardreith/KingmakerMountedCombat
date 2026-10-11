@@ -8,21 +8,41 @@ namespace KingmakerMountedCombat.Domain
         MountCompanion,
         Dismount,
         RiderPrimary,
-        MountPrimary
+        MountPrimary,
+        MountedCharge
     }
 
     public sealed class NativeMountedControlAvailability
     {
         public NativeMountedControlAvailability(bool visible, bool enabled, string reason)
+            : this(visible, enabled, enabled, reason)
+        {
+        }
+
+        public NativeMountedControlAvailability(
+            bool visible, bool enabled, bool transitionReady, string reason)
         {
             IsVisible = visible;
             IsEnabled = enabled;
+            IsTransitionReady = transitionReady;
             Reason = reason ?? string.Empty;
         }
 
         public bool IsVisible { get; }
 
+        /// <summary>
+        /// APPROACH admission: the control may be offered, armed and targeted, and
+        /// Kingmaker may create its own Move-typed command for it.
+        /// </summary>
         public bool IsEnabled { get; }
+
+        /// <summary>
+        /// TRANSITION admission. Equal to <see cref="IsEnabled"/> for every control that
+        /// defers nothing; combat Mount defers distance to the native approach, so this is
+        /// false while the pair is still outside the envelope even though the control is
+        /// enabled and targetable.
+        /// </summary>
+        public bool IsTransitionReady { get; }
 
         public string Reason { get; }
     }
@@ -34,6 +54,16 @@ namespace KingmakerMountedCombat.Domain
         {
             return exactCaster && !started && !finished &&
                 (kind == NativeMountedControlKind.MountCompanion || kind == NativeMountedControlKind.Dismount);
+        }
+
+        public static bool IsRepeatedRelationshipRequest(
+            NativeMountedControlKind kind,
+            bool targetSelectionActive,
+            bool ownsUnsettledRelationshipShell)
+        {
+            return targetSelectionActive && ownsUnsettledRelationshipShell &&
+                (kind == NativeMountedControlKind.MountCompanion ||
+                 kind == NativeMountedControlKind.Dismount);
         }
 
         public static bool IsExpectedPrimaryCaster(
@@ -87,6 +117,25 @@ namespace KingmakerMountedCombat.Domain
             return turnBased ? casterIsMount : casterIsRider;
         }
 
+        // The ONE escape decision. A mounted or faulted rider must always keep its own
+        // native Dismount while the mod service itself is active, whatever the movement
+        // feature, paired activation or either retired authority says — otherwise a live
+        // pair has no lawful way to separate and the player is stranded mounted.
+        //
+        // Only the exact rider qualifies; the mount never does; an unmounted rider never
+        // does. Mount and the mounted attack controls stay feature-gated. This decides
+        // leasing, availability, targeting and delivery alike, so a fact can never be
+        // visible-but-disabled: that combination is exactly how a rider gets stranded.
+        public static bool IsDismountEscape(
+            NativeMountedControlKind kind,
+            bool relationshipMounted,
+            bool relationshipFaulted,
+            bool unitIsRider)
+        {
+            return kind == NativeMountedControlKind.Dismount &&
+                (relationshipMounted || relationshipFaulted) && unitIsRider;
+        }
+
         public static bool ShouldLease(
             NativeMountedControlKind kind,
             bool featureEnabled,
@@ -115,8 +164,16 @@ namespace KingmakerMountedCombat.Domain
             bool relationshipMounted,
             bool relationshipFaulted,
             bool unitIsRider,
-            bool unitIsMount)
+            bool unitIsMount,
+            bool mountedChargeEnabled = false)
         {
+            // The escape hatch, and it comes before every feature gate. One typed
+            // decision, shared by leasing, availability, targeting and delivery.
+            if (IsDismountEscape(kind, relationshipMounted, relationshipFaulted, unitIsRider))
+            {
+                return true;
+            }
+
             if (!featureEnabled)
             {
                 return false;
@@ -146,6 +203,13 @@ namespace KingmakerMountedCombat.Domain
                 }
 
                 return unitIsRider || unitIsMount;
+            }
+
+            if (kind == NativeMountedControlKind.MountedCharge)
+            {
+                // Chunk 6B: the pair-owned charge is default-off until qualified, so the control is not leased
+                // at all unless its own setting is on, and it belongs to the rider, who owns the native shell.
+                return mountedChargeEnabled && unitIsRider;
             }
 
             return false;

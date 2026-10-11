@@ -22,11 +22,20 @@ namespace KingmakerMountedCombat.Domain
 
         public MountedPair ActivePair => pair;
 
-        public TransitionResult Mount(MountedPairCandidate candidate) => Attach(candidate, false);
+        public TransitionResult Mount(MountedPairCandidate candidate) =>
+            Attach(candidate, MountedRelationshipAdmission.Exploration);
 
-        internal TransitionResult RestoreSaved(MountedPairCandidate candidate) => Attach(candidate, true);
+        // The admission mode is the caller's explicit authority. Voluntary combat
+        // mounting has no other entry point into the coordinator.
+        public TransitionResult Mount(MountedPairCandidate candidate, MountedRelationshipAdmission admission) =>
+            admission == MountedRelationshipAdmission.SavedRestore
+                ? Failure("Saved restoration is not a voluntary mount admission.")
+                : Attach(candidate, admission);
 
-        private TransitionResult Attach(MountedPairCandidate candidate, bool restoring)
+        internal TransitionResult RestoreSaved(MountedPairCandidate candidate) =>
+            Attach(candidate, MountedRelationshipAdmission.SavedRestore);
+
+        private TransitionResult Attach(MountedPairCandidate candidate, MountedRelationshipAdmission admission)
         {
             if (State == RelationshipState.Disposed)
             {
@@ -39,7 +48,9 @@ namespace KingmakerMountedCombat.Domain
             }
 
             State = RelationshipState.Validating;
-            var validationError = candidate == null ? "Pair candidate is required." : (restoring ? candidate.ValidateSavedRelationship() : candidate.Validate());
+            var validationError = candidate == null
+                ? "Pair candidate is required."
+                : candidate.Validate(admission);
             if (validationError != null)
             {
                 State = RelationshipState.Unmounted;

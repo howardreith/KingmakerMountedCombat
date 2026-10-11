@@ -66,7 +66,7 @@ namespace KingmakerMountedCombat.Integration
         public string LastTurnCandidateObservation { get; set; }
     }
 
-    internal sealed partial class UnifiedMountedTurnCoordinator : IDisposable
+    internal sealed partial class UnifiedMountedTurnCoordinator : IDisposable, IMidEncounterAdoptionAuthority
     {
         private const int NextUnitFieldToken = 0x04000652;
         private const int ChooseNextUnitToken = 0x06000BD2;
@@ -116,6 +116,10 @@ namespace KingmakerMountedCombat.Integration
             this.logger = logger ?? throw new ArgumentNullException(nameof(logger));
             relationship.MountedPairActivated += HandleMountedPairActivated;
             relationship.Dismounting += HandleDismounting;
+            // The paired lifecycle is the adoption half of the one combat-mount
+            // transaction. The service must be able to act on a refusal, which an
+            // event cannot express, so the authority is bound explicitly here.
+            relationship.BindMidEncounterAdoptionAuthority(this);
         }
 
         internal bool Enabled => settings.UseLegacyUnifiedTurn;
@@ -714,7 +718,29 @@ namespace KingmakerMountedCombat.Integration
 
         private void HandleMountedPairActivated(UnitEntityData rider, UnitEntityData mount)
         {
-            if (PairedLifecycleEnabled) { ArmPairedEncounter(rider, mount); return; }
+            if (PairedLifecycleEnabled)
+            {
+                if (Game.Instance?.Player?.IsInCombat == true || rider?.IsInCombat == true || mount?.IsInCombat == true)
+                {
+                    // The pair was created during a running encounter. Adoption is
+                    // not attempted here: it is the second half of the relationship
+                    // service's own transaction and has already succeeded, because a
+                    // refused adoption compensates the attachment and never reaches
+                    // this announcement. This is the consistency check for that
+                    // invariant, not a second adoption attempt.
+                    if (activation == null)
+                    {
+                        LastAdoptionObservation =
+                            "adoption-invariant-violated;mounted-without-activation;rider=" +
+                            (rider?.UniqueId ?? "<none>") + ";mount=" + (mount?.UniqueId ?? "<none>");
+                        logger.Error("Paired activation announcement arrived for a mounted pair with no " +
+                            "adopted activation: " + LastAdoptionObservation);
+                    }
+                    return;
+                }
+                ArmPairedEncounter(rider, mount);
+                return;
+            }
             preparedRiderTurn = null;
             pendingSplitMount = null;
             pendingSplitRound = -1;

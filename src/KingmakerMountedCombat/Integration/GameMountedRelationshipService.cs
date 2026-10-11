@@ -41,6 +41,27 @@ namespace KingmakerMountedCombat.Integration
 
         internal long MountedPairGeneration => mountedPairGeneration;
 
+        internal int DiagnosticGenerationInvalidationCount { get; private set; }
+
+        internal string LastDiagnosticGenerationInvalidation { get; private set; }
+
+        // Diagnostics-only (CM02-generation-change): no native path changes the generation while a shell is
+        // pending, so the exact owned stimulus advances the counter by one, only on an idle unmounted
+        // relationship, and records itself. It mounts nothing, prepares nothing and refunds nothing.
+        internal string InvalidateMountedPairGenerationForDiagnostics(string reason)
+        {
+            if (string.IsNullOrWhiteSpace(reason)) throw new ArgumentException("A diagnostic generation invalidation names its reason.", nameof(reason));
+            if (coordinator.State != RelationshipState.Unmounted || runtime.Rider != null || runtime.Mount != null)
+                throw new InvalidOperationException("A diagnostic generation invalidation requires an idle unmounted relationship.");
+            var before = mountedPairGeneration;
+            mountedPairGeneration = checked(mountedPairGeneration + 1);
+            DiagnosticGenerationInvalidationCount++;
+            LastDiagnosticGenerationInvalidation = "reason=" + reason + ";generationBefore=" + before + ";generationAfter=" + mountedPairGeneration +
+                ";count=" + DiagnosticGenerationInvalidationCount;
+            logger.Info("Diagnostic mounted-pair generation invalidation: " + LastDiagnosticGenerationInvalidation + ".");
+            return LastDiagnosticGenerationInvalidation;
+        }
+
         internal KingmakerMountedPairRuntime Runtime => runtime;
 
         internal bool IsExactCapturedView(UnitEntityData unit) => runtime.IsExactCapturedView(unit);
@@ -77,8 +98,28 @@ namespace KingmakerMountedCombat.Integration
         public TransitionResult LastTransition { get; private set; }
 
         internal event Action<CleanupTrigger> Dismounting;
+        internal Func<CleanupTrigger, bool> ChargeCleanupBarrier { get; set; }
 
         internal event Action<UnitEntityData, UnitEntityData> MountedPairActivated;
+
+        // The paired lifecycle's half of the one combat-mount transaction.
+        // Relationship attachment and encounter adoption either both succeed or
+        // neither stands, so the authority is bound explicitly rather than reached
+        // through the activation event, whose result cannot be acted on.
+        private IMidEncounterAdoptionAuthority adoptionAuthority;
+
+        internal long AdoptionCompensatedMountCount { get; private set; }
+
+        internal string LastAdoptionTransactionObservation { get; private set; } = "not-requested";
+
+        internal void BindMidEncounterAdoptionAuthority(IMidEncounterAdoptionAuthority authority)
+        {
+            if (adoptionAuthority != null || authority == null)
+            {
+                throw new InvalidOperationException("Exactly one mid-encounter adoption authority is bound once.");
+            }
+            adoptionAuthority = authority;
+        }
 
         public TransitionResult MountSelectedRider()
         {
@@ -136,13 +177,44 @@ namespace KingmakerMountedCombat.Integration
             return Record(result);
         }
 
-        public TransitionResult MountRiderOn(UnitEntityData rider, UnitEntityData mount)
+        // Every entry point other than the one explicit voluntary combat path
+        // keeps exploration semantics, so a diagnostic, automation or restore
+        // caller can never authorize a combat transition.
+        public TransitionResult MountRiderOn(UnitEntityData rider, UnitEntityData mount) =>
+            MountRiderOn(rider, mount, MountedRelationshipAdmission.Exploration);
+
+        public TransitionResult MountRiderOn(
+            UnitEntityData rider, UnitEntityData mount, MountedRelationshipAdmission admission)
         {
             ThrowIfDisposed();
-            if (settings.EnablePairedActivation && (rider?.IsInCombat == true || mount?.IsInCombat == true ||
-                Game.Instance?.Player?.IsInCombat == true))
+            if (admission == MountedRelationshipAdmission.SavedRestore)
                 return Record(new TransitionResult(false, coordinator.State, null,
-                    new[] { "Mount before combat to establish paired activation ownership." }, false, false));
+                    new[] { "Saved restoration is not a voluntary mount admission." }, false, false));
+            var inCombat = rider?.IsInCombat == true || mount?.IsInCombat == true ||
+                Game.Instance?.Player?.IsInCombat == true;
+            if (inCombat && admission != MountedRelationshipAdmission.VoluntaryCombat)
+                return Record(new TransitionResult(false, coordinator.State, null,
+                    new[] { "Mounting during an encounter requires the voluntary combat control." }, false, false));
+            if (!inCombat && admission == MountedRelationshipAdmission.VoluntaryCombat)
+                return Record(new TransitionResult(false, coordinator.State, null,
+                    new[] { "Voluntary combat mounting requires a live encounter." }, false, false));
+            // Execution-time admission of the qualified paired authority, decided by the
+            // same typed policy prediction uses. This is the deepest choke point for a
+            // combat transition, so no diagnostic, automation, direct-service or queued
+            // route can reach a commitment on an unqualified authority. Mounting outside
+            // combat is untouched: it adopts no running encounter.
+            if (inCombat)
+            {
+                var authorityRefusal = MountedAuthorityPolicy.DescribeUnqualifiedCombatMount(
+                    settings.EnablePairedActivation,
+                    settings.EnableUnifiedMountedTurn,
+                    settings.EnablePairedCommandScheduler);
+                if (authorityRefusal != null)
+                {
+                    return Record(new TransitionResult(false, coordinator.State, null,
+                        new[] { authorityRefusal }, false, false));
+                }
+            }
             if (!settings.EnableUnsafeMovementExperiment)
             {
                 return Record(new TransitionResult(false, coordinator.State, null, new[] { "Movement experiment is disabled." }, false, false));
@@ -157,13 +229,55 @@ namespace KingmakerMountedCombat.Integration
                     new[] { "An exact rider and supported active companion are required." }, false, false));
             }
 
+            // One transaction. A voluntary combat Mount plans its encounter
+            // adoption from exact live state BEFORE the relationship is committed,
+            // so an unresolvable transition round refuses the whole operation with
+            // nothing to undo.
+            MidEncounterAdoptionPlan adoptionPlan = null;
+            if (admission == MountedRelationshipAdmission.VoluntaryCombat && adoptionAuthority != null)
+            {
+                string planRefusal;
+                if (!adoptionAuthority.TryPlanMidEncounterAdoption(rider, mount, out adoptionPlan, out planRefusal))
+                {
+                    LastAdoptionTransactionObservation = "plan-refused;reason=" + planRefusal;
+                    return Record(new TransitionResult(false, coordinator.State, null,
+                        new[] { planRefusal }, false, false));
+                }
+            }
+
             runtime.Prepare(rider, mount);
-            var result = coordinator.Mount(runtime.CreateCandidate());
+
+            // Revalidated immediately before the commit, field by field, against
+            // freshly observed state.
+            if (adoptionPlan != null)
+            {
+                string revalidationRefusal;
+                if (!adoptionAuthority.RevalidateMidEncounterAdoptionPlan(
+                        adoptionPlan, rider, mount, out revalidationRefusal))
+                {
+                    runtime.ClearPreparedPairWhenUnmounted();
+                    LastAdoptionTransactionObservation = "revalidation-refused;reason=" + revalidationRefusal;
+                    return Record(new TransitionResult(false, coordinator.State, null,
+                        new[] { revalidationRefusal }, false, false));
+                }
+            }
+
+            var result = coordinator.Mount(runtime.CreateCandidate(), admission);
             ObserveCleanupState(result);
             if (result.Succeeded)
             {
                 mountedPairGeneration = checked(mountedPairGeneration + 1);
                 ResetNativeTurnBasedExitAiLeaseEvidence();
+                if (adoptionPlan != null)
+                {
+                    var committedPlan = adoptionPlan.WithCommittedGeneration(mountedPairGeneration);
+                    var adoptionRefusal = adoptionAuthority.AdoptRunningEncounter(committedPlan, rider, mount);
+                    if (adoptionRefusal != null)
+                    {
+                        return Record(CompensateRefusedAdoption(adoptionRefusal, committedPlan));
+                    }
+                    LastAdoptionTransactionObservation = "committed;" + committedPlan.Describe();
+                }
                 MountedPairActivated?.Invoke(rider, mount);
             }
             if (!result.Succeeded)
@@ -171,6 +285,46 @@ namespace KingmakerMountedCombat.Integration
                 runtime.ClearPreparedPairWhenUnmounted();
             }
             return Record(result);
+        }
+
+        // The relationship attached but its encounter adoption was refused, so the
+        // attachment must not stand. This returns the relationship to Unmounted,
+        // removes every KMC-owned residue and reports the transition as FAILED
+        // rather than Mounted.
+        //
+        // What it deliberately does not do: it writes no native resource, calls no
+        // native preparation or turn end, and refunds nothing. A native Move that
+        // Kingmaker already committed for the approach stays spent, which is the
+        // truthful outcome; and the mounted-pair generation stays advanced, which is
+        // what retires every native shell bound to the old relationship so the
+        // failed control cannot be delivered again.
+        private TransitionResult CompensateRefusedAdoption(string refusal, MidEncounterAdoptionPlan plan)
+        {
+            AdoptionCompensatedMountCount++;
+            // The activation residue goes first, so the detach announcement below
+            // sees no activation and cannot open a split release round that would
+            // lock the pair out of a later lawful transition.
+            adoptionAuthority.RollbackMidEncounterAdoption(refusal);
+            // The ordinary cleanup path, not a bare coordinator call: every
+            // Dismounting subscriber must run, so pending native controls, the
+            // paired command scheduler and mounted combat state are cancelled and
+            // the detach is recorded as cleanup that books no voluntary cost.
+            var compensation = Dismount(CleanupTrigger.AdoptionRefused);
+            var residue = compensation.MovementAuthorityResidual || compensation.PresentationResidual;
+            LastAdoptionTransactionObservation = "compensated;reason=" + refusal +
+                ";relationship=" + coordinator.State +
+                ";movementResidual=" + compensation.MovementAuthorityResidual +
+                ";presentationResidual=" + compensation.PresentationResidual +
+                ";generation=" + mountedPairGeneration + ";plan={" + plan.Describe() + "}";
+            logger.Error("Voluntary combat mount compensated: " + LastAdoptionTransactionObservation);
+            var errors = new List<string> { refusal };
+            if (!compensation.Succeeded || residue)
+            {
+                errors.Add("Compensating cleanup did not fully release the mounted relationship.");
+                errors.AddRange(compensation.Errors);
+            }
+            return new TransitionResult(false, coordinator.State, CleanupTrigger.AdoptionRefused, errors,
+                compensation.MovementAuthorityResidual, compensation.PresentationResidual);
         }
 
         public bool TryResolveAutomationPair(out UnitEntityData rider, out UnitEntityData mount, out string error)
@@ -266,6 +420,11 @@ namespace KingmakerMountedCombat.Integration
             {
                 return new TransitionResult(true, coordinator.State, trigger, new string[0], false, false);
             }
+
+            // Refuse before subscribers can release turn, view, or relationship ownership.
+            if (ChargeCleanupBarrier != null && !ChargeCleanupBarrier(trigger))
+                return Record(new TransitionResult(false, coordinator.State, trigger,
+                    new[] { "Mounted charge cleanup is incomplete; exact native ownership is retained." }, false, false));
 
             try
             {

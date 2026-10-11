@@ -1,0 +1,376 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using Kingmaker;
+using Kingmaker.Blueprints;
+using Kingmaker.EntitySystem.Entities;
+using Kingmaker.UI.Selection;
+using Kingmaker.UnitLogic.Abilities;
+using Kingmaker.UnitLogic.Commands;
+using Kingmaker.UnitLogic.Commands.Base;
+using Kingmaker.Utility;
+using Kingmaker.View;
+using KingmakerMountedCombat.Domain;
+using TurnBased.Controllers;
+using UnityEngine;
+
+namespace KingmakerMountedCombat.Integration
+{
+    // Chunk 6B increment 6B.2: the admission surface of the pair-owned Mounted Charge, kept in one removable
+    // partial so the whole feature is one policy, one lease, one ability component and this file.
+    //
+    // The rider owns the native full-round Standard ability shell and therefore the cost; the mount owns the
+    // forced path. The charge is admitted as an ordinary rider melee pair transaction carrying a charge lease,
+    // which is why no new action kind, evaluator branch or admission path is introduced. The command is queued
+    // first on the rider with IgnoreCooldown, exactly as the stock charge queues its attack, because the shell
+    // has already paid and Commands.Run would interrupt the shell that is paying.
+    internal sealed partial class MountedCombatController
+    {
+        internal const string MountedChargeDisabledReason = "Enable Mounted Charge in the KMC mod settings.";
+
+        // The stock minimum charge distance, read from the mount because the mount is the mover, and from the
+        // turn-based mode setting exactly as AbilityCustomCharge.GetMinRangeMeters reads it.
+        internal float GetMountedChargeMinimumRange(UnitEntityData caster)
+        {
+            var mount = relationship.Mount;
+            if (disposed || mount?.View == null || caster == null || caster != relationship.Rider)
+            {
+                return 0f;
+            }
+
+            return MountedChargeMinimumRange(mount, null);
+        }
+
+        private static float MountedChargeMinimumRange(UnitEntityData mount, UnitEntityData target)
+        {
+            var targetCorpulence = target?.View == null ? 0.5f : target.View.Corpulence;
+            if (Kingmaker.UI.SettingsUI.SettingsRoot.Instance.EnableTurnBasedMode.CurrentValue)
+            {
+                return TurnController.MetersOfFiveFootStep + GameConsts.MinWeaponRange.Meters +
+                    mount.View.Corpulence + targetCorpulence;
+            }
+
+            return 10.Feet().Meters + mount.View.Corpulence + targetCorpulence;
+        }
+
+        private static float MountedChargeMaximumRange(UnitEntityData mount)
+        {
+            return MountedChargeGeometry.MaximumRange(mount);
+        }
+
+        // The stock clearance check, read from the mount. The carried rider is never an obstacle to its own
+        // mount, and the landing point is one rider weapon reach short of the target, as the stock check is.
+        private bool MountedChargeLandingBlocked(UnitEntityData mount, UnitEntityData target)
+        {
+            return MountedChargeGeometry.LandingBlocked(mount, relationship.Rider, target);
+        }
+
+        // Delivery revalidation reaches this controller only from the Deliver of this mod's own charge
+        // component, which the engine has already charged for. The fact is proven from the live execution
+        // context rather than assumed from the call site: the executing ability must carry this mod's charge
+        // component and its caster must be this pair's rider. Anything else is not a delivery of our shell.
+        private bool DeliveringOwnChargeShell(AbilityExecutionContext context, UnitEntityData caster)
+        {
+            var blueprint = context == null || context.Ability == null ? null : context.Ability.Blueprint;
+            return OwnsChargeDelivery(context) && blueprint != null && caster != null && caster == relationship.Rider &&
+                context.Caster == caster && blueprint.GetComponent<MountedChargeAbilityLogic>() != null;
+        }
+
+        private MountedChargeRequest CaptureMountedChargeRequest(UnitEntityData caster, UnitEntityData target,
+            AbilityExecutionContext context = null)
+        {
+            var rider = relationship.Rider;
+            var mount = relationship.Mount;
+            var turnBased = CombatController.IsInTurnBasedCombat();
+            var turn = Game.Instance?.TurnBasedCombatController?.CurrentTurn;
+            var weapon = rider?.GetFirstWeapon();
+            var targetState = target?.Descriptor?.State;
+            var request = new MountedChargeRequest
+            {
+                FeatureEnabled = settings.EnableMountedCharge && settings.EnableUnsafeMovementExperiment,
+                RelationshipMounted = relationship.State == RelationshipState.Mounted,
+                ExactPair = rider != null && mount != null && caster == rider &&
+                    target != null && target != rider && target != mount,
+                RiderDirectlyControllable = rider != null && rider.IsDirectlyControllable,
+                LifecycleBoundary = relationship.State == RelationshipState.Faulted || ChargeAdmissionFenced || ChargeNativeWorldLoading ||
+                    chargeOwner?.Ownership.CleanupRequested == true,
+                InCombat = rider != null && rider.IsInCombat,
+                TurnBased = turnBased,
+                RiderTurn = turn != null && turn.Unit == rider,
+                TurnActingOrPreparing = turn != null &&
+                    (turn.Status == TurnController.TurnStatus.Preparing || turn.IsActing),
+                TurnActing = turn != null && turn.IsActing,
+                TurnTimeMoved = turn == null ? 0f : turn.TimeMoved,
+                RiderCanActInCombat = rider != null && rider.CombatState.CanActInCombat && rider.IsAbleToAct(),
+                RiderStandardCooldown = rider == null ? 0f : rider.CombatState.Cooldown.StandardAction,
+                RiderMoveCooldown = rider == null ? 0f : rider.CombatState.Cooldown.MoveAction,
+                WeaponPresent = weapon != null,
+                WeaponIsRanged = weapon?.Blueprint != null && weapon.Blueprint.IsRanged,
+                TargetValid = target != null && target.IsInState && targetState != null &&
+                    targetState.IsConscious && !targetState.IsFinallyDead,
+                TargetVisible = target != null && target.IsVisibleForPlayer,
+                TargetHostile = rider != null && target != null && rider.IsEnemy(target),
+                TargetAttackable = rider != null && target != null && rider.CanAttack(target),
+                AlreadyActiveCommand = HasActiveCommand || HasActiveGroundMovement || HasActiveDoorInteraction ||
+                    chargeOwner != null && context != null && !OwnsChargeDelivery(context),
+                MountCommandsIdle = mount?.Commands != null && mount.Commands.Empty && mount.Commands.Queue.Count == 0,
+                DeliveringOwnShell = DeliveringOwnChargeShell(context, caster)
+            };
+
+            if (mount?.View != null && target?.View != null)
+            {
+                var endpoint = ObstacleAnalyzer.TraceAlongNavmesh(mount.Position, target.Position);
+                request.Distance = (target.Position - mount.Position).magnitude;
+                request.MinimumRange = MountedChargeMinimumRange(mount, target);
+                request.MaximumRange = MountedChargeMaximumRange(mount);
+                request.StraightRoute = endpoint == target.Position;
+                request.MountAvoidanceDisabled = mount.View.MovementAgent != null && mount.View.MovementAgent.AvoidanceDisabled;
+                request.LandingBlocked = MountedChargeLandingBlocked(mount, target);
+            }
+            else
+            {
+                request.StraightRoute = false;
+            }
+
+            return request;
+        }
+
+        // Availability has no target, so the geometry checks are deferred to targeting. Nothing is written.
+        internal NativeMountedControlAvailability EvaluateMountedCharge(UnitEntityData caster)
+        {
+            if (disposed)
+            {
+                return new NativeMountedControlAvailability(false, false, "Mounted combat services are not active.");
+            }
+
+            if (!settings.EnableMountedCharge)
+            {
+                return new NativeMountedControlAvailability(false, false, MountedChargeDisabledReason);
+            }
+
+            var request = CaptureMountedChargeRequest(caster, null);
+            request.TargetValid = true;
+            request.TargetVisible = true;
+            request.TargetHostile = true;
+            request.TargetAttackable = true;
+            request.ExactPair = relationship.Rider != null && relationship.Mount != null && caster == relationship.Rider;
+            request.Distance = request.MinimumRange;
+            request.StraightRoute = true;
+            request.LandingBlocked = false;
+            var availability = EvaluateMountedChargeRequest(request, caster);
+            return new NativeMountedControlAvailability(true, availability.IsAllowed, availability.Reason);
+        }
+
+        internal bool CanMountedChargeTarget(UnitEntityData caster, UnitEntityData target)
+        {
+            if (disposed || target == null)
+            {
+                return false;
+            }
+
+            return EvaluateMountedChargeRequest(CaptureMountedChargeRequest(caster, target), caster).IsAllowed;
+        }
+
+        internal MountedChargeAvailability ObserveMountedChargeTarget(UnitEntityData caster, UnitEntityData target) =>
+            EvaluateMountedChargeRequest(CaptureMountedChargeRequest(caster, target), caster);
+
+        private static MountedChargeAvailability EvaluateMountedChargeRequest(MountedChargeRequest request, UnitEntityData caster)
+        {
+            var result = MountedChargePolicy.Evaluate(request);
+            if (!result.IsAllowed) return result;
+            var reason = MountedChargeLease.BuffAvailabilityReason(caster);
+            return reason == null ? result : new MountedChargeAvailability(false, reason, MountedCombatRejectionCode.LifecycleBoundary);
+        }
+
+        internal string LastMountedChargeRefusal { get; private set; }
+
+        internal int MountedChargeAdmittedCount { get; private set; }
+
+        internal int MountedChargeRefusedCount { get; private set; }
+
+        // The last admitted charge transaction, kept so a diagnostic observer can read its lease facts.
+        internal MountedPairAttackCommand LastMountedChargeCommand { get; private set; }
+
+        // Delivery from the rider's native full-round ability shell. The shell has already spent the rider's
+        // action through Spell.Spend, so the pair transaction is queued first with IgnoreCooldown rather than
+        // run, which is exactly what AbilityCustomCharge does with its own attack.
+        internal MountedCombatClickResult TryExecuteMountedCharge(UnitEntityData caster, UnitEntityData target,
+            AbilityExecutionContext context)
+        {
+            if (disposed)
+            {
+                return MountedCombatClickResult.NotHandled;
+            }
+
+            if (!OwnsChargeDelivery(context) || !ReferenceEquals(target, chargeOwner.Target) ||
+                !ReferenceEquals(caster, chargeOwner.Rider))
+                return RefuseMountedCharge("Mounted Charge has no live exact native shell ownership.",
+                    MountedCombatRejectionCode.CommandAdmissionFailure);
+
+            var request = CaptureMountedChargeRequest(caster, target, context);
+            var availability = EvaluateMountedChargeRequest(request, caster);
+            logger.Info("Mounted charge delivery observed: casterId=" + (caster?.UniqueId ?? "<none>") +
+                "; targetId=" + (target?.UniqueId ?? "<none>") +
+                "; turnBased=" + request.TurnBased + "; ownShell=" + request.DeliveringOwnShell +
+                "; riderStandardCooldown=" + request.RiderStandardCooldown.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture) +
+                "; distance=" + request.Distance.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture) +
+                "; minimum=" + request.MinimumRange.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture) +
+                "; maximum=" + request.MaximumRange.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture) +
+                "; straight=" + request.StraightRoute + "; landingBlocked=" + request.LandingBlocked +
+                "; allowed=" + availability.IsAllowed + "; reason=" + availability.Reason);
+            if (!availability.IsAllowed)
+            {
+                return RefuseMountedCharge(availability.Reason, availability.RejectionCode ?? MountedCombatRejectionCode.WrongActionState);
+            }
+
+            if (HasStockAttackIntent)
+            {
+                ClearStockAttackIntent("mounted charge replaced stock attack intent", true);
+                ClearObservedStockRequest();
+            }
+
+            NativeSingleAttackWeaponSelection mountPrimary;
+            CaptureContext(MountedCombatActionKind.RiderMelee, target, out mountPrimary, false, false);
+            MountedPairAttackCommand command = null;
+            var queuedOnRider = false;
+            // The exact owner this admission queues onto, captured before the queue call so a later
+            // lifecycle change cannot make compensation resolve the wrong actor.
+            UnitEntityData queuedRider = null;
+            UnitCommands queuedContainer = null;
+            try
+            {
+                command = new MountedPairAttackCommand(
+                    relationship,
+                    relationship.Rider,
+                    relationship.Mount,
+                    target,
+                    MountedCombatActionKind.RiderMelee,
+                    mountPrimary,
+                    horsePrimaryAttackAnimation,
+                    logger,
+                    HandleCommandTerminal,
+                    true,
+                    true,
+                    true);
+                command.NativePartnerMovement = settings.EnablePairedActivation;
+                chargeOwner.Command = command;
+                // The enclosing full-round shell owns the cost; the queued transaction must not be refused for
+                // the action the shell has already spent, and must never be given an action of its own.
+                command.IgnoreCooldown();
+                var schedulerRequired = pairedCommandScheduler.RequiresLease(MountedCombatActionKind.RiderMelee);
+                string schedulerReason;
+                if (schedulerRequired && !pairedCommandScheduler.TryRegister(command, out schedulerReason))
+                {
+                    return RefuseMountedCharge(
+                        "Mounted pair scheduler rejected the charge registration: " + schedulerReason + ".",
+                        MountedCombatRejectionCode.CommandAdmissionFailure);
+                }
+
+                activeCommand = command;
+                unifiedTurn.RememberPairedMovementInput();
+                LastOutcome = null;
+                var rider = relationship.Rider;
+                queuedRider = rider;
+                queuedContainer = rider.Commands;
+                queuedContainer.AddToQueueFirst(command);
+                queuedOnRider = true;
+                // The one diagnostics-only seam, for proving compensation from exactly here. Null in
+                // production; an armed hook can only throw, which drives the refusal path below.
+                MountedChargeAdmissionFault.FireAfterQueue();
+                if (command.Executor != rider || command.IsFinished ||
+                    (!rider.Commands.Contains(command) && !rider.Commands.Queue.Contains(command)))
+                {
+                    CompensateMountedChargeAdmission(command, queuedRider, queuedContainer,
+                        "native charge queue admission failed");
+                    return RefuseMountedCharge(
+                        "Mounted charge failed to enter the rider command queue.",
+                        MountedCombatRejectionCode.CommandAdmissionFailure);
+                }
+
+                if (schedulerRequired && !pairedCommandScheduler.ConfirmAdmission(command, out schedulerReason))
+                {
+                    CompensateMountedChargeAdmission(command, queuedRider, queuedContainer,
+                        "mounted pair scheduler rejected the charge admission: " + schedulerReason);
+                    return RefuseMountedCharge(
+                        "Mounted pair scheduler rejected the charge admission: " + schedulerReason + ".",
+                        MountedCombatRejectionCode.CommandAdmissionFailure);
+                }
+
+                OwnChargeManualTarget(rider, target);
+                LastMountedChargeCommand = command;
+                MountedChargeAdmittedCount++;
+                LastMountedChargeRefusal = null;
+                LastRejectionCodes = new MountedCombatRejectionCode[0];
+                LastFeedback = "Mounted charge accepted: the " + MountDisplayName + " carries the charge.";
+                logger.Info("Mounted charge accepted: riderId=" + rider.UniqueId +
+                    "; targetId=" + target.UniqueId + "; queuedFirst=true; ignoreCooldown=true.");
+                return MountedCombatClickResult.HandledAccepted;
+            }
+            catch (Exception exception)
+            {
+                logger.Exception("Mounted charge admission", exception);
+                if (command != null)
+                {
+                    // Whether or not the queue admission completed, every owner the attempt may have
+                    // acquired is resolved here before the field is cleared.
+                    // The captured owner, not relationship.Rider: the lifecycle may have changed since.
+                    CompensateMountedChargeAdmission(command, queuedRider, queuedContainer,
+                        "mounted charge admission threw " + exception.GetType().Name +
+                        (queuedOnRider ? " after queue admission" : " before queue admission"));
+                }
+                else
+                {
+                    activeCommand = null;
+                }
+
+                return RefuseMountedCharge(
+                    "Mounted charge admission failed: " + exception.GetType().Name + ".",
+                    MountedCombatRejectionCode.CommandAdmissionFailure);
+            }
+        }
+
+        // One helper for every charge failure after the command entered the rider queue. Each step resolves
+        // a different native owner and every step runs even if an earlier one fails, because skipping one
+        // strands it. activeCommand is cleared only as the final step, so native ownership is always
+        // resolved first. Nothing is refunded: no cooldown, resource, preparation or turn is written here,
+        // so a native shell cost that was already committed stands exactly as the engine took it.
+        private MountedChargeCompensation CompensateMountedChargeAdmission(
+            MountedPairAttackCommand command, UnitEntityData rider, UnitCommands container, string reason)
+        {
+            if (chargeOwner == null || !ReferenceEquals(chargeOwner.Command, command))
+                throw new InvalidOperationException("Charge admission lost its exact durable owner.");
+            ChargeCompensationCount++;
+            chargeOwner.AdmissionCompensation = true;
+            var owner = chargeOwner;
+            TryDrainChargeOwnership(reason);
+            return owner.Ownership.LastAttempt;
+        }
+        // Retained when compensation could not prove every owner resolved. Something must keep pointing
+        // at native state that was left behind, and a later attempt can discharge it.
+        internal bool HasFaultedChargeCleanupOwner => chargeOwner != null && chargeOwner.Ownership.CleanupRequested;
+
+        internal string LastChargeCompensationUnmet { get; private set; }
+
+        internal int ChargeCompensationCount { get; private set; }
+
+        internal string LastChargeCompensation { get; private set; }
+
+        internal bool LastChargeCompensationComplete { get; private set; }
+
+        internal bool LastChargeCompensationCommandResident { get; private set; }
+
+        internal bool LastChargeCompensationLeaseRestored { get; private set; }
+
+        internal bool LastChargeCompensationActiveCommandCleared { get; private set; }
+
+        private MountedCombatClickResult RefuseMountedCharge(string reason, MountedCombatRejectionCode code)
+        {
+            MountedChargeRefusedCount++;
+            LastMountedChargeRefusal = reason;
+            LastFeedback = reason;
+            LastRejectionCodes = new[] { code };
+            logger.Info("Rejected mounted charge: code=" + code + "; reason=" + reason);
+            return MountedCombatClickResult.HandledRejected;
+        }
+    }
+}

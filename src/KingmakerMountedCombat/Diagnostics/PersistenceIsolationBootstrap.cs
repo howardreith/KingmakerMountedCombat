@@ -109,7 +109,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (request.Scenario == "persistence-p07-load" && request.PersistenceCase == "campaign-b")
                     entries.Add(new PersistenceSaveEntry { FileName = "Manual_303_KMC_B2.zks", InternalName = "KMC_B2",
                         SaveType = "Manual", Area = fixture.Area, Writable = true });
-                if (request.Scenario == "persistence-p07-save")
+                if (request.Scenario == "persistence-p07-save" &&
+                    (!RuntimeRequest.IsChargeLifecycleCase(request.PersistenceCase) || request.PersistenceCase == "mounted-charge-removal"))
                 {
                     // A cross-area case makes no pre-transfer manual write: the
                     // native autosave is its departure evidence, and every manual
@@ -127,7 +128,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     for (var n = 0; n < 2; n++)
                     {
                         var name = n == 1 && request.PersistenceCase == "campaign-b" ? NativeCampaignBootstrap.SecondFixtureName :
-                            n == 1 && request.PersistenceCase == "prepare-removal" ? MountedRemovalPreparation.CleanupSaveName :
+                            n == 1 && (request.PersistenceCase == "prepare-removal" || request.PersistenceCase == "mounted-charge-removal") ? MountedRemovalPreparation.CleanupSaveName :
                             n == 1 && RuntimeRequest.IsDeathCase(request.PersistenceCase) ? "KMC_DEATH" :
                             n == 1 && RuntimeRequest.IsEligibilityCase(request.PersistenceCase) ? "KMC_SIZE" : "KMC_P01";
                         entries.Add(new PersistenceSaveEntry {
@@ -145,6 +146,12 @@ namespace KingmakerMountedCombat.Diagnostics
                         AdmissionArea = afterEntry ? fixture.Area : null,
                         Writable = true });
                 }
+                // The combat-mounted save-route checkpoint writes the same settled pair through the native quick
+                // and auto routes after its manual leaf; both native slots are declared exactly once each.
+                if (request.Scenario == "persistence-p04-save" && request.PersistenceCase == "combat-mount-routes")
+                    foreach (var slot in new[] { SaveInfo.SaveType.Quick, SaveInfo.SaveType.Auto })
+                        entries.Add(new PersistenceSaveEntry { FileName = slot + "_1.zks",
+                            InternalName = RuntimePersistenceScenario.SlotName(slot), SaveType = slot.ToString(), Area = fixture.Area, Writable = true });
                 if (request.Scenario == "persistence-p05-save" && request.PersistenceCase != "alternating" && request.PersistenceCase != "queued")
                 {
                     var type = RuntimePersistenceScenario.SlotType(request.PersistenceCase);

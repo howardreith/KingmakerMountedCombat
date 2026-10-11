@@ -1,0 +1,479 @@
+[CmdletBinding()]
+param(
+    [string]$LedgerPath,
+    [string]$LabRoot,
+    # Completion mode: beyond record consistency, every mandatory Chunk 6A
+    # behavior in the fixed list below must be a PASS entry on the frozen
+    # payload. A mandatory entry that is missing, NOT RUN, BLOCKED, FAIL, or
+    # MAPPED / EXCLUDED without the owner's own recorded decision fails this
+    # gate. Record consistency is NOT completion and must never be reported as
+    # "N requirements satisfied".
+    [switch]$Completion
+)
+$ErrorActionPreference='Stop'
+Set-StrictMode -Version Latest
+$repoRoot=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
+if([string]::IsNullOrEmpty($LedgerPath)){$LedgerPath=Join-Path $repoRoot 'docs\chunk6a-ledger.json'}
+if([string]::IsNullOrEmpty($LabRoot)){$LabRoot=[IO.Path]::GetFullPath((Join-Path $repoRoot '..\..'))}
+function Test-KmcLiteralAssertion([string]$Expected,[string[]]$Errors) {
+    if([string]::IsNullOrEmpty($Expected)){return $false}
+    foreach($errorText in $Errors) {
+        if($null -ne $errorText -and $errorText.IndexOf($Expected,[StringComparison]::Ordinal) -ge 0){return $true}
+    }
+    return $false
+}
+function Get-Sha256([string]$path){ (Get-FileHash -Algorithm SHA256 -LiteralPath $path).Hash.ToLowerInvariant() }
+function Get-Field($object,[string]$name){ if($null-ne$object-and@($object.PSObject.Properties.Name)-ccontains$name){$object.$name}else{$null} }
+
+# ---------------------------------------------------------------------------
+# The agreed finite Chunk 6A list, one id per mandatory behavior of the owner's
+# CM01-CM08 families. Nothing is removed or relabelled to obtain completion.
+# ---------------------------------------------------------------------------
+$mandatory=@(
+    # CM01 legal combat Mount through normal controls.
+    'CM01-horse-rt','CM01-horse-tb','CM01-mammoth-rt','CM01-mammoth-tb','CM01-exploration-free',
+    # R3: a turn-based transition requires an acting rider turn; Preparing is refused.
+    'CM01-combat-mount-preparing-refused',
+    # CM02 approach, arrival and stale-state revalidation.
+    'CM02-approach-arrival','CM02-geometry-change','CM02-obstruction','CM02-wrong-creature-target',
+    'CM02-foreign-companion','CM02-ownership-change','CM02-size-form-change','CM02-lost-direct-control',
+    'CM02-left-area','CM02-view-agent-lost','CM02-loading-cutscene','CM02-rider-incapacitated',
+    'CM02-mount-incapacitated','CM02-generation-change','CM02-target-selection-cancelled',
+    # R2: relationship attachment and encounter adoption are one transaction.
+    'CM02-adoption-plan-invalidated','CM02-adoption-compensation-releases',
+    # CM03 resource debt, actor order and turn ownership.
+    'CM03-rider-before-mount-slot','CM03-mount-slot-before-rider','CM03-mount-spent-move',
+    'CM03-mount-spent-standard','CM03-mount-spent-all','CM03-rider-without-move','CM03-rider-other-action',
+    'CM03-early-end-turn','CM03-next-round-activation','CM03-unrelated-candidate-between',
+    # CM04 interruption and lifecycle cleanup.
+    'CM04-stop-during-approach','CM04-command-replacement','CM04-turn-end','CM04-combat-end',
+    'CM04-mode-exit','CM04-area-session-transition','CM04-disable-unload','CM04-rider-death',
+    'CM04-mount-death','CM04-injected-exception',
+    # CM05 voluntary combat Dismount and the forced-detach distinction.
+    'CM05-rt','CM05-tb','CM05-after-rider-expenditure','CM05-after-mount-expenditure',
+    'CM05-immediately-after-mount','CM05-repeated-input','CM05-forced-detach',
+    # R-policy: a mounted or faulted rider keeps an executable native Dismount even
+    # if the movement feature or the paired policy is later disabled.
+    'CM05-dismount-survives-feature-policy-disable',
+    # CM06 native input, pause/queue and negative controls.
+    'CM06-hotbar-path','CM06-pointer-target','CM06-paused-queue','CM06-repeated-request',
+    'CM06-mount-selected','CM06-multiple-selection','CM06-unrelated-actor','CM06-ai-auto-use',
+    'CM06-unmounted-ordinary',
+    # R-policy: combat Mount is refused unless the qualified paired authority is the
+    # single live one, in prediction and at execution-time admission alike.
+    'CM06-combat-mount-requires-qualified-paired-policy',
+    # CM07 persistence and restoration.
+    'CM07-mount-save-rt','CM07-mount-load-rt','CM07-mount-save-tb','CM07-mount-load-tb',
+    'CM07-dismount-save','CM07-dismount-load','CM07-cold-load','CM07-save-slot-routes',
+    'CM07-unsettled-save-deferred','CM07-area-reload','CM07-schema-unchanged',
+    # CM08 regression and exact-candidate consolidation.
+    'CM08-mounted-charge-rejected-rt','CM08-mounted-charge-rejected-tb','CM08-unmounted-charge',
+    'CM08-ordinary-attack-controls-tb','CM08-chunk4-sustained-tb','CM08-mounted-mammoth-primary-hit-tb',
+    'CM08-sustained-rt','CM08-incoming-targeting','CM08-rider-death-cleanup','CM08-mount-death-cleanup',
+    'CM08-horse-smoke','CM08-mammoth-smoke','CM08-persistence-suite','CM08-area-restoration',
+    'CM08-disable-removal-readiness'
+)
+
+$ledger=Get-Content -Raw -LiteralPath $LedgerPath -Encoding UTF8|ConvertFrom-Json
+if([int]$ledger.schemaVersion-ne1){throw 'Unknown Chunk 6A ledger schema.'}
+$payload=$ledger.payload
+. (Join-Path $PSScriptRoot 'runtime/RuntimeHarness.Common.ps1')
+. (Join-Path $PSScriptRoot 'runtime/Chunk6aSupportingEvidence.ps1')
+. (Join-Path $PSScriptRoot 'runtime/Chunk6aPrimaryClaimEvidence.ps1')
+. (Join-Path $PSScriptRoot 'runtime/LegacyCombatProjectionEvidence.ps1')
+. (Join-Path $PSScriptRoot 'runtime/Chunk6aArtifactRowsEvidence.ps1')
+. (Join-Path $PSScriptRoot 'runtime/Chunk6aHarnessIdentity.ps1')
+. (Join-Path $PSScriptRoot 'runtime/Chunk6aFoundationEvidence.ps1')
+Assert-KmcChunk6aFrozenPayload $payload $LabRoot
+foreach($name in @('version','commit','branch','dllSha256','dllMvid','packageSha256','manifestSha256','suiteId','suiteSha256')){
+    if([string]::IsNullOrEmpty([string](Get-Field $payload $name))){throw "Chunk 6A ledger payload lacks $name."}
+}
+# ---------------------------------------------------------------------------
+# Two identities, bound separately. The product candidate: source revision and
+# source tree digest, package, manifest, DLL, suite and purity proof. The
+# qualification harness: the reader revision and the hash of every reader file.
+# A ledger is valid only under the harness that qualified it; a pure reader
+# correction re-qualifies the same immutable artifacts under a new harness
+# identity without touching the product payload. Required from preview.150.
+# ---------------------------------------------------------------------------
+# Required for every Chunk 6A candidate from preview.150; earlier Chunk 6A candidates and the
+# historical product lines (chunk2-5, paired, phase, feasibility) predate the identities and are
+# validated as before. A recorded identity is always validated when present.
+$identitiesRequired=Test-KmcChunk6aIdentitiesRequired ([string]$payload.version)
+$harness=Get-Field $ledger 'harness'
+$purity=Get-Field $payload 'purity'
+$sourceTreeDigest=[string](Get-Field $payload 'sourceTreeDigest')
+if($identitiesRequired -or $null -ne $harness){ Assert-KmcChunk6aHarnessIdentity $harness $repoRoot }
+if($identitiesRequired -or -not [string]::IsNullOrEmpty($sourceTreeDigest)){
+    if($sourceTreeDigest -cne (Get-KmcChunk6aSourceTreeDigest $repoRoot ([string]$payload.commit))){throw 'Chunk 6A ledger payload source tree digest differs from the frozen commit.'}
+}
+# A freshly frozen ledger (no PASS entry) precedes its own purity proof; every PASS entry on a
+# candidate from preview.150 requires the proof bound in the payload before the first PASS.
+$anyPass=@($ledger.entries | Where-Object { [string](Get-Field $_ 'status') -ceq 'PASS' }).Count -gt 0
+if(($identitiesRequired -and $anyPass) -or $null -ne $purity){
+    if($null -eq $purity){throw 'Chunk 6A ledger payload records no purity proof.'}
+    $purityPath=Join-Path $LabRoot ('analysis-cache/chunk6a-causal/'+[string](Get-Field $purity 'receipt'))
+    if([string](Get-Field $purity 'receipt') -cnotmatch '^[A-Za-z0-9._-]{1,120}$'){throw 'Chunk 6A purity receipt name is invalid.'}
+    $receipt=Get-KmcBoundJson $purityPath ([string](Get-Field $purity 'receiptSha256'))
+    if([string]$receipt.status -cne 'PASS' -or [string]$receipt.runId -cne [string](Get-Field $purity 'runId') -or [string]$receipt.candidateCommit -cne [string]$payload.commit -or
+       [string]$receipt.packageSha256 -cne [string]$payload.packageSha256 -or [string]$receipt.dllSha256 -cne [string]$payload.dllSha256 -or
+       [string]$receipt.suiteId -cne [string]$payload.suiteId -or [string]$receipt.suiteSha256 -cne [string]$payload.suiteSha256){throw 'Chunk 6A purity proof does not bind the frozen candidate.'}
+}
+$statuses=@('PASS','FAIL','MAPPED','NOT RUN','BLOCKED','EXCLUDED')
+$ids=@{}
+$counts=@{}
+foreach($s in $statuses){$counts[$s]=0}
+$checks=0
+$retainedChecks=0
+foreach($entry in $ledger.entries){
+    $entryId=[string](Get-Field $entry 'id')
+    if([string]::IsNullOrEmpty($entryId)-or$ids.ContainsKey($entryId)){throw 'Chunk 6A ledger entry id missing or duplicated.'}
+    $ids[$entryId]=$entry
+    $status=[string](Get-Field $entry 'status')
+    if($status-cnotin$statuses){throw "Chunk 6A ledger entry $entryId has an unknown status."}
+    $counts[$status]++
+    if([string]::IsNullOrEmpty([string](Get-Field $entry 'family'))){throw "Chunk 6A ledger entry $entryId names no CM family."}
+    if([string]::IsNullOrEmpty([string](Get-Field $entry 'claim'))){throw "Chunk 6A ledger entry $entryId states no claim."}
+}
+# Every id the ledger declares must belong to the fixed mandatory list, and every
+# mandatory id must be present: the list cannot be quietly widened or trimmed.
+foreach($id in $ids.Keys){
+    if($id-cnotin$mandatory){throw "Chunk 6A ledger declares an id outside the fixed mandatory list: $id"}
+}
+foreach($id in $mandatory){
+    if(-not$ids.ContainsKey($id)){throw "Chunk 6A ledger omits the mandatory id: $id"}
+}
+
+foreach($entry in $ledger.entries){
+    $id=[string]$entry.id
+    switch -CaseSensitive ([string]$entry.status){
+        'PASS' {
+            # The four CM08 set rows are composites over other mandatory PASS entries; they
+            # never bind a native run of their own.
+            if(Test-KmcChunk6aCompositeId $id){
+                if($null -ne (Get-Field $entry 'runId') -or $null -ne (Get-Field $entry 'evidenceBinding')){throw "Chunk 6A composite entry $id must not bind a native run of its own."}
+                Assert-KmcChunk6aCompositeEntry $id $entry $ledger $LabRoot $repoRoot
+                $checks++
+                break
+            }
+            # Bind all five restoration checks, native/overall results, transaction and suite.
+            $binding=Get-Field $entry 'evidenceBinding'
+            if($null -eq $binding) { throw "Chunk 6A PASS entry $id lacks its complete evidence binding." }
+            if($binding.runId -cne $entry.runId -or $binding.scenario -cne $entry.scenario -or
+                $binding.evidenceSha256 -cne $entry.evidenceSha256 -or
+                (ConvertTo-Json @($binding.rows) -Compress) -cne (ConvertTo-Json @($entry.rows) -Compress)) { throw 'Primary evidence binding differs from the claimed entry.' }
+            Assert-KmcChunk6aPrimaryClaim $id $binding
+            Assert-KmcSupportingRun $payload $binding $LabRoot
+            Assert-KmcIsolatedQualification $id $binding $LabRoot
+            if($id -clike 'CM07-*') { Assert-KmcChunk6aFoundationLedgerPairing $id $entry $ids $LabRoot }
+            Assert-KmcChunk6aAdditionalQualification $id $payload $binding (Get-Field $entry 'supportingRuns') $LabRoot
+            if($id -ceq 'CM07-cold-load') {
+                # The combined cold-load claim reuses evidence only where it proves the claim: its two roles are
+                # exactly the runs of the PASS cold-load entries, each already paired to its PASS source save.
+                foreach($pair in @(@('rt','CM07-mount-load-rt'),@('tb','CM07-mount-load-tb'))) {
+                    $roleBinding=@(@(Get-Field $entry 'supportingRuns') | Where-Object { [string]$_.role -ceq $pair[0] })
+                    if($roleBinding.Count -ne 1 -or -not $ids.ContainsKey($pair[1]) -or [string]$ids[$pair[1]].status -cne 'PASS' -or [string]$roleBinding[0].runId -cne [string]$ids[$pair[1]].runId){throw "Chunk 6A entry ${id}: role $($pair[0]) is not the PASS run of $($pair[1])."}
+                }
+            }
+            if($id -cin @(Get-KmcChunk6aRegressionClaims)) {
+                $regressionRoles=@(Get-KmcChunk6aRegressionRoles $id)
+                $regressionBindings=if($regressionRoles.Count -eq 1){@($binding)}else{@(Get-Field $entry 'supportingRuns')}
+                Assert-KmcChunk6aRegressionQualification $id $payload $binding $regressionBindings $LabRoot
+            }
+            if($id -cin @('CM02-adoption-plan-invalidated','CM02-adoption-compensation-releases')) {
+                $roles=@(Get-KmcChunk6aCampaignRoles $false|Where-Object name -CLike 'compensation-*')
+                Assert-KmcCompositeRuns $payload (Get-Field $entry 'supportingRuns') $roles $LabRoot
+            }
+            if($id -cin @('CM05-rt','CM05-tb','CM01-horse-tb')) {
+                $tb=$id -cne 'CM05-rt'
+                $support=Get-Field $entry 'supportingRuns'
+                Assert-KmcChunk6aCampaign $payload $support $tb $LabRoot
+                $primaryRole=if($tb){'full-tb'}else{'full-rt'}
+                if(@($support|Where-Object { $_.role -ceq $primaryRole -and $_.runId -ceq $entry.runId }).Count -ne 1) {
+                    throw 'Full-case qualification does not bind its own campaign role.'
+                }
+            }
+            $run=[string](Get-Field $entry 'runId')
+            if([string]::IsNullOrEmpty($run)){throw "Chunk 6A PASS entry $id names no run."}
+            $root=Join-Path $LabRoot ('runtime-evidence/'+$run)
+            $result=Get-Content -Raw -LiteralPath (Join-Path $root 'runtime-result.json')|ConvertFrom-Json
+            $game=Get-Content -Raw -LiteralPath (Join-Path $root 'runtime-game-result.json')|ConvertFrom-Json
+            $request=Get-Content -Raw -LiteralPath (Join-Path $root 'runtime-request.json')|ConvertFrom-Json
+            $reevaluation=Get-Field $entry 'reevaluation'
+            if($null -ne $reevaluation){
+                # Re-evaluated under the current harness: the binding carried the same record and
+                # Assert-KmcSupportingRun re-ran the complete scenario validator above.
+                $boundReevaluation=Get-Field $binding 'reevaluation'
+                if($null -eq $boundReevaluation -or (ConvertTo-Json $boundReevaluation -Depth 10 -Compress) -cne (ConvertTo-Json $reevaluation -Depth 10 -Compress)){throw "Chunk 6A entry ${id}: re-evaluation record differs from its binding."}
+                if([string](Get-Field $reevaluation 'readerDigest') -cne [string](Get-Field $harness 'readerDigest')){throw "Chunk 6A entry ${id}: re-evaluated under another harness than the ledger's."}
+                if([string]$result.runId-cne$run-or[string]$result.status-cne'FAIL'-or[string]$game.status-cne'PASS'){throw "Chunk 6A entry ${id}: run $run is not a native PASS re-evaluated from an overall reader refusal."}
+            } elseif([string]$result.runId-cne$run-or[string]$result.status-cne'PASS'-or[string]$game.status-cne'PASS'){
+                throw "Chunk 6A entry ${id}: run $run is not a PASS."
+            }
+            if([string]$result.scenario-cne[string](Get-Field $entry 'scenario')){throw "Chunk 6A entry ${id}: scenario differs from its run."}
+            if([string]$game.commit-cne$payload.commit-or[string]$game.dllSha256-cne$payload.dllSha256-or
+                [string]$game.dllMvid-cne$payload.dllMvid-or[string]$game.productVersion-cne$payload.version){
+                throw "Chunk 6A entry ${id}: run $run did not execute the frozen payload."
+            }
+            $facet=if($null -ne $reevaluation){$game}else{$result}
+            if([int]$facet.assertionPassCount-ne[int](Get-Field $entry 'passCount')-or
+                [int]$facet.assertionFailCount-ne[int](Get-Field $entry 'failCount')-or
+                [int](Get-Field $entry 'failCount')-ne0){
+                throw "Chunk 6A entry ${id}: assertion counts differ from the run."
+            }
+            if($result.modsRestored-ne$true-or$result.workingRestored-ne$true){throw "Chunk 6A entry ${id}: run $run did not restore the intake."}
+            if([string]$request.qualificationSuite.suiteId-cne$payload.suiteId-or
+                [string]$request.qualificationSuite.snapshotSha256-cne$payload.suiteSha256){
+                throw "Chunk 6A entry ${id}: run $run used another qualification suite."
+            }
+            # Each PASS entry must name the rows it claims and each must be a PASS
+            # row of that run's own evidence artifact.
+            $rows=@(Get-Field $entry 'rows')
+            if($rows.Count-lt1){throw "Chunk 6A entry ${id}: names no evidence rows."}
+            $evidenceLeaf=[string](Get-Field $entry 'evidenceLeaf')
+            if([string]::IsNullOrEmpty($evidenceLeaf)){throw "Chunk 6A entry ${id}: names no evidence artifact."}
+            $evidencePath=Join-Path $root $evidenceLeaf
+            $artifactRows=@(Get-KmcChunk6aArtifactRows $evidencePath $entry.scenario $game -PassRowsOnly)
+            foreach($rowName in $rows){
+                $matched=@($artifactRows|Where-Object{[string]$_.name-ceq[string]$rowName})
+                if($matched.Count-ne1-or[string]$matched[0].status-cne'PASS'){
+                    throw "Chunk 6A entry ${id}: evidence has no single PASS row named $rowName."
+                }
+            }
+            $evidenceSha=[string](Get-Field $entry 'evidenceSha256')
+            if([string]::IsNullOrEmpty($evidenceSha)){throw "Chunk 6A entry ${id}: the evidence artifact is not bound by hash."}
+            if((Get-Sha256 $evidencePath)-cne$evidenceSha){throw "Chunk 6A entry ${id}: evidence bytes differ."}
+            $checks++
+        }
+        'FAIL' {
+            # A FAIL is evidence too, so it is bound as strictly as a PASS: its run,
+            # its scenario, the exact payload it was OBSERVED on, and its evidence
+            # artifact by hash. The observed payload is recorded on the entry rather
+            # than read from the ledger's current payload, so a real failure stays
+            # verifiable after the candidate advances and can never be mistaken for
+            # evidence about the current one.
+            $run=[string](Get-Field $entry 'runId')
+            if([string]::IsNullOrEmpty($run)-or[string]::IsNullOrEmpty([string](Get-Field $entry 'reason'))){
+                throw "Chunk 6A FAIL entry $id needs its run and reason."
+            }
+            $root=Join-Path $LabRoot ('runtime-evidence/'+$run)
+            $result=Get-Content -Raw -LiteralPath (Join-Path $root 'runtime-result.json')|ConvertFrom-Json
+            if([string]$result.status-ceq'PASS'){throw "Chunk 6A entry $id claims FAIL for a passing run."}
+            if([string]$result.runId-cne$run){throw "Chunk 6A entry ${id}: run $run does not identify itself."}
+            if([string]$result.scenario-cne[string](Get-Field $entry 'scenario')){
+                throw "Chunk 6A entry ${id}: scenario differs from its run."
+            }
+            $observed=Get-Field $entry 'observedPayload'
+            if($null-eq$observed){throw "Chunk 6A FAIL entry ${id}: names no observed payload."}
+            $game=Get-Content -Raw -LiteralPath (Join-Path $root 'runtime-game-result.json')|ConvertFrom-Json
+            foreach($name in @('version','commit','dllSha256','dllMvid')){
+                if([string]::IsNullOrEmpty([string](Get-Field $observed $name))){
+                    throw "Chunk 6A FAIL entry ${id}: observed payload lacks $name."
+                }
+            }
+            if([string]$game.commit-cne[string](Get-Field $observed 'commit')-or
+                [string]$game.dllSha256-cne[string](Get-Field $observed 'dllSha256')-or
+                [string]$game.dllMvid-cne[string](Get-Field $observed 'dllMvid')-or
+                [string]$game.productVersion-cne[string](Get-Field $observed 'version')){
+                throw "Chunk 6A entry ${id}: run $run did not execute its recorded observed payload."
+            }
+            $evidenceLeaf=[string](Get-Field $entry 'evidenceLeaf')
+            $evidenceSha=[string](Get-Field $entry 'evidenceSha256')
+            if([string]::IsNullOrEmpty($evidenceLeaf)-or[string]::IsNullOrEmpty($evidenceSha)){
+                throw "Chunk 6A FAIL entry ${id}: its evidence artifact is not bound by hash."
+            }
+            $evidencePath=Join-Path $root $evidenceLeaf
+            if(-not(Test-Path -LiteralPath $evidencePath)){throw "Chunk 6A entry ${id}: evidence artifact is missing."}
+            if((Get-Sha256 $evidencePath)-cne$evidenceSha){throw "Chunk 6A entry ${id}: evidence bytes differ."}
+            # An overall FAIL result is not evidence for THIS behavior. The entry must
+            # name the exact failing row inside that artifact, that row must itself be
+            # FAIL with at least one failed assertion, and the entry's recorded failing
+            # assertion must appear verbatim in that row's own errors.
+            $failingRow=[string](Get-Field $entry 'failingRow')
+            $failingAssertion=[string](Get-Field $entry 'failingAssertion')
+            if([string]::IsNullOrEmpty($failingRow)-or[string]::IsNullOrEmpty($failingAssertion)){
+                throw "Chunk 6A FAIL entry ${id}: names no exact failing row and assertion."
+            }
+            $candidateRows=@(Get-KmcChunk6aArtifactRows $evidencePath $entry.scenario $game)
+            $matchedRows=@($candidateRows|Where-Object{[string]$_.name-ceq$failingRow})
+            if($matchedRows.Count-ne1){
+                throw "Chunk 6A entry ${id}: evidence has no single row named $failingRow."
+            }
+            if([string]$matchedRows[0].status-cne'FAIL'){
+                throw "Chunk 6A entry ${id}: row $failingRow is not FAIL in its own evidence."
+            }
+            if([int](Get-Field $matchedRows[0] 'assertionFailCount')-lt1){
+                throw "Chunk 6A entry ${id}: row $failingRow records no failed assertion."
+            }
+            $rowErrors=@(Get-Field $matchedRows[0] 'errors')
+            if(-not (Test-KmcLiteralAssertion $failingAssertion $rowErrors)){
+                throw "Chunk 6A entry ${id}: row $failingRow does not contain the recorded failing assertion."
+            }
+            # The reason must attribute the failure to this behavior by naming its id.
+            if([string](Get-Field $entry 'reason')-cnotlike ('*'+$id+'*')){
+                throw "Chunk 6A FAIL entry ${id}: its reason does not attribute the failure to this behavior."
+            }
+            $checks++
+        }
+        'MAPPED' {
+            $targets=@(Get-Field $entry 'mappedTo')
+            if($targets.Count-lt1-or[string]::IsNullOrEmpty([string](Get-Field $entry 'justification'))){
+                throw "Chunk 6A MAPPED entry $id needs targets and a justification."
+            }
+            foreach($target in $targets){
+                if(-not$ids.ContainsKey([string]$target)-or[string]$ids[[string]$target].status-cne'PASS'){
+                    throw "Chunk 6A MAPPED entry $id points at a non-PASS entry $target."
+                }
+            }
+            $checks++
+        }
+        default {
+            if([string]::IsNullOrEmpty([string](Get-Field $entry 'reason'))){throw "Chunk 6A $($entry.status) entry $id needs a reason."}
+            $checks++
+        }
+    }
+    # A composite member set can only be claimed through its composite id.
+    if([string]$entry.status -cne 'PASS' -and $null -ne (Get-Field $entry 'compositeOf')){throw "Chunk 6A entry $id declares composite members without a composite PASS."}
+}
+foreach($set in @(Get-KmcChunk6aCompositeSets)){
+    if(-not $ids.ContainsKey($set.id)){throw "Chunk 6A ledger omits the composite id $($set.id)."}
+    foreach($member in $set.members){ if($member -cnotin $mandatory){throw "Composite $($set.id) names a non-mandatory member $member."} }
+}
+
+
+# ---------------------------------------------------------------------------
+# Retained failures. A behavior that really failed on a real payload stays
+# failed for that payload forever. When a later candidate passes the same
+# behavior the live entry flips to PASS on the new frozen payload, and the
+# historical failure must survive that flip untouched -- otherwise the repair
+# quietly rewrites the record of what happened. This list is fixed in the
+# validator exactly like the mandatory id list, so a retained failure cannot be
+# dropped by editing the ledger.
+# ---------------------------------------------------------------------------
+$requiredRetainedFailures=@(
+    @{ id='CM01-exploration-free'; runId='c6a-mount-rt-1'; scenario='chunk6a-combat-mount-rt';
+       commit='88328a31ff1636c68a65bdfb4bcffaf3072649a6'; qualifier='chunk6a-campaign-c' }
+)
+foreach($id in @('CM01-exploration-free','CM02-adoption-plan-invalidated','CM02-approach-arrival')) {
+    $requiredRetainedFailures += @{id=$id;runId='c6a-approach-1';scenario='chunk6a-mount-approach';commit='efd24ec70df1b1b382d2f3c9ce66c62c18cd0fc2';qualifier=''}
+}
+$retainedField=Get-Field $ledger 'retainedFailures'
+if($null-eq$retainedField){throw 'Chunk 6A ledger has no retainedFailures collection; a real failure must survive a later PASS.'}
+$retained=@($retainedField)
+$retainedById=@{}
+foreach($record in $retained){
+    $recordId=[string](Get-Field $record 'id')
+    $recordRun=[string](Get-Field $record 'runId')
+    if([string]::IsNullOrEmpty($recordId)-or[string]::IsNullOrEmpty($recordRun)){
+        throw 'Chunk 6A retained failure names no id and run.'
+    }
+    $key=$recordId+'|'+$recordRun
+    if($retainedById.ContainsKey($key)){throw "Chunk 6A retained failures repeat ${key}."}
+    $retainedById[$key]=$record
+    if([string](Get-Field $record 'status')-cne'FAIL'){
+        throw "Chunk 6A retained failure ${key} is not recorded as a FAIL."
+    }
+    # A retained failure is bound exactly as strictly as a live FAIL entry: its own
+    # run, its scenario, the payload it was OBSERVED on, its evidence artifact by
+    # hash, the exact failing row, and that row's own recorded assertion text.
+    $recordRoot=Join-Path $LabRoot ('runtime-evidence/'+$recordRun)
+    $recordResult=Get-Content -Raw -LiteralPath (Join-Path $recordRoot 'runtime-result.json')|ConvertFrom-Json
+    if([string]$recordResult.status-ceq'PASS'){throw "Chunk 6A retained failure ${key} points at a passing run."}
+    if([string]$recordResult.runId-cne$recordRun){throw "Chunk 6A retained failure ${key}: the run does not identify itself."}
+    if([string]$recordResult.scenario-cne[string](Get-Field $record 'scenario')){
+        throw "Chunk 6A retained failure ${key}: scenario differs from its run."
+    }
+    $recordObserved=Get-Field $record 'observedPayload'
+    if($null-eq$recordObserved){throw "Chunk 6A retained failure ${key}: names no observed payload."}
+    $recordGame=Get-Content -Raw -LiteralPath (Join-Path $recordRoot 'runtime-game-result.json')|ConvertFrom-Json
+    foreach($name in @('version','commit','dllSha256','dllMvid')){
+        if([string]::IsNullOrEmpty([string](Get-Field $recordObserved $name))){
+            throw "Chunk 6A retained failure ${key}: observed payload lacks $name."
+        }
+    }
+    if([string]$recordGame.commit-cne[string](Get-Field $recordObserved 'commit')-or
+        [string]$recordGame.dllSha256-cne[string](Get-Field $recordObserved 'dllSha256')-or
+        [string]$recordGame.dllMvid-cne[string](Get-Field $recordObserved 'dllMvid')-or
+        [string]$recordGame.productVersion-cne[string](Get-Field $recordObserved 'version')){
+        throw "Chunk 6A retained failure ${key}: the run did not execute its recorded observed payload."
+    }
+    $recordLeaf=[string](Get-Field $record 'evidenceLeaf')
+    $recordSha=[string](Get-Field $record 'evidenceSha256')
+    if([string]::IsNullOrEmpty($recordLeaf)-or[string]::IsNullOrEmpty($recordSha)){
+        throw "Chunk 6A retained failure ${key}: its evidence artifact is not bound by hash."
+    }
+    $recordEvidence=Join-Path $recordRoot $recordLeaf
+    if(-not(Test-Path -LiteralPath $recordEvidence)){throw "Chunk 6A retained failure ${key}: evidence artifact is missing."}
+    if((Get-Sha256 $recordEvidence)-cne$recordSha){throw "Chunk 6A retained failure ${key}: evidence bytes differ."}
+    $recordFailingRow=[string](Get-Field $record 'failingRow')
+    $recordFailingAssertion=[string](Get-Field $record 'failingAssertion')
+    if([string]::IsNullOrEmpty($recordFailingRow)-or[string]::IsNullOrEmpty($recordFailingAssertion)){
+        throw "Chunk 6A retained failure ${key}: names no exact failing row and assertion."
+    }
+    $recordCandidateRows=@(Get-KmcChunk6aArtifactRows $recordEvidence $record.scenario $recordGame)
+    $recordMatched=@($recordCandidateRows|Where-Object{[string]$_.name-ceq$recordFailingRow})
+    if($recordMatched.Count-ne1){throw "Chunk 6A retained failure ${key}: evidence has no single row named $recordFailingRow."}
+    if([string]$recordMatched[0].status-cne'FAIL'){
+        throw "Chunk 6A retained failure ${key}: row $recordFailingRow is not FAIL in its own evidence."
+    }
+    if([int](Get-Field $recordMatched[0] 'assertionFailCount')-lt1){
+        throw "Chunk 6A retained failure ${key}: row $recordFailingRow records no failed assertion."
+    }
+    $recordRowErrors=@(Get-Field $recordMatched[0] 'errors')
+    if(-not (Test-KmcLiteralAssertion $recordFailingAssertion $recordRowErrors)){
+        throw "Chunk 6A retained failure ${key}: row $recordFailingRow does not contain the recorded failing assertion."
+    }
+    if([string](Get-Field $record 'reason')-cnotlike ('*'+$recordId+'*')){
+        throw "Chunk 6A retained failure ${key}: its reason does not attribute the failure to that behavior."
+    }
+    if([string]::IsNullOrEmpty([string](Get-Field $record 'retention'))){
+        throw "Chunk 6A retained failure ${key}: does not state that it is retained immutably."
+    }
+    if(-not$ids.ContainsKey($recordId)){
+        throw "Chunk 6A retained failure ${key}: names a behavior that is not on the mandatory list."
+    }
+    $retainedChecks++
+}
+foreach($required in $requiredRetainedFailures){
+    $key=[string]$required.id+'|'+[string]$required.runId
+    if(-not$retainedById.ContainsKey($key)){
+        throw ("Chunk 6A ledger dropped the retained failure ${key}; a real failure may never be erased by a later PASS.")
+    }
+    $record=$retainedById[$key]
+    if([string](Get-Field $record 'scenario')-cne[string]$required.scenario-or
+        [string](Get-Field (Get-Field $record 'observedPayload') 'commit')-cne[string]$required.commit-or
+        [string](Get-Field (Get-Field $record 'observedPayload') 'qualifier')-cne[string]$required.qualifier){
+        throw ("Chunk 6A retained failure ${key} was rewritten: its scenario, observed commit or qualifier changed.")
+    }
+}
+# Every behavior that is currently FAIL must also be retained, so the record exists
+# before any later candidate can flip the live entry to PASS.
+foreach($entry in $ledger.entries){
+    if([string]$entry.status-cne'FAIL'){continue}
+    $key=[string]$entry.id+'|'+[string](Get-Field $entry 'runId')
+    if(-not$retainedById.ContainsKey($key)){
+        throw ("Chunk 6A live FAIL ${key} is not in retainedFailures; it would vanish when the entry flips to PASS.")
+    }
+}
+Write-Host ("CHUNK6A RETAINED FAILURES="+$retained.Count+" bound=$retainedChecks (immutable; a later PASS never erases one)")
+Write-Host ("CHUNK6A LEDGER payload="+$payload.version+" commit="+$payload.commit+" entries="+@($ledger.entries).Count+
+    " PASS="+$counts['PASS']+" FAIL="+$counts['FAIL']+" MAPPED="+$counts['MAPPED']+" NOTRUN="+$counts['NOT RUN']+
+    " BLOCKED="+$counts['BLOCKED']+" EXCLUDED="+$counts['EXCLUDED'])
+Write-Host ("LEDGER RECORD CHECKS PASS=$checks FAIL=0 (record consistency only; this is not the completion gate)")
+if($Completion){
+    $open=@()
+    foreach($id in $mandatory){
+        $entry=$ids[$id]
+        if([string]$entry.status-ceq'PASS'){continue}
+        $decision=[string](Get-Field $entry 'ownerDecision')
+        if([string]$entry.status-cin @('EXCLUDED','MAPPED')-and-not[string]::IsNullOrEmpty($decision)){continue}
+        $open+=("${id}: "+$entry.status)
+    }
+    if($open.Count-ne0){
+        Write-Host ("CHUNK6A COMPLETION GATE FAIL: "+$open.Count+" of "+$mandatory.Count+
+            " mandatory behaviors are not PASS on the frozen payload")
+        foreach($line in $open){Write-Host ("  OPEN "+$line)}
+        exit 1
+    }
+    Write-Host ("CHUNK6A COMPLETION GATE PASS: all "+$mandatory.Count+" mandatory behaviors PASS on "+$payload.version)
+}

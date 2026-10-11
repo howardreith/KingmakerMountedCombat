@@ -103,6 +103,47 @@ namespace KingmakerMountedCombat.Domain
             return restored;
         }
 
+        // Mid-encounter adoption. The principal's native turn is ALREADY running
+        // and its native preparation already happened at its own initiative slot,
+        // before this pair existed. Adoption records ownership of that boundary
+        // through bookkeeping only: it calls no native method, clears no debt and
+        // moves no future action earlier. The partner disposition decides whether
+        // the caller must still perform the partner's ONE native preparation.
+        public bool AdoptRunningBoundary(TBoundary boundary, MidEncounterAdoption partner)
+        {
+            if (boundary == null || Split || Suspended || Ending || Finalized || Sequence > 0 ||
+                Boundary != null || boundaries.Contains(boundary)) return false;
+            if (partner != MidEncounterAdoption.PreparePartnerThisRound &&
+                partner != MidEncounterAdoption.RetainPartnerParticipation) return false;
+            boundaries.Add(boundary);
+            Boundary = boundary;
+            Sequence++;
+            Rider = new ActorState { Actor = Principal, Granted = true, Prepared = true };
+            Mount = new ActorState { Actor = Partner };
+            if (partner == MidEncounterAdoption.RetainPartnerParticipation)
+            {
+                // The partner's own native slot in this round is already behind
+                // the principal's running turn, so its participation in this
+                // allocation is over. It is recorded as granted, prepared AND
+                // ENDED: granted and prepared because its native slot really did
+                // happen, ended because an allocation it has already taken must
+                // not become addressable again on the principal's boundary.
+                //
+                // Ended closes CanAddress, and with it partner selection, paired
+                // native command admission and paired movement, while leaving
+                // OwnsRoundEffects true so native timers due at this boundary
+                // still belong to it. Its observed native Standard, Move and
+                // Swift debt is recorded by the caller's own observation and is
+                // never cleared here; no native cooldown is written at all. The
+                // partner becomes eligible again only through Kingmaker's next
+                // lawful allocation, which is its own slot in a later round.
+                Mount.Granted = true;
+                Mount.Prepared = true;
+                Mount.Ended = true;
+            }
+            return true;
+        }
+
         public bool Begin(TBoundary boundary)
         {
             if (boundary == null || Split || boundaries.Contains(boundary)) return false;

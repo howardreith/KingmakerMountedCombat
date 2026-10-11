@@ -1,3 +1,118 @@
+## 2026-10-06: exceptional native charge action ownership (preview182)
+
+Pinned Kingmaker SHA3b6450ffec440e296e586f71c711b195aed144b28d53e1cbb29406d18fef5afb,
+MVID07fa1e4d-8618-41b3-9b8d-faa17d3b26f7. UnitUseAbility.OnAction06002737
+has three inner finally handlers and no catch. Rulebook.Trigger<RuleCastSpell>
+2B0004A1 at01CB precedes rule process getter06007431 at01DF and shell setter
+06002715 at01E4. Rule.Context04004C00 identifies registration even if the rule
+or shell result was not assigned. AbilityExecutionController.Execute06008FCA
+constructs06008FD5, adds to m_Abilities04005D50 and immediately returns.
+The constructor captures context04005D53 and creates an iterator, without
+advancing it. IsEnded06008FD1 reads04005D52; Context06008FD3 is pure storage.
+
+UnitCommand.Tick060027A7 calls OnAction0175, stores Result017A, sets IsActed0181.
+UnitActionController.TickCommand0600911E charges the false-to-true transition
+through UpdateCooldowns06009120 at00C5. Exceptions inside OnAction therefore
+precede commitment. Do not call them post-commit faults or manufacture cost.
+The post-queue diagnostic fault remains a distinct post-commit experiment.
+
+Narrow seam: retain one original charge owner through an exception-safe outer
+finally around the unchanged native action body and exact native rule call.
+Read original executor/context processes on completion and bounded cleanup;
+unobservable work retains debt. Never tick, end or serialize an owned process.
+Harmony12 has no exception finalizer. The normal relationship-binding postfix
+is preserved. Actual compiled native exception/early-return and native Execute
+behavior are tested offline; native gameplay qualification remains pending.
+Proprietary bounded IL stays in lab analysis-cache/chunk6-continuation/20261005-6br/
+native-action-exit181-1.txt, native-rule-registration182-1.txt,
+native-process-acquisition182-1.txt and native-action-commit182-2.txt.
+
+# 2026-10-06 preview181: native mode refresh, manual intent and loaded view fixture
+
+Pinned native MVID07fa1e4d-8618-41b3-9b8d-faa17d3b26f7 is unchanged.
+CombatController.Activate06000BD4 refreshes HandleTurnBasedModeStateChanged06000BF5
+with the current setting. Enable06000BE9/Disable06000BEA return at IL0008 when
+m_Enabled04000649 matches.181 preserves that no-op; actual compiled prefix/native
+body/postfix tests cover both values with retained ownership and no cleanup or
+lifecycle notification. Real changes retain the existing ownership barrier.
+
+Charge assigned native ManualTarget without cleanup ownership.180's relationship
+invalidation drained Charge then recorded four ordinary AI attacks at that retained
+target.181 retains the original native combat state before assigning its intent
+and releases only the exact target through the durable owner. Native accessors
+06009381/82 directly read/write04005EA0 without action/turn side effects. Failed
+release blocks save, retry drains the original state, foreign targets are preserved.
+
+BeastShapeIBuff00d8fbe9cf61dc24298be8d95500c84b has five authored components.
+Installed COTW MVID8caab254-aacf-4811-8093-44b9184e6e53 CleanUp060004B3 adds eight
+native SpecificBuffImmunity listeners to every polymorph buff (predicate0600228A).
+The fixture now pins thirteen components and all eight immunity GUIDs. Native
+04001A01 names the immune buff;060025F9/FA only observe rules. Restoration still
+requires every retained listener absent, both replaced views retired and all
+baseline effects unchanged. Bounded read-only identities/IL and original180 failures
+remain in lab analysis-cache/chunk6-continuation/20261005-6br/. Native181 is pending.
+
+## 2026-10-06 - exact native fact acquisition dispatch
+
+Same pinned Kingmaker SHA2563b6450ffec440e296e586f71c711b195aed144b28d53e1cbb29406d18fef5afb,
+MVID07fa1e4d-8618-41b3-9b8d-faa17d3b26f7. AddBuffInternal060029F7 and
+AddEnchantment060099B8 call OwnedFactCollection<T>.AddFact060096AE nonvirtually
+on closed owner types UnitDescriptor/ItemEntity. That base retains native insertion
+and gain events. Derived overrides060029F8/060099B9 route back to AddBuff/AddEnchantment;
+a virtual call recursively reenters the wrapped acquisition.180 preserves the exact
+base dispatch with a typed nonvirtual bridge. Detached behavior executes the real
+owned-collection body, intercepting only external insertion/derived reentry:55/0.
+The regression fails on179. Native repair qualification remains pending.
+
+## 2026-10-05 - preview.176 continuation audit
+
+At product40c40e4510c93c7c41d7656a870ccbffa34dd849, installed Kingmaker assembly SHA256
+3b6450ffec440e296e586f71c711b195aed144b28d53e1cbb29406d18fef5afb/MVID07fa1e4d-8618-41b3-9b8d-faa17d3b26f7:
+the native UnitCommand.IsFinished getter was verified to be one Boolean-field read. A detached probe
+exercised the actual product ChargeTransactionDelegating getter, all six fact combinations, missing lease,
+five/seven-argument delegation and Acting-only relationship policy, with no field residue:365/0.
+Existing exact persistence assembly/storage contracts180/0 pass; they do not prove pending-charge
+cleanup ordering. No new native hook was added or certified.
+
+**BLOCKED — CRITICAL for pending-charge persistence:** active SavePrefix bypasses legacy save cleanup;
+BeforeNativeHeader raises an event with no production charge-cleanup subscriber before Capture. Custom
+schema absence cannot prove native buff/command exclusion. Ordinary Cancel/terminal sweep lacks complete
+cleanup-debt ownership/drain, and Dismount catches subscriber failures. Preserve the lease ledger and
+native force-mode latch semantics. Exact source/native findings and next contract work are in
+[the audit](../docs/CHUNK6B-PREVIEW176-CONTINUATION-AUDIT.md). No pending-charge write or new TB experiment.
+
+## Chunk 6A combat Mount/Dismount seams - 2026-09-25
+
+ASSEMBLY CONTRACT, not native causation proof. Exact installed `Assembly-CSharp.dll` SHA-256 `3b6450ffec440e296e586f71c711b195aed144b28d53e1cbb29406d18fef5afb`, MVID `07fa1e4d-8618-41b3-9b8d-faa17d3b26f7`, read with the installed UMM `dnlib`; no Wrath reference and no decompiled source is committed.
+
+**Cost ownership and its exact commitment point.** `UnitActionController.TickCommand` `0x0600911E` is the sole commitment site. At `IL_00AD`-`IL_00C5` it pushes `UnitCommand.IsActed` `0x06002763`, calls `UnitCommand.Tick` `0x060027A7`, and calls `UnitActionController.UpdateCooldowns` `0x06009120` only on the false-to-true transition, and only while `IsRunning` `0x06002762`. `UnitCommand.Tick` assigns `Result = OnAction()` and `IsActed = true` at `IL_0173`-`IL_0181`, so commitment is the acted transition. `UnitCommand.TickApproaching` `0x060027A6` runs earlier in the same method at `IL_0077`, before `ShouldStartCommand` `0x0600911F` and `Start` `0x060027A5`, so approach precedes commitment. `UnitUseAbility.OnAction` `0x06002737` triggers `RuleCastSpell` and stores the `AbilityExecutionProcess` (`set_ExecutionProcess` `0x06002715`); the custom `Deliver` that owns KMC's relationship transition runs from that process on later frames, strictly after commitment.
+
+| Branch of `UpdateCooldowns` `0x06009120` | Exact effect |
+|---|---|
+| `CombatController.IsInTurnBasedCombat()` `0x06000BF6` and `Executor.IsInCombat` `0x060082F1` | delegates to `UnitEntityData.UpdateCooldowns` `0x0600838F`: **additive** `Move` +3 via `Cooldowns.set_MoveAction` `0x0600C3B9`, `Standard` +6 via `0x0600C3B7` plus +3 Move when `UnitCommandExtensions.IsFullRoundAction` `0x06000BA2`, `Swift` +6 via `0x0600C3BB`, `Free` nothing |
+| real time, in combat, `IsIgnoreCooldown` `0x06002772` false | **absolute** assignment: `Move` and `Free` both set `MoveAction = 3 - TimeSinceStart` `0x06002793`; `Standard` sets 6 minus elapsed; `Swift` sets 6 minus elapsed |
+| `Executor.IsInCombat` false | returns without writing: the out-of-combat transition is free by native rule, not by a KMC exception |
+| real time and `IsIgnoreCooldown` true | returns without writing |
+
+`CommandType` `0x02001A79` is `Free` `0x040078A6` = 0, `Standard` `0x040078A7` = 1, `Swift` `0x040078A8` = 2, `Move` `0x040078A9` = 3, which is why the real-time branch's switch maps index 0 and index 3 to the same Move assignment. `UnitEntityData.HasMoveAction` `0x0600837F` is `UsedStandardAction() ? !UsedOneMoveAction() : !UsedTwoMoveAction()`, with `UsedStandardAction` `0x06008381`, `UsedOneMoveAction` `0x06008382` (`MoveAction > 0 || IsMoveActionRestricted()` `0x06008384`) and `UsedTwoMoveAction` `0x06008383` (`MoveAction > (restricted ? 0 : 3)`).
+
+**The per-round grant, and why no transition may call it.** `TurnController.Prepare` `0x06000C3C` calls `InterruptCommands` `0x06000C62`, `AiBrainController.ForceTick` `0x06009406`, then `Cooldowns.Clear` `0x0600C3BE` at `IL_0032`; it reapplies cooldowns only for still-live commands through `0x0600838F`, resets `AttackOfOpportunityCount` `0x06009378` to `AttackOfOpportunityPerRound` `0x06009389`, clears `DisengageAttackTargets` `0x04005E93`, calls `UnitCombatState.OnNewRound` `0x0600939D`, raises `IUnitNewCombatRoundHandler`, calls `CombatAiData.TickRound` `0x06001E0B`, ticks every `ITickEachRound` fact component, runs a fresh `UnitConfusionController`, and finally sets `Status` `0x06000C0F`. A second call for the same actor in the same round would refund all spent debt and replay round effects.
+
+**Round structure and the transition-round observable.** `CombatController.ChooseNextUnit` `0x06000BD2` is a positional round-robin over `m_Units` `0x0400064F`: it takes the index of `CurrentTurn?.Unit ?? m_NextUnit` through `<ChooseNextUnit>b__63_0` `0x06000C03`, walks forward with wraparound, and calls `StartRound` `0x06000BD3` exactly at the wrap point. It skips a candidate whose `TBUnitInfo.Surprised` `0x04007069` is set, whose `ActingInSurpriseRound` `0x0400706F` is set without `HasOffensiveCommand` `0x06008389`, or which is not an enemy and not `IsVisibleForPlayer` `0x06007E97`. `StartRound` clears the surprise flags and `InitiativeOverride` `0x0400706A`, calls `SortUnits` `0x06000BDD`, sets `TimeToNextRound` `0x06000BCE` to 6 and increments `RoundNumber` `0x06000BC9`; `Tick` `0x06000BD1` consumes `m_IsUnitsChanged` `0x0400064D` without re-sorting. Within a round the order is therefore stable except for `HandleDelayTurn` `0x06000BE8`, so a roster position before the running principal has already taken its slot and a position after it has not.
+
+**No native mid-encounter roster hook exists.** `HandleCombatStart` `0x06000BE2` is called only from `Reset` `0x06000BDB`, which is called only from `Enable` `0x06000BE9`, `Disable` `0x06000BEA` and `HandlePartyCombatStateChanged` `0x06000BED`. Mid-round pair creation therefore uses KMC's own explicit adoption boundary rather than re-entering encounter start. `CombatController.FindUnitInfo` `0x06000BBB` and `SortedUnits` `0x06000BC7` supply the read-only roster observables that adoption needs; `IsActingSurpriseCommands` `0x06000BD9` supplies the partner context's surprise flag as the accepted pre-combat path already does.
+
+**The availability predicate is load-bearing inside the running command.** `UnitUseAbility.OnAction` `0x06002737` returns a failed result at `IL_0008`-`IL_001C` when `AbilityData.IsAvailable` `0x06002B48` is false and `ForceCastOnBadTarget` `0x06002713` is not set, and `UnitActionController.TickCommandTurnBased` `0x0600911D` interrupts an **unstarted** command at `IL_00C9` when `IsAvailableForCast` `0x06002B49` is false, but skips that whole block once `IsStarted` `0x0600275C` is true (`IL_007B`-`IL_0081`). A KMC availability provider must therefore stay true for its own running shell: the admitted-shell context exists for exactly that reason, and no new availability gate may make a committed shell fail its own action. `UnitUseAbility.CanStart` `0x06002724` consults only the Kineticist burn component and never availability.
+
+### Bounded seams recorded for the later Chunk 6 missions
+
+| Later mission | Exact member | Why it is recorded now |
+|---|---|---|
+| 6B mounted Charge | `AbilityCustomCharge` type `0x02000598`: `CanTarget` `0x06002BBD`, `Deliver` `0x06002BB6`, `RuntimeRoutine` `0x06002BB8`, `TurnBasesRoutine` `0x06002BB7`, `IsEngageUnit` `0x06002BB5`, `GetMinRangeMeters` `0x06002BBA`/`0x06002BBB`, `GetMaxRangeMeters` `0x06002BBC` | Charge owns a forced path plus a queued native `UnitAttack` and stamps `RuleAttackWithWeapon.IsCharge` `0x06007186`; 6B must give the mount the path and the queued attack while the rider keeps the Standard action |
+| 6C mounted casting and items | `UnitUseAbility` shell with the spell's own `ActionType`; `AbilityData.Spend` `0x06002B60`; `ItemEntity.IsSpendCharges` `0x06007B4B`; `MakeConcentrationCheckIfCastingIsDifficult` `0x0600273A`; `TryCastingDefensively` `0x0600273B`; `DontWaitForHands` `0x06002720`; `AbilityExecutionProcess.IsEnded` `0x06008FD1` | Cost stays native per action type; the open question is concentration and hand readiness while the mount is the physical mover |
+| 6D staged moving actions | `TurnController.GetRemainingMovementRange` `0x06000C59`, `GetRemainingMovementTime` `0x06000C5A`, `GetRemainingActionMovementRangeFeet` `0x06000C58`, `HasMovement` `0x06000C52`, `HasNormalMovement` `0x06000C51`, `EnabledSingleActionMove` `0x06000C1C`, `TimeMoved` `0x06000C13`/`0x06000C14`, `m_AutoStopAfterFirstMoveAction` `0x04000687` | The partner context's movement time must carry between legs without a second grant, and automatic completion must not end the rider-led boundary between them |
+| 6E Mounted Combat feat | `RuleAttackWithWeapon` type `0x02000D4C`: `AttackRoll` `0x06007197`, `IsCharge` `0x06007185`, `OnTrigger` `0x0600719D`, `CreateRuleDealDamage` `0x060071A1`; `Cooldowns.SwiftAction` `0x0600C3BA`/`0x0600C3BB`; `UnitAttackOfOpportunity` type `0x02000502` | The pre-consequence attack-result seam and the only native out-of-turn player command; 6E must establish whether a Swift-typed command can be admitted out of turn at all |
+
 ## Chunk 4 native ground-arrival observations - 2026-09-20
 
 ASSEMBLY CONTRACT, not native causation proof. Exact Kingmaker SHA/MVID below remains unchanged. Read-only `UnitMovementAgent` fields: next index `04001193`/Int32, next waypoint `04001196`/Vector2, first tick `040011AD`/Boolean, roaming `04001192`/Boolean, next velocity `040011B7`/Vector3 and stuck timer `040011A1`/Single. `ObstacleAnalyzer` public static Boolean fields are navmesh obstacles `040010ED` and direction blocked by static geometry `040010EB`; their shared scratch values are attributable to an actor only inside that actor's native movement tick. Eight exact field/type/static contracts PASS. No new production hook or Wrath reference.
@@ -297,3 +412,134 @@ P06 combat-missing/combat-ai are bounded offline metadata-only copies of an exac
 Exact installed native MVID07fa1e4d-8618-41b3-9b8d-faa17d3b26f7: Game.LoadArea(BlueprintArea area, BlueprintAreaEnterPoint enterPoint, AutoSaveMode autoSaveMode, bool forceUnload, SaveInfo saveInfo)06000CD5. Its queue places before-exit SaveRoutine06008029 before unload, OnAreaLoaded06000CD7 after spawner initialization, after-entry SaveRoutine before AreaLoadingComplete06000CD8. OnAreaLoaded completes CurrentScene.Activate06007E66, Player.OnAreaLoaded06000DD1 and UnitsPlacer.MovePartyToNavmesh06001906 in that order. The postfix can restore current-area attachments before after-entry serialization; a final area-ready callback alone is too late. ReloadArea06000CD6 delegates this real native path.
 
 Area carry stores bounded semantic IDs/profile/slots and a weak exact-world identity, never old views/commands or persisted CLR objects. IScene unload suspends/relinquishes owned controls and attachments with no End/preparation/resource writes. Newly placed native actors must resolve uniquely and pass ordinary supported-profile/life/control/size ownership validation before a dedicated restore. Save load invalidates this in-process area transfer; unsupported or invalid transitions remain native and unmounted without refund. Native mode enum has None, not Loading. Build/source22/components438/contracts110/owned-fixtures213 PASS; real area reload and cross-area/autosave behavior are not qualified by these assembly checks.
+
+### Chunk 6A exact request observation ? 2026-09-27T03:42:13.876Z
+
+Kingmaker MVID 07fa1e4d-8618-41b3-9b8d-faa17d3b26f7 remains the authority. Native UnitCommand.Tick 0x060027A7 supplies the actual IsActed false-to-true boundary; TickApproaching 0x060027A6 supplies approach entry. UnitActionController.UpdateCooldowns 0x06009120 and nested UnitEntityData.UpdateCooldowns 0x0600838F remain sole native cost observations. Read-only inspection confirms Kingmaker.Controllers.AbilityExecutionProcess.Tick 0x06008FD6 is instance void Tick(), with IsEnded 0x06008FD1 and Context 0x06008FD3. Its postfix captures terminal command/process state before later idle frames. KMC shell Init, OnAction process binding and exact-context dispatch boundaries are observed through service hooks, without modifying arguments/results. Reference equality binds all samples to one immutable identity; process/context absence before OnAction is recorded honestly and resolved only against that same command. No callback enumerates or advances a coroutine. Snapshot windows retire before cleanup, and observation patches unsubscribe/unpatch on disposal. Signature/desktop wrapper checks are offline evidence only; two wrappers require Unity ECalls, and all callback ordering remains a mandatory native gate.
+
+## 2026-09-27 reaction-resource observation contract
+
+Pinned Kingmaker Assembly-CSharp SHA-256 3b6450ffec440e296e586f71c711b195aed144b28d53e1cbb29406d18fef5afb, MVID 07fa1e4d-8618-41b3-9b8d-faa17d3b26f7. Bounded local inspections are in analysis-cache/chunk6a-causal (UnitCombatState, UnitCombatCooldownsController and TurnController); no proprietary implementation is committed.
+
+- Discrete allowance: UnitCombatState.AttackOfOpportunityCount, getter/setter 0x06009377/0x06009378. It does not decay with time. Native AttackOfOpportunity 0x060093A1 can consume one; on the first reaction of an allocation it sets Cooldowns.AttackOfOpportunity to approximately 5.4 seconds. The conservation windows declare no permitted opportunity consumption, including consumption later hidden by a refresh.
+- AoO cooldown: Cooldowns.AttackOfOpportunity, getter/setter 0x0600C3BC/0x0600C3BD. UnitCombatCooldownsController.TickOnUnit 0x0600934A owns normal RT decay. If waiting for initiative, the tick decreases only the initiative cooldown. Otherwise it decreases the AoO cooldown and, at zero, restores the allowance to AttackOfOpportunityPerRound only when the maximum is positive and the old allowance is no larger than that maximum.
+- TB tick branch 0x06009349: active combat ticks do nothing except during native passing time. Passing first consumes a nonsurprised unit's positive initiative delay, then decays the other timers with the remaining delta. It does not replenish the discrete reaction allowance. Out-of-combat units take the RT branch only while passing.
+- Initiative ordering is UnitCombatState.Initiative (integer getter 0x06009379), distinct from Cooldowns.Initiative (float getter 0x0600C3B4). Ordering must remain exact throughout every measured window. A cooldown change requires the observed native tick or declared preparation; elapsed wall time alone is insufficient.
+- Cooldowns.Clear 0x0600C3BE clears both cooldowns but leaves the discrete allowance and ordering intact. TurnController.Prepare 0x06000C3C performs that clear, then conditionally restores the discrete allowance using the same positive-maximum/old-allowance condition. Only the declared pending partner preparation is permitted; no rider preparation is allowed.
+
+Schema 30 retains the accepted command, selection and exploration structure. The allocation trace observes exact tick and opportunity entry/exit only during a command window. Producer and external validator replay ordered native event pairs and command-boundary samples for both actors. Missing callback ends, unexplained intermediate changes, consumption/refund/refresh without an allowed event, changed ordering and undeclared clears/preparations fail. Native event clock/phase metadata is evidence, never authority to write a resource. No production resource write was added.
+
+## 2026-09-27: Chunk 6A native TB diagnostic readiness
+
+Exact pinned Assembly-CSharp MVID 07fa1e4d-8618-41b3-9b8d-faa17d3b26f7, SHA-256 3b6450ffec440e296e586f71c711b195aed144b28d53e1cbb29406d18fef5afb. Read-only bounded TurnController.Tick token 06000C34 inspection: an able player actor remains Preparing while its command collection is empty and it has not acted. The native transition to Acting requires acted state, a nonempty command collection, or inability to act. Passive waiting cannot establish Acting. The Chunk 6A diagnostic therefore uses the existing native selected ground-order seam, measures its terminal command and same turn, and carries all resulting debt into the later relationship window. No new production hook, status write, Prepare, Clear or action grant is introduced. Local evidence: analysis-cache/chunk6a-causal/TurnController.cs; original preview.114 failure and rider timeline retained in the exact checkpoint. Native confirmation of this setup remains pending.
+
+
+## 2026-09-27T18:50:25.941Z - geometry approach evidence
+
+Preview.115 positive/RT compensation/TB compensation all PASS with exact restoration;7/87 only on that payload. Preview.116 adds isolated chunk6a-geometry-change: native observed TickApproaching before IsActed, actual rider motion, separately declared exact Horse UnitMoveTo and pre-attachment Deliver geometry. Pinned RT UpdateCooldowns performs no writes for IgnoreCooldown; exact auxiliary callbacks must preserve every action/reaction/initiative field. The default positive contract still rejects auxiliary commands. No resource or position writes are introduced. Native qualification pending new immutable candidate/fresh proof; old Stop-based obstruction cannot qualify actual obstruction. See docs/CHUNK6A-COMBAT-MOUNT.md and lab NEXT-CASE-AUDIT.md for pinned method tokens and bounded findings.
+
+
+## 2026-09-27T20:24:29.262Z - native Move-slot observation
+
+Pinned Kingmaker Assembly-CSharp SHA-256 3b6450ffec440e296e586f71c711b195aed144b28d53e1cbb29406d18fef5afb, MVID07fa1e4d-8618-41b3-9b8d-faa17d3b26f7. UnitCommands.get_Move token0600269F returns UnitMoveTo only; GetCommand(CommandType) token060026A9 returns the base UnitCommand from m_Commands field04001A46. A relationship UnitUseAbility in the Move slot must be observed through GetCommand(Move). Detached accessor behavior plus compiled caller regression: scripts/Test-Chunk6aCommandSlot.ps1, red on116 and6/0 on117. Read-only metadata/IL facts in lab analysis-cache/chunk6a-causal/geometry-slot-native-contract.json; no proprietary implementation included. Geometry116 failure was instrumentation, not evidence of a failed gameplay Mount. Runtime requalification remains mandatory.
+
+
+## 2026-09-27T22:18:07.328Z ? CM02 native obstruction observation
+
+Exact Kingmaker Assembly-CSharp SHA3b6450ffec440e296e586f71c711b195aed144b28d53e1cbb29406d18fef5afb/MVID07fa1e4d-8618-41b3-9b8d-faa17d3b26f7. Read-only signatures: UnitMovementAgent.PathTo(UnitCommand,Vector3,float,float,UnitMovementAgentBase)060018A3; OnPathComplete(Pathfinding.Path)060018B9; m_RequestedPath Pathfinding.Path0400118E; UnitEntityView.OnMovementInterrupted(Vector3)0600184F; OnPathNotFound()06001850; UnitCommand.OnEnded(bool)060027B2. StandardDoor playback fields m_Playable040012CE/m_Graph040012CD support bounded native readiness. No path pooling Claim/Release or gameplay writes in the observer.
+
+Local inspection: movement interruption addresses UnitCommands.Move (UnitMoveTo only); a relationship UnitUseAbility in Move may remain pending. Confidence: exact pinned inspection; native product outcome TODO. Wrapper signatures6PASS; PathTo wrapper deferred by desktop Unity ECall restriction. Native path-to-command matching, open-route control, actual failure, terminal and restoration must execute in Unity before acceptance.
+
+
+Preview119 path observation repair: pinned UnitMovementAgent.PathTo060018A3 returns while the worker still owns Path.vectorPath. c6a-obstruction-a-obstruction on118 installed all wrappers but request-time enumeration raced; completed native OnPathComplete060018B9 callbacks and both ground terminals succeeded. Request identity is safe; path contents become evidence at the completion callback. Producer snapshot5/0 and validator worker-content negatives cover the boundary. Existing native TraceAlongNavmesh and full-footprint fixture seams are reused read-only; no new production hook/resource write. Exact native118 result and payload remain in evidence history.
+
+
+## 2026-09-28T01:48:01.223Z - exact native unacted Mount interruption
+
+Pinned Kingmaker Assembly-CSharp SHA2563b6450ffec440e296e586f71c711b195aed144b28d53e1cbb29406d18fef5afb / MVID07fa1e4d-8618-41b3-9b8d-faa17d3b26f7. OnMovementInterrupted(0x0600184F) uses the UnitMoveTo-only Move getter0x0600269F; GetCommand(CommandType)0x060026A9 observes the base slot. Native Interrupt0x060027AC owns ResultInterrupt and calls OnEnded0x060027B2, which owns completion; neither charges or marks acted. Preview119 c6a-path-snapshot-a-obstruction directly observed the exact unacted UnitUseAbility left pending after this callback. Source120 adds prefix capture/postfix same-command revalidation and shell retirement before native Interrupt, with no resource writes. Detached ownership negatives24/0, native assembly629/0 and wrapper constructionPASS; actual new callback execution remains a Unity gate. Full cause, original assertion and artifact hashes: docs/CHUNK6A-COMBAT-MOUNT.md and docs/chunk6a-evidence-history.json. Observation caps, deadlines and qualification assertions unchanged.
+
+
+## 2026-09-28T03:23:07.787Z - obstruction envelope and external result facets
+
+Preview120 directly observed NativeMountedControlService's exact unacted interruption callback in Unity: command381715712, same shell, nativeInterrupt/OnEnded at frame1946, zero cost/transition and preserved action/reaction window. Overall qualification nevertheless FAIL: Assert-KmcChunk6aObstruction used corpulence +1.0 instead of the frozen CombatMountDismountPolicy.NativeAdjacentReachMeters1.5. Source121 fixes only the validator formula; real Horse corpulence0.9 plus rider0.5 must derive2.9. Source114/0 and causal216/0 regressions retain the same tolerances and closed-door observations; the historical parser replay never changes120's overallFAIL. Exact original artifacts and both native/external result facets are retained in docs/chunk6a-evidence-history.json. New121 requires fulloffline/newcandidate/newproof/nativequalification.
+
+## 2026-09-28T05:16:45.475Z - Chunk6A fixture interaction and projection
+
+Read-only pinned Kingmaker Assembly-CSharp SHA3b6450ffec440e296e586f71c711b195aed144b28d53e1cbb29406d18fef5afb / MVID07fa1e4d-8618-41b3-9b8d-faa17d3b26f7: InteractionComponent.CanInteract returns false when Enabled is false, or when NotInCombat is true while Player.IsInCombat. StandardDoor inherits this interaction gate. FullRT121 failed its late close while open/enabled in combat. Obstruction now retains the already-qualified before-encounter native close in a fresh transaction; no policy field bypass. TB setup keeps AstarPath.GetNearest and ObstacleAnalyzer.TraceAlongNavmesh as read-only projection/reachability seams and uses ordinary ClickGroundHandler movement on the exact Preparing rider turn; new pair-relative proposal math is diagnostic-only and runtime success remains mandatory. No native resource write or new production seam.
+
+
+## 2026-09-28T07:59:05.791Z - exact TB approach observation (preview.123)
+
+Pinned Kingmaker Assembly-CSharp SHA256 3b6450ffec440e296e586f71c711b195aed144b28d53e1cbb29406d18fef5afb, MVID07fa1e4d-8618-41b3-9b8d-faa17d3b26f7. Local bounded inspection only; no proprietary source copied into Git.
+
+| Native boundary | Observation / confidence |
+
+| --- | --- |
+
+| UnitCommand.TickApproaching 060027A6 | TB first uses ForcedPath or CurrentPathForUnit for the executor view. The preview branch copies vectorPath into a caller-owned ForcedPath, then calls FollowPrecomputedPath with ApproachRadius. A distant endpoint is logged but still consumed. Exact local body; actual123 callback pending. |
+
+| PathVisualizer.CurrentPathForUnit 0600700F | Returns the current actor preview when view ownership matches; does not validate this command target. Exact local body. This permits the stale-preview hypothesis but does not prove122 consumed it. |
+
+| UnitMovementAgent.FollowPrecomputedPath 060018B6 | Synchronous caller-owned consumed-path boundary; immutable copied points and exact agent ownership may be observed safely. Desktop wrapper PASS; Unity execution pending. |
+
+| UnitMovementAgent.PathTo 060018A3 | Direct request branch records only receiver, command and destination; worker-owned requested path points remain unread. Desktop wrapper DEFER - EVIDENCED (Unity ECall); Unity execution pending. |
+
+| TurnController.TickMovement 06000C37 | Native accepted ref delta changes TimeMoved and MoveAction. Capture prefix/postfix, exact turn/slot/command and all action/reaction fields; independent replay requires continuity to acted cost. Desktop wrapper PASS; native123 execution pending. |
+
+Normal UI IgnoreClick validates current prediction/point. The diagnostic selected-ability path currently calls SetAbility then OnClick without hover/prediction settling. Do not clear, force or write a path based on this hypothesis. Source123 observes first; retain122 failure and unchanged30s deadline.
+
+Positive TB path evidence requires exact native getter and consumed or requested path callbacks for the one admitted unacted Mount. Capture before click, bind the actual Move command, retain failure evidence before cleanup, then unpatch. Preparation, reactions and the exactly-once acted Move cost keep their existing stricter event contracts.
+
+## 2026-09-28T10:09:32.703Z — isolated input and TB fixture seams
+
+Pinned Kingmaker Assembly-CSharp SHA2563b6450ffec440e296e586f71c711b195aed144b28d53e1cbb29406d18fef5afb, MVID07fa1e4d-8618-41b3-9b8d-faa17d3b26f7. Exact local metadata, bounded lab-only decompilation and desktop Harmony12 construction support the following diagnostic seams; Unity execution remains required.
+
+| Seam | Pinned token | Observation / constraint |
+|---|---|---|
+| SelectionManagerBase.Stop | 060000B9 | One real input around exact pending command; no diagnostic Interrupt substitution. |
+| UnitCommand.OnEnded | 060027B2 | Exact command terminal inside Stop call. |
+| ActionBarGroupSlot.OnClick / ActionBarSlot.OnClick | 060044BA / 06004504 | Actual live registered slot, exact owner and nested callbacks. |
+| MechanicActionBarSlotAbility.OnClick | 06002F5D | Same slot ability and rider. |
+| ClickWithSelectedAbilityHandler.SetAbility / OnClick | 060093F8 / 060093F6 | Native slot activates ability once; exact target click admits one command. |
+| FreePlaceSelector.PlaceSpawnPlaces(int,float,Vector3) | 06001785 | Existing Dismount placement; relaxation clamps points to native navigation with bounded iterations. Read-only investigation, no production change. |
+| FreePlaceSelector.GetRelaxedPosition(int,bool) | 06001786 | Existing Dismount obtains relaxed XZ and optional physics ground projection; does not prove the later rider footprint clear. |
+| FreePlaceSelector.RelaxPoints overloads | 06001787 / 06001788 | Native placement depends on live actor obstacles; origin navigation must be observed before attributing TB fixture failures. |
+
+New TB staging uses the existing pinned native ground input/path observation seams before encounter creation. The later0.6m Acting-step annulus, reach and native costs are unchanged. No proprietary decompiled text is committed.
+
+## 2026-09-28T12:18:55.417Z — selected-ability diagnostic input semantics
+
+Pinned Kingmaker MVID07fa1e4d-8618-41b3-9b8d-faa17d3b26f7. Read-only inventories in lab selected-ability-prediction-contract.txt and created-by-player-field-refs.txt. IgnoreClick06000C2F validates current native preview; UpdateActionPredictions06000C6E uses native temporary commands and pointer simulation. Hover06000C74/cursor06000C75, SimulateClick060093C7 and native selected-ability SetAbility060093F8/OnClick060093F6 are the diagnostic seams. CreatedByPlayer04001A72 has six native stores in movement/interaction inputs, none in selected-ability creation, and one read in CanAccelerate060027B7. Original metadata assertions are tested; no proprietary decompilation is committed. Native runtime callback/prediction correction remains pending.
+
+2026-09-28T12:51:01.359Z Source125: pinned native pointer/prediction tokens retained in selected-ability-prediction-contract.txt; SetHighlighted changes prediction only for changed hover, native CalculatePathForCommand awaits the engine path. Diagnostic input calls these native boundaries; no path assignment or resource write. Native speculative Init is separately observed, never accepted as the one actual command. Pointer/external shared182-0, Unity execution pending.
+
+### Source126 allocation completion observers (2026-09-28)
+
+Pinned Kingmaker MVID07fa1e4d-8618-41b3-9b8d-faa17d3b26f7: Game.PauseBind06000CB7 is the ordinary TB End Turn input; TurnController.ForceToEnd06000C47 and End06000C46 are observed before/after with no resource writes. Both exact Harmony12 wrappers construct on desktop; native installation/execution remains a runtime gate. CombatController.IsInTurnBasedCombat06000BF6 includes live Player.IsInCombat, so pre-encounter fixtures verify the existing NativeModeTransitionProbe setting lease instead (IL SHA256732e637c0bde12d66b92c405bff7d42e26488c29db0c6d22f6084856d5e95da0). Read-only paired actor snapshots distinguish ordinary completion from condition-forfeit. Initiative input BaseValue is distinct from CombatState.Initiative ordering and cooldown Initiative; only the bounded outside-combat input lease changes. Tests: Test-NativeOrderFixtureAdmission, Test-NativeTurnCompletionWrappers, Test-NativeOrderObserverMembers and independent action/reaction continuation replay.
+
+2026-09-28 source127 ground eligibility: exact native BaseUnitCombatController.ShouldTickOnUnit06009343 requires living and IsInCombat; inherited TickUnit0600910C returns when false. PinnedMVID07fa1e4d, IL SHA768ca06c90b9d6989de327f8f8537d30aae9e92e3fef922a78929a5407b215cc and1b8d3a4b24c1e493b805d644238031e5396d44b59abb59724b1dce577718b8a5. Native126 TB fixture lacked this observation; no product adoption occurred. New diagnostic hook retains exact controller/actor/clock/result and resource invariants without writes. Desktop wrapper and synthetic proof PASS; actual Unity skip callbacks pending newcandidate. Bounded local IL remains analysis-cache/logs only.
+
+### Source128 native auto-use diagnostic contract (2026-09-28)
+
+Pinned Assembly-CSharp MVID07fa1e4d-8618-41b3-9b8d-faa17d3b26f7. Six read-only observers: AbilityData.get_IsSuitableForAutoUse06002B30; MechanicActionBarSlotAbility.OnAutoUseToggle06002F5F; UnitEntityData.GetAvailableAutoUseAbility06008370; BlueprintAiAttack.CreateCommand06009434; UnitUseAbility constructors06002726/27. Test-NativeAutoUseWrappers binds each exact signature and method-body SHA-256 and constructs legacy Harmony12 wrappers. Native execution remains mandatory on the frozen candidate. No proprietary method body is committed.
+
+The two independent RT fixtures exercise the selected rider's real registered UI control, native suitability and toggle refusal, then a declared reversible stale AutoUseAbility reference for native AI revalidation. The exact originally owned reference, UI slots and pause state must restore. One already-owned ordinary eligible ability constructs an uninitialized UnitUseAbility solely to verify both constructor callbacks. Neither that command nor an AI result is initialized, admitted or executed. Relationship controls must produce no admitted command; complete actor action/reaction resources and preparation remain unchanged through the synchronous window. Dismount owns its fresh preceding positive Mount and exact terminal bridge; no compensation shares either allocation. This adds diagnostic coverage for mandatory CM06-ai-auto-use, not an AI gameplay feature.
+
+Source128 path observer: in-flight pathState now uses an explicit Null JToken. The pinned Newtonsoft implicit null-string conversion produced a String token with null value, causing the live strict validator to refuse preview127 TB setup. The new regression checks all three unavailable fields before serialization for four unsafe boundaries and retains completed-path immutability. No worker-owned path read or assertion relaxation.
+
+Source129 native preparation ownership: pinned TurnController.Prepare06000C3C/MVID07fa1e4d-8618-41b3-9b8d-faa17d3b26f7/IL SHA27c769eb310f4bccfa9db38e06a921260696b4d95c382586bea04e2f091af408 calls Clear once. FullTB128 observed entry/exit withoutClear after duplicate caller/prefix reservation. Only the existing native prefix may reserve pending partner preparation. Source129 requires completion and retains all Clear/reaction event assertions. Compiled128 regression FAIL, repaired12916/0; Unity129 pending. Historical failures remain exact; bounded local IL stays outside Git.
+
+## Source130 precise native Acting fixture
+
+Pinned Kingmaker MVID07fa1e4d-8618-41b3-9b8d-faa17d3b26f7, assemblySHA3b6450ffec440e296e586f71c711b195aed144b28d53e1cbb29406d18fef5afb. Read-only reflection receipt: analysis-cache/chunk6a-causal/acting-ground-contract130.json. Native ground input dispatches selected actors through its optional command runner; the ordinary runner constructs a0.3m UnitMoveTo. The scoped diagnostic callback constructs a0.03m UnitMoveTo while retaining native input parameters, admission, movement and cost. Original fixture terminal tolerance0.06m remains exact. Actual Unity execution of this tighter fixture is pending.
+
+| Native member | Token | IL SHA-256 |
+| --- | --- | --- |
+| ClickGroundHandler.GetDefaultDirection(Vector3) |060093D9|816a8c1bb46df317a2805030f776d7b51d1af379c9844a51d21028b4f1d1af62|
+| ClickGroundHandler.MoveSelectedUnitsToPoint, commandRunner overload |060093DB|a5ed6ae99c10c86c3fea1581b0574517c2487f7f5d986381006e69b2c24b1c73|
+| ClickGroundHandler.RunCommand |060093DC|1b537eaab206cf2a920b9d9fe8973a854bb1acb81117a0c910739496f8a6d21b|
+| UnitMoveTo(Vector3,Single) |060026FF|564b034856debb2341d52fea096eb64a3dc5f8dfc51f8868621506441318d7dd|
+
+## 2026-09-29 bounded Chunk6A fixture observations
+
+Pinned Kingmaker Assembly-CSharp MVID07fa1e4d-8618-41b3-9b8d-faa17d3b26f7: UnitEngagementExtension.IsEngage(UnitEntityData,UnitEntityData), public static Boolean,0600935A; ObstacleAnalyzer.GetNearestNode(Vector3), public static Pathfinding.NNInfo,060017B4; TraceAlongNavmesh(Vector3,Vector3), public static Vector3,060017AD. Read-only observations compare native engagement and native versus Astar query projections; they do not change navigation eligibility or resources. Native UnitCombatPrepareController.Tick0600936F performs the bounded encounter-start Prepared/initiative/Clear sequence separately from TurnController.Prepare. Mammoth reader now accounts for each exact zero-debt initial Clear and both native Prepare envelopes; original131 external FAIL remains retained.

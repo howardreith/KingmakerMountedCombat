@@ -3,7 +3,6 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
-using System.Runtime.CompilerServices;
 using Harmony12;
 using Kingmaker;
 using Kingmaker.Controllers.Combat;
@@ -26,7 +25,7 @@ namespace KingmakerMountedCombat.Diagnostics
 {
     // Scoped observation only. Installed by the guarded disposable fixture, with
     // rollback on a missing exact hook. Never changes a native argument or result.
-    internal sealed class NativeActorAllocationTrace : IDisposable
+    internal sealed partial class NativeActorAllocationTrace : IDisposable
     {
         private const string HarmonyId = "KingmakerMountedCombat.Diagnostics.ActorAllocation";
         private const BindingFlags Flags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static;
@@ -37,6 +36,9 @@ namespace KingmakerMountedCombat.Diagnostics
         private readonly UnitEntityData mount;
         private readonly MountedCombatController combat;
         private readonly JArray events = new JArray();
+        private readonly JArray installedHooks = new JArray();
+        private readonly RetainedObjectIdentity identities = new RetainedObjectIdentity(16000);
+        internal JArray ObserverHooks => (JArray)installedHooks.DeepClone();
         private readonly Dictionary<UnitEntityData, int> grants = new Dictionary<UnitEntityData, int>();
         private readonly Dictionary<UnitEntityData, float> movedTime = new Dictionary<UnitEntityData, float>();
         private readonly Dictionary<UnitEntityData, float> requestedTime = new Dictionary<UnitEntityData, float>();
@@ -47,6 +49,12 @@ namespace KingmakerMountedCombat.Diagnostics
         private string encounter;
         private int dropped;
         private int observationErrors;
+        internal bool ObserveReactionResources { get; set; }
+        internal bool ObserveGroundCooldownEligibility { get; set; }
+        internal event Action<string, UnitEntityData, UnitCommand> BoundaryObserved;
+        internal int EventCount => events.Count;
+        internal JArray EventsSince(int offset) => new JArray(events.Skip(offset).Select(item => item.DeepClone()));
+        internal bool Complete => dropped == 0 && observationErrors == 0 && identities.FaultCount == 0;
 
         internal NativeActorAllocationTrace(UnitEntityData rider, UnitEntityData mount, MountedCombatController combat)
         {
@@ -57,8 +65,12 @@ namespace KingmakerMountedCombat.Diagnostics
             harmony = HarmonyInstance.Create(HarmonyId); active = this;
             try
             {
+                Patch(typeof(TurnController), 0x06000C37, "ApproachMovementBefore", "ApproachMovementAfter");
                 Patch(typeof(TurnController), 0x06000C3C, "PrepareBefore", "PrepareAfter");
                 Patch(typeof(UnitCombatState.Cooldowns), 0x0600C3BE, "ClearBefore", "ClearAfter");
+                Patch(typeof(UnitCombatCooldownsController), 0x0600934A, "CooldownTickBefore", "CooldownTickAfter");
+                Patch(typeof(BaseUnitCombatController), 0x06009343, "CooldownEligibilityBefore", "CooldownEligibilityAfter");
+                Patch(typeof(UnitCombatState), 0x060093A1, "OpportunityBefore", "OpportunityAfter");
                 Patch(typeof(UnitCombatState), 0x060093A4, "CombatClearBefore", "CombatClearAfter");
                 Patch(typeof(UnitCombatState), 0x0600939D, "RoundBefore", "RoundAfter");
                 Patch(typeof(TurnController), 0x06000C7F, "RoundHandlerBefore", "RoundHandlerAfter");
@@ -71,6 +83,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 Patch(typeof(UnitEntityData), 0x0600838F, "ActorCostBefore", "ActorCostAfter");
                 Patch(typeof(TurnController), 0x06000C5E, "CommandEndBefore", "CommandEndAfter");
                 Patch(typeof(TurnController), 0x06000C46, "TurnEndBefore", "TurnEndAfter");
+                // UnitCommand.Interrupt(bool): the pinned token the production interrupt bridge also uses.
+                // Recorded with the managed caller chain so an unexplained Interrupt names its source.
+                Patch(typeof(UnitCommand), 0x060027AC, "InterruptBefore", "InterruptAfter");
                 Patch(typeof(CombatController), 0x06000BE6, "RemoveUnitBefore", "RemoveUnitAfter");
                 Patch(typeof(UnitConfusionController), 0x06009131, "ConfusionBefore", "ConfusionAfter");
                 Patch(typeof(PairedConfusionPreparation), typeof(PairedConfusionPreparation).GetMethod("Prepare", Flags).MetadataToken,
@@ -83,7 +98,10 @@ namespace KingmakerMountedCombat.Diagnostics
         }
 
         internal void BeginEncounter(string id) { encounter = id; Record("encounter-setup", rider); }
-        internal JObject Capture() => new JObject { ["events"] = events.DeepClone(), ["dropped"] = dropped, ["observationErrors"] = observationErrors };
+        internal JObject Capture() => new JObject { ["events"] = events.DeepClone(), ["dropped"] = dropped, ["observationErrors"] = observationErrors, ["observerHooks"] = installedHooks.DeepClone(),
+            ["identityRegistry"] = new JObject { ["contract"] = "retained-native-object-identity-v1", ["capacity"] = identities.Capacity,
+                ["ids"] = new JArray(identities.Ids), ["retainedCount"] = identities.RetainedCount,
+                ["released"] = identities.Released, ["faults"] = identities.FaultCount } };
         internal int GrantCount(UnitEntityData actor) => grants.ContainsKey(actor) ? grants[actor] : 0;
         internal JObject Snapshot(UnitEntityData actor)
         {
@@ -93,11 +111,15 @@ namespace KingmakerMountedCombat.Diagnostics
             var nativeTurn = turn?.Unit == actor ? turn : combat.PairedPartnerContext?.Unit == actor ? combat.PairedPartnerContext : null;
             return new JObject {
                 ["actor"] = actor.UniqueId, ["actorObject"] = Id(actor), ["grantSequence"] = GrantCount(actor),
+                ["inCombat"] = actor.IsInCombat,
                 ["grantSequenceKind"] = "observed-native-Prepare-entries",
                 ["pairedGrantIdentity"] = actor == rider || actor == mount ? combat.PairedActivationIdentity : null,
                 ["standard"] = cooldown.StandardAction, ["move"] = cooldown.MoveAction, ["swift"] = cooldown.SwiftAction,
                 ["initiativeCooldown"] = cooldown.Initiative, ["initiative"] = actor.CombatState.Initiative,
+                ["initiativeOrder"] = actor.CombatState.Initiative,
                 ["reactionCooldown"] = cooldown.AttackOfOpportunity, ["reactions"] = actor.CombatState.AttackOfOpportunityCount,
+                ["reactionsPerRound"] = actor.CombatState.AttackOfOpportunityPerRound,
+                ["waitingInitiative"] = actor.CombatState.IsWaitingInitiative,
                 ["disengageTargets"] = actor.CombatState.DisengageAttackTargets.Count,
                 ["prepared"] = actor.CombatState.Prepared, ["canAct"] = actor.CombatState.CanActInCombat,
                 ["confused"] = actor.Descriptor.State.HasCondition(UnitCondition.Confusion),
@@ -105,13 +127,13 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["confusionPart"] = confusion != null,
                 ["confusionState"] = confusion?.State.ToString(),
                 ["confusionRoundTicks"] = confusion?.RoundStartTime.Ticks,
-                ["confusionCommand"] = confusion?.Cmd == null ? 0 : RuntimeHelpers.GetHashCode(confusion.Cmd),
+                ["confusionCommand"] = Id(confusion?.Cmd),
                 ["preparingPairedActor"] = combat.IsPreparingPairedActor(actor),
                 ["prone"] = actor.Descriptor.State.Prone.Active,
                 ["proneRequested"] = actor.Descriptor.State.Prone.ShouldBeActive,
                 ["maneuverImmune"] = actor.Descriptor.State.HasCondition(Kingmaker.UnitLogic.UnitCondition.ImmuneToCombatManeuvers),
                 ["timeToNextNativeTurn"] = actor.GetTimeToNextTurn(), ["damage"] = actor.Damage,
-                ["hasStandard"] = actor.HasStandardAction(), ["usedStandard"] = actor.UsedStandardAction(),
+                ["hasSwift"] = actor.HasSwiftAction(), ["hasStandard"] = actor.HasStandardAction(), ["usedStandard"] = actor.UsedStandardAction(),
                 ["moveRestricted"] = actor.IsMoveActionRestricted(), ["speedMps"] = actor.CurrentSpeedMps,
                 ["stepRangeMetres"] = TurnController.MetersOfFiveFootStep,
                 ["agentPacing"] = AgentPacing(actor),
@@ -162,7 +184,8 @@ namespace KingmakerMountedCombat.Diagnostics
             return result;
         }
 
-        internal void Record(string boundary, UnitEntityData actor, UnitCommand command = null, string detail = null, object callback = null)
+        internal void Record(string boundary, UnitEntityData actor, UnitCommand command = null, string detail = null, object callback = null,
+            UnitEntityData reactionTarget = null)
         {
             if (actor == null || actor.Group != rider.Group && (!combat.PairedActivationEnabled || !actor.IsInCombat)) return;
             if (events.Count >= 16000) { dropped++; return; }
@@ -175,11 +198,21 @@ namespace KingmakerMountedCombat.Diagnostics
                     ["activationIdentity"] = combat.PairedActivationIdentity,
                     ["boundary"] = boundary, ["frame"] = Time.frameCount, ["gameTicks"] = Game.Instance.TimeController.GameTime.Ticks,
                     ["simulatingClick"] = Kingmaker.Controllers.Clicks.PointerController.SimulatingClick,
+                    ["gameDeltaTime"] = Game.Instance.TimeController.GameDeltaTime,
+                    ["nativeTurnBased"] = CombatController.IsInTurnBasedCombat(),
+                    ["nativePassing"] = CombatController.IsPassing(),
+                    ["nativeSurprised"] = controller.IsSurprised(actor),
                     ["controller"] = Id(controller), ["round"] = controller.RoundNumber, ["roundStartTicks"] = controller.RoundStartTime.Ticks,
                     ["turn"] = Id(turn), ["preparingTurn"] = Id(preparing), ["currentActor"] = turn?.Unit?.UniqueId,
                     ["turnStatus"] = turn?.Status.ToString(), ["state"] = Snapshot(actor), ["detail"] = detail,
                     ["callbackObject"] = Id(callback),
+                    ["reactionObservation"] = reactionTarget == null ? null : new JObject {
+                        ["targetId"] = reactionTarget.UniqueId, ["targetObject"] = Id(reactionTarget),
+                        ["attackerId"] = actor.UniqueId, ["attackerObject"] = Id(actor),
+                        ["attackerMotion"] = actor.HasMotionThisTick, ["targetMotion"] = reactionTarget.HasMotionThisTick,
+                        ["disengageTargetIds"] = new JArray(actor.CombatState.DisengageAttackTargets.Select(u => u.UniqueId)) },
                     ["command"] = Id(command), ["commandType"] = command?.GetType().FullName,
+                    ["actionType"] = command?.Type.ToString(), ["timeSinceStart"] = command?.TimeSinceStart,
                     ["commandActor"] = command?.Executor?.UniqueId, ["started"] = command?.IsStarted,
                     ["acted"] = command?.IsActed, ["finished"] = command?.IsFinished, ["result"] = command?.Result.ToString(),
                     ["ignoreCooldown"] = command?.IsIgnoreCooldown,
@@ -188,12 +221,19 @@ namespace KingmakerMountedCombat.Diagnostics
                         ? (bool?)command.ShouldUnitApproach : null,
                     ["feedback"] = combat.LastFeedback
                 });
+                BoundaryObserved?.Invoke(boundary, actor, command);
             }
             catch (Exception exception) { observationErrors++; events.Add(new JObject { ["boundary"] = boundary, ["observationError"] = exception.ToString() }); }
         }
 
-        public void Dispose() { harmony.UnpatchAll(HarmonyId); if (ReferenceEquals(active, this)) active = null; }
-        private static int Id(object value) => value == null ? 0 : RuntimeHelpers.GetHashCode(value);
+        public void Dispose()
+        {
+            harmony.UnpatchAll(HarmonyId);
+            if (ReferenceEquals(active, this)) active = null;
+            identities.Dispose();
+        }
+        internal int ObjectIdentity(object value) => identities.Get(value);
+        private int Id(object value) => ObjectIdentity(value);
         private void Patch(Type type, int token, string prefix, string postfix)
         {
             var method = type?.GetMethods(Flags).SingleOrDefault(item => item.MetadataToken == token);
@@ -204,10 +244,36 @@ namespace KingmakerMountedCombat.Diagnostics
             var before = new HarmonyMethod(typeof(Hooks).GetMethod(prefix, Flags)) { prioritiy = prefix == "RoundBefore" ? Priority.Last : Priority.First };
             var after = new HarmonyMethod(typeof(Hooks).GetMethod(postfix, Flags)) { prioritiy = Priority.Last };
             harmony.Patch(method, before, after);
+            installedHooks.Add(new JObject { ["method"] = method.DeclaringType.FullName + "." + method.Name, ["token"] = token.ToString("X8"),
+                ["moduleMvid"] = method.Module.ModuleVersionId.ToString(), ["prefix"] = prefix, ["postfix"] = postfix });
         }
         private UnitEntityData Owner(UnitCommands commands) => commands == rider.Commands ? rider : commands == mount.Commands ? mount : null;
-        private static class Hooks
+        private UnitEntityData CooldownOwner(UnitCombatState.Cooldowns value) =>
+            value == rider.CombatState.Cooldown ? rider : value == mount.CombatState.Cooldown ? mount :
+            preparing?.Unit.CombatState.Cooldown == value ? preparing.Unit : null;
+        private bool ObservesReactionActor(UnitEntityData actor) => ObserveReactionResources && (actor == rider || actor == mount);
+        private static partial class Hooks
         {
+            internal static void CooldownEligibilityBefore(BaseUnitCombatController __instance, UnitEntityData unit, out bool __state)
+            {
+                var p = active;
+                __state = p != null && p.ObserveGroundCooldownEligibility && p.ObservesReactionActor(unit) &&
+                    __instance != null && __instance.GetType() == typeof(UnitCombatCooldownsController);
+                if (__state) p.Record("cooldown-eligibility-before", unit, detail: __instance.GetType().FullName, callback: __instance);
+            }
+            internal static void CooldownEligibilityAfter(BaseUnitCombatController __instance, UnitEntityData unit, bool __state, bool __result)
+            {
+                if (__state) active?.Record("cooldown-eligibility-after", unit, detail: "eligible=" + __result, callback: __instance);
+            }
+            internal static void CooldownTickBefore(UnitEntityData unit)
+            { if (active?.ObservesReactionActor(unit) == true) active.Record("cooldown-tick-before", unit); }
+            internal static void CooldownTickAfter(UnitEntityData unit)
+            { if (active?.ObservesReactionActor(unit) == true) active.Record("cooldown-tick-after", unit); }
+            internal static void OpportunityBefore(UnitCombatState __instance, UnitEntityData target, bool simulate)
+            { if (active?.ObservesReactionActor(__instance.Unit) == true) active.Record("opportunity-before", __instance.Unit, detail: "simulate=" + simulate, reactionTarget: target); }
+            internal static void OpportunityAfter(UnitCombatState __instance, UnitEntityData target, bool simulate, bool __result)
+            { if (active?.ObservesReactionActor(__instance.Unit) == true) active.Record("opportunity-after", __instance.Unit, detail: "simulate=" + simulate + ";result=" + __result, reactionTarget: target); }
+
             internal static void PhysicalTickBefore(UnitMovementAgent __instance, out UnitMovementAgent __state)
             {
                 __state = active?.physicalMovement;
@@ -237,8 +303,8 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             internal static void PrepareBefore(TurnController __instance) { if (active == null) return; active.preparing = __instance; active.grants[__instance.Unit] = active.GrantCount(__instance.Unit) + 1; active.Record("prepare-before", __instance.Unit); }
             internal static void PrepareAfter(TurnController __instance) { active?.Record("prepare-after", __instance.Unit); if (active != null) active.preparing = null; }
-            internal static void ClearBefore(UnitCombatState.Cooldowns __instance) { if (active?.preparing?.Unit.CombatState.Cooldown == __instance) active.Record("clear-before", active.preparing.Unit); }
-            internal static void ClearAfter(UnitCombatState.Cooldowns __instance) { if (active?.preparing?.Unit.CombatState.Cooldown == __instance) active.Record("clear-after", active.preparing.Unit); }
+            internal static void ClearBefore(UnitCombatState.Cooldowns __instance) { if (active != null) active.Record("clear-before", active.CooldownOwner(__instance)); }
+            internal static void ClearAfter(UnitCombatState.Cooldowns __instance) { if (active != null) active.Record("clear-after", active.CooldownOwner(__instance)); }
             internal static void CombatClearBefore(UnitCombatState __instance) { active?.Record("combat-clear-before", __instance.Unit); }
             internal static void CombatClearAfter(UnitCombatState __instance) { active?.Record("combat-clear-after", __instance.Unit); }
             internal static void RoundBefore(UnitCombatState __instance) { active?.Record("round-state-before", __instance.Unit); }
@@ -265,6 +331,43 @@ namespace KingmakerMountedCombat.Diagnostics
             internal static void ActorCostAfter(UnitEntityData __instance, UnitCommand command) { active?.Record("actor-cost-after", __instance, command); }
             internal static void CommandEndBefore(TurnController __instance, UnitCommand command) { active?.Record("command-end-before", command?.Executor, command, __instance.Unit.UniqueId); }
             internal static void CommandEndAfter(TurnController __instance, UnitCommand command) { active?.Record("command-end-after", command?.Executor, command, __instance.Unit.UniqueId); }
+            internal static void InterruptBefore(UnitCommand __instance)
+            {
+                var p = active;
+                if (p == null || __instance == null) return;
+                var actor = __instance.Executor;
+                if (actor != p.rider && actor != p.mount) return;
+                p.Record("command-interrupt-before", actor, __instance, detail: InterruptCallers());
+            }
+            internal static void InterruptAfter(UnitCommand __instance)
+            {
+                var p = active;
+                if (p == null || __instance == null) return;
+                var actor = __instance.Executor;
+                if (actor != p.rider && actor != p.mount) return;
+                p.Record("command-interrupt-after", actor, __instance);
+            }
+            // The managed frames above the interrupt hook, outermost last. Harmony wrapper frames and
+            // this trace are skipped; the summary is observation only and never changes the call.
+            private static string InterruptCallers()
+            {
+                try
+                {
+                    var stack = new System.Diagnostics.StackTrace(1, false);
+                    var names = new List<string>();
+                    for (var index = 0; index < stack.FrameCount && names.Count < 14; index++)
+                    {
+                        var method = stack.GetFrame(index)?.GetMethod();
+                        if (method == null) continue;
+                        var name = (method.DeclaringType == null ? "" : method.DeclaringType.FullName + ".") + method.Name;
+                        if (name.StartsWith("Harmony", StringComparison.Ordinal) ||
+                            name.StartsWith("KingmakerMountedCombat.Diagnostics.NativeActorAllocationTrace", StringComparison.Ordinal)) continue;
+                        names.Add(name);
+                    }
+                    return "callers=" + string.Join(" < ", names.ToArray());
+                }
+                catch (Exception exception) { return "callers=unavailable:" + exception.GetType().Name; }
+            }
             internal static void TurnEndBefore(TurnController __instance) { active?.Record("turn-end-before", __instance.Unit); }
             internal static void TurnEndAfter(TurnController __instance) { active?.Record("turn-end-after", __instance.Unit); }
             internal static void RemoveUnitBefore(UnitEntityData unit) { active?.Record("remove-unit-before", unit); }

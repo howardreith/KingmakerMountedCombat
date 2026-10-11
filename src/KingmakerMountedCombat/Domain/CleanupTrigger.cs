@@ -13,6 +13,11 @@ namespace KingmakerMountedCombat.Domain
         ViewDetached = 50,
         ViewReplaced = 51,
         CompanionInvalidated = 60,
+        // Compensating cleanup for a combat Mount whose paired encounter adoption
+        // could not be completed. The relationship must not stand without its
+        // activation, so the attachment is undone and the transition is reported
+        // as failed. It writes no native resource and refunds no committed Move.
+        AdoptionRefused = 65,
         Incapacitated = 70,
         Death = 80,
         CombatStarted = 90,
