@@ -1,3 +1,98 @@
+## 2026-10-11 - Chunk 6 closeout: candidates 206 through 211, merged and released (Claude)
+
+The closeout resolved the named gaps of the 2026-10-09 consolidation without touching the accepted 6B/6C/6D/6E product
+paths, then found and fixed two real product defects by running the new cases. Five compiled candidates were needed; every
+native result of every candidate is retained in its own closure record and no PASS is copied between binaries. The owner
+instructed on 2026-10-11 that the running preview.211 verification be stopped, the remaining stages be assumed to pass, and
+the work be merged and released; `docs/CHUNK6-CLOSEOUT-SUMMARY.md` keeps what was observed separate from what was assumed.
+
+### Candidates
+
+- **preview.206** (`e7c28020`): stages 1-15 ran; retained partial campaign `ca12e57d6d008e376814544b7c53bb519cb1c5800d24af2fc36188d506ff18f6`.
+  PASS: left-area, view-agent-lost, generation-change, injected-exception, the real area reload after the combat-mounted
+  save, the repaired mount-spent-standard ground order. FAIL: loading-cutscene (a bare `Game.StartMode(Cutscene)` reverted
+  within one frame), the rider and mount death approaches (the shared cleanup AI lease left residue on the dead subject),
+  turn-end (`Game.PauseBind` only speeds the game up while the rider still acts), mode-exit (the exit AI lease is armed per
+  actor). Stages 10-13 refused at launch for a launcher case set.
+- **preview.207** (`b90d75a8`, purity 97.5 min): the cutscene stimulus became the engine's own counting-guard lock
+  `Game.SetCutsceneLock` (`06000CE6`) held for a bounded 180-frame window and released through the same entry; a dead
+  subject is restored in-process through `UnitDescriptor.ResurrectAndFullRestore` (`06001F12`) after its death is recorded;
+  End Turn became `TurnController.ForceToEnd(true)` (`06000C47`) admitted by `CanEndTurn` (`06000C4A`). 70 stages: 63 PASS,
+  7 FAIL, every one a fixture or reader contract - the death guard kept waiting after its own resurrection because
+  `UnitLifeController.TickOnUnit` (`06009162`) recomputes `LifeState` only on its next tick; the engine's turn-based action
+  tick re-marks a product-interrupted shell `IsActed`/`Success` as forfeit bookkeeping; the fixture waited on a `SaveInfo`
+  the native `SaveManager` never updates for a new save; two closure cases had no approach at all because the foundation
+  pair starts 1.8 m apart inside the 2.85 m approach radius, and the ledger's admit-to-settle window is synchronous; the
+  real in-area reload detaches the pair once through `CompanionInvalidated` and then announces again on the already
+  detached relationship.
+- **preview.208** (`4ce6621a`, purity 101.9 min): 109 stages, 105 PASS, 4 FAIL retained (closure
+  `666b883a3c322fed4c82c487c5e3cb716abacb96ee65bd1e816235b6200f7f04`). Stage 11 exposed a **product defect**: the deferred
+  save's hold on new actions kept the queued Mount shell from starting while `SaveEffectsReady` waited for that same shell
+  to finish, so the 30-second bound refused the save with nothing captured mid-flight.
+- **preview.209** (`27ca8fce`, package `f2e58aab...`, DLL `636650d7...`, purity 108.5 min): the deferral fix, plus fixture
+  and reader corrections. Plan a: 109 stages, 102 PASS (closure
+  `cce64ae532cb1bbae1a6fada89b5de94ea085dc48a37d470e946c0565f16f542`). Plan b re-ran the seven retained stages under the
+  fresh prefix `c6-final209-b` (closure `bcaf523ba1ac6bb5d3c3b7b1709ee904cdad63278195f4aa98ad902a8eebf075`): four PASS, two
+  reader-only refusals with native PASS, one FAIL. The Chunk 5 matrix ran all 105 rows in 205.6 minutes, 104 PASS with the
+  single P03 flake cleared on a fresh prefix in 1.6 minutes. Chunk 5 ledger
+  `942612ff5e4388cab880bb0d247f432e1ae32da2040590f805c4c1c00691571e`: 105 of 105 mandatory behaviours PASS, **completion
+  gate PASS**. Combined 6A ledger `994137026a6d7616cbbec1121cbdaed1fb976e00fd8897a9378657b0129aa0df`: **86 PASS, 0 FAIL,
+  1 BLOCKED**, record checks 87/87, 40 retained failures bound.
+- **preview.210** (`ad9c6d9c`, package `04cdc99c...`, DLL `a9aa9f4b...`, purity 126.9 min): carried the second **product
+  defect** fix. A mounted ranged full attack's plan ends with the mount's natural melee attack, which cannot reach when the
+  pair fires from range, so the engine interrupts with target-invalid after the ranged attacks;
+  `MountedPairAttackCommand.IsNativeRangedTailTermination` is what separates that legitimate completion from a dropped
+  intent, and its delivered-prefix term carried no tolerance while the sibling melee term already allowed
+  `MountedCombatSpatialPolicy.RangeTolerance`. The native approach stops the pair exactly at the envelope, so 16.84816 m
+  against a 16.84 m envelope - an 8 mm overshoot - cancelled the intent and stopped repeated fire after one routine.
+  109 stages: 106 PASS, 3 retained; plan b: 2 PASS, 1 FAIL. The fix is validated by evidence: the approach-held sub-case,
+  which failed on both preview.209 runs, now passes, and the run stops only at the fourth sub-case's setup geometry.
+- **preview.211** (`a0d70fa4`, package `e89f431a...`, DLL `11e99309...`, freeze `272507c6...`, purity exit 0 in 126.9 min):
+  a fixture change so a ranged approach is arranged from the spawn rather than a fragile walk, plus a reader correction.
+  A development run produced the sustained ranged scenario's fourth sub-case for the first time on any candidate: native
+  PASS 65/0, all four rows PASS, reader accepted. Its acceptance campaign ran 24 PASS stages with nothing retained before
+  being stopped at stage 25 of 109 on the owner's instruction.
+
+### The same boundary, twice
+
+The millimetre boundary at the weapon envelope appeared first in the product (preview.210) and then in the external reader
+(preview.211): the ranged-tail reach rule compared a delivered attack as `distance <= bodyRadius + weaponRange` with no
+tolerance, and a run measuring 16.8558388 m against 16.84 m classified three attacks the engine had already delivered as
+out of reach. Both comparisons now carry the 0.05 m tolerance the product's own reach terms use.
+
+### Harness corrections, product untouched
+
+Commit `7f24c685`: the closure settled-row capture rule (the product's readiness check and the header-barrier capture run
+inside the settlement frame, so the settled row may already carry the one deferred capture); the 6E refused-Swift rule now
+reads "never rises" in both modes, because native turn-based cooldowns of every unit decay with game time while another
+unit acts; and a 6C partner clear nested in the partner's own native Prepare of a later turn is the engine's turn ownership,
+not residue. Commit `a0d70fa`: the chunk4 ranged-tail reach tolerance. Each was proven against the retained immutable
+evidence before being committed - the refusing run refused under the frozen readers with exactly its recorded message and
+was accepted under the corrected one - and the harness evaluations over both the preview.209 closures and the immutable
+preview.205 evidence show only the rows they target change.
+
+### Remaining HUMAN PLAY checklist
+
+Not performed and not inferable from automation; to be played on a candidate that contains this work, never on the
+installed preview.105.
+
+- **6A combat Mount and Dismount**: the twelve items of `docs/CHUNK6A-COMBAT-MOUNT.md` "HUMAN PLAY - owner checklist".
+- **6B Mounted Charge (real time)**: with the pair mounted, Charge a visible hostile from beyond melee reach; confirm the
+  mount runs the path, the rider's attack lands once, only the rider's Standard is spent, and the pair stays mounted. Try
+  Charge with the path blocked and with the target moving away; confirm a readable refusal or a clean stop with no cost. In
+  turn-based mode confirm Charge is refused for the mounted pair with a readable reason.
+- **6C mounted casting and items** (both modes, mounted and unmounted): cast a self spell, a friendly-target spell and a
+  hostile spell while mounted; use a scroll and a potion. Confirm each spends only the rider's own Standard (or Swift for a
+  quickened cast), the mount's actions are untouched, the pair stays mounted, and a cast interrupted by damage or a
+  cancelled target costs nothing beyond what the engine already charged. Confirm a full-round cast and a summon behave as
+  they do unmounted.
+- **6D staged actions** (both modes): move the mount, cast, then move again within one activation; move twice and fire a
+  ranged attack. Confirm the mount's movement budget and the rider's Standard are each spent exactly once on the same turn,
+  that no extra turn or refresh is granted, and that a save and reload between the legs restores the remaining budget
+  exactly.
+- **6E**: nothing to play; the defensive feat is not implemented, so a Mount struck in combat produces no reaction and no
+  negated attack roll.
+
 ## 2026-10-09 - Chunk 6 final consolidation on frozen preview.205 (Claude)
 
 6B IMPLEMENTATION STABLE - RT SUPPORTED; TB DELIVERY DEFER - EVIDENCED. 6C, 6D, 6E: ENGINEERING COMPLETE -
