@@ -165,10 +165,25 @@ public static class Chunk7PersistenceTests
         Check(unrelatedRead.Kind == MountedSaveReadKind.Current && unrelatedRead.Data.Participations[0].MountedPairId == null &&
             unrelatedRead.Data.Participations[0].State.PendingSplitId == unrelatedActor.Id,
             "an unrelated historical pending survivor remains detached instead of borrowing the active pair's custody");
+        var emptyHistorical = Historical();
+        emptyHistorical.Mounted = false; emptyHistorical.Rider = null; emptyHistorical.Mount = null; emptyHistorical.ProfileId = null;
+        emptyHistorical.Combat.Paired = new SavedPairedState { SplitReleaseRound = -1, PendingSplitRound = -1 };
+        var emptyHistoricalJson = MountedSaveCodec.Encode(emptyHistorical);
+        var emptyMigrated = MountedArchiveCodec.Decode(emptyHistoricalJson);
+        Check(emptyMigrated.Kind == MountedSaveReadKind.Current && emptyMigrated.Data.Participations.Length == 0 &&
+            emptyMigrated.Data.Combat.Actors.Length == 2 && emptyMigrated.Data.Combat.Allocations[0].MoveObserved == 3.125f &&
+            MountedSaveCodec.Encode(emptyMigrated.HistoricalData) == emptyHistoricalJson,
+            "historical empty participation migrates without inventing an actorless owner or dropping shared debt");
         var two = Archive(2); var encoded = MountedArchiveCodec.Encode(two); var round = MountedArchiveCodec.Decode(encoded);
         Check(round.Kind == MountedSaveReadKind.Current && MountedArchiveCodec.Encode(round.Data) == encoded &&
             round.Data.Pairs.Length == 2 && round.Data.Participations.Length == 2,
             "two independent Medium pairs round-trip under schema3 with one native turn");
+        var chargeSlots = JObject.Parse(encoded);
+        chargeSlots["Slots"] = new JArray(new JObject { ["ActorId"] = two.Pairs[0].Rider.Id, ["Index"] = 127, ["Kind"] = 5 });
+        Check(MountedArchiveCodec.Decode(chargeSlots.ToString(Formatting.None)).Kind == MountedSaveReadKind.Current,
+            "schema3 retains the native Mounted Charge hotbar binding alongside the four historical controls");
+        var legacyChargeSlot = JObject.Parse(json); legacyChargeSlot["Slots"][0]["Kind"] = 5;
+        Reject(legacyChargeSlot.ToString(Formatting.None), "schema3 control breadth does not broaden historical schema2 acceptance");
         var mutations = new Action<JObject>[] {
             root => root["Pairs"][1]["Rider"] = root["Pairs"][0]["Mount"].DeepClone(),
             root => root["Pairs"][1]["PairId"] = root["Pairs"][0]["PairId"],
@@ -190,6 +205,37 @@ public static class Chunk7PersistenceTests
         var six = MountedArchiveCodec.Encode(Archive(6));
         Check(MountedArchiveCodec.Decode(six).Data.Pairs.Length == 6 && System.Text.Encoding.UTF8.GetByteCount(six) <= MountedArchiveCodec.MaximumBytes,
             "six representative pairs fit character, token, depth and archive-byte bounds together");
+        var maximum = Archive(12);
+        maximum.Pairs = maximum.Pairs.Take(6).ToArray();
+        foreach (var participation in maximum.Participations.Skip(6)) participation.MountedPairId = null;
+        maximum.Combat.Actors = maximum.Combat.Actors.Concat(Enumerable.Range(0,40).Select(i => CombatActor(Actor()))).ToArray();
+        foreach (var actor in maximum.Combat.Actors)
+            actor.AiActions = new[] { new SavedAiAction { BlueprintId = Guid.NewGuid().ToString("N"), Cooldown = 3, Count = 2 } };
+        maximum.Combat.Roster = maximum.Combat.Actors.Select((a,i) => new SavedRosterActor { ActorId = a.Native.Id, Sequence = i }).ToArray();
+        maximum.Combat.Allocations = maximum.Combat.Actors.Select(a => new SavedMovementAllocation {
+            ActorId = a.Native.Id, Round = 2, Prepared = true, MoveObserved = 3.125f, StandardCommitted = true,
+            GrantId = Guid.NewGuid().ToString("N") + ":" + long.MaxValue,
+            Movement = new SavedMovementValues { TimeMoved = 3.125f, TimeForced = 1f, TimeStepped = 0.75f, MetresStepped = 1.25f }
+        }).ToArray();
+        maximum.Combat.Engagements = maximum.Combat.Actors.Select((a,i) => new SavedEngagement {
+            From = a.Native.Id, To = maximum.Combat.Actors[(i+1)%maximum.Combat.Actors.Length].Native.Id, SinceTicks = 20 }).ToArray();
+        maximum.Slots = maximum.Combat.Actors.SelectMany(a => new[] {
+            new SavedMountedSlot { ActorId = a.Native.Id, Index = 0, Kind = 1 },
+            new SavedMountedSlot { ActorId = a.Native.Id, Index = 127, Kind = 4 } }).ToArray();
+        var maximumJson = MountedArchiveCodec.Encode(maximum);
+        var maximumTokens = 0; var maximumDepth = 0;
+        using (var stringReader = new StringReader(maximumJson))
+        using (var tokenReader = new JsonTextReader(stringReader))
+            while (tokenReader.Read()) { maximumTokens++; maximumDepth = Math.Max(maximumDepth, tokenReader.Depth); }
+        var maximumBytes = System.Text.Encoding.UTF8.GetByteCount(maximumJson);
+        Check(MountedArchiveCodec.Decode(maximumJson).Kind == MountedSaveReadKind.Current && maximum.Pairs.Length == 6 &&
+            maximum.Participations.Length == 12 && maximum.Combat.Actors.Length == 64 && maximum.Combat.Allocations.Length == 64 &&
+            maximum.Slots.Length == 128 && maximumJson.Length <= MountedArchiveCodec.MaximumCharacters &&
+            maximumBytes <= MountedArchiveCodec.MaximumBytes && maximumTokens <= MountedArchiveCodec.MaximumTokens && maximumDepth <= 12,
+            "representative six mounted plus six detached owners fit shared 64 actors and 128 slots within every wire bound");
+        Console.WriteLine("CHUNK7 MAXIMUM REPRESENTATIVE chars=" + maximumJson.Length + "/" + MountedArchiveCodec.MaximumCharacters +
+            " utf8Bytes=" + maximumBytes + "/" + MountedArchiveCodec.MaximumBytes + " tokens=" + maximumTokens + "/" +
+            MountedArchiveCodec.MaximumTokens + " depth=" + maximumDepth + "/12; private primitive fixture, not a native maximum-save qualification");
         var bounds = JObject.Parse(six); ((JArray)bounds["Pairs"]).Add(bounds["Pairs"][0].DeepClone());
         Reject(bounds.ToString(Formatting.None), "seventh mounted record exceeds selected capacity");
         bounds=JObject.Parse(encoded); bounds["Slots"]=new JArray(Enumerable.Range(0,129).Select(i=>new JObject {
@@ -228,10 +274,65 @@ public static class Chunk7PersistenceTests
         var refused=false;try{NativeMountedSaveFormat.CaptureOrPreserve(unavailable,()=>old);}catch(InvalidOperationException){refused=true;}
         Check(refused,"unreadable original metadata refuses writing instead of inventing empty state");
         Check(NativeMountedSaveFormat.WriterSchema==2 && NativeMountedSaveFormat.Encode(old)==json,
-            "native writer continues emitting unchanged schema2");
+            "explicit historical adapter continues emitting unchanged schema2");
         var misleading=new MountedSaveReadResult(MountedSaveReadKind.Current,old,encoded,null,3);
         Check(!NativeMountedSaveFormat.CanRestore(misleading) && NativeMountedSaveFormat.CaptureOrPreserve(misleading,()=>old)==encoded,
             "Current status alone cannot authorize a newer native format");
+        var selectedNativeSupport = NativeMountedSaveFormat.ArchiveNativeSupportEnabled;
+        Check(selectedNativeSupport && NativeMountedSaveFormat.NativePairCapacity == 2 && NativeMountedSaveFormat.SelectedWriterSchema == 3,
+            "reviewed world integration deliberately selects two-pair schema3 native support");
+        NativeMountedSaveFormat.ArchiveNativeSupportEnabled = false;
+        Check(!NativeMountedSaveFormat.CanRestore(round),
+            "successful archive decoding does not select native support by itself");
+        var gateRefused = false;
+        try { NativeMountedSaveFormat.CaptureOrPreserve((MountedArchiveReadResult)null, () => round.Data); }
+        catch (InvalidOperationException) { gateRefused = true; }
+        Check(gateRefused, "schema3 native capture refuses without the explicit world capability selection");
+        NativeMountedSaveFormat.ArchiveNativeSupportEnabled = true;
+        try
+        {
+            var selectedJson = MountedArchiveCodec.Encode(Archive(NativeMountedSaveFormat.NativePairCapacity));
+            var selected = MountedArchiveCodec.Decode(selectedJson);
+            Check(NativeMountedSaveFormat.SelectedWriterSchema == 3 && NativeMountedSaveFormat.CanRestore(selected) &&
+                NativeMountedSaveFormat.CaptureOrPreserve((MountedArchiveReadResult)null, () => selected.Data) == selectedJson,
+                "selected all-pair native adapter accepts and writes the entire selected-capacity schema3 graph");
+            var overCapacityJson = MountedArchiveCodec.Encode(Archive(6));
+            var overCapacity = MountedArchiveCodec.Decode(overCapacityJson); var overCapacityCaptures = 0;
+            Check(overCapacity.Kind == MountedSaveReadKind.Current && !NativeMountedSaveFormat.CanRestore(overCapacity) &&
+                NativeMountedSaveFormat.CaptureOrPreserve(overCapacity, () => { overCapacityCaptures++; return round.Data; }) == overCapacityJson &&
+                overCapacityCaptures == 0 && MountedLoadAdmissionPolicy.Rejection(overCapacity, overCapacity.Data.CampaignId,
+                    overCapacity.Data.AreaId, true, true, false, false, true).Contains("capacity"),
+                "offline six-pair decoding does not authorize restoration beyond the selected native capacity or reinterpret its original");
+            var oversizedWriteRefused = false;
+            try { NativeMountedSaveFormat.CaptureOrPreserve((MountedArchiveReadResult)null, () => overCapacity.Data); }
+            catch (InvalidOperationException) { oversizedWriteRefused = true; }
+            Check(oversizedWriteRefused, "selected native writing refuses to emit a graph beyond its admission capacity");
+            foreach (var source in new[] { v1json, json, pendingMountedJson, emptyHistoricalJson })
+            {
+                var migratedNative = MountedArchiveCodec.Decode(source);
+                Check(NativeMountedSaveFormat.CanRestore(migratedNative) &&
+                    MountedLoadAdmissionPolicy.Rejection(migratedNative, migratedNative.Data.CampaignId,
+                        migratedNative.Data.AreaId, true, true, false, false, true) == null,
+                    "selected native adapter explicitly admits a valid historical migration");
+            }
+            var opaque = MountedArchiveCodec.Decode(future); var captures = 0;
+            Check(!NativeMountedSaveFormat.CanRestore(opaque) && NativeMountedSaveFormat.CaptureOrPreserve(opaque,
+                () => { captures++; return round.Data; }) == future && captures == 0,
+                "selected new native adapter still preserves future metadata without capture");
+            var fakeCurrent = new MountedArchiveReadResult { Kind = MountedSaveReadKind.Current, SourceSchema = 99,
+                Data = round.Data, OriginalJson = future };
+            Check(!NativeMountedSaveFormat.CanRestore(fakeCurrent), "a Current verdict cannot impersonate a supported native source schema");
+            var invalid = new MountedArchiveReadResult { Kind = MountedSaveReadKind.Invalid };
+            var denied = false;
+            try { NativeMountedSaveFormat.CaptureOrPreserve(invalid, () => round.Data); }
+            catch (InvalidOperationException) { denied = true; }
+            Check(denied, "selected all-pair native adapter refuses to replace an unreadable original");
+            var actorless = JObject.Parse(encoded);
+            actorless["Participations"][0]["State"] = JObject.FromObject(new SavedPairedState {
+                SplitReleaseRound = -1, PendingSplitRound = -1 }, MountedSaveCodec.CreateSerializer());
+            Reject(actorless.ToString(Formatting.None), "schema3 cannot invent a retained owner with no native actor obligation");
+        }
+        finally { NativeMountedSaveFormat.ArchiveNativeSupportEnabled = selectedNativeSupport; }
         Console.WriteLine("CHUNK7 PERSISTENCE PASS="+count+" FAIL=0 (primitive production codec/native format boundary; no game saves)");
     }
 }

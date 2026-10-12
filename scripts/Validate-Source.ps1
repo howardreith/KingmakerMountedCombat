@@ -583,7 +583,9 @@ $deferredSaveText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\King
 Assert-Kmc ($deferredSaveText -match 'internal bool SaveEffectsReady\(\)[\s\S]{0,2000}!controls\.HasUnsettledRelationshipTransition' -and
     $deferredSaveText -match 'Any\(controls\.OwnsUnsettledRelationshipShell\)' -and
     $nativeControlsText -match 'internal bool OwnsUnsettledRelationshipShell\(UnitCommand command\)' -and
-    $nativeControlsText -match 'internal bool HasUnsettledRelationshipTransition => playerAction\.HasVoluntaryTransitionInFlight;' -and
+    $nativeControlsText -match 'internal bool HasUnsettledRelationshipTransition => relationship\.World == null \? playerAction\.HasVoluntaryTransitionInFlight :' -and
+    $nativeControlsText -match 'relationship\.World\.Pairs\.Any\(pair => pair\.PlayerActions\.HasVoluntaryTransitionInFlight\)' -and
+    $deferredSaveText -match '!WorldRelationships\.Any\(controls\.HasUnsettledShellFor\)' -and
     $nativeControlsText -match 'ability == null \|\| ability\.IsFinished') `
     'the save barrier defers on an unsettled relationship shell and on the transition ledger itself'
 

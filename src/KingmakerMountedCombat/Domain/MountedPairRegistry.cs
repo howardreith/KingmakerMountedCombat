@@ -10,7 +10,7 @@ namespace KingmakerMountedCombat.Domain
     // absent: their world/session authority outlives a relationship registration.
     internal sealed class MountedPairOwner<TActor, TBoundary> where TActor : class where TBoundary : class
     {
-        internal readonly Guid Id = Guid.NewGuid();
+        internal readonly Guid Id;
         internal readonly object Session;
         internal readonly string CampaignId, RiderId, MountId;
         internal readonly long Generation;
@@ -21,8 +21,9 @@ namespace KingmakerMountedCombat.Domain
 
         internal MountedPairOwner(object session, string campaignId, TActor rider, TActor mount,
             string riderId, string mountId, long generation, TBoundary boundary,
-            Func<bool> retainsObligations, Func<bool> saveReady, Func<bool> teardownReady)
+            Func<bool> retainsObligations, Func<bool> saveReady, Func<bool> teardownReady, Guid? importedId = null)
         {
+            Id = importedId ?? Guid.NewGuid();
             Session = session; CampaignId = campaignId; Rider = rider; Mount = mount;
             RiderId = riderId; MountId = mountId; Generation = generation; Boundary = boundary;
             RetainsObligations = retainsObligations; SaveReady = saveReady; TeardownReady = teardownReady;
@@ -99,13 +100,15 @@ namespace KingmakerMountedCombat.Domain
 
         internal void RetireSettled()
         {
-            foreach (var owner in Owners)
+            var errors = VisitOwners(owner =>
             {
-                if (owner.State != MountedPairOwnershipState.Detached || owner.RetainsObligations()) continue;
+                if (owner.State != MountedPairOwnershipState.Detached || owner.RetainsObligations()) return;
                 if (owner.RiderId != null) actors.Remove(owner.RiderId);
                 if (owner.MountId != null) actors.Remove(owner.MountId);
                 owners.Remove(owner); owner.Retire();
-            }
+            });
+            if (errors.Length != 0)
+                throw new AggregateException("Some mounted owners could not establish settled custody.", errors);
         }
 
         internal string AdmissionRefusal(object world, string campaign, TActor rider, TActor mount,
@@ -126,16 +129,19 @@ namespace KingmakerMountedCombat.Domain
 
         internal bool TryReserve(object world, string campaign, TActor rider, TActor mount, long generation,
             TBoundary boundary, Func<bool> retained, Func<bool> saveReady, Func<bool> teardownReady,
-            out MountedPairOwner<TActor, TBoundary> owner, out string refusal, int nativeCapacity = MaximumActivePairs)
+            out MountedPairOwner<TActor, TBoundary> owner, out string refusal, int nativeCapacity = MaximumActivePairs,
+            Guid? importedId = null)
         {
             owner = null;
             if (boundary == null || retained == null || saveReady == null || teardownReady == null || generation <= 0)
                 throw new ArgumentException("Pair ownership requires an exact boundary, generation and readiness predicates.");
-            refusal = AdmissionRefusal(world, campaign, rider, mount, nativeCapacity);
+            refusal = importedId.HasValue && (importedId.Value == Guid.Empty || owners.Any(o => o.Id == importedId.Value))
+                ? "A persisted owner identity is invalid or already imported."
+                : AdmissionRefusal(world, campaign, rider, mount, nativeCapacity);
             if (refusal != null) return false;
             if (owners.Count == 0) { session = world; campaignId = campaign; }
             owner = new MountedPairOwner<TActor, TBoundary>(world, campaign, rider, mount,
-                Key(rider), Key(mount), generation, boundary, retained, saveReady, teardownReady);
+                Key(rider), Key(mount), generation, boundary, retained, saveReady, teardownReady, importedId);
             // All checks precede either index mutation. Both roles acquire one owner.
             actors.Add(owner.RiderId, owner); actors.Add(owner.MountId, owner); owners.Add(owner);
             return true;
@@ -145,24 +151,45 @@ namespace KingmakerMountedCombat.Domain
         // It remains cleanup/participation custody, never an active membership.
         internal bool TryRetainDetached(object world, string campaign, TActor rider, TActor mount,
             long generation, TBoundary boundary, Func<bool> retained, Func<bool> saveReady, Func<bool> teardownReady,
-            out MountedPairOwner<TActor, TBoundary> owner)
+            out MountedPairOwner<TActor, TBoundary> owner, Guid? importedId = null)
         {
             owner = null;
             var riderKey = Key(rider); var mountKey = Key(mount);
             if (world == null || string.IsNullOrWhiteSpace(campaign) || generation <= 0 || boundary == null ||
                 retained == null || saveReady == null || teardownReady == null ||
+                importedId.HasValue && (importedId.Value == Guid.Empty || owners.Any(o => o.Id == importedId.Value)) ||
                 rider != null && string.IsNullOrWhiteSpace(riderKey) || mount != null && string.IsNullOrWhiteSpace(mountKey) ||
                 riderKey == null && mountKey == null || riderKey != null && riderKey == mountKey ||
                 owners.Count >= MaximumOwners || owners.Count != 0 && (!ReferenceEquals(world, session) || campaignId != campaign) ||
                 riderKey != null && actors.ContainsKey(riderKey) || mountKey != null && actors.ContainsKey(mountKey)) return false;
             if (owners.Count == 0) { session = world; campaignId = campaign; }
             owner = new MountedPairOwner<TActor, TBoundary>(world, campaign, rider, mount, riderKey, mountKey,
-                generation, boundary, retained, saveReady, teardownReady);
+                generation, boundary, retained, saveReady, teardownReady, importedId);
             owner.Detach();
             if (riderKey != null) actors.Add(riderKey, owner);
             if (mountKey != null) actors.Add(mountKey, owner);
             owners.Add(owner);
             return true;
+        }
+
+        // Persistence imports custody only, after whole-graph validation and
+        // exact actor resolution. It neither creates a native grant nor activates
+        // an attachment; mounted imports remain reserved until restore commits.
+        internal bool TryImport(object world, string campaign, Guid id, long generation,
+            TActor rider, TActor mount, TBoundary boundary, bool mounted, Func<bool> retained,
+            Func<bool> saveReady, Func<bool> teardownReady, out MountedPairOwner<TActor, TBoundary> owner,
+            out string refusal)
+        {
+            owner = null; refusal = null;
+            if (id == Guid.Empty || generation <= 0 || owners.Any(o => o.Id == id))
+            { refusal = "Persisted ownership identity or generation is invalid or duplicated."; return false; }
+            if (mounted)
+                return TryReserve(world, campaign, rider, mount, generation, boundary, retained, saveReady,
+                    teardownReady, out owner, out refusal, MaximumActivePairs, id);
+            if (TryRetainDetached(world, campaign, rider, mount, generation, boundary, retained, saveReady,
+                teardownReady, out owner, id)) return true;
+            refusal = "Persisted detached ownership conflicts with the resolved world.";
+            return false;
         }
 
         internal void Commit(MountedPairOwner<TActor, TBoundary> owner)

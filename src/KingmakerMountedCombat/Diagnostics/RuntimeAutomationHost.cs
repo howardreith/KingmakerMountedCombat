@@ -83,6 +83,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private RuntimeCombatScenarioEngine combatEngine;
         private HorseCompanionUnmountedScenarioEngine horseCompanionEngine;
         private Chunk6aMammothScenarioEngine mammothEngine;
+        private Chunk7WorldScenarioEngine worldEngine;
         private readonly List<string> scenarioEngineErrors = new List<string>();
         private readonly BoundaryFailureDrain saveBackedFailureDrain = new BoundaryFailureDrain();
         private IReadOnlyList<string> saveBackedFailureErrors;
@@ -98,6 +99,7 @@ namespace KingmakerMountedCombat.Diagnostics
             // The mod-load smoke is observational and asserts that no overlay object
             // exists, so it must never be the reason one is created.
             request.Scenario != ModLoadSmokePolicy.ScenarioId &&
+            !Chunk7WorldScenarioEngine.SupportsScenario(request.Scenario) &&
             !Chunk6aMammothScenarioEngine.SupportsScenario(request.Scenario) &&
             request.Scenario != PersistenceIsolationBootstrap.Scenario &&
             request.Scenario != Phase3dHorseScenarioTranche.RealTimeScenario &&
@@ -667,7 +669,22 @@ namespace KingmakerMountedCombat.Diagnostics
                 return;
             }
 
-            if (Chunk6aMammothScenarioEngine.SupportsScenario(request.Scenario))
+            if (Chunk7WorldScenarioEngine.SupportsScenario(request.Scenario))
+            {
+                if (worldEngine == null)
+                {
+                    worldEngine = new Chunk7WorldScenarioEngine(request, relationship, nativeControls, horseCompanion, diagnosticSettings, logger);
+                    worldEngine.Start();
+                }
+                worldEngine.Update();
+                if (!worldEngine.IsCompleted) return;
+                subscenarioResults = worldEngine.Results;
+                CollectEngineErrors(worldEngine.Errors, "Chunk 7 world");
+                try { worldEngine.Dispose(); }
+                catch (Exception exception) { scenarioEngineErrors.Add("Chunk 7 world disposal failed: " + exception); }
+                CollectEngineErrors(worldEngine.Errors, "Chunk 7 world"); worldEngine = null;
+            }
+            else if (Chunk6aMammothScenarioEngine.SupportsScenario(request.Scenario))
             {
                 if (mammothEngine == null)
                 {
@@ -1071,6 +1088,8 @@ namespace KingmakerMountedCombat.Diagnostics
             movementEngine = null;
             boundaryEngine?.Dispose();
             boundaryEngine = null;
+            worldEngine?.Dispose();
+            worldEngine = null;
             mammothEngine?.Dispose();
             mammothEngine = null;
             horseCompanionEngine?.Dispose();
@@ -1114,6 +1133,7 @@ namespace KingmakerMountedCombat.Diagnostics
             completionStarted = true;
             try
             {
+                PublishRuntimeArtifactManifest();
                 WriteJsonAtomic(resultPath, CreateNoSaveResult(status, errors));
                 logger.Info("Runtime automation result committed: " + status);
             }
@@ -1448,6 +1468,15 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void FinalizeActiveScenarioEngines(List<string> finalErrors)
         {
+            if (worldEngine != null)
+            {
+                var engine = worldEngine; worldEngine = null;
+                if (!engine.IsCompleted) finalErrors.Add("Chunk 7 world engine interrupted before terminal evidence.");
+                try { engine.Dispose(); }
+                catch (Exception exception) { finalErrors.Add("Chunk 7 world cleanup failed: " + exception); }
+                if ((subscenarioResults == null || subscenarioResults.Count == 0) && engine.Results.Count != 0) subscenarioResults = engine.Results;
+                CollectEngineErrors(engine.Errors, "Chunk 7 world");
+            }
             if (mammothEngine != null)
             {
                 var engine = mammothEngine; mammothEngine = null;
@@ -1720,8 +1749,11 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private static string PublishRuntimeArtifactManifest(RuntimeRequest request)
         {
+            RuntimeLoaderInventory.EnsureWritten(request);
             var manifestPath = Path.Combine(request.EvidenceRoot, "runtime-artifacts.json");
             var artifacts = new List<RuntimeArtifactRecord>();
+            AddRuntimeArtifactIfPresent(artifacts, request.EvidenceRoot, RuntimeLoaderInventory.EvidenceFileName, RuntimeLoaderInventory.EvidenceKind);
+            AddRuntimeArtifactIfPresent(artifacts, request.EvidenceRoot, Chunk7WorldScenarioEngine.EvidenceFileName, Chunk7WorldScenarioEngine.EvidenceKind);
             AddRuntimeArtifactIfPresent(artifacts, request.EvidenceRoot, "lifecycle-scenario-evidence.jsonl", "scenario-evidence");
             AddRuntimeArtifactIfPresent(
                 artifacts,

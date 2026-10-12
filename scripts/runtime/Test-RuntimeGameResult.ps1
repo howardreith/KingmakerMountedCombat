@@ -74,6 +74,7 @@ function Assert-SubscenarioResults {
         'mounted-rider-melee-cleanup', 'non-mounted-melee-control'
     )
     $missionScenarios += @(Get-KmcPhase3dHorseRuntimeRows)
+    $missionScenarios += @(Get-KmcChunk7WorldRows)
     if ($null -eq $Game.subscenarioResults -or $Game.subscenarioResults -is [string]) { throw 'Runtime game-result subscenarioResults must be an array.' }
     $items = @($Game.subscenarioResults)
     if ($items.Count -eq 0) { throw 'Runtime game-result contains no named subscenarios.' }
@@ -235,6 +236,7 @@ Assert-KmcHorseCompanionBlueprintRegistrationEvidence -Request $request -Manifes
 Assert-KmcHorseCompanionUnmountedEvidence -Request $request -Manifest $validatedArtifactManifest -Status ([string]$game.status) -SubscenarioResults $game.subscenarioResults
 Assert-KmcPersistenceScenarioEvidence -Request $request -Manifest $validatedArtifactManifest -Status ([string]$game.status) -GameResult $game
 Assert-KmcNativeMammothArtifact -Request $request -Manifest $validatedArtifactManifest -Status ([string]$game.status)
+Assert-KmcChunk7WorldArtifact -Request $request -Manifest $validatedArtifactManifest -Status ([string]$game.status)
 Assert-KmcPhase3dHorseScenarioEvidence -Request $request -Manifest $validatedArtifactManifest -Status ([string]$game.status) -SubscenarioResults $game.subscenarioResults
 if ([string]$game.status -ceq 'PASS') {
     if ($game.fixtureIdentityVerified -ne $true -or [string]$game.relationshipState -cne 'Unmounted') { throw 'Save-backed PASS did not finish with verified fixture identity and an unmounted relationship.' }

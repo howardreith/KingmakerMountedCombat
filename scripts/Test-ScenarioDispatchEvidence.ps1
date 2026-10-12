@@ -58,5 +58,8 @@ foreach($scenario in @('chunk6e-reaction-rt','chunk6e-reaction-tb')) {
 foreach($scenario in @('C6D-move-cast-move','C6E-reaction-window','CHUNK6D-STAGED-RT')) {
  Check (-not(Test-KmcCompoundRuntimeScenario $scenario)) ('Row or inexact 6D/6E name treated as compound: '+$scenario)
 }
-Check (@(Get-KmcCompoundRuntimeScenarios).Count-eq8) 'Compound registry changed without a dedicated validator review'
+Check (@(Get-KmcCompoundRuntimeScenarios).Count-eq9) 'Compound registry changed without a dedicated validator review'
+Check (Test-KmcCompoundRuntimeScenario 'chunk7-two-pair-exploration') 'Chunk 7 world compound request missing'
+Check (@(Get-KmcSaveBackedRuntimeScenarios|Where-Object {$_-ceq'chunk7-two-pair-exploration'}).Count-eq1) 'World request must be registered once'
+Check (-not(Test-KmcCompoundRuntimeScenario 'chunk7-two-pair-combat')) 'Unimplemented Chunk 7 combat case admitted'
 Write-Host ('TOTAL PASS='+$passed+' FAIL=0')

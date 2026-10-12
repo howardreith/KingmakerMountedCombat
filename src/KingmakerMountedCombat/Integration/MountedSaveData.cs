@@ -63,7 +63,7 @@ namespace KingmakerMountedCombat.Integration
             }
         }
 
-        private static bool SameActorDebt(SavedNativeActor first, SavedNativeActor second) => second != null &&
+        internal static bool SameActorDebt(SavedNativeActor first, SavedNativeActor second) => second != null &&
             first.Id == second.Id && first.Standard == second.Standard && first.Move == second.Move &&
             first.Swift == second.Swift && first.Initiative == second.Initiative && first.Reaction == second.Reaction &&
             first.ReactionsRemaining == second.ReactionsRemaining && first.LastSurpriseTicks == second.LastSurpriseTicks;

@@ -12,7 +12,7 @@ namespace KingmakerMountedCombat.Integration
 {
     // Exact commands produced by the one native preparation path retain their
     // actor's grant through condition-driven control loss and forced detachment.
-    internal sealed partial class UnifiedMountedTurnCoordinator
+    internal sealed partial class MountedPairTurnParticipant
     {
         private readonly Dictionary<UnitEntityData, UnitCommand> nativePreparationCommands =
             new Dictionary<UnitEntityData, UnitCommand>();

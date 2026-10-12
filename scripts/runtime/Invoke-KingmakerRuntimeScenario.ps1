@@ -1,6 +1,7 @@
 [CmdletBinding(SupportsShouldProcess=$true,ConfirmImpact='High')]
 param(
     [ValidateSet(
+        'chunk7-two-pair-exploration',
         'mod-load-smoke','export-mounted-contracts','export-candidate-mount-rigs','observe-mount-diagnostic-availability','horse-native-asset-audit','horse-companion-blueprint-registration','horse-companion-unmounted-suite','horse-mounted-alpha-suite','horse-native-controls-ux-suite',
         'chunk6c-casting-rt','chunk6c-casting-tb','chunk6c-casting-unmounted-rt','chunk6c-casting-unmounted-tb',
         'chunk6d-staged-rt','chunk6d-staged-tb','chunk6e-reaction-rt','chunk6e-reaction-tb',
@@ -36,6 +37,9 @@ param(
     [ValidatePattern('^[A-Za-z0-9._-]{1,120}$')][string]$RunId,
     [ValidateRange(360,900)][int]$TimeoutSeconds=360,
     [switch]$SaveAccessAllowed,
+    # Explicit private compatibility selection. Other modes keep the actual live
+    # mod set. This mode stages KMC alone while retaining installed UMM/Harmony.
+    [switch]$BaseGameOnly,
     [string]$PackagePath,
     [string]$FrozenSourceRoot,
     [string]$FrozenSourceFreezePath,
@@ -145,6 +149,9 @@ $gameExecutable=Join-Path ([string]$intake.requestedLayout.kingmakerInstallDir) 
 $expectedGameExecutableHash=[string](@($fingerprint.kingmaker.files|Where-Object role -eq 'executable')[0].sha256)
 $isSaveBacked=[string]$Scenario -cne 'mod-load-smoke'
 $isManualReview=[string]$Scenario -ceq 'manual-visual-review'
+if($BaseGameOnly-and($isObserver-or$isManualReview)){throw 'Base-game compatibility is a separate automated selection, not a removal-observer or human-review mode.'}
+$baseGameDependencies=$null
+if($BaseGameOnly){$baseGameDependencies=Get-KmcBaseGameDependencies -GameRoot ([string]$intake.requestedLayout.kingmakerInstallDir) -Fingerprint $fingerprint}
 if($BootstrapOfflineCloudEvidence -and $isSaveBacked){
     throw '-BootstrapOfflineCloudEvidence is restricted to the no-save mod-load-smoke scenario.'
 }
@@ -292,6 +299,7 @@ if(-not $PSCmdlet.ShouldProcess('Steam App 640820, exact live Kingmaker Mods, an
     if((Get-KmcSaveMetadataInventory $saveRoot).digest-cne$beforeSaves.digest){throw 'WhatIf purity failed: save metadata changed.'}
     Assert-KmcNoGameProcesses
     if($BootstrapOfflineCloudEvidence){[void](Assert-KmcSteamSafety $SteamPath -AllowMissingCurrentSessionCloudState)}
+    if($BaseGameOnly){Assert-KmcBaseGameDependencyReceipt $baseGameDependencies -VerifyFiles;Write-Host ('Base-game-only KMC staging selected; unchanged installed loader dependency digest: '+$baseGameDependencies.dependencyDigest)}
     Write-Host 'Runtime WhatIf purity PASS; exact fixture descriptors were validated when required, and no evidence, lock, transaction, Mods, process, game, or save mutation occurred.'
     return
 }
@@ -316,6 +324,11 @@ $lock=$null
 $request=$null
 $combinedStatePath=$null
 $profileSnapshot=$null
+$modsTransactionStatePath=$null
+$baseGameStaged=$false
+$baseGameDependenciesUnchanged=$false
+$baseGameNativeInventoryObserved=$false
+$baseGameNativeInventorySha256=$null
 $profileCacheChanges=@()
 $process=$null
 $launchIssued=$false
@@ -339,7 +352,7 @@ $errors=New-Object 'System.Collections.Generic.List[string]'
 New-Item -ItemType Directory -Path $evidenceRoot|Out-Null
 try{
     $lock=Open-KmcRuntimeLock $runtimeState $actualRunId
-    if($Scenario -cin @('persistence-isolation','persistence-p07-save','persistence-p07-load','persistence-p01-save','persistence-p01-load','persistence-p02-save','persistence-p02-load','persistence-p03-save','persistence-p03-load','persistence-p04-save','persistence-p04-load','persistence-p05-save','persistence-p05-load','persistence-p06-load')){
+    if($BaseGameOnly-or$Scenario -cin @('persistence-isolation','persistence-p07-save','persistence-p07-load','persistence-p01-save','persistence-p01-load','persistence-p02-save','persistence-p02-load','persistence-p03-save','persistence-p03-load','persistence-p04-save','persistence-p04-load','persistence-p05-save','persistence-p05-load','persistence-p06-load')){
         $profileSnapshot=New-KmcPersistenceProfileSnapshot -Lock $lock -SaveRoot $saveRoot -GameRoot ([string]$intake.requestedLayout.kingmakerInstallDir) -BackupRoot $runtimeBackups
     }
     $request=[ordered]@{
@@ -502,7 +515,19 @@ try{
         }
 
     }
-    [void](Enter-KmcModsTransaction -Lock $lock -LiveModsRoot $liveMods -PackagePath $(if($isObserver){$ObserverPackagePath}else{$PackagePath}) -StateRoot $runtimeState -BackupRoot $runtimeBackups -StagingRoot $runtimeStaging -StagingMode $(if($isObserver){'live-clone-minus-kmc-plus-observer'}else{'live-clone-plus-kmc-overlay'}))
+    $stageArguments=@{}
+    if($BaseGameOnly){
+        Assert-KmcBaseGameDependencyReceipt $baseGameDependencies -VerifyFiles
+        $stageArguments['BaseGameDependencies']=$baseGameDependencies
+    }
+    $modsTransactionStatePath=Enter-KmcModsTransaction -Lock $lock -LiveModsRoot $liveMods -PackagePath $(if($isObserver){$ObserverPackagePath}else{$PackagePath}) -StateRoot $runtimeState -BackupRoot $runtimeBackups -StagingRoot $runtimeStaging -StagingMode $(if($BaseGameOnly){'base-game-only-kmc'}elseif($isObserver){'live-clone-minus-kmc-plus-observer'}else{'live-clone-plus-kmc-overlay'}) @stageArguments
+    if($BaseGameOnly){
+        $baseGameStaged=$true
+        Write-KmcJsonAtomic (Join-Path $evidenceRoot 'base-game-isolation-admission.json') ([ordered]@{schemaVersion=1;runId=$actualRunId;
+            transactionToken=[string]$lock.Token;stagingMode='base-game-only-kmc';dependencies=$baseGameDependencies;
+            transactionStatePath=$modsTransactionStatePath;stagedStateSha256=(Get-KmcSha256 $modsTransactionStatePath);
+            nativeInventoryObserved=$false;nativeCompatibilityQualified=$false})
+    }
     Write-KmcJsonAtomic $requestPath $request
     & (Join-Path $repoRoot 'scripts\runtime\Test-RuntimeRequest.ps1') -RequestPath $requestPath -PackageManifestPath $packageManifestPath
     if($isObserver){
@@ -661,6 +686,16 @@ try{
         }
         $validatedGameResult=Read-KmcJson $gameResultPath
         $gamePassed=[string]$validatedGameResult.status -ceq 'PASS'
+        if($BaseGameOnly){
+            $inventoryManifestPath=Join-Path $evidenceRoot 'runtime-artifacts.json'
+            if($isSaveBacked-and(Get-KmcSha256 $inventoryManifestPath)-cne$validatedGameResult.evidenceManifestSha256){throw 'Base-game inventory manifest is not the native result manifest.'}
+            $inventoryManifest=Read-KmcJson $inventoryManifestPath
+            $inventory=Read-KmcChunk7ManifestArtifact $request $inventoryManifest 'runtime-loader-inventory.json' 'runtime-loader-inventory'
+            if($inventory.observations.processId-ne$process.Id){throw 'Loader inventory came from a different native process.'}
+            Assert-KmcBaseGameNativeInventory $request $inventory $baseGameDependencies
+            $baseGameNativeInventoryObserved=$true
+            $baseGameNativeInventorySha256=Get-KmcSha256 (Join-Path $evidenceRoot 'runtime-loader-inventory.json')
+        }
         $compareRealtime=$Scenario-ceq'persistence-p04-load'-and(
             (Test-KmcChargePersistenceCase $PersistenceCase)-or
             $PersistenceCase.EndsWith('-projectile',[StringComparison]::Ordinal)-or
@@ -747,7 +782,7 @@ finally{
     }else{$errors.Add('Kingmaker process state is ambiguous; external-state restoration was intentionally not attempted.')}
     if($processExited-and$null-ne$profileSnapshot){
         try{
-            Restore-KmcPersistenceStartupSettings -Lock $lock -Snapshot $profileSnapshot -BackupRoot $runtimeBackups -ExpectedCurrentParamsSha256 (Get-KmcSha256 $profileSnapshot.paramsPath) -ExpectedCurrentPrefsSha256 (Get-KmcTextSha256 (Get-KmcPersistencePlayerPrefs)) -RemovalObserver:$isObserver -Confirm:$false
+            Restore-KmcPersistenceStartupSettings -Lock $lock -Snapshot $profileSnapshot -BackupRoot $runtimeBackups -ExpectedCurrentParamsSha256 (Get-KmcSha256 $profileSnapshot.paramsPath) -ExpectedCurrentPrefsSha256 (Get-KmcTextSha256 (Get-KmcPersistencePlayerPrefs)) -RemovalObserver:$isObserver -BaseGameOnly:$baseGameStaged -Confirm:$false
             # Admitted native achievement-cache churn is an expected external
             # change, not restored bytes, so it is recorded rather than implied
             # away by a bare "profile unchanged" result.
@@ -768,10 +803,25 @@ finally{
         }catch{$errors.Add('Profile cache change receipt failed: '+$_.Exception.Message)}
     }
     try{if($processExited){[void](Assert-KmcSteamSafety $SteamPath)}}catch{$errors.Add('Steam postflight safety failed: '+$_.Exception.Message)}
+    if($BaseGameOnly-and$processExited){
+        try{Assert-KmcBaseGameDependencyReceipt $baseGameDependencies -VerifyFiles;$baseGameDependenciesUnchanged=$true}
+        catch{$errors.Add('Base-game loader dependency verification failed: '+$_.Exception.Message)}
+    }
     if($null-ne$lock){
         try{
             if($modsRestored-and$saveProtection-and$processExited){Close-KmcRuntimeLock $lock}else{Abandon-KmcRuntimeLock $lock}
         }catch{$errors.Add('Runtime lock finalization failed: '+$_.Exception.Message)}
+    }
+    if($BaseGameOnly){
+        try{Write-KmcJsonAtomic (Join-Path $evidenceRoot 'base-game-isolation-result.json') ([ordered]@{
+            schemaVersion=1;runId=$actualRunId;stagingMode='base-game-only-kmc';dependencyDigest=[string]$baseGameDependencies.dependencyDigest;
+            stageVerified=$baseGameStaged;dependenciesUnchanged=$baseGameDependenciesUnchanged;processExited=$processExited;
+            modsRestored=$modsRestored;saveProtectionPassed=$saveProtection;gameReportedPass=$gamePassed;
+            transactionStatePath=$modsTransactionStatePath;transactionStateSha256=$(if($null-ne$modsTransactionStatePath-and(Test-Path -LiteralPath $modsTransactionStatePath)){Get-KmcSha256 $modsTransactionStatePath}else{$null});
+            nativeInventoryObserved=$baseGameNativeInventoryObserved;runtimeLoaderInventorySha256=$baseGameNativeInventorySha256;
+            nativeCompatibilityQualified=($gamePassed-and$baseGameNativeInventoryObserved-and$baseGameDependenciesUnchanged-and$modsRestored-and$saveProtection-and$processExited-and$errors.Count-eq0);
+            limitation='Qualification is limited to this exact selected scenario and candidate. Loaded UMM entries and assembly identities are observed; broader gameplay is not inferred.'})}
+        catch{$errors.Add('Base-game isolation receipt failed: '+$_.Exception.Message)}
     }
     $errorArray=@($errors|ForEach-Object{[string]$_})
     if($null-ne$request){

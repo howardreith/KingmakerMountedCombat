@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Kingmaker.Blueprints.Area;
 using Kingmaker.EntitySystem;
 using Kingmaker.EntitySystem.Entities;
@@ -86,9 +87,12 @@ namespace KingmakerMountedCombat.Integration
         private void CompleteNativeModeObservation(bool enabled)
         {
             VisitCombatOwners(owner => owner.Cancel("real-time/turn-based mode changed"));
-            var owners = service.Ownership.Owners;
-            if (owners.Length == 0) service.ObserveNativeTurnBasedModeChanged(enabled);
-            else foreach (var owner in owners) owner.Boundary.ObserveNativeTurnBasedModeChanged(enabled);
+            if (service.World != null)
+            {
+                var errors = service.World.Visit(pair => pair.Relationship.ObserveNativeTurnBasedModeChanged(enabled));
+                if (errors.Length != 0) throw new AggregateException("Native mode observation retained failures.", errors);
+            }
+            else service.ObserveNativeTurnBasedModeChanged(enabled);
             unifiedTurn.ObserveModeChanged(enabled);
             Observe(
                 enabled ? NativeLifecycleBoundary.TurnBasedEnabled : NativeLifecycleBoundary.RealtimeEnabled,
@@ -215,9 +219,12 @@ namespace KingmakerMountedCombat.Integration
 
         internal bool HandleModDisable()
         {
-            if (!service.AllTeardownOwnersReady || combat.ChargeAdmissionFenced) return false;
+            if (!service.AllTeardownOwnersReady || combat.ChargeAdmissionFenced || service.World?.AdmissionFenced() == true) return false;
             var drained = true;
-            var errors = service.Ownership.VisitOwners(owner =>
+            var errors = service.World != null ? service.World.Visit(pair =>
+            {
+                if (!pair.Combat.TryDrainChargeOwnership("mod disable")) drained = false;
+            }) : service.Ownership.VisitOwners(owner =>
             {
                 if (!owner.Boundary.CombatOwner.TryDrainChargeOwnership("mod disable")) drained = false;
             });
@@ -271,8 +278,9 @@ namespace KingmakerMountedCombat.Integration
 
         private void VisitCombatOwners(Action<MountedCombatController> action)
         {
-            if (service.Ownership.Owners.Length == 0) { action(combat); return; }
-            var errors = service.Ownership.VisitOwners(owner => action(owner.Boundary.CombatOwner));
+            if (service.World == null && service.Ownership.Owners.Length == 0) { action(combat); return; }
+            var errors = service.World != null ? service.World.Visit(pair => action(pair.Combat)) :
+                service.Ownership.VisitOwners(owner => action(owner.Boundary.CombatOwner));
             if (errors.Length != 0) throw new AggregateException("Mounted owner boundary did not settle.", errors);
         }
 
@@ -286,8 +294,11 @@ namespace KingmakerMountedCombat.Integration
         {
             var succeeded = true;
             var owners = service.Ownership.Owners;
-            if (owners.Length == 0) return CleanupOwner(service, boundary, source, trigger, detail);
-            var errors = service.Ownership.VisitOwners(owner =>
+            if (service.World == null && owners.Length == 0) return CleanupOwner(service, boundary, source, trigger, detail);
+            var errors = service.World != null ? service.World.Visit(pair =>
+            {
+                if (!CleanupOwner(pair.Relationship, boundary, source, trigger, detail)) succeeded = false;
+            }) : service.Ownership.VisitOwners(owner =>
             {
                 if (!CleanupOwner(owner.Boundary, boundary, source, trigger, detail)) succeeded = false;
             });
@@ -313,9 +324,10 @@ namespace KingmakerMountedCombat.Integration
 
         private void ObserveOrCleanupGameMode(NativeLifecycleBoundary boundary, string source, GameModeType gameMode)
         {
-            if (service.SaveSerializationSuspended ||
+            if (persistence.SaveSuspended ||
                 (gameMode == GameModeType.None && persistence.AreaTransitionPending) ||
-                MountedGameModePolicy.CanRetainMountedRelationship(gameMode.ToString()) || service.State != RelationshipState.Mounted)
+                MountedGameModePolicy.CanRetainMountedRelationship(gameMode.ToString()) ||
+                !(service.World?.Pairs.Any(pair => pair.Relationship.State == RelationshipState.Mounted) ?? service.State == RelationshipState.Mounted))
             {
                 Observe(boundary, source, service.CapturePresentationObservation(false));
                 return;

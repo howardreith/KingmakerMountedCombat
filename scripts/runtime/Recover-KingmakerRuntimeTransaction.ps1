@@ -58,12 +58,17 @@ else{
         throw 'Missing live Mods root has no matching owned Mods transaction state.'
     }
     $modsState=Read-KmcJson $modsStatePath
-    if([int]$modsState.schemaVersion-cnotin@(2,3)-or
+    if([int]$modsState.schemaVersion-cnotin@(2,3,4)-or
         [string]$modsState.runId-cne[string]$raw.runId-or
         [string]$modsState.token-cne[string]$raw.token-or
         [string]$modsState.phase-cne'original-moved'-or
         -not[string]::Equals([IO.Path]::GetFullPath([string]$modsState.liveModsRoot).TrimEnd('\'),$liveMods,[StringComparison]::OrdinalIgnoreCase)){
         throw 'Missing live Mods root is not the exact owned original-moved recovery state.'
+    }
+    if([int]$modsState.schemaVersion-eq4){
+        if([string]$modsState.stagingMode-cne'base-game-only-kmc'){throw 'New receipt schema cannot authorize a historical or unknown staging mode.'}
+        Assert-KmcBaseGameDependencyReceipt $modsState.baseGameDependencies
+        if([string]$modsState.baseGameDependencies.modsRoot-cne$liveMods){throw 'Base-game dependency layout differs from the exact recovery target.'}
     }
     $recordedBackup=Assert-KmcChildPath ([string]$modsState.originalBackup) $backupRoot 'recorded transaction backup'
     if(-not(Test-Path -LiteralPath $recordedBackup -PathType Container)){

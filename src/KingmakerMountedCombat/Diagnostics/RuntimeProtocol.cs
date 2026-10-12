@@ -15,6 +15,7 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private static readonly HashSet<string> SaveBackedScenarios = new HashSet<string>(StringComparer.Ordinal)
         {
+            "chunk7-two-pair-exploration",
             "export-mounted-contracts",
             "export-candidate-mount-rigs",
             "observe-mount-diagnostic-availability",
@@ -685,6 +686,8 @@ namespace KingmakerMountedCombat.Diagnostics
     {
         private static readonly HashSet<string> MissionScenarios = new HashSet<string>(StringComparer.Ordinal)
         {
+            "chunk7-two-pair-exploration", "C7-world-fixture", "C7-world-native-acquisition", "C7-world-two-native-mounts",
+            "C7-world-selection-routing", "C7-world-independent-dismount", "C7-world-cleanup", "C7-world-runtime", "C7-world-visual", "C7-world-interrupted",
             "persistence-p07-save", "persistence-p07-load", "persistence-p01-save", "persistence-p01-load", "persistence-p02-save", "persistence-p02-load", "persistence-p03-save", "persistence-p03-load", "persistence-p04-save", "persistence-p04-load", "persistence-p05-save", "persistence-p05-load", "persistence-p06-load",
                     "C4-LIFE-rider-incapacitation",
         "C4-LIFE-rider-death-live-command",
@@ -1156,7 +1159,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 errors.Add("subscenario and assertion totals do not match the named results.");
             }
 
-            if (RuntimeSubscenarioResult.IsMissionScenario(scenario) && !names.Contains(scenario))
+            if (scenario != "chunk7-two-pair-exploration" && RuntimeSubscenarioResult.IsMissionScenario(scenario) && !names.Contains(scenario))
             {
                 errors.Add("An individual mission scenario must report its own named subscenario result.");
             }

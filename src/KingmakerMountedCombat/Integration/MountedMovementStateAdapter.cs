@@ -37,6 +37,7 @@ namespace KingmakerMountedCombat.Integration
         }
 
         internal int TrackedActorCount => allocations.Count;
+        internal bool HasUnsettledPreparation => preparingTurn != null;
 
         internal void MaintainLifetimes()
         {

@@ -103,6 +103,11 @@ namespace KingmakerMountedCombat.Integration
             // not remove Paired from the object used by the schema-2 native adapter.
             var copy = MountedSaveCodec.Decode(MountedSaveCodec.Encode(old)).Data;
             var paired = copy.Combat?.Paired;
+            // Historical unmounted combat can serialize an empty coordinator DTO.
+            // It carries no actor obligation; keep its raw historical data but do
+            // not invent a registry owner with no native participant.
+            if (paired != null && paired.RiderId == null && paired.MountId == null &&
+                paired.PendingSplitId == null && paired.Activation == null) paired = null;
             if (copy.Combat != null) copy.Combat.Paired = null;
             var pairId = MigrationOwnerId(copy.CampaignId, copy.Rider?.Id, copy.Mount?.Id);
             var linked = copy.Mounted && SavedPairParticipation.BelongsToMountedPair(paired, copy.Rider.Id, copy.Mount.Id);

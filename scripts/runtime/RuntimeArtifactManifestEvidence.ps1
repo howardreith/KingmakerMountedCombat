@@ -111,6 +111,8 @@ function Assert-KmcReadOnlyArtifactManifest {
             ($relativePath -ceq 'horse-native-controls-ux.json' -and $kind -ceq 'horse-native-controls-ux') -or
             ($relativePath -ceq 'chunk6a-mount-preamble.json' -and $kind -ceq 'chunk6a-mount-preamble') -or
             ($relativePath -ceq 'chunk6a-native-mammoth-profile.json' -and $kind -ceq 'chunk6a-native-mammoth-profile') -or
+            ($relativePath -ceq 'chunk7-world-evidence.json' -and $kind -ceq 'chunk7-world-evidence') -or
+            ($relativePath -ceq 'runtime-loader-inventory.json' -and $kind -ceq 'runtime-loader-inventory') -or
             ($relativePath -ceq 'phase3d-horse-scenario-evidence.json' -and $kind -ceq 'phase3d-horse-scenario-evidence') -or
             ($relativePath -cmatch '^movement-visuals/[A-Za-z0-9._-]+\.png$' -and $kind -ceq 'screenshot')
         if (-not $allowed) { throw "Runtime artifact manifest record is outside the exact allowlist: $relativePath ($kind)" }

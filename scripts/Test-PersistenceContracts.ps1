@@ -487,6 +487,28 @@ public static class KmcPersistenceContractProbe
         var retiredRefused=false;
         try{saveBarrier.Invoke(bare,new[]{yieldedScope});}catch(TargetInvocationException error){retiredRefused=error.InnerException is InvalidOperationException && error.InnerException.Message.Contains("retired save");}
         Check(retiredRefused,"released operation cannot reacquire admission or resume native serialization");
+        // The external AI-lease callbacks substitute only the engine field write;
+        // the compiled world save scope owns their independent release/retry.
+        var cleanupScope=Activator.CreateInstance(saveScope,true);
+        workerField.SetValue(cleanupScope,settledTask.Task);
+        activeField.SetValue(bare,cleanupScope);
+        service.GetField("admittedSave",flags).SetValue(bare,cleanupScope);
+        var aiReleases=(System.Collections.IList)saveScope.GetField("RestoreAiOwners",flags).GetValue(cleanupScope);
+        var firstAiAttempts=0;var secondAiAttempts=0;
+        aiReleases.Add(new Action(()=>{firstAiAttempts++;if(firstAiAttempts==1)throw new InvalidOperationException("owned AI lease still changing");}));
+        aiReleases.Add(new Action(()=>{secondAiAttempts++;}));
+        Check(teardown.Invoke(bare,new object[]{0}).Equals(verdict("Refused")) &&
+            firstAiAttempts==1&&secondAiAttempts==1&&aiReleases.Count==1&&!(bool)releasedField.GetValue(cleanupScope)&&
+            object.ReferenceEquals(activeField.GetValue(bare),cleanupScope)&&
+            (bool)service.GetProperty("HasSaveAdmissionFence",flags).GetValue(bare),
+            "one failed owner release still visits the other owner and retains exact save custody");
+        Check(teardown.Invoke(bare,new object[]{0}).Equals(verdict("Settled"))&&
+            firstAiAttempts==2&&secondAiAttempts==1&&aiReleases.Count==0&&(bool)releasedField.GetValue(cleanupScope)&&
+            !(bool)service.GetProperty("HasSaveAdmissionFence",flags).GetValue(bare),
+            "save cleanup retry releases only the unfinished owner and then clears world admission");
+        Check(teardown.Invoke(bare,new object[]{0}).Equals(verdict("Clear"))&&firstAiAttempts==2&&secondAiAttempts==1,
+            "settled multi-owner save release cannot replay successful AI cleanup");
+
 
         // The ordinary failure report is keyed to the RETIRED operation and
         // decided at the commit boundary. Two saves queued to different slots: a

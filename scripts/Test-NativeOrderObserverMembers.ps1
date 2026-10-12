@@ -8,7 +8,7 @@ public static class KmcOrderObservationMembers {
   ResolveEventHandler resolver=(s,a)=>{var f=Path.Combine(managed,new AssemblyName(a.Name).Name+".dll");if(File.Exists(f))return Assembly.LoadFrom(f);f=Path.Combine(managed,"UnityModManager",new AssemblyName(a.Name).Name+".dll");return File.Exists(f)?Assembly.LoadFrom(f):null;};AppDomain.CurrentDomain.AssemblyResolve+=resolver;
   try {
    var assembly=Assembly.LoadFrom(dll);var flags=BindingFlags.Public|BindingFlags.NonPublic|BindingFlags.Instance;
-   var c=assembly.GetType("KingmakerMountedCombat.Integration.MountedCombatController",true);var u=assembly.GetType("KingmakerMountedCombat.Integration.UnifiedMountedTurnCoordinator",true);
+   var c=assembly.GetType("KingmakerMountedCombat.Integration.MountedCombatController",true);var u=assembly.GetType("KingmakerMountedCombat.Integration.MountedPairTurnParticipant",true);
    var owner=c.GetField("unifiedTurn",flags);if(owner==null||owner.FieldType!=u)throw new Exception("Observer owner field differs");
    var activation=u.GetField("activation",flags);if(activation==null||!activation.FieldType.IsGenericType||activation.FieldType.GetGenericTypeDefinition().FullName!="KingmakerMountedCombat.Domain.PairedActivation`2")throw new Exception("Observer activation field differs");
    var actor=activation.FieldType.GetMethod("State",flags);if(actor==null)throw new Exception("Actor-state observation absent");

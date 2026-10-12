@@ -63,6 +63,16 @@ namespace KingmakerMountedCombat.Integration
             }
         }
 
+        internal static MountedArchiveReadResult ReadArchive(ISaver saver)
+        {
+            // Reuse the exact archive member/size/UTF8 guard. The historical
+            // decoder always retains readable original JSON even when its own
+            // smaller schema bound rejects a newer envelope.
+            var source = Read(saver);
+            return source.OriginalJson == null ? new MountedArchiveReadResult {
+                Kind = source.Kind, Feedback = source.Feedback } : MountedArchiveCodec.Decode(source.OriginalJson);
+        }
+
         // Every JSON member of the archive (areas, party, player, header) and the
         // KMC member, read through the engine's own saver and searched for the
         // given identities. Bounded, and any member that cannot be read exactly
