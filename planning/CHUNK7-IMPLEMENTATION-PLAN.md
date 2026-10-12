@@ -16,7 +16,7 @@ execution of the one mission and does not replace its requirements.
 | Two-pair milestone | IN PROGRESS: preview.3 is frozen and Candidate-tested. Base-only loading failed before gameplay; the installed-configuration control passed two native mounts and failed the first ground input. Both runs restored exactly with zero writes. The reproduced callback defect has an integrated, independently reviewed 19-check repair; the affected native exploration case remains required. [Native evidence](../docs/CHUNK7-NATIVE-OBSERVATIONS-2026-10-12.md). |
 | Small profile and progression | IN PROGRESS: connected exact-body/versioned profile and all-pair visual-load readiness foundation compiled; 75 new behavior cases pass. Catalogue empty until actual native inventory and measured pose. Ordinary paid/new and existing-campaign acquisition diagnostics are integrated with actual native choices, one level-up autosave, exact selector lifecycle and guarded source inventory. Native acquisition, leveling/replacement/retraining and profile proof remain. |
 | Stress and hardening | IN PROGRESS: preliminary native zero/one/two-pair samples exist on the failed installed-configuration run. Settled-zero, repeated load/area cycles, diagnostics-off and six-pair proof remain required. Heap deltas are not managed allocations. Reviewed private observers preserve these limits; qualify the required fixture before stress. |
-| Publication and delivery | IN PROGRESS: product b97db97f8f9641eea802a725295161ebdac4ad03 and handoff e557064c773b07a1dc036b7ab8a015f4492fc672 are guarded-published; the next reviewed checkpoint has 140 integrated paths, a 431-source production compile, 805 component tests and 22 passing non-archive checks; the closed native bootstrap is still under review. Audited clean commits/guarded push at coherent checkpoints; final identified candidate, source/harness/fixture evidence and exact restoration; human gates remain explicit. |
+| Publication and delivery | IN PROGRESS: reviewed bootstrap source f47f6f8ebd30c0f2624d0f40d1ef6688e045c09f is guarded-published over f0e6569. Compile434, components805 and focused19/archive15 PASS; independent review PASS. Preview.4 candidate/package, fresh full WhatIf and affected native work follow. Final breadth readiness and human gates remain open. |
 
 ## Current evidence and limitations
 
@@ -32,7 +32,7 @@ The qualified Working fixture presently evidences two humanoid owners and their
 original Mammoth; the installed-configuration control obtained a second Horse through
 the diagnostic native Ranger choice pipeline. This is not ordinary acquisition proof.
 Base-only Working load and the strict seven-option Ranger boundary both failed;
-closed native new-game fixture support and a bounded observed-option diagnostic are in progress. A simultaneous unrelated third humanoid, Small rig,
+closed native new-game fixture support and bounded observed-option diagnostics are reviewed and published; their exact preview.4 native execution is next. A simultaneous unrelated third humanoid, Small rig,
 new-character/retraining path and six-pair party need actual qualified fixture
 evidence. These remain required gates; do not substitute a two-pair pass.
 
