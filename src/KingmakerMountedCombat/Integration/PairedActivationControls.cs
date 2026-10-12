@@ -8,7 +8,7 @@ using TurnBased.Controllers;
 namespace KingmakerMountedCombat.Integration
 {
     // Selection addresses an actor; it never changes activation ownership.
-    internal sealed partial class UnifiedMountedTurnCoordinator
+    internal sealed partial class MountedPairTurnParticipant
     {
         private TurnController lastPresentedInputContext;
         private TurnController pairedMovementInputContext;

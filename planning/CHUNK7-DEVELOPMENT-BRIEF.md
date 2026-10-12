@@ -183,6 +183,49 @@ cleanup retry with detached native actors. These are offline component/adapter
 checks, not two-pair Unity gameplay. Exact commands, counts, artifact identity and
 publication state are recorded in [CURRENT.md](../CURRENT.md).
 
+### Connected 7B continuation architecture (12 October 2026, IN PROGRESS)
+
+The [sustained owner assignment](CHUNK7-CONTINUATION-MISSION.md) now selects 7B–7D,
+including private candidates and guarded native evidence. The original 7A stop
+above is historical. Track execution in the single [implementation plan](CHUNK7-IMPLEMENTATION-PLAN.md).
+
+`MountedWorldService` owns a bounded pool of pair services, the registry and the
+single world turn facade. Each group owns its relationship, command controller,
+movement/view adapters and `MountedPairTurnParticipant`. `UnifiedMountedTurnCoordinator`
+remains the only native-world dispatcher and owns one shared actor allocation
+ledger. Native context, executor and captured request identity determine dispatch;
+selection is only input/presentation. A reused settled group advances its generation.
+Delivered shells retain custody until their actual native command/process settles.
+Pair-local cleanup failure does not release its actor indexes or skip healthy owners.
+
+The all-pair adapter captures one schema-3 world envelope, shared combat state
+once, every attached owner and every retained participation. It resolves the whole
+actor graph and waits for native PostLoad observations before restoring actor state;
+then restores the shared roster/ledger once and individual participations/attachments.
+Owner IDs and generations survive save/load and accepted exploration area transfer.
+Actual context-bearing participation blocks an incompatible area transition; ordinary
+settled transfer does not clear the shared actor ledger. Failed restoration remains
+explicit and blocks further unsafe saving/participation.
+
+Save admission spans every owner and actual archive worker lifetime. Independent
+lease releases continue after one fails; failed leases and fences remain for retry.
+Native format/capacity selection stays separate from valid codec decoding, including
+an over-capacity archive. After connected focused checks and independent review,
+the first private 7B candidate explicitly selects two native pairs and schema-3
+writing/restoration; accepted schema-1/2 inputs migrate under their historical rules.
+This source selection is not a native qualification verdict. Historical schema-1/2 validation remains version-specific;
+schema 3 separately admits the existing Charge slot. A representative maximum
+6-mounted/6-detached, 64-actor/allocation, 128-slot archive used 109,804 UTF-8 bytes
+and characters, 11,358 tokens and depth 6 against the unchanged 131,072-byte/character,
+32,768-token and depth-12 limits. Arbitrary content must still satisfy every bound.
+
+Normal configuration now selects the accepted paired CRPG transport preset by
+default. Retired turn-authority and direct diagnostic-action controls are absent
+from the ordinary panel; explicit historical scenarios retain their own settings.
+RT Charge remains optional/default-off; unsupported TB Charge still refuses without
+cost. Small profile support and native multi-pair qualification remain outstanding;
+compilation and detached adapter checks alone establish neither.
+
 ## 5. Persistence design direction and compatibility
 
 Schema 3 is the opening assignment's starting design, subject to newer actual source. Prefer one world envelope with campaign/area/clock/rules, a bounded mounted-pair collection, owned control slots and one combat snapshot containing bounded paired-participation records. Retained detached obligations do not require a current mounted entry. Keep existing pair/combat debt validation unless a narrower change demonstrably improves the model; avoid rewriting every DTO for aesthetics.

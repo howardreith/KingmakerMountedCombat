@@ -27,6 +27,8 @@ Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot 'Chunk6aFoundationEvidence.ps1')
 . (Join-Path $PSScriptRoot 'Chunk6aClosureEvidence.ps1')
 . (Join-Path $PSScriptRoot 'FrozenProductSource.ps1')
+. (Join-Path $PSScriptRoot 'BaseGameIsolation.ps1')
+. (Join-Path $PSScriptRoot 'Chunk7WorldEvidence.ps1')
 
 function Get-KmcRepositoryRoot {
     $root = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))
@@ -3530,12 +3532,17 @@ function Enter-KmcModsTransaction {
         [Parameter(Mandatory = $true)][string]$StagingRoot,
         # The genuine no-DLL observation stages the live clone WITHOUT any KMC entry
         # and with the removal observer's own directory instead of the KMC overlay.
-        [ValidateSet('live-clone-plus-kmc-overlay','live-clone-minus-kmc-plus-observer')][string]$StagingMode = 'live-clone-plus-kmc-overlay'
+        [ValidateSet('live-clone-plus-kmc-overlay','live-clone-minus-kmc-plus-observer','base-game-only-kmc')][string]$StagingMode = 'live-clone-plus-kmc-overlay',
+        $BaseGameDependencies
     )
     [void](Assert-KmcRuntimeLockOwner $Lock); Assert-KmcNoGameProcesses
     $observerMode = $StagingMode -ceq 'live-clone-minus-kmc-plus-observer'
+    $baseGameOnly = $StagingMode -ceq 'base-game-only-kmc'
+    if($baseGameOnly){Assert-KmcBaseGameDependencyReceipt $BaseGameDependencies -VerifyFiles}
+    elseif($null-ne$BaseGameDependencies){throw 'Base-game dependencies require the explicit base-game staging mode.'}
     $overlayName = if ($observerMode) { 'KmcRemovalObserver' } else { 'KingmakerMountedCombat' }
     $runId = [string]$Lock.RunId; $fullLive = [IO.Path]::GetFullPath($LiveModsRoot).TrimEnd('\')
+    if($baseGameOnly-and$fullLive-cne[string]$BaseGameDependencies.modsRoot){throw 'Base-game Mods root differs from the admitted loader layout.'}
     if (-not (Test-Path -LiteralPath $fullLive -PathType Container)) { throw "Live Mods root is missing: $fullLive" }
     Assert-KmcNotReparsePoint $fullLive 'live Mods root'
     if ($null -ne (Read-KmcLiveSentinel $fullLive)) { throw 'Live Mods already contains a KMC transaction sentinel.' }
@@ -3580,12 +3587,16 @@ function Enter-KmcModsTransaction {
     if (-not (Test-Path -LiteralPath (Join-Path $expectedRoot 'Info.json')) -or -not (Test-Path -LiteralPath (Join-Path $expectedRoot ($overlayName + '.dll')))) {
         throw 'Pre-staged package does not contain the exact mod root.'
     }
-    $cloneBase = Copy-KmcDirectoryTreeExact -SourceRoot $fullLive -DestinationRoot $ready
+    $cloneRoot = if($baseGameOnly){Join-Path $stagingRun 'Mods-live-clone'}else{$ready}
+    $cloneBase = Copy-KmcDirectoryTreeExact -SourceRoot $fullLive -DestinationRoot $cloneRoot
     Assert-KmcDirectoryManifestsEqual $before $cloneBase 'Pre-overlay live Mods clone'
     Assert-KmcDirectoryTreeCloneable $fullLive 'live Mods tree after cloning'
     Assert-KmcDirectoryManifestsEqual $before (Get-KmcDirectoryManifest $fullLive) 'Live Mods source after cloning'
     $stagedKmcRoot = Join-Path $ready 'KingmakerMountedCombat'
-    if (Test-Path -LiteralPath $stagedKmcRoot) {
+    if($baseGameOnly){
+        New-KmcBaseGameReadyTree -StagingRun $stagingRun -CloneRoot $cloneRoot -ReadyRoot $ready -PackageModRoot $expectedRoot -Before $before -Confirm:$false
+    }
+    elseif (Test-Path -LiteralPath $stagedKmcRoot) {
         [void](Assert-KmcChildPath $stagedKmcRoot $stagingRun 'staged KMC replacement')
         [void](Assert-KmcPhase3fStartingInstallation -KmcRoot $stagedKmcRoot)
         # Only the verified staging clone is replaced. The original live tree
@@ -3602,7 +3613,7 @@ function Enter-KmcModsTransaction {
         $kmcResidue = @(Get-ChildItem -LiteralPath $ready -Recurse -Force | Where-Object { $_.Name -match '(?i)KingmakerMountedCombat' })
         if ($kmcResidue.Count -ne 0) { throw 'The no-DLL staging still carries a KingmakerMountedCombat entry.' }
     }
-    else { Move-Item -LiteralPath $expectedRoot -Destination $stagedKmcRoot }
+    elseif(-not$baseGameOnly) { Move-Item -LiteralPath $expectedRoot -Destination $stagedKmcRoot }
     $sentinel = [ordered]@{ schemaVersion=1; runId=$runId; token=[string]$Lock.Token; packageSha256=$packageHash }
     Write-KmcJsonAtomic (Join-Path $ready '.kmc-runtime-sentinel.json') $sentinel
     $staged = Get-KmcDirectoryManifest $ready
@@ -3616,6 +3627,13 @@ function Enter-KmcModsTransaction {
         beforeDigest=$before.digest; beforeFileCount=$before.fileCount; beforeDirectoryCount=$before.directoryCount; beforeTotalBytes=$before.totalBytes
         cloneBaseDigest=$cloneBase.digest; cloneBaseFileCount=$cloneBase.fileCount; cloneBaseDirectoryCount=$cloneBase.directoryCount; cloneBaseTotalBytes=$cloneBase.totalBytes
         stagedDigest=$staged.digest; stagedFileCount=$staged.fileCount; stagedDirectoryCount=$staged.directoryCount; stagedTotalBytes=$staged.totalBytes
+    }
+    if($baseGameOnly){
+        # New mode has its own receipt schema. Historical schema-3 states retain
+        # their exact two-mode contract and restoration target.
+        $state.schemaVersion=4
+        $state['baseGameDependencies']=$BaseGameDependencies
+        $state['preservedClone']=$cloneRoot
     }
     Write-KmcJsonAtomic $statePath $state
     try {
@@ -3651,24 +3669,34 @@ function Restore-KmcModsTransaction {
     $state = Read-KmcJson $StatePath
     $requiredState = @('schemaVersion','runId','token','phase','preparedAtUtc','liveModsRoot','originalBackup','stagedReady','stagedAfter','frozenPackage','packageSha256','beforeDigest','beforeFileCount','beforeDirectoryCount','beforeTotalBytes','stagedDigest','stagedFileCount','stagedDirectoryCount','stagedTotalBytes')
     $schemaVersion = [int]$state.schemaVersion
-    if ($schemaVersion -eq 3) {
+    if ($schemaVersion -in @(3,4)) {
         $requiredState = @($requiredState + @('stagingMode','cloneBaseDigest','cloneBaseFileCount','cloneBaseDirectoryCount','cloneBaseTotalBytes'))
+        if($schemaVersion-eq4){$requiredState=@($requiredState+@('baseGameDependencies','preservedClone'))}
     }
-    elseif ($schemaVersion -ne 2) { throw 'Transaction state schema is neither historical schema 2 nor current schema 3.' }
+    elseif ($schemaVersion -ne 2) { throw 'Transaction state schema is outside the historical and explicit base-game contracts.' }
     $allowedState = @($requiredState + @('stagedAtUtc','stagedAfterDigest','stagedAfterFileCount','stagedAfterDirectoryCount','stagedAfterTotalBytes','stagedTreeChangedAtRuntime','restoredAtUtc','restoredDigest'))
     $actualState = @($state.PSObject.Properties.Name)
     if (@($requiredState | Where-Object { $_ -cnotin $actualState }).Count -ne 0 -or @($actualState | Where-Object { $_ -cnotin $allowedState }).Count -ne 0) {
         throw 'Transaction state property set is missing required fields or contains unknown fields.'
     }
     if ([string]$state.runId -cne [string]$Lock.RunId -or [string]$state.token -cne [string]$Lock.Token) { throw 'Transaction state ownership does not match the open lock.' }
-    if ($schemaVersion -eq 3 -and ([string]$state.stagingMode -cnotin @('live-clone-plus-kmc-overlay','live-clone-minus-kmc-plus-observer') -or
+    $allowedModes=if($schemaVersion-eq4){@('base-game-only-kmc')}else{@('live-clone-plus-kmc-overlay','live-clone-minus-kmc-plus-observer')}
+    if ($schemaVersion -in @(3,4) -and ([string]$state.stagingMode -cnotin $allowedModes -or
         [string]$state.cloneBaseDigest -cne [string]$state.beforeDigest -or
         [int]$state.cloneBaseFileCount -ne [int]$state.beforeFileCount -or
         [int]$state.cloneBaseDirectoryCount -ne [int]$state.beforeDirectoryCount -or
         [long]$state.cloneBaseTotalBytes -ne [long]$state.beforeTotalBytes)) {
-        throw 'Schema-3 transaction state does not prove an exact pre-overlay clone of live Mods.'
+        throw 'Transaction state does not prove the selected mode and exact pre-overlay clone of live Mods.'
     }
     $fullLive=[IO.Path]::GetFullPath($LiveModsRoot).TrimEnd('\')
+    if($schemaVersion-eq4){
+        # Receipt validation never makes restoring original Mods depend on the
+        # game's current loader bytes; changed external bytes are reported by the
+        # runner separately, after safe transaction settlement.
+        Assert-KmcBaseGameDependencyReceipt $state.baseGameDependencies
+        $expectedClone=Join-Path (Join-Path ([IO.Path]::GetFullPath($StagingRoot)) ([string]$Lock.RunId)) 'Mods-live-clone'
+        if([string]$state.preservedClone-cne$expectedClone-or$fullLive-cne[string]$state.baseGameDependencies.modsRoot){throw 'Base-game receipt paths differ from the owned transaction.'}
+    }
     if (-not $fullLive.Equals([IO.Path]::GetFullPath([string]$state.liveModsRoot).TrimEnd('\'),[StringComparison]::OrdinalIgnoreCase)) { throw 'Transaction live Mods path does not match.' }
     $backup=Assert-KmcChildPath ([string]$state.originalBackup) $BackupRoot 'recorded transaction backup'
     $stagedAfter=Assert-KmcChildPath ([string]$state.stagedAfter) $StagingRoot 'recorded staged quarantine'
@@ -3706,6 +3734,7 @@ function Restore-KmcModsTransaction {
 
 function Get-KmcSaveBackedRuntimeScenarios {
     return @(
+        'chunk7-two-pair-exploration',
         'chunk6c-casting-rt','chunk6c-casting-tb','chunk6c-casting-unmounted-rt','chunk6c-casting-unmounted-tb',
         'chunk6d-staged-rt','chunk6d-staged-tb','chunk6e-reaction-rt','chunk6e-reaction-tb',
         'chunk6b-charge-rt','chunk6b-charge-core-rt','chunk6b-charge-interruption-rt','chunk6b-charge-lifecycle-rt', 'chunk6b-charge-tb', 'chunk6b-charge-path-rt', 'chunk6b-charge-path-tb', 'chunk6a-combat-mount-rt', 'chunk6a-combat-mount-tb', 'chunk6a-mount-preamble', 'chunk6a-mammoth-mount-rt','chunk6a-mammoth-mount-tb','chunk6a-paused-queue','chunk6a-refused-policy-disabled','chunk6a-refused-foreign-companion','chunk6a-refused-wrong-creature-target','chunk6a-refused-mount-selected','chunk6a-refused-multiple-selection','chunk6a-refused-foreign-selection','chunk6a-mount-approach','chunk6a-geometry-change','chunk6a-obstruction','chunk6a-stop-approach','chunk6a-combat-end-approach','chunk6a-disable-approach','chunk6a-command-replacement','chunk6a-repeated-mount-request','chunk6a-ownership-change','chunk6a-size-form-change','chunk6a-lost-direct-control','chunk6a-rider-incapacitated','chunk6a-mount-incapacitated','chunk6a-hotbar-approach','chunk6a-allocation-rider-first-tb','chunk6a-allocation-mount-first-tb','chunk6a-dismount-feature-disabled-rt','chunk6a-dismount-policy-disabled-rt','chunk6a-auto-use-mount-rt','chunk6a-auto-use-dismount-rt', 'chunk6a-adoption-compensation-rt', 'chunk6a-adoption-compensation-tb', 'chunk6a-left-area', 'chunk6a-view-agent-lost', 'chunk6a-loading-cutscene', 'chunk6a-generation-change', 'chunk6a-injected-exception', 'chunk6a-rider-death-approach', 'chunk6a-mount-death-approach', 'chunk6a-turn-end-approach-tb', 'chunk6a-mode-exit-tb', 'chunk6a-mount-spent-move-tb', 'chunk6a-mount-spent-standard-tb', 'chunk6a-mount-spent-all-tb', 'chunk6a-rider-without-move-tb', 'chunk6a-rider-other-action-tb', 'chunk6a-unrelated-candidate-between-tb', 'chunk6a-dismount-after-rider-expenditure-tb', 'chunk6a-dismount-after-mount-expenditure-tb', 'chunk6a-dismount-immediately-after-mount-tb',
@@ -4756,7 +4785,7 @@ function Assert-KmcKnownRuntimeArtifactsManifested {
     )
     $manifested = New-Object 'Collections.Generic.HashSet[string]' ([StringComparer]::Ordinal)
     foreach ($artifact in @($Manifest.artifacts)) { [void]$manifested.Add([string]$artifact.relativePath) }
-    foreach ($leaf in @('persistence-observations.jsonl','lifecycle-scenario-evidence.jsonl','movement-telemetry.jsonl','movement-scenario-evidence.jsonl','boundary-scenario-evidence.jsonl','combat-scenario-evidence.jsonl','horse-native-asset-audit.json','horse-companion-blueprint-registration.json','horse-companion-unmounted.json','horse-mounted-alpha.json','horse-native-controls-ux.json','chunk6a-mount-preamble.json','chunk6a-native-mammoth-profile.json','phase3d-horse-scenario-evidence.json')) {
+    foreach ($leaf in @('chunk7-world-evidence.json','runtime-loader-inventory.json','persistence-observations.jsonl','lifecycle-scenario-evidence.jsonl','movement-telemetry.jsonl','movement-scenario-evidence.jsonl','boundary-scenario-evidence.jsonl','combat-scenario-evidence.jsonl','horse-native-asset-audit.json','horse-companion-blueprint-registration.json','horse-companion-unmounted.json','horse-mounted-alpha.json','horse-native-controls-ux.json','chunk6a-mount-preamble.json','chunk6a-native-mammoth-profile.json','phase3d-horse-scenario-evidence.json')) {
         if ((Test-Path -LiteralPath (Join-Path $EvidenceRoot $leaf) -PathType Leaf) -and -not $manifested.Contains($leaf)) {
             throw "Known runtime artifact exists without a manifest record: $leaf"
         }
@@ -13902,6 +13931,8 @@ function Get-KmcValidatedOrchestrationArtifactManifestHash {
             ($relative -ceq 'horse-native-controls-ux.json' -and $kind -ceq 'horse-native-controls-ux') -or
             ($relative -ceq 'chunk6a-mount-preamble.json' -and $kind -ceq 'chunk6a-mount-preamble') -or
             ($relative -ceq 'chunk6a-native-mammoth-profile.json' -and $kind -ceq 'chunk6a-native-mammoth-profile') -or
+            ($relative -ceq 'chunk7-world-evidence.json' -and $kind -ceq 'chunk7-world-evidence') -or
+            ($relative -ceq 'runtime-loader-inventory.json' -and $kind -ceq 'runtime-loader-inventory') -or
             ($relative -ceq 'phase3d-horse-scenario-evidence.json' -and $kind -ceq 'phase3d-horse-scenario-evidence') -or
             ($relative -cmatch '^movement-visuals/[A-Za-z0-9._-]+\.png$' -and $kind -ceq 'screenshot')
         if (-not $seen.Add($relative) -or -not $allowed -or [long]$artifact.length -le 0 -or
@@ -13928,6 +13959,7 @@ function Get-KmcValidatedOrchestrationArtifactManifestHash {
         Assert-KmcHorseNativeControlsUxEvidence -Request $Request -Manifest $manifestValue
         Assert-KmcMountPreambleEvidence -Request $Request -Manifest $manifestValue
         Assert-KmcNativeMammothArtifact -Request $Request -Manifest $manifestValue
+        Assert-KmcChunk7WorldArtifact -Request $Request -Manifest $manifestValue
         Assert-KmcPhase3dHorseScenarioEvidence -Request $Request -Manifest $manifestValue
     }
     $hash = Get-KmcSha256 $manifestPath

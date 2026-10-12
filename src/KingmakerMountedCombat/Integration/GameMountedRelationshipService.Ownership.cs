@@ -9,7 +9,10 @@ namespace KingmakerMountedCombat.Integration
     {
         // This adapter is deliberately stricter than the six-pair registry. It is
         // removed only with all-pair native capture/restore and turn integration.
-        internal const int NativePairCapacity = 1;
+        internal const int NativePairCapacity = NativeMountedSaveFormat.NativePairCapacity;
+        internal MountedWorldService World { get; set; }
+        private bool importedMountedOwnership;
+        private bool importedParticipationOwnership;
         internal MountedPlayerActionController PlayerActions { get; set; }
         internal MountedCombatController CombatOwner { get; set; }
         internal MountedPairRegistry<UnitEntityData, GameMountedRelationshipService> Ownership { get; }
@@ -47,6 +50,45 @@ namespace KingmakerMountedCombat.Integration
             return true;
         }
 
+        internal void ImportSavedOwnership(UnitEntityData rider, UnitEntityData mount, string ownerId,
+            long generation, bool mounted)
+        {
+            RefreshOwnership();
+            if (PairOwner != null || !Guid.TryParse(ownerId, out var id))
+                throw new InvalidOperationException("Saved custody cannot replace an existing owner.");
+            if (!Ownership.TryImport(Game.Instance?.Player, Game.Instance?.Player?.GameId, id, generation,
+                rider, mount, this, mounted,
+                () => importedParticipationOwnership || cleanupRetryRequired || !runtime.NoPreparedPairResidue ||
+                    retainedCommands() || retainedParticipation(rider, mount),
+                () => pairSaveReady(), () => pairTeardownReady(), out var owner, out var refusal))
+                throw new InvalidOperationException(refusal);
+            PairOwner = owner;
+            mountedPairGeneration = generation;
+            importedMountedOwnership = mounted;
+            importedParticipationOwnership = true;
+        }
+
+        internal void CompleteSavedParticipationImport() { importedParticipationOwnership = false; }
+        internal void CancelSavedOwnershipImport() { importedParticipationOwnership = false; importedMountedOwnership = false; }
+
+        private bool TryReserveSavedOwnership(UnitEntityData rider, UnitEntityData mount, out string refusal)
+        {
+            if (!importedMountedOwnership) return TryReserveOwnership(rider, mount, out refusal);
+            refusal = null;
+            if (PairOwner != null && PairOwner.State == MountedPairOwnershipState.Reserved &&
+                Ownership.Owns(PairOwner) && ReferenceEquals(PairOwner.Rider, rider) && ReferenceEquals(PairOwner.Mount, mount))
+                return true;
+            refusal = "Saved attachment no longer has its exact imported owner.";
+            return false;
+        }
+
+        private void CommitSavedOwnership()
+        {
+            mountedPairGeneration = PairOwner.Generation;
+            CommitOwnership();
+            importedMountedOwnership = false;
+        }
+
         private void CommitOwnership() => Ownership.Commit(PairOwner);
 
         private void CompleteOwnershipAttempt()
@@ -74,8 +116,16 @@ namespace KingmakerMountedCombat.Integration
 
         internal void RefreshOwnership()
         {
-            Ownership.RetireSettled();
-            if (PairOwner?.State == MountedPairOwnershipState.Retired) PairOwner = null;
+            try { Ownership.RetireSettled(); }
+            finally { RefreshRetiredOwnership(); }
+        }
+
+        internal void RefreshRetiredOwnership()
+        {
+            if (PairOwner?.State != MountedPairOwnershipState.Retired) return;
+            PairOwner = null;
+            importedMountedOwnership = false;
+            importedParticipationOwnership = false;
         }
 
         internal GameMountedRelationshipService ResolveActorOwner(UnitEntityData actor, bool activeOnly = false) =>

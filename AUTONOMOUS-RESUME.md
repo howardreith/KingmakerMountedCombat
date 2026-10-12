@@ -25,11 +25,39 @@ PASS, 14.776 s, six stages. Private `analysis-cache/chunk7-continuation` contain
 Earlier R1 Unity-static-initializer and incorrect build-entry attempts are
 preserved as repro-01/02 and are not defect reproductions. No native transaction.
 
-Next: root implements bounded world pair factory, exact controls/bridge routing
-and shared Charge transitions; agents implement shared-ledger turn participants,
-all-pair persistence/area/save fences and guarded base-only staging. Native
-capacity remains 1 and writer schema 2 until connected paths pass review/checks.
-Continue selected 7B–7D work; this repair checkpoint is not mission completion.
+
+Connected integration is now in progress above repair commit
+`2276bc40b892befd4204e1ab851fc2c0ca1c16d9` (not yet pushed). Dirty work belongs
+to this mission: bounded world/pair services, one shared turn/allocation authority,
+exact native control/bridge routing, all-pair persistence/area/save fences and
+base-only guarded harness support. The active sequence and evidence boundaries
+are in [the implementation plan](planning/CHUNK7-IMPLEMENTATION-PLAN.md).
+
+Connected world integration passed independent review and the combined focused run
+on October 12: 11 stages in 17.478 s, 729 component, 147 source, 56 historical +
+70 archive persistence, 190 persistence contracts, 146 Charge ownership, 22
+preparation, 10 native order, 29 world ownership, 64 evidence-reader and 42 base
+isolation checks. Private receipt: `analysis-cache/chunk7-continuation/world-focused-09`.
+The two preserved source-check failures were a missing fenced-refusal diagnostic
+(repaired) and a stale singleton assertion (extended to require aggregate custody).
+Independent review also repaired constructor rollback, retired-shell native
+lifetime and context-owned command retention, with failing/repaired receipts.
+
+Native schema-3 support and capacity two are now deliberately selected above that
+checked integration; final candidate checks remain next. The explicit historical
+schema-1/2 adapter and version-specific migration rules remain tested. New archives
+beyond native capacity remain opaque/non-restoring despite successful decoding.
+Normal play uses paired turns and native controls; Charge stays default-off and
+the overlay/legacy turn alternatives are not normal settings controls. Optional
+measurement observes the same party at zero/one/two pairs and three cleanup cycles.
+
+No candidate/native transaction, installed-mod mutation or save mutation has
+occurred. Next: commit/push this coherent
+integration, Package with a unique qualifier, Candidate tier on those exact bytes,
+then declare/freeze the first exploration case and execute guarded WhatIf/live.
+Separate combat/cold-load observers are being prepared privately for the next
+candidate. Small, ordinary acquisition/progression, shared boundaries and six-pair
+stress remain required work, as the active implementation plan records.
 
 # Chunk 7A source checkpoint — PASS, October 12, 2026
 

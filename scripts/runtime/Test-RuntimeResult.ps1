@@ -68,6 +68,7 @@ function Assert-SubscenarioResults {
         'mounted-rider-melee-cleanup', 'non-mounted-melee-control'
     )
     $missionScenarios += @(Get-KmcPhase3dHorseRuntimeRows)
+    $missionScenarios += @(Get-KmcChunk7WorldRows)
     if ($null -eq $Result.subscenarioResults -or $Result.subscenarioResults -is [string]) { throw 'Runtime result subscenarioResults must be an array.' }
     $items = @($Result.subscenarioResults)
     if ($items.Count -eq 0) { throw 'Runtime result contains no named subscenarios.' }
@@ -165,6 +166,7 @@ Assert-KmcHorseCompanionBlueprintRegistrationEvidence -Request $request -Manifes
 Assert-KmcHorseCompanionUnmountedEvidence -Request $request -Manifest $validatedArtifactManifest -Status ([string]$result.status) -SubscenarioResults $result.subscenarioResults
 Assert-KmcPersistenceScenarioEvidence -Request $request -Manifest $validatedArtifactManifest -Status ([string]$result.status) -GameResult $gameEvidence
 Assert-KmcNativeMammothArtifact -Request $request -Manifest $validatedArtifactManifest -Status ([string]$result.status)
+Assert-KmcChunk7WorldArtifact -Request $request -Manifest $validatedArtifactManifest -Status ([string]$result.status)
 Assert-KmcPhase3dHorseScenarioEvidence -Request $request -Manifest $validatedArtifactManifest -Status ([string]$result.status) -SubscenarioResults $result.subscenarioResults
 if ([string]$result.status -ceq 'PASS' -and ([int]$result.subscenarioFailCount -ne 0 -or [int]$result.assertionFailCount -ne 0)) { throw 'PASS runtime result contains subscenario failures.' }
 Write-Host 'TOTAL PASS=29 FAIL=0'

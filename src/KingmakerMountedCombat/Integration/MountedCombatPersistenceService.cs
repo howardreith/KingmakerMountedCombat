@@ -18,8 +18,9 @@ namespace KingmakerMountedCombat.Integration
 
         // Commands and preparation stay blocked until the selected world's
         // semantic state is rebound. Presentation may wait for views separately.
-        internal bool CombatRestorationPending => Enabled && (abandonedCombat.Blocks(Game.Instance?.Player) ||
-            loaded?.Data?.Combat != null && restoreLoad != null && !combatRestored);
+        internal bool CombatRestorationPending => Enabled && (areaRestoreFailure != null || abandonedCombat.Blocks(Game.Instance?.Player) ||
+            RestorableArchive != null && combatRestoreFailure != null ||
+            SelectedCombat != null && restoreLoad != null && !combatRestored);
         internal bool LoadingWorld => restoreLoad != null && !restoreLoad.World.NativeCompleted;
 
         internal bool NativeCombatBlocksSave(Player player)
@@ -37,15 +38,16 @@ namespace KingmakerMountedCombat.Integration
 
         private UnitEntityData[] CombatActors() =>
             NativeCombatTurnPersistence.ReferencedActors(Game.Instance.TurnBasedCombatController)
-                .Concat(unifiedTurn.PersistenceActors).Concat(new[] { relationship.Rider, relationship.Mount })
+                .Concat(unifiedTurn.PersistenceActors).Concat(WorldRelationships.SelectMany(r => new[] { r.Rider, r.Mount }))
                 .Where(u => u != null).Distinct().ToArray();
 
-        private SavedCombatData CaptureCombat()
+        private SavedCombatData CaptureCombat(bool archive = false)
         {
             if (NativeCombatBlocksSave(Game.Instance.Player) || !SaveEffectsReady())
                 throw new InvalidOperationException("Combat save has not reached the supported native command boundary.");
             var saved = NativeCombatTurnPersistence.Capture(Game.Instance.TurnBasedCombatController, CombatActors());
-            unifiedTurn.CapturePersistence(saved);
+            if (archive) unifiedTurn.CaptureSharedPersistence(saved);
+            else unifiedTurn.CapturePersistence(saved);
             return saved;
         }
 
@@ -54,7 +56,7 @@ namespace KingmakerMountedCombat.Integration
             // A second native Enable/Reset notification in the same load must not
             // erase the restored round and create a new roster.
             return !(combatRestored && restoreLoad != null && !restoreLoad.World.NativeCompleted &&
-                loaded?.Data?.Combat != null);
+                SelectedCombat != null);
         }
 
         internal bool BeforeCombatTick()
@@ -66,6 +68,7 @@ namespace KingmakerMountedCombat.Integration
 
         internal void TryRestoreCombat()
         {
+            if (ArchiveNativeEnabled) { TryRestoreArchiveCombat(); return; }
             if (!CombatRestorationPending || combatRestoreFailure != null ||
                 !NativeMountedSaveFormat.CanRestore(loaded) || loaded.Data.Combat == null || restoreLoad == null) return;
             var game = Game.Instance;
@@ -158,20 +161,30 @@ namespace KingmakerMountedCombat.Integration
 
         private void FenceAbandonedCombat()
         {
-            if (loaded?.Data?.Combat == null) return;
+            if (SelectedCombat == null) return;
             abandonedCombat.Hold(Game.Instance?.Player);
             BlockCombatRestoration("The selected combat restoration was interrupted before completion.");
         }
 
         private void BeginLoadHousekeeping()
         {
-            if (!combat.TryDrainChargeOwnership("load world replacement"))
+            if (!DrainWorldCharge("load world replacement"))
                 throw new InvalidOperationException("Load refused: charge cleanup ownership is unresolved.");
             CancelAreaTransition();
             NativeSaveEffectBoundary.Clear();
             unifiedTurn.DiscardPersistenceWorld();
-            if (!relationship.GuardBoundary(CleanupTrigger.LoadRequested))
-                throw new InvalidOperationException("Loaded world cleanup retained mounted references.");
+            var cleanupErrors = new List<Exception>();
+            foreach (var owner in WorldRelationships)
+                try
+                {
+                    owner.CancelSavedOwnershipImport();
+                    if (!owner.GuardBoundary(CleanupTrigger.LoadRequested))
+                        cleanupErrors.Add(new InvalidOperationException("Loaded world cleanup retained mounted references."));
+                }
+                catch (Exception error) { cleanupErrors.Add(error); }
+            if (cleanupErrors.Count != 0) throw new AggregateException(cleanupErrors);
+            mountedWorld?.DiscardAdmissionBindings();
+            areaRestoreFailure = null;
             combatRestored = false;
             combatRestoreFailure = null;
             abandonedCombat.Clear();

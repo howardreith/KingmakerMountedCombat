@@ -80,7 +80,7 @@ namespace KingmakerMountedCombat.Integration
             new Dictionary<string, UnitEntityData>(StringComparer.Ordinal);
 
         internal bool Enabled { get; set; }
-        internal bool SaveSuspended => relationship.SaveSerializationSuspended;
+        internal bool SaveSuspended => WorldRelationships.Any(r => r.SaveSerializationSuspended);
         internal string Feedback { get; private set; } = "No mounted save has been loaded.";
         internal int SnapshotCount { get; private set; }
         // The ordinary completion record, per operation. Set only on the path
@@ -285,8 +285,7 @@ namespace KingmakerMountedCombat.Integration
         // ones the caller passed.
         internal bool DeferResetToMainMenu(string message, Kingmaker.Blueprints.Area.BlueprintAreaPreset preset)
         {
-            if (activeSave == null && drainingSave == null && combat?.ChargeAdmissionFenced != true &&
-                (combat == null || combat.TryDrainChargeOwnership("return-to-main-menu"))) return false;
+            if (activeSave == null && drainingSave == null && !AnyChargeFence && DrainWorldCharge("return-to-main-menu")) return false;
             resetPending = true;
             resetMessage = message;
             resetPreset = preset;
@@ -298,8 +297,7 @@ namespace KingmakerMountedCombat.Integration
         private void ReplayDeferredResetIfSettled()
         {
             if (!resetPending || ActiveSaveWorkerRunning || activeSave != null || drainingSave != null ||
-                combat?.ChargeAdmissionFenced == true ||
-                (combat != null && !combat.TryDrainChargeOwnership("deferred-return-to-main-menu"))) return;
+                AnyChargeFence || !DrainWorldCharge("deferred-return-to-main-menu")) return;
             resetPending = false;
             var message = resetMessage; var preset = resetPreset;
             resetMessage = null; resetPreset = null;
@@ -430,26 +428,30 @@ namespace KingmakerMountedCombat.Integration
 
         private void ReleaseSaveScope(SaveScope scope)
         {
-            // Exactly once, whichever path gets here first: the end action of
-            // an ordinary enumeration, the per-frame drain, or teardown.
             if (scope == null || scope.Released) return;
+            var errors = new List<Exception>();
+            // Each pair's AI lease is independently released exactly once; failed
+            // releases retain their callback and the world fence for later retry.
+            if (scope.RestoreAi != null)
+                try { scope.RestoreAi(); scope.RestoreAi = null; } catch (Exception error) { errors.Add(error); }
+            foreach (var restore in scope.RestoreAiOwners.ToArray())
+                try { restore(); scope.RestoreAiOwners.Remove(restore); } catch (Exception error) { errors.Add(error); }
+            if (scope.ControlsSuspended)
+                try { controls.EndSaveSerializationScope(); scope.ControlsSuspended = false; } catch (Exception error) { errors.Add(error); }
+            if (errors.Count == 0)
+                try { ReleaseWorldSaveFence(scope); } catch (Exception error) { errors.Add(error); }
+            if (errors.Count != 0)
+            {
+                releasingSave = scope;
+                throw new AggregateException("Native save worker settled but mounted scope cleanup remains owned.", errors);
+            }
             scope.Released = true;
             if (scope.Completed) RecordCompletedSave(scope);
-            try
-            {
-                try { scope.RestoreAi?.Invoke(); }
-                finally { if (scope.ControlsSuspended) controls.EndSaveSerializationScope(); }
-            }
-            finally
-            {
-                if (ReferenceEquals(activeSave, scope))
-                {
-                    relationship.SaveSerializationSuspended = false;
-                    activeSave = null;
-                }
-                if (ReferenceEquals(drainingSave, scope)) drainingSave = null;
-                combat?.ReleaseChargeSaveFence(scope);
-            }
+            foreach (var owner in scope.Relationships ?? new GameMountedRelationshipService[0]) owner.SaveSerializationSuspended = false;
+            if (scope.Relationships == null && relationship != null) relationship.SaveSerializationSuspended = false;
+            if (ReferenceEquals(activeSave, scope)) activeSave = null;
+            if (ReferenceEquals(drainingSave, scope)) drainingSave = null;
+            if (ReferenceEquals(releasingSave, scope)) releasingSave = null;
         }
 
         // Teardown only. Disposal unpatches the archive-commit transpiler and
@@ -465,7 +467,7 @@ namespace KingmakerMountedCombat.Integration
         // decision is testable on a bare service; the caller reports.
         internal OwnedWorkerTeardownVerdict DrainForTeardown(int milliseconds)
         {
-            if (activeSave == null && drainingSave == null && combat?.ChargeAdmissionFenced == true)
+            if (activeSave == null && drainingSave == null && (HasSaveAdmissionFence || AnyChargeFence))
             {
                 LastTeardownDrainSettled = false;
                 return OwnedWorkerTeardownVerdict.Refused;
@@ -486,7 +488,11 @@ namespace KingmakerMountedCombat.Integration
             var verdict = OwnedWorkerTeardownPolicy.Decide(scope != null, established, worker,
                 NativeSaveWorkerBoundary.WaitForWorkerSettlement, milliseconds);
             LastTeardownDrainSettled = verdict != OwnedWorkerTeardownVerdict.Refused;
-            if (verdict == OwnedWorkerTeardownVerdict.Settled) FinalizeSettledScope(scope);
+            if (verdict == OwnedWorkerTeardownVerdict.Settled)
+            {
+                try { FinalizeSettledScope(scope); }
+                catch { LastTeardownDrainSettled = false; return OwnedWorkerTeardownVerdict.Refused; }
+            }
             return verdict;
         }
 
@@ -499,7 +505,12 @@ namespace KingmakerMountedCombat.Integration
         private void FinalizeSettledScope(SaveScope scope)
         {
             if (scope == null || scope.Released) return;
-            if (ReferenceEquals(drainingSave, scope)) { DrainAbandonedSave(); return; }
+            if (ReferenceEquals(drainingSave, scope))
+            {
+                DrainAbandonedSave();
+                if (!scope.Released) throw new InvalidOperationException("Drained save cleanup remains owned.");
+                return;
+            }
             ReleaseSaveScope(scope);
         }
 
@@ -512,6 +523,7 @@ namespace KingmakerMountedCombat.Integration
             // question as whether a scope owns a worker: resolving a null scope
             // legitimately answers "no worker", so this must return before that.
             if (scope == null) return;
+            if (ReferenceEquals(releasingSave, scope)) { RetrySaveRelease(); return; }
             System.Threading.Tasks.Task worker;
             var established = ResolveWorker(scope, out worker);
             // A deferral taken while ownership was unknown resolves here: once it
@@ -571,12 +583,15 @@ namespace KingmakerMountedCombat.Integration
             scope.PartyState = scope.World.CrossSceneState;
             SaveSnapshotStarting?.Invoke();
             RequireChargeSaveBarrier(scope);
-            scope.Json = NativeMountedSaveFormat.CaptureOrPreserve(loaded, Capture);
+            PinWorldSaveScope(scope);
+            scope.Json = ArchiveNativeEnabled
+                ? NativeMountedSaveFormat.CaptureOrPreserve(loadedArchive, CaptureArchive)
+                : NativeMountedSaveFormat.CaptureOrPreserve(loaded, Capture);
             scope.ControlsSuspended = true;
-            relationship.SaveSerializationSuspended = true;
+            // Every owner pinned at the header remains suspended until this exact worker settles.
             if (!controls.BeginSaveSerializationScope())
                 throw new InvalidOperationException("Mounted controls could not enter native serialization scope.");
-            scope.RestoreAi = relationship.Runtime.SuspendSerializedAiLease();
+            SuspendWorldSaveAi(scope);
             NativeMountedSaveStorage.Stage(saver, scope.Json);
             SnapshotCount++;
             SaveSnapshotStaged?.Invoke();
@@ -640,6 +655,7 @@ namespace KingmakerMountedCombat.Integration
                 presentationPending = false;
                 restoredActors.Clear();
                 loaded = null;
+                ClearArchiveRestoration();
             }
             return new ScopedEnumerator<object>(TrackNativeLoad(routine, scope), () =>
             {
@@ -648,6 +664,7 @@ namespace KingmakerMountedCombat.Integration
                 presentationPending = false;
                 restoredActors.Clear();
                 loaded = null;
+                ClearArchiveRestoration();
                 restoreLoad = scope;
                 scope.World.Begin(Game.Instance?.Player);
                 BeginLoadHousekeeping();
@@ -662,6 +679,7 @@ namespace KingmakerMountedCombat.Integration
                     presentationPending = false;
                     restoredActors.Clear();
                     loaded = null;
+                ClearArchiveRestoration();
                     if (combatRestoreFailure == null)
                         Report("Native load was canceled or failed; unfinished mounted restoration discarded.");
                 }
@@ -699,6 +717,21 @@ namespace KingmakerMountedCombat.Integration
         private void SelectLoad(SaveInfo save)
         {
             selectedCampaign = save.GameId;
+            if (ArchiveNativeEnabled)
+            {
+                loadedArchive = NativeMountedSaveStorage.ReadArchive(save.Saver);
+                if (NativeMountedSaveFormat.CanRestore(loadedArchive) &&
+                    (loadedArchive.Data.CampaignId != save.GameId || loadedArchive.Data.AreaId != save.Area?.AssetGuidThreadSafe))
+                    loadedArchive = new MountedArchiveReadResult { Kind = MountedSaveReadKind.Invalid,
+                        OriginalJson = loadedArchive.OriginalJson,
+                        Feedback = "Mounted metadata campaign/area differs from the selected native archive." };
+                loaded = new MountedSaveReadResult(loadedArchive.Kind, loadedArchive.HistoricalData,
+                    loadedArchive.OriginalJson, loadedArchive.Feedback, loadedArchive.SourceSchema);
+                presentationPending = NativeMountedSaveFormat.CanRestore(loadedArchive);
+                Feedback = loadedArchive.Feedback ?? "Mounted world selected; awaiting all native entities.";
+                logger.Info(Feedback);
+                return;
+            }
             loaded = NativeMountedSaveStorage.Read(save.Saver);
             if (NativeMountedSaveFormat.CanRestore(loaded) &&
                 (loaded.Data.CampaignId != save.GameId || loaded.Data.AreaId != save.Area?.AssetGuidThreadSafe))
@@ -711,6 +744,7 @@ namespace KingmakerMountedCombat.Integration
 
         internal void RestoreActorAfterPostLoad(UnitEntityData unit)
         {
+            if (ArchiveNativeEnabled) { RestoreArchiveActorAfterPostLoad(unit); return; }
             var data = NativeMountedSaveFormat.CanRestore(loaded) ? loaded.Data : null;
             if (!Enabled || data == null || (!data.Mounted && data.Combat == null) || unit == null || restoreLoad == null ||
                 restoreLoad.Sequence != loadSequence || !restoreLoad.World.TryBind(Game.Instance?.Player)) return;
@@ -747,6 +781,7 @@ namespace KingmakerMountedCombat.Integration
 
         internal void Update()
         {
+            RetrySaveRelease();
             DrainAbandonedSave();
             ReplayDeferredResetIfSettled();
             ContinueWorldRelease();
@@ -758,6 +793,20 @@ namespace KingmakerMountedCombat.Integration
                 Game.Instance?.CurrentlyLoadedArea == null || LoadingProcess.Instance.IsLoadingInProcess) return;
             var game = Game.Instance;
             if (game.CurrentMode != Kingmaker.GameModes.GameModeType.Default) return;
+            if (ArchiveNativeEnabled)
+            {
+                var archive = RestorableArchive;
+                if (archive == null || game.Player.GameId != selectedCampaign || game.Player.GameId != archive.CampaignId ||
+                    game.CurrentlyLoadedArea.AssetGuidThreadSafe != archive.AreaId)
+                { BlockCombatRestoration("Loaded world changed before all-pair presentation."); return; }
+                try
+                {
+                    if (!RestoreArchivePresentation()) return;
+                    presentationPending = false; restoreLoad.World.Close();
+                }
+                catch (Exception error) { BlockCombatRestoration("All-pair presentation failed: " + error.Message); }
+                return;
+            }
             presentationPending = false;
             restoreLoad.World.Close();
             var data = loaded.Data;
@@ -816,7 +865,10 @@ namespace KingmakerMountedCombat.Integration
             internal Kingmaker.EntitySystem.SceneEntitiesState PartyState;
             internal string Json;
             internal bool ControlsSuspended;
-            internal Action RestoreAi;
+            internal Action RestoreAi; // compatibility with existing detached worker probes
+            internal GameMountedRelationshipService[] Relationships;
+            internal readonly List<Action> RestoreAiOwners = new List<Action>();
+            internal readonly List<MountedCombatController> ChargeOwners = new List<MountedCombatController>();
             // Captured once the native iterator starts its archive worker, so an
             // early disposal can tell whether that worker can still commit.
             internal System.Threading.Tasks.Task Worker;

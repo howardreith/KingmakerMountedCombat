@@ -72,7 +72,7 @@ namespace KingmakerMountedCombat.Integration
         private MountedPlayerActionAvailability GetAvailability(bool nativeMoveActionShellAdmitted, UnitEntityData executionCaster = null)
         {
             ThrowIfDisposed();
-            var context = CaptureContext(executionCaster);
+            var context = CaptureContext(executionCaster, nativeMoveActionShellAdmitted);
             context.NativeMoveActionShellAdmitted = nativeMoveActionShellAdmitted;
             var availability = MountedPlayerActionEvaluator.Evaluate(context);
             if (IsMountTargetArmed &&
@@ -187,10 +187,9 @@ namespace KingmakerMountedCombat.Integration
             bool nativeMoveActionShellAdmitted = false)
         {
             ThrowIfDisposed();
-            var availability = GetAvailability(nativeMoveActionShellAdmitted, nativeMoveActionShellAdmitted ? caster : null);
+            var availability = GetAvailability(nativeMoveActionShellAdmitted, caster);
             var selection = SelectionManager.Instance?.SelectedUnits;
-            var exactCasterSelected = caster != null && (nativeMoveActionShellAdmitted ||
-                selection != null && selection.Count == 1 && selection[0] == caster);
+            var exactCasterSelected = caster != null;
             if (!availability.IsVisible || availability.Action != MountedPlayerActionKind.Mount)
             {
                 return new NativeMountedControlAvailability(false, false, "Mount Companion is available only while unmounted.");
@@ -211,7 +210,7 @@ namespace KingmakerMountedCombat.Integration
             bool nativeMoveActionShellAdmitted = false)
         {
             ThrowIfDisposed();
-            var availability = GetAvailability(nativeMoveActionShellAdmitted, nativeMoveActionShellAdmitted ? caster : null);
+            var availability = GetAvailability(nativeMoveActionShellAdmitted, caster);
             var exactRider = caster != null && caster == relationship.Rider;
             var game = Game.Instance;
             if (game == null || game.CurrentlyLoadedArea == null ||
@@ -650,7 +649,7 @@ namespace KingmakerMountedCombat.Integration
             disposed = true;
         }
 
-        private MountedPlayerActionContext CaptureContext(UnitEntityData executionCaster = null)
+        private MountedPlayerActionContext CaptureContext(UnitEntityData executionCaster = null, bool nativeMoveActionShellAdmitted = false)
         {
             var state = relationship.State;
             var game = Game.Instance;
@@ -664,7 +663,7 @@ namespace KingmakerMountedCombat.Integration
                     state != RelationshipState.Mounted &&
                     state != RelationshipState.Faulted,
                 // The execution pass is the in-flight transition's own delivery.
-                RelationshipTransitionInFlight = executionCaster == null &&
+                RelationshipTransitionInFlight = !nativeMoveActionShellAdmitted &&
                     transitionLedger.HasVoluntaryTransitionInFlight
             };
 
@@ -758,7 +757,7 @@ namespace KingmakerMountedCombat.Integration
                     rider.DistanceTo(mount),
                     rider.View.Corpulence,
                     mount.View.Corpulence);
-            context.SafeGameMode = executionCaster != null
+            context.SafeGameMode = nativeMoveActionShellAdmitted
                 ? MountedGameModePolicy.CanAdmitMountedAction(game.CurrentMode.ToString())
                 : MountedGameModePolicy.CanQueueMountedAction(game.CurrentMode.ToString());
             context.ViewsAndStockAgentsAvailable = rider.View != null && rider.View.AgentASP != null &&
@@ -845,6 +844,15 @@ namespace KingmakerMountedCombat.Integration
         }
 
         private void DestroyOverlay()
+        {
+            // Construction rollback has no Unity objects. Keep that path outside
+            // the native destruction body, including its Unity internal calls.
+            if (ReferenceEquals(overlay, null) && ReferenceEquals(overlayObject, null)) return;
+            DestroyNativeOverlay();
+        }
+
+        [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+        private void DestroyNativeOverlay()
         {
             if (overlay != null)
             {

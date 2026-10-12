@@ -31,7 +31,8 @@ namespace KingmakerMountedCombat.Integration
         private readonly GameMountedRelationshipService relationship;
         private readonly DiagnosticSettings settings;
         private readonly HorsePrimaryAttackAnimationAdapter horsePrimaryAttackAnimation;
-        private readonly UnifiedMountedTurnCoordinator unifiedTurn;
+        private readonly MountedPairTurnParticipant unifiedTurn;
+        internal MountedPairTurnParticipant TurnParticipant => unifiedTurn;
         internal int TrackedActorAllocations => unifiedTurn.TrackedAllocationActorCount;
         private readonly MountedPairCommandScheduler pairedCommandScheduler;
         private readonly IModLogger logger;
@@ -62,7 +63,7 @@ namespace KingmakerMountedCombat.Integration
             GameMountedRelationshipService relationship,
             DiagnosticSettings settings,
             HorsePrimaryAttackAnimationAdapter horsePrimaryAttackAnimation,
-            UnifiedMountedTurnCoordinator unifiedTurn,
+            MountedPairTurnParticipant unifiedTurn,
             MountedPairCommandScheduler pairedCommandScheduler,
             IModLogger logger)
         {
@@ -646,7 +647,7 @@ namespace KingmakerMountedCombat.Integration
             }
 
             NativeSingleAttackWeaponSelection ignored;
-            var context = CaptureContext(action, null, out ignored, true);
+            var context = CaptureContext(action, null, out ignored, true, false, true);
             var availability = MountedCombatActionEvaluator.Evaluate(context);
             return new NativeMountedControlAvailability(true, availability.IsAllowed, availability.Feedback);
         }
@@ -662,7 +663,7 @@ namespace KingmakerMountedCombat.Integration
             }
             NativeSingleAttackWeaponSelection ignored;
             return MountedCombatActionEvaluator.Evaluate(
-                CaptureContext(action, target, out ignored)).IsAllowed;
+                CaptureContext(action, target, out ignored, false, false, true)).IsAllowed;
         }
 
         internal string DescribeNativeAbilityTargetRejection(
@@ -677,7 +678,7 @@ namespace KingmakerMountedCombat.Integration
             }
             NativeSingleAttackWeaponSelection ignored;
             return MountedCombatActionEvaluator.Evaluate(
-                CaptureContext(action, target, out ignored)).Feedback;
+                CaptureContext(action, target, out ignored, false, false, true)).Feedback;
         }
 
         internal MountedCombatClickResult TryExecuteNativeAbility(
@@ -719,7 +720,7 @@ namespace KingmakerMountedCombat.Integration
         {
             NativeSingleAttackWeaponSelection mountPrimary;
             var ordinaryIntent = inputSurface == "stock-hostile-click" && target == stockIntentTarget;
-            var context = CaptureContext(action, target, out mountPrimary, false, ordinaryIntent);
+            var context = CaptureContext(action, target, out mountPrimary, false, ordinaryIntent, abilityCaster != null);
             var availability = MountedCombatActionEvaluator.Evaluate(context);
             if (!availability.IsAllowed)
             {
@@ -1482,7 +1483,8 @@ namespace KingmakerMountedCombat.Integration
             UnitEntityData target,
             out NativeSingleAttackWeaponSelection mountPrimary,
             bool assumeTargetAvailable = false,
-            bool ordinaryIntent = false)
+            bool ordinaryIntent = false,
+            bool nativeActorIntent = false)
         {
             var rider = relationship.Rider;
             var mount = relationship.Mount;
@@ -1516,7 +1518,7 @@ namespace KingmakerMountedCombat.Integration
                 ExactMountedPair = relationship.State == RelationshipState.Mounted &&
                     rider != null && mount != null && rider.Descriptor?.Pet == mount &&
                     mount.Descriptor?.Master.Value == rider,
-                ExactRiderSelection = ordinaryIntent || MountedTurnSelectionPolicy.IsExpectedActionSelection(
+                ExactRiderSelection = ordinaryIntent || nativeActorIntent || MountedTurnSelectionPolicy.IsExpectedActionSelection(
                     turnBasedCombat,
                     action == MountedCombatActionKind.MountPrimaryNatural,
                     settings.UsePairedTurnControls,

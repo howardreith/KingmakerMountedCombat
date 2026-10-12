@@ -1,0 +1,176 @@
+[CmdletBinding()]
+param()
+$ErrorActionPreference='Stop'
+Set-StrictMode -Version Latest
+. (Join-Path $PSScriptRoot 'runtime/RuntimeHarness.Common.ps1')
+. (Join-Path $PSScriptRoot 'runtime/PersistenceProfileProtection.ps1')
+$testRoot=Assert-KmcChildPath (Join-Path (Get-KmcRepositoryRoot) ('obj/base-game-isolation-tests/'+[Guid]::NewGuid().ToString('N'))) (Join-Path (Get-KmcRepositoryRoot) 'obj') 'base-game isolation tests'
+[void][IO.Directory]::CreateDirectory($testRoot)
+$passed=0;$failed=0
+function Check([string]$Name,[scriptblock]$TestBody){try{&$TestBody;$script:passed++;Write-Host ('PASS '+$Name)}catch{$script:failed++;Write-Host ('FAIL '+$Name+': '+$_.Exception.Message)}}
+function Reject([string]$Name,[scriptblock]$RejectedBody){Check $Name { $rejected=$false;try{&$RejectedBody}catch{$rejected=$true};if(!$rejected){throw 'unsafe input was accepted'} }}
+function Need([bool]$Condition,[string]$Message){if(!$Condition){throw $Message}}
+function New-Fixture([string]$Name){
+    $fixtureRoot=Assert-KmcChildPath (Join-Path $testRoot $Name) $testRoot 'fake installation fixture'
+    $game=Join-Path $fixtureRoot 'game';$mods=Join-Path $game 'Mods';$loader=Join-Path $game 'Kingmaker_Data/Managed/UnityModManager'
+    foreach($folder in @($mods,$loader,(Join-Path $mods 'ForeignOne/cache'),(Join-Path $mods 'ForeignTwo'))){[void][IO.Directory]::CreateDirectory($folder)}
+    [IO.File]::WriteAllText((Join-Path $mods 'ForeignOne/Info.json'),'foreign opaque metadata')
+    [IO.File]::WriteAllText((Join-Path $mods 'ForeignOne/cache/owned.bin'),'foreign mutable bytes')
+    [IO.File]::WriteAllText((Join-Path $mods 'ForeignTwo/assembly.dll'),'foreign opaque code')
+    [IO.File]::WriteAllText((Join-Path $mods 'root-note.txt'),'foreign root bytes')
+    [IO.File]::WriteAllText((Join-Path $loader 'Config.xml'),'<Config><ModsDirectory>Mods</ModsDirectory><ModInfo>Info.json</ModInfo><GameExe>Kingmaker.exe</GameExe></Config>')
+    $params='<Param><ShowOnStart>1</ShowOnStart><ModParams><Mod Id="ForeignOne" Enabled="true"/><Mod Id="KingmakerMountedCombat" Enabled="true"><Hotkey><keyCode>None</keyCode><modifiers>0</modifiers></Hotkey></Mod><Mod Id="ForeignTwo" Enabled="false"/></ModParams></Param>'
+    [IO.File]::WriteAllText((Join-Path $loader 'Params.xml'),$params)
+    foreach($name in @('UnityModManager.dll','0Harmony12.dll','0Harmony-1.2.dll','0Harmony.dll','dnlib.dll')){[IO.File]::WriteAllText((Join-Path $loader $name),('fixture-'+$name))}
+    $gameAssembly=Join-Path $game 'Kingmaker_Data/Managed/Assembly-CSharp.dll';[IO.File]::WriteAllText($gameAssembly,'fixture-gameplay')
+    $pins=@(foreach($pair in @(@('gameplayAssembly',$gameAssembly),@('umm',(Join-Path $loader 'UnityModManager.dll')),@('harmony',(Join-Path $loader '0Harmony12.dll')))){
+        [pscustomobject]@{role=$pair[0];length=(Get-Item -LiteralPath $pair[1]).Length;sha256=(Get-KmcSha256 $pair[1])}
+    })
+    return [pscustomobject]@{home=$fixtureRoot;game=$game;mods=$mods;loader=$loader;parameters=$params;fingerprint=[pscustomobject]@{kingmaker=[pscustomobject]@{files=$pins}}}
+}
+$f=New-Fixture 'main'
+$receipt=Get-KmcBaseGameDependencies -GameRoot $f.game -Fingerprint $f.fingerprint
+Check 'dependency receipt records exact loader set without moving it' {Need (@($receipt.files).Count-eq6) 'dependency count';Assert-KmcBaseGameDependencyReceipt $receipt -VerifyFiles}
+Check 'dependency identity is stable across receipt serialization' {Assert-KmcBaseGameDependencyReceipt ($receipt|ConvertTo-Json -Depth 8|ConvertFrom-Json) -VerifyFiles}
+$beforeDependencies=Get-KmcDirectoryManifest (Split-Path $f.loader)
+$bad=New-Fixture 'wrong-fingerprint';$bad.fingerprint.kingmaker.files[1].sha256='0'*64
+Reject 'changed pinned UMM rejected' {Get-KmcBaseGameDependencies $bad.game $bad.fingerprint|Out-Null}
+$bad2=New-Fixture 'missing-harmony';[IO.File]::Delete((Join-Path $bad2.loader '0Harmony12.dll'))
+Reject 'missing required Harmony rejected' {Get-KmcBaseGameDependencies $bad2.game $bad2.fingerprint|Out-Null}
+$bad3=New-Fixture 'unknown-loader';[IO.File]::WriteAllText((Join-Path $bad3.loader 'ForeignPlugin.dll'),'foreign')
+Reject 'foreign loader DLL rejected' {Get-KmcBaseGameDependencies $bad3.game $bad3.fingerprint|Out-Null}
+$bad4=New-Fixture 'redirected-mods';[IO.File]::WriteAllText((Join-Path $bad4.loader 'Config.xml'),'<Config><ModsDirectory>../Mods</ModsDirectory><ModInfo>Info.json</ModInfo><GameExe>Kingmaker.exe</GameExe></Config>')
+Reject 'redirected Mods layout rejected' {Get-KmcBaseGameDependencies $bad4.game $bad4.fingerprint|Out-Null}
+$bad5=New-Fixture 'disabled-kmc';[IO.File]::WriteAllText((Join-Path $bad5.loader 'Params.xml'),$bad5.parameters.Replace('Id="KingmakerMountedCombat" Enabled="true"','Id="KingmakerMountedCombat" Enabled="false"'))
+Reject 'owner-disabled KMC never enabled by isolation' {Get-KmcBaseGameDependencies $bad5.game $bad5.fingerprint|Out-Null}
+Reject 'DTD loader XML rejected' {Read-KmcBaseGameXml '<!DOCTYPE Config [<!ENTITY x "Mods">]><Config><ModsDirectory>&x;</ModsDirectory></Config>'|Out-Null}
+$duplicate=$f.parameters.Replace('</ModParams>','<Mod Id="kingmakermountedcombat" Enabled="true"/></ModParams>')
+Reject 'case-ambiguous mod parameters rejected' {Assert-KmcBaseGameParameters $duplicate|Out-Null}
+$copy=$receipt|ConvertTo-Json -Depth 8|ConvertFrom-Json;$copy.dependencyDigest='0'*64
+Reject 'tampered dependency receipt rejected' {Assert-KmcBaseGameDependencyReceipt $copy}
+$dependency=Join-Path $f.loader 'dnlib.dll';$saved=[IO.File]::ReadAllBytes($dependency)
+try{[IO.File]::WriteAllText($dependency,'changed');Reject 'dependency changed between intake and staging rejected' {Assert-KmcBaseGameDependencyReceipt $receipt -VerifyFiles}}
+finally{[IO.File]::WriteAllBytes($dependency,$saved)}
+
+$stage=Join-Path $f.home 'staging';$backups=Join-Path $f.home 'backups';$state=Join-Path $f.home 'state'
+foreach($dir in @($stage,$backups,$state)){[void][IO.Directory]::CreateDirectory($dir)}
+$packageSource=Join-Path $f.home 'package-source/KingmakerMountedCombat';[void][IO.Directory]::CreateDirectory($packageSource)
+[IO.File]::WriteAllText((Join-Path $packageSource 'Info.json'),'{"Id":"KingmakerMountedCombat"}')
+[IO.File]::WriteAllText((Join-Path $packageSource 'KingmakerMountedCombat.dll'),'original test-only product')
+$package=Join-Path $f.home 'package.zip';Compress-Archive -LiteralPath $packageSource -DestinationPath $package
+$before=Get-KmcDirectoryManifest $f.mods
+$preview=Join-Path $stage 'preview';[void][IO.Directory]::CreateDirectory($preview)
+$previewClone=Join-Path $preview 'Mods-live-clone';[void](Copy-KmcDirectoryTreeExact $f.mods $previewClone)
+$previewPackage=Join-Path $preview 'package-overlay/KingmakerMountedCombat';[void][IO.Directory]::CreateDirectory((Split-Path $previewPackage));[void](Copy-KmcDirectoryTreeExact $packageSource $previewPackage)
+$previewBefore=Get-KmcDirectoryManifest $preview
+Check 'ready-tree WhatIf validates without mutating staging or actual fixture' {
+    New-KmcBaseGameReadyTree -StagingRun $preview -CloneRoot $previewClone -ReadyRoot (Join-Path $preview 'Mods-ready') -PackageModRoot $previewPackage -Before $before -WhatIf
+    Assert-KmcDirectoryManifestsEqual $previewBefore (Get-KmcDirectoryManifest $preview) 'WhatIf staging purity'
+    Assert-KmcDirectoryManifestsEqual $before (Get-KmcDirectoryManifest $f.mods) 'WhatIf original fixture purity'
+}
+Reject 'ready tree outside its owned staging run rejected before creation' {New-KmcBaseGameReadyTree -StagingRun $preview -CloneRoot $previewClone -ReadyRoot (Join-Path $f.home 'outside') -PackageModRoot $previewPackage -Before $before -Confirm:$false}
+[IO.File]::WriteAllText((Join-Path $previewPackage 'Foreign.dll'),'foreign')
+Reject 'foreign package payload rejected before ready-tree creation' {New-KmcBaseGameReadyTree -StagingRun $preview -CloneRoot $previewClone -ReadyRoot (Join-Path $preview 'Mods-ready') -PackageModRoot $previewPackage -Before $before -Confirm:$false}
+
+$lock=Open-KmcRuntimeLock $state 'base-only-positive'
+try{
+    $transaction=Enter-KmcModsTransaction -Lock $lock -LiveModsRoot $f.mods -PackagePath $package -StateRoot $state -BackupRoot $backups -StagingRoot $stage -StagingMode base-game-only-kmc -BaseGameDependencies $receipt
+    $record=Read-KmcJson $transaction
+    Check 'explicit base-only mode uses schema 4 and preserves the complete live clone' {
+        Need ($record.schemaVersion-eq4-and$record.stagingMode-ceq'base-game-only-kmc') 'new receipt identity'
+        Assert-KmcDirectoryManifestsEqual $before (Get-KmcDirectoryManifest $record.preservedClone) 'complete preserved clone'
+        Assert-KmcDirectoryManifestsEqual $before (Get-KmcDirectoryManifest $record.originalBackup) 'untouched original snapshot'
+    }
+    Check 'staged Mods contains only KMC and transaction sentinel' {
+        $actual=@((Get-KmcDirectoryManifest $f.mods).entries|ForEach-Object {'{0}|{1}'-f$_.kind,$_.path}|Sort-Object)
+        $expected=@('directory|KingmakerMountedCombat','file|.kmc-runtime-sentinel.json','file|KingmakerMountedCombat/Info.json','file|KingmakerMountedCombat/KingmakerMountedCombat.dll')|Sort-Object
+        Need (($actual-join ';')-ceq($expected-join ';')) 'foreign content remains in ready tree'
+        Assert-KmcDirectoryManifestsEqual $beforeDependencies (Get-KmcDirectoryManifest (Split-Path $f.loader)) 'installed loader unchanged'
+    }
+    $originalRecord=[IO.File]::ReadAllBytes($transaction)
+    try{
+        $record.baseGameDependencies.dependencyDigest='0'*64;Write-KmcJsonAtomic $transaction $record
+        Reject 'altered dependency receipt cannot authorize restoration' {Restore-KmcModsTransaction -Lock $lock -StatePath $transaction -LiveModsRoot $f.mods -BackupRoot $backups -StagingRoot $stage|Out-Null}
+    }finally{[IO.File]::WriteAllBytes($transaction,$originalRecord)}
+    try{
+        $record=Read-KmcJson $transaction;$record.schemaVersion=3;Write-KmcJsonAtomic $transaction $record
+        Reject 'historical schema cannot claim new mode' {Restore-KmcModsTransaction -Lock $lock -StatePath $transaction -LiveModsRoot $f.mods -BackupRoot $backups -StagingRoot $stage|Out-Null}
+    }finally{[IO.File]::WriteAllBytes($transaction,$originalRecord)}
+    [IO.File]::WriteAllText((Join-Path $f.mods 'runtime-created.txt'),'owned staged output')
+    [void](Restore-KmcModsTransaction -Lock $lock -StatePath $transaction -LiveModsRoot $f.mods -BackupRoot $backups -StagingRoot $stage)
+    Check 'runtime output quarantined and actual original tree restored exactly' {
+        Assert-KmcDirectoryManifestsEqual $before (Get-KmcDirectoryManifest $f.mods) 'restored original'
+        $settled=Read-KmcJson $transaction
+        Need ($settled.phase-ceq'restored'-and$settled.restoredDigest-ceq$before.digest-and$settled.stagedTreeChangedAtRuntime) 'settled receipt'
+        Need (Test-Path -LiteralPath (Join-Path $settled.stagedAfter 'runtime-created.txt')) 'runtime evidence lost'
+    }
+    Check 'restoration retry is idempotent' {[void](Restore-KmcModsTransaction -Lock $lock -StatePath $transaction -LiveModsRoot $f.mods -BackupRoot $backups -StagingRoot $stage)}
+}finally{
+    if(Test-Path -LiteralPath (Get-KmcTransactionStatePath $state $lock.RunId)){
+        [void](Restore-KmcModsTransaction -Lock $lock -StatePath (Get-KmcTransactionStatePath $state $lock.RunId) -LiveModsRoot $f.mods -BackupRoot $backups -StagingRoot $stage)
+    }
+    Close-KmcRuntimeLock $lock
+}
+$lock=Open-KmcRuntimeLock $state 'legacy-default-positive'
+try{
+    Reject 'dependency receipt does not silently select base-only mode' {Enter-KmcModsTransaction -Lock $lock -LiveModsRoot $f.mods -PackagePath $package -StateRoot $state -BackupRoot $backups -StagingRoot $stage -BaseGameDependencies $receipt|Out-Null}
+    $transaction=Enter-KmcModsTransaction -Lock $lock -LiveModsRoot $f.mods -PackagePath $package -StateRoot $state -BackupRoot $backups -StagingRoot $stage
+    Check 'ordinary default retains foreign mods and historical schema 3' {
+        Need ((Read-KmcJson $transaction).schemaVersion-eq3) 'ordinary receipt changed'
+        Need (Test-Path -LiteralPath (Join-Path $f.mods 'ForeignOne/cache/owned.bin')) 'ordinary foreign tree removed'
+        Need ((Get-KmcSha256 (Join-Path $f.mods 'ForeignTwo/assembly.dll'))-ceq(Get-KmcTextSha256 'foreign opaque code')) 'foreign code changed'
+    }
+}finally{
+    if(Test-Path -LiteralPath (Get-KmcTransactionStatePath $state $lock.RunId)){[void](Restore-KmcModsTransaction -Lock $lock -StatePath (Get-KmcTransactionStatePath $state $lock.RunId) -LiveModsRoot $f.mods -BackupRoot $backups -StagingRoot $stage)}
+    Close-KmcRuntimeLock $lock
+}
+# Simulate the guarded original-moved crash window in this synthetic installation.
+$lock=Open-KmcRuntimeLock $state 'base-only-crash-window'
+try{
+    $transaction=Enter-KmcModsTransaction -Lock $lock -LiveModsRoot $f.mods -PackagePath $package -StateRoot $state -BackupRoot $backups -StagingRoot $stage -StagingMode base-game-only-kmc -BaseGameDependencies $receipt
+    $record=Read-KmcJson $transaction
+    $ownedLive=Assert-KmcChildPath $f.mods $f.home 'synthetic crash-window Mods'
+    $ownedReady=Assert-KmcChildPath $record.stagedReady (Join-Path $stage $lock.RunId) 'synthetic crash-window ready tree'
+    Move-Item -LiteralPath $ownedLive -Destination $ownedReady
+    $record.phase='original-moved';Write-KmcJsonAtomic $transaction $record
+    [void](Restore-KmcModsTransaction -Lock $lock -StatePath $transaction -LiveModsRoot $f.mods -BackupRoot $backups -StagingRoot $stage)
+    Check 'original-moved crash window restores missing Mods from exact original snapshot' {
+        Assert-KmcDirectoryManifestsEqual $before (Get-KmcDirectoryManifest $f.mods) 'crash-window original restored'
+        Need ((Read-KmcJson $transaction).phase-ceq'restored') 'crash-window state not settled'
+    }
+}finally{
+    if(Test-Path -LiteralPath (Get-KmcTransactionStatePath $state $lock.RunId)){[void](Restore-KmcModsTransaction -Lock $lock -StatePath (Get-KmcTransactionStatePath $state $lock.RunId) -LiveModsRoot $f.mods -BackupRoot $backups -StagingRoot $stage)}
+    Close-KmcRuntimeLock $lock
+}
+$settledBase=Read-KmcJson (Get-KmcTransactionStatePath $state 'base-only-positive')
+Check 'settings authority comes from the settled exact owned base-only receipt' {
+    Assert-KmcBaseGameSettingsAuthority $settledBase $settledBase.runId $settledBase.token $f.game
+}
+foreach($case in @(@('runId','other-run'),@('token',('0'*64)),@('phase','staged'),@('schemaVersion',3),@('stagingMode','live-clone-plus-kmc-overlay'),@('liveModsRoot',(Join-Path $f.home 'unrelated')))){
+    $badState=$settledBase|ConvertTo-Json -Depth 8|ConvertFrom-Json;$badState.($case[0])=$case[1]
+    Reject ('settings restoration refuses mismatched '+$case[0]) {Assert-KmcBaseGameSettingsAuthority $badState $settledBase.runId $settledBase.token $f.game}
+}
+Reject 'settings restoration refuses another installation' {Assert-KmcBaseGameSettingsAuthority $settledBase $settledBase.runId $settledBase.token (Join-Path $f.home 'another-game')}
+Check 'changed runtime scripts parse without executing a launcher' {
+    foreach($script in @('runtime/BaseGameIsolation.ps1','runtime/RuntimeHarness.Common.ps1','runtime/Invoke-KingmakerRuntimeScenario.ps1','runtime/PersistenceProfileProtection.ps1','runtime/Recover-KingmakerRuntimeTransaction.ps1','runtime/Recover-KmcPersistenceProfile.ps1')){
+        $tokens=$null;$parseErrors=$null
+        [void][Management.Automation.Language.Parser]::ParseFile((Join-Path $PSScriptRoot $script),[ref]$tokens,[ref]$parseErrors)
+        if(@($parseErrors).Count-ne0){throw ('Parser errors in '+$script+': '+($parseErrors|Out-String))}
+    }
+}
+$reduced=$f.parameters.Replace('<Mod Id="ForeignOne" Enabled="true"/>','').Replace('<Mod Id="ForeignTwo" Enabled="false"/>','')
+Check 'base-only UMM admits exact absent-mod removal' {Assert-KmcNativeUmmStartupDelta $f.parameters $reduced -BaseGameOnly}
+Check 'base-only UMM admits unchanged parameters' {Assert-KmcNativeUmmStartupDelta $f.parameters $f.parameters -BaseGameOnly}
+Reject 'historical UMM mode still refuses foreign-entry removal' {Assert-KmcNativeUmmStartupDelta $f.parameters $reduced}
+Reject 'base-only and removal-observer authorities cannot combine' {Assert-KmcNativeUmmStartupDelta $f.parameters $reduced -BaseGameOnly -RemovalObserver}
+foreach($case in @(
+    @('disabled KMC',$reduced.Replace('Enabled="true"','Enabled="false"')),
+    @('other setting changed',$reduced.Replace('<ShowOnStart>1','<ShowOnStart>0')),
+    @('new foreign entry',$reduced.Replace('</ModParams>','<Mod Id="New" Enabled="true"/></ModParams>')),
+    @('partial foreign removal',$f.parameters.Replace('<Mod Id="ForeignOne" Enabled="true"/>','')),
+    @('KMC hotkey changed',$reduced.Replace('<keyCode>None','<keyCode>A')))){
+    Reject ('base-only UMM refuses '+$case[0]) {Assert-KmcNativeUmmStartupDelta $f.parameters $case[1] -BaseGameOnly}
+}
+Check 'all offline fixture original bytes remain exact' {Assert-KmcDirectoryManifestsEqual $before (Get-KmcDirectoryManifest $f.mods) 'final original fixture';Assert-KmcDirectoryManifestsEqual $beforeDependencies (Get-KmcDirectoryManifest (Split-Path $f.loader)) 'final loader fixture'}
+Write-Host ('Base-game isolation: '+$passed+' PASS / '+$failed+' FAIL; evidence '+$testRoot)
+if($failed-ne0){exit 1}

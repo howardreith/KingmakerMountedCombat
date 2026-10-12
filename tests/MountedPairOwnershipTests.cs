@@ -15,6 +15,8 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("native capacity refuses before attachment and does not truncate registry records", NativeCapacity);
             runner.Run("ownership session replacement refuses until prior custody settles", Sessions);
             runner.Run("legacy pending-split survivor remains addressable without active membership", PendingSurvivor);
+            runner.Run("persisted custody imports exact IDs and generations without native attachment or grants", StableImport);
+            runner.Run("failed retirement retains its owner and cannot skip independent settled custody", RetirementIsolation);
         }
 
         private sealed class Actor { internal string Id = Guid.NewGuid().ToString("N"); }
@@ -191,6 +193,60 @@ namespace KingmakerMountedCombat.Tests
             TestRunner.True(!world.Registry.TryRetainDetached(world.Session, "campaign", new Actor { Id = " " }, null, 1, b,
                 () => true, () => true, () => true, out _), "Detached custody accepted an empty actor identity.");
             TestRunner.True(world.Registry.FindOwner(b.Rider) == null, "Settled survivor remains reserved.");
+        }
+        private static void RetirementIsolation()
+        {
+            var world = new World(); var a = new Boundary(); var b = new Boundary();
+            var fail = true; var aQueries = 0; var bQueries = 0;
+            TestRunner.True(world.Registry.TryReserve(world.Session, "campaign", a.Rider, a.Mount, 9, a,
+                () => { aQueries++; if (fail) throw new InvalidOperationException("retained A unavailable"); return false; },
+                () => true, () => true, out var first, out _), "First owner was not reserved.");
+            TestRunner.True(world.Registry.TryReserve(world.Session, "campaign", b.Rider, b.Mount, 17, b,
+                () => { bQueries++; return false; }, () => true, () => true, out var second, out _), "Second owner was not reserved.");
+            world.Registry.Detach(first); world.Registry.Detach(second);
+            Exception failure = null;
+            try { world.Registry.RetireSettled(); } catch (Exception error) { failure = error; }
+            TestRunner.True(failure is AggregateException && ((AggregateException)failure).InnerExceptions.Count == 1 &&
+                aQueries == 1 && bQueries == 1 && first.State == MountedPairOwnershipState.Detached &&
+                ReferenceEquals(first, world.Registry.FindOwner(a.Rider)) && ReferenceEquals(first, world.Registry.FindOwner(a.Mount)) &&
+                second.State == MountedPairOwnershipState.Retired && world.Registry.FindOwner(b.Rider) == null &&
+                world.Registry.FindOwner(b.Mount) == null && world.Registry.Owners.Length == 1,
+                "A failing custody predicate skipped B retirement, lost A, or hid its error.");
+            fail = false; world.Registry.RetireSettled();
+            TestRunner.True(aQueries == 2 && bQueries == 1 && first.State == MountedPairOwnershipState.Retired &&
+                world.Registry.Owners.Length == 0, "A retry replayed independently completed B retirement or retained settled A.");
+        }
+        private static void StableImport()
+        {
+            var world = new World(); var a = new Boundary(); var b = new Boundary();
+            var id = Guid.NewGuid();
+            TestRunner.True(world.Registry.TryImport(world.Session, "campaign", id, 73, a.Rider, a.Mount, a, true,
+                () => a.Retained, () => true, () => true, out var imported, out var refusal), refusal);
+            TestRunner.True(imported.Id == id && imported.Generation == 73 && imported.State == MountedPairOwnershipState.Reserved,
+                "Import did not preserve the exact reserved custody identity.");
+            TestRunner.Equal(0, a.Runtime.Acquisitions, "Custody import must not attach or acquire a movement lease.");
+            TestRunner.True(world.Registry.FindActive(a.Rider) == null, "Import activated before saved presentation committed.");
+            TestRunner.True(!world.Registry.TryImport(world.Session, "campaign", id, 74, b.Rider, b.Mount, b, true,
+                () => false, () => true, () => true, out _, out _), "Duplicate persistent owner identity admitted.");
+            TestRunner.True(!world.Registry.TryImport(world.Session, "campaign", Guid.NewGuid(), 0, b.Rider, b.Mount, b, true,
+                () => false, () => true, () => true, out _, out _), "Invalid persisted generation admitted.");
+            TestRunner.True(!world.Registry.TryImport(new object(), "campaign", Guid.NewGuid(), 1, b.Rider, b.Mount, b, true,
+                () => false, () => true, () => true, out _, out _), "Foreign world import bypassed retained session custody.");
+            TestRunner.True(!world.Registry.TryImport(world.Session, "campaign", Guid.NewGuid(), 1, a.Mount, b.Mount, b, false,
+                () => true, () => true, () => true, out _, out _), "Cross-role detached import bypassed active reservation.");
+            TestRunner.Equal(1, world.Registry.Owners.Length, "Rejected imports partially mutated registry membership.");
+            world.Registry.Commit(imported);
+            TestRunner.True(world.Registry.IsActiveOwner(imported, a.Rider, a.Mount), "Saved attachment could not commit its imported owner.");
+            b.Participation = true; var detachedId = Guid.NewGuid();
+            TestRunner.True(world.Registry.TryImport(world.Session, "campaign", detachedId, 19, null, b.Mount, b, false,
+                () => b.Participation, () => true, () => true, out var detached, out refusal), refusal);
+            world.Registry.RetireSettled();
+            TestRunner.True(detached.Id == detachedId && detached.Generation == 19 &&
+                detached.State == MountedPairOwnershipState.Detached && ReferenceEquals(world.Registry.FindOwner(b.Mount), detached),
+                "Pending-only imported participant lost custody or became active.");
+            b.Participation = false; world.Registry.RetireSettled();
+            TestRunner.True(detached.State == MountedPairOwnershipState.Retired && world.Registry.IsActiveOwner(imported, a.Rider, a.Mount),
+                "Settling an imported pending survivor disturbed an unrelated mounted owner.");
         }
     }
 }

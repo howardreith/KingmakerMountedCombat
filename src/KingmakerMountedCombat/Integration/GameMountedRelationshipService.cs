@@ -171,7 +171,7 @@ namespace KingmakerMountedCombat.Integration
                 return Record(new TransitionResult(false, coordinator.State, null,
                     new[] { "Saved mounted relationship is incompatible with the active pair/policy." }, false, false));
             string ownershipRefusal;
-            if (!TryReserveOwnership(rider, mount, out ownershipRefusal))
+            if (!TryReserveSavedOwnership(rider, mount, out ownershipRefusal))
                 return Record(new TransitionResult(false, coordinator.State, null, new[] { ownershipRefusal }, false, false));
             try
             {
@@ -180,8 +180,7 @@ namespace KingmakerMountedCombat.Integration
                 ObserveCleanupState(result);
                 if (result.Succeeded)
                 {
-                    mountedPairGeneration = checked(mountedPairGeneration + 1);
-                    CommitOwnership();
+                    CommitSavedOwnership();
                     ResetNativeTurnBasedExitAiLeaseEvidence();
                 }
                 else runtime.ClearPreparedPairWhenUnmounted();
@@ -442,6 +441,7 @@ namespace KingmakerMountedCombat.Integration
                 return new TransitionResult(true, coordinator.State, trigger, new string[0], false, false);
             }
 
+            CancelSavedOwnershipImport();
             // Refuse before subscribers can release turn, view, or relationship ownership.
             if (ChargeCleanupBarrier != null && !ChargeCleanupBarrier(trigger))
                 return Record(new TransitionResult(false, coordinator.State, trigger,

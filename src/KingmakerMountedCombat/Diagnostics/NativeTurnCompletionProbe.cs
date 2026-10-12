@@ -23,7 +23,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private readonly NativeActorAllocationTrace trace;
         private readonly UnitEntityData rider, mount;
         private readonly MountedCombatController combat;
-        private readonly UnifiedMountedTurnCoordinator owner;
+        private readonly MountedPairTurnParticipant owner;
         private readonly JArray calls = new JArray(), errors = new JArray(), hooks = new JArray();
         private int ordinal;
         private bool disposed;
@@ -36,7 +36,7 @@ namespace KingmakerMountedCombat.Diagnostics
             this.rider = rider ?? throw new ArgumentNullException(nameof(rider));
             this.mount = mount ?? throw new ArgumentNullException(nameof(mount));
             this.combat = combat ?? throw new ArgumentNullException(nameof(combat));
-            owner = (UnifiedMountedTurnCoordinator)typeof(MountedCombatController).GetField("unifiedTurn", Flags).GetValue(combat);
+            owner = (MountedPairTurnParticipant)typeof(MountedCombatController).GetField("unifiedTurn", Flags).GetValue(combat);
             harmony = HarmonyInstance.Create(HarmonyId); active = this;
             try {
                 Patch(typeof(TurnController), 0x06000C47, "ForceBefore", "After");
@@ -53,7 +53,7 @@ namespace KingmakerMountedCombat.Diagnostics
         }
         private JObject ForfeitState(UnitEntityData actor)
         {
-            var activation = (PairedActivation<UnitEntityData, TurnController>)typeof(UnifiedMountedTurnCoordinator).GetField("activation", Flags).GetValue(owner);
+            var activation = (PairedActivation<UnitEntityData, TurnController>)typeof(MountedPairTurnParticipant).GetField("activation", Flags).GetValue(owner);
             var state = activation?.State(actor)?.Capture();
             return state == null ? null : new JObject { ["granted"] = state.Granted, ["prepared"] = state.Prepared,
                 ["forfeitRecorded"] = state.ForfeitRecorded, ["forfeitSettled"] = state.ForfeitSettled, ["forfeitStandardAdded"] = state.ForfeitStandardAdded };
@@ -64,7 +64,7 @@ namespace KingmakerMountedCombat.Diagnostics
             ["turnObject"] = RuntimeHelpers.GetHashCode(turn), ["actorId"] = turn.Unit.UniqueId, ["status"] = turn.Status.ToString(),
             ["turnBased"] = CombatController.IsInTurnBasedCombat(), ["currentContext"] = ReferenceEquals(turn, Game.Instance.TurnBasedCombatController.CurrentTurn),
             ["partnerContext"] = ReferenceEquals(turn, combat.PairedPartnerContext), ["completionDebtOwned"] = owner.OwnsCompletionDebt(turn.Unit.CombatState.Cooldown),
-            ["conditionForfeitContext"] = ReferenceEquals(typeof(UnifiedMountedTurnCoordinator).GetField("nativeConditionForfeitContext", Flags).GetValue(owner), turn),
+            ["conditionForfeitContext"] = ReferenceEquals(typeof(MountedPairTurnParticipant).GetField("nativeConditionForfeitContext", Flags).GetValue(owner), turn),
             ["forfeitState"] = ForfeitState(turn.Unit), ["pairedSequence"] = combat.PairedActivationSequence, ["stepMetres"] = turn.MetersMovedByFiveFootStep,
             ["stepLimit"] = TurnController.MetersOfFiveFootStep, ["resources"] = trace.Snapshot(turn.Unit)
         };

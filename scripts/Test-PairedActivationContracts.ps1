@@ -130,7 +130,7 @@ public static class KmcNativePatchProbe {
   Console.WriteLine("stage: assemblies loaded");
   // Resolve the actual service's public/private native contracts, not a parallel
   // reflection inventory. This performs no game operations or instance creation.
-  var coordinator=candidate.GetType("KingmakerMountedCombat.Integration.UnifiedMountedTurnCoordinator",true);
+  var coordinator=candidate.GetType("KingmakerMountedCombat.Integration.MountedPairTurnParticipant",true);
   System.Runtime.CompilerServices.RuntimeHelpers.RunClassConstructor(coordinator.TypeHandle);
   Console.WriteLine("COORDINATOR STARTUP CONTRACT PASS=1 FAIL=0; no game instance created");
   // L attempted Pause during TB. Native DoStartMode returns immediately for

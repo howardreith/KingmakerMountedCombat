@@ -180,6 +180,7 @@ elseif ($schemaVersion -eq 2) {
 else { throw 'Runtime request schemaVersion must be 1 or 2.' }
 
 $missionScenarios = @(
+    'chunk7-two-pair-exploration',
     'chunk4-ground-arrival-rt',
     'mod-load-smoke', 'export-mounted-contracts', 'export-candidate-mount-rigs', 'observe-mount-diagnostic-availability', 'horse-native-asset-audit', 'horse-companion-blueprint-registration', 'horse-companion-unmounted-suite', 'horse-mounted-alpha-suite', 'horse-native-controls-ux-suite',
     'chunk6c-casting-rt','chunk6c-casting-tb','chunk6c-casting-unmounted-rt','chunk6c-casting-unmounted-tb',

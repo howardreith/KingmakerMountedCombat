@@ -15,6 +15,10 @@ foreach($name in $names.Keys){
  foreach($key in $names.Keys){$text=$text.Replace($key,$names[$key])}
  $text=$text.Replace('[Parameter(Mandatory = $true)]$ExpectedSha256,'+"`n"+'        [switch]$GameResult','[Parameter(Mandatory = $true)]$ExpectedSha256')
  $text=$text.Replace("if(`$GameResult){throw 'Runtime game-result evidenceManifestSha256 is not an exact lowercase SHA-256.'}; ",'').Replace("if(`$GameResult){throw 'Runtime artifact manifest hash does not match the runtime game result.'}; ",'')
+ # Isolate the unchanged historical guard from the two exact Chunk 7 artifact registrations.
+ # Test-Chunk7WorldEvidence checks their positive/negative immutable filesystem boundary.
+ foreach($addition in @('            ($relativePath -ceq ''chunk7-world-evidence.json'' -and $kind -ceq ''chunk7-world-evidence'') -or',
+     '            ($relativePath -ceq ''runtime-loader-inventory.json'' -and $kind -ceq ''runtime-loader-inventory'') -or')){$text=$text.Replace($addition+[char]10,'')}
  $sha=[Security.Cryptography.SHA256]::Create();try{$actual=([BitConverter]::ToString($sha.ComputeHash([Text.Encoding]::UTF8.GetBytes($text)))).Replace('-','').ToLowerInvariant()}finally{$sha.Dispose()}
  if($actual-cne$expected[$name]){throw ('Shared guard implementation changed: '+$name+' '+$actual)};$checks++
 }
