@@ -112,3 +112,11 @@ A concrete missing fixture/engine/access prerequisite blocks its row, not indepe
 work. Candidate changes require a diff-based affected-rerun decision; earlier evidence
 keeps its original identities. HUMAN PLAY/visual acceptance and all 7E release
 rehearsal/promotion remain outside this execution selection.
+
+## Preview.5 prerequisite segment
+
+The [reviewed preview.5 candidate](../docs/CHUNK7-PREVIEW5-CANDIDATE.md) is frozen at source d506ce4185e0116d5f365317f0775bc28c83b768 after Candidate6/6 PASS and a fresh current-state suite. The Ranger/manifest and signed-label defects are repaired; the closed Manual seed family is integrated. A new full WhatIf remains selected with the180-minute planning allowance and no outer kill timer. Exact invocation/input/process/exit evidence must accompany its result.
+
+After that audit, select at most three prerequisite attempts: base-only native bootstrap0 loads/1 Auto write, same-candidate cold inventory1/0, and same-candidate Manual seed1/1,600s outer timeout each with retained native custody through safe settlement. Three of25 invocations have been used before this segment. Do not advance the chain on FAIL or mere archive existence. No preview.5 native transaction has run at this checkpoint.
+
+The Manual derivative supplies no actor, XP, money, class or slot grant and does not qualify older Working-only acquisition, progression, Small, persistence or area cases. Actual inventory decides the next source/fixture bridge. Current RT/TB/lifecycle and persistence runners require base-only staging; only two-pair exploration admits the installed-configuration fallback, with its limitations retained. All later required breadth rows remain open.
