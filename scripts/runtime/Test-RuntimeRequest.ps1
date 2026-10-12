@@ -91,6 +91,9 @@ function Assert-RuntimeFixture {
 Assert-NoDuplicateJsonObjectProperties $RequestPath 'runtime request'
 $request = Read-KmcJson $RequestPath
 Assert-KmcChunk7OrdinarySelection $request
+Assert-KmcChunk7SmallSelection $request
+Assert-KmcChunk7FieldSelection $request
+Assert-KmcChunk7ProgressionSelection $request
 $schemaVersion = [int]$request.schemaVersion
 $commonRequired = @('schemaVersion','runId','scenario','branch','commit','productVersion','dllSha256','dllMvid','transactionToken','evidenceRoot')
 if ($schemaVersion -eq 1) {
@@ -99,9 +102,20 @@ if ($schemaVersion -eq 1) {
 elseif ($schemaVersion -eq 2) {
     $validation=$request.scenario-ceq'persistence-p06-load'
     $hasPersistenceCase=@($request.PSObject.Properties.Name)-ccontains'persistenceCase'
-    if(Test-KmcChunk7PersistenceScenario $request.scenario){
+    if(Test-KmcChunk7SmallScenario $request.scenario){
+        if($hasPersistenceCase){throw 'Small calibration selects no native save or persistence case.'}
+        Assert-KmcChunk7SmallLoadDescriptor $request
+    }
+    elseif(Test-KmcChunk7ProgressionScenario $request.scenario){
+        if($hasPersistenceCase){throw 'Progression requires its own exact case family.'}
+        Assert-KmcChunk7ProgressionLoadDescriptor $request
+    }elseif(Test-KmcChunk7FieldScenario $request.scenario){
+        if($hasPersistenceCase){throw 'Field admission has no persistence case or native write selection.'}
+        Assert-KmcChunk7FieldLoadDescriptor $request
+    }elseif(Test-KmcChunk7PersistenceScenario $request.scenario){
         if(-not$hasPersistenceCase-or$request.persistenceCase-cnotin(Get-KmcChunk7PersistenceCases)){throw 'Chunk 7 requires an exact declared native persistence case.'}
         Assert-KmcChunk7AreaTarget $request
+        Assert-KmcChunk7RepeatedWorldRequest $request
         if($request.persistenceCase-ceq'legacy-schema1-resave-manual'){Assert-KmcChunk7Schema1Request $request}
         if($request.scenario-ceq'chunk7-persistence-load'){Assert-KmcChunk7PersistenceLoadDescriptor $request}
     }elseif($request.scenario-cin @('persistence-p07-save','persistence-p07-load')){
@@ -123,7 +137,7 @@ elseif ($schemaVersion -eq 2) {
     $crossArea=$hasPersistenceCase-and$request.persistenceCase-cin @('area-cross-entry','area-cross-exit','area-cross-entry-auto','area-cross-exit-auto')
     $chunk7Area=(Test-KmcChunk7PersistenceScenario $request.scenario)-and$hasPersistenceCase-and$request.persistenceCase-ceq'multi-area-autosave'
     $transitionAuto=$hasPersistenceCase-and$request.persistenceCase-cin @('area-cross-entry-auto','area-cross-exit-auto')
-    $extra=@(if(Test-KmcChunk7OrdinaryScenario $request.scenario){'ordinaryAcquisition'}; if($alternating-or$validation){'persistenceAlternate'}; if($request.scenario -cin @('chunk7-persistence-load','persistence-p07-load','persistence-p01-load','persistence-p02-load','persistence-p03-load','persistence-p04-load','persistence-p05-load','persistence-p06-load')){'persistenceLoad'}; if($hasPersistenceCase){'persistenceCase'}; if($crossArea-or$chunk7Area){'persistenceAreaTarget'}; if($request.scenario-ceq'chunk7-persistence-load'-and$hasPersistenceCase-and$request.persistenceCase-ceq'legacy-schema1-resave-manual'){'schema1DerivationSha256'})
+    $extra=@(if(Test-KmcChunk7ProgressionScenario $request.scenario){'progression';'persistenceLoad'}; if(Test-KmcChunk7SmallScenario $request.scenario){'smallCalibration';'persistenceLoad'}; if(Test-KmcChunk7FieldScenario $request.scenario){'ordinaryField';'persistenceLoad'}; if(Test-KmcChunk7OrdinaryScenario $request.scenario){'ordinaryAcquisition'}; if($alternating-or$validation){'persistenceAlternate'}; if($request.scenario -cin @('chunk7-persistence-load','persistence-p07-load','persistence-p01-load','persistence-p02-load','persistence-p03-load','persistence-p04-load','persistence-p05-load','persistence-p06-load')){'persistenceLoad'}; if($hasPersistenceCase){'persistenceCase'}; if($crossArea-or$chunk7Area){'persistenceAreaTarget'}; if($hasPersistenceCase-and$request.persistenceCase-ceq'multi-exploration-three-area-transfers-manual'){'persistenceReplayTargets'}; if($request.scenario-ceq'chunk7-persistence-load'-and$hasPersistenceCase-and$request.persistenceCase-ceq'legacy-schema1-resave-manual'){'schema1DerivationSha256'})
     Assert-KmcExactProperties $request @($commonRequired + @('fixture','qualificationSuite') + $extra) 'runtime request v2'
     if($crossArea){
         $t=$request.persistenceAreaTarget
@@ -187,7 +201,7 @@ elseif ($schemaVersion -eq 2) {
 else { throw 'Runtime request schemaVersion must be 1 or 2.' }
 
 $missionScenarios = @(
-    'chunk7-ordinary-acquisition','chunk7-two-pair-exploration','chunk7-persistence-save','chunk7-persistence-load','chunk7-two-pair-combat-rider-first','chunk7-two-pair-combat-mount-first','chunk7-two-pair-realtime-core','chunk7-two-pair-realtime-casting','chunk7-two-pair-realtime-charge','chunk7-two-pair-native-life-cleanup',
+    'chunk7-native-progression','chunk7-small-profile-calibration','chunk7-ordinary-field-admission','chunk7-ordinary-acquisition','chunk7-two-pair-exploration','chunk7-persistence-save','chunk7-persistence-load','chunk7-two-pair-combat-rider-first','chunk7-two-pair-combat-mount-first','chunk7-two-pair-realtime-core','chunk7-two-pair-realtime-casting','chunk7-two-pair-realtime-charge','chunk7-two-pair-native-life-cleanup',
     'chunk4-ground-arrival-rt',
     'mod-load-smoke', 'export-mounted-contracts', 'export-candidate-mount-rigs', 'observe-mount-diagnostic-availability', 'horse-native-asset-audit', 'horse-companion-blueprint-registration', 'horse-companion-unmounted-suite', 'horse-mounted-alpha-suite', 'horse-native-controls-ux-suite',
     'chunk6c-casting-rt','chunk6c-casting-tb','chunk6c-casting-unmounted-rt','chunk6c-casting-unmounted-tb',

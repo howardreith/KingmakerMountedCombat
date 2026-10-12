@@ -31,7 +31,8 @@ namespace KingmakerMountedCombat.Diagnostics
 
         internal MountedRuntimeMeasurement(string label, MountedWorldService world)
         {
-            if (current != null || world == null) throw new InvalidOperationException("Runtime measurement already owned or world missing.");
+            if (current != null || world == null || MountedOptionalDiagnosticsWindow.IsActive)
+                throw new InvalidOperationException("Runtime measurement already owned, optional capture is suppressed, or world missing.");
             this.label = label ?? throw new ArgumentNullException(nameof(label)); this.world = world;
             before = CaptureOwners(world); subscriptionsBefore = Chunk4SubscriptionSnapshot.Capture();
             current = this;

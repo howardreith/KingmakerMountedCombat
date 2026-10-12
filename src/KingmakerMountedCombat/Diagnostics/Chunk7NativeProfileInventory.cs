@@ -53,6 +53,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 result["baseMaleDoll"] = CaptureCharacter(nativeRoot.CharGen.MaleDoll);
                 result["baseFemaleDoll"] = CaptureCharacter(nativeRoot.CharGen.FemaleDoll);
                 result["party"] = new JArray(selectedActors.Select(CaptureActor));
+                result["ordinaryAcquisitionPrerequisites"] = CaptureAcquisitionPrerequisites();
                 result["captureStatus"] = "PASS";
             }
             catch (Exception exception)
@@ -60,6 +61,34 @@ namespace KingmakerMountedCombat.Diagnostics
                 result["error"] = exception.GetType().FullName + ": " + exception.Message;
             }
             return result;
+        }
+
+        private static JObject CaptureAcquisitionPrerequisites()
+        {
+            var game = Game.Instance;
+            var player = game?.Player;
+            var main = player?.MainCharacter.Value;
+            if (main == null || game.BlueprintRoot?.Progression?.XPTable == null)
+                throw new InvalidOperationException("Native companion acquisition inputs are unavailable.");
+            var party = player.PartyCharacters.Select(value => value.Value).ToArray();
+            if (party.Length > 6 || party.Any(value => value == null))
+                throw new InvalidOperationException("Native party exceeds the bounded field roster.");
+            var money = player.Money;
+            var cost = player.GetCustomCompanionCost();
+            var level = main.Descriptor.Progression.CharacterLevel;
+            if (level < 0 || level > 20 || cost < 0)
+                throw new InvalidOperationException("Native acquisition level/cost is outside the observed contract.");
+            return new JObject
+            {
+                ["observationOnly"] = true, ["purchaseAuthorized"] = false, ["sixPairFixtureQualified"] = false,
+                ["nativeMoney"] = money, ["nativeHireCostNow"] = cost, ["nativeAffordableNow"] = money >= cost,
+                ["nativePartyLevel"] = player.PartyLevel, ["nativeFieldCharacterLimit"] = 6,
+                ["nativePartyCharacterIds"] = new JArray(party.Select(value => value.UniqueId)),
+                ["mainCharacterId"] = main.UniqueId, ["mainCharacterLevel"] = level,
+                ["mainCharacterExperience"] = main.Descriptor.Progression.Experience,
+                ["nativeDefaultHireExperienceNow"] = game.BlueprintRoot.Progression.XPTable.GetBonus(level),
+                ["defaultHireMatchesPlayerExperienceExactly"] = false
+            };
         }
 
         private static JObject CaptureRace(BlueprintRace race, int index)
@@ -104,6 +133,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["dollRaceId"] = doll?.RacePreset?.RaceId.ToString(), ["dollLeftHanded"] = doll?.LeftHanded,
                 ["dollEquipmentEntityIds"] = new JArray(equipment),
                 ["viewName"] = actor.View?.name, ["character"] = CaptureCharacter(character),
+                ["horseSeatAnchors"] = CaptureHorseSeatAnchors(actor),
                 ["nativeLevelUpReadiness"] = new JObject
                 {
                     ["characterLevel"] = level, ["experience"] = descriptor.Progression.Experience,
@@ -113,6 +143,17 @@ namespace KingmakerMountedCombat.Diagnostics
                     ["controllerCreated"] = false, ["completeChoicesObserved"] = false, ["ordinaryAcquisitionProven"] = false
                 }
             };
+        }
+
+        private static JToken CaptureHorseSeatAnchors(UnitEntityData actor)
+        {
+            if (actor.Blueprint?.AssetGuid != KingmakerMountedCombat.Domain.DeclaredSmallRiderBody.HorseBlueprintGuid || actor.View == null) return null;
+            var root = actor.View.transform;
+            var all = root.GetComponentsInChildren<Transform>(true);
+            if (all.Length > 4096) throw new InvalidOperationException("Native Horse geometry exceeds the bounded transform inventory.");
+            return new JArray(new[] { "Chest", "L_Stirrup", "R_Stirrup" }.Select(name => new JObject {
+                ["name"] = name,
+                ["matches"] = new JArray(all.Where(value => value != null && value.name == name).Select(value => CaptureTransform(value, root))) }));
         }
 
         private static JObject CaptureCharacter(Character character)

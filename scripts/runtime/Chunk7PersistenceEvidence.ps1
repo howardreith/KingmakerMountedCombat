@@ -38,11 +38,13 @@ function Assert-KmcChunk7NativeCounters($Value,[string[]]$Fields) {
 . (Join-Path $PSScriptRoot 'Chunk7CombatPersistenceEvidence.ps1')
 . (Join-Path $PSScriptRoot 'Chunk7AreaPersistenceEvidence.ps1')
 . (Join-Path $PSScriptRoot 'Chunk7Schema1PersistenceEvidence.ps1')
-function Get-KmcChunk7PersistenceCases { @('multi-exploration-manual','multi-exploration-quick','multi-exploration-auto','multi-rt-debt-manual','multi-tb-debt-manual','zero-mounted-tb-retained-manual','legacy-mounted-pending-tb-manual','multi-area-autosave','legacy-schema1-resave-manual') }
+. (Join-Path $PSScriptRoot 'Chunk7RepeatedWorldEvidence.ps1')
+. (Join-Path $PSScriptRoot 'Chunk7SaveBoundaryEvidence.ps1')
+function Get-KmcChunk7PersistenceCases { @('multi-exploration-manual','multi-exploration-quick','multi-exploration-auto','multi-rt-debt-manual','multi-tb-debt-manual','zero-mounted-tb-retained-manual','legacy-mounted-pending-tb-manual','multi-area-autosave','legacy-schema1-resave-manual','multi-exploration-three-loads-manual','multi-exploration-three-area-transfers-manual','multi-nonselected-mount-unsettled-manual','multi-owned-worker-cancel-manual') }
 function Test-KmcChunk7PersistenceScenario([string]$Scenario) { $Scenario -cin @('chunk7-persistence-save','chunk7-persistence-load') }
 function Get-KmcChunk7PersistenceRows {
     @('chunk7-persistence-save','chunk7-persistence-load','C7-persistence-two-native-mounts','C7-persistence-native-category-all-pair-archive',
-      'C7-persistence-cold-all-pair-identity-and-no-prepare','C7-persistence-schema1-native-restoration','C7-persistence-schema1-native-resave','C7-persistence-native-continuation','C7-persistence-all-pair-area-before-autosave','C7-persistence-one-native-mount-legacy-source','C7-persistence-native-combat-continuation','C7-persistence-cleanup','C7-persistence-runtime','C7-persistence-interrupted')
+      'C7-persistence-cold-all-pair-identity-and-no-prepare','C7-persistence-nonselected-mount-save-deferral','C7-persistence-owned-worker-cancel-drain','C7-persistence-three-native-loads','C7-persistence-three-native-area-transfers','C7-persistence-schema1-native-restoration','C7-persistence-schema1-native-resave','C7-persistence-native-continuation','C7-persistence-all-pair-area-before-autosave','C7-persistence-one-native-mount-legacy-source','C7-persistence-native-combat-continuation','C7-persistence-cleanup','C7-persistence-runtime','C7-persistence-interrupted')
 }
 function Get-KmcChunk7PersistenceType([string]$Case) {
     if($Case-cnotin(Get-KmcChunk7PersistenceCases)){throw 'Undeclared Chunk 7 native persistence case.'}
@@ -78,11 +80,13 @@ function Assert-KmcChunk7PersistenceNativeActor($Actor) {
        -not(Test-KmcExactJsonInteger $Actor.LastSurpriseTicks)-or$Actor.LastSurpriseTicks-lt0){throw 'Native reaction or surprise debt differs.'}
 }
 function Assert-KmcChunk7PersistenceArchive($Archive,$Request) {
+    $partialSlots=$Request.persistenceCase-ceq'multi-nonselected-mount-unsettled-manual'
+    $slotCount=if($partialSlots){2}else{4}
     Assert-KmcExactProperties $Archive @('SchemaVersion','CampaignId','AreaId','GameTimeTicks','Policy','RulesId','Pairs','Participations','Slots','Combat') 'Chunk 7 native archive'
     if(-not(Test-KmcExactJsonInteger $Archive.SchemaVersion)-or$Archive.SchemaVersion-ne3-or$Archive.CampaignId-cne$Request.fixture.working.gameId-or
        $Archive.AreaId-cne(Get-KmcChunk7ExpectedArchiveArea $Request)-or-not(Test-KmcExactJsonInteger $Archive.GameTimeTicks)-or$Archive.GameTimeTicks-lt0-or
        $Archive.Policy-cne'rider-principal-distinct-native-v1'-or$Archive.RulesId-cne'crpg-transport-v1'-or$Archive.Pairs-isnot[Array]-or$Archive.Pairs.Count-ne2-or
-       $Archive.Participations-isnot[Array]-or$Archive.Participations.Count-ne0-or$null-ne$Archive.Combat-or$Archive.Slots-isnot[Array]-or$Archive.Slots.Count-ne4){
+       $Archive.Participations-isnot[Array]-or$Archive.Participations.Count-ne0-or$null-ne$Archive.Combat-or$Archive.Slots-isnot[Array]-or$Archive.Slots.Count-ne$slotCount){
         throw 'Exploration native archive omitted owners, invented combat/retained state or changed version/policy/slots.'
     }
     $ids=[Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
@@ -111,7 +115,8 @@ function Assert-KmcChunk7PersistenceArchive($Archive,$Request) {
     }
     foreach($rider in @($first[0].Rider.Id,$second[0].Rider.Id)) {
         $kinds=@($Archive.Slots|Where-Object ActorId -CEQ $rider|ForEach-Object{$_.Kind}|Sort-Object)
-        if(($kinds-join',')-cne'2,3'){throw 'Each pair must retain both declared native controls.'}
+        $expectedKinds=if($partialSlots-and$rider-ceq$second[0].Rider.Id){''}else{'2,3'}
+        if(($kinds-join',')-cne$expectedKinds){throw 'Each pair must retain its exact declared native controls.'}
     }
 }
 function Assert-KmcChunk7PersistenceSnapshot($Snapshot,$Archive,[string]$Label) {
@@ -140,12 +145,13 @@ function Assert-KmcChunk7PersistenceSnapshot($Snapshot,$Archive,[string]$Label) 
         }
         if($a.ReactionsRemaining-ne$b.ReactionsRemaining-or$a.LastSurpriseTicks-ne$b.LastSurpriseTicks){throw 'Native reaction/surprise history changed across restoration.'}
     }
-    if($Snapshot.controls.DuplicateFactCount-ne0-or$Snapshot.controls.SerializationSuspended-ne$false-or$Snapshot.controls.ManagedHotbarSlotCount-ne4){throw 'Native control restoration differs.'}
+    if($Snapshot.controls.DuplicateFactCount-ne0-or$Snapshot.controls.SerializationSuspended-ne$false-or$Snapshot.controls.ManagedHotbarSlotCount-ne$Archive.Slots.Count){throw 'Native control restoration differs.'}
 }
 function Assert-KmcChunk7PersistenceObservation($Request,$Artifact,[string]$Status) {
     Assert-KmcChunk7ArtifactEnvelope $Request $Artifact 'chunk7-persistence-evidence'
     Assert-KmcChunk7NativeCounters $Artifact @('schemaVersion')
     if($Status-cne'PASS'){return}
+    if(Test-KmcChunk7RepeatedWorldCase $Request.persistenceCase){Assert-KmcChunk7RepeatedWorldObservation $Request $Artifact;return}
     if($Request.persistenceCase-ceq'legacy-schema1-resave-manual'){Assert-KmcChunk7Schema1Observation $Request $Artifact;return}
     if(Test-KmcChunk7CombatPersistenceCase $Request.persistenceCase){Assert-KmcChunk7CombatPersistenceObservation $Request $Artifact;return}
     if($Artifact.status-cne'PASS'){throw 'Native persistence artifact failed.'}
@@ -206,7 +212,7 @@ function Assert-KmcChunk7PersistenceObservation($Request,$Artifact,[string]$Stat
         }else{
             Assert-KmcChunk7NativeCounters $o.saveRequested @('snapshotCount')
             if($o.saveRequested.nativeType-cne$type-or$o.saveRequested.snapshotCount-ne0){throw 'Explicit native save request differs.'}
-            Assert-KmcChunk7Boolean $o.nativeWrite.nativeCallback $true
+            Assert-KmcChunk7Boolean $o.nativeWrite.nativeCallback ($Request.persistenceCase-cne'multi-owned-worker-cancel-manual')
             Assert-KmcChunk7Boolean $o.saveRequested.nativeSaveAllowed $true
             Assert-KmcChunk7Boolean $o.saveRequested.newSlot $true
         }
@@ -228,6 +234,7 @@ function Assert-KmcChunk7PersistenceObservation($Request,$Artifact,[string]$Stat
         if($o.acquisition.nativeRangerCommitCount-ne4-or$o.acquisition.huntersBondSelectionLevel-ne4-or$o.acquisition.rangerCompanionSelectionLevel-ne4-or
            $o.acquisition.horseFactRankAtCommit-ne1-or$o.acquisition.horsePresentAtNativeCommit-ne$true){throw 'Native Horse fixture acquisition evidence differs.'}
     }
+    if(-not$cold-and(Test-KmcChunk7SaveBoundaryCase $Request.persistenceCase)){Assert-KmcChunk7SaveBoundarySource $Request $o $archive}
     $moves=@($o.movements)
     if($moves.Count-ne2){throw 'Both restored/live pairs require native continuation.'}
     for($i=0;$i-lt2;$i++) {

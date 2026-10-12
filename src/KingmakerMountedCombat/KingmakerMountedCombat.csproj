@@ -1,5 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Compile Include="Diagnostics\NativeProgressionRespecProbe.cs" />
+    <Compile Include="Diagnostics\NativeProgressionDismissProbe.cs" />
+    <Compile Include="Diagnostics\Chunk7NativeProgressionUi.cs" />
+    <Compile Include="Diagnostics\Chunk7ProgressionPairCustody.cs" />
+    <Compile Include="Diagnostics\Chunk7NativeBuilderCancellation.cs" />
+    <Compile Include="Diagnostics\Chunk7NativeProgressionSession.cs" />
+    <Compile Include="Diagnostics\Chunk7ProgressionSelection.cs" />
+    <Compile Include="Diagnostics\Chunk7ProgressionScenario.cs" />
+  </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" Condition="false" />
   <PropertyGroup>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
@@ -163,6 +173,9 @@
     <Compile Include="Diagnostics\HorseCompanionUnmountedScenarioEngine.cs" />
     <Compile Include="Diagnostics\NativeHorseFixtureAcquisition.cs" />
     <Compile Include="Diagnostics\Chunk7WorldScenarioEngine.cs" />
+    <Compile Include="Diagnostics\Chunk7NativeDoorProbe.cs" />
+    <Compile Include="Diagnostics\Chunk7WorldRetentionProbe.cs" />
+    <Compile Include="Diagnostics\Chunk7PersistenceScenario.Replay.cs" />
     <Compile Include="Diagnostics\Chunk7NativeWorldScope.cs" />
     <Compile Include="Diagnostics\Chunk7ArchiveNativeSnapshot.cs" />
     <Compile Include="Diagnostics\Chunk7CombatActions.cs" />
@@ -181,12 +194,15 @@
     <Compile Include="Diagnostics\Chunk7PersistenceScenario.Scope.cs" />
     <Compile Include="Diagnostics\Chunk7PersistenceScenario.Combat.cs" />
     <Compile Include="Diagnostics\Chunk7PersistenceScenario.cs" />
+    <Compile Include="Diagnostics\Chunk7PersistenceScenario.SaveBoundary.cs" />
+    <Compile Include="Diagnostics\Chunk7SaveBoundaryProbe.cs" />
     <Compile Include="Diagnostics\NativeArchiveRestorationProbe.cs" />
     <Compile Include="Diagnostics\NativeLifeDeliveryProbe.cs" />
     <Compile Include="Diagnostics\NativeRoundBoundaryProbe.cs" />
     <Compile Include="Diagnostics\Chunk7NativeProfileInventory.cs" />
     <Compile Include="Diagnostics\RuntimeLoaderInventory.cs" />
     <Compile Include="Diagnostics\MountedRuntimeMeasurement.cs" />
+    <Compile Include="Diagnostics\MountedOptionalDiagnosticsWindow.cs" />
     <Compile Include="Diagnostics\Phase3dHorseScenarioTranche.cs" />
     <Compile Include="Diagnostics\Phase3gHorseControls.cs" />
     <Compile Include="Diagnostics\HorseMotionEvidenceRecorder.cs" />
@@ -218,6 +234,10 @@
     <Compile Include="Diagnostics\Chunk7OrdinaryAcquisitionSelection.cs" />
     <Compile Include="Diagnostics\NativeOrdinaryAcquisitionProbe.cs" />
     <Compile Include="Diagnostics\Chunk7OrdinaryAcquisitionScenario.cs" />
+    <Compile Include="Diagnostics\Chunk7OrdinaryFieldSelection.cs" />
+    <Compile Include="Diagnostics\Chunk7NativePartyFieldAdmission.cs" />
+    <Compile Include="Diagnostics\Chunk7OrdinaryFieldScenario.cs" />
+    <Compile Include="Diagnostics\Chunk7EvidenceDto.cs" />
     <Compile Include="Diagnostics\RuntimeProtocol.cs" />
     <Compile Include="Diagnostics\StopEarlyCaptureBoundary.cs" />
     <Compile Include="Diagnostics\WorkingFixtureLoadWatchdog.cs" />
@@ -512,6 +532,11 @@
     <Compile Include="Domain\MountedChargeCleanupLedger.cs" />
     <Compile Include="Domain\MountedChargeTransactionSequence.cs" />
     <Compile Include="Integration\MountedChargeSafetyService.cs" />
+    <Compile Include="Diagnostics\Chunk7SmallCalibrationSelection.cs" />
+    <Compile Include="Diagnostics\Chunk7SmallPoseObservation.cs" />
+    <Compile Include="Diagnostics\Chunk7SmallCalibrationScenario.cs" />
+    <Compile Include="Diagnostics\Chunk7SmallCalibrationActions.cs" />
+    <Compile Include="Diagnostics\Chunk7SmallCalibrationCleanup.cs" />
     <Compile Include="Main.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>

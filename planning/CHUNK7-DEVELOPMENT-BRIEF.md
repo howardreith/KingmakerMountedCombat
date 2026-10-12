@@ -8,6 +8,17 @@ This is a durable engineering brief for the existing mod. It preserves the Chunk
 
 Use later explicit owner instructions and the current repository policy. Read `AGENTS.md`, `docs/VALIDATION-POLICY.md`, `CURRENT.md` and `AUTONOMOUS-RESUME.md`; historical next-run commands remain historical. Reconcile this brief with an equivalent existing document instead of maintaining competing active plans. Never overwrite a newer accepted decision with this dated snapshot.
 
+### Active continuation
+
+The later [sustained 7B–7D mission](CHUNK7-CONTINUATION-MISSION.md) selects the native
+world, profile/progression and measured-hardening work below. The original 7A
+source-only and schema-2 runtime stopping point is historical. The current world
+implementation deliberately admits two native pairs and schema-3 writes, with
+explicit schema-1/2 adapters and restoration eligibility checked separately from
+decoding. Native qualification remains incomplete. Use the single
+[implementation plan](CHUNK7-IMPLEMENTATION-PLAN.md) and CURRENT for actual evidence;
+no old source snapshot or future 7E requirement selects an additional campaign.
+
 ### Source snapshot
 
 | Identity | Verified/reference value |

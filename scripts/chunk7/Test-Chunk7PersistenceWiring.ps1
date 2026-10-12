@@ -39,12 +39,24 @@ $base=[pscustomobject]@{schemaVersion=2;runId='synthetic-wiring';scenario='chunk
 function Invoke-Request($Value){$path=Join-Path $private 'request.json';$Value|ConvertTo-Json -Depth 90|Set-Content -LiteralPath $path;& $validator -RequestPath $path|Out-Null}
 foreach($case in Get-KmcChunk7PersistenceCases){foreach($scenario in @('chunk7-persistence-save','chunk7-persistence-load')){
     $q=Copy-Test $base;$q.scenario=$scenario;$q.persistenceCase=$case
-    if($case-ceq'legacy-schema1-resave-manual'-and$scenario-ceq'chunk7-persistence-save'){Reject 'schema-1 case cannot produce a fabricated source' {Invoke-Request $q};continue}
+    if(($case-ceq'legacy-schema1-resave-manual'-or(Test-KmcChunk7RepeatedWorldCase $case))-and$scenario-ceq'chunk7-persistence-save'){Reject ($case+' cannot produce a fabricated source') {Invoke-Request $q};continue}
+    if($case-ceq'multi-exploration-three-area-transfers-manual'){$q|Add-Member NoteProperty persistenceReplayTargets @(
+        [pscustomobject]@{enterPoint='c'*32;area='b'*32;autoSaveMode='None'},
+        [pscustomobject]@{enterPoint='e'*32;area='d'*32;autoSaveMode='None'},
+        [pscustomobject]@{enterPoint='1'*32;area='f'*32;autoSaveMode='None'})}
     if($case-ceq'multi-area-autosave'){$q|Add-Member NoteProperty persistenceAreaTarget ([pscustomobject]@{enterPoint='c'*32;area='b'*32;autoSaveMode='AfterEntry'})}
     if($scenario-ceq'chunk7-persistence-load'){$d=Descriptor 'KMC_C7_WORLD' ('8'*64);$d.fileName=Get-KmcChunk7PersistenceLeaf $case;if($case-ceq'multi-area-autosave'){$d.area='b'*32};$q|Add-Member NoteProperty persistenceLoad $d}
     if($case-ceq'legacy-schema1-resave-manual'){$q.persistenceLoad.internalName='KMC_P01';$q.persistenceLoad.fileName='Manual_812_KMC_P06.zks';$q|Add-Member NoteProperty schema1DerivationSha256 ('9'*64)}
     Check ('exact full PowerShell request '+$case+' '+$scenario) {Invoke-Request $q}
 }}
+foreach($wrongCase in @('multi-exploration-manual','multi-exploration-three-loads-manual')) {
+    Reject ('full request rejects replay route on '+$wrongCase) {
+        $q=Copy-Test $base;$q.scenario='chunk7-persistence-load';$q.persistenceCase=$wrongCase
+        $d=Descriptor 'KMC_C7_WORLD' ('8'*64);$d.fileName='Manual_300_KMC_C7_WORLD.zks';$q|Add-Member NoteProperty persistenceLoad $d
+        $q|Add-Member NoteProperty persistenceReplayTargets @([pscustomobject]@{enterPoint='c'*32;area='b'*32;autoSaveMode='None'})
+        Invoke-Request $q
+    }
+}
 foreach($mutation in @('missing-receipt','receipt-number','wrong-input-leaf','wrong-input-name','foreign-receipt-field')){
  Reject ('schema1 exact full request '+$mutation){$q=Copy-Test $base;$q.scenario='chunk7-persistence-load';$q.persistenceCase='legacy-schema1-resave-manual';$d=Descriptor 'KMC_P01' ('8'*64);$d.fileName='Manual_812_KMC_P06.zks';$q|Add-Member NoteProperty persistenceLoad $d;$q|Add-Member NoteProperty schema1DerivationSha256 ('9'*64)
   switch($mutation){'missing-receipt'{$q.PSObject.Properties.Remove('schema1DerivationSha256')};'receipt-number'{$q.schema1DerivationSha256=1};'wrong-input-leaf'{$q.persistenceLoad.fileName='Manual_813_KMC_C7_SCHEMA1.zks'};'wrong-input-name'{$q.persistenceLoad.internalName='KMC_C7_SCHEMA1'};'foreign-receipt-field'{$q.persistenceCase='multi-exploration-manual';$q.persistenceLoad.internalName='KMC_C7_WORLD';$q.persistenceLoad.fileName='Manual_300_KMC_C7_WORLD.zks'}}

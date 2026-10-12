@@ -58,8 +58,84 @@ $observation|Add-Member cycleInputs $cycleRows
 $observation|Add-Member cycles $cycleSnapshots
 $removalCommands=@(@($inputRows)+@($cycleRows)+@($moveRows)|ForEach-Object{[pscustomobject]@{commandObject=$_.commandObject;finished=$true;hasExecutionProcess=$true;processEnded=$true}})
 $observation|Add-Member factRemovalAdmission ([pscustomobject]@{frame=123;gameTicks=10000000L;owners=0;activePairs=0;preparationPending=$false;serializationBusy=$false;pendingNativeWrites=$false;commands=$removalCommands})
+$doorInputs=@();for($i=0;$i-lt2;$i++){$own=$owners[$i];$doorInputs+=[pscustomobject]@{pair=$i;riderId=$own.riderId;mountId=$own.mountId;ownerId=$own.ownerId;generation=$own.generation;commandObject=1800+$i;executorId=$own.riderId;distanceBefore=8.0;radius=2.0;selectionAfterInput=$owners[1-$i].riderId;accepted=$true;unrelatedIdleAtInput=$true;terminal=$true;ownerContinuity=$true;unrelatedIdleAtCompletion=$true;distanceMoved=6.0;outcome=[pscustomobject]@{Result='Success';RiderId=$own.riderId;MountId=$own.mountId;InteractionCount=1;DelegatedMoveStartCount=1;DelegatedMoveTickCount=0;DoorStateChanged=$true;RiderPathSuppressed=$true;MountMoveSlotRestored=$true;TerminalReason=$null}}}
+$door=[pscustomobject]@{contract='two-pair-native-door-click-selection-change';interactions=$doorInputs;setupInteractions=2;completed=$true;fixture=[pscustomobject]@{name='native fixture door';object=-100;position=[pscustomobject]@{x=10.0;y=0.0;z=0.0};originalOpen=$true;originalEnabled=$false;originalCut=$false;disableOnOpen=$true;radius=2.0};firstPairReturn=[pscustomobject]@{command=1802;executorId=$mammoth;terminal=$true;result='Success';distanceToStart=0.5};restoration=[pscustomobject]@{exact=$true;commandsSettled=$true;open=$true;enabled=$false;cutEnabled=$false}}
+$observation|Add-Member door $door
+$observation.snapshots+= [pscustomobject]@{label='door-complete';owners=(Copy-TestValue $owners)}
+$observation.factRemovalAdmission.commands+=@((1800..1802)|ForEach-Object{[pscustomobject]@{commandObject=$_;finished=$true;hasExecutionProcess=$false;processEnded=$true}})
+
+
+for($i=0;$i-lt3;$i++) {
+    $move=$observation.movements[$i];$liveOwners=if($i-lt2){Copy-TestValue $owners}else{@((Copy-TestValue $owners[1]))}
+    $entry=[pscustomobject]@{label=('quiet-before-'+$move.label);frame=(200+$i*40);selection=@($move.selectionAfterInput);resources=(Copy-TestValue $resources);boundaryCount=2;participantCount=2;subscriptions=(Copy-TestValue $subscriptions);owners=@($liveOwners)}
+    $exit=Copy-TestValue $entry;$exit.label='quiet-after-'+$move.label;$exit.frame+=20;$exit.resources.gameTicks+=5000000L
+    $timer=[pscustomobject]@{lastSampleSeconds=2.0;sampleSequence=0L;fileCreated=$false;samplingIntervalSeconds=0.1;clockSeconds=3.0}
+    $afterTimer=Copy-TestValue $timer;$afterTimer.clockSeconds=3.5
+    $move|Add-Member optionalCaptureWindow ([pscustomobject]@{contract='chunk7-optional-capture-quiet-window-v1';label=$move.label;startFrame=$entry.frame;endFrame=$exit.frame;startSeconds=10.0;endSeconds=10.5;minimumFrames=12;maximumFrames=1800;minimumSeconds=0.25;maximumSeconds=15.0;telemetryBefore=$timer;telemetryAfter=$afterTimer;measurementBeforePresent=$false;measurementAfterPresent=$false;fullyInert=$false;performanceProof=$false;allocationRateProof=$false;remainingObservers=@('guarded-host-heartbeat','exact-native-world-guard','production-lifecycle-records','native-command-settlement-polling','entry-exit-snapshots');gateReleased=$true;before=$entry;after=$exit})
+}
+
 $good=New-Artifact 'chunk7-world-evidence' $observation
 Check 'complete synthetic exploration observations' {Assert-KmcChunk7WorldEvidence $request $good 'PASS'}
+
+$slowCadence=Copy-TestValue $good;$q=$slowCadence.observations.movements[0].optionalCaptureWindow;$q.telemetryBefore.samplingIntervalSeconds=1.0;$q.telemetryAfter.samplingIntervalSeconds=1.0;$q.endSeconds=$q.startSeconds+2.0;$q.telemetryAfter.clockSeconds=$q.telemetryBefore.clockSeconds+2.0
+Check 'quiet captured one-second cadence spans both exact two-second clocks' { Assert-KmcChunk7WorldEvidence $request $slowCadence 'PASS' }
+$quietMutations=@(
+ @('quiet slow prior cadence before required seconds',{param($v)$q=$v.observations.movements[0].optionalCaptureWindow;$q.telemetryBefore.samplingIntervalSeconds=1.0;$q.telemetryAfter.samplingIntervalSeconds=1.0;$q.endSeconds=$q.startSeconds+1.5;$q.telemetryAfter.clockSeconds=$q.telemetryBefore.clockSeconds+1.5}),
+ @('quiet native clock shorter than captured cadence bound',{param($v)$q=$v.observations.movements[0].optionalCaptureWindow;$q.telemetryBefore.samplingIntervalSeconds=1.0;$q.telemetryAfter.samplingIntervalSeconds=1.0;$q.endSeconds=$q.startSeconds+1.5;$q.telemetryAfter.clockSeconds=$q.telemetryBefore.clockSeconds+2.0}),
+ @('quiet writer clock shorter than captured cadence bound',{param($v)$q=$v.observations.movements[0].optionalCaptureWindow;$q.telemetryBefore.samplingIntervalSeconds=1.0;$q.telemetryAfter.samplingIntervalSeconds=1.0;$q.endSeconds=$q.startSeconds+2.0;$q.telemetryAfter.clockSeconds=$q.telemetryBefore.clockSeconds+1.5}),
+ @('quiet native command polling omitted',{param($v)$v.observations.movements[0].optionalCaptureWindow.remainingObservers=@('guarded-host-heartbeat','exact-native-world-guard','production-lifecycle-records','entry-exit-snapshots')}),
+ @('quiet window omitted',{param($v)$v.observations.movements[0].PSObject.Properties.Remove('optionalCaptureWindow')}),
+ @('quiet gate retained',{param($v)$v.observations.movements[0].optionalCaptureWindow.gateReleased=$false}),
+ @('quiet start frame text',{param($v)$v.observations.movements[0].optionalCaptureWindow.startFrame='200'}),
+ @('quiet too few native frames',{param($v)$q=$v.observations.movements[0].optionalCaptureWindow;$q.endFrame=$q.startFrame+1;$q.after.frame=$q.endFrame}),
+ @('quiet wall interval too short',{param($v)$q=$v.observations.movements[0].optionalCaptureWindow;$q.endSeconds=$q.startSeconds+0.1}),
+ @('quiet wall interval over bound',{param($v)$q=$v.observations.movements[0].optionalCaptureWindow;$q.endSeconds=$q.startSeconds+16}),
+ @('quiet timer advanced despite zero rows',{param($v)$v.observations.movements[0].optionalCaptureWindow.telemetryAfter.lastSampleSeconds=2.1}),
+ @('quiet fake zero elapsed sampling clock',{param($v)$v.observations.movements[0].optionalCaptureWindow.telemetryAfter.clockSeconds=3.0}),
+ @('quiet row written',{param($v)$v.observations.movements[0].optionalCaptureWindow.telemetryAfter.sampleSequence=1L}),
+ @('quiet row counter text',{param($v)$v.observations.movements[0].optionalCaptureWindow.telemetryAfter.sampleSequence='0'}),
+ @('quiet timer text',{param($v)$v.observations.movements[0].optionalCaptureWindow.telemetryAfter.lastSampleSeconds='2.0'}),
+ @('quiet fabricated telemetry file',{param($v)$v.observations.movements[0].optionalCaptureWindow.telemetryAfter.fileCreated=$true}),
+ @('quiet interval changed',{param($v)$v.observations.movements[0].optionalCaptureWindow.telemetryAfter.samplingIntervalSeconds=0.2}),
+ @('quiet measurement admitted',{param($v)$v.observations.movements[0].optionalCaptureWindow.measurementAfterPresent=$true}),
+ @('quiet measurement boolean text',{param($v)$v.observations.movements[0].optionalCaptureWindow.measurementBeforePresent='false'}),
+ @('quiet claims inert play',{param($v)$v.observations.movements[0].optionalCaptureWindow.fullyInert=$true}),
+ @('quiet claims allocation rate',{param($v)$v.observations.movements[0].optionalCaptureWindow.allocationRateProof=$true}),
+ @('quiet heartbeat omitted',{param($v)$v.observations.movements[0].optionalCaptureWindow.remainingObservers=@('exact-native-world-guard','production-lifecycle-records','entry-exit-snapshots')}),
+ @('quiet wrong phase frame',{param($v)$v.observations.movements[0].optionalCaptureWindow.after.frame++}),
+ @('quiet selected execution actor',{param($v)$v.observations.movements[0].optionalCaptureWindow.after.selection=@($mammoth)}),
+ @('quiet lost neighboring owner',{param($v)$v.observations.movements[0].optionalCaptureWindow.after.owners=@($v.observations.movements[0].optionalCaptureWindow.after.owners[0])}),
+ @('quiet neighbor generation changed',{param($v)$v.observations.movements[0].optionalCaptureWindow.after.owners[1].generation++}),
+ @('quiet neighbor debt changed',{param($v)$v.observations.movements[0].optionalCaptureWindow.after.resources.actors[2].standard=6.0}),
+ @('quiet unmounted control reattached',{param($v)$v.observations.movements[2].optionalCaptureWindow.after.owners+=Copy-TestValue $owners[0]}),
+ @('quiet subscription accumulation',{param($v)$v.observations.movements[0].optionalCaptureWindow.after.subscriptions.entries[0].identity++})
+)
+foreach($mutation in $quietMutations){$copy=Copy-TestValue $good;& $mutation[1] $copy;Reject $mutation[0] {Assert-KmcChunk7WorldEvidence $request $copy 'PASS'}}
+
+$doorMutations=@(
+ @('door missing',{param($v)$v.observations.PSObject.Properties.Remove('door')}),
+ @('door completion string',{param($v)$v.observations.door.completed='true'}),
+ @('door setup count coercion',{param($v)$v.observations.door.setupInteractions='2'}),
+ @('door missing second input',{param($v)$v.observations.door.interactions=@($v.observations.door.interactions[0])}),
+ @('door wrong pair generation',{param($v)$v.observations.door.interactions[0].generation++}),
+ @('door selected pair takeover',{param($v)$v.observations.door.interactions[0].executorId=$second}),
+ @('door duplicate command',{param($v)$v.observations.door.interactions[1].commandObject=$v.observations.door.interactions[0].commandObject}),
+ @('door no changed selection',{param($v)$v.observations.door.interactions[0].selectionAfterInput=$first}),
+ @('door immediate interaction',{param($v)$v.observations.door.interactions[0].distanceBefore=2.0}),
+ @('door no approach movement',{param($v)$v.observations.door.interactions[0].distanceMoved=0.0}),
+ @('door nonfinite distance',{param($v)$v.observations.door.interactions[0].distanceMoved=[double]::NaN}),
+ @('door other pair affected',{param($v)$v.observations.door.interactions[0].unrelatedIdleAtCompletion=$false}),
+ @('door another native interaction',{param($v)$v.observations.door.interactions[0].outcome.InteractionCount=2}),
+ @('door retained move slot',{param($v)$v.observations.door.interactions[0].outcome.MountMoveSlotRestored=$false}),
+ @('door terminal failure',{param($v)$v.observations.door.interactions[0].outcome.Result='Fail'}),
+ @('door false exact restoration',{param($v)$v.observations.door.restoration.enabled=$true}),
+ @('door restore before commands settle',{param($v)$v.observations.door.restoration.commandsSettled=$false}),
+ @('door first pair return lost',{param($v)$v.observations.door.firstPairReturn.executorId=$horse}),
+ @('door command excluded from fact-removal fence',{param($v)$v.observations.factRemovalAdmission.commands=@($v.observations.factRemovalAdmission.commands|Where-Object commandObject -NE 1800)}),
+ @('door capture owner changed',{param($v)@($v.observations.snapshots|Where-Object label -CEQ 'door-complete')[0].owners[0].generation++})
+)
+foreach($mutation in $doorMutations){$copy=Copy-TestValue $good;& $mutation[1] $copy;Reject $mutation[0] {Assert-KmcChunk7WorldEvidence $request $copy 'PASS'}}
+
 $mutations=@(
     @('artifact schema string',{param($v)$v.schemaVersion='1'}),
     @('native cast count string',{param($v)$v.observations.inputs[0].nativeCastDelta='1'}),
@@ -127,7 +203,8 @@ $mutations=@(
 foreach($mutation in $mutations){$changed=Copy-TestValue $good;& $mutation[1] $changed;Reject $mutation[0] {Assert-KmcChunk7WorldEvidence $request $changed 'PASS'}}
 Check 'signed native Int32 command identities remain valid' {
     $signed=Copy-TestValue $good
-    foreach($row in @($signed.observations.inputs)+@($signed.observations.cycleInputs)+@($signed.observations.movements)+@($signed.observations.factRemovalAdmission.commands)){$row.commandObject=-$row.commandObject}
+    foreach($row in @($signed.observations.inputs)+@($signed.observations.cycleInputs)+@($signed.observations.movements)+@($signed.observations.door.interactions)+@($signed.observations.factRemovalAdmission.commands)){$row.commandObject=-$row.commandObject}
+    $signed.observations.door.firstPairReturn.command=-$signed.observations.door.firstPairReturn.command
     foreach($row in $signed.observations.movements){foreach($cmd in @($row.commandsBefore)+@($row.commandsAfter)){$cmd.moveObject=-$cmd.moveObject}}
     Assert-KmcChunk7WorldEvidence $request $signed 'PASS'
 }

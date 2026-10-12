@@ -1,0 +1,234 @@
+Set-StrictMode -Version Latest
+function Test-KmcChunk7SmallScenario([string]$Scenario){$Scenario-ceq'chunk7-small-profile-calibration'}
+function Get-KmcChunk7SmallRows {@('chunk7-small-profile-calibration','C7-small-readonly-source','C7-small-native-party-placement','C7-small-production-mount','C7-small-native-ground','C7-small-rider-primary','C7-small-mount-primary','C7-small-native-dismount','C7-small-native-pose-observation','C7-small-cleanup','C7-small-runtime','C7-small-interrupted')}
+function Assert-KmcChunk7SmallSelection($Request){
+ $has=$null-ne$Request.PSObject.Properties['smallCalibration']
+ if(-not(Test-KmcChunk7SmallScenario $Request.scenario)){if($has){throw 'Small calibration selection is forbidden under another scenario.'};return}
+ if(-not$has){throw 'Exact Small calibration selection is missing.'};$s=$Request.smallCalibration
+ Assert-KmcExactProperties $s @('case','source','profileId','nativeInventorySha256','nativeCalibrationSha256') 'Small calibration selection'
+ if($s.case-isnot[string]-or$s.case-cne'compiled-small-horse-rt'-or$s.profileId-isnot[string]-or$s.profileId-cnotmatch'^small-[a-z0-9]+(?:-[a-z0-9]+)*-horse-v[1-9][0-9]*$'){throw 'Exact compiled Small profile/case is required.'}
+ foreach($key in @('nativeInventorySha256','nativeCalibrationSha256')){if($s.$key-isnot[string]-or$s.$key-cnotmatch'^[a-f0-9]{64}$'){throw 'Immutable native Small declaration provenance is required.'}}
+ Assert-KmcChunk7FieldSelection ([pscustomobject]@{scenario='chunk7-ordinary-field-admission';runId=$Request.runId;ordinaryField=$s.source})
+}
+function Assert-KmcChunk7SmallLoadDescriptor($Request){
+ Assert-KmcChunk7SmallSelection $Request
+ if(-not(Test-KmcChunk7SmallScenario $Request.scenario)){throw 'Small descriptor requires its exact closed family.'}
+ Assert-KmcChunk7FieldLoadDescriptor ([pscustomobject]@{scenario='chunk7-ordinary-field-admission';runId=$Request.runId;ordinaryField=$Request.smallCalibration.source;fixture=$Request.fixture;persistenceLoad=$Request.persistenceLoad})
+}
+function Assert-KmcChunk7SmallNumber($Value,[double]$Minimum=0,[double]$Maximum=[double]::MaxValue){if(-not(Test-KmcChunk7FiniteNumber $Value)-or$Value-lt$Minimum-or$Value-gt$Maximum){throw 'Native Small measurement is missing, nonnumeric or out of bounds.'}}
+function Assert-KmcChunk7SmallVector($Value){Assert-KmcExactProperties $Value @('x','y','z') 'native vector';foreach($k in @('x','y','z')){Assert-KmcChunk7SmallNumber $Value.$k (-[double]::MaxValue)}}
+function Assert-KmcChunk7SmallState($State,$ActorIds){
+ Assert-KmcOrdinaryInteger $State.frame 0 ([int]::MaxValue);Assert-KmcOrdinaryInteger $State.gameTicks 0
+ Assert-KmcChunk7ExactIds $State.actors $ActorIds
+ foreach($a in $State.actors){Assert-KmcOrdinaryInteger $a.object ([int]::MinValue) ([int]::MaxValue);if($a.object-eq0){throw 'Native Small actor label absent.'}
+  foreach($k in @('standard','move','swift','reactionCooldown')){Assert-KmcChunk7SmallNumber $a.$k}
+  foreach($k in @('reactions','reactionAllowance')){Assert-KmcOrdinaryInteger $a.$k 0 ([int]::MaxValue)}
+  if($a.position-isnot[Array]-or$a.position.Count-ne3){throw 'Native position missing.'};foreach($v in $a.position){Assert-KmcChunk7SmallNumber $v (-[double]::MaxValue)}
+ }
+ if($State.owners-isnot[Array]-or$State.owners.Count-gt1){throw 'Small calibration admits one exact owner only.'}
+ foreach($owner in $State.owners){Assert-KmcOrdinaryGuid $owner.id;Assert-KmcOrdinaryInteger $owner.generation 1}
+}
+function Assert-KmcChunk7SmallResourceEqual($Left,$Right){
+ foreach($a in $Left.actors){$b=@($Right.actors|Where-Object id -CEQ $a.id);if($b.Count-ne1){throw 'Actor identity disappeared.'}
+  foreach($k in @('object','standard','move','swift','reactionCooldown','reactions','reactionAllowance')){if((ConvertTo-KmcChunk7Canonical $a.$k)-cne(ConvertTo-KmcChunk7Canonical $b[0].$k)){throw ('Exploration action changed native expenditure: '+$k)}}
+ }
+}
+function Assert-KmcChunk7SmallTrace($Request,$Observation){
+ $trace=$Observation.allocationTrace;$registry=$trace.identityRegistry
+ Assert-KmcOrdinaryInteger $trace.dropped 0 0;Assert-KmcOrdinaryInteger $trace.observationErrors 0 0
+ if($registry.contract-isnot[string]-or$registry.contract-cne'retained-native-object-identity-v1'){throw 'Native trace identity contract differs.'}
+ Assert-KmcOrdinaryInteger $registry.capacity 16000 16000;Assert-KmcOrdinaryInteger $registry.faults 0 0
+ Assert-KmcChunk7Boolean $registry.released $false;Assert-KmcOrdinaryInteger $registry.retainedCount 1 16000
+ if($registry.ids-isnot[Array]-or$registry.ids.Count-ne$registry.retainedCount){throw 'Native trace retained identity count differs.'}
+ $labels=[Collections.Generic.HashSet[int]]::new()
+ foreach($id in $registry.ids){Assert-KmcOrdinaryInteger $id ([int]::MinValue) ([int]::MaxValue);if($id-eq0-or-not$labels.Add($id)){throw 'Native trace labels must be distinct signed nonzero native object identities.'}}
+ if($trace.observerHooks-isnot[Array]-or$trace.observerHooks.Count-eq0-or$trace.observerHooks.Count-gt64){throw 'Bounded native trace hook inventory missing.'}
+ foreach($hook in $trace.observerHooks){
+  if($hook.method-isnot[string]-or[string]::IsNullOrWhiteSpace($hook.method)-or$hook.method.Length-gt256-or$hook.token-isnot[string]-or$hook.token-cnotmatch'^060[0-9A-F]{5}$'){throw 'Native trace hook metadata shape differs.'}
+  Assert-KmcOrdinaryGuid $hook.moduleMvid
+ }
+ if($trace.events-isnot[Array]-or$trace.events.Count-eq0-or$trace.events.Count-gt16000){throw 'Bounded native trace events missing.'}
+ $target=$Observation.target
+ Assert-KmcOrdinaryGuid $Observation.targetId;Assert-KmcOrdinaryGuid $target.id
+ Assert-KmcOrdinaryInteger $target.object ([int]::MinValue) ([int]::MaxValue)
+ if($target.id-cne$Observation.targetId-or-not$labels.Contains($target.object)-or
+    $target.blueprint-isnot[string]-or$target.blueprint-cne'e7aa96d15a45238438ae4cfb476f6bb9'-or
+    $target.groupId-isnot[string]-or$target.groupId-cne('KMC.RuntimeHostile.'+$Request.runId+':small-profile-target')){throw 'Exact owned diagnostic target provenance differs.'}
+ Assert-KmcChunk7Boolean $target.nativeDiagnosticFixture $true
+ foreach($key in @('playerResourceWrites','initiativeWrites')){Assert-KmcOrdinaryInteger $target.$key 0 0}
+ $observedActors=@($Observation.inputs[0].before.actors)
+ if(@($observedActors|Where-Object{$_.id-ceq$target.id-or$_.object-eq$target.object}).Count){throw 'Owned diagnostic target conflicts with a controlled actor.'}
+ $observedActors+=,[pscustomobject]@{id=$target.id;object=$target.object}
+ $sequence=0
+ foreach($event in $trace.events){
+  $sequence++;Assert-KmcOrdinaryInteger $event.sequence $sequence $sequence;Assert-KmcOrdinaryInteger $event.frame 0 ([int]::MaxValue)
+  if($event.boundary-isnot[string]-or[string]::IsNullOrWhiteSpace($event.boundary)){throw 'Native trace boundary name differs.'}
+  Assert-KmcOrdinaryGuid $event.state.actor;Assert-KmcOrdinaryInteger $event.state.actorObject ([int]::MinValue) ([int]::MaxValue)
+  $actor=@($observedActors|Where-Object id -CEQ $event.state.actor)
+  if(-not$labels.Contains($event.state.actorObject)-or$actor.Count-ne1-or$actor[0].object-ne$event.state.actorObject){throw 'Native trace actor label differs from the retained action actor.'}
+  Assert-KmcOrdinaryInteger $event.command ([int]::MinValue) ([int]::MaxValue)
+  if($event.command-ne0-and-not$labels.Contains($event.command)){throw 'Native trace command is not retained by its identity registry.'}
+ }
+ foreach($input in $Observation.inputs){Assert-KmcOrdinaryInteger $input.shell ([int]::MinValue) ([int]::MaxValue);if(-not$labels.Contains($input.shell)){throw 'Native ability shell is absent from its retained trace registry.'}}
+ Assert-KmcOrdinaryInteger $Observation.movement.command ([int]::MinValue) ([int]::MaxValue)
+ if(-not$labels.Contains($Observation.movement.command)){throw 'Native movement command is absent from its retained trace registry.'}
+ foreach($state in @($Observation.inputs|ForEach-Object{$_.before;$_.after})+@($Observation.movement.before,$Observation.movement.after)){
+  foreach($actor in $state.actors){if(-not$labels.Contains($actor.object)){throw 'Native action actor is absent from its retained trace registry.'}}
+ }
+ Assert-KmcChunk7CheckpointTrace $trace $Request
+}
+function Assert-KmcChunk7SmallMountedEvidence($Request,$o){
+ $s=$Request.smallCalibration;$source=$s.source;$d=$o.declaration
+ if($d.profileId-cne$s.profileId-or$d.nativeInventorySha256-cne$s.nativeInventorySha256-or$d.nativeCalibrationSha256-cne$s.nativeCalibrationSha256-or$d.qualificationStatus-cne'IN PROGRESS'-or$d.pose.Id-cne$s.profileId){throw 'Observed compiled declaration differs or claims prior acceptance.'}
+ foreach($f in @('diagnosticsOffProven','humanVisualAcceptance','nativePreparationManufactured','resourceFieldsWritten','poseQualified')){Assert-KmcChunk7Boolean $o.$f $false}
+ Assert-KmcChunk7Boolean $o.representativeNativeActionsObserved $true
+ if($o.breadthQualification-cne'IN PROGRESS'){throw 'Bounded calibration cannot auto-promote breadth qualification.'}
+ if($o.inputs-isnot[Array]-or$o.inputs.Count-ne4){throw 'Exactly Mount, two primaries and Dismount are required.'}
+ $kinds=@('native-mount','rider-primary','mount-primary','native-dismount')
+ $ability=@('f053faad986631688defa003cd7bda0e','27364df661b3c121eabb97a31aa73a83','f88a50d6fdbebbd709c3e323d2f52f5e','3af2b81f4d72bbb30501fa730fcdf36e')
+ $ids=@('b6628a77-4962-47a4-a17c-88d9836fc9d5','d79a4f6c-b74e-4868-95bd-533899131acb','d17c8fd0-6627-40c4-bf9a-024cf001c1f7',$source.actorId,$source.petId)
+ $prior=-1
+ $mountedOwner=$o.inputs[0].after.owners
+ if($mountedOwner-isnot[Array]-or$mountedOwner.Count-ne1){throw 'Native Mount has no exact owner.'}
+ $mountedOwner=$mountedOwner[0]
+ if($mountedOwner.riderId-cne$source.actorId-or$mountedOwner.mountId-cne$source.petId-or$mountedOwner.state-cne'Active'){throw 'Native mounted owner identity/state differs.'}
+ $states=@($o.inputs|ForEach-Object{$_.before;$_.after})+@($o.movement.before,$o.movement.after)
+ foreach($state in $states){
+  foreach($a in $state.actors){$first=@($o.inputs[0].before.actors|Where-Object id -CEQ $a.id);if($first.Count-ne1-or$a.object-ne$first[0].object){throw 'Native actor object changed between action observations.'}}
+  foreach($owner in $state.owners){if($owner.id-cne$mountedOwner.id-or$owner.riderId-cne$source.actorId-or$owner.mountId-cne$source.petId-or$owner.generation-ne$mountedOwner.generation){throw 'Native pair owner changed between action observations.'}}
+ }
+ if($o.inputs[0].before.owners.Count-ne0){throw 'Mount input began with existing ownership.'}
+ foreach($state in @($o.inputs[0].after,$o.inputs[1].before,$o.inputs[1].after,$o.inputs[2].before,$o.inputs[2].after,$o.inputs[3].before,$o.movement.before,$o.movement.after)){if($state.owners.Count-ne1-or$state.owners[0].state-cne'Active'){throw 'Mounted action lost its exact active owner.'}}
+ if($o.inputs[3].after.owners.Count-ne0-and$o.inputs[3].after.owners[0].state-cne'Detached'){throw 'Native Dismount left active ownership.'}
+ for($i=0;$i-lt4;$i++){
+  $row=$o.inputs[$i];if($row.kind-cne$kinds[$i]-or$row.casterId-cne$source.actorId-or$row.abilityGuid-cne$ability[$i]-or$row.selectionAfterInput-cne$ids[0]){throw 'Native calibration input kind/caster/ability/selection differs.'}
+  Assert-KmcChunk7Boolean $row.clicked $true;Assert-KmcChunk7Boolean $row.terminal $true;Assert-KmcChunk7Boolean $row.processTerminal $true
+  Assert-KmcOrdinaryInteger $row.castDelta 1 1;Assert-KmcOrdinaryInteger $row.refusalDelta 0 0;Assert-KmcOrdinaryInteger $row.shell ([int]::MinValue) ([int]::MaxValue);if($row.shell-eq0){throw 'Exact native ability shell absent.'}
+  Assert-KmcChunk7SmallState $row.before $ids;Assert-KmcChunk7SmallState $row.after $ids
+  if($row.before.frame-lt$prior-or$row.after.frame-lt$row.before.frame){throw 'Native input observation ordering differs.'};$prior=$row.after.frame
+  if($i-eq0-or$i-eq3){
+   Assert-KmcOrdinaryInteger $row.generation 1;if($row.generation-ne$mountedOwner.generation){throw 'Native relationship command generation differs from its owner.'};Assert-KmcChunk7SmallResourceEqual $row.before $row.after
+   if($row.targetId-cne$(if($i-eq0){$source.petId}else{$source.actorId})){throw 'Native relationship target differs.'}
+  }else{
+   $owner=if($i-eq1){$source.actorId}else{$source.petId};$other=if($i-eq1){$source.petId}else{$source.actorId}
+   if($row.targetId-cne$o.targetId-or$row.resourceOwnerId-cne$owner){throw 'Primary native target or resource owner differs.'}
+   $out=$row.outcome;if($out.actorId-cne$owner-or$out.resourceOwnerId-cne$owner-or$out.targetId-cne$o.targetId-or$out.result-cne'Success'){throw 'Primary outcome identity differs.'}
+   Assert-KmcChunk7Boolean $out.nativeAttackRule $true;Assert-KmcChunk7Boolean $out.singleAttack $true;Assert-KmcOrdinaryInteger $out.completedAttacks 1 1
+   if($row.nativeEvents-isnot[Array]-or$row.nativeEvents.Count-eq0-or$row.nativeEvents.Count-gt16000){throw 'Raw native primary trace is absent or oversized.'}
+   Assert-KmcOrdinaryInteger $row.traceOffset 0 16000
+   if($o.allocationTrace.events-isnot[Array]-or($row.traceOffset+$row.nativeEvents.Count)-gt$o.allocationTrace.events.Count-or (ConvertTo-KmcChunk7Canonical @($o.allocationTrace.events|Select-Object -Skip $row.traceOffset -First $row.nativeEvents.Count))-cne(ConvertTo-KmcChunk7Canonical $row.nativeEvents)){throw 'Primary receipt is not its exact bounded raw trace slice.'}
+   $costs=@($row.nativeEvents|Where-Object{$_.boundary-ceq'cost-after'-and$_.commandType-ceq'KingmakerMountedCombat.Integration.MountedPairAttackCommand'});$beforeCost=@($row.nativeEvents|Where-Object{$_.boundary-ceq'cost-before'-and$_.commandType-ceq'KingmakerMountedCombat.Integration.MountedPairAttackCommand'})
+   if($costs.Count-ne1-or$beforeCost.Count-ne1){throw 'Exactly one concrete native actor cost pair required.'}
+   $a=$costs[0];$b=$beforeCost[0]
+   foreach($event in @($a,$b)){Assert-KmcChunk7Boolean $event.acted $true;Assert-KmcChunk7Boolean $event.nativeTurnBased $false;if($event.actionType-cne'Standard'){throw 'Native RT primary action type differs.'};foreach($key in @('move','swift','reactionCooldown')){Assert-KmcChunk7SmallNumber $event.state.$key};Assert-KmcOrdinaryInteger $event.state.reactions 0}
+   foreach($key in @('move','swift','reactionCooldown','reactions')){if((ConvertTo-KmcChunk7Canonical $a.state.$key)-cne(ConvertTo-KmcChunk7Canonical $b.state.$key)){throw 'Native cost changed another resource.'}}
+   foreach($event in @($a,$b)){if($event.state.actor-cne$owner-or$event.commandActor-cne$owner-or$event.commandType-cne'KingmakerMountedCombat.Integration.MountedPairAttackCommand'){throw 'Native actor expenditure identity differs.'};Assert-KmcOrdinaryInteger $event.command ([int]::MinValue) ([int]::MaxValue);if($event.command-eq0){throw 'Native cost command absent.'};Assert-KmcChunk7SmallNumber $event.state.standard;Assert-KmcOrdinaryInteger $event.sequence 1;Assert-KmcOrdinaryInteger $event.frame $row.before.frame $row.after.frame}
+   if($a.command-ne$b.command-or$a.sequence-le$b.sequence-or$a.state.standard-le$b.state.standard){throw 'Concrete native standard expenditure was not observed.'}
+  }
+ }
+ $m=$o.movement;Assert-KmcChunk7SmallState $m.before $ids;Assert-KmcChunk7SmallState $m.after $ids
+ Assert-KmcChunk7SmallResourceEqual $m.before $m.after;Assert-KmcChunk7Boolean $m.clicked $true;Assert-KmcChunk7Boolean $m.terminal $true
+ Assert-KmcChunk7SmallNumber $m.actualDistance .020000001 100
+ $start=@($m.before.actors|Where-Object id -CEQ $source.petId)[0].position;$finish=@($m.after.actors|Where-Object id -CEQ $source.petId)[0].position
+ $sum=0.0;for($axis=0;$axis-lt3;$axis++){$sum+=[Math]::Pow(($finish[$axis]-$start[$axis]),2)}
+ if([Math]::Abs([Math]::Sqrt($sum)-$m.actualDistance)-gt0.00001){throw 'Native displacement differs from raw positions.'}
+ if($m.casterId-cne$source.actorId-or$m.executorId-cne$source.petId-or$m.selectionAfterInput-cne$ids[0]-or$m.before.frame-lt$o.inputs[0].after.frame-or$m.after.frame-gt$o.inputs[1].before.frame){throw 'Native mount movement identity/window differs.'}
+ Assert-KmcOrdinaryInteger $m.command ([int]::MinValue) ([int]::MaxValue);if($m.command-eq0){throw 'Native transport command absent.'}
+ $phases=@('unmounted-field','mounted-idle','mounted-moving','mounted-arrived','rider-primary-complete','mount-primary-complete','dismounted-field')
+ if($o.poses-isnot[Array]-or$o.poses.Count-ne$phases.Count){throw 'Exact native pose phases required.'};$last=-1
+ for($i=0;$i-lt$phases.Count;$i++){
+  $row=$o.poses[$i];$p=$row.observation
+  if($row.phase-cne$phases[$i]-or$p.riderId-cne$source.actorId-or$p.mountId-cne$source.petId-or$p.profileId-cne$s.profileId-or$p.inventorySha256-cne$s.nativeInventorySha256-or$p.declarationSha256-cne$s.nativeCalibrationSha256-or$p.coordinateConvention-cne'native-Unity'-or$p.qualificationStatus-cne'IN PROGRESS'){throw 'Pose phase/body/declaration provenance differs.'}
+  if((ConvertTo-KmcChunk7Canonical $p.body)-cne(ConvertTo-KmcChunk7Canonical $o.bodyObservation)){throw 'Mounted phase changed the exact observed native Small body.'}
+  Assert-KmcChunk7Boolean $p.visualAcceptanceProven $false;Assert-KmcOrdinaryInteger $p.frame $last ([int]::MaxValue);$last=$p.frame
+  $windows=@(@(0,$o.inputs[0].before.frame),@($o.inputs[0].after.frame,$m.before.frame),@($m.before.frame,$m.after.frame),@($m.after.frame,$m.after.frame),@($o.inputs[1].after.frame,$o.inputs[1].after.frame),@($o.inputs[2].after.frame,$o.inputs[2].after.frame),@($o.inputs[3].after.frame,$o.inputs[3].after.frame))
+  if($p.frame-lt$windows[$i][0]-or$p.frame-gt$windows[$i][1]){throw 'Pose was not observed in its exact native action window.'}
+  foreach($rootName in @('riderRoot','horseRoot')){
+   $rootNode=$p.$rootName;Assert-KmcOrdinaryInteger $rootNode.instanceId ([int]::MinValue) ([int]::MaxValue);if($rootNode.instanceId-eq0-or$rootNode.instanceId-ne$o.poses[0].observation.$rootName.instanceId-or$rootNode.name-cne$o.poses[0].observation.$rootName.name){throw 'Native rig root identity changed.'}
+   Assert-KmcOrdinaryInteger $rootNode.parentId ([int]::MinValue) ([int]::MaxValue)
+   foreach($v in @('localPosition','localEuler','localScale','worldPosition','worldScale')){Assert-KmcChunk7SmallVector $rootNode.$v}
+  }
+  $names=@($d.pose.PelvisBoneName,$d.pose.LeftLeg.ThighBoneName,$d.pose.LeftLeg.LowerLegBoneName,$d.pose.LeftLeg.FootBoneName,$d.pose.RightLeg.ThighBoneName,$d.pose.RightLeg.LowerLegBoneName,$d.pose.RightLeg.FootBoneName)
+  foreach($nodes in @(@{Rows=$p.riderBones;Names=$names},@{Rows=$p.horseAnchors;Names=@('Chest','L_Stirrup','R_Stirrup')})){
+   if($nodes.Rows-isnot[Array]-or$nodes.Rows.Count-ne$nodes.Names.Count){throw 'Exact native bone/anchor inventory missing.'}
+   for($j=0;$j-lt$nodes.Names.Count;$j++){$node=$nodes.Rows[$j];if($node.name-isnot[string]-or$node.name-cne$nodes.Names[$j]){throw 'Native pose transform identity differs.'};Assert-KmcOrdinaryInteger $node.instanceId ([int]::MinValue) ([int]::MaxValue);if($node.instanceId-eq0){throw 'Native transform absent.'};Assert-KmcOrdinaryInteger $node.parentId ([int]::MinValue) ([int]::MaxValue);foreach($v in @('localPosition','localEuler','localScale','worldPosition','worldScale')){Assert-KmcChunk7SmallVector $node.$v}}
+  }
+  foreach($collection in @('riderBones','horseAnchors')){for($j=0;$j-lt$p.$collection.Count;$j++){$first=$o.poses[0].observation.$collection[$j];$node=$p.$collection[$j];if($node.instanceId-ne$first.instanceId-or$node.parentId-ne$first.parentId){throw 'Native pose bone/anchor object changed.'}}}
+  $distances=@(
+   @{Name='leftFootToLeftStirrup';A=$p.riderBones[3];B=$p.horseAnchors[1]},@{Name='leftFootToRightStirrup';A=$p.riderBones[3];B=$p.horseAnchors[2]},
+   @{Name='rightFootToLeftStirrup';A=$p.riderBones[6];B=$p.horseAnchors[1]},@{Name='rightFootToRightStirrup';A=$p.riderBones[6];B=$p.horseAnchors[2]},
+   @{Name='leftUpperLength';A=$p.riderBones[1];B=$p.riderBones[2]},@{Name='leftLowerLength';A=$p.riderBones[2];B=$p.riderBones[3]},
+   @{Name='rightUpperLength';A=$p.riderBones[4];B=$p.riderBones[5]},@{Name='rightLowerLength';A=$p.riderBones[5];B=$p.riderBones[6]})
+  foreach($distance in $distances){$squared=0.0;foreach($axis in @('x','y','z')){$squared+=[Math]::Pow(($distance.A.worldPosition.$axis-$distance.B.worldPosition.$axis),2)};Assert-KmcChunk7SmallNumber $p.($distance.Name);if([Math]::Abs([Math]::Sqrt($squared)-$p.($distance.Name))-gt0.00001){throw 'Native pose distance differs from its raw world transforms.'}}
+  foreach($n in @('leftFootToLeftStirrup','leftFootToRightStirrup','rightFootToLeftStirrup','rightFootToRightStirrup','leftUpperLength','leftLowerLength','rightUpperLength','rightLowerLength')){Assert-KmcChunk7SmallNumber $p.$n}
+  Assert-KmcChunk7SmallVector $p.pelvisFromChestMountLocal
+  if($i-gt0-and$i-lt6){$r=$p.runtime;if($r.profileId-cne$s.profileId-or$r.poseProfileId-cne$s.profileId){throw 'Native pose was not the compiled production profile.'};foreach($f in @('configured','healthy')){Assert-KmcChunk7Boolean $r.$f $true};if($r.frameApplied-isnot[bool]){throw 'Pose frame flag type differs.'};Assert-KmcOrdinaryInteger $r.applications 1;Assert-KmcOrdinaryInteger $r.footClamps 0;Assert-KmcOrdinaryInteger $r.componentCount 1 1;Assert-KmcOrdinaryInteger $r.boneCount 7 7;foreach($n in @('maximumFootResidual','maximumKneeResidual','maximumSegmentResidual')){Assert-KmcChunk7SmallNumber $r.$n};if($r.failure){throw 'Production pose recorded a failure.'}}
+ }
+ Assert-KmcChunk7SmallTrace $Request $o
+ foreach($f in @('nativeCommandsSettled','poseResidueAbsent','targetRemoved','observerReleased','modeRestored','pairAiRestored')){Assert-KmcChunk7Boolean $o.cleanup.$f $true}
+ Assert-KmcOrdinaryInteger $o.cleanup.ownerCount 0 0
+}
+function Assert-KmcChunk7SmallEvidence($Request,$Artifact,[string]$Status='PASS'){
+    Assert-KmcChunk7SmallLoadDescriptor $Request
+    Assert-KmcChunk7ArtifactEnvelope $Request $Artifact 'chunk7-small-calibration-evidence'
+    Assert-KmcOrdinaryInteger $Artifact.schemaVersion 1 1
+    if($Status-ceq'PASS'-and$Artifact.status-cne'PASS'){throw 'PASS field result requires a PASS artifact.'}
+    if($Artifact.status-cne'PASS'){return}
+    $o=$Artifact.observations;$s=$Request.smallCalibration.source
+    if((ConvertTo-KmcChunk7Canonical $o.selection)-cne(ConvertTo-KmcChunk7Canonical $Request.smallCalibration)){throw 'Field observed explicit selection differs.'}
+    Assert-KmcOrdinaryInteger $o.processId 1 ([int]::MaxValue)
+    if(-not(Test-KmcChunk7FiniteNumber $o.elapsedSeconds)-or$o.elapsedSeconds-lt0-or$o.elapsedSeconds-gt420){throw 'Bounded native field elapsed observation invalid.'}
+    foreach($flag in @('sourceWasRemoteAutosave','sourceArchiveStillRemote')){Assert-KmcChunk7Boolean $o.$flag $true}
+    foreach($flag in @('smallPoseQualified','mountedCombatProven','freshMainCampaignProven','manualPartyMutation')){Assert-KmcChunk7Boolean $o.$flag $false}
+    $source=$o.source
+    if($source.runId-cne$s.sourceRunId-or$source.artifactSha256-cne$s.sourceArtifactSha256-or$source.archiveSha256-cne$s.sourceArchiveSha256-or
+       $source.archiveLeaf-cne'Auto_1.zks'-or$source.archiveName-cne$Request.persistenceLoad.internalName){throw 'Field source receipt differs from the explicitly qualified source.'}
+    Assert-KmcOrdinaryInteger $source.archiveLength $Request.persistenceLoad.length $Request.persistenceLoad.length
+    Assert-KmcChunk7Boolean $source.sameCandidate $true;Assert-KmcChunk7Boolean $source.unchangedArchive $true
+    Assert-KmcChunk7OrdinarySelection ([pscustomobject]@{scenario='chunk7-ordinary-acquisition';runId=$s.sourceRunId;ordinaryAcquisition=$source.bodySelection})
+    if($source.bodySelection.case-cne'paid-small-ranger-horse'){throw 'Field source was not a paid Small acquisition.'}
+    $root=Join-Path ([IO.Path]::GetDirectoryName([IO.Path]::GetDirectoryName($Request.evidenceRoot))) ('runtime-staging\persistence-'+$Request.runId+'\Saved Games')
+    Assert-KmcChunk7FieldAuthority $o.authority $root $o.authority.generation
+    Assert-KmcChunk7FieldAuthority $o.cleanup.authority $root $o.authority.generation
+    Assert-KmcChunk7FieldSnapshot $o.before $s;Assert-KmcChunk7FieldSnapshot $o.field $s
+    if($o.before.riderInGame-cne$false-or$s.actorId-cin$o.before.partyCharacters-or$s.actorId-cnotin$o.before.remoteCompanions){throw 'The cold acquisition archive was not an exact remote companion.'}
+    foreach($flag in @('riderInGame','petInGame','riderInState','petInState','riderAgentReady','petAgentReady')){Assert-KmcChunk7Boolean $o.field.$flag $true}
+    foreach($key in @('actorId','actorObject','descriptorObject','petId','petObject','petDescriptorObject','money','xp','level','petLevel','rank','featureSourceGuid','reciprocal')){
+        if((ConvertTo-KmcChunk7Canonical $o.before.$key)-cne(ConvertTo-KmcChunk7Canonical $o.field.$key)){throw ('Field admission changed native identity/progression: '+$key)}
+    }
+    if($o.field.partyCharacters.Count-ne($o.before.partyCharacters.Count+1)-or$s.actorId-cnotin$o.field.partyCharacters-or$s.actorId-cin$o.field.remoteCompanions){throw 'Native party placement not observed.'}
+    foreach($id in $o.before.partyCharacters){if($id-cnotin$o.field.partyCharacters){throw 'Native selector removed an original party character.'}}
+    foreach($id in @('b6628a77-4962-47a4-a17c-88d9836fc9d5','d17c8fd0-6627-40c4-bf9a-024cf001c1f7')){if($id-cnotin$o.before.partyCharacters){throw 'Qualified original party actor missing.'}}
+    $ui=$o.selector
+    if($ui.action-cne'native-ShowPartySelection'-or$ui.actorId-cne$s.actorId){throw 'Native selector identity differs.'}
+    Assert-KmcOrdinaryInteger $ui.nativeCap 6 6
+    foreach($key in @('openCount','switchCount','goCount')){Assert-KmcOrdinaryInteger $ui.$key 1 1}
+    foreach($flag in @('openActiveSelf','readyActiveInHierarchy','closedExactInstance')){Assert-KmcChunk7Boolean $ui.$flag $true}
+    foreach($flag in @('closedActiveSelf','manualPartyMutation')){Assert-KmcChunk7Boolean $ui.$flag $false}
+    if(-not(Test-KmcChunk7FiniteNumber $ui.readyAlpha)-or$ui.readyAlpha-ne1){throw 'Native selector was not ready before ordinary input.'}
+    $b=$o.bodyObservation;$pins=$source.bodySelection
+    foreach($flag in @('NativeRaceAndPresetIdentityExact','NativeSkeletonIsExactPreset','NativeRigAvailable')){Assert-KmcChunk7Boolean $b.$flag $true}
+    foreach($flag in @('RiderPolymorphed','MountPolymorphed')){Assert-KmcChunk7Boolean $b.$flag $false}
+    Assert-KmcOrdinaryInteger $b.OriginalSizeOrdinal 3 3;Assert-KmcOrdinaryInteger $b.EffectiveSizeOrdinal 3 3
+    if($b.RaceGuid-cne$pins.smallRaceGuid-or$b.PresetGuid-cne$pins.smallPresetGuid-or$b.SkeletonName-cne$pins.skeletonName-or$b.Gender-cne$pins.gender){throw 'Observed field body differs from its native source selection.'}
+    Assert-KmcChunk7Boolean $b.LeftHanded $pins.leftHanded
+    if($o.profileInventory.captureStatus-cne'PASS'-or$o.profileInventory.gameplayAssemblyMvid-cne'07fa1e4d-8618-41b3-9b8d-faa17d3b26f7'){throw 'Exact native profile observation missing.'}
+    Assert-KmcOrdinaryInteger $o.profileInventory.schemaVersion 1 1
+    Assert-KmcChunk7Boolean $o.profileInventory.profileAdmissionChanged $false
+    if($o.profileInventory.party-isnot[Array]-or$o.profileInventory.party.Count-ne2){throw 'Field rig inventory must bind the exact rider and pet.'}
+    Assert-KmcChunk7ExactIds $o.profileInventory.party @($s.actorId,$s.petId)
+    $nativeRider=@($o.profileInventory.party|Where-Object id -CEQ $s.actorId)[0]
+    Assert-KmcChunk7Boolean $nativeRider.character.present $true
+    foreach($flag in @('custodySettled','nativeWorkerSettled','selectorClosed','selectionRestored','pauseRestored','acquiredNativeStateRetained','sourceUnchanged')){Assert-KmcChunk7Boolean $o.cleanup.$flag $true}
+    foreach($key in @('nativeWrites','manualPartyMutations','manualRefunds','manualFactRemovals','manualCompanionRemovals')){Assert-KmcOrdinaryInteger $o.cleanup.$key 0 0}
+    Assert-KmcChunk7SmallMountedEvidence $Request $o
+
+}
+
+function Assert-KmcChunk7SmallArtifact($Request,$Manifest,[string]$Status='PASS'){
+ $records=@($Manifest.artifacts|Where-Object{$_.kind-ceq'chunk7-small-calibration-evidence'-or$_.relativePath-ceq'chunk7-small-calibration-evidence.json'})
+ if(-not(Test-KmcChunk7SmallScenario $Request.scenario)){if($records.Count){throw 'Small calibration artifact under another scenario.'};return}
+ if($records.Count-eq0-and$Status-ceq'FAIL'){return}
+ $artifact=Read-KmcChunk7ManifestArtifact $Request $Manifest 'chunk7-small-calibration-evidence.json' 'chunk7-small-calibration-evidence'
+ Assert-KmcChunk7SmallEvidence $Request $artifact $Status
+}

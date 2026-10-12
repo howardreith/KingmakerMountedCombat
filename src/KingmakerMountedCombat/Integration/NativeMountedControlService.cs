@@ -1309,12 +1309,23 @@ namespace KingmakerMountedCombat.Integration
 
         public void OnMoveRequested(Vector3 target)
         {
-            VisitInputOwners(owner => owner.CancelSelectedInput("native move request replaced stock attack intent"));
+            // Native ground input raises this event after publishing its new move.
+            // Pre-admission already cancels the replaced pair action; only a live
+            // stock targeting intent authorizes additional post-input cleanup.
+            VisitInputOwners(owner =>
+            {
+                if (owner.HasStockAttackIntent)
+                    owner.CancelSelectedInput("native move request replaced stock attack intent");
+            });
         }
 
         public void OnItemUseRequested(Kingmaker.Items.ItemEntity item, TargetWrapper target)
         {
-            VisitInputOwners(owner => owner.CancelSelectedInput("native item-use request replaced stock attack intent"));
+            VisitInputOwners(owner =>
+            {
+                if (owner.HasStockAttackIntent)
+                    owner.CancelSelectedInput("native item-use request replaced stock attack intent");
+            });
         }
 
         public void OnAttackRequested(UnitEntityData unit, Kingmaker.View.UnitEntityView target)

@@ -32,10 +32,13 @@ static class RuntimeLoaderInventory{public static int Writes;public static void 
 class RuntimeRequest{public Fixture Fixture=new Fixture();}class Fixture{public Working Working=new Working();}class Working{public string GameId="campaign",GameName="fixture",Area="area";}
 class NativeArea{public string AssetGuidThreadSafe="area";}class NativeAreaState{public object MainState=new object();}
 namespace Kingmaker{class Game:global::Game{}}
+class DoorProbe{public Command[] IssuedCommands=new Command[0];public bool Ready,Fail;public int Drains;public bool Drain(){Drains++;if(Fail)throw new Exception("door pending");return Ready;}}
 class WorldAdapter{
+ DoorProbe doorProbe;
+ Lease quietWindow;
  Chunk7NativeWorldScope nativeScope;
  bool cleanupStarted,captured=true,completed,disposed,cleanupProven,cleanupPendingReported,originalPaired,originalMovement,originalPause;double stepStarted;Clock clock=new Clock();Lease measurement,mode=new Lease(),ummLease=new Lease(),screenshots;
- Command[] issuedCommands=new Command[]{new UnitUseAbility()};World world=new World();Controls controls=new Controls();Actor secondRider=new Actor(),secondMount=new Actor(),firstRider=new Actor(),firstMount=new Actor();Actor[] originalSelection=new Actor[0];object horseFeature=new object(),rankFeature=new object(),request;
+ List<Command> issuedCommands=new List<Command>{new UnitUseAbility()};World world=new World();Controls controls=new Controls();Actor secondRider=new Actor(),secondMount=new Actor(),firstRider=new Actor(),firstMount=new Actor();Actor[] originalSelection=new Actor[0];object horseFeature=new object(),rankFeature=new object(),request;
  Settings settings=new Settings();JObject evidence=new JObject();List<string> errors=new List<string>();Dictionary<string,int> cleanupAttempts=new Dictionary<string,int>();const string EvidenceFileName="fixture",EvidenceKind="fixture";
  public WorldAdapter(){secondRider.Descriptor.Pet=secondMount;Game.Instance.State.Units.Add(secondMount);firstRider.Descriptor.Pet=firstMount;firstMount.Descriptor.Master.Value=firstRider;var horse=horseFeature;secondRider.Descriptor.Progression.Features.OnRemove=f=>{if(ReferenceEquals(f,horse)){secondMount.IsInState=false;Game.Instance.State.Units.Remove(secondMount);secondRider.Descriptor.Pet=null;}};foreach(var actor in new[]{firstRider,firstMount,secondRider,secondMount})if(!Game.Instance.State.Units.Contains(actor))Game.Instance.State.Units.Add(actor);nativeScope=new Chunk7NativeWorldScope(new RuntimeRequest(),new[]{firstRider,firstMount,secondRider,secondMount});}
  static int Id(object x){return System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(x);}static void Require(bool c,string e){if(!c)throw new Exception(e);}void Fail(string n,string e){errors.Add(e);}void Pass(string n){}object CaptureWorld(string x){return null;}IEnumerable<Actor> PartyActors(){return new Actor[0];}object CaptureRig(Actor a){return null;}
@@ -82,6 +85,24 @@ __METHODS__
  if(scopeFailures!=0)throw new Exception("WORLD SCOPE FAIL="+scopeFailures);
  }
 
+ static void VerifyDoorCustody(){
+ Game.Instance=new Game();LoadingProcess.Instance=new LoadingProcess();NativePersistenceIsolation.HasPendingWrites=false;
+ var e=new WorldAdapter();((UnitUseAbility)e.issuedCommands[0]).ExecutionProcess.IsEnded=true;
+ var command=new Command{IsFinished=true};e.doorProbe=new DoorProbe{IssuedCommands=new[]{command}};
+ e.BeginCleanup();Check(!e.DrainForHost()&&e.issuedCommands.Contains(command)&&e.world.Pairs.All(p=>p.Relationship.PairOwner==null)&&e.secondRider.Descriptor.Progression.Features.Removed.Count==0,"retained door lease allows independent pair cleanup but fences fact removal");
+ e.doorProbe.Fail=true;Check(!e.DrainForHost()&&e.errors.Any(x=>x.Contains("door pending"))&&e.horseFeature!=null,"door restoration exception retains facts and original failure");
+ e.doorProbe.Fail=false;e.doorProbe.Ready=true;Check(e.DrainForHost()&&e.completed&&e.horseFeature==null,"same retained door owner can settle before fact removal");
+ }
+
+ static void VerifyQuietCustody(){
+ Game.Instance=new Game();LoadingProcess.Instance=new LoadingProcess();NativePersistenceIsolation.HasPendingWrites=false;
+ var e=new WorldAdapter();var quiet=new Lease{Fail=true};var sample=new Lease();e.quietWindow=quiet;e.measurement=sample;Game.Instance.IsPaused=true;
+ e.BeginCleanup();Check(ReferenceEquals(e.quietWindow,quiet)&&e.measurement==null&&sample.Releases==1&&Game.Instance.IsPaused,"quiet restore failure retains exact gate while independent measurement releases");
+ Check(!e.DrainForHost()&&e.world.Pairs.All(p=>p.Combat.Cancels==0)&&e.issuedCommands.All(c=>c.Interruptions==0)&&e.horseFeature!=null,"unfinished quiet restoration fences native actor and progression teardown");
+ quiet.Fail=false;e.world.SerializationBusy=true;Check(!e.DrainForHost()&&e.quietWindow==null&&Game.Instance.IsPaused&&e.horseFeature!=null,"quiet state restores independently while native worker still fences gameplay cleanup");
+ e.world.SerializationBusy=false;((UnitUseAbility)e.issuedCommands[0]).ExecutionProcess.IsEnded=true;
+ Check(e.DrainForHost()&&e.completed&&e.errors.Any(x=>x.Contains("lease pending")),"retained quiet gate retries without discarding original failure evidence");
+ }
  static int passed;static void Check(bool condition,string name){if(!condition)throw new Exception(name);passed++;Console.WriteLine("PASS "+name);}
  public static void Verify(){var e=new WorldAdapter();var features=e.secondRider.Descriptor.Progression.Features;var command=(UnitUseAbility)e.issuedCommands[0];
  Game.Instance.IsPaused=true;e.BeginCleanup();Check(features.Removed.Count==0&&command.Interruptions==0&&Game.Instance.IsPaused,"BeginCleanup preserves pause, facts, and live commands");
@@ -99,6 +120,8 @@ __METHODS__
  lease.Fail=false;Check(e.DrainForHost()&&e.completed&&e.cleanupProven&&e.mode==null&&e.ummLease==null,"retry proves physical cleanup without discarding earlier failures");
  Check(e.errors.Count>=3,"physical settlement preserves original failed evidence");e.Dispose();Check(e.disposed,"actual Dispose releases only proven completed custody");var count=features.Removed.Count;e.Dispose();Check(features.Removed.Count==count,"repeated Dispose does not replay fact removal");
  VerifyWorldScope();
+ VerifyDoorCustody();
+ VerifyQuietCustody();
  Console.WriteLine("CHUNK7 WORLD CLEANUP ADAPTER PASS="+passed+" FAIL=0; actual source methods with external native boundary stubs only");}
 }
 static class Program{static int Main(){try{WorldAdapter.Verify();return 0;}catch(Exception e){Console.Error.WriteLine(e);return 1;}}}

@@ -111,6 +111,12 @@ function Assert-KmcReadOnlyArtifactManifest {
             ($relativePath -ceq 'horse-native-controls-ux.json' -and $kind -ceq 'horse-native-controls-ux') -or
             ($relativePath -ceq 'chunk6a-mount-preamble.json' -and $kind -ceq 'chunk6a-mount-preamble') -or
             ($relativePath -ceq 'chunk6a-native-mammoth-profile.json' -and $kind -ceq 'chunk6a-native-mammoth-profile') -or
+            ($relativePath -ceq 'chunk7-small-calibration-evidence.json' -and $kind -ceq 'chunk7-small-calibration-evidence') -or
+            ($relativePath -ceq 'chunk7-small-calibration-cleanup-pending.json' -and $kind -ceq 'chunk7-small-calibration-cleanup-pending') -or
+            ($relativePath -ceq 'chunk7-progression-evidence.json' -and $kind -ceq 'chunk7-progression-evidence') -or
+            ($relativePath -ceq 'chunk7-progression-cleanup-pending.json' -and $kind -ceq 'chunk7-progression-cleanup-pending') -or
+            ($relativePath -ceq 'chunk7-ordinary-field-evidence.json' -and $kind -ceq 'chunk7-ordinary-field-evidence') -or
+            ($relativePath -ceq 'chunk7-ordinary-field-cleanup-pending.json' -and $kind -ceq 'chunk7-ordinary-field-cleanup-pending') -or
             ($relativePath -ceq 'chunk7-ordinary-acquisition-evidence.json' -and $kind -ceq 'chunk7-ordinary-acquisition-evidence') -or
             ($relativePath -ceq 'chunk7-ordinary-cleanup-pending.json' -and $kind -ceq 'chunk7-ordinary-cleanup-pending') -or
             ($relativePath -ceq 'chunk7-world-evidence.json' -and $kind -ceq 'chunk7-world-evidence') -or

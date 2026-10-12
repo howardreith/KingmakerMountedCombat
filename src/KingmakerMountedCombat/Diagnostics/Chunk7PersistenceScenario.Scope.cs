@@ -31,6 +31,7 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void RequireCleanupWorld()
         {
+            RequireRepeatedCleanupWorld();
             if (nativeScope == null)
             {
                 // Before native loading begins, only this exact menu Game owns
