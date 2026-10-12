@@ -26,6 +26,7 @@ Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot 'RuntimeArtifactManifestEvidence.ps1')
 . (Join-Path $PSScriptRoot 'Chunk6aFoundationEvidence.ps1')
 . (Join-Path $PSScriptRoot 'Chunk6aClosureEvidence.ps1')
+. (Join-Path $PSScriptRoot 'FrozenProductSource.ps1')
 
 function Get-KmcRepositoryRoot {
     $root = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))
@@ -3484,6 +3485,11 @@ function Assert-KmcPackageManifest {
     $manifest = Read-KmcJson $ManifestPath
     Assert-KmcExactProperties $manifest @('schemaVersion','generator','generatedAtUtc','branch','commit','worktreeClean','qualificationEligible','version','packagePath','packageSha256','dllSha256','dllMvid','entries') 'package manifest'
     $head = (& git -C $repoRoot rev-parse HEAD).Trim(); $branch = (& git -C $repoRoot branch --show-current).Trim()
+    $frozenContext=Get-Variable -Name KmcFrozenProductContext -ValueOnly -ErrorAction SilentlyContinue
+    if($null -ne $frozenContext) {
+        $productIdentity=Assert-KmcFrozenProductManifest -Context $frozenContext -Manifest $manifest -PackagePath $resolvedPackage -ManifestPath $ManifestPath -Generator $Generator -RepositoryRoot $repoRoot
+        $head=$productIdentity.source; $branch=$productIdentity.branch
+    }
     $status = @(& git -C $repoRoot status --porcelain --untracked-files=all)
     if ($status.Count -ne 0) { throw 'Runtime qualification requires a clean Git worktree.' }
     if ([int]$manifest.schemaVersion -ne 2 -or [string]$manifest.generator -cne $Generator -or
