@@ -27,7 +27,7 @@ preserved as repro-01/02 and are not defect reproductions. No native transaction
 
 
 Connected integration is now in progress above repair commit
-`2276bc40b892befd4204e1ab851fc2c0ca1c16d9` (not yet pushed). Dirty work belongs
+`2276bc40b892befd4204e1ab851fc2c0ca1c16d9` (now published with the integration). Work belongs
 to this mission: bounded world/pair services, one shared turn/allocation authority,
 exact native control/bridge routing, all-pair persistence/area/save fences and
 base-only guarded harness support. The active sequence and evidence boundaries
@@ -55,13 +55,34 @@ Final base-only reader review passed 89 synthetic checks in 3.660 s. Non-dynamic
 assemblies must have exact hashes/MVIDs and allowed paths; dynamic assemblies and
 non-pinned Managed binaries are inventoried with an explicit proof limit.
 
-No candidate/native transaction, installed-mod mutation or save mutation has
-occurred. Next: commit/push this coherent
-integration, Package with a unique qualifier, Candidate tier on those exact bytes,
-then declare/freeze the first exploration case and execute guarded WhatIf/live.
-Separate combat/cold-load observers are being prepared privately for the next
-candidate. Small, ordinary acquisition/progression, shared boundaries and six-pair
-stress remain required work, as the active implementation plan records.
+Private candidate `0.1.0-chunk7b-preview.1` is frozen from reviewed/published source
+`de7e7d34fd12b04ccfd192b21a7fa77ca191ce10`, tree
+`fb97fa463ffd283f3b431332878a53378778551a`. Package:
+`artifacts/KingmakerMountedCombat-0.1.0-chunk7b-preview.1-c7b-world01-diagnostic.zip`;
+SHA-256 `4096ed9ce935225e14a5a220d4a46830cf0ff13757f4fcf21a70b8ca5a199b8a`.
+DLL SHA-256 `65223dbbe30b9f7ce712554a7f699ced1c224b02f2d5065cf40a9e6983f3fdc9`,
+MVID `88792a60-80f7-4db0-a7e8-ca37309df157`. Frozen source:
+`worktrees/chunk7b-preview1-de7e7d3`; exact freeze receipt and qualification suite
+pins are under `analysis-cache/chunk7-continuation/candidate-world01-freeze.json`.
+
+The first Candidate run failed solely at the obsolete capacity-one test expectation.
+The corrected capacity-two/third-reservation refusal passes all 146 ownership checks
+on the same DLL; the initial failed receipt is retained. This commit changes tests/
+documentation only, so use FrozenProductSource with the preserved package; do not
+rebuild it to stamp a newer harness HEAD. Next command is Candidate -SkipBuild with
+the selected neighbors from `candidate-world01-validation.log`, then the complete
+frozen-source arguments for guarded runtime WhatIf and the declared exploration case.
+
+The exact approved publication helper is
+`C:\Dev\KingmakerMountedCombatLab\codex-policy\Push-KingmakerMountedCombat.ps1`.
+Its WhatIf and actual guarded push verified source/remote equality at `de7e7d3`.
+An attempted fallback direct push was rejected before execution; the approved helper
+resolved that boundary without modification. Always use it for later checkpoints.
+Suite snapshot WhatIf PASS and append-only snapshot creation PASS; current Mods digest
+`c4e783ebd7776e3dc298528438ebf5097fc7c61b483881d49cf4a14a965a721c`, save digest
+`511077a04981fe3657d47eb0fc8727f67ea5602f755575c6b4aae1142974a426`.
+No native process, staging transaction, installed-mod mutation or save write occurred.
+Subagents continue only private next-family preparation while this artifact runs.
 
 # Chunk 7A source checkpoint — PASS, October 12, 2026
 
