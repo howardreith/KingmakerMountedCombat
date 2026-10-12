@@ -33,11 +33,20 @@ function Case-Area([string]$name,[scriptblock]$change,[scriptblock]$changeBindin
  Write-AreaJson $v.transaction (Join-Path $trans ($run+'.json'))
  $binding=Get-KmcSupportingBinding 'area-regression' $run @('native-area-clean-dismount') $scratch
  & $changeBinding $binding
- $errorText=$null;try{Assert-KmcChunk6aPrimaryClaim 'CM08-area-restoration' $binding;Assert-KmcSupportingRun $payload $binding $scratch}catch{$errorText=$_.Exception.Message}
+ $errorText=$null;try{Assert-KmcSupportingRun $payload $binding $scratch}catch{$errorText=$_.Exception.Message}
  if(($null-eq$errorText)-ne$pass){throw ('Unexpected '+$name+': '+$errorText)}
  $script:results+=@([pscustomobject]@{case=$name;expectedPass=$pass;assertion=$errorText})
  Write-Host ('PASS '+$name)
 }
+# The archive still tests the legacy reader, but no longer proves the supported
+# save/area-reload lifecycle. Keep that distinction under a direct rejection test.
+$legacyBinding=Get-KmcSupportingBinding 'area-regression' $run @('native-area-clean-dismount') $lab
+$legacyRefusal=$null
+try{Assert-KmcChunk6aPrimaryClaim 'CM08-area-restoration' $legacyBinding}catch{$legacyRefusal=$_.Exception.Message}
+if($legacyRefusal-cne'Primary claim requires its exact scenario'){throw 'Retired clean-Dismount archive was not refused for the current area-restoration claim.'}
+$results+=@([pscustomobject]@{case='retired-primary-claim';expectedPass=$false;assertion=$legacyRefusal})
+Write-Host 'PASS legacy area archive cannot qualify the current area-restoration claim'
+
 Case-Area baseline {} {} $true
 Case-Area configuration {param($v)$v.records[-1].pairedConfiguration.enablePairedActivation=$false}
 Case-Area native-dispatch {param($v)$v.records[-1].triggerScope.realAreaReloadDispatched=$false}
