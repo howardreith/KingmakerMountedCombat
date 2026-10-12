@@ -1,3 +1,41 @@
+# Chunk 7A source checkpoint — PASS, October 12, 2026
+
+Branch: `codex/mounted-combat-chunk7-foundation`. Source/tests/brief commit:
+`21df88347b98532fd59b82d3ae05078f7bac64e9`, descendant of refreshed main
+`96c7fa1919f371ebd1100aab66f40b5f471644bb`. Read the active CURRENT.md section
+and planning/CHUNK7-DEVELOPMENT-BRIEF.md; historical commands below are inactive.
+
+Production ownership/dispatch, retained cleanup/participation and schema-3
+migration foundation are implemented. Native capacity stays one, writer schema
+stays 2, native restore accepts only schema 1/2. No allocation/turn authority was
+duplicated. Two-pair registry/component and compiled detached adapter evidence
+is not native multi-pair qualification.
+
+Final `Test-Tiers.ps1 -Tier Fast -Focused 'Test-PersistenceData.ps1,Test-ChargeOwnershipContracts.ps1,Test-MidEncounterNativePreparation.ps1'`:
+PASS; build, 727 component, 147 original source, 56 historical + 43 new persistence,
+121 ownership and 16 preparation checks. Six stages, 10.56 s. Retained earlier
+failures and exact development DLL/source identities are in lab
+`analysis-cache/chunk7-foundation`; see CURRENT for counts, corrections and hash.
+
+Next command when resuming: `git status --short --branch`, then inspect
+`C:\Dev\KingmakerMountedCombatLab\analysis-cache\chunk7-foundation\publication-checkpoint.json`.
+This turn commits the handoff and performs the authorized guarded review-branch
+push. The receipt records exact docs HEAD, verified origin/ref, remote equality
+and clean/remaining state. If absent or failed, finish only that audited push;
+otherwise stop at source review. No repository push helper exists: use current
+AGENTS verified-origin/payload/clean-tree/fast-forward fallback, never force.
+
+Next development dependency is all-pair world capture/load/area/lifecycle/removal,
+worker and native-participation integration before second-pair admission or new
+native schema support, followed by separately selected two-pair RT/TB and
+save/cold-load proof. Do not restart Chunk 6 qualification, launch the game,
+stage/package, write native saves, create a PR, merge or release for this task.
+Other/frozen worktrees remain untouched.
+
+Ordinary exec helper failed setup refresh in this session; approved bounded exec
+worked. Local Node reads/writes provided a safe fallback. There is no unfinished
+native transaction, deployment or restoration from this source task.
+
 # Current boundary — final Chunk 6 engineering gates passed
 
 Owner acceptance remains pending. The owner-authorized qualification is complete:
