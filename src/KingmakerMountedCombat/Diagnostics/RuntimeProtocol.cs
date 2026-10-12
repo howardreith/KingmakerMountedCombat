@@ -15,7 +15,7 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private static readonly HashSet<string> SaveBackedScenarios = new HashSet<string>(StringComparer.Ordinal)
         {
-            "chunk7-native-progression", "chunk7-small-profile-calibration", "chunk7-ordinary-field-admission", "chunk7-ordinary-acquisition", "chunk7-two-pair-exploration", "chunk7-persistence-save", "chunk7-persistence-load",
+            "chunk7-native-progression", "chunk7-native-main-bootstrap", "chunk7-small-profile-calibration", "chunk7-ordinary-field-admission", "chunk7-ordinary-acquisition", "chunk7-two-pair-exploration", "chunk7-persistence-save", "chunk7-persistence-load",
             "chunk7-two-pair-combat-rider-first", "chunk7-two-pair-combat-mount-first",
             "chunk7-two-pair-realtime-core", "chunk7-two-pair-realtime-casting", "chunk7-two-pair-realtime-charge",
             "chunk7-two-pair-native-life-cleanup",
@@ -148,6 +148,7 @@ namespace KingmakerMountedCombat.Diagnostics
         public Chunk7OrdinaryAcquisitionSelection OrdinaryAcquisition { get; set; }
         public Chunk7OrdinaryFieldSelection OrdinaryField { get; set; }
         public Chunk7SmallCalibrationSelection SmallCalibration { get; set; }
+        public Chunk7NativeBootstrapSelection NativeBootstrap { get; set; }
         public Chunk7ProgressionSelection Progression { get; set; }
 
         // Cross-area cases declare their destination up front so the isolated
@@ -220,6 +221,12 @@ namespace KingmakerMountedCombat.Diagnostics
                 errors.Add("Unsupported request schemaVersion.");
             }
 
+            if (Scenario == Chunk7NativeBootstrapSelection.Scenario)
+            {
+                if (SchemaVersion != SaveBackedSchemaVersion || NativeBootstrap == null) errors.Add("Native main bootstrap requires its explicit schema-2 selection.");
+                else errors.AddRange(NativeBootstrap.Validate(Scenario));
+            }
+            else if (NativeBootstrap != null) errors.Add("Native bootstrap selection is forbidden under another scenario.");
             if (Scenario == Chunk7SmallCalibrationSelection.Scenario)
             {
                 if (SchemaVersion != SaveBackedSchemaVersion || SmallCalibration == null) errors.Add("Compiled Small calibration requires its exact schema-2 selection.");
@@ -821,6 +828,7 @@ namespace KingmakerMountedCombat.Diagnostics
             "C7-life-safe-native-damage", "C7-life-native-callback", "C7-life-healthy-neighbour", "C7-life-independent-survivor",
             "C7-rt-charge-default-off", "C7-rt-concurrent-primary", "C7-rt-local-cancel", "C7-rt-unmounted-native-control",
             "C7-rt-native-casting", "C7-rt-casting-neighbour", "C7-rt-charge-native-success", "C7-rt-charge-neighbour-movement", "C7-rt-charge-native-cancel",
+            "chunk7-native-main-bootstrap", "C7-bootstrap-preflight", "C7-bootstrap-native-start", "C7-bootstrap-native-world", "C7-bootstrap-autosave", "C7-bootstrap-cleanup", "C7-bootstrap-runtime", "C7-bootstrap-interrupted",
             "chunk7-small-profile-calibration", "C7-small-readonly-source", "C7-small-native-party-placement", "C7-small-production-mount", "C7-small-native-ground", "C7-small-rider-primary", "C7-small-mount-primary", "C7-small-native-dismount", "C7-small-native-pose-observation", "C7-small-cleanup", "C7-small-runtime", "C7-small-interrupted",
             "chunk7-native-progression", "C7-progression-cold-source", "C7-progression-native-operation", "C7-progression-cleanup", "C7-progression-runtime", "C7-progression-interrupted",
             "chunk7-ordinary-field-admission", "C7-field-readonly-source", "C7-field-native-party-placement", "C7-field-cleanup", "C7-field-runtime", "C7-field-interrupted",
@@ -1305,7 +1313,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 errors.Add("subscenario and assertion totals do not match the named results.");
             }
 
-            if (scenario != "chunk7-native-progression" && scenario != "chunk7-small-profile-calibration" && scenario != "chunk7-ordinary-field-admission" && scenario != "chunk7-ordinary-acquisition" && scenario != "chunk7-two-pair-exploration" && !RuntimeRequest.IsChunk7PersistenceScenario(scenario) && !RuntimeRequest.IsChunk7CombatScenario(scenario) && RuntimeSubscenarioResult.IsMissionScenario(scenario) && !names.Contains(scenario))
+            if (scenario != "chunk7-native-progression" && scenario != "chunk7-native-main-bootstrap" && scenario != "chunk7-small-profile-calibration" && scenario != "chunk7-ordinary-field-admission" && scenario != "chunk7-ordinary-acquisition" && scenario != "chunk7-two-pair-exploration" && !RuntimeRequest.IsChunk7PersistenceScenario(scenario) && !RuntimeRequest.IsChunk7CombatScenario(scenario) && RuntimeSubscenarioResult.IsMissionScenario(scenario) && !names.Contains(scenario))
             {
                 errors.Add("An individual mission scenario must report its own named subscenario result.");
             }

@@ -1,7 +1,7 @@
 [CmdletBinding(SupportsShouldProcess=$true,ConfirmImpact='High')]
 param(
     [ValidateSet(
-        'chunk7-native-progression','chunk7-small-profile-calibration','chunk7-ordinary-field-admission','chunk7-ordinary-acquisition','chunk7-two-pair-exploration','chunk7-persistence-save','chunk7-persistence-load','chunk7-two-pair-combat-rider-first','chunk7-two-pair-combat-mount-first','chunk7-two-pair-realtime-core','chunk7-two-pair-realtime-casting','chunk7-two-pair-realtime-charge','chunk7-two-pair-native-life-cleanup',
+        'chunk7-native-main-bootstrap','chunk7-native-progression','chunk7-small-profile-calibration','chunk7-ordinary-field-admission','chunk7-ordinary-acquisition','chunk7-two-pair-exploration','chunk7-persistence-save','chunk7-persistence-load','chunk7-two-pair-combat-rider-first','chunk7-two-pair-combat-mount-first','chunk7-two-pair-realtime-core','chunk7-two-pair-realtime-casting','chunk7-two-pair-realtime-charge','chunk7-two-pair-native-life-cleanup',
         'mod-load-smoke','export-mounted-contracts','export-candidate-mount-rigs','observe-mount-diagnostic-availability','horse-native-asset-audit','horse-companion-blueprint-registration','horse-companion-unmounted-suite','horse-mounted-alpha-suite','horse-native-controls-ux-suite',
         'chunk6c-casting-rt','chunk6c-casting-tb','chunk6c-casting-unmounted-rt','chunk6c-casting-unmounted-tb',
         'chunk6d-staged-rt','chunk6d-staged-tb','chunk6e-reaction-rt','chunk6e-reaction-tb',
@@ -40,6 +40,7 @@ param(
     # Explicit private compatibility selection. Other modes keep the actual live
     # mod set. This mode stages KMC alone while retaining installed UMM/Harmony.
     [switch]$BaseGameOnly,
+    [ValidateSet('authored-main-campaign')][string]$NativeBootstrapCase,
     [string]$OrdinarySelectionPath,
     [string]$OrdinaryFieldSelectionPath,
     [string]$SmallCalibrationSelectionPath,
@@ -98,6 +99,14 @@ Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot 'Chunk7OrdinaryFieldFixtures.ps1')
 . (Join-Path $PSScriptRoot 'Chunk7SmallCalibrationFixtures.ps1')
 . (Join-Path $PSScriptRoot 'Chunk7ProgressionFixtures.ps1')
+if(Test-KmcChunk7NativeBootstrapScenario $Scenario){
+    if(-not$BaseGameOnly-or-not$PSBoundParameters.ContainsKey('NativeBootstrapCase')-or$NativeBootstrapCase-cne'authored-main-campaign'){
+        throw 'Native main bootstrap requires explicit authored-main-campaign selection and base-only staging.'
+    }
+    foreach($name in @('PersistenceSourceRunId','ExpectedPersistenceSourceSha256','PersistenceCase','PersistenceAreaEnterPoint','PersistenceAreaTargetArea','PersistenceReplayAreaEnterPoints','PersistenceReplayAreaAreas')){
+        if($PSBoundParameters.ContainsKey($name)){throw 'Native bootstrap cannot select a saved-game load, persistence case or area route.'}
+    }
+}elseif($PSBoundParameters.ContainsKey('NativeBootstrapCase')){throw 'Native bootstrap selection is forbidden under another scenario.'}
 . (Join-Path $PSScriptRoot 'PersistenceValidationFixtures.ps1')
 $smallSelectionInput=$null;$smallSource=$null
 if(Test-KmcChunk7SmallScenario $Scenario){
@@ -428,6 +437,7 @@ try{
     if(Test-KmcChunk7SmallScenario $Scenario){$request['smallCalibration']=$smallSelectionInput.selection}
     if(Test-KmcChunk7FieldScenario $Scenario){$request['ordinaryField']=$fieldSelectionInput.selection}
     if(Test-KmcChunk7ProgressionScenario $Scenario){$request['progression']=$progressionSelectionInput.selection}
+    if(Test-KmcChunk7NativeBootstrapScenario $Scenario){$request['nativeBootstrap']=[ordered]@{case=$NativeBootstrapCase;baseGameOnly=[bool]$BaseGameOnly;expectedNativeLoadCount=0;expectedNativeWriteCount=1;nativeWriteLeaf='Auto_1.zks'}}
     if($PSBoundParameters.ContainsKey('PersistenceCase')) { $request['persistenceCase']=$PersistenceCase }
     if($PersistenceCase-ceq'multi-exploration-three-area-transfers-manual'){
         $request['persistenceReplayTargets']=@(for($leg=0;$leg-lt3;$leg++){[ordered]@{enterPoint=$PersistenceReplayAreaEnterPoints[$leg];area=$PersistenceReplayAreaAreas[$leg];autoSaveMode='None'}})
@@ -493,7 +503,7 @@ try{
         $progressionSource=$currentProgressionSource
     }
     # Snapshot only after the under-lock fixture and save-metadata proof.
-    if($BaseGameOnly-or$Scenario -cin @('chunk7-native-progression','chunk7-small-profile-calibration','chunk7-ordinary-field-admission','chunk7-ordinary-acquisition','chunk7-persistence-save','chunk7-persistence-load','persistence-isolation','persistence-p07-save','persistence-p07-load','persistence-p01-save','persistence-p01-load','persistence-p02-save','persistence-p02-load','persistence-p03-save','persistence-p03-load','persistence-p04-save','persistence-p04-load','persistence-p05-save','persistence-p05-load','persistence-p06-load')){
+    if($BaseGameOnly-or$Scenario -cin @('chunk7-native-main-bootstrap','chunk7-native-progression','chunk7-small-profile-calibration','chunk7-ordinary-field-admission','chunk7-ordinary-acquisition','chunk7-persistence-save','chunk7-persistence-load','persistence-isolation','persistence-p07-save','persistence-p07-load','persistence-p01-save','persistence-p01-load','persistence-p02-save','persistence-p02-load','persistence-p03-save','persistence-p03-load','persistence-p04-save','persistence-p04-load','persistence-p05-save','persistence-p05-load','persistence-p06-load')){
         $profileSnapshot=New-KmcPersistenceProfileSnapshot -Lock $lock -SaveRoot $saveRoot -GameRoot ([string]$intake.requestedLayout.kingmakerInstallDir) -BackupRoot $runtimeBackups
     }
     # The no-save mode must bind NO suite argument, not an empty one: the
@@ -518,7 +528,7 @@ try{
             -After (Get-KmcSaveMetadataInventory $saveRoot) `
             -Description 'runtime immediate pre-save-transaction metadata'
         [void](Enter-KmcWorkingSaveTransaction -Lock $lock -Pair $lockedPair -SaveRoot $saveRoot -StateRoot $runtimeState -BackupRoot $runtimeBackups -StagingRoot $runtimeStaging -Scenario $Scenario)
-        if($Scenario -cin @('chunk7-native-progression','chunk7-small-profile-calibration','chunk7-ordinary-field-admission','chunk7-ordinary-acquisition','chunk7-persistence-save','chunk7-persistence-load','persistence-isolation','persistence-p07-save','persistence-p07-load','persistence-p01-save','persistence-p01-load','persistence-p02-save','persistence-p02-load','persistence-p03-save','persistence-p03-load','persistence-p04-save','persistence-p04-load','persistence-p05-save','persistence-p05-load','persistence-p06-load')){
+        if($Scenario -cin @('chunk7-native-main-bootstrap','chunk7-native-progression','chunk7-small-profile-calibration','chunk7-ordinary-field-admission','chunk7-ordinary-acquisition','chunk7-persistence-save','chunk7-persistence-load','persistence-isolation','persistence-p07-save','persistence-p07-load','persistence-p01-save','persistence-p01-load','persistence-p02-save','persistence-p02-load','persistence-p03-save','persistence-p03-load','persistence-p04-save','persistence-p04-load','persistence-p05-save','persistence-p05-load','persistence-p06-load')){
             $profileRoot=Assert-KmcChildPath (Join-Path $runtimeStaging ('persistence-'+$actualRunId)) $runtimeStaging 'owned persistence profile'
             if(Test-Path -LiteralPath $profileRoot){throw 'Persistence profile already exists; refusing ambiguous ownership.'}
             [void][IO.Directory]::CreateDirectory($profileRoot)
@@ -824,6 +834,10 @@ try{
             $sourceArtifact=Read-KmcJson $smallSource.artifactPath
             $smallArtifact=Read-KmcJson (Join-Path $evidenceRoot 'chunk7-small-calibration-evidence.json')
             if($sourceArtifact.observations.processId-eq$smallArtifact.observations.processId){throw 'Small calibration reused the acquisition process rather than cold loading.'}
+        }
+        if($gamePassed-and(Test-KmcChunk7NativeBootstrapScenario $Scenario)){
+            $bootstrapArtifact=Read-KmcJson (Join-Path $evidenceRoot 'chunk7-native-bootstrap-evidence.json')
+            Assert-KmcChunk7NativeBootstrapOutput $request $bootstrapArtifact
         }
         if($gamePassed-and(Test-KmcChunk7ProgressionScenario $Scenario)){
             $verifiedProgressionSource=Get-KmcChunk7ProgressionSource $request.progression $fixturePayload $manifest

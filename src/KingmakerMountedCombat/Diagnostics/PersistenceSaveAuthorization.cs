@@ -150,6 +150,37 @@ namespace KingmakerMountedCombat.Diagnostics
             }
         }
 
+        // Closed pre-fixture bootstrap: Working is only an immutable authorization
+        // anchor. No LoadGame/LoadRoutine is eligible; only the authored first
+        // autosave may create a new native campaign in this exact run root.
+        internal bool MatchesNativeBootstrapPlan(RuntimeSaveDescriptor source, string area)
+        {
+            lock (sync)
+            {
+                Entry anchor, output;
+                return source != null && source.GameId == gameId && source.GameName == gameName &&
+                    maximumNativeLoadRequests == 0 && maximumNativeWriteRequests == 1 && declaresBootstrap && entries.Count == 2 &&
+                    entries.TryGetValue(source.FileName, out anchor) && anchor.Name == source.InternalName && anchor.Type == "Manual" &&
+                    anchor.Area == source.Area && anchor.Hash == source.Sha256 && !anchor.Writable && !anchor.Writing && !anchor.Bootstrap &&
+                    !anchor.AdmitsBeforeArea && anchor.AdmissionArea == null && anchor.ForeignGameId == null && anchor.ForeignGameName == null &&
+                    entries.TryGetValue(Chunk7NativeBootstrapSelection.AutoLeaf, out output) && output.Type == "Auto" && output.Area == area &&
+                    output.Writable && output.Bootstrap && output.AdmitsBeforeArea && output.AdmissionArea == null &&
+                    output.ForeignGameId == null && output.ForeignGameName == null;
+            }
+        }
+
+        internal void CloseUnusedBootstrapWindow()
+        {
+            lock (sync)
+            {
+                if (bootstrapGameId == null)
+                {
+                    if (admittedNativeWriteRequests != 0) throw new InvalidOperationException("An admitted bootstrap write still owns its identity window.");
+                    bootstrapWindowOpen = false;
+                }
+            }
+        }
+
         // ---- Bootstrap campaign ----
         //
         // Campaign A is the validated fixture identity every ordinary leaf is
@@ -214,8 +245,8 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             if (maximumWriteRequests.HasValue && (maximumWriteRequests.Value < 1 || maximumWriteRequests.Value > 128))
                 throw new ArgumentException("A selected isolated write count must be positive and bounded.");
-            if (maximumLoadRequests.HasValue && (maximumLoadRequests.Value < 1 || maximumLoadRequests.Value > 128))
-                throw new ArgumentException("A selected isolated load count must be positive and bounded.");
+            if (maximumLoadRequests.HasValue && (maximumLoadRequests.Value < 0 || maximumLoadRequests.Value > 128))
+                throw new ArgumentException("A selected isolated load count must be nonnegative and bounded.");
             maximumNativeWriteRequests = maximumWriteRequests;
             maximumNativeLoadRequests = maximumLoadRequests;
             var transitionDeclared = declaredTransitionSource != null || declaredTransitionTarget != null;

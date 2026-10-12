@@ -53,9 +53,24 @@ Small, progression or six-pair fixture by itself. A missing Ranger registration 
 must refuse before dispatch and retain the observed list. Never deserialize Working through
 a new bypass or convert an installed-mods control into base-only proof.
 
-Archive-content access is currently blocked by automatic review; a narrow generated-only
-progression test approval is pending. No denied check ran. Continue independent source and
-in-memory checks, and list any resulting candidate/native gate explicitly.
+The owner explicitly approved the generated progression archive test and required
+lab archive checks on 12 October. The generated-only progression test passed all
+15 valid/malformed cases in 15.633 s; the prior automatic-review refusal is preserved.
+Candidate must still execute its mandatory Test-Harness generated archive checks,
+package validation and guarded disposable fixture validators. Protected human saves
+remain untouched and Baseline read-only. This approval does not select Full or
+the whole diagnostics wrapper.
+
+The prepared next candidate version is preview.4; its product commit, DLL/package,
+suite and execution identities are not yet frozen. The first prerequisite case is
+chunk7-native-main-bootstrap / authored-main-campaign with BaseGameOnly. It must
+observe the actual Ranger/Horse registration before dispatch, use the exact native
+main-menu entry and authored preset, admit zero saved-game loads and one isolated
+Auto_1 autosave, and settle callbacks/loading/save-worker ownership before exit.
+A refusal leaves the row FAIL and preserves its observations. Native main-campaign
+creation alone cannot qualify ordinary Horse choices, Small, two mounted pairs,
+six-pair stress, cold load, or a derivative accepted by the older Working-only cases.
+Any later fixture chain needs its own exact native inventory and guarded authority.
 
 ## Subsequent selected segments
 

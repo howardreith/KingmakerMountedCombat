@@ -20,6 +20,7 @@ namespace KingmakerMountedCombat.Integration
     {
         private static PersistenceSaveAuthorization authority;
         private static bool nativeSlotRotation;
+        internal static bool NativeSlotRotationEnabled => nativeSlotRotation;
         internal static void EnableNativeSlotRotation()
         {
             if (authority == null) throw new InvalidOperationException("Native test slots require active isolated authority.");

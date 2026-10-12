@@ -4,6 +4,12 @@ Status: IN PROGRESS. Use the exact candidate and qualified behavior table in the
 final engineering handoff; native breadth and owner play acceptance are pending.
 This guide does not authorize installation into a human campaign.
 
+The current private implementation admits at most two mounted pairs. Its declared
+profiles are Medium riders on the KMC Horse or supported native Mammoth. Native
+multi-pair qualification is still incomplete. No Small profile is enabled yet;
+the Small catalogue remains empty until a specific observed body and pose are
+qualified. Six-pair stress is a separate required fixture/evidence gate.
+
 Select the rider and use Mount on that rider's own supported animal companion.
 Use Dismount on the rider to separate them. The Horse is a Ranger companion choice;
 KMC owns its addition to the native choice list, while Kingmaker owns acquisition
