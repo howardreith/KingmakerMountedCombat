@@ -1,4 +1,6 @@
 Set-StrictMode -Version Latest
+# RetainedObjectIdentity labels are RuntimeHelpers hash values; capacity bounds their count.
+function Assert-KmcBootstrapInventoryObject($Value){Assert-KmcOrdinaryInteger $Value ([int]::MinValue) ([int]::MaxValue);if($Value-eq0){throw 'Cold inventory object identity is zero.'}}
 function Test-KmcChunk7BootstrapInventoryScenario([string]$Scenario){$Scenario-ceq'chunk7-bootstrap-cold-inventory'}
 function Get-KmcChunk7BootstrapInventoryRows {@('chunk7-bootstrap-cold-inventory','C7-bootstrap-inventory-source','C7-bootstrap-inventory-native-load','C7-bootstrap-inventory-readonly','C7-bootstrap-inventory-cleanup','C7-bootstrap-inventory-runtime','C7-bootstrap-inventory-interrupted')}
 function Assert-KmcBootstrapInventoryString($Value,$Expected){if($Value-isnot[string]-or$Expected-isnot[string]-or$Value-cne$Expected){throw 'Bootstrap inventory exact scalar identity differs.'}}
@@ -34,7 +36,7 @@ function Assert-KmcChunk7BootstrapInventoryAuthority($Row,[string]$Root,[long]$G
 function Assert-KmcBootstrapInventoryWorld($Row,$Request,$Labels,$SourceWorld,[long]$MinimumFrame){
  Assert-KmcOrdinaryInteger $Row.frame $MinimumFrame ([int]::MaxValue)
  $objects=[Collections.Generic.HashSet[int]]::new()
- foreach($key in @('game','saveManager','player','state','areaState','mainState')){Assert-KmcOrdinaryInteger $Row.$key 1 128;if(-not$Labels.Contains([int]$Row.$key)-or-not$objects.Add([int]$Row.$key)){throw 'Cold world label was not retained or aliased another native role.'}}
+ foreach($key in @('game','saveManager','player','state','areaState','mainState')){Assert-KmcBootstrapInventoryObject $Row.$key;if(-not$Labels.Contains([int]$Row.$key)-or-not$objects.Add([int]$Row.$key)){throw 'Cold world label was not retained or aliased another native role.'}}
  foreach($key in @('gameId','gameName','area')){Assert-KmcBootstrapInventoryString $Row.$key $Request.persistenceLoad.$key}
  Assert-KmcBootstrapInventoryString $Row.mainActorId $SourceWorld.mainActorId;Assert-KmcBootstrapInventoryString $Row.mode 'Default'
  foreach($key in @('cutscene','inCombat','nativeLoading')){Assert-KmcChunk7Boolean $Row.$key $false}
@@ -45,7 +47,7 @@ function Assert-KmcBootstrapInventoryWorld($Row,$Request,$Labels,$SourceWorld,[l
   Assert-KmcOrdinaryGuid $actor.id;if(-not$ids.Add($actor.id)){throw 'Cold native actor ID repeated.'}
   $original=@($SourceWorld.party|Where-Object id -CEQ $actor.id);if($original.Count-ne1){throw 'Cold native actor differs from exact source.'}
   Assert-KmcBootstrapInventoryString $actor.blueprint $original[0].blueprint
-  foreach($key in @('object','descriptor','view')){Assert-KmcOrdinaryInteger $actor.$key 1 128;if(-not$Labels.Contains([int]$actor.$key)-or-not$objects.Add([int]$actor.$key)){throw 'Cold native object label is foreign or aliased.'}}
+  foreach($key in @('object','descriptor','view')){Assert-KmcBootstrapInventoryObject $actor.$key;if(-not$Labels.Contains([int]$actor.$key)-or-not$objects.Add([int]$actor.$key)){throw 'Cold native object label is foreign or aliased.'}}
   foreach($key in @('isInGame','isInState','commandsEmpty')){Assert-KmcChunk7Boolean $actor.$key $true}
  }
  if(-not$ids.Contains($Row.mainActorId)){throw 'Cold main actor is absent from its exact party.'}
@@ -116,11 +118,11 @@ function Assert-KmcChunk7BootstrapInventoryEvidence($Request,$Artifact,$SourceAr
  Assert-KmcBootstrapInventoryString $registry.contract 'retained-native-object-identity-v1';Assert-KmcOrdinaryInteger $registry.capacity 128 128;Assert-KmcOrdinaryInteger $registry.faults 0 0;Assert-KmcChunk7Boolean $registry.released $false
  if($registry.ids-isnot[Array]-or$registry.ids.Count-lt1-or$registry.ids.Count-gt128){throw 'Cold native registry is missing or unbounded.'}
  Assert-KmcOrdinaryInteger $registry.retainedCount $registry.ids.Count $registry.ids.Count;$labels=[Collections.Generic.HashSet[int]]::new()
- foreach($id in $registry.ids){Assert-KmcOrdinaryInteger $id 1 128;if(-not$labels.Add($id)){throw 'Cold native registry repeats a label.'}}
+ foreach($id in $registry.ids){Assert-KmcBootstrapInventoryObject $id;if(-not$labels.Add($id)){throw 'Cold native registry repeats a label.'}}
  $root=Join-Path (Join-Path (Join-Path (Split-Path (Split-Path $Request.evidenceRoot -Parent) -Parent) 'runtime-staging') ('persistence-'+$Request.runId)) 'Saved Games'
  Assert-KmcOrdinaryInteger $b.frame 0 ([int]::MaxValue)
  $beforeRoles=[Collections.Generic.HashSet[int]]::new()
- foreach($key in @('game','saveManager','menuPlayer')){Assert-KmcOrdinaryInteger $b.$key 1 128;if(-not$labels.Contains([int]$b.$key)-or-not$beforeRoles.Add([int]$b.$key)){throw 'Before-load native owner was not retained or aliased another role.'}}
+ foreach($key in @('game','saveManager','menuPlayer')){Assert-KmcBootstrapInventoryObject $b.$key;if(-not$labels.Contains([int]$b.$key)-or-not$beforeRoles.Add([int]$b.$key)){throw 'Before-load native owner was not retained or aliased another role.'}}
  foreach($key in @('loadedAreaPresent','nativeLoading')){Assert-KmcChunk7Boolean $b.$key $false}
  Assert-KmcChunk7BootstrapInventoryAuthority $b.authority $root $b.authority.generation 0
  Assert-KmcBootstrapInventoryWorld $w $Request $labels $o.sourceNativeWorld $b.frame
@@ -129,7 +131,7 @@ function Assert-KmcChunk7BootstrapInventoryEvidence($Request,$Artifact,$SourceAr
  foreach($key in @('game','saveManager','player','state','areaState','mainState','mainActorId','party')){if((ConvertTo-KmcChunk7Canonical $f.$key)-cne(ConvertTo-KmcChunk7Canonical $w.$key)){throw 'Final cold world or actors changed before cleanup.'}}
  $prior=$b.frame
  for($i=0;$i-lt2;$i++){$e=$load.events[$i];$kind=if($i-eq0){'native-player-postload-before'}else{'native-player-postload-after'};Assert-KmcBootstrapInventoryString $e.kind $kind;Assert-KmcOrdinaryInteger $e.frame $prior $w.frame;$prior=$e.frame
-  foreach($key in @('game','saveManager','player')){Assert-KmcOrdinaryInteger $e.$key 1 128;if($e.$key-ne$w.$key){throw 'Native PostLoad callback owner was substituted.'}}
+  foreach($key in @('game','saveManager','player')){Assert-KmcBootstrapInventoryObject $e.$key;if($e.$key-ne$w.$key){throw 'Native PostLoad callback owner was substituted.'}}
   Assert-KmcBootstrapInventoryString $e.gameId $Request.persistenceLoad.gameId
   if($i-eq1){Assert-KmcBootstrapInventoryString $e.mainActorId $w.mainActorId}else{if($null-ne$e.mainActorId){Assert-KmcBootstrapInventoryString $e.mainActorId $w.mainActorId}}
  }

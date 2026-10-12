@@ -1,4 +1,6 @@
 Set-StrictMode -Version Latest
+# RetainedObjectIdentity labels are RuntimeHelpers hash values; capacity bounds their count.
+function Assert-KmcNativeBootstrapObject($Value){Assert-KmcOrdinaryInteger $Value ([int]::MinValue) ([int]::MaxValue);if($Value-eq0){throw 'Native bootstrap object identity is zero.'}}
 function Test-KmcChunk7NativeBootstrapScenario([string]$Scenario){$Scenario-ceq'chunk7-native-main-bootstrap'}
 function Get-KmcChunk7NativeBootstrapRows {@('chunk7-native-main-bootstrap','C7-bootstrap-preflight','C7-bootstrap-native-start','C7-bootstrap-native-world','C7-bootstrap-autosave','C7-bootstrap-cleanup','C7-bootstrap-runtime','C7-bootstrap-interrupted')}
 function Assert-KmcChunk7NativeBootstrapSelection($Request){
@@ -75,7 +77,7 @@ function Assert-KmcChunk7NativeBootstrapEvidence($Request,$Artifact,[string]$Sta
  Assert-KmcChunk7NativeBootstrapAuthority $a $root $b.authority.generation 1
  foreach($row in @($b,$w)){
   Assert-KmcOrdinaryInteger $row.frame 0 ([int]::MaxValue)
-  foreach($key in @('game','player','saveManager')){Assert-KmcOrdinaryInteger $row.$key 1 128}
+  foreach($key in @('game','player','saveManager')){Assert-KmcNativeBootstrapObject $row.$key}
   foreach($key in @('owners','slots','casts','semanticRestores','presentationRestores','nativePostLoads')){Assert-KmcOrdinaryInteger $row.$key 0 0}
   Assert-KmcChunk7Boolean $row.nativeLoading $false
  }
@@ -83,7 +85,7 @@ function Assert-KmcChunk7NativeBootstrapEvidence($Request,$Artifact,[string]$Sta
  foreach($key in @('mainActor','mainView','snapshots','completedSaves')){Assert-KmcOrdinaryInteger $b.$key 0 0}
  if($null-ne$b.mainActorId-or$null-ne$b.area-or$null-ne$b.gameName){throw 'Native bootstrap did not begin at the empty menu.'}
  if($b.party-isnot[Array]-or$b.party.Count-ne0){throw 'Native bootstrap inherited a prior party.'}
- foreach($key in @('mainActor','mainView')){Assert-KmcOrdinaryInteger $w.$key 1 128}
+ foreach($key in @('mainActor','mainView')){Assert-KmcNativeBootstrapObject $w.$key}
  foreach($key in @('snapshots','completedSaves')){Assert-KmcOrdinaryInteger $w.$key 1 1}
  Assert-KmcOrdinaryGuid $w.mainActorId;Assert-KmcOrdinaryGuid $w.gameId
  if($w.gameId-ceq$Request.fixture.working.gameId-or$w.gameId-cne$a.frozenGameId-or$w.gameName-isnot[string]-or$w.gameName-cne$a.frozenGameName-or
@@ -91,11 +93,11 @@ function Assert-KmcChunk7NativeBootstrapEvidence($Request,$Artifact,[string]$Sta
  Assert-KmcChunk7Boolean $w.cutscene $false
  if($w.party-isnot[Array]-or$w.party.Count-lt1-or$w.party.Count-gt128){throw 'Native main-world party inventory invalid.'}
  $ids=[Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
- foreach($unit in $w.party){Assert-KmcOrdinaryGuid $unit.id;if(-not$ids.Add($unit.id)){throw 'Native party duplicates an actor.'};foreach($key in @('object','descriptor','view')){Assert-KmcOrdinaryInteger $unit.$key 1 128};if($unit.blueprint-isnot[string]-or$unit.blueprint-cnotmatch'^[a-f0-9]{32}$'){throw 'Native party blueprint invalid.'}}
+ foreach($unit in $w.party){Assert-KmcOrdinaryGuid $unit.id;if(-not$ids.Add($unit.id)){throw 'Native party duplicates an actor.'};foreach($key in @('object','descriptor','view')){Assert-KmcNativeBootstrapObject $unit.$key};if($unit.blueprint-isnot[string]-or$unit.blueprint-cnotmatch'^[a-f0-9]{32}$'){throw 'Native party blueprint invalid.'}}
  $main=@($w.party|Where-Object id -CEQ $w.mainActorId)
  if($main.Count-ne1-or$main[0].object-ne$w.mainActor-or$main[0].view-ne$w.mainView-or$main[0].blueprint-cne$p.playerBlueprint){throw 'Native main actor does not bind its party/view entry.'}
  $menu=$o.menuAdmission
- Assert-KmcOrdinaryInteger $menu.frame $b.frame $w.frame;Assert-KmcOrdinaryInteger $menu.menu 1 128
+ Assert-KmcOrdinaryInteger $menu.frame $b.frame $w.frame;Assert-KmcNativeBootstrapObject $menu.menu
  foreach($key in @('pcController','mainMenuSceneLoaded','loadingScreenPresent')){Assert-KmcChunk7Boolean $menu.$key $true}
  foreach($key in @('nativeBusy','unexpectedDialog','alreadyEntering')){Assert-KmcChunk7Boolean $menu.$key $false}
  $trace=$o.probe
@@ -110,7 +112,7 @@ function Assert-KmcChunk7NativeBootstrapEvidence($Request,$Artifact,[string]$Sta
  Assert-KmcOrdinaryInteger $registry.capacity 128 128;Assert-KmcOrdinaryInteger $registry.faults 0 0;Assert-KmcChunk7Boolean $registry.released $false
  if($registry.ids-isnot[Array]-or$registry.ids.Count-lt1-or$registry.ids.Count-gt128){throw 'Native bootstrap retained identity inventory invalid.'}
  Assert-KmcOrdinaryInteger $registry.retainedCount $registry.ids.Count $registry.ids.Count
- $labels=[Collections.Generic.HashSet[int]]::new();foreach($id in $registry.ids){Assert-KmcOrdinaryInteger $id 1 128;if(-not$labels.Add($id)){throw 'Native object identity is duplicated.'}}
+ $labels=[Collections.Generic.HashSet[int]]::new();foreach($id in $registry.ids){Assert-KmcNativeBootstrapObject $id;if(-not$labels.Add($id)){throw 'Native object identity is duplicated.'}}
  if(-not$labels.Contains([int]$menu.menu)){throw 'Native menu ownership label was not retained.'}
  foreach($row in @($b,$w)){foreach($key in @('game','player','saveManager','mainActor','mainView')){if($row.$key-ne0-and-not$labels.Contains([int]$row.$key)){throw 'Snapshot object was not retained.'}}}
  foreach($unit in $w.party){foreach($key in @('object','descriptor','view')){if(-not$labels.Contains([int]$unit.$key)){throw 'Native party label is outside retained registry.'}}}
@@ -120,11 +122,11 @@ function Assert-KmcChunk7NativeBootstrapEvidence($Request,$Artifact,[string]$Sta
  for($i=0;$i-lt5;$i++){
   $e=$trace.events[$i];Assert-KmcOrdinaryInteger $e.sequence ($i+1) ($i+1);Assert-KmcOrdinaryInteger $e.frame $prior $w.frame;$prior=$e.frame
   if($e.kind-isnot[string]-or$e.kind-cne$kinds[$i]-or$e.presetGuid-isnot[string]-or$e.presetGuid-cne$p.guid){throw 'Native bootstrap event sequence or preset differs.'}
-  foreach($key in @('game','player','menuPlayer','saveManager','preset')){Assert-KmcOrdinaryInteger $e.$key 1 128;if(-not$labels.Contains([int]$e.$key)){throw 'Native event identity was not retained.'}}
+  foreach($key in @('game','player','menuPlayer','saveManager','preset')){Assert-KmcNativeBootstrapObject $e.$key;if(-not$labels.Contains([int]$e.$key)){throw 'Native event identity was not retained.'}}
   if($e.game-ne$w.game-or$e.player-ne$w.player-or$e.menuPlayer-ne$w.player-or$e.saveManager-ne$w.saveManager-or($i-gt0-and$e.preset-ne$trace.events[0].preset)){throw 'Native callback owner changed.'}
   Assert-KmcChunk7Boolean $e.sameMenuPlayer $true;Assert-KmcChunk7Boolean $e.insideNativeNewGame ($i-lt4)
   if($i-gt0-and($e.gameId-isnot[string]-or$e.mainActorId-isnot[string]-or$e.gameId-cne$w.gameId-or$e.mainActorId-cne$w.mainActorId)){throw 'Native minted campaign/main actor changed between callbacks.'}
-  if($i-eq2-or$i-eq4){Assert-KmcOrdinaryInteger $e.save 1 128;if(-not$labels.Contains([int]$e.save)-or$e.saveType-isnot[string]-or$e.saveType-cne'Auto'){throw 'Native autosave descriptor is not exact.'};Assert-KmcChunk7Boolean $e.autoLevelup $false;if($i-eq2){$saveLabel=$e.save}else{if($e.save-ne$saveLabel){throw 'PrepareSave substituted the native autosave descriptor.'}}}
+  if($i-eq2-or$i-eq4){Assert-KmcNativeBootstrapObject $e.save;if(-not$labels.Contains([int]$e.save)-or$e.saveType-isnot[string]-or$e.saveType-cne'Auto'){throw 'Native autosave descriptor is not exact.'};Assert-KmcChunk7Boolean $e.autoLevelup $false;if($i-eq2){$saveLabel=$e.save}else{if($e.save-ne$saveLabel){throw 'PrepareSave substituted the native autosave descriptor.'}}}
  }
  $d=$o.nativeWrite;$prepared=$trace.events[4]
  Assert-KmcExactProperties $d @('path','fileName','internalName','gameId','gameName','area','type','length','sha256','operation','autoLevelup','contentInspected','coldLoadQualified') 'native bootstrap output'
