@@ -48,6 +48,7 @@ namespace KingmakerMountedCombat.Integration
         private int observedStockRequestFrame = -1;
         private MountedDoorInteractionCommand activeDoorInteraction;
         private UnitMoveTo activeRiderTurnGroundMove;
+        private MountedPairOwner<UnitEntityData, GameMountedRelationshipService> groundMoveOwner;
         private UnitMoveTo observedNativeMountTurnMove;
         private UnitMoveTo projectedNativeMountTurnGroundMove;
         private int projectedNativeMountTurnGroundMoveFrame = -1;
@@ -73,6 +74,7 @@ namespace KingmakerMountedCombat.Integration
             this.pairedCommandScheduler = pairedCommandScheduler ??
                 throw new ArgumentNullException(nameof(pairedCommandScheduler));
             this.logger = logger ?? throw new ArgumentNullException(nameof(logger));
+            relationship.CombatOwner = this;
             relationship.Dismounting += HandleDismounting;
             relationship.ChargeCleanupBarrier = trigger => TryDrainChargeOwnership("relationship cleanup " + trigger);
         }
@@ -86,6 +88,10 @@ namespace KingmakerMountedCombat.Integration
         public MountedCombatRejectionCode[] LastRejectionCodes { get; private set; } = new MountedCombatRejectionCode[0];
 
         public bool HasActiveCommand => activeCommand != null && !activeCommand.IsFinished;
+
+        internal bool HasRetainedPairCommands => HasChargeOwnership || activeCommand != null ||
+            finishedCommandPendingSweep != null || activeDoorInteraction != null || activeRiderTurnGroundMove != null ||
+            riderTurnGroundMoveAdmissionPending || HasStockAttackIntent;
 
         internal bool PreservesApproachParent(UnitCommands commands, UnitCommand.CommandType type, bool interruptPaired)
         {
@@ -1314,6 +1320,8 @@ namespace KingmakerMountedCombat.Integration
                 return false;
             }
 
+            groundMoveOwner = relationship.PairOwner;
+            if (!relationship.IsCurrentPairOwner(groundMoveOwner)) return false;
             riderTurnGroundMoveAdmissionPending = true;
             unifiedTurn.RememberPairedMovementInput();
             LastRejectionCodes = new MountedCombatRejectionCode[0];
@@ -1329,7 +1337,8 @@ namespace KingmakerMountedCombat.Integration
             }
 
             riderTurnGroundMoveAdmissionPending = false;
-            var command = relationship.Mount?.Commands?.GetCommand(UnitCommand.CommandType.Move) as UnitMoveTo;
+            if (!relationship.IsCurrentPairOwner(groundMoveOwner)) { groundMoveOwner = null; return; }
+            var command = groundMoveOwner.Mount?.Commands?.GetCommand(UnitCommand.CommandType.Move) as UnitMoveTo;
             if (routedUnit != relationship.Mount || command == null || command.Executor != relationship.Mount ||
                 !command.CreatedByPlayer || relationship.Mount.Commands.Queue.Contains(command))
             {
@@ -1725,7 +1734,7 @@ namespace KingmakerMountedCombat.Integration
                 turn != null && (turn.Status == TurnController.TurnStatus.Preparing || turn.IsActing);
             var commands = relationship.Mount?.Commands;
             var rawMove = commands?.GetCommand(UnitCommand.CommandType.Move);
-            if (!exactTurn || rawMove != command && !command.IsFinished)
+            if (!relationship.IsCurrentPairOwner(groundMoveOwner) || !exactTurn || rawMove != command && !command.IsFinished)
             {
                 CancelRiderTurnGroundMovement();
                 LastFeedback = "Mounted ground movement cancelled: rider turn or exact " + MountDisplayName + " Move-slot ownership changed.";
@@ -1742,6 +1751,7 @@ namespace KingmakerMountedCombat.Integration
                 commands.RemoveFinishedAndUpdateQueue();
             }
             activeRiderTurnGroundMove = null;
+            groundMoveOwner = null;
             relationship.Runtime.CancelMountMovement();
             LastGroundMoveDriveCount = activeGroundMoveDriveCount;
             LastGroundMoveResult = command.Result.ToString();
@@ -1770,7 +1780,7 @@ namespace KingmakerMountedCombat.Integration
         {
             if (settings.EnablePairedActivation) return;
             var command = activeRiderTurnGroundMove;
-            if (command == null || command.IsFinished || !CombatController.IsInTurnBasedCombat())
+            if (command == null || command.IsFinished || !relationship.IsCurrentPairOwner(groundMoveOwner) || !CombatController.IsInTurnBasedCombat())
             {
                 return;
             }
@@ -1807,6 +1817,7 @@ namespace KingmakerMountedCombat.Integration
         private void CancelRiderTurnGroundMovement()
         {
             riderTurnGroundMoveAdmissionPending = false;
+            groundMoveOwner = null;
             var command = activeRiderTurnGroundMove;
             activeRiderTurnGroundMove = null;
             if (command != null && !command.IsFinished)

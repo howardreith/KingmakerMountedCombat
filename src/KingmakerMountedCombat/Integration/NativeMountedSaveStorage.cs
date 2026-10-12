@@ -33,7 +33,7 @@ namespace KingmakerMountedCombat.Integration
                 if (saver.GetAllFiles().Contains(MountedSaveData.ArchiveMember))
                     return new MountedSaveReadResult(MountedSaveReadKind.Invalid, null, null,
                         "Mounted metadata requires the qualified native archive format.");
-                return MountedSaveCodec.Decode(null);
+                return NativeMountedSaveFormat.Decode(null);
             }
             var zip = NativeZip.Invoke(saver, null);
             if (zip == null) throw new InvalidDataException("The selected native archive could not be read.");
@@ -48,14 +48,14 @@ namespace KingmakerMountedCombat.Integration
                 matches++;
                 length = (long)type.GetProperty("UncompressedSize").GetValue(entry, null);
             }
-            if (matches == 0) return MountedSaveCodec.Decode(null);
+            if (matches == 0) return NativeMountedSaveFormat.Decode(null);
             if (matches != 1 || length <= 0 || length > MaximumBytes)
                 return new MountedSaveReadResult(MountedSaveReadKind.Invalid, null, null,
                     "Mounted archive member is duplicated or exceeds its bounded size.");
             var bytes = saver.ReadBytes(MountedSaveData.ArchiveMember);
             if (bytes == null || bytes.LongLength != length)
                 throw new InvalidDataException("Mounted archive member changed while reading.");
-            try { return MountedSaveCodec.Decode(Encoding.GetString(bytes)); }
+            try { return NativeMountedSaveFormat.Decode(Encoding.GetString(bytes)); }
             catch (DecoderFallbackException)
             {
                 return new MountedSaveReadResult(MountedSaveReadKind.Invalid, null, null,

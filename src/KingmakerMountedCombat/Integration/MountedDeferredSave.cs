@@ -62,7 +62,7 @@ namespace KingmakerMountedCombat.Integration
             // ledger's own admit-to-settle window defers it as well. Together they
             // make the documented claim true by construction rather than by
             // reasoning about when a frame boundary can be observed.
-            return !unifiedTurn.HasUnsettledPreparation &&
+            return relationship.AllSaveOwnersReady && !unifiedTurn.HasUnsettledPreparation &&
                 !controls.HasUnsettledRelationshipTransition &&
                 !game.State.Units.Any(u => u.Commands.Raw.Concat(u.Commands.Queue)
                     .Any(NativeSaveEffectBoundary.CommandNeedsSettlement)) &&

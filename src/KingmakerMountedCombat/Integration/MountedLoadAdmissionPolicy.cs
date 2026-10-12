@@ -10,7 +10,8 @@ namespace KingmakerMountedCombat.Integration
             if (read.Kind == MountedSaveReadKind.Missing) return null;
             if (read.Kind == MountedSaveReadKind.Future)
                 return "This save needs a newer mounted persistence version; its original data is retained.";
-            if (read.Kind != MountedSaveReadKind.Current || read.Data == null)
+            if (read.Kind != MountedSaveReadKind.Current || read.Data == null ||
+                (read.SourceSchema != 1 && read.SourceSchema != 2) || read.Data.SchemaVersion != 2)
                 return "Mounted save metadata is invalid; the original archive is retained.";
             var data = read.Data;
             if (data.CampaignId != campaign || data.AreaId != area)

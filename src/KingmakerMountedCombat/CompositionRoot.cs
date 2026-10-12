@@ -41,7 +41,8 @@ namespace KingmakerMountedCombat
             {
                 settings = new DiagnosticSettings();
                 horseCompanion = new HorseCompanionBlueprintService(logger);
-                relationship = new GameMountedRelationshipService(logger, settings);
+                var ownership = new MountedPairRegistry<Kingmaker.EntitySystem.Entities.UnitEntityData, GameMountedRelationshipService>(unit => unit.UniqueId);
+                relationship = new GameMountedRelationshipService(logger, settings, ownership);
                 lifecycleLedger = new NativeLifecycleDeliveryLedger();
                 horsePrimaryAttackAnimation = new HorsePrimaryAttackAnimationAdapter(relationship, logger);
                 pairedCommandScheduler = new MountedPairCommandScheduler(relationship, settings, logger);
@@ -71,6 +72,11 @@ namespace KingmakerMountedCombat
                     settings,
                     lifecycleLedger,
                     logger);
+                relationship.BindOwnershipReadiness(unifiedTurn.RetainsPairParticipation,
+                    () => combat.HasRetainedPairCommands,
+                    () => !unifiedTurn.HasUnsettledPreparation && !nativeControls.HasUnsettledRelationshipTransition &&
+                        !combat.HasChargeOwnership && !combat.ChargeNativeBoundaryPending,
+                    () => !combat.ChargeAdmissionFenced);
                 persistence = new MountedPersistenceService(relationship, nativeControls, unifiedTurn, settings, logger, combat);
                 combat.ChargeArchiveWorkerRunning = () => persistence.ActiveSaveWorkerRunning;
                 lifecycle = new MountedLifecycleSubscriber(relationship, lifecycleLedger, combat, unifiedTurn, persistence);
@@ -191,7 +197,7 @@ namespace KingmakerMountedCombat
             // disable instead of mutating the write in flight; the save always
             // settles, and its drain keeps running because persistence.Update
             // is deliberately not gated on IsEnabled.
-            if (persistence.SaveSuspended || combat.ChargeAdmissionFenced)
+            if (persistence.SaveSuspended || combat.ChargeAdmissionFenced || !relationship.AllTeardownOwnersReady)
             {
                 logger.Error("Diagnostic services cannot be disabled while a mounted save is still being written; " +
                     "retry once it finishes.");

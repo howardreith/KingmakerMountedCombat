@@ -166,6 +166,7 @@ namespace KingmakerMountedCombat.Integration
         private const float MaximumElapsedSeconds = 8.5f;
 
         private readonly GameMountedRelationshipService relationship;
+        private readonly MountedPairOwner<UnitEntityData, GameMountedRelationshipService> pairOwner;
         private readonly UnitEntityData rider;
         private readonly UnitEntityData mount;
         private readonly UnitEntityData attackTarget;
@@ -272,6 +273,7 @@ namespace KingmakerMountedCombat.Integration
             : base(target, rider, mount, action != MountedCombatActionKind.MountPrimaryNatural, singleAttack)
         {
             this.relationship = relationship ?? throw new ArgumentNullException(nameof(relationship));
+            pairOwner = relationship.PairOwner;
             this.rider = rider ?? throw new ArgumentNullException(nameof(rider));
             this.mount = mount ?? throw new ArgumentNullException(nameof(mount));
             attackTarget = target ?? throw new ArgumentNullException(nameof(target));
@@ -373,7 +375,7 @@ namespace KingmakerMountedCombat.Integration
                     : (attackTarget.Position - mount.Position).magnitude,
                 MaximumRange = mount == null ? 0f : MountedChargeGeometry.MaximumRange(mount),
                 RelationshipMounted = relationship.State == RelationshipState.Mounted,
-                ExactPair = relationship.Rider == rider && relationship.Mount == mount,
+                ExactPair = relationship.IsCurrentPairOwner(pairOwner) && relationship.Rider == rider && relationship.Mount == mount,
                 LifecycleBoundary = relationship.State == RelationshipState.Faulted,
                 RiderOwnsAttackSlot = actionActor != null && actionActor.Commands.Standard == this,
                 CarrierOwnsMountMoveSlot = delegatedMove != null && commands != null &&
@@ -1388,7 +1390,7 @@ namespace KingmakerMountedCombat.Integration
             var riderState = rider?.Descriptor?.State;
             var mountState = mount?.Descriptor?.State;
             var liveness = new MountedPairLivenessSnapshot(
-                relationship.State == RelationshipState.Mounted,
+                relationship.State == RelationshipState.Mounted && relationship.IsCurrentPairOwner(pairOwner),
                 relationship.Rider == rider,
                 relationship.Mount == mount,
                 Executor == actionActor,

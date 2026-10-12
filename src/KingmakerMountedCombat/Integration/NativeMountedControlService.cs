@@ -168,6 +168,7 @@ namespace KingmakerMountedCombat.Integration
         {
             public NativeMountedControlKind Kind;
             public long GenerationAtInit;
+            public MountedPairRequest<UnitEntityData, GameMountedRelationshipService> PairRequest;
             public string CasterId;
             public string TargetId;
             public string ControlIdentity;
@@ -452,8 +453,18 @@ namespace KingmakerMountedCombat.Integration
             NativeRelationshipShell existing;
             if (!relationshipShells.TryGetValue(command, out existing))
             {
+                var requestOwner = isMount ? this.relationship : this.relationship.ResolveActorOwner(caster, true);
+                var request = requestOwner?.CaptureNativeRequest(caster, isMount ? target : requestOwner.Mount, isDismount);
+                if (request == null)
+                {
+                    RecordShellLifecycle(NativeShellStage.InitRefused, null, "pair-ownership", DescribeInitPredicates(command));
+                    return;
+                }
+                // The local relationship is the captured owner, never the shared bridge projection.
+                var relationship = request.Boundary;
                 var shell = new NativeRelationshipShell
                 {
+                    PairRequest = request,
                     Kind = isMount ? NativeMountedControlKind.MountCompanion : NativeMountedControlKind.Dismount,
                     GenerationAtInit = relationship.MountedPairGeneration,
                     CasterId = caster.UniqueId,
@@ -637,6 +648,13 @@ namespace KingmakerMountedCombat.Integration
             }
 
             var shell = outcome == NativeShellBindingOutcome.ExecutionContext ? contextShell : slotShell;
+            var relationship = shell.PairRequest?.Boundary;
+            if (relationship == null)
+            {
+                refusal = "The native command has no captured pair owner.";
+                RetireShell(shell, "missing-pair-owner");
+                return null;
+            }
             // A shell that has already been refused for a permanent reason can never
             // become valid again, whichever binding later presents it.
             if (shell.Retired)
@@ -683,7 +701,7 @@ namespace KingmakerMountedCombat.Integration
                 // exact rider of the live relationship. The decision itself lives in
                 // DismountTargetIdentityPolicy so each rejected condition — missing,
                 // foreign, changed, changed-rider and stale-generation — is testable.
-                var liveRider = relationship.Rider;
+                var liveRider = shell.PairRequest?.Owner?.Rider;
                 refusal = DismountTargetIdentityPolicy.Refuse(
                     target != null,
                     target != null && ReferenceEquals(target, caster),
@@ -711,7 +729,11 @@ namespace KingmakerMountedCombat.Integration
                 RecordShellLifecycle(NativeShellStage.Registered, shell.ControlIdentity, "diagnostic-generation-invalidation",
                     diagnosticInvalidation);
             }
-            if (shell.GenerationAtInit != relationship.MountedPairGeneration)
+            GameMountedRelationshipService boundOwner;
+            if (shell.GenerationAtInit != relationship.MountedPairGeneration ||
+                !relationship.ResolveNativeRequest(shell.PairRequest, out boundOwner) ||
+                !ReferenceEquals(shell.PairRequest.Rider, caster) ||
+                kind == NativeMountedControlKind.MountCompanion && !ReferenceEquals(shell.PairRequest.Mount, target))
             {
                 refusal = "The mounted relationship changed after this transition was requested.";
                 LastRelationshipShellRefusal = refusal;
@@ -973,6 +995,7 @@ namespace KingmakerMountedCombat.Integration
             // state is set in a finally, so a business refusal or an exception cannot
             // leave a reusable shell behind. Native cost already committed by the command
             // stands; nothing is refunded here.
+            var playerAction = deliveringShell?.PairRequest.Boundary.PlayerActions;
             var deliveryOutcome = "not-attempted";
             try
             {

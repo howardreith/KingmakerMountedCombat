@@ -90,6 +90,7 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("result rejects incomplete fixture restoration", ResultRejectsIncompleteFixtureRestoration);
             runner.Run("result rejects inconsistent subscenario totals", ResultRejectsInconsistentSubscenarioTotals);
             runner.Run("result requires lowercase evidence manifest SHA-256", ResultRequiresEvidenceManifestSha256);
+            MountedPairOwnershipTests.Register(runner);
             MountedRelationshipTests.Register(runner);
             MountedPlayerActionTests.Register(runner);
             MountedCombatDomainTests.Register(runner);

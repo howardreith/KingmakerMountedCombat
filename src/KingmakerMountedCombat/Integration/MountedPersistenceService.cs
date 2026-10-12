@@ -571,13 +571,7 @@ namespace KingmakerMountedCombat.Integration
             scope.PartyState = scope.World.CrossSceneState;
             SaveSnapshotStarting?.Invoke();
             RequireChargeSaveBarrier(scope);
-            if (loaded != null && loaded.Kind != MountedSaveReadKind.Current && loaded.Kind != MountedSaveReadKind.Missing)
-            {
-                if (loaded.OriginalJson == null)
-                    throw new InvalidOperationException("Cannot preserve unreadable mounted metadata; source save remains intact.");
-                scope.Json = loaded.OriginalJson;
-            }
-            else scope.Json = MountedSaveCodec.Encode(Capture());
+            scope.Json = NativeMountedSaveFormat.CaptureOrPreserve(loaded, Capture);
             scope.ControlsSuspended = true;
             relationship.SaveSerializationSuspended = true;
             if (!controls.BeginSaveSerializationScope())
@@ -600,7 +594,7 @@ namespace KingmakerMountedCombat.Integration
             var combat = Enabled && game.Player.IsInCombat ? CaptureCombat() : null;
             return new MountedSaveData
             {
-                SchemaVersion = MountedSaveData.CurrentSchema,
+                SchemaVersion = NativeMountedSaveFormat.WriterSchema,
                 CampaignId = game.Player.GameId,
                 AreaId = game.CurrentlyLoadedArea.AssetGuidThreadSafe,
                 GameTimeTicks = game.TimeController.GameTime.Ticks,
@@ -706,18 +700,18 @@ namespace KingmakerMountedCombat.Integration
         {
             selectedCampaign = save.GameId;
             loaded = NativeMountedSaveStorage.Read(save.Saver);
-            if (loaded.Kind == MountedSaveReadKind.Current &&
+            if (NativeMountedSaveFormat.CanRestore(loaded) &&
                 (loaded.Data.CampaignId != save.GameId || loaded.Data.AreaId != save.Area?.AssetGuidThreadSafe))
                 loaded = new MountedSaveReadResult(MountedSaveReadKind.Invalid, null, loaded.OriginalJson,
                     "Mounted metadata campaign/area differs from the selected native archive.");
-            presentationPending = loaded.Kind == MountedSaveReadKind.Current;
+            presentationPending = NativeMountedSaveFormat.CanRestore(loaded);
             Feedback = loaded.Feedback ?? "Mounted save selected; awaiting native entities.";
             logger.Info(Feedback);
         }
 
         internal void RestoreActorAfterPostLoad(UnitEntityData unit)
         {
-            var data = loaded?.Data;
+            var data = NativeMountedSaveFormat.CanRestore(loaded) ? loaded.Data : null;
             if (!Enabled || data == null || (!data.Mounted && data.Combat == null) || unit == null || restoreLoad == null ||
                 restoreLoad.Sequence != loadSequence || !restoreLoad.World.TryBind(Game.Instance?.Player)) return;
             // SaveManager publishes GameId only AFTER PlayerState.PostLoad. The
