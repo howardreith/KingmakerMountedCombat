@@ -65,13 +65,26 @@ MVID `88792a60-80f7-4db0-a7e8-ca37309df157`. Frozen source:
 `worktrees/chunk7b-preview1-de7e7d3`; exact freeze receipt and qualification suite
 pins are under `analysis-cache/chunk7-continuation/candidate-world01-freeze.json`.
 
-The first Candidate run failed solely at the obsolete capacity-one test expectation.
-The corrected capacity-two/third-reservation refusal passes all 146 ownership checks
-on the same DLL; the initial failed receipt is retained. This commit changes tests/
-documentation only, so use FrozenProductSource with the preserved package; do not
-rebuild it to stamp a newer harness HEAD. Next command is Candidate -SkipBuild with
-the selected neighbors from `candidate-world01-validation.log`, then the complete
-frozen-source arguments for guarded runtime WhatIf and the declared exploration case.
+Candidate preview.1 passed the selected Candidate tier after reviewed harness
+repairs: 16 stages, 209.561 s; 271 harness and 701 installed Kingmaker contract
+checks. Receipt: candidate-world01-validation-harness02. Earlier capacity and
+263/8 harness failures remain preserved. The harness repairs require exact actor,
+world, command and animation ownership; independent review passed eight affected
+blocks / 83 assertions. Snapshot creation now follows locked save-continuity proof.
+
+A subsequent independent review found two emitted native completion rows missing
+from the compiled protocol allowlist. The exact frozen DLL rejects both cycle and
+sampling rows (world-protocol-repro02: 0 PASS / 2 FAIL); repro01 was an invalid
+reflection invocation, not product evidence. Preview.1 is preserved but is not
+eligible for native execution. The repair registers only those exact rows and adds
+a complete eight-row result regression with unknown-row rejection. Preview.2 is
+selected because compiled protocol bytes change; gameplay/ownership behavior does
+not change. No native process or live transaction has run.
+
+Next: review/commit/guarded-push the protocol and harness corrections, package once
+as c7b-world02, run Candidate -SkipBuild with the same selected neighbors, freeze a
+new suite/source/execution manifest, then guarded WhatIf and the exploration case.
+Keep the old package, suite and failure receipts immutable.
 
 The exact approved publication helper is
 `C:\Dev\KingmakerMountedCombatLab\codex-policy\Push-KingmakerMountedCombat.ps1`.
