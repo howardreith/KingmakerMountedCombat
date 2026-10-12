@@ -238,6 +238,9 @@
     <Compile Include="Diagnostics\Chunk7NativePartyFieldAdmission.cs" />
     <Compile Include="Diagnostics\Chunk7OrdinaryFieldScenario.cs" />
     <Compile Include="Diagnostics\Chunk7EvidenceDto.cs" />
+    <Compile Include="Diagnostics\Chunk7NativeBootstrapSelection.cs" />
+    <Compile Include="Diagnostics\Chunk7NativeBootstrapScenario.cs" />
+    <Compile Include="Diagnostics\Chunk7NativeBootstrapProbe.cs" />
     <Compile Include="Diagnostics\RuntimeProtocol.cs" />
     <Compile Include="Diagnostics\StopEarlyCaptureBoundary.cs" />
     <Compile Include="Diagnostics\WorkingFixtureLoadWatchdog.cs" />

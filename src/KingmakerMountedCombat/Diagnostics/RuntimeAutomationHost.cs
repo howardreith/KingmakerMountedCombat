@@ -87,6 +87,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private Chunk7OrdinaryAcquisitionScenario ordinaryEngine;
         private Chunk7OrdinaryFieldScenario ordinaryFieldEngine;
         private Chunk7SmallCalibrationScenario smallCalibrationEngine;
+        private Chunk7NativeBootstrapScenario nativeBootstrapEngine;
         private Chunk7ProgressionScenario progressionEngine;
         private Chunk7WorldScenarioEngine worldEngine;
         private Chunk7PersistenceScenario worldPersistenceEngine;
@@ -540,7 +541,8 @@ namespace KingmakerMountedCombat.Diagnostics
                     Phase3dHorseScenarioTranche.IsActorAllocationScenario(request.Scenario),
                     request.Scenario == Phase3dHorseScenarioTranche.OrdinaryAttackControlsScenario
                         ? Phase3dHorseScenarioTranche.OrdinaryScenarioDeadlineSeconds : 0.0);
-                if (Chunk7OrdinaryAcquisitionScenario.SupportsScenario(request.Scenario)) hostDeadline = 780.0;
+                if (Chunk7NativeBootstrapScenario.SupportsScenario(request.Scenario)) hostDeadline = 420.0;
+                else if (Chunk7OrdinaryAcquisitionScenario.SupportsScenario(request.Scenario)) hostDeadline = 780.0;
                 else if (Chunk7CombatScenario.SupportsScenario(request.Scenario)) hostDeadline = 480.0;
                 else if (Chunk7PersistenceScenario.SupportsScenario(request.Scenario) || Chunk7WorldScenarioEngine.SupportsScenario(request.Scenario)) hostDeadline = 420.0;
                 if (!IsManualReview && elapsedSeconds > hostDeadline)
@@ -639,6 +641,13 @@ namespace KingmakerMountedCombat.Diagnostics
                 throw new InvalidOperationException("Save-backed authorization was not activated during host construction.");
             }
 
+            // This exact opt-in owns its own pre-fixture native new-game path.
+            // The historical Working loader remains unstarted, not "verified".
+            if (Chunk7NativeBootstrapScenario.SupportsScenario(request.Scenario))
+            {
+                UpdateNativeBootstrap();
+                return;
+            }
             if (!fixtureLoaderStarted)
             {
                 if (persistenceBootstrap != null)
@@ -996,6 +1005,31 @@ namespace KingmakerMountedCombat.Diagnostics
             Complete(failures.Count == 0 ? "PASS" : "FAIL", failures);
         }
 
+        private void UpdateNativeBootstrap()
+        {
+            if (fixtureScenarioCompleted) return;
+            if (nativeBootstrapEngine == null)
+                nativeBootstrapEngine = new Chunk7NativeBootstrapScenario(request, saveAuthorization, relationship, nativeControls, persistence, horseCompanion);
+            var engine = nativeBootstrapEngine;
+            if (!engine.PreflightReady && !engine.IsCompleted) engine.Preflight();
+            if (engine.PreflightReady && !engine.IsBound && !engine.IsCompleted)
+            {
+                if (persistenceBootstrap == null) throw new InvalidOperationException("Native bootstrap lost its selected isolation constructor.");
+                if (!persistenceBootstrap.TryPrepare()) return;
+                saveAuthorizationLease.Dispose();
+                saveAuthorizationLease = saveAuthorization.Activate(request.Fixture, persistenceBootstrap.SaveRoot, false);
+                saveAuthorization.BindPersistenceScope(persistenceBootstrap.Authority);
+                engine.BindAndStart(persistenceBootstrap.Authority);
+                return;
+            }
+            if (engine.IsBound && !engine.IsCompleted) engine.Update();
+            if (!engine.IsCompleted) return;
+            subscenarioResults = engine.Results;
+            CollectEngineErrors(engine.Errors, "Chunk 7 native bootstrap");
+            fixtureScenarioCompleted = true;
+            Complete(engine.Errors.Count == 0 && scenarioEngineErrors.Count == 0 ? "PASS" : "FAIL", scenarioEngineErrors);
+        }
+
         private void CollectEngineErrors(IReadOnlyList<string> source, string prefix)
         {
             if (source == null)
@@ -1341,7 +1375,7 @@ namespace KingmakerMountedCombat.Diagnostics
             };
         }
 
-        private bool IsChunk7NativeFamily => Chunk7ProgressionScenario.SupportsScenario(request.Scenario) || Chunk7SmallCalibrationScenario.SupportsScenario(request.Scenario) || Chunk7OrdinaryFieldScenario.SupportsScenario(request.Scenario) || Chunk7OrdinaryAcquisitionScenario.SupportsScenario(request.Scenario) || Chunk7WorldScenarioEngine.SupportsScenario(request.Scenario) ||
+        private bool IsChunk7NativeFamily => Chunk7NativeBootstrapScenario.SupportsScenario(request.Scenario) || Chunk7ProgressionScenario.SupportsScenario(request.Scenario) || Chunk7SmallCalibrationScenario.SupportsScenario(request.Scenario) || Chunk7OrdinaryFieldScenario.SupportsScenario(request.Scenario) || Chunk7OrdinaryAcquisitionScenario.SupportsScenario(request.Scenario) || Chunk7WorldScenarioEngine.SupportsScenario(request.Scenario) ||
             Chunk7PersistenceScenario.SupportsScenario(request.Scenario) ||
             Chunk7CombatScenario.SupportsScenario(request.Scenario);
 
@@ -1403,6 +1437,14 @@ namespace KingmakerMountedCombat.Diagnostics
                 }, RecordChunk7CleanupFailure,
                 () =>
                 {
+                    if (nativeBootstrapEngine != null)
+                    {
+                        var bootstrapEngine = nativeBootstrapEngine;
+                        if (!bootstrapEngine.DrainForHost()) return false;
+                        subscenarioResults = bootstrapEngine.Results;
+                        CollectEngineErrors(bootstrapEngine.Errors, "Chunk 7 native bootstrap");
+                        bootstrapEngine.Dispose(); nativeBootstrapEngine = null;
+                    }
                     if (smallCalibrationEngine != null)
                     {
                         var smallEngine = smallCalibrationEngine;
@@ -1714,7 +1756,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private void FinalizeActiveScenarioEngines(List<string> finalErrors)
         {
             if (worldEngine != null && Chunk7WorldScenarioEngine.SupportsScenario(request.Scenario) ||
-                progressionEngine != null || smallCalibrationEngine != null || ordinaryFieldEngine != null || ordinaryEngine != null || worldPersistenceEngine != null || worldCombatEngine != null || IsChunk7NativeFamily && !chunk7Completion.Settled)
+                progressionEngine != null || nativeBootstrapEngine != null || smallCalibrationEngine != null || ordinaryFieldEngine != null || ordinaryEngine != null || worldPersistenceEngine != null || worldCombatEngine != null || IsChunk7NativeFamily && !chunk7Completion.Settled)
                 throw new InvalidOperationException("A Chunk 7 native owner reached finalization before its cleanup gate settled.");
             if (worldEngine != null)
             {

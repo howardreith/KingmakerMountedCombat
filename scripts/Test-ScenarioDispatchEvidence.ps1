@@ -59,6 +59,7 @@ foreach($scenario in @('C6D-move-cast-move','C6E-reaction-window','CHUNK6D-STAGE
  Check (-not(Test-KmcCompoundRuntimeScenario $scenario)) ('Row or inexact 6D/6E name treated as compound: '+$scenario)
 }
 $chunk7Families = [ordered]@{
+ 'chunk7-native-main-bootstrap'='Test-KmcChunk7NativeBootstrapScenario'
  'chunk7-two-pair-exploration'='world-fixed-root'
  'chunk7-small-profile-calibration'='Test-KmcChunk7SmallScenario'
  'chunk7-ordinary-acquisition'='Test-KmcChunk7OrdinaryScenario'
