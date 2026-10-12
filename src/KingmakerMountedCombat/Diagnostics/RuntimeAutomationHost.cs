@@ -2099,6 +2099,8 @@ namespace KingmakerMountedCombat.Diagnostics
             var manifestPath = Path.Combine(request.EvidenceRoot, "runtime-artifacts.json");
             var artifacts = new List<RuntimeArtifactRecord>();
             AddRuntimeArtifactIfPresent(artifacts, request.EvidenceRoot, RuntimeLoaderInventory.EvidenceFileName, RuntimeLoaderInventory.EvidenceKind);
+            AddRuntimeArtifactIfPresent(artifacts, request.EvidenceRoot, Chunk7NativeBootstrapScenario.EvidenceFileName, Chunk7NativeBootstrapScenario.EvidenceKind);
+            AddRuntimeArtifactIfPresent(artifacts, request.EvidenceRoot, Chunk7NativeBootstrapScenario.PendingFileName, Chunk7NativeBootstrapScenario.PendingKind);
             AddRuntimeArtifactIfPresent(artifacts, request.EvidenceRoot, Chunk7BootstrapInventoryScenario.EvidenceFileName, Chunk7BootstrapInventoryScenario.EvidenceKind);
             AddRuntimeArtifactIfPresent(artifacts, request.EvidenceRoot, Chunk7BootstrapInventoryScenario.PendingFileName, Chunk7BootstrapInventoryScenario.PendingKind);
             AddRuntimeArtifactIfPresent(artifacts, request.EvidenceRoot, Chunk7SmallCalibrationScenario.EvidenceFileName, Chunk7SmallCalibrationScenario.EvidenceKind);

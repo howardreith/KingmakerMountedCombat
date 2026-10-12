@@ -11,6 +11,7 @@ $selected = @(
     'Test-Chunk7CanonicalEvidence.ps1',
     'Test-Chunk7DiagnosticsOff.ps1',
     'Test-Chunk7ForensicDiagnosticsOff.ps1',
+    'Test-Chunk7ArtifactProducer.ps1',
     'Test-Chunk7CheckpointCleanupAdapter.ps1',
     'Test-Chunk7CleanupEvidence.ps1',
     'Test-Chunk7CombatCleanupAdapter.ps1',

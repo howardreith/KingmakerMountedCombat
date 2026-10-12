@@ -102,6 +102,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     "Native bootstrap refused before new game: Horse/Ranger registration faulted. " + horses.Failure);
                 Require(clock.Elapsed.TotalSeconds <= 90, "Native bootstrap Horse/blueprint readiness timed out before any new game or write.");
                 if (horses.State != HorseCompanionBlueprintState.Registered) return;
+                RequireNativeRangerSelection();
                 preset = ResolveMainPreset(); blueprintRoot = BlueprintRoot.Instance;
                 evidence["preset"] = new JObject { ["source"] = "BlueprintRoot.NewGamePreset", ["guid"] = preset.AssetGuid,
                     ["area"] = preset.Area.AssetGuidThreadSafe, ["enterPoint"] = preset.EnterPoint.AssetGuid,
@@ -127,6 +128,16 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["authorizedLoads"] = authorization.AuthorizedLoadCount, ["authorizedWrites"] = authorization.AuthorizedWriteCount,
                 ["nativeNewGameDispatched"] = dispatched };
         }
+        private void RequireNativeRangerSelection()
+        {
+            Require(horses.State == HorseCompanionBlueprintState.Registered,
+                "Native bootstrap Horse registration is no longer ready.");
+            BlueprintScriptableObject value = null;
+            ResourcesLibrary.LibraryObject?.BlueprintsByAssetId.TryGetValue(
+                HorseCompanionBlueprintService.RangerSelectionGuid, out value);
+            HorseCompanionBlueprintService.RequireNativeRangerOptions(
+                (value as BlueprintFeatureSelection)?.AllFeatures, horses.HorseFeature);
+        }
         internal void BindAndStart(PersistenceSaveAuthorization scope)
         {
             Require(preflightReady && authority == null && !cleanup, "Native bootstrap is not ready for its single isolated binding.");
@@ -134,7 +145,7 @@ namespace KingmakerMountedCombat.Diagnostics
             evidence["nativeSourceMetadataEnumerationCompleted"] = true;
             try
             {
-                RequireNativeMenuAdmission(); RequireAuthority(false);
+                RequireNativeMenuAdmission(); RequireNativeRangerSelection(); RequireAuthority(false);
                 Require(authority.MatchesNativeBootstrapPlan(request.Fixture.Working, preset.Area.AssetGuidThreadSafe) &&
                     authority.AdmittedNativeLoadRequests == 0 && authority.AdmittedNativeWriteRequests == 0 &&
                     authority.BootstrapFreezeCount == 0 && !authority.BootstrapWindowOpen && authority.BootstrapGameId == null,
@@ -163,7 +174,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     {
                         Require(!cleanup && (DialogMessageBox.Instance == null || !DialogMessageBox.Instance.IsShown),
                             "Native bootstrap entry was cancelled or an unexpected dialog appeared before its owned callback.");
-                        RequireOriginalMenu(); RequireAuthority(false);
+                        RequireOriginalMenu(); RequireNativeRangerSelection(); RequireAuthority(false);
                         Require(ReferenceEquals(BlueprintRoot.Instance, blueprintRoot) && ReferenceEquals(ResolveMainPreset(), preset), "Authored native preset changed before entry.");
                         authority.OpenBootstrapWindow();
                         game.LoadNewGame(preset, null);

@@ -34,8 +34,19 @@ function Assert-KmcChunk7NativeBootstrapPreflight($Value,[bool]$Passed){
   if($Value.horseState-cne'Registered'-or$null-ne$Value.horseFailure-or$Value.horseFeatureGuid-cne'7db7c50677e39f09feef56f3831fc723'-or$Value.horseUnitGuid-cne'4016c7db400ab721ff125aef9e65e202'){throw 'Bootstrap did not pass exact Horse registration before new game.'}
   Assert-KmcChunk7Boolean $Value.libraryReady $true;Assert-KmcChunk7Boolean $Value.rangerSelectionPresent $true
   foreach($key in @('loadedAreaPresent','mainActorPresent','nativeNewGameDispatched')){Assert-KmcChunk7Boolean $Value.$key $false}
-  Assert-KmcOrdinaryInteger $Value.rangerAllFeaturesCount 8 8
-  if($Value.rangerFirst32Guids[7]-cne$Value.horseFeatureGuid){throw 'Registered Horse did not occupy its one appended Ranger option.'}
+  # This family is base-game-only. The historical seven-entry mod-adjusted
+  # selection is valid for the registrar, but cannot prove this native contract.
+  $nativePrefix=@('472091361cf118049a2b4339c4ea836a','f6f1cdcc404f10c4493dc1e51208fd6f',
+   'afb817d80b843cc4fa7b12289e6ebe3d','f9ef7717531f5914a9b6ecacfad63f46',
+   'f894e003d31461f48a02f5caec4e3359','e992949eba096644784592dc7f51a5c7',
+   'aa92fea676be33d4dafd176d699d7996','2ee2ba60850dd064e8b98bf5c2c946ba',
+   '6adc3aab7cde56b40aa189a797254271','ece6bde3dfc76ba4791376428e70621a',
+   '126712ef923ab204983d6f107629c895','67a9dc42b15d0954ca4689b13e8dedea')
+  Assert-KmcOrdinaryInteger $Value.rangerAllFeaturesCount 13 13
+  for($index=0;$index-lt$nativePrefix.Count;$index++){
+   if($Value.rangerFirst32Guids[$index]-cne$nativePrefix[$index]){throw 'Base-only Ranger option prefix changed.'}
+  }
+  if($Value.rangerFirst32Guids[12]-cne$Value.horseFeatureGuid){throw 'Registered Horse did not occupy its one appended native Ranger option.'}
  }
 }
 function Assert-KmcChunk7NativeBootstrapEvidence($Request,$Artifact,[string]$Status='PASS'){
