@@ -471,7 +471,7 @@ namespace KingmakerMountedCombat.Integration
             hoofName = hoof.name;
             // Installed BlueprintFeatureSelection.Items enumerates AllFeatures,
             // not Features. The live Ranger Features surface is not the same
-            // seven-entry runtime selection array, so it is intentionally left
+            // admitted runtime selection array, so it is intentionally left
             // untouched. Lease only the exact Items-authoritative surface.
             selectionLease = new ExactAppendOnlyArrayLease<BlueprintFeature>(
                 RequireExactRangerOptions(rangerSelection.AllFeatures, "AllFeatures"), horseFeature);
@@ -563,9 +563,23 @@ namespace KingmakerMountedCombat.Integration
             }
         }
 
-        private static BlueprintFeature[] RequireExactRangerOptions(BlueprintFeature[] features, string surface)
+        internal static void RequireNativeRangerOptions(BlueprintFeature[] features, BlueprintFeature horse)
         {
-            var expectedGuids = new[]
+            if (features == null || features.Length != 13 || horse == null ||
+                !string.Equals(horse.AssetGuid, FeatureGuid, StringComparison.Ordinal) ||
+                !ReferenceEquals(features[12], horse))
+            {
+                throw new InvalidOperationException("Base-only bootstrap requires the exact native Ranger append.");
+            }
+            RequireExactRangerOptions(features.Take(12).ToArray(), "native bootstrap prefix");
+        }
+
+        internal static BlueprintFeature[] RequireExactRangerOptions(BlueprintFeature[] features, string surface)
+        {
+            // These are two separately observed exact contracts. The historical
+            // seven-entry shape is a CotW rewrite; the independent native game
+            // exposes twelve. Neither admits an arbitrary extension or reordering.
+            var historicalGuids = new[]
             {
                 "472091361cf118049a2b4339c4ea836a",
                 DogFeatureGuid,
@@ -575,10 +589,27 @@ namespace KingmakerMountedCombat.Integration
                 "ece6bde3dfc76ba4791376428e70621a",
                 "67a9dc42b15d0954ca4689b13e8dedea"
             };
+            var nativeGuids = new[]
+            {
+                "472091361cf118049a2b4339c4ea836a",
+                "f6f1cdcc404f10c4493dc1e51208fd6f",
+                "afb817d80b843cc4fa7b12289e6ebe3d",
+                "f9ef7717531f5914a9b6ecacfad63f46",
+                DogFeatureGuid,
+                "e992949eba096644784592dc7f51a5c7",
+                "aa92fea676be33d4dafd176d699d7996",
+                "2ee2ba60850dd064e8b98bf5c2c946ba",
+                MammothFeatureGuid,
+                "ece6bde3dfc76ba4791376428e70621a",
+                "126712ef923ab204983d6f107629c895",
+                "67a9dc42b15d0954ca4689b13e8dedea"
+            };
+            var expectedGuids = features != null && features.Length == nativeGuids.Length
+                ? nativeGuids : historicalGuids;
             if (features == null || features.Length != expectedGuids.Length)
             {
                 throw new InvalidOperationException("The exact Ranger companion " + surface +
-                    " surface no longer has seven stock options; observedCount=" +
+                    " surface matches neither historical seven nor native twelve options; observedCount=" +
                     (features == null ? "null" : features.Length.ToString(System.Globalization.CultureInfo.InvariantCulture)) +
                     "; observedFirst32=" + (features == null ? "<null>" : string.Join(",",
                         features.Take(32).Select(feature => feature == null ? "<null>" : feature.AssetGuid))) + ".");

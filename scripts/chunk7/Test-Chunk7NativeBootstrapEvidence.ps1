@@ -85,6 +85,18 @@ $cases=[ordered]@{
  'identity window open'={param($f)$f.artifact.observations.cleanup.identityWindowOpen=$true}
 }
 foreach($case in $cases.GetEnumerator()){Bad-Bootstrap $case.Key {$f=New-BootstrapFixture;&$case.Value $f;Assert-KmcChunk7NativeBootstrapEvidence $f.request $f.artifact}}
+Bad-Bootstrap 'historical mod-adjusted eight entries cannot prove base-only registration' {
+ $f=New-BootstrapFixture;$p=$f.artifact.observations.preflight
+ $p.rangerFirst32Guids=@('472091361cf118049a2b4339c4ea836a','f894e003d31461f48a02f5caec4e3359',
+  'e992949eba096644784592dc7f51a5c7','aa92fea676be33d4dafd176d699d7996','2ee2ba60850dd064e8b98bf5c2c946ba',
+  'ece6bde3dfc76ba4791376428e70621a','67a9dc42b15d0954ca4689b13e8dedea',$p.horseFeatureGuid)
+ $p.rangerAllFeaturesCount=8;Assert-KmcChunk7NativeBootstrapEvidence $f.request $f.artifact
+}
+for($index=0;$index-lt12;$index++){
+ Bad-Bootstrap ('foreign native prefix entry '+$index) {$f=New-BootstrapFixture;$f.artifact.observations.preflight.rangerFirst32Guids[$index]='a'*32;Assert-KmcChunk7NativeBootstrapEvidence $f.request $f.artifact}
+ Bad-Bootstrap ('reordered native prefix entry '+$index) {$f=New-BootstrapFixture;$p=$f.artifact.observations.preflight;$next=($index+1)%12;$swap=$p.rangerFirst32Guids[$index];$p.rangerFirst32Guids[$index]=$p.rangerFirst32Guids[$next];$p.rangerFirst32Guids[$next]=$swap;Assert-KmcChunk7NativeBootstrapEvidence $f.request $f.artifact}
+}
+Bad-Bootstrap 'equal-count duplicate Horse does not substitute for a native option' {$f=New-BootstrapFixture;$p=$f.artifact.observations.preflight;$p.rangerFirst32Guids[3]=$p.horseFeatureGuid;Assert-KmcChunk7NativeBootstrapEvidence $f.request $f.artifact}
 Good-Bootstrap 'preflight refusal preserves actual bounded list without claiming native start' {$f=New-BootstrapFixture;$f.artifact.status='FAIL';$f.artifact.errors=@('Ranger prerequisite missing');$f.artifact.observations=[pscustomobject]@{preflight=$f.artifact.observations.preflight};$f.artifact.observations.preflight.horseState='Faulted';$f.artifact.observations.preflight.rangerAllFeaturesCount=2;$f.artifact.observations.preflight.rangerFirst32Guids=@(('a'*32),$null);Assert-KmcChunk7NativeBootstrapEvidence $f.request $f.artifact 'FAIL'}
 Good-Bootstrap 'prior enabled slot projection restores enabled state' {$f=New-BootstrapFixture;$f.artifact.observations.cleanup.slotProjectionBefore=$true;$f.artifact.observations.cleanup.slotProjectionAfter=$true;Assert-KmcChunk7NativeBootstrapEvidence $f.request $f.artifact}
 Write-Host ('TOTAL PASS='+$script:bootstrapPasses+' FAIL='+$script:bootstrapFailures)

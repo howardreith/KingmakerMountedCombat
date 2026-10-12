@@ -100,6 +100,8 @@ class Chunk7NativeBootstrapScenario {
  internal void Poll()=>PollCleanup();
  internal void Bind(PersistenceSaveAuthorization scope)=>BindAndStart(scope);
  private BlueprintAreaPreset ResolveMainPreset()=>preset;
+ private void RequireNativeRangerSelection(){nativeRangerChecks++;Require(nativeRangerReady,"Exact native Ranger boundary refused");}
+ internal bool nativeRangerReady=true;internal int nativeRangerChecks;
  private static bool NativeMenuAlreadyEntering(MainMenu menu)=>menu.AlreadyEntering;
  private JObject Snapshot()=>new JObject();
  private JObject AuthoritySnapshot()=>new JObject();
@@ -133,6 +135,8 @@ static class BootstrapAdapterTests {
   Reject("shared preparation",x=>x.world.UnifiedTurn.HasUnsettledPreparation=true);Reject("mounted boundary",x=>x.world.Pairs[0].Relationship.State=RelationshipState.Mounted);
   Reject("local owner",x=>x.world.Pairs[0].Relationship.PairOwner=new object());Reject("local preparation residue",x=>x.world.Pairs[0].Relationship.Runtime.NoPreparedPairResidue=false);
   Reject("exact command",x=>x.world.Pairs[0].Combat.HasActiveCommand=true);Reject("ground movement",x=>x.world.Pairs[0].Combat.HasActiveGroundMovement=true);Reject("charge owner",x=>x.world.Pairs[0].Combat.HasChargeOwnership=true);
+  s=New();s.nativeRangerReady=false;s.Bind(new PersistenceSaveAuthorization());Check(s.cleanup&&!s.dispatched&&s.game.UI.MainMenu.Dispatches==0&&s.game.NativeCalls==0&&NativePersistenceIsolation.EnableCalls==0,"non-native Ranger surface refuses before dispatch or slot mutation");s.Poll();
+  s=New();s.Bind(new PersistenceSaveAuthorization());s.nativeRangerReady=false;s.game.UI.MainMenu.Pending();Check(s.cleanup&&s.callbackReturned&&s.game.NativeCalls==0&&!s.authority.BootstrapWindowOpen&&s.nativeRangerChecks==2,"Ranger change after preflight refuses queued callback before native write window");s.Poll();
   s=New();s.Bind(new PersistenceSaveAuthorization());if(s.errors.Count!=0)Console.WriteLine("ADAPTER BIND: "+string.Join("|",s.errors));Check(s.dispatched&&!s.callbackEntered&&s.probe!=null&&NativePersistenceIsolation.NativeSlotRotationEnabled,"field and slot custody precede native callback dispatch");
   s.StartCleanup();s.Poll();Check(!s.completed&&HarmonyInstance.UnpatchCalls==0&&s.slotOwned,"pending native callback retains probe and slot");
   s.clock.Elapsed=TimeSpan.FromSeconds(46);s.Poll();s.Poll();Check(RuntimeLoaderInventory.PendingWrites==1&&RuntimeLoaderInventory.FinalWrites==0,"pending deadline writes one separate immutable failure leaf");
