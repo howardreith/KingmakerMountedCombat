@@ -74,9 +74,22 @@ Any later fixture chain needs its own exact native inventory and guarded authori
 
 ## Subsequent selected segments
 
+Preview.4 update: source 953e75be422a28047c352348c5aac9ee83276f42 and harness 8a31478
+completed full WhatIf PASS 9164.7308559 s and the selected bootstrap FAIL 136.0062906 s.
+Native dispatch/load/write were zero. Actual base-only Ranger12 refused the old
+exact7 guard; a missing producer manifest record independently failed validation.
+Mods/saves restored exactly, process exited, lock released. The profile receipt
+records six accepted cache changes, not whole-profile byte equality. Raw evidence
+and identities are retained in the [native record](../docs/CHUNK7-NATIVE-OBSERVATIONS-2026-10-12.md).
+Three of 25 invocations are now used. Repair the demonstrated causes and review
+the coherent diff before another candidate or affected bootstrap attempt. The
+integrated cold-inventory bridge requires a successful bootstrap on its own
+candidate bytes and separate exact cold-load/restoration evidence; no preview.4
+save was created and no derivative is qualified.
+
 These remain required; an implemented case and its exact candidate manifest must
 exist before launch. The initial segment is an internal checkpoint, not completion.
-Select at most 24 additional native invocations across the following families before
+Select at most 22 further native invocations (25 total) across the following families before
 reassessing the mission's remaining gaps. Each case has an existing/declared bounded
 stage budget and at most 900 seconds of native harness time; planning ceiling six
 hours total, excluding mandatory safe restoration. A defect changes the hypothesis
@@ -90,7 +103,7 @@ historical full campaign or weaken older fixtures to fill a missing row.
 | TB combat | Both actual initiative arrangements, full spending/end, reactions/movement, cost-free TB Charge refusal. |
 | Retained custody | R1 round N/N+1 repeated cleanup, dismount/re-pair, mode change, pending/removal survivor, independent failed cleanup. |
 | Persistence | Actual manual/quick/auto save and separate cold loads, RT/TB debt, zero mounted with retained obligations, no extra Prepare. |
-| Migration | Qualified disposable schema-1/2 including mounted pending-only R2 through new native restoration and capture; malformed/unknown protections. Nine implemented cases include R2 schema 2 and load-only legacy-schema1-resave-manual. The schema-1 case reuses the unchanged guarded P06 source/derivative helpers, installs the whole-world observer before native load, requires zero extra Prepare/round and a distinct native schema-3 resave. Its actual native evidence remains required. |
+| Migration | Qualified disposable schema-1/2 including mounted pending-only R2 through new native restoration and capture; malformed/unknown protections. Nine implemented cases include R2 schema 2 and load-only legacy-schema 1-resave-manual. The schema-1 case reuses the unchanged guarded P06 source/derivative helpers, installs the whole-world observer before native load, requires zero extra Prepare/round and a distinct native schema-3 resave. Its actual native evidence remains required. |
 | Shared boundaries | Area-before-autosave, nonselected unsettled-owner deferral, worker/iterator fault/cancel and session/disable/removal. |
 | Profiles/progression | Native Small candidate chosen from inventory, precise body/equipment/pose, ordinary new/existing acquisition, leveling/replacement/retraining. |
 | Stress/hardening | Qualified six-pair fixture if safe, repeated area/load cycles, actual comparable cost/retention, diagnostics-off and base-only inventory. |
