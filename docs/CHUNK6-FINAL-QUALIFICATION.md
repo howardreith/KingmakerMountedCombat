@@ -1,3 +1,10 @@
+> Current qualification: the owner subsequently authorized final execution, and
+> the unchanged preview.211 campaign, both completion ledgers and final FULL passed.
+> See [the engineering closeout](CHUNK6-ENGINEERING-CLOSEOUT-2026-10-11.md).
+> The record below is historical: its assumed outcomes and original failures
+> remain unchanged. Its old next-command recipes are not an active assignment.
+> Human acceptance remains pending; the October 11 focused policy still governs.
+
 # Chunk 6 final qualification — October 11, 2026
 
 IN PROGRESS. The owner explicitly resumed final qualification after the read-only takeover. The endpoint is both completion ledgers, final FULL, accurate published review-branch closeout, and **CHUNK 6 ENGINEERING COMPLETE — OWNER ACCEPTANCE PENDING**. No additional merge, PR, tag, release change, permanent installation or human acceptance is authorized.

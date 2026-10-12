@@ -54,7 +54,7 @@ Use existing behavior/contract infrastructure and focused regressions for concre
 risks. Do not weaken thresholds, package/dependency allowlists, safety guards,
 completion validators or assertions to report PASS. Preserve failed evidence,
 frozen binaries, source/reader/fixture identities and old/new reader verdicts.
-Full preview.211 acceptance remains pending, as CURRENT.md records.
+Preview.211 engineering qualification passed; owner/HUMAN PLAY acceptance remains pending, as CURRENT.md records.
 
 Wrath is read-only: never launch/modify it or depend on its assemblies in
 production. Record original contract summaries and metadata; do not import or

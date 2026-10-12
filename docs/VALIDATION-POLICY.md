@@ -81,9 +81,11 @@ reuse and narrower reader identities require a separately bounded follow-up with
 dependency-bound proof and bounded filesystem tests. This patch does not bypass
 live guards, weaken the completion validator or redesign the ledger.
 
-Preview.211 final acceptance remains pending: 24 campaign stages PASS, stopped
-by the owner at stage 25 of 109, and no complete ledger for that binary. The
-109-stage campaign and 105-row Chunk 5 matrix remain explicit final qualification
-requirements. Their historical handoff is not a current instruction to launch
-them during ordinary work. Snapshot the actual human installation for restoration;
-never copy a historical preview pin into a current transaction.
+The owner separately selected preview.211 final qualification after this workflow
+reset. Its 109-stage campaign, 105 mandatory Chunk 5 behaviors, both completion
+ledgers and final FULL now pass on the unchanged released product; see
+[the closeout](CHUNK6-ENGINEERING-CLOSEOUT-2026-10-11.md). Human acceptance remains
+pending. This completed milestone does not select another campaign for ordinary
+work. All frequency, identity and live-safety rules above remain in force.
+Snapshot actual current human installation for any later transaction; never copy
+a historical preview pin into its restoration target.
