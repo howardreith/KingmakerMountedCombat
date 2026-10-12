@@ -9,7 +9,7 @@ Raw failures and exact restoration receipts stay private and immutable.
 
 ## First bounded execution segment
 
-Candidate: next reviewed preview.3 (not yet frozen). Preview.1 is retained after its protocol finding; preview.2 is retained and ineligible after confirmed diagnostic cleanup defects. Explicit native capacity two, schema-3 world
+Candidate: reviewed preview.3, product source b97db97f8f9641eea802a725295161ebdac4ad03, frozen in analysis-cache/chunk7-continuation/candidate-world03-freeze.json. Candidate PASS15 stages/346.6120886 s; fresh suite created from the current installation. Guarded full purity and native evidence are still pending. Preview.1 is retained after its protocol finding; preview.2 is retained and ineligible after confirmed diagnostic cleanup defects. Explicit native capacity two, schema-3 world
 adapter, legacy schema-1/2 migration, Medium Horse/Mammoth, paired preset, Charge
 default-off, overlay off. Final source/package identities are recorded after the
 clean commit/package and Candidate tier. No native save-writing scenario here.
