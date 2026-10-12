@@ -47,7 +47,7 @@ function Get-KmcPhase3dEvidenceDispatch([long]$SchemaVersion,[string]$Scenario) 
 # dedicated validator the dispatch above selects, so the generic envelope readers
 # do not demand a self-named row for them. Individual scenarios keep the rule.
 function Get-KmcCompoundRuntimeScenarios {
-    @('chunk7-bootstrap-cold-inventory','chunk7-native-main-bootstrap','chunk7-native-progression','chunk7-small-profile-calibration','chunk7-ordinary-field-admission','chunk7-ordinary-acquisition','chunk7-two-pair-exploration','chunk7-persistence-save','chunk7-persistence-load','chunk7-two-pair-combat-rider-first','chunk7-two-pair-combat-mount-first','chunk7-two-pair-realtime-core','chunk7-two-pair-realtime-casting','chunk7-two-pair-realtime-charge','chunk7-two-pair-native-life-cleanup','chunk6c-casting-rt','chunk6c-casting-tb','chunk6c-casting-unmounted-rt','chunk6c-casting-unmounted-tb',
+    @('chunk7-bootstrap-manual-seed','chunk7-bootstrap-cold-inventory','chunk7-native-main-bootstrap','chunk7-native-progression','chunk7-small-profile-calibration','chunk7-ordinary-field-admission','chunk7-ordinary-acquisition','chunk7-two-pair-exploration','chunk7-persistence-save','chunk7-persistence-load','chunk7-two-pair-combat-rider-first','chunk7-two-pair-combat-mount-first','chunk7-two-pair-realtime-core','chunk7-two-pair-realtime-casting','chunk7-two-pair-realtime-charge','chunk7-two-pair-native-life-cleanup','chunk6c-casting-rt','chunk6c-casting-tb','chunk6c-casting-unmounted-rt','chunk6c-casting-unmounted-tb',
       'chunk6d-staged-rt','chunk6d-staged-tb','chunk6e-reaction-rt','chunk6e-reaction-tb')
 }
 function Test-KmcCompoundRuntimeScenario([string]$Scenario) {

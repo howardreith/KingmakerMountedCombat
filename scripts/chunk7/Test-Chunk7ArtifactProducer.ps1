@@ -30,8 +30,8 @@ $template=[IO.File]::ReadAllText((Source 'tests/Chunk7Diagnostics/ArtifactProduc
 $publisher=(@('private static string PublishRuntimeArtifactManifest(RuntimeRequest request)','private static void AddRuntimeArtifactIfPresent(','private static void AddRuntimeArtifact(','private static string ComputeSha256(string path)','private static void WriteJsonReplacingAtomic(','private sealed class RuntimeArtifactManifest','private sealed class RuntimeArtifactRecord')|ForEach-Object{Member $hostText $_})-join[Environment]::NewLine
 $settings=(Member $hostText 'private static readonly JsonSerializerSettings JsonSettings')+';'
 $writer=(Member $loaderText 'internal static void WriteArtifact(')+[Environment]::NewLine+(Member $loaderText 'private static string Hash(string path)')
-$classNames=@('Chunk7NativeBootstrapScenario','Chunk7BootstrapInventoryScenario','Chunk7SmallCalibrationScenario','Chunk7ProgressionScenario','Chunk7OrdinaryFieldScenario','Chunk7OrdinaryAcquisitionScenario','Chunk7WorldScenarioEngine','Chunk7MatchedPoolCollector','Chunk7PersistenceScenario','Chunk7CombatScenario','BoundaryScenarioEvidenceContract','HorseNativeAssetAuditService','HorseCompanionBlueprintRegistrationAuditService','HorseCompanionUnmountedScenarioEngine','Phase3dHorseScenarioTranche','Chunk6aMammothScenarioEngine')
-$classNames+=@('Chunk7BootstrapInventorySelection','Chunk7SmallCalibrationSelection','Chunk7ProgressionSelection','Chunk7OrdinaryFieldSelection','Chunk7OrdinaryAcquisitionSelection')
+$classNames=@('Chunk7ManualSeedScenario','Chunk7NativeBootstrapScenario','Chunk7BootstrapInventoryScenario','Chunk7SmallCalibrationScenario','Chunk7ProgressionScenario','Chunk7OrdinaryFieldScenario','Chunk7OrdinaryAcquisitionScenario','Chunk7WorldScenarioEngine','Chunk7MatchedPoolCollector','Chunk7PersistenceScenario','Chunk7CombatScenario','BoundaryScenarioEvidenceContract','HorseNativeAssetAuditService','HorseCompanionBlueprintRegistrationAuditService','HorseCompanionUnmountedScenarioEngine','Phase3dHorseScenarioTranche','Chunk6aMammothScenarioEngine')
+$classNames+=@('Chunk7ManualSeedSelection','Chunk7BootstrapInventorySelection','Chunk7SmallCalibrationSelection','Chunk7ProgressionSelection','Chunk7OrdinaryFieldSelection','Chunk7OrdinaryAcquisitionSelection')
 $classes=''
 foreach($name in $classNames){
     $sourceText=[IO.File]::ReadAllText((Source ('src/KingmakerMountedCombat/Diagnostics/'+$name+'.cs')))
@@ -86,11 +86,19 @@ foreach($name in @($negative.Keys|Sort-Object)){
     $dir=Join-Path $casesRoot ('negative-'+$name);[void][IO.Directory]::CreateDirectory($dir)
     foreach($path in [IO.Directory]::GetFiles((Join-Path $casesRoot 'bootstrap-failure'))){[IO.File]::Copy($path,(Join-Path $dir ([IO.Path]::GetFileName($path))),$false)}
     $manifestPath=Join-Path $dir 'runtime-artifacts.json';$manifest=Read-KmcJson $manifestPath;&$negative[$name] $manifest
-    $manifest|ConvertTo-Json -Depth 20|Set-Content -LiteralPath $manifestPath -Encoding UTF8
+    [IO.File]::WriteAllText($manifestPath,($manifest|ConvertTo-Json -Depth 20),[Text.UTF8Encoding]::new($false))
     $request=[pscustomobject]@{evidenceRoot=$dir;runId='bootstrap-failure';scenario='chunk7-native-main-bootstrap'}
     $errorText=$null;try{Validate $request}catch{$errorText=$_.Exception.Message}
-    if($null-ne$errorText){$readerPass++;Write-Host ('PASS strict reader rejects '+$name)}else{$readerFail++;Write-Host ('FAIL strict reader accepted '+$name)}
-    $readerRows.Add([ordered]@{name=$name;expected='reject';error=$errorText;pass=($null-ne$errorText)})
+    $expectedError=switch($name){
+        'missing-known-bootstrap' {'Known runtime artifact exists without a manifest record: chunk7-native-bootstrap-evidence.json'}
+        'duplicate-record' {'Runtime artifact manifest contains duplicate path: '+$manifest.artifacts[0].relativePath}
+        'wrong-kind' {'Runtime artifact manifest record is outside the exact allowlist: '+$manifest.artifacts[0].relativePath+' ('+$manifest.artifacts[0].kind+')'}
+        'unknown-leaf' {'Runtime artifact manifest record is outside the exact allowlist: '+$manifest.artifacts[0].relativePath+' ('+$manifest.artifacts[0].kind+')'}
+        default {'Runtime artifact bytes do not match the manifest: '+$manifest.artifacts[0].relativePath}
+    }
+    $intendedGuard=$errorText-ceq$expectedError
+    if($intendedGuard){$readerPass++;Write-Host ('PASS strict reader rejects '+$name)}else{$readerFail++;Write-Host ('FAIL strict reader wrong refusal '+$name+': '+$errorText)}
+    $readerRows.Add([ordered]@{name=$name;expected=$expectedError;error=$errorText;pass=$intendedGuard})
 }
 $summary=Get-Content -LiteralPath (Join-Path $casesRoot 'producer-summary.json') -Raw|ConvertFrom-Json
 $inputs=@($producerInputs.Keys|Sort-Object|ForEach-Object{[ordered]@{path=$_;sha256=$producerInputs[$_]}})

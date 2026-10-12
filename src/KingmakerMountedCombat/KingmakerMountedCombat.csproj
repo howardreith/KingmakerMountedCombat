@@ -241,6 +241,10 @@
     <Compile Include="Diagnostics\Chunk7EvidenceDto.cs" />
     <Compile Include="Diagnostics\Chunk7NativeBootstrapSelection.cs" />
     <Compile Include="Diagnostics\Chunk7BootstrapInventorySelection.cs" />
+    <Compile Include="Diagnostics\Chunk7ManualSeedSelection.cs" />
+    <Compile Include="Diagnostics\Chunk7ManualSeedScenario.cs" />
+    <Compile Include="Diagnostics\Chunk7ManualSeedScenario.Save.cs" />
+    <Compile Include="Diagnostics\Chunk7ManualSeedSaveProbe.cs" />
     <Compile Include="Diagnostics\Chunk7BootstrapInventoryScenario.cs" />
     <Compile Include="Diagnostics\Chunk7BootstrapInventoryProbe.cs" />
     <Compile Include="Diagnostics\Chunk7NativeBootstrapScenario.cs" />
