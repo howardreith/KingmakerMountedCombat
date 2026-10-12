@@ -35,6 +35,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 checkpoint = new Chunk7CombatCheckpointDriver(request, world, controls, logger, CheckpointKind);
                 checkpoint.StartSource(actors); Next(5);
             }
+            else if (WorkerCancelSave) BeginWorkerCancelSave();
             else if (AreaAutosaveCase) BeginAreaAutosave();
             else { RequestSave(); Next(4); }
         }

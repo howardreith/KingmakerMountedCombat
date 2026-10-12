@@ -85,12 +85,14 @@ namespace KingmakerMountedCombat.Diagnostics
 
         internal Chunk7PersistenceScenario(RuntimeRequest request, GameMountedRelationshipService relationship,
             NativeMountedControlService controls, MountedPersistenceService persistence, HorseCompanionBlueprintService horses,
-            DiagnosticSettings settings, IModLogger logger)
+            DiagnosticSettings settings, IModLogger logger, RuntimeSaveAuthorization replayAuthorization = null, PersistenceSaveAuthorization replaySaveAuthority = null)
         {
             if (!SupportsScenario(request?.Scenario) || !SupportsCase(request.PersistenceCase))
                 throw new ArgumentException("An exact Chunk 7 persistence request is required.");
             this.request = request; world = relationship.World; this.controls = controls; this.persistence = persistence;
             this.horses = horses; this.settings = settings; this.logger = logger;
+            this.replayAuthorization = replayAuthorization; this.replaySaveAuthority = replaySaveAuthority;
+            replayAuthorityGeneration = replayAuthorization?.AuthorityGeneration ?? 0;
         }
         // Host calls this immediately before its existing native Working loader.
         internal void BeginBeforeLoad()
@@ -101,17 +103,25 @@ namespace KingmakerMountedCombat.Diagnostics
                 "Native schema 3 and two-pair capacity must be explicitly selected before this scenario.");
             beforeLoadGame = Game.Instance;
             originalPaired = settings.EnablePairedActivation; originalMovement = settings.EnableUnsafeMovementExperiment;
+            InitializeReplayAuthority();
             if (Cold)
             {
-                restoration = new NativeArchiveRestorationProbe(persistence, CombatCase || Schema1ResaveCase ? world : null);
+                restoration = new NativeArchiveRestorationProbe(persistence, CombatCase || Schema1ResaveCase || RepeatedWorldCase ? world : null);
                 restoration.Install();
             }
+            InstallReplayObservation();
             mode = new NativeModeTransitionProbe(TurnBasedCase); mode.DispatchTemporaryValueIfRequired();
             beforeLoad = true;
         }
         internal bool ReapplyModeAfterNativeRefresh()
         {
             RequireInitialLoadGame();
+            if (RepeatedWorldCase && replayPending)
+            {
+                RequireReplayAuthority();
+                if (RepeatedAreaCase) nativeScope.RequireTransferWorld();
+                return mode?.ReapplyTemporaryCacheAfterNativeRefresh() == true;
+            }
             if (nativeScope != null)
             {
                 // The owned ordinary transfer is still replacing its area state.
@@ -131,9 +141,11 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 if (!started) Start();
                 if (cleanup) { PollCleanup(); return; }
-                Require(clock.Elapsed.TotalSeconds <= (CombatCase || AreaAutosaveCase ? 300 : 180) && clock.Elapsed.TotalSeconds - stageStarted <=
-                    (CombatCase && (stage == 5 || stage == 20) || AreaAutosaveCase && stage == 30 ? 150 : 35),
+                Require(clock.Elapsed.TotalSeconds <= (RepeatedWorldCase ? 600 : CombatCase || AreaAutosaveCase ? 300 : 180) && clock.Elapsed.TotalSeconds - stageStarted <=
+                    (RepeatedWorldCase && stage == 70 ? 450 : CombatCase && (stage == 5 || stage == 20) || AreaAutosaveCase && stage == 30 ? 150 : 35),
                     "Bounded native persistence deadline at stage " + stage + ".");
+                if (UpdateSaveBoundary()) return;
+                if (UpdateRepeatedWorld()) return;
                 if (UpdateAreaAutosave()) return;
                 if (LoadingProcess.Instance.IsLoadingInProcess || LoadingProcess.Instance.QueuedNames.Any()) return;
                 RequireNativeWorld();
@@ -144,6 +156,7 @@ namespace KingmakerMountedCombat.Diagnostics
                         if (Cold)
                         {
                             if (persistence.CombatRestorationPending) return;
+                            if (RepeatedWorldCase) { BeginRepeatedWorld(); break; }
                             if (Schema1ResaveCase) { ObserveSchema1Cold(); RequestSave(); Next(40); break; }
                             ObserveCold();
                             if (CombatCase) { BeginCombatContinuation(); Next(20); } else Next(10);
@@ -172,6 +185,7 @@ namespace KingmakerMountedCombat.Diagnostics
                         if (!Mounted(firstRider, firstMount) || !InputSettled()) return;
                         FinishInput();
                         if (LegacyPendingCase) { AfterNativeMounts(); break; }
+                        if (PendingMountSave) { BeginPendingMountSave(); break; }
                         Input(secondRider, secondMount, controls.MountAbility, firstRider, "mount-horse"); Next(3); break;
                     case 3:
                         if (!Mounted(secondRider, secondMount) || !InputSettled()) return;
@@ -318,8 +332,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 rider.UISettings.SetSlot(new MechanicActionBarSlotAbility { Unit = rider, Ability = fact.Data }, index);
             }
             slots = controls.CapturePersistentSlots();
-            Require(slots.Length == (LegacyPendingCase ? 2 : 4) && slots.Count(s => s.ActorId == firstRider.UniqueId) == 2 &&
-                slots.Count(s => s.ActorId == secondRider.UniqueId) == (LegacyPendingCase ? 0 : 2), "All-pair native hotbar binding differs.");
+            Require(slots.Length == (LegacyPendingCase || PendingMountSave ? 2 : 4) && slots.Count(s => s.ActorId == firstRider.UniqueId) == 2 &&
+                slots.Count(s => s.ActorId == secondRider.UniqueId) == (LegacyPendingCase || PendingMountSave ? 0 : 2), "All-pair native hotbar binding differs.");
         }
         private void AssertSlots()
         {
@@ -338,6 +352,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 type == SaveInfo.SaveType.Auto ? manager.GetNextAutoslot() : manager.CreateNewSave(ManualName);
             Require(descriptor != null && descriptor.Type == type && descriptor.Name == NativeName(type) &&
                 !descriptor.IsActuallySaved && manager.IsSaveAllowed(), "Actual native category admission differs.");
+            if (SourceSaveBoundary) { RequireSaveBoundaryAuthority(); boundaryRequestedSave = descriptor; }
             castBefore = controls.NativeCastRequestCount; callback = false;
             evidence["saveRequested"] = new JObject { ["nativeType"] = type.ToString(), ["nativeName"] = descriptor.Name,
                 ["gameTicks"] = Game.Instance.TimeController.GameTime.Ticks, ["snapshotCount"] = persistence.SnapshotCount,
@@ -361,7 +376,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 world.Registry.FindActive(Exact(p.Rider.Id))?.Id == Guid.Parse(p.PairId)), "Native readback changed stable custody.");
             Require(saved.Slots.Length == slots.Length && slots.All(s => saved.Slots.Any(x => x.ActorId == s.ActorId && x.Index == s.Index && x.Kind == s.Kind)),
                 "Native readback omitted another pair's hotbar bindings.");
-            Require((AreaAutosaveCase ? !callback && areaHeaderStarting != null && areaHeaderStaged != null : callback) &&
+            Require((AreaAutosaveCase ? !callback && areaHeaderStarting != null && areaHeaderStaged != null :
+                    WorkerCancelSave ? !callback && boundaryDrainedCommitted : callback) &&
                 persistence.SnapshotCount == snapshotBefore + 1 && controls.NativeCastRequestCount == castBefore &&
                 !controls.SerializationSuspended && !persistence.SaveSuspended, "Native snapshot replayed input or retained an owned serialization lease.");
             var file = new FileInfo(savedDescriptor.FolderName);
@@ -422,6 +438,7 @@ namespace KingmakerMountedCombat.Diagnostics
             cleanup = true;
             if (!clock.IsRunning) clock.Start();
             stageStarted = clock.Elapsed.TotalSeconds;
+            TryCleanup("owned native worker hold", ReleaseSaveBoundaryHold);
             // Observers and leases remain owned until loading and native writers
             // have stopped. Beginning failure cleanup is not teardown permission.
         }
@@ -510,7 +527,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 RetainCleanup("Native load/iterator/worker or failed release still owns live fixture state; no actor/control cleanup was attempted.", 15);
                 return;
             }
-            var observersSettled = TryCleanup("area observation", EndAreaObservation);
+            var observersSettled = TryCleanup("save boundary observation", EndSaveBoundaryObservation);
+            observersSettled &= TryCleanup("area observation", EndAreaObservation);
+            observersSettled &= TryCleanup("repeated world observation", EndReplayObservation);
             observersSettled &= TryCleanup("cold restoration observer", () =>
             {
                 if (restoration != null) evidence["coldRestoration"] = restoration.Capture();
@@ -560,10 +579,12 @@ namespace KingmakerMountedCombat.Diagnostics
                 !Game.Instance.Player.ControllableCharacters.Contains(secondMount) && secondRider.Descriptor.Pet == null;
             cleanupProven = pairsClear && horseClear && !persistence.HasActiveSaveScope && !persistence.HasSaveAdmissionFence &&
                 !controls.SerializationSuspended && !controls.HasUnsettledRelationshipTransition && !world.UnifiedTurn.HasUnsettledPreparation &&
-                restoration == null && mode == null && ummLease == null && checkpoint == null;
+                restoration == null && retention == null && saveBoundaryProbe == null && saveWorkerHold == null &&
+                mode == null && ummLease == null && checkpoint == null;
             if (!cleanupProven) { RetainCleanup("Native persistence cleanup postcondition still owns an obligation.", 45); return; }
             TryCleanup("immutable source archive", () =>
             {
+                if (RepeatedWorldCase && replayInput != null) RequireReplayInput();
                 if (Schema1ResaveCase) VerifySchema1InputImmutable();
                 if (savedDescriptor != null) Require(Hash(savedDescriptor.FolderName) == (string)evidence["nativeWrite"]["sha256"],
                     "Source archive changed after its recorded native completion.");
@@ -572,6 +593,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["controlsSettled"] = true, ["saveCustodyClear"] = true, ["selectionRestored"] = captured,
                 ["nativeProgressionRequiresExternalWorkingRestoration"] = true, ["ordinaryRespecProven"] = false,
                 ["world"] = captured ? Capture("cleanup") : null };
+            CaptureRepeatedSettlement();
             if (pendingHostCustody) evidence["cleanupSettledAfterHostBoundary"] = true;
             pendingHostCustody = false;
             Pass("C7-persistence-cleanup"); evidence["elapsedSeconds"] = clock.Elapsed.TotalSeconds;

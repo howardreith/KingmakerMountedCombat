@@ -83,7 +83,8 @@ namespace KingmakerMountedCombat
                     Main.InvokeRegisteredToggleForAutomation,
                     DetachIntegrationForAutomation,
                     () => unifiedTurn.ActivationIdentity != null,
-                    () => unifiedTurn.PartnerContext != null);
+                    () => unifiedTurn.PartnerContext != null,
+                    () => movementTelemetry);
                 if (runtimeAutomation != null && !runtimeAutomation.IsManualReview)
                 {
                     movementTelemetry = new MovementTelemetryWriter(

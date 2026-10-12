@@ -158,6 +158,13 @@
     <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\ModLoadSmokeObservation.cs">
       <Link>Shared\ModLoadSmokeObservation.cs</Link>
     </Compile>
+    <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\Chunk7SmallCalibrationSelection.cs">
+      <Link>Diagnostics\Chunk7SmallCalibrationSelection.cs</Link>
+    </Compile>
+    <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\Chunk7ProgressionSelection.cs"><Link>Shared\Chunk7ProgressionSelection.cs</Link></Compile>
+    <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\Chunk7OrdinaryFieldSelection.cs">
+      <Link>Diagnostics\Chunk7OrdinaryFieldSelection.cs</Link>
+    </Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\Chunk7OrdinaryAcquisitionSelection.cs">
       <Link>Diagnostics\Chunk7OrdinaryAcquisitionSelection.cs</Link>
     </Compile>

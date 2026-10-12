@@ -40,6 +40,9 @@ namespace KingmakerMountedCombat.Diagnostics
         private readonly HorseCompanionBlueprintService horses;
         private readonly DiagnosticSettings settings;
         private readonly IModLogger logger;
+        private readonly Func<MovementTelemetryWriter> optionalTelemetry;
+        private MountedOptionalDiagnosticsWindow quietWindow;
+        private JObject quietBefore;
         private readonly Stopwatch clock = Stopwatch.StartNew();
         private readonly List<RuntimeSubscenarioResult> results = new List<RuntimeSubscenarioResult>();
         private readonly List<string> errors = new List<string>();
@@ -69,15 +72,16 @@ namespace KingmakerMountedCombat.Diagnostics
         private Guid firstOwner, secondOwner;
         private readonly JArray measurements = new JArray(), cycleInputs = new JArray(), cycles = new JArray();
         private MountedRuntimeMeasurement measurement;
+        private Chunk7NativeDoorProbe doorProbe;
         private int cycle;
         private JArray InputRecords => cycle == 0 ? inputs : cycleInputs;
 
         internal Chunk7WorldScenarioEngine(RuntimeRequest request, GameMountedRelationshipService relationship,
             NativeMountedControlService controls, HorseCompanionBlueprintService horses,
-            DiagnosticSettings settings, IModLogger logger)
+            DiagnosticSettings settings, IModLogger logger, Func<MovementTelemetryWriter> optionalTelemetry = null)
         {
             this.request = request; world = relationship.World; this.controls = controls;
-            this.horses = horses; this.settings = settings; this.logger = logger;
+            this.horses = horses; this.settings = settings; this.logger = logger; this.optionalTelemetry = optionalTelemetry;
         }
         internal static bool SupportsScenario(string scenario) => scenario == ScenarioName;
         internal bool IsCompleted => completed;
@@ -144,7 +148,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (cleanupStarted) { PollCleanup(); return; }
                 nativeScope.RequireCurrent();
                 screenshots?.Pump(Time.frameCount);
-                Require(clock.Elapsed.TotalSeconds <= 300 && clock.Elapsed.TotalSeconds - stepStarted <= 30,
+                Require(clock.Elapsed.TotalSeconds <= 300 && clock.Elapsed.TotalSeconds - stepStarted <= (step == 40 ? 120 : 30),
                     "Bounded two-pair scenario deadline at step " + step + ".");
                 Require(!Game.Instance.Player.IsInCombat, "Exploration scenario unexpectedly entered combat.");
                 if (shell != null && controls.HasExactRelationshipProcessBinding(shell)) observedExactProcess = true;
@@ -196,6 +200,11 @@ namespace KingmakerMountedCombat.Diagnostics
                     case 7:
                         AssertBoth(); if (!MovementSettled()) return;
                         Pass("C7-world-selection-routing"); snapshots.Add(CaptureWorld("movement-complete"));
+                        doorProbe = new Chunk7NativeDoorProbe(world, nativeScope, firstRider, firstMount, secondRider, secondMount);
+                        evidence["door"] = doorProbe.Evidence; doorProbe.Begin(); Next(40); break;
+                    case 40:
+                        AssertBoth(); if (!doorProbe.Poll()) return;
+                        Pass("C7-world-selection-routing"); snapshots.Add(CaptureWorld("door-complete"));
                         Input(firstRider, firstRider, controls.DismountAbility, "dismount-mammoth", secondRider); Next(8); break;
                     case 8:
                         if (Mounted(firstRider, firstMount) || !InputSettled()) return;
@@ -327,17 +336,39 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["otherCommandsUnchangedAtInput"] = true, ["start"] = Point(moveStart), ["requestedGoal"] = Point(goal),
                 ["commandsBefore"] = new JArray(all.Select(x => new JObject { ["id"] = x.UniqueId, ["moveObject"] = Id(before[x]) })),
                 ["commandsAfter"] = new JArray(all.Select(x => new JObject { ["id"] = x.UniqueId, ["moveObject"] = Id(x.Commands.Move) })) };
-            movements.Add(moveRecord); Select(switchTo); Game.Instance.IsPaused = false;
+            movements.Add(moveRecord); Select(switchTo);
+            quietBefore = CaptureWorld("quiet-before-" + label);
+            Require(quietWindow == null && measurement == null && optionalTelemetry != null, "Exact optional telemetry owner is unavailable.");
+            quietWindow = new MountedOptionalDiagnosticsWindow(optionalTelemetry(), label);
+            quietWindow.Install(Time.frameCount, clock.Elapsed.TotalSeconds);
+            Game.Instance.IsPaused = false;
         }
         private bool MovementSettled()
         {
+            Require(quietWindow != null, "Native movement lost its optional-capture window owner.");
+            if (!quietWindow.Ready(Time.frameCount, clock.Elapsed.TotalSeconds)) return false;
             if (!issuedMove.IsFinished || movingActor.View.AgentASP.IsReallyMoving) return false;
             var distance = Vector3.Distance(moveStart, movingActor.Position); var residual = Vector3.Distance(moveGoal, movingActor.Position);
             moveRecord["end"] = Point(movingActor.Position); moveRecord["distance"] = distance; moveRecord["goalResidual"] = residual;
             moveRecord["commandTerminal"] = issuedMove.IsFinished; moveRecord["ownerContinuity"] = true;
             Require(distance >= 0.75f && residual <= 1.0f, "Native movement failed the fixed two-metre route endpoint.");
+            var quietAfter = CaptureWorld("quiet-after-" + (string)moveRecord["label"]);
+            Require(ResourcesConserved((JObject)quietBefore["resources"], (JObject)quietAfter["resources"]),
+                "Quiet native movement changed unrelated exploration resource ownership.");
+            Require(JToken.DeepEquals(ActiveQuietOwners(quietBefore), ActiveQuietOwners(quietAfter)),
+                "Quiet native movement changed active pair ownership or generation.");
+            Require(JToken.DeepEquals(quietBefore["selection"], quietAfter["selection"]),
+                "Quiet native movement changed the deliberately switched selection.");
+            var quietReceipt = quietWindow.Complete(Time.frameCount, clock.Elapsed.TotalSeconds); quietWindow = null;
+            quietReceipt["before"] = quietBefore; quietReceipt["after"] = quietAfter;
+            moveRecord["optionalCaptureWindow"] = quietReceipt; quietBefore = null;
             return true;
         }
+        private static JArray ActiveQuietOwners(JObject snapshot) => new JArray(((JArray)snapshot["owners"])
+            .Where(x => (string)x["state"] == "Active").OrderBy(x => (string)x["ownerId"], StringComparer.Ordinal)
+            .Select(x => new JObject { ["ownerId"] = x["ownerId"], ["riderId"] = x["riderId"],
+                ["mountId"] = x["mountId"], ["generation"] = x["generation"], ["state"] = x["state"],
+                ["relationshipState"] = x["relationshipState"] }));
         private UnitEntityData[] Actors() => new[] { firstRider, firstMount, secondRider, secondMount }.Where(x => x != null).ToArray();
         private JObject Resources() => new JObject { ["gameTicks"] = Game.Instance.TimeController.GameTime.Ticks,
             ["actors"] = new JArray(Actors().Select(x => new JObject { ["id"] = x.UniqueId,
@@ -397,6 +428,7 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             if (cleanupStarted) return;
             cleanupStarted = true; stepStarted = clock.Elapsed.TotalSeconds;
+            TryCleanup("optional capture window", () => { quietWindow?.Dispose(); quietWindow = null; });
             TryCleanup("measurement", () => { measurement?.Dispose(); measurement = null; });
         }
         private bool TryCleanup(string part, Action attempt)
@@ -428,7 +460,8 @@ namespace KingmakerMountedCombat.Diagnostics
         private void PollCleanup()
         {
             if (completed) return;
-            var observersGone = TryCleanup("measurement", () => { measurement?.Dispose(); measurement = null; });
+            var observersGone = TryCleanup("optional capture window", () => { quietWindow?.Dispose(); quietWindow = null; });
+            observersGone &= TryCleanup("measurement", () => { measurement?.Dispose(); measurement = null; });
             if (!observersGone) { RetainCleanup("An owned observer has not detached."); return; }
             if (!captured) { cleanupProven = true; CompleteCleanupEvidence(); return; }
             // Neither fact removal nor actor/view teardown can race a native load,
@@ -444,6 +477,11 @@ namespace KingmakerMountedCombat.Diagnostics
             if (!TryCleanup("unpause for native drain", () => Game.Instance.IsPaused = false)) return;
             foreach (var command in issuedCommands.Where(x => x != null && !x.IsFinished))
                 TryCleanup("command " + Id(command), () => command.Interrupt());
+            var doorReady = doorProbe == null;
+            if (doorProbe != null) TryCleanup("native door lease", () => {
+                foreach (var command in doorProbe.IssuedCommands) if (!issuedCommands.Contains(command)) issuedCommands.Add(command);
+                doorReady = doorProbe.Drain();
+            });
             // Independent pairs receive service even when another cancellation or
             // cleanup fails. Each pair keeps its own real command/process custody.
             foreach (var pair in world.Pairs)
@@ -458,7 +496,7 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             var pairClean = world.Pairs.All(pair => pair.Relationship.State == RelationshipState.Unmounted &&
                 pair.Relationship.Runtime.NoPreparedPairResidue && pair.Relationship.PairOwner == null && PairCommandsSettled(pair));
-            if (!NativeCommandsSettled() || !pairClean || controls.HasUnsettledRelationshipTransition || world.UnifiedTurn.HasUnsettledPreparation)
+            if (!doorReady || !NativeCommandsSettled() || !pairClean || controls.HasUnsettledRelationshipTransition || world.UnifiedTurn.HasUnsettledPreparation)
             { RetainCleanup("A native execution process, pair or preparation still owns cleanup."); return; }
             if (evidence["factRemovalAdmission"] == null)
                 evidence["factRemovalAdmission"] = new JObject {

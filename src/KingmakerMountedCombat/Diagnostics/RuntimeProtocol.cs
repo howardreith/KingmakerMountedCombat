@@ -15,7 +15,7 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private static readonly HashSet<string> SaveBackedScenarios = new HashSet<string>(StringComparer.Ordinal)
         {
-            "chunk7-ordinary-acquisition", "chunk7-two-pair-exploration", "chunk7-persistence-save", "chunk7-persistence-load",
+            "chunk7-native-progression", "chunk7-small-profile-calibration", "chunk7-ordinary-field-admission", "chunk7-ordinary-acquisition", "chunk7-two-pair-exploration", "chunk7-persistence-save", "chunk7-persistence-load",
             "chunk7-two-pair-combat-rider-first", "chunk7-two-pair-combat-mount-first",
             "chunk7-two-pair-realtime-core", "chunk7-two-pair-realtime-casting", "chunk7-two-pair-realtime-charge",
             "chunk7-two-pair-native-life-cleanup",
@@ -144,7 +144,11 @@ namespace KingmakerMountedCombat.Diagnostics
         public RuntimeSaveDescriptor PersistenceAlternate { get; set; }
         public string Schema1DerivationSha256 { get; set; }
         public RuntimeAreaTransitionTarget PersistenceAreaTarget { get; set; }
+        public RuntimeAreaTransitionTarget[] PersistenceReplayTargets { get; set; }
         public Chunk7OrdinaryAcquisitionSelection OrdinaryAcquisition { get; set; }
+        public Chunk7OrdinaryFieldSelection OrdinaryField { get; set; }
+        public Chunk7SmallCalibrationSelection SmallCalibration { get; set; }
+        public Chunk7ProgressionSelection Progression { get; set; }
 
         // Cross-area cases declare their destination up front so the isolated
         // save authority can pin post-transition writes to that exact area.
@@ -195,10 +199,11 @@ namespace KingmakerMountedCombat.Diagnostics
         internal static bool IsChunk7PersistenceScenario(string scenario) => scenario == "chunk7-persistence-save" || scenario == "chunk7-persistence-load";
         internal static bool IsChunk7PersistenceCase(string value) => Array.IndexOf(new[] {
             "multi-exploration-manual", "multi-exploration-quick", "multi-exploration-auto", "multi-rt-debt-manual",
-            "multi-tb-debt-manual", "zero-mounted-tb-retained-manual", "legacy-mounted-pending-tb-manual", "multi-area-autosave", "legacy-schema1-resave-manual" }, value) >= 0;
+            "multi-tb-debt-manual", "zero-mounted-tb-retained-manual", "legacy-mounted-pending-tb-manual", "multi-area-autosave", "legacy-schema1-resave-manual", "multi-exploration-three-loads-manual", "multi-exploration-three-area-transfers-manual",
+            "multi-nonselected-mount-unsettled-manual", "multi-owned-worker-cancel-manual" }, value) >= 0;
 
         internal string ExpectedChunk7ArchiveArea => PersistenceCase == "multi-area-autosave" ? PersistenceAreaTarget?.Area : Fixture?.Working?.Area;
-        internal string ExpectedNativeLoadType => Scenario == "chunk7-persistence-load" && PersistenceLoad != null && IsChunk7PersistenceCase(PersistenceCase) ?
+        internal string ExpectedNativeLoadType => (Scenario == Chunk7SmallCalibrationSelection.Scenario || Scenario == Chunk7OrdinaryFieldSelection.Scenario) ? "Auto" : Scenario == "chunk7-persistence-load" && PersistenceLoad != null && IsChunk7PersistenceCase(PersistenceCase) ?
             (PersistenceCase == "multi-exploration-quick" ? "Quick" : PersistenceCase == "multi-exploration-auto" || PersistenceCase == "multi-area-autosave" ? "Auto" : "Manual") :
             IsTransitionAutoCase(PersistenceCase) ? "Auto" :
             Scenario == "persistence-p05-load" && PersistenceLoad != null ?
@@ -215,6 +220,24 @@ namespace KingmakerMountedCombat.Diagnostics
                 errors.Add("Unsupported request schemaVersion.");
             }
 
+            if (Scenario == Chunk7SmallCalibrationSelection.Scenario)
+            {
+                if (SchemaVersion != SaveBackedSchemaVersion || SmallCalibration == null) errors.Add("Compiled Small calibration requires its exact schema-2 selection.");
+                else errors.AddRange(SmallCalibration.Validate(Scenario, RunId));
+            }
+            else if (SmallCalibration != null) errors.Add("Small calibration selection is forbidden under another scenario.");
+            if (Scenario == Chunk7OrdinaryFieldSelection.Scenario)
+            {
+                if (SchemaVersion != SaveBackedSchemaVersion || OrdinaryField == null) errors.Add("Read-only field admission requires its schema-2 selection.");
+                else errors.AddRange(OrdinaryField.Validate(Scenario, RunId));
+            }
+            else if (OrdinaryField != null) errors.Add("Field admission selection is forbidden under another scenario.");
+            if (Scenario == Chunk7ProgressionSelection.Scenario)
+            {
+                if (SchemaVersion != SaveBackedSchemaVersion || Progression == null) errors.Add("Native progression requires its schema-2 exact selection.");
+                else errors.AddRange(Progression.Validate(Scenario, RunId));
+            }
+            else if (Progression != null) errors.Add("Native progression selection is forbidden under another scenario.");
             if (Scenario == Chunk7OrdinaryAcquisitionSelection.Scenario)
             {
                 if (SchemaVersion != SaveBackedSchemaVersion || OrdinaryAcquisition == null)
@@ -327,6 +350,7 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             if (PersistenceLoad != null || PersistenceAlternate != null) errors.Add("No-save requests cannot select an archive.");
             if (PersistenceCase != null) errors.Add("No-save requests cannot select a persistence case.");
+            if (PersistenceReplayTargets != null) errors.Add("No-save requests cannot declare repeated native area targets.");
             if (Schema1DerivationSha256 != null) errors.Add("No-save requests cannot select schema-1 derivative provenance.");
             if (SaveAccessAllowed)
             {
@@ -357,6 +381,25 @@ namespace KingmakerMountedCombat.Diagnostics
         private void ValidateSaveBackedRequest(List<string> errors)
         {
             var chunk7 = IsChunk7PersistenceScenario(Scenario);
+            var replay = PersistenceCase == "multi-exploration-three-loads-manual" || PersistenceCase == "multi-exploration-three-area-transfers-manual";
+            var replayAreas = PersistenceCase == "multi-exploration-three-area-transfers-manual";
+            if (replay && Scenario != "chunk7-persistence-load") errors.Add("Repeated worlds are cold-load only.");
+            if (!replayAreas && PersistenceReplayTargets != null) errors.Add("Only repeated-area requests may carry route targets.");
+            if (replayAreas)
+            {
+                if (PersistenceReplayTargets == null || PersistenceReplayTargets.Length != 3) errors.Add("Repeated areas require three exact targets.");
+                else
+                {
+                    var prior = Fixture?.Working?.Area;
+                    foreach (var target in PersistenceReplayTargets)
+                    {
+                        if (target == null || !IsLowerHex(target.EnterPoint, 32) || !IsLowerHex(target.Area, 32) || target.EnterPoint == new string('0', 32) ||
+                            target.Area == new string('0', 32) || target.EnterPoint == target.Area || target.Area == prior || target.AutoSaveMode != "None")
+                            errors.Add("Repeated area target must be exact, differ from the prior area, and forbid autosaving.");
+                        prior = target?.Area;
+                    }
+                }
+            }
             var schema1 = Scenario == "chunk7-persistence-load" && PersistenceCase == "legacy-schema1-resave-manual";
             if (PersistenceCase == "legacy-schema1-resave-manual" && !schema1)
                 errors.Add("Schema-1 resave is a cold-load-only case.");
@@ -381,7 +424,33 @@ namespace KingmakerMountedCombat.Diagnostics
                 errors.Add("A removal or disable-during-load case is save-only.");
             if (Scenario == "persistence-p07-save" && (PersistenceCase == "absent-kmc" || (PersistenceCase == "removal-no-dll" || PersistenceCase == "mounted-charge-removal-no-dll")))
                 errors.Add("The integration-absent and no-DLL cases are cold-load only.");
-            if (Scenario == "chunk7-persistence-load")
+            if (Scenario == Chunk7OrdinaryFieldSelection.Scenario || Scenario == Chunk7SmallCalibrationSelection.Scenario)
+            {
+                if (PersistenceLoad == null) errors.Add("Read-only field admission requires its exact paid Auto_1 archive.");
+                else
+                {
+                    if (string.IsNullOrWhiteSpace(PersistenceLoad.InternalName) || PersistenceLoad.InternalName.Length > 256 || PersistenceLoad.InternalName.Any(char.IsControl))
+                        errors.Add("Native paid autosave name is missing or invalid.");
+                    errors.AddRange(PersistenceLoad.Validate("persistenceLoad", PersistenceLoad.InternalName, "^Auto_1\\.zks$"));
+                    if (Fixture?.Working == null || PersistenceLoad.GameId != Fixture.Working.GameId || PersistenceLoad.GameName != Fixture.Working.GameName ||
+                        PersistenceLoad.Area != Fixture.Working.Area || PersistenceLoad.Sha256 == Fixture.Working.Sha256 ||
+                        PersistenceLoad.Sha256 == Fixture.Baseline?.Sha256 || PersistenceLoad.Sha256 != (Scenario == Chunk7SmallCalibrationSelection.Scenario ? SmallCalibration?.Source?.SourceArchiveSha256 : OrdinaryField?.SourceArchiveSha256))
+                        errors.Add("Field admission archive differs from its exact disposable acquisition identity.");
+                }
+            }
+            else if (Scenario == Chunk7ProgressionSelection.Scenario)
+            {
+                if (PersistenceLoad == null) errors.Add("Native progression requires its exact same-candidate Manual300 source.");
+                else
+                {
+                    errors.AddRange(PersistenceLoad.Validate("persistenceLoad", Chunk7ProgressionSelection.SourceName, "^Manual_300_KMC_C7_WORLD\\.zks$"));
+                    if (Fixture?.Working == null || PersistenceLoad.GameId != Fixture.Working.GameId || PersistenceLoad.GameName != Fixture.Working.GameName ||
+                        PersistenceLoad.Area != Fixture.Working.Area || PersistenceLoad.Sha256 == Fixture.Working.Sha256 ||
+                        PersistenceLoad.Sha256 == Fixture.Baseline?.Sha256 || PersistenceLoad.Sha256 != Progression?.SourceArchiveSha256)
+                        errors.Add("Native progression source differs from its declared disposable archive.");
+                }
+            }
+            else if (Scenario == "chunk7-persistence-load")
             {
                 if (PersistenceLoad == null) errors.Add("Chunk 7 cold loading requires its exact completed source archive.");
                 else
@@ -752,11 +821,16 @@ namespace KingmakerMountedCombat.Diagnostics
             "C7-life-safe-native-damage", "C7-life-native-callback", "C7-life-healthy-neighbour", "C7-life-independent-survivor",
             "C7-rt-charge-default-off", "C7-rt-concurrent-primary", "C7-rt-local-cancel", "C7-rt-unmounted-native-control",
             "C7-rt-native-casting", "C7-rt-casting-neighbour", "C7-rt-charge-native-success", "C7-rt-charge-neighbour-movement", "C7-rt-charge-native-cancel",
+            "chunk7-small-profile-calibration", "C7-small-readonly-source", "C7-small-native-party-placement", "C7-small-production-mount", "C7-small-native-ground", "C7-small-rider-primary", "C7-small-mount-primary", "C7-small-native-dismount", "C7-small-native-pose-observation", "C7-small-cleanup", "C7-small-runtime", "C7-small-interrupted",
+            "chunk7-native-progression", "C7-progression-cold-source", "C7-progression-native-operation", "C7-progression-cleanup", "C7-progression-runtime", "C7-progression-interrupted",
+            "chunk7-ordinary-field-admission", "C7-field-readonly-source", "C7-field-native-party-placement", "C7-field-cleanup", "C7-field-runtime", "C7-field-interrupted",
             "chunk7-ordinary-acquisition", "C7-ordinary-fixture", "C7-ordinary-native-choices", "C7-ordinary-native-autosave",
             "C7-ordinary-native-field-inventory", "C7-ordinary-cleanup", "C7-ordinary-runtime", "C7-ordinary-interrupted",
             "chunk7-persistence-save", "chunk7-persistence-load", "C7-persistence-two-native-mounts", "C7-persistence-one-native-mount-legacy-source",
             "C7-persistence-native-category-all-pair-archive", "C7-persistence-cold-all-pair-identity-and-no-prepare",
             "C7-persistence-schema1-native-restoration", "C7-persistence-schema1-native-resave",
+            "C7-persistence-three-native-loads", "C7-persistence-three-native-area-transfers",
+            "C7-persistence-nonselected-mount-save-deferral", "C7-persistence-owned-worker-cancel-drain",
             "C7-persistence-native-continuation", "C7-persistence-all-pair-area-before-autosave", "C7-persistence-native-combat-continuation", "C7-persistence-cleanup", "C7-persistence-runtime", "C7-persistence-interrupted",
             "chunk7-two-pair-exploration", "C7-world-fixture", "C7-world-native-acquisition", "C7-world-two-native-mounts",
             "C7-world-selection-routing", "C7-world-independent-dismount", "C7-world-cycles", "C7-world-sampling", "C7-world-cleanup", "C7-world-runtime", "C7-world-visual", "C7-world-interrupted",
@@ -1231,7 +1305,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 errors.Add("subscenario and assertion totals do not match the named results.");
             }
 
-            if (scenario != "chunk7-ordinary-acquisition" && scenario != "chunk7-two-pair-exploration" && !RuntimeRequest.IsChunk7PersistenceScenario(scenario) && !RuntimeRequest.IsChunk7CombatScenario(scenario) && RuntimeSubscenarioResult.IsMissionScenario(scenario) && !names.Contains(scenario))
+            if (scenario != "chunk7-native-progression" && scenario != "chunk7-small-profile-calibration" && scenario != "chunk7-ordinary-field-admission" && scenario != "chunk7-ordinary-acquisition" && scenario != "chunk7-two-pair-exploration" && !RuntimeRequest.IsChunk7PersistenceScenario(scenario) && !RuntimeRequest.IsChunk7CombatScenario(scenario) && RuntimeSubscenarioResult.IsMissionScenario(scenario) && !names.Contains(scenario))
             {
                 errors.Add("An individual mission scenario must report its own named subscenario result.");
             }

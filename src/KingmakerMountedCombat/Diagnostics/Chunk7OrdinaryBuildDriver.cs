@@ -19,6 +19,7 @@ using Kingmaker.UI.LevelUp.Phase;
 using Kingmaker.UnitLogic;
 using Kingmaker.UnitLogic.Class.LevelUp;
 using Kingmaker.UnitLogic.FactLogic;
+using KingmakerMountedCombat.Integration;
 using Newtonsoft.Json.Linq;
 
 namespace KingmakerMountedCombat.Diagnostics
@@ -27,7 +28,7 @@ namespace KingmakerMountedCombat.Diagnostics
     // load/write authority (including native autosave) before calling Tick.
     // This helper drives the installed UI controller, not a replacement level
     // controller. It cannot authorize a live transaction or qualify a profile.
-    internal enum Chunk7OrdinaryBuildMode { NewSmallCustomCompanion, ExistingRangerLevels }
+    internal enum Chunk7OrdinaryBuildMode { NewSmallCustomCompanion, ExistingRangerLevels, ExistingHorseLevels, NativeRespecHorse, NativeRespecMammoth }
     internal enum Chunk7OrdinaryBuildStep { Waiting, Advanced, Complete }
 
     internal sealed class Chunk7OrdinaryBuildPins
@@ -41,14 +42,17 @@ namespace KingmakerMountedCombat.Diagnostics
         internal readonly Gender Gender;
         internal readonly bool LeftHanded;
         internal readonly int MinimumRangerLevel;
+        internal readonly Size ExpectedBodySize;
+        internal bool IsRespec => Mode == Chunk7OrdinaryBuildMode.NativeRespecHorse || Mode == Chunk7OrdinaryBuildMode.NativeRespecMammoth;
 
         internal Chunk7OrdinaryBuildPins(string runId, string nativeInventorySha256, Chunk7OrdinaryBuildMode mode,
             string smallRaceGuid, string smallPresetGuid, string skeletonName, Gender gender, bool leftHanded,
-            int minimumRangerLevel = 4)
+            int minimumRangerLevel = 4, Size expectedBodySize = Size.Small)
         {
             RunId = runId; NativeInventorySha256 = nativeInventorySha256; Mode = mode;
             SmallRaceGuid = smallRaceGuid; SmallPresetGuid = smallPresetGuid; SkeletonName = skeletonName;
             Gender = gender; LeftHanded = leftHanded; MinimumRangerLevel = minimumRangerLevel;
+            ExpectedBodySize = expectedBodySize;
             Validate();
         }
 
@@ -56,14 +60,17 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             Require(Regex.IsMatch(RunId ?? "", "^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$"), "Invalid run identity.");
             Require(Regex.IsMatch(NativeInventorySha256 ?? "", "^[a-f0-9]{64}$"), "Exact native inventory hash is required.");
-            Require(Mode == Chunk7OrdinaryBuildMode.NewSmallCustomCompanion || Mode == Chunk7OrdinaryBuildMode.ExistingRangerLevels,
+            Require(Mode == Chunk7OrdinaryBuildMode.NewSmallCustomCompanion || Mode == Chunk7OrdinaryBuildMode.ExistingRangerLevels ||
+                Mode == Chunk7OrdinaryBuildMode.ExistingHorseLevels || IsRespec,
                 "Unknown ordinary build mode.");
             Require(MinimumRangerLevel >= 4 && MinimumRangerLevel <= 20, "Unsupported Ranger target.");
-            if (Mode != Chunk7OrdinaryBuildMode.NewSmallCustomCompanion) return;
+            if (Mode != Chunk7OrdinaryBuildMode.NewSmallCustomCompanion && !IsRespec) return;
             Require(Regex.IsMatch(SmallRaceGuid ?? "", "^[a-f0-9]{32}$") &&
                 Regex.IsMatch(SmallPresetGuid ?? "", "^[a-f0-9]{32}$"), "Observed exact Small race and preset IDs are required.");
             Require(!string.IsNullOrWhiteSpace(SkeletonName) && SkeletonName.Length <= 160, "Observed exact Small skeleton is required.");
             Require(Gender == Gender.Male || Gender == Gender.Female, "Unknown native gender.");
+            Require(Mode == Chunk7OrdinaryBuildMode.NewSmallCustomCompanion ? ExpectedBodySize == Size.Small :
+                ExpectedBodySize == Size.Small || ExpectedBodySize == Size.Medium, "Native body size differs from the declared bounded build mode.");
         }
         private static void Require(bool condition, string message)
         { if (!condition) throw new InvalidOperationException(message); }
@@ -83,14 +90,19 @@ namespace KingmakerMountedCombat.Diagnostics
         private readonly string horseUnitGuid;
         private readonly Action assertExactIsolatedAuthority;
         private readonly Action<JObject> publishObservation;
+        private readonly NativeProgressionRespecProbe nativeRespec;
         private readonly Stopwatch elapsed = Stopwatch.StartNew();
         private CharacterBuildController builder;
         private LevelUpController observedController;
         private UnitEntityData actor;
+        private UnitEntityData originalHorse;
         private UnitDescriptor descriptor;
         private BlueprintCharacterClass ranger;
         private BlueprintRace race;
         private BlueprintRaceVisualPreset preset;
+        private BlueprintFeature targetCompanionFeature;
+        private string targetCompanionUnitGuid;
+        private bool respecRebound;
         private HashSet<string> originalActorIds;
         private bool started, complete, awaitingCommit, commitRecorded;
         private int lastFrame = -1, choices, commits, levelBeforeCommit, expectedFinalLevel, initialXp;
@@ -102,7 +114,7 @@ namespace KingmakerMountedCombat.Diagnostics
 
         internal Chunk7OrdinaryBuildDriver(Chunk7OrdinaryBuildPins pins, UnitEntityData existingActor,
             BlueprintFeature horseFeature, string horseUnitGuid, Action assertExactIsolatedAuthority,
-            Action<JObject> publishObservation)
+            Action<JObject> publishObservation, NativeProgressionRespecProbe nativeRespec = null)
         {
             this.pins = pins ?? throw new ArgumentNullException(nameof(pins));
             pins.Validate();
@@ -111,7 +123,10 @@ namespace KingmakerMountedCombat.Diagnostics
             this.horseUnitGuid = horseUnitGuid;
             this.assertExactIsolatedAuthority = assertExactIsolatedAuthority ?? throw new ArgumentNullException(nameof(assertExactIsolatedAuthority));
             this.publishObservation = publishObservation ?? throw new ArgumentNullException(nameof(publishObservation));
-            Require((pins.Mode == Chunk7OrdinaryBuildMode.ExistingRangerLevels) == (existingActor != null), "Existing actor binding differs from the selected mode.");
+            this.nativeRespec = nativeRespec;
+            Require((pins.Mode != Chunk7OrdinaryBuildMode.NewSmallCustomCompanion) == (existingActor != null), "Existing actor binding differs from the selected mode.");
+            Require(pins.IsRespec == (nativeRespec != null) && (!pins.IsRespec || ReferenceEquals(nativeRespec.Original, existingActor)),
+                "Respec choices require the exact independently observed native original actor.");
             actor = existingActor;
         }
 
@@ -124,6 +139,7 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             owned = null;
             if (builder?.LevelUpController == null) return false;
+            TryAdoptNativeRespecRebind();
             var current = builder.LevelUpController.Unit?.Unit;
             var exact = actor != null ? ReferenceEquals(current, actor) : pins.Mode == Chunk7OrdinaryBuildMode.NewSmallCustomCompanion &&
                 started && current != null && originalActorIds != null && !originalActorIds.Contains(current.UniqueId) &&
@@ -173,10 +189,12 @@ namespace KingmakerMountedCombat.Diagnostics
             Require(Game.Instance?.Player != null && Game.Instance.UI?.CharacterBuildController != null &&
                 !Game.Instance.Player.IsInCombat, "Native campaign/builder is unavailable or combat is active.");
             builder = Game.Instance.UI.CharacterBuildController;
-            Require(!builder.HideInterface && builder.LevelUpController == null && builder.Unit == null,
-                "A pre-existing native build session is active or its ordinary UI is unavailable.");
             ranger = ResourcesLibrary.TryGetBlueprint<BlueprintCharacterClass>(RangerClassGuid);
             Require(ranger != null, "Installed stock Ranger class is unavailable.");
+            targetCompanionFeature = horseFeature; targetCompanionUnitGuid = horseUnitGuid;
+            if (pins.IsRespec) { StartObservedRespec(); return; }
+            Require(!builder.HideInterface && builder.LevelUpController == null && builder.Unit == null,
+                "A pre-existing native build session is active or its ordinary UI is unavailable.");
             originalActorIds = new HashSet<string>(Game.Instance.Player.PartyCharacters.Concat(Game.Instance.Player.RemoteCompanions)
                 .Select(reference => reference.Value).Where(unit => unit != null).Select(unit => unit.UniqueId), StringComparer.Ordinal);
             moneyBefore = Game.Instance.Player.Money;
@@ -206,19 +224,62 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             else
             {
-                Require(originalActorIds.Contains(actor.UniqueId) && actor.IsInState && actor.IsInGame && actor.Descriptor.Pet == null &&
+                Require(originalActorIds.Contains(actor.UniqueId) && actor.IsInState && actor.IsInGame &&
                     actor.Descriptor.Progression.CharacterLevel > 0,
-                    "Existing acquisition actor is absent, out of the native field or already owns a pet.");
+                    "Existing progression actor is absent or out of the native field.");
+                if (pins.Mode == Chunk7OrdinaryBuildMode.ExistingRangerLevels)
+                    Require(actor.Descriptor.Pet == null, "Existing acquisition actor already owns a pet.");
+                else
+                {
+                    originalHorse = actor.Descriptor.Pet;
+                    var originalFact = actor.Descriptor.GetFact(horseFeature) as Feature;
+                    Require(originalHorse != null && originalHorse.IsInState && originalHorse.IsInGame &&
+                        originalHorse.Blueprint?.AssetGuid == horseUnitGuid && ReferenceEquals(originalHorse.Descriptor.Master.Value, actor) &&
+                        originalFact != null && originalFact.Source != null &&
+                        actor.Descriptor.Progression.GetClassLevel(ranger) >= pins.MinimumRangerLevel,
+                        "Existing Horse progression requires the exact sourced reciprocal native Horse and attained Ranger level.");
+                }
                 descriptor = actor.Descriptor; actorId = actor.UniqueId; initialXp = descriptor.Progression.Experience;
                 expectedFinalLevel = ReadyLevel(initialXp);
                 Require(LevelUpController.CanLevelUp(descriptor) && descriptor.Progression.GetClassLevel(ranger) +
                     expectedFinalLevel - descriptor.Progression.CharacterLevel >= pins.MinimumRangerLevel,
                     "Actual native XP cannot reach the selected ordinary Ranger acquisition level.");
                 started = true;
-                Emit("native-existing-level-admission", Snapshot());
+                Emit(pins.Mode == Chunk7OrdinaryBuildMode.ExistingHorseLevels ? "native-existing-horse-level-admission" :
+                    "native-existing-level-admission", Snapshot());
                 assertExactIsolatedAuthority();
                 builder.HandleLevelUpStart(descriptor);
             }
+        }
+
+        private void StartObservedRespec()
+        {
+            Require(!builder.HideInterface, "Native respec builder hides its ordinary choice interface.");
+            nativeRespec.RequireExactPreview(builder);
+            var original = nativeRespec.Original;
+            race = BlueprintRoot.Instance.Progression.CharacterRaces.SingleOrDefault(value => value?.AssetGuid == pins.SmallRaceGuid);
+            preset = (race?.Presets ?? new BlueprintRaceVisualPreset[0]).SingleOrDefault(value => value?.AssetGuid == pins.SmallPresetGuid);
+            var skeleton = pins.Gender == Gender.Male ? preset?.MaleSkeleton : preset?.FemaleSkeleton;
+            Require(original.Blueprint == BlueprintRoot.Instance.CustomCompanion && original.Descriptor.Progression.Race == race &&
+                race != null && race.Size == pins.ExpectedBodySize && original.Descriptor.OriginalSize == pins.ExpectedBodySize &&
+                original.Descriptor.State.Size == pins.ExpectedBodySize && original.GetActivePolymorph() == null &&
+                original.Descriptor.Doll?.RacePreset == preset && original.Descriptor.Doll.Gender == pins.Gender &&
+                original.Descriptor.Doll.LeftHanded == pins.LeftHanded && skeleton?.name == pins.SkeletonName,
+                "Native respec body pins do not match the observed original custom companion.");
+            if (pins.Mode == Chunk7OrdinaryBuildMode.NativeRespecMammoth)
+            {
+                targetCompanionFeature = ResourcesLibrary.TryGetBlueprint<BlueprintFeature>(HorseCompanionBlueprintService.MammothFeatureGuid);
+                targetCompanionUnitGuid = HorseCompanionBlueprintService.MammothUnitGuid;
+                Require(targetCompanionFeature?.GetComponent<AddPet>()?.Pet?.AssetGuid == targetCompanionUnitGuid,
+                    "Installed stock Mammoth companion choice differs.");
+            }
+            actor = nativeRespec.Preview; descriptor = actor.Descriptor; actorId = actor.UniqueId;
+            initialXp = nativeRespec.InitialExperience; expectedFinalLevel = ReadyLevel(initialXp);
+            Require(descriptor.Progression.CharacterLevel == 0 && descriptor.Progression.Experience == initialXp &&
+                expectedFinalLevel >= pins.MinimumRangerLevel && LevelUpController.CanLevelUp(descriptor),
+                "Actual native respec preview XP cannot reach the declared Ranger companion choice.");
+            moneyBefore = Game.Instance.Player.Money; started = true;
+            Emit("native-respec-build-admission", Snapshot());
         }
 
         private void BindNewActor(LevelUpController controller)
@@ -244,18 +305,18 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             if (state.CanSelectRace)
             {
-                Require(pins.Mode == Chunk7OrdinaryBuildMode.NewSmallCustomCompanion && race != null, "Unexpected unbound native race choice.");
+                Require((pins.Mode == Chunk7OrdinaryBuildMode.NewSmallCustomCompanion || pins.IsRespec) && race != null, "Unexpected unbound native race choice.");
                 return Choose("race", race.AssetGuid, () => builder.SetRace(race), () => !controller.State.CanSelectRace && controller.Preview.Progression.Race == race);
             }
             if (state.CanSelectGender)
                 return Choose("gender", pins.Gender.ToString(), () => builder.SetGender(pins.Gender), () => !controller.State.CanSelectGender && controller.Doll?.Gender == pins.Gender);
-            if (state.Mode == LevelUpState.CharBuildMode.CharGen && !presetSelected)
+            if ((state.Mode == LevelUpState.CharBuildMode.CharGen || state.Mode == LevelUpState.CharBuildMode.Respec) && !presetSelected)
             {
                 Require(controller.Doll != null && controller.Doll.Race == race, "Native doll does not carry the selected race.");
                 return Choose("native-race-preset", preset.AssetGuid, () => controller.Doll.SetRacePreset(preset), () =>
                 { presetSelected = controller.Doll.RacePreset == preset && controller.Doll.GetSkeleton()?.name == pins.SkeletonName; return presetSelected; });
             }
-            if (state.Mode == LevelUpState.CharBuildMode.CharGen && !handednessSelected)
+            if ((state.Mode == LevelUpState.CharBuildMode.CharGen || state.Mode == LevelUpState.CharBuildMode.Respec) && !handednessSelected)
                 return Choose("native-handedness", pins.LeftHanded.ToString(), () => controller.Doll.SetLeftHanded(pins.LeftHanded), () =>
                 { handednessSelected = controller.Doll.LeftHanded == pins.LeftHanded; return handednessSelected; });
             if (state.SelectedClass == null)
@@ -293,7 +354,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 "Required native spell choices need an exact observed UI spell-selection plan; no choices were skipped.");
             if (state.CanSelectName)
             {
-                var name = "KMC_C7_" + pins.RunId.Substring(0, Math.Min(32, pins.RunId.Length));
+                var name = pins.IsRespec ? nativeRespec.Original.CharacterName :
+                    "KMC_C7_" + pins.RunId.Substring(0, Math.Min(32, pins.RunId.Length));
                 return Choose("name", name, () => builder.SetName(name), () => !controller.State.CanSelectName);
             }
             if (state.CanSelectAlignment)
@@ -328,10 +390,10 @@ namespace KingmakerMountedCombat.Diagnostics
             var items = selection.Selection.Items.ToArray();
             Require(items.Length <= 256, "Native feature choice list exceeds the declared bound.");
             var selectionId = (selection.Selection as BlueprintScriptableObject)?.AssetGuid;
-            string required = selectionId == HuntersBondGuid ? RangerCompanionGuid : selectionId == RangerCompanionGuid ? horseFeature.AssetGuid : null;
+            string required = selectionId == HuntersBondGuid ? RangerCompanionGuid : selectionId == RangerCompanionGuid ? targetCompanionFeature.AssetGuid : null;
             var legal = items.Where(item => item?.Feature != null &&
                 (required == null || item.Feature.AssetGuid == required) &&
-                (item.Feature.GetComponent<AddPet>() == null || ReferenceEquals(item.Feature, horseFeature)) &&
+                (item.Feature.GetComponent<AddPet>() == null || ReferenceEquals(item.Feature, targetCompanionFeature)) &&
                 selection.Selection.CanSelect(controller.Preview, controller.State, selection, item))
                 .OrderBy(item => item.Feature.AssetGuid, StringComparer.Ordinal).ThenBy(item => item.Param.ToString(), StringComparer.Ordinal).ToArray();
             Require(legal.Length != 0, "Native feature choice has no legal admitted option: " + selectionId + "; required=" + required);
@@ -359,13 +421,15 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private Chunk7OrdinaryBuildStep ObserveCommit()
         {
+            TryAdoptNativeRespecRebind();
             Require(actor != null && ReferenceEquals(actor.Descriptor, descriptor) && actor.UniqueId == actorId,
                 "Native commit replaced the captured actor outside the selected mode.");
             Require(elapsed.Elapsed.TotalSeconds <= commitDeadline, "Native ordinary completion/UI/pet settlement exceeded thirty seconds.");
             if (descriptor.Progression.CharacterLevel == levelBeforeCommit) return Chunk7OrdinaryBuildStep.Waiting;
             Require(descriptor.Progression.CharacterLevel == levelBeforeCommit + 1 && descriptor.Progression.Experience == initialXp,
                 "Native completion did not advance exactly one actual level with unchanged XP.");
-            var expectedMoney = moneyBefore - (pins.Mode == Chunk7OrdinaryBuildMode.NewSmallCustomCompanion ? hireCost : 0);
+            var expectedMoney = pins.IsRespec ? nativeRespec.ExpectedMoneyAfter :
+                moneyBefore - (pins.Mode == Chunk7OrdinaryBuildMode.NewSmallCustomCompanion ? hireCost : 0);
             Require(Game.Instance.Player.Money == expectedMoney, "Native ordinary acquisition did not preserve exact once-only hire expenditure.");
             if (!commitRecorded)
             {
@@ -386,11 +450,13 @@ namespace KingmakerMountedCombat.Diagnostics
                 descriptor.Progression.GetClassLevel(ranger) >= pins.MinimumRangerLevel, "Native builder ended before the declared naturally ready progression.");
             var horse = descriptor.Pet;
             if (horse == null) return Chunk7OrdinaryBuildStep.Waiting;
-            var fact = descriptor.GetFact(horseFeature) as Feature;
-            Require(fact != null && fact.Source != null && horse != null && horse.Blueprint?.AssetGuid == horseUnitGuid &&
+            var fact = descriptor.GetFact(targetCompanionFeature) as Feature;
+            Require(fact != null && fact.Source != null && horse != null && horse.Blueprint?.AssetGuid == targetCompanionUnitGuid &&
                 ReferenceEquals(horse.Descriptor.Master.Value, actor), "Ordinary native progression did not produce the sourced reciprocal Horse companion.");
-            if (pins.Mode == Chunk7OrdinaryBuildMode.NewSmallCustomCompanion)
-                Require(descriptor.Progression.Race == race && descriptor.OriginalSize == Size.Small && descriptor.Doll != null &&
+            Require(pins.Mode != Chunk7OrdinaryBuildMode.ExistingHorseLevels || ReferenceEquals(horse, originalHorse),
+                "Ordinary existing-Horse leveling unexpectedly replaced its native pet.");
+            if (pins.Mode == Chunk7OrdinaryBuildMode.NewSmallCustomCompanion || pins.IsRespec)
+                Require(descriptor.Progression.Race == race && descriptor.OriginalSize == pins.ExpectedBodySize && descriptor.Doll != null &&
                     descriptor.Doll.RacePreset == preset && descriptor.Doll.Gender == pins.Gender && descriptor.Doll.LeftHanded == pins.LeftHanded,
                     "Committed native Small body differs from its exact admitted choices.");
             complete = true;
@@ -399,12 +465,23 @@ namespace KingmakerMountedCombat.Diagnostics
             return Chunk7OrdinaryBuildStep.Complete;
         }
 
+        // Native respec replaces the vacuum preview at its first commit, before
+        // terminal builder completion. Cleanup may run before the next Tick.
+        // Adoption still requires the exact observed native callback and effects.
+        private void TryAdoptNativeRespecRebind()
+        {
+            if (!pins.IsRespec || respecRebound || !nativeRespec.TryRequireNativeRebind(builder)) return;
+            actor = nativeRespec.Original; descriptor = actor.Descriptor; respecRebound = true;
+            Emit("native-respec-builder-rebound", Snapshot());
+        }
+
         private void ValidateSmallPreview(LevelUpController controller)
         {
-            if (pins.Mode != Chunk7OrdinaryBuildMode.NewSmallCustomCompanion || controller.State.Mode != LevelUpState.CharBuildMode.CharGen) return;
+            if (pins.Mode != Chunk7OrdinaryBuildMode.NewSmallCustomCompanion && !pins.IsRespec ||
+                controller.State.Mode != LevelUpState.CharBuildMode.CharGen && controller.State.Mode != LevelUpState.CharBuildMode.Respec) return;
             Require(presetSelected && handednessSelected && controller.Doll != null && controller.Doll.Race == race &&
                 controller.Doll.RacePreset == preset && controller.Doll.Gender == pins.Gender && controller.Doll.LeftHanded == pins.LeftHanded &&
-                controller.Doll.GetSkeleton()?.name == pins.SkeletonName && controller.Preview.OriginalSize == Size.Small,
+                controller.Doll.GetSkeleton()?.name == pins.SkeletonName && controller.Preview.OriginalSize == pins.ExpectedBodySize,
                 "Native complete preview does not retain the exact Small body pins.");
         }
 
@@ -425,7 +502,12 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["pendingFeatures"] = state?.RemainingSelections(),
                 ["pendingSpellGroups"] = state == null ? 0 : state.SpellSelections.Count(value => value.CanSelectAnything(controller.Preview)),
                 ["money"] = Game.Instance?.Player?.Money,
-                ["petId"] = descriptor?.Pet?.UniqueId, ["petBlueprint"] = descriptor?.Pet?.Blueprint?.AssetGuid };
+                ["petId"] = descriptor?.Pet?.UniqueId, ["petBlueprint"] = descriptor?.Pet?.Blueprint?.AssetGuid,
+                ["petObject"] = descriptor?.Pet == null ? 0 : RuntimeHelpers.GetHashCode(descriptor.Pet),
+                ["petLevel"] = descriptor?.Pet?.Descriptor.Progression.CharacterLevel,
+                ["petExperience"] = descriptor?.Pet?.Descriptor.Progression.Experience,
+                ["originalHorseRetained"] = originalHorse != null && ReferenceEquals(descriptor?.Pet, originalHorse),
+                ["nativeRespecRebound"] = respecRebound };
         }
 
         private void Emit(string kind, JObject observation)

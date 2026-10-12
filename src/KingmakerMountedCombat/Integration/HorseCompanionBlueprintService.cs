@@ -577,7 +577,11 @@ namespace KingmakerMountedCombat.Integration
             };
             if (features == null || features.Length != expectedGuids.Length)
             {
-                throw new InvalidOperationException("The exact Ranger companion " + surface + " surface no longer has seven stock options.");
+                throw new InvalidOperationException("The exact Ranger companion " + surface +
+                    " surface no longer has seven stock options; observedCount=" +
+                    (features == null ? "null" : features.Length.ToString(System.Globalization.CultureInfo.InvariantCulture)) +
+                    "; observedFirst32=" + (features == null ? "<null>" : string.Join(",",
+                        features.Take(32).Select(feature => feature == null ? "<null>" : feature.AssetGuid))) + ".");
             }
             for (var index = 0; index < expectedGuids.Length; index++)
             {

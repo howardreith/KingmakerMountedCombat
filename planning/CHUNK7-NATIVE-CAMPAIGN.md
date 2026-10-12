@@ -9,7 +9,7 @@ Raw failures and exact restoration receipts stay private and immutable.
 
 ## First bounded execution segment
 
-Candidate: reviewed preview.3, product source b97db97f8f9641eea802a725295161ebdac4ad03, frozen in analysis-cache/chunk7-continuation/candidate-world03-freeze.json. Candidate PASS15 stages/346.6120886 s; fresh suite created from the current installation. Guarded full purity and native evidence are still pending. Preview.1 is retained after its protocol finding; preview.2 is retained and ineligible after confirmed diagnostic cleanup defects. Explicit native capacity two, schema-3 world
+Candidate: reviewed preview.3, product source b97db97f8f9641eea802a725295161ebdac4ad03, frozen in analysis-cache/chunk7-continuation/candidate-world03-freeze.json. Candidate PASS, 15 stages/346.6120886 s; fresh suite created from the current installation. Full guarded WhatIf passed in 9400.5291734 s. Two native attempts completed and restored: base-only Working load failed before gameplay; the installed-configuration control reached two mounts and failed the first ground command. Both remain FAIL, with zero writes. See [the native checkpoint](../docs/CHUNK7-NATIVE-OBSERVATIONS-2026-10-12.md). Preview.1 is retained after its protocol finding; preview.2 is retained and ineligible after confirmed diagnostic cleanup defects. Explicit native capacity two, schema-3 world
 adapter, legacy schema-1/2 migration, Medium Horse/Mammoth, paired preset, Charge
 default-off, overlay off. Final source/package identities are recorded after the
 clean commit/package and Candidate tier. No native save-writing scenario here.
@@ -26,7 +26,7 @@ it is not ordinary acquisition proof. External Working restoration is required.
 
 Budget: one native run (600-second harness timeout), one guarded WhatIf and suite
 snapshot prerequisite. Product scenario budget 300 seconds, individual phases 30
-seconds and cleanup 15 seconds; expiration reports failure and retains native custody for host drain rather than releasing it. The superseded preview.2 read-only admission consumed 54.5 minutes before cancellation after a source defect: 350 GB / 1.37 million historical files are hashed before and after. Plan up to 150 minutes for the next required full purity audit, separately from the 600-second native case, and allow necessary safe restoration to finish. No cancelled audit is PASS. Do not retry unchanged
+seconds and cleanup 15 seconds; expiration reports failure and retains native custody for host drain rather than releasing it. The superseded preview.2 read-only admission consumed 54.5 minutes before cancellation after a source defect: 350 GB / 1.37 million historical files are hashed before and after. The preview.3 audit exceeded the separately declared 150-minute estimate by 400.5291734 s. Plan 180 minutes for the next required full audit, separately from native time, using the actual completed duration; retain all existing guards and allow necessary safe restoration to finish. No cancelled audit is PASS. Do not retry unchanged
 inputs. Preserve failure, inspect causal boundary, then select an affected rerun.
 Checkpoints: immutable manifest; WhatIf receipt; launch/load; fixture admission;
 first two-pair sample; settled cycles; native completion; external transaction and
@@ -39,6 +39,23 @@ uses qualified disposable Working, and restores the exact original installation 
 save tree in finally. Historical authority records establish save continuity, never
 a historical installation restoration target. Stop on unexpected interactive/account
 prompts or guard failures; settle the transaction and preserve the blocked row.
+
+## Next bounded execution segment
+
+Two of the 25 planned native invocations have been used. The next candidate changes
+the ground callback, observers, source/reader registration and guarded fixture support;
+preview.3 raw results remain bound to its original bytes. Review and compile the combined
+changes, run selected affected checks and Candidate, freeze once, then perform the required
+new WhatIf before launch. The first affected rows are native ground/door/selection and the
+base-only prerequisite inspection. A closed fresh native campaign may create only its
+declared isolated Auto_1 with an engine-minted identity; it does not qualify a two-pair,
+Small, progression or six-pair fixture by itself. A missing Ranger registration prerequisite
+must refuse before dispatch and retain the observed list. Never deserialize Working through
+a new bypass or convert an installed-mods control into base-only proof.
+
+Archive-content access is currently blocked by automatic review; a narrow generated-only
+progression test approval is pending. No denied check ran. Continue independent source and
+in-memory checks, and list any resulting candidate/native gate explicitly.
 
 ## Subsequent selected segments
 

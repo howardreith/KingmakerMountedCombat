@@ -77,9 +77,36 @@ namespace KingmakerMountedCombat.Diagnostics
         private readonly string baselineHash;
         internal string Root { get; }
         private readonly int? maximumNativeWriteRequests;
-        private int admittedNativeWriteRequests;
+        private readonly int? maximumNativeLoadRequests;
+        private int admittedNativeWriteRequests, admittedNativeLoadRequests;
         internal int? MaximumNativeWriteRequests => maximumNativeWriteRequests;
+        internal int? MaximumNativeLoadRequests => maximumNativeLoadRequests;
+        internal int AdmittedNativeLoadRequests { get { lock (sync) return admittedNativeLoadRequests; } }
         internal int AdmittedNativeWriteRequests { get { lock (sync) return admittedNativeWriteRequests; } }
+
+        // Read-only admission proof for the closed progression family.
+        // It cannot add leaves, consume admission, rename a save or authorize a
+        // request. The guarded bootstrap must have declared exactly this plan.
+        internal bool MatchesProgressionPlan(RuntimeSaveDescriptor source, bool terminalAutosave, string nativeAutoName)
+        {
+            if (source == null) return false;
+            lock (sync)
+            {
+                Entry input;
+                if (gameId != source.GameId || gameName != source.GameName || declaresBootstrap || bootstrapWindowOpen ||
+                    entries.Count != (terminalAutosave ? 2 : 1) || !entries.TryGetValue(source.FileName, out input) ||
+                    input.Name != source.InternalName || input.Type != "Manual" || input.Area != source.Area ||
+                    input.Hash != source.Sha256 || input.Writable || input.Writing || input.AdmissionArea != null ||
+                    input.Bootstrap || input.AdmitsBeforeArea || input.ForeignGameId != null || input.ForeignGameName != null)
+                    return false;
+                if (!terminalAutosave) return maximumNativeWriteRequests == null && admittedNativeWriteRequests == 0;
+                Entry output;
+                return maximumNativeWriteRequests == 1 && admittedNativeWriteRequests <= 1 &&
+                    entries.TryGetValue("Auto_1.zks", out output) && output.Name == nativeAutoName && output.Type == "Auto" &&
+                    output.Area == source.Area && output.Writable && output.AdmissionArea == null &&
+                    !output.Bootstrap && !output.AdmitsBeforeArea && output.ForeignGameId == null && output.ForeignGameName == null;
+            }
+        }
 
         // Called only by the real RuntimeSaveAuthorization native entry, never
         // by read-only eligibility/descriptor probes. Historical scopes remain
@@ -90,11 +117,36 @@ namespace KingmakerMountedCombat.Diagnostics
             lock (sync)
             {
                 var rejection = Validate(operation, target, observedRoot);
-                if (rejection != null || operation != RuntimeSaveOperation.Write) return rejection;
+                if (rejection != null) return rejection;
+                if (operation == RuntimeSaveOperation.Load)
+                {
+                    // Validate also checks exhaustion at the earlier read-only
+                    // Game.LoadGame boundary, before the old world is disposed.
+                    // Only this real LoadRoutine admission consumes the count.
+                    admittedNativeLoadRequests++;
+                    return null;
+                }
+                if (operation != RuntimeSaveOperation.Write) return null;
                 if (maximumNativeWriteRequests.HasValue && admittedNativeWriteRequests >= maximumNativeWriteRequests.Value)
                     return "The exact isolated scope exhausted its selected native write admission count.";
                 admittedNativeWriteRequests++;
                 return null;
+            }
+        }
+
+        // Exact read-only field bridge: one immutable Auto_1 source, one load,
+        // no writes or alternate/foreign/transition/bootstrap leaves. Reading
+        // this predicate never spends or replenishes a native admission.
+        internal bool MatchesReadOnlyFieldPlan(RuntimeSaveDescriptor source)
+        {
+            lock (sync)
+            {
+                Entry entry;
+                return source != null && source.FileName == "Auto_1.zks" && source.GameId == gameId && source.GameName == gameName &&
+                    maximumNativeLoadRequests == 1 && !maximumNativeWriteRequests.HasValue && !declaresBootstrap && entries.Count == 1 &&
+                    entries.TryGetValue(source.FileName, out entry) && entry.Name == source.InternalName && entry.Type == "Auto" &&
+                    entry.Area == source.Area && entry.Hash == source.Sha256 && !entry.Writable && !entry.Writing &&
+                    !entry.Bootstrap && !entry.AdmitsBeforeArea && entry.AdmissionArea == null && entry.ForeignGameId == null && entry.ForeignGameName == null;
             }
         }
 
@@ -157,11 +209,15 @@ namespace KingmakerMountedCombat.Diagnostics
 
         internal PersistenceSaveAuthorization(string authorizedRunRoot, string campaignId,
             string campaignName, string protectedBaselineHash, IEnumerable<PersistenceSaveEntry> allowlist,
-            string declaredTransitionSource, string declaredTransitionTarget, int? maximumWriteRequests = null)
+            string declaredTransitionSource, string declaredTransitionTarget, int? maximumWriteRequests = null,
+            int? maximumLoadRequests = null)
         {
             if (maximumWriteRequests.HasValue && (maximumWriteRequests.Value < 1 || maximumWriteRequests.Value > 128))
                 throw new ArgumentException("A selected isolated write count must be positive and bounded.");
+            if (maximumLoadRequests.HasValue && (maximumLoadRequests.Value < 1 || maximumLoadRequests.Value > 128))
+                throw new ArgumentException("A selected isolated load count must be positive and bounded.");
             maximumNativeWriteRequests = maximumWriteRequests;
+            maximumNativeLoadRequests = maximumLoadRequests;
             var transitionDeclared = declaredTransitionSource != null || declaredTransitionTarget != null;
             if (transitionDeclared && (declaredTransitionSource == null || declaredTransitionTarget == null ||
                 declaredTransitionSource == declaredTransitionTarget))
@@ -294,7 +350,16 @@ namespace KingmakerMountedCombat.Diagnostics
             lock (sync) return ValidateLocked(operation, target, observedRoot);
         }
 
-        private string ValidateLocked(RuntimeSaveOperation operation, RuntimeSaveTarget target, string observedRoot)
+        // Inspect the identity of bytes already admitted by a native load. This
+        // is not eligibility for another Game.LoadGame dispatch and consumes no
+        // count; native pre-disposal and LoadRoutine paths still use Validate.
+        internal string ValidateArchiveIdentity(RuntimeSaveTarget target, string observedRoot)
+        {
+            lock (sync) return ValidateLocked(RuntimeSaveOperation.Load, target, observedRoot, false);
+        }
+
+        private string ValidateLocked(RuntimeSaveOperation operation, RuntimeSaveTarget target, string observedRoot,
+            bool checkLoadAdmission = true)
         {
             try
             {
@@ -336,6 +401,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 VerifyFile(target.FileName, entry);
                 if (operation != RuntimeSaveOperation.Write && entry.Hash == null)
                     return "Load/rotation requires a completed owned archive.";
+                if (checkLoadAdmission && operation == RuntimeSaveOperation.Load && maximumNativeLoadRequests.HasValue &&
+                    admittedNativeLoadRequests >= maximumNativeLoadRequests.Value)
+                    return "The exact isolated scope exhausted its selected native load admission count.";
                 return null;
             }
             catch (Exception exception)

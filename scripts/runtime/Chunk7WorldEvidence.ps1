@@ -119,6 +119,92 @@ function Assert-KmcChunk7Measurements($Rows) {
     }
     # Timing values are observations, not an invented universal performance threshold.
 }
+function Assert-KmcChunk7DoorEvidence($Door,$Owners) {
+    Assert-KmcExactProperties $Door @('contract','interactions','setupInteractions','fixture','firstPairReturn','restoration','completed') 'Chunk 7 native door proof'
+    if($Door.contract-cne'two-pair-native-door-click-selection-change'-or$Door.interactions-isnot[Array]-or$Door.interactions.Count-ne2){throw 'Exactly two captured native door interactions required.'}
+    Assert-KmcChunk7Boolean $Door.completed $true
+    Assert-KmcChunk7WorldCounters $Door @('setupInteractions')
+    if($Door.setupInteractions-ne2){throw 'Fixture preparation must be distinct from the two native player inputs.'}
+    $f=$Door.fixture
+    Assert-KmcExactProperties $f @('name','object','position','originalOpen','originalEnabled','originalCut','disableOnOpen','radius') 'captured door fixture'
+    Assert-KmcChunk7WorldInt32 $f.object
+    if($f.object-eq0-or$f.name-isnot[string]-or[string]::IsNullOrWhiteSpace($f.name)-or$f.name.Length-gt512){throw 'Native door identity is missing.'}
+    Assert-KmcChunk7Boolean $f.originalOpen $true;Assert-KmcChunk7Boolean $f.originalCut $false
+    foreach($v in @($f.originalEnabled,$f.disableOnOpen)){if($v-isnot[bool]){throw 'Door fixture flags must be native booleans.'}}
+    foreach($axis in @('x','y','z')){if(-not(Test-KmcChunk7FiniteNumber $f.position.$axis)){throw 'Door position is not finite.'}}
+    if(-not(Test-KmcChunk7FiniteNumber $f.radius)-or$f.radius-le0){throw 'Native interaction radius is invalid.'}
+    $riders=@('b6628a77-4962-47a4-a17c-88d9836fc9d5','d17c8fd0-6627-40c4-bf9a-024cf001c1f7')
+    $commands=[Collections.Generic.HashSet[long]]::new()
+    for($i=0;$i-lt2;$i++) {
+        $v=$Door.interactions[$i];$owner=@($Owners|Where-Object riderId -CEQ $riders[$i])
+        Assert-KmcExactProperties $v @('pair','riderId','mountId','ownerId','generation','commandObject','executorId','distanceBefore','radius','selectionAfterInput','accepted','unrelatedIdleAtInput','outcome','terminal','ownerContinuity','unrelatedIdleAtCompletion','distanceMoved') 'native mounted door input'
+        Assert-KmcChunk7WorldCounters $v @('pair','generation');Assert-KmcChunk7WorldInt32 $v.commandObject
+        if($owner.Count-ne1-or$v.pair-ne$i-or$v.riderId-cne$owner[0].riderId-or$v.mountId-cne$owner[0].mountId-or
+            $v.ownerId-cne$owner[0].ownerId-or$v.generation-ne$owner[0].generation-or$v.executorId-cne$v.riderId-or
+            $v.selectionAfterInput-cne$riders[1-$i]-or$v.commandObject-eq0-or-not$commands.Add([long]$v.commandObject)){throw 'Door command lost its captured pair, generation, executor or changed selection.'}
+        foreach($flag in @('accepted','unrelatedIdleAtInput','terminal','ownerContinuity','unrelatedIdleAtCompletion')){Assert-KmcChunk7Boolean $v.$flag $true}
+        foreach($field in @('distanceBefore','radius','distanceMoved')){if(-not(Test-KmcChunk7FiniteNumber $v.$field)){throw 'Native door movement observation must be finite.'}}
+        if($v.radius-ne$f.radius-or$v.distanceBefore-le($f.radius+0.5)-or$v.distanceBefore-gt28-or$v.distanceMoved-lt0.5){throw 'Door input did not prove bounded distant approach.'}
+        $o=$v.outcome
+        Assert-KmcExactProperties $o @('Result','RiderId','MountId','InteractionCount','DelegatedMoveStartCount','DelegatedMoveTickCount','DoorStateChanged','RiderPathSuppressed','MountMoveSlotRestored','TerminalReason') 'native door terminal outcome'
+        Assert-KmcChunk7WorldCounters $o @('InteractionCount','DelegatedMoveStartCount','DelegatedMoveTickCount')
+        if($o.Result-cne'Success'-or$o.RiderId-cne$v.riderId-or$o.MountId-cne$v.mountId-or$o.InteractionCount-ne1-or$o.DelegatedMoveStartCount-ne1-or$null-ne$o.TerminalReason){throw 'Door outcome did not report exactly one successful native interaction and approach.'}
+        foreach($flag in @('DoorStateChanged','RiderPathSuppressed','MountMoveSlotRestored')){Assert-KmcChunk7Boolean $o.$flag $true}
+    }
+    $r=$Door.firstPairReturn
+    Assert-KmcExactProperties $r @('command','executorId','terminal','result','distanceToStart') 'native first-pair return'
+    Assert-KmcChunk7WorldInt32 $r.command;Assert-KmcChunk7Boolean $r.terminal $true
+    $first=@($Owners|Where-Object riderId -CEQ $riders[0])[0]
+    if($r.command-eq0-or-not$commands.Add([long]$r.command)-or$r.executorId-cne$first.mountId-or$r.result-cne'Success'-or
+        -not(Test-KmcChunk7FiniteNumber $r.distanceToStart)-or$r.distanceToStart-lt0-or$r.distanceToStart-gt1.25){throw 'First pair did not return through its own native mount command.'}
+    $s=$Door.restoration
+    Assert-KmcExactProperties $s @('exact','commandsSettled','open','enabled','cutEnabled') 'native door restoration'
+    foreach($flag in @('exact','commandsSettled')){Assert-KmcChunk7Boolean $s.$flag $true}
+    Assert-KmcChunk7Boolean $s.open $f.originalOpen;Assert-KmcChunk7Boolean $s.enabled $f.originalEnabled;Assert-KmcChunk7Boolean $s.cutEnabled $f.originalCut
+}
+
+function Assert-KmcChunk7QuietWindow($Window,$Move,$ExpectedOwners,[string[]]$ActorIds) {
+    Assert-KmcExactProperties $Window @('contract','label','startFrame','endFrame','startSeconds','endSeconds','minimumFrames','maximumFrames','minimumSeconds','maximumSeconds','telemetryBefore','telemetryAfter','measurementBeforePresent','measurementAfterPresent','fullyInert','performanceProof','allocationRateProof','remainingObservers','gateReleased','before','after') 'Bounded optional-capture quiet window'
+    foreach($field in @('startFrame','endFrame','minimumFrames','maximumFrames')){Assert-KmcChunk7WorldInt32 $Window.$field}
+    foreach($field in @('startSeconds','endSeconds','minimumSeconds','maximumSeconds')){if(-not(Test-KmcChunk7FiniteNumber $Window.$field)-or$Window.$field-lt0){throw 'Quiet window requires finite native clock observations.'}}
+    if($Window.contract-cne'chunk7-optional-capture-quiet-window-v1'-or$Window.label-cne$Move.label-or
+       $Window.minimumFrames-ne12-or$Window.maximumFrames-ne1800-or$Window.minimumSeconds-ne0.25-or$Window.maximumSeconds-ne15.0-or
+       $Window.startFrame-lt0-or$Window.endFrame-$Window.startFrame-lt12-or$Window.endFrame-$Window.startFrame-gt1800-or
+       $Window.endSeconds-$Window.startSeconds-lt0.25-or$Window.endSeconds-$Window.startSeconds-gt15.0){throw 'Quiet movement lacks its exact finite multi-frame window.'}
+    foreach($flag in @('measurementBeforePresent','measurementAfterPresent','fullyInert','performanceProof','allocationRateProof')){Assert-KmcChunk7Boolean $Window.$flag $false}
+    Assert-KmcChunk7Boolean $Window.gateReleased $true
+    if($Window.remainingObservers-isnot[Array]-or($Window.remainingObservers-join'|')-cne'guarded-host-heartbeat|exact-native-world-guard|production-lifecycle-records|native-command-settlement-polling|entry-exit-snapshots'){throw 'Quiet evidence must name the retained safety/entry-exit observers.'}
+    foreach($t in @($Window.telemetryBefore,$Window.telemetryAfter)) {
+        Assert-KmcExactProperties $t @('lastSampleSeconds','sampleSequence','fileCreated','samplingIntervalSeconds','clockSeconds') 'Exact optional telemetry owner state'
+        Assert-KmcChunk7WorldCounters $t @('sampleSequence')
+        if($t.fileCreated-isnot[bool]){throw 'Optional telemetry creation state must be boolean.'}
+        foreach($field in @('lastSampleSeconds','samplingIntervalSeconds','clockSeconds')){if(-not(Test-KmcChunk7FiniteNumber $t.$field)-or$t.$field-lt0){throw 'Optional telemetry timer must be a finite number.'}}
+        if($t.samplingIntervalSeconds-le0-or$t.samplingIntervalSeconds-gt1-or$t.lastSampleSeconds-gt$t.clockSeconds){throw 'Optional telemetry timer/interval is inconsistent.'}
+    }
+    $a=$Window.telemetryBefore;$b=$Window.telemetryAfter
+    foreach($field in @('lastSampleSeconds','sampleSequence','fileCreated','samplingIntervalSeconds')){if($a.$field-ne$b.$field){throw 'Optional telemetry sampling advanced while its exact writer was gated.'}}
+    $requiredSeconds=[Math]::Max(0.25,2.0*$a.samplingIntervalSeconds)
+    if($Window.endSeconds-$Window.startSeconds-lt$requiredSeconds-or$b.clockSeconds-$a.clockSeconds-lt$requiredSeconds){throw 'Unchanged telemetry needs both real clocks to span the exact captured sampling bound, not merely zero rows.'}
+    for($phase=0;$phase-lt2;$phase++) {
+        $w=if($phase-eq0){$Window.before}else{$Window.after}
+        $label=if($phase-eq0){'quiet-before-'}else{'quiet-after-'}
+        $frame=if($phase-eq0){$Window.startFrame}else{$Window.endFrame}
+        Assert-KmcChunk7WorldCounters $w @('frame','boundaryCount','participantCount')
+        if($w.label-cne($label+$Move.label)-or$w.frame-ne$frame-or$w.boundaryCount-ne2-or$w.participantCount-ne2-or
+           $w.selection-isnot[Array]-or$w.selection.Count-ne1-or$w.selection[0]-cne$Move.selectionAfterInput-or$w.owners-isnot[Array]){throw 'Quiet entry/exit did not observe the exact selected world boundary.'}
+        $active=@($w.owners|Where-Object state -CEQ 'Active')
+        if($active.Count-ne@($ExpectedOwners).Count){throw 'Quiet movement changed active owner cardinality.'}
+        foreach($expected in $ExpectedOwners) {
+            $owned=@($active|Where-Object ownerId -CEQ $expected.ownerId)
+            if($owned.Count-ne1){throw 'Quiet movement lost or duplicated an exact owner.'}
+            Assert-KmcChunk7WorldCounters $owned[0] @('generation')
+            if($owned[0].riderId-cne$expected.riderId-or$owned[0].mountId-cne$expected.mountId-or$owned[0].generation-ne$expected.generation-or$owned[0].relationshipState-cne'Mounted'){throw 'Quiet movement rebound actors/generation or lost mounted presentation.'}
+        }
+    }
+    Assert-KmcChunk7Resources $Window.before.resources $Window.after.resources $ActorIds
+    if((Get-KmcChunk7Subscriptions $Window.before.subscriptions)-cne(Get-KmcChunk7Subscriptions $Window.after.subscriptions)){throw 'Quiet window grew or lost native subscriptions.'}
+}
+
 function Assert-KmcChunk7WorldEvidence($Request,$Artifact,[string]$Status) {
     Assert-KmcChunk7ArtifactEnvelope $Request $Artifact 'chunk7-world-evidence'
     if($Request.scenario-cne'chunk7-two-pair-exploration'){throw 'Chunk 7 world evidence under another scenario.'}
@@ -161,6 +247,10 @@ function Assert-KmcChunk7WorldEvidence($Request,$Artifact,[string]$Status) {
         $same=@($after[0].owners|Where-Object ownerId -CEQ $owner.ownerId)
         if($same.Count-ne1-or$same[0].riderId-cne$owner.riderId-or$same[0].mountId-cne$owner.mountId-or$same[0].generation-ne$owner.generation-or$same[0].state-cne'Active'){throw 'Selection/movement changed exact pair ownership.'}
     }
+    Assert-KmcChunk7DoorEvidence $o.door $owners
+    $doorAfter=@($o.snapshots|Where-Object label -CEQ 'door-complete')
+    if($doorAfter.Count-ne1-or@($doorAfter[0].owners).Count-ne2){throw 'Two-pair door completion window missing.'}
+    foreach($owner in $owners){$same=@($doorAfter[0].owners|Where-Object ownerId -CEQ $owner.ownerId);if($same.Count-ne1-or$same[0].generation-ne$owner.generation-or$same[0].riderId-cne$owner.riderId-or$same[0].mountId-cne$owner.mountId-or$same[0].state-cne'Active'){throw 'Door work changed captured ownership.'}}
     $split=@($o.snapshots|Where-Object label -CEQ 'first-dismounted-second-retained')
     if($split.Count-ne1){throw 'Independent native Dismount window missing.'}
     $retained=@($split[0].owners|Where-Object state -CEQ 'Active');$expected=@($owners|Where-Object riderId -CEQ $second)[0]
@@ -169,6 +259,8 @@ function Assert-KmcChunk7WorldEvidence($Request,$Artifact,[string]$Status) {
     if(@($o.movements).Count-ne3){throw 'Three exact native movement windows required.'}
     for($i=0;$i-lt3;$i++) {
         $v=$o.movements[$i];$s=$moveSpecs[$i]
+        $quietOwners=if($i-lt2){$owners}else{@($owners|Where-Object riderId -CEQ $second)}
+        Assert-KmcChunk7QuietWindow $v.optionalCaptureWindow $v @($quietOwners) $actors
         Assert-KmcChunk7Boolean $v.commandTerminal $true
         Assert-KmcChunk7WorldInt32 $v.commandObject
         foreach($command in @($v.commandsBefore)+@($v.commandsAfter)){Assert-KmcChunk7WorldInt32 $command.moveObject}
@@ -216,7 +308,7 @@ function Assert-KmcChunk7WorldEvidence($Request,$Artifact,[string]$Status) {
     if($admission.owners-ne0-or$admission.activePairs-ne0-or$admission.frame-lt$o.measurements[3].endFrame-or$admission.commands-isnot[Array]){throw 'Native progression removal ran before final sampling or settled ownership.'}
     foreach($field in @('preparationPending','serializationBusy','pendingNativeWrites')){Assert-KmcChunk7Boolean $admission.$field $false}
     $issued=@($o.inputs)+@($o.cycleInputs)+@($o.movements)
-    Assert-KmcChunk7ExactIds $admission.commands @($issued|ForEach-Object{[string]$_.commandObject}) 'commandObject'
+    Assert-KmcChunk7ExactIds $admission.commands @(@($issued|ForEach-Object{[string]$_.commandObject})+@($o.door.interactions|ForEach-Object{[string]$_.commandObject})+@([string]$o.door.firstPairReturn.command)) 'commandObject'
     $settledCommandIds=[Collections.Generic.HashSet[long]]::new()
     foreach($command in $admission.commands){
         Assert-KmcChunk7WorldInt32 $command.commandObject
@@ -248,6 +340,19 @@ function Assert-KmcChunk7WorldArtifact($Request,$Manifest,[string]$Status) {
         if($shots.Count-ne1){throw 'Two-pair screenshot is not immutably manifested.'}
     }
 }
+function Assert-KmcExactObservedLoaderDependency($Assemblies,$Dependencies,[string]$RelativePath,[string]$Name,[string]$FullName,[string]$Mvid,[string]$Sha256) {
+    $expected=[IO.Path]::GetFullPath((Join-Path $Dependencies.gameRoot $RelativePath))
+    $receipt=@($Dependencies.files|Where-Object relativePath -CEQ $RelativePath)
+    $loaded=@($Assemblies|Where-Object name -CEQ $Name)
+    if($receipt.Count-ne1-or$receipt[0].relativePath-isnot[string]-or$receipt[0].sha256-isnot[string]-or$receipt[0].sha256-cne$Sha256-or
+        $loaded.Count-ne1-or$loaded[0].name-isnot[string]-or$loaded[0].fullName-isnot[string]-or$loaded[0].mvid-isnot[string]-or
+        $loaded[0].sha256-isnot[string]-or$loaded[0].dynamic-isnot[bool]-or$loaded[0].dynamic-or
+        $loaded[0].fullName-cne$FullName-or$loaded[0].mvid-cne$Mvid-or$loaded[0].sha256-cne$Sha256-or
+        $loaded[0].location-isnot[string]-or-not[IO.Path]::IsPathRooted($loaded[0].location)-or
+        -not[IO.Path]::GetFullPath($loaded[0].location).Equals($expected,[StringComparison]::OrdinalIgnoreCase)) {
+        throw ('The exact installed loader contract was not pinned in both dependency and native observations: '+$Name)
+    }
+}
 function Assert-KmcBaseGameNativeInventory($Request,$Artifact,$Dependencies,[switch]$PassThru) {
     Assert-KmcChunk7ArtifactEnvelope $Request $Artifact 'runtime-loader-inventory'
     if($Artifact.status-cne'PASS'-or$Artifact.observations.capturedInNativeProcess-ne$true-or
@@ -262,10 +367,29 @@ function Assert-KmcBaseGameNativeInventory($Request,$Artifact,$Dependencies,[swi
     $loaderRoot=Join-Path $managedRoot 'UnityModManager'
     $kmcPath=[IO.Path]::GetFullPath((Join-Path $Dependencies.modsRoot 'KingmakerMountedCombat/KingmakerMountedCombat.dll'))
     $dynamicAssemblies=New-Object 'Collections.Generic.List[object]'
+    $inMemoryAssemblies=New-Object 'Collections.Generic.List[object]'
+    $kmcLoadedFromNativeCache=$false
     foreach($assembly in $assemblies) {
         Assert-KmcExactProperties $assembly @('name','fullName','dynamic','location','mvid','sha256') 'Loaded native assembly'
         if($assembly.dynamic-isnot[bool]-or$assembly.name-isnot[string]-or[string]::IsNullOrWhiteSpace($assembly.name)-or
             $assembly.fullName-isnot[string]-or[string]::IsNullOrWhiteSpace($assembly.fullName)){throw 'Loaded assembly identity or dynamic flag is missing.'}
+        if($assembly.name-ceq'HarmonySharedState') {
+            # Exact installed Harmony 2.3.1.1 creates this module with Cecil and
+            # loads bytes through ReflectionHelper.Load. Mono reports IsDynamic=false,
+            # an empty Location and a generated MVID. This is an identity-shape
+            # exception under a pinned creator, not observed creation or content proof.
+            $memoryMvid=[Guid]::Empty
+            if($assembly.dynamic-or$assembly.fullName-cne'HarmonySharedState, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null'-or
+                $assembly.location-isnot[string]-or$assembly.location-cne''-or$null-ne$assembly.sha256-or$assembly.mvid-isnot[string]-or
+                -not[Guid]::TryParseExact($assembly.mvid,'D',[ref]$memoryMvid)-or$memoryMvid-eq[Guid]::Empty-or
+                $memoryMvid.ToString('D')-cne$assembly.mvid-or@($assemblies|Where-Object name -CEQ 'HarmonySharedState').Count-ne1-or
+                @($assemblies|Where-Object mvid -CEQ $assembly.mvid).Count-ne1){throw 'In-memory Harmony shared state differs from its exact installed identity shape.'}
+            Assert-KmcExactObservedLoaderDependency $assemblies $Dependencies 'Kingmaker_Data/Managed/UnityModManager/0Harmony.dll' '0Harmony'                 '0Harmony, Version=2.3.1.1, Culture=neutral, PublicKeyToken=null' '6c906b4f-1de4-40f3-a86c-b0ebb3f48ea6'                 '5f7ad0df1eb08e81f66d4006d3a9e5cb40fc05e381f36d7bd0513f334f6a251f'
+            $inMemoryAssemblies.Add([pscustomobject]@{name=[string]$assembly.name;fullName=[string]$assembly.fullName;mvid=[string]$assembly.mvid;
+                creatorName='0Harmony';creatorMvid='6c906b4f-1de4-40f3-a86c-b0ebb3f48ea6';creatorSha256='5f7ad0df1eb08e81f66d4006d3a9e5cb40fc05e381f36d7bd0513f334f6a251f';
+                identityShapeVerified=$true;creationObserved=$false;contentCertified=$false})
+            continue
+        }
         if($assembly.dynamic) {
             # Runtime-generated assemblies have no file-backed byte identity.
             # Preserve every observed identity without inventing a stock/dynamic allowlist.
@@ -282,7 +406,16 @@ function Assert-KmcBaseGameNativeInventory($Request,$Artifact,$Dependencies,[swi
         $location=[IO.Path]::GetFullPath([string]$assembly.location)
         $directory=[IO.Path]::GetDirectoryName($location).TrimEnd('\')
         if($assembly.name-ceq'KingmakerMountedCombat') {
-            if(-not$location.Equals($kmcPath,[StringComparison]::OrdinalIgnoreCase)){throw 'Loaded KMC assembly is outside the exact staged candidate path.'}
+            if(-not$location.Equals($kmcPath,[StringComparison]::OrdinalIgnoreCase)) {
+                # Installed UMM ModEntry.Load 0600009A uses a canonical UInt16
+                # cache suffix in this same mod directory. Candidate bytes/MVID
+                # are still checked below; another path or cache shape is refused.
+                $leaf=[IO.Path]::GetFileName($location);$cacheMatch=[regex]::Match($leaf,'^KingmakerMountedCombat\.dll\.(0|[1-9][0-9]{0,4})\.cache$')
+                if(-not$directory.Equals([IO.Path]::GetDirectoryName($kmcPath),[StringComparison]::OrdinalIgnoreCase)-or
+                    -not$cacheMatch.Success-or[int]$cacheMatch.Groups[1].Value-gt65535){throw 'Loaded KMC assembly is outside its exact staged candidate or native UMM cache path.'}
+                Assert-KmcExactObservedLoaderDependency $assemblies $Dependencies 'Kingmaker_Data/Managed/UnityModManager/UnityModManager.dll' 'UnityModManager'                     'UnityModManager, Version=0.28.2.0, Culture=neutral, PublicKeyToken=null' 'edf4be29-0c88-4482-876d-e946a0f9e363'                     '75b96e25a3a9fbadb47dd14a4ab490cb8c98143a6242aff3bba6145cd3047f39'
+                $kmcLoadedFromNativeCache=$true
+            }
         }
         elseif(-not$directory.Equals($managedRoot,[StringComparison]::OrdinalIgnoreCase)-and
             -not$directory.Equals($loaderRoot,[StringComparison]::OrdinalIgnoreCase)) {
@@ -299,9 +432,11 @@ function Assert-KmcBaseGameNativeInventory($Request,$Artifact,$Dependencies,[swi
         if($loaded.Count-ne1-or$loaded[0].sha256-cne$dependency[0].sha256){throw 'Required pinned native loader assembly was not observed loaded.'}
     }
     if($PassThru) {
-        return [pscustomobject][ordered]@{schemaVersion=1;fileBackedAssemblyCount=$assemblies.Count-$dynamicAssemblies.Count;
+        return [pscustomobject][ordered]@{schemaVersion=1;fileBackedAssemblyCount=$assemblies.Count-$dynamicAssemblies.Count-$inMemoryAssemblies.Count;
             dynamicAssemblyCount=$dynamicAssemblies.Count;dynamicAssemblies=@($dynamicAssemblies.ToArray());dynamicAssembliesQualified=$false;
+            inMemoryAssemblyCount=$inMemoryAssemblies.Count;inMemoryAssemblies=@($inMemoryAssemblies.ToArray());
+            inMemoryAssemblyCreationObserved=$false;inMemoryAssemblyContentCertified=$false;kmcLoadedFromNativeCache=$kmcLoadedFromNativeCache;
             completeStockAssemblyAllowlistProven=$false;
-            limitation='All non-dynamic assemblies have observed hashes/MVIDs and exact allowed directories; KMC/gameplay/UMM/Harmony12 are pinned. Other Managed/UMM binaries and runtime-generated assemblies are inventoried, not certified by a stock assembly allowlist.'}
+            limitation='File-backed assemblies retain observed hashes/MVIDs and exact allowed directories; staged KMC or its pinned UMM cache retains exact candidate bytes. HarmonySharedState is accepted only with its exact in-memory identity shape and pinned installed creator; its creation and content were not observed. Other Managed/UMM binaries and runtime-generated assemblies remain inventoried, not certified by a stock assembly allowlist.'}
     }
 }

@@ -8,6 +8,7 @@ function Get-KmcChunk7PersistenceSource {
        $ExpectedDllSha256-cnotmatch'^[0-9a-f]{64}$'-or$ExpectedCommit-cnotmatch'^[0-9a-f]{40}$'-or$Case-cnotin(Get-KmcChunk7PersistenceCases)){
         throw 'Chunk 7 persistence source identity is invalid.'
     }
+    $Case=Get-KmcChunk7PersistenceSourceCase $Case
     $lab=Get-KmcLabRoot
     $root=Assert-KmcChildPath (Join-Path $lab ('runtime-staging/persistence-'+$SourceRunId)) (Join-Path $lab 'runtime-staging') 'Chunk 7 source profile'
     Assert-KmcDirectoryTreeCloneable $root 'Chunk 7 source profile'
@@ -82,11 +83,12 @@ function Get-KmcChunk7PersistenceSource {
 }
 function Assert-KmcChunk7PersistenceColdSource($SourceRunId,$Request,$ColdArtifact) {
     if($Request.persistenceCase-ceq'legacy-schema1-resave-manual'){Assert-KmcChunk7Schema1ColdSource $SourceRunId $Request $ColdArtifact;return}
+    $sourceCase=Get-KmcChunk7PersistenceSourceCase $Request.persistenceCase
     $path=Join-Path (Get-KmcLabRoot) ('runtime-evidence/'+$SourceRunId+'/chunk7-persistence-evidence.json')
     Assert-KmcNotReparsePoint $path 'Chunk 7 source observation';Assert-KmcNotHardLink $path 'Chunk 7 source observation'
     $source=Read-KmcJson $path
     if($source.runId-cne$SourceRunId-or$source.scenario-cne'chunk7-persistence-save'-or$source.status-cne'PASS'-or
-       $source.dllSha256-cne$Request.dllSha256-or$source.commit-cne$Request.commit-or$source.observations.checkpoint-cne$Request.persistenceCase-or
+       $source.dllSha256-cne$Request.dllSha256-or$source.commit-cne$Request.commit-or$source.observations.checkpoint-cne$sourceCase-or
        $source.observations.nativeWrite.sha256-cne$Request.persistenceLoad.sha256-or$source.observations.nativeWrite.length-ne$Request.persistenceLoad.length-or
        $source.observations.processId-eq$ColdArtifact.observations.processId-or
        (ConvertTo-KmcChunk7Canonical $source.observations.nativeWrite.archive)-cne(ConvertTo-KmcChunk7Canonical $ColdArtifact.observations.loadedArchive)){

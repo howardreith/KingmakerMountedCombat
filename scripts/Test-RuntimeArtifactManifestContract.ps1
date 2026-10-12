@@ -19,6 +19,12 @@ foreach($name in $names.Keys){
  # Test-Chunk7WorldEvidence and Test-Chunk7NativeDiagnostics exercise these exact leaf/kind
  # pairs with immutable manifest/hash/envelope positive and negative fixtures.
  foreach($addition in @(
+     '            ($relativePath -ceq ''chunk7-progression-evidence.json'' -and $kind -ceq ''chunk7-progression-evidence'') -or',
+     '            ($relativePath -ceq ''chunk7-progression-cleanup-pending.json'' -and $kind -ceq ''chunk7-progression-cleanup-pending'') -or',
+     '            ($relativePath -ceq ''chunk7-ordinary-field-evidence.json'' -and $kind -ceq ''chunk7-ordinary-field-evidence'') -or',
+     '            ($relativePath -ceq ''chunk7-ordinary-field-cleanup-pending.json'' -and $kind -ceq ''chunk7-ordinary-field-cleanup-pending'') -or',
+     '            ($relativePath -ceq ''chunk7-small-calibration-evidence.json'' -and $kind -ceq ''chunk7-small-calibration-evidence'') -or',
+     '            ($relativePath -ceq ''chunk7-small-calibration-cleanup-pending.json'' -and $kind -ceq ''chunk7-small-calibration-cleanup-pending'') -or',
      '            ($relativePath -ceq ''chunk7-ordinary-acquisition-evidence.json'' -and $kind -ceq ''chunk7-ordinary-acquisition-evidence'') -or',
      '            ($relativePath -ceq ''chunk7-ordinary-cleanup-pending.json'' -and $kind -ceq ''chunk7-ordinary-cleanup-pending'') -or',
      '            ($relativePath -ceq ''chunk7-world-evidence.json'' -and $kind -ceq ''chunk7-world-evidence'') -or',
