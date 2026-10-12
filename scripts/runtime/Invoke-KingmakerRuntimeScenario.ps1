@@ -352,9 +352,6 @@ $errors=New-Object 'System.Collections.Generic.List[string]'
 New-Item -ItemType Directory -Path $evidenceRoot|Out-Null
 try{
     $lock=Open-KmcRuntimeLock $runtimeState $actualRunId
-    if($BaseGameOnly-or$Scenario -cin @('persistence-isolation','persistence-p07-save','persistence-p07-load','persistence-p01-save','persistence-p01-load','persistence-p02-save','persistence-p02-load','persistence-p03-save','persistence-p03-load','persistence-p04-save','persistence-p04-load','persistence-p05-save','persistence-p05-load','persistence-p06-load')){
-        $profileSnapshot=New-KmcPersistenceProfileSnapshot -Lock $lock -SaveRoot $saveRoot -GameRoot ([string]$intake.requestedLayout.kingmakerInstallDir) -BackupRoot $runtimeBackups
-    }
     $request=[ordered]@{
         schemaVersion=$(if($isSaveBacked){2}else{1})
         runId=$actualRunId
@@ -399,6 +396,10 @@ try{
             -Before $beforeSaves `
             -After $lockedContinuity.saveMetadata `
             -Description 'runtime locked fixture-continuity save metadata'
+    }
+    # Snapshot only after the under-lock fixture and save-metadata proof.
+    if($BaseGameOnly-or$Scenario -cin @('persistence-isolation','persistence-p07-save','persistence-p07-load','persistence-p01-save','persistence-p01-load','persistence-p02-save','persistence-p02-load','persistence-p03-save','persistence-p03-load','persistence-p04-save','persistence-p04-load','persistence-p05-save','persistence-p05-load','persistence-p06-load')){
+        $profileSnapshot=New-KmcPersistenceProfileSnapshot -Lock $lock -SaveRoot $saveRoot -GameRoot ([string]$intake.requestedLayout.kingmakerInstallDir) -BackupRoot $runtimeBackups
     }
     # The no-save mode must bind NO suite argument, not an empty one: the
     # receiving parameters are ValidatePattern-guarded, so an explicitly passed

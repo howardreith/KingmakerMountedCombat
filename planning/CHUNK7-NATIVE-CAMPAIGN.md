@@ -9,7 +9,7 @@ Raw failures and exact restoration receipts stay private and immutable.
 
 ## First bounded execution segment
 
-Candidate: `0.1.0-chunk7b-preview.1`, explicit native capacity two, schema-3 world
+Candidate: `0.1.0-chunk7b-preview.2` (preview.1 retained after preflight protocol finding), explicit native capacity two, schema-3 world
 adapter, legacy schema-1/2 migration, Medium Horse/Mammoth, paired preset, Charge
 default-off, overlay off. Final source/package identities are recorded after the
 clean commit/package and Candidate tier. No native save-writing scenario here.

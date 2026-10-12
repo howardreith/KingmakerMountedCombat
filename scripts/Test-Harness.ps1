@@ -4811,7 +4811,15 @@ try {
         $lockIndex = $launcherSource.IndexOf('    $lock=Open-KmcRuntimeLock', [StringComparison]::Ordinal)
         $combinedStateIndex = $launcherSource.IndexOf('    $combinedStatePath=New-KmcRunTransactionState', [StringComparison]::Ordinal)
         $enterSaveIndex = $launcherSource.IndexOf('        [void](Enter-KmcWorkingSaveTransaction', [StringComparison]::Ordinal)
-        $enterModsIndex = $launcherSource.IndexOf('    [void](Enter-KmcModsTransaction', [StringComparison]::Ordinal)
+        $continuityTokens=$null; $continuityParseErrors=$null
+        $continuityAst=[Management.Automation.Language.Parser]::ParseInput($launcherSource,[ref]$continuityTokens,[ref]$continuityParseErrors)
+        Assert-Test ($continuityParseErrors.Count -eq 0) 'runtime launcher cannot be parsed for its admission order'
+        $modsEntries=@($continuityAst.FindAll({param($node) $node -is [Management.Automation.Language.CommandAst] -and $node.GetCommandName() -ceq 'Enter-KmcModsTransaction'},$true))
+        $profileSnapshots=@($continuityAst.FindAll({param($node) $node -is [Management.Automation.Language.CommandAst] -and $node.GetCommandName() -ceq 'New-KmcPersistenceProfileSnapshot'},$true))
+        Assert-Test ($modsEntries.Count -eq 1 -and $profileSnapshots.Count -eq 1) 'runtime launcher has missing or duplicate Mods/profile entry operations'
+        $enterModsIndex=$modsEntries[0].Extent.StartOffset
+        $profileSnapshotIndex=$profileSnapshots[0].Extent.StartOffset
+        $lockedMetadataIndex=$launcherSource.IndexOf("-Description 'runtime locked fixture-continuity save metadata'",[StringComparison]::Ordinal)
         $continuityCalls = @([regex]::Matches(
             $launcherSource,
             '(?m)^\s*\$(?:preflightContinuity|whatIfContinuity|lockedContinuity)=Assert-KmcQualificationSuiteContinuity'))
@@ -4827,7 +4835,8 @@ try {
             $continuityCalls[1].Index -gt $shouldProcessIndex -and $continuityCalls[1].Index -lt $lockIndex -and
             $continuityCalls[2].Index -gt $lockIndex -and $continuityCalls[2].Index -lt $combinedStateIndex) `
             'runtime launcher continuity proofs are not ordered before approval, during WhatIf, and under lock before durable state'
-        Assert-Test ($combinedStateIndex -gt $continuityCalls[2].Index -and
+        Assert-Test ($lockedMetadataIndex -gt $continuityCalls[2].Index -and
+            $profileSnapshotIndex -gt $lockedMetadataIndex -and $combinedStateIndex -gt $profileSnapshotIndex -and
             $enterSaveIndex -gt $combinedStateIndex -and $enterModsIndex -gt $enterSaveIndex) `
             'runtime launcher can stage durable run state, Mods, or Working before locked continuity succeeds'
         Assert-Test ($postRestorationAuditIndex -gt $enterModsIndex -and
@@ -4861,7 +4870,11 @@ try {
         $serviceSource = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\GameMountedRelationshipService.cs')
         Assert-Test ($mainSource.Contains('root?.HandleUpdateFailure(exception);')) 'OnUpdate does not delegate every escaped failure to the fail-closed composition boundary'
         Assert-Test ($rootSource.Contains('runtimeAutomation?.Abort(exception);')) 'composition boundary does not abort active automation after an update failure'
-        Assert-Test ($rootSource.Contains('relationship.Dismount(CleanupTrigger.Exception)')) 'composition boundary does not force update-failure relationship cleanup'
+        Assert-Test ($rootSource.Contains('var errors = world.Visit(pair =>') -and
+            $rootSource.Contains('pair.Combat.Cancel("world update failure");') -and
+            $rootSource.Contains('pair.Relationship.Dismount(CleanupTrigger.Exception)') -and
+            $rootSource.Contains('if (errors.Length != 0) throw new AggregateException("World update cleanup retained owners.", errors);')) `
+            'composition boundary does not independently service every pair and retain update-failure cleanup errors'
         Assert-Test ($rootSource.Contains('Always execute idempotent cleanup on a disable request')) 'repeated disable requests can bypass idempotent cleanup'
         Assert-Test ($hostSource.Contains('TryCompleteFailure(exception ??')) 'runtime abort does not commit a bounded FAIL result and quit'
         Assert-Test ($serviceSource.Contains('cleanupRetryRequired || coordinator.State == RelationshipState.Faulted')) 'frame validation does not detect a prior lifecycle cleanup failure'
@@ -4873,11 +4886,18 @@ try {
         $engineSource = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\RuntimeLifecycleScenarioEngine.cs')
         Assert-Test ($subscriberSource.Contains('if (inCombat) { Observe(NativeLifecycleBoundary.CombatStarted') -and
             -not $subscriberSource.Contains('Cleanup(NativeLifecycleBoundary.CombatStarted')) 'combat start does not retain a valid mounted pair'
-        Assert-Test ($subscriberSource.Contains('else { combat.Cancel("party combat ended"); Observe(NativeLifecycleBoundary.CombatEnded')) 'combat end does not cancel active combat work while retaining the pair'
-        Assert-Test ($subscriberSource.Contains('Cleanup(NativeLifecycleBoundary.UnitIncapacitated') -and
-            $subscriberSource.Contains('Cleanup(NativeLifecycleBoundary.UnitDeath') -and
-            $subscriberSource.Contains('Cleanup(NativeLifecycleBoundary.PartyRemoved') -and
-            $subscriberSource.Contains('Cleanup(NativeLifecycleBoundary.ViewDetachedOrUnitDestroyed')) 'pair invalidation is missing an exact fail-closed cleanup boundary'
+        Assert-Test ($subscriberSource.Contains('else { VisitCombatOwners(owner => owner.Cancel("party combat ended")); Observe(NativeLifecycleBoundary.CombatEnded') -and
+            $subscriberSource.Contains('service.World.Visit(pair => action(pair.Combat))') -and
+            $subscriberSource.Contains('if (errors.Length != 0) throw new AggregateException("Mounted owner boundary did not settle.", errors);')) `
+            'combat end does not independently cancel every owner while retaining attachments and failed cleanup'
+        Assert-Test ($subscriberSource.Contains('CleanupActor(unit, NativeLifecycleBoundary.UnitIncapacitated') -and
+            $subscriberSource.Contains('CleanupActor(entityData, NativeLifecycleBoundary.UnitDeath') -and
+            $subscriberSource.Contains('CleanupActor(unit, NativeLifecycleBoundary.PartyRemoved') -and
+            $subscriberSource.Contains('service.Ownership.Owns(owner)') -and
+            $subscriberSource.Contains('CleanupOwner(owner.Boundary, NativeLifecycleBoundary.ViewDetachedOrUnitDestroyed') -and
+            $subscriberSource.Contains('var owner = service.ResolveActorOwner(actor);') -and
+            $subscriberSource.Contains('return owner == null || CleanupOwner(owner, boundary, source, trigger);')) `
+            'pair invalidation is missing an exact actor/captured-owner cleanup boundary'
         Assert-Test ($engineSource.Contains('"combat-lifecycle-suite"') -and
             $engineSource.Contains('? 7') -and
             $engineSource.Contains(': IsCombatLifecycleRow(currentRow ?? lastEvidenceRow) ? 3 : 2') -and
@@ -4891,7 +4911,8 @@ try {
         $serviceSource = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\GameMountedRelationshipService.cs')
         $engineSource = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\RuntimeMovementScenarioEngine.cs')
         Assert-Test ($patchSource.Contains('PatchExact(typeof(UnitEntityView), "ForcePlaceAboveGround", 0x06001848, Type.EmptyTypes, nameof(PatchMethods.ForcePlaceAboveGroundPrefix));')) 'grounding repair does not pin the exact Kingmaker method token and parameter list'
-        Assert-Test ($patchSource.Contains('!PatchBridge.Service.TrySuppressRiderGroundPlacement(__instance)')) 'grounding prefix does not delegate its exact-instance decision to the relationship service'
+        Assert-Test ($patchSource.Contains('PatchBridge.Owner(__instance?.EntityData)?.TrySuppressRiderGroundPlacement(__instance) != true') -and
+            $patchSource.Contains('World != null ? World.ForActor(actor)?.Relationship : Service?.ResolveActorOwner(actor)')) 'grounding prefix does not delegate its exact-instance decision to the relationship service'
         Assert-Test ($serviceSource.Contains('MountedRiderGroundingPolicy.ShouldSuppress(') -and $serviceSource.Contains('RiderGroundPlacementSuppressionCount++;')) 'relationship service does not apply and count the exact active-rider policy'
         Assert-Test ($engineSource.Contains('rider.View.ForcePlaceAboveGround();') -and $engineSource.Contains('suppressionCountAfter == suppressionCountBefore + 1L')) 'camera qualification does not deterministically exercise the exact grounding repair'
         # Chunk4 AW requires an entry observation even when native TickMovement
@@ -4899,7 +4920,8 @@ try {
         # source contract, not evidence of gameplay or callback delivery.
         Assert-Test (([regex]::Matches($patchSource,'PatchExact\(typeof\(UnitMoveController\)')).Count -eq 1 -and
             $patchSource.Contains('PatchExact(typeof(UnitMoveController), "Tick", 0x06009183, Type.EmptyTypes, nameof(PatchMethods.NativeMovementUpdatePrefix));') -and
-            $patchSource.Contains('NativeMovementUpdatePrefix() => PatchBridge.Service?.BeginNativeMovementUpdate();') -and
+            $patchSource.Contains('if (PatchBridge.World == null) PatchBridge.Service?.BeginNativeMovementUpdate();') -and
+            $patchSource.Contains('else PatchBridge.World.Visit(pair => pair.Relationship.BeginNativeMovementUpdate());') -and
             $serviceSource.Contains('if (disposed || coordinator.State != RelationshipState.Mounted ||') -and
             $serviceSource.Contains('!runtime.IsExactCapturedView(runtime.Rider) || !runtime.IsExactCapturedView(runtime.Mount)) return;') -and
             $serviceSource.Contains('runtime.MovementAgent?.BeginNativeMovementUpdate();')) 'movement entry hook escaped its exact pair/view contract'
@@ -4910,7 +4932,8 @@ try {
         $controllerSource = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedCombatController.cs')
         $policySource = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Domain\MountedCombatAction.cs')
         Assert-Test ($patchSource.Contains('PatchExact(typeof(UnitCombatState), "AttackOfOpportunity", 0x060093A1, new[] { typeof(UnitEntityData), typeof(bool) }, nameof(PatchMethods.AttackOfOpportunityPrefix));')) 'opportunity isolation does not bind the exact Kingmaker method token and signature'
-        Assert-Test ($patchSource.Contains('PatchBridge.Combat.ShouldSuppressStockOpportunityAttack(__instance?.Unit, target)') -and
+        Assert-Test ($patchSource.Contains('PatchBridge.CombatFor(__instance?.Unit)?.ShouldSuppressStockOpportunityAttack(__instance?.Unit, target) != true') -and
+            $patchSource.Contains('internal static MountedCombatController CombatFor(UnitEntityData actor) => Owner(actor)?.CombatOwner;') -and
             $patchSource.Contains('__result = false;')) 'opportunity prefix does not fail closed through the mounted combat controller'
         Assert-Test ($controllerSource.Contains('MountedOpportunityIsolationPolicy.ShouldSuppressStockOpportunityAttack(') -and
             $controllerSource.Contains('relationship.State == RelationshipState.Mounted,') -and
@@ -10030,7 +10053,10 @@ try {
             'initiative diagnosis does not remain an exact actor-scoped observation-only native cooldown probe'
         Assert-Test ($patchSource.Contains('PatchExact(typeof(UnitCommand), "Interrupt", 0x060027AC') -and
             $patchSource.Contains('nameof(PatchMethods.CommandInterruptPrefix)') -and
-            $patchSource.Contains('PatchBridge.Combat?.ObserveCommandInterrupt(__instance);') -and
+            $patchSource.Contains('PatchBridge.CombatFor(__instance?.Executor)?.ObserveCommandInterrupt(__instance);') -and
+            $patchSource.Contains('CombatFor(UnitEntityData actor) => Owner(actor)?.CombatOwner;') -and
+            $patchSource.Contains('World != null ? World.ForActor(actor)?.Relationship : Service?.ResolveActorOwner(actor);') -and
+            $patchSource.Contains('CombatFor(__instance?.Unit?.EntityData)') -and
             $combatSource.Contains('ReferenceEquals(command, observedNativeMountTurnMove)') -and
             $combatSource.Contains('new System.Diagnostics.StackTrace(1, false)') -and
             $combatSource.Contains('DescribeNativeMountTurnMoveInterruptState(command as UnitMoveTo)') -and
@@ -10156,8 +10182,13 @@ try {
 
         Assert-Test ($patchSource.Contains('PatchExact(typeof(UnitAnimationManager), "Tick", 0x06001605, Type.EmptyTypes, nameof(PatchMethods.AnimationTickPrefix));') -and
             $patchSource.Contains('PatchExact(typeof(AttackHandInfo), "CreateAnimationHandleForAttack", 0x0600265A, new[] { typeof(IEnumerable<AttackHandInfo>) }, null, nameof(PatchMethods.AttackAnimationPostfix));') -and
-            $patchSource.Contains('PatchBridge.Animation?.RestoreExactDelegatedMountLocomotion(__instance);') -and
-            $patchSource.Contains('PatchBridge.Animation?.SupplyExactHorsePrimaryAnimation(__instance);') -and
+            $patchSource.Contains('PatchBridge.World?.ForActor(__instance?.View?.EntityData)?.Animation') -and
+            $patchSource.Contains('(PatchBridge.World == null ? PatchBridge.Animation : null))?.RestoreExactDelegatedMountLocomotion(__instance);') -and
+            $patchSource.Contains('if (PatchBridge.World == null) PatchBridge.Animation?.SupplyExactHorsePrimaryAnimation(__instance);') -and
+            $patchSource.Contains('else PatchBridge.World.Visit(pair => pair.Animation.SupplyExactHorsePrimaryAnimation(__instance));') -and
+            $horsePrimaryAnimationSource.Contains('ReferenceEquals(command.ChildAttack.PlannedAttack, attack)') -and
+            $horsePrimaryAnimationSource.Contains('attack?.Hand?.Owner?.Unit == horse') -and
+            $horsePrimaryAnimationSource.Contains('ReferenceEquals(attack.Weapon, command.ChildAttack.PlannedAttack.Weapon)') -and
             $animationSource.Contains('combat.TryGetExactRiderTurnDelegatedMoveForAnimation(mount, out move, out source)') -and
             $animationSource.Contains('combat.TryGetExactHorsePrimaryAnimationContext(attack, out command, out horse)') -and
             $animationSource.Contains('horsePrimaryAttackAnimation.SupplyExact(command, attack, horse);') -and
@@ -12397,6 +12428,7 @@ try {
     }
 
     Invoke-HarnessTest 'Phase 3D unified combat source boundaries are exact and pair-local' {
+        $worldTurnSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedWorldTurnCoordinator.cs'))
         $unifiedSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\UnifiedMountedTurnCoordinator.cs'))
         $patchSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedPatchController.cs'))
         $combatSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedCombatController.cs'))
@@ -12423,7 +12455,11 @@ try {
             $patchSource.Contains('PatchBridge.UnifiedTurn?.HandleChooseNextUnit(__instance);') -and
             $patchSource.Contains('PatchBridge.UnifiedTurn?.FilterTrackerSortedUnits(ref __result);') -and
             $patchSource.Contains('PatchBridge.UnifiedTurn.ShouldSuppressStepOpportunity(target)') -and
-            $patchSource.Contains('PatchBridge.Service.RouteContinuousMove(ref executor)') -and
+            $worldTurnSource.Contains('Find(target)?.ShouldSuppressStepOpportunity(target)') -and
+            $patchSource.Contains('var owner = PatchBridge.Owner(executor);') -and
+            $patchSource.Contains('if (owner?.IsExactActivePairUnit(executor) == true)') -and
+            $patchSource.Contains('owner.CombatOwner.Cancel("continuous movement replaced the active mounted combat intent");') -and
+            $patchSource.Contains('return owner == null || owner.RouteContinuousMove(ref executor);') -and
             -not $patchSource.Contains('Dismount(CleanupTrigger.UnexpectedCommand)')) `
             'Phase 3D exact-token orchestration lost stock-input, tracker, step, or continuous-move isolation'
         Assert-Test ($relationshipSource.Contains('public bool RouteContinuousMove(ref UnitEntityData executor)') -and
@@ -12442,7 +12478,7 @@ try {
         Assert-Test ($nativeSource.Contains('NativeMountedAbilityActivationLedger') -and
             $nativeSource.Contains('NativeMountedAbilityActivationPhase.RelationshipEnded') -and
             $nativeSource.Contains('UnitCommand.CommandType.Move,') -and
-            $nativeSource.Contains('combat.ObserveStockAttackRequested(unit, target?.EntityData);') -and
+            $nativeSource.Contains('ResolveControlBoundary(unit, false)?.CombatOwner.ObserveStockAttackRequested(unit, target?.EntityData);') -and
             $nativeSource.Contains('NativeMountedControlPolicy.ShouldPreparePrimaryIntentShell(') -and
             $nativeSource.Contains('command.NeedLoS = false;') -and
             $nativeSource.Contains('command.IgnoreCooldown();') -and

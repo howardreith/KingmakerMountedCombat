@@ -40,6 +40,25 @@ namespace KingmakerMountedCombat.Tests
                         "Focused Horse registration missing: " + exactScenario);
                 });
             }
+            runner.Run("Chunk 7 two-pair completion retains cycle and sampling rows", () =>
+            {
+                var request = ValidSaveBackedRequest();
+                request.Scenario = "chunk7-two-pair-exploration";
+                TestRunner.Equal(0, request.Validate().Count, "Two-pair request rejected.");
+                var rows = new System.Collections.Generic.List<RuntimeSubscenarioResult>();
+                foreach (var name in new[] { "C7-world-fixture", "C7-world-native-acquisition",
+                    "C7-world-two-native-mounts", "C7-world-selection-routing",
+                    "C7-world-independent-dismount", "C7-world-cycles", "C7-world-sampling", "C7-world-cleanup" })
+                    rows.Add(new RuntimeSubscenarioResult { Name = name, Status = "PASS",
+                        AssertionPassCount = 1, Errors = new string[0] });
+                var result = ValidSaveBackedResult();
+                result.Scenario = request.Scenario;
+                result.SubscenarioResults = rows;
+                result.SubscenarioTotal = result.SubscenarioPassCount = result.AssertionPassCount = rows.Count;
+                TestRunner.Equal(0, result.Validate().Count, "Complete two-pair result rejected at serialization.");
+                rows[5].Name = "C7-world-unknown";
+                TestRunner.True(result.Validate().Count > 0, "Unknown two-pair result bypassed the exact allowlist.");
+            });
             runner.Run("Chunk 4 Charge envelopes retain every native row", () =>
             {
                 foreach (var scenario in new[] { "chunk4-charge-safety-rt", "chunk4-charge-safety-tb" })
