@@ -163,6 +163,7 @@
     <Compile Include="Diagnostics\HorseCompanionUnmountedScenarioEngine.cs" />
     <Compile Include="Diagnostics\NativeHorseFixtureAcquisition.cs" />
     <Compile Include="Diagnostics\Chunk7WorldScenarioEngine.cs" />
+    <Compile Include="Diagnostics\Chunk7NativeWorldScope.cs" />
     <Compile Include="Diagnostics\Chunk7ArchiveNativeSnapshot.cs" />
     <Compile Include="Diagnostics\Chunk7CombatActions.cs" />
     <Compile Include="Diagnostics\Chunk7CombatCheckpointDriver.cs" />
@@ -176,6 +177,8 @@
     <Compile Include="Diagnostics\Chunk7HostCompletionGate.cs" />
     <Compile Include="Diagnostics\Chunk7NativeFixture.cs" />
     <Compile Include="Diagnostics\Chunk7PersistenceScenario.Area.cs" />
+    <Compile Include="Diagnostics\Chunk7PersistenceScenario.Schema1.cs" />
+    <Compile Include="Diagnostics\Chunk7PersistenceScenario.Scope.cs" />
     <Compile Include="Diagnostics\Chunk7PersistenceScenario.Combat.cs" />
     <Compile Include="Diagnostics\Chunk7PersistenceScenario.cs" />
     <Compile Include="Diagnostics\NativeArchiveRestorationProbe.cs" />
@@ -211,6 +214,10 @@
     <Compile Include="Diagnostics\RuntimeLifecycleScenarioEngine.cs" />
     <Compile Include="Diagnostics\RuntimeManualReviewSession.cs" />
     <Compile Include="Diagnostics\RuntimeMovementScenarioEngine.cs" />
+    <Compile Include="Diagnostics\Chunk7OrdinaryBuildDriver.cs" />
+    <Compile Include="Diagnostics\Chunk7OrdinaryAcquisitionSelection.cs" />
+    <Compile Include="Diagnostics\NativeOrdinaryAcquisitionProbe.cs" />
+    <Compile Include="Diagnostics\Chunk7OrdinaryAcquisitionScenario.cs" />
     <Compile Include="Diagnostics\RuntimeProtocol.cs" />
     <Compile Include="Diagnostics\StopEarlyCaptureBoundary.cs" />
     <Compile Include="Diagnostics\WorkingFixtureLoadWatchdog.cs" />

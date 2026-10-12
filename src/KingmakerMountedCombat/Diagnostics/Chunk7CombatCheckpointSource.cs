@@ -53,6 +53,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     b != null && b != a && b.Relationship.State == RelationshipState.Mounted && b.Relationship.Mount == bm),
                 "Checkpoint source mounted owners differ from its declared shape.");
             if (checkpointKind == Chunk7CombatCheckpointKind.MountedPendingOnly) b = null;
+            nativeScope = new Chunk7NativeWorldScope(request, actors);
             pauseBefore = Game.Instance.IsPaused; captured = true;
             evidence["inputs"] = inputs; evidence["activations"] = activations; evidence["turnVisits"] = visits; evidence["snapshots"] = snapshots;
             evidence["scenario"] = request.Scenario; evidence["kind"] = checkpointKind.ToString();

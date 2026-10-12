@@ -88,6 +88,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 ReferenceEquals(firstRider.Descriptor.Pet, firstMount) && ReferenceEquals(firstMount.Descriptor.Master.Value, firstRider) &&
                 ReferenceEquals(secondMount.Descriptor.Master.Value, secondRider), "Cold combat lost its saved native companions.");
             actors = new[] { firstRider, firstMount, secondRider, secondMount };
+            TrackNativeActors();
             Require(actors.All(a => saved.Combat.Actors.Any(x => x.Native.Id == a.UniqueId)), "Cold archive omitted a selected fixture actor.");
         }
         private void ObserveCombatCold()

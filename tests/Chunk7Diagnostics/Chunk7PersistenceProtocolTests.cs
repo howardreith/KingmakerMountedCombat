@@ -94,6 +94,32 @@ internal static class Chunk7PersistenceProtocolTests
         }
         var unselected = Request(null, false); unselected.Scenario = "chunk7-two-pair-combat-rt";
         Check(unselected.Validate().Count != 0, "unselected RT standalone family stays closed");
+        foreach (var mutation in new[] { "valid", "missing-receipt", "bad-receipt", "write-source", "wrong-input", "output-input", "two-inputs", "legacy-family", "wrong-name", "baseline", "foreign-campaign", "foreign-area", "another-case" })
+        {
+            var legacy = Request(Cases[0], true);
+            legacy.PersistenceCase = "legacy-schema1-resave-manual";
+            legacy.PersistenceLoad = Save("KMC_P01", "Manual_812_KMC_P06.zks", '8');
+            legacy.Schema1DerivationSha256 = new string('9', 64);
+            switch (mutation)
+            {
+                case "missing-receipt": legacy.Schema1DerivationSha256 = null; break;
+                case "bad-receipt": legacy.Schema1DerivationSha256 = "99"; break;
+                case "write-source": legacy.Scenario = "chunk7-persistence-save"; legacy.PersistenceLoad = null; break;
+                case "wrong-input": legacy.PersistenceLoad.FileName = "Manual_300_KMC_P01.zks"; break;
+                case "output-input": legacy.PersistenceLoad.FileName = "Manual_813_KMC_C7_SCHEMA1.zks"; break;
+                case "two-inputs": legacy.PersistenceAlternate = legacy.PersistenceLoad; break;
+                case "legacy-family": legacy.Scenario = "persistence-p06-load"; break;
+                case "wrong-name": legacy.PersistenceLoad.InternalName = "KMC_C7_WORLD"; break;
+                case "baseline": legacy.PersistenceLoad.Sha256 = legacy.Fixture.Baseline.Sha256; break;
+                case "foreign-campaign": legacy.PersistenceLoad.GameId = Guid.NewGuid().ToString(); break;
+                case "foreign-area": legacy.PersistenceLoad.Area = new string('c', 32); break;
+                case "another-case": legacy.PersistenceCase = Cases[0]; break;
+            }
+            Check((legacy.Validate().Count == 0) == (mutation == "valid"), "schema-1 exact cold contract " + mutation);
+            if (mutation == "valid") Check(legacy.ExpectedNativeLoadType == "Manual", "schema-1 native category stays Manual");
+        }
+        foreach (var name in new[] { "C7-persistence-schema1-native-restoration", "C7-persistence-schema1-native-resave" })
+            Check(RuntimeSubscenarioResult.IsMissionScenario(name), "schema-1 closed result row " + name);
         Console.WriteLine("CHUNK7 PERSISTENCE PROTOCOL PASS=" + passed + " FAIL=0; offline protocol only"); return 0;
     }
 }

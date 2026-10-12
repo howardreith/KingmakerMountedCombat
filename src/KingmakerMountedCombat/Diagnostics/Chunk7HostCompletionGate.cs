@@ -18,7 +18,7 @@ namespace KingmakerMountedCombat.Diagnostics
             started = now; Pending = true;
         }
         internal bool Poll(double now, bool loading, Func<bool> workers, Func<bool> persistence,
-            Func<bool> combat, Func<bool> world, Action<string> failure)
+            Func<bool> combat, Func<bool> world, Action<string> failure, Func<bool> ordinary = null)
         {
             if (Settled) return true;
             if (!Pending) throw new InvalidOperationException("Chunk 7 completion drain was not requested.");
@@ -31,6 +31,7 @@ namespace KingmakerMountedCombat.Diagnostics
             // An independent owner is always polled even when its neighbour fails.
             var ownersSettled = Attempt("persistence fixture", persistence, failure);
             ownersSettled &= Attempt("combat fixture", combat, failure);
+            if (ordinary != null) ownersSettled &= Attempt("ordinary acquisition fixture", ordinary, failure);
             if (!ownersSettled || !Attempt("all-pair world", world, failure)) return false;
             Settled = true; Pending = false; return true;
         }

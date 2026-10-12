@@ -47,6 +47,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private readonly JArray snapshots = new JArray(), inputs = new JArray(), movements = new JArray();
         private UnitEntityData firstRider, firstMount, secondRider, secondMount;
         private UnitEntityData[] originalSelection, originalParty;
+        private Chunk7NativeWorldScope nativeScope;
         private Feature horseFeature, rankFeature;
         private bool started, completed, disposed, captured, originalPause, originalPaired, originalMovement;
         private bool cleanupStarted, cleanupProven, cleanupPendingReported, screenshotReady;
@@ -119,6 +120,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     "The fixture already contains mounted ownership or unfinished cleanup.");
                 Require(!settings.EnableUnifiedMountedTurn && !settings.EnablePairedCommandScheduler && !settings.EnableDiagnosticOverlay &&
                     MountedPlayerActionController.CountOverlayObjects() == 0, "Accepted paired configuration requires legacy authorities and overlay absent.");
+                nativeScope = new Chunk7NativeWorldScope(request, originalParty);
                 originalSelection = SelectionManager.Instance.SelectedUnits.ToArray(); originalPause = game.IsPaused;
                 originalPaired = settings.EnablePairedActivation; originalMovement = settings.EnableUnsafeMovementExperiment; captured = true;
                 Require(world.Primary.Combat.TryConfigurePairedActivation(true), "Paired authority configuration was refused.");
@@ -139,8 +141,9 @@ namespace KingmakerMountedCombat.Diagnostics
             if (!started || completed || disposed) return;
             try
             {
-                screenshots?.Pump(Time.frameCount);
                 if (cleanupStarted) { PollCleanup(); return; }
+                nativeScope.RequireCurrent();
+                screenshots?.Pump(Time.frameCount);
                 Require(clock.Elapsed.TotalSeconds <= 300 && clock.Elapsed.TotalSeconds - stepStarted <= 30,
                     "Bounded two-pair scenario deadline at step " + step + ".");
                 Require(!Game.Instance.Player.IsInCombat, "Exploration scenario unexpectedly entered combat.");
@@ -157,6 +160,7 @@ namespace KingmakerMountedCombat.Diagnostics
                             horseFeature = secondRider.Descriptor.GetFact(horses.HorseFeature) as Feature;
                             rankFeature = secondRider.Descriptor.GetFact(horses.LevelRank) as Feature;
                             secondMount = secondRider.Descriptor.Pet;
+                            nativeScope.Track(secondMount);
                         }
                         Require(acquired, "Native Ranger preview/select/commit acquisition failed its exact assertions.");
                         Pass("C7-world-native-acquisition"); Next(2); break;
@@ -349,7 +353,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 var b = aa.SingleOrDefault(x => (string)x["id"] == (string)a["id"]); if (b == null) return false;
                 foreach (var field in new[] { "move", "standard", "swift" })
                     if (!NativeResourceWindowPolicy.EndpointConserved((double)a[field], (double)b[field], elapsed, false, 0.03)) return false;
-                if ((bool)a["prepared"] != (bool)b["prepared"] || (int)a["initiative"] != (int)b["initiative"]) return false;
+                if ((bool)a["prepared"] != (bool)b["prepared"] || (int)a["initiative"] != (int)b["initiative"] ||
+                    (int)a["reactionAllowance"] != (int)b["reactionAllowance"]) return false;
             }
             return true;
         }
@@ -393,7 +398,6 @@ namespace KingmakerMountedCombat.Diagnostics
             if (cleanupStarted) return;
             cleanupStarted = true; stepStarted = clock.Elapsed.TotalSeconds;
             TryCleanup("measurement", () => { measurement?.Dispose(); measurement = null; });
-            TryCleanup("screenshots", () => { screenshots?.Dispose(); screenshots = null; });
         }
         private bool TryCleanup(string part, Action attempt)
         {
@@ -425,7 +429,6 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             if (completed) return;
             var observersGone = TryCleanup("measurement", () => { measurement?.Dispose(); measurement = null; });
-            observersGone &= TryCleanup("screenshots", () => { screenshots?.Dispose(); screenshots = null; });
             if (!observersGone) { RetainCleanup("An owned observer has not detached."); return; }
             if (!captured) { cleanupProven = true; CompleteCleanupEvidence(); return; }
             // Neither fact removal nor actor/view teardown can race a native load,
@@ -433,6 +436,11 @@ namespace KingmakerMountedCombat.Diagnostics
             if (LoadingProcess.Instance.IsLoadingInProcess || LoadingProcess.Instance.QueuedNames.Any() ||
                 NativePersistenceIsolation.HasPendingWrites || world.SerializationBusy)
             { RetainCleanup("A native load or archive worker still owns this world."); return; }
+            if (!TryCleanup("captured native world", () => {
+                Require(nativeScope != null, "Captured native world authority is absent."); nativeScope.RequireCurrent();
+            })) { RetainCleanup("Captured native world, area or actor identity changed."); return; }
+            if (!TryCleanup("screenshots", () => { screenshots?.Dispose(); screenshots = null; }))
+            { RetainCleanup("The captured screenshot overlay lease has not restored."); return; }
             if (!TryCleanup("unpause for native drain", () => Game.Instance.IsPaused = false)) return;
             foreach (var command in issuedCommands.Where(x => x != null && !x.IsFinished))
                 TryCleanup("command " + Id(command), () => command.Interrupt());

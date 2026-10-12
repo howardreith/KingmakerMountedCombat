@@ -18,14 +18,23 @@ $selected = @(
     'Test-Chunk7NativeLifeEvidence.ps1',
     'Test-Chunk7ObserverAcquisition.ps1',
     'Test-Chunk7ObserverDisposal.ps1',
+    'Test-Chunk7OrdinaryAuthority.ps1',
+    'Test-Chunk7OrdinaryEvidence.ps1',
+    'Test-Chunk7OrdinaryFixtures.ps1',
+    'Test-Chunk7OrdinaryArchive.ps1',
+    'Test-Chunk7OrdinaryWiring.ps1',
+    'Test-Chunk7OrdinaryCleanupWorld.ps1',
+    'Test-Chunk7OrdinaryUiLifecycle.ps1',
     'Test-Chunk7PersistenceCleanupAdapter.ps1',
     'Test-Chunk7PersistenceProtocol.ps1',
     'Test-Chunk7PersistenceSource.ps1',
     'Test-Chunk7PersistenceTypes.ps1',
     'Test-Chunk7SourceReceiptTypes.ps1',
+    'Test-Chunk7Schema1Persistence.ps1',
     'Test-Chunk7PersistenceWiring.ps1',
     'Test-Chunk7RealtimeEvidence.ps1',
-    'Test-Chunk7WorldCleanupAdapter.ps1'
+    'Test-Chunk7WorldCleanupAdapter.ps1',
+    'Test-Chunk7WorldResourcesAdapter.ps1'
 )
 $started = [Diagnostics.Stopwatch]::StartNew()
 $completed = 0

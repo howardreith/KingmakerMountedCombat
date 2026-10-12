@@ -99,16 +99,31 @@ namespace KingmakerMountedCombat.Diagnostics
             Require(world != null && NativeMountedSaveFormat.ArchiveNativeSupportEnabled &&
                 NativeMountedSaveFormat.SelectedWriterSchema == 3 && GameMountedRelationshipService.NativePairCapacity >= 2,
                 "Native schema 3 and two-pair capacity must be explicitly selected before this scenario.");
+            beforeLoadGame = Game.Instance;
             originalPaired = settings.EnablePairedActivation; originalMovement = settings.EnableUnsafeMovementExperiment;
             if (Cold)
             {
-                restoration = new NativeArchiveRestorationProbe(persistence, CombatCase ? world : null);
+                restoration = new NativeArchiveRestorationProbe(persistence, CombatCase || Schema1ResaveCase ? world : null);
                 restoration.Install();
             }
             mode = new NativeModeTransitionProbe(TurnBasedCase); mode.DispatchTemporaryValueIfRequired();
             beforeLoad = true;
         }
-        internal bool ReapplyModeAfterNativeRefresh() => mode?.ReapplyTemporaryCacheAfterNativeRefresh() == true;
+        internal bool ReapplyModeAfterNativeRefresh()
+        {
+            RequireInitialLoadGame();
+            if (nativeScope != null)
+            {
+                // The owned ordinary transfer is still replacing its area state.
+                // It may retain its exact settings lease, but it gains no actor,
+                // save or cleanup authority until explicit destination adoption.
+                var declaredAreaLoading = AreaAutosaveCase && !Cold && stage == 30 && areaTransferDispatched && !areaScopeAdopted &&
+                    (LoadingProcess.Instance.IsLoadingInProcess || LoadingProcess.Instance.QueuedNames.Any());
+                if (declaredAreaLoading) nativeScope.RequireTransferWorld();
+                else RequireNativeWorld();
+            }
+            return mode?.ReapplyTemporaryCacheAfterNativeRefresh() == true;
+        }
         internal void Update()
         {
             if (completed || disposed) return;
@@ -121,6 +136,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     "Bounded native persistence deadline at stage " + stage + ".");
                 if (UpdateAreaAutosave()) return;
                 if (LoadingProcess.Instance.IsLoadingInProcess || LoadingProcess.Instance.QueuedNames.Any()) return;
+                RequireNativeWorld();
                 if (!CombatCase) Require(!Game.Instance.Player.IsInCombat, "Exploration persistence fixture unexpectedly entered combat.");
                 switch (stage)
                 {
@@ -128,6 +144,7 @@ namespace KingmakerMountedCombat.Diagnostics
                         if (Cold)
                         {
                             if (persistence.CombatRestorationPending) return;
+                            if (Schema1ResaveCase) { ObserveSchema1Cold(); RequestSave(); Next(40); break; }
                             ObserveCold();
                             if (CombatCase) { BeginCombatContinuation(); Next(20); } else Next(10);
                             break;
@@ -141,6 +158,7 @@ namespace KingmakerMountedCombat.Diagnostics
                             acquiredHorse = secondRider.Descriptor.GetFact(horses.HorseFeature) as Feature;
                             acquiredRank = secondRider.Descriptor.GetFact(horses.LevelRank) as Feature;
                             secondMount = secondRider.Descriptor.Pet;
+                            TrackNativeActors();
                         }
                         Require(acquired, "Native Ranger preview/select/commit fixture acquisition failed.");
                         Next(1); break;
@@ -163,6 +181,9 @@ namespace KingmakerMountedCombat.Diagnostics
                         ObserveSaved();
                         if (CombatCase) { BeginCombatContinuation(); Next(20); } else Next(10);
                         break;
+                    case 40:
+                        if (!callback || NativePersistenceIsolation.HasPendingWrites || persistence.HasActiveSaveScope || persistence.HasSaveAdmissionFence) return;
+                        ObserveSaved(); BeginCleanup(); break;
                     case 5:
                         if (!checkpoint.Update()) return;
                         evidence["combatCheckpoint"] = checkpoint.Capture();
@@ -186,12 +207,15 @@ namespace KingmakerMountedCombat.Diagnostics
         }
         private void Start()
         {
+            RequireInitialLoadGame();
             Require(beforeLoad, "Native load occurred without the selected observer/configuration boundary.");
             started = true; clock.Start();
             Require(request.SchemaVersion == RuntimeRequest.SaveBackedSchemaVersion && request.Fixture.Working.Sha256 == Chunk7WorldScenarioEngine.WorkingHash,
                 "Persistence source fixture identity differs.");
             Require(settings.EnablePairedActivation && settings.EnableUnsafeMovementExperiment && !settings.EnableUnifiedMountedTurn &&
                 !settings.EnablePairedCommandScheduler && !settings.EnableDiagnosticOverlay, "Paired production policy differs.");
+            nativeScope = new Chunk7NativeWorldScope(request, SelectionManager.Instance.SelectedUnits,
+                Cold ? ExpectedArchiveArea : request.Fixture.Working.Area);
             originalSelection = SelectionManager.Instance.SelectedUnits.ToArray(); originalPause = Game.Instance.IsPaused; captured = true;
             ummLease = MovementScreenshotCaptureCoordinator.AcquireClosedUmmLease();
             evidence["checkpoint"] = request.PersistenceCase; evidence["cold"] = Cold;
@@ -208,6 +232,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 firstRider = party.Single(x => x.UniqueId == Chunk7WorldScenarioEngine.MammothRiderId);
                 firstMount = party.Single(x => x.UniqueId == Chunk7WorldScenarioEngine.MammothId);
                 secondRider = party.Single(x => x.UniqueId == Chunk7WorldScenarioEngine.HorseRiderId);
+                TrackNativeActors();
                 Require(world.Registry.Owners.Length == 0 && world.Pairs.All(x => x.Relationship.State == RelationshipState.Unmounted &&
                     x.Relationship.Runtime.NoPreparedPairResidue) && !controls.HasUnsettledRelationshipTransition,
                     "Fixture already owns a relationship or unfinished command.");
@@ -229,6 +254,7 @@ namespace KingmakerMountedCombat.Diagnostics
             firstRider = Exact(mammoth.Rider.Id); firstMount = Exact(mammoth.Mount.Id);
             secondRider = Exact(horse.Rider.Id); secondMount = Exact(horse.Mount.Id);
             actors = new[] { firstRider, firstMount, secondRider, secondMount };
+            TrackNativeActors();
             Require(ReferenceEquals(firstRider.Descriptor.Pet, firstMount) && ReferenceEquals(firstMount.Descriptor.Master.Value, firstRider) &&
                 ReferenceEquals(secondRider.Descriptor.Pet, secondMount) && ReferenceEquals(secondMount.Descriptor.Master.Value, secondRider),
                 "Cold load lost reciprocal native companion ownership.");
@@ -267,6 +293,7 @@ namespace KingmakerMountedCombat.Diagnostics
         }
         private void AssertOwners()
         {
+            if (Schema1ResaveCase) { AssertSchema1Owners(); return; }
             if (CombatCase) { AssertCombatOwners(); return; }
             Require(Mounted(firstRider, firstMount) && Mounted(secondRider, secondMount) && world.Registry.ActiveCount == 2 &&
                 world.Registry.Owners.Length == 2 && world.Registry.Owners.All(o => expectedOwners.TryGetValue(o.Id, out var generation) && generation == o.Generation),
@@ -302,6 +329,8 @@ namespace KingmakerMountedCombat.Diagnostics
         }
         private void RequestSave()
         {
+            RequireNativeWorld();
+            if (Schema1ResaveCase) { RequestSchema1Resave(); return; }
             if (CombatCase) PrepareCombatSave();
             var type = NativeType(request.PersistenceCase); var manager = Game.Instance.SaveManager;
             NativePersistenceIsolation.EnableNativeSlotRotation();
@@ -317,6 +346,7 @@ namespace KingmakerMountedCombat.Diagnostics
         }
         private void ObserveSaved()
         {
+            if (Schema1ResaveCase) { ObserveSchema1Resaved(); return; }
             var type = NativeType(request.PersistenceCase);
             savedDescriptor = Game.Instance.SaveManager.SingleOrDefault(s => s.Name == NativeName(type) && s.Type == type);
             Require(savedDescriptor != null && savedDescriptor.OperationState == SaveInfo.StateType.None && savedDescriptor.HasFileOnDisk &&
@@ -423,6 +453,7 @@ namespace KingmakerMountedCombat.Diagnostics
         }
         private bool PerformCleanup()
         {
+            RequireCleanupWorld();
             var settled = TryCleanup("selected native format", RestoreSelectedNativeFormat);
             settled &= TryCleanup("native slot rotation", NativePersistenceIsolation.DisableNativeSlotRotation);
             if (!captured) return settled;
@@ -462,7 +493,17 @@ namespace KingmakerMountedCombat.Diagnostics
         }
         private void PollCleanup()
         {
-            if (LoadingProcess.Instance.IsLoadingInProcess || LoadingProcess.Instance.QueuedNames.Any() || persistence.AreaTransitionPending || world.SerializationBusy ||
+            if (LoadingProcess.Instance.IsLoadingInProcess || LoadingProcess.Instance.QueuedNames.Any() || persistence.AreaTransitionPending)
+            {
+                RetainCleanup("Native loading/area transfer still owns its declared world boundary.", 15);
+                return;
+            }
+            if (!TryCleanup("captured native world", RequireCleanupWorld))
+            {
+                RetainCleanup("Captured native world identity changed; all actor/UI/mode cleanup custody is retained.", 45);
+                return;
+            }
+            if (world.SerializationBusy ||
                 NativePersistenceIsolation.HasPendingWrites || persistence.DrainForTeardown(0) == OwnedWorkerTeardownVerdict.Refused ||
                 persistence.HasActiveSaveScope || persistence.HasSaveAdmissionFence)
             {
@@ -523,6 +564,7 @@ namespace KingmakerMountedCombat.Diagnostics
             if (!cleanupProven) { RetainCleanup("Native persistence cleanup postcondition still owns an obligation.", 45); return; }
             TryCleanup("immutable source archive", () =>
             {
+                if (Schema1ResaveCase) VerifySchema1InputImmutable();
                 if (savedDescriptor != null) Require(Hash(savedDescriptor.FolderName) == (string)evidence["nativeWrite"]["sha256"],
                     "Source archive changed after its recorded native completion.");
             });

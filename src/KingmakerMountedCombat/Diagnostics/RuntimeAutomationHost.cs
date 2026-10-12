@@ -83,6 +83,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private RuntimeCombatScenarioEngine combatEngine;
         private HorseCompanionUnmountedScenarioEngine horseCompanionEngine;
         private Chunk6aMammothScenarioEngine mammothEngine;
+        private Chunk7OrdinaryAcquisitionScenario ordinaryEngine;
         private Chunk7WorldScenarioEngine worldEngine;
         private Chunk7PersistenceScenario worldPersistenceEngine;
         private Chunk7CombatScenario worldCombatEngine;
@@ -104,6 +105,7 @@ namespace KingmakerMountedCombat.Diagnostics
             // The mod-load smoke is observational and asserts that no overlay object
             // exists, so it must never be the reason one is created.
             request.Scenario != ModLoadSmokePolicy.ScenarioId &&
+            !Chunk7OrdinaryAcquisitionScenario.SupportsScenario(request.Scenario) &&
             !Chunk7WorldScenarioEngine.SupportsScenario(request.Scenario) &&
             !Chunk7PersistenceScenario.SupportsScenario(request.Scenario) &&
             !Chunk7CombatScenario.SupportsScenario(request.Scenario) &&
@@ -528,7 +530,8 @@ namespace KingmakerMountedCombat.Diagnostics
                     Phase3dHorseScenarioTranche.IsActorAllocationScenario(request.Scenario),
                     request.Scenario == Phase3dHorseScenarioTranche.OrdinaryAttackControlsScenario
                         ? Phase3dHorseScenarioTranche.OrdinaryScenarioDeadlineSeconds : 0.0);
-                if (Chunk7CombatScenario.SupportsScenario(request.Scenario)) hostDeadline = 480.0;
+                if (Chunk7OrdinaryAcquisitionScenario.SupportsScenario(request.Scenario)) hostDeadline = 780.0;
+                else if (Chunk7CombatScenario.SupportsScenario(request.Scenario)) hostDeadline = 480.0;
                 else if (Chunk7PersistenceScenario.SupportsScenario(request.Scenario) || Chunk7WorldScenarioEngine.SupportsScenario(request.Scenario)) hostDeadline = 420.0;
                 if (!IsManualReview && elapsedSeconds > hostDeadline)
                 {
@@ -699,6 +702,16 @@ namespace KingmakerMountedCombat.Diagnostics
                 CollectEngineErrors(worldPersistenceEngine.Errors, "Chunk 7 persistence");
                 // Completion owns asynchronous cleanup; a terminal assertion alone
                 // cannot release this engine or authorize process teardown.
+            }
+            else if (Chunk7OrdinaryAcquisitionScenario.SupportsScenario(request.Scenario))
+            {
+                if (ordinaryEngine == null)
+                    ordinaryEngine = new Chunk7OrdinaryAcquisitionScenario(request, request.OrdinaryAcquisition,
+                        saveAuthorization, persistenceBootstrap.Authority, relationship, nativeControls, persistence, horseCompanion);
+                ordinaryEngine.Update();
+                if (!ordinaryEngine.IsCompleted) return;
+                subscenarioResults = ordinaryEngine.Results;
+                CollectEngineErrors(ordinaryEngine.Errors, "Chunk 7 ordinary acquisition");
             }
             else if (Chunk7CombatScenario.SupportsScenario(request.Scenario))
             {
@@ -1287,7 +1300,7 @@ namespace KingmakerMountedCombat.Diagnostics
             };
         }
 
-        private bool IsChunk7NativeFamily => Chunk7WorldScenarioEngine.SupportsScenario(request.Scenario) ||
+        private bool IsChunk7NativeFamily => Chunk7OrdinaryAcquisitionScenario.SupportsScenario(request.Scenario) || Chunk7WorldScenarioEngine.SupportsScenario(request.Scenario) ||
             Chunk7PersistenceScenario.SupportsScenario(request.Scenario) ||
             Chunk7CombatScenario.SupportsScenario(request.Scenario);
 
@@ -1346,7 +1359,16 @@ namespace KingmakerMountedCombat.Diagnostics
                         engine.Dispose(); worldEngine = null;
                     }
                     return SettleChunk7World();
-                }, RecordChunk7CleanupFailure);
+                }, RecordChunk7CleanupFailure,
+                () =>
+                {
+                    if (ordinaryEngine == null) return true;
+                    var engine = ordinaryEngine;
+                    if (!engine.DrainForHost()) return false;
+                    subscenarioResults = engine.Results;
+                    CollectEngineErrors(engine.Errors, "Chunk 7 ordinary acquisition");
+                    engine.Dispose(); ordinaryEngine = null; return true;
+                });
         }
         private bool SettleChunk7World()
         {
@@ -1627,7 +1649,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private void FinalizeActiveScenarioEngines(List<string> finalErrors)
         {
             if (worldEngine != null && Chunk7WorldScenarioEngine.SupportsScenario(request.Scenario) ||
-                worldPersistenceEngine != null || worldCombatEngine != null || IsChunk7NativeFamily && !chunk7Completion.Settled)
+                ordinaryEngine != null || worldPersistenceEngine != null || worldCombatEngine != null || IsChunk7NativeFamily && !chunk7Completion.Settled)
                 throw new InvalidOperationException("A Chunk 7 native owner reached finalization before its cleanup gate settled.");
             if (worldEngine != null)
             {
@@ -1914,6 +1936,8 @@ namespace KingmakerMountedCombat.Diagnostics
             var manifestPath = Path.Combine(request.EvidenceRoot, "runtime-artifacts.json");
             var artifacts = new List<RuntimeArtifactRecord>();
             AddRuntimeArtifactIfPresent(artifacts, request.EvidenceRoot, RuntimeLoaderInventory.EvidenceFileName, RuntimeLoaderInventory.EvidenceKind);
+            AddRuntimeArtifactIfPresent(artifacts, request.EvidenceRoot, Chunk7OrdinaryAcquisitionScenario.EvidenceFileName, Chunk7OrdinaryAcquisitionScenario.EvidenceKind);
+            AddRuntimeArtifactIfPresent(artifacts, request.EvidenceRoot, Chunk7OrdinaryAcquisitionScenario.PendingFileName, Chunk7OrdinaryAcquisitionScenario.PendingKind);
             AddRuntimeArtifactIfPresent(artifacts, request.EvidenceRoot, Chunk7WorldScenarioEngine.EvidenceFileName, Chunk7WorldScenarioEngine.EvidenceKind);
             AddRuntimeArtifactIfPresent(artifacts, request.EvidenceRoot, Chunk7PersistenceScenario.EvidenceFileName, Chunk7PersistenceScenario.EvidenceKind);
             AddRuntimeArtifactIfPresent(artifacts, request.EvidenceRoot, Chunk7CombatScenario.EvidenceFileName, Chunk7CombatScenario.EvidenceKind);

@@ -10,7 +10,7 @@ function Assert-KmcChunk7ArtifactEnvelope($Request,$Artifact,[string]$Kind) {
         if($Artifact.$field-isnot[string]-or$Artifact.$field-cne$Request.$field){throw "Chunk 7 artifact identity differs: $field"}
     }
     $date=[DateTimeOffset]::MinValue
-    if($Artifact.schemaVersion-ne1-or$Artifact.evidenceKind-cne$Kind-or$Artifact.status-cnotin@('PASS','FAIL')-or
+    if(-not(Test-KmcExactJsonInteger $Artifact.schemaVersion)-or$Artifact.schemaVersion-ne1-or$Artifact.evidenceKind-cne$Kind-or$Artifact.status-cnotin@('PASS','FAIL')-or
         $Artifact.errors-isnot[Array]-or-not[DateTimeOffset]::TryParse([string]$Artifact.createdAtUtc,[ref]$date)){throw 'Chunk 7 artifact envelope differs.'}
     if($Artifact.status-ceq'PASS'-and@($Artifact.errors).Count-ne0){throw 'PASS artifact contains errors.'}
 }
@@ -32,6 +32,13 @@ function Test-KmcChunk7FiniteNumber($Value) {
     return -not[double]::IsNaN([double]$Value)-and-not[double]::IsInfinity([double]$Value)
 }
 function Assert-KmcChunk7Boolean($Value,[bool]$Expected) {if($Value-isnot[bool]-or$Value-ne$Expected){throw 'Native evidence boolean is missing, mistyped or differs.'}}
+# Native counters require actual integer tokens; identity hashes may be signed.
+function Assert-KmcChunk7WorldCounters($Value,[string[]]$Fields) {
+    foreach($field in $Fields){if(-not(Test-KmcExactJsonInteger $Value.$field)-or$Value.$field-lt0){throw ('Native world counter is missing, mistyped or negative: '+$field)}}
+}
+function Assert-KmcChunk7WorldInt32($Value) {
+    if(-not(Test-KmcExactJsonInteger $Value)-or$Value-lt[int32]::MinValue-or$Value-gt[int32]::MaxValue){throw 'Native signed Int32 observation is missing, mistyped or outside its native bound.'}
+}
 function Assert-KmcChunk7ExactIds($Rows,[string[]]$Expected,[string]$Field='id') {
     $actual=@($Rows|ForEach-Object{[string]$_.$Field}|Sort-Object -CaseSensitive)
     if(($actual-join'|')-cne(($Expected|Sort-Object -CaseSensitive)-join'|')){throw 'Native actor identity set differs.'}
@@ -50,6 +57,8 @@ function Assert-KmcChunk7Resources($Before,$After,[string[]]$ActorIds) {
             if([double]::IsNaN($x)-or[double]::IsInfinity($x)-or[double]::IsNaN($y)-or[double]::IsInfinity($y)-or$x-lt0-or$y-lt0-or
                 [Math]::Abs($y-[Math]::Max(0,$x-$elapsed))-gt0.03){throw 'Exploration control changed native action spending.'}
         }
+        foreach($field in @('initiative','reactionAllowance')){Assert-KmcChunk7WorldInt32 $a.$field;Assert-KmcChunk7WorldInt32 $b.$field}
+        if($a.reactionAllowance-ne$b.reactionAllowance){throw 'Exploration changed native reaction expenditure.'}
         if($a.prepared-isnot[bool]-or$b.prepared-isnot[bool]-or$a.prepared-ne$b.prepared-or$a.initiative-ne$b.initiative){throw 'Exploration changed native preparation/initiative.'}
     }
 }
@@ -57,6 +66,8 @@ function Assert-KmcChunk7InputSequence($Rows,$Specs,[string[]]$ActorIds,$Command
     if(@($Rows).Count-ne@($Specs).Count){throw 'Exact native relationship input sequence incomplete.'}
     for($i=0;$i-lt@($Specs).Count;$i++) {
         $v=$Rows[$i];$s=$Specs[$i]
+        Assert-KmcChunk7WorldCounters $v @('nativeCastDelta','nativeRefusalDelta','generationAtInit')
+        Assert-KmcChunk7WorldInt32 $v.commandObject
         Assert-KmcChunk7Boolean $v.clicked $true;Assert-KmcChunk7Boolean $v.shellTerminal $true;Assert-KmcChunk7Boolean $v.processTerminal $true
         if($v.label-cne$s[0]-or$v.casterId-cne$s[1]-or$v.targetId-cne$s[2]-or$v.abilityGuid-cne$s[3]-or
             $v.nativeCastDelta-ne1-or$v.nativeRefusalDelta-ne0-or$v.commandObject-eq0-or-not$Commands.Add([long]$v.commandObject)-or
@@ -67,6 +78,8 @@ function Assert-KmcChunk7InputSequence($Rows,$Specs,[string[]]$ActorIds,$Command
 }
 function Get-KmcChunk7Subscriptions($Snapshot) {
     Assert-KmcChunk7Boolean $Snapshot.executing $false
+    Assert-KmcChunk7WorldCounters $Snapshot @('uniqueOwnedSubscribers','ownedInterfaceEntries')
+    foreach($entry in $Snapshot.entries){Assert-KmcChunk7WorldInt32 $entry.identity}
     $entries=@($Snapshot.entries|ForEach-Object{[string]$_.interface+'|'+[string]$_.type+'|'+[string]$_.identity}|Sort-Object -CaseSensitive)
     if($entries.Count-ne$Snapshot.ownedInterfaceEntries-or@($Snapshot.entries|Select-Object -ExpandProperty identity -Unique).Count-ne$Snapshot.uniqueOwnedSubscribers){throw 'Subscription counts differ from exact rows.'}
     return ($entries-join';')
@@ -77,6 +90,8 @@ function Assert-KmcChunk7Measurements($Rows) {
     $subscriptions=$null
     for($i=0;$i-lt4;$i++) {
         $m=$Rows[$i]
+        Assert-KmcChunk7WorldCounters $m @('warmupFrames','sampleFrames')
+        Assert-KmcChunk7WorldInt32 $m.startFrame;Assert-KmcChunk7WorldInt32 $m.endFrame
         if($m.label-cne$labels[$i]-or$m.warmupFrames-ne30-or$m.sampleFrames-ne120-or
             @($m.serviceTicks).Count-ne120-or@($m.frameSeconds).Count-ne120-or$m.endFrame-$m.startFrame-lt119){throw 'Measurement sample window differs.'}
         if(-not(Test-KmcExactJsonInteger $m.stopwatchFrequency)-or$m.stopwatchFrequency-le0){throw 'Measurement clock frequency invalid.'}
@@ -94,6 +109,7 @@ function Assert-KmcChunk7Measurements($Rows) {
             $m.collectionsBefore[$g]-lt0-or$m.collectionsAfter[$g]-lt$m.collectionsBefore[$g]){throw 'Native GC observations invalid.'}}
         Assert-KmcChunk7Boolean $m.forcedCollection $false
         foreach($owner in @($m.ownersBefore,$m.ownersAfter)) {
+            Assert-KmcChunk7WorldCounters $owner @('active','owners','boundaries','failedConstructions','participants','liveControlBoundaries','preparedOrViewResidue','allocationActors')
             if($owner.active-ne$active[$i]-or$owner.owners-ne$active[$i]-or$owner.boundaries-lt1-or$owner.boundaries-gt2-or
                 $owner.participants-ne$owner.boundaries-or$owner.failedConstructions-ne0-or$owner.liveControlBoundaries-ne0-or$owner.preparedOrViewResidue-ne$active[$i]){throw 'Comparable window contains unexpected ownership, commands or view residue.'}
         }
@@ -109,6 +125,7 @@ function Assert-KmcChunk7WorldEvidence($Request,$Artifact,[string]$Status) {
     if($Status-ceq'PASS'-and$Artifact.status-cne'PASS'){throw 'PASS world result requires PASS artifact.'}
     if($Artifact.status-cne'PASS'){return}
     $o=$Artifact.observations; Assert-KmcChunk7Boolean $o.capability.archiveNativeEnabled $true; $first='b6628a77-4962-47a4-a17c-88d9836fc9d5';$mammoth='d79a4f6c-b74e-4868-95bd-533899131acb';$second='d17c8fd0-6627-40c4-bf9a-024cf001c1f7'
+    Assert-KmcChunk7WorldCounters $o.capability @('nativeWriterSchema','nativePairCapacity')
     $original=@($first,$mammoth,$second)
     if($o.capability.archiveNativeEnabled-ne$true-or$o.capability.nativeWriterSchema-ne3-or$o.capability.nativePairCapacity-lt2-or
         $o.capability.workingSha256-cne'5eb4e0b4cbd8d60dc879a02ff71aadfde3f517304754857f0cc68d0f9a93f1c6'-or
@@ -124,6 +141,9 @@ function Assert-KmcChunk7WorldEvidence($Request,$Artifact,[string]$Status) {
         if($r.petId-cne$mammoth-or$m.masterId-cne$first-or$m.blueprint-cne'e7aa96d15a45238438ae4cfb476f6bb9'){throw 'Original Mammoth ownership changed.'}
     }
     $a=$o.acquisition
+    Assert-KmcChunk7WorldCounters $a @('nativeRangerCommitCount','huntersBondSelectionLevel','rangerCompanionSelectionLevel','horseFactRankAtCommit')
+    Assert-KmcChunk7Boolean $a.horsePresentAtNativeCommit $true
+    foreach($snapshot in @($o.snapshots)+@($o.cycles)){foreach($owner in $snapshot.owners){Assert-KmcChunk7WorldCounters $owner @('generation')}}
     if($a.nativeRangerCommitCount-ne4-or$a.huntersBondSelectionLevel-ne4-or$a.rangerCompanionSelectionLevel-ne4-or$a.horseFactRankAtCommit-ne1-or
         $a.horsePresentAtNativeCommit-ne$true-or[string]::IsNullOrEmpty($a.horseFeatureSourceGuid)){throw 'Native Ranger acquisition proof incomplete.'}
     $inputSpecs=@(@('mount-mammoth',$first,$mammoth,'f053faad986631688defa003cd7bda0e'),@('mount-horse',$second,$horse,'f053faad986631688defa003cd7bda0e'),
@@ -150,6 +170,8 @@ function Assert-KmcChunk7WorldEvidence($Request,$Artifact,[string]$Status) {
     for($i=0;$i-lt3;$i++) {
         $v=$o.movements[$i];$s=$moveSpecs[$i]
         Assert-KmcChunk7Boolean $v.commandTerminal $true
+        Assert-KmcChunk7WorldInt32 $v.commandObject
+        foreach($command in @($v.commandsBefore)+@($v.commandsAfter)){Assert-KmcChunk7WorldInt32 $command.moveObject}
         foreach($point in @($v.start,$v.end,$v.requestedGoal)){foreach($axis in @('x','y','z')){if(-not(Test-KmcChunk7FiniteNumber $point.$axis)){throw 'Movement requires finite observed coordinates.'}}}
         if($v.label-cne$s[0]-or$v.selectedId-cne$s[1]-or$v.executorId-cne$s[2]-or$v.commandObject-eq0-or$v.commandTerminal-ne$true-or
             $v.selectionAfterInput-ceq$v.selectedId-or$v.selectionAfterInput-cnotin$actors){throw 'Native movement route identity differs.'}
@@ -185,6 +207,7 @@ function Assert-KmcChunk7WorldEvidence($Request,$Artifact,[string]$Status) {
             $previous[$owner.riderId]=[long]$owner.generation
         }
         foreach($window in @($mounted,$settled)) {
+            Assert-KmcChunk7WorldCounters $window @('boundaryCount','participantCount')
             if($window.boundaryCount-ne2-or$window.participantCount-ne2-or(Get-KmcChunk7Subscriptions $window.subscriptions)-cne$baselineSubscriptions){throw 'Lifecycle accumulated service boundaries or subscriptions.'}
         }
     }
@@ -196,10 +219,15 @@ function Assert-KmcChunk7WorldEvidence($Request,$Artifact,[string]$Status) {
     Assert-KmcChunk7ExactIds $admission.commands @($issued|ForEach-Object{[string]$_.commandObject}) 'commandObject'
     $settledCommandIds=[Collections.Generic.HashSet[long]]::new()
     foreach($command in $admission.commands){
+        Assert-KmcChunk7WorldInt32 $command.commandObject
         if(-not(Test-KmcExactJsonInteger $command.commandObject)-or$command.commandObject-eq0-or-not$settledCommandIds.Add([long]$command.commandObject)-or$command.hasExecutionProcess-isnot[bool]){throw 'Fact-removal command identity or native process observation differs.'}
         Assert-KmcChunk7Boolean $command.finished $true;Assert-KmcChunk7Boolean $command.processEnded $true
     }
     $c=$o.cleanup
+    foreach($field in @('nativeSaveWritten','ordinaryRespecProven')){Assert-KmcChunk7Boolean $c.$field $false}
+    foreach($field in @('combatOrPersistenceProof','thirdUnrelatedActorProven')){Assert-KmcChunk7Boolean $o.$field $false}
+    foreach($field in @('pauseBefore','pauseAfter','movementBefore','movementAfter','pairedBefore','pairedAfter')){if($c.$field-isnot[bool]){throw 'Restored native settings require actual booleans.'}}
+    foreach($pair in $c.pairBoundaries){Assert-KmcChunk7Boolean $pair.residueAbsent $true;Assert-KmcChunk7Boolean $pair.ownerPresent $false}
     foreach($field in @('pairResidueAbsent','horseRemoved','controlsSettled','settingsAndSelectionRestored','nativeProcessesSettled','cleanupCustodySettled','nativeProgressionRequiresExternalWorkingRestoration')){Assert-KmcChunk7Boolean $c.$field $true}
     if($c.pairResidueAbsent-ne$true-or$c.horseRemoved-ne$true-or$c.controlsSettled-ne$true-or$c.settingsAndSelectionRestored-ne$true-or
         $c.nativeSaveWritten-ne$false-or$c.ordinaryRespecProven-ne$false-or$c.nativeProgressionRequiresExternalWorkingRestoration-ne$true-or

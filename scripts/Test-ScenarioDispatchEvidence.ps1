@@ -60,6 +60,7 @@ foreach($scenario in @('C6D-move-cast-move','C6E-reaction-window','CHUNK6D-STAGE
 }
 $chunk7Families = [ordered]@{
  'chunk7-two-pair-exploration'='world-fixed-root'
+ 'chunk7-ordinary-acquisition'='Test-KmcChunk7OrdinaryScenario'
  'chunk7-persistence-save'='Test-KmcChunk7PersistenceScenario'
  'chunk7-persistence-load'='Test-KmcChunk7PersistenceScenario'
  'chunk7-two-pair-combat-rider-first'='Test-KmcChunk7CombatScenario'
