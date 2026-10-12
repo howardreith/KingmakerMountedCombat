@@ -15,7 +15,7 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private static readonly HashSet<string> SaveBackedScenarios = new HashSet<string>(StringComparer.Ordinal)
         {
-            "chunk7-native-progression", "chunk7-native-main-bootstrap", "chunk7-small-profile-calibration", "chunk7-ordinary-field-admission", "chunk7-ordinary-acquisition", "chunk7-two-pair-exploration", "chunk7-persistence-save", "chunk7-persistence-load",
+            "chunk7-native-progression", "chunk7-native-main-bootstrap", "chunk7-bootstrap-cold-inventory", "chunk7-small-profile-calibration", "chunk7-ordinary-field-admission", "chunk7-ordinary-acquisition", "chunk7-two-pair-exploration", "chunk7-persistence-save", "chunk7-persistence-load",
             "chunk7-two-pair-combat-rider-first", "chunk7-two-pair-combat-mount-first",
             "chunk7-two-pair-realtime-core", "chunk7-two-pair-realtime-casting", "chunk7-two-pair-realtime-charge",
             "chunk7-two-pair-native-life-cleanup",
@@ -149,6 +149,7 @@ namespace KingmakerMountedCombat.Diagnostics
         public Chunk7OrdinaryFieldSelection OrdinaryField { get; set; }
         public Chunk7SmallCalibrationSelection SmallCalibration { get; set; }
         public Chunk7NativeBootstrapSelection NativeBootstrap { get; set; }
+        public Chunk7BootstrapInventorySelection BootstrapInventory { get; set; }
         public Chunk7ProgressionSelection Progression { get; set; }
 
         // Cross-area cases declare their destination up front so the isolated
@@ -204,7 +205,7 @@ namespace KingmakerMountedCombat.Diagnostics
             "multi-nonselected-mount-unsettled-manual", "multi-owned-worker-cancel-manual" }, value) >= 0;
 
         internal string ExpectedChunk7ArchiveArea => PersistenceCase == "multi-area-autosave" ? PersistenceAreaTarget?.Area : Fixture?.Working?.Area;
-        internal string ExpectedNativeLoadType => (Scenario == Chunk7SmallCalibrationSelection.Scenario || Scenario == Chunk7OrdinaryFieldSelection.Scenario) ? "Auto" : Scenario == "chunk7-persistence-load" && PersistenceLoad != null && IsChunk7PersistenceCase(PersistenceCase) ?
+        internal string ExpectedNativeLoadType => (Scenario == Chunk7BootstrapInventorySelection.Scenario || Scenario == Chunk7SmallCalibrationSelection.Scenario || Scenario == Chunk7OrdinaryFieldSelection.Scenario) ? "Auto" : Scenario == "chunk7-persistence-load" && PersistenceLoad != null && IsChunk7PersistenceCase(PersistenceCase) ?
             (PersistenceCase == "multi-exploration-quick" ? "Quick" : PersistenceCase == "multi-exploration-auto" || PersistenceCase == "multi-area-autosave" ? "Auto" : "Manual") :
             IsTransitionAutoCase(PersistenceCase) ? "Auto" :
             Scenario == "persistence-p05-load" && PersistenceLoad != null ?
@@ -221,6 +222,12 @@ namespace KingmakerMountedCombat.Diagnostics
                 errors.Add("Unsupported request schemaVersion.");
             }
 
+            if (Scenario == Chunk7BootstrapInventorySelection.Scenario)
+            {
+                if (SchemaVersion != SaveBackedSchemaVersion || BootstrapInventory == null) errors.Add("Bootstrap cold inventory requires its exact schema-2 selection.");
+                else errors.AddRange(BootstrapInventory.Validate(Scenario, RunId));
+            }
+            else if (BootstrapInventory != null) errors.Add("Bootstrap inventory selection is forbidden under another scenario.");
             if (Scenario == Chunk7NativeBootstrapSelection.Scenario)
             {
                 if (SchemaVersion != SaveBackedSchemaVersion || NativeBootstrap == null) errors.Add("Native main bootstrap requires its explicit schema-2 selection.");
@@ -431,7 +438,22 @@ namespace KingmakerMountedCombat.Diagnostics
                 errors.Add("A removal or disable-during-load case is save-only.");
             if (Scenario == "persistence-p07-save" && (PersistenceCase == "absent-kmc" || (PersistenceCase == "removal-no-dll" || PersistenceCase == "mounted-charge-removal-no-dll")))
                 errors.Add("The integration-absent and no-DLL cases are cold-load only.");
-            if (Scenario == Chunk7OrdinaryFieldSelection.Scenario || Scenario == Chunk7SmallCalibrationSelection.Scenario)
+            if (Scenario == Chunk7BootstrapInventorySelection.Scenario)
+            {
+                if (PersistenceLoad == null) errors.Add("Bootstrap cold inventory requires its exact native Auto_1 source.");
+                else
+                {
+                    if (string.IsNullOrWhiteSpace(PersistenceLoad.InternalName) || PersistenceLoad.InternalName.Length > 256 || PersistenceLoad.InternalName.Any(char.IsControl))
+                        errors.Add("Native bootstrap autosave name is missing or invalid.");
+                    errors.AddRange(PersistenceLoad.Validate("persistenceLoad", PersistenceLoad.InternalName, "^Auto_1\\.zks$"));
+                    if (Fixture?.Working == null || PersistenceLoad.GameId == Fixture.Working.GameId ||
+                        !Guid.TryParseExact(PersistenceLoad.GameId, "D", out var mintedBootstrapId) || mintedBootstrapId == Guid.Empty ||
+                        string.IsNullOrWhiteSpace(PersistenceLoad.GameName) || PersistenceLoad.Sha256 == Fixture.Working.Sha256 ||
+                        PersistenceLoad.Sha256 == Fixture.Baseline?.Sha256 || PersistenceLoad.Sha256 != BootstrapInventory?.SourceArchiveSha256)
+                        errors.Add("Bootstrap inventory source lacks its exact separately minted disposable identity.");
+                }
+            }
+            else if (Scenario == Chunk7OrdinaryFieldSelection.Scenario || Scenario == Chunk7SmallCalibrationSelection.Scenario)
             {
                 if (PersistenceLoad == null) errors.Add("Read-only field admission requires its exact paid Auto_1 archive.");
                 else
@@ -828,6 +850,7 @@ namespace KingmakerMountedCombat.Diagnostics
             "C7-life-safe-native-damage", "C7-life-native-callback", "C7-life-healthy-neighbour", "C7-life-independent-survivor",
             "C7-rt-charge-default-off", "C7-rt-concurrent-primary", "C7-rt-local-cancel", "C7-rt-unmounted-native-control",
             "C7-rt-native-casting", "C7-rt-casting-neighbour", "C7-rt-charge-native-success", "C7-rt-charge-neighbour-movement", "C7-rt-charge-native-cancel",
+            "chunk7-bootstrap-cold-inventory", "C7-bootstrap-inventory-source", "C7-bootstrap-inventory-native-load", "C7-bootstrap-inventory-readonly", "C7-bootstrap-inventory-cleanup", "C7-bootstrap-inventory-runtime", "C7-bootstrap-inventory-interrupted",
             "chunk7-native-main-bootstrap", "C7-bootstrap-preflight", "C7-bootstrap-native-start", "C7-bootstrap-native-world", "C7-bootstrap-autosave", "C7-bootstrap-cleanup", "C7-bootstrap-runtime", "C7-bootstrap-interrupted",
             "chunk7-small-profile-calibration", "C7-small-readonly-source", "C7-small-native-party-placement", "C7-small-production-mount", "C7-small-native-ground", "C7-small-rider-primary", "C7-small-mount-primary", "C7-small-native-dismount", "C7-small-native-pose-observation", "C7-small-cleanup", "C7-small-runtime", "C7-small-interrupted",
             "chunk7-native-progression", "C7-progression-cold-source", "C7-progression-native-operation", "C7-progression-cleanup", "C7-progression-runtime", "C7-progression-interrupted",
@@ -1313,7 +1336,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 errors.Add("subscenario and assertion totals do not match the named results.");
             }
 
-            if (scenario != "chunk7-native-progression" && scenario != "chunk7-native-main-bootstrap" && scenario != "chunk7-small-profile-calibration" && scenario != "chunk7-ordinary-field-admission" && scenario != "chunk7-ordinary-acquisition" && scenario != "chunk7-two-pair-exploration" && !RuntimeRequest.IsChunk7PersistenceScenario(scenario) && !RuntimeRequest.IsChunk7CombatScenario(scenario) && RuntimeSubscenarioResult.IsMissionScenario(scenario) && !names.Contains(scenario))
+            if (scenario != "chunk7-bootstrap-cold-inventory" && scenario != "chunk7-native-progression" && scenario != "chunk7-native-main-bootstrap" && scenario != "chunk7-small-profile-calibration" && scenario != "chunk7-ordinary-field-admission" && scenario != "chunk7-ordinary-acquisition" && scenario != "chunk7-two-pair-exploration" && !RuntimeRequest.IsChunk7PersistenceScenario(scenario) && !RuntimeRequest.IsChunk7CombatScenario(scenario) && RuntimeSubscenarioResult.IsMissionScenario(scenario) && !names.Contains(scenario))
             {
                 errors.Add("An individual mission scenario must report its own named subscenario result.");
             }

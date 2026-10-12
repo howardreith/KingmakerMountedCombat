@@ -19,6 +19,8 @@ foreach($name in $names.Keys){
  # Test-Chunk7WorldEvidence and Test-Chunk7NativeDiagnostics exercise these exact leaf/kind
  # pairs with immutable manifest/hash/envelope positive and negative fixtures.
  foreach($addition in @(
+     '            ($relativePath -ceq ''chunk7-bootstrap-inventory-evidence.json'' -and $kind -ceq ''chunk7-bootstrap-inventory-evidence'') -or',
+     '            ($relativePath -ceq ''chunk7-bootstrap-inventory-cleanup-pending.json'' -and $kind -ceq ''chunk7-bootstrap-inventory-cleanup-pending'') -or',
      '            ($relativePath -ceq ''chunk7-native-bootstrap-evidence.json'' -and $kind -ceq ''chunk7-native-bootstrap-evidence'') -or',
      '            ($relativePath -ceq ''chunk7-native-bootstrap-cleanup-pending.json'' -and $kind -ceq ''chunk7-native-bootstrap-cleanup-pending'') -or',
      '            ($relativePath -ceq ''chunk7-progression-evidence.json'' -and $kind -ceq ''chunk7-progression-evidence'') -or',
@@ -30,6 +32,7 @@ foreach($name in $names.Keys){
      '            ($relativePath -ceq ''chunk7-ordinary-acquisition-evidence.json'' -and $kind -ceq ''chunk7-ordinary-acquisition-evidence'') -or',
      '            ($relativePath -ceq ''chunk7-ordinary-cleanup-pending.json'' -and $kind -ceq ''chunk7-ordinary-cleanup-pending'') -or',
      '            ($relativePath -ceq ''chunk7-world-evidence.json'' -and $kind -ceq ''chunk7-world-evidence'') -or',
+     '            ($relativePath -ceq ''chunk7-matched-pool-measurements.json'' -and $kind -ceq ''chunk7-matched-pool-measurements'') -or',
      '            ($relativePath -ceq ''runtime-loader-inventory.json'' -and $kind -ceq ''runtime-loader-inventory'') -or',
      '            ($relativePath -ceq ''chunk7-persistence-evidence.json'' -and $kind -ceq ''chunk7-persistence-evidence'') -or',
      '            ($relativePath -ceq ''chunk7-world-cleanup-pending.json'' -and $kind -ceq ''chunk7-world-cleanup-pending'') -or',

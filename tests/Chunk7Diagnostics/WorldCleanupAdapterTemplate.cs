@@ -4,6 +4,7 @@ enum RelationshipState{Unmounted,Mounted}enum CleanupTrigger{Exception}
 class JObject:Dictionary<string,object>{public new object this[string key]{get{object value;return TryGetValue(key,out value)?value:null;}set{base[key]=value;}}public static JObject FromObject(object x){return new JObject();}}
 class JArray{public JArray(object x){}}
 class Lease:IDisposable{public bool Fail;public int Releases;public void Dispose(){Releases++;if(Fail)throw new Exception("lease pending");}}
+class MatchedLease:Lease{public bool Complete=true;}
 class Clock{public TimeSpan Elapsed=TimeSpan.Zero;}
 class Process{public bool IsEnded;}
 class Command{public bool IsFinished;public int Interruptions;public void Interrupt(){Interruptions++;IsFinished=true;}}
@@ -34,6 +35,8 @@ class NativeArea{public string AssetGuidThreadSafe="area";}class NativeAreaState
 namespace Kingmaker{class Game:global::Game{}}
 class DoorProbe{public Command[] IssuedCommands=new Command[0];public bool Ready,Fail;public int Drains;public bool Drain(){Drains++;if(Fail)throw new Exception("door pending");return Ready;}}
 class WorldAdapter{
+ MatchedLease matched=new MatchedLease();Lease matchedPins=new Lease();bool worldEvidenceWritten,matchedEvidenceWritten,failMatchedWrite;int matchedWrites;
+ void WriteMatchedPoolEvidence(){if(matchedEvidenceWritten)return;if(failMatchedWrite)throw new Exception("sidecar write pending");matchedWrites++;matchedEvidenceWritten=true;}
  DoorProbe doorProbe;
  Lease quietWindow;
  Chunk7NativeWorldScope nativeScope;
@@ -103,6 +106,19 @@ __METHODS__
  e.world.SerializationBusy=false;((UnitUseAbility)e.issuedCommands[0]).ExecutionProcess.IsEnded=true;
  Check(e.DrainForHost()&&e.completed&&e.errors.Any(x=>x.Contains("lease pending")),"retained quiet gate retries without discarding original failure evidence");
  }
+ static void VerifyMatchedCustody(){
+ Game.Instance=new Game();LoadingProcess.Instance=new LoadingProcess();NativePersistenceIsolation.HasPendingWrites=false;
+ var e=new WorldAdapter();var observer=e.matched;var pins=e.matchedPins;observer.Fail=true;e.measurement=new Lease();Game.Instance.IsPaused=true;
+ e.BeginCleanup();Check(e.measurement==null&&e.matchedPins==pins&&pins.Releases==0&&observer.Releases==1,"matched release failure retains exact scope while independent observer releases");
+ Check(!e.DrainForHost()&&Game.Instance.IsPaused&&e.world.Pairs.All(p=>p.Combat.Cancels==0)&&e.horseFeature!=null,"unfinished matched observer fences native command and fact cleanup");
+ observer.Fail=false;((UnitUseAbility)e.issuedCommands[0]).ExecutionProcess.IsEnded=true;
+ Check(e.DrainForHost()&&e.completed&&e.matchedPins==null&&pins.Releases==1&&e.errors.Any(x=>x.Contains("lease pending")),"matched release retries exact owner and preserves original failure");
+ Game.Instance=new Game();e=new WorldAdapter();((UnitUseAbility)e.issuedCommands[0]).ExecutionProcess.IsEnded=true;e.failMatchedWrite=true;e.BeginCleanup();var priorWrites=RuntimeLoaderInventory.Writes;
+ bool refused=false;try{e.DrainForHost();}catch{refused=true;}
+ Check(refused&&!e.completed&&e.worldEvidenceWritten&&RuntimeLoaderInventory.Writes==priorWrites+1&&!e.matchedEvidenceWritten,"sidecar publication failure retains engine after immutable legacy artifact");
+ e.Fail("C7-world-runtime","sidecar write pending");e.failMatchedWrite=false;
+ Check(e.DrainForHost()&&e.completed&&RuntimeLoaderInventory.Writes==priorWrites+1&&e.matchedWrites==1&&e.errors.Contains("sidecar write pending"),"later failed sidecar settlement cannot rewrite or promote original legacy artifact");
+ }
  static int passed;static void Check(bool condition,string name){if(!condition)throw new Exception(name);passed++;Console.WriteLine("PASS "+name);}
  public static void Verify(){var e=new WorldAdapter();var features=e.secondRider.Descriptor.Progression.Features;var command=(UnitUseAbility)e.issuedCommands[0];
  Game.Instance.IsPaused=true;e.BeginCleanup();Check(features.Removed.Count==0&&command.Interruptions==0&&Game.Instance.IsPaused,"BeginCleanup preserves pause, facts, and live commands");
@@ -122,6 +138,7 @@ __METHODS__
  VerifyWorldScope();
  VerifyDoorCustody();
  VerifyQuietCustody();
+ VerifyMatchedCustody();
  Console.WriteLine("CHUNK7 WORLD CLEANUP ADAPTER PASS="+passed+" FAIL=0; actual source methods with external native boundary stubs only");}
 }
 static class Program{static int Main(){try{WorldAdapter.Verify();return 0;}catch(Exception e){Console.Error.WriteLine(e);return 1;}}}

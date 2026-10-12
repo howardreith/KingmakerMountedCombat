@@ -998,21 +998,42 @@ namespace KingmakerMountedCombat.Integration
 
             internal static bool CombatPreparePrefix() => PatchBridge.Persistence?.CombatRestorationPending != true;
 
-            internal static bool CombatCooldownPrefix(UnitEntityData unit, out float __state)
+            internal readonly struct CombatCooldownObservation
             {
-                __state = unit?.CombatState == null
+                internal readonly RuntimeCombatScenarioEngine Consumer;
+                internal readonly UnitEntityData Unit;
+                internal readonly float Initiative;
+
+                internal CombatCooldownObservation(RuntimeCombatScenarioEngine consumer, UnitEntityData unit, float initiative)
+                {
+                    Consumer = consumer;
+                    Unit = unit;
+                    Initiative = initiative;
+                }
+            }
+
+            internal static bool CombatCooldownPrefix(UnitEntityData unit, out CombatCooldownObservation __state)
+            {
+                var consumer = RuntimeAutomationHost.GetCombatCooldownConsumer(unit);
+                var initiative = consumer == null || unit?.CombatState == null
                     ? float.NaN
                     : unit.CombatState.Cooldown.Initiative;
+                __state = new CombatCooldownObservation(consumer, consumer == null ? null : unit, initiative);
                 return PatchBridge.Persistence?.CombatRestorationPending != true;
             }
 
-            internal static void CombatCooldownPostfix(UnitEntityData unit, float __state)
+            internal static void CombatCooldownPostfix(UnitEntityData unit, CombatCooldownObservation __state)
             {
+                // A native callback may outlive its consumer. Never assign its prefix
+                // sample to a newly created scenario, a different actor, or a disposed row.
+                if (!ReferenceEquals(unit, __state.Unit) ||
+                    !RuntimeAutomationHost.IsCurrentCombatCooldownConsumer(__state.Consumer, unit)) return;
                 var combatState = unit?.CombatState;
                 var game = Kingmaker.Game.Instance;
                 RuntimeAutomationHost.ObserveCombatCooldownTick(
+                    __state.Consumer,
                     unit,
-                    __state,
+                    __state.Initiative,
                     combatState == null ? float.NaN : combatState.Cooldown.Initiative,
                     game?.TimeController == null ? 0f : game.TimeController.GameDeltaTime,
                     combatState != null && combatState.Prepared,

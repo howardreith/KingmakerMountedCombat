@@ -72,6 +72,10 @@ namespace KingmakerMountedCombat.Diagnostics
         private Guid firstOwner, secondOwner;
         private readonly JArray measurements = new JArray(), cycleInputs = new JArray(), cycles = new JArray();
         private MountedRuntimeMeasurement measurement;
+        private readonly Chunk7MatchedPoolCollector matched;
+        private Chunk7MatchedPoolPins matchedPins;
+        private int pendingMatchedIndex = -1;
+        private bool worldEvidenceWritten, matchedEvidenceWritten;
         private Chunk7NativeDoorProbe doorProbe;
         private int cycle;
         private JArray InputRecords => cycle == 0 ? inputs : cycleInputs;
@@ -82,6 +86,8 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             this.request = request; world = relationship.World; this.controls = controls;
             this.horses = horses; this.settings = settings; this.logger = logger; this.optionalTelemetry = optionalTelemetry;
+            matched = new Chunk7MatchedPoolCollector(RequireMatchedPool, CaptureMatchedPool, CompareMatchedPool,
+                label => new MatchedWindow(label, world));
         }
         internal static bool SupportsScenario(string scenario) => scenario == ScenarioName;
         internal bool IsCompleted => completed;
@@ -233,11 +239,13 @@ namespace KingmakerMountedCombat.Diagnostics
                     case 30:
                         if (!Mounted(firstRider, firstMount) || !InputSettled()) return;
                         firstOwner = world.Registry.FindActive(firstRider).Id; FinishInput();
+                        if (cycle == 2) { BeginMatchedPool(1); Next(35); break; }
                         Input(secondRider, secondMount, controls.MountAbility, "cycle-" + cycle + "-mount-horse", firstRider); Next(31); break;
                     case 31:
                         if (!Mounted(secondRider, secondMount) || !InputSettled()) return;
                         secondOwner = world.Registry.FindActive(secondRider).Id; FinishInput(); AssertBoth();
                         cycles.Add(CaptureWorld("cycle-" + cycle + "-mounted"));
+                        if (cycle == 2) { BeginMatchedPool(2); Next(36); break; }
                         Input(firstRider, firstRider, controls.DismountAbility, "cycle-" + cycle + "-dismount-mammoth", secondRider); Next(32); break;
                     case 32:
                         if (Mounted(firstRider, firstMount) || !InputSettled()) return;
@@ -250,12 +258,26 @@ namespace KingmakerMountedCombat.Diagnostics
                             world.Pairs.All(x => x.Relationship.Runtime.NoPreparedPairResidue && !controls.HasUnsettledShellFor(x.Relationship)),
                             "Settled lifecycle cycle retained unexpected owners, native commands, views or service groups.");
                         cycles.Add(CaptureWorld("cycle-" + cycle + "-settled"));
+                        if (cycle == 1) { BeginMatchedPool(0); Next(34); break; }
+                        if (cycle == 2) { BeginMatchedPool(3); Next(37); break; }
                         if (++cycle <= 3) BeginCycle();
                         else { Pass("C7-world-cycles"); BeginMeasurement("unmounted-after-cycles"); Next(23); }
                         break;
                     case 23:
                         if (!CompleteMeasurement()) return;
                         Pass("C7-world-sampling"); BeginCleanup(); break;
+                    case 34:
+                        if (!PollMatchedPool()) return;
+                        cycle++; BeginCycle(); break;
+                    case 35:
+                        if (!PollMatchedPool()) return;
+                        Input(secondRider, secondMount, controls.MountAbility, "cycle-" + cycle + "-mount-horse", firstRider); Next(31); break;
+                    case 36:
+                        if (!PollMatchedPool()) return;
+                        Input(firstRider, firstRider, controls.DismountAbility, "cycle-" + cycle + "-dismount-mammoth", secondRider); Next(32); break;
+                    case 37:
+                        if (!PollMatchedPool()) return;
+                        cycle++; BeginCycle(); break;
                 }
             }
             catch (Exception error) { Fail("C7-world-runtime", error.ToString()); BeginCleanup(); }
@@ -424,12 +446,111 @@ namespace KingmakerMountedCombat.Diagnostics
             if (!measurement.Ready) return false;
             measurements.Add(measurement.Complete()); measurement = null; return true;
         }
+        private void BeginMatchedPool(int index)
+        {
+            Require(measurement == null && quietWindow == null && pendingMatchedIndex < 0, "Matched-pool sampling overlaps another observer or pending admission.");
+            if (index == 0)
+            {
+                Require(cycle == 1 && matchedPins == null, "Matched-pool warmup did not finish exactly once.");
+                matchedPins = new Chunk7MatchedPoolPins(Actors().Select(actor => actor.UniqueId).ToArray(), MatchedNativePins());
+            }
+            pendingMatchedIndex = index;
+        }
+        private bool PollMatchedPool()
+        {
+            if (pendingMatchedIndex >= 0)
+            {
+                RequireMatchedPoolState(Chunk7MatchedPoolCollector.Active[pendingMatchedIndex]);
+                // Finished native commands can remain in Raw until the ordinary
+                // RemoveFinishedAndUpdateQueue pass. Never run that pass ourselves.
+                if (!Actors().All(actor => actor.Commands.Empty)) return false;
+                matched.Begin(pendingMatchedIndex);
+                pendingMatchedIndex = -1;
+            }
+            return matched.Poll();
+        }
+        private static bool MatchedActorSettled(UnitEntityData actor) => actor != null && actor.IsInState && actor.IsInGame &&
+            actor.View?.AgentASP != null && actor.Descriptor.State.IsConscious && !actor.IsInCombat && actor.Commands != null &&
+            actor.Commands.Queue.Count == 0 && actor.Commands.Raw.All(command => command == null || command.IsFinished &&
+                (!(command is UnitUseAbility ability) || ability.ExecutionProcess == null || ability.ExecutionProcess.IsEnded));
+        private void RequireMatchedPool(int expected)
+        {
+            RequireMatchedPoolState(expected);
+            Require(Actors().All(actor => actor.Commands.Empty), "Matched-pool sampling requires empty native command slots.");
+        }
+        private object[] MatchedNativePins()
+        {
+            var game = Game.Instance; var pairs = world.Pairs;
+            Require(pairs.Length == 2, "Matched-pool resident boundary count changed.");
+            return new object[] { world, game, game.Player, game.State, game.State.LoadedAreaState, game.State.LoadedAreaState.MainState,
+                pairs[0], pairs[0].Participant, pairs[1], pairs[1].Participant,
+                firstRider, firstRider.Descriptor, firstRider.View, firstMount, firstMount.Descriptor, firstMount.View,
+                secondRider, secondRider.Descriptor, secondRider.View, secondMount, secondMount.Descriptor, secondMount.View };
+        }
+        private void RequireMatchedPoolState(int expected)
+        {
+            nativeScope.RequireCurrent();
+            Require(matchedPins != null, "Matched-pool scope is absent.");
+            matchedPins.Require(Actors().Select(actor => actor.UniqueId).ToArray(), MatchedNativePins());
+            var pairs = world.Pairs;
+            Require(!Game.Instance.IsPaused && Actors().All(MatchedActorSettled) && NativeCommandsSettled() &&
+                world.BoundaryCount == 2 && world.UnifiedTurn.SnapshotParticipants.Length == 2 && world.FailedConstructionCount == 0 &&
+                world.Registry.Owners.Length == expected && world.Registry.ActiveCount == expected &&
+                !world.UnifiedTurn.HasUnsettledPreparation && !controls.HasUnsettledRelationshipTransition &&
+                !world.SerializationBusy && !NativePersistenceIsolation.HasPendingWrites &&
+                (LoadingProcess.Instance == null || !LoadingProcess.Instance.IsLoadingInProcess && !LoadingProcess.Instance.QueuedNames.Any()) &&
+                pairs.All(PairCommandsSettled) && pairs.Count(pair => !pair.Relationship.Runtime.NoPreparedPairResidue) == expected,
+                "Matched-pool sampling requires exact resident services and settled native custody.");
+            if (expected >= 1) Require(Mounted(firstRider, firstMount) && world.Registry.FindActive(firstRider).Id == firstOwner,
+                "Matched-pool first owner changed.");
+            if (expected == 2) AssertBoth();
+            if (expected < 2) Require(world.Registry.FindOwner(secondRider) == null, "Matched-pool second owner is unexpectedly retained.");
+        }
+        private JObject CaptureMatchedPool(int expected)
+        {
+            var snapshot = CaptureWorld("matched-pool-boundary");
+            // Preserve the historical artifact. The new contract names native
+            // expenditure and allowance separately rather than inheriting its old label.
+            foreach (var actor in Actors())
+            {
+                var row = ((JArray)snapshot["resources"]["actors"]).Single(value => (string)value["id"] == actor.UniqueId);
+                row["reactions"] = actor.CombatState.AttackOfOpportunityCount;
+                row["reactionAllowance"] = actor.CombatState.AttackOfOpportunityPerRound;
+            }
+            return new JObject {
+                ["identityPins"] = matchedPins.Labels, ["actorIds"] = new JArray(Actors().Select(actor => actor.UniqueId)),
+                ["expectedActivePairs"] = expected, ["world"] = snapshot,
+                ["commandsSettled"] = NativeCommandsSettled() && Actors().All(MatchedActorSettled) && Actors().All(actor => actor.Commands.Empty), ["preparationPending"] = world.UnifiedTurn.HasUnsettledPreparation,
+                ["relationshipTransition"] = controls.HasUnsettledRelationshipTransition,
+                ["serializationBusy"] = world.SerializationBusy, ["pendingNativeWrites"] = NativePersistenceIsolation.HasPendingWrites,
+                ["allocationActors"] = world.UnifiedTurn.TrackedAllocationActorCount };
+        }
+        private static void CompareMatchedPool(JObject before, JObject after)
+        {
+            var a = (JObject)before["world"]; var b = (JObject)after["world"];
+            Require(ResourcesConserved((JObject)a["resources"], (JObject)b["resources"]) &&
+                JToken.DeepEquals(a["owners"], b["owners"]) && JToken.DeepEquals(a["selection"], b["selection"]),
+                "Idle matched-pool sample changed actor resources, selection or owner generation.");
+            foreach (var actor in (JArray)a["resources"]["actors"])
+                Require((int)actor["reactions"] == (int)((JArray)b["resources"]["actors"]).Single(value => (string)value["id"] == (string)actor["id"])["reactions"],
+                    "Idle matched-pool sample changed native reaction expenditure.");
+        }
+        private sealed class MatchedWindow : IChunk7MatchedPoolWindow
+        {
+            private readonly MountedRuntimeMeasurement value;
+            internal MatchedWindow(string label, MountedWorldService world) { value = new MountedRuntimeMeasurement(label, world); }
+            public bool Ready => value.Ready;
+            public int Count => value.Count;
+            public JObject Complete() => value.Complete();
+            public void Dispose() => value.Dispose();
+        }
         private void BeginCleanup()
         {
             if (cleanupStarted) return;
             cleanupStarted = true; stepStarted = clock.Elapsed.TotalSeconds;
             TryCleanup("optional capture window", () => { quietWindow?.Dispose(); quietWindow = null; });
             TryCleanup("measurement", () => { measurement?.Dispose(); measurement = null; });
+            TryCleanup("matched-pool measurement", () => { matched.Dispose(); matchedPins?.Dispose(); matchedPins = null; });
         }
         private bool TryCleanup(string part, Action attempt)
         {
@@ -462,6 +583,7 @@ namespace KingmakerMountedCombat.Diagnostics
             if (completed) return;
             var observersGone = TryCleanup("optional capture window", () => { quietWindow?.Dispose(); quietWindow = null; });
             observersGone &= TryCleanup("measurement", () => { measurement?.Dispose(); measurement = null; });
+            observersGone &= TryCleanup("matched-pool measurement", () => { matched.Dispose(); matchedPins?.Dispose(); matchedPins = null; });
             if (!observersGone) { RetainCleanup("An owned observer has not detached."); return; }
             if (!captured) { cleanupProven = true; CompleteCleanupEvidence(); return; }
             // Neither fact removal nor actor/view teardown can race a native load,
@@ -562,7 +684,13 @@ namespace KingmakerMountedCombat.Diagnostics
             evidence["elapsedSeconds"] = clock.Elapsed.TotalSeconds;
             evidence["combatOrPersistenceProof"] = false;
             evidence["thirdUnrelatedActorProven"] = false;
-            RuntimeLoaderInventory.WriteArtifact(request, EvidenceFileName, EvidenceKind, errors.Count == 0 ? "PASS" : "FAIL", evidence, errors);
+            Require(matched.Complete || errors.Count != 0, "Successful exploration lacks its separate matched-pool observation.");
+            if (!worldEvidenceWritten)
+            {
+                RuntimeLoaderInventory.WriteArtifact(request, EvidenceFileName, EvidenceKind, errors.Count == 0 ? "PASS" : "FAIL", evidence, errors);
+                worldEvidenceWritten = true;
+            }
+            WriteMatchedPoolEvidence();
             completed = true;
         }
         internal bool DrainForHost()
@@ -577,6 +705,17 @@ namespace KingmakerMountedCombat.Diagnostics
             return completed && cleanupProven;
         }
         private static int Id(object value) => value == null ? 0 : RuntimeHelpers.GetHashCode(value);
+        private void WriteMatchedPoolEvidence()
+        {
+            if (matchedEvidenceWritten) return;
+            var observations = matched.Evidence();
+            using (var hash = System.Security.Cryptography.SHA256.Create())
+            using (var stream = File.OpenRead(Path.Combine(request.EvidenceRoot, EvidenceFileName)))
+                observations["worldEvidenceSha256"] = BitConverter.ToString(hash.ComputeHash(stream)).Replace("-", "").ToLowerInvariant();
+            RuntimeLoaderInventory.WriteArtifact(request, Chunk7MatchedPoolCollector.FileName, Chunk7MatchedPoolCollector.Kind,
+                errors.Count == 0 ? "PASS" : "FAIL", observations, errors);
+            matchedEvidenceWritten = true;
+        }
         private static JObject Point(Vector3 point) => new JObject { ["x"] = point.x, ["y"] = point.y, ["z"] = point.z };
         private static void Require(bool condition, string error) { if (!condition) throw new InvalidOperationException(error); }
         private void Pass(string row)

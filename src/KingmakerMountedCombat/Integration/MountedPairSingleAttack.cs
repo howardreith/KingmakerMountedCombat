@@ -1,6 +1,4 @@
 using System;
-using System.Diagnostics;
-using System.Linq;
 using Kingmaker.EntitySystem.Entities;
 using Kingmaker.UnitLogic.Commands;
 using Kingmaker.Utility;
@@ -28,8 +26,6 @@ namespace KingmakerMountedCombat.Integration
         private readonly UnitEntityData mount;
         private readonly bool usesMountedRiderReach;
         private float pairApproachRadius;
-
-        internal string TerminalLifecycle { get; private set; }
 
         public MountedPairSingleAttack(
             UnitEntityData target,
@@ -303,34 +299,6 @@ namespace KingmakerMountedCombat.Integration
             }
 
             base.OnTick();
-        }
-
-        protected override void OnEnded(bool raiseEvent = true)
-        {
-            TerminalLifecycle = DescribeTerminalLifecycle();
-            base.OnEnded(raiseEvent);
-        }
-
-        private string DescribeTerminalLifecycle()
-        {
-            var frames = new StackTrace(1, false).GetFrames() ?? new StackFrame[0];
-            var callerChain = string.Join(
-                ">",
-                frames
-                .Take(12)
-                .Select(frame => frame.GetMethod())
-                .Where(method => method != null)
-                .Select(method => (method.DeclaringType == null
-                    ? "<unknown>"
-                    : method.DeclaringType.FullName) + "." + method.Name)
-                .ToArray());
-            return "result=" + Result +
-                ";acted=" + IsActed +
-                ";timeSinceStart=" + TimeSinceStart.ToString("R", System.Globalization.CultureInfo.InvariantCulture) +
-                ";attackRuleObserved=" + (LastAttackRule != null) +
-                ";animationPresent=" + (Animation != null) +
-                ";animationFinished=" + (Animation != null && Animation.IsFinished) +
-                ";callerChain=" + (string.IsNullOrEmpty(callerChain) ? "<unavailable>" : callerChain);
         }
 
         private bool TryObserveDistances(
