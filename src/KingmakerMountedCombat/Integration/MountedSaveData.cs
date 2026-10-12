@@ -111,11 +111,12 @@ namespace KingmakerMountedCombat.Integration
     internal sealed class MountedSaveReadResult
     {
         internal MountedSaveReadKind Kind { get; }
+        internal int SourceSchema { get; }
         internal MountedSaveData Data { get; }
         internal string OriginalJson { get; }
         internal string Feedback { get; }
-        internal MountedSaveReadResult(MountedSaveReadKind kind, MountedSaveData data, string json, string feedback)
-        { Kind = kind; Data = data; OriginalJson = json; Feedback = feedback; }
+        internal MountedSaveReadResult(MountedSaveReadKind kind, MountedSaveData data, string json, string feedback, int sourceSchema = 0)
+        { Kind = kind; Data = data; OriginalJson = json; Feedback = feedback; SourceSchema = sourceSchema; }
     }
 
     internal static class MountedSaveCodec
@@ -185,7 +186,7 @@ namespace KingmakerMountedCombat.Integration
                         if (data == null) throw new InvalidDataException("Mounted metadata was empty.");
                         data.Validate();
                         return new MountedSaveReadResult(MountedSaveReadKind.Current, data, json,
-                            schema == 1 ? "Historical mounted metadata migrated in memory; source archive unchanged." : null);
+                            schema == 1 ? "Historical mounted metadata migrated in memory; source archive unchanged." : null, (int)schema);
                     default:
                         throw new InvalidDataException("Unsupported historical mounted schema.");
                 }
@@ -208,7 +209,7 @@ namespace KingmakerMountedCombat.Integration
 
         private static void VerifyCurrentShape(JObject root) => VerifyShape(root, typeof(MountedSaveData));
 
-        private static void VerifyShape(JToken token, Type expected)
+        internal static void VerifyShape(JToken token, Type expected, ISet<Type> additionalModels = null)
         {
             if (token == null) throw new InvalidDataException("Missing metadata value.");
             var nullable = Nullable.GetUnderlyingType(expected);
@@ -232,16 +233,16 @@ namespace KingmakerMountedCombat.Integration
             if (expected.IsArray)
             {
                 if (!(token is JArray array)) throw new InvalidDataException("Metadata collection is not an array.");
-                foreach (var item in array) VerifyShape(item, expected.GetElementType());
+                foreach (var item in array) VerifyShape(item, expected.GetElementType(), additionalModels);
                 return;
             }
             // Only this compile-time set of primitive DTOs can be constructed.
             // No type/member name supplied by save data participates in reflection.
-            if (!ModelTypes.Contains(expected)) throw new InvalidDataException("Unknown metadata model.");
+            if (!ModelTypes.Contains(expected) && (additionalModels == null || !additionalModels.Contains(expected))) throw new InvalidDataException("Unknown metadata model.");
             var value = token as JObject;
             var properties = expected.GetProperties(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
             RequireFields(value, properties.Select(p => p.Name).ToArray());
-            foreach (var property in properties) VerifyShape(value[property.Name], property.PropertyType);
+            foreach (var property in properties) VerifyShape(value[property.Name], property.PropertyType, additionalModels);
         }
 
         private static void RequireFields(JObject value, params string[] fields)
@@ -251,9 +252,9 @@ namespace KingmakerMountedCombat.Integration
                 throw new InvalidDataException("Mounted metadata has missing or unknown fields.");
         }
 
-        private static void VerifyBoundedPrimitiveJson(string json)
+        internal static void VerifyBoundedPrimitiveJson(string json, int maximumCharacters = MaximumCharacters, int maximumTokens = 4096)
         {
-            if (json.Length == 0 || json.Length > MaximumCharacters)
+            if (json.Length == 0 || json.Length > maximumCharacters)
                 throw new InvalidDataException("Mounted metadata size is invalid.");
             var objects = new Stack<HashSet<string>>();
             using (var reader = new JsonTextReader(new StringReader(json)) { MaxDepth = 12,
@@ -262,7 +263,7 @@ namespace KingmakerMountedCombat.Integration
                 var tokens = 0;
                 while (reader.Read())
                 {
-                    if (++tokens > 4096) throw new InvalidDataException("Mounted metadata has too many fields.");
+                    if (++tokens > maximumTokens) throw new InvalidDataException("Mounted metadata has too many fields.");
                     if (reader.TokenType == JsonToken.StartObject)
                         objects.Push(new HashSet<string>(StringComparer.OrdinalIgnoreCase));
                     else if (reader.TokenType == JsonToken.EndObject) objects.Pop();

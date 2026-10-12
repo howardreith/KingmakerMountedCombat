@@ -42,13 +42,14 @@ namespace KingmakerMountedCombat.Integration
 
         public void HandleUnitLeaveCombat(UnitEntityData unit)
         {
-            if (IsPairUnit(unit)) { combat.Cancel("unit left combat"); Observe(NativeLifecycleBoundary.CombatEnded, "IUnitCombatHandler.HandleUnitLeaveCombat"); }
+            var owner = service.ResolveActorOwner(unit);
+            if (owner != null) { owner.CombatOwner.Cancel("unit left combat"); Observe(NativeLifecycleBoundary.CombatEnded, "IUnitCombatHandler.HandleUnitLeaveCombat"); }
         }
 
         public void HandlePartyCombatStateChanged(bool inCombat)
         {
             if (inCombat) { Observe(NativeLifecycleBoundary.CombatStarted, "IPartyCombatHandler.HandlePartyCombatStateChanged(true)"); }
-            else { combat.Cancel("party combat ended"); Observe(NativeLifecycleBoundary.CombatEnded, "IPartyCombatHandler.HandlePartyCombatStateChanged(false)"); }
+            else { VisitCombatOwners(owner => owner.Cancel("party combat ended")); Observe(NativeLifecycleBoundary.CombatEnded, "IPartyCombatHandler.HandlePartyCombatStateChanged(false)"); }
         }
 
         public void HandleUnitLifeStateChanged(UnitEntityData unit, UnitLifeState prevLifeState)
@@ -66,7 +67,7 @@ namespace KingmakerMountedCombat.Integration
                 });
                 if (pairLifeTransitions.Count > 32) { pairLifeTransitions.RemoveAt(0); }
             }
-            if (!unit.Descriptor.State.IsConscious) { Cleanup(NativeLifecycleBoundary.UnitIncapacitated, "IUnitLifeStateChanged.HandleUnitLifeStateChanged", CleanupTrigger.Incapacitated); }
+            if (!unit.Descriptor.State.IsConscious) { CleanupActor(unit, NativeLifecycleBoundary.UnitIncapacitated, "IUnitLifeStateChanged.HandleUnitLifeStateChanged", CleanupTrigger.Incapacitated); }
         }
 
         public void HandlePartyLeaveArea(BlueprintArea currentArea, BlueprintAreaEnterPoint targetArea)
@@ -84,8 +85,10 @@ namespace KingmakerMountedCombat.Integration
 
         private void CompleteNativeModeObservation(bool enabled)
         {
-            combat.Cancel("real-time/turn-based mode changed");
-            service.ObserveNativeTurnBasedModeChanged(enabled);
+            VisitCombatOwners(owner => owner.Cancel("real-time/turn-based mode changed"));
+            var owners = service.Ownership.Owners;
+            if (owners.Length == 0) service.ObserveNativeTurnBasedModeChanged(enabled);
+            else foreach (var owner in owners) owner.Boundary.ObserveNativeTurnBasedModeChanged(enabled);
             unifiedTurn.ObserveModeChanged(enabled);
             Observe(
                 enabled ? NativeLifecycleBoundary.TurnBasedEnabled : NativeLifecycleBoundary.RealtimeEnabled,
@@ -124,14 +127,15 @@ namespace KingmakerMountedCombat.Integration
 
         public void HandleUnitViewAttached(UnitEntityData unit)
         {
-            if (IsPairUnit(unit))
+            var owner = service.ResolveActorOwner(unit);
+            if (owner != null)
             {
-                var observation = service.CapturePresentationObservation();
+                var observation = owner.CapturePresentationObservation();
                 var disposition = MountedViewAttachmentPolicy.Classify(
-                    service.State == RelationshipState.Mounted,
+                    owner.State == RelationshipState.Mounted,
                     true,
-                    service.IsExactCapturedView(unit),
-                    service.IsChangedViewChildOfOwnedAnchor(unit));
+                    owner.IsExactCapturedView(unit),
+                    owner.IsChangedViewChildOfOwnedAnchor(unit));
                 if (disposition == MountedViewAttachmentDisposition.ObserveExactView)
                 {
                     Observe(NativeLifecycleBoundary.ViewAttached, "IUnitViewAttachedUIHandler.HandleUnitViewAttached(exact mounted view)", observation);
@@ -142,7 +146,7 @@ namespace KingmakerMountedCombat.Integration
                 }
                 else
                 {
-                    Cleanup(NativeLifecycleBoundary.ViewAttached, "IUnitViewAttachedUIHandler.HandleUnitViewAttached(" + disposition + ")", CleanupTrigger.ViewReplaced, observation);
+                    CleanupOwner(owner, NativeLifecycleBoundary.ViewAttached, "IUnitViewAttachedUIHandler.HandleUnitViewAttached(" + disposition + ")", CleanupTrigger.ViewReplaced, observation);
                 }
             }
             else if (IsCandidatePairUnit(unit))
@@ -155,45 +159,48 @@ namespace KingmakerMountedCombat.Integration
 
         public void HandleUnitDestroyed(UnitEntityData entityData)
         {
-            combat.RetainDestroyedActorBoundary(entityData, () => CompleteUnitDestroyed(entityData));
+            var owner = service.Ownership.FindOwner(entityData);
+            (owner?.Boundary.CombatOwner ?? combat).RetainDestroyedActorBoundary(entityData, () => CompleteUnitDestroyed(entityData, owner));
         }
 
-        private void CompleteUnitDestroyed(UnitEntityData entityData)
+        private void CompleteUnitDestroyed(UnitEntityData entityData,
+            MountedPairOwner<UnitEntityData, GameMountedRelationshipService> owner)
         {
             unifiedTurn.RetireDestroyedActor(entityData);
-            if (IsPairUnit(entityData)) { Cleanup(NativeLifecycleBoundary.ViewDetachedOrUnitDestroyed, "IUnitHandler.HandleUnitDestroyed", CleanupTrigger.ViewDetached); }
+            if (service.Ownership.Owns(owner)) { CleanupOwner(owner.Boundary, NativeLifecycleBoundary.ViewDetachedOrUnitDestroyed, "IUnitHandler.HandleUnitDestroyed", CleanupTrigger.ViewDetached); }
             else if (IsCandidatePairUnit(entityData)) { Observe(NativeLifecycleBoundary.ViewDetachedOrUnitDestroyed, "IUnitHandler.HandleUnitDestroyed(candidate pair)"); }
         }
 
         public void HandleUnitDeath(UnitEntityData entityData)
         {
-            if (IsPairUnit(entityData)) { Cleanup(NativeLifecycleBoundary.UnitDeath, "IUnitHandler.HandleUnitDeath", CleanupTrigger.Death); }
+            if (IsPairUnit(entityData)) { CleanupActor(entityData, NativeLifecycleBoundary.UnitDeath, "IUnitHandler.HandleUnitDeath", CleanupTrigger.Death); }
         }
 
         public void HandleUnitBecameFinallyDead(UnitEntityData unit)
         {
-            if (IsPairUnit(unit)) { Cleanup(NativeLifecycleBoundary.UnitFinallyDead, "IUnitFinallyDeadHandler.HandleUnitBecameFinallyDead", CleanupTrigger.Death); }
+            if (IsPairUnit(unit)) { CleanupActor(unit, NativeLifecycleBoundary.UnitFinallyDead, "IUnitFinallyDeadHandler.HandleUnitBecameFinallyDead", CleanupTrigger.Death); }
         }
 
         public void HandleAddCompanion(UnitEntityData unit) { }
 
         public void HandleCompanionActivated(UnitEntityData unit)
         {
-            service.ValidateActivePair();
+            service.ResolveActorOwner(unit)?.ValidateActivePair();
         }
 
         public void HandleCompanionRemoved(UnitEntityData unit)
         {
-            if (IsPairUnit(unit)) { Cleanup(NativeLifecycleBoundary.PartyRemoved, "IPartyHandler.HandleCompanionRemoved", CleanupTrigger.CompanionInvalidated); }
+            if (IsPairUnit(unit)) { CleanupActor(unit, NativeLifecycleBoundary.PartyRemoved, "IPartyHandler.HandleCompanionRemoved", CleanupTrigger.CompanionInvalidated); }
         }
 
         public void HandleObjectInGameChaged(EntityDataBase entityData)
         {
-            if (IsPairUnit(entityData as UnitEntityData))
+            var owner = service.ResolveActorOwner(entityData as UnitEntityData);
+            if (owner != null)
             {
-                var before = service.State;
-                service.ValidateActivePair();
-                var after = service.State;
+                var before = owner.State;
+                owner.ValidateActivePair();
+                var after = owner.State;
                 var attempted = before == RelationshipState.Mounted && after != RelationshipState.Mounted;
                 ledger.Record(
                     NativeLifecycleBoundary.InGameStateChanged,
@@ -208,7 +215,13 @@ namespace KingmakerMountedCombat.Integration
 
         internal bool HandleModDisable()
         {
-            if (combat.ChargeAdmissionFenced || !combat.TryDrainChargeOwnership("mod disable")) return false;
+            if (!service.AllTeardownOwnersReady || combat.ChargeAdmissionFenced) return false;
+            var drained = true;
+            var errors = service.Ownership.VisitOwners(owner =>
+            {
+                if (!owner.Boundary.CombatOwner.TryDrainChargeOwnership("mod disable")) drained = false;
+            });
+            if (errors.Length != 0 || !drained || service.Ownership.Owners.Length == 0 && !combat.TryDrainChargeOwnership("mod disable")) return false;
             unifiedTurn.EndPairedServiceParticipation();
             return Cleanup(NativeLifecycleBoundary.ModDisable, "UnityModManager.ModEntry.OnToggle(false)/shutdown", CleanupTrigger.ModDisabled);
         }
@@ -233,7 +246,7 @@ namespace KingmakerMountedCombat.Integration
 
         private bool IsPairUnit(UnitEntityData unit)
         {
-            return unit != null && (unit == service.Rider || unit == service.Mount);
+            return unit != null && service.ResolveActorOwner(unit) != null;
         }
 
         private static bool IsCandidatePairUnit(UnitEntityData unit)
@@ -256,13 +269,39 @@ namespace KingmakerMountedCombat.Integration
             else Cleanup(NativeLifecycleBoundary.AreaBeginUnload, source, CleanupTrigger.AreaUnloading);
         }
 
+        private void VisitCombatOwners(Action<MountedCombatController> action)
+        {
+            if (service.Ownership.Owners.Length == 0) { action(combat); return; }
+            var errors = service.Ownership.VisitOwners(owner => action(owner.Boundary.CombatOwner));
+            if (errors.Length != 0) throw new AggregateException("Mounted owner boundary did not settle.", errors);
+        }
+
+        private bool CleanupActor(UnitEntityData actor, NativeLifecycleBoundary boundary, string source, CleanupTrigger trigger)
+        {
+            var owner = service.ResolveActorOwner(actor);
+            return owner == null || CleanupOwner(owner, boundary, source, trigger);
+        }
+
         private bool Cleanup(NativeLifecycleBoundary boundary, string source, CleanupTrigger trigger, string detail = null)
         {
-            var before = service.State;
-            var result = service.Dismount(trigger);
+            var succeeded = true;
+            var owners = service.Ownership.Owners;
+            if (owners.Length == 0) return CleanupOwner(service, boundary, source, trigger, detail);
+            var errors = service.Ownership.VisitOwners(owner =>
+            {
+                if (!CleanupOwner(owner.Boundary, boundary, source, trigger, detail)) succeeded = false;
+            });
+            return succeeded && errors.Length == 0;
+        }
+
+        private bool CleanupOwner(GameMountedRelationshipService owner, NativeLifecycleBoundary boundary, string source,
+            CleanupTrigger trigger, string detail = null)
+        {
+            var before = owner.State;
+            var result = owner.Dismount(trigger);
             var succeeded = result.Succeeded && !result.MovementAuthorityResidual && !result.PresentationResidual &&
-                service.State == RelationshipState.Unmounted;
-            ledger.Record(boundary, source, before, service.State, trigger, true, succeeded, result.Errors, detail);
+                owner.State == RelationshipState.Unmounted;
+            ledger.Record(boundary, source, before, owner.State, trigger, true, succeeded, result.Errors, detail);
             return succeeded;
         }
 

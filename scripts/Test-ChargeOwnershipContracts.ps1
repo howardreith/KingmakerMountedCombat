@@ -35,12 +35,74 @@ public static class ChargeOwnershipProbe {
   internal LoggerProxy(Type t):base(t){}
   public override IMessage Invoke(IMessage m){return new ReturnMessage(null,null,0,null,(IMethodCallMessage)m);}
  }
+  static readonly System.Collections.Generic.Dictionary<object,string> actorIds = new System.Collections.Generic.Dictionary<object,string>();
+  static string ActorId<T>(T actor) { return actorIds[actor]; }
+  sealed class Callback {
+   internal Action Action;
+   internal void Invoke<T>(T value) { Action(); }
+  }
+  static void ProbePairOwnership(Assembly mod, Assembly native) {
+   var unitType=native.GetType("Kingmaker.EntitySystem.Entities.UnitEntityData",true);
+   var serviceType=mod.GetType("KingmakerMountedCombat.Integration.GameMountedRelationshipService",true);
+   var registryType=mod.GetType("KingmakerMountedCombat.Domain.MountedPairRegistry`2",true).MakeGenericType(unitType,serviceType);
+   var idDelegate=Delegate.CreateDelegate(typeof(Func<,>).MakeGenericType(unitType,typeof(string)),
+    typeof(ChargeOwnershipProbe).GetMethod("ActorId",F).MakeGenericMethod(unitType));
+   var registry=Activator.CreateInstance(registryType,F,null,new object[]{idDelegate},null);
+   var loggerType=mod.GetType("KingmakerMountedCombat.Logging.IModLogger",true);
+   var settingsType=mod.GetTypes().Single(t=>t.Name=="DiagnosticSettings");
+   Func<object> service=()=>Activator.CreateInstance(serviceType,F,null,new[]{
+    new LoggerProxy(loggerType).GetTransparentProxy(),Activator.CreateInstance(settingsType),registry},null);
+   var a=service();var b=service();var world=new object();var campaign=Guid.NewGuid().ToString("N");
+   Func<object> actor=()=>{var value=Blank(unitType);actorIds.Add(value,Guid.NewGuid().ToString("N"));return value;};
+   var ar=actor();var am=actor();var br=actor();var bm=actor();var readyB=false;var retainedB=true;
+   Func<object,object,object,Func<bool>,Func<bool>,object> mount=(boundary,rider,mountActor,retained,ready)=>{
+    var args=new object[]{world,campaign,rider,mountActor,1L,boundary,retained,ready,ready,null,null,6};
+    Check((bool)Call(registry,"TryReserve",args),"compiled registry reserves both actor roles before external attachment");
+    var owner=args[9];Call(registry,"Commit",owner);Set(boundary,"<PairOwner>k__BackingField",owner);
+    Set(boundary,"mountedPairGeneration",1L);
+    var runtime=Get(boundary,"runtime");Set(runtime,"rider",rider);Set(runtime,"mount",mountActor);
+    return owner;
+   };
+   // Native actor containers are detached; no Prepare, view attachment, world or save exists.
+   var first=mount(a,ar,am,()=>false,()=>true);
+   var second=mount(b,br,bm,()=>retainedB||(bool)Get(b,"cleanupRetryRequired"),()=>readyB);
+   Check(ReferenceEquals(Call(a,"ResolveActorOwner",ar,true),a)&&ReferenceEquals(Call(a,"ResolveActorOwner",am,true),a)&&
+    ReferenceEquals(Call(a,"ResolveActorOwner",br,true),b)&&ReferenceEquals(Call(a,"ResolveActorOwner",bm,true),b),
+    "compiled relationship service routes both actor roles to their independent boundary");
+   Check((bool)Call(a,"IsCurrentPairOwner",first)&&!(bool)Call(a,"IsCurrentPairOwner",second),
+    "compiled command owner check accepts only its captured registration");
+   Check(!(bool)Call(a,"get_AllSaveOwnersReady")&&!(bool)Call(a,"get_AllTeardownOwnersReady"),
+    "compiled service readiness observes the other owner without a second native save operation");
+   var nativeCapacity=(int)serviceType.GetField("NativePairCapacity",F).GetRawConstantValue();
+   var denied=new object[]{world,campaign,actor(),actor(),1L,b, new Func<bool>(()=>false),new Func<bool>(()=>true),new Func<bool>(()=>true),null,null,nativeCapacity};
+   Check(nativeCapacity==1&&!(bool)Call(registry,"TryReserve",denied)&&denied[9]==null,
+    "compiled native adapter capacity refuses another reservation without native mutation");
+   var cleanupEvent=serviceType.GetEvent("Dismounting",F);var trigger=cleanupEvent.EventHandlerType.GetGenericArguments()[0];
+   var visited=0;var fail=true;
+   var failing=new Callback{Action=()=>{if(fail)throw new InvalidOperationException("external subscriber failed");}};
+   var later=new Callback{Action=()=>visited++};
+   foreach(var target in new[]{failing,later}) cleanupEvent.GetAddMethod(true).Invoke(b,new object[]{
+    Delegate.CreateDelegate(cleanupEvent.EventHandlerType,target,typeof(Callback).GetMethod("Invoke",F).MakeGenericMethod(trigger))});
+   var failed=Call(b,"Dismount",Enum.Parse(trigger,"Exception"));
+   Check(!(bool)Call(failed,"get_Succeeded")&&visited==1&&ReferenceEquals(Call(a,"ResolveActorOwner",br,false),b)&&
+    ReferenceEquals(Call(a,"ResolveActorOwner",ar,true),a),
+    "compiled dismount attempts independent subscribers and retains failed B cleanup without disturbing A");
+   readyB=true;
+   Check((bool)Call(a,"get_AllSaveOwnersReady")&&(bool)Call(a,"get_AllTeardownOwnersReady"),
+    "compiled settled readiness permits retained participation rather than blanket refusal");
+   retainedB=false;fail=false;var settled=Call(b,"Dismount",Enum.Parse(trigger,"Exception"));
+   Check((bool)Call(settled,"get_Succeeded")&&visited==2&&Call(a,"ResolveActorOwner",br,false)==null&&
+    ReferenceEquals(Call(a,"ResolveActorOwner",ar,true),a),"compiled cleanup retry retires only B after its postconditions settle");
+   Set(a,"mountedPairGeneration",2L);
+   Check(!(bool)Call(a,"IsCurrentPairOwner",first),"compiled delayed command refuses the replacement generation");
+  }
  public static void Run(string managed,string dll){
   AppDomain.CurrentDomain.AssemblyResolve+=(s,a)=>{
    var leaf=new AssemblyName(a.Name).Name+".dll";
    foreach(var root in new[]{managed,Path.Combine(managed,"UnityModManager")}){var path=Path.Combine(root,leaf);if(File.Exists(path))return Assembly.LoadFrom(path);}return null;
   };
   var native=Assembly.LoadFrom(Path.Combine(managed,"Assembly-CSharp.dll"));var mod=Assembly.LoadFrom(dll);
+  ProbePairOwnership(mod,native);
   Check(native.ManifestModule.ModuleVersionId.ToString()=="07fa1e4d-8618-41b3-9b8d-faa17d3b26f7","pinned native MVID");
   var controlsType=mod.GetType("KingmakerMountedCombat.Integration.NativeMountedControlService",true);
   var controlKind=mod.GetType("KingmakerMountedCombat.Domain.NativeMountedControlKind",true);

@@ -43,6 +43,7 @@ namespace KingmakerMountedCombat.Integration
             this.settings = settings ?? throw new ArgumentNullException(nameof(settings));
             this.logger = logger ?? throw new ArgumentNullException(nameof(logger));
             this.combat = combat ?? throw new ArgumentNullException(nameof(combat));
+            relationship.PlayerActions = this;
             relationship.Dismounting += ObserveRelationshipDetach;
         }
 
@@ -677,10 +678,12 @@ namespace KingmakerMountedCombat.Integration
             UnitEntityData mount;
             if (state == RelationshipState.Mounted || state == RelationshipState.Faulted)
             {
-                rider = relationship.Rider;
-                mount = relationship.Mount;
-                context.ExactlyOneRiderSelected = executionCaster != null ? executionCaster == rider :
-                    selection != null && selection.Count == 1 && selection[0] == rider;
+                var principal = executionCaster ?? (selection != null && selection.Count == 1 ? selection[0] : null);
+                var owner = relationship.Ownership.FindOwner(principal);
+                rider = owner?.Rider;
+                mount = owner?.Mount;
+                context.ExactlyOneRiderSelected = rider != null && (executionCaster != null ? executionCaster == rider :
+                    selection != null && selection.Count == 1 && selection[0] == rider);
             }
             else
             {
@@ -694,6 +697,8 @@ namespace KingmakerMountedCombat.Integration
                 return context;
             }
 
+            if (state == RelationshipState.Unmounted && relationship.NativeAdmissionRefusal(rider, mount) != null)
+                context.ConflictingMountedRelationship = true;
             var riderState = rider.Descriptor?.State;
             var mountState = mount?.Descriptor?.State;
             var profile = SupportedMountedProfiles.Resolve(mount);

@@ -1,0 +1,179 @@
+using System;
+using System.IO;
+using System.Linq;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
+using KingmakerMountedCombat.Integration;
+
+public static class Chunk7PersistenceTests
+{
+    private static int count;
+    private static void Check(bool condition, string text)
+    { if (!condition) throw new Exception(text); count++; Console.WriteLine("PASS " + text); }
+    private static void Reject(string json, string text)
+    {
+        var read = MountedArchiveCodec.Decode(json);
+        Check(read.Kind == MountedSaveReadKind.Invalid && read.Data == null && read.OriginalJson == json, text);
+    }
+    private static SavedNativeActor Actor() => new SavedNativeActor { Id = Guid.NewGuid().ToString("N"),
+        Standard = 6, Move = 3.125f, Swift = 1, Reaction = 6, ReactionsRemaining = 0, LastSurpriseTicks = 20 };
+    private static SavedCombatActor CombatActor(SavedNativeActor actor) => new SavedCombatActor { Native = actor,
+        InCombat = true, Prepared = true, AiActions = new SavedAiAction[0], DisengageTargets = new string[0] };
+    private static SavedTurnContext Turn(string id) => new SavedTurnContext { ActorId = id, Status = 3,
+        Movement = new SavedMovementValues { TimeMoved = 1f }, SmartIndex = -1 };
+    private static MountedSaveData Historical()
+    {
+        var rider = Actor(); var mount = Actor();
+        return new MountedSaveData { SchemaVersion = 2, CampaignId = Guid.NewGuid().ToString("N"),
+            AreaId = new string('a',32), GameTimeTicks = 1000000,
+            Policy = MountedSaveData.PairedPolicy, RulesId = MountedSaveData.Rules,
+            Mounted = true, ProfileId = "medium-humanoid-horse-v1", Rider = rider, Mount = mount,
+            Slots = new[] { new SavedMountedSlot { ActorId = rider.Id, Index = 5, Kind = 1 } },
+            Combat = new SavedCombatData { TurnBased = true, Round = 2,
+                Actors = new[] { CombatActor(rider), CombatActor(mount) },
+                Roster = new[] { new SavedRosterActor { ActorId = rider.Id }, new SavedRosterActor { ActorId = mount.Id, Sequence = 1 } },
+                Engagements = new SavedEngagement[0], Current = Turn(rider.Id),
+                Allocations = new[] { new SavedMovementAllocation { ActorId = mount.Id, Round = 2,
+                    Prepared = true, MoveObserved = 3.125f, StandardCommitted = true,
+                    GrantId = "native:" + Guid.NewGuid().ToString("N"),
+                    Movement = new SavedMovementValues { TimeMoved = 3.125f, TimeForced = 1f } } },
+                Paired = new SavedPairedState { RiderId = rider.Id, MountId = mount.Id,
+                    BoundaryIsCurrent = true, Partner = Turn(mount.Id), SplitReleaseRound = 2,
+                    PendingSplitId = mount.Id, PendingSplitRound = 2, RenewalNotBeforeTicks = 2000000,
+                    Activation = new SavedActivation { EncounterId = Guid.NewGuid().ToString("N"), Sequence = 2,
+                        Split = true, Rider = new SavedParticipation { Granted = true, Prepared = true, StandardObserved = 6 },
+                        Mount = new SavedParticipation { Granted = true, Prepared = true, MoveObserved = 3.125f } } }
+            } };
+    }
+    private static MountedArchiveData Archive(int pairs)
+    {
+        var seed = Historical();
+        var all = Enumerable.Range(0,pairs).Select(i => Historical()).ToArray();
+        var data = MountedArchiveCodec.Decode(MountedSaveCodec.Encode(seed)).Data;
+        data.Pairs = new SavedMountedPair[pairs]; data.Participations = new SavedPairParticipation[pairs];
+        data.Slots = new SavedMountedSlot[0];
+        data.Combat.Actors = all.SelectMany(x => x.Combat.Actors).ToArray();
+        data.Combat.Roster = all.SelectMany(x => x.Combat.Roster).ToArray();
+        data.Combat.Allocations = all.SelectMany(x => x.Combat.Allocations).ToArray();
+        data.Combat.Current = all[0].Combat.Current;
+        for (var i = 0; i < pairs; i++)
+        {
+            var old = all[i]; var id = Guid.NewGuid().ToString("N");
+            data.Pairs[i] = new SavedMountedPair { PairId = id, Generation = i+1, ProfileId = old.ProfileId, Rider = old.Rider, Mount = old.Mount };
+            var state = old.Combat.Paired;
+            if (i != 0) { state.BoundaryIsCurrent = false; state.Boundary = old.Combat.Current; }
+            data.Participations[i] = new SavedPairParticipation { OwnerId = id, Generation = i+1, MountedPairId = id, State = state };
+        }
+        return data;
+    }
+    public static void Run()
+    {
+        var old = Historical(); var json = MountedSaveCodec.Encode(old);
+        var current = MountedArchiveCodec.Decode(json);
+        Check(current.Kind == MountedSaveReadKind.Current && current.SourceSchema == 2 && current.OriginalJson == json &&
+            current.Data.Pairs.Length == 1 && current.Data.Participations.Length == 1 && current.Data.Combat.Paired == null,
+            "schema2 migrates one relationship and retained participation into one shared combat envelope");
+        Check(current.Data.Combat.Actors[0].Native.Standard == 6 && current.Data.Combat.Allocations[0].MoveObserved == 3.125f &&
+            current.Data.Participations[0].State.Activation.Split && current.Data.Participations[0].State.PendingSplitRound == 2 &&
+            current.Data.Participations[0].State.RenewalNotBeforeTicks == 2000000,
+            "migration retains expenditure, split, pending participation and renewal floor");
+        Check(MountedSaveCodec.Encode(current.HistoricalData) == json && MountedSaveCodec.Encode(old) == json,
+            "migration leaves original JSON and historical native adapter data untouched");
+        Check(MountedArchiveCodec.Decode(json).Data.Pairs[0].PairId == current.Data.Pairs[0].PairId,
+            "historical migration produces a stable custody identity");
+        var version1 = JObject.Parse(json); version1["SchemaVersion"] = 1; version1.Remove("Combat");
+        var v1json = version1.ToString(Formatting.None); var v1 = MountedArchiveCodec.Decode(v1json);
+        Check(v1.Kind == MountedSaveReadKind.Current && v1.Data.Combat == null && v1.Data.Participations.Length == 0 &&
+            v1.Data.Pairs[0].Rider.Standard == 6 && v1.OriginalJson == v1json,
+            "schema1 migration preserves debt without inventing a combat authority");
+        foreach (var source in new[] { v1json, json })
+        {
+            var bad = JObject.Parse(source); bad["Rider"]["Move"] = "3";
+            Reject(bad.ToString(Formatting.None), "historical malformed primitive refuses before migration");
+            Reject(source + new string(' ',32769), "historical character bound remains unchanged");
+        }
+        var detached = MountedSaveCodec.Decode(json).Data;
+        detached.Mounted = false; detached.ProfileId = null; detached.Rider = null; detached.Mount = null;
+        var detachedJson = MountedSaveCodec.Encode(detached); var migrated = MountedArchiveCodec.Decode(detachedJson);
+        Check(migrated.Kind == MountedSaveReadKind.Current && migrated.Data.Pairs.Length == 0 &&
+            migrated.Data.Participations.Length == 1 && migrated.Data.Participations[0].MountedPairId == null &&
+            migrated.Data.Participations[0].State.BoundaryIsCurrent,
+            "unmounted schema2 retains detached activation and pending split through migration");
+        var pendingOnly = MountedSaveCodec.Decode(detachedJson).Data;
+        var pendingId = pendingOnly.Combat.Paired.PendingSplitId;
+        pendingOnly.Combat.Paired = new SavedPairedState { PendingSplitId = pendingId, PendingSplitRound = 2, SplitReleaseRound = -1 };
+        var pendingJson = MountedSaveCodec.Encode(pendingOnly); var pending = MountedArchiveCodec.Decode(pendingJson);
+        Check(pending.Kind == MountedSaveReadKind.Current && pending.Data.Pairs.Length == 0 &&
+            pending.Data.Participations[0].State.PendingSplitId == pendingId && pending.Data.Participations[0].State.RiderId == null &&
+            pending.Data.Participations[0].State.Activation == null && pending.OriginalJson == pendingJson,
+            "legacy pending-only survivor migrates without inventing pair identities or an activation");
+        var two = Archive(2); var encoded = MountedArchiveCodec.Encode(two); var round = MountedArchiveCodec.Decode(encoded);
+        Check(round.Kind == MountedSaveReadKind.Current && MountedArchiveCodec.Encode(round.Data) == encoded &&
+            round.Data.Pairs.Length == 2 && round.Data.Participations.Length == 2,
+            "two independent Medium pairs round-trip under schema3 with one native turn");
+        var mutations = new Action<JObject>[] {
+            root => root["Pairs"][1]["Rider"] = root["Pairs"][0]["Mount"].DeepClone(),
+            root => root["Pairs"][1]["PairId"] = root["Pairs"][0]["PairId"],
+            root => root["Participations"][1]["MountedPairId"] = Guid.NewGuid().ToString("N"),
+            root => root["Participations"][1]["Generation"] = 99,
+            root => root["Pairs"][0]["Rider"]["Standard"] = 0,
+            root => root["Participations"][1]["State"]["RiderId"] = Guid.NewGuid().ToString("N"),
+            root => { root["Participations"][1]["State"]["BoundaryIsCurrent"] = true; root["Participations"][1]["State"]["Boundary"] = null; },
+            root => root["Combat"]["Paired"] = root["Participations"][0]["State"].DeepClone(),
+            root => root["Participations"][0]["MountedPairId"] = null,
+            root => root["Pairs"][0]["Rider"]["Id"] = Guid.Parse((string)root["Pairs"][1]["Rider"]["Id"]).ToString("D")
+        };
+        for(var i=0;i<mutations.Length;i++)
+        { var bad=JObject.Parse(encoded); mutations[i](bad); Reject(bad.ToString(Formatting.None), "schema3 cross-record mutation refuses " + i); }
+        two.Pairs = new SavedMountedPair[0]; foreach(var p in two.Participations) p.MountedPairId = null;
+        var noPairs = MountedArchiveCodec.Encode(two);
+        Check(MountedArchiveCodec.Decode(noPairs).Data.Participations.Length == 2,
+            "zero mounted records can retain two independent native participation obligations");
+        var six = MountedArchiveCodec.Encode(Archive(6));
+        Check(MountedArchiveCodec.Decode(six).Data.Pairs.Length == 6 && System.Text.Encoding.UTF8.GetByteCount(six) <= MountedArchiveCodec.MaximumBytes,
+            "six representative pairs fit character, token, depth and archive-byte bounds together");
+        var bounds = JObject.Parse(six); ((JArray)bounds["Pairs"]).Add(bounds["Pairs"][0].DeepClone());
+        Reject(bounds.ToString(Formatting.None), "seventh mounted record exceeds selected capacity");
+        bounds=JObject.Parse(encoded); bounds["Slots"]=new JArray(Enumerable.Range(0,129).Select(i=>new JObject {
+            ["ActorId"]=old.Combat.Actors[0].Native.Id,["Index"]=i,["Kind"]=1 }));
+        Reject(bounds.ToString(Formatting.None), "owned slots remain bounded together with the world envelope");
+        bounds=JObject.Parse(encoded); bounds["Combat"]["Actors"]=new JArray(Enumerable.Range(0,65).Select(i=>JObject.FromObject(CombatActor(Actor()),MountedSaveCodec.CreateSerializer())));
+        Reject(bounds.ToString(Formatting.None), "combat actor bound remains shared across pairs");
+        bounds=JObject.Parse(encoded); bounds["Participations"]=new JArray(Enumerable.Range(0,13).Select(i=>bounds["Participations"][0].DeepClone()));
+        Reject(bounds.ToString(Formatting.None), "retained participation is independently bounded");
+        var tooManyOwners = Archive(13); tooManyOwners.Pairs = tooManyOwners.Pairs.Take(6).ToArray();
+        tooManyOwners.Participations = tooManyOwners.Participations.Skip(6).ToArray();
+        foreach(var p in tooManyOwners.Participations) p.MountedPairId = null;
+        var ownersJson = JObject.FromObject(tooManyOwners, MountedSaveCodec.CreateSerializer()).ToString(Formatting.None);
+        Reject(ownersJson, "active and detached owners together respect the twelve-owner registry bound");
+        Reject(encoded+new string(' ',MountedArchiveCodec.MaximumCharacters), "schema3 character overflow refuses");
+        Reject("{\"SchemaVersion\":99,\"opaque\":\""+new string('馬',50000)+"\"}", "UTF8 byte overflow refuses even within the character bound");
+        Reject("{\"SchemaVersion\":99,\"opaque\":["+string.Join(",",Enumerable.Repeat("0",MountedArchiveCodec.MaximumTokens))+"]}", "token overflow refuses within byte and character bounds");
+        Reject("{\"SchemaVersion\":99,\"opaque\":"+new string('[',13)+"0"+new string(']',13)+"}", "depth overflow refuses");
+        foreach(var source in new[]{v1json,json})
+            Check(NativeMountedSaveFormat.CanRestore(NativeMountedSaveFormat.Decode(source)), "native historical adapter still selects schema1/2 restoration");
+        foreach(var source in new[]{encoded,noPairs})
+        {
+            Check(MountedArchiveCodec.Decode(source).Kind == MountedSaveReadKind.Current,
+                "foundation successfully decodes archive independently of native support");
+            var native=NativeMountedSaveFormat.Decode(source);
+            var captures=0;
+            var kept=NativeMountedSaveFormat.CaptureOrPreserve(native,()=>{captures++;return old;});
+            Check(!NativeMountedSaveFormat.CanRestore(native) && native.Data==null && kept==source && captures==0,
+                "native adapter preserves schema3 without any one-pair capture or partial restore");
+        }
+        var future=encoded.Replace("\"SchemaVersion\":3","\"SchemaVersion\":99");
+        Check(MountedArchiveCodec.Decode(future).Kind==MountedSaveReadKind.Future &&
+            NativeMountedSaveFormat.CaptureOrPreserve(NativeMountedSaveFormat.Decode(future),()=>old)==future,
+            "future payload remains opaque and unchanged");
+        var unavailable=new MountedSaveReadResult(MountedSaveReadKind.Invalid,null,null,"unreadable");
+        var refused=false;try{NativeMountedSaveFormat.CaptureOrPreserve(unavailable,()=>old);}catch(InvalidOperationException){refused=true;}
+        Check(refused,"unreadable original metadata refuses writing instead of inventing empty state");
+        Check(NativeMountedSaveFormat.WriterSchema==2 && NativeMountedSaveFormat.Encode(old)==json,
+            "native writer continues emitting unchanged schema2");
+        var misleading=new MountedSaveReadResult(MountedSaveReadKind.Current,old,encoded,null,3);
+        Check(!NativeMountedSaveFormat.CanRestore(misleading) && NativeMountedSaveFormat.CaptureOrPreserve(misleading,()=>old)==encoded,
+            "Current status alone cannot authorize a newer native format");
+        Console.WriteLine("CHUNK7 PERSISTENCE PASS="+count+" FAIL=0 (primitive production codec/native format boundary; no game saves)");
+    }
+}

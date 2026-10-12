@@ -277,6 +277,16 @@ namespace KingmakerMountedCombat.Integration
         // A split activation still governs the partner's participation until its
         // release round has passed. Until then a fresh voluntary combat Mount is
         // refused rather than layered on top of it.
+        internal bool RetainsPairParticipation(UnitEntityData rider, UnitEntityData mount)
+        {
+            if (disposed) return false;
+            if (pendingSplitMount != null && (ReferenceEquals(pendingSplitMount, rider) || ReferenceEquals(pendingSplitMount, mount)))
+                return true;
+            if (activation == null || !ReferenceEquals(activation.Principal, rider) || !ReferenceEquals(activation.Partner, mount))
+                return false;
+            return !CanReplaceActivationForAdoption();
+        }
+
         private bool CanReplaceActivationForAdoption()
         {
             if (activation == null) return partnerContext == null;

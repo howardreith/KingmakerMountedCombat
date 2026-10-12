@@ -67,7 +67,7 @@ namespace KingmakerMountedCombat.Integration
         internal void TryRestoreCombat()
         {
             if (!CombatRestorationPending || combatRestoreFailure != null ||
-                loaded?.Data?.Combat == null || restoreLoad == null) return;
+                !NativeMountedSaveFormat.CanRestore(loaded) || loaded.Data.Combat == null || restoreLoad == null) return;
             var game = Game.Instance;
             var data = loaded.Data;
             if (game?.Player == null || game.Player.GameId != selectedCampaign ||
@@ -125,6 +125,13 @@ namespace KingmakerMountedCombat.Integration
                 NativeCombatActorPersistence.RestoreReferences(data.Combat, actors);
                 NativeCombatTurnPersistence.Restore(controller, data.Combat, actors);
                 unifiedTurn.RestorePersistence(data.Combat, actors);
+                if (!data.Mounted && data.Combat.Paired != null)
+                {
+                    var pair = data.Combat.Paired;
+                    var riderId = pair.RiderId ?? pair.PendingSplitId;
+                    relationship.RetainRestoredParticipation(riderId == null ? null : actors[riderId],
+                        pair.MountId == null ? null : actors[pair.MountId]);
+                }
                 combatRestored = true;
                 Report("Saved native combat roster and paired participation rebound without Prepare/End; round=" +
                     controller.RoundNumber + "; current=" + (controller.CurrentTurn?.Unit.UniqueId ?? "none") +
