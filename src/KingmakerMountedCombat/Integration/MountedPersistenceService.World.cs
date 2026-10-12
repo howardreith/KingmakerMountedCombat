@@ -179,6 +179,7 @@ namespace KingmakerMountedCombat.Integration
 
         private void ClearArchiveRestoration()
         {
+            ClearArchivePresentationReadiness();
             loadedArchive = null; archiveGraphReady = false; archiveOwnersReady = false;
             archiveActors.Clear(); archiveOwners.Clear(); archivePostLoadObserved.Clear(); ArchiveRestorePhase = "not-selected";
         }
@@ -292,7 +293,7 @@ namespace KingmakerMountedCombat.Integration
         private void TryRestoreArchiveCombat()
         {
             var data = RestorableArchive;
-            if (!CombatRestorationPending || combatRestoreFailure != null || data?.Combat == null || restoreLoad == null) return;
+            if (combatRestored || !CombatSemanticRestorationPending || combatRestoreFailure != null || data?.Combat == null || restoreLoad == null) return;
             var game = Game.Instance;
             if (game?.Player == null || game.Player.GameId != selectedCampaign || !restoreLoad.World.TryBind(game.Player) ||
                 game.CurrentlyLoadedArea?.AssetGuidThreadSafe != data.AreaId) return;
@@ -338,7 +339,7 @@ namespace KingmakerMountedCombat.Integration
         private bool RestoreArchivePresentation()
         {
             var data = RestorableArchive;
-            if (data == null || !PrepareArchiveOwners()) return false;
+            if (data == null || !PreflightArchivePresentation() || !PrepareArchiveOwners()) return false;
             foreach (var pair in data.Pairs)
             {
                 if (!restoredActors.TryGetValue(pair.Rider.Id, out var rider) || !restoredActors.TryGetValue(pair.Mount.Id, out var mount) ||
@@ -350,6 +351,7 @@ namespace KingmakerMountedCombat.Integration
             }
             foreach (var owner in archiveOwners.Values) owner.Relationship.CompleteSavedParticipationImport();
             controls.RestorePersistentSlots(data.Slots);
+            ClearArchivePresentationReadiness();
             ArchiveRestorePhase = "all-pair-presentation-restored";
             Report("Saved mounted world restored all " + data.Pairs.Length + " attachments and " + data.Participations.Length +
                 " participation owners without Mount execution or new native preparation.");

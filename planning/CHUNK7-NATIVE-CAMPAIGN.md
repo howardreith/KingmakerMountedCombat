@@ -9,7 +9,7 @@ Raw failures and exact restoration receipts stay private and immutable.
 
 ## First bounded execution segment
 
-Candidate: `0.1.0-chunk7b-preview.2` (preview.1 retained after preflight protocol finding), explicit native capacity two, schema-3 world
+Candidate: next reviewed preview.3 (not yet frozen). Preview.1 is retained after its protocol finding; preview.2 is retained and ineligible after confirmed diagnostic cleanup defects. Explicit native capacity two, schema-3 world
 adapter, legacy schema-1/2 migration, Medium Horse/Mammoth, paired preset, Charge
 default-off, overlay off. Final source/package identities are recorded after the
 clean commit/package and Candidate tier. No native save-writing scenario here.
@@ -26,8 +26,7 @@ it is not ordinary acquisition proof. External Working restoration is required.
 
 Budget: one native run (600-second harness timeout), one guarded WhatIf and suite
 snapshot prerequisite. Product scenario budget 300 seconds, individual phases 30
-seconds and cleanup 15 seconds. Plan 15 minutes for admission/run/restoration;
-allow necessary safe restoration to finish beyond that target. Do not retry unchanged
+seconds and cleanup 15 seconds; expiration reports failure and retains native custody for host drain rather than releasing it. The superseded preview.2 read-only admission consumed 54.5 minutes before cancellation after a source defect: 350 GB / 1.37 million historical files are hashed before and after. Plan up to 150 minutes for the next required full purity audit, separately from the 600-second native case, and allow necessary safe restoration to finish. No cancelled audit is PASS. Do not retry unchanged
 inputs. Preserve failure, inspect causal boundary, then select an affected rerun.
 Checkpoints: immutable manifest; WhatIf receipt; launch/load; fixture admission;
 first two-pair sample; settled cycles; native completion; external transaction and
@@ -59,7 +58,7 @@ historical full campaign or weaken older fixtures to fill a missing row.
 | TB combat | Both actual initiative arrangements, full spending/end, reactions/movement, cost-free TB Charge refusal. |
 | Retained custody | R1 round N/N+1 repeated cleanup, dismount/re-pair, mode change, pending/removal survivor, independent failed cleanup. |
 | Persistence | Actual manual/quick/auto save and separate cold loads, RT/TB debt, zero mounted with retained obligations, no extra Prepare. |
-| Migration | Qualified disposable schema-1/2 including mounted pending-only R2 through new native restoration and capture; malformed/unknown protections. |
+| Migration | Qualified disposable schema-1/2 including mounted pending-only R2 through new native restoration and capture; malformed/unknown protections. The eight new cases cover R2 schema 2. Existing P06 can load a guarded historical schema-1 derivative, but does not provide the new pre-load whole-world/no-Prepare observer or a schema-3 resave; that additional native path remains required. |
 | Shared boundaries | Area-before-autosave, nonselected unsettled-owner deferral, worker/iterator fault/cancel and session/disable/removal. |
 | Profiles/progression | Native Small candidate chosen from inventory, precise body/equipment/pose, ordinary new/existing acquisition, leveling/replacement/retraining. |
 | Stress/hardening | Qualified six-pair fixture if safe, repeated area/load cycles, actual comparable cost/retention, diagnostics-off and base-only inventory. |

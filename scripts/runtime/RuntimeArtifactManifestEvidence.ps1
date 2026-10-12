@@ -112,6 +112,13 @@ function Assert-KmcReadOnlyArtifactManifest {
             ($relativePath -ceq 'chunk6a-mount-preamble.json' -and $kind -ceq 'chunk6a-mount-preamble') -or
             ($relativePath -ceq 'chunk6a-native-mammoth-profile.json' -and $kind -ceq 'chunk6a-native-mammoth-profile') -or
             ($relativePath -ceq 'chunk7-world-evidence.json' -and $kind -ceq 'chunk7-world-evidence') -or
+            ($relativePath -ceq 'chunk7-persistence-evidence.json' -and $kind -ceq 'chunk7-persistence-evidence') -or
+            ($relativePath -ceq 'chunk7-world-cleanup-pending.json' -and $kind -ceq 'chunk7-world-cleanup-pending') -or
+            ($relativePath -ceq 'chunk7-persistence-cleanup-pending.json' -and $kind -ceq 'chunk7-persistence-cleanup-pending') -or
+            ($relativePath -ceq 'chunk7-combat-cleanup-pending.json' -and $kind -ceq 'chunk7-combat-cleanup-pending') -or
+            ($relativePath -ceq 'chunk7-native-life-evidence.json' -and $kind -ceq 'chunk7-native-life-evidence') -or
+            ($relativePath -ceq 'chunk7-realtime-evidence.json' -and $kind -ceq 'chunk7-realtime-evidence') -or
+            ($relativePath -ceq 'chunk7-combat-evidence.json' -and $kind -ceq 'chunk7-combat-evidence') -or
             ($relativePath -ceq 'runtime-loader-inventory.json' -and $kind -ceq 'runtime-loader-inventory') -or
             ($relativePath -ceq 'phase3d-horse-scenario-evidence.json' -and $kind -ceq 'phase3d-horse-scenario-evidence') -or
             ($relativePath -cmatch '^movement-visuals/[A-Za-z0-9._-]+\.png$' -and $kind -ceq 'screenshot')

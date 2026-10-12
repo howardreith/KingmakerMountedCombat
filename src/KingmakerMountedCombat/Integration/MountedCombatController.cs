@@ -1524,9 +1524,9 @@ namespace KingmakerMountedCombat.Integration
                     settings.UsePairedTurnControls,
                     exactRiderSelection,
                     exactMountSelection),
-                SupportedMountProfile = SupportedMountedProfiles.Resolve(mount) != null &&
+                SupportedMountProfile = SupportedMountedProfiles.Resolve(rider, mount) != null &&
                     string.Equals(relationship.Runtime.MountProfileId,
-                        SupportedMountedProfiles.Resolve(mount)?.Id,
+                        SupportedMountedProfiles.Resolve(rider, mount)?.Id,
                         StringComparison.Ordinal),
                 MountDisplayName = relationship.Runtime.MountDisplayName,
                 SupportedRiderBodyProfile = rider != null && rider.GetActivePolymorph() == null &&

@@ -98,7 +98,11 @@ if ($schemaVersion -eq 1) {
 elseif ($schemaVersion -eq 2) {
     $validation=$request.scenario-ceq'persistence-p06-load'
     $hasPersistenceCase=@($request.PSObject.Properties.Name)-ccontains'persistenceCase'
-    if($request.scenario-cin @('persistence-p07-save','persistence-p07-load')){
+    if(Test-KmcChunk7PersistenceScenario $request.scenario){
+        if(-not$hasPersistenceCase-or$request.persistenceCase-cnotin(Get-KmcChunk7PersistenceCases)){throw 'Chunk 7 requires an exact declared native persistence case.'}
+        Assert-KmcChunk7AreaTarget $request
+        if($request.scenario-ceq'chunk7-persistence-load'){Assert-KmcChunk7PersistenceLoadDescriptor $request}
+    }elseif($request.scenario-cin @('persistence-p07-save','persistence-p07-load')){
         if(-not$hasPersistenceCase-or$request.persistenceCase-cnotin @('timeout','cancel-wait','locked-replace','serialization-cancel','serialization-cancel-output','disable-reenable','campaign-b','prepare-removal','disable-during-load','mounted-charge-area','mounted-charge-session','mounted-charge-disable','mounted-charge-removal','absent-kmc','removal-no-dll','mounted-charge-removal-no-dll','rider-death','mount-death','rider-size-change','area-reload','area-cross-entry','area-cross-exit','area-cross-entry-auto','area-cross-exit-auto')){throw 'P07 requires its exact owned recovery case.'}
         if($request.persistenceCase-cin @('prepare-removal','disable-during-load','mounted-charge-area','mounted-charge-session','mounted-charge-disable','mounted-charge-removal')-and$request.scenario-cne'persistence-p07-save'){throw 'A removal or disable-during-load case is save-only.'}
         if($request.persistenceCase-cin @('absent-kmc','removal-no-dll','mounted-charge-removal-no-dll')-and$request.scenario-cne'persistence-p07-load'){throw 'The integration-absent and no-DLL cases are cold-load only.'}
@@ -115,8 +119,9 @@ elseif ($schemaVersion -eq 2) {
         $request.persistenceCase-cnotin @('partial-movement','rider-spent','between-partner-orders','exhausted','explicit-end','combat-mount-tb','casting-items'))){throw 'Persistence case is outside the exact P02 checkpoint contract.'}
     $alternating=$request.scenario-ceq'persistence-p05-load'-and$hasPersistenceCase-and$request.persistenceCase-ceq'alternating'
     $crossArea=$hasPersistenceCase-and$request.persistenceCase-cin @('area-cross-entry','area-cross-exit','area-cross-entry-auto','area-cross-exit-auto')
+    $chunk7Area=(Test-KmcChunk7PersistenceScenario $request.scenario)-and$hasPersistenceCase-and$request.persistenceCase-ceq'multi-area-autosave'
     $transitionAuto=$hasPersistenceCase-and$request.persistenceCase-cin @('area-cross-entry-auto','area-cross-exit-auto')
-    $extra=@(if($alternating-or$validation){'persistenceAlternate'}; if($request.scenario -cin @('persistence-p07-load','persistence-p01-load','persistence-p02-load','persistence-p03-load','persistence-p04-load','persistence-p05-load','persistence-p06-load')){'persistenceLoad'}; if($hasPersistenceCase){'persistenceCase'}; if($crossArea){'persistenceAreaTarget'})
+    $extra=@(if($alternating-or$validation){'persistenceAlternate'}; if($request.scenario -cin @('chunk7-persistence-load','persistence-p07-load','persistence-p01-load','persistence-p02-load','persistence-p03-load','persistence-p04-load','persistence-p05-load','persistence-p06-load')){'persistenceLoad'}; if($hasPersistenceCase){'persistenceCase'}; if($crossArea-or$chunk7Area){'persistenceAreaTarget'})
     Assert-KmcExactProperties $request @($commonRequired + @('fixture','qualificationSuite') + $extra) 'runtime request v2'
     if($crossArea){
         $t=$request.persistenceAreaTarget
@@ -180,7 +185,7 @@ elseif ($schemaVersion -eq 2) {
 else { throw 'Runtime request schemaVersion must be 1 or 2.' }
 
 $missionScenarios = @(
-    'chunk7-two-pair-exploration',
+    'chunk7-two-pair-exploration','chunk7-persistence-save','chunk7-persistence-load','chunk7-two-pair-combat-rider-first','chunk7-two-pair-combat-mount-first','chunk7-two-pair-realtime-core','chunk7-two-pair-realtime-casting','chunk7-two-pair-realtime-charge','chunk7-two-pair-native-life-cleanup',
     'chunk4-ground-arrival-rt',
     'mod-load-smoke', 'export-mounted-contracts', 'export-candidate-mount-rigs', 'observe-mount-diagnostic-availability', 'horse-native-asset-audit', 'horse-companion-blueprint-registration', 'horse-companion-unmounted-suite', 'horse-mounted-alpha-suite', 'horse-native-controls-ux-suite',
     'chunk6c-casting-rt','chunk6c-casting-tb','chunk6c-casting-unmounted-rt','chunk6c-casting-unmounted-tb',

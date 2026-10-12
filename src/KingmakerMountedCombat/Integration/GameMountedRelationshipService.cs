@@ -163,11 +163,11 @@ namespace KingmakerMountedCombat.Integration
         {
             ThrowIfDisposed();
             if (coordinator.State == RelationshipState.Mounted && Rider == rider && Mount == mount &&
-                runtime.MountProfileId == profileId) return LastTransition;
+                runtime.MountProfileId == profileId && SupportedMountedProfiles.Resolve(rider, mount)?.Id == profileId) return LastTransition;
             if (!settings.EnableUnsafeMovementExperiment || !settings.EnablePairedActivation ||
                 settings.EnableUnifiedMountedTurn || settings.EnablePairedCommandScheduler ||
                 coordinator.State != RelationshipState.Unmounted || rider == null || mount == null ||
-                SupportedMountedProfiles.Resolve(mount.Blueprint?.AssetGuid)?.Id != profileId)
+                SupportedMountedProfiles.Resolve(rider, mount)?.Id != profileId)
                 return Record(new TransitionResult(false, coordinator.State, null,
                     new[] { "Saved mounted relationship is incompatible with the active pair/policy." }, false, false));
             string ownershipRefusal;

@@ -1,0 +1,173 @@
+using System;
+using System.IO;
+using System.Linq;
+using Kingmaker;
+using Kingmaker.EntitySystem.Entities;
+using Kingmaker.EntitySystem.Persistence;
+using KingmakerMountedCombat.Domain;
+using KingmakerMountedCombat.Integration;
+using Newtonsoft.Json.Linq;
+
+namespace KingmakerMountedCombat.Diagnostics
+{
+    internal sealed partial class Chunk7PersistenceScenario
+    {
+        private Chunk7CombatCheckpointDriver checkpoint;
+        private bool combatCheckpointReady, legacyWriterHeld, selectedArchiveCapability;
+        private bool CombatCase => IsCombatCheckpoint(request.PersistenceCase);
+        private bool TurnBasedCase => CombatCase && request.PersistenceCase != "multi-rt-debt-manual";
+        private bool LegacyPendingCase => request.PersistenceCase == "legacy-mounted-pending-tb-manual";
+        private bool ZeroMountedCase => request.PersistenceCase == "zero-mounted-tb-retained-manual";
+        private int RequiredOwners => LegacyPendingCase ? 1 : 2;
+        private int RequiredMounted => ZeroMountedCase && (Cold || combatCheckpointReady) ? 0 : RequiredOwners;
+        private Chunk7CombatCheckpointKind CheckpointKind => LegacyPendingCase ? Chunk7CombatCheckpointKind.MountedPendingOnly :
+            ZeroMountedCase ? Chunk7CombatCheckpointKind.ZeroMountedRetained :
+            TurnBasedCase ? Chunk7CombatCheckpointKind.TurnBasedDebts : Chunk7CombatCheckpointKind.RealTimeDebts;
+        private static bool IsCombatCheckpoint(string value) => value == "multi-rt-debt-manual" || value == "multi-tb-debt-manual" ||
+            value == "zero-mounted-tb-retained-manual" || value == "legacy-mounted-pending-tb-manual";
+
+        private void AfterNativeMounts()
+        {
+            RememberOwners(); AssertOwners(); BindSlots(); snapshots.Add(Capture("before-native-save"));
+            Pass(LegacyPendingCase ? "C7-persistence-one-native-mount-legacy-source" : "C7-persistence-two-native-mounts");
+            if (CombatCase)
+            {
+                checkpoint = new Chunk7CombatCheckpointDriver(request, world, controls, logger, CheckpointKind);
+                checkpoint.StartSource(actors); Next(5);
+            }
+            else if (AreaAutosaveCase) BeginAreaAutosave();
+            else { RequestSave(); Next(4); }
+        }
+        private void PrepareCombatSave()
+        {
+            combatCheckpointReady = true;
+            AssertCombatOwners();
+            slots = controls.CapturePersistentSlots();
+            Require(slots.Length == (ZeroMountedCase ? 0 : RequiredOwners * 2), "Native checkpoint changed its declared owned control slots.");
+            evidence["worldBeforeNativeSave"] = checkpoint.Capture();
+            if (LegacyPendingCase)
+            {
+                Require(world.Registry.ActiveCount == 1 && world.Registry.Owners.Length == 1 &&
+                    ReferenceEquals(world.Primary.Relationship.Rider, firstRider) && ReferenceEquals(world.Primary.Relationship.Mount, firstMount) &&
+                    !persistence.HasActiveSaveScope && !persistence.HasSaveAdmissionFence && !NativePersistenceIsolation.HasPendingWrites,
+                    "Legacy migration source requires the singular Primary owner before its private native write.");
+                selectedArchiveCapability = NativeMountedSaveFormat.ArchiveNativeSupportEnabled;
+                Require(selectedArchiveCapability, "Selected all-pair capability was already changed.");
+                NativeMountedSaveFormat.ArchiveNativeSupportEnabled = false; legacyWriterHeld = true;
+                evidence["legacyWriterScope"] = new JObject { ["selectedOnlyForCase"] = request.PersistenceCase,
+                    ["sourceSchema"] = NativeMountedSaveFormat.SelectedWriterSchema, ["owners"] = world.Registry.Owners.Length,
+                    ["restorationEnabledOnColdProcess"] = true };
+            }
+        }
+        private void RestoreSelectedNativeFormat()
+        {
+            if (!legacyWriterHeld) return;
+            Require(!persistence.HasActiveSaveScope && !persistence.HasSaveAdmissionFence && !NativePersistenceIsolation.HasPendingWrites,
+                "A native save worker still owns the legacy writer selection.");
+            NativeMountedSaveFormat.ArchiveNativeSupportEnabled = selectedArchiveCapability; legacyWriterHeld = false;
+            if (evidence["legacyWriterScope"] is JObject scope) scope["selectedCapabilityRestored"] = NativeMountedSaveFormat.ArchiveNativeSupportEnabled;
+        }
+        private void AssertCombatOwners()
+        {
+            Require(world.Registry.Owners.Length == RequiredOwners && world.Registry.ActiveCount == RequiredMounted &&
+                world.Registry.Owners.All(o => expectedOwners.TryGetValue(o.Id, out var generation) && generation == o.Generation),
+                "Native checkpoint changed exact owner identities, generations or retained custody.");
+            if (RequiredMounted != 0)
+                Require(Mounted(firstRider, firstMount) && (LegacyPendingCase || Mounted(secondRider, secondMount)),
+                    "Native mounted checkpoint lost an exact relationship.");
+            else
+                Require(world.Registry.Owners.All(o => o.State == MountedPairOwnershipState.Detached) &&
+                    world.Pairs.All(p => p.Relationship.State == RelationshipState.Unmounted),
+                    "Zero-mounted checkpoint silently retired a required detached obligation.");
+        }
+        private void BindCombatActors()
+        {
+            firstRider = Exact(Chunk7WorldScenarioEngine.MammothRiderId); firstMount = Exact(Chunk7WorldScenarioEngine.MammothId);
+            secondRider = Exact(Chunk7WorldScenarioEngine.HorseRiderId); secondMount = secondRider.Descriptor.Pet;
+            Require(secondMount?.Blueprint?.AssetGuid == HorseCompanionBlueprintService.UnitGuid &&
+                ReferenceEquals(firstRider.Descriptor.Pet, firstMount) && ReferenceEquals(firstMount.Descriptor.Master.Value, firstRider) &&
+                ReferenceEquals(secondMount.Descriptor.Master.Value, secondRider), "Cold combat lost its saved native companions.");
+            actors = new[] { firstRider, firstMount, secondRider, secondMount };
+            Require(actors.All(a => saved.Combat.Actors.Any(x => x.Native.Id == a.UniqueId)), "Cold archive omitted a selected fixture actor.");
+        }
+        private void ObserveCombatCold()
+        {
+            saved = persistence.LoadedArchive;
+            Require(saved?.SchemaVersion == 3 && saved.Combat != null && saved.Combat.TurnBased == TurnBasedCase &&
+                persistence.ArchiveRestorePhase == "all-pair-presentation-restored" && !persistence.CombatRestorationPending,
+                "Complete native combat graph was not restored: " + persistence.Feedback);
+            BindCombatActors();
+            foreach (var pair in saved.Pairs) expectedOwners.Add(Guid.Parse(pair.PairId), pair.Generation);
+            foreach (var participant in saved.Participations)
+                if (!expectedOwners.ContainsKey(Guid.Parse(participant.OwnerId))) expectedOwners.Add(Guid.Parse(participant.OwnerId), participant.Generation);
+            AssertCombatOwners(); slots = saved.Slots; AssertSlots();
+            checkpoint = new Chunk7CombatCheckpointDriver(request, world, controls, logger, CheckpointKind);
+            checkpoint.BindCold(actors, saved); checkpoint.ValidateArchive(saved);
+            Require(persistence.SemanticRestoreCount == saved.Combat.Actors.Length && persistence.ArchivePostLoadObservedCount == saved.Combat.Actors.Length &&
+                persistence.PresentationRestoreCount == saved.Pairs.Length && controls.NativeCastRequestCount == 0 && persistence.SnapshotCount == 0,
+                "Cold combat replayed commands, omitted an actor or restored owner state more than once.");
+            var ids = saved.Combat.Actors.Select(x => x.Native.Id).ToArray();
+            Require(restoration != null && restoration.Complete && restoration.Count("prepare-before", ids) == 0 &&
+                restoration.Count("round-before", ids) == 0 && restoration.Count("restore-actor-before", ids) == ids.Length &&
+                restoration.Count("restore-actor-after", ids) == ids.Length && restoration.Count("restore-debt-before", ids) == ids.Length &&
+                restoration.Count("restore-debt-after", ids) == ids.Length, "Cold native combat invented preparation or lost complete per-actor restoration observation.");
+            evidence["coldRestoration"] = restoration.Capture(); restoration.Dispose(); restoration = null;
+            evidence["loadedArchive"] = JObject.FromObject(saved, MountedSaveCodec.CreateSerializer());
+            var descriptor = request.PersistenceLoad;
+            var info = Game.Instance.SaveManager.SingleOrDefault(s => s.FileName == descriptor.FileName);
+            Require(info != null && Hash(info.FolderName) == descriptor.Sha256, "Cold native source bytes differ from the exact selected archive.");
+            var read = NativeMountedSaveStorage.ReadArchive(info.Saver);
+            Require(read.Kind == MountedSaveReadKind.Current && read.SourceSchema == (LegacyPendingCase ? 2 : 3) &&
+                JToken.DeepEquals(JObject.FromObject(read.Data, MountedSaveCodec.CreateSerializer()), JObject.FromObject(saved, MountedSaveCodec.CreateSerializer())),
+                "Cold restored graph differs from the native versioned source.");
+            evidence["loadedSourceSchema"] = read.SourceSchema;
+            evidence["loadedDescriptor"] = new JObject { ["internalName"] = descriptor.InternalName, ["fileName"] = descriptor.FileName,
+                ["sha256"] = descriptor.Sha256, ["length"] = descriptor.Length, ["lastWriteTimeUtcTicks"] = descriptor.LastWriteTimeUtcTicks,
+                ["gameId"] = descriptor.GameId, ["gameName"] = descriptor.GameName, ["area"] = descriptor.Area };
+            AssertCombatDebt(saved);
+            evidence["worldAfterNativeRestore"] = Chunk7ArchiveNativeSnapshot.Capture(world, saved);
+            snapshots.Add(Capture("cold-restored-before-input")); Pass("C7-persistence-cold-all-pair-identity-and-no-prepare");
+        }
+        private void ObserveCombatSaved(MountedArchiveReadResult read)
+        {
+            Require(read.Kind == MountedSaveReadKind.Current && read.SourceSchema == (LegacyPendingCase ? 2 : 3) && saved?.Combat != null &&
+                saved.CampaignId == request.Fixture.Working.GameId && saved.AreaId == request.Fixture.Working.Area,
+                "Native combat archive version or campaign differs from the selected checkpoint.");
+            RestoreSelectedNativeFormat();
+            checkpoint.ValidateArchive(saved); AssertCombatOwners(); AssertSlots(); AssertCombatDebt(saved);
+            if (!LegacyPendingCase)
+                Require(saved.Pairs.All(p => expectedOwners.TryGetValue(Guid.Parse(p.PairId), out var generation) && generation == p.Generation) &&
+                    saved.Participations.All(p => expectedOwners.TryGetValue(Guid.Parse(p.OwnerId), out var generation) && generation == p.Generation),
+                    "Native schema-3 archive changed stable owner identity or generation.");
+            Require(saved.Slots.Length == slots.Length && slots.All(s => saved.Slots.Any(x => x.ActorId == s.ActorId && x.Index == s.Index && x.Kind == s.Kind)),
+                "Native combat readback omitted owned controls.");
+            Require(callback && persistence.SnapshotCount == snapshotBefore + 1 && controls.NativeCastRequestCount == castBefore &&
+                !controls.SerializationSuspended && !persistence.SaveSuspended, "Native combat save replayed input or retained serialization custody.");
+            var file = new FileInfo(savedDescriptor.FolderName);
+            evidence["nativeWrite"] = new JObject { ["path"] = file.FullName, ["sha256"] = Hash(file.FullName), ["length"] = file.Length,
+                ["sourceSchema"] = read.SourceSchema, ["nativeType"] = savedDescriptor.Type.ToString(), ["nativeName"] = savedDescriptor.Name,
+                ["nativeCallback"] = callback, ["operation"] = savedDescriptor.OperationState.ToString(), ["snapshotCount"] = persistence.SnapshotCount,
+                ["nativeMetadata"] = JObject.Parse(read.OriginalJson), ["archive"] = JObject.FromObject(saved, MountedSaveCodec.CreateSerializer()) };
+            evidence["worldAfterNativeSave"] = Chunk7ArchiveNativeSnapshot.Capture(world, saved);
+            snapshots.Add(Capture("native-write-complete")); Pass("C7-persistence-native-category-all-pair-archive");
+        }
+        private void AssertCombatDebt(MountedArchiveData archive)
+        {
+            var elapsed = (Game.Instance.TimeController.GameTime.Ticks - archive.GameTimeTicks) / (double)TimeSpan.TicksPerSecond;
+            Require(elapsed >= 0 && elapsed <= 30, "Native combat debt comparison escaped its observation window.");
+            foreach (var row in archive.Combat.Actors)
+            {
+                var before = row.Native; var actor = Exact(before.Id); var after = MountedPersistenceService.CaptureActor(actor);
+                var a = new[] { before.Standard, before.Move, before.Swift, before.Initiative, before.Reaction };
+                var b = new[] { after.Standard, after.Move, after.Swift, after.Initiative, after.Reaction };
+                Require(before.ReactionsRemaining == after.ReactionsRemaining && before.LastSurpriseTicks == after.LastSurpriseTicks &&
+                    Enumerable.Range(0, a.Length).All(i => b[i] <= a[i] + 0.001 && b[i] + elapsed * 1.1 + 0.001 >= a[i]),
+                    "Native save/load changed an actor's spent remainder beyond elapsed native time.");
+            }
+        }
+        private void BeginCombatContinuation()
+        {
+            checkpoint.BeginContinuation(saved);
+        }
+    }
+}

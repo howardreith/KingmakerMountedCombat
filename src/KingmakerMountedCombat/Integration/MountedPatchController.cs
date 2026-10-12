@@ -149,6 +149,8 @@ namespace KingmakerMountedCombat.Integration
                 PatchExact(typeof(UnitCommand), "Interrupt", 0x060027AC, new[] { typeof(bool) }, nameof(PatchMethods.CommandInterruptPrefix));
                 PatchExact(typeof(UnitAnimationManager), "Tick", 0x06001605, Type.EmptyTypes, nameof(PatchMethods.AnimationTickPrefix));
                 PatchExact(typeof(AttackHandInfo), "CreateAnimationHandleForAttack", 0x0600265A, new[] { typeof(IEnumerable<AttackHandInfo>) }, null, nameof(PatchMethods.AttackAnimationPostfix));
+                if (MountedRiderProfileCatalog.Small.Count != 0)
+                    PatchExact(typeof(Character), "LateUpdate", 0x0600140C, Type.EmptyTypes, null, nameof(PatchMethods.PresentationRigLateUpdatePostfix));
                 PatchExact(typeof(IKController), "SetupIkSystem", 0x0600156C, new[] { typeof(Character) }, nameof(PatchMethods.DollRoomIkSetupPrefix));
                 PatchExact(typeof(IKController), "SetupFbbik", 0x0600156D, Type.EmptyTypes, nameof(PatchMethods.DollRoomFbbikPrefix), nameof(PatchMethods.DollRoomFbbikPostfix));
                 PatchExact(typeof(CombatController), "Tick", 0x06000BD1, Type.EmptyTypes, nameof(PatchMethods.CombatControllerTickPrefix), nameof(PatchMethods.CombatControllerTickPostfix));
@@ -990,6 +992,9 @@ namespace KingmakerMountedCombat.Integration
             {
                 if (PatchBridge.Persistence?.Enabled == true) NativeSaveEffectBoundary.HitCompleted(__instance);
             }
+
+            internal static void PresentationRigLateUpdatePostfix(Character __instance) =>
+                PatchBridge.Persistence?.ObserveNativePresentationLateUpdate(__instance);
 
             internal static bool CombatPreparePrefix() => PatchBridge.Persistence?.CombatRestorationPending != true;
 

@@ -69,6 +69,10 @@ function Assert-SubscenarioResults {
     )
     $missionScenarios += @(Get-KmcPhase3dHorseRuntimeRows)
     $missionScenarios += @(Get-KmcChunk7WorldRows)
+    $missionScenarios += @(Get-KmcChunk7PersistenceRows)
+    $missionScenarios += @(Get-KmcChunk7CombatRuntimeRows)
+    $missionScenarios += @(Get-KmcChunk7RealtimeRuntimeRows | Where-Object { $missionScenarios -cnotcontains $_ })
+    $missionScenarios += @(Get-KmcChunk7NativeLifeRuntimeRows | Where-Object { $missionScenarios -cnotcontains $_ })
     if ($null -eq $Result.subscenarioResults -or $Result.subscenarioResults -is [string]) { throw 'Runtime result subscenarioResults must be an array.' }
     $items = @($Result.subscenarioResults)
     if ($items.Count -eq 0) { throw 'Runtime result contains no named subscenarios.' }
@@ -167,6 +171,11 @@ Assert-KmcHorseCompanionUnmountedEvidence -Request $request -Manifest $validated
 Assert-KmcPersistenceScenarioEvidence -Request $request -Manifest $validatedArtifactManifest -Status ([string]$result.status) -GameResult $gameEvidence
 Assert-KmcNativeMammothArtifact -Request $request -Manifest $validatedArtifactManifest -Status ([string]$result.status)
 Assert-KmcChunk7WorldArtifact -Request $request -Manifest $validatedArtifactManifest -Status ([string]$result.status)
+Assert-KmcChunk7PersistenceArtifact -Request $request -Manifest $validatedArtifactManifest -Status ([string]$result.status)
+Assert-KmcChunk7CombatArtifact -Request $request -Manifest $validatedArtifactManifest -Status ([string]$result.status)
+Assert-KmcChunk7RealtimeArtifact -Request $request -Manifest $validatedArtifactManifest -Status ([string]$result.status)
+Assert-KmcChunk7NativeLifeArtifact -Request $request -Manifest $validatedArtifactManifest -Status ([string]$result.status)
+Assert-KmcChunk7CleanupArtifacts -Request $request -Manifest $validatedArtifactManifest -Status ([string]$result.status)
 Assert-KmcPhase3dHorseScenarioEvidence -Request $request -Manifest $validatedArtifactManifest -Status ([string]$result.status) -SubscenarioResults $result.subscenarioResults
 if ([string]$result.status -ceq 'PASS' -and ([int]$result.subscenarioFailCount -ne 0 -or [int]$result.assertionFailCount -ne 0)) { throw 'PASS runtime result contains subscenario failures.' }
 Write-Host 'TOTAL PASS=29 FAIL=0'

@@ -15,7 +15,7 @@ namespace KingmakerMountedCombat.Diagnostics
     internal sealed class PersistenceIsolationBootstrap
     {
         internal const string Scenario = "persistence-isolation";
-        internal static bool Supports(string value) => value == Scenario || value == "persistence-p01-save" || value == "persistence-p01-load" ||
+        internal static bool Supports(string value) => RuntimeRequest.IsChunk7PersistenceScenario(value) || value == Scenario || value == "persistence-p01-save" || value == "persistence-p01-load" ||
             value == "persistence-p02-save" || value == "persistence-p02-load" || value == "persistence-p03-save" || value == "persistence-p03-load" || value == "persistence-p04-save" || value == "persistence-p04-load" ||
             value == "persistence-p07-save" || value == "persistence-p07-load" || value == "persistence-p05-save" || value == "persistence-p05-load" || value == "persistence-p06-load";
         internal PersistenceSaveAuthorization Authority => authority;
@@ -53,10 +53,20 @@ namespace KingmakerMountedCombat.Diagnostics
                 var entries = new System.Collections.Generic.List<PersistenceSaveEntry>
                 {
                     new PersistenceSaveEntry { FileName = fixture.FileName, InternalName = fixture.InternalName,
-                        SaveType = request.Scenario == "persistence-p05-load" ? RuntimePersistenceScenario.SlotType(request.PersistenceCase).ToString() :
+                        SaveType = request.Scenario == Chunk7PersistenceScenario.LoadScenario ? request.ExpectedNativeLoadType :
+                            request.Scenario == "persistence-p05-load" ? RuntimePersistenceScenario.SlotType(request.PersistenceCase).ToString() :
                             RuntimeRequest.IsTransitionAutoCase(request.PersistenceCase) ? "Auto" : "Manual",
                         Area = fixture.Area, InitialSha256 = fixture.Sha256, Writable = false }
                 };
+                if (request.Scenario == Chunk7PersistenceScenario.SaveScenario)
+                {
+                    var type = Chunk7PersistenceScenario.NativeType(request.PersistenceCase);
+                    entries.Add(new PersistenceSaveEntry { FileName = Chunk7PersistenceScenario.NativeLeaf(type),
+                        InternalName = Chunk7PersistenceScenario.NativeName(type), SaveType = type.ToString(), Area = request.ExpectedChunk7ArchiveArea, Writable = true });
+                }
+                if (request.Scenario == Chunk7PersistenceScenario.LoadScenario &&
+                    fixture.InternalName != Chunk7PersistenceScenario.NativeName(Chunk7PersistenceScenario.NativeType(request.PersistenceCase)))
+                    throw new InvalidOperationException("Chunk 7 cold source differs from its exact localized native category.");
                 // A transition autosave is loaded read-only; the subsequent
                 // ordinary write it must support lands in that same loaded area.
                 // SaveManager.FindUnusedSaveNumber 06008024 takes the maximum

@@ -18,7 +18,8 @@ namespace KingmakerMountedCombat.Integration
 
         // Commands and preparation stay blocked until the selected world's
         // semantic state is rebound. Presentation may wait for views separately.
-        internal bool CombatRestorationPending => Enabled && (areaRestoreFailure != null || abandonedCombat.Blocks(Game.Instance?.Player) ||
+        internal bool CombatRestorationPending => CombatSemanticRestorationPending || ArchiveSmallPresentationPending;
+        private bool CombatSemanticRestorationPending => Enabled && (areaRestoreFailure != null || abandonedCombat.Blocks(Game.Instance?.Player) ||
             RestorableArchive != null && combatRestoreFailure != null ||
             SelectedCombat != null && restoreLoad != null && !combatRestored);
         internal bool LoadingWorld => restoreLoad != null && !restoreLoad.World.NativeCompleted;
