@@ -32,6 +32,7 @@ $selected = @(
     'Test-Chunk7BootstrapInventoryAdapter.ps1',
     'Test-Chunk7BootstrapFixtureReadinessAdapter.ps1',
     'Test-Chunk7BootstrapInventoryEvidence.ps1',
+    'Test-Chunk7BootstrapObjectIdentity.ps1',
     'Test-Chunk7BootstrapInventorySource.ps1',
     'Test-Chunk7BootstrapInventoryWiring.ps1',
     'Test-Chunk7ProgressionProtocol.ps1',
