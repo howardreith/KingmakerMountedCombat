@@ -1219,8 +1219,8 @@ Assert-Kmc ($unmountedEngineText -match 'internal const string PreambleScenarioN
 # evidence was blank. A live run exposed that, and this contract keeps the shape.
 $captureClassBody = [Regex]::Match($unmountedEngineText,
     '(?s)private sealed class NativeTargetClickCapture\r?\n        \{(.*?)\n        \}')
-$captureMembers = @([Regex]::Matches($captureClassBody.Groups[1].Value, '(?m)^\s*public [A-Za-z0-9<>?\[\]]+ [A-Za-z0-9]+ \{ get; set; \}$'))
-$captureBareFields = @([Regex]::Matches($captureClassBody.Groups[1].Value, '(?m)^\s*(?:internal|private|public|protected) [A-Za-z0-9<>?\[\]]+ [A-Za-z0-9]+;$'))
+$captureMembers = @([Regex]::Matches($captureClassBody.Groups[1].Value, '(?m)^\s*public [A-Za-z0-9<>?\[\]]+ [A-Za-z0-9]+ \{ get; set; \}\r?$'))
+$captureBareFields = @([Regex]::Matches($captureClassBody.Groups[1].Value, '(?m)^\s*(?:internal|private|public|protected) [A-Za-z0-9<>?\[\]]+ [A-Za-z0-9]+;\r?$'))
 Assert-Kmc ($captureClassBody.Success -and
     $captureMembers.Count -ge 45 -and
     $captureBareFields.Count -eq 0 -and
