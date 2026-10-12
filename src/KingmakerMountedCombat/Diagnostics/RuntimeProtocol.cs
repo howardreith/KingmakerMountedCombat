@@ -15,7 +15,7 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private static readonly HashSet<string> SaveBackedScenarios = new HashSet<string>(StringComparer.Ordinal)
         {
-            "chunk7-two-pair-exploration", "chunk7-persistence-save", "chunk7-persistence-load",
+            "chunk7-ordinary-acquisition", "chunk7-two-pair-exploration", "chunk7-persistence-save", "chunk7-persistence-load",
             "chunk7-two-pair-combat-rider-first", "chunk7-two-pair-combat-mount-first",
             "chunk7-two-pair-realtime-core", "chunk7-two-pair-realtime-casting", "chunk7-two-pair-realtime-charge",
             "chunk7-two-pair-native-life-cleanup",
@@ -142,7 +142,9 @@ namespace KingmakerMountedCombat.Diagnostics
 
         public RuntimeSaveDescriptor PersistenceLoad { get; set; }
         public RuntimeSaveDescriptor PersistenceAlternate { get; set; }
+        public string Schema1DerivationSha256 { get; set; }
         public RuntimeAreaTransitionTarget PersistenceAreaTarget { get; set; }
+        public Chunk7OrdinaryAcquisitionSelection OrdinaryAcquisition { get; set; }
 
         // Cross-area cases declare their destination up front so the isolated
         // save authority can pin post-transition writes to that exact area.
@@ -193,7 +195,7 @@ namespace KingmakerMountedCombat.Diagnostics
         internal static bool IsChunk7PersistenceScenario(string scenario) => scenario == "chunk7-persistence-save" || scenario == "chunk7-persistence-load";
         internal static bool IsChunk7PersistenceCase(string value) => Array.IndexOf(new[] {
             "multi-exploration-manual", "multi-exploration-quick", "multi-exploration-auto", "multi-rt-debt-manual",
-            "multi-tb-debt-manual", "zero-mounted-tb-retained-manual", "legacy-mounted-pending-tb-manual", "multi-area-autosave" }, value) >= 0;
+            "multi-tb-debt-manual", "zero-mounted-tb-retained-manual", "legacy-mounted-pending-tb-manual", "multi-area-autosave", "legacy-schema1-resave-manual" }, value) >= 0;
 
         internal string ExpectedChunk7ArchiveArea => PersistenceCase == "multi-area-autosave" ? PersistenceAreaTarget?.Area : Fixture?.Working?.Area;
         internal string ExpectedNativeLoadType => Scenario == "chunk7-persistence-load" && PersistenceLoad != null && IsChunk7PersistenceCase(PersistenceCase) ?
@@ -213,6 +215,13 @@ namespace KingmakerMountedCombat.Diagnostics
                 errors.Add("Unsupported request schemaVersion.");
             }
 
+            if (Scenario == Chunk7OrdinaryAcquisitionSelection.Scenario)
+            {
+                if (SchemaVersion != SaveBackedSchemaVersion || OrdinaryAcquisition == null)
+                    errors.Add("Ordinary acquisition requires its explicit schema-2 selection.");
+                else errors.AddRange(OrdinaryAcquisition.Validate(Scenario, RunId));
+            }
+            else if (OrdinaryAcquisition != null) errors.Add("Ordinary acquisition selection is forbidden under another scenario.");
             Require(errors, RunId, "runId");
             Require(errors, Scenario, "scenario");
             Require(errors, Branch, "branch");
@@ -318,6 +327,7 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             if (PersistenceLoad != null || PersistenceAlternate != null) errors.Add("No-save requests cannot select an archive.");
             if (PersistenceCase != null) errors.Add("No-save requests cannot select a persistence case.");
+            if (Schema1DerivationSha256 != null) errors.Add("No-save requests cannot select schema-1 derivative provenance.");
             if (SaveAccessAllowed)
             {
                 errors.Add("Schema v1 never authorizes save access.");
@@ -347,6 +357,11 @@ namespace KingmakerMountedCombat.Diagnostics
         private void ValidateSaveBackedRequest(List<string> errors)
         {
             var chunk7 = IsChunk7PersistenceScenario(Scenario);
+            var schema1 = Scenario == "chunk7-persistence-load" && PersistenceCase == "legacy-schema1-resave-manual";
+            if (PersistenceCase == "legacy-schema1-resave-manual" && !schema1)
+                errors.Add("Schema-1 resave is a cold-load-only case.");
+            if (schema1 ? Schema1DerivationSha256 == null || !Regex.IsMatch(Schema1DerivationSha256, "^[0-9a-f]{64}$", RegexOptions.CultureInvariant) : Schema1DerivationSha256 != null)
+                errors.Add("Schema-1 derivative provenance must be exact and is exclusive to its cold-load case.");
             var p07 = Scenario == "persistence-p07-save" || Scenario == "persistence-p07-load";
             var p06 = Scenario == "persistence-p06-load";
             var p03 = Scenario == "persistence-p03-save" || Scenario == "persistence-p03-load";
@@ -373,11 +388,11 @@ namespace KingmakerMountedCombat.Diagnostics
                 {
                     var type = ExpectedNativeLoadType;
                     var nativeSlot = type != "Manual";
-                    var leaf = nativeSlot ? "^" + type + "_1\\.zks$" : "^Manual_300_KMC_C7_WORLD\\.zks$";
+                    var leaf = schema1 ? "^Manual_812_KMC_P06\\.zks$" : nativeSlot ? "^" + type + "_1\\.zks$" : "^Manual_300_KMC_C7_WORLD\\.zks$";
                     if (nativeSlot && (string.IsNullOrWhiteSpace(PersistenceLoad.InternalName) ||
                         PersistenceLoad.InternalName.Length > 256 || PersistenceLoad.InternalName.Any(char.IsControl)))
                         errors.Add("Chunk 7 native slot name is missing or oversized.");
-                    errors.AddRange(PersistenceLoad.Validate("persistenceLoad", nativeSlot ? PersistenceLoad.InternalName : "KMC_C7_WORLD", leaf));
+                    errors.AddRange(PersistenceLoad.Validate("persistenceLoad", schema1 ? "KMC_P01" : nativeSlot ? PersistenceLoad.InternalName : "KMC_C7_WORLD", leaf));
                     if (Fixture?.Working == null || PersistenceLoad.GameId != Fixture.Working.GameId ||
                         PersistenceLoad.GameName != Fixture.Working.GameName || PersistenceLoad.Area != ExpectedChunk7ArchiveArea ||
                         PersistenceLoad.Sha256 == Fixture.Baseline?.Sha256)
@@ -737,8 +752,11 @@ namespace KingmakerMountedCombat.Diagnostics
             "C7-life-safe-native-damage", "C7-life-native-callback", "C7-life-healthy-neighbour", "C7-life-independent-survivor",
             "C7-rt-charge-default-off", "C7-rt-concurrent-primary", "C7-rt-local-cancel", "C7-rt-unmounted-native-control",
             "C7-rt-native-casting", "C7-rt-casting-neighbour", "C7-rt-charge-native-success", "C7-rt-charge-neighbour-movement", "C7-rt-charge-native-cancel",
+            "chunk7-ordinary-acquisition", "C7-ordinary-fixture", "C7-ordinary-native-choices", "C7-ordinary-native-autosave",
+            "C7-ordinary-native-field-inventory", "C7-ordinary-cleanup", "C7-ordinary-runtime", "C7-ordinary-interrupted",
             "chunk7-persistence-save", "chunk7-persistence-load", "C7-persistence-two-native-mounts", "C7-persistence-one-native-mount-legacy-source",
             "C7-persistence-native-category-all-pair-archive", "C7-persistence-cold-all-pair-identity-and-no-prepare",
+            "C7-persistence-schema1-native-restoration", "C7-persistence-schema1-native-resave",
             "C7-persistence-native-continuation", "C7-persistence-all-pair-area-before-autosave", "C7-persistence-native-combat-continuation", "C7-persistence-cleanup", "C7-persistence-runtime", "C7-persistence-interrupted",
             "chunk7-two-pair-exploration", "C7-world-fixture", "C7-world-native-acquisition", "C7-world-two-native-mounts",
             "C7-world-selection-routing", "C7-world-independent-dismount", "C7-world-cycles", "C7-world-sampling", "C7-world-cleanup", "C7-world-runtime", "C7-world-visual", "C7-world-interrupted",
@@ -1213,7 +1231,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 errors.Add("subscenario and assertion totals do not match the named results.");
             }
 
-            if (scenario != "chunk7-two-pair-exploration" && !RuntimeRequest.IsChunk7PersistenceScenario(scenario) && !RuntimeRequest.IsChunk7CombatScenario(scenario) && RuntimeSubscenarioResult.IsMissionScenario(scenario) && !names.Contains(scenario))
+            if (scenario != "chunk7-ordinary-acquisition" && scenario != "chunk7-two-pair-exploration" && !RuntimeRequest.IsChunk7PersistenceScenario(scenario) && !RuntimeRequest.IsChunk7CombatScenario(scenario) && RuntimeSubscenarioResult.IsMissionScenario(scenario) && !names.Contains(scenario))
             {
                 errors.Add("An individual mission scenario must report its own named subscenario result.");
             }

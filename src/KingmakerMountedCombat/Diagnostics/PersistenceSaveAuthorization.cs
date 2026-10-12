@@ -76,6 +76,27 @@ namespace KingmakerMountedCombat.Diagnostics
         private readonly string gameName;
         private readonly string baselineHash;
         internal string Root { get; }
+        private readonly int? maximumNativeWriteRequests;
+        private int admittedNativeWriteRequests;
+        internal int? MaximumNativeWriteRequests => maximumNativeWriteRequests;
+        internal int AdmittedNativeWriteRequests { get { lock (sync) return admittedNativeWriteRequests; } }
+
+        // Called only by the real RuntimeSaveAuthorization native entry, never
+        // by read-only eligibility/descriptor probes. Historical scopes remain
+        // uncapped. A selected ordinary acquisition scope consumes its one
+        // admission even if native serialization subsequently fails.
+        internal string AuthorizeNativeRequest(RuntimeSaveOperation operation, RuntimeSaveTarget target, string observedRoot)
+        {
+            lock (sync)
+            {
+                var rejection = Validate(operation, target, observedRoot);
+                if (rejection != null || operation != RuntimeSaveOperation.Write) return rejection;
+                if (maximumNativeWriteRequests.HasValue && admittedNativeWriteRequests >= maximumNativeWriteRequests.Value)
+                    return "The exact isolated scope exhausted its selected native write admission count.";
+                admittedNativeWriteRequests++;
+                return null;
+            }
+        }
 
         // ---- Bootstrap campaign ----
         //
@@ -136,8 +157,11 @@ namespace KingmakerMountedCombat.Diagnostics
 
         internal PersistenceSaveAuthorization(string authorizedRunRoot, string campaignId,
             string campaignName, string protectedBaselineHash, IEnumerable<PersistenceSaveEntry> allowlist,
-            string declaredTransitionSource, string declaredTransitionTarget)
+            string declaredTransitionSource, string declaredTransitionTarget, int? maximumWriteRequests = null)
         {
+            if (maximumWriteRequests.HasValue && (maximumWriteRequests.Value < 1 || maximumWriteRequests.Value > 128))
+                throw new ArgumentException("A selected isolated write count must be positive and bounded.");
+            maximumNativeWriteRequests = maximumWriteRequests;
             var transitionDeclared = declaredTransitionSource != null || declaredTransitionTarget != null;
             if (transitionDeclared && (declaredTransitionSource == null || declaredTransitionTarget == null ||
                 declaredTransitionSource == declaredTransitionTarget))

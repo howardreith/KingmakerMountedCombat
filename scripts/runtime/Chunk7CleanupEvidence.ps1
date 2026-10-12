@@ -3,6 +3,7 @@ Set-StrictMode -Version Latest
 function Assert-KmcChunk7CleanupArtifacts($Request,$Manifest,[string]$Status='PASS') {
     if($Status-cnotin@('PASS','FAIL')){throw 'Cleanup envelope requires an exact terminal status.'}
     $families=@(
+        @{name='ordinary';scenarios=@('chunk7-ordinary-acquisition')},
         @{name='world';scenarios=@('chunk7-two-pair-exploration')},
         @{name='persistence';scenarios=@('chunk7-persistence-save','chunk7-persistence-load')},
         @{name='combat';scenarios=@('chunk7-two-pair-combat-rider-first','chunk7-two-pair-combat-mount-first','chunk7-two-pair-realtime-core','chunk7-two-pair-realtime-casting','chunk7-two-pair-realtime-charge','chunk7-two-pair-native-life-cleanup')}

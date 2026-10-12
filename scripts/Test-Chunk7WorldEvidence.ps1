@@ -61,6 +61,29 @@ $observation|Add-Member factRemovalAdmission ([pscustomobject]@{frame=123;gameTi
 $good=New-Artifact 'chunk7-world-evidence' $observation
 Check 'complete synthetic exploration observations' {Assert-KmcChunk7WorldEvidence $request $good 'PASS'}
 $mutations=@(
+    @('artifact schema string',{param($v)$v.schemaVersion='1'}),
+    @('native cast count string',{param($v)$v.observations.inputs[0].nativeCastDelta='1'}),
+    @('native generation string',{param($v)$v.observations.inputs[0].generationAtInit='1'}),
+    @('native generation fraction',{param($v)$v.observations.inputs[0].generationAtInit=1.5}),
+    @('sample count string',{param($v)$v.observations.measurements[0].sampleFrames='120'}),
+    @('active pair count string',{param($v)$v.observations.measurements[0].ownersAfter.active='0'}),
+    @('subscriber count string',{param($v)$v.observations.measurements[0].subscriptionsAfter.uniqueOwnedSubscribers='1'}),
+    @('writer schema string',{param($v)$v.observations.capability.nativeWriterSchema='3'}),
+    @('native reaction expenditure changes',{param($v)$v.observations.inputs[0].resourcesAfter.actors[0].reactionAllowance=2}),
+    @('native reaction counter string',{param($v)$v.observations.inputs[0].resourcesAfter.actors[0].reactionAllowance='1'}),
+    @('native initiative counter string',{param($v)$v.observations.inputs[0].resourcesBefore.actors[0].initiative='0'}),
+    @('native command object over Int32',{param($v)$v.observations.inputs[0].commandObject=2147483648L;$v.observations.factRemovalAdmission.commands[0].commandObject=2147483648L}),
+    @('native command object fraction',{param($v)$v.observations.inputs[0].commandObject=100.5}),
+    @('native subscriber object string',{param($v)$v.observations.measurements[0].subscriptionsAfter.entries[0].identity='77'}),
+    @('owner generation string',{param($v)$v.observations.snapshots[0].owners[0].generation='1'}),
+    @('cycle owner generation fraction',{param($v)$v.observations.cycles[0].owners[0].generation=3.5}),
+    @('cycle boundary count string',{param($v)$v.observations.cycles[0].boundaryCount='2'}),
+    @('native Ranger count string',{param($v)$v.observations.acquisition.nativeRangerCommitCount='4'}),
+    @('native acquisition boolean string',{param($v)$v.observations.acquisition.horsePresentAtNativeCommit='true'}),
+    @('saved proof scope string',{param($v)$v.observations.cleanup.nativeSaveWritten='false'}),
+    @('combat proof scope string',{param($v)$v.observations.combatOrPersistenceProof='false'}),
+    @('restored pause strings',{param($v)$v.observations.cleanup.pauseBefore='true';$v.observations.cleanup.pauseAfter='true'}),
+    @('pair residue string',{param($v)$v.observations.cleanup.pairBoundaries[0].residueAbsent='true'}),
     @('source identity',{param($v)$v.commit='9'*40}),@('closed native gate',{param($v)$v.observations.capability.archiveNativeEnabled=$false}),
     @('native schema2',{param($v)$v.observations.capability.nativeWriterSchema=2}),@('one-pair native capacity',{param($v)$v.observations.capability.nativePairCapacity=1}),
     @('unqualified fixture',{param($v)$v.observations.capability.workingSha256='9'*64}),@('invented original actor',{param($v)$v.observations.partyBefore[0].id=$horse}),
@@ -102,6 +125,19 @@ $mutations=@(
     @('accumulated pair boundaries',{param($v)$v.observations.cycles[5].boundaryCount=3})
 )
 foreach($mutation in $mutations){$changed=Copy-TestValue $good;& $mutation[1] $changed;Reject $mutation[0] {Assert-KmcChunk7WorldEvidence $request $changed 'PASS'}}
+Check 'signed native Int32 command identities remain valid' {
+    $signed=Copy-TestValue $good
+    foreach($row in @($signed.observations.inputs)+@($signed.observations.cycleInputs)+@($signed.observations.movements)+@($signed.observations.factRemovalAdmission.commands)){$row.commandObject=-$row.commandObject}
+    foreach($row in $signed.observations.movements){foreach($cmd in @($row.commandsBefore)+@($row.commandsAfter)){$cmd.moveObject=-$cmd.moveObject}}
+    Assert-KmcChunk7WorldEvidence $request $signed 'PASS'
+}
+Check 'signed native initiative and reaction observations remain unchanged' {
+    $signed=Copy-TestValue $good
+    foreach($row in @($signed.observations.inputs)+@($signed.observations.cycleInputs)){
+        foreach($window in @($row.resourcesBefore,$row.resourcesAfter)){foreach($actor in $window.actors){$actor.initiative=-100;$actor.reactionAllowance=-1}}
+    }
+    Assert-KmcChunk7WorldEvidence $request $signed 'PASS'
+}
 Check 'FAIL partial artifact preserves failed prefix' {$partial=Copy-TestValue $good;$partial.status='FAIL';$partial.errors=@('fixture unavailable');$partial.observations=[pscustomobject]@{};Assert-KmcChunk7WorldEvidence $request $partial 'FAIL'}
 Reject 'FAIL artifact cannot fulfill PASS run' {$partial=Copy-TestValue $good;$partial.status='FAIL';Assert-KmcChunk7WorldEvidence $request $partial 'PASS'}
 $dependencies=[pscustomobject]@{gameRoot='C:\SyntheticKingmaker';modsRoot='C:\SyntheticKingmaker\Mods';files=@()}

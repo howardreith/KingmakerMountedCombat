@@ -81,6 +81,7 @@ function Get-KmcChunk7PersistenceSource {
         lastWriteTimeUtcTicks=[long]$file.LastWriteTimeUtc.Ticks;gameId=[string]$header.GameId;gameName=[string]$header.GameName;area=[string]$header.Area}}
 }
 function Assert-KmcChunk7PersistenceColdSource($SourceRunId,$Request,$ColdArtifact) {
+    if($Request.persistenceCase-ceq'legacy-schema1-resave-manual'){Assert-KmcChunk7Schema1ColdSource $SourceRunId $Request $ColdArtifact;return}
     $path=Join-Path (Get-KmcLabRoot) ('runtime-evidence/'+$SourceRunId+'/chunk7-persistence-evidence.json')
     Assert-KmcNotReparsePoint $path 'Chunk 7 source observation';Assert-KmcNotHardLink $path 'Chunk 7 source observation'
     $source=Read-KmcJson $path
@@ -106,3 +107,5 @@ function Assert-KmcChunk7PersistenceColdSource($SourceRunId,$Request,$ColdArtifa
         }
     }
 }
+
+. (Join-Path $PSScriptRoot 'Chunk7Schema1PersistenceFixtures.ps1')

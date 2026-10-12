@@ -69,6 +69,9 @@ namespace KingmakerMountedCombat.Diagnostics
             if (LoadingProcess.Instance.IsLoadingInProcess || LoadingProcess.Instance.QueuedNames.Any() ||
                 NativePersistenceIsolation.HasPendingWrites || world.SerializationBusy)
             { AwaitCleanup(false, "A native load, queued load or write worker still owns fixture state."); return; }
+            if (captured && !TryCleanup("captured native world", () => {
+                Require(nativeScope != null, "Captured native world authority is absent."); nativeScope.RequireCurrent();
+            })) { AwaitCleanup(false, "Captured native world, area or actor identity changed."); return; }
             if (!ReleaseCleanupObservers()) { AwaitCleanup(false, "Native observer teardown has not settled."); return; }
             if (!captured) { cleanupProven = true; CompleteEvidence(); return; }
             Game.Instance.IsPaused = false;

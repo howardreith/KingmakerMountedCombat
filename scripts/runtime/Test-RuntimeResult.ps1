@@ -68,6 +68,7 @@ function Assert-SubscenarioResults {
         'mounted-rider-melee-cleanup', 'non-mounted-melee-control'
     )
     $missionScenarios += @(Get-KmcPhase3dHorseRuntimeRows)
+    $missionScenarios += @(Get-KmcChunk7OrdinaryRows)
     $missionScenarios += @(Get-KmcChunk7WorldRows)
     $missionScenarios += @(Get-KmcChunk7PersistenceRows)
     $missionScenarios += @(Get-KmcChunk7CombatRuntimeRows)
@@ -170,6 +171,7 @@ Assert-KmcHorseCompanionBlueprintRegistrationEvidence -Request $request -Manifes
 Assert-KmcHorseCompanionUnmountedEvidence -Request $request -Manifest $validatedArtifactManifest -Status ([string]$result.status) -SubscenarioResults $result.subscenarioResults
 Assert-KmcPersistenceScenarioEvidence -Request $request -Manifest $validatedArtifactManifest -Status ([string]$result.status) -GameResult $gameEvidence
 Assert-KmcNativeMammothArtifact -Request $request -Manifest $validatedArtifactManifest -Status ([string]$result.status)
+Assert-KmcChunk7OrdinaryArtifact -Request $request -Manifest $validatedArtifactManifest -Status ([string]$result.status)
 Assert-KmcChunk7WorldArtifact -Request $request -Manifest $validatedArtifactManifest -Status ([string]$result.status)
 Assert-KmcChunk7PersistenceArtifact -Request $request -Manifest $validatedArtifactManifest -Status ([string]$result.status)
 Assert-KmcChunk7CombatArtifact -Request $request -Manifest $validatedArtifactManifest -Status ([string]$result.status)

@@ -15,7 +15,7 @@ namespace KingmakerMountedCombat.Diagnostics
     internal sealed class PersistenceIsolationBootstrap
     {
         internal const string Scenario = "persistence-isolation";
-        internal static bool Supports(string value) => RuntimeRequest.IsChunk7PersistenceScenario(value) || value == Scenario || value == "persistence-p01-save" || value == "persistence-p01-load" ||
+        internal static bool Supports(string value) => value == Chunk7OrdinaryAcquisitionSelection.Scenario || RuntimeRequest.IsChunk7PersistenceScenario(value) || value == Scenario || value == "persistence-p01-save" || value == "persistence-p01-load" ||
             value == "persistence-p02-save" || value == "persistence-p02-load" || value == "persistence-p03-save" || value == "persistence-p03-load" || value == "persistence-p04-save" || value == "persistence-p04-load" ||
             value == "persistence-p07-save" || value == "persistence-p07-load" || value == "persistence-p05-save" || value == "persistence-p05-load" || value == "persistence-p06-load";
         internal PersistenceSaveAuthorization Authority => authority;
@@ -58,14 +58,24 @@ namespace KingmakerMountedCombat.Diagnostics
                             RuntimeRequest.IsTransitionAutoCase(request.PersistenceCase) ? "Auto" : "Manual",
                         Area = fixture.Area, InitialSha256 = fixture.Sha256, Writable = false }
                 };
+                if (request.Scenario == Chunk7OrdinaryAcquisitionSelection.Scenario)
+                    entries.Add(new PersistenceSaveEntry { FileName = Chunk7OrdinaryAcquisitionSelection.AutoLeaf,
+                        InternalName = RuntimePersistenceScenario.SlotName(SaveInfo.SaveType.Auto), SaveType = "Auto",
+                        Area = fixture.Area, Writable = true });
                 if (request.Scenario == Chunk7PersistenceScenario.SaveScenario)
                 {
                     var type = Chunk7PersistenceScenario.NativeType(request.PersistenceCase);
                     entries.Add(new PersistenceSaveEntry { FileName = Chunk7PersistenceScenario.NativeLeaf(type),
                         InternalName = Chunk7PersistenceScenario.NativeName(type), SaveType = type.ToString(), Area = request.ExpectedChunk7ArchiveArea, Writable = true });
                 }
+                var schema1Resave = request.Scenario == Chunk7PersistenceScenario.LoadScenario &&
+                    request.PersistenceCase == Chunk7PersistenceScenario.Schema1Case;
+                if (schema1Resave)
+                    entries.Add(new PersistenceSaveEntry { FileName = Chunk7PersistenceScenario.Schema1OutputLeaf,
+                        InternalName = Chunk7PersistenceScenario.Schema1OutputName, SaveType = "Manual", Area = fixture.Area, Writable = true });
                 if (request.Scenario == Chunk7PersistenceScenario.LoadScenario &&
-                    fixture.InternalName != Chunk7PersistenceScenario.NativeName(Chunk7PersistenceScenario.NativeType(request.PersistenceCase)))
+                    (schema1Resave ? fixture.InternalName != "KMC_P01" || fixture.FileName != "Manual_812_KMC_P06.zks" :
+                    fixture.InternalName != Chunk7PersistenceScenario.NativeName(Chunk7PersistenceScenario.NativeType(request.PersistenceCase))))
                     throw new InvalidOperationException("Chunk 7 cold source differs from its exact localized native category.");
                 // A transition autosave is loaded read-only; the subsequent
                 // ordinary write it must support lands in that same loaded area.
@@ -218,7 +228,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 authority = new PersistenceSaveAuthorization(runRoot, fixture.GameId, fixture.GameName,
                     request.Fixture.Baseline.Sha256, entries,
                     declaresTransfer ? fixture.Area : null,
-                    declaresTransfer ? request.PersistenceAreaTarget.Area : null);
+                    declaresTransfer ? request.PersistenceAreaTarget.Area : null, request.Scenario == Chunk7OrdinaryAcquisitionSelection.Scenario ? (int?)1 : null);
                 var areas = Path.Combine(runRoot, "Areas");
                 if (!Directory.Exists(areas) || Directory.EnumerateFileSystemEntries(areas).Any() ||
                     (File.GetAttributes(areas) & FileAttributes.ReparsePoint) != 0)

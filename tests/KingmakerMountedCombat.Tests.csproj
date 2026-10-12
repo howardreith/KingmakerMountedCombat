@@ -158,6 +158,9 @@
     <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\ModLoadSmokeObservation.cs">
       <Link>Shared\ModLoadSmokeObservation.cs</Link>
     </Compile>
+    <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\Chunk7OrdinaryAcquisitionSelection.cs">
+      <Link>Diagnostics\Chunk7OrdinaryAcquisitionSelection.cs</Link>
+    </Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\RuntimeProtocol.cs">
       <Link>Shared\RuntimeProtocol.cs</Link>
     </Compile>

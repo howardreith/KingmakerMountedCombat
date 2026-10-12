@@ -142,7 +142,7 @@ namespace KingmakerMountedCombat.Integration
             var selection = SelectionManager.Instance?.SelectedUnits;
             if (selection == null || selection.Count != 1 || selection[0] == null)
             {
-                return Record(new TransitionResult(false, coordinator.State, null, new[] { "Select exactly one Medium rider with an active supported companion." }, false, false));
+                return Record(new TransitionResult(false, coordinator.State, null, new[] { "Select exactly one supported rider with an active supported companion." }, false, false));
             }
 
             var rider = selection[0];

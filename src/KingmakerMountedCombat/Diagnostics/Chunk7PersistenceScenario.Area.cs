@@ -19,6 +19,8 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool AreaAutosaveCase => request.PersistenceCase == "multi-area-autosave";
         private string ExpectedArchiveArea => AreaAutosaveCase ? request.PersistenceAreaTarget?.Area : request.Fixture.Working.Area;
         private Player areaWorld;
+        private BlueprintArea areaDestination;
+        private bool areaTransferDispatched, areaScopeAdopted;
         private bool areaObservedSuspension, areaObserverAttached;
         private int areaLoadingTicks;
         private long areaCastBaseline, areaSnapshotBaseline;
@@ -33,6 +35,7 @@ namespace KingmakerMountedCombat.Diagnostics
         // The engine's authored transition is the sole source of the autosave.
         private void BeginAreaAutosave()
         {
+            RequireNativeWorld();
             var game = Game.Instance; var target = request.PersistenceAreaTarget;
             Require(AreaAutosaveCase && !Cold && target != null && target.AutoSaveMode == "AfterEntry" &&
                 target.Area != request.Fixture.Working.Area && game.CurrentlyLoadedArea.AssetGuidThreadSafe == request.Fixture.Working.Area,
@@ -71,7 +74,9 @@ namespace KingmakerMountedCombat.Diagnostics
             persistence.SaveSnapshotStarting += ObserveAreaAutosaveStarting;
             persistence.SaveSnapshotStaged += ObserveAreaAutosaveStaged;
             areaObserverAttached = true;
+            areaDestination = enter.Area;
             Next(30);
+            areaTransferDispatched = true;
             game.LoadArea(enter, AutoSaveMode.AfterEntry);
         }
 
@@ -89,6 +94,7 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             if (persistence.AreaResumeCount < 2 || persistence.AreaTransitionPending || NativePersistenceIsolation.HasPendingWrites ||
                 persistence.HasActiveSaveScope || persistence.HasSaveAdmissionFence) return true;
+            AdoptDeclaredAreaWorld();
             var archive = Game.Instance.SaveManager.SingleOrDefault(s => s.Type == SaveInfo.SaveType.Auto && s.Name == NativeName(SaveInfo.SaveType.Auto));
             if (archive == null || !archive.HasFileOnDisk || archive.OperationState != SaveInfo.StateType.None) return true;
             var after = CaptureAreaWorld("after-native-transfer");
@@ -126,6 +132,7 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             try
             {
+                AdoptDeclaredAreaWorld();
                 if (areaHeaderStarting != null) throw new InvalidOperationException("Area case observed a second native header start.");
                 areaHeaderStarting = CaptureAreaWorld("native-header-starting");
                 AssertOwners(); AssertAreaRestoredViews();
@@ -136,12 +143,34 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             try
             {
+                AdoptDeclaredAreaWorld();
                 if (areaHeaderStaged != null) throw new InvalidOperationException("Area case observed a second native header stage.");
                 areaHeaderStaged = CaptureAreaWorld("native-header-staged");
                 AssertOwners(); AssertAreaRestoredViews();
             }
             catch (Exception error) { areaObserverError = areaObserverError ?? error.ToString(); }
         }
+        private void AdoptDeclaredAreaWorld()
+        {
+            if (areaScopeAdopted) { RequireNativeWorld(); return; }
+            var target = request.PersistenceAreaTarget;
+            Require(AreaAutosaveCase && !Cold && stage == 30 && areaTransferDispatched && target != null &&
+                target.AutoSaveMode == "AfterEntry" && areaDestination != null &&
+                areaDestination.AssetGuidThreadSafe == target.Area && target.Area != request.Fixture.Working.Area &&
+                ReferenceEquals(areaWorld, Game.Instance?.Player) && persistence.AreaSuspensionCount == 1 &&
+                persistence.AreaResumeCount == 2 && persistence.FailedAreaPairCount == 0 &&
+                persistence.FailedSaveCount == 0 && persistence.SemanticRestoreCount == 0 && persistence.PresentationRestoreCount == 0 &&
+                controls.NativeCastRequestCount == areaCastBaseline,
+                "Native destination cannot be adopted before the exact declared all-owner area restoration.");
+            Require(nativeScope != null, "Area destination has no captured source world authority.");
+            nativeScope.RequireDeclaredAreaDestination(target.Area, areaDestination);
+            AssertOwners(); AssertSlots(); AssertAreaRestoredViews();
+            // The prior source scope is immutable. Only this explicit completed
+            // native transfer establishes the new loaded-area/main-state pins.
+            nativeScope = new Chunk7NativeWorldScope(request, actors.Concat(originalSelection), target.Area);
+            areaScopeAdopted = true;
+        }
+
         private JObject CaptureAreaWorld(string label)
         {
             var game = Game.Instance;

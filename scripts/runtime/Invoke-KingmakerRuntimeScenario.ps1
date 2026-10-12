@@ -1,7 +1,7 @@
 [CmdletBinding(SupportsShouldProcess=$true,ConfirmImpact='High')]
 param(
     [ValidateSet(
-        'chunk7-two-pair-exploration','chunk7-persistence-save','chunk7-persistence-load','chunk7-two-pair-combat-rider-first','chunk7-two-pair-combat-mount-first','chunk7-two-pair-realtime-core','chunk7-two-pair-realtime-casting','chunk7-two-pair-realtime-charge','chunk7-two-pair-native-life-cleanup',
+        'chunk7-ordinary-acquisition','chunk7-two-pair-exploration','chunk7-persistence-save','chunk7-persistence-load','chunk7-two-pair-combat-rider-first','chunk7-two-pair-combat-mount-first','chunk7-two-pair-realtime-core','chunk7-two-pair-realtime-casting','chunk7-two-pair-realtime-charge','chunk7-two-pair-native-life-cleanup',
         'mod-load-smoke','export-mounted-contracts','export-candidate-mount-rigs','observe-mount-diagnostic-availability','horse-native-asset-audit','horse-companion-blueprint-registration','horse-companion-unmounted-suite','horse-mounted-alpha-suite','horse-native-controls-ux-suite',
         'chunk6c-casting-rt','chunk6c-casting-tb','chunk6c-casting-unmounted-rt','chunk6c-casting-unmounted-tb',
         'chunk6d-staged-rt','chunk6d-staged-tb','chunk6e-reaction-rt','chunk6e-reaction-tb',
@@ -40,6 +40,7 @@ param(
     # Explicit private compatibility selection. Other modes keep the actual live
     # mod set. This mode stages KMC alone while retaining installed UMM/Harmony.
     [switch]$BaseGameOnly,
+    [string]$OrdinarySelectionPath,
     [string]$PackagePath,
     [string]$FrozenSourceRoot,
     [string]$FrozenSourceFreezePath,
@@ -53,7 +54,7 @@ param(
     # The genuine no-DLL cleanup-save observation: the removal observer package
     # (a separate minimal UMM mod) is staged in place of KMC for that one run.
     [string]$ObserverPackagePath,
-    [ValidateSet('multi-exploration-manual','multi-exploration-quick','multi-exploration-auto','multi-rt-debt-manual','multi-tb-debt-manual','zero-mounted-tb-retained-manual','legacy-mounted-pending-tb-manual','multi-area-autosave','partial-movement','rider-spent','between-partner-orders','exhausted','explicit-end','combat-mount-tb','casting-items','step','conversion','round-effect','reaction','condition','condition-preparing','suspended','manual','quick','auto','manual-renamed','alternating','queued','unmounted-spent','mounted-spent','unmounted-attack','mounted-attack','unmounted-projectile','mounted-projectile','unmounted-approach','mounted-approach','unmounted-casting','mounted-casting','mounted-casting-items','combat-mount-rt','combat-dismount-rt','mounted-charge-pending','mounted-charge-settled','mounted-charge-cancelled','mounted-charge-failed','mounted-charge-drained','legacy','schema1','future','malformed','profile','campaign','missing-rider','missing-mount','mismatched-profile','policy','combat-missing','combat-ai','timeout','cancel-wait','locked-replace','serialization-cancel','serialization-cancel-output','disable-reenable','campaign-b','prepare-removal','disable-during-load','mounted-charge-area','mounted-charge-session','mounted-charge-disable','mounted-charge-removal','absent-kmc','removal-no-dll','mounted-charge-removal-no-dll','rider-death','mount-death','rider-size-change','area-reload','area-cross-entry','area-cross-exit','area-cross-entry-auto','area-cross-exit-auto','failed-area-load','foreign-header-campaign','combat-mount-routes','combat-mount-unsettled-save','combat-mount-area-reload','pending-mount-area')][string]$PersistenceCase,
+    [ValidateSet('multi-exploration-manual','multi-exploration-quick','multi-exploration-auto','multi-rt-debt-manual','multi-tb-debt-manual','zero-mounted-tb-retained-manual','legacy-mounted-pending-tb-manual','multi-area-autosave','legacy-schema1-resave-manual','partial-movement','rider-spent','between-partner-orders','exhausted','explicit-end','combat-mount-tb','casting-items','step','conversion','round-effect','reaction','condition','condition-preparing','suspended','manual','quick','auto','manual-renamed','alternating','queued','unmounted-spent','mounted-spent','unmounted-attack','mounted-attack','unmounted-projectile','mounted-projectile','unmounted-approach','mounted-approach','unmounted-casting','mounted-casting','mounted-casting-items','combat-mount-rt','combat-dismount-rt','mounted-charge-pending','mounted-charge-settled','mounted-charge-cancelled','mounted-charge-failed','mounted-charge-drained','legacy','schema1','future','malformed','profile','campaign','missing-rider','missing-mount','mismatched-profile','policy','combat-missing','combat-ai','timeout','cancel-wait','locked-replace','serialization-cancel','serialization-cancel-output','disable-reenable','campaign-b','prepare-removal','disable-during-load','mounted-charge-area','mounted-charge-session','mounted-charge-disable','mounted-charge-removal','absent-kmc','removal-no-dll','mounted-charge-removal-no-dll','rider-death','mount-death','rider-size-change','area-reload','area-cross-entry','area-cross-exit','area-cross-entry-auto','area-cross-exit-auto','failed-area-load','foreign-header-campaign','combat-mount-routes','combat-mount-unsettled-save','combat-mount-area-reload','pending-mount-area')][string]$PersistenceCase,
     [ValidatePattern('^[0-9a-f]{32}$')][string]$PersistenceAreaEnterPoint,
     [ValidatePattern('^[0-9a-f]{32}$')][string]$PersistenceAreaTargetArea,
     [ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedPackageSha256,
@@ -88,13 +89,22 @@ Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot 'PersistenceProfileProtection.ps1')
 . (Join-Path $PSScriptRoot 'PersistenceSaveFixtures.ps1')
 . (Join-Path $PSScriptRoot 'Chunk7PersistenceSaveFixtures.ps1')
+. (Join-Path $PSScriptRoot 'Chunk7OrdinaryAcquisitionFixtures.ps1')
 . (Join-Path $PSScriptRoot 'PersistenceValidationFixtures.ps1')
+$ordinarySelectionInput=$null;$ordinaryInventorySource=$null
+if(Test-KmcChunk7OrdinaryScenario $Scenario){
+    if(-not$BaseGameOnly-or[string]::IsNullOrEmpty($OrdinarySelectionPath)){throw 'Ordinary acquisition requires explicit base-only isolation and a caller-pinned native inventory selection file.'}
+    if(-not$PSBoundParameters.ContainsKey('TimeoutSeconds')){$TimeoutSeconds=900}
+    elseif($TimeoutSeconds-ne900){throw 'Ordinary acquisition requires its declared 900-second outer native choice/worker/cleanup budget.'}
+    $ordinarySelectionInput=Read-KmcChunk7OrdinarySelectionFile $OrdinarySelectionPath $(if($RunId){$RunId}else{'unassigned-run'})
+}elseif($PSBoundParameters.ContainsKey('OrdinarySelectionPath')){throw 'Ordinary selection cannot be supplied to another native scenario.'}
 if($PSBoundParameters.ContainsKey('PersistenceCase') -and $Scenario -cnotin @('chunk7-persistence-save','chunk7-persistence-load','persistence-p07-save','persistence-p07-load','persistence-p02-save','persistence-p02-load','persistence-p03-save','persistence-p03-load','persistence-p04-save','persistence-p04-load','persistence-p05-save','persistence-p05-load','persistence-p06-load')) { throw 'PersistenceCase is restricted to the exact combat scenarios.' }
 if(((Test-KmcChunk7CombatScenario $Scenario)-or(Test-KmcChunk7RealtimeScenario $Scenario)-or(Test-KmcChunk7NativeLifeScenario $Scenario))-and-not$BaseGameOnly){throw 'Chunk 7 combat requires explicit base-only staging.'}
 if((Test-KmcChunk7PersistenceScenario $Scenario)-or(Test-KmcChunk7CombatScenario $Scenario)-or(Test-KmcChunk7RealtimeScenario $Scenario)-or(Test-KmcChunk7NativeLifeScenario $Scenario)){
     if(-not$PSBoundParameters.ContainsKey('TimeoutSeconds')){$TimeoutSeconds=600}
     elseif($TimeoutSeconds-lt600){throw 'Selected Chunk 7 native scenarios require the declared 600-second outer worker/cleanup budget.'}
 }
+if($PersistenceCase-ceq'legacy-schema1-resave-manual'-and$Scenario-cne'chunk7-persistence-load'){throw 'Schema-1 native resave is load-only.'}
 if(Test-KmcChunk7PersistenceScenario $Scenario){
     if(-not$BaseGameOnly-or$PersistenceCase-cnotin(Get-KmcChunk7PersistenceCases)){throw 'Chunk 7 persistence requires explicit base-only staging and one declared native case.'}
     if($Scenario-ceq'chunk7-persistence-load'-and([string]::IsNullOrEmpty($PersistenceSourceRunId)-or[string]::IsNullOrEmpty($ExpectedPersistenceSourceSha256))){throw 'Chunk 7 cold load requires its exact completed source run and archive hash.'}
@@ -243,6 +253,9 @@ if($isSaveBacked){
     $preflightPair=$preflightContinuity.pair
     $fixturePayload=New-KmcRuntimeFixturePayload $preflightPair -ReadOnly:$isManualReview
 }
+if(Test-KmcChunk7OrdinaryScenario $Scenario){
+    $ordinaryInventorySource=Get-KmcChunk7OrdinaryInventorySource $ordinarySelectionInput.selection $fixturePayload $manifest
+}
 $beforeMods=Get-KmcDirectoryManifest $liveMods
 $beforeSaves=Get-KmcSaveMetadataInventory $saveRoot
 if($isSaveBacked){
@@ -374,6 +387,7 @@ try{
         transactionToken=[string]$lock.Token
         evidenceRoot=$evidenceRoot
     }
+    if(Test-KmcChunk7OrdinaryScenario $Scenario){$request['ordinaryAcquisition']=$ordinarySelectionInput.selection}
     if($PSBoundParameters.ContainsKey('PersistenceCase')) { $request['persistenceCase']=$PersistenceCase }
     if($PersistenceCase-ceq'multi-area-autosave'-or$PersistenceCase-cin @('area-cross-entry','area-cross-exit','area-cross-entry-auto','area-cross-exit-auto')){
         $request['persistenceAreaTarget']=[ordered]@{
@@ -407,8 +421,15 @@ try{
             -After $lockedContinuity.saveMetadata `
             -Description 'runtime locked fixture-continuity save metadata'
     }
+    if(Test-KmcChunk7OrdinaryScenario $Scenario){
+        $currentSelection=Read-KmcChunk7OrdinarySelectionFile $ordinarySelectionInput.path $actualRunId
+        if($currentSelection.sha256-cne$ordinarySelectionInput.sha256){throw 'Explicit ordinary native selection changed before locked admission.'}
+        $currentInventory=Get-KmcChunk7OrdinaryInventorySource $request.ordinaryAcquisition $fixturePayload $manifest
+        if($currentInventory.sha256-cne$ordinaryInventorySource.sha256-or$currentInventory.path-cne$ordinaryInventorySource.path){throw 'Ordinary native source changed before locked admission.'}
+        $ordinaryInventorySource=$currentInventory
+    }
     # Snapshot only after the under-lock fixture and save-metadata proof.
-    if($BaseGameOnly-or$Scenario -cin @('chunk7-persistence-save','chunk7-persistence-load','persistence-isolation','persistence-p07-save','persistence-p07-load','persistence-p01-save','persistence-p01-load','persistence-p02-save','persistence-p02-load','persistence-p03-save','persistence-p03-load','persistence-p04-save','persistence-p04-load','persistence-p05-save','persistence-p05-load','persistence-p06-load')){
+    if($BaseGameOnly-or$Scenario -cin @('chunk7-ordinary-acquisition','chunk7-persistence-save','chunk7-persistence-load','persistence-isolation','persistence-p07-save','persistence-p07-load','persistence-p01-save','persistence-p01-load','persistence-p02-save','persistence-p02-load','persistence-p03-save','persistence-p03-load','persistence-p04-save','persistence-p04-load','persistence-p05-save','persistence-p05-load','persistence-p06-load')){
         $profileSnapshot=New-KmcPersistenceProfileSnapshot -Lock $lock -SaveRoot $saveRoot -GameRoot ([string]$intake.requestedLayout.kingmakerInstallDir) -BackupRoot $runtimeBackups
     }
     # The no-save mode must bind NO suite argument, not an empty one: the
@@ -433,7 +454,7 @@ try{
             -After (Get-KmcSaveMetadataInventory $saveRoot) `
             -Description 'runtime immediate pre-save-transaction metadata'
         [void](Enter-KmcWorkingSaveTransaction -Lock $lock -Pair $lockedPair -SaveRoot $saveRoot -StateRoot $runtimeState -BackupRoot $runtimeBackups -StagingRoot $runtimeStaging -Scenario $Scenario)
-        if($Scenario -cin @('chunk7-persistence-save','chunk7-persistence-load','persistence-isolation','persistence-p07-save','persistence-p07-load','persistence-p01-save','persistence-p01-load','persistence-p02-save','persistence-p02-load','persistence-p03-save','persistence-p03-load','persistence-p04-save','persistence-p04-load','persistence-p05-save','persistence-p05-load','persistence-p06-load')){
+        if($Scenario -cin @('chunk7-ordinary-acquisition','chunk7-persistence-save','chunk7-persistence-load','persistence-isolation','persistence-p07-save','persistence-p07-load','persistence-p01-save','persistence-p01-load','persistence-p02-save','persistence-p02-load','persistence-p03-save','persistence-p03-load','persistence-p04-save','persistence-p04-load','persistence-p05-save','persistence-p05-load','persistence-p06-load')){
             $profileRoot=Assert-KmcChildPath (Join-Path $runtimeStaging ('persistence-'+$actualRunId)) $runtimeStaging 'owned persistence profile'
             if(Test-Path -LiteralPath $profileRoot){throw 'Persistence profile already exists; refusing ambiguous ownership.'}
             [void][IO.Directory]::CreateDirectory($profileRoot)
@@ -444,7 +465,9 @@ try{
             $copyDescriptor=$fixturePayload.working
             if($Scenario -cin @('chunk7-persistence-load','persistence-p07-load','persistence-p01-load','persistence-p02-load','persistence-p03-load','persistence-p04-load','persistence-p05-load','persistence-p06-load')){
                 $sourceCase=if($Scenario-ceq'persistence-p07-load'){$PersistenceCase}elseif($Scenario-ceq'persistence-p05-load'){if($PersistenceCase-ceq'manual-renamed'){'manual'}else{$PersistenceCase}}elseif($Scenario-ceq'persistence-p04-load'-or($Scenario-ceq'persistence-p03-load'-and$PersistenceCase-cin @('condition','condition-preparing','suspended'))){$PersistenceCase}else{$null}
-                $source=if($Scenario-ceq'chunk7-persistence-load'){
+                $source=if($Scenario-ceq'chunk7-persistence-load'-and$PersistenceCase-ceq'legacy-schema1-resave-manual'){
+                    New-KmcChunk7Schema1Input $PersistenceSourceRunId $ExpectedPersistenceSourceSha256 $fixturePayload
+                }elseif($Scenario-ceq'chunk7-persistence-load'){
                     Get-KmcChunk7PersistenceSource -SourceRunId $PersistenceSourceRunId -ExpectedSha256 $ExpectedPersistenceSourceSha256 -Fixture $fixturePayload -Case $PersistenceCase -ExpectedDllSha256 $request.dllSha256 -ExpectedCommit $request.commit -AreaTarget $(if($PersistenceCase-ceq'multi-area-autosave'){$request.persistenceAreaTarget}else{$null})
                 }elseif($Scenario-ceq'persistence-p06-load'){
                     Get-KmcPersistenceValidationSource $PersistenceSourceRunId $ExpectedPersistenceSourceSha256 $fixturePayload -Case $PersistenceCase
@@ -487,6 +510,12 @@ try{
                 }
                 if($Scenario-ceq'persistence-p06-load'){$copyDescriptor.fileName='Manual_300_KMC_P01.zks'}
                 $request['persistenceLoad']=$copyDescriptor
+                if($Scenario-ceq'chunk7-persistence-load'-and$PersistenceCase-ceq'legacy-schema1-resave-manual'){
+                    $receiptPath=Join-Path $profileRoot 'validation-copy.json'
+                    Copy-Item -LiteralPath $source.receiptPath -Destination $receiptPath
+                    if((Get-KmcSha256 $receiptPath)-cne$source.receiptSha256){throw 'Schema-1 derivative provenance changed during staging.'}
+                    $request['schema1DerivationSha256']=$source.receiptSha256
+                }
                 if($Scenario-ceq'persistence-p06-load'){
                     # Only the post-disposal failure case derives from the native
                     # area member; every other variant stays metadata-only.
@@ -525,6 +554,9 @@ try{
                 runId=$actualRunId;transactionToken=[string]$lock.Token;scenario=$Scenario;persistenceCase=$PersistenceCase
                 sourceSha256=[string]$copyDescriptor.sha256;saveRoot=$isolatedSaves
             })
+            if(Test-KmcChunk7OrdinaryScenario $Scenario){
+                [void](Copy-KmcChunk7OrdinaryInventory $ordinaryInventorySource $profileRoot $lock)
+            }
         }
 
     }
@@ -708,6 +740,10 @@ try{
             Assert-KmcBaseGameNativeInventory $request $inventory $baseGameDependencies
             $baseGameNativeInventoryObserved=$true
             $baseGameNativeInventorySha256=Get-KmcSha256 (Join-Path $evidenceRoot 'runtime-loader-inventory.json')
+        }
+        if($gamePassed-and(Test-KmcChunk7OrdinaryScenario $Scenario)){
+            $ordinaryArtifact=Read-KmcChunk7ManifestArtifact $request (Read-KmcJson (Join-Path $evidenceRoot 'runtime-artifacts.json')) 'chunk7-ordinary-acquisition-evidence.json' 'chunk7-ordinary-acquisition-evidence'
+            Assert-KmcChunk7OrdinaryNativeArchive $request $ordinaryArtifact
         }
         if($gamePassed-and$Scenario-ceq'chunk7-persistence-load'){
             $coldArtifact=Read-KmcChunk7ManifestArtifact $request (Read-KmcJson (Join-Path $evidenceRoot 'runtime-artifacts.json')) 'chunk7-persistence-evidence.json' 'chunk7-persistence-evidence'

@@ -51,6 +51,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private readonly Dictionary<UnitEntityData, int> initiativeBefore = new Dictionary<UnitEntityData, int>();
         private UnitEntityData ar, am, br, bm, target;
         private UnitEntityData[] originalParty, actors, selectionBefore;
+        private Chunk7NativeWorldScope nativeScope;
         private MountedPairServices a, b, actingPair;
         private Feature horseFeature, rankFeature;
         private ScopedDiagnosticAiLease<UnitEntityData> firstPairAi;
@@ -99,6 +100,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     "Combat fixture requires a settled unmounted world.");
                 Require(!settings.EnableUnifiedMountedTurn && !settings.EnablePairedCommandScheduler && !settings.EnableDiagnosticOverlay,
                     "Unsupported legacy or overlay authority is enabled.");
+                nativeScope = new Chunk7NativeWorldScope(request, originalParty);
                 selectionBefore = SelectionManager.Instance.SelectedUnits.ToArray(); pauseBefore = Game.Instance.IsPaused;
                 pairedBefore = settings.EnablePairedActivation; movementBefore = settings.EnableUnsafeMovementExperiment;
                 chargeBefore = settings.EnableMountedCharge; captured = true;
@@ -124,6 +126,7 @@ namespace KingmakerMountedCombat.Diagnostics
             try
             {
                 if (cleanupStarted) { PollCleanup(); return; }
+                nativeScope.RequireCurrent();
                 if (checkpointReady) return;
                 Require(clock.Elapsed.TotalSeconds <= 420 && clock.Elapsed.TotalSeconds - stepStarted <= 60,
                     "Bounded combat scenario deadline at step " + step + ", action " + actionStage + ".");
@@ -138,7 +141,7 @@ namespace KingmakerMountedCombat.Diagnostics
                         var acquisition = new JObject(); evidence["acquisition"] = acquisition;
                         bool acquired;
                         try { acquired = NativeHorseFixtureAcquisition.Create(br, horses, logger, acquisition); }
-                        finally { horseFeature = br.Descriptor.GetFact(horses.HorseFeature) as Feature; rankFeature = br.Descriptor.GetFact(horses.LevelRank) as Feature; bm = br.Descriptor.Pet; }
+                        finally { horseFeature = br.Descriptor.GetFact(horses.HorseFeature) as Feature; rankFeature = br.Descriptor.GetFact(horses.LevelRank) as Feature; bm = br.Descriptor.Pet; nativeScope.Track(bm); }
                         Require(acquired, "Exact native Ranger option acquisition failed."); Next(2); break;
                     case 2:
                         if (!Chunk7NativeFixture.Idle(bm)) return;
@@ -232,6 +235,7 @@ namespace KingmakerMountedCombat.Diagnostics
             trace.BeginEncounter(request.RunId + ":two-pair-combat");
             targetService = new DiagnosticCombatTargetService(logger, true);
             target = targetService.Spawn(ar, am, am.Position + Vector3.forward * (request.Scenario == RealtimeCharge ? 8f : 3.5f), request.RunId + ":two-pair-target", true, !checkpointOnly, checkpointOnly);
+            nativeScope.Track(target);
             Require(targetService.PrepareForPlayerClick(target) && targetService.QueueBidirectionalCombatMemory(ar, target),
                 "Native diagnostic target placement/visibility/combat memory was refused.");
             evidence["targetId"] = target.UniqueId; evidence["targetGroupId"] = target.Group.Id;
@@ -357,6 +361,7 @@ namespace KingmakerMountedCombat.Diagnostics
         }
         private void ApplyRoundOrderedCleanup(CombatController controller)
         {
+            nativeScope.RequireCurrent();
             if (r1Injected || controller.RoundNumber <= splitRound) return;
             Require(controller.RoundNumber == splitRound + 1 && a.Relationship.PairOwner != null,
                 "R1 callback missed the retained native N+1 pre-selection boundary.");

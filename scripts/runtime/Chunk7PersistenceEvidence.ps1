@@ -37,11 +37,12 @@ function Assert-KmcChunk7NativeCounters($Value,[string[]]$Fields) {
 }
 . (Join-Path $PSScriptRoot 'Chunk7CombatPersistenceEvidence.ps1')
 . (Join-Path $PSScriptRoot 'Chunk7AreaPersistenceEvidence.ps1')
-function Get-KmcChunk7PersistenceCases { @('multi-exploration-manual','multi-exploration-quick','multi-exploration-auto','multi-rt-debt-manual','multi-tb-debt-manual','zero-mounted-tb-retained-manual','legacy-mounted-pending-tb-manual','multi-area-autosave') }
+. (Join-Path $PSScriptRoot 'Chunk7Schema1PersistenceEvidence.ps1')
+function Get-KmcChunk7PersistenceCases { @('multi-exploration-manual','multi-exploration-quick','multi-exploration-auto','multi-rt-debt-manual','multi-tb-debt-manual','zero-mounted-tb-retained-manual','legacy-mounted-pending-tb-manual','multi-area-autosave','legacy-schema1-resave-manual') }
 function Test-KmcChunk7PersistenceScenario([string]$Scenario) { $Scenario -cin @('chunk7-persistence-save','chunk7-persistence-load') }
 function Get-KmcChunk7PersistenceRows {
     @('chunk7-persistence-save','chunk7-persistence-load','C7-persistence-two-native-mounts','C7-persistence-native-category-all-pair-archive',
-      'C7-persistence-cold-all-pair-identity-and-no-prepare','C7-persistence-native-continuation','C7-persistence-all-pair-area-before-autosave','C7-persistence-one-native-mount-legacy-source','C7-persistence-native-combat-continuation','C7-persistence-cleanup','C7-persistence-runtime','C7-persistence-interrupted')
+      'C7-persistence-cold-all-pair-identity-and-no-prepare','C7-persistence-schema1-native-restoration','C7-persistence-schema1-native-resave','C7-persistence-native-continuation','C7-persistence-all-pair-area-before-autosave','C7-persistence-one-native-mount-legacy-source','C7-persistence-native-combat-continuation','C7-persistence-cleanup','C7-persistence-runtime','C7-persistence-interrupted')
 }
 function Get-KmcChunk7PersistenceType([string]$Case) {
     if($Case-cnotin(Get-KmcChunk7PersistenceCases)){throw 'Undeclared Chunk 7 native persistence case.'}
@@ -51,6 +52,7 @@ function Get-KmcChunk7PersistenceType([string]$Case) {
 }
 function Get-KmcChunk7PersistenceLeaf([string]$Case) {
     $type=Get-KmcChunk7PersistenceType $Case
+    if($Case-ceq'legacy-schema1-resave-manual'){return 'Manual_813_KMC_C7_SCHEMA1.zks'}
     if($type-ceq'Manual'){return 'Manual_300_KMC_C7_WORLD.zks'}
     return ($type+'_1.zks')
 }
@@ -144,6 +146,7 @@ function Assert-KmcChunk7PersistenceObservation($Request,$Artifact,[string]$Stat
     Assert-KmcChunk7ArtifactEnvelope $Request $Artifact 'chunk7-persistence-evidence'
     Assert-KmcChunk7NativeCounters $Artifact @('schemaVersion')
     if($Status-cne'PASS'){return}
+    if($Request.persistenceCase-ceq'legacy-schema1-resave-manual'){Assert-KmcChunk7Schema1Observation $Request $Artifact;return}
     if(Test-KmcChunk7CombatPersistenceCase $Request.persistenceCase){Assert-KmcChunk7CombatPersistenceObservation $Request $Artifact;return}
     if($Artifact.status-cne'PASS'){throw 'Native persistence artifact failed.'}
     $o=$Artifact.observations;$cold=$Request.scenario-ceq'chunk7-persistence-load'
@@ -246,7 +249,7 @@ function Assert-KmcChunk7PersistenceArtifact($Request,$Manifest,[string]$Status=
     if($present.Count-eq0-and$Status-cne'PASS'){return}
     $artifact=Read-KmcChunk7ManifestArtifact $Request $Manifest 'chunk7-persistence-evidence.json' 'chunk7-persistence-evidence'
     Assert-KmcChunk7PersistenceObservation $Request $artifact $Status
-    if($Status-ceq'PASS'-and$Request.scenario-ceq'chunk7-persistence-save') {
+    if($Status-ceq'PASS'-and($Request.scenario-ceq'chunk7-persistence-save'-or($Request.scenario-ceq'chunk7-persistence-load'-and$Request.persistenceCase-ceq'legacy-schema1-resave-manual'))) {
         $w=$artifact.observations.nativeWrite
         $path=Join-Path (Get-KmcLabRoot) ('runtime-staging/persistence-'+$Request.runId+'/Saved Games/'+(Get-KmcChunk7PersistenceLeaf $Request.persistenceCase))
         if($w.path-cne$path){throw 'Native save escaped its declared isolated profile leaf.'}
@@ -260,7 +263,9 @@ function Assert-KmcChunk7PersistenceLoadDescriptor($Request) {
     $d=$Request.persistenceLoad
     Assert-KmcExactProperties $d @('internalName','fileName','sha256','length','lastWriteTimeUtcTicks','gameId','gameName','area') 'Chunk 7 cold native archive descriptor'
     $type=Get-KmcChunk7PersistenceType $Request.persistenceCase;$leaf=Get-KmcChunk7PersistenceLeaf $Request.persistenceCase
-    $nameOk=if($type-ceq'Manual'){$d.internalName-ceq'KMC_C7_WORLD'}else{$d.internalName-is[string]-and$d.internalName.Length-gt0-and$d.internalName.Length-le256-and$d.internalName-cnotmatch'[\x00-\x1f\x7f]'}
+    $schema1=$Request.persistenceCase-ceq'legacy-schema1-resave-manual'
+    if($schema1){Assert-KmcChunk7Schema1Request $Request;$leaf='Manual_812_KMC_P06.zks'}
+    $nameOk=if($schema1){$d.internalName-ceq'KMC_P01'}elseif($type-ceq'Manual'){$d.internalName-ceq'KMC_C7_WORLD'}else{$d.internalName-is[string]-and$d.internalName.Length-gt0-and$d.internalName.Length-le256-and$d.internalName-cnotmatch'[\x00-\x1f\x7f]'}
     if(-not$nameOk-or$d.fileName-cne$leaf-or$d.sha256-cnotmatch'^[0-9a-f]{64}$'-or$d.sha256-ceq$Request.fixture.baseline.sha256-or
        -not(Test-KmcExactJsonInteger $d.length)-or$d.length-le0-or$d.length-gt256MB-or-not(Test-KmcExactJsonInteger $d.lastWriteTimeUtcTicks)-or
        $d.lastWriteTimeUtcTicks-le0-or$d.lastWriteTimeUtcTicks-gt[DateTime]::MaxValue.Ticks){throw 'Chunk 7 cold archive identity is invalid.'}
