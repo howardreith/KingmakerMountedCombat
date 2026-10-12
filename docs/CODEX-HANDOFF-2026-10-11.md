@@ -1,3 +1,10 @@
+> Current qualification: the owner subsequently authorized final execution, and
+> the unchanged preview.211 campaign, both completion ledgers and final FULL passed.
+> See [the engineering closeout](CHUNK6-ENGINEERING-CLOSEOUT-2026-10-11.md).
+> The record below is historical: its assumed outcomes and original failures
+> remain unchanged. Its old next-command recipes are not an active assignment.
+> Human acceptance remains pending; the October 11 focused policy still governs.
+
 > Current owner directive, October 11, 2026: docs/VALIDATION-POLICY.md governs
 > validation frequency. The campaign below remains pending final qualification,
 > not this workflow repair's first task or a requirement for ordinary review.
