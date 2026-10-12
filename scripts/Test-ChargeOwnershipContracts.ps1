@@ -96,12 +96,38 @@ public static class ChargeOwnershipProbe {
    Set(a,"mountedPairGeneration",2L);
    Check(!(bool)Call(a,"IsCurrentPairOwner",first),"compiled delayed command refuses the replacement generation");
   }
+  static void ProbeRetainedSplit(Assembly mod, Assembly native) {
+   var unitType=native.GetType("Kingmaker.EntitySystem.Entities.UnitEntityData",true);
+   var turnType=native.GetType("TurnBased.Controllers.TurnController",true);
+   var coordinatorType=mod.GetType("KingmakerMountedCombat.Integration.UnifiedMountedTurnCoordinator",true);
+   var activationType=mod.GetType("KingmakerMountedCombat.Domain.PairedActivation"+(char)96+"2",true).MakeGenericType(unitType,turnType);
+   var settings=Activator.CreateInstance(mod.GetTypes().Single(t=>t.Name=="DiagnosticSettings"));
+   settings.GetType().GetProperty("EnablePairedActivation",F).SetValue(settings,true,null);
+   var logger=new LoggerProxy(mod.GetType("KingmakerMountedCombat.Logging.IModLogger",true)).GetTransparentProxy();
+   Func<object> coordinator=()=>{var value=Blank(coordinatorType);Set(value,"settings",settings);Set(value,"logger",logger);
+    Set(value,"activation",Activator.CreateInstance(activationType,new[]{Blank(unitType),Blank(unitType)}));return value;};
+   var a=coordinator();var b=coordinator();
+   var trigger=mod.GetType("KingmakerMountedCombat.Domain.CleanupTrigger",true);
+   Call(a,"SplitPairedActivationAtRound",Enum.Parse(trigger,"Manual"),7);
+   Check((int)Get(a,"splitReleaseRound")==7&&(bool)Call(Get(a,"activation"),"get_Split"),
+    "R1 first dismount retains participation through its observed native round");
+   // External engine boundary: round N+1 is observed before expiry refresh,
+   // then the retained actor's incapacity cleanup reaches the same split owner.
+   Call(a,"SplitPairedActivationAtRound",Enum.Parse(trigger,"Incapacitated"),8);
+   Check((int)Get(a,"splitReleaseRound")==7,
+    "R1 repeated detached cleanup must not restart the split-release round after native advance");
+   Check(!(bool)Call(Get(b,"activation"),"get_Split"),"R1 cleanup preserves unrelated pair participation");
+   Check(8>(int)Get(a,"splitReleaseRound"),"R1 former mount has passed its independent-turn exclusion boundary");
+   Call(a,"SplitPairedActivationAtRound",Enum.Parse(trigger,"Exception"),8);
+   Check((int)Get(a,"splitReleaseRound")==7,"R1 cleanup retry also preserves the original release boundary");
+  }
  public static void Run(string managed,string dll){
   AppDomain.CurrentDomain.AssemblyResolve+=(s,a)=>{
    var leaf=new AssemblyName(a.Name).Name+".dll";
    foreach(var root in new[]{managed,Path.Combine(managed,"UnityModManager")}){var path=Path.Combine(root,leaf);if(File.Exists(path))return Assembly.LoadFrom(path);}return null;
   };
   var native=Assembly.LoadFrom(Path.Combine(managed,"Assembly-CSharp.dll"));var mod=Assembly.LoadFrom(dll);
+  ProbeRetainedSplit(mod,native);
   ProbePairOwnership(mod,native);
   Check(native.ManifestModule.ModuleVersionId.ToString()=="07fa1e4d-8618-41b3-9b8d-faa17d3b26f7","pinned native MVID");
   var controlsType=mod.GetType("KingmakerMountedCombat.Integration.NativeMountedControlService",true);
