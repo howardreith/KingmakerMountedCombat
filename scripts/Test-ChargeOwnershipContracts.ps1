@@ -75,8 +75,8 @@ public static class ChargeOwnershipProbe {
     "compiled service readiness observes the other owner without a second native save operation");
    var nativeCapacity=(int)serviceType.GetField("NativePairCapacity",F).GetRawConstantValue();
    var denied=new object[]{world,campaign,actor(),actor(),1L,b, new Func<bool>(()=>false),new Func<bool>(()=>true),new Func<bool>(()=>true),null,null,nativeCapacity,null};
-   Check(nativeCapacity==1&&!(bool)Call(registry,"TryReserve",denied)&&denied[9]==null,
-    "compiled native adapter capacity refuses another reservation without native mutation");
+   Check(nativeCapacity==2&&!(bool)Call(registry,"TryReserve",denied)&&denied[9]==null,
+    "compiled two-pair native adapter refuses a third reservation without native mutation");
    var cleanupEvent=serviceType.GetEvent("Dismounting",F);var trigger=cleanupEvent.EventHandlerType.GetGenericArguments()[0];
    var visited=0;var fail=true;
    var failing=new Callback{Action=()=>{if(fail)throw new InvalidOperationException("external subscriber failed");}};
