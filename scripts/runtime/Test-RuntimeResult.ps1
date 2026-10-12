@@ -69,6 +69,7 @@ function Assert-SubscenarioResults {
     )
     $missionScenarios += @(Get-KmcPhase3dHorseRuntimeRows)
     $missionScenarios += @(Get-KmcChunk7NativeBootstrapRows)
+    $missionScenarios += @(Get-KmcChunk7BootstrapInventoryRows)
     $missionScenarios += @(Get-KmcChunk7SmallRows)
     $missionScenarios += @(Get-KmcChunk7ProgressionRows)
     $missionScenarios += @(Get-KmcChunk7FieldRows)
@@ -176,6 +177,7 @@ Assert-KmcHorseCompanionUnmountedEvidence -Request $request -Manifest $validated
 Assert-KmcPersistenceScenarioEvidence -Request $request -Manifest $validatedArtifactManifest -Status ([string]$result.status) -GameResult $gameEvidence
 Assert-KmcNativeMammothArtifact -Request $request -Manifest $validatedArtifactManifest -Status ([string]$result.status)
 Assert-KmcChunk7NativeBootstrapArtifact -Request $request -Manifest $validatedArtifactManifest -Status ([string]$result.status)
+Assert-KmcChunk7BootstrapInventoryArtifact -Request $request -Manifest $validatedArtifactManifest -Status ([string]$result.status)
 Assert-KmcChunk7SmallArtifact -Request $request -Manifest $validatedArtifactManifest -Status ([string]$result.status)
 Assert-KmcChunk7ProgressionArtifact -Request $request -Manifest $validatedArtifactManifest -Status ([string]$result.status)
 Assert-KmcChunk7FieldArtifact -Request $request -Manifest $validatedArtifactManifest -Status ([string]$result.status)

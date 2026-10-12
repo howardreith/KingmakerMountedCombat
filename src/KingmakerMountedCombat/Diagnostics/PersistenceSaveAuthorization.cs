@@ -150,6 +150,11 @@ namespace KingmakerMountedCombat.Diagnostics
             }
         }
 
+        // The closed native-bootstrap output uses the same neutral read-only
+        // Auto_1 authority shape; provenance is admitted by its request/source
+        // qualifier and observed native load, never by this predicate or decode.
+        internal bool MatchesReadOnlyBootstrapInventoryPlan(RuntimeSaveDescriptor source) => MatchesReadOnlyFieldPlan(source);
+
         // Closed pre-fixture bootstrap: Working is only an immutable authorization
         // anchor. No LoadGame/LoadRoutine is eligible; only the authored first
         // autosave may create a new native campaign in this exact run root.

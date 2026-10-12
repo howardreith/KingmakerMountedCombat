@@ -55,7 +55,7 @@ function Assert-KmcChunk7Resources($Before,$After,[string[]]$ActorIds) {
             if(-not(Test-KmcChunk7FiniteNumber $a.$field)-or-not(Test-KmcChunk7FiniteNumber $b.$field)){throw 'Native action window requires finite JSON numbers.'}
             $x=[double]$a.$field; $y=[double]$b.$field
             if([double]::IsNaN($x)-or[double]::IsInfinity($x)-or[double]::IsNaN($y)-or[double]::IsInfinity($y)-or$x-lt0-or$y-lt0-or
-                [Math]::Abs($y-[Math]::Max(0,$x-$elapsed))-gt0.03){throw 'Exploration control changed native action spending.'}
+                [Math]::Abs($y-[Math]::Max([double]0,($x-$elapsed)))-gt0.03){throw 'Exploration control changed native action spending.'}
         }
         foreach($field in @('initiative','reactionAllowance')){Assert-KmcChunk7WorldInt32 $a.$field;Assert-KmcChunk7WorldInt32 $b.$field}
         if($a.reactionAllowance-ne$b.reactionAllowance){throw 'Exploration changed native reaction expenditure.'}

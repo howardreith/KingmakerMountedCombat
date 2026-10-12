@@ -39,6 +39,28 @@ namespace KingmakerMountedCombat.Diagnostics
         private TurnController foundationTurn;
         private Vector3 foundationEntryOrigin;
 
+        // FoundationObservation is also nested in the ordinary TB/RT observations and
+        // invalid-combat retry. The host admits these exact consumers before native load,
+        // because the scenario object itself is constructed only after fixture verification.
+        internal static bool ConsumesPersistenceWorldDiscard(RuntimeRequest selected)
+        {
+            if (selected == null) return false;
+            var scenario = selected.Scenario;
+            return scenario == "persistence-p02-save" || scenario == "persistence-p02-load" ||
+                scenario == "persistence-p03-save" || scenario == "persistence-p03-load" ||
+                scenario == "persistence-p04-save" || scenario == "persistence-p04-load" ||
+                scenario == "persistence-p06-load" && IsCombatValidation(selected.PersistenceCase) ||
+                scenario == "persistence-p07-save" && RuntimeRequest.IsChargeLifecycleCase(selected.PersistenceCase);
+        }
+
+        internal bool CanObservePersistenceWorldDiscard(MountedPairTurnParticipant participant)
+        {
+            return !disposed && !Completed && ConsumesPersistenceWorldDiscard(request) &&
+                participant != null && !participant.IsDisposed &&
+                ReferenceEquals(participant, combat?.TurnParticipant) &&
+                ReferenceEquals(participant.Relationship, relationship);
+        }
+
         private JObject FoundationObservation()
         {
             var ledger = controls.RelationshipTransitionLedger;

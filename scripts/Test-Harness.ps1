@@ -10046,8 +10046,13 @@ try {
         Assert-Test ($patchSource.Contains('PatchExact(typeof(UnitCombatCooldownsController), "TickOnUnit", 0x0600934A') -and
             $patchSource.Contains('nameof(PatchMethods.CombatCooldownPrefix), nameof(PatchMethods.CombatCooldownPostfix)') -and
             $patchSource.Contains('RuntimeAutomationHost.ObserveCombatCooldownTick(') -and
-            $automationHostSource.Contains('active?.combatEngine?.ObserveCombatCooldownTick(') -and
-            $combatEngineSource.Contains('step != CombatEngineStep.AwaitCombatFrame || unit == null || unit != AttackActor') -and
+            $patchSource.Contains('RuntimeAutomationHost.GetCombatCooldownConsumer(unit)') -and
+            $patchSource.Contains('RuntimeAutomationHost.IsCurrentCombatCooldownConsumer(__state.Consumer, unit)') -and
+            $patchSource.Contains('ReferenceEquals(unit, __state.Unit)') -and
+            $automationHostSource.Contains('ReferenceEquals(consumer, GetCombatCooldownConsumer(unit))') -and
+            $automationHostSource.Contains('host == null || host.disposed || host.completed') -and
+            $combatEngineSource.Contains('!disposed && !completed && step == CombatEngineStep.AwaitCombatFrame') -and
+            $combatEngineSource.Contains('unit != null && unit == AttackActor') -and
             $combatEngineSource.Contains('initiativeTickObservation.Observe(') -and
             -not $patchSource.Contains('Cooldown.Initiative =')) `
             'initiative diagnosis does not remain an exact actor-scoped observation-only native cooldown probe'

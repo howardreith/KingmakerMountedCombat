@@ -88,6 +88,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private Chunk7OrdinaryFieldScenario ordinaryFieldEngine;
         private Chunk7SmallCalibrationScenario smallCalibrationEngine;
         private Chunk7NativeBootstrapScenario nativeBootstrapEngine;
+        private Chunk7BootstrapInventoryScenario bootstrapInventoryEngine;
         private Chunk7ProgressionScenario progressionEngine;
         private Chunk7WorldScenarioEngine worldEngine;
         private Chunk7PersistenceScenario worldPersistenceEngine;
@@ -110,6 +111,7 @@ namespace KingmakerMountedCombat.Diagnostics
             // The mod-load smoke is observational and asserts that no overlay object
             // exists, so it must never be the reason one is created.
             request.Scenario != ModLoadSmokePolicy.ScenarioId &&
+            !Chunk7BootstrapInventoryScenario.SupportsScenario(request.Scenario) &&
             !Chunk7SmallCalibrationScenario.SupportsScenario(request.Scenario) &&
             !Chunk7ProgressionScenario.SupportsScenario(request.Scenario) &&
             !Chunk7OrdinaryFieldScenario.SupportsScenario(request.Scenario) &&
@@ -325,7 +327,37 @@ namespace KingmakerMountedCombat.Diagnostics
             if (active != null) { active.loadRequestCount++; }
         }
 
+        internal static bool ShouldCapturePersistenceWorldDiscard(MountedPairTurnParticipant participant)
+        {
+            var host = active;
+            if (host == null || host.disposed || host.completed || participant == null || participant.IsDisposed ||
+                !ReferenceEquals(participant, host.combat.TurnParticipant) ||
+                !ReferenceEquals(participant.Relationship, host.relationship)) return false;
+            // Initial cold-load discards precede construction of the legacy scenario. Its
+            // selected request and exact future participant are already owned by this host.
+            if (host.persistenceEngine == null)
+                return !host.completionStarted && RuntimePersistenceScenario.ConsumesPersistenceWorldDiscard(host.request);
+            return host.persistenceEngine.CanObservePersistenceWorldDiscard(participant);
+        }
+
+        internal static RuntimeCombatScenarioEngine GetCombatCooldownConsumer(
+            Kingmaker.EntitySystem.Entities.UnitEntityData unit)
+        {
+            var host = active;
+            if (host == null || host.disposed || host.completed) return null;
+            var consumer = host.combatEngine;
+            return consumer != null && consumer.CanObserveCombatCooldownTick(unit) ? consumer : null;
+        }
+
+        internal static bool IsCurrentCombatCooldownConsumer(
+            RuntimeCombatScenarioEngine consumer,
+            Kingmaker.EntitySystem.Entities.UnitEntityData unit)
+        {
+            return consumer != null && ReferenceEquals(consumer, GetCombatCooldownConsumer(unit));
+        }
+
         internal static void ObserveCombatCooldownTick(
+            RuntimeCombatScenarioEngine consumer,
             Kingmaker.EntitySystem.Entities.UnitEntityData unit,
             float prefixInitiative,
             float postfixInitiative,
@@ -334,7 +366,8 @@ namespace KingmakerMountedCombat.Diagnostics
             bool inCombat,
             bool awake)
         {
-            active?.combatEngine?.ObserveCombatCooldownTick(
+            if (!IsCurrentCombatCooldownConsumer(consumer, unit)) return;
+            consumer.ObserveCombatCooldownTick(
                 unit,
                 prefixInitiative,
                 postfixInitiative,
@@ -542,6 +575,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     request.Scenario == Phase3dHorseScenarioTranche.OrdinaryAttackControlsScenario
                         ? Phase3dHorseScenarioTranche.OrdinaryScenarioDeadlineSeconds : 0.0);
                 if (Chunk7NativeBootstrapScenario.SupportsScenario(request.Scenario)) hostDeadline = 420.0;
+                if (Chunk7BootstrapInventoryScenario.SupportsScenario(request.Scenario)) hostDeadline = 240.0;
                 else if (Chunk7OrdinaryAcquisitionScenario.SupportsScenario(request.Scenario)) hostDeadline = 780.0;
                 else if (Chunk7CombatScenario.SupportsScenario(request.Scenario)) hostDeadline = 480.0;
                 else if (Chunk7PersistenceScenario.SupportsScenario(request.Scenario) || Chunk7WorldScenarioEngine.SupportsScenario(request.Scenario)) hostDeadline = 420.0;
@@ -685,6 +719,12 @@ namespace KingmakerMountedCombat.Diagnostics
                     progressionEngine = new Chunk7ProgressionScenario(request, saveAuthorization, persistenceBootstrap.Authority, relationship, persistence, horseCompanion);
                     progressionEngine.BeginBeforeLoad();
                 }
+                if (Chunk7BootstrapInventoryScenario.SupportsScenario(request.Scenario))
+                {
+                    bootstrapInventoryEngine = new Chunk7BootstrapInventoryScenario(request, saveAuthorization, persistenceBootstrap.Authority,
+                        relationship, nativeControls, persistence);
+                    bootstrapInventoryEngine.BeginBeforeLoad();
+                }
                 fixtureLoaderStarted = true;
                 fixtureLoader.Start();
                 return;
@@ -726,6 +766,14 @@ namespace KingmakerMountedCombat.Diagnostics
                 CollectEngineErrors(worldPersistenceEngine.Errors, "Chunk 7 persistence");
                 // Completion owns asynchronous cleanup; a terminal assertion alone
                 // cannot release this engine or authorize process teardown.
+            }
+            else if (Chunk7BootstrapInventoryScenario.SupportsScenario(request.Scenario))
+            {
+                if (bootstrapInventoryEngine == null) throw new InvalidOperationException("Bootstrap cold observer was not owned before native load.");
+                bootstrapInventoryEngine.Update();
+                if (!bootstrapInventoryEngine.IsCompleted) return;
+                subscenarioResults = bootstrapInventoryEngine.Results;
+                CollectEngineErrors(bootstrapInventoryEngine.Errors, "Chunk 7 bootstrap cold inventory");
             }
             else if (Chunk7SmallCalibrationScenario.SupportsScenario(request.Scenario))
             {
@@ -1375,7 +1423,7 @@ namespace KingmakerMountedCombat.Diagnostics
             };
         }
 
-        private bool IsChunk7NativeFamily => Chunk7NativeBootstrapScenario.SupportsScenario(request.Scenario) || Chunk7ProgressionScenario.SupportsScenario(request.Scenario) || Chunk7SmallCalibrationScenario.SupportsScenario(request.Scenario) || Chunk7OrdinaryFieldScenario.SupportsScenario(request.Scenario) || Chunk7OrdinaryAcquisitionScenario.SupportsScenario(request.Scenario) || Chunk7WorldScenarioEngine.SupportsScenario(request.Scenario) ||
+        private bool IsChunk7NativeFamily => Chunk7BootstrapInventoryScenario.SupportsScenario(request.Scenario) || Chunk7NativeBootstrapScenario.SupportsScenario(request.Scenario) || Chunk7ProgressionScenario.SupportsScenario(request.Scenario) || Chunk7SmallCalibrationScenario.SupportsScenario(request.Scenario) || Chunk7OrdinaryFieldScenario.SupportsScenario(request.Scenario) || Chunk7OrdinaryAcquisitionScenario.SupportsScenario(request.Scenario) || Chunk7WorldScenarioEngine.SupportsScenario(request.Scenario) ||
             Chunk7PersistenceScenario.SupportsScenario(request.Scenario) ||
             Chunk7CombatScenario.SupportsScenario(request.Scenario);
 
@@ -1437,6 +1485,14 @@ namespace KingmakerMountedCombat.Diagnostics
                 }, RecordChunk7CleanupFailure,
                 () =>
                 {
+                    if (bootstrapInventoryEngine != null)
+                    {
+                        var inventoryEngine = bootstrapInventoryEngine;
+                        if (!inventoryEngine.DrainForHost()) return false;
+                        subscenarioResults = inventoryEngine.Results;
+                        CollectEngineErrors(inventoryEngine.Errors, "Chunk 7 bootstrap cold inventory");
+                        inventoryEngine.Dispose(); bootstrapInventoryEngine = null;
+                    }
                     if (nativeBootstrapEngine != null)
                     {
                         var bootstrapEngine = nativeBootstrapEngine;
@@ -1756,7 +1812,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private void FinalizeActiveScenarioEngines(List<string> finalErrors)
         {
             if (worldEngine != null && Chunk7WorldScenarioEngine.SupportsScenario(request.Scenario) ||
-                progressionEngine != null || nativeBootstrapEngine != null || smallCalibrationEngine != null || ordinaryFieldEngine != null || ordinaryEngine != null || worldPersistenceEngine != null || worldCombatEngine != null || IsChunk7NativeFamily && !chunk7Completion.Settled)
+                progressionEngine != null || bootstrapInventoryEngine != null || nativeBootstrapEngine != null || smallCalibrationEngine != null || ordinaryFieldEngine != null || ordinaryEngine != null || worldPersistenceEngine != null || worldCombatEngine != null || IsChunk7NativeFamily && !chunk7Completion.Settled)
                 throw new InvalidOperationException("A Chunk 7 native owner reached finalization before its cleanup gate settled.");
             if (worldEngine != null)
             {
@@ -2043,6 +2099,8 @@ namespace KingmakerMountedCombat.Diagnostics
             var manifestPath = Path.Combine(request.EvidenceRoot, "runtime-artifacts.json");
             var artifacts = new List<RuntimeArtifactRecord>();
             AddRuntimeArtifactIfPresent(artifacts, request.EvidenceRoot, RuntimeLoaderInventory.EvidenceFileName, RuntimeLoaderInventory.EvidenceKind);
+            AddRuntimeArtifactIfPresent(artifacts, request.EvidenceRoot, Chunk7BootstrapInventoryScenario.EvidenceFileName, Chunk7BootstrapInventoryScenario.EvidenceKind);
+            AddRuntimeArtifactIfPresent(artifacts, request.EvidenceRoot, Chunk7BootstrapInventoryScenario.PendingFileName, Chunk7BootstrapInventoryScenario.PendingKind);
             AddRuntimeArtifactIfPresent(artifacts, request.EvidenceRoot, Chunk7SmallCalibrationScenario.EvidenceFileName, Chunk7SmallCalibrationScenario.EvidenceKind);
             AddRuntimeArtifactIfPresent(artifacts, request.EvidenceRoot, Chunk7SmallCalibrationScenario.PendingFileName, Chunk7SmallCalibrationScenario.PendingKind);
             AddRuntimeArtifactIfPresent(artifacts, request.EvidenceRoot, Chunk7ProgressionScenario.EvidenceFileName, Chunk7ProgressionScenario.EvidenceKind);
@@ -2052,6 +2110,7 @@ namespace KingmakerMountedCombat.Diagnostics
             AddRuntimeArtifactIfPresent(artifacts, request.EvidenceRoot, Chunk7OrdinaryAcquisitionScenario.EvidenceFileName, Chunk7OrdinaryAcquisitionScenario.EvidenceKind);
             AddRuntimeArtifactIfPresent(artifacts, request.EvidenceRoot, Chunk7OrdinaryAcquisitionScenario.PendingFileName, Chunk7OrdinaryAcquisitionScenario.PendingKind);
             AddRuntimeArtifactIfPresent(artifacts, request.EvidenceRoot, Chunk7WorldScenarioEngine.EvidenceFileName, Chunk7WorldScenarioEngine.EvidenceKind);
+            AddRuntimeArtifactIfPresent(artifacts, request.EvidenceRoot, Chunk7MatchedPoolCollector.FileName, Chunk7MatchedPoolCollector.Kind);
             AddRuntimeArtifactIfPresent(artifacts, request.EvidenceRoot, Chunk7PersistenceScenario.EvidenceFileName, Chunk7PersistenceScenario.EvidenceKind);
             AddRuntimeArtifactIfPresent(artifacts, request.EvidenceRoot, Chunk7CombatScenario.EvidenceFileName, Chunk7CombatScenario.EvidenceKind);
             AddRuntimeArtifactIfPresent(artifacts, request.EvidenceRoot, "chunk7-realtime-evidence.json", "chunk7-realtime-evidence");

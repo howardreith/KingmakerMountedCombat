@@ -1,7 +1,9 @@
 # Chunk 7 native checkpoint — 12 October 2026
 
-Status: IN PROGRESS. Neither selected exploration run passed the full scenario.
-Root was the sole live executor; both transactions are settled. No native save was written.
+Status: IN PROGRESS. Neither selected exploration run nor the later native bootstrap
+passed. Root was the sole live executor; all three transactions are settled. No
+native save was written. The first sections retain preview.3 history; preview.4
+and its exact restoration disposition are recorded below.
 
 Frozen product: b97db97f8f9641eea802a725295161ebdac4ad03, preview.3,
 DLL SHA256 096671ee0629acd32d1c3a16906bac508e7afa2d6b2a75d5890ddd2755aee2a4,
@@ -89,3 +91,51 @@ and all failed reproductions remain immutable.
 A qualified base-only fixture/registration path remains a required dependency. Missing
 native combat/persistence/progression/Small/six-pair evidence and human play/visual review
 remain open. No 7B–7D completion, owner-play readiness, or 7E promotion is claimed.
+
+## Preview.4 authored bootstrap
+
+Run `20261012-chunk7b-world04-bootstrap` used source
+`953e75be422a28047c352348c5aac9ee83276f42`, harness
+`8a31478c749c44d759fa866a9cf59b6d82a2e155`, DLL SHA256
+`254e084721c978fd2de061f219d123b8a6cfdfd4832e6ef35559823abbb490df`,
+MVID `9dfca5f8-43b7-472f-a522-221d25b74f84`, package SHA256
+`8cc053ffdd227d861efa9d0be0a6793940f208f30fc825c4fc45437ec25a4dca`.
+The unchanged full WhatIf passed in 9164.7308559 seconds, within its separate
+180-minute planning budget. Exact manifest, arguments, frozen source, clean root
+and no-game admission were rechecked before launch.
+
+The invocation failed in 136.0062906 seconds. The raw game ran 47.9552938 seconds
+and reported preflight FAIL / cleanup PASS. The strict Ranger registrar observed
+twelve actual AllFeatures GUIDs instead of the historical exact seven; it refused
+before native new-game dispatch. Authorized loads, writes and unauthorized
+requests were all zero. This supplies the previously missing bounded list; it
+does not authorize relaxing the registration guard.
+
+The producer also wrote `chunk7-native-bootstrap-evidence.json` without adding
+it to `runtime-artifacts.json`. The strict launcher correctly refused the missing
+record, resulting in 0 passed/1 failed launcher assertion. The original manifest,
+raw game 1/1 result and both failures remain unchanged. Loader inventory exists,
+but its validation was not reached; `nativeInventoryObserved=false` and
+`nativeCompatibilityQualified=false` remain the actual isolation verdicts.
+
+Combined transaction phase is `restored`, with `restorationErrors=[]`,
+`modsRestored=true`, `saveProtectionPassed=true`, `baselineImmutable=true`,
+`workingRestored=true` and `saveWriteAllowlistPassed=true`. Before/after digests
+equal the Mods and saves digests above. The attributed process exited, a later
+process query found zero Kingmaker processes, and `active-transaction.lock` is
+absent. There is no recovery transaction to settle.
+
+The profile record explicitly differs: six accepted native cache changes under
+`native-achievement-cache-settled-size` (one achievement cache rewrite and five
+analytics dispatch entries), `profileBytesRestoredExactly=false`. This is not
+whole-profile byte equality. The native receipt and restoration bindings are in
+`analysis-cache/chunk7-continuation/native-checkpoint03.json`, SHA256
+`183789a8689ea2db790ed4b3803ed513c14675bb698d2f516273382ff2f495eb`.
+
+Both archive-access approvals were subsequently received and recorded; the
+generated progression15 and mandatory lab archive checks passed. The earlier
+access refusals above are historical, not a current blocker. The next candidate
+must repair the demonstrated manifest defect and establish the exact native
+Ranger registration contract before an affected bootstrap rerun. The reviewed
+[cold-inventory and hardening checkpoint](CHUNK7-COLD-INVENTORY-HARDENING-CHECKPOINT.md)
+adds independent source work without changing these native FAIL verdicts.

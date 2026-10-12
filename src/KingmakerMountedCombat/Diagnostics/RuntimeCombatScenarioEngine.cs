@@ -464,6 +464,12 @@ namespace KingmakerMountedCombat.Diagnostics
             }
         }
 
+        internal bool CanObserveCombatCooldownTick(UnitEntityData unit)
+        {
+            return !disposed && !completed && step == CombatEngineStep.AwaitCombatFrame &&
+                unit != null && unit == AttackActor;
+        }
+
         internal void ObserveCombatCooldownTick(
             UnitEntityData unit,
             float prefixInitiative,
@@ -473,7 +479,7 @@ namespace KingmakerMountedCombat.Diagnostics
             bool inCombat,
             bool awake)
         {
-            if (completed || step != CombatEngineStep.AwaitCombatFrame || unit == null || unit != AttackActor)
+            if (!CanObserveCombatCooldownTick(unit))
             {
                 return;
             }

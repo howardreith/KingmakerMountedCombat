@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Kingmaker;
 using Kingmaker.EntitySystem.Entities;
+using KingmakerMountedCombat.Diagnostics;
 using KingmakerMountedCombat.Domain;
 using TurnBased.Controllers;
 
@@ -81,9 +82,8 @@ namespace KingmakerMountedCombat.Integration
             }
         }
 
-        // Diagnostics only (preview.154 CM07-mount-load-rt measurement): how often and from where the
-        // persistence world was discarded, and which activation it held at that moment. Nothing here
-        // changes behaviour; the real-time cold load lost the rebound activation without a trace.
+        // Retain the discard count for persistence observations. Managed callers and text are
+        // forensic evidence for an exact selected persistence observer, not ordinary cleanup work.
         internal long PersistenceWorldDiscardCount { get; private set; }
         internal string LastPersistenceWorldDiscardObservation { get; private set; } = "none";
 
@@ -107,17 +107,29 @@ namespace KingmakerMountedCombat.Integration
         internal void DiscardParticipation()
         {
             PersistenceWorldDiscardCount++;
-            LastPersistenceWorldDiscardObservation = "discard;count=" + PersistenceWorldDiscardCount +
-                ";activation=" + (activation?.Identity ?? "none") + ";callers=" + DescribeManagedCallers();
-            logger.Info("Pair participation discarded: " + LastPersistenceWorldDiscardObservation);
-            // World replacement is housekeeping. End/forfeit and voluntary split
-            // belong to gameplay transitions and must not run during this discard.
-            DisposePartnerContext();
-            nativePreparationCommands.Clear();
-            activation = null; armedRider = null; armedMount = null; activationSession = null;
-            preparingConfusionActor = null; preparedRiderTurn = null; resumingContext = null; nativeConditionForfeitContext = null;
-            pendingSplitMount = null; pendingSplitRound = -1; splitReleaseRound = -1;
-            pairedRenewalNotBefore = 0;
+            // Never leave a previous captured trace looking like this discard's observation.
+            LastPersistenceWorldDiscardObservation = "not-captured";
+            try
+            {
+                if (RuntimeAutomationHost.ShouldCapturePersistenceWorldDiscard(this))
+                {
+                    LastPersistenceWorldDiscardObservation = "discard;count=" + PersistenceWorldDiscardCount +
+                        ";activation=" + (activation?.Identity ?? "none") + ";callers=" + DescribeManagedCallers();
+                    logger.Info("Pair participation discarded: " + LastPersistenceWorldDiscardObservation);
+                }
+            }
+            finally
+            {
+                // World replacement is housekeeping. End/forfeit and voluntary split
+                // belong to gameplay transitions and must not run during this discard.
+                // A forensic capture/logging failure propagates after real cleanup is attempted.
+                DisposePartnerContext();
+                nativePreparationCommands.Clear();
+                activation = null; armedRider = null; armedMount = null; activationSession = null;
+                preparingConfusionActor = null; preparedRiderTurn = null; resumingContext = null; nativeConditionForfeitContext = null;
+                pendingSplitMount = null; pendingSplitRound = -1; splitReleaseRound = -1;
+                pairedRenewalNotBefore = 0;
+            }
         }
 
         private static SavedParticipation CaptureParticipation(PairedActorSnapshot actor) => actor == null ? null :

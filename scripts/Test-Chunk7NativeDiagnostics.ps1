@@ -9,6 +9,8 @@ Set-StrictMode -Version Latest
 $selected = @(
     'Test-Chunk7AreaPersistenceSource.ps1',
     'Test-Chunk7CanonicalEvidence.ps1',
+    'Test-Chunk7DiagnosticsOff.ps1',
+    'Test-Chunk7ForensicDiagnosticsOff.ps1',
     'Test-Chunk7CheckpointCleanupAdapter.ps1',
     'Test-Chunk7CleanupEvidence.ps1',
     'Test-Chunk7CombatCleanupAdapter.ps1',
@@ -19,11 +21,18 @@ $selected = @(
     'Test-Chunk7ObserverAcquisition.ps1',
     'Test-Chunk7ObserverDisposal.ps1',
     'Test-Chunk7RangerSelectionContract.ps1',
+    'Test-Chunk7MatchedPool.ps1',
     'Test-Chunk7NativeMoveCallback.ps1',
     'Test-Chunk7NativeBootstrapProtocol.ps1',
     'Test-Chunk7NativeBootstrapAdapter.ps1',
     'Test-Chunk7NativeBootstrapEvidence.ps1',
     'Test-Chunk7NativeBootstrapWiring.ps1',
+    'Test-Chunk7BootstrapInventoryProtocol.ps1',
+    'Test-Chunk7BootstrapInventoryAdapter.ps1',
+    'Test-Chunk7BootstrapFixtureReadinessAdapter.ps1',
+    'Test-Chunk7BootstrapInventoryEvidence.ps1',
+    'Test-Chunk7BootstrapInventorySource.ps1',
+    'Test-Chunk7BootstrapInventoryWiring.ps1',
     'Test-Chunk7ProgressionProtocol.ps1',
     'Test-Chunk7ProgressionEvidence.ps1',
     'Test-Chunk7ProgressionDto.ps1',
@@ -76,7 +85,8 @@ $selected = @(
     'Test-Chunk7QuietWindowContracts.ps1',
     'Test-Chunk7WorldCleanupAdapter.ps1',
     'Test-Chunk7DoorCleanupAdapter.ps1',
-    'Test-Chunk7WorldResourcesAdapter.ps1'
+    'Test-Chunk7WorldResourcesAdapter.ps1',
+    'Test-Chunk7WorldResourceEvidence.ps1'
 )
 $started = [Diagnostics.Stopwatch]::StartNew()
 $completed = 0
