@@ -1,7 +1,7 @@
 [CmdletBinding(SupportsShouldProcess=$true,ConfirmImpact='High')]
 param(
     [ValidateSet(
-        'chunk7-bootstrap-cold-inventory','chunk7-native-main-bootstrap','chunk7-native-progression','chunk7-small-profile-calibration','chunk7-ordinary-field-admission','chunk7-ordinary-acquisition','chunk7-two-pair-exploration','chunk7-persistence-save','chunk7-persistence-load','chunk7-two-pair-combat-rider-first','chunk7-two-pair-combat-mount-first','chunk7-two-pair-realtime-core','chunk7-two-pair-realtime-casting','chunk7-two-pair-realtime-charge','chunk7-two-pair-native-life-cleanup',
+        'chunk7-bootstrap-manual-seed','chunk7-bootstrap-cold-inventory','chunk7-native-main-bootstrap','chunk7-native-progression','chunk7-small-profile-calibration','chunk7-ordinary-field-admission','chunk7-ordinary-acquisition','chunk7-two-pair-exploration','chunk7-persistence-save','chunk7-persistence-load','chunk7-two-pair-combat-rider-first','chunk7-two-pair-combat-mount-first','chunk7-two-pair-realtime-core','chunk7-two-pair-realtime-casting','chunk7-two-pair-realtime-charge','chunk7-two-pair-native-life-cleanup',
         'mod-load-smoke','export-mounted-contracts','export-candidate-mount-rigs','observe-mount-diagnostic-availability','horse-native-asset-audit','horse-companion-blueprint-registration','horse-companion-unmounted-suite','horse-mounted-alpha-suite','horse-native-controls-ux-suite',
         'chunk6c-casting-rt','chunk6c-casting-tb','chunk6c-casting-unmounted-rt','chunk6c-casting-unmounted-tb',
         'chunk6d-staged-rt','chunk6d-staged-tb','chunk6e-reaction-rt','chunk6e-reaction-tb',
@@ -44,6 +44,7 @@ param(
     [string]$OrdinarySelectionPath,
     [string]$OrdinaryFieldSelectionPath,
     [string]$BootstrapInventorySelectionPath,
+    [string]$ManualSeedSelectionPath,
     [string]$SmallCalibrationSelectionPath,
     [string]$ProgressionSelectionPath,
     [string]$PackagePath,
@@ -99,6 +100,7 @@ Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot 'Chunk7OrdinaryAcquisitionFixtures.ps1')
 . (Join-Path $PSScriptRoot 'Chunk7OrdinaryFieldFixtures.ps1')
 . (Join-Path $PSScriptRoot 'Chunk7BootstrapInventoryFixtures.ps1')
+. (Join-Path $PSScriptRoot 'Chunk7ManualSeedFixtures.ps1')
 . (Join-Path $PSScriptRoot 'Chunk7SmallCalibrationFixtures.ps1')
 . (Join-Path $PSScriptRoot 'Chunk7ProgressionFixtures.ps1')
 if(Test-KmcChunk7NativeBootstrapScenario $Scenario){
@@ -110,6 +112,14 @@ if(Test-KmcChunk7NativeBootstrapScenario $Scenario){
     }
 }elseif($PSBoundParameters.ContainsKey('NativeBootstrapCase')){throw 'Native bootstrap selection is forbidden under another scenario.'}
 . (Join-Path $PSScriptRoot 'PersistenceValidationFixtures.ps1')
+$manualSeedInput=$null;$manualSeedSource=$null
+if(Test-KmcChunk7ManualSeedScenario $Scenario){
+    if(-not$BaseGameOnly-or[string]::IsNullOrEmpty($ManualSeedSelectionPath)){throw 'Manual seed requires explicit base-only staging and exact completed bootstrap plus cold-inventory source pins.'}
+    foreach($name in @('PersistenceSourceRunId','ExpectedPersistenceSourceSha256','ExpectedPersistenceAlternateSha256','PersistenceForeignSourceRunId','PersistenceCase','PersistenceAreaEnterPoint','PersistenceAreaTargetArea','PersistenceReplayAreaEnterPoints','PersistenceReplayAreaAreas')){
+        if($PSBoundParameters.ContainsKey($name)){throw 'Manual seed selects only its closed one-load one-write source file.'}
+    }
+    $manualSeedInput=Read-KmcChunk7ManualSeedSelectionFile $ManualSeedSelectionPath $(if($RunId){$RunId}else{'unassigned-manual-seed'})
+}elseif($PSBoundParameters.ContainsKey('ManualSeedSelectionPath')){throw 'Manual seed selection is forbidden under another scenario.'}
 $bootstrapInventoryInput=$null;$bootstrapInventorySource=$null
 if(Test-KmcChunk7BootstrapInventoryScenario $Scenario){
     if(-not$BaseGameOnly-or[string]::IsNullOrEmpty($BootstrapInventorySelectionPath)){throw 'Bootstrap cold inventory requires explicit base-only staging and exact completed bootstrap source pins.'}
@@ -312,6 +322,7 @@ if(Test-KmcChunk7OrdinaryScenario $Scenario){
 if(Test-KmcChunk7SmallScenario $Scenario){$smallSource=Get-KmcChunk7FieldSource $smallSelectionInput.selection.source $fixturePayload $manifest}
 if(Test-KmcChunk7ProgressionScenario $Scenario){$progressionSource=Get-KmcChunk7ProgressionSource $progressionSelectionInput.selection $fixturePayload $manifest}
 if(Test-KmcChunk7FieldScenario $Scenario){$fieldSource=Get-KmcChunk7FieldSource $fieldSelectionInput.selection $fixturePayload $manifest}
+if(Test-KmcChunk7ManualSeedScenario $Scenario){$manualSeedSource=Get-KmcChunk7ManualSeedSource $manualSeedInput.selection $fixturePayload $manifest}
 if(Test-KmcChunk7BootstrapInventoryScenario $Scenario){$bootstrapInventorySource=Get-KmcChunk7BootstrapInventorySource $bootstrapInventoryInput.selection $fixturePayload $manifest}
 $beforeMods=Get-KmcDirectoryManifest $liveMods
 $beforeSaves=Get-KmcSaveMetadataInventory $saveRoot
@@ -447,6 +458,7 @@ try{
     if(Test-KmcChunk7OrdinaryScenario $Scenario){$request['ordinaryAcquisition']=$ordinarySelectionInput.selection}
     if(Test-KmcChunk7SmallScenario $Scenario){$request['smallCalibration']=$smallSelectionInput.selection}
     if(Test-KmcChunk7FieldScenario $Scenario){$request['ordinaryField']=$fieldSelectionInput.selection}
+    if(Test-KmcChunk7ManualSeedScenario $Scenario){$request['manualSeed']=$manualSeedInput.selection}
     if(Test-KmcChunk7BootstrapInventoryScenario $Scenario){$request['bootstrapInventory']=$bootstrapInventoryInput.selection}
     if(Test-KmcChunk7ProgressionScenario $Scenario){$request['progression']=$progressionSelectionInput.selection}
     if(Test-KmcChunk7NativeBootstrapScenario $Scenario){$request['nativeBootstrap']=[ordered]@{case=$NativeBootstrapCase;baseGameOnly=[bool]$BaseGameOnly;expectedNativeLoadCount=0;expectedNativeWriteCount=1;nativeWriteLeaf='Auto_1.zks'}}
@@ -500,6 +512,13 @@ try{
         if((ConvertTo-KmcChunk7Canonical $currentSmallSource)-cne(ConvertTo-KmcChunk7Canonical $smallSource)){throw 'Small calibration source changed before locked admission.'}
         $smallSource=$currentSmallSource
     }
+    if(Test-KmcChunk7ManualSeedScenario $Scenario){
+        $currentManualInput=Read-KmcChunk7ManualSeedSelectionFile $manualSeedInput.path $actualRunId
+        if($currentManualInput.sha256-cne$manualSeedInput.sha256){throw 'Manual seed selection changed before locked admission.'}
+        $currentManualSource=Get-KmcChunk7ManualSeedSource $request.manualSeed $fixturePayload $manifest
+        if((ConvertTo-KmcChunk7Canonical $currentManualSource)-cne(ConvertTo-KmcChunk7Canonical $manualSeedSource)){throw 'Manual seed source changed before locked admission.'}
+        $manualSeedSource=$currentManualSource
+    }
     if(Test-KmcChunk7BootstrapInventoryScenario $Scenario){
         $currentBootstrapInput=Read-KmcChunk7BootstrapInventorySelectionFile $bootstrapInventoryInput.path $actualRunId
         if($currentBootstrapInput.sha256-cne$bootstrapInventoryInput.sha256){throw 'Bootstrap inventory selection changed before locked admission.'}
@@ -522,7 +541,7 @@ try{
         $progressionSource=$currentProgressionSource
     }
     # Snapshot only after the under-lock fixture and save-metadata proof.
-    if($BaseGameOnly-or$Scenario -cin @('chunk7-bootstrap-cold-inventory','chunk7-native-main-bootstrap','chunk7-native-progression','chunk7-small-profile-calibration','chunk7-ordinary-field-admission','chunk7-ordinary-acquisition','chunk7-persistence-save','chunk7-persistence-load','persistence-isolation','persistence-p07-save','persistence-p07-load','persistence-p01-save','persistence-p01-load','persistence-p02-save','persistence-p02-load','persistence-p03-save','persistence-p03-load','persistence-p04-save','persistence-p04-load','persistence-p05-save','persistence-p05-load','persistence-p06-load')){
+    if($BaseGameOnly-or$Scenario -cin @('chunk7-bootstrap-manual-seed','chunk7-bootstrap-cold-inventory','chunk7-native-main-bootstrap','chunk7-native-progression','chunk7-small-profile-calibration','chunk7-ordinary-field-admission','chunk7-ordinary-acquisition','chunk7-persistence-save','chunk7-persistence-load','persistence-isolation','persistence-p07-save','persistence-p07-load','persistence-p01-save','persistence-p01-load','persistence-p02-save','persistence-p02-load','persistence-p03-save','persistence-p03-load','persistence-p04-save','persistence-p04-load','persistence-p05-save','persistence-p05-load','persistence-p06-load')){
         $profileSnapshot=New-KmcPersistenceProfileSnapshot -Lock $lock -SaveRoot $saveRoot -GameRoot ([string]$intake.requestedLayout.kingmakerInstallDir) -BackupRoot $runtimeBackups
     }
     # The no-save mode must bind NO suite argument, not an empty one: the
@@ -547,7 +566,7 @@ try{
             -After (Get-KmcSaveMetadataInventory $saveRoot) `
             -Description 'runtime immediate pre-save-transaction metadata'
         [void](Enter-KmcWorkingSaveTransaction -Lock $lock -Pair $lockedPair -SaveRoot $saveRoot -StateRoot $runtimeState -BackupRoot $runtimeBackups -StagingRoot $runtimeStaging -Scenario $Scenario)
-        if($Scenario -cin @('chunk7-bootstrap-cold-inventory','chunk7-native-main-bootstrap','chunk7-native-progression','chunk7-small-profile-calibration','chunk7-ordinary-field-admission','chunk7-ordinary-acquisition','chunk7-persistence-save','chunk7-persistence-load','persistence-isolation','persistence-p07-save','persistence-p07-load','persistence-p01-save','persistence-p01-load','persistence-p02-save','persistence-p02-load','persistence-p03-save','persistence-p03-load','persistence-p04-save','persistence-p04-load','persistence-p05-save','persistence-p05-load','persistence-p06-load')){
+        if($Scenario -cin @('chunk7-bootstrap-manual-seed','chunk7-bootstrap-cold-inventory','chunk7-native-main-bootstrap','chunk7-native-progression','chunk7-small-profile-calibration','chunk7-ordinary-field-admission','chunk7-ordinary-acquisition','chunk7-persistence-save','chunk7-persistence-load','persistence-isolation','persistence-p07-save','persistence-p07-load','persistence-p01-save','persistence-p01-load','persistence-p02-save','persistence-p02-load','persistence-p03-save','persistence-p03-load','persistence-p04-save','persistence-p04-load','persistence-p05-save','persistence-p05-load','persistence-p06-load')){
             $profileRoot=Assert-KmcChildPath (Join-Path $runtimeStaging ('persistence-'+$actualRunId)) $runtimeStaging 'owned persistence profile'
             if(Test-Path -LiteralPath $profileRoot){throw 'Persistence profile already exists; refusing ambiguous ownership.'}
             [void][IO.Directory]::CreateDirectory($profileRoot)
@@ -561,6 +580,9 @@ try{
                 $request['persistenceLoad']=$copyDescriptor
             }elseif(Test-KmcChunk7ProgressionScenario $Scenario){
                 $copySource=$progressionSource.path;$copyDescriptor=$progressionSource.descriptor
+                $request['persistenceLoad']=$copyDescriptor
+            }elseif(Test-KmcChunk7ManualSeedScenario $Scenario){
+                $copySource=$manualSeedSource.path;$copyDescriptor=$manualSeedSource.descriptor
                 $request['persistenceLoad']=$copyDescriptor
             }elseif(Test-KmcChunk7BootstrapInventoryScenario $Scenario){
                 $copySource=$bootstrapInventorySource.path;$copyDescriptor=$bootstrapInventorySource.descriptor
@@ -662,6 +684,7 @@ try{
             if(Test-KmcChunk7SmallScenario $Scenario){Copy-KmcChunk7FieldSourceArtifact $smallSource $profileRoot $lock}
             if(Test-KmcChunk7ProgressionScenario $Scenario){Copy-KmcChunk7ProgressionInputs $progressionSource $profileRoot $lock}
             if(Test-KmcChunk7FieldScenario $Scenario){Copy-KmcChunk7FieldSourceArtifact $fieldSource $profileRoot $lock}
+            if(Test-KmcChunk7ManualSeedScenario $Scenario){Copy-KmcChunk7ManualSeedSourceArtifacts $manualSeedSource $profileRoot $lock}
             if(Test-KmcChunk7BootstrapInventoryScenario $Scenario){Copy-KmcChunk7BootstrapInventorySourceArtifact $bootstrapInventorySource $profileRoot $lock}
             if(Test-KmcChunk7OrdinaryScenario $Scenario){
                 [void](Copy-KmcChunk7OrdinaryInventory $ordinaryInventorySource $profileRoot $lock)
@@ -869,6 +892,14 @@ try{
             $progressionArtifact=Read-KmcJson (Join-Path $evidenceRoot 'chunk7-progression-evidence.json')
             if($progressionArtifact.observations.processId-eq$progressionSource.sourceProcessId){throw 'Progression did not cold-load its declared native source.'}
             Assert-KmcChunk7ProgressionNativeArchive $request $progressionArtifact
+        }
+        if($gamePassed-and(Test-KmcChunk7ManualSeedScenario $Scenario)){
+            $verifiedManualSource=Get-KmcChunk7ManualSeedSource $request.manualSeed $fixturePayload $manifest
+            if((ConvertTo-KmcChunk7Canonical $verifiedManualSource)-cne(ConvertTo-KmcChunk7Canonical $manualSeedSource)){throw 'Manual seed bootstrap/cold source changed during the native process.'}
+            $sourceArtifact=Read-KmcJson $manualSeedSource.artifactPath;$coldArtifact=Read-KmcJson $manualSeedSource.inventoryPath
+            $seedArtifact=Read-KmcJson (Join-Path $evidenceRoot 'chunk7-manual-seed-evidence.json')
+            Assert-KmcChunk7ManualSeedEvidence $request $seedArtifact $sourceArtifact $coldArtifact 'PASS'
+            Assert-KmcChunk7ManualSeedOutput $request $seedArtifact
         }
         if($gamePassed-and(Test-KmcChunk7BootstrapInventoryScenario $Scenario)){
             $verifiedBootstrapSource=Get-KmcChunk7BootstrapInventorySource $request.bootstrapInventory $fixturePayload $manifest

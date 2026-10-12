@@ -155,6 +155,28 @@ namespace KingmakerMountedCombat.Diagnostics
         // qualifier and observed native load, never by this predicate or decode.
         internal bool MatchesReadOnlyBootstrapInventoryPlan(RuntimeSaveDescriptor source) => MatchesReadOnlyFieldPlan(source);
 
+        // A separate save-only plan. Older one-entry read-only predicates remain
+        // unchanged. Inspection never grants or consumes a native operation.
+        internal bool MatchesManualSeedPlan(RuntimeSaveDescriptor source, string outputLeaf, bool requireUnwritten)
+        {
+            lock (sync)
+            {
+                Entry input, output;
+                if (source == null || source.FileName != "Auto_1.zks" || source.GameId != gameId || source.GameName != gameName ||
+                    outputLeaf != "Manual_1_" + Chunk7ManualSeedSelection.OutputName + ".zks" ||
+                    maximumNativeLoadRequests != 1 || maximumNativeWriteRequests != 1 || declaresBootstrap || bootstrapWindowOpen || entries.Count != 2 ||
+                    !entries.TryGetValue(source.FileName, out input) || input.Name != source.InternalName || input.Type != "Auto" ||
+                    input.Area != source.Area || input.Hash != source.Sha256 || input.Writable || input.Writing || input.Bootstrap ||
+                    input.AdmitsBeforeArea || input.AdmissionArea != null || input.ForeignGameId != null || input.ForeignGameName != null ||
+                    !entries.TryGetValue(outputLeaf, out output) || output.Name != Chunk7ManualSeedSelection.OutputName || output.Type != "Manual" ||
+                    output.Area != source.Area || !output.Writable || output.Bootstrap || output.AdmitsBeforeArea || output.AdmissionArea != null ||
+                    output.ForeignGameId != null || output.ForeignGameName != null || admittedNativeLoadRequests > 1 || admittedNativeWriteRequests > 1)
+                    return false;
+                return requireUnwritten ? output.Hash == null && !output.Writing && admittedNativeWriteRequests == 0 :
+                    (output.Hash == null && !output.Writing || admittedNativeWriteRequests == 1);
+            }
+        }
+
         // Closed pre-fixture bootstrap: Working is only an immutable authorization
         // anchor. No LoadGame/LoadRoutine is eligible; only the authored first
         // autosave may create a new native campaign in this exact run root.

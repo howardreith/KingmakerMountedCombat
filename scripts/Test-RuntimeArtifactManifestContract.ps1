@@ -19,6 +19,8 @@ foreach($name in $names.Keys){
  # Test-Chunk7WorldEvidence and Test-Chunk7NativeDiagnostics exercise these exact leaf/kind
  # pairs with immutable manifest/hash/envelope positive and negative fixtures.
  foreach($addition in @(
+     '            ($relativePath -ceq ''chunk7-manual-seed-evidence.json'' -and $kind -ceq ''chunk7-manual-seed-evidence'') -or',
+     '            ($relativePath -ceq ''chunk7-manual-seed-cleanup-pending.json'' -and $kind -ceq ''chunk7-manual-seed-cleanup-pending'') -or',
      '            ($relativePath -ceq ''chunk7-bootstrap-inventory-evidence.json'' -and $kind -ceq ''chunk7-bootstrap-inventory-evidence'') -or',
      '            ($relativePath -ceq ''chunk7-bootstrap-inventory-cleanup-pending.json'' -and $kind -ceq ''chunk7-bootstrap-inventory-cleanup-pending'') -or',
      '            ($relativePath -ceq ''chunk7-native-bootstrap-evidence.json'' -and $kind -ceq ''chunk7-native-bootstrap-evidence'') -or',

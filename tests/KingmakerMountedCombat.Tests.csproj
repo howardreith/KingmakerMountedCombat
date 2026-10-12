@@ -170,6 +170,7 @@
     </Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\Chunk7NativeBootstrapSelection.cs"><Link>Shared\Chunk7NativeBootstrapSelection.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\Chunk7BootstrapInventorySelection.cs"><Link>Shared\Chunk7BootstrapInventorySelection.cs</Link></Compile>
+    <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\Chunk7ManualSeedSelection.cs"><Link>Shared\Chunk7ManualSeedSelection.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\RuntimeProtocol.cs">
       <Link>Shared\RuntimeProtocol.cs</Link>
     </Compile>
