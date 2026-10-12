@@ -22,6 +22,8 @@ namespace KingmakerMountedCombat.Domain
 
         public bool RiderIsExactlyMedium { get; set; }
 
+        public SmallRiderBodyMatch SmallRiderBodyMatch { get; set; }
+
         public bool RiderBodyProfileSupported { get; set; }
 
         public bool ExactActiveOwnedSupportedMount { get; set; }
@@ -256,9 +258,9 @@ namespace KingmakerMountedCombat.Domain
                     reasons);
             }
 
-            if (!context.RiderIsExactlyMedium)
+            if (!MountedRiderBodySelectionPolicy.IsSupported(context.RiderIsExactlyMedium, context.SmallRiderBodyMatch))
             {
-                reasons.Add("The selected rider must currently be Medium.");
+                reasons.Add("The selected rider needs exactly one supported Medium or declared Small body profile.");
             }
             if (!context.RiderBodyProfileSupported)
             {

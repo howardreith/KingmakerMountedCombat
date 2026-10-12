@@ -209,7 +209,7 @@ namespace KingmakerMountedCombat.Integration
 
             rider = riderUnit ?? throw new ArgumentNullException(nameof(riderUnit));
             mount = mountUnit ?? throw new ArgumentNullException(nameof(mountUnit));
-            supportedProfile = SupportedMountedProfiles.Resolve(mount);
+            supportedProfile = SupportedMountedProfiles.Resolve(rider, mount);
         }
 
         public MountedPairCandidate CreateCandidate()
@@ -232,7 +232,8 @@ namespace KingmakerMountedCombat.Integration
             var riderState = riderUnit.Descriptor?.State;
             var mountState = mountUnit.Descriptor?.State;
             var exactCompanion = riderUnit.Descriptor?.Pet == mountUnit && mountUnit.Descriptor?.Master.Value == riderUnit && mountUnit.Descriptor.IsPet;
-            var exactSupportedMount = SupportedMountedProfiles.Resolve(mountUnit) != null;
+            var candidateProfile = SupportedMountedProfiles.Resolve(riderUnit, mountUnit);
+            var exactSupportedMount = candidateProfile != null;
             return new MountedPairCandidate(riderUnit.UniqueId, mountUnit.UniqueId)
             {
                 RiderIsDirectlyControllable = riderUnit.IsInGame && riderUnit.IsDirectlyControllable,
@@ -251,7 +252,8 @@ namespace KingmakerMountedCombat.Integration
                 MountStockAgentEnabled = mountUnit.View != null && mountUnit.View.AgentASP != null && mountUnit.View.AgentASP.enabled,
                 RiderAgentOverrideAvailable = riderUnit.View != null && riderUnit.View.AgentOverride == null,
                 MountAgentOverrideAvailable = mountUnit.View != null && mountUnit.View.AgentOverride == null,
-                RiderIsExactlyMedium = riderState != null && (int)riderState.Size == 4,
+                RiderIsExactlyMedium = riderState != null && (int)riderState.Size == 4 && (int)riderUnit.Descriptor.OriginalSize == 4,
+                SmallRiderBodyMatch = SupportedMountedProfiles.MatchSmall(riderUnit, mountUnit, candidateProfile),
                 SafeMovementMode = Game.Instance != null && IsSafeMovementMode(Game.Instance.CurrentMode)
             };
         }
@@ -299,9 +301,9 @@ namespace KingmakerMountedCombat.Integration
                 return "Mounted controllability or life-state invariant changed.";
             }
 
-            if ((int)riderState.Size != 4 || (int)mountState.Size <= (int)riderState.Size)
+            if (SupportedMountedProfiles.Resolve(rider, mount)?.Id != supportedProfile.Id || (int)mountState.Size <= (int)riderState.Size)
             {
-                return "Mounted current-size invariant changed.";
+                return "Mounted size or exact rider body profile invariant changed.";
             }
 
             if (Game.Instance == null || !MountedGameModePolicy.CanRetainMountedRelationship(Game.Instance.CurrentMode.ToString()))
@@ -427,7 +429,7 @@ namespace KingmakerMountedCombat.Integration
             poseComponentOwned = true;
             poseBaselineRestoreVerified = false;
             poseAdapter.Configure(riderView, supportedProfile.RiderPoseProfile);
-            if (ReferenceEquals(supportedProfile, SupportedMountedProfiles.Horse))
+            if (supportedProfile.UsesAnimatedSaddle)
             {
                 poseAdapter.ConfigureAnimatedSaddle(mountView.transform, sourceAnchor,
                     ToUnity(supportedProfile.AnimatedSeatCorrection));
@@ -435,7 +437,7 @@ namespace KingmakerMountedCombat.Integration
             presentationConfigured = true;
             logger.Info("Rider presentation attached through an owned " + supportedProfile.DisplayName +
                 "-root mechanics lease and exact " + supportedProfile.RiderPoseProfile.Id + " procedural pose profile; animatedSeat=" +
-                ReferenceEquals(supportedProfile, SupportedMountedProfiles.Horse) + ".");
+                supportedProfile.UsesAnimatedSaddle + ".");
         }
 
         internal bool ReassertMountAiLeaseAfterNativeTurnBasedExit()

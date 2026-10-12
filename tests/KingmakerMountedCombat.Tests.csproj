@@ -55,6 +55,11 @@
     <Compile Include="MountedPairOwnershipTests.cs" />
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedPairRegistry.cs" />
     <Compile Include="MountedPlayerActionTests.cs" />
+    <Compile Include="..\src\KingmakerMountedCombat\Domain\DeclaredSmallRiderBody.cs" />
+    <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedRiderProfileCatalog.cs" />
+    <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedPresentationReadiness.cs" />
+    <Compile Include="SmallProfilePolicyTests.cs" />
+    <Compile Include="MountedPresentationReadinessTests.cs" />
     <Compile Include="MountedCombatDomainTests.cs" />
     <Compile Include="ActorAllocationLifetimeTests.cs" />
     <Compile Include="PairedActivationTests.cs" />

@@ -106,7 +106,7 @@ namespace KingmakerMountedCombat.Integration
         // New-format eligibility is versioned here; adding a reviewed profile
         // must never broaden schema-1/2's historical Medium-only contract.
         internal static bool IsSupportedArchiveProfile(string profileId) =>
-            profileId == "medium-humanoid-mammoth-v1" || profileId == "medium-humanoid-horse-v1";
+            KingmakerMountedCombat.Domain.MountedRiderProfileCatalog.IsSupportedArchiveProfile(profileId);
 
         private static bool ValidOwner(string id, long generation) => MountedSaveData.ActorId(id) && generation > 0;
         private static void Require(bool condition, string message) => SaveStateValidation.Require(condition, message);

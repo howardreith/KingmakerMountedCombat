@@ -787,7 +787,7 @@ namespace KingmakerMountedCombat.Integration
             ContinueWorldRelease();
             CompleteAreaTransitionIfReady();
             TryRestoreCombat();
-            if (CombatRestorationPending) return;
+            if (CombatSemanticRestorationPending) return;
             if (!Enabled || !presentationPending || SaveSuspended || restoreLoad == null ||
                 !restoreLoad.World.CanPresent(Game.Instance?.Player) ||
                 Game.Instance?.CurrentlyLoadedArea == null || LoadingProcess.Instance.IsLoadingInProcess) return;

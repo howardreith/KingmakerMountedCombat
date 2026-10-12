@@ -7,6 +7,7 @@ using System.Runtime.CompilerServices;
 using Kingmaker;
 using Kingmaker.Controllers.Clicks.Handlers;
 using Kingmaker.EntitySystem.Entities;
+using Kingmaker.EntitySystem.Persistence;
 using Kingmaker.Enums;
 using Kingmaker.UI.Selection;
 using Kingmaker.UnitLogic;
@@ -48,7 +49,8 @@ namespace KingmakerMountedCombat.Diagnostics
         private UnitEntityData[] originalSelection, originalParty;
         private Feature horseFeature, rankFeature;
         private bool started, completed, disposed, captured, originalPause, originalPaired, originalMovement;
-        private bool cleanupStarted, screenshotReady;
+        private bool cleanupStarted, cleanupProven, cleanupPendingReported, screenshotReady;
+        private readonly Dictionary<string, int> cleanupAttempts = new Dictionary<string, int>();
         private int step;
         private double stepStarted;
         private IDisposable ummLease;
@@ -388,18 +390,82 @@ namespace KingmakerMountedCombat.Diagnostics
         }
         private void BeginCleanup()
         {
-            if (cleanupStarted) return; cleanupStarted = true; stepStarted = clock.Elapsed.TotalSeconds;
-            measurement?.Dispose(); measurement = null;
-            if (!captured) return;
-            foreach (var command in issuedCommands.Where(x => x != null))
-                TryCleanup("command " + Id(command), () => { if (!command.IsFinished) command.Interrupt(); });
-            if (world != null) foreach (var pair in world.Pairs)
+            if (cleanupStarted) return;
+            cleanupStarted = true; stepStarted = clock.Elapsed.TotalSeconds;
+            TryCleanup("measurement", () => { measurement?.Dispose(); measurement = null; });
+            TryCleanup("screenshots", () => { screenshots?.Dispose(); screenshots = null; });
+        }
+        private bool TryCleanup(string part, Action attempt)
+        {
+            try { attempt(); return true; }
+            catch (Exception error)
+            {
+                var key = part + "|" + error.GetType().FullName + "|" + error.Message;
+                cleanupAttempts.TryGetValue(key, out var count); cleanupAttempts[key] = count + 1;
+                if (count == 0) Fail("C7-world-cleanup", part + ": " + error);
+                evidence["cleanupFailureAttempts"] = JObject.FromObject(cleanupAttempts);
+                return false;
+            }
+        }
+        private bool NativeCommandsSettled() => issuedCommands.Where(command => command != null).All(command =>
+            command.IsFinished && (!(command is UnitUseAbility ability) || ability.ExecutionProcess == null || ability.ExecutionProcess.IsEnded));
+        private bool PairCommandsSettled(MountedPairServices pair) => !pair.Combat.HasActiveCommand &&
+            !pair.Combat.HasActiveGroundMovement && !pair.Combat.HasChargeOwnership && !controls.HasUnsettledShellFor(pair.Relationship);
+        private void RetainCleanup(string reason)
+        {
+            if (clock.Elapsed.TotalSeconds - stepStarted < 15 || cleanupPendingReported) return;
+            cleanupPendingReported = true;
+            Fail("C7-world-cleanup", reason + " Fifteen-second cleanup budget expired; custody remains retained for host polling.");
+            evidence["cleanupPendingAtHostBoundary"] = true;
+            evidence["pendingCleanupReason"] = reason;
+            evidence["combatOrPersistenceProof"] = false;
+            RuntimeLoaderInventory.WriteArtifact(request, "chunk7-world-cleanup-pending.json", "chunk7-world-cleanup-pending", "FAIL", evidence, errors);
+        }
+        private void PollCleanup()
+        {
+            if (completed) return;
+            var observersGone = TryCleanup("measurement", () => { measurement?.Dispose(); measurement = null; });
+            observersGone &= TryCleanup("screenshots", () => { screenshots?.Dispose(); screenshots = null; });
+            if (!observersGone) { RetainCleanup("An owned observer has not detached."); return; }
+            if (!captured) { cleanupProven = true; CompleteCleanupEvidence(); return; }
+            // Neither fact removal nor actor/view teardown can race a native load,
+            // archive iterator/worker or shared serialization lease.
+            if (LoadingProcess.Instance.IsLoadingInProcess || LoadingProcess.Instance.QueuedNames.Any() ||
+                NativePersistenceIsolation.HasPendingWrites || world.SerializationBusy)
+            { RetainCleanup("A native load or archive worker still owns this world."); return; }
+            if (!TryCleanup("unpause for native drain", () => Game.Instance.IsPaused = false)) return;
+            foreach (var command in issuedCommands.Where(x => x != null && !x.IsFinished))
+                TryCleanup("command " + Id(command), () => command.Interrupt());
+            // Independent pairs receive service even when another cancellation or
+            // cleanup fails. Each pair keeps its own real command/process custody.
+            foreach (var pair in world.Pairs)
             {
                 TryCleanup("combat " + Id(pair.Relationship), () => pair.Combat.Cancel("Chunk 7 fixture cleanup"));
+                if (!PairCommandsSettled(pair)) continue;
                 TryCleanup("relationship " + Id(pair.Relationship), () => {
-                    if (pair.Relationship.State != RelationshipState.Unmounted) pair.Relationship.Dismount(CleanupTrigger.Exception);
+                    if (pair.Relationship.State != RelationshipState.Unmounted || pair.Relationship.PairOwner != null ||
+                        !pair.Relationship.Runtime.NoPreparedPairResidue)
+                        Require(pair.Relationship.Dismount(CleanupTrigger.Exception).Succeeded, "Pair cleanup remains unfinished.");
                 });
             }
+            var pairClean = world.Pairs.All(pair => pair.Relationship.State == RelationshipState.Unmounted &&
+                pair.Relationship.Runtime.NoPreparedPairResidue && pair.Relationship.PairOwner == null && PairCommandsSettled(pair));
+            if (!NativeCommandsSettled() || !pairClean || controls.HasUnsettledRelationshipTransition || world.UnifiedTurn.HasUnsettledPreparation)
+            { RetainCleanup("A native execution process, pair or preparation still owns cleanup."); return; }
+            if (evidence["factRemovalAdmission"] == null)
+                evidence["factRemovalAdmission"] = new JObject {
+                    ["frame"] = Time.frameCount, ["gameTicks"] = Game.Instance.TimeController.GameTime.Ticks,
+                    ["owners"] = world.Registry.Owners.Length, ["activePairs"] = world.Registry.ActiveCount,
+                    ["preparationPending"] = world.UnifiedTurn.HasUnsettledPreparation, ["serializationBusy"] = world.SerializationBusy,
+                    ["pendingNativeWrites"] = NativePersistenceIsolation.HasPendingWrites,
+                    ["commands"] = new JArray(issuedCommands.Where(command => command != null).Select(command => {
+                        var ability = command as UnitUseAbility;
+                        return new JObject { ["commandObject"] = Id(command), ["finished"] = command.IsFinished,
+                            ["hasExecutionProcess"] = ability?.ExecutionProcess != null,
+                            ["processEnded"] = ability?.ExecutionProcess == null || ability.ExecutionProcess.IsEnded };
+                    })) };
+            // The temporary progression fact owns the pet entity. Remove it only
+            // after every issued native process and pair lease has truly ended.
             if (secondRider != null && horseFeature != null)
                 TryCleanup("Horse feature", () => {
                     Require(secondRider.Descriptor.Pet == null || ReferenceEquals(secondRider.Descriptor.Pet, secondMount),
@@ -408,62 +474,61 @@ namespace KingmakerMountedCombat.Diagnostics
                 });
             if (secondRider != null && rankFeature != null)
                 TryCleanup("owned companion rank", () => { secondRider.Descriptor.Progression.Features.RemoveFact(rankFeature); rankFeature = null; });
-            TryCleanup("unpause for native drain", () => Game.Instance.IsPaused = false);
+            var entitiesDrained = TryCleanup("native entity drain", () => Game.Instance.EntityDestroyer.Tick());
+            var horseClean = horseFeature == null && rankFeature == null && (secondMount == null ||
+                !secondMount.IsInState && !Game.Instance.State.Units.Contains(secondMount) &&
+                !Game.Instance.Player.ControllableCharacters.Contains(secondMount) && secondRider.Descriptor.Pet == null);
+            if (!entitiesDrained || !horseClean) { RetainCleanup("The owned Horse entity or progression facts have not settled."); return; }
+            var restored = TryCleanup("original native mode", () => { mode?.Dispose(); mode = null; });
+            restored &= TryCleanup("original paired configuration", () => {
+                Require(world.Primary.Combat.TryConfigurePairedActivation(originalPaired), "Original paired configuration restoration refused.");
+                settings.EnableUnsafeMovementExperiment = originalMovement;
+            });
+            restored &= TryCleanup("original native selection", () => {
+                SelectionManager.Instance.MultiSelect(originalSelection.Where(x => x.IsInState && x.View != null).Select(x => x.View), false);
+                Require(SelectionManager.Instance.SelectedUnits.SequenceEqual(originalSelection), "Original selection was not restored.");
+            });
+            restored &= TryCleanup("UMM presentation lease", () => { ummLease?.Dispose(); ummLease = null; });
+            if (!restored) { RetainCleanup("A captured fixture lease has not restored."); return; }
+            Game.Instance.IsPaused = originalPause;
+            Require(ReferenceEquals(firstRider.Descriptor.Pet, firstMount) && ReferenceEquals(firstMount.Descriptor.Master.Value, firstRider),
+                "Original Mammoth ownership was not restored.");
+            cleanupProven = true;
+            evidence["cleanup"] = new JObject { ["pairResidueAbsent"] = pairClean, ["horseRemoved"] = horseClean,
+                ["controlsSettled"] = !controls.HasUnsettledRelationshipTransition, ["settingsAndSelectionRestored"] = true,
+                ["nativeProcessesSettled"] = NativeCommandsSettled(), ["cleanupCustodySettled"] = cleanupProven,
+                ["nativeProgressionRequiresExternalWorkingRestoration"] = true,
+                ["ordinaryRespecProven"] = false, ["nativeSaveWritten"] = false,
+                ["world"] = CaptureWorld("cleanup"), ["partyAfter"] = new JArray(PartyActors().Select(CaptureRig)),
+                ["selectionBefore"] = new JArray(originalSelection.Select(x => x.UniqueId)),
+                ["selectionAfter"] = new JArray(SelectionManager.Instance.SelectedUnits.Select(x => x.UniqueId)),
+                ["pauseBefore"] = originalPause, ["pauseAfter"] = Game.Instance.IsPaused,
+                ["movementBefore"] = originalMovement, ["movementAfter"] = settings.EnableUnsafeMovementExperiment,
+                ["pairedBefore"] = originalPaired, ["pairedAfter"] = settings.EnablePairedActivation,
+                ["pairBoundaries"] = new JArray(world.Pairs.Select(x => new JObject { ["state"] = x.Relationship.State.ToString(),
+                    ["residueAbsent"] = x.Relationship.Runtime.NoPreparedPairResidue, ["ownerPresent"] = x.Relationship.PairOwner != null })) };
+            Pass("C7-world-cleanup"); CompleteCleanupEvidence();
         }
-        private void TryCleanup(string part, Action attempt)
+        private void CompleteCleanupEvidence()
         {
-            try { attempt(); }
-            catch (Exception error) { Fail("C7-world-cleanup", part + ": " + error); }
+            Require(cleanupProven, "World scenario cannot complete while native cleanup is retained.");
+            evidence["nativeShellLifecycle"] = controls.DescribeNativeShellLifecycle();
+            evidence["elapsedSeconds"] = clock.Elapsed.TotalSeconds;
+            evidence["combatOrPersistenceProof"] = false;
+            evidence["thirdUnrelatedActorProven"] = false;
+            RuntimeLoaderInventory.WriteArtifact(request, EvidenceFileName, EvidenceKind, errors.Count == 0 ? "PASS" : "FAIL", evidence, errors);
+            completed = true;
         }
-        private void PollCleanup()
+        internal bool DrainForHost()
         {
-            if (captured) TryCleanup("native entity drain", () => Game.Instance.EntityDestroyer.Tick());
-            var pairClean = !captured || world == null || world.Pairs.All(x => x.Relationship.State == RelationshipState.Unmounted &&
-                x.Relationship.Runtime.NoPreparedPairResidue && x.Relationship.PairOwner == null);
-            var horseClean = secondMount == null || !secondMount.IsInState && !Game.Instance.State.Units.Contains(secondMount) &&
-                !Game.Instance.Player.ControllableCharacters.Contains(secondMount) && secondRider.Descriptor.Pet == null;
-            if ((!pairClean || !horseClean || controls.HasUnsettledRelationshipTransition) && clock.Elapsed.TotalSeconds - stepStarted < 15) return;
-            try
+            if (disposed) return true;
+            if (!cleanupStarted)
             {
-                Require(pairClean && horseClean && !controls.HasUnsettledRelationshipTransition, "Native cleanup did not settle within fifteen seconds.");
-                if (captured)
-                {
-                    mode?.Dispose(); mode = null;
-                    Require(world.Primary.Combat.TryConfigurePairedActivation(originalPaired), "Original paired configuration restoration refused.");
-                    settings.EnableUnsafeMovementExperiment = originalMovement;
-                    SelectionManager.Instance.MultiSelect(originalSelection.Where(x => x.IsInState && x.View != null).Select(x => x.View), false);
-                    Game.Instance.IsPaused = originalPause;
-                    ummLease?.Dispose(); ummLease = null;
-                    Require(SelectionManager.Instance.SelectedUnits.SequenceEqual(originalSelection) &&
-                        ReferenceEquals(firstRider.Descriptor.Pet, firstMount) && ReferenceEquals(firstMount.Descriptor.Master.Value, firstRider),
-                        "Original selection or Mammoth ownership was not restored.");
-                }
-                evidence["cleanup"] = new JObject { ["pairResidueAbsent"] = pairClean, ["horseRemoved"] = horseClean,
-                    ["controlsSettled"] = !controls.HasUnsettledRelationshipTransition, ["settingsAndSelectionRestored"] = captured,
-                    ["nativeProgressionRequiresExternalWorkingRestoration"] = true,
-                    ["ordinaryRespecProven"] = false, ["nativeSaveWritten"] = false,
-                    ["world"] = CaptureWorld("cleanup"), ["partyAfter"] = new JArray(PartyActors().Select(CaptureRig)),
-                    ["selectionBefore"] = new JArray((originalSelection ?? new UnitEntityData[0]).Select(x => x.UniqueId)),
-                    ["selectionAfter"] = new JArray(SelectionManager.Instance.SelectedUnits.Select(x => x.UniqueId)),
-                    ["pauseBefore"] = originalPause, ["pauseAfter"] = Game.Instance.IsPaused,
-                    ["movementBefore"] = originalMovement, ["movementAfter"] = settings.EnableUnsafeMovementExperiment,
-                    ["pairedBefore"] = originalPaired, ["pairedAfter"] = settings.EnablePairedActivation,
-                    ["pairBoundaries"] = new JArray(world.Pairs.Select(x => new JObject { ["state"] = x.Relationship.State.ToString(),
-                        ["residueAbsent"] = x.Relationship.Runtime.NoPreparedPairResidue, ["ownerPresent"] = x.Relationship.PairOwner != null })) };
-                Pass("C7-world-cleanup");
+                Fail("C7-world-interrupted", "World scenario interrupted before its bounded terminal result.");
+                BeginCleanup();
             }
-            catch (Exception error) { Fail("C7-world-cleanup", error.ToString()); }
-            finally
-            {
-                try { screenshots?.Dispose(); mode?.Dispose(); ummLease?.Dispose(); }
-                catch (Exception error) { Fail("C7-world-cleanup", error.ToString()); }
-                completed = true;
-                evidence["nativeShellLifecycle"] = controls.DescribeNativeShellLifecycle();
-                evidence["elapsedSeconds"] = clock.Elapsed.TotalSeconds;
-                evidence["combatOrPersistenceProof"] = false;
-                evidence["thirdUnrelatedActorProven"] = false;
-                RuntimeLoaderInventory.WriteArtifact(request, EvidenceFileName, EvidenceKind, errors.Count == 0 ? "PASS" : "FAIL", evidence, errors);
-            }
+            if (!completed) PollCleanup();
+            return completed && cleanupProven;
         }
         private static int Id(object value) => value == null ? 0 : RuntimeHelpers.GetHashCode(value);
         private static JObject Point(Vector3 point) => new JObject { ["x"] = point.x, ["y"] = point.y, ["z"] = point.z };
@@ -485,16 +550,7 @@ namespace KingmakerMountedCombat.Diagnostics
         public void Dispose()
         {
             if (disposed) return;
-            if (!completed)
-            {
-                Fail("C7-world-interrupted", "World scenario interrupted before its bounded terminal result."); BeginCleanup(); PollCleanup();
-                if (!completed)
-                {
-                    evidence["cleanupPendingAtHostInterruption"] = true;
-                    evidence["combatOrPersistenceProof"] = false;
-                    RuntimeLoaderInventory.WriteArtifact(request, EvidenceFileName, EvidenceKind, "FAIL", evidence, errors);
-                }
-            }
+            if (!DrainForHost()) throw new InvalidOperationException("World fixture retains native cleanup and requires owner polling.");
             disposed = true;
         }
     }

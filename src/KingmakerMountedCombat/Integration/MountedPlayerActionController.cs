@@ -166,7 +166,7 @@ namespace KingmakerMountedCombat.Integration
             var selection = SelectionManager.Instance?.SelectedUnits;
             var rider = selection != null && selection.Count == 1 ? selection[0] : null;
             var mount = rider?.Descriptor?.Pet;
-            var profile = SupportedMountedProfiles.Resolve(mount);
+            var profile = SupportedMountedProfiles.Resolve(rider, mount);
             if (rider == null || mount == null || profile == null)
             {
                 feedbackState.SetOperationFeedback("Mount targeting failed closed: the selected rider's supported active companion changed.");
@@ -235,7 +235,7 @@ namespace KingmakerMountedCombat.Integration
             var mount = caster?.Descriptor?.Pet;
             return target != null && target == mount &&
                 mount.Descriptor?.Master.Value == caster &&
-                SupportedMountedProfiles.IsSupported(mount);
+                SupportedMountedProfiles.IsSupportedPair(caster, mount);
         }
 
         internal string DescribeNativeMountTargetRejection(
@@ -282,7 +282,7 @@ namespace KingmakerMountedCombat.Integration
             var availability = GetNativeMountAvailability(caster, true);
             var mount = caster?.Descriptor?.Pet;
             var exactTarget = target != null && target == mount &&
-                mount.Descriptor?.Master.Value == caster && SupportedMountedProfiles.IsSupported(mount);
+                mount.Descriptor?.Master.Value == caster && SupportedMountedProfiles.IsSupportedPair(caster, mount);
             // DELIVERY-TIME admission. Approach admission deliberately let this command
             // exist outside adjacency so Kingmaker's own Move could close the distance;
             // the transition itself requires the envelope, measured from live state here.
@@ -452,7 +452,7 @@ namespace KingmakerMountedCombat.Integration
             var exactRiderStillSelected = selection != null && selection.Count == 1 && selection[0] == armedRider;
             if (target != armedMount || targetView == null || !exactRiderStillSelected ||
                 armedRider.Descriptor?.Pet != armedMount || armedMount.Descriptor?.Master.Value != armedRider ||
-                !SupportedMountedProfiles.IsSupported(armedMount))
+                !SupportedMountedProfiles.IsSupportedPair(armedRider, armedMount))
             {
                 feedbackState.SetOperationFeedback(
                     "Mount target rejected: click the selected rider's exact active supported companion.");
@@ -700,11 +700,12 @@ namespace KingmakerMountedCombat.Integration
                 context.ConflictingMountedRelationship = true;
             var riderState = rider.Descriptor?.State;
             var mountState = mount?.Descriptor?.State;
-            var profile = SupportedMountedProfiles.Resolve(mount);
+            var profile = SupportedMountedProfiles.Resolve(rider, mount);
             var exactOwnership = profile != null && rider.Descriptor.Pet == mount &&
                 mount.Descriptor?.Master.Value == rider && mount.Descriptor.IsPet;
 
-            context.RiderIsExactlyMedium = riderState != null && (int)riderState.Size == 4;
+            context.RiderIsExactlyMedium = riderState != null && (int)riderState.Size == 4 && (int)rider.Descriptor.OriginalSize == 4;
+            context.SmallRiderBodyMatch = SupportedMountedProfiles.MatchSmall(rider, mount, profile);
             context.RiderBodyProfileSupported = IsSupportedRiderBodySurface(rider, profile);
             context.ExactActiveOwnedSupportedMount = exactOwnership;
             context.MountDisplayName = profile?.DisplayName;
@@ -715,7 +716,7 @@ namespace KingmakerMountedCombat.Integration
             context.RiderIsDirectlyControllableAndInGame = rider.IsInGame && rider.IsDirectlyControllable;
             context.MountIsDirectlyControllableAndInGame = mount != null && mount.IsInGame && mount.IsDirectlyControllable;
             context.UnsupportedPolymorphOrSizeState = rider.GetActivePolymorph() != null ||
-                (mount != null && mount.GetActivePolymorph() != null) || !context.RiderIsExactlyMedium;
+                (mount != null && mount.GetActivePolymorph() != null) || !MountedRiderBodySelectionPolicy.IsSupported(context.RiderIsExactlyMedium, context.SmallRiderBodyMatch);
             context.LoadingTransitionOrCutscene = IsLoadingOrCutscene(game, rider, mount);
             context.InCombat = rider.IsInCombat || (mount?.IsInCombat ?? false) || game.Player.IsInCombat;
             var turnBased = CombatController.IsInTurnBasedCombat();
@@ -809,7 +810,7 @@ namespace KingmakerMountedCombat.Integration
         {
             var selection = SelectionManager.Instance?.SelectedUnits;
             var rider = selection != null && selection.Count == 1 ? selection[0] : null;
-            return SupportedMountedProfiles.Resolve(rider?.Descriptor?.Pet);
+            return SupportedMountedProfiles.Resolve(rider, rider?.Descriptor?.Pet);
         }
 
         private void ClearMountTargetSelection()

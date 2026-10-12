@@ -33,7 +33,7 @@ for($i=0;$i-lt3;$i++){$s=$moves[$i];$commands=@($ids|ForEach-Object{[pscustomobj
 $observation=[pscustomobject]@{capability=[pscustomobject]@{archiveNativeEnabled=$true;nativeWriterSchema=3;nativePairCapacity=2;workingSha256=$request.fixture.working.sha256};partyBefore=$party;partyWithHorse=$withHorse;
     acquisition=[pscustomobject]@{nativeRangerCommitCount=4;huntersBondSelectionLevel=4;rangerCompanionSelectionLevel=4;horseFactRankAtCommit=1;horsePresentAtNativeCommit=$true;horseFeatureSourceGuid='native-ranger'};
     inputs=$inputRows;snapshots=$snapshots;movements=$moveRows;combatOrPersistenceProof=$false;thirdUnrelatedActorProven=$false;
-    cleanup=[pscustomobject]@{pairResidueAbsent=$true;horseRemoved=$true;controlsSettled=$true;settingsAndSelectionRestored=$true;nativeSaveWritten=$false;ordinaryRespecProven=$false;
+    cleanup=[pscustomobject]@{pairResidueAbsent=$true;horseRemoved=$true;controlsSettled=$true;settingsAndSelectionRestored=$true;nativeProcessesSettled=$true;cleanupCustodySettled=$true;nativeSaveWritten=$false;ordinaryRespecProven=$false;
         nativeProgressionRequiresExternalWorkingRestoration=$true;partyAfter=(Copy-TestValue $party);selectionBefore=@($first);selectionAfter=@($first);pauseBefore=$true;pauseAfter=$true;
         movementBefore=$false;movementAfter=$false;pairedBefore=$true;pairedAfter=$true;world=[pscustomobject]@{owners=@()};
         pairBoundaries=@([pscustomobject]@{state='Unmounted';residueAbsent=$true;ownerPresent=$false},[pscustomobject]@{state='Unmounted';residueAbsent=$true;ownerPresent=$false})}}
@@ -56,6 +56,8 @@ for($n=1;$n-le3;$n++) {
 $observation|Add-Member measurements $measured
 $observation|Add-Member cycleInputs $cycleRows
 $observation|Add-Member cycles $cycleSnapshots
+$removalCommands=@(@($inputRows)+@($cycleRows)+@($moveRows)|ForEach-Object{[pscustomobject]@{commandObject=$_.commandObject;finished=$true;hasExecutionProcess=$true;processEnded=$true}})
+$observation|Add-Member factRemovalAdmission ([pscustomobject]@{frame=123;gameTicks=10000000L;owners=0;activePairs=0;preparationPending=$false;serializationBusy=$false;pendingNativeWrites=$false;commands=$removalCommands})
 $good=New-Artifact 'chunk7-world-evidence' $observation
 Check 'complete synthetic exploration observations' {Assert-KmcChunk7WorldEvidence $request $good 'PASS'}
 $mutations=@(
@@ -74,6 +76,16 @@ $mutations=@(
     @('movement routes to rider',{param($v)$v.observations.movements[0].executorId=$first}),@('movement commands another actor',{param($v)$v.observations.movements[0].commandsAfter[0].moveObject=999}),
     @('no actual movement',{param($v)$v.observations.movements[0].end.x=0.0}),@('null movement coordinate',{param($v)$v.observations.movements[0].end.x=$null}),
     @('late movement command',{param($v)$v.observations.movements[0].commandTerminal=$false}),@('retained cleanup owner',{param($v)$v.observations.cleanup.pairBoundaries[0].ownerPresent=$true}),
+    @('native execution process unfinished at cleanup',{param($v)$v.observations.cleanup.nativeProcessesSettled=$false}),@('host abandoned native custody',{param($v)$v.observations.cleanup.cleanupCustodySettled=$false}),@('string native process proof',{param($v)$v.observations.cleanup.nativeProcessesSettled='true'}),
+    @('native process alive at fact removal',{param($v)$v.observations.factRemovalAdmission.commands[0].processEnded=$false}),
+    @('missing native command at fact removal',{param($v)$v.observations.factRemovalAdmission.commands=@($v.observations.factRemovalAdmission.commands|Select-Object -Skip 1)}),
+    @('foreign native command at fact removal',{param($v)$v.observations.factRemovalAdmission.commands[0].commandObject=99999}),
+    @('pair retained at fact removal',{param($v)$v.observations.factRemovalAdmission.owners=1}),
+    @('preparation retained at fact removal',{param($v)$v.observations.factRemovalAdmission.preparationPending=$true}),
+    @('archive retained at fact removal',{param($v)$v.observations.factRemovalAdmission.serializationBusy=$true}),
+    @('worker retained at fact removal',{param($v)$v.observations.factRemovalAdmission.pendingNativeWrites=$true}),
+    @('string fact-removal count',{param($v)$v.observations.factRemovalAdmission.owners='0'}),
+    @('fact removal before last sample',{param($v)$v.observations.factRemovalAdmission.frame=100}),
     @('settings not restored',{param($v)$v.observations.cleanup.pairedAfter=$false}),@('claim unproved combat',{param($v)$v.observations.combatOrPersistenceProof=$true}),
     @('claim ordinary respec from cleanup',{param($v)$v.observations.cleanup.ordinaryRespecProven=$true}),
     @('invented timing summary',{param($v)$v.observations.measurements[2].serviceP95Ms=0.0}),

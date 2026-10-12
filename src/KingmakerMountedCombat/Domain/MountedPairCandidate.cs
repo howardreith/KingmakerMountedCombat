@@ -48,6 +48,8 @@ namespace KingmakerMountedCombat.Domain
 
         public bool RiderIsExactlyMedium { get; set; }
 
+        public SmallRiderBodyMatch SmallRiderBodyMatch { get; set; }
+
         public bool SafeMovementMode { get; set; }
 
         public string Validate() => Validate(MountedRelationshipAdmission.Exploration);
@@ -132,9 +134,9 @@ namespace KingmakerMountedCombat.Domain
                 return "Mount already owns an incompatible movement-agent override.";
             }
 
-            if (!RiderIsExactlyMedium)
+            if (!MountedRiderBodySelectionPolicy.IsSupported(RiderIsExactlyMedium, SmallRiderBodyMatch))
             {
-                return "The private alpha accepts exactly one Medium rider only.";
+                return "The rider needs exactly one supported Medium or declared Small body profile.";
             }
 
             if (!SafeMovementMode)

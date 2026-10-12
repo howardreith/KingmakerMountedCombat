@@ -29,6 +29,11 @@ Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot 'FrozenProductSource.ps1')
 . (Join-Path $PSScriptRoot 'BaseGameIsolation.ps1')
 . (Join-Path $PSScriptRoot 'Chunk7WorldEvidence.ps1')
+. (Join-Path $PSScriptRoot 'Chunk7PersistenceEvidence.ps1')
+. (Join-Path $PSScriptRoot 'Chunk7CombatEvidence.ps1')
+. (Join-Path $PSScriptRoot 'Chunk7RealtimeEvidence.ps1')
+. (Join-Path $PSScriptRoot 'Chunk7NativeLifeEvidence.ps1')
+. (Join-Path $PSScriptRoot 'Chunk7CleanupEvidence.ps1')
 
 function Get-KmcRepositoryRoot {
     $root = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))
@@ -3734,7 +3739,7 @@ function Restore-KmcModsTransaction {
 
 function Get-KmcSaveBackedRuntimeScenarios {
     return @(
-        'chunk7-two-pair-exploration',
+        'chunk7-two-pair-exploration','chunk7-persistence-save','chunk7-persistence-load','chunk7-two-pair-combat-rider-first','chunk7-two-pair-combat-mount-first','chunk7-two-pair-realtime-core','chunk7-two-pair-realtime-casting','chunk7-two-pair-realtime-charge','chunk7-two-pair-native-life-cleanup',
         'chunk6c-casting-rt','chunk6c-casting-tb','chunk6c-casting-unmounted-rt','chunk6c-casting-unmounted-tb',
         'chunk6d-staged-rt','chunk6d-staged-tb','chunk6e-reaction-rt','chunk6e-reaction-tb',
         'chunk6b-charge-rt','chunk6b-charge-core-rt','chunk6b-charge-interruption-rt','chunk6b-charge-lifecycle-rt', 'chunk6b-charge-tb', 'chunk6b-charge-path-rt', 'chunk6b-charge-path-tb', 'chunk6a-combat-mount-rt', 'chunk6a-combat-mount-tb', 'chunk6a-mount-preamble', 'chunk6a-mammoth-mount-rt','chunk6a-mammoth-mount-tb','chunk6a-paused-queue','chunk6a-refused-policy-disabled','chunk6a-refused-foreign-companion','chunk6a-refused-wrong-creature-target','chunk6a-refused-mount-selected','chunk6a-refused-multiple-selection','chunk6a-refused-foreign-selection','chunk6a-mount-approach','chunk6a-geometry-change','chunk6a-obstruction','chunk6a-stop-approach','chunk6a-combat-end-approach','chunk6a-disable-approach','chunk6a-command-replacement','chunk6a-repeated-mount-request','chunk6a-ownership-change','chunk6a-size-form-change','chunk6a-lost-direct-control','chunk6a-rider-incapacitated','chunk6a-mount-incapacitated','chunk6a-hotbar-approach','chunk6a-allocation-rider-first-tb','chunk6a-allocation-mount-first-tb','chunk6a-dismount-feature-disabled-rt','chunk6a-dismount-policy-disabled-rt','chunk6a-auto-use-mount-rt','chunk6a-auto-use-dismount-rt', 'chunk6a-adoption-compensation-rt', 'chunk6a-adoption-compensation-tb', 'chunk6a-left-area', 'chunk6a-view-agent-lost', 'chunk6a-loading-cutscene', 'chunk6a-generation-change', 'chunk6a-injected-exception', 'chunk6a-rider-death-approach', 'chunk6a-mount-death-approach', 'chunk6a-turn-end-approach-tb', 'chunk6a-mode-exit-tb', 'chunk6a-mount-spent-move-tb', 'chunk6a-mount-spent-standard-tb', 'chunk6a-mount-spent-all-tb', 'chunk6a-rider-without-move-tb', 'chunk6a-rider-other-action-tb', 'chunk6a-unrelated-candidate-between-tb', 'chunk6a-dismount-after-rider-expenditure-tb', 'chunk6a-dismount-after-mount-expenditure-tb', 'chunk6a-dismount-immediately-after-mount-tb',
@@ -4785,7 +4790,7 @@ function Assert-KmcKnownRuntimeArtifactsManifested {
     )
     $manifested = New-Object 'Collections.Generic.HashSet[string]' ([StringComparer]::Ordinal)
     foreach ($artifact in @($Manifest.artifacts)) { [void]$manifested.Add([string]$artifact.relativePath) }
-    foreach ($leaf in @('chunk7-world-evidence.json','runtime-loader-inventory.json','persistence-observations.jsonl','lifecycle-scenario-evidence.jsonl','movement-telemetry.jsonl','movement-scenario-evidence.jsonl','boundary-scenario-evidence.jsonl','combat-scenario-evidence.jsonl','horse-native-asset-audit.json','horse-companion-blueprint-registration.json','horse-companion-unmounted.json','horse-mounted-alpha.json','horse-native-controls-ux.json','chunk6a-mount-preamble.json','chunk6a-native-mammoth-profile.json','phase3d-horse-scenario-evidence.json')) {
+    foreach ($leaf in @('chunk7-world-cleanup-pending.json','chunk7-persistence-cleanup-pending.json','chunk7-combat-cleanup-pending.json','chunk7-native-life-evidence.json','chunk7-realtime-evidence.json','chunk7-combat-evidence.json','chunk7-persistence-evidence.json','chunk7-world-evidence.json','runtime-loader-inventory.json','persistence-observations.jsonl','lifecycle-scenario-evidence.jsonl','movement-telemetry.jsonl','movement-scenario-evidence.jsonl','boundary-scenario-evidence.jsonl','combat-scenario-evidence.jsonl','horse-native-asset-audit.json','horse-companion-blueprint-registration.json','horse-companion-unmounted.json','horse-mounted-alpha.json','horse-native-controls-ux.json','chunk6a-mount-preamble.json','chunk6a-native-mammoth-profile.json','phase3d-horse-scenario-evidence.json')) {
         if ((Test-Path -LiteralPath (Join-Path $EvidenceRoot $leaf) -PathType Leaf) -and -not $manifested.Contains($leaf)) {
             throw "Known runtime artifact exists without a manifest record: $leaf"
         }
@@ -13932,6 +13937,13 @@ function Get-KmcValidatedOrchestrationArtifactManifestHash {
             ($relative -ceq 'chunk6a-mount-preamble.json' -and $kind -ceq 'chunk6a-mount-preamble') -or
             ($relative -ceq 'chunk6a-native-mammoth-profile.json' -and $kind -ceq 'chunk6a-native-mammoth-profile') -or
             ($relative -ceq 'chunk7-world-evidence.json' -and $kind -ceq 'chunk7-world-evidence') -or
+            ($relative -ceq 'chunk7-persistence-evidence.json' -and $kind -ceq 'chunk7-persistence-evidence') -or
+            ($relative -ceq 'chunk7-world-cleanup-pending.json' -and $kind -ceq 'chunk7-world-cleanup-pending') -or
+            ($relative -ceq 'chunk7-persistence-cleanup-pending.json' -and $kind -ceq 'chunk7-persistence-cleanup-pending') -or
+            ($relative -ceq 'chunk7-combat-cleanup-pending.json' -and $kind -ceq 'chunk7-combat-cleanup-pending') -or
+            ($relative -ceq 'chunk7-native-life-evidence.json' -and $kind -ceq 'chunk7-native-life-evidence') -or
+            ($relative -ceq 'chunk7-realtime-evidence.json' -and $kind -ceq 'chunk7-realtime-evidence') -or
+            ($relative -ceq 'chunk7-combat-evidence.json' -and $kind -ceq 'chunk7-combat-evidence') -or
             ($relative -ceq 'runtime-loader-inventory.json' -and $kind -ceq 'runtime-loader-inventory') -or
             ($relative -ceq 'phase3d-horse-scenario-evidence.json' -and $kind -ceq 'phase3d-horse-scenario-evidence') -or
             ($relative -cmatch '^movement-visuals/[A-Za-z0-9._-]+\.png$' -and $kind -ceq 'screenshot')
@@ -13960,8 +13972,13 @@ function Get-KmcValidatedOrchestrationArtifactManifestHash {
         Assert-KmcMountPreambleEvidence -Request $Request -Manifest $manifestValue
         Assert-KmcNativeMammothArtifact -Request $Request -Manifest $manifestValue
         Assert-KmcChunk7WorldArtifact -Request $Request -Manifest $manifestValue
+        Assert-KmcChunk7PersistenceArtifact -Request $Request -Manifest $manifestValue
+        Assert-KmcChunk7CombatArtifact -Request $Request -Manifest $manifestValue
+        Assert-KmcChunk7RealtimeArtifact -Request $Request -Manifest $manifestValue
+        Assert-KmcChunk7NativeLifeArtifact -Request $Request -Manifest $manifestValue
         Assert-KmcPhase3dHorseScenarioEvidence -Request $Request -Manifest $manifestValue
     }
+    Assert-KmcChunk7CleanupArtifacts -Request $Request -Manifest $manifestValue -Status $(if ($AllowIncompleteScenarioEvidence) { 'FAIL' } else { 'PASS' })
     $hash = Get-KmcSha256 $manifestPath
     $after = Get-Item -LiteralPath $manifestPath -Force
     if ($after.Length -ne $before.Length -or $after.LastWriteTimeUtc.Ticks -ne $before.LastWriteTimeUtc.Ticks) {
