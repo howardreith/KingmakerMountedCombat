@@ -1,3 +1,36 @@
+# Chunk 7B–7D sustained mission — IN PROGRESS, October 12, 2026
+
+Active assignment: [continuation mission](planning/CHUNK7-CONTINUATION-MISSION.md);
+opening findings: [foundation review](planning/CHUNK7-FOUNDATION-REVIEW.md).
+This explicitly selects review repairs, native all-pair integration, private
+candidate/guarded targeted proof, declared Small/progression breadth and measured
+hardening. It supersedes the completed 7A source-only stop below. General safety,
+protected saves and promotion boundaries remain; 7E/merge/release/permanent human
+installation/HUMAN PLAY acceptance are not selected.
+
+Initial refresh: branch `codex/mounted-combat-chunk7-foundation` and verified
+origin equal `01c6a1f1d5047803bd1121d85fcd619efcab2236`; initial worktree clean.
+Other/frozen worktrees preserved. Root is sole live executor.
+
+Both source findings reproduced and repaired. R1 retains the first split-release
+round across repeated detached cleanup while observing costs and retrying cleanup.
+R2 links mounted pending-only historical participation to its existing owner
+without inventing activation or relaxing cross-owner exclusions. Independent R1
+review found no defect; root reviewed R2. Native round/selector/debt proof remains.
+
+Opening Fast command: `scripts/Test-Tiers.ps1 -Tier Fast -Focused
+'Test-PersistenceData.ps1,Test-ChargeOwnershipContracts.ps1,Test-MidEncounterNativePreparation.ps1'`
+PASS, 14.776 s, six stages. Private `analysis-cache/chunk7-continuation` contains
+`repairs-fast-01`, failing `r1-repro-03`, `r2-repro-01` and repaired `r2-repaired-02`.
+Earlier R1 Unity-static-initializer and incorrect build-entry attempts are
+preserved as repro-01/02 and are not defect reproductions. No native transaction.
+
+Next: root implements bounded world pair factory, exact controls/bridge routing
+and shared Charge transitions; agents implement shared-ledger turn participants,
+all-pair persistence/area/save fences and guarded base-only staging. Native
+capacity remains 1 and writer schema 2 until connected paths pass review/checks.
+Continue selected 7B–7D work; this repair checkpoint is not mission completion.
+
 # Chunk 7A source checkpoint — PASS, October 12, 2026
 
 Implemented the selected production ownership/routing and versioned persistence

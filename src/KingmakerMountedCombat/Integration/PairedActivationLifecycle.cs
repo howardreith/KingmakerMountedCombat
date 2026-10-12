@@ -808,12 +808,21 @@ namespace KingmakerMountedCombat.Integration
             DisposePartnerContext();
         }
 
-        private void SplitPairedActivation(CleanupTrigger trigger)
+        private void SplitPairedActivation(CleanupTrigger trigger) =>
+            SplitPairedActivationAtRound(trigger, Game.Instance?.TurnBasedCombatController?.RoundNumber ?? -1);
+
+        // The native round is observed once by the callback boundary. Detached
+        // component probes supply that external observation without starting Unity.
+        internal void SplitPairedActivationAtRound(CleanupTrigger trigger, int currentRound)
         {
             if (activation == null) { armedRider = null; armedMount = null; return; }
             ObservePairedCosts(activation.Principal); ObservePairedCosts(activation.Partner);
+            // Retained owners still receive cleanup retries and life-state events.
+            // Their original split already fixed the native exclusion boundary;
+            // a later callback must never restart that round or grant anything.
+            if (activation.Split) return;
             activation.Detach();
-            splitReleaseRound = Game.Instance?.TurnBasedCombatController?.RoundNumber ?? -1;
+            splitReleaseRound = currentRound;
             LastSplitObservation = "split-retains-current-grant;activation=" + activation.Identity + ";trigger=" + trigger;
             logger.Info("Paired split retains mount participation until the next native round: " + LastSplitObservation);
         }

@@ -66,8 +66,8 @@ namespace KingmakerMountedCombat.Integration
                     Require(MountedSaveData.ActorId(record.MountedPairId), "Invalid mounted-owner reference.");
                     mounted = Pairs.SingleOrDefault(p => Guid.Parse(p.PairId) == Guid.Parse(record.MountedPairId));
                     Require(mounted != null && Guid.Parse(record.OwnerId) == Guid.Parse(mounted.PairId) &&
-                        mounted.Generation == record.Generation && record.State.RiderId == mounted.Rider.Id &&
-                        record.State.MountId == mounted.Mount.Id, "Participation references a different or missing mounted owner.");
+                        mounted.Generation == record.Generation && SavedPairParticipation.BelongsToMountedPair(
+                            record.State, mounted.Rider.Id, mounted.Mount.Id), "Participation references a different or missing mounted owner.");
                 }
                 else Require(!pairIds.Contains(Guid.Parse(record.OwnerId)), "A detached participation aliases a mounted owner.");
                 var recordActors = new HashSet<Guid>();
@@ -102,5 +102,16 @@ namespace KingmakerMountedCombat.Integration
         public long Generation { get; set; }
         public string MountedPairId { get; set; }
         public SavedPairedState State { get; set; }
+
+        internal static bool BelongsToMountedPair(SavedPairedState state, string riderId, string mountId)
+        {
+            // Native removal may discard the activation and armed identities
+            // while the attachment survives. The pending mount still belongs to
+            // that owner; linking custody must not manufacture an activation.
+            return state != null && riderId != null && mountId != null &&
+                ((state.RiderId == riderId && state.MountId == mountId) ||
+                (state.RiderId == null && state.MountId == null && state.Activation == null &&
+                    state.PendingSplitId == mountId));
+        }
     }
 }

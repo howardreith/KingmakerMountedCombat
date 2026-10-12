@@ -107,6 +107,64 @@ public static class Chunk7PersistenceTests
             pending.Data.Participations[0].State.PendingSplitId == pendingId && pending.Data.Participations[0].State.RiderId == null &&
             pending.Data.Participations[0].State.Activation == null && pending.OriginalJson == pendingJson,
             "legacy pending-only survivor migrates without inventing pair identities or an activation");
+        // Historical removal can leave an attached rider outside combat while
+        // only its mount retains a native participation exclusion.
+        var pendingMounted = Historical();
+        pendingMounted.Combat.Actors[0].InCombat = false;
+        pendingMounted.Combat.Roster = new[] { pendingMounted.Combat.Roster[1] };
+        pendingMounted.Combat.Current = Turn(pendingMounted.Mount.Id);
+        pendingMounted.Combat.Paired = new SavedPairedState { PendingSplitId = pendingMounted.Mount.Id,
+            PendingSplitRound = pendingMounted.Combat.Round, SplitReleaseRound = -1 };
+        var pendingMountedJson = MountedSaveCodec.Encode(pendingMounted);
+        Check(MountedSaveCodec.Decode(pendingMountedJson).Kind == MountedSaveReadKind.Current,
+            "historical validator accepts attached rider outside combat with pending-only mount");
+        var migratedPendingMounted = MountedArchiveCodec.Decode(pendingMountedJson);
+        Check(migratedPendingMounted.Kind == MountedSaveReadKind.Current &&
+            migratedPendingMounted.Data.Pairs.Length == 1 && migratedPendingMounted.Data.Participations.Length == 1 &&
+            migratedPendingMounted.Data.Participations[0].MountedPairId == migratedPendingMounted.Data.Pairs[0].PairId &&
+            migratedPendingMounted.Data.Participations[0].OwnerId == migratedPendingMounted.Data.Pairs[0].PairId,
+            "mounted-plus-pending-only schema2 migration associates the retained obligation with its attachment");
+        var pendingMountedState = migratedPendingMounted.Data.Participations[0].State;
+        Check(pendingMountedState.RiderId == null && pendingMountedState.MountId == null &&
+            pendingMountedState.Activation == null && !pendingMountedState.BoundaryIsCurrent &&
+            pendingMountedState.Boundary == null && pendingMountedState.Partner == null &&
+            pendingMountedState.PendingSplitId == pendingMounted.Mount.Id &&
+            pendingMountedState.PendingSplitRound == pendingMounted.Combat.Round && pendingMountedState.SplitReleaseRound == -1 &&
+            migratedPendingMounted.OriginalJson == pendingMountedJson &&
+            MountedSaveCodec.Encode(migratedPendingMounted.HistoricalData) == pendingMountedJson,
+            "mounted pending-only migration preserves exclusion rounds, original data and absent native activation");
+        var preservedCombat = JObject.FromObject(pendingMounted.Combat, MountedSaveCodec.CreateSerializer());
+        preservedCombat["Paired"] = null;
+        Check(JToken.DeepEquals(preservedCombat, JObject.FromObject(migratedPendingMounted.Data.Combat,
+            MountedSaveCodec.CreateSerializer())), "mounted pending-only migration preserves every shared native actor and allocation debt");
+        var pendingMountedArchive = MountedArchiveCodec.Encode(migratedPendingMounted.Data);
+        Check(MountedArchiveCodec.Decode(pendingMountedArchive).Kind == MountedSaveReadKind.Current,
+            "linked pending-only ownership remains valid through schema3 encode and decode");
+        var pendingNegative = JObject.Parse(pendingMountedArchive);
+        pendingNegative["Participations"][0]["State"]["PendingSplitId"] = pendingMounted.Rider.Id;
+        Reject(pendingNegative.ToString(Formatting.None), "pending-only linked ownership cannot claim the attached rider as its pending mount");
+        pendingNegative = JObject.Parse(pendingMountedArchive);
+        pendingNegative["Participations"][0]["MountedPairId"] = null;
+        pendingNegative["Participations"][0]["OwnerId"] = Guid.NewGuid().ToString("N");
+        Reject(pendingNegative.ToString(Formatting.None), "detached pending-only owner cannot claim an actively mounted actor");
+        pendingNegative = JObject.Parse(pendingMountedArchive);
+        var conflictingPending = pendingNegative["Participations"][0].DeepClone();
+        conflictingPending["OwnerId"] = Guid.NewGuid().ToString("N"); conflictingPending["MountedPairId"] = null;
+        ((JArray)pendingNegative["Participations"]).Add(conflictingPending);
+        Reject(pendingNegative.ToString(Formatting.None), "a second retained owner cannot duplicate a mounted pending-only obligation");
+        var crossPairPending = Archive(2);
+        crossPairPending.Participations[0].State = new SavedPairedState {
+            PendingSplitId = crossPairPending.Pairs[1].Mount.Id, PendingSplitRound = 2, SplitReleaseRound = -1 };
+        Reject(JObject.FromObject(crossPairPending, MountedSaveCodec.CreateSerializer()).ToString(Formatting.None),
+            "pending-only participation cannot link another pair's mount to its own owner");
+        var unrelatedPending = Historical(); var unrelatedActor = Actor();
+        unrelatedPending.Combat.Actors = unrelatedPending.Combat.Actors.Concat(new[] { CombatActor(unrelatedActor) }).ToArray();
+        unrelatedPending.Combat.Paired = new SavedPairedState {
+            PendingSplitId = unrelatedActor.Id, PendingSplitRound = 2, SplitReleaseRound = -1 };
+        var unrelatedRead = MountedArchiveCodec.Decode(MountedSaveCodec.Encode(unrelatedPending));
+        Check(unrelatedRead.Kind == MountedSaveReadKind.Current && unrelatedRead.Data.Participations[0].MountedPairId == null &&
+            unrelatedRead.Data.Participations[0].State.PendingSplitId == unrelatedActor.Id,
+            "an unrelated historical pending survivor remains detached instead of borrowing the active pair's custody");
         var two = Archive(2); var encoded = MountedArchiveCodec.Encode(two); var round = MountedArchiveCodec.Decode(encoded);
         Check(round.Kind == MountedSaveReadKind.Current && MountedArchiveCodec.Encode(round.Data) == encoded &&
             round.Data.Pairs.Length == 2 && round.Data.Participations.Length == 2,

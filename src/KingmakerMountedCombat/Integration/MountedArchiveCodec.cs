@@ -105,7 +105,7 @@ namespace KingmakerMountedCombat.Integration
             var paired = copy.Combat?.Paired;
             if (copy.Combat != null) copy.Combat.Paired = null;
             var pairId = MigrationOwnerId(copy.CampaignId, copy.Rider?.Id, copy.Mount?.Id);
-            var linked = copy.Mounted && paired?.RiderId == copy.Rider.Id && paired?.MountId == copy.Mount.Id;
+            var linked = copy.Mounted && SavedPairParticipation.BelongsToMountedPair(paired, copy.Rider.Id, copy.Mount.Id);
             var result = new MountedArchiveData { SchemaVersion = MountedArchiveData.Schema,
                 CampaignId = copy.CampaignId, AreaId = copy.AreaId, GameTimeTicks = copy.GameTimeTicks,
                 Policy = copy.Policy, RulesId = copy.RulesId, Slots = copy.Slots, Combat = copy.Combat,
