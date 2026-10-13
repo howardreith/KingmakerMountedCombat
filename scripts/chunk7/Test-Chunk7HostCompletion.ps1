@@ -12,7 +12,7 @@ using System;using System.Collections.Generic;using System.IO;using KingmakerMou
 static class Application{internal static int Quits;internal static void Quit(){Quits++;}}
 sealed class Log{internal void Exception(string text,Exception error){}}
 sealed class HostAdapter {
- internal const int CheckCount=5;bool completionStarted,completed;string resultPath="absent";Log logger=new Log();int actorCleanup;bool worker,owner;double now;bool failed;
+ internal const int CheckCount=5;IDisposable bootstrapDialogue;bool completionStarted,completed;string resultPath="absent";Log logger=new Log();int actorCleanup;bool worker,owner;double now;bool failed;
  bool IsChunk7NativeFamily=>true;readonly Chunk7HostCompletionGate chunk7Completion=new Chunk7HostCompletionGate();
  static bool IsLoadingProcessActive(){return false;}
  void CompleteSaveBackedCore(string status,IReadOnlyList<string> errors){actorCleanup++;if(!worker||!owner)throw new Exception("Premature actor mutation");}

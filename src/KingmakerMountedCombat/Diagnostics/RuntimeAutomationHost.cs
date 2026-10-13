@@ -88,6 +88,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private Chunk7OrdinaryFieldScenario ordinaryFieldEngine;
         private Chunk7SmallCalibrationScenario smallCalibrationEngine;
         private Chunk7NativeBootstrapScenario nativeBootstrapEngine;
+        private Chunk7BootstrapDialogueObservation bootstrapDialogue;
         private Chunk7BootstrapInventoryScenario bootstrapInventoryEngine;
         private Chunk7ManualSeedScenario manualSeedEngine;
         private Chunk7ManualDerivedScenario manualDerivedEngine;
@@ -1114,7 +1115,10 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             if (fixtureScenarioCompleted) return;
             if (nativeBootstrapEngine == null)
+            {
                 nativeBootstrapEngine = new Chunk7NativeBootstrapScenario(request, saveAuthorization, relationship, nativeControls, persistence, horseCompanion);
+                bootstrapDialogue = nativeBootstrapEngine.DialogueObservation;
+            }
             var engine = nativeBootstrapEngine;
             if (!engine.PreflightReady && !engine.IsCompleted) engine.Preflight();
             if (engine.PreflightReady && !engine.IsBound && !engine.IsCompleted)
@@ -1344,6 +1348,7 @@ namespace KingmakerMountedCombat.Diagnostics
             horseCompanionEngine = null;
             saveAuthorizationLease?.Dispose();
             saveAuthorizationLease = null;
+            bootstrapDialogue?.Dispose();
             if (ReferenceEquals(active, this)) { active = null; }
         }
 
@@ -1745,6 +1750,8 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             finally
             {
+                // Passive references must not outlive even a failed terminal read/publication.
+                bootstrapDialogue?.Dispose();
                 completed = true;
                 try { Application.Quit(); }
                 catch (Exception exception) { logger.Exception("Save-backed runtime quit", exception); }
@@ -1806,6 +1813,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var terminalMovementExperimentEnabled = movementExperimentProvider();
             var terminalGameMode = game == null ? null : game.CurrentMode.ToString();
             var terminalLoadedAreaPresent = game != null && game.CurrentlyLoadedArea != null;
+            var terminalBootstrapDialogue = bootstrapDialogue?.CaptureTerminal(game);
             if (IsChunk7NativeFamily && string.Equals(status, "PASS", StringComparison.Ordinal) &&
                 (terminalMovementExperimentEnabled || !terminalLoadedAreaPresent || terminalGameMode != "Default"))
             {
@@ -1876,6 +1884,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 Harmony12Sha256 = File.Exists(harmonyPath) ? ComputeSha256(harmonyPath) : null,
                 RelationshipState = relationshipStateProvider(),
                 MovementExperimentEnabled = terminalMovementExperimentEnabled,
+                BootstrapDialogue = terminalBootstrapDialogue,
                 ProcessId = Process.GetCurrentProcess().Id,
                 CurrentGameMode = terminalGameMode,
                 LoadedAreaPresent = terminalLoadedAreaPresent,
@@ -2484,6 +2493,8 @@ namespace KingmakerMountedCombat.Diagnostics
             public string Harmony12Sha256 { get; set; }
             public string RelationshipState { get; set; }
             public bool MovementExperimentEnabled { get; set; }
+            public object BootstrapDialogue { get; set; }
+            public bool ShouldSerializeBootstrapDialogue() => BootstrapDialogue != null;
             public int ProcessId { get; set; }
             public string CurrentGameMode { get; set; }
             public bool LoadedAreaPresent { get; set; }

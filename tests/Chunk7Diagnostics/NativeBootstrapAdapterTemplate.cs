@@ -85,10 +85,14 @@ class HarmonyInstance {
 }
 static class MetadataBoundary { public static void Require(){} }
 static class Chunk7NativeBootstrapSelection { public const string AutoLeaf="Auto_1.zks"; }
+class Chunk7BootstrapDialogueObservation {
+ internal void Observe(string phase,Game game){} internal JObject Capture()=>new JObject();
+}
 class Chunk7NativeBootstrapScenario {
  internal const string EvidenceFileName="chunk7-native-bootstrap-evidence.json",EvidenceKind="chunk7-native-bootstrap-evidence",PendingFileName="chunk7-native-bootstrap-cleanup-pending.json",PendingKind="chunk7-native-bootstrap-cleanup-pending";
  internal RuntimeRequest request=new RuntimeRequest();internal RuntimeSaveAuthorization authorization=new RuntimeSaveAuthorization();
  internal MountedWorldService world=new MountedWorldService();internal MountedPersistenceService persistence=new MountedPersistenceService();internal NativeMountedControlService controls=new NativeMountedControlService();
+ internal readonly Chunk7BootstrapDialogueObservation dialogue=new Chunk7BootstrapDialogueObservation();
  internal Game game;internal Player player;internal SaveManager saveManager;internal Clock clock=new Clock();internal JObject evidence=new JObject();
  internal List<string> errors=new List<string>();internal List<RuntimeSubscenarioResult> results=new List<RuntimeSubscenarioResult>();
  internal PersistenceSaveAuthorization authority;internal int generation;internal BlueprintRoot blueprintRoot;internal BlueprintAreaPreset preset=new BlueprintAreaPreset();internal Chunk7NativeBootstrapProbe probe;
