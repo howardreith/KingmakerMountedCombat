@@ -18,8 +18,10 @@ namespace KingmakerMountedCombat.Diagnostics
     {
         internal const string ThreeLoadsCase = "multi-exploration-three-loads-manual";
         internal const string ThreeAreasCase = "multi-exploration-three-area-transfers-manual";
-        private bool RepeatedWorldCase => request.PersistenceCase == ThreeLoadsCase || request.PersistenceCase == ThreeAreasCase;
-        private bool RepeatedAreaCase => request.PersistenceCase == ThreeAreasCase;
+        private string replaySelectedCase;
+        private Chunk7OwnedPairsSelection replayOwnedSelection;
+        private bool RepeatedWorldCase => replaySelectedCase != null || request.PersistenceCase == ThreeLoadsCase || request.PersistenceCase == ThreeAreasCase;
+        private bool RepeatedAreaCase => (replaySelectedCase ?? request.PersistenceCase) == ThreeAreasCase;
         private readonly RuntimeSaveAuthorization replayAuthorization;
         private readonly PersistenceSaveAuthorization replaySaveAuthority;
         private int replayAuthorityGeneration;
@@ -32,6 +34,8 @@ namespace KingmakerMountedCombat.Diagnostics
         private int replayCompletedLoads, replayCompletedAreas, replayOrdinal, replayReadyFrames;
         private object replayPriorPlayer, replayPriorState, replaySaveManager;
         private UnitEntityData[] replayPriorActors;
+        private Chunk7OwnedPairFixture replayIncomingInherited;
+        private readonly JArray replayInheritedRetirements = new JArray();
         private BlueprintArea replayDestination;
         private string[] replaySelectionIds;
         private string replaySubscriptions;
@@ -41,7 +45,8 @@ namespace KingmakerMountedCombat.Diagnostics
         private void InitializeReplayAuthority()
         {
             if (!RepeatedWorldCase) return;
-            Require(Cold && replayAuthorization != null && replaySaveAuthority != null, "Repeated worlds require an explicit cold isolated authority.");
+            Require(Cold && replaySelectedCase == null && replayAuthorization != null && replaySaveAuthority != null, "Repeated worlds require an explicit cold isolated authority.");
+            replaySelectedCase = request.PersistenceCase; replayOwnedSelection = request.OwnedPairs;
             replayAuthorityGeneration = replayAuthorization.AuthorityGeneration;
             replaySaveManager = Game.Instance?.SaveManager;
             replayIdentities = new RetainedObjectIdentity(256);
@@ -56,7 +61,8 @@ namespace KingmakerMountedCombat.Diagnostics
         }
         private void RequireReplayAuthority(bool cleanupOnly = false)
         {
-            Require(ReferenceEquals(beforeLoadGame, Game.Instance) && ReferenceEquals(replaySaveManager, Game.Instance?.SaveManager) &&
+            Require(request.PersistenceCase == replaySelectedCase && ReferenceEquals(request.OwnedPairs, replayOwnedSelection) &&
+                ReferenceEquals(beforeLoadGame, Game.Instance) && ReferenceEquals(replaySaveManager, Game.Instance?.SaveManager) &&
                 NativePersistenceIsolation.IsExactAuthority(replaySaveAuthority) &&
                 replayAuthorization != null && replayAuthorization.IsExactPersistenceScope(replaySaveAuthority) &&
                 replayAuthorization.AuthorityGeneration == replayAuthorityGeneration &&
@@ -65,6 +71,10 @@ namespace KingmakerMountedCombat.Diagnostics
                 replayAuthorization.AuthorizedWriteCount == 0 && (cleanupOnly || replayAuthorization.UnauthorizedLoadCount == 0 &&
                 replayAuthorization.UnauthorizedWriteCount == 0 && replayAuthorization.FatalViolationCount == 0),
                 "Repeated-world native save authority/root/generation changed or a write was attempted.");
+            if (request.OwnedPairs != null)
+                Require(request.OwnedPairs.Cold && Chunk7OwnedPairsSelection.RepeatedCheckpoint(request.PersistenceCase) &&
+                    replaySaveAuthority.MatchesOwnedPairsPlan(true, false),
+                    "Owned replay lost its closed immutable source/request/quota plan.");
         }
         private void BeginRepeatedWorld()
         {
@@ -118,6 +128,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 replayPending = false; replayReadyFrames = 0;
             }
             RequireNativeWorld(); RequireReplayInput(); AssertOwners(); AssertSlots(); AssertReplayQuiet();
+            inherited?.RequirePreserved();
             if (++replayReadyFrames < 10) return true;
             if (RepeatedAreaCase ? replayCompletedAreas == 3 : replayCompletedLoads == 3)
             {
@@ -153,11 +164,24 @@ namespace KingmakerMountedCombat.Diagnostics
                 "Repeated load has not restored the exact complete native exploration archive.");
             var json = JObject.FromObject(data, MountedSaveCodec.CreateSerializer());
             Require(replayArchive == null || JToken.DeepEquals(replayArchive, json), "Repeated native load changed the selected semantic archive.");
-            var mammoth = data.Pairs.Single(p => p.ProfileId == SupportedMountedProfiles.Mammoth.Id);
-            var horse = data.Pairs.Single(p => p.ProfileId == SupportedMountedProfiles.Horse.Id);
-            Require(mammoth.Rider.Id == Chunk7WorldScenarioEngine.MammothRiderId && mammoth.Mount.Id == Chunk7WorldScenarioEngine.MammothId &&
-                horse.Rider.Id == Chunk7WorldScenarioEngine.HorseRiderId, "Repeated input substituted a fixture actor.");
-            var next = new[] { Exact(mammoth.Rider.Id), Exact(mammoth.Mount.Id), Exact(horse.Rider.Id), Exact(horse.Mount.Id) };
+            UnitEntityData[] next;
+            if (request.OwnedPairs != null)
+            {
+                next = request.OwnedPairs.PairIds.Select(Exact).ToArray();
+                Require(data.Pairs.All(pair => Enumerable.Range(0, 2).Count(index =>
+                    pair.Rider.Id == next[index * 2].UniqueId && pair.Mount.Id == next[index * 2 + 1].UniqueId &&
+                    pair.ProfileId == SupportedMountedProfiles.Resolve(next[index * 2], next[index * 2 + 1])?.Id) == 1) &&
+                    data.Pairs.Select(pair => pair.Rider.Id).Distinct(StringComparer.Ordinal).Count() == 2,
+                    "Repeated owned archive changed an exact acquired rider/pet role or live production profile.");
+            }
+            else
+            {
+                var mammoth = data.Pairs.Single(p => p.ProfileId == SupportedMountedProfiles.Mammoth.Id);
+                var horse = data.Pairs.Single(p => p.ProfileId == SupportedMountedProfiles.Horse.Id);
+                Require(mammoth.Rider.Id == Chunk7WorldScenarioEngine.MammothRiderId && mammoth.Mount.Id == Chunk7WorldScenarioEngine.MammothId &&
+                    horse.Rider.Id == Chunk7WorldScenarioEngine.HorseRiderId, "Repeated input substituted a fixture actor.");
+                next = new[] { Exact(mammoth.Rider.Id), Exact(mammoth.Mount.Id), Exact(horse.Rider.Id), Exact(horse.Mount.Id) };
+            }
             Require(ReferenceEquals(next[0].Descriptor.Pet, next[1]) && ReferenceEquals(next[1].Descriptor.Master.Value, next[0]) &&
                 ReferenceEquals(next[2].Descriptor.Pet, next[3]) && ReferenceEquals(next[3].Descriptor.Master.Value, next[2]) &&
                 world.Registry.Owners.Length == 2 && world.Registry.ActiveCount == 2 && data.Pairs.All(p => {
@@ -176,7 +200,8 @@ namespace KingmakerMountedCombat.Diagnostics
             Require(actualSlots.Length == data.Slots.Length && data.Slots.Length == 4 && data.Slots.All(s => actualSlots.Count(a => a.ActorId == s.ActorId && a.Index == s.Index && a.Kind == s.Kind) == 1),
                 "Repeated world did not restore all native control slots exactly.");
             var selection = replaySelectionIds.Select(Exact).ToArray();
-            var admitted = new Chunk7NativeWorldScope(request, next.Concat(selection), data.AreaId);
+            if (request.OwnedPairs != null) AdmitOwnedRepeatedLoad(ordinal, replacement, next, selection);
+            var admitted = inherited?.Scope ?? new Chunk7NativeWorldScope(request, next.Concat(selection), data.AreaId);
             // Commit a fresh scope only after native authority, callback, semantic
             // graph, debt and all owner/actor identities have passed together.
             nativeScope = admitted; actors = next; firstRider = next[0]; firstMount = next[1]; secondRider = next[2]; secondMount = next[3];
@@ -190,6 +215,35 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["sha256"] = descriptor.Sha256, ["length"] = descriptor.Length, ["lastWriteTimeUtcTicks"] = descriptor.LastWriteTimeUtcTicks,
                 ["gameId"] = descriptor.GameId, ["gameName"] = descriptor.GameName, ["area"] = descriptor.Area };
         }
+        private void AdmitOwnedRepeatedLoad(int ordinal, bool replacement, UnitEntityData[] next, UnitEntityData[] selection)
+        {
+            Require(request.OwnedPairs != null && request.OwnedPairs.Cold && RepeatedWorldCase &&
+                ordinal == (replacement ? replayOrdinal : 1) && (!replacement || replayPending && replayCallback),
+                "Inherited replacement lacks its exact selected native callback epoch.");
+            if (inherited == null)
+            {
+                Require(!replacement && ordinal == 1 && replayIncomingInherited == null, "A later native epoch cannot bypass initial inherited admission.");
+                BindOwnedFixture(false);
+            }
+            else if (inherited.ReplayLoadOrdinal != ordinal)
+            {
+                Require(replacement && !RepeatedAreaCase, "Only a selected native load replaces inherited native objects.");
+                if (replayIncomingInherited == null) replayIncomingInherited = inherited.CreateRepeatedLoadCandidate(ordinal, replayCallback);
+                Require(replayIncomingInherited.ReplayLoadOrdinal == ordinal, "A pending inherited candidate belongs to another load.");
+                if (!replayIncomingInherited.Bound) replayIncomingInherited.Bind(false);
+                replayIncomingInherited.RequirePreserved();
+                // Capture every fresh field actor and fact in the common retained
+                // registry before the old local identity lease may release.
+                replayIncomingInherited.CaptureReplayField(replayIdentities.Get, "replay-field");
+                var retirement = inherited.RetireAfterRepeatedLoad(replayIncomingInherited, replayIdentities.Get);
+                replayInheritedRetirements.Add(retirement);
+                inherited = replayIncomingInherited; replayIncomingInherited = null;
+            }
+            inherited.RequirePreserved();
+            Require(inherited.Actors.Length == next.Length && inherited.Actors.Where((actor, index) => !ReferenceEquals(actor, next[index])).Count() == 0 &&
+                selection.All(actor => inherited.Party.Any(field => ReferenceEquals(field, actor))),
+                "Native replay actor roles or original selection escaped the complete inherited field roster.");
+        }
         private void DispatchRepeatedLoad()
         {
             RequireNativeWorld(); RequireReplayAuthority(); RequireReplayInput(); AssertReplayQuiet();
@@ -197,6 +251,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var decision = replaySaveAuthority.Validate(RuntimeSaveOperation.Load, ReplayTarget(), replaySaveAuthority.Root);
             Require(decision == null, "Next native repeated load was refused before world replacement: " + decision);
             var before = ReplaySnapshot();
+            inherited?.BeginRepeatedLoad(replayCompletedLoads + 1);
             replayPriorPlayer = Game.Instance.Player; replayPriorState = Game.Instance.State; replayPriorActors = actors.ToArray();
             replayOrdinal = replayCompletedLoads + 1; replayCallback = false; replayPending = true; replayReadyFrames = 0;
             var token = replayOrdinal;
@@ -225,6 +280,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 enter.Area.AssetGuidThreadSafe == target.Area && Game.Instance.CurrentlyLoadedArea != enter.Area &&
                 Game.Instance.CurrentlyLoadedArea.AssetGuidThreadSafe != target.Area, "Declared area route is unresolved or would be a same-area no-op.");
             var before = ReplaySnapshot();
+            inherited?.BeginRepeatedArea(replayCompletedAreas + 1, enter.Area);
             replayDestination = enter.Area; replayOrdinal = replayCompletedAreas + 1; replayPending = true; replayReadyFrames = 0;
             replayRequests.Add(new JObject { ["kind"] = "area-transfer", ["ordinal"] = replayOrdinal,
                 ["enterPoint"] = target.EnterPoint, ["area"] = target.Area, ["autoSaveMode"] = "None", ["before"] = before });
@@ -255,10 +311,20 @@ namespace KingmakerMountedCombat.Diagnostics
                     rider.View.GetComponents<RiderMovementAgent>().Length == 1 && ReferenceEquals(rider.View.AgentOverride, current) &&
                     relation.Runtime.ValidateMountedInvariants() == null, "Area transfer reused or duplicated prior movement authority.");
             }
-            nativeScope = new Chunk7NativeWorldScope(request, actors.Concat(originalSelection), target.Area);
+            inherited?.AdoptRepeatedArea(replayOrdinal, replayDestination);
+            nativeScope = inherited?.Scope ?? new Chunk7NativeWorldScope(request, actors.Concat(originalSelection), target.Area);
             replayCompletedAreas = replayOrdinal; RecordRepeatedWorld("area-" + replayOrdinal); AssertReplayObservers();
         }
-        private JObject ReplaySnapshot() => Chunk7WorldRetentionProbe.CaptureWorld(world, controls, persistence, actors, replayIdentities);
+        private JObject ReplaySnapshot()
+        {
+            var value = Chunk7WorldRetentionProbe.CaptureWorld(world, controls, persistence, actors, replayIdentities);
+            if (request.OwnedPairs != null)
+            {
+                Require(inherited != null && inherited.Bound && replayIncomingInherited == null, "Owned replay has no fully published native field epoch.");
+                value["ownedField"] = inherited.CaptureReplayField(replayIdentities.Get, "replay-field");
+            }
+            return value;
+        }
         private void RecordRepeatedWorld(string label)
         {
             var state = ReplaySnapshot(); state["label"] = label;
@@ -269,6 +335,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var canonical = string.Join(";", ((JArray)subscriptions["entries"]).Select(e => (string)e["interface"] + "|" + (string)e["type"] + "|" + (int)e["identity"]).OrderBy(s => s, StringComparer.Ordinal));
             Require(replaySubscriptions == null || replaySubscriptions == canonical, "Repeated world accumulated or lost native KMC subscribers.");
             replaySubscriptions = replaySubscriptions ?? canonical; replayLastWorld = state; replayWorlds.Add(state);
+            if (request.OwnedPairs != null) evidence["inheritedReplayRetirements"] = replayInheritedRetirements;
         }
         private void AssertReplayObservers()
         {

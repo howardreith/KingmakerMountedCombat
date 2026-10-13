@@ -65,7 +65,7 @@ function Get-KmcChunk7OwnedPairsManualSource($Selection,[AllowNull()][string]$Pe
  $w=$artifact.observations.nativeWrite;$descriptor=[pscustomobject]@{internalName=$w.internalName;fileName=$w.fileName;sha256=$w.sha256;length=$w.length;lastWriteTimeUtcTicks=$w.lastWriteTimeUtcTicks;gameId=$w.gameId;gameName=$w.gameName;area=$w.area}
  # Validate the immutable source descriptor as the source mode, without changing
  # the real request or selecting a native action. Cold source is checked below.
- $sourceSelection=$Selection|ConvertTo-Json -Depth 16|ConvertFrom-Json;$sourceSelection.case='exploration';$sourceSelection.checkpointSourceRunId=$null;$sourceSelection.checkpointSourceArtifactSha256=$null;$sourceSelection.expectedNativeWriteCount=0
+ $sourceSelection=$Selection|ConvertTo-Json -Depth 16|ConvertFrom-Json;$sourceSelection.case='exploration';$sourceSelection.checkpointSourceRunId=$null;$sourceSelection.checkpointSourceArtifactSha256=$null;$sourceSelection.expectedNativeWriteCount=0;$sourceSelection.expectedNativeLoadCount=1
  Assert-KmcChunk7OwnedPairsDescriptor ([pscustomobject]@{scenario='chunk7-owned-two-pair-campaign';runId='unassigned-owned-manual';ownedPairs=$sourceSelection;persistenceLoad=$descriptor;fixture=$Fixture;persistenceCase=$null})
  Assert-KmcChunk7OwnedReceiptPins $set
  if((Get-KmcSha256 $w.path)-cne$Selection.sourceArchiveSha256){throw 'Two-owner native Manual bytes changed during qualification.'}
@@ -74,13 +74,14 @@ function Get-KmcChunk7OwnedPairsManualSource($Selection,[AllowNull()][string]$Pe
 function Get-KmcChunk7OwnedPairsSource($Selection,[AllowNull()][string]$PersistenceCase,$Fixture,$Candidate){
  $manual=Get-KmcChunk7OwnedPairsManualSource $Selection $PersistenceCase $Fixture $Candidate
  if($Selection.case-cne'persistence-load'){return $manual}
+ $sourceCase=Get-KmcChunk7PersistenceSourceCase $PersistenceCase
  $set=Get-KmcChunk7OwnedReceiptSet $Selection.checkpointSourceRunId 'chunk7-persistence-evidence.json';$request=$set.request
- Assert-KmcBootstrapInventoryString $request.scenario 'chunk7-owned-two-pair-campaign';Assert-KmcBootstrapInventoryString $request.ownedPairs.case 'persistence-save';Assert-KmcBootstrapInventoryString $request.persistenceCase $PersistenceCase
+ Assert-KmcBootstrapInventoryString $request.scenario 'chunk7-owned-two-pair-campaign';Assert-KmcBootstrapInventoryString $request.ownedPairs.case 'persistence-save';Assert-KmcBootstrapInventoryString $request.persistenceCase $sourceCase
  Assert-KmcChunk7OwnedPairsDescriptor $request
  foreach($key in @('sourceRunId','sourceArtifactSha256','sourceArchiveSha256','riderAId','mountAId','riderBId','mountBId')){Assert-KmcBootstrapInventoryString $request.ownedPairs.$key $Selection.$key}
  if((ConvertTo-KmcChunk7Canonical $request.ownedPairs.partyIds)-cne(ConvertTo-KmcChunk7Canonical $Selection.partyIds)-or(ConvertTo-KmcChunk7Canonical $request.persistenceLoad)-cne(ConvertTo-KmcChunk7Canonical $manual.descriptor)){throw 'Checkpoint source substituted inherited ancestry or the immutable Manual.'}
  Assert-KmcChunk7OwnedSourceCompletion $set $Selection.checkpointSourceRunId 'chunk7-owned-two-pair-campaign' $Fixture $Candidate $Selection.sourceArchiveSha256
- Assert-KmcBootstrapInventoryString $set.owner.persistenceCase $PersistenceCase
+ Assert-KmcBootstrapInventoryString $set.owner.persistenceCase $sourceCase
  Assert-KmcChunk7PersistenceArtifact $request $set.manifest 'PASS'
  $artifact=Read-KmcChunk7ManifestArtifact $request $set.manifest 'chunk7-persistence-evidence.json' 'chunk7-persistence-evidence'
  $path=Join-Path $set.root 'chunk7-persistence-evidence.json';$file=Get-Item -LiteralPath $path

@@ -15,7 +15,7 @@ namespace KingmakerMountedCombat.Diagnostics
     // This owns references to inherited ordinary pets, never their deletion. The
     // guarded loader and isolated authority must already have completed one load.
     // Decoding the source receipt cannot restore a pair or grant native resources.
-    internal sealed class Chunk7OwnedPairFixture
+    internal sealed partial class Chunk7OwnedPairFixture
     {
         private readonly RuntimeRequest request;
         private readonly Chunk7OwnedPairsSelection selection;
@@ -62,7 +62,8 @@ namespace KingmakerMountedCombat.Diagnostics
         internal void Bind(bool combatCold)
         {
             Require(!bound && !released && combatCold == (selection.Cold && request.PersistenceCase != "multi-exploration-manual" &&
-                request.PersistenceCase != "multi-exploration-quick" && request.PersistenceCase != "multi-exploration-auto"),
+                request.PersistenceCase != "multi-exploration-quick" && request.PersistenceCase != "multi-exploration-auto" &&
+                !Chunk7OwnedPairsSelection.RepeatedCheckpoint(request.PersistenceCase)),
                 "Inherited fixture is already bound or its cold mode differs.");
             RequireRequest();
             RequireAuthority();
@@ -119,6 +120,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     persistence.SemanticRestoreCount == 0 && persistence.PresentationRestoreCount == 0 && controls.NativeCastRequestCount == 0 &&
                     persistence.SnapshotCount == 0, "Inherited source is not the native-loaded empty mounted graph.");
             }
+            admittedPlayer = game.Player; admittedState = game.State;
             bound = true; RequirePreserved();
         }
         private void ReadSource()
@@ -209,15 +211,17 @@ namespace KingmakerMountedCombat.Diagnostics
         internal void Release()
         {
             if (released) return;
+            Require(replayExpectedLoad == 0 && replayExpectedArea == 0, "Declared native replay still owns inherited fixture custody.");
             if (bound) RequirePreserved();
             identities.Dispose(); released = true;
         }
-        private void RequireAuthority()
+        private void RequireAuthority(int? observedLoads = null)
         {
-            Require(ReferenceEquals(Game.Instance, game) && ReferenceEquals(game.SaveManager, manager) &&
+            var count = observedLoads ?? replayLoadOrdinal;
+            Require(count >= 1 && count <= selection.LoadCount(request.PersistenceCase) && ReferenceEquals(Game.Instance, game) && ReferenceEquals(game.SaveManager, manager) &&
                 authorization.IsActive && authorization.AuthorityGeneration == authorityGeneration && authorization.IsExactPersistenceScope(authority) &&
                 NativePersistenceIsolation.IsExactAuthority(authority) && authority.MatchesOwnedPairsPlan(true, false) &&
-                authority.AdmittedNativeLoadRequests == 1 && authorization.AuthorizedLoadCount == 1 &&
+                authority.AdmittedNativeLoadRequests == count && authorization.AuthorizedLoadCount == count &&
                 authority.AdmittedNativeWriteRequests <= selection.WriteCount(request.PersistenceCase) &&
                 authorization.AuthorizedWriteCount <= selection.WriteCount(request.PersistenceCase) &&
                 manager.SavePath == authority.Root && NativePersistenceIsolation.ObservedStashFolder == Path.Combine(Path.GetDirectoryName(authority.Root), "Areas") &&

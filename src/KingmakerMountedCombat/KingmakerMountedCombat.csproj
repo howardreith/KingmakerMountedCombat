@@ -254,6 +254,7 @@
     <Compile Include="Diagnostics\Chunk7CumulativeAcquisitionSelection.cs" />
     <Compile Include="Diagnostics\Chunk7OwnedPairsSelection.cs" />
     <Compile Include="Diagnostics\Chunk7OwnedPairFixture.cs" />
+    <Compile Include="Diagnostics\Chunk7OwnedPairFixture.Replay.cs" />
     <Compile Include="Diagnostics\PersistenceSaveAuthorization.OwnedPairs.cs" />
     <Compile Include="Diagnostics\Chunk7PersistenceScenario.OwnedPairs.cs" />
     <Compile Include="Diagnostics\Chunk7ManualDerivedScenario.Cumulative.cs" />

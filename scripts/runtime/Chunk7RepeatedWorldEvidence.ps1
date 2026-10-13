@@ -3,18 +3,21 @@ Set-StrictMode -Version Latest
 function Test-KmcChunk7RepeatedWorldCase([string]$Case) { $Case-cin@('multi-exploration-three-loads-manual','multi-exploration-three-area-transfers-manual') }
 function Get-KmcChunk7PersistenceSourceCase([string]$Case) { if(Test-KmcChunk7RepeatedWorldCase $Case){return 'multi-exploration-manual'};return $Case }
 function Assert-KmcChunk7RepeatedWorldRequest($Request) {
-    $repeated=Test-KmcChunk7RepeatedWorldCase $Request.persistenceCase
-    $areas=$Request.persistenceCase-ceq'multi-exploration-three-area-transfers-manual'
+    $selectedCase=if($null-ne$Request.PSObject.Properties['persistenceCase']){$Request.persistenceCase}else{$null}
+    $repeated=Test-KmcChunk7RepeatedWorldCase $selectedCase
+    $areas=$selectedCase-ceq'multi-exploration-three-area-transfers-manual'
     $hasTargets=@($Request.PSObject.Properties.Name)-ccontains'persistenceReplayTargets'
     if(-not$repeated){if($hasTargets){throw 'Repeated area route belongs only to its exact cold case.'};return}
-    if($Request.scenario-cne'chunk7-persistence-load'){throw 'Repeated worlds require the selected cold-load family.'}
+    $owned=Test-KmcChunk7OwnedPairsScenario $Request.scenario
+    if($owned){Assert-KmcChunk7OwnedPairsSelection $Request;if($Request.ownedPairs.case-cne'persistence-load'){throw 'Owned repeated worlds are cold-only.'}}
+    elseif($Request.scenario-cne'chunk7-persistence-load'){throw 'Repeated worlds require the selected cold-load family.'}
     if(-not$areas){if($hasTargets){throw 'Repeated native loads cannot claim area-transfer coverage.'};return}
     if(-not$hasTargets-or$Request.persistenceReplayTargets-isnot[Array]-or$Request.persistenceReplayTargets.Count-ne3){throw 'Three exact native area destinations are mandatory.'}
-    $prior=$Request.fixture.working.area
+    $prior=if($owned){$Request.persistenceLoad.area}else{$Request.fixture.working.area}
     foreach($target in $Request.persistenceReplayTargets){
         Assert-KmcExactProperties $target @('enterPoint','area','autoSaveMode') 'Repeated native area target'
         foreach($field in @('enterPoint','area')){if($target.$field-isnot[string]-or$target.$field-cnotmatch'^[0-9a-f]{32}$'-or$target.$field-ceq('0'*32)){throw 'Native area target must be an exact nonzero GUID pin.'}}
-        if($target.area-ceq$prior-or$target.enterPoint-ceq$target.area-or$target.autoSaveMode-cne'None'){throw 'Repeated areas forbid same-area teleport and unselected autosave.'}
+        if($target.area-ceq$prior-or$target.enterPoint-ceq$target.area-or$target.autoSaveMode-isnot[string]-or$target.autoSaveMode-cne'None'){throw 'Repeated areas forbid same-area teleport and unselected autosave.'}
         $prior=$target.area
     }
 }
@@ -128,12 +131,20 @@ function Assert-KmcChunk7RepeatedWorldObservation($Request,$Artifact) {
     if(-not(Test-KmcChunk7RepeatedWorldCase $Request.persistenceCase)-or$Artifact.status-cne'PASS'){throw 'Repeated-world PASS requires its exact declared case.'}
     $o=$Artifact.observations;$r=$o.repeatedWorlds;$areas=$Request.persistenceCase-ceq'multi-exploration-three-area-transfers-manual';$loads=if($areas){1}else{3};$transfers=if($areas){3}else{0}
     Assert-KmcChunk7NativeCounters $o @('nativeSchema','nativeCapacity','processId')
-    if($o.checkpoint-cne$Request.persistenceCase-or$o.sourceWorkingSha256-cne$Request.fixture.working.sha256-or$o.sourceWorkingSha256-cne'5eb4e0b4cbd8d60dc879a02ff71aadfde3f517304754857f0cc68d0f9a93f1c6'-or
+    $owned=Test-KmcChunk7OwnedPairsScenario $Request.scenario
+    if($owned){
+        Assert-KmcChunk7OwnedPairsDescriptor $Request
+        Assert-KmcBootstrapInventoryString $o.checkpoint $Request.persistenceCase
+        Assert-KmcBootstrapInventoryString $o.inheritedManualSha256 $Request.ownedPairs.sourceArchiveSha256
+        if($null-ne$o.sourceWorkingSha256){throw 'Owned replay cannot claim the historical Working fixture.'}
+    }elseif($o.sourceWorkingSha256-cne$Request.fixture.working.sha256-or$o.sourceWorkingSha256-cne'5eb4e0b4cbd8d60dc879a02ff71aadfde3f517304754857f0cc68d0f9a93f1c6'){throw 'Repeated legacy Working source differs.'}
+    if($o.checkpoint-cne$Request.persistenceCase-or
        $o.nativeSchema-ne3-or$o.nativeCapacity-ne2-or$o.processId-le0-or@($o.inputs).Count-ne0-or@($o.movements).Count-ne0-or
        (ConvertTo-KmcChunk7Canonical $o.loadedDescriptor)-cne(ConvertTo-KmcChunk7Canonical $Request.persistenceLoad)){throw 'Repeated-world fixture/candidate/source differs or replayed native input.'}
-    foreach($f in @('cold','nativeProgressionRequiresExternalWorkingRestoration')){Assert-KmcChunk7Boolean $o.$f $true}
+    Assert-KmcChunk7Boolean $o.cold $true;Assert-KmcChunk7Boolean $o.nativeProgressionRequiresExternalWorkingRestoration (-not$owned)
     foreach($f in @('ordinaryRespecProven','combatDebtProof')){Assert-KmcChunk7Boolean $o.$f $false}
     $archive=$o.loadedArchive;Assert-KmcChunk7PersistenceArchive $archive $Request
+    if($owned){Assert-KmcChunk7OwnedArchiveProfiles $Request $o $archive}
     foreach($f in @('requiredNativeLoads','requiredAreaTransfers','nativeLoadRequests','nativeWriteRequests')){Assert-KmcChunk7NativeCounters $r @($f)}
     foreach($f in @('performanceProof','diagnosticsOffProof','allocationRateProof')){Assert-KmcChunk7Boolean $r.$f $false}
     Assert-KmcChunk7Boolean $r.inputUnchanged $true;Assert-KmcChunk7Boolean $r.observersReleased $true
@@ -209,7 +220,101 @@ function Assert-KmcChunk7RepeatedWorldObservation($Request,$Artifact) {
     foreach($f in @('gameObject','playerObject','stateObject','areaStateObject','mainStateObject')){if($r.settled.$f-ne$previous.$f){throw 'Cleanup touched an unadmitted final world.'}}
     foreach($actor in $r.settled.actors){$old=@($previous.actors|Where-Object id -CEQ $actor.id)[0];foreach($f in @('object','descriptor','view','viewObject')){if($actor.$f-ne$old.$f){throw 'Cleanup touched a substituted final native actor.'}}}
     if((ConvertTo-KmcChunk7Canonical $r.settled.subscriptions)-cne(ConvertTo-KmcChunk7Canonical $initial.subscriptions)){throw 'Final cleanup grew or lost KMC subscriptions.'}
-    foreach($f in @('pairsClear','sourceHorseRemoved','controlsSettled','saveCustodyClear','selectionRestored','nativeProgressionRequiresExternalWorkingRestoration')){Assert-KmcChunk7Boolean $o.cleanup.$f $true}
+    foreach($f in @('pairsClear','controlsSettled','saveCustodyClear','selectionRestored')){Assert-KmcChunk7Boolean $o.cleanup.$f $true}
+    foreach($f in @('sourceHorseRemoved','nativeProgressionRequiresExternalWorkingRestoration')){Assert-KmcChunk7Boolean $o.cleanup.$f (-not$owned)}
+    if($owned){Assert-KmcChunk7OwnedReplayCustody $Request $o $nativeIds}
     Assert-KmcChunk7Boolean $o.cleanup.ordinaryRespecProven $false
     if(@($o.cleanup.world.owners).Count-ne0){throw 'Repeated-world cleanup retained an owner.'}
+}
+
+# Only the closed owned replay consumes these extra whole-field snapshots. Native
+# callback phase rows keep their existing four-actor/deferred-Destroy contract.
+function Assert-KmcChunk7OwnedReplayField($Request,$World,$Registry,[int]$Load,[int]$AreaOrdinal){
+ $f=$World.ownedField
+ Assert-KmcExactProperties $f @('loadOrdinal','areaOrdinal','custody','area','characters','actors') 'owned replay field'
+ Assert-KmcOrdinaryInteger $f.loadOrdinal $Load $Load;Assert-KmcOrdinaryInteger $f.areaOrdinal $AreaOrdinal $AreaOrdinal
+ Assert-KmcBootstrapInventoryString $f.area $World.area
+ Assert-KmcChunk7InheritedSnapshot $Request $f.custody 'replay-field'
+ if($f.actors-isnot[Array]-or$f.actors.Count-ne$Request.ownedPairs.partyIds.Count-or$f.characters-isnot[Array]-or$f.characters.Count-ne$f.custody.currentCharacterIds.Count){throw 'Owned replay must observe the complete field and native character scope.'}
+ $byId=@{};$labels=[Collections.Generic.HashSet[int]]::new()
+ foreach($key in @('gameObject','playerObject','stateObject','areaStateObject','mainStateObject')){Assert-KmcChunk7ReplayObject $World.$key;if(-not$labels.Add([int]$World.$key)){throw 'Owned replay native world roles alias.'}}
+ foreach($a in $f.actors){
+  Assert-KmcExactProperties $a @('id','blueprint','object','descriptor','viewObject','view','petId','masterId','inState','inGame','inCombat','commandsEmpty','queuedCommands') 'owned replay field actor'
+  Assert-KmcOrdinaryGuid $a.id;if($byId.ContainsKey($a.id)-or$a.id-cnotin$Request.ownedPairs.partyIds){throw 'Owned replay field actor repeats or is foreign.'};$byId[$a.id]=$a
+  foreach($key in @('object','descriptor','viewObject')){Assert-KmcChunk7ReplayObject $a.$key;if(-not$Registry.Contains([int]$a.$key)-or-not$labels.Add([int]$a.$key)){throw 'Owned field identity aliases or lacks retained custody.'}}
+  Assert-KmcChunk7ReplayObject $a.view
+  foreach($key in @('inState','inGame','commandsEmpty')){Assert-KmcChunk7Boolean $a.$key $true};Assert-KmcChunk7Boolean $a.inCombat $false;Assert-KmcOrdinaryInteger $a.queuedCommands 0 0
+  foreach($key in @('petId','masterId')){if($null-ne$a.$key){Assert-KmcOrdinaryGuid $a.$key}}
+  $arr=@($f.custody.arrangement.actors|Where-Object actorId -CEQ $a.id);if($arr.Count-ne1){throw 'Owned replay omitted actor progression.'};Assert-KmcBootstrapInventoryString $a.blueprint $arr[0].blueprint
+  $pairActor=@($World.actors|Where-Object id -CEQ $a.id);if($pairActor.Count-gt1){throw 'Owned native pair snapshot duplicates an actor.'}
+  if($pairActor.Count-eq1){foreach($key in @('object','descriptor','viewObject','view')){if($a.$key-ne$pairActor[0].$key){throw 'Owned full field differs from the exact mounted actor graph.'}}}
+ }
+ $chars=[Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+ foreach($c in $f.characters){Assert-KmcExactProperties $c @('id','object') 'owned replay native character';Assert-KmcOrdinaryGuid $c.id;Assert-KmcChunk7ReplayObject $c.object
+  if(-not$chars.Add($c.id)-or-not$byId.ContainsKey($c.id)-or$c.id-cnotin$f.custody.currentCharacterIds-or$c.object-ne$byId[$c.id].object-or$null-ne$byId[$c.id].masterId){throw 'Owned replay substituted raw character membership or inserted a pet.'}
+ }
+ foreach($a in $f.actors){
+  if($null-eq$a.masterId){if(-not$chars.Contains($a.id)){throw 'Owned replay field character is missing from raw native membership.'}}
+  elseif(-not$byId.ContainsKey($a.masterId)-or$byId[$a.masterId].petId-cne$a.id-or$chars.Contains($a.id)-or$null-ne$a.petId){throw 'Owned replay pet lost exact reciprocal native custody.'}
+  if($null-ne$a.petId){if(-not$byId.ContainsKey($a.petId)-or$byId[$a.petId].masterId-cne$a.id-or-not$chars.Contains($a.id)){throw 'Owned replay character pet escaped its exact field scope.'}}
+ }
+ foreach($p in $f.custody.pairs){
+  if($byId[$p.riderId].object-ne$p.rider-or$byId[$p.mountId].object-ne$p.mount-or$byId[$p.riderId].petId-cne$p.mountId-or$byId[$p.mountId].masterId-cne$p.riderId){throw 'Owned replay Horse roles differ from inherited feature custody.'}
+  foreach($key in @('feature','rankFact')){if(-not$Registry.Contains([int]$p.$key)-or-not$labels.Add([int]$p.$key)){throw 'Inherited fact label aliases native world/actor or is unretained.'}}
+ }
+ if($null-ne$World.PSObject.Properties['selectionRebinding']){
+  $selected=[Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+  foreach($s in $World.selectionRebinding){Assert-KmcExactProperties $s @('id','object') 'owned replay selection';Assert-KmcOrdinaryGuid $s.id;Assert-KmcChunk7ReplayObject $s.object
+   if(-not$selected.Add($s.id)-or-not$byId.ContainsKey($s.id)-or$s.object-ne$byId[$s.id].object){throw 'Owned replay selection is not the exact current full-field object.'}
+  }
+ }
+}
+function Assert-KmcChunk7OwnedReplayCustody($Request,$Observations,$Registry){
+ $o=$Observations;$r=$o.repeatedWorlds;$areas=$Request.persistenceCase-ceq'multi-exploration-three-area-transfers-manual'
+ Assert-KmcChunk7InheritedSnapshot $Request $o.inheritedFixture 'admitted';Assert-KmcChunk7InheritedSnapshot $Request $o.inheritedCleanup 'cleanup'
+ $stable=@('partyIds','currentPartyIds','currentCharacterIds','remoteCapturedIds','arrangement')
+ for($i=0;$i-lt$r.worlds.Count;$i++){
+  $w=$r.worlds[$i];$load=if($areas){1}else{$i+1};$areaOrdinal=if($areas){$i}else{0}
+  Assert-KmcChunk7OwnedReplayField $Request $w $Registry $load $areaOrdinal
+  foreach($key in $stable){
+   $current=$w.ownedField.custody.$key;$initial=$o.inheritedFixture.$key
+   # Native replacement preserves roster membership, not a prior Player list order.
+   # Initial/area ownership and each dispatch/cleanup witness retain exact order.
+   if($key-ceq'partyIds'-and$i-gt0-and-not$areas){$current=@($current|Sort-Object -CaseSensitive);$initial=@($initial|Sort-Object -CaseSensitive)}
+   if((ConvertTo-KmcChunk7Canonical $current)-cne(ConvertTo-KmcChunk7Canonical $initial)){throw 'Owned replay changed native full roster or class/XP/funds.'}
+  }
+  foreach($p in $w.ownedField.custody.pairs){$old=@($o.inheritedFixture.pairs|Where-Object riderId -CEQ $p.riderId)[0]
+   foreach($key in @('riderId','mountId','sourceGuid','profileId')){Assert-KmcBootstrapInventoryString $p.$key $old.$key};Assert-KmcOrdinaryInteger $p.rank $old.rank $old.rank
+  }
+  if($i-eq0){foreach($key in @('pairs','identities')){if((ConvertTo-KmcChunk7Canonical $w.ownedField.custody.$key)-cne(ConvertTo-KmcChunk7Canonical $o.inheritedFixture.$key)){throw 'Initial owned replay is not the admitted field owner.'}}}
+  else{
+   $old=$r.worlds[$i-1].ownedField
+   if(-not$areas){
+    foreach($a in $w.ownedField.actors){if($a.object-cin@($old.actors|ForEach-Object object)){throw 'Owned replay reused an actor from the previous native epoch.'}}
+    foreach($key in @('descriptor','viewObject')){foreach($a in $w.actors){if($a.$key-cin@($r.worlds[$i-1].actors|ForEach-Object{$_.$key})){throw 'Owned replay reused a selected descriptor or view from the previous native epoch.'}}}
+    foreach($key in @('feature','rankFact')){foreach($p in $w.ownedField.custody.pairs){if($p.$key-cin@($old.custody.pairs|ForEach-Object{$_.$key})){throw 'Owned replay reused inherited facts from the previous native epoch.'}}}
+   }
+   foreach($a in $w.ownedField.actors){$prior=@($old.actors|Where-Object id -CEQ $a.id)[0]
+    foreach($key in @('object','descriptor','viewObject','view')){if(($a.$key-eq$prior.$key)-ne$areas){throw 'Owned replay full field retained a stale load object or changed an area object.'}}
+    foreach($key in @('blueprint','petId','masterId')){if((ConvertTo-KmcChunk7Canonical $a.$key)-cne(ConvertTo-KmcChunk7Canonical $prior.$key)){throw 'Owned replay changed unrelated or inherited native relationships.'}}
+   }
+   foreach($p in $w.ownedField.custody.pairs){$prior=@($old.custody.pairs|Where-Object riderId -CEQ $p.riderId)[0];foreach($key in @('rider','mount','feature','rankFact')){if(($p.$key-eq$prior.$key)-ne$areas){throw 'Inherited native fact custody violates the selected world boundary.'}}}
+   $before=$r.requests[$i-1].before;Assert-KmcChunk7OwnedReplayField $Request $before $Registry $(if($areas){1}else{$i}) $(if($areas){$i-1}else{0})
+   if((ConvertTo-KmcChunk7Canonical $before.ownedField)-cne(ConvertTo-KmcChunk7Canonical $old)){throw 'Owned replay dispatch did not preserve the complete prior field epoch.'}
+  }
+ }
+ $last=$r.worlds[$r.worlds.Count-1].ownedField
+ Assert-KmcChunk7OwnedReplayField $Request $r.settled $Registry $(if($areas){1}else{3}) $(if($areas){3}else{0})
+ if((ConvertTo-KmcChunk7Canonical $r.settled.ownedField)-cne(ConvertTo-KmcChunk7Canonical $last)){throw 'Owned replay cleanup changed final inherited field or native facts.'}
+ foreach($key in $stable+@('pairs','identities')){if((ConvertTo-KmcChunk7Canonical $o.inheritedCleanup.$key)-cne(ConvertTo-KmcChunk7Canonical $last.custody.$key)){throw 'Final inherited cleanup is not the last admitted replay owner.'}}
+ if($o.inheritedReplayRetirements-isnot[Array]-or$o.inheritedReplayRetirements.Count-ne$(if($areas){0}else{2})){throw 'Owned replay omitted or invented local epoch retirement.'}
+ for($i=0;$i-lt$o.inheritedReplayRetirements.Count;$i++){
+  $v=$o.inheritedReplayRetirements[$i];$before=$r.worlds[$i];$after=$r.worlds[$i+1]
+  Assert-KmcExactProperties $v @('fromLoad','toLoad','oldPlayer','newPlayer','oldState','newState','previousIds','capacity','factRemovalCount','nativeDeletionRequested','released','retainedAfterRelease') 'inherited replay retirement'
+  Assert-KmcOrdinaryInteger $v.fromLoad ($i+1) ($i+1);Assert-KmcOrdinaryInteger $v.toLoad ($i+2) ($i+2);Assert-KmcOrdinaryInteger $v.capacity 128 128
+  foreach($key in @('factRemovalCount','retainedAfterRelease')){Assert-KmcOrdinaryInteger $v.$key 0 0};Assert-KmcChunk7Boolean $v.nativeDeletionRequested $false;Assert-KmcChunk7Boolean $v.released $true
+  foreach($spec in @(@('oldPlayer',$before.playerObject),@('newPlayer',$after.playerObject),@('oldState',$before.stateObject),@('newState',$after.stateObject))){Assert-KmcChunk7ReplayObject $v.($spec[0]);if($v.($spec[0])-ne$spec[1]){throw 'Inherited retirement belongs to another exact native epoch.'}}
+  if($v.previousIds-isnot[Array]-or(ConvertTo-KmcChunk7Canonical $v.previousIds)-cne(ConvertTo-KmcChunk7Canonical $before.ownedField.custody.identities.ids)){throw 'Inherited retirement did not release its own prior registry.'}
+ }
+ Assert-KmcChunk7Boolean $o.cleanup.inheritedPetsPreserved $true;Assert-KmcChunk7Boolean $o.cleanup.sourceHorseRemoved $false
 }

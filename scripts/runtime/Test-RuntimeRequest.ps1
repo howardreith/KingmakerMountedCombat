@@ -111,6 +111,7 @@ elseif ($schemaVersion -eq 2) {
     $hasPersistenceCase=@($request.PSObject.Properties.Name)-ccontains'persistenceCase'
     if(Test-KmcChunk7OwnedPairsScenario $request.scenario){
         Assert-KmcChunk7OwnedPairsDescriptor $request
+        Assert-KmcChunk7RepeatedWorldRequest $request
     }elseif(Test-KmcChunk7AcquiredManualScenario $request.scenario){
         if($hasPersistenceCase){throw 'Acquired Manual selects no foreign persistence case.'}
         Assert-KmcChunk7AcquiredManualDescriptor $request

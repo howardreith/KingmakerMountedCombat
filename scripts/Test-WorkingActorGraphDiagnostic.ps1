@@ -1,7 +1,8 @@
 [CmdletBinding()]
-param([string]$RepositoryRoot=(Split-Path -Parent $PSScriptRoot),[string]$DiagnosticDirectory=(Join-Path $PSScriptRoot 'runtime'),
-      [string]$OutputDirectory)
+param([string]$RepositoryRoot,[string]$DiagnosticDirectory,[string]$OutputDirectory)
 $ErrorActionPreference='Stop';Set-StrictMode -Version Latest
+if(-not$PSBoundParameters.ContainsKey('RepositoryRoot')){$RepositoryRoot=Split-Path -Parent $PSScriptRoot}
+if(-not$PSBoundParameters.ContainsKey('DiagnosticDirectory')){$DiagnosticDirectory=Join-Path $PSScriptRoot 'runtime'}
 . (Join-Path $RepositoryRoot 'scripts/runtime/RuntimeHarness.Common.ps1')
 $analysis=[IO.Path]::GetFullPath((Join-Path (Get-KmcLabRoot) 'analysis-cache')).TrimEnd('\')
 if([string]::IsNullOrEmpty($OutputDirectory)){$OutputDirectory=Join-Path $analysis ('working-actor-graph-tests-'+[Guid]::NewGuid().ToString('N'))}
