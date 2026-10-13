@@ -149,6 +149,10 @@ if ($schemaVersion -eq 1) {
 }
 elseif ($schemaVersion -eq 2) {
     $v2Fields = @('fixture','fixtureIdentityVerified','baselineLoadRequestCount','workingLoadRequestCount','workingSaveRequestCount','suppressedWorkingSaveRequestCount','unauthorizedLoadRequestCount','unauthorizedSaveRequestCount','subscenarioTotal','subscenarioPassCount','subscenarioFailCount','assertionPassCount','assertionFailCount','evidenceManifestSha256','subscenarioResults')
+    if($null-ne$game.PSObject.Properties['bootstrapDialogue']){
+        Assert-KmcChunk7BootstrapDialogueResult $game $request
+        $v2Fields+=@('bootstrapDialogue')
+    }
     Assert-KmcExactProperties $game @($commonRequired + $v2Fields) 'runtime game result v2'
 }
 else { throw 'Runtime game-result request schema is unsupported.' }

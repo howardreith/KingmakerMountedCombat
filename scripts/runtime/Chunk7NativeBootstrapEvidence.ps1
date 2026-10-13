@@ -51,11 +51,73 @@ function Assert-KmcChunk7NativeBootstrapPreflight($Value,[bool]$Passed){
   if($Value.rangerFirst32Guids[12]-cne$Value.horseFeatureGuid){throw 'Registered Horse did not occupy its one appended native Ranger option.'}
  }
 }
+
+# Optional passive snapshots validate their raw shape only. They cannot satisfy a
+# bootstrap result, change a status, or authorize dialogue input/restoration.
+function Assert-KmcChunk7BootstrapDialogueObservation($Value,[bool]$Terminal){
+ Assert-KmcExactProperties $Value @('contract','rawSnapshotsOnly','maximumSnapshots','identityCapacity','identityReleased','identityFaultCount','identityIds','snapshots','errors') 'passive bootstrap dialogue'
+ if($Value.contract-isnot[string]-or$Value.contract-cne'chunk7-bootstrap-dialogue-raw-v1'){throw 'Passive dialogue contract changed.'}
+ Assert-KmcChunk7Boolean $Value.rawSnapshotsOnly $true
+ Assert-KmcOrdinaryInteger $Value.maximumSnapshots 4 4;Assert-KmcOrdinaryInteger $Value.identityCapacity 32 32
+ Assert-KmcChunk7Boolean $Value.identityReleased $Terminal;Assert-KmcOrdinaryInteger $Value.identityFaultCount 0 4
+ if($Value.identityIds-isnot[Array]-or$Value.identityIds.Count-gt32-or$Value.snapshots-isnot[Array]-or$Value.snapshots.Count-gt4-or$Value.errors-isnot[Array]-or$Value.errors.Count-gt4){throw 'Passive dialogue array bounds changed.'}
+ $ids=[Collections.Generic.HashSet[int]]::new()
+ foreach($id in $Value.identityIds){Assert-KmcNativeBootstrapObject $id;if(-not$ids.Add([int]$id)){throw 'Passive dialogue identity labels duplicate.'}}
+ foreach($errorText in $Value.errors){if($errorText-isnot[string]-or$errorText.Length-eq0-or$errorText.Length-gt256){throw 'Passive dialogue error shape changed.'}}
+ $phases=@('bootstrap-readiness','cleanup-entry','cleanup-settlement','host-terminal');$last=-1;$lastFrame=-1
+ $dataKeys=@('game','controller','topMode','dialogActive','cutsceneLock','dialog','currentCue','queuedCue','continueCue','cuePlayScheduled','dialogStopScheduled','messageBox','messageBoxShown','messageBoxType')
+ foreach($row in $Value.snapshots){
+  Assert-KmcExactProperties $row @(@('phase','frame','readSucceeded','readError')+$dataKeys) 'passive dialogue row'
+  if($row.phase-isnot[string]){throw 'Passive dialogue phase must be a scalar string.'};$index=[Array]::IndexOf($phases,$row.phase)
+  if($index-lt0-or$index-le$last-or(-not$Terminal-and$index-eq3)){throw 'Passive dialogue phase order changed.'};$last=$index
+  Assert-KmcOrdinaryInteger $row.frame 0 ([int]::MaxValue);if($row.frame-lt$lastFrame){throw 'Passive dialogue frame order changed.'};$lastFrame=$row.frame
+  if($row.readSucceeded-isnot[bool]){throw 'Passive dialogue read flag must be boolean.'}
+  if(-not$row.readSucceeded){
+   if($row.readError-isnot[string]-or$row.readError.Length-eq0-or$row.readError.Length-gt256){throw 'Passive dialogue failed read needs a bounded error.'}
+   foreach($key in $dataKeys){if($null-ne$row.$key){throw 'Passive dialogue failed read retained partial state.'}}
+   continue
+  }
+  if($null-ne$row.readError){throw 'Passive dialogue successful read has an error.'}
+  foreach($key in @('game','controller','messageBox')){
+   Assert-KmcOrdinaryInteger $row.$key ([int]::MinValue) ([int]::MaxValue)
+   if($row.$key-ne0-and-not$ids.Contains([int]$row.$key)){throw 'Passive dialogue object is outside the retained registry.'}
+  }
+  foreach($key in @('dialog','currentCue','queuedCue','continueCue')){
+   $blueprint=$row.$key;Assert-KmcExactProperties $blueprint @('object','guid') 'passive dialogue blueprint'
+   Assert-KmcOrdinaryInteger $blueprint.object ([int]::MinValue) ([int]::MaxValue)
+   if($blueprint.object-ne0-and-not$ids.Contains([int]$blueprint.object)){throw 'Passive dialogue blueprint is outside the retained registry.'}
+   if($null-ne$blueprint.guid-and($blueprint.guid-isnot[string]-or$blueprint.guid.Length-gt64)){throw 'Passive dialogue blueprint label changed.'}
+   if($blueprint.object-eq0-and$null-ne$blueprint.guid){throw 'Passive dialogue null blueprint has an identity string.'}
+  }
+  if($row.game-eq0){
+   if($null-ne$row.topMode-or$null-ne$row.dialogActive-or$null-ne$row.cutsceneLock-or$row.controller-ne0){throw 'Passive dialogue absent game has native state.'}
+  }else{
+   if($row.topMode-isnot[string]-or$row.topMode.Length-eq0-or$row.topMode.Length-gt64-or$row.dialogActive-isnot[bool]-or$row.cutsceneLock-isnot[bool]){throw 'Passive dialogue game state shape changed.'}
+  }
+  if($row.controller-eq0){
+   if($null-ne$row.cuePlayScheduled-or$null-ne$row.dialogStopScheduled){throw 'Passive dialogue absent controller has scheduling flags.'}
+   foreach($key in @('dialog','currentCue','queuedCue','continueCue')){if($row.$key.object-ne0){throw 'Passive dialogue absent controller has a blueprint.'}}
+  }elseif($row.cuePlayScheduled-isnot[bool]-or$row.dialogStopScheduled-isnot[bool]){throw 'Passive dialogue scheduling flags must be boolean.'}
+  if($row.messageBox-eq0){if($null-ne$row.messageBoxShown-or$null-ne$row.messageBoxType){throw 'Passive dialogue absent popup has native state.'}}
+  # Unity-null may retain a CLR reference: the producer records its identity
+  # while both observational getters are unavailable. This is not a claim of
+  # native destruction, visibility or successful cleanup.
+  elseif($null-ne$row.messageBoxShown-or$null-ne$row.messageBoxType){if($row.messageBoxShown-isnot[bool]){throw 'Passive dialogue popup flag must be boolean.'};Assert-KmcOrdinaryInteger $row.messageBoxType ([int]::MinValue) ([int]::MaxValue)}
+ }
+ if($Terminal-and$Value.errors.Count-eq0-and$last-ne3){throw 'Passive terminal snapshot is missing without a recorded observation error.'}
+}
+function Assert-KmcChunk7BootstrapDialogueResult($Game,$Request){
+ if($null-eq$Game.PSObject.Properties['bootstrapDialogue']){return}
+ if($Game.scenario-isnot[string]-or$Request.scenario-isnot[string]-or$Game.scenario-cne'chunk7-native-main-bootstrap'-or$Request.scenario-cne'chunk7-native-main-bootstrap'){throw 'Passive bootstrap dialogue is forbidden under another family.'}
+ Assert-KmcChunk7BootstrapDialogueObservation $Game.bootstrapDialogue $true
+}
+
 function Assert-KmcChunk7NativeBootstrapEvidence($Request,$Artifact,[string]$Status='PASS'){
  Assert-KmcChunk7NativeBootstrapSelection $Request
  Assert-KmcChunk7ArtifactEnvelope $Request $Artifact 'chunk7-native-bootstrap-evidence'
  if($Status-ceq'PASS'-and$Artifact.status-cne'PASS'){throw 'PASS bootstrap requires a PASS native artifact.'}
  $o=$Artifact.observations
+ if($null-ne$o.PSObject.Properties['dialogueObservation']){Assert-KmcChunk7BootstrapDialogueObservation $o.dialogueObservation $false}
  if($null-ne$o.PSObject.Properties['preflight']){Assert-KmcChunk7NativeBootstrapPreflight $o.preflight ($Artifact.status-ceq'PASS')}
  if($Artifact.status-cne'PASS'){return}
  if((ConvertTo-KmcChunk7Canonical $o.selection)-cne(ConvertTo-KmcChunk7Canonical $Request.nativeBootstrap)){throw 'Native bootstrap selection changed.'}

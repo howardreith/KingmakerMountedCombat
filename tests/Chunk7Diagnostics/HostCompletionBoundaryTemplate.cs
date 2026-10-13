@@ -25,6 +25,11 @@ namespace KingmakerMountedCombat.Diagnostics
     sealed class Log { public int Exceptions; public void Info(string x){} public void Exception(string x,Exception e){Exceptions++;} }
     sealed class CleanupResult { public bool Succeeded=true,MovementAuthorityResidual,PresentationResidual; }
     sealed class Relationship { public Domain.RelationshipState State=Domain.RelationshipState.Unmounted; public int Dismounts;public bool Refuse;public CleanupResult Dismount(Domain.CleanupTrigger t){Dismounts++;return new CleanupResult{Succeeded=!Refuse};} }
+    sealed class Chunk7BootstrapDialogueObservation:IDisposable {
+        internal int Captures,Disposals;internal bool Released,ThrowCapture;
+        internal object CaptureTerminal(Kingmaker.Game game){Captures++;if(ThrowCapture)throw new InvalidOperationException("injected observation publication failure");return new object();}
+        public void Dispose(){Disposals++;Released=true;}
+    }
     sealed class Host
     {
         private RuntimeRequest request=new RuntimeRequest();private DiagnosticSettings diagnosticSettings=new DiagnosticSettings();
@@ -37,12 +42,12 @@ namespace KingmakerMountedCombat.Diagnostics
         private string loadedModId="synthetic",resultPath="never-written-result.json";private DateTimeOffset startedAt=DateTimeOffset.UtcNow;
         private int saveRequestCount=1,loadRequestCount,frameCount=1;private double elapsedSeconds=1;
         private Func<bool> movementExperimentProvider;private Func<string> relationshipStateProvider;
-        private RuntimeGameResultV2 result;private int finalizations,drains,publishes,providerReads,emergencyWrites;
-        private bool finalizeSawEnabled,publishSawEnabled,throwFinalization;private Action afterManifest;
+        private Chunk7BootstrapDialogueObservation bootstrapDialogue;private RuntimeGameResultV2 result;private int finalizations,drains,publishes,providerReads,emergencyWrites;
+        private bool finalizeSawEnabled,publishSawEnabled,throwFinalization,throwResult;private Action afterManifest;
         private void FinalizeActiveScenarioEngines(List<string> errors){finalizations++;finalizeSawEnabled=diagnosticSettings.EnableUnsafeMovementExperiment;if(throwFinalization)throw new InvalidOperationException("unsettled external owner");}
         private string PublishRuntimeArtifactManifest(){publishes++;publishSawEnabled=diagnosticSettings.EnableUnsafeMovementExperiment;afterManifest?.Invoke();return new string('a',64);}
         private static string ComputeSha256(string p){return new string('b',64);}
-        private void WriteJsonAtomic(string p,RuntimeGameResultV2 value){result=value;}
+        private void WriteJsonAtomic(string p,RuntimeGameResultV2 value){if(throwResult)throw new IOException("injected result writer failure");result=value;}
         private void TryWriteEmergencySaveBackedFailure(Exception e){emergencyWrites++;}
         private static bool IsLoadingProcessActive(){return loading;}
         private void DrainChunk7Completion(){drains++;}
@@ -53,7 +58,7 @@ __RESULT_DTO__
         private static Host Ready(bool native=true,Kingmaker.Mode mode=Kingmaker.Mode.Default,bool area=true)
         {
             loading=false;Application.QuitCount=0;Kingmaker.Game.Instance=new Kingmaker.Game{CurrentMode=Kingmaker.Mode.Default};
-            var h=new Host{IsChunk7NativeFamily=native};h.request.Scenario=native?"chunk7-native-main-bootstrap":"legacy-save";
+            var h=new Host{IsChunk7NativeFamily=native,bootstrapDialogue=native?new Chunk7BootstrapDialogueObservation():null};h.request.Scenario=native?"chunk7-native-main-bootstrap":"legacy-save";
             h.movementExperimentProvider=()=>{h.providerReads++;return h.diagnosticSettings.EnableUnsafeMovementExperiment;};h.relationshipStateProvider=()=>h.relationship.State.ToString();
             h.subscenarioResults=new[]{new RuntimeSubscenarioResult{Name="first-native-proof",Status="PASS",AssertionPassCount=2,Errors=new string[0]},new RuntimeSubscenarioResult{Name="last-native-proof",Status="PASS",AssertionPassCount=3,Errors=new string[0]}};
             h.ActivateSaveBackedBoundary();Kingmaker.Game.Instance.CurrentMode=mode;Kingmaker.Game.Instance.CurrentlyLoadedArea=area?new object():null;
@@ -117,6 +122,13 @@ __RESULT_DTO__
             Check("failure still reports actual terminal mode",h.result.CurrentGameMode=="Dialog"&&!h.result.MovementExperimentEnabled);
             h=Ready();h.Settle();h.subscenarioResults=new RuntimeSubscenarioResult[0];h.CompleteSaveBackedWhenIdle("FAIL",new[]{"no proof"});
             Check("no proof cannot become empty success",h.result.Status=="FAIL"&&h.result.SubscenarioTotal==1&&h.result.SubscenarioFailCount==1&&h.result.AssertionFailCount==1);
+            h=Ready();h.CompleteSaveBackedWhenIdle("PASS",new string[0]);Check("pending owner retains passive registry without terminal read",h.bootstrapDialogue.Captures==0&&!h.bootstrapDialogue.Released);
+            h.Settle();h.CompleteSaveBackedWhenIdle("PASS",new string[0]);Check("settled result includes one passive terminal sample and releases it",h.bootstrapDialogue.Captures==1&&h.bootstrapDialogue.Released&&h.result.BootstrapDialogue!=null);
+            Check("present terminal field serializes",h.result.ShouldSerializeBootstrapDialogue());
+            h=Ready(false);h.CompleteSaveBackedWhenIdle("PASS",new string[0]);Check("historical terminal field stays absent",!h.result.ShouldSerializeBootstrapDialogue());
+            h=Ready();h.Settle();h.afterManifest=()=>{throw new IOException("injected artifact failure");};h.CompleteSaveBackedWhenIdle("PASS",new string[0]);Check("artifact failure before terminal sample still releases references",h.bootstrapDialogue.Captures==0&&h.bootstrapDialogue.Released&&h.emergencyWrites==1&&h.result==null);
+            h=Ready();h.Settle();h.bootstrapDialogue.ThrowCapture=true;h.CompleteSaveBackedWhenIdle("PASS",new string[0]);Check("terminal capture publication failure still releases references",h.bootstrapDialogue.Captures==1&&h.bootstrapDialogue.Released&&h.emergencyWrites==1&&h.result==null);
+            h=Ready();h.Settle();h.throwResult=true;h.CompleteSaveBackedWhenIdle("PASS",new string[0]);Check("result publication failure still releases references",h.bootstrapDialogue.Captures==1&&h.bootstrapDialogue.Released&&h.emergencyWrites==1&&h.result==null);
             Console.WriteLine("TOTAL PASS="+passed+" FAIL="+failed);return failed==0?0:1;
         }
     }

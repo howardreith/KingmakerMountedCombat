@@ -271,6 +271,7 @@
     <Compile Include="Diagnostics\Chunk7BootstrapInventoryScenario.cs" />
     <Compile Include="Diagnostics\Chunk7BootstrapInventoryProbe.cs" />
     <Compile Include="Diagnostics\Chunk7NativeBootstrapScenario.cs" />
+    <Compile Include="Diagnostics\Chunk7BootstrapDialogueObservation.cs" />
     <Compile Include="Diagnostics\Chunk7NativeBootstrapProbe.cs" />
     <Compile Include="Diagnostics\RuntimeProtocol.cs" />
     <Compile Include="Diagnostics\StopEarlyCaptureBoundary.cs" />

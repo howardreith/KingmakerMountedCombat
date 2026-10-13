@@ -42,6 +42,76 @@ namespace KingmakerMountedCombat.Harness
             public MemberShape[] members = new MemberShape[0];
         }
 
+        public sealed class PartialInlineObservation
+        {
+            public bool available;
+            public bool comparisonComplete;
+            public int validatedPrefixCount;
+            public int matchingPrefixRecordCount;
+            public int[] matchingPrefixRecordIndices = new int[0];
+            public bool matchingIndicesTruncated;
+            public string scope = "validated-inline-prefix-only; incomplete; no-native-authority";
+        }
+
+        public sealed class LexicalDocumentObservation
+        {
+            public bool available;
+            public int elementCount;
+            public int idMemberCount;
+            public int invalidIdCount;
+            public int referenceMemberCount;
+            public int invalidReferenceCount;
+            public int duplicateIdOccurrenceCount;
+            public int retainedAliasCount;
+            public bool duplicateCensusTruncated;
+            public int aliasRetentionLimit = EntityLimit;
+        }
+
+        public sealed class AliasTargetShape
+        {
+            public int definitionOrdinal;
+            public string relativePosition;
+            public int memberCount;
+            public bool membersTruncated;
+            public MemberShape[] members = new MemberShape[0];
+        }
+
+        public sealed class EntityAliasObservation
+        {
+            public int entityIndex;
+            public string valueKind;
+            public bool aliasWellFormed;
+            public int? referenceOrdinal;
+            public int definitionCount;
+            public AliasTargetShape[] targets = new AliasTargetShape[0];
+            public bool targetsTruncated;
+            public bool censusTruncated;
+            public string uncertainty;
+        }
+
+        public sealed class LexicalAliasObservation
+        {
+            public bool available;
+            public bool resolutionPerformed;
+            public LexicalDocumentObservation player = new LexicalDocumentObservation();
+            public LexicalDocumentObservation party = new LexicalDocumentObservation();
+            public EntityAliasObservation[] entityReferences = new EntityAliasObservation[0];
+            public bool entityRecordWindowTruncated;
+            public int recordLimit = StructuralRecordLimit;
+            public int targetLimit = StructuralRecordLimit;
+            public int aliasLengthLimit = IdentityLengthLimit;
+            public string scope = "same-document-lexical-census-only; occurrence-order-not-registration-order; no-reference-resolution; no-native-authority";
+        }
+
+        // Internal transient matching state is deliberately absent from the public observation.
+        private sealed class PendingAlias
+        {
+            internal XmlNode referenceNode;
+            internal string alias;
+            internal EntityAliasObservation observation;
+            internal readonly List<AliasTargetShape> targets = new List<AliasTargetShape>();
+        }
+
         public sealed class Observation
         {
             public string status = "FAIL";
@@ -64,6 +134,8 @@ namespace KingmakerMountedCombat.Harness
             public int structuralMemberLimit = StructuralMemberLimit;
             public int structuralKeyLengthLimit = StructuralKeyLengthLimit;
             public string structuralScope = "top-level-key-names-and-value-kinds-only; no-reference-resolution";
+            public PartialInlineObservation partialInline = new PartialInlineObservation();
+            public LexicalAliasObservation lexicalAliases = new LexicalAliasObservation();
             public int matchingRecordCount;
             public int duplicateEntityIdCount;
             public int[] matchingRecordIndices = new int[0];
@@ -106,12 +178,14 @@ namespace KingmakerMountedCombat.Harness
         public static Observation Analyze(byte[] player, byte[] party)
         {
             var result = new Observation();
+            XmlDocument playerDoc = null, partyDoc = null;
+            var records = new List<XmlNode>();
             try
             {
                 CheckBytes(player); CheckBytes(party);
                 result.playerSha256 = Hash(player); result.partySha256 = Hash(party);
-                var playerDoc = Parse(player, out result.playerTokenCount);
-                var partyDoc = Parse(party, out result.partyTokenCount);
+                playerDoc = Parse(player, out result.playerTokenCount);
+                partyDoc = Parse(party, out result.partyTokenCount);
                 result.playerRootKind = Kind(playerDoc.DocumentElement); result.partyRootKind = Kind(partyDoc.DocumentElement);
                 // Capture independent bounded structural facts before either logical shape can refuse.
                 var main = result.playerRootKind == "object" ? Member(playerDoc.DocumentElement, "m_MainCharacter") : null;
@@ -120,7 +194,7 @@ namespace KingmakerMountedCombat.Harness
                 result.mainReferenceShape = main == null ? "missing" : Kind(main);
                 result.entityListPresent = entities != null;
                 result.entityListShape = entities == null ? "missing" : Kind(entities);
-                var records = Kind(entities) == "array" ? Children(entities) : new List<XmlNode>();
+                records = Kind(entities) == "array" ? Children(entities) : new List<XmlNode>();
                 result.entityCount = records.Count;
                 var shapes = new List<RecordShape>();
                 for (int index = 0; index < Math.Min(records.Count, StructuralRecordLimit); index++)
@@ -145,6 +219,8 @@ namespace KingmakerMountedCombat.Harness
                 if (records.Count > EntityLimit) throw new InvalidDataException("entity-count-limit");
                 result.entityCount = records.Count;
                 var matches = new List<int>();
+                var partialMatches = new List<int>();
+                result.partialInline.available = true;
                 var seen = new HashSet<string>(StringComparer.Ordinal);
                 for (int index = 0; index < records.Count; index++)
                 {
@@ -166,6 +242,19 @@ namespace KingmakerMountedCombat.Harness
                     }
                     if (!seen.Add(id)) result.duplicateEntityIdCount++;
                     if (id == result.mainReference) matches.Add(index);
+                    // Publish only the validated prefix; completed comparison fields below
+                    // still require the entire original loop to succeed.
+                    result.partialInline.validatedPrefixCount++;
+                    if (id == result.mainReference)
+                    {
+                        result.partialInline.matchingPrefixRecordCount++;
+                        if (partialMatches.Count < StructuralRecordLimit)
+                        {
+                            partialMatches.Add(index);
+                            result.partialInline.matchingPrefixRecordIndices = partialMatches.ToArray();
+                        }
+                        else result.partialInline.matchingIndicesTruncated = true;
+                    }
                 }
                 result.entityCount = records.Count;
                 result.matchingRecordIndices = matches.ToArray(); result.matchingRecordCount = matches.Count;
@@ -175,8 +264,124 @@ namespace KingmakerMountedCombat.Harness
             catch (InvalidDataException error) { result.refusal = error.Message; }
             catch (XmlException) { result.refusal = "malformed-or-quota-limited-json"; }
             catch (DecoderFallbackException) { result.refusal = "invalid-utf8"; }
+            // Both documents must have passed the unchanged parser and its quotas first.
+            // This observation cannot alter an original success, refusal or authority flag.
+            if (playerDoc != null && partyDoc != null)
+                result.lexicalAliases = DescribeAliases(playerDoc, partyDoc, records, result.refusedEntityIndex);
             if (!result.shapeSupported) result.mainReference = null; // Unsupported input exposes structure/hashes only.
             return result;
+        }
+
+        private static LexicalAliasObservation DescribeAliases(XmlDocument player, XmlDocument party,
+            List<XmlNode> records, int? refusedIndex)
+        {
+            var result = new LexicalAliasObservation { available = true,
+                entityRecordWindowTruncated = records.Count > StructuralRecordLimit };
+            var pending = new List<PendingAlias>();
+            for (int index = 0; index < Math.Min(records.Count, StructuralRecordLimit); index++)
+                AddObservedAlias(records[index], index, pending);
+            // Match the existing structural contract: at most the prefix plus its
+            // one refusing record, even when that record lies beyond the prefix.
+            if (refusedIndex.HasValue && refusedIndex.Value >= StructuralRecordLimit)
+                AddObservedAlias(records[refusedIndex.Value], refusedIndex.Value, pending);
+            result.player = Census(player.DocumentElement, new List<PendingAlias>());
+            result.party = Census(party.DocumentElement, pending);
+            var observations = new List<EntityAliasObservation>();
+            foreach (var entry in pending)
+            {
+                var observation = entry.observation;
+                foreach (var target in entry.targets)
+                    target.relativePosition = !observation.referenceOrdinal.HasValue ? "unobserved-reference" :
+                        target.definitionOrdinal < observation.referenceOrdinal.Value ? "before-reference" : "after-reference";
+                observation.targets = entry.targets.ToArray();
+                observation.targetsTruncated = observation.definitionCount > StructuralRecordLimit;
+                observation.censusTruncated = result.party.duplicateCensusTruncated;
+                observation.uncertainty = !observation.aliasWellFormed ? "malformed-alias-not-native" :
+                    !observation.referenceOrdinal.HasValue ? "unobserved-reference-not-native" :
+                    observation.censusTruncated ? "census-truncated-not-native" :
+                    observation.definitionCount == 0 ? "missing-lexical-definition-not-native" :
+                    observation.definitionCount > 1 ? "multiple-definitions-not-native" :
+                    observation.targets[0].definitionOrdinal > observation.referenceOrdinal.Value ? "forward-definition-not-native" :
+                    "single-backward-lexical-match-not-native";
+                observations.Add(observation);
+            }
+            result.entityReferences = observations.ToArray();
+            return result;
+        }
+
+        private static void AddObservedAlias(XmlNode record, int index, List<PendingAlias> pending)
+        {
+            if (Kind(record) != "object") return;
+            var reference = Member(record, "$ref");
+            if (reference == null) return;
+            string alias;
+            bool valid = TryAlias(reference, out alias);
+            pending.Add(new PendingAlias { referenceNode = reference, alias = alias,
+                observation = new EntityAliasObservation { entityIndex = index, valueKind = Kind(reference), aliasWellFormed = valid } });
+        }
+
+        private static LexicalDocumentObservation Census(XmlNode root, List<PendingAlias> pending)
+        {
+            var result = new LexicalDocumentObservation();
+            var retained = new HashSet<string>(StringComparer.Ordinal);
+            CensusNode(root, result, retained, pending);
+            result.retainedAliasCount = retained.Count;
+            result.available = true;
+            return result;
+        }
+
+        private static void CensusNode(XmlNode node, LexicalDocumentObservation result,
+            HashSet<string> retained, List<PendingAlias> pending)
+        {
+            if (node == null || node.NodeType != XmlNodeType.Element) return;
+            // Every visited element was counted by Parse: <= TokenLimit per document,
+            // with recursion already bounded by DepthLimit. No extra input is read.
+            int ordinal = ++result.elementCount;
+            foreach (var entry in pending)
+                if (Object.ReferenceEquals(entry.referenceNode, node)) entry.observation.referenceOrdinal = ordinal;
+            if (node.ParentNode != null && node.ParentNode.NodeType == XmlNodeType.Element && Kind(node.ParentNode) == "object")
+            {
+                string name = Name(node);
+                if (name == "$id")
+                {
+                    result.idMemberCount++;
+                    string alias;
+                    if (!TryAlias(node, out alias)) result.invalidIdCount++;
+                    else
+                    {
+                        if (retained.Contains(alias)) result.duplicateIdOccurrenceCount++;
+                        else if (retained.Count < EntityLimit) retained.Add(alias);
+                        else result.duplicateCensusTruncated = true;
+                        foreach (var entry in pending)
+                        {
+                            if (!entry.observation.aliasWellFormed || entry.alias != alias) continue;
+                            entry.observation.definitionCount++;
+                            if (entry.targets.Count >= StructuralRecordLimit) continue;
+                            var shape = DescribeRecord(node.ParentNode, -1);
+                            entry.targets.Add(new AliasTargetShape { definitionOrdinal = ordinal,
+                                memberCount = shape.memberCount, membersTruncated = shape.membersTruncated, members = shape.members });
+                        }
+                    }
+                }
+                else if (name == "$ref")
+                {
+                    result.referenceMemberCount++;
+                    string alias;
+                    if (!TryAlias(node, out alias)) result.invalidReferenceCount++;
+                }
+            }
+            foreach (XmlNode child in node.ChildNodes) CensusNode(child, result, retained, pending);
+        }
+
+        private static bool TryAlias(XmlNode node, out string value)
+        {
+            value = null;
+            if (Kind(node) != "string") return false;
+            string text = node.InnerText;
+            if (text.Length == 0 || text.Length > IdentityLengthLimit || String.IsNullOrWhiteSpace(text)) return false;
+            foreach (char character in text) if (Char.IsControl(character)) return false;
+            value = text;
+            return true;
         }
 
         private static RecordShape DescribeRecord(XmlNode node, int index)

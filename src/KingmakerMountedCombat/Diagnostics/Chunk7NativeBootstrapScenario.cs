@@ -40,6 +40,8 @@ namespace KingmakerMountedCombat.Diagnostics
         private readonly SaveManager saveManager;
         private readonly Stopwatch clock = Stopwatch.StartNew();
         private readonly JObject evidence = new JObject();
+        private readonly Chunk7BootstrapDialogueObservation dialogue = new Chunk7BootstrapDialogueObservation();
+        internal Chunk7BootstrapDialogueObservation DialogueObservation => dialogue;
         private readonly List<string> errors = new List<string>();
         private readonly List<RuntimeSubscenarioResult> results = new List<RuntimeSubscenarioResult>();
         private PersistenceSaveAuthorization authority;
@@ -227,6 +229,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 nativeActor = main; nativeActorId = main.UniqueId; nativeDescriptor = main.Descriptor; nativeView = main.View; nativeName = main.CharacterName;
                 RequireNativeWorld();
                 evidence["nativeWorld"] = Snapshot();
+                dialogue.Observe("bootstrap-readiness", game);
+                evidence["dialogueObservation"] = dialogue.Capture();
                 var file = new FileInfo(save.FolderName);
                 evidence["nativeWrite"] = new JObject { ["path"] = save.FolderName, ["fileName"] = save.FileName, ["internalName"] = save.Name,
                     ["gameId"] = save.GameId, ["gameName"] = save.GameName, ["area"] = save.Area.AssetGuidThreadSafe,
@@ -313,7 +317,12 @@ namespace KingmakerMountedCombat.Diagnostics
             ["fatalViolations"] = authorization.FatalViolationCount, ["suppressedWrites"] = authorization.SuppressedWorkingWriteCount,
             ["freezeCount"] = authority?.BootstrapFreezeCount, ["windowOpen"] = authority?.BootstrapWindowOpen,
             ["frozenGameId"] = authority?.BootstrapGameId, ["frozenGameName"] = authority?.BootstrapGameName };
-        private void BeginCleanup() { if (cleanup) return; cleanup = true; cleanupStart = clock.Elapsed.TotalSeconds; }
+        private void BeginCleanup()
+        {
+            if (cleanup) return; cleanup = true; cleanupStart = clock.Elapsed.TotalSeconds;
+            dialogue.Observe("cleanup-entry", game);
+            evidence["dialogueObservation"] = dialogue.Capture();
+        }
         private void PollCleanup()
         {
             try
@@ -343,6 +352,8 @@ namespace KingmakerMountedCombat.Diagnostics
                     ["slotProjectionBefore"] = priorSlot, ["slotProjectionAfter"] = NativePersistenceIsolation.NativeSlotRotationEnabled,
                     ["slotProjectionOwned"] = slotOwned, ["identityWindowOpen"] = authority?.BootstrapWindowOpen ?? false,
                     ["authority"] = AuthoritySnapshot() };
+                dialogue.Observe("cleanup-settlement", game);
+                evidence["dialogueObservation"] = dialogue.Capture();
                 settled = true; Pass("C7-bootstrap-cleanup"); evidence["elapsedSeconds"] = clock.Elapsed.TotalSeconds;
                 RuntimeLoaderInventory.WriteArtifact(request, EvidenceFileName, EvidenceKind, errors.Count == 0 ? "PASS" : "FAIL", evidence, errors); completed = true;
             }

@@ -40,3 +40,7 @@ Working remained816452 bytes, SHA5eb4e0b4cbd8d60dc879a02ff71aadfde3f517304754857
 Bounded exact local contract inspection distinguishes serializer aliases from gameplay IDs. The installed default resolver uses internal-reader mappings, and player/party use separate deserialization calls. StrictReferenceResolver is configured only in the editor/SafeSaves branch; effective live resolver settings were not observed. A lexical same-document match alone cannot establish native object registration, converter behavior or restoration. Private original memo working-reference-contract01/MEMO.txt SHA60ed0183c8eadcc26234b429adcd2db3d9a9b7a1c73b4b3298bbef9dedd96d51 records exact assembly/method provenance.
 
 Independent actual03 raw-evidence review is PASS for receipt consistency, while the diagnostic remains FAIL: private actual03-raw-evidence-review01.json SHA8f7d22c9a800c5d6d275b8610a74e47e6d5b9e45e51b4350763e36a34e1ba3fa. This review re-opened no archive and performed no live-byte scan.
+
+## Additive literal/lexical observation checkpoint
+
+The [passive diagnostics checkpoint](CHUNK7-PASSIVE-DIAGNOSTICS-CHECKPOINT.md) adds incomplete literal-prefix comparison and capped same-document alias census/target shapes. Existing parser, unsupported FAIL, completed-comparison meanings and native authority flags remain unchanged. Generated checks pass36/0 plus unchanged structure27/0 and integrated synthetic-archive91/0. No new actual Working read is claimed by this source update; actual03 above remains the latest installed-fixture result.
