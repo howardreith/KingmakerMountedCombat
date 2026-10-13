@@ -31,7 +31,9 @@ namespace KingmakerMountedCombat.Diagnostics
         private int entryFrame = -1, entered, exited, minted, saveRequests, prepared;
         internal Player NativePlayer { get; private set; }
         internal string NativeGameId { get; private set; }
+        internal SaveInfo NativeRequestedSave { get; private set; }
         internal SaveInfo NativeSave { get; private set; }
+        private string requestedName;
         internal bool InSynchronousCallback => insideCall && entryFrame == Time.frameCount;
         internal bool Complete => installed && identityCallsiteInstalled && errors.Count == 0 && identities.FaultCount == 0 && entered == 1 && exited == 1 && minted == 1 && saveRequests == 1 && prepared == 1;
         internal bool IdentityReleased => identities.Released;
@@ -138,16 +140,17 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             try { action(); } catch (Exception error) { var value = error.ToString(); if (!errors.Contains(value)) errors.Add(value); }
         }
-        private void Record(string kind, SaveInfo save = null)
+        private JObject Record(string kind, SaveInfo save = null)
         {
             if (events.Count >= 16) throw new InvalidOperationException("Native bootstrap observer exceeded its bounded event inventory.");
-            events.Add(new JObject { ["sequence"] = events.Count + 1, ["kind"] = kind, ["frame"] = Time.frameCount,
+            var item = new JObject { ["sequence"] = events.Count + 1, ["kind"] = kind, ["frame"] = Time.frameCount,
                 ["game"] = Identity(Game.Instance), ["saveManager"] = Identity(saveManager), ["player"] = Identity(game.Player), ["menuPlayer"] = Identity(menuPlayer),
                 ["sameMenuPlayer"] = ReferenceEquals(game.Player, menuPlayer), ["gameId"] = game.Player?.GameId, ["mainActorId"] = game.Player?.MainCharacter.Value?.UniqueId,
                 ["preset"] = Identity(preset), ["presetGuid"] = preset.AssetGuid, ["insideNativeNewGame"] = InSynchronousCallback,
                 ["save"] = Identity(save), ["saveType"] = save?.Type.ToString(), ["saveLeaf"] = save?.FileName,
                 ["saveName"] = save?.Name, ["savePath"] = save?.FolderName, ["saveArea"] = save?.Area?.AssetGuidThreadSafe,
-                ["saveGameId"] = save?.GameId, ["saveGameName"] = save?.GameName, ["autoLevelup"] = save?.IsAutoLevelupSave });
+                ["saveGameId"] = save?.GameId, ["saveGameName"] = save?.GameName, ["autoLevelup"] = save?.IsAutoLevelupSave };
+            events.Add(item); return item;
         }
         private static void Require(bool value, string message) { if (!value) throw new InvalidOperationException(message); }
         private static class Hooks
@@ -195,8 +198,9 @@ namespace KingmakerMountedCombat.Diagnostics
                     Require(p.saveRequests == 1 && p.InSynchronousCallback && ReferenceEquals(Game.Instance, p.game) && ReferenceEquals(__instance, p.saveManager) &&
                         ReferenceEquals(p.game.SaveManager, p.saveManager) && p.NativePlayer != null && ReferenceEquals(p.NativePlayer, p.game.Player) &&
                         p.minted == 1 && p.exited == 0 && p.game.Player.GameId == p.NativeGameId &&
-                        saveInfo != null && saveInfo.Type == SaveInfo.SaveType.Auto && !saveInfo.IsAutoLevelupSave, "First native write was not the authored new-game autosave.");
-                    p.NativeSave = saveInfo; p.Record("native-bootstrap-autosave-request", saveInfo);
+                        saveInfo != null && saveInfo.Type == SaveInfo.SaveType.Auto && !saveInfo.IsAutoLevelupSave &&
+                        !string.IsNullOrWhiteSpace(saveInfo.Name), "First native write was not the authored new-game autosave.");
+                    p.NativeRequestedSave = saveInfo; p.requestedName = saveInfo.Name; p.Record("native-bootstrap-autosave-request", saveInfo);
                 });
             }
             internal static void NewGameAfter(Game __instance)
@@ -213,11 +217,31 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 var p = active; if (p == null) return;
                 p.Safe(() => {
-                    p.prepared++; Require(p.prepared == 1 && ReferenceEquals(Game.Instance, p.game) && ReferenceEquals(__instance, p.saveManager) &&
-                        ReferenceEquals(p.game.SaveManager, p.saveManager) && ReferenceEquals(p.NativePlayer, p.game.Player) &&
-                        ReferenceEquals(save, p.NativeSave) && save.Type == SaveInfo.SaveType.Auto && save.FileName == Chunk7NativeBootstrapSelection.AutoLeaf &&
-                        save.GameId == p.NativeGameId && !save.IsAutoLevelupSave, "Prepared native bootstrap autosave changed descriptor, world, leaf or category.");
-                    p.Record("native-bootstrap-autosave-prepared", save);
+                    p.prepared++;
+                    // SaveRoutine retains the requested object, then gives
+                    // PrepareSave a distinct native Type/Name copy. Preserve the
+                    // observed arguments even when an invariant refuses it.
+                    var observation = p.Record("native-bootstrap-autosave-prepared", save);
+                    observation["requestedSave"] = p.Identity(p.NativeRequestedSave);
+                    observation["observedSaveManager"] = p.Identity(__instance);
+                    observation["accepted"] = false;
+                    var order = p.prepared == 1 && p.saveRequests == 1 && p.minted == 1 && p.entered == 1 && p.exited == 1 && !p.insideCall;
+                    var sameGame = ReferenceEquals(Game.Instance, p.game);
+                    var sameManager = ReferenceEquals(__instance, p.saveManager) && ReferenceEquals(p.game.SaveManager, p.saveManager);
+                    var samePlayer = p.NativePlayer != null && ReferenceEquals(p.NativePlayer, p.game.Player);
+                    var requestRetained = p.NativeRequestedSave != null && p.NativeRequestedSave.Type == SaveInfo.SaveType.Auto &&
+                        !p.NativeRequestedSave.IsAutoLevelupSave && p.NativeRequestedSave.Name == p.requestedName;
+                    var distinct = save != null && !ReferenceEquals(save, p.NativeRequestedSave);
+                    var sameName = save != null && save.Name == p.requestedName;
+                    var category = save != null && save.Type == SaveInfo.SaveType.Auto && !save.IsAutoLevelupSave;
+                    var leaf = save != null && save.FileName == Chunk7NativeBootstrapSelection.AutoLeaf;
+                    var campaign = save != null && save.GameId == p.NativeGameId && p.game.Player?.GameId == p.NativeGameId;
+                    observation["checks"] = new JObject { ["ordered"] = order, ["sameGame"] = sameGame, ["sameManager"] = sameManager,
+                        ["samePlayer"] = samePlayer, ["requestRetained"] = requestRetained, ["distinctDescriptor"] = distinct,
+                        ["sameName"] = sameName, ["autoCategory"] = category, ["expectedLeaf"] = leaf, ["sameCampaign"] = campaign };
+                    Require(order && sameGame && sameManager && samePlayer && requestRetained && distinct && sameName && category && leaf && campaign,
+                        "Prepared native bootstrap autosave changed its retained request, descriptor copy, world, leaf or category.");
+                    p.NativeSave = save; observation["accepted"] = true;
                 });
             }
         }

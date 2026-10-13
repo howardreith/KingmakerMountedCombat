@@ -30,6 +30,8 @@ function Convert-LabelGraph($Fixture,[string]$Family,[string]$Mode){
   foreach($actor in $o.nativeWorld.party){Convert-LabelFields $actor @('object','descriptor','view') $Mode}
   $o.probe.identities.ids=@($o.probe.identities.ids|ForEach-Object{Convert-Label $_ $Mode})
   foreach($event in $o.probe.events){Convert-LabelFields $event @('game','player','menuPlayer','saveManager','preset','save') $Mode}
+  Convert-LabelFields $o.probe.events[4] @('requestedSave','observedSaveManager') $Mode
+  Convert-LabelFields $o.nativeWrite @('requestedDescriptor','preparedDescriptor') $Mode
  }else{
   $o=$Fixture.artifact.observations
   Convert-LabelFields $o.beforeLoad @('game','saveManager','menuPlayer') $Mode

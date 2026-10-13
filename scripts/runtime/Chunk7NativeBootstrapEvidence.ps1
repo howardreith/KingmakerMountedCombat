@@ -132,16 +132,25 @@ function Assert-KmcChunk7NativeBootstrapEvidence($Request,$Artifact,[string]$Sta
   if($e.game-ne$w.game-or$e.player-ne$w.player-or$e.menuPlayer-ne$w.player-or$e.saveManager-ne$w.saveManager-or($i-gt0-and$e.preset-ne$trace.events[0].preset)){throw 'Native callback owner changed.'}
   Assert-KmcChunk7Boolean $e.sameMenuPlayer $true;Assert-KmcChunk7Boolean $e.insideNativeNewGame ($i-lt4)
   if($i-gt0-and($e.gameId-isnot[string]-or$e.mainActorId-isnot[string]-or$e.gameId-cne$w.gameId-or$e.mainActorId-cne$w.mainActorId)){throw 'Native minted campaign/main actor changed between callbacks.'}
-  if($i-eq2-or$i-eq4){Assert-KmcNativeBootstrapObject $e.save;if(-not$labels.Contains([int]$e.save)-or$e.saveType-isnot[string]-or$e.saveType-cne'Auto'){throw 'Native autosave descriptor is not exact.'};Assert-KmcChunk7Boolean $e.autoLevelup $false;if($i-eq2){$saveLabel=$e.save}else{if($e.save-ne$saveLabel){throw 'PrepareSave substituted the native autosave descriptor.'}}}
+  if($i-eq2-or$i-eq4){Assert-KmcNativeBootstrapObject $e.save;if(-not$labels.Contains([int]$e.save)-or$e.saveType-isnot[string]-or$e.saveType-cne'Auto'){throw 'Native autosave descriptor is not exact.'};Assert-KmcChunk7Boolean $e.autoLevelup $false;if($i-eq2){$saveLabel=$e.save}else{if($e.save-eq$saveLabel){throw 'PrepareSave did not receive the distinct native descriptor copy.'}}}
  }
- $d=$o.nativeWrite;$prepared=$trace.events[4]
- Assert-KmcExactProperties $d @('path','fileName','internalName','gameId','gameName','area','type','length','sha256','operation','autoLevelup','contentInspected','coldLoadQualified') 'native bootstrap output'
+ $d=$o.nativeWrite;$prepared=$trace.events[4];$requested=$trace.events[2]
+ Assert-KmcNativeBootstrapObject $prepared.requestedSave;Assert-KmcNativeBootstrapObject $prepared.observedSaveManager
+ Assert-KmcChunk7Boolean $prepared.accepted $true
+ if($prepared.requestedSave-ne$requested.save-or$prepared.observedSaveManager-ne$w.saveManager-or$requested.saveName-isnot[string]-or
+    [string]::IsNullOrWhiteSpace($requested.saveName)-or$prepared.saveName-isnot[string]-or$prepared.saveName-cne$requested.saveName){throw 'Prepared autosave changed its retained request, native name or manager.'}
+ $checks=$prepared.checks;$checkNames=@('ordered','sameGame','sameManager','samePlayer','requestRetained','distinctDescriptor','sameName','autoCategory','expectedLeaf','sameCampaign')
+ Assert-KmcExactProperties $checks $checkNames 'native prepared descriptor checks'
+ foreach($key in $checkNames){Assert-KmcChunk7Boolean $checks.$key $true}
+ Assert-KmcExactProperties $d @('path','fileName','internalName','gameId','gameName','area','type','length','sha256','operation','autoLevelup','contentInspected','coldLoadQualified','requestedDescriptor','preparedDescriptor','completionSequence') 'native bootstrap output'
  foreach($key in @('path','fileName','internalName','gameId','gameName','area','type','sha256','operation')){if($d.$key-isnot[string]){throw 'Native bootstrap output text must be exact strings.'}}
  if($d.path-cne(Join-Path $root 'Auto_1.zks')-or$d.fileName-cne'Auto_1.zks'-or$d.type-cne'Auto'-or$d.operation-cne'None'-or
     $d.gameId-cne$w.gameId-or$d.gameName-cne$w.gameName-or$d.area-cne$p.area-or$d.sha256-cnotmatch'^[a-f0-9]{64}$'-or
     $d.sha256-ceq$Request.fixture.working.sha256-or$d.sha256-ceq$Request.fixture.baseline.sha256-or[string]::IsNullOrWhiteSpace($d.internalName)){throw 'Native bootstrap output descriptor invalid.'}
  foreach($key in @('autoLevelup','contentInspected','coldLoadQualified')){Assert-KmcChunk7Boolean $d.$key $false};Assert-KmcOrdinaryInteger $d.length 1 268435456
  foreach($pair in @(@('saveLeaf','fileName'),@('saveName','internalName'),@('savePath','path'),@('saveArea','area'),@('saveGameId','gameId'),@('saveGameName','gameName'))){if($prepared.($pair[0])-isnot[string]-or$prepared.($pair[0])-cne$d.($pair[1])){throw 'Native PrepareSave did not bind the completed output descriptor.'}}
+ Assert-KmcNativeBootstrapObject $d.requestedDescriptor;Assert-KmcNativeBootstrapObject $d.preparedDescriptor;Assert-KmcOrdinaryInteger $d.completionSequence 1 1
+ if($d.requestedDescriptor-ne$requested.save-or$d.preparedDescriptor-ne$prepared.save-or$d.requestedDescriptor-eq$d.preparedDescriptor){throw 'Native completion did not bind its exact requested/prepared descriptor pair.'}
  $c=$o.cleanup
  foreach($key in @('custodySettled','callbackEntered','callbackReturned','dispatched','nativeWorkerSettled','observerReleased')){Assert-KmcChunk7Boolean $c.$key $true}
  foreach($key in @('slotProjectionOwned','identityWindowOpen')){Assert-KmcChunk7Boolean $c.$key $false}

@@ -16,6 +16,23 @@ function Good-Bootstrap([string]$Name,[scriptblock]$Action){try{&$Action;$script
 function Bad-Bootstrap([string]$Name,[scriptblock]$Action){$refused=$false;try{&$Action}catch{$refused=$true};if($refused){$script:bootstrapPasses++;Write-Host ('PASS rejects '+$Name)}else{$script:bootstrapFailures++;Write-Host ('FAIL accepted '+$Name)}}
 Good-Bootstrap 'exact authored native mint and one Auto1 write' {$f=New-BootstrapFixture;Assert-KmcChunk7NativeBootstrapEvidence $f.request $f.artifact}
 $cases=[ordered]@{
+ 'prepared reused request'={param($f)$f.artifact.observations.probe.events[4].save=$f.artifact.observations.probe.events[2].save}
+ 'prepared unrelated request label'={param($f)$f.artifact.observations.probe.events[4].requestedSave=$f.artifact.observations.nativeWorld.mainActor}
+ 'prepared manager substitution'={param($f)$f.artifact.observations.probe.events[4].observedSaveManager=$f.artifact.observations.nativeWorld.mainActor}
+ 'prepared name differs from native request'={param($f)$f.artifact.observations.probe.events[2].saveName='OtherAuto'}
+ 'prepared rejected observation'={param($f)$f.artifact.observations.probe.events[4].accepted=$false}
+ 'prepared accepted numeric token'={param($f)$f.artifact.observations.probe.events[4].accepted=1}
+ 'prepared failed request retention'={param($f)$f.artifact.observations.probe.events[4].checks.requestRetained=$false}
+ 'prepared string check'={param($f)$f.artifact.observations.probe.events[4].checks.distinctDescriptor='true'}
+ 'prepared check omitted'={param($f)$f.artifact.observations.probe.events[4].checks.PSObject.Properties.Remove('ordered')}
+ 'prepared request label string'={param($f)$f.artifact.observations.probe.events[4].requestedSave=[string]$f.artifact.observations.probe.events[2].save}
+ 'prepared name singleton array'={param($f)$f.artifact.observations.probe.events[4].saveName=@($f.artifact.observations.probe.events[4].saveName)}
+ 'completion unrelated request'={param($f)$f.artifact.observations.nativeWrite.requestedDescriptor=$f.artifact.observations.nativeWorld.mainActor}
+ 'completion unrelated prepared'={param($f)$f.artifact.observations.nativeWrite.preparedDescriptor=$f.artifact.observations.nativeWorld.mainActor}
+ 'completion omitted'={param($f)$f.artifact.observations.nativeWrite.PSObject.Properties.Remove('completionSequence')}
+ 'completion duplicate sequence'={param($f)$f.artifact.observations.nativeWrite.completionSequence=2}
+ 'completion numeric text'={param($f)$f.artifact.observations.nativeWrite.completionSequence='1'}
+
  'missing selection'={param($f)$f.request.PSObject.Properties.Remove('nativeBootstrap')}
  'foreign scenario'={param($f)$f.request.scenario='fixture-intake';$f.artifact.scenario='fixture-intake'}
  'case substitution'={param($f)$f.request.nativeBootstrap.case='any-start'}

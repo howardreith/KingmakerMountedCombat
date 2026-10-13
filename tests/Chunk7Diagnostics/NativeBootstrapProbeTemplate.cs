@@ -3,10 +3,11 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
+using System.IO;
 using Newtonsoft.Json.Linq;
 namespace KingmakerMountedCombat.Diagnostics {
 static class Time { internal static int frameCount = 10; }
-class Actor { internal string UniqueId = "main-native"; }
+class Actor { internal string UniqueId = "main-native", CharacterName = "Native"; }
 class Holder { internal Actor Value; }
 class Player { internal Holder MainCharacter = new Holder(); public string GameId { get; set; } }
 class NativeState { public Player PlayerState; public Player OtherPlayer; }
@@ -19,12 +20,14 @@ class Game {
  public void Other(BlueprintAreaPreset preset,SaveInfo importFrom){}
 }
 class Area { public string AssetGuidThreadSafe = "area"; }
-class BlueprintAreaPreset { public string AssetGuid = "preset"; }
+class BlueprintAreaPreset { public string AssetGuid = "preset"; public Area Area = new Area(); }
 class SaveInfo {
  public enum SaveType { Auto, Manual }
- public SaveType Type=SaveType.Auto;public bool IsAutoLevelupSave;public string FileName="Auto_1.zks",Name="Auto",FolderName="owned/Auto_1.zks",GameId,GameName="Native";public Area Area=new Area();
+ public enum StateType { None, Saving }
+ public StateType OperationState;public bool HasFileOnDisk=true;
+ public SaveType Type=SaveType.Auto;public bool IsAutoLevelupSave;public string FileName="Auto_1.zks",Name="Auto",FolderName=Path.Combine("owned","Auto_1.zks"),GameId,GameName="Native";public Area Area=new Area();
 }
-class SaveManager { public void SaveRoutine(SaveInfo saveInfo,bool singleThread){} public void PrepareSave(SaveInfo save){} }
+class SaveManager : List<SaveInfo> { public void SaveRoutine(SaveInfo saveInfo,bool singleThread){} public void PrepareSave(SaveInfo save){} }
 static class Chunk7NativeBootstrapSelection { internal const string AutoLeaf="Auto_1.zks"; }
 class CodeInstruction {
  public OpCode opcode;public object operand;public readonly List<Label> labels=new List<Label>();public readonly List<object> blocks=new List<object>();
@@ -69,8 +72,22 @@ static class NativeHarness {
  internal static SaveInfo Sequence(Chunk7NativeBootstrapProbe probe,Game g,BlueprintAreaPreset preset,bool legacySetterCallback=false,Action<Game> beforeIdentity=null,Action<Game> afterIdentity=null,SaveManager requestManager=null,SaveManager prepareManager=null,Action<SaveInfo> changeSave=null){
   Call("LoadNewGame",false,g,preset,null);g.Player.MainCharacter.Value=new Actor();beforeIdentity?.Invoke(g);Emit();
   if(legacySetterCallback)Call("set_GameId",true,g.Player,g.Player.GameId);afterIdentity?.Invoke(g);
-  var save=new SaveInfo{GameId=g.Player.GameId};changeSave?.Invoke(save);Call("SaveRoutine",false,requestManager??g.SaveManager,save);Call("LoadNewGame",true,g);Call("PrepareSave",true,prepareManager??g.SaveManager,save);return save;
+  var requested=new SaveInfo{GameId=null,FileName=null,FolderName=null};changeSave?.Invoke(requested);Call("SaveRoutine",false,requestManager??g.SaveManager,requested);Call("LoadNewGame",true,g);
+  // The exact installed SaveRoutine retains originalSave, then creates a distinct Type/Name copy before PrepareSave fills its native fields.
+  var prepared=new SaveInfo{Type=requested.Type,Name=requested.Name,GameId=g.Player.GameId,Area=preset.Area};changeSave?.Invoke(prepared);Call("PrepareSave",true,prepareManager??g.SaveManager,prepared);return prepared;
  }
+}
+class NativeSaveCompletion { internal int Sequence=1;internal SaveInfo Requested,Written;internal string Path; }
+class TestPersistence { internal NativeSaveCompletion LastCompletedSave;internal int SnapshotCount=1,CompletedSaveCount=1; }
+class TestAuthorization { internal int AuthorizedWriteCount=1; }
+class TestAuthority { internal string Root="owned",BootstrapGameId,BootstrapGameName="Native";internal int BootstrapFreezeCount=1,AdmittedNativeWriteRequests=1;internal bool BootstrapWindowOpen; }
+sealed class CompletionAdapter {
+ internal Chunk7NativeBootstrapProbe probe;internal TestPersistence persistence=new TestPersistence();internal TestAuthority authority=new TestAuthority();
+ internal TestAuthorization authorization=new TestAuthorization();internal int snapshotsBefore,savesBefore;internal Player player;internal Game game;internal BlueprintAreaPreset preset;
+ internal CompletionAdapter(Chunk7NativeBootstrapProbe probe,Game game,BlueprintAreaPreset preset){this.probe=probe;this.game=game;this.preset=preset;player=game.Player;
+  authority.BootstrapGameId=player.GameId;persistence.LastCompletedSave=new NativeSaveCompletion{Requested=probe.NativeRequestedSave,Written=probe.NativeSave,Path=probe.NativeSave.FolderName};game.SaveManager.Add(probe.NativeSave);}
+ internal void Verify(){ /*ACTUAL_COMPLETION_BINDING*/ }
+ static void Require(bool value,string message){if(!value)throw new InvalidOperationException(message);}
 }
 static class BootstrapProbeTests {
  static int pass,fail;static void Check(bool c,string name){if(c){pass++;Console.WriteLine("PASS "+name);}else{fail++;Console.WriteLine("FAIL "+name);}}
@@ -104,6 +121,33 @@ static class BootstrapProbeTests {
    BadBinding("duplicate identity delivery",null,g0=>NativeHarness.Hook("IdentityAssigned",g0));BadBinding("changed identity after mint",null,g0=>g0.Player.GameId=Guid.NewGuid().ToString("D"));
    BadBinding("foreign save request",foreignSave:true);BadBinding("foreign prepared manager",foreignPrepared:true);BadBinding("manual save category",saveChange:s=>s.Type=SaveInfo.SaveType.Manual);
    BadBinding("auto level-up save",saveChange:s=>s.IsAutoLevelupSave=true);BadBinding("wrong prepared leaf",saveChange:s=>s.FileName="Auto_2.zks");BadBinding("wrong descriptor game id",saveChange:s=>s.GameId=Guid.NewGuid().ToString("D"));
+   p=Create(out g,out preset);saved=NativeHarness.Sequence(p,g,preset);var capture=p.Capture();var prep=(JObject)((JArray)capture["events"])[4];
+   Check(!ReferenceEquals(p.NativeRequestedSave,p.NativeSave)&&ReferenceEquals(saved,p.NativeSave)&&p.NativeRequestedSave.FolderName==null,"native requested object remains distinct and unsaved while exact prepared copy is retained");
+   Check((int)prep["requestedSave"]==p.Identity(p.NativeRequestedSave)&&(int)prep["save"]==p.Identity(saved)&&(bool)prep["accepted"]&&((JObject)prep["checks"]).Properties().All(x=>(bool)x.Value),"prepared receipt records exact request/copy relation and every accepted invariant");
+   var completion=new CompletionAdapter(p,g,preset);Check(!Refuses(completion.Verify),"actual scenario completion accepts its exact requested/prepared native pair");
+   var expectedCompletion=completion.persistence.LastCompletedSave;
+   completion.persistence.LastCompletedSave=null;Check(Refuses(completion.Verify),"actual scenario refuses missing native completion");completion.persistence.LastCompletedSave=expectedCompletion;
+   expectedCompletion.Requested=new SaveInfo{Type=p.NativeRequestedSave.Type,Name=p.NativeRequestedSave.Name};Check(Refuses(completion.Verify),"equal-valued unrelated requested descriptor cannot authorize completed output");expectedCompletion.Requested=p.NativeRequestedSave;
+   expectedCompletion.Written=new SaveInfo{GameId=saved.GameId,Area=saved.Area,Name=saved.Name};Check(Refuses(completion.Verify),"equal-valued unrelated prepared descriptor cannot authorize completed output");expectedCompletion.Written=saved;
+   expectedCompletion.Sequence=2;Check(Refuses(completion.Verify),"another completion sequence cannot satisfy bootstrap");expectedCompletion.Sequence=1;
+   expectedCompletion.Path="other";Check(Refuses(completion.Verify),"foreign completion path refuses");expectedCompletion.Path=saved.FolderName;
+   completion.authority.AdmittedNativeWriteRequests=2;Check(Refuses(completion.Verify),"two admitted requests refuse bootstrap completion");completion.authority.AdmittedNativeWriteRequests=1;
+   completion.authorization.AuthorizedWriteCount=0;Check(Refuses(completion.Verify),"missing native authorization refuses completion");completion.authorization.AuthorizedWriteCount=1;
+   g.SaveManager.Clear();Check(Refuses(completion.Verify),"unregistered prepared descriptor refuses completion");g.SaveManager.Add(saved);
+   Check(!Refuses(completion.Verify),"restored exact completion binding remains valid");
+   NativeHarness.Hook("PreparedAfter",g.SaveManager,saved);Check(!p.Complete&&((JArray)p.Capture()["events"]).Count==6&&!(bool)p.Capture()["events"][5]["accepted"],"duplicate prepare refuses and preserves rejected observed facts");p.Dispose();
+   p=Create(out g,out preset);NativeHarness.Call("LoadNewGame",false,g,preset,null);g.Player.MainCharacter.Value=new Actor();NativeHarness.Emit();
+   var requested=new SaveInfo{Name="Autosave1",FileName=null,FolderName=null};NativeHarness.Call("SaveRoutine",false,g.SaveManager,requested);
+   var candidate=new SaveInfo{Name=requested.Name,GameId=g.Player.GameId};NativeHarness.Hook("PreparedAfter",g.SaveManager,candidate);
+   Check(!p.Complete&&!(bool)p.Capture()["events"][3]["checks"]["ordered"],"prepare before native new-game return refuses");NativeHarness.Call("LoadNewGame",true,g);p.Dispose();
+   p=Create(out g,out preset);NativeHarness.Call("LoadNewGame",false,g,preset,null);g.Player.MainCharacter.Value=new Actor();NativeHarness.Emit();
+   requested=new SaveInfo{Name="Autosave1",FileName=null,FolderName=null};NativeHarness.Call("SaveRoutine",false,g.SaveManager,requested);NativeHarness.Call("LoadNewGame",true,g);
+   requested.FileName="Auto_1.zks";requested.GameId=g.Player.GameId;NativeHarness.Hook("PreparedAfter",g.SaveManager,requested);
+   Check(!p.Complete&&!(bool)p.Capture()["events"][4]["checks"]["distinctDescriptor"],"in-place preparation refuses the wrong native lifecycle");p.Dispose();
+   p=Create(out g,out preset);NativeHarness.Call("LoadNewGame",false,g,preset,null);g.Player.MainCharacter.Value=new Actor();NativeHarness.Emit();
+   requested=new SaveInfo{Name="Autosave1",FileName=null,FolderName=null};NativeHarness.Call("SaveRoutine",false,g.SaveManager,requested);NativeHarness.Call("LoadNewGame",true,g);
+   candidate=new SaveInfo{Name="foreign",GameId=g.Player.GameId};NativeHarness.Hook("PreparedAfter",g.SaveManager,candidate);
+   Check(!p.Complete&&(string)p.Capture()["events"][4]["saveName"]=="foreign"&&!(bool)p.Capture()["events"][4]["checks"]["sameName"],"rejected prepared descriptor retains actual name and failed name invariant");p.Dispose();
    p=Create(out g,out preset);g.Player.GameId=Guid.NewGuid().ToString("D");NativeHarness.Sequence(p,g,preset);Check(!p.Complete,"preexisting campaign identity refuses new-game entry");p.Dispose();
    p=Create(out g,out preset);NativeHarness.Hook("IdentityAssigned",g);Check(!p.Complete&&((JArray)p.Capture()["errors"]).Count==1,"identity callback outside admitted native call refuses");p.Dispose();
    NativeHarness.Reset();NativeHarness.Mutate=c=>c.RemoveAt(8);p=new Chunk7NativeBootstrapProbe(Game.Instance,new BlueprintAreaPreset());Check(Refuses(p.Install),"failed rewrite remains an incomplete installation");HarmonyInstance.UnpatchFailures=1;Check(Refuses(p.Dispose)&&!p.IdentityReleased,"failed rewrite plus unpatch failure retains identity custody");p.Dispose();Check(p.IdentityReleased,"failed rewrite disposal retry releases identity custody");

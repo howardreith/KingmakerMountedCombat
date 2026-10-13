@@ -315,11 +315,11 @@
             "save": 8,
             "saveType": "Auto",
             "saveLeaf": null,
-            "saveName": null,
+            "saveName": "Autosave",
             "savePath": null,
             "saveArea": null,
             "saveGameId": null,
-            "saveGameName": null,
+            "saveGameName": "Native",
             "autoLevelup": false
           },
           {
@@ -360,7 +360,7 @@
             "preset": 4,
             "presetGuid": "22222222222222222222222222222222",
             "insideNativeNewGame": false,
-            "save": 8,
+            "save": 10,
             "saveType": "Auto",
             "saveLeaf": "Auto_1.zks",
             "saveName": "Autosave",
@@ -368,7 +368,22 @@
             "saveArea": "33333333333333333333333333333333",
             "saveGameId": "22222222-1111-4111-8111-111111111111",
             "saveGameName": "Native",
-            "autoLevelup": false
+            "autoLevelup": false,
+            "requestedSave": 8,
+            "observedSaveManager": 3,
+            "accepted": true,
+            "checks": {
+              "ordered": true,
+              "sameGame": true,
+              "sameManager": true,
+              "samePlayer": true,
+              "requestRetained": true,
+              "distinctDescriptor": true,
+              "sameName": true,
+              "autoCategory": true,
+              "expectedLeaf": true,
+              "sameCampaign": true
+            }
           }
         ],
         "errors": [],
@@ -392,9 +407,10 @@
             6,
             7,
             8,
-            9
+            9,
+            10
           ],
-          "retainedCount": 9,
+          "retainedCount": 10,
           "faults": 0,
           "released": false
         },
@@ -425,7 +441,10 @@
         "operation": "None",
         "autoLevelup": false,
         "contentInspected": false,
-        "coldLoadQualified": false
+        "coldLoadQualified": false,
+        "requestedDescriptor": 8,
+        "preparedDescriptor": 10,
+        "completionSequence": 1
       },
       "cleanup": {
         "custodySettled": true,
