@@ -1,10 +1,10 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
-Continue the [sustained mission](planning/CHUNK7-CONTINUATION-MISSION.md). The breadth candidate is not ready. Root owns integration and every live transaction. Branch codex/mounted-combat-chunk7-foundation; origin https://github.com/howardreith/KingmakerMountedCombat.git. Published HEAD99b639ca0699454ed7cfcee117ff6ed0d33c0c6e. The current 85-path source/test tranche and five documentation paths are intentional root edits, fully integrated and independently reviewed. Preserve all other/frozen worktrees and artifacts.
+Continue the [sustained mission](planning/CHUNK7-CONTINUATION-MISSION.md). The breadth candidate is not ready. Root owns integration and every live transaction. Branch codex/mounted-combat-chunk7-foundation; origin https://github.com/howardreith/KingmakerMountedCombat.git. Published HEADb4d2cd7f89ea763176557f4ff4a2aa1c7af9f142 contains the reviewed 85-path source/test tranche and five documentation paths. Guarded push PASS/exit0 in2.7101897s, tool39f92a; remote matched and worktree was clean. The current intentional changes select preview.6 and record this publication. Preserve all other/frozen worktrees and artifacts.
 
 ## Immediate next action
 
-Audit the complete source/documentation diff, relevant links and allowed payload; commit and guarded-push through C:/Dev/KingmakerMountedCombatLab/codex-policy/Push-KingmakerMountedCombat.ps1 -Confirm:$false. Do not stop there. Select preview6 in version.json and BuildIdentity.cs, commit the coherent version selection, then execute the already prepared private Package01 → Candidate01 → Suite01 sequence. Candidate contains Fast; reuse the package DLL with SkipBuild. Current version is still preview.5. No preview6 package, suite, freeze, fresh audit or native admission exists.
+Finish the version-selection diff/link audit and commit/guarded-push through C:/Dev/KingmakerMountedCombatLab/codex-policy/Push-KingmakerMountedCombat.ps1 -Confirm:$false. Product version is selected as preview.6 in version.json, Info.json and BuildIdentity.cs. Then execute the prepared private Invoke-Package01.ps1 -ExpectedSourceCommit <version-commit> → Invoke-Candidate01.ps1 with the same pin → Suite01 WhatIf/Create. Candidate contains Fast; reuse the package DLL with SkipBuild. No preview6 package, suite, freeze, fresh audit or native admission exists. Do not stop after publication.
 
 ## Source and focused evidence
 
@@ -26,7 +26,7 @@ Private receipts below are under analysis-cache/chunk7-continuation. Final sourc
 
 All22 scopes have passing actual checks after the one test-fixture repair; the original run remains FAIL. Production was not rebuilt after reader/test-only changes. No archive or native operation was performed by this integration. Historical area/roster, scalar-reader, descriptor-shape and first-write-drain failures remain preserved.
 
-All earlier tool sessions, including6434, are CLOSED. No active provider session or transaction. Last process read found no Kingmaker/Wrath; exact active-transaction.lock was absent. Refresh before live use. Root used ordinary compiler discovery; the author's older private override is separately disclosed. Profile reviewer must not retry its prior receipt-write denial; root records communicated verdicts as root-authored, not reviewer-authored receipts.
+All earlier tool sessions, including6434 and88071, are CLOSED. The private commit wrapper recursed on a shadowed Git name and later failed retrieving its receipt after the successful commit; both failures are retained. No process was killed and no source discarded. The successful commit/parent/clean state was verified separately, receipt a7a15541e04a99f2469e72e7b8ce3b866933e29cfb79da8fc2c9079c04137bb6; guarded-push receipt18acaa2b67a33c5c6d85a19025125d8d5317256db2233e39233716b2ce4f8671. No active provider session or transaction. Last process read found no Kingmaker/Wrath; exact active-transaction.lock was absent. Refresh before live use. Root used ordinary compiler discovery; the author's older private override is separately disclosed. Profile reviewer must not retry its prior receipt-write denial; root records communicated verdicts as root-authored, not reviewer-authored receipts.
 
 ## Candidate preparation and finite native sequence
 

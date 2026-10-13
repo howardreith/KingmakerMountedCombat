@@ -1,6 +1,6 @@
 # Owned two-pair scenario integration — IN PROGRESS
 
-This source checkpoint continues the [selected 7B–7D mission](../planning/CHUNK7-CONTINUATION-MISSION.md). The breadth candidate is not ready. Root integrated 85 source/test paths over published 99b639ca0699454ed7cfcee117ff6ed0d33c0c6e on codex/mounted-combat-chunk7-foundation. Coherent source review and focused checks are complete; private candidate qualification and native proof follow.
+This source checkpoint continues the [selected 7B–7D mission](../planning/CHUNK7-CONTINUATION-MISSION.md). The breadth candidate is not ready. Root integrated 85 source/test paths over published 99b639ca0699454ed7cfcee117ff6ed0d33c0c6e on codex/mounted-combat-chunk7-foundation. Source checkpoint b4d2cd7f89ea763176557f4ff4a2aa1c7af9f142 is committed and guarded-pushed, remote-verified with a clean worktree (actual exit0,2.7101897s, tool39f92a; receipt18acaa2b67a33c5c6d85a19025125d8d5317256db2233e39233716b2ce4f8671). Private candidate qualification and native proof follow.
 
 The separately closed chunk7-owned-two-pair-campaign consumes a successful same-candidate preserve-two-acquired-field native Manual and requalifies its complete acquisition ancestry. It retains both actual reciprocal owner/Horse pairs and the observed full field roster. Exploration, both TB arrangements, selected RT combat and cleanup use those captured actors. Historical Working fixtures keep their strict identities and temporary diagnostic-pet cleanup.
 
