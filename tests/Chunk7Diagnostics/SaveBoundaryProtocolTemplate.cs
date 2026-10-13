@@ -1,5 +1,5 @@
 using System;using System.Linq;using KingmakerMountedCombat;using KingmakerMountedCombat.Diagnostics;
-namespace KingmakerMountedCombat.Diagnostics {internal static class Chunk7PersistenceScenario{internal const string SaveScenario="chunk7-persistence-save";internal const string PendingMountSaveCase="multi-nonselected-mount-unsettled-manual",WorkerCancelSaveCase="multi-owned-worker-cancel-manual";__CASE_METHOD__}}
+namespace KingmakerMountedCombat.Diagnostics {internal static class Chunk7PersistenceScenario{internal const string SaveScenario="chunk7-persistence-save",LoadScenario="chunk7-persistence-load";internal const string PendingMountSaveCase="multi-nonselected-mount-unsettled-manual",WorkerCancelSaveCase="multi-owned-worker-cancel-manual";__CASE_METHOD__}}
 internal static class Chunk7SaveBoundaryProtocolTests{
     private static RuntimeSaveDescriptor Save(string name, string leaf, char hash) => new RuntimeSaveDescriptor {
         InternalName = name, FileName = leaf, Sha256 = new string(hash, 64), Length = 1234, LastWriteTimeUtcTicks = 100,
@@ -28,7 +28,7 @@ internal static class Chunk7SaveBoundaryProtocolTests{
     private static int passed;private static void Check(bool c,string m){if(!c)throw new Exception(m);passed++;Console.WriteLine("PASS "+m);}
     private static RuntimeRequest Replay(bool area){var r=Request(area?"multi-exploration-three-area-transfers-manual":"multi-exploration-three-loads-manual",true);if(area)r.PersistenceReplayTargets=Enumerable.Range(0,3).Select(i=>new RuntimeAreaTransitionTarget{EnterPoint=new string((char)('1'+i),32),Area=new string((char)('b'+i),32),AutoSaveMode="None"}).ToArray();return r;}
 
- private static int? WriteQuota(RuntimeRequest request)=>__WRITE_QUOTA__;
+ private static int? WriteQuota(RuntimeRequest request){__SCHEMA2_SELECTOR__ return __WRITE_QUOTA__;}
  internal static int Main(){
   foreach(var checkpoint in new[]{"multi-nonselected-mount-unsettled-manual","multi-owned-worker-cancel-manual"}){
    foreach(var cold in new[]{false,true}){var r=Request(checkpoint,cold);Check(r.Validate().Count==0,"closed source/cold "+checkpoint+" "+cold+": "+string.Join(";",r.Validate()));Check(r.ExpectedNativeLoadType=="Manual","exact native Manual load route");Check(WriteQuota(r)==(cold?(int?)null:1),"exact one-write quota only for selected source");}
@@ -40,6 +40,14 @@ internal static class Chunk7SaveBoundaryProtocolTests{
   Check(!RuntimeSubscenarioResult.IsMissionScenario("C7-persistence-owned-worker-fault"),"unselected actual fault proof remains closed");
   foreach(var item in new[]{new[]{"persistence-p04-save","combat-mount-unsettled-save"},new[]{"persistence-p07-save","worker-drain"},new[]{"chunk7-persistence-save","multi-exploration-manual"},new[]{"chunk7-persistence-load","multi-exploration-three-loads-manual"}}){var r=new RuntimeRequest{Scenario=item[0],PersistenceCase=item[1]};Check(WriteQuota(r)==null,"historical quota remains unchanged "+item[0]+" "+item[1]);}
   Check(WriteQuota(new RuntimeRequest{Scenario=Chunk7OrdinaryAcquisitionSelection.Scenario})==1,"ordinary acquisition exact one-write cap preserved");
+  var resultRows=new[]{new RuntimeSubscenarioResult{Name="C7-persistence-schema2-native-resave",Status="PASS",AssertionPassCount=1,Errors=new string[0]}};
+  var envelopeErrors=new System.Collections.Generic.List<string>();RuntimeResult.ValidateSubscenarioTotals(envelopeErrors,"chunk7-persistence-load",resultRows,1,1,0,1,0);
+  Check(envelopeErrors.Count==0,"schema2 native resave actual result envelope: "+string.Join(";",envelopeErrors));
+  resultRows[0].Name="C7-persistence-schema2-native-resave-extra";envelopeErrors.Clear();RuntimeResult.ValidateSubscenarioTotals(envelopeErrors,"chunk7-persistence-load",resultRows,1,1,0,1,0);
+  Check(envelopeErrors.Count!=0,"unregistered schema2 result neighbor remains refused");
+  var migrated=Request("legacy-mounted-pending-tb-manual",true);Check(migrated.Validate().Count==0,"exact schema2 pending-only cold request remains admitted");
+  Check(WriteQuota(migrated)==1,"schema2 cold migration allows one native resave");
+  Check(WriteQuota(Request("legacy-mounted-pending-tb-manual",false))==null,"historical schema2 source quota remains unchanged");
   Console.WriteLine("SAVE BOUNDARY PROTOCOL/QUOTA PASS="+passed+" FAIL=0; source contracts only");return 0;
  }
 }

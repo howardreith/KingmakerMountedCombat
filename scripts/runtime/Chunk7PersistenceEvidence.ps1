@@ -44,7 +44,7 @@ function Get-KmcChunk7PersistenceCases { @('multi-exploration-manual','multi-exp
 function Test-KmcChunk7PersistenceScenario([string]$Scenario) { $Scenario -cin @('chunk7-persistence-save','chunk7-persistence-load') }
 function Get-KmcChunk7PersistenceRows {
     @('chunk7-persistence-save','chunk7-persistence-load','C7-persistence-two-native-mounts','C7-persistence-native-category-all-pair-archive',
-      'C7-persistence-cold-all-pair-identity-and-no-prepare','C7-persistence-nonselected-mount-save-deferral','C7-persistence-owned-worker-cancel-drain','C7-persistence-three-native-loads','C7-persistence-three-native-area-transfers','C7-persistence-schema1-native-restoration','C7-persistence-schema1-native-resave','C7-persistence-native-continuation','C7-persistence-all-pair-area-before-autosave','C7-persistence-one-native-mount-legacy-source','C7-persistence-native-combat-continuation','C7-persistence-cleanup','C7-persistence-runtime','C7-persistence-interrupted')
+      'C7-persistence-cold-all-pair-identity-and-no-prepare','C7-persistence-nonselected-mount-save-deferral','C7-persistence-owned-worker-cancel-drain','C7-persistence-three-native-loads','C7-persistence-three-native-area-transfers','C7-persistence-schema1-native-restoration','C7-persistence-schema1-native-resave','C7-persistence-schema2-native-resave','C7-persistence-native-continuation','C7-persistence-all-pair-area-before-autosave','C7-persistence-one-native-mount-legacy-source','C7-persistence-native-combat-continuation','C7-persistence-cleanup','C7-persistence-runtime','C7-persistence-interrupted')
 }
 function Get-KmcChunk7PersistenceType([string]$Case) {
     if($Case-cnotin(Get-KmcChunk7PersistenceCases)){throw 'Undeclared Chunk 7 native persistence case.'}
@@ -256,12 +256,13 @@ function Assert-KmcChunk7PersistenceArtifact($Request,$Manifest,[string]$Status=
     if($present.Count-eq0-and$Status-cne'PASS'){return}
     $artifact=Read-KmcChunk7ManifestArtifact $Request $Manifest 'chunk7-persistence-evidence.json' 'chunk7-persistence-evidence'
     Assert-KmcChunk7PersistenceObservation $Request $artifact $Status
-    if($Status-ceq'PASS'-and($Request.scenario-ceq'chunk7-persistence-save'-or($Request.scenario-ceq'chunk7-persistence-load'-and$Request.persistenceCase-ceq'legacy-schema1-resave-manual'))) {
+    if($Status-ceq'PASS'-and($Request.scenario-ceq'chunk7-persistence-save'-or($Request.scenario-ceq'chunk7-persistence-load'-and$Request.persistenceCase-cin@('legacy-schema1-resave-manual','legacy-mounted-pending-tb-manual')))) {
         $w=$artifact.observations.nativeWrite
-        $path=Join-Path (Get-KmcLabRoot) ('runtime-staging/persistence-'+$Request.runId+'/Saved Games/'+(Get-KmcChunk7PersistenceLeaf $Request.persistenceCase))
-        if($w.path-cne$path){throw 'Native save escaped its declared isolated profile leaf.'}
+        $leaf=if($Request.scenario-ceq'chunk7-persistence-load'-and$Request.persistenceCase-ceq'legacy-mounted-pending-tb-manual'){'Manual_301_KMC_C7_SCHEMA2.zks'}else{Get-KmcChunk7PersistenceLeaf $Request.persistenceCase}
+        $path=Join-Path (Get-KmcLabRoot) ('runtime-staging/persistence-'+$Request.runId+'/Saved Games/'+$leaf)
+        if($w.path-isnot[string]-or$w.path-cne$path){throw 'Native save escaped its declared isolated profile leaf.'}
         Assert-KmcNotReparsePoint $path 'Chunk 7 native archive';Assert-KmcNotHardLink $path 'Chunk 7 native archive'
-        $metadata=if($Request.persistenceCase-ceq'legacy-mounted-pending-tb-manual'){$w.nativeMetadata}else{$w.archive}
+        $metadata=if($Request.scenario-ceq'chunk7-persistence-save'-and$Request.persistenceCase-ceq'legacy-mounted-pending-tb-manual'){$w.nativeMetadata}else{$w.archive}
         Assert-KmcChargeArchiveSnapshot $path $w.sha256 $w.length $metadata
     }
 }

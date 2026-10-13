@@ -101,6 +101,7 @@ $selected = @(
     'Test-Chunk7SaveBoundaryProtocol.ps1',
     'Test-Chunk7SaveBoundaryEvidence.ps1',
     'Test-Chunk7Schema1Persistence.ps1',
+    'Test-Chunk7Schema2Resave.ps1',
     'Test-Chunk7PersistenceWiring.ps1',
     'Test-Chunk7RealtimeEvidence.ps1',
     'Test-Chunk7RepeatedLoadAuthority.ps1',

@@ -191,6 +191,7 @@
     <Compile Include="Diagnostics\Chunk7NativeFixture.cs" />
     <Compile Include="Diagnostics\Chunk7PersistenceScenario.Area.cs" />
     <Compile Include="Diagnostics\Chunk7PersistenceScenario.Schema1.cs" />
+    <Compile Include="Diagnostics\Chunk7PersistenceScenario.Schema2.cs" />
     <Compile Include="Diagnostics\Chunk7PersistenceScenario.Scope.cs" />
     <Compile Include="Diagnostics\Chunk7PersistenceScenario.Combat.cs" />
     <Compile Include="Diagnostics\Chunk7PersistenceScenario.cs" />

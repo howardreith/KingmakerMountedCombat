@@ -93,13 +93,13 @@ foreach($file in @('Test-RuntimeGameResult.ps1','Test-RuntimeResult.ps1')){
     $function=$ast.Find({param($n)$n-is[Management.Automation.Language.FunctionDefinitionAst]-and$n.Name-ceq'Assert-SubscenarioResults'},$true)
     . ([scriptblock]::Create($function.Extent.Text))
     foreach($scenario in @('chunk7-persistence-save','chunk7-persistence-load','chunk7-two-pair-combat-rider-first','chunk7-two-pair-combat-mount-first','chunk7-two-pair-realtime-core','chunk7-two-pair-realtime-casting','chunk7-two-pair-realtime-charge','chunk7-two-pair-native-life-cleanup')){
-        $names=if($scenario-ceq'chunk7-persistence-save'){@('C7-persistence-two-native-mounts','C7-persistence-native-category-all-pair-archive','C7-persistence-native-combat-continuation','C7-persistence-cleanup')}else{@('C7-persistence-cold-all-pair-identity-and-no-prepare','C7-persistence-native-combat-continuation','C7-persistence-cleanup')}
+        $names=if($scenario-ceq'chunk7-persistence-save'){@('C7-persistence-two-native-mounts','C7-persistence-native-category-all-pair-archive','C7-persistence-native-combat-continuation','C7-persistence-cleanup')}else{@('C7-persistence-cold-all-pair-identity-and-no-prepare','C7-persistence-schema2-native-resave','C7-persistence-native-combat-continuation','C7-persistence-cleanup')}
         if(Test-KmcChunk7CombatScenario $scenario){$names=@(Get-KmcChunk7CombatRows $scenario|Where-Object{$_-cne$scenario-and$_-cnotin@('C7-combat-runtime','C7-combat-interrupted')})}
         if(Test-KmcChunk7RealtimeScenario $scenario){$names=@(Get-KmcChunk7RealtimeRows $scenario|Where-Object{$_-cne$scenario-and$_-cnotin@('C7-combat-runtime','C7-combat-interrupted')})}
         if(Test-KmcChunk7NativeLifeScenario $scenario){$names=@(Get-KmcChunk7NativeLifeRows $scenario|Where-Object{$_-cne$scenario-and$_-cnotin@('C7-combat-runtime','C7-combat-interrupted')})}
         $v=[pscustomobject]@{scenario=$scenario;subscenarioResults=@($names|ForEach-Object{[pscustomobject]@{name=$_;status='PASS';assertionPassCount=1;assertionFailCount=0;errors=@()}});subscenarioTotal=$names.Count;subscenarioPassCount=$names.Count;subscenarioFailCount=0;assertionPassCount=$names.Count;assertionFailCount=0}
         Check ($file+' complete '+$scenario) {Assert-SubscenarioResults $v}
-        Reject ($file+' unknown row '+$scenario) {$bad=Copy-Test $v;$bad.subscenarioResults[0].name='C7-unregistered';Assert-SubscenarioResults $bad}
+        Reject ($file+' unknown row '+$scenario) {$bad=Copy-Test $v;$bad.subscenarioResults[0].name=if($scenario-ceq'chunk7-persistence-load'){'C7-persistence-schema2-native-resave-extra'}else{'C7-unregistered'};Assert-SubscenarioResults $bad}
     }
 }
 $quota=[IO.File]::ReadAllText((Join-Path $overlay 'Test-RuntimeGameResult.ps1'))

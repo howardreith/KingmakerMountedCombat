@@ -159,6 +159,7 @@ namespace KingmakerMountedCombat.Diagnostics
                             if (RepeatedWorldCase) { BeginRepeatedWorld(); break; }
                             if (Schema1ResaveCase) { ObserveSchema1Cold(); RequestSave(); Next(40); break; }
                             ObserveCold();
+                            if (Schema2ResaveCase) { RequestSave(); Next(41); break; }
                             if (CombatCase) { BeginCombatContinuation(); Next(20); } else Next(10);
                             break;
                         }
@@ -195,6 +196,9 @@ namespace KingmakerMountedCombat.Diagnostics
                         ObserveSaved();
                         if (CombatCase) { BeginCombatContinuation(); Next(20); } else Next(10);
                         break;
+                    case 41:
+                        if (!callback || NativePersistenceIsolation.HasPendingWrites || persistence.HasActiveSaveScope || persistence.HasSaveAdmissionFence) return;
+                        ObserveSaved(); BeginCombatContinuation(); Next(20); break;
                     case 40:
                         if (!callback || NativePersistenceIsolation.HasPendingWrites || persistence.HasActiveSaveScope || persistence.HasSaveAdmissionFence) return;
                         ObserveSaved(); BeginCleanup(); break;
@@ -231,6 +235,7 @@ namespace KingmakerMountedCombat.Diagnostics
             nativeScope = new Chunk7NativeWorldScope(request, SelectionManager.Instance.SelectedUnits,
                 Cold ? ExpectedArchiveArea : request.Fixture.Working.Area);
             originalSelection = SelectionManager.Instance.SelectedUnits.ToArray(); originalPause = Game.Instance.IsPaused; captured = true;
+            if (Schema2ResaveCase) Game.Instance.IsPaused = true;
             MovementScreenshotCaptureCoordinator.AcquireClosedUmmLeaseRetained(out ummLease);
             evidence["checkpoint"] = request.PersistenceCase; evidence["cold"] = Cold;
             evidence["sourceWorkingSha256"] = request.Fixture.Working.Sha256;
@@ -345,6 +350,7 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             RequireNativeWorld();
             if (Schema1ResaveCase) { RequestSchema1Resave(); return; }
+            if (Schema2ResaveCase) { RequestSchema2Resave(); return; }
             if (CombatCase) PrepareCombatSave();
             var type = NativeType(request.PersistenceCase); var manager = Game.Instance.SaveManager;
             NativePersistenceIsolation.EnableNativeSlotRotation();
@@ -362,6 +368,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private void ObserveSaved()
         {
             if (Schema1ResaveCase) { ObserveSchema1Resaved(); return; }
+            if (Schema2ResaveCase) { ObserveSchema2Resaved(); return; }
             var type = NativeType(request.PersistenceCase);
             savedDescriptor = Game.Instance.SaveManager.SingleOrDefault(s => s.Name == NativeName(type) && s.Type == type);
             Require(savedDescriptor != null && savedDescriptor.OperationState == SaveInfo.StateType.None && savedDescriptor.HasFileOnDisk &&
@@ -586,6 +593,7 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 if (RepeatedWorldCase && replayInput != null) RequireReplayInput();
                 if (Schema1ResaveCase) VerifySchema1InputImmutable();
+                if (Schema2ResaveCase) VerifySchema2InputImmutable();
                 if (savedDescriptor != null) Require(Hash(savedDescriptor.FolderName) == (string)evidence["nativeWrite"]["sha256"],
                     "Source archive changed after its recorded native completion.");
             });

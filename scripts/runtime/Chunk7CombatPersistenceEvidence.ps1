@@ -253,6 +253,7 @@ function Assert-KmcChunk7CombatPersistenceObservation($Request,$Artifact) {
            $snapshot[0].nativePostLoads-ne$archive.Combat.Actors.Count-or$snapshot[0].presentationRestores-ne$archive.Pairs.Count-or$snapshot[0].snapshots-ne0-or
            $snapshot[0].nativeCastRequests-ne0-or$snapshot[0].archivePhase-cne'all-pair-presentation-restored'){throw 'Cold native combat substituted a source, dropped PostLoads or replayed commands.'}
         Assert-KmcChunk7CombatRestorationProbe $o.coldRestoration $archive $Request
+        if($legacy){Assert-KmcChunk7Schema2ResaveObservation $Request $o}
         $binding=$continuation.driver.coldBinding
         if($binding.label-cne'read-only-cold-bind'-or@($binding.nativeActors).Count-ne4){throw 'Cold continuation omitted its read-only native fixture binding.'}
     } else {
@@ -297,4 +298,77 @@ function Assert-KmcChunk7CombatPersistenceObservation($Request,$Artifact) {
     foreach($field in @('pairsClear','sourceHorseRemoved','controlsSettled','saveCustodyClear','selectionRestored','nativeProgressionRequiresExternalWorkingRestoration')){Assert-KmcChunk7Boolean $o.cleanup.$field $true}
     Assert-KmcChunk7Boolean $o.cleanup.ordinaryRespecProven $false
     if(@($o.cleanup.world.owners).Count-ne0-or@($o.movements).Count-ne0){throw 'Combat cleanup retained ownership or replayed exploration continuation.'}
+}
+
+# The exact pending-only cold case also writes a separate native schema-3 Manual
+# before continuation. Source-case schema-2 writing and historical intake remain
+# unchanged; no archived input is made writable.
+function Assert-KmcChunk7Schema2ResaveObservation($Request,$Observations) {
+    if($Request.scenario-cne'chunk7-persistence-load'-or$Request.persistenceCase-cne'legacy-mounted-pending-tb-manual'){
+        throw 'Schema-2 resave belongs only to its exact pending-only cold case.'
+    }
+    $before=$Observations.loadedArchive;$migration=$Observations.schema2Migration;$write=$Observations.nativeWrite;$after=$write.archive
+    Assert-KmcExactProperties $migration @('inputSchema','inputSha256','inputLength','migratedArchive','inputUnchanged','resavedWorld') 'schema-2 native resave migration'
+    Assert-KmcChunk7NativeCounters $migration @('inputSchema','inputLength')
+    Assert-KmcChunk7Boolean $migration.inputUnchanged $true
+    if($migration.inputSha256-isnot[string]-or$migration.inputSha256-cnotmatch'^[0-9a-f]{64}$'){throw 'Schema-2 input hash must be one exact SHA256 string.'}
+    foreach($field in @('nativeType','nativeName','operation','sha256')){if($write.$field-isnot[string]){throw ('Schema-2 native write '+$field+' must be a scalar string.')}}
+    foreach($field in @('nativeType','nativeName')){if($Observations.saveRequested.$field-isnot[string]){throw ('Schema-2 save request '+$field+' must be a scalar string.')}}
+    if($migration.inputSchema-ne2-or$migration.inputSha256-cne$Request.persistenceLoad.sha256-or$migration.inputLength-ne$Request.persistenceLoad.length-or
+        (ConvertTo-KmcChunk7Canonical $migration.migratedArchive)-cne(ConvertTo-KmcChunk7Canonical $before)){
+        throw 'Schema-2 resave lost its immutable source or migrated graph.'
+    }
+    Assert-KmcChunk7CombatArchive $after $Request
+    Assert-KmcChunk7NativeCounters $write @('snapshotCount','sourceSchema','length')
+    Assert-KmcChunk7NativeCounters $Observations.saveRequested @('snapshotCount','gameTicks')
+    foreach($field in @('nativeSaveAllowed','newSlot')){Assert-KmcChunk7Boolean $Observations.saveRequested.$field $true}
+    Assert-KmcChunk7Boolean $write.nativeCallback $true
+    if($write.nativeType-cne'Manual'-or$write.nativeName-cne'KMC_C7_SCHEMA2'-or$write.operation-cne'None'-or$write.sourceSchema-ne3-or
+        $write.snapshotCount-ne1-or$Observations.saveRequested.snapshotCount-ne0-or$Observations.saveRequested.nativeType-cne'Manual'-or
+        $Observations.saveRequested.nativeName-cne'KMC_C7_SCHEMA2'-or$write.sha256-cnotmatch'^[0-9a-f]{64}$'-or
+        $write.sha256-ceq$Request.persistenceLoad.sha256-or$write.length-le0-or$write.length-gt256MB-or
+        (ConvertTo-KmcChunk7Canonical $write.nativeMetadata)-cne(ConvertTo-KmcChunk7Canonical $after)){
+        throw 'Schema-2 resave is not one completed native schema-3 write into its separate Manual slot.'
+    }
+    $elapsed=([double]$after.GameTimeTicks-[double]$before.GameTimeTicks)/10000000.0
+    if($elapsed-lt0-or$elapsed-gt30){throw 'Schema-2 native resave escaped its bounded clock.'}
+    $normalizedBefore=$before|ConvertTo-Json -Depth 64|ConvertFrom-Json
+    $normalizedAfter=$after|ConvertTo-Json -Depth 64|ConvertFrom-Json
+    $normalizedAfter.GameTimeTicks=$normalizedBefore.GameTimeTicks
+    foreach($actor in $after.Combat.Actors){
+        $prior=@($before.Combat.Actors|Where-Object {$_.Native.Id-ceq$actor.Native.Id})
+        if($prior.Count-ne1){throw 'Schema-2 resave substituted a native actor.'}
+        foreach($field in @('Standard','Move','Swift','Initiative','Reaction')){
+            $a=[double]$prior[0].Native.$field;$b=[double]$actor.Native.$field
+            if($b-gt$a+0.001-or$b+$elapsed*1.1+0.001-lt$a){throw 'Schema-2 resave refunded or changed debt beyond native elapsed time.'}
+        }
+    }
+    $debts=@($normalizedAfter.Pairs|ForEach-Object {$_.Rider;$_.Mount})+@($normalizedAfter.Combat.Actors|ForEach-Object {$_.Native})
+    foreach($debt in $debts){
+        $prior=@($before.Combat.Actors|Where-Object {$_.Native.Id-ceq$debt.Id})
+        if($prior.Count-ne1){throw 'Schema-2 resave substituted a native debt identity.'}
+        foreach($field in @('Standard','Move','Swift','Initiative','Reaction')){$debt.$field=$prior[0].Native.$field}
+    }
+    foreach($graph in @($normalizedBefore,$normalizedAfter)){
+        $graph.Pairs=@($graph.Pairs|Sort-Object PairId);$graph.Participations=@($graph.Participations|Sort-Object OwnerId)
+        $graph.Slots=@($graph.Slots|Sort-Object ActorId,Index,Kind);$graph.Combat.Actors=@($graph.Combat.Actors|Sort-Object {$_.Native.Id})
+        $graph.Combat.Roster=@($graph.Combat.Roster|Sort-Object ActorId);$graph.Combat.Allocations=@($graph.Combat.Allocations|Sort-Object ActorId)
+        $graph.Combat.Engagements=@($graph.Combat.Engagements|Sort-Object From,To)
+    }
+    if((ConvertTo-KmcChunk7Canonical $normalizedBefore)-cne(ConvertTo-KmcChunk7Canonical $normalizedAfter)){
+        throw 'Schema-2 resave changed pending release, owner/generation, native context/allocation or another protected graph field.'
+    }
+    Assert-KmcChunk7NativeWorldRestore $migration.resavedWorld $after $true
+    $boundary=@($Observations.snapshots|Where-Object label -CEQ 'schema2-native-resave-before-continuation')
+    $loaded=@($Observations.snapshots|Where-Object label -CEQ 'cold-restored-before-input')
+    $continued=@($Observations.combatContinuation.continuation|Where-Object { $_.PSObject.Properties['label']-and$_.label-ceq'continuation-before-input' })
+    if($boundary.Count-ne1-or$loaded.Count-ne1-or$continued.Count-ne1){throw 'Schema-2 resave omitted its before-continuation boundary.'}
+    foreach($row in @($boundary[0],$loaded[0],$continued[0])){Assert-KmcChunk7NativeCounters $row @('frame','gameTicks')}
+    Assert-KmcChunk7NativeCounters $boundary[0] @('snapshots','nativeCastRequests','semanticRestores','presentationRestores','nativePostLoads')
+    if($boundary[0].frame-lt$loaded[0].frame-or$boundary[0].frame-gt$continued[0].frame-or
+        $boundary[0].gameTicks-lt$after.GameTimeTicks-or$boundary[0].gameTicks-gt$continued[0].gameTicks-or
+        $boundary[0].snapshots-ne1-or$boundary[0].nativeCastRequests-ne0-or$boundary[0].semanticRestores-ne$before.Combat.Actors.Count-or
+        $boundary[0].nativePostLoads-ne$before.Combat.Actors.Count-or$boundary[0].presentationRestores-ne1){
+        throw 'Schema-2 resave completed after continuation, repeated restoration or replayed native input.'
+    }
 }
