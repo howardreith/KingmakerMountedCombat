@@ -52,7 +52,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private UnitEntityData rider, mount, controlRider, controlMount;
         private UnitEntityData[] actors, originalSelection;
         private object targetDescriptor, targetView, petDescriptor, petView;
-        private IDisposable ummLease;
+        private MovementCaptureOverlayLease ummLease;
         private bool beforeLoad, captured, pause, cleanup, settled, completed, disposed, pending;
         private double cleanupStart;
         private string sourceEvidencePath, inventoryPath;
@@ -160,7 +160,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 .Where(value => value != null && !ReferenceEquals(value, rider) && !ReferenceEquals(value, mount)).Distinct());
             originalSelection = SelectionManager.Instance.SelectedUnits.ToArray(); pause = Game.Instance.IsPaused; captured = true;
             RequireBodyPins();
-            ummLease = MovementScreenshotCaptureCoordinator.AcquireClosedUmmLease();
+            MovementScreenshotCaptureCoordinator.AcquireClosedUmmLeaseRetained(out ummLease);
             Game.Instance.IsPaused = false;
             var pins = selection.WritesAutosave ? new Chunk7OrdinaryBuildPins(request.RunId, selection.InventoryArtifactSha256,
                 selection.Case == Chunk7ProgressionSelection.LevelCase ? Chunk7OrdinaryBuildMode.ExistingHorseLevels :

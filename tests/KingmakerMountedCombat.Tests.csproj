@@ -89,6 +89,7 @@
     <Compile Include="BoundaryFailureDrainTests.cs" />
     <Compile Include="BoundaryScenarioEvidenceContractTests.cs" />
     <Compile Include="MovementScreenshotCaptureTests.cs" />
+    <Compile Include="MovementOverlayCustodyTests.cs" />
     <Compile Include="MovementNavigationBoundaryPolicyTests.cs" />
     <Compile Include="MovementRadialDistanceOrderTests.cs" />
     <Compile Include="NavigationEndpointDistanceTrackerTests.cs" />
@@ -171,6 +172,8 @@
     <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\Chunk7NativeBootstrapSelection.cs"><Link>Shared\Chunk7NativeBootstrapSelection.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\Chunk7BootstrapInventorySelection.cs"><Link>Shared\Chunk7BootstrapInventorySelection.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\Chunk7ManualSeedSelection.cs"><Link>Shared\Chunk7ManualSeedSelection.cs</Link></Compile>
+    <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\Chunk7ManualDerivedSelection.cs"><Link>Shared\Chunk7ManualDerivedSelection.cs</Link></Compile>
+    <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\Chunk7AcquiredManualSelection.cs"><Link>Shared\Chunk7AcquiredManualSelection.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\RuntimeProtocol.cs">
       <Link>Shared\RuntimeProtocol.cs</Link>
     </Compile>

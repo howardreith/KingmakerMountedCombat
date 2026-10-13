@@ -59,7 +59,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private double stageStart, cleanupStart;
         private int stage, snapshotBefore, completedSavesBefore;
         private long castsBefore;
-        private IDisposable ummLease;
+        private MovementCaptureOverlayLease ummLease;
         private GroupManager group;
         private string inventoryPath, inventoryHash;
         private long inventoryLength, inventoryTicks;
@@ -155,7 +155,7 @@ namespace KingmakerMountedCombat.Diagnostics
             Require(originalPartyCharacters.Length < 6, "No ordinary native party slot remains.");
             originalSelection = SelectionManager.Instance.SelectedUnits.ToArray(); originalPause = game.IsPaused; captured = true;
             snapshotBefore = persistence.SnapshotCount; completedSavesBefore = persistence.CompletedSaveCount; castsBefore = controls.NativeCastRequestCount;
-            ummLease = MovementScreenshotCaptureCoordinator.AcquireClosedUmmLease();
+            MovementScreenshotCaptureCoordinator.AcquireClosedUmmLeaseRetained(out ummLease);
             Require(game.SaveManager.IsSaveAllowed() && !game.SaveManager.Any(save => save.Type == SaveInfo.SaveType.Auto),
                 "Native terminal autosave is unavailable or would overwrite/rotate an existing slot.");
             NativePersistenceIsolation.EnableNativeSlotRotation();

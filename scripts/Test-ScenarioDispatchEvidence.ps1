@@ -61,6 +61,8 @@ foreach($scenario in @('C6D-move-cast-move','C6E-reaction-window','CHUNK6D-STAGE
 $chunk7Families = [ordered]@{
  'chunk7-native-main-bootstrap'='Test-KmcChunk7NativeBootstrapScenario'
  'chunk7-bootstrap-cold-inventory'='Test-KmcChunk7BootstrapInventoryScenario'
+ 'chunk7-acquired-manual-derivative'='Test-KmcChunk7AcquiredManualScenario'
+ 'chunk7-manual-derived-acquisition'='Test-KmcChunk7ManualDerivedScenario'
  'chunk7-bootstrap-manual-seed'='Test-KmcChunk7ManualSeedScenario'
  'chunk7-two-pair-exploration'='world-fixed-root'
  'chunk7-small-profile-calibration'='Test-KmcChunk7SmallScenario'

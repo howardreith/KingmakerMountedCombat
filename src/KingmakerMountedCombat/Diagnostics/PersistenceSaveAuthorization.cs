@@ -84,6 +84,84 @@ namespace KingmakerMountedCombat.Diagnostics
         internal int AdmittedNativeLoadRequests { get { lock (sync) return admittedNativeLoadRequests; } }
         internal int AdmittedNativeWriteRequests { get { lock (sync) return admittedNativeWriteRequests; } }
 
+        private readonly RuntimeRequest acquiredManualRequest;
+        private readonly object acquiredManualGame, acquiredManualManager;
+        private readonly string acquiredManualRequestKey;
+        private object acquiredManualSourceDescriptor;
+        private int acquiredManualNumber, acquiredManualReservations;
+        private int acquiredManualInitialEntries, acquiredManualInitialWritable, acquiredManualReservedEntries, acquiredManualReservedWritable;
+        internal int AcquiredManualInitialEntries { get { lock (sync) return acquiredManualInitialEntries; } }
+        internal int AcquiredManualInitialWritable { get { lock (sync) return acquiredManualInitialWritable; } }
+        internal int AcquiredManualReservedEntries { get { lock (sync) return acquiredManualReservedEntries; } }
+        internal int AcquiredManualReservedWritable { get { lock (sync) return acquiredManualReservedWritable; } }
+        internal int AcquiredManualReservationCount { get { lock (sync) return acquiredManualReservations; } }
+        internal int AcquiredManualNumber { get { lock (sync) return acquiredManualNumber; } }
+        internal string AcquiredManualOutputLeaf { get { lock (sync) return acquiredManualReservations == 1 ? Chunk7AcquiredManualSelection.NativeOutputLeaf(acquiredManualNumber) : null; } }
+        internal object AcquiredManualSourceDescriptor { get { lock (sync) return acquiredManualSourceDescriptor; } }
+        private static string AcquiredManualRequestKey(RuntimeRequest request)
+        {
+            var selected = request?.AcquiredManual; var source = request?.PersistenceLoad;
+            return string.Join("\n", request?.RunId, request?.Scenario, request?.EvidenceRoot, request?.Commit, request?.DllSha256,
+                request?.DllMvid, request?.TransactionToken, selected?.Case, selected?.SourceRunId, selected?.SourceArtifactSha256,
+                selected?.SourceArchiveSha256, selected?.ActorId, selected?.PetId, selected?.BaseGameOnly.ToString(),
+                selected?.ExpectedNativeLoadCount.ToString(), selected?.ExpectedNativeWriteCount.ToString(), source?.FileName,
+                source?.InternalName, source?.GameId, source?.GameName, source?.Area, source?.Sha256, source?.Length.ToString(),
+                source?.LastWriteTimeUtcTicks.ToString());
+        }
+        private bool AcquiredManualRequestUnchanged() => acquiredManualRequest == null ||
+            AcquiredManualRequestKey(acquiredManualRequest) == acquiredManualRequestKey && acquiredManualRequest.Validate().Count == 0;
+
+        internal bool MatchesAcquiredManualPlan(RuntimeSaveDescriptor source, bool requireReserved, bool requireUnwritten)
+        {
+            lock (sync)
+            {
+                Entry input;
+                if (acquiredManualRequest == null || !AcquiredManualRequestUnchanged() ||
+                    source == null || source.FileName != "Auto_1.zks" || source.GameId != gameId || source.GameName != gameName ||
+                    maximumNativeLoadRequests != 1 || maximumNativeWriteRequests != 1 || declaresBootstrap || bootstrapWindowOpen ||
+                    !entries.TryGetValue(source.FileName, out input) || input.Name != source.InternalName || input.Type != "Auto" ||
+                    input.Area != source.Area || input.Hash != source.Sha256 || input.Writable || input.Writing || input.Bootstrap ||
+                    input.AdmitsBeforeArea || input.AdmissionArea != null || input.ForeignGameId != null || input.ForeignGameName != null ||
+                    admittedNativeLoadRequests > 1 || admittedNativeWriteRequests > 1) return false;
+                if (acquiredManualReservations == 0)
+                    return !requireReserved && entries.Count == 1 && admittedNativeLoadRequests == 0 && admittedNativeWriteRequests == 0;
+                Entry output;
+                if (acquiredManualReservations != 1 || acquiredManualNumber <= 0 || acquiredManualSourceDescriptor == null || entries.Count != 2 ||
+                    !entries.TryGetValue(Chunk7AcquiredManualSelection.NativeOutputLeaf(acquiredManualNumber), out output) ||
+                    output.Name != Chunk7AcquiredManualSelection.OutputName || output.Type != "Manual" || output.Area != source.Area ||
+                    !output.Writable || output.Bootstrap || output.AdmitsBeforeArea || output.AdmissionArea != null ||
+                    output.ForeignGameId != null || output.ForeignGameName != null) return false;
+                return requireUnwritten ? output.Hash == null && !output.Writing && admittedNativeWriteRequests == 0 :
+                    (output.Hash == null && !output.Writing || admittedNativeWriteRequests == 1);
+            }
+        }
+        // Called once after native enumeration of the isolated Auto-only root,
+        // before its sole native load. No identity/counter/leaf changes on refusal.
+        internal void ReserveAcquiredManualOutput(RuntimeRequest request, object nativeGame, object nativeManager,
+            object nativeDescriptor, RuntimeSaveTarget observedSource, int observedNumber)
+        {
+            lock (sync)
+            {
+                if (!ReferenceEquals(request, acquiredManualRequest) || !ReferenceEquals(nativeGame, acquiredManualGame) ||
+                    !ReferenceEquals(nativeManager, acquiredManualManager) || nativeDescriptor == null ||
+                    acquiredManualReservations != 0 || !MatchesAcquiredManualPlan(request?.PersistenceLoad, false, true) ||
+                    acquiredManualRequestKey != AcquiredManualRequestKey(request) || observedNumber <= 0 ||
+                    ValidateArchiveIdentity(observedSource, Root) != null)
+                    throw new InvalidOperationException("Acquired Manual reservation lacks its exact unconsumed request/world/native inventory.");
+                var paths = Directory.EnumerateFileSystemEntries(Root).ToArray();
+                if (paths.Length != 1 || paths[0] != Path.Combine(Root, request.PersistenceLoad.FileName) || Directory.Exists(paths[0]))
+                    throw new InvalidOperationException("Acquired Manual isolated inventory changed before reservation.");
+                var leaf = Chunk7AcquiredManualSelection.NativeOutputLeaf(observedNumber);
+                var output = new Entry { Name = Chunk7AcquiredManualSelection.OutputName, Type = "Manual", Area = request.PersistenceLoad.Area, Writable = true };
+                VerifyFile(leaf, output);
+                // Publish the complete second entry and receipt only after all
+                // fallible validation. The one native write cap is unchanged.
+                entries.Add(leaf, output); acquiredManualSourceDescriptor = nativeDescriptor;
+                acquiredManualNumber = observedNumber; acquiredManualReservedEntries = entries.Count;
+                acquiredManualReservedWritable = entries.Values.Count(value => value.Writable); acquiredManualReservations = 1;
+            }
+        }
+
         // Read-only admission proof for the closed progression family.
         // It cannot add leaves, consume admission, rename a save or authorize a
         // request. The guarded bootstrap must have declared exactly this plan.
@@ -157,6 +235,27 @@ namespace KingmakerMountedCombat.Diagnostics
 
         // A separate save-only plan. Older one-entry read-only predicates remain
         // unchanged. Inspection never grants or consumes a native operation.
+        internal bool MatchesManualDerivedPlan(RuntimeSaveDescriptor source, string outputLeaf, string outputName, bool requireUnwritten)
+        {
+            lock (sync)
+            {
+                Entry input, output;
+                if (source == null || source.FileName != "Manual_1_KMC_C7_NATIVE_SEED.zks" || source.InternalName != Chunk7ManualSeedSelection.OutputName ||
+                    source.GameId != gameId || source.GameName != gameName || outputLeaf != Chunk7ManualDerivedSelection.OutputLeaf ||
+                    string.IsNullOrWhiteSpace(outputName) || outputName.Length > 256 || outputName.Any(char.IsControl) ||
+                    maximumNativeLoadRequests != 1 || maximumNativeWriteRequests != 1 || declaresBootstrap || bootstrapWindowOpen || entries.Count != 2 ||
+                    !entries.TryGetValue(source.FileName, out input) || input.Name != source.InternalName || input.Type != "Manual" ||
+                    input.Area != source.Area || input.Hash != source.Sha256 || input.Writable || input.Writing || input.Bootstrap ||
+                    input.AdmitsBeforeArea || input.AdmissionArea != null || input.ForeignGameId != null || input.ForeignGameName != null ||
+                    !entries.TryGetValue(outputLeaf, out output) || output.Name != outputName || output.Type != "Auto" || output.Area != source.Area ||
+                    !output.Writable || output.Bootstrap || output.AdmitsBeforeArea || output.AdmissionArea != null ||
+                    output.ForeignGameId != null || output.ForeignGameName != null || admittedNativeLoadRequests > 1 || admittedNativeWriteRequests > 1)
+                    return false;
+                return requireUnwritten ? output.Hash == null && !output.Writing && admittedNativeWriteRequests == 0 :
+                    (output.Hash == null && !output.Writing || admittedNativeWriteRequests == 1);
+            }
+        }
+
         internal bool MatchesManualSeedPlan(RuntimeSaveDescriptor source, string outputLeaf, bool requireUnwritten)
         {
             lock (sync)
@@ -268,7 +367,8 @@ namespace KingmakerMountedCombat.Diagnostics
         internal PersistenceSaveAuthorization(string authorizedRunRoot, string campaignId,
             string campaignName, string protectedBaselineHash, IEnumerable<PersistenceSaveEntry> allowlist,
             string declaredTransitionSource, string declaredTransitionTarget, int? maximumWriteRequests = null,
-            int? maximumLoadRequests = null)
+            int? maximumLoadRequests = null, RuntimeRequest acquiredManualReservationRequest = null,
+            object acquiredManualNativeGame = null, object acquiredManualNativeManager = null)
         {
             if (maximumWriteRequests.HasValue && (maximumWriteRequests.Value < 1 || maximumWriteRequests.Value > 128))
                 throw new ArgumentException("A selected isolated write count must be positive and bounded.");
@@ -351,12 +451,25 @@ namespace KingmakerMountedCombat.Diagnostics
                     throw new ArgumentException("Isolated root contains an unowned or ambiguous entry.");
             }
             foreach (var item in entries) VerifyFile(item.Key, item.Value);
+            if (acquiredManualReservationRequest != null || acquiredManualNativeGame != null || acquiredManualNativeManager != null)
+            {
+                if (acquiredManualReservationRequest?.Scenario != Chunk7AcquiredManualSelection.Scenario ||
+                    acquiredManualReservationRequest.AcquiredManual == null || acquiredManualNativeGame == null || acquiredManualNativeManager == null ||
+                    acquiredManualReservationRequest.Validate().Count != 0 || transitionDeclared)
+                    throw new ArgumentException("Only an exact closed acquired Manual request may reserve an observed native output.");
+                acquiredManualRequest = acquiredManualReservationRequest; acquiredManualGame = acquiredManualNativeGame;
+                acquiredManualManager = acquiredManualNativeManager; acquiredManualRequestKey = AcquiredManualRequestKey(acquiredManualReservationRequest);
+                if (!MatchesAcquiredManualPlan(acquiredManualRequest.PersistenceLoad, false, true))
+                    throw new ArgumentException("Acquired Manual reservation must start with one immutable Auto and no writable leaf.");
+                acquiredManualInitialEntries = entries.Count; acquiredManualInitialWritable = entries.Values.Count(value => value.Writable);
+            }
         }
 
         internal void AssertReadableArchive(string path)
         {
             lock (sync)
             {
+                if (!AcquiredManualRequestUnchanged()) throw new InvalidOperationException("Acquired Manual captured request changed before native archive access.");
                 if (Canonical(path) != path || Path.GetDirectoryName(path) != Root ||
                     !entries.TryGetValue(Path.GetFileName(path), out var entry) || entry.Writing || entry.Hash == null)
                     throw new InvalidOperationException("Native load archive is not a completed exact owned entry.");
@@ -371,6 +484,9 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             lock (sync)
             {
+                if (!AcquiredManualRequestUnchanged() || acquiredManualRequest != null &&
+                    (acquiredManualReservations != 1 || admittedNativeLoadRequests != 1))
+                    throw new InvalidOperationException("Acquired Manual projection requires its unchanged request and admitted cold load.");
                 if (predicted == null || Canonical(observedRoot) != Root ||
                     Canonical(predicted.FullPath) != Path.Combine(Root, predicted.FileName) ||
                     predicted.FileName != Path.GetFileName(predicted.FullPath))
@@ -421,6 +537,10 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             try
             {
+                if (!AcquiredManualRequestUnchanged()) return "Acquired Manual captured request changed after authority creation.";
+                if (acquiredManualRequest != null && operation == RuntimeSaveOperation.Write &&
+                    (acquiredManualReservations != 1 || admittedNativeLoadRequests != 1))
+                    return "Acquired Manual write requires its exact reservation and admitted cold load.";
                 if (Canonical(observedRoot) != Root) return "Observed save root differs from the isolated run root.";
                 RequireDirectory(Root);
                 if (target == null || string.IsNullOrEmpty(target.FileName) ||
@@ -459,6 +579,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 VerifyFile(target.FileName, entry);
                 if (operation != RuntimeSaveOperation.Write && entry.Hash == null)
                     return "Load/rotation requires a completed owned archive.";
+                if (checkLoadAdmission && operation == RuntimeSaveOperation.Load && acquiredManualRequest != null &&
+                    acquiredManualReservations != 1)
+                    return "Acquired Manual load awaits its exact observed native destination reservation.";
                 if (checkLoadAdmission && operation == RuntimeSaveOperation.Load && maximumNativeLoadRequests.HasValue &&
                     admittedNativeLoadRequests >= maximumNativeLoadRequests.Value)
                     return "The exact isolated scope exhausted its selected native load admission count.";
@@ -477,6 +600,8 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             lock (sync)
             {
+                if (acquiredManualRequest != null && admittedNativeWriteRequests != 1)
+                    throw new InvalidOperationException("Acquired Manual storage requires its exact native write admission.");
                 var rejection = ValidateLocked(RuntimeSaveOperation.Write, target, observedRoot);
                 if (rejection != null) throw new InvalidOperationException(rejection);
                 var entry = entries[target.FileName];

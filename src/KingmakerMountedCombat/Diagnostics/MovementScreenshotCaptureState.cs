@@ -26,6 +26,16 @@ namespace KingmakerMountedCombat.Diagnostics
 
         public static MovementCaptureOverlayLease Acquire(IMovementCaptureOverlay overlay)
         {
+            MovementCaptureOverlayLease custody;
+            AcquireRetained(overlay, out custody);
+            return custody;
+        }
+
+        // The caller must keep the out owner if acquisition throws after mutation.
+        // Only verified compensation clears it; a failed restore remains retryable.
+        public static void AcquireRetained(IMovementCaptureOverlay overlay, out MovementCaptureOverlayLease custody)
+        {
+            custody = null;
             if (overlay == null)
             {
                 throw new ArgumentNullException(nameof(overlay));
@@ -36,6 +46,7 @@ namespace KingmakerMountedCombat.Diagnostics
             }
 
             var lease = new MovementCaptureOverlayLease(overlay, overlay.Opened);
+            custody = lease;
             try
             {
                 if (lease.originallyOpened)
@@ -43,23 +54,21 @@ namespace KingmakerMountedCombat.Diagnostics
                     overlay.SetOpened(false);
                 }
                 lease.VerifyCaptureReady();
-                return lease;
             }
             catch (Exception acquisitionException)
             {
                 try
                 {
-                    lease.Restore();
+                    lease.Dispose();
                 }
                 catch (Exception restorationException)
                 {
-                    lease.disposed = true;
                     throw new AggregateException(
                         "UMM overlay could not be hidden and its captured state could not be restored.",
                         acquisitionException,
                         restorationException);
                 }
-                lease.disposed = true;
+                custody = null;
                 throw;
             }
         }
@@ -84,14 +93,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 return;
             }
 
-            try
-            {
-                Restore();
-            }
-            finally
-            {
-                disposed = true;
-            }
+            Restore();
+            disposed = true;
         }
 
         private void Restore()

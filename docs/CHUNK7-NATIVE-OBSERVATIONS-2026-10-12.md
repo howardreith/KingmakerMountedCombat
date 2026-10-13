@@ -139,3 +139,16 @@ must repair the demonstrated manifest defect and establish the exact native
 Ranger registration contract before an affected bootstrap rerun. The reviewed
 [cold-inventory and hardening checkpoint](CHUNK7-COLD-INVENTORY-HARDENING-CHECKPOINT.md)
 adds independent source work without changing these native FAIL verdicts.
+
+
+## Preview.5 dispatched bootstrap — FAIL, settled
+
+Run20261012-chunk7b-world05-bootstrap used frozen productd506ce4185e0116d5f365317f0775bc28c83b768 and harness9c9cf6723385f3fac2d34a02a468a18793c13f42. Its113.7347668-second invocation exited1; the game ran56.432249seconds. Exact Ranger13 preflight passed. Native new-game dispatch, callback entry/return and worker settlement were observed; loads0, authorized writes1. The diagnostic probe recorded entered1/exited1/minted0/saveRequests1/prepared1 and refused its identity/world/autosave predicates. Native runtime FAIL and cleanup PASS remain the actual result. Its generated output is not a qualified cold-load or acquisition fixture.
+
+The missing mint observation is an observer boundary under investigation. The real native identity and one save do not replace the required temporal proof. A changed observer requires a newly identified binary and affected native rerun; reader reinterpretation cannot manufacture the missing callback.
+
+Both transaction receipts report restored, no errors, exact Mods and protected-save digests matching the values above, Baseline immutable and Working restored. Profile bytes also match exactly this time, with zero accepted native cache changes. Attributed processes exited and the lock is absent. checkpoint04 SHA25623c32cafe949f07cdd33f38fa3ba7d4e8542297d7ad7eb3800859ea185eb4cf8 binds all evidence and caller exit. All1154 input pins matched a separate post-exit root check; the original supervisor flag afterPinsVerified=false remains unchanged because the exception bypassed its loop.
+
+The preceding full WhatIf audit remains FAIL/exit1 after8599.5957737seconds: its terminal success sentence wrapped across two physical lines and the supervisor recognized only one-line output. A separately reviewed reader reevaluated the immutable raw log and all required original records, passed in2.7360926seconds with actual caller exit0, and retained the original FAIL. Its proof SHA25662f3154746ea93fdbb1397dff5bfb9f13fa27d1d929bee6810a63462bd32ac00 was consumed by the reviewed live supervisor. This is a reader-only reevaluation under VALIDATION-POLICY§5, not a repeated whole audit or gameplay PASS. The historical root-equality claim is launcher-code-mediated; per-root digests were not captured. Both reader verdicts and all failed evidence are preserved privately.
+
+Native budget is4/25. Failed preview.5 prevents its dependent cold/Manual chain; independent source work continues. No breadth-ready, base-only gameplay compatibility, Small, six-pair or HUMAN PLAY claim is made.

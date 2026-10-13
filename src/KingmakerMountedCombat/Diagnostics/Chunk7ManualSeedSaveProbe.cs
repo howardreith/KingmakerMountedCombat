@@ -24,7 +24,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private readonly MountedPersistenceService persistence;
         private readonly Func<object, int> identity;
         private readonly Action assertWorld;
-        private readonly string leaf;
+        private readonly string leaf, nativeName;
         private readonly JArray events = new JArray(), hooks = new JArray();
         private readonly List<string> errors = new List<string>();
         private readonly Dictionary<string, FieldInfo> fields = new Dictionary<string, FieldInfo>();
@@ -35,12 +35,25 @@ namespace KingmakerMountedCombat.Diagnostics
         internal bool InCallback => inside != 0;
         internal bool Complete => installed && requests == 1 && prepares == 1 && starts == 1 && stages == 1 && completions == 1 && callbacks == 1 && errors.Count == 0;
         internal SaveInfo Written => prepared;
-        internal Chunk7ManualSeedSaveProbe(Game game, MountedPersistenceService persistence, Func<object, int> identity, Action assertWorld, string leaf)
+        internal Chunk7ManualSeedSaveProbe(Game game, MountedPersistenceService persistence, Func<object, int> identity, Action assertWorld, string leaf, string acquiredManualName = null)
         {
             this.game = game ?? throw new ArgumentNullException(nameof(game)); manager = game.SaveManager;
             this.persistence = persistence ?? throw new ArgumentNullException(nameof(persistence));
             this.identity = identity ?? throw new ArgumentNullException(nameof(identity));
             this.assertWorld = assertWorld ?? throw new ArgumentNullException(nameof(assertWorld)); this.leaf = leaf;
+            nativeName = Chunk7ManualSeedSelection.OutputName;
+            if (acquiredManualName != null)
+            {
+                var prefix = "Manual_"; var suffix = "_" + Chunk7AcquiredManualSelection.OutputName + ".zks";
+                Require(acquiredManualName == Chunk7AcquiredManualSelection.OutputName && leaf != null &&
+                    leaf.StartsWith(prefix, StringComparison.Ordinal) && leaf.EndsWith(suffix, StringComparison.Ordinal) &&
+                    leaf.Length > prefix.Length + suffix.Length &&
+                    int.TryParse(leaf.Substring(prefix.Length, leaf.Length - prefix.Length - suffix.Length),
+                        System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var number) &&
+                    number > 0 && leaf == Chunk7AcquiredManualSelection.NativeOutputLeaf(number),
+                    "Acquired Manual observer requires its closed name and exact canonical positive native slot.");
+                nativeName = acquiredManualName;
+            }
         }
         internal void Install()
         {
@@ -74,7 +87,7 @@ namespace KingmakerMountedCombat.Diagnostics
         internal void Expect(SaveInfo value)
         {
             Require(installed && expected == null && value != null && !value.IsActuallySaved && value.Type == SaveInfo.SaveType.Manual &&
-                value.Name == Chunk7ManualSeedSelection.OutputName, "Manual seed observer requires one new exact native descriptor."); expected = value;
+                value.Name == nativeName, "Manual seed observer requires one new exact native descriptor."); expected = value;
         }
         private void Observe(Action action)
         {
@@ -124,7 +137,7 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 var p = active; if (p == null) return;
                 p.Observe(() => { Require(++p.prepares == 1 && p.requests == 1 && ReferenceEquals(__instance, p.manager) && save != null &&
-                    save.Type == SaveInfo.SaveType.Manual && save.Name == Chunk7ManualSeedSelection.OutputName && save.FileName == p.leaf &&
+                    save.Type == SaveInfo.SaveType.Manual && save.Name == p.nativeName && save.FileName == p.leaf &&
                     save.GameId == p.game.Player.GameId && save.Area?.AssetGuidThreadSafe == p.game.CurrentlyLoadedArea?.AssetGuidThreadSafe,
                     "Native prepared Manual seed differs from its declared leaf or world."); p.prepared = save; p.Record("native-save-prepared", save); });
             }

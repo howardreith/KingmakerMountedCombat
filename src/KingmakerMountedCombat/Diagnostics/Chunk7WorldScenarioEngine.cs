@@ -57,7 +57,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private readonly Dictionary<string, int> cleanupAttempts = new Dictionary<string, int>();
         private int step;
         private double stepStarted;
-        private IDisposable ummLease;
+        private MovementCaptureOverlayLease ummLease;
         private NativeModeTransitionProbe mode;
         private MovementScreenshotCaptureCoordinator screenshots;
         private UnitCommand issuedMove;
@@ -135,7 +135,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 originalPaired = settings.EnablePairedActivation; originalMovement = settings.EnableUnsafeMovementExperiment; captured = true;
                 Require(world.Primary.Combat.TryConfigurePairedActivation(true), "Paired authority configuration was refused.");
                 settings.EnableUnsafeMovementExperiment = true;
-                ummLease = MovementScreenshotCaptureCoordinator.AcquireClosedUmmLease();
+                MovementScreenshotCaptureCoordinator.AcquireClosedUmmLeaseRetained(out ummLease);
                 mode = new NativeModeTransitionProbe(false); mode.DispatchTemporaryValueIfRequired();
                 evidence["capability"] = new JObject { ["archiveNativeEnabled"] = true, ["nativeWriterSchema"] = 3,
                     ["nativePairCapacity"] = GameMountedRelationshipService.NativePairCapacity, ["workingSha256"] = WorkingHash };
