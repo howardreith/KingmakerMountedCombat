@@ -1373,7 +1373,8 @@ namespace KingmakerMountedCombat.Integration
 
         internal void ObservePreStartInterrupt()
         {
-            if (preStartInterruptBoundary != null || IsStarted || IsFinished) { return; }
+            if (preStartInterruptBoundary != null || IsStarted || IsFinished ||
+                !KingmakerMountedCombat.Diagnostics.RuntimeAutomationHost.ShouldCaptureMountedPreStartInterruption(relationship)) { return; }
             var game = Kingmaker.Game.Instance;
             var turn = game?.TurnBasedCombatController?.CurrentTurn;
             preStartInterruptBoundary = "frame=" + Time.frameCount + ";turn=" + turn?.Unit?.UniqueId +

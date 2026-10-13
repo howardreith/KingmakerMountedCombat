@@ -21,7 +21,8 @@ namespace KingmakerMountedCombat.Integration
             new Dictionary<string, UnitEntityData>(StringComparer.Ordinal);
         private readonly Dictionary<string, MountedPairServices> archiveOwners =
             new Dictionary<string, MountedPairServices>(StringComparer.Ordinal);
-        private readonly HashSet<string> archivePostLoadObserved = new HashSet<string>(StringComparer.Ordinal);
+        private readonly Dictionary<string, UnitEntityData> archivePostLoadObserved =
+            new Dictionary<string, UnitEntityData>(StringComparer.Ordinal);
         internal string ArchiveRestorePhase { get; private set; } = "not-selected";
         internal int ArchivePostLoadObservedCount => archivePostLoadObserved.Count;
         private bool archiveGraphReady;
@@ -248,13 +249,19 @@ namespace KingmakerMountedCombat.Integration
                 .Concat(data.Pairs.SelectMany(p => new[] { p.Rider, p.Mount })).GroupBy(a => a.Id, StringComparer.Ordinal)
                 .Select(g => g.First()).ToArray();
             if (!snapshots.Any(a => a.Id == unit.UniqueId)) return;
-            archivePostLoadObserved.Add(unit.UniqueId);
             try
             {
+                if (archivePostLoadObserved.TryGetValue(unit.UniqueId, out var previous) && !ReferenceEquals(previous, unit))
+                    throw new InvalidDataException("Conflicting native PostLoad callbacks identify the same saved actor.");
+                archivePostLoadObserved[unit.UniqueId] = unit;
                 if (!ResolveArchiveGraph()) return;
-                if (!archiveActors.TryGetValue(unit.UniqueId, out var exact) || !ReferenceEquals(exact, unit))
-                    throw new InvalidDataException("A native PostLoad callback identifies a different saved actor instance.");
-                if (snapshots.Any(a => !archivePostLoadObserved.Contains(a.Id)))
+                // Earlier callbacks may arrive before every saved actor resolves.
+                // Their exact objects must still own the completed graph; an ID
+                // alone cannot credit a replacement with native PostLoad.
+                foreach (var observed in archivePostLoadObserved)
+                    if (!archiveActors.TryGetValue(observed.Key, out var exact) || !ReferenceEquals(exact, observed.Value))
+                        throw new InvalidDataException("A native PostLoad callback identifies a different saved actor instance.");
+                if (snapshots.Any(a => !archivePostLoadObserved.ContainsKey(a.Id)))
                 { ArchiveRestorePhase = "waiting-for-all-native-postload"; return; }
                 if (snapshots.All(a => restoredActors.ContainsKey(a.Id))) return;
                 // CombatPreparePrefix and the existing world admission fence keep

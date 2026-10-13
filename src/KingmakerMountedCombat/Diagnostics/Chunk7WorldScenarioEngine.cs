@@ -5,6 +5,8 @@ using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using Kingmaker;
+using Kingmaker.Controllers;
+using Kingmaker.Controllers.Clicks;
 using Kingmaker.Controllers.Clicks.Handlers;
 using Kingmaker.EntitySystem.Entities;
 using Kingmaker.EntitySystem.Persistence;
@@ -48,6 +50,9 @@ namespace KingmakerMountedCombat.Diagnostics
         private readonly List<string> errors = new List<string>();
         private readonly JObject evidence = new JObject();
         private readonly JArray snapshots = new JArray(), inputs = new JArray(), movements = new JArray();
+        private readonly JArray groundInputs = new JArray();
+        private readonly List<UnitCommand> groundCommandsAwaited = new List<UnitCommand>();
+        private bool groundInputCustodyUncertain;
         private UnitEntityData firstRider, firstMount, secondRider, secondMount;
         private UnitEntityData[] originalSelection, originalParty;
         private Chunk7NativeWorldScope nativeScope;
@@ -159,6 +164,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     ["nativePairCapacity"] = GameMountedRelationshipService.NativePairCapacity, ["workingSha256"] = inherited == null ? WorkingHash : null,
                     ["inheritedManualSha256"] = inherited == null ? null : request.OwnedPairs.SourceArchiveSha256 };
                 evidence["snapshots"] = snapshots; evidence["inputs"] = inputs; evidence["movements"] = movements;
+                evidence["groundInputs"] = groundInputs;
                 evidence["measurements"] = measurements; evidence["cycleInputs"] = cycleInputs; evidence["cycles"] = cycles;
                 evidence["nativeProfileInventory"] = Chunk7NativeProfileInventory.Capture(originalParty);
                 Pass("C7-world-fixture"); Next(1);
@@ -367,12 +373,37 @@ namespace KingmakerMountedCombat.Diagnostics
             Select(selected); Game.Instance.IsPaused = true;
             var all = Actors(); var before = all.ToDictionary(x => x, x => x.Commands.Move);
             moveStart = executor.Position; moveGoal = goal;
-            ClickGroundHandler.MoveSelectedUnitsToPoint(goal, false);
+            Require(groundInputs.Count < 3, "The closed world scenario has only three ground inputs.");
+            var attempt = new JObject { ["contract"] = "chunk7-world-ground-input/v1", ["label"] = label,
+                ["selectedId"] = selected.UniqueId, ["executorId"] = executor.UniqueId, ["requestedGoal"] = Point(goal),
+                ["nativeCallEntered"] = false, ["nativeCallReturned"] = false, ["commandValidationPassed"] = false };
+            groundInputs.Add(attempt);
+            var capturedBefore = CaptureGroundInput(all); attempt["before"] = capturedBefore.Data;
+            Require(capturedBefore.CommandsComplete, "Ground input command custody could not be captured before native dispatch.");
+            try
+            {
+                attempt["nativeCallEntered"] = true;
+                ClickGroundHandler.MoveSelectedUnitsToPoint(goal, false);
+                attempt["nativeCallReturned"] = true;
+            }
+            catch (Exception error) { RecordGroundInputError(attempt, "nativeError", error); throw; }
+            finally
+            {
+                // Read-only, case-owned observation. A failed native call still publishes its
+                // bounded snapshot and retains newly observed commands before validation throws.
+                var capturedAfter = CaptureGroundInput(all); attempt["after"] = capturedAfter.Data;
+                RetainGroundInputCommands(all, capturedBefore, capturedAfter, attempt);
+            }
             issuedMove = executor.Commands.Move; movingActor = executor;
-            Require(issuedMove != null && !ReferenceEquals(issuedMove, before[executor]), "Native ground click failed to issue the intended command.");
+            Require(issuedMove != null && !ReferenceEquals(issuedMove, before[executor]) &&
+                !capturedBefore.Commands.Any(x => ReferenceEquals(x, issuedMove)) &&
+                ReferenceEquals(issuedMove.Executor, executor) && issuedMove.CreatedByPlayer,
+                "Native ground click failed to issue the intended command.");
             Require(all.Where(x => !ReferenceEquals(x, executor)).All(x => ReferenceEquals(x.Commands.Move, before[x])),
                 "Native ground click changed another actor's movement command.");
-            issuedCommands.Add(issuedMove);
+            Require(!groundInputCustodyUncertain, "Ground input command custody is incomplete after native dispatch; cleanup remains retained.");
+            if (!issuedCommands.Any(x => ReferenceEquals(x, issuedMove))) issuedCommands.Add(issuedMove);
+            attempt["commandValidationPassed"] = true;
             moveRecord = new JObject { ["label"] = label, ["selectedId"] = selected.UniqueId, ["executorId"] = executor.UniqueId,
                 ["commandObject"] = Id(issuedMove), ["selectionAfterInput"] = switchTo.UniqueId,
                 ["otherCommandsUnchangedAtInput"] = true, ["start"] = Point(moveStart), ["requestedGoal"] = Point(goal),
@@ -384,6 +415,131 @@ namespace KingmakerMountedCombat.Diagnostics
             quietWindow = new MountedOptionalDiagnosticsWindow(optionalTelemetry(), label);
             quietWindow.Install(Time.frameCount, clock.Elapsed.TotalSeconds);
             Game.Instance.IsPaused = false;
+        }
+        private sealed class GroundInputSnapshot
+        {
+            internal readonly JObject Data = new JObject();
+            internal readonly List<UnitCommand> Commands = new List<UnitCommand>();
+            internal bool CommandsComplete = true;
+        }
+        private static void RecordGroundInputError(JObject row, string field, Exception error)
+        {
+            try
+            {
+                var text = error.GetType().FullName + ": " + error.Message;
+                row[field] = text.Length <= 256 ? text : text.Substring(0, 256);
+            }
+            catch { /* A diagnostic failure must not replace the native failure. */ }
+        }
+        private static JObject CaptureGroundInputCommand(UnitCommand command)
+        {
+            var row = new JObject { ["object"] = Id(command) };
+            if (command == null) return row;
+            try
+            {
+                row["type"] = command.GetType().FullName; row["executorId"] = command.Executor?.UniqueId;
+                row["executorObject"] = Id(command.Executor); row["slot"] = command.Type.ToString();
+                row["createdByPlayer"] = command.CreatedByPlayer; row["started"] = command.IsStarted;
+                row["finished"] = command.IsFinished; row["result"] = command.Result.ToString();
+            }
+            catch (Exception error) { RecordGroundInputError(row, "readError", error); }
+            return row;
+        }
+        private GroundInputSnapshot CaptureGroundInput(UnitEntityData[] actors)
+        {
+            var snapshot = new GroundInputSnapshot(); var rows = new JArray(); snapshot.Data["actors"] = rows;
+            // The native field is four captured actors; slot/queue output is capped, never a world scan.
+            try
+            {
+                var game = Game.Instance; var selected = SelectionManager.Instance.SelectedUnits;
+                snapshot.Data["frame"] = Time.frameCount; snapshot.Data["gameTicks"] = game.TimeController.GameTime.Ticks;
+                snapshot.Data["mode"] = game.CurrentMode.ToString(); snapshot.Data["paused"] = game.IsPaused;
+                snapshot.Data["turnBased"] = CombatController.IsInTurnBasedCombat();
+                snapshot.Data["gamepad"] = game.IsControllerGamepad; snapshot.Data["simulatingClick"] = PointerController.SimulatingClick;
+                snapshot.Data["selectionManager"] = Id(SelectionManager.Instance);
+                snapshot.Data["nativeSelectionManager"] = Id(game.UI.SelectionManager);
+                snapshot.Data["selectionCount"] = selected.Count;
+                snapshot.Data["selection"] = new JArray(selected.Take(4).Select(x => new JObject { ["id"] = x?.UniqueId, ["object"] = Id(x) }));
+                snapshot.Data["selectionTruncated"] = selected.Count > 4;
+                snapshot.Data["serializationBusy"] = world.SerializationBusy;
+                snapshot.Data["saveWorkerRunning"] = persistence?.ActiveSaveWorkerRunning == true;
+                snapshot.Data["restorationPending"] = persistence?.CombatRestorationPending == true;
+            }
+            catch (Exception error) { RecordGroundInputError(snapshot.Data, "environmentError", error); }
+            if (actors == null || actors.Length != 4) snapshot.CommandsComplete = false;
+            foreach (var actor in (actors ?? new UnitEntityData[0]).Take(4))
+            {
+                var row = new JObject { ["object"] = Id(actor) }; rows.Add(row); var referencesCaptured = false;
+                try
+                {
+                    var commands = actor.Commands; var raw = commands.Raw; var queue = commands.Queue;
+                    var observedRaw = raw.Take(8).ToArray(); var observedQueue = queue.Take(16).ToArray();
+                    var previous = commands.PreviousCommand;
+                    snapshot.Commands.AddRange(observedRaw.Where(x => x != null));
+                    snapshot.Commands.AddRange(observedQueue.Where(x => x != null));
+                    if (previous != null) snapshot.Commands.Add(previous);
+                    var queueCount = queue.Count;
+                    referencesCaptured = raw.Length <= 8 && observedRaw.Length == raw.Length && queueCount == observedQueue.Length;
+                    if (!referencesCaptured) snapshot.CommandsComplete = false;
+                    row["id"] = actor.UniqueId; row["commandsObject"] = Id(commands);
+                    row["rawCount"] = raw.Length; row["rawTruncated"] = raw.Length > 8;
+                    row["queueCount"] = queueCount; row["queueTruncated"] = queueCount > 16;
+                    row["raw"] = new JArray(observedRaw.Select(CaptureGroundInputCommand));
+                    row["queue"] = new JArray(observedQueue.Select(CaptureGroundInputCommand));
+                    row["previous"] = CaptureGroundInputCommand(previous);
+                    row["publicMoveObject"] = Id(commands.Move);
+                    row["rawMoveObject"] = Id(commands.GetCommand(UnitCommand.CommandType.Move));
+                    row["empty"] = commands.Empty; row["inState"] = actor.IsInState; row["inGame"] = actor.IsInGame;
+                    row["conscious"] = actor.Descriptor.State.IsConscious; row["position"] = Point(actor.Position);
+                    var combat = world.ForActor(actor)?.Combat;
+                    if (combat != null)
+                    {
+                        row["feedback"] = combat.LastFeedback == null ? null : combat.LastFeedback.Substring(0, Math.Min(256, combat.LastFeedback.Length));
+                        row["rejectionCodes"] = new JArray(combat.LastRejectionCodes.Take(8).Select(x => x.ToString()));
+                        row["rejectionCodesTruncated"] = combat.LastRejectionCodes.Length > 8;
+                    }
+                }
+                catch (Exception error) { if (!referencesCaptured) snapshot.CommandsComplete = false; RecordGroundInputError(row, "readError", error); }
+            }
+            snapshot.Data["commandsComplete"] = snapshot.CommandsComplete;
+            return snapshot;
+        }
+        private void RetainGroundInputCommands(UnitEntityData[] actors, GroundInputSnapshot before, GroundInputSnapshot after, JObject attempt)
+        {
+            var retained = new JArray(); var awaited = new JArray();
+            try
+            {
+                if (!after.CommandsComplete) groundInputCustodyUncertain = true;
+                foreach (var command in after.Commands)
+                {
+                    if (before.Commands.Any(x => ReferenceEquals(x, command))) continue;
+                    if (command is UnitMoveTo && command.CreatedByPlayer && actors.Any(x => ReferenceEquals(x, command.Executor)))
+                    {
+                        if (!issuedCommands.Any(x => ReferenceEquals(x, command))) { issuedCommands.Add(command); retained.Add(Id(command)); }
+                    }
+                    else if (!groundCommandsAwaited.Any(x => ReferenceEquals(x, command)))
+                    {
+                        // Observation is not cancellation authority for a foreign executor or
+                        // another command kind. Wait for its native terminal state, never interrupt it.
+                        groundCommandsAwaited.Add(command); awaited.Add(Id(command));
+                    }
+                }
+            }
+            catch (Exception error) { groundInputCustodyUncertain = true; RecordGroundInputError(attempt, "custodyError", error); }
+            attempt["retainedMoveCommands"] = retained; attempt["awaitedCommands"] = awaited;
+            attempt["custodyUncertain"] = groundInputCustodyUncertain;
+        }
+        private bool GroundInputCommandsSettled()
+        {
+            // Native slot cleanup can remove a finished ability shell while its process
+            // remains live. Empty later slots cannot recover a reference we never captured.
+            if (groundInputCustodyUncertain) return false;
+            try
+            {
+                return groundCommandsAwaited.All(command => command.IsFinished &&
+                    (!(command is UnitUseAbility ability) || ability.ExecutionProcess == null || ability.ExecutionProcess.IsEnded));
+            }
+            catch { return false; } // An incomplete native read retains cleanup, never authorizes teardown.
         }
         private bool MovementSettled()
         {
@@ -585,7 +741,7 @@ namespace KingmakerMountedCombat.Diagnostics
             }
         }
         private bool NativeCommandsSettled() => issuedCommands.Where(command => command != null).All(command =>
-            command.IsFinished && (!(command is UnitUseAbility ability) || ability.ExecutionProcess == null || ability.ExecutionProcess.IsEnded));
+            command.IsFinished && (!(command is UnitUseAbility ability) || ability.ExecutionProcess == null || ability.ExecutionProcess.IsEnded)) && GroundInputCommandsSettled();
         private bool PairCommandsSettled(MountedPairServices pair) => !pair.Combat.HasActiveCommand &&
             !pair.Combat.HasActiveGroundMovement && !pair.Combat.HasChargeOwnership && !controls.HasUnsettledShellFor(pair.Relationship);
         private void RetainCleanup(string reason)

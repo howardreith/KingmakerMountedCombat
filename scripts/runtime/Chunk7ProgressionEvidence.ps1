@@ -254,7 +254,7 @@ function Assert-KmcProgressionCompletion($Probe,$Before,[long]$Commits,[long]$In
     foreach($key in @('saveRequests','preparedWrites')){Assert-KmcOrdinaryInteger $Probe.$key 1 1}
     $inside=$null;$entries=0;$exits=0;$requests=0;$writes=0;$saveObject=0;$frame=-1
     foreach($row in $Probe.events){
-        Assert-KmcProgressionText $row.kind;Assert-KmcOrdinaryGuid $row.actorId;Assert-KmcOrdinaryGuid $row.completionActorId
+        Assert-KmcProgressionText $row.kind;Assert-KmcOrdinaryGuid $row.actorId;if($row.kind-cne'native-level-autosave-prepared'){Assert-KmcOrdinaryGuid $row.completionActorId}
         Assert-KmcOrdinaryInteger $row.frame 0 ([int]::MaxValue);Assert-KmcProgressionObject $row.actorObject
         if($row.actorId-cne$Before.actorId-or$row.actorObject-ne$Before.object-or$row.frame-lt$frame){throw 'Native completion actor/frame differs.'};$frame=$row.frame
         switch -CaseSensitive ($row.kind){
@@ -271,7 +271,7 @@ function Assert-KmcProgressionCompletion($Probe,$Before,[long]$Commits,[long]$In
             }
             'native-level-autosave-prepared' {
                 Assert-KmcProgressionObject $row.saveObject;Assert-KmcChunk7Boolean $row.autoLevelup $true
-                Assert-KmcProgressionTexts $row @('saveLeaf','saveType');if($requests-ne1-or$row.saveObject-ne$saveObject-or$row.saveLeaf-cne'Auto_1.zks'-or$row.saveType-cne'Auto'){throw 'Native PrepareSave lost its exact admitted save.'};$writes++
+                Assert-KmcProgressionTexts $row @('saveLeaf','saveType');if($requests-ne1-or$row.saveObject-eq$saveObject-or$row.saveLeaf-cne'Auto_1.zks'-or$row.saveType-cne'Auto'){throw 'Native PrepareSave lost its exact admitted save.'};$writes++
             }
             'native-level-completion-exit' {
                 if($null-eq$inside-or$row.frame-ne$inside.frame-or$row.completionActorId-cne$Before.actorId){throw 'Native completion exit lost callback ownership.'}
@@ -420,6 +420,7 @@ function Assert-KmcChunk7ProgressionEvidence($Request,$Artifact,[string]$Status=
     if($write){
         $choiceRows=@($session.events|Where-Object{$null-ne$_.PSObject.Properties['event']});$choices=Assert-KmcProgressionChoices $choiceRows $Request $before $respecProof
         Assert-KmcProgressionCompletion $session.nativeCompletion $before $choices.commits $choices.initialLevel
+        Assert-KmcOrdinarySaveDescriptorBinding $session.nativeCompletion $session.nativeWrite
         Assert-KmcProgressionWrite $session.nativeWrite $Request $o.loadedArchive
         $terminal=@($nativeRows|Where-Object kind -CEQ 'native-progression-builder-complete');if($nativeRows.Count-ne2-or$terminal.Count-ne1){throw 'Native builder/session boundary incomplete.'};Assert-KmcProgressionActor $terminal[0] $s.actorId
         if($terminal[0].object-ne$before.object-or$terminal[0].xp-ne$before.xp-or$terminal[0].level-ne$choices.terminal.level-or$terminal[0].petId-cne$choices.terminal.petId-or$terminal[0].money-ne$choices.terminal.money){throw 'Native session terminal progression differs from accepted choices.'}

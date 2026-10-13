@@ -322,7 +322,8 @@ namespace KingmakerMountedCombat.Diagnostics
             var receipt = persistence.LastCompletedSave;
             Require(completion.Complete && authorization.AuthorizedWriteCount == 1 && authority.AdmittedNativeWriteRequests == 1 &&
                 persistence.SnapshotCount == snapshotBefore + 1 && persistence.CompletedSaveCount == completedBefore + 1 &&
-                receipt != null && ReferenceEquals(receipt.Requested, save) && ReferenceEquals(receipt.Written, save) &&
+                receipt != null && ReferenceEquals(receipt.Requested, completion.ObservedRequestedSave) && ReferenceEquals(receipt.Written, save) &&
+                receipt.Sequence == completedBefore + 1 &&
                 receipt.Path == Path.Combine(expectedRoot, Chunk7OrdinaryAcquisitionSelection.AutoLeaf) &&
                 save.FileName == Chunk7OrdinaryAcquisitionSelection.AutoLeaf && save.Type == SaveInfo.SaveType.Auto && save.IsAutoLevelupSave &&
                 save.GameId == source.GameId && save.GameName == source.GameName && save.Area.AssetGuidThreadSafe == source.Area &&
@@ -343,7 +344,8 @@ namespace KingmakerMountedCombat.Diagnostics
             nativeWrite = new JObject { ["path"] = file.FullName, ["sha256"] = Hash(file.FullName), ["length"] = file.Length,
                 ["type"] = save.Type.ToString(), ["leaf"] = save.FileName, ["schema"] = archive.SourceSchema,
                 ["name"] = save.Name, ["gameId"] = save.GameId, ["gameName"] = save.GameName, ["area"] = save.Area.AssetGuidThreadSafe,
-                ["operation"] = save.OperationState.ToString(), ["snapshotCount"] = persistence.SnapshotCount - snapshotBefore,
+                ["requestedObject"] = NativeOrdinaryAcquisitionProbe.Id(receipt.Requested), ["writtenObject"] = NativeOrdinaryAcquisitionProbe.Id(receipt.Written),
+                ["completionSequence"] = receipt.Sequence, ["completedWritesBefore"] = completedBefore, ["operation"] = save.OperationState.ToString(), ["snapshotCount"] = persistence.SnapshotCount - snapshotBefore,
                 ["completedWrites"] = persistence.CompletedSaveCount - completedBefore,
                 ["nativeAutoLevelup"] = save.IsAutoLevelupSave, ["nativeCallbackSupplied"] = false, ["pairs"] = archive.Data.Pairs.Length,
                 ["archive"] = JObject.FromObject(archive.Data, MountedSaveCodec.CreateSerializer()) };

@@ -305,23 +305,33 @@ function Get-KmcDirectoryManifest {
     }
     # Preserve exact enumeration, literal paths, entry ordering and canonical digest.
     # Every byte is read anew; no timestamp/hash cache or historical-root exclusion.
-    $hashes = @([KingmakerMountedCombat.RuntimeTooling.InventoryHasher]::HashFiles(
-        [string[]]@($files | ForEach-Object { $_.FullName })))
+    $paths = New-Object 'string[]' $files.Count
+    for ($fileIndex=0; $fileIndex -lt $files.Count; $fileIndex++) { $paths[$fileIndex] = $files[$fileIndex].FullName }
+    $hashes = @([KingmakerMountedCombat.RuntimeTooling.InventoryHasher]::HashFiles($paths))
     for ($fileIndex=0; $fileIndex -lt $files.Count; $fileIndex++) {
         $file = $files[$fileIndex]
         $records.Add([pscustomobject]@{ kind = 'file'; path = $file.FullName.Substring($fullRoot.Length + 1).Replace('\', '/'); length = [long]$file.Length; sha256 = $hashes[$fileIndex] })
     }
     $ordered = @($records | Sort-Object kind, path)
-    $fileRecords = @($ordered | Where-Object kind -eq 'file')
+    $fileCount = 0
+    $directoryCount = 0
     $totalBytes = [long]0
-    foreach ($fileRecord in $fileRecords) { $totalBytes += [long]$fileRecord.length }
-    $canonical = ($ordered | ForEach-Object { '{0}|{1}|{2}|{3}' -f $_.kind, $_.path, $_.length, $_.sha256 }) -join "`n"
+    $canonical = New-Object KingmakerMountedCombat.RuntimeTooling.ManifestCanonicalHasher
+    try {
+        foreach ($record in $ordered) {
+            if ($record.kind -eq 'file') { $fileCount++; $totalBytes += [long]$record.length }
+            elseif ($record.kind -eq 'directory') { $directoryCount++ }
+            $canonical.Append(('{0}|{1}|{2}|{3}' -f $record.kind, $record.path, $record.length, $record.sha256))
+        }
+        $digest = $canonical.Complete()
+    }
+    finally { $canonical.Dispose() }
     return [pscustomobject]@{
         schemaVersion = 1; root = $fullRoot
-        directoryCount = @($ordered | Where-Object kind -eq 'directory').Count
-        fileCount = $fileRecords.Count
+        directoryCount = $directoryCount
+        fileCount = $fileCount
         totalBytes = $totalBytes
-        digest = Get-KmcTextSha256 $canonical; entries = $ordered
+        digest = $digest; entries = $ordered
     }
 }
 
@@ -4801,7 +4811,7 @@ function Assert-KmcKnownRuntimeArtifactsManifested {
     )
     $manifested = New-Object 'Collections.Generic.HashSet[string]' ([StringComparer]::Ordinal)
     foreach ($artifact in @($Manifest.artifacts)) { [void]$manifested.Add([string]$artifact.relativePath) }
-    foreach ($leaf in @('chunk7-cumulative-acquisition-evidence.json','chunk7-cumulative-acquisition-cleanup-pending.json','chunk7-acquired-manual-evidence.json','chunk7-acquired-manual-cleanup-pending.json','chunk7-manual-derived-evidence.json','chunk7-manual-derived-cleanup-pending.json','chunk7-manual-seed-evidence.json','chunk7-manual-seed-cleanup-pending.json','chunk7-bootstrap-inventory-evidence.json','chunk7-bootstrap-inventory-cleanup-pending.json','chunk7-native-bootstrap-evidence.json','chunk7-native-bootstrap-cleanup-pending.json','chunk7-progression-evidence.json','chunk7-progression-cleanup-pending.json','chunk7-small-calibration-evidence.json','chunk7-small-calibration-cleanup-pending.json','chunk7-ordinary-field-evidence.json','chunk7-ordinary-field-cleanup-pending.json','chunk7-ordinary-acquisition-evidence.json','chunk7-ordinary-cleanup-pending.json','chunk7-world-cleanup-pending.json','chunk7-persistence-cleanup-pending.json','chunk7-combat-cleanup-pending.json','chunk7-native-life-evidence.json','chunk7-realtime-evidence.json','chunk7-combat-evidence.json','chunk7-persistence-evidence.json','chunk7-world-evidence.json','chunk7-matched-pool-measurements.json','runtime-loader-inventory.json','persistence-observations.jsonl','lifecycle-scenario-evidence.jsonl','movement-telemetry.jsonl','movement-scenario-evidence.jsonl','boundary-scenario-evidence.jsonl','combat-scenario-evidence.jsonl','horse-native-asset-audit.json','horse-companion-blueprint-registration.json','horse-companion-unmounted.json','horse-mounted-alpha.json','horse-native-controls-ux.json','chunk6a-mount-preamble.json','chunk6a-native-mammoth-profile.json','phase3d-horse-scenario-evidence.json')) {
+    foreach ($leaf in @('working-load-deserialization-evidence.json','working-load-deserialization-pending.json','chunk7-cumulative-acquisition-evidence.json','chunk7-cumulative-acquisition-cleanup-pending.json','chunk7-acquired-manual-evidence.json','chunk7-acquired-manual-cleanup-pending.json','chunk7-manual-derived-evidence.json','chunk7-manual-derived-cleanup-pending.json','chunk7-manual-seed-evidence.json','chunk7-manual-seed-cleanup-pending.json','chunk7-bootstrap-inventory-evidence.json','chunk7-bootstrap-inventory-cleanup-pending.json','chunk7-native-bootstrap-evidence.json','chunk7-native-bootstrap-cleanup-pending.json','chunk7-progression-evidence.json','chunk7-progression-cleanup-pending.json','chunk7-small-calibration-evidence.json','chunk7-small-calibration-cleanup-pending.json','chunk7-ordinary-field-evidence.json','chunk7-ordinary-field-cleanup-pending.json','chunk7-ordinary-acquisition-evidence.json','chunk7-ordinary-cleanup-pending.json','chunk7-world-cleanup-pending.json','chunk7-persistence-cleanup-pending.json','chunk7-combat-cleanup-pending.json','chunk7-native-life-evidence.json','chunk7-realtime-evidence.json','chunk7-combat-evidence.json','chunk7-persistence-evidence.json','chunk7-world-evidence.json','chunk7-matched-pool-measurements.json','runtime-loader-inventory.json','persistence-observations.jsonl','lifecycle-scenario-evidence.jsonl','movement-telemetry.jsonl','movement-scenario-evidence.jsonl','boundary-scenario-evidence.jsonl','combat-scenario-evidence.jsonl','horse-native-asset-audit.json','horse-companion-blueprint-registration.json','horse-companion-unmounted.json','horse-mounted-alpha.json','horse-native-controls-ux.json','chunk6a-mount-preamble.json','chunk6a-native-mammoth-profile.json','phase3d-horse-scenario-evidence.json')) {
         if ((Test-Path -LiteralPath (Join-Path $EvidenceRoot $leaf) -PathType Leaf) -and -not $manifested.Contains($leaf)) {
             throw "Known runtime artifact exists without a manifest record: $leaf"
         }
@@ -13976,6 +13986,8 @@ function Get-KmcValidatedOrchestrationArtifactManifestHash {
             ($relative -ceq 'chunk7-native-life-evidence.json' -and $kind -ceq 'chunk7-native-life-evidence') -or
             ($relative -ceq 'chunk7-realtime-evidence.json' -and $kind -ceq 'chunk7-realtime-evidence') -or
             ($relative -ceq 'chunk7-combat-evidence.json' -and $kind -ceq 'chunk7-combat-evidence') -or
+            ($relative -ceq 'working-load-deserialization-evidence.json' -and $kind -ceq 'working-load-deserialization-evidence') -or
+            ($relative -ceq 'working-load-deserialization-pending.json' -and $kind -ceq 'working-load-deserialization-pending') -or
             ($relative -ceq 'runtime-loader-inventory.json' -and $kind -ceq 'runtime-loader-inventory') -or
             ($relative -ceq 'phase3d-horse-scenario-evidence.json' -and $kind -ceq 'phase3d-horse-scenario-evidence') -or
             ($relative -cmatch '^movement-visuals/[A-Za-z0-9._-]+\.png$' -and $kind -ceq 'screenshot')

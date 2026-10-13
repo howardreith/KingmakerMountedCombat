@@ -316,7 +316,8 @@ namespace KingmakerMountedCombat
             ThrowIfDisposed();
             GUILayout.Label("Kingmaker Mounted Combat — private engineering candidate");
             GUILayout.Label("CRPG transport: the mount moves the pair; rider and mount retain their own actions, health and effects.");
-            GUILayout.Label("Select a rider and use Mount on their own eligible companion. Use Dismount on the rider to separate them.");
+            GUILayout.Label("Select the rider, open their ability drawer, and use Mount Companion on their own eligible companion.");
+            GUILayout.Label("Use Dismount on the rider to separate them. You can drag a control to an empty action-bar slot.");
             GUILayout.Label("Use ordinary movement, attacks and spells. Rider Primary and Mount Primary select the corresponding actor's attack.");
             GUILayout.Label("Mounted pairs: " + world.Registry.Owners.Count(owner => owner.State == MountedPairOwnershipState.Active) +
                 " / " + GameMountedRelationshipService.NativePairCapacity + ". Paired turns are the supported configuration.");

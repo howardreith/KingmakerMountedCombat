@@ -141,6 +141,8 @@ function Assert-KmcReadOnlyArtifactManifest {
             ($relativePath -ceq 'chunk7-realtime-evidence.json' -and $kind -ceq 'chunk7-realtime-evidence') -or
             ($relativePath -ceq 'chunk7-combat-evidence.json' -and $kind -ceq 'chunk7-combat-evidence') -or
             ($relativePath -ceq 'runtime-loader-inventory.json' -and $kind -ceq 'runtime-loader-inventory') -or
+            ($relativePath -ceq 'working-load-deserialization-evidence.json' -and $kind -ceq 'working-load-deserialization-evidence') -or
+            ($relativePath -ceq 'working-load-deserialization-pending.json' -and $kind -ceq 'working-load-deserialization-pending') -or
             ($relativePath -ceq 'phase3d-horse-scenario-evidence.json' -and $kind -ceq 'phase3d-horse-scenario-evidence') -or
             ($relativePath -cmatch '^movement-visuals/[A-Za-z0-9._-]+\.png$' -and $kind -ceq 'screenshot')
         if (-not $allowed) { throw "Runtime artifact manifest record is outside the exact allowlist: $relativePath ($kind)" }

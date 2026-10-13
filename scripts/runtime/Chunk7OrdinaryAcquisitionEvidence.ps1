@@ -176,6 +176,7 @@ function Assert-KmcChunk7OrdinaryEvidence($Request,$Artifact,[string]$Status='PA
     Assert-KmcOrdinaryInteger $probe.saveRequests 1 1;Assert-KmcOrdinaryInteger $probe.preparedWrites 1 1
     $inside=$null;$entries=0;$exits=0;$requests=0;$writes=0;$saveObject=0;$lastFrame=-1
     foreach($row in $probe.events){
+        if($row.kind-isnot[string]){throw 'Native autosave callback kind must be a scalar string.'}
         Assert-KmcOrdinaryInteger $row.frame 0 ([int]::MaxValue)
         Assert-KmcOrdinaryInteger $row.actorObject ([int]::MinValue) ([int]::MaxValue)
         if($row.actorId-cne$identity.actorId-or$row.actorObject-ne$identity.actorObject-or$row.frame-lt$lastFrame){throw 'Native autosave observer actor/frame binding differs.'};$lastFrame=$row.frame
@@ -196,7 +197,7 @@ function Assert-KmcChunk7OrdinaryEvidence($Request,$Artifact,[string]$Status='PA
             'native-level-autosave-prepared' {
                 Assert-KmcOrdinaryInteger $row.saveObject ([int]::MinValue) ([int]::MaxValue)
                 if($row.saveObject-eq0){throw 'Native prepared object identity missing.'}
-                $writes++;if($requests-ne1-or$row.saveObject-ne$saveObject-or$row.saveLeaf-cne'Auto_1.zks'){throw 'Native PrepareSave lost exact descriptor identity.'}
+                $writes++;if($requests-ne1-or$row.saveObject-eq$saveObject-or$row.saveLeaf-cne'Auto_1.zks'){throw 'Native PrepareSave lost exact descriptor identity.'}
                 Assert-KmcChunk7Boolean $row.autoLevelup $true;if($row.saveType-cne'Auto'){throw 'Native prepared category differs.'}
             }
             'native-level-completion-exit' {
@@ -208,7 +209,7 @@ function Assert-KmcChunk7OrdinaryEvidence($Request,$Artifact,[string]$Status='PA
         }
     }
     if($null-ne$inside-or$entries-ne$commits-or$exits-ne$commits-or$requests-ne1-or$writes-ne1){throw 'Native completion/autosave events do not settle exactly once.'}
-    $w=$o.nativeWrite
+    $w=$o.nativeWrite;Assert-KmcOrdinarySaveDescriptorBinding $probe $w
     if($w.path-isnot[string]-or$w.path-cne(Join-Path $root 'Auto_1.zks')-or$w.leaf-cne'Auto_1.zks'-or$w.type-cne'Auto'-or$w.operation-cne'None'-or
        $w.sha256-isnot[string]-or$w.sha256-cnotmatch'^[a-f0-9]{64}$'-or$w.gameId-cne$Request.fixture.working.gameId-or$w.gameName-cne$Request.fixture.working.gameName-or$w.area-cne$Request.fixture.working.area){throw 'Exact completed native ordinary archive identity differs.'}
     Assert-KmcOrdinaryInteger $w.length 1 268435456;Assert-KmcOrdinaryInteger $w.schema 3 3
@@ -266,4 +267,25 @@ function Assert-KmcChunk7OrdinaryArtifact($Request,$Manifest,[string]$Status='PA
     if($records.Count-eq0-and$Status-ceq'FAIL'){return}
     $artifact=Read-KmcChunk7ManifestArtifact $Request $Manifest 'chunk7-ordinary-acquisition-evidence.json' 'chunk7-ordinary-acquisition-evidence'
     Assert-KmcChunk7OrdinaryEvidence $Request $artifact $Status
+}
+
+# Native SaveRoutine keeps Requested and prepares a distinct Type/Name copy.
+# The native service completion ties that exact pair to one completed sequence.
+function Assert-KmcOrdinarySaveDescriptorBinding($Probe,$Write){
+    $requests=@($Probe.events|Where-Object {$_.kind-is[string]-and$_.kind-ceq'native-level-autosave-request'})
+    $prepared=@($Probe.events|Where-Object {$_.kind-is[string]-and$_.kind-ceq'native-level-autosave-prepared'})
+    if($requests.Count-ne1-or$prepared.Count-ne1){throw 'Native save descriptor pair must be unique.'}
+    $r=$requests[0];$p=$prepared[0]
+    foreach($value in @($r.saveObject,$p.saveObject,$p.requestedSaveObject,$Write.requestedObject,$Write.writtenObject)){
+        Assert-KmcOrdinaryInteger $value ([int]::MinValue) ([int]::MaxValue)
+        if($value-eq0){throw 'Native save descriptor identity is absent.'}
+    }
+    if($r.saveObject-eq$p.saveObject-or$p.requestedSaveObject-ne$r.saveObject-or$Write.requestedObject-ne$r.saveObject-or$Write.writtenObject-ne$p.saveObject){throw 'Native request, prepared copy and completed descriptor bindings differ.'}
+    foreach($value in @($r.saveName,$p.saveName,$Write.name)){if($value-isnot[string]-or[string]::IsNullOrEmpty($value)){throw 'Native save name must be a nonempty scalar string.'}}
+    if($p.saveName-cne$r.saveName-or$Write.name-cne$r.saveName){throw 'Native request/copy Type-Name contract differs.'}
+    Assert-KmcChunk7Boolean $p.accepted $true;Assert-KmcChunk7Boolean $p.insideObservedCompletion $false
+    if($null-ne$p.completionActorId){throw 'Native prepared copy still claims synchronous completion custody.'}
+    if($Probe.events[-1].kind-cne'native-level-autosave-prepared'-or$Probe.events[-2].kind-cne'native-level-completion-exit'){throw 'Native preparation must follow the final completion exit.'}
+    Assert-KmcOrdinaryInteger $Write.completedWritesBefore 0 ([int]::MaxValue-1)
+    Assert-KmcOrdinaryInteger $Write.completionSequence ([long]$Write.completedWritesBefore+1) ([long]$Write.completedWritesBefore+1)
 }

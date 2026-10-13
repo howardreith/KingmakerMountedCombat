@@ -37,6 +37,10 @@ class DoorProbe{public Command[] IssuedCommands=new Command[0];public bool Ready
 class InheritedFixtureBoundary{public Actor[] Party;public bool Bound=true,Reject,Released;public int Captures,Releases;public void RequirePreserved(){if(Reject||Released)throw new Exception("inherited custody retained");}public object Capture(string phase){RequirePreserved();Captures++;return new JObject();}public void Release(){if(!Released){Released=true;Releases++;}}}
 class WorldAdapter{
  InheritedFixtureBoundary inherited;
+ // Actual ground-input settlement is exercised by WorldGroundInputAdapterTemplate.
+ // This boundary lets the existing full cleanup adapter test its ownership fence.
+ bool groundInputSettled=true;
+ bool GroundInputCommandsSettled()=>groundInputSettled;
  MatchedLease matched=new MatchedLease();Lease matchedPins=new Lease();bool worldEvidenceWritten,matchedEvidenceWritten,failMatchedWrite;int matchedWrites;
  void WriteMatchedPoolEvidence(){if(matchedEvidenceWritten)return;if(failMatchedWrite)throw new Exception("sidecar write pending");matchedWrites++;matchedEvidenceWritten=true;}
  DoorProbe doorProbe;
@@ -122,6 +126,13 @@ __METHODS__
  e.Fail("C7-world-runtime","sidecar write pending");e.failMatchedWrite=false;
  Check(e.DrainForHost()&&e.completed&&RuntimeLoaderInventory.Writes==priorWrites+1&&e.matchedWrites==1&&e.errors.Contains("sidecar write pending"),"later failed sidecar settlement cannot rewrite or promote original legacy artifact");
  }
+ static void VerifyGroundInputCustody(){
+ Game.Instance=new Game();LoadingProcess.Instance=new LoadingProcess();NativePersistenceIsolation.HasPendingWrites=false;
+ var e=new WorldAdapter();((UnitUseAbility)e.issuedCommands[0]).ExecutionProcess.IsEnded=true;e.groundInputSettled=false;
+ e.BeginCleanup();Check(!e.DrainForHost()&&!e.completed&&e.world.Pairs.All(p=>p.Relationship.PairOwner==null)&&e.horseFeature!=null&&e.secondRider.Descriptor.Progression.Features.Removed.Count==0,"ground input custody permits independent pair drain but fences fact removal");
+ bool refused=false;try{e.Dispose();}catch(InvalidOperationException){refused=true;}Check(refused&&!e.disposed&&e.horseFeature!=null,"ground input custody remains owned through Dispose polling");
+ e.groundInputSettled=true;Check(e.DrainForHost()&&e.completed&&e.horseFeature==null,"exact native ground input settlement permits existing cleanup completion");
+ }
  static int passed;static void Check(bool condition,string name){if(!condition)throw new Exception(name);passed++;Console.WriteLine("PASS "+name);}
  public static void Verify(){var e=new WorldAdapter();var features=e.secondRider.Descriptor.Progression.Features;var command=(UnitUseAbility)e.issuedCommands[0];
  Game.Instance.IsPaused=true;e.BeginCleanup();Check(features.Removed.Count==0&&command.Interruptions==0&&Game.Instance.IsPaused,"BeginCleanup preserves pause, facts, and live commands");
@@ -142,6 +153,7 @@ __METHODS__
  VerifyDoorCustody();
  VerifyQuietCustody();
  VerifyMatchedCustody();
+ VerifyGroundInputCustody();
  Console.WriteLine("CHUNK7 WORLD CLEANUP ADAPTER PASS="+passed+" FAIL=0; actual source methods with external native boundary stubs only");}
 }
 static class Program{static int Main(){try{WorldAdapter.Verify();return 0;}catch(Exception e){Console.Error.WriteLine(e);return 1;}}}

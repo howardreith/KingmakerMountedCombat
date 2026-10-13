@@ -10,8 +10,10 @@ multi-pair qualification is still incomplete. No Small profile is enabled yet;
 the Small catalogue remains empty until a specific observed body and pose are
 qualified. Six-pair stress is a separate required fixture/evidence gate.
 
-Select the rider and use Mount on that rider's own supported animal companion.
-Use Dismount on the rider to separate them. The Horse is a Ranger companion choice;
+Select the rider and open their ability drawer. Use **Mount Companion** on that
+rider's own supported animal companion, and **Dismount** on the rider to separate
+them. KMC does not fill action-bar slots automatically. You can drag a control to
+an empty slot. The Horse is a Ranger companion choice;
 KMC owns its addition to the native choice list, while Kingmaker owns acquisition
 and progression. The candidate's precise Small body and equipment support must be
 listed here after measured native qualification; an arbitrary Small character is
@@ -30,10 +32,12 @@ its documented native eligibility. Turn-based Charge remains unavailable and
 refuses without spending actions. The defensive Mounted Combat feat is not
 implemented.
 
-Read the native ability refusal and KMC status text when an action is unavailable.
-Unsupported ownership, size, form or rig, occupied actors and unfinished cleanup
-can refuse Mount. Resolve the stated cause before another attempt; a selection
-change or repeated click cannot grant actions or transfer old command ownership.
+Read the native ability's refusal text when an action is unavailable. Open
+Kingmaker Mounted Combat's page in Unity Mod Manager (UMM) for selected-pair
+feedback and save/removal status. Unsupported ownership, size, form or rig,
+occupied actors and unfinished cleanup can refuse Mount Companion. Resolve the
+stated cause before another attempt; a selection change or repeated click cannot
+grant actions or transfer old command ownership.
 
 Saving waits for unsettled work across every pair. Schema-3 native archives retain
 all admitted pair and actor obligations; valid historical schema-1/2 data uses the

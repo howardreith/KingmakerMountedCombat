@@ -140,6 +140,9 @@ namespace KingmakerMountedCombat.Diagnostics
 
         public RuntimeFixtureIdentity Fixture { get; set; }
 
+        public bool? ObserveWorkingDeserialization { get; set; }
+        public bool ShouldSerializeObserveWorkingDeserialization() => ObserveWorkingDeserialization.HasValue;
+
         public RuntimeSaveDescriptor PersistenceLoad { get; set; }
         public RuntimeSaveDescriptor PersistenceAlternate { get; set; }
         public string Schema1DerivationSha256 { get; set; }
@@ -227,6 +230,14 @@ namespace KingmakerMountedCombat.Diagnostics
         public IReadOnlyList<string> Validate()
         {
             var errors = new List<string>();
+            if (ObserveWorkingDeserialization.HasValue && (ObserveWorkingDeserialization != true ||
+                SchemaVersion != SaveBackedSchemaVersion || Scenario != "export-mounted-contracts" ||
+                Fixture?.Working?.InternalName != WorkingSaveName || PersistenceLoad != null || PersistenceAlternate != null ||
+                PersistenceCase != null || PersistenceAreaTarget != null || PersistenceReplayTargets != null ||
+                OwnedPairs != null || AcquiredManual != null || ManualDerived != null || CumulativeAcquisition != null ||
+                ManualSeed != null || BootstrapInventory != null || NativeBootstrap != null || SmallCalibration != null ||
+                OrdinaryField != null || OrdinaryAcquisition != null || Progression != null))
+                errors.Add("Working deserialization observation requires exact true on the unchanged qualified Working export request only.");
             if (SchemaVersion != CurrentSchemaVersion && SchemaVersion != SaveBackedSchemaVersion)
             {
                 errors.Add("Unsupported request schemaVersion.");
