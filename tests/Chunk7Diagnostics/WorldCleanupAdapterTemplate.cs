@@ -30,11 +30,13 @@ class Destroyer{public void Tick(){}}class State{public NativeAreaState LoadedAr
 class SelectionManager{public static SelectionManager Instance=new SelectionManager();public Actor[] SelectedUnits=new Actor[0];public void MultiSelect(IEnumerable<View> v,bool x){SelectedUnits=v.Select(y=>y.Actor).ToArray();}}
 static class RuntimeLoaderInventory{public static int Writes;public static void WriteArtifact(object r,string f,string k,string s,object e,object x){Writes++;}}
 
-class RuntimeRequest{public Fixture Fixture=new Fixture();}class Fixture{public Working Working=new Working();}class Working{public string GameId="campaign",GameName="fixture",Area="area";}
+class RuntimeRequest{public Fixture Fixture=new Fixture();public Working SelectedChunk7Fixture=>Fixture.Working;public object OwnedPairs;public List<string> Validate(){throw new Exception("unexpected owned DTO in external world stub");}}class Fixture{public Working Working=new Working();}class Working{public string GameId="campaign",GameName="fixture",Area="area";}
 class NativeArea{public string AssetGuidThreadSafe="area";}class NativeAreaState{public object MainState=new object();}
 namespace Kingmaker{class Game:global::Game{}}
 class DoorProbe{public Command[] IssuedCommands=new Command[0];public bool Ready,Fail;public int Drains;public bool Drain(){Drains++;if(Fail)throw new Exception("door pending");return Ready;}}
+class InheritedFixtureBoundary{public Actor[] Party;public bool Bound=true,Reject,Released;public int Captures,Releases;public void RequirePreserved(){if(Reject||Released)throw new Exception("inherited custody retained");}public object Capture(string phase){RequirePreserved();Captures++;return new JObject();}public void Release(){if(!Released){Released=true;Releases++;}}}
 class WorldAdapter{
+ InheritedFixtureBoundary inherited;
  MatchedLease matched=new MatchedLease();Lease matchedPins=new Lease();bool worldEvidenceWritten,matchedEvidenceWritten,failMatchedWrite;int matchedWrites;
  void WriteMatchedPoolEvidence(){if(matchedEvidenceWritten)return;if(failMatchedWrite)throw new Exception("sidecar write pending");matchedWrites++;matchedEvidenceWritten=true;}
  DoorProbe doorProbe;
@@ -45,6 +47,7 @@ class WorldAdapter{
  Settings settings=new Settings();JObject evidence=new JObject();List<string> errors=new List<string>();Dictionary<string,int> cleanupAttempts=new Dictionary<string,int>();const string EvidenceFileName="fixture",EvidenceKind="fixture";
  public WorldAdapter(){secondRider.Descriptor.Pet=secondMount;Game.Instance.State.Units.Add(secondMount);firstRider.Descriptor.Pet=firstMount;firstMount.Descriptor.Master.Value=firstRider;var horse=horseFeature;secondRider.Descriptor.Progression.Features.OnRemove=f=>{if(ReferenceEquals(f,horse)){secondMount.IsInState=false;Game.Instance.State.Units.Remove(secondMount);secondRider.Descriptor.Pet=null;}};foreach(var actor in new[]{firstRider,firstMount,secondRider,secondMount})if(!Game.Instance.State.Units.Contains(actor))Game.Instance.State.Units.Add(actor);nativeScope=new Chunk7NativeWorldScope(new RuntimeRequest(),new[]{firstRider,firstMount,secondRider,secondMount});}
  static int Id(object x){return System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(x);}static void Require(bool c,string e){if(!c)throw new Exception(e);}void Fail(string n,string e){errors.Add(e);}void Pass(string n){}object CaptureWorld(string x){return null;}IEnumerable<Actor> PartyActors(){return new Actor[0];}object CaptureRig(Actor a){return null;}
+ static void VerifyInheritedCleanup(){Game.Instance=new Game();LoadingProcess.Instance=new LoadingProcess();NativePersistenceIsolation.HasPendingWrites=false;var e=new WorldAdapter();((UnitUseAbility)e.issuedCommands[0]).ExecutionProcess.IsEnded=true;var guard=new InheritedFixtureBoundary{Party=new[]{e.firstRider,e.firstMount,e.secondRider,e.secondMount},Reject=true};e.inherited=guard;e.BeginCleanup();Check(!e.DrainForHost()&&!e.completed&&guard.Releases==0&&e.secondRider.Descriptor.Progression.Features.Removed.Count==0,"inherited refusal retains ordinary pets/facts and registry");guard.Reject=false;Check(e.DrainForHost()&&e.completed&&guard.Captures==1&&guard.Releases==1&&e.secondRider.Descriptor.Progression.Features.Removed.Count==0,"inherited retry snapshots before registry release without removing native facts");e.Dispose();Check(guard.Releases==1&&e.secondRider.Descriptor.Progression.Features.Removed.Count==0,"inherited repeated disposal never replays fact cleanup");}
 __METHODS__
 
 
@@ -135,7 +138,7 @@ __METHODS__
  features.Failing=null;var lease=e.mode;lease.Fail=true;Check(!e.DrainForHost()&&features.Removed.Count==2&&e.mode!=null&&!e.completed,"failed native mode lease remains owned after entity cleanup");
  lease.Fail=false;Check(e.DrainForHost()&&e.completed&&e.cleanupProven&&e.mode==null&&e.ummLease==null,"retry proves physical cleanup without discarding earlier failures");
  Check(e.errors.Count>=3,"physical settlement preserves original failed evidence");e.Dispose();Check(e.disposed,"actual Dispose releases only proven completed custody");var count=features.Removed.Count;e.Dispose();Check(features.Removed.Count==count,"repeated Dispose does not replay fact removal");
- VerifyWorldScope();
+ VerifyWorldScope();VerifyInheritedCleanup();
  VerifyDoorCustody();
  VerifyQuietCustody();
  VerifyMatchedCustody();

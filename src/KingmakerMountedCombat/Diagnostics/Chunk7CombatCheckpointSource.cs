@@ -30,20 +30,21 @@ namespace KingmakerMountedCombat.Diagnostics
         internal NativeRoundBoundaryProbe CheckpointRounds => rounds;
         internal UnitEntityData CheckpointTarget => target;
         internal Chunk7CombatScenario(RuntimeRequest request, MountedWorldService world,
-            NativeMountedControlService controls, IModLogger logger, Chunk7CombatCheckpointKind kind)
+            NativeMountedControlService controls, IModLogger logger, Chunk7CombatCheckpointKind kind, Chunk7OwnedPairFixture inherited = null)
         {
             this.request = request; this.world = world; this.controls = controls; this.logger = logger;
-            checkpointOnly = true; checkpointKind = kind;
+            checkpointOnly = true; checkpointKind = kind; this.inherited = inherited;
         }
         internal void StartCheckpointSource(UnitEntityData[] selectedActors)
         {
             Require(!started && checkpointOnly && world != null && selectedActors != null && selectedActors.Length == 4,
                 "Checkpoint source has invalid ownership or actors.");
-            started = true; actors = selectedActors.ToArray(); originalParty = actors;
+            started = true; actors = selectedActors.ToArray(); originalParty = inherited?.Party ?? actors;
+            if (inherited != null) { inherited.RequirePreserved(); Require(actors.SequenceEqual(inherited.Actors), "Checkpoint borrowed a foreign inherited pair boundary."); }
             ar = actors[0]; am = actors[1]; br = actors[2]; bm = actors[3];
             Require(actors.Distinct().Count() == 4 && actors.All(x => x != null && x.IsInState && Chunk7NativeFixture.Idle(x)) &&
-                ar.UniqueId == Chunk7WorldScenarioEngine.MammothRiderId && am.UniqueId == Chunk7WorldScenarioEngine.MammothId &&
-                br.UniqueId == Chunk7WorldScenarioEngine.HorseRiderId && bm.Blueprint.AssetGuid == HorseCompanionBlueprintService.UnitGuid &&
+                (inherited != null || ar.UniqueId == Chunk7WorldScenarioEngine.MammothRiderId && am.UniqueId == Chunk7WorldScenarioEngine.MammothId &&
+                br.UniqueId == Chunk7WorldScenarioEngine.HorseRiderId && bm.Blueprint.AssetGuid == HorseCompanionBlueprintService.UnitGuid) &&
                 ReferenceEquals(ar.Descriptor.Pet, am) && ReferenceEquals(br.Descriptor.Pet, bm) && !Game.Instance.Player.IsInCombat,
                 "Checkpoint source must use the exact already acquired native fixture outside combat.");
             a = world.ForActor(ar); b = world.ForActor(br);
@@ -53,7 +54,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     b != null && b != a && b.Relationship.State == RelationshipState.Mounted && b.Relationship.Mount == bm),
                 "Checkpoint source mounted owners differ from its declared shape.");
             if (checkpointKind == Chunk7CombatCheckpointKind.MountedPendingOnly) b = null;
-            nativeScope = new Chunk7NativeWorldScope(request, actors);
+            nativeScope = inherited?.Scope ?? new Chunk7NativeWorldScope(request, actors);
             pauseBefore = Game.Instance.IsPaused; captured = true;
             evidence["inputs"] = inputs; evidence["activations"] = activations; evidence["turnVisits"] = visits; evidence["snapshots"] = snapshots;
             evidence["scenario"] = request.Scenario; evidence["kind"] = checkpointKind.ToString();

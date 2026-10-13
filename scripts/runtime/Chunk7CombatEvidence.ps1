@@ -13,7 +13,7 @@ function Get-KmcChunk7CombatRuntimeRows {
 }
 function Assert-KmcChunk7CombatArtifact($Request,$Manifest,[string]$Status='PASS') {
     $present=@($Manifest.artifacts|Where-Object{$_.relativePath-ceq'chunk7-combat-evidence.json'-or$_.kind-ceq'chunk7-combat-evidence'})
-    if(-not(Test-KmcChunk7CombatScenario $Request.scenario)){if($present.Count-ne0){throw 'Another scenario supplied Chunk 7 combat evidence.'};return}
+    if(-not(Test-KmcChunk7CombatScenario (Get-KmcChunk7SelectedScenario $Request))){if($present.Count-ne0){throw 'Another scenario supplied Chunk 7 combat evidence.'};return}
     if($present.Count-eq0-and$Status-cne'PASS'){return}
     $artifact=Read-KmcChunk7ManifestArtifact $Request $Manifest 'chunk7-combat-evidence.json' 'chunk7-combat-evidence'
     Assert-KmcChunk7CombatEvidence $Request $artifact $Status
@@ -51,23 +51,26 @@ function Assert-KmcChunk7CombatAttack($Attack,$Trace,[string]$Actor,[string]$Cas
 }
 function Assert-KmcChunk7CombatEvidence($Request,$Artifact,[string]$Status) {
     Assert-KmcChunk7ArtifactEnvelope $Request $Artifact 'chunk7-combat-evidence'
-    if(-not(Test-KmcChunk7CombatScenario $Request.scenario)){throw 'Native combat evidence has a foreign scenario.'}
+    if(-not(Test-KmcChunk7CombatScenario (Get-KmcChunk7SelectedScenario $Request))){throw 'Native combat evidence has a foreign scenario.'}
     if($Status-ceq'PASS'-and$Artifact.status-cne'PASS'){throw 'PASS result requires a PASS native combat artifact.'}
     if($Artifact.status-cne'PASS'){return}
     $o=$Artifact.observations;$ids=@($o.actorIds)
+    $owned=Test-KmcChunk7OwnedPairsScenario $Request.scenario
+    if($owned){Assert-KmcChunk7OwnedActionFixture $Request $o}else{
     if($o.scenario-cne$Request.scenario-or$o.workingSha256-cne$Request.fixture.working.sha256-or
        $o.workingSha256-cne'5eb4e0b4cbd8d60dc879a02ff71aadfde3f517304754857f0cc68d0f9a93f1c6'-or$ids.Count-ne4-or@($ids|Select-Object -Unique).Count-ne4-or
        $ids[0]-cne'b6628a77-4962-47a4-a17c-88d9836fc9d5'-or$ids[1]-cne'd79a4f6c-b74e-4868-95bd-533899131acb'-or$ids[2]-cne'd17c8fd0-6627-40c4-bf9a-024cf001c1f7'-or
        $o.targetGroupId-cne('KMC.RuntimeHostile.'+$Request.runId+':two-pair-target')-or$o.targetId-cin$ids){throw 'Exact native combat fixture identity differs.'}
+        }
     [Guid]$id=[Guid]::Empty;if(-not[Guid]::TryParse($ids[3],[ref]$id)-or-not[Guid]::TryParse($o.targetId,[ref]$id)){throw 'Native Horse or diagnostic target ID invalid.'}
     Assert-KmcChunk7Boolean $o.fullRealtimeCombatProof $false;Assert-KmcChunk7Boolean $o.naturalUnconsciousStimulusProven $false
-    if($o.acquisition.nativeRangerCommitCount-ne4-or$o.acquisition.horseFactRankAtCommit-ne1-or$o.acquisition.horsePresentAtNativeCommit-ne$true){throw 'Native Horse acquisition receipt incomplete.'}
+    if(-not$owned){if($o.acquisition.nativeRangerCommitCount-ne4-or$o.acquisition.horseFactRankAtCommit-ne1-or$o.acquisition.horsePresentAtNativeCommit-ne$true){throw 'Native Horse acquisition receipt incomplete.'}}
     Assert-KmcChunk7CheckpointTrace $o.allocationTrace $Request
     if(@($o.nativeCompletion.errors).Count-ne0-or$o.nativeCompletion.traceComplete-ne$true-or@($o.nativeRounds.errors).Count-ne0-or
        $o.nativeRounds.token-cne'06000BD3'-or$o.nativeRounds.moduleMvid-cne'07fa1e4d-8618-41b3-9b8d-faa17d3b26f7'){throw 'Exact native turn/round observation is incomplete.'}
     if((@($o.nativeCompletion.observedActorIds|Sort-Object -CaseSensitive)-join'|')-cne(@($ids|Sort-Object -CaseSensitive)-join'|')){throw 'Native completion observer did not bind all four exact actors.'}
     $order=@($o.nativeInitialOrder);if(@($order|Select-Object -Unique).Count-ne$order.Count-or$o.targetId-cnotin$order){throw 'Unrelated native target/initiative roster absent.'}
-    $riderFirst=$Request.scenario-ceq'chunk7-two-pair-combat-rider-first'
+    $riderFirst=(Get-KmcChunk7SelectedScenario $Request)-ceq'chunk7-two-pair-combat-rider-first'
     for($i=0;$i-lt2;$i++) {
         $r=[Array]::IndexOf($order,$ids[2*$i]);$m=[Array]::IndexOf($order,$ids[2*$i+1])
         if($r-lt0-or$m-lt0-or(($r-lt$m)-ne$riderFirst)){throw 'Actual native initiative order does not match selected arrangement.'}
@@ -126,6 +129,6 @@ function Assert-KmcChunk7CombatEvidence($Request,$Artifact,[string]$Status) {
     $fault=$o.localFailure;if($fault.failureCount-ne1-or$fault.injectedPair-cne'b'){throw 'Selected cleanup fault was not isolated.'};Assert-KmcChunk7Boolean $fault.healthyNeighbourVisited $true
     Assert-KmcChunk7SameCombatBudget $fault.before $fault.held @($ids[1])
     $held=@($fault.held.owners|Where-Object riderId -CEQ $ids[2]);if($held.Count-ne1-or$held[0].retainsObligations-ne$true){throw 'Failed cleanup lost exact pair B custody.'}
-    foreach($field in @('pairResidueAbsent','ownedHorseRemoved','nativeCombatEnded','initiativeInputsRestored','firstPairAiRestored','controlsSettled','nativeProgressionRequiresExternalWorkingRestoration')){Assert-KmcChunk7Boolean $o.cleanup.$field $true}
+    if($owned){foreach($field in @('pairResidueAbsent','nativeCombatEnded','initiativeInputsRestored','firstPairAiRestored','controlsSettled','inheritedPetsPreserved')){Assert-KmcChunk7Boolean $o.cleanup.$field $true};Assert-KmcChunk7Boolean $o.cleanup.ownedHorseRemoved $false;Assert-KmcChunk7Boolean $o.cleanup.nativeProgressionRequiresExternalWorkingRestoration $false}else{foreach($field in @('pairResidueAbsent','ownedHorseRemoved','nativeCombatEnded','initiativeInputsRestored','firstPairAiRestored','controlsSettled','nativeProgressionRequiresExternalWorkingRestoration')){Assert-KmcChunk7Boolean $o.cleanup.$field $true}}
     foreach($field in @('nativeSaveWrittenByThisDriver','delegatedPersistenceCleanup')){Assert-KmcChunk7Boolean $o.cleanup.$field $false}
 }

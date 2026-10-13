@@ -46,7 +46,7 @@ namespace KingmakerMountedCombat.Diagnostics
     // never an arbitrary SavePath from an archive. All leaves are explicit; names
     // beginning with KMC confer no authority. Native integration must also guard
     // temporary archive creation, rotation/rename and cloud paths before activation.
-    internal sealed class PersistenceSaveAuthorization
+    internal sealed partial class PersistenceSaveAuthorization
     {
         private sealed class Entry
         {
@@ -207,6 +207,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (operation != RuntimeSaveOperation.Write) return null;
                 if (maximumNativeWriteRequests.HasValue && admittedNativeWriteRequests >= maximumNativeWriteRequests.Value)
                     return "The exact isolated scope exhausted its selected native write admission count.";
+                if (ownedPairsRequest != null && admittedNativeWriteRequests == 1 && !OwnedPairsReplacementReady(target))
+                    return "Owned-pair replacement lacks its exact completed native seed and reserved staging leaf.";
                 admittedNativeWriteRequests++;
                 return null;
             }
@@ -390,9 +392,11 @@ namespace KingmakerMountedCombat.Diagnostics
             string campaignName, string protectedBaselineHash, IEnumerable<PersistenceSaveEntry> allowlist,
             string declaredTransitionSource, string declaredTransitionTarget, int? maximumWriteRequests = null,
             int? maximumLoadRequests = null, RuntimeRequest acquiredManualReservationRequest = null,
-            object acquiredManualNativeGame = null, object acquiredManualNativeManager = null)
+            object acquiredManualNativeGame = null, object acquiredManualNativeManager = null,
+            RuntimeRequest ownedPairsSelectionRequest = null, object ownedPairsNativeGame = null, object ownedPairsNativeManager = null,
+            string ownedPairsNativeOutputName = null)
         {
-            if (maximumWriteRequests.HasValue && (maximumWriteRequests.Value < 1 || maximumWriteRequests.Value > 128))
+            if (maximumWriteRequests.HasValue && (maximumWriteRequests.Value < (ownedPairsSelectionRequest != null ? 0 : 1) || maximumWriteRequests.Value > 128))
                 throw new ArgumentException("A selected isolated write count must be positive and bounded.");
             if (maximumLoadRequests.HasValue && (maximumLoadRequests.Value < 0 || maximumLoadRequests.Value > 128))
                 throw new ArgumentException("A selected isolated load count must be nonnegative and bounded.");
@@ -485,12 +489,24 @@ namespace KingmakerMountedCombat.Diagnostics
                     throw new ArgumentException("Acquired Manual reservation must start with one immutable Auto and no writable leaf.");
                 acquiredManualInitialEntries = entries.Count; acquiredManualInitialWritable = entries.Values.Count(value => value.Writable);
             }
+            if (ownedPairsSelectionRequest != null || ownedPairsNativeGame != null || ownedPairsNativeManager != null)
+            {
+                if (ownedPairsSelectionRequest?.Scenario != Chunk7OwnedPairsSelection.Scenario || ownedPairsSelectionRequest.OwnedPairs == null ||
+                    ownedPairsSelectionRequest.Validate().Count != 0 || ownedPairsNativeGame == null || ownedPairsNativeManager == null || transitionDeclared || acquiredManualRequest != null)
+                    throw new ArgumentException("Only the exact closed owned-pair family may select this native reservation.");
+                ownedPairsRequest = ownedPairsSelectionRequest; ownedPairsGame = ownedPairsNativeGame; ownedPairsManager = ownedPairsNativeManager;
+                ownedPairsKey = OwnedPairsKey(ownedPairsSelectionRequest); ownedPairsExpectedNativeName = ownedPairsNativeOutputName;
+                if (maximumNativeWriteRequests > 0 ? string.IsNullOrWhiteSpace(ownedPairsNativeOutputName) || ownedPairsNativeOutputName.Length > 256 || ownedPairsNativeOutputName.Any(char.IsControl) : ownedPairsNativeOutputName != null)
+                    throw new ArgumentException("Owned-pair native output name must be observed only for its selected one-write case.");
+                if (!MatchesOwnedPairsPlan(false, true)) throw new ArgumentException("Owned pairs must start with one immutable native input and no writable entry.");
+            }
         }
 
         internal void AssertReadableArchive(string path)
         {
             lock (sync)
             {
+                if (!OwnedPairsUnchanged()) throw new InvalidOperationException("Owned-pair captured request changed before native archive access.");
                 if (!AcquiredManualRequestUnchanged()) throw new InvalidOperationException("Acquired Manual captured request changed before native archive access.");
                 if (Canonical(path) != path || Path.GetDirectoryName(path) != Root ||
                     !entries.TryGetValue(Path.GetFileName(path), out var entry) || entry.Writing || entry.Hash == null)
@@ -506,6 +522,8 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             lock (sync)
             {
+                if (!OwnedPairsUnchanged() || ownedPairsRequest != null && !OwnedPairsWriteReady)
+                    throw new InvalidOperationException("Owned-pair write requires unchanged request, native reservation and prior load.");
                 if (!AcquiredManualRequestUnchanged() || acquiredManualRequest != null &&
                     (acquiredManualReservations != 1 || admittedNativeLoadRequests != 1))
                     throw new InvalidOperationException("Acquired Manual projection requires its unchanged request and admitted cold load.");
@@ -559,6 +577,10 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             try
             {
+                if (!OwnedPairsUnchanged()) return "Owned-pair captured request changed after authority creation.";
+                if (ownedPairsRequest != null && (operation == RuntimeSaveOperation.Write && !OwnedPairsWriteReady ||
+                    operation == RuntimeSaveOperation.Load && checkLoadAdmission && maximumNativeWriteRequests > 0 && ownedPairsReservations != 1))
+                    return "Owned-pair native admission requires its exact output reservation and load-before-write order.";
                 if (!AcquiredManualRequestUnchanged()) return "Acquired Manual captured request changed after authority creation.";
                 if (acquiredManualRequest != null && operation == RuntimeSaveOperation.Write &&
                     (acquiredManualReservations != 1 || admittedNativeLoadRequests != 1))

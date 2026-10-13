@@ -32,7 +32,7 @@ namespace KingmakerMountedCombat.Diagnostics
             Pass(LegacyPendingCase ? "C7-persistence-one-native-mount-legacy-source" : "C7-persistence-two-native-mounts");
             if (CombatCase)
             {
-                checkpoint = new Chunk7CombatCheckpointDriver(request, world, controls, logger, CheckpointKind);
+                checkpoint = new Chunk7CombatCheckpointDriver(request, world, controls, logger, CheckpointKind, inherited);
                 checkpoint.StartSource(actors); Next(5);
             }
             else if (WorkerCancelSave) BeginWorkerCancelSave();
@@ -83,6 +83,12 @@ namespace KingmakerMountedCombat.Diagnostics
         }
         private void BindCombatActors()
         {
+            if (request.OwnedPairs != null)
+            {
+                BindOwnedFixture(true);
+                Require(actors.All(actor => saved.Combat.Actors.Any(row => row.Native.Id == actor.UniqueId)), "Cold archive omitted inherited native actors.");
+                return;
+            }
             firstRider = Exact(Chunk7WorldScenarioEngine.MammothRiderId); firstMount = Exact(Chunk7WorldScenarioEngine.MammothId);
             secondRider = Exact(Chunk7WorldScenarioEngine.HorseRiderId); secondMount = secondRider.Descriptor.Pet;
             Require(secondMount?.Blueprint?.AssetGuid == HorseCompanionBlueprintService.UnitGuid &&
@@ -103,7 +109,7 @@ namespace KingmakerMountedCombat.Diagnostics
             foreach (var participant in saved.Participations)
                 if (!expectedOwners.ContainsKey(Guid.Parse(participant.OwnerId))) expectedOwners.Add(Guid.Parse(participant.OwnerId), participant.Generation);
             AssertCombatOwners(); slots = saved.Slots; AssertSlots();
-            checkpoint = new Chunk7CombatCheckpointDriver(request, world, controls, logger, CheckpointKind);
+            checkpoint = new Chunk7CombatCheckpointDriver(request, world, controls, logger, CheckpointKind, inherited);
             checkpoint.BindCold(actors, saved); checkpoint.ValidateArchive(saved);
             Require(persistence.SemanticRestoreCount == saved.Combat.Actors.Length && persistence.ArchivePostLoadObservedCount == saved.Combat.Actors.Length &&
                 persistence.PresentationRestoreCount == saved.Pairs.Length && controls.NativeCastRequestCount == 0 && persistence.SnapshotCount == 0,
@@ -134,7 +140,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private void ObserveCombatSaved(MountedArchiveReadResult read)
         {
             Require(read.Kind == MountedSaveReadKind.Current && read.SourceSchema == (LegacyPendingCase ? 2 : 3) && saved?.Combat != null &&
-                saved.CampaignId == request.Fixture.Working.GameId && saved.AreaId == request.Fixture.Working.Area,
+                saved.CampaignId == request.SelectedChunk7Fixture.GameId && saved.AreaId == request.SelectedChunk7Fixture.Area,
                 "Native combat archive version or campaign differs from the selected checkpoint.");
             RestoreSelectedNativeFormat();
             checkpoint.ValidateArchive(saved); AssertCombatOwners(); AssertSlots(); AssertCombatDebt(saved);

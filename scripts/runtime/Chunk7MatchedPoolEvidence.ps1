@@ -89,9 +89,11 @@ function Assert-KmcMatchedPoolEvidence($Request,$Artifact,$WorldArtifact,[string
     if($o.residentBoundaries-ne2-or$o.residentParticipants-ne2-or$o.warmupNativeCycle-ne1-or$o.measuredNativeCycle-ne2-or$o.additionalNativeInputs-ne0-or$null-ne$o.abortedWindow-or
         $o.rows-isnot[Array]-or$o.rows.Count-ne4-or$o.limits-isnot[string]-or[string]::IsNullOrWhiteSpace($o.limits)){throw 'Matched-pool sequence or evidence limits differ.'}
     if($world.cycles-isnot[Array]-or$world.cycles.Count-ne6-or$world.cycleInputs-isnot[Array]-or$world.cycleInputs.Count-ne12){throw 'Matched observation changed the original native cycle/input counts.'}
+    if(Test-KmcChunk7OwnedPairsScenario $Request.scenario){Assert-KmcChunk7InheritedEvidence $Request $world;$actorIds=@(Get-KmcChunk7OwnedPairIds $Request)}else{
     $actorIds=@('b6628a77-4962-47a4-a17c-88d9836fc9d5','d79a4f6c-b74e-4868-95bd-533899131acb','d17c8fd0-6627-40c4-bf9a-024cf001c1f7')
     $horse=@($world.partyWithHorse|Where-Object { $_.masterId-ceq$actorIds[2] })
     if($horse.Count-ne1-or$horse[0].id-isnot[string]-or[string]::IsNullOrEmpty($horse[0].id)){throw 'Exact native Horse identity unavailable.'};$actorIds+=$horse[0].id
+    }
     $labels=@('resident-0-after-cycle-1','resident-1-cycle-2','resident-2-cycle-2','resident-0-after-cycle-2');$active=@(0,1,2,0)
     $firstMount=@($world.snapshots|Where-Object label -CEQ 'cycle-2-mount-mammoth-settled')
     if($firstMount.Count-ne1){throw 'Original cycle2 first native mount snapshot unavailable.'}
@@ -157,7 +159,7 @@ function Assert-KmcMatchedPoolEvidence($Request,$Artifact,$WorldArtifact,[string
 function Assert-KmcMatchedPoolArtifact($Request,$Manifest,[string]$Status) {
     $leaf='chunk7-matched-pool-measurements.json';$kind='chunk7-matched-pool-measurements'
     $present=@($Manifest.artifacts|Where-Object{$_.relativePath-ceq$leaf-or$_.kind-ceq$kind})
-    if($Request.scenario-cne'chunk7-two-pair-exploration'){if($present.Count-ne0){throw 'Another scenario supplied matched-pool observations.'};return}
+    if((Get-KmcChunk7SelectedScenario $Request)-cne'chunk7-two-pair-exploration'){if($present.Count-ne0){throw 'Another scenario supplied matched-pool observations.'};return}
     if($present.Count-eq0-and$Status-cne'PASS'){return}
     $artifact=Read-KmcChunk7ManifestArtifact $Request $Manifest $leaf $kind
     $world=Read-KmcChunk7ManifestArtifact $Request $Manifest 'chunk7-world-evidence.json' 'chunk7-world-evidence'

@@ -53,6 +53,7 @@ function Get-KmcChunk7PersistenceSource {
     }
     Assert-KmcChunk7NativeCounters $game @('assertionFailCount','subscenarioFailCount')
     if($game.status-cne'PASS'-or$game.assertionFailCount-ne0-or$game.subscenarioFailCount-ne0){throw 'Source native result did not pass its selected assertions.'}
+    if($Case-ceq'multi-owned-worker-cancel-manual'){Assert-KmcChunk7WorkerSourceCounts $game}
     $manifest=Read-KmcJson (Join-Path $evidence 'runtime-artifacts.json')
     Assert-KmcChunk7PersistenceArtifact $request $manifest 'PASS'
     $artifact=Read-KmcChunk7ManifestArtifact $request $manifest 'chunk7-persistence-evidence.json' 'chunk7-persistence-evidence'
@@ -111,3 +112,7 @@ function Assert-KmcChunk7PersistenceColdSource($SourceRunId,$Request,$ColdArtifa
 }
 
 . (Join-Path $PSScriptRoot 'Chunk7Schema1PersistenceFixtures.ps1')
+
+function Assert-KmcChunk7WorkerSourceCounts($Game){
+ foreach($pair in @(@('saveRequestCount',2),@('workingSaveRequestCount',2),@('loadRequestCount',1),@('workingLoadRequestCount',1),@('unauthorizedSaveRequestCount',0),@('unauthorizedLoadRequestCount',0),@('suppressedWorkingSaveRequestCount',0))){Assert-KmcChunk7NativeCounters $Game @($pair[0]);if($Game.($pair[0])-ne$pair[1]){throw 'Worker source must retain its exact seed/replacement native request totals.'}}
+}

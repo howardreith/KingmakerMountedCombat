@@ -66,6 +66,7 @@ namespace KingmakerMountedCombat.Diagnostics
         }
         private void PollCleanup()
         {
+            if (cleanupProven) { CompleteEvidence(); return; }
             if (LoadingProcess.Instance.IsLoadingInProcess || LoadingProcess.Instance.QueuedNames.Any() ||
                 NativePersistenceIsolation.HasPendingWrites || world.SerializationBusy)
             { AwaitCleanup(false, "A native load, queued load or write worker still owns fixture state."); return; }
@@ -73,7 +74,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 Require(nativeScope != null, "Captured native world authority is absent."); nativeScope.RequireCurrent();
             })) { AwaitCleanup(false, "Captured native world, area or actor identity changed."); return; }
             if (!ReleaseCleanupObservers()) { AwaitCleanup(false, "Native observer teardown has not settled."); return; }
-            if (!captured) { cleanupProven = true; CompleteEvidence(); return; }
+            if (!captured) { if (!checkpointOnly) inherited?.Release(); cleanupProven = true; CompleteEvidence(); return; }
             Game.Instance.IsPaused = false;
             var commandsSettled = true;
             foreach (var command in issuedCommands.Where(c => c != null && !c.IsFinished))
@@ -91,7 +92,7 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 var targetGone = false;
                 TryCleanup("target", () => { targetGone = targetService == null || targetService.DestroyAndVerify(); });
-                foreach (var actor in actors ?? originalParty ?? new Kingmaker.EntitySystem.Entities.UnitEntityData[0])
+                foreach (var actor in inherited?.Party ?? actors ?? originalParty ?? new Kingmaker.EntitySystem.Entities.UnitEntityData[0])
                     if (actor.IsInState && actor.IsInCombat)
                         TryCleanup("captured native combat actor", () => actor.LeaveCombat());
                 TryCleanup("native entity drain", () => Game.Instance.EntityDestroyer.Tick());
@@ -115,7 +116,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var pairClean = checkpointOnly || world.Pairs.All(p => p.Relationship.State == RelationshipState.Unmounted &&
                 p.Relationship.Runtime.NoPreparedPairResidue && p.Relationship.PairOwner == null && !controls.HasUnsettledShellFor(p.Relationship));
             if (!pairClean) { AwaitCleanup(false, "A pair still owns cleanup before native progression removal."); return; }
-            if (!checkpointOnly)
+            if (!checkpointOnly && inherited == null)
             {
                 if (horseFeature != null)
                     TryCleanup("owned Horse fact", () => {
@@ -126,7 +127,8 @@ namespace KingmakerMountedCombat.Diagnostics
                     TryCleanup("owned rank fact", () => { br.Descriptor.Progression.Features.RemoveFact(rankFeature); rankFeature = null; });
             }
             TryCleanup("native entity drain", () => Game.Instance.EntityDestroyer.Tick());
-            var horseClean = checkpointOnly || horseFeature == null && rankFeature == null &&
+            var inheritedClean = inherited != null && TryCleanup("inherited native facts", inherited.RequirePreserved);
+            var horseClean = (checkpointOnly || inherited != null) ? checkpointOnly || inheritedClean : horseFeature == null && rankFeature == null &&
                 (bm == null || !bm.IsInState && !Game.Instance.State.Units.Contains(bm) && br.Descriptor.Pet == null);
             if (!horseClean || world.UnifiedTurn.HasUnsettledPreparation || controls.HasUnsettledRelationshipTransition ||
                 world.Pairs.Any(p => controls.HasUnsettledShellFor(p.Relationship)))
@@ -142,24 +144,27 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (!settingsRestored) { AwaitCleanup(false, "Fixture settings have not restored."); return; }
                 Game.Instance.IsPaused = pauseBefore;
             }
-            cleanupProven = initiativeBefore.All(x => x.Key.Stats.Initiative.BaseValue == x.Value) &&
+            var cleanupReady = initiativeBefore.All(x => x.Key.Stats.Initiative.BaseValue == x.Value) &&
                 (firstPairAi == null || firstPairAi.LastRestoreVerified) && mode == null && targetService == null;
-            Require(cleanupProven, "Cleanup postcondition does not match the captured native fixture state.");
-            evidence["cleanup"] = new JObject { ["pairResidueAbsent"] = pairClean, ["ownedHorseRemoved"] = horseClean,
+            Require(cleanupReady, "Cleanup postcondition does not match the captured native fixture state.");
+            if (inherited != null && !checkpointOnly) evidence["inheritedCleanup"] = inherited.Capture("cleanup");
+            evidence["cleanup"] = new JObject { ["pairResidueAbsent"] = pairClean, ["ownedHorseRemoved"] = inherited == null && horseClean,
+                ["inheritedPetsPreserved"] = inherited != null && inheritedClean,
                 ["nativeCombatEnded"] = !Game.Instance.Player.IsInCombat && !Game.Instance.TurnBasedCombatController.Initialized,
                 ["initiativeInputsRestored"] = true, ["firstPairAiRestored"] = true, ["controlsSettled"] = true,
-                ["nativeProgressionRequiresExternalWorkingRestoration"] = !checkpointOnly,
+                ["nativeProgressionRequiresExternalWorkingRestoration"] = !checkpointOnly && inherited == null,
                 ["nativeSaveWrittenByThisDriver"] = false, ["delegatedPersistenceCleanup"] = checkpointOnly };
-            Pass("C7-combat-cleanup"); CompleteEvidence();
+            if (inherited != null && !checkpointOnly) inherited.Release();
+            cleanupProven = true; Pass("C7-combat-cleanup"); CompleteEvidence();
         }
         private void CompleteEvidence()
         {
             if (completed) return;
             evidence["elapsedSeconds"] = clock.Elapsed.TotalSeconds;
             evidence["nativeShellLifecycle"] = controls.DescribeNativeShellLifecycle();
-            evidence["fullRealtimeCombatProof"] = false; evidence["naturalUnconsciousStimulusProven"] = request.Scenario == NativeLifeCleanup && (bool?)nativeLife?["complete"] == true;
-            if (!checkpointOnly) RuntimeLoaderInventory.WriteArtifact(request, request.Scenario == NativeLifeCleanup ? "chunk7-native-life-evidence.json" : RealtimeScenario ? "chunk7-realtime-evidence.json" : EvidenceFileName,
-                request.Scenario == NativeLifeCleanup ? "chunk7-native-life-evidence" : RealtimeScenario ? "chunk7-realtime-evidence" : EvidenceKind, errors.Count == 0 ? "PASS" : "FAIL", evidence, errors);
+            evidence["fullRealtimeCombatProof"] = false; evidence["naturalUnconsciousStimulusProven"] = SelectedScenario == NativeLifeCleanup && (bool?)nativeLife?["complete"] == true;
+            if (!checkpointOnly) RuntimeLoaderInventory.WriteArtifact(request, SelectedScenario == NativeLifeCleanup ? "chunk7-native-life-evidence.json" : RealtimeScenario ? "chunk7-realtime-evidence.json" : EvidenceFileName,
+                SelectedScenario == NativeLifeCleanup ? "chunk7-native-life-evidence" : RealtimeScenario ? "chunk7-realtime-evidence" : EvidenceKind, errors.Count == 0 ? "PASS" : "FAIL", evidence, errors);
             completed = true;
         }
         internal bool DrainForHost()

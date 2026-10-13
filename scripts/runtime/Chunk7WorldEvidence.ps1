@@ -1,5 +1,6 @@
 # Original strict reader for the bounded native world fixture; no staging or native writes.
 Set-StrictMode -Version Latest
+. (Join-Path $PSScriptRoot 'Chunk7OwnedPairsEvidence.ps1')
 function Get-KmcChunk7WorldRows {
     @('chunk7-two-pair-exploration','C7-world-fixture','C7-world-native-acquisition','C7-world-two-native-mounts','C7-world-selection-routing',
       'C7-world-independent-dismount','C7-world-cycles','C7-world-sampling','C7-world-cleanup','C7-world-runtime','C7-world-visual','C7-world-interrupted')
@@ -119,7 +120,7 @@ function Assert-KmcChunk7Measurements($Rows) {
     }
     # Timing values are observations, not an invented universal performance threshold.
 }
-function Assert-KmcChunk7DoorEvidence($Door,$Owners) {
+function Assert-KmcChunk7DoorEvidence($Door,$Owners,[string[]]$DeclaredRiders=@('b6628a77-4962-47a4-a17c-88d9836fc9d5','d17c8fd0-6627-40c4-bf9a-024cf001c1f7')) {
     Assert-KmcExactProperties $Door @('contract','interactions','setupInteractions','fixture','firstPairReturn','restoration','completed') 'Chunk 7 native door proof'
     if($Door.contract-cne'two-pair-native-door-click-selection-change'-or$Door.interactions-isnot[Array]-or$Door.interactions.Count-ne2){throw 'Exactly two captured native door interactions required.'}
     Assert-KmcChunk7Boolean $Door.completed $true
@@ -133,7 +134,7 @@ function Assert-KmcChunk7DoorEvidence($Door,$Owners) {
     foreach($v in @($f.originalEnabled,$f.disableOnOpen)){if($v-isnot[bool]){throw 'Door fixture flags must be native booleans.'}}
     foreach($axis in @('x','y','z')){if(-not(Test-KmcChunk7FiniteNumber $f.position.$axis)){throw 'Door position is not finite.'}}
     if(-not(Test-KmcChunk7FiniteNumber $f.radius)-or$f.radius-le0){throw 'Native interaction radius is invalid.'}
-    $riders=@('b6628a77-4962-47a4-a17c-88d9836fc9d5','d17c8fd0-6627-40c4-bf9a-024cf001c1f7')
+    $riders=@($DeclaredRiders);if($riders.Count-ne2-or$riders[0]-ceq$riders[1]){throw 'Exact distinct declared door riders required.'};foreach($id in $riders){Assert-KmcOrdinaryGuid $id}
     $commands=[Collections.Generic.HashSet[long]]::new()
     for($i=0;$i-lt2;$i++) {
         $v=$Door.interactions[$i];$owner=@($Owners|Where-Object riderId -CEQ $riders[$i])
@@ -207,9 +208,22 @@ function Assert-KmcChunk7QuietWindow($Window,$Move,$ExpectedOwners,[string[]]$Ac
 
 function Assert-KmcChunk7WorldEvidence($Request,$Artifact,[string]$Status) {
     Assert-KmcChunk7ArtifactEnvelope $Request $Artifact 'chunk7-world-evidence'
-    if($Request.scenario-cne'chunk7-two-pair-exploration'){throw 'Chunk 7 world evidence under another scenario.'}
+    if((Get-KmcChunk7SelectedScenario $Request)-cne'chunk7-two-pair-exploration'){throw 'Chunk 7 world evidence under another scenario.'}
     if($Status-ceq'PASS'-and$Artifact.status-cne'PASS'){throw 'PASS world result requires PASS artifact.'}
     if($Artifact.status-cne'PASS'){return}
+    $o=$Artifact.observations;$owned=Test-KmcChunk7OwnedPairsScenario $Request.scenario
+    if($owned){
+        Assert-KmcChunk7InheritedEvidence $Request $o
+        $roles=Get-KmcChunk7OwnedPairIds $Request;$first=$roles[0];$mammoth=$roles[1];$second=$roles[2];$horse=$roles[3];$actors=@($roles);$original=@($Request.ownedPairs.partyIds)
+        Assert-KmcChunk7Boolean $o.capability.archiveNativeEnabled $true;Assert-KmcChunk7WorldCounters $o.capability @('nativeWriterSchema','nativePairCapacity')
+        if($o.capability.nativeWriterSchema-ne3-or$o.capability.nativePairCapacity-lt2-or$null-ne$o.capability.workingSha256){throw 'Inherited world capability differs or claims Working provenance.'}
+        Assert-KmcBootstrapInventoryString $o.capability.inheritedManualSha256 $Request.ownedPairs.sourceArchiveSha256
+        foreach($party in @($o.partyBefore,$o.partyWithHorse)){
+            Assert-KmcChunk7ExactIds @($party) $original
+            for($i=0;$i-lt2;$i++){$r=@($party|Where-Object id -CEQ $roles[$i*2]);$m=@($party|Where-Object id -CEQ $roles[$i*2+1]);if($r.Count-ne1-or$m.Count-ne1-or$r[0].petId-isnot[string]-or$m[0].masterId-isnot[string]-or$m[0].blueprint-isnot[string]-or$r[0].petId-cne$m[0].id-or$m[0].masterId-cne$r[0].id-or$m[0].blueprint-cne'4016c7db400ab721ff125aef9e65e202'){throw 'Inherited ordinary Horse reciprocity differs.'}}
+        }
+        foreach($snapshot in @($o.snapshots)+@($o.cycles)){foreach($owner in $snapshot.owners){Assert-KmcChunk7WorldCounters $owner @('generation')}}
+    }else{
     $o=$Artifact.observations; Assert-KmcChunk7Boolean $o.capability.archiveNativeEnabled $true; $first='b6628a77-4962-47a4-a17c-88d9836fc9d5';$mammoth='d79a4f6c-b74e-4868-95bd-533899131acb';$second='d17c8fd0-6627-40c4-bf9a-024cf001c1f7'
     Assert-KmcChunk7WorldCounters $o.capability @('nativeWriterSchema','nativePairCapacity')
     $original=@($first,$mammoth,$second)
@@ -232,6 +246,7 @@ function Assert-KmcChunk7WorldEvidence($Request,$Artifact,[string]$Status) {
     foreach($snapshot in @($o.snapshots)+@($o.cycles)){foreach($owner in $snapshot.owners){Assert-KmcChunk7WorldCounters $owner @('generation')}}
     if($a.nativeRangerCommitCount-ne4-or$a.huntersBondSelectionLevel-ne4-or$a.rangerCompanionSelectionLevel-ne4-or$a.horseFactRankAtCommit-ne1-or
         $a.horsePresentAtNativeCommit-ne$true-or[string]::IsNullOrEmpty($a.horseFeatureSourceGuid)){throw 'Native Ranger acquisition proof incomplete.'}
+    }
     $inputSpecs=@(@('mount-mammoth',$first,$mammoth,'f053faad986631688defa003cd7bda0e'),@('mount-horse',$second,$horse,'f053faad986631688defa003cd7bda0e'),
         @('dismount-mammoth',$first,$first,'3af2b81f4d72bbb30501fa730fcdf36e'),@('dismount-horse',$second,$second,'3af2b81f4d72bbb30501fa730fcdf36e'))
     $commands=New-Object 'Collections.Generic.HashSet[long]';$shells=New-Object 'Collections.Generic.HashSet[string]' ([StringComparer]::Ordinal)
@@ -247,7 +262,7 @@ function Assert-KmcChunk7WorldEvidence($Request,$Artifact,[string]$Status) {
         $same=@($after[0].owners|Where-Object ownerId -CEQ $owner.ownerId)
         if($same.Count-ne1-or$same[0].riderId-cne$owner.riderId-or$same[0].mountId-cne$owner.mountId-or$same[0].generation-ne$owner.generation-or$same[0].state-cne'Active'){throw 'Selection/movement changed exact pair ownership.'}
     }
-    Assert-KmcChunk7DoorEvidence $o.door $owners
+    Assert-KmcChunk7DoorEvidence $o.door $owners @($first,$second)
     $doorAfter=@($o.snapshots|Where-Object label -CEQ 'door-complete')
     if($doorAfter.Count-ne1-or@($doorAfter[0].owners).Count-ne2){throw 'Two-pair door completion window missing.'}
     foreach($owner in $owners){$same=@($doorAfter[0].owners|Where-Object ownerId -CEQ $owner.ownerId);if($same.Count-ne1-or$same[0].generation-ne$owner.generation-or$same[0].riderId-cne$owner.riderId-or$same[0].mountId-cne$owner.mountId-or$same[0].state-cne'Active'){throw 'Door work changed captured ownership.'}}
@@ -320,10 +335,16 @@ function Assert-KmcChunk7WorldEvidence($Request,$Artifact,[string]$Status) {
     foreach($field in @('combatOrPersistenceProof','thirdUnrelatedActorProven')){Assert-KmcChunk7Boolean $o.$field $false}
     foreach($field in @('pauseBefore','pauseAfter','movementBefore','movementAfter','pairedBefore','pairedAfter')){if($c.$field-isnot[bool]){throw 'Restored native settings require actual booleans.'}}
     foreach($pair in $c.pairBoundaries){Assert-KmcChunk7Boolean $pair.residueAbsent $true;Assert-KmcChunk7Boolean $pair.ownerPresent $false}
+    if($owned){
+        foreach($field in @('pairResidueAbsent','controlsSettled','settingsAndSelectionRestored','nativeProcessesSettled','cleanupCustodySettled','inheritedPetsPreserved')){Assert-KmcChunk7Boolean $c.$field $true}
+        foreach($field in @('horseRemoved','nativeSaveWritten','ordinaryRespecProven','nativeProgressionRequiresExternalWorkingRestoration')){Assert-KmcChunk7Boolean $c.$field $false}
+        Assert-KmcChunk7Boolean $o.combatOrPersistenceProof $false;Assert-KmcChunk7Boolean $o.thirdUnrelatedActorProven $false
+    }else{
     foreach($field in @('pairResidueAbsent','horseRemoved','controlsSettled','settingsAndSelectionRestored','nativeProcessesSettled','cleanupCustodySettled','nativeProgressionRequiresExternalWorkingRestoration')){Assert-KmcChunk7Boolean $c.$field $true}
     if($c.pairResidueAbsent-ne$true-or$c.horseRemoved-ne$true-or$c.controlsSettled-ne$true-or$c.settingsAndSelectionRestored-ne$true-or
         $c.nativeSaveWritten-ne$false-or$c.ordinaryRespecProven-ne$false-or$c.nativeProgressionRequiresExternalWorkingRestoration-ne$true-or
         $o.combatOrPersistenceProof-ne$false-or$o.thirdUnrelatedActorProven-ne$false){throw 'Exploration cleanup or evidence scope differs.'}
+    }
     Assert-KmcChunk7ExactIds @($c.partyAfter) $original
     if(($c.selectionBefore-join'|')-cne($c.selectionAfter-join'|')-or$c.pauseBefore-ne$c.pauseAfter-or$c.movementBefore-ne$c.movementAfter-or$c.pairedBefore-ne$c.pairedAfter){throw 'Settings/selection restoration differs.'}
     if(@($c.world.owners|Where-Object state -CNE 'Retired').Count-ne0-or@($c.pairBoundaries).Count-lt2){throw 'World cleanup left retained ownership.'}
@@ -331,7 +352,7 @@ function Assert-KmcChunk7WorldEvidence($Request,$Artifact,[string]$Status) {
 }
 function Assert-KmcChunk7WorldArtifact($Request,$Manifest,[string]$Status) {
     $present=@($Manifest.artifacts|Where-Object{$_.relativePath-ceq'chunk7-world-evidence.json'-or$_.kind-ceq'chunk7-world-evidence'})
-    if($Request.scenario-cne'chunk7-two-pair-exploration'){if($present.Count-ne0){throw 'Another scenario supplied Chunk 7 world evidence.'};return}
+    if((Get-KmcChunk7SelectedScenario $Request)-cne'chunk7-two-pair-exploration'){if($present.Count-ne0){throw 'Another scenario supplied Chunk 7 world evidence.'};return}
     if($present.Count-eq0-and$Status-cne'PASS'){return}
     $artifact=Read-KmcChunk7ManifestArtifact $Request $Manifest 'chunk7-world-evidence.json' 'chunk7-world-evidence'
     Assert-KmcChunk7WorldEvidence $Request $artifact $Status

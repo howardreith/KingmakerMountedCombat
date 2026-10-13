@@ -21,15 +21,18 @@ namespace KingmakerMountedCombat.Diagnostics
         private readonly Dictionary<string, ActorIdentity> actors = new Dictionary<string, ActorIdentity>(StringComparer.Ordinal);
 
         internal Chunk7NativeWorldScope(RuntimeRequest request, IEnumerable<UnitEntityData> initialActors)
-            : this(request, initialActors, request?.Fixture?.Working?.Area) { }
+            : this(request, initialActors, request?.SelectedChunk7Fixture?.Area) { }
 
         internal Chunk7NativeWorldScope(RuntimeRequest request, IEnumerable<UnitEntityData> initialActors, string expectedArea)
         {
             var current = Game.Instance;
+            var fixture = request?.SelectedChunk7Fixture;
+            if (request?.OwnedPairs != null && request.Validate().Count != 0)
+                throw new InvalidOperationException("Inherited native scope lacks its exact closed request.");
             if (current?.Player == null || current.State?.LoadedAreaState?.MainState == null || current.CurrentlyLoadedArea == null ||
-                current.Player.MainCharacter.Value == null || request?.Fixture?.Working == null ||
-                current.Player.GameId != request.Fixture.Working.GameId ||
-                current.Player.MainCharacter.Value.CharacterName != request.Fixture.Working.GameName ||
+                current.Player.MainCharacter.Value == null || fixture == null ||
+                current.Player.GameId != fixture.GameId ||
+                current.Player.MainCharacter.Value.CharacterName != fixture.GameName ||
                 string.IsNullOrEmpty(expectedArea) || current.CurrentlyLoadedArea.AssetGuidThreadSafe != expectedArea)
                 throw new InvalidOperationException("Exact native fixture world is not ready for diagnostic ownership.");
             game = current; player = current.Player; state = current.State;

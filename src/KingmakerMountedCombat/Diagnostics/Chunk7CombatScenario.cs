@@ -54,6 +54,11 @@ namespace KingmakerMountedCombat.Diagnostics
         private Chunk7NativeWorldScope nativeScope;
         private MountedPairServices a, b, actingPair;
         private Feature horseFeature, rankFeature;
+        private readonly MountedPersistenceService persistence;
+        private readonly RuntimeSaveAuthorization fixtureAuthorization;
+        private readonly PersistenceSaveAuthorization fixtureAuthority;
+        private readonly WorkingFixtureLoader fixtureLoader;
+        private Chunk7OwnedPairFixture inherited;
         private ScopedDiagnosticAiLease<UnitEntityData> firstPairAi;
         private DiagnosticCombatTargetService targetService;
         private NativeActorAllocationTrace trace;
@@ -75,32 +80,44 @@ namespace KingmakerMountedCombat.Diagnostics
         internal IReadOnlyList<string> Errors => errors;
         internal static bool SupportsScenario(string scenario) => scenario == RiderFirst || scenario == MountFirst ||
             scenario == RealtimeCore || scenario == RealtimeCasting || scenario == RealtimeCharge || scenario == NativeLifeCleanup;
-        private bool RealtimeScenario => request.Scenario == RealtimeCore || request.Scenario == RealtimeCasting || request.Scenario == RealtimeCharge;
+        internal static bool SupportsRequest(RuntimeRequest request) => SupportsScenario(request?.SelectedChunk7Scenario);
+        private string SelectedScenario => request.SelectedChunk7Scenario;
+        private bool RealtimeScenario => SelectedScenario == RealtimeCore || SelectedScenario == RealtimeCasting || SelectedScenario == RealtimeCharge;
         private bool RealtimeMode => RealtimeScenario || checkpointOnly && checkpointKind == Chunk7CombatCheckpointKind.RealTimeDebts;
         internal Chunk7CombatScenario(RuntimeRequest request, GameMountedRelationshipService relationship,
-            NativeMountedControlService controls, HorseCompanionBlueprintService horses, DiagnosticSettings settings, IModLogger logger, MountedLifecycleSubscriber lifecycle = null)
-        { this.request = request; world = relationship.World; this.controls = controls; this.horses = horses; this.settings = settings; this.logger = logger; this.lifecycle = lifecycle; }
+            NativeMountedControlService controls, HorseCompanionBlueprintService horses, DiagnosticSettings settings, IModLogger logger, MountedLifecycleSubscriber lifecycle = null, MountedPersistenceService persistence = null, RuntimeSaveAuthorization fixtureAuthorization = null,
+            PersistenceSaveAuthorization fixtureAuthority = null, WorkingFixtureLoader fixtureLoader = null)
+        { this.request = request; world = relationship.World; this.controls = controls; this.horses = horses; this.settings = settings; this.logger = logger; this.lifecycle = lifecycle; this.persistence = persistence; this.fixtureAuthorization = fixtureAuthorization; this.fixtureAuthority = fixtureAuthority; this.fixtureLoader = fixtureLoader; }
 
         internal void Start()
         {
-            if (started || disposed || !SupportsScenario(request.Scenario)) throw new InvalidOperationException("Chunk 7 combat admission differs.");
+            if (started || disposed || !SupportsRequest(request)) throw new InvalidOperationException("Chunk 7 combat admission differs.");
             started = true;
             try
             {
                 Require(request.SchemaVersion == RuntimeRequest.SaveBackedSchemaVersion && world != null &&
                     NativeMountedSaveFormat.ArchiveNativeSupportEnabled && GameMountedRelationshipService.NativePairCapacity >= 2,
                     "Reviewed native two-pair adapter and exact save-backed request are required.");
-                originalParty = Chunk7NativeFixture.ValidateWorking(request, horses);
-                Require(Game.Instance.Player.GameId == request.Fixture.Working.GameId, "Loaded fixture campaign differs.");
-                ar = originalParty.Single(x => x.UniqueId == Chunk7WorldScenarioEngine.MammothRiderId);
-                am = originalParty.Single(x => x.UniqueId == Chunk7WorldScenarioEngine.MammothId);
-                br = originalParty.Single(x => x.UniqueId == Chunk7WorldScenarioEngine.HorseRiderId);
+                if (request.OwnedPairs != null)
+                {
+                    inherited = new Chunk7OwnedPairFixture(request, horses, world, controls, persistence, fixtureAuthorization, fixtureAuthority, fixtureLoader); inherited.Bind(false);
+                    originalParty = inherited.Party; ar = inherited.Actors[0]; am = inherited.Actors[1]; br = inherited.Actors[2]; bm = inherited.Actors[3];
+                    evidence["inheritedFixture"] = inherited.Capture("admitted");
+                }
+                else
+                {
+                    originalParty = Chunk7NativeFixture.ValidateWorking(request, horses);
+                    Require(Game.Instance.Player.GameId == request.Fixture.Working.GameId, "Loaded fixture campaign differs.");
+                    ar = originalParty.Single(x => x.UniqueId == Chunk7WorldScenarioEngine.MammothRiderId);
+                    am = originalParty.Single(x => x.UniqueId == Chunk7WorldScenarioEngine.MammothId);
+                    br = originalParty.Single(x => x.UniqueId == Chunk7WorldScenarioEngine.HorseRiderId);
+                }
                 Require(world.Registry.ActiveCount == 0 && world.Pairs.All(p => p.Relationship.State == RelationshipState.Unmounted &&
                     p.Relationship.Runtime.NoPreparedPairResidue) && !controls.HasUnsettledRelationshipTransition,
                     "Combat fixture requires a settled unmounted world.");
                 Require(!settings.EnableUnifiedMountedTurn && !settings.EnablePairedCommandScheduler && !settings.EnableDiagnosticOverlay,
                     "Unsupported legacy or overlay authority is enabled.");
-                nativeScope = new Chunk7NativeWorldScope(request, originalParty);
+                nativeScope = inherited?.Scope ?? new Chunk7NativeWorldScope(request, originalParty);
                 selectionBefore = SelectionManager.Instance.SelectedUnits.ToArray(); pauseBefore = Game.Instance.IsPaused;
                 pairedBefore = settings.EnablePairedActivation; movementBefore = settings.EnableUnsafeMovementExperiment;
                 chargeBefore = settings.EnableMountedCharge; captured = true;
@@ -108,11 +125,12 @@ namespace KingmakerMountedCombat.Diagnostics
                 settings.EnableUnsafeMovementExperiment = true;
                 // Enable the accepted optional RT feature before combat so TB refusal
                 // must come from the unsupported-mode boundary rather than default-off.
-                settings.EnableMountedCharge = !RealtimeScenario || request.Scenario == RealtimeCharge;
+                settings.EnableMountedCharge = !RealtimeScenario || SelectedScenario == RealtimeCharge;
                 MovementScreenshotCaptureCoordinator.AcquireClosedUmmLeaseRetained(out umm);
                 mode = new NativeModeTransitionProbe(false); mode.DispatchTemporaryValueIfRequired();
                 evidence["inputs"] = inputs; evidence["activations"] = activations; evidence["turnVisits"] = visits; evidence["snapshots"] = snapshots;
-                evidence["scenario"] = request.Scenario; evidence["workingSha256"] = Chunk7WorldScenarioEngine.WorkingHash;
+                evidence["scenario"] = request.Scenario; evidence["selectedCase"] = request.OwnedPairs?.Case;
+                evidence["workingSha256"] = inherited == null ? Chunk7WorldScenarioEngine.WorkingHash : null;
                 evidence["stimulusKinds"] = new JArray("native-selected-ability-handler", "native-ground-input", "Game.PauseBind",
                     "native-StartRound-postfix-repeated-cleanup", "native-LeaveCombat-RemoveUnit", "one-owned-cleanup-subscriber-fault");
                 Pass("C7-combat-fixture"); Next(1);
@@ -138,6 +156,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 {
                     case 1:
                         if (CombatController.IsInTurnBasedCombat()) return;
+                        if (inherited != null) { inherited.RequirePreserved(); Pass("C7-owned-pairs-inherited-custody"); Next(2); break; }
                         var acquisition = new JObject(); evidence["acquisition"] = acquisition;
                         bool acquired;
                         try { acquired = NativeHorseFixtureAcquisition.Create(br, horses, logger, acquisition); }
@@ -159,7 +178,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     case 5:
                         if (!CombatController.IsInTurnBasedCombat() || !Game.Instance.Player.IsInCombat || Game.Instance.TurnBasedCombatController.CurrentTurn == null) return;
                         VerifyInitiative(); Pass("C7-combat-native-orders");
-                        if (request.Scenario == NativeLifeCleanup) { BeginNativeLife(); Next(70); }
+                        if (SelectedScenario == NativeLifeCleanup) { BeginNativeLife(); Next(70); }
                         else Next(checkpointOnly && checkpointKind == Chunk7CombatCheckpointKind.MountedPendingOnly ? 40 : 10); break;
                     case 10: TickFullActivations(); break;
                     case 50: TickRealtimeCheckpoint(); break;
@@ -209,7 +228,7 @@ namespace KingmakerMountedCombat.Diagnostics
             foreach (var actor in actors) initiativeBefore.Add(actor, actor.Stats.Initiative.BaseValue);
             if (!RealtimeMode)
             {
-            var riderFirst = checkpointOnly || request.Scenario == RiderFirst || request.Scenario == NativeLifeCleanup;
+            var riderFirst = checkpointOnly || SelectedScenario == RiderFirst || SelectedScenario == NativeLifeCleanup;
             ar.Stats.Initiative.BaseValue = riderFirst ? 80 : -80; am.Stats.Initiative.BaseValue = riderFirst ? -80 : 80;
             br.Stats.Initiative.BaseValue = riderFirst ? 40 : -40; bm.Stats.Initiative.BaseValue = riderFirst ? -40 : 40;
             }
@@ -234,7 +253,7 @@ namespace KingmakerMountedCombat.Diagnostics
             evidence["reactionTickCampaignSelected"] = false;
             trace.BeginEncounter(request.RunId + ":two-pair-combat");
             targetService = new DiagnosticCombatTargetService(logger, true);
-            target = targetService.Spawn(ar, am, am.Position + Vector3.forward * (request.Scenario == RealtimeCharge ? 8f : 3.5f), request.RunId + ":two-pair-target", true, !checkpointOnly, checkpointOnly);
+            target = targetService.Spawn(ar, am, am.Position + Vector3.forward * (SelectedScenario == RealtimeCharge ? 8f : 3.5f), request.RunId + ":two-pair-target", true, !checkpointOnly, checkpointOnly);
             nativeScope.Track(target);
             Require(targetService.PrepareForPlayerClick(target) && targetService.QueueBidirectionalCombatMemory(ar, target),
                 "Native diagnostic target placement/visibility/combat memory was refused.");
@@ -249,7 +268,7 @@ namespace KingmakerMountedCombat.Diagnostics
             foreach (var pair in new[] { a, b }.Where(p => p != null))
             {
                 var ri = Array.IndexOf(order, pair.Relationship.Rider); var mi = Array.IndexOf(order, pair.Relationship.Mount);
-                Require(ri >= 0 && mi >= 0 && ((ri < mi) == (checkpointOnly || request.Scenario == RiderFirst || request.Scenario == NativeLifeCleanup)), "Actual native roll order does not match the selected fixture arrangement.");
+                Require(ri >= 0 && mi >= 0 && ((ri < mi) == (checkpointOnly || SelectedScenario == RiderFirst || SelectedScenario == NativeLifeCleanup)), "Actual native roll order does not match the selected fixture arrangement.");
             }
             Require(order.Any(u => !actors.Contains(u)), "No unrelated native roster actor is present.");
         }
@@ -350,7 +369,7 @@ namespace KingmakerMountedCombat.Diagnostics
         }
         private bool EndNative(TurnController turn)
         {
-            if (turn?.Unit == null || ReferenceEquals(turn, endedTurn) || !actors.Contains(turn.Unit) ||
+            if (turn?.Unit == null || ReferenceEquals(turn, endedTurn) || !(actors.Contains(turn.Unit) || inherited != null && originalParty.Contains(turn.Unit)) ||
                 !turn.Unit.IsDirectlyControllable || !turn.Unit.Commands.Empty || turn.Unit.AreHandsBusyWithAnimation ||
                 !turn.CanEndTurnAndNoActing() || Game.Instance.TurnBasedCombatController.WaitingForUI ||
                 MountedPairTurnParticipant.NativeNextCandidate(Game.Instance.TurnBasedCombatController) != null ||

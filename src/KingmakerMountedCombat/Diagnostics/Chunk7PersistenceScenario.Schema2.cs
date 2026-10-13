@@ -29,17 +29,19 @@ namespace KingmakerMountedCombat.Diagnostics
             schema2Input = Game.Instance.SaveManager.Single(s => s.FileName == request.PersistenceLoad.FileName);
             schema2InputHash = Hash(schema2Input.FolderName);
             Require(schema2Input.Type == SaveInfo.SaveType.Manual && schema2Input.Name == ManualName &&
-                schema2Input.FileName == NativeLeaf(SaveInfo.SaveType.Manual) &&
+                schema2Input.FileName == (request.OwnedPairs == null ? NativeLeaf(SaveInfo.SaveType.Manual) : request.PersistenceLoad.FileName) &&
                 schema2Input.OperationState == SaveInfo.StateType.None && schema2Input.HasFileOnDisk,
                 "Schema-2 resave lost its exact read-only native input descriptor.");
             VerifySchema2InputImmutable();
             snapshotBefore = persistence.SnapshotCount; castBefore = controls.NativeCastRequestCount;
             var manager = Game.Instance.SaveManager;
-            Require(manager.FindUnusedSaveNumber(SaveInfo.SaveType.Manual) == 301 && manager.IsSaveAllowed(),
+            if (request.OwnedPairs != null) RequireOwnedSaveAdmission(SaveInfo.SaveType.Manual);
+            Require(manager.FindUnusedSaveNumber(SaveInfo.SaveType.Manual) == (request.OwnedPairs == null ? 301 : replaySaveAuthority.OwnedPairsOutputNumber) && manager.IsSaveAllowed(),
                 "Schema-2 resave requires the exact next fresh native Manual slot.");
             var descriptor = manager.CreateNewSave(Schema2OutputName);
             Require(descriptor != null && descriptor.Type == SaveInfo.SaveType.Manual && descriptor.Name == Schema2OutputName &&
                 !descriptor.IsActuallySaved, "Schema-2 resave substituted its native output descriptor.");
+            if (request.OwnedPairs != null) ownedRequestedSave = descriptor;
             evidence["schema2Migration"] = new JObject { ["inputSchema"] = 2, ["inputSha256"] = schema2InputHash,
                 ["inputLength"] = new FileInfo(schema2Input.FolderName).Length,
                 ["migratedArchive"] = JObject.FromObject(schema2Imported, MountedSaveCodec.CreateSerializer()) };
@@ -47,7 +49,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["gameTicks"] = Game.Instance.TimeController.GameTime.Ticks, ["snapshotCount"] = snapshotBefore,
                 ["nativeSaveAllowed"] = true, ["newSlot"] = true };
             callback = false;
-            Game.Instance.SaveGame(descriptor, () => callback = true);
+            Game.Instance.SaveGame(descriptor, () => { if (request.OwnedPairs != null) ownedSaveCallbacks++; callback = true; });
         }
 
         private void ObserveSchema2Resaved()
@@ -55,8 +57,9 @@ namespace KingmakerMountedCombat.Diagnostics
             Require(Schema2ResaveCase && schema2Imported != null && Game.Instance.IsPaused,
                 "Schema-2 resave left its admitted paused cold world.");
             savedDescriptor = Game.Instance.SaveManager.Single(s => s.Type == SaveInfo.SaveType.Manual && s.Name == Schema2OutputName);
-            Require(savedDescriptor.FileName == Schema2OutputLeaf && savedDescriptor.OperationState == SaveInfo.StateType.None &&
+            Require(savedDescriptor.FileName == (request.OwnedPairs == null ? Schema2OutputLeaf : replaySaveAuthority.OwnedPairsOutputLeaf) && savedDescriptor.OperationState == SaveInfo.StateType.None &&
                 savedDescriptor.HasFileOnDisk, "Schema-2 resave did not settle its separately authorized output leaf.");
+            ObserveOwnedSaveCompletion();
             var read = NativeMountedSaveStorage.ReadArchive(savedDescriptor.Saver);
             Require(read.Kind == MountedSaveReadKind.Current && read.SourceSchema == 3 && read.Data != null &&
                 NativeMountedSaveFormat.SelectedWriterSchema == 3 && !legacyWriterHeld,

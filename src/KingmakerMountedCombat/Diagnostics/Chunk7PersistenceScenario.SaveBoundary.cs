@@ -24,6 +24,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool PendingMountSave => request.PersistenceCase == PendingMountSaveCase;
         private bool WorkerCancelSave => request.PersistenceCase == WorkerCancelSaveCase;
         private bool SourceSaveBoundary => !Cold && IsSaveBoundaryCase(request.PersistenceCase);
+        private int BoundaryWriteCount => WorkerCancelSave ? 2 : 1;
         private Chunk7SaveBoundaryProbe saveBoundaryProbe;
         private RetainedObjectIdentity saveBoundaryIds;
         private IDisposable saveWorkerHold;
@@ -46,21 +47,23 @@ namespace KingmakerMountedCombat.Diagnostics
             RequireNativeWorld();
             Require(SourceSaveBoundary && saveBoundaryProbe == null && saveBoundaryIds == null &&
                 replayAuthorization != null && replaySaveAuthority != null &&
-                replayAuthorization.IsExactPersistenceScope(replaySaveAuthority) && replaySaveAuthority.MaximumNativeWriteRequests == 1 &&
+                replayAuthorization.IsExactPersistenceScope(replaySaveAuthority) && replaySaveAuthority.MaximumNativeWriteRequests == BoundaryWriteCount &&
                 replaySaveAuthority.AdmittedNativeWriteRequests == 0 && persistence.SnapshotCount == snapshotBefore &&
                 persistence.CompletedSaveCount == 0 && persistence.DrainedSaveCount == 0 && persistence.DeferredSaveCount == 0,
-                "Selected save boundary lacks its exact fresh one-write isolated authority.");
+                "Selected save boundary lacks its exact fresh selected isolated authority.");
             saveBoundaryIds = new RetainedObjectIdentity(128);
             healthySaveOwner = world.Registry.FindActive(firstRider);
             RequireHealthySaveOwner();
             evidence["saveBoundary"] = saveBoundaryEvidence;
             saveBoundaryEvidence["case"] = request.PersistenceCase;
             saveBoundaryEvidence["rows"] = saveBoundaryRows;
+            // This flag describes the selected final operation; the worker seed has its own mandatory callback.
             saveBoundaryEvidence["ordinaryNativeCallbackRequired"] = !WorkerCancelSave;
+            saveBoundaryEvidence["seedNativeCallbackRequired"] = WorkerCancelSave;
             saveBoundaryEvidence["actualWorkerFaultProof"] = false;
             saveBoundaryEvidence["manualResourceWrites"] = 0;
             saveBoundaryEvidence["diagnosticsOffProof"] = false;
-            saveBoundaryProbe = new Chunk7SaveBoundaryProbe(persistence, actors, CaptureSaveBoundary);
+            saveBoundaryProbe = new Chunk7SaveBoundaryProbe(persistence, actors, CaptureSaveBoundary, BoundaryWriteCount);
             saveBoundaryProbe.Install();
         }
         private void RequireSaveBoundaryAuthority()
@@ -71,8 +74,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 replayAuthorization.AuthorityGeneration == replayAuthorityGeneration &&
                 NativePersistenceIsolation.IsExactAuthority(replaySaveAuthority) &&
                 Game.Instance.SaveManager.SavePath == replaySaveAuthority.Root &&
-                replayAuthorization.AuthorizedLoadCount == 1 && replayAuthorization.AuthorizedWriteCount <= 1 &&
-                replaySaveAuthority.AdmittedNativeWriteRequests <= 1 && replaySaveAuthority.MaximumNativeWriteRequests == 1 &&
+                replayAuthorization.AuthorizedLoadCount == 1 && replayAuthorization.AuthorizedWriteCount <= BoundaryWriteCount &&
+                replaySaveAuthority.AdmittedNativeWriteRequests <= BoundaryWriteCount && replaySaveAuthority.MaximumNativeWriteRequests == BoundaryWriteCount &&
                 replayAuthorization.UnauthorizedLoadCount == 0 && replayAuthorization.UnauthorizedWriteCount == 0 &&
                 replayAuthorization.FatalViolationCount == 0 && replayAuthorization.BaselineLoadRequestCount == 0 &&
                 !replayAuthorization.IsOneShotWorkingWriteSuppressionArmed && replayAuthorization.SuppressedWorkingWriteCount == 0,
@@ -139,14 +142,13 @@ namespace KingmakerMountedCombat.Diagnostics
             Require(!NativeSaveWorkerBoundary.WorkerHeld && !NativePersistenceIsolation.HasPendingWrites &&
                 !persistence.HasActiveSaveScope && !persistence.HasSaveAdmissionFence, "Another worker already owns the selected boundary.");
             saveBoundaryRows.Add(CaptureSaveBoundary("before-worker-save"));
-            // The existing P07 boundary holds the real next authorized worker on
-            // its own background thread. It self-releases after twenty seconds.
-            saveWorkerHold = NativeSaveWorkerBoundary.ArmWorkerHold(20000);
-            RequestSave(); Next(83);
+            // A first-ever archive has no native replacement-commit callback.
+            // Complete its real seed before holding the second operation.
+            RequestSave(); Next(86);
         }
         private bool UpdateSaveBoundary()
         {
-            if (!SourceSaveBoundary || stage < 80 || stage > 85) return false;
+            if (!SourceSaveBoundary || stage < 80 || stage > 86) return false;
             RequireSaveBoundaryAuthority(); RequireHealthySaveOwner();
             Require(!Game.Instance.Player.IsInCombat, "Exploration save boundary unexpectedly entered combat.");
             if (stage == 80 || stage == 81)
@@ -218,6 +220,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 CompleteSaveBoundary("deferred-save-settled");
                 Pass("C7-persistence-nonselected-mount-save-deferral"); Next(10); return true;
             }
+            if (stage == 86) { PollWorkerSeed(); return true; }
             if (stage == 83)
             {
                 if (!NativeSaveWorkerBoundary.WorkerHeld) return true;
@@ -225,10 +228,11 @@ namespace KingmakerMountedCombat.Diagnostics
                 saveBoundaryEvidence["workerCachedAtHold"] = persistence.ActiveSaveWorkerCached;
                 heldWorkerId = persistence.ActiveSaveWorkerId; heldWorkerLeaf = persistence.ActiveSaveLeaf;
                 Require(heldWorkerId >= 0 && persistence.ActiveSaveWorkerRunning &&
-                    NativeSaveWorkerBoundary.WorkerEntryCount == holdEntriesBefore + 1 &&
+                    NativeSaveWorkerBoundary.WorkerEntryCount == holdEntriesBefore + 2 &&
                     NativeSaveWorkerBoundary.WorkerHoldCount == holdCountBefore + 1 && NativeSaveWorkerBoundary.HeldWorkerLeaf == heldWorkerLeaf &&
-                    heldWorkerLeaf == NativeLeaf(SaveInfo.SaveType.Manual) && !callback,
+                    heldWorkerLeaf == boundaryReplacementLeaf && !callback && boundarySeedCallbacks == 1 && boundaryReplacementCallbacks == 0,
                     "The hold did not identify this exact native operation's own running worker.");
+                ObserveWorkerReplacementPrepared();
                 pausedBeforeCancel = Game.Instance.IsPaused; pauseDepthBeforeCancel = MountedPersistenceService.NativePauseDepth();
                 saveBoundaryRows.Add(CaptureSaveBoundary("worker-held-before-stop"));
                 LoadingProcess.Instance.StopAll();
@@ -255,11 +259,12 @@ namespace KingmakerMountedCombat.Diagnostics
                     LoadingProcess.Instance.IsLoadingInProcess || LoadingProcess.Instance.QueuedNames.Any()) return true;
                 Require(persistence.DrainedSaveCount == 1 && persistence.DeferredSaveCancellationCount == 1 &&
                     persistence.LastDrainedSaveCommitted && persistence.LastDrainedSaveOutcomeEstablished &&
-                    persistence.LastDrainedSavePath == Path.Combine(replaySaveAuthority.Root, NativeLeaf(SaveInfo.SaveType.Manual)) &&
-                    persistence.CompletedSaveCount == 0 && persistence.FailedSaveCount == 0 &&
+                    persistence.LastDrainedSavePath == Path.Combine(replaySaveAuthority.Root, SelectedOutputLeaf(SaveInfo.SaveType.Manual)) &&
+                    persistence.CompletedSaveCount == 1 && ReferenceEquals(persistence.LastCompletedSave, boundarySeedCompletion) && persistence.FailedSaveCount == 0 &&
                     !callback && !NativeSaveWorkerBoundary.WorkerHeld &&
                     MountedPersistenceService.NativePauseDepth() == pauseDepthBeforeCancel && Game.Instance.IsPaused == pausedBeforeCancel,
                     "Interrupted native iterator did not establish its own committed worker outcome and exact once-only release.");
+                ObserveWorkerReplacementSettled();
                 boundaryDrainedCommitted = true;
                 CompleteSaveBoundary("worker-drain-settled");
                 Pass("C7-persistence-owned-worker-cancel-drain"); Next(10); return true;
@@ -291,9 +296,9 @@ namespace KingmakerMountedCombat.Diagnostics
         private void CompleteSaveBoundary(string kind)
         {
             RequireSaveBoundaryAuthority(); AssertOwners(); AssertSlots();
-            Require(saveBoundaryProbe.Complete && replayAuthorization.AuthorizedWriteCount == 1 &&
-                replaySaveAuthority.AdmittedNativeWriteRequests == 1 && persistence.SnapshotCount == snapshotBefore + 1,
-                "Selected save boundary did not observe one complete native header and no preparation.");
+            Require(saveBoundaryProbe.Complete && replayAuthorization.AuthorizedWriteCount == BoundaryWriteCount &&
+                replaySaveAuthority.AdmittedNativeWriteRequests == BoundaryWriteCount && persistence.SnapshotCount == snapshotBefore + BoundaryWriteCount,
+                "Selected save boundary did not observe its declared native headers and no preparation.");
             saveBoundaryRows.Add(CaptureSaveBoundary(kind));
             ObserveSaved(); EndSaveBoundaryObservation();
         }

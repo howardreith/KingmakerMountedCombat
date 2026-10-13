@@ -73,6 +73,7 @@ function Assert-SubscenarioResults {
     $missionScenarios += @(Get-KmcChunk7AcquiredManualRows)
     $missionScenarios += @(Get-KmcChunk7ManualDerivedRows)
     $missionScenarios += @(Get-KmcChunk7CumulativeRows)
+    $missionScenarios += @('chunk7-owned-two-pair-campaign','C7-owned-pairs-inherited-custody')
     $missionScenarios += @(Get-KmcChunk7ManualSeedRows)
     $missionScenarios += @(Get-KmcChunk7SmallRows)
     $missionScenarios += @(Get-KmcChunk7ProgressionRows)
