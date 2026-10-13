@@ -245,6 +245,9 @@
     <Compile Include="Diagnostics\Chunk7ManualSeedSelection.cs" />
     <Compile Include="Diagnostics\Chunk7ManualDerivedSelection.cs" />
     <Compile Include="Diagnostics\Chunk7AcquiredManualSelection.cs" />
+    <Compile Include="Diagnostics\Chunk7CumulativeAcquisitionSelection.cs" />
+    <Compile Include="Diagnostics\Chunk7ManualDerivedScenario.Cumulative.cs" />
+    <Compile Include="Diagnostics\Chunk7AcquiredManualScenario.TwoOwners.cs" />
     <Compile Include="Diagnostics\Chunk7AcquiredManualScenario.cs" />
     <Compile Include="Diagnostics\Chunk7AcquiredManualScenario.Field.cs" />
     <Compile Include="Diagnostics\Chunk7AcquiredManualScenario.Save.cs" />

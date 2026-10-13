@@ -9,24 +9,25 @@ function Read-KmcChunk7AcquiredManualSelectionFile([string]$Path,[string]$RunId)
 }
 function Get-KmcChunk7AcquiredManualSource($Selection,$Fixture,$Candidate){
  Assert-KmcChunk7AcquiredManualSelection ([pscustomobject]@{scenario='chunk7-acquired-manual-derivative';runId='unassigned-manual-derived';acquiredManual=$Selection})
+ $two=$Selection.case-ceq'preserve-two-acquired-field';$sourceLeaf=if($two){'chunk7-cumulative-acquisition-evidence.json'}else{'chunk7-manual-derived-evidence.json'}
  $lab=Get-KmcLabRoot;$profile=Assert-KmcChildPath (Join-Path $lab ('runtime-staging/persistence-'+$Selection.sourceRunId)) (Join-Path $lab 'runtime-staging') 'qualified Manual profile'
  Assert-KmcDirectoryTreeCloneable $profile 'qualified Manual profile'
  $root=Assert-KmcChildPath (Join-Path $lab ('runtime-evidence/'+$Selection.sourceRunId)) (Join-Path $lab 'runtime-evidence') 'qualified Manual evidence';Assert-KmcNotReparsePoint $root 'qualified Manual evidence';$files=@{}
- foreach($leaf in @('runtime-request.json','runtime-result.json','runtime-game-result.json','runtime-artifacts.json','base-game-isolation-result.json','chunk7-manual-derived-evidence.json')){
+ foreach($leaf in @('runtime-request.json','runtime-result.json','runtime-game-result.json','runtime-artifacts.json','base-game-isolation-result.json',$sourceLeaf)){
   $path=Join-Path $root $leaf;Assert-KmcNotReparsePoint $path 'qualified Manual receipt';Assert-KmcNotHardLink $path 'qualified Manual receipt';Assert-KmcManifestJsonMembersUnique $path 'qualified Manual receipt';$files[$path]=Get-KmcSha256 $path
  }
  $ownerPath=Join-Path $profile 'owner.json';Assert-KmcNotReparsePoint $ownerPath 'qualified Manual owner';Assert-KmcNotHardLink $ownerPath 'qualified Manual owner';Assert-KmcManifestJsonMembersUnique $ownerPath 'qualified Manual owner';$files[$ownerPath]=Get-KmcSha256 $ownerPath
  $owner=Read-KmcJson $ownerPath;$request=Read-KmcJson (Join-Path $root 'runtime-request.json');$result=Read-KmcJson (Join-Path $root 'runtime-result.json');$game=Read-KmcJson (Join-Path $root 'runtime-game-result.json');$isolation=Read-KmcJson (Join-Path $root 'base-game-isolation-result.json')
- Assert-KmcBootstrapInventoryString $request.runId $Selection.sourceRunId;Assert-KmcBootstrapInventoryString $request.scenario 'chunk7-manual-derived-acquisition';Assert-KmcBootstrapInventoryString $request.evidenceRoot $root
- Assert-KmcChunk7ManualDerivedDescriptor $request
+ Assert-KmcBootstrapInventoryString $request.runId $Selection.sourceRunId;Assert-KmcBootstrapInventoryString $request.scenario $(if($two){'chunk7-cumulative-acquisition'}else{'chunk7-manual-derived-acquisition'});Assert-KmcBootstrapInventoryString $request.evidenceRoot $root
+ if($two){Assert-KmcChunk7CumulativeDescriptor $request;$acquisition=$request.cumulativeAcquisition;Assert-KmcBootstrapInventoryString $acquisition.priorOwnerId $Selection.priorOwnerId;Assert-KmcBootstrapInventoryString $acquisition.priorPetId $Selection.priorPetId}else{Assert-KmcChunk7ManualDerivedDescriptor $request;$acquisition=$request.manualDerived}
  foreach($key in @('working','baseline')){Assert-KmcBootstrapInventoryString $request.fixture.$key.sha256 $Fixture.$key.sha256}
  foreach($key in @('commit','dllSha256','dllMvid')){Assert-KmcBootstrapInventoryString $request.$key $Candidate.$key}
  # Complete bootstrap and cold source qualification is repeated unchanged. Decoded
  # metadata gives no load/write/restore authority; the separate runtime owns that.
- $lineage=Get-KmcChunk7ManualDerivedSource $request.manualDerived $Fixture $Candidate
+ $lineage=if($two){Get-KmcChunk7CumulativeSource $acquisition $Fixture $Candidate}else{Get-KmcChunk7ManualDerivedSource $acquisition $Fixture $Candidate}
  if((ConvertTo-KmcChunk7Canonical $request.persistenceLoad)-cne(ConvertTo-KmcChunk7Canonical $lineage.descriptor)){throw 'Acquisition source did not load the exact qualified Manual descriptor.'}
  foreach($key in @('runId','scenario','transactionToken')){Assert-KmcBootstrapInventoryString $owner.$key $request.$key}
- Assert-KmcBootstrapInventoryString $owner.sourceSha256 $request.manualDerived.sourceArchiveSha256;Assert-KmcBootstrapInventoryString $owner.saveRoot (Join-Path $profile 'Saved Games')
+ Assert-KmcBootstrapInventoryString $owner.sourceSha256 $acquisition.sourceArchiveSha256;Assert-KmcBootstrapInventoryString $owner.saveRoot (Join-Path $profile 'Saved Games')
  if($null-ne$owner.persistenceCase){throw 'Manual source owner unexpectedly selects another persistence case.'}
  foreach($receipt in @($result,$game)){
   foreach($key in @('runId','scenario','branch','commit','productVersion','dllSha256','dllMvid','transactionToken')){Assert-KmcBootstrapInventoryString $receipt.$key $request.$key}
@@ -42,12 +43,12 @@ function Get-KmcChunk7AcquiredManualSource($Selection,$Fixture,$Candidate){
  Assert-KmcBootstrapInventoryString $isolation.runId $request.runId;Assert-KmcBootstrapInventoryString $isolation.stagingMode 'base-game-only-kmc'
  foreach($key in @('stageVerified','dependenciesUnchanged','processExited','modsRestored','saveProtectionPassed','gameReportedPass','nativeInventoryObserved','nativeCompatibilityQualified')){Assert-KmcChunk7Boolean $isolation.$key $true}
  Assert-KmcReadOnlyArtifactManifest $request $files[(Join-Path $root 'runtime-artifacts.json')] -GameResult
- $manifest=Read-KmcJson (Join-Path $root 'runtime-artifacts.json');Assert-KmcChunk7ManualDerivedArtifact $request $manifest 'PASS'
- $artifact=Read-KmcChunk7ManifestArtifact $request $manifest 'chunk7-manual-derived-evidence.json' 'chunk7-manual-derived-evidence'
- $artifactPath=Join-Path $root 'chunk7-manual-derived-evidence.json';$file=Get-Item -LiteralPath $artifactPath
+ $manifest=Read-KmcJson (Join-Path $root 'runtime-artifacts.json');if($two){Assert-KmcChunk7CumulativeArtifact $request $manifest 'PASS'}else{Assert-KmcChunk7ManualDerivedArtifact $request $manifest 'PASS'}
+ $artifact=Read-KmcChunk7ManifestArtifact $request $manifest $sourceLeaf $(if($two){'chunk7-cumulative-acquisition-evidence'}else{'chunk7-manual-derived-evidence'})
+ $artifactPath=Join-Path $root $sourceLeaf;$file=Get-Item -LiteralPath $artifactPath
  if($file.Length-le0-or$file.Length-gt16MB-or$files[$artifactPath]-cne$Selection.sourceArtifactSha256){throw 'Caller-pinned successful Manual-derived acquisition differs.'}
  Assert-KmcBootstrapInventoryString $artifact.observations.nativeWrite.sha256 $Selection.sourceArchiveSha256
- Assert-KmcChunk7ManualDerivedOutput $request $artifact;Assert-KmcBootstrapInventoryString $artifact.observations.field.actorId $Selection.actorId;Assert-KmcBootstrapInventoryString $artifact.observations.field.petId $Selection.petId
+ if($two){Assert-KmcChunk7CumulativeOutput $request $artifact}else{Assert-KmcChunk7ManualDerivedOutput $request $artifact};Assert-KmcBootstrapInventoryString $artifact.observations.field.actorId $Selection.actorId;Assert-KmcBootstrapInventoryString $artifact.observations.field.petId $Selection.petId
  $w=$artifact.observations.nativeWrite
  $descriptor=[pscustomobject]@{internalName=$w.name;fileName=$w.leaf;sha256=$w.sha256;length=$w.length;lastWriteTimeUtcTicks=$w.lastWriteTimeUtcTicks;gameId=$w.gameId;gameName=$w.gameName;area=$w.area}
  Assert-KmcChunk7AcquiredManualDescriptor ([pscustomobject]@{scenario='chunk7-acquired-manual-derivative';runId='unassigned-manual-derived';acquiredManual=$Selection;persistenceLoad=$descriptor;fixture=$Fixture})

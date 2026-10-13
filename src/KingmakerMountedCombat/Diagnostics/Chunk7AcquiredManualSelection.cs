@@ -9,6 +9,7 @@ namespace KingmakerMountedCombat.Diagnostics
     {
         public const string Scenario = "chunk7-acquired-manual-derivative";
         public const string CaseName = "preserve-acquired-field";
+        public const string TwoOwnerCaseName = "preserve-two-acquired-field";
         public const string SourceLeaf = "acquired-manual-source.json";
         public const string OutputName = "KMC_C7_ACQUIRED_FIELD";
         public string Case { get; set; }
@@ -17,13 +18,24 @@ namespace KingmakerMountedCombat.Diagnostics
         public string SourceArchiveSha256 { get; set; }
         public string ActorId { get; set; }
         public string PetId { get; set; }
+        public string PriorOwnerId { get; set; }
+        public string PriorPetId { get; set; }
+        public bool ShouldSerializePriorOwnerId() => Case == TwoOwnerCaseName;
+        public bool ShouldSerializePriorPetId() => Case == TwoOwnerCaseName;
         public bool BaseGameOnly { get; set; }
         public int ExpectedNativeLoadCount { get; set; }
         public int ExpectedNativeWriteCount { get; set; }
         public IReadOnlyList<string> Validate(string scenario, string runId)
         {
             var errors = new List<string>();
-            if (scenario != Scenario || Case != CaseName) errors.Add("Acquired Manual requires its exact field-preserving family.");
+            if (scenario != Scenario || Case != CaseName && Case != TwoOwnerCaseName) errors.Add("Acquired Manual requires its exact field-preserving family.");
+            if (Case == TwoOwnerCaseName)
+            {
+                if (!Chunk7ManualDerivedSelection.NativeId(PriorOwnerId) || !Chunk7ManualDerivedSelection.NativeId(PriorPetId) ||
+                    new HashSet<string>(new[] { ActorId, PetId, PriorOwnerId, PriorPetId }, StringComparer.Ordinal).Count != 4)
+                    errors.Add("Two-owner Manual requires the four distinct observed native owner/pet identities.");
+            }
+            else if (PriorOwnerId != null || PriorPetId != null) errors.Add("Original acquired Manual cannot borrow cumulative owner pins.");
             if (!Regex.IsMatch(SourceRunId ?? "", "^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$") || SourceRunId == runId)
                 errors.Add("A distinct completed Manual-derived acquisition run is required.");
             foreach (var hash in new[] { SourceArtifactSha256, SourceArchiveSha256 })

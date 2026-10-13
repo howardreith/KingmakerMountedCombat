@@ -742,8 +742,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 }
                 if (Chunk7ManualDerivedScenario.SupportsScenario(request.Scenario))
                 {
-                    manualDerivedEngine = new Chunk7ManualDerivedScenario(request, saveAuthorization, persistenceBootstrap.Authority,
-                        relationship, nativeControls, persistence, horseCompanion);
+                    manualDerivedEngine = request.Scenario == Chunk7CumulativeAcquisitionSelection.Scenario
+                        ? Chunk7ManualDerivedScenario.CreateCumulative(request, saveAuthorization, persistenceBootstrap.Authority, relationship, nativeControls, persistence, horseCompanion)
+                        : new Chunk7ManualDerivedScenario(request, saveAuthorization, persistenceBootstrap.Authority, relationship, nativeControls, persistence, horseCompanion);
                     manualDerivedEngine.BeginBeforeLoad();
                 }
                 if (Chunk7ManualSeedScenario.SupportsScenario(request.Scenario))
@@ -2180,6 +2181,8 @@ namespace KingmakerMountedCombat.Diagnostics
             AddRuntimeArtifactIfPresent(artifacts, request.EvidenceRoot, Chunk7AcquiredManualScenario.PendingFileName, Chunk7AcquiredManualScenario.PendingKind);
             AddRuntimeArtifactIfPresent(artifacts, request.EvidenceRoot, Chunk7ManualDerivedScenario.EvidenceFileName, Chunk7ManualDerivedScenario.EvidenceKind);
             AddRuntimeArtifactIfPresent(artifacts, request.EvidenceRoot, Chunk7ManualDerivedScenario.PendingFileName, Chunk7ManualDerivedScenario.PendingKind);
+            AddRuntimeArtifactIfPresent(artifacts, request.EvidenceRoot, Chunk7ManualDerivedScenario.CumulativeEvidenceFileName, Chunk7ManualDerivedScenario.CumulativeEvidenceKind);
+            AddRuntimeArtifactIfPresent(artifacts, request.EvidenceRoot, Chunk7ManualDerivedScenario.CumulativePendingFileName, Chunk7ManualDerivedScenario.CumulativePendingKind);
             AddRuntimeArtifactIfPresent(artifacts, request.EvidenceRoot, Chunk7ManualSeedScenario.EvidenceFileName, Chunk7ManualSeedScenario.EvidenceKind);
             AddRuntimeArtifactIfPresent(artifacts, request.EvidenceRoot, Chunk7ManualSeedScenario.PendingFileName, Chunk7ManualSeedScenario.PendingKind);
             AddRuntimeArtifactIfPresent(artifacts, request.EvidenceRoot, Chunk7BootstrapInventoryScenario.EvidenceFileName, Chunk7BootstrapInventoryScenario.EvidenceKind);

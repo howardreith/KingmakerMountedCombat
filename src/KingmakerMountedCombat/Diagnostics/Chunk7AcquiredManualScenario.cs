@@ -142,7 +142,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 mainState = game.State.LoadedAreaState.MainState; area = game.CurrentlyLoadedArea; mainActor = game.Player.MainCharacter.Value;
                 actors = candidateActors; descriptors = actors.Select(actor => (object)actor.Descriptor).ToArray(); views = actors.Select(actor => (object)actor.View).ToArray();
                 admitted = true; RequireWorld(); VerifySourceBytes();
-                BindAcquiredOwner();
+                BindAcquiredOwner(); BindPriorOwner();
                 evidence["loadedWorld"] = Snapshot();
                 evidence["loadedOwner"] = CaptureAcquiredOwner();
                 noArrangementLoaded = CaptureNoArrangement(); evidence["loadedArrangement"] = noArrangementLoaded.DeepClone();
@@ -238,8 +238,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 "Exact staged acquisition source/archive bytes differ.");
             sourceLength = source.Length; sourceTicks = source.LastWriteTimeUtc.Ticks; archiveLength = archive.Length; archiveTicks = archive.LastWriteTimeUtc.Ticks; sourcePinned = true;
             var artifact = JObject.Parse(File.ReadAllText(sourcePath)); sourceObservations = artifact["observations"] as JObject;
-            Require((string)artifact["runId"] == selection.SourceRunId && (string)artifact["scenario"] == Chunk7ManualDerivedSelection.Scenario &&
-                (string)artifact["evidenceKind"] == Chunk7ManualDerivedScenario.EvidenceKind && (string)artifact["status"] == "PASS" &&
+            Require((string)artifact["runId"] == selection.SourceRunId && (string)artifact["scenario"] == (TwoOwners ? Chunk7CumulativeAcquisitionSelection.Scenario : Chunk7ManualDerivedSelection.Scenario) &&
+                (string)artifact["evidenceKind"] == (TwoOwners ? Chunk7ManualDerivedScenario.CumulativeEvidenceKind : Chunk7ManualDerivedScenario.EvidenceKind) && (string)artifact["status"] == "PASS" &&
                 artifact["errors"] is JArray sourceErrors && sourceErrors.Count == 0 &&
                 (string)artifact["commit"] == request.Commit && (string)artifact["dllSha256"] == request.DllSha256 &&
                 (string)artifact["dllMvid"] == request.DllMvid && sourceObservations != null &&
@@ -267,6 +267,7 @@ namespace KingmakerMountedCombat.Diagnostics
             Require(Guid.TryParseExact(expectedMainId, "D", out var mainId) && mainId != Guid.Empty &&
                 ((JArray)sourceWorld["party"]).Count(row => (string)row["id"] == expectedMainId) == 1,
                 "Source main actor lacks its exact native party identity.");
+            RequireTwoOwnerSource();
         }
         private void VerifySourceBytes()
         {
@@ -296,6 +297,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (saveRequested && Busy()) RequireSaveWorldReferences();
                 else RequireWorld();
             }
+            if (!cleanupOnly && !Busy()) RequireTwoOwnerValues();
         }
         private void RequireWorld()
         {
@@ -314,6 +316,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     ReferenceEquals(actors[i].View, views[i]) && actors[i].IsInState && actors[i].IsInGame,
                     "Admitted cold actor, descriptor or view was replaced.");
             if (ownerBound) RequireAcquiredOwner();
+            RequireTwoOwnerReferences();
         }
         private bool Busy() => LoadingProcess.Instance != null && (LoadingProcess.Instance.IsLoadingInProcess || LoadingProcess.Instance.QueuedNames.Any()) ||
             NativePersistenceIsolation.HasPendingWrites || persistence.AreaTransitionPending || persistence.HasActiveSaveScope ||
@@ -366,6 +369,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 var sourceUnchanged = sourcePinned;
                 try { VerifySourceBytes(); } catch (Exception error) { sourceUnchanged = false; Fail("C7-acquired-manual-cleanup", error.ToString()); }
                 if (admitted && evidence["settledWorld"] == null) evidence["settledWorld"] = Snapshot();
+                try { CaptureTwoOwners("settledTwoOwners"); } catch (Exception error) { Fail("C7-acquired-manual-cleanup", error.ToString()); }
                 if (saveProbe != null && evidence["nativeSave"] == null) evidence["nativeSave"] = saveProbe.Capture();
                 if (probe != null && evidence["nativeLoad"] == null) evidence["nativeLoad"] = probe.Capture();
                 if (restoration != null && evidence["noPreparation"] == null) evidence["noPreparation"] = restoration.Capture();

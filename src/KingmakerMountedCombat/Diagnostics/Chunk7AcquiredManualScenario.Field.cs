@@ -114,17 +114,20 @@ namespace KingmakerMountedCombat.Diagnostics
         }
         private JObject CaptureAcquiredOwner()
         {
-            RequireAcquiredOwner(); var feature = (Feature)acquiredFeature;
-            return new JObject { ["frame"] = UnityEngine.Time.frameCount, ["actorId"] = acquiredActor.UniqueId, ["petId"] = acquiredPet.UniqueId,
-                ["actorObject"] = probe.Identity(acquiredActor), ["actorDescriptor"] = probe.Identity(acquiredActor.Descriptor), ["actorView"] = probe.Identity(acquiredActor.View),
-                ["petObject"] = probe.Identity(acquiredPet), ["petDescriptor"] = probe.Identity(acquiredPet.Descriptor), ["petView"] = probe.Identity(acquiredPet.View),
-                ["actorBlueprint"] = acquiredActor.Blueprint.AssetGuid, ["petBlueprint"] = acquiredPet.Blueprint.AssetGuid,
-                ["featureObject"] = probe.Identity(feature), ["rankObject"] = probe.Identity(acquiredRank),
-                ["featureGuid"] = horses.HorseFeature.AssetGuid, ["sourceGuid"] = feature.Source.AssetGuid, ["rank"] = acquiredActor.Descriptor.GetFact(horses.LevelRank).GetRank(),
-                ["reciprocal"] = true, ["actorInGame"] = acquiredActor.IsInGame, ["petInGame"] = acquiredPet.IsInGame,
-                ["actorInState"] = acquiredActor.IsInState, ["petInState"] = acquiredPet.IsInState,
-                ["actorAgentReady"] = acquiredActor.View?.AgentASP != null, ["petAgentReady"] = acquiredPet.View?.AgentASP != null,
-                ["actorCommandsEmpty"] = acquiredActor.Commands.Empty, ["petCommandsEmpty"] = acquiredPet.Commands.Empty,
+            RequireAcquiredOwner(); return CaptureOwner(acquiredActor, acquiredPet, (Feature)acquiredFeature, acquiredRank);
+        }
+        private JObject CaptureOwner(UnitEntityData owner, UnitEntityData pet, Feature feature, object rank)
+        {
+            return new JObject { ["frame"] = UnityEngine.Time.frameCount, ["actorId"] = owner.UniqueId, ["petId"] = pet.UniqueId,
+                ["actorObject"] = probe.Identity(owner), ["actorDescriptor"] = probe.Identity(owner.Descriptor), ["actorView"] = probe.Identity(owner.View),
+                ["petObject"] = probe.Identity(pet), ["petDescriptor"] = probe.Identity(pet.Descriptor), ["petView"] = probe.Identity(pet.View),
+                ["actorBlueprint"] = owner.Blueprint.AssetGuid, ["petBlueprint"] = pet.Blueprint.AssetGuid,
+                ["featureObject"] = probe.Identity(feature), ["rankObject"] = probe.Identity(rank),
+                ["featureGuid"] = horses.HorseFeature.AssetGuid, ["sourceGuid"] = feature.Source.AssetGuid, ["rank"] = owner.Descriptor.GetFact(horses.LevelRank).GetRank(),
+                ["reciprocal"] = true, ["actorInGame"] = owner.IsInGame, ["petInGame"] = pet.IsInGame,
+                ["actorInState"] = owner.IsInState, ["petInState"] = pet.IsInState,
+                ["actorAgentReady"] = owner.View?.AgentASP != null, ["petAgentReady"] = pet.View?.AgentASP != null,
+                ["actorCommandsEmpty"] = owner.Commands.Empty, ["petCommandsEmpty"] = pet.Commands.Empty,
                 ["partyCharacters"] = new JArray(game.Player.PartyCharacters.Select(value => value.Value.UniqueId)),
                 ["remoteCompanions"] = new JArray(game.Player.RemoteCompanions.Select(value => value.Value.UniqueId)),
                 ["progression"] = CaptureNoArrangement() };
@@ -181,6 +184,7 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             if (fieldAdmission != null) { evidence["selector"] = fieldAdmission.Capture(); evidence["selector"]["required"] = true; }
             evidence["fieldOwner"] = CaptureAcquiredOwner(); evidence["resourcesAfterField"] = CaptureResources();
+            CaptureTwoOwners("fieldTwoOwners");
             RestoreFieldPresentation(); evidence["fieldWorld"] = Snapshot();
             evidence["nativeProfileInventory"] = Chunk7NativeProfileInventory.Capture(actors);
             Require((string)evidence["nativeProfileInventory"]["captureStatus"] == "PASS", "Restored cumulative native profile inventory is unavailable.");

@@ -35,7 +35,7 @@ or progression grants, command replay or native Prepare call is introduced.
 Commands used Windows PowerShell -NoProfile -NonInteractive -File. Private
 supervisors preserve exact child arguments, exit codes, durations and log hashes.
 Build command: MSBuild KingmakerMountedCombat.sln /t:Build
-/p:Configuration=Release /v:minimal /nologo. Production source count:451.
+/p:Configuration=Release /v:minimal /nologo. Production source count: 451.
 
 | Selected check | Result | Seconds |
 | --- | --- | ---: |
@@ -49,8 +49,8 @@ Build command: MSBuild KingmakerMountedCombat.sln /t:Build
 | Final Test-Chunk7CombatPersistenceObservation.ps1 | PASS 70/0 | 21.4721367 |
 | Final Test-Chunk7Schema1Persistence.ps1 | PASS 102/0 | 5.4340851 |
 
-Four affected neighbors completed in35.7349547seconds. The five-stage correction
-run completed in36.0352895seconds, actual exit0. Imported reader/test counts overlap
+Four affected neighbors completed in 35.7349547 seconds. The five-stage correction
+run completed in 36.0352895 seconds, actual exit0. Imported reader/test counts overlap
 and are not summed. Continuity executes the actual production comparer and DTO
 validators; cleanup uses actual methods with explicit external native substitutes.
 Source admission reads generated private ZIPs under the owner's archive approval.
@@ -66,11 +66,11 @@ test lacked the existing native-bootstrap selector variable. Affected repairs
 pass; neither was a production save defect.
 
 Independent read-only review found two real integration defects in the first
-frozen14-path subset: the success row was missing from both result registries,
+frozen 14-path subset: the success row was missing from both result registries,
 and new identity fields admitted matching one-element arrays. Actual consumers
 reproduced both before repair: two registry FAIL results and one reader FAIL for
 accepted array-input-hash. Original sources, logs and receipts remain intact.
-The corrected18-path subset has independent PASS with no remaining source blocker.
+The corrected 18-path subset has independent PASS with no remaining source blocker.
 The reviewer checked hashes, diffs and recorded logs, without rerunning tests,
 accessing archives or writing receipts. Root records that communicated review.
 
@@ -86,14 +86,15 @@ Private root: analysis-cache/chunk7-continuation/schema2-resave-next.
 | array-regression01/focused01.json | f3886b2f3ce88df83a2d5638759a20b1cf71f50726ee382bc7d90367b823e067 |
 
 Parent: bc79eed9e14d304efa7e066e7b86136fbcbe5c9e on
-codex/mounted-combat-chunk7-foundation. The change awaits commit/guarded push.
+codex/mounted-combat-chunk7-foundation. Commit 206cd79a88b7b504cdc3994dab9dbb340ccfd2b4
+is guarded-pushed and remote-verified.
 Frozen preview.5 remains unchanged. All four prior native attempts remain FAIL
 and fully settled; no game/transaction is active.
 
-Next: commit/guarded-push, integrate reviewed cumulative owner1→owner2 acquisition
+Next: integrate reviewed cumulative owner1→owner2 acquisition
 and typed owned-two-pair intake, then qualify a fresh private candidate. Its
 fixture chain must produce a qualified schema-2 mounted/pending-only input,
-cold restore it, natively resave schema3 and continue without free preparation
+cold restore it, natively resave schema 3 and continue without free preparation
 or delayed release. The owned-fixture branch needs its actual next Manual number
-and must preserve historical300→301. Native Small, six-pair, progression and
+and must preserve historical 300→301. Native Small, six-pair, progression and
 measured hardening remain selected in the [active plan](../planning/CHUNK7-IMPLEMENTATION-PLAN.md).

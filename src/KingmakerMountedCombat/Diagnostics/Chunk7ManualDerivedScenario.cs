@@ -54,7 +54,7 @@ namespace KingmakerMountedCombat.Diagnostics
         internal bool IsCompleted => completed;
         internal IReadOnlyList<string> Errors => errors;
         internal IReadOnlyList<RuntimeSubscenarioResult> Results => results;
-        internal static bool SupportsScenario(string value) => value == Chunk7ManualDerivedSelection.Scenario;
+        internal static bool SupportsScenario(string value) => value == Chunk7ManualDerivedSelection.Scenario || value == Chunk7CumulativeAcquisitionSelection.Scenario;
 
         internal Chunk7ManualDerivedScenario(RuntimeRequest request, RuntimeSaveAuthorization authorization,
             PersistenceSaveAuthorization authority, GameMountedRelationshipService relationship,
@@ -85,11 +85,12 @@ namespace KingmakerMountedCombat.Diagnostics
                 (DialogMessageBox.Instance == null || !DialogMessageBox.Instance.IsShown),
                 "Cold inventory must own the exact idle empty menu before load.");
             RequireNoOwners(); RequireNoEffects();
-            Require(authority.MatchesManualDerivedPlan(request.PersistenceLoad, Chunk7ManualDerivedSelection.OutputLeaf, RuntimePersistenceScenario.SlotName(SaveInfo.SaveType.Auto), true), "Manual output was not initially absent/unwritten."); ReadSource();
+            Require(MatchesSelectedPlan(true), "Selected Auto output was not initially absent/unwritten.");
+            if (cumulative == null) ReadSource(); else ReadCumulativeSource();
             probe = new Chunk7BootstrapInventoryProbe(game); probe.Install();
             restoration = new NativeArchiveRestorationProbe(persistence); restoration.Install();
             evidence["processId"] = Process.GetCurrentProcess().Id;
-            evidence["selection"] = Chunk7EvidenceDto.Request(selection);
+            evidence["selection"] = Chunk7EvidenceDto.Request(cumulative == null ? (object)selection : cumulative);
             evidence["source"] = new JObject { ["runId"] = selection.SourceRunId, ["artifactSha256"] = selection.SourceArtifactSha256,
                 ["archiveSha256"] = selection.SourceArchiveSha256, ["archiveLeaf"] = request.PersistenceLoad.FileName,
                 ["sameCandidate"] = true, ["diagnosticArchiveContentRead"] = false };
@@ -152,7 +153,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 nativePlayer = game.Player; state = game.State; areaState = game.State.LoadedAreaState;
                 mainState = game.State.LoadedAreaState.MainState; area = game.CurrentlyLoadedArea; mainActor = game.Player.MainCharacter.Value;
                 actors = candidateActors; descriptors = actors.Select(actor => (object)actor.Descriptor).ToArray(); views = actors.Select(actor => (object)actor.View).ToArray();
-                admitted = true; RequireWorld(); VerifySourceBytes();
+                admitted = true; RequireWorld(); VerifySourceBytes(); BindCumulativeOwner();
                 evidence["loadedWorld"] = Snapshot();
                 evidence["nativeProfileInventory"] = Chunk7NativeProfileInventory.Capture(actors);
                 Require((string)evidence["nativeProfileInventory"]["captureStatus"] == "PASS", "Native read-only body/readiness inventory failed.");
@@ -216,6 +217,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["membershipOrRemovalQualified"] = false, ["characters"] = new JArray(characters.Select(value => new JObject {
                     ["actorId"] = value.UniqueId, ["blueprintGuid"] = value.Blueprint.AssetGuid, ["isMain"] = ReferenceEquals(value, main),
                     ["lockedCompanionComponent"] = value.Blueprint.GetComponent<Kingmaker.Blueprints.LockedCompanionComponent>() != null })) };
+
+            if (cumulative != null) result["staticPartyFacts"]["observationScope"] = "static-getters-only";
 
             var saves = manager.Take(33).ToArray();
             Require(saves.Length <= 32 && saves.All(value => value != null), "Isolated native descriptor inventory is null or exceeds its bound.");
@@ -292,7 +295,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 authorization.IsActive && authorization.AuthorityGeneration == generation && authorization.IsExactPersistenceScope(authority) &&
                 NativePersistenceIsolation.IsExactAuthority(authority) && authority.Root == root && manager.SavePath == root &&
                 NativePersistenceIsolation.ObservedStashFolder == Path.Combine(Path.GetDirectoryName(root), "Areas") &&
-                authority.MatchesManualDerivedPlan(request.PersistenceLoad, Chunk7ManualDerivedSelection.OutputLeaf, RuntimePersistenceScenario.SlotName(SaveInfo.SaveType.Auto), false) &&
+                MatchesSelectedPlan(false) &&
                 authority.AdmittedNativeLoadRequests <= 1 && authority.AdmittedNativeWriteRequests <= 1 &&
                 authorization.AuthorizedLoadCount <= 1 && authorization.AuthorizedWriteCount <= 1 &&
                 !authorization.IsOneShotWorkingWriteSuppressionArmed,
@@ -305,6 +308,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (buildStarted && Busy()) RequireWorldReferences();
                 else RequireWorld();
             }
+            if (!cleanupOnly && !Busy()) RequireCumulativeValues();
         }
         private void RequireWorldReferences()
         {
@@ -313,6 +317,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 ReferenceEquals(area, game.CurrentlyLoadedArea) && ReferenceEquals(mainActor, game.Player?.MainCharacter.Value) &&
                 game.Player.GameId == request.PersistenceLoad.GameId && game.Player.MainCharacter.Value.CharacterName == request.PersistenceLoad.GameName &&
                 game.Player.MainCharacter.Value.UniqueId == expectedMainId, "Admitted Manual-derived native world or main actor was replaced.");
+            RequireCumulativeReferences();
         }
         private void RequireWorld()
         {
@@ -377,6 +382,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 var sourceUnchanged = sourcePinned;
                 try { VerifySourceBytes(); } catch (Exception error) { sourceUnchanged = false; Fail("C7-manual-derived-cleanup", error.ToString()); }
                 if (admitted && evidence["settledWorld"] == null) evidence["settledWorld"] = Snapshot();
+                try { CaptureCumulativeFinal(); } catch (Exception error) { Fail("C7-manual-derived-cleanup", error.ToString()); }
                 if (ordinaryProbe != null && evidence["nativeAcquisition"] == null) evidence["nativeAcquisition"] = ordinaryProbe.Capture();
                 if (probe != null && evidence["nativeLoad"] == null) evidence["nativeLoad"] = probe.Capture();
                 if (restoration != null && evidence["noPreparation"] == null)
@@ -404,7 +410,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 evidence["nativeCommitCount"] = choices.Count(row => (string)row["event"] == "native-level-committed");
                 evidence["elapsedSeconds"] = clock.Elapsed.TotalSeconds;
                 settled = true; Pass("C7-manual-derived-cleanup");
-                RuntimeLoaderInventory.WriteArtifact(request, EvidenceFileName, EvidenceKind, errors.Count == 0 ? "PASS" : "FAIL", evidence, errors);
+                if (cumulative == null) RuntimeLoaderInventory.WriteArtifact(request, EvidenceFileName, EvidenceKind, errors.Count == 0 ? "PASS" : "FAIL", evidence, errors);
+                else RuntimeLoaderInventory.WriteArtifact(request, CumulativeEvidenceFileName, CumulativeEvidenceKind, errors.Count == 0 ? "PASS" : "FAIL", evidence, errors);
                 completed = true;
             }
             catch (Exception error) { Fail("C7-manual-derived-cleanup", error.ToString()); Retain(error.Message); }
@@ -413,8 +420,9 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             if (pending || clock.Elapsed.TotalSeconds - cleanupStart <= 45) return;
             Fail("C7-manual-derived-cleanup", reason + " The deadline does not relinquish custody.");
-            RuntimeLoaderInventory.WriteArtifact(request, PendingFileName, PendingKind, "FAIL", new JObject {
-                ["cleanupPendingAtHostBoundary"] = true, ["cleanupCustodyRetained"] = true, ["reason"] = reason, ["authority"] = AuthoritySnapshot() }, errors);
+            var observation = new JObject { ["cleanupPendingAtHostBoundary"] = true, ["cleanupCustodyRetained"] = true, ["reason"] = reason, ["authority"] = AuthoritySnapshot() };
+            if (cumulative == null) RuntimeLoaderInventory.WriteArtifact(request, PendingFileName, PendingKind, "FAIL", observation, errors);
+            else RuntimeLoaderInventory.WriteArtifact(request, CumulativePendingFileName, CumulativePendingKind, "FAIL", observation, errors);
             pending = true;
         }
         internal bool DrainForHost()
@@ -424,10 +432,10 @@ namespace KingmakerMountedCombat.Diagnostics
             if (!completed) PollCleanup(); return completed && settled;
         }
         public void Dispose() { if (disposed) return; if (!DrainForHost()) throw new InvalidOperationException("Cold inventory custody remains retained."); disposed = true; }
-        private void Pass(string row) { if (results.All(value => value.Name != row)) results.Add(new RuntimeSubscenarioResult { Name = row, Status = "PASS", AssertionPassCount = 1, Errors = Array.Empty<string>() }); }
+        private void Pass(string row) { row = SelectedRow(row); if (results.All(value => value.Name != row)) results.Add(new RuntimeSubscenarioResult { Name = row, Status = "PASS", AssertionPassCount = 1, Errors = Array.Empty<string>() }); }
         private void Fail(string row, string error)
         {
-            if (errors.Contains(error)) return; errors.Add(error); var value = results.SingleOrDefault(result => result.Name == row);
+            row = SelectedRow(row); if (errors.Contains(error)) return; errors.Add(error); var value = results.SingleOrDefault(result => result.Name == row);
             if (value == null) results.Add(new RuntimeSubscenarioResult { Name = row, Status = "FAIL", AssertionFailCount = 1, Errors = new[] { error } });
             else { value.Status = "FAIL"; value.AssertionFailCount++; value.Errors = value.Errors.Concat(new[] { error }).ToArray(); }
         }
