@@ -242,6 +242,14 @@
     <Compile Include="Diagnostics\Chunk7NativeBootstrapSelection.cs" />
     <Compile Include="Diagnostics\Chunk7BootstrapInventorySelection.cs" />
     <Compile Include="Diagnostics\Chunk7ManualSeedSelection.cs" />
+    <Compile Include="Diagnostics\Chunk7ManualDerivedSelection.cs" />
+    <Compile Include="Diagnostics\Chunk7AcquiredManualSelection.cs" />
+    <Compile Include="Diagnostics\Chunk7AcquiredManualScenario.cs" />
+    <Compile Include="Diagnostics\Chunk7AcquiredManualScenario.Field.cs" />
+    <Compile Include="Diagnostics\Chunk7AcquiredManualScenario.Save.cs" />
+    <Compile Include="Diagnostics\Chunk7ManualDerivedAdmission.cs" />
+    <Compile Include="Diagnostics\Chunk7ManualDerivedScenario.cs" />
+    <Compile Include="Diagnostics\Chunk7ManualDerivedScenario.Build.cs" />
     <Compile Include="Diagnostics\Chunk7ManualSeedScenario.cs" />
     <Compile Include="Diagnostics\Chunk7ManualSeedScenario.Save.cs" />
     <Compile Include="Diagnostics\Chunk7ManualSeedSaveProbe.cs" />

@@ -52,7 +52,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private UnitEntityData[] originalActors, originalSelection;
         private string[] originalParty;
         private JObject sourceSelection, before;
-        private IDisposable ummLease;
+        private MovementCaptureOverlayLease ummLease;
         private bool captured, pause, cleanup, settled, completed, disposed, pending;
         private double cleanupStart;
         private string sourcePath, archivePath;
@@ -140,7 +140,7 @@ namespace KingmakerMountedCombat.Diagnostics
             scope = new Chunk7NativeWorldScope(request, originalActors.Concat(new[] { actor, pet }));
             originalSelection = SelectionManager.Instance.SelectedUnits.ToArray(); pause = Game.Instance.IsPaused;
             before = Snapshot(); snapshotsBefore = persistence.SnapshotCount; savesBefore = persistence.CompletedSaveCount; castsBefore = controls.NativeCastRequestCount;
-            captured = true; ummLease = MovementScreenshotCaptureCoordinator.AcquireClosedUmmLease();
+            captured = true; MovementScreenshotCaptureCoordinator.AcquireClosedUmmLeaseRetained(out ummLease);
             evidence["processId"] = Process.GetCurrentProcess().Id; evidence["selection"] = Chunk7EvidenceDto.Request(calibration);
             evidence["declaration"] = new JObject { ["profileId"] = declaration.Body.ProfileId, ["nativeInventorySha256"] = declaration.Body.NativeInventorySha256, ["nativeCalibrationSha256"] = declaration.NativeCalibrationSha256, ["qualificationStatus"] = "IN PROGRESS", ["pose"] = JObject.FromObject(declaration.Pose), ["mountRootOffset"] = JObject.FromObject(declaration.MountRootOffset), ["animatedSeatCorrection"] = JObject.FromObject(declaration.AnimatedSeatCorrection), ["riderEulerOffset"] = JObject.FromObject(declaration.RiderEulerOffset) };
             evidence["before"] = before; evidence["authority"] = AuthoritySnapshot();

@@ -60,7 +60,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private NativeTurnCompletionProbe completion;
         private NativeRoundBoundaryProbe rounds;
         private NativeModeTransitionProbe mode;
-        private IDisposable umm;
+        private MovementCaptureOverlayLease umm;
         private bool started, completed, disposed, captured, cleanupStarted, cleanupServicesSettled;
         private bool pauseBefore, pairedBefore, movementBefore, chargeBefore;
         private int step, actionStage, actingIndex, splitRound, preparesAtSplit;
@@ -109,7 +109,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 // Enable the accepted optional RT feature before combat so TB refusal
                 // must come from the unsupported-mode boundary rather than default-off.
                 settings.EnableMountedCharge = !RealtimeScenario || request.Scenario == RealtimeCharge;
-                umm = MovementScreenshotCaptureCoordinator.AcquireClosedUmmLease();
+                MovementScreenshotCaptureCoordinator.AcquireClosedUmmLeaseRetained(out umm);
                 mode = new NativeModeTransitionProbe(false); mode.DispatchTemporaryValueIfRequired();
                 evidence["inputs"] = inputs; evidence["activations"] = activations; evidence["turnVisits"] = visits; evidence["snapshots"] = snapshots;
                 evidence["scenario"] = request.Scenario; evidence["workingSha256"] = Chunk7WorldScenarioEngine.WorkingHash;

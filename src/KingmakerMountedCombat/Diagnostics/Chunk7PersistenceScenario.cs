@@ -66,7 +66,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private SavedMountedSlot[] slots;
         private NativeModeTransitionProbe mode;
         private NativeArchiveRestorationProbe restoration;
-        private IDisposable ummLease;
+        private MovementCaptureOverlayLease ummLease;
         internal bool IsCompleted => completed;
         internal IReadOnlyList<RuntimeSubscenarioResult> Results => results;
         internal IReadOnlyList<string> Errors => errors;
@@ -231,7 +231,7 @@ namespace KingmakerMountedCombat.Diagnostics
             nativeScope = new Chunk7NativeWorldScope(request, SelectionManager.Instance.SelectedUnits,
                 Cold ? ExpectedArchiveArea : request.Fixture.Working.Area);
             originalSelection = SelectionManager.Instance.SelectedUnits.ToArray(); originalPause = Game.Instance.IsPaused; captured = true;
-            ummLease = MovementScreenshotCaptureCoordinator.AcquireClosedUmmLease();
+            MovementScreenshotCaptureCoordinator.AcquireClosedUmmLeaseRetained(out ummLease);
             evidence["checkpoint"] = request.PersistenceCase; evidence["cold"] = Cold;
             evidence["sourceWorkingSha256"] = request.Fixture.Working.Sha256;
             evidence["processId"] = Process.GetCurrentProcess().Id; evidence["snapshots"] = snapshots;

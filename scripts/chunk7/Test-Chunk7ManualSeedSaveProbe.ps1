@@ -13,9 +13,11 @@ $actual=Join-Path $OutputDirectory 'ActualManualSeedSaveProbe.cs';[IO.File]::Wri
 $framework='C:/Program Files (x86)/Reference Assemblies/Microsoft/Framework/.NETFramework/v4.7';$compiler='C:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/MSBuild/Current/Bin/Roslyn/csc.exe';$json='C:/Program Files (x86)/Steam/steamapps/common/Pathfinder Kingmaker/Kingmaker_Data/Managed/Newtonsoft.Json.dll'
 $exe=Join-Path $OutputDirectory 'ManualSeedProbeActual.exe';$rsp=Join-Path $OutputDirectory 'compile.rsp'
 $args=@('/nologo','/target:exe','/langversion:7.3','/optimize+','/deterministic+','/nostdlib+','/nowarn:0649,0169,0414',('/out:'+$exe),('/reference:'+$json))
-$args+=@('mscorlib.dll','System.dll','System.Core.dll','System.Xml.dll','System.Runtime.Serialization.dll')|ForEach-Object{'/reference:'+(Join-Path $framework $_)};$args+=@($actual,$TemplatePath)
+$args+=@('mscorlib.dll','System.dll','System.Core.dll','System.Xml.dll','System.Runtime.Serialization.dll')|ForEach-Object{'/reference:'+(Join-Path $framework $_)}
+$selectionSources=@('Chunk7ManualDerivedSelection.cs','Chunk7AcquiredManualSelection.cs')|ForEach-Object{Join-Path $DiagnosticSourceDirectory $_}
+$args+=@($actual,$TemplatePath)+@($selectionSources)
 [IO.File]::WriteAllLines($rsp,@($args|ForEach-Object{'"'+$_+'"'}),[Text.UTF8Encoding]::new($false))
 &$compiler ('@'+$rsp);if($LASTEXITCODE-ne0){throw 'Manual seed actual probe compile failed'}
 Copy-Item -LiteralPath $json -Destination (Join-Path $OutputDirectory 'Newtonsoft.Json.dll')
 &$exe;if($LASTEXITCODE-ne0){throw 'Manual seed actual probe regression failed'}
-@{schemaVersion=1;sourceSha256=(Get-FileHash -LiteralPath $path).Hash.ToLowerInvariant();actualProbeMethods=$true;nativeObjectsAndPatchMetadataBoundarySubstituted=$true;nativeExecution=$false;archiveAccess=$false}|ConvertTo-Json|Set-Content -LiteralPath (Join-Path $OutputDirectory 'receipt.json') -Encoding UTF8
+@{schemaVersion=1;sourceSha256=(Get-FileHash -LiteralPath $path).Hash.ToLowerInvariant();actualSelectionSources=@($selectionSources|ForEach-Object{@{path=$_;sha256=(Get-FileHash -LiteralPath $_).Hash.ToLowerInvariant()}});actualProbeMethods=$true;nativeObjectsAndPatchMetadataBoundarySubstituted=$true;nativeExecution=$false;archiveAccess=$false}|ConvertTo-Json|Set-Content -LiteralPath (Join-Path $OutputDirectory 'receipt.json') -Encoding UTF8

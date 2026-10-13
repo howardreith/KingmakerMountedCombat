@@ -111,6 +111,10 @@ function Assert-KmcReadOnlyArtifactManifest {
             ($relativePath -ceq 'horse-native-controls-ux.json' -and $kind -ceq 'horse-native-controls-ux') -or
             ($relativePath -ceq 'chunk6a-mount-preamble.json' -and $kind -ceq 'chunk6a-mount-preamble') -or
             ($relativePath -ceq 'chunk6a-native-mammoth-profile.json' -and $kind -ceq 'chunk6a-native-mammoth-profile') -or
+            ($relativePath -ceq 'chunk7-acquired-manual-evidence.json' -and $kind -ceq 'chunk7-acquired-manual-evidence') -or
+            ($relativePath -ceq 'chunk7-manual-derived-evidence.json' -and $kind -ceq 'chunk7-manual-derived-evidence') -or
+            ($relativePath -ceq 'chunk7-acquired-manual-cleanup-pending.json' -and $kind -ceq 'chunk7-acquired-manual-cleanup-pending') -or
+            ($relativePath -ceq 'chunk7-manual-derived-cleanup-pending.json' -and $kind -ceq 'chunk7-manual-derived-cleanup-pending') -or
             ($relativePath -ceq 'chunk7-manual-seed-evidence.json' -and $kind -ceq 'chunk7-manual-seed-evidence') -or
             ($relativePath -ceq 'chunk7-manual-seed-cleanup-pending.json' -and $kind -ceq 'chunk7-manual-seed-cleanup-pending') -or
             ($relativePath -ceq 'chunk7-bootstrap-inventory-evidence.json' -and $kind -ceq 'chunk7-bootstrap-inventory-evidence') -or

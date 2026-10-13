@@ -19,6 +19,12 @@ foreach($name in $names.Keys){
  # Test-Chunk7WorldEvidence and Test-Chunk7NativeDiagnostics exercise these exact leaf/kind
  # pairs with immutable manifest/hash/envelope positive and negative fixtures.
  foreach($addition in @(
+     '            ($relativePath -ceq ''chunk7-acquired-manual-evidence.json'' -and $kind -ceq ''chunk7-acquired-manual-evidence'') -or',
+     '            ($relativePath -ceq ''chunk7-acquired-manual-cleanup-pending.json'' -and $kind -ceq ''chunk7-acquired-manual-cleanup-pending'') -or',
+     '            ($relativePath -ceq ''chunk7-manual-derived-evidence.json'' -and $kind -ceq ''chunk7-manual-derived-evidence'') -or',
+     '            ($relativePath -ceq ''chunk7-manual-derived-cleanup-pending.json'' -and $kind -ceq ''chunk7-manual-derived-cleanup-pending'') -or',
+     '            ($relativePath -ceq ''chunk7-manual-derived-evidence.json'' -and $kind -ceq ''chunk7-manual-derived-evidence'') -or',
+     '            ($relativePath -ceq ''chunk7-manual-derived-cleanup-pending.json'' -and $kind -ceq ''chunk7-manual-derived-cleanup-pending'') -or',
      '            ($relativePath -ceq ''chunk7-manual-seed-evidence.json'' -and $kind -ceq ''chunk7-manual-seed-evidence'') -or',
      '            ($relativePath -ceq ''chunk7-manual-seed-cleanup-pending.json'' -and $kind -ceq ''chunk7-manual-seed-cleanup-pending'') -or',
      '            ($relativePath -ceq ''chunk7-bootstrap-inventory-evidence.json'' -and $kind -ceq ''chunk7-bootstrap-inventory-evidence'') -or',
