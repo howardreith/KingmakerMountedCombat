@@ -203,10 +203,14 @@ namespace KingmakerMountedCombat.Diagnostics
                 Require(game.CurrentlyLoadedArea == preset.Area && player.MainCharacter.Value != null &&
                     player.MainCharacter.Value.Blueprint == (preset.PlayerCharacter ?? blueprintRoot.DefaultPlayerCharacter),
                     "Native new game did not materialize its authored area and main actor.");
+                // StartDialog may defer its actual start through Game.ScheduleAction.
+                // A queued native start is still story custody even before Dialog mode.
+                var dialogState = player.Dialog;
+                Require(dialogState != null, "Native authored dialog state is unavailable at bootstrap readiness.");
                 // Story input is never synthesized. A noninteractive start remains
                 // a recorded fixture prerequisite, not mounted/acquisition proof.
                 if (game.CurrentMode != GameModeType.Default || game.CutsceneLock || game.IsModeActive(GameModeType.Dialog) ||
-                    player.MainCharacter.Value.View?.AgentASP == null) return;
+                    dialogState.Scheduled != null || player.MainCharacter.Value.View?.AgentASP == null) return;
                 RequireNoOwners();
                 var save = probe.NativeSave; var completion = persistence.LastCompletedSave;
                 Require(save != null && probe.NativeRequestedSave != null && !ReferenceEquals(save, probe.NativeRequestedSave) &&

@@ -56,16 +56,21 @@ function Assert-KmcChunk7NativeBootstrapPreflight($Value,[bool]$Passed){
 # bootstrap result, change a status, or authorize dialogue input/restoration.
 function Assert-KmcChunk7BootstrapDialogueObservation($Value,[bool]$Terminal){
  Assert-KmcExactProperties $Value @('contract','rawSnapshotsOnly','maximumSnapshots','identityCapacity','identityReleased','identityFaultCount','identityIds','snapshots','errors') 'passive bootstrap dialogue'
- if($Value.contract-isnot[string]-or$Value.contract-cne'chunk7-bootstrap-dialogue-raw-v1'){throw 'Passive dialogue contract changed.'}
+ if($Value.contract-isnot[string]-or$Value.contract-cnotin@('chunk7-bootstrap-dialogue-raw-v1','chunk7-bootstrap-dialogue-raw-v2')){throw 'Passive dialogue contract changed.'}
+ $scheduledShape=$Value.contract-ceq'chunk7-bootstrap-dialogue-raw-v2'
+ $identityCapacity=32;if($scheduledShape){$identityCapacity=40}
  Assert-KmcChunk7Boolean $Value.rawSnapshotsOnly $true
- Assert-KmcOrdinaryInteger $Value.maximumSnapshots 4 4;Assert-KmcOrdinaryInteger $Value.identityCapacity 32 32
+ Assert-KmcOrdinaryInteger $Value.maximumSnapshots 4 4;Assert-KmcOrdinaryInteger $Value.identityCapacity $identityCapacity $identityCapacity
  Assert-KmcChunk7Boolean $Value.identityReleased $Terminal;Assert-KmcOrdinaryInteger $Value.identityFaultCount 0 4
- if($Value.identityIds-isnot[Array]-or$Value.identityIds.Count-gt32-or$Value.snapshots-isnot[Array]-or$Value.snapshots.Count-gt4-or$Value.errors-isnot[Array]-or$Value.errors.Count-gt4){throw 'Passive dialogue array bounds changed.'}
+ if($Value.identityIds-isnot[Array]-or$Value.identityIds.Count-gt$identityCapacity-or$Value.snapshots-isnot[Array]-or$Value.snapshots.Count-gt4-or$Value.errors-isnot[Array]-or$Value.errors.Count-gt4){throw 'Passive dialogue array bounds changed.'}
  $ids=[Collections.Generic.HashSet[int]]::new()
  foreach($id in $Value.identityIds){Assert-KmcNativeBootstrapObject $id;if(-not$ids.Add([int]$id)){throw 'Passive dialogue identity labels duplicate.'}}
  foreach($errorText in $Value.errors){if($errorText-isnot[string]-or$errorText.Length-eq0-or$errorText.Length-gt256){throw 'Passive dialogue error shape changed.'}}
  $phases=@('bootstrap-readiness','cleanup-entry','cleanup-settlement','host-terminal');$last=-1;$lastFrame=-1
  $dataKeys=@('game','controller','topMode','dialogActive','cutsceneLock','dialog','currentCue','queuedCue','continueCue','cuePlayScheduled','dialogStopScheduled','messageBox','messageBoxShown','messageBoxType')
+ if($scheduledShape){$dataKeys+=@('dialogState','scheduledStart','scheduledStartIsScheduled','scheduledDialog')}
+ $objectKeys=@('game','controller','messageBox');if($scheduledShape){$objectKeys+=@('dialogState','scheduledStart')}
+ $blueprintKeys=@('dialog','currentCue','queuedCue','continueCue');if($scheduledShape){$blueprintKeys+=@('scheduledDialog')}
  foreach($row in $Value.snapshots){
   Assert-KmcExactProperties $row @(@('phase','frame','readSucceeded','readError')+$dataKeys) 'passive dialogue row'
   if($row.phase-isnot[string]){throw 'Passive dialogue phase must be a scalar string.'};$index=[Array]::IndexOf($phases,$row.phase)
@@ -78,11 +83,11 @@ function Assert-KmcChunk7BootstrapDialogueObservation($Value,[bool]$Terminal){
    continue
   }
   if($null-ne$row.readError){throw 'Passive dialogue successful read has an error.'}
-  foreach($key in @('game','controller','messageBox')){
+  foreach($key in $objectKeys){
    Assert-KmcOrdinaryInteger $row.$key ([int]::MinValue) ([int]::MaxValue)
    if($row.$key-ne0-and-not$ids.Contains([int]$row.$key)){throw 'Passive dialogue object is outside the retained registry.'}
   }
-  foreach($key in @('dialog','currentCue','queuedCue','continueCue')){
+  foreach($key in $blueprintKeys){
    $blueprint=$row.$key;Assert-KmcExactProperties $blueprint @('object','guid') 'passive dialogue blueprint'
    Assert-KmcOrdinaryInteger $blueprint.object ([int]::MinValue) ([int]::MaxValue)
    if($blueprint.object-ne0-and-not$ids.Contains([int]$blueprint.object)){throw 'Passive dialogue blueprint is outside the retained registry.'}
@@ -98,6 +103,13 @@ function Assert-KmcChunk7BootstrapDialogueObservation($Value,[bool]$Terminal){
    if($null-ne$row.cuePlayScheduled-or$null-ne$row.dialogStopScheduled){throw 'Passive dialogue absent controller has scheduling flags.'}
    foreach($key in @('dialog','currentCue','queuedCue','continueCue')){if($row.$key.object-ne0){throw 'Passive dialogue absent controller has a blueprint.'}}
   }elseif($row.cuePlayScheduled-isnot[bool]-or$row.dialogStopScheduled-isnot[bool]){throw 'Passive dialogue scheduling flags must be boolean.'}
+  if($scheduledShape){
+   if($row.game-eq0-and$row.dialogState-ne0){throw 'Passive dialogue absent game has a native dialog state.'}
+   if($row.dialogState-eq0-and$row.scheduledStart-ne0){throw 'Passive dialogue absent state has a scheduled start.'}
+   if($row.scheduledStart-eq0){
+    if($null-ne$row.scheduledStartIsScheduled-or$row.scheduledDialog.object-ne0){throw 'Passive dialogue absent scheduled start has native state.'}
+   }elseif($row.scheduledStartIsScheduled-isnot[bool]){throw 'Passive dialogue scheduled-start marker must be boolean.'}
+  }
   if($row.messageBox-eq0){if($null-ne$row.messageBoxShown-or$null-ne$row.messageBoxType){throw 'Passive dialogue absent popup has native state.'}}
   # Unity-null may retain a CLR reference: the producer records its identity
   # while both observational getters are unavailable. This is not a claim of

@@ -6,6 +6,7 @@ using Kingmaker;
 using Kingmaker.Blueprints;
 using Kingmaker.Controllers.Dialog;
 using Kingmaker.DialogSystem.Blueprints;
+using Kingmaker.DialogSystem.State;
 using Kingmaker.GameModes;
 using Kingmaker.UI;
 using Newtonsoft.Json.Linq;
@@ -17,9 +18,10 @@ namespace KingmakerMountedCombat.Diagnostics
     // observations. The host retains this recorder through its terminal sample.
     internal sealed class Chunk7BootstrapDialogueObservation : IDisposable
     {
-        internal const string Contract = "chunk7-bootstrap-dialogue-raw-v1";
+        internal const string Contract = "chunk7-bootstrap-dialogue-raw-v2";
         internal const int MaximumSnapshots = 4;
-        internal const int IdentityCapacity = 32;
+        // Ten reference-bearing fields per snapshot, with at most four phases.
+        internal const int IdentityCapacity = 40;
         private static readonly string[] Phases = { "bootstrap-readiness", "cleanup-entry", "cleanup-settlement", "host-terminal" };
         private readonly RetainedObjectIdentity identities;
         private readonly JArray rows = new JArray();
@@ -57,6 +59,9 @@ namespace KingmakerMountedCombat.Diagnostics
                     row["queuedCue"] = Blueprint(value.QueuedCue, value.QueuedCueGuid);
                     row["continueCue"] = Blueprint(value.ContinueCue, value.ContinueCueGuid);
                     row["cuePlayScheduled"] = value.CuePlayScheduled; row["dialogStopScheduled"] = value.DialogStopScheduled;
+                    row["dialogState"] = identities.Get(value.DialogState); row["scheduledStart"] = identities.Get(value.ScheduledStart);
+                    row["scheduledStartIsScheduled"] = value.ScheduledStartIsScheduled;
+                    row["scheduledDialog"] = Blueprint(value.ScheduledDialog, value.ScheduledDialogGuid);
                     row["messageBox"] = identities.Get(value.MessageBox); row["messageBoxShown"] = value.MessageBoxShown;
                     row["messageBoxType"] = value.MessageBoxType;
                     row["readSucceeded"] = true;
@@ -79,6 +84,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["game"] = null, ["controller"] = null, ["topMode"] = null, ["dialogActive"] = null, ["cutsceneLock"] = null,
                 ["dialog"] = null, ["currentCue"] = null, ["queuedCue"] = null, ["continueCue"] = null,
                 ["cuePlayScheduled"] = null, ["dialogStopScheduled"] = null,
+                ["dialogState"] = null, ["scheduledStart"] = null, ["scheduledStartIsScheduled"] = null, ["scheduledDialog"] = null,
                 ["messageBox"] = null, ["messageBoxShown"] = null, ["messageBoxType"] = null };
         }
         private static string ErrorText(Exception error)
@@ -112,6 +118,10 @@ namespace KingmakerMountedCombat.Diagnostics
             var current = controller == null ? null : ReadField<BlueprintCue>(typeof(DialogController), controller, "m_CurrentCue", 0x04005E5A);
             var queued = controller == null ? null : ReadField<BlueprintCueBase>(typeof(DialogController), controller, "m_CueToPlay", 0x04005E6E);
             var continued = controller == null ? null : ReadField<BlueprintCueBase>(typeof(DialogController), controller, "m_ContinueCue", 0x04005E68);
+            var nativePlayer = game == null ? null : game.Player;
+            var dialogState = nativePlayer == null ? null : nativePlayer.Dialog;
+            var scheduled = dialogState == null ? null : ReadField<StartDialogData>(typeof(DialogState), dialogState, "<Scheduled>k__BackingField", 0x04005611);
+            var scheduledDialog = scheduled == null ? null : ReadField<BlueprintDialog>(typeof(StartDialogData), scheduled, "Dialog", 0x04005E54);
             var popup = ReadField<DialogMessageBox>(typeof(DialogMessageBox), null, "Instance", 0x04001DF6);
             return new RawState { Game = game, Controller = controller,
                 TopMode = game == null ? null : game.CurrentMode.ToString(),
@@ -119,6 +129,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 CutsceneLock = game == null ? (bool?)null : game.CutsceneLock,
                 Dialog = dialog, DialogGuid = GuidOf(dialog), CurrentCue = current, CurrentCueGuid = GuidOf(current),
                 QueuedCue = queued, QueuedCueGuid = GuidOf(queued), ContinueCue = continued, ContinueCueGuid = GuidOf(continued),
+                DialogState = dialogState, ScheduledStart = scheduled, ScheduledDialog = scheduledDialog, ScheduledDialogGuid = GuidOf(scheduledDialog),
+                ScheduledStartIsScheduled = scheduled == null ? (bool?)null : ReadField<bool>(typeof(StartDialogData), scheduled, "<IsScheduled>k__BackingField", 0x04005E59),
                 CuePlayScheduled = controller == null ? (bool?)null : ReadField<bool>(typeof(DialogController), controller, "m_CuePlayScheduled", 0x04005E6F),
                 DialogStopScheduled = controller == null ? (bool?)null : ReadField<bool>(typeof(DialogController), controller, "m_DialogStopScheduled", 0x04005E70),
                 MessageBox = popup, MessageBoxShown = popup == null ? (bool?)null : popup.IsShown,
@@ -141,6 +153,9 @@ namespace KingmakerMountedCombat.Diagnostics
         internal sealed class RawState
         {
             internal object Game, Controller, Dialog, CurrentCue, QueuedCue, ContinueCue, MessageBox;
+            internal object DialogState, ScheduledStart, ScheduledDialog;
+            internal string ScheduledDialogGuid;
+            internal bool? ScheduledStartIsScheduled;
             internal string TopMode, DialogGuid, CurrentCueGuid, QueuedCueGuid, ContinueCueGuid;
             internal bool? DialogActive, CutsceneLock, CuePlayScheduled, DialogStopScheduled, MessageBoxShown;
             internal int? MessageBoxType;

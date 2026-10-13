@@ -8,7 +8,7 @@ using Newtonsoft.Json.Linq;
 using Newtonsoft.Json.Serialization;
 using Kingmaker;
 using UnityEngine;
-namespace Kingmaker { sealed class Game { public KingmakerMountedCombat.Diagnostics.DialogController DialogController;public KingmakerMountedCombat.Diagnostics.GameModeType CurrentMode;public bool CutsceneLock;public bool IsModeActive(KingmakerMountedCombat.Diagnostics.GameModeType mode){return CurrentMode==mode;} } }
+namespace Kingmaker { sealed class Player { public KingmakerMountedCombat.Diagnostics.DialogState Dialog=new KingmakerMountedCombat.Diagnostics.DialogState(); } sealed class Game { public Player Player=new Player();public KingmakerMountedCombat.Diagnostics.DialogController DialogController;public KingmakerMountedCombat.Diagnostics.GameModeType CurrentMode;public bool CutsceneLock;public bool IsModeActive(KingmakerMountedCombat.Diagnostics.GameModeType mode){return CurrentMode==mode;} } }
 namespace UnityEngine { static class Time { internal static int frameCount; } class Object { internal bool Destroyed;public static bool operator==(Object a,Object b){bool an=ReferenceEquals(a,null)||a.Destroyed,bn=ReferenceEquals(b,null)||b.Destroyed;return an&&bn||!an&&!bn&&ReferenceEquals(a,b);}public static bool operator!=(Object a,Object b){return !(a==b);}public override bool Equals(object value){return ReferenceEquals(this,value);}public override int GetHashCode(){return base.GetHashCode();} } }
 namespace KingmakerMountedCombat.Diagnostics {
 enum GameModeType { Default,Dialog }
@@ -16,6 +16,8 @@ class BlueprintScriptableObject:UnityEngine.Object { public string AssetGuidThre
 class BlueprintDialog:BlueprintScriptableObject {}
 class BlueprintCueBase:BlueprintScriptableObject {}
 class BlueprintCue:BlueprintCueBase {}
+class DialogState { public StartDialogData Scheduled {get;set;} }
+class StartDialogData { public BlueprintDialog Dialog;public bool IsScheduled {get;set;} }
 class DialogController { public BlueprintDialog Dialog;public BlueprintCue m_CurrentCue;public BlueprintCueBase m_CueToPlay,m_ContinueCue;public bool m_CuePlayScheduled,m_DialogStopScheduled; }
 class DialogMessageBoxBase { public enum BoxType { TestValue=3 } }
 class DialogMessageBox:UnityEngine.Object { public static DialogMessageBox Instance;public DialogMessageBoxBase.BoxType m_BoxType;internal bool Shown,Throw;internal int Reads;public bool IsShown { get { Reads++;if(Throw)throw new InvalidOperationException("popup read failed");return Shown; } } }
@@ -29,7 +31,7 @@ __ACTUAL_RECORDER__
 __ACTUAL_NATIVE_READ__
 __ACTUAL_GUID_READ__
  private static void RequireModule(Type type){}
- private static T ReadField<T>(Type type,object instance,string name,int token){return (T)type.GetField(name,BindingFlags.Public|BindingFlags.Instance|BindingFlags.Static|BindingFlags.DeclaredOnly).GetValue(instance);}
+ private static T ReadField<T>(Type type,object instance,string name,int token){return (T)type.GetField(name,BindingFlags.Public|BindingFlags.NonPublic|BindingFlags.Instance|BindingFlags.Static|BindingFlags.DeclaredOnly).GetValue(instance);}
 __ACTUAL_RAW_STATE__
 }
 static class NativeRead {
@@ -96,6 +98,10 @@ static class Tests {
   recorder=Recorder();state=State();state.DialogGuid=new string('x',65);recorder.Observe("cleanup-entry",1,()=>state);Check("oversized blueprint label cannot escape observation bound",!(bool)Row(recorder)["readSucceeded"]);recorder.Dispose();Check("partially labelled oversized read releases references",Held(recorder)==0);
   recorder=Recorder();state=State();state.Dialog=null;recorder.Observe("cleanup-entry",1,()=>state);Check("blueprint string without object refuses",!(bool)Row(recorder)["readSucceeded"]);
   recorder=Recorder();for(int index=0;index<4;index++){state=State();state.QueuedCue=new object();state.QueuedCueGuid="queued";state.ContinueCue=new object();state.ContinueCueGuid="continued";recorder.Observe(new[]{"bootstrap-readiness","cleanup-entry","cleanup-settlement","host-terminal"}[index],index,()=>state);}Check("four maximum distinct rows stay under identity capacity",Held(recorder)==28&&((JArray)recorder.Capture()["snapshots"]).Count==4);recorder.Dispose();Check("maximum observation releases all references",Held(recorder)==0);
+  recorder=Recorder();for(int index=0;index<4;index++){state=State();state.QueuedCue=new object();state.QueuedCueGuid="queued";state.ContinueCue=new object();state.ContinueCueGuid="continued";state.DialogState=new object();state.ScheduledStart=new object();state.ScheduledStartIsScheduled=true;state.ScheduledDialog=new object();state.ScheduledDialogGuid="scheduled";recorder.Observe(new[]{"bootstrap-readiness","cleanup-entry","cleanup-settlement","host-terminal"}[index],index,()=>state);}
+  Check("v2 four distinct snapshots retain all forty references",Held(recorder)==40&&recorder.Capture()["snapshots"].All(row=>(bool)row["readSucceeded"]));
+  Check("v2 exact capacity covers all ten object fields per phase",(int)recorder.Capture()["identityCapacity"]==40&&(int)recorder.Capture()["identityFaultCount"]==0);
+  recorder.Dispose();var maximum=recorder.Capture();Save(folder,"maximum-distinct.json",maximum);Check("v2 maximum capture releases references and preserves labels",Held(recorder)==0&&((JArray)maximum["identityIds"]).Count==40&&(bool)maximum["identityReleased"]);
   recorder=Recorder();recorder.Dispose();NativeRead.Reads=0;UnityEngine.Time.frameCount=40;var preReleased=recorder.CaptureTerminal(game);Save(folder,"released-error.json",preReleased);Check("premature release is explicit and does not read native",NativeRead.Reads==0&&((JArray)preReleased["errors"]).Count==1&&(bool)preReleased["identityReleased"]);
   NativeRead.UseActual=true;var nativeGame=new Game{CurrentMode=GameModeType.Dialog,DialogController=new DialogController{m_CuePlayScheduled=true,m_DialogStopScheduled=false,Dialog=new BlueprintDialog{AssetGuidThreadSafe="native-dialog"},m_CurrentCue=new BlueprintCue{AssetGuidThreadSafe="native-cue"}}};
   var popup=new DialogMessageBox{Destroyed=true,Shown=true,m_BoxType=DialogMessageBoxBase.BoxType.TestValue};DialogMessageBox.Instance=popup;recorder=Recorder();UnityEngine.Time.frameCount=50;var unityNull=recorder.CaptureTerminal(nativeGame);Save(folder,"unity-null-popup.json",unityNull);
@@ -105,6 +111,14 @@ static class Tests {
   DialogMessageBox.Instance=null;recorder=Recorder();var absentPopup=recorder.CaptureTerminal(nativeGame);Save(folder,"absent-popup.json",absentPopup);Check("actual absent popup remains zero identity",(int)absentPopup["snapshots"][0]["messageBox"]==0&&(bool?)absentPopup["snapshots"][0]["messageBoxShown"]==null);
   DialogMessageBox.Instance=new DialogMessageBox{Shown=true,m_BoxType=DialogMessageBoxBase.BoxType.TestValue};recorder=Recorder();var livePopup=recorder.CaptureTerminal(nativeGame);Save(folder,"live-popup.json",livePopup);Check("actual live popup reads shown and enum exactly",(bool)livePopup["snapshots"][0]["messageBoxShown"]&&(int)livePopup["snapshots"][0]["messageBoxType"]==3&&DialogMessageBox.Instance.Reads==1);
   DialogMessageBox.Instance.Throw=true;recorder=Recorder();var popupError=recorder.CaptureTerminal(nativeGame);Check("actual getter exception stays explicit and releases recorder",!(bool)popupError["snapshots"][0]["readSucceeded"]&&recorder.Released&&Held(recorder)==0);
+  DialogMessageBox.Instance=null;var scheduled=new StartDialogData{Dialog=new BlueprintDialog{AssetGuidThreadSafe="scheduled-native-dialog"},IsScheduled=true};nativeGame.CurrentMode=GameModeType.Default;nativeGame.DialogController=new DialogController();nativeGame.Player.Dialog.Scheduled=scheduled;
+  recorder=Recorder();var pendingStart=recorder.CaptureTerminal(nativeGame);Save(folder,"scheduled-start.json",pendingStart);var pendingRow=(JObject)pendingStart["snapshots"][0];
+  Check("actual pending native start is separate from controller mode",(string)pendingRow["topMode"]=="Default"&&!(bool)pendingRow["dialogActive"]&&(int)pendingRow["dialog"]["object"]==0&&(int)pendingRow["scheduledStart"]!=0);
+  Check("actual pending-start fields retain exact native flag and blueprint",(int)pendingRow["dialogState"]!=0&&(bool)pendingRow["scheduledStartIsScheduled"]&&(string)pendingRow["scheduledDialog"]["guid"]=="scheduled-native-dialog");
+  Check("actual observation leaves scheduled debt unchanged",ReferenceEquals(nativeGame.Player.Dialog.Scheduled,scheduled)&&scheduled.IsScheduled);
+  scheduled.IsScheduled=false;recorder=Recorder();var unmarked=recorder.CaptureTerminal(nativeGame);Save(folder,"scheduled-unmarked.json",unmarked);Check("unmarked native start remains an observed reference",(int)unmarked["snapshots"][0]["scheduledStart"]!=0&&!(bool)unmarked["snapshots"][0]["scheduledStartIsScheduled"]);
+  nativeGame.Player.Dialog.Scheduled=null;nativeGame.CurrentMode=GameModeType.Dialog;nativeGame.DialogController.Dialog=scheduled.Dialog;recorder=Recorder();var consumed=recorder.CaptureTerminal(nativeGame);Save(folder,"scheduled-consumed.json",consumed);Check("consumed native start keeps active authored state separate",(int)consumed["snapshots"][0]["scheduledStart"]==0&&(bool?)consumed["snapshots"][0]["scheduledStartIsScheduled"]==null&&(bool)consumed["snapshots"][0]["dialogActive"]);
+  nativeGame.Player.Dialog=null;recorder=Recorder();var missingState=recorder.CaptureTerminal(nativeGame);Save(folder,"missing-dialog-state.json",missingState);Check("missing native dialog state remains a raw absence",(int)missingState["snapshots"][0]["dialogState"]==0&&(int)missingState["snapshots"][0]["scheduledStart"]==0);
   NativeRead.UseActual=false;DialogMessageBox.Instance=null;
   Console.WriteLine("TOTAL PASS="+passed+" FAIL="+failed);return failed==0?0:1;
  }
