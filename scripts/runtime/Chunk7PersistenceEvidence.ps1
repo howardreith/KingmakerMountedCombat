@@ -60,7 +60,7 @@ function Get-KmcChunk7PersistenceLeaf([string]$Case) {
 }
 function Get-KmcChunk7ExpectedArchiveArea($Request) {
     if($Request.persistenceCase-ceq'multi-area-autosave'){Assert-KmcChunk7AreaTarget $Request;return [string]$Request.persistenceAreaTarget.area}
-    return [string]$Request.fixture.working.area
+    return [string](Get-KmcChunk7SelectedFixture $Request).area
 }
 function Assert-KmcChunk7AreaTarget($Request) {
     if($Request.persistenceCase-cne'multi-area-autosave'){return}
@@ -83,7 +83,7 @@ function Assert-KmcChunk7PersistenceArchive($Archive,$Request) {
     $partialSlots=$Request.persistenceCase-ceq'multi-nonselected-mount-unsettled-manual'
     $slotCount=if($partialSlots){2}else{4}
     Assert-KmcExactProperties $Archive @('SchemaVersion','CampaignId','AreaId','GameTimeTicks','Policy','RulesId','Pairs','Participations','Slots','Combat') 'Chunk 7 native archive'
-    if(-not(Test-KmcExactJsonInteger $Archive.SchemaVersion)-or$Archive.SchemaVersion-ne3-or$Archive.CampaignId-cne$Request.fixture.working.gameId-or
+    if(-not(Test-KmcExactJsonInteger $Archive.SchemaVersion)-or$Archive.SchemaVersion-ne3-or$Archive.CampaignId-cne(Get-KmcChunk7SelectedFixture $Request).gameId-or
        $Archive.AreaId-cne(Get-KmcChunk7ExpectedArchiveArea $Request)-or-not(Test-KmcExactJsonInteger $Archive.GameTimeTicks)-or$Archive.GameTimeTicks-lt0-or
        $Archive.Policy-cne'rider-principal-distinct-native-v1'-or$Archive.RulesId-cne'crpg-transport-v1'-or$Archive.Pairs-isnot[Array]-or$Archive.Pairs.Count-ne2-or
        $Archive.Participations-isnot[Array]-or$Archive.Participations.Count-ne0-or$null-ne$Archive.Combat-or$Archive.Slots-isnot[Array]-or$Archive.Slots.Count-ne$slotCount){
@@ -101,11 +101,18 @@ function Assert-KmcChunk7PersistenceArchive($Archive,$Request) {
             if(-not$ids.Add(([Guid]$actor.Id).ToString('N'))){throw 'Actor has duplicate or cross-role mounted custody.'}
         }
     }
+    if(Test-KmcChunk7OwnedPairsScenario $Request.scenario){
+        Assert-KmcChunk7OwnedPairsDescriptor $Request;$roles=Get-KmcChunk7OwnedPairIds $Request
+        $first=@($Archive.Pairs|Where-Object{$_.Rider.Id-ceq$roles[0]});$second=@($Archive.Pairs|Where-Object{$_.Rider.Id-ceq$roles[2]})
+        if($first.Count-ne1-or$second.Count-ne1-or$first[0].Mount.Id-cne$roles[1]-or$second[0].Mount.Id-cne$roles[3]){throw 'Native archive substituted inherited rider/mount roles.'}
+        foreach($pair in @($first[0],$second[0])){if($pair.ProfileId-isnot[string]-or$pair.ProfileId-cnotmatch'^[a-z0-9][a-z0-9.-]{0,127}$'){throw 'Inherited archive profile token invalid.'}}
+    }else{
     $first=@($Archive.Pairs|Where-Object ProfileId -CEQ 'medium-humanoid-mammoth-v1')
     $second=@($Archive.Pairs|Where-Object ProfileId -CEQ 'medium-humanoid-horse-v1')
     if($first.Count-ne1-or$second.Count-ne1-or$first[0].Rider.Id-cne'b6628a77-4962-47a4-a17c-88d9836fc9d5'-or
        $first[0].Mount.Id-cne'd79a4f6c-b74e-4868-95bd-533899131acb'-or$second[0].Rider.Id-cne'd17c8fd0-6627-40c4-bf9a-024cf001c1f7'){
         throw 'Native archive actor/profile roles differ from the exact qualified fixture.'
+    }
     }
     $slotIds=[Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
     foreach($slot in $Archive.Slots) {
@@ -155,18 +162,26 @@ function Assert-KmcChunk7PersistenceObservation($Request,$Artifact,[string]$Stat
     if($Request.persistenceCase-ceq'legacy-schema1-resave-manual'){Assert-KmcChunk7Schema1Observation $Request $Artifact;return}
     if(Test-KmcChunk7CombatPersistenceCase $Request.persistenceCase){Assert-KmcChunk7CombatPersistenceObservation $Request $Artifact;return}
     if($Artifact.status-cne'PASS'){throw 'Native persistence artifact failed.'}
-    $o=$Artifact.observations;$cold=$Request.scenario-ceq'chunk7-persistence-load'
+    $o=$Artifact.observations;$cold=(Get-KmcChunk7SelectedScenario $Request)-ceq'chunk7-persistence-load'
     Assert-KmcChunk7NativeCounters $o @('nativeSchema','nativeCapacity','processId')
-    if(-not(Test-KmcChunk7PersistenceScenario $Request.scenario)-or$Request.persistenceCase-cnotin(Get-KmcChunk7PersistenceCases)-or
+    $owned=Test-KmcChunk7OwnedPairsScenario $Request.scenario
+    if($owned){
+        Assert-KmcChunk7InheritedEvidence $Request $o
+        if(-not(Test-KmcChunk7PersistenceScenario (Get-KmcChunk7SelectedScenario $Request))-or$o.checkpoint-isnot[string]-or$o.checkpoint-cne$Request.persistenceCase-or$null-ne$o.sourceWorkingSha256-or$o.nativeSchema-ne3-or$o.nativeCapacity-ne2-or-not(Test-KmcExactJsonInteger $o.processId)-or$o.processId-le0){throw 'Inherited native persistence case or capability differs.'}
+        Assert-KmcBootstrapInventoryString $o.inheritedManualSha256 $Request.ownedPairs.sourceArchiveSha256
+    }else{
+    if(-not(Test-KmcChunk7PersistenceScenario (Get-KmcChunk7SelectedScenario $Request))-or$Request.persistenceCase-cnotin(Get-KmcChunk7PersistenceCases)-or
        $o.checkpoint-cne$Request.persistenceCase-or$o.sourceWorkingSha256-cne$Request.fixture.working.sha256-or
        $o.sourceWorkingSha256-cne'5eb4e0b4cbd8d60dc879a02ff71aadfde3f517304754857f0cc68d0f9a93f1c6'-or
        $o.nativeSchema-ne3-or$o.nativeCapacity-ne2-or-not(Test-KmcExactJsonInteger $o.processId)-or$o.processId-le0){throw 'Native persistence family/fixture/capability identity differs.'}
+    }
     Assert-KmcChunk7Boolean $o.cold $cold
-    Assert-KmcChunk7Boolean $o.nativeProgressionRequiresExternalWorkingRestoration $true
+    Assert-KmcChunk7Boolean $o.nativeProgressionRequiresExternalWorkingRestoration (-not$owned)
     Assert-KmcChunk7Boolean $o.ordinaryRespecProven $false
     Assert-KmcChunk7Boolean $o.combatDebtProof $false
     $archive=if($cold){$o.loadedArchive}else{$o.nativeWrite.archive}
     Assert-KmcChunk7PersistenceArchive $archive $Request
+    if($owned){Assert-KmcChunk7OwnedArchiveProfiles $Request $o $archive;if(-not$cold){Assert-KmcChunk7OwnedOutputEvidence $Request $o}}
     $label=if($cold){'cold-restored-before-input'}else{'native-write-complete'}
     $snapshot=@($o.snapshots|Where-Object label -CEQ $label)
     if($snapshot.Count-ne1){throw 'Exact archive completion snapshot is missing or duplicated.'}
@@ -202,7 +217,7 @@ function Assert-KmcChunk7PersistenceObservation($Request,$Artifact,[string]$Stat
     } else {
         $type=Get-KmcChunk7PersistenceType $Request.persistenceCase
         Assert-KmcChunk7NativeCounters $o.nativeWrite @('snapshotCount')
-        if($o.nativeWrite.nativeType-cne$type-or$o.nativeWrite.operation-cne'None'-or$o.nativeWrite.snapshotCount-ne1-or
+        if($o.nativeWrite.nativeType-cne$type-or$o.nativeWrite.operation-cne'None'-or$o.nativeWrite.snapshotCount-ne$(if($Request.persistenceCase-ceq'multi-owned-worker-cancel-manual'){2}else{1})-or
            $o.nativeWrite.sha256-cnotmatch'^[0-9a-f]{64}$'-or-not(Test-KmcExactJsonInteger $o.nativeWrite.length)-or
            $o.nativeWrite.length-le0-or$o.nativeWrite.length-gt256MB){throw 'Native save category/completion identity differs.'}
         if($Request.persistenceCase-ceq'multi-area-autosave'){
@@ -219,8 +234,10 @@ function Assert-KmcChunk7PersistenceObservation($Request,$Artifact,[string]$Stat
         $inputs=@($o.inputs)
         if($inputs.Count-ne2){throw 'Two actual native Mount inputs are required.'}
         $pairs=@($archive.Pairs|Sort-Object ProfileId -Descending)
+        if($owned){$roles=Get-KmcChunk7OwnedPairIds $Request;$expected=@(@('mount-mammoth',$roles[0],$roles[1]),@('mount-horse',$roles[2],$roles[3]))}else{
         $expected=@(@('mount-mammoth','b6628a77-4962-47a4-a17c-88d9836fc9d5','d79a4f6c-b74e-4868-95bd-533899131acb'),
           @('mount-horse','d17c8fd0-6627-40c4-bf9a-024cf001c1f7',@($archive.Pairs|Where-Object ProfileId -CEQ 'medium-humanoid-horse-v1')[0].Mount.Id))
+        }
         for($i=0;$i-lt2;$i++) {
             $row=$inputs[$i];$spec=$expected[$i]
             Assert-KmcChunk7NativeCounters $row @('nativeCastDelta','nativeRefusalDelta','generationAtInit')
@@ -229,10 +246,12 @@ function Assert-KmcChunk7PersistenceObservation($Request,$Artifact,[string]$Stat
                [string]::IsNullOrEmpty($row.control)-or$row.selectionAfterInput-ceq$row.casterId){throw 'Native Mount input lost exact actor/control/generation/selection binding.'}
             Assert-KmcChunk7Boolean $row.clicked $true;Assert-KmcChunk7Boolean $row.terminal $true
         }
+        if(-not$owned){
         Assert-KmcChunk7NativeCounters $o.acquisition @('nativeRangerCommitCount','huntersBondSelectionLevel','rangerCompanionSelectionLevel','horseFactRankAtCommit')
         Assert-KmcChunk7Boolean $o.acquisition.horsePresentAtNativeCommit $true
         if($o.acquisition.nativeRangerCommitCount-ne4-or$o.acquisition.huntersBondSelectionLevel-ne4-or$o.acquisition.rangerCompanionSelectionLevel-ne4-or
-           $o.acquisition.horseFactRankAtCommit-ne1-or$o.acquisition.horsePresentAtNativeCommit-ne$true){throw 'Native Horse fixture acquisition evidence differs.'}
+           $o.acquisition.horseFactRankAtCommit-ne1-or$o.acquisition.horsePresentAtNativeCommit-ne$true){throw 'Native Horse fixture acquisition evidence differs.'}        }
+
     }
     if(-not$cold-and(Test-KmcChunk7SaveBoundaryCase $Request.persistenceCase)){Assert-KmcChunk7SaveBoundarySource $Request $o $archive}
     $moves=@($o.movements)
@@ -246,28 +265,30 @@ function Assert-KmcChunk7PersistenceObservation($Request,$Artifact,[string]$Stat
         if(-not(Test-KmcChunk7FiniteNumber $move.distance)-or-not(Test-KmcChunk7FiniteNumber $move.residual)-or
            [Math]::Abs($distance-[double]$move.distance)-gt0.0001-or[Math]::Abs($residual-[double]$move.residual)-gt0.0001-or$distance-lt0.75-or$residual-gt1){throw 'Native movement missed the unchanged measured endpoint.'}
     }
-    foreach($field in @('pairsClear','sourceHorseRemoved','controlsSettled','saveCustodyClear','selectionRestored','nativeProgressionRequiresExternalWorkingRestoration')) {Assert-KmcChunk7Boolean $o.cleanup.$field $true}
+    if($owned){foreach($field in @('pairsClear','controlsSettled','saveCustodyClear','selectionRestored','inheritedPetsPreserved')){Assert-KmcChunk7Boolean $o.cleanup.$field $true};Assert-KmcChunk7Boolean $o.cleanup.sourceHorseRemoved $false;Assert-KmcChunk7Boolean $o.cleanup.nativeProgressionRequiresExternalWorkingRestoration $false}else{
+    foreach($field in @('pairsClear','sourceHorseRemoved','controlsSettled','saveCustodyClear','selectionRestored','nativeProgressionRequiresExternalWorkingRestoration')) {Assert-KmcChunk7Boolean $o.cleanup.$field $true}    }
     Assert-KmcChunk7Boolean $o.cleanup.ordinaryRespecProven $false
     if(@($o.cleanup.world.owners).Count-ne0){throw 'Cleanup retained native custody.'}
 }
 function Assert-KmcChunk7PersistenceArtifact($Request,$Manifest,[string]$Status='PASS') {
     $present=@($Manifest.artifacts|Where-Object{$_.relativePath-ceq'chunk7-persistence-evidence.json'-or$_.kind-ceq'chunk7-persistence-evidence'})
-    if(-not(Test-KmcChunk7PersistenceScenario $Request.scenario)){if($present.Count-ne0){throw 'Another scenario supplied Chunk 7 persistence evidence.'};return}
+    if(-not(Test-KmcChunk7PersistenceScenario (Get-KmcChunk7SelectedScenario $Request))){if($present.Count-ne0){throw 'Another scenario supplied Chunk 7 persistence evidence.'};return}
     if($present.Count-eq0-and$Status-cne'PASS'){return}
     $artifact=Read-KmcChunk7ManifestArtifact $Request $Manifest 'chunk7-persistence-evidence.json' 'chunk7-persistence-evidence'
     Assert-KmcChunk7PersistenceObservation $Request $artifact $Status
-    if($Status-ceq'PASS'-and($Request.scenario-ceq'chunk7-persistence-save'-or($Request.scenario-ceq'chunk7-persistence-load'-and$Request.persistenceCase-cin@('legacy-schema1-resave-manual','legacy-mounted-pending-tb-manual')))) {
+    if($Status-ceq'PASS'-and((Get-KmcChunk7SelectedScenario $Request)-ceq'chunk7-persistence-save'-or((Get-KmcChunk7SelectedScenario $Request)-ceq'chunk7-persistence-load'-and$Request.persistenceCase-cin@('legacy-schema1-resave-manual','legacy-mounted-pending-tb-manual')))) {
         $w=$artifact.observations.nativeWrite
-        $leaf=if($Request.scenario-ceq'chunk7-persistence-load'-and$Request.persistenceCase-ceq'legacy-mounted-pending-tb-manual'){'Manual_301_KMC_C7_SCHEMA2.zks'}else{Get-KmcChunk7PersistenceLeaf $Request.persistenceCase}
+        $leaf=if(Test-KmcChunk7OwnedPairsScenario $Request.scenario){Get-KmcChunk7OwnedOutputLeaf $Request $artifact.observations}else{if((Get-KmcChunk7SelectedScenario $Request)-ceq'chunk7-persistence-load'-and$Request.persistenceCase-ceq'legacy-mounted-pending-tb-manual'){'Manual_301_KMC_C7_SCHEMA2.zks'}else{Get-KmcChunk7PersistenceLeaf $Request.persistenceCase}}
         $path=Join-Path (Get-KmcLabRoot) ('runtime-staging/persistence-'+$Request.runId+'/Saved Games/'+$leaf)
         if($w.path-isnot[string]-or$w.path-cne$path){throw 'Native save escaped its declared isolated profile leaf.'}
         Assert-KmcNotReparsePoint $path 'Chunk 7 native archive';Assert-KmcNotHardLink $path 'Chunk 7 native archive'
-        $metadata=if($Request.scenario-ceq'chunk7-persistence-save'-and$Request.persistenceCase-ceq'legacy-mounted-pending-tb-manual'){$w.nativeMetadata}else{$w.archive}
+        $metadata=if((Get-KmcChunk7SelectedScenario $Request)-ceq'chunk7-persistence-save'-and$Request.persistenceCase-ceq'legacy-mounted-pending-tb-manual'){$w.nativeMetadata}else{$w.archive}
         Assert-KmcChargeArchiveSnapshot $path $w.sha256 $w.length $metadata
     }
 }
 
 function Assert-KmcChunk7PersistenceLoadDescriptor($Request) {
+    if(Test-KmcChunk7OwnedPairsScenario $Request.scenario){Assert-KmcChunk7OwnedPairsDescriptor $Request;return}
     $d=$Request.persistenceLoad
     Assert-KmcExactProperties $d @('internalName','fileName','sha256','length','lastWriteTimeUtcTicks','gameId','gameName','area') 'Chunk 7 cold native archive descriptor'
     $type=Get-KmcChunk7PersistenceType $Request.persistenceCase;$leaf=Get-KmcChunk7PersistenceLeaf $Request.persistenceCase

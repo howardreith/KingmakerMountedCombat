@@ -21,7 +21,7 @@ function Assert-KmcChunk7CleanupArtifacts($Request,$Manifest,[string]$Status='PA
         $kind='chunk7-'+$family.name+'-cleanup-pending';$leaf=$kind+'.json'
         $present=@($Manifest.artifacts|Where-Object{$_.relativePath-ceq$leaf-or$_.kind-ceq$kind})
         if($present.Count-eq0){continue}
-        if($Request.scenario-cnotin$family.scenarios){throw 'Foreign scenario supplied retained cleanup evidence.'}
+        if((Get-KmcChunk7SelectedScenario $Request)-cnotin$family.scenarios){throw 'Foreign scenario supplied retained cleanup evidence.'}
         if($Status-cne'FAIL'){throw 'Retained cleanup timeout cannot be promoted to PASS.'}
         $artifact=Read-KmcChunk7ManifestArtifact $Request $Manifest $leaf $kind
         if(-not(Test-KmcExactJsonInteger $artifact.schemaVersion)-or$artifact.schemaVersion-ne1-or$artifact.status-cne'FAIL'-or$artifact.errors.Count-eq0){throw 'Retained cleanup receipt must be a versioned FAIL with nonempty errors.'}

@@ -8,7 +8,7 @@ function Get-KmcChunk7NativeLifeRows([string]$Scenario){
 function Get-KmcChunk7NativeLifeRuntimeRows{Get-KmcChunk7NativeLifeRows 'chunk7-two-pair-native-life-cleanup'}
 function Assert-KmcChunk7NativeLifeArtifact($Request,$Manifest,[string]$Status='PASS'){
  $present=@($Manifest.artifacts|Where-Object{$_.relativePath-ceq'chunk7-native-life-evidence.json'-or$_.kind-ceq'chunk7-native-life-evidence'})
- if(-not(Test-KmcChunk7NativeLifeScenario $Request.scenario)){if($present.Count-ne0){throw 'Foreign scenario supplied native life evidence.'};return}
+ if(-not(Test-KmcChunk7NativeLifeScenario (Get-KmcChunk7SelectedScenario $Request))){if($present.Count-ne0){throw 'Foreign scenario supplied native life evidence.'};return}
  if($present.Count-eq0-and$Status-cne'PASS'){return}
  $artifact=Read-KmcChunk7ManifestArtifact $Request $Manifest 'chunk7-native-life-evidence.json' 'chunk7-native-life-evidence'
  Assert-KmcChunk7NativeLifeEvidence $Request $artifact $Status
@@ -31,19 +31,22 @@ function Assert-KmcChunk7LifeActor($Actor,[string]$Id,[bool]$Conscious){
 }
 function Assert-KmcChunk7NativeLifeEvidence($Request,$Artifact,[string]$Status){
  Assert-KmcChunk7ArtifactEnvelope $Request $Artifact 'chunk7-native-life-evidence'
- if(-not(Test-KmcChunk7NativeLifeScenario $Request.scenario)){throw 'Native life artifact has a foreign case.'}
+ if(-not(Test-KmcChunk7NativeLifeScenario (Get-KmcChunk7SelectedScenario $Request))){throw 'Native life artifact has a foreign case.'}
  if($Status-ceq'PASS'-and$Artifact.status-cne'PASS'){throw 'PASS life result requires a PASS artifact.'};if($Artifact.status-cne'PASS'){return}
  $o=$Artifact.observations;$ids=@($o.actorIds);$life=$o.nativeLife;$probe=$life.deliveryProbe
+ $owned=Test-KmcChunk7OwnedPairsScenario $Request.scenario
+ if($owned){Assert-KmcChunk7OwnedActionFixture $Request $o}else{
  if($o.scenario-cne$Request.scenario-or$o.workingSha256-cne$Request.fixture.working.sha256-or$o.workingSha256-cne'5eb4e0b4cbd8d60dc879a02ff71aadfde3f517304754857f0cc68d0f9a93f1c6'-or
     $ids.Count-ne4-or@($ids|Select-Object -Unique).Count-ne4-or$ids[0]-cne'b6628a77-4962-47a4-a17c-88d9836fc9d5'-or$ids[1]-cne'd79a4f6c-b74e-4868-95bd-533899131acb'-or$ids[2]-cne'd17c8fd0-6627-40c4-bf9a-024cf001c1f7'-or
     $o.targetId-cin$ids-or$o.targetGroupId-cne('KMC.RuntimeHostile.'+$Request.runId+':two-pair-target')){throw 'Native life fixture binding differs.'}
+  }
  [Guid]$g=[Guid]::Empty;if(-not[Guid]::TryParse($ids[3],[ref]$g)-or-not[Guid]::TryParse($o.targetId,[ref]$g)){throw 'Native dynamic actor identity invalid.'}
  Assert-KmcChunk7Boolean $o.fullRealtimeCombatProof $false;Assert-KmcChunk7Boolean $o.naturalUnconsciousStimulusProven $true
  Assert-KmcChunk7Boolean $life.sameCallRoundBoundaryLifeDeliveryProven $false;Assert-KmcChunk7Boolean $life.complete $true
  if($life.stimulus-cne'one labelled native RuleDealDamage; stock UnitLifeController tick delivers existing lifecycle subscriber'-or
     $life.subjectId-cne$ids[2]-or$life.survivorId-cne$ids[3]-or(ConvertTo-KmcChunk7Canonical $life.healthyActorIds)-cne(ConvertTo-KmcChunk7Canonical @($ids[0],$ids[1]))-or
     -not(Test-KmcExactJsonInteger $life.initialRound)-or$life.initialRound-lt0-or$life.damageRound-ne$life.initialRound+1){throw 'Native life scope, actor or actual N+1 round differs.'}
- if($o.acquisition.nativeRangerCommitCount-ne4-or$o.acquisition.horseFactRankAtCommit-ne1-or$o.acquisition.horsePresentAtNativeCommit-ne$true){throw 'Native Horse acquisition is incomplete.'}
+ if(-not$owned){if($o.acquisition.nativeRangerCommitCount-ne4-or$o.acquisition.horseFactRankAtCommit-ne1-or$o.acquisition.horsePresentAtNativeCommit-ne$true){throw 'Native Horse acquisition is incomplete.'}}
  Assert-KmcChunk7CheckpointTrace $o.allocationTrace $Request
  if(@($o.nativeCompletion.errors).Count-ne0-or$o.nativeCompletion.traceComplete-ne$true-or@($o.nativeRounds.errors).Count-ne0-or$o.nativeRounds.token-cne'06000BD3'-or$o.nativeRounds.moduleMvid-cne'07fa1e4d-8618-41b3-9b8d-faa17d3b26f7'){throw 'Native lifecycle context/round observation is incomplete.'}
  foreach($round in @($life.damageRound,($life.damageRound+1))){if(@($o.nativeRounds.events|Where-Object round -EQ $round).Count-ne1){throw 'Life continuation lacks an exact native round boundary.'}}
@@ -110,6 +113,6 @@ function Assert-KmcChunk7NativeLifeEvidence($Request,$Artifact,[string]$Status){
   foreach($id in @($ids[0],$ids[1])){$end=@($o.nativeCompletion.calls|Where-Object{$_.kind-ceq'end'-and$_.complete-eq$true-and$_.before.actorId-ceq$id-and$_.before.frame-ge$window[0].before.frame-and$_.after.frame-le$window[1].world.frame})
    if($end.Count-ne1-or(Get-KmcChunk7CombatActor $window[1].world $id).standard-lt5.9){throw 'Healthy native actor contexts did not fully end before and after local cleanup.'}}
  }
- foreach($field in @('pairResidueAbsent','ownedHorseRemoved','nativeCombatEnded','initiativeInputsRestored','firstPairAiRestored','controlsSettled','nativeProgressionRequiresExternalWorkingRestoration')){Assert-KmcChunk7Boolean $o.cleanup.$field $true}
+ if($owned){foreach($field in @('pairResidueAbsent','nativeCombatEnded','initiativeInputsRestored','firstPairAiRestored','controlsSettled','inheritedPetsPreserved')){Assert-KmcChunk7Boolean $o.cleanup.$field $true};Assert-KmcChunk7Boolean $o.cleanup.ownedHorseRemoved $false;Assert-KmcChunk7Boolean $o.cleanup.nativeProgressionRequiresExternalWorkingRestoration $false}else{foreach($field in @('pairResidueAbsent','ownedHorseRemoved','nativeCombatEnded','initiativeInputsRestored','firstPairAiRestored','controlsSettled','nativeProgressionRequiresExternalWorkingRestoration')){Assert-KmcChunk7Boolean $o.cleanup.$field $true}}
  Assert-KmcChunk7Boolean $o.cleanup.nativeSaveWrittenByThisDriver $false;Assert-KmcChunk7Boolean $o.cleanup.delegatedPersistenceCleanup $false
 }

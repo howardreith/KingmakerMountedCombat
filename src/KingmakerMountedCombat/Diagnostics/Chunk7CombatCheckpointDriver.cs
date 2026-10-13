@@ -27,6 +27,8 @@ namespace KingmakerMountedCombat.Diagnostics
         private readonly NativeMountedControlService controls;
         private readonly IModLogger logger;
         private readonly Chunk7CombatCheckpointKind kind;
+        private readonly Chunk7OwnedPairFixture inherited;
+        private UnitEntityData[] NativeParty => inherited?.Party ?? actors;
         private readonly Stopwatch clock = Stopwatch.StartNew();
         private readonly JObject evidence = new JObject();
         private readonly JArray continuation = new JArray(), cleanupErrors = new JArray();
@@ -56,14 +58,14 @@ namespace KingmakerMountedCombat.Diagnostics
         internal bool CleanupComplete => cleanupComplete;
 
         internal Chunk7CombatCheckpointDriver(RuntimeRequest request, MountedWorldService world,
-            NativeMountedControlService controls, IModLogger logger, Chunk7CombatCheckpointKind kind)
-        { this.request = request; this.world = world; this.controls = controls; this.logger = logger; this.kind = kind; }
+            NativeMountedControlService controls, IModLogger logger, Chunk7CombatCheckpointKind kind, Chunk7OwnedPairFixture inherited = null)
+        { this.request = request; this.world = world; this.controls = controls; this.logger = logger; this.kind = kind; this.inherited = inherited; }
 
         internal void StartSource(UnitEntityData[] selectedActors)
         {
             Require(source == null && actors == null && !disposed, "Checkpoint source already has an owner.");
             actors = selectedActors?.ToArray();
-            source = new Chunk7CombatScenario(request, world, controls, logger, kind);
+            source = new Chunk7CombatScenario(request, world, controls, logger, kind, inherited);
             source.StartCheckpointSource(actors);
             trace = source.CheckpointTrace; completion = source.CheckpointCompletion; rounds = source.CheckpointRounds;
             target = source.CheckpointTarget; targetId = target?.UniqueId; targetGroupId = target?.Group?.Id;
@@ -82,13 +84,14 @@ namespace KingmakerMountedCombat.Diagnostics
             Require(actors == null && source == null && !disposed && archive?.Combat != null && selectedActors?.Length == 4,
                 "Cold checkpoint binding is absent or already owned.");
             actors = selectedActors.ToArray(); cold = true; saved = archive;
+            if (inherited != null) { inherited.RequirePreserved(); Require(actors.SequenceEqual(inherited.Actors), "Cold checkpoint borrowed foreign inherited actor references."); }
             Require(actors.All(a => a != null && a.IsInState) && actors.Distinct().Count() == 4 &&
-                actors[0].UniqueId == Chunk7WorldScenarioEngine.MammothRiderId && actors[1].UniqueId == Chunk7WorldScenarioEngine.MammothId &&
-                actors[2].UniqueId == Chunk7WorldScenarioEngine.HorseRiderId && actors[3].Blueprint.AssetGuid == HorseCompanionBlueprintService.UnitGuid,
+                (inherited != null || actors[0].UniqueId == Chunk7WorldScenarioEngine.MammothRiderId && actors[1].UniqueId == Chunk7WorldScenarioEngine.MammothId &&
+                actors[2].UniqueId == Chunk7WorldScenarioEngine.HorseRiderId && actors[3].Blueprint.AssetGuid == HorseCompanionBlueprintService.UnitGuid),
                 "Cold checkpoint actors differ from the exact saved fixture.");
             // Read only: the archive plus native singleton group/faction marker
             // supplies custody. No enemy/AI/initiative/progression is provisioned.
-            var foreign = archive.Combat.Actors.Where(a => actors.All(x => x.UniqueId != a.Native.Id))
+            var foreign = archive.Combat.Actors.Where(a => NativeParty.All(x => x.UniqueId != a.Native.Id))
                 .Select(a => Game.Instance.State.Units.Single(u => u.UniqueId == a.Native.Id)).ToArray();
             Require(foreign.Length == 1, "Cold combat does not contain exactly one source-owned diagnostic actor.");
             target = foreign[0]; targetGroup = target.Group;
@@ -129,7 +132,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var zero = kind == Chunk7CombatCheckpointKind.ZeroMountedRetained; var pending = kind == Chunk7CombatCheckpointKind.MountedPendingOnly;
             Require(archive.SchemaVersion == 3 && archive.Combat.TurnBased == tb && archive.Combat.Paired == null &&
                 archive.Pairs.Length == (zero ? 0 : pending ? 1 : 2) && archive.Participations.Length == (pending ? 1 : 2) &&
-                archive.Combat.Actors.Length == actors.Length + 1 && actors.All(a => archive.Combat.Actors.Any(x => x.Native.Id == a.UniqueId)) &&
+                archive.Combat.Actors.Length == NativeParty.Length + 1 && NativeParty.All(a => archive.Combat.Actors.Any(x => x.Native.Id == a.UniqueId)) &&
                 archive.Combat.Actors.Any(a => a.Native.Id == targetId), "Archive does not preserve the complete selected native world.");
             Func<UnitEntityData, SavedNativeActor> debt = actor => archive.Combat.Actors.Single(a => a.Native.Id == actor.UniqueId).Native;
             if (pending)
@@ -316,7 +319,7 @@ namespace KingmakerMountedCombat.Diagnostics
         }
         private bool EndNative(TurnController turn)
         {
-            if (turn?.Unit == null || ReferenceEquals(turn, endedTurn) || !actors.Contains(turn.Unit) ||
+            if (turn?.Unit == null || ReferenceEquals(turn, endedTurn) || !NativeParty.Contains(turn.Unit) ||
                 !turn.Unit.IsDirectlyControllable || !turn.Unit.Commands.Empty || turn.Unit.AreHandsBusyWithAnimation ||
                 !turn.CanEndTurnAndNoActing() || Game.Instance.TurnBasedCombatController.WaitingForUI ||
                 MountedPairTurnParticipant.NativeNextCandidate(Game.Instance.TurnBasedCombatController) != null ||
@@ -401,7 +404,7 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             Game.Instance.EntityDestroyer.Tick();
             var actorFailures = new List<Exception>();
-            foreach (var actor in actors.Where(a => a.IsInState && a.IsInCombat))
+            foreach (var actor in NativeParty.Where(a => a.IsInState && a.IsInCombat))
                 try { actor.LeaveCombat(); } catch (Exception error) { actorFailures.Add(error); }
             if (actorFailures.Count != 0)
             {

@@ -28,11 +28,14 @@ namespace KingmakerMountedCombat.Diagnostics
         private HarmonyInstance harmony;
         private bool started, installed, disposed, startingOwned, stagedOwned;
         private int inside, starts, stages;
-        internal Chunk7SaveBoundaryProbe(MountedPersistenceService persistence, UnitEntityData[] actors, Func<string, JObject> capture)
+        private readonly int expectedSnapshots;
+        internal Chunk7SaveBoundaryProbe(MountedPersistenceService persistence, UnitEntityData[] actors, Func<string, JObject> capture, int expectedSnapshots = 1)
         {
             this.persistence = persistence ?? throw new ArgumentNullException(nameof(persistence));
             this.actors = actors?.ToArray() ?? throw new ArgumentNullException(nameof(actors));
             this.capture = capture ?? throw new ArgumentNullException(nameof(capture));
+            Require(expectedSnapshots == 1 || expectedSnapshots == 2, "Only one save or the selected seed/replacement pair is observable.");
+            this.expectedSnapshots = expectedSnapshots;
             Require(this.actors.Length == 4 && this.actors.All(a => a != null) && this.actors.Distinct().Count() == 4,
                 "Save boundary requires its four exact actors.");
         }
@@ -69,18 +72,19 @@ namespace KingmakerMountedCombat.Diagnostics
             catch (Exception error) { var text = error.ToString(); if (!errors.Contains(text)) errors.Add(text); }
             finally { inside--; }
         }
-        private void Starting() => Observe(() => { Require(++starts == 1, "A second native header was observed."); events.Add(capture("header-starting")); });
-        private void Staged() => Observe(() => { Require(++stages == 1, "A second mounted snapshot was staged."); events.Add(capture("header-staged")); });
+        private void Starting() => Observe(() => { Require(++starts <= expectedSnapshots && starts == stages + 1, "An extra or unordered native header was observed."); events.Add(capture("header-starting")); });
+        private void Staged() => Observe(() => { Require(++stages <= expectedSnapshots && starts == stages, "An extra or unordered mounted snapshot was staged."); events.Add(capture("header-staged")); });
         private void Native(string kind, UnitEntityData actor)
         {
             // Count entry attempts even when the production prefix refuses them.
             if (!actors.Any(a => ReferenceEquals(a, actor))) return;
             Observe(() => events.Add(new JObject { ["kind"] = kind, ["frame"] = Time.frameCount, ["actorId"] = actor.UniqueId }));
         }
-        internal bool Complete => installed && starts == 1 && stages == 1 && errors.Count == 0 &&
+        internal bool Complete => HeadersComplete(expectedSnapshots);
+        internal bool HeadersComplete(int count) => installed && count > 0 && count <= expectedSnapshots && starts == count && stages == count && errors.Count == 0 &&
             events.All(e => (string)e["kind"] != "prepare-before" && (string)e["kind"] != "round-before");
         internal JObject Capture() => new JObject { ["contract"] = "chunk7-selected-save-boundary-v1", ["installed"] = installed,
-            ["starts"] = starts, ["stages"] = stages, ["complete"] = Complete, ["events"] = events.DeepClone(),
+            ["expectedSnapshots"] = expectedSnapshots, ["starts"] = starts, ["stages"] = stages, ["complete"] = Complete, ["events"] = events.DeepClone(),
             ["hooks"] = hooks.DeepClone(), ["errors"] = new JArray(errors), ["maximumEvents"] = 64,
             ["prepareMetric"] = "native-method-entries-including-production-refused-attempts" };
         private static class Hooks

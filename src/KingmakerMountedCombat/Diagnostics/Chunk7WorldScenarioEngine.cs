@@ -52,6 +52,11 @@ namespace KingmakerMountedCombat.Diagnostics
         private UnitEntityData[] originalSelection, originalParty;
         private Chunk7NativeWorldScope nativeScope;
         private Feature horseFeature, rankFeature;
+        private readonly MountedPersistenceService persistence;
+        private readonly RuntimeSaveAuthorization fixtureAuthorization;
+        private readonly PersistenceSaveAuthorization fixtureAuthority;
+        private readonly WorkingFixtureLoader fixtureLoader;
+        private Chunk7OwnedPairFixture inherited;
         private bool started, completed, disposed, captured, originalPause, originalPaired, originalMovement;
         private bool cleanupStarted, cleanupProven, cleanupPendingReported, screenshotReady;
         private readonly Dictionary<string, int> cleanupAttempts = new Dictionary<string, int>();
@@ -82,55 +87,68 @@ namespace KingmakerMountedCombat.Diagnostics
 
         internal Chunk7WorldScenarioEngine(RuntimeRequest request, GameMountedRelationshipService relationship,
             NativeMountedControlService controls, HorseCompanionBlueprintService horses,
-            DiagnosticSettings settings, IModLogger logger, Func<MovementTelemetryWriter> optionalTelemetry = null)
+            DiagnosticSettings settings, IModLogger logger, Func<MovementTelemetryWriter> optionalTelemetry = null, MountedPersistenceService persistence = null, RuntimeSaveAuthorization fixtureAuthorization = null,
+            PersistenceSaveAuthorization fixtureAuthority = null, WorkingFixtureLoader fixtureLoader = null)
         {
             this.request = request; world = relationship.World; this.controls = controls;
-            this.horses = horses; this.settings = settings; this.logger = logger; this.optionalTelemetry = optionalTelemetry;
+            this.horses = horses; this.settings = settings; this.logger = logger; this.optionalTelemetry = optionalTelemetry; this.persistence = persistence; this.fixtureAuthorization = fixtureAuthorization; this.fixtureAuthority = fixtureAuthority; this.fixtureLoader = fixtureLoader;
             matched = new Chunk7MatchedPoolCollector(RequireMatchedPool, CaptureMatchedPool, CompareMatchedPool,
                 label => new MatchedWindow(label, world));
         }
         internal static bool SupportsScenario(string scenario) => scenario == ScenarioName;
+        internal static bool SupportsRequest(RuntimeRequest request) => SupportsScenario(request?.SelectedChunk7Scenario);
         internal bool IsCompleted => completed;
         internal IReadOnlyList<RuntimeSubscenarioResult> Results => results;
         internal IReadOnlyList<string> Errors => errors;
         internal void Start()
         {
-            if (started || disposed || !SupportsScenario(request.Scenario)) throw new InvalidOperationException("Chunk 7 scenario admission differs.");
+            if (started || disposed || !SupportsRequest(request)) throw new InvalidOperationException("Chunk 7 scenario admission differs.");
             started = true;
             try
             {
-                Require(request.SchemaVersion == RuntimeRequest.SaveBackedSchemaVersion && request.Fixture?.Working?.Sha256 == WorkingHash,
+                Require(request.SchemaVersion == RuntimeRequest.SaveBackedSchemaVersion && (request.OwnedPairs != null || request.Fixture?.Working?.Sha256 == WorkingHash),
                     "The two-pair fixture requires the exact qualified disposable Working bytes.");
                 Require(world != null && NativeMountedSaveFormat.ArchiveNativeSupportEnabled &&
                     NativeMountedSaveFormat.SelectedWriterSchema == 3 && GameMountedRelationshipService.NativePairCapacity >= 2,
                     "Reviewed native all-pair integration, schema 3 and at least two-pair capacity must be selected in source before this scenario.");
                 var game = Game.Instance;
                 Require(game?.Player != null && SelectionManager.Instance != null && !game.Player.IsInCombat &&
-                    game.Player.GameId == request.Fixture.Working.GameId, "The exact loaded Working world must be idle outside combat.");
-                firstRider = game.Player.Party.SingleOrDefault(x => x != null && x.UniqueId == MammothRiderId);
-                Require(firstRider?.Group != null && firstRider.Group.IsPlayerParty, "Exact original Mammoth owner party group is unavailable.");
-                originalParty = PartyActors();
-                evidence["partyBefore"] = new JArray(originalParty.Select(CaptureRig));
-                Require(originalParty.Select(x => x.UniqueId).OrderBy(x => x, StringComparer.Ordinal).SequenceEqual(
-                    new[] { MammothRiderId, MammothId, HorseRiderId }.OrderBy(x => x, StringComparer.Ordinal)),
-                    "Party actor IDs differ from the declared three-actor fixture. No substitute actor is selected.");
-                firstRider = Exact(MammothRiderId); firstMount = Exact(MammothId);
-                secondRider = Exact(HorseRiderId);
-                Require(originalParty.All(Idle) && firstMount.Blueprint?.AssetGuid == SupportedMountedProfiles.MammothBlueprintGuid &&
-                    ReferenceEquals(firstRider.Descriptor.Pet, firstMount) && ReferenceEquals(firstMount.Descriptor.Master.Value, firstRider),
-                    "Original Mammoth ownership or idle party admission differs.");
-                Require(secondRider.Descriptor.Pet == null && !secondRider.Descriptor.IsPet && secondRider.IsDirectlyControllable &&
-                    secondRider.Descriptor.State.Size == Size.Medium && secondRider.Descriptor.GetFact(horses.LevelRank) == null &&
-                    secondRider.GetActivePolymorph() == null, "Exact Horse owner is not an eligible idle Medium native progression owner.");
-                string rigError;
-                Require(MountedRiderPoseAdapter.TryValidateSupportedSurface(secondRider.View, SupportedMountedProfiles.Horse.RiderPoseProfile, out rigError),
-                    "Exact Horse rider rig refused: " + rigError);
+                    game.Player.GameId == request.SelectedChunk7Fixture.GameId, "The exact loaded Working world must be idle outside combat.");
+                if (request.OwnedPairs != null)
+                {
+                    inherited = new Chunk7OwnedPairFixture(request, horses, world, controls, persistence, fixtureAuthorization, fixtureAuthority, fixtureLoader);
+                    inherited.Bind(false); originalParty = inherited.Party;
+                    firstRider = inherited.Actors[0]; firstMount = inherited.Actors[1]; secondRider = inherited.Actors[2]; secondMount = inherited.Actors[3];
+                    evidence["partyBefore"] = new JArray(originalParty.Select(CaptureRig));
+                    evidence["inheritedFixture"] = inherited.Capture("admitted");
+                }
+                else
+                {
+                    firstRider = game.Player.Party.SingleOrDefault(x => x != null && x.UniqueId == MammothRiderId);
+                    Require(firstRider?.Group != null && firstRider.Group.IsPlayerParty, "Exact original Mammoth owner party group is unavailable.");
+                    originalParty = PartyActors();
+                    evidence["partyBefore"] = new JArray(originalParty.Select(CaptureRig));
+                    Require(originalParty.Select(x => x.UniqueId).OrderBy(x => x, StringComparer.Ordinal).SequenceEqual(
+                        new[] { MammothRiderId, MammothId, HorseRiderId }.OrderBy(x => x, StringComparer.Ordinal)),
+                        "Party actor IDs differ from the declared three-actor fixture. No substitute actor is selected.");
+                    firstRider = Exact(MammothRiderId); firstMount = Exact(MammothId);
+                    secondRider = Exact(HorseRiderId);
+                    Require(originalParty.All(Idle) && firstMount.Blueprint?.AssetGuid == SupportedMountedProfiles.MammothBlueprintGuid &&
+                        ReferenceEquals(firstRider.Descriptor.Pet, firstMount) && ReferenceEquals(firstMount.Descriptor.Master.Value, firstRider),
+                        "Original Mammoth ownership or idle party admission differs.");
+                    Require(secondRider.Descriptor.Pet == null && !secondRider.Descriptor.IsPet && secondRider.IsDirectlyControllable &&
+                        secondRider.Descriptor.State.Size == Size.Medium && secondRider.Descriptor.GetFact(horses.LevelRank) == null &&
+                        secondRider.GetActivePolymorph() == null, "Exact Horse owner is not an eligible idle Medium native progression owner.");
+                    string rigError;
+                    Require(MountedRiderPoseAdapter.TryValidateSupportedSurface(secondRider.View, SupportedMountedProfiles.Horse.RiderPoseProfile, out rigError),
+                        "Exact Horse rider rig refused: " + rigError);
+                }
                 Require(world.Registry.ActiveCount == 0 && world.Pairs.All(x => x.Relationship.State == RelationshipState.Unmounted &&
                     x.Relationship.Runtime.NoPreparedPairResidue) && !controls.HasUnsettledRelationshipTransition,
                     "The fixture already contains mounted ownership or unfinished cleanup.");
                 Require(!settings.EnableUnifiedMountedTurn && !settings.EnablePairedCommandScheduler && !settings.EnableDiagnosticOverlay &&
                     MountedPlayerActionController.CountOverlayObjects() == 0, "Accepted paired configuration requires legacy authorities and overlay absent.");
-                nativeScope = new Chunk7NativeWorldScope(request, originalParty);
+                nativeScope = inherited?.Scope ?? new Chunk7NativeWorldScope(request, originalParty);
                 originalSelection = SelectionManager.Instance.SelectedUnits.ToArray(); originalPause = game.IsPaused;
                 originalPaired = settings.EnablePairedActivation; originalMovement = settings.EnableUnsafeMovementExperiment; captured = true;
                 Require(world.Primary.Combat.TryConfigurePairedActivation(true), "Paired authority configuration was refused.");
@@ -138,7 +156,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 MovementScreenshotCaptureCoordinator.AcquireClosedUmmLeaseRetained(out ummLease);
                 mode = new NativeModeTransitionProbe(false); mode.DispatchTemporaryValueIfRequired();
                 evidence["capability"] = new JObject { ["archiveNativeEnabled"] = true, ["nativeWriterSchema"] = 3,
-                    ["nativePairCapacity"] = GameMountedRelationshipService.NativePairCapacity, ["workingSha256"] = WorkingHash };
+                    ["nativePairCapacity"] = GameMountedRelationshipService.NativePairCapacity, ["workingSha256"] = inherited == null ? WorkingHash : null,
+                    ["inheritedManualSha256"] = inherited == null ? null : request.OwnedPairs.SourceArchiveSha256 };
                 evidence["snapshots"] = snapshots; evidence["inputs"] = inputs; evidence["movements"] = movements;
                 evidence["measurements"] = measurements; evidence["cycleInputs"] = cycleInputs; evidence["cycles"] = cycles;
                 evidence["nativeProfileInventory"] = Chunk7NativeProfileInventory.Capture(originalParty);
@@ -162,6 +181,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 {
                     case 1:
                         if (CombatController.IsInTurnBasedCombat()) return;
+                        if (inherited != null) { inherited.RequirePreserved(); Pass("C7-owned-pairs-inherited-custody"); Next(2); break; }
                         var acquisition = new JObject(); evidence["acquisition"] = acquisition;
                         bool acquired;
                         try { acquired = NativeHorseFixtureAcquisition.Create(secondRider, horses, logger, acquisition); }
@@ -581,11 +601,12 @@ namespace KingmakerMountedCombat.Diagnostics
         private void PollCleanup()
         {
             if (completed) return;
+            if (cleanupProven) { CompleteCleanupEvidence(); return; }
             var observersGone = TryCleanup("optional capture window", () => { quietWindow?.Dispose(); quietWindow = null; });
             observersGone &= TryCleanup("measurement", () => { measurement?.Dispose(); measurement = null; });
             observersGone &= TryCleanup("matched-pool measurement", () => { matched.Dispose(); matchedPins?.Dispose(); matchedPins = null; });
             if (!observersGone) { RetainCleanup("An owned observer has not detached."); return; }
-            if (!captured) { cleanupProven = true; CompleteCleanupEvidence(); return; }
+            if (!captured) { inherited?.Release(); cleanupProven = true; CompleteCleanupEvidence(); return; }
             // Neither fact removal nor actor/view teardown can race a native load,
             // archive iterator/worker or shared serialization lease.
             if (LoadingProcess.Instance.IsLoadingInProcess || LoadingProcess.Instance.QueuedNames.Any() ||
@@ -634,16 +655,17 @@ namespace KingmakerMountedCombat.Diagnostics
                     })) };
             // The temporary progression fact owns the pet entity. Remove it only
             // after every issued native process and pair lease has truly ended.
-            if (secondRider != null && horseFeature != null)
+            if (inherited == null && secondRider != null && horseFeature != null)
                 TryCleanup("Horse feature", () => {
                     Require(secondRider.Descriptor.Pet == null || ReferenceEquals(secondRider.Descriptor.Pet, secondMount),
                         "Cleanup refuses to remove a replaced companion.");
                     secondRider.Descriptor.Progression.Features.RemoveFact(horseFeature); horseFeature = null;
                 });
-            if (secondRider != null && rankFeature != null)
+            if (inherited == null && secondRider != null && rankFeature != null)
                 TryCleanup("owned companion rank", () => { secondRider.Descriptor.Progression.Features.RemoveFact(rankFeature); rankFeature = null; });
             var entitiesDrained = TryCleanup("native entity drain", () => Game.Instance.EntityDestroyer.Tick());
-            var horseClean = horseFeature == null && rankFeature == null && (secondMount == null ||
+            var inheritedClean = inherited != null && TryCleanup("inherited native facts", inherited.RequirePreserved);
+            var horseClean = inherited != null ? inheritedClean : horseFeature == null && rankFeature == null && (secondMount == null ||
                 !secondMount.IsInState && !Game.Instance.State.Units.Contains(secondMount) &&
                 !Game.Instance.Player.ControllableCharacters.Contains(secondMount) && secondRider.Descriptor.Pet == null);
             if (!entitiesDrained || !horseClean) { RetainCleanup("The owned Horse entity or progression facts have not settled."); return; }
@@ -661,11 +683,11 @@ namespace KingmakerMountedCombat.Diagnostics
             Game.Instance.IsPaused = originalPause;
             Require(ReferenceEquals(firstRider.Descriptor.Pet, firstMount) && ReferenceEquals(firstMount.Descriptor.Master.Value, firstRider),
                 "Original Mammoth ownership was not restored.");
-            cleanupProven = true;
-            evidence["cleanup"] = new JObject { ["pairResidueAbsent"] = pairClean, ["horseRemoved"] = horseClean,
+            if (inherited != null) evidence["inheritedCleanup"] = inherited.Capture("cleanup");
+            evidence["cleanup"] = new JObject { ["pairResidueAbsent"] = pairClean, ["horseRemoved"] = inherited == null && horseClean, ["inheritedPetsPreserved"] = inherited != null && inheritedClean,
                 ["controlsSettled"] = !controls.HasUnsettledRelationshipTransition, ["settingsAndSelectionRestored"] = true,
-                ["nativeProcessesSettled"] = NativeCommandsSettled(), ["cleanupCustodySettled"] = cleanupProven,
-                ["nativeProgressionRequiresExternalWorkingRestoration"] = true,
+                ["nativeProcessesSettled"] = NativeCommandsSettled(), ["cleanupCustodySettled"] = true,
+                ["nativeProgressionRequiresExternalWorkingRestoration"] = inherited == null,
                 ["ordinaryRespecProven"] = false, ["nativeSaveWritten"] = false,
                 ["world"] = CaptureWorld("cleanup"), ["partyAfter"] = new JArray(PartyActors().Select(CaptureRig)),
                 ["selectionBefore"] = new JArray(originalSelection.Select(x => x.UniqueId)),
@@ -675,6 +697,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["pairedBefore"] = originalPaired, ["pairedAfter"] = settings.EnablePairedActivation,
                 ["pairBoundaries"] = new JArray(world.Pairs.Select(x => new JObject { ["state"] = x.Relationship.State.ToString(),
                     ["residueAbsent"] = x.Relationship.Runtime.NoPreparedPairResidue, ["ownerPresent"] = x.Relationship.PairOwner != null })) };
+            inherited?.Release(); cleanupProven = true;
             Pass("C7-world-cleanup"); CompleteCleanupEvidence();
         }
         private void CompleteCleanupEvidence()

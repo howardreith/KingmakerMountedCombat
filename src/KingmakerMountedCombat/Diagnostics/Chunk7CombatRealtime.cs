@@ -49,8 +49,8 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             Require(RealtimeScenario && !CombatController.IsInTurnBasedCombat(), "RT case entered unsupported mode.");
             if (!Game.Instance.Player.IsInCombat || actors.Any(x => !x.IsInCombat)) return;
-            if (request.Scenario == RealtimeCasting) { TickRealtimeCasting(); return; }
-            if (request.Scenario == RealtimeCharge) { TickRealtimeCharge(); return; }
+            if (SelectedScenario == RealtimeCasting) { TickRealtimeCasting(); return; }
+            if (SelectedScenario == RealtimeCharge) { TickRealtimeCharge(); return; }
             switch (realtimeStage)
             {
                 case 0:

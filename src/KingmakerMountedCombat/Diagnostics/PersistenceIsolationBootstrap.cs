@@ -15,7 +15,7 @@ namespace KingmakerMountedCombat.Diagnostics
     internal sealed class PersistenceIsolationBootstrap
     {
         internal const string Scenario = "persistence-isolation";
-        internal static bool Supports(string value) => value == Chunk7CumulativeAcquisitionSelection.Scenario || value == Chunk7AcquiredManualSelection.Scenario || value == Chunk7ManualDerivedSelection.Scenario || value == Chunk7ManualSeedSelection.Scenario || value == Chunk7BootstrapInventorySelection.Scenario || value == Chunk7NativeBootstrapSelection.Scenario || value == Chunk7ProgressionSelection.Scenario || value == Chunk7SmallCalibrationSelection.Scenario || value == Chunk7OrdinaryFieldSelection.Scenario || value == Chunk7OrdinaryAcquisitionSelection.Scenario || RuntimeRequest.IsChunk7PersistenceScenario(value) || value == Scenario || value == "persistence-p01-save" || value == "persistence-p01-load" ||
+        internal static bool Supports(string value) => value == Chunk7OwnedPairsSelection.Scenario || value == Chunk7CumulativeAcquisitionSelection.Scenario || value == Chunk7AcquiredManualSelection.Scenario || value == Chunk7ManualDerivedSelection.Scenario || value == Chunk7ManualSeedSelection.Scenario || value == Chunk7BootstrapInventorySelection.Scenario || value == Chunk7NativeBootstrapSelection.Scenario || value == Chunk7ProgressionSelection.Scenario || value == Chunk7SmallCalibrationSelection.Scenario || value == Chunk7OrdinaryFieldSelection.Scenario || value == Chunk7OrdinaryAcquisitionSelection.Scenario || RuntimeRequest.IsChunk7PersistenceScenario(value) || value == Scenario || value == "persistence-p01-save" || value == "persistence-p01-load" ||
             value == "persistence-p02-save" || value == "persistence-p02-load" || value == "persistence-p03-save" || value == "persistence-p03-load" || value == "persistence-p04-save" || value == "persistence-p04-load" ||
             value == "persistence-p07-save" || value == "persistence-p07-load" || value == "persistence-p05-save" || value == "persistence-p05-load" || value == "persistence-p06-load";
         internal PersistenceSaveAuthorization Authority => authority;
@@ -54,7 +54,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 var entries = new System.Collections.Generic.List<PersistenceSaveEntry>
                 {
                     new PersistenceSaveEntry { FileName = fixture.FileName, InternalName = fixture.InternalName,
-                        SaveType = request.Scenario == Chunk7AcquiredManualSelection.Scenario || request.Scenario == Chunk7ManualSeedSelection.Scenario || request.Scenario == Chunk7BootstrapInventorySelection.Scenario || request.Scenario == Chunk7SmallCalibrationSelection.Scenario || request.Scenario == Chunk7OrdinaryFieldSelection.Scenario || request.Scenario == Chunk7PersistenceScenario.LoadScenario ? request.ExpectedNativeLoadType :
+                        SaveType = request.Scenario == Chunk7OwnedPairsSelection.Scenario || request.Scenario == Chunk7AcquiredManualSelection.Scenario || request.Scenario == Chunk7ManualSeedSelection.Scenario || request.Scenario == Chunk7BootstrapInventorySelection.Scenario || request.Scenario == Chunk7SmallCalibrationSelection.Scenario || request.Scenario == Chunk7OrdinaryFieldSelection.Scenario || request.Scenario == Chunk7PersistenceScenario.LoadScenario ? request.ExpectedNativeLoadType :
                             request.Scenario == "persistence-p05-load" ? RuntimePersistenceScenario.SlotType(request.PersistenceCase).ToString() :
                             RuntimeRequest.IsTransitionAutoCase(request.PersistenceCase) ? "Auto" : "Manual",
                         Area = fixture.Area, InitialSha256 = fixture.Sha256, Writable = false }
@@ -85,6 +85,9 @@ namespace KingmakerMountedCombat.Diagnostics
                     entries.Add(new PersistenceSaveEntry { FileName = Chunk7PersistenceScenario.NativeLeaf(type),
                         InternalName = Chunk7PersistenceScenario.NativeName(type), SaveType = type.ToString(), Area = request.ExpectedChunk7ArchiveArea, Writable = true });
                 }
+                if (request.Scenario == Chunk7PersistenceScenario.SaveScenario && request.PersistenceCase == Chunk7PersistenceScenario.WorkerCancelSaveCase)
+                    entries.Add(new PersistenceSaveEntry { FileName = "Manual_301_KMC_C7_WORLD.zks",
+                        InternalName = Chunk7PersistenceScenario.ManualName, SaveType = "Manual", Area = fixture.Area, Writable = true });
                 var schema1Resave = request.Scenario == Chunk7PersistenceScenario.LoadScenario &&
                     request.PersistenceCase == Chunk7PersistenceScenario.Schema1Case;
                 var schema2Resave = request.Scenario == Chunk7PersistenceScenario.LoadScenario &&
@@ -250,14 +253,17 @@ namespace KingmakerMountedCombat.Diagnostics
                 authority = new PersistenceSaveAuthorization(runRoot, fixture.GameId, fixture.GameName,
                     request.Fixture.Baseline.Sha256, entries,
                     declaresTransfer ? fixture.Area : null,
-                    declaresTransfer ? request.PersistenceAreaTarget.Area : null, (schema2Resave || request.Scenario == Chunk7CumulativeAcquisitionSelection.Scenario || request.Scenario == Chunk7AcquiredManualSelection.Scenario || request.Scenario == Chunk7ManualDerivedSelection.Scenario || request.Scenario == Chunk7ManualSeedSelection.Scenario || request.Scenario == Chunk7NativeBootstrapSelection.Scenario || request.Scenario == Chunk7OrdinaryAcquisitionSelection.Scenario ||
+                    declaresTransfer ? request.PersistenceAreaTarget.Area : null, request.OwnedPairs != null ? (int?)request.OwnedPairs.WriteCount(request.PersistenceCase) : request.Scenario == Chunk7PersistenceScenario.SaveScenario && request.PersistenceCase == Chunk7PersistenceScenario.WorkerCancelSaveCase ? (int?)2 : (schema2Resave || request.Scenario == Chunk7CumulativeAcquisitionSelection.Scenario || request.Scenario == Chunk7AcquiredManualSelection.Scenario || request.Scenario == Chunk7ManualDerivedSelection.Scenario || request.Scenario == Chunk7ManualSeedSelection.Scenario || request.Scenario == Chunk7NativeBootstrapSelection.Scenario || request.Scenario == Chunk7OrdinaryAcquisitionSelection.Scenario ||
                         request.Scenario == Chunk7ProgressionSelection.Scenario && request.Progression.WritesAutosave ||
                         request.Scenario == Chunk7PersistenceScenario.SaveScenario && Chunk7PersistenceScenario.IsSaveBoundaryCase(request.PersistenceCase)) ? (int?)1 : null,
-                    request.Scenario == Chunk7NativeBootstrapSelection.Scenario ? (int?)0 : schema2Resave ? (int?)1 : request.Scenario == Chunk7CumulativeAcquisitionSelection.Scenario || request.Scenario == Chunk7AcquiredManualSelection.Scenario || request.Scenario == Chunk7ManualDerivedSelection.Scenario || request.Scenario == Chunk7ManualSeedSelection.Scenario || request.Scenario == Chunk7BootstrapInventorySelection.Scenario || request.Scenario == Chunk7ProgressionSelection.Scenario || request.Scenario == Chunk7SmallCalibrationSelection.Scenario || request.Scenario == Chunk7OrdinaryFieldSelection.Scenario ? (int?)1 : request.PersistenceCase == Chunk7PersistenceScenario.ThreeLoadsCase ? (int?)3 :
+                    request.OwnedPairs != null ? (int?)1 : request.Scenario == Chunk7NativeBootstrapSelection.Scenario ? (int?)0 : schema2Resave ? (int?)1 : request.Scenario == Chunk7CumulativeAcquisitionSelection.Scenario || request.Scenario == Chunk7AcquiredManualSelection.Scenario || request.Scenario == Chunk7ManualDerivedSelection.Scenario || request.Scenario == Chunk7ManualSeedSelection.Scenario || request.Scenario == Chunk7BootstrapInventorySelection.Scenario || request.Scenario == Chunk7ProgressionSelection.Scenario || request.Scenario == Chunk7SmallCalibrationSelection.Scenario || request.Scenario == Chunk7OrdinaryFieldSelection.Scenario ? (int?)1 : request.PersistenceCase == Chunk7PersistenceScenario.ThreeLoadsCase ? (int?)3 :
                     request.PersistenceCase == Chunk7PersistenceScenario.ThreeAreasCase ? (int?)1 : null,
                     request.Scenario == Chunk7AcquiredManualSelection.Scenario ? request : null,
                     request.Scenario == Chunk7AcquiredManualSelection.Scenario ? game : null,
-                    request.Scenario == Chunk7AcquiredManualSelection.Scenario ? game.SaveManager : null);
+                    request.Scenario == Chunk7AcquiredManualSelection.Scenario ? game.SaveManager : null,
+                    request.OwnedPairs != null ? request : null, request.OwnedPairs != null ? game : null,
+                    request.OwnedPairs != null ? game.SaveManager : null,
+                    request.OwnedPairs?.WriteCount(request.PersistenceCase) > 0 ? OwnedPairsOutputName(request) : null);
                 var areas = Path.Combine(runRoot, "Areas");
                 if (!Directory.Exists(areas) || Directory.EnumerateFileSystemEntries(areas).Any() ||
                     (File.GetAttributes(areas) & FileAttributes.ReparsePoint) != 0)
@@ -276,7 +282,7 @@ namespace KingmakerMountedCombat.Diagnostics
             if (!game.SaveManager.AreSavesUpToDate) return false;
             var saves = game.SaveManager.ToArray();
             var expectedCount = request.Scenario == "persistence-p06-load" || request.Scenario == "persistence-p05-load" && request.PersistenceCase == "alternating" ? 2 : 1;
-            if (saves.Length != expectedCount || saves.Any(save => (request.Scenario == Chunk7AcquiredManualSelection.Scenario || request.Scenario == Chunk7NativeBootstrapSelection.Scenario
+            if (saves.Length != expectedCount || saves.Any(save => (request.OwnedPairs != null || request.Scenario == Chunk7AcquiredManualSelection.Scenario || request.Scenario == Chunk7NativeBootstrapSelection.Scenario
                 ? authority.ValidateArchiveIdentity(Project(save), game.SaveManager.SavePath)
                 : authority.Validate(RuntimeSaveOperation.Load, Project(save), game.SaveManager.SavePath)) != null))
                 throw new InvalidOperationException("Isolated native enumeration differs from the single copied fixture.");
@@ -289,6 +295,20 @@ namespace KingmakerMountedCombat.Diagnostics
                     throw new InvalidOperationException("Acquired Auto native inventory is not settled before Manual reservation.");
                 var number = game.SaveManager.FindUnusedSaveNumber(SaveInfo.SaveType.Manual);
                 authority.ReserveAcquiredManualOutput(request, game, game.SaveManager, source, Project(source), number);
+            }
+            if (request.OwnedPairs != null)
+            {
+                var source = saves.Single();
+                if (source.Type.ToString() != request.ExpectedNativeLoadType || source.OperationState != SaveInfo.StateType.None ||
+                    !source.IsActuallySaved || !source.HasFileOnDisk || NativePersistenceIsolation.NativeSlotRotationEnabled || Game.Instance != game)
+                    throw new InvalidOperationException("Inherited two-owner native inventory is not settled before campaign admission.");
+                if (request.OwnedPairs.WriteCount(request.PersistenceCase) > 0)
+                {
+                    var type = OwnedPairsOutputType(request);
+                    authority.ReserveOwnedPairsOutput(request, game, game.SaveManager, source, Project(source),
+                        game.SaveManager.FindUnusedSaveNumber(type), type.ToString(), OwnedPairsOutputName(request));
+                }
+                if (!authority.MatchesOwnedPairsPlan(true, true)) throw new InvalidOperationException("Inherited native input/output plan changed before its sole load.");
             }
             Ready = true;
             return true;
@@ -303,6 +323,9 @@ namespace KingmakerMountedCombat.Diagnostics
             using (var descriptor = Game.Instance.SaveManager.LoadZipSave(actualLoadedPath))
                 return authority.ValidateArchiveIdentity(Project(descriptor), SaveRoot) == null;
         }
+
+        private static SaveInfo.SaveType OwnedPairsOutputType(RuntimeRequest request) => request.OwnedPairs.Cold ? SaveInfo.SaveType.Manual : Chunk7PersistenceScenario.NativeType(request.PersistenceCase);
+        private static string OwnedPairsOutputName(RuntimeRequest request) => request.OwnedPairs.Cold ? "KMC_C7_SCHEMA2" : Chunk7PersistenceScenario.NativeName(OwnedPairsOutputType(request));
 
         private static RuntimeSaveTarget Project(SaveInfo save) => save == null ? null : new RuntimeSaveTarget
         {

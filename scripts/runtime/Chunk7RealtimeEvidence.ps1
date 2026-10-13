@@ -13,7 +13,7 @@ function Get-KmcChunk7RealtimeRuntimeRows {
 }
 function Assert-KmcChunk7RealtimeArtifact($Request,$Manifest,[string]$Status='PASS'){
     $present=@($Manifest.artifacts|Where-Object{$_.relativePath-ceq'chunk7-realtime-evidence.json'-or$_.kind-ceq'chunk7-realtime-evidence'})
-    if(-not(Test-KmcChunk7RealtimeScenario $Request.scenario)){if($present.Count-ne0){throw 'Foreign scenario supplied RT evidence.'};return}
+    if(-not(Test-KmcChunk7RealtimeScenario (Get-KmcChunk7SelectedScenario $Request))){if($present.Count-ne0){throw 'Foreign scenario supplied RT evidence.'};return}
     if($present.Count-eq0-and$Status-cne'PASS'){return}
     $artifact=Read-KmcChunk7ManifestArtifact $Request $Manifest 'chunk7-realtime-evidence.json' 'chunk7-realtime-evidence'
     Assert-KmcChunk7RealtimeEvidence $Request $artifact $Status
@@ -66,27 +66,30 @@ function Assert-KmcChunk7RealtimeShell($Shell,[long]$Command,[string]$Actor,[str
 }
 function Assert-KmcChunk7RealtimeEvidence($Request,$Artifact,[string]$Status){
     Assert-KmcChunk7ArtifactEnvelope $Request $Artifact 'chunk7-realtime-evidence'
-    if(-not(Test-KmcChunk7RealtimeScenario $Request.scenario)){throw 'RT artifact has an unknown closed case.'}
+    if(-not(Test-KmcChunk7RealtimeScenario (Get-KmcChunk7SelectedScenario $Request))){throw 'RT artifact has an unknown closed case.'}
     if($Status-ceq'PASS'-and$Artifact.status-cne'PASS'){throw 'PASS RT result requires a PASS artifact.'};if($Artifact.status-cne'PASS'){return}
     $o=$Artifact.observations;$ids=@($o.actorIds);$trace=$o.allocationTrace
+    $owned=Test-KmcChunk7OwnedPairsScenario $Request.scenario
+    if($owned){Assert-KmcChunk7OwnedActionFixture $Request $o}else{
     if($o.scenario-cne$Request.scenario-or$o.workingSha256-cne$Request.fixture.working.sha256-or$o.workingSha256-cne'5eb4e0b4cbd8d60dc879a02ff71aadfde3f517304754857f0cc68d0f9a93f1c6'-or
        $ids.Count-ne4-or@($ids|Select-Object -Unique).Count-ne4-or$ids[0]-cne'b6628a77-4962-47a4-a17c-88d9836fc9d5'-or$ids[1]-cne'd79a4f6c-b74e-4868-95bd-533899131acb'-or$ids[2]-cne'd17c8fd0-6627-40c4-bf9a-024cf001c1f7'-or
        $o.targetId-cin$ids-or$o.targetGroupId-cne('KMC.RuntimeHostile.'+$Request.runId+':two-pair-target')){throw 'RT exact Working fixture identity differs.'}
+        }
     [Guid]$g=[Guid]::Empty;if(-not[Guid]::TryParse($ids[3],[ref]$g)-or-not[Guid]::TryParse($o.targetId,[ref]$g)){throw 'RT native dynamic actor identity invalid.'}
     foreach($field in @('realTime','selectedRealtimeCaseComplete')){Assert-KmcChunk7Boolean $o.$field $true}
     foreach($field in @('initiativeInputsChanged','fullRealtimeCombatProof','naturalUnconsciousStimulusProven')){Assert-KmcChunk7Boolean $o.$field $false}
-    Assert-KmcChunk7Boolean $o.chargeSettingAtAdmission ($Request.scenario-ceq'chunk7-two-pair-realtime-charge')
+    Assert-KmcChunk7Boolean $o.chargeSettingAtAdmission ((Get-KmcChunk7SelectedScenario $Request)-ceq'chunk7-two-pair-realtime-charge')
     if(@($o.initiativeInputs).Count-ne4){throw 'RT original initiative observations incomplete.'}
     foreach($row in $o.initiativeInputs){if($row.before-ne$row.input-or$row.actorId-cnotin$ids){throw 'RT setup changed initiative.'}}
-    if($o.acquisition.nativeRangerCommitCount-ne4-or$o.acquisition.horseFactRankAtCommit-ne1-or$o.acquisition.horsePresentAtNativeCommit-ne$true){throw 'Native Horse acquisition receipt differs.'}
+    if(-not$owned){if($o.acquisition.nativeRangerCommitCount-ne4-or$o.acquisition.horseFactRankAtCommit-ne1-or$o.acquisition.horsePresentAtNativeCommit-ne$true){throw 'Native Horse acquisition receipt differs.'}}
     Assert-KmcChunk7CheckpointTrace $trace $Request
     if($o.nativeEffects.dropped-ne0-or@($o.nativeCompletion.errors).Count-ne0-or$o.nativeCompletion.traceComplete-ne$true-or@($o.nativeRounds.errors).Count-ne0){throw 'RT raw observer is incomplete.'}
     $mounts=@($o.inputs|Where-Object{$_.label-cin@('mount-a','mount-b')});if($mounts.Count-ne2){throw 'Two native mounts missing.'}
     for($i=0;$i-lt2;$i++){$m=$mounts[$i];if($m.casterId-cne$ids[$i*2]-or$m.targetId-cne$ids[$i*2+1]-or$m.abilityGuid-cne'f053faad986631688defa003cd7bda0e'-or$m.nativeCastDelta-ne1-or$m.nativeRefusalDelta-ne0-or$m.generationAtInit-lt0){throw 'Native RT mount binding differs.'};foreach($f in @('clicked','terminal','processTerminal')){Assert-KmcChunk7Boolean $m.$f $true}}
-    if($Request.scenario-ceq'chunk7-two-pair-realtime-core') {Assert-KmcChunk7RealtimeCore $o $ids $trace}
-    elseif($Request.scenario-ceq'chunk7-two-pair-realtime-casting'){Assert-KmcChunk7RealtimeCasting $o $ids $trace}
+    if((Get-KmcChunk7SelectedScenario $Request)-ceq'chunk7-two-pair-realtime-core') {Assert-KmcChunk7RealtimeCore $o $ids $trace}
+    elseif((Get-KmcChunk7SelectedScenario $Request)-ceq'chunk7-two-pair-realtime-casting'){Assert-KmcChunk7RealtimeCasting $o $ids $trace}
     else{Assert-KmcChunk7RealtimeCharge $o $ids $trace}
-    foreach($field in @('pairResidueAbsent','ownedHorseRemoved','nativeCombatEnded','initiativeInputsRestored','firstPairAiRestored','controlsSettled','nativeProgressionRequiresExternalWorkingRestoration')){Assert-KmcChunk7Boolean $o.cleanup.$field $true}
+    if($owned){foreach($field in @('pairResidueAbsent','nativeCombatEnded','initiativeInputsRestored','firstPairAiRestored','controlsSettled','inheritedPetsPreserved')){Assert-KmcChunk7Boolean $o.cleanup.$field $true};Assert-KmcChunk7Boolean $o.cleanup.ownedHorseRemoved $false;Assert-KmcChunk7Boolean $o.cleanup.nativeProgressionRequiresExternalWorkingRestoration $false}else{foreach($field in @('pairResidueAbsent','ownedHorseRemoved','nativeCombatEnded','initiativeInputsRestored','firstPairAiRestored','controlsSettled','nativeProgressionRequiresExternalWorkingRestoration')){Assert-KmcChunk7Boolean $o.cleanup.$field $true}}
     Assert-KmcChunk7Boolean $o.cleanup.nativeSaveWrittenByThisDriver $false;Assert-KmcChunk7Boolean $o.cleanup.delegatedPersistenceCleanup $false
 }
 function Assert-KmcChunk7RealtimeCore($o,[string[]]$ids,$trace){
