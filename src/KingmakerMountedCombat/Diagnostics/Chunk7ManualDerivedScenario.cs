@@ -128,7 +128,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     "Native cold world differs from its engine-minted source identity.");
                 if (game.CurrentMode != GameModeType.Default || game.CutsceneLock || game.IsModeActive(GameModeType.Dialog)) return;
                 Require(!game.Player.IsInCombat, "Read-only authored inventory does not admit combat.");
-                var candidateActors = game.Player.Party.Where(actor => actor != null).ToArray();
+                var candidateActors = Chunk7NativeFieldRoster.Capture(game.Player);
                 var expected = (JArray)sourceWorld["party"];
                 Require(candidateActors.Length == expected.Count && candidateActors.Select(actor => actor.UniqueId).Distinct(StringComparer.Ordinal).Count() == candidateActors.Length,
                     "Cold native party differs from its exact source roster.");
@@ -322,7 +322,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private void RequireWorld()
         {
             RequireWorldReferences();
-            var current = game.Player.Party.ToArray();
+            var current = Chunk7NativeFieldRoster.Capture(game.Player);
             Require(current.All(actor => actor != null) && current.Select(actor => actor.UniqueId).Distinct(StringComparer.Ordinal).Count() == current.Length,
                 "Native party contains null or duplicate actor identities.");
             for (var i = 0; i < actors.Length; i++)

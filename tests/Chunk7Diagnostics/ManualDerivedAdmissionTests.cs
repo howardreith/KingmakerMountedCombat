@@ -22,6 +22,16 @@ namespace KingmakerMountedCombat.Tests
             selection.Gender = "Female"; selection.LeftHanded = false; selection.Readiness.MainLevel = 4; selection.Readiness.MainExperience = 300;
             selection.Readiness.DefaultHireExperience = 300; selection.Readiness.Money = 50; return selection;
         }
+        private static Chunk7ManualDerivedSelection Medium()
+        {
+            var selection = Paid(); selection.Case = Chunk7ManualDerivedSelection.PaidMediumCase;
+            selection.MediumBody = new Chunk7MediumHireBodyPins { TemplateActorId = MainId, RaceGuid = new string('e', 32), PresetGuid = new string('f', 32),
+                SkeletonName = "observed-native-medium", Gender = "Male", LeftHanded = true };
+            selection.SmallRaceGuid = selection.SmallPresetGuid = selection.SkeletonName = selection.Gender = null; selection.LeftHanded = null;
+            return selection;
+        }
+        private static void RejectMedium(string name, Action<Chunk7ManualDerivedSelection,Chunk7ManualDerivedNativeReadiness> mutate)
+        { var s = Medium(); var n = Native(s); mutate(s,n); Check(name,!Admits(s,n)); }
         private static Chunk7ManualDerivedNativeReadiness Native(Chunk7ManualDerivedSelection selection) => new Chunk7ManualDerivedNativeReadiness {
             MainActorId = selection.Readiness.MainActorId, MainLevel = selection.Readiness.MainLevel, MainExperience = selection.Readiness.MainExperience,
             Money = selection.Readiness.Money, ExperienceRatePercent = selection.Readiness.ExperienceRatePercent, NativeHireCost = selection.Readiness.NativeHireCost,
@@ -29,7 +39,7 @@ namespace KingmakerMountedCombat.Tests
             XpThresholds = Enumerable.Range(0,21).Select(level => level <= 1 ? 0 : (level-1)*100).ToArray(),
             ExistingActorId = selection.ExistingActorId, ExistingLevel = selection.ExistingLevel ?? 0, ExistingExperience = selection.ExistingExperience ?? 0,
             ExistingRangerLevel = selection.ExistingRangerLevel ?? 0, TargetLiving = true, TargetIsPet = false, TargetHasPet = false, TargetHasDualCompanion = false,
-            TargetInField = true, TargetIdle = true, TargetCanLevelUp = true, ExactSmallCatalogueMember = true };
+            TargetInField = true, TargetIdle = true, TargetCanLevelUp = true, ExactSmallCatalogueMember = true, ExactMediumBodyMember = true };
         private static void Check(string name, bool value) { if(value) {pass++;Console.WriteLine("PASS "+name);} else {fail++;Console.WriteLine("FAIL "+name);} }
         private static bool Admits(Chunk7ManualDerivedSelection selection, Chunk7ManualDerivedNativeReadiness actual) => Chunk7ManualDerivedAdmission.Validate(selection,"new-run",actual).Count == 0;
         private static void Reject(string name, Action<Chunk7ManualDerivedSelection,Chunk7ManualDerivedNativeReadiness> mutate, bool paid = false)
@@ -89,6 +99,25 @@ namespace KingmakerMountedCombat.Tests
             Check("legacy family is not widened",Existing().Validate(Chunk7OrdinaryAcquisitionSelection.Scenario,"new-run").Count!=0);
             s=Existing();n=Native(s);var party=n.PartyCharacterIds.ToArray();var table=n.XpThresholds.ToArray();var xp=n.ExistingExperience;var money=n.Money;
             Admits(s,n);Check("admission does not change XP funds roster or thresholds",n.ExistingExperience==xp&&n.Money==money&&n.PartyCharacterIds.SequenceEqual(party)&&n.XpThresholds.SequenceEqual(table));
+            s=Medium(); n=Native(s); n.ExactSmallCatalogueMember=false; Check("observed Medium body admits without Small catalogue authority",Admits(s,n));
+            RejectMedium("Medium source/native body disagreement refuses",(a,b)=>b.ExactMediumBodyMember=false);
+            RejectMedium("Medium template must be native field character",(a,b)=>a.MediumBody.TemplateActorId="90000000-0000-0000-0000-000000000009");
+            RejectMedium("Medium body pins required",(a,b)=>a.MediumBody=null);
+            RejectMedium("Medium legacy body pins forbidden",(a,b)=>a.SmallRaceGuid=new string('c',32));
+            RejectMedium("Medium legacy sex pin forbidden",(a,b)=>a.Gender="Male");
+            RejectMedium("Medium legacy handedness forbidden",(a,b)=>a.LeftHanded=false);
+            RejectMedium("Medium cannot reuse existing actor",(a,b)=>a.ExistingActorId=MainId);
+            RejectMedium("Medium native funds remain required",(a,b)=>{a.Readiness.Money=b.Money=49;});
+            RejectMedium("Medium attained level required",(a,b)=>{a.Readiness.MainLevel=b.MainLevel=1;a.Readiness.DefaultHireExperience=b.DefaultHireExperience=0;});
+            RejectMedium("Medium blueprint casing refuses",(a,b)=>a.MediumBody.RaceGuid=new string('E',32));
+            RejectMedium("Medium empty rig refuses",(a,b)=>a.MediumBody.SkeletonName=" ");
+            RejectMedium("Medium unknown gender refuses",(a,b)=>a.MediumBody.Gender="Unknown");
+            RejectMedium("Medium handedness required",(a,b)=>a.MediumBody.LeftHanded=null);
+            RejectMedium("Medium foreign roster refuses",(a,b)=>b.PartyCharacterIds=new[]{MainId});
+            s=Paid();n=Native(s);s.MediumBody=Medium().MediumBody;Check("legacy Small rejects Medium body authority",!Admits(s,n));
+            s=Existing();n=Native(s);s.MediumBody=Medium().MediumBody;Check("existing actor rejects Medium body authority",!Admits(s,n));
+            Check("legacy selection omits additive Medium JSON property",!Paid().ShouldSerializeMediumBody()&&!Existing().ShouldSerializeMediumBody());
+            Check("Medium selection emits typed body property",Medium().ShouldSerializeMediumBody());
             Console.WriteLine("RESULT "+pass+" PASS / "+fail+" FAIL");return fail==0?0:1;
         }
         public static int Main(string[] args) => MainMethod();

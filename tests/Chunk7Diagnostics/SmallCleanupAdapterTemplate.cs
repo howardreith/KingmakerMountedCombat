@@ -42,6 +42,8 @@ public class ActualSmallCleanup {
  Unit actor=new Unit(),pet=new Unit();Unit[] originalSelection=new Unit[0];List<UnitCommand> issued=new List<UnitCommand>();World world=new World();Controls controls=new Controls();
  Lease ummLease=new Lease(),mode=new Lease();Trace trace=new Trace();Target targetService=new Target();Ai pairAi=new Ai();
  string sourcePath="source",archivePath="archive"; JObject evidence=new JObject();List<string> errors=new List<string>();
+ string SourceArtifactHash=>selection.SourceArtifactSha256; string SourceArchiveHash=>selection.SourceArchiveSha256;
+ bool ReleaseManualLoadObservation()=>true; // Legacy fixture has no cold Manual observer.
  Unit[] ControlledActors=>new[]{actor,pet};
  ActualSmallCleanup(){Counters.Reset();Game.Instance=new Game();SelectionManager.Instance=new SelectionManager();}
  bool Busy()=>busy;void AssertAuthority(){if(refuseGuard)throw new Exception("world changed");}void AssertUnchangedProgression(){}JObject AuthoritySnapshot()=>new JObject();static string Hash(string p)=>p;

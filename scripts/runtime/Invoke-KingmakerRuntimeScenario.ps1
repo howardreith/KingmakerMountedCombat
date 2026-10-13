@@ -359,7 +359,7 @@ if($isSaveBacked){
 if(Test-KmcChunk7OrdinaryScenario $Scenario){
     $ordinaryInventorySource=Get-KmcChunk7OrdinaryInventorySource $ordinarySelectionInput.selection $fixturePayload $manifest
 }
-if(Test-KmcChunk7SmallScenario $Scenario){$smallSource=Get-KmcChunk7FieldSource $smallSelectionInput.selection.source $fixturePayload $manifest}
+if(Test-KmcChunk7SmallScenario $Scenario){$smallSource=if(Test-KmcChunk7SmallManualCase $smallSelectionInput.selection){Get-KmcChunk7SmallManualSource $smallSelectionInput.selection.manualSource $fixturePayload $manifest}else{Get-KmcChunk7FieldSource $smallSelectionInput.selection.source $fixturePayload $manifest}}
 if(Test-KmcChunk7ProgressionScenario $Scenario){$progressionSource=Get-KmcChunk7ProgressionSource $progressionSelectionInput.selection $fixturePayload $manifest}
 if(Test-KmcChunk7FieldScenario $Scenario){$fieldSource=Get-KmcChunk7FieldSource $fieldSelectionInput.selection $fixturePayload $manifest}
 if(Test-KmcChunk7OwnedPairsScenario $Scenario){$ownedPairsSource=Get-KmcChunk7OwnedPairsSource $ownedPairsInput.selection $PersistenceCase $fixturePayload $manifest}
@@ -556,7 +556,7 @@ try{
     if(Test-KmcChunk7SmallScenario $Scenario){
         $currentSmallSelection=Read-KmcChunk7SmallSelectionFile $smallSelectionInput.path $actualRunId
         if($currentSmallSelection.sha256-cne$smallSelectionInput.sha256){throw 'Small calibration selection changed before locked admission.'}
-        $currentSmallSource=Get-KmcChunk7FieldSource $request.smallCalibration.source $fixturePayload $manifest
+        $currentSmallSource=if(Test-KmcChunk7SmallManualCase $request.smallCalibration){Get-KmcChunk7SmallManualSource $request.smallCalibration.manualSource $fixturePayload $manifest}else{Get-KmcChunk7FieldSource $request.smallCalibration.source $fixturePayload $manifest}
         if((ConvertTo-KmcChunk7Canonical $currentSmallSource)-cne(ConvertTo-KmcChunk7Canonical $smallSource)){throw 'Small calibration source changed before locked admission.'}
         $smallSource=$currentSmallSource
     }
@@ -769,7 +769,7 @@ try{
                 runId=$actualRunId;transactionToken=[string]$lock.Token;scenario=$Scenario;persistenceCase=$PersistenceCase
                 sourceSha256=[string]$copyDescriptor.sha256;saveRoot=$isolatedSaves
             })
-            if(Test-KmcChunk7SmallScenario $Scenario){Copy-KmcChunk7FieldSourceArtifact $smallSource $profileRoot $lock}
+            if(Test-KmcChunk7SmallScenario $Scenario){if(Test-KmcChunk7SmallManualCase $request.smallCalibration){Copy-KmcChunk7SmallManualSourceArtifact $smallSource $profileRoot $lock}else{Copy-KmcChunk7FieldSourceArtifact $smallSource $profileRoot $lock}}
             if(Test-KmcChunk7ProgressionScenario $Scenario){Copy-KmcChunk7ProgressionInputs $progressionSource $profileRoot $lock}
             if(Test-KmcChunk7FieldScenario $Scenario){Copy-KmcChunk7FieldSourceArtifact $fieldSource $profileRoot $lock}
             if(Test-KmcChunk7OwnedPairsScenario $Scenario){Copy-KmcChunk7OwnedPairsSourceArtifact $ownedPairsSource $profileRoot $lock}
@@ -966,12 +966,19 @@ try{
             $baseGameNativeInventorySha256=Get-KmcSha256 (Join-Path $evidenceRoot 'runtime-loader-inventory.json')
         }
         if($gamePassed-and(Test-KmcChunk7SmallScenario $Scenario)){
-            $verifiedSmallSource=Get-KmcChunk7FieldSource $request.smallCalibration.source $fixturePayload $manifest
-            if((ConvertTo-KmcChunk7Canonical $verifiedSmallSource)-cne(ConvertTo-KmcChunk7Canonical $smallSource)-or
-               (Get-KmcSha256 (Join-Path $isolatedSaves 'Auto_1.zks'))-cne$request.smallCalibration.source.sourceArchiveSha256){throw 'Read-only Small calibration source changed during the native process.'}
+            if(Test-KmcChunk7SmallManualCase $request.smallCalibration){
+                $verifiedSmallSource=Get-KmcChunk7SmallManualSource $request.smallCalibration.manualSource $fixturePayload $manifest
+                if((ConvertTo-KmcChunk7Canonical $verifiedSmallSource)-cne(ConvertTo-KmcChunk7Canonical $smallSource)-or
+                   (Get-KmcSha256 (Join-Path $isolatedSaves $request.persistenceLoad.fileName))-cne$request.smallCalibration.manualSource.sourceArchiveSha256){throw 'Read-only Small Manual source changed during the native process.'}
+            }else{
+                $verifiedSmallSource=Get-KmcChunk7FieldSource $request.smallCalibration.source $fixturePayload $manifest
+                if((ConvertTo-KmcChunk7Canonical $verifiedSmallSource)-cne(ConvertTo-KmcChunk7Canonical $smallSource)-or
+                   (Get-KmcSha256 (Join-Path $isolatedSaves 'Auto_1.zks'))-cne$request.smallCalibration.source.sourceArchiveSha256){throw 'Read-only Small calibration source changed during the native process.'}
+            }
             $sourceArtifact=Read-KmcJson $smallSource.artifactPath
             $smallArtifact=Read-KmcJson (Join-Path $evidenceRoot 'chunk7-small-calibration-evidence.json')
             if($sourceArtifact.observations.processId-eq$smallArtifact.observations.processId){throw 'Small calibration reused the acquisition process rather than cold loading.'}
+            if((Test-KmcChunk7SmallManualCase $request.smallCalibration)-and(ConvertTo-KmcChunk7Canonical $sourceArtifact.observations)-cne(ConvertTo-KmcChunk7Canonical $smallArtifact.observations.source.acquiredManual)){throw 'Small Manual runtime source witness differs from the completely qualified artifact.'}
         }
         if($gamePassed-and(Test-KmcChunk7NativeBootstrapScenario $Scenario)){
             $bootstrapArtifact=Read-KmcJson (Join-Path $evidenceRoot 'chunk7-native-bootstrap-evidence.json')
@@ -980,7 +987,7 @@ try{
         if($gamePassed-and(Test-KmcChunk7ProgressionScenario $Scenario)){
             $verifiedProgressionSource=Get-KmcChunk7ProgressionSource $request.progression $fixturePayload $manifest
             if((ConvertTo-KmcChunk7Canonical $verifiedProgressionSource)-cne(ConvertTo-KmcChunk7Canonical $progressionSource)-or
-               (Get-KmcSha256 (Join-Path $isolatedSaves 'Manual_300_KMC_C7_WORLD.zks'))-cne$request.progression.sourceArchiveSha256){throw 'Native progression source/inventory changed during its cold process.'}
+               (Get-KmcSha256 (Join-Path $isolatedSaves (Get-KmcChunk7ProgressionInputLeaf $request)))-cne$request.progression.sourceArchiveSha256){throw 'Native progression source/inventory changed during its cold process.'}
             $progressionArtifact=Read-KmcJson (Join-Path $evidenceRoot 'chunk7-progression-evidence.json')
             if($progressionArtifact.observations.processId-eq$progressionSource.sourceProcessId){throw 'Progression did not cold-load its declared native source.'}
             Assert-KmcChunk7ProgressionNativeArchive $request $progressionArtifact

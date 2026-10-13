@@ -1,12 +1,38 @@
 Set-StrictMode -Version Latest
 function Test-KmcChunk7ManualDerivedScenario([string]$Scenario){$Scenario-ceq'chunk7-manual-derived-acquisition'}
 function Get-KmcChunk7ManualDerivedRows {@('chunk7-manual-derived-acquisition','C7-manual-derived-source','C7-manual-derived-native-load','C7-manual-derived-eligibility','C7-manual-derived-native-choices','C7-manual-derived-native-autosave','C7-manual-derived-native-field','C7-manual-derived-cleanup','C7-manual-derived-runtime','C7-manual-derived-interrupted')}
+function Test-KmcManualDerivedPaidCase([string]$Case){$Case-ceq'paid-small-ranger-horse'-or$Case-ceq'paid-medium-ranger-horse'}
+function Assert-KmcMediumHireBodyPins($Pins,$Readiness){
+ Assert-KmcExactProperties $Pins @('templateActorId','raceGuid','presetGuid','skeletonName','gender','leftHanded') 'Medium native body pins'
+ Assert-KmcOrdinaryGuid $Pins.templateActorId
+ if($Pins.templateActorId-cnotin$Readiness.partyCharacterIds){throw 'Medium body template must be an observed native field character.'}
+ foreach($key in @('raceGuid','presetGuid')){if($Pins.$key-isnot[string]-or$Pins.$key-cnotmatch'^[a-f0-9]{32}$'){throw 'Medium body blueprint must be exact.'}}
+ if($Pins.skeletonName-isnot[string]-or[string]::IsNullOrWhiteSpace($Pins.skeletonName)-or$Pins.skeletonName.Length-gt160-or$Pins.skeletonName-match'[\x00-\x1f\x7f]'-or$Pins.gender-isnot[string]-or$Pins.gender-cnotin@('Male','Female')-or$Pins.leftHanded-isnot[bool]){throw 'Medium body selection is malformed.'}
+}
+function Assert-KmcMediumHireBodySource($Inventory,$Pins){
+ if($Inventory.party-isnot[Array]-or$Inventory.party.Count-lt1-or$Inventory.party.Count-gt24){throw 'Medium native body source needs a bounded observed party.'}
+ foreach($actor in $Inventory.party){if($actor-isnot[pscustomobject]){throw 'Medium native body source contains a non-object actor.'}}
+ $rows=@($Inventory.party|Where-Object id -CEQ $Pins.templateActorId);if($rows.Count-ne1){throw 'Medium template must identify exactly one observed actor.'};$row=$rows[0]
+ foreach($key in @('originalSize','effectiveSize')){Assert-KmcBootstrapInventoryString $row.$key 'Medium'}
+ Assert-KmcChunk7Boolean $row.polymorphed $false;Assert-KmcChunk7Boolean $row.dollPresent $true
+ foreach($pair in @(@('raceGuid','raceGuid'),@('dollPresetGuid','presetGuid'),@('dollGender','gender'))){Assert-KmcBootstrapInventoryString $row.($pair[0]) $Pins.($pair[1])}
+ Assert-KmcChunk7Boolean $row.dollLeftHanded $Pins.leftHanded
+ if($row.raceId-isnot[string]-or[string]::IsNullOrWhiteSpace($row.raceId)){throw 'Medium native race identity is missing.'};Assert-KmcBootstrapInventoryString $row.dollRaceId $row.raceId
+ if($row.character-isnot[pscustomobject]-or$row.character.skeleton-isnot[pscustomobject]){throw 'Medium native rig observation is malformed.'}
+ Assert-KmcChunk7Boolean $row.character.present $true;Assert-KmcChunk7Boolean $row.character.skeleton.present $true;Assert-KmcBootstrapInventoryString $row.character.skeleton.name $Pins.skeletonName
+}
+function Get-KmcManualDerivedPaidBody($Selection){
+ if($Selection.case-ceq'paid-medium-ranger-horse'){return $Selection.mediumBody}
+ if($Selection.case-cne'paid-small-ranger-horse'){throw 'Body selection belongs to a closed paid-hire case.'}
+ [pscustomobject]@{raceGuid=$Selection.smallRaceGuid;presetGuid=$Selection.smallPresetGuid;skeletonName=$Selection.skeletonName;gender=$Selection.gender;leftHanded=$Selection.leftHanded}
+}
 function Assert-KmcChunk7ManualDerivedSelection($Request){
  $has=$null-ne$Request.PSObject.Properties['manualDerived']
  if(-not(Test-KmcChunk7ManualDerivedScenario $Request.scenario)){if($has){throw 'Manual-derived selection is forbidden under another family.'};return}
  if(-not$has){throw 'Manual-derived acquisition requires exact explicit selection.'};$s=$Request.manualDerived
- Assert-KmcExactProperties $s @('case','sourceRunId','sourceArtifactSha256','sourceArchiveSha256','baseGameOnly','expectedNativeLoadCount','expectedNativeWriteCount','nativeWriteLeaf','readiness','existingActorId','existingLevel','existingExperience','existingRangerLevel','smallRaceGuid','smallPresetGuid','skeletonName','gender','leftHanded') 'Manual-derived selection'
- if($s.case-isnot[string]-or$s.case-cnotin@('existing-ranger-horse','paid-small-ranger-horse')-or$s.sourceRunId-isnot[string]-or$s.sourceRunId-cnotmatch'^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$'-or$s.sourceRunId-ceq$Request.runId){throw 'Manual-derived case/source run differs.'}
+ $selectionKeys=@('case','sourceRunId','sourceArtifactSha256','sourceArchiveSha256','baseGameOnly','expectedNativeLoadCount','expectedNativeWriteCount','nativeWriteLeaf','readiness','existingActorId','existingLevel','existingExperience','existingRangerLevel','smallRaceGuid','smallPresetGuid','skeletonName','gender','leftHanded');if($s.case-ceq'paid-medium-ranger-horse'){$selectionKeys+='mediumBody'}
+ Assert-KmcExactProperties $s $selectionKeys 'Manual-derived selection'
+ if($s.case-isnot[string]-or$s.case-cnotin@('existing-ranger-horse','paid-small-ranger-horse','paid-medium-ranger-horse')-or$s.sourceRunId-isnot[string]-or$s.sourceRunId-cnotmatch'^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$'-or$s.sourceRunId-ceq$Request.runId){throw 'Manual-derived case/source run differs.'}
  foreach($key in @('sourceArtifactSha256','sourceArchiveSha256')){if($s.$key-isnot[string]-or$s.$key-cnotmatch'^[a-f0-9]{64}$'){throw 'Manual-derived source requires exact SHA256 pins.'}}
  Assert-KmcChunk7Boolean $s.baseGameOnly $true;Assert-KmcBootstrapInventoryString $s.nativeWriteLeaf 'Auto_1.zks'
  foreach($key in @('expectedNativeLoadCount','expectedNativeWriteCount')){Assert-KmcOrdinaryInteger $s.$key 1 1}
@@ -22,6 +48,9 @@ function Assert-KmcChunk7ManualDerivedSelection($Request){
   Assert-KmcOrdinaryInteger $s.existingLevel 1 19;Assert-KmcOrdinaryInteger $s.existingExperience 0 ([int]::MaxValue);Assert-KmcOrdinaryInteger $s.existingRangerLevel 0 3
   if($s.existingRangerLevel-gt$s.existingLevel){throw 'Existing Ranger ranks exceed character level.'}
   foreach($key in @('smallRaceGuid','smallPresetGuid','skeletonName','gender','leftHanded')){if($null-ne$s.$key){throw 'Existing actor selection cannot alter its body.'}}
+ }elseif($s.case-ceq'paid-medium-ranger-horse'){
+  foreach($key in @('existingActorId','existingLevel','existingExperience','existingRangerLevel','smallRaceGuid','smallPresetGuid','skeletonName','gender','leftHanded')){if($null-ne$s.$key){throw 'Medium hire cannot borrow legacy body or actor pins.'}}
+  Assert-KmcMediumHireBodyPins $s.mediumBody $p
  }else{
   foreach($key in @('existingActorId','existingLevel','existingExperience','existingRangerLevel')){if($null-ne$s.$key){throw 'Paid hire cannot borrow an existing actor.'}}
   foreach($key in @('smallRaceGuid','smallPresetGuid')){if($s.$key-isnot[string]-or$s.$key-cnotmatch'^[a-f0-9]{32}$'){throw 'Paid body blueprint must be exact.'}}
@@ -54,6 +83,8 @@ function Assert-KmcManualDerivedSourcePins($Selection,$Observations){
   Assert-KmcOrdinaryInteger $a[0].characterLevel $Selection.existingLevel $Selection.existingLevel;Assert-KmcOrdinaryInteger $a[0].experience $Selection.existingExperience $Selection.existingExperience
   $r=@($a[0].classes|Where-Object classGuid -CEQ 'cda0615668a6df14eb36ba19ee881af6');$rank=if($r.Count-eq0){0}elseif($r.Count-eq1){$r[0].level}else{throw 'Duplicate Ranger class in native source.'}
   Assert-KmcOrdinaryInteger $rank $Selection.existingRangerLevel $Selection.existingRangerLevel
+ }elseif($Selection.case-ceq'paid-medium-ranger-horse'){
+  Assert-KmcMediumHireBodySource $Observations.nativeProfileInventory $Selection.mediumBody
  }else{
   $race=@($Observations.nativeProfileInventory.smallRaces|Where-Object raceGuid -CEQ $Selection.smallRaceGuid)
   if($race.Count-ne1){throw 'Selected Small race absent from native source.'};Assert-KmcBootstrapInventoryString $race[0].size 'Small'
@@ -112,7 +143,7 @@ function Assert-KmcManualDerivedSnapshot($Row,$Identity,[long]$Xp,[long]$Level,[
  Assert-KmcOrdinarySnapshot $Row $Identity $Xp $Level $Money
 }
 function Assert-KmcManualDerivedNativeChoices($Request,$O,$Selection=$null){
- if($null-eq$Selection){$Selection=$Request.manualDerived};$s=$Selection;$paid=$s.case-ceq'paid-small-ranger-horse';$original=@($O.loadedWorld.party.id)
+ if($null-eq$Selection){$Selection=$Request.manualDerived};$s=$Selection;$paid=Test-KmcManualDerivedPaidCase $s.case;$body=if($paid){Get-KmcManualDerivedPaidBody $s}else{$null};$original=@($O.loadedWorld.party.id)
     if($o.choices-isnot[Array]-or$o.choices.Count-lt4-or$o.choices.Count-gt1400){throw 'Bounded native ordinary events are missing.'}
     $rows=@($o.choices);$admission=$rows[0]
     foreach($row in $rows){Assert-KmcBootstrapInventoryString $row.runId $Request.runId;if($row.event-isnot[string]){throw 'Native choice event must be a scalar token.'}}
@@ -171,8 +202,8 @@ function Assert-KmcManualDerivedNativeChoices($Request,$O,$Selection=$null){
                     if($row.nativeSelectionGuid-ceq'ee63330662126374e8785cc901941ac7'-and$row.choice.StartsWith('7db7c50677e39f09feef56f3831fc723/',[StringComparison]::Ordinal)){$horseSelected=$true}
                 }elseif($null-ne$row.nativeSelectionGuid){throw 'Non-feature choice contains feature selection identity.'}
                 if($row.kind-ceq'class'-and$row.choice-cne'cda0615668a6df14eb36ba19ee881af6'){throw 'Native ordinary class differs.'}
-                if($paid-and$row.kind-ceq'race'-and$row.choice-cne$s.smallRaceGuid){throw 'Native selected Small race differs.'}
-                if($paid-and$row.kind-ceq'native-race-preset'-and$row.choice-cne$s.smallPresetGuid){throw 'Native selected Small preset differs.'}
+                if($paid-and$row.kind-ceq'race'-and$row.choice-cne$body.raceGuid){throw 'Native selected paid race differs.'}
+                if($paid-and$row.kind-ceq'native-race-preset'-and$row.choice-cne$body.presetGuid){throw 'Native selected paid preset differs.'}
                 $pendingChoice=$null;$accepted++
             }
             'native-total-next-requested' {
@@ -265,7 +296,7 @@ function Assert-KmcChunk7ManualDerivedEvidence($Request,$Artifact,$SourceArtifac
 # Shared raw native observation proof only. Each closed caller validates its own
 # exact descriptor, artifact kind and distinct source family before entering.
 function Assert-KmcNativeAcquisitionProof($Request,$Artifact,$SourceArtifact,$Selection,[switch]$Cumulative){
- $o=$Artifact.observations;$s=$Selection;$source=$SourceArtifact;$paid=$s.case-ceq'paid-small-ranger-horse'
+ $o=$Artifact.observations;$s=$Selection;$source=$SourceArtifact;$paid=Test-KmcManualDerivedPaidCase $s.case
  if(-not(Test-KmcFiniteJsonNumber $o.elapsedSeconds)-or$o.elapsedSeconds-lt0-or$o.elapsedSeconds-gt1050){throw 'Manual-derived elapsed observation exceeds its declared native bound.'}
  foreach($key in @('commit','dllSha256','dllMvid')){Assert-KmcBootstrapInventoryString $source.$key $Request.$key}
  Assert-KmcBootstrapInventoryString $source.runId $s.sourceRunId;Assert-KmcBootstrapInventoryString $source.status 'PASS'
@@ -337,6 +368,7 @@ function Assert-KmcNativeAcquisitionProof($Request,$Artifact,$SourceArtifact,$Se
  foreach($key in @('mainProgression','staticPartyFacts','saveSettings','experienceRatePercent')){if((ConvertTo-KmcChunk7Canonical $o.fixtureReadiness.$key)-cne(ConvertTo-KmcChunk7Canonical $source.observations.fixtureReadiness.$key)){throw 'Cold readiness differs from Manual source.'}}
  if((ConvertTo-KmcChunk7Canonical $o.nativeProfileInventory.ordinaryAcquisitionPrerequisites)-cne(ConvertTo-KmcChunk7Canonical $source.observations.nativeProfileInventory.ordinaryAcquisitionPrerequisites)){throw 'Native readiness differs from Manual source.'}
  if((ConvertTo-KmcChunk7Canonical $o.beforeChoices)-cne(ConvertTo-KmcChunk7Canonical $source.observations.afterSaveArrangement)){throw 'Native arrangement changed before choices.'}
+ if($s.case-ceq'paid-medium-ranger-horse'){Assert-KmcMediumHireBodySource $o.nativeProfileInventory $s.mediumBody}
  Assert-KmcManualDerivedEligibility $s $o.liveEligibility
  $choice=Assert-KmcManualDerivedNativeChoices $Request $o $s
  Assert-KmcManualDerivedOutcome $Request $o $choice $labels $root $s
@@ -355,10 +387,10 @@ function Assert-KmcManualDerivedEligibility($Selection,$E){
  foreach($xp in $table){Assert-KmcOrdinaryInteger $xp $last ([int]::MaxValue);$last=$xp}
  Assert-KmcOrdinaryInteger $E.defaultHireExperience $table[$p.mainLevel] $table[$p.mainLevel]
  Assert-KmcChunk7Boolean $E.arrangementGranted $false
- $ready=0;$xp=if($s.case-ceq'paid-small-ranger-horse'){$p.defaultHireExperience}else{$s.existingExperience}
+ $ready=0;$xp=if(Test-KmcManualDerivedPaidCase $s.case){$p.defaultHireExperience}else{$s.existingExperience}
  while($ready-lt20-and$table[$ready+1]-le$xp){$ready++}
- if($s.case-ceq'paid-small-ranger-horse'){
-  Assert-KmcChunk7Boolean $E.exactSmallCatalogueMember $true
+ if(Test-KmcManualDerivedPaidCase $s.case){
+  if($s.case-ceq'paid-medium-ranger-horse'){Assert-KmcChunk7Boolean $E.exactMediumBodyMember $true}else{Assert-KmcChunk7Boolean $E.exactSmallCatalogueMember $true}
   if($p.mainLevel-lt4-or$ready-lt4-or$p.money-lt$p.nativeHireCost-or$p.partyCharacterIds.Count-ge6){throw 'Native paid readiness lacks attained level/funds/slot.'}
   if($null-ne$E.existingActorId){throw 'Paid eligibility borrows an existing actor.'}
  }else{
@@ -369,7 +401,7 @@ function Assert-KmcManualDerivedEligibility($Selection,$E){
  }
 }
 function Assert-KmcManualDerivedOutcome($Request,$O,$Choice,$Labels,[string]$Root,$Selection=$null){
- if($null-eq$Selection){$Selection=$Request.manualDerived};$s=$Selection;$paid=$s.case-ceq'paid-small-ranger-horse';$w=$O.nativeWrite
+ if($null-eq$Selection){$Selection=$Request.manualDerived};$s=$Selection;$paid=Test-KmcManualDerivedPaidCase $s.case;$w=$O.nativeWrite
  foreach($pair in @(@('path',(Join-Path $Root 'Auto_1.zks')),@('leaf','Auto_1.zks'),@('type','Auto'),@('operation','None'))){Assert-KmcBootstrapInventoryString $w.($pair[0]) $pair[1]}
  foreach($key in @('gameId','gameName','area')){Assert-KmcBootstrapInventoryString $w.$key $Request.persistenceLoad.$key}
  if($w.name-isnot[string]-or[string]::IsNullOrWhiteSpace($w.name)-or$w.name.Length-gt256-or$w.name-match'[\x00-\x1f\x7f]'-or$w.name-ceq$Request.persistenceLoad.internalName){throw 'Native Auto name is absent or aliases the immutable Manual.'}
@@ -395,10 +427,11 @@ function Assert-KmcManualDerivedOutcome($Request,$O,$Choice,$Labels,[string]$Roo
  Assert-KmcOrdinaryInteger $inv[0].nativeLevelUpReadiness.experience $Choice.xp $Choice.xp;Assert-KmcOrdinaryInteger $inv[0].nativeLevelUpReadiness.characterLevel $Choice.level $Choice.level
  Assert-KmcBootstrapInventoryString $inv[0].petId $Choice.petId;Assert-KmcBootstrapInventoryString $pet[0].blueprintGuid $f.horseBlueprint
  if($paid){
-  $b=$f.bodyObservation;Assert-KmcOrdinaryInteger $b.OriginalSizeOrdinal 3 3;Assert-KmcOrdinaryInteger $b.EffectiveSizeOrdinal 3 3
+  $body=Get-KmcManualDerivedPaidBody $s;$size=if($s.case-ceq'paid-medium-ranger-horse'){4}else{3}
+  $b=$f.bodyObservation;Assert-KmcOrdinaryInteger $b.OriginalSizeOrdinal $size $size;Assert-KmcOrdinaryInteger $b.EffectiveSizeOrdinal $size $size
   foreach($key in @('NativeRaceAndPresetIdentityExact','NativeSkeletonIsExactPreset','NativeRigAvailable')){Assert-KmcChunk7Boolean $b.$key $true}
   foreach($key in @('RiderPolymorphed','MountPolymorphed')){Assert-KmcChunk7Boolean $b.$key $false}
-  foreach($pair in @(@('RaceGuid','smallRaceGuid'),@('PresetGuid','smallPresetGuid'),@('Gender','gender'),@('SkeletonName','skeletonName'))){Assert-KmcBootstrapInventoryString $b.($pair[0]) $s.($pair[1])};Assert-KmcChunk7Boolean $b.LeftHanded $s.leftHanded
+  foreach($pair in @(@('RaceGuid','raceGuid'),@('PresetGuid','presetGuid'),@('Gender','gender'),@('SkeletonName','skeletonName'))){Assert-KmcBootstrapInventoryString $b.($pair[0]) $body.($pair[1])};Assert-KmcChunk7Boolean $b.LeftHanded $body.leftHanded
   $g=$O.fieldSelection;Assert-KmcBootstrapInventoryString $g.action 'native-ShowPartySelection';Assert-KmcBootstrapInventoryString $g.actorId $Choice.actorId
   Assert-KmcOrdinaryInteger $g.nativeCap 6 6;foreach($key in @('openCount','switchCount','goCount')){Assert-KmcOrdinaryInteger $g.$key 1 1}
   foreach($key in @('openActiveSelf','readyActiveInHierarchy','closedExactInstance')){Assert-KmcChunk7Boolean $g.$key $true};foreach($key in @('closedActiveSelf','manualPartyMutation')){Assert-KmcChunk7Boolean $g.$key $false}

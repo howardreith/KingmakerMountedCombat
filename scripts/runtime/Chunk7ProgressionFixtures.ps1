@@ -10,6 +10,7 @@ function Read-KmcChunk7ProgressionSelectionFile([string]$Path,[string]$RunId){
 }
 function Get-KmcChunk7ProgressionSource($Selection,$Fixture,$Candidate){
     Assert-KmcChunk7ProgressionSelection ([pscustomobject]@{scenario='chunk7-native-progression';runId='unassigned-progression-run';progression=$Selection})
+    if(Test-KmcChunk7OwnedProgressionCase $Selection.case){return Get-KmcChunk7OwnedProgressionSource $Selection $Fixture $Candidate}
     $sourceRoot=Assert-KmcChildPath (Join-Path (Get-KmcLabRoot) ('runtime-evidence/'+$Selection.sourceRunId)) (Join-Path (Get-KmcLabRoot) 'runtime-evidence') 'progression source receipts'
     $hashes=@{}
     foreach($leaf in @('runtime-request.json','runtime-result.json','runtime-game-result.json','runtime-artifacts.json','base-game-isolation-result.json','chunk7-persistence-evidence.json')){
@@ -70,7 +71,7 @@ function Assert-KmcChunk7ProgressionNativeHeader($Header,$Write){
 }
 function Assert-KmcChunk7ProgressionNativeArchive($Request,$Artifact){
     Assert-KmcChunk7ProgressionEvidence $Request $Artifact 'PASS'
-    if($Request.progression.case-ceq'horse-native-dismiss'){return}
+    if((Get-KmcChunk7ProgressionOperation $Request.progression.case)-ceq'horse-native-dismiss'){return}
     $w=$Artifact.observations.session.nativeWrite;$path=$w.path
     Assert-KmcNotReparsePoint $path 'progression native autosave';Assert-KmcNotHardLink $path 'progression native autosave'
     $file=Get-Item -LiteralPath $path
@@ -89,4 +90,57 @@ function Assert-KmcChunk7ProgressionNativeArchive($Request,$Artifact){
         if((ConvertTo-KmcChunk7Canonical $saved)-cne(ConvertTo-KmcChunk7Canonical $w.archive)){throw 'Native progression mounted metadata differs from actual observer capture.'}
     }finally{if($reader){$reader.Dispose()};if($zip){$zip.Dispose()};if($stream){$stream.Dispose()}}
     if((Get-KmcSha256 $path)-cne$w.sha256-or(Get-Item -LiteralPath $path).LastWriteTimeUtc.Ticks-ne$file.LastWriteTimeUtc.Ticks){throw 'Native progression autosave changed during verification.'}
+}
+
+function Get-KmcChunk7OwnedProgressionSource($Selection,$Fixture,$Candidate){
+    # The existing qualifier owns complete same-candidate acquired Manual and
+    # mounted checkpoint ancestry, restoration and native-output validation.
+    # This caller selects no native action, writer target, actor, grant or restore.
+    $source=Get-KmcChunk7OwnedPairsSource $Selection.ownedSource 'multi-exploration-manual' $Fixture $Candidate
+    $request=[pscustomobject]@{scenario='chunk7-native-progression';runId='unassigned-owned-progression';progression=$Selection;persistenceLoad=$source.descriptor;fixture=$Fixture}
+    Assert-KmcChunk7ProgressionLoadDescriptor $request
+    $files=@([pscustomobject]@{path=$source.checkpointArtifactPath;hash=$Selection.sourceArtifactSha256;length=$source.checkpointArtifactLength;maximum=16MB},[pscustomobject]@{path=$source.artifactPath;hash=$Selection.inventoryArtifactSha256;length=$source.artifactLength;maximum=8MB})
+    foreach($item in $files){
+        Assert-KmcNotReparsePoint $item.path 'owned progression source';Assert-KmcNotHardLink $item.path 'owned progression source'
+        $file=Get-Item -LiteralPath $item.path
+        if($file.Length-le0-or$file.Length-gt$item.maximum-or$file.Length-ne$item.length-or(Get-KmcSha256 $item.path)-cne$item.hash){throw 'Qualified owned progression source changed before projection.'}
+    }
+    $artifact=Read-KmcJson $source.checkpointArtifactPath;$inventory=Read-KmcJson $source.artifactPath
+    foreach($row in @($artifact,$inventory)){
+        Assert-KmcBootstrapInventoryString $row.status 'PASS'
+        foreach($key in @('commit','dllSha256','dllMvid')){Assert-KmcBootstrapInventoryString $row.$key $Candidate.$key}
+    }
+    Assert-KmcBootstrapInventoryString $artifact.runId $Selection.sourceRunId;Assert-KmcBootstrapInventoryString $artifact.scenario 'chunk7-owned-two-pair-campaign';Assert-KmcBootstrapInventoryString $artifact.evidenceKind 'chunk7-persistence-evidence'
+    Assert-KmcBootstrapInventoryString $artifact.observations.checkpoint 'multi-exploration-manual'
+    Assert-KmcBootstrapInventoryString $artifact.observations.nativeWrite.sha256 $Selection.sourceArchiveSha256
+    Assert-KmcBootstrapInventoryString $inventory.runId $Selection.inventoryRunId;Assert-KmcBootstrapInventoryString $inventory.scenario 'chunk7-acquired-manual-derivative';Assert-KmcBootstrapInventoryString $inventory.evidenceKind 'chunk7-acquired-manual-evidence'
+    Assert-KmcBootstrapInventoryString $inventory.observations.selection.case 'preserve-two-acquired-field'
+    Assert-KmcBootstrapInventoryString $inventory.observations.nativeWrite.sha256 $Selection.ownedSource.sourceArchiveSha256
+    $archive=$artifact.observations.nativeWrite.archive;Assert-KmcChunk7PersistenceArchive $archive (Get-KmcChunk7ProgressionOwnedRequest $request)
+    $roles=@(@($Selection.actorId,$Selection.petId),@($Selection.controlActorId,$Selection.controlPetId))
+    foreach($role in $roles){
+        $pair=@($archive.Pairs|Where-Object{$_.Rider.Id-ceq$role[0]-and$_.Mount.Id-ceq$role[1]})
+        if($pair.Count-ne1){throw 'Owned progression source omits an exact declared pair.'};Assert-KmcBootstrapInventoryString $pair[0].ProfileId 'medium-humanoid-horse-v1'
+        $actor=@($inventory.observations.nativeProfileInventory.party|Where-Object{$_.id-ceq$role[0]})
+        if($actor.Count-ne1){throw 'Owned progression source omits exact native actor inventory.'}
+        foreach($key in @('originalSize','effectiveSize')){Assert-KmcBootstrapInventoryString $actor[0].$key 'Medium'}
+        Assert-KmcOrdinaryInteger $actor[0].nativeLevelUpReadiness.characterLevel 1 20;Assert-KmcOrdinaryInteger $actor[0].nativeLevelUpReadiness.experience 0 ([int]::MaxValue)
+    }
+    Assert-KmcChunk7ProgressionIdSet @($inventory.observations.fieldWorld.party|ForEach-Object{$_.id}) $Selection.ownedSource.partyIds 'owned progression acquired field actor scope'
+    Assert-KmcOrdinaryGuid $inventory.observations.fieldWorld.mainActorId
+    if($inventory.observations.fieldWorld.mainActorId-ceq$Selection.actorId){throw 'Owned progression cannot use the native main character.'}
+    $actor=@($inventory.observations.nativeProfileInventory.party|Where-Object{$_.id-ceq$Selection.actorId})[0]
+    if((Get-KmcChunk7ProgressionOperation $Selection.case)-cin@('horse-native-retrain-horse','horse-native-retrain-mammoth')){
+        foreach($pair in @(@('raceGuid','raceGuid'),@('dollPresetGuid','presetGuid'),@('dollGender','gender'))){Assert-KmcBootstrapInventoryString $actor.($pair[0]) $Selection.($pair[1])}
+        Assert-KmcBootstrapInventoryString $actor.character.skeleton.name $Selection.skeletonName
+        Assert-KmcChunk7Boolean $actor.dollLeftHanded $Selection.leftHanded;Assert-KmcChunk7Boolean $actor.character.skeleton.present $true
+    }
+    foreach($item in $files){if((Get-KmcSha256 $item.path)-cne$item.hash-or(Get-Item -LiteralPath $item.path).Length-ne$item.length){throw 'Owned progression source changed during exact read-only projection.'}}
+    [pscustomobject]@{path=$source.path;descriptor=$source.descriptor;artifactPath=$source.checkpointArtifactPath;artifactSha256=$Selection.sourceArtifactSha256;artifactLength=[long]$source.checkpointArtifactLength;
+        inventory=[pscustomobject]@{path=$source.artifactPath;sha256=$Selection.inventoryArtifactSha256;length=[long]$source.artifactLength};sourceProcessId=$artifact.observations.processId}
+}
+function Get-KmcChunk7ProgressionInputLeaf($Request){
+    Assert-KmcChunk7ProgressionLoadDescriptor $Request
+    if(Test-KmcChunk7OwnedProgressionCase $Request.progression.case){return $Request.persistenceLoad.fileName}
+    return 'Manual_300_KMC_C7_WORLD.zks'
 }

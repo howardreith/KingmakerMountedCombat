@@ -5,15 +5,19 @@ function Assert-KmcChunk7SmallSelection($Request){
  $has=$null-ne$Request.PSObject.Properties['smallCalibration']
  if(-not(Test-KmcChunk7SmallScenario $Request.scenario)){if($has){throw 'Small calibration selection is forbidden under another scenario.'};return}
  if(-not$has){throw 'Exact Small calibration selection is missing.'};$s=$Request.smallCalibration
- Assert-KmcExactProperties $s @('case','source','profileId','nativeInventorySha256','nativeCalibrationSha256') 'Small calibration selection'
- if($s.case-isnot[string]-or$s.case-cne'compiled-small-horse-rt'-or$s.profileId-isnot[string]-or$s.profileId-cnotmatch'^small-[a-z0-9]+(?:-[a-z0-9]+)*-horse-v[1-9][0-9]*$'){throw 'Exact compiled Small profile/case is required.'}
+ $manual=Test-KmcChunk7SmallManualCase $s
+ if($manual){Assert-KmcExactProperties $s @('case','manualSource','profileId','nativeInventorySha256','nativeCalibrationSha256') 'Small Manual calibration selection'}
+ else{Assert-KmcExactProperties $s @('case','source','profileId','nativeInventorySha256','nativeCalibrationSha256') 'Small calibration selection'}
+ if($s.case-isnot[string]-or($s.case-cne'compiled-small-horse-rt'-and-not$manual)-or$s.profileId-isnot[string]-or$s.profileId-cnotmatch'^small-[a-z0-9]+(?:-[a-z0-9]+)*-horse-v[1-9][0-9]*$'){throw 'Exact compiled Small profile/case is required.'}
  foreach($key in @('nativeInventorySha256','nativeCalibrationSha256')){if($s.$key-isnot[string]-or$s.$key-cnotmatch'^[a-f0-9]{64}$'){throw 'Immutable native Small declaration provenance is required.'}}
- Assert-KmcChunk7FieldSelection ([pscustomobject]@{scenario='chunk7-ordinary-field-admission';runId=$Request.runId;ordinaryField=$s.source})
+ if($manual){Assert-KmcChunk7SmallManualSourceSelection $s.manualSource $Request.runId}
+ else{Assert-KmcChunk7FieldSelection ([pscustomobject]@{scenario='chunk7-ordinary-field-admission';runId=$Request.runId;ordinaryField=$s.source})}
 }
 function Assert-KmcChunk7SmallLoadDescriptor($Request){
  Assert-KmcChunk7SmallSelection $Request
  if(-not(Test-KmcChunk7SmallScenario $Request.scenario)){throw 'Small descriptor requires its exact closed family.'}
- Assert-KmcChunk7FieldLoadDescriptor ([pscustomobject]@{scenario='chunk7-ordinary-field-admission';runId=$Request.runId;ordinaryField=$Request.smallCalibration.source;fixture=$Request.fixture;persistenceLoad=$Request.persistenceLoad})
+ if(Test-KmcChunk7SmallManualCase $Request.smallCalibration){Assert-KmcChunk7SmallManualDescriptor $Request}
+ else{Assert-KmcChunk7FieldLoadDescriptor ([pscustomobject]@{scenario='chunk7-ordinary-field-admission';runId=$Request.runId;ordinaryField=$Request.smallCalibration.source;fixture=$Request.fixture;persistenceLoad=$Request.persistenceLoad})}
 }
 function Assert-KmcChunk7SmallNumber($Value,[double]$Minimum=0,[double]$Maximum=[double]::MaxValue){if(-not(Test-KmcChunk7FiniteNumber $Value)-or$Value-lt$Minimum-or$Value-gt$Maximum){throw 'Native Small measurement is missing, nonnumeric or out of bounds.'}}
 function Assert-KmcChunk7SmallVector($Value){Assert-KmcExactProperties $Value @('x','y','z') 'native vector';foreach($k in @('x','y','z')){Assert-KmcChunk7SmallNumber $Value.$k (-[double]::MaxValue)}}
@@ -78,7 +82,7 @@ function Assert-KmcChunk7SmallTrace($Request,$Observation){
  Assert-KmcChunk7CheckpointTrace $trace $Request
 }
 function Assert-KmcChunk7SmallMountedEvidence($Request,$o){
- $s=$Request.smallCalibration;$source=$s.source;$d=$o.declaration
+ $s=$Request.smallCalibration;$source=Get-KmcChunk7SmallSelectedSource $s;$d=$o.declaration
  if($d.profileId-cne$s.profileId-or$d.nativeInventorySha256-cne$s.nativeInventorySha256-or$d.nativeCalibrationSha256-cne$s.nativeCalibrationSha256-or$d.qualificationStatus-cne'IN PROGRESS'-or$d.pose.Id-cne$s.profileId){throw 'Observed compiled declaration differs or claims prior acceptance.'}
  foreach($f in @('diagnosticsOffProven','humanVisualAcceptance','nativePreparationManufactured','resourceFieldsWritten','poseQualified')){Assert-KmcChunk7Boolean $o.$f $false}
  Assert-KmcChunk7Boolean $o.representativeNativeActionsObserved $true
@@ -86,7 +90,8 @@ function Assert-KmcChunk7SmallMountedEvidence($Request,$o){
  if($o.inputs-isnot[Array]-or$o.inputs.Count-ne4){throw 'Exactly Mount, two primaries and Dismount are required.'}
  $kinds=@('native-mount','rider-primary','mount-primary','native-dismount')
  $ability=@('f053faad986631688defa003cd7bda0e','27364df661b3c121eabb97a31aa73a83','f88a50d6fdbebbd709c3e323d2f52f5e','3af2b81f4d72bbb30501fa730fcdf36e')
- $ids=@('b6628a77-4962-47a4-a17c-88d9836fc9d5','d79a4f6c-b74e-4868-95bd-533899131acb','d17c8fd0-6627-40c4-bf9a-024cf001c1f7',$source.actorId,$source.petId)
+ if(Test-KmcChunk7SmallManualCase $s){$ids=@($o.manualNativeRoster.mainActorId)+@($o.manualNativeRoster.actors.id|Where-Object{$_-cne$o.manualNativeRoster.mainActorId-and$_-cne$source.actorId-and$_-cne$source.petId}|Sort-Object -CaseSensitive)+@($source.actorId,$source.petId)}
+ else{$ids=@('b6628a77-4962-47a4-a17c-88d9836fc9d5','d79a4f6c-b74e-4868-95bd-533899131acb','d17c8fd0-6627-40c4-bf9a-024cf001c1f7',$source.actorId,$source.petId)}
  $prior=-1
  $mountedOwner=$o.inputs[0].after.owners
  if($mountedOwner-isnot[Array]-or$mountedOwner.Count-ne1){throw 'Native Mount has no exact owner.'}
@@ -174,6 +179,7 @@ function Assert-KmcChunk7SmallEvidence($Request,$Artifact,[string]$Status='PASS'
     Assert-KmcOrdinaryInteger $Artifact.schemaVersion 1 1
     if($Status-ceq'PASS'-and$Artifact.status-cne'PASS'){throw 'PASS field result requires a PASS artifact.'}
     if($Artifact.status-cne'PASS'){return}
+    if(Test-KmcChunk7SmallManualCase $Request.smallCalibration){Assert-KmcChunk7SmallManualEvidence $Request $Artifact;return}
     $o=$Artifact.observations;$s=$Request.smallCalibration.source
     if((ConvertTo-KmcChunk7Canonical $o.selection)-cne(ConvertTo-KmcChunk7Canonical $Request.smallCalibration)){throw 'Field observed explicit selection differs.'}
     Assert-KmcOrdinaryInteger $o.processId 1 ([int]::MaxValue)
@@ -231,4 +237,113 @@ function Assert-KmcChunk7SmallArtifact($Request,$Manifest,[string]$Status='PASS'
  if($records.Count-eq0-and$Status-ceq'FAIL'){return}
  $artifact=Read-KmcChunk7ManifestArtifact $Request $Manifest 'chunk7-small-calibration-evidence.json' 'chunk7-small-calibration-evidence'
  Assert-KmcChunk7SmallEvidence $Request $artifact $Status
+}
+
+# The new case is a distinct field-durable source. No legacy Working alias is admitted.
+function Test-KmcChunk7SmallManualCase($Selection){$null-ne$Selection-and$Selection.case-is[string]-and$Selection.case-ceq'compiled-manual-derived-small-horse-rt'}
+function Get-KmcChunk7SmallSelectedSource($Selection){if(Test-KmcChunk7SmallManualCase $Selection){$Selection.manualSource}else{$Selection.source}}
+function Assert-KmcChunk7SmallManualSourceSelection($S,[string]$RunId){
+ Assert-KmcExactProperties $S @('sourceRunId','sourceArtifactSha256','sourceArchiveSha256','actorId','petId') 'Small acquired Manual source'
+ if($S.sourceRunId-isnot[string]-or$S.sourceRunId-cnotmatch'^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$'-or$S.sourceRunId-ceq$RunId){throw 'Small Manual source needs a distinct exact run.'}
+ foreach($key in @('sourceArtifactSha256','sourceArchiveSha256')){if($S.$key-isnot[string]-or$S.$key-cnotmatch'^[a-f0-9]{64}$'){throw 'Small Manual source needs exact immutable SHA256 pins.'}}
+ Assert-KmcOrdinaryGuid $S.actorId;Assert-KmcOrdinaryGuid $S.petId;if($S.actorId-ceq$S.petId){throw 'Small owner and Horse identities must differ.'}
+}
+function Assert-KmcChunk7SmallManualDescriptor($Request){
+ $s=$Request.smallCalibration.manualSource;Assert-KmcChunk7SmallManualSourceSelection $s $Request.runId
+ $d=$Request.persistenceLoad;Assert-KmcExactProperties $d @('internalName','fileName','sha256','length','lastWriteTimeUtcTicks','gameId','gameName','area') 'Small immutable Manual descriptor'
+ Assert-KmcBootstrapInventoryString $d.internalName 'KMC_C7_ACQUIRED_FIELD';Assert-KmcBootstrapInventoryString $d.sha256 $s.sourceArchiveSha256
+ if($d.fileName-isnot[string]-or$d.fileName-cnotmatch'^Manual_([1-9][0-9]*)_KMC_C7_ACQUIRED_FIELD\.zks$'){throw 'Small source must retain its real acquired Manual leaf.'}
+ $number=0;if(-not[int]::TryParse($Matches[1],[Globalization.NumberStyles]::None,[Globalization.CultureInfo]::InvariantCulture,[ref]$number)-or$number-le0-or$d.fileName-cne('Manual_'+$number.ToString([Globalization.CultureInfo]::InvariantCulture)+'_KMC_C7_ACQUIRED_FIELD.zks')){throw 'Small source native Manual number is malformed.'}
+ Assert-KmcOrdinaryGuid $d.gameId
+ if($d.gameName-isnot[string]-or[string]::IsNullOrWhiteSpace($d.gameName)-or$d.gameName.Length-gt256-or$d.gameName-match'[\x00-\x1f\x7f]'-or$d.area-isnot[string]-or$d.area-cnotmatch'^[a-f0-9]{32}$'-or$d.gameId-ceq$Request.fixture.working.gameId-or$d.sha256-ceq$Request.fixture.working.sha256-or$d.sha256-ceq$Request.fixture.baseline.sha256){throw 'Small Manual source must retain its separately minted campaign.'}
+ Assert-KmcOrdinaryInteger $d.length 1 268435456;Assert-KmcOrdinaryInteger $d.lastWriteTimeUtcTicks 1 ([DateTime]::MaxValue.Ticks)
+}
+function Assert-KmcChunk7SmallManualSourceObservation($S,$O){
+ Assert-KmcChunk7AcquiredManualSelection ([pscustomobject]@{scenario='chunk7-acquired-manual-derivative';runId=$S.sourceRunId;acquiredManual=$O.selection})
+ Assert-KmcBootstrapInventoryString $O.selection.case 'preserve-acquired-field';Assert-KmcBootstrapInventoryString $O.selection.actorId $S.actorId;Assert-KmcBootstrapInventoryString $O.selection.petId $S.petId
+ if($null-ne$O.PSObject.Properties['twoOwners']){throw 'Small calibration does not admit a cumulative/two-owner source.'}
+ $choice=$O.sourceAcquisition.selection
+ Assert-KmcChunk7ManualDerivedSelection ([pscustomobject]@{scenario='chunk7-manual-derived-acquisition';runId=$O.selection.sourceRunId;manualDerived=$choice})
+ Assert-KmcBootstrapInventoryString $choice.case 'paid-small-ranger-horse'
+ Assert-KmcChunk7Boolean $O.sourceAcquisition.nativeWrite.saveBeforeFieldSelection $true
+ foreach($key in @('actorId','petId')){Assert-KmcBootstrapInventoryString $O.sourceAcquisition.field.$key $S.$key}
+ # This existing function validates one reciprocal observed graph only; it grants no request authority.
+ Assert-KmcCumulativePriorSource ([pscustomobject]@{priorOwnerId=$S.actorId;priorPetId=$S.petId}) $O
+ Assert-KmcAcquiredManualArrangement $O.beforeSaveArrangement $O.savedWorld $O.nativeProfileInventory
+ Assert-KmcAcquiredManualArrangement $O.afterSaveArrangement $O.savedWorld $O.nativeProfileInventory
+ if((ConvertTo-KmcChunk7Canonical $O.beforeSaveArrangement)-cne(ConvertTo-KmcChunk7Canonical $O.afterSaveArrangement)){throw 'Small Manual changed native progression while saving.'}
+ Assert-KmcOrdinaryGuid $O.savedWorld.mainActorId
+ if($O.savedWorld.mainActorId-ceq$S.actorId-or$O.savedWorld.mainActorId-ceq$S.petId-or@($O.savedWorld.party|Where-Object id -CEQ $O.savedWorld.mainActorId).Count-ne1){throw 'Paid Small source cannot replace the original main actor.'}
+ foreach($key in @('custodySettled','sourceUnchanged')){Assert-KmcChunk7Boolean $O.cleanup.$key $true}
+ foreach($key in @('schemaVersion')){Assert-KmcOrdinaryInteger $O.archive.$key 3 3}
+ foreach($key in @('pairs','participations','slots')){Assert-KmcOrdinaryInteger $O.archive.$key 0 0};Assert-KmcChunk7Boolean $O.archive.combatPresent $false
+ Assert-KmcChunk7Boolean $O.archive.nativeRestorationGrantedByDiagnostic $false
+ foreach($key in @('owners','slots','semanticRestores','presentationRestores','casts')){Assert-KmcOrdinaryInteger $O.savedWorld.$key 0 0}
+ foreach($key in @('snapshots','completedSaves')){Assert-KmcOrdinaryInteger $O.savedWorld.$key 1 1}
+ Assert-KmcBootstrapInventoryString $O.nativeWrite.sha256 $S.sourceArchiveSha256
+ Assert-KmcBootstrapInventoryString $O.nativeWrite.type 'Manual';Assert-KmcBootstrapInventoryString $O.nativeWrite.internalName 'KMC_C7_ACQUIRED_FIELD';Assert-KmcChunk7Boolean $O.nativeWrite.autoLevelup $false
+}
+function Assert-KmcChunk7SmallManualEvidence($Request,$Artifact){
+ $o=$Artifact.observations;$s=$Request.smallCalibration.manualSource
+ if((ConvertTo-KmcChunk7Canonical $o.selection)-cne(ConvertTo-KmcChunk7Canonical $Request.smallCalibration)){throw 'Observed Small Manual selection differs.'}
+ Assert-KmcOrdinaryInteger $o.processId 1 ([int]::MaxValue)
+ if(-not(Test-KmcChunk7FiniteNumber $o.elapsedSeconds)-or$o.elapsedSeconds-lt0-or$o.elapsedSeconds-gt420){throw 'Bounded native calibration elapsed time invalid.'}
+ foreach($key in @('sourceWasRemoteAutosave','sourceArchiveStillRemote','smallPoseQualified','mountedCombatProven','freshMainCampaignProven','manualPartyMutation')){Assert-KmcChunk7Boolean $o.$key $false}
+ $source=$o.source;Assert-KmcBootstrapInventoryString $source.kind 'qualified-first-owner-acquired-manual'
+ foreach($pair in @(@('runId',$s.sourceRunId),@('artifactSha256',$s.sourceArtifactSha256),@('archiveSha256',$s.sourceArchiveSha256),@('archiveLeaf',$Request.persistenceLoad.fileName),@('archiveName',$Request.persistenceLoad.internalName))){Assert-KmcBootstrapInventoryString $source.($pair[0]) $pair[1]}
+ Assert-KmcOrdinaryInteger $source.archiveLength $Request.persistenceLoad.length $Request.persistenceLoad.length
+ Assert-KmcChunk7Boolean $source.sameCandidate $true;Assert-KmcChunk7Boolean $source.unchangedArchive $true
+ $saved=$source.acquiredManual;Assert-KmcChunk7SmallManualSourceObservation $s $saved
+ foreach($key in @('gameId','gameName','area')){Assert-KmcBootstrapInventoryString $saved.nativeWrite.$key $Request.persistenceLoad.$key}
+ if((ConvertTo-KmcChunk7Canonical $source.bodySelection)-cne(ConvertTo-KmcChunk7Canonical $saved.sourceAcquisition.selection)){throw 'Small body choices differ from the qualified paid source.'}
+ $root=Join-Path ([IO.Path]::GetDirectoryName([IO.Path]::GetDirectoryName($Request.evidenceRoot))) ('runtime-staging\persistence-'+$Request.runId+'\Saved Games')
+ Assert-KmcChunk7FieldAuthority $o.authority $root $o.authority.generation;Assert-KmcChunk7FieldAuthority $o.cleanup.authority $root $o.authority.generation
+ foreach($row in @($o.before,$o.field)){Assert-KmcChunk7FieldSnapshot $row $s;foreach($key in @('riderInGame','petInGame','riderInState','petInState','riderAgentReady','petAgentReady')){Assert-KmcChunk7Boolean $row.$key $true}}
+ if((ConvertTo-KmcChunk7Canonical $o.before)-cne(ConvertTo-KmcChunk7Canonical $o.field)){throw 'The field-durable Small Manual cannot acquire another selector phase.'}
+ foreach($key in @('partyCharacters','remoteCompanions')){if((ConvertTo-KmcChunk7Canonical $o.before.$key)-cne(ConvertTo-KmcChunk7Canonical $saved.savedOwner.$key)){throw 'Cold Small Manual character membership differs.'}}
+ $ownerProgress=@($saved.afterSaveArrangement.actors|Where-Object actorId -CEQ $s.actorId);$petProgress=@($saved.afterSaveArrangement.actors|Where-Object actorId -CEQ $s.petId)
+ if($ownerProgress.Count-ne1-or$petProgress.Count-ne1){throw 'Source Small progression roles missing.'}
+ foreach($p in @(@('money',$saved.afterSaveArrangement.money),@('xp',$ownerProgress[0].experience),@('level',$ownerProgress[0].characterLevel),@('petLevel',$petProgress[0].characterLevel),@('rank',$saved.savedOwner.rank))){Assert-KmcOrdinaryInteger $o.before.($p[0]) $p[1] $p[1]}
+ Assert-KmcBootstrapInventoryString $o.before.featureSourceGuid $saved.savedOwner.sourceGuid
+ Assert-KmcExactProperties $o.selector @('required','openCount','manualPartyMutation','fieldRestoredFromManual') 'Small Manual selector refusal'
+ foreach($key in @('required','manualPartyMutation')){Assert-KmcChunk7Boolean $o.selector.$key $false};Assert-KmcOrdinaryInteger $o.selector.openCount 0 0;Assert-KmcChunk7Boolean $o.selector.fieldRestoredFromManual $true
+ Assert-KmcOrdinaryInteger $o.beforeLoad.frame 0 ([int]::MaxValue);Assert-KmcChunk7Boolean $o.beforeLoad.installedBeforeWorldLoad $true;Assert-KmcChunk7Boolean $o.beforeLoad.sourceReadOnly $true
+ foreach($key in @('nativeLoads','nativeWrites')){Assert-KmcOrdinaryInteger $o.beforeLoad.$key 0 0}
+ $p=$o.coldNoPreparation;Assert-KmcBootstrapInventoryString $p.contract 'chunk7-native-restoration-entry-observer-v1';Assert-KmcBootstrapInventoryString $p.prepareMetric 'native-method-entries-including-production-refused-attempts'
+ foreach($key in @('complete','installedBeforeWorldLoad')){Assert-KmcChunk7Boolean $p.$key $true};Assert-KmcOrdinaryInteger $p.maximumEvents 2048 2048
+ foreach($key in @('dropped','errors')){Assert-KmcOrdinaryInteger $p.$key 0 0};if($p.events-isnot[Array]-or$p.events.Count-ne0-or$p.hooks-isnot[Array]-or$p.hooks.Count-ne4){throw 'Small cold preparation/restore observation is not complete and empty.'}
+ $tokens=@('06000C3C','0600939D');$methods=@('Prepare','NewRound','RestoreActor','RestoreDebt');$prefixes=@('PrepareBefore','RoundBefore','RestoreActorBefore','RestoreDebtBefore');$postfixes=@('PrepareAfter','RoundAfter','RestoreActorAfter','RestoreDebtAfter')
+ for($i=0;$i-lt4;$i++){$h=$p.hooks[$i];Assert-KmcBootstrapInventoryString $h.method $methods[$i];Assert-KmcBootstrapInventoryString $h.prefix $prefixes[$i];Assert-KmcBootstrapInventoryString $h.postfix $postfixes[$i]
+  if($i-lt2){$type=if($i-eq0){'TurnBased.Controllers.TurnController'}else{'Kingmaker.UnitLogic.UnitCombatState'};Assert-KmcBootstrapInventoryString $h.declaringType $type;Assert-KmcBootstrapInventoryString $h.token $tokens[$i];Assert-KmcBootstrapInventoryString $h.moduleMvid '07fa1e4d-8618-41b3-9b8d-faa17d3b26f7'}else{Assert-KmcBootstrapInventoryString $h.moduleMvid $Request.dllMvid;Assert-KmcBootstrapInventoryString $h.declaringType 'KingmakerMountedCombat.Integration.NativeCombatActorPersistence';if($h.token-isnot[string]-or$h.token-cnotmatch'^06[0-9A-F]{6}$'){throw 'Product restore hook token invalid.'}}
+ }
+ $n=$o.manualNativeRoster;Assert-KmcExactProperties $n @('mainActorId','arrangement','resources','actors') 'Small native full roster'
+ Assert-KmcBootstrapInventoryString $n.mainActorId $saved.savedWorld.mainActorId
+ if($n.actors-isnot[Array]-or$n.actors.Count-ne$saved.savedWorld.party.Count-or$n.actors.Count-lt3-or$n.actors.Count-gt24){throw 'Cold Small native roster is missing or unbounded.'}
+ $ids=[Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal);$objects=[Collections.Generic.HashSet[int]]::new()
+ foreach($a in $n.actors){Assert-KmcExactProperties $a @('id','blueprint','object','descriptor','view') 'Small native actor';Assert-KmcOrdinaryGuid $a.id;if(-not$ids.Add($a.id)){throw 'Small native actor repeats.'};$row=@($saved.savedWorld.party|Where-Object id -CEQ $a.id);if($row.Count-ne1){throw 'Small native actor is foreign.'};Assert-KmcBootstrapInventoryString $a.blueprint $row[0].blueprint
+  foreach($key in @('object','descriptor','view')){Assert-KmcAcquiredManualObjectIdentity $a.$key;if(-not$objects.Add([int]$a.$key)){throw 'Small native roles alias.'}}
+  $state=@($o.inputs[0].before.actors|Where-Object id -CEQ $a.id);if($state.Count-ne1){throw 'Native calibration lacks a source actor.'};Assert-KmcOrdinaryInteger $state[0].object $a.object $a.object
+ }
+ foreach($role in @(@('actor',$s.actorId),@('pet',$s.petId))){$a=@($n.actors|Where-Object id -CEQ $role[1]);if($a.Count-ne1){throw 'Small native pair role missing.'};Assert-KmcOrdinaryInteger $o.before.($role[0]+'Object') $a[0].object $a[0].object;Assert-KmcOrdinaryInteger $o.before.($(if($role[0]-ceq'actor'){'descriptorObject'}else{'petDescriptorObject'})) $a[0].descriptor $a[0].descriptor}
+ Assert-KmcAcquiredManualArrangement $n.arrangement $saved.savedWorld $saved.nativeProfileInventory;Assert-KmcCumulativeResources $n.resources @($saved.savedWorld.party.id)
+ if((ConvertTo-KmcChunk7Canonical $n.arrangement)-cne(ConvertTo-KmcChunk7Canonical $saved.afterSaveArrangement)-or(ConvertTo-KmcChunk7Canonical $n.resources)-cne(ConvertTo-KmcChunk7Canonical $saved.resourcesAfterSave)){throw 'Native cold Small load changed progression/resources.'}
+ if((ConvertTo-KmcChunk7Canonical $o.bodyObservation)-cne(ConvertTo-KmcChunk7Canonical $saved.bodyObservation)){throw 'Cold Small body/rig/equipment differs from its saved field body.'}
+    $b=$o.bodyObservation;$pins=$source.bodySelection
+    foreach($flag in @('NativeRaceAndPresetIdentityExact','NativeSkeletonIsExactPreset','NativeRigAvailable')){Assert-KmcChunk7Boolean $b.$flag $true}
+    foreach($flag in @('RiderPolymorphed','MountPolymorphed')){Assert-KmcChunk7Boolean $b.$flag $false}
+    Assert-KmcOrdinaryInteger $b.OriginalSizeOrdinal 3 3;Assert-KmcOrdinaryInteger $b.EffectiveSizeOrdinal 3 3
+    if($b.RaceGuid-cne$pins.smallRaceGuid-or$b.PresetGuid-cne$pins.smallPresetGuid-or$b.SkeletonName-cne$pins.skeletonName-or$b.Gender-cne$pins.gender){throw 'Observed field body differs from its native source selection.'}
+    Assert-KmcChunk7Boolean $b.LeftHanded $pins.leftHanded
+    if($o.profileInventory.captureStatus-isnot[string]-or$o.profileInventory.gameplayAssemblyMvid-isnot[string]-or
+       $o.profileInventory.captureStatus-cne'PASS'-or$o.profileInventory.gameplayAssemblyMvid-cne'07fa1e4d-8618-41b3-9b8d-faa17d3b26f7'){throw 'Exact native profile observation missing.'}
+    Assert-KmcOrdinaryInteger $o.profileInventory.schemaVersion 1 1
+    Assert-KmcChunk7Boolean $o.profileInventory.profileAdmissionChanged $false
+    if($o.profileInventory.party-isnot[Array]-or$o.profileInventory.party.Count-ne2){throw 'Field rig inventory must bind the exact rider and pet.'}
+    Assert-KmcChunk7ExactIds $o.profileInventory.party @($s.actorId,$s.petId)
+    $nativeRider=@($o.profileInventory.party|Where-Object id -CEQ $s.actorId)[0]
+    Assert-KmcChunk7Boolean $nativeRider.character.present $true
+    foreach($flag in @('custodySettled','nativeWorkerSettled','selectorClosed','selectionRestored','pauseRestored','acquiredNativeStateRetained','sourceUnchanged')){Assert-KmcChunk7Boolean $o.cleanup.$flag $true}
+    foreach($key in @('nativeWrites','manualPartyMutations','manualRefunds','manualFactRemovals','manualCompanionRemovals')){Assert-KmcOrdinaryInteger $o.cleanup.$key 0 0}
+    Assert-KmcChunk7SmallMountedEvidence $Request $o
+
 }

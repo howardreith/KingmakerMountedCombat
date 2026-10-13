@@ -21,7 +21,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private JObject sourceObservations, noArrangementLoaded, resourceBefore;
         private UnitEntityData acquiredActor, acquiredPet;
         private object acquiredDescriptor, acquiredPetDescriptor, acquiredView, acquiredPetView, acquiredFeature, acquiredRank;
-        private bool sourcePaid, ownerBound, fieldStarted, fieldTransitionOpen, fieldProven;
+        private bool sourcePaid, sourcePaidMedium, ownerBound, fieldStarted, fieldTransitionOpen, fieldProven;
         private Chunk7NativePartyFieldAdmission fieldAdmission;
         private UnitEntityData[] originalSelection;
         private string[] originalCharacters;
@@ -34,7 +34,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var expected = ((JArray)sourceWorld["party"]).Select(row => new { Id = (string)row["id"], Blueprint = (string)row["blueprint"] }).ToList();
             Require(expected.All(row => row.Id != selection.PetId), "Source original roster already aliases its newly acquired Horse.");
             if (!sourcePaid) expected.Add(new { Id = selection.PetId, Blueprint = (string)sourceObservations["field"]["horseBlueprint"] });
-            var current = game.Player.Party.ToArray();
+            var current = Chunk7NativeFieldRoster.Capture(game.Player);
             Require(current.Length == expected.Count && current.All(value => value != null) &&
                 current.Select(value => value.UniqueId).Distinct(StringComparer.Ordinal).Count() == current.Length,
                 "Cold acquisition roster differs from its exact saved pre-selector layout.");
@@ -159,7 +159,7 @@ namespace KingmakerMountedCombat.Diagnostics
             if (fieldAdmission != null && !fieldAdmission.Completed && !fieldAdmission.Tick()) return;
             if (acquiredActor.View?.AgentASP == null || acquiredPet.View?.AgentASP == null || !acquiredActor.IsInGame || !acquiredPet.IsInGame ||
                 !acquiredActor.IsInState || !acquiredPet.IsInState) return;
-            RequireAcquiredOwner(); var current = game.Player.Party.ToArray(); var expected = OwnedActors();
+            RequireAcquiredOwner(); var current = Chunk7NativeFieldRoster.Capture(game.Player); var expected = OwnedActors();
             Require(current.Length == expected.Length && current.All(value => expected.Count(actor => ReferenceEquals(actor, value)) == 1) &&
                 expected.All(value => value.Commands.Empty && !value.IsInCombat && value.IsDirectlyControllable) &&
                 game.Player.PartyCharacters.Count(value => ReferenceEquals(value.Value, acquiredActor)) == 1 &&
@@ -175,11 +175,12 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 var body = NativeSmallRiderBody.Capture(acquiredActor, acquiredPet);
                 if (body?.NativeRigAvailable != true) return;
-                var pins = sourceObservations["selection"];
+                var pins = sourcePaidMedium ? sourceObservations["selection"]["mediumBody"] : sourceObservations["selection"];
+                var expectedSize = sourcePaidMedium ? Size.Medium : Size.Small;
                 Require(body.NativeRaceAndPresetIdentityExact && body.NativeSkeletonIsExactPreset && !body.RiderPolymorphed && !body.MountPolymorphed &&
-                    body.OriginalSizeOrdinal == (int)Size.Small && body.EffectiveSizeOrdinal == (int)Size.Small && body.RaceGuid == (string)pins["smallRaceGuid"] &&
-                    body.PresetGuid == (string)pins["smallPresetGuid"] && body.SkeletonName == (string)pins["skeletonName"] && body.Gender == (string)pins["gender"] &&
-                    body.LeftHanded == (bool)pins["leftHanded"], "Native restored Small body differs from its explicit acquired source.");
+                    body.OriginalSizeOrdinal == (int)expectedSize && body.EffectiveSizeOrdinal == (int)expectedSize && body.RaceGuid == (string)pins[sourcePaidMedium ? "raceGuid" : "smallRaceGuid"] &&
+                    body.PresetGuid == (string)pins[sourcePaidMedium ? "presetGuid" : "smallPresetGuid"] && body.SkeletonName == (string)pins["skeletonName"] && body.Gender == (string)pins["gender"] &&
+                    body.LeftHanded == (bool)pins["leftHanded"], "Native restored paid body differs from its explicit acquired source.");
                 evidence["bodyObservation"] = JObject.FromObject(body);
             }
             if (fieldAdmission != null) { evidence["selector"] = fieldAdmission.Capture(); evidence["selector"]["required"] = true; }

@@ -32,6 +32,8 @@ namespace KingmakerMountedCombat.Diagnostics
         public string SkeletonName { get; set; }
         public string Gender { get; set; }
         public bool? LeftHanded { get; set; }
+        public Chunk7MediumHireBodyPins MediumBody { get; set; }
+        public bool ShouldSerializeMediumBody() => MediumBody != null;
 
         public IReadOnlyList<string> Validate(string scenario, string runId)
         {
@@ -51,7 +53,7 @@ namespace KingmakerMountedCombat.Diagnostics
             BaseGameOnly = BaseGameOnly, ExpectedNativeLoadCount = ExpectedNativeLoadCount, ExpectedNativeWriteCount = ExpectedNativeWriteCount,
             NativeWriteLeaf = NativeWriteLeaf, Readiness = Readiness, ExistingActorId = ExistingActorId, ExistingLevel = ExistingLevel,
             ExistingExperience = ExistingExperience, ExistingRangerLevel = ExistingRangerLevel, SmallRaceGuid = SmallRaceGuid,
-            SmallPresetGuid = SmallPresetGuid, SkeletonName = SkeletonName, Gender = Gender, LeftHanded = LeftHanded
+            SmallPresetGuid = SmallPresetGuid, SkeletonName = SkeletonName, Gender = Gender, LeftHanded = LeftHanded, MediumBody = MediumBody
         };
         internal static bool IsAcquiredManualLeaf(string value)
         {

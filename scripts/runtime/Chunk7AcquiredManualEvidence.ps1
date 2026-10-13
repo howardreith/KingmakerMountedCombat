@@ -78,7 +78,7 @@ function Assert-KmcChunk7AcquiredManualEvidence($Request,$Artifact,$SourceArtifa
  foreach($key in @('runId','artifactSha256','archiveSha256')){$selectionKey=if($key-ceq'runId'){'sourceRunId'}elseif($key-ceq'artifactSha256'){'sourceArtifactSha256'}else{'sourceArchiveSha256'};Assert-KmcBootstrapInventoryString $o.source.$key $s.$selectionKey}
  Assert-KmcBootstrapInventoryString $o.source.archiveLeaf 'Auto_1.zks';Assert-KmcChunk7Boolean $o.source.sameCandidate $true;Assert-KmcChunk7Boolean $o.source.diagnosticArchiveContentRead $false
  if((ConvertTo-KmcChunk7Canonical $o.sourceAcquisition)-cne(ConvertTo-KmcChunk7Canonical $source.observations)){throw 'Derivative substituted its complete source acquisition observations.'}
- $paid=$source.observations.selection.case-ceq'paid-small-ranger-horse';if($source.observations.selection.case-isnot[string]-or$source.observations.selection.case-cnotin@('existing-ranger-horse','paid-small-ranger-horse')){throw 'Acquired Manual source case differs.'}
+ $paid=Test-KmcManualDerivedPaidCase $source.observations.selection.case;if($source.observations.selection.case-isnot[string]-or$source.observations.selection.case-cnotin@('existing-ranger-horse','paid-small-ranger-horse','paid-medium-ranger-horse')){throw 'Acquired Manual source case differs.'}
  Assert-KmcBootstrapInventoryString $source.observations.field.actorId $s.actorId;Assert-KmcBootstrapInventoryString $source.observations.field.petId $s.petId
  Assert-KmcChunk7Boolean $source.observations.nativeWrite.saveBeforeFieldSelection $paid;Assert-KmcChunk7Boolean $o.sourceSavedBeforeSelector $paid
  $loadedExpected=[pscustomobject]@{mainActorId=$o.sourceNativeWorld.mainActorId;party=@($o.sourceNativeWorld.party)}
@@ -336,10 +336,10 @@ function Assert-KmcAcquiredManualField($Request,$O,$Source,$Labels,[string]$Root
   foreach($key in @('openCount','switchCount','goCount')){Assert-KmcOrdinaryInteger $selector.$key 1 1};foreach($key in @('openActiveSelf','readyActiveInHierarchy','closedExactInstance')){Assert-KmcChunk7Boolean $selector.$key $true};Assert-KmcChunk7Boolean $selector.closedActiveSelf $false
   if(-not(Test-KmcFiniteJsonNumber $selector.readyAlpha)-or$selector.readyAlpha-ne1){throw 'Native selector never reached its exact input-ready alpha.'}
   foreach($key in @('selectionRestored','ummInstanceRestored','ummOpenedRestored','pauseRestored')){Assert-KmcChunk7Boolean $O.presentation.$key $true};Assert-KmcChunk7Boolean $O.presentation.slotProjectionEnabled $false
-  $body=$O.bodyObservation;$pins=$Source.selection;foreach($key in @('OriginalSizeOrdinal','EffectiveSizeOrdinal')){Assert-KmcOrdinaryInteger $body.$key 3 3}
+  $body=$O.bodyObservation;$pins=Get-KmcManualDerivedPaidBody $Source.selection;$size=if($Source.selection.case-ceq'paid-medium-ranger-horse'){4}else{3};foreach($key in @('OriginalSizeOrdinal','EffectiveSizeOrdinal')){Assert-KmcOrdinaryInteger $body.$key $size $size}
   foreach($key in @('NativeRaceAndPresetIdentityExact','NativeSkeletonIsExactPreset','NativeRigAvailable')){Assert-KmcChunk7Boolean $body.$key $true}
   foreach($key in @('RiderPolymorphed','MountPolymorphed')){Assert-KmcChunk7Boolean $body.$key $false}
-  foreach($pair in @(@('RaceGuid','smallRaceGuid'),@('PresetGuid','smallPresetGuid'),@('SkeletonName','skeletonName'),@('Gender','gender'))){Assert-KmcBootstrapInventoryString $body.($pair[0]) $pins.($pair[1])};Assert-KmcChunk7Boolean $body.LeftHanded $pins.leftHanded
+  foreach($pair in @(@('RaceGuid','raceGuid'),@('PresetGuid','presetGuid'),@('SkeletonName','skeletonName'),@('Gender','gender'))){Assert-KmcBootstrapInventoryString $body.($pair[0]) $pins.($pair[1])};Assert-KmcChunk7Boolean $body.LeftHanded $pins.leftHanded
  }else{Assert-KmcOrdinaryInteger $selector.openCount 0 0}
  foreach($row in @($O.loadedArrangement,$O.beforeSaveArrangement,$O.afterSaveArrangement)){Assert-KmcAcquiredManualArrangement $row $v $O.nativeProfileInventory;if((ConvertTo-KmcChunk7Canonical $row)-cne(ConvertTo-KmcChunk7Canonical $O.loadedArrangement)){throw 'Cumulative derivative manufactured native progression/funds.'}}
  $originalProgression=[pscustomobject]@{money=$O.loadedArrangement.money;experienceRatePercent=$O.loadedArrangement.experienceRatePercent;actors=@($O.loadedArrangement.actors|Where-Object{$_.actorId-cin@($Source.afterChoices.actors.actorId)})}

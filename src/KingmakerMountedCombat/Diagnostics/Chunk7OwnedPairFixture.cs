@@ -75,7 +75,7 @@ namespace KingmakerMountedCombat.Diagnostics
             Require(horses.State == HorseCompanionBlueprintState.Registered && horses.HorseFeature != null && horses.LevelRank != null && horses.HorseUnit != null,
                 "Exact registered ordinary Horse contracts are unavailable.");
             ReadSource();
-            var party = game.Player.Party.ToArray();
+            var party = Chunk7NativeFieldRoster.Capture(game.Player);
             var rows = sourceWorld["party"] as JArray;
             Require(rows != null && rows.Count == selection.PartyIds.Length && party.Length == rows.Count &&
                 party.All(actor => actor != null) && party.Select(actor => actor.UniqueId).Distinct(StringComparer.Ordinal).Count() == party.Length &&
@@ -158,7 +158,7 @@ namespace KingmakerMountedCombat.Diagnostics
         internal void RequirePreserved()
         {
             Require(bound && !released, "Inherited fixture custody is not bound."); RequireRequest(); RequireAuthority(); Scope.RequireCurrent();
-            var currentParty = game.Player.Party.ToArray();
+            var currentParty = Chunk7NativeFieldRoster.Capture(game.Player);
             var currentCharacters = game.Player.PartyCharacters.Select(value => value.Value).ToArray();
             Require(currentParty.Length == Party.Length && Party.All(actor => currentParty.Count(value => ReferenceEquals(value, actor)) == 1) &&
                 currentCharacters.Length == partyCharacters.Length && partyCharacters.All(actor => currentCharacters.Count(value => ReferenceEquals(value, actor)) == 1) &&
@@ -194,7 +194,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["nativeLoadVerifiedByHost"] = true, ["decodedReceiptAuthorizesRestoration"] = false,
                 ["inheritedPetsPreserved"] = true, ["ownedFactRemovalCount"] = 0,
                 ["partyIds"] = new JArray(Party.Select(actor => actor.UniqueId)),
-                ["currentPartyIds"] = new JArray(game.Player.Party.Select(actor => actor.UniqueId).OrderBy(id => id, StringComparer.Ordinal)),
+                ["currentPartyIds"] = new JArray(Chunk7NativeFieldRoster.Capture(game.Player).Select(actor => actor.UniqueId).OrderBy(id => id, StringComparer.Ordinal)),
                 ["currentCharacterIds"] = new JArray(game.Player.PartyCharacters.Select(value => value.Value.UniqueId).OrderBy(id => id, StringComparer.Ordinal)),
                 ["remoteCapturedIds"] = new JArray(game.Player.RemoteCompanions.Where(value => Party.Any(actor => ReferenceEquals(value.Value, actor)))
                     .Select(value => value.Value.UniqueId).OrderBy(id => id, StringComparer.Ordinal)), ["arrangement"] = Arrangement(),

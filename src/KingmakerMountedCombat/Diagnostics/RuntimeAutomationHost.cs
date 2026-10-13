@@ -753,6 +753,11 @@ namespace KingmakerMountedCombat.Diagnostics
                         relationship, nativeControls, persistence);
                     manualSeedEngine.BeginBeforeLoad();
                 }
+                if (request.Scenario == Chunk7SmallCalibrationSelection.Scenario && request.SmallCalibration.UsesManualField)
+                {
+                    smallCalibrationEngine = new Chunk7SmallCalibrationScenario(request, saveAuthorization, persistenceBootstrap.Authority, relationship, nativeControls, persistence, horseCompanion, diagnosticSettings, logger);
+                    smallCalibrationEngine.BeginBeforeLoad();
+                }
                 fixtureLoaderStarted = true;
                 fixtureLoader.Start();
                 return;

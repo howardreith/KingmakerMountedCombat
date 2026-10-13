@@ -37,6 +37,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (completed) return;
                 if (Busy() || persistence.DrainForTeardown(0) == OwnedWorkerTeardownVerdict.Refused)
                 { Retain("A native load/worker/serialization owner retains calibration custody."); return; }
+                if (!ReleaseManualLoadObservation()) { Retain("Owned cold observer has not unpatched."); return; }
                 if (!captured)
                 {
                     evidence["cleanup"] = new JObject { ["custodySettled"] = true, ["neverAcquiredNativeUi"] = true };
@@ -71,7 +72,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 SelectionManager.Instance.MultiSelect(originalSelection.Where(value => value.IsInState && value.View != null).Select(value => value.View), false);
                 Require(SelectionManager.Instance.SelectedUnits.SequenceEqual(originalSelection), "Original native selection did not restore exactly.");
                 ummLease?.Dispose(); ummLease = null; Game.Instance.IsPaused = pause;
-                Require(Hash(sourcePath) == selection.SourceArtifactSha256 && Hash(archivePath) == selection.SourceArchiveSha256,
+                Require(Hash(sourcePath) == SourceArtifactHash && Hash(archivePath) == SourceArchiveHash,
                     "Calibration changed its read-only source archive/artifact.");
                 evidence["cleanup"] = new JObject { ["custodySettled"] = true, ["nativeWorkerSettled"] = !Busy(),
                     ["selectorClosed"] = field == null || !field.Owned, ["selectionRestored"] = true, ["pauseRestored"] = Game.Instance.IsPaused == pause,

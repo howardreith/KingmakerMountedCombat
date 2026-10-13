@@ -1,0 +1,121 @@
+Set-StrictMode -Version Latest
+function Get-KmcChunk7OwnedProgressionCases {@('owned-horse-native-level','owned-horse-native-dismiss','owned-horse-native-retrain-horse','owned-horse-native-retrain-mammoth')}
+function Test-KmcChunk7OwnedProgressionCase($Case){$Case-is[string]-and$Case-cin(Get-KmcChunk7OwnedProgressionCases)}
+function Get-KmcChunk7ProgressionOperation($Case){
+ if($Case-isnot[string]){throw 'Progression operation requires an exact scalar case.'}
+ switch -CaseSensitive($Case){
+  'horse-native-level'{'horse-native-level'} 'owned-horse-native-level'{'horse-native-level'}
+  'horse-native-dismiss'{'horse-native-dismiss'} 'owned-horse-native-dismiss'{'horse-native-dismiss'}
+  'horse-native-retrain-horse'{'horse-native-retrain-horse'} 'owned-horse-native-retrain-horse'{'horse-native-retrain-horse'}
+  'horse-native-retrain-mammoth'{'horse-native-retrain-mammoth'} 'owned-horse-native-retrain-mammoth'{'horse-native-retrain-mammoth'}
+  default{throw 'Unknown exact progression operation.'}
+ }
+}
+function Get-KmcChunk7ProgressionOwnedRequest($Request){
+ # This is a read-only validator projection, never a runtime request mutation or restore authority.
+ [pscustomobject]@{scenario='chunk7-owned-two-pair-campaign';runId=$Request.runId;ownedPairs=$Request.progression.ownedSource;persistenceCase='multi-exploration-manual';fixture=$(if($Request.PSObject.Properties['fixture']){$Request.fixture}else{$null});persistenceLoad=$(if($Request.PSObject.Properties['persistenceLoad']){$Request.persistenceLoad}else{$null})}
+}
+function Assert-KmcChunk7OwnedProgressionSelection($Request){
+ if($null-ne$Request.PSObject.Properties['ownedPairs']){throw 'Progression cannot acquire outer owned-pair dispatch authority.'}
+ $s=$Request.progression;$p=Get-KmcChunk7ProgressionOwnedRequest $Request;Assert-KmcChunk7OwnedPairsSelection $p;$n=$s.ownedSource
+ if($n.case-cne'persistence-load'-or$n.expectedNativeWriteCount-ne0-or$n.expectedNativeLoadCount-ne1){throw 'Owned progression requires a read-only exploration Manual checkpoint.'}
+ foreach($pair in @(@('sourceRunId','checkpointSourceRunId'),@('sourceArtifactSha256','checkpointSourceArtifactSha256'),@('inventoryRunId','sourceRunId'),@('inventoryArtifactSha256','sourceArtifactSha256'))){Assert-KmcBootstrapInventoryString $s.($pair[0]) $n.($pair[1])}
+ $a=$s.actorId-ceq$n.riderAId-and$s.petId-ceq$n.mountAId-and$s.controlActorId-ceq$n.riderBId-and$s.controlPetId-ceq$n.mountBId
+ $b=$s.actorId-ceq$n.riderBId-and$s.petId-ceq$n.mountBId-and$s.controlActorId-ceq$n.riderAId-and$s.controlPetId-ceq$n.mountAId
+ if(-not($a-or$b)){throw 'Progression target/control must preserve the two exact inherited pair roles.'}
+}
+function Get-KmcChunk7ProgressionFixture($Request){if(Test-KmcChunk7OwnedProgressionCase $Request.progression.case){return $Request.persistenceLoad};return $Request.fixture.working}
+function Assert-KmcChunk7OwnedProgressionDescriptor($Request){
+ Assert-KmcChunk7OwnedPairsDescriptor (Get-KmcChunk7ProgressionOwnedRequest $Request)
+ Assert-KmcBootstrapInventoryString $Request.persistenceLoad.sha256 $Request.progression.sourceArchiveSha256
+ if($Request.persistenceLoad.sha256-ceq$Request.progression.ownedSource.sourceArchiveSha256){throw 'Progression cannot load the unmounted acquired ancestry in place of its mounted checkpoint.'}
+}
+function Assert-KmcChunk7ProgressionIdSet($Value,$Expected,[string]$Description){
+ if($Value-isnot[Array]){throw ($Description+' must be an actual JSON array.')};$seen=[Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+ foreach($id in $Value){Assert-KmcOrdinaryGuid $id;if(-not$seen.Add($id)){throw ($Description+' repeats an actor.')}}
+ if($null-ne$Expected-and(ConvertTo-KmcChunk7Canonical @($Value|Sort-Object -CaseSensitive))-cne(ConvertTo-KmcChunk7Canonical @($Expected|Sort-Object -CaseSensitive))){throw ($Description+' differs from exact native roster custody.')}
+}
+function Assert-KmcChunk7OwnedProgressionRoster($Request,$Observations,$Before,$Terminal){
+ $s=$Request.progression;$op=Get-KmcChunk7ProgressionOperation $s.case;$n=$s.ownedSource
+ if((ConvertTo-KmcChunk7Canonical $Observations.source.ownedSource)-cne(ConvertTo-KmcChunk7Canonical $n)){throw 'Owned progression source evidence changed the declared checkpoint ancestry.'}
+ $world=$Observations.source.inventoryWorld
+ Assert-KmcOrdinaryGuid $world.mainActorId
+ if($world.mainActorId-ceq$s.actorId){throw 'Progression cannot select the native main character.'}
+ if($world.party-isnot[Array]-or$world.party.Count-ne$n.partyIds.Count){throw 'Acquired inventory omitted the complete original native roster.'}
+ Assert-KmcChunk7ProgressionIdSet @($world.party|ForEach-Object{$_.id}) $n.partyIds 'acquired source roster'
+ foreach($actor in $world.party){if($actor.blueprint-isnot[string]-or$actor.blueprint-cnotmatch'^[0-9a-f]{32}$'){throw 'Acquired source actor blueprint is not an exact scalar GUID.'}}
+ $sourceActor=$Observations.source.inventoryActor
+ foreach($field in @('originalSize','effectiveSize')){Assert-KmcBootstrapInventoryString $sourceActor.$field 'Medium'}
+ Assert-KmcOrdinaryInteger $sourceActor.nativeLevelUpReadiness.experience $Before.xp $Before.xp
+ Assert-KmcOrdinaryInteger $sourceActor.nativeLevelUpReadiness.characterLevel $Before.level $Before.level
+ $first=$Observations.ownedRosterBefore;$last=$Observations.ownedRosterAfter
+ $control=@($Observations.loadedArchive.Pairs|Where-Object{$_.Rider.Id-ceq$s.controlActorId})[0]
+ foreach($entry in @(@($first,'loaded'),@($last,'settled'))){
+  $row=$entry[0]
+  Assert-KmcExactProperties $row @('contract','phase','nativeTargetTransitionObserved','targetRemoved','currentPetId','originalPartyIds','originalCharacterIds','party','characterIds','remoteCapturedIds','controlOwnerId','controlGeneration','controlFeature','controlRankFact','controlSource','controlRank','resourceEqualityAcrossNativeRestClaimed','originalPet') 'owned progression roster'
+  Assert-KmcBootstrapInventoryString $row.contract 'owned-progression-roster-v1';Assert-KmcBootstrapInventoryString $row.phase $entry[1]
+  foreach($key in @('nativeTargetTransitionObserved','targetRemoved')){if($row.$key-isnot[bool]){throw 'Native target lifecycle flags must be JSON Booleans.'}}
+  Assert-KmcChunk7Boolean $row.resourceEqualityAcrossNativeRestClaimed $false
+  $old=$row.originalPet
+  Assert-KmcExactProperties $old @('id','object','descriptor','view','isInState','isInGame','shouldBeDestroyed','destroyed','presentInNativeState','masterId') 'original native pet settlement'
+  Assert-KmcBootstrapInventoryString $old.id $s.petId
+  foreach($key in @('object','descriptor')){Assert-KmcProgressionObject $old.$key}
+  if($null-ne$old.view){Assert-KmcProgressionObject $old.view}
+  foreach($key in @('isInState','isInGame','shouldBeDestroyed','destroyed','presentInNativeState')){if($old.$key-isnot[bool]){throw 'Original pet state must use native JSON Booleans.'}}
+  if($null-ne$old.masterId){Assert-KmcOrdinaryGuid $old.masterId}
+  if($null-ne$row.currentPetId){Assert-KmcOrdinaryGuid $row.currentPetId}
+  Assert-KmcChunk7ProgressionIdSet $row.originalPartyIds $n.partyIds 'original owned roster'
+  Assert-KmcChunk7ProgressionIdSet $row.originalCharacterIds $null 'original field characters'
+  if($row.originalCharacterIds.Count-lt2-or$row.originalCharacterIds.Count-gt6-or$s.actorId-cnotin$row.originalCharacterIds-or$s.controlActorId-cnotin$row.originalCharacterIds-or$world.mainActorId-cnotin$row.originalCharacterIds-or$s.petId-cin$row.originalCharacterIds-or$s.controlPetId-cin$row.originalCharacterIds){throw 'Original native character roster is incomplete or exceeds its cap.'}
+  foreach($id in $row.originalCharacterIds){if($id-cnotin$n.partyIds){throw 'Original field character is outside admitted roster.'}}
+  Assert-KmcChunk7ProgressionIdSet $row.characterIds $null 'current field characters'
+  Assert-KmcChunk7ProgressionIdSet $row.remoteCapturedIds @() 'remote captured actors'
+  Assert-KmcBootstrapInventoryString $row.controlOwnerId $control.PairId;Assert-KmcOrdinaryInteger $row.controlGeneration $control.Generation $control.Generation
+  foreach($key in @('controlFeature','controlRankFact','controlSource')){Assert-KmcProgressionObject $row.$key}
+  if(@($row.controlFeature,$row.controlRankFact,$row.controlSource|Select-Object -Unique).Count-ne3){throw 'Control fact/source native roles alias.'}
+  Assert-KmcOrdinaryInteger $row.controlRank 1 20
+  if($row.party-isnot[Array]-or$row.party.Count-gt12){throw 'Current native roster is unbounded.'}
+  Assert-KmcChunk7ProgressionIdSet @($row.party|ForEach-Object{$_.id}) $null 'current native party'
+  $labels=[Collections.Generic.HashSet[int]]::new()
+  foreach($actor in $row.party){Assert-KmcExactProperties $actor @('id','object','descriptor','view') 'current native roster actor';foreach($key in @('object','descriptor','view')){Assert-KmcProgressionObject $actor.$key;if(-not$labels.Add([int]$actor.$key)){throw 'Native roster identities alias.'}}}
+ }
+ Assert-KmcChunk7Boolean $first.nativeTargetTransitionObserved $false;Assert-KmcChunk7Boolean $first.targetRemoved $false;Assert-KmcBootstrapInventoryString $first.currentPetId $s.petId
+ Assert-KmcChunk7ProgressionIdSet @($first.party|ForEach-Object{$_.id}) $n.partyIds 'loaded native roster'
+ Assert-KmcChunk7ProgressionIdSet $first.characterIds $first.originalCharacterIds 'loaded field characters'
+ foreach($key in @('originalCharacterIds','controlFeature','controlRankFact','controlSource','controlRank')){if((ConvertTo-KmcChunk7Canonical $first.$key)-cne(ConvertTo-KmcChunk7Canonical $last.$key)){throw 'Progression changed unrelated native field/fact custody.'}}
+ $dismiss=$op-ceq'horse-native-dismiss';$changed=$op-cne'horse-native-level'
+ Assert-KmcChunk7Boolean $last.nativeTargetTransitionObserved $changed;Assert-KmcChunk7Boolean $last.targetRemoved $dismiss
+ $expectedParty=@($n.partyIds);$expectedChars=@($first.originalCharacterIds)
+ if($changed){$expectedParty=@($expectedParty|Where-Object{$_-cne$s.petId-and(-not$dismiss-or$_-cne$s.actorId)});if($dismiss){$expectedChars=@($expectedChars|Where-Object{$_-cne$s.actorId});if($null-ne$last.currentPetId){throw 'Native dismissal retained a current pet.'}}else{Assert-KmcBootstrapInventoryString $last.currentPetId $Terminal.petId;if($last.currentPetId-ceq$s.petId-or$last.currentPetId-cin$n.partyIds){throw 'Native retrain did not bind its exact new pet.'};$expectedParty+=@($last.currentPetId)}}else{Assert-KmcBootstrapInventoryString $last.currentPetId $s.petId}
+ Assert-KmcChunk7ProgressionIdSet @($last.party|ForEach-Object{$_.id}) $expectedParty 'settled native roster'
+ Assert-KmcChunk7ProgressionIdSet $last.characterIds $expectedChars 'settled native characters'
+ foreach($actor in $first.party){
+  if($actor.id-cnotin$expectedParty){continue};$after=@($last.party|Where-Object{$_.id-ceq$actor.id})[0]
+  $keys=if($actor.id-ceq$s.actorId-and$changed-and-not$dismiss){@('object')}else{@('object','descriptor','view')}
+  foreach($key in $keys){if($after.$key-ne$actor.$key){throw 'Progression replaced a retained actor/descriptor/view.'}}
+ }
+ $original=@($first.party|Where-Object{$_.id-ceq$s.petId})[0]
+ foreach($key in @('object','descriptor','view')){if($first.originalPet.$key-ne$original.$key){throw 'Original pet observation lost its admitted native identity.'}}
+ foreach($key in @('object','descriptor')){if($last.originalPet.$key-ne$first.originalPet.$key){throw 'Old pet identity changed during native settlement.'}}
+ foreach($key in @('isInState','isInGame','presentInNativeState')){Assert-KmcChunk7Boolean $first.originalPet.$key $true}
+ foreach($key in @('shouldBeDestroyed','destroyed')){Assert-KmcChunk7Boolean $first.originalPet.$key $false}
+ Assert-KmcBootstrapInventoryString $first.originalPet.masterId $s.actorId
+ if($changed-and-not$dismiss){
+  Assert-KmcChunk7Boolean $last.originalPet.destroyed $true
+  Assert-KmcChunk7Boolean $last.originalPet.isInState $false
+  Assert-KmcChunk7Boolean $last.originalPet.presentInNativeState $false
+  if($null-ne$last.originalPet.view-or$null-ne$last.originalPet.masterId){throw 'Final native respec still retains its original pet view or master.'}
+  # IsInGame and ShouldBeDestroyed are recorded raw. Native Dispose does not prove an IsInGame=false assignment.
+ }elseif(-not$changed){
+  if((ConvertTo-KmcChunk7Canonical $first.originalPet)-cne(ConvertTo-KmcChunk7Canonical $last.originalPet)){throw 'Level-only progression changed the original pet lifecycle.'}
+ }
+ # Native dismissal has its own observed inactive/detached result; do not infer respec destruction semantics.
+ $target=@($first.party|Where-Object{$_.id-ceq$s.actorId})[0];if($target.object-ne$Before.object){throw 'Initial native target object differs from session admission.'}
+ $custody=$Observations.session.pairCustody.observations[0].unrelatedOwners[0]
+ if(@($first.party|Where-Object{$_.id-ceq$s.controlActorId})[0].object-ne$custody.riderObject-or@($first.party|Where-Object{$_.id-ceq$s.controlPetId})[0].object-ne$custody.mountObject){throw 'Native roster lost its exact independent mounted control identities.'}
+ if($changed-and-not$dismiss){$probe=$Observations.session.nativeUi.nativeRespec
+  $entered=@($probe.events|Where-Object{$_.kind-ceq'native-respec-enter'})[0];$rebound=@($probe.events|Where-Object{$_.kind-ceq'native-respec-original-rebound'})[0]
+  $afterTarget=@($last.party|Where-Object{$_.id-ceq$s.actorId})[0]
+  if($target.descriptor-ne$entered.descriptorObject-or$target.view-ne$entered.viewObject-or$afterTarget.descriptor-ne$rebound.descriptorObject-or$afterTarget.view-ne$rebound.viewObject){throw 'Target descriptor/view changed outside the exact observed native rebind.'}
+  $petUpdates=@($probe.events|Where-Object{$_.kind-ceq'native-respec-pet-update'-and$_.petId-ceq$last.currentPetId});if($petUpdates.Count-lt1){throw 'Settled pet has no observed native AddPet identity.'};$pet=$petUpdates[-1];$row=@($last.party|Where-Object{$_.id-ceq$last.currentPetId})[0];if($row.object-ne$pet.petObject-or$row.descriptor-ne$pet.petDescriptorObject-or$row.view-ne$pet.petViewObject){throw 'Settled pet substituted the exact observed native AddPet result.'}}
+}

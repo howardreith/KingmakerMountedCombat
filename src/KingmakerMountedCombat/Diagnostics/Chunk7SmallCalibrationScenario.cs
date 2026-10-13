@@ -84,8 +84,8 @@ namespace KingmakerMountedCombat.Diagnostics
             try
             {
                 if (cleanup) { PollCleanup(); return; }
-                if (!captured) Start();
                 Require(clock.Elapsed.TotalSeconds <= 300, "Read-only field admission exceeded its bounded native readiness window.");
+                if (!captured) { Start(); if (!captured) return; }
                 AssertAuthority(); if (Busy()) return;
                 if (calibrationStage != 0) { TickCalibration(); return; }
                 AssertFieldInput();
@@ -117,6 +117,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private void Start()
         {
             declaration = calibration.RequireCompiledDeclaration();
+            if (calibration.UsesManualField) { StartManualField(); return; }
             AssertAuthority(); AssertFieldInput();
             Require(Game.Instance.CurrentMode == GameModeType.Default && request.Fixture.Working.Sha256 == Chunk7WorldScenarioEngine.WorkingHash &&
                 horses.HorseFeature != null && horses.HorseUnit != null && horses.LevelRank != null &&
@@ -189,15 +190,16 @@ namespace KingmakerMountedCombat.Diagnostics
             Require(authorization.IsActive && authorization.AuthorityGeneration == generation && authorization.IsExactPersistenceScope(authority) &&
                 NativePersistenceIsolation.IsExactAuthority(authority) && authority.Root == root && Game.Instance?.SaveManager?.SavePath == root &&
                 NativePersistenceIsolation.ObservedStashFolder == Path.Combine(Path.GetDirectoryName(root), "Areas") &&
-                authority.MatchesReadOnlyFieldPlan(request.PersistenceLoad) && authority.AdmittedNativeLoadRequests == 1 && authority.AdmittedNativeWriteRequests == 0 &&
+                (calibration.UsesManualField ? authority.MatchesReadOnlySmallManualPlan(request.PersistenceLoad) : authority.MatchesReadOnlyFieldPlan(request.PersistenceLoad)) && authority.AdmittedNativeLoadRequests == 1 && authority.AdmittedNativeWriteRequests == 0 &&
                 authorization.AuthorizedLoadCount == 1 && authorization.AuthorizedWriteCount == 0 && authorization.UnauthorizedLoadCount == 0 &&
                 authorization.UnauthorizedWriteCount == 0 && authorization.FatalViolationCount == 0 && authorization.SuppressedWorkingWriteCount == 0 &&
                 authorization.BaselineLoadRequestCount == 0 && !authorization.IsOneShotWorkingWriteSuppressionArmed,
                 "Exact read-only field authority, load count, root or generation changed.");
-            Require(Game.Instance.Player != null && Game.Instance.Player.GameId == request.Fixture.Working.GameId &&
-                Game.Instance.Player.MainCharacter.Value?.CharacterName == request.Fixture.Working.GameName &&
+            Require(Game.Instance.Player != null && Game.Instance.Player.GameId == request.SelectedChunk7Fixture.GameId &&
+                Game.Instance.Player.MainCharacter.Value?.CharacterName == request.SelectedChunk7Fixture.GameName &&
                 Game.Instance.CurrentlyLoadedArea?.AssetGuidThreadSafe == request.PersistenceLoad.Area, "Field admission lost its exact campaign/area.");
             scope?.RequireCurrent();
+            if (calibration.UsesManualField && captured) RequireManualFieldIdentity();
             if (sourcePath != null)
             {
                 var source = new FileInfo(sourcePath); var archive = new FileInfo(archivePath);
@@ -234,6 +236,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 Require(JToken.DeepEquals(before[key], now[key]), "Field selection changed native progression or reciprocal identity: " + key);
             Require(persistence.SnapshotCount == snapshotsBefore && persistence.CompletedSaveCount == savesBefore,
                 "Calibration unexpectedly wrote a native save.");
+            if (calibration.UsesManualField) RequireManualFieldIdentity();
         }
         private JObject AuthoritySnapshot() => new JObject { ["root"] = root, ["generation"] = generation, ["exactScope"] = authorization.IsExactPersistenceScope(authority),
             ["maximumNativeLoads"] = authority.MaximumNativeLoadRequests, ["maximumNativeWrites"] = authority.MaximumNativeWriteRequests,
