@@ -7,7 +7,9 @@ $progressionReaders=[IO.Path]::GetFullPath($ReaderDirectory);$only=$FixturesOnly
 . (Join-Path $RepositoryRoot 'scripts/chunk7/Test-Chunk7OrdinaryEvidence.ps1') -RepositoryRoot $RepositoryRoot -ReaderDirectory (Join-Path $RepositoryRoot 'scripts/runtime') -FixturesOnly
 . (Join-Path $progressionReaders 'Chunk7ProgressionEvidence.ps1')
 . (Join-Path $progressionReaders 'Chunk7ProgressionFixtures.ps1')
+. (Join-Path $PSScriptRoot '../../tests/Chunk7Diagnostics/OwnedProgressionEvidenceFixtures.ps1')
 function New-ProgressionFixture([string]$Case='horse-native-level'){
+    if(Test-KmcChunk7OwnedProgressionCase $Case){return New-OwnedProgressionFixture $Case}
     $old=New-OrdinaryFixture $false;$r=Copy-O $old.request;$r.scenario='chunk7-native-progression';$r.runId='synthetic-progression';$r.PSObject.Properties.Remove('ordinaryAcquisition')
     $r.evidenceRoot=Join-Path ([IO.Path]::GetDirectoryName($r.evidenceRoot)) $r.runId;$r.fixture|Add-Member NoteProperty baseline ([pscustomobject]@{sha256='b'*64})
     $write=$Case-cne'horse-native-dismiss';$respec=$Case-cin@('horse-native-retrain-horse','horse-native-retrain-mammoth')

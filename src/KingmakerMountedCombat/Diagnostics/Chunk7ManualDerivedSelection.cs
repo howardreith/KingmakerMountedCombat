@@ -13,6 +13,7 @@ namespace KingmakerMountedCombat.Diagnostics
         public const string Scenario = "chunk7-manual-derived-acquisition";
         public const string ExistingCase = "existing-ranger-horse";
         public const string PaidSmallCase = "paid-small-ranger-horse";
+        public const string PaidMediumCase = "paid-medium-ranger-horse";
         public const string SourceLeaf = "manual-derived-source.json";
         public const string OutputLeaf = "Auto_1.zks";
         public const int RangerAcquisitionLevel = 4;
@@ -34,11 +35,14 @@ namespace KingmakerMountedCombat.Diagnostics
         public string SkeletonName { get; set; }
         public string Gender { get; set; }
         public bool? LeftHanded { get; set; }
+        public Chunk7MediumHireBodyPins MediumBody { get; set; }
+        public bool ShouldSerializeMediumBody() => MediumBody != null;
+        internal bool PaidHire => Case == PaidSmallCase || Case == PaidMediumCase;
 
         public IReadOnlyList<string> Validate(string scenario, string runId)
         {
             var errors = new List<string>();
-            if (scenario != Scenario || Case != ExistingCase && Case != PaidSmallCase)
+            if (scenario != Scenario || Case != ExistingCase && Case != PaidSmallCase && Case != PaidMediumCase)
                 errors.Add("Manual-derived acquisition requires its exact family and case.");
             if (!Regex.IsMatch(SourceRunId ?? "", "^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$") || SourceRunId == runId)
                 errors.Add("A distinct completed Manual seed run is required.");
@@ -66,11 +70,41 @@ namespace KingmakerMountedCombat.Diagnostics
                     Gender != "Male" && Gender != "Female" || !LeftHanded.HasValue)
                     errors.Add("The exact observed Small race/preset/skeleton/gender/handedness are required.");
             }
+            if (Case == PaidMediumCase)
+            {
+                if (ExistingActorId != null || ExistingLevel.HasValue || ExistingExperience.HasValue || ExistingRangerLevel.HasValue ||
+                    SmallRaceGuid != null || SmallPresetGuid != null || SkeletonName != null || Gender != null || LeftHanded.HasValue)
+                    errors.Add("Paid Medium hiring has separate body pins and cannot borrow an existing actor or Small choices.");
+                if (MediumBody == null) errors.Add("An observed native Medium party body is required.");
+                else errors.AddRange(MediumBody.Validate(Readiness?.PartyCharacterIds));
+            }
+            else if (MediumBody != null) errors.Add("Medium body pins belong only to the separate paid Medium case.");
             return errors;
         }
         internal static bool NativeId(string value)
         { Guid parsed; return Guid.TryParseExact(value, "D", out parsed) && parsed != Guid.Empty && parsed.ToString("D") == value; }
         internal static bool BlueprintId(string value) => Regex.IsMatch(value ?? "", "^[a-f0-9]{32}$");
+    }
+    // Body provenance, not an asset or character grant. The scenario rechecks the
+    // exact observed actor and installed race/preset/skeleton before native hiring.
+    public sealed class Chunk7MediumHireBodyPins
+    {
+        public string TemplateActorId { get; set; }
+        public string RaceGuid { get; set; }
+        public string PresetGuid { get; set; }
+        public string SkeletonName { get; set; }
+        public string Gender { get; set; }
+        public bool? LeftHanded { get; set; }
+        internal IReadOnlyList<string> Validate(string[] partyIds)
+        {
+            var errors = new List<string>();
+            if (!Chunk7ManualDerivedSelection.NativeId(TemplateActorId) || partyIds == null || !partyIds.Contains(TemplateActorId) ||
+                !Chunk7ManualDerivedSelection.BlueprintId(RaceGuid) || !Chunk7ManualDerivedSelection.BlueprintId(PresetGuid) ||
+                string.IsNullOrWhiteSpace(SkeletonName) || SkeletonName.Length > 160 || SkeletonName.Any(char.IsControl) ||
+                Gender != "Male" && Gender != "Female" || !LeftHanded.HasValue)
+                errors.Add("Paid Medium body requires an exact observed party actor, race/preset/rig and native gender/handedness.");
+            return errors;
+        }
     }
     public sealed class Chunk7ManualDerivedReadinessPins
     {

@@ -76,7 +76,10 @@ namespace KingmakerMountedCombat.Diagnostics
                 TargetIdle = target != null && target.Commands.Empty && !target.IsInCombat,
                 TargetCanLevelUp = target != null && LevelUpController.CanLevelUp(target.Descriptor),
                 ExactSmallCatalogueMember = selection.Case == Chunk7ManualDerivedSelection.PaidSmallCase &&
-                    CatalogueContains(sourceObservations["nativeProfileInventory"]) && CatalogueContains(evidence["nativeProfileInventory"])
+                    CatalogueContains(sourceObservations["nativeProfileInventory"]) && CatalogueContains(evidence["nativeProfileInventory"]),
+                ExactMediumBodyMember = selection.Case == Chunk7ManualDerivedSelection.PaidMediumCase &&
+                    Chunk7MediumHireBodySource.Matches(sourceObservations["nativeProfileInventory"], selection.MediumBody) &&
+                    Chunk7MediumHireBodySource.Matches(evidence["nativeProfileInventory"], selection.MediumBody) && NativeMediumBodyMatches()
             };
             var failures = Chunk7ManualDerivedAdmission.Validate(selection, request.RunId, actual);
             Require(failures.Count == 0, "Native Manual-derived acquisition is ineligible: " + string.Join(" | ", failures));
@@ -90,6 +93,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["targetHasDualCompanion"] = actual.TargetHasDualCompanion, ["targetInField"] = actual.TargetInField,
                 ["targetIdle"] = actual.TargetIdle, ["targetCanLevelUp"] = actual.TargetCanLevelUp,
                 ["exactSmallCatalogueMember"] = actual.ExactSmallCatalogueMember, ["arrangementGranted"] = false };
+            if (selection.Case == Chunk7ManualDerivedSelection.PaidMediumCase)
+                evidence["liveEligibility"]["exactMediumBodyMember"] = actual.ExactMediumBodyMember;
         }
         private bool CatalogueContains(JToken inventory)
         {
@@ -131,12 +136,16 @@ namespace KingmakerMountedCombat.Diagnostics
             Require(ummInstance != null, "Exact UMM presentation instance is unavailable."); originalUmmOpened = ummInstance.Opened;
             Require(ummLease == null, "An existing presentation lease cannot be overwritten.");
             presentationCaptured = true; MovementScreenshotCaptureCoordinator.AcquireClosedUmmLeaseRetained(out ummLease);
-            var paid = selection.Case == Chunk7ManualDerivedSelection.PaidSmallCase;
+            var paid = selection.PaidHire;
+            var medium = selection.Case == Chunk7ManualDerivedSelection.PaidMediumCase;
             var pins = new Chunk7OrdinaryBuildPins(request.RunId, selection.SourceArtifactSha256,
-                paid ? Chunk7OrdinaryBuildMode.NewSmallCustomCompanion : Chunk7OrdinaryBuildMode.ExistingRangerLevels,
-                selection.SmallRaceGuid, selection.SmallPresetGuid, selection.SkeletonName,
-                selection.Gender == "Female" ? Gender.Female : Gender.Male, selection.LeftHanded == true,
-                Chunk7ManualDerivedSelection.RangerAcquisitionLevel);
+                medium ? Chunk7OrdinaryBuildMode.NewMediumCustomCompanion : paid ? Chunk7OrdinaryBuildMode.NewSmallCustomCompanion : Chunk7OrdinaryBuildMode.ExistingRangerLevels,
+                medium ? selection.MediumBody.RaceGuid : selection.SmallRaceGuid,
+                medium ? selection.MediumBody.PresetGuid : selection.SmallPresetGuid,
+                medium ? selection.MediumBody.SkeletonName : selection.SkeletonName,
+                (medium ? selection.MediumBody.Gender : selection.Gender) == "Female" ? Gender.Female : Gender.Male,
+                (medium ? selection.MediumBody.LeftHanded : selection.LeftHanded) == true,
+                Chunk7ManualDerivedSelection.RangerAcquisitionLevel, medium ? Size.Medium : Size.Small);
             driver = new Chunk7OrdinaryBuildDriver(pins, paid ? null : actors.Single(actor => actor.UniqueId == selection.ExistingActorId),
                 horses.HorseFeature, horses.HorseUnit.AssetGuid, AssertChoiceAuthority, ObserveChoice);
             ordinaryProbe = new NativeOrdinaryAcquisitionProbe(() => driver.Actor); ordinaryProbe.Install();
@@ -180,7 +189,7 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 if (!ObserveTerminalAutosave()) return;
                 Pass("C7-manual-derived-native-autosave");
-                if (selection.Case == Chunk7ManualDerivedSelection.PaidSmallCase)
+                if (selection.PaidHire)
                 {
                     fieldAdmission = new Chunk7NativePartyFieldAdmission(driver.Actor, originalPartyCharacters, AssertFieldAuthority);
                     fieldAdmission.Open(); buildStage = 2; buildStageStart = clock.Elapsed.TotalSeconds; return;
@@ -224,7 +233,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["gameId"] = save.GameId, ["gameName"] = save.GameName, ["area"] = save.Area.AssetGuidThreadSafe,
                 ["authorizedWrites"] = authorization.AuthorizedWriteCount, ["admittedWrites"] = authority.AdmittedNativeWriteRequests,
                 ["completedWrites"] = persistence.CompletedSaveCount, ["snapshotCount"] = persistence.SnapshotCount,
-                ["nativeCallbackSupplied"] = false, ["saveBeforeFieldSelection"] = selection.Case == Chunk7ManualDerivedSelection.PaidSmallCase,
+                ["nativeCallbackSupplied"] = false, ["saveBeforeFieldSelection"] = selection.PaidHire,
                 ["schema"] = archive.SourceSchema, ["emptyMountedArchive"] = true, ["descriptorCount"] = saves.Length };
             return true;
         }
@@ -261,12 +270,13 @@ namespace KingmakerMountedCombat.Diagnostics
                 (actor.Descriptor.GetFact(horses.LevelRank)?.GetRank() ?? 0) > 0 && actor.GetActivePolymorph() == null &&
                 game.Player.PartyCharacters.Count(value => ReferenceEquals(value.Value, actor)) == 1 &&
                 originalPartyCharacters.All(id => game.Player.PartyCharacters.Count(value => value.Value?.UniqueId == id) == 1) &&
-                game.Player.PartyCharacters.Count == originalPartyCharacters.Length + (selection.Case == Chunk7ManualDerivedSelection.PaidSmallCase ? 1 : 0),
+                game.Player.PartyCharacters.Count == originalPartyCharacters.Length + (selection.PaidHire ? 1 : 0),
                 "Acquired owner/Horse lacks exact native field, party, source/rank or command settlement.");
-            if (selection.Case == Chunk7ManualDerivedSelection.PaidSmallCase)
-                Require(actor.Descriptor.OriginalSize == Size.Small && actor.Descriptor.State.Size == Size.Small, "Selected Small body's original/effective size differs.");
+            if (selection.PaidHire)
+                Require(actor.Descriptor.OriginalSize == (selection.Case == Chunk7ManualDerivedSelection.PaidMediumCase ? Size.Medium : Size.Small) &&
+                    actor.Descriptor.State.Size == actor.Descriptor.OriginalSize, "Selected paid body's original/effective size differs.");
             var body = NativeSmallRiderBody.Capture(actor, pet);
-            if (selection.Case == Chunk7ManualDerivedSelection.PaidSmallCase && body?.NativeRigAvailable != true) return false;
+            if (selection.PaidHire && body?.NativeRigAvailable != true) return false;
             evidence["field"] = new JObject { ["frame"] = UnityEngine.Time.frameCount, ["actorId"] = actor.UniqueId,
                 ["actorObject"] = probe.Identity(actor), ["actorDescriptor"] = probe.Identity(actor.Descriptor), ["actorView"] = probe.Identity(actor.View),
                 ["petId"] = pet.UniqueId, ["petObject"] = probe.Identity(pet), ["petDescriptor"] = probe.Identity(pet.Descriptor), ["petView"] = probe.Identity(pet.View),

@@ -72,11 +72,14 @@ namespace KingmakerMountedCombat.Diagnostics
             this.request = request ?? throw new ArgumentNullException(nameof(request));
             this.selectedCase = selectedCase; this.buildPins = buildPins;
             source = request.PersistenceLoad ?? throw new ArgumentException("Progression requires an exact separately qualified native manual source.");
+            var ownedSource = request.Progression?.IsOwned == true;
             Require(request.Scenario == Scenario && Enum.IsDefined(typeof(Chunk7NativeProgressionCase), selectedCase) &&
+                (ownedSource ? request.OwnedPairs == null && request.Progression.Validate(request.Scenario, request.RunId).Count == 0 &&
+                    request.Progression.NativeCase == selectedCase && request.Progression.ValidateOwnedDescriptor(source, request.Fixture).Count == 0 :
                 source.Validate("progressionSource", SourceName, "^Manual_300_KMC_C7_WORLD\\.zks$").Count == 0 &&
                 request.Fixture?.Working != null && source.GameId == request.Fixture.Working.GameId &&
                 source.GameName == request.Fixture.Working.GameName && source.Area == request.Fixture.Working.Area &&
-                source.Sha256 != request.Fixture.Baseline.Sha256 && source.Sha256 != request.Fixture.Working.Sha256,
+                source.Sha256 != request.Fixture.Baseline.Sha256 && source.Sha256 != request.Fixture.Working.Sha256),
                 "Progression source is not its exact distinct disposable native fixture.");
             this.rider = rider ?? throw new ArgumentNullException(nameof(rider));
             this.oldMount = oldMount ?? throw new ArgumentNullException(nameof(oldMount));
@@ -97,6 +100,22 @@ namespace KingmakerMountedCombat.Diagnostics
         }
 
         internal void AssertOwnedScope() { AssertWorld(); if (started) AssertTargetBinding(); }
+        // Read-only projection of the existing native lifecycle proof. It creates
+        // no new target authority and never forces a callback or pet rebind.
+        internal bool TryGetObservedTargetRoster(out bool removed, out UnitEntityData currentPet)
+        {
+            AssertOwnedScope(); removed = false; currentPet = oldMount;
+            if (!started) return false;
+            if (IsRespec && nativeUi?.RespecProbe != null &&
+                nativeUi.RespecProbe.TryRequireNativeRebind(Game.Instance.UI.CharacterBuildController))
+            {
+                nativeUi.RespecProbe.RequireObservedPetBinding(oldMount, originalMountDescriptor, originalMountView);
+                currentPet = rider.Descriptor.Pet; return true;
+            }
+            if (selectedCase == Chunk7NativeProgressionCase.DismissCustomCompanion && nativeUi?.NativeDismissalObserved == true)
+            { removed = true; currentPet = null; return true; }
+            return false;
+        }
         internal bool HasStarted => started;
         internal bool IsComplete => settled;
         internal bool Succeeded => settled && successful && errors.Count == 0;

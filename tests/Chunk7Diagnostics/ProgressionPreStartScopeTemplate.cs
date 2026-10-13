@@ -13,6 +13,9 @@ class ActualProgressionPreStartScope
     private WorldScope scope = new WorldScope();
     private Session session;
     private bool captured = true, authorityRefused;
+    private bool ownedProgression, ownedRosterRefused; private Unit[] ownedParty; private int ownedRosterCalls;
+    // The complete actual owned-roster predicate is covered by OwnedProgressionRosterTemplate.
+    private void RequireOwnedRoster(bool final) { ownedRosterCalls++; if (final || ownedRosterRefused) throw new InvalidOperationException("owned roster refused"); }
     private Unit rider = new Unit(), mount = new Unit();
     private object targetDescriptor, targetView, petDescriptor, petView;
     private string sourceEvidencePath, inventoryPath;
@@ -47,6 +50,9 @@ class ActualProgressionPreStartScope
         Check("outer authority refusal precedes child", a => { a.session = new Session(); a.authorityRefused = true; return Refuses(a.RequireScope) && a.session.Calls == 0; });
         Check("changed world refusal precedes child", a => { a.session = new Session(); a.scope.Refuse = true; return Refuses(a.RequireScope) && a.session.Calls == 0; });
         Check("uncaptured admission has no target pin to release", a => { a.captured = false; a.rider.Descriptor = new object(); a.RequireScope(); return true; });
+        Check("owned captured roster delegates nonfinal preservation", a => { a.ownedProgression = true; a.ownedParty = new Unit[0]; a.RequireScope(); return a.ownedRosterCalls == 1; });
+        Check("owned source before roster binding has no synthetic membership", a => { a.ownedProgression = true; a.RequireScope(); return a.ownedRosterCalls == 0; });
+        Check("owned roster refusal is retained after exact session authority", a => { a.ownedProgression = true; a.ownedParty = new Unit[0]; a.ownedRosterRefused = true; a.session = new Session(); return Refuses(a.RequireScope) && a.ownedRosterCalls == 1 && a.session.Calls == 1; });
         Console.WriteLine("ACTUAL PROGRESSION PRESTART SCOPE PASS " + passes + " FAIL " + failures); return failures == 0 ? 0 : 1;
     }
 }

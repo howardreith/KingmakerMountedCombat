@@ -9,17 +9,30 @@ namespace KingmakerMountedCombat.Diagnostics
     {
         internal const string Scenario = "chunk7-small-profile-calibration";
         internal const string CaseName = "compiled-small-horse-rt";
+        internal const string ManualCaseName = "compiled-manual-derived-small-horse-rt";
         public string Case { get; set; }
         public Chunk7OrdinaryFieldSelection Source { get; set; }
+        public Chunk7SmallManualSourceSelection ManualSource { get; set; }
+        public bool ShouldSerializeSource() => Source != null;
+        public bool ShouldSerializeManualSource() => ManualSource != null;
+        internal bool UsesManualField => Case == ManualCaseName;
         public string ProfileId { get; set; }
         public string NativeInventorySha256 { get; set; }
         public string NativeCalibrationSha256 { get; set; }
         internal IReadOnlyList<string> Validate(string scenario, string runId)
         {
             var errors = new List<string>();
-            if (scenario != Scenario || Case != CaseName) errors.Add("The closed compiled Small calibration case differs.");
-            if (Source == null) errors.Add("Exact paid remote source provenance is required.");
-            else errors.AddRange(Source.Validate(Chunk7OrdinaryFieldSelection.Scenario, runId));
+            if (scenario != Scenario || Case != CaseName && Case != ManualCaseName) errors.Add("The closed compiled Small calibration case differs.");
+            if (UsesManualField)
+            {
+                if (Source != null || ManualSource == null) errors.Add("The Small Manual case requires only its exact acquired Manual source.");
+                else errors.AddRange(ManualSource.Validate(runId));
+            }
+            else
+            {
+                if (ManualSource != null || Source == null) errors.Add("Exact paid remote source provenance is required.");
+                else errors.AddRange(Source.Validate(Chunk7OrdinaryFieldSelection.Scenario, runId));
+            }
             if (!Regex.IsMatch(ProfileId ?? "", "^small-[a-z0-9]+(?:-[a-z0-9]+)*-horse-v[1-9][0-9]*$")) errors.Add("An exact versioned Small profile ID is required.");
             if (!Regex.IsMatch(NativeInventorySha256 ?? "", "^[a-f0-9]{64}$") || !Regex.IsMatch(NativeCalibrationSha256 ?? "", "^[a-f0-9]{64}$")) errors.Add("Immutable body and declaration provenance hashes are required.");
             return errors;
@@ -35,6 +48,37 @@ namespace KingmakerMountedCombat.Diagnostics
                 matches[0].NativeCalibrationSha256 != NativeCalibrationSha256)
                 throw new InvalidOperationException("No unique compiled Small declaration matches the exact input provenance; native calibration admission refused.");
             return matches[0];
+        }
+    }
+
+    // Provenance only. This DTO never grants a profile, actor or save authority.
+    public sealed class Chunk7SmallManualSourceSelection
+    {
+        internal const string SourceLeaf = "small-acquired-manual-source.json";
+        internal static bool IsNativeManualLeaf(string leaf)
+        {
+            var match = Regex.Match(leaf ?? "", "^Manual_([1-9][0-9]*)_KMC_C7_ACQUIRED_FIELD\\.zks$");
+            return match.Success && int.TryParse(match.Groups[1].Value, System.Globalization.NumberStyles.None,
+                System.Globalization.CultureInfo.InvariantCulture, out var number) && number > 0 &&
+                leaf == Chunk7AcquiredManualSelection.NativeOutputLeaf(number);
+        }
+        public string SourceRunId { get; set; }
+        public string SourceArtifactSha256 { get; set; }
+        public string SourceArchiveSha256 { get; set; }
+        public string ActorId { get; set; }
+        public string PetId { get; set; }
+        internal IReadOnlyList<string> Validate(string runId)
+        {
+            var errors = new List<string>();
+            if (!Regex.IsMatch(SourceRunId ?? "", "^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$") || SourceRunId == runId)
+                errors.Add("A distinct completed first-owner acquired Manual is required.");
+            foreach (var value in new[] { SourceArtifactSha256, SourceArchiveSha256 })
+                if (!Regex.IsMatch(value ?? "", "^[a-f0-9]{64}$")) errors.Add("Exact immutable Small Manual source hashes are required.");
+            foreach (var id in new[] { ActorId, PetId })
+                if (!Guid.TryParseExact(id, "D", out var parsed) || parsed == Guid.Empty || parsed.ToString("D") != id)
+                    errors.Add("Exact canonical native Small owner/pet IDs are required.");
+            if (ActorId == PetId) errors.Add("The native Small owner and Horse must differ.");
+            return errors;
         }
     }
 }

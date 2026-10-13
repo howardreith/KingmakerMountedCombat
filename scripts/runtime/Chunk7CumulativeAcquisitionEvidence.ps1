@@ -5,8 +5,9 @@ function Assert-KmcChunk7CumulativeSelection($Request){
  $has=$null-ne$Request.PSObject.Properties['cumulativeAcquisition']
  if(-not(Test-KmcChunk7CumulativeScenario $Request.scenario)){if($has){throw 'Manual-derived selection is forbidden under another family.'};return}
  if(-not$has){throw 'Manual-derived acquisition requires exact explicit selection.'};$s=$Request.cumulativeAcquisition
- Assert-KmcExactProperties $s @('case','sourceRunId','sourceArtifactSha256','sourceArchiveSha256','baseGameOnly','expectedNativeLoadCount','expectedNativeWriteCount','nativeWriteLeaf','readiness','existingActorId','existingLevel','existingExperience','existingRangerLevel','smallRaceGuid','smallPresetGuid','skeletonName','gender','leftHanded','priorOwnerId','priorPetId') 'cumulative selection'
- if($s.case-isnot[string]-or$s.case-cnotin@('existing-ranger-horse','paid-small-ranger-horse')-or$s.sourceRunId-isnot[string]-or$s.sourceRunId-cnotmatch'^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$'-or$s.sourceRunId-ceq$Request.runId){throw 'Manual-derived case/source run differs.'}
+ $selectionKeys=@('case','sourceRunId','sourceArtifactSha256','sourceArchiveSha256','baseGameOnly','expectedNativeLoadCount','expectedNativeWriteCount','nativeWriteLeaf','readiness','existingActorId','existingLevel','existingExperience','existingRangerLevel','smallRaceGuid','smallPresetGuid','skeletonName','gender','leftHanded','priorOwnerId','priorPetId');if($s.case-ceq'paid-medium-ranger-horse'){$selectionKeys+='mediumBody'}
+ Assert-KmcExactProperties $s $selectionKeys 'cumulative selection'
+ if($s.case-isnot[string]-or$s.case-cnotin@('existing-ranger-horse','paid-small-ranger-horse','paid-medium-ranger-horse')-or$s.sourceRunId-isnot[string]-or$s.sourceRunId-cnotmatch'^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$'-or$s.sourceRunId-ceq$Request.runId){throw 'Manual-derived case/source run differs.'}
  foreach($key in @('sourceArtifactSha256','sourceArchiveSha256')){if($s.$key-isnot[string]-or$s.$key-cnotmatch'^[a-f0-9]{64}$'){throw 'Manual-derived source requires exact SHA256 pins.'}}
  Assert-KmcChunk7Boolean $s.baseGameOnly $true;Assert-KmcBootstrapInventoryString $s.nativeWriteLeaf 'Auto_1.zks'
  foreach($key in @('expectedNativeLoadCount','expectedNativeWriteCount')){Assert-KmcOrdinaryInteger $s.$key 1 1}
@@ -22,6 +23,9 @@ function Assert-KmcChunk7CumulativeSelection($Request){
   Assert-KmcOrdinaryInteger $s.existingLevel 1 19;Assert-KmcOrdinaryInteger $s.existingExperience 0 ([int]::MaxValue);Assert-KmcOrdinaryInteger $s.existingRangerLevel 0 3
   if($s.existingRangerLevel-gt$s.existingLevel){throw 'Existing Ranger ranks exceed character level.'}
   foreach($key in @('smallRaceGuid','smallPresetGuid','skeletonName','gender','leftHanded')){if($null-ne$s.$key){throw 'Existing actor selection cannot alter its body.'}}
+ }elseif($s.case-ceq'paid-medium-ranger-horse'){
+  foreach($key in @('existingActorId','existingLevel','existingExperience','existingRangerLevel','smallRaceGuid','smallPresetGuid','skeletonName','gender','leftHanded')){if($null-ne$s.$key){throw 'Medium hire cannot borrow legacy body or actor pins.'}}
+  Assert-KmcMediumHireBodyPins $s.mediumBody $p
  }else{
   foreach($key in @('existingActorId','existingLevel','existingExperience','existingRangerLevel')){if($null-ne$s.$key){throw 'Paid hire cannot borrow an existing actor.'}}
   foreach($key in @('smallRaceGuid','smallPresetGuid')){if($s.$key-isnot[string]-or$s.$key-cnotmatch'^[a-f0-9]{32}$'){throw 'Paid body blueprint must be exact.'}}

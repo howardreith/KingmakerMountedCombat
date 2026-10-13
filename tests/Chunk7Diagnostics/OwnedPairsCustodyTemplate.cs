@@ -2,6 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Newtonsoft.Json.Linq;
+using KingmakerMountedCombat.Diagnostics;
+using Unit = Kingmaker.EntitySystem.Entities.UnitEntityData;
+using Player = Kingmaker.Player;
 using FileInfo = OwnedPairsCustodyCheck.FakeFileInfo;
 namespace OwnedPairsCustodyCheck {
  internal static class Program {
@@ -17,10 +20,10 @@ namespace OwnedPairsCustodyCheck {
    Test("native area autosave missing target stays refused/null", () => { var a=new AreaBoundary(false,true); a.request.PersistenceAreaTarget=null; Assert(a.Area==null); });
    Test("unchanged five-actor field and inherited facts pass", () => new Fixture().Verify());
    Test("field enumeration reordering preserves exact membership", () => { var f=new Fixture(); f.game.Player.Party.Reverse(); f.game.Player.PartyCharacters.Reverse(); f.Verify(); });
-   Test("unrelated actor removed from live field refuses", () => { var f=new Fixture(); f.game.Player.Party.RemoveAt(4); Refuses(f.Verify); });
+   Test("unrelated actor removed from live field refuses", () => { var f=new Fixture(); f.game.Player.Party.RemoveAt(2); Refuses(f.Verify); });
    Test("new unrelated field actor refuses", () => { var f=new Fixture(); f.game.Player.Party.Add(Fixture.Actor("foreign")); Refuses(f.Verify); });
-   Test("same-ID unrelated replacement refuses", () => { var f=new Fixture(); f.game.Player.Party[4]=Fixture.Actor("unrelated"); Refuses(f.Verify); });
-   Test("duplicate native field actor refuses", () => { var f=new Fixture(); f.game.Player.Party[4]=f.game.Player.Party[0]; Refuses(f.Verify); });
+   Test("same-ID unrelated replacement refuses", () => { var f=new Fixture(); f.game.Player.Party[2]=Fixture.Actor("unrelated"); Refuses(f.Verify); });
+   Test("duplicate native field actor refuses", () => { var f=new Fixture(); f.game.Player.Party[2]=f.game.Player.Party[0]; Refuses(f.Verify); });
    Test("unrelated actor moved Remote refuses", () => { var f=new Fixture(); f.game.Player.RemoteCompanions.Add(new Ref(f.Party[4])); Refuses(f.Verify); });
    Test("inherited rider moved Remote refuses", () => { var f=new Fixture(); f.game.Player.RemoteCompanions.Add(new Ref(f.Actors[0])); Refuses(f.Verify); });
    Test("unrelated native PartyCharacters removal refuses", () => { var f=new Fixture(); f.game.Player.PartyCharacters.RemoveAt(2); Refuses(f.Verify); });
@@ -36,7 +39,12 @@ namespace OwnedPairsCustodyCheck {
    Test("native XP change refuses", () => { var f=new Fixture(); f.Party[4].Descriptor.Progression.Experience++; Refuses(f.Verify); });
    Test("native money change refuses", () => { var f=new Fixture(); f.game.Player.Money++; Refuses(f.Verify); });
    Test("source receipt hash change refuses", () => { var f=new Fixture(); f.CurrentHash="changed"; Refuses(f.Verify); });
-   Test("refusal performs no removal or native mutation", () => { var f=new Fixture(); f.game.Player.Party.RemoveAt(4); Refuses(f.Verify); Assert(f.Actors[0].Descriptor.Facts.Count==2 && f.Actors[2].Descriptor.Facts.Count==2 && f.game.Player.Money==10 && f.Actors[0].Descriptor.Progression.Experience==0); });
+   Test("refusal performs no removal or native mutation", () => { var f=new Fixture(); f.game.Player.Party.RemoveAt(2); Refuses(f.Verify); Assert(f.Actors[0].Descriptor.Facts.Count==2 && f.Actors[2].Descriptor.Facts.Count==2 && f.game.Player.Money==10 && f.Actors[0].Descriptor.Progression.Experience==0); });
+   Test("native character containers exclude both reciprocal pets", () => { var f=new Fixture(); Assert(f.game.Player.Party.Count==3 && f.game.Player.PartyCharacters.Count==3 && f.Party.Length==5 && f.game.Player.Party.All(actor=>actor.Descriptor.Master.Value==null)); f.Verify(); });
+   Test("pet in raw Party refuses even when full actor scope is unchanged", () => { var f=new Fixture(); f.game.Player.Party.Add(f.Actors[1]); Refuses(f.Verify); });
+   Test("pet in both native character containers still refuses", () => { var f=new Fixture(); f.game.Player.Party.Add(f.Actors[1]); f.game.Player.PartyCharacters.Add(new Ref(f.Actors[1])); Refuses(f.Verify); });
+   Test("missing reciprocal native pet master refuses", () => { var f=new Fixture(); f.Actors[1].Descriptor.Master=new Ref(null); Refuses(f.Verify); });
+   Test("same-ID reciprocal pet replacement refuses exact old custody", () => { var f=new Fixture(); var replacement=Fixture.Actor(f.Actors[1].UniqueId); replacement.Descriptor.Master=new Ref(f.Actors[0]); f.Actors[0].Descriptor.Pet=replacement; Refuses(f.Verify); });
    Console.WriteLine("RESULT: "+pass+" PASS / "+fail+" FAIL"); return fail==0?0:1;
   }
  }
@@ -60,7 +68,7 @@ namespace OwnedPairsCustodyCheck {
   internal Fixture() {
    game=new Game(); Game.Instance=game;
    Party=new[] {Actor("rider-a"),Actor("mount-a"),Actor("rider-b"),Actor("mount-b"),Actor("unrelated")}; Actors=Party.Take(4).ToArray();
-   game.Player.Party=Party.ToList(); partyCharacters=new[]{Party[0],Party[2],Party[4]}; game.Player.PartyCharacters=partyCharacters.Select(a=>new Ref(a)).ToList();
+   partyCharacters=new[]{Party[0],Party[2],Party[4]}; game.Player.Party=partyCharacters.ToList(); game.Player.PartyCharacters=partyCharacters.Select(a=>new Ref(a)).ToList();
    descriptors=Actors.Select(a=>(object)a.Descriptor).ToArray();views=Actors.Select(a=>a.View).ToArray(); facts=new object[2];ranks=new object[2];ownerRows=new JObject[2];
    for(var i=0;i<2;i++){var rider=Actors[i*2];var mount=Actors[i*2+1];mount.Blueprint=horses.HorseUnit;rider.Descriptor.Pet=mount;mount.Descriptor.Master=new Ref(rider);var fact=new Feature {Source=new Blueprint {AssetGuid="source"}};var rank=new Fact {Rank=4};rider.Descriptor.Facts.Add(horses.HorseFeature,fact);rider.Descriptor.Facts.Add(horses.LevelRank,rank);facts[i]=fact;ranks[i]=rank;ownerRows[i]=new JObject{["sourceGuid"]="source",["rank"]=4};}
    sourceArrangement=Arrangement();
@@ -76,9 +84,7 @@ namespace OwnedPairsCustodyCheck {
  internal sealed class Selection {internal string SourceArtifactSha256="exact";}
  internal sealed class Scope {internal int Calls;internal bool Refuse;internal void RequireCurrent(){Calls++;if(Refuse)throw new InvalidOperationException("world changed");}}
  internal sealed class Game {internal static Game Instance;internal Player Player=new Player();}
- internal sealed class Player {internal long Money=10;internal int ExperienceRatePercent=100;internal List<Unit> Party=new List<Unit>();internal List<Ref> PartyCharacters=new List<Ref>(),RemoteCompanions=new List<Ref>();}
  internal sealed class Ref {internal Unit Value;internal Ref(Unit value){Value=value;}}
- internal sealed class Unit {internal string UniqueId;internal Blueprint Blueprint;internal UnitDescriptor Descriptor=new UnitDescriptor();internal object View=new object();internal bool IsInState=true,IsInGame=true;}
  internal sealed class UnitDescriptor {internal Unit Pet;internal Ref Master=new Ref(null);internal Dictionary<object,Fact> Facts=new Dictionary<object,Fact>();internal Progression Progression=new Progression();internal Fact GetFact(object key){Fact value;return Facts.TryGetValue(key,out value)?value:null;}}
  internal class Fact {internal int Rank;internal int GetRank()=>Rank;}
  internal sealed class Feature:Fact {internal Blueprint Source;}
@@ -88,3 +94,7 @@ namespace OwnedPairsCustodyCheck {
  internal sealed class Horses {internal object HorseFeature=new object(),LevelRank=new object();internal Blueprint HorseUnit=new Blueprint {AssetGuid="horse"};}
  internal sealed class FakeFileInfo {internal FakeFileInfo(string path){} internal bool Exists=>true;internal long Length=>10;internal DateTime LastWriteTimeUtc=>new DateTime(20);}
 }
+
+// Only native data containers are substituted. The production roster helper is compiled unchanged.
+namespace Kingmaker { internal sealed class Player {internal long Money=10;internal int ExperienceRatePercent=100;internal List<Unit> Party=new List<Unit>();internal List<OwnedPairsCustodyCheck.Ref> PartyCharacters=new List<OwnedPairsCustodyCheck.Ref>(),RemoteCompanions=new List<OwnedPairsCustodyCheck.Ref>();} }
+namespace Kingmaker.EntitySystem.Entities { internal sealed class UnitEntityData {internal string UniqueId;internal OwnedPairsCustodyCheck.Blueprint Blueprint;internal OwnedPairsCustodyCheck.UnitDescriptor Descriptor=new OwnedPairsCustodyCheck.UnitDescriptor();internal object View=new object();internal bool IsInState=true,IsInGame=true;} }

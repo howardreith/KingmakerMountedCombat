@@ -19,6 +19,7 @@ namespace KingmakerMountedCombat.Diagnostics
         internal int ExistingLevel, ExistingExperience, ExistingRangerLevel;
         internal bool TargetLiving, TargetIsPet, TargetHasPet, TargetHasDualCompanion, TargetInField, TargetIdle, TargetCanLevelUp;
         internal bool ExactSmallCatalogueMember;
+        internal bool ExactMediumBodyMember;
     }
     internal static class Chunk7ManualDerivedAdmission
     {
@@ -41,12 +42,13 @@ namespace KingmakerMountedCombat.Diagnostics
             { errors.Add("Native XP table indices zero through twenty are missing or unordered."); return errors; }
             if (actual.MainLevel < 1 || actual.MainLevel > 20 || actual.DefaultHireExperience != table[actual.MainLevel])
                 errors.Add("Native default hire XP does not match the attained main level's table entry.");
-            if (selection.Case == Chunk7ManualDerivedSelection.PaidSmallCase)
+            if (selection.PaidHire)
             {
                 if (actual.MainLevel < Chunk7ManualDerivedSelection.RangerAcquisitionLevel ||
                     ReadyLevel(table, actual.DefaultHireExperience) < Chunk7ManualDerivedSelection.RangerAcquisitionLevel ||
-                    actual.NativeHireCost <= 0 || actual.Money < actual.NativeHireCost || pins.PartyCharacterIds.Length >= 6 || !actual.ExactSmallCatalogueMember)
-                    errors.Add("A legal paid Small hire lacks attained level, funds, exact body catalogue or a native field slot.");
+                    actual.NativeHireCost <= 0 || actual.Money < actual.NativeHireCost || pins.PartyCharacterIds.Length >= 6 ||
+                    (selection.Case == Chunk7ManualDerivedSelection.PaidSmallCase ? !actual.ExactSmallCatalogueMember : !actual.ExactMediumBodyMember))
+                    errors.Add("A legal paid hire lacks attained level, funds, its exact declared body or a native field slot.");
             }
             else
             {

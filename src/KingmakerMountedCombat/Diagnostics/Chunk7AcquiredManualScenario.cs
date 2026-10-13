@@ -253,9 +253,10 @@ namespace KingmakerMountedCombat.Diagnostics
                 sourceObservations["cleanup"]?["custodySettled"]?.Type == JTokenType.Boolean && (bool)sourceObservations["cleanup"]["custodySettled"],
                 "Staged source lacks exact same-candidate successful Manual-derived acquisition provenance.");
             var sourceCase = (string)sourceObservations["selection"]?["case"];
-            Require(sourceCase == Chunk7ManualDerivedSelection.ExistingCase || sourceCase == Chunk7ManualDerivedSelection.PaidSmallCase,
-                "Only the two complete ordinary acquisition routes may produce this derivative.");
-            sourcePaid = sourceCase == Chunk7ManualDerivedSelection.PaidSmallCase;
+            Require(sourceCase == Chunk7ManualDerivedSelection.ExistingCase || sourceCase == Chunk7ManualDerivedSelection.PaidSmallCase || sourceCase == Chunk7ManualDerivedSelection.PaidMediumCase,
+                "Only the closed complete ordinary acquisition routes may produce this derivative.");
+            sourcePaidMedium = sourceCase == Chunk7ManualDerivedSelection.PaidMediumCase;
+            sourcePaid = sourceCase == Chunk7ManualDerivedSelection.PaidSmallCase || sourcePaidMedium;
             Require(sourceObservations["nativeWrite"]?["saveBeforeFieldSelection"]?.Type == JTokenType.Boolean &&
                 (bool)sourceObservations["nativeWrite"]["saveBeforeFieldSelection"] == sourcePaid,
                 "Native acquisition save/field order differs from its closed source case.");
@@ -306,7 +307,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 ReferenceEquals(area, game.CurrentlyLoadedArea) && ReferenceEquals(mainActor, game.Player?.MainCharacter.Value) &&
                 game.Player.GameId == request.PersistenceLoad.GameId && game.Player.MainCharacter.Value.CharacterName == request.PersistenceLoad.GameName &&
                 game.Player.MainCharacter.Value.UniqueId == expectedMainId, "Admitted cold native world or main actor was replaced.");
-            var current = game.Player.Party.ToArray();
+            var current = Chunk7NativeFieldRoster.Capture(game.Player);
             Require(current.Length == actors.Length || fieldTransitionOpen && sourcePaid &&
                 current.Length >= actors.Length && current.Length <= actors.Length + 2, "Admitted cold party count changed.");
             Require(current.All(value => actors.Any(actor => ReferenceEquals(actor, value)) || fieldTransitionOpen && sourcePaid &&

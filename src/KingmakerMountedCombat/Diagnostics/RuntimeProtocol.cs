@@ -156,7 +156,10 @@ namespace KingmakerMountedCombat.Diagnostics
         public Chunk7AcquiredManualSelection AcquiredManual { get; set; }
         public Chunk7OwnedPairsSelection OwnedPairs { get; set; }
         internal string SelectedChunk7Scenario => OwnedPairs == null ? Scenario : OwnedPairs.RuntimeScenario;
-        internal RuntimeSaveDescriptor SelectedChunk7Fixture => OwnedPairs == null ? Fixture?.Working : PersistenceLoad;
+        internal RuntimeSaveDescriptor SelectedChunk7Fixture => OwnedPairs != null
+            || Scenario == Chunk7SmallCalibrationSelection.Scenario && SmallCalibration?.UsesManualField == true
+            || Scenario == Chunk7ProgressionSelection.Scenario && Progression?.IsOwned == true
+            ? PersistenceLoad : Fixture?.Working;
         public Chunk7ProgressionSelection Progression { get; set; }
 
         // Cross-area cases declare their destination up front so the isolated
@@ -212,7 +215,7 @@ namespace KingmakerMountedCombat.Diagnostics
             "multi-nonselected-mount-unsettled-manual", "multi-owned-worker-cancel-manual" }, value) >= 0;
 
         internal string ExpectedChunk7ArchiveArea => PersistenceCase == "multi-area-autosave" ? PersistenceAreaTarget?.Area : SelectedChunk7Fixture?.Area;
-        internal string ExpectedNativeLoadType => (Scenario == Chunk7AcquiredManualSelection.Scenario || Scenario == Chunk7ManualSeedSelection.Scenario || Scenario == Chunk7BootstrapInventorySelection.Scenario || Scenario == Chunk7SmallCalibrationSelection.Scenario || Scenario == Chunk7OrdinaryFieldSelection.Scenario) ? "Auto" : SelectedChunk7Scenario == "chunk7-persistence-load" && PersistenceLoad != null && IsChunk7PersistenceCase(PersistenceCase) ?
+        internal string ExpectedNativeLoadType => (Scenario == Chunk7AcquiredManualSelection.Scenario || Scenario == Chunk7ManualSeedSelection.Scenario || Scenario == Chunk7BootstrapInventorySelection.Scenario || Scenario == Chunk7SmallCalibrationSelection.Scenario && SmallCalibration?.UsesManualField != true || Scenario == Chunk7OrdinaryFieldSelection.Scenario) ? "Auto" : SelectedChunk7Scenario == "chunk7-persistence-load" && PersistenceLoad != null && IsChunk7PersistenceCase(PersistenceCase) ?
             (PersistenceCase == "multi-exploration-quick" ? "Quick" : PersistenceCase == "multi-exploration-auto" || PersistenceCase == "multi-area-autosave" ? "Auto" : "Manual") :
             IsTransitionAutoCase(PersistenceCase) ? "Auto" :
             Scenario == "persistence-p05-load" && PersistenceLoad != null ?
@@ -561,6 +564,19 @@ namespace KingmakerMountedCombat.Diagnostics
                         errors.Add("Bootstrap inventory source lacks its exact separately minted disposable identity.");
                 }
             }
+            else if (Scenario == Chunk7SmallCalibrationSelection.Scenario && SmallCalibration?.UsesManualField == true)
+            {
+                if (PersistenceLoad == null) errors.Add("Small Manual calibration requires its exact qualified field Manual.");
+                else
+                {
+                    errors.AddRange(PersistenceLoad.Validate("persistenceLoad", Chunk7AcquiredManualSelection.OutputName, "^Manual_[1-9][0-9]*_KMC_C7_ACQUIRED_FIELD\\.zks$"));
+                    if (Fixture?.Working == null || PersistenceLoad.GameId == Fixture.Working.GameId ||
+                        !Chunk7SmallManualSourceSelection.IsNativeManualLeaf(PersistenceLoad.FileName) || !Guid.TryParseExact(PersistenceLoad.GameId, "D", out var smallManualGameId) || smallManualGameId == Guid.Empty ||
+                        string.IsNullOrWhiteSpace(PersistenceLoad.GameName) || PersistenceLoad.Sha256 == Fixture.Working.Sha256 ||
+                        PersistenceLoad.Sha256 == Fixture.Baseline?.Sha256 || PersistenceLoad.Sha256 != SmallCalibration.ManualSource?.SourceArchiveSha256)
+                        errors.Add("Small Manual source lacks its exact separately minted disposable identity.");
+                }
+            }
             else if (Scenario == Chunk7OrdinaryFieldSelection.Scenario || Scenario == Chunk7SmallCalibrationSelection.Scenario)
             {
                 if (PersistenceLoad == null) errors.Add("Read-only field admission requires its exact paid Auto_1 archive.");
@@ -577,7 +593,9 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             else if (Scenario == Chunk7ProgressionSelection.Scenario)
             {
-                if (PersistenceLoad == null) errors.Add("Native progression requires its exact same-candidate Manual300 source.");
+                if (Progression?.IsOwned == true)
+                    errors.AddRange(Progression.ValidateOwnedDescriptor(PersistenceLoad, Fixture));
+                else if (PersistenceLoad == null) errors.Add("Native progression requires its exact same-candidate Manual300 source.");
                 else
                 {
                     errors.AddRange(PersistenceLoad.Validate("persistenceLoad", Chunk7ProgressionSelection.SourceName, "^Manual_300_KMC_C7_WORLD\\.zks$"));

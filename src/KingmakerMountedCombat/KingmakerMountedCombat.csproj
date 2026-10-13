@@ -9,6 +9,11 @@
     <Compile Include="Diagnostics\Chunk7NativeProgressionSession.cs" />
     <Compile Include="Diagnostics\Chunk7ProgressionSelection.cs" />
     <Compile Include="Diagnostics\Chunk7ProgressionScenario.cs" />
+    <Compile Include="Diagnostics\Chunk7ManualDerivedScenario.Medium.cs" />
+    <Compile Include="Diagnostics\Chunk7MediumHireBodySource.cs" />
+    <Compile Include="Diagnostics\Chunk7NativeFieldRoster.cs" />
+    <Compile Include="Diagnostics\Chunk7ProgressionScenario.Owned.cs" />
+    <Compile Include="Diagnostics\Chunk7SmallCalibrationScenario.Manual.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" Condition="false" />
   <PropertyGroup>

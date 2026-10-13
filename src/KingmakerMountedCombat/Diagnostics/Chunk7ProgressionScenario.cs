@@ -25,7 +25,7 @@ namespace KingmakerMountedCombat.Diagnostics
     // One exact native operation against a qualified disposable two-owner save.
     // The native session owns real choices, costs, rest and autosave callbacks.
     // This outer owner observes cold restoration and drains the remaining world.
-    internal sealed class Chunk7ProgressionScenario : IDisposable
+    internal sealed partial class Chunk7ProgressionScenario : IDisposable
     {
         internal const string EvidenceFileName = "chunk7-progression-evidence.json";
         internal const string EvidenceKind = "chunk7-progression-evidence";
@@ -69,6 +69,8 @@ namespace KingmakerMountedCombat.Diagnostics
             if (request?.Progression == null || request.Progression.Validate(request.Scenario, request.RunId).Count != 0 || request.PersistenceLoad == null)
                 throw new ArgumentException("An exact native progression source and choice selection are required.");
             this.request = request; selection = request.Progression;
+            ownedProgression = selection.IsOwned;
+            if (ownedProgression) ownedSelectionKey = Chunk7EvidenceDto.Request(selection).ToString(Newtonsoft.Json.Formatting.None);
             this.authorization = authorization ?? throw new ArgumentNullException(nameof(authorization));
             this.authority = authority ?? throw new ArgumentNullException(nameof(authority));
             world = relationship?.World ?? throw new ArgumentNullException(nameof(relationship));
@@ -117,8 +119,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 "Progression requires exact idle native exploration without an unexpected dialog.");
             ReadSources();
             var archive = persistence.LoadedArchive;
-            Require(archive != null && archive.SchemaVersion == 3 && archive.CampaignId == request.Fixture.Working.GameId &&
-                archive.AreaId == request.Fixture.Working.Area && archive.Pairs.Length == 2 && archive.Participations.Length == 0 && archive.Combat == null &&
+            Require(archive != null && archive.SchemaVersion == 3 && archive.CampaignId == request.SelectedChunk7Fixture.GameId &&
+                archive.AreaId == request.SelectedChunk7Fixture.Area && archive.Pairs.Length == 2 && archive.Participations.Length == 0 && archive.Combat == null &&
                 persistence.ArchiveRestorePhase == "all-pair-presentation-restored" && persistence.SemanticRestoreCount == 4 &&
                 persistence.PresentationRestoreCount == 2 && persistence.ArchivePostLoadObservedCount == 4 &&
                 world.NativeControls.NativeCastRequestCount == 0 && persistence.SnapshotCount == 0 && persistence.CompletedSaveCount == 0,
@@ -139,7 +141,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     "Restored owner/generation, field relationship or reciprocal native pet differs from its source.");
             }
             Require(archive.Pairs.Count(value => value.ProfileId == SupportedMountedProfiles.Horse.Id && value.Rider.Id == rider.UniqueId && value.Mount.Id == mount.UniqueId) == 1 &&
-                archive.Pairs.Count(value => value.ProfileId == SupportedMountedProfiles.Mammoth.Id && value.Rider.Id == controlRider.UniqueId && value.Mount.Id == controlMount.UniqueId) == 1,
+                archive.Pairs.Count(value => value.ProfileId == (ownedProgression ? SupportedMountedProfiles.Horse.Id : SupportedMountedProfiles.Mammoth.Id) && value.Rider.Id == controlRider.UniqueId && value.Mount.Id == controlMount.UniqueId) == 1,
                 "Progression substituted a profile or target/control actor role.");
             var ids = actors.Select(value => value.UniqueId).ToArray();
             Require(restoration != null && restoration.Complete && restoration.Count("prepare-before", ids) == 0 && restoration.Count("round-before", ids) == 0 &&
@@ -160,11 +162,12 @@ namespace KingmakerMountedCombat.Diagnostics
                 .Where(value => value != null && !ReferenceEquals(value, rider) && !ReferenceEquals(value, mount)).Distinct());
             originalSelection = SelectionManager.Instance.SelectedUnits.ToArray(); pause = Game.Instance.IsPaused; captured = true;
             RequireBodyPins();
+            if (ownedProgression) BindOwnedRoster();
             MovementScreenshotCaptureCoordinator.AcquireClosedUmmLeaseRetained(out ummLease);
             Game.Instance.IsPaused = false;
             var pins = selection.WritesAutosave ? new Chunk7OrdinaryBuildPins(request.RunId, selection.InventoryArtifactSha256,
-                selection.Case == Chunk7ProgressionSelection.LevelCase ? Chunk7OrdinaryBuildMode.ExistingHorseLevels :
-                selection.Case == Chunk7ProgressionSelection.RetrainHorseCase ? Chunk7OrdinaryBuildMode.NativeRespecHorse : Chunk7OrdinaryBuildMode.NativeRespecMammoth,
+                selection.OperationCase == Chunk7ProgressionSelection.LevelCase ? Chunk7OrdinaryBuildMode.ExistingHorseLevels :
+                selection.OperationCase == Chunk7ProgressionSelection.RetrainHorseCase ? Chunk7OrdinaryBuildMode.NativeRespecHorse : Chunk7OrdinaryBuildMode.NativeRespecMammoth,
                 selection.RaceGuid, selection.PresetGuid, selection.SkeletonName, selection.Gender == "Female" ? Gender.Female : Gender.Male,
                 selection.LeftHanded ?? false, selection.MinimumRangerLevel, Size.Medium) : null;
             session = new Chunk7NativeProgressionSession(request, selection.NativeCase, pins, rider, mount, authorization, authority, world, persistence, horses);
@@ -180,6 +183,10 @@ namespace KingmakerMountedCombat.Diagnostics
                 Require((string)item["status"] == "PASS" && item["errors"] is JArray itemErrors && itemErrors.Count == 0 &&
                     (string)item["commit"] == request.Commit && (string)item["dllSha256"] == request.DllSha256 && (string)item["dllMvid"] == request.DllMvid,
                     "Staged native source/inventory is not a same-candidate immutable PASS.");
+            if (ownedProgression)
+            {
+                ReadOwnedSources(source, inventory); return;
+            }
             Require((string)source["runId"] == selection.SourceRunId && (string)source["scenario"] == Chunk7PersistenceScenario.SaveScenario &&
                 (string)source["evidenceKind"] == Chunk7PersistenceScenario.EvidenceKind && (string)source["observations"]?["checkpoint"] == "multi-exploration-manual" &&
                 (string)source["observations"]?["nativeWrite"]?["sha256"] == selection.SourceArchiveSha256 &&
@@ -210,6 +217,10 @@ namespace KingmakerMountedCombat.Diagnostics
         }
         private void RequireAuthority(bool loadingAdmission)
         {
+            if (ownedProgression) Require(request.OwnedPairs == null && request.Scenario == Chunk7ProgressionSelection.Scenario &&
+                selection.Validate(request.Scenario, request.RunId).Count == 0 && selection.ValidateOwnedDescriptor(request.PersistenceLoad, request.Fixture).Count == 0 &&
+                Chunk7EvidenceDto.Request(selection).ToString(Newtonsoft.Json.Formatting.None) == ownedSelectionKey,
+                "Owned progression selection/source changed after its exact admission.");
             Require(authorization.IsActive && authorization.AuthorityGeneration == generation && authorization.IsExactPersistenceScope(authority) &&
                 NativePersistenceIsolation.IsExactAuthority(authority) && authority.Root == root && Game.Instance?.SaveManager?.SavePath == root &&
                 NativePersistenceIsolation.ObservedStashFolder == Path.Combine(Path.GetDirectoryName(root), "Areas") &&
@@ -221,15 +232,16 @@ namespace KingmakerMountedCombat.Diagnostics
                 authorization.SuppressedWorkingWriteCount == 0 && authorization.BaselineLoadRequestCount == 0 && !authorization.IsOneShotWorkingWriteSuppressionArmed,
                 "Progression lost its exact isolated native source/write plan, load cap or authority generation.");
             if (!loadingAdmission)
-                Require(ReferenceEquals(beforeLoadGame, Game.Instance) && Game.Instance.Player?.GameId == request.Fixture.Working.GameId &&
-                    Game.Instance.Player.MainCharacter.Value?.CharacterName == request.Fixture.Working.GameName &&
-                    Game.Instance.CurrentlyLoadedArea?.AssetGuidThreadSafe == request.Fixture.Working.Area,
+                Require(ReferenceEquals(beforeLoadGame, Game.Instance) && Game.Instance.Player?.GameId == request.SelectedChunk7Fixture.GameId &&
+                    Game.Instance.Player.MainCharacter.Value?.CharacterName == request.SelectedChunk7Fixture.GameName &&
+                    Game.Instance.CurrentlyLoadedArea?.AssetGuidThreadSafe == request.SelectedChunk7Fixture.Area,
                     "Progression lost its originally admitted native game/campaign/area.");
         }
         private void RequireScope()
         {
             RequireAuthority(false); scope?.RequireCurrent();
             if (session != null) session.AssertOwnedScope();
+            if (ownedProgression && ownedParty != null) RequireOwnedRoster(false);
             if (captured && (session == null || !session.HasStarted)) Require(ReferenceEquals(rider.Descriptor, targetDescriptor) && ReferenceEquals(rider.View, targetView) &&
                 ReferenceEquals(mount.Descriptor, petDescriptor) && ReferenceEquals(mount.View, petView), "Progression target changed before native session ownership.");
             if (sourceEvidencePath != null)
@@ -273,6 +285,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 {
                     RequireScope();
                     var pairClean = true;
+                    if (ownedProgression) ownedWorldCleanupStarted = true;
                     foreach (var pair in world.Pairs)
                     {
                         if (pair.Relationship.PairOwner == null && pair.Relationship.State == RelationshipState.Unmounted && pair.Relationship.Runtime.NoPreparedPairResidue) continue;
@@ -298,8 +311,16 @@ namespace KingmakerMountedCombat.Diagnostics
                         value.Relationship.PairOwner != null || !value.Relationship.Runtime.NoPreparedPairResidue))
                     { Retain("Remaining native mounted world still owns commands, preparation or relationship cleanup."); return; }
                     RequireScope();
+                    if (ownedProgression)
+                    {
+                        if (!OwnedRemovedPetSettled()) { Retain("Observed native respec still owns its pending old-pet entity removal."); return; }
+                        RequireOwnedRoster(true);
+                        Require(DialogMessageBox.Instance == null || !DialogMessageBox.Instance.IsShown,
+                            "An unexpected dialog retains owned progression presentation custody.");
+                        evidence["ownedRosterAfter"] = CaptureOwnedRoster("settled");
+                    }
                     var remainingSelection = originalSelection.Where(value => value.IsInState && value.View != null &&
-                        (value.UniqueId != selection.ActorId || selection.Case != Chunk7ProgressionSelection.DismissCase)).ToArray();
+                        (value.UniqueId != selection.ActorId || selection.OperationCase != Chunk7ProgressionSelection.DismissCase)).ToArray();
                     SelectionManager.Instance.MultiSelect(remainingSelection.Select(value => value.View), false);
                     Require(SelectionManager.Instance.SelectedUnits.SequenceEqual(remainingSelection), "Owned original surviving selection did not restore exactly.");
                     ummLease?.Dispose(); ummLease = null; Game.Instance.IsPaused = pause;
