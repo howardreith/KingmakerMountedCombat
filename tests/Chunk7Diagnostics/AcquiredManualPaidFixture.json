@@ -1571,7 +1571,11 @@
           "saveBeforeFieldSelection": true,
           "lastWriteTimeUtcTicks": 638960000000000000,
           "descriptorCount": 2,
-          "emptyMountedArchive": true
+          "emptyMountedArchive": true,
+          "requestedObject": 999,
+          "writtenObject": -1000,
+          "completionSequence": 1,
+          "completedWritesBefore": 0
         },
         "elapsedSeconds": 30,
         "sourceManualObservations": {
@@ -4185,24 +4189,7 @@
               "isChargen": false,
               "kind": "native-level-autosave-request",
               "saveLeaf": "Auto_1.zks",
-              "saveName": null,
-              "saveObject": 999,
-              "savePath": null,
-              "saveType": "Auto"
-            },
-            {
-              "actorId": "11111111-2222-4333-8444-555555555555",
-              "actorObject": 99,
-              "autoLevelup": true,
-              "characterLevel": 4,
-              "completionActorId": "11111111-2222-4333-8444-555555555555",
-              "frame": 44,
-              "inState": true,
-              "insideObservedCompletion": true,
-              "isChargen": false,
-              "kind": "native-level-autosave-prepared",
-              "saveLeaf": "Auto_1.zks",
-              "saveName": null,
+              "saveName": "Autosave",
               "saveObject": 999,
               "savePath": null,
               "saveType": "Auto"
@@ -4223,6 +4210,25 @@
               "saveObject": 0,
               "savePath": null,
               "saveType": null
+            },
+            {
+              "actorId": "11111111-2222-4333-8444-555555555555",
+              "actorObject": 99,
+              "autoLevelup": true,
+              "characterLevel": 4,
+              "completionActorId": null,
+              "frame": 45,
+              "inState": true,
+              "insideObservedCompletion": false,
+              "isChargen": false,
+              "kind": "native-level-autosave-prepared",
+              "saveLeaf": "Auto_1.zks",
+              "saveName": "Autosave",
+              "saveObject": -1000,
+              "savePath": null,
+              "saveType": "Auto",
+              "requestedSaveObject": 999,
+              "accepted": true
             }
           ],
           "completionEntries": 4,
@@ -5417,7 +5423,11 @@
         "saveBeforeFieldSelection": true,
         "lastWriteTimeUtcTicks": 638960000000000000,
         "descriptorCount": 2,
-        "emptyMountedArchive": true
+        "emptyMountedArchive": true,
+        "requestedObject": 999,
+        "writtenObject": -1000,
+        "completionSequence": 1,
+        "completedWritesBefore": 0
       },
       "elapsedSeconds": 30,
       "sourceManualObservations": {
@@ -8031,24 +8041,7 @@
             "isChargen": false,
             "kind": "native-level-autosave-request",
             "saveLeaf": "Auto_1.zks",
-            "saveName": null,
-            "saveObject": 999,
-            "savePath": null,
-            "saveType": "Auto"
-          },
-          {
-            "actorId": "11111111-2222-4333-8444-555555555555",
-            "actorObject": 99,
-            "autoLevelup": true,
-            "characterLevel": 4,
-            "completionActorId": "11111111-2222-4333-8444-555555555555",
-            "frame": 44,
-            "inState": true,
-            "insideObservedCompletion": true,
-            "isChargen": false,
-            "kind": "native-level-autosave-prepared",
-            "saveLeaf": "Auto_1.zks",
-            "saveName": null,
+            "saveName": "Autosave",
             "saveObject": 999,
             "savePath": null,
             "saveType": "Auto"
@@ -8069,6 +8062,25 @@
             "saveObject": 0,
             "savePath": null,
             "saveType": null
+          },
+          {
+            "actorId": "11111111-2222-4333-8444-555555555555",
+            "actorObject": 99,
+            "autoLevelup": true,
+            "characterLevel": 4,
+            "completionActorId": null,
+            "frame": 45,
+            "inState": true,
+            "insideObservedCompletion": false,
+            "isChargen": false,
+            "kind": "native-level-autosave-prepared",
+            "saveLeaf": "Auto_1.zks",
+            "saveName": "Autosave",
+            "saveObject": -1000,
+            "savePath": null,
+            "saveType": "Auto",
+            "requestedSaveObject": 999,
+            "accepted": true
           }
         ],
         "completionEntries": 4,

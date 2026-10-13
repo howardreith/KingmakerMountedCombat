@@ -40,6 +40,7 @@ param(
     # Explicit private compatibility selection. Other modes keep the actual live
     # mod set. This mode stages KMC alone while retaining installed UMM/Harmony.
     [switch]$BaseGameOnly,
+    [switch]$ObserveWorkingDeserialization,
     [ValidateSet('authored-main-campaign')][string]$NativeBootstrapCase,
     [string]$OrdinarySelectionPath,
     [string]$OrdinaryFieldSelectionPath,
@@ -97,6 +98,10 @@ param(
 
 $ErrorActionPreference='Stop'
 Set-StrictMode -Version Latest
+if($PSBoundParameters.ContainsKey('ObserveWorkingDeserialization') -and
+    (-not$ObserveWorkingDeserialization -or $Scenario -cne 'export-mounted-contracts' -or -not$BaseGameOnly -or -not$SaveAccessAllowed)) {
+    throw 'Working deserialization observation requires its exact true opt-in, export-mounted-contracts, qualified save access and explicit base-only staging.'
+}
 . (Join-Path $PSScriptRoot 'RuntimeHarness.Common.ps1')
 . (Join-Path $PSScriptRoot 'PersistenceProfileProtection.ps1')
 . (Join-Path $PSScriptRoot 'PersistenceSaveFixtures.ps1')
@@ -500,6 +505,7 @@ try{
         transactionToken=[string]$lock.Token
         evidenceRoot=$evidenceRoot
     }
+    if($ObserveWorkingDeserialization){$request['observeWorkingDeserialization']=$true}
     if(Test-KmcChunk7OrdinaryScenario $Scenario){$request['ordinaryAcquisition']=$ordinarySelectionInput.selection}
     if(Test-KmcChunk7SmallScenario $Scenario){$request['smallCalibration']=$smallSelectionInput.selection}
     if(Test-KmcChunk7FieldScenario $Scenario){$request['ordinaryField']=$fieldSelectionInput.selection}

@@ -210,9 +210,11 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool ObserveTerminalAutosave()
         {
             if (Busy() || ordinaryProbe.ObservedSave == null || ordinaryProbe.ObservedSave.OperationState != SaveInfo.StateType.None) return false;
-            var save = ordinaryProbe.ObservedSave;
+            var save = ordinaryProbe.ObservedSave; var completion = persistence.LastCompletedSave;
             Require(ordinaryProbe.Complete && persistence.CompletedSaveCount == 1 && persistence.SnapshotCount == 1 &&
                 authorization.AuthorizedWriteCount == 1 && authority.AdmittedNativeWriteRequests == 1 &&
+                completion != null && completion.Sequence == 1 && ReferenceEquals(completion.Requested, ordinaryProbe.ObservedRequestedSave) &&
+                ReferenceEquals(completion.Written, save) && completion.Path == Path.Combine(root, Chunk7ManualDerivedSelection.OutputLeaf) &&
                 save.FileName == Chunk7ManualDerivedSelection.OutputLeaf && save.Type == SaveInfo.SaveType.Auto && save.IsAutoLevelupSave &&
                 save.GameId == request.PersistenceLoad.GameId && save.GameName == request.PersistenceLoad.GameName &&
                 save.Area.AssetGuidThreadSafe == request.PersistenceLoad.Area && save.HasFileOnDisk && save.IsActuallySaved,
@@ -229,7 +231,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 saves.Count(value => ReferenceEquals(value, save)) == 1, "Native descriptor inventory differs from the one immutable Manual plus one terminal Auto.");
             evidence["nativeWrite"] = new JObject { ["path"] = file.FullName, ["leaf"] = save.FileName, ["length"] = file.Length,
                 ["sha256"] = Hash(file.FullName), ["lastWriteTimeUtcTicks"] = file.LastWriteTimeUtc.Ticks, ["name"] = save.Name,
-                ["type"] = save.Type.ToString(), ["autoLevelup"] = save.IsAutoLevelupSave, ["operation"] = save.OperationState.ToString(),
+                ["requestedObject"] = NativeOrdinaryAcquisitionProbe.Id(completion.Requested), ["writtenObject"] = NativeOrdinaryAcquisitionProbe.Id(completion.Written),
+                ["completionSequence"] = completion.Sequence, ["completedWritesBefore"] = 0, ["type"] = save.Type.ToString(), ["autoLevelup"] = save.IsAutoLevelupSave, ["operation"] = save.OperationState.ToString(),
                 ["gameId"] = save.GameId, ["gameName"] = save.GameName, ["area"] = save.Area.AssetGuidThreadSafe,
                 ["authorizedWrites"] = authorization.AuthorizedWriteCount, ["admittedWrites"] = authority.AdmittedNativeWriteRequests,
                 ["completedWrites"] = persistence.CompletedSaveCount, ["snapshotCount"] = persistence.SnapshotCount,

@@ -257,7 +257,8 @@ namespace KingmakerMountedCombat.Diagnostics
             var save = probe.ObservedSave; var completion = persistence.LastCompletedSave;
             Require(probe.Complete && authorization.AuthorizedWriteCount == 1 && authority.AdmittedNativeWriteRequests == 1 &&
                 persistence.SnapshotCount == snapshotBefore + 1 && persistence.CompletedSaveCount == completedSavesBefore + 1 &&
-                completion != null && ReferenceEquals(completion.Requested, save) && ReferenceEquals(completion.Written, save) &&
+                completion != null && ReferenceEquals(completion.Requested, probe.ObservedRequestedSave) && ReferenceEquals(completion.Written, save) &&
+                completion.Sequence == completedSavesBefore + 1 &&
                 completion.Path == Path.Combine(expectedRoot, Chunk7OrdinaryAcquisitionSelection.AutoLeaf) &&
                 save.FileName == Chunk7OrdinaryAcquisitionSelection.AutoLeaf && save.Type == SaveInfo.SaveType.Auto && save.IsAutoLevelupSave &&
                 save.GameId == request.Fixture.Working.GameId && save.GameName == request.Fixture.Working.GameName &&
@@ -270,7 +271,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 "Ordinary unmounted native autosave readback contains unsupported or invented mounted ownership.");
             evidence["nativeWrite"] = new JObject { ["path"] = file.FullName, ["leaf"] = save.FileName, ["length"] = file.Length,
                 ["sha256"] = Hash(file.FullName), ["name"] = save.Name, ["type"] = save.Type.ToString(), ["autoLevelup"] = save.IsAutoLevelupSave,
-                ["operation"] = save.OperationState.ToString(), ["gameId"] = save.GameId, ["gameName"] = save.GameName,
+                ["requestedObject"] = NativeOrdinaryAcquisitionProbe.Id(completion.Requested), ["writtenObject"] = NativeOrdinaryAcquisitionProbe.Id(completion.Written),
+                ["completionSequence"] = completion.Sequence, ["completedWritesBefore"] = completedSavesBefore, ["operation"] = save.OperationState.ToString(), ["gameId"] = save.GameId, ["gameName"] = save.GameName,
                 ["area"] = save.Area.AssetGuidThreadSafe, ["authorizedWrites"] = authorization.AuthorizedWriteCount,
                 ["admittedWrites"] = authority.AdmittedNativeWriteRequests, ["completedWrites"] = persistence.CompletedSaveCount - completedSavesBefore,
                 ["snapshotCount"] = persistence.SnapshotCount - snapshotBefore, ["nativeCallbackSupplied"] = false,

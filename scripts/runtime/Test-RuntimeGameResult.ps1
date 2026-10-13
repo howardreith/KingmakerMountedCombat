@@ -242,6 +242,8 @@ if ($schemaVersion -eq 1) {
 
 Assert-FixtureEcho $game.fixture $request.fixture
 Assert-KmcReadOnlyArtifactManifest $request $game.evidenceManifestSha256 -GameResult
+. (Join-Path $PSScriptRoot 'WorkingLoadDeserializationEvidence.ps1')
+Assert-KmcWorkingLoadDeserializationArtifact $request $game
 if ([int]$game.loadRequestCount -ne ([int]$game.baselineLoadRequestCount + [int]$game.workingLoadRequestCount + [int]$game.unauthorizedLoadRequestCount) -or
     [int]$game.saveRequestCount -ne ([int]$game.workingSaveRequestCount + [int]$game.suppressedWorkingSaveRequestCount + [int]$game.unauthorizedSaveRequestCount)) { throw 'Save-backed runtime aggregate save/load counters do not reconcile.' }
 Assert-SubscenarioResults $game

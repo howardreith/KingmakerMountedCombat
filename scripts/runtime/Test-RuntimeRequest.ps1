@@ -90,6 +90,12 @@ function Assert-RuntimeFixture {
 
 Assert-NoDuplicateJsonObjectProperties $RequestPath 'runtime request'
 $request = Read-KmcJson $RequestPath
+$hasWorkingObservation = @($request.PSObject.Properties.Name) -ccontains 'observeWorkingDeserialization'
+if($hasWorkingObservation -and ($request.observeWorkingDeserialization -isnot [bool] -or
+    $request.observeWorkingDeserialization -ne $true -or $request.scenario -isnot [string] -or
+    $request.scenario -cne 'export-mounted-contracts' -or -not(Test-JsonInteger $request.schemaVersion) -or $request.schemaVersion -ne 2)) {
+    throw 'Working observation requires one exact true Boolean in its schema-2 export request.'
+}
 Assert-KmcChunk7OrdinarySelection $request
 Assert-KmcChunk7NativeBootstrapSelection $request
 Assert-KmcChunk7BootstrapInventorySelection $request
@@ -163,6 +169,7 @@ elseif ($schemaVersion -eq 2) {
     $chunk7Area=(Test-KmcChunk7PersistenceScenario $request.scenario)-and$hasPersistenceCase-and$request.persistenceCase-ceq'multi-area-autosave'
     $transitionAuto=$hasPersistenceCase-and$request.persistenceCase-cin @('area-cross-entry-auto','area-cross-exit-auto')
     $extra=@(if(Test-KmcChunk7OwnedPairsScenario $request.scenario){'ownedPairs';'persistenceLoad'}; if(Test-KmcChunk7AcquiredManualScenario $request.scenario){'acquiredManual';'persistenceLoad'}; if(Test-KmcChunk7ManualDerivedScenario $request.scenario){'manualDerived';'persistenceLoad'}; if(Test-KmcChunk7CumulativeScenario $request.scenario){'cumulativeAcquisition';'persistenceLoad'}; if(Test-KmcChunk7ManualSeedScenario $request.scenario){'manualSeed';'persistenceLoad'}; if(Test-KmcChunk7BootstrapInventoryScenario $request.scenario){'bootstrapInventory';'persistenceLoad'}; if(Test-KmcChunk7NativeBootstrapScenario $request.scenario){'nativeBootstrap'}; if(Test-KmcChunk7ProgressionScenario $request.scenario){'progression';'persistenceLoad'}; if(Test-KmcChunk7SmallScenario $request.scenario){'smallCalibration';'persistenceLoad'}; if(Test-KmcChunk7FieldScenario $request.scenario){'ordinaryField';'persistenceLoad'}; if(Test-KmcChunk7OrdinaryScenario $request.scenario){'ordinaryAcquisition'}; if($alternating-or$validation){'persistenceAlternate'}; if($request.scenario -cin @('chunk7-persistence-load','persistence-p07-load','persistence-p01-load','persistence-p02-load','persistence-p03-load','persistence-p04-load','persistence-p05-load','persistence-p06-load')){'persistenceLoad'}; if($hasPersistenceCase){'persistenceCase'}; if($crossArea-or$chunk7Area){'persistenceAreaTarget'}; if($hasPersistenceCase-and$request.persistenceCase-ceq'multi-exploration-three-area-transfers-manual'){'persistenceReplayTargets'}; if($request.scenario-ceq'chunk7-persistence-load'-and$hasPersistenceCase-and$request.persistenceCase-ceq'legacy-schema1-resave-manual'){'schema1DerivationSha256'})
+    if($hasWorkingObservation){$extra+=@('observeWorkingDeserialization')}
     Assert-KmcExactProperties $request @($commonRequired + @('fixture','qualificationSuite') + $extra) 'runtime request v2'
     if($crossArea){
         $t=$request.persistenceAreaTarget

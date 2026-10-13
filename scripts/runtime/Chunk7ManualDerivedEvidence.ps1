@@ -271,7 +271,7 @@ function Assert-KmcManualDerivedNativeChoices($Request,$O,$Selection=$null){
             'native-level-autosave-prepared' {
                 Assert-KmcOrdinaryInteger $row.saveObject ([int]::MinValue) ([int]::MaxValue)
                 if($row.saveObject-eq0){throw 'Native prepared object identity missing.'}
-                $writes++;if($requests-ne1-or$row.saveObject-ne$saveObject-or$row.saveLeaf-cne'Auto_1.zks'){throw 'Native PrepareSave lost exact descriptor identity.'}
+                $writes++;if($requests-ne1-or$row.saveObject-eq$saveObject-or$row.saveLeaf-cne'Auto_1.zks'){throw 'Native PrepareSave lost exact descriptor identity.'}
                 Assert-KmcChunk7Boolean $row.autoLevelup $true;if($row.saveType-cne'Auto'){throw 'Native prepared category differs.'}
             }
             'native-level-completion-exit' {
@@ -283,6 +283,9 @@ function Assert-KmcManualDerivedNativeChoices($Request,$O,$Selection=$null){
         }
     }
     if($null-ne$inside-or$entries-ne$commits-or$exits-ne$commits-or$requests-ne1-or$writes-ne1){throw 'Native completion/autosave events do not settle exactly once.'}
+ Assert-KmcOrdinarySaveDescriptorBinding $probe $o.nativeWrite
+ Assert-KmcOrdinaryInteger $o.nativeWrite.completedWritesBefore 0 0
+ Assert-KmcOrdinaryInteger $o.nativeWrite.completionSequence 1 1
  if($paid){Assert-KmcOrdinaryInteger $admission.moneyBefore $s.readiness.money $s.readiness.money;Assert-KmcOrdinaryInteger $admission.nativeCost $s.readiness.nativeHireCost $s.readiness.nativeHireCost;Assert-KmcOrdinaryInteger $xp $s.readiness.defaultHireExperience $s.readiness.defaultHireExperience}
  else{Assert-KmcOrdinaryInteger $identity.level $s.existingLevel $s.existingLevel;Assert-KmcOrdinaryInteger $xp $s.existingExperience $s.existingExperience;Assert-KmcOrdinaryInteger $identity.rangerLevel $s.existingRangerLevel $s.existingRangerLevel;Assert-KmcOrdinaryInteger $expectedMoney $s.readiness.money $s.readiness.money}
  [pscustomobject]@{actorId=$identity.actorId;actorObject=$identity.actorObject;descriptorObject=$identity.descriptorObject;petId=$O.builderComplete.petId;level=$level;xp=$xp;money=$expectedMoney;commits=$commits}

@@ -16,7 +16,7 @@ using UnityModManagerNet;
 
 namespace KingmakerMountedCombat.Diagnostics
 {
-    internal sealed class RuntimeAutomationHost : IDisposable
+    internal sealed partial class RuntimeAutomationHost : IDisposable
     {
         private const string RequestArgument = "-kmcRuntimeRequest";
         private const string TokenArgument = "-kmcRuntimeToken";
@@ -283,6 +283,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 throw new InvalidOperationException("Runtime request bytes do not match the command-line SHA-256 binding.");
             }
             var json = new UTF8Encoding(false, true).GetString(requestBytes);
+            AssertWorkingObservationToken(json);
             var request = JsonConvert.DeserializeObject<RuntimeRequest>(json, JsonSettings);
             if (request == null)
             {
@@ -332,6 +333,17 @@ namespace KingmakerMountedCombat.Diagnostics
         internal static void ObserveLoadRequest()
         {
             if (active != null) { active.loadRequestCount++; }
+        }
+
+        // Expensive interruption forensics are opt-in to the exact live automation
+        // host. Retained cleanup may still report until that host completes.
+        internal static bool ShouldCaptureMountedPreStartInterruption(GameMountedRelationshipService owner)
+        {
+            var host = active;
+            if (host == null || host.disposed || host.completed || owner == null) return false;
+            if (ReferenceEquals(host.relationship, owner)) return true;
+            var world = host.relationship?.World;
+            return world != null && ReferenceEquals(world, owner.World) && world.Find(owner) != null;
         }
 
         internal static bool ShouldCapturePersistenceWorldDiscard(MountedPairTurnParticipant participant)
@@ -429,7 +441,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 {
                     return false;
                 }
-                var request = JsonConvert.DeserializeObject<RuntimeRequest>(new UTF8Encoding(false, true).GetString(requestBytes), JsonSettings);
+                var requestJson = new UTF8Encoding(false, true).GetString(requestBytes);
+                AssertWorkingObservationToken(requestJson);
+                var request = JsonConvert.DeserializeObject<RuntimeRequest>(requestJson, JsonSettings);
                 if (request == null || request.Validate().Count != 0 || !string.Equals(token, request.TransactionToken, StringComparison.Ordinal) ||
                     !string.Equals(Path.GetFullPath(request.EvidenceRoot).TrimEnd(Path.DirectorySeparatorChar), Path.GetDirectoryName(fullRequestPath).TrimEnd(Path.DirectorySeparatorChar), StringComparison.OrdinalIgnoreCase))
                 {
@@ -567,6 +581,7 @@ namespace KingmakerMountedCombat.Diagnostics
             elapsedSeconds = runtimeClock.Elapsed.TotalSeconds;
             try
             {
+                if (workingLoadCompletionPending) { DrainWorkingLoadCompletion(); return; }
                 if (chunk7Completion.Pending) { DrainChunk7Completion(); return; }
                 if (request.SchemaVersion == RuntimeRequest.SaveBackedSchemaVersion && !saveBackedFailureDrain.MayAdvanceScenario)
                 {
@@ -760,7 +775,8 @@ namespace KingmakerMountedCombat.Diagnostics
                     smallCalibrationEngine.BeginBeforeLoad();
                 }
                 fixtureLoaderStarted = true;
-                fixtureLoader.Start();
+                fixtureLoader.Start(request.ObserveWorkingDeserialization == true
+                    ? (Action<Kingmaker.Game, Kingmaker.EntitySystem.Persistence.SaveManager, Kingmaker.EntitySystem.Persistence.SaveInfo>)BeginWorkingLoadObservation : null);
                 return;
             }
 
@@ -1319,6 +1335,7 @@ namespace KingmakerMountedCombat.Diagnostics
         public void Dispose()
         {
             if (disposed) return;
+            RequireWorkingObserverReleasedForDispose();
             if (IsChunk7NativeFamily && !chunk7Completion.Settled)
             {
                 BeginChunk7Completion("FAIL", new[] { "Chunk 7 host disposal requested before proven native cleanup." });
@@ -1653,6 +1670,13 @@ namespace KingmakerMountedCombat.Diagnostics
                 return;
             }
 
+            if (workingLoadObservation != null && !workingLoadObservation.Released)
+            {
+                BeginWorkingLoadCompletion(status, errors);
+                DrainWorkingLoadCompletion();
+                return;
+            }
+
             if (IsChunk7NativeFamily)
             {
                 BeginChunk7Completion(status, errors);
@@ -1808,7 +1832,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var gameAssembly = typeof(Kingmaker.Game).Assembly;
             var ummAssembly = typeof(UnityModManager).Assembly;
             var harmonyPath = Path.Combine(Path.GetDirectoryName(ummAssembly.Location), "0Harmony12.dll");
-            var evidenceManifestSha256 = PublishRuntimeArtifactManifest();
+            var evidenceManifestSha256 = workingLoadObservation == null ? PublishRuntimeArtifactManifest() : null;
             var game = Kingmaker.Game.Instance;
             var terminalMovementExperimentEnabled = movementExperimentProvider();
             var terminalGameMode = game == null ? null : game.CurrentMode.ToString();
@@ -1860,6 +1884,11 @@ namespace KingmakerMountedCombat.Diagnostics
                 assertionFailCount += result.AssertionFailCount;
             }
 
+            if (workingLoadObservation != null)
+            {
+                PublishWorkingObservation(status);
+                evidenceManifestSha256 = PublishRuntimeArtifactManifest();
+            }
             var resultPayload = new RuntimeGameResultV2
             {
                 SchemaVersion = RuntimeRequest.SaveBackedSchemaVersion,
@@ -2204,6 +2233,8 @@ namespace KingmakerMountedCombat.Diagnostics
             var manifestPath = Path.Combine(request.EvidenceRoot, "runtime-artifacts.json");
             var artifacts = new List<RuntimeArtifactRecord>();
             AddRuntimeArtifactIfPresent(artifacts, request.EvidenceRoot, RuntimeLoaderInventory.EvidenceFileName, RuntimeLoaderInventory.EvidenceKind);
+            AddRuntimeArtifactIfPresent(artifacts, request.EvidenceRoot, WorkingLoadDiagnosticSession.EvidenceFileName, WorkingLoadDiagnosticSession.EvidenceKind);
+            AddRuntimeArtifactIfPresent(artifacts, request.EvidenceRoot, WorkingLoadDiagnosticSession.PendingFileName, WorkingLoadDiagnosticSession.PendingKind);
             AddRuntimeArtifactIfPresent(artifacts, request.EvidenceRoot, Chunk7NativeBootstrapScenario.EvidenceFileName, Chunk7NativeBootstrapScenario.EvidenceKind);
             AddRuntimeArtifactIfPresent(artifacts, request.EvidenceRoot, Chunk7NativeBootstrapScenario.PendingFileName, Chunk7NativeBootstrapScenario.PendingKind);
             AddRuntimeArtifactIfPresent(artifacts, request.EvidenceRoot, Chunk7AcquiredManualScenario.EvidenceFileName, Chunk7AcquiredManualScenario.EvidenceKind);

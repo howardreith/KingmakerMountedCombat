@@ -231,6 +231,12 @@
     <Compile Include="Diagnostics\PresentationRuntimeEvidencePolicy.cs" />
     <Compile Include="Diagnostics\PresentationOverlayEvidence.cs" />
     <Compile Include="Diagnostics\RuntimeAutomationHost.cs" />
+    <Compile Include="Diagnostics\RuntimeAutomationHost.WorkingLoadObservation.cs" />
+    <Compile Include="Diagnostics\WorkingLoadObservation.cs" />
+    <Compile Include="Diagnostics\NativeWorkingLoadContract.cs" />
+    <Compile Include="Diagnostics\NativeWorkingLoadRewrite.cs" />
+    <Compile Include="Diagnostics\NativeWorkingLoadObserver.cs" />
+    <Compile Include="Diagnostics\WorkingLoadDiagnosticSession.cs" />
     <Compile Include="Diagnostics\RuntimeBoundaryScenarioEngine.cs" />
     <Compile Include="Diagnostics\RuntimeCombatScenarioEngine.cs" />
     <Compile Include="Diagnostics\PairedMammothObservation.cs" />

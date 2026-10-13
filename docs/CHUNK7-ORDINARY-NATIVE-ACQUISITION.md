@@ -47,7 +47,9 @@ Working and exactly one native level-up autosave, never protected saves.
 ## Natural completion and field inventory
 
 The installed native LevelUpAutoSaveController completion callback must itself
-request Auto_1 and SaveManager must prepare that same exact SaveInfo. The
+request Auto_1. The installed SaveRoutine retains that request and prepares a
+distinct native Type/Name copy; the completed native save must bind those exact
+requested and written objects, its sequence and output path. The
 observer is retained before explicit Harmony installation; a partial install
 or failed unpatch remains owned. Native worker completion, one actual admission,
 one authorized write and one schema-3 snapshot are required. The runtime reader
