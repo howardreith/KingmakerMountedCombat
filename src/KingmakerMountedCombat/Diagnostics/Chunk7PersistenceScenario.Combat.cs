@@ -113,7 +113,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 restoration.Count("round-before", ids) == 0 && restoration.Count("restore-actor-before", ids) == ids.Length &&
                 restoration.Count("restore-actor-after", ids) == ids.Length && restoration.Count("restore-debt-before", ids) == ids.Length &&
                 restoration.Count("restore-debt-after", ids) == ids.Length, "Cold native combat invented preparation or lost complete per-actor restoration observation.");
-            evidence["coldRestoration"] = restoration.Capture(); restoration.Dispose(); restoration = null;
+            evidence["coldRestoration"] = restoration.Capture();
+            if (!Schema2ResaveCase) { restoration.Dispose(); restoration = null; }
             evidence["loadedArchive"] = JObject.FromObject(saved, MountedSaveCodec.CreateSerializer());
             var descriptor = request.PersistenceLoad;
             var info = Game.Instance.SaveManager.SingleOrDefault(s => s.FileName == descriptor.FileName);

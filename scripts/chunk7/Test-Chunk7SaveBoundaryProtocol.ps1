@@ -5,9 +5,10 @@ $source=Join-Path $repo 'src/KingmakerMountedCombat/Diagnostics/Chunk7Persistenc
 $bootstrap=Join-Path $repo 'src/KingmakerMountedCombat/Diagnostics/PersistenceIsolationBootstrap.cs'
 $case=[regex]::Match([IO.File]::ReadAllText($source),'internal static bool IsSaveBoundaryCase\(string value\) => [^;]+;').Value
 $body=[IO.File]::ReadAllText($bootstrap);$a=$body.IndexOf('declaresTransfer ? request.PersistenceAreaTarget.Area : null, ');if($a-lt0){throw 'Exact bootstrap write-quota argument absent'};$a+='declaresTransfer ? request.PersistenceAreaTarget.Area : null, '.Length;$e=$body.IndexOf(',',$a);$quota=$body.Substring($a,$e-$a)
-if(-not$case-or$quota-notmatch'IsSaveBoundaryCase'){throw 'Closed native save quota selector absent'}
+$schema2=[regex]::Match($body,'var schema2Resave = request.Scenario == Chunk7PersistenceScenario.LoadScenario &&\s*request.PersistenceCase == "legacy-mounted-pending-tb-manual";').Value
+if(-not$case-or$quota-notmatch'IsSaveBoundaryCase'-or-not$schema2){throw 'Closed native save quota selector absent'}
 $probe=Join-Path $chunk7AnalysisRoot ('save-boundary-protocol-'+[Guid]::NewGuid().ToString('N'));[void][IO.Directory]::CreateDirectory($probe)
-$text=[IO.File]::ReadAllText((Join-Path $chunk7TestSource 'SaveBoundaryProtocolTemplate.cs')).Replace('__CASE_METHOD__',$case).Replace('__WRITE_QUOTA__',$quota)
+$text=[IO.File]::ReadAllText((Join-Path $chunk7TestSource 'SaveBoundaryProtocolTemplate.cs')).Replace('__CASE_METHOD__',$case).Replace('__WRITE_QUOTA__',$quota).Replace('__SCHEMA2_SELECTOR__',$schema2)
 [IO.File]::WriteAllText((Join-Path $probe 'SaveBoundaryProtocol.cs'),$text)
 [ordered]@{sourceSha256=(Get-FileHash -LiteralPath $source -Algorithm SHA256).Hash.ToLowerInvariant();bootstrapSha256=(Get-FileHash -LiteralPath $bootstrap -Algorithm SHA256).Hash.ToLowerInvariant();nativeEvidence=$false}|ConvertTo-Json|Set-Content -LiteralPath (Join-Path $probe 'source-receipt.json')
 $vs=Join-Path ([Environment]::GetFolderPath('ProgramFilesX86')) 'Microsoft Visual Studio/Installer/vswhere.exe'

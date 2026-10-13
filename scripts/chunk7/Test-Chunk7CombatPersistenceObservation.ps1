@@ -1,7 +1,9 @@
+param([string]$BaselineReaderPath)
 $ErrorActionPreference='Stop'
 Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot 'Initialize-Chunk7Tests.ps1')
 . (Join-Path $PSScriptRoot 'Test-Chunk7CombatPersistenceEvidence.ps1')
+if($BaselineReaderPath){. $BaselineReaderPath}
 $passed=0
 function Set-Field($Value,[string]$Name,$Data){$Value|Add-Member NoteProperty $Name $Data -Force}
 function Test-Trace(){[pscustomobject]@{dropped=0;observationErrors=0;identityRegistry=[pscustomobject]@{contract='retained-native-object-identity-v1';capacity=16000;faults=0};events=@();observerHooks=@(@('06000C3C','06009120','0600838F','06000C46','0600939D')|ForEach-Object{[pscustomobject]@{token=$_;moduleMvid='07fa1e4d-8618-41b3-9b8d-faa17d3b26f7'}})}}
@@ -59,6 +61,15 @@ function CompleteCombatArtifact($Fixture,[bool]$Cold){
         $v.nativeWrite.archive=$a;Set-Field $v.nativeWrite 'sourceSchema' 3;Set-Field $v.nativeWrite 'nativeMetadata' (Copy-Test $a);Set-Field $v 'combatCheckpoint' $source
         if($q.persistenceCase-ceq'legacy-mounted-pending-tb-manual'){$v.inputs=@($v.inputs[0]);$v.nativeWrite.sourceSchema=2;$v.nativeWrite.nativeMetadata=Copy-Test $schema2;Set-Field $v 'legacyWriterScope' ([pscustomobject]@{selectedOnlyForCase=$q.persistenceCase;sourceSchema=2;owners=1;selectedCapabilityRestored=$true;restorationEnabledOnColdProcess=$true})}
     }
+    if($Cold-and$q.persistenceCase-ceq'legacy-mounted-pending-tb-manual'){
+        $v.nativeWrite.archive=Copy-Test $a;Set-Field $v.nativeWrite 'nativeMetadata' (Copy-Test $a);Set-Field $v.nativeWrite 'sourceSchema' 3
+        Set-Field $v.nativeWrite 'nativeName' 'KMC_C7_SCHEMA2';$v.nativeWrite.sha256='9'*64
+        Set-Field $v.saveRequested 'nativeName' 'KMC_C7_SCHEMA2';Set-Field $v.saveRequested 'gameTicks' $a.GameTimeTicks
+        Set-Field $v.snapshots[0] 'frame' 2;Set-Field $v.snapshots[0] 'gameTicks' $a.GameTimeTicks
+        $resaved=Copy-Test $v.snapshots[0];$resaved.label='schema2-native-resave-before-continuation';$resaved.frame=3;$resaved.snapshots=1
+        $v.snapshots+=@($resaved)
+        Set-Field $v 'schema2Migration' ([pscustomobject]@{inputSchema=2;inputSha256=$q.persistenceLoad.sha256;inputLength=$q.persistenceLoad.length;migratedArchive=(Copy-Test $a);inputUnchanged=$true;resavedWorld=(NativeWorld $a $true)})
+    }
     Set-Field $v 'combatContinuation' $continuation
     $cleanup=[pscustomobject]@{cleanupComplete=$true;cleanupErrors=@();targetId=$source.targetId;targetGroupId=$source.targetGroupId;driver=[pscustomobject]@{coldCleanup=[pscustomobject]@{targetId=$source.targetId;targetGroupId=$source.targetGroupId;targetRemoved=$true;groupRemoved=$true;nativeCombatEnded=$true;borrowedFactionDestroyed=$false;resourceFieldsWritten=$false}}}
     Set-Field $v 'checkpointCleanup' $cleanup
@@ -108,4 +119,65 @@ foreach($mutation in @('hidden-prepare','whole-world-omitted','missing-native-ac
 Reject 'RT readiness before actual native debt elapsed' {$spec=Copy-Test $sourceRt;$v=$spec.artifact.observations.combatContinuation;$v.continuation[1].gameTicks=$v.continuation[0].gameTicks+10000000L;Assert-KmcChunk7PersistenceObservation $spec.request $spec.artifact 'PASS'}
 Reject 'zero mounted repeated cleanup restarts release round' {$spec=Copy-Test $coldZero;$spec.artifact.observations.combatContinuation.continuation[1].after.participations[0].SplitReleaseRound=4;Assert-KmcChunk7PersistenceObservation $spec.request $spec.artifact 'PASS'}
 Reject 'pending mount misses first native independent round' {$spec=Copy-Test $coldLegacy;$spec.artifact.observations.combatContinuation.continuation[1].round=5;Assert-KmcChunk7PersistenceObservation $spec.request $spec.artifact 'PASS'}
+foreach($mutation in @('array-input-hash','array-output-type','array-output-name','array-output-operation','array-output-hash','array-request-type','array-request-name','missing-write','missing-migration','changed-input','mutated-input','wrong-output-schema','wrong-output-name','repeated-snapshot','missing-callback','reused-input-hash','dropped-pending','changed-release','changed-owner','refunded-debt','free-reaction','hidden-prepare','late-resave','replayed-cast','changed-allocation')){
+    Reject ('schema2 cold resave '+$mutation){$spec=Copy-Test $coldLegacy;$v=$spec.artifact.observations
+        switch($mutation){
+            'array-input-hash' {$v.schema2Migration.inputSha256=@($v.schema2Migration.inputSha256)}
+            'array-output-type' {$v.nativeWrite.nativeType=@($v.nativeWrite.nativeType)}
+            'array-output-name' {$v.nativeWrite.nativeName=@($v.nativeWrite.nativeName)}
+            'array-output-operation' {$v.nativeWrite.operation=@($v.nativeWrite.operation)}
+            'array-output-hash' {$v.nativeWrite.sha256=@($v.nativeWrite.sha256)}
+            'array-request-type' {$v.saveRequested.nativeType=@($v.saveRequested.nativeType)}
+            'array-request-name' {$v.saveRequested.nativeName=@($v.saveRequested.nativeName)}
+            'missing-write' {$v.PSObject.Properties.Remove('nativeWrite')}
+            'missing-migration' {$v.PSObject.Properties.Remove('schema2Migration')}
+            'changed-input' {$v.schema2Migration.inputSha256='8'*64}
+            'mutated-input' {$v.schema2Migration.inputUnchanged=$false}
+            'wrong-output-schema' {$v.nativeWrite.sourceSchema=2}
+            'wrong-output-name' {$v.nativeWrite.nativeName='KMC_C7_WORLD'}
+            'repeated-snapshot' {$v.nativeWrite.snapshotCount=2}
+            'missing-callback' {$v.nativeWrite.nativeCallback=$false}
+            'reused-input-hash' {$v.nativeWrite.sha256=$spec.request.persistenceLoad.sha256}
+            'dropped-pending' {$v.nativeWrite.archive.Participations=@()}
+            'changed-release' {$v.nativeWrite.archive.Participations[0].State.PendingSplitRound++}
+            'changed-owner' {$id='77777777777747778777777777777777';$v.nativeWrite.archive.Pairs[0].PairId=$id;$v.nativeWrite.archive.Participations[0].OwnerId=$id;$v.nativeWrite.archive.Participations[0].MountedPairId=$id}
+            'refunded-debt' {$v.nativeWrite.archive.Pairs[0].Mount.Standard=0.0;@($v.nativeWrite.archive.Combat.Actors|Where-Object {$_.Native.Id-ceq$mammoth})[0].Native.Standard=0.0}
+            'free-reaction' {$v.nativeWrite.archive.Pairs[0].Mount.ReactionsRemaining++;@($v.nativeWrite.archive.Combat.Actors|Where-Object {$_.Native.Id-ceq$mammoth})[0].Native.ReactionsRemaining++}
+            'hidden-prepare' {$v.coldRestoration.events+= [pscustomobject]@{kind='prepare-before';actorId=$mammoth}}
+            'late-resave' {$v.snapshots[-1].frame=4}
+            'replayed-cast' {$v.snapshots[-1].nativeCastRequests=1}
+            'changed-allocation' {$v.nativeWrite.archive.Combat.Allocations[0].GrantId='other-grant'}
+        }
+        if($v.PSObject.Properties['nativeWrite']){$v.nativeWrite.nativeMetadata=Copy-Test $v.nativeWrite.archive}
+        Assert-KmcChunk7PersistenceObservation $spec.request $spec.artifact 'PASS'
+    }
+}
+# Exercise the actual artifact output selection with only manifest/file I/O
+# substituted. Child scope prevents the substitutions escaping to source tests.
+& {
+    $artifactRequest=Copy-Test $coldLegacy.request;$boundArtifact=Copy-Test $coldLegacy.artifact
+    $artifactLeaf='Manual_301_KMC_C7_SCHEMA2.zks'
+    $boundArtifact.observations.nativeWrite|Add-Member NoteProperty path (Join-Path (Get-KmcLabRoot) ('runtime-staging/persistence-'+$artifactRequest.runId+'/Saved Games/'+$artifactLeaf)) -Force
+    $archiveChecks=[Collections.Generic.List[object]]::new()
+    $manifest=[pscustomobject]@{artifacts=@([pscustomobject]@{relativePath='chunk7-persistence-evidence.json';kind='chunk7-persistence-evidence'})}
+    function Read-KmcChunk7ManifestArtifact {param($Request,$Manifest,$Leaf,$Kind);return $boundArtifact}
+    function Assert-KmcNotReparsePoint {param($Path,$Description)}
+    function Assert-KmcNotHardLink {param($Path,$Description)}
+    function Assert-KmcChargeArchiveSnapshot {param($Path,$Hash,$Length,$Metadata);$archiveChecks.Add([pscustomobject]@{path=$Path;hash=$Hash;length=$Length;metadata=$Metadata})}
+    Check 'schema2 cold resave artifact checks exact separate output' {
+        Assert-KmcChunk7PersistenceArtifact $artifactRequest $manifest 'PASS'
+        if($archiveChecks.Count-ne1-or$archiveChecks[0].path-cne$boundArtifact.observations.nativeWrite.path-or$archiveChecks[0].hash-cne('9'*64)-or
+            (ConvertTo-KmcChunk7Canonical $archiveChecks[0].metadata)-cne(ConvertTo-KmcChunk7Canonical $boundArtifact.observations.nativeWrite.archive)){throw 'Schema2 native output archive was not checked exactly.'}
+    }
+    Reject 'schema2 resave artifact refuses an array-valued output path' {
+        $originalPath=$boundArtifact.observations.nativeWrite.path
+        try{$boundArtifact.observations.nativeWrite.path=@($originalPath);Assert-KmcChunk7PersistenceArtifact $artifactRequest $manifest 'PASS'}
+        finally{$boundArtifact.observations.nativeWrite.path=$originalPath}
+    }
+    Reject 'schema2 resave artifact cannot alias its read-only input' {
+        $originalPath=$boundArtifact.observations.nativeWrite.path
+        try{$boundArtifact.observations.nativeWrite.path=$originalPath.Replace($artifactLeaf,'Manual_300_KMC_C7_WORLD.zks');Assert-KmcChunk7PersistenceArtifact $artifactRequest $manifest 'PASS'}
+        finally{$boundArtifact.observations.nativeWrite.path=$originalPath}
+    }
+}
 Write-Host ('CHUNK7 COMBAT PERSISTENCE OBSERVATION PASS='+$passed+' FAIL=0; synthetic raw proof and source/cold adapters only.')
