@@ -15,7 +15,7 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private static readonly HashSet<string> SaveBackedScenarios = new HashSet<string>(StringComparer.Ordinal)
         {
-            "chunk7-acquired-manual-derivative", "chunk7-manual-derived-acquisition", "chunk7-native-progression", "chunk7-native-main-bootstrap", "chunk7-bootstrap-cold-inventory", "chunk7-bootstrap-manual-seed", "chunk7-small-profile-calibration", "chunk7-ordinary-field-admission", "chunk7-ordinary-acquisition", "chunk7-two-pair-exploration", "chunk7-persistence-save", "chunk7-persistence-load",
+            "chunk7-cumulative-acquisition", "chunk7-acquired-manual-derivative", "chunk7-manual-derived-acquisition", "chunk7-native-progression", "chunk7-native-main-bootstrap", "chunk7-bootstrap-cold-inventory", "chunk7-bootstrap-manual-seed", "chunk7-small-profile-calibration", "chunk7-ordinary-field-admission", "chunk7-ordinary-acquisition", "chunk7-two-pair-exploration", "chunk7-persistence-save", "chunk7-persistence-load",
             "chunk7-two-pair-combat-rider-first", "chunk7-two-pair-combat-mount-first",
             "chunk7-two-pair-realtime-core", "chunk7-two-pair-realtime-casting", "chunk7-two-pair-realtime-charge",
             "chunk7-two-pair-native-life-cleanup",
@@ -152,6 +152,7 @@ namespace KingmakerMountedCombat.Diagnostics
         public Chunk7BootstrapInventorySelection BootstrapInventory { get; set; }
         public Chunk7ManualSeedSelection ManualSeed { get; set; }
         public Chunk7ManualDerivedSelection ManualDerived { get; set; }
+        public Chunk7CumulativeAcquisitionSelection CumulativeAcquisition { get; set; }
         public Chunk7AcquiredManualSelection AcquiredManual { get; set; }
         public Chunk7ProgressionSelection Progression { get; set; }
 
@@ -225,6 +226,12 @@ namespace KingmakerMountedCombat.Diagnostics
                 errors.Add("Unsupported request schemaVersion.");
             }
 
+            if (Scenario == Chunk7CumulativeAcquisitionSelection.Scenario)
+            {
+                if (SchemaVersion != SaveBackedSchemaVersion || CumulativeAcquisition == null) errors.Add("Cumulative acquisition requires its exact separate schema-2 selection.");
+                else errors.AddRange(CumulativeAcquisition.Validate(Scenario, RunId));
+            }
+            else if (CumulativeAcquisition != null) errors.Add("Cumulative acquisition selection is forbidden under another scenario.");
             if (Scenario == Chunk7AcquiredManualSelection.Scenario)
             {
                 if (SchemaVersion != SaveBackedSchemaVersion || AcquiredManual == null) errors.Add("Acquired Manual requires its exact schema-2 field-preserving selection.");
@@ -459,7 +466,20 @@ namespace KingmakerMountedCombat.Diagnostics
                 errors.Add("A removal or disable-during-load case is save-only.");
             if (Scenario == "persistence-p07-save" && (PersistenceCase == "absent-kmc" || (PersistenceCase == "removal-no-dll" || PersistenceCase == "mounted-charge-removal-no-dll")))
                 errors.Add("The integration-absent and no-DLL cases are cold-load only.");
-            if (Scenario == Chunk7ManualDerivedSelection.Scenario)
+            if (Scenario == Chunk7CumulativeAcquisitionSelection.Scenario)
+            {
+                if (PersistenceLoad == null) errors.Add("Cumulative acquisition requires its exact acquired-field Manual source.");
+                else
+                {
+                    errors.AddRange(PersistenceLoad.Validate("persistenceLoad", Chunk7AcquiredManualSelection.OutputName, "^Manual_[1-9][0-9]*_KMC_C7_ACQUIRED_FIELD\\.zks$"));
+                    if (!Chunk7CumulativeAcquisitionSelection.IsAcquiredManualLeaf(PersistenceLoad.FileName) || Fixture?.Working == null ||
+                        PersistenceLoad.GameId == Fixture.Working.GameId || !Guid.TryParseExact(PersistenceLoad.GameId, "D", out var cumulativeGameId) || cumulativeGameId == Guid.Empty ||
+                        string.IsNullOrWhiteSpace(PersistenceLoad.GameName) || PersistenceLoad.Sha256 == Fixture.Working.Sha256 ||
+                        PersistenceLoad.Sha256 == Fixture.Baseline?.Sha256 || PersistenceLoad.Sha256 != CumulativeAcquisition?.SourceArchiveSha256)
+                        errors.Add("Cumulative source lacks its exact separately minted first-owner Manual identity.");
+                }
+            }
+            else if (Scenario == Chunk7ManualDerivedSelection.Scenario)
             {
                 if (PersistenceLoad == null) errors.Add("Manual-derived acquisition requires its exact native Manual seed source.");
                 else
@@ -916,6 +936,7 @@ namespace KingmakerMountedCombat.Diagnostics
             "C7-rt-native-casting", "C7-rt-casting-neighbour", "C7-rt-charge-native-success", "C7-rt-charge-neighbour-movement", "C7-rt-charge-native-cancel",
             "chunk7-acquired-manual-derivative", "C7-acquired-manual-source", "C7-acquired-manual-native-load", "C7-acquired-manual-restored-owner", "C7-acquired-manual-native-field", "C7-acquired-manual-numbering", "C7-acquired-manual-native-save", "C7-acquired-manual-no-arrangement", "C7-acquired-manual-cleanup", "C7-acquired-manual-runtime", "C7-acquired-manual-interrupted",
             "chunk7-manual-derived-acquisition", "C7-manual-derived-source", "C7-manual-derived-native-load", "C7-manual-derived-eligibility", "C7-manual-derived-native-choices", "C7-manual-derived-native-autosave", "C7-manual-derived-native-field", "C7-manual-derived-cleanup", "C7-manual-derived-runtime", "C7-manual-derived-interrupted",
+            "chunk7-cumulative-acquisition", "C7-cumulative-source", "C7-cumulative-native-load", "C7-cumulative-eligibility", "C7-cumulative-native-choices", "C7-cumulative-native-autosave", "C7-cumulative-native-field", "C7-cumulative-cleanup", "C7-cumulative-runtime", "C7-cumulative-interrupted",
             "chunk7-bootstrap-manual-seed", "C7-manual-seed-source", "C7-manual-seed-native-load", "C7-manual-seed-native-save", "C7-manual-seed-no-arrangement", "C7-manual-seed-cleanup", "C7-manual-seed-runtime", "C7-manual-seed-interrupted",
             "chunk7-bootstrap-cold-inventory", "C7-bootstrap-inventory-source", "C7-bootstrap-inventory-native-load", "C7-bootstrap-inventory-readonly", "C7-bootstrap-inventory-cleanup", "C7-bootstrap-inventory-runtime", "C7-bootstrap-inventory-interrupted",
             "chunk7-native-main-bootstrap", "C7-bootstrap-preflight", "C7-bootstrap-native-start", "C7-bootstrap-native-world", "C7-bootstrap-autosave", "C7-bootstrap-cleanup", "C7-bootstrap-runtime", "C7-bootstrap-interrupted",
@@ -1403,7 +1424,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 errors.Add("subscenario and assertion totals do not match the named results.");
             }
 
-            if (scenario != "chunk7-acquired-manual-derivative" && scenario != "chunk7-manual-derived-acquisition" && scenario != "chunk7-bootstrap-manual-seed" && scenario != "chunk7-bootstrap-cold-inventory" && scenario != "chunk7-native-progression" && scenario != "chunk7-native-main-bootstrap" && scenario != "chunk7-small-profile-calibration" && scenario != "chunk7-ordinary-field-admission" && scenario != "chunk7-ordinary-acquisition" && scenario != "chunk7-two-pair-exploration" && !RuntimeRequest.IsChunk7PersistenceScenario(scenario) && !RuntimeRequest.IsChunk7CombatScenario(scenario) && RuntimeSubscenarioResult.IsMissionScenario(scenario) && !names.Contains(scenario))
+            if (scenario != "chunk7-cumulative-acquisition" && scenario != "chunk7-acquired-manual-derivative" && scenario != "chunk7-manual-derived-acquisition" && scenario != "chunk7-bootstrap-manual-seed" && scenario != "chunk7-bootstrap-cold-inventory" && scenario != "chunk7-native-progression" && scenario != "chunk7-native-main-bootstrap" && scenario != "chunk7-small-profile-calibration" && scenario != "chunk7-ordinary-field-admission" && scenario != "chunk7-ordinary-acquisition" && scenario != "chunk7-two-pair-exploration" && !RuntimeRequest.IsChunk7PersistenceScenario(scenario) && !RuntimeRequest.IsChunk7CombatScenario(scenario) && RuntimeSubscenarioResult.IsMissionScenario(scenario) && !names.Contains(scenario))
             {
                 errors.Add("An individual mission scenario must report its own named subscenario result.");
             }

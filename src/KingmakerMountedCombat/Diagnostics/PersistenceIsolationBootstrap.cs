@@ -15,7 +15,7 @@ namespace KingmakerMountedCombat.Diagnostics
     internal sealed class PersistenceIsolationBootstrap
     {
         internal const string Scenario = "persistence-isolation";
-        internal static bool Supports(string value) => value == Chunk7AcquiredManualSelection.Scenario || value == Chunk7ManualDerivedSelection.Scenario || value == Chunk7ManualSeedSelection.Scenario || value == Chunk7BootstrapInventorySelection.Scenario || value == Chunk7NativeBootstrapSelection.Scenario || value == Chunk7ProgressionSelection.Scenario || value == Chunk7SmallCalibrationSelection.Scenario || value == Chunk7OrdinaryFieldSelection.Scenario || value == Chunk7OrdinaryAcquisitionSelection.Scenario || RuntimeRequest.IsChunk7PersistenceScenario(value) || value == Scenario || value == "persistence-p01-save" || value == "persistence-p01-load" ||
+        internal static bool Supports(string value) => value == Chunk7CumulativeAcquisitionSelection.Scenario || value == Chunk7AcquiredManualSelection.Scenario || value == Chunk7ManualDerivedSelection.Scenario || value == Chunk7ManualSeedSelection.Scenario || value == Chunk7BootstrapInventorySelection.Scenario || value == Chunk7NativeBootstrapSelection.Scenario || value == Chunk7ProgressionSelection.Scenario || value == Chunk7SmallCalibrationSelection.Scenario || value == Chunk7OrdinaryFieldSelection.Scenario || value == Chunk7OrdinaryAcquisitionSelection.Scenario || RuntimeRequest.IsChunk7PersistenceScenario(value) || value == Scenario || value == "persistence-p01-save" || value == "persistence-p01-load" ||
             value == "persistence-p02-save" || value == "persistence-p02-load" || value == "persistence-p03-save" || value == "persistence-p03-load" || value == "persistence-p04-save" || value == "persistence-p04-load" ||
             value == "persistence-p07-save" || value == "persistence-p07-load" || value == "persistence-p05-save" || value == "persistence-p05-load" || value == "persistence-p06-load";
         internal PersistenceSaveAuthorization Authority => authority;
@@ -59,7 +59,7 @@ namespace KingmakerMountedCombat.Diagnostics
                             RuntimeRequest.IsTransitionAutoCase(request.PersistenceCase) ? "Auto" : "Manual",
                         Area = fixture.Area, InitialSha256 = fixture.Sha256, Writable = false }
                 };
-                if (request.Scenario == Chunk7ManualDerivedSelection.Scenario)
+                if (request.Scenario == Chunk7ManualDerivedSelection.Scenario || request.Scenario == Chunk7CumulativeAcquisitionSelection.Scenario)
                     entries.Add(new PersistenceSaveEntry { FileName = Chunk7ManualDerivedSelection.OutputLeaf,
                         InternalName = RuntimePersistenceScenario.SlotName(SaveInfo.SaveType.Auto), SaveType = "Auto", Area = fixture.Area, Writable = true });
                 if (request.Scenario == Chunk7ManualSeedSelection.Scenario)
@@ -250,10 +250,10 @@ namespace KingmakerMountedCombat.Diagnostics
                 authority = new PersistenceSaveAuthorization(runRoot, fixture.GameId, fixture.GameName,
                     request.Fixture.Baseline.Sha256, entries,
                     declaresTransfer ? fixture.Area : null,
-                    declaresTransfer ? request.PersistenceAreaTarget.Area : null, (schema2Resave || request.Scenario == Chunk7AcquiredManualSelection.Scenario || request.Scenario == Chunk7ManualDerivedSelection.Scenario || request.Scenario == Chunk7ManualSeedSelection.Scenario || request.Scenario == Chunk7NativeBootstrapSelection.Scenario || request.Scenario == Chunk7OrdinaryAcquisitionSelection.Scenario ||
+                    declaresTransfer ? request.PersistenceAreaTarget.Area : null, (schema2Resave || request.Scenario == Chunk7CumulativeAcquisitionSelection.Scenario || request.Scenario == Chunk7AcquiredManualSelection.Scenario || request.Scenario == Chunk7ManualDerivedSelection.Scenario || request.Scenario == Chunk7ManualSeedSelection.Scenario || request.Scenario == Chunk7NativeBootstrapSelection.Scenario || request.Scenario == Chunk7OrdinaryAcquisitionSelection.Scenario ||
                         request.Scenario == Chunk7ProgressionSelection.Scenario && request.Progression.WritesAutosave ||
                         request.Scenario == Chunk7PersistenceScenario.SaveScenario && Chunk7PersistenceScenario.IsSaveBoundaryCase(request.PersistenceCase)) ? (int?)1 : null,
-                    request.Scenario == Chunk7NativeBootstrapSelection.Scenario ? (int?)0 : schema2Resave ? (int?)1 : request.Scenario == Chunk7AcquiredManualSelection.Scenario || request.Scenario == Chunk7ManualDerivedSelection.Scenario || request.Scenario == Chunk7ManualSeedSelection.Scenario || request.Scenario == Chunk7BootstrapInventorySelection.Scenario || request.Scenario == Chunk7ProgressionSelection.Scenario || request.Scenario == Chunk7SmallCalibrationSelection.Scenario || request.Scenario == Chunk7OrdinaryFieldSelection.Scenario ? (int?)1 : request.PersistenceCase == Chunk7PersistenceScenario.ThreeLoadsCase ? (int?)3 :
+                    request.Scenario == Chunk7NativeBootstrapSelection.Scenario ? (int?)0 : schema2Resave ? (int?)1 : request.Scenario == Chunk7CumulativeAcquisitionSelection.Scenario || request.Scenario == Chunk7AcquiredManualSelection.Scenario || request.Scenario == Chunk7ManualDerivedSelection.Scenario || request.Scenario == Chunk7ManualSeedSelection.Scenario || request.Scenario == Chunk7BootstrapInventorySelection.Scenario || request.Scenario == Chunk7ProgressionSelection.Scenario || request.Scenario == Chunk7SmallCalibrationSelection.Scenario || request.Scenario == Chunk7OrdinaryFieldSelection.Scenario ? (int?)1 : request.PersistenceCase == Chunk7PersistenceScenario.ThreeLoadsCase ? (int?)3 :
                     request.PersistenceCase == Chunk7PersistenceScenario.ThreeAreasCase ? (int?)1 : null,
                     request.Scenario == Chunk7AcquiredManualSelection.Scenario ? request : null,
                     request.Scenario == Chunk7AcquiredManualSelection.Scenario ? game : null,

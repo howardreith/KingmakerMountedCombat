@@ -5,8 +5,9 @@ function Assert-KmcChunk7AcquiredManualSelection($Request){
  $has=$null-ne$Request.PSObject.Properties['acquiredManual']
  if(-not(Test-KmcChunk7AcquiredManualScenario $Request.scenario)){if($has){throw 'Manual seed selection is forbidden under another family.'};return}
  if(-not$has){throw 'Manual seed requires its exact explicit selection.'};$s=$Request.acquiredManual
- Assert-KmcExactProperties $s @('case','sourceRunId','sourceArtifactSha256','sourceArchiveSha256','actorId','petId','baseGameOnly','expectedNativeLoadCount','expectedNativeWriteCount') 'Manual seed selection'
- Assert-KmcBootstrapInventoryString $s.case 'preserve-acquired-field'
+ if($s.case-isnot[string]-or$s.case-cnotin@('preserve-acquired-field','preserve-two-acquired-field')){throw 'Acquired Manual case is not closed.'}
+ $keys=@('case','sourceRunId','sourceArtifactSha256','sourceArchiveSha256','actorId','petId','baseGameOnly','expectedNativeLoadCount','expectedNativeWriteCount');if($s.case-ceq'preserve-two-acquired-field'){$keys+=@('priorOwnerId','priorPetId')};Assert-KmcExactProperties $s $keys 'Manual seed selection'
+ if($s.case-ceq'preserve-two-acquired-field'){foreach($key in @('priorOwnerId','priorPetId')){Assert-KmcOrdinaryGuid $s.$key};if(@($s.actorId,$s.petId,$s.priorOwnerId,$s.priorPetId|Select-Object -Unique).Count-ne4){throw 'Two-owner Manual requires four distinct native IDs.'}}
  $ids=[Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal);[void]$ids.Add($Request.runId)
  foreach($key in @('sourceRunId')){if($s.$key-isnot[string]-or$s.$key-cnotmatch'^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$'-or-not$ids.Add($s.$key)){throw 'Manual seed requires distinct completed bootstrap and cold-inventory runs.'}}
  foreach($key in @('sourceArtifactSha256','sourceArchiveSha256')){if($s.$key-isnot[string]-or$s.$key-cnotmatch'^[a-f0-9]{64}$'){throw 'Manual seed source pins must be exact SHA256 strings.'}}
@@ -62,8 +63,9 @@ function Assert-KmcChunk7AcquiredManualEvidence($Request,$Artifact,$SourceArtifa
  if($Status-ceq'PASS'-and$Artifact.status-cne'PASS'){throw 'PASS cold inventory requires its PASS native artifact.'}
  if($Artifact.status-cne'PASS'){return}
  $o=$Artifact.observations;$s=$Request.acquiredManual;$source=$SourceArtifact
+ if($s.case-ceq'preserve-two-acquired-field'){Assert-KmcBootstrapInventoryString $source.evidenceKind 'chunk7-cumulative-acquisition-evidence'}
  foreach($key in @('commit','dllSha256','dllMvid')){Assert-KmcBootstrapInventoryString $source.$key $Request.$key}
- Assert-KmcBootstrapInventoryString $source.runId $s.sourceRunId;Assert-KmcBootstrapInventoryString $source.scenario 'chunk7-manual-derived-acquisition';Assert-KmcBootstrapInventoryString $source.status 'PASS'
+ Assert-KmcBootstrapInventoryString $source.runId $s.sourceRunId;Assert-KmcBootstrapInventoryString $source.scenario $(if($s.case-ceq'preserve-two-acquired-field'){'chunk7-cumulative-acquisition'}else{'chunk7-manual-derived-acquisition'});Assert-KmcBootstrapInventoryString $source.status 'PASS'
  if($source.errors-isnot[Array]-or$source.errors.Count-ne0){throw 'Cold inventory source was not an error-free bootstrap.'}
  foreach($key in @('gameId','gameName','area')){Assert-KmcBootstrapInventoryString $source.observations.nativeWrite.$key $Request.persistenceLoad.$key}
  Assert-KmcBootstrapInventoryString $source.observations.nativeWrite.sha256 $s.sourceArchiveSha256
@@ -145,6 +147,7 @@ function Assert-KmcChunk7AcquiredManualEvidence($Request,$Artifact,$SourceArtifa
  Assert-KmcChunk7AcquiredManualAuthority $o.cleanup.authority $root $b.authority.generation 1 1
   Assert-KmcAcquiredManualField $Request $o $source.observations $labels $root $paid
   Assert-KmcAcquiredManualNativeSave $Request $o $labels $root
+  Assert-KmcTwoAcquiredOwners $Request $o $source.observations $labels
 }
 
 function Assert-KmcAcquiredManualArrangement($Row,$World,$Inventory){
@@ -224,7 +227,8 @@ function Assert-KmcChunk7AcquiredManualArtifact($Request,$Manifest,[string]$Stat
  if($Status-ceq'FAIL'-and$records.Count-eq0){return}
  $artifact=Read-KmcChunk7ManifestArtifact $Request $Manifest 'chunk7-acquired-manual-evidence.json' 'chunk7-acquired-manual-evidence';$source=$null
  if($artifact.status-ceq'PASS'){
-  $path=Join-Path (Join-Path (Split-Path $Request.evidenceRoot -Parent) $Request.acquiredManual.sourceRunId) 'chunk7-manual-derived-evidence.json'
+  $sourceLeaf=if($Request.acquiredManual.case-ceq'preserve-two-acquired-field'){'chunk7-cumulative-acquisition-evidence.json'}else{'chunk7-manual-derived-evidence.json'}
+  $path=Join-Path (Join-Path (Split-Path $Request.evidenceRoot -Parent) $Request.acquiredManual.sourceRunId) $sourceLeaf
   Assert-KmcNotReparsePoint $path 'qualified acquisition lineage';Assert-KmcNotHardLink $path 'qualified acquisition lineage';$file=Get-Item -LiteralPath $path
   if($file.Length-le0-or$file.Length-gt16MB-or(Get-KmcSha256 $path)-cne$Request.acquiredManual.sourceArtifactSha256){throw 'Qualified acquisition lineage is absent or changed.'}
   Assert-KmcManifestJsonMembersUnique $path 'qualified acquisition lineage';$source=Read-KmcJson $path
@@ -346,4 +350,51 @@ function Assert-KmcAcquiredManualField($Request,$O,$Source,$Labels,[string]$Root
   if((ConvertTo-KmcChunk7Canonical $row)-cne(ConvertTo-KmcChunk7Canonical $O.resourcesBeforeField)){throw 'Cumulative derivative changed action resources.'}
  }
  foreach($key in @('selectorClosed','presentationRestored')){Assert-KmcChunk7Boolean $O.cleanup.$key $true};Assert-KmcChunk7Boolean $O.cleanup.slotProjectionEnabled $false;Assert-KmcOrdinaryInteger $O.cleanup.manualPartyMutations 0 0
+}
+
+function Assert-KmcTwoAcquiredOwners($Request,$O,$Source,$Labels){
+ if($Request.acquiredManual.case-cne'preserve-two-acquired-field'){
+  foreach($key in @('loadedPriorOwner','fieldTwoOwners','twoOwners','settledTwoOwners')){if($null-ne$O.PSObject.Properties[$key]){throw 'Original one-owner Manual cannot claim a cumulative graph.'}};return
+ }
+ $s=$Request.acquiredManual;$c=$Source.cumulative
+ Assert-KmcBootstrapInventoryString $c.contract 'native-one-owner-to-two-v1';Assert-KmcOrdinaryInteger $c.priorOwnerCount 1 1
+ foreach($key in @('maximumOwnerCount','finalOwnerCount')){Assert-KmcOrdinaryInteger $c.$key 2 2};Assert-KmcChunk7Boolean $c.capturedBeforeObserverRelease $true
+ Assert-KmcBootstrapInventoryString $Source.selection.priorOwnerId $s.priorOwnerId;Assert-KmcBootstrapInventoryString $Source.selection.priorPetId $s.priorPetId
+ $sourceOwner=$c.settledPriorOwner;Assert-KmcBootstrapInventoryString $sourceOwner.actorId $s.priorOwnerId;Assert-KmcBootstrapInventoryString $sourceOwner.petId $s.priorPetId
+ $phases=@($O.loadedPriorOwner);$worlds=@($O.loadedWorld);$newOwners=@($O.loadedOwner)
+ foreach($pair in @(@('fieldTwoOwners','fieldWorld','fieldOwner'),@('twoOwners','savedWorld','savedOwner'),@('settledTwoOwners','settledWorld','savedOwner'))){
+  $a=$O.($pair[0]);if($a-isnot[Array]-or$a.Count-ne2){throw 'Exactly two explicit acquired owners are required in prior/new order.'}
+  Assert-KmcExactProperties $a[1] @($O.($pair[2]).PSObject.Properties.Name) 'explicit acquired owner'
+  $phases+=,$a[0];$worlds+=,$O.($pair[1]);$newOwners+=,$a[1]
+  foreach($key in $O.($pair[2]).PSObject.Properties.Name){if($key-ceq'frame'){continue};if((ConvertTo-KmcChunk7Canonical $a[1].$key)-cne(ConvertTo-KmcChunk7Canonical $O.($pair[2]).$key)){throw 'Explicit new owner changed the already qualified field/save graph.'}}
+  Assert-KmcOrdinaryInteger $a[1].frame $O.($pair[2]).frame $O.($pair[1]).frame
+ }
+ $previous=$O.loadedWorld.frame
+ for($i=0;$i-lt$phases.Count;$i++){
+  $p=$phases[$i];$w=$worlds[$i];$n=$newOwners[$i]
+  Assert-KmcExactProperties $p @('frame','actorId','petId','actorObject','actorDescriptor','actorView','petObject','petDescriptor','petView','actorBlueprint','petBlueprint','featureObject','rankObject','featureGuid','sourceGuid','rank','reciprocal','actorInGame','petInGame','actorInState','petInState','actorAgentReady','petAgentReady','actorCommandsEmpty','petCommandsEmpty','partyCharacters','remoteCompanions','progression') 'prior acquired owner'
+  Assert-KmcOrdinaryInteger $p.frame $previous $w.frame;$previous=$p.frame
+  Assert-KmcBootstrapInventoryString $p.actorId $s.priorOwnerId;Assert-KmcBootstrapInventoryString $p.petId $s.priorPetId
+  foreach($key in @('actorBlueprint','petBlueprint','featureGuid','sourceGuid')){if($sourceOwner.$key-isnot[string]-or$sourceOwner.$key-cnotmatch'^[a-f0-9]{32}$'){throw 'Prior native blueprint/source token is malformed.'};Assert-KmcBootstrapInventoryString $p.$key $sourceOwner.$key}
+  Assert-KmcOrdinaryInteger $sourceOwner.rank 1 20;Assert-KmcOrdinaryInteger $p.rank $sourceOwner.rank $sourceOwner.rank
+  foreach($key in @('reciprocal','actorInGame','petInGame','actorInState','petInState','actorAgentReady','petAgentReady','actorCommandsEmpty','petCommandsEmpty')){Assert-KmcChunk7Boolean $p.$key $true}
+  $used=[Collections.Generic.HashSet[int]]::new();foreach($key in @('game','saveManager','player','state','areaState','mainState')){[void]$used.Add([int]$w.$key)}
+  foreach($a in $w.party){foreach($key in @('object','descriptor','view')){[void]$used.Add([int]$a.$key)}}
+  foreach($key in @('featureObject','rankObject')){[void]$used.Add([int]$n.$key)}
+  foreach($spec in @(@('actor',$s.priorOwnerId),@('pet',$s.priorPetId))){$row=@($w.party|Where-Object id -CEQ $spec[1]);if($row.Count-ne1){throw 'Prior acquired actor is absent from native world.'};foreach($pair in @(@('Object','object'),@('Descriptor','descriptor'),@('View','view'))){$key=$spec[0]+$pair[0];Assert-KmcAcquiredManualObjectIdentity $p.$key;if($p.$key-ne$row[0].($pair[1])){throw 'Prior acquired role differs from exact current native actor.'}}}
+  foreach($key in @('featureObject','rankObject')){Assert-KmcAcquiredManualObjectIdentity $p.$key;if(-not$Labels.Contains([int]$p.$key)-or-not$used.Add([int]$p.$key)){throw 'Prior feature/rank identity aliases another role or is unretained.'}}
+  foreach($key in @('actorObject','actorDescriptor','actorView','petObject','petDescriptor','petView','featureObject','rankObject')){if($p.$key-ne$phases[0].$key){throw 'Prior acquired native identity changed across cold/field/save/cleanup.'}}
+  foreach($key in @('partyCharacters','remoteCompanions')){if($p.$key-isnot[Array]-or(ConvertTo-KmcChunk7Canonical $p.$key)-cne(ConvertTo-KmcChunk7Canonical $n.$key)){throw 'Prior/new native membership observations disagree.'}}
+  if(@($p.partyCharacters|Where-Object{$_-ceq$s.priorOwnerId}).Count-ne1-or$s.priorOwnerId-cin$p.remoteCompanions){throw 'Prior owner left native field membership.'}
+  if((ConvertTo-KmcChunk7Canonical $p.progression)-cne(ConvertTo-KmcChunk7Canonical $O.loadedArrangement)){throw 'Prior snapshot changed native progression or funds.'}
+ }
+ $ids=@($c.unrelatedResourcesAfter.actors.actorId);if($s.priorOwnerId-cnotin$ids-or$s.priorPetId-cnotin$ids){throw 'Prior source resource custody is incomplete.'}
+ foreach($row in @($O.resourcesBeforeField,$O.resourcesAfterField,$O.resourcesAfterSave)){
+  $subset=[pscustomobject]@{actors=@($row.actors|Where-Object{$_.actorId-cin$ids})};if((ConvertTo-KmcChunk7Canonical $subset)-cne(ConvertTo-KmcChunk7Canonical $c.unrelatedResourcesAfter)){throw 'Cold/field/save changed cumulative prior native resources.'}
+ }
+ $progression=[pscustomobject]@{actors=@($O.loadedArrangement.actors|Where-Object{$_.actorId-cin$ids})};if((ConvertTo-KmcChunk7Canonical $progression)-cne(ConvertTo-KmcChunk7Canonical $c.progressionAfter)){throw 'Prior native progression differs from cumulative output.'}
+ $relationships=[pscustomobject]@{actors=@($O.nativeProfileInventory.party|Where-Object{$_.id-cin$ids}|Sort-Object id -CaseSensitive|ForEach-Object{[pscustomobject]@{actorId=$_.id;petId=$_.petId;masterId=$_.masterId}})}
+ if((ConvertTo-KmcChunk7Canonical $relationships)-cne(ConvertTo-KmcChunk7Canonical $c.relationshipsAfter)){throw 'Prior reciprocal native graph differs from cumulative output.'}
+ if(@($O.nativeProfileInventory.party|Where-Object{$null-ne$_.petId}).Count-ne2-or@($O.nativeProfileInventory.party|Where-Object{$null-ne$_.masterId}).Count-ne2){throw 'Exactly two inherited reciprocal native relationships are required.'}
+ foreach($pair in @(@($s.priorOwnerId,$s.priorPetId),@($s.actorId,$s.petId))){$a=@($O.nativeProfileInventory.party|Where-Object id -CEQ $pair[0]);$p=@($O.nativeProfileInventory.party|Where-Object id -CEQ $pair[1]);if($a.Count-ne1-or$p.Count-ne1){throw 'Inherited owner/pet inventory is incomplete.'};Assert-KmcBootstrapInventoryString $a[0].petId $pair[1];Assert-KmcBootstrapInventoryString $p[0].masterId $pair[0]}
 }

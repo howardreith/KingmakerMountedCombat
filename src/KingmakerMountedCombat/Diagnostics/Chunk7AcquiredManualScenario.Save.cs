@@ -33,6 +33,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 ReferenceEquals(area, game.CurrentlyLoadedArea) && ReferenceEquals(mainActor, game.Player?.MainCharacter.Value) &&
                 game.Player.GameId == request.PersistenceLoad.GameId && game.Player.MainCharacter.Value.UniqueId == expectedMainId,
                 "Owned native save lost the exact admitted world while serialization was pending.");
+            RequireTwoOwnerReferences();
         }
 
         private void BeginManualSave()
@@ -106,6 +107,7 @@ namespace KingmakerMountedCombat.Diagnostics
             Require(JToken.DeepEquals(resourceBefore, CaptureResources()), "Native derivative changed native action/reaction resources.");
             Require(restoration.Complete && ((JArray)restoration.Capture()["events"]).Count == 0, "Derivative observed preparation or mounted restoration.");
             evidence["resourcesAfterSave"] = CaptureResources(); evidence["savedOwner"] = CaptureAcquiredOwner();
+            CaptureTwoOwners("twoOwners");
             evidence["savedWorld"] = Snapshot(); saveProven = true; Pass("C7-acquired-manual-native-save"); Pass("C7-acquired-manual-no-arrangement"); BeginCleanup();
         }
     }
