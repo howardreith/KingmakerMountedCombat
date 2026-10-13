@@ -699,25 +699,22 @@
             "type": "Kingmaker.Game",
             "method": "LoadNewGame",
             "token": "06000CDC",
-            "moduleMvid": "07fa1e4d-8618-41b3-9b8d-faa17d3b26f7"
-          },
-          {
-            "type": "Kingmaker.Player",
-            "method": "set_GameId",
-            "token": "06000DE3",
-            "moduleMvid": "07fa1e4d-8618-41b3-9b8d-faa17d3b26f7"
+            "moduleMvid": "07fa1e4d-8618-41b3-9b8d-faa17d3b26f7",
+            "transpiler": "IdentityCallsite"
           },
           {
             "type": "Kingmaker.EntitySystem.Persistence.SaveManager",
             "method": "SaveRoutine",
             "token": "06008029",
-            "moduleMvid": "07fa1e4d-8618-41b3-9b8d-faa17d3b26f7"
+            "moduleMvid": "07fa1e4d-8618-41b3-9b8d-faa17d3b26f7",
+            "transpiler": null
           },
           {
             "type": "Kingmaker.EntitySystem.Persistence.SaveManager",
             "method": "PrepareSave",
             "token": "06008025",
-            "moduleMvid": "07fa1e4d-8618-41b3-9b8d-faa17d3b26f7"
+            "moduleMvid": "07fa1e4d-8618-41b3-9b8d-faa17d3b26f7",
+            "transpiler": null
           }
         ],
         "events": [
@@ -868,6 +865,19 @@
           "retainedCount": 9,
           "faults": 0,
           "released": false
+        },
+        "identityCallsite": {
+          "contract": "load-new-game-guid-setter-callsite-v1",
+          "installed": true,
+          "ownerToken": "06000CDC",
+          "setterToken": "06000DE3",
+          "stateFieldToken": "040006B6",
+          "playerFieldToken": "0400533C",
+          "setterIlOffset": 302,
+          "moduleMvid": "07fa1e4d-8618-41b3-9b8d-faa17d3b26f7",
+          "nativeSetterPreserved": true,
+          "setterPostfixUsed": false,
+          "matchedSites": 1
         }
       },
       "nativeWrite": {

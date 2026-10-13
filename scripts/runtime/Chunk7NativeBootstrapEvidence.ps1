@@ -104,9 +104,15 @@ function Assert-KmcChunk7NativeBootstrapEvidence($Request,$Artifact,[string]$Sta
  foreach($key in @('installed','installationAttempted','complete')){Assert-KmcChunk7Boolean $trace.$key $true}
  if($trace.errors-isnot[Array]-or$trace.errors.Count-ne0){throw 'Native bootstrap observer failed.'}
  foreach($key in @('entered','exited','minted','saveRequests','prepared')){Assert-KmcOrdinaryInteger $trace.$key 1 1}
- $tokens=@('06000CDC','06000DE3','06008029','06008025');$types=@('Kingmaker.Game','Kingmaker.Player','Kingmaker.EntitySystem.Persistence.SaveManager','Kingmaker.EntitySystem.Persistence.SaveManager');$methods=@('LoadNewGame','set_GameId','SaveRoutine','PrepareSave')
- if($trace.hooks-isnot[Array]-or$trace.hooks.Count-ne4){throw 'Native bootstrap exact hook set differs.'}
- for($i=0;$i-lt4;$i++){$h=$trace.hooks[$i];foreach($key in @('type','method','token','moduleMvid')){if($h.$key-isnot[string]){throw 'Native hook metadata must be scalar strings.'}};if($h.token-cne$tokens[$i]-or$h.type-cne$types[$i]-or$h.method-cne$methods[$i]-or$h.moduleMvid-cne'07fa1e4d-8618-41b3-9b8d-faa17d3b26f7'){throw 'Native bootstrap installed hook contract differs.'}}
+  $tokens=@('06000CDC','06008029','06008025');$types=@('Kingmaker.Game','Kingmaker.EntitySystem.Persistence.SaveManager','Kingmaker.EntitySystem.Persistence.SaveManager');$methods=@('LoadNewGame','SaveRoutine','PrepareSave')
+  if($trace.hooks-isnot[Array]-or$trace.hooks.Count-ne3){throw 'Native bootstrap exact hook set differs.'}
+  for($i=0;$i-lt3;$i++){$h=$trace.hooks[$i];foreach($key in @('type','method','token','moduleMvid')){if($h.$key-isnot[string]){throw 'Native hook metadata must be scalar strings.'}};if($h.token-cne$tokens[$i]-or$h.type-cne$types[$i]-or$h.method-cne$methods[$i]-or$h.moduleMvid-cne'07fa1e4d-8618-41b3-9b8d-faa17d3b26f7'){throw 'Native bootstrap installed hook contract differs.'};if($i-eq0){if($h.transpiler-isnot[string]-or$h.transpiler-cne'IdentityCallsite'){throw 'Native bootstrap did not observe the exact identity callsite.'}}elseif($null-ne$h.transpiler){throw 'Unexpected native bootstrap transpiler.'}}
+  $site=$trace.identityCallsite
+  if($null-eq$site-or$site-is[Array]-or$site-isnot[pscustomobject]){throw 'Native bootstrap exact identity callsite evidence is absent.'}
+  foreach($key in @('contract','ownerToken','setterToken','stateFieldToken','playerFieldToken','moduleMvid')){if($site.$key-isnot[string]){throw 'Native bootstrap identity callsite metadata must be scalar strings.'}}
+  if($site.contract-cne'load-new-game-guid-setter-callsite-v1'-or$site.ownerToken-cne'06000CDC'-or$site.setterToken-cne'06000DE3'-or$site.stateFieldToken-cne'040006B6'-or$site.playerFieldToken-cne'0400533C'-or$site.moduleMvid-cne'07fa1e4d-8618-41b3-9b8d-faa17d3b26f7'){throw 'Native bootstrap identity callsite contract changed.'}
+  Assert-KmcOrdinaryInteger $site.setterIlOffset 302 302;Assert-KmcOrdinaryInteger $site.matchedSites 1 1
+  if($site.installed-isnot[bool]-or-not$site.installed-or$site.nativeSetterPreserved-isnot[bool]-or-not$site.nativeSetterPreserved-or$site.setterPostfixUsed-isnot[bool]-or$site.setterPostfixUsed){throw 'Native bootstrap assignment was not observed at the preserved native callsite.'}
  $registry=$trace.identities
  if($registry.contract-isnot[string]-or$registry.contract-cne'retained-native-object-identity-v1'){throw 'Native bootstrap identity registry contract differs.'}
  Assert-KmcOrdinaryInteger $registry.capacity 128 128;Assert-KmcOrdinaryInteger $registry.faults 0 0;Assert-KmcChunk7Boolean $registry.released $false

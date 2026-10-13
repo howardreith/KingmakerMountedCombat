@@ -7,6 +7,7 @@ using System.Reflection;
 using Newtonsoft.Json.Linq;
 namespace KingmakerMountedCombat.Diagnostics {
 static class Time { public static int frameCount; }
+class CodeInstruction {}
 class Clock { public TimeSpan Elapsed; }
 enum GameModeType { None, Default, Dialog }
 class Actor { public string UniqueId="actor",CharacterName="Native";public object Descriptor=new object(),View=new object(); }
@@ -121,7 +122,7 @@ static class BootstrapAdapterTests {
  static void Invoke(string name,params object[] args){var type=typeof(Chunk7NativeBootstrapProbe).GetNestedType("Hooks",BindingFlags.NonPublic);type.GetMethod(name,BindingFlags.NonPublic|BindingFlags.Static).Invoke(null,args);}
  static JObject Capture(Chunk7NativeBootstrapProbe p)=>p.Capture();
  static Chunk7NativeBootstrapProbe NewProbe(out Game g,out BlueprintAreaPreset preset){New();g=Game.Instance;preset=new BlueprintAreaPreset();var p=new Chunk7NativeBootstrapProbe(g,preset);p.Install();return p;}
- static void Enter(Chunk7NativeBootstrapProbe p,Game g,BlueprintAreaPreset preset){Invoke("NewGameBefore",g,preset,null);g.Player.GameId="33333333-3333-3333-3333-333333333333";Invoke("GameIdAfter",g.Player,g.Player.GameId);}
+ static void Enter(Chunk7NativeBootstrapProbe p,Game g,BlueprintAreaPreset preset){Invoke("NewGameBefore",g,preset,null);g.Player.MainCharacter.Value=new Actor();g.Player.GameId="33333333-3333-3333-3333-333333333333";Invoke("IdentityAssigned",g);}
  public static int Main(){
   var s=New();s.Admit();Check(s.game.UI.MainMenu.Dispatches==0,"exact idle menu admission is read only");
   Reject("foreign Game",x=>Game.Instance=new Game());Reject("foreign Player",x=>x.game.Player=new Player());Reject("foreign SaveManager",x=>x.game.SaveManager=new SaveManager());

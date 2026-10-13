@@ -37,7 +37,13 @@ if($marker-lt0-or$tail-lt$marker){throw 'Probe metadata boundary changed'}
 $replacement=$install.Substring(0,$marker)+'MetadataBoundary.Require();'+[Environment]::NewLine+$install.Substring($tail)
 $probe=$probe.Replace($install,$replacement)
 $patch=Get-ActualMethod $probe '        private void Patch('
-$probe=$probe.Replace($patch,'        private void Patch(Type type,string name,int token,Type[] parameters,string prefix,string postfix) { harmony.Patch(); }')
+$probe=$probe.Replace($patch,'        private void Patch(Type type,string name,int token,Type[] parameters,string prefix,string postfix,string transpiler=null) { if(transpiler!=null)identityCallsiteInstalled=true; harmony.Patch(); }')
+# This scenario custody adapter substitutes native IL acquisition. The separate
+# Test-Chunk7NativeBootstrapProbe executes the actual matcher/emitted observer.
+$contract=Get-ActualMethod $probe '        private static IdentityContract GetIdentityContract()'
+$probe=$probe.Replace($contract,'        private static IdentityContract GetIdentityContract() { return null; }')
+$rewrite=Get-ActualMethod $probe '        private static List<CodeInstruction> RewriteIdentityCallsite('
+$probe=$probe.Replace($rewrite,'        private static List<CodeInstruction> RewriteIdentityCallsite(IEnumerable<CodeInstruction> source,MethodBase original,IdentityContract contract) { return new List<CodeInstruction>(); }')
 $actualProbe=Join-Path $OutputDirectory 'ActualBootstrapProbe.cs';[IO.File]::WriteAllText($actualProbe,$probe,[Text.UTF8Encoding]::new($false))
 $framework='C:/Program Files (x86)/Reference Assemblies/Microsoft/Framework/.NETFramework/v4.7'
 $compiler='C:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/MSBuild/Current/Bin/Roslyn/csc.exe'

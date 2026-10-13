@@ -59,7 +59,26 @@ $cases=[ordered]@{
  'menu scene absent'={param($f)$f.artifact.observations.menuAdmission.mainMenuSceneLoaded=$false}
  'observer partial install'={param($f)$f.artifact.observations.probe.installed=$false}
  'foreign hook module'={param($f)$f.artifact.observations.probe.hooks[0].moduleMvid=$f.request.dllMvid}
- 'hook token array'={param($f)$f.artifact.observations.probe.hooks[1].token=@('06000DE3')}
+ 'hook token array'={param($f)$f.artifact.observations.probe.hooks[1].token=@($f.artifact.observations.probe.hooks[1].token)}
+ 'missing exact callsite evidence'={param($f)$f.artifact.observations.probe.PSObject.Properties.Remove('identityCallsite')}
+ 'callsite evidence array'={param($f)$f.artifact.observations.probe.identityCallsite=@($f.artifact.observations.probe.identityCallsite)}
+ 'callsite incomplete install'={param($f)$f.artifact.observations.probe.identityCallsite.installed=$false}
+ 'callsite installed text'={param($f)$f.artifact.observations.probe.identityCallsite.installed='true'}
+ 'callsite contract array'={param($f)$f.artifact.observations.probe.identityCallsite.contract=@($f.artifact.observations.probe.identityCallsite.contract)}
+ 'callsite changed owner'={param($f)$f.artifact.observations.probe.identityCallsite.ownerToken='06000DE3'}
+ 'callsite changed setter'={param($f)$f.artifact.observations.probe.identityCallsite.setterToken='06000DC2'}
+ 'callsite changed receiver State'={param($f)$f.artifact.observations.probe.identityCallsite.stateFieldToken='040006B7'}
+ 'callsite changed receiver Player'={param($f)$f.artifact.observations.probe.identityCallsite.playerFieldToken='0400533D'}
+ 'callsite changed native module'={param($f)$f.artifact.observations.probe.identityCallsite.moduleMvid=$f.request.dllMvid}
+ 'callsite changed native offset'={param($f)$f.artifact.observations.probe.identityCallsite.setterIlOffset=301}
+ 'callsite native offset text'={param($f)$f.artifact.observations.probe.identityCallsite.setterIlOffset='302'}
+ 'callsite no matched site'={param($f)$f.artifact.observations.probe.identityCallsite.matchedSites=0}
+ 'callsite duplicate match'={param($f)$f.artifact.observations.probe.identityCallsite.matchedSites=2}
+ 'callsite removed native setter'={param($f)$f.artifact.observations.probe.identityCallsite.nativeSetterPreserved=$false}
+ 'callsite still uses setter postfix'={param($f)$f.artifact.observations.probe.identityCallsite.setterPostfixUsed=$true}
+ 'transpiler missing'={param($f)$f.artifact.observations.probe.hooks[0].transpiler=$null}
+ 'transpiler name array'={param($f)$f.artifact.observations.probe.hooks[0].transpiler=@('IdentityCallsite')}
+ 'unexpected save transpiler'={param($f)$f.artifact.observations.probe.hooks[1].transpiler='IdentityCallsite'}
  'observer errors'={param($f)$f.artifact.observations.probe.errors=@('native failure')}
  'observer duplicate mint'={param($f)$f.artifact.observations.probe.minted=2}
  'identity faults'={param($f)$f.artifact.observations.probe.identities.faults=1}
@@ -85,6 +104,12 @@ $cases=[ordered]@{
  'identity window open'={param($f)$f.artifact.observations.cleanup.identityWindowOpen=$true}
 }
 foreach($case in $cases.GetEnumerator()){Bad-Bootstrap $case.Key {$f=New-BootstrapFixture;&$case.Value $f;Assert-KmcChunk7NativeBootstrapEvidence $f.request $f.artifact}}
+Bad-Bootstrap 'historical setter-only success cannot substitute for observed callsite' {
+ $f=New-BootstrapFixture;$p=$f.artifact.observations.probe;$p.PSObject.Properties.Remove('identityCallsite')
+ foreach($hook in $p.hooks){$hook.PSObject.Properties.Remove('transpiler')}
+ $setter=[pscustomobject]@{type='Kingmaker.Player';method='set_GameId';token='06000DE3';moduleMvid=$p.hooks[0].moduleMvid}
+ $p.hooks=@($p.hooks[0],$setter,$p.hooks[1],$p.hooks[2]);Assert-KmcChunk7NativeBootstrapEvidence $f.request $f.artifact
+}
 Bad-Bootstrap 'historical mod-adjusted eight entries cannot prove base-only registration' {
  $f=New-BootstrapFixture;$p=$f.artifact.observations.preflight
  $p.rangerFirst32Guids=@('472091361cf118049a2b4339c4ea836a','f894e003d31461f48a02f5caec4e3359',
