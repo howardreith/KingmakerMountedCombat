@@ -206,8 +206,11 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (game.CurrentMode != GameModeType.Default || game.CutsceneLock || game.IsModeActive(GameModeType.Dialog) ||
                     player.MainCharacter.Value.View?.AgentASP == null) return;
                 RequireNoOwners();
-                var save = probe.NativeSave;
-                Require(save != null && save.HasFileOnDisk && save.OperationState == SaveInfo.StateType.None &&
+                var save = probe.NativeSave; var completion = persistence.LastCompletedSave;
+                Require(save != null && probe.NativeRequestedSave != null && !ReferenceEquals(save, probe.NativeRequestedSave) &&
+                    completion != null && completion.Sequence == savesBefore + 1 &&
+                    ReferenceEquals(completion.Requested, probe.NativeRequestedSave) && ReferenceEquals(completion.Written, save) &&
+                    completion.Path == save.FolderName && save.HasFileOnDisk && save.OperationState == SaveInfo.StateType.None &&
                     save.FileName == Chunk7NativeBootstrapSelection.AutoLeaf && save.FolderName == Path.Combine(authority.Root, save.FileName) &&
                     save.Area == preset.Area && save.GameId == player.GameId && save.GameName == player.MainCharacter.Value.CharacterName &&
                     game.SaveManager.Count(value => ReferenceEquals(value, save)) == 1 &&
@@ -229,7 +232,9 @@ namespace KingmakerMountedCombat.Diagnostics
                     ["gameId"] = save.GameId, ["gameName"] = save.GameName, ["area"] = save.Area.AssetGuidThreadSafe,
                     ["type"] = save.Type.ToString(), ["length"] = file.Length, ["sha256"] = Hash(save.FolderName),
                     ["operation"] = save.OperationState.ToString(), ["autoLevelup"] = save.IsAutoLevelupSave,
-                    ["contentInspected"] = false, ["coldLoadQualified"] = false };
+                    ["contentInspected"] = false, ["coldLoadQualified"] = false,
+                    ["requestedDescriptor"] = probe.Identity(probe.NativeRequestedSave), ["preparedDescriptor"] = probe.Identity(save),
+                    ["completionSequence"] = completion.Sequence };
                 Pass("C7-bootstrap-native-start"); Pass("C7-bootstrap-native-world"); Pass("C7-bootstrap-autosave"); BeginCleanup();
             }
             catch (Exception error) { Fail("C7-bootstrap-runtime", error.ToString()); BeginCleanup(); }
