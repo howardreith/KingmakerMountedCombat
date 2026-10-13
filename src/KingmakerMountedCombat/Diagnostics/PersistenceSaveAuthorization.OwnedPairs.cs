@@ -38,7 +38,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 selected?.PartyIds == null ? null : string.Join(",", selected.PartyIds), selected?.BaseGameOnly.ToString(),
                 selected?.ExpectedNativeLoadCount.ToString(), selected?.ExpectedNativeWriteCount.ToString(), source?.FileName,
                 source?.InternalName, source?.GameId, source?.GameName, source?.Area, source?.Sha256, source?.Length.ToString(),
-                source?.LastWriteTimeUtcTicks.ToString());
+                source?.LastWriteTimeUtcTicks.ToString(), value?.PersistenceReplayTargets == null ? null :
+                string.Join(";", value.PersistenceReplayTargets.Select(target => target == null ? null :
+                    string.Join(",", target.EnterPoint, target.Area, target.AutoSaveMode))));
         }
         private bool OwnedPairsUnchanged() => ownedPairsRequest == null ||
             OwnedPairsKey(ownedPairsRequest) == ownedPairsKey && ownedPairsRequest.Validate().Count == 0;
@@ -49,13 +51,13 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 var source = ownedPairsRequest?.PersistenceLoad;
                 Entry input;
-                if (source == null || !OwnedPairsUnchanged() || maximumNativeLoadRequests != 1 ||
+                if (source == null || !OwnedPairsUnchanged() || maximumNativeLoadRequests != ownedPairsRequest.OwnedPairs.LoadCount(ownedPairsRequest.PersistenceCase) ||
                     maximumNativeWriteRequests != ownedPairsRequest.OwnedPairs.WriteCount(ownedPairsRequest.PersistenceCase) || declaresBootstrap || bootstrapWindowOpen ||
                     gameId != source.GameId || gameName != source.GameName || !entries.TryGetValue(source.FileName, out input) ||
                     input.Name != source.InternalName || input.Type != ownedPairsRequest.ExpectedNativeLoadType || input.Area != source.Area ||
                     input.Hash != source.Sha256 || input.Writable || input.Writing || input.Bootstrap || input.AdmitsBeforeArea ||
                     input.AdmissionArea != null || input.ForeignGameId != null || input.ForeignGameName != null ||
-                    admittedNativeLoadRequests > 1 || admittedNativeWriteRequests > maximumNativeWriteRequests.Value) return false;
+                    admittedNativeLoadRequests > maximumNativeLoadRequests.Value || admittedNativeWriteRequests > maximumNativeWriteRequests.Value) return false;
                 if (maximumNativeWriteRequests == 0)
                     return ownedPairsReservations == 0 && entries.Count == 1 && admittedNativeWriteRequests == 0;
                 if (ownedPairsReservations == 0)

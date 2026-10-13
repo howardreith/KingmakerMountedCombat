@@ -20,6 +20,27 @@ namespace KingmakerMountedCombat.Harness
         public const int StringLimit = 1024 * 1024;
         public const int EntityLimit = 4096;
         public const int IdentityLengthLimit = 256;
+        public const int StructuralRecordLimit = 16;
+        public const int StructuralMemberLimit = 16;
+        public const int StructuralKeyLengthLimit = 128;
+
+        public sealed class MemberShape
+        {
+            public string name;
+            public string kind;
+            public bool nameTruncated;
+        }
+
+        public sealed class RecordShape
+        {
+            public int index;
+            public string kind;
+            public int memberCount;
+            public bool membersTruncated;
+            public string referenceKind;
+            public string identityKind;
+            public MemberShape[] members = new MemberShape[0];
+        }
 
         public sealed class Observation
         {
@@ -35,6 +56,14 @@ namespace KingmakerMountedCombat.Harness
             public string mainReferenceShape;
             public string entityListShape;
             public int entityCount;
+            public RecordShape[] entityRecordShapes = new RecordShape[0];
+            public bool entityRecordShapesTruncated;
+            public int? refusedEntityIndex;
+            public RecordShape refusedEntityShape;
+            public int structuralRecordLimit = StructuralRecordLimit;
+            public int structuralMemberLimit = StructuralMemberLimit;
+            public int structuralKeyLengthLimit = StructuralKeyLengthLimit;
+            public string structuralScope = "top-level-key-names-and-value-kinds-only; no-reference-resolution";
             public int matchingRecordCount;
             public int duplicateEntityIdCount;
             public int[] matchingRecordIndices = new int[0];
@@ -93,6 +122,11 @@ namespace KingmakerMountedCombat.Harness
                 result.entityListShape = entities == null ? "missing" : Kind(entities);
                 var records = Kind(entities) == "array" ? Children(entities) : new List<XmlNode>();
                 result.entityCount = records.Count;
+                var shapes = new List<RecordShape>();
+                for (int index = 0; index < Math.Min(records.Count, StructuralRecordLimit); index++)
+                    shapes.Add(DescribeRecord(records[index], index));
+                result.entityRecordShapes = shapes.ToArray();
+                result.entityRecordShapesTruncated = records.Count > StructuralRecordLimit;
                 RequireType(playerDoc.DocumentElement, "object", "unsupported-player-root");
                 RequireType(partyDoc.DocumentElement, "object", "unsupported-party-root");
                 if (main == null) throw new InvalidDataException("unsupported-main-reference-field");
@@ -115,9 +149,21 @@ namespace KingmakerMountedCombat.Harness
                 for (int index = 0; index < records.Count; index++)
                 {
                     var record = records[index];
-                    RequireType(record, "object", "unsupported-entity-record");
-                    if (Member(record, "$ref") != null) throw new InvalidDataException("unsupported-entity-reference");
-                    var id = Identity(Member(record, "UniqueId"));
+                    string id;
+                    try
+                    {
+                        RequireType(record, "object", "unsupported-entity-record");
+                        if (Member(record, "$ref") != null) throw new InvalidDataException("unsupported-entity-reference");
+                        id = Identity(Member(record, "UniqueId"));
+                    }
+                    catch (InvalidDataException)
+                    {
+                        // Include the refusing record even when it lies beyond the bounded prefix.
+                        // This records structure only; it does not follow or expose reference values.
+                        result.refusedEntityIndex = index;
+                        result.refusedEntityShape = DescribeRecord(record, index);
+                        throw;
+                    }
                     if (!seen.Add(id)) result.duplicateEntityIdCount++;
                     if (id == result.mainReference) matches.Add(index);
                 }
@@ -131,6 +177,41 @@ namespace KingmakerMountedCombat.Harness
             catch (DecoderFallbackException) { result.refusal = "invalid-utf8"; }
             if (!result.shapeSupported) result.mainReference = null; // Unsupported input exposes structure/hashes only.
             return result;
+        }
+
+        private static RecordShape DescribeRecord(XmlNode node, int index)
+        {
+            var result = new RecordShape { index = index, kind = Kind(node) };
+            if (result.kind != "object") return result;
+            var members = new List<MemberShape>();
+            // Framework JSON represents a leading __type key as an inert attribute.
+            // Record its key and known JSON kind, never the attribute's scalar value.
+            if (node.Attributes["__type"] != null)
+            {
+                result.memberCount++;
+                members.Add(DescribeMember("__type", "string"));
+            }
+            foreach (XmlNode child in node.ChildNodes)
+            {
+                if (child.NodeType != XmlNodeType.Element) continue;
+                string name = Name(child);
+                string kind = Kind(child);
+                result.memberCount++;
+                if (name == "$ref") result.referenceKind = kind;
+                if (name == "UniqueId") result.identityKind = kind;
+                if (members.Count < StructuralMemberLimit) members.Add(DescribeMember(name, kind));
+            }
+            result.members = members.ToArray();
+            result.membersTruncated = result.memberCount > StructuralMemberLimit;
+            return result;
+        }
+
+        private static MemberShape DescribeMember(string name, string kind)
+        {
+            int length = Math.Min(name.Length, StructuralKeyLengthLimit);
+            // Do not split a UTF-16 surrogate pair when reporting a capped key name.
+            if (length < name.Length && length > 0 && Char.IsHighSurrogate(name[length - 1])) length--;
+            return new MemberShape { name = name.Substring(0, length), kind = kind, nameTruncated = length < name.Length };
         }
 
         private static void CheckBytes(byte[] bytes)

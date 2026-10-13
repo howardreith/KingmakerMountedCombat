@@ -1,9 +1,9 @@
 # Chunk 7 native checkpoint — 12 October 2026
 
-Status: IN PROGRESS. Neither selected exploration run nor the later native bootstrap
-passed. Root was the sole live executor; all three transactions are settled. No
-native save was written. The first sections retain preview.3 history; preview.4
-and its exact restoration disposition are recorded below.
+Status: IN PROGRESS. All six final native attempts remain FAIL and are settled.
+Root was the sole live executor. The latest preview.7 result and exact restoration
+are recorded below; earlier sections retain their original candidate evidence.
+Later isolated native autosaves do not qualify a follow-up fixture.
 
 Frozen product: b97db97f8f9641eea802a725295161ebdac4ad03, preview.3,
 DLL SHA256 096671ee0629acd32d1c3a16906bac508e7afa2d6b2a75d5890ddd2755aee2a4,
@@ -167,3 +167,20 @@ Both run and Mods transactions report restored with restorationErrors=[]; actual
 Private native-checkpoint05.json SHAafc32f9d5d977b6e0436018e32798530e15d7a3c54003efeff88480725a2af03 binds exact evidence, transactions and caller exit. Independent failed-run/restoration review passed all17 referenced pins. Original native afterPinsVerified=false remains because its exception skipped that loop; separate postcheckea940a92d8437d9f8335bc8bf92f3efb70ca861462d89dafdfc5b8d091496b16 verified1278/0 before source integration. No raw record was rewritten.
 
 Cold inventory and Manual seed require successful same-candidate bootstrap ancestry and cannot use this failed output. Native budget5/25; all five attempts remain FAIL. The unchanged legacy Working loader also retains its earlier base-only saved-main failure. Continue the focused observer repair, independent source work and affected new-candidate proof; do not retry dependent cases or claim breadth readiness.
+
+
+## Preview.7 terminal boundary — October13
+
+Status: FAIL; attempt6 is settled. The fresh full WhatIf passed in8503.3262789s on product6f6dfaf5a6d8545d9f38f88e8549755b36d2199d and harness e4c25dc3e3b12b905c74e840385f88e218aaf2fc. Actual6706c0 exit0 closed provider24780. Independent review152808be6cc73eeb938407500be0f849898c55cd7b18a612cdc22d57d30d321d verified1,323 pins (1,296 tracked/20 additional/7 named), before/after inventories, exact caller/executor/argv/cwd/chronology and one full purity assertion. Individual root digests were not serialized; the inherited claim remains code-mediated per-root before/after equality, not atomic or continuous proof.
+
+Run20261013-chunk7b-world07-bootstrap used the frozen preview.7 packageSHA3a73ff4f57a5f7cb8259b785b6c8d69de78f1641342eddee80579711faddc9c9, DLL550213b24253f13dabfe797442ffe81fbe24d53d0cef62bad78adf0b277dcd73/MVID76c2f3f5-20a2-406b-82d8-8df0c933be16. Admission8d1e169a4a84b80fba92c73c0a08cbfc175ec97b2ae34f463cfe21d8c389784a selected only this base-only authored bootstrap, zero loads/one isolated Auto,600s plus safe settlement. Supervisor actual387805 exit1 closed provider14967 after114.0094233s; game elapsed56.0873487s.
+
+The prepared-descriptor repair reached its native observation: requested and prepared objects were distinct, completion matched the prepared storage descriptor, and the native autosave completed. Raw game evidence reports5/5 assertions and one write/zero loads. The produced Auto_1.zks is517,542bytes, SHA093a360075050294e43582d220a56f9917144b5545488bd25fa3f5774a2cdaee. It is **unqualified**: the final launcher validator refused movementExperimentEnabled=true and currentGameMode=Dialog against the existing false/Default completion boundary. Game-side PASS does not override launcher/supervisor FAIL or provide cold-load, ordinary acquisition, base-only compatibility or mounted behavior proof.
+
+Source inspection found a concrete host omission: ActivateSaveBackedBoundary enables movement diagnostics, but CompleteSaveBackedCore shuts them down only for non-Chunk7 families. The mode mismatch is separate. Bootstrap captured Default at native-world frame3992; cleanup completed later and final host publication observed Dialog. The specific native story trigger was not observed. Repair must retain cleanup custody, disable diagnostics after settlement, and report invalid final state honestly without forcing story or game modes or weakening the existing validator. Changed observer/host bytes require new candidate identity and affected native proof.
+
+Both run and Mods transactions are restored, with restorationErrors=[]. Actual before/restored Mods digest02b2efc8c35dc0bbd7b041b6fa1f6f9888b51bf0490ab7b9ca34dc0901977dc0 and protected-save digest2e69c4a4b4611327b0acb09d002a996e42980ff23f2ce256ac3d7dd064d9c74a match. Baseline remained immutable, Working restored, the write allowlist passed, and profile bytes restored exactly with zero accepted cache changes. The attributed game exited; root359d14 exit0 verified Kingmaker0 and clean source before subsequent integration. Independent restoration metadata review5cdcce4ab15af59dbaefd2cb99c51ab81b9c90efecf53a29736afcc0b9fb3cb6 checked all12 bound receipt paths, shared transaction token, profile inventory projection and matching recorded digests; it did not rescan live bytes.
+
+Private candidate-world07/settled-native-failure-resume09.json SHA0c33ec085e81b1dd3dddec8d01d8b009f6225ebecef9bd86d991462b4d1e7398 binds the result, raw observation, caller and restoration. Original supervisorSHAde3aafbabb9fbdf719bc214720e53aa096ddc6f1c3856911ba9ebbf72cb6c026 retains afterPinsVerified=false; separate postcheck87fae78c4948b64380f1ae92e935f21a7f9972feecf2e1baf4ab1ce01e28f5ce verified1,323/0 without rewriting it. CallerSHAfbd33663adb47c119d0ed8ec665a0f4a108b3a65248930dd51c91ea9d6edde7a records actual exit1. All raw failed evidence and frozen bytes remain preserved.
+
+Native budget6/25. No cold inventory or Manual seed is admitted from this output. The root has since integrated reviewed independent replay and diagnostic source; preview.7 qualification remains attached to its original bytes and cannot authorize the changed tree. Host repair, a bounded approved Working structural observation, and genuinely eligible native fixture ancestry remain the next dependencies. The breadth candidate is not ready.

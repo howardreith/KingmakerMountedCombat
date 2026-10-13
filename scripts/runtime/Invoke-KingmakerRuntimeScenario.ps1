@@ -123,9 +123,10 @@ if(Test-KmcChunk7NativeBootstrapScenario $Scenario){
 $ownedPairsInput=$null;$ownedPairsSource=$null
 if(Test-KmcChunk7OwnedPairsScenario $Scenario){
     if(-not$BaseGameOnly-or[string]::IsNullOrEmpty($OwnedPairsSelectionPath)){throw 'Inherited two-pair campaign requires explicit base-only staging and a qualified two-owner native Manual selection.'}
-    foreach($name in @('PersistenceSourceRunId','ExpectedPersistenceSourceSha256','ExpectedPersistenceAlternateSha256','PersistenceForeignSourceRunId','PersistenceAreaEnterPoint','PersistenceAreaTargetArea','PersistenceReplayAreaEnterPoints','PersistenceReplayAreaAreas')){
-        if($PSBoundParameters.ContainsKey($name)){throw 'Inherited pairs select only their closed source and seven checkpoint cases.'}
+    foreach($name in @('PersistenceSourceRunId','ExpectedPersistenceSourceSha256','ExpectedPersistenceAlternateSha256','PersistenceForeignSourceRunId','PersistenceAreaEnterPoint','PersistenceAreaTargetArea')){
+        if($PSBoundParameters.ContainsKey($name)){throw 'Inherited pairs select only their closed source and checkpoint cases.'}
     }
+    if(($PSBoundParameters.ContainsKey('PersistenceReplayAreaEnterPoints')-or$PSBoundParameters.ContainsKey('PersistenceReplayAreaAreas'))-and$PersistenceCase-cne'multi-exploration-three-area-transfers-manual'){throw 'Only the exact owned repeated-area cold case may carry route pins.'}
     $ownedPairsInput=Read-KmcChunk7OwnedPairsSelectionFile $OwnedPairsSelectionPath $(if($RunId){$RunId}else{'unassigned-owned-pairs'}) $PersistenceCase
 }elseif($PSBoundParameters.ContainsKey('OwnedPairsSelectionPath')){throw 'Inherited pair selection is forbidden under another scenario.'}
 $acquiredManualInput=$null;$acquiredManualSource=$null
@@ -200,7 +201,7 @@ if((Test-KmcChunk7OwnedPairsScenario $Scenario)-or(Test-KmcChunk7PersistenceScen
     elseif($TimeoutSeconds-lt600){throw 'Selected Chunk 7 native scenarios require the declared 600-second outer worker/cleanup budget.'}
 }
 if(Test-KmcChunk7RepeatedWorldCase $PersistenceCase){
-    if($Scenario-cne'chunk7-persistence-load'){throw 'Repeated world cases are cold-load only.'}
+    if($Scenario-cne'chunk7-persistence-load'-and-not((Test-KmcChunk7OwnedPairsScenario $Scenario)-and$ownedPairsInput.selection.case-ceq'persistence-load')){throw 'Repeated world cases are cold-load only.'}
     if(-not$PSBoundParameters.ContainsKey('TimeoutSeconds')){$TimeoutSeconds=900}
     elseif($TimeoutSeconds-ne900){throw 'Repeated worlds require exactly the declared 900-second outer admission/cleanup budget.'}
 }

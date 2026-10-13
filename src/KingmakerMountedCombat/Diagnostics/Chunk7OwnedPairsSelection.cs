@@ -54,6 +54,9 @@ namespace KingmakerMountedCombat.Diagnostics
             "legacy-mounted-pending-tb-manual" }, value) >= 0;
         internal static bool SupportedSaveBoundary(string value) => value == "multi-nonselected-mount-unsettled-manual" ||
             value == "multi-owned-worker-cancel-manual";
+        internal static bool RepeatedCheckpoint(string value) => value == "multi-exploration-three-loads-manual" ||
+            value == "multi-exploration-three-area-transfers-manual";
+        internal int LoadCount(string checkpoint) => Cold && checkpoint == "multi-exploration-three-loads-manual" ? 3 : 1;
         internal int WriteCount(string checkpoint) => Case == "persistence-save" && checkpoint == "multi-owned-worker-cancel-manual" ? 2 : Case == "persistence-save" ||
             Cold && checkpoint == "legacy-mounted-pending-tb-manual" ? 1 : 0;
         public IReadOnlyList<string> Validate(string scenario, string runId, string checkpoint)
@@ -67,13 +70,13 @@ namespace KingmakerMountedCombat.Diagnostics
             if (PartyIds == null || PartyIds.Length < 4 || PartyIds.Length > 12 ||
                 !PartyIds.All(Chunk7ManualDerivedSelection.NativeId) || PartyIds.Distinct(StringComparer.Ordinal).Count() != PartyIds.Length ||
                 PairIds.Any(id => !PartyIds.Contains(id))) errors.Add("The bounded full native field roster must contain both exact pairs once.");
-            if (Persistence ? !SupportedCheckpoint(checkpoint) && (Cold || !SupportedSaveBoundary(checkpoint)) : checkpoint != null)
+            if (Persistence ? !SupportedCheckpoint(checkpoint) && !(Cold && RepeatedCheckpoint(checkpoint)) && (Cold || !SupportedSaveBoundary(checkpoint)) : checkpoint != null)
                 errors.Add("Owned-pair cold persistence requires a core checkpoint; the two save boundaries are source-only.");
             if (Cold ? !Run(CheckpointSourceRunId) || CheckpointSourceRunId == runId || CheckpointSourceRunId == SourceRunId ||
                 !Hash(CheckpointSourceArtifactSha256) : CheckpointSourceRunId != null || CheckpointSourceArtifactSha256 != null)
                 errors.Add("Only cold persistence consumes an exact separate successful owned-pair source checkpoint.");
-            if (!BaseGameOnly || ExpectedNativeLoadCount != 1 || ExpectedNativeWriteCount != WriteCount(checkpoint))
-                errors.Add("Owned pairs require base-only staging, one native load and the exact case write quota.");
+            if (!BaseGameOnly || ExpectedNativeLoadCount != LoadCount(checkpoint) || ExpectedNativeWriteCount != WriteCount(checkpoint))
+                errors.Add("Owned pairs require base-only staging and the exact selected native load/write quotas.");
             return errors;
         }
         private static bool Run(string value) => Regex.IsMatch(value ?? "", "^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$");

@@ -437,14 +437,16 @@ namespace KingmakerMountedCombat.Diagnostics
             var chunk7 = IsChunk7PersistenceScenario(Scenario) || Scenario == Chunk7OwnedPairsSelection.Scenario && OwnedPairs?.Persistence == true;
             var replay = PersistenceCase == "multi-exploration-three-loads-manual" || PersistenceCase == "multi-exploration-three-area-transfers-manual";
             var replayAreas = PersistenceCase == "multi-exploration-three-area-transfers-manual";
-            if (replay && Scenario != "chunk7-persistence-load") errors.Add("Repeated worlds are cold-load only.");
+            if (replay && Scenario != "chunk7-persistence-load" &&
+                !(Scenario == Chunk7OwnedPairsSelection.Scenario && OwnedPairs?.Cold == true))
+                errors.Add("Repeated worlds are cold-load only.");
             if (!replayAreas && PersistenceReplayTargets != null) errors.Add("Only repeated-area requests may carry route targets.");
             if (replayAreas)
             {
                 if (PersistenceReplayTargets == null || PersistenceReplayTargets.Length != 3) errors.Add("Repeated areas require three exact targets.");
                 else
                 {
-                    var prior = Fixture?.Working?.Area;
+                    var prior = OwnedPairs != null ? PersistenceLoad?.Area : Fixture?.Working?.Area;
                     foreach (var target in PersistenceReplayTargets)
                     {
                         if (target == null || !IsLowerHex(target.EnterPoint, 32) || !IsLowerHex(target.Area, 32) || target.EnterPoint == new string('0', 32) ||

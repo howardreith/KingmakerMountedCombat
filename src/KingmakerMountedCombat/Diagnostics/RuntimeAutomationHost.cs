@@ -1761,9 +1761,12 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             var finalErrors = errors == null ? new List<string>() : new List<string>(errors);
             FinalizeActiveScenarioEngines(finalErrors);
+            // Chunk 7 reaches this method only after every native owner/worker has
+            // settled. Keep its diagnostic movement available during that drain,
+            // then shut down the host-owned setting before terminal observation.
+            diagnosticSettings.EnableUnsafeMovementExperiment = false;
             if (!IsChunk7NativeFamily)
             {
-                diagnosticSettings.EnableUnsafeMovementExperiment = false;
                 var cleanup = relationship.Dismount(Domain.CleanupTrigger.Exception);
                 if (!cleanup.Succeeded || cleanup.MovementAuthorityResidual || cleanup.PresentationResidual ||
                     relationship.State != Domain.RelationshipState.Unmounted)
@@ -1792,6 +1795,24 @@ namespace KingmakerMountedCombat.Diagnostics
                             : finalErrors
                     }
                 };
+            }
+
+            var modAssembly = typeof(Main).Assembly;
+            var gameAssembly = typeof(Kingmaker.Game).Assembly;
+            var ummAssembly = typeof(UnityModManager).Assembly;
+            var harmonyPath = Path.Combine(Path.GetDirectoryName(ummAssembly.Location), "0Harmony12.dll");
+            var evidenceManifestSha256 = PublishRuntimeArtifactManifest();
+            var game = Kingmaker.Game.Instance;
+            var terminalMovementExperimentEnabled = movementExperimentProvider();
+            var terminalGameMode = game == null ? null : game.CurrentMode.ToString();
+            var terminalLoadedAreaPresent = game != null && game.CurrentlyLoadedArea != null;
+            if (IsChunk7NativeFamily && string.Equals(status, "PASS", StringComparison.Ordinal) &&
+                (terminalMovementExperimentEnabled || !terminalLoadedAreaPresent || terminalGameMode != "Default"))
+            {
+                finalErrors.Add("Chunk 7 terminal boundary did not settle: movementExperimentEnabled=" +
+                    terminalMovementExperimentEnabled + ", loadedAreaPresent=" + terminalLoadedAreaPresent +
+                    ", currentGameMode=" + (terminalGameMode ?? "<no game>") + ". Native mode and story state are unchanged.");
+                status = "FAIL";
             }
 
             if (finalErrors.Count != 0 && string.Equals(status, "PASS", StringComparison.Ordinal))
@@ -1831,12 +1852,6 @@ namespace KingmakerMountedCombat.Diagnostics
                 assertionFailCount += result.AssertionFailCount;
             }
 
-            var modAssembly = typeof(Main).Assembly;
-            var gameAssembly = typeof(Kingmaker.Game).Assembly;
-            var ummAssembly = typeof(UnityModManager).Assembly;
-            var harmonyPath = Path.Combine(Path.GetDirectoryName(ummAssembly.Location), "0Harmony12.dll");
-            var game = Kingmaker.Game.Instance;
-            var evidenceManifestSha256 = PublishRuntimeArtifactManifest();
             var resultPayload = new RuntimeGameResultV2
             {
                 SchemaVersion = RuntimeRequest.SaveBackedSchemaVersion,
@@ -1860,10 +1875,10 @@ namespace KingmakerMountedCombat.Diagnostics
                 Harmony12Version = File.Exists(harmonyPath) ? AssemblyName.GetAssemblyName(harmonyPath).Version.ToString() : null,
                 Harmony12Sha256 = File.Exists(harmonyPath) ? ComputeSha256(harmonyPath) : null,
                 RelationshipState = relationshipStateProvider(),
-                MovementExperimentEnabled = movementExperimentProvider(),
+                MovementExperimentEnabled = terminalMovementExperimentEnabled,
                 ProcessId = Process.GetCurrentProcess().Id,
-                CurrentGameMode = game == null ? null : game.CurrentMode.ToString(),
-                LoadedAreaPresent = game != null && game.CurrentlyLoadedArea != null,
+                CurrentGameMode = terminalGameMode,
+                LoadedAreaPresent = terminalLoadedAreaPresent,
                 SaveRequestCount = saveRequestCount,
                 LoadRequestCount = loadRequestCount,
                 FrameCount = frameCount,

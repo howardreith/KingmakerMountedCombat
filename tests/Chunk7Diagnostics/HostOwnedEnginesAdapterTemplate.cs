@@ -6,7 +6,9 @@ sealed class Clock{internal TimeSpan Elapsed;}
 sealed class Persistence{internal bool AreaTransitionPending,HasActiveSaveScope,HasSaveAdmissionFence,WorkerPending;internal OwnedWorkerTeardownVerdict DrainForTeardown(int wait){return WorkerPending?OwnedWorkerTeardownVerdict.Refused:OwnedWorkerTeardownVerdict.Settled;}}
 sealed class Engine{internal bool Ready,ThrowDispose;internal int Polls,Disposals;internal IReadOnlyList<string> Results=new string[0],Errors=new string[0];internal bool DrainForHost(){Polls++;return Ready;}internal void Dispose(){Disposals++;if(ThrowDispose)throw new InvalidOperationException("retained exact engine lease");}}
 sealed class HostOwnedEnginesAdapter{
- readonly Chunk7HostCompletionGate chunk7Completion=new Chunk7HostCompletionGate();readonly Clock runtimeClock=new Clock();readonly Persistence persistence=new Persistence();Engine worldPersistenceEngine,worldCombatEngine,worldEngine,ordinaryEngine;IReadOnlyList<string> subscenarioResults;int worldCleanup;List<string> faults=new List<string>();
+ readonly Chunk7HostCompletionGate chunk7Completion=new Chunk7HostCompletionGate();readonly Clock runtimeClock=new Clock();readonly Persistence persistence=new Persistence();Engine worldPersistenceEngine,worldCombatEngine,worldEngine,ordinaryEngine;
+ Engine acquiredManualEngine,manualDerivedEngine,manualSeedEngine,bootstrapInventoryEngine,nativeBootstrapEngine,smallCalibrationEngine,progressionEngine,ordinaryFieldEngine;
+ static int passed;IReadOnlyList<string> subscenarioResults;int worldCleanup;List<string> faults=new List<string>();
  void RecordChunk7CleanupFailure(string e){faults.Add(e);}void CollectEngineErrors(IReadOnlyList<string> e,string p){}bool SettleChunk7World(){worldCleanup++;return true;}
 __METHOD__
  internal static void Verify(){var h=new HostOwnedEnginesAdapter();var exact=new Engine();h.worldEngine=exact;h.chunk7Completion.Request(0);h.persistence.WorkerPending=true;
@@ -24,8 +26,29 @@ __METHOD__
  Check(!ordinary.TrySettleChunk7Custody()&&ReferenceEquals(ordinary.ordinaryEngine,retainedOrdinary)&&ordinary.worldPersistenceEngine==null&&readyPersistence.Disposals==1&&ordinary.worldCleanup==0,"ordinary custody blocks world cleanup while independent persistence settles");
  retainedOrdinary.Ready=true;retainedOrdinary.ThrowDispose=true;Check(!ordinary.TrySettleChunk7Custody()&&ReferenceEquals(ordinary.ordinaryEngine,retainedOrdinary)&&ordinary.worldCleanup==0,"ordinary failed disposal retains exact engine and world fence");
  retainedOrdinary.ThrowDispose=false;Check(ordinary.TrySettleChunk7Custody()&&ordinary.ordinaryEngine==null&&readyPersistence.Disposals==1&&ordinary.worldCleanup==1,"ordinary retry settles without replaying released persistence cleanup");
- HostWorldGateAdapter.Verify();Console.WriteLine("CHUNK7 HOST OWNED ENGINES PASS=14 FAIL=0; extracted production owner adapters and gate");}
- static void Check(bool b,string message){if(!b)throw new Exception(message);Console.WriteLine("PASS "+message);}
+ VerifyAdditionalOwners();
+ HostWorldGateAdapter.Verify();passed+=2;Console.WriteLine("CHUNK7 HOST OWNED ENGINES PASS="+passed+" FAIL=0; extracted production owner adapters and gate");}
+ static void VerifyAdditionalOwners(){
+  VerifyOwner("acquired Manual",(h,e)=>h.acquiredManualEngine=e,h=>h.acquiredManualEngine);
+  VerifyOwner("Manual-derived",(h,e)=>h.manualDerivedEngine=e,h=>h.manualDerivedEngine);
+  VerifyOwner("Manual seed",(h,e)=>h.manualSeedEngine=e,h=>h.manualSeedEngine);
+  VerifyOwner("bootstrap inventory",(h,e)=>h.bootstrapInventoryEngine=e,h=>h.bootstrapInventoryEngine);
+  VerifyOwner("native bootstrap",(h,e)=>h.nativeBootstrapEngine=e,h=>h.nativeBootstrapEngine);
+  VerifyOwner("Small calibration",(h,e)=>h.smallCalibrationEngine=e,h=>h.smallCalibrationEngine);
+  VerifyOwner("progression",(h,e)=>h.progressionEngine=e,h=>h.progressionEngine);
+  VerifyOwner("ordinary field",(h,e)=>h.ordinaryFieldEngine=e,h=>h.ordinaryFieldEngine);
+ }
+ static void VerifyOwner(string name,Action<HostOwnedEnginesAdapter,Engine> bind,Func<HostOwnedEnginesAdapter,Engine> get){
+  var h=new HostOwnedEnginesAdapter();var retained=new Engine();var neighbour=new Engine{Ready=true};
+  bind(h,retained);h.worldPersistenceEngine=neighbour;h.chunk7Completion.Request(0);
+  Check(!h.TrySettleChunk7Custody()&&ReferenceEquals(get(h),retained)&&retained.Polls==1&&retained.Disposals==0&&h.worldPersistenceEngine==null&&neighbour.Disposals==1&&h.worldCleanup==0,name+" pending custody retains exact owner while independent persistence settles");
+  retained.Ready=true;retained.ThrowDispose=true;h.runtimeClock.Elapsed=TimeSpan.FromSeconds(46);
+  Check(!h.TrySettleChunk7Custody()&&ReferenceEquals(get(h),retained)&&retained.Disposals==1&&h.faults.Count==2&&h.faults.Any(f=>f.Contains("bounded drain"))&&h.faults.Any(f=>f.Contains("retained exact engine lease"))&&h.worldCleanup==0&&h.chunk7Completion.DeadlineExceeded,name+" disposal refusal and deadline retain owner and world fence");
+  retained.ThrowDispose=false;
+  Check(h.TrySettleChunk7Custody()&&get(h)==null&&retained.Disposals==2&&neighbour.Disposals==1&&h.worldCleanup==1&&h.chunk7Completion.Settled,name+" successful retry releases owner after disposal without repeating neighbour");
+  Check(h.TrySettleChunk7Custody()&&retained.Disposals==2&&neighbour.Disposals==1&&h.worldCleanup==1,name+" settled completion does not replay released cleanup");
+ }
+ static void Check(bool b,string message){if(!b)throw new Exception(message);passed++;Console.WriteLine("PASS "+message);}
 }
 enum RelationshipState{Mounted,Unmounted}enum CleanupTrigger{Exception}
 class GateRuntime{internal bool NoPreparedPairResidue;}class GateRelationship{internal RelationshipState State=RelationshipState.Mounted;internal object PairOwner=new object();internal GateRuntime Runtime=new GateRuntime();internal void Dismount(CleanupTrigger reason){State=RelationshipState.Unmounted;PairOwner=null;Runtime.NoPreparedPairResidue=true;}}
