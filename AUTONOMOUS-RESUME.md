@@ -1,4 +1,44 @@
-# Chunk 7B–7D resume — IN PROGRESS
+# Chunk 7B–7D resume — IN PROGRESS, October13 source checkpoint
+
+Mission remains [the sustained7B–7D assignment](planning/CHUNK7-CONTINUATION-MISSION.md); the breadth candidate is not ready. Root is sole integrator/live executor. Branch codex/mounted-combat-chunk7-foundation and origin https://github.com/howardreith/KingmakerMountedCombat.git. Latest source/tests/docs commit81c570dc00ae863ac2111ba3f38ca115d03857d9, tree72431699c097b9a4e3611b1aa6fb97e2d1c94d43, parent69bbe062938ae252ad225c42f3bd75900eeeba55. Guarded push f165ab exit0 verified remote81c570dc; its WhatIf0150fc passed. These current handoff edits will form a separate documentation commit.
+
+## Immediate next action
+
+Read the private bootstrap-prepared-repair-next lane and agent repair_r2 findings. Native SaveRoutine creates a new SaveInfo from the original request before PrepareSave; the observer compares it with the request object and later reuses the wrong descriptor. Reproduce and repair the actual request/prepared/completed-object seam, preserve exact world/manager/session/generation, sole native spending/write authorization and callback order. Review affected reader/scenario consumers and retain rejected prepared facts before refusal. Obtain independent review, apply exact changed files, compile/test focused dependencies, then commit and guarded-push. Batch this repair with the already-integrated73 before the next version/freeze; do not rebuild preview.6 or replay unchanged Candidate checks.
+
+No root-owned provider session or live transaction remains active. Private author checks may still be running; consult their lanes before duplicating. Provider60728 is CLOSED: actual audit exit0/chunkf21d8b. Provider54805 is CLOSED: actual native exit1/chunk896395. Combined checks81356 CLOSED exit0/chunk407bc4. No process was killed. Post-exit876513 found no Kingmaker/Wrath and no active lock. Refresh current game/lock state before future native work.
+
+## Integrated source and focused verification
+
+[Behavior, exact counts and limits](docs/CHUNK7-PROFILE-PROGRESSION-INTAKE-CHECKPOINT.md). The73-file map is analysis-cache/chunk7-continuation/breadth-intake-integration01/integration-map01.json SHA2652a690ffc74e9d303200320997bdb25777d85972efc8d1c41d3b05299c02c6. Root application1c7fb4c367f2a89fbf46246f19c41a60b22dd0261aa40bafdd387265aa4c633a records exact base bytes and zero mismatches against all464 compiled production inputs. C#7.3/.NET4.7 compilation3.9130217s passed; combined protocols42/56/51 passed; final composed79/20/187 passed45.7963079s. Final independent source/closure review95584d5d9da063ec6152c8f145c72cafe846fba1515d16232b35cbb5c8b3b92a; documentation reviewa17bf7230556802cc39d2c930cc18f690b9ea5278e781a01794bf115ecc7e195. Original observer, roster, test-template and wrapper failures remain preserved.
+
+All pending Small25, Medium22, roster8, adapter4 and owned-progression21 lane changes were composed explicitly, not applied as overlapping whole-file replacements. Four C# compositions preserve both request routes and five new project entries. The final PS49 includes the combined runner plus18 added aggregate children; only affected children ran. Root source75-file commit includes those73 and two docs. Do not reapply old lane maps over current files. Publication receipt is breadth-intake-integration01/publication01.json.
+
+## Actual preview.6 audit and failed native attempt5
+
+Frozen product887a8cc41a44ed4a6be01921814cffbaadc4844d/tree5f1edca487b3315b9dc3a1393f5c47ff48a3e619, package14dd6e26a4e98a8ca0ca0c9c94f0cc0e339f428b28878dc2da81c8d9c1ac5f85, DLLd209489d395a85f8f3b92e79ac5039979a691fde0c7af313fd2072dd649fefee, MVIDf104c91e-6b70-456d-b672-ed48ef8071f4. Candidate6/6 PASS208.2205936s remains historical for those bytes. Current integrated diagnostics are a changed product and need a new candidate.
+
+Fresh full audit8616.1109392s PASS, receiptddfae502de377e389a5ea4278e7c9b75ab4daddf6610c5f1f76f63108b6c4681/logc508f44e75b5713ab1bf5490264a859e737828f4ea0dc4fabcf737448010f00b/callerb7e5fdb24191a1d927255b55713374faef23cb95ee4c034a8a5a2cd46b7e8b51. It verified1251 tracked+20 additional captured inputs, all1278 current pins, one full purity assertion and actual exit0. Exact admission5047e212b8d834e5b5b40463dd49bd2964483768c8942354360033acd7c4ae68 was independently reviewed; it admitted only the completed preview.6 bootstrap, never siblings or new source.
+
+Attempt5 run20261013-chunk7b-world06-bootstrap FAIL116.5392515s outer/56.9304484s game. Preflight and cleanup PASS; entered/exited/minted/requested/prepared each1, complete=false, zero loads/one authorized isolated Auto save. Raw evidence reports a compound prepared descriptor/world/leaf/category refusal; the cloning cause is a separate local-contract/regression diagnosis. Output is unqualified. Native-checkpoint05.json SHAafc32f9d5d977b6e0436018e32798530e15d7a3c54003efeff88480725a2af03 binds exact evidence and caller exit. Source remains frozen; never relabel this FAIL or its output PASS.
+
+Both transactions report restored, errors[], Mods02b2efc8c35dc0bbd7b041b6fa1f6f9888b51bf0490ab7b9ca34dc0901977dc0 and saves2e69c4a4b4611327b0acb09d002a996e42980ff23f2ce256ac3d7dd064d9c74a equal their actual before snapshots; Baseline immutable, Working restored, profile byte-exact, accepted cache changes0. Separate post-native pinsea940a92d8437d9f8335bc8bf92f3efb70ca861462d89dafdfc5b8d091496b16 verified1278/0 at pre-edit69bbe062. Original native afterPinsVerified=false is preserved because its exception bypassed that loop. Independent failed-run/restoration review PASS, without changing native FAIL.
+
+Transient root cache event: five untracked files appeared under literal %SystemDrive%/ProgramData/Microsoft/Windows/Caches during the audit; an earlier rejected child PS startup is temporally associated, not proven exclusive cause. Reviewed same-volume preservation kept exact bytes/sizes/timestamps under candidate-world06/preserved-untracked-cache01, receiptf02157df7572009da1fa1d0627d0c156b11ec965cd1e286f02d1c2068575b514. Root was clean at observed endpoints; never claim continuous cleanliness. Tracked inputs and five audited roots were unaffected.
+
+## Remaining native dependencies
+
+Budget5/25, all five native attempts remain FAIL and settled. A repaired/frozen new candidate needs its own admitted bootstrap0load/1Auto → qualified cold inventory1load/0write → Manual seed1load/1Manual, using original successful Auto. Every source must carry same-candidate PASS ancestry and exact restoration. The reviewed next-three plan remains a parameter/guard reference, not admission. Preview6-followup-preparation-next/review01.json SHA67fd0581fc293e623a52be01ea1551c7b7196abebf882d8b392abbe4adaf903b records exact selection JSON shapes; automated rows reject manual-review-only ExpectedPackage/Dll/Branch/Commit switches.
+
+Legacy Working RT/TB/persistence avoids paid hire but still has the established base-only saved-main failure; unchanged WorkingFixtureLoader and new bootstrap fixes do not solve that prerequisite. The conditional plan60483d5b cannot justify sibling retries. Existing guarded archive validation reads headers/KMC metadata and cannot diagnose the actor graph. A bounded read-only Working diagnostic is being implemented privately under working-actor-graph-diagnostic-next, with only generated fixtures until review and root integration. The safe exact-token metadata query found dynamic converter discovery; wire shape remains unknown. The diagnostic must report unsupported shapes explicitly and cannot claim loadability. No actual archive was read or fixture modified. Ordinary acquisition also needs actually eligible level/XP/funds/body/field actors. NativeSmall, six-pair, combat/persistence/action/debt/R1/R2, area/removal, lifecycle, measured hardening and unmounted controls remain mandatory open evidence.
+
+Native capacity2, offline6/retained12, writer3 and explicit schema1/2 adapters remain; decoding alone never restores. Medium Horse/Mammoth; Small catalogueEMPTY. RTCharge default-off; TBCharge cost-free refusal and defensive feat deferred. Owner archive approval12c0d81878afa7a2e4394212619106c38a6a304db2c905b5ef7d4a6dc7da222a persists. Human saves/Baseline immutable. No7E/merge/release/permanent installation/HUMAN PLAY claim.
+
+---
+
+The following checkpoint is retained as historical chronology from69bbe062. Its next-action and active-state statements are superseded by the current sections above.
+
+## Historical pre-audit resume at69bbe062
 
 Continue the [sustained mission](planning/CHUNK7-CONTINUATION-MISSION.md). The breadth candidate is not ready. Root owns integration and every live transaction. Branch codex/mounted-combat-chunk7-foundation; origin https://github.com/howardreith/KingmakerMountedCombat.git. Product source887a8cc41a44ed4a6be01921814cffbaadc4844d and implementationb4d2cd7f89ea763176557f4ff4a2aa1c7af9f142 are committed and guarded-pushed. Preview.6 is frozen and Candidate-qualified; current intentional edits document that completed qualification and select its next fresh audit. Preserve all other/frozen worktrees and artifacts.
 
