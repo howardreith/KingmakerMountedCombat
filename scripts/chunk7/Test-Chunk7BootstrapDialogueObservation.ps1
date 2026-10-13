@@ -83,6 +83,28 @@ function Bad-Dialogue([string]$Name,[scriptblock]$Action,[string]$Reason=''){try
 function Read-Dialogue([string]$Leaf){return ([IO.File]::ReadAllText((Join-Path $OutputRoot $Leaf))|ConvertFrom-Json)}
 if($testExit-eq0-and$actualShape-and$actualFailed-eq0){
  foreach($leaf in @('terminal.json','read-error.json','null-state.json','released-error.json','unity-null-popup.json','absent-popup.json','live-popup.json')){Good-Dialogue ('actual producer '+$leaf){Assert-KmcChunk7BootstrapDialogueObservation (Read-Dialogue $leaf) $true}}
+ foreach($leaf in @('scheduled-start.json','scheduled-unmarked.json','scheduled-consumed.json','missing-dialog-state.json')){Good-Dialogue ('actual scheduled-start producer '+$leaf){Assert-KmcChunk7BootstrapDialogueObservation (Read-Dialogue $leaf) $true}}
+ Good-Dialogue 'historical raw-v1 shape remains exact' {$v=Read-Dialogue 'terminal.json';$v.contract='chunk7-bootstrap-dialogue-raw-v1';$v.identityCapacity=32;foreach($row in $v.snapshots){foreach($key in @('dialogState','scheduledStart','scheduledStartIsScheduled','scheduledDialog')){$row.PSObject.Properties.Remove($key)}};Assert-KmcChunk7BootstrapDialogueObservation $v $true}
+ Good-Dialogue 'v2 maximum forty distinct references' {Assert-KmcChunk7BootstrapDialogueObservation (Read-Dialogue 'maximum-distinct.json') $true}
+ Bad-Dialogue 'v2 refuses old insufficient capacity' {$v=Read-Dialogue 'terminal.json';$v.identityCapacity=32;Assert-KmcChunk7BootstrapDialogueObservation $v $true}
+ Bad-Dialogue 'v2 refuses forty-first reference' {$v=Read-Dialogue 'maximum-distinct.json';$v.identityIds+=@(-9999);Assert-KmcChunk7BootstrapDialogueObservation $v $true} 'array bounds changed'
+ Bad-Dialogue 'v1 still requires exactly thirty-two capacity' {$v=Read-Dialogue 'terminal.json';$v.contract='chunk7-bootstrap-dialogue-raw-v1';foreach($row in $v.snapshots){foreach($key in @('dialogState','scheduledStart','scheduledStartIsScheduled','scheduledDialog')){$row.PSObject.Properties.Remove($key)}};Assert-KmcChunk7BootstrapDialogueObservation $v $true}
+ $scheduledCases=[ordered]@{
+  'v2 missing scheduled start'={param($v)$v.snapshots[0].PSObject.Properties.Remove('scheduledStart')}
+  'v2 state label singleton'={param($v)$v.snapshots[0].dialogState=@($v.snapshots[0].dialogState)}
+  'v2 start label singleton'={param($v)$v.snapshots[0].scheduledStart=@($v.snapshots[0].scheduledStart)}
+  'v2 start label outside registry'={param($v)$v.snapshots[0].scheduledStart=-777}
+  'v2 queued marker singleton'={param($v)$v.snapshots[0].scheduledStartIsScheduled=@($true)}
+  'v2 queued marker text'={param($v)$v.snapshots[0].scheduledStartIsScheduled='true'}
+  'v2 missing queued marker'={param($v)$v.snapshots[0].scheduledStartIsScheduled=$null}
+  'v2 scheduled blueprint singleton'={param($v)$v.snapshots[0].scheduledDialog=@($v.snapshots[0].scheduledDialog)}
+  'v2 scheduled GUID singleton'={param($v)$v.snapshots[0].scheduledDialog.guid=@($v.snapshots[0].scheduledDialog.guid)}
+  'v2 absent state retains start'={param($v)$v.snapshots[0].dialogState=0}
+  'v2 absent start retains fields'={param($v)$v.snapshots[0].scheduledStart=0}
+  'v1 refuses undeclared new fields'={param($v)$v.contract='chunk7-bootstrap-dialogue-raw-v1';$v.identityCapacity=32}
+ }
+ foreach($entry in $scheduledCases.GetEnumerator()){Bad-Dialogue $entry.Key {$v=Read-Dialogue 'scheduled-start.json';&$entry.Value $v;Assert-KmcChunk7BootstrapDialogueObservation $v $true}}
+ Bad-Dialogue 'v2 failed row refuses partial scheduled reference' {$v=Read-Dialogue 'read-error.json';$v.snapshots[0].scheduledStart=-1001;Assert-KmcChunk7BootstrapDialogueObservation $v $true} 'failed read retained partial state'
  Good-Dialogue 'actual preterminal artifact snapshot' {Assert-KmcChunk7BootstrapDialogueObservation (Read-Dialogue 'artifact.json') $false}
  Good-Dialogue 'historical result absence remains accepted' {Assert-KmcChunk7BootstrapDialogueResult (Read-Dialogue 'game-absent.json') ([pscustomobject]@{scenario='legacy-family'})}
  Good-Dialogue 'actual optional bootstrap DTO result' {Assert-KmcChunk7BootstrapDialogueResult (Read-Dialogue 'game-present.json') ([pscustomobject]@{scenario='chunk7-native-main-bootstrap'})}
