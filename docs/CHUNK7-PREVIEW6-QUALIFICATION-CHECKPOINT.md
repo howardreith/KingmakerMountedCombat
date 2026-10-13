@@ -47,3 +47,10 @@ The exact first selection is chunk7-native-main-bootstrap, run20261013-chunk7b-w
 Native budget4/25. Next at most3 prerequisite attempts: bootstrap → qualified same-candidate cold inventory → native Manual seed. Each downstream row requires successful complete upstream evidence; failed output cannot seed it. Ordinary acquisition and two-owner Manual preservation follow actual observed XP/funds/choices and reciprocal ownership. A blocked specialized fixture does not waive independent required work.
 
 No preview6 native transaction has started at this checkpoint. Four prior attempts remain FAIL and settled; [exact historical receipts](CHUNK7-NATIVE-OBSERVATIONS-2026-10-12.md). Required multi-pair combat/persistence, progression/retraining/replacement, measured Small profile, six-pair stress, repeated lifecycle/hardening and unmounted controls remain open. Small catalogue remains empty. HUMAN PLAY,7E,merge/release and permanent installation are outside the selected work.
+
+
+## Completed selected audit and native attempt
+
+The subsequent fresh full WhatIf completed PASS in8616.1109392s with actual caller exit0/chunkf21d8b, receiptddfae502de377e389a5ea4278e7c9b75ab4daddf6610c5f1f76f63108b6c4681. Root cache dirtiness/preservation is disclosed; observed endpoint and tracked-byte equality is not continuous cleanliness. Native preview.6 bootstrap then failed116.5392515s with exit1/chunk896395 at its prepared-descriptor observation. The campaign-mint callsite fired once. Exact restoration passed and its output remains unqualified; see [the native checkpoint](CHUNK7-NATIVE-OBSERVATIONS-2026-10-12.md).
+
+The later source tranche81c570dc changes compiled diagnostic inputs. Preserve this frozen candidate and its original PASS/FAIL evidence; neither its Candidate pass nor its completed audit admits a changed product.
