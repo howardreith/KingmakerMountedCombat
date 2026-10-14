@@ -4,6 +4,8 @@ Stopped at the owner’s October14 request to conserve quota and push. Do not re
 
 ## Active stopping point
 
+[Claude takeover handoff](docs/CLAUDE-HANDOFF-CHUNK7-2026-10-14.md) supplies the reading order, exact refs, inactive draft limitations and first implementation/native prerequisites. Preparing that document does not resume runtime work.
+
 [Complete checkpoint, exact receipts and next action](docs/CHUNK7-OWNER-STOP-2026-10-14.md). Product remains published0e1ce2d92a368866ce0803d070a6f3b7b96bd971, tree59fc88acd78006a8ea83aeeefc21dcc9e2833243. Candidate03 passed6/6 in214.1538249s on harnessb8db761b; preview10 was built once and remains frozen. Preserve `worktrees/chunk7b-preview10-0e1ce2d`; no rebuild. Historical Candidate01/02 and native1–9 failures are unchanged.
 
 The full WhatIf actualaf0706/provider33591 was stopped incomplete; original session closed actualb80444 exit-1. Immediate stop-helper FAILe53dad and separate absence proof4bc3b3 remain retained. No native10, completed purity audit or native admission. Read-only current continuity actual17ed96/provider64083 to e56cd1 exit0 passed17.4560884s: Mods/save bytes and metadata match original suite, protected fixtures exact, no game/lock/sentinel. Receiptf1901ad322b43ee976439cbfc5808f0fb98e470f078d56695e4808bc28abfb45. Approved synthetic archive check actualf7ccae/provider27577 to7f8c7f exit0 passed19/0 in18.8470646s; no installed/protected archive reads.
