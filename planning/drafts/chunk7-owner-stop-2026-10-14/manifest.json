@@ -1,0 +1,364 @@
+{
+  "schemaVersion": 1,
+  "kind": "owner-requested-unverified-draft-backup",
+  "baseCommit": "40157ba1dfeea8d4b2713319dad4047f6f7af0e4",
+  "productCommit": "0e1ce2d92a368866ce0803d070a6f3b7b96bd971",
+  "status": "IN PROGRESS",
+  "format": "LF-normalized zero-context text diffs; review and reconcile overlaps before any application. Exact raw drafts remain privately pinned. No integration/execution qualification.",
+  "bundles": [
+    {
+      "name": "owned-schema1",
+      "status": "IN PROGRESS",
+      "integrationReady": false,
+      "executed": false,
+      "map": {
+        "path": "C:\\Dev\\KingmakerMountedCombatLab\\analysis-cache\\chunk7-continuation\\owned-schema1-next01\\integration-map01.json",
+        "sha256": "912451cfcfab594464ea37965b9a098ea3c2938e083f821142e8ca7025f24bb4",
+        "length": 23127
+      },
+      "handoff": {
+        "path": "C:\\Dev\\KingmakerMountedCombatLab\\analysis-cache\\chunk7-continuation\\owned-schema1-next01\\HANDOFF.md",
+        "sha256": "7e94fd3df79b17c331ecdeba92336af70a91489ec5558288154a601bd6a9a270",
+        "length": 3181
+      },
+      "patch": {
+        "path": "C:\\Dev\\KingmakerMountedCombatLab\\analysis-cache\\chunk7-continuation\\owner-stop-publication-20261014-01\\owned-schema1.patch",
+        "sha256": "6c73eacad6162aa2a8edbde9ab5024cb1ed77ba3963717b7d9e3af137e600355",
+        "length": 210564
+      },
+      "entries": [
+        {
+          "relativePath": "scripts/Test-Chunk7NativeDiagnostics.ps1",
+          "baseSha256": "79f1747001d3b5f083ebc0f135dbf96d65321e580a405ee690a55583ad04b3b3",
+          "payloadSha256": "90fcd69faa6197e61556e7e80433282ef2971f0b96fa64e9faeef8e47e4cede2",
+          "payloadLength": 8707,
+          "lfPayloadSha256": "90fcd69faa6197e61556e7e80433282ef2971f0b96fa64e9faeef8e47e4cede2"
+        },
+        {
+          "relativePath": "scripts/chunk7/Test-Chunk7OwnedSchema1Evidence.ps1",
+          "baseSha256": null,
+          "payloadSha256": "28ac65493b3506419206f768d02636849d23953ede6f42ee90fe267987a47624",
+          "payloadLength": 11791,
+          "lfPayloadSha256": "28ac65493b3506419206f768d02636849d23953ede6f42ee90fe267987a47624"
+        },
+        {
+          "relativePath": "scripts/chunk7/Test-Chunk7OwnedSchema1Native.ps1",
+          "baseSha256": null,
+          "payloadSha256": "554adcd2c82ce96ea13b328752ab9492881bc6465439daea46469382dd7977e0",
+          "payloadLength": 6015,
+          "lfPayloadSha256": "554adcd2c82ce96ea13b328752ab9492881bc6465439daea46469382dd7977e0"
+        },
+        {
+          "relativePath": "scripts/runtime/Chunk7OwnedPairsEvidence.ps1",
+          "baseSha256": "703f3426d9e520ce3ef1a5384b036b927f98c6af672cd76f4b588d79c69b7063",
+          "payloadSha256": "89574f5a7cc2b65bd506bf7b9458385cba9aa961d4a929b8634182b8c5475847",
+          "payloadLength": 22454,
+          "lfPayloadSha256": "89574f5a7cc2b65bd506bf7b9458385cba9aa961d4a929b8634182b8c5475847"
+        },
+        {
+          "relativePath": "scripts/runtime/Chunk7OwnedSchema1Evidence.ps1",
+          "baseSha256": null,
+          "payloadSha256": "f2d6d1b9d7b31f83ac37f7520998e2255a73265556fdb4ebf16251b259e76252",
+          "payloadLength": 15160,
+          "lfPayloadSha256": "f2d6d1b9d7b31f83ac37f7520998e2255a73265556fdb4ebf16251b259e76252"
+        },
+        {
+          "relativePath": "scripts/runtime/Chunk7OwnedSchema1Fixtures.ps1",
+          "baseSha256": null,
+          "payloadSha256": "d121fdfc5ced1c4c0fb21a285cb378ba8d62e87857301ba70cab567b249aae78",
+          "payloadLength": 32268,
+          "lfPayloadSha256": "d121fdfc5ced1c4c0fb21a285cb378ba8d62e87857301ba70cab567b249aae78"
+        },
+        {
+          "relativePath": "scripts/runtime/Chunk7PersistenceEvidence.ps1",
+          "baseSha256": "3cd6145f660a693a4bb99434385f200d964ed73266651d3919b7b0382d957f97",
+          "payloadSha256": "11912d8db6b37d812ec3cae03fef2b4d8e503944187126a3070af2838916f5f4",
+          "payloadLength": 28827,
+          "lfPayloadSha256": "11912d8db6b37d812ec3cae03fef2b4d8e503944187126a3070af2838916f5f4"
+        },
+        {
+          "relativePath": "scripts/runtime/Chunk7RepeatedWorldEvidence.ps1",
+          "baseSha256": "45aac0779834c36766dd65be835f621c9a1bad71c8ce8164b3e1becc70960880",
+          "payloadSha256": "4437ab5ab6231c51e991b74a6ff40469a9d46cc91634fb3f1368d061edb39d8a",
+          "payloadLength": 36965,
+          "lfPayloadSha256": "4437ab5ab6231c51e991b74a6ff40469a9d46cc91634fb3f1368d061edb39d8a"
+        },
+        {
+          "relativePath": "scripts/runtime/Invoke-KingmakerRuntimeScenario.ps1",
+          "baseSha256": "7b74520dd459fc81b57c01591ea2d0a1ffce912f08e361424397b613c7c212f3",
+          "payloadSha256": "c752356c6b187f5d5bbce9ab602725fcb5ff104603a1b9cf8e31b86ebb4cd4c0",
+          "payloadLength": 125477,
+          "lfPayloadSha256": "c752356c6b187f5d5bbce9ab602725fcb5ff104603a1b9cf8e31b86ebb4cd4c0"
+        },
+        {
+          "relativePath": "scripts/runtime/Test-RuntimeRequest.ps1",
+          "baseSha256": "efb56988431341b8cfcebc90279e4f3351a97c0547de06fa08cb6d8dff3ad906",
+          "payloadSha256": "8505ab933611bca3f916ee234122d297890cdd4b9452a65e3a388eab2ceae4d2",
+          "payloadLength": 33177,
+          "lfPayloadSha256": "8505ab933611bca3f916ee234122d297890cdd4b9452a65e3a388eab2ceae4d2"
+        },
+        {
+          "relativePath": "src/KingmakerMountedCombat/Diagnostics/Chunk7OwnedPairFixture.cs",
+          "baseSha256": "c81423bc7006e62218108e7e6a127f104753e8d566f7d6aaa2fd9691d01c9a23",
+          "payloadSha256": "dd50b0f9bcdc39b93838abea6174483e87065c898681a847c4f451243acd1f97",
+          "payloadLength": 21506,
+          "lfPayloadSha256": "dd50b0f9bcdc39b93838abea6174483e87065c898681a847c4f451243acd1f97"
+        },
+        {
+          "relativePath": "src/KingmakerMountedCombat/Diagnostics/Chunk7OwnedPairsSelection.cs",
+          "baseSha256": "5352d3de910e8be081e3b662f398238f53851c5775dbbc42038137d778dc9f33",
+          "payloadSha256": "6cedc3207d04537222a1c4b0f43f8c3e675c9749a9c15823134a359f5c26974d",
+          "payloadLength": 6244,
+          "lfPayloadSha256": "6cedc3207d04537222a1c4b0f43f8c3e675c9749a9c15823134a359f5c26974d"
+        },
+        {
+          "relativePath": "src/KingmakerMountedCombat/Diagnostics/Chunk7PersistenceScenario.Schema1.cs",
+          "baseSha256": "9f4616987c0f18db57ff4490e09d9b54b7fb5912ec513daf6c4257ea96b515f6",
+          "payloadSha256": "34f05a5ad53fa808c5001ad1c9201a8aabbb4d3c55e4091201d26806e938dbcb",
+          "payloadLength": 26866,
+          "lfPayloadSha256": "34f05a5ad53fa808c5001ad1c9201a8aabbb4d3c55e4091201d26806e938dbcb"
+        },
+        {
+          "relativePath": "src/KingmakerMountedCombat/Diagnostics/Chunk7PersistenceScenario.cs",
+          "baseSha256": "b6eaed559e1710c06fe76da5025548d8c5480b9d1a5f5eb5606e32afc90fe1cb",
+          "payloadSha256": "c4f444600add6e3555bcfe615e9e98bf3a3a52f732e8c689549c14a9c2a7797c",
+          "payloadLength": 51264,
+          "lfPayloadSha256": "c4f444600add6e3555bcfe615e9e98bf3a3a52f732e8c689549c14a9c2a7797c"
+        },
+        {
+          "relativePath": "src/KingmakerMountedCombat/Diagnostics/PersistenceIsolationBootstrap.cs",
+          "baseSha256": "23fe2fe3cbaf3b4991c038626239c2eb7631555a7b67c201a9c762301f646ab8",
+          "payloadSha256": "cf8506fe45ba87df8a1e75efd91b6180faefdce5c50c188e8ec7b73447215399",
+          "payloadLength": 30178,
+          "lfPayloadSha256": "cf8506fe45ba87df8a1e75efd91b6180faefdce5c50c188e8ec7b73447215399"
+        },
+        {
+          "relativePath": "src/KingmakerMountedCombat/Diagnostics/PersistenceSaveAuthorization.OwnedPairs.cs",
+          "baseSha256": "af75e9bf8d8b52ef35a1ff19b25345cedae7ad78511ae4cb0df8e10e62e9c374",
+          "payloadSha256": "9421f12e5f830532600a36a31b8f329611de3027d226fdbf2bb2dedd293c20cc",
+          "payloadLength": 12326,
+          "lfPayloadSha256": "9421f12e5f830532600a36a31b8f329611de3027d226fdbf2bb2dedd293c20cc"
+        },
+        {
+          "relativePath": "src/KingmakerMountedCombat/Diagnostics/RuntimeProtocol.cs",
+          "baseSha256": "8e6959e1dc2cdabd9752f6006bf582292863534ad0aba812252b7967bed0bc67",
+          "payloadSha256": "21c171f32a50017bfd76fe0ab98de395f34dce5ff66f5d5a9a29aafc5d6a3cfe",
+          "payloadLength": 100232,
+          "lfPayloadSha256": "21c171f32a50017bfd76fe0ab98de395f34dce5ff66f5d5a9a29aafc5d6a3cfe"
+        },
+        {
+          "relativePath": "tests/Chunk7Diagnostics/OwnedPairsAuthorityTests.cs",
+          "baseSha256": "9f8e57f26430523368e889d0f759c8f14ab610300070660c506b0f43a9ecb36d",
+          "payloadSha256": "0e14edcb6a71614b64022b8ec393c004c6e700b682ad2d618ec3799be1e3b7f3",
+          "payloadLength": 24180,
+          "lfPayloadSha256": "0e14edcb6a71614b64022b8ec393c004c6e700b682ad2d618ec3799be1e3b7f3"
+        },
+        {
+          "relativePath": "tests/Chunk7Diagnostics/OwnedSchema1ContractTests.cs",
+          "baseSha256": null,
+          "payloadSha256": "725d8075eec7d0e6a387c2d6a9719156ce2999626cd7b9746bcb88cc66c5a6e3",
+          "payloadLength": 6831,
+          "lfPayloadSha256": "725d8075eec7d0e6a387c2d6a9719156ce2999626cd7b9746bcb88cc66c5a6e3"
+        },
+        {
+          "relativePath": "tests/Chunk7Diagnostics/OwnedSchema1EvidenceFixtures.json",
+          "baseSha256": null,
+          "payloadSha256": "d831295aee1e2c22ae9deb3d33139905ec0b54cacb45484da07314a0519a33e0",
+          "payloadLength": 81789,
+          "lfPayloadSha256": "d831295aee1e2c22ae9deb3d33139905ec0b54cacb45484da07314a0519a33e0"
+        }
+      ],
+      "limitations": [
+        "No full production compilation or PowerShell parse has been performed; APIs, compile closure, strict-mode/array handling and all generated fixtures remain unverified.",
+        "Public qualification/locked copy failure-path behavior is not yet covered by prepared tests. New archive helper must not be executed against actual fixtures or selected for integration before review.",
+        "Full native scenario/worker/callback/cleanup delivery is not executed by the planned pure guard adapter.",
+        "Runner post-run OrderedDictionary-to-PSCustomObject normalization affects owned output checking generally and needs the existing owned neighbors reviewed.",
+        "Prepared generated source/cold fixtures contain explicitly synthetic callbacks, identities and resource boundaries; they are not actual game evidence.",
+        "Native source eligibility, same-candidate lineage, one settled owner, all representable slots, absence of Charge/debt/participation and successful restoration remain future observed prerequisites.",
+        "Sparse payload requires a separately prepared private dependency composition before any check; no executable source shadow or invocation approval is included."
+      ]
+    },
+    {
+      "name": "owned-area-autosave",
+      "status": "IN PROGRESS",
+      "integrationReady": false,
+      "executed": false,
+      "map": {
+        "path": "C:\\Dev\\KingmakerMountedCombatLab\\analysis-cache\\chunk7-continuation\\owned-area-autosave-next01\\integration-map01.json",
+        "sha256": "da62f4eaa4d2480fff7dc45d7d1449872d4bce65ee18e8a7f51d78623860877d",
+        "length": 28720
+      },
+      "handoff": {
+        "path": "C:\\Dev\\KingmakerMountedCombatLab\\analysis-cache\\chunk7-continuation\\owned-area-autosave-next01\\HANDOFF.md",
+        "sha256": "89e9d11143ae88f84f6a38c54a3ac8936782d915283273956a2dd81c49f5c31c",
+        "length": 3432
+      },
+      "patch": {
+        "path": "C:\\Dev\\KingmakerMountedCombatLab\\analysis-cache\\chunk7-continuation\\owner-stop-publication-20261014-01\\owned-area-autosave.patch",
+        "sha256": "dda4b2e16efde4ae47feaee8309df9932d91969268bcba094d0970b2e0eb03a5",
+        "length": 95491
+      },
+      "entries": [
+        {
+          "relativePath": "scripts/chunk7/Test-Chunk7OwnedAreaAutosaveEvidence.ps1",
+          "baseSha256": null,
+          "payloadSha256": "0d12f4aa8c6254666f6f491628ff0c18947e0654417910228070515da51e6a9d",
+          "payloadLength": 14388,
+          "lfPayloadSha256": "0d12f4aa8c6254666f6f491628ff0c18947e0654417910228070515da51e6a9d"
+        },
+        {
+          "relativePath": "scripts/chunk7/Test-Chunk7OwnedPairsDto.ps1",
+          "baseSha256": "7a65239441807de83c98aa8bc40c75ee4d68a6d1c96d6db04855f56b850a5696",
+          "payloadSha256": "c0fc2f427e68dac26ae798c4ab239adb5de33c56c0a1eea90b3b715a4fe2ba3d",
+          "payloadLength": 8358,
+          "lfPayloadSha256": "c0fc2f427e68dac26ae798c4ab239adb5de33c56c0a1eea90b3b715a4fe2ba3d"
+        },
+        {
+          "relativePath": "scripts/chunk7/Test-Chunk7OwnedPairsSource.ps1",
+          "baseSha256": "fd64bb3d8cf83503b79292af62a9b05e745a5c4b49a59003a98e07be8b72d738",
+          "payloadSha256": "dee1b42ee25f0ded690e134af4bad690df6870188b5b769f8d0a7a200ed46488",
+          "payloadLength": 19863,
+          "lfPayloadSha256": "dee1b42ee25f0ded690e134af4bad690df6870188b5b769f8d0a7a200ed46488"
+        },
+        {
+          "relativePath": "scripts/runtime/Chunk7AreaPersistenceEvidence.ps1",
+          "baseSha256": "5675bd590bcc8a08dfa631f1eef578b0ed7aa085c336223cea501b1042eabcab",
+          "payloadSha256": "c91d67267ee5d666db69004ad0fce00f4416248ec720b65e55fc771ef934075e",
+          "payloadLength": 15770,
+          "lfPayloadSha256": "c91d67267ee5d666db69004ad0fce00f4416248ec720b65e55fc771ef934075e"
+        },
+        {
+          "relativePath": "scripts/runtime/Chunk7OwnedPairsEvidence.ps1",
+          "baseSha256": "703f3426d9e520ce3ef1a5384b036b927f98c6af672cd76f4b588d79c69b7063",
+          "payloadSha256": "e87b2d18c9c9c3433e41c996dc33e6aced05ad49f35f59ac797c86234a7bfdbb",
+          "payloadLength": 23098,
+          "lfPayloadSha256": "e87b2d18c9c9c3433e41c996dc33e6aced05ad49f35f59ac797c86234a7bfdbb"
+        },
+        {
+          "relativePath": "scripts/runtime/Chunk7OwnedPairsFixtures.ps1",
+          "baseSha256": "dfe71f8cd55f9345b34bde4e5ac73b8fa6eeda73332a2fbd81262747dd38957f",
+          "payloadSha256": "0e1bd000c16c9b07b6e2fb19ff6229ba3d5803e8a7feb0acb69e2f27c472b862",
+          "payloadLength": 20557,
+          "lfPayloadSha256": "0e1bd000c16c9b07b6e2fb19ff6229ba3d5803e8a7feb0acb69e2f27c472b862"
+        },
+        {
+          "relativePath": "scripts/runtime/Chunk7PersistenceEvidence.ps1",
+          "baseSha256": "3cd6145f660a693a4bb99434385f200d964ed73266651d3919b7b0382d957f97",
+          "payloadSha256": "37bf315f0da4c5b3fca59213782805d15b537026013d26b3c7d29f26756666a1",
+          "payloadLength": 28678,
+          "lfPayloadSha256": "37bf315f0da4c5b3fca59213782805d15b537026013d26b3c7d29f26756666a1"
+        },
+        {
+          "relativePath": "scripts/runtime/Invoke-KingmakerRuntimeScenario.ps1",
+          "baseSha256": "7b74520dd459fc81b57c01591ea2d0a1ffce912f08e361424397b613c7c212f3",
+          "payloadSha256": "604f49fffa8e0a59bf173eb7b463209c78fc97e3c7a485574b138562a2ff00af",
+          "payloadLength": 125188,
+          "lfPayloadSha256": "604f49fffa8e0a59bf173eb7b463209c78fc97e3c7a485574b138562a2ff00af"
+        },
+        {
+          "relativePath": "scripts/runtime/Test-RuntimeRequest.ps1",
+          "baseSha256": "efb56988431341b8cfcebc90279e4f3351a97c0547de06fa08cb6d8dff3ad906",
+          "payloadSha256": "77a934baafd1fbaba5f1b3203fed4db5d93880d2b1979c305b4d0bc2ef42b8b0",
+          "payloadLength": 32887,
+          "lfPayloadSha256": "77a934baafd1fbaba5f1b3203fed4db5d93880d2b1979c305b4d0bc2ef42b8b0"
+        },
+        {
+          "relativePath": "src/KingmakerMountedCombat/Diagnostics/Chunk7OwnedPairFixture.Replay.cs",
+          "baseSha256": "ce1cb27738e5e514e41f34c552bbf9dc549680329840daa10134d7fea9f219f7",
+          "payloadSha256": "7f82c05e064ee2f9d7387336a18c0e524193c7cc4f16b744e70535c5a471c838",
+          "payloadLength": 13754,
+          "lfPayloadSha256": "7f82c05e064ee2f9d7387336a18c0e524193c7cc4f16b744e70535c5a471c838"
+        },
+        {
+          "relativePath": "src/KingmakerMountedCombat/Diagnostics/Chunk7OwnedPairFixture.cs",
+          "baseSha256": "c81423bc7006e62218108e7e6a127f104753e8d566f7d6aaa2fd9691d01c9a23",
+          "payloadSha256": "a6ecca0824e681d2035315ddc567cba607c43e5c3f81df6c801cdf850facf587",
+          "payloadLength": 21613,
+          "lfPayloadSha256": "a6ecca0824e681d2035315ddc567cba607c43e5c3f81df6c801cdf850facf587"
+        },
+        {
+          "relativePath": "src/KingmakerMountedCombat/Diagnostics/Chunk7OwnedPairsSelection.cs",
+          "baseSha256": "5352d3de910e8be081e3b662f398238f53851c5775dbbc42038137d778dc9f33",
+          "payloadSha256": "0d69fac159cf853e6f7cb1e440f9b84b44d8d83710f4e586011124895753fcdd",
+          "payloadLength": 6462,
+          "lfPayloadSha256": "0d69fac159cf853e6f7cb1e440f9b84b44d8d83710f4e586011124895753fcdd"
+        },
+        {
+          "relativePath": "src/KingmakerMountedCombat/Diagnostics/Chunk7PersistenceScenario.Area.cs",
+          "baseSha256": "32df1e33133814c7d8093630eeae15e6932d1078e7c0ed9667d802529ae94b8c",
+          "payloadSha256": "61cdc8bb4a236b034847e1f5688092f1162e005ce1514ed47b7f6bcae6a0ef53",
+          "payloadLength": 18980,
+          "lfPayloadSha256": "61cdc8bb4a236b034847e1f5688092f1162e005ce1514ed47b7f6bcae6a0ef53"
+        },
+        {
+          "relativePath": "src/KingmakerMountedCombat/Diagnostics/Chunk7PersistenceScenario.OwnedPairs.cs",
+          "baseSha256": "dca87a5f04d5afe02f550ae0736184e04114a856a01f63a29ac9631a2f0a56f0",
+          "payloadSha256": "db373ccfa77c19e2ee3f0b679afa1165455989bcf6bbb29cca1fa0ce9536ce3d",
+          "payloadLength": 17791,
+          "lfPayloadSha256": "db373ccfa77c19e2ee3f0b679afa1165455989bcf6bbb29cca1fa0ce9536ce3d"
+        },
+        {
+          "relativePath": "src/KingmakerMountedCombat/Diagnostics/Chunk7PersistenceScenario.cs",
+          "baseSha256": "b6eaed559e1710c06fe76da5025548d8c5480b9d1a5f5eb5606e32afc90fe1cb",
+          "payloadSha256": "ebe4fe89521fec91902c3ce5561eb61ed50e83d647191e222e495bebd6539ad3",
+          "payloadLength": 50181,
+          "lfPayloadSha256": "ebe4fe89521fec91902c3ce5561eb61ed50e83d647191e222e495bebd6539ad3"
+        },
+        {
+          "relativePath": "src/KingmakerMountedCombat/Diagnostics/PersistenceSaveAuthorization.OwnedPairs.cs",
+          "baseSha256": "af75e9bf8d8b52ef35a1ff19b25345cedae7ad78511ae4cb0df8e10e62e9c374",
+          "payloadSha256": "e1d1906f7090a6b3ebe68ff666a8406fc831224a03d484b44c3be8526f1c5d57",
+          "payloadLength": 12452,
+          "lfPayloadSha256": "e1d1906f7090a6b3ebe68ff666a8406fc831224a03d484b44c3be8526f1c5d57"
+        },
+        {
+          "relativePath": "src/KingmakerMountedCombat/Diagnostics/RuntimeProtocol.cs",
+          "baseSha256": "8e6959e1dc2cdabd9752f6006bf582292863534ad0aba812252b7967bed0bc67",
+          "payloadSha256": "1b649b6ebcc9d35281a496c121d6671760a82dfa1d9a36042bb77b84b0eabbc2",
+          "payloadLength": 99909,
+          "lfPayloadSha256": "1b649b6ebcc9d35281a496c121d6671760a82dfa1d9a36042bb77b84b0eabbc2"
+        },
+        {
+          "relativePath": "src/KingmakerMountedCombat/Integration/MountedPersistenceService.cs",
+          "baseSha256": "3eb5081c7443ea7e5b2c32ee9d3f5009a90a8c31cc5d27280c83e3fa5c14e8cb",
+          "payloadSha256": "9fe341a4e2ab51b2aef1e506c87d88ba0c364e3a7df4a131010635833978631e",
+          "payloadLength": 52366,
+          "lfPayloadSha256": "9fe341a4e2ab51b2aef1e506c87d88ba0c364e3a7df4a131010635833978631e"
+        },
+        {
+          "relativePath": "tests/Chunk7Diagnostics/OwnedAreaAutosaveBoundaryTemplate.cs",
+          "baseSha256": null,
+          "payloadSha256": "03ce2216f747e015aa560f7d44f7bb268ff54d0787410384da5be8df8601ebf1",
+          "payloadLength": 11119,
+          "lfPayloadSha256": "03ce2216f747e015aa560f7d44f7bb268ff54d0787410384da5be8df8601ebf1"
+        },
+        {
+          "relativePath": "tests/Chunk7Diagnostics/OwnedPairsAuthorityTests.cs",
+          "baseSha256": "9f8e57f26430523368e889d0f759c8f14ab610300070660c506b0f43a9ecb36d",
+          "payloadSha256": "adb573b6656a41eb9065df144cb5aa806b98cdde93f2eff3d7b8d5590edc24ef",
+          "payloadLength": 26356,
+          "lfPayloadSha256": "adb573b6656a41eb9065df144cb5aa806b98cdde93f2eff3d7b8d5590edc24ef"
+        },
+        {
+          "relativePath": "tests/Chunk7Diagnostics/OwnedReplayEpochTemplate.cs",
+          "baseSha256": "8b0c4f16343fe18aeae00813a60e80aaef5d4e82ff0d8217cc94c6e375e69c77",
+          "payloadSha256": "7935a56027f48f7296ead303ba0b0581c1d6369170e5ec6946d9469fc8e68523",
+          "payloadLength": 17975,
+          "lfPayloadSha256": "7935a56027f48f7296ead303ba0b0581c1d6369170e5ec6946d9469fc8e68523"
+        }
+      ],
+      "limitations": [
+        "Untested draft only. No PowerShell parse, C# compile, test, archive read, native action, runtime-root write, canonical write, candidate build or qualification was performed for this tranche.",
+        "The new OwnedAreaAutosaveBoundaryTemplate.cs contains six extraction placeholders and has no portable extraction/compiler entry. Neither new test is registered. Integration is not authorized by this map.",
+        "Final source/dependency and strict field-set review is incomplete. In particular, inspect whole-fixture/selection compiler facades, all closed request intake paths and old omission/null semantics before selecting focused execution.",
+        "Inspect the generated area reader test phase argument expression and cold request fixture path coherence before parsing or running it; they were not checked by an interpreter.",
+        "BeginAreaAutosave arms retained custody before dispatch. A later pre-dispatch failure intentionally leaves custody retained; exact safe-abort behavior needs review, without forcibly clearing unknown native work.",
+        "Full-field readiness, same-object adoption and cold roster comparisons remain unmeasured. Review whether legitimate native Party ordering can differ across cold load; do not weaken actor/owner/resource provenance to accept a fixture.",
+        "Actual header scope/request/prepared/completion and worker contracts were traced in source only. Generated facades and proposed method extraction cannot establish native autosave behavior or qualified cold consumption.",
+        "No actual acquired two-owner source, area target, completed Auto, cold evidence, source run ID or qualification pin was selected or fabricated.",
+        "Legacy Working/replay behavior is intended to remain unchanged, but this draft has not earned that claim through executed regression or independent final review.",
+        "Architecture has a separate private schema1 tranche with possible shared registry/source overlaps. Root must review additive composition later; this map must not overwrite another tranche."
+      ]
+    }
+  ]
+}
