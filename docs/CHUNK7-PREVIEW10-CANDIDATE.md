@@ -74,3 +74,38 @@ remain supported; Small catalogue EMPTY. Startup tracing changes no setting,
 action or timeout. Required combat/debt, persistence/area/removal/migration,
 ordinary progression, Small/six-pair and measured controls remain open. No7E,
 release, permanent installation or HUMAN PLAY acceptance is selected.
+
+## Completed Candidate03 and original-source freeze
+
+External harness `b8db761b3d175aebc701a270a6016838b46a3768` passed actual
+`scripts/Test-Tiers.ps1 -Tier Candidate -AssemblyTarget Kingmaker -SkipBuild`:
+2f1bf3/provider24075 to d6fce6 exit0,214.1538249 seconds, all six stages PASS.
+Components817/0, source147/0, Harness271/0, paired-activation contracts,
+shared manifest11/0 and Kingmaker assembly contracts701/0 passed.
+Nested generated negative-fixture output is not a terminal tier failure.
+Independent actual-result review SHA
+`5fa7955cc6436bd79f7c21fe6b61da94f63a132c398206f535a3a2c76f032811`
+checks actual caller, terminal scopes, log, unchanged artifacts and preserved failures.
+
+Suite `chunk7b-world10-20261014` was created against the original clean product
+branch and actual current external trees. WhatIf actualb4be8f/provider36783 to5ff4f9
+exit0 took113.3220773 seconds, with no mutations. Create actual26510e/provider18936
+to eb030a exit0 took44.08256 seconds. Snapshot SHA256:
+`fb0a1b1a7e732af795032a088d103c22f60e70074eefde98d9fa2e82e5284916`.
+Its save inventory digest is
+`511077a04981fe3657d47eb0fc8727f67ea5602f755575c6b4aae1142974a426`;
+Mods digest `c4e783ebd7776e3dc298528438ebf5097fc7c61b483881d49cf4a14a965a721c`.
+These current inventory digests are separate from native9's restoration digests.
+
+Root returned to the exact clean harness branch after suite completion. Five known
+checkout EOL changes were restored to Candidate-tested snapshot bytes; their
+normalized Git blobs matched HEAD, and stat refresh changed no index content.
+No frozen source, unknown worktree or historical ref was changed.
+
+Private freeze `analysis-cache/chunk7-continuation/candidate-world10/freeze01.json`
+SHA `c42e60bb1c4a451ef5a9e7c9a988992cb4133d529bfb5dfb4df3792253dc1463`
+binds original source/tree/branch, published source, immutable package/manifest,
+DLL/MVID, original suite, completed Candidate03 and actual callers/reviews.
+Independent final bindings and a separately reviewed concrete invocation remain
+required before the fresh full audit and native admission. Later documentation
+commits do not replace the original product or Candidate harness identity.
