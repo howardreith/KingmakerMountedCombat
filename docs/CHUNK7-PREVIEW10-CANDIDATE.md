@@ -37,8 +37,8 @@ versions and separates optional telemetry from required legacy fields in the
 existing Harness contract. Its actual contract body plus generated schema
 mutations passed12/0 (a6496e exit0,1.0223933 seconds). This is a source-contract
 check, not execution by a generic JSON Schema engine. Production code and all
-package/DLL bytes remain unchanged. The corrected harness still needs Candidate
-qualification on the existing build; Candidate01 is not relabeled.
+package/DLL bytes remain unchanged. The corrected harness subsequently passed Candidate03 below on the existing build;
+Candidate01 is not relabeled.
 
 ## Preserved Candidate02 failure and contract correction
 
@@ -53,9 +53,9 @@ Only that test contract changed: it requires each of those registrations exactly
 once and isolates them before checking all original legacy hashes unchanged.
 The actual existing11 contract checks then passed (5afe06 exit0,1.0397408 seconds),
 including historical project-owned JSON refusal behavior; no ZIP or native work.
-Both Candidate failures remain immutable. Candidate03 will run on the unchanged
-product with a clean descendant external harness; production/DLL/package inputs
-remain unchanged. The suite still requires a complete passing Candidate.
+Both Candidate failures remain immutable. Candidate03 subsequently passed on the
+unchanged product with a clean descendant external harness; production/DLL/package
+inputs remain unchanged.
 
 ## Selected native dependency
 
@@ -106,6 +106,11 @@ Private freeze `analysis-cache/chunk7-continuation/candidate-world10/freeze01.js
 SHA `c42e60bb1c4a451ef5a9e7c9a988992cb4133d529bfb5dfb4df3792253dc1463`
 binds original source/tree/branch, published source, immutable package/manifest,
 DLL/MVID, original suite, completed Candidate03 and actual callers/reviews.
-Independent final bindings and a separately reviewed concrete invocation remain
-required before the fresh full audit and native admission. Later documentation
-commits do not replace the original product or Candidate harness identity.
+Independent final bindings and the concrete invocation were reviewed; the full
+audit then started but was stopped incomplete at the owner’s quota request. It
+grants no native admission. Later documentation commits do not replace the original
+product or Candidate harness identity.
+
+## Owner-requested stopping point
+
+Work is stopped on October14. [Exact cancellation, current continuity, draft backups and resume](CHUNK7-OWNER-STOP-2026-10-14.md). The original full WhatIf session closed exit-1; immediate stop-helper FAIL and later proven absence remain separate evidence. No preview10 native transaction occurred. Current Mods/saves match the suite exactly; game/lock/sentinel are absent. Approved synthetic progression archive checks passed19/0; neither that check nor Candidate03 replaces native proof. A fresh numbered reviewed full audit against current inputs is required before native10. The breadth candidate is not ready.

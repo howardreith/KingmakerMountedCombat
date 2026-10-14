@@ -1,0 +1,721 @@
+diff --git a/scripts/chunk7/Test-Chunk7OwnedAreaAutosaveEvidence.ps1 b/scripts/chunk7/Test-Chunk7OwnedAreaAutosaveEvidence.ps1
+new file mode 100644
+index e69de29b..16347694 100644
+--- /dev/null
++++ b/scripts/chunk7/Test-Chunk7OwnedAreaAutosaveEvidence.ps1
+@@ -0,0 +1,113 @@
++[CmdletBinding()]
++param([string]$RepositoryRoot,[string]$ReaderDirectory,[string]$FixtureDirectory,[string]$OutputDirectory)
++$ErrorActionPreference='Stop';Set-StrictMode -Version Latest
++if(-not$RepositoryRoot){$RepositoryRoot=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))}
++if(-not$ReaderDirectory){$ReaderDirectory=Join-Path $RepositoryRoot 'scripts/runtime'}
++if(-not$FixtureDirectory){$FixtureDirectory=Join-Path $RepositoryRoot 'tests/Chunk7Diagnostics'}
++if(-not$OutputDirectory){$OutputDirectory=Join-Path ([IO.Path]::GetDirectoryName([IO.Path]::GetDirectoryName($RepositoryRoot))) ('analysis-cache/owned-area-reader-'+[Guid]::NewGuid().ToString('N'))}
++if(Test-Path -LiteralPath $OutputDirectory){throw 'Owned area reader output must be fresh.'};[void][IO.Directory]::CreateDirectory($OutputDirectory)
++$testOutput=$OutputDirectory
++. (Join-Path $ReaderDirectory 'RuntimeHarness.Common.ps1')
++. (Join-Path $ReaderDirectory 'Chunk7OwnedPairsFixtures.ps1')
++$fixtures=(Get-Content -Raw -LiteralPath (Join-Path $FixtureDirectory 'OwnedPairsEvidenceFixtures.json')|ConvertFrom-Json).fixtures
++$script:areaLab=Join-Path $testOutput 'virtual-lab'
++function Get-KmcLabRoot{$script:areaLab}
++function Clone-Area($x){return ($x|ConvertTo-Json -Depth 90|ConvertFrom-Json)}
++function Put-Area($x,[string]$name,$value){$x|Add-Member -NotePropertyName $name -NotePropertyValue $value -Force}
++function New-AreaCase {
++ $f=Clone-Area (($fixtures|Where-Object name -CEQ 'persistence-save-multi-exploration-auto')[0]);$r=$f.request;$o=$f.artifact.observations
++ $r.persistenceCase='multi-area-autosave';$o.checkpoint=$r.persistenceCase
++ Put-Area $r.ownedPairs sourceArea $r.persistenceLoad.area;Put-Area $r persistenceAreaTarget ([pscustomobject]@{enterPoint=('e'*32);area=('f'*32);autoSaveMode='AfterEntry'})
++ $extra='50505050-5050-4050-8050-505050505050';$r.ownedPairs.partyIds+=@($extra)
++ foreach($c in @($o.inheritedFixture,$o.inheritedCleanup)){$c.partyIds+=@($extra);$c.currentPartyIds+=@($extra);$c.currentCharacterIds+=@($extra);$actor=Clone-Area $c.arrangement.actors[0];$actor.actorId=$extra;$c.arrangement.actors+=@($actor)}
++ $o.nativeWrite.archive.AreaId=$r.persistenceAreaTarget.area;$o.nativeWrite.nativeCallback=$false;$o.PSObject.Properties.Remove('saveRequested');$o.ownedOutputCompletion.callbackCount=0
++ ($o.ownedOutputCompletion.nativeInventory|Where-Object nativeType -CEQ 'Auto').area=$r.persistenceAreaTarget.area
++ $o.snapshots[0].gameTicks=10000000
++ $area=[pscustomobject]@{mode='AfterEntry';enterPoint=$r.persistenceAreaTarget.enterPoint;sourceArea=$r.ownedPairs.sourceArea;destinationArea=$r.persistenceAreaTarget.area;explicitSaveGameDispatches=0;observerError=$null;nativeArchiveSha256=$o.nativeWrite.sha256;nativeSaveCallbackExpected=$false;suspensionObserved=$true;duplicateReadyNoOp=$true;loadingTicks=2}
++ $labels=[Collections.Generic.HashSet[int]]::new()
++ for($i=0;$i-lt4;$i++){
++  $s=Clone-Area $o.snapshots[0];$s.label=@('before-native-transfer','native-header-starting','native-header-staged','after-native-transfer')[$i];$s.snapshots=if($i-lt2){0}else{1}
++  Put-Area $s area $(if($i-eq0){$r.ownedPairs.sourceArea}else{$r.persistenceAreaTarget.area});Put-Area $s frame (10+$i);Put-Area $s sameWorld $true;Put-Area $s pending $false;Put-Area $s suspensions $(if($i-eq0){0}else{1});Put-Area $s resumes $(if($i-eq0){0}else{2});Put-Area $s activeOwners 2
++  $actors=@();$views=@();$characters=@();$ids=@($r.ownedPairs.partyIds)
++  for($j=0;$j-lt$ids.Count;$j++){
++   $id=$ids[$j];$pair=@($o.inheritedFixture.pairs|Where-Object{$_.riderId-ceq$id-or$_.mountId-ceq$id});$obj=if($j-eq4){1010}elseif($pair[0].riderId-ceq$id){$pair[0].rider}else{$pair[0].mount}
++   $pet=if($j-eq0-or$j-eq2){$ids[$j+1]}else{$null};$master=if($j-eq1-or$j-eq3){$ids[$j-1]}else{$null}
++   $arr=@($o.inheritedFixture.arrangement.actors|Where-Object actorId -CEQ $id)[0]
++   $actors+=@([pscustomobject]@{id=$id;blueprint=$arr.blueprint;object=$obj;descriptor=(3000+$j);viewObject=(4000+$j);view=(5000+$j);petId=$pet;masterId=$master;inState=$true;inGame=$true;inCombat=$false;commandsEmpty=$true;queuedCommands=0})
++   if($null-eq$master){$characters+=@([pscustomobject]@{id=$id;object=$obj})}
++   if($j-lt4){$views+=@([pscustomobject]@{id=$id;viewId=(5000+$j);baselineViewId=(5000+$j);nativeMatches=1;viewBound=$true;commandsEmpty=$true})}
++   foreach($n in @($obj,(3000+$j),(4000+$j))){[void]$labels.Add($n)}
++  }
++  $custody=Clone-Area $o.inheritedFixture;$custody.phase='replay-field';foreach($n in $custody.identities.ids){[void]$labels.Add([int]$n)}
++  Put-Area $s ownedField ([pscustomobject]@{loadOrdinal=1;areaOrdinal=0;custody=$custody;area=$s.area;characters=$characters;actors=$actors})
++  $world=[pscustomobject]@{game=1;player=2;manager=3;state=4;areaState=$(if($i-eq0){5}else{9});mainState=$(if($i-eq0){6}else{10});worldScope=$(if($i-eq0){7}else{8});authorityGeneration=1}
++  Put-Area $s ownedWorld $world;foreach($key in @('game','player','manager','state','areaState','mainState','worldScope')){[void]$labels.Add([int]$world.$key)}
++  Put-Area $s views $views;$movers=@()
++  for($j=0;$j-lt2;$j++){$p=$o.inheritedFixture.pairs[$j];$m=if($i-eq0){6000+$j}else{7000+$j};$movers+=@([pscustomobject]@{riderId=$p.riderId;mountId=$p.mountId;baselineOverride=(6000+$j);runtimeOverride=$m;viewOverride=$m;overrideComponents=@($m);invariant=$null;stockEnabled=$false;mountStockEnabled=$true;mountOverride=0;mountOverrideComponents=@();riderViewBoundToOwner=$true;mountViewBoundToOwner=$true})};Put-Area $s movementAuthorities $movers
++  if($i-eq1-or$i-eq2){Put-Area $s nativeSaveBoundary ([pscustomobject]@{operation=2001;requested=2002;prepared=2003;sourceDescriptor=2004;requestedType='Auto';requestedName=$o.nativeWrite.nativeName;preparedType='Auto';preparedName=$o.nativeWrite.nativeName;preparedLeaf='Auto_1.zks';preparedArea=$r.persistenceAreaTarget.area;preparedPath=$o.nativeWrite.path;completionCount=0;callbackCount=0;snapshotCount=($i-1)})}
++  Put-Area $area @('before','headerStarting','headerStaged','after')[$i] $s
++ }
++ Put-Area $o.ownedOutputCompletion areaSaveIdentity ([pscustomobject]@{operation=2001;requested=2002;prepared=2003;sourceDescriptor=2004;completion=2005;path=$o.nativeWrite.path})
++ foreach($n in @(2001,2002,2003,2004,2005)){[void]$labels.Add($n)}
++ Put-Area $area identityRetention ([pscustomobject]@{capacity=128;ids=@($labels|Sort-Object);faults=0;released=$true;retainedAfterRelease=0});Put-Area $o areaTransfer $area
++ return (Clone-Area $f)
++}
++$results=[Collections.Generic.List[object]]::new()
++function Check-Area([string]$Name,[scriptblock]$Body,[bool]$Refuse=$false,[string]$Reason=''){$errorText=$null;$ok=$false;try{&$Body;$ok=-not$Refuse}catch{$errorText=$_.Exception.Message;$ok=$Refuse-and(-not$Reason-or$errorText-match$Reason)};$results.Add([pscustomobject]@{name=$Name;pass=$ok;expectedRefusal=$Refuse;error=$errorText});if(-not$ok){Write-Output ('FAIL '+$Name+': '+$errorText)}}
++# Existing schema and category neighbors run their unchanged complete reader.
++foreach($kind in @('manual','quick','auto')){Check-Area ('legacy owned '+$kind){$f=Clone-Area (($fixtures|Where-Object name -CEQ ('persistence-save-multi-exploration-'+$kind))[0]);Assert-KmcChunk7PersistenceObservation $f.request $f.artifact 'PASS'}}
++Check-Area 'owned exact restored area Auto with unrelated fifth actor' {$f=New-AreaCase;Assert-KmcChunk7PersistenceObservation $f.request $f.artifact 'PASS'}
++$bad=[ordered]@{
++ 'missing original area'={param($f)$f.request.ownedPairs.PSObject.Properties.Remove('sourceArea')}
++ 'source area override'={param($f)$f.request.ownedPairs.sourceArea='e'*32}
++ 'input already destination'={param($f)$f.request.persistenceLoad.area=$f.request.persistenceAreaTarget.area}
++ 'second owner omitted before header'={param($f)$f.artifact.observations.areaTransfer.headerStarting.owners=@($f.artifact.observations.areaTransfer.headerStarting.owners[0])}
++ 'only one native owner restored'={param($f)$f.artifact.observations.areaTransfer.headerStarting.resumes=1}
++ 'header in source area'={param($f)$f.artifact.observations.areaTransfer.headerStarting.area=$f.request.ownedPairs.sourceArea}
++ 'foreign requested object at staging'={param($f)$f.artifact.observations.areaTransfer.headerStaged.nativeSaveBoundary.requested=2010}
++ 'foreign prepared object at completion'={param($f)$f.artifact.observations.ownedOutputCompletion.areaSaveIdentity.prepared=2010}
++ 'completion aliases requested object'={param($f)$f.artifact.observations.ownedOutputCompletion.areaSaveIdentity.completion=2002}
++ 'forged explicit native callback'={param($f)$f.artifact.observations.ownedOutputCompletion.callbackCount=1}
++ 'worker unsettled'={param($f)$f.artifact.observations.ownedOutputCompletion.nativeWorkerSettled=$false}
++ 'native write wrong destination'={param($f)($f.artifact.observations.ownedOutputCompletion.nativeInventory|Where-Object nativeType -CEQ 'Auto').area=$f.request.ownedPairs.sourceArea}
++ 'unrelated field actor omitted'={param($f)$f.artifact.observations.areaTransfer.headerStaged.ownedField.actors=@($f.artifact.observations.areaTransfer.headerStaged.ownedField.actors|Select-Object -First 4)}
++ 'unrelated queued command'={param($f)$f.artifact.observations.areaTransfer.headerStarting.ownedField.actors[4].queuedCommands=1}
++ 'foreign same-ID actor'={param($f)$f.artifact.observations.areaTransfer.after.ownedField.actors[4].object=2010}
++ 'owner Game replaced'={param($f)$f.artifact.observations.areaTransfer.after.ownedWorld.game=2010}
++ 'wrong world authority generation'={param($f)$f.artifact.observations.areaTransfer.headerStaged.ownedWorld.authorityGeneration=2}
++ 'old scope reused'={param($f)$f.artifact.observations.areaTransfer.headerStarting.ownedWorld.worldScope=7}
++ 'lost observer custody'={param($f)$f.artifact.observations.areaTransfer.identityRetention.released=$false}
++ 'retained native objects'={param($f)$f.artifact.observations.areaTransfer.identityRetention.retainedAfterRelease=1}
++ 'extra retained object'={param($f)$f.artifact.observations.areaTransfer.identityRetention.ids+=@(2010)}
++ 'native Prepare changed'={param($f)$f.artifact.observations.areaTransfer.headerStarting.actors[0].prepared=$true}
++ 'native debt refund'={param($f)$f.artifact.observations.areaTransfer.headerStarting.actors[3].native.Standard=0}
++ 'changed inherited money'={param($f)$f.artifact.observations.areaTransfer.headerStarting.ownedField.custody.arrangement.money++}
++ 'changed inherited second feature'={param($f)$f.artifact.observations.areaTransfer.headerStarting.ownedField.custody.pairs[1].sourceGuid='e'*32}
++}
++foreach($m in $bad.GetEnumerator()){Check-Area $m.Key {$f=New-AreaCase;&$m.Value $f;$f=Clone-Area $f;Assert-KmcChunk7PersistenceObservation $f.request $f.artifact 'PASS'} $true}
++foreach($kind in @('manual','quick','auto')){Check-Area ('legacy rejects SourceArea '+$kind){$f=Clone-Area (($fixtures|Where-Object name -CEQ ('persistence-save-multi-exploration-'+$kind))[0]);Put-Area $f.request.ownedPairs sourceArea $null;Assert-KmcChunk7OwnedPairsSelection $f.request} $true}
++function New-ColdArea {
++ $source=New-AreaCase;$cold=Clone-Area (($fixtures|Where-Object name -CEQ 'persistence-load-multi-exploration-auto')[0]);$r=$cold.request;$o=$cold.artifact.observations
++ $r.runId='synthetic-owned-area-cold';$cold.artifact.runId=$r.runId;$r.persistenceCase='multi-area-autosave';$o.checkpoint=$r.persistenceCase;$o.processId=124
++ $r.ownedPairs=Clone-Area $source.request.ownedPairs;$r.ownedPairs.case='persistence-load';$r.ownedPairs.expectedNativeWriteCount=0;$r.ownedPairs.checkpointSourceRunId=$source.request.runId
++ Put-Area $r persistenceAreaTarget (Clone-Area $source.request.persistenceAreaTarget);$r.persistenceLoad.area=$r.persistenceAreaTarget.area;$o.loadedDescriptor=Clone-Area $r.persistenceLoad;$o.loadedArchive=Clone-Area $source.artifact.observations.nativeWrite.archive
++ $o.inheritedFixture=Clone-Area $source.artifact.observations.inheritedFixture;$o.inheritedCleanup=Clone-Area $source.artifact.observations.inheritedCleanup
++ $dir=Join-Path $script:areaLab ('runtime-evidence/'+$source.request.runId);[void][IO.Directory]::CreateDirectory($dir);$p=Join-Path $dir 'chunk7-persistence-evidence.json'
++ [IO.File]::WriteAllText($p,($source.artifact|ConvertTo-Json -Depth 90),[Text.UTF8Encoding]::new($false));$sha=Get-KmcSha256 $p;$r.ownedPairs.checkpointSourceArtifactSha256=$sha
++ [pscustomobject]@{parent=$source;request=$r;artifact=$cold.artifact;source=[pscustomobject]@{checkpointArtifactPath=$p;checkpointArtifactSha256=$sha;checkpointArtifactLength=[long](Get-Item -LiteralPath $p).Length}}
++}
++Check-Area 'exact destination Auto cold graph with original source area' {$f=New-ColdArea;Assert-KmcChunk7OwnedAreaColdSource $f.source $f.request $f.artifact}
++$badCold=[ordered]@{
++ 'cold same process'={param($f)$f.artifact.observations.processId=$f.parent.artifact.observations.processId}
++ 'cold wrong descriptor area'={param($f)$f.request.persistenceLoad.area=$f.request.ownedPairs.sourceArea}
++ 'cold wrong transition point'={param($f)$f.request.persistenceAreaTarget.enterPoint='d'*32}
++ 'cold wrong source lineage'={param($f)$f.request.ownedPairs.checkpointSourceArtifactSha256='0'*64}
++ 'cold mutated graph owner'={param($f)$f.artifact.observations.loadedArchive.Pairs[1].Generation++}
++ 'cold lost second restored owner'={param($f)$f.artifact.observations.snapshots[0].presentationRestores=1}
++ 'cold native Prepare event'={param($f)$e=Clone-Area $f.artifact.observations.coldRestoration.events[0];$e.kind='prepare-before';$f.artifact.observations.coldRestoration.events+=@($e)}
++ 'cold inherited feature mismatch'={param($f)$f.artifact.observations.inheritedFixture.pairs[1].rank++;$f.artifact.observations.inheritedCleanup.pairs[1].rank++}
++}
++foreach($m in $badCold.GetEnumerator()){Check-Area $m.Key {$f=New-ColdArea;&$m.Value $f;Assert-KmcChunk7OwnedAreaColdSource $f.source $f.request $f.artifact} $true}
++$passed=@($results|Where-Object pass).Count;$failed=$results.Count-$passed
++[IO.File]::WriteAllText((Join-Path $testOutput 'receipt.json'),([pscustomobject]@{status=$(if($failed){'FAIL'}else{'PASS'});passed=$passed;failed=$failed;nativeInvoked=$false;archivesRead=0;scope='actual complete readers on generated native-shaped evidence; no source qualification or native proof';results=@($results)}|ConvertTo-Json -Depth 12),[Text.UTF8Encoding]::new($false))
++Write-Output ('Owned area reader: '+$passed+' PASS / '+$failed+' FAIL');if($failed){exit 1}
+diff --git a/scripts/chunk7/Test-Chunk7OwnedPairsDto.ps1 b/scripts/chunk7/Test-Chunk7OwnedPairsDto.ps1
+index d7a289f1..de409d1b 100644
+--- a/scripts/chunk7/Test-Chunk7OwnedPairsDto.ps1
++++ b/scripts/chunk7/Test-Chunk7OwnedPairsDto.ps1
+@@ -42,0 +43,17 @@ foreach($f in $fixtures){
++# The actual serializer must leave every old closed selection unchanged while
++# emitting the original source area only for the new area save/cold route.
++foreach($cold in @($false,$true)){
++ $r=($fixtures|Where-Object name -CEQ 'persistence-save-multi-exploration-auto')[0].request|ConvertTo-Json -Depth 90|ConvertFrom-Json
++ $r.persistenceCase='multi-area-autosave';$r.ownedPairs|Add-Member -NotePropertyName sourceArea -NotePropertyValue $r.persistenceLoad.area
++ $r|Add-Member -NotePropertyName persistenceAreaTarget -NotePropertyValue ([pscustomobject]@{enterPoint=('e'*32);area=('f'*32);autoSaveMode='AfterEntry'})
++ if($cold){$r.ownedPairs.case='persistence-load';$r.ownedPairs.checkpointSourceRunId='completed-owned-area';$r.ownedPairs.checkpointSourceArtifactSha256='9'*64;$r.ownedPairs.expectedNativeWriteCount=0;$r.persistenceLoad.fileName='Auto_1.zks';$r.persistenceLoad.internalName='Auto';$r.persistenceLoad.area=$r.persistenceAreaTarget.area}
++ $actual=[KingmakerMountedCombat.Tests.OwnedPairsDtoTests]::Project(($r|ConvertTo-Json -Depth 90))|ConvertFrom-Json
++ if((ConvertTo-KmcChunk7Canonical $actual.selection)-cne(ConvertTo-KmcChunk7Canonical $r.ownedPairs)){throw 'Area DTO lost exact original-area field or altered old keys'};$pass++
++ $r.ownedPairs=$actual.selection;Assert-KmcChunk7OwnedPairsDescriptor $r;$pass++
++ if($actual.expectedLoadType-cne$(if($cold){'Auto'}else{'Manual'})-or$actual.expectedWriteCount-ne$(if($cold){0}else{1})){throw 'Area DTO changed native source category or quota'};$pass++
++}
++$r=($fixtures|Where-Object name -CEQ 'persistence-save-multi-exploration-auto')[0].request|ConvertTo-Json -Depth 90|ConvertFrom-Json
++$r.ownedPairs|Add-Member -NotePropertyName sourceArea -NotePropertyValue $null
++$actual=[KingmakerMountedCombat.Tests.OwnedPairsDtoTests]::Project(($r|ConvertTo-Json -Depth 90))|ConvertFrom-Json
++if($actual.selection.PSObject.Properties['sourceArea']){throw 'Legacy DTO added a null SourceArea key'};$pass++
++$refused=$false;try{Assert-KmcChunk7OwnedPairsDescriptor $r}catch{$refused=$true};if(-not$refused){throw 'Raw legacy selection accepted an extra null SourceArea key'};$pass++
+diff --git a/scripts/chunk7/Test-Chunk7OwnedPairsSource.ps1 b/scripts/chunk7/Test-Chunk7OwnedPairsSource.ps1
+index c79ba1ed..c9055242 100644
+--- a/scripts/chunk7/Test-Chunk7OwnedPairsSource.ps1
++++ b/scripts/chunk7/Test-Chunk7OwnedPairsSource.ps1
+@@ -100,0 +101,32 @@ foreach($paid in @($false,$true)){foreach($case in @('multi-exploration-three-lo
++# New owned-area lineage uses the same exact qualifier with its established
++# native artifact/ancestor boundaries still explicitly substituted above.
++function Add-AreaProfile($Set){$p=Join-Path $Set.root 'profile-cache-changes.json';$v=[pscustomobject]@{schemaVersion=1;runId=$Set.request.runId;policy='native-achievement-cache-settled-size';snapshotProfileDigest=('f'*64);profileBytesRestoredExactly=$true;acceptedNativeCacheChanges=@()};$script:documents[$p]=$v;$script:hashes[$p]='a'*64;return $v}
++function New-AreaSource([bool]$Cold){
++ $c=New-Case $false $Cold;$c.persistenceCase='multi-area-autosave';$c.selection|Add-Member -NotePropertyName sourceArea -NotePropertyValue $c.parent.artifact.observations.nativeWrite.area
++ $target=[pscustomobject]@{enterPoint=('e'*32);area=('f'*32);autoSaveMode='AfterEntry'};$c|Add-Member -NotePropertyName areaTarget -NotePropertyValue $target
++ $c|Add-Member -NotePropertyName areaProfile -NotePropertyValue (Add-AreaProfile $c.parent)
++ if(-not$Cold){$c.selection.case='persistence-save';$c.selection.expectedNativeWriteCount=1}
++ else{
++  $r=$c.checkpoint.request;$r.persistenceCase='multi-area-autosave';$c.checkpoint.owner.persistenceCase=$r.persistenceCase
++  $r.ownedPairs|Add-Member -NotePropertyName sourceArea -NotePropertyValue $c.selection.sourceArea;$r|Add-Member -NotePropertyName persistenceAreaTarget -NotePropertyValue $target
++  $w=$c.checkpoint.artifact.observations.nativeWrite;$w.nativeType='Auto';$w.nativeName='Autosave';$w.archive.AreaId=$target.area;$w.path=Join-Path (Join-Path $c.checkpoint.profile 'Saved Games') 'Auto_1.zks';$script:hashes[$w.path]=$w.sha256
++  $c.checkpoint.artifact.observations.ownedOutputAdmission.number=1;$c.checkpoint.artifact.observations.ownedOutputAdmission.leaf='Auto_1.zks'
++  $c|Add-Member -NotePropertyName checkpointProfile -NotePropertyValue (Add-AreaProfile $c.checkpoint)
++ };return $c
++}
++foreach($cold in @($false,$true)){Check ('owned area original and destination qualification '+$cold){$c=New-AreaSource $cold;$v=Get-KmcChunk7OwnedPairsSource $c.selection $c.persistenceCase $c.fixture $c.candidate $c.areaTarget;if($v.descriptor.area-cne$(if($cold){$c.areaTarget.area}else{$c.selection.sourceArea})-or$v.descriptor.fileName-cne$(if($cold){'Auto_1.zks'}else{$c.parent.artifact.observations.nativeWrite.fileName})){throw 'Area descriptor substituted original or destination'};foreach($gate in @('complete-same-candidate-lineage','strict-manifest','strict-two-owner-artifact','settled-native-manual-output')){if(-not$script:calls.Contains($gate)){throw 'Area lineage skipped an existing required boundary'}}}}
++$areaBad=[ordered]@{
++ 'area source pin substituted'={param($c)$c.selection.sourceArea='d'*32}
++ 'area target omitted'={param($c)$c.areaTarget=$null}
++ 'area native mode wrong'={param($c)$c.areaTarget.autoSaveMode='BeforeExit'}
++ 'area original profile unrestored'={param($c)$c.areaProfile.profileBytesRestoredExactly=$false}
++ 'area original cache accepted'={param($c)$c.areaProfile.acceptedNativeCacheChanges=@('accepted')}
++ 'area checkpoint profile unrestored'={param($c)$c.checkpointProfile.profileBytesRestoredExactly=$false}
++ 'area checkpoint source area changed'={param($c)$c.checkpoint.request.ownedPairs.sourceArea='e'*32}
++ 'area checkpoint destination changed'={param($c)$c.checkpoint.request.persistenceAreaTarget=Clone-AreaSource $c.areaTarget;$c.checkpoint.request.persistenceAreaTarget.enterPoint='d'*32}
++ 'area output from original area'={param($c)$c.checkpoint.artifact.observations.nativeWrite.archive.AreaId=$c.selection.sourceArea}
++ 'area original profile hash drift'={param($c)$script:drift=Join-Path $c.parent.root 'profile-cache-changes.json'}
++ 'area cold parent pin drift'={param($c)$script:drift=Join-Path $c.checkpoint.root 'chunk7-persistence-evidence.json'}
++}
++function Clone-AreaSource($v){return ($v|ConvertTo-Json -Depth 30|ConvertFrom-Json)}
++foreach($m in $areaBad.GetEnumerator()){Check $m.Key {$c=New-AreaSource $true;&$m.Value $c;[void](Get-KmcChunk7OwnedPairsSource $c.selection $c.persistenceCase $c.fixture $c.candidate $c.areaTarget)} $true}
+diff --git a/scripts/runtime/Chunk7AreaPersistenceEvidence.ps1 b/scripts/runtime/Chunk7AreaPersistenceEvidence.ps1
+index 6e0bbba3..2f1cc572 100644
+--- a/scripts/runtime/Chunk7AreaPersistenceEvidence.ps1
++++ b/scripts/runtime/Chunk7AreaPersistenceEvidence.ps1
+@@ -6 +6 @@ function Assert-KmcChunk7AreaAutosave($Request,$Observation,$Archive) {
+-    if($Request.persistenceCase-cne'multi-area-autosave'-or$Request.scenario-cne'chunk7-persistence-save') {
++    if($Request.persistenceCase-cne'multi-area-autosave'-or(Get-KmcChunk7SelectedScenario $Request)-cne'chunk7-persistence-save') {
+@@ -10,2 +10,3 @@ function Assert-KmcChunk7AreaAutosave($Request,$Observation,$Archive) {
+-    if($target.autoSaveMode-cne'AfterEntry'-or$target.area-ceq$Request.fixture.working.area-or
+-       $row.mode-cne'AfterEntry'-or$row.enterPoint-cne$target.enterPoint-or$row.sourceArea-cne$Request.fixture.working.area-or
++    $sourceArea=(Get-KmcChunk7SelectedFixture $Request).area
++    if($target.autoSaveMode-cne'AfterEntry'-or$target.area-ceq$sourceArea-or
++       $row.mode-cne'AfterEntry'-or$row.enterPoint-cne$target.enterPoint-or$row.sourceArea-cne$sourceArea-or
+@@ -98,0 +100,51 @@ function Assert-KmcChunk7AreaAutosave($Request,$Observation,$Archive) {
++    if(Test-KmcChunk7OwnedPairsScenario $Request.scenario){Assert-KmcChunk7OwnedAreaField $Request $Observation}
++}
++
++# The owned area route reuses the strict full-field replay reader without changing
++# any legacy/repeated route. Its raw snapshot retains the same replay-field shape.
++function Assert-KmcChunk7OwnedAreaField($Request,$Observation){
++ $r=$Observation.areaTransfer;$retained=$r.identityRetention
++ Assert-KmcExactProperties $retained @('capacity','ids','faults','released','retainedAfterRelease') 'owned area retention'
++ Assert-KmcOrdinaryInteger $retained.capacity 128 128;Assert-KmcOrdinaryInteger $retained.faults 0 0;Assert-KmcOrdinaryInteger $retained.retainedAfterRelease 0 0;Assert-KmcChunk7Boolean $retained.released $true
++ if($retained.ids-isnot[Array]-or$retained.ids.Count-lt1-or$retained.ids.Count-gt128){throw 'Owned area retention is missing or unbounded.'}
++ $registry=[Collections.Generic.HashSet[int]]::new();foreach($id in $retained.ids){Assert-KmcManualSeedObjectIdentity $id;if(-not$registry.Add([int]$id)){throw 'Owned area retention repeats a label.'}}
++ $used=[Collections.Generic.HashSet[int]]::new();$phases=@($r.before,$r.headerStarting,$r.headerStaged,$r.after)
++ for($i=0;$i-lt4;$i++){
++  $p=$phases[$i];$w=$p.ownedWorld;$f=$p.ownedField
++  Assert-KmcExactProperties $w @('game','player','manager','state','areaState','mainState','worldScope','authorityGeneration') 'owned area world'
++  Assert-KmcOrdinaryInteger $w.authorityGeneration 1 ([long]::MaxValue)
++  $worldLabels=[Collections.Generic.HashSet[int]]::new()
++  foreach($key in @('game','player','manager','state','areaState','mainState','worldScope')){Assert-KmcManualSeedObjectIdentity $w.$key;if(-not$registry.Contains([int]$w.$key)-or-not$worldLabels.Add([int]$w.$key)){throw 'Owned area world aliases or escapes retained custody.'};[void]$used.Add([int]$w.$key)}
++  $replay=[pscustomobject]@{ownedField=$f;area=$p.area;gameObject=$w.game;playerObject=$w.player;stateObject=$w.state;areaStateObject=$w.areaState;mainStateObject=$w.mainState;actors=@()}
++  Assert-KmcChunk7OwnedReplayField $Request $replay $registry 1 0
++  foreach($key in @('partyIds','currentPartyIds','currentCharacterIds','remoteCapturedIds','arrangement','pairs','identities')){if((ConvertTo-KmcChunk7Canonical $f.custody.$key)-cne(ConvertTo-KmcChunk7Canonical $Observation.inheritedFixture.$key)){throw 'Owned area transfer changed inherited roster, facts, progression or money.'}}
++  foreach($a in $f.actors){foreach($key in @('object','descriptor','viewObject')){if($worldLabels.Contains([int]$a.$key)){throw 'Owned area actor aliases a world owner.'};[void]$used.Add([int]$a.$key)}
++   $view=@($p.views|Where-Object id -CEQ $a.id);if($view.Count-gt1-or($a.id-cin(Get-KmcChunk7OwnedPairIds $Request)-and($view.Count-ne1-or$view[0].viewId-ne$a.view))){throw 'Owned area full field differs from the independently observed mounted views.'}
++  }
++  foreach($pair in $f.custody.pairs){foreach($key in @('feature','rankFact')){if($worldLabels.Contains([int]$pair.$key)){throw 'Owned area fact aliases a world owner.'};[void]$used.Add([int]$pair.$key)}}
++  if($i-gt0){
++   foreach($key in @('game','player','manager','state','authorityGeneration')){if($w.$key-ne$r.before.ownedWorld.$key){throw 'Owned area transferred a different native world or authority.'}}
++   if($w.worldScope-eq$r.before.ownedWorld.worldScope){throw 'Owned area did not adopt a distinct destination scope.'}
++   foreach($key in @('characters','actors')){if((ConvertTo-KmcChunk7Canonical $f.$key)-cne(ConvertTo-KmcChunk7Canonical $r.before.ownedField.$key)){throw 'Owned area replaced a field actor, view, relationship or ready command boundary.'}}
++   if($i-gt1-and(ConvertTo-KmcChunk7Canonical $w)-cne(ConvertTo-KmcChunk7Canonical $r.headerStarting.ownedWorld)){throw 'Owned area destination authority changed during native saving.'}
++  }
++ }
++ $s=$Observation.ownedOutputCompletion.areaSaveIdentity
++ foreach($key in @('operation','requested','prepared','completion','sourceDescriptor')){if($used.Contains([int]$s.$key)){throw 'Owned area native save identity aliases a field/world owner.'};[void]$used.Add([int]$s.$key)}
++ if($used.Count-ne$registry.Count-or@($registry|Where-Object{-not$used.Contains($_)}).Count-ne0){throw 'Owned area retention contains an unobserved object.'}
++}
++function Assert-KmcChunk7OwnedAreaSaveIdentity($Request,$Observation){
++ $r=$Observation.areaTransfer;$a=$r.headerStarting.nativeSaveBoundary;$b=$r.headerStaged.nativeSaveBoundary;$c=$Observation.ownedOutputCompletion.areaSaveIdentity
++ $properties=@('operation','requested','prepared','sourceDescriptor','requestedType','requestedName','preparedType','preparedName','preparedLeaf','preparedArea','preparedPath','completionCount','callbackCount','snapshotCount')
++ foreach($v in @($a,$b)){Assert-KmcExactProperties $v $properties 'owned area native header';$ids=[Collections.Generic.HashSet[int]]::new();foreach($key in @('operation','requested','prepared','sourceDescriptor')){Assert-KmcManualSeedObjectIdentity $v.$key;if(-not$ids.Add([int]$v.$key)){throw 'Owned area save operation/request/copy/source identities alias.'}}
++  foreach($key in @('requestedType','preparedType')){Assert-KmcBootstrapInventoryString $v.$key 'Auto'}
++  foreach($key in @('requestedName','preparedName')){Assert-KmcBootstrapInventoryString $v.$key $Observation.nativeWrite.nativeName}
++  Assert-KmcBootstrapInventoryString $v.preparedLeaf (Get-KmcChunk7OwnedOutputLeaf $Request $Observation);Assert-KmcBootstrapInventoryString $v.preparedArea $Request.persistenceAreaTarget.area;Assert-KmcBootstrapInventoryString $v.preparedPath $Observation.nativeWrite.path
++  foreach($key in @('completionCount','callbackCount')){Assert-KmcOrdinaryInteger $v.$key 0 0}
++ }
++ Assert-KmcOrdinaryInteger $a.snapshotCount 0 0;Assert-KmcOrdinaryInteger $b.snapshotCount 1 1
++ foreach($key in $properties|Where-Object{$_-cne'snapshotCount'}){if((ConvertTo-KmcChunk7Canonical $a.$key)-cne(ConvertTo-KmcChunk7Canonical $b.$key)){throw 'Owned area staging replaced the captured native request or prepared copy.'}}
++ Assert-KmcExactProperties $c @('operation','requested','prepared','completion','path','sourceDescriptor') 'owned area completed native save'
++ $ids=[Collections.Generic.HashSet[int]]::new();foreach($key in @('operation','requested','prepared','completion','sourceDescriptor')){Assert-KmcManualSeedObjectIdentity $c.$key;if(-not$ids.Add([int]$c.$key)){throw 'Owned area completion identities alias.'};if($key-cne'completion'-and$c.$key-ne$a.$key){throw 'Owned area completion is not the captured native request/copy.'}}
++ Assert-KmcBootstrapInventoryString $c.path $Observation.nativeWrite.path
++ if($r.identityRetention.ids-isnot[Array]){throw 'Owned area completion has no retained observer.'};foreach($id in $ids){if($id-cnotin$r.identityRetention.ids){throw 'Owned area completion was not retained through worker settlement.'}}
+diff --git a/scripts/runtime/Chunk7OwnedPairsEvidence.ps1 b/scripts/runtime/Chunk7OwnedPairsEvidence.ps1
+index 2a41b8b3..e3895b50 100644
+--- a/scripts/runtime/Chunk7OwnedPairsEvidence.ps1
++++ b/scripts/runtime/Chunk7OwnedPairsEvidence.ps1
+@@ -31 +31,5 @@ function Assert-KmcChunk7OwnedPairsSelection($Request){
+- Assert-KmcExactProperties $s @('case','sourceRunId','sourceArtifactSha256','sourceArchiveSha256','checkpointSourceRunId','checkpointSourceArtifactSha256','riderAId','mountAId','riderBId','mountBId','partyIds','baseGameOnly','expectedNativeLoadCount','expectedNativeWriteCount') 'inherited native pair selection'
++ $checkpoint=$null;if($null-ne$Request.PSObject.Properties['persistenceCase']){$checkpoint=$Request.persistenceCase}
++ $area=$checkpoint-is[string]-and$checkpoint-ceq'multi-area-autosave'
++ $fields=@('case','sourceRunId','sourceArtifactSha256','sourceArchiveSha256','checkpointSourceRunId','checkpointSourceArtifactSha256','riderAId','mountAId','riderBId','mountBId','partyIds','baseGameOnly','expectedNativeLoadCount','expectedNativeWriteCount');if($area){$fields+='sourceArea'}
++ Assert-KmcExactProperties $s $fields 'inherited native pair selection'
++ if($area-and($s.sourceArea-isnot[string]-or$s.sourceArea-cnotmatch'^[a-f0-9]{32}$'-or$s.sourceArea-ceq('0'*32))){throw 'Owned area checkpoint requires the exact original acquired Manual area.'}
+@@ -39,2 +43 @@ function Assert-KmcChunk7OwnedPairsSelection($Request){
+- $checkpoint=$null;if($null-ne$Request.PSObject.Properties['persistenceCase']){$checkpoint=$Request.persistenceCase}
+- if($s.case-cin@('persistence-save','persistence-load')){if($checkpoint-isnot[string]-or($checkpoint-cnotin@('multi-exploration-manual','multi-exploration-quick','multi-exploration-auto','multi-rt-debt-manual','multi-tb-debt-manual','zero-mounted-tb-retained-manual','legacy-mounted-pending-tb-manual')-and($s.case-cne'persistence-load'-or$checkpoint-cnotin@('multi-exploration-three-loads-manual','multi-exploration-three-area-transfers-manual'))-and($s.case-cne'persistence-save'-or$checkpoint-cnotin@('multi-nonselected-mount-unsettled-manual','multi-owned-worker-cancel-manual')))){throw 'Inherited persistence retains the seven selected core checkpoints; save boundaries are source-only.'}}
++ if($s.case-cin@('persistence-save','persistence-load')){if($checkpoint-isnot[string]-or($checkpoint-cnotin@('multi-exploration-manual','multi-exploration-quick','multi-exploration-auto','multi-rt-debt-manual','multi-tb-debt-manual','zero-mounted-tb-retained-manual','legacy-mounted-pending-tb-manual','multi-area-autosave')-and($s.case-cne'persistence-load'-or$checkpoint-cnotin@('multi-exploration-three-loads-manual','multi-exploration-three-area-transfers-manual'))-and($s.case-cne'persistence-save'-or$checkpoint-cnotin@('multi-nonselected-mount-unsettled-manual','multi-owned-worker-cancel-manual')))){throw 'Inherited persistence retains its closed checkpoints; save boundaries are source-only.'}}
+@@ -63,0 +67 @@ function Assert-KmcChunk7OwnedPairsDescriptor($Request){
++ if($Request.PSObject.Properties['persistenceCase']-and$Request.persistenceCase-ceq'multi-area-autosave'){Assert-KmcChunk7AreaTarget $Request;$expectedArea=if($cold){$Request.persistenceAreaTarget.area}else{$Request.ownedPairs.sourceArea};Assert-KmcBootstrapInventoryString $d.area $expectedArea}
+@@ -140 +144,2 @@ function Assert-KmcChunk7OwnedOutputEvidence($Request,$Observations){
+- $properties=@('completionSequence','callbackCount','nativeWorkerSettled','nativeInventory','authority');if($worker){$properties+='replacement'}
++ $area=$Request.ownedPairs.case-ceq'persistence-save'-and$Request.persistenceCase-ceq'multi-area-autosave'
++ $properties=@('completionSequence','callbackCount','nativeWorkerSettled','nativeInventory','authority');if($worker){$properties+='replacement'};if($area){$properties+='areaSaveIdentity'}
+@@ -143 +148 @@ function Assert-KmcChunk7OwnedOutputEvidence($Request,$Observations){
+- Assert-KmcOrdinaryInteger $b.completionSequence 1 1;Assert-KmcOrdinaryInteger $b.callbackCount 1 1;Assert-KmcChunk7Boolean $b.nativeWorkerSettled $true
++ Assert-KmcOrdinaryInteger $b.completionSequence 1 1;Assert-KmcOrdinaryInteger $b.callbackCount $(if($area){0}else{1}) $(if($area){0}else{1});Assert-KmcChunk7Boolean $b.nativeWorkerSettled $true
+@@ -160 +165 @@ function Assert-KmcChunk7OwnedOutputEvidence($Request,$Observations){
+- $descriptor=[pscustomobject]@{fileName=$leaf;internalName=$name;gameId=$Request.persistenceLoad.gameId;gameName=$Request.persistenceLoad.gameName;area=$Request.persistenceLoad.area}
++ $descriptor=[pscustomobject]@{fileName=$leaf;internalName=$name;gameId=$Request.persistenceLoad.gameId;gameName=$Request.persistenceLoad.gameName;area=(Get-KmcChunk7ExpectedArchiveArea $Request)}
+@@ -164,0 +170 @@ function Assert-KmcChunk7OwnedOutputEvidence($Request,$Observations){
++ if($area){Assert-KmcChunk7OwnedAreaSaveIdentity $Request $Observations}
+diff --git a/scripts/runtime/Chunk7OwnedPairsFixtures.ps1 b/scripts/runtime/Chunk7OwnedPairsFixtures.ps1
+index 3dffcb2d..a8d5d9c1 100644
+--- a/scripts/runtime/Chunk7OwnedPairsFixtures.ps1
++++ b/scripts/runtime/Chunk7OwnedPairsFixtures.ps1
+@@ -64,0 +65 @@ function Get-KmcChunk7OwnedPairsManualSource($Selection,[AllowNull()][string]$Pe
++ if($PersistenceCase-ceq'multi-area-autosave'){Assert-KmcChunk7OwnedAreaProfileRestoration $set $Selection.sourceRunId;Assert-KmcBootstrapInventoryString $artifact.observations.nativeWrite.area $Selection.sourceArea}
+@@ -68,0 +70 @@ function Get-KmcChunk7OwnedPairsManualSource($Selection,[AllowNull()][string]$Pe
++ if($sourceSelection.PSObject.Properties['sourceArea']){$sourceSelection.PSObject.Properties.Remove('sourceArea')}
+@@ -74 +76,2 @@ function Get-KmcChunk7OwnedPairsManualSource($Selection,[AllowNull()][string]$Pe
+-function Get-KmcChunk7OwnedPairsSource($Selection,[AllowNull()][string]$PersistenceCase,$Fixture,$Candidate){
++function Get-KmcChunk7OwnedPairsSource($Selection,[AllowNull()][string]$PersistenceCase,$Fixture,$Candidate,$AreaTarget=$null){
++ if($PersistenceCase-ceq'multi-area-autosave'){Assert-KmcChunk7AreaTarget ([pscustomobject]@{scenario='chunk7-owned-two-pair-campaign';persistenceCase=$PersistenceCase;ownedPairs=$Selection;persistenceAreaTarget=$AreaTarget})}elseif($null-ne$AreaTarget){throw 'Only owned area autosave may carry its exact destination.'}
+@@ -84,0 +88,5 @@ function Get-KmcChunk7OwnedPairsSource($Selection,[AllowNull()][string]$Persiste
++ if($PersistenceCase-ceq'multi-area-autosave'){
++  Assert-KmcBootstrapInventoryString $request.ownedPairs.sourceArea $Selection.sourceArea
++  if((ConvertTo-KmcChunk7Canonical $request.persistenceAreaTarget)-cne(ConvertTo-KmcChunk7Canonical $AreaTarget)){throw 'Owned cold area source changed its admitted native destination.'}
++  Assert-KmcChunk7OwnedAreaProfileRestoration $set $Selection.checkpointSourceRunId
++ }
+@@ -91 +99 @@ function Get-KmcChunk7OwnedPairsSource($Selection,[AllowNull()][string]$Persiste
+- Assert-KmcChunk7OwnedPairsDescriptor ([pscustomobject]@{scenario='chunk7-owned-two-pair-campaign';runId='unassigned-owned-cold';ownedPairs=$Selection;persistenceCase=$PersistenceCase;persistenceLoad=$descriptor;fixture=$Fixture})
++ Assert-KmcChunk7OwnedPairsDescriptor ([pscustomobject]@{scenario='chunk7-owned-two-pair-campaign';runId='unassigned-owned-cold';ownedPairs=$Selection;persistenceCase=$PersistenceCase;persistenceLoad=$descriptor;fixture=$Fixture;persistenceAreaTarget=$AreaTarget})
+@@ -105,0 +114,36 @@ function Copy-KmcChunk7OwnedPairsSourceArtifact($Source,[string]$ProfileRoot,$Lo
++
++# Only the new owned-area chain requires this additional exact profile result.
++# Legacy owned/Working cases retain their existing qualification contracts.
++function Assert-KmcChunk7OwnedAreaProfileRestoration($Set,[string]$RunId){
++ $path=Join-Path $Set.root 'profile-cache-changes.json';Assert-KmcNotReparsePoint $path 'owned area profile restoration';Assert-KmcNotHardLink $path 'owned area profile restoration'
++ $file=Get-Item -LiteralPath $path;if($file.Length-le0-or$file.Length-gt16MB){throw 'Owned area profile restoration receipt is empty or oversized.'}
++ $sha=Get-KmcSha256 $path;Assert-KmcManifestJsonMembersUnique $path 'owned area profile restoration';$v=Read-KmcJson $path
++ if($null-eq$v-or$v.GetType().FullName-cne'System.Management.Automation.PSCustomObject'){throw 'Owned area profile restoration must be a scalar object.'}
++ Assert-KmcOrdinaryInteger $v.schemaVersion 1 1;Assert-KmcBootstrapInventoryString $v.runId $RunId;Assert-KmcBootstrapInventoryString $v.policy 'native-achievement-cache-settled-size'
++ if($v.snapshotProfileDigest-isnot[string]-or$v.snapshotProfileDigest-cnotmatch'^[a-f0-9]{64}$'){throw 'Owned area source lacks its current-profile preservation digest.'}
++ Assert-KmcChunk7Boolean $v.profileBytesRestoredExactly $true
++ if($v.acceptedNativeCacheChanges-isnot[Array]-or$v.acceptedNativeCacheChanges.Count-ne0){throw 'Owned area source profile or native caches were not restored exactly.'}
++ if((Get-KmcSha256 $path)-cne$sha-or(Get-Item -LiteralPath $path).Length-ne$file.Length-or(Get-Item -LiteralPath $path).LastWriteTimeUtc.Ticks-ne$file.LastWriteTimeUtc.Ticks){throw 'Owned area restoration evidence changed during qualification.'}
++ $Set.pins[$path]=$sha
++}
++function Assert-KmcChunk7OwnedAreaColdSource($Source,$Request,$ColdArtifact){
++ Assert-KmcChunk7OwnedPairsDescriptor $Request
++ if($Request.ownedPairs.case-cne'persistence-load'-or$Request.persistenceCase-cne'multi-area-autosave'){throw 'Owned area cold proof is valid only for its exact one-load/zero-write route.'}
++ $path=Join-Path (Get-KmcLabRoot) ('runtime-evidence/'+$Request.ownedPairs.checkpointSourceRunId+'/chunk7-persistence-evidence.json')
++ Assert-KmcBootstrapInventoryString $Source.checkpointArtifactPath $path;Assert-KmcBootstrapInventoryString $Source.checkpointArtifactSha256 $Request.ownedPairs.checkpointSourceArtifactSha256
++ Assert-KmcNotReparsePoint $path 'owned area checkpoint';Assert-KmcNotHardLink $path 'owned area checkpoint';$file=Get-Item -LiteralPath $path
++ if($file.Length-le0-or$file.Length-gt16MB-or$file.Length-ne$Source.checkpointArtifactLength-or(Get-KmcSha256 $path)-cne$Source.checkpointArtifactSha256){throw 'Owned area cold source changed after completed qualification.'}
++ Assert-KmcManifestJsonMembersUnique $path 'owned area checkpoint';$parent=Read-KmcJson $path
++ foreach($key in @('commit','dllSha256','dllMvid')){Assert-KmcBootstrapInventoryString $parent.$key $Request.$key}
++ Assert-KmcBootstrapInventoryString $parent.runId $Request.ownedPairs.checkpointSourceRunId;Assert-KmcBootstrapInventoryString $parent.scenario 'chunk7-owned-two-pair-campaign';Assert-KmcBootstrapInventoryString $parent.status 'PASS'
++ Assert-KmcChunk7PersistenceObservation $Request $ColdArtifact 'PASS'
++ $prior=$parent.observations;$cold=$ColdArtifact.observations
++ Assert-KmcBootstrapInventoryString $prior.checkpoint 'multi-area-autosave';Assert-KmcChunk7Boolean $prior.cold $false
++ Assert-KmcOrdinaryInteger $prior.processId 1 ([int]::MaxValue);Assert-KmcOrdinaryInteger $cold.processId 1 ([int]::MaxValue)
++ if($prior.processId-eq$cold.processId-or$prior.nativeWrite.length-ne$Request.persistenceLoad.length-or(ConvertTo-KmcChunk7Canonical $prior.nativeWrite.archive)-cne(ConvertTo-KmcChunk7Canonical $cold.loadedArchive)){throw 'Owned area cold process did not restore the exact completed destination Auto graph.'}
++ Assert-KmcBootstrapInventoryString $prior.nativeWrite.sha256 $Request.persistenceLoad.sha256
++ foreach($spec in @(@('enterPoint',$Request.persistenceAreaTarget.enterPoint),@('destinationArea',$Request.persistenceAreaTarget.area),@('mode','AfterEntry'),@('sourceArea',$Request.ownedPairs.sourceArea))){Assert-KmcBootstrapInventoryString $prior.areaTransfer.($spec[0]) $spec[1]}
++ foreach($key in @('partyIds','currentCharacterIds','remoteCapturedIds','arrangement')){if((ConvertTo-KmcChunk7Canonical $prior.inheritedCleanup.$key)-cne(ConvertTo-KmcChunk7Canonical $cold.inheritedFixture.$key)){throw 'Owned area cold source changed full-field ancestry or progression.'}}
++ for($i=0;$i-lt2;$i++){foreach($key in @('riderId','mountId','sourceGuid','rank','profileId')){if((ConvertTo-KmcChunk7Canonical $prior.inheritedCleanup.pairs[$i].$key)-cne(ConvertTo-KmcChunk7Canonical $cold.inheritedFixture.pairs[$i].$key)){throw 'Owned area cold source changed inherited role/fact provenance.'}}}
++ if((Get-KmcSha256 $path)-cne$Source.checkpointArtifactSha256-or(Get-Item -LiteralPath $path).LastWriteTimeUtc.Ticks-ne$file.LastWriteTimeUtc.Ticks){throw 'Owned area source changed during cold graph comparison.'}
++}
+diff --git a/scripts/runtime/Chunk7PersistenceEvidence.ps1 b/scripts/runtime/Chunk7PersistenceEvidence.ps1
+index c50faa6e..911a90c0 100644
+--- a/scripts/runtime/Chunk7PersistenceEvidence.ps1
++++ b/scripts/runtime/Chunk7PersistenceEvidence.ps1
+@@ -67,0 +68 @@ function Assert-KmcChunk7AreaTarget($Request) {
++    $sourceArea=if(Test-KmcChunk7OwnedPairsScenario $Request.scenario){$Request.ownedPairs.sourceArea}else{$Request.fixture.working.area}
+@@ -70 +71 @@ function Assert-KmcChunk7AreaTarget($Request) {
+-       $t.enterPoint-ceq$t.area-or$t.enterPoint-ceq('0'*32)-or$t.area-ceq('0'*32)-or$t.area-ceq$Request.fixture.working.area-or$t.autoSaveMode-cne'AfterEntry'){throw 'Chunk 7 area autosave requires an exact distinct AfterEntry destination.'}
++       $t.enterPoint-ceq$t.area-or$t.enterPoint-ceq('0'*32)-or$t.area-ceq('0'*32)-or$t.area-ceq$sourceArea-or$t.autoSaveMode-isnot[string]-or$t.autoSaveMode-cne'AfterEntry'){throw 'Chunk 7 area autosave requires an exact distinct AfterEntry destination.'}
+diff --git a/scripts/runtime/Invoke-KingmakerRuntimeScenario.ps1 b/scripts/runtime/Invoke-KingmakerRuntimeScenario.ps1
+index a9ba9b70..c33e20d5 100644
+--- a/scripts/runtime/Invoke-KingmakerRuntimeScenario.ps1
++++ b/scripts/runtime/Invoke-KingmakerRuntimeScenario.ps1
+@@ -144 +144 @@ if(Test-KmcChunk7OwnedPairsScenario $Scenario){
+-    foreach($name in @('PersistenceSourceRunId','ExpectedPersistenceSourceSha256','ExpectedPersistenceAlternateSha256','PersistenceForeignSourceRunId','PersistenceAreaEnterPoint','PersistenceAreaTargetArea')){
++    foreach($name in @('PersistenceSourceRunId','ExpectedPersistenceSourceSha256','ExpectedPersistenceAlternateSha256','PersistenceForeignSourceRunId')){
+@@ -146,0 +147 @@ if(Test-KmcChunk7OwnedPairsScenario $Scenario){
++    if(($PSBoundParameters.ContainsKey('PersistenceAreaEnterPoint')-or$PSBoundParameters.ContainsKey('PersistenceAreaTargetArea'))-and$PersistenceCase-cne'multi-area-autosave'){throw 'Only the exact owned area autosave may carry its original/destination pins.'}
+@@ -392 +393,2 @@ if(Test-KmcChunk7FieldScenario $Scenario){$fieldSource=Get-KmcChunk7FieldSource
+-if(Test-KmcChunk7OwnedPairsScenario $Scenario){$ownedPairsSource=Get-KmcChunk7OwnedPairsSource $ownedPairsInput.selection $PersistenceCase $fixturePayload $manifest}
++$ownedAreaTarget=if((Test-KmcChunk7OwnedPairsScenario $Scenario)-and$PersistenceCase-ceq'multi-area-autosave'){[pscustomobject]@{enterPoint=$PersistenceAreaEnterPoint;area=$PersistenceAreaTargetArea;autoSaveMode='AfterEntry'}}else{$null}
++if(Test-KmcChunk7OwnedPairsScenario $Scenario){$ownedPairsSource=Get-KmcChunk7OwnedPairsSource $ownedPairsInput.selection $PersistenceCase $fixturePayload $manifest $ownedAreaTarget}
+@@ -602 +604 @@ try{
+-        $currentOwnedSource=Get-KmcChunk7OwnedPairsSource $request.ownedPairs $PersistenceCase $fixturePayload $manifest
++        $currentOwnedSource=Get-KmcChunk7OwnedPairsSource $request.ownedPairs $PersistenceCase $fixturePayload $manifest $(if($PersistenceCase-ceq'multi-area-autosave'){$request.persistenceAreaTarget}else{$null})
+@@ -1052 +1054 @@ try{
+-            $verifiedOwnedSource=Get-KmcChunk7OwnedPairsSource $request.ownedPairs $PersistenceCase $fixturePayload $manifest
++            $verifiedOwnedSource=Get-KmcChunk7OwnedPairsSource $request.ownedPairs $PersistenceCase $fixturePayload $manifest $(if($PersistenceCase-ceq'multi-area-autosave'){$request.persistenceAreaTarget}else{$null})
+@@ -1055,0 +1058,4 @@ try{
++            if($request.ownedPairs.case-ceq'persistence-load'-and$PersistenceCase-ceq'multi-area-autosave'){
++                $ownedColdArtifact=Read-KmcJson (Join-Path $evidenceRoot 'chunk7-persistence-evidence.json')
++                Assert-KmcChunk7OwnedAreaColdSource $verifiedOwnedSource $request $ownedColdArtifact
++            }
+diff --git a/scripts/runtime/Test-RuntimeRequest.ps1 b/scripts/runtime/Test-RuntimeRequest.ps1
+index b06db212..65550e2b 100644
+--- a/scripts/runtime/Test-RuntimeRequest.ps1
++++ b/scripts/runtime/Test-RuntimeRequest.ps1
+@@ -174 +174 @@ elseif ($schemaVersion -eq 2) {
+-    $chunk7Area=(Test-KmcChunk7PersistenceScenario $request.scenario)-and$hasPersistenceCase-and$request.persistenceCase-ceq'multi-area-autosave'
++    $chunk7Area=(Test-KmcChunk7PersistenceScenario (Get-KmcChunk7SelectedScenario $request))-and$hasPersistenceCase-and$request.persistenceCase-ceq'multi-area-autosave'
+diff --git a/src/KingmakerMountedCombat/Diagnostics/Chunk7OwnedPairFixture.Replay.cs b/src/KingmakerMountedCombat/Diagnostics/Chunk7OwnedPairFixture.Replay.cs
+index 6bd02ee8..52632fb2 100644
+--- a/src/KingmakerMountedCombat/Diagnostics/Chunk7OwnedPairFixture.Replay.cs
++++ b/src/KingmakerMountedCombat/Diagnostics/Chunk7OwnedPairFixture.Replay.cs
+@@ -119,0 +120,35 @@ namespace KingmakerMountedCombat.Diagnostics
++        private bool areaAutosavePending, areaAutosaveAdopted;
++        private BlueprintArea areaAutosaveDestination;
++        internal void BeginAreaAutosave(BlueprintArea destination)
++        {
++            Require(bound && !released && !selection.Cold && selection.Case == "persistence-save" &&
++                request.PersistenceCase == "multi-area-autosave" && request.PersistenceAreaTarget != null &&
++                request.PersistenceAreaTarget.AutoSaveMode == "AfterEntry" && !areaAutosavePending && !areaAutosaveAdopted &&
++                replayExpectedLoad == 0 && replayExpectedArea == 0 && destination != null &&
++                destination.AssetGuidThreadSafe == request.PersistenceAreaTarget.Area &&
++                game.CurrentlyLoadedArea?.AssetGuidThreadSafe == selection.SourceArea &&
++                selection.SourceArea == request.PersistenceLoad.Area && destination.AssetGuidThreadSafe != selection.SourceArea,
++                "Inherited autosave transfer is not the exact original Manual and declared destination.");
++            RequirePreserved(); RequireReplayFieldReady();
++            areaAutosaveDestination = destination; areaAutosavePending = true;
++        }
++        internal void AdoptAreaAutosave(BlueprintArea destination)
++        {
++            RequireRequest(); RequireAuthority();
++            Require(bound && !released && !selection.Cold && selection.Case == "persistence-save" &&
++                request.PersistenceCase == "multi-area-autosave" && areaAutosavePending && !areaAutosaveAdopted &&
++                replayExpectedLoad == 0 && replayExpectedArea == 0 && ReferenceEquals(destination, areaAutosaveDestination) &&
++                destination != null && destination.AssetGuidThreadSafe == request.PersistenceAreaTarget.Area &&
++                request.PersistenceAreaTarget.AutoSaveMode == "AfterEntry" && ReferenceEquals(game.Player, admittedPlayer) &&
++                persistence.AreaSuspensionCount == 1 && persistence.AreaResumeCount == 2 && persistence.FailedAreaPairCount == 0 &&
++                persistence.NativeWorldDisposalCount == 0 && persistence.SemanticRestoreCount == 0 &&
++                persistence.PresentationRestoreCount == 0 && persistence.ArchivePostLoadObservedCount == 0,
++                "Inherited autosave area cannot adopt before exact native all-pair restoration.");
++            Scope.RequireDeclaredAreaDestination(destination.AssetGuidThreadSafe, destination);
++            var prior = Scope;
++            var candidate = new Chunk7NativeWorldScope(request, Party, destination.AssetGuidThreadSafe);
++            Scope = candidate;
++            try { RequirePreserved(); RequireReplayFieldReady(); }
++            catch { Scope = prior; throw; }
++            areaAutosavePending = false; areaAutosaveAdopted = true; areaAutosaveDestination = null;
++        }
+diff --git a/src/KingmakerMountedCombat/Diagnostics/Chunk7OwnedPairFixture.cs b/src/KingmakerMountedCombat/Diagnostics/Chunk7OwnedPairFixture.cs
+index c5eb3f78..9205a1b5 100644
+--- a/src/KingmakerMountedCombat/Diagnostics/Chunk7OwnedPairFixture.cs
++++ b/src/KingmakerMountedCombat/Diagnostics/Chunk7OwnedPairFixture.cs
+@@ -65 +65 @@ namespace KingmakerMountedCombat.Diagnostics
+-                request.PersistenceCase != "multi-exploration-quick" && request.PersistenceCase != "multi-exploration-auto" &&
++                request.PersistenceCase != "multi-exploration-quick" && request.PersistenceCase != "multi-exploration-auto" && request.PersistenceCase != "multi-area-autosave" &&
+@@ -134,0 +135 @@ namespace KingmakerMountedCombat.Diagnostics
++            var originalArea = request.PersistenceCase == "multi-area-autosave" ? selection.SourceArea : request.PersistenceLoad.Area;
+@@ -144 +145 @@ namespace KingmakerMountedCombat.Diagnostics
+-                (string)observations["nativeWrite"]?["area"] == request.PersistenceLoad.Area,
++                (string)observations["nativeWrite"]?["area"] == originalArea,
+@@ -151 +152 @@ namespace KingmakerMountedCombat.Diagnostics
+-                (string)sourceWorld["gameId"] == request.PersistenceLoad.GameId && (string)sourceWorld["area"] == request.PersistenceLoad.Area &&
++                (string)sourceWorld["gameId"] == request.PersistenceLoad.GameId && (string)sourceWorld["area"] == originalArea &&
+@@ -214 +215 @@ namespace KingmakerMountedCombat.Diagnostics
+-            Require(replayExpectedLoad == 0 && replayExpectedArea == 0, "Declared native replay still owns inherited fixture custody.");
++            Require(replayExpectedLoad == 0 && replayExpectedArea == 0 && !areaAutosavePending, "Declared native replay still owns inherited fixture custody.");
+diff --git a/src/KingmakerMountedCombat/Diagnostics/Chunk7OwnedPairsSelection.cs b/src/KingmakerMountedCombat/Diagnostics/Chunk7OwnedPairsSelection.cs
+index 8990a129..06f899ab 100644
+--- a/src/KingmakerMountedCombat/Diagnostics/Chunk7OwnedPairsSelection.cs
++++ b/src/KingmakerMountedCombat/Diagnostics/Chunk7OwnedPairsSelection.cs
+@@ -25,0 +26,3 @@ namespace KingmakerMountedCombat.Diagnostics
++        public string SourceArea { get; set; }
++        // Keep every historical serialized selection byte shape unchanged.
++        public bool ShouldSerializeSourceArea() => SourceArea != null;
+@@ -54 +57 @@ namespace KingmakerMountedCombat.Diagnostics
+-            "legacy-mounted-pending-tb-manual" }, value) >= 0;
++            "legacy-mounted-pending-tb-manual", "multi-area-autosave" }, value) >= 0;
+@@ -74,0 +78,3 @@ namespace KingmakerMountedCombat.Diagnostics
++            var area = checkpoint == "multi-area-autosave";
++            if (area ? !Regex.IsMatch(SourceArea ?? "", "^[a-f0-9]{32}$") || SourceArea == new string('0', 32) : SourceArea != null)
++                errors.Add("Only the owned area checkpoint requires its exact original acquired Manual area.");
+diff --git a/src/KingmakerMountedCombat/Diagnostics/Chunk7PersistenceScenario.Area.cs b/src/KingmakerMountedCombat/Diagnostics/Chunk7PersistenceScenario.Area.cs
+index c5fb7e6b..5ff1af70 100644
+--- a/src/KingmakerMountedCombat/Diagnostics/Chunk7PersistenceScenario.Area.cs
++++ b/src/KingmakerMountedCombat/Diagnostics/Chunk7PersistenceScenario.Area.cs
+@@ -41 +41 @@ namespace KingmakerMountedCombat.Diagnostics
+-                target.Area != request.Fixture.Working.Area && game.CurrentlyLoadedArea.AssetGuidThreadSafe == request.Fixture.Working.Area,
++                target.Area != request.SelectedChunk7Fixture.Area && game.CurrentlyLoadedArea.AssetGuidThreadSafe == request.SelectedChunk7Fixture.Area,
+@@ -56,0 +57 @@ namespace KingmakerMountedCombat.Diagnostics
++            if (request.OwnedPairs != null) RequireOwnedSaveAdmission(SaveInfo.SaveType.Auto);
+@@ -69,0 +71,5 @@ namespace KingmakerMountedCombat.Diagnostics
++            if (inherited != null)
++            {
++                areaIdentities = new RetainedObjectIdentity(128);
++                inherited.BeginAreaAutosave(enter.Area);
++            }
+@@ -72 +78 @@ namespace KingmakerMountedCombat.Diagnostics
+-                ["sourceArea"] = request.Fixture.Working.Area, ["destinationArea"] = target.Area, ["before"] = areaBefore,
++                ["sourceArea"] = request.SelectedChunk7Fixture.Area, ["destinationArea"] = target.Area, ["before"] = areaBefore,
+@@ -137,0 +144 @@ namespace KingmakerMountedCombat.Diagnostics
++                if (inherited != null) areaHeaderStarting["nativeSaveBoundary"] = ObserveOwnedAreaHeader(false);
+@@ -148,0 +156 @@ namespace KingmakerMountedCombat.Diagnostics
++                if (inherited != null) areaHeaderStaged["nativeSaveBoundary"] = ObserveOwnedAreaHeader(true);
+@@ -159 +167 @@ namespace KingmakerMountedCombat.Diagnostics
+-                areaDestination.AssetGuidThreadSafe == target.Area && target.Area != request.Fixture.Working.Area &&
++                areaDestination.AssetGuidThreadSafe == target.Area && target.Area != request.SelectedChunk7Fixture.Area &&
+@@ -170 +178,2 @@ namespace KingmakerMountedCombat.Diagnostics
+-            nativeScope = new Chunk7NativeWorldScope(request, actors.Concat(originalSelection), target.Area);
++            inherited?.AdoptAreaAutosave(areaDestination);
++            nativeScope = inherited?.Scope ?? new Chunk7NativeWorldScope(request, actors.Concat(originalSelection), target.Area);
+@@ -199,0 +209,9 @@ namespace KingmakerMountedCombat.Diagnostics
++            if (inherited != null)
++            {
++                row["ownedField"] = inherited.CaptureReplayField(areaIdentities.Get, "replay-field");
++                row["ownedWorld"] = new JObject { ["game"] = areaIdentities.Get(game), ["player"] = areaIdentities.Get(game.Player),
++                    ["manager"] = areaIdentities.Get(game.SaveManager), ["worldScope"] = areaIdentities.Get(nativeScope),
++                    ["state"] = areaIdentities.Get(game.State), ["areaState"] = areaIdentities.Get(game.State.LoadedAreaState),
++                    ["mainState"] = areaIdentities.Get(game.State.LoadedAreaState.MainState),
++                    ["authorityGeneration"] = replayAuthorization.AuthorityGeneration };
++            }
+diff --git a/src/KingmakerMountedCombat/Diagnostics/Chunk7PersistenceScenario.OwnedPairs.cs b/src/KingmakerMountedCombat/Diagnostics/Chunk7PersistenceScenario.OwnedPairs.cs
+index 3e3c7afa..d4b7d26a 100644
+--- a/src/KingmakerMountedCombat/Diagnostics/Chunk7PersistenceScenario.OwnedPairs.cs
++++ b/src/KingmakerMountedCombat/Diagnostics/Chunk7PersistenceScenario.OwnedPairs.cs
+@@ -12,0 +13,5 @@ namespace KingmakerMountedCombat.Diagnostics
++        private RetainedObjectIdentity areaIdentities;
++        private object areaSaveOperation;
++        private SaveInfo areaRequestedSave, areaPreparedSave;
++        private NativeSaveCompletion areaCompletedSave;
++        private bool OwnedAreaAutosave => request.OwnedPairs != null && !Cold && AreaAutosaveCase;
+@@ -64,0 +70 @@ namespace KingmakerMountedCombat.Diagnostics
++            if (OwnedAreaAutosave) { ObserveOwnedAreaSaveCompletion(); return; }
+@@ -92,0 +99,82 @@ namespace KingmakerMountedCombat.Diagnostics
++        private JObject ObserveOwnedAreaHeader(bool staged)
++        {
++            Require(OwnedAreaAutosave && areaScopeAdopted && inherited != null && areaIdentities != null &&
++                ReferenceEquals(nativeScope, inherited.Scope) && ownedRequestedSave == null && ownedSaveCallbacks == 0 && !callback &&
++                persistence.CompletedSaveCount == 0 && persistence.LastCompletedSave == null &&
++                persistence.SnapshotCount == snapshotBefore + (staged ? 1 : 0) &&
++                replaySaveAuthority.MatchesOwnedPairsPlan(true, false) && replaySaveAuthority.AdmittedNativeLoadRequests == 1 &&
++                replaySaveAuthority.AdmittedNativeWriteRequests == 1 && replayAuthorization.AuthorizedLoadCount == 1 &&
++                replayAuthorization.AuthorizedWriteCount == 1,
++                "Owned area header lacks its sole authorized native request after restored destination custody.");
++            inherited.RequirePreserved();
++            object operation; SaveInfo requested, prepared;
++            persistence.ObserveActiveSaveHeader(out operation, out requested, out prepared);
++            Require(operation != null && requested != null && prepared != null && !ReferenceEquals(requested, prepared) &&
++                !ReferenceEquals(requested, replaySaveAuthority.OwnedPairsSourceDescriptor) &&
++                !ReferenceEquals(prepared, replaySaveAuthority.OwnedPairsSourceDescriptor) &&
++                requested.Type == SaveInfo.SaveType.Auto && prepared.Type == SaveInfo.SaveType.Auto &&
++                requested.Name == NativeName(SaveInfo.SaveType.Auto) && prepared.Name == requested.Name &&
++                prepared.FileName == replaySaveAuthority.OwnedPairsOutputLeaf && prepared.GameId == request.PersistenceLoad.GameId &&
++                prepared.GameName == request.PersistenceLoad.GameName && prepared.Area?.AssetGuidThreadSafe == ExpectedArchiveArea &&
++                !prepared.IsAutoLevelupSave && prepared.FolderName == Path.Combine(replaySaveAuthority.Root, replaySaveAuthority.OwnedPairsOutputLeaf),
++                "Owned area autosave changed its exact native request, prepared copy, category, destination or path.");
++            if (!staged)
++            {
++                Require(areaSaveOperation == null && areaRequestedSave == null && areaPreparedSave == null,
++                    "Owned area autosave observed a duplicate native header.");
++                areaSaveOperation = operation; areaRequestedSave = requested; areaPreparedSave = prepared;
++            }
++            else Require(ReferenceEquals(operation, areaSaveOperation) && ReferenceEquals(requested, areaRequestedSave) &&
++                ReferenceEquals(prepared, areaPreparedSave), "Owned area staging belongs to another native operation or prepared copy.");
++            return new JObject { ["operation"] = areaIdentities.Get(operation), ["requested"] = areaIdentities.Get(requested),
++                ["prepared"] = areaIdentities.Get(prepared), ["sourceDescriptor"] = areaIdentities.Get(replaySaveAuthority.OwnedPairsSourceDescriptor),
++                ["requestedType"] = requested.Type.ToString(), ["requestedName"] = requested.Name,
++                ["preparedType"] = prepared.Type.ToString(), ["preparedName"] = prepared.Name,
++                ["preparedLeaf"] = prepared.FileName, ["preparedArea"] = prepared.Area.AssetGuidThreadSafe,
++                ["preparedPath"] = prepared.FolderName, ["completionCount"] = persistence.CompletedSaveCount,
++                ["callbackCount"] = ownedSaveCallbacks, ["snapshotCount"] = persistence.SnapshotCount };
++        }
++        private void ObserveOwnedAreaSaveCompletion()
++        {
++            var completion = persistence.LastCompletedSave;
++            Require(OwnedAreaAutosave && areaScopeAdopted && areaSaveOperation != null && areaRequestedSave != null && areaPreparedSave != null &&
++                areaHeaderStarting != null && areaHeaderStaged != null && areaObserverError == null && ownedRequestedSave == null &&
++                ownedSaveCallbacks == 0 && !callback && completion != null && persistence.CompletedSaveCount == 1 &&
++                completion.Sequence == snapshotBefore + 1 && ReferenceEquals(completion.Requested, areaRequestedSave) &&
++                ReferenceEquals(completion.Written, areaPreparedSave) && ReferenceEquals(savedDescriptor, areaPreparedSave) &&
++                completion.Path == Path.Combine(replaySaveAuthority.Root, replaySaveAuthority.OwnedPairsOutputLeaf) &&
++                replaySaveAuthority.MatchesOwnedPairsPlan(true, false) && replaySaveAuthority.AdmittedNativeLoadRequests == 1 &&
++                replaySaveAuthority.AdmittedNativeWriteRequests == 1 && replayAuthorization.AuthorizedLoadCount == 1 &&
++                replayAuthorization.AuthorizedWriteCount == 1 && !NativePersistenceIsolation.HasPendingWrites &&
++                !persistence.HasActiveSaveScope && !persistence.HasSaveAdmissionFence,
++                "Owned area completion is not the exact observed native operation/copy and settled worker.");
++            var descriptors = Game.Instance.SaveManager.Take(3).ToArray();
++            Require(descriptors.Length == 2 && descriptors.Count(value => ReferenceEquals(value, replaySaveAuthority.OwnedPairsSourceDescriptor)) == 1 &&
++                descriptors.Count(value => ReferenceEquals(value, areaPreparedSave)) == 1 && savedDescriptor.FileName == replaySaveAuthority.OwnedPairsOutputLeaf &&
++                savedDescriptor.Name == replaySaveAuthority.OwnedPairsOutputName && savedDescriptor.Type == SaveInfo.SaveType.Auto &&
++                savedDescriptor.GameId == request.PersistenceLoad.GameId && savedDescriptor.GameName == request.PersistenceLoad.GameName &&
++                savedDescriptor.Area?.AssetGuidThreadSafe == ExpectedArchiveArea && savedDescriptor.HasFileOnDisk && savedDescriptor.IsActuallySaved &&
++                !savedDescriptor.IsAutoLevelupSave && savedDescriptor.OperationState == SaveInfo.StateType.None,
++                "Owned area Auto did not settle the exact immutable Manual and fresh destination descriptor.");
++            Require(areaCompletedSave == null, "Owned area completion was observed twice."); areaCompletedSave = completion;
++            evidence["ownedOutputCompletion"] = new JObject { ["completionSequence"] = completion.Sequence, ["callbackCount"] = ownedSaveCallbacks,
++                ["nativeWorkerSettled"] = true, ["nativeInventory"] = new JArray(descriptors.OrderBy(value => value.FileName, StringComparer.Ordinal).Select(OwnedNativeDescriptor)),
++                ["authority"] = OwnedAuthoritySnapshot(), ["areaSaveIdentity"] = new JObject {
++                    ["operation"] = areaIdentities.Get(areaSaveOperation), ["requested"] = areaIdentities.Get(completion.Requested),
++                    ["prepared"] = areaIdentities.Get(completion.Written), ["completion"] = areaIdentities.Get(completion),
++                    ["path"] = completion.Path, ["sourceDescriptor"] = areaIdentities.Get(replaySaveAuthority.OwnedPairsSourceDescriptor) } };
++        }
++        private void ReleaseOwnedAreaObservation()
++        {
++            if (areaIdentities == null) return;
++            Require(!areaObserverAttached && !NativePersistenceIsolation.HasPendingWrites && !persistence.HasActiveSaveScope &&
++                !persistence.HasSaveAdmissionFence, "Owned area native observation still owns an active callback or worker.");
++            var ids = areaIdentities.Ids; areaIdentities.Dispose();
++            if (evidence["areaTransfer"] is JObject row)
++                row["identityRetention"] = new JObject { ["capacity"] = areaIdentities.Capacity, ["ids"] = new JArray(ids),
++                    ["faults"] = areaIdentities.FaultCount, ["released"] = areaIdentities.Released,
++                    ["retainedAfterRelease"] = areaIdentities.RetainedCount };
++            Require(areaIdentities.Released && areaIdentities.RetainedCount == 0 && areaIdentities.FaultCount == 0,
++                "Owned area identity retention did not release exactly.");
++            areaSaveOperation = null; areaRequestedSave = null; areaPreparedSave = null; areaCompletedSave = null;
++        }
+diff --git a/src/KingmakerMountedCombat/Diagnostics/Chunk7PersistenceScenario.cs b/src/KingmakerMountedCombat/Diagnostics/Chunk7PersistenceScenario.cs
+index 9b7ec0d2..17d68a20 100644
+--- a/src/KingmakerMountedCombat/Diagnostics/Chunk7PersistenceScenario.cs
++++ b/src/KingmakerMountedCombat/Diagnostics/Chunk7PersistenceScenario.cs
+@@ -643,0 +644 @@ namespace KingmakerMountedCombat.Diagnostics
++            ReleaseOwnedAreaObservation();
+diff --git a/src/KingmakerMountedCombat/Diagnostics/PersistenceSaveAuthorization.OwnedPairs.cs b/src/KingmakerMountedCombat/Diagnostics/PersistenceSaveAuthorization.OwnedPairs.cs
+index b896927c..c82502a4 100644
+--- a/src/KingmakerMountedCombat/Diagnostics/PersistenceSaveAuthorization.OwnedPairs.cs
++++ b/src/KingmakerMountedCombat/Diagnostics/PersistenceSaveAuthorization.OwnedPairs.cs
+@@ -36 +36,2 @@ namespace KingmakerMountedCombat.Diagnostics
+-                selected?.SourceArtifactSha256, selected?.SourceArchiveSha256, selected?.CheckpointSourceRunId,
++                selected?.SourceArtifactSha256, selected?.SourceArchiveSha256, selected?.SourceArea,
++                value?.PersistenceAreaTarget?.EnterPoint, value?.PersistenceAreaTarget?.Area, value?.PersistenceAreaTarget?.AutoSaveMode, selected?.CheckpointSourceRunId,
+@@ -68 +69 @@ namespace KingmakerMountedCombat.Diagnostics
+-                    output.Area != source.Area || !output.Writable || output.Bootstrap || output.AdmitsBeforeArea || output.AdmissionArea != null ||
++                    output.Area != ownedPairsRequest.ExpectedChunk7ArchiveArea || !output.Writable || output.Bootstrap || output.AdmitsBeforeArea || output.AdmissionArea != null ||
+@@ -118 +119 @@ namespace KingmakerMountedCombat.Diagnostics
+-                    request.PersistenceCase == "multi-exploration-auto" ? "Auto" : "Manual";
++                    request.PersistenceCase == "multi-exploration-auto" || request.PersistenceCase == "multi-area-autosave" ? "Auto" : "Manual";
+@@ -134 +135 @@ namespace KingmakerMountedCombat.Diagnostics
+-                var output = new Entry { Name = nativeName, Type = type, Area = request.PersistenceLoad.Area, Writable = true };
++                var output = new Entry { Name = nativeName, Type = type, Area = request.ExpectedChunk7ArchiveArea, Writable = true };
+diff --git a/src/KingmakerMountedCombat/Diagnostics/RuntimeProtocol.cs b/src/KingmakerMountedCombat/Diagnostics/RuntimeProtocol.cs
+index ecd70b12..d5dbad6b 100644
+--- a/src/KingmakerMountedCombat/Diagnostics/RuntimeProtocol.cs
++++ b/src/KingmakerMountedCombat/Diagnostics/RuntimeProtocol.cs
+@@ -520,2 +520,2 @@ namespace KingmakerMountedCombat.Diagnostics
+-                    var inputName = OwnedPairs.Cold ? (PersistenceCase == "multi-exploration-quick" || PersistenceCase == "multi-exploration-auto" ? PersistenceLoad.InternalName : "KMC_C7_WORLD") : Chunk7AcquiredManualSelection.OutputName;
+-                    var inputPattern = OwnedPairs.Cold ? (PersistenceCase == "multi-exploration-quick" ? "^Quick_1\\.zks$" : PersistenceCase == "multi-exploration-auto" ? "^Auto_1\\.zks$" : "^Manual_[1-9][0-9]*_KMC_C7_WORLD\\.zks$") : "^Manual_[1-9][0-9]*_KMC_C7_ACQUIRED_FIELD\\.zks$";
++                    var inputName = OwnedPairs.Cold ? (PersistenceCase == "multi-exploration-quick" || (PersistenceCase == "multi-exploration-auto" || PersistenceCase == "multi-area-autosave") ? PersistenceLoad.InternalName : "KMC_C7_WORLD") : Chunk7AcquiredManualSelection.OutputName;
++                    var inputPattern = OwnedPairs.Cold ? (PersistenceCase == "multi-exploration-quick" ? "^Quick_1\\.zks$" : (PersistenceCase == "multi-exploration-auto" || PersistenceCase == "multi-area-autosave") ? "^Auto_1\\.zks$" : "^Manual_[1-9][0-9]*_KMC_C7_WORLD\\.zks$") : "^Manual_[1-9][0-9]*_KMC_C7_ACQUIRED_FIELD\\.zks$";
+@@ -522,0 +523,3 @@ namespace KingmakerMountedCombat.Diagnostics
++                    if (PersistenceCase == "multi-area-autosave" && PersistenceLoad.Area !=
++                        (OwnedPairs.Cold ? PersistenceAreaTarget?.Area : OwnedPairs.SourceArea))
++                        errors.Add("Owned area input differs from the selected original Manual or completed destination Auto.");
+@@ -730 +733 @@ namespace KingmakerMountedCombat.Diagnostics
+-                    errors.AddRange(PersistenceAreaTarget.Validate("persistenceAreaTarget", Fixture?.Working?.Area));
++                    errors.AddRange(PersistenceAreaTarget.Validate("persistenceAreaTarget", OwnedPairs != null ? OwnedPairs.SourceArea : Fixture?.Working?.Area));
+diff --git a/src/KingmakerMountedCombat/Integration/MountedPersistenceService.cs b/src/KingmakerMountedCombat/Integration/MountedPersistenceService.cs
+index 3133ad68..98b96bc0 100644
+--- a/src/KingmakerMountedCombat/Integration/MountedPersistenceService.cs
++++ b/src/KingmakerMountedCombat/Integration/MountedPersistenceService.cs
+@@ -99,0 +100,10 @@ namespace KingmakerMountedCombat.Integration
++        // Read-only diagnostic view of the exact active native operation. It
++        // grants no save admission and cannot manufacture completion or a worker.
++        internal void ObserveActiveSaveHeader(out object operation, out SaveInfo requested, out SaveInfo prepared)
++        {
++            var scope = activeSave;
++            if (scope == null || !scope.Began || scope.Released || scope.Completed || scope.Requested == null ||
++                scope.Prepared == null || scope.Routine == null || !ReferenceEquals(scope.World, Game.Instance?.Player))
++                throw new InvalidOperationException("The native header has no exact active requested/prepared save scope.");
++            operation = scope; requested = scope.Requested; prepared = scope.Prepared;
++        }
+diff --git a/tests/Chunk7Diagnostics/OwnedAreaAutosaveBoundaryTemplate.cs b/tests/Chunk7Diagnostics/OwnedAreaAutosaveBoundaryTemplate.cs
+new file mode 100644
+index e69de29b..6a2287fa 100644
+--- /dev/null
++++ b/tests/Chunk7Diagnostics/OwnedAreaAutosaveBoundaryTemplate.cs
+@@ -0,0 +1,46 @@
++using System;using System.Linq;using System.IO;using System.Collections.Generic;using Kingmaker;using Kingmaker.EntitySystem.Persistence;using KingmakerMountedCombat.Integration;using Newtonsoft.Json.Linq;
++namespace Kingmaker {internal sealed class Game {internal static Game Instance;internal object Player=new object();internal List<SaveInfo> SaveManager=new List<SaveInfo>();}}
++namespace Kingmaker.EntitySystem.Persistence {internal sealed class Area {internal string AssetGuidThreadSafe="destination";}internal sealed class SaveInfo {internal enum SaveType{Manual,Quick,Auto}internal enum StateType{None,Writing}internal SaveType Type=SaveType.Auto;internal StateType OperationState=StateType.None;internal string Name="Autosave",FileName="Auto_1.zks",GameId="campaign",GameName="name",FolderName;internal Area Area=new Area();internal bool HasFileOnDisk=true,IsActuallySaved=true,IsAutoLevelupSave;internal SaveInfo Copy()=>(SaveInfo)MemberwiseClone();}}
++namespace KingmakerMountedCombat.Integration {
++ internal sealed class MountedPersistenceService {
++  internal sealed class SaveScope {internal object World;internal bool Began=true,Released,Completed;internal SaveInfo Requested,Prepared;internal object Routine=new object();}
++  internal SaveScope activeSave;internal int CompletedSaveCount,SnapshotCount;internal bool HasActiveSaveScope,HasSaveAdmissionFence;internal NativeSaveCompletion LastCompletedSave;
++  @@SERVICE_OBSERVER@@
++ }
++ @@COMPLETION_DTO@@
++}
++namespace KingmakerMountedCombat.Diagnostics {
++ internal static class NativePersistenceIsolation {internal static bool HasPendingWrites;}
++ internal sealed class FakeInput {internal string GameId="campaign",GameName="name";}
++ internal sealed class FakeRequest {internal FakeInput PersistenceLoad=new FakeInput();}
++ internal sealed class FakeField {internal object Scope;internal bool Preserved=true;internal void RequirePreserved(){if(!Preserved)throw new InvalidOperationException("field changed");}}
++ internal sealed class FakeAuthority {internal string Root=Path.GetFullPath(Path.Combine(Path.GetTempPath(),"owned-area-boundary-no-io"));internal string OwnedPairsOutputLeaf="Auto_1.zks",OwnedPairsOutputName="Autosave";internal SaveInfo OwnedPairsSourceDescriptor;internal int AdmittedNativeLoadRequests=1,AdmittedNativeWriteRequests=1;internal bool Matches=true;internal bool MatchesOwnedPairsPlan(bool reserved,bool unwritten)=>Matches;}
++ internal sealed class FakeAuthorization {internal int AuthorizedLoadCount=1,AuthorizedWriteCount=1;}
++ internal sealed partial class Chunk7PersistenceScenario {
++  private bool OwnedAreaAutosave=true,areaScopeAdopted=true,callback,areaObserverAttached;
++  private readonly FakeRequest request=new FakeRequest();private readonly FakeField inherited=new FakeField();private object nativeScope=new object();
++  private RetainedObjectIdentity areaIdentities=new RetainedObjectIdentity(128);private object areaSaveOperation;private SaveInfo areaRequestedSave,areaPreparedSave,savedDescriptor,ownedRequestedSave;private NativeSaveCompletion areaCompletedSave;
++  private int ownedSaveCallbacks,snapshotBefore;private string areaObserverError;private JObject areaHeaderStarting,areaHeaderStaged;private readonly JObject evidence=new JObject{["areaTransfer"]=new JObject()};
++  private readonly MountedPersistenceService persistence=new MountedPersistenceService();private readonly FakeAuthority replaySaveAuthority=new FakeAuthority();private readonly FakeAuthorization replayAuthorization=new FakeAuthorization();private string ExpectedArchiveArea="destination";
++  private static string NativeName(SaveInfo.SaveType type)=>type==SaveInfo.SaveType.Auto?"Autosave":"foreign";
++  private static void Require(bool condition,string reason){if(!condition)throw new InvalidOperationException(reason);}
++  private JObject OwnedAuthoritySnapshot()=>new JObject(); // External authority emission; actual authority tested separately.
++  @@NATIVE_DESCRIPTOR@@
++  @@HEADER_OBSERVER@@
++  @@COMPLETION_OBSERVER@@
++  @@RELEASE_OBSERVER@@
++  static Chunk7PersistenceScenario New(){NativePersistenceIsolation.HasPendingWrites=false;Game.Instance=new Game();var f=new Chunk7PersistenceScenario();f.inherited.Scope=f.nativeScope;var requested=new SaveInfo{FolderName=Path.Combine(f.replaySaveAuthority.Root,"Auto_1.zks")};var prepared=requested.Copy();var source=new SaveInfo{Type=SaveInfo.SaveType.Manual,Name="KMC_C7_ACQUIRED_FIELD",FileName="Manual_42_KMC_C7_ACQUIRED_FIELD.zks",Area=new Area{AssetGuidThreadSafe="source"}};f.replaySaveAuthority.OwnedPairsSourceDescriptor=source;Game.Instance.SaveManager.Add(source);f.persistence.activeSave=new MountedPersistenceService.SaveScope{World=Game.Instance.Player,Requested=requested,Prepared=prepared};return f;}
++  void Header(){areaHeaderStarting=ObserveOwnedAreaHeader(false);persistence.SnapshotCount=1;areaHeaderStaged=ObserveOwnedAreaHeader(true);}
++  void Complete(){savedDescriptor=areaPreparedSave;Game.Instance.SaveManager.Add(savedDescriptor);persistence.CompletedSaveCount=1;persistence.LastCompletedSave=new NativeSaveCompletion(1,areaRequestedSave,areaPreparedSave,savedDescriptor.FolderName);}
++  static int passed,failed;static void Check(string name,Action action){try{action();passed++;Console.WriteLine("PASS "+name);}catch(Exception e){failed++;Console.WriteLine("FAIL "+name+": "+e.Message);}}static void True(bool b,string m){if(!b)throw new Exception(m);}static void Refuses(Action body){bool failed=false;try{body();}catch(InvalidOperationException){failed=true;}True(failed,"expected actual boundary refusal");}
++  internal static int Main(){
++   Check("actual native Auto request copy and completion observed without callback",()=>{var f=New();var scope=f.persistence.activeSave;f.Header();True(ReferenceEquals(f.areaSaveOperation,scope)&&ReferenceEquals(f.areaRequestedSave,scope.Requested)&&ReferenceEquals(f.areaPreparedSave,scope.Prepared),"observer lost actual objects");f.Complete();f.ObserveOwnedAreaSaveCompletion();True((int)f.evidence["ownedOutputCompletion"]["callbackCount"]==0&&(int)f.evidence["ownedOutputCompletion"]["completionSequence"]==1,"observer invented callback/sequence");Refuses(f.ObserveOwnedAreaSaveCompletion);f.ReleaseOwnedAreaObservation();True(f.areaIdentities.Released&&f.areaIdentities.RetainedCount==0&&f.areaRequestedSave==null&&f.areaCompletedSave==null,"observer retained settled references");});
++   foreach(var fault in new[]{"no-scope","not-begun","released","completed","no-request","no-prepared","no-routine","foreign-world"})Check("passive service observer refuses "+fault,()=>{var f=New();var s=f.persistence.activeSave;switch(fault){case "no-scope":f.persistence.activeSave=null;break;case "not-begun":s.Began=false;break;case "released":s.Released=true;break;case "completed":s.Completed=true;break;case "no-request":s.Requested=null;break;case "no-prepared":s.Prepared=null;break;case "no-routine":s.Routine=null;break;case "foreign-world":s.World=new object();break;}Refuses(()=>{object op;SaveInfo a,b;f.persistence.ObserveActiveSaveHeader(out op,out a,out b);});True(f.persistence.CompletedSaveCount==0&&f.persistence.LastCompletedSave==null,"read manufactured a completion");});
++   foreach(var fault in new[]{"unadopted","foreign-scope","lost-field","alias-copy","source-copy","wrong-type","wrong-name","wrong-area","wrong-path","second-write","completed-early","callback","wrong-snapshot"})Check("native header rejects "+fault,()=>{var f=New();var s=f.persistence.activeSave;switch(fault){case "unadopted":f.areaScopeAdopted=false;break;case "foreign-scope":f.inherited.Scope=new object();break;case "lost-field":f.inherited.Preserved=false;break;case "alias-copy":s.Prepared=s.Requested;break;case "source-copy":s.Prepared=f.replaySaveAuthority.OwnedPairsSourceDescriptor;break;case "wrong-type":s.Prepared.Type=SaveInfo.SaveType.Manual;break;case "wrong-name":s.Prepared.Name="Foreign";break;case "wrong-area":s.Prepared.Area=new Area{AssetGuidThreadSafe="source"};break;case "wrong-path":s.Prepared.FolderName+=".other";break;case "second-write":f.replaySaveAuthority.AdmittedNativeWriteRequests=2;break;case "completed-early":f.persistence.CompletedSaveCount=1;break;case "callback":f.ownedSaveCallbacks=1;break;case "wrong-snapshot":f.persistence.SnapshotCount=1;break;}Refuses(()=>f.ObserveOwnedAreaHeader(false));True(f.areaSaveOperation==null&&f.areaPreparedSave==null,"refused header published custody");});
++   foreach(var fault in new[]{"operation","request-copy","prepared-copy"})Check("staging retains exact header identity "+fault,()=>{var f=New();f.areaHeaderStarting=f.ObserveOwnedAreaHeader(false);f.persistence.SnapshotCount=1;var s=f.persistence.activeSave;if(fault=="operation")f.persistence.activeSave=new MountedPersistenceService.SaveScope{World=s.World,Requested=s.Requested,Prepared=s.Prepared};else if(fault=="request-copy")s.Requested=s.Requested.Copy();else s.Prepared=s.Prepared.Copy();Refuses(()=>f.ObserveOwnedAreaHeader(true));True(f.areaSaveOperation!=null&&f.areaPreparedSave!=null,"staging failure lost prior custody");});
++   foreach(var fault in new[]{"request-copy","prepared-copy","wrong-sequence","wrong-path","pending-worker","active-scope","admission-fence","foreign-inventory","observer-error","callback","completed-count"})Check("completion refuses "+fault,()=>{var f=New();f.Header();f.Complete();var c=f.persistence.LastCompletedSave;switch(fault){case "request-copy":f.persistence.LastCompletedSave=new NativeSaveCompletion(1,c.Requested.Copy(),c.Written,c.Path);break;case "prepared-copy":f.persistence.LastCompletedSave=new NativeSaveCompletion(1,c.Requested,c.Written.Copy(),c.Path);break;case "wrong-sequence":f.persistence.LastCompletedSave=new NativeSaveCompletion(2,c.Requested,c.Written,c.Path);break;case "wrong-path":f.persistence.LastCompletedSave=new NativeSaveCompletion(1,c.Requested,c.Written,c.Path+".other");break;case "pending-worker":NativePersistenceIsolation.HasPendingWrites=true;break;case "active-scope":f.persistence.HasActiveSaveScope=true;break;case "admission-fence":f.persistence.HasSaveAdmissionFence=true;break;case "foreign-inventory":Game.Instance.SaveManager[1]=c.Written.Copy();break;case "observer-error":f.areaObserverError="failed";break;case "callback":f.callback=true;break;case "completed-count":f.persistence.CompletedSaveCount=2;break;}Refuses(f.ObserveOwnedAreaSaveCompletion);True(f.areaCompletedSave==null&&f.areaSaveOperation!=null&&!f.areaIdentities.Released,"refused completion lost retained native custody");});
++   foreach(var fault in new[]{"callback","worker","scope","fence"})Check("release retains unresolved observer "+fault,()=>{var f=New();f.Header();switch(fault){case "callback":f.areaObserverAttached=true;break;case "worker":NativePersistenceIsolation.HasPendingWrites=true;break;case "scope":f.persistence.HasActiveSaveScope=true;break;case "fence":f.persistence.HasSaveAdmissionFence=true;break;}Refuses(f.ReleaseOwnedAreaObservation);True(!f.areaIdentities.Released&&f.areaRequestedSave!=null,"unresolved observer released");});
++   Console.WriteLine("TOTAL PASS="+passed+" FAIL="+failed);return failed==0?0:1;
++  }
++ }
++}
+diff --git a/tests/Chunk7Diagnostics/OwnedPairsAuthorityTests.cs b/tests/Chunk7Diagnostics/OwnedPairsAuthorityTests.cs
+index fae6afde..49bba704 100644
+--- a/tests/Chunk7Diagnostics/OwnedPairsAuthorityTests.cs
++++ b/tests/Chunk7Diagnostics/OwnedPairsAuthorityTests.cs
+@@ -22,0 +23,4 @@ namespace KingmakerMountedCombat.Tests
++   foreach(var cold in new[]{false,true})t.Run("owned area distinct input and destination "+cold,()=>{var f=AreaCase(cold);Valid(f.Request);var a=f.Scope();if(!cold)f.Reserve(a);TestRunner.True(a.MatchesOwnedPairsPlan(true,true),"Area plan missing.");TestRunner.True(a.AuthorizeNativeRequest(RuntimeSaveOperation.Load,f.Load,f.Root)==null,"Exact native area input refused.");var w=f.Write(f.Number);if(cold){TestRunner.True(a.AuthorizeNativeRequest(RuntimeSaveOperation.Write,w,f.Root)!=null,"Cold area granted a write.");Unreserved(a);}else{var old=f.Write(f.Number);old.Area=Area;TestRunner.True(a.AuthorizeNativeRequest(RuntimeSaveOperation.Write,old,f.Root)!=null,"Area output admitted in source area.");TestRunner.Equal(0,a.AdmittedNativeWriteRequests,"Wrong area spent write.");TestRunner.True(a.AuthorizeNativeRequest(RuntimeSaveOperation.Write,w,f.Root)==null,"Destination Auto refused.");using(var lease=a.BeginWrite(w,f.Root)){BootstrapVirtualFile.OutputExists=true;lease.Complete();}TestRunner.True(a.MatchesOwnedPairsPlan(true,false),"Destination Auto plan changed.");TestRunner.True(a.AuthorizeNativeRequest(RuntimeSaveOperation.Write,w,f.Root)!=null,"Second Auto admitted.");}TestRunner.True(a.AuthorizeNativeRequest(RuntimeSaveOperation.Load,f.Load,f.Root)!=null,"Second area load admitted.");Reset();});
++   foreach(var fault in new[]{"missing-source","source-zero","same-area","missing-target","wrong-mode","source-override","cold-input-source","second-owner","write-quota"})t.Run("owned area request refuses "+fault,()=>{var f=AreaCase(fault=="cold-input-source");switch(fault){case "missing-source":f.Request.OwnedPairs.SourceArea=null;break;case "source-zero":f.Request.OwnedPairs.SourceArea=new string('0',32);break;case "same-area":f.Request.PersistenceAreaTarget.Area=Area;break;case "missing-target":f.Request.PersistenceAreaTarget=null;break;case "wrong-mode":f.Request.PersistenceAreaTarget.AutoSaveMode="BeforeExit";break;case "source-override":f.Request.OwnedPairs.SourceArea=new string('e',32);break;case "cold-input-source":f.Request.PersistenceLoad.Area=Area;break;case "second-owner":f.Request.OwnedPairs.RiderBId=f.Request.OwnedPairs.RiderAId;break;case "write-quota":f.Request.OwnedPairs.ExpectedNativeWriteCount=2;break;}TestRunner.True(f.Request.Validate().Count>0,"Forged owned area selection admitted.");Refuses(()=>f.Scope());});
++   foreach(var checkpoint in new[]{"multi-exploration-manual","multi-exploration-quick","multi-exploration-auto","multi-exploration-three-loads-manual","multi-exploration-three-area-transfers-manual"})t.Run("SourceArea forbidden on old route "+checkpoint,()=>{var f=checkpoint.Contains("three-")?Replay(checkpoint.Contains("area-transfers")):new Fixture();f.Request.PersistenceCase=checkpoint;f.Request.OwnedPairs.SourceArea=Area;TestRunner.True(f.Request.Validate().Count>0,"SourceArea leaked into another route.");});
++   foreach(var mutation in new[]{"source-area","target-area","target-entry","target-mode"})foreach(var boundary in new[]{"validate-load","authorize-load","archive-identity","authorize-write","storage"})t.Run("owned area captured mutation "+mutation+" "+boundary,()=>{var f=AreaCase(false);var a=f.Scope();f.Reserve(a);if(boundary=="authorize-write"||boundary=="storage"){TestRunner.True(a.AuthorizeNativeRequest(RuntimeSaveOperation.Load,f.Load,f.Root)==null,"Setup load failed.");if(boundary=="storage")TestRunner.True(a.AuthorizeNativeRequest(RuntimeSaveOperation.Write,f.Write(f.Number),f.Root)==null,"Setup write failed.");}var load=f.Load;var write=f.Write(f.Number);var loads=a.AdmittedNativeLoadRequests;var writes=a.AdmittedNativeWriteRequests;switch(mutation){case "source-area":f.Request.OwnedPairs.SourceArea=new string('e',32);f.Request.PersistenceLoad.Area=f.Request.OwnedPairs.SourceArea;break;case "target-area":f.Request.PersistenceAreaTarget.Area=new string('e',32);break;case "target-entry":f.Request.PersistenceAreaTarget.EnterPoint=new string('f',32);break;case "target-mode":f.Request.PersistenceAreaTarget.AutoSaveMode="None";break;}if(boundary=="storage")Refuses(()=>{using(a.BeginWrite(write,f.Root)){} });else TestRunner.True((boundary=="validate-load"?a.Validate(RuntimeSaveOperation.Load,load,f.Root):boundary=="archive-identity"?a.ValidateArchiveIdentity(load,f.Root):a.AuthorizeNativeRequest(boundary=="authorize-write"?RuntimeSaveOperation.Write:RuntimeSaveOperation.Load,boundary=="authorize-write"?write:load,f.Root))!=null,"Mutated area request admitted.");TestRunner.True(!a.MatchesOwnedPairsPlan(true,false),"Mutated area matched reservation.");TestRunner.Equal(loads,a.AdmittedNativeLoadRequests,"Refusal changed load count.");TestRunner.Equal(writes,a.AdmittedNativeWriteRequests,"Refusal changed write count.");});
+@@ -25,0 +30 @@ namespace KingmakerMountedCombat.Tests
++  static Fixture AreaCase(bool cold){var f=new Fixture();f.Request.PersistenceCase="multi-area-autosave";f.Request.OwnedPairs.SourceArea=Area;f.Request.PersistenceAreaTarget=new RuntimeAreaTransitionTarget{EnterPoint=new string('1',32),Area=OtherArea,AutoSaveMode="AfterEntry"};if(cold){f.Request.OwnedPairs.Case="persistence-load";f.Request.OwnedPairs.CheckpointSourceRunId="completed-owned-area";f.Request.OwnedPairs.CheckpointSourceArtifactSha256=new string('8',64);f.Request.OwnedPairs.ExpectedNativeWriteCount=0;f.Request.PersistenceLoad.InternalName="Autosave";f.Request.PersistenceLoad.FileName="Auto_1.zks";f.Request.PersistenceLoad.Area=OtherArea;}return f;}
+@@ -38,2 +43,2 @@ namespace KingmakerMountedCombat.Tests
+-   internal RuntimeSaveTarget Load=>new RuntimeSaveTarget{InternalName=Request.PersistenceLoad.InternalName,FileName=Request.PersistenceLoad.FileName,FullPath=Root+"\\"+Request.PersistenceLoad.FileName,SaveType=Request.ExpectedNativeLoadType,GameId=Campaign,GameName="Native",Area=Area};
+-   internal string Type=>Request.OwnedPairs.Cold?"Manual":Request.PersistenceCase=="multi-exploration-quick"?"Quick":Request.PersistenceCase=="multi-exploration-auto"?"Auto":"Manual";
++   internal RuntimeSaveTarget Load=>new RuntimeSaveTarget{InternalName=Request.PersistenceLoad.InternalName,FileName=Request.PersistenceLoad.FileName,FullPath=Root+"\\"+Request.PersistenceLoad.FileName,SaveType=Request.ExpectedNativeLoadType,GameId=Campaign,GameName="Native",Area=Request.PersistenceLoad.Area};
++   internal string Type=>Request.OwnedPairs.Cold?"Manual":Request.PersistenceCase=="multi-exploration-quick"?"Quick":(Request.PersistenceCase=="multi-exploration-auto"||Request.PersistenceCase=="multi-area-autosave")?"Auto":"Manual";
+@@ -42,2 +47,2 @@ namespace KingmakerMountedCombat.Tests
+-   internal RuntimeSaveTarget Write(int n)=>new RuntimeSaveTarget{InternalName=Name,FileName=Type+"_"+n+(Type=="Manual"?"_"+Name:"")+".zks",FullPath=Root+"\\"+Type+"_"+n+(Type=="Manual"?"_"+Name:"")+".zks",SaveType=Type,GameId=Campaign,GameName="Native",Area=Area};
+-   internal PersistenceSaveEntry[] Entries()=>new[]{new PersistenceSaveEntry{FileName=Request.PersistenceLoad.FileName,InternalName=Request.PersistenceLoad.InternalName,SaveType=Request.ExpectedNativeLoadType,Area=Area,InitialSha256=new string('d',64)}};
++   internal RuntimeSaveTarget Write(int n)=>new RuntimeSaveTarget{InternalName=Name,FileName=Type+"_"+n+(Type=="Manual"?"_"+Name:"")+".zks",FullPath=Root+"\\"+Type+"_"+n+(Type=="Manual"?"_"+Name:"")+".zks",SaveType=Type,GameId=Campaign,GameName="Native",Area=Request.ExpectedChunk7ArchiveArea};
++   internal PersistenceSaveEntry[] Entries()=>new[]{new PersistenceSaveEntry{FileName=Request.PersistenceLoad.FileName,InternalName=Request.PersistenceLoad.InternalName,SaveType=Request.ExpectedNativeLoadType,Area=Request.PersistenceLoad.Area,InitialSha256=new string('d',64)}};
+diff --git a/tests/Chunk7Diagnostics/OwnedReplayEpochTemplate.cs b/tests/Chunk7Diagnostics/OwnedReplayEpochTemplate.cs
+index df1939b8..565b8401 100644
+--- a/tests/Chunk7Diagnostics/OwnedReplayEpochTemplate.cs
++++ b/tests/Chunk7Diagnostics/OwnedReplayEpochTemplate.cs
+@@ -7,3 +7,3 @@ sealed class Target {internal string Area,AutoSaveMode="None";}
+-sealed class Request {internal string PersistenceCase=Chunk7PersistenceScenario.ThreeLoadsCase;internal Target[] PersistenceReplayTargets=new[]{new Target{Area="area1"},new Target{Area="area2"},new Target{Area="area3"}};}
+-sealed class Selection {internal bool Cold=true;}
+-sealed class Persistence {internal int NativeWorldDisposalCount,SemanticRestoreCount=4,PresentationRestoreCount=2,ArchivePostLoadObservedCount=4,AreaSuspensionCount,AreaResumeCount;internal string ArchiveRestorePhase="all-pair-presentation-restored";}
++sealed class Request {internal string PersistenceCase=Chunk7PersistenceScenario.ThreeLoadsCase;internal Target PersistenceAreaTarget;internal Target PersistenceLoad;internal Target[] PersistenceReplayTargets=new[]{new Target{Area="area1"},new Target{Area="area2"},new Target{Area="area3"}};}
++sealed class Selection {internal bool Cold=true;internal string Case,SourceArea;}
++sealed class Persistence {internal int NativeWorldDisposalCount,SemanticRestoreCount=4,PresentationRestoreCount=2,ArchivePostLoadObservedCount=4,AreaSuspensionCount,AreaResumeCount,FailedAreaPairCount;internal string ArchiveRestorePhase="all-pair-presentation-restored";}
+@@ -25,0 +26 @@ internal sealed partial class Chunk7OwnedPairFixture {
++ static Chunk7OwnedPairFixture FreshOwnedArea(){var f=Fresh();f.selection.Cold=false;f.selection.Case="persistence-save";f.selection.SourceArea="area0";f.request.PersistenceCase="multi-area-autosave";f.request.PersistenceAreaTarget=new Target{Area="area1",AutoSaveMode="AfterEntry"};f.request.PersistenceLoad=new Target{Area="area0"};f.persistence.SemanticRestoreCount=0;f.persistence.PresentationRestoreCount=0;f.persistence.ArchivePostLoadObservedCount=0;return f;}
+@@ -43,0 +45,3 @@ internal sealed partial class Chunk7OwnedPairFixture {
++ Check("owned area adopts only restored exact destination",()=>{var f=FreshOwnedArea();var old=f.Scope;var a=new BlueprintArea{AssetGuidThreadSafe="area1"};f.BeginAreaAutosave(a);Refuses(f.Release);f.persistence.AreaSuspensionCount=1;f.persistence.AreaResumeCount=2;f.game.CurrentlyLoadedArea=a;f.AdoptAreaAutosave(a);True(f.areaAutosaveAdopted&&!f.areaAutosavePending&&!ReferenceEquals(old,f.Scope)&&!f.released,"owned area custody was not adopted once");Refuses(()=>f.AdoptAreaAutosave(a));f.Release();True(f.released&&f.identities.RetainedCount==0,"settled owned area retained local identity");});
++ foreach(var fault in new[]{"one-owner","source-area","foreign-destination","failed-owner","postload","semantic","presentation","foreign-player","pending-field","new-scope"})Check("owned area failed restoration retains exact custody "+fault,()=>{var f=FreshOwnedArea();var a=new BlueprintArea{AssetGuidThreadSafe="area1"};f.BeginAreaAutosave(a);var old=f.Scope;f.persistence.AreaSuspensionCount=1;f.persistence.AreaResumeCount=2;f.game.CurrentlyLoadedArea=a;switch(fault){case "one-owner":f.persistence.AreaResumeCount=1;break;case "source-area":a.AssetGuidThreadSafe="area0";break;case "foreign-destination":a=new BlueprintArea{AssetGuidThreadSafe="area1"};break;case "failed-owner":f.persistence.FailedAreaPairCount=1;break;case "postload":f.persistence.ArchivePostLoadObservedCount=1;break;case "semantic":f.persistence.SemanticRestoreCount=1;break;case "presentation":f.persistence.PresentationRestoreCount=1;break;case "foreign-player":f.game.Player=new object();break;case "pending-field":f.Party[4].Commands.Queue.AddLast(new object());break;case "new-scope":Chunk7NativeWorldScope.RefuseConstructor=true;break;}Refuses(()=>f.AdoptAreaAutosave(a));Refuses(f.Release);True(ReferenceEquals(old,f.Scope)&&f.areaAutosavePending&&!f.areaAutosaveAdopted&&!f.released&&f.identities.RetainedCount==8,"failed owned area lost custody");});
++ foreach(var fault in new[]{"cold","foreign-case","wrong-target","busy-unrelated","wrong-source"})Check("owned area dispatch closed "+fault,()=>{var f=FreshOwnedArea();var a=new BlueprintArea{AssetGuidThreadSafe="area1"};switch(fault){case "cold":f.selection.Cold=true;break;case "foreign-case":f.selection.Case="exploration";break;case "wrong-target":a.AssetGuidThreadSafe="area2";break;case "busy-unrelated":f.Party[4].Commands.Empty=false;break;case "wrong-source":f.selection.SourceArea="area2";break;}Refuses(()=>f.BeginAreaAutosave(a));True(!f.areaAutosavePending&&!f.released,"refused dispatch armed native area");});
