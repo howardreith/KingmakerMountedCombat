@@ -40,6 +40,23 @@ check, not execution by a generic JSON Schema engine. Production code and all
 package/DLL bytes remain unchanged. The corrected harness still needs Candidate
 qualification on the existing build; Candidate01 is not relabeled.
 
+## Preserved Candidate02 failure and contract correction
+
+Harness source `67cdef7a207d34420cb1d6c09af3d9499e3dc6e2` ran Candidate02
+with the original product and SkipBuild. It remains FAIL:211.9195749 seconds,
+actual4c4376/provider13914 to7a622d exit1. Components817/source147, Harness271
+and paired-activation checks passed. Artifact-manifest contract stopped before
+its behavior checks because its legacy-body normalizer omitted the four exact
+assisted evidence/cleanup registrations. The assembly stage did not execute.
+
+Only that test contract changed: it requires each of those registrations exactly
+once and isolates them before checking all original legacy hashes unchanged.
+The actual existing11 contract checks then passed (5afe06 exit0,1.0397408 seconds),
+including historical project-owned JSON refusal behavior; no ZIP or native work.
+Both Candidate failures remain immutable. Candidate03 will run on the unchanged
+product with a clean descendant external harness; production/DLL/package inputs
+remain unchanged. The suite still requires a complete passing Candidate.
+
 ## Selected native dependency
 
 Root alone executes. Nine of25 native attempts are used, all final FAIL and
