@@ -88,8 +88,10 @@ namespace KingmakerMountedCombat.Diagnostics
         private Chunk7OrdinaryFieldScenario ordinaryFieldEngine;
         private Chunk7SmallCalibrationScenario smallCalibrationEngine;
         private Chunk7NativeBootstrapScenario nativeBootstrapEngine;
+        private Chunk7AssistedFixtureScenario assistedFixtureEngine;
         private Chunk7BootstrapDialogueObservation bootstrapDialogue;
         private Chunk7BootstrapInventoryScenario bootstrapInventoryEngine;
+        private Chunk7AssistedColdInventoryScenario assistedColdInventoryEngine;
         private Chunk7ManualSeedScenario manualSeedEngine;
         private Chunk7ManualDerivedScenario manualDerivedEngine;
         private Chunk7AcquiredManualScenario acquiredManualEngine;
@@ -118,6 +120,7 @@ namespace KingmakerMountedCombat.Diagnostics
             !Chunk7AcquiredManualScenario.SupportsScenario(request.Scenario) &&
             !Chunk7ManualDerivedScenario.SupportsScenario(request.Scenario) &&
             !Chunk7ManualSeedScenario.SupportsScenario(request.Scenario) &&
+            !Chunk7AssistedColdInventoryScenario.SupportsScenario(request.Scenario) &&
             !Chunk7BootstrapInventoryScenario.SupportsScenario(request.Scenario) &&
             !Chunk7SmallCalibrationScenario.SupportsScenario(request.Scenario) &&
             !Chunk7ProgressionScenario.SupportsScenario(request.Scenario) &&
@@ -597,6 +600,8 @@ namespace KingmakerMountedCombat.Diagnostics
                     request.Scenario == Phase3dHorseScenarioTranche.OrdinaryAttackControlsScenario
                         ? Phase3dHorseScenarioTranche.OrdinaryScenarioDeadlineSeconds : 0.0);
                 if (Chunk7NativeBootstrapScenario.SupportsScenario(request.Scenario)) hostDeadline = 420.0;
+                if (Chunk7AssistedFixtureScenario.SupportsScenario(request.Scenario)) hostDeadline = 600.0;
+                if (Chunk7AssistedColdInventoryScenario.SupportsScenario(request.Scenario)) hostDeadline = 240.0;
                 if (Chunk7BootstrapInventoryScenario.SupportsScenario(request.Scenario)) hostDeadline = 240.0;
                 if (Chunk7ManualSeedScenario.SupportsScenario(request.Scenario)) hostDeadline = 300.0;
                 if (Chunk7ManualDerivedScenario.SupportsScenario(request.Scenario)) hostDeadline = 1050.0;
@@ -702,6 +707,10 @@ namespace KingmakerMountedCombat.Diagnostics
 
             // This exact opt-in owns its own pre-fixture native new-game path.
             // The historical Working loader remains unstarted, not "verified".
+            if (Chunk7AssistedFixtureScenario.SupportsScenario(request.Scenario))
+            {
+                UpdateAssistedFixture(); return;
+            }
             if (Chunk7NativeBootstrapScenario.SupportsScenario(request.Scenario))
             {
                 UpdateNativeBootstrap();
@@ -743,6 +752,12 @@ namespace KingmakerMountedCombat.Diagnostics
                 {
                     progressionEngine = new Chunk7ProgressionScenario(request, saveAuthorization, persistenceBootstrap.Authority, relationship, persistence, horseCompanion);
                     progressionEngine.BeginBeforeLoad();
+                }
+                if (Chunk7AssistedColdInventoryScenario.SupportsScenario(request.Scenario))
+                {
+                    assistedColdInventoryEngine = new Chunk7AssistedColdInventoryScenario(request, saveAuthorization, persistenceBootstrap.Authority,
+                        relationship, nativeControls, persistence, fixtureLoader);
+                    assistedColdInventoryEngine.BeginBeforeLoad();
                 }
                 if (Chunk7BootstrapInventoryScenario.SupportsScenario(request.Scenario))
                 {
@@ -840,6 +855,14 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (!manualSeedEngine.IsCompleted) return;
                 subscenarioResults = manualSeedEngine.Results;
                 CollectEngineErrors(manualSeedEngine.Errors, "Chunk 7 native Manual seed");
+            }
+            else if (Chunk7AssistedColdInventoryScenario.SupportsScenario(request.Scenario))
+            {
+                if (assistedColdInventoryEngine == null) throw new InvalidOperationException("Assisted cold observer was not owned before native load.");
+                assistedColdInventoryEngine.Update();
+                if (!assistedColdInventoryEngine.IsCompleted) return;
+                subscenarioResults = assistedColdInventoryEngine.Results;
+                CollectEngineErrors(assistedColdInventoryEngine.Errors, "Chunk 7 assisted cold inventory");
             }
             else if (Chunk7BootstrapInventoryScenario.SupportsScenario(request.Scenario))
             {
@@ -1125,6 +1148,33 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             failures.AddRange(scenarioEngineErrors);
             Complete(failures.Count == 0 ? "PASS" : "FAIL", failures);
+        }
+
+        private void UpdateAssistedFixture()
+        {
+            if (fixtureScenarioCompleted) return;
+            if (assistedFixtureEngine == null)
+            {
+                assistedFixtureEngine = new Chunk7AssistedFixtureScenario(request, saveAuthorization, relationship, nativeControls, persistence, horseCompanion);
+            }
+            var engine = assistedFixtureEngine;
+            if (!engine.PreflightReady && !engine.IsCompleted) engine.Preflight();
+            if (engine.PreflightReady && !engine.IsBound && !engine.IsCompleted)
+            {
+                if (persistenceBootstrap == null) throw new InvalidOperationException("Native bootstrap lost its selected isolation constructor.");
+                if (!persistenceBootstrap.TryPrepare()) return;
+                saveAuthorizationLease.Dispose();
+                saveAuthorizationLease = saveAuthorization.Activate(request.Fixture, persistenceBootstrap.SaveRoot, false);
+                saveAuthorization.BindPersistenceScope(persistenceBootstrap.Authority);
+                engine.BindAndStart(persistenceBootstrap.Authority);
+                return;
+            }
+            if (engine.IsBound && !engine.IsCompleted) engine.Update();
+            if (!engine.IsCompleted) return;
+            subscenarioResults = engine.Results;
+            CollectEngineErrors(engine.Errors, "Chunk 7 assisted fixture");
+            fixtureScenarioCompleted = true;
+            Complete(engine.Errors.Count == 0 && scenarioEngineErrors.Count == 0 ? "PASS" : "FAIL", scenarioEngineErrors);
         }
 
         private void UpdateNativeBootstrap()
@@ -1502,7 +1552,7 @@ namespace KingmakerMountedCombat.Diagnostics
             };
         }
 
-        private bool IsChunk7NativeFamily => Chunk7AcquiredManualScenario.SupportsScenario(request.Scenario) || Chunk7ManualDerivedScenario.SupportsScenario(request.Scenario) || Chunk7ManualSeedScenario.SupportsScenario(request.Scenario) || Chunk7BootstrapInventoryScenario.SupportsScenario(request.Scenario) || Chunk7NativeBootstrapScenario.SupportsScenario(request.Scenario) || Chunk7ProgressionScenario.SupportsScenario(request.Scenario) || Chunk7SmallCalibrationScenario.SupportsScenario(request.Scenario) || Chunk7OrdinaryFieldScenario.SupportsScenario(request.Scenario) || Chunk7OrdinaryAcquisitionScenario.SupportsScenario(request.Scenario) || Chunk7WorldScenarioEngine.SupportsRequest(request) ||
+        private bool IsChunk7NativeFamily => Chunk7AssistedColdInventoryScenario.SupportsScenario(request.Scenario) || Chunk7AssistedFixtureScenario.SupportsScenario(request.Scenario) || Chunk7AcquiredManualScenario.SupportsScenario(request.Scenario) || Chunk7ManualDerivedScenario.SupportsScenario(request.Scenario) || Chunk7ManualSeedScenario.SupportsScenario(request.Scenario) || Chunk7BootstrapInventoryScenario.SupportsScenario(request.Scenario) || Chunk7NativeBootstrapScenario.SupportsScenario(request.Scenario) || Chunk7ProgressionScenario.SupportsScenario(request.Scenario) || Chunk7SmallCalibrationScenario.SupportsScenario(request.Scenario) || Chunk7OrdinaryFieldScenario.SupportsScenario(request.Scenario) || Chunk7OrdinaryAcquisitionScenario.SupportsScenario(request.Scenario) || Chunk7WorldScenarioEngine.SupportsRequest(request) ||
             Chunk7PersistenceScenario.SupportsRequest(request) ||
             Chunk7CombatScenario.SupportsRequest(request);
 
@@ -1588,6 +1638,14 @@ namespace KingmakerMountedCombat.Diagnostics
                         CollectEngineErrors(seedEngine.Errors, "Chunk 7 native Manual seed");
                         seedEngine.Dispose(); manualSeedEngine = null;
                     }
+                    if (assistedColdInventoryEngine != null)
+                    {
+                        var coldEngine = assistedColdInventoryEngine;
+                        if (!coldEngine.DrainForHost()) return false;
+                        subscenarioResults = coldEngine.Results;
+                        CollectEngineErrors(coldEngine.Errors, "Chunk 7 assisted cold inventory");
+                        coldEngine.Dispose(); assistedColdInventoryEngine = null;
+                    }
                     if (bootstrapInventoryEngine != null)
                     {
                         var inventoryEngine = bootstrapInventoryEngine;
@@ -1595,6 +1653,14 @@ namespace KingmakerMountedCombat.Diagnostics
                         subscenarioResults = inventoryEngine.Results;
                         CollectEngineErrors(inventoryEngine.Errors, "Chunk 7 bootstrap cold inventory");
                         inventoryEngine.Dispose(); bootstrapInventoryEngine = null;
+                    }
+                    if (assistedFixtureEngine != null)
+                    {
+                        var assisted = assistedFixtureEngine;
+                        if (!assisted.DrainForHost()) return false;
+                        subscenarioResults = assisted.Results;
+                        CollectEngineErrors(assisted.Errors, "Chunk 7 assisted fixture");
+                        assisted.Dispose(); assistedFixtureEngine = null;
                     }
                     if (nativeBootstrapEngine != null)
                     {
@@ -1946,7 +2012,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private void FinalizeActiveScenarioEngines(List<string> finalErrors)
         {
             if (worldEngine != null && Chunk7WorldScenarioEngine.SupportsRequest(request) ||
-                progressionEngine != null || bootstrapInventoryEngine != null || nativeBootstrapEngine != null || smallCalibrationEngine != null || ordinaryFieldEngine != null || ordinaryEngine != null || worldPersistenceEngine != null || worldCombatEngine != null || IsChunk7NativeFamily && !chunk7Completion.Settled)
+                progressionEngine != null || assistedColdInventoryEngine != null || bootstrapInventoryEngine != null || nativeBootstrapEngine != null || assistedFixtureEngine != null || smallCalibrationEngine != null || ordinaryFieldEngine != null || ordinaryEngine != null || worldPersistenceEngine != null || worldCombatEngine != null || IsChunk7NativeFamily && !chunk7Completion.Settled)
                 throw new InvalidOperationException("A Chunk 7 native owner reached finalization before its cleanup gate settled.");
             if (worldEngine != null)
             {
@@ -2235,6 +2301,8 @@ namespace KingmakerMountedCombat.Diagnostics
             AddRuntimeArtifactIfPresent(artifacts, request.EvidenceRoot, RuntimeLoaderInventory.EvidenceFileName, RuntimeLoaderInventory.EvidenceKind);
             AddRuntimeArtifactIfPresent(artifacts, request.EvidenceRoot, WorkingLoadDiagnosticSession.EvidenceFileName, WorkingLoadDiagnosticSession.EvidenceKind);
             AddRuntimeArtifactIfPresent(artifacts, request.EvidenceRoot, WorkingLoadDiagnosticSession.PendingFileName, WorkingLoadDiagnosticSession.PendingKind);
+            AddRuntimeArtifactIfPresent(artifacts, request.EvidenceRoot, Chunk7AssistedFixtureScenario.EvidenceFileName, Chunk7AssistedFixtureScenario.EvidenceKind);
+            AddRuntimeArtifactIfPresent(artifacts, request.EvidenceRoot, Chunk7AssistedFixtureScenario.PendingFileName, Chunk7AssistedFixtureScenario.PendingKind);
             AddRuntimeArtifactIfPresent(artifacts, request.EvidenceRoot, Chunk7NativeBootstrapScenario.EvidenceFileName, Chunk7NativeBootstrapScenario.EvidenceKind);
             AddRuntimeArtifactIfPresent(artifacts, request.EvidenceRoot, Chunk7NativeBootstrapScenario.PendingFileName, Chunk7NativeBootstrapScenario.PendingKind);
             AddRuntimeArtifactIfPresent(artifacts, request.EvidenceRoot, Chunk7AcquiredManualScenario.EvidenceFileName, Chunk7AcquiredManualScenario.EvidenceKind);
@@ -2245,6 +2313,8 @@ namespace KingmakerMountedCombat.Diagnostics
             AddRuntimeArtifactIfPresent(artifacts, request.EvidenceRoot, Chunk7ManualDerivedScenario.CumulativePendingFileName, Chunk7ManualDerivedScenario.CumulativePendingKind);
             AddRuntimeArtifactIfPresent(artifacts, request.EvidenceRoot, Chunk7ManualSeedScenario.EvidenceFileName, Chunk7ManualSeedScenario.EvidenceKind);
             AddRuntimeArtifactIfPresent(artifacts, request.EvidenceRoot, Chunk7ManualSeedScenario.PendingFileName, Chunk7ManualSeedScenario.PendingKind);
+            AddRuntimeArtifactIfPresent(artifacts, request.EvidenceRoot, Chunk7AssistedColdInventoryScenario.EvidenceFileName, Chunk7AssistedColdInventoryScenario.EvidenceKind);
+            AddRuntimeArtifactIfPresent(artifacts, request.EvidenceRoot, Chunk7AssistedColdInventoryScenario.PendingFileName, Chunk7AssistedColdInventoryScenario.PendingKind);
             AddRuntimeArtifactIfPresent(artifacts, request.EvidenceRoot, Chunk7BootstrapInventoryScenario.EvidenceFileName, Chunk7BootstrapInventoryScenario.EvidenceKind);
             AddRuntimeArtifactIfPresent(artifacts, request.EvidenceRoot, Chunk7BootstrapInventoryScenario.PendingFileName, Chunk7BootstrapInventoryScenario.PendingKind);
             AddRuntimeArtifactIfPresent(artifacts, request.EvidenceRoot, Chunk7SmallCalibrationScenario.EvidenceFileName, Chunk7SmallCalibrationScenario.EvidenceKind);

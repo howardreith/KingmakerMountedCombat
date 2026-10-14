@@ -34,6 +34,19 @@ __ACTUAL_GUID_READ__
  private static T ReadField<T>(Type type,object instance,string name,int token){return (T)type.GetField(name,BindingFlags.Public|BindingFlags.NonPublic|BindingFlags.Instance|BindingFlags.Static|BindingFlags.DeclaredOnly).GetValue(instance);}
 __ACTUAL_RAW_STATE__
 }
+// The independent choice reader/adapter tests exercise the actual PC observer.
+// This existing recorder/host DTO adapter uses an explicit failed-choice facade,
+// keeping its original native state and publication assertions unchanged.
+static class Chunk7DialogueChoiceObservation {
+ internal const int AdditionalIdentitiesPerSnapshot=101;
+ internal sealed class RawState {}
+ internal static RawState ReadNative(object game,object controller,object dialog,object cue){return null;}
+ internal static JObject Capture(RawState state,Func<object,int> identity){
+  var result=new JObject{["readSucceeded"]=false,["readError"]="Choice boundary substituted by existing recorder adapter",["scope"]="controller-offers-and-pc-cached-rows",["cachedStateIsAuthorization"]=false,["directTypesOnly"]=true,["systemButtonsIncluded"]=false};
+  foreach(var key in new[]{"game","controller","dialog","currentCue","ui","common","manager","pcDialog","currentPart","uiStatus","managerKind","managerShown","pcDialogActive","offered","rows","directTypeCount"})result[key]=null;
+  return result;
+ }
+}
 static class NativeRead {
  internal static bool UseActual;internal static Chunk7BootstrapDialogueObservation.RawState State;internal static int Reads;internal static Exception Error;
  internal static Chunk7BootstrapDialogueObservation.RawState Read(Game game){Reads++;if(Error!=null)throw Error;return State;}
@@ -99,9 +112,9 @@ static class Tests {
   recorder=Recorder();state=State();state.Dialog=null;recorder.Observe("cleanup-entry",1,()=>state);Check("blueprint string without object refuses",!(bool)Row(recorder)["readSucceeded"]);
   recorder=Recorder();for(int index=0;index<4;index++){state=State();state.QueuedCue=new object();state.QueuedCueGuid="queued";state.ContinueCue=new object();state.ContinueCueGuid="continued";recorder.Observe(new[]{"bootstrap-readiness","cleanup-entry","cleanup-settlement","host-terminal"}[index],index,()=>state);}Check("four maximum distinct rows stay under identity capacity",Held(recorder)==28&&((JArray)recorder.Capture()["snapshots"]).Count==4);recorder.Dispose();Check("maximum observation releases all references",Held(recorder)==0);
   recorder=Recorder();for(int index=0;index<4;index++){state=State();state.QueuedCue=new object();state.QueuedCueGuid="queued";state.ContinueCue=new object();state.ContinueCueGuid="continued";state.DialogState=new object();state.ScheduledStart=new object();state.ScheduledStartIsScheduled=true;state.ScheduledDialog=new object();state.ScheduledDialogGuid="scheduled";recorder.Observe(new[]{"bootstrap-readiness","cleanup-entry","cleanup-settlement","host-terminal"}[index],index,()=>state);}
-  Check("v2 four distinct snapshots retain all forty references",Held(recorder)==40&&recorder.Capture()["snapshots"].All(row=>(bool)row["readSucceeded"]));
-  Check("v2 exact capacity covers all ten object fields per phase",(int)recorder.Capture()["identityCapacity"]==40&&(int)recorder.Capture()["identityFaultCount"]==0);
-  recorder.Dispose();var maximum=recorder.Capture();Save(folder,"maximum-distinct.json",maximum);Check("v2 maximum capture releases references and preserves labels",Held(recorder)==0&&((JArray)maximum["identityIds"]).Count==40&&(bool)maximum["identityReleased"]);
+  Check("scheduled fields retain all forty references",Held(recorder)==40&&recorder.Capture()["snapshots"].All(row=>(bool)row["readSucceeded"]));
+  Check("v3 capacity retains headroom for separately tested choices",(int)recorder.Capture()["identityCapacity"]==444&&(int)recorder.Capture()["identityFaultCount"]==0);
+  recorder.Dispose();var maximum=recorder.Capture();Save(folder,"maximum-distinct.json",maximum);Check("scheduled capture releases references and preserves labels",Held(recorder)==0&&((JArray)maximum["identityIds"]).Count==40&&(bool)maximum["identityReleased"]);
   recorder=Recorder();recorder.Dispose();NativeRead.Reads=0;UnityEngine.Time.frameCount=40;var preReleased=recorder.CaptureTerminal(game);Save(folder,"released-error.json",preReleased);Check("premature release is explicit and does not read native",NativeRead.Reads==0&&((JArray)preReleased["errors"]).Count==1&&(bool)preReleased["identityReleased"]);
   NativeRead.UseActual=true;var nativeGame=new Game{CurrentMode=GameModeType.Dialog,DialogController=new DialogController{m_CuePlayScheduled=true,m_DialogStopScheduled=false,Dialog=new BlueprintDialog{AssetGuidThreadSafe="native-dialog"},m_CurrentCue=new BlueprintCue{AssetGuidThreadSafe="native-cue"}}};
   var popup=new DialogMessageBox{Destroyed=true,Shown=true,m_BoxType=DialogMessageBoxBase.BoxType.TestValue};DialogMessageBox.Instance=popup;recorder=Recorder();UnityEngine.Time.frameCount=50;var unityNull=recorder.CaptureTerminal(nativeGame);Save(folder,"unity-null-popup.json",unityNull);

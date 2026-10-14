@@ -1,9 +1,10 @@
 # Chunk 7 native checkpoint — 12 October 2026
 
-Status: IN PROGRESS. All six final native attempts remain FAIL and are settled.
-Root was the sole live executor. The latest preview.7 result and exact restoration
-are recorded below; earlier sections retain their original candidate evidence.
-Later isolated native autosaves do not qualify a follow-up fixture.
+Status: IN PROGRESS. Nine of 25 native attempts are used, all final FAIL and settled.
+Root was the sole live executor. The final section records preview9 and its
+separate verified recovery. Earlier sections retain their original candidates,
+permissions and verdicts; their next actions are historical. Failed isolated
+autosaves do not qualify a follow-up fixture.
 
 Frozen product: b97db97f8f9641eea802a725295161ebdac4ad03, preview.3,
 DLL SHA256 096671ee0629acd32d1c3a16906bac508e7afa2d6b2a75d5890ddd2755aee2a4,
@@ -230,3 +231,89 @@ Native receiptde6aaa3b886fd7258eb3b0b3162a312cd935218537dc58137f651fb8cd9fc9ab a
 ### Attempt7 load-header clarification
 
 A bounded follow-up identified native `LoadRoutine` token0600BF00 atIL01AE–01EC incrementing LoadedTimes and committing the header before world disposal. The game's saveRequestCount observes SaveRoutine admission, including refused requests; it does not enumerate every physical archive write. The installed-control Working change is consistent with the existing permitted transactional load-header path. Exact changed members and header-only equivalence remain unproved; no archive content was read for this follow-up. Investigation7462fc2da75be01653b7f6ce7f8e511fa9d1411ba9c8383b66a0a96e1a4432d7 clarifies the earlier unknown-cause statement without changing attempt7FAIL or its restoration receipts.
+
+## Attempt 9 — preview9 Working observer, 14 October 2026
+
+Run `20261013-chunk7b-world09-working-observer` used frozen product
+`3262eb02969a39c387a66986eb4f75d6c8fdb6d9` and clean harness
+`029089ae07c47308849e21b366bfd96788004927`. The base-only
+`export-mounted-contracts` selection enabled ObserveWorkingDeserialization,
+with one permitted Working load and zero permitted saves. Package, DLL and suite
+remain the immutable [preview9 inputs](CHUNK7-PREVIEW9-CANDIDATE.md).
+
+The fresh full WhatIf passed in 9027.385412 seconds: actual395d9c /
+provider26324 CLOSED / f31439 exit0, 1374 unchanged pins, source147/0,
+package11/0 and one full purity assertion. Equality is the code-mediated
+per-root before/after comparison, not atomic or continuous custody.
+WhatIf SHA `eeab13f4b99e4f980e77b3a225e6cbb29d5d1a15f39520c7a123ef2adc6fa10a`;
+independent audit review `2509dd43ad1880ee8c484ec8db198209d464326b0abf3e2615c5f9a404b7adb6`.
+
+The native supervisor failed after 668.517396 seconds: actualfa7a60 /
+provider17903 CLOSED / de85c3 exit1. The game still ran at the 600-second outer
+deadline, so restoration was correctly held. Original native receipt SHA
+`814515510cd63deb41229fe259820a4a9945cc98c2408f68e2dafc89af2e1f09`
+and afterPinsVerified=false are preserved unchanged.
+
+A late in-process result reported FAIL at 02:36:38.5443446Z, after
+1045.791095 seconds and ten automation-host callbacks, mode None with no loaded
+area. The reported frameCount is a host counter, not Unity's frame counter.
+All load, save and unauthorized request counts were zero; fixture identity was
+not verified. At its first eligible callback, the host's 300-second deadline
+had elapsed before the selected Working loader. This is not Working
+deserialization evidence. The loader inventory separately verified the exact
+candidate and KMC-only active UMM entry. A BugReportCanvas.OnEnable exception
+appears in the late Unity log; its relationship to the delay is unproved.
+No deadline was relaxed. The game exited itself; no close, kill or UI input
+was issued.
+
+Late game SHA `f45ba5e8ac7ad31fd77ca10a58fed1db64cb3dd9ca20084624876932640bceac`;
+loader `ed568bad755403ec558c3320a65f5947cdd8d2c8bb7991e6d0ff4f95ee39bfed`;
+late log `09d028c57aa0821bcef058540eb4b0153cc2562b4f1308c0261cb2fb57d3a655`.
+These late files do not revise the original failed supervisor outcome.
+
+### Exact separate recovery
+
+A reviewed native9-only private adapter coordinated the unchanged repository
+Mods/save and isolated-profile recovery functions under the same retained lock.
+It retained failed dispatch/setup evidence and passed 51 generated boundary
+checks; no real transaction was substituted into those tests. Actual recovery
+WhatIf passed in 6.571167 seconds. The first real dispatch failed before its
+body because an external -File invocation supplied Confirm as a string.
+The corrected owner-host invocation used the same pinned source and typed
+Confirm=false; no guard or authority was bypassed.
+
+Actual recovery passed: c1f0d3 / provider20892 CLOSED / 1a39f3 exit0,
+21.7858148 seconds. All five restoration flags are true, errors are empty,
+profile bytes match exactly, accepted cache changes are zero, dependencies
+are unchanged, and the lock was released after durable held proof.
+
+| Restored surface | Exact recorded identity |
+| --- | --- |
+| Mods before/restored | `02b2efc8c35dc0bbd7b041b6fa1f6f9888b51bf0490ab7b9ca34dc0901977dc0` |
+| Protected save inventory before/restored | `2e69c4a4b4611327b0acb09d002a996e42980ff23f2ce256ac3d7dd064d9c74a` |
+| Working unchanged; Baseline immutable | `5eb4e0b4cbd8d60dc879a02ff71aadfde3f517304754857f0cc68d0f9a93f1c6` |
+| Profile before/restored | `0279311deec23322c819650f1815076931698272e205534722a928e57fb04ef4` |
+| Params restored | `b4a135f4bc05fc150abf1a4106b4f2edbfad66730583ba8443e87fe69df7fe87` |
+| Preferences restored | `342a47f1c84dd01b386dddd4b81767fea20b55afd5103076132af4c573083c8c` |
+
+Recovery receipt SHA `76c90ddf4a5b160ed19fb26e048d0b5a0cc9b553e028e1dd4134f0d0e7989aff`;
+caller `5c02eb4a572ff718972bb4c044673dc3fdc320b079954a225f8a8e40685324fe`.
+Root actuala9dbee exit0 observed stable game absence, no active lock or live
+sentinel, and restored combined state at 03:00:26.6742831Z. Postcheck SHA
+`6d758fde2603887e85efd289ecae3c1e12dbd5cd0ebdc2355364cc4f815f56fe`.
+This is point-in-time absence, not continuous custody.
+
+Independent closeout passed 18 cross-record checks and verified eight original
+failure/request/snapshot/settings pins unchanged: review SHA
+`10637bb626c1d4eabdaa8000128d378166921750f56d3af6af6ed958eb11c1c8`.
+Private recovery records are under
+`analysis-cache/chunk7-continuation/working-native9-recovery-next01`;
+original evidence remains under `runtime-evidence/<run-id>`.
+No live transaction remains. Native9 remains FAIL and supplies no qualified save.
+
+The owner authorized creating a new disposable campaign. The reviewed
+[assisted preparation and separate cold-inventory source](CHUNK7-ASSISTED-FIXTURE-SUPPORT.md)
+is the next fixture path, subject to an identified candidate and fresh guarded
+qualification. The pre-load startup delay remains a separate causal unknown.
+Required native combat/persistence, ordinary progression, Small profile,
+six-pair stress, measured controls and human review remain open.

@@ -14,7 +14,7 @@ $framework='C:/Program Files (x86)/Reference Assemblies/Microsoft/Framework/.NET
 $exe=Join-Path $OutputDirectory 'ManualSeedProbeActual.exe';$rsp=Join-Path $OutputDirectory 'compile.rsp'
 $args=@('/nologo','/target:exe','/langversion:7.3','/optimize+','/deterministic+','/nostdlib+','/nowarn:0649,0169,0414',('/out:'+$exe),('/reference:'+$json))
 $args+=@('mscorlib.dll','System.dll','System.Core.dll','System.Xml.dll','System.Runtime.Serialization.dll')|ForEach-Object{'/reference:'+(Join-Path $framework $_)}
-$selectionSources=@('Chunk7ManualDerivedSelection.cs','Chunk7AcquiredManualSelection.cs','Chunk7CumulativeAcquisitionSelection.cs','Chunk7OwnedPairsSelection.cs')|ForEach-Object{Join-Path $DiagnosticSourceDirectory $_}
+$selectionSources=@('Chunk7ManualDerivedSelection.cs','Chunk7AcquiredManualSelection.cs','Chunk7AssistedFixtureSelection.cs','Chunk7AssistedColdInventorySelection.cs','Chunk7CumulativeAcquisitionSelection.cs','Chunk7OwnedPairsSelection.cs')|ForEach-Object{Join-Path $DiagnosticSourceDirectory $_}
 $args+=@($actual,$TemplatePath)+@($selectionSources)
 [IO.File]::WriteAllLines($rsp,@($args|ForEach-Object{'"'+$_+'"'}),[Text.UTF8Encoding]::new($false))
 &$compiler ('@'+$rsp);if($LASTEXITCODE-ne0){throw 'Manual seed actual probe compile failed'}

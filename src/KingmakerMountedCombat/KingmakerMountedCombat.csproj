@@ -253,6 +253,9 @@
     <Compile Include="Diagnostics\Chunk7OrdinaryFieldScenario.cs" />
     <Compile Include="Diagnostics\Chunk7EvidenceDto.cs" />
     <Compile Include="Diagnostics\Chunk7NativeBootstrapSelection.cs" />
+    <Compile Include="Diagnostics\Chunk7AssistedColdInventorySelection.cs" />
+    <Compile Include="Diagnostics\Chunk7AssistedColdInventoryScenario.cs" />
+    <Compile Include="Diagnostics\PersistenceSaveAuthorization.AssistedColdInventory.cs" />
     <Compile Include="Diagnostics\Chunk7BootstrapInventorySelection.cs" />
     <Compile Include="Diagnostics\Chunk7ManualSeedSelection.cs" />
     <Compile Include="Diagnostics\Chunk7ManualDerivedSelection.cs" />
@@ -278,6 +281,17 @@
     <Compile Include="Diagnostics\Chunk7BootstrapInventoryProbe.cs" />
     <Compile Include="Diagnostics\Chunk7NativeBootstrapScenario.cs" />
     <Compile Include="Diagnostics\Chunk7BootstrapDialogueObservation.cs" />
+    <Compile Include="Diagnostics\Chunk7DialogueChoiceObservation.cs" />
+    <Compile Include="Diagnostics\Chunk7AssistedFixtureSelection.cs" />
+    <Compile Include="Diagnostics\PersistenceSaveAuthorization.AssistedFixture.cs" />
+    <Compile Include="Diagnostics\Chunk7AssistedFixtureScenario.cs" />
+    <Compile Include="Diagnostics\Chunk7AssistedFixtureScenario.Setup.cs" />
+    <Compile Include="Diagnostics\Chunk7AssistedFixtureScenario.Save.cs" />
+    <Compile Include="Diagnostics\Chunk7AssistedFixtureBinding.cs" />
+    <Compile Include="Diagnostics\Chunk7AssistedFixtureEvidence.cs" />
+    <Compile Include="Diagnostics\Chunk7AssistedFixtureNativeBoundary.cs" />
+    <Compile Include="Diagnostics\Chunk7AssistedShortfall.cs" />
+    <Compile Include="Diagnostics\Chunk7AssistedStoryDriver.cs" />
     <Compile Include="Diagnostics\Chunk7NativeBootstrapProbe.cs" />
     <Compile Include="Diagnostics\RuntimeProtocol.cs" />
     <Compile Include="Diagnostics\StopEarlyCaptureBoundary.cs" />

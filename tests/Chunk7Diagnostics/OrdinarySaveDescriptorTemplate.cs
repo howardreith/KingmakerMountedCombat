@@ -6,6 +6,7 @@ namespace Kingmaker.Controllers{public class LevelUpAutoSaveController{public vo
 namespace Kingmaker.EntitySystem.Persistence{public class Area{public string AssetGuidThreadSafe="area";}public class SaveInfo{public enum SaveType{Auto,Manual}public enum StateType{None,Saving}public SaveType Type=SaveType.Auto;public string Name="LEVELUP",FileName="Auto_1.zks",FolderName=Path.Combine("root","Auto_1.zks"),GameId="campaign",GameName="game";public bool IsAutoLevelupSave=true,HasFileOnDisk=true,IsActuallySaved=true;public StateType OperationState;public Area Area=new Area();}public class SaveManager{public void PrepareSave(SaveInfo s){}}}
 namespace Kingmaker{public class Game{public static Game Instance;public SaveManager SaveManager=new SaveManager();public void SaveGame(SaveInfo s,Action a){}}}
 namespace KingmakerMountedCombat.Diagnostics{
+internal static class Chunk7AssistedFixtureSelection{internal const string LevelupStagingLeaf="Auto_2.zks";}
 internal static class Chunk7OrdinaryAcquisitionSelection{internal const string AutoLeaf="Auto_1.zks";}internal static class Chunk7ManualDerivedSelection{internal const string OutputLeaf="Auto_1.zks";}
 internal class Counts{internal int AuthorizedWriteCount=1,AdmittedNativeWriteRequests=1,SnapshotCount=1,CompletedSaveCount=1,NativeCastRequestCount;internal NativeSaveCompletion LastCompletedSave;}
 /*ACTUAL_RECEIPT*/

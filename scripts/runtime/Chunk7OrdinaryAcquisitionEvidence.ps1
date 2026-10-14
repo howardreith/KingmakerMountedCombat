@@ -1,4 +1,5 @@
 Set-StrictMode -Version Latest
+. (Join-Path $PSScriptRoot 'Chunk7OrdinaryChoiceEvidence.ps1')
 # Closed original observer reader. Synthetic acceptance is not native proof.
 function Test-KmcChunk7OrdinaryScenario([string]$Scenario) {$Scenario -ceq 'chunk7-ordinary-acquisition'}
 function Get-KmcChunk7OrdinaryRows {
@@ -77,96 +78,10 @@ function Assert-KmcChunk7OrdinaryEvidence($Request,$Artifact,[string]$Status='PA
     Assert-KmcOrdinaryAuthority $o.cleanup.authority $root $o.authority.generation 1
     $original=@('b6628a77-4962-47a4-a17c-88d9836fc9d5','d79a4f6c-b74e-4868-95bd-533899131acb','d17c8fd0-6627-40c4-bf9a-024cf001c1f7')
     if($o.originalParty-isnot[Array]-or($o.originalParty-join'|')-cne($original-join'|')){throw 'Ordinary qualified actor set differs.'}
-    if($o.choices-isnot[Array]-or$o.choices.Count-lt4-or$o.choices.Count-gt1400){throw 'Bounded native ordinary events are missing.'}
-    $rows=@($o.choices);$admission=$rows[0]
-    if($paid){
-        if($admission.event-cne'native-paid-hire-admission'-or$rows[1].event-cne'native-new-actor-bound'){throw 'Paid native admission/binding is missing.'}
-        Assert-KmcOrdinaryInteger $admission.moneyBefore
-        Assert-KmcOrdinaryInteger $admission.nativeInheritedXp 0 ([int]::MaxValue)
-        Assert-KmcOrdinaryInteger $admission.nativeCost 1;Assert-KmcOrdinaryInteger $admission.nativeExpectedFinalLevel $s.minimumRangerLevel 20
-        if($admission.moneyBefore-lt$admission.nativeCost-or$admission.nativeInventorySha256-cne$s.inventoryArtifactSha256){throw 'Native paid admission is unaffordable or unbound.'}
-        $identity=$rows[1];$xp=$admission.nativeInheritedXp;$level=0;$money=$admission.moneyBefore;$expectedMoney=$money-$admission.nativeCost
-        $first=2
-        if($identity.actorId-cin$original-or$identity.nativeMode-cne'CharGen'){throw 'Native paid hire reused an actor or skipped CharGen.'}
-    }else{
-        if($admission.event-cne'native-existing-level-admission'){throw 'Existing native readiness admission missing.'}
-        $identity=$admission;$xp=$identity.xp;$level=$identity.level;$money=$identity.money;$expectedMoney=$money;$first=1
-        if($identity.actorId-cne$s.existingActorId-or$null-ne$identity.petId){throw 'Existing native actor or prior companion differs.'}
-    }
-    Assert-KmcOrdinaryGuid $identity.actorId;Assert-KmcOrdinarySnapshot $identity $identity $xp $level $money
-    Assert-KmcChunk7Boolean $identity.nativeCanLevelUp $true
-    Assert-KmcOrdinaryInteger $o.before.money $money $money
-    $accepted=0;$commits=0;$pendingChoice=$null;$pendingCommit=$null;$finished=$false;$lastFrame=-1;$lastTime=-1
-    $horseSelected=$false;$bondSelected=$false
-    for($i=0;$i-lt$rows.Count;$i++){
-        $row=$rows[$i]
-        Assert-KmcOrdinaryInteger $row.frame 0 ([int]::MaxValue)
-        if($row.runId-cne$Request.runId-or$row.frame-lt$lastFrame-or-not(Test-KmcChunk7FiniteNumber $row.elapsedSeconds)-or
-           $row.elapsedSeconds-lt$lastTime-or$row.elapsedSeconds-gt720){throw 'Native ordinary event run/frame/time order differs.'}
-        $lastFrame=$row.frame;$lastTime=$row.elapsedSeconds
-        if($i-lt$first){continue};if($finished){throw 'Native ordinary choices continued after completion.'}
-        switch -CaseSensitive ($row.event){
-            'native-level-open' {
-                if($null-ne$pendingChoice-or$null-ne$pendingCommit){throw 'Native ordinary level opened before its preceding operation settled.'}
-                Assert-KmcOrdinarySnapshot $row $identity $xp $level $money
-                Assert-KmcChunk7Boolean $row.nativeCanLevelUp $true
-                Assert-KmcOrdinaryInteger $row.nextLevel ($level+1) ($level+1)
-            }
-            'native-choice-requested' {
-                if($null-ne$pendingChoice-or$null-ne$pendingCommit){throw 'Overlapping ordinary choice requests.'}
-                if($row.kind-cnotin@('portrait','race','gender','native-race-preset','native-handedness','class','attribute-purchase','racial-attribute','level-attribute','feature','skill','name','alignment','voice','native-total-phase')-or
-                   $row.choice-isnot[string]-or[string]::IsNullOrEmpty($row.choice)){throw 'Unknown native ordinary choice.'}
-                Assert-KmcOrdinarySnapshot $row.before $identity $xp $level $money;$pendingChoice=$row
-            }
-            'native-choice' {
-                if($null-eq$pendingChoice-or$row.kind-cne$pendingChoice.kind-or$row.choice-cne$pendingChoice.choice-or$row.nativeSelectionGuid-cne$pendingChoice.nativeSelectionGuid-or
-                   (ConvertTo-KmcChunk7Canonical $row.before)-cne(ConvertTo-KmcChunk7Canonical $pendingChoice.before)){throw 'Native ordinary choice lost its exact requested binding.'}
-                Assert-KmcChunk7Boolean $row.nativeChoiceAccepted $true
-                Assert-KmcOrdinarySnapshot $row.before $identity $xp $level $money;Assert-KmcOrdinarySnapshot $row.after $identity $xp $level $money
-                if($row.kind-ceq'feature'){
-                    if($row.nativeSelectionGuid-isnot[string]-or$row.nativeSelectionGuid-cnotmatch'^[a-f0-9]{32}$'){throw 'Native feature selection identity missing.'}
-                    if($row.nativeSelectionGuid-ceq'b705c5184a96a84428eeb35ae2517a14'-and$row.choice.StartsWith('ee63330662126374e8785cc901941ac7/',[StringComparison]::Ordinal)){$bondSelected=$true}
-                    if($row.nativeSelectionGuid-ceq'ee63330662126374e8785cc901941ac7'-and$row.choice.StartsWith('7db7c50677e39f09feef56f3831fc723/',[StringComparison]::Ordinal)){$horseSelected=$true}
-                }elseif($null-ne$row.nativeSelectionGuid){throw 'Non-feature choice contains feature selection identity.'}
-                if($row.kind-ceq'class'-and$row.choice-cne'cda0615668a6df14eb36ba19ee881af6'){throw 'Native ordinary class differs.'}
-                if($paid-and$row.kind-ceq'race'-and$row.choice-cne$s.smallRaceGuid){throw 'Native selected Small race differs.'}
-                if($paid-and$row.kind-ceq'native-race-preset'-and$row.choice-cne$s.smallPresetGuid){throw 'Native selected Small preset differs.'}
-                $pendingChoice=$null;$accepted++
-            }
-            'native-total-next-requested' {
-                if($null-ne$pendingChoice-or$null-ne$pendingCommit){throw 'Native Total overlapped unfinished choices.'}
-                Assert-KmcOrdinarySnapshot $row $identity $xp $level $money
-                Assert-KmcChunk7Boolean $row.nativeCanLevelUp $true;Assert-KmcChunk7Boolean $row.nativeIsComplete $true
-                if($row.phase-cne'Total'-or$row.selectedClass-cne'cda0615668a6df14eb36ba19ee881af6'){throw 'Native completion bypassed its Total/selected class gate.'}
-                foreach($field in @('attributePoints','distributionPoints','skillRemaining','pendingFeatures','pendingSpellGroups')){Assert-KmcOrdinaryInteger $row.$field 0 0}
-                Assert-KmcOrdinaryInteger $row.skillTotal 0 ([int]::MaxValue);Assert-KmcOrdinaryInteger $row.skillSpent $row.skillTotal $row.skillTotal
-                Assert-KmcOrdinaryInteger $row.nextLevel ($level+1) ($level+1);$pendingCommit=$row
-            }
-            'native-level-committed' {
-                if($null-eq$pendingCommit-or(ConvertTo-KmcChunk7Canonical $row.before)-cne(ConvertTo-KmcChunk7Canonical $pendingCommit)){throw 'Native level commit lacks its exact prior complete Total gate.'}
-                $commits++;Assert-KmcOrdinaryInteger $row.commitCount $commits $commits
-                Assert-KmcOrdinaryInteger $row.moneyExpected $expectedMoney $expectedMoney
-                $level++;$money=$expectedMoney;Assert-KmcOrdinarySnapshot $row.after $identity $xp $level $money
-                $pendingCommit=$null
-            }
-            'native-builder-complete' {
-                if($null-ne$pendingChoice-or$null-ne$pendingCommit-or$commits-lt1){throw 'Ordinary builder completion precedes committed choices.'}
-                Assert-KmcOrdinarySnapshot $row.actor $identity $xp $level $money
-                Assert-KmcChunk7Boolean $row.actor.nativeCanLevelUp $false;Assert-KmcChunk7Boolean $row.ordinaryChoicesComplete $true
-                foreach($field in @('nativeFieldAdmissionProven','nativeSaveSettlementProven','poseQualified')){Assert-KmcChunk7Boolean $row.$field $false}
-                if((ConvertTo-KmcChunk7Canonical $row.actor)-cne(ConvertTo-KmcChunk7Canonical $o.builderComplete)){throw 'Ordinary terminal actor snapshot differs.'}
-                if($paid-and$level-ne$admission.nativeExpectedFinalLevel){throw 'Native hire reached a level not supported by its inherited XP.'}
-                Assert-KmcOrdinaryInteger $row.actor.rangerLevel $s.minimumRangerLevel 20
-                Assert-KmcOrdinaryGuid $row.actor.petId
-                if($row.actor.petBlueprint-cne'4016c7db400ab721ff125aef9e65e202') {throw 'Ordinary native pet differs.'}
-                $finished=$true
-            }
-            default {throw 'Unexpected ordinary native event.'}
-        }
-    }
-    if(-not$finished-or-not$horseSelected-or-not$bondSelected){throw 'Native ordinary completion/companion selection chain is incomplete.'}
+    $choiceProof=Get-KmcChunk7OrdinaryChoiceProof -RunId $Request.runId -Selection $s -Paid $paid -InitialActorIds $original -Rows $o.choices -BeforeMoney $o.before.money -BuilderComplete $o.builderComplete
+    $identity=$choiceProof.identity;$level=$choiceProof.finalLevel;$expectedMoney=$choiceProof.expectedMoney
+    $accepted=$choiceProof.acceptedChoiceCount;$commits=$choiceProof.nativeCommitCount
     Assert-KmcOrdinaryInteger $o.acceptedChoiceCount $accepted $accepted;Assert-KmcOrdinaryInteger $o.nativeCommitCount $commits $commits
-    if($accepted-lt2-or$accepted-gt512-or$commits-gt20){throw 'Ordinary native choice bounds differ.'}
     $probe=$o.nativeObserver
     foreach($field in @('installationAttempted','installed','complete')){Assert-KmcChunk7Boolean $probe.$field $true}
     if($probe.errors-isnot[Array]-or$probe.errors.Count-ne0-or$probe.hooks-isnot[Array]-or$probe.hooks.Count-ne3-or$probe.events-isnot[Array]-or$probe.events.Count-ne(2*$commits+2)){throw 'Native ordinary observer is incomplete.'}

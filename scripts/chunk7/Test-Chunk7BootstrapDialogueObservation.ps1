@@ -47,7 +47,7 @@ foreach($path in Get-ChildItem -LiteralPath (Split-Path $commonPath -Parent) -Fi
 $observerText=[IO.File]::ReadAllText($observerPath);$hostText=[IO.File]::ReadAllText($hostPath);$template=[IO.File]::ReadAllText($templatePath)
 $start=$observerText.IndexOf('        internal const string Contract',[StringComparison]::Ordinal);$end=$observerText.IndexOf('        // The only native boundary',[StringComparison]::Ordinal)
 if($start-lt0-or$end-le$start){throw 'Exact recorder slice changed.'}
-$actual=$template.Replace('__ACTUAL_RECORDER__',$observerText.Substring($start,$end-$start)).Replace('__ACTUAL_RAW_STATE__',(Member $observerText 'internal sealed class RawState')).Replace('__ACTUAL_JSON_SETTINGS__',((Member $hostText 'private static readonly JsonSerializerSettings JsonSettings')+';')).Replace('__ACTUAL_RESULT_DTO__',(Member $hostText 'private sealed class RuntimeGameResultV2')).Replace('__ACTUAL_NATIVE_READ__',((Member $observerText 'private static RawState ReadNative(').Replace('ReadNative(','ReadActualNative('))).Replace('__ACTUAL_GUID_READ__',(Member $observerText 'private static string GuidOf('))
+$actual=$template.Replace('__ACTUAL_RECORDER__',$observerText.Substring($start,$end-$start)).Replace('__ACTUAL_RAW_STATE__',(Member $observerText 'internal sealed class RawState')).Replace('__ACTUAL_JSON_SETTINGS__',((Member $hostText 'private static readonly JsonSerializerSettings JsonSettings')+';')).Replace('__ACTUAL_RESULT_DTO__',(Member $hostText 'private sealed class RuntimeGameResultV2')).Replace('__ACTUAL_NATIVE_READ__',((Member $observerText 'private static RawState ReadNative(').Replace('private static RawState ReadNative(','private static RawState ReadActualNative('))).Replace('__ACTUAL_GUID_READ__',(Member $observerText 'private static string GuidOf('))
 if($actual.Contains('__ACTUAL_')){throw 'Unresolved passive recorder template.'}
 $actualPath=Join-Path $OutputRoot 'actual.cs';[IO.File]::WriteAllText($actualPath,$actual)
 [IO.File]::Copy($observerPath,(Join-Path $OutputRoot 'source.cs'),$false);[IO.File]::Copy($templatePath,(Join-Path $OutputRoot 'template.cs'),$false);[IO.File]::Copy($hostPath,(Join-Path $OutputRoot 'host.cs'),$false)
@@ -81,14 +81,19 @@ $script:dialoguePass=0;$script:dialogueFail=0
 function Good-Dialogue([string]$Name,[scriptblock]$Action){try{&$Action;$script:dialoguePass++;Write-Host ('PASS '+$Name)}catch{$script:dialogueFail++;Write-Host ('FAIL '+$Name+': '+$_)}}
 function Bad-Dialogue([string]$Name,[scriptblock]$Action,[string]$Reason=''){try{&$Action;$script:dialogueFail++;Write-Host ('FAIL accepted '+$Name)}catch{if($Reason-and$_.ToString()-notmatch$Reason){$script:dialogueFail++;Write-Host ('FAIL wrong refusal '+$Name+': '+$_)}else{$script:dialoguePass++;Write-Host ('PASS refuses '+$Name)}}}
 function Read-Dialogue([string]$Leaf){return ([IO.File]::ReadAllText((Join-Path $OutputRoot $Leaf))|ConvertFrom-Json)}
+function Convert-HistoricalDialogue($Value,[int]$Version){
+ $Value.contract='chunk7-bootstrap-dialogue-raw-v'+$Version;$Value.identityCapacity=40;if($Version-eq1){$Value.identityCapacity=32}
+ foreach($row in $Value.snapshots){$row.PSObject.Properties.Remove('choices');if($Version-eq1){foreach($key in @('dialogState','scheduledStart','scheduledStartIsScheduled','scheduledDialog')){$row.PSObject.Properties.Remove($key)}}}
+ return $Value
+}
 if($testExit-eq0-and$actualShape-and$actualFailed-eq0){
  foreach($leaf in @('terminal.json','read-error.json','null-state.json','released-error.json','unity-null-popup.json','absent-popup.json','live-popup.json')){Good-Dialogue ('actual producer '+$leaf){Assert-KmcChunk7BootstrapDialogueObservation (Read-Dialogue $leaf) $true}}
  foreach($leaf in @('scheduled-start.json','scheduled-unmarked.json','scheduled-consumed.json','missing-dialog-state.json')){Good-Dialogue ('actual scheduled-start producer '+$leaf){Assert-KmcChunk7BootstrapDialogueObservation (Read-Dialogue $leaf) $true}}
- Good-Dialogue 'historical raw-v1 shape remains exact' {$v=Read-Dialogue 'terminal.json';$v.contract='chunk7-bootstrap-dialogue-raw-v1';$v.identityCapacity=32;foreach($row in $v.snapshots){foreach($key in @('dialogState','scheduledStart','scheduledStartIsScheduled','scheduledDialog')){$row.PSObject.Properties.Remove($key)}};Assert-KmcChunk7BootstrapDialogueObservation $v $true}
- Good-Dialogue 'v2 maximum forty distinct references' {Assert-KmcChunk7BootstrapDialogueObservation (Read-Dialogue 'maximum-distinct.json') $true}
- Bad-Dialogue 'v2 refuses old insufficient capacity' {$v=Read-Dialogue 'terminal.json';$v.identityCapacity=32;Assert-KmcChunk7BootstrapDialogueObservation $v $true}
- Bad-Dialogue 'v2 refuses forty-first reference' {$v=Read-Dialogue 'maximum-distinct.json';$v.identityIds+=@(-9999);Assert-KmcChunk7BootstrapDialogueObservation $v $true} 'array bounds changed'
- Bad-Dialogue 'v1 still requires exactly thirty-two capacity' {$v=Read-Dialogue 'terminal.json';$v.contract='chunk7-bootstrap-dialogue-raw-v1';foreach($row in $v.snapshots){foreach($key in @('dialogState','scheduledStart','scheduledStartIsScheduled','scheduledDialog')){$row.PSObject.Properties.Remove($key)}};Assert-KmcChunk7BootstrapDialogueObservation $v $true}
+ Good-Dialogue 'historical raw-v1 shape remains exact' {$v=Convert-HistoricalDialogue (Read-Dialogue 'terminal.json') 1;Assert-KmcChunk7BootstrapDialogueObservation $v $true}
+ Good-Dialogue 'historical raw-v2 maximum forty distinct references' {$v=Convert-HistoricalDialogue (Read-Dialogue 'maximum-distinct.json') 2;Assert-KmcChunk7BootstrapDialogueObservation $v $true}
+ Bad-Dialogue 'v2 refuses old insufficient capacity' {$v=Convert-HistoricalDialogue (Read-Dialogue 'terminal.json') 2;$v.identityCapacity=32;Assert-KmcChunk7BootstrapDialogueObservation $v $true}
+ Bad-Dialogue 'v2 refuses forty-first reference' {$v=Convert-HistoricalDialogue (Read-Dialogue 'maximum-distinct.json') 2;$v.identityIds+=@(-9999);Assert-KmcChunk7BootstrapDialogueObservation $v $true} 'array bounds changed'
+ Bad-Dialogue 'v1 still requires exactly thirty-two capacity' {$v=Convert-HistoricalDialogue (Read-Dialogue 'terminal.json') 1;$v.identityCapacity=40;Assert-KmcChunk7BootstrapDialogueObservation $v $true}
  $scheduledCases=[ordered]@{
   'v2 missing scheduled start'={param($v)$v.snapshots[0].PSObject.Properties.Remove('scheduledStart')}
   'v2 state label singleton'={param($v)$v.snapshots[0].dialogState=@($v.snapshots[0].dialogState)}
@@ -103,7 +108,7 @@ if($testExit-eq0-and$actualShape-and$actualFailed-eq0){
   'v2 absent start retains fields'={param($v)$v.snapshots[0].scheduledStart=0}
   'v1 refuses undeclared new fields'={param($v)$v.contract='chunk7-bootstrap-dialogue-raw-v1';$v.identityCapacity=32}
  }
- foreach($entry in $scheduledCases.GetEnumerator()){Bad-Dialogue $entry.Key {$v=Read-Dialogue 'scheduled-start.json';&$entry.Value $v;Assert-KmcChunk7BootstrapDialogueObservation $v $true}}
+ foreach($entry in $scheduledCases.GetEnumerator()){Bad-Dialogue $entry.Key {$v=Convert-HistoricalDialogue (Read-Dialogue 'scheduled-start.json') 2;&$entry.Value $v;Assert-KmcChunk7BootstrapDialogueObservation $v $true}}
  Bad-Dialogue 'v2 failed row refuses partial scheduled reference' {$v=Read-Dialogue 'read-error.json';$v.snapshots[0].scheduledStart=-1001;Assert-KmcChunk7BootstrapDialogueObservation $v $true} 'failed read retained partial state'
  Good-Dialogue 'actual preterminal artifact snapshot' {Assert-KmcChunk7BootstrapDialogueObservation (Read-Dialogue 'artifact.json') $false}
  Good-Dialogue 'historical result absence remains accepted' {Assert-KmcChunk7BootstrapDialogueResult (Read-Dialogue 'game-absent.json') ([pscustomobject]@{scenario='legacy-family'})}

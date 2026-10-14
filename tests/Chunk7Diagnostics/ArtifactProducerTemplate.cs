@@ -116,6 +116,7 @@ internal static class ArtifactTest
         request = Request("bootstrap-empty-artifact"); File.WriteAllText(Path.Combine(request.EvidenceRoot, Chunk7NativeBootstrapScenario.EvidenceFileName), "");
         Check("empty bootstrap evidence fails producer guard", Throws(() => RuntimeAutomationHost.Publish(request)));
 
+        Neighbor("neighbor-assisted", Chunk7AssistedFixtureSelection.Scenario, Chunk7AssistedFixtureScenario.EvidenceFileName, Chunk7AssistedFixtureScenario.EvidenceKind, Chunk7AssistedFixtureScenario.PendingFileName, Chunk7AssistedFixtureScenario.PendingKind);
         Neighbor("neighbor-working-observation", "export-mounted-contracts", WorkingLoadDiagnosticSession.EvidenceFileName, WorkingLoadDiagnosticSession.EvidenceKind, WorkingLoadDiagnosticSession.PendingFileName, WorkingLoadDiagnosticSession.PendingKind);
         Neighbor("neighbor-acquired-manual", Chunk7AcquiredManualSelection.Scenario, Chunk7AcquiredManualScenario.EvidenceFileName, Chunk7AcquiredManualScenario.EvidenceKind, Chunk7AcquiredManualScenario.PendingFileName, Chunk7AcquiredManualScenario.PendingKind);
         Neighbor("neighbor-manual-derived", Chunk7ManualDerivedSelection.Scenario, Chunk7ManualDerivedScenario.EvidenceFileName, Chunk7ManualDerivedScenario.EvidenceKind, Chunk7ManualDerivedScenario.PendingFileName, Chunk7ManualDerivedScenario.PendingKind);

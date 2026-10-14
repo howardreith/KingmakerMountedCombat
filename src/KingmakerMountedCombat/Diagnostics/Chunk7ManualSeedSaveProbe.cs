@@ -44,13 +44,14 @@ namespace KingmakerMountedCombat.Diagnostics
             nativeName = Chunk7ManualSeedSelection.OutputName;
             if (acquiredManualName != null)
             {
-                var prefix = "Manual_"; var suffix = "_" + Chunk7AcquiredManualSelection.OutputName + ".zks";
-                Require(acquiredManualName == Chunk7AcquiredManualSelection.OutputName && leaf != null &&
+                var assisted = acquiredManualName == Chunk7AssistedFixtureSelection.OutputName;
+                var prefix = "Manual_"; var suffix = "_" + (assisted ? Chunk7AssistedFixtureSelection.OutputName : Chunk7AcquiredManualSelection.OutputName) + ".zks";
+                Require((assisted || acquiredManualName == Chunk7AcquiredManualSelection.OutputName) && leaf != null &&
                     leaf.StartsWith(prefix, StringComparison.Ordinal) && leaf.EndsWith(suffix, StringComparison.Ordinal) &&
                     leaf.Length > prefix.Length + suffix.Length &&
                     int.TryParse(leaf.Substring(prefix.Length, leaf.Length - prefix.Length - suffix.Length),
                         System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var number) &&
-                    number > 0 && leaf == Chunk7AcquiredManualSelection.NativeOutputLeaf(number),
+                    number > 0 && leaf == (assisted ? Chunk7AssistedFixtureSelection.ManualLeaf(number) : Chunk7AcquiredManualSelection.NativeOutputLeaf(number)),
                     "Acquired Manual observer requires its closed name and exact canonical positive native slot.");
                 nativeName = acquiredManualName;
             }
