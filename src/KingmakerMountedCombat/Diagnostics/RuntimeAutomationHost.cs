@@ -60,6 +60,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private readonly string resultPath;
         private readonly DateTimeOffset startedAt;
         private readonly Stopwatch runtimeClock;
+        private readonly RuntimeStartupTrace startupTrace;
         private int frameCount;
         private double elapsedSeconds;
         private bool completed;
@@ -218,6 +219,9 @@ namespace KingmakerMountedCombat.Diagnostics
             resultPath = Path.Combine(request.EvidenceRoot, "runtime-game-result.json");
             startedAt = DateTimeOffset.UtcNow;
             runtimeClock = Stopwatch.StartNew();
+            startupTrace = new RuntimeStartupTrace(Stopwatch.Frequency,
+                () => runtimeClock.ElapsedTicks, () => Time.frameCount,
+                () => Application.isFocused, () => Application.runInBackground);
             try
             {
                 if (request.SchemaVersion == RuntimeRequest.SaveBackedSchemaVersion)
@@ -573,6 +577,11 @@ namespace KingmakerMountedCombat.Diagnostics
             }
         }
 
+        internal void ObserveStartupCallbackEntry() => startupTrace.BeginCallback();
+        internal void ObserveStartupCallbackExit() => startupTrace.EndCallback();
+        internal void ObserveStartupPreHostStart() => startupTrace.PreHostStart();
+        internal void ObserveStartupPreHostEnd() => startupTrace.PreHostEnd();
+
         public void Update(float deltaTime)
         {
             if (disposed || completed)
@@ -580,6 +589,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 return;
             }
 
+            startupTrace.HostEntry();
             frameCount++;
             elapsedSeconds = runtimeClock.Elapsed.TotalSeconds;
             try
@@ -1497,6 +1507,7 @@ namespace KingmakerMountedCombat.Diagnostics
             return new RuntimeGameResult
             {
                 SchemaVersion = 1,
+                StartupTrace = startupTrace.Capture(),
                 RunId = request.RunId,
                 Scenario = request.Scenario,
                 Status = status,
@@ -1958,6 +1969,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var resultPayload = new RuntimeGameResultV2
             {
                 SchemaVersion = RuntimeRequest.SaveBackedSchemaVersion,
+                StartupTrace = startupTrace.Capture(),
                 RunId = request.RunId,
                 Scenario = request.Scenario,
                 Status = status,
@@ -2510,6 +2522,8 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private sealed class RuntimeGameResult
         {
+            public object StartupTrace { get; set; }
+            public bool ShouldSerializeStartupTrace() => StartupTrace != null;
             public int SchemaVersion { get; set; }
             public string RunId { get; set; }
             public string Scenario { get; set; }
@@ -2572,6 +2586,8 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private sealed class RuntimeGameResultV2
         {
+            public object StartupTrace { get; set; }
+            public bool ShouldSerializeStartupTrace() => StartupTrace != null;
             public int SchemaVersion { get; set; }
             public string RunId { get; set; }
             public string Scenario { get; set; }

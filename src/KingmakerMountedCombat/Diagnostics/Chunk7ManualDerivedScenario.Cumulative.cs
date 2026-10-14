@@ -49,10 +49,13 @@ namespace KingmakerMountedCombat.Diagnostics
         }
         private bool MatchesSelectedPlan(bool unwritten) => cumulative == null
             ? authority.MatchesManualDerivedPlan(request.PersistenceLoad, Chunk7ManualDerivedSelection.OutputLeaf, RuntimePersistenceScenario.SlotName(SaveInfo.SaveType.Auto), unwritten)
-            : authority.MatchesCumulativeAcquisitionPlan(request.PersistenceLoad, Chunk7CumulativeAcquisitionSelection.OutputLeaf, RuntimePersistenceScenario.SlotName(SaveInfo.SaveType.Auto), unwritten);
+            : cumulative.UsesAssistedCold
+                ? authority.MatchesAssistedCumulativePlan(request, Chunk7CumulativeAcquisitionSelection.OutputLeaf, RuntimePersistenceScenario.SlotName(SaveInfo.SaveType.Auto), unwritten)
+                : authority.MatchesCumulativeAcquisitionPlan(request.PersistenceLoad, Chunk7CumulativeAcquisitionSelection.OutputLeaf, RuntimePersistenceScenario.SlotName(SaveInfo.SaveType.Auto), unwritten);
 
         private void ReadCumulativeSource()
         {
+            if (cumulative.UsesAssistedCold) { ReadAssistedCumulativeSource(); return; }
             sourcePath = Path.Combine(Path.GetDirectoryName(root), Chunk7CumulativeAcquisitionSelection.SourceLeaf);
             archivePath = Path.Combine(root, request.PersistenceLoad.FileName);
             var source = new FileInfo(sourcePath); var archive = new FileInfo(archivePath);
@@ -114,7 +117,7 @@ namespace KingmakerMountedCombat.Diagnostics
             priorFeatureSource = (priorFeature as Feature)?.Source;
             cumulativeBound = true; RequireCumulativeReferences();
             var resources = CaptureCumulativeResources(false);
-            Require(JToken.DeepEquals(resources, sourceObservations["resourcesAfterSave"]), "Cold cumulative native action/reaction resources differ from the exact saved source.");
+            Require(JToken.DeepEquals(resources, SelectedSourceResources), "Cold cumulative native action/reaction resources differ from the exact saved source.");
             cumulativeInitialResources = CaptureCumulativeResources(true);
             cumulativeInitialRelationships = CaptureCumulativeRelationships();
             cumulativeInitialProgression = CaptureCumulativeProgression();

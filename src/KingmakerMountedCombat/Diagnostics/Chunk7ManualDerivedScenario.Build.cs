@@ -42,12 +42,12 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void RequireManualReadiness()
         {
-            var actual = evidence["fixtureReadiness"]; var prior = sourceObservations["fixtureReadiness"];
+            var actual = evidence["fixtureReadiness"]; var prior = SelectedSourceReadiness;
             foreach (var key in new[] { "mainProgression", "staticPartyFacts", "saveSettings", "experienceRatePercent" })
                 Require(JToken.DeepEquals(actual[key], prior[key]), "Native Manual acquisition readiness differs from source: " + key);
             Require(JToken.DeepEquals(evidence["nativeProfileInventory"]["ordinaryAcquisitionPrerequisites"],
-                sourceObservations["nativeProfileInventory"]["ordinaryAcquisitionPrerequisites"]), "Native XP, money or party readiness differs from qualified Manual observation.");
-            Require(JToken.DeepEquals(CaptureNoArrangement(), sourceObservations["afterSaveArrangement"]),
+                SelectedSourceInventory["ordinaryAcquisitionPrerequisites"]), "Native XP, money or party readiness differs from qualified Manual observation.");
+            Require(JToken.DeepEquals(CaptureNoArrangement(), SelectedSourceArrangement),
                 "Loaded Manual actor/class/XP/money state differs from its observed native source.");
             Require(actual["saveSettings"]?["onlyOneSave"]?.Type == JTokenType.Boolean && !(bool)actual["saveSettings"]["onlyOneSave"] &&
                 !NativePersistenceIsolation.NativeSlotRotationEnabled, "Manual acquisition refuses one-save mode or a pre-existing slot projection.");
@@ -76,9 +76,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 TargetIdle = target != null && target.Commands.Empty && !target.IsInCombat,
                 TargetCanLevelUp = target != null && LevelUpController.CanLevelUp(target.Descriptor),
                 ExactSmallCatalogueMember = selection.Case == Chunk7ManualDerivedSelection.PaidSmallCase &&
-                    CatalogueContains(sourceObservations["nativeProfileInventory"]) && CatalogueContains(evidence["nativeProfileInventory"]),
+                    CatalogueContains(SelectedSourceInventory) && CatalogueContains(evidence["nativeProfileInventory"]),
                 ExactMediumBodyMember = selection.Case == Chunk7ManualDerivedSelection.PaidMediumCase &&
-                    Chunk7MediumHireBodySource.Matches(sourceObservations["nativeProfileInventory"], selection.MediumBody) &&
+                    Chunk7MediumHireBodySource.Matches(SelectedSourceInventory, selection.MediumBody) &&
                     Chunk7MediumHireBodySource.Matches(evidence["nativeProfileInventory"], selection.MediumBody) && NativeMediumBodyMatches()
             };
             var failures = Chunk7ManualDerivedAdmission.Validate(selection, request.RunId, actual);

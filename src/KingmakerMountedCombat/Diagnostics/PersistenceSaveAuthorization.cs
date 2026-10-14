@@ -194,6 +194,7 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             lock (sync)
             {
+                if (!AssistedCumulativeUnchanged()) return "Assisted cumulative captured request changed before native/storage admission.";
                 var assistedColdRejection = AssistedColdAdmission(operation);
                 if (assistedColdRejection != null) return assistedColdRejection;
                 var assistedRejection = AssistedNativeAdmission(operation, target);
@@ -276,6 +277,86 @@ namespace KingmakerMountedCombat.Diagnostics
                 return requireUnwritten ? output.Hash == null && !output.Writing && admittedNativeWriteRequests == 0 :
                     (output.Hash == null && !output.Writing || admittedNativeWriteRequests == 1);
             }
+        }
+
+        private RuntimeRequest assistedCumulativeRequest;
+        private Chunk7CumulativeAcquisitionSelection assistedCumulativeSelection;
+        private RuntimeSaveDescriptor assistedCumulativeDescriptor;
+        private string assistedCumulativeKey;
+        private static void CumulativeOptionalInt(System.Text.StringBuilder key, int? value)
+        { if (value.HasValue) { key.Append('?'); AssistedScalar(key, value.Value); } else key.Append("N;"); }
+        private static string AssistedCumulativeKey(RuntimeRequest value)
+        {
+            if (value?.Scenario != Chunk7CumulativeAcquisitionSelection.Scenario || value.CumulativeAcquisition?.UsesAssistedCold != true || value.Validate().Count != 0) return null;
+            var key = new System.Text.StringBuilder("assisted-cumulative-request-v1;");
+            AssistedScalar(key, value.SchemaVersion); AssistedScalar(key, value.RunId); AssistedScalar(key, value.Scenario);
+            AssistedScalar(key, value.Branch); AssistedScalar(key, value.Commit); AssistedScalar(key, value.ProductVersion);
+            AssistedScalar(key, value.DllSha256); AssistedScalar(key, value.DllMvid); AssistedScalar(key, value.TransactionToken); AssistedScalar(key, value.EvidenceRoot);
+            AssistedScalar(key, value.SaveAccessAllowed); AssistedScalar(key, value.SaveName); AssistedScalar(key, value.ObserveWorkingDeserialization);
+            AssistedScalar(key, value.Schema1DerivationSha256); AssistedScalar(key, value.PersistenceCase);
+            AssistedDescriptor(key, value.Fixture.Baseline); AssistedDescriptor(key, value.Fixture.Working); AssistedDescriptor(key, value.PersistenceLoad);
+            var write = value.Fixture.WriteAuthorization;
+            AssistedScalar(key, write.Mode); AssistedScalar(key, write.AllowedInternalName); AssistedScalar(key, write.AllowedFileName); AssistedScalar(key, write.BaselineImmutable);
+            AssistedScalar(key, value.QualificationSuite.SuiteId); AssistedScalar(key, value.QualificationSuite.SnapshotSha256);
+            var s = value.CumulativeAcquisition;
+            AssistedScalar(key, s.Case); AssistedScalar(key, s.SourceMode); AssistedScalar(key, s.SourceRunId);
+            AssistedScalar(key, s.SourceArtifactSha256); AssistedScalar(key, s.SourceArchiveSha256); AssistedScalar(key, s.AssistedColdRunId); AssistedScalar(key, s.AssistedColdArtifactSha256);
+            AssistedScalar(key, s.BaseGameOnly); AssistedScalar(key, s.ExpectedNativeLoadCount); AssistedScalar(key, s.ExpectedNativeWriteCount); AssistedScalar(key, s.NativeWriteLeaf);
+            AssistedScalar(key, s.PriorOwnerId); AssistedScalar(key, s.PriorPetId); AssistedScalar(key, s.ExistingActorId);
+            CumulativeOptionalInt(key, s.ExistingLevel); CumulativeOptionalInt(key, s.ExistingExperience); CumulativeOptionalInt(key, s.ExistingRangerLevel);
+            AssistedScalar(key, s.SmallRaceGuid); AssistedScalar(key, s.SmallPresetGuid); AssistedScalar(key, s.SkeletonName); AssistedScalar(key, s.Gender); AssistedScalar(key, s.LeftHanded);
+            var p = s.Readiness;
+            AssistedScalar(key, p.MainActorId); AssistedScalar(key, p.MainLevel); AssistedScalar(key, p.MainExperience); AssistedScalar(key, p.Money);
+            AssistedScalar(key, p.ExperienceRatePercent); AssistedScalar(key, p.NativeHireCost); AssistedScalar(key, p.DefaultHireExperience);
+            AssistedScalar(key, p.PartyCharacterIds.Length); foreach (var id in p.PartyCharacterIds) AssistedScalar(key, id);
+            AssistedScalar(key, s.MediumBody != null);
+            if (s.MediumBody != null)
+            {
+                var b = s.MediumBody;
+                AssistedScalar(key, b.TemplateActorId); AssistedScalar(key, b.RaceGuid); AssistedScalar(key, b.PresetGuid);
+                AssistedScalar(key, b.SkeletonName); AssistedScalar(key, b.Gender); AssistedScalar(key, b.LeftHanded);
+            }
+            return key.ToString();
+        }
+        private bool AssistedCumulativeUnchanged() => assistedCumulativeRequest == null ||
+            ReferenceEquals(assistedCumulativeRequest.CumulativeAcquisition, assistedCumulativeSelection) &&
+            ReferenceEquals(assistedCumulativeRequest.PersistenceLoad, assistedCumulativeDescriptor) &&
+            assistedCumulativeKey == AssistedCumulativeKey(assistedCumulativeRequest);
+        internal void ConfigureAssistedCumulative(RuntimeRequest request)
+        {
+            lock (sync)
+            {
+                var key = AssistedCumulativeKey(request);
+                Entry output;
+                if (key == null || assistedCumulativeRequest != null || assistedRequest != null || assistedColdRequest != null ||
+                    acquiredManualRequest != null || ownedPairsRequest != null || admittedNativeLoadRequests != 0 || admittedNativeWriteRequests != 0 ||
+                    !entries.TryGetValue(Chunk7CumulativeAcquisitionSelection.OutputLeaf, out output) ||
+                    !MatchesAssistedCumulativeEntries(request.PersistenceLoad, output.Name, true))
+                    throw new InvalidOperationException("Assisted cumulative acquisition requires its unused closed one-load/one-write authority.");
+                assistedCumulativeRequest = request; assistedCumulativeSelection = request.CumulativeAcquisition;
+                assistedCumulativeDescriptor = request.PersistenceLoad; assistedCumulativeKey = key;
+            }
+        }
+        internal bool MatchesAssistedCumulativePlan(RuntimeRequest request, string outputLeaf, string outputName, bool requireUnwritten)
+        {
+            lock (sync) return assistedCumulativeRequest != null && ReferenceEquals(assistedCumulativeRequest, request) &&
+                AssistedCumulativeUnchanged() && outputLeaf == Chunk7CumulativeAcquisitionSelection.OutputLeaf &&
+                MatchesAssistedCumulativeEntries(request.PersistenceLoad, outputName, requireUnwritten);
+        }
+        private bool MatchesAssistedCumulativeEntries(RuntimeSaveDescriptor source, string outputName, bool requireUnwritten)
+        {
+            Entry input, output;
+            if (source == null || !Chunk7AssistedColdInventorySelection.IsManualLeaf(source.FileName) || source.InternalName != Chunk7AssistedFixtureSelection.OutputName ||
+                source.GameId != gameId || source.GameName != gameName || string.IsNullOrWhiteSpace(outputName) || outputName.Length > 256 || outputName.Any(char.IsControl) ||
+                maximumNativeLoadRequests != 1 || maximumNativeWriteRequests != 1 || declaresBootstrap || bootstrapWindowOpen || entries.Count != 2 ||
+                !entries.TryGetValue(source.FileName, out input) || input.Name != source.InternalName || input.Type != "Manual" || input.Area != source.Area ||
+                input.Hash != source.Sha256 || input.Writable || input.Writing || input.Bootstrap || input.AdmitsBeforeArea || input.AdmissionArea != null ||
+                input.ForeignGameId != null || input.ForeignGameName != null ||
+                !entries.TryGetValue(Chunk7CumulativeAcquisitionSelection.OutputLeaf, out output) || output.Name != outputName || output.Type != "Auto" || output.Area != source.Area ||
+                !output.Writable || output.Bootstrap || output.AdmitsBeforeArea || output.AdmissionArea != null || output.ForeignGameId != null || output.ForeignGameName != null ||
+                admittedNativeLoadRequests > 1 || admittedNativeWriteRequests > 1) return false;
+            return requireUnwritten ? output.Hash == null && !output.Writing && admittedNativeWriteRequests == 0 :
+                (output.Hash == null && !output.Writing || admittedNativeWriteRequests == 1);
         }
 
         // Independent closed owner1-to-owner2 authority; the original seed matcher above is unchanged.
@@ -526,6 +607,7 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             lock (sync)
             {
+                if (!AssistedCumulativeUnchanged()) throw new InvalidOperationException("Assisted cumulative captured request changed before native archive access.");
                 if (!AssistedColdUnchanged()) throw new InvalidOperationException("Assisted cold captured request changed before native archive access.");
                 if (!AssistedUnchanged()) throw new InvalidOperationException("Assisted fixture captured request changed before native archive access.");
                 if (!OwnedPairsUnchanged()) throw new InvalidOperationException("Owned-pair captured request changed before native archive access.");
@@ -544,6 +626,7 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             lock (sync)
             {
+                if (!AssistedCumulativeUnchanged()) throw new InvalidOperationException("Assisted cumulative captured request changed before projection.");
                 if (!AssistedColdUnchanged()) throw new InvalidOperationException("Assisted cold captured request changed before projection.");
                 if (!AssistedUnchanged()) throw new InvalidOperationException("Assisted fixture captured request changed before projection.");
                 if (!OwnedPairsUnchanged() || ownedPairsRequest != null && !OwnedPairsWriteReady)
@@ -601,6 +684,7 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             try
             {
+                if (!AssistedCumulativeUnchanged()) return "Assisted cumulative captured request changed before native/storage admission.";
                 var assistedColdRejection = AssistedColdAdmission(operation);
                 if (assistedColdRejection != null) return assistedColdRejection;
                 var assistedRejection = AssistedStorageAdmission(operation, target, checkLoadAdmission);

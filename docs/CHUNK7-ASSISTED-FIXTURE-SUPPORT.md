@@ -56,3 +56,81 @@ The enclosing nine-stage vector remains FAIL: its private argument-comparison fi
 Reader regressions preserve the singleton-object acceptance defect (6/7 to 13/0), the generated ETS array-shape failure (87/1 to 88/0), and native protocol/timestamp failures (29/2 to 31/0 and 73/1 to 74/0). The final paired scenario-to-reader execution passed 174/0 in 14.7577509 seconds internally. Native loader, authority, profile, restoration and filesystem boundaries are explicit test facades; complete producer lineage and real native save contents remain unqualified.
 
 Private final maps: assisted-integration-next01/integration-map01.json SHA `72db48be25f7056b2a3b66d11f3a5571342774b8cb946262dd9e112b45ddb4df`; assisted-cold-inventory-host-next01/integration-map01.json SHA `d983a3615c9f8cf381effc626ebf28487e87e0f905a2bd0aecb09304af4e89e2`; assisted-cold-inventory-next01/integration-map01.json SHA `c8779822230cae19323917c7322d7571097bf44ff2e4f472020e5039cfa2648a`. They are under analysis-cache/chunk7-continuation. The broad diagnostic aggregate and historical campaigns were not selected.
+
+## Bounded passive startup observation
+
+The reviewed 13-file change is composed with the assisted consumer before
+preview10. Only an accepted automation host creates the recorder. It retains at
+most ten OnUpdate callbacks and fifty samples: callback entry, pre-host start/end,
+host entry and callback exit. Samples contain the actual Unity frame, monotonic
+ticks and read-only focus/background flags. Sampling stops at the cap, retains no
+game objects and changes no action, setting, logging or deadline. Existing v1/v2
+game results carry the optional trace; historical results may omit it.
+
+Private installed-contract compilation passed on 487 production sources and 13
+references in 2.0368207 seconds. The actual extracted recorder/callback/result
+scope passed 44/0 within an enclosing failed invocation whose first reader passed
+36/9. The corrected reader separately passed 45/0 on the unchanged generated
+Capture/result fixtures (tool 605098, exit 0, 1.0149618 seconds). The affected
+completion-boundary scaffold then passed 50/0 (tool 5548c3, exit 0, 0.7793381 seconds);
+its four-error compile failure remains preserved. No complete corrected 89 wrapper,
+whole diagnostics aggregate or producer 262 replay was performed.
+
+The native clock/Unity/services are facades in the focused checks; the recorder,
+callback prefixes and serialization code are actual source. The terminal test's
+Working observer is null and explicitly refuses unexpected access. The installed
+assembly compile does not invoke Unity. The trace requires an existing result
+publication to persist and may end with an incomplete final callback. It does not
+diagnose preview9 or establish continuous focus/background state.
+
+Final map `runtime-startup-trace-next01/integration-map01.json` SHA256
+`f9850aeebe9aacf5130951d98019b558bb0c08f5ffb7403f73fd59512be3c08b`;
+independent final13 source/result review SHA256
+`355341b040f56721ad70a6d4b9341108fe6815fbbd1b78479f9de750ee8f2c43`.
+Root composed both additive project registrations and all five new aggregate child
+registrations; the whole aggregate remains unselected.
+
+
+## Explicit assisted source for ordinary acquisition
+
+The optional `assisted-producer-and-cold` mode requalifies both completed,
+same-candidate producer and cold receipts before ordinary cumulative acquisition.
+The original producer Manual remains the input; the cold result supplies
+qualification evidence. Both raw artifacts are retained separately, with explicit
+assisted provenance, and copied under the runtime lock. Legacy sources retain
+their existing descriptor and selection contracts. The ordinary native choice
+driver still owns hiring, class choices, costs and companion progression.
+
+The source projection reads main XP from the producer readiness record, since
+the actual producer actor row intentionally omits it. A matched regression went
+from 23/1 to 24/0. The distinct assisted two-owner Small path retains the original
+pair facts/resources and refuses changing the admitted case; its matched
+regression went from 35/4 to 39/0. Cold intake now pins the profile-restoration
+receipt and requires exact bytes, zero accepted cache changes and closed result
+schema/failure counters; its generated qualifier/copy regression went from 10/13
+to 23/0 (actual caller b80eac exit0, 4.6995318 seconds).
+
+Private installed-contract compilation passed 487 sources/13 references in
+22.4 seconds. Request/authority protocol passed 171/0. New and affected legacy
+readers passed 37/0, 76/0, 101/0 and 69/0 in 156.8253654 seconds, with159 unchanged
+input pins. The original portable vector remains FAIL from a projection compile
+setup error and invalid wiring fixtures. Only its affected stages were rerun: actual
+projection24/0, prior-pair39/0 and wiring17/0, 24.0126328 seconds with1377 unchanged
+input pins. The raw supervisor wiring count33 includes nested request checks;
+the actual wiring result is17. Five original successful scopes and protocol171
+were retained rather than replayed. These counts overlap and are not a unique total.
+
+Independent final34 source/hash/results review passed. Root separately closed
+the PS exact-restoration finding, then composed startup13 and consumer34 into
+45 unique source/test paths. Private map SHA256
+`1b5577847c9f3bb492297ab955e999e6c44fe482a23852a8df69c795d43bc0bf`;
+independent review `70866a4fbd6ff941d1b7a31c6e769f95f44f1caa848bd4748c5ca25deb75aa0b`;
+root corrected PS review `2a937624d10e89d6938abcd123d2463bda8c4d63dce725fe0448ddf01c4c52f8`;
+composition receipt `a83ae9a4f3cd2524d4ead51abb0f80c2f7152e326c9c3860fa030b659eeece60`.
+
+Generated fixtures preserve actual formatter shapes with declared native metadata
+and external qualification/game boundaries. No installed archive, native choice,
+restoration or profile is qualified by these checks. The Small compiled catalogue
+remains EMPTY; calibration still needs actual body/rig inventory and a measured,
+reviewed declaration. Final integrated package/Candidate checks and all native
+producer/cold/acquisition evidence remain pending.

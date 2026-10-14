@@ -10,19 +10,21 @@ namespace KingmakerMountedCombat.Diagnostics
         internal const string Scenario = "chunk7-small-profile-calibration";
         internal const string CaseName = "compiled-small-horse-rt";
         internal const string ManualCaseName = "compiled-manual-derived-small-horse-rt";
+        internal const string AssistedManualCaseName = "compiled-assisted-two-owner-small-horse-rt";
         public string Case { get; set; }
         public Chunk7OrdinaryFieldSelection Source { get; set; }
         public Chunk7SmallManualSourceSelection ManualSource { get; set; }
         public bool ShouldSerializeSource() => Source != null;
         public bool ShouldSerializeManualSource() => ManualSource != null;
-        internal bool UsesManualField => Case == ManualCaseName;
+        internal bool UsesAssistedManualField => Case == AssistedManualCaseName;
+        internal bool UsesManualField => Case == ManualCaseName || UsesAssistedManualField;
         public string ProfileId { get; set; }
         public string NativeInventorySha256 { get; set; }
         public string NativeCalibrationSha256 { get; set; }
         internal IReadOnlyList<string> Validate(string scenario, string runId)
         {
             var errors = new List<string>();
-            if (scenario != Scenario || Case != CaseName && Case != ManualCaseName) errors.Add("The closed compiled Small calibration case differs.");
+            if (scenario != Scenario || Case != CaseName && Case != ManualCaseName && Case != AssistedManualCaseName) errors.Add("The closed compiled Small calibration case differs.");
             if (UsesManualField)
             {
                 if (Source != null || ManualSource == null) errors.Add("The Small Manual case requires only its exact acquired Manual source.");

@@ -46,6 +46,8 @@ Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot 'Chunk7AssistedColdInventoryFixtures.ps1')
 . (Join-Path $PSScriptRoot 'Chunk7ManualSeedEvidence.ps1')
 . (Join-Path $PSScriptRoot 'Chunk7ManualDerivedEvidence.ps1')
+. (Join-Path $PSScriptRoot 'Chunk7AssistedAcquisitionEvidence.ps1')
+. (Join-Path $PSScriptRoot 'Chunk7AssistedAcquisitionFixtures.ps1')
 . (Join-Path $PSScriptRoot 'Chunk7CumulativeAcquisitionEvidence.ps1')
 . (Join-Path $PSScriptRoot 'Chunk7AcquiredManualEvidence.ps1')
 

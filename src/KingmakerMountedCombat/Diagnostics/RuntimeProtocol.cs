@@ -532,8 +532,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (PersistenceLoad == null) errors.Add("Cumulative acquisition requires its exact acquired-field Manual source.");
                 else
                 {
-                    errors.AddRange(PersistenceLoad.Validate("persistenceLoad", Chunk7AcquiredManualSelection.OutputName, "^Manual_[1-9][0-9]*_KMC_C7_ACQUIRED_FIELD\\.zks$"));
-                    if (!Chunk7CumulativeAcquisitionSelection.IsAcquiredManualLeaf(PersistenceLoad.FileName) || Fixture?.Working == null ||
+                    var cumulativeName = CumulativeAcquisition?.SelectedManualName ?? Chunk7AcquiredManualSelection.OutputName;
+                    errors.AddRange(PersistenceLoad.Validate("persistenceLoad", cumulativeName, "^Manual_[1-9][0-9]*_" + cumulativeName + "\\.zks$"));
+                    if (CumulativeAcquisition == null || !CumulativeAcquisition.IsSelectedManualLeaf(PersistenceLoad.FileName) || Fixture?.Working == null ||
                         PersistenceLoad.GameId == Fixture.Working.GameId || !Guid.TryParseExact(PersistenceLoad.GameId, "D", out var cumulativeGameId) || cumulativeGameId == Guid.Empty ||
                         string.IsNullOrWhiteSpace(PersistenceLoad.GameName) || PersistenceLoad.Sha256 == Fixture.Working.Sha256 ||
                         PersistenceLoad.Sha256 == Fixture.Baseline?.Sha256 || PersistenceLoad.Sha256 != CumulativeAcquisition?.SourceArchiveSha256)

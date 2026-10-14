@@ -120,3 +120,55 @@ The [reviewed preview.5 candidate](../docs/CHUNK7-PREVIEW5-CANDIDATE.md) is froz
 After that audit, select at most three prerequisite attempts: base-only native bootstrap0 loads/1 Auto write, same-candidate cold inventory1/0, and same-candidate Manual seed1/1,600s outer timeout each with retained native custody through safe settlement. Three of25 invocations have been used before this segment. Do not advance the chain on FAIL or mere archive existence. No preview.5 native transaction has run at this checkpoint.
 
 The Manual derivative supplies no actor, XP, money, class or slot grant and does not qualify older Working-only acquisition, progression, Small, persistence or area cases. Actual inventory decides the next source/fixture bridge. Current RT/TB/lifecycle and persistence runners require base-only staging; only two-pair exploration admits the installed-configuration fallback, with its limitations retained. All later required breadth rows remain open.
+
+## Preview.10 assisted-fixture segment — preparation
+
+Nine of 25 native attempts have been used; all are final FAIL and settled. The
+assisted preparation and read-only cold-inventory source checkpoint is published
+at `ee2bdfc9a69482af0870ead5566597e49cd0dbff` on
+`codex/mounted-combat-chunk7-assisted-fixtures`. Preview10 is not yet built or
+admitted. Reviewed passive startup timing and an explicit assisted source route into the
+existing ordinary acquisition chain are now composed, including main-XP, retained
+Small-custody and exact cold-restoration repairs, before the single candidate build. Earlier packages and failures keep their original inputs.
+
+The next prerequisite segment selects at most three conditional invocations:
+assisted preparation, same-candidate assisted cold inventory, and ordinary paid
+Medium acquisition preserving the existing first owner. Each requires its exact
+completed predecessor, current source selection, candidate-qualified artifact,
+reviewed guarded WhatIf and caller evidence, and exact external restoration.
+Do not launch a descendant on FAIL, archive existence, successful decoding, or an
+incomplete producer receipt. The existing installed ground-input case remains an
+independent selected row; this segment does not automatically launch it.
+
+The prepared first case is `chunk7-assisted-fixture-preparation` /
+`authored-main-ranger4-manual`, base-only, zero native saved-game loads and at
+most three isolated native writes. Its closed selection permits only the
+documented story choices, native Ranger choices and bounded disclosed XP/funds
+shortfalls. This is assisted fixture setup; it cannot prove earned progression
+or ordinary first-owner acquisition. Working and Baseline remain protected
+anchors. Candidate/source/suite/hash and actual process bindings remain unbound
+until freezing. The proposed run is
+`20261014-chunk7b-world10-assisted-fixture`.
+
+The producer uses the existing 600-second outer timeout, 600-second host budget
+and 540-second scenario setup window; no timeout is extended for the unexplained
+preview9 startup delay. The passive recorder samples the first ten actual UMM
+OnUpdate callbacks, with Unity frame, monotonic time and sampled read-only
+focus/background flags. It changes no actions or application settings and may
+retain a truthful incomplete final callback. Its evidence can locate a delay,
+but cannot prove continuous focus or the cause of the earlier failure.
+
+Plan 180 minutes for the next full audit using the measured prior
+9027.385412-second duration. That is separate from native runtime and mandatory
+safe settlement; never kill a live transaction or reduce audit coverage to meet
+the estimate. Checkpoints are clean reviewed source, package/Candidate, immutable
+freeze and suite, completed full audit/caller review, native result and complete
+external restoration. Root remains the sole live executor.
+
+A successful producer and cold inventory must be requalified before the
+ordinary acquisition route can use their final Manual. Actual cold-observed
+actors, body/rig, funds, XP and native choice availability determine eligibility.
+The Small catalogue remains EMPTY. A distinct two-owner Small calibration path
+does not remove the requirement for a measured and reviewed compiled profile.
+Remaining native combat, durable debt, area/removal/migration, progression,
+Small/six-pair and matched controls remain mandatory gates.

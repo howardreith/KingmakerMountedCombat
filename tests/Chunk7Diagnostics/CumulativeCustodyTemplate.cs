@@ -25,6 +25,8 @@ namespace KingmakerMountedCombat.Diagnostics {
  private JObject cumulativeSourceOwner,cumulativeInitialResources,cumulativeInitialRelationships,cumulativeInitialProgression,sourceObservations,evidence=new JObject();
  private bool cumulativeBound,acquisitionProven;private Game game=new Game();private Horses horses=new Horses();private Probe probe=new Probe();
  private static void Require(bool v,string reason){if(!v)throw new InvalidOperationException(reason);}
+// Source projection is a separately tested boundary; this original matrix uses its legacy saved resources.
+ private JToken SelectedSourceResources => sourceObservations["resourcesAfterSave"];
 @@ACTUAL_METHODS@@
  private static Actual Fresh(){var a=new Actual();var owner=a.Unit("owner");var pet=a.Unit("pet",true);var target=a.Unit("target");a.actors=new[]{owner,pet,target};owner.Descriptor.Pet=pet;pet.Descriptor.Master.Value=owner;var feature=new Feature{Source=new Blueprint{AssetGuid="source"}};owner.Descriptor.Facts[a.horses.HorseFeature]=feature;owner.Descriptor.Facts[a.horses.LevelRank]=new Feature();a.game.Player.PartyCharacters.Add(new Ref{Value=owner});a.game.Player.PartyCharacters.Add(new Ref{Value=target});a.cumulative.PriorOwnerId="owner";a.cumulative.PriorPetId="pet";a.selection.ExistingActorId="target";a.cumulativeSourceOwner=new JObject{["actorId"]="owner",["petId"]="pet",["actorBlueprint"]="actor",["petBlueprint"]="horse",["sourceGuid"]="source",["featureGuid"]="feature",["rank"]=1};a.sourceObservations=new JObject{["resourcesAfterSave"]=a.CaptureCumulativeResources(false)};return a;}
  private UnitEntityData Unit(string id,bool horse=false)=>new UnitEntityData{UniqueId=id,Blueprint=horse?horses.HorseUnit:new Blueprint{AssetGuid="actor"}};

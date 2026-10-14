@@ -298,17 +298,23 @@ function Assert-KmcChunk7ManualDerivedEvidence($Request,$Artifact,$SourceArtifac
 }
 # Shared raw native observation proof only. Each closed caller validates its own
 # exact descriptor, artifact kind and distinct source family before entering.
-function Assert-KmcNativeAcquisitionProof($Request,$Artifact,$SourceArtifact,$Selection,[switch]$Cumulative){
+function Assert-KmcNativeAcquisitionProof($Request,$Artifact,$SourceArtifact,$Selection,[switch]$Cumulative,$AssistedProjection=$null){
  $o=$Artifact.observations;$s=$Selection;$source=$SourceArtifact;$paid=Test-KmcManualDerivedPaidCase $s.case
+ $sourceValues=$source.observations;$sourceWrite=$null;$sourceWorld=$null
+ if($null-eq$AssistedProjection){$sourceWrite=$sourceValues.nativeWrite;$sourceWorld=$sourceValues.savedWorld}
+ if($null-ne$AssistedProjection){
+  if(-not$Cumulative-or-not(Test-KmcAssistedCumulativeMode $s)){throw 'An assisted projection belongs only to the closed cumulative source mode.'}
+  $sourceValues=$AssistedProjection;$sourceWrite=$source.observations.finalManual;$sourceWorld=$source.observations.settledWorld
+ }
  if(-not(Test-KmcFiniteJsonNumber $o.elapsedSeconds)-or$o.elapsedSeconds-lt0-or$o.elapsedSeconds-gt1050){throw 'Manual-derived elapsed observation exceeds its declared native bound.'}
  foreach($key in @('commit','dllSha256','dllMvid')){Assert-KmcBootstrapInventoryString $source.$key $Request.$key}
  Assert-KmcBootstrapInventoryString $source.runId $s.sourceRunId;Assert-KmcBootstrapInventoryString $source.status 'PASS'
  if($source.errors-isnot[Array]-or$source.errors.Count-ne0){throw 'Manual source failed.'}
- foreach($key in @('gameId','gameName','area')){Assert-KmcBootstrapInventoryString $source.observations.nativeWrite.$key $Request.persistenceLoad.$key}
- Assert-KmcBootstrapInventoryString $source.observations.nativeWrite.sha256 $s.sourceArchiveSha256
- if((ConvertTo-KmcChunk7Canonical $o.sourceManualObservations)-cne(ConvertTo-KmcChunk7Canonical $source.observations)-or(ConvertTo-KmcChunk7Canonical $o.sourceNativeWorld)-cne(ConvertTo-KmcChunk7Canonical $source.observations.savedWorld)){throw 'Manual-derived copied source observations differ.'}
+ foreach($key in @('gameId','gameName','area')){Assert-KmcBootstrapInventoryString $sourceWrite.$key $Request.persistenceLoad.$key}
+ Assert-KmcBootstrapInventoryString $sourceWrite.sha256 $s.sourceArchiveSha256
+ if((ConvertTo-KmcChunk7Canonical $o.sourceManualObservations)-cne(ConvertTo-KmcChunk7Canonical $source.observations)-or(ConvertTo-KmcChunk7Canonical $o.sourceNativeWorld)-cne(ConvertTo-KmcChunk7Canonical $sourceWorld)){throw 'Manual-derived copied source observations differ.'}
  if((ConvertTo-KmcChunk7Canonical $o.selection)-cne(ConvertTo-KmcChunk7Canonical $s)){throw 'Manual-derived observed selection changed.'}
- Assert-KmcManualDerivedSourcePins $s $source.observations
+ Assert-KmcManualDerivedSourcePins $s $sourceValues
  Assert-KmcOrdinaryInteger $o.processId 1 ([int]::MaxValue);Assert-KmcOrdinaryInteger $source.observations.processId 1 ([int]::MaxValue);if($o.processId-eq$source.observations.processId){throw 'Manual-derived native process was not cold.'}
  foreach($key in @('resourceWrites','xpWrites','moneyWrites')){Assert-KmcOrdinaryInteger $o.$key 0 0}
  foreach($key in @('profileAdmissionChanged','sixPairFixtureQualified','vendorDialogueProven','mountedCombatProven','smallPoseQualified')){Assert-KmcChunk7Boolean $o.$key $false};Assert-KmcChunk7Boolean $o.ordinaryAcquisitionProven $true
@@ -368,9 +374,9 @@ function Assert-KmcNativeAcquisitionProof($Request,$Artifact,$SourceArtifact,$Se
  $main=@($inventory.party|Where-Object id -CEQ $w.mainActorId)[0].nativeLevelUpReadiness
  if($r.mainCharacterLevel-ne$main.characterLevel-or$r.mainCharacterExperience-ne$main.experience){throw 'Native main readiness observations disagree.'}
  Assert-KmcManualDerivedFixtureReadiness $o.fixtureReadiness $Request $w $f $inventory $root -Cumulative:$Cumulative
- foreach($key in @('mainProgression','staticPartyFacts','saveSettings','experienceRatePercent')){if((ConvertTo-KmcChunk7Canonical $o.fixtureReadiness.$key)-cne(ConvertTo-KmcChunk7Canonical $source.observations.fixtureReadiness.$key)){throw 'Cold readiness differs from Manual source.'}}
- if((ConvertTo-KmcChunk7Canonical $o.nativeProfileInventory.ordinaryAcquisitionPrerequisites)-cne(ConvertTo-KmcChunk7Canonical $source.observations.nativeProfileInventory.ordinaryAcquisitionPrerequisites)){throw 'Native readiness differs from Manual source.'}
- if((ConvertTo-KmcChunk7Canonical $o.beforeChoices)-cne(ConvertTo-KmcChunk7Canonical $source.observations.afterSaveArrangement)){throw 'Native arrangement changed before choices.'}
+ foreach($key in @('mainProgression','staticPartyFacts','saveSettings','experienceRatePercent')){if((ConvertTo-KmcChunk7Canonical $o.fixtureReadiness.$key)-cne(ConvertTo-KmcChunk7Canonical $sourceValues.fixtureReadiness.$key)){throw 'Cold readiness differs from Manual source.'}}
+ if((ConvertTo-KmcChunk7Canonical $o.nativeProfileInventory.ordinaryAcquisitionPrerequisites)-cne(ConvertTo-KmcChunk7Canonical $sourceValues.nativeProfileInventory.ordinaryAcquisitionPrerequisites)){throw 'Native readiness differs from Manual source.'}
+ if((ConvertTo-KmcChunk7Canonical $o.beforeChoices)-cne(ConvertTo-KmcChunk7Canonical $sourceValues.afterSaveArrangement)){throw 'Native arrangement changed before choices.'}
  if($s.case-ceq'paid-medium-ranger-horse'){Assert-KmcMediumHireBodySource $o.nativeProfileInventory $s.mediumBody}
  Assert-KmcManualDerivedEligibility $s $o.liveEligibility
  $choice=Assert-KmcManualDerivedNativeChoices $Request $o $s

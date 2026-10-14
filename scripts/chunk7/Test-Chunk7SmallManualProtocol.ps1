@@ -15,7 +15,8 @@ $text='using Directory = KingmakerMountedCombat.Tests.SmallManualVirtual;'+[Envi
 $actual=Join-Path $OutputDirectory 'ActualAuthority.cs';[IO.File]::WriteAllText($actual,$text,[Text.UTF8Encoding]::new($false))
 $manualPath=Join-Path $DiagnosticSourceDirectory 'Chunk7SmallCalibrationScenario.Manual.cs';$manual=[IO.File]::ReadAllText($manualPath)
 $method=Extract $manual '        internal static JObject RequireManualArtifact(RuntimeRequest request, JObject artifact)'
-$admission='using System; using Newtonsoft.Json.Linq; namespace KingmakerMountedCombat.Diagnostics { internal sealed partial class Chunk7SmallCalibrationScenario { private static void Require(bool value,string reason) { if(!value)throw new InvalidOperationException(reason); }'+$method+'} internal static class Chunk7AcquiredManualScenario { internal const string EvidenceKind="chunk7-acquired-manual-evidence"; } }'
+$method+=[Environment]::NewLine+(Extract $manual '        internal static void RequireAssistedSmallManual(JObject o, Chunk7SmallManualSourceSelection plan)')
+$admission='using System; using System.Linq; using Newtonsoft.Json.Linq; namespace KingmakerMountedCombat.Diagnostics { internal sealed partial class Chunk7SmallCalibrationScenario { private static void Require(bool value,string reason) { if(!value)throw new InvalidOperationException(reason); }'+$method+'} internal static class Chunk7AcquiredManualScenario { internal const string EvidenceKind="chunk7-acquired-manual-evidence"; } }'
 $admissionPath=Join-Path $OutputDirectory 'ActualSourceAdmission.cs';[IO.File]::WriteAllText($admissionPath,$admission,[Text.UTF8Encoding]::new($false))
 [xml]$project=[IO.File]::ReadAllText((Join-Path $RepositoryRoot 'tests/KingmakerMountedCombat.Tests.csproj'))
 $sources=[Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)

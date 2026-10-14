@@ -34,6 +34,7 @@ $hostPath=Source 'src/KingmakerMountedCombat/Diagnostics/RuntimeAutomationHost.c
 $templatePath=Source 'tests/Chunk7Diagnostics/HostCompletionBoundaryTemplate.cs'
 $settingsPath=Source 'src/KingmakerMountedCombat/Diagnostics/DiagnosticSettings.cs'
 $gatePath=Source 'src/KingmakerMountedCombat/Diagnostics/Chunk7HostCompletionGate.cs'
+$tracePath=Source 'src/KingmakerMountedCombat/Diagnostics/RuntimeStartupTrace.cs'
 $hostText=[IO.File]::ReadAllText($hostPath);$template=[IO.File]::ReadAllText($templatePath)
 $signatures=@('private void ActivateSaveBackedBoundary(','private void BeginChunk7Completion(','private void CompleteSaveBackedWhenIdle(','private void CompleteSaveBackedCore(','private static IReadOnlyList<RuntimeSubscenarioResult> ReplaceFirstWithFailure(')
 $methods=(@($signatures|ForEach-Object{Member $hostText $_}))-join[Environment]::NewLine
@@ -45,11 +46,12 @@ $actualPath=Join-Path $OutputRoot 'actual.cs';[IO.File]::WriteAllText($actualPat
 [IO.File]::Copy($templatePath,(Join-Path $OutputRoot 'template.cs'),$false)
 $settingsCopy=Join-Path $OutputRoot 'DiagnosticSettings.cs';[IO.File]::Copy($settingsPath,$settingsCopy,$false)
 $gateCopy=Join-Path $OutputRoot 'Chunk7HostCompletionGate.cs';[IO.File]::Copy($gatePath,$gateCopy,$false)
+$traceCopy=Join-Path $OutputRoot 'RuntimeStartupTrace.cs';[IO.File]::Copy($tracePath,$traceCopy,$false)
 $compiler=Pin 'C:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/MSBuild/Current/Bin/Roslyn/csc.exe'
 $referenceRoot='C:/Program Files (x86)/Reference Assemblies/Microsoft/Framework/.NETFramework/v4.7'
 $references=@('mscorlib','System','System.Core'|ForEach-Object{Pin (Join-Path $referenceRoot ($_+'.dll'))})
 $exe=Join-Path $OutputRoot 'ActualHost.exe'
-$arguments=@('/nologo','/target:exe','/langversion:7.3','/nowarn:0649','/nostdlib+','/deterministic+',('/out:'+$exe))+@($references|ForEach-Object{'/reference:'+$_})+@($actualPath,$settingsCopy,$gateCopy)
+$arguments=@('/nologo','/target:exe','/langversion:7.3','/nowarn:0649','/nostdlib+','/deterministic+',('/out:'+$exe))+@($references|ForEach-Object{'/reference:'+$_})+@($actualPath,$settingsCopy,$gateCopy,$traceCopy)
 $rsp=Join-Path $OutputRoot 'compile.rsp';[IO.File]::WriteAllText($rsp,(($arguments|ForEach-Object{'"'+$_+'"'})-join[Environment]::NewLine))
 $clock=[Diagnostics.Stopwatch]::StartNew();$global:LASTEXITCODE=0
 $compileOutput=@(& $compiler ('@'+$rsp) 2>&1);$compileExit=$global:LASTEXITCODE;$compileSeconds=$clock.Elapsed.TotalSeconds
@@ -69,6 +71,6 @@ if($compileExit-eq0){
 $changed=@($inputs.Keys|Where-Object{(Get-FileHash -LiteralPath $_ -Algorithm SHA256).Hash.ToLowerInvariant()-cne$inputs[$_]})
 $ok=$compileExit-eq0-and$testExit-eq0-and$shapeValid-and$failed-eq0-and$changed.Count-eq0
 $inputRows=@($inputs.Keys|Sort-Object|ForEach-Object{[ordered]@{path=$_;sha256=$inputs[$_]}})
-$outputRows=@('actual.cs','source.cs','template.cs','DiagnosticSettings.cs','Chunk7HostCompletionGate.cs','compile.rsp','compile.log','run.log'|ForEach-Object{$p=Join-Path $OutputRoot $_;[ordered]@{path=$p;sha256=(Get-FileHash -LiteralPath $p -Algorithm SHA256).Hash.ToLowerInvariant()}})
-[ordered]@{kind='actual-host-terminal-boundary-regression';status=$(if($ok){'PASS'}else{'FAIL'});compileExit=$compileExit;exitCode=$testExit;passed=$passed;failed=$failed;resultShapeValid=$shapeValid;compileDurationSeconds=$compileSeconds;testDurationSeconds=$testSeconds;sourceMethods=$signatures;dto=$dtoSignature;actualGate=$true;actualDiagnosticSettings=$true;inputs=$inputRows;outputs=$outputRows;changedInputs=$changed;substitutions=@('Native Game/SaveManager/mode are inert facades','Family classification is a selected boolean facade','Engine finalization and custody callbacks are external boundaries; actual terminal gate is unchanged','Metadata hashes, result publisher and Application.Quit are inert counters/capture');nativeInvoked=$false;archiveOperations=0}|ConvertTo-Json -Depth 8|Set-Content -LiteralPath (Join-Path $OutputRoot 'receipt.json') -Encoding UTF8
+$outputRows=@('actual.cs','source.cs','template.cs','DiagnosticSettings.cs','Chunk7HostCompletionGate.cs','RuntimeStartupTrace.cs','compile.rsp','compile.log','run.log'|ForEach-Object{$p=Join-Path $OutputRoot $_;[ordered]@{path=$p;sha256=(Get-FileHash -LiteralPath $p -Algorithm SHA256).Hash.ToLowerInvariant()}})
+[ordered]@{kind='actual-host-terminal-boundary-regression';status=$(if($ok){'PASS'}else{'FAIL'});compileExit=$compileExit;exitCode=$testExit;passed=$passed;failed=$failed;resultShapeValid=$shapeValid;compileDurationSeconds=$compileSeconds;testDurationSeconds=$testSeconds;sourceMethods=$signatures;dto=$dtoSignature;actualGate=$true;actualDiagnosticSettings=$true;inputs=$inputRows;outputs=$outputRows;changedInputs=$changed;substitutions=@('Native Game/SaveManager/mode are inert facades','Working observer is null with an explicit refusal if unexpectedly reached; actual passive startup recorder uses constant generated clock/frame/flag inputs','Family classification is a selected boolean facade','Engine finalization and custody callbacks are external boundaries; actual terminal gate is unchanged','Metadata hashes, result publisher and Application.Quit are inert counters/capture');nativeInvoked=$false;archiveOperations=0}|ConvertTo-Json -Depth 8|Set-Content -LiteralPath (Join-Path $OutputRoot 'receipt.json') -Encoding UTF8
 if(-not$ok){exit 1};exit 0

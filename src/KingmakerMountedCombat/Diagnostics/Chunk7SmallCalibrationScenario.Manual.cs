@@ -25,6 +25,9 @@ namespace KingmakerMountedCombat.Diagnostics
         private JObject manualSource, manualArrangement;
         private UnitEntityData[] manualActors, manualCharacters;
         private object manualFeature, manualRank, manualFeatureSource;
+        private UnitEntityData manualPriorOwner, manualPriorPet;
+        private object manualPriorFeature, manualPriorRank, manualPriorSource, manualPriorOwnerDescriptor, manualPriorPetDescriptor, manualPriorOwnerView, manualPriorPetView;
+        private JObject manualPriorPairBefore;
         private string SourceArtifactHash => calibration.UsesManualField ? calibration.ManualSource.SourceArtifactSha256 : selection.SourceArtifactSha256;
         private string SourceArchiveHash => calibration.UsesManualField ? calibration.ManualSource.SourceArchiveSha256 : selection.SourceArchiveSha256;
 
@@ -77,7 +80,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["archiveSha256"] = SourceArchiveHash, ["archiveLeaf"] = request.PersistenceLoad.FileName,
                 ["archiveName"] = request.PersistenceLoad.InternalName, ["archiveLength"] = archiveLength,
                 ["bodySelection"] = sourceSelection.DeepClone(), ["sameCandidate"] = true, ["unchangedArchive"] = true,
-                ["kind"] = "qualified-first-owner-acquired-manual", ["acquiredManual"] = manualSource.DeepClone() };
+                ["kind"] = calibration.UsesAssistedManualField ? "qualified-assisted-two-owner-acquired-manual" : "qualified-first-owner-acquired-manual", ["acquiredManual"] = manualSource.DeepClone() };
         }
 
         // Tests execute this exact source admission; a decoded object still does
@@ -92,7 +95,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 artifact["errors"] is JArray errors && errors.Count == 0 && (string)artifact["commit"] == request.Commit &&
                 (string)artifact["dllSha256"] == request.DllSha256 && (string)artifact["dllMvid"] == request.DllMvid,
                 "Small source is not the exact successful same-candidate acquired Manual artifact.");
-            Require((string)o["selection"]?["case"] == Chunk7AcquiredManualSelection.CaseName &&
+            if (request.SmallCalibration.UsesAssistedManualField) RequireAssistedSmallManual(o, plan);
+            else Require((string)o["selection"]?["case"] == Chunk7AcquiredManualSelection.CaseName &&
                 (string)o["selection"]?["actorId"] == plan.ActorId && (string)o["selection"]?["petId"] == plan.PetId &&
                 o["selection"]?["baseGameOnly"]?.Type == JTokenType.Boolean && (bool)o["selection"]["baseGameOnly"] &&
                 o["twoOwners"] == null && (string)o["sourceAcquisition"]?["selection"]?["case"] == Chunk7ManualDerivedSelection.PaidSmallCase &&
@@ -149,6 +153,7 @@ namespace KingmakerMountedCombat.Diagnostics
             Require(JToken.DeepEquals(manualArrangement, manualSource["afterSaveArrangement"]) &&
                 JToken.DeepEquals(CaptureManualResources(), manualSource["resourcesAfterSave"]),
                 "Native cold Small load changed saved XP, money, classes or actor resources.");
+            if (calibration.UsesAssistedManualField) BindAssistedManualPriorPair();
             scope = new Chunk7NativeWorldScope(request, current);
             RequireManualFieldIdentity();
             evidence["coldNoPreparation"] = manualRestoration.Capture();
@@ -190,9 +195,86 @@ namespace KingmakerMountedCombat.Diagnostics
             Require(current.Contains(actor) && current.Contains(pet) && !ReferenceEquals(actor, Game.Instance.Player.MainCharacter.Value) &&
                 actor.Blueprint == BlueprintRoot.Instance.CustomCompanion && actor.Descriptor.OriginalSize == Size.Small && actor.Descriptor.State.Size == Size.Small &&
                 ReferenceEquals(actor.Descriptor.Pet, pet) && ReferenceEquals(pet.Descriptor.Master.Value, actor) && pet.Blueprint == horses.HorseUnit &&
-                current.Count(value => value.Descriptor.Pet != null) == 1 && current.Count(value => value.Descriptor.Master.Value != null) == 1,
+                current.Count(value => value.Descriptor.Pet != null) == (calibration.UsesAssistedManualField ? 2 : 1) &&
+                current.Count(value => value.Descriptor.Master.Value != null) == (calibration.UsesAssistedManualField ? 2 : 1),
                 "Small Manual does not restore its sole reciprocal native custom owner and Horse.");
             return current;
+        }
+
+
+        internal static void RequireAssistedSmallManual(JObject o, Chunk7SmallManualSourceSelection plan)
+        {
+            var source = o?["sourceAcquisition"]; var sourceSelection = source?["selection"];
+            var pairs = o?["twoOwners"] as JArray; var settledPairs = o?["settledTwoOwners"] as JArray;
+            Require((string)o?["selection"]?["case"] == Chunk7AcquiredManualSelection.TwoOwnerCaseName &&
+                o["selection"]?["baseGameOnly"]?.Type == JTokenType.Boolean && (bool)o["selection"]["baseGameOnly"] &&
+                (string)o["selection"]?["actorId"] == plan.ActorId && (string)o["selection"]?["petId"] == plan.PetId &&
+                (string)sourceSelection?["case"] == Chunk7ManualDerivedSelection.PaidSmallCase &&
+                (string)sourceSelection?["sourceMode"] == Chunk7CumulativeAcquisitionSelection.AssistedSourceMode &&
+                sourceSelection?["baseGameOnly"]?.Type == JTokenType.Boolean && (bool)sourceSelection["baseGameOnly"] &&
+                source?["nativeWrite"]?["saveBeforeFieldSelection"]?.Type == JTokenType.Boolean && (bool)source["nativeWrite"]["saveBeforeFieldSelection"] &&
+                (string)source?["assistedSource"]?["contract"] == "assisted-producer-cold-cumulative-v1" &&
+                source?["assistedSource"]?["setupWasAssisted"]?.Type == JTokenType.Boolean && (bool)source["assistedSource"]["setupWasAssisted"] &&
+                source?["assistedSource"]?["setupIsOrdinaryAcquisitionProof"]?.Type == JTokenType.Boolean && !(bool)source["assistedSource"]["setupIsOrdinaryAcquisitionProof"] &&
+                (string)source?["field"]?["actorId"] == plan.ActorId && (string)source?["field"]?["petId"] == plan.PetId &&
+                pairs != null && pairs.Count == 2 && settledPairs != null && settledPairs.Count == 2 &&
+                (string)pairs[0]["actorId"] == (string)sourceSelection["priorOwnerId"] && (string)pairs[0]["petId"] == (string)sourceSelection["priorPetId"] &&
+                (string)pairs[1]["actorId"] == plan.ActorId && (string)pairs[1]["petId"] == plan.PetId &&
+                new[] { (string)pairs[0]["actorId"], (string)pairs[0]["petId"], plan.ActorId, plan.PetId }.Distinct(StringComparer.Ordinal).Count() == 4 &&
+                o["bodyObservation"] is JObject && o["savedWorld"] is JObject && o["savedOwner"] is JObject &&
+                o["afterSaveArrangement"] is JObject && JToken.DeepEquals(o["beforeSaveArrangement"], o["afterSaveArrangement"]),
+                "Assisted Small Manual requires the exact assisted-cold cumulative paid Small derivative and both retained pairs.");
+            foreach (var key in new[] { "actorId", "petId", "actorBlueprint", "petBlueprint", "featureGuid", "sourceGuid", "rank" })
+                for (var i = 0; i < 2; i++) Require(JToken.DeepEquals(pairs[i][key], settledPairs[i][key]), "Assisted Small saved pair semantics changed.");
+        }
+        private void BindAssistedManualPriorPair()
+        {
+            Require(manualPriorOwner == null && manualPriorPet == null, "Assisted Small prior pair already bound.");
+            var prior = manualSource["twoOwners"][0];
+            manualPriorOwner = manualActors.SingleOrDefault(value => value.UniqueId == (string)prior["actorId"]);
+            manualPriorPet = manualActors.SingleOrDefault(value => value.UniqueId == (string)prior["petId"]);
+            Require(manualPriorOwner != null && manualPriorPet != null && manualPriorOwner != actor && manualPriorOwner != pet &&
+                manualPriorPet != actor && manualPriorPet != pet && manualPriorOwner != manualPriorPet,
+                "Assisted Small prior pair is absent or aliases the calibrated pair.");
+            manualPriorOwnerDescriptor = manualPriorOwner.Descriptor; manualPriorPetDescriptor = manualPriorPet.Descriptor;
+            manualPriorOwnerView = manualPriorOwner.View; manualPriorPetView = manualPriorPet.View;
+            manualPriorFeature = manualPriorOwner.Descriptor.GetFact(horses.HorseFeature);
+            manualPriorRank = manualPriorOwner.Descriptor.GetFact(horses.LevelRank);
+            manualPriorSource = (manualPriorFeature as Feature)?.Source;
+            manualPriorPairBefore = CaptureAssistedManualPriorPair();
+            RequireAssistedManualPriorPair();
+            evidence["inheritedAssistedPairBefore"] = manualPriorPairBefore.DeepClone();
+        }
+        private JObject CaptureAssistedManualPriorPair() => new JObject {
+            ["actorId"] = manualPriorOwner.UniqueId, ["petId"] = manualPriorPet.UniqueId,
+            ["actorObject"] = Id(manualPriorOwner), ["petObject"] = Id(manualPriorPet),
+            ["actorDescriptor"] = Id(manualPriorOwner.Descriptor), ["petDescriptor"] = Id(manualPriorPet.Descriptor),
+            ["actorView"] = Id(manualPriorOwner.View), ["petView"] = Id(manualPriorPet.View),
+            ["featureObject"] = Id(manualPriorFeature), ["sourceObject"] = Id(manualPriorSource), ["rankObject"] = Id(manualPriorRank),
+            ["actorBlueprint"] = manualPriorOwner.Blueprint.AssetGuid, ["petBlueprint"] = manualPriorPet.Blueprint.AssetGuid,
+            ["featureGuid"] = horses.HorseFeature.AssetGuid, ["sourceGuid"] = (manualPriorFeature as Feature)?.Source?.AssetGuid,
+            ["rank"] = manualPriorOwner.Descriptor.GetFact(horses.LevelRank)?.GetRank(),
+            ["reciprocal"] = ReferenceEquals(manualPriorOwner.Descriptor.Pet, manualPriorPet) && ReferenceEquals(manualPriorPet.Descriptor.Master.Value, manualPriorOwner),
+            ["resources"] = new JArray(((JArray)CaptureManualResources()["actors"]).Where(value =>
+                (string)value["actorId"] == manualPriorOwner.UniqueId || (string)value["actorId"] == manualPriorPet.UniqueId).Select(value => value.DeepClone())) };
+        private void RequireAssistedManualPriorPair()
+        {
+            var saved = manualSource["twoOwners"][0];
+            Require(manualPriorOwner != null && manualPriorPet != null &&
+                ReferenceEquals(manualPriorOwner.Descriptor, manualPriorOwnerDescriptor) && ReferenceEquals(manualPriorPet.Descriptor, manualPriorPetDescriptor) &&
+                ReferenceEquals(manualPriorOwner.View, manualPriorOwnerView) && ReferenceEquals(manualPriorPet.View, manualPriorPetView) &&
+                ReferenceEquals(manualPriorOwner.Descriptor.GetFact(horses.HorseFeature), manualPriorFeature) &&
+                ReferenceEquals(manualPriorOwner.Descriptor.GetFact(horses.LevelRank), manualPriorRank) &&
+                manualPriorFeature is Feature feature && ReferenceEquals(feature.Source, manualPriorSource) && manualPriorSource != null &&
+                ReferenceEquals(manualPriorOwner.Descriptor.Pet, manualPriorPet) && ReferenceEquals(manualPriorPet.Descriptor.Master.Value, manualPriorOwner) &&
+                Game.Instance.Player.PartyCharacters.Count(value => ReferenceEquals(value.Value, manualPriorOwner)) == 1 &&
+                !Game.Instance.Player.RemoteCompanions.Any(value => ReferenceEquals(value.Value, manualPriorOwner)),
+                "Assisted Small inherited native pair/fact/rank/view or character custody changed.");
+            var now = CaptureAssistedManualPriorPair();
+            foreach (var key in new[] { "actorId", "petId", "actorBlueprint", "petBlueprint", "featureGuid", "sourceGuid", "rank" })
+                Require(JToken.DeepEquals(now[key], saved[key]), "Assisted Small inherited pair differs from its saved source.");
+            Require(JToken.DeepEquals(now, manualPriorPairBefore), "Assisted Small inherited pair identity or native resources changed.");
+            evidence["inheritedAssistedPairAfter"] = now;
         }
 
         private JObject CaptureManualArrangement() => new JObject { ["money"] = Game.Instance.Player.Money, ["experienceRatePercent"] = Game.Instance.Player.ExperienceRatePercent,
@@ -208,6 +290,11 @@ namespace KingmakerMountedCombat.Diagnostics
             ["initiative"] = value.CombatState.Initiative })) };
         private void RequireManualFieldIdentity()
         {
+            if (calibration.UsesAssistedManualField || manualPriorOwner != null || manualPriorPet != null)
+            {
+                Require(calibration.UsesAssistedManualField, "Bound assisted Small source case changed; inherited custody remains retained.");
+                RequireAssistedManualPriorPair();
+            }
             var prior = manualSource["savedOwner"]; var fact = actor.Descriptor.GetFact(horses.HorseFeature) as Feature;
             var current = Chunk7NativeFieldRoster.Capture(Game.Instance.Player);
             Require(manualActors != null && manualActors.Length >= 3 && current.Length == manualActors.Length &&

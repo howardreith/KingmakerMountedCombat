@@ -267,6 +267,9 @@ namespace KingmakerMountedCombat
             IsEnabled = false;
         }
 
+        internal void ObserveStartupCallbackEntry() => runtimeAutomation?.ObserveStartupCallbackEntry();
+        internal void ObserveStartupCallbackExit() => runtimeAutomation?.ObserveStartupCallbackExit();
+
         public void Update(float deltaTime)
         {
             var measurement = MountedRuntimeMeasurement.Current;
@@ -278,6 +281,7 @@ namespace KingmakerMountedCombat
 
         private void UpdateCore(float deltaTime)
         {
+            runtimeAutomation?.ObserveStartupPreHostStart();
             ThrowIfDisposed();
             horseCompanion.Update();
             persistence.Update();
@@ -292,6 +296,7 @@ namespace KingmakerMountedCombat
                 PerformFailureCleanup();
             }
             nativeControls.Update();
+            runtimeAutomation?.ObserveStartupPreHostEnd();
             runtimeAutomation?.Update(deltaTime);
             if (runtimeAutomation != null && runtimeAutomation.IsSaveBackedFailurePending)
             {
