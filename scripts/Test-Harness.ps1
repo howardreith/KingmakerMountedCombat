@@ -5358,8 +5358,29 @@ try {
         $noSaveV1 = $schema.definitions.noSaveV1
         $schemaProperties = @($noSaveV1.properties.PSObject.Properties.Name)
         $schemaRequired = @($noSaveV1.required)
-        if ($null -ne (Compare-Object -ReferenceObject ($schemaProperties | Sort-Object) -DifferenceObject ($schemaRequired | Sort-Object))) {
-            throw 'The schema v1 branch declares a property it does not require, or requires one it does not declare.'
+        # Startup telemetry is optional for historical results; every other v1 field remains required.
+        $schemaOptional = @('startupTrace')
+        if ($null -ne (Compare-Object -ReferenceObject ($schemaProperties | Sort-Object) -DifferenceObject (($schemaRequired + $schemaOptional) | Sort-Object))) {
+            throw 'The schema v1 property set differs from its required fields plus the one optional startup trace.'
+        }
+        foreach ($branch in @($noSaveV1, $schema.definitions.saveBackedV2)) {
+            if ($branch.required -contains 'startupTrace' -or $branch.properties.startupTrace.'$ref' -cne '#/definitions/runtimeStartupTrace') {
+                throw 'Both result versions must allow the same optional startup trace without requiring historical results to contain it.'
+            }
+        }
+        $traceSchema = $schema.definitions.runtimeStartupTrace
+        $sampleSchema = $schema.definitions.runtimeStartupSample
+        foreach ($node in @($traceSchema, $sampleSchema)) {
+            if ($node.type -cne 'object' -or $node.additionalProperties -ne $false -or
+                $null -ne (Compare-Object -ReferenceObject @($node.properties.PSObject.Properties.Name | Sort-Object) -DifferenceObject @($node.required | Sort-Object))) {
+                throw 'Startup trace and sample definitions require exact object fields.'
+            }
+        }
+        if ($traceSchema.properties.callbackCapacity.const -ne 10 -or $traceSchema.properties.sampleCapacity.const -ne 50 -or
+            $traceSchema.properties.callbacksObserved.maximum -ne 10 -or $traceSchema.properties.closedCallbacks.maximum -ne 10 -or
+            $traceSchema.properties.samples.maxItems -ne 50 -or $traceSchema.properties.samples.items.'$ref' -cne '#/definitions/runtimeStartupSample' -or
+            $sampleSchema.properties.callback.minimum -ne 1 -or $sampleSchema.properties.callback.maximum -ne 10) {
+            throw 'Startup schema callback and sample bounds differ from the passive recorder contract.'
         }
         if ($noSaveV1.additionalProperties -ne $false) { throw 'The schema v1 branch admits additional properties.' }
         # Every field the typed policy publishes must be in the schema.
@@ -5371,7 +5392,7 @@ try {
         foreach ($field in $policyFields) {
             if ($schemaProperties -notcontains $field) { throw "The schema v1 branch omits a published observation: $field" }
         }
-        # And the validator's own v1 list must be exactly the schema's set minus the common fields.
+        # The validator's v1 list must equal the schema's required set minus the common fields.
         $validatorSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'scripts\runtime\Test-RuntimeGameResult.ps1'))
         $validatorBlock = [Regex]::Match($validatorSource, "(?s)\`$v1Fields = @\((.*?)\)\r?\n")
         if (-not $validatorBlock.Success) { throw 'The runtime game-result validator no longer declares an explicit v1 field list.' }
@@ -5379,10 +5400,10 @@ try {
         if ($null -ne (Compare-Object -ReferenceObject ($policyFields | Sort-Object) -DifferenceObject ($validatorFields | Sort-Object))) {
             throw 'The validator v1 field list and the typed policy field set have drifted apart.'
         }
-        $commonBlock = [Regex]::Match($validatorSource, "(?s)\`$commonRequired = @\((.*?)\)\r?\n")
+        $commonBlock = [Regex]::Match($validatorSource, "(?m)^\`$commonRequired = @\(([^)]*)\)")
         $commonFields = @([Regex]::Matches($commonBlock.Groups[1].Value, "'([a-zA-Z0-9]+)'") | ForEach-Object { $_.Groups[1].Value })
-        if ($null -ne (Compare-Object -ReferenceObject ($schemaProperties | Sort-Object) -DifferenceObject (($commonFields + $validatorFields) | Sort-Object))) {
-            throw 'The schema v1 property set is not exactly the validator common set plus its v1 fields.'
+        if ($null -ne (Compare-Object -ReferenceObject ($schemaRequired | Sort-Object) -DifferenceObject (($commonFields + $validatorFields) | Sort-Object))) {
+            throw 'The schema v1 required set is not exactly the validator common set plus its v1 fields.'
         }
         # The stale absolutes are gone: a real result must be admissible.
         $readConst = {

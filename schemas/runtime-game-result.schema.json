@@ -59,6 +59,7 @@
         "frameCount": { "type": "integer", "minimum": 0 },
         "elapsedSeconds": { "type": "number", "minimum": 0 },
         "errors": { "$ref": "#/definitions/errors" },
+        "startupTrace": { "$ref": "#/definitions/runtimeStartupTrace" },
         "expectedModId": { "const": "KingmakerMountedCombat" },
         "expectedProductVersion": { "$ref": "#/definitions/productVersion" },
         "gamePresent": { "type": "boolean" },
@@ -130,6 +131,7 @@
         "frameCount": { "type": "integer", "minimum": 0 },
         "elapsedSeconds": { "type": "number", "minimum": 0 },
         "errors": { "$ref": "#/definitions/errors" },
+        "startupTrace": { "$ref": "#/definitions/runtimeStartupTrace" },
         "fixture": { "$ref": "#/definitions/fixture" },
         "fixtureIdentityVerified": { "type": "boolean" },
         "baselineLoadRequestCount": { "type": "integer", "minimum": 0 },
@@ -147,6 +149,122 @@
           "type": "array",
           "minItems": 1,
           "items": { "$ref": "#/definitions/subscenarioResult" }
+        }
+      }
+    },
+    "runtimeStartupTrace": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "kind",
+        "clockOrigin",
+        "callbackCapacity",
+        "sampleCapacity",
+        "clockFrequency",
+        "callbacksObserved",
+        "closedCallbacks",
+        "orderingFailure",
+        "readFailure",
+        "samples"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "const": 1
+        },
+        "kind": {
+          "const": "runtime-startup-callback-trace"
+        },
+        "clockOrigin": {
+          "const": "accepted-runtime-host"
+        },
+        "callbackCapacity": {
+          "const": 10
+        },
+        "sampleCapacity": {
+          "const": 50
+        },
+        "clockFrequency": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "callbacksObserved": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10
+        },
+        "closedCallbacks": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10
+        },
+        "orderingFailure": {
+          "type": "boolean"
+        },
+        "readFailure": {
+          "type": "boolean"
+        },
+        "samples": {
+          "type": "array",
+          "maxItems": 50,
+          "items": {
+            "$ref": "#/definitions/runtimeStartupSample"
+          }
+        }
+      }
+    },
+    "runtimeStartupSample": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "callback",
+        "phase",
+        "elapsedTicks",
+        "unityFrame",
+        "isFocused",
+        "runInBackground"
+      ],
+      "properties": {
+        "callback": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10
+        },
+        "phase": {
+          "enum": [
+            "on-update-entry",
+            "pre-host-start",
+            "pre-host-end",
+            "host-entry",
+            "on-update-exit"
+          ]
+        },
+        "elapsedTicks": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "unityFrame": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 2147483647
+        },
+        "isFocused": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "runInBackground": {
+          "type": [
+            "boolean",
+            "null"
+          ]
         }
       }
     },
