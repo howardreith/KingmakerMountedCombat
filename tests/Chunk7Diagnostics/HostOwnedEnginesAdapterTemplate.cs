@@ -7,7 +7,7 @@ sealed class Persistence{internal bool AreaTransitionPending,HasActiveSaveScope,
 sealed class Engine{internal bool Ready,ThrowDispose;internal int Polls,Disposals;internal IReadOnlyList<string> Results=new string[0],Errors=new string[0];internal bool DrainForHost(){Polls++;return Ready;}internal void Dispose(){Disposals++;if(ThrowDispose)throw new InvalidOperationException("retained exact engine lease");}}
 sealed class HostOwnedEnginesAdapter{
  readonly Chunk7HostCompletionGate chunk7Completion=new Chunk7HostCompletionGate();readonly Clock runtimeClock=new Clock();readonly Persistence persistence=new Persistence();Engine worldPersistenceEngine,worldCombatEngine,worldEngine,ordinaryEngine;
- Engine acquiredManualEngine,manualDerivedEngine,manualSeedEngine,bootstrapInventoryEngine,nativeBootstrapEngine,smallCalibrationEngine,progressionEngine,ordinaryFieldEngine;
+ Engine assistedColdInventoryEngine,assistedFixtureEngine,acquiredManualEngine,manualDerivedEngine,manualSeedEngine,bootstrapInventoryEngine,nativeBootstrapEngine,smallCalibrationEngine,progressionEngine,ordinaryFieldEngine;
  static int passed;IReadOnlyList<string> subscenarioResults;int worldCleanup;List<string> faults=new List<string>();
  void RecordChunk7CleanupFailure(string e){faults.Add(e);}void CollectEngineErrors(IReadOnlyList<string> e,string p){}bool SettleChunk7World(){worldCleanup++;return true;}
 __METHOD__
@@ -29,6 +29,8 @@ __METHOD__
  VerifyAdditionalOwners();
  HostWorldGateAdapter.Verify();passed+=2;Console.WriteLine("CHUNK7 HOST OWNED ENGINES PASS="+passed+" FAIL=0; extracted production owner adapters and gate");}
  static void VerifyAdditionalOwners(){
+  VerifyOwner("assisted cold inventory",(h,e)=>h.assistedColdInventoryEngine=e,h=>h.assistedColdInventoryEngine);
+  VerifyOwner("assisted fixture",(h,e)=>h.assistedFixtureEngine=e,h=>h.assistedFixtureEngine);
   VerifyOwner("acquired Manual",(h,e)=>h.acquiredManualEngine=e,h=>h.acquiredManualEngine);
   VerifyOwner("Manual-derived",(h,e)=>h.manualDerivedEngine=e,h=>h.manualDerivedEngine);
   VerifyOwner("Manual seed",(h,e)=>h.manualSeedEngine=e,h=>h.manualSeedEngine);

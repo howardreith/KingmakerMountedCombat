@@ -1,0 +1,43 @@
+using System;using System.Linq;using System.Reflection;using System.Collections.Generic;using Newtonsoft.Json.Linq;using KingmakerMountedCombat.Diagnostics;
+static class AssistedCoreTests
+{
+ static int passed,failed;static string G(int n){return n.ToString("x32");}
+ static void Check(string name,Func<bool> body){try{if(!body())throw new Exception("predicate false");passed++;Console.WriteLine("PASS "+name);}catch(Exception e){failed++;Console.WriteLine("FAIL "+name+": "+e.GetType().Name+" "+e.Message);}}
+ static bool Throws(Action a){try{a();return false;}catch{return true;}}
+ static T Copy<T>(T a)where T:class{return a==null?null:(T)typeof(object).GetMethod("MemberwiseClone",BindingFlags.Instance|BindingFlags.NonPublic).Invoke(a,null);}
+ static Chunk7AssistedStorySnapshot Clone(Chunk7AssistedStorySnapshot s){var v=Copy(s);v.Identity=Copy(s.Identity);v.Offers=s.Offers==null?null:s.Offers.Select(Copy).ToArray();v.Rows=s.Rows==null?null:s.Rows.Select(Copy).ToArray();return v;}
+ sealed class Rig:IChunk7AssistedStoryBoundary,IChunk7AssistedShortfallBoundary
+ {
+  internal Chunk7AssistedFixtureBinding Binding;internal Chunk7AssistedStorySnapshot State;internal Chunk7AssistedShortfallSnapshot Short;
+  internal int Clicks,XpCalls,MoneyCalls,ReadCount;internal Action<Rig> BeforeClick,OnClick,OnXp,OnMoney;internal bool FailReadAfterClick,EntryMissing;
+  internal Rig(){var game=new object();var player=new object();var mgr=new object();var main=new object();var desc=new object();var auth=new object();Binding=new Chunk7AssistedFixtureBinding("test-run",Guid.NewGuid().ToString(),"KMC owned",G(100),game,player,mgr,main,desc,auth,1);
+   var id=new Chunk7AssistedIdentity{Game=game,Player=player,SaveManager=mgr,Main=main,Descriptor=desc,Authority=auth,RunId=Binding.RunId,CampaignId=Binding.CampaignId,CampaignName=Binding.CampaignName,MainId=Binding.MainId,Generation=1,ExactIsolatedFreshCampaign=true,NoForeignOrMountedCustody=true};
+   State=new Chunk7AssistedStorySnapshot{Identity=id,Frame=10,ElapsedMilliseconds=0,Mode="Dialog",UiStatus="pc-cached-rows",MouseController=true,DialogActive=true,MainViewReady=true,
+    Controller=new object(),Dialog=new object(),Cue=new object(),Ui=new object(),Common=new object(),Manager=new object(),PcDialog=new object(),CurrentPart=new object(),OffersList=new object(),RowsList=new object(),ManagerKind=0,ManagerShown=true,PcActive=true,DialogGuid=G(1),CueGuid=G(2),
+    Offers=new[]{new Chunk7AssistedStoryOffer{Answer=new object(),Selection=new object(),Guid=G(3),SelectionType=3},new Chunk7AssistedStoryOffer{Answer=new object(),Selection=new object(),Guid=G(4),SelectionType=0}},Rows=new Chunk7AssistedStoryRow[2]};
+   for(int i=0;i<2;i++)State.Rows[i]=new Chunk7AssistedStoryRow{View=new object(),Answer=State.Offers[i].Answer,Guid=State.Offers[i].Guid,NativeIndex=i+1,Initialized=true,ActiveAndEnabled=true,ActiveInHierarchy=true};
+   Short=new Chunk7AssistedShortfallSnapshot{Identity=Copy(id),Frame=10,Experience=100,Level=1,ExperienceRate=100,TargetLevel=4,TargetThreshold=9000,NativeHireCost=8000,Money=100,ReadyDefault=true,LivingIdleField=true,PreservedStateSha256=new string('a',64)};
+  }
+  Chunk7AssistedStorySnapshot IChunk7AssistedStoryBoundary.Read(){ReadCount++;if(FailReadAfterClick&&Clicks>0)throw new Exception("after read unavailable");return Clone(State);}
+  public void Click(Chunk7AssistedStorySnapshot expected,int oi,int ri,Action enter){if(BeforeClick!=null)BeforeClick(this);var actual=Clone(State);Binding.Require(actual.Identity);Chunk7AssistedStoryDriver.RequireSameClickState(expected,actual);if(!EntryMissing)enter();Clicks++;if(OnClick!=null)OnClick(this);}
+  Chunk7AssistedShortfallSnapshot IChunk7AssistedShortfallBoundary.Read(){var v=Copy(Short);v.Identity=Copy(Short.Identity);return v;}
+  public void GainExperience(Chunk7AssistedShortfallSnapshot expected,int delta,Action enter){Chunk7AssistedShortfall.RequireSameInput(expected,Short);enter();XpCalls++;Short.Experience+=delta;if(OnXp!=null)OnXp(this);}
+  public void GainMoney(Chunk7AssistedShortfallSnapshot expected,long delta,Action enter){Chunk7AssistedShortfall.RequireSameInput(expected,Short);enter();MoneyCalls++;Short.Money+=delta;if(OnMoney!=null)OnMoney(this);}
+  internal Chunk7AssistedStoryDriver Driver(){return new Chunk7AssistedStoryDriver(Binding,this);}internal Chunk7AssistedShortfall Assistance(){return new Chunk7AssistedShortfall(Binding,this);}
+ }
+ static bool BadStory(Action<Rig> mutate){var r=new Rig();mutate(r);using(var d=r.Driver())return Throws(()=>d.Tick())&&r.Clicks==0;}
+ static bool Stale(Action<Rig> mutate){var r=new Rig();r.BeforeClick=mutate;using(var d=r.Driver())return Throws(()=>d.Tick())&&r.Clicks==0&&d.AttemptCount==1&&!d.Attempts[0].NativeEntered;}
+ static bool BadXp(Action<Rig> mutate){var r=new Rig();mutate(r);var a=r.Assistance();return Throws(()=>a.EnsureExperience())&&r.XpCalls==0;}
+ static bool BadMoney(Action<Rig> mutate){var r=new Rig();r.Short.Level=4;mutate(r);var a=r.Assistance();return Throws(()=>a.EnsureOneNativeHireCost())&&r.MoneyCalls==0;}
+ static int Main(){
+  Check("original evidence serialization with complete managed host",()=>{var r=new Rig();using(var d=r.Driver()){d.Tick();var a=r.Assistance();a.EnsureExperience();var j=Chunk7AssistedFixtureEvidence.Capture(r.Binding,d,a);return (bool)j["fixtureSetupOnly"]&&!(bool)j["ordinaryAcquisitionProven"]&&!(bool)j["ordinaryProgressionProven"]&&!(bool)j["smallPoseQualified"]&&(long)j["experience"]["delta"]==8900&&(bool)j["story"]["attempts"][0]["nativeEntered"]&&j.ToString().Length<65536;}});
+  Check("pending click cannot be ready in same Default frame",()=>{var r=new Rig();r.OnClick=x=>{x.State.Mode="Default";x.State.DialogActive=false;};using(var d=r.Driver()){return d.Tick()==Chunk7AssistedStoryStatus.Clicked&&d.Tick()==Chunk7AssistedStoryStatus.Waiting&&r.Clicks==1;}});
+  Check("pending click ready in later Default frame",()=>{var r=new Rig();r.OnClick=x=>{x.State.Mode="Default";x.State.DialogActive=false;};using(var d=r.Driver()){d.Tick();r.State.Frame++;return d.Tick()==Chunk7AssistedStoryStatus.ReadyAtObservedFrame&&r.Clicks==1;}});
+  Check("same-frame cue change cannot dispatch another answer",()=>{var r=new Rig();r.OnClick=x=>x.State.Cue=new object();using(var d=r.Driver()){d.Tick();return d.Tick()==Chunk7AssistedStoryStatus.Waiting&&r.Clicks==1;}});
+  Check("unattempted Default remains current-frame ready",()=>{var r=new Rig();r.State.Mode="Default";r.State.DialogActive=false;using(var d=r.Driver())return d.Tick()==Chunk7AssistedStoryStatus.ReadyAtObservedFrame&&r.Clicks==0;});
+  foreach(var key in new[]{"mouseController","cutscene","mainViewReady","managerKind","managerShown","pcActive","ui","common","manager","pcDialog","identity"}){var field=key;Check("emitted story gate "+field,()=>{var r=new Rig();using(var d=r.Driver()){d.Tick();var j=Chunk7AssistedFixtureEvidence.Capture(r.Binding,d,null);var before=j["story"]["attempts"][0]["before"];return before[field]!=null&&before[field].Type!=JTokenType.Null;}});}
+  Check("raw gate values preserve false and nullable absence",()=>{var r=new Rig();r.State.Mode="Cutscene";r.State.Cutscene=true;r.State.MainViewReady=false;r.State.ManagerKind=null;r.State.ManagerShown=null;r.State.PcActive=null;using(var d=r.Driver()){d.Tick();var j=Chunk7AssistedFixtureEvidence.Capture(r.Binding,d,null)["story"]["lastObserved"];return j["mouseController"]!=null&&(bool)j["mouseController"]&&(bool)j["cutscene"]&&!(bool)j["mainViewReady"]&&j["managerKind"].Type==JTokenType.Null&&j["managerShown"].Type==JTokenType.Null&&j["pcActive"].Type==JTokenType.Null;}});
+  Check("UI object labels are positive distinct and stable",()=>{var r=new Rig();using(var d=r.Driver()){d.Tick();var a=Chunk7AssistedFixtureEvidence.Capture(r.Binding,d,null)["story"]["attempts"][0];var b=a["before"];var v=a["after"];var keys=new[]{"ui","common","manager","pcDialog"};return keys.All(k=>b[k]!=null&&(int)b[k]>0&&(int)b[k]==(int)v[k])&&keys.Select(k=>(int)b[k]).Distinct().Count()==4;}});
+  Check("story exact bound identity observation",()=>{var r=new Rig();using(var d=r.Driver()){d.Tick();var i=Chunk7AssistedFixtureEvidence.Capture(r.Binding,d,null)["story"]["attempts"][0]["before"]["identity"];return i!=null&&(string)i["runId"]==r.Binding.RunId&&(string)i["gameId"]==r.Binding.CampaignId&&(string)i["gameName"]==r.Binding.CampaignName&&(string)i["mainActorId"]==r.Binding.MainId&&(int)i["generation"]==1&&new[]{"gameMatches","playerMatches","saveManagerMatches","mainMatches","descriptorMatches","authorityMatches","exactIsolatedFreshCampaign","noForeignOrMountedCustody"}.All(k=>(bool)i[k]);}});
+  Console.WriteLine("ASSISTED AFFECTED: "+passed+" PASS / "+failed+" FAIL");return failed==0?0:1;
+ }}

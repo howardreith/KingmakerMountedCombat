@@ -52,13 +52,101 @@ function Assert-KmcChunk7NativeBootstrapPreflight($Value,[bool]$Passed){
  }
 }
 
+# Stored PC rows are descriptive caches. Even a matching enabled row grants no input authority.
+function Assert-KmcChunk7DialogueChoices($Value,$Parent,$Ids){
+ $data=@('game','controller','dialog','currentCue','ui','common','manager','pcDialog','currentPart','uiStatus','managerKind','managerShown','pcDialogActive','offered','rows','directTypeCount')
+ Assert-KmcExactProperties $Value @(@('readSucceeded','readError','scope','cachedStateIsAuthorization','directTypesOnly','systemButtonsIncluded')+$data) 'passive dialogue choices'
+ if($Value.scope-isnot[string]-or$Value.scope-cne'controller-offers-and-pc-cached-rows'){throw 'Passive choice scope changed.'}
+ Assert-KmcChunk7Boolean $Value.cachedStateIsAuthorization $false;Assert-KmcChunk7Boolean $Value.directTypesOnly $true;Assert-KmcChunk7Boolean $Value.systemButtonsIncluded $false
+ if($Value.readSucceeded-isnot[bool]){throw 'Passive choice read flag must be boolean.'}
+ if(-not$Value.readSucceeded){
+  if($Value.readError-isnot[string]-or$Value.readError.Length-eq0-or$Value.readError.Length-gt256){throw 'Passive choice failure needs a bounded error.'}
+  foreach($key in $data){if($null-ne$Value.$key){throw 'Passive choice failed read retained partial state.'}}
+  return
+ }
+ if($null-ne$Value.readError){throw 'Passive choice successful read has an error.'}
+ foreach($key in @('game','controller','dialog','currentCue','ui','common','manager','pcDialog','currentPart')){
+  Assert-KmcOrdinaryInteger $Value.$key ([int]::MinValue) ([int]::MaxValue)
+  if($Value.$key-ne0-and-not$Ids.Contains([int]$Value.$key)){throw 'Passive choice object is outside the retained registry.'}
+ }
+ if($Value.game-ne$Parent.game-or$Value.controller-ne$Parent.controller-or$Value.dialog-ne$Parent.dialog.object-or$Value.currentCue-ne$Parent.currentCue.object){throw 'Passive choice controller context differs from its phase.'}
+ $statuses=@('missing-game','missing-controller','missing-ui','missing-common','missing-manager','unsupported-dialog-kind','missing-pc-dialog','missing-current-part','inactive-dialog','pc-cached-rows')
+ if($Value.uiStatus-isnot[string]-or$Value.uiStatus-cnotin$statuses){throw 'Passive choice UI status changed.'}
+ if($null-ne$Value.managerKind){Assert-KmcOrdinaryInteger $Value.managerKind ([int]::MinValue) ([int]::MaxValue)}
+ foreach($key in @('managerShown','pcDialogActive')){if($null-ne$Value.$key-and$Value.$key-isnot[bool]){throw 'Passive choice cached UI flag must be boolean or null.'}}
+ if($Value.offered-isnot[Array]-or$Value.offered.Count-gt32-or$Value.rows-isnot[Array]-or$Value.rows.Count-gt32){throw 'Passive choice collection bound changed.'}
+ Assert-KmcOrdinaryInteger $Value.directTypeCount 0 256;$typeCount=0
+ foreach($item in $Value.offered){
+  Assert-KmcExactProperties $item @('answer','selectionType','requireValidCue','showConditionTypes','selectConditionTypes','onSelectActionTypes') 'passive offered answer'
+  Assert-KmcDialogueChoiceBlueprint $item.answer $Ids $false
+  if($null-ne$item.selectionType){Assert-KmcOrdinaryInteger $item.selectionType ([int]::MinValue) ([int]::MaxValue)}
+  if($item.requireValidCue-isnot[bool]){throw 'Passive answer metadata flag must be boolean.'}
+  foreach($key in @('showConditionTypes','selectConditionTypes','onSelectActionTypes')){
+   if($null-eq$item.$key){continue}
+   if($item.$key-isnot[Array]-or$item.$key.Count-gt32){throw 'Passive direct type list bound changed.'}
+   $typeCount+=$item.$key.Count
+   foreach($name in $item.$key){if($null-ne$name-and($name-isnot[string]-or$name.Length-lt1-or$name.Length-gt256)){throw 'Passive direct type name bound changed.'}}
+  }
+ }
+ if($typeCount-gt256-or$typeCount-ne$Value.directTypeCount){throw 'Passive direct type total differs.'}
+ foreach($row in $Value.rows){
+  Assert-KmcExactProperties $row @('row','answer','nativeIndex','initialized','cachedDisabled','choosingCharacter','interchapter','matchingOfferIndices','sameRowReferences','sameAnswerReferences') 'passive PC row'
+  Assert-KmcNativeBootstrapObject $row.row;if(-not$Ids.Contains([int]$row.row)){throw 'Passive PC row is outside the retained registry.'}
+  Assert-KmcDialogueChoiceBlueprint $row.answer $Ids $true
+  Assert-KmcOrdinaryInteger $row.nativeIndex ([int]::MinValue) ([int]::MaxValue)
+  foreach($key in @('initialized','cachedDisabled','choosingCharacter','interchapter')){if($row.$key-isnot[bool]){throw 'Passive PC cached row flag must be boolean.'}}
+  if($row.matchingOfferIndices-isnot[Array]-or$row.matchingOfferIndices.Count-gt32){throw 'Passive offered-reference index list changed.'}
+  $expected=[Collections.Generic.List[int]]::new()
+  for($i=0;$i-lt$Value.offered.Count;$i++){if($row.answer.object-ne0-and$row.answer.object-eq$Value.offered[$i].answer.object){$expected.Add($i)}}
+  if($row.matchingOfferIndices.Count-ne$expected.Count){throw 'Passive offered-reference links differ.'}
+  for($i=0;$i-lt$expected.Count;$i++){Assert-KmcOrdinaryInteger $row.matchingOfferIndices[$i] $expected[$i] $expected[$i]}
+  $sameRows=0;$sameAnswers=0
+  foreach($other in $Value.rows){if($other.row-eq$row.row){$sameRows++};if($row.answer.object-ne0-and$other.answer.object-eq$row.answer.object){$sameAnswers++}}
+  Assert-KmcOrdinaryInteger $row.sameRowReferences $sameRows $sameRows;Assert-KmcOrdinaryInteger $row.sameAnswerReferences $sameAnswers $sameAnswers
+ }
+ # Missing Unity objects may retain a CLR identity. Descendants and their cached
+ # values must be absent at that boundary; the identity alone proves no lifetime.
+ switch -CaseSensitive ($Value.uiStatus){
+  'missing-game' {if($Value.game-ne0-or$Value.controller-ne0-or$Value.ui-ne0){throw 'Passive missing-game context differs.'}}
+  'missing-controller' {if($Value.game-eq0-or$Value.controller-ne0-or$Value.ui-ne0){throw 'Passive missing-controller context differs.'}}
+  'missing-ui' {if($Value.game-eq0-or$Value.controller-eq0-or$Value.ui-ne0){throw 'Passive missing-UI context differs.'}}
+  'missing-common' {if($Value.ui-eq0-or$Value.manager-ne0){throw 'Passive missing-common context differs.'}}
+  'missing-manager' {if($Value.ui-eq0-or$Value.common-eq0){throw 'Passive missing-manager context differs.'}}
+  'unsupported-dialog-kind' {if($Value.manager-eq0-or$null-eq$Value.managerKind-or$Value.managerKind-eq0-or$Value.pcDialog-ne0){throw 'Passive unsupported-kind context differs.'}}
+  'missing-pc-dialog' {if($Value.manager-eq0-or$null-eq$Value.managerKind-or$Value.managerKind-ne0){throw 'Passive missing-PC context differs.'}}
+  'missing-current-part' {if($Value.pcDialog-eq0-or$Value.pcDialogActive-isnot[bool]){throw 'Passive missing-part context differs.'}}
+  default {if($Value.currentPart-eq0-or$Value.pcDialog-eq0-or$Value.pcDialogActive-isnot[bool]){throw 'Passive PC cache context differs.'}}
+ }
+ $stage=[Array]::IndexOf($statuses,$Value.uiStatus)
+ if($stage-ge2-and($Value.game-eq0-or$Value.controller-eq0)){throw 'Passive choice UI descendants have no native game/controller owner.'}
+ if($stage-ge4-and($Value.ui-eq0-or$Value.common-eq0)){throw 'Passive PC manager lost its native UI ancestry.'}
+ if($stage-ge5-and$Value.manager-eq0){throw 'Passive PC context lost its native manager.'}
+ if($stage-le1-and$Value.offered.Count-ne0){throw 'Passive absent controller has offered answers.'}
+ if($stage-le2-and$Value.common-ne0){throw 'Passive absent UI has descendants.'}
+ if($stage-le3-and$Value.manager-ne0){throw 'Passive absent common UI has manager.'}
+ if($stage-le4){if($null-ne$Value.managerKind-or$null-ne$Value.managerShown-or$Value.pcDialog-ne0){throw 'Passive absent manager has cached state.'}}
+ else{if($Value.manager-eq0-or$Value.managerShown-isnot[bool]){throw 'Passive manager cached state is missing.'}}
+ if($stage-le6){if($null-ne$Value.pcDialogActive-or$Value.currentPart-ne0){throw 'Passive absent PC view has cached state.'}}
+ elseif($Value.managerKind-ne0){throw 'Passive PC rows require the Common dialog cache.'}
+ if($stage-le7-and$Value.rows.Count-ne0){throw 'Passive absent current part has cached rows.'}
+ if($Value.uiStatus-ceq'pc-cached-rows'-and($Value.managerShown-ne$true-or$Value.pcDialogActive-ne$true-or$Parent.topMode-cne'Dialog'-or$Parent.dialogActive-ne$true)){throw 'Passive current PC cache flags differ.'}
+}
+function Assert-KmcDialogueChoiceBlueprint($Value,$Ids,[bool]$Nullable){
+ Assert-KmcExactProperties $Value @('object','guid') 'passive choice blueprint'
+ Assert-KmcOrdinaryInteger $Value.object ([int]::MinValue) ([int]::MaxValue)
+ if($Value.object-eq0){if(-not$Nullable-or$null-ne$Value.guid){throw 'Passive choice null blueprint is inconsistent.'}}
+ elseif(-not$Ids.Contains([int]$Value.object)){throw 'Passive choice blueprint is outside the retained registry.'}
+ if($null-ne$Value.guid-and($Value.guid-isnot[string]-or$Value.guid-cnotmatch'^[a-f0-9]{32}$')){throw 'Passive choice blueprint GUID changed.'}
+}
+
 # Optional passive snapshots validate their raw shape only. They cannot satisfy a
 # bootstrap result, change a status, or authorize dialogue input/restoration.
 function Assert-KmcChunk7BootstrapDialogueObservation($Value,[bool]$Terminal){
  Assert-KmcExactProperties $Value @('contract','rawSnapshotsOnly','maximumSnapshots','identityCapacity','identityReleased','identityFaultCount','identityIds','snapshots','errors') 'passive bootstrap dialogue'
- if($Value.contract-isnot[string]-or$Value.contract-cnotin@('chunk7-bootstrap-dialogue-raw-v1','chunk7-bootstrap-dialogue-raw-v2')){throw 'Passive dialogue contract changed.'}
- $scheduledShape=$Value.contract-ceq'chunk7-bootstrap-dialogue-raw-v2'
- $identityCapacity=32;if($scheduledShape){$identityCapacity=40}
+ if($Value.contract-isnot[string]-or$Value.contract-cnotin@('chunk7-bootstrap-dialogue-raw-v1','chunk7-bootstrap-dialogue-raw-v2','chunk7-bootstrap-dialogue-raw-v3')){throw 'Passive dialogue contract changed.'}
+ $choiceShape=$Value.contract-ceq'chunk7-bootstrap-dialogue-raw-v3'
+ $scheduledShape=$choiceShape-or$Value.contract-ceq'chunk7-bootstrap-dialogue-raw-v2'
+ $identityCapacity=32;if($scheduledShape){$identityCapacity=40};if($choiceShape){$identityCapacity=444}
  Assert-KmcChunk7Boolean $Value.rawSnapshotsOnly $true
  Assert-KmcOrdinaryInteger $Value.maximumSnapshots 4 4;Assert-KmcOrdinaryInteger $Value.identityCapacity $identityCapacity $identityCapacity
  Assert-KmcChunk7Boolean $Value.identityReleased $Terminal;Assert-KmcOrdinaryInteger $Value.identityFaultCount 0 4
@@ -68,7 +156,7 @@ function Assert-KmcChunk7BootstrapDialogueObservation($Value,[bool]$Terminal){
  foreach($errorText in $Value.errors){if($errorText-isnot[string]-or$errorText.Length-eq0-or$errorText.Length-gt256){throw 'Passive dialogue error shape changed.'}}
  $phases=@('bootstrap-readiness','cleanup-entry','cleanup-settlement','host-terminal');$last=-1;$lastFrame=-1
  $dataKeys=@('game','controller','topMode','dialogActive','cutsceneLock','dialog','currentCue','queuedCue','continueCue','cuePlayScheduled','dialogStopScheduled','messageBox','messageBoxShown','messageBoxType')
- if($scheduledShape){$dataKeys+=@('dialogState','scheduledStart','scheduledStartIsScheduled','scheduledDialog')}
+ if($scheduledShape){$dataKeys+=@('dialogState','scheduledStart','scheduledStartIsScheduled','scheduledDialog')};if($choiceShape){$dataKeys+=@('choices')}
  $objectKeys=@('game','controller','messageBox');if($scheduledShape){$objectKeys+=@('dialogState','scheduledStart')}
  $blueprintKeys=@('dialog','currentCue','queuedCue','continueCue');if($scheduledShape){$blueprintKeys+=@('scheduledDialog')}
  foreach($row in $Value.snapshots){
@@ -110,6 +198,7 @@ function Assert-KmcChunk7BootstrapDialogueObservation($Value,[bool]$Terminal){
     if($null-ne$row.scheduledStartIsScheduled-or$row.scheduledDialog.object-ne0){throw 'Passive dialogue absent scheduled start has native state.'}
    }elseif($row.scheduledStartIsScheduled-isnot[bool]){throw 'Passive dialogue scheduled-start marker must be boolean.'}
   }
+  if($choiceShape){Assert-KmcChunk7DialogueChoices $row.choices $row $ids}
   if($row.messageBox-eq0){if($null-ne$row.messageBoxShown-or$null-ne$row.messageBoxType){throw 'Passive dialogue absent popup has native state.'}}
   # Unity-null may retain a CLR reference: the producer records its identity
   # while both observational getters are unavailable. This is not a claim of

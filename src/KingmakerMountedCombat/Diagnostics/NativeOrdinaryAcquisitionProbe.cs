@@ -22,6 +22,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private static NativeOrdinaryAcquisitionProbe active;
         private HarmonyInstance harmony;
         private readonly Func<UnitEntityData> actor;
+        private readonly string preparedLeaf;
         private readonly List<string> errors = new List<string>();
         private readonly JArray events = new JArray(), hooks = new JArray();
         private UnitEntityData completionActor;
@@ -31,9 +32,12 @@ namespace KingmakerMountedCombat.Diagnostics
         private string requestedName;
         private Game game;
         private SaveManager saveManager;
-        internal NativeOrdinaryAcquisitionProbe(Func<UnitEntityData> actor)
+        internal NativeOrdinaryAcquisitionProbe(Func<UnitEntityData> actor) : this(actor, false) { }
+        internal static NativeOrdinaryAcquisitionProbe ForAssistedFixture(Func<UnitEntityData> actor) => new NativeOrdinaryAcquisitionProbe(actor, true);
+        private NativeOrdinaryAcquisitionProbe(Func<UnitEntityData> actor, bool assistedFixture)
         {
             this.actor = actor ?? throw new ArgumentNullException(nameof(actor));
+            preparedLeaf = assistedFixture ? Chunk7AssistedFixtureSelection.LevelupStagingLeaf : Chunk7OrdinaryAcquisitionSelection.AutoLeaf;
         }
         // The scenario assigns its field before this fallible operation. A
         // partially patched observer therefore remains owned until unpatch succeeds.
@@ -141,7 +145,7 @@ namespace KingmakerMountedCombat.Diagnostics
                         p.requestedSave != null && p.requestedSave.Type == SaveInfo.SaveType.Auto &&
                         p.requestedSave.IsAutoLevelupSave && p.requestedSave.Name == p.requestedName &&
                         save != null && !ReferenceEquals(save, p.requestedSave) && save.Name == p.requestedName &&
-                        save.Type == SaveInfo.SaveType.Auto && save.FileName == Chunk7OrdinaryAcquisitionSelection.AutoLeaf && save.IsAutoLevelupSave,
+                        save.Type == SaveInfo.SaveType.Auto && save.FileName == p.preparedLeaf && save.IsAutoLevelupSave,
                         "Native prepared autosave changed request/copy, world, order, category or leaf.");
                     p.observedSave = save; row["accepted"] = true;
                 });

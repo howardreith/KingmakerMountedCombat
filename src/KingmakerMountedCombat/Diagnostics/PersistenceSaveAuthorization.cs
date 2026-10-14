@@ -194,6 +194,10 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             lock (sync)
             {
+                var assistedColdRejection = AssistedColdAdmission(operation);
+                if (assistedColdRejection != null) return assistedColdRejection;
+                var assistedRejection = AssistedNativeAdmission(operation, target);
+                if (assistedRejection != null) return assistedRejection;
                 var rejection = Validate(operation, target, observedRoot);
                 if (rejection != null) return rejection;
                 if (operation == RuntimeSaveOperation.Load)
@@ -522,6 +526,8 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             lock (sync)
             {
+                if (!AssistedColdUnchanged()) throw new InvalidOperationException("Assisted cold captured request changed before native archive access.");
+                if (!AssistedUnchanged()) throw new InvalidOperationException("Assisted fixture captured request changed before native archive access.");
                 if (!OwnedPairsUnchanged()) throw new InvalidOperationException("Owned-pair captured request changed before native archive access.");
                 if (!AcquiredManualRequestUnchanged()) throw new InvalidOperationException("Acquired Manual captured request changed before native archive access.");
                 if (Canonical(path) != path || Path.GetDirectoryName(path) != Root ||
@@ -538,6 +544,8 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             lock (sync)
             {
+                if (!AssistedColdUnchanged()) throw new InvalidOperationException("Assisted cold captured request changed before projection.");
+                if (!AssistedUnchanged()) throw new InvalidOperationException("Assisted fixture captured request changed before projection.");
                 if (!OwnedPairsUnchanged() || ownedPairsRequest != null && !OwnedPairsWriteReady)
                     throw new InvalidOperationException("Owned-pair write requires unchanged request, native reservation and prior load.");
                 if (!AcquiredManualRequestUnchanged() || acquiredManualRequest != null &&
@@ -593,6 +601,10 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             try
             {
+                var assistedColdRejection = AssistedColdAdmission(operation);
+                if (assistedColdRejection != null) return assistedColdRejection;
+                var assistedRejection = AssistedStorageAdmission(operation, target, checkLoadAdmission);
+                if (assistedRejection != null) return assistedRejection;
                 if (!OwnedPairsUnchanged()) return "Owned-pair captured request changed after authority creation.";
                 if (ownedPairsRequest != null && (operation == RuntimeSaveOperation.Write && !OwnedPairsWriteReady ||
                     operation == RuntimeSaveOperation.Load && checkLoadAdmission && maximumNativeWriteRequests > 0 && ownedPairsReservations != 1))
@@ -662,6 +674,8 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 if (acquiredManualRequest != null && admittedNativeWriteRequests != 1)
                     throw new InvalidOperationException("Acquired Manual storage requires its exact native write admission.");
+                var assistedRejection = AssistedWriteLeaseAdmission(target);
+                if (assistedRejection != null) throw new InvalidOperationException(assistedRejection);
                 var rejection = ValidateLocked(RuntimeSaveOperation.Write, target, observedRoot);
                 if (rejection != null) throw new InvalidOperationException(rejection);
                 var entry = entries[target.FileName];
@@ -677,6 +691,9 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             lock (sync)
             {
+                if (assistedRequest != null && (!AssistedUnchanged() || assistedPhase != "levelup-auto" || admittedNativeWriteRequests != 2 ||
+                    source != Path.Combine(Root, Chunk7AssistedFixtureSelection.LevelupStagingLeaf) || destination != Path.Combine(Root, Chunk7AssistedFixtureSelection.InitialAutoLeaf)))
+                    throw new InvalidOperationException("Assisted replacement is outside its exact native level-up storage phase.");
                 if (Canonical(source) != source || Canonical(destination) != destination ||
                     Path.GetDirectoryName(source) != Root || Path.GetDirectoryName(destination) != Root ||
                     string.Equals(source, destination, StringComparison.OrdinalIgnoreCase))

@@ -18,10 +18,10 @@ namespace KingmakerMountedCombat.Diagnostics
     // observations. The host retains this recorder through its terminal sample.
     internal sealed class Chunk7BootstrapDialogueObservation : IDisposable
     {
-        internal const string Contract = "chunk7-bootstrap-dialogue-raw-v2";
+        internal const string Contract = "chunk7-bootstrap-dialogue-raw-v3";
         internal const int MaximumSnapshots = 4;
-        // Ten reference-bearing fields per snapshot, with at most four phases.
-        internal const int IdentityCapacity = 40;
+        // Four phases retain ten existing and at most 101 PC-choice references each.
+        internal const int IdentityCapacity = MaximumSnapshots * (10 + Chunk7DialogueChoiceObservation.AdditionalIdentitiesPerSnapshot);
         private static readonly string[] Phases = { "bootstrap-readiness", "cleanup-entry", "cleanup-settlement", "host-terminal" };
         private readonly RetainedObjectIdentity identities;
         private readonly JArray rows = new JArray();
@@ -64,6 +64,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     row["scheduledDialog"] = Blueprint(value.ScheduledDialog, value.ScheduledDialogGuid);
                     row["messageBox"] = identities.Get(value.MessageBox); row["messageBoxShown"] = value.MessageBoxShown;
                     row["messageBoxType"] = value.MessageBoxType;
+                    row["choices"] = Chunk7DialogueChoiceObservation.Capture(value.Choices, identities.Get);
                     row["readSucceeded"] = true;
                 }
                 catch (Exception error) { row = EmptyRow(phase, frame); row["readError"] = ErrorText(error); }
@@ -85,7 +86,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["dialog"] = null, ["currentCue"] = null, ["queuedCue"] = null, ["continueCue"] = null,
                 ["cuePlayScheduled"] = null, ["dialogStopScheduled"] = null,
                 ["dialogState"] = null, ["scheduledStart"] = null, ["scheduledStartIsScheduled"] = null, ["scheduledDialog"] = null,
-                ["messageBox"] = null, ["messageBoxShown"] = null, ["messageBoxType"] = null };
+                ["messageBox"] = null, ["messageBoxShown"] = null, ["messageBoxType"] = null, ["choices"] = null };
         }
         private static string ErrorText(Exception error)
         {
@@ -109,7 +110,8 @@ namespace KingmakerMountedCombat.Diagnostics
         public void Dispose() { identities.Dispose(); }
 
         // The only native boundary: field reads, existing observational getters
-        // and blueprint identifiers. No dialog text, conditions, answers or actions.
+        // and blueprint identifiers, plus bounded stored choices. No predicates,
+        // dialog text, condition evaluation, UI input or actions are invoked.
         private static RawState ReadNative(Game game)
         {
             RequireModule(typeof(Game));
@@ -133,6 +135,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 ScheduledStartIsScheduled = scheduled == null ? (bool?)null : ReadField<bool>(typeof(StartDialogData), scheduled, "<IsScheduled>k__BackingField", 0x04005E59),
                 CuePlayScheduled = controller == null ? (bool?)null : ReadField<bool>(typeof(DialogController), controller, "m_CuePlayScheduled", 0x04005E6F),
                 DialogStopScheduled = controller == null ? (bool?)null : ReadField<bool>(typeof(DialogController), controller, "m_DialogStopScheduled", 0x04005E70),
+                Choices = Chunk7DialogueChoiceObservation.ReadNative(game, controller, dialog, current),
                 MessageBox = popup, MessageBoxShown = popup == null ? (bool?)null : popup.IsShown,
                 MessageBoxType = popup == null ? (int?)null : (int)ReadField<DialogMessageBoxBase.BoxType>(typeof(DialogMessageBox), popup, "m_BoxType", 0x04001E04) };
         }
@@ -159,6 +162,7 @@ namespace KingmakerMountedCombat.Diagnostics
             internal string TopMode, DialogGuid, CurrentCueGuid, QueuedCueGuid, ContinueCueGuid;
             internal bool? DialogActive, CutsceneLock, CuePlayScheduled, DialogStopScheduled, MessageBoxShown;
             internal int? MessageBoxType;
+            internal Chunk7DialogueChoiceObservation.RawState Choices;
         }
     }
 }
