@@ -8,6 +8,7 @@ function Read-KmcChunk7CumulativeSelectionFile([string]$Path,[string]$RunId){
  [pscustomobject]@{path=$path;sha256=$sha;selection=$selection}
 }
 function Get-KmcChunk7CumulativeSource($Selection,$Fixture,$Candidate){
+ if(Test-KmcAssistedCumulativeMode $Selection){return Get-KmcAssistedCumulativeSource $Selection $Fixture $Candidate}
  Assert-KmcChunk7CumulativeSelection ([pscustomobject]@{scenario='chunk7-cumulative-acquisition';runId='unassigned-cumulative';cumulativeAcquisition=$Selection})
  $lab=Get-KmcLabRoot;$profile=Assert-KmcChildPath (Join-Path $lab ('runtime-staging/persistence-'+$Selection.sourceRunId)) (Join-Path $lab 'runtime-staging') 'qualified Manual profile'
  Assert-KmcDirectoryTreeCloneable $profile 'qualified Manual profile'

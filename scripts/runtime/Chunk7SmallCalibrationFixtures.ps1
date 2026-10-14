@@ -10,7 +10,7 @@ function Read-KmcChunk7SmallSelectionFile([string]$Path,[string]$RunId){
     [pscustomobject]@{path=$path;sha256=$hash;selection=$selection}
 }
 
-function Get-KmcChunk7SmallManualSource($Selection,$Fixture,$Candidate){
+function Get-KmcChunk7SmallManualSource($Selection,$Fixture,$Candidate,[switch]$Assisted){
  Assert-KmcChunk7SmallManualSourceSelection $Selection 'unassigned-small-manual'
  $lab=Get-KmcLabRoot;$profile=Assert-KmcChildPath (Join-Path $lab ('runtime-staging/persistence-'+$Selection.sourceRunId)) (Join-Path $lab 'runtime-staging') 'qualified Manual profile'
  Assert-KmcDirectoryTreeCloneable $profile 'qualified Manual profile'
@@ -22,7 +22,7 @@ function Get-KmcChunk7SmallManualSource($Selection,$Fixture,$Candidate){
  $owner=Read-KmcJson $ownerPath;$request=Read-KmcJson (Join-Path $root 'runtime-request.json');$result=Read-KmcJson (Join-Path $root 'runtime-result.json');$game=Read-KmcJson (Join-Path $root 'runtime-game-result.json');$isolation=Read-KmcJson (Join-Path $root 'base-game-isolation-result.json')
  Assert-KmcBootstrapInventoryString $request.runId $Selection.sourceRunId;Assert-KmcBootstrapInventoryString $request.scenario 'chunk7-acquired-manual-derivative';Assert-KmcBootstrapInventoryString $request.evidenceRoot $root
  Assert-KmcChunk7AcquiredManualDescriptor $request
- Assert-KmcBootstrapInventoryString $request.acquiredManual.case 'preserve-acquired-field'
+ Assert-KmcBootstrapInventoryString $request.acquiredManual.case $(if($Assisted){'preserve-two-acquired-field'}else{'preserve-acquired-field'})
  foreach($key in @('working','baseline')){Assert-KmcBootstrapInventoryString $request.fixture.$key.sha256 $Fixture.$key.sha256}
  foreach($key in @('commit','dllSha256','dllMvid')){Assert-KmcBootstrapInventoryString $request.$key $Candidate.$key}
  # Complete bootstrap and cold source qualification is repeated unchanged. Decoded
@@ -51,14 +51,16 @@ function Get-KmcChunk7SmallManualSource($Selection,$Fixture,$Candidate){
  $artifactPath=Join-Path $root 'chunk7-acquired-manual-evidence.json';$file=Get-Item -LiteralPath $artifactPath
  if($file.Length-le0-or$file.Length-gt16MB-or$files[$artifactPath]-cne$Selection.sourceArtifactSha256){throw 'Caller-pinned successful acquired Manual differs.'}
  Assert-KmcBootstrapInventoryString $artifact.observations.nativeWrite.sha256 $Selection.sourceArchiveSha256
- Assert-KmcChunk7AcquiredManualOutput $request $artifact;Assert-KmcChunk7SmallManualSourceObservation $Selection $artifact.observations
+ Assert-KmcChunk7AcquiredManualOutput $request $artifact;Assert-KmcChunk7SmallManualSourceObservation $Selection $artifact.observations -Assisted:$Assisted
  $w=$artifact.observations.nativeWrite
  $descriptor=[pscustomobject]@{internalName=$w.internalName;fileName=$w.fileName;sha256=$w.sha256;length=$w.length;lastWriteTimeUtcTicks=$w.lastWriteTimeUtcTicks;gameId=$w.gameId;gameName=$w.gameName;area=$w.area}
  Assert-KmcChunk7SmallManualDescriptor ([pscustomobject]@{scenario='chunk7-small-profile-calibration';runId='unassigned-small-manual';smallCalibration=[pscustomobject]@{manualSource=$Selection};persistenceLoad=$descriptor;fixture=$Fixture})
  foreach($path in $files.Keys){if((Get-KmcSha256 $path)-cne$files[$path]){throw 'Manual qualification receipt changed during intake.'}}
  if((Get-KmcSha256 $w.path)-cne$Selection.sourceArchiveSha256){throw 'Manual source bytes changed during qualification.'}
- [pscustomobject]@{path=$w.path;descriptor=$descriptor;artifactPath=$artifactPath;artifactSha256=$Selection.sourceArtifactSha256;artifactLength=[long]$file.Length;
+ $qualified=[pscustomobject]@{path=$w.path;descriptor=$descriptor;artifactPath=$artifactPath;artifactSha256=$Selection.sourceArtifactSha256;artifactLength=[long]$file.Length;
   acquiredManualRunId=$request.runId;firstAcquisitionRunId=$request.acquiredManual.sourceRunId;bootstrapRunId=$lineage.bootstrapRunId;coldInventoryRunId=$lineage.coldInventoryRunId;manualRunId=$lineage.manualRunId}
+ if($Assisted){foreach($key in @('sourceMode','assistedProducerRunId','assistedColdRunId','fixtureSetupWasAssisted')){Add-Member -InputObject $qualified -MemberType NoteProperty -Name $key -Value $lineage.$key}}
+ $qualified
 }
 function Copy-KmcChunk7SmallManualSourceArtifact($Source,[string]$ProfileRoot,$Lock){
  [void](Assert-KmcRuntimeLockOwner $Lock)

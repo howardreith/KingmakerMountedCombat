@@ -54,8 +54,12 @@ function Get-KmcChunk7AcquiredManualSource($Selection,$Fixture,$Candidate){
  Assert-KmcChunk7AcquiredManualDescriptor ([pscustomobject]@{scenario='chunk7-acquired-manual-derivative';runId='unassigned-manual-derived';acquiredManual=$Selection;persistenceLoad=$descriptor;fixture=$Fixture})
  foreach($path in $files.Keys){if((Get-KmcSha256 $path)-cne$files[$path]){throw 'Manual qualification receipt changed during intake.'}}
  if((Get-KmcSha256 $w.path)-cne$Selection.sourceArchiveSha256){throw 'Manual source bytes changed during qualification.'}
- [pscustomobject]@{path=$w.path;descriptor=$descriptor;artifactPath=$artifactPath;artifactSha256=$Selection.sourceArtifactSha256;artifactLength=[long]$file.Length;
+ $qualified=[pscustomobject]@{path=$w.path;descriptor=$descriptor;artifactPath=$artifactPath;artifactSha256=$Selection.sourceArtifactSha256;artifactLength=[long]$file.Length;
   bootstrapRunId=$lineage.bootstrapRunId;coldInventoryRunId=$lineage.coldInventoryRunId;manualRunId=$lineage.manualRunId;acquisitionRunId=$request.runId}
+ if($two-and(Test-KmcAssistedCumulativeMode $acquisition)){
+  foreach($key in @('sourceMode','assistedProducerRunId','assistedColdRunId','fixtureSetupWasAssisted')){Add-Member -InputObject $qualified -MemberType NoteProperty -Name $key -Value $lineage.$key}
+ }
+ $qualified
 }
 function Copy-KmcChunk7AcquiredManualSourceArtifact($Source,[string]$ProfileRoot,$Lock){
  [void](Assert-KmcRuntimeLockOwner $Lock)

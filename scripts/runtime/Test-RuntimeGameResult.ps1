@@ -13,6 +13,7 @@ param(
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot 'RuntimeHarness.Common.ps1')
+. (Join-Path $PSScriptRoot 'RuntimeStartupEvidence.ps1')
 . (Join-Path $PSScriptRoot 'PersistenceSaveFixtures.ps1')
 . (Join-Path $PSScriptRoot 'PersistenceValidationFixtures.ps1')
 
@@ -130,7 +131,7 @@ $game = Read-KmcJson $GameResultPath
 $request = Read-KmcJson $RequestPath
 $fingerprint = Read-KmcJson $FingerprintPath
 $schemaVersion = [int]$request.schemaVersion
-$commonRequired = @('schemaVersion','runId','scenario','status','branch','commit','productVersion','dllSha256','dllMvid','transactionToken','startedAtUtc','completedAtUtc','loadedModId','gameVersion','gameAssemblySha256','gameAssemblyMvid','ummVersion','ummSha256','harmony12Version','harmony12Sha256','relationshipState','movementExperimentEnabled','processId','currentGameMode','loadedAreaPresent','saveRequestCount','loadRequestCount','frameCount','elapsedSeconds','errors')
+$commonRequired = @('schemaVersion','runId','scenario','status','branch','commit','productVersion','dllSha256','dllMvid','transactionToken','startedAtUtc','completedAtUtc','loadedModId','gameVersion','gameAssemblySha256','gameAssemblyMvid','ummVersion','ummSha256','harmony12Version','harmony12Sha256','relationshipState','movementExperimentEnabled','processId','currentGameMode','loadedAreaPresent','saveRequestCount','loadRequestCount','frameCount','elapsedSeconds','errors') + @(if ($null -ne $game.PSObject.Properties['startupTrace']) { Assert-KmcRuntimeStartupTrace $game.startupTrace; 'startupTrace' })
 if ($schemaVersion -eq 1) {
     # The no-save smoke is purely observational: it changes nothing and publishes the
     # live state it read, including the defaults the loaded build shipped with. This

@@ -1,5 +1,5 @@
 [CmdletBinding()]
-param([string]$RepositoryRoot,[string]$DiagnosticSourceDirectory,[string]$TestSource,[string]$EvidenceDtoSource,[string]$FixtureScript,[string]$FixtureDirectory,[string]$ReaderDirectory,[string]$OutputDirectory)
+param([string]$RepositoryRoot,[string]$DiagnosticSourceDirectory,[string]$TestSource,[string]$EvidenceDtoSource,[string]$FixtureScript,[string]$FixtureDirectory,[string]$ReaderDirectory,[string]$OutputDirectory,[string]$ConnectionFixture)
 $ErrorActionPreference='Stop';Set-StrictMode -Version Latest
 if(-not$PSBoundParameters.ContainsKey('RepositoryRoot')){$RepositoryRoot=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))}
 if(-not$PSBoundParameters.ContainsKey('DiagnosticSourceDirectory')){$DiagnosticSourceDirectory=Join-Path $RepositoryRoot 'src/KingmakerMountedCombat/Diagnostics'}
@@ -45,5 +45,13 @@ foreach($name in @('CumulativePaid','CumulativeExisting','TwoOwnerManualPaid','T
  Bad ($name+' PascalCase evidence'){$f.artifact.observations.selection=$actual.defaultSelection;if($isCumulative){Assert-KmcChunk7CumulativeEvidence $f.request $f.artifact $f.source}else{Assert-KmcChunk7AcquiredManualEvidence $f.request $f.artifact $f.source}}
  Good ($name+' runtime request family retained'){if($actual.requestFamily-cne$f.request.scenario){throw 'Actual request lost family.'}}
 }
+if(-not$ConnectionFixture){$ConnectionFixture=Join-Path $RepositoryRoot 'tests/Chunk7Diagnostics/AssistedAcquisitionConnectionFixture.json'}
+$f=[IO.File]::ReadAllText($ConnectionFixture)|ConvertFrom-Json
+$raw=[KingmakerMountedCombat.Tests.CumulativeDtoTests]::Project(($f.request|ConvertTo-Json -Depth 90));$actual=$raw|ConvertFrom-Json
+[IO.File]::WriteAllText((Join-Path $OutputDirectory 'AssistedCumulative.json'),$raw,[Text.UTF8Encoding]::new($false))
+Good 'assisted cumulative actual serializer retains exact optional source keys' {if((ConvertTo-KmcChunk7Canonical $actual.selection)-cne(ConvertTo-KmcChunk7Canonical $f.request.cumulativeAcquisition)){throw 'Assisted selection shape differs.'}}
+Good 'assisted serialized selection satisfies closed descriptor guard' {$f.request.cumulativeAcquisition=$actual.selection;Assert-KmcChunk7CumulativeDescriptor $f.request}
+Bad 'assisted PascalCase serializer shape refused' {$f.request.cumulativeAcquisition=$actual.defaultSelection;Assert-KmcChunk7CumulativeDescriptor $f.request}
+Good 'assisted request family remains cumulative' {if($actual.requestFamily-cne'chunk7-cumulative-acquisition'){throw 'Assisted request changed families.'}}
 @{schemaVersion=1;pass=$script:passes;fail=0;nativeExecution=$false;archiveAccess=$false;serializer='exact-installed-Newtonsoft';sourceHashes=@($sources|ForEach-Object{@{path=$_;sha256=(Get-FileHash -LiteralPath $_).Hash.ToLowerInvariant()}})}|ConvertTo-Json -Depth 6|Set-Content -LiteralPath (Join-Path $OutputDirectory 'receipt.json') -Encoding UTF8
 Write-Host ('TOTAL PASS='+$script:passes+' FAIL=0')

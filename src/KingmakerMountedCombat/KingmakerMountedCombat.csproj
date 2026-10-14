@@ -231,6 +231,7 @@
     <Compile Include="Diagnostics\PresentationRuntimeEvidencePolicy.cs" />
     <Compile Include="Diagnostics\PresentationOverlayEvidence.cs" />
     <Compile Include="Diagnostics\RuntimeAutomationHost.cs" />
+    <Compile Include="Diagnostics\RuntimeStartupTrace.cs" />
     <Compile Include="Diagnostics\RuntimeAutomationHost.WorkingLoadObservation.cs" />
     <Compile Include="Diagnostics\WorkingLoadObservation.cs" />
     <Compile Include="Diagnostics\NativeWorkingLoadContract.cs" />
@@ -267,6 +268,7 @@
     <Compile Include="Diagnostics\PersistenceSaveAuthorization.OwnedPairs.cs" />
     <Compile Include="Diagnostics\Chunk7PersistenceScenario.OwnedPairs.cs" />
     <Compile Include="Diagnostics\Chunk7ManualDerivedScenario.Cumulative.cs" />
+    <Compile Include="Diagnostics\Chunk7ManualDerivedScenario.Assisted.cs" />
     <Compile Include="Diagnostics\Chunk7AcquiredManualScenario.TwoOwners.cs" />
     <Compile Include="Diagnostics\Chunk7AcquiredManualScenario.cs" />
     <Compile Include="Diagnostics\Chunk7AcquiredManualScenario.Field.cs" />

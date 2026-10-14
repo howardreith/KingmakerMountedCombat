@@ -96,6 +96,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["sameCandidate"] = true, ["diagnosticArchiveContentRead"] = false };
             evidence["sourceNativeWorld"] = sourceWorld.DeepClone();
             evidence["sourceManualObservations"] = sourceObservations.DeepClone();
+            CaptureAssistedCumulativeSource();
             evidence["beforeLoad"] = new JObject { ["frame"] = UnityEngine.Time.frameCount, ["game"] = probe.Identity(game),
                 ["saveManager"] = probe.Identity(manager), ["menuPlayer"] = probe.Identity(menuPlayer),
                 ["loadedAreaPresent"] = false, ["nativeLoading"] = false, ["authority"] = AuthoritySnapshot() };
@@ -287,6 +288,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 archive.Exists && archive.Length == archiveLength && archive.LastWriteTimeUtc.Ticks == archiveTicks &&
                 Hash(sourcePath) == selection.SourceArtifactSha256 && Hash(archivePath) == selection.SourceArchiveSha256,
                 "Immutable bootstrap source changed during native observation.");
+            VerifyAssistedColdBytes();
 
         }
         private void RequireAuthority(bool cleanupOnly)

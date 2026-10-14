@@ -42,6 +42,9 @@ namespace KingmakerMountedCombat.Diagnostics
         private string loadedModId="synthetic",resultPath="never-written-result.json";private DateTimeOffset startedAt=DateTimeOffset.UtcNow;
         private int saveRequestCount=1,loadRequestCount,frameCount=1;private double elapsedSeconds=1;
         private Func<bool> movementExperimentProvider;private Func<string> relationshipStateProvider;
+        private readonly RuntimeStartupTrace startupTrace=new RuntimeStartupTrace(Stopwatch.Frequency,()=>0L,()=>0,()=>true,()=>false);
+        private object workingLoadObservation;
+        private void PublishWorkingObservation(string status){throw new InvalidOperationException("Unexpected Working observer path in terminal fixture");}
         private Chunk7BootstrapDialogueObservation bootstrapDialogue;private RuntimeGameResultV2 result;private int finalizations,drains,publishes,providerReads,emergencyWrites;
         private bool finalizeSawEnabled,publishSawEnabled,throwFinalization,throwResult;private Action afterManifest;
         private void FinalizeActiveScenarioEngines(List<string> errors){finalizations++;finalizeSawEnabled=diagnosticSettings.EnableUnsafeMovementExperiment;if(throwFinalization)throw new InvalidOperationException("unsettled external owner");}

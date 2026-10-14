@@ -10,12 +10,15 @@ namespace Kingmaker.EntitySystem.Entities { public enum Size {Small,Medium} publ
 public sealed class BlueprintRoot {public static BlueprintRoot Instance=new BlueprintRoot();public Blueprint CustomCompanion=new Blueprint{AssetGuid="custom"};}
 public sealed class Horses {public Blueprint HorseUnit=new Blueprint{AssetGuid="horse"};public Blueprint HorseFeature=new Blueprint{AssetGuid="feature"};public Blueprint LevelRank=new Blueprint{AssetGuid="rank"};}
 public sealed class Plan {public string ActorId="owner",PetId="pet";}
-public sealed class Calibration {public Plan ManualSource=new Plan();}
+public sealed class Calibration {public Plan ManualSource=new Plan();public bool UsesAssistedManualField => false;}
 public sealed class ActualSmallRoster {
  Calibration calibration=new Calibration();Horses horses=new Horses();JObject manualSource,manualArrangement;UnitEntityData actor,pet,main;UnitEntityData[] manualActors,manualCharacters,originalActors;object manualFeature,manualRank,manualFeatureSource;
  static void Require(bool value,string message){if(!value)throw new InvalidOperationException(message);}
  /*EXACT*/
  /*CAPTURE*/
+ // Assisted custody is exercised by the separate actual prior-pair matrix; this old route must never enter it.
+ UnitEntityData manualPriorOwner=null,manualPriorPet=null;
+ void RequireAssistedManualPriorPair(){throw new InvalidOperationException("Unexpected assisted route in legacy fixture.");}
  /*IDENTITY*/
  JObject CaptureManualArrangement(){return new JObject();}
  ActualSmallRoster(){Game.Instance=new Game();main=new UnitEntityData{UniqueId="main",Blueprint=new Blueprint{AssetGuid="mainbp"}};actor=new UnitEntityData{UniqueId="owner",Blueprint=BlueprintRoot.Instance.CustomCompanion};pet=new UnitEntityData{UniqueId="pet",Blueprint=horses.HorseUnit};actor.Descriptor.Pet=pet;pet.Descriptor.Master.Value=actor;Game.Instance.Player.Party.AddRange(new[]{main,actor});Game.Instance.Player.PartyCharacters.AddRange(new[]{new Ref{Value=main},new Ref{Value=actor}});Game.Instance.Player.MainCharacter.Value=main;Game.Instance.State.Units.AddRange(new[]{main,actor,pet});manualSource=new JObject{["savedWorld"]=new JObject{["mainActorId"]="main",["party"]=new JArray(new[]{main,actor,pet}.Select(x=>new JObject{["id"]=x.UniqueId,["blueprint"]=x.Blueprint.AssetGuid}))},["savedOwner"]=new JObject{["sourceGuid"]="source",["featureGuid"]="feature",["rank"]=4}};manualFeature=new Feature{Source=new Blueprint{AssetGuid="source"}};manualRank=new Rank();manualFeatureSource=((Feature)manualFeature).Source;actor.Descriptor.Feature=(Feature)manualFeature;actor.Descriptor.Rank=(Rank)manualRank;actor.Descriptor.FeatureKey=horses.HorseFeature;actor.Descriptor.RankKey=horses.LevelRank;manualActors=new[]{main,actor,pet};manualCharacters=new[]{main,actor};originalActors=new[]{main};manualArrangement=new JObject();}

@@ -264,6 +264,8 @@ namespace KingmakerMountedCombat.Diagnostics
                     request.OwnedPairs != null ? request : null, request.OwnedPairs != null ? game : null,
                     request.OwnedPairs != null ? game.SaveManager : null,
                     request.OwnedPairs?.WriteCount(request.PersistenceCase) > 0 ? OwnedPairsOutputName(request) : null);
+                if (request.CumulativeAcquisition?.UsesAssistedCold == true)
+                    authority.ConfigureAssistedCumulative(request);
                 if (request.Scenario == Chunk7AssistedColdInventorySelection.Scenario)
                     authority.ConfigureAssistedColdInventory(request, game, game.SaveManager);
                 if (request.Scenario == Chunk7AssistedFixtureSelection.Scenario)

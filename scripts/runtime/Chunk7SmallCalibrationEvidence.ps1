@@ -240,7 +240,8 @@ function Assert-KmcChunk7SmallArtifact($Request,$Manifest,[string]$Status='PASS'
 }
 
 # The new case is a distinct field-durable source. No legacy Working alias is admitted.
-function Test-KmcChunk7SmallManualCase($Selection){$null-ne$Selection-and$Selection.case-is[string]-and$Selection.case-ceq'compiled-manual-derived-small-horse-rt'}
+function Test-KmcChunk7SmallAssistedCase($Selection){$null-ne$Selection-and$Selection.case-is[string]-and$Selection.case-ceq'compiled-assisted-two-owner-small-horse-rt'}
+function Test-KmcChunk7SmallManualCase($Selection){$null-ne$Selection-and$Selection.case-is[string]-and$Selection.case-cin@('compiled-manual-derived-small-horse-rt','compiled-assisted-two-owner-small-horse-rt')}
 function Get-KmcChunk7SmallSelectedSource($Selection){if(Test-KmcChunk7SmallManualCase $Selection){$Selection.manualSource}else{$Selection.source}}
 function Assert-KmcChunk7SmallManualSourceSelection($S,[string]$RunId){
  Assert-KmcExactProperties $S @('sourceRunId','sourceArtifactSha256','sourceArchiveSha256','actorId','petId') 'Small acquired Manual source'
@@ -258,8 +259,9 @@ function Assert-KmcChunk7SmallManualDescriptor($Request){
  if($d.gameName-isnot[string]-or[string]::IsNullOrWhiteSpace($d.gameName)-or$d.gameName.Length-gt256-or$d.gameName-match'[\x00-\x1f\x7f]'-or$d.area-isnot[string]-or$d.area-cnotmatch'^[a-f0-9]{32}$'-or$d.gameId-ceq$Request.fixture.working.gameId-or$d.sha256-ceq$Request.fixture.working.sha256-or$d.sha256-ceq$Request.fixture.baseline.sha256){throw 'Small Manual source must retain its separately minted campaign.'}
  Assert-KmcOrdinaryInteger $d.length 1 268435456;Assert-KmcOrdinaryInteger $d.lastWriteTimeUtcTicks 1 ([DateTime]::MaxValue.Ticks)
 }
-function Assert-KmcChunk7SmallManualSourceObservation($S,$O){
+function Assert-KmcChunk7SmallManualSourceObservation($S,$O,[switch]$Assisted){
  Assert-KmcChunk7AcquiredManualSelection ([pscustomobject]@{scenario='chunk7-acquired-manual-derivative';runId=$S.sourceRunId;acquiredManual=$O.selection})
+ if($Assisted){Assert-KmcAssistedSmallManualSource $S $O}else{
  Assert-KmcBootstrapInventoryString $O.selection.case 'preserve-acquired-field';Assert-KmcBootstrapInventoryString $O.selection.actorId $S.actorId;Assert-KmcBootstrapInventoryString $O.selection.petId $S.petId
  if($null-ne$O.PSObject.Properties['twoOwners']){throw 'Small calibration does not admit a cumulative/two-owner source.'}
  $choice=$O.sourceAcquisition.selection
@@ -269,6 +271,7 @@ function Assert-KmcChunk7SmallManualSourceObservation($S,$O){
  foreach($key in @('actorId','petId')){Assert-KmcBootstrapInventoryString $O.sourceAcquisition.field.$key $S.$key}
  # This existing function validates one reciprocal observed graph only; it grants no request authority.
  Assert-KmcCumulativePriorSource ([pscustomobject]@{priorOwnerId=$S.actorId;priorPetId=$S.petId}) $O
+ }
  Assert-KmcAcquiredManualArrangement $O.beforeSaveArrangement $O.savedWorld $O.nativeProfileInventory
  Assert-KmcAcquiredManualArrangement $O.afterSaveArrangement $O.savedWorld $O.nativeProfileInventory
  if((ConvertTo-KmcChunk7Canonical $O.beforeSaveArrangement)-cne(ConvertTo-KmcChunk7Canonical $O.afterSaveArrangement)){throw 'Small Manual changed native progression while saving.'}
@@ -289,11 +292,12 @@ function Assert-KmcChunk7SmallManualEvidence($Request,$Artifact){
  Assert-KmcOrdinaryInteger $o.processId 1 ([int]::MaxValue)
  if(-not(Test-KmcChunk7FiniteNumber $o.elapsedSeconds)-or$o.elapsedSeconds-lt0-or$o.elapsedSeconds-gt420){throw 'Bounded native calibration elapsed time invalid.'}
  foreach($key in @('sourceWasRemoteAutosave','sourceArchiveStillRemote','smallPoseQualified','mountedCombatProven','freshMainCampaignProven','manualPartyMutation')){Assert-KmcChunk7Boolean $o.$key $false}
- $source=$o.source;Assert-KmcBootstrapInventoryString $source.kind 'qualified-first-owner-acquired-manual'
+ $source=$o.source;$assisted=Test-KmcChunk7SmallAssistedCase $Request.smallCalibration
+ Assert-KmcBootstrapInventoryString $source.kind $(if($assisted){'qualified-assisted-two-owner-acquired-manual'}else{'qualified-first-owner-acquired-manual'})
  foreach($pair in @(@('runId',$s.sourceRunId),@('artifactSha256',$s.sourceArtifactSha256),@('archiveSha256',$s.sourceArchiveSha256),@('archiveLeaf',$Request.persistenceLoad.fileName),@('archiveName',$Request.persistenceLoad.internalName))){Assert-KmcBootstrapInventoryString $source.($pair[0]) $pair[1]}
  Assert-KmcOrdinaryInteger $source.archiveLength $Request.persistenceLoad.length $Request.persistenceLoad.length
  Assert-KmcChunk7Boolean $source.sameCandidate $true;Assert-KmcChunk7Boolean $source.unchangedArchive $true
- $saved=$source.acquiredManual;Assert-KmcChunk7SmallManualSourceObservation $s $saved
+ $saved=$source.acquiredManual;Assert-KmcChunk7SmallManualSourceObservation $s $saved -Assisted:$assisted
  foreach($key in @('gameId','gameName','area')){Assert-KmcBootstrapInventoryString $saved.nativeWrite.$key $Request.persistenceLoad.$key}
  if((ConvertTo-KmcChunk7Canonical $source.bodySelection)-cne(ConvertTo-KmcChunk7Canonical $saved.sourceAcquisition.selection)){throw 'Small body choices differ from the qualified paid source.'}
  $root=Join-Path ([IO.Path]::GetDirectoryName([IO.Path]::GetDirectoryName($Request.evidenceRoot))) ('runtime-staging\persistence-'+$Request.runId+'\Saved Games')
@@ -344,6 +348,36 @@ function Assert-KmcChunk7SmallManualEvidence($Request,$Artifact){
     Assert-KmcChunk7Boolean $nativeRider.character.present $true
     foreach($flag in @('custodySettled','nativeWorkerSettled','selectorClosed','selectionRestored','pauseRestored','acquiredNativeStateRetained','sourceUnchanged')){Assert-KmcChunk7Boolean $o.cleanup.$flag $true}
     foreach($key in @('nativeWrites','manualPartyMutations','manualRefunds','manualFactRemovals','manualCompanionRemovals')){Assert-KmcOrdinaryInteger $o.cleanup.$key 0 0}
+    if($assisted){Assert-KmcAssistedSmallInheritedPair $o $saved}
     Assert-KmcChunk7SmallMountedEvidence $Request $o
 
+}
+
+function Assert-KmcAssistedSmallManualSource($S,$O){
+ Assert-KmcBootstrapInventoryString $O.selection.case 'preserve-two-acquired-field'
+ foreach($key in @('actorId','petId')){Assert-KmcBootstrapInventoryString $O.selection.$key $S.$key;Assert-KmcBootstrapInventoryString $O.sourceAcquisition.field.$key $S.$key}
+ $choice=$O.sourceAcquisition.selection
+ Assert-KmcChunk7CumulativeSelection ([pscustomobject]@{scenario='chunk7-cumulative-acquisition';runId=$O.selection.sourceRunId;cumulativeAcquisition=$choice})
+ if(-not(Test-KmcAssistedCumulativeMode $choice)){throw 'Assisted Small source requires completed assisted-cold cumulative ancestry.'}
+ Assert-KmcBootstrapInventoryString $choice.case 'paid-small-ranger-horse'
+ $a=$O.sourceAcquisition.assistedSource;Assert-KmcBootstrapInventoryString $a.contract 'assisted-producer-cold-cumulative-v1';Assert-KmcChunk7Boolean $a.setupWasAssisted $true;Assert-KmcChunk7Boolean $a.setupIsOrdinaryAcquisitionProof $false
+ Assert-KmcChunk7Boolean $O.sourceAcquisition.nativeWrite.saveBeforeFieldSelection $true
+ $labels=[Collections.Generic.HashSet[int]]::new();foreach($id in $O.nativeLoad.identities.ids){Assert-KmcAcquiredManualObjectIdentity $id;if(-not$labels.Add([int]$id)){throw 'Assisted two-owner native labels repeat.'}}
+ Assert-KmcTwoAcquiredOwners ([pscustomobject]@{acquiredManual=$O.selection}) $O $O.sourceAcquisition $labels
+}
+function Assert-KmcAssistedSmallInheritedPair($O,$Saved){
+ $before=$O.inheritedAssistedPairBefore;$after=$O.inheritedAssistedPairAfter;$prior=$Saved.twoOwners[0]
+ $keys=@('actorId','petId','actorObject','petObject','actorDescriptor','petDescriptor','actorView','petView','featureObject','sourceObject','rankObject','actorBlueprint','petBlueprint','featureGuid','sourceGuid','rank','reciprocal','resources')
+ foreach($row in @($before,$after)){Assert-KmcAssistedObjectValue $row $keys 'Small inherited assisted pair'}
+ Assert-KmcAssistedSame $before $after 'Small inherited pair before/after'
+ foreach($key in @('actorId','petId','actorBlueprint','petBlueprint','featureGuid','sourceGuid')){Assert-KmcBootstrapInventoryString $before.$key $prior.$key}
+ Assert-KmcOrdinaryInteger $before.rank $prior.rank $prior.rank;Assert-KmcChunk7Boolean $before.reciprocal $true
+ $used=[Collections.Generic.HashSet[int]]::new();foreach($actor in $O.manualNativeRoster.actors){foreach($key in @('object','descriptor','view')){[void]$used.Add([int]$actor.$key)}}
+ foreach($role in @('actor','pet')){$id=$before.($role+'Id');$actors=@($O.manualNativeRoster.actors|Where-Object id -CEQ $id);if($actors.Count-ne1){throw 'Small inherited actor absent from native scope.'}
+  foreach($pair in @(@('Object','object'),@('Descriptor','descriptor'),@('View','view'))){Assert-KmcAcquiredManualObjectIdentity $before.($role+$pair[0]);Assert-KmcOrdinaryInteger $before.($role+$pair[0]) $actors[0].($pair[1]) $actors[0].($pair[1])}
+ }
+ foreach($key in @('featureObject','sourceObject','rankObject')){Assert-KmcAcquiredManualObjectIdentity $before.$key;if(-not$used.Add([int]$before.$key)){throw 'Small inherited feature/source/rank aliases another role.'}}
+ $expected=@($Saved.resourcesAfterSave.actors|Where-Object{$_.actorId-cin@($prior.actorId,$prior.petId)})
+ Assert-KmcCumulativeResources ([pscustomobject]@{actors=$before.resources}) @($prior.actorId,$prior.petId)
+ Assert-KmcAssistedSame $before.resources $expected 'Small inherited native resources'
 }

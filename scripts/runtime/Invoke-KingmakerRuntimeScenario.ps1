@@ -386,7 +386,7 @@ if($isSaveBacked){
 if(Test-KmcChunk7OrdinaryScenario $Scenario){
     $ordinaryInventorySource=Get-KmcChunk7OrdinaryInventorySource $ordinarySelectionInput.selection $fixturePayload $manifest
 }
-if(Test-KmcChunk7SmallScenario $Scenario){$smallSource=if(Test-KmcChunk7SmallManualCase $smallSelectionInput.selection){Get-KmcChunk7SmallManualSource $smallSelectionInput.selection.manualSource $fixturePayload $manifest}else{Get-KmcChunk7FieldSource $smallSelectionInput.selection.source $fixturePayload $manifest}}
+if(Test-KmcChunk7SmallScenario $Scenario){$smallSource=if(Test-KmcChunk7SmallManualCase $smallSelectionInput.selection){Get-KmcChunk7SmallManualSource $smallSelectionInput.selection.manualSource $fixturePayload $manifest -Assisted:(Test-KmcChunk7SmallAssistedCase $smallSelectionInput.selection)}else{Get-KmcChunk7FieldSource $smallSelectionInput.selection.source $fixturePayload $manifest}}
 if(Test-KmcChunk7ProgressionScenario $Scenario){$progressionSource=Get-KmcChunk7ProgressionSource $progressionSelectionInput.selection $fixturePayload $manifest}
 if(Test-KmcChunk7FieldScenario $Scenario){$fieldSource=Get-KmcChunk7FieldSource $fieldSelectionInput.selection $fixturePayload $manifest}
 if(Test-KmcChunk7OwnedPairsScenario $Scenario){$ownedPairsSource=Get-KmcChunk7OwnedPairsSource $ownedPairsInput.selection $PersistenceCase $fixturePayload $manifest}
@@ -587,7 +587,7 @@ try{
     if(Test-KmcChunk7SmallScenario $Scenario){
         $currentSmallSelection=Read-KmcChunk7SmallSelectionFile $smallSelectionInput.path $actualRunId
         if($currentSmallSelection.sha256-cne$smallSelectionInput.sha256){throw 'Small calibration selection changed before locked admission.'}
-        $currentSmallSource=if(Test-KmcChunk7SmallManualCase $request.smallCalibration){Get-KmcChunk7SmallManualSource $request.smallCalibration.manualSource $fixturePayload $manifest}else{Get-KmcChunk7FieldSource $request.smallCalibration.source $fixturePayload $manifest}
+        $currentSmallSource=if(Test-KmcChunk7SmallManualCase $request.smallCalibration){Get-KmcChunk7SmallManualSource $request.smallCalibration.manualSource $fixturePayload $manifest -Assisted:(Test-KmcChunk7SmallAssistedCase $request.smallCalibration)}else{Get-KmcChunk7FieldSource $request.smallCalibration.source $fixturePayload $manifest}
         if((ConvertTo-KmcChunk7Canonical $currentSmallSource)-cne(ConvertTo-KmcChunk7Canonical $smallSource)){throw 'Small calibration source changed before locked admission.'}
         $smallSource=$currentSmallSource
     }
@@ -821,7 +821,7 @@ try{
             if(Test-KmcChunk7OwnedPairsScenario $Scenario){Copy-KmcChunk7OwnedPairsSourceArtifact $ownedPairsSource $profileRoot $lock}
             if(Test-KmcChunk7AcquiredManualScenario $Scenario){Copy-KmcChunk7AcquiredManualSourceArtifact $acquiredManualSource $profileRoot $lock}
             if(Test-KmcChunk7ManualDerivedScenario $Scenario){Copy-KmcChunk7ManualDerivedSourceArtifact $manualDerivedSource $profileRoot $lock}
-            if(Test-KmcChunk7CumulativeScenario $Scenario){Copy-KmcChunk7CumulativeSourceArtifact $cumulativeAcquisitionSource $profileRoot $lock}
+            if(Test-KmcChunk7CumulativeScenario $Scenario){if(Test-KmcAssistedCumulativeMode $request.cumulativeAcquisition){Copy-KmcAssistedCumulativeSourceArtifacts $cumulativeAcquisitionSource $profileRoot $lock $request.cumulativeAcquisition $fixturePayload $manifest}else{Copy-KmcChunk7CumulativeSourceArtifact $cumulativeAcquisitionSource $profileRoot $lock}}
             if(Test-KmcChunk7ManualSeedScenario $Scenario){Copy-KmcChunk7ManualSeedSourceArtifacts $manualSeedSource $profileRoot $lock}
             if(Test-KmcChunk7BootstrapInventoryScenario $Scenario){Copy-KmcChunk7BootstrapInventorySourceArtifact $bootstrapInventorySource $profileRoot $lock}
             if(Test-KmcChunk7AssistedColdInventoryScenario $Scenario){[void](Copy-KmcChunk7AssistedColdInventorySourceArtifact $assistedColdSource $profileRoot $lock $request.assistedColdInventory $fixturePayload $manifest)}
@@ -1014,7 +1014,7 @@ try{
         }
         if($gamePassed-and(Test-KmcChunk7SmallScenario $Scenario)){
             if(Test-KmcChunk7SmallManualCase $request.smallCalibration){
-                $verifiedSmallSource=Get-KmcChunk7SmallManualSource $request.smallCalibration.manualSource $fixturePayload $manifest
+                $verifiedSmallSource=Get-KmcChunk7SmallManualSource $request.smallCalibration.manualSource $fixturePayload $manifest -Assisted:(Test-KmcChunk7SmallAssistedCase $request.smallCalibration)
                 if((ConvertTo-KmcChunk7Canonical $verifiedSmallSource)-cne(ConvertTo-KmcChunk7Canonical $smallSource)-or
                    (Get-KmcSha256 (Join-Path $isolatedSaves $request.persistenceLoad.fileName))-cne$request.smallCalibration.manualSource.sourceArchiveSha256){throw 'Read-only Small Manual source changed during the native process.'}
             }else{
@@ -1084,7 +1084,8 @@ try{
             if((ConvertTo-KmcChunk7Canonical $verifiedCumulativeSource)-cne(ConvertTo-KmcChunk7Canonical $cumulativeAcquisitionSource)){throw 'Manual-derived source lineage changed during the native process.'}
             $sourceArtifact=Read-KmcJson $verifiedCumulativeSource.artifactPath
             $cumulativeArtifact=Read-KmcJson (Join-Path $evidenceRoot 'chunk7-cumulative-acquisition-evidence.json')
-            Assert-KmcChunk7CumulativeEvidence $request $cumulativeArtifact $sourceArtifact 'PASS'
+            $assistedColdArtifact=$null;if(Test-KmcAssistedCumulativeMode $request.cumulativeAcquisition){$assistedColdArtifact=(Read-KmcAssistedConnectionJson $verifiedCumulativeSource.coldArtifactPath $verifiedCumulativeSource.coldArtifactSha256).value}
+            Assert-KmcChunk7CumulativeEvidence $request $cumulativeArtifact $sourceArtifact 'PASS' $assistedColdArtifact
             Assert-KmcChunk7CumulativeOutput $request $cumulativeArtifact
         }
         if($gamePassed-and(Test-KmcChunk7ManualSeedScenario $Scenario)){
