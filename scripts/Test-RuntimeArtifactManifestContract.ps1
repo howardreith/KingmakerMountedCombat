@@ -9,12 +9,27 @@ $expected=@{'Assert-KmcManifestJsonMembersUnique'='fe0ce85c59ef1bd61fcb7055cedd9
 $names=[ordered]@{'Assert-KmcManifestJsonMembersUnique'='Assert-NoDuplicateJsonObjectProperties';'Test-KmcManifestJsonInteger'='Test-ExactJsonInteger';'Assert-KmcReadOnlyArtifactManifest'='Assert-RuntimeArtifactManifest'}
 $errors=$null;$tokens=$null;$ast=[Management.Automation.Language.Parser]::ParseFile($module,[ref]$tokens,[ref]$errors);if($errors.Count-ne0){throw 'Shared module syntax invalid'}
 $checks=0
+$assistedRegistrations=@(
+    '            ($relativePath -ceq ''chunk7-assisted-cold-inventory-evidence.json'' -and $kind -ceq ''chunk7-assisted-cold-inventory-evidence'') -or',
+    '            ($relativePath -ceq ''chunk7-assisted-cold-inventory-cleanup-pending.json'' -and $kind -ceq ''chunk7-assisted-cold-inventory-cleanup-pending'') -or',
+    '            ($relativePath -ceq ''chunk7-assisted-fixture-evidence.json'' -and $kind -ceq ''chunk7-assisted-fixture-evidence'') -or',
+    '            ($relativePath -ceq ''chunk7-assisted-fixture-cleanup-pending.json'' -and $kind -ceq ''chunk7-assisted-fixture-cleanup-pending'') -or'
+)
 foreach($name in $names.Keys){
  $f=@($ast.FindAll({param($n)$n-is[Management.Automation.Language.FunctionDefinitionAst]-and$n.Name-ceq$name},$true));if($f.Count-ne1){throw 'Shared helper absent or duplicated'}
  $text=$f[0].Extent.Text.Replace("`r`n","`n")
  foreach($key in $names.Keys){$text=$text.Replace($key,$names[$key])}
  $text=$text.Replace('[Parameter(Mandatory = $true)]$ExpectedSha256,'+"`n"+'        [switch]$GameResult','[Parameter(Mandatory = $true)]$ExpectedSha256')
  $text=$text.Replace("if(`$GameResult){throw 'Runtime game-result evidenceManifestSha256 is not an exact lowercase SHA-256.'}; ",'').Replace("if(`$GameResult){throw 'Runtime artifact manifest hash does not match the runtime game result.'}; ",'')
+ # The producer/cold registrations are required exactly once before isolating the legacy guard.
+ if($name-ceq'Assert-KmcReadOnlyArtifactManifest'){
+  foreach($addition in $assistedRegistrations){
+   $registeredLine=$addition+[char]10
+   $first=$text.IndexOf($registeredLine,[StringComparison]::Ordinal)
+   if($first-lt0-or$first-ne$text.LastIndexOf($registeredLine,[StringComparison]::Ordinal)){throw 'An exact assisted artifact registration is missing or duplicated.'}
+   $text=$text.Replace($registeredLine,'')
+  }
+ }
  # Isolate the unchanged historical guard from the exact reviewed Chunk 7 artifact registrations.
  # Test-Chunk7WorldEvidence and Test-Chunk7NativeDiagnostics exercise these exact leaf/kind
  # pairs with immutable manifest/hash/envelope positive and negative fixtures.
