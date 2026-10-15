@@ -317,3 +317,30 @@ is the next fixture path, subject to an identified candidate and fresh guarded
 qualification. The pre-load startup delay remains a separate causal unknown.
 Required native combat/persistence, ordinary progression, Small profile,
 six-pair stress, measured controls and human review remain open.
+
+## Attempt 10 — preview10 assisted producer, 15 October 2026
+
+Run `20261015-chunk7b-world10-assisted-fixture`: product `0e1ce2d92a368866ce0803d070a6f3b7b96bd971`
+(preview10 package, DLL and MVID unchanged), harness `568a175817ab28caf8600c8b4700eee24f3fbb90`,
+scenario `chunk7-assisted-fixture-preparation`, base-game-only Mods, 600-second outer wait.
+The fresh full WhatIf02 passed in 9494.651348 seconds with one purity assertion and 1481 unchanged
+pins: receipt SHA `0d8f1923ead6176c452fbb7f18068ddba8d57c4e8595769901ad999c5a5250cb`; completed-audit review
+`b0ad0f36185c64b57a6aab5ecf6e4eb7322e5699318f40c4efeba90906ae81b0`; admission `a294eae376306fdd9810d1f559d1720baa08b1498e8e93e545b8e5d9fe813ac8`.
+
+The native supervisor failed in 26.6122223 seconds before any game launch. Under the runtime lock the
+harness refused its own unchanged selection with "Exact assisted fixture selection is required." (launchIssued=false).
+The runner holds its request as an ordered dictionary until serialization, and the selection assert only
+detected PSObject properties, a shape the read-only WhatIf path never exercises. The runner's finally block
+restored Mods, Working and protected saves (modsRestored, workingRestored and saveProtectionPassed are all
+true; transaction token `bdb02d21c9f5a9868303ff02570bfeb96efc43dc5c1d8a6a3dc9d0c79b477dfa`). The read-only settlement found no game, lock or
+sentinel and current Mods/save continuity equal to the admitted suite. Native receipt SHA
+`197703ad5a39a2356f41deb154ea47f533ec40ca3995b28a0058f2a98a8415e0`; caller exit `57b3fec26f083dad38d6fcc43aa3ff13d6b53be6afce183948e9f00dcf8a598e`
+(exit 1); settlement `3550662b7bea12fa13b0f7edc166c491f5bd63a5be6d46dfe985e73b08c9d8a7`; runtime result
+`2c7eddeb8d079622bf70a1ce10ef551556a474adbd05d5e3e45cc741553b0be0`.
+
+Correction: the three selection asserts (assisted fixture, assisted cold inventory, cumulative acquisition)
+now normalize dictionary requests before detection. Ordered-dictionary regressions reproduce the refusal
+against the unfixed harness (84/3) and pass fixed (87/0), and the stale quota evaluation in five wiring tests
+was repaired. Independent review `9df433f29b85684973b23bfe4d543e7532d85910991ecc274448a34a41813a95`.
+Ten of 25 native attempts are used, all final FAIL and settled. Any attempt 11 requires a fresh numbered
+reviewed full audit on the corrected harness; nothing from audit02 is reused.
