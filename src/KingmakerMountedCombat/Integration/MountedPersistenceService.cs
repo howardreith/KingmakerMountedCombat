@@ -97,6 +97,16 @@ namespace KingmakerMountedCombat.Integration
         // requested descriptor's identity, never by name.
         internal int CompletedSaveCount { get; private set; }
         internal NativeSaveCompletion LastCompletedSave { get; private set; }
+        // Read-only diagnostic view of the exact active native operation. It
+        // grants no save admission and cannot manufacture completion or a worker.
+        internal void ObserveActiveSaveHeader(out object operation, out SaveInfo requested, out SaveInfo prepared)
+        {
+            var scope = activeSave;
+            if (scope == null || !scope.Began || scope.Released || scope.Completed || scope.Requested == null ||
+                scope.Prepared == null || scope.Routine == null || !ReferenceEquals(scope.World, Game.Instance?.Player))
+                throw new InvalidOperationException("The native header has no exact active requested/prepared save scope.");
+            operation = scope; requested = scope.Requested; prepared = scope.Prepared;
+        }
         internal event Action SaveSnapshotStarting;
         internal event Action SaveSnapshotStaged;
         internal int SemanticRestoreCount { get; private set; }

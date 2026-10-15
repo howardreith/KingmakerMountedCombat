@@ -117,6 +117,41 @@ namespace KingmakerMountedCombat.Diagnostics
             catch { Scope = prior; throw; }
             replayAreaOrdinal = ordinal; replayExpectedArea = 0; replayAreaBlueprint = null;
         }
+        private bool areaAutosavePending, areaAutosaveAdopted;
+        private BlueprintArea areaAutosaveDestination;
+        internal void BeginAreaAutosave(BlueprintArea destination)
+        {
+            Require(bound && !released && !selection.Cold && selection.Case == "persistence-save" &&
+                request.PersistenceCase == "multi-area-autosave" && request.PersistenceAreaTarget != null &&
+                request.PersistenceAreaTarget.AutoSaveMode == "AfterEntry" && !areaAutosavePending && !areaAutosaveAdopted &&
+                replayExpectedLoad == 0 && replayExpectedArea == 0 && destination != null &&
+                destination.AssetGuidThreadSafe == request.PersistenceAreaTarget.Area &&
+                game.CurrentlyLoadedArea?.AssetGuidThreadSafe == selection.SourceArea &&
+                selection.SourceArea == request.PersistenceLoad.Area && destination.AssetGuidThreadSafe != selection.SourceArea,
+                "Inherited autosave transfer is not the exact original Manual and declared destination.");
+            RequirePreserved(); RequireReplayFieldReady();
+            areaAutosaveDestination = destination; areaAutosavePending = true;
+        }
+        internal void AdoptAreaAutosave(BlueprintArea destination)
+        {
+            RequireRequest(); RequireAuthority();
+            Require(bound && !released && !selection.Cold && selection.Case == "persistence-save" &&
+                request.PersistenceCase == "multi-area-autosave" && areaAutosavePending && !areaAutosaveAdopted &&
+                replayExpectedLoad == 0 && replayExpectedArea == 0 && ReferenceEquals(destination, areaAutosaveDestination) &&
+                destination != null && destination.AssetGuidThreadSafe == request.PersistenceAreaTarget.Area &&
+                request.PersistenceAreaTarget.AutoSaveMode == "AfterEntry" && ReferenceEquals(game.Player, admittedPlayer) &&
+                persistence.AreaSuspensionCount == 1 && persistence.AreaResumeCount == 2 && persistence.FailedAreaPairCount == 0 &&
+                persistence.NativeWorldDisposalCount == 0 && persistence.SemanticRestoreCount == 0 &&
+                persistence.PresentationRestoreCount == 0 && persistence.ArchivePostLoadObservedCount == 0,
+                "Inherited autosave area cannot adopt before exact native all-pair restoration.");
+            Scope.RequireDeclaredAreaDestination(destination.AssetGuidThreadSafe, destination);
+            var prior = Scope;
+            var candidate = new Chunk7NativeWorldScope(request, Party, destination.AssetGuidThreadSafe);
+            Scope = candidate;
+            try { RequirePreserved(); RequireReplayFieldReady(); }
+            catch { Scope = prior; throw; }
+            areaAutosavePending = false; areaAutosaveAdopted = true; areaAutosaveDestination = null;
+        }
         private void RequireReplayFieldReady() => Require(Party != null && Party.All(actor => actor != null &&
             actor.IsInState && actor.IsInGame && actor.View != null && actor.Commands != null && actor.Commands.Empty &&
             actor.Commands.Queue != null && actor.Commands.Queue.Count == 0 && !actor.IsInCombat),

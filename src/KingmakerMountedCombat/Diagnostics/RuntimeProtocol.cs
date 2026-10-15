@@ -219,7 +219,7 @@ namespace KingmakerMountedCombat.Diagnostics
         internal static bool IsChunk7PersistenceScenario(string scenario) => scenario == "chunk7-persistence-save" || scenario == "chunk7-persistence-load";
         internal static bool IsChunk7PersistenceCase(string value) => Array.IndexOf(new[] {
             "multi-exploration-manual", "multi-exploration-quick", "multi-exploration-auto", "multi-rt-debt-manual",
-            "multi-tb-debt-manual", "zero-mounted-tb-retained-manual", "legacy-mounted-pending-tb-manual", "multi-area-autosave", "legacy-schema1-resave-manual", "multi-exploration-three-loads-manual", "multi-exploration-three-area-transfers-manual",
+            "multi-tb-debt-manual", "zero-mounted-tb-retained-manual", "legacy-mounted-pending-tb-manual", "multi-area-autosave", "legacy-schema1-resave-manual", "owned-schema1-manual", "owned-schema1-resave-manual", "multi-exploration-three-loads-manual", "multi-exploration-three-area-transfers-manual",
             "multi-nonselected-mount-unsettled-manual", "multi-owned-worker-cancel-manual" }, value) >= 0;
 
         internal string ExpectedChunk7ArchiveArea => PersistenceCase == "multi-area-autosave" ? PersistenceAreaTarget?.Area : SelectedChunk7Fixture?.Area;
@@ -488,7 +488,12 @@ namespace KingmakerMountedCombat.Diagnostics
                     }
                 }
             }
-            var schema1 = Scenario == "chunk7-persistence-load" && PersistenceCase == "legacy-schema1-resave-manual";
+            var ownedSchema1 = Scenario == Chunk7OwnedPairsSelection.Scenario && OwnedPairs?.Cold == true && Chunk7OwnedPairsSelection.OwnedSchema1Cold(PersistenceCase);
+            if ((Chunk7OwnedPairsSelection.OwnedSchema1Source(PersistenceCase) || Chunk7OwnedPairsSelection.OwnedSchema1Cold(PersistenceCase)) &&
+                (Scenario != Chunk7OwnedPairsSelection.Scenario || OwnedPairs == null ||
+                OwnedPairs.Case != (Chunk7OwnedPairsSelection.OwnedSchema1Cold(PersistenceCase) ? "persistence-load" : "persistence-save")))
+                errors.Add("Owned schema-1 fixture cases require their exact directional inherited source/cold family.");
+            var schema1 = Scenario == "chunk7-persistence-load" && PersistenceCase == "legacy-schema1-resave-manual" || ownedSchema1;
             if (PersistenceCase == "legacy-schema1-resave-manual" && !schema1)
                 errors.Add("Schema-1 resave is a cold-load-only case.");
             if (schema1 ? Schema1DerivationSha256 == null || !Regex.IsMatch(Schema1DerivationSha256, "^[0-9a-f]{64}$", RegexOptions.CultureInvariant) : Schema1DerivationSha256 != null)
@@ -517,9 +522,12 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (PersistenceLoad == null || OwnedPairs == null) errors.Add("Inherited pairs require their exact qualified native input descriptor.");
                 else
                 {
-                    var inputName = OwnedPairs.Cold ? (PersistenceCase == "multi-exploration-quick" || PersistenceCase == "multi-exploration-auto" ? PersistenceLoad.InternalName : "KMC_C7_WORLD") : Chunk7AcquiredManualSelection.OutputName;
-                    var inputPattern = OwnedPairs.Cold ? (PersistenceCase == "multi-exploration-quick" ? "^Quick_1\\.zks$" : PersistenceCase == "multi-exploration-auto" ? "^Auto_1\\.zks$" : "^Manual_[1-9][0-9]*_KMC_C7_WORLD\\.zks$") : "^Manual_[1-9][0-9]*_KMC_C7_ACQUIRED_FIELD\\.zks$";
+                    var inputName = OwnedPairs.Cold ? (PersistenceCase == "multi-exploration-quick" || (PersistenceCase == "multi-exploration-auto" || PersistenceCase == "multi-area-autosave") ? PersistenceLoad.InternalName : "KMC_C7_WORLD") : Chunk7AcquiredManualSelection.OutputName;
+                    var inputPattern = OwnedPairs.Cold ? (PersistenceCase == "multi-exploration-quick" ? "^Quick_1\\.zks$" : (PersistenceCase == "multi-exploration-auto" || PersistenceCase == "multi-area-autosave") ? "^Auto_1\\.zks$" : "^Manual_[1-9][0-9]*_KMC_C7_WORLD\\.zks$") : "^Manual_[1-9][0-9]*_KMC_C7_ACQUIRED_FIELD\\.zks$";
                     errors.AddRange(PersistenceLoad.Validate("persistenceLoad", inputName, inputPattern));
+                    if (PersistenceCase == "multi-area-autosave" && PersistenceLoad.Area !=
+                        (OwnedPairs.Cold ? PersistenceAreaTarget?.Area : OwnedPairs.SourceArea))
+                        errors.Add("Owned area input differs from the selected original Manual or completed destination Auto.");
                     if (Fixture?.Working == null || PersistenceLoad.GameId == Fixture.Working.GameId ||
                         !Guid.TryParseExact(PersistenceLoad.GameId, "D", out var inheritedGameId) || inheritedGameId == Guid.Empty ||
                         PersistenceLoad.Sha256 == Fixture.Working.Sha256 || PersistenceLoad.Sha256 == Fixture.Baseline?.Sha256 ||
@@ -727,7 +735,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (PersistenceAreaTarget == null) errors.Add("Chunk 7 area autosave requires its exact native destination.");
                 else
                 {
-                    errors.AddRange(PersistenceAreaTarget.Validate("persistenceAreaTarget", Fixture?.Working?.Area));
+                    errors.AddRange(PersistenceAreaTarget.Validate("persistenceAreaTarget", OwnedPairs != null ? OwnedPairs.SourceArea : Fixture?.Working?.Area));
                     if (PersistenceAreaTarget.AutoSaveMode != "AfterEntry") errors.Add("Chunk 7 area autosave requires AfterEntry.");
                 }
             }
@@ -1039,7 +1047,7 @@ namespace KingmakerMountedCombat.Diagnostics
             "C7-ordinary-native-field-inventory", "C7-ordinary-cleanup", "C7-ordinary-runtime", "C7-ordinary-interrupted",
             "chunk7-persistence-save", "chunk7-persistence-load", "C7-persistence-two-native-mounts", "C7-persistence-one-native-mount-legacy-source",
             "C7-persistence-native-category-all-pair-archive", "C7-persistence-cold-all-pair-identity-and-no-prepare",
-            "C7-persistence-schema1-native-restoration", "C7-persistence-schema1-native-resave", "C7-persistence-schema2-native-resave",
+            "C7-persistence-owned-schema1-source", "C7-persistence-schema1-native-restoration", "C7-persistence-schema1-native-resave", "C7-persistence-schema2-native-resave",
             "C7-persistence-three-native-loads", "C7-persistence-three-native-area-transfers",
             "C7-persistence-nonselected-mount-save-deferral", "C7-persistence-owned-worker-cancel-drain",
             "C7-persistence-native-continuation", "C7-persistence-all-pair-area-before-autosave", "C7-persistence-native-combat-continuation", "C7-persistence-cleanup", "C7-persistence-runtime", "C7-persistence-interrupted",

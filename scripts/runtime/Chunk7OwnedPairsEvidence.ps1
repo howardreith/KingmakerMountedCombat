@@ -17,7 +17,7 @@ function Get-KmcChunk7SelectedScenario($Request){
 }
 function Get-KmcChunk7OwnedWriteCount($Request){
  if($Request.ownedPairs.case-ceq'persistence-save'-and$Request.persistenceCase-ceq'multi-owned-worker-cancel-manual'){return 2}
- if($Request.ownedPairs.case-ceq'persistence-save'-or($Request.ownedPairs.case-ceq'persistence-load'-and$Request.persistenceCase-ceq'legacy-mounted-pending-tb-manual')){return 1};return 0
+ if($Request.ownedPairs.case-ceq'persistence-save'-or($Request.ownedPairs.case-ceq'persistence-load'-and$Request.persistenceCase-cin@('legacy-mounted-pending-tb-manual','owned-schema1-resave-manual'))){return 1};return 0
 }
 function Get-KmcChunk7OwnedLoadCount($Request){
  if($Request.ownedPairs.case-ceq'persistence-load'-and$Request.persistenceCase-ceq'multi-exploration-three-loads-manual'){return 3};return 1
@@ -28,7 +28,11 @@ function Assert-KmcChunk7OwnedPairsSelection($Request){
  $has=$null-ne$Request.PSObject.Properties['ownedPairs']
  if(-not(Test-KmcChunk7OwnedPairsScenario $Request.scenario)){if($has){throw 'Inherited two-owner selection is forbidden under another family.'};return}
  if(-not$has){throw 'Inherited two-owner campaign requires its explicit selection.'};$s=$Request.ownedPairs
- Assert-KmcExactProperties $s @('case','sourceRunId','sourceArtifactSha256','sourceArchiveSha256','checkpointSourceRunId','checkpointSourceArtifactSha256','riderAId','mountAId','riderBId','mountBId','partyIds','baseGameOnly','expectedNativeLoadCount','expectedNativeWriteCount') 'inherited native pair selection'
+ $checkpoint=$null;if($null-ne$Request.PSObject.Properties['persistenceCase']){$checkpoint=$Request.persistenceCase}
+ $area=$checkpoint-is[string]-and$checkpoint-ceq'multi-area-autosave'
+ $fields=@('case','sourceRunId','sourceArtifactSha256','sourceArchiveSha256','checkpointSourceRunId','checkpointSourceArtifactSha256','riderAId','mountAId','riderBId','mountBId','partyIds','baseGameOnly','expectedNativeLoadCount','expectedNativeWriteCount');if($area){$fields+='sourceArea'}
+ Assert-KmcExactProperties $s $fields 'inherited native pair selection'
+ if($area-and($s.sourceArea-isnot[string]-or$s.sourceArea-cnotmatch'^[a-f0-9]{32}$'-or$s.sourceArea-ceq('0'*32))){throw 'Owned area checkpoint requires the exact original acquired Manual area.'}
  if($s.case-isnot[string]-or$s.case-cnotin@('exploration','combat-rider-first','combat-mount-first','realtime-core','realtime-casting','realtime-charge','native-life-cleanup','persistence-save','persistence-load')){throw 'Inherited pair case is not closed.'}
  if($s.sourceRunId-isnot[string]-or$s.sourceRunId-cnotmatch'^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$'-or$s.sourceRunId-ceq$Request.runId){throw 'Inherited pair source run must be distinct and exact.'}
  foreach($key in @('sourceArtifactSha256','sourceArchiveSha256')){if($s.$key-isnot[string]-or$s.$key-cnotmatch'^[a-f0-9]{64}$'){throw 'Inherited source requires exact SHA256 pins.'}}
@@ -36,8 +40,7 @@ function Assert-KmcChunk7OwnedPairsSelection($Request){
  if($s.partyIds-isnot[Array]-or$s.partyIds.Count-lt4-or$s.partyIds.Count-gt12){throw 'Complete inherited field roster must be bounded.'}
  $party=[Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal);foreach($id in $s.partyIds){Assert-KmcOrdinaryGuid $id;if(-not$party.Add($id)){throw 'Inherited roster repeats an actor.'}}
  foreach($id in $ids){if(-not$party.Contains($id)){throw 'Inherited roster omits a selected pair role.'}}
- $checkpoint=$null;if($null-ne$Request.PSObject.Properties['persistenceCase']){$checkpoint=$Request.persistenceCase}
- if($s.case-cin@('persistence-save','persistence-load')){if($checkpoint-isnot[string]-or($checkpoint-cnotin@('multi-exploration-manual','multi-exploration-quick','multi-exploration-auto','multi-rt-debt-manual','multi-tb-debt-manual','zero-mounted-tb-retained-manual','legacy-mounted-pending-tb-manual')-and($s.case-cne'persistence-load'-or$checkpoint-cnotin@('multi-exploration-three-loads-manual','multi-exploration-three-area-transfers-manual'))-and($s.case-cne'persistence-save'-or$checkpoint-cnotin@('multi-nonselected-mount-unsettled-manual','multi-owned-worker-cancel-manual')))){throw 'Inherited persistence retains the seven selected core checkpoints; save boundaries are source-only.'}}
+ if($s.case-cin@('persistence-save','persistence-load')){if($checkpoint-isnot[string]-or($checkpoint-cnotin@('multi-exploration-manual','multi-exploration-quick','multi-exploration-auto','multi-rt-debt-manual','multi-tb-debt-manual','zero-mounted-tb-retained-manual','legacy-mounted-pending-tb-manual','multi-area-autosave')-and($s.case-cne'persistence-load'-or$checkpoint-cnotin@('multi-exploration-three-loads-manual','multi-exploration-three-area-transfers-manual','owned-schema1-resave-manual'))-and($s.case-cne'persistence-save'-or$checkpoint-cnotin@('multi-nonselected-mount-unsettled-manual','multi-owned-worker-cancel-manual','owned-schema1-manual')))){throw 'Inherited persistence retains its closed checkpoints; save boundaries are source-only.'}}
  elseif($null-ne$checkpoint){throw 'Non-persistence inherited campaign cannot select a checkpoint.'}
  if($s.case-ceq'persistence-load'){
   if($s.checkpointSourceRunId-isnot[string]-or$s.checkpointSourceRunId-cnotmatch'^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$'-or$s.checkpointSourceRunId-cin@($Request.runId,$s.sourceRunId)-or$s.checkpointSourceArtifactSha256-isnot[string]-or$s.checkpointSourceArtifactSha256-cnotmatch'^[a-f0-9]{64}$'){throw 'Cold inherited checkpoint requires its exact separate successful source.'}
@@ -61,6 +64,7 @@ function Assert-KmcChunk7OwnedPairsDescriptor($Request){
  }
  Assert-KmcOrdinaryGuid $d.gameId
  if($d.gameName-isnot[string]-or[string]::IsNullOrWhiteSpace($d.gameName)-or$d.gameName.Length-gt256-or$d.gameName-match'[\x00-\x1f\x7f]'-or$d.area-isnot[string]-or$d.area-cnotmatch'^[a-f0-9]{32}$'-or$d.gameId-ceq$Request.fixture.working.gameId-or$d.sha256-ceq$Request.fixture.working.sha256-or$d.sha256-ceq$Request.fixture.baseline.sha256){throw 'Inherited native campaign must remain distinct from protected Working/Baseline.'}
+ if($Request.PSObject.Properties['persistenceCase']-and$Request.persistenceCase-ceq'multi-area-autosave'){Assert-KmcChunk7AreaTarget $Request;$expectedArea=if($cold){$Request.persistenceAreaTarget.area}else{$Request.ownedPairs.sourceArea};Assert-KmcBootstrapInventoryString $d.area $expectedArea}
  Assert-KmcOrdinaryInteger $d.length 1 268435456;Assert-KmcOrdinaryInteger $d.lastWriteTimeUtcTicks 1 ([DateTime]::MaxValue.Ticks)
 }
 function Assert-KmcChunk7InheritedSnapshot($Request,$Snapshot,[string]$Phase){
@@ -117,7 +121,7 @@ function Get-KmcChunk7OwnedOutputLeaf($Request,$Observations){
  if((Get-KmcChunk7OwnedWriteCount $Request)-le0){throw 'Read-only inherited case has no output leaf.'}
  $a=$Observations.ownedOutputAdmission;Assert-KmcOrdinaryInteger $a.number 1 ([int]::MaxValue)
  $type=Get-KmcChunk7PersistenceType $Request.persistenceCase
- $name=if($Request.ownedPairs.case-ceq'persistence-load'){'KMC_C7_SCHEMA2'}else{'KMC_C7_WORLD'}
+ $name=if($Request.ownedPairs.case-ceq'persistence-load'){if($Request.persistenceCase-ceq'owned-schema1-resave-manual'){'KMC_C7_SCHEMA1'}else{'KMC_C7_SCHEMA2'}}else{'KMC_C7_WORLD'}
  if($type-ceq'Manual'){
   if($Request.persistenceLoad.fileName-cnotmatch'^Manual_([1-9][0-9]*)_KMC_C7_(ACQUIRED_FIELD|WORLD)[.]zks$'){throw 'Inherited Manual source numbering is not canonical.'}
   $sourceNumber=0;if(-not[int]::TryParse($Matches[1],[ref]$sourceNumber)-or$sourceNumber-eq[int]::MaxValue-or$a.number-ne$sourceNumber+1){throw 'Reserved output is not the exact native next Manual number.'}
@@ -137,11 +141,12 @@ function Assert-KmcChunk7OwnedOutputEvidence($Request,$Observations){
  Assert-KmcBootstrapInventoryString $a.method 'FindUnusedSaveNumber';Assert-KmcBootstrapInventoryString $a.token '06008024';Assert-KmcBootstrapInventoryString $a.moduleMvid '07fa1e4d-8618-41b3-9b8d-faa17d3b26f7'
  $worker=$Request.ownedPairs.case-ceq'persistence-save'-and$Request.persistenceCase-ceq'multi-owned-worker-cancel-manual'
  $writeCount=Get-KmcChunk7OwnedWriteCount $Request
- $properties=@('completionSequence','callbackCount','nativeWorkerSettled','nativeInventory','authority');if($worker){$properties+='replacement'}
+ $area=$Request.ownedPairs.case-ceq'persistence-save'-and$Request.persistenceCase-ceq'multi-area-autosave'
+ $properties=@('completionSequence','callbackCount','nativeWorkerSettled','nativeInventory','authority');if($worker){$properties+='replacement'};if($area){$properties+='areaSaveIdentity'}
  Assert-KmcExactProperties $b $properties 'inherited native save settlement'
  if($worker){$replacement=$b.replacement;Assert-KmcExactProperties $replacement @('callbackCount','completedSaveCount','drainCount','committed','outcomeEstablished','path','stagingLeaf') 'inherited cancelled replacement';Assert-KmcOrdinaryInteger $replacement.callbackCount 0 0;foreach($key in @('completedSaveCount','drainCount')){Assert-KmcOrdinaryInteger $replacement.$key 1 1};foreach($key in @('committed','outcomeEstablished')){Assert-KmcChunk7Boolean $replacement.$key $true};Assert-KmcBootstrapInventoryString $replacement.path $Observations.nativeWrite.path;Assert-KmcBootstrapInventoryString $replacement.stagingLeaf ('Manual_'+($a.number+1).ToString([Globalization.CultureInfo]::InvariantCulture)+'_KMC_C7_WORLD.zks')}
- Assert-KmcOrdinaryInteger $b.completionSequence 1 1;Assert-KmcOrdinaryInteger $b.callbackCount 1 1;Assert-KmcChunk7Boolean $b.nativeWorkerSettled $true
- $type=Get-KmcChunk7PersistenceType $Request.persistenceCase;$name=if($type-ceq'Manual'){if($Request.ownedPairs.case-ceq'persistence-load'){'KMC_C7_SCHEMA2'}else{'KMC_C7_WORLD'}}else{$Observations.nativeWrite.nativeName}
+ Assert-KmcOrdinaryInteger $b.completionSequence 1 1;Assert-KmcOrdinaryInteger $b.callbackCount $(if($area){0}else{1}) $(if($area){0}else{1});Assert-KmcChunk7Boolean $b.nativeWorkerSettled $true
+ $type=Get-KmcChunk7PersistenceType $Request.persistenceCase;$name=if($type-ceq'Manual'){if($Request.ownedPairs.case-ceq'persistence-load'){if($Request.persistenceCase-ceq'owned-schema1-resave-manual'){'KMC_C7_SCHEMA1'}else{'KMC_C7_SCHEMA2'}}else{'KMC_C7_WORLD'}}else{$Observations.nativeWrite.nativeName}
  if($name-isnot[string]-or[string]::IsNullOrWhiteSpace($name)-or$name.Length-gt256-or$name-match'[\x00-\x1f\x7f]'){throw 'Native output name must be an exact bounded scalar.'}
  $root=Join-Path (Join-Path (Join-Path (Split-Path (Split-Path $Request.evidenceRoot -Parent) -Parent) 'runtime-staging') ('persistence-'+$Request.runId)) 'Saved Games'
  for($i=0;$i-lt2;$i++){$v=if($i-eq0){$a.authority}else{$b.authority}
@@ -157,9 +162,10 @@ function Assert-KmcChunk7OwnedOutputEvidence($Request,$Observations){
  $input=@($b.nativeInventory|Where-Object fileName -CEQ $Request.persistenceLoad.fileName);$output=@($b.nativeInventory|Where-Object fileName -CEQ $leaf)
  if($input.Count-ne1-or$output.Count-ne1-or$leaf-ceq$Request.persistenceLoad.fileName){throw 'Settled inherited inventory aliases or omits the immutable input/fresh output.'}
  Assert-KmcChunk7OwnedNativeDescriptor $input[0] $Request.persistenceLoad $inputType
- $descriptor=[pscustomobject]@{fileName=$leaf;internalName=$name;gameId=$Request.persistenceLoad.gameId;gameName=$Request.persistenceLoad.gameName;area=$Request.persistenceLoad.area}
+ $descriptor=[pscustomobject]@{fileName=$leaf;internalName=$name;gameId=$Request.persistenceLoad.gameId;gameName=$Request.persistenceLoad.gameName;area=(Get-KmcChunk7ExpectedArchiveArea $Request)}
  Assert-KmcChunk7OwnedNativeDescriptor $output[0] $descriptor $type
  Assert-KmcBootstrapInventoryString $Observations.nativeWrite.path (Join-Path $root $leaf)
  Assert-KmcBootstrapInventoryString $Observations.nativeWrite.nativeType $type
  Assert-KmcBootstrapInventoryString $Observations.nativeWrite.nativeName $name
+ if($area){Assert-KmcChunk7OwnedAreaSaveIdentity $Request $Observations}
 }

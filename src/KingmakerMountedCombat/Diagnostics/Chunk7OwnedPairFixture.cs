@@ -62,8 +62,8 @@ namespace KingmakerMountedCombat.Diagnostics
         internal void Bind(bool combatCold)
         {
             Require(!bound && !released && combatCold == (selection.Cold && request.PersistenceCase != "multi-exploration-manual" &&
-                request.PersistenceCase != "multi-exploration-quick" && request.PersistenceCase != "multi-exploration-auto" &&
-                !Chunk7OwnedPairsSelection.RepeatedCheckpoint(request.PersistenceCase)),
+                request.PersistenceCase != "multi-exploration-quick" && request.PersistenceCase != "multi-exploration-auto" && request.PersistenceCase != "multi-area-autosave" &&
+                !Chunk7OwnedPairsSelection.RepeatedCheckpoint(request.PersistenceCase) && !Chunk7OwnedPairsSelection.OwnedSchema1Cold(request.PersistenceCase)),
                 "Inherited fixture is already bound or its cold mode differs.");
             RequireRequest();
             RequireAuthority();
@@ -132,6 +132,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 Hash(sourcePath) == selection.SourceArtifactSha256, "Exact staged two-owner Manual receipt is absent or changed.");
             sourceLength = file.Length; sourceTicks = file.LastWriteTimeUtc.Ticks;
             var artifact = JObject.Parse(File.ReadAllText(sourcePath)); observations = artifact["observations"] as JObject;
+            var originalArea = request.PersistenceCase == "multi-area-autosave" ? selection.SourceArea : request.PersistenceLoad.Area;
             Require((string)artifact["scenario"] == Chunk7AcquiredManualSelection.Scenario && (string)artifact["evidenceKind"] == Chunk7AcquiredManualScenario.EvidenceKind &&
                 (string)artifact["runId"] == selection.SourceRunId && (string)artifact["status"] == "PASS" && artifact["errors"] is JArray errors && errors.Count == 0 &&
                 (string)artifact["commit"] == request.Commit && (string)artifact["dllSha256"] == request.DllSha256 && (string)artifact["dllMvid"] == request.DllMvid &&
@@ -141,14 +142,14 @@ namespace KingmakerMountedCombat.Diagnostics
                 (string)observations["nativeWrite"]?["sha256"] == selection.SourceArchiveSha256 &&
                 (string)observations["nativeWrite"]?["gameId"] == request.PersistenceLoad.GameId &&
                 (string)observations["nativeWrite"]?["gameName"] == request.PersistenceLoad.GameName &&
-                (string)observations["nativeWrite"]?["area"] == request.PersistenceLoad.Area,
+                (string)observations["nativeWrite"]?["area"] == originalArea,
                 "Staged source lacks its complete successful same-candidate two-owner Manual identity.");
             Require(selection.Cold || request.PersistenceLoad.Sha256 == selection.SourceArchiveSha256,
                 "Source intake did not load its exact qualified inherited Manual bytes.");
             sourceWorld = observations["fieldWorld"] as JObject;
             var owners = observations["twoOwners"] as JArray;
             Require(sourceWorld != null && owners != null && owners.Count == 2 && owners.All(row => row is JObject) &&
-                (string)sourceWorld["gameId"] == request.PersistenceLoad.GameId && (string)sourceWorld["area"] == request.PersistenceLoad.Area &&
+                (string)sourceWorld["gameId"] == request.PersistenceLoad.GameId && (string)sourceWorld["area"] == originalArea &&
                 (string)owners[0]["actorId"] == selection.RiderAId && (string)owners[0]["petId"] == selection.MountAId &&
                 (string)owners[1]["actorId"] == selection.RiderBId && (string)owners[1]["petId"] == selection.MountBId,
                 "The completed two-owner source role order differs from the explicit intake.");
@@ -211,7 +212,7 @@ namespace KingmakerMountedCombat.Diagnostics
         internal void Release()
         {
             if (released) return;
-            Require(replayExpectedLoad == 0 && replayExpectedArea == 0, "Declared native replay still owns inherited fixture custody.");
+            Require(replayExpectedLoad == 0 && replayExpectedArea == 0 && !areaAutosavePending, "Declared native replay still owns inherited fixture custody.");
             if (bound) RequirePreserved();
             identities.Dispose(); released = true;
         }

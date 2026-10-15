@@ -23,6 +23,9 @@ namespace KingmakerMountedCombat.Diagnostics
         public string RiderBId { get; set; }
         public string MountBId { get; set; }
         public string[] PartyIds { get; set; }
+        public string SourceArea { get; set; }
+        // Keep every historical serialized selection byte shape unchanged.
+        public bool ShouldSerializeSourceArea() => SourceArea != null;
         public bool BaseGameOnly { get; set; }
         public int ExpectedNativeLoadCount { get; set; }
         public int ExpectedNativeWriteCount { get; set; }
@@ -51,14 +54,16 @@ namespace KingmakerMountedCombat.Diagnostics
         internal static bool SupportedCheckpoint(string value) => Array.IndexOf(new[] {
             "multi-exploration-manual", "multi-exploration-quick", "multi-exploration-auto",
             "multi-rt-debt-manual", "multi-tb-debt-manual", "zero-mounted-tb-retained-manual",
-            "legacy-mounted-pending-tb-manual" }, value) >= 0;
+            "legacy-mounted-pending-tb-manual", "multi-area-autosave" }, value) >= 0;
+        internal static bool OwnedSchema1Source(string value) => value == "owned-schema1-manual";
+        internal static bool OwnedSchema1Cold(string value) => value == "owned-schema1-resave-manual";
         internal static bool SupportedSaveBoundary(string value) => value == "multi-nonselected-mount-unsettled-manual" ||
             value == "multi-owned-worker-cancel-manual";
         internal static bool RepeatedCheckpoint(string value) => value == "multi-exploration-three-loads-manual" ||
             value == "multi-exploration-three-area-transfers-manual";
         internal int LoadCount(string checkpoint) => Cold && checkpoint == "multi-exploration-three-loads-manual" ? 3 : 1;
         internal int WriteCount(string checkpoint) => Case == "persistence-save" && checkpoint == "multi-owned-worker-cancel-manual" ? 2 : Case == "persistence-save" ||
-            Cold && checkpoint == "legacy-mounted-pending-tb-manual" ? 1 : 0;
+            Cold && (checkpoint == "legacy-mounted-pending-tb-manual" || OwnedSchema1Cold(checkpoint)) ? 1 : 0;
         public IReadOnlyList<string> Validate(string scenario, string runId, string checkpoint)
         {
             var errors = new List<string>();
@@ -70,8 +75,11 @@ namespace KingmakerMountedCombat.Diagnostics
             if (PartyIds == null || PartyIds.Length < 4 || PartyIds.Length > 12 ||
                 !PartyIds.All(Chunk7ManualDerivedSelection.NativeId) || PartyIds.Distinct(StringComparer.Ordinal).Count() != PartyIds.Length ||
                 PairIds.Any(id => !PartyIds.Contains(id))) errors.Add("The bounded full native field roster must contain both exact pairs once.");
-            if (Persistence ? !SupportedCheckpoint(checkpoint) && !(Cold && RepeatedCheckpoint(checkpoint)) && (Cold || !SupportedSaveBoundary(checkpoint)) : checkpoint != null)
+            if (Persistence ? !SupportedCheckpoint(checkpoint) && !(Cold && (RepeatedCheckpoint(checkpoint) || OwnedSchema1Cold(checkpoint))) && (Cold || !SupportedSaveBoundary(checkpoint) && !OwnedSchema1Source(checkpoint)) : checkpoint != null)
                 errors.Add("Owned-pair cold persistence requires a core checkpoint; the two save boundaries are source-only.");
+            var area = checkpoint == "multi-area-autosave";
+            if (area ? !Regex.IsMatch(SourceArea ?? "", "^[a-f0-9]{32}$") || SourceArea == new string('0', 32) : SourceArea != null)
+                errors.Add("Only the owned area checkpoint requires its exact original acquired Manual area.");
             if (Cold ? !Run(CheckpointSourceRunId) || CheckpointSourceRunId == runId || CheckpointSourceRunId == SourceRunId ||
                 !Hash(CheckpointSourceArtifactSha256) : CheckpointSourceRunId != null || CheckpointSourceArtifactSha256 != null)
                 errors.Add("Only cold persistence consumes an exact separate successful owned-pair source checkpoint.");

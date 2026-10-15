@@ -14,15 +14,19 @@ namespace KingmakerMountedCombat.Diagnostics
         internal const string Schema1Case = "legacy-schema1-resave-manual";
         internal const string Schema1OutputName = "KMC_C7_SCHEMA1";
         internal const string Schema1OutputLeaf = "Manual_813_KMC_C7_SCHEMA1.zks";
-        private bool Schema1ResaveCase => request.PersistenceCase == Schema1Case;
+        internal const string OwnedSchema1Source = "owned-schema1-manual";
+        internal const string OwnedSchema1Cold = "owned-schema1-resave-manual";
+        private bool OwnedSchema1SourceCase => request.OwnedPairs != null && !Cold && request.PersistenceCase == OwnedSchema1Source;
+        private bool OwnedSchema1ColdCase => request.OwnedPairs != null && Cold && request.PersistenceCase == OwnedSchema1Cold;
+        private bool Schema1ResaveCase => request.PersistenceCase == Schema1Case || OwnedSchema1ColdCase;
         private MountedArchiveData schema1Imported;
         private SaveInfo schema1Input;
         private string schema1InputHash;
 
         private void ObserveSchema1Cold()
         {
-            Require(Cold && Schema1ResaveCase && request.PersistenceLoad.FileName == "Manual_812_KMC_P06.zks" &&
-                request.PersistenceLoad.InternalName == "KMC_P01" && !Game.Instance.Player.IsInCombat &&
+            Require(Cold && Schema1ResaveCase && (OwnedSchema1ColdCase || request.PersistenceLoad.FileName == "Manual_812_KMC_P06.zks" &&
+                request.PersistenceLoad.InternalName == "KMC_P01") && !Game.Instance.Player.IsInCombat &&
                 !persistence.CombatRestorationPending, "Schema-1 proof requires its exact guarded outside-combat derivative.");
             schema1Input = Game.Instance.SaveManager.Single(s => s.FileName == request.PersistenceLoad.FileName);
             Require(schema1Input.Type == SaveInfo.SaveType.Manual && schema1Input.Name == request.PersistenceLoad.InternalName &&
@@ -44,14 +48,24 @@ namespace KingmakerMountedCombat.Diagnostics
                 persistence.ArchiveRestorePhase == "all-pair-presentation-restored",
                 "Native schema-1 restoration did not bind the complete deterministic migrated graph.");
             var pair = saved.Pairs.Single();
+            if (OwnedSchema1ColdCase)
+            {
+                BindOwnedFixture(false);
+                ValidateOwnedSchema1Archive(saved, request.PersistenceLoad.GameId, request.PersistenceLoad.Area, firstRider.UniqueId, firstMount.UniqueId, true);
+                ReadOwnedSchema1Checkpoint();
+            }
+            else
+            {
             Require(pair.ProfileId == SupportedMountedProfiles.Mammoth.Id && pair.Generation == 1 &&
                 pair.Rider.Id == Chunk7WorldScenarioEngine.MammothRiderId && pair.Mount.Id == Chunk7WorldScenarioEngine.MammothId &&
                 saved.CampaignId == request.Fixture.Working.GameId && saved.AreaId == request.Fixture.Working.Area,
                 "Schema-1 input differs from the qualified one-pair Mammoth fixture.");
             firstRider = Exact(pair.Rider.Id); firstMount = Exact(pair.Mount.Id); actors = new[] { firstRider, firstMount };
             TrackNativeActors();
+            }
             expectedOwners.Add(Guid.Parse(pair.PairId), pair.Generation); slots = saved.Slots;
             AssertSchema1Owners(); AssertSlots(); AssertDebt(saved);
+            if (OwnedSchema1ColdCase) CompleteOwnedSchema1Field("cold-restored");
             Require(persistence.SemanticRestoreCount == 2 && persistence.PresentationRestoreCount == 1 &&
                 persistence.ArchivePostLoadObservedCount == 2 && persistence.SnapshotCount == 0 && controls.NativeCastRequestCount == 0,
                 "Schema-1 native restoration repeated an actor/attachment, preparation, input or snapshot.");
@@ -101,20 +115,23 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             AssertSchema1Owners(); AssertSlots(); AssertSchema1Observer();
             var manager = Game.Instance.SaveManager;
+            if (OwnedSchema1ColdCase) { RequireOwnedSaveAdmission(SaveInfo.SaveType.Manual); CompleteOwnedSchema1Field("before-resave"); }
             var descriptor = manager.CreateNewSave(Schema1OutputName);
             Require(descriptor != null && descriptor.Type == SaveInfo.SaveType.Manual && descriptor.Name == Schema1OutputName &&
                 !descriptor.IsActuallySaved && manager.IsSaveAllowed(), "Schema-1 resave lacks its exact new native Manual slot.");
+            if (OwnedSchema1ColdCase) ownedRequestedSave = descriptor;
             castBefore = controls.NativeCastRequestCount; callback = false;
             evidence["saveRequested"] = new JObject { ["nativeType"] = "Manual", ["nativeName"] = descriptor.Name,
                 ["gameTicks"] = Game.Instance.TimeController.GameTime.Ticks, ["snapshotCount"] = persistence.SnapshotCount,
                 ["nativeSaveAllowed"] = true, ["newSlot"] = true };
-            Game.Instance.SaveGame(descriptor, () => callback = true);
+            Game.Instance.SaveGame(descriptor, () => { if (OwnedSchema1ColdCase) ownedSaveCallbacks++; callback = true; });
         }
         private void ObserveSchema1Resaved()
         {
             savedDescriptor = Game.Instance.SaveManager.Single(s => s.Type == SaveInfo.SaveType.Manual && s.Name == Schema1OutputName);
-            Require(savedDescriptor.FileName == Schema1OutputLeaf && savedDescriptor.OperationState == SaveInfo.StateType.None &&
+            Require(savedDescriptor.FileName == (OwnedSchema1ColdCase ? replaySaveAuthority.OwnedPairsOutputLeaf : Schema1OutputLeaf) && savedDescriptor.OperationState == SaveInfo.StateType.None &&
                 savedDescriptor.HasFileOnDisk, "Schema-1 native resave did not settle its separately authorized output leaf.");
+            if (OwnedSchema1ColdCase) ObserveOwnedSaveCompletion();
             var read = NativeMountedSaveStorage.ReadArchive(savedDescriptor.Saver); saved = read.Data;
             Require(read.Kind == MountedSaveReadKind.Current && read.SourceSchema == 3 && saved?.Pairs.Length == 1 &&
                 saved.Participations.Length == 0 && saved.Combat == null && saved.CampaignId == schema1Imported.CampaignId &&
@@ -131,6 +148,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 !controls.SerializationSuspended && !persistence.SaveSuspended && !persistence.HasActiveSaveScope &&
                 !persistence.HasSaveAdmissionFence, "Schema-1 native resave repeated input or retained a writer/fence.");
             VerifySchema1InputImmutable();
+            if (OwnedSchema1ColdCase) { ValidateOwnedSchema1Archive(saved, request.PersistenceLoad.GameId, request.PersistenceLoad.Area, firstRider.UniqueId, firstMount.UniqueId, true); CompleteOwnedSchema1Field("resave-settled"); }
             var file = new FileInfo(savedDescriptor.FolderName);
             evidence["nativeWrite"] = new JObject { ["path"] = file.FullName, ["sha256"] = Hash(file.FullName), ["length"] = file.Length,
                 ["nativeType"] = "Manual", ["nativeName"] = savedDescriptor.Name, ["nativeCallback"] = callback, ["sourceSchema"] = read.SourceSchema,
@@ -147,6 +165,158 @@ namespace KingmakerMountedCombat.Diagnostics
             Require(Hash(schema1Input.FolderName) == schema1InputHash && schema1InputHash == request.PersistenceLoad.Sha256 &&
                 new FileInfo(schema1Input.FolderName).Length == request.PersistenceLoad.Length,
                 "Read-only schema-1 derivative changed during native migration/resave.");
+            if (OwnedSchema1ColdCase)
+                Require(ownedSchema1CheckpointPath != null && ownedSchema1ReceiptPath != null &&
+                    new FileInfo(ownedSchema1CheckpointPath).Length == ownedSchema1CheckpointLength &&
+                    new FileInfo(ownedSchema1ReceiptPath).Length == ownedSchema1ReceiptLength &&
+                    Hash(ownedSchema1CheckpointPath) == request.OwnedPairs.CheckpointSourceArtifactSha256 &&
+                    Hash(ownedSchema1ReceiptPath) == request.Schema1DerivationSha256,
+                    "Owned schema-1 checkpoint or derivation changed while native custody remained active.");
+        }
+
+        private JObject ownedSchema1FieldBaseline;
+        private JArray ownedSchema1Fields;
+        private object[][] ownedSchema1OtherSlots;
+        private string ownedSchema1CheckpointPath, ownedSchema1ReceiptPath;
+        private long ownedSchema1CheckpointLength, ownedSchema1ReceiptLength;
+
+        private void AssertOwnedSchema1Owner()
+        {
+            inherited.RequirePreserved();
+            Require(!Game.Instance.Player.IsInCombat && !world.UnifiedTurn.HasUnsettledPreparation &&
+                !controls.HasUnsettledRelationshipTransition && world.Registry.ActiveCount == 1 && world.Registry.Owners.Length == 1 &&
+                Mounted(firstRider, firstMount) && world.Registry.FindOwner(secondRider) == null && world.Registry.FindOwner(secondMount) == null &&
+                world.Registry.Owners.All(o => expectedOwners.TryGetValue(o.Id, out var generation) && generation == o.Generation),
+                "Owned schema-1 fixture must retain exactly its first settled mounted owner and no second or pending owner.");
+        }
+        private JObject CaptureOwnedSchema1Field(string phase)
+        {
+            inherited.RequirePreserved();
+            var party = inherited.Party.OrderBy(a => a.UniqueId, StringComparer.Ordinal).ToArray();
+            Require(party.All(a => a.IsInState && a.IsInGame && !a.IsInCombat && a.Commands != null && a.Commands.Empty &&
+                a.Commands.Queue != null && a.Commands.Queue.Count == 0 && a.Commands.Raw.All(c => c == null || c.IsFinished &&
+                (!(c is Kingmaker.UnitLogic.Commands.UnitUseAbility ability) || ability.ExecutionProcess == null || ability.ExecutionProcess.IsEnded))),
+                "Owned schema-1 fixture requires the complete native field command lifetime settled without draining it.");
+            var value = new JObject { ["phase"] = phase, ["gameTicks"] = Game.Instance.TimeController.GameTime.Ticks,
+                ["actors"] = new JArray(party.Select(a => new JObject { ["native"] = JObject.FromObject(
+                    MountedPersistenceService.CaptureActor(a), MountedSaveCodec.CreateSerializer()),
+                    ["prepared"] = a.CombatState.Prepared, ["inCombat"] = a.IsInCombat,
+                    ["commandsEmpty"] = a.Commands.Empty, ["queuedCommands"] = a.Commands.Queue.Count })) };
+            ValidateOwnedSchema1Field(value, request.OwnedPairs.PartyIds);
+            return value;
+        }
+        internal static void ValidateOwnedSchema1Field(JObject value, string[] actorIds)
+        {
+            Require(value != null && value["gameTicks"]?.Type == JTokenType.Integer && (long)value["gameTicks"] >= 0 &&
+                actorIds != null && actorIds.Length >= 4 && actorIds.Length <= 12 && actorIds.Distinct(StringComparer.Ordinal).Count() == actorIds.Length,
+                "Owned schema-1 full-field identity or native clock is invalid.");
+            var rows = value["actors"] as JArray;
+            Require(rows != null && rows.Count == actorIds.Length && rows.All(row => row is JObject && row["native"] is JObject) &&
+                actorIds.All(id => rows.Count(row => (string)((JObject)row["native"])["Id"] == id) == 1),
+                "Owned schema-1 field omitted, duplicated or substituted a native actor.");
+            foreach (var row in rows)
+            {
+                Require(row["native"] is JObject && row["prepared"]?.Type == JTokenType.Boolean &&
+                    row["inCombat"]?.Type == JTokenType.Boolean && !(bool)row["inCombat"] &&
+                    row["commandsEmpty"]?.Type == JTokenType.Boolean && (bool)row["commandsEmpty"] &&
+                    row["queuedCommands"]?.Type == JTokenType.Integer && (int)row["queuedCommands"] == 0,
+                    "Owned schema-1 field has native combat or unsettled commands.");
+                var native = row["native"].ToObject<SavedNativeActor>(MountedSaveCodec.CreateSerializer()); native.Validate();
+                Require(native.Standard == 0 && native.Move == 0 && native.Swift == 0 && native.Initiative == 0 && native.Reaction == 0,
+                    "Owned schema-1 fixture cannot discard any native action debt.");
+            }
+        }
+        internal static void ValidateOwnedSchema1Archive(MountedArchiveData archive, string campaign, string area,
+            string rider, string mount, bool migrated)
+        {
+            Require(archive != null, "Owned schema-1 source archive is absent."); archive.Validate();
+            Require(archive.SchemaVersion == 3 && archive.CampaignId == campaign && archive.AreaId == area &&
+                archive.Pairs.Length == 1 && archive.Participations.Length == 0 && archive.Combat == null && archive.Slots.Length <= 128,
+                "Owned schema-1 projection cannot discard a second owner, combat, participation or slots.");
+            var pair = archive.Pairs.Single();
+            Require(pair.ProfileId == SupportedMountedProfiles.Horse.Id && pair.Rider.Id == rider && pair.Mount.Id == mount &&
+                (!migrated || pair.Generation == 1) && archive.Slots.All(s => s.Kind >= 1 && s.Kind <= 4),
+                "Owned schema-1 fixture differs from its exact Medium Horse owner or contains unrepresentable controls.");
+            foreach (var actor in new[] { pair.Rider, pair.Mount })
+                Require(actor.Standard == 0 && actor.Move == 0 && actor.Swift == 0 && actor.Initiative == 0 && actor.Reaction == 0,
+                    "Owned schema-1 native archive retains action debt.");
+        }
+        internal static void ValidateOwnedSchema1PreservedField(JObject before, JObject after, string[] actorIds)
+        {
+            ValidateOwnedSchema1Field(before, actorIds); ValidateOwnedSchema1Field(after, actorIds);
+            Require(JToken.DeepEquals(after["actors"], before["actors"]) && (long)after["gameTicks"] >= (long)before["gameTicks"],
+                "Owned schema-1 save/load changed the complete field's native allocations or prepared state.");
+        }
+        private void PinOwnedSchema1OtherSlots()
+        {
+            ownedSchema1OtherSlots = inherited.Party.Where(a => !ReferenceEquals(a, firstRider)).Select(a => a.UISettings.Slots.Cast<object>().ToArray()).ToArray();
+        }
+        private void CompleteOwnedSchema1Field(string phase)
+        {
+            AssertOwnedSchema1Owner();
+            var current = CaptureOwnedSchema1Field(phase);
+            ValidateOwnedSchema1PreservedField(ownedSchema1FieldBaseline, current, request.OwnedPairs.PartyIds);
+            var other = inherited.Party.Where(a => !ReferenceEquals(a, firstRider)).ToArray();
+            Require(ownedSchema1OtherSlots != null && ownedSchema1OtherSlots.Length == other.Length &&
+                other.Select((a, i) => a.UISettings.Slots.Cast<object>().SequenceEqual(ownedSchema1OtherSlots[i])).All(v => v),
+                "Owned schema-1 operation changed unrelated native hotbar slots.");
+            Require(ownedSchema1Fields.Count < 4, "Owned schema-1 field observation bound exceeded.");
+            ownedSchema1Fields.Add(current);
+        }
+        private void BeginOwnedSchema1Source()
+        {
+            Require(OwnedSchema1SourceCase && inherited != null && NativeMountedSaveFormat.SelectedWriterSchema == 3,
+                "Owned schema-1 fixture source requires its closed normal schema-3 native writer.");
+            RememberOwners(); AssertOwnedSchema1Owner(); PinOwnedSchema1OtherSlots(); BindSlots();
+            ownedSchema1FieldBaseline = CaptureOwnedSchema1Field("source-before-save");
+            ownedSchema1Fields = new JArray(ownedSchema1FieldBaseline.DeepClone());
+            evidence["ownedSchema1"] = new JObject { ["contract"] = "owned-schema1-fixture-v1", ["syntheticMetadata"] = false,
+                ["sourceArchiveSchema"] = 3, ["fields"] = ownedSchema1Fields };
+            Game.Instance.IsPaused = true;
+            snapshots.Add(Capture("before-native-save")); RequestSave(); Next(4);
+        }
+        private void ReadOwnedSchema1Checkpoint()
+        {
+            var root = Path.GetDirectoryName(replaySaveAuthority.Root);
+            var path = Path.Combine(root, "owned-schema1-checkpoint.json");
+            var file = new FileInfo(path);
+            Require(file.Exists && file.Length > 0 && file.Length <= 16 * 1024 * 1024 &&
+                (file.Attributes & FileAttributes.ReparsePoint) == 0 && Hash(path) == request.OwnedPairs.CheckpointSourceArtifactSha256,
+                "Owned schema-1 original native checkpoint receipt is absent or changed.");
+            var checkpoint = JObject.Parse(File.ReadAllText(path)); var source = checkpoint["observations"] as JObject;
+            Require((string)checkpoint["runId"] == request.OwnedPairs.CheckpointSourceRunId && (string)checkpoint["scenario"] == Chunk7OwnedPairsSelection.Scenario &&
+                (string)checkpoint["evidenceKind"] == EvidenceKind && (string)checkpoint["status"] == "PASS" &&
+                checkpoint["errors"] is JArray errors && errors.Count == 0 && (string)checkpoint["commit"] == request.Commit &&
+                (string)checkpoint["dllSha256"] == request.DllSha256 && (string)checkpoint["dllMvid"] == request.DllMvid &&
+                (string)source?["checkpoint"] == OwnedSchema1Source && (bool?)source?["cold"] == false &&
+                (string)source?["inheritedManualSha256"] == request.OwnedPairs.SourceArchiveSha256,
+                "Owned schema-1 source does not bind its same-candidate successful native source case.");
+            var original = source["nativeWrite"]?["archive"]?.ToObject<MountedArchiveData>(MountedSaveCodec.CreateSerializer());
+            ValidateOwnedSchema1Archive(original, request.PersistenceLoad.GameId, request.PersistenceLoad.Area, firstRider.UniqueId, firstMount.UniqueId, false);
+            var fields = source["ownedSchema1"]?["fields"] as JArray;
+            Require(fields != null && fields.Count == 2 && (string)fields[1]["phase"] == "source-settled" &&
+                JToken.DeepEquals(fields[0]["actors"], fields[1]["actors"]), "Owned schema-1 source omitted its full native allocation preservation.");
+            ownedSchema1FieldBaseline = (JObject)fields[1].DeepClone(); ValidateOwnedSchema1Field(ownedSchema1FieldBaseline, request.OwnedPairs.PartyIds);
+            var receiptPath = Path.Combine(root, "owned-schema1-derivation.json"); var receiptFile = new FileInfo(receiptPath);
+            Require(receiptFile.Exists && receiptFile.Length > 0 && receiptFile.Length <= 256 * 1024 &&
+                (receiptFile.Attributes & FileAttributes.ReparsePoint) == 0 && Hash(receiptPath) == request.Schema1DerivationSha256,
+                "Owned schema-1 staged derivation receipt differs from its request pin.");
+            ownedSchema1CheckpointPath = path; ownedSchema1ReceiptPath = receiptPath;
+            ownedSchema1CheckpointLength = file.Length; ownedSchema1ReceiptLength = receiptFile.Length;
+            var receipt = JObject.Parse(File.ReadAllText(receiptPath));
+            Require((string)receipt["contract"] == "owned-schema1-metadata-copy-v1" && (string)receipt["sourceRunId"] == request.OwnedPairs.CheckpointSourceRunId &&
+                (string)receipt["sourceArtifactSha256"] == request.OwnedPairs.CheckpointSourceArtifactSha256 &&
+                (string)receipt["sourceDescriptor"]?["sha256"] == (string)source["nativeWrite"]?["sha256"] &&
+                (string)receipt["descriptor"]?["sha256"] == request.PersistenceLoad.Sha256 &&
+                JToken.DeepEquals(receipt["metadata"], JObject.Parse(NativeMountedSaveStorage.ReadArchive(schema1Input.Saver).OriginalJson)) &&
+                Hash(receiptPath) == request.Schema1DerivationSha256 && Hash(path) == request.OwnedPairs.CheckpointSourceArtifactSha256,
+                "Owned schema-1 source/metadata projection changed during native observation.");
+            ownedSchema1Fields = new JArray(); PinOwnedSchema1OtherSlots();
+            evidence["ownedSchema1"] = new JObject { ["contract"] = "owned-schema1-fixture-v1", ["syntheticMetadata"] = true,
+                ["sourceArchiveSchema"] = 1, ["sourceCheckpointRunId"] = request.OwnedPairs.CheckpointSourceRunId,
+                ["sourceCheckpointArtifactSha256"] = request.OwnedPairs.CheckpointSourceArtifactSha256,
+                ["originalNativeArchiveSha256"] = source["nativeWrite"]["sha256"].DeepClone(),
+                ["sourceField"] = ownedSchema1FieldBaseline.DeepClone(), ["fields"] = ownedSchema1Fields };
         }
     }
 }

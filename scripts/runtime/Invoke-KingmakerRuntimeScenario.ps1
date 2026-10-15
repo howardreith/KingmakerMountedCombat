@@ -67,7 +67,7 @@ param(
     # The genuine no-DLL cleanup-save observation: the removal observer package
     # (a separate minimal UMM mod) is staged in place of KMC for that one run.
     [string]$ObserverPackagePath,
-    [ValidateSet('multi-exploration-manual','multi-exploration-quick','multi-exploration-auto','multi-rt-debt-manual','multi-tb-debt-manual','zero-mounted-tb-retained-manual','legacy-mounted-pending-tb-manual','multi-area-autosave','legacy-schema1-resave-manual','multi-exploration-three-loads-manual','multi-exploration-three-area-transfers-manual','multi-nonselected-mount-unsettled-manual','multi-owned-worker-cancel-manual','partial-movement','rider-spent','between-partner-orders','exhausted','explicit-end','combat-mount-tb','casting-items','step','conversion','round-effect','reaction','condition','condition-preparing','suspended','manual','quick','auto','manual-renamed','alternating','queued','unmounted-spent','mounted-spent','unmounted-attack','mounted-attack','unmounted-projectile','mounted-projectile','unmounted-approach','mounted-approach','unmounted-casting','mounted-casting','mounted-casting-items','combat-mount-rt','combat-dismount-rt','mounted-charge-pending','mounted-charge-settled','mounted-charge-cancelled','mounted-charge-failed','mounted-charge-drained','legacy','schema1','future','malformed','profile','campaign','missing-rider','missing-mount','mismatched-profile','policy','combat-missing','combat-ai','timeout','cancel-wait','locked-replace','serialization-cancel','serialization-cancel-output','disable-reenable','campaign-b','prepare-removal','disable-during-load','mounted-charge-area','mounted-charge-session','mounted-charge-disable','mounted-charge-removal','absent-kmc','removal-no-dll','mounted-charge-removal-no-dll','rider-death','mount-death','rider-size-change','area-reload','area-cross-entry','area-cross-exit','area-cross-entry-auto','area-cross-exit-auto','failed-area-load','foreign-header-campaign','combat-mount-routes','combat-mount-unsettled-save','combat-mount-area-reload','pending-mount-area')][string]$PersistenceCase,
+    [ValidateSet('multi-exploration-manual','multi-exploration-quick','multi-exploration-auto','multi-rt-debt-manual','multi-tb-debt-manual','zero-mounted-tb-retained-manual','legacy-mounted-pending-tb-manual','multi-area-autosave','legacy-schema1-resave-manual','multi-exploration-three-loads-manual','multi-exploration-three-area-transfers-manual','multi-nonselected-mount-unsettled-manual','multi-owned-worker-cancel-manual','owned-schema1-manual','owned-schema1-resave-manual','partial-movement','rider-spent','between-partner-orders','exhausted','explicit-end','combat-mount-tb','casting-items','step','conversion','round-effect','reaction','condition','condition-preparing','suspended','manual','quick','auto','manual-renamed','alternating','queued','unmounted-spent','mounted-spent','unmounted-attack','mounted-attack','unmounted-projectile','mounted-projectile','unmounted-approach','mounted-approach','unmounted-casting','mounted-casting','mounted-casting-items','combat-mount-rt','combat-dismount-rt','mounted-charge-pending','mounted-charge-settled','mounted-charge-cancelled','mounted-charge-failed','mounted-charge-drained','legacy','schema1','future','malformed','profile','campaign','missing-rider','missing-mount','mismatched-profile','policy','combat-missing','combat-ai','timeout','cancel-wait','locked-replace','serialization-cancel','serialization-cancel-output','disable-reenable','campaign-b','prepare-removal','disable-during-load','mounted-charge-area','mounted-charge-session','mounted-charge-disable','mounted-charge-removal','absent-kmc','removal-no-dll','mounted-charge-removal-no-dll','rider-death','mount-death','rider-size-change','area-reload','area-cross-entry','area-cross-exit','area-cross-entry-auto','area-cross-exit-auto','failed-area-load','foreign-header-campaign','combat-mount-routes','combat-mount-unsettled-save','combat-mount-area-reload','pending-mount-area')][string]$PersistenceCase,
     [ValidatePattern('^[0-9a-f]{32}$')][string]$PersistenceAreaEnterPoint,
     [ValidatePattern('^[0-9a-f]{32}$')][string]$PersistenceAreaTargetArea,
     [ValidatePattern('^[0-9a-f]{32}$')][string[]]$PersistenceReplayAreaEnterPoints,
@@ -119,6 +119,7 @@ if($PSBoundParameters.ContainsKey('ObserveWorkingDeserialization') -and
 . (Join-Path $PSScriptRoot 'Chunk7AssistedFixtureFixtures.ps1')
 . (Join-Path $PSScriptRoot 'Chunk7AssistedPreparationInput.ps1')
 . (Join-Path $PSScriptRoot 'Chunk7OwnedPairsFixtures.ps1')
+. (Join-Path $PSScriptRoot 'Chunk7OwnedSchema1Fixtures.ps1')
 . (Join-Path $PSScriptRoot 'Chunk7SmallCalibrationFixtures.ps1')
 . (Join-Path $PSScriptRoot 'Chunk7ProgressionFixtures.ps1')
 if(Test-KmcChunk7NativeBootstrapScenario $Scenario){
@@ -141,9 +142,10 @@ if(Test-KmcChunk7AssistedFixtureScenario $Scenario){
 $ownedPairsInput=$null;$ownedPairsSource=$null
 if(Test-KmcChunk7OwnedPairsScenario $Scenario){
     if(-not$BaseGameOnly-or[string]::IsNullOrEmpty($OwnedPairsSelectionPath)){throw 'Inherited two-pair campaign requires explicit base-only staging and a qualified two-owner native Manual selection.'}
-    foreach($name in @('PersistenceSourceRunId','ExpectedPersistenceSourceSha256','ExpectedPersistenceAlternateSha256','PersistenceForeignSourceRunId','PersistenceAreaEnterPoint','PersistenceAreaTargetArea')){
+    foreach($name in @('PersistenceSourceRunId','ExpectedPersistenceSourceSha256','ExpectedPersistenceAlternateSha256','PersistenceForeignSourceRunId')){
         if($PSBoundParameters.ContainsKey($name)){throw 'Inherited pairs select only their closed source and checkpoint cases.'}
     }
+    if(($PSBoundParameters.ContainsKey('PersistenceAreaEnterPoint')-or$PSBoundParameters.ContainsKey('PersistenceAreaTargetArea'))-and$PersistenceCase-cne'multi-area-autosave'){throw 'Only the exact owned area autosave may carry its original/destination pins.'}
     if(($PSBoundParameters.ContainsKey('PersistenceReplayAreaEnterPoints')-or$PSBoundParameters.ContainsKey('PersistenceReplayAreaAreas'))-and$PersistenceCase-cne'multi-exploration-three-area-transfers-manual'){throw 'Only the exact owned repeated-area cold case may carry route pins.'}
     $ownedPairsInput=Read-KmcChunk7OwnedPairsSelectionFile $OwnedPairsSelectionPath $(if($RunId){$RunId}else{'unassigned-owned-pairs'}) $PersistenceCase
 }elseif($PSBoundParameters.ContainsKey('OwnedPairsSelectionPath')){throw 'Inherited pair selection is forbidden under another scenario.'}
@@ -235,6 +237,7 @@ if($PersistenceCase-ceq'multi-exploration-three-area-transfers-manual'){
     if(@($PersistenceReplayAreaEnterPoints).Count-ne3-or@($PersistenceReplayAreaAreas).Count-ne3){throw 'Repeated area transfer requires exactly three caller-pinned enter points and destination areas.'}
 }elseif($PSBoundParameters.ContainsKey('PersistenceReplayAreaEnterPoints')-or$PSBoundParameters.ContainsKey('PersistenceReplayAreaAreas')){throw 'Only the repeated-area case accepts native route pins.'}
 if($PersistenceCase-ceq'legacy-schema1-resave-manual'-and$Scenario-cne'chunk7-persistence-load'){throw 'Schema-1 native resave is load-only.'}
+if((Test-KmcOwnedSchema1Case $PersistenceCase)-and$Scenario-cne'chunk7-owned-two-pair-campaign'){throw 'Owned schema-1 cases belong only to the closed inherited family.'}
 if(Test-KmcChunk7PersistenceScenario $Scenario){
     if(-not$BaseGameOnly-or$PersistenceCase-cnotin(Get-KmcChunk7PersistenceCases)){throw 'Chunk 7 persistence requires explicit base-only staging and one declared native case.'}
     if($Scenario-ceq'chunk7-persistence-load'-and([string]::IsNullOrEmpty($PersistenceSourceRunId)-or[string]::IsNullOrEmpty($ExpectedPersistenceSourceSha256))){throw 'Chunk 7 cold load requires its exact completed source run and archive hash.'}
@@ -389,7 +392,8 @@ if(Test-KmcChunk7OrdinaryScenario $Scenario){
 if(Test-KmcChunk7SmallScenario $Scenario){$smallSource=if(Test-KmcChunk7SmallManualCase $smallSelectionInput.selection){Get-KmcChunk7SmallManualSource $smallSelectionInput.selection.manualSource $fixturePayload $manifest -Assisted:(Test-KmcChunk7SmallAssistedCase $smallSelectionInput.selection)}else{Get-KmcChunk7FieldSource $smallSelectionInput.selection.source $fixturePayload $manifest}}
 if(Test-KmcChunk7ProgressionScenario $Scenario){$progressionSource=Get-KmcChunk7ProgressionSource $progressionSelectionInput.selection $fixturePayload $manifest}
 if(Test-KmcChunk7FieldScenario $Scenario){$fieldSource=Get-KmcChunk7FieldSource $fieldSelectionInput.selection $fixturePayload $manifest}
-if(Test-KmcChunk7OwnedPairsScenario $Scenario){$ownedPairsSource=Get-KmcChunk7OwnedPairsSource $ownedPairsInput.selection $PersistenceCase $fixturePayload $manifest}
+$ownedAreaTarget=if((Test-KmcChunk7OwnedPairsScenario $Scenario)-and$PersistenceCase-ceq'multi-area-autosave'){[pscustomobject]@{enterPoint=$PersistenceAreaEnterPoint;area=$PersistenceAreaTargetArea;autoSaveMode='AfterEntry'}}else{$null}
+if(Test-KmcChunk7OwnedPairsScenario $Scenario){$ownedPairsSource=Get-KmcChunk7OwnedPairsSource $ownedPairsInput.selection $PersistenceCase $fixturePayload $manifest $ownedAreaTarget}
 if(Test-KmcChunk7AcquiredManualScenario $Scenario){$acquiredManualSource=Get-KmcChunk7AcquiredManualSource $acquiredManualInput.selection $fixturePayload $manifest}
 if(Test-KmcChunk7ManualDerivedScenario $Scenario){$manualDerivedSource=Get-KmcChunk7ManualDerivedSource $manualDerivedInput.selection $fixturePayload $manifest}
 if(Test-KmcChunk7CumulativeScenario $Scenario){$cumulativeAcquisitionSource=Get-KmcChunk7CumulativeSource $cumulativeAcquisitionInput.selection $fixturePayload $manifest}
@@ -599,7 +603,7 @@ try{
     if(Test-KmcChunk7OwnedPairsScenario $Scenario){
         $currentOwnedInput=Read-KmcChunk7OwnedPairsSelectionFile $ownedPairsInput.path $actualRunId $PersistenceCase
         if($currentOwnedInput.sha256-cne$ownedPairsInput.sha256){throw 'Inherited two-owner selection changed before locked admission.'}
-        $currentOwnedSource=Get-KmcChunk7OwnedPairsSource $request.ownedPairs $PersistenceCase $fixturePayload $manifest
+        $currentOwnedSource=Get-KmcChunk7OwnedPairsSource $request.ownedPairs $PersistenceCase $fixturePayload $manifest $(if($PersistenceCase-ceq'multi-area-autosave'){$request.persistenceAreaTarget}else{$null})
         if((ConvertTo-KmcChunk7Canonical $currentOwnedSource)-cne(ConvertTo-KmcChunk7Canonical $ownedPairsSource)){throw 'Inherited source lineage changed before locked admission.'}
         $ownedPairsSource=$currentOwnedSource
     }
@@ -696,6 +700,13 @@ try{
             $copyDescriptor=$fixturePayload.working
             if(Test-KmcChunk7OwnedPairsScenario $Scenario){
                 $copySource=$ownedPairsSource.path;$copyDescriptor=$ownedPairsSource.descriptor
+                if($PersistenceCase-ceq'owned-schema1-resave-manual'){
+                    # Mutation is confined to a fresh project-owned derivative,
+                    # only after ShouldProcess and current lock qualification.
+                    $ownedSchema1Derivative=New-KmcOwnedSchema1Input $ownedPairsSource $request.ownedPairs $fixturePayload $manifest $lock
+                    $copySource=$ownedSchema1Derivative.path;$copyDescriptor=$ownedSchema1Derivative.descriptor
+                    $request['schema1DerivationSha256']=$ownedSchema1Derivative.receiptSha256
+                }
                 $request['persistenceLoad']=$copyDescriptor
             }elseif(Test-KmcChunk7SmallScenario $Scenario){
                 $copySource=$smallSource.path;$copyDescriptor=$smallSource.descriptor
@@ -818,7 +829,10 @@ try{
             if(Test-KmcChunk7SmallScenario $Scenario){if(Test-KmcChunk7SmallManualCase $request.smallCalibration){Copy-KmcChunk7SmallManualSourceArtifact $smallSource $profileRoot $lock}else{Copy-KmcChunk7FieldSourceArtifact $smallSource $profileRoot $lock}}
             if(Test-KmcChunk7ProgressionScenario $Scenario){Copy-KmcChunk7ProgressionInputs $progressionSource $profileRoot $lock}
             if(Test-KmcChunk7FieldScenario $Scenario){Copy-KmcChunk7FieldSourceArtifact $fieldSource $profileRoot $lock}
-            if(Test-KmcChunk7OwnedPairsScenario $Scenario){Copy-KmcChunk7OwnedPairsSourceArtifact $ownedPairsSource $profileRoot $lock}
+            if(Test-KmcChunk7OwnedPairsScenario $Scenario){
+                if($PersistenceCase-ceq'owned-schema1-resave-manual'){Copy-KmcOwnedSchema1Inputs $ownedPairsSource $ownedSchema1Derivative $profileRoot $lock $request}
+                else{Copy-KmcChunk7OwnedPairsSourceArtifact $ownedPairsSource $profileRoot $lock}
+            }
             if(Test-KmcChunk7AcquiredManualScenario $Scenario){Copy-KmcChunk7AcquiredManualSourceArtifact $acquiredManualSource $profileRoot $lock}
             if(Test-KmcChunk7ManualDerivedScenario $Scenario){Copy-KmcChunk7ManualDerivedSourceArtifact $manualDerivedSource $profileRoot $lock}
             if(Test-KmcChunk7CumulativeScenario $Scenario){if(Test-KmcAssistedCumulativeMode $request.cumulativeAcquisition){Copy-KmcAssistedCumulativeSourceArtifacts $cumulativeAcquisitionSource $profileRoot $lock $request.cumulativeAcquisition $fixturePayload $manifest}else{Copy-KmcChunk7CumulativeSourceArtifact $cumulativeAcquisitionSource $profileRoot $lock}}
@@ -1049,17 +1063,22 @@ try{
             Assert-KmcChunk7ProgressionNativeArchive $request $progressionArtifact
         }
         if($gamePassed-and(Test-KmcChunk7OwnedPairsScenario $Scenario)){
-            $verifiedOwnedSource=Get-KmcChunk7OwnedPairsSource $request.ownedPairs $PersistenceCase $fixturePayload $manifest
+            $verifiedOwnedSource=Get-KmcChunk7OwnedPairsSource $request.ownedPairs $PersistenceCase $fixturePayload $manifest $(if($PersistenceCase-ceq'multi-area-autosave'){$request.persistenceAreaTarget}else{$null})
             if((ConvertTo-KmcChunk7Canonical $verifiedOwnedSource)-cne(ConvertTo-KmcChunk7Canonical $ownedPairsSource)){throw 'Inherited two-owner source lineage changed during native execution.'}
             if((Get-KmcSha256 (Join-Path $profileRoot 'owned-two-pair-source.json'))-cne$request.ownedPairs.sourceArtifactSha256-or
                 (Get-KmcSha256 (Join-Path $isolatedSaves $request.persistenceLoad.fileName))-cne$request.persistenceLoad.sha256){throw 'Inherited source receipt or immutable native input changed during execution.'}
+            if($request.ownedPairs.case-ceq'persistence-load'-and$PersistenceCase-ceq'multi-area-autosave'){
+                $ownedColdArtifact=Read-KmcJson (Join-Path $evidenceRoot 'chunk7-persistence-evidence.json')
+                Assert-KmcChunk7OwnedAreaColdSource $verifiedOwnedSource $request $ownedColdArtifact
+            }
             $nativeLeaves=@(Get-ChildItem -LiteralPath $isolatedSaves -Filter '*.zks' -File|ForEach-Object Name)
             $writes=Get-KmcChunk7OwnedWriteCount $request
             if($nativeLeaves.Count-ne(1+$writes)-or$request.persistenceLoad.fileName-cnotin$nativeLeaves){throw 'Inherited isolated archive inventory differs from its exact selected load/write contract.'}
             if($writes-eq1){
                 $ownedArtifact=Read-KmcJson (Join-Path $evidenceRoot 'chunk7-persistence-evidence.json')
-                Assert-KmcChunk7OwnedOutputEvidence $request $ownedArtifact.observations
-                $outputLeaf=Get-KmcChunk7OwnedOutputLeaf $request $ownedArtifact.observations
+                if($PersistenceCase-ceq'owned-schema1-resave-manual'){Assert-KmcOwnedSchema1ColdSource $request $verifiedOwnedSource $ownedArtifact}
+                Assert-KmcChunk7OwnedOutputEvidence ([pscustomobject]$request) $ownedArtifact.observations
+                $outputLeaf=Get-KmcChunk7OwnedOutputLeaf ([pscustomobject]$request) $ownedArtifact.observations
                 if($outputLeaf-cnotin$nativeLeaves-or(Get-KmcSha256 (Join-Path $isolatedSaves $outputLeaf))-cne$ownedArtifact.observations.nativeWrite.sha256){throw 'Inherited fresh native output differs from its observed descriptor/hash.'}
             }
         }

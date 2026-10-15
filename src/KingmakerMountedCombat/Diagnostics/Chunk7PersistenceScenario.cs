@@ -190,6 +190,7 @@ namespace KingmakerMountedCombat.Diagnostics
                         if (!Mounted(firstRider, firstMount) || !InputSettled()) return;
                         FinishInput();
                         if (LegacyPendingCase) { AfterNativeMounts(); break; }
+                        if (OwnedSchema1SourceCase) { BeginOwnedSchema1Source(); break; }
                         if (PendingMountSave) { BeginPendingMountSave(); break; }
                         Input(secondRider, secondMount, controls.MountAbility, firstRider, "mount-horse"); Next(3); break;
                     case 3:
@@ -198,6 +199,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     case 4:
                         if (!callback || NativePersistenceIsolation.HasPendingWrites || persistence.HasActiveSaveScope || persistence.HasSaveAdmissionFence) return;
                         ObserveSaved();
+                        if (OwnedSchema1SourceCase) { BeginCleanup(); break; }
                         if (CombatCase) { BeginCombatContinuation(); Next(20); } else Next(10);
                         break;
                     case 41:
@@ -239,7 +241,7 @@ namespace KingmakerMountedCombat.Diagnostics
             nativeScope = new Chunk7NativeWorldScope(request, SelectionManager.Instance.SelectedUnits,
                 Cold ? ExpectedArchiveArea : request.SelectedChunk7Fixture.Area);
             originalSelection = SelectionManager.Instance.SelectedUnits.ToArray(); originalPause = Game.Instance.IsPaused; captured = true;
-            if (Schema2ResaveCase) Game.Instance.IsPaused = true;
+            if (Schema2ResaveCase || OwnedSchema1ColdCase) Game.Instance.IsPaused = true;
             MovementScreenshotCaptureCoordinator.AcquireClosedUmmLeaseRetained(out ummLease);
             evidence["checkpoint"] = request.PersistenceCase; evidence["cold"] = Cold;
             evidence["sourceWorkingSha256"] = request.OwnedPairs == null ? request.Fixture.Working.Sha256 : null;
@@ -344,6 +346,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private void AssertOwners()
         {
             if (Schema1ResaveCase) { AssertSchema1Owners(); return; }
+            if (OwnedSchema1SourceCase) { AssertOwnedSchema1Owner(); return; }
             if (CombatCase) { AssertCombatOwners(); return; }
             Require(Mounted(firstRider, firstMount) && Mounted(secondRider, secondMount) && world.Registry.ActiveCount == 2 &&
                 world.Registry.Owners.Length == 2 && world.Registry.Owners.All(o => expectedOwners.TryGetValue(o.Id, out var generation) && generation == o.Generation),
@@ -368,7 +371,14 @@ namespace KingmakerMountedCombat.Diagnostics
                 rider.UISettings.SetSlot(new MechanicActionBarSlotAbility { Unit = rider, Ability = fact.Data }, index);
             }
             slots = controls.CapturePersistentSlots();
-            Require(slots.Length == (LegacyPendingCase || PendingMountSave ? 2 : 4) && slots.Count(s => s.ActorId == firstRider.UniqueId) == 2 &&
+            if (OwnedSchema1SourceCase)
+            {
+                Require(slots.Length >= 2 && slots.Length <= 128 && slots.All(s => s.Kind >= 1 && s.Kind <= 4) &&
+                    slots.Any(s => s.ActorId == firstRider.UniqueId && s.Kind == 2) &&
+                    slots.Any(s => s.ActorId == firstRider.UniqueId && s.Kind == 3),
+                    "Owned schema-1 source has an unrepresentable control; no saved slot may be discarded.");
+            }
+            else Require(slots.Length == (LegacyPendingCase || PendingMountSave ? 2 : 4) && slots.Count(s => s.ActorId == firstRider.UniqueId) == 2 &&
                 slots.Count(s => s.ActorId == secondRider.UniqueId) == (LegacyPendingCase || PendingMountSave ? 0 : 2), "All-pair native hotbar binding differs.");
         }
         private void AssertSlots()
@@ -409,7 +419,7 @@ namespace KingmakerMountedCombat.Diagnostics
             ObserveOwnedSaveCompletion();
             var read = NativeMountedSaveStorage.ReadArchive(savedDescriptor.Saver); saved = read.Data;
             if (CombatCase) { ObserveCombatSaved(read); return; }
-            Require(read.Kind == MountedSaveReadKind.Current && read.SourceSchema == 3 && saved?.Pairs.Length == 2 &&
+            Require(read.Kind == MountedSaveReadKind.Current && read.SourceSchema == 3 && saved?.Pairs.Length == (OwnedSchema1SourceCase ? 1 : 2) &&
                 saved.Participations.Length == 0 && saved.Combat == null && saved.CampaignId == request.SelectedChunk7Fixture.GameId &&
                 saved.AreaId == ExpectedArchiveArea, "Native archive readback did not retain the entire exploration world.");
             AssertOwners(); AssertSlots(); AssertDebt(saved);
@@ -426,7 +436,13 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["nativeType"] = type.ToString(), ["nativeName"] = savedDescriptor.Name, ["nativeCallback"] = callback,
                 ["operation"] = savedDescriptor.OperationState.ToString(), ["snapshotCount"] = persistence.SnapshotCount,
                 ["archive"] = JObject.FromObject(saved, MountedSaveCodec.CreateSerializer()) };
-            snapshots.Add(Capture("native-write-complete")); Pass("C7-persistence-native-category-all-pair-archive");
+            snapshots.Add(Capture("native-write-complete"));
+            if (OwnedSchema1SourceCase)
+            {
+                ValidateOwnedSchema1Archive(saved, request.PersistenceLoad.GameId, request.PersistenceLoad.Area, firstRider.UniqueId, firstMount.UniqueId, false);
+                CompleteOwnedSchema1Field("source-settled"); Pass("C7-persistence-owned-schema1-source");
+            }
+            else Pass("C7-persistence-native-category-all-pair-archive");
         }
         private void AssertDebt(MountedArchiveData archive)
         {
@@ -641,6 +657,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["nativeProgressionRequiresExternalWorkingRestoration"] = inherited == null, ["ordinaryRespecProven"] = false,
                 ["world"] = captured ? Capture("cleanup") : null };
             CaptureRepeatedSettlement();
+            ReleaseOwnedAreaObservation();
             if (pendingHostCustody) evidence["cleanupSettledAfterHostBoundary"] = true;
             pendingHostCustody = false;
             inherited?.Release(); cleanupProven = true;
