@@ -1,6 +1,6 @@
 # Unverified Chunk 7 drafts — owner stopping point
 
-Status: IN PROGRESS. Backed up at the owner's October14 quota/push request. These patches are not integrated, compiled, tested, independently reviewed, packaged or approved for native execution. Active product/build inputs remain unchanged.
+Status: HISTORICAL CUSTODY. Backed up at the owner's October14 quota/push request. On October15 both drafts were reconstructed against this exact base and composed additively, compiled, focused-tested and independently reviewed on branch `codex/mounted-combat-chunk7-claude-drafts`; see the [composition checkpoint](../../../docs/CHUNK7-DRAFT-COMPOSITION-2026-10-15.md). These patches are not the active source and were never applied as patches; they are not packaged or approved for native execution, and preview10 product/build inputs remain unchanged.
 
 Both drafts start independently from harness commit `40157ba1dfeea8d4b2713319dad4047f6f7af0e4`, product `0e1ce2d92a368866ce0803d070a6f3b7b96bd971`. They overlap and must be reconciled additively after review; do not apply them sequentially. [Manifest](manifest.json) pins exact private raw payloads/bases and the published patches. Published diffs normalize CRLF to LF and use zero context; these are source backups, not admission receipts. Exact raw drafts remain under the lab analysis-cache paths recorded in the manifest.
 
