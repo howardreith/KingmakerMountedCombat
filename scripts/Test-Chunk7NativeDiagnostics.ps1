@@ -6,6 +6,28 @@ param()
 # This wrapper never selects native launches, packages, historical replay or qualification.
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
+# Children run non-interactively so a prompt fails fast instead of blocking a hidden console.
+# Source-family checks that declare a mandatory OutputRoot receive a fresh path under the lab analysis cache.
+$repositoryRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
+$labRoot = [IO.Path]::GetDirectoryName([IO.Path]::GetDirectoryName($repositoryRoot))
+$stamp = [DateTime]::UtcNow.ToString('yyyyMMddTHHmmssZ')
+function Test-KmcMandatoryOutputRoot([string]$Path) {
+    $tokens = $null; $errors = $null
+    $ast = [Management.Automation.Language.Parser]::ParseFile($Path, [ref]$tokens, [ref]$errors)
+    if ($errors) { throw ('Focused check does not parse: ' + $Path) }
+    if ($null -eq $ast.ParamBlock) { return $false }
+    foreach ($parameter in $ast.ParamBlock.Parameters) {
+        if ($parameter.Name.VariablePath.UserPath -cne 'OutputRoot') { continue }
+        foreach ($attribute in $parameter.Attributes) {
+            if ($attribute -isnot [Management.Automation.Language.AttributeAst] -or $attribute.TypeName.Name -cne 'Parameter') { continue }
+            foreach ($named in $attribute.NamedArguments) {
+                if ($named.ArgumentName -cne 'Mandatory') { continue }
+                if ($named.ExpressionOmitted -or $named.Argument.Extent.Text -ceq '$true') { return $true }
+            }
+        }
+    }
+    return $false
+}
 $selected = @(
     'Test-Chunk7AssistedFixtureCore.ps1',
     'Test-Chunk7AssistedColdAuthority.ps1',
@@ -192,7 +214,11 @@ foreach ($name in $selected) {
     $path = Join-Path (Join-Path $PSScriptRoot 'chunk7') $name
     if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { throw ('Missing focused check: ' + $name) }
     Write-Host ('RUN ' + $name)
-    & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $path
+    $arguments = @('-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', $path)
+    if (Test-KmcMandatoryOutputRoot $path) {
+        $arguments += @('-OutputRoot', (Join-Path $labRoot ('analysis-cache/chunk7-continuation/umbrella-' + $stamp + '/' + [IO.Path]::GetFileNameWithoutExtension($name))))
+    }
+    & powershell.exe @arguments
     if ($LASTEXITCODE -ne 0) { throw ($name + ' exited ' + $LASTEXITCODE) }
     $completed++
 }
