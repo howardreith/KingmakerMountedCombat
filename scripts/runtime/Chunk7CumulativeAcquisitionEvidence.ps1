@@ -2,6 +2,7 @@ Set-StrictMode -Version Latest
 function Test-KmcChunk7CumulativeScenario([string]$Scenario){$Scenario-ceq'chunk7-cumulative-acquisition'}
 function Get-KmcChunk7CumulativeRows {@('chunk7-cumulative-acquisition','C7-cumulative-source','C7-cumulative-native-load','C7-cumulative-eligibility','C7-cumulative-native-choices','C7-cumulative-native-autosave','C7-cumulative-native-field','C7-cumulative-cleanup','C7-cumulative-runtime','C7-cumulative-interrupted')}
 function Assert-KmcChunk7CumulativeSelection($Request){
+ if($Request-is[Collections.IDictionary]){$Request=[pscustomobject]$Request}
  $has=$null-ne$Request.PSObject.Properties['cumulativeAcquisition']
  if(-not(Test-KmcChunk7CumulativeScenario $Request.scenario)){if($has){throw 'Manual-derived selection is forbidden under another family.'};return}
  if(-not$has){throw 'Manual-derived acquisition requires exact explicit selection.'};$s=$Request.cumulativeAcquisition

@@ -100,6 +100,15 @@ $Scenario='chunk7-assisted-fixture-preparation';$actualRunId='generated-assisted
 Check 'actual locked unchanged selection revalidated' $false {&$lockedBody}
 Check 'actual locked changed file refuses' $true {$script:intakeHash=('b'*64);try{&$lockedBody}finally{$script:intakeHash=('a'*64)}}
 Check 'actual locked mutated selection refuses' $true {$request=New-Request;$request.assistedFixture.maximumNativeWriteCount=4;try{&$lockedBody}finally{$request=New-Request}}
+# The runner holds its request as an ordered dictionary until serialization; native attempt 10 refused its own
+# unchanged selection under lock because the assert only detected PSObject properties. Exercise that exact shape.
+function New-RunnerRequest {$r=[ordered]@{schemaVersion=2;runId='generated-assisted';scenario='chunk7-assisted-fixture-preparation';branch='codex/mounted-combat-generated';commit=('a'*40)};$r['assistedFixture']=(New-Selection);return $r}
+Check 'selection assert accepts the runner ordered-dictionary request' $false {Assert-KmcChunk7AssistedFixtureSelection (New-RunnerRequest)}
+Check 'selection assert refuses an ordered-dictionary request without its selection' $true {$r=New-RunnerRequest;$r.Remove('assistedFixture');Assert-KmcChunk7AssistedFixtureSelection $r}
+Check 'selection assert refuses an ordered-dictionary foreign family carrying a selection' $true {$r=New-RunnerRequest;$r['scenario']='fixture-intake';Assert-KmcChunk7AssistedFixtureSelection $r}
+Check 'selection assert refuses an ordered-dictionary mutated selection' $true {$r=New-RunnerRequest;$r['assistedFixture'].maximumNativeWriteCount=4;Assert-KmcChunk7AssistedFixtureSelection $r}
+Check 'actual locked revalidation admits the runner ordered-dictionary request' $false {$request=New-RunnerRequest;try{&$lockedBody}finally{$request=New-Request}}
+Check 'actual locked revalidation refuses the runner ordered-dictionary mutated selection' $true {$request=New-RunnerRequest;$request['assistedFixture'].targetRangerLevel=5;try{&$lockedBody}finally{$request=New-Request}}
 Check 'actual post-process unchanged selection retained even on FAIL' $false {&$postBody}
 Check 'actual post-process changed file refuses' $true {$script:intakeHash=('b'*64);try{&$postBody}finally{$script:intakeHash=('a'*64)}}
 $script:outputOrder=[Collections.Generic.List[string]]::new()

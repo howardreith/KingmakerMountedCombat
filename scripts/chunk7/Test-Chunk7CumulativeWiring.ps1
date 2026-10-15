@@ -25,6 +25,11 @@ if(([regex]::Matches($body,[regex]::Escape($import))).Count-ne1){throw 'Actual r
 $validator=[scriptblock]::Create($body.Replace($import,'# Common already loaded; actual validator body follows.'))
 function Validate($Q){$path=Join-Path $bridgeOutput 'request.json';[IO.File]::WriteAllText($path,(ConvertTo-KmcChunk7Canonical $Q),[Text.UTF8Encoding]::new($false));&$validator -RequestPath $path|Out-Null}
 Good 'full request accepts exact one-Manual-load one-Auto-write family' {Validate (Request)}
+# The runner holds its request as an ordered dictionary until serialization; the selection assert must detect dictionary keys too.
+function RunnerRequest {$q=Request;$r=[ordered]@{schemaVersion=2;runId=$q.runId;scenario=$q.scenario};$r['cumulativeAcquisition']=$q.cumulativeAcquisition;$r}
+Good 'cumulative selection assert accepts the runner ordered-dictionary request' {Assert-KmcChunk7CumulativeSelection (RunnerRequest)}
+Bad 'ordered-dictionary request without its selection' {$r=RunnerRequest;$r.Remove('cumulativeAcquisition');Assert-KmcChunk7CumulativeSelection $r}
+Bad 'ordered-dictionary foreign family carrying a selection' {$r=RunnerRequest;$r['scenario']='fixture-intake';Assert-KmcChunk7CumulativeSelection $r}
 $negative=[ordered]@{
  'missing selection'={param($q)$q.PSObject.Properties.Remove('cumulativeAcquisition')}
  'foreign family'={param($q)$q.scenario='fixture-intake'}
@@ -58,7 +63,7 @@ foreach($quotaName in @('expectedNativeWrites','expectedWorkingLoads')){
  $nodes=@($gameAst.FindAll({param($n)$n-is[Management.Automation.Language.AssignmentStatementAst]-and$n.Left.Extent.Text-ceq('$'+$quotaName)},$true));if($nodes.Count-ne1){throw 'Exact quota assignment changed'}
  $quota=[scriptblock]::Create($nodes[0].Extent.Text+[Environment]::NewLine+'return $'+$quotaName)
  foreach($family in @('chunk7-cumulative-acquisition','fixture-intake')){
-  $game=[pscustomobject]@{scenario=$family};$request=Request;$request.scenario=$family;$nativeBootstrap=$alternating=$campaignB=$absentKmc=$false
+  $game=[pscustomobject]@{scenario=$family};$request=Request;$request.scenario=$family;$nativeBootstrap=$assistedFixture=$alternating=$campaignB=$absentKmc=$false;$assistedWriteCount=0
   $wanted=if($quotaName-ceq'expectedNativeWrites'-and$family-ceq'fixture-intake'){0}else{1};Good ('actual '+$family+' '+$quotaName){if((&$quota)-ne$wanted){throw 'Native quota differs'}}
  }
 }
