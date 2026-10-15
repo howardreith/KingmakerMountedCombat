@@ -3,12 +3,13 @@
 # identity, two native Mounts, both continuation moves and exact settled cleanup.
 Set-StrictMode -Version Latest
 function Assert-KmcChunk7AreaAutosave($Request,$Observation,$Archive) {
-    if($Request.persistenceCase-cne'multi-area-autosave'-or$Request.scenario-cne'chunk7-persistence-save') {
+    if($Request.persistenceCase-cne'multi-area-autosave'-or(Get-KmcChunk7SelectedScenario $Request)-cne'chunk7-persistence-save') {
         throw 'Area source evidence is only valid for its exact selected native case.'
     }
     $target=$Request.persistenceAreaTarget;$row=$Observation.areaTransfer
-    if($target.autoSaveMode-cne'AfterEntry'-or$target.area-ceq$Request.fixture.working.area-or
-       $row.mode-cne'AfterEntry'-or$row.enterPoint-cne$target.enterPoint-or$row.sourceArea-cne$Request.fixture.working.area-or
+    $sourceArea=(Get-KmcChunk7SelectedFixture $Request).area
+    if($target.autoSaveMode-cne'AfterEntry'-or$target.area-ceq$sourceArea-or
+       $row.mode-cne'AfterEntry'-or$row.enterPoint-cne$target.enterPoint-or$row.sourceArea-cne$sourceArea-or
        $row.destinationArea-cne$target.area-or$Archive.AreaId-cne$target.area-or
        $row.explicitSaveGameDispatches-ne0-or$null-ne$row.observerError-or$row.nativeArchiveSha256-cne$Observation.nativeWrite.sha256) {
         throw 'Native area autosave destination, engine dispatch, observer or immutable archive identity differs.'
@@ -96,4 +97,55 @@ function Assert-KmcChunk7AreaAutosave($Request,$Observation,$Archive) {
     }
     Assert-KmcChunk7Boolean $row.before.pending $false
     Assert-KmcChunk7Boolean $row.after.pending $false
+    if(Test-KmcChunk7OwnedPairsScenario $Request.scenario){Assert-KmcChunk7OwnedAreaField $Request $Observation}
+}
+
+# The owned area route reuses the strict full-field replay reader without changing
+# any legacy/repeated route. Its raw snapshot retains the same replay-field shape.
+function Assert-KmcChunk7OwnedAreaField($Request,$Observation){
+ $r=$Observation.areaTransfer;$retained=$r.identityRetention
+ Assert-KmcExactProperties $retained @('capacity','ids','faults','released','retainedAfterRelease') 'owned area retention'
+ Assert-KmcOrdinaryInteger $retained.capacity 128 128;Assert-KmcOrdinaryInteger $retained.faults 0 0;Assert-KmcOrdinaryInteger $retained.retainedAfterRelease 0 0;Assert-KmcChunk7Boolean $retained.released $true
+ if($retained.ids-isnot[Array]-or$retained.ids.Count-lt1-or$retained.ids.Count-gt128){throw 'Owned area retention is missing or unbounded.'}
+ $registry=[Collections.Generic.HashSet[int]]::new();foreach($id in $retained.ids){Assert-KmcManualSeedObjectIdentity $id;if(-not$registry.Add([int]$id)){throw 'Owned area retention repeats a label.'}}
+ $used=[Collections.Generic.HashSet[int]]::new();$phases=@($r.before,$r.headerStarting,$r.headerStaged,$r.after)
+ for($i=0;$i-lt4;$i++){
+  $p=$phases[$i];$w=$p.ownedWorld;$f=$p.ownedField
+  Assert-KmcExactProperties $w @('game','player','manager','state','areaState','mainState','worldScope','authorityGeneration') 'owned area world'
+  Assert-KmcOrdinaryInteger $w.authorityGeneration 1 ([long]::MaxValue)
+  $worldLabels=[Collections.Generic.HashSet[int]]::new()
+  foreach($key in @('game','player','manager','state','areaState','mainState','worldScope')){Assert-KmcManualSeedObjectIdentity $w.$key;if(-not$registry.Contains([int]$w.$key)-or-not$worldLabels.Add([int]$w.$key)){throw 'Owned area world aliases or escapes retained custody.'};[void]$used.Add([int]$w.$key)}
+  $replay=[pscustomobject]@{ownedField=$f;area=$p.area;gameObject=$w.game;playerObject=$w.player;stateObject=$w.state;areaStateObject=$w.areaState;mainStateObject=$w.mainState;actors=@()}
+  Assert-KmcChunk7OwnedReplayField $Request $replay $registry 1 0
+  foreach($key in @('partyIds','currentPartyIds','currentCharacterIds','remoteCapturedIds','arrangement','pairs','identities')){if((ConvertTo-KmcChunk7Canonical $f.custody.$key)-cne(ConvertTo-KmcChunk7Canonical $Observation.inheritedFixture.$key)){throw 'Owned area transfer changed inherited roster, facts, progression or money.'}}
+  foreach($a in $f.actors){foreach($key in @('object','descriptor','viewObject')){if($worldLabels.Contains([int]$a.$key)){throw 'Owned area actor aliases a world owner.'};[void]$used.Add([int]$a.$key)}
+   $view=@($p.views|Where-Object id -CEQ $a.id);if($view.Count-gt1-or($a.id-cin(Get-KmcChunk7OwnedPairIds $Request)-and($view.Count-ne1-or$view[0].viewId-ne$a.view))){throw 'Owned area full field differs from the independently observed mounted views.'}
+  }
+  foreach($pair in $f.custody.pairs){foreach($key in @('feature','rankFact')){if($worldLabels.Contains([int]$pair.$key)){throw 'Owned area fact aliases a world owner.'};[void]$used.Add([int]$pair.$key)}}
+  if($i-gt0){
+   foreach($key in @('game','player','manager','state','authorityGeneration')){if($w.$key-ne$r.before.ownedWorld.$key){throw 'Owned area transferred a different native world or authority.'}}
+   if($w.worldScope-eq$r.before.ownedWorld.worldScope){throw 'Owned area did not adopt a distinct destination scope.'}
+   foreach($key in @('characters','actors')){if((ConvertTo-KmcChunk7Canonical $f.$key)-cne(ConvertTo-KmcChunk7Canonical $r.before.ownedField.$key)){throw 'Owned area replaced a field actor, view, relationship or ready command boundary.'}}
+   if($i-gt1-and(ConvertTo-KmcChunk7Canonical $w)-cne(ConvertTo-KmcChunk7Canonical $r.headerStarting.ownedWorld)){throw 'Owned area destination authority changed during native saving.'}
+  }
+ }
+ $s=$Observation.ownedOutputCompletion.areaSaveIdentity
+ foreach($key in @('operation','requested','prepared','completion','sourceDescriptor')){if($used.Contains([int]$s.$key)){throw 'Owned area native save identity aliases a field/world owner.'};[void]$used.Add([int]$s.$key)}
+ if($used.Count-ne$registry.Count-or@($registry|Where-Object{-not$used.Contains($_)}).Count-ne0){throw 'Owned area retention contains an unobserved object.'}
+}
+function Assert-KmcChunk7OwnedAreaSaveIdentity($Request,$Observation){
+ $r=$Observation.areaTransfer;$a=$r.headerStarting.nativeSaveBoundary;$b=$r.headerStaged.nativeSaveBoundary;$c=$Observation.ownedOutputCompletion.areaSaveIdentity
+ $properties=@('operation','requested','prepared','sourceDescriptor','requestedType','requestedName','preparedType','preparedName','preparedLeaf','preparedArea','preparedPath','completionCount','callbackCount','snapshotCount')
+ foreach($v in @($a,$b)){Assert-KmcExactProperties $v $properties 'owned area native header';$ids=[Collections.Generic.HashSet[int]]::new();foreach($key in @('operation','requested','prepared','sourceDescriptor')){Assert-KmcManualSeedObjectIdentity $v.$key;if(-not$ids.Add([int]$v.$key)){throw 'Owned area save operation/request/copy/source identities alias.'}}
+  foreach($key in @('requestedType','preparedType')){Assert-KmcBootstrapInventoryString $v.$key 'Auto'}
+  foreach($key in @('requestedName','preparedName')){Assert-KmcBootstrapInventoryString $v.$key $Observation.nativeWrite.nativeName}
+  Assert-KmcBootstrapInventoryString $v.preparedLeaf (Get-KmcChunk7OwnedOutputLeaf $Request $Observation);Assert-KmcBootstrapInventoryString $v.preparedArea $Request.persistenceAreaTarget.area;Assert-KmcBootstrapInventoryString $v.preparedPath $Observation.nativeWrite.path
+  foreach($key in @('completionCount','callbackCount')){Assert-KmcOrdinaryInteger $v.$key 0 0}
+ }
+ Assert-KmcOrdinaryInteger $a.snapshotCount 0 0;Assert-KmcOrdinaryInteger $b.snapshotCount 1 1
+ foreach($key in $properties|Where-Object{$_-cne'snapshotCount'}){if((ConvertTo-KmcChunk7Canonical $a.$key)-cne(ConvertTo-KmcChunk7Canonical $b.$key)){throw 'Owned area staging replaced the captured native request or prepared copy.'}}
+ Assert-KmcExactProperties $c @('operation','requested','prepared','completion','path','sourceDescriptor') 'owned area completed native save'
+ $ids=[Collections.Generic.HashSet[int]]::new();foreach($key in @('operation','requested','prepared','completion','sourceDescriptor')){Assert-KmcManualSeedObjectIdentity $c.$key;if(-not$ids.Add([int]$c.$key)){throw 'Owned area completion identities alias.'};if($key-cne'completion'-and$c.$key-ne$a.$key){throw 'Owned area completion is not the captured native request/copy.'}}
+ Assert-KmcBootstrapInventoryString $c.path $Observation.nativeWrite.path
+ if($r.identityRetention.ids-isnot[Array]){throw 'Owned area completion has no retained observer.'};foreach($id in $ids){if($id-cnotin$r.identityRetention.ids){throw 'Owned area completion was not retained through worker settlement.'}}
 }

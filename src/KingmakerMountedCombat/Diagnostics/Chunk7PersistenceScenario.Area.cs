@@ -38,7 +38,7 @@ namespace KingmakerMountedCombat.Diagnostics
             RequireNativeWorld();
             var game = Game.Instance; var target = request.PersistenceAreaTarget;
             Require(AreaAutosaveCase && !Cold && target != null && target.AutoSaveMode == "AfterEntry" &&
-                target.Area != request.Fixture.Working.Area && game.CurrentlyLoadedArea.AssetGuidThreadSafe == request.Fixture.Working.Area,
+                target.Area != request.SelectedChunk7Fixture.Area && game.CurrentlyLoadedArea.AssetGuidThreadSafe == request.SelectedChunk7Fixture.Area,
                 "Area autosave requires its exact declared destination and AfterEntry policy.");
             Require(!game.Player.IsInCombat && !LoadingProcess.Instance.IsLoadingInProcess && !LoadingProcess.Instance.QueuedNames.Any() &&
                 !persistence.HasActiveSaveScope && !persistence.HasSaveAdmissionFence && !persistence.AreaTransitionPending &&
@@ -54,6 +54,7 @@ namespace KingmakerMountedCombat.Diagnostics
             Require(SettingsRoot.Instance.AutosaveEnabled.CurrentValue && game.SaveManager.IsSaveAllowed() &&
                 !game.SaveManager.Any(s => s.Type == SaveInfo.SaveType.Auto && s.IsActuallySaved),
                 "Native AfterEntry autosave is disabled, refused or would rotate an existing slot.");
+            if (request.OwnedPairs != null) RequireOwnedSaveAdmission(SaveInfo.SaveType.Auto);
             NativePersistenceIsolation.EnableNativeSlotRotation();
             areaWorld = game.Player; areaNativeTicks = game.TimeController.GameTime.Ticks;
             areaActorDebt = actors.Select(MountedPersistenceService.CaptureActor).ToArray();
@@ -67,9 +68,14 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             areaCastBaseline = controls.NativeCastRequestCount; areaSnapshotBaseline = persistence.SnapshotCount;
             castBefore = areaCastBaseline; snapshotBefore = areaSnapshotBaseline; callback = false;
+            if (inherited != null)
+            {
+                areaIdentities = new RetainedObjectIdentity(128);
+                inherited.BeginAreaAutosave(enter.Area);
+            }
             areaBefore = CaptureAreaWorld("before-native-transfer");
             evidence["areaTransfer"] = new JObject { ["mode"] = target.AutoSaveMode, ["enterPoint"] = target.EnterPoint,
-                ["sourceArea"] = request.Fixture.Working.Area, ["destinationArea"] = target.Area, ["before"] = areaBefore,
+                ["sourceArea"] = request.SelectedChunk7Fixture.Area, ["destinationArea"] = target.Area, ["before"] = areaBefore,
                 ["nativeSaveCallbackExpected"] = false, ["explicitSaveGameDispatches"] = 0 };
             persistence.SaveSnapshotStarting += ObserveAreaAutosaveStarting;
             persistence.SaveSnapshotStaged += ObserveAreaAutosaveStaged;
@@ -135,6 +141,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 AdoptDeclaredAreaWorld();
                 if (areaHeaderStarting != null) throw new InvalidOperationException("Area case observed a second native header start.");
                 areaHeaderStarting = CaptureAreaWorld("native-header-starting");
+                if (inherited != null) areaHeaderStarting["nativeSaveBoundary"] = ObserveOwnedAreaHeader(false);
                 AssertOwners(); AssertAreaRestoredViews();
             }
             catch (Exception error) { areaObserverError = areaObserverError ?? error.ToString(); }
@@ -146,6 +153,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 AdoptDeclaredAreaWorld();
                 if (areaHeaderStaged != null) throw new InvalidOperationException("Area case observed a second native header stage.");
                 areaHeaderStaged = CaptureAreaWorld("native-header-staged");
+                if (inherited != null) areaHeaderStaged["nativeSaveBoundary"] = ObserveOwnedAreaHeader(true);
                 AssertOwners(); AssertAreaRestoredViews();
             }
             catch (Exception error) { areaObserverError = areaObserverError ?? error.ToString(); }
@@ -156,7 +164,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var target = request.PersistenceAreaTarget;
             Require(AreaAutosaveCase && !Cold && stage == 30 && areaTransferDispatched && target != null &&
                 target.AutoSaveMode == "AfterEntry" && areaDestination != null &&
-                areaDestination.AssetGuidThreadSafe == target.Area && target.Area != request.Fixture.Working.Area &&
+                areaDestination.AssetGuidThreadSafe == target.Area && target.Area != request.SelectedChunk7Fixture.Area &&
                 ReferenceEquals(areaWorld, Game.Instance?.Player) && persistence.AreaSuspensionCount == 1 &&
                 persistence.AreaResumeCount == 2 && persistence.FailedAreaPairCount == 0 &&
                 persistence.FailedSaveCount == 0 && persistence.SemanticRestoreCount == 0 && persistence.PresentationRestoreCount == 0 &&
@@ -167,7 +175,8 @@ namespace KingmakerMountedCombat.Diagnostics
             AssertOwners(); AssertSlots(); AssertAreaRestoredViews();
             // The prior source scope is immutable. Only this explicit completed
             // native transfer establishes the new loaded-area/main-state pins.
-            nativeScope = new Chunk7NativeWorldScope(request, actors.Concat(originalSelection), target.Area);
+            inherited?.AdoptAreaAutosave(areaDestination);
+            nativeScope = inherited?.Scope ?? new Chunk7NativeWorldScope(request, actors.Concat(originalSelection), target.Area);
             areaScopeAdopted = true;
         }
 
@@ -197,6 +206,15 @@ namespace KingmakerMountedCombat.Diagnostics
                     ["riderViewBoundToOwner"] = relationship?.IsExactCapturedView(rider),
                     ["mountViewBoundToOwner"] = relationship?.IsExactCapturedView(relationship.Mount) };
             }));
+            if (inherited != null)
+            {
+                row["ownedField"] = inherited.CaptureReplayField(areaIdentities.Get, "replay-field");
+                row["ownedWorld"] = new JObject { ["game"] = areaIdentities.Get(game), ["player"] = areaIdentities.Get(game.Player),
+                    ["manager"] = areaIdentities.Get(game.SaveManager), ["worldScope"] = areaIdentities.Get(nativeScope),
+                    ["state"] = areaIdentities.Get(game.State), ["areaState"] = areaIdentities.Get(game.State.LoadedAreaState),
+                    ["mainState"] = areaIdentities.Get(game.State.LoadedAreaState.MainState),
+                    ["authorityGeneration"] = replayAuthorization.AuthorityGeneration };
+            }
             return row;
         }
         private void AssertAreaRestoredViews()

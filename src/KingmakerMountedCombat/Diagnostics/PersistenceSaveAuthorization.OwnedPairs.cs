@@ -32,8 +32,9 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             var selected = value?.OwnedPairs; var source = value?.PersistenceLoad;
             return string.Join("\n", value?.RunId, value?.Scenario, value?.EvidenceRoot, value?.Commit, value?.DllSha256,
-                value?.DllMvid, value?.TransactionToken, value?.PersistenceCase, selected?.Case, selected?.SourceRunId,
-                selected?.SourceArtifactSha256, selected?.SourceArchiveSha256, selected?.CheckpointSourceRunId,
+                value?.DllMvid, value?.TransactionToken, value?.PersistenceCase, value?.Schema1DerivationSha256, selected?.Case, selected?.SourceRunId,
+                selected?.SourceArtifactSha256, selected?.SourceArchiveSha256, selected?.SourceArea,
+                value?.PersistenceAreaTarget?.EnterPoint, value?.PersistenceAreaTarget?.Area, value?.PersistenceAreaTarget?.AutoSaveMode, selected?.CheckpointSourceRunId,
                 selected?.CheckpointSourceArtifactSha256, selected?.RiderAId, selected?.MountAId, selected?.RiderBId, selected?.MountBId,
                 selected?.PartyIds == null ? null : string.Join(",", selected.PartyIds), selected?.BaseGameOnly.ToString(),
                 selected?.ExpectedNativeLoadCount.ToString(), selected?.ExpectedNativeWriteCount.ToString(), source?.FileName,
@@ -65,7 +66,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 Entry output;
                 if (ownedPairsReservations != 1 || ownedPairsSourceDescriptor == null || ownedPairsNumber <= 0 || entries.Count != (ownedPairsReplacementLeaf == null ? 2 : 3) ||
                     !entries.TryGetValue(ownedPairsOutputLeaf, out output) || output.Name != ownedPairsOutputName || output.Type != ownedPairsOutputType ||
-                    output.Area != source.Area || !output.Writable || output.Bootstrap || output.AdmitsBeforeArea || output.AdmissionArea != null ||
+                    output.Area != ownedPairsRequest.ExpectedChunk7ArchiveArea || !output.Writable || output.Bootstrap || output.AdmitsBeforeArea || output.AdmissionArea != null ||
                     output.ForeignGameId != null || output.ForeignGameName != null) return false;
                 if (ownedPairsReplacementLeaf != null)
                 {
@@ -115,8 +116,8 @@ namespace KingmakerMountedCombat.Diagnostics
                     ownedPairsReservations != 0 || !MatchesOwnedPairsPlan(false, true) || ValidateArchiveIdentity(source, Root) != null)
                     throw new InvalidOperationException("Owned-pair output reservation lacks exact unchanged request/world/native source custody.");
                 var selectedType = request.OwnedPairs.Cold ? "Manual" : request.PersistenceCase == "multi-exploration-quick" ? "Quick" :
-                    request.PersistenceCase == "multi-exploration-auto" ? "Auto" : "Manual";
-                var selectedName = request.OwnedPairs.Cold ? "KMC_C7_SCHEMA2" : "KMC_C7_WORLD";
+                    request.PersistenceCase == "multi-exploration-auto" || request.PersistenceCase == "multi-area-autosave" ? "Auto" : "Manual";
+                var selectedName = request.OwnedPairs.Cold ? (Chunk7OwnedPairsSelection.OwnedSchema1Cold(request.PersistenceCase) ? "KMC_C7_SCHEMA1" : "KMC_C7_SCHEMA2") : "KMC_C7_WORLD";
                 if (number <= 0 || type != selectedType || nativeName != ownedPairsExpectedNativeName || string.IsNullOrWhiteSpace(nativeName) || nativeName.Length > 256 || nativeName.Any(char.IsControl) ||
                     type == "Manual" && nativeName != selectedName || type != "Manual" && number != 1)
                     throw new InvalidOperationException("Owned-pair native category/name/number differs from its closed selected case.");
@@ -131,7 +132,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (paths.Length != 1 || paths[0] != Path.Combine(Root, request.PersistenceLoad.FileName) || Directory.Exists(paths[0]))
                     throw new InvalidOperationException("Owned-pair isolated native inventory changed before reservation.");
                 var leaf = type + "_" + number.ToString(CultureInfo.InvariantCulture) + (type == "Manual" ? "_" + nativeName : "") + ".zks";
-                var output = new Entry { Name = nativeName, Type = type, Area = request.PersistenceLoad.Area, Writable = true };
+                var output = new Entry { Name = nativeName, Type = type, Area = request.ExpectedChunk7ArchiveArea, Writable = true };
                 VerifyFile(leaf, output);
                 entries.Add(leaf, output); ownedPairsSourceDescriptor = nativeDescriptor; ownedPairsNumber = number;
                 ownedPairsOutputLeaf = leaf; ownedPairsOutputName = nativeName; ownedPairsOutputType = type; ownedPairsReservations = 1;

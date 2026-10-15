@@ -62,16 +62,19 @@ function Get-KmcChunk7OwnedPairsManualSource($Selection,[AllowNull()][string]$Pe
  for($i=0;$i-lt2;$i++){Assert-KmcBootstrapInventoryString $owners[$i].actorId $roles[$i*2];Assert-KmcBootstrapInventoryString $owners[$i].petId $roles[$i*2+1]}
  $party=@($artifact.observations.fieldWorld.party|ForEach-Object{$_.id})
  if((ConvertTo-KmcChunk7Canonical @($party|Sort-Object -CaseSensitive))-cne(ConvertTo-KmcChunk7Canonical @($Selection.partyIds|Sort-Object -CaseSensitive))){throw 'Explicit inherited field roster differs from completed native selector/save evidence.'}
+ if($PersistenceCase-ceq'multi-area-autosave'){Assert-KmcChunk7OwnedAreaProfileRestoration $set $Selection.sourceRunId;Assert-KmcBootstrapInventoryString $artifact.observations.nativeWrite.area $Selection.sourceArea}
  $w=$artifact.observations.nativeWrite;$descriptor=[pscustomobject]@{internalName=$w.internalName;fileName=$w.fileName;sha256=$w.sha256;length=$w.length;lastWriteTimeUtcTicks=$w.lastWriteTimeUtcTicks;gameId=$w.gameId;gameName=$w.gameName;area=$w.area}
  # Validate the immutable source descriptor as the source mode, without changing
  # the real request or selecting a native action. Cold source is checked below.
  $sourceSelection=$Selection|ConvertTo-Json -Depth 16|ConvertFrom-Json;$sourceSelection.case='exploration';$sourceSelection.checkpointSourceRunId=$null;$sourceSelection.checkpointSourceArtifactSha256=$null;$sourceSelection.expectedNativeWriteCount=0;$sourceSelection.expectedNativeLoadCount=1
+ if($sourceSelection.PSObject.Properties['sourceArea']){$sourceSelection.PSObject.Properties.Remove('sourceArea')}
  Assert-KmcChunk7OwnedPairsDescriptor ([pscustomobject]@{scenario='chunk7-owned-two-pair-campaign';runId='unassigned-owned-manual';ownedPairs=$sourceSelection;persistenceLoad=$descriptor;fixture=$Fixture;persistenceCase=$null})
  Assert-KmcChunk7OwnedReceiptPins $set
  if((Get-KmcSha256 $w.path)-cne$Selection.sourceArchiveSha256){throw 'Two-owner native Manual bytes changed during qualification.'}
  [pscustomobject]@{path=$w.path;descriptor=$descriptor;artifactPath=$path;artifactSha256=$Selection.sourceArtifactSha256;artifactLength=[long]$file.Length;sourceRunId=$request.runId;ancestry=$ancestry;artifact=$artifact}
 }
-function Get-KmcChunk7OwnedPairsSource($Selection,[AllowNull()][string]$PersistenceCase,$Fixture,$Candidate){
+function Get-KmcChunk7OwnedPairsSource($Selection,[AllowNull()][string]$PersistenceCase,$Fixture,$Candidate,$AreaTarget=$null){
+ if($PersistenceCase-ceq'multi-area-autosave'){Assert-KmcChunk7AreaTarget ([pscustomobject]@{scenario='chunk7-owned-two-pair-campaign';persistenceCase=$PersistenceCase;ownedPairs=$Selection;persistenceAreaTarget=$AreaTarget})}elseif($null-ne$AreaTarget){throw 'Only owned area autosave may carry its exact destination.'}
  $manual=Get-KmcChunk7OwnedPairsManualSource $Selection $PersistenceCase $Fixture $Candidate
  if($Selection.case-cne'persistence-load'){return $manual}
  $sourceCase=Get-KmcChunk7PersistenceSourceCase $PersistenceCase
@@ -82,13 +85,18 @@ function Get-KmcChunk7OwnedPairsSource($Selection,[AllowNull()][string]$Persiste
  if((ConvertTo-KmcChunk7Canonical $request.ownedPairs.partyIds)-cne(ConvertTo-KmcChunk7Canonical $Selection.partyIds)-or(ConvertTo-KmcChunk7Canonical $request.persistenceLoad)-cne(ConvertTo-KmcChunk7Canonical $manual.descriptor)){throw 'Checkpoint source substituted inherited ancestry or the immutable Manual.'}
  Assert-KmcChunk7OwnedSourceCompletion $set $Selection.checkpointSourceRunId 'chunk7-owned-two-pair-campaign' $Fixture $Candidate $Selection.sourceArchiveSha256
  Assert-KmcBootstrapInventoryString $set.owner.persistenceCase $sourceCase
+ if($PersistenceCase-ceq'multi-area-autosave'){
+  Assert-KmcBootstrapInventoryString $request.ownedPairs.sourceArea $Selection.sourceArea
+  if((ConvertTo-KmcChunk7Canonical $request.persistenceAreaTarget)-cne(ConvertTo-KmcChunk7Canonical $AreaTarget)){throw 'Owned cold area source changed its admitted native destination.'}
+  Assert-KmcChunk7OwnedAreaProfileRestoration $set $Selection.checkpointSourceRunId
+ }
  Assert-KmcChunk7PersistenceArtifact $request $set.manifest 'PASS'
  $artifact=Read-KmcChunk7ManifestArtifact $request $set.manifest 'chunk7-persistence-evidence.json' 'chunk7-persistence-evidence'
  $path=Join-Path $set.root 'chunk7-persistence-evidence.json';$file=Get-Item -LiteralPath $path
  if($file.Length-le0-or$file.Length-gt16MB-or$set.pins[$path]-cne$Selection.checkpointSourceArtifactSha256){throw 'Cold checkpoint differs from its exact successful source pin.'}
  $w=$artifact.observations.nativeWrite;$archive=$w.archive;$leaf=Get-KmcChunk7OwnedOutputLeaf $request $artifact.observations
  $descriptor=[pscustomobject]@{internalName=$w.nativeName;fileName=$leaf;sha256=$w.sha256;length=$w.length;lastWriteTimeUtcTicks=[long](Get-Item -LiteralPath $w.path).LastWriteTimeUtc.Ticks;gameId=$manual.descriptor.gameId;gameName=$manual.descriptor.gameName;area=$archive.AreaId}
- Assert-KmcChunk7OwnedPairsDescriptor ([pscustomobject]@{scenario='chunk7-owned-two-pair-campaign';runId='unassigned-owned-cold';ownedPairs=$Selection;persistenceCase=$PersistenceCase;persistenceLoad=$descriptor;fixture=$Fixture})
+ Assert-KmcChunk7OwnedPairsDescriptor ([pscustomobject]@{scenario='chunk7-owned-two-pair-campaign';runId='unassigned-owned-cold';ownedPairs=$Selection;persistenceCase=$PersistenceCase;persistenceLoad=$descriptor;fixture=$Fixture;persistenceAreaTarget=$AreaTarget})
  Assert-KmcChunk7OwnedReceiptPins $set
  [pscustomobject]@{path=$w.path;descriptor=$descriptor;artifactPath=$manual.artifactPath;artifactSha256=$manual.artifactSha256;artifactLength=$manual.artifactLength;sourceRunId=$manual.sourceRunId;ancestry=$manual.ancestry;checkpointArtifactPath=$path;checkpointArtifactSha256=$Selection.checkpointSourceArtifactSha256;checkpointArtifactLength=[long]$file.Length}
 }
@@ -102,4 +110,40 @@ function Copy-KmcChunk7OwnedPairsSourceArtifact($Source,[string]$ProfileRoot,$Lo
  if((Get-KmcSha256 $Source.artifactPath)-cne$Source.artifactSha256-or(Get-Item -LiteralPath $Source.artifactPath).Length-ne$Source.artifactLength){throw 'Inherited lineage changed before locked copy.'}
  [IO.File]::Copy($Source.artifactPath,$destination,$false)
  if((Get-KmcSha256 $destination)-cne$Source.artifactSha256-or(Get-KmcSha256 $Source.artifactPath)-cne$Source.artifactSha256){throw 'Inherited lineage changed during locked copy.'}
+}
+
+# Only the new owned-area chain requires this additional exact profile result.
+# Legacy owned/Working cases retain their existing qualification contracts.
+function Assert-KmcChunk7OwnedAreaProfileRestoration($Set,[string]$RunId){
+ $path=Join-Path $Set.root 'profile-cache-changes.json';Assert-KmcNotReparsePoint $path 'owned area profile restoration';Assert-KmcNotHardLink $path 'owned area profile restoration'
+ $file=Get-Item -LiteralPath $path;if($file.Length-le0-or$file.Length-gt16MB){throw 'Owned area profile restoration receipt is empty or oversized.'}
+ $sha=Get-KmcSha256 $path;Assert-KmcManifestJsonMembersUnique $path 'owned area profile restoration';$v=Read-KmcJson $path
+ if($null-eq$v-or$v.GetType().FullName-cne'System.Management.Automation.PSCustomObject'){throw 'Owned area profile restoration must be a scalar object.'}
+ Assert-KmcOrdinaryInteger $v.schemaVersion 1 1;Assert-KmcBootstrapInventoryString $v.runId $RunId;Assert-KmcBootstrapInventoryString $v.policy 'native-achievement-cache-settled-size'
+ if($v.snapshotProfileDigest-isnot[string]-or$v.snapshotProfileDigest-cnotmatch'^[a-f0-9]{64}$'){throw 'Owned area source lacks its current-profile preservation digest.'}
+ Assert-KmcChunk7Boolean $v.profileBytesRestoredExactly $true
+ if($v.acceptedNativeCacheChanges-isnot[Array]-or$v.acceptedNativeCacheChanges.Count-ne0){throw 'Owned area source profile or native caches were not restored exactly.'}
+ if((Get-KmcSha256 $path)-cne$sha-or(Get-Item -LiteralPath $path).Length-ne$file.Length-or(Get-Item -LiteralPath $path).LastWriteTimeUtc.Ticks-ne$file.LastWriteTimeUtc.Ticks){throw 'Owned area restoration evidence changed during qualification.'}
+ $Set.pins[$path]=$sha
+}
+function Assert-KmcChunk7OwnedAreaColdSource($Source,$Request,$ColdArtifact){
+ Assert-KmcChunk7OwnedPairsDescriptor $Request
+ if($Request.ownedPairs.case-cne'persistence-load'-or$Request.persistenceCase-cne'multi-area-autosave'){throw 'Owned area cold proof is valid only for its exact one-load/zero-write route.'}
+ $path=Join-Path (Get-KmcLabRoot) ('runtime-evidence/'+$Request.ownedPairs.checkpointSourceRunId+'/chunk7-persistence-evidence.json')
+ Assert-KmcBootstrapInventoryString $Source.checkpointArtifactPath $path;Assert-KmcBootstrapInventoryString $Source.checkpointArtifactSha256 $Request.ownedPairs.checkpointSourceArtifactSha256
+ Assert-KmcNotReparsePoint $path 'owned area checkpoint';Assert-KmcNotHardLink $path 'owned area checkpoint';$file=Get-Item -LiteralPath $path
+ if($file.Length-le0-or$file.Length-gt16MB-or$file.Length-ne$Source.checkpointArtifactLength-or(Get-KmcSha256 $path)-cne$Source.checkpointArtifactSha256){throw 'Owned area cold source changed after completed qualification.'}
+ Assert-KmcManifestJsonMembersUnique $path 'owned area checkpoint';$parent=Read-KmcJson $path
+ foreach($key in @('commit','dllSha256','dllMvid')){Assert-KmcBootstrapInventoryString $parent.$key $Request.$key}
+ Assert-KmcBootstrapInventoryString $parent.runId $Request.ownedPairs.checkpointSourceRunId;Assert-KmcBootstrapInventoryString $parent.scenario 'chunk7-owned-two-pair-campaign';Assert-KmcBootstrapInventoryString $parent.status 'PASS'
+ Assert-KmcChunk7PersistenceObservation $Request $ColdArtifact 'PASS'
+ $prior=$parent.observations;$cold=$ColdArtifact.observations
+ Assert-KmcBootstrapInventoryString $prior.checkpoint 'multi-area-autosave';Assert-KmcChunk7Boolean $prior.cold $false
+ Assert-KmcOrdinaryInteger $prior.processId 1 ([int]::MaxValue);Assert-KmcOrdinaryInteger $cold.processId 1 ([int]::MaxValue)
+ if($prior.processId-eq$cold.processId-or$prior.nativeWrite.length-ne$Request.persistenceLoad.length-or(ConvertTo-KmcChunk7Canonical $prior.nativeWrite.archive)-cne(ConvertTo-KmcChunk7Canonical $cold.loadedArchive)){throw 'Owned area cold process did not restore the exact completed destination Auto graph.'}
+ Assert-KmcBootstrapInventoryString $prior.nativeWrite.sha256 $Request.persistenceLoad.sha256
+ foreach($spec in @(@('enterPoint',$Request.persistenceAreaTarget.enterPoint),@('destinationArea',$Request.persistenceAreaTarget.area),@('mode','AfterEntry'),@('sourceArea',$Request.ownedPairs.sourceArea))){Assert-KmcBootstrapInventoryString $prior.areaTransfer.($spec[0]) $spec[1]}
+ foreach($key in @('partyIds','currentCharacterIds','remoteCapturedIds','arrangement')){if((ConvertTo-KmcChunk7Canonical $prior.inheritedCleanup.$key)-cne(ConvertTo-KmcChunk7Canonical $cold.inheritedFixture.$key)){throw 'Owned area cold source changed full-field ancestry or progression.'}}
+ for($i=0;$i-lt2;$i++){foreach($key in @('riderId','mountId','sourceGuid','rank','profileId')){if((ConvertTo-KmcChunk7Canonical $prior.inheritedCleanup.pairs[$i].$key)-cne(ConvertTo-KmcChunk7Canonical $cold.inheritedFixture.pairs[$i].$key)){throw 'Owned area cold source changed inherited role/fact provenance.'}}}
+ if((Get-KmcSha256 $path)-cne$Source.checkpointArtifactSha256-or(Get-Item -LiteralPath $path).LastWriteTimeUtc.Ticks-ne$file.LastWriteTimeUtc.Ticks){throw 'Owned area source changed during cold graph comparison.'}
 }

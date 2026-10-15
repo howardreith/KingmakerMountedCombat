@@ -40,5 +40,22 @@ foreach($f in $fixtures){
  $expected=if($f.request.ownedPairs.case-ceq'persistence-load'){Get-KmcChunk7PersistenceType $f.request.persistenceCase}else{'Manual'};if($actual.expectedLoadType-cne$expected){throw 'Native input category differs'};$pass++
  $f.request.ownedPairs=$actual.selection;Assert-KmcChunk7OwnedPairsDescriptor $f.request;$pass++
 }
+# The actual serializer must leave every old closed selection unchanged while
+# emitting the original source area only for the new area save/cold route.
+foreach($cold in @($false,$true)){
+ $r=($fixtures|Where-Object name -CEQ 'persistence-save-multi-exploration-auto')[0].request|ConvertTo-Json -Depth 90|ConvertFrom-Json
+ $r.persistenceCase='multi-area-autosave';$r.ownedPairs|Add-Member -NotePropertyName sourceArea -NotePropertyValue $r.persistenceLoad.area
+ $r|Add-Member -NotePropertyName persistenceAreaTarget -NotePropertyValue ([pscustomobject]@{enterPoint=('e'*32);area=('f'*32);autoSaveMode='AfterEntry'})
+ if($cold){$r.ownedPairs.case='persistence-load';$r.ownedPairs.checkpointSourceRunId='completed-owned-area';$r.ownedPairs.checkpointSourceArtifactSha256='9'*64;$r.ownedPairs.expectedNativeWriteCount=0;$r.persistenceLoad.fileName='Auto_1.zks';$r.persistenceLoad.internalName='Auto';$r.persistenceLoad.area=$r.persistenceAreaTarget.area}
+ $actual=[KingmakerMountedCombat.Tests.OwnedPairsDtoTests]::Project(($r|ConvertTo-Json -Depth 90))|ConvertFrom-Json
+ if((ConvertTo-KmcChunk7Canonical $actual.selection)-cne(ConvertTo-KmcChunk7Canonical $r.ownedPairs)){throw 'Area DTO lost exact original-area field or altered old keys'};$pass++
+ $r.ownedPairs=$actual.selection;Assert-KmcChunk7OwnedPairsDescriptor $r;$pass++
+ if($actual.expectedLoadType-cne$(if($cold){'Auto'}else{'Manual'})-or$actual.expectedWriteCount-ne$(if($cold){0}else{1})){throw 'Area DTO changed native source category or quota'};$pass++
+}
+$r=($fixtures|Where-Object name -CEQ 'persistence-save-multi-exploration-auto')[0].request|ConvertTo-Json -Depth 90|ConvertFrom-Json
+$r.ownedPairs|Add-Member -NotePropertyName sourceArea -NotePropertyValue $null
+$actual=[KingmakerMountedCombat.Tests.OwnedPairsDtoTests]::Project(($r|ConvertTo-Json -Depth 90))|ConvertFrom-Json
+if($actual.selection.PSObject.Properties['sourceArea']){throw 'Legacy DTO added a null SourceArea key'};$pass++
+$refused=$false;try{Assert-KmcChunk7OwnedPairsDescriptor $r}catch{$refused=$true};if(-not$refused){throw 'Raw legacy selection accepted an extra null SourceArea key'};$pass++
 @{passed=$pass;failed=0;nativeInvoked=$false;archiveRead=$false;serializer='exact-installed-Newtonsoft';sourceHashes=@($sources|ForEach-Object{@{path=$_;sha256=(Get-FileHash -LiteralPath $_).Hash.ToLowerInvariant()}})}|ConvertTo-Json -Depth 6|Set-Content -LiteralPath (Join-Path $OutputDirectory 'receipt.json') -Encoding UTF8
 Write-Host ('Owned DTO PASS='+$pass+' FAIL=0')

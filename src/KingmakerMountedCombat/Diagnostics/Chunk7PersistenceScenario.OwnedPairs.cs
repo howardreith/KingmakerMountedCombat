@@ -10,6 +10,11 @@ namespace KingmakerMountedCombat.Diagnostics
 {
     internal sealed partial class Chunk7PersistenceScenario
     {
+        private RetainedObjectIdentity areaIdentities;
+        private object areaSaveOperation;
+        private SaveInfo areaRequestedSave, areaPreparedSave;
+        private NativeSaveCompletion areaCompletedSave;
+        private bool OwnedAreaAutosave => request.OwnedPairs != null && !Cold && AreaAutosaveCase;
         private SaveInfo ownedRequestedSave;
         private int ownedSaveCallbacks;
         private string SelectedOutputLeaf(SaveInfo.SaveType type) => request.OwnedPairs == null ? NativeLeaf(type) : replaySaveAuthority.OwnedPairsOutputLeaf;
@@ -62,6 +67,7 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             if (request.OwnedPairs == null) return;
             inherited.RequirePreserved();
+            if (OwnedAreaAutosave) { ObserveOwnedAreaSaveCompletion(); return; }
             var completion = persistence.LastCompletedSave;
             var cancelledReplacement = SourceSaveBoundary && WorkerCancelSave;
             Require(ownedRequestedSave != null && ownedSaveCallbacks == 1 && (cancelledReplacement ? !callback : callback) && completion != null &&
@@ -89,6 +95,88 @@ namespace KingmakerMountedCombat.Diagnostics
                     ["completedSaveCount"] = persistence.CompletedSaveCount, ["drainCount"] = persistence.DrainedSaveCount,
                     ["committed"] = persistence.LastDrainedSaveCommitted, ["outcomeEstablished"] = persistence.LastDrainedSaveOutcomeEstablished,
                     ["path"] = persistence.LastDrainedSavePath, ["stagingLeaf"] = boundaryReplacementLeaf };
+        }
+        private JObject ObserveOwnedAreaHeader(bool staged)
+        {
+            Require(OwnedAreaAutosave && areaScopeAdopted && inherited != null && areaIdentities != null &&
+                ReferenceEquals(nativeScope, inherited.Scope) && ownedRequestedSave == null && ownedSaveCallbacks == 0 && !callback &&
+                persistence.CompletedSaveCount == 0 && persistence.LastCompletedSave == null &&
+                persistence.SnapshotCount == snapshotBefore + (staged ? 1 : 0) &&
+                replaySaveAuthority.MatchesOwnedPairsPlan(true, false) && replaySaveAuthority.AdmittedNativeLoadRequests == 1 &&
+                replaySaveAuthority.AdmittedNativeWriteRequests == 1 && replayAuthorization.AuthorizedLoadCount == 1 &&
+                replayAuthorization.AuthorizedWriteCount == 1,
+                "Owned area header lacks its sole authorized native request after restored destination custody.");
+            inherited.RequirePreserved();
+            object operation; SaveInfo requested, prepared;
+            persistence.ObserveActiveSaveHeader(out operation, out requested, out prepared);
+            Require(operation != null && requested != null && prepared != null && !ReferenceEquals(requested, prepared) &&
+                !ReferenceEquals(requested, replaySaveAuthority.OwnedPairsSourceDescriptor) &&
+                !ReferenceEquals(prepared, replaySaveAuthority.OwnedPairsSourceDescriptor) &&
+                requested.Type == SaveInfo.SaveType.Auto && prepared.Type == SaveInfo.SaveType.Auto &&
+                requested.Name == NativeName(SaveInfo.SaveType.Auto) && prepared.Name == requested.Name &&
+                prepared.FileName == replaySaveAuthority.OwnedPairsOutputLeaf && prepared.GameId == request.PersistenceLoad.GameId &&
+                prepared.GameName == request.PersistenceLoad.GameName && prepared.Area?.AssetGuidThreadSafe == ExpectedArchiveArea &&
+                !prepared.IsAutoLevelupSave && prepared.FolderName == Path.Combine(replaySaveAuthority.Root, replaySaveAuthority.OwnedPairsOutputLeaf),
+                "Owned area autosave changed its exact native request, prepared copy, category, destination or path.");
+            if (!staged)
+            {
+                Require(areaSaveOperation == null && areaRequestedSave == null && areaPreparedSave == null,
+                    "Owned area autosave observed a duplicate native header.");
+                areaSaveOperation = operation; areaRequestedSave = requested; areaPreparedSave = prepared;
+            }
+            else Require(ReferenceEquals(operation, areaSaveOperation) && ReferenceEquals(requested, areaRequestedSave) &&
+                ReferenceEquals(prepared, areaPreparedSave), "Owned area staging belongs to another native operation or prepared copy.");
+            return new JObject { ["operation"] = areaIdentities.Get(operation), ["requested"] = areaIdentities.Get(requested),
+                ["prepared"] = areaIdentities.Get(prepared), ["sourceDescriptor"] = areaIdentities.Get(replaySaveAuthority.OwnedPairsSourceDescriptor),
+                ["requestedType"] = requested.Type.ToString(), ["requestedName"] = requested.Name,
+                ["preparedType"] = prepared.Type.ToString(), ["preparedName"] = prepared.Name,
+                ["preparedLeaf"] = prepared.FileName, ["preparedArea"] = prepared.Area.AssetGuidThreadSafe,
+                ["preparedPath"] = prepared.FolderName, ["completionCount"] = persistence.CompletedSaveCount,
+                ["callbackCount"] = ownedSaveCallbacks, ["snapshotCount"] = persistence.SnapshotCount };
+        }
+        private void ObserveOwnedAreaSaveCompletion()
+        {
+            var completion = persistence.LastCompletedSave;
+            Require(OwnedAreaAutosave && areaScopeAdopted && areaSaveOperation != null && areaRequestedSave != null && areaPreparedSave != null &&
+                areaHeaderStarting != null && areaHeaderStaged != null && areaObserverError == null && ownedRequestedSave == null &&
+                ownedSaveCallbacks == 0 && !callback && completion != null && persistence.CompletedSaveCount == 1 &&
+                completion.Sequence == snapshotBefore + 1 && ReferenceEquals(completion.Requested, areaRequestedSave) &&
+                ReferenceEquals(completion.Written, areaPreparedSave) && ReferenceEquals(savedDescriptor, areaPreparedSave) &&
+                completion.Path == Path.Combine(replaySaveAuthority.Root, replaySaveAuthority.OwnedPairsOutputLeaf) &&
+                replaySaveAuthority.MatchesOwnedPairsPlan(true, false) && replaySaveAuthority.AdmittedNativeLoadRequests == 1 &&
+                replaySaveAuthority.AdmittedNativeWriteRequests == 1 && replayAuthorization.AuthorizedLoadCount == 1 &&
+                replayAuthorization.AuthorizedWriteCount == 1 && !NativePersistenceIsolation.HasPendingWrites &&
+                !persistence.HasActiveSaveScope && !persistence.HasSaveAdmissionFence,
+                "Owned area completion is not the exact observed native operation/copy and settled worker.");
+            var descriptors = Game.Instance.SaveManager.Take(3).ToArray();
+            Require(descriptors.Length == 2 && descriptors.Count(value => ReferenceEquals(value, replaySaveAuthority.OwnedPairsSourceDescriptor)) == 1 &&
+                descriptors.Count(value => ReferenceEquals(value, areaPreparedSave)) == 1 && savedDescriptor.FileName == replaySaveAuthority.OwnedPairsOutputLeaf &&
+                savedDescriptor.Name == replaySaveAuthority.OwnedPairsOutputName && savedDescriptor.Type == SaveInfo.SaveType.Auto &&
+                savedDescriptor.GameId == request.PersistenceLoad.GameId && savedDescriptor.GameName == request.PersistenceLoad.GameName &&
+                savedDescriptor.Area?.AssetGuidThreadSafe == ExpectedArchiveArea && savedDescriptor.HasFileOnDisk && savedDescriptor.IsActuallySaved &&
+                !savedDescriptor.IsAutoLevelupSave && savedDescriptor.OperationState == SaveInfo.StateType.None,
+                "Owned area Auto did not settle the exact immutable Manual and fresh destination descriptor.");
+            Require(areaCompletedSave == null, "Owned area completion was observed twice."); areaCompletedSave = completion;
+            evidence["ownedOutputCompletion"] = new JObject { ["completionSequence"] = completion.Sequence, ["callbackCount"] = ownedSaveCallbacks,
+                ["nativeWorkerSettled"] = true, ["nativeInventory"] = new JArray(descriptors.OrderBy(value => value.FileName, StringComparer.Ordinal).Select(OwnedNativeDescriptor)),
+                ["authority"] = OwnedAuthoritySnapshot(), ["areaSaveIdentity"] = new JObject {
+                    ["operation"] = areaIdentities.Get(areaSaveOperation), ["requested"] = areaIdentities.Get(completion.Requested),
+                    ["prepared"] = areaIdentities.Get(completion.Written), ["completion"] = areaIdentities.Get(completion),
+                    ["path"] = completion.Path, ["sourceDescriptor"] = areaIdentities.Get(replaySaveAuthority.OwnedPairsSourceDescriptor) } };
+        }
+        private void ReleaseOwnedAreaObservation()
+        {
+            if (areaIdentities == null) return;
+            Require(!areaObserverAttached && !NativePersistenceIsolation.HasPendingWrites && !persistence.HasActiveSaveScope &&
+                !persistence.HasSaveAdmissionFence, "Owned area native observation still owns an active callback or worker.");
+            var ids = areaIdentities.Ids; areaIdentities.Dispose();
+            if (evidence["areaTransfer"] is JObject row)
+                row["identityRetention"] = new JObject { ["capacity"] = areaIdentities.Capacity, ["ids"] = new JArray(ids),
+                    ["faults"] = areaIdentities.FaultCount, ["released"] = areaIdentities.Released,
+                    ["retainedAfterRelease"] = areaIdentities.RetainedCount };
+            Require(areaIdentities.Released && areaIdentities.RetainedCount == 0 && areaIdentities.FaultCount == 0,
+                "Owned area identity retention did not release exactly.");
+            areaSaveOperation = null; areaRequestedSave = null; areaPreparedSave = null; areaCompletedSave = null;
         }
     }
 }

@@ -98,5 +98,37 @@ foreach($paid in @($false,$true)){foreach($case in @('multi-exploration-three-lo
  Check ('owned replay maps only to qualified exploration Manual '+$paid+'/'+$case){$c=New-Case $paid $true;$c.persistenceCase=$case;$c.selection.expectedNativeLoadCount=if($case-ceq'multi-exploration-three-loads-manual'){3}else{1};$v=Qualify $c;if($v.descriptor.sha256-cne('9'*64)-or$v.checkpointArtifactSha256-cne$c.selection.checkpointSourceArtifactSha256-or$c.checkpoint.request.persistenceCase-cne'multi-exploration-manual'-or$c.selection.expectedNativeLoadCount-ne$(if($case-ceq'multi-exploration-three-loads-manual'){3}else{1})){throw 'Replay qualification changed parent identity or real selection quota'};foreach($gate in @('complete-same-candidate-lineage','strict-manifest','strict-two-owner-artifact','settled-native-manual-output','strict-checkpoint-artifact')){if(-not$script:calls.Contains($gate)){throw ('replay omitted original gate '+$gate)}}}
  foreach($wrong in @('multi-tb-debt-manual','multi-exploration-quick',$case)){Check ('replay refuses differently selected source '+$paid+'/'+$case+'/'+$wrong){$c=New-Case $paid $true;$c.persistenceCase=$case;$c.selection.expectedNativeLoadCount=if($case-ceq'multi-exploration-three-loads-manual'){3}else{1};$c.checkpoint.request.persistenceCase=$wrong;$c.checkpoint.owner.persistenceCase=$wrong;[void](Qualify $c)} $true}
 }}
+# New owned-area lineage uses the same exact qualifier with its established
+# native artifact/ancestor boundaries still explicitly substituted above.
+function Add-AreaProfile($Set){$p=Join-Path $Set.root 'profile-cache-changes.json';$v=[pscustomobject]@{schemaVersion=1;runId=$Set.request.runId;policy='native-achievement-cache-settled-size';snapshotProfileDigest=('f'*64);profileBytesRestoredExactly=$true;acceptedNativeCacheChanges=@()};$script:documents[$p]=$v;$script:hashes[$p]='a'*64;return $v}
+function New-AreaSource([bool]$Cold){
+ $c=New-Case $false $Cold;$c.persistenceCase='multi-area-autosave';$c.selection|Add-Member -NotePropertyName sourceArea -NotePropertyValue $c.parent.artifact.observations.nativeWrite.area
+ $target=[pscustomobject]@{enterPoint=('e'*32);area=('f'*32);autoSaveMode='AfterEntry'};$c|Add-Member -NotePropertyName areaTarget -NotePropertyValue $target
+ $c|Add-Member -NotePropertyName areaProfile -NotePropertyValue (Add-AreaProfile $c.parent)
+ if(-not$Cold){$c.selection.case='persistence-save';$c.selection.expectedNativeWriteCount=1}
+ else{
+  $r=$c.checkpoint.request;$r.persistenceCase='multi-area-autosave';$c.checkpoint.owner.persistenceCase=$r.persistenceCase
+  $r.ownedPairs|Add-Member -NotePropertyName sourceArea -NotePropertyValue $c.selection.sourceArea;$r|Add-Member -NotePropertyName persistenceAreaTarget -NotePropertyValue $target
+  $w=$c.checkpoint.artifact.observations.nativeWrite;$w.nativeType='Auto';$w.nativeName='Autosave';$w.archive.AreaId=$target.area;$w.path=Join-Path (Join-Path $c.checkpoint.profile 'Saved Games') 'Auto_1.zks';$script:hashes[$w.path]=$w.sha256
+  $c.checkpoint.artifact.observations.ownedOutputAdmission.number=1;$c.checkpoint.artifact.observations.ownedOutputAdmission.leaf='Auto_1.zks'
+  $c|Add-Member -NotePropertyName checkpointProfile -NotePropertyValue (Add-AreaProfile $c.checkpoint)
+ };return $c
+}
+foreach($cold in @($false,$true)){Check ('owned area original and destination qualification '+$cold){$c=New-AreaSource $cold;$v=Get-KmcChunk7OwnedPairsSource $c.selection $c.persistenceCase $c.fixture $c.candidate $c.areaTarget;if($v.descriptor.area-cne$(if($cold){$c.areaTarget.area}else{$c.selection.sourceArea})-or$v.descriptor.fileName-cne$(if($cold){'Auto_1.zks'}else{$c.parent.artifact.observations.nativeWrite.fileName})){throw 'Area descriptor substituted original or destination'};foreach($gate in @('complete-same-candidate-lineage','strict-manifest','strict-two-owner-artifact','settled-native-manual-output')){if(-not$script:calls.Contains($gate)){throw 'Area lineage skipped an existing required boundary'}}}}
+$areaBad=[ordered]@{
+ 'area source pin substituted'={param($c)$c.selection.sourceArea='d'*32}
+ 'area target omitted'={param($c)$c.areaTarget=$null}
+ 'area native mode wrong'={param($c)$c.areaTarget.autoSaveMode='BeforeExit'}
+ 'area original profile unrestored'={param($c)$c.areaProfile.profileBytesRestoredExactly=$false}
+ 'area original cache accepted'={param($c)$c.areaProfile.acceptedNativeCacheChanges=@('accepted')}
+ 'area checkpoint profile unrestored'={param($c)$c.checkpointProfile.profileBytesRestoredExactly=$false}
+ 'area checkpoint source area changed'={param($c)$c.checkpoint.request.ownedPairs.sourceArea='e'*32}
+ 'area checkpoint destination changed'={param($c)$c.checkpoint.request.persistenceAreaTarget=Clone-AreaSource $c.areaTarget;$c.checkpoint.request.persistenceAreaTarget.enterPoint='d'*32}
+ 'area output from original area'={param($c)$c.checkpoint.artifact.observations.nativeWrite.archive.AreaId=$c.selection.sourceArea}
+ 'area original profile hash drift'={param($c)$script:drift=Join-Path $c.parent.root 'profile-cache-changes.json'}
+ 'area cold parent pin drift'={param($c)$script:drift=Join-Path $c.checkpoint.root 'chunk7-persistence-evidence.json'}
+}
+function Clone-AreaSource($v){return ($v|ConvertTo-Json -Depth 30|ConvertFrom-Json)}
+foreach($m in $areaBad.GetEnumerator()){Check $m.Key {$c=New-AreaSource $true;&$m.Value $c;[void](Get-KmcChunk7OwnedPairsSource $c.selection $c.persistenceCase $c.fixture $c.candidate $c.areaTarget)} $true}
 $clock.Stop();$passed=@($results|Where-Object pass).Count;$failed=$results.Count-$passed
 [IO.File]::WriteAllText((Join-Path $testOutput 'receipt.json'),([pscustomobject]@{passed=$passed;failed=$failed;elapsedSeconds=$clock.Elapsed.TotalSeconds;nativeInvoked=$false;archiveRead=$false;scope='actual owned qualifier; established lineage/artifact validators and OS observations substituted';results=@($results)}|ConvertTo-Json -Depth 12),[Text.UTF8Encoding]::new($false));Write-Output ('Owned source: '+$passed+' PASS / '+$failed+' FAIL');if($failed){exit 1}
