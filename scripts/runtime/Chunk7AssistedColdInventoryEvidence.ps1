@@ -2,6 +2,7 @@ Set-StrictMode -Version Latest
 function Test-KmcChunk7AssistedColdInventoryScenario([string]$Scenario){$Scenario-ceq'chunk7-assisted-cold-inventory'}
 function Get-KmcChunk7AssistedColdInventoryRows {@('chunk7-assisted-cold-inventory','C7-assisted-cold-source','C7-assisted-cold-native-load','C7-assisted-cold-readonly','C7-assisted-cold-cleanup','C7-assisted-cold-runtime','C7-assisted-cold-interrupted')}
 function Assert-KmcChunk7AssistedColdInventorySelection($Request){
+ if($Request-is[Collections.IDictionary]){$Request=[pscustomobject]$Request}
  if($null-eq$Request-or$Request.scenario-isnot[string]){throw 'Assisted cold request scenario must be a scalar string.'}
  $has=$null-ne$Request.PSObject.Properties['assistedColdInventory']
  if(-not(Test-KmcChunk7AssistedColdInventoryScenario $Request.scenario)){if($has){throw 'Assisted cold selection is forbidden under another scenario.'};return}

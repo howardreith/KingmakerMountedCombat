@@ -30,6 +30,12 @@ if(([regex]::Matches($body,[regex]::Escape($import))).Count-ne1){throw 'Actual v
 $validator=[scriptblock]::Create($body.Replace($import,'# Common already loaded; unchanged full validator follows.'))
 function Validate($Q){$p=Join-Path $testOutput 'request.json';[IO.File]::WriteAllText($p,($Q|ConvertTo-Json -Depth 80),[Text.UTF8Encoding]::new($false));&$validator -RequestPath $p|Out-Null}
 Check 'full actual request admits exact cold Manual' $false {Validate (New-Request)}
+# The runner holds its request as an ordered dictionary until serialization; the selection assert must detect dictionary keys too.
+function New-RunnerRequest {$r=[ordered]@{schemaVersion=2;runId='generated-assisted-cold';scenario='chunk7-assisted-cold-inventory'};$r['assistedColdInventory']=(New-Selection);return $r}
+Check 'cold selection assert accepts the runner ordered-dictionary request' $false {Assert-KmcChunk7AssistedColdInventorySelection (New-RunnerRequest)}
+Check 'cold selection assert refuses an ordered-dictionary request without its selection' $true {$r=New-RunnerRequest;$r.Remove('assistedColdInventory');Assert-KmcChunk7AssistedColdInventorySelection $r}
+Check 'cold selection assert refuses an ordered-dictionary foreign family carrying a selection' $true {$r=New-RunnerRequest;$r['scenario']='fixture-intake';Assert-KmcChunk7AssistedColdInventorySelection $r}
+Check 'cold selection assert refuses an ordered-dictionary mutated selection' $true {$r=New-RunnerRequest;$r['assistedColdInventory'].expectedNativeWriteCount=1;Assert-KmcChunk7AssistedColdInventorySelection $r}
 $mutations=[ordered]@{
  'missing selection'={param($q)$q.PSObject.Properties.Remove('assistedColdInventory')}
  'historical family with cold selection'={param($q)$q.scenario='fixture-intake'}

@@ -389,6 +389,9 @@ function Get-KmcChunk7AssistedFixtureRows {
     @('chunk7-assisted-fixture-preparation','C7-assisted-preflight','C7-assisted-native-start','C7-assisted-story','C7-assisted-setup','C7-assisted-native-choices','C7-assisted-manual','C7-assisted-cleanup','C7-assisted-runtime','C7-assisted-interrupted')
 }
 function Assert-KmcChunk7AssistedFixtureSelection($Request) {
+    # The runner builds its request as an ordered dictionary before serialization;
+    # dictionary keys are not PSObject properties, so normalize before detection.
+    if($Request-is[Collections.IDictionary]){$Request=[pscustomobject]$Request}
     $has=$null-ne$Request.PSObject.Properties['assistedFixture']
     if(-not(Test-KmcChunk7AssistedFixtureScenario $Request.scenario)){if($has){throw 'Assisted fixture selection is forbidden under another scenario.'};return}
     if(-not$has){throw 'Exact assisted fixture selection is required.'}
