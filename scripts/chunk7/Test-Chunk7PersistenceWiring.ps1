@@ -39,6 +39,7 @@ $base=[pscustomobject]@{schemaVersion=2;runId='synthetic-wiring';scenario='chunk
 function Invoke-Request($Value){$path=Join-Path $private 'request.json';$Value|ConvertTo-Json -Depth 90|Set-Content -LiteralPath $path;& $validator -RequestPath $path|Out-Null}
 foreach($case in Get-KmcChunk7PersistenceCases){foreach($scenario in @('chunk7-persistence-save','chunk7-persistence-load')){
     $q=Copy-Test $base;$q.scenario=$scenario;$q.persistenceCase=$case
+    if(Test-KmcOwnedSchema1Case $case){Reject ($case+' requires its separate inherited family under '+$scenario) {Invoke-Request $q};continue}
     if(($case-ceq'legacy-schema1-resave-manual'-or(Test-KmcChunk7RepeatedWorldCase $case))-and$scenario-ceq'chunk7-persistence-save'){Reject ($case+' cannot produce a fabricated source') {Invoke-Request $q};continue}
     if($case-ceq'multi-exploration-three-area-transfers-manual'){$q|Add-Member NoteProperty persistenceReplayTargets @(
         [pscustomobject]@{enterPoint='c'*32;area='b'*32;autoSaveMode='None'},
@@ -105,7 +106,7 @@ foreach($file in @('Test-RuntimeGameResult.ps1','Test-RuntimeResult.ps1')){
 $quota=[IO.File]::ReadAllText((Join-Path $overlay 'Test-RuntimeGameResult.ps1'))
 $start=$quota.IndexOf('    $expectedNativeWrites = ');$end=$quota.IndexOf('    $expectedWorkingLoads = ',$start)
 $quotaBlock=[scriptblock]::Create($quota.Substring($start,$end-$start)+[Environment]::NewLine+'return $expectedNativeWrites')
-foreach($scenario in @('chunk7-persistence-save','chunk7-persistence-load')){$game=[pscustomobject]@{scenario=$scenario};$request=Copy-Test $base;$alternating=$false;$campaignB=$false;$nativeBootstrap=Test-KmcChunk7NativeBootstrapScenario $game.scenario;Check ('exact native save quota '+$scenario) {$expected=if($scenario-ceq'chunk7-persistence-save'){1}else{0};if((& $quotaBlock)-ne$expected){throw 'Native write quota differs.'}}}
+foreach($scenario in @('chunk7-persistence-save','chunk7-persistence-load')){$game=[pscustomobject]@{scenario=$scenario};$request=Copy-Test $base;$assistedFixture=$false;$assistedWriteCount=0;$absentKmc=$false;$alternating=$false;$campaignB=$false;$nativeBootstrap=Test-KmcChunk7NativeBootstrapScenario $game.scenario;Check ('exact native save quota '+$scenario) {$expected=if($scenario-ceq'chunk7-persistence-save'){1}else{0};if((& $quotaBlock)-ne$expected){throw 'Native write quota differs.'}}}
 $game=[pscustomobject]@{scenario='chunk7-persistence-load'};$request=Copy-Test $base;$request.persistenceCase='legacy-schema1-resave-manual'
 Check 'schema-1 cold native resave has exactly one write quota' {if((& $quotaBlock)-ne1){throw 'Schema-1 native write quota differs.'}}
 Write-Host ('CHUNK7 PERSISTENCE WIRING PASS='+$passed+' FAIL=0; isolated parser/request/completion checks only; fixtures='+$private)

@@ -59,7 +59,7 @@ foreach($name in @('expectedNativeWrites','expectedWorkingLoads')){
  $nodes=@($gameAst.FindAll({param($n)$n-is[Management.Automation.Language.AssignmentStatementAst]-and$n.Left.Extent.Text-ceq('$'+$name)},$true));if($nodes.Count-ne1){throw 'Exact quota assignment changed'}
  $quota=[scriptblock]::Create($nodes[0].Extent.Text+[Environment]::NewLine+'return $'+$name)
  foreach($family in @('chunk7-native-main-bootstrap','fixture-intake')){
-  $game=[pscustomobject]@{scenario=$family};$request=Request;$request.scenario=$family;$nativeBootstrap=Test-KmcChunk7NativeBootstrapScenario $family;$alternating=$campaignB=$absentKmc=$false
+  $game=[pscustomobject]@{scenario=$family};$request=Request;$request.scenario=$family;$nativeBootstrap=Test-KmcChunk7NativeBootstrapScenario $family;$assistedFixture=$alternating=$campaignB=$absentKmc=$false;$assistedWriteCount=0
   $wanted=if($name-ceq'expectedNativeWrites'){if($nativeBootstrap){1}else{0}}else{if($nativeBootstrap){0}else{1}}
   Good ('actual '+$family+' '+$name){if((&$quota)-ne$wanted){throw 'Native quota differs'}}
  }
