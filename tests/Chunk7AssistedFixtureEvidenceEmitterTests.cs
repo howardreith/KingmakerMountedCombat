@@ -20,6 +20,7 @@ static class AssistedCoreTests
   }
   Chunk7AssistedStorySnapshot IChunk7AssistedStoryBoundary.Read(){ReadCount++;if(FailReadAfterClick&&Clicks>0)throw new Exception("after read unavailable");return Clone(State);}
   public void Click(Chunk7AssistedStorySnapshot expected,int oi,int ri,Action enter){if(BeforeClick!=null)BeforeClick(this);var actual=Clone(State);Binding.Require(actual.Identity);Chunk7AssistedStoryDriver.RequireSameClickState(expected,actual);if(!EntryMissing)enter();Clicks++;if(OnClick!=null)OnClick(this);}
+  public void ClickSystemButton(Chunk7AssistedStorySnapshot expected,Action enter){if(BeforeClick!=null)BeforeClick(this);var actual=Clone(State);Binding.Require(actual.Identity);Chunk7AssistedStoryDriver.RequireSameClickState(expected,actual);if(!EntryMissing)enter();Clicks++;if(OnClick!=null)OnClick(this);}
   Chunk7AssistedShortfallSnapshot IChunk7AssistedShortfallBoundary.Read(){var v=Copy(Short);v.Identity=Copy(Short.Identity);return v;}
   public void GainExperience(Chunk7AssistedShortfallSnapshot expected,int delta,Action enter){Chunk7AssistedShortfall.RequireSameInput(expected,Short);enter();XpCalls++;Short.Experience+=delta;if(OnXp!=null)OnXp(this);}
   public void GainMoney(Chunk7AssistedShortfallSnapshot expected,long delta,Action enter){Chunk7AssistedShortfall.RequireSameInput(expected,Short);enter();MoneyCalls++;Short.Money+=delta;if(OnMoney!=null)OnMoney(this);}

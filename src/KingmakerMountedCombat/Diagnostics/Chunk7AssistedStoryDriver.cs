@@ -9,6 +9,9 @@ namespace KingmakerMountedCombat.Diagnostics
         // Implementations re-read the same native fields/list objects and current
         // frame immediately before callback entry; no deferred callback is valid.
         void Click(Chunk7AssistedStorySnapshot expected, int offerIndex, int rowIndex, Action enteringNative);
+        // Advances the sole DialogRoot system answer through the native DialogueSystemButton
+        // after re-reading the live state; used only when no TempOptionUI row is eligible.
+        void ClickSystemButton(Chunk7AssistedStorySnapshot expected, Action enteringNative);
     }
     internal enum Chunk7AssistedStoryStatus { Waiting, Clicked, ReadyAtObservedFrame, Failed, Disposed }
     internal sealed class Chunk7AssistedStorySnapshot
@@ -19,13 +22,15 @@ namespace KingmakerMountedCombat.Diagnostics
         internal string Mode, UiStatus, DialogGuid, CueGuid;
         internal bool MouseController, UnexpectedPopup, NativeBusy, Cutscene, TransitionPending, DialogActive, MainViewReady;
         internal object Controller, Dialog, Cue, Ui, Common, Manager, PcDialog, CurrentPart, OffersList, RowsList;
+        // SystemButton/ContinueCue describe the COMMON continue affordance observed from the PC dialog.
+        internal object SystemButton, SystemButtonAnswer, ContinueCue;
         internal int? ManagerKind;
-        internal bool? ManagerShown, PcActive;
+        internal bool? ManagerShown, PcActive, SystemButtonEnabled;
         internal Chunk7AssistedStoryOffer[] Offers;
         internal Chunk7AssistedStoryRow[] Rows;
     }
     internal sealed class Chunk7AssistedStoryOffer
-    { internal object Answer,Selection; internal string Guid; internal int? SelectionType; }
+    { internal object Answer,Selection; internal string Guid; internal int? SelectionType; internal bool IsSystemAnswer; internal int OnSelectActionTypeCount; }
     internal sealed class Chunk7AssistedStoryRow
     {
         internal object View, Answer; internal string Guid; internal int NativeIndex;
@@ -52,7 +57,7 @@ namespace KingmakerMountedCombat.Diagnostics
     {
         internal int Sequence,OfferIndex,RowIndex,NativeIndex,Answer,Row;
         internal string AnswerGuid,Failure;
-        internal bool NativeEntered,NativeReturned,AfterReadSucceeded;
+        internal bool NativeEntered,NativeReturned,AfterReadSucceeded,SystemButton;
         internal Chunk7AssistedStoryEvidence Before,After;
     }
     // Fixture setup only. A cached-enabled row is the selected UI affordance,
@@ -126,7 +131,41 @@ namespace KingmakerMountedCombat.Diagnostics
                         if(!row.Disabled&&row.ActiveAndEnabled&&row.ActiveInHierarchy && selectedOffer<0){selectedOffer=i;selectedRow=j;}
                     }
                 }
-                if(selectedOffer<0)return Status=Chunk7AssistedStoryStatus.Waiting;
+                if(selectedOffer<0)
+                {
+                    // No eligible TempOptionUI row. A root SYSTEM continue answer (DialogRoot.ContinueAnswer for a
+                    // COMMON cue) is excluded from m_AnswersList by Fill and routed to the DialogueSystemButton.
+                    // Prefer a real row when one exists; only advance the system button when none is eligible.
+                    var systemOffer=-1;
+                    if(current.SystemButton!=null && current.SystemButtonEnabled==true && current.Rows.Length==0)
+                        for(var i=0;i<current.Offers.Length;i++)
+                            if(ReferenceEquals(current.Offers[i].Answer,current.SystemButtonAnswer)){if(systemOffer>=0){systemOffer=-1;break;}systemOffer=i;}
+                    var everyOfferIsSystem=current.Offers.Length>0;
+                    foreach(var candidate in current.Offers)if(!candidate.IsSystemAnswer)everyOfferIsSystem=false;
+                    if(systemOffer<0 || !everyOfferIsSystem || !current.Offers[systemOffer].IsSystemAnswer)return Status=Chunk7AssistedStoryStatus.Waiting;
+                    var systemAnswer=current.Offers[systemOffer];
+                    if(systemAnswer.SelectionType==4)throw new InvalidOperationException("Manual character selection needs a separately owned native chooser and is not selected.");
+                    if(systemAnswer.OnSelectActionTypeCount!=0)throw new InvalidOperationException("A root system answer carrying OnSelect actions is not auto-advanced by assisted continue.");
+                    if(current.ContinueCue==null)throw new InvalidOperationException("An Exit system answer ends the dialog and is not driven by assisted continue; only continue answers advance.");
+                    if(attempts.Count>=MaximumChoices)throw new InvalidOperationException("Assisted story choice cap reached.");
+                    foreach(var prior in used)if(ReferenceEquals(prior.Controller,current.Controller)&&ReferenceEquals(prior.Dialog,current.Dialog)&&
+                        ReferenceEquals(prior.Cue,current.Cue)&&ReferenceEquals(prior.Answer,systemAnswer.Answer))
+                        throw new InvalidOperationException("A previously attempted story context cannot be clicked again.");
+                    // Retain attempted provenance before the potentially mutating native continue.
+                    var systemAttempt=new Chunk7AssistedStoryAttempt{Sequence=attempts.Count+1,OfferIndex=systemOffer,RowIndex=-1,NativeIndex=-1,
+                        Answer=Identity(systemAnswer.Answer),Row=0,AnswerGuid=systemAnswer.Guid,SystemButton=true,Before=LastObserved};
+                    attempts.Add(systemAttempt);used.Add(new UsedContext{Controller=current.Controller,Dialog=current.Dialog,Cue=current.Cue,Answer=systemAnswer.Answer});
+                    pending=current;progressStart=current.ElapsedMilliseconds;
+                    try
+                    {
+                        boundary.ClickSystemButton(current,()=>{if(systemAttempt.NativeEntered)throw new InvalidOperationException("Duplicate native system-button dispatch is forbidden.");systemAttempt.NativeEntered=true;nativeClicks++;});
+                        if(!systemAttempt.NativeEntered)throw new InvalidOperationException("Native system-button entry was not observed.");
+                        systemAttempt.NativeReturned=true;
+                        var afterSystem=boundary.Read();RequireSnapshot(afterSystem);systemAttempt.After=Capture(afterSystem);systemAttempt.AfterReadSucceeded=true;LastObserved=systemAttempt.After;
+                    }
+                    catch(Exception error){systemAttempt.Failure=Bound(error.GetType().Name+": "+error.Message);throw;}
+                    return Status=Chunk7AssistedStoryStatus.Clicked;
+                }
                 var offer=current.Offers[selectedOffer];var selected=current.Rows[selectedRow];
                 if(offer.SelectionType==4)throw new InvalidOperationException("Manual character selection needs a separately owned native chooser and is not selected.");
                 if(attempts.Count>=MaximumChoices)throw new InvalidOperationException("Assisted story choice cap reached.");
@@ -158,6 +197,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 !ReferenceEquals(expected.Ui,actual.Ui)||!ReferenceEquals(expected.Common,actual.Common)||!ReferenceEquals(expected.Manager,actual.Manager)||
                 !ReferenceEquals(expected.PcDialog,actual.PcDialog)||!ReferenceEquals(expected.CurrentPart,actual.CurrentPart)||
                 !ReferenceEquals(expected.OffersList,actual.OffersList)||!ReferenceEquals(expected.RowsList,actual.RowsList)||
+                !ReferenceEquals(expected.SystemButton,actual.SystemButton)||expected.SystemButtonEnabled!=actual.SystemButtonEnabled||!ReferenceEquals(expected.SystemButtonAnswer,actual.SystemButtonAnswer)||
                 expected.DialogGuid!=actual.DialogGuid||expected.CueGuid!=actual.CueGuid||expected.ManagerKind!=actual.ManagerKind||!actual.ManagerKind.HasValue||actual.UiStatus!=SelectedStatus(actual.ManagerKind.Value)||actual.ManagerShown!=true||actual.PcActive!=true||
                 !actual.MouseController||actual.UnexpectedPopup||actual.NativeBusy||actual.TransitionPending||!actual.DialogActive)
                 throw new InvalidOperationException("Native story context or frame changed before row dispatch.");

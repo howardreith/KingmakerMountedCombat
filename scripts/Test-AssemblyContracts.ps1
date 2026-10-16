@@ -1309,6 +1309,60 @@ if($Target-eq'Kingmaker'){
     Assert-Contract ($null-ne$stopCoroutine -and @($stopCoroutine).Count-eq1 -and @($stopCoroutine)[0].GetParameters().Count-eq1 -and @($stopCoroutine)[0].GetParameters()[0].ParameterType.FullName-ceq'UnityEngine.Coroutine' -and @($stopCoroutine)[0].ReturnType.FullName-ceq'System.Void') 'Unity token 06000E3C MonoBehaviour.StopCoroutine(Coroutine)'
     Assert-Contract ($null-ne$waitConstructor -and @($waitConstructor).Count-eq1 -and @($waitConstructor)[0].GetParameters().Count-eq0) 'Unity token 0600156D WaitForEndOfFrame constructor'
     Assert-Contract ($null-ne$executionOrderConstructor -and @($executionOrderConstructor).Count-eq1 -and @($executionOrderConstructor)[0].GetParameters().Count-eq1 -and @($executionOrderConstructor)[0].GetParameters()[0].ParameterType.FullName-ceq'System.Int32') 'Unity token 060001F4 DefaultExecutionOrder(Int32) constructor'
+    # Chunk 7 cutscene-embedded COMMON dialog continue: a sole DialogRoot system answer renders on the separate
+    # DialogueSystemButton (never a TempOptionUI row, because Fill skips IsSystem answers). Advancing it through the
+    # button's real OnClick reproduces the exact player continue via the same DialogController.SelectAnswer.
+    foreach($expected in @(
+        @('Kingmaker.Blueprints.Root.DialogExtensions',0x0600977A,'IsSystem'),
+        @('Kingmaker.UI.Dialog.DialogCurrentPart',0x060045FF,'Fill'),
+        @('Kingmaker.UI.Dialog.DialogController',0x060045EF,'HandleOnCueShow'),
+        @('Kingmaker.UI.Dialog.DialogueSystemButton',0x0600460B,'Show'),
+        @('Kingmaker.UI.Dialog.DialogueSystemButton',0x0600460C,'Hide'),
+        @('Kingmaker.UI.Dialog.DialogueSystemButton',0x0600460D,'OnClick'),
+        @('Kingmaker.UI.Dialog.DialogueSystemButton',0x06004608,'get_IsEnable'),
+        @('Kingmaker.UI.Dialog.DialogueSystemButton',0x06004609,'set_IsEnable'),
+        @('Kingmaker.Controllers.Dialog.DialogController',0x06009314,'get_Answers'),
+        @('Kingmaker.Controllers.Dialog.DialogController',0x06009325,'SelectAnswer'),
+        @('Kingmaker.Controllers.Dialog.DialogController',0x06009326,'SelectNextCue'),
+        @('Kingmaker.Controllers.Dialog.DialogController',0x06009321,'ScheduleCue'),
+        @('Kingmaker.Controllers.Dialog.DialogController',0x06009324,'StopDialog'),
+        @('Kingmaker.UI.Dialog.TempOptionUI',0x06004616,'OnClick')
+    )){
+        $member=@(Find-Token $expected[0] $expected[1])
+        Assert-Contract ($member.Count-eq1 -and $member[0].Name-ceq$expected[2]) ('dialog continue native method '+$expected[0]+'.'+$expected[2])
+    }
+    foreach($expected in @(
+        @('Kingmaker.UI.Dialog.DialogController',0x04002EC0,'SystemButton','Kingmaker.UI.Dialog.DialogueSystemButton'),
+        @('Kingmaker.UI.Dialog.DialogueSystemButton',0x04002EDA,'m_IsEnable','System.Boolean'),
+        @('Kingmaker.UI.Dialog.DialogueSystemButton',0x04002EDC,'m_Answer','Kingmaker.DialogSystem.Blueprints.BlueprintAnswer'),
+        @('Kingmaker.Controllers.Dialog.DialogController',0x04005E68,'m_ContinueCue','Kingmaker.DialogSystem.Blueprints.BlueprintCueBase'),
+        @('Kingmaker.Blueprints.Root.BlueprintRoot',0x040060F5,'Dialog','Kingmaker.Blueprints.Root.DialogRoot'),
+        @('Kingmaker.Blueprints.Root.DialogRoot',0x0400618E,'ContinueAnswer','Kingmaker.DialogSystem.Blueprints.BlueprintAnswer'),
+        @('Kingmaker.Blueprints.Root.DialogRoot',0x0400618D,'ExitAnswer','Kingmaker.DialogSystem.Blueprints.BlueprintAnswer'),
+        @('Kingmaker.Blueprints.Root.DialogRoot',0x04006190,'InterchapterContinueAnswer','Kingmaker.DialogSystem.Blueprints.BlueprintAnswer'),
+        @('Kingmaker.Blueprints.Root.DialogRoot',0x0400618F,'InterchapterExitAnswer','Kingmaker.DialogSystem.Blueprints.BlueprintAnswer'),
+        @('Kingmaker.UI.Dialog.DialogCurrentPart',0x04002ED8,'m_AnswersList',$null)
+    )){
+        $field=@(Find-Token $expected[0] $expected[1])
+        $shape=$field.Count-eq1 -and $field[0]-is[Reflection.FieldInfo] -and $field[0].Name-ceq$expected[2]
+        if($shape -and $null-ne$expected[3]){$shape=$field[0].FieldType.FullName-ceq$expected[3]}
+        Assert-Contract $shape ('dialog continue native field '+$expected[0]+'.'+$expected[2])
+    }
+    $dialogIsSystem=$assembly.ManifestModule.ResolveMethod(0x0600977A)
+    Assert-Contract ($dialogIsSystem.IsStatic -and (Test-MethodIlContainsToken $dialogIsSystem 0x0400618E) -and (Test-MethodIlContainsToken $dialogIsSystem 0x0400618D) -and (Test-MethodIlContainsToken $dialogIsSystem 0x04006190) -and (Test-MethodIlContainsToken $dialogIsSystem 0x0400618F)) 'DialogExtensions.IsSystem compares exactly the four DialogRoot system answers'
+    $dialogFill=$assembly.ManifestModule.ResolveMethod(0x060045FF)
+    Assert-Contract ((Test-MethodIlContainsToken $dialogFill 0x0600977A) -and (Test-MethodIlContainsToken $dialogFill 0x04002ED8)) 'DialogCurrentPart.Fill consults IsSystem and builds TempOptionUI rows into m_AnswersList (system answers excluded)'
+    $dialogHandle=$assembly.ManifestModule.ResolveMethod(0x060045EF)
+    Assert-Contract ((Test-MethodIlContainsToken $dialogHandle 0x06009314) -and (Test-MethodIlContainsToken $dialogHandle 0x0600977A) -and (Test-MethodIlContainsToken $dialogHandle 0x04002EC0) -and (Test-MethodIlContainsToken $dialogHandle 0x0600460B) -and (Test-MethodIlContainsToken $dialogHandle 0x0600460C) -and (Test-MethodIlContainsToken $dialogHandle 0x060045FF)) 'HandleOnCueShow routes a system first answer to the DialogueSystemButton Show/Hide and otherwise Fills rows'
+    $dialogShow=$assembly.ManifestModule.ResolveMethod(0x0600460B)
+    Assert-Contract ((Test-MethodIlContainsToken $dialogShow 0x04002EDC) -and (Test-MethodIlContainsToken $dialogShow 0x06004609)) 'DialogueSystemButton.Show binds m_Answer and enables the button'
+    $dialogSystemClick=$assembly.ManifestModule.ResolveMethod(0x0600460D)
+    Assert-Contract ((Test-MethodIlContainsToken $dialogSystemClick 0x06004608) -and (Test-MethodIlContainsToken $dialogSystemClick 0x06009325)) 'DialogueSystemButton.OnClick selects its bound answer through DialogController.SelectAnswer when enabled'
+    $dialogRowClick=$assembly.ManifestModule.ResolveMethod(0x06004616)
+    Assert-Contract (Test-MethodIlContainsToken $dialogRowClick 0x06009325) 'TempOptionUI.OnClick selects its answer through the same DialogController.SelectAnswer'
+    $dialogSelect=$assembly.ManifestModule.ResolveMethod(0x06009325)
+    Assert-Contract ((Test-MethodIlContainsToken $dialogSelect 0x0600977A) -and (Test-MethodIlContainsToken $dialogSelect 0x04005E67) -and (Test-MethodIlContainsToken $dialogSelect 0x04005621) -and (Test-MethodIlContainsToken $dialogSelect 0x06009326) -and (Test-MethodIlContainsToken $dialogSelect 0x06009324) -and (Test-MethodIlContainsToken $dialogSelect 0x06009321)) 'SelectAnswer consults IsSystem against the m_Answers Contains check, runs the answer OnSelect, and schedules the next cue or stops the dialog'
+    Assert-Contract ($assembly.ManifestModule.ModuleVersionId.ToString()-ceq'07fa1e4d-8618-41b3-9b8d-faa17d3b26f7') 'dialog continue contract pinned to the diagnosed Assembly-CSharp MVID'
 }else{
     Assert-Contract ((Get-FileHash -Algorithm SHA256 -LiteralPath $assemblyPath).Hash.ToLowerInvariant()-ceq'2cb7160b7154d4ffacc77b9c51b1eb26199e1294300f04fdfc073367b2ef8953') 'Assembly-CSharp SHA-256'
     Assert-Contract ($assembly.ManifestModule.ModuleVersionId.ToString()-ceq'90a9869c-2792-4c7b-bfb7-5a8b33da7c82') 'Assembly-CSharp MVID'

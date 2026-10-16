@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using Kingmaker;
+using Kingmaker.Blueprints.Root;
 using Kingmaker.Controllers.Dialog;
 using Kingmaker.DialogSystem;
 using Kingmaker.DialogSystem.Blueprints;
@@ -155,6 +156,32 @@ namespace KingmakerMountedCombat.Diagnostics
                                         state.UiStatus = game.CurrentMode == GameModeType.Dialog && game.IsModeActive(GameModeType.Dialog) &&
                                             state.ManagerShown == true && state.PcDialogActive == true ? "pc-cached-rows" : "inactive-dialog";
                                     }
+                                    // Common dialogs render a sole root system answer on the DialogueSystemButton, not a
+                                    // TempOptionUI row (Fill skips IsSystem answers). Observe the button affordance passively.
+                                    var systemButton = ReadField<DialogueSystemButton>(typeof(PcDialogController), view, "SystemButton", 0x04002EC0);
+                                    state.SystemButton = systemButton;
+                                    if (systemButton != null)
+                                    {
+                                        state.SystemButtonEnabled = ReadField<bool>(typeof(DialogueSystemButton), systemButton, "m_IsEnable", 0x04002EDA);
+                                        state.SystemButtonAnswer = ReadField<BlueprintAnswer>(typeof(DialogueSystemButton), systemButton, "m_Answer", 0x04002EDC);
+                                    }
+                                    state.ContinueCue = ReadField<BlueprintCueBase>(typeof(NativeDialogController), controller, "m_ContinueCue", 0x04005E68);
+                                    // Classify the offered answers against the four DialogRoot system answers by reference
+                                    // identity only (no DialogExtensions.IsSystem predicate). BlueprintRoot.Instance is the
+                                    // native single root; Game.Instance.BlueprintRoot resolves to the same instance.
+                                    var root = BlueprintRoot.Instance;
+                                    var dialogRoot = root == null ? null : ReadField<DialogRoot>(typeof(BlueprintRoot), root, "Dialog", 0x040060F5);
+                                    if (dialogRoot != null)
+                                    {
+                                        var continueAnswer = ReadField<BlueprintAnswer>(typeof(DialogRoot), dialogRoot, "ContinueAnswer", 0x0400618E);
+                                        var exitAnswer = ReadField<BlueprintAnswer>(typeof(DialogRoot), dialogRoot, "ExitAnswer", 0x0400618D);
+                                        var interchapterContinueAnswer = ReadField<BlueprintAnswer>(typeof(DialogRoot), dialogRoot, "InterchapterContinueAnswer", 0x04006190);
+                                        var interchapterExitAnswer = ReadField<BlueprintAnswer>(typeof(DialogRoot), dialogRoot, "InterchapterExitAnswer", 0x0400618F);
+                                        foreach (var offered in state.Offered)
+                                            if (offered != null)
+                                                offered.IsSystemAnswer = ReferenceEquals(offered.Answer, continueAnswer) || ReferenceEquals(offered.Answer, exitAnswer) ||
+                                                    ReferenceEquals(offered.Answer, interchapterContinueAnswer) || ReferenceEquals(offered.Answer, interchapterExitAnswer);
+                                    }
                                 }
                             }
                         }
@@ -224,14 +251,15 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             internal string Error, UiStatus;
             internal object Game, Controller, Dialog, CurrentCue, Ui, Common, Manager, PcDialog, CurrentPart;
+            internal object SystemButton, SystemButtonAnswer, ContinueCue;
             internal int? ManagerKind;
-            internal bool? ManagerShown, PcDialogActive;
+            internal bool? ManagerShown, PcDialogActive, SystemButtonEnabled;
             internal Offered[] Offered;
             internal Row[] Rows;
         }
         internal sealed class Offered
         {
-            internal object Answer; internal string Guid; internal int? SelectionType; internal bool RequireValidCue;
+            internal object Answer; internal string Guid; internal int? SelectionType; internal bool RequireValidCue, IsSystemAnswer;
             internal string[] ShowTypes, SelectTypes, ActionTypes;
         }
         internal sealed class Row
