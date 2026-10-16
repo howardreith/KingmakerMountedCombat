@@ -8,12 +8,22 @@ namespace KingmakerMountedCombat.Diagnostics
         internal static JObject Capture(Chunk7AssistedFixtureBinding binding,Chunk7AssistedStoryDriver story,Chunk7AssistedShortfall shortfall)
         {
             if(binding==null)throw new ArgumentNullException("binding");var attempts=new JArray();
+            // isExitAnswer/isContinueAnswer/continueCueDisplayed are the observed native kind of the clicked
+            // answer, so a terminal DialogRoot Exit click is an observation and not an inference drawn from
+            // the after-read. They are recorded for every attempt kind, exactly as systemButton is.
             if(story!=null)foreach(var a in story.Attempts)attempts.Add(new JObject{["sequence"]=a.Sequence,["offerIndex"]=a.OfferIndex,["rowIndex"]=a.RowIndex,["nativeIndex"]=a.NativeIndex,["systemButton"]=a.SystemButton,
+                ["isExitAnswer"]=a.IsExitAnswer,["isContinueAnswer"]=a.IsContinueAnswer,["continueCueDisplayed"]=a.ContinueCueDisplayed,
                 ["answer"]=a.Answer,["row"]=a.Row,["answerGuid"]=a.AnswerGuid,["nativeEntered"]=a.NativeEntered,["nativeReturned"]=a.NativeReturned,
                 ["afterReadSucceeded"]=a.AfterReadSucceeded,["failure"]=a.Failure,["before"]=Story(a.Before),["after"]=Story(a.After)});
             return new JObject{["contract"]=Contract,["fixtureSetupOnly"]=true,["ordinaryAcquisitionProven"]=false,["ordinaryProgressionProven"]=false,["smallPoseQualified"]=false,
                 ["runId"]=binding.RunId,["gameId"]=binding.CampaignId,["gameName"]=binding.CampaignName,["mainActorId"]=binding.MainId,["authorityGeneration"]=binding.Generation,
-                ["story"]=new JObject{["policy"]="first-cached-enabled-common-answer",["cachedStateIsAuthorization"]=false,["objectLabelScope"]="story-driver-only",
+                // The policy literal names what the driver actually does: in the native offered order, click
+                // the first eligible cached row whose (controller, dialog, cue, answer) tuple is unused, and
+                // only when no row is eligible advance the sole root DialogRoot system answer (continue or
+                // the terminal exit) through the native DialogueSystemButton. It replaces the stale
+                // "first-cached-enabled-common-answer", which described neither the system-button clicks
+                // taken with zero cached rows, nor interchapter pages, nor the unused-tuple walk.
+                ["story"]=new JObject{["policy"]="first-unused-eligible-row-else-root-system-button",["cachedStateIsAuthorization"]=false,["objectLabelScope"]="story-driver-only",
                     ["maximumChoices"]=Chunk7AssistedStoryDriver.MaximumChoices,["maximumMilliseconds"]=Chunk7AssistedStoryDriver.MaximumMilliseconds,["progressMilliseconds"]=Chunk7AssistedStoryDriver.ProgressMilliseconds,
                     ["status"]=story==null?null:story.Status.ToString(),["failure"]=story==null?null:story.Failure,["nativeClickCount"]=story==null?0:story.NativeClickCount,["attemptCount"]=story==null?0:story.AttemptCount,
                     ["attempts"]=attempts,["lastObserved"]=Story(story==null?null:story.LastObserved)},

@@ -44,12 +44,32 @@ static class AssistedCoreTests
   r.Short.Frame++;r.Short.Level=4;r.Short.NativeHireCost=8000;r.Short.PreservedStateSha256=new string('b',64);
   a.EnsureOneNativeHireCost();var j=Emit(leaf,r,d,a);if(r.XpCalls!=(noXp?0:1)||r.MoneyCalls!=(enoughMoney?0:1)||r.Clicks!=(click?1:0))throw new Exception("native substitute count changed");return j;
  }}
+ // A story hub that consumes an owned click and re-enters the IDENTICAL still-active dialog, cue and
+ // answer objects on a later frame. The driver resolves the click as consumed and clicks the next offer
+ // whose (controller, dialog, cue, answer) tuple is unused, so the run records two clicks at one cue.
+ static JObject SameCueReentry(string leaf){var r=new Rig();using(var d=r.Driver()){
+  if(d.Tick()!=Chunk7AssistedStoryStatus.Clicked)throw new Exception("first click absent");
+  r.State.Frame=11;r.State.ElapsedMilliseconds=16;
+  if(d.Tick()!=Chunk7AssistedStoryStatus.Clicked)throw new Exception("second click at the re-entered cue absent");
+  Default(r);r.State.Frame=12;r.State.ElapsedMilliseconds=32;
+  if(d.Tick()!=Chunk7AssistedStoryStatus.ReadyAtObservedFrame)throw new Exception("native later-ready observation absent");
+  r.Short.Frame=r.State.Frame+1;r.Short.Experience=100;r.Short.Level=1;r.Short.NativeHireCost=500;r.Short.Money=100;
+  var a=r.Assistance();a.EnsureExperience();
+  // External native level-up boundary is represented only between setup effects.
+  r.Short.Frame++;r.Short.Level=4;r.Short.NativeHireCost=8000;r.Short.PreservedStateSha256=new string('b',64);
+  a.EnsureOneNativeHireCost();var j=Emit(leaf,r,d,a);
+  if(r.Clicks!=2||r.XpCalls!=1||r.MoneyCalls!=1)throw new Exception("native substitute count changed");return j;}}
  static int Main(){
  Check("actual zero-click ready and two no-op effects",()=>{var j=Success("ready-noop.json",false,false,true,true);return (int)j["story"]["nativeClickCount"]==0&&(bool)j["experience"]["noOp"]&&(bool)j["hireFunds"]["noOp"]&&(string)j["mainActorId"]=="aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";});
  Check("actual one click then positive XP and funds",()=>{var j=Success("click-xp-funds.json",true,false,false,false);return (int)j["story"]["nativeClickCount"]==1&&(long)j["experience"]["delta"]==8900&&(long)j["hireFunds"]["delta"]==7900&&(int)j["experience"]["before"]["frame"]>(int)j["story"]["lastObserved"]["frame"]&&(int)j["hireFunds"]["before"]["level"]==4&&!(bool)j["story"]["attempts"][0]["systemButton"];});
  Check("actual positive XP with funds already enough",()=>{var j=Success("xp-funds-sufficient.json",true,false,false,true);return (long)j["experience"]["delta"]==8900&&(bool)j["hireFunds"]["noOp"]&&(long)j["hireFunds"]["before"]["money"]==10000;});
  Check("actual first disabled offer is skipped",()=>{var j=Success("skip-disabled-first.json",true,true,false,false);return (int)j["story"]["attempts"][0]["offerIndex"]==1&&(bool)j["story"]["attempts"][0]["before"]["rowDisabled"][0];});
  Check("actual system-button click records no row",()=>{var j=Success("system-button.json",true,false,false,false,true);var a=j["story"]["attempts"][0];return (int)j["story"]["nativeClickCount"]==1&&(bool)a["systemButton"]&&(int)a["offerIndex"]==0&&(int)a["rowIndex"]==-1&&(int)a["nativeIndex"]==-1&&(int)a["row"]==0&&((JArray)a["before"]["rowObjects"]).Count==0&&(int)a["answer"]==(int)a["before"]["offerObjects"][0]&&(long)j["experience"]["delta"]==8900;});
+ Check("actual same-cue re-entry clicks the next unused offer",()=>{var j=SameCueReentry("same-cue-reentry.json");var first=j["story"]["attempts"][0];var second=j["story"]["attempts"][1];
+  return (int)j["story"]["nativeClickCount"]==2&&(int)j["story"]["attemptCount"]==2&&(int)first["offerIndex"]==0&&(int)second["offerIndex"]==1&&
+   (int)second["before"]["cue"]==(int)first["before"]["cue"]&&(int)second["before"]["dialog"]==(int)first["before"]["dialog"]&&(int)second["before"]["controller"]==(int)first["before"]["controller"]&&
+   (bool)second["before"]["dialogActive"]&&(int)second["before"]["frame"]>(int)first["after"]["frame"]&&(int)second["answer"]!=(int)first["answer"]&&
+   !(bool)second["systemButton"]&&!(bool)second["isExitAnswer"]&&!(bool)second["isContinueAnswer"]&&!(bool)second["continueCueDisplayed"];});
  Check("actual partial native XP failure is retained negative",()=>{var r=new Rig();Default(r);using(var d=r.Driver()){d.Tick();r.Short.Frame=r.State.Frame+1;r.OnXp=x=>{throw new InvalidOperationException("generated native XP event failed after mutation");};var a=r.Assistance();if(!Throws(()=>a.EnsureExperience()))return false;var j=Emit("partial-native-failure.json",r,d,a);return (bool)j["shortfallFailed"]&&(bool)j["experience"]["nativeEntered"]&&!(bool)j["experience"]["nativeReturned"]&&j["experience"]["after"].Type==JTokenType.Null&&(string)j["experience"]["failure"]!=null&&r.Short.Experience==9000&&r.XpCalls==1;}});
  Console.WriteLine("ASSISTED ACTUAL EMITTER: "+passed+" PASS / "+failed+" FAIL");return failed==0?0:1;
  }}

@@ -58,13 +58,30 @@ namespace KingmakerMountedCombat.Diagnostics
         internal int Sequence,OfferIndex,RowIndex,NativeIndex,Answer,Row;
         internal string AnswerGuid,Failure;
         internal bool NativeEntered,NativeReturned,AfterReadSucceeded,SystemButton;
+        // The observed native kind of the clicked answer, recorded per attempt so the clicked identity is
+        // read out of the evidence instead of inferred from the after-read. IsExitAnswer is the DialogRoot
+        // Exit/InterchapterExit identity; IsContinueAnswer is the Continue/InterchapterContinue identity
+        // (IsSystemAnswer without IsExitAnswer); ContinueCueDisplayed is the controller's displayed
+        // continue cue at the click. A cached PC row records all three as observed, normally all false.
+        internal bool IsExitAnswer,IsContinueAnswer,ContinueCueDisplayed;
         internal Chunk7AssistedStoryEvidence Before,After;
     }
     // Fixture setup only. A cached-enabled row is the selected UI affordance,
     // not a claim about predicate purity, narrative meaning or terminal success.
     internal sealed class Chunk7AssistedStoryDriver : IDisposable
     {
-        internal const int MaximumChoices=16, MaximumOffers=32, MaximumRows=32;
+        // The 300000 ms total deadline and the 30000 ms no-progress bound are the real safety nets and are
+        // unchanged. MaximumChoices is only a coarse COUNT bound: the anti-replay guarantee is structural,
+        // because a (controller, dialog, cue, answer) tuple is acted on at most once and the used set only
+        // grows, so no cue can be re-driven by the same answer however many ticks run. The observed
+        // prologue alone consumed 13 of the previous 16 (one interchapter row, nine DialogueSystemButton
+        // continue advances, the terminal Exit answer and three PC choices) before reaching the first
+        // conversation hub, so 16 could not reach the non-dialog stages at all. 48 is three times that
+        // observed prologue cost, stays far below the structural ceiling (at most MaximumOffers distinct
+        // answers per cue), and keeps a run strictly bounded in count as well as in time; the evidence
+        // stays bounded with it, since each attempt records two snapshots of at most MaximumOffers offers
+        // and MaximumRows rows.
+        internal const int MaximumChoices=48, MaximumOffers=32, MaximumRows=32;
         internal const long MaximumMilliseconds=300000, ProgressMilliseconds=30000;
         internal const string PcRows="pc-cached-rows", BookRows="book-rows", InterchapterRows="interchapter-rows";
         // Common PC dialogues, book pages and interchapter pages are the selected native kinds; each has one ready status.
@@ -75,6 +92,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private readonly List<UsedContext> used=new List<UsedContext>();
         private readonly Dictionary<object,int> identities=new Dictionary<object,int>(new References());
         private Chunk7AssistedStorySnapshot pending;
+        private Chunk7AssistedStoryAttempt pendingAttempt;
         private long lastTime=-1, progressStart;
         private int lastFrame=-1, nativeClicks;
         private bool executing, failed, disposed;
@@ -110,9 +128,21 @@ namespace KingmakerMountedCombat.Diagnostics
                         if(current.ElapsedMilliseconds-progressStart>ProgressMilliseconds)throw new InvalidOperationException("Assisted story setup made no observed native progress within its bound.");
                         return Status=Chunk7AssistedStoryStatus.Waiting;
                     }
-                    pending=null;progressStart=current.ElapsedMilliseconds;return Status=Chunk7AssistedStoryStatus.ReadyAtObservedFrame;
+                    pending=null;pendingAttempt=null;progressStart=current.ElapsedMilliseconds;return Status=Chunk7AssistedStoryStatus.ReadyAtObservedFrame;
                 }
-                if(pending!=null && Progressed(pending,current)) {pending=null;progressStart=current.ElapsedMilliseconds;}
+                if(pending!=null && Progressed(pending,current)) {pending=null;pendingAttempt=null;progressStart=current.ElapsedMilliseconds;}
+                // Liveness, not a timeout. An owned click can be CONSUMED by the engine without advancing
+                // the cue: the observed stall re-entered the identical dialog, cue and answer objects with
+                // the dialog still active, a state no Progressed clause can ever report, so the pending
+                // click could never settle and the gate below short-circuited ahead of selection, the
+                // choice cap and the dedupe until the no-progress bound threw. A strictly later observed
+                // frame that still presents that identical active cue resolves the click as consumed and
+                // lets selection proceed on this observation. It never silently forgets an unobserved
+                // outcome: the frame must have advanced past the click, the click must have been observed
+                // to enter, return and read back, and the engine must be idle. The progress clock is NOT
+                // re-armed here - no cue advanced - so a genuinely frozen game still trips the unchanged
+                // bound, and the unchanged total deadline still ends any run.
+                else if(pending!=null && Consumed(pendingAttempt,pending,current)) {pending=null;pendingAttempt=null;}
                 // The prologue narration plays INSIDE a cutscene, so a closed dialog can leave the engine
                 // running that cutscene with nothing else observable for longer than ProgressMilliseconds.
                 // With no settled click outstanding, no active dialog and a cutscene playing, a strictly
@@ -130,16 +160,28 @@ namespace KingmakerMountedCombat.Diagnostics
                     return Status=Chunk7AssistedStoryStatus.Waiting;
                 ValidateChoices(current);
                 if(pending!=null || current.Offers.Length==0)return Status=Chunk7AssistedStoryStatus.Waiting;
-                var selectedOffer=-1;var selectedRow=-1;
+                var selectedOffer=-1;var selectedRow=-1;var eligibleRows=0;var eligibleRowsUsed=0;
                 for(var i=0;i<current.Offers.Length;i++)
                 {
                     for(var j=0;j<current.Rows.Length;j++)if(ReferenceEquals(current.Offers[i].Answer,current.Rows[j].Answer))
                     {
                         var row=current.Rows[j];
                         if(!row.Initialized||row.ChoosingCharacter||row.Interchapter&&current.ManagerKind.Value!=2)throw new InvalidOperationException("A current owned answer row is uninitialized or has foreign chooser/interchapter custody.");
-                        if(!row.Disabled&&row.ActiveAndEnabled&&row.ActiveInHierarchy && selectedOffer<0){selectedOffer=i;selectedRow=j;}
+                        // Walk the eligible rows in the native offered order and take the FIRST whose
+                        // (controller, dialog, cue, answer) tuple this run has not used. Consulting the
+                        // used set here, ahead of the dedupe below, is what stops a story hub that
+                        // re-presents the same answers from either fixating on one row forever or making
+                        // the dedupe throw on a tuple the policy could have walked past. The used set only
+                        // grows, so each cue is still acted on at most once per distinct answer.
+                        if(!row.Disabled&&row.ActiveAndEnabled&&row.ActiveInHierarchy)
+                        {
+                            eligibleRows++;
+                            if(Used(current,current.Offers[i].Answer))eligibleRowsUsed++;
+                            else if(selectedOffer<0){selectedOffer=i;selectedRow=j;}
+                        }
                     }
                 }
+                if(selectedOffer<0&&eligibleRows>0&&eligibleRows==eligibleRowsUsed)throw Exhausted(current);
                 if(selectedOffer<0)
                 {
                     // No eligible TempOptionUI row. A root SYSTEM answer (DialogRoot.ContinueAnswer or
@@ -162,15 +204,20 @@ namespace KingmakerMountedCombat.Diagnostics
                     // readiness). It is advanced only through the same verified DialogueSystemButton click.
                     // A continue answer still requires the displayed native continue cue, exactly as before.
                     if(!systemAnswer.IsExitAnswer&&current.ContinueCue==null)throw new InvalidOperationException("A continue system answer without the displayed native continue cue is not driven by assisted continue.");
+                    // The sole root system answer is the cue's only affordance, so there is nothing for the
+                    // policy to walk past: an already-used one is an exhausted cue, named explicitly rather
+                    // than left to the dedupe below.
+                    if(Used(current,systemAnswer.Answer))throw Exhausted(current);
                     if(attempts.Count>=MaximumChoices)throw new InvalidOperationException("Assisted story choice cap reached.");
-                    foreach(var prior in used)if(ReferenceEquals(prior.Controller,current.Controller)&&ReferenceEquals(prior.Dialog,current.Dialog)&&
-                        ReferenceEquals(prior.Cue,current.Cue)&&ReferenceEquals(prior.Answer,systemAnswer.Answer))
-                        throw new InvalidOperationException("A previously attempted story context cannot be clicked again.");
+                    // Retained invariant guard, now unreachable: the explicit refusal above already covers
+                    // a used root system answer. It stays so no path can ever replay an owned tuple.
+                    if(Used(current,systemAnswer.Answer))throw new InvalidOperationException("A previously attempted story context cannot be clicked again.");
                     // Retain attempted provenance before the potentially mutating native continue.
                     var systemAttempt=new Chunk7AssistedStoryAttempt{Sequence=attempts.Count+1,OfferIndex=systemOffer,RowIndex=-1,NativeIndex=-1,
-                        Answer=Identity(systemAnswer.Answer),Row=0,AnswerGuid=systemAnswer.Guid,SystemButton=true,Before=LastObserved};
+                        Answer=Identity(systemAnswer.Answer),Row=0,AnswerGuid=systemAnswer.Guid,SystemButton=true,
+                        IsExitAnswer=systemAnswer.IsExitAnswer,IsContinueAnswer=systemAnswer.IsSystemAnswer&&!systemAnswer.IsExitAnswer,ContinueCueDisplayed=current.ContinueCue!=null,Before=LastObserved};
                     attempts.Add(systemAttempt);used.Add(new UsedContext{Controller=current.Controller,Dialog=current.Dialog,Cue=current.Cue,Answer=systemAnswer.Answer});
-                    pending=current;progressStart=current.ElapsedMilliseconds;
+                    pending=current;pendingAttempt=systemAttempt;progressStart=current.ElapsedMilliseconds;
                     try
                     {
                         boundary.ClickSystemButton(current,()=>{if(systemAttempt.NativeEntered)throw new InvalidOperationException("Duplicate native system-button dispatch is forbidden.");systemAttempt.NativeEntered=true;nativeClicks++;});
@@ -184,14 +231,15 @@ namespace KingmakerMountedCombat.Diagnostics
                 var offer=current.Offers[selectedOffer];var selected=current.Rows[selectedRow];
                 if(offer.SelectionType==4)throw new InvalidOperationException("Manual character selection needs a separately owned native chooser and is not selected.");
                 if(attempts.Count>=MaximumChoices)throw new InvalidOperationException("Assisted story choice cap reached.");
-                foreach(var prior in used)if(ReferenceEquals(prior.Controller,current.Controller)&&ReferenceEquals(prior.Dialog,current.Dialog)&&
-                    ReferenceEquals(prior.Cue,current.Cue)&&ReferenceEquals(prior.Answer,offer.Answer))
-                    throw new InvalidOperationException("A previously attempted story context cannot be clicked again.");
+                // Retained invariant guard. Selection above already walked past every used tuple, so this
+                // can no longer fire on a tuple the policy could have skipped.
+                if(Used(current,offer.Answer))throw new InvalidOperationException("A previously attempted story context cannot be clicked again.");
                 // Retain attempted provenance before the potentially mutating call.
                 var attempt=new Chunk7AssistedStoryAttempt{Sequence=attempts.Count+1,OfferIndex=selectedOffer,RowIndex=selectedRow,
-                    NativeIndex=selected.NativeIndex,Answer=Identity(offer.Answer),Row=Identity(selected.View),AnswerGuid=offer.Guid,Before=LastObserved};
+                    NativeIndex=selected.NativeIndex,Answer=Identity(offer.Answer),Row=Identity(selected.View),AnswerGuid=offer.Guid,
+                    IsExitAnswer=offer.IsExitAnswer,IsContinueAnswer=offer.IsSystemAnswer&&!offer.IsExitAnswer,ContinueCueDisplayed=current.ContinueCue!=null,Before=LastObserved};
                 attempts.Add(attempt);used.Add(new UsedContext{Controller=current.Controller,Dialog=current.Dialog,Cue=current.Cue,Answer=offer.Answer});
-                pending=current;progressStart=current.ElapsedMilliseconds;
+                pending=current;pendingAttempt=attempt;progressStart=current.ElapsedMilliseconds;
                 try
                 {
                     boundary.Click(current,selectedOffer,selectedRow,()=>{if(attempt.NativeEntered)throw new InvalidOperationException("Duplicate native row dispatch is forbidden.");attempt.NativeEntered=true;nativeClicks++;});
@@ -268,6 +316,37 @@ namespace KingmakerMountedCombat.Diagnostics
             for(var i=0;i<before.Offers.Length;i++)if(!ReferenceEquals(before.Offers[i].Answer,after.Offers[i].Answer))return true;
             return false;
         }
+        // A pending owned click is resolved as consumed-without-advance ONLY on a strictly later observed
+        // frame that still presents the identical native controller, dialog, cue and answer objects with
+        // the dialog active and the engine idle. Every clause is an identity or observed-state comparison
+        // (the same ReferenceEquals identity the dispatch boundary uses); none is time-based. A click with
+        // no observed native entry, no observed return, no successful after read, or no later observed
+        // frame is never resolved here and still has to settle or trip the unchanged progress bound.
+        private static bool Consumed(Chunk7AssistedStoryAttempt attempt,Chunk7AssistedStorySnapshot before,Chunk7AssistedStorySnapshot after)
+        {
+            if(attempt==null||!attempt.NativeEntered||!attempt.NativeReturned||!attempt.AfterReadSucceeded)return false;
+            if(after.Frame<=before.Frame||after.NativeBusy||after.TransitionPending)return false;
+            if(after.Mode!="Dialog"||!before.DialogActive||!after.DialogActive)return false;
+            if(after.Controller==null||after.Dialog==null||after.Cue==null)return false;
+            if(!ReferenceEquals(before.Controller,after.Controller)||!ReferenceEquals(before.Dialog,after.Dialog)||!ReferenceEquals(before.Cue,after.Cue))return false;
+            if(before.Offers==null||after.Offers==null||before.Offers.Length==0||after.Offers.Length!=before.Offers.Length)return false;
+            for(var i=0;i<before.Offers.Length;i++)
+            {
+                if(before.Offers[i]==null||after.Offers[i]==null||!ReferenceEquals(before.Offers[i].Answer,after.Offers[i].Answer))return false;
+            }
+            return true;
+        }
+        private bool Used(Chunk7AssistedStorySnapshot state,object answer)
+        {
+            foreach(var prior in used)if(ReferenceEquals(prior.Controller,state.Controller)&&ReferenceEquals(prior.Dialog,state.Dialog)&&
+                ReferenceEquals(prior.Cue,state.Cue)&&ReferenceEquals(prior.Answer,answer))return true;
+            return false;
+        }
+        // The explicit bounded refusal for an exhausted cue. Reaching it means the engine keeps presenting
+        // a cue whose every selected owned answer this run already clicked, which is a finished story
+        // position the fixture cannot drive any further - never a silent stall and never a replay.
+        private static InvalidOperationException Exhausted(Chunk7AssistedStorySnapshot state)
+        {return new InvalidOperationException("Every selected owned answer at this story cue is already used: dialog "+state.DialogGuid+" cue "+state.CueGuid+".");}
         private Chunk7AssistedStoryEvidence Capture(Chunk7AssistedStorySnapshot s)
         {
             var offers=s.Offers??new Chunk7AssistedStoryOffer[0];var rows=s.Rows??new Chunk7AssistedStoryRow[0];
@@ -290,7 +369,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private static bool GuidShape(string value){if(value==null||value.Length!=32)return false;foreach(var c in value)if(!(c>='0'&&c<='9')&&!(c>='a'&&c<='f'))return false;return true;}
         private static string SafeGuid(string value){if(value==null)return null;if(!GuidShape(value))throw new InvalidOperationException("Native blueprint GUID is malformed.");return value;}
         private static string Bound(string text){return text.Length>256?text.Substring(0,256):text;}
-        public void Dispose(){if(executing)throw new InvalidOperationException("Cannot release story custody during native dispatch.");disposed=true;pending=null;used.Clear();identities.Clear();boundary=null;Status=Chunk7AssistedStoryStatus.Disposed;}
+        public void Dispose(){if(executing)throw new InvalidOperationException("Cannot release story custody during native dispatch.");disposed=true;pending=null;pendingAttempt=null;used.Clear();identities.Clear();boundary=null;Status=Chunk7AssistedStoryStatus.Disposed;}
         private sealed class UsedContext{internal object Controller,Dialog,Cue,Answer;}
         private sealed class References:IEqualityComparer<object>{public new bool Equals(object x,object y){return ReferenceEquals(x,y);}public int GetHashCode(object x){return RuntimeHelpers.GetHashCode(x);}}
     }
