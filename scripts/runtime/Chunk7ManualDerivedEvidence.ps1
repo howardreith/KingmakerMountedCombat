@@ -27,6 +27,7 @@ function Get-KmcManualDerivedPaidBody($Selection){
  [pscustomobject]@{raceGuid=$Selection.smallRaceGuid;presetGuid=$Selection.smallPresetGuid;skeletonName=$Selection.skeletonName;gender=$Selection.gender;leftHanded=$Selection.leftHanded}
 }
 function Assert-KmcChunk7ManualDerivedSelection($Request){
+ if($Request-is[Collections.IDictionary]){$Request=[pscustomobject]$Request}
  $has=$null-ne$Request.PSObject.Properties['manualDerived']
  if(-not(Test-KmcChunk7ManualDerivedScenario $Request.scenario)){if($has){throw 'Manual-derived selection is forbidden under another family.'};return}
  if(-not$has){throw 'Manual-derived acquisition requires exact explicit selection.'};$s=$Request.manualDerived

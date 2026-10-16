@@ -1,5 +1,6 @@
 Set-StrictMode -Version Latest
 function Assert-KmcChunk7Schema1Request($Request) {
+    if($Request-is[Collections.IDictionary]){$Request=[pscustomobject]$Request}
     if($Request.scenario-cne'chunk7-persistence-load'-or$Request.persistenceCase-cne'legacy-schema1-resave-manual'-or
        -not$Request.PSObject.Properties['schema1DerivationSha256']-or$Request.schema1DerivationSha256-isnot[string]-or
        $Request.schema1DerivationSha256-cnotmatch'^[0-9a-f]{64}$'){throw 'Schema-1 native resave requires its exact cold request and derivative receipt hash.'}

@@ -3,6 +3,7 @@ Set-StrictMode -Version Latest
 function Test-KmcChunk7RepeatedWorldCase([string]$Case) { $Case-cin@('multi-exploration-three-loads-manual','multi-exploration-three-area-transfers-manual') }
 function Get-KmcChunk7PersistenceSourceCase([string]$Case) { if(Test-KmcChunk7RepeatedWorldCase $Case){return 'multi-exploration-manual'};return $Case }
 function Assert-KmcChunk7RepeatedWorldRequest($Request) {
+    if($Request-is[Collections.IDictionary]){$Request=[pscustomobject]$Request}
     $selectedCase=if($null-ne$Request.PSObject.Properties['persistenceCase']){$Request.persistenceCase}else{$null}
     $repeated=Test-KmcChunk7RepeatedWorldCase $selectedCase
     $areas=$selectedCase-ceq'multi-exploration-three-area-transfers-manual'

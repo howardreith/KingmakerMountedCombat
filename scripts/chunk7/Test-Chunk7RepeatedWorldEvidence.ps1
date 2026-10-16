@@ -67,6 +67,12 @@ foreach($mutation in @('save-family','missing-target','four-targets','same-area'
       'text-route' {$q.persistenceReplayTargets='three'}
     };Assert-KmcChunk7RepeatedWorldRequest $q}
 }
+# The runner holds its request as an ordered dictionary until serialization; the repeated-world assert must detect dictionary keys too.
+function ConvertTo-RunnerRequest($Q){$r=[ordered]@{};foreach($p in $Q.PSObject.Properties){$r[$p.Name]=$p.Value};$r}
+function New-RepeatedRunnerRequest{ConvertTo-RunnerRequest (Copy-Test $areaRequest)}
+Check 'repeated-world request assert accepts the runner ordered-dictionary request' {Assert-KmcChunk7RepeatedWorldRequest (ConvertTo-RunnerRequest (Copy-Test $areaRequest))}
+Reject 'ordered-dictionary-missing-targets' {$r=New-RepeatedRunnerRequest;$r.Remove('persistenceReplayTargets');Assert-KmcChunk7RepeatedWorldRequest $r}
+Reject 'ordered-dictionary-save-family' {$r=New-RepeatedRunnerRequest;$r['scenario']='chunk7-persistence-save';Assert-KmcChunk7RepeatedWorldRequest $r}
 foreach($mutation in @('fourth-load','load-text','native-write','missing-callback','callback-text','callback-epoch','retained-player','retained-actor','changed-owner','generation-text','free-debt','extra-prepare','unrelated-prepare','extra-debt','missing-presentation','late-observer','dropped-events','wrong-hook','extra-owner','old-command','pending-worker','subscription-growth','subscription-type','identity-collision','identity-release','identity-unregistered','false-allocation-proof','false-diagnostics-proof','input-change','unsafely-settled','retained-observer','stale-selection','repeat-area-not-load','missing-restored-slot','replayed-mount','extra-save','duplicate-fact','dispatch-actor-substitution','cleanup-actor-substitution','callback-actor-from-next-world','callback-game-substituted-with-state')){
     Reject $mutation {$a=Copy-Test $threeLoad;$r=$a.observations.repeatedWorlds;switch($mutation){
       'fourth-load' {$r.nativeLoadRequests=4}

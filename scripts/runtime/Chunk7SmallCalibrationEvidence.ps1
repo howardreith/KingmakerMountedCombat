@@ -2,6 +2,7 @@ Set-StrictMode -Version Latest
 function Test-KmcChunk7SmallScenario([string]$Scenario){$Scenario-ceq'chunk7-small-profile-calibration'}
 function Get-KmcChunk7SmallRows {@('chunk7-small-profile-calibration','C7-small-readonly-source','C7-small-native-party-placement','C7-small-production-mount','C7-small-native-ground','C7-small-rider-primary','C7-small-mount-primary','C7-small-native-dismount','C7-small-native-pose-observation','C7-small-cleanup','C7-small-runtime','C7-small-interrupted')}
 function Assert-KmcChunk7SmallSelection($Request){
+ if($Request-is[Collections.IDictionary]){$Request=[pscustomobject]$Request}
  $has=$null-ne$Request.PSObject.Properties['smallCalibration']
  if(-not(Test-KmcChunk7SmallScenario $Request.scenario)){if($has){throw 'Small calibration selection is forbidden under another scenario.'};return}
  if(-not$has){throw 'Exact Small calibration selection is missing.'};$s=$Request.smallCalibration

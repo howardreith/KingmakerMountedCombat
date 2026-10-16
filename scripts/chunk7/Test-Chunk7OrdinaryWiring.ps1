@@ -47,6 +47,11 @@ function New-Request([bool]$Paid=$true){
 }
 function Invoke-Request($q){$path=Join-Path $private 'request.json';[IO.File]::WriteAllText($path,(ConvertTo-KmcChunk7Canonical $q),[Text.UTF8Encoding]::new($false));& $validator -RequestPath $path|Out-Null}
 foreach($paid in @($true,$false)){Good ('full actual request validator paid='+$paid) {Invoke-Request (New-Request $paid)}}
+# The runner holds its request as an ordered dictionary until serialization; the ordinary acquisition selection assert must detect dictionary keys too.
+function ConvertTo-RunnerRequest($Q){$r=[ordered]@{};foreach($p in $Q.PSObject.Properties){$r[$p.Name]=$p.Value};$r}
+Good 'ordinary acquisition selection assert accepts the runner ordered-dictionary request' {Assert-KmcChunk7OrdinarySelection (ConvertTo-RunnerRequest (New-Request $true))}
+Bad 'ordered-dictionary request without its selection' {$r=ConvertTo-RunnerRequest (New-Request $true);$r.Remove('ordinaryAcquisition');Assert-KmcChunk7OrdinarySelection $r}
+Bad 'ordered-dictionary foreign family carrying a selection' {$r=ConvertTo-RunnerRequest (New-Request $true);$r['scenario']='fixture-intake';Assert-KmcChunk7OrdinarySelection $r}
 $mutations=[ordered]@{
  'missing selection'={param($q)$q.PSObject.Properties.Remove('ordinaryAcquisition')}
  'unselected case'={param($q)$q.ordinaryAcquisition.case='paid-any-race'}
@@ -75,7 +80,7 @@ $quota=@($gameAst.FindAll({param($n)$n-is[Management.Automation.Language.Assignm
 if($quota.Count-ne1){throw 'Native write quota assignment is missing or ambiguous.'}
 $quotaBlock=[scriptblock]::Create($quota[0].Extent.Text+[Environment]::NewLine+'return $expectedNativeWrites')
 foreach($spec in @(@('chunk7-ordinary-acquisition',1,$null),@('chunk7-persistence-save',1,'multi-exploration-manual'),@('chunk7-persistence-load',0,'multi-exploration-manual'),@('chunk7-persistence-load',1,'legacy-schema1-resave-manual'),@('chunk7-persistence-load',1,'legacy-mounted-pending-tb-manual'),@('chunk7-two-pair-exploration',0,$null))){
-    $game=[pscustomobject]@{scenario=$spec[0]};$request=New-Request;$alternating=$false;$campaignB=$false;$nativeBootstrap=(Test-KmcChunk7NativeBootstrapScenario $game.scenario)
+    $game=[pscustomobject]@{scenario=$spec[0]};$request=New-Request;$assistedFixture=$false;$assistedWriteCount=0;$absentKmc=$false;$alternating=$false;$campaignB=$false;$nativeBootstrap=(Test-KmcChunk7NativeBootstrapScenario $game.scenario)
     if($null-ne$spec[2]){$request|Add-Member -NotePropertyName persistenceCase -NotePropertyValue $spec[2]}
     Good ('actual native write quota '+$spec[0]+' '+$spec[2]) {if((& $quotaBlock)-ne$spec[1]){throw 'Actual write quota changed.'}}
 }

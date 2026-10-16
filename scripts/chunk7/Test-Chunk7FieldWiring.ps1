@@ -103,6 +103,11 @@ function Request {
 }
 function Validate($Q){$path=Join-Path $wiringOutput 'request.json';[IO.File]::WriteAllText($path,(ConvertTo-KmcChunk7Canonical $Q),[Text.UTF8Encoding]::new($false));&$validator -RequestPath $path|Out-Null}
 Good 'full actual field request validator accepts exact zero-write cold bridge' {Validate (Request)}
+# The runner holds its request as an ordered dictionary until serialization; the field selection assert must detect dictionary keys too.
+function ConvertTo-RunnerRequest($Q){$r=[ordered]@{};foreach($p in $Q.PSObject.Properties){$r[$p.Name]=$p.Value};$r}
+Good 'field selection assert accepts the runner ordered-dictionary request' {Assert-KmcChunk7FieldSelection (ConvertTo-RunnerRequest (Request))}
+Bad 'ordered-dictionary request without its selection' {$r=ConvertTo-RunnerRequest (Request);$r.Remove('ordinaryField');Assert-KmcChunk7FieldSelection $r}
+Bad 'ordered-dictionary foreign family carrying a selection' {$r=ConvertTo-RunnerRequest (Request);$r['scenario']='fixture-intake';Assert-KmcChunk7FieldSelection $r}
 $cases=[ordered]@{
  'missing field selection'={param($q)$q.PSObject.Properties.Remove('ordinaryField')}
  'missing source archive'={param($q)$q.PSObject.Properties.Remove('persistenceLoad')}
@@ -126,7 +131,7 @@ foreach($leaf in @('Test-RuntimeGameResult.ps1','Test-RuntimeResult.ps1')){
 $gameAst=Ast (Join-Path $wiringRuntime 'Test-RuntimeGameResult.ps1')
 foreach($name in @('expectedNativeWrites','expectedWorkingLoads')){
     $assign=@($gameAst.FindAll({param($n)$n-is[Management.Automation.Language.AssignmentStatementAst]-and$n.Left.Extent.Text-ceq('$'+$name)},$true));if($assign.Count-ne1){throw 'Exact native quota boundary differs.'}
-    $quota=[scriptblock]::Create($assign[0].Extent.Text+"`nreturn `$"+$name);$game=[pscustomobject]@{scenario='chunk7-ordinary-field-admission'};$request=Request;$alternating=$false;$campaignB=$false;$absentKmc=$false;$nativeBootstrap=Test-KmcChunk7NativeBootstrapScenario $game.scenario
+    $quota=[scriptblock]::Create($assign[0].Extent.Text+"`nreturn `$"+$name);$game=[pscustomobject]@{scenario='chunk7-ordinary-field-admission'};$request=Request;$assistedFixture=$false;$assistedWriteCount=0;$alternating=$false;$campaignB=$false;$absentKmc=$false;$nativeBootstrap=Test-KmcChunk7NativeBootstrapScenario $game.scenario
     $wantedQuota=if($name-ceq'expectedNativeWrites'){0}else{1}
     Good ('field actual native quota '+$name){if((&$quota)-ne$wantedQuota){throw 'Field request quota changed.'}}
 }

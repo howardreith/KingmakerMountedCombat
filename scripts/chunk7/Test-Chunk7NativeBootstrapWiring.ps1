@@ -27,6 +27,12 @@ if(([regex]::Matches($body,[regex]::Escape($import))).Count-ne1){throw 'Actual r
 $validator=[scriptblock]::Create($body.Replace($import,'# Already loaded Common; actual validator body follows.'))
 function Validate($Q){$path=Join-Path $bootstrapWiringOutput 'request.json';[IO.File]::WriteAllText($path,(ConvertTo-KmcChunk7Canonical $Q),[Text.UTF8Encoding]::new($false));&$validator -RequestPath $path|Out-Null}
 Good 'full actual request accepts exact zero-load one-write bootstrap' {Validate (Request)}
+# The runner holds its request as an ordered dictionary until serialization; the native bootstrap selection assert must detect dictionary keys too.
+function ConvertTo-RunnerRequest($Q){$r=[ordered]@{};foreach($p in $Q.PSObject.Properties){$r[$p.Name]=$p.Value};$r}
+Good 'native bootstrap selection assert accepts the runner ordered-dictionary request' {Assert-KmcChunk7NativeBootstrapSelection (ConvertTo-RunnerRequest (Request))}
+Bad 'ordered-dictionary request without its selection' {$r=ConvertTo-RunnerRequest (Request);$r.Remove('nativeBootstrap');Assert-KmcChunk7NativeBootstrapSelection $r}
+Bad 'ordered-dictionary foreign family carrying a selection' {$r=ConvertTo-RunnerRequest (Request);$r['scenario']='fixture-intake';Assert-KmcChunk7NativeBootstrapSelection $r}
+Good 'runner re-reads the validated request file before observer binding and launch, so nested ordered selections never reach a reader' {$runnerText=[IO.File]::ReadAllText((Join-Path $bootstrapWiringRuntime 'Invoke-KingmakerRuntimeScenario.ps1'));$validator=$runnerText.IndexOf('Test-RuntimeRequest.ps1'') -RequestPath $requestPath');$roundTrip=$runnerText.IndexOf('$request=Read-KmcJson $requestPath');$launch=$runnerText.IndexOf('''-applaunch''');if(([regex]::Matches($runnerText,[regex]::Escape('$request=Read-KmcJson $requestPath'))).Count-ne1-or$validator-lt0-or$roundTrip-lt$validator-or$launch-lt$roundTrip){throw 'Runner does not re-read the validated request between validation and launch.'}}
 $negative=[ordered]@{
  'missing bootstrap selection'={param($q)$q.PSObject.Properties.Remove('nativeBootstrap')}
  'foreign family borrowing bootstrap'={param($q)$q.scenario='fixture-intake'}
@@ -59,7 +65,7 @@ foreach($name in @('expectedNativeWrites','expectedWorkingLoads')){
  $nodes=@($gameAst.FindAll({param($n)$n-is[Management.Automation.Language.AssignmentStatementAst]-and$n.Left.Extent.Text-ceq('$'+$name)},$true));if($nodes.Count-ne1){throw 'Exact quota assignment changed'}
  $quota=[scriptblock]::Create($nodes[0].Extent.Text+[Environment]::NewLine+'return $'+$name)
  foreach($family in @('chunk7-native-main-bootstrap','fixture-intake')){
-  $game=[pscustomobject]@{scenario=$family};$request=Request;$request.scenario=$family;$nativeBootstrap=Test-KmcChunk7NativeBootstrapScenario $family;$alternating=$campaignB=$absentKmc=$false
+  $game=[pscustomobject]@{scenario=$family};$request=Request;$request.scenario=$family;$nativeBootstrap=Test-KmcChunk7NativeBootstrapScenario $family;$assistedFixture=$alternating=$campaignB=$absentKmc=$false;$assistedWriteCount=0
   $wanted=if($name-ceq'expectedNativeWrites'){if($nativeBootstrap){1}else{0}}else{if($nativeBootstrap){0}else{1}}
   Good ('actual '+$family+' '+$name){if((&$quota)-ne$wanted){throw 'Native quota differs'}}
  }

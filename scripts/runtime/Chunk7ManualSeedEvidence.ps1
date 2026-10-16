@@ -2,6 +2,7 @@ Set-StrictMode -Version Latest
 function Test-KmcChunk7ManualSeedScenario([string]$Scenario){$Scenario-ceq'chunk7-bootstrap-manual-seed'}
 function Get-KmcChunk7ManualSeedRows {@('chunk7-bootstrap-manual-seed','C7-manual-seed-source','C7-manual-seed-native-load','C7-manual-seed-native-save','C7-manual-seed-no-arrangement','C7-manual-seed-cleanup','C7-manual-seed-runtime','C7-manual-seed-interrupted')}
 function Assert-KmcChunk7ManualSeedSelection($Request){
+ if($Request-is[Collections.IDictionary]){$Request=[pscustomobject]$Request}
  $has=$null-ne$Request.PSObject.Properties['manualSeed']
  if(-not(Test-KmcChunk7ManualSeedScenario $Request.scenario)){if($has){throw 'Manual seed selection is forbidden under another family.'};return}
  if(-not$has){throw 'Manual seed requires its exact explicit selection.'};$s=$Request.manualSeed

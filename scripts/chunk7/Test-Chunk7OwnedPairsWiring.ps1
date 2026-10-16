@@ -23,6 +23,11 @@ Check 'closed family registered once as save-backed compound'{if(@(Get-KmcSaveBa
 $body=[IO.File]::ReadAllText((Join-Path $bridgeRuntime 'Test-RuntimeRequest.ps1'));$import=". (Join-Path "+'$PSScriptRoot'+" 'RuntimeHarness.Common.ps1')";if(([regex]::Matches($body,[regex]::Escape($import))).Count-ne1){throw 'Actual request import changed'};$validator=[scriptblock]::Create($body.Replace($import,'# Common loaded; actual validator body follows.'))
 function Validate($Q){$path=Join-Path $bridgeOutput 'request.json';[IO.File]::WriteAllText($path,(ConvertTo-KmcChunk7Canonical $Q),[Text.UTF8Encoding]::new($false));&$validator -RequestPath $path|Out-Null}
 foreach($f in $fixtures){Check ('full request '+$f.name){Validate (Request $f.name)}}
+# The runner holds its request as an ordered dictionary until serialization; the owned selection assert must detect dictionary keys too.
+function ConvertTo-RunnerRequest($Q){$r=[ordered]@{};foreach($p in $Q.PSObject.Properties){$r[$p.Name]=$p.Value};$r}
+Check 'owned selection assert accepts the runner ordered-dictionary request' {Assert-KmcChunk7OwnedPairsSelection (ConvertTo-RunnerRequest (Request))}
+Check 'ordered-dictionary request without its selection is refused' {$r=ConvertTo-RunnerRequest (Request);$r.Remove('ownedPairs');Assert-KmcChunk7OwnedPairsSelection $r} $true
+Check 'ordered-dictionary foreign family carrying a selection is refused' {$r=ConvertTo-RunnerRequest (Request);$r['scenario']='fixture-intake';Assert-KmcChunk7OwnedPairsSelection $r} $true
 $negative=[ordered]@{
  'selection omitted'={param($q)$q.PSObject.Properties.Remove('ownedPairs')}
  'foreign family'={param($q)$q.scenario='fixture-intake'}
@@ -58,7 +63,7 @@ foreach($leaf in @('Test-RuntimeGameResult.ps1','Test-RuntimeResult.ps1')){
 }
 $gameAst=Ast (Join-Path $bridgeRuntime 'Test-RuntimeGameResult.ps1')
 foreach($quotaName in @('expectedNativeWrites','expectedWorkingLoads')){$nodes=@($gameAst.FindAll({param($n)$n-is[Management.Automation.Language.AssignmentStatementAst]-and$n.Left.Extent.Text-ceq('$'+$quotaName)},$true));if($nodes.Count-ne1){throw 'Exact quota changed'};$quota=[scriptblock]::Create($nodes[0].Extent.Text+[Environment]::NewLine+'return $'+$quotaName)
- foreach($f in $fixtures){$game=[pscustomobject]@{scenario=$f.request.scenario};$request=$f.request;$nativeBootstrap=$alternating=$campaignB=$absentKmc=$false;$wanted=if($quotaName-ceq'expectedNativeWrites'){$f.request.ownedPairs.expectedNativeWriteCount}else{$f.request.ownedPairs.expectedNativeLoadCount};Check ('actual quota '+$quotaName+'/'+$f.name){if((&$quota)-ne$wanted){throw 'Exact quota differs'}}}
+ foreach($f in $fixtures){$game=[pscustomobject]@{scenario=$f.request.scenario};$request=$f.request;$nativeBootstrap=$assistedFixture=$alternating=$campaignB=$absentKmc=$false;$assistedWriteCount=0;$wanted=if($quotaName-ceq'expectedNativeWrites'){$f.request.ownedPairs.expectedNativeWriteCount}else{$f.request.ownedPairs.expectedNativeLoadCount};Check ('actual quota '+$quotaName+'/'+$f.name){if((&$quota)-ne$wanted){throw 'Exact quota differs'}}}
 }
 $runnerPath=Join-Path $bridgeRuntime 'Invoke-KingmakerRuntimeScenario.ps1';$runnerAst=Ast $runnerPath;$metadata=Get-Command $runnerPath
 Check 'runner exact family and selection parameter'{if(-not$metadata.Parameters.ContainsKey('OwnedPairsSelectionPath')-or'chunk7-owned-two-pair-campaign'-cnotin@($metadata.Parameters.Scenario.Attributes|Where-Object{$_-is[Management.Automation.ValidateSetAttribute]})[0].ValidValues){throw 'Parameter missing'}}
