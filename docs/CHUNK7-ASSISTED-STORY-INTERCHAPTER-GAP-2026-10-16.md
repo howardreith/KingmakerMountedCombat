@@ -95,11 +95,11 @@ The composed owned schema1 and area Auto drafts, the runner request normalizatio
 
 ---
 
-# The complete dialog-affordance record (attempts 11, 12 and 13)
+# The complete dialog-affordance record (attempts 11 to 14)
 
 The interchapter gap above was the first of three distinct dialog affordances the assisted producer
 had to drive. Each one was found by a separate capped native attempt, fixed in a separate successor
-product candidate, and then confirmed by the next attempt. Thirteen of 25 native attempts are used,
+product candidate, and then confirmed by the next attempt. Fourteen of 25 native attempts are used,
 all final FAIL; every one restored Mods, Working, the immutable baseline, protected saves and the
 profile bytes exactly, and every failure was independently attributed to product logic rather than
 to restoration.
@@ -109,6 +109,7 @@ to restoration.
 | 11 | preview10 `0e1ce2d9` | 0 | Could not advance the opening Interchapter page at all. |
 | 12 | preview.11 `d8fcba89` | 1 | Interchapter advanced (fix validated); stalled at a cutscene-embedded common continue cue with zero materialized rows. |
 | 13 | preview.12 `859596f2` | 4 | Interchapter plus three system-continue advances (fix validated); refused the narration's terminal Exit answer by design. |
+| 14 | preview.13 `91fd310a` | 13 | Exit answer validated; stalled when the engine re-entered an identical still-active cue in a five-choice conversation hub. |
 
 Dialog input in this game comes in exactly two forms, and the producer needs both:
 
@@ -203,3 +204,65 @@ classification is computed only inside the `DialogType.Common` branch, so a term
 handled by the row path, so that shape is reachable only if an interchapter page ever presents its
 exit as a system answer alone. Every shape the driver does not handle is a bounded explicit refusal
 costing one capped attempt, never a hang and never a wrong click.
+
+## Attempt 14 (preview.13): Exit validated, thirteen clicks, and a conversation hub
+
+Run `20261016-chunk7b-world13-assisted-fixture-01` (preview.13 `91fd310a`, package
+`58e2fb19f95c7ca2a48076305307cef41fd35c909e0405b3e2af94285dfa1e59`, DLL
+`d2493aa53426a925218db2f72fb4bd9cb27a7bfcf4e80615f25e576e0e8bc86a`, MVID
+`2effa43d-d0e3-4823-9402-136dcff8c7c0`, suite `chunk7b-world13-20261016`) made **thirteen**
+successful native clicks, twelve of which produced observed native advance:
+
+| Clicks | Shape |
+| --- | --- |
+| 1 | the opening Interchapter row (frame 4004, `managerKind` 2) |
+| 2-4 | common `DialogueSystemButton` continue advances, zero cached rows |
+| **5** | the narration's **terminal Exit answer** (frame 4725) — the preview.13 permission |
+| 6-8 | three more common continue advances |
+| 9 | a **five-offer/five-row** common PC dialog (cue `e637f827`) — clicked row 0 |
+| 10-12 | three more common continue advances |
+| 13 | a five-offer/five-row dialog at a **different** cue (`d8670845`) — row 0 again |
+
+**The Exit permission is validated.** The after-read of click 5 carries the `StopDialog` signature —
+mode `Cutscene`, `uiStatus` `not-dialog`, null dialog and cue guids, `dialogActive` false and every
+list identity 0 — which only the two Exit answers produce, while all nine continue clicks left the
+dialog active. Attempt 13 on preview.12 had refused this very answer by policy. Note that the
+weaker argument "a system-button click on a non-continue answer can only be an Exit answer" is
+**unsound**: the product classifies four `DialogRoot` system answers by reference identity and its
+guard throws only when the answer is not an Exit answer *and* no continue cue is displayed, so
+`InterchapterContinueAnswer` is also reachable whenever that cue is shown. The conclusion rests on
+the after-read, not on necessity. The evidence records no per-attempt Exit/continue flags, which is
+why the identity had to be inferred at all.
+
+### Why the fourteenth click never happened
+
+The producer stopped on a common PC **conversation hub**: five offers, five rows, every row
+initialized, active, enabled, non-chooser and non-interchapter, and every offer `selectionType` 0 —
+entirely clickable. It was not a native limitation and not the dedupe. After click 13 the engine
+re-entered the **identical** dialog object, cue object and five answer objects with the dialog still
+active. No progress clause can fire on an unchanged observation, so the pending click never cleared,
+and the early return for a pending click short-circuits *ahead of* selection, the choice cap and the
+dedupe. The progress bound then expired exactly 30,004 ms after the click.
+
+The `(controller, dialog, cue, answer)` dedupe did **not** fire, and could not have: it *throws*
+rather than skipping, the receipts carry the progress-bound exception instead, and click 13 was at a
+different cue from click 9 in any case. The choice cap (13 of 16), the cutscene gate, `NativeBusy`
+and `TransitionPending` are each independently excluded.
+
+Two defects therefore sit in series, and the second only becomes visible once the first is cleared:
+
+1. The progress test is blind to **same-cue re-entry** after an owned click, so a click the engine
+   consumed without advancing the cue is indistinguishable from a click that was never observed.
+2. Selection takes only the **first** eligible offer. With the first offer's answer already used,
+   clearing the liveness gate alone would convert the stall into the dedupe's exception on the same
+   tuple. Both halves need fixing together.
+
+Restoration was clean and independently reviewed: all five restoration flags true, the campaign's own
+`Auto_1.zks` inside the run-owned isolated profile the only native save write, zero unauthorized
+saves or loads, profile bytes restored exactly, all three transaction records at phase `restored`,
+suite continuity PASS. The human-save claim was established four ways, including that none of the 275
+live save files has a write or creation time inside the run window and that every fixture save and
+protected-save authority record still hashes exactly as the qualification suite records it.
+
+Fourteen of 25 native attempts are used, all final FAIL, and each has moved the frontier with a
+precisely diagnosed successor: 0 clicks, then 1, then 4, then 13.
