@@ -56,7 +56,7 @@ foreach($leaf in @('Test-RuntimeGameResult.ps1','Test-RuntimeResult.ps1')){
 $gameAst=Ast (Join-Path $wiringRuntime 'Test-RuntimeGameResult.ps1')
 foreach($name in @('expectedNativeWrites','expectedWorkingLoads')){
     $assign=@($gameAst.FindAll({param($n)$n-is[Management.Automation.Language.AssignmentStatementAst]-and$n.Left.Extent.Text-ceq('$'+$name)},$true));if($assign.Count-ne1){throw 'Exact native quota boundary differs.'}
-    $quota=[scriptblock]::Create($assign[0].Extent.Text+"`nreturn `$"+$name);$game=[pscustomobject]@{scenario='chunk7-small-profile-calibration'};$request=Request;$alternating=$false;$campaignB=$false;$absentKmc=$false;$nativeBootstrap=Test-KmcChunk7NativeBootstrapScenario $game.scenario
+    $quota=[scriptblock]::Create($assign[0].Extent.Text+"`nreturn `$"+$name);$game=[pscustomobject]@{scenario='chunk7-small-profile-calibration'};$request=Request;$assistedFixture=$false;$assistedWriteCount=0;$alternating=$false;$campaignB=$false;$absentKmc=$false;$nativeBootstrap=Test-KmcChunk7NativeBootstrapScenario $game.scenario
     $wantedQuota=if($name-ceq'expectedNativeWrites'){0}else{1}
     Good ('field actual native quota '+$name){if((&$quota)-ne$wantedQuota){throw 'Field request quota changed.'}}
 }
