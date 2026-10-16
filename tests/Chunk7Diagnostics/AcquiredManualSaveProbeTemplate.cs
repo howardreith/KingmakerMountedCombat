@@ -2,6 +2,7 @@ using System;using System.Collections.Generic;
 namespace KingmakerMountedCombat.Diagnostics {
 internal static class Chunk7ManualSeedSelection {public const string OutputName="KMC_C7_NATIVE_SEED";}
 internal static class Chunk7AcquiredManualSelection {public const string OutputName="KMC_C7_ACQUIRED_FIELD"; internal static string NativeOutputLeaf(int number) { if(number<=0)throw new ArgumentOutOfRangeException(nameof(number));return "Manual_"+number.ToString(System.Globalization.CultureInfo.InvariantCulture)+"_"+OutputName+".zks"; }}
+internal static class Chunk7AssistedFixtureSelection {public const string OutputName="KMC_C7_ASSISTED_FIXTURE"; internal static string ManualLeaf(int number) { if(number<=0)throw new ArgumentOutOfRangeException(nameof(number));return "Manual_"+number.ToString(System.Globalization.CultureInfo.InvariantCulture)+"_"+OutputName+".zks"; }}
 internal sealed class MountedPersistenceService {}
 internal sealed class Area {public string AssetGuidThreadSafe="area";}
 internal sealed class Player {public string GameId="campaign";}
