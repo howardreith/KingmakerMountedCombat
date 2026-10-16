@@ -102,8 +102,8 @@ try{
  Invoke-ReaderStage 'core' $emitter (@('-RepositoryRoot',$RepositoryRoot,'-OutputRoot',$coreRoot)+$overlayArgs)
  $coreManifestPath=Join-Path $coreRoot 'manifest.json';$core=Read-Generated $coreManifestPath
  Require-PassCount $core 'actual-assisted-setup-portable-emitter'
- if($core.passed-ne5-or$core.fixtures-isnot[Array]-or$core.fixtures.Count-ne5-or$core.changedInputs-isnot[Array]-or$core.changedInputs.Count-ne0-or$core.nativeEngineInvoked-isnot[bool]-or$core.nativeEngineInvoked-or$core.archiveOperations-ne0){throw 'Actual core emitter receipt differs.'}
- $corePins=@();$coreLeaves=@('ready-noop.json','click-xp-funds.json','xp-funds-sufficient.json','skip-disabled-first.json','partial-native-failure.json')
+ if($core.passed-ne6-or$core.fixtures-isnot[Array]-or$core.fixtures.Count-ne6-or$core.changedInputs-isnot[Array]-or$core.changedInputs.Count-ne0-or$core.nativeEngineInvoked-isnot[bool]-or$core.nativeEngineInvoked-or$core.archiveOperations-ne0){throw 'Actual core emitter receipt differs.'}
+ $corePins=@();$coreLeaves=@('ready-noop.json','click-xp-funds.json','xp-funds-sufficient.json','skip-disabled-first.json','system-button.json','partial-native-failure.json')
  foreach($leaf in $coreLeaves){$rows=@($core.fixtures|Where-Object{$_.leaf-is[string]-and$_.leaf-ceq$leaf});if($rows.Count-ne1){throw 'Core fixture leaf is missing or duplicated.'};$corePins+=Require-PinnedOutput $rows[0] (Join-Path $coreRoot $leaf)}
  Invoke-ReaderStage 'host' $hostProducer (@('-RepositoryRoot',$RepositoryRoot,'-OutputDirectory',$hostRoot)+$overlayArgs)
  $hostReceiptPath=Join-Path $hostRoot 'receipt.json';$hostEvidence=Read-Generated $hostReceiptPath
