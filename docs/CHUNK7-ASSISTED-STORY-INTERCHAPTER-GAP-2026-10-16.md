@@ -2,8 +2,9 @@
 
 Native attempt 11 (`20261015-chunk7b-world10-assisted-fixture-02`, preview10 product
 `0e1ce2d92a368866ce0803d070a6f3b7b96bd971`) is the first assisted producer run that reached the
-game: the fresh isolated campaign was created, the initial autosave was the single authorized
-Working-only write, and the derived target was recorded. The run then failed inside the product's
+game: the fresh isolated campaign was created, its own initial autosave was the single authorized
+write (inside the run-owned isolated profile; no Working, baseline or human save file was written),
+and the derived target was recorded. The run then failed inside the product's
 assisted story driver with "Assisted story setup made no observed native progress within its
 bound." The harness, restoration and settlement all completed; the exact receipts are in
 [the native observations](CHUNK7-NATIVE-OBSERVATIONS-2026-10-12.md).
