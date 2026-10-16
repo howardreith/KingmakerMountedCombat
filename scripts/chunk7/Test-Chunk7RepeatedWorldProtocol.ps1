@@ -19,7 +19,7 @@ $text=[IO.File]::ReadAllText((Join-Path $repo 'scripts/runtime/Test-RuntimeGameR
 $line=@($text-split"\r?\n"|Where-Object{$_-match'^\s*\$expectedWorkingLoads = '})
 if($line.Count-ne1){throw 'Expected native load count expression was not unique.'}
 foreach($case in @('multi-exploration-three-loads-manual','multi-exploration-three-area-transfers-manual','multi-exploration-manual')){
-    $game=[pscustomobject]@{scenario='chunk7-persistence-load'};$request=[pscustomobject]@{persistenceCase=$case};$absentKmc=$false;$alternating=$false;$nativeBootstrap=Test-KmcChunk7NativeBootstrapScenario $game.scenario
+    $game=[pscustomobject]@{scenario='chunk7-persistence-load'};$request=[pscustomobject]@{persistenceCase=$case};$absentKmc=$false;$assistedFixture=$false;$assistedWriteCount=0;$campaignB=$false;$alternating=$false;$nativeBootstrap=Test-KmcChunk7NativeBootstrapScenario $game.scenario
     Invoke-Expression $line[0]
     $expected=if($case-ceq'multi-exploration-three-loads-manual'){3}else{1}
     if($expectedWorkingLoads-ne$expected){throw 'Runtime completion native load count differs.'}
