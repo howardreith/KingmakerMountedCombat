@@ -11,7 +11,11 @@ namespace KingmakerMountedCombat.Diagnostics
         public const string Scenario = "chunk7-assisted-fixture-preparation";
         public const string CaseName = "authored-main-ranger4-manual";
         public const string AuthorizationSha256 = "052eb32338bba397e852cba8605ebc6878deff1dd907675041d5b1d2f802e28e";
-        public const string StoryPolicyName = "first-cached-enabled-common-answer";
+        // The declared story policy, identical to the literal the driver's own evidence emits: in native
+        // offered order click the first eligible cached row whose (controller, dialog, cue, answer) tuple
+        // is unused, and only when no row is eligible advance the sole root DialogRoot system answer
+        // through the native DialogueSystemButton. It retires "first-cached-enabled-common-answer".
+        public const string StoryPolicyName = "first-unused-eligible-row-else-root-system-button";
         public const string AssistancePolicyName = "native-main-ranger4-and-one-hire-shortfalls";
         public const string InitialAutoLeaf = "Auto_1.zks";
         public const string LevelupStagingLeaf = "Auto_2.zks";
@@ -40,7 +44,10 @@ namespace KingmakerMountedCombat.Diagnostics
                 errors.Add("Assisted fixture preparation requires its exact owner-authorized isolated setup case and policies.");
             if (ExpectedNativeLoadCount != 0 || MaximumNativeWriteCount != 3 || NativeInitialAutoLeaf != InitialAutoLeaf || NativeManualName != OutputName)
                 errors.Add("Assisted setup declares zero loads, at most three phase-owned writes and its exact native output identities.");
-            if (TargetRangerLevel != 4 || MaximumTargetLevel != 8 || MaximumStoryChoices != 16 || MaximumStorySeconds != 300 ||
+            // MaximumStoryChoices tracks the driver's own MaximumChoices count bound (see
+            // Chunk7AssistedStoryDriver for the justification); MaximumStorySeconds, the 300 s total
+            // deadline that remains the real safety net, is unchanged.
+            if (TargetRangerLevel != 4 || MaximumTargetLevel != 8 || MaximumStoryChoices != 48 || MaximumStorySeconds != 300 ||
                 MaximumExperienceShortfall != 200000 || MaximumMoneyShortfall != 100000)
                 errors.Add("Assisted setup ceilings differ from the selected bounded native shortfall and story plan.");
             return errors;

@@ -94,24 +94,32 @@ function Assert-KmcAssistedStorySnapshot($Value, $Setup, [bool]$Selected) {
 
 function Assert-KmcAssistedStoryEvidence($Value, $Setup) {
     Assert-KmcExactProperties $Value @('policy','cachedStateIsAuthorization','objectLabelScope','maximumChoices','maximumMilliseconds','progressMilliseconds','status','failure','nativeClickCount','attemptCount','attempts','lastObserved') 'assisted story result'
-    Assert-KmcBootstrapInventoryString $Value.policy 'first-cached-enabled-common-answer'
+    Assert-KmcBootstrapInventoryString $Value.policy 'first-unused-eligible-row-else-root-system-button'
     Assert-KmcBootstrapInventoryString $Value.objectLabelScope 'story-driver-only'
     Assert-KmcBootstrapInventoryString $Value.status 'ReadyAtObservedFrame'
     Assert-KmcChunk7Boolean $Value.cachedStateIsAuthorization $false
-    Assert-KmcOrdinaryInteger $Value.maximumChoices 16 16
+    # The count cap is the driver's raised MaximumChoices; the 300000 ms total deadline and the 30000 ms
+    # no-progress bound are the real safety nets and must still read exactly as before.
+    Assert-KmcOrdinaryInteger $Value.maximumChoices 48 48
     Assert-KmcOrdinaryInteger $Value.maximumMilliseconds 300000 300000
     Assert-KmcOrdinaryInteger $Value.progressMilliseconds 30000 30000
-    if($null-ne$Value.failure-or$Value.attempts-isnot[Array]-or$Value.attempts.Count-gt16){throw 'Failed or unbounded story setup cannot qualify.'}
+    if($null-ne$Value.failure-or$Value.attempts-isnot[Array]-or$Value.attempts.Count-gt48){throw 'Failed or unbounded story setup cannot qualify.'}
     Assert-KmcOrdinaryInteger $Value.attemptCount $Value.attempts.Count $Value.attempts.Count
     Assert-KmcOrdinaryInteger $Value.nativeClickCount $Value.attempts.Count $Value.attempts.Count
     $used=[Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
     $prior=$null
     for($n=0;$n-lt$Value.attempts.Count;$n++) {
         $attempt=$Value.attempts[$n]
-        Assert-KmcExactProperties $attempt @('sequence','offerIndex','rowIndex','nativeIndex','systemButton','answer','row','answerGuid','nativeEntered','nativeReturned','afterReadSucceeded','failure','before','after') 'assisted story attempt'
+        Assert-KmcExactProperties $attempt @('sequence','offerIndex','rowIndex','nativeIndex','systemButton','isExitAnswer','isContinueAnswer','continueCueDisplayed','answer','row','answerGuid','nativeEntered','nativeReturned','afterReadSucceeded','failure','before','after') 'assisted story attempt'
         Assert-KmcOrdinaryInteger $attempt.sequence ($n+1) ($n+1)
         foreach($key in @('nativeEntered','nativeReturned','afterReadSucceeded')) { Assert-KmcChunk7Boolean $attempt.$key $true }
         if($attempt.systemButton-isnot[bool]){throw 'Assisted story attempt kind flag is not Boolean.'}
+        # The observed native kind of the clicked answer. The product classifies four DialogRoot system
+        # answers by reference identity: IsExitAnswer is Exit/InterchapterExit, IsContinueAnswer is
+        # Continue/InterchapterContinue, so the two are mutually exclusive and a cached PC row answer is
+        # neither. These are recorded observations, not derivations from the after-read.
+        foreach($key in @('isExitAnswer','isContinueAnswer','continueCueDisplayed')) { if($attempt.$key-isnot[bool]){throw 'Assisted story attempt native answer-kind flag is not Boolean.'} }
+        if($attempt.isExitAnswer-and$attempt.isContinueAnswer){throw 'A story attempt cannot click a native exit and continue answer at once.'}
         if($null-ne$attempt.failure){throw 'A partially failed native click cannot qualify story completion.'}
         Assert-KmcAssistedStorySnapshot $attempt.before $Setup $true
         Assert-KmcAssistedStorySnapshot $attempt.after $Setup $false
@@ -122,10 +130,15 @@ function Assert-KmcAssistedStoryEvidence($Value, $Setup) {
             Assert-KmcOrdinaryInteger $before.frame ([Math]::Max(([long]$prior.before.frame+1),[long]$prior.after.frame)) ([int]::MaxValue)
             Assert-KmcOrdinaryInteger $before.elapsedMilliseconds $prior.after.elapsedMilliseconds 300000
         }
+        # Recompute the product's own selection policy: in the native offered order, the FIRST eligible
+        # cached row whose (controller, dialog, cue, answer) tuple this run has not already used. The
+        # unused-tuple test is the same one the dedupe below applies, so a story hub that re-presents the
+        # same answers at one cue legitimately records a click on offer 1..n-1 and is accepted here, while
+        # an attempt that skipped an eligible unused row, or replayed a used tuple, is still refused.
         $selectedOffer=-1; $selectedRow=-1
         for($i=0;$i-lt$before.offerObjects.Count;$i++) {
             for($j=0;$j-lt$before.rowObjects.Count;$j++) {
-                if($before.rowAnswerObjects[$j]-eq$before.offerObjects[$i]-and-not$before.rowDisabled[$j]-and$before.rowActiveAndEnabled[$j]-and$before.rowActiveInHierarchy[$j]-and$selectedOffer-lt0) { $selectedOffer=$i; $selectedRow=$j }
+                if($before.rowAnswerObjects[$j]-eq$before.offerObjects[$i]-and-not$before.rowDisabled[$j]-and$before.rowActiveAndEnabled[$j]-and$before.rowActiveInHierarchy[$j]-and$selectedOffer-lt0-and-not$used.Contains((@($before.controller,$before.dialog,$before.cue,$before.offerObjects[$i])-join':'))) { $selectedOffer=$i; $selectedRow=$j }
             }
         }
         # A cue is advanced two ways. A cached TempOptionUI row click records its real row index and
@@ -137,13 +150,17 @@ function Assert-KmcAssistedStoryEvidence($Value, $Setup) {
             if($before.rowObjects.Count-ne0){throw 'A system-button story attempt cannot bypass an available native row.'}
             if(-not(Test-KmcExactJsonInteger $attempt.offerIndex)-or$attempt.offerIndex-lt0-or$attempt.offerIndex-ge$before.offerObjects.Count){throw 'A system-button story attempt did not click an offered native answer.'}
             if($before.offerSelectionTypes[$attempt.offerIndex]-eq4){throw 'A system-button story attempt cannot drive Manual character selection.'}
+            # The product reaches the shared DialogueSystemButton only for a root DialogRoot system answer,
+            # and only a terminal Exit answer may be taken without the displayed native continue cue.
+            if(-not($attempt.isExitAnswer-or$attempt.isContinueAnswer)){throw 'A system-button story attempt must click a root native system answer.'}
+            if($attempt.isContinueAnswer-and-not$attempt.continueCueDisplayed){throw 'A continue system-button story attempt requires the displayed native continue cue.'}
             Assert-KmcOrdinaryInteger $attempt.rowIndex (-1) (-1)
             Assert-KmcOrdinaryInteger $attempt.nativeIndex (-1) (-1)
             Assert-KmcOrdinaryInteger $attempt.row 0 0
             Assert-KmcOrdinaryInteger $attempt.answer $before.offerObjects[$attempt.offerIndex] $before.offerObjects[$attempt.offerIndex]
             Assert-KmcBootstrapInventoryString $attempt.answerGuid $before.offerGuids[$attempt.offerIndex]
         } else {
-            if($selectedOffer-lt0-or$before.offerSelectionTypes[$selectedOffer]-eq4){throw 'Story attempt did not select the first available non-Manual native row.'}
+            if($selectedOffer-lt0-or$before.offerSelectionTypes[$selectedOffer]-eq4){throw 'Story attempt did not select the first unused available non-Manual native row.'}
             Assert-KmcOrdinaryInteger $attempt.offerIndex $selectedOffer $selectedOffer
             Assert-KmcOrdinaryInteger $attempt.rowIndex $selectedRow $selectedRow
             Assert-KmcOrdinaryInteger $attempt.answer $before.offerObjects[$selectedOffer] $before.offerObjects[$selectedOffer]
@@ -417,9 +434,11 @@ function Assert-KmcChunk7AssistedFixtureSelection($Request) {
     if(-not$has){throw 'Exact assisted fixture selection is required.'}
     $s=$Request.assistedFixture
     Assert-KmcAssistedObjectValue $s @('case','ownerAuthorizationSha256','baseGameOnly','assistedSetupOnly','storyPolicy','assistancePolicy','expectedNativeLoadCount','maximumNativeWriteCount','targetRangerLevel','maximumTargetLevel','maximumStoryChoices','maximumStorySeconds','maximumExperienceShortfall','maximumMoneyShortfall','nativeInitialAutoLeaf','nativeManualName') 'assisted fixture selection'
-    foreach($pair in @(@('case','authored-main-ranger4-manual'),@('ownerAuthorizationSha256','052eb32338bba397e852cba8605ebc6878deff1dd907675041d5b1d2f802e28e'),@('storyPolicy','first-cached-enabled-common-answer'),@('assistancePolicy','native-main-ranger4-and-one-hire-shortfalls'),@('nativeInitialAutoLeaf','Auto_1.zks'),@('nativeManualName','KMC_C7_ASSISTED_FIXTURE'))){Assert-KmcBootstrapInventoryString $s.($pair[0]) $pair[1]}
+    foreach($pair in @(@('case','authored-main-ranger4-manual'),@('ownerAuthorizationSha256','052eb32338bba397e852cba8605ebc6878deff1dd907675041d5b1d2f802e28e'),@('storyPolicy','first-unused-eligible-row-else-root-system-button'),@('assistancePolicy','native-main-ranger4-and-one-hire-shortfalls'),@('nativeInitialAutoLeaf','Auto_1.zks'),@('nativeManualName','KMC_C7_ASSISTED_FIXTURE'))){Assert-KmcBootstrapInventoryString $s.($pair[0]) $pair[1]}
     foreach($key in @('baseGameOnly','assistedSetupOnly')){Assert-KmcChunk7Boolean $s.$key $true}
-    foreach($pair in @(@('expectedNativeLoadCount',0),@('maximumNativeWriteCount',3),@('targetRangerLevel',4),@('maximumTargetLevel',8),@('maximumStoryChoices',16),@('maximumStorySeconds',300),@('maximumExperienceShortfall',200000),@('maximumMoneyShortfall',100000))){Assert-KmcOrdinaryInteger $s.($pair[0]) $pair[1] $pair[1]}
+    # maximumStoryChoices declares the driver's own raised count cap; maximumStorySeconds, the 300 s total
+    # deadline that remains the real safety net, is unchanged.
+    foreach($pair in @(@('expectedNativeLoadCount',0),@('maximumNativeWriteCount',3),@('targetRangerLevel',4),@('maximumTargetLevel',8),@('maximumStoryChoices',48),@('maximumStorySeconds',300),@('maximumExperienceShortfall',200000),@('maximumMoneyShortfall',100000))){Assert-KmcOrdinaryInteger $s.($pair[0]) $pair[1] $pair[1]}
 }
 function Get-KmcAssistedSaveRoot($Request) {
     if($Request.runId-isnot[string]-or$Request.runId-cnotmatch'^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$'){throw 'Assisted fixture run ID is malformed.'}

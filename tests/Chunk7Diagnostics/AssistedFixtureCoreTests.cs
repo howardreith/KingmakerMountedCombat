@@ -44,9 +44,17 @@ static class AssistedCoreTests
  {
   Check("first eligible uses offered order not row order",()=>{var r=new Rig();Array.Reverse(r.State.Rows);using(var d=r.Driver()){return d.Tick()==Chunk7AssistedStoryStatus.Clicked&&d.Attempts[0].OfferIndex==0&&d.Attempts[0].RowIndex==1&&d.Attempts[0].NativeIndex==1&&d.NativeClickCount==1;}});
   Check("disabled first selects next owned cached-enabled",()=>{var r=new Rig();r.State.Rows[0].Disabled=true;using(var d=r.Driver())return d.Tick()==Chunk7AssistedStoryStatus.Clicked&&d.Attempts[0].OfferIndex==1;});
-  Check("same frame and unchanged next frame never repeat",()=>{var r=new Rig();using(var d=r.Driver()){d.Tick();d.Tick();r.State.Frame++;d.Tick();return r.Clicks==1&&d.NativeClickCount==1;}});
+  // The same answer is never dispatched twice. On the same frame the click cannot settle at all, and on a
+  // later frame at the same still-active cue whose only eligible row was already clicked the driver gives
+  // its explicit exhausted-cue refusal instead of repeating the dispatch.
+  Check("same frame and unchanged next frame never repeat",()=>{var r=new Rig();r.State.Rows[1].Disabled=true;using(var d=r.Driver()){if(d.Tick()!=Chunk7AssistedStoryStatus.Clicked)return false;
+   if(d.Tick()!=Chunk7AssistedStoryStatus.Waiting)return false;r.State.Frame++;return Throws(()=>d.Tick())&&r.Clicks==1&&d.NativeClickCount==1&&d.AttemptCount==1;}});
   Check("later cue progress permits next distinct click",()=>{var r=new Rig();using(var d=r.Driver()){d.Tick();r.State.Frame++;r.State.Cue=new object();r.State.CueGuid=G(8);d.Tick();return r.Clicks==2;}});
-  Check("return to prior exact context refuses replay",()=>{var r=new Rig();var cue=r.State.Cue;using(var d=r.Driver()){d.Tick();r.State.Frame++;r.State.Cue=new object();d.Tick();r.State.Frame++;r.State.Cue=cue;return Throws(()=>d.Tick())&&r.Clicks==2;}});
+  // Returning to a prior exact context whose ONLY eligible row was already clicked has no answer left to
+  // walk to, so it is the explicit exhausted-cue refusal rather than a replay or a stall.
+  Check("return to prior exact context refuses replay",()=>{var r=new Rig();r.State.Rows[1].Disabled=true;var cue=r.State.Cue;using(var d=r.Driver()){d.Tick();r.State.Frame++;r.State.Cue=new object();d.Tick();r.State.Frame++;r.State.Cue=cue;return Throws(()=>d.Tick())&&r.Clicks==2;}});
+  Check("return to a prior cue clicks its other unused offer instead of refusing",()=>{var r=new Rig();var cue=r.State.Cue;using(var d=r.Driver()){d.Tick();r.State.Frame++;r.State.Cue=new object();d.Tick();r.State.Frame++;r.State.Cue=cue;
+   return d.Tick()==Chunk7AssistedStoryStatus.Clicked&&r.Clicks==3&&d.AttemptCount==3&&d.Attempts[2].OfferIndex==1&&d.Attempts[2].RowIndex==1&&d.Attempts[2].Answer!=d.Attempts[0].Answer;}});
   Check("scheduled native transition waits without click",()=>{var r=new Rig();r.State.TransitionPending=true;using(var d=r.Driver())return d.Tick()==Chunk7AssistedStoryStatus.Waiting&&r.Clicks==0;});
   Check("native busy waits without click",()=>{var r=new Rig();r.State.NativeBusy=true;using(var d=r.Driver())return d.Tick()==Chunk7AssistedStoryStatus.Waiting&&r.Clicks==0;});
   Check("native cutscene waits without click",()=>{var r=new Rig();r.State.Mode="Cutscene";r.State.Cutscene=true;using(var d=r.Driver())return d.Tick()==Chunk7AssistedStoryStatus.Waiting&&r.Clicks==0;});
@@ -55,7 +63,9 @@ static class AssistedCoreTests
   Check("missing PC readiness waits finitely",()=>{var r=new Rig();r.State.UiStatus="missing-current-part";using(var d=r.Driver()){d.Tick();r.State.ElapsedMilliseconds=30001;return Throws(()=>d.Tick())&&r.Clicks==0;}});
   Check("total deadline before any native click",()=>BadStory(r=>r.State.ElapsedMilliseconds=300001));
   Check("no native progress deadline retains one click",()=>{var r=new Rig();using(var d=r.Driver()){d.Tick();r.State.ElapsedMilliseconds=30001;r.State.Frame++;return Throws(()=>d.Tick())&&r.Clicks==1;}});
-  Check("choice cap16 before seventeenth callback",()=>{var r=new Rig();using(var d=r.Driver()){for(int i=0;i<16;i++){r.State.Frame++;r.State.Cue=new object();d.Tick();}r.State.Frame++;r.State.Cue=new object();return Throws(()=>d.Tick())&&r.Clicks==16;}});
+  Check("choice cap refuses the callback past its raised bound",()=>{var r=new Rig();using(var d=r.Driver()){for(int i=0;i<Chunk7AssistedStoryDriver.MaximumChoices;i++){r.State.Frame++;r.State.Cue=new object();d.Tick();}r.State.Frame++;r.State.Cue=new object();
+   return Throws(()=>d.Tick())&&r.Clicks==Chunk7AssistedStoryDriver.MaximumChoices&&d.AttemptCount==Chunk7AssistedStoryDriver.MaximumChoices&&d.Failure.Contains("choice cap");}});
+  Check("bounded choice cap rises while both time nets stay exactly as they were",()=>Chunk7AssistedStoryDriver.MaximumChoices==48&&Chunk7AssistedStoryDriver.MaximumMilliseconds==300000&&Chunk7AssistedStoryDriver.ProgressMilliseconds==30000&&Chunk7AssistedStoryDriver.MaximumOffers==32&&Chunk7AssistedStoryDriver.MaximumRows==32);
   Check("native exception after mutation is retained without retry",()=>{var r=new Rig();r.OnClick=x=>{throw new Exception("native after mutation");};using(var d=r.Driver()){var e=Throws(()=>d.Tick());var n=Throws(()=>d.Tick());return e&&n&&r.Clicks==1&&d.Attempts[0].NativeEntered&&!d.Attempts[0].NativeReturned&&d.Attempts[0].Failure!=null;}});
   Check("native return then missing after snapshot remains FAIL",()=>{var r=new Rig();r.FailReadAfterClick=true;using(var d=r.Driver())return Throws(()=>d.Tick())&&d.Attempts[0].NativeReturned&&!d.Attempts[0].AfterReadSucceeded&&r.Clicks==1;});
   Check("entry witness missing cannot claim native success",()=>{var r=new Rig();r.EntryMissing=true;using(var d=r.Driver())return Throws(()=>d.Tick())&&!d.Attempts[0].NativeEntered&&!d.Attempts[0].NativeReturned;});
@@ -135,6 +145,38 @@ static class AssistedCoreTests
   Check("post-exit cutscene still ends at the total deadline",()=>{var r=new Rig();SystemOffer(r,true);using(var d=r.Driver()){if(d.Tick()!=Chunk7AssistedStoryStatus.Clicked)return false;
    for(long t=10000;t<=Chunk7AssistedStoryDriver.MaximumMilliseconds;t+=10000){Closed(r,1,t);if(d.Tick()!=Chunk7AssistedStoryStatus.Waiting)return false;}
    Closed(r,1,Chunk7AssistedStoryDriver.MaximumMilliseconds+1);return Throws(()=>d.Tick())&&r.Clicks==1&&d.Failure.Contains("total deadline");}});
+  // Same-cue re-entry: the engine consumed the owned click and came back to the identical still-active
+  // dialog, cue and answer objects. The click is resolved as consumed and selection walks to the next
+  // unused eligible offer; the clock, the bounds and the dedupe are untouched.
+  Check("same-cue re-entry after an owned click clicks the next unused offer",()=>{var r=new Rig();using(var d=r.Driver()){
+   if(d.Tick()!=Chunk7AssistedStoryStatus.Clicked||d.Attempts[0].OfferIndex!=0||d.Attempts[0].RowIndex!=0)return false;
+   r.State.Frame++;r.State.ElapsedMilliseconds=100;
+   return d.Tick()==Chunk7AssistedStoryStatus.Clicked&&r.Clicks==2&&d.AttemptCount==2&&d.NativeClickCount==2&&d.Attempts[1].OfferIndex==1&&d.Attempts[1].RowIndex==1&&d.Attempts[1].NativeIndex==2&&d.Attempts[1].Answer!=d.Attempts[0].Answer;}});
+  Check("same-cue re-entry without a later observed frame cannot settle the click",()=>{var r=new Rig();using(var d=r.Driver()){
+   if(d.Tick()!=Chunk7AssistedStoryStatus.Clicked)return false;
+   if(d.Tick()!=Chunk7AssistedStoryStatus.Waiting||r.Clicks!=1)return false;
+   r.State.ElapsedMilliseconds=Chunk7AssistedStoryDriver.ProgressMilliseconds+1;
+   return Throws(()=>d.Tick())&&r.Clicks==1&&d.AttemptCount==1&&d.Status==Chunk7AssistedStoryStatus.Failed&&d.Failure.Contains("no observed native progress");}});
+  Check("same-cue re-entry whose rows all became ineligible waits and still trips the unchanged bound",()=>{var r=new Rig();using(var d=r.Driver()){
+   if(d.Tick()!=Chunk7AssistedStoryStatus.Clicked)return false;
+   r.State.Frame++;foreach(var row in r.State.Rows)row.Disabled=true;
+   if(d.Tick()!=Chunk7AssistedStoryStatus.Waiting||r.Clicks!=1)return false;
+   r.State.Frame++;r.State.ElapsedMilliseconds=Chunk7AssistedStoryDriver.ProgressMilliseconds+1;
+   return Throws(()=>d.Tick())&&r.Clicks==1&&d.Failure.Contains("no observed native progress");}});
+  Check("total deadline still ends a run holding a consumed same-cue re-entry",()=>{var r=new Rig();using(var d=r.Driver()){
+   if(d.Tick()!=Chunk7AssistedStoryStatus.Clicked)return false;
+   r.State.Frame++;r.State.ElapsedMilliseconds=Chunk7AssistedStoryDriver.MaximumMilliseconds+1;
+   return Throws(()=>d.Tick())&&r.Clicks==1&&d.Failure.Contains("total deadline");}});
+  Check("cue whose every eligible offer is used refuses explicitly and names it",()=>{var r=new Rig();using(var d=r.Driver()){
+   if(d.Tick()!=Chunk7AssistedStoryStatus.Clicked)return false;r.State.Frame++;
+   if(d.Tick()!=Chunk7AssistedStoryStatus.Clicked||r.Clicks!=2)return false;r.State.Frame++;
+   return Throws(()=>d.Tick())&&r.Clicks==2&&d.AttemptCount==2&&d.Status==Chunk7AssistedStoryStatus.Failed&&d.Failure.Contains("already used")&&d.Failure.Contains(G(1))&&d.Failure.Contains(G(2));}});
+  Check("system continue attempt records its native answer kind and displayed continue cue",()=>{var r=new Rig();SystemOffer(r,false);using(var d=r.Driver())return d.Tick()==Chunk7AssistedStoryStatus.Clicked&&!d.Attempts[0].IsExitAnswer&&d.Attempts[0].IsContinueAnswer&&d.Attempts[0].ContinueCueDisplayed;});
+  Check("terminal exit attempt records the exit answer and no continue cue",()=>{var r=new Rig();SystemOffer(r,true);using(var d=r.Driver())return d.Tick()==Chunk7AssistedStoryStatus.Clicked&&d.Attempts[0].IsExitAnswer&&!d.Attempts[0].IsContinueAnswer&&!d.Attempts[0].ContinueCueDisplayed;});
+  Check("cached row attempt records neither native exit nor continue",()=>{var r=new Rig();using(var d=r.Driver())return d.Tick()==Chunk7AssistedStoryStatus.Clicked&&!d.Attempts[0].IsExitAnswer&&!d.Attempts[0].IsContinueAnswer&&!d.Attempts[0].ContinueCueDisplayed;});
+  Check("explicit evidence names the implemented policy and the per-attempt answer kinds",()=>{var r=new Rig();SystemOffer(r,true);using(var d=r.Driver()){d.Tick();var j=Chunk7AssistedFixtureEvidence.Capture(r.Binding,d,null);var a=j["story"]["attempts"][0];
+   return (string)j["story"]["policy"]=="first-unused-eligible-row-else-root-system-button"&&(int)j["story"]["maximumChoices"]==48&&(long)j["story"]["maximumMilliseconds"]==300000&&(long)j["story"]["progressMilliseconds"]==30000&&
+    (bool)a["isExitAnswer"]&&!(bool)a["isContinueAnswer"]&&!(bool)a["continueCueDisplayed"]&&(bool)a["systemButton"];}});
   Check("exact XP shortfall only",()=>{var r=new Rig();var a=r.Assistance();var e=a.EnsureExperience();return r.XpCalls==1&&e.Delta==8900&&r.Short.Experience==9000&&e.NativeEntered&&e.NativeReturned&&e.AfterReadSucceeded;});
   Check("XP already sufficient makes no native call",()=>{var r=new Rig();r.Short.Experience=9000;var e=r.Assistance().EnsureExperience();return e.NoOp&&!e.Attempted&&r.XpCalls==0;});
   Check("XP step cannot be repeated",()=>{var r=new Rig();var a=r.Assistance();a.EnsureExperience();return Throws(()=>a.EnsureExperience())&&r.XpCalls==1;});

@@ -14,7 +14,7 @@ if(Test-Path -LiteralPath $output){throw 'Preserve earlier assisted evidence res
 [void][IO.Directory]::CreateDirectory($output)
 $clock=[Diagnostics.Stopwatch]::StartNew()
 $manifest=Get-Content -LiteralPath $FixtureManifestPath -Raw|ConvertFrom-Json
-if($manifest.kind-cne'actual-assisted-setup-emitter-fixtures'-or$manifest.outputs-isnot[Array]-or$manifest.outputs.Count-ne6){throw 'Six actual Capture fixtures are required.'}
+if($manifest.kind-cne'actual-assisted-setup-emitter-fixtures'-or$manifest.outputs-isnot[Array]-or$manifest.outputs.Count-ne7){throw 'Seven actual Capture fixtures are required.'}
 $inputPaths=@($PSCommandPath,$ReaderPath,$FixtureManifestPath)+@($manifest.outputs|ForEach-Object path)+@(Get-ChildItem -LiteralPath (Join-Path $RepositoryRoot 'scripts/runtime') -Filter '*.ps1' -File|ForEach-Object FullName)
 $inputPins=@($inputPaths|Sort-Object -Unique|ForEach-Object{[pscustomobject]@{path=[IO.Path]::GetFullPath($_);sha256=(Get-KmcSha256 $_)}})
 $fixtures=@{}
@@ -39,7 +39,7 @@ function Check-Setup([string]$Name,[string]$Leaf,[bool]$Accept,[scriptblock]$Mut
     $cases.Add([pscustomobject]@{name=$Name;status=$(if($ok){'PASS'}else{'FAIL'});expectedAccepted=$Accept;actualAccepted=$accepted;error=$message})
     Write-Host ($(if($ok){'PASS '}else{'FAIL '})+$Name+$(if(-not$ok){': '+$message}else{''}))
 }
-foreach($leaf in @('ready-noop.json','click-xp-funds.json','xp-funds-sufficient.json','skip-disabled-first.json','system-button.json')){Check-Setup ('actual emitter '+$leaf) $leaf $true $null}
+foreach($leaf in @('ready-noop.json','click-xp-funds.json','xp-funds-sufficient.json','skip-disabled-first.json','system-button.json','same-cue-reentry.json')){Check-Setup ('actual emitter '+$leaf) $leaf $true $null}
 Check-Setup 'actual partial XP exception cannot qualify' 'partial-native-failure.json' $false $null
 function Add-EligibleRow($Attempt){
  $b=$Attempt.before
@@ -115,6 +115,23 @@ Reject 'row click cannot drop its native UI index' {param($v)$v.story.attempts[0
 Reject 'attempt kind flag is mandatory' {param($v)$v.story.attempts[0].PSObject.Properties.Remove('systemButton')}
 Reject 'mistyped attempt kind flag' {param($v)$v.story.attempts[0].systemButton='true'}
 Reject 'unknown attempt field' {param($v)$v.story.attempts[0]|Add-Member NoteProperty bypass $false}
+# The per-attempt native answer kind is a recorded observation of the clicked answer, so the terminal
+# DialogRoot Exit identity is read out of the evidence instead of inferred from the after-read. All three
+# flags are mandatory and Boolean, the exit and continue identities are mutually exclusive, and the
+# product's own system-button guards (a root system answer, and a displayed continue cue unless the
+# answer is the terminal exit) are re-checked here.
+Reject 'attempt exit-answer observation is mandatory' {param($v)$v.story.attempts[0].PSObject.Properties.Remove('isExitAnswer')}
+Reject 'attempt continue-answer observation is mandatory' {param($v)$v.story.attempts[0].PSObject.Properties.Remove('isContinueAnswer')}
+Reject 'attempt continue-cue observation is mandatory' {param($v)$v.story.attempts[0].PSObject.Properties.Remove('continueCueDisplayed')}
+Reject 'mistyped attempt exit-answer observation' {param($v)$v.story.attempts[0].isExitAnswer='true'}
+Reject 'mistyped attempt continue-cue observation' {param($v)$v.story.attempts[0].continueCueDisplayed='false'}
+Reject 'attempt cannot click a native exit and continue answer at once' {param($v)$v.story.attempts[0].isExitAnswer=$true;$v.story.attempts[0].isContinueAnswer=$true}
+Reject 'system-button click must name a root native system answer' {param($v)$v.story.attempts[0].isContinueAnswer=$false} 'system-button.json'
+Reject 'continue system-button click requires the displayed continue cue' {param($v)$v.story.attempts[0].continueCueDisplayed=$false} 'system-button.json'
+# A cue the engine re-entered after an owned click legitimately records a second click on the next
+# UNUSED eligible offer. Claiming the already-used offer, or relabeling the answer, is still refused.
+Reject 'same-cue re-entry cannot replay the already used offer' {param($v)$v.story.attempts[1].offerIndex=0} 'same-cue-reentry.json'
+Reject 'same-cue re-entry cannot relabel its native answer' {param($v)$v.story.attempts[1].answer=$v.story.attempts[0].answer} 'same-cue-reentry.json'
 Reject 'system-button click cannot claim a cached row' {param($v)$v.story.attempts[0].systemButton=$false} 'system-button.json'
 Reject 'system-button click cannot carry a row index' {param($v)$v.story.attempts[0].rowIndex=0} 'system-button.json'
 Reject 'system-button click cannot carry a native UI index' {param($v)$v.story.attempts[0].nativeIndex=0} 'system-button.json'
@@ -174,7 +191,7 @@ Reject 'funds no-op cannot claim native mutation' {param($v)$v.hireFunds.attempt
 Reject 'funds no-op cannot reduce existing money' {param($v)$v.hireFunds.after.money=8000} 'xp-funds-sufficient.json'
 Reject 'partial native setup cannot be relabeled complete' {param($v)$v.shortfallFailed=$true}
 foreach($pin in $inputPins){if((Get-KmcSha256 $pin.path)-cne$pin.sha256){throw ('Assisted evidence test input changed: '+$pin.path)}}
-$receipt=[ordered]@{schemaVersion=1;kind='assisted-setup-evidence-focused-checks';status=$(if($script:failed-eq0){'PASS'}else{'FAIL'});passed=$script:passed;failed=$script:failed;durationSeconds=$clock.Elapsed.TotalSeconds;nativeInvoked=$false;installedOrProtectedArchiveReads=0;inputPinsVerifiedAfter=$true;inputPins=$inputPins;actualEmitterFixtureCount=6;scope='Actual production Capture output plus malformed mutations; no native or complete host/output qualification';cases=$cases.ToArray()}
+$receipt=[ordered]@{schemaVersion=1;kind='assisted-setup-evidence-focused-checks';status=$(if($script:failed-eq0){'PASS'}else{'FAIL'});passed=$script:passed;failed=$script:failed;durationSeconds=$clock.Elapsed.TotalSeconds;nativeInvoked=$false;installedOrProtectedArchiveReads=0;inputPinsVerifiedAfter=$true;inputPins=$inputPins;actualEmitterFixtureCount=7;scope='Actual production Capture output plus malformed mutations; no native or complete host/output qualification';cases=$cases.ToArray()}
 Write-KmcJsonAtomic (Join-Path $output 'receipt.json') $receipt
 Write-Host ('ASSISTED SETUP READER: '+$script:passed+' PASS / '+$script:failed+' FAIL')
 $global:LASTEXITCODE=$(if($script:failed-eq0){0}else{1})
