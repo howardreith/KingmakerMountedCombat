@@ -33,6 +33,10 @@ static class AssistedCoreTests
  // carries its displayed continue cue, the terminal exit answer has none (native SelectAnswer stops the dialog).
  static void SystemOffer(Rig r,bool exit){r.State.Offers=new[]{r.State.Offers[0]};r.State.Offers[0].IsSystemAnswer=true;r.State.Offers[0].IsExitAnswer=exit;r.State.Rows=new Chunk7AssistedStoryRow[0];
   r.State.SystemButton=new object();r.State.SystemButtonEnabled=true;r.State.SystemButtonAnswer=r.State.Offers[0].Answer;r.State.ContinueCue=exit?null:new object();}
+ // The prologue narration plays INSIDE a cutscene, so the Exit click's native StopDialog/Clear can leave no
+ // dialog, cue, offer or row at all and report the surrounding cutscene as the current mode, not Default.
+ static void Closed(Rig r,int frames,long elapsed){r.State.Mode="Cutscene";r.State.UiStatus="not-dialog";r.State.DialogActive=false;r.State.Cutscene=true;
+  r.State.Dialog=null;r.State.Cue=null;r.State.DialogGuid=null;r.State.CueGuid=null;r.State.Offers=null;r.State.Rows=null;r.State.Frame+=frames;r.State.ElapsedMilliseconds=elapsed;}
  static bool Stale(Action<Rig> mutate){var r=new Rig();r.BeforeClick=mutate;using(var d=r.Driver())return Throws(()=>d.Tick())&&r.Clicks==0&&d.AttemptCount==1&&!d.Attempts[0].NativeEntered;}
  static bool BadXp(Action<Rig> mutate){var r=new Rig();mutate(r);var a=r.Assistance();return Throws(()=>a.EnsureExperience())&&r.XpCalls==0;}
  static bool BadMoney(Action<Rig> mutate){var r=new Rig();r.Short.Level=4;mutate(r);var a=r.Assistance();return Throws(()=>a.EnsureOneNativeHireCost())&&r.MoneyCalls==0;}
@@ -119,6 +123,18 @@ static class AssistedCoreTests
   Check("dialog closed by the exit click under a cutscene is progress not a stall",()=>{var r=new Rig();SystemOffer(r,true);using(var d=r.Driver()){if(d.Tick()!=Chunk7AssistedStoryStatus.Clicked)return false;
    r.State.Frame++;r.State.ElapsedMilliseconds=20000;r.State.Mode="Default";r.State.DialogActive=false;r.State.Cutscene=true;if(d.Tick()!=Chunk7AssistedStoryStatus.Waiting)return false;
    r.State.Frame++;r.State.ElapsedMilliseconds=45000;return d.Tick()==Chunk7AssistedStoryStatus.Waiting&&r.Clicks==1;}});
+  Check("dialog closed by the exit click into cutscene mode is progress not a stall",()=>{var r=new Rig();SystemOffer(r,true);using(var d=r.Driver()){if(d.Tick()!=Chunk7AssistedStoryStatus.Clicked)return false;
+   Closed(r,1,29000);if(d.Tick()!=Chunk7AssistedStoryStatus.Waiting)return false;
+   Closed(r,1,55000);return d.Tick()==Chunk7AssistedStoryStatus.Waiting&&r.Clicks==1&&d.AttemptCount==1;}});
+  Check("post-exit cutscene advancing its own frames waits past the progress bound",()=>{var r=new Rig();SystemOffer(r,true);using(var d=r.Driver()){if(d.Tick()!=Chunk7AssistedStoryStatus.Clicked)return false;
+   for(long t=10000;t<=200000;t+=10000){Closed(r,1,t);if(d.Tick()!=Chunk7AssistedStoryStatus.Waiting)return false;}
+   return r.Clicks==1&&d.AttemptCount==1&&r.State.ElapsedMilliseconds>Chunk7AssistedStoryDriver.ProgressMilliseconds;}});
+  Check("post-exit cutscene with a frozen frame still fails the progress bound",()=>{var r=new Rig();SystemOffer(r,true);using(var d=r.Driver()){if(d.Tick()!=Chunk7AssistedStoryStatus.Clicked)return false;
+   Closed(r,1,10000);if(d.Tick()!=Chunk7AssistedStoryStatus.Waiting)return false;
+   Closed(r,0,10000+Chunk7AssistedStoryDriver.ProgressMilliseconds+1);return Throws(()=>d.Tick())&&r.Clicks==1&&d.Status==Chunk7AssistedStoryStatus.Failed&&d.Failure.Contains("no observed native progress");}});
+  Check("post-exit cutscene still ends at the total deadline",()=>{var r=new Rig();SystemOffer(r,true);using(var d=r.Driver()){if(d.Tick()!=Chunk7AssistedStoryStatus.Clicked)return false;
+   for(long t=10000;t<=Chunk7AssistedStoryDriver.MaximumMilliseconds;t+=10000){Closed(r,1,t);if(d.Tick()!=Chunk7AssistedStoryStatus.Waiting)return false;}
+   Closed(r,1,Chunk7AssistedStoryDriver.MaximumMilliseconds+1);return Throws(()=>d.Tick())&&r.Clicks==1&&d.Failure.Contains("total deadline");}});
   Check("exact XP shortfall only",()=>{var r=new Rig();var a=r.Assistance();var e=a.EnsureExperience();return r.XpCalls==1&&e.Delta==8900&&r.Short.Experience==9000&&e.NativeEntered&&e.NativeReturned&&e.AfterReadSucceeded;});
   Check("XP already sufficient makes no native call",()=>{var r=new Rig();r.Short.Experience=9000;var e=r.Assistance().EnsureExperience();return e.NoOp&&!e.Attempted&&r.XpCalls==0;});
   Check("XP step cannot be repeated",()=>{var r=new Rig();var a=r.Assistance();a.EnsureExperience();return Throws(()=>a.EnsureExperience())&&r.XpCalls==1;});

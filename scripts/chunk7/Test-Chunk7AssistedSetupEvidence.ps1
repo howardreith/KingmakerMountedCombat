@@ -47,6 +47,9 @@ function Add-EligibleRow($Attempt){
  $b.rowInitialized=@($true);$b.rowDisabled=@($false);$b.rowChoosingCharacter=@($false)
  $b.rowInterchapter=@($false);$b.rowActiveAndEnabled=@($true);$b.rowActiveInHierarchy=@($true)
 }
+# The driver touches the shared system button only when the cue materialized ZERO cached rows, so a
+# present-but-ineligible row is a shape it cannot emit and the reader refuses it like an eligible one.
+function Add-IneligibleRow($Attempt){Add-EligibleRow $Attempt;$Attempt.before.rowDisabled=@($true);$Attempt.before.rowActiveAndEnabled=@($false)}
 function Reject([string]$Name,[scriptblock]$Mutate,[string]$Leaf='click-xp-funds.json'){Check-Setup $Name $Leaf $false $Mutate}
 Reject 'foreign native run' {param($v)$v.runId='another-run'}
 Reject 'foreign campaign' {param($v)$v.gameId='aaaaaaaa-1111-4111-8111-111111111111'}
@@ -117,6 +120,7 @@ Reject 'system-button click cannot carry a row index' {param($v)$v.story.attempt
 Reject 'system-button click cannot carry a native UI index' {param($v)$v.story.attempts[0].nativeIndex=0} 'system-button.json'
 Reject 'system-button click cannot carry a row identity' {param($v)$v.story.attempts[0].row=2048} 'system-button.json'
 Reject 'system-button click cannot bypass an eligible row' {param($v)Add-EligibleRow $v.story.attempts[0]} 'system-button.json'
+Reject 'system-button click cannot carry any cached row' {param($v)Add-IneligibleRow $v.story.attempts[0]} 'system-button.json'
 Reject 'system-button click must name an offered answer' {param($v)$v.story.attempts[0].offerIndex=1} 'system-button.json'
 Reject 'system-button answer identity cannot be relabeled' {param($v)$v.story.attempts[0].answer=2048} 'system-button.json'
 Reject 'system-button answer GUID must be exact' {param($v)$v.story.attempts[0].answerGuid=('f'*32)} 'system-button.json'

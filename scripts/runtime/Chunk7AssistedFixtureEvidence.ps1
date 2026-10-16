@@ -130,10 +130,11 @@ function Assert-KmcAssistedStoryEvidence($Value, $Setup) {
         }
         # A cue is advanced two ways. A cached TempOptionUI row click records its real row index and
         # native UI index; the shared DialogueSystemButton click (continue or the terminal Exit) is
-        # taken only when the cue materializes no selectable row, so it records none. Each kind is
-        # validated as itself and neither may masquerade as the other.
+        # taken only when the cue materializes NO cached row at all, so it records none. Each kind is
+        # validated as itself and neither may masquerade as the other. The zero-rows requirement is
+        # exactly the product's own (Rows.Length==0), so a present-but-ineligible row also refuses.
         if($attempt.systemButton) {
-            if($selectedOffer-ge0){throw 'A system-button story attempt cannot bypass an available native row.'}
+            if($before.rowObjects.Count-ne0){throw 'A system-button story attempt cannot bypass an available native row.'}
             if(-not(Test-KmcExactJsonInteger $attempt.offerIndex)-or$attempt.offerIndex-lt0-or$attempt.offerIndex-ge$before.offerObjects.Count){throw 'A system-button story attempt did not click an offered native answer.'}
             if($before.offerSelectionTypes[$attempt.offerIndex]-eq4){throw 'A system-button story attempt cannot drive Manual character selection.'}
             Assert-KmcOrdinaryInteger $attempt.rowIndex (-1) (-1)

@@ -97,6 +97,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 var current=boundary.Read(); RequireSnapshot(current); LastObserved=Capture(current);
                 if(current.ElapsedMilliseconds>MaximumMilliseconds)throw new InvalidOperationException("Assisted story setup exceeded its total deadline.");
                 if(lastTime<0)progressStart=current.ElapsedMilliseconds;
+                var previousFrame=lastFrame;
                 lastTime=current.ElapsedMilliseconds; lastFrame=current.Frame;
                 if(current.UnexpectedPopup)throw new InvalidOperationException("Unexpected non-story dialog refuses all fixture input.");
                 if(!current.MouseController)throw new InvalidOperationException("Assisted story input requires the native PC/mouse controller.");
@@ -112,6 +113,14 @@ namespace KingmakerMountedCombat.Diagnostics
                     pending=null;progressStart=current.ElapsedMilliseconds;return Status=Chunk7AssistedStoryStatus.ReadyAtObservedFrame;
                 }
                 if(pending!=null && Progressed(pending,current)) {pending=null;progressStart=current.ElapsedMilliseconds;}
+                // The prologue narration plays INSIDE a cutscene, so a closed dialog can leave the engine
+                // running that cutscene with nothing else observable for longer than ProgressMilliseconds.
+                // With no settled click outstanding, no active dialog and a cutscene playing, a strictly
+                // increasing native frame count is genuine engine advance and re-arms the progress clock.
+                // A frozen frame count re-arms nothing and still trips the unchanged bound below; a cutscene
+                // that never ends is still terminated by the unchanged total deadline.
+                if(pending==null && !current.DialogActive && (current.Mode=="Cutscene"||current.Cutscene) && previousFrame>=0 && current.Frame>previousFrame)
+                    progressStart=current.ElapsedMilliseconds;
                 if(current.ElapsedMilliseconds-progressStart>ProgressMilliseconds)throw new InvalidOperationException("Assisted story setup made no observed native progress within its bound.");
                 if(current.NativeBusy||current.TransitionPending || current.Mode!="Dialog"&&current.Cutscene)
                     return Status=Chunk7AssistedStoryStatus.Waiting;
@@ -247,6 +256,10 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             if(after.Frame<=before.Frame)return false;
             if(after.Mode=="Default"&&!after.DialogActive)return true;
+            // A dialog that was active and is no longer active is the observed native effect of the owned
+            // click whatever mode the engine returns to: the terminal Exit click's StopDialog can return the
+            // prologue narration's surrounding Cutscene mode, whose snapshot carries no dialog and no offers.
+            if(before.DialogActive&&!after.DialogActive)return true;
             if(after.Mode!="Dialog"||after.Controller==null||after.Dialog==null||after.Cue==null)return false;
             if(!ReferenceEquals(before.Controller,after.Controller))throw new InvalidOperationException("Native dialogue controller changed while awaiting an owned click.");
             if(!ReferenceEquals(before.Dialog,after.Dialog)||!ReferenceEquals(before.Cue,after.Cue))return true;
