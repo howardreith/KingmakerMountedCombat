@@ -45,6 +45,7 @@ namespace KingmakerMountedCombat.Diagnostics
             ownerThread=System.Threading.Thread.CurrentThread.ManagedThreadId;
             if(game==null||player==null||main==null)throw new InvalidOperationException("Exact native game/player/main binding is unavailable.");
             RequireMethod(typeof(TempOptionUI),"OnClick",0x06004616,typeof(void),Type.EmptyTypes);
+            RequireMethod(typeof(DialogueSystemButton),"OnClick",0x0600460D,typeof(void),Type.EmptyTypes);
             RequireMethod(typeof(Kingmaker.UnitLogic.UnitProgressionData),"GainExperience",0x06001F80,typeof(void),new[]{typeof(int),typeof(bool)});
             RequireMethod(typeof(Player),"GainMoney",0x06000DD0,typeof(void),new[]{typeof(long)});
             ReadIdentity();
@@ -96,6 +97,7 @@ namespace KingmakerMountedCombat.Diagnostics
                         if(raw.Error!=null)throw new InvalidOperationException("Passive native PC capture failed: "+raw.Error);
                         result.Ui=raw.Ui;result.Common=raw.Common;result.Manager=raw.Manager;result.PcDialog=raw.PcDialog;result.CurrentPart=raw.CurrentPart;
                         result.ManagerKind=raw.ManagerKind;result.ManagerShown=raw.ManagerShown;result.PcActive=raw.PcDialogActive;result.UiStatus=raw.UiStatus;
+                        result.SystemButton=raw.SystemButton;result.SystemButtonEnabled=raw.SystemButtonEnabled;result.SystemButtonAnswer=raw.SystemButtonAnswer;result.ContinueCue=raw.ContinueCue;
                         var offers=ReadField<List<BlueprintAnswer>>(typeof(NativeController),controller,"m_Answers",0x04005E67);result.OffersList=offers;
                         if(offers==null||offers.Count>Chunk7AssistedStoryDriver.MaximumOffers||raw.Offered==null||offers.Count!=raw.Offered.Length)
                             throw new InvalidOperationException("Actual offered list is absent, changed or over bound.");
@@ -106,7 +108,8 @@ namespace KingmakerMountedCombat.Diagnostics
                             var selection=ReadField<CharacterSelection>(typeof(BlueprintAnswer),item,"CharacterSelection",0x0400561C);
                             var kind=selection==null?(int?)null:(int)ReadField<CharacterSelection.Type>(typeof(CharacterSelection),selection,"SelectionType",0x040055FD);
                             if(kind!=raw.Offered[i].SelectionType||item.AssetGuidThreadSafe!=raw.Offered[i].Guid)throw new InvalidOperationException("Native offered metadata changed.");
-                            result.Offers[i]=new Chunk7AssistedStoryOffer{Answer=item,Selection=selection,Guid=raw.Offered[i].Guid,SelectionType=kind};
+                            result.Offers[i]=new Chunk7AssistedStoryOffer{Answer=item,Selection=selection,Guid=raw.Offered[i].Guid,SelectionType=kind,
+                                IsSystemAnswer=raw.Offered[i].IsSystemAnswer,OnSelectActionTypeCount=raw.Offered[i].ActionTypes==null?0:raw.Offered[i].ActionTypes.Length};
                         }
                         if(actualKind!=DialogType.Common)ReadBookEventRows(result,raw,actualKind);
                         else if(raw.CurrentPart!=null)
@@ -202,6 +205,24 @@ namespace KingmakerMountedCombat.Diagnostics
             // ReadStory just performed authority, global/controller, exact list,
             // row/cache/selection, frame and active hierarchy checks on this thread.
             enteringNative();((TempOptionUI)row.View).OnClick();
+        }
+        public void ClickSystemButton(Chunk7AssistedStorySnapshot expected,Action enteringNative)
+        {
+            if(enteringNative==null)throw new ArgumentNullException("enteringNative");
+            var actual=ReadStory();Chunk7AssistedStoryDriver.RequireSameClickState(expected,actual);
+            if(actual.Rows.Length!=0)throw new InvalidOperationException("A system continue is advanced only when no native row is present.");
+            var systemButton=actual.SystemButton as DialogueSystemButton;
+            if(systemButton==null||actual.SystemButtonEnabled!=true)throw new InvalidOperationException("The native DialogueSystemButton is absent or disabled; the UI continue cannot be bypassed.");
+            var offerIndex=-1;
+            for(var i=0;i<actual.Offers.Length;i++)if(ReferenceEquals(actual.Offers[i].Answer,actual.SystemButtonAnswer)){if(offerIndex>=0)throw new InvalidOperationException("The system continue button answer is ambiguous.");offerIndex=i;}
+            if(offerIndex<0)throw new InvalidOperationException("The native system button answer is not an offered answer.");
+            var offer=actual.Offers[offerIndex];
+            if(!offer.IsSystemAnswer||offer.SelectionType==4||offer.OnSelectActionTypeCount!=0)throw new InvalidOperationException("The system button answer is not a non-Manual, action-free DialogRoot system answer.");
+            foreach(var other in actual.Offers)if(!other.IsSystemAnswer)throw new InvalidOperationException("A genuine player choice is present; the system continue is not advanced.");
+            if(actual.ContinueCue==null)throw new InvalidOperationException("An Exit system answer is terminal and is not advanced by assisted continue.");
+            // ReadStory just re-verified authority, global/controller, exact lists, frame and the SystemButton
+            // identity/enabled/answer custody on this thread. Advance the real UI affordance, never SelectAnswer directly.
+            enteringNative();systemButton.OnClick();
         }
         internal Chunk7AssistedShortfallSnapshot ReadShortfall()
         {
