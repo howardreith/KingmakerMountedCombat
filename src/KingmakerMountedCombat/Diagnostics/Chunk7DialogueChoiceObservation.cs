@@ -179,8 +179,14 @@ namespace KingmakerMountedCombat.Diagnostics
                                         var interchapterExitAnswer = ReadField<BlueprintAnswer>(typeof(DialogRoot), dialogRoot, "InterchapterExitAnswer", 0x0400618F);
                                         foreach (var offered in state.Offered)
                                             if (offered != null)
+                                            {
                                                 offered.IsSystemAnswer = ReferenceEquals(offered.Answer, continueAnswer) || ReferenceEquals(offered.Answer, exitAnswer) ||
                                                     ReferenceEquals(offered.Answer, interchapterContinueAnswer) || ReferenceEquals(offered.Answer, interchapterExitAnswer);
+                                                // The two Exit answers are the terminal dismiss affordance: SelectNextCue (0x06009326)
+                                                // returns null for them, so SelectAnswer (0x06009325) calls StopDialog (0x06009324)
+                                                // instead of ScheduleCue. The Continue answers schedule the observed m_ContinueCue.
+                                                offered.IsExitAnswer = ReferenceEquals(offered.Answer, exitAnswer) || ReferenceEquals(offered.Answer, interchapterExitAnswer);
+                                            }
                                     }
                                 }
                             }
@@ -259,7 +265,7 @@ namespace KingmakerMountedCombat.Diagnostics
         }
         internal sealed class Offered
         {
-            internal object Answer; internal string Guid; internal int? SelectionType; internal bool RequireValidCue, IsSystemAnswer;
+            internal object Answer; internal string Guid; internal int? SelectionType; internal bool RequireValidCue, IsSystemAnswer, IsExitAnswer;
             internal string[] ShowTypes, SelectTypes, ActionTypes;
         }
         internal sealed class Row
