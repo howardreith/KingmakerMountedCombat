@@ -12,6 +12,7 @@ using Kingmaker.DialogSystem.State;
 using Kingmaker.EntitySystem.Entities;
 using Kingmaker.GameModes;
 using Kingmaker.UI;
+using Kingmaker.UI.BookEvent;
 using Kingmaker.UI.Dialog;
 using Kingmaker.UnitLogic.Parts;
 using UnityEngine;
@@ -86,7 +87,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 else
                 {
                     var actualKind=ReadField<DialogType>(typeof(BlueprintDialog),dialog,"Type",0x04005655);
-                    if(actualKind!=DialogType.Common){result.ManagerKind=(int)actualKind;result.UiStatus="unsupported-dialog-kind";}
+                    if(actualKind!=DialogType.Common&&actualKind!=DialogType.Book&&actualKind!=DialogType.Interchapter){result.ManagerKind=(int)actualKind;result.UiStatus="unsupported-dialog-kind";}
                     else
                     {
                         var raw=Chunk7DialogueChoiceObservation.ReadNative(game,controller,dialog,cue);
@@ -105,7 +106,8 @@ namespace KingmakerMountedCombat.Diagnostics
                             if(kind!=raw.Offered[i].SelectionType||item.AssetGuidThreadSafe!=raw.Offered[i].Guid)throw new InvalidOperationException("Native offered metadata changed.");
                             result.Offers[i]=new Chunk7AssistedStoryOffer{Answer=item,Selection=selection,Guid=raw.Offered[i].Guid,SelectionType=kind};
                         }
-                        if(raw.CurrentPart!=null)
+                        if(actualKind!=DialogType.Common)ReadBookEventRows(result,raw,actualKind);
+                        else if(raw.CurrentPart!=null)
                         {
                             var rows=ReadField<List<TempOptionUI>>(typeof(DialogCurrentPart),raw.CurrentPart,"m_AnswersList",0x04002ED8);result.RowsList=rows;
                             if(rows==null||rows.Count>Chunk7AssistedStoryDriver.MaximumRows||raw.Rows==null||rows.Count!=raw.Rows.Length)
@@ -137,13 +139,59 @@ namespace KingmakerMountedCombat.Diagnostics
                 throw new InvalidOperationException("Native story context/frame changed during capture.");
             return result;
         }
+        // Book-event pages (DialogType.Book and Interchapter) keep their options on the
+        // manager's book controllers instead of the PC dialogue part. The same TempOptionUI
+        // row contract, bounds, cached flags and verified click path apply; the page view,
+        // its GameObject and the option container stand in for the PC view/part/list roles.
+        private void ReadBookEventRows(Chunk7AssistedStorySnapshot result,Chunk7DialogueChoiceObservation.RawState raw,DialogType kind)
+        {
+            if(raw.Manager==null)return;
+            if(raw.ManagerKind!=(int)kind)throw new InvalidOperationException("Native dialog kind differs between the blueprint and the UI manager.");
+            var manager=(DialogBookEventUIManager)raw.Manager;
+            TempOptionUI[] rows;object view,part,container;bool active;
+            if(kind==DialogType.Interchapter)
+            {
+                var inter=ReadField<BookEventInterchapterController>(typeof(DialogBookEventUIManager),manager,"Interchapter",0x04002EBB);
+                if(inter==null){result.UiStatus="missing-book-view";return;}
+                var option=ReadField<TempOptionUI>(typeof(BookEventInterchapterController),inter,"m_Answer",0x04002D9A);
+                view=inter;part=inter.gameObject;container=inter.transform;active=inter.isActiveAndEnabled&&inter.gameObject!=null&&inter.gameObject.activeInHierarchy;
+                rows=option==null?new TempOptionUI[0]:new[]{option};
+            }
+            else
+            {
+                var book=ReadField<BookEventController>(typeof(DialogBookEventUIManager),manager,"BookEvent",0x04002EBA);
+                if(book==null){result.UiStatus="missing-book-view";return;}
+                var answers=ReadField<Transform>(typeof(BookEventController),book,"Answers",0x04002D8F);
+                if(answers==null){result.UiStatus="missing-book-answers";return;}
+                view=book;part=book.gameObject;container=answers;active=book.isActiveAndEnabled&&book.gameObject!=null&&book.gameObject.activeInHierarchy;
+                var found=answers.GetComponentsInChildren<TempOptionUI>(true);
+                if(found==null||found.Length>Chunk7AssistedStoryDriver.MaximumRows)throw new InvalidOperationException("Actual book answer rows are absent or over bound.");
+                var initialized=new List<TempOptionUI>();
+                foreach(var candidate in found)if(candidate!=null&&ReadField<bool>(typeof(TempOptionUI),candidate,"m_IsInit",0x04002EE3))initialized.Add(candidate);
+                rows=initialized.ToArray();
+            }
+            if(rows.Length>Chunk7AssistedStoryDriver.MaximumRows)throw new InvalidOperationException("Actual book answer rows are over bound.");
+            result.PcDialog=view;result.CurrentPart=part;result.RowsList=container;result.PcActive=active;
+            result.Rows=new Chunk7AssistedStoryRow[rows.Length];
+            for(var i=0;i<rows.Length;i++)
+            {
+                var row=rows[i];if(row==null)throw new InvalidOperationException("Native book answer row is null or destroyed.");
+                var answer=ReadField<BlueprintAnswer>(typeof(TempOptionUI),row,"m_Answer",0x04002EE0);
+                result.Rows[i]=new Chunk7AssistedStoryRow{View=row,Answer=answer,Guid=answer==null?null:answer.AssetGuidThreadSafe,
+                    NativeIndex=ReadField<int>(typeof(TempOptionUI),row,"m_Index",0x04002EE1),ChoosingCharacter=ReadField<bool>(typeof(TempOptionUI),row,"m_ChooseCharacterInit",0x04002EE2),
+                    Initialized=ReadField<bool>(typeof(TempOptionUI),row,"m_IsInit",0x04002EE3),Disabled=ReadField<bool>(typeof(TempOptionUI),row,"m_Disabled",0x04002EE4),
+                    Interchapter=ReadField<bool>(typeof(TempOptionUI),row,"m_Interchapter",0x04002EE8),ActiveAndEnabled=row.isActiveAndEnabled,ActiveInHierarchy=row.gameObject!=null&&row.gameObject.activeInHierarchy};
+            }
+            result.UiStatus=game.CurrentMode==GameModeType.Dialog&&game.IsModeActive(GameModeType.Dialog)&&result.ManagerShown==true&&active?
+                Chunk7AssistedStoryDriver.SelectedStatus((int)kind):"inactive-dialog";
+        }
         public void Click(Chunk7AssistedStorySnapshot expected,int offerIndex,int rowIndex,Action enteringNative)
         {
             if(enteringNative==null)throw new ArgumentNullException("enteringNative");
             var actual=ReadStory();Chunk7AssistedStoryDriver.RequireSameClickState(expected,actual);
             if(offerIndex<0||offerIndex>=actual.Offers.Length||rowIndex<0||rowIndex>=actual.Rows.Length)throw new InvalidOperationException("Selected story indices changed.");
             var offer=actual.Offers[offerIndex];var row=actual.Rows[rowIndex];
-            if(!ReferenceEquals(offer.Answer,row.Answer)||!row.Initialized||row.Disabled||row.ChoosingCharacter||row.Interchapter||!row.ActiveAndEnabled||!row.ActiveInHierarchy||offer.SelectionType==4)
+            if(!ReferenceEquals(offer.Answer,row.Answer)||!row.Initialized||row.Disabled||row.ChoosingCharacter||row.Interchapter&&actual.ManagerKind!=2||!row.ActiveAndEnabled||!row.ActiveInHierarchy||offer.SelectionType==4)
                 throw new InvalidOperationException("The selected current row is not an ordinary native cached-enabled affordance.");
             // ReadStory just performed authority, global/controller, exact list,
             // row/cache/selection, frame and active hierarchy checks on this thread.

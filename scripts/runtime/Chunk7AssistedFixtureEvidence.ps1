@@ -67,10 +67,12 @@ function Assert-KmcAssistedStorySnapshot($Value, $Setup, [bool]$Selected) {
     }
     if (-not $Selected) { return }
     Assert-KmcBootstrapInventoryString $Value.mode 'Dialog'
-    Assert-KmcBootstrapInventoryString $Value.uiStatus 'pc-cached-rows'
+    # Common PC dialogues, book pages and interchapter pages are the selected native kinds; each has one ready status.
+    if ($null -eq $Value.managerKind) { throw 'Selected story snapshot lacks its native dialog kind.' }
+    Assert-KmcOrdinaryInteger $Value.managerKind 0 2
+    Assert-KmcBootstrapInventoryString $Value.uiStatus (@('pc-cached-rows','book-rows','interchapter-rows')[[int]$Value.managerKind])
     foreach($key in @('mouseController','dialogActive','managerShown','pcActive')) { Assert-KmcChunk7Boolean $Value.$key $true }
     foreach($key in @('nativeBusy','transitionPending','unexpectedPopup')) { Assert-KmcChunk7Boolean $Value.$key $false }
-    Assert-KmcOrdinaryInteger $Value.managerKind 0 0
     foreach($key in @('dialogGuid','cueGuid')) { if ($null-eq$Value.$key) { throw 'Selected story answer lacks its actual dialog/cue.' } }
     $roleIds=[Collections.Generic.HashSet[int]]::new()
     foreach($key in $roles) { Assert-KmcOrdinaryInteger $Value.$key 1 2048; if(-not$roleIds.Add($Value.$key)){throw 'Selected story context aliases distinct native roles.'} }
@@ -85,7 +87,8 @@ function Assert-KmcAssistedStorySnapshot($Value, $Setup, [bool]$Selected) {
         Assert-KmcOrdinaryInteger $Value.rowObjects[$i] 1 2048; Assert-KmcOrdinaryInteger $Value.rowAnswerObjects[$i] 1 2048; Assert-KmcOrdinaryInteger $Value.rowNativeIndices[$i] 0 32
         if(-not$answers.Contains($Value.rowAnswerObjects[$i])-or-not$views.Add($Value.rowObjects[$i])-or-not$rowAnswers.Add($Value.rowAnswerObjects[$i])-or-not$indices.Add($Value.rowNativeIndices[$i])) { throw 'Selected story rows have foreign or ambiguous ownership.' }
         Assert-KmcChunk7Boolean $Value.rowInitialized[$i] $true
-        foreach($key in @('rowChoosingCharacter','rowInterchapter')) { Assert-KmcChunk7Boolean $Value.$key[$i] $false }
+        Assert-KmcChunk7Boolean $Value.rowChoosingCharacter[$i] $false
+        if ([int]$Value.managerKind -ne 2) { Assert-KmcChunk7Boolean $Value.rowInterchapter[$i] $false }
     }
 }
 

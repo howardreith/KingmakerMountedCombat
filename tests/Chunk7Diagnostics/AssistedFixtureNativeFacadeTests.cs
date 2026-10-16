@@ -5,6 +5,9 @@ static class Tests {
  static bool Stale(Action<FacadeRig> change){var r=new FacadeRig();var s=r.Boundary.ReadStory();change(r);return Throws(()=>r.Boundary.Click(s,0,0,r.Enter))&&r.ClickCount==0&&r.EntryCount==0;}
  static bool Refuses(Action<FacadeRig> change){var r=new FacadeRig();change(r);using(var d=r.Driver())return Throws(()=>d.Tick())&&r.ClickCount==0;}
  static bool Waits(Action<FacadeRig> change){var r=new FacadeRig();change(r);using(var d=r.Driver())return d.Tick()==Chunk7AssistedStoryStatus.Waiting&&r.ClickCount==0;}
+ static Kingmaker.UI.Dialog.DialogBookEventUIManager Manager(FacadeRig r){return (Kingmaker.UI.Dialog.DialogBookEventUIManager)r.Manager;}
+ static void Interchapter(FacadeRig r){r.Game.DialogController.Dialog.Type=Kingmaker.DialogSystem.DialogType.Interchapter;r.Kind=2;r.Game.DialogController.m_Answers.RemoveAt(1);var option=new Kingmaker.UI.Dialog.TempOptionUI{m_Answer=r.Game.DialogController.m_Answers[0],m_Index=1,m_Interchapter=true};r.Manager=new Kingmaker.UI.Dialog.DialogBookEventUIManager{m_State=Kingmaker.DialogSystem.DialogType.Interchapter,Interchapter=new Kingmaker.UI.BookEvent.BookEventInterchapterController{m_Answer=option}};}
+ static void Book(FacadeRig r){r.Game.DialogController.Dialog.Type=Kingmaker.DialogSystem.DialogType.Book;r.Kind=1;var book=new Kingmaker.UI.BookEvent.BookEventController();for(int i=0;i<2;i++)book.Answers.Children.Add(new Kingmaker.UI.Dialog.TempOptionUI{m_Answer=r.Game.DialogController.m_Answers[i],m_Index=i+1});book.Answers.Children.Add(new Kingmaker.UI.Dialog.TempOptionUI{m_IsInit=false});r.Manager=new Kingmaker.UI.Dialog.DialogBookEventUIManager{m_State=Kingmaker.DialogSystem.DialogType.Book,BookEvent=book};}
  static int Main(){
  Check("actual adapter capture binds stored native objects",()=>{var r=new FacadeRig();var s=r.Boundary.ReadStory();return ReferenceEquals(s.Controller,r.Game.DialogController)&&ReferenceEquals(s.CurrentPart,r.Part)&&ReferenceEquals(s.OffersList,r.Game.DialogController.m_Answers)&&ReferenceEquals(s.RowsList,r.Part.m_AnswersList)&&s.Offers.Length==2&&s.Rows.Length==2&&s.Rows[0].NativeIndex==1&&r.MethodChecks==3&&Fixture.Predicates==0;});
  Check("native row call once after explicit witness",()=>{var r=new FacadeRig();r.RequireExplicitEntry=true;var s=r.Boundary.ReadStory();r.Boundary.Click(s,0,0,r.Enter);return r.ClickCount==1&&r.EntryCount==1&&Fixture.Predicates==0;});
@@ -44,7 +47,19 @@ static class Tests {
  Check("console input refuses",()=>Stale(r=>r.Game.IsControllerMouse=false));
  Check("Manual chooser refuses",()=>Refuses(r=>r.Game.DialogController.m_Answers[0].CharacterSelection.SelectionType=Kingmaker.DialogSystem.CharacterSelection.Type.Manual));
  Check("null CharacterSelection refuses",()=>Refuses(r=>r.Game.DialogController.m_Answers[0].CharacterSelection=null));
- Check("book native kind refuses",()=>Refuses(r=>r.Game.DialogController.Dialog.Type=Kingmaker.DialogSystem.DialogType.Book));
+ Check("interchapter page clicks its single option",()=>{var r=new FacadeRig();Interchapter(r);var s=r.Boundary.ReadStory();using(var d=r.Driver())return s.UiStatus=="interchapter-rows"&&s.ManagerKind==2&&s.Rows.Length==1&&s.Rows[0].Interchapter&&ReferenceEquals(s.PcDialog,Manager(r).Interchapter)&&ReferenceEquals(s.CurrentPart,Manager(r).Interchapter.gameObject)&&ReferenceEquals(s.RowsList,Manager(r).Interchapter.transform)&&d.Tick()==Chunk7AssistedStoryStatus.Clicked&&r.ClickCount==1&&d.Attempts[0].RowIndex==0;});
+ Check("book page clicks first initialized enabled answer",()=>{var r=new FacadeRig();Book(r);var s=r.Boundary.ReadStory();using(var d=r.Driver())return s.UiStatus=="book-rows"&&s.ManagerKind==1&&s.Rows.Length==2&&ReferenceEquals(s.RowsList,Manager(r).BookEvent.Answers)&&d.Tick()==Chunk7AssistedStoryStatus.Clicked&&r.ClickCount==1&&d.Attempts[0].OfferIndex==0;});
+ Check("book chooser row refuses",()=>Refuses(r=>{Book(r);Manager(r).BookEvent.Answers.Children[0].m_ChooseCharacterInit=true;}));
+ Check("book disabled first answer selects the next enabled answer",()=>{var r=new FacadeRig();Book(r);Manager(r).BookEvent.Answers.Children[0].m_Disabled=true;using(var d=r.Driver())return d.Tick()==Chunk7AssistedStoryStatus.Clicked&&d.Attempts[0].OfferIndex==1;});
+ Check("unsupported native kind refuses",()=>Refuses(r=>{r.Game.DialogController.Dialog.Type=(Kingmaker.DialogSystem.DialogType)3;r.Kind=3;}));
+ Check("blueprint and manager kinds disagree refuses",()=>Refuses(r=>{Interchapter(r);r.Kind=0;}));
+ Check("hidden interchapter manager waits",()=>Waits(r=>{Interchapter(r);r.Shown=false;}));
+ Check("inactive interchapter view waits",()=>Waits(r=>{Interchapter(r);Manager(r).Interchapter.isActiveAndEnabled=false;}));
+ Check("missing interchapter view waits",()=>Waits(r=>{Interchapter(r);Manager(r).Interchapter=null;}));
+ Check("interchapter option replacement refuses dispatch",()=>{var r=new FacadeRig();Interchapter(r);var s=r.Boundary.ReadStory();Manager(r).Interchapter.m_Answer=new Kingmaker.UI.Dialog.TempOptionUI{m_Answer=r.Game.DialogController.m_Answers[0],m_Index=1,m_Interchapter=true};return Throws(()=>r.Boundary.Click(s,0,0,r.Enter))&&r.ClickCount==0&&r.EntryCount==0;});
+ Check("interchapter view replacement refuses dispatch",()=>{var r=new FacadeRig();Interchapter(r);var s=r.Boundary.ReadStory();var option=Manager(r).Interchapter.m_Answer;Manager(r).Interchapter=new Kingmaker.UI.BookEvent.BookEventInterchapterController{m_Answer=option};return Throws(()=>r.Boundary.Click(s,0,0,r.Enter))&&r.ClickCount==0;});
+ Check("common page still refuses interchapter rows",()=>Refuses(r=>r.Part.m_AnswersList[0].m_Interchapter=true));
+ Check("kind change between read and dispatch refuses",()=>{var r=new FacadeRig();var s=r.Boundary.ReadStory();Interchapter(r);return Throws(()=>r.Boundary.Click(s,0,0,r.Enter))&&r.ClickCount==0;});
  Check("native busy waits",()=>Waits(r=>r.Busy=true));
  Check("scheduled StartDialog waits",()=>Waits(r=>r.Game.Player.Dialog.Scheduled=new Kingmaker.DialogSystem.StartDialogData()));
  Check("queued cue waits",()=>Waits(r=>r.Game.DialogController.m_CueToPlay=new Kingmaker.DialogSystem.Blueprints.BlueprintCue()));
