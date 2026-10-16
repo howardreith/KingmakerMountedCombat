@@ -109,7 +109,7 @@ namespace KingmakerMountedCombat.Diagnostics
                             var kind=selection==null?(int?)null:(int)ReadField<CharacterSelection.Type>(typeof(CharacterSelection),selection,"SelectionType",0x040055FD);
                             if(kind!=raw.Offered[i].SelectionType||item.AssetGuidThreadSafe!=raw.Offered[i].Guid)throw new InvalidOperationException("Native offered metadata changed.");
                             result.Offers[i]=new Chunk7AssistedStoryOffer{Answer=item,Selection=selection,Guid=raw.Offered[i].Guid,SelectionType=kind,
-                                IsSystemAnswer=raw.Offered[i].IsSystemAnswer,OnSelectActionTypeCount=raw.Offered[i].ActionTypes==null?0:raw.Offered[i].ActionTypes.Length};
+                                IsSystemAnswer=raw.Offered[i].IsSystemAnswer,IsExitAnswer=raw.Offered[i].IsExitAnswer,OnSelectActionTypeCount=raw.Offered[i].ActionTypes==null?0:raw.Offered[i].ActionTypes.Length};
                         }
                         if(actualKind!=DialogType.Common)ReadBookEventRows(result,raw,actualKind);
                         else if(raw.CurrentPart!=null)
@@ -219,7 +219,9 @@ namespace KingmakerMountedCombat.Diagnostics
             var offer=actual.Offers[offerIndex];
             if(!offer.IsSystemAnswer||offer.SelectionType==4||offer.OnSelectActionTypeCount!=0)throw new InvalidOperationException("The system button answer is not a non-Manual, action-free DialogRoot system answer.");
             foreach(var other in actual.Offers)if(!other.IsSystemAnswer)throw new InvalidOperationException("A genuine player choice is present; the system continue is not advanced.");
-            if(actual.ContinueCue==null)throw new InvalidOperationException("An Exit system answer is terminal and is not advanced by assisted continue.");
+            // A terminal Exit system answer (identity: DialogRoot.ExitAnswer/InterchapterExitAnswer) dismisses the
+            // finished narration through this same button; only a continue answer needs its displayed continue cue.
+            if(!offer.IsExitAnswer&&actual.ContinueCue==null)throw new InvalidOperationException("A continue system answer without the displayed native continue cue is not advanced by assisted continue.");
             // ReadStory just re-verified authority, global/controller, exact lists, frame and the SystemButton
             // identity/enabled/answer custody on this thread. Advance the real UI affordance, never SelectAnswer directly.
             enteringNative();systemButton.OnClick();

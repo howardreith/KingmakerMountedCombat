@@ -29,6 +29,10 @@ static class AssistedCoreTests
  static bool BadStory(Action<Rig> mutate){var r=new Rig();mutate(r);using(var d=r.Driver())return Throws(()=>d.Tick())&&r.Clicks==0;}
  static bool WaitsStory(Action<Rig> mutate){var r=new Rig();mutate(r);using(var d=r.Driver())return d.Tick()==Chunk7AssistedStoryStatus.Waiting&&r.Clicks==0;}
  static void Interchapter(Rig r){r.State.ManagerKind=2;r.State.UiStatus="interchapter-rows";r.State.Offers=new[]{r.State.Offers[0]};r.State.Rows=new[]{r.State.Rows[0]};r.State.Rows[0].Interchapter=true;}
+ // A sole DialogRoot system answer on the DialogueSystemButton with no TempOptionUI row: a continue answer
+ // carries its displayed continue cue, the terminal exit answer has none (native SelectAnswer stops the dialog).
+ static void SystemOffer(Rig r,bool exit){r.State.Offers=new[]{r.State.Offers[0]};r.State.Offers[0].IsSystemAnswer=true;r.State.Offers[0].IsExitAnswer=exit;r.State.Rows=new Chunk7AssistedStoryRow[0];
+  r.State.SystemButton=new object();r.State.SystemButtonEnabled=true;r.State.SystemButtonAnswer=r.State.Offers[0].Answer;r.State.ContinueCue=exit?null:new object();}
  static bool Stale(Action<Rig> mutate){var r=new Rig();r.BeforeClick=mutate;using(var d=r.Driver())return Throws(()=>d.Tick())&&r.Clicks==0&&d.AttemptCount==1&&!d.Attempts[0].NativeEntered;}
  static bool BadXp(Action<Rig> mutate){var r=new Rig();mutate(r);var a=r.Assistance();return Throws(()=>a.EnsureExperience())&&r.XpCalls==0;}
  static bool BadMoney(Action<Rig> mutate){var r=new Rig();r.Short.Level=4;mutate(r);var a=r.Assistance();return Throws(()=>a.EnsureOneNativeHireCost())&&r.MoneyCalls==0;}
@@ -105,6 +109,16 @@ static class AssistedCoreTests
   Check("new chooser state refuses",()=>Stale(r=>r.State.Rows[0].ChoosingCharacter=true));
   Check("new pending transition refuses",()=>Stale(r=>r.State.TransitionPending=true));
   Check("changed global main refuses",()=>Stale(r=>r.State.Identity.Main=new object()));
+  Check("sole exit system offer with no row clicks the system button",()=>{var r=new Rig();SystemOffer(r,true);using(var d=r.Driver())return d.Tick()==Chunk7AssistedStoryStatus.Clicked&&r.Clicks==1&&d.NativeClickCount==1&&d.Attempts[0].SystemButton&&d.Attempts[0].OfferIndex==0&&d.Attempts[0].RowIndex==-1&&d.Attempts[0].NativeIndex==-1;});
+  Check("sole continue system offer clicks the system button",()=>{var r=new Rig();SystemOffer(r,false);using(var d=r.Driver())return d.Tick()==Chunk7AssistedStoryStatus.Clicked&&r.Clicks==1&&d.Attempts[0].SystemButton;});
+  Check("continue system offer without its continue cue refuses",()=>BadStory(r=>{SystemOffer(r,false);r.State.ContinueCue=null;}));
+  Check("exit system offer with Manual selection refuses",()=>BadStory(r=>{SystemOffer(r,true);r.State.Offers[0].SelectionType=4;}));
+  Check("exit system offer with OnSelect actions refuses",()=>BadStory(r=>{SystemOffer(r,true);r.State.Offers[0].OnSelectActionTypeCount=1;}));
+  Check("exit system offer with an eligible row prefers the row",()=>{var r=new Rig();r.State.Offers[0].IsSystemAnswer=true;r.State.Offers[0].IsExitAnswer=true;r.State.SystemButton=new object();r.State.SystemButtonEnabled=true;r.State.SystemButtonAnswer=r.State.Offers[0].Answer;using(var d=r.Driver())return d.Tick()==Chunk7AssistedStoryStatus.Clicked&&!d.Attempts[0].SystemButton&&d.Attempts[0].OfferIndex==0&&d.Attempts[0].RowIndex==0;});
+  Check("exit system offer beside a foreign offer waits",()=>WaitsStory(r=>{r.State.Rows=new Chunk7AssistedStoryRow[0];r.State.Offers[0].IsSystemAnswer=true;r.State.Offers[0].IsExitAnswer=true;r.State.SystemButton=new object();r.State.SystemButtonEnabled=true;r.State.SystemButtonAnswer=r.State.Offers[0].Answer;}));
+  Check("dialog closed by the exit click under a cutscene is progress not a stall",()=>{var r=new Rig();SystemOffer(r,true);using(var d=r.Driver()){if(d.Tick()!=Chunk7AssistedStoryStatus.Clicked)return false;
+   r.State.Frame++;r.State.ElapsedMilliseconds=20000;r.State.Mode="Default";r.State.DialogActive=false;r.State.Cutscene=true;if(d.Tick()!=Chunk7AssistedStoryStatus.Waiting)return false;
+   r.State.Frame++;r.State.ElapsedMilliseconds=45000;return d.Tick()==Chunk7AssistedStoryStatus.Waiting&&r.Clicks==1;}});
   Check("exact XP shortfall only",()=>{var r=new Rig();var a=r.Assistance();var e=a.EnsureExperience();return r.XpCalls==1&&e.Delta==8900&&r.Short.Experience==9000&&e.NativeEntered&&e.NativeReturned&&e.AfterReadSucceeded;});
   Check("XP already sufficient makes no native call",()=>{var r=new Rig();r.Short.Experience=9000;var e=r.Assistance().EnsureExperience();return e.NoOp&&!e.Attempted&&r.XpCalls==0;});
   Check("XP step cannot be repeated",()=>{var r=new Rig();var a=r.Assistance();a.EnsureExperience();return Throws(()=>a.EnsureExperience())&&r.XpCalls==1;});

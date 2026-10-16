@@ -22,7 +22,7 @@ namespace KingmakerMountedCombat.Diagnostics
         internal string Mode, UiStatus, DialogGuid, CueGuid;
         internal bool MouseController, UnexpectedPopup, NativeBusy, Cutscene, TransitionPending, DialogActive, MainViewReady;
         internal object Controller, Dialog, Cue, Ui, Common, Manager, PcDialog, CurrentPart, OffersList, RowsList;
-        // SystemButton/ContinueCue describe the COMMON continue affordance observed from the PC dialog.
+        // SystemButton/ContinueCue describe the COMMON continue/exit affordance observed from the PC dialog.
         internal object SystemButton, SystemButtonAnswer, ContinueCue;
         internal int? ManagerKind;
         internal bool? ManagerShown, PcActive, SystemButtonEnabled;
@@ -30,7 +30,7 @@ namespace KingmakerMountedCombat.Diagnostics
         internal Chunk7AssistedStoryRow[] Rows;
     }
     internal sealed class Chunk7AssistedStoryOffer
-    { internal object Answer,Selection; internal string Guid; internal int? SelectionType; internal bool IsSystemAnswer; internal int OnSelectActionTypeCount; }
+    { internal object Answer,Selection; internal string Guid; internal int? SelectionType; internal bool IsSystemAnswer,IsExitAnswer; internal int OnSelectActionTypeCount; }
     internal sealed class Chunk7AssistedStoryRow
     {
         internal object View, Answer; internal string Guid; internal int NativeIndex;
@@ -133,9 +133,10 @@ namespace KingmakerMountedCombat.Diagnostics
                 }
                 if(selectedOffer<0)
                 {
-                    // No eligible TempOptionUI row. A root SYSTEM continue answer (DialogRoot.ContinueAnswer for a
-                    // COMMON cue) is excluded from m_AnswersList by Fill and routed to the DialogueSystemButton.
-                    // Prefer a real row when one exists; only advance the system button when none is eligible.
+                    // No eligible TempOptionUI row. A root SYSTEM answer (DialogRoot.ContinueAnswer or
+                    // DialogRoot.ExitAnswer for a COMMON cue) is excluded from m_AnswersList by Fill and routed
+                    // to the DialogueSystemButton. Prefer a real row when one exists; only advance the system
+                    // button when none is eligible.
                     var systemOffer=-1;
                     if(current.SystemButton!=null && current.SystemButtonEnabled==true && current.Rows.Length==0)
                         for(var i=0;i<current.Offers.Length;i++)
@@ -146,7 +147,12 @@ namespace KingmakerMountedCombat.Diagnostics
                     var systemAnswer=current.Offers[systemOffer];
                     if(systemAnswer.SelectionType==4)throw new InvalidOperationException("Manual character selection needs a separately owned native chooser and is not selected.");
                     if(systemAnswer.OnSelectActionTypeCount!=0)throw new InvalidOperationException("A root system answer carrying OnSelect actions is not auto-advanced by assisted continue.");
-                    if(current.ContinueCue==null)throw new InvalidOperationException("An Exit system answer ends the dialog and is not driven by assisted continue; only continue answers advance.");
+                    // A terminal DialogRoot Exit answer is the finished narration's own dismiss affordance: its
+                    // SelectNextCue returns null, so the native SelectAnswer stops the dialog instead of
+                    // scheduling a cue, and the closed dialog is ordinary observed progress (Progressed/Default
+                    // readiness). It is advanced only through the same verified DialogueSystemButton click.
+                    // A continue answer still requires the displayed native continue cue, exactly as before.
+                    if(!systemAnswer.IsExitAnswer&&current.ContinueCue==null)throw new InvalidOperationException("A continue system answer without the displayed native continue cue is not driven by assisted continue.");
                     if(attempts.Count>=MaximumChoices)throw new InvalidOperationException("Assisted story choice cap reached.");
                     foreach(var prior in used)if(ReferenceEquals(prior.Controller,current.Controller)&&ReferenceEquals(prior.Dialog,current.Dialog)&&
                         ReferenceEquals(prior.Cue,current.Cue)&&ReferenceEquals(prior.Answer,systemAnswer.Answer))
