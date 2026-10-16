@@ -33,9 +33,15 @@ So the fresh main campaign opens on an **Interchapter** page.
 ## Why the driver stalled instead of refusing
 
 `Chunk7AssistedStoryDriver.Tick` returns `Waiting` while `TransitionPending` is true, before it
-reaches the explicit refusal "Book/interchapter story input is not selected." An interchapter page
-keeps a cue transition scheduled until the player continues, so the driver waited until its
-30-second progress bound expired. The driver only ever selects ordinary PC dialog answer rows
+reaches the explicit refusal "Book/interchapter story input is not selected." The boundary counted
+`DialogController.m_CueToPlay` and `m_ContinueCue` as pending transitions. By the installed IL
+(verified by the independent review and by a field-store scan of the controller's methods),
+`ScheduleCue` stores `m_CueToPlay` and `m_CuePlayScheduled`, `Tick` clears only `m_CuePlayScheduled`
+and merely loads `m_CueToPlay`, `m_CueToPlay` is cleared only by `Clear()` at dialog start/stop, and
+`PlayCue`/`AddAnswers` set `m_ContinueCue` whenever a continue affordance is displayed. So every
+dialog looked pending from its first cue, common pages included, and the driver waited until its
+30-second progress bound expired. Only a scheduled dialog start, a scheduled cue play or a
+scheduled stop actually defers input. The driver only ever selects ordinary PC dialog answer rows
 (`uiStatus` `pc-cached-rows` on the `DialogBookEventUIManager.Dialog` controller); it has no
 input path for the book-event controllers.
 
@@ -68,7 +74,7 @@ The existing PC dialog path already owns the native click: the boundary requires
 re-verifies the snapshot before calling `OnClick` on the selected row. The interchapter option and
 the book answers are the same `TempOptionUI` type, so the same verified click path applies.
 
-## Product change (implemented on `codex/mounted-combat-chunk7-story-driver`, commits d44a386a and 30a0cdbf; independent review recorded in `claude-story-driver-next01/independent-review01.json`)
+## Product change (implemented on `codex/mounted-combat-chunk7-story-driver`, commits d44a386a, 30a0cdbf and 3d2aff60; independent review `f141ef8c0f35a7dedc6e4801f5e6382de4cf40b399f12ea5f9c2132ab133fac6` PASS with the pending-transition finding, addressed by the third commit)
 
 1. Extend the boundary read to report the interchapter and book controllers (shown state,
    the single interchapter `m_Answer` option, book answer options and their enabled state)
@@ -80,7 +86,7 @@ the book answers are the same `TempOptionUI` type, so the same verified click pa
    bound, and refusing character-chooser pages.
 3. Offline checks: boundary classification for all three `DialogType` values, driver transitions
    for pending-transition interchapter pages, and the assisted-fixture evidence rows.
-4. Offline results: assisted core 100/0, affected 19/0, native facade 76/0 (195 total), reader kinds 13/0,
+4. Offline results after the third commit: assisted core 100/0, affected 19/0, native facade 81/0 (200 total), reader kinds 13/0,
    wiring 87/0, source 54/0, authority 154/0, probes 50/0, passive choices 69/0.
 5. A successor product candidate (build, Candidate tier, freeze, suite continuity) and a fresh
    numbered reviewed full audit before native attempt 12; eleven of 25 attempts are used.
