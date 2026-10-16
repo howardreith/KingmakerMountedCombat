@@ -70,14 +70,16 @@ namespace KingmakerMountedCombat.Diagnostics
             var cue=controller==null?null:ReadField<BlueprintCue>(typeof(NativeController),controller,"m_CurrentCue",0x04005E5A);
             var dialogState=player.Dialog;if(dialogState==null)throw new InvalidOperationException("Native dialog scheduling state is unavailable.");
             var scheduled=ReadField<StartDialogData>(typeof(DialogState),dialogState,"<Scheduled>k__BackingField",0x04005611);
-            var queued=controller==null?null:ReadField<BlueprintCueBase>(typeof(NativeController),controller,"m_CueToPlay",0x04005E6E);
-            var continued=controller==null?null:ReadField<BlueprintCueBase>(typeof(NativeController),controller,"m_ContinueCue",0x04005E68);
+            // m_CueToPlay keeps the last scheduled cue until Clear() at dialog start/stop and m_ContinueCue
+            // names a displayed continue affordance; neither is a pending transition. Only a scheduled
+            // dialog start, a scheduled cue play or a scheduled stop defers input (installed IL: ScheduleCue
+            // stores both cue fields, Tick clears only m_CuePlayScheduled, Clear clears m_CueToPlay).
             var play=controller!=null&&ReadField<bool>(typeof(NativeController),controller,"m_CuePlayScheduled",0x04005E6F);
             var stop=controller!=null&&ReadField<bool>(typeof(NativeController),controller,"m_DialogStopScheduled",0x04005E70);
             var popup=DialogMessageBox.Instance;
             var result=new Chunk7AssistedStorySnapshot{Identity=identity,Frame=frame,ElapsedMilliseconds=elapsed.ElapsedMilliseconds,
                 Mode=game.CurrentMode.ToString(),MouseController=game.IsControllerMouse,NativeBusy=nativeBusy(),Cutscene=game.CutsceneLock,
-                UnexpectedPopup=popup!=null&&popup.IsShown,TransitionPending=!ReferenceEquals(scheduled,null)||!ReferenceEquals(queued,null)||!ReferenceEquals(continued,null)||play||stop,
+                UnexpectedPopup=popup!=null&&popup.IsShown,TransitionPending=!ReferenceEquals(scheduled,null)||play||stop,
                 DialogActive=game.IsModeActive(GameModeType.Dialog),MainViewReady=main.View!=null&&main.View.AgentASP!=null,
                 Controller=controller,Dialog=dialog,Cue=cue,DialogGuid=dialog==null?null:dialog.AssetGuidThreadSafe,CueGuid=cue==null?null:cue.AssetGuidThreadSafe,
                 Offers=new Chunk7AssistedStoryOffer[0],Rows=new Chunk7AssistedStoryRow[0],UiStatus="not-dialog"};
@@ -155,7 +157,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 if(inter==null){result.UiStatus="missing-book-view";return;}
                 var option=ReadField<TempOptionUI>(typeof(BookEventInterchapterController),inter,"m_Answer",0x04002D9A);
                 view=inter;part=inter.gameObject;container=inter.transform;active=inter.isActiveAndEnabled&&inter.gameObject!=null&&inter.gameObject.activeInHierarchy;
-                rows=option==null?new TempOptionUI[0]:new[]{option};
+                rows=option==null||!ReadField<bool>(typeof(TempOptionUI),option,"m_IsInit",0x04002EE3)?new TempOptionUI[0]:new[]{option};
             }
             else
             {
@@ -182,7 +184,11 @@ namespace KingmakerMountedCombat.Diagnostics
                     Initialized=ReadField<bool>(typeof(TempOptionUI),row,"m_IsInit",0x04002EE3),Disabled=ReadField<bool>(typeof(TempOptionUI),row,"m_Disabled",0x04002EE4),
                     Interchapter=ReadField<bool>(typeof(TempOptionUI),row,"m_Interchapter",0x04002EE8),ActiveAndEnabled=row.isActiveAndEnabled,ActiveInHierarchy=row.gameObject!=null&&row.gameObject.activeInHierarchy};
             }
-            result.UiStatus=game.CurrentMode==GameModeType.Dialog&&game.IsModeActive(GameModeType.Dialog)&&result.ManagerShown==true&&active?
+            // Pages are rebuilt behind a fade: until SetPage ran, the previous page's initialized options are
+            // still visible against the new offers. Such rows are a pending page, never a foreign offer.
+            var pending=rows.Length==0;
+            foreach(var row in result.Rows){var offered=false;foreach(var offer in raw.Offered)if(offer!=null&&ReferenceEquals(offer.Answer,row.Answer))offered=true;if(row.Answer==null||!offered)pending=true;}
+            result.UiStatus=pending?"book-page-pending":game.CurrentMode==GameModeType.Dialog&&game.IsModeActive(GameModeType.Dialog)&&result.ManagerShown==true&&active?
                 Chunk7AssistedStoryDriver.SelectedStatus((int)kind):"inactive-dialog";
         }
         public void Click(Chunk7AssistedStorySnapshot expected,int offerIndex,int rowIndex,Action enteringNative)
