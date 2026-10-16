@@ -344,3 +344,39 @@ against the unfixed harness (84/3) and pass fixed (87/0), and the stale quota ev
 was repaired. Independent review `9df433f29b85684973b23bfe4d543e7532d85910991ecc274448a34a41813a95`.
 Ten of 25 native attempts are used, all final FAIL and settled. Any attempt 11 requires a fresh numbered
 reviewed full audit on the corrected harness; nothing from audit02 is reused.
+
+## Attempt 11 — preview10 assisted producer reaches the campaign, 16 October 2026
+
+Run `20261015-chunk7b-world10-assisted-fixture-02`: product `0e1ce2d92a368866ce0803d070a6f3b7b96bd971`
+(preview10 package, DLL and MVID unchanged), harness `4cca4f5aa312717d3f3fe6717235e32a45abfad8`
+(selection asserts normalized; Candidate04 6/6), scenario `chunk7-assisted-fixture-preparation`,
+base-game-only Mods, 600-second outer wait. The fresh full WhatIf03 passed in 9034.5569657 seconds
+with one purity assertion and 1494 unchanged pins: receipt SHA `05ef052df6f1df755ad7d457b5164c27547eddfff0b78b9f9f5821427391d890`;
+completed-audit review `8954b42718ead80174a06034b460e5525d1a0bebe081ab4bdec7e7a883b56431`; admission `65ee2cd20899986ea91992794270061b960fad7c87decef33935bff885c00d13`.
+
+The game launched (process 59112) and the assisted engine created the fresh isolated campaign
+"Baron": horse and blueprint preflight passed, the campaign's own initial autosave was the single authorized write
+(`Auto_1.zks`, 516142 bytes, SHA `8eba7079aabb01764cfb8322dad0b35408eabeed31b3bdc9fc8b32f35f108171`, phase initial-auto, inside the run-owned isolated profile; no Working, baseline or human save file was written),
+and the derived target was recorded (character level 1, ranger level 0, target 5).
+The story driver then observed Dialog mode with `uiStatus` unsupported-dialog-kind, `managerKind` 2, a pending cue
+transition, no offers or answer rows, and made 0 attempts and 0 clicks; after its 30-second progress bound
+it failed with "Chunk 7 assisted fixture engine: System.InvalidOperationException: Assisted story setup made no observed native progress within its bound.".
+Game result: 87.9 seconds, 2713 frames, 1 save request (1 Working), 0 loads,
+0 unauthorized requests; rows preflight PASS, native-start PASS, runtime FAIL, cleanup PASS. The game exited by itself.
+
+Cause: the game's `DialogType` enum reads Common 0, Book 1, Interchapter 2, so the fresh main campaign
+opens on an Interchapter page. The assisted story driver selects only ordinary PC dialog answer rows
+(`DialogType.Common`) and treats a pending cue transition as waiting, so an interchapter or book page that
+needs a native continue click starves the progress bound. This is a product gap in the frozen preview10
+driver, not a harness defect; the harness ran the whole transaction, restoration and settlement.
+
+Restoration: modsRestored, workingRestored, saveProtectionPassed, baselineImmutable and saveWriteAllowlistPassed are all true
+(transaction token `1c6cf0e8c5102fb5020df1de3978982b89cc74bd9b1f650971a3a5ae8ef89d9b`); profile bytes restored exactly; the three transaction records read
+restored; the read-only settlement found no game, lock or sentinel and current Mods/save continuity equal to the admitted suite; the run's staging roots are retained per harness policy.
+Native receipt SHA `d7f3189aef373c172a2f8843d1b2ee1af95cede9d1716e654daac104507af486`; caller exit `829ab5e8714234fbe9c0f3e3f8ddf5ee0518aeea0bdcb498ffd116cb0c5968b5` (exit 1);
+settlement `612b2326549228cfa97feeaed5938bbcca88c3680e699c53a18f3dbbbb628d7b`; runtime result `a9e3578980891823716a7bc21ee42d74aaacb3fc87e9d33a5854b73ebf0d5265`;
+game result `953b876f50130a2901b367f2529c9e8c904df501d9a0ecb2259cc98640b88480`; assisted artifact `8e4ff87ccce8c536411f6eb453421768dfd10c9210aa2635141e1fdd835d5331`; independent restoration review `e90ba1fa3e50242bc27d531835b9a1fde52fe22e9ca8548c21fb8271ad904453`.
+Eleven of 25 native attempts are used, all final FAIL and settled. The failed producer admits no cold inventory
+or acquisition; the next producer attempt needs a successor product candidate whose story driver advances
+Interchapter and Book pages through the native `DialogBookEventUIManager` controllers, with its own fresh
+numbered reviewed full audit.
