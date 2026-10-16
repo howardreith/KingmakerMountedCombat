@@ -42,6 +42,9 @@ function Request([string]$Case='horse-native-level') {
 }
 function Validate($Q){$path=Join-Path $wiringOutput 'request.json';[IO.File]::WriteAllText($path,(ConvertTo-KmcChunk7Canonical $Q),[Text.UTF8Encoding]::new($false));&$validator -RequestPath $path|Out-Null}
 foreach($case in Get-KmcChunk7ProgressionCases){Good ('full actual progression request validator accepts '+$case) {Validate (Request $case)}}
+# The runner holds its request as an ordered dictionary until serialization; the owned-progression authority guard must detect dictionary keys too.
+function ConvertTo-RunnerRequest($Q){$r=[ordered]@{};foreach($p in $Q.PSObject.Properties){$r[$p.Name]=$p.Value};$r}
+Good 'ordered-dictionary progression request carrying outer ownedPairs meets the authority refusal first' {$r=ConvertTo-RunnerRequest (Request);$r['ownedPairs']=[pscustomobject]@{case='exploration'};$m=$null;try{Assert-KmcChunk7OwnedProgressionSelection $r}catch{$m=$_.Exception.Message};if($m-cne'Progression cannot acquire outer owned-pair dispatch authority.'){throw ('Expected the owned-pair authority refusal, observed: '+$m)}}
 $cases=[ordered]@{
  'missing field selection'={param($q)$q.PSObject.Properties.Remove('progression')}
  'missing source archive'={param($q)$q.PSObject.Properties.Remove('persistenceLoad')}

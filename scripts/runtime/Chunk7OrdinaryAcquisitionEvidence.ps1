@@ -14,6 +14,7 @@ function Assert-KmcOrdinaryGuid($Value) {
     if($Value-isnot[string]-or-not[Guid]::TryParseExact($Value,'D',[ref]$parsed)-or$parsed-eq[Guid]::Empty-or$parsed.ToString('D')-cne$Value){throw 'Ordinary native actor ID is not canonical.'}
 }
 function Assert-KmcChunk7OrdinarySelection($Request) {
+    if($Request-is[Collections.IDictionary]){$Request=[pscustomobject]$Request}
     $has=$null-ne$Request.PSObject.Properties['ordinaryAcquisition']
     if(-not(Test-KmcChunk7OrdinaryScenario $Request.scenario)){if($has){throw 'Ordinary selection is forbidden under another scenario.'};return}
     if(-not$has){throw 'Exact ordinary acquisition selection is missing.'}

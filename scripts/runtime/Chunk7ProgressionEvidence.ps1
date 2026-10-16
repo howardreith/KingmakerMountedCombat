@@ -14,6 +14,7 @@ function Assert-KmcProgressionSnapshot($Row,$Identity,[long]$Xp,[long]$Level,[lo
     Assert-KmcOrdinarySnapshot $Row $Identity $Xp $Level $Money
 }
 function Assert-KmcChunk7ProgressionSelection($Request){
+    if($Request-is[Collections.IDictionary]){$Request=[pscustomobject]$Request}
     $has=$null-ne$Request.PSObject.Properties['progression']
     if(-not(Test-KmcChunk7ProgressionScenario $Request.scenario)){if($has){throw 'Progression selection is forbidden under another family.'};return}
     if(-not$has){throw 'Exact native progression selection missing.'};$s=$Request.progression

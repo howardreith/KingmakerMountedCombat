@@ -25,6 +25,11 @@ if(([regex]::Matches($body,[regex]::Escape($import))).Count-ne1){throw 'Actual r
 $validator=[scriptblock]::Create($body.Replace($import,'# Common already loaded; actual validator body follows.'))
 function Validate($Q){$path=Join-Path $bridgeOutput 'request.json';[IO.File]::WriteAllText($path,(ConvertTo-KmcChunk7Canonical $Q),[Text.UTF8Encoding]::new($false));&$validator -RequestPath $path|Out-Null}
 Good 'full request accepts exact one-load zero-write bridge' {Validate (Request)}
+# The runner holds its request as an ordered dictionary until serialization; the Manual seed selection assert must detect dictionary keys too.
+function ConvertTo-RunnerRequest($Q){$r=[ordered]@{};foreach($p in $Q.PSObject.Properties){$r[$p.Name]=$p.Value};$r}
+Good 'Manual seed selection assert accepts the runner ordered-dictionary request' {Assert-KmcChunk7ManualSeedSelection (ConvertTo-RunnerRequest (Request))}
+Bad 'ordered-dictionary request without its selection' {$r=ConvertTo-RunnerRequest (Request);$r.Remove('manualSeed');Assert-KmcChunk7ManualSeedSelection $r}
+Bad 'ordered-dictionary foreign family carrying a selection' {$r=ConvertTo-RunnerRequest (Request);$r['scenario']='fixture-intake';Assert-KmcChunk7ManualSeedSelection $r}
 $negative=[ordered]@{
  'missing selection'={param($q)$q.PSObject.Properties.Remove('manualSeed')}
  'foreign family'={param($q)$q.scenario='fixture-intake'}

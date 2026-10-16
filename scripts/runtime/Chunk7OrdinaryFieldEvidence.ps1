@@ -2,6 +2,7 @@ Set-StrictMode -Version Latest
 function Test-KmcChunk7FieldScenario([string]$Scenario){$Scenario-ceq'chunk7-ordinary-field-admission'}
 function Get-KmcChunk7FieldRows {@('chunk7-ordinary-field-admission','C7-field-readonly-source','C7-field-native-party-placement','C7-field-cleanup','C7-field-runtime','C7-field-interrupted')}
 function Assert-KmcChunk7FieldSelection($Request){
+    if($Request-is[Collections.IDictionary]){$Request=[pscustomobject]$Request}
     $has=$null-ne$Request.PSObject.Properties['ordinaryField']
     if(-not(Test-KmcChunk7FieldScenario $Request.scenario)){if($has){throw 'Field selection is forbidden under another scenario.'};return}
     if(-not$has){throw 'Exact read-only field selection is missing.'};$s=$Request.ordinaryField

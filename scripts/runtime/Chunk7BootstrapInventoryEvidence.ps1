@@ -5,6 +5,7 @@ function Test-KmcChunk7BootstrapInventoryScenario([string]$Scenario){$Scenario-c
 function Get-KmcChunk7BootstrapInventoryRows {@('chunk7-bootstrap-cold-inventory','C7-bootstrap-inventory-source','C7-bootstrap-inventory-native-load','C7-bootstrap-inventory-readonly','C7-bootstrap-inventory-cleanup','C7-bootstrap-inventory-runtime','C7-bootstrap-inventory-interrupted')}
 function Assert-KmcBootstrapInventoryString($Value,$Expected){if($Value-isnot[string]-or$Expected-isnot[string]-or$Value-cne$Expected){throw 'Bootstrap inventory exact scalar identity differs.'}}
 function Assert-KmcChunk7BootstrapInventorySelection($Request){
+ if($Request-is[Collections.IDictionary]){$Request=[pscustomobject]$Request}
  $has=$null-ne$Request.PSObject.Properties['bootstrapInventory']
  if(-not(Test-KmcChunk7BootstrapInventoryScenario $Request.scenario)){if($has){throw 'Bootstrap inventory selection is forbidden under another scenario.'};return}
  if(-not$has){throw 'Bootstrap inventory requires its explicit closed selection.'};$s=$Request.bootstrapInventory

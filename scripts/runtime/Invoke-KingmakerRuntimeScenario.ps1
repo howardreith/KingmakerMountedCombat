@@ -860,6 +860,9 @@ try{
     }
     Write-KmcJsonAtomic $requestPath $request
     & (Join-Path $repoRoot 'scripts\runtime\Test-RuntimeRequest.ps1') -RequestPath $requestPath -PackageManifestPath $packageManifestPath
+    # The serialized file is the validated request shape; re-read it so every later reader receives the
+    # same object tree the validators checked instead of the ordered dictionary used to build it.
+    $request=Read-KmcJson $requestPath
     if($isObserver){
         # What the observer process is bound to: the owned profile, the live Mods
         # root to prove empty of KMC, the prepared cleanup archive, and KMC's own

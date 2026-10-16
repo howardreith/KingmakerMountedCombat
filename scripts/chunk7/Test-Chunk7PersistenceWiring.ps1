@@ -64,6 +64,11 @@ foreach($mutation in @('missing-receipt','receipt-number','wrong-input-leaf','wr
   Invoke-Request $q
  }
 }
+# The runner holds its request as an ordered dictionary until serialization; the schema1 request assert must detect dictionary keys too.
+function ConvertTo-RunnerRequest($Q){$r=[ordered]@{};foreach($p in $Q.PSObject.Properties){$r[$p.Name]=$p.Value};$r}
+function New-Schema1RunnerRequest{$q=Copy-Test $base;$q.scenario='chunk7-persistence-load';$q.persistenceCase='legacy-schema1-resave-manual';$q|Add-Member NoteProperty schema1DerivationSha256 ('a'*64);ConvertTo-RunnerRequest $q}
+Check 'schema1 request assert accepts the runner ordered-dictionary request' {Assert-KmcChunk7Schema1Request (New-Schema1RunnerRequest)}
+Reject 'ordered-dictionary schema1 request without its derivation receipt' {$r=New-Schema1RunnerRequest;$r.Remove('schema1DerivationSha256');Assert-KmcChunk7Schema1Request $r}
 foreach($mutation in @('missing-target','wrong-mode','same-area','zero-enter','wrong-load-area','wrong-category')){
     Reject ('area request '+$mutation){$q=Copy-Test $base;$q.persistenceCase='multi-area-autosave';$q.scenario='chunk7-persistence-load'
       $q|Add-Member NoteProperty persistenceAreaTarget ([pscustomobject]@{enterPoint='c'*32;area='b'*32;autoSaveMode='AfterEntry'})
