@@ -61,6 +61,9 @@ namespace KingmakerMountedCombat.Diagnostics
     {
         internal const int MaximumChoices=16, MaximumOffers=32, MaximumRows=32;
         internal const long MaximumMilliseconds=300000, ProgressMilliseconds=30000;
+        internal const string PcRows="pc-cached-rows", BookRows="book-rows", InterchapterRows="interchapter-rows";
+        // Common PC dialogues, book pages and interchapter pages are the selected native kinds; each has one ready status.
+        internal static string SelectedStatus(int kind){switch(kind){case 0:return PcRows;case 1:return BookRows;case 2:return InterchapterRows;default:return null;}}
         private readonly Chunk7AssistedFixtureBinding binding;
         private IChunk7AssistedStoryBoundary boundary;
         private readonly List<Chunk7AssistedStoryAttempt> attempts=new List<Chunk7AssistedStoryAttempt>();
@@ -108,8 +111,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 if(current.NativeBusy||current.TransitionPending || current.Mode!="Dialog"&&current.Cutscene)
                     return Status=Chunk7AssistedStoryStatus.Waiting;
                 if(current.Mode!="Dialog")throw new InvalidOperationException("Only native Default, pending transition or ordinary PC story Dialog is selected.");
-                if(current.ManagerKind.HasValue && current.ManagerKind.Value!=0)throw new InvalidOperationException("Book/interchapter story input is not selected.");
-                if(current.UiStatus!="pc-cached-rows" || current.ManagerShown!=true || current.PcActive!=true || !current.DialogActive)
+                if(current.ManagerKind.HasValue && SelectedStatus(current.ManagerKind.Value)==null)throw new InvalidOperationException("Only common, book and interchapter native dialog kinds are selected.");
+                if(!current.ManagerKind.HasValue || current.UiStatus!=SelectedStatus(current.ManagerKind.Value) || current.ManagerShown!=true || current.PcActive!=true || !current.DialogActive)
                     return Status=Chunk7AssistedStoryStatus.Waiting;
                 ValidateChoices(current);
                 if(pending!=null || current.Offers.Length==0)return Status=Chunk7AssistedStoryStatus.Waiting;
@@ -119,7 +122,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     for(var j=0;j<current.Rows.Length;j++)if(ReferenceEquals(current.Offers[i].Answer,current.Rows[j].Answer))
                     {
                         var row=current.Rows[j];
-                        if(!row.Initialized||row.ChoosingCharacter||row.Interchapter)throw new InvalidOperationException("A current owned answer row is uninitialized or has foreign chooser/interchapter custody.");
+                        if(!row.Initialized||row.ChoosingCharacter||row.Interchapter&&current.ManagerKind.Value!=2)throw new InvalidOperationException("A current owned answer row is uninitialized or has foreign chooser/interchapter custody.");
                         if(!row.Disabled&&row.ActiveAndEnabled&&row.ActiveInHierarchy && selectedOffer<0){selectedOffer=i;selectedRow=j;}
                     }
                 }
@@ -155,7 +158,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 !ReferenceEquals(expected.Ui,actual.Ui)||!ReferenceEquals(expected.Common,actual.Common)||!ReferenceEquals(expected.Manager,actual.Manager)||
                 !ReferenceEquals(expected.PcDialog,actual.PcDialog)||!ReferenceEquals(expected.CurrentPart,actual.CurrentPart)||
                 !ReferenceEquals(expected.OffersList,actual.OffersList)||!ReferenceEquals(expected.RowsList,actual.RowsList)||
-                expected.DialogGuid!=actual.DialogGuid||expected.CueGuid!=actual.CueGuid||actual.ManagerKind!=0||actual.ManagerShown!=true||actual.PcActive!=true||
+                expected.DialogGuid!=actual.DialogGuid||expected.CueGuid!=actual.CueGuid||expected.ManagerKind!=actual.ManagerKind||!actual.ManagerKind.HasValue||actual.UiStatus!=SelectedStatus(actual.ManagerKind.Value)||actual.ManagerShown!=true||actual.PcActive!=true||
                 !actual.MouseController||actual.UnexpectedPopup||actual.NativeBusy||actual.TransitionPending||!actual.DialogActive)
                 throw new InvalidOperationException("Native story context or frame changed before row dispatch.");
             ValidateChoices(expected);ValidateChoices(actual);

@@ -26,6 +26,8 @@ static class AssistedCoreTests
   internal Chunk7AssistedStoryDriver Driver(){return new Chunk7AssistedStoryDriver(Binding,this);}internal Chunk7AssistedShortfall Assistance(){return new Chunk7AssistedShortfall(Binding,this);}
  }
  static bool BadStory(Action<Rig> mutate){var r=new Rig();mutate(r);using(var d=r.Driver())return Throws(()=>d.Tick())&&r.Clicks==0;}
+ static bool WaitsStory(Action<Rig> mutate){var r=new Rig();mutate(r);using(var d=r.Driver())return d.Tick()==Chunk7AssistedStoryStatus.Waiting&&r.Clicks==0;}
+ static void Interchapter(Rig r){r.State.ManagerKind=2;r.State.UiStatus="interchapter-rows";r.State.Offers=new[]{r.State.Offers[0]};r.State.Rows=new[]{r.State.Rows[0]};r.State.Rows[0].Interchapter=true;}
  static bool Stale(Action<Rig> mutate){var r=new Rig();r.BeforeClick=mutate;using(var d=r.Driver())return Throws(()=>d.Tick())&&r.Clicks==0&&d.AttemptCount==1&&!d.Attempts[0].NativeEntered;}
  static bool BadXp(Action<Rig> mutate){var r=new Rig();mutate(r);var a=r.Assistance();return Throws(()=>a.EnsureExperience())&&r.XpCalls==0;}
  static bool BadMoney(Action<Rig> mutate){var r=new Rig();r.Short.Level=4;mutate(r);var a=r.Assistance();return Throws(()=>a.EnsureOneNativeHireCost())&&r.MoneyCalls==0;}
@@ -55,8 +57,15 @@ static class AssistedCoreTests
   Check("unknown selection enum refuses",()=>BadStory(r=>r.State.Offers[0].SelectionType=6));
   Check("missing character selection refuses",()=>BadStory(r=>r.State.Offers[0].Selection=null));
   Check("nullable selection refuses",()=>BadStory(r=>r.State.Offers[0].SelectionType=null));
-  Check("book refuses",()=>BadStory(r=>r.State.ManagerKind=1));
-  Check("interchapter refuses",()=>BadStory(r=>r.State.ManagerKind=2));
+  Check("interchapter page clicks its single option",()=>{var r=new Rig();Interchapter(r);using(var d=r.Driver())return d.Tick()==Chunk7AssistedStoryStatus.Clicked&&r.Clicks==1&&d.LastObserved.ManagerKind==2&&d.LastObserved.UiStatus=="interchapter-rows"&&d.LastObserved.RowInterchapter[0];});
+  Check("book page clicks first cached-enabled answer",()=>{var r=new Rig();r.State.ManagerKind=1;r.State.UiStatus="book-rows";using(var d=r.Driver())return d.Tick()==Chunk7AssistedStoryStatus.Clicked&&d.Attempts[0].OfferIndex==0;});
+  Check("unsupported dialog kind refuses",()=>BadStory(r=>{r.State.ManagerKind=3;r.State.UiStatus="unsupported-dialog-kind";}));
+  Check("kind without its selected status waits",()=>WaitsStory(r=>r.State.ManagerKind=2));
+  Check("common status under book kind waits",()=>WaitsStory(r=>r.State.ManagerKind=1));
+  Check("missing kind waits",()=>WaitsStory(r=>r.State.ManagerKind=null));
+  Check("book page refuses interchapter rows",()=>BadStory(r=>{r.State.ManagerKind=1;r.State.UiStatus="book-rows";r.State.Rows[0].Interchapter=true;}));
+  Check("kind change at dispatch refuses",()=>Stale(r=>{r.State.ManagerKind=1;r.State.UiStatus="book-rows";}));
+  Check("interchapter progress bound still retains one click",()=>{var r=new Rig();Interchapter(r);using(var d=r.Driver()){d.Tick();r.State.ElapsedMilliseconds=30001;r.State.Frame++;return Throws(()=>d.Tick())&&r.Clicks==1;}});
   Check("foreign nonstory popup refuses",()=>BadStory(r=>r.State.UnexpectedPopup=true));
   Check("console input refuses",()=>BadStory(r=>r.State.MouseController=false));
   Check("unknown mode refuses",()=>BadStory(r=>r.State.Mode="GlobalMap"));
