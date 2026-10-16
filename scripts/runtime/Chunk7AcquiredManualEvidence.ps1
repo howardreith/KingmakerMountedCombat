@@ -2,6 +2,7 @@ Set-StrictMode -Version Latest
 function Test-KmcChunk7AcquiredManualScenario([string]$Scenario){$Scenario-ceq'chunk7-acquired-manual-derivative'}
 function Get-KmcChunk7AcquiredManualRows {@('chunk7-acquired-manual-derivative','C7-acquired-manual-source','C7-acquired-manual-native-load','C7-acquired-manual-restored-owner','C7-acquired-manual-native-field','C7-acquired-manual-numbering','C7-acquired-manual-native-save','C7-acquired-manual-no-arrangement','C7-acquired-manual-cleanup','C7-acquired-manual-runtime','C7-acquired-manual-interrupted')}
 function Assert-KmcChunk7AcquiredManualSelection($Request){
+ if($Request-is[Collections.IDictionary]){$Request=[pscustomobject]$Request}
  $has=$null-ne$Request.PSObject.Properties['acquiredManual']
  if(-not(Test-KmcChunk7AcquiredManualScenario $Request.scenario)){if($has){throw 'Manual seed selection is forbidden under another family.'};return}
  if(-not$has){throw 'Manual seed requires its exact explicit selection.'};$s=$Request.acquiredManual

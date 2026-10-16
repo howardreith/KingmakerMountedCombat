@@ -25,6 +25,11 @@ if(([regex]::Matches($body,[regex]::Escape($import))).Count-ne1){throw 'Actual r
 $validator=[scriptblock]::Create($body.Replace($import,'# Common already loaded; actual validator body follows.'))
 function Validate($Q){$path=Join-Path $bridgeOutput 'request.json';[IO.File]::WriteAllText($path,(ConvertTo-KmcChunk7Canonical $Q),[Text.UTF8Encoding]::new($false));&$validator -RequestPath $path|Out-Null}
 Good 'full request accepts exact one-Manual-load one-Auto-write family' {Validate (Request)}
+# The runner holds its request as an ordered dictionary until serialization; the Manual-derived selection assert must detect dictionary keys too.
+function ConvertTo-RunnerRequest($Q){$r=[ordered]@{};foreach($p in $Q.PSObject.Properties){$r[$p.Name]=$p.Value};$r}
+Good 'Manual-derived selection assert accepts the runner ordered-dictionary request' {Assert-KmcChunk7ManualDerivedSelection (ConvertTo-RunnerRequest (Request))}
+Bad 'ordered-dictionary request without its selection' {$r=ConvertTo-RunnerRequest (Request);$r.Remove('manualDerived');Assert-KmcChunk7ManualDerivedSelection $r}
+Bad 'ordered-dictionary foreign family carrying a selection' {$r=ConvertTo-RunnerRequest (Request);$r['scenario']='fixture-intake';Assert-KmcChunk7ManualDerivedSelection $r}
 $negative=[ordered]@{
  'missing selection'={param($q)$q.PSObject.Properties.Remove('manualDerived')}
  'foreign family'={param($q)$q.scenario='fixture-intake'}

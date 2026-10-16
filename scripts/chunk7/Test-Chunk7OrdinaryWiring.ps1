@@ -47,6 +47,11 @@ function New-Request([bool]$Paid=$true){
 }
 function Invoke-Request($q){$path=Join-Path $private 'request.json';[IO.File]::WriteAllText($path,(ConvertTo-KmcChunk7Canonical $q),[Text.UTF8Encoding]::new($false));& $validator -RequestPath $path|Out-Null}
 foreach($paid in @($true,$false)){Good ('full actual request validator paid='+$paid) {Invoke-Request (New-Request $paid)}}
+# The runner holds its request as an ordered dictionary until serialization; the ordinary acquisition selection assert must detect dictionary keys too.
+function ConvertTo-RunnerRequest($Q){$r=[ordered]@{};foreach($p in $Q.PSObject.Properties){$r[$p.Name]=$p.Value};$r}
+Good 'ordinary acquisition selection assert accepts the runner ordered-dictionary request' {Assert-KmcChunk7OrdinarySelection (ConvertTo-RunnerRequest (New-Request $true))}
+Bad 'ordered-dictionary request without its selection' {$r=ConvertTo-RunnerRequest (New-Request $true);$r.Remove('ordinaryAcquisition');Assert-KmcChunk7OrdinarySelection $r}
+Bad 'ordered-dictionary foreign family carrying a selection' {$r=ConvertTo-RunnerRequest (New-Request $true);$r['scenario']='fixture-intake';Assert-KmcChunk7OrdinarySelection $r}
 $mutations=[ordered]@{
  'missing selection'={param($q)$q.PSObject.Properties.Remove('ordinaryAcquisition')}
  'unselected case'={param($q)$q.ordinaryAcquisition.case='paid-any-race'}

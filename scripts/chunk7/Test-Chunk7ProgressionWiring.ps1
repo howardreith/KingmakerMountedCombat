@@ -34,6 +34,11 @@ function Request([string]$Case='horse-native-level') {
 }
 function Validate($Q){$path=Join-Path $wiringOutput 'request.json';[IO.File]::WriteAllText($path,(ConvertTo-KmcChunk7Canonical $Q),[Text.UTF8Encoding]::new($false));&$validator -RequestPath $path|Out-Null}
 foreach($case in Get-KmcChunk7ProgressionCases){Good ('full actual progression request validator accepts '+$case) {Validate (Request $case)}}
+# The runner holds its request as an ordered dictionary until serialization; the progression selection assert must detect dictionary keys too.
+function ConvertTo-RunnerRequest($Q){$r=[ordered]@{};foreach($p in $Q.PSObject.Properties){$r[$p.Name]=$p.Value};$r}
+Good 'progression selection assert accepts the runner ordered-dictionary request' {Assert-KmcChunk7ProgressionSelection (ConvertTo-RunnerRequest (Request))}
+Bad 'ordered-dictionary request without its selection' {$r=ConvertTo-RunnerRequest (Request);$r.Remove('progression');Assert-KmcChunk7ProgressionSelection $r}
+Bad 'ordered-dictionary foreign family carrying a selection' {$r=ConvertTo-RunnerRequest (Request);$r['scenario']='fixture-intake';Assert-KmcChunk7ProgressionSelection $r}
 $cases=[ordered]@{
  'missing field selection'={param($q)$q.PSObject.Properties.Remove('progression')}
  'missing source archive'={param($q)$q.PSObject.Properties.Remove('persistenceLoad')}

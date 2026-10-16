@@ -23,6 +23,11 @@ Check 'closed family registered once as save-backed compound'{if(@(Get-KmcSaveBa
 $body=[IO.File]::ReadAllText((Join-Path $bridgeRuntime 'Test-RuntimeRequest.ps1'));$import=". (Join-Path "+'$PSScriptRoot'+" 'RuntimeHarness.Common.ps1')";if(([regex]::Matches($body,[regex]::Escape($import))).Count-ne1){throw 'Actual request import changed'};$validator=[scriptblock]::Create($body.Replace($import,'# Common loaded; actual validator body follows.'))
 function Validate($Q){$path=Join-Path $bridgeOutput 'request.json';[IO.File]::WriteAllText($path,(ConvertTo-KmcChunk7Canonical $Q),[Text.UTF8Encoding]::new($false));&$validator -RequestPath $path|Out-Null}
 foreach($f in $fixtures){Check ('full request '+$f.name){Validate (Request $f.name)}}
+# The runner holds its request as an ordered dictionary until serialization; the owned selection assert must detect dictionary keys too.
+function ConvertTo-RunnerRequest($Q){$r=[ordered]@{};foreach($p in $Q.PSObject.Properties){$r[$p.Name]=$p.Value};$r}
+Check 'owned selection assert accepts the runner ordered-dictionary request' {Assert-KmcChunk7OwnedPairsSelection (ConvertTo-RunnerRequest (Request))}
+Check 'ordered-dictionary request without its selection is refused' {$r=ConvertTo-RunnerRequest (Request);$r.Remove('ownedPairs');Assert-KmcChunk7OwnedPairsSelection $r} $true
+Check 'ordered-dictionary foreign family carrying a selection is refused' {$r=ConvertTo-RunnerRequest (Request);$r['scenario']='fixture-intake';Assert-KmcChunk7OwnedPairsSelection $r} $true
 $negative=[ordered]@{
  'selection omitted'={param($q)$q.PSObject.Properties.Remove('ownedPairs')}
  'foreign family'={param($q)$q.scenario='fixture-intake'}

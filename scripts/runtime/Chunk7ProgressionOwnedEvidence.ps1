@@ -16,6 +16,7 @@ function Get-KmcChunk7ProgressionOwnedRequest($Request){
  [pscustomobject]@{scenario='chunk7-owned-two-pair-campaign';runId=$Request.runId;ownedPairs=$Request.progression.ownedSource;persistenceCase='multi-exploration-manual';fixture=$(if($Request.PSObject.Properties['fixture']){$Request.fixture}else{$null});persistenceLoad=$(if($Request.PSObject.Properties['persistenceLoad']){$Request.persistenceLoad}else{$null})}
 }
 function Assert-KmcChunk7OwnedProgressionSelection($Request){
+ if($Request-is[Collections.IDictionary]){$Request=[pscustomobject]$Request}
  if($null-ne$Request.PSObject.Properties['ownedPairs']){throw 'Progression cannot acquire outer owned-pair dispatch authority.'}
  $s=$Request.progression;$p=Get-KmcChunk7ProgressionOwnedRequest $Request;Assert-KmcChunk7OwnedPairsSelection $p;$n=$s.ownedSource
  if($n.case-cne'persistence-load'-or$n.expectedNativeWriteCount-ne0-or$n.expectedNativeLoadCount-ne1){throw 'Owned progression requires a read-only exploration Manual checkpoint.'}

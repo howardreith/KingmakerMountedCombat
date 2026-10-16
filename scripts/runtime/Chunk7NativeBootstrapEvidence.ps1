@@ -4,6 +4,7 @@ function Assert-KmcNativeBootstrapObject($Value){Assert-KmcOrdinaryInteger $Valu
 function Test-KmcChunk7NativeBootstrapScenario([string]$Scenario){$Scenario-ceq'chunk7-native-main-bootstrap'}
 function Get-KmcChunk7NativeBootstrapRows {@('chunk7-native-main-bootstrap','C7-bootstrap-preflight','C7-bootstrap-native-start','C7-bootstrap-native-world','C7-bootstrap-autosave','C7-bootstrap-cleanup','C7-bootstrap-runtime','C7-bootstrap-interrupted')}
 function Assert-KmcChunk7NativeBootstrapSelection($Request){
+ if($Request-is[Collections.IDictionary]){$Request=[pscustomobject]$Request}
  $has=$null-ne$Request.PSObject.Properties['nativeBootstrap']
  if(-not(Test-KmcChunk7NativeBootstrapScenario $Request.scenario)){if($has){throw 'Native bootstrap selection is forbidden under another scenario.'};return}
  if(-not$has){throw 'Native bootstrap requires an explicit selection.'};$s=$Request.nativeBootstrap

@@ -25,6 +25,7 @@ function Get-KmcChunk7OwnedLoadCount($Request){
 function Get-KmcChunk7OwnedPairIds($Request){@($Request.ownedPairs.riderAId,$Request.ownedPairs.mountAId,$Request.ownedPairs.riderBId,$Request.ownedPairs.mountBId)}
 function Get-KmcChunk7SelectedFixture($Request){if(Test-KmcChunk7OwnedPairsScenario $Request.scenario){return $Request.persistenceLoad};return $Request.fixture.working}
 function Assert-KmcChunk7OwnedPairsSelection($Request){
+ if($Request-is[Collections.IDictionary]){$Request=[pscustomobject]$Request}
  $has=$null-ne$Request.PSObject.Properties['ownedPairs']
  if(-not(Test-KmcChunk7OwnedPairsScenario $Request.scenario)){if($has){throw 'Inherited two-owner selection is forbidden under another family.'};return}
  if(-not$has){throw 'Inherited two-owner campaign requires its explicit selection.'};$s=$Request.ownedPairs
