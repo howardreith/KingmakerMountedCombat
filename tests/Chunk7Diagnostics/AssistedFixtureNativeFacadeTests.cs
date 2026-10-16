@@ -62,8 +62,13 @@ static class Tests {
  Check("kind change between read and dispatch refuses",()=>{var r=new FacadeRig();var s=r.Boundary.ReadStory();Interchapter(r);return Throws(()=>r.Boundary.Click(s,0,0,r.Enter))&&r.ClickCount==0;});
  Check("native busy waits",()=>Waits(r=>r.Busy=true));
  Check("scheduled StartDialog waits",()=>Waits(r=>r.Game.Player.Dialog.Scheduled=new Kingmaker.DialogSystem.StartDialogData()));
- Check("queued cue waits",()=>Waits(r=>r.Game.DialogController.m_CueToPlay=new Kingmaker.DialogSystem.Blueprints.BlueprintCue()));
- Check("continue cue waits",()=>Waits(r=>r.Game.DialogController.m_ContinueCue=new Kingmaker.DialogSystem.Blueprints.BlueprintCue()));
+ Check("retained cue to play does not block the click",()=>{var r=new FacadeRig();r.Game.DialogController.m_CueToPlay=new Kingmaker.DialogSystem.Blueprints.BlueprintCue();using(var d=r.Driver())return d.Tick()==Chunk7AssistedStoryStatus.Clicked&&r.ClickCount==1;});
+ Check("displayed continue cue does not block the click",()=>{var r=new FacadeRig();r.Game.DialogController.m_ContinueCue=new Kingmaker.DialogSystem.Blueprints.BlueprintCue();using(var d=r.Driver())return d.Tick()==Chunk7AssistedStoryStatus.Clicked&&r.ClickCount==1;});
+ Check("interchapter page with a retained cue and continue cue clicks its option",()=>{var r=new FacadeRig();Interchapter(r);r.Game.DialogController.m_CueToPlay=new Kingmaker.DialogSystem.Blueprints.BlueprintCue();r.Game.DialogController.m_ContinueCue=new Kingmaker.DialogSystem.Blueprints.BlueprintCue();using(var d=r.Driver())return d.Tick()==Chunk7AssistedStoryStatus.Clicked&&r.ClickCount==1;});
+ Check("scheduled cue play on an interchapter page waits",()=>Waits(r=>{Interchapter(r);r.Game.DialogController.m_CuePlayScheduled=true;}));
+ Check("uninitialized interchapter option waits as a pending page",()=>{var r=new FacadeRig();Interchapter(r);Manager(r).Interchapter.m_Answer.m_IsInit=false;var s=r.Boundary.ReadStory();using(var d=r.Driver())return s.UiStatus=="book-page-pending"&&d.Tick()==Chunk7AssistedStoryStatus.Waiting&&r.ClickCount==0;});
+ Check("stale book rows against new offers wait as a pending page",()=>{var r=new FacadeRig();Book(r);Manager(r).BookEvent.Answers.Children[0].m_Answer=new Kingmaker.DialogSystem.Blueprints.BlueprintAnswer{AssetGuidThreadSafe=FacadeRig.G(40)};var s=r.Boundary.ReadStory();using(var d=r.Driver())return s.UiStatus=="book-page-pending"&&d.Tick()==Chunk7AssistedStoryStatus.Waiting&&r.ClickCount==0;});
+ Check("book page with every option disabled waits",()=>Waits(r=>{Book(r);foreach(var row in Manager(r).BookEvent.Answers.Children)row.m_Disabled=true;}));
  Check("cue-play schedule waits",()=>Waits(r=>r.Game.DialogController.m_CuePlayScheduled=true));
  Check("dialog-stop schedule waits",()=>Waits(r=>r.Game.DialogController.m_DialogStopScheduled=true));
  Check("new scheduled transition refuses immediate dispatch",()=>Stale(r=>r.Game.Player.Dialog.Scheduled=new Kingmaker.DialogSystem.StartDialogData()));
