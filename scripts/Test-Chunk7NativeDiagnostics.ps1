@@ -45,6 +45,7 @@ $selected = @(
     'Test-Chunk7AssistedFixtureProbes.ps1',
     'Test-Chunk7AssistedFixtureDto.ps1',
     'Test-Chunk7AssistedFixtureWiring.ps1',
+    'Test-Chunk7AssistedStoryKinds.ps1',
     'Test-Chunk7AreaPersistenceSource.ps1',
     'Test-Chunk7CanonicalEvidence.ps1',
     'Test-Chunk7DiagnosticsOff.ps1',
