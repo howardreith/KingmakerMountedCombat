@@ -14,7 +14,7 @@ if(Test-Path -LiteralPath $output){throw 'Preserve earlier assisted evidence res
 [void][IO.Directory]::CreateDirectory($output)
 $clock=[Diagnostics.Stopwatch]::StartNew()
 $manifest=Get-Content -LiteralPath $FixtureManifestPath -Raw|ConvertFrom-Json
-if($manifest.kind-cne'actual-assisted-setup-emitter-fixtures'-or$manifest.outputs-isnot[Array]-or$manifest.outputs.Count-ne5){throw 'Five actual Capture fixtures are required.'}
+if($manifest.kind-cne'actual-assisted-setup-emitter-fixtures'-or$manifest.outputs-isnot[Array]-or$manifest.outputs.Count-ne6){throw 'Six actual Capture fixtures are required.'}
 $inputPaths=@($PSCommandPath,$ReaderPath,$FixtureManifestPath)+@($manifest.outputs|ForEach-Object path)+@(Get-ChildItem -LiteralPath (Join-Path $RepositoryRoot 'scripts/runtime') -Filter '*.ps1' -File|ForEach-Object FullName)
 $inputPins=@($inputPaths|Sort-Object -Unique|ForEach-Object{[pscustomobject]@{path=[IO.Path]::GetFullPath($_);sha256=(Get-KmcSha256 $_)}})
 $fixtures=@{}
@@ -39,8 +39,14 @@ function Check-Setup([string]$Name,[string]$Leaf,[bool]$Accept,[scriptblock]$Mut
     $cases.Add([pscustomobject]@{name=$Name;status=$(if($ok){'PASS'}else{'FAIL'});expectedAccepted=$Accept;actualAccepted=$accepted;error=$message})
     Write-Host ($(if($ok){'PASS '}else{'FAIL '})+$Name+$(if(-not$ok){': '+$message}else{''}))
 }
-foreach($leaf in @('ready-noop.json','click-xp-funds.json','xp-funds-sufficient.json','skip-disabled-first.json')){Check-Setup ('actual emitter '+$leaf) $leaf $true $null}
+foreach($leaf in @('ready-noop.json','click-xp-funds.json','xp-funds-sufficient.json','skip-disabled-first.json','system-button.json')){Check-Setup ('actual emitter '+$leaf) $leaf $true $null}
 Check-Setup 'actual partial XP exception cannot qualify' 'partial-native-failure.json' $false $null
+function Add-EligibleRow($Attempt){
+ $b=$Attempt.before
+ $b.rowObjects=@(2048);$b.rowAnswerObjects=@($b.offerObjects[0]);$b.rowNativeIndices=@(0)
+ $b.rowInitialized=@($true);$b.rowDisabled=@($false);$b.rowChoosingCharacter=@($false)
+ $b.rowInterchapter=@($false);$b.rowActiveAndEnabled=@($true);$b.rowActiveInHierarchy=@($true)
+}
 function Reject([string]$Name,[scriptblock]$Mutate,[string]$Leaf='click-xp-funds.json'){Check-Setup $Name $Leaf $false $Mutate}
 Reject 'foreign native run' {param($v)$v.runId='another-run'}
 Reject 'foreign campaign' {param($v)$v.gameId='aaaaaaaa-1111-4111-8111-111111111111'}
@@ -100,6 +106,24 @@ Reject 'offer collection bound preserved' {param($v)$v.story.attempts[0].before.
 Reject 'selected offer order cannot be relabeled' {param($v)$v.story.attempts[0].offerIndex=1}
 Reject 'selected row reference cannot be relabeled' {param($v)$v.story.attempts[0].row=16}
 Reject 'native UI index cannot be relabeled' {param($v)$v.story.attempts[0].nativeIndex=2}
+Reject 'row click cannot claim the system button' {param($v)$v.story.attempts[0].systemButton=$true}
+Reject 'row click cannot drop its native row index' {param($v)$v.story.attempts[0].rowIndex=-1}
+Reject 'row click cannot drop its native UI index' {param($v)$v.story.attempts[0].nativeIndex=-1}
+Reject 'attempt kind flag is mandatory' {param($v)$v.story.attempts[0].PSObject.Properties.Remove('systemButton')}
+Reject 'mistyped attempt kind flag' {param($v)$v.story.attempts[0].systemButton='true'}
+Reject 'unknown attempt field' {param($v)$v.story.attempts[0]|Add-Member NoteProperty bypass $false}
+Reject 'system-button click cannot claim a cached row' {param($v)$v.story.attempts[0].systemButton=$false} 'system-button.json'
+Reject 'system-button click cannot carry a row index' {param($v)$v.story.attempts[0].rowIndex=0} 'system-button.json'
+Reject 'system-button click cannot carry a native UI index' {param($v)$v.story.attempts[0].nativeIndex=0} 'system-button.json'
+Reject 'system-button click cannot carry a row identity' {param($v)$v.story.attempts[0].row=2048} 'system-button.json'
+Reject 'system-button click cannot bypass an eligible row' {param($v)Add-EligibleRow $v.story.attempts[0]} 'system-button.json'
+Reject 'system-button click must name an offered answer' {param($v)$v.story.attempts[0].offerIndex=1} 'system-button.json'
+Reject 'system-button answer identity cannot be relabeled' {param($v)$v.story.attempts[0].answer=2048} 'system-button.json'
+Reject 'system-button answer GUID must be exact' {param($v)$v.story.attempts[0].answerGuid=('f'*32)} 'system-button.json'
+Reject 'Manual system answer is refused' {param($v)$v.story.attempts[0].before.offerSelectionTypes[0]=4} 'system-button.json'
+Reject 'system-button attempt sequence cannot skip admission' {param($v)$v.story.attempts[0].sequence=2} 'system-button.json'
+Reject 'system-button click never entered' {param($v)$v.story.attempts[0].nativeEntered=$false} 'system-button.json'
+Reject 'system-button click exception cannot qualify' {param($v)$v.story.attempts[0].failure='native exception'} 'system-button.json'
 Reject 'after observation cannot precede click' {param($v)$v.story.attempts[0].after.frame=9}
 Reject 'after observation cannot precede elapsed clock' {param($v)$v.story.attempts[0].before.elapsedMilliseconds=10}
 Reject 'same-frame Default cannot prove settlement' {param($v)$v.story.lastObserved.frame=10}
@@ -146,7 +170,7 @@ Reject 'funds no-op cannot claim native mutation' {param($v)$v.hireFunds.attempt
 Reject 'funds no-op cannot reduce existing money' {param($v)$v.hireFunds.after.money=8000} 'xp-funds-sufficient.json'
 Reject 'partial native setup cannot be relabeled complete' {param($v)$v.shortfallFailed=$true}
 foreach($pin in $inputPins){if((Get-KmcSha256 $pin.path)-cne$pin.sha256){throw ('Assisted evidence test input changed: '+$pin.path)}}
-$receipt=[ordered]@{schemaVersion=1;kind='assisted-setup-evidence-focused-checks';status=$(if($script:failed-eq0){'PASS'}else{'FAIL'});passed=$script:passed;failed=$script:failed;durationSeconds=$clock.Elapsed.TotalSeconds;nativeInvoked=$false;installedOrProtectedArchiveReads=0;inputPinsVerifiedAfter=$true;inputPins=$inputPins;actualEmitterFixtureCount=5;scope='Actual production Capture output plus malformed mutations; no native or complete host/output qualification';cases=$cases.ToArray()}
+$receipt=[ordered]@{schemaVersion=1;kind='assisted-setup-evidence-focused-checks';status=$(if($script:failed-eq0){'PASS'}else{'FAIL'});passed=$script:passed;failed=$script:failed;durationSeconds=$clock.Elapsed.TotalSeconds;nativeInvoked=$false;installedOrProtectedArchiveReads=0;inputPinsVerifiedAfter=$true;inputPins=$inputPins;actualEmitterFixtureCount=6;scope='Actual production Capture output plus malformed mutations; no native or complete host/output qualification';cases=$cases.ToArray()}
 Write-KmcJsonAtomic (Join-Path $output 'receipt.json') $receipt
 Write-Host ('ASSISTED SETUP READER: '+$script:passed+' PASS / '+$script:failed+' FAIL')
 $global:LASTEXITCODE=$(if($script:failed-eq0){0}else{1})

@@ -66,16 +66,16 @@ if($stages[0].exitCode-eq0){
  $c=Run-Child $compiler @('/noconfig',('@'+$rsp)) 'emitter-compile';$stages.Add($c)
  if($c.exitCode-eq0){
   $r=Run-Child $loader @($exe) 'emitter-run';$stages.Add($r);$ran=$true
-  $lines=@($r.stdout-split'\r?\n'|Where-Object{$_-ne''});$expected='ASSISTED ACTUAL EMITTER: 5 PASS / 0 FAIL'
-  $shape=$r.exitCode-eq0-and$r.stderr-ceq''-and$lines.Count-gt0-and$lines[-1]-ceq$expected-and@($lines|Where-Object{$_-ceq$expected}).Count-eq1-and@($lines|Where-Object{$_-clike'PASS *'}).Count-eq5-and@($lines|Where-Object{$_-clike'FAIL *'}).Count-eq0
-  if($shape){$passed=5;Write-Host $expected}else{$failed=1;Write-Host 'FAIL actual assisted emitter child'}
+  $lines=@($r.stdout-split'\r?\n'|Where-Object{$_-ne''});$expected='ASSISTED ACTUAL EMITTER: 6 PASS / 0 FAIL'
+  $shape=$r.exitCode-eq0-and$r.stderr-ceq''-and$lines.Count-gt0-and$lines[-1]-ceq$expected-and@($lines|Where-Object{$_-ceq$expected}).Count-eq1-and@($lines|Where-Object{$_-clike'PASS *'}).Count-eq6-and@($lines|Where-Object{$_-clike'FAIL *'}).Count-eq0
+  if($shape){$passed=6;Write-Host $expected}else{$failed=1;Write-Host 'FAIL actual assisted emitter child'}
  }
 }
-$leaves=@('ready-noop.json','click-xp-funds.json','xp-funds-sufficient.json','skip-disabled-first.json','partial-native-failure.json')
+$leaves=@('ready-noop.json','click-xp-funds.json','xp-funds-sufficient.json','skip-disabled-first.json','system-button.json','partial-native-failure.json')
 foreach($leaf in $leaves){$p=Join-Path $OutputRoot $leaf;if(Test-Path -LiteralPath $p -PathType Leaf){$outputs+= [ordered]@{path=$p;leaf=$leaf;sha256=(Get-FileHash -LiteralPath $p -Algorithm SHA256).Hash.ToLowerInvariant();length=([IO.FileInfo]$p).Length;expectedReaderStatus=$(if($leaf-ceq'partial-native-failure.json'){'FAIL'}else{'PASS'})}}}
 $changed=@($inputs.Keys|Where-Object{(Get-FileHash -LiteralPath $_ -Algorithm SHA256).Hash.ToLowerInvariant()-cne$inputs[$_]})
-$all=$passed-eq5-and$failed-eq0-and$ran-and$stages.Count-eq3-and$outputs.Count-eq5-and@($stages|Where-Object{$_.exitCode-ne0-or$_.stdout-match'CS2023'}).Count-eq0-and$changed.Count-eq0
+$all=$passed-eq6-and$failed-eq0-and$ran-and$stages.Count-eq3-and$outputs.Count-eq6-and@($stages|Where-Object{$_.exitCode-ne0-or$_.stdout-match'CS2023'}).Count-eq0-and$changed.Count-eq0
 $rows=@($inputs.Keys|Sort-Object|ForEach-Object{[ordered]@{path=$_;sha256=$inputs[$_]}})
-[ordered]@{schemaVersion=1;kind='actual-assisted-setup-portable-emitter';status=$(if($all){'PASS'}else{'FAIL'});passed=$passed;failed=$failed;stages=@($stages);inputs=$rows;changedInputs=$changed;fixtures=$outputs;expected=[ordered]@{runId='assisted-emitter-generated';gameId='11111111-2222-3333-4444-555555555555';gameName='KMC_C7_ASSISTED_NATIVE';mainActorId='aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';authorityGeneration=1};nativeEngineInvoked=$false;archiveOperations=0;limits=@('Exact four current production sources emit all JSON; no hand-authored positive fixtures','External native/UI and between-effect native level progression are generated Rig boundaries only','Canonical IDs are fixed synthetic data, not source/native bindings','Four intended reader positives and one retained partial-failure negative; producer success does not validate reader or native qualification')}|ConvertTo-Json -Depth 8|Set-Content -LiteralPath (Join-Path $OutputRoot 'manifest.json') -Encoding UTF8
+[ordered]@{schemaVersion=1;kind='actual-assisted-setup-portable-emitter';status=$(if($all){'PASS'}else{'FAIL'});passed=$passed;failed=$failed;stages=@($stages);inputs=$rows;changedInputs=$changed;fixtures=$outputs;expected=[ordered]@{runId='assisted-emitter-generated';gameId='11111111-2222-3333-4444-555555555555';gameName='KMC_C7_ASSISTED_NATIVE';mainActorId='aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';authorityGeneration=1};nativeEngineInvoked=$false;archiveOperations=0;limits=@('Exact four current production sources emit all JSON; no hand-authored positive fixtures','External native/UI and between-effect native level progression are generated Rig boundaries only','Canonical IDs are fixed synthetic data, not source/native bindings','Five intended reader positives (four cached-row and one system-button) and one retained partial-failure negative; producer success does not validate reader or native qualification')}|ConvertTo-Json -Depth 8|Set-Content -LiteralPath (Join-Path $OutputRoot 'manifest.json') -Encoding UTF8
 Write-Host ('ASSISTED EMITTER PORTABLE: '+$passed+' PASS / '+$failed+' FAIL')
 if(-not$all){exit 1};exit 0

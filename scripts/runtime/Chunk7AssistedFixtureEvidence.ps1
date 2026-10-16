@@ -108,9 +108,10 @@ function Assert-KmcAssistedStoryEvidence($Value, $Setup) {
     $prior=$null
     for($n=0;$n-lt$Value.attempts.Count;$n++) {
         $attempt=$Value.attempts[$n]
-        Assert-KmcExactProperties $attempt @('sequence','offerIndex','rowIndex','nativeIndex','answer','row','answerGuid','nativeEntered','nativeReturned','afterReadSucceeded','failure','before','after') 'assisted story attempt'
+        Assert-KmcExactProperties $attempt @('sequence','offerIndex','rowIndex','nativeIndex','systemButton','answer','row','answerGuid','nativeEntered','nativeReturned','afterReadSucceeded','failure','before','after') 'assisted story attempt'
         Assert-KmcOrdinaryInteger $attempt.sequence ($n+1) ($n+1)
         foreach($key in @('nativeEntered','nativeReturned','afterReadSucceeded')) { Assert-KmcChunk7Boolean $attempt.$key $true }
+        if($attempt.systemButton-isnot[bool]){throw 'Assisted story attempt kind flag is not Boolean.'}
         if($null-ne$attempt.failure){throw 'A partially failed native click cannot qualify story completion.'}
         Assert-KmcAssistedStorySnapshot $attempt.before $Setup $true
         Assert-KmcAssistedStorySnapshot $attempt.after $Setup $false
@@ -127,13 +128,28 @@ function Assert-KmcAssistedStoryEvidence($Value, $Setup) {
                 if($before.rowAnswerObjects[$j]-eq$before.offerObjects[$i]-and-not$before.rowDisabled[$j]-and$before.rowActiveAndEnabled[$j]-and$before.rowActiveInHierarchy[$j]-and$selectedOffer-lt0) { $selectedOffer=$i; $selectedRow=$j }
             }
         }
-        if($selectedOffer-lt0-or$before.offerSelectionTypes[$selectedOffer]-eq4){throw 'Story attempt did not select the first available non-Manual native row.'}
-        Assert-KmcOrdinaryInteger $attempt.offerIndex $selectedOffer $selectedOffer
-        Assert-KmcOrdinaryInteger $attempt.rowIndex $selectedRow $selectedRow
-        Assert-KmcOrdinaryInteger $attempt.answer $before.offerObjects[$selectedOffer] $before.offerObjects[$selectedOffer]
-        Assert-KmcOrdinaryInteger $attempt.row $before.rowObjects[$selectedRow] $before.rowObjects[$selectedRow]
-        Assert-KmcOrdinaryInteger $attempt.nativeIndex $before.rowNativeIndices[$selectedRow] $before.rowNativeIndices[$selectedRow]
-        Assert-KmcBootstrapInventoryString $attempt.answerGuid $before.offerGuids[$selectedOffer]
+        # A cue is advanced two ways. A cached TempOptionUI row click records its real row index and
+        # native UI index; the shared DialogueSystemButton click (continue or the terminal Exit) is
+        # taken only when the cue materializes no selectable row, so it records none. Each kind is
+        # validated as itself and neither may masquerade as the other.
+        if($attempt.systemButton) {
+            if($selectedOffer-ge0){throw 'A system-button story attempt cannot bypass an available native row.'}
+            if(-not(Test-KmcExactJsonInteger $attempt.offerIndex)-or$attempt.offerIndex-lt0-or$attempt.offerIndex-ge$before.offerObjects.Count){throw 'A system-button story attempt did not click an offered native answer.'}
+            if($before.offerSelectionTypes[$attempt.offerIndex]-eq4){throw 'A system-button story attempt cannot drive Manual character selection.'}
+            Assert-KmcOrdinaryInteger $attempt.rowIndex (-1) (-1)
+            Assert-KmcOrdinaryInteger $attempt.nativeIndex (-1) (-1)
+            Assert-KmcOrdinaryInteger $attempt.row 0 0
+            Assert-KmcOrdinaryInteger $attempt.answer $before.offerObjects[$attempt.offerIndex] $before.offerObjects[$attempt.offerIndex]
+            Assert-KmcBootstrapInventoryString $attempt.answerGuid $before.offerGuids[$attempt.offerIndex]
+        } else {
+            if($selectedOffer-lt0-or$before.offerSelectionTypes[$selectedOffer]-eq4){throw 'Story attempt did not select the first available non-Manual native row.'}
+            Assert-KmcOrdinaryInteger $attempt.offerIndex $selectedOffer $selectedOffer
+            Assert-KmcOrdinaryInteger $attempt.rowIndex $selectedRow $selectedRow
+            Assert-KmcOrdinaryInteger $attempt.answer $before.offerObjects[$selectedOffer] $before.offerObjects[$selectedOffer]
+            Assert-KmcOrdinaryInteger $attempt.row $before.rowObjects[$selectedRow] $before.rowObjects[$selectedRow]
+            Assert-KmcOrdinaryInteger $attempt.nativeIndex $before.rowNativeIndices[$selectedRow] $before.rowNativeIndices[$selectedRow]
+            Assert-KmcBootstrapInventoryString $attempt.answerGuid $before.offerGuids[$selectedOffer]
+        }
         $key=(@($before.controller,$before.dialog,$before.cue,$attempt.answer)-join':')
         if(-not$used.Add($key)){throw 'Story setup clicked an already consumed context.'}
         $prior=$attempt

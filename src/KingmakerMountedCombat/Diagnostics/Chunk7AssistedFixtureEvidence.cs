@@ -8,7 +8,7 @@ namespace KingmakerMountedCombat.Diagnostics
         internal static JObject Capture(Chunk7AssistedFixtureBinding binding,Chunk7AssistedStoryDriver story,Chunk7AssistedShortfall shortfall)
         {
             if(binding==null)throw new ArgumentNullException("binding");var attempts=new JArray();
-            if(story!=null)foreach(var a in story.Attempts)attempts.Add(new JObject{["sequence"]=a.Sequence,["offerIndex"]=a.OfferIndex,["rowIndex"]=a.RowIndex,["nativeIndex"]=a.NativeIndex,
+            if(story!=null)foreach(var a in story.Attempts)attempts.Add(new JObject{["sequence"]=a.Sequence,["offerIndex"]=a.OfferIndex,["rowIndex"]=a.RowIndex,["nativeIndex"]=a.NativeIndex,["systemButton"]=a.SystemButton,
                 ["answer"]=a.Answer,["row"]=a.Row,["answerGuid"]=a.AnswerGuid,["nativeEntered"]=a.NativeEntered,["nativeReturned"]=a.NativeReturned,
                 ["afterReadSucceeded"]=a.AfterReadSucceeded,["failure"]=a.Failure,["before"]=Story(a.Before),["after"]=Story(a.After)});
             return new JObject{["contract"]=Contract,["fixtureSetupOnly"]=true,["ordinaryAcquisitionProven"]=false,["ordinaryProgressionProven"]=false,["smallPoseQualified"]=false,
