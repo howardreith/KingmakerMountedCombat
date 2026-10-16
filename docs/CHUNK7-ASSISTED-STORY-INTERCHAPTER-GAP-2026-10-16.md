@@ -67,7 +67,7 @@ The existing PC dialog path already owns the native click: the boundary requires
 re-verifies the snapshot before calling `OnClick` on the selected row. The interchapter option and
 the book answers are the same `TempOptionUI` type, so the same verified click path applies.
 
-## Proposed product change (not started)
+## Product change (implemented on `codex/mounted-combat-chunk7-story-driver`, commits d44a386a and 30a0cdbf; independent review recorded in `claude-story-driver-next01/independent-review01.json`)
 
 1. Extend the boundary read to report the interchapter and book controllers (shown state,
    the single interchapter `m_Answer` option, book answer options and their enabled state)
@@ -79,7 +79,9 @@ the book answers are the same `TempOptionUI` type, so the same verified click pa
    bound, and refusing character-chooser pages.
 3. Offline checks: boundary classification for all three `DialogType` values, driver transitions
    for pending-transition interchapter pages, and the assisted-fixture evidence rows.
-4. A successor product candidate (build, Candidate tier, freeze, suite continuity) and a fresh
+4. Offline results: assisted core 100/0, affected 19/0, native facade 76/0 (195 total), reader kinds 13/0,
+   wiring 87/0, source 54/0, authority 154/0, probes 50/0, passive choices 69/0.
+5. A successor product candidate (build, Candidate tier, freeze, suite continuity) and a fresh
    numbered reviewed full audit before native attempt 12; eleven of 25 attempts are used.
 
 The composed owned schema1 and area Auto drafts (branch `codex/mounted-combat-chunk7-claude-drafts`)
