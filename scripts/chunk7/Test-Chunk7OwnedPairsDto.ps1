@@ -72,6 +72,8 @@ foreach($assisted in @($true,$false)){
  if($actual.scenario-cne'chunk7-two-pair-exploration'-or$actual.expectedWriteCount-ne0-or$actual.expectedLoadType-cne'Manual'-or$actual.fixtureArea-cne$r.persistenceLoad.area){throw 'Owner-seed DTO selected another runtime scenario, quota or input'};$pass++
  $r.ownedPairs=$actual.selection;Assert-KmcChunk7OwnedPairsDescriptor $r;$pass++
 }
+$r=New-KmcOwnerSeedDtoRequest $true;$r.ownedPairs.seedId='KMC_C7_NO_MODS_OWNER_SEED';$r.persistenceLoad.internalName='KMC C7 NO MODS OWNER SEED';$r.persistenceLoad.fileName='Manual_303_KMC_C7_NO_MODS_OWNER_SEED.zks'
+$actual=[KingmakerMountedCombat.Tests.OwnedPairsDtoTests]::Project(($r|ConvertTo-Json -Depth 90))|ConvertFrom-Json;$r.ownedPairs=$actual.selection;Assert-KmcChunk7OwnedPairsDescriptor $r;$pass++
 foreach($mutation in @('producer-pin-on-seed','seed-pin-on-producer')){
  if($mutation-ceq'producer-pin-on-seed'){$r=New-KmcOwnerSeedDtoRequest $true;$r.ownedPairs|Add-Member -NotePropertyName sourceRunId -NotePropertyValue 'synthetic-two-owner-manual'}
  else{$r=($fixtures|Where-Object name -CEQ 'exploration')[0].request|ConvertTo-Json -Depth 90|ConvertFrom-Json;$r.ownedPairs|Add-Member -NotePropertyName seedId -NotePropertyValue 'KMC_C7_OWNER_SEED'}

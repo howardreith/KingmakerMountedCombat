@@ -47,6 +47,8 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool setupSlotOwned;
         private int setupWritesExpected = -1, setupWritesAtBoundary = -1;
         private JArray setupAutosaves;
+        private JObject setupEconomyBefore;
+        private UnitEntityData[] setupCharacters;
 
         // A refusal before SETUP-COMPLETE is a setup failure, not a behaviour result.
         private void MarkOwnerSeedSetupFailure()
@@ -72,6 +74,10 @@ namespace KingmakerMountedCombat.Diagnostics
             firstRider = Exact(selection.RiderAId); secondRider = Exact(selection.RiderBId);
             evidence["partyBefore"] = new JArray(originalParty.Select(CaptureRig));
             setupLedger = new Chunk7OwnerSeedSetupLedger(); setupRiderRows = new JArray(); setupEvents = new JArray();
+            // Money and the party item inventory before any mutation; required equal at the boundary.
+            setupCharacters = game.Player.PartyCharacters.Select(value => value.Value).ToArray();
+            Require(setupCharacters.Length >= 1 && setupCharacters.All(actor => actor != null && originalParty.Contains(actor)), "Owner-seed party characters are unavailable.");
+            setupEconomyBefore = SetupEconomy();
             var a = RiderFacts(firstRider); var b = RiderFacts(secondRider);
             var settings = SettingsRoot.Instance;
             Require(settings?.AutosaveEnabled != null && settings.OnlyOneSave != null && settings.AutosaveSlots != null, "Native save settings are unavailable.");
@@ -89,7 +95,8 @@ namespace KingmakerMountedCombat.Diagnostics
                     ["autosaveSlots"] = autosaveSlots, ["settingsWritten"] = false, ["case"] = autosaveEnabled ? "autosave-on" : "autosave-off",
                     ["riderBuilds"] = riderBuilds, ["expectedWrites"] = setupWritesExpected, ["selectedWrites"] = selection.ExpectedNativeWriteCount,
                     ["slotProjectionDuringBuild"] = setupWritesExpected > 0, ["mountedPersistenceProof"] = false },
-                ["riders"] = setupRiderRows, ["events"] = setupEvents, ["setupAutosaves"] = setupAutosaves };
+                ["riders"] = setupRiderRows, ["events"] = setupEvents, ["setupAutosaves"] = setupAutosaves,
+                ["economyBefore"] = setupEconomyBefore, ["nativeXpTable"] = new JArray(Enumerable.Range(1, 20).Select(level => BlueprintRoot.Instance.Progression.XPTable.GetBonus(level))) };
             evidence["ownerSeedSetup"] = ownerSeedSetup;
             var refusals = Chunk7OwnerSeedSetupPlan.RiderErrors(a, "A").Concat(Chunk7OwnerSeedSetupPlan.RiderErrors(b, "B"))
                 .Concat(Chunk7OwnerSeedSetupPlan.AssistanceErrors(selection, a, b))
@@ -261,6 +268,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 feature != null && feature.Source != null && rider.Descriptor.GetFact(horses.LevelRank) != null && !originalParty.Contains(pet),
                 "Native ordinary Ranger build did not create the sourced reciprocal KMC Horse for rider " + (index == 0 ? "A." : "B."));
             var before = (JObject)row["before"]; var after = ProgressionState(rider);
+            // Exactly Ranger 4 at exactly the XP-ready level: no extra levels beyond Hunter's Bond.
+            Require((int)after["rangerLevel"] == Chunk7OwnerSeedSetupPlan.RequiredRangerLevel && (int)after["characterLevel"] == ReadyLevel((int)after["experience"]) &&
+                !LevelUpController.CanLevelUp(rider.Descriptor), "Rider " + (index == 0 ? "A" : "B") + " did not end at exactly Ranger 4 with no pending or extra level.");
             row["after"] = after; row["nativeCommits"] = setupDriver.NativeCommitCount; row["nativeChoices"] = setupDriver.AcceptedChoiceCount;
             row["nativeAutoLevelupOverrides"] = setupDriver.AutoLevelupOverrideCount;
             row["horseId"] = pet.UniqueId; row["horseBlueprint"] = pet.Blueprint.AssetGuid; row["horseMasterId"] = rider.UniqueId;
@@ -334,14 +344,19 @@ namespace KingmakerMountedCombat.Diagnostics
             setupWritesAtBoundary = fixtureAuthority.AdmittedNativeWriteRequests;
             Require(setupWritesAtBoundary == setupWritesExpected && setupAutosaves.Count == setupRiderRows.Count,
                 "SETUP-COMPLETE observed a native write count that differs from the selected setup Autos.");
-            setupLedger.Complete(Time.frameCount); setupClock.Stop();
+            // No money or item effect across the whole setup (the native level-up may only identify items).
+            var economy = SetupEconomy();
+            Require(JToken.DeepEquals(economy, setupEconomyBefore), "Owner-seed setup changed party money or the party item inventory.");
+            var boundaryFrame = Time.frameCount; setupClock.Stop();
             setupBoundaryState = SetupState();
             ownerSeedSetup["assistance"] = new JArray(setupLedger.Items.Select(item => new JObject { ["unitId"] = item.UnitId, ["kind"] = item.Kind,
                 ["nativeApi"] = item.NativeApi, ["before"] = item.Before, ["after"] = item.After, ["amount"] = item.Amount, ["detail"] = item.Detail }));
-            evidence["setupComplete"] = new JObject { ["boundary"] = "SETUP-COMPLETE", ["frame"] = setupLedger.CompletedFrame,
+            evidence["setupComplete"] = new JObject { ["boundary"] = "SETUP-COMPLETE", ["frame"] = boundaryFrame,
                 ["gameTicks"] = Game.Instance.TimeController.GameTime.Ticks, ["assistanceCount"] = setupLedger.Items.Count,
                 ["setupSeconds"] = setupClock.Elapsed.TotalSeconds, ["measuredClockRestarted"] = true, ["state"] = setupBoundaryState.DeepClone(),
-                ["writesAtBoundary"] = setupWritesAtBoundary, ["writeScopeClosed"] = fixtureAuthority.OwnerSeedWritesClosed };
+                ["writesAtBoundary"] = setupWritesAtBoundary, ["writeScopeClosed"] = fixtureAuthority.OwnerSeedWritesClosed, ["economy"] = economy };
+            // The boundary is crossed only after its evidence exists, so any earlier failure is labelled SETUP.
+            setupLedger.Complete(boundaryFrame);
             Pass(OwnerSeedSetupRow);
             // The measured phase keeps the historical bounded deadlines from this boundary.
             clock.Restart();
@@ -360,22 +375,27 @@ namespace KingmakerMountedCombat.Diagnostics
         // the disposable process). A setup failure may leave the owned native build
         // session open: it is closed only through the builder's own Esc/Yes route.
         private Chunk7NativeBuilderCancellation setupCancellation;
+        // Order: the owned build session first (Esc/Yes only), then the probe and slot
+        // projection. Cleanup proves itself only after both were observed released.
         private bool OwnerSeedCleanupReady()
         {
-            if (!ReleaseSetupWriteCustody()) return false;
             if (setupDriver != null)
             {
                 if (setupCancellation == null)
                 {
-                    if (!setupDriver.TryGetOwnedBuildSession(out var builder)) { setupDriver = null; return !setupLedger.Completed || OwnerSeedPetsPreserved(); }
-                    setupCancellation = new Chunk7NativeBuilderCancellation(builder, () => nativeScope.RequireCurrent(),
-                        () => LoadingProcess.Instance.IsLoadingInProcess || NativePersistenceIsolation.HasPendingWrites || world.SerializationBusy);
+                    if (setupDriver.TryGetOwnedBuildSession(out var builder))
+                        setupCancellation = new Chunk7NativeBuilderCancellation(builder, () => nativeScope.RequireCurrent(),
+                            () => LoadingProcess.Instance.IsLoadingInProcess || NativePersistenceIsolation.HasPendingWrites || world.SerializationBusy);
+                    else setupDriver = null;
                 }
-                if (!setupCancellation.TryDrain()) return false;
-                setupDriver = null; setupCancellation = null;
-                if (evidence["ownerSeedSetup"] is JObject setup) setup["nativeBuildSessionCancelledByCleanup"] = true;
+                if (setupCancellation != null)
+                {
+                    if (!setupCancellation.TryDrain()) return false;
+                    setupDriver = null; setupCancellation = null;
+                    if (evidence["ownerSeedSetup"] is JObject setup) setup["nativeBuildSessionCancelledByCleanup"] = true;
+                }
             }
-            return !setupLedger.Completed || OwnerSeedPetsPreserved();
+            return ReleaseSetupWriteCustody() && (!setupLedger.Completed || OwnerSeedPetsPreserved());
         }
 
         // The full native field roster (characters and pets) after setup.
@@ -385,8 +405,8 @@ namespace KingmakerMountedCombat.Diagnostics
         // native writer and callbacks settle (the assisted precedent's cleanup order).
         private bool ReleaseSetupWriteCustody()
         {
-            if (SetupBusy() || setupProbe?.InSynchronousCallback == true) return false;
-            if (setupDriver != null) return true;
+            // Nothing is released while a build driver or native writer still owns them.
+            if (setupDriver != null || SetupBusy() || setupProbe?.InSynchronousCallback == true) return false;
             if (setupProbe != null)
             {
                 if (evidence["ownerSeedSetup"] is JObject setup) setup["releasedLevelupProbe"] = setupProbe.Capture();
@@ -397,7 +417,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 Require(NativePersistenceIsolation.NativeSlotRotationEnabled, "Owned slot projection changed externally.");
                 NativePersistenceIsolation.DisableNativeSlotRotation(); setupSlotOwned = false;
             }
-            return true;
+            // Observed, not assumed: no probe owned and no projection left enabled.
+            return setupProbe == null && !setupSlotOwned && !NativePersistenceIsolation.NativeSlotRotationEnabled;
         }
 
         private bool OwnerSeedOwnershipPreserved() => !setupLedger.Completed || OwnerSeedPetsPreserved();
@@ -413,6 +434,21 @@ namespace KingmakerMountedCombat.Diagnostics
             cleanup["slotProjectionReleased"] = !setupSlotOwned && !NativePersistenceIsolation.NativeSlotRotationEnabled;
             if (setupLedger.Completed && (writesAfter != 0 || fixtureAuthorization.UnauthorizedWriteCount != 0))
                 Fail("C7-world-cleanup", "A native write followed SETUP-COMPLETE or was unauthorized; only setup level-up Autos are admitted.");
+        }
+
+        // Money plus a digest of the shared party inventory and every party character's
+        // equipped items, by blueprint and count (identification state is not included).
+        private JObject SetupEconomy()
+        {
+            var player = Game.Instance.Player;
+            var rows = player.Inventory.Items.Where(item => item != null).Select(item => "party|" + item.Blueprint?.AssetGuid + "|" + item.Count)
+                .Concat(setupCharacters.SelectMany(actor => actor.Body.EquipmentSlots.Where(slot => slot?.MaybeItem != null)
+                    .Select(slot => actor.UniqueId + "|" + slot.MaybeItem.Blueprint?.AssetGuid + "|" + slot.MaybeItem.Count)))
+                .OrderBy(row => row, StringComparer.Ordinal).ToArray();
+            string sha; using (var hash = System.Security.Cryptography.SHA256.Create())
+                sha = BitConverter.ToString(hash.ComputeHash(System.Text.Encoding.UTF8.GetBytes(string.Join("\n", rows)))).Replace("-", "").ToLowerInvariant();
+            return new JObject { ["money"] = player.Money, ["itemRows"] = rows.Length, ["inventorySha256"] = sha,
+                ["characterIds"] = new JArray(setupCharacters.Select(actor => actor.UniqueId).OrderBy(id => id, StringComparer.Ordinal)) };
         }
 
         private JObject SetupState() => new JObject { ["money"] = Game.Instance.Player.Money, ["experienceRatePercent"] = Game.Instance.Player.ExperienceRatePercent,
