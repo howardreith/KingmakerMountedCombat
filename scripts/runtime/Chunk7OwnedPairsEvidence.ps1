@@ -228,18 +228,20 @@ function Assert-KmcChunk7OwnerSeedEconomy($Value,[string]$Name,$Selection){
  $ids=@($Value.characterIds);foreach($id in $ids){if($id-isnot[string]-or$id-cnotin@($Selection.partyIds)){throw ('Owner-seed '+$Name+' digests a character outside the selected party.')}}
  if(@($ids|Select-Object -Unique).Count-ne$ids.Count-or$Selection.riderAId-cnotin$ids-or$Selection.riderBId-cnotin$ids){throw ('Owner-seed '+$Name+' must digest both riders exactly once.')}
 }
-# Disclosure only: each setup Horse's native body/limb items, held by that Horse alone.
+# Disclosure only, never compared: each setup Horse's items read from the Horse itself. No
+# minimum count and no pinned blueprint/slot: the native layout (incl. any StartingInventory)
+# is not yet observed natively. Each listed item must be held by that Horse.
 function Assert-KmcChunk7OwnerSeedHorseItems($Value,[string[]]$HorseIds){
- Assert-KmcExactProperties $Value @('horses','foreignHeldRows') 'owner-seed setup Horse item disclosure'
- Assert-KmcOrdinaryInteger $Value.foreignHeldRows 0 0
+ Assert-KmcExactProperties $Value @('horses','note') 'owner-seed setup Horse item disclosure'
+ Assert-KmcBootstrapInventoryString $Value.note 'native Horse body/inventory disclosure; not compared; layout not yet observed natively'
  if($Value.horses-isnot[Array]-or$Value.horses.Count-ne$HorseIds.Count){throw 'Owner-seed setup Horse item disclosure must cover each setup Horse.'}
  for($i=0;$i-lt$HorseIds.Count;$i++){
-  $h=$Value.horses[$i];Assert-KmcExactProperties $h @('horseId','items') 'owner-seed setup Horse items';Assert-KmcBootstrapInventoryString $h.horseId $HorseIds[$i]
-  if($h.items-isnot[Array]-or$h.items.Count-lt1-or$h.items.Count-gt32){throw 'Owner-seed setup Horse must disclose its native body/limb items.'}
+  $h=$Value.horses[$i];Assert-KmcExactProperties $h @('horseId','sharedCollection','items') 'owner-seed setup Horse items';Assert-KmcBootstrapInventoryString $h.horseId $HorseIds[$i]
+  if($h.sharedCollection-isnot[bool]-or$h.items-isnot[Array]-or$h.items.Count-gt256){throw 'Owner-seed setup Horse item disclosure is malformed.'}
   foreach($item in $h.items){
    Assert-KmcExactProperties $item @('blueprint','slot','count','heldBy') 'owner-seed setup Horse item'
-   if($item.blueprint-isnot[string]-or$item.blueprint-cnotmatch'^[a-f0-9]{32}$'-or$item.slot-isnot[string]-or[string]::IsNullOrWhiteSpace($item.slot)){throw 'Owner-seed setup Horse item identity is malformed.'}
-   Assert-KmcOrdinaryInteger $item.count 1 1000;Assert-KmcBootstrapInventoryString $item.heldBy $HorseIds[$i]
+   if($item.blueprint-isnot[string]-or[string]::IsNullOrWhiteSpace($item.blueprint)-or$item.slot-isnot[string]-or[string]::IsNullOrWhiteSpace($item.slot)){throw 'Owner-seed setup Horse item identity is malformed.'}
+   Assert-KmcOrdinaryInteger $item.count 1 100000;Assert-KmcBootstrapInventoryString $item.heldBy $HorseIds[$i]
   }
  }
 }

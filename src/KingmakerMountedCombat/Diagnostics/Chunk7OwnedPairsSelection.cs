@@ -253,26 +253,21 @@ namespace KingmakerMountedCombat.Diagnostics
         internal string HolderId { get; set; }
     }
 
-    // The fixed money/item digest set, identical before setup and at SETUP-COMPLETE:
-    // shared-inventory rows that are unheld or held by a pre-setup party character, plus
-    // those characters' equipped slots. Rows held by any other unit (the setup Horses'
-    // native body/limb items) are counted separately and disclosed, never digested.
+    // The conservative money/item digest, identical before setup and at SETUP-COMPLETE:
+    // EVERY row of the shared Player.Inventory with its holder id (null = unheld stash),
+    // plus the fixed pre-setup party characters' equipped slots. Any item added, removed
+    // or moved between holders in the shared collection changes it. A companion pet keeps
+    // its own collection, so the setup Horses' items are disclosed separately.
     internal static class Chunk7OwnerSeedEconomyDigest
     {
         internal static string[] Rows(IEnumerable<Chunk7OwnerSeedItemRow> sharedInventory, IEnumerable<Chunk7OwnerSeedItemRow> equippedSlots,
-            ICollection<string> characterIds, out int otherHeldRows)
+            ICollection<string> characterIds)
         {
-            var rows = new List<string>(); var other = 0;
+            var rows = new List<string>();
             foreach (var item in sharedInventory ?? Enumerable.Empty<Chunk7OwnerSeedItemRow>())
-            {
-                if (item == null) continue;
-                if (item.HolderId == null) rows.Add("stash|" + item.Blueprint + "|" + item.Count);
-                else if (characterIds.Contains(item.HolderId)) rows.Add("held|" + item.HolderId + "|" + item.Blueprint + "|" + item.Count);
-                else other++;
-            }
+                if (item != null) rows.Add("shared|" + (item.HolderId ?? "-") + "|" + item.Blueprint + "|" + item.Count);
             foreach (var item in equippedSlots ?? Enumerable.Empty<Chunk7OwnerSeedItemRow>())
                 if (item != null && characterIds.Contains(item.HolderId)) rows.Add("slot|" + item.HolderId + "|" + item.Blueprint + "|" + item.Count);
-            otherHeldRows = other;
             return rows.OrderBy(row => row, StringComparer.Ordinal).ToArray();
         }
     }
