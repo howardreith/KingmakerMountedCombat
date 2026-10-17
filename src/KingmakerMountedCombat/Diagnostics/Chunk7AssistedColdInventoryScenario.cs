@@ -131,7 +131,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 Require(clock.Elapsed.TotalSeconds <= 180, "Cold inventory exceeded its bounded native load/readiness window.");
                 if (Busy()) return;
                 Require(loader.State == WorkingFixtureLoadState.LoadedAndVerified && loader.LoadCallbackObserved && loader.Errors.Count == 0,
-                    "Assisted cold load requires the actual one-shot loader callback and completed verification.");
+                    "Assisted cold load requires the actual one-shot loader callback and completed verification.", Chunk7OwnerSeedAssertions.NativeLoadIncomplete);
                 RequireLoader();
                 Require(authority.AdmittedNativeLoadRequests == 1 && authorization.AuthorizedLoadCount == 1 &&
                     probe != null && probe.Complete && ReferenceEquals(probe.ObservedPlayer, game.Player),
@@ -145,7 +145,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     game.CurrentlyLoadedArea?.AssetGuidThreadSafe == saved.Area && game.Player.GameId == saved.GameId &&
                     game.Player.MainCharacter.Value?.CharacterName == saved.GameName &&
                     game.Player.MainCharacter.Value.UniqueId == expectedMainId,
-                    "Native cold world differs from its engine-minted source identity.");
+                    "Native cold world differs from its engine-minted source identity.", Chunk7OwnerSeedAssertions.SeedIdentityMismatch);
                 if (game.CurrentMode != GameModeType.Default || game.CutsceneLock || game.IsModeActive(GameModeType.Dialog) || game.Player.Dialog?.Scheduled != null) return;
                 Require(!game.Player.IsInCombat, "Read-only authored inventory does not admit combat.");
                 var candidateActors = Chunk7NativeFieldRoster.Capture(game.Player);
@@ -161,7 +161,7 @@ namespace KingmakerMountedCombat.Diagnostics
                         Require(matches.Length == 1 && actor.Blueprint?.AssetGuid == (string)matches[0]["blueprint"],
                             "Cold native actor or blueprint was substituted.");
                     }
-                    else Require(actor.Blueprint?.AssetGuid != null, "Owner-seed native actor has no resolved blueprint.");
+                    else Require(actor.Blueprint?.AssetGuid != null, "Owner-seed native actor has no resolved blueprint.", Chunk7OwnerSeedAssertions.SeedLostContent);
                     if (!actor.IsInState || !actor.IsInGame || actor.View?.AgentASP == null) return;
                     Require(actor.Descriptor.State.IsConscious && !actor.Descriptor.State.IsDead && !actor.IsInCombat &&
                         actor.Commands != null && actor.Commands.Empty && actor.Commands.Queue != null && actor.Commands.Queue.Count == 0,
@@ -171,13 +171,13 @@ namespace KingmakerMountedCombat.Diagnostics
                 var data = persistence.LoadedArchive;
                 if (selection.IsOwnerSeed)
                     Require(data == null && persistence.LoadedArchiveKind == MountedSaveReadKind.Missing && !persistence.LoadedArchiveCanRestore,
-                        "Owner seed did not take the supported missing-KMC-metadata path.");
+                        "Owner seed did not take the supported missing-KMC-metadata path.", Chunk7OwnerSeedAssertions.MetadataNotMissing);
                 else Require(data != null && data.SchemaVersion == 3 && data.CampaignId == saved.GameId && data.AreaId == saved.Area &&
                     data.Pairs.Length == 0 && data.Participations.Length == 0 && data.Slots.Length == 0 && data.Combat == null,
                     "Cold source is not the qualified empty mounted archive.");
                 var trace = restoration.Capture();
                 Require(restoration.Complete && trace["events"] is JArray entries && entries.Count == 0,
-                    "Cold inventory observed native Prepare/round or KMC actor/debt restoration entries.");
+                    "Cold inventory observed native Prepare/round or KMC actor/debt restoration entries.", Chunk7OwnerSeedAssertions.NativeRestorationEntries);
                 nativePlayer = game.Player; state = game.State; areaState = game.State.LoadedAreaState;
                 mainState = game.State.LoadedAreaState.MainState; area = game.CurrentlyLoadedArea; mainActor = game.Player.MainCharacter.Value;
                 actors = candidateActors; descriptors = actors.Select(actor => (object)actor.Descriptor).ToArray(); views = actors.Select(actor => (object)actor.View).ToArray();
@@ -202,7 +202,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     evidence["kmcMetadata"] = qualification["kmcMetadata"].DeepClone();
                     RequireWorld();
                     Require((bool)qualification["qualified"], "Owner seed qualification failed: " +
-                        string.Join(" | ", ((JArray)qualification["failures"]).Select(value => (string)value)));
+                        string.Join(" | ", ((JArray)qualification["failures"]).Select(value => (string)value)), Chunk7OwnerSeedAssertions.Qualification);
                 }
                 else evidence["archive"] = new JObject { ["schemaVersion"] = data.SchemaVersion, ["campaignId"] = data.CampaignId, ["areaId"] = data.AreaId,
                     ["pairs"] = data.Pairs.Length, ["participations"] = data.Participations.Length, ["slots"] = data.Slots.Length,
@@ -231,32 +231,67 @@ namespace KingmakerMountedCombat.Diagnostics
                     error.Message.IndexOf("source", StringComparison.OrdinalIgnoreCase) >= 0 && error.Message.IndexOf("bytes", StringComparison.OrdinalIgnoreCase) >= 0;
                 var declared = loader.Descriptor != null && File.Exists(archivePath ?? "") ? Chunk7OwnerSeedObservation.DeclaredForeignTypes(loader.Descriptor, archivePath, request.PersistenceLoad.Area) : null;
                 var declaredNames = declared == null ? new string[0] : ((JArray)declared["types"]).Select(row => (string)row["type"]).ToArray();
-                // Stacks of the observed exceptions: the thrown load exception (never the
-                // harness's own assertion) and every logged exception and observer fault.
+                // KMC frame evidence, decided on FULL stacks (inner exceptions included):
+                // the thrown load exception (never the harness's own assertion) and every
+                // logged exception and observer fault. Stored stacks stay bounded.
                 var assertion = IsHarnessAssertion(error);
-                var stacks = new List<string>();
-                if (!assertion && !qualified && error.StackTrace != null) stacks.Add(error.StackTrace);
-                if (resolution != null) stacks.AddRange(resolution.ObservedStacks);
-                // The other observations are recorded alongside; a runner/authority
-                // refusal decides the label first whatever else was observed.
-                var observed = qualified
-                    ? evidence["ownerSeedQualification"]["unresolvedContent"]["classification"].DeepClone()
-                    : (JToken)Chunk7OwnerSeedFailureClassifier.Classify(declaredNames.Concat(resolution?.FailedBinds ?? new string[0]),
-                        resolution?.UnresolvedBlueprints ?? new string[0], messages, false, stacks);
+                var frames = new List<string>();
+                if (!assertion && !qualified) frames.AddRange(Chunk7OwnerSeedFailureClassifier.KmcFrameLines(error));
+                if (resolution != null) frames.AddRange(resolution.ObservedKmcFrameLines);
+                // The harness assertions that fired, by stable identifier. The qualification
+                // assertion stands for each of its identified failures.
+                var assertionIds = new List<string>();
+                if (assertion)
+                {
+                    var id = error.Data[Chunk7OwnerSeedAssertions.AssertionIdKey] as string ?? Chunk7OwnerSeedAssertions.Unidentified;
+                    if (id == Chunk7OwnerSeedAssertions.Qualification && qualified && evidence["ownerSeedQualification"]["failureIds"] is JArray failureIds && failureIds.Count != 0)
+                        assertionIds.AddRange(failureIds.Select(value => (string)value));
+                    else assertionIds.Add(id);
+                }
+                if (resolution != null && resolution.Faults.Count != 0 && !assertionIds.Contains(Chunk7OwnerSeedAssertions.ObserverFault))
+                    assertionIds.Add(Chunk7OwnerSeedAssertions.ObserverFault);
+                var named = declaredNames.Concat(resolution?.FailedBinds ?? new string[0]).ToArray();
+                var blueprints = resolution?.UnresolvedBlueprints ?? new string[0];
+                // Evidence only (no refusal, no assertion) is recorded alongside; the label
+                // takes a runner/authority refusal first, then KMC frames, then the assertions.
+                var observed = Chunk7OwnerSeedFailureClassifier.Decide(named, blueprints, messages, false, frames);
+                var decision = Chunk7OwnerSeedFailureClassifier.Decide(named, blueprints, messages, harnessRefused, frames, assertionIds);
                 evidence["ownerSeedLoadFailure"] = new JObject {
                     ["exceptionType"] = error.GetType().FullName, ["message"] = error.Message.Length > 4096 ? error.Message.Substring(0, 4096) : error.Message,
                     ["stack"] = Chunk7OwnerSeedFailureClassifier.BoundStack(error.StackTrace), ["harnessAssertion"] = assertion,
-                    ["observedEvidenceClassification"] = observed,
+                    ["assertionIds"] = new JArray(assertionIds), ["kmcFrame"] = frames.Count != 0, ["kmcFrameLines"] = new JArray(frames.Take(32)),
+                    ["observedEvidenceClassification"] = observed.Label, ["decidedBy"] = decision.DecidedBy,
                     ["loaderState"] = loader.State.ToString(), ["loaderErrors"] = new JArray(loader.Errors), ["loaderCallbackObserved"] = loader.LoadCallbackObserved,
                     ["postLoadEntered"] = probe != null && (int)probe.Capture()["entries"] > 0, ["postLoadComplete"] = probe != null && probe.Complete,
                     ["nativeLoadFailureCount"] = persistence.NativeLoadFailureCount, ["nativeLoadFailure"] = persistence.NativeLoadFailure,
                     ["loadObservation"] = trace, ["declaredForeignTypes"] = declared, ["harnessRefused"] = harnessRefused,
                     ["qualificationRecorded"] = qualified,
-                    ["classification"] = harnessRefused ? (JToken)Chunk7OwnerSeedFailureClassifier.RunnerOrAuthority : observed.DeepClone() };
+                    ["classification"] = decision.Label };
             }
             catch (Exception capture) { evidence["ownerSeedLoadFailure"] = new JObject { ["exceptionType"] = error.GetType().FullName, ["message"] = error.Message,
                 ["stack"] = Chunk7OwnerSeedFailureClassifier.BoundStack(error.StackTrace),
                 ["captureError"] = capture.GetType().FullName + ": " + capture.Message, ["classification"] = Chunk7OwnerSeedFailureClassifier.Unclassified }; }
+        }
+        // Observations recorded after the qualification (or load-failure) snapshot, while
+        // the observer stayed installed during cleanup: visible, never dropped. A late
+        // observer fault fails the artifact; a late game-logged exception is recorded.
+        private void RecordOwnerSeedPostQualification()
+        {
+            if (!selection.IsOwnerSeed || resolution == null || evidence["ownerSeedPostQualification"] != null) return;
+            var qualificationTrace = evidence["ownerSeedQualification"]?["unresolvedContent"]?["blueprintResolution"];
+            var baseline = qualificationTrace ?? evidence["ownerSeedLoadFailure"]?["loadObservation"];
+            if (baseline != null && baseline.Type != JTokenType.Object) baseline = null;
+            var final = resolution.Capture();
+            int Count(JToken row, string key) => row?[key]?.Type == JTokenType.Integer ? (int)row[key] : 0;
+            JArray Rows(JToken row, string key) => row?[key] as JArray ?? new JArray();
+            var faultsAfter = Math.Max(0, Count(final, "observerFaultCount") - Count(baseline, "observerFaultCount"));
+            evidence["ownerSeedPostQualification"] = new JObject {
+                ["baseline"] = baseline == null ? "none" : qualificationTrace != null ? "qualification" : "load-failure",
+                ["loggedExceptionCount"] = Math.Max(0, Count(final, "loggedExceptionCount") - Count(baseline, "loggedExceptionCount")),
+                ["loggedExceptions"] = new JArray(Rows(final, "loggedExceptions").Skip(Rows(baseline, "loggedExceptions").Count).Select(value => value.DeepClone())),
+                ["observerFaultCount"] = faultsAfter,
+                ["observerFaults"] = new JArray(Rows(final, "observerFaults").Skip(Rows(baseline, "observerFaults").Count).Select(value => value.DeepClone())) };
+            if (faultsAfter != 0) Fail("C7-assisted-cold-cleanup", Chunk7OwnerSeedObserverFaults.Reason + " after qualification: " + faultsAfter + " observation hook fault(s).");
         }
         private JObject CaptureFixtureReadiness()
         {
@@ -500,10 +535,10 @@ namespace KingmakerMountedCombat.Diagnostics
         private void RequireNoOwners() => Require(world.Registry.Owners.Length == 0 && !controls.HasUnsettledRelationshipTransition &&
             !world.UnifiedTurn.HasUnsettledPreparation && world.Pairs.All(pair => pair.Relationship.State == RelationshipState.Unmounted &&
                 pair.Relationship.PairOwner == null && pair.Relationship.Runtime.NoPreparedPairResidue && !pair.Combat.HasActiveCommand &&
-                !pair.Combat.HasActiveGroundMovement && !pair.Combat.HasChargeOwnership), "Cold inventory found mounted custody.");
+                !pair.Combat.HasActiveGroundMovement && !pair.Combat.HasChargeOwnership), "Cold inventory found mounted custody.", Chunk7OwnerSeedAssertions.MountedCustody);
         private void RequireNoEffects() => Require(persistence.SnapshotCount == 0 && persistence.CompletedSaveCount == 0 &&
             persistence.SemanticRestoreCount == 0 && persistence.PresentationRestoreCount == 0 && controls.NativeCastRequestCount == 0 &&
-            controls.CapturePersistentSlots().Length == 0, "Read-only cold inventory observed native writing, cast or actor/pair restoration.");
+            controls.CapturePersistentSlots().Length == 0, "Read-only cold inventory observed native writing, cast or actor/pair restoration.", Chunk7OwnerSeedAssertions.NativeEffects);
         private JObject AuthoritySnapshot() => new JObject { ["root"] = root, ["generation"] = generation,
             ["maximumNativeLoads"] = authority.MaximumNativeLoadRequests, ["maximumNativeWrites"] = authority.MaximumNativeWriteRequests,
             ["writableEntries"] = authority.AssistedColdWritableEntries, ["entryCount"] = authority.AssistedColdEntryCount,
@@ -555,6 +590,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 try { resolution?.Dispose(); } catch (Exception error) { failure = failure ?? error; Fail("C7-assisted-cold-cleanup", error.ToString()); }
                 try { probe?.Dispose(); } catch (Exception error) { failure = failure ?? error; Fail("C7-assisted-cold-cleanup", error.ToString()); }
                 if (failure != null) throw new InvalidOperationException("Cold observer cleanup remains retained.", failure);
+                RecordOwnerSeedPostQualification();
                 Require(probe == null || probe.IdentityReleased, "Cold observer native labels remain retained.");
                 evidence["cleanup"] = new JObject { ["custodySettled"] = true, ["nativeWorkerSettled"] = !Busy(),
                     ["observersReleased"] = true, ["worldAdmitted"] = admitted, ["sourcePinned"] = sourcePinned, ["sourceUnchanged"] = sourceUnchanged,
@@ -591,7 +627,13 @@ namespace KingmakerMountedCombat.Diagnostics
         // The harness's own assertion is marked so its stack (KMC frames by construction)
         // is never taken as evidence that KMC code faulted.
         private const string HarnessAssertionKey = "KingmakerMountedCombat.HarnessAssertion";
-        private static void Require(bool value, string reason) { if (!value) { var error = new InvalidOperationException(reason); error.Data[HarnessAssertionKey] = true; throw error; } }
+        private static void Require(bool value, string reason) => Require(value, reason, Chunk7OwnerSeedAssertions.Unidentified);
+        // The assertion identifier is stable data (Chunk7OwnerSeedAssertions), never message text.
+        private static void Require(bool value, string reason, string assertionId)
+        {
+            if (value) return;
+            var error = new InvalidOperationException(reason); error.Data[HarnessAssertionKey] = true; error.Data[Chunk7OwnerSeedAssertions.AssertionIdKey] = assertionId; throw error;
+        }
         private static bool IsHarnessAssertion(Exception error) => error.Data.Contains(HarnessAssertionKey);
     }
 }

@@ -337,8 +337,8 @@ function Assert-KmcChunk7AssistedColdInventoryEvidence($Request,$Artifact,$Sourc
 # Owner-seed PASS evidence: only what this one cold load observed qualifies it.
 # Fabricated, partial or failed-qualification shapes are refused.
 function Assert-KmcChunk7OwnerSeedQualification($Q,$Request,$World,$Entry){
- Assert-KmcAssistedObjectValue $Q @('contract','qualified','failures','identity','party','unresolvedContent','dlc','control','kmcMetadata') 'owner seed qualification'
- Assert-KmcBootstrapInventoryString $Q.contract 'owner-seed-cold-qualification-v1';Assert-KmcChunk7Boolean $Q.qualified $true;Assert-KmcAssistedArray $Q.failures 0 0 'owner seed qualification failures'
+ Assert-KmcAssistedObjectValue $Q @('contract','qualified','failures','failureIds','identity','party','unresolvedContent','dlc','control','kmcMetadata') 'owner seed qualification'
+ Assert-KmcBootstrapInventoryString $Q.contract 'owner-seed-cold-qualification-v1';Assert-KmcChunk7Boolean $Q.qualified $true;Assert-KmcAssistedArray $Q.failures 0 0 'owner seed qualification failures';Assert-KmcAssistedArray $Q.failureIds 0 0 'owner seed qualification failure identifiers'
  $i=$Q.identity;Assert-KmcAssistedObjectValue $i @('gameId','gameName','mainActorId','area','descriptorType','compatibilityVersion') 'owner seed observed identity'
  foreach($key in @('gameId','gameName','area')){Assert-KmcBootstrapInventoryString $i.$key $Request.persistenceLoad.$key;Assert-KmcBootstrapInventoryString $i.$key $Entry.$key}
  Assert-KmcBootstrapInventoryString $i.mainActorId $World.mainActorId;Assert-KmcBootstrapInventoryString $i.descriptorType 'Manual';Assert-KmcOrdinaryInteger $i.compatibilityVersion 1 1
@@ -396,7 +396,7 @@ function Assert-KmcChunk7OwnerSeedColdEvidence($Request,$Artifact,$SeedRecord){
  Assert-KmcBootstrapInventoryString $entry.seedId $s.seedId;Assert-KmcBootstrapInventoryString $entry.sha256 $s.seedSha256
  foreach($key in @('internalName','fileName','gameId','gameName','area','sha256')){Assert-KmcBootstrapInventoryString $entry.$key $Request.persistenceLoad.$key}
  Assert-KmcOrdinaryInteger $Request.persistenceLoad.length $entry.length $entry.length
- $keys=@('processId','selection','seedSource','beforeLoad','resourceWrites','xpWrites','moneyWrites','profileAdmissionChanged','ordinaryAcquisitionProven','sixPairFixtureQualified','mountRequests','choiceRequests','ordinaryProgressionProven','loadedWorld','loader','nativeProfileInventory','fixtureReadiness','ownerSeedQualification','kmcMetadata','settledWorld','settledLoader','nativeLoad','noPreparation','cleanup')
+ $keys=@('processId','selection','seedSource','beforeLoad','resourceWrites','xpWrites','moneyWrites','profileAdmissionChanged','ordinaryAcquisitionProven','sixPairFixtureQualified','mountRequests','choiceRequests','ordinaryProgressionProven','loadedWorld','loader','nativeProfileInventory','fixtureReadiness','ownerSeedQualification','kmcMetadata','settledWorld','settledLoader','nativeLoad','noPreparation','cleanup','ownerSeedPostQualification')
  Assert-KmcAssistedObjectValue $o $keys 'owner seed successful native observations'
  Assert-KmcAssistedSame $o.selection $s 'owner seed request selection'
  Assert-KmcOrdinaryInteger $o.processId 1 ([int]::MaxValue)
@@ -437,6 +437,10 @@ function Assert-KmcChunk7OwnerSeedColdEvidence($Request,$Artifact,$SeedRecord){
  Assert-KmcAssistedColdNoPreparation $o.noPreparation $Request
  Assert-KmcAssistedColdFixtureReadiness $o.fixtureReadiness $Request $w $f $o.nativeProfileInventory $root
  Assert-KmcChunk7OwnerSeedQualification $o.ownerSeedQualification $Request $w $entry
+ # Observations after the qualification snapshot stay visible; a late observer fault refuses PASS.
+ $post=$o.ownerSeedPostQualification;Assert-KmcAssistedObjectValue $post @('baseline','loggedExceptionCount','loggedExceptions','observerFaultCount','observerFaults') 'owner seed post-qualification observations'
+ Assert-KmcBootstrapInventoryString $post.baseline 'qualification';Assert-KmcOrdinaryInteger $post.observerFaultCount 0 0;Assert-KmcAssistedArray $post.observerFaults 0 0 'owner seed post-qualification observer faults'
+ Assert-KmcOrdinaryInteger $post.loggedExceptionCount 0 ([int]::MaxValue);Assert-KmcAssistedArray $post.loggedExceptions 0 64 'owner seed post-qualification logged exceptions'
  Assert-KmcAssistedSame $o.kmcMetadata $o.ownerSeedQualification.kmcMetadata 'owner seed KMC metadata'
  Assert-KmcAssistedObjectValue $o.cleanup @('custodySettled','nativeWorkerSettled','observersReleased','worldAdmitted','sourcePinned','sourceUnchanged','authority') 'owner seed completed cleanup'
  foreach($key in @('custodySettled','nativeWorkerSettled','observersReleased','worldAdmitted','sourcePinned','sourceUnchanged')){Assert-KmcChunk7Boolean $o.cleanup.$key $true}
