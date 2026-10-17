@@ -298,6 +298,19 @@ if($Target-eq'Kingmaker'){
     $firstpass=[Reflection.Assembly]::ReflectionOnlyLoadFrom($firstpassPath)
     Assert-Contract ((Get-FileHash -Algorithm SHA256 -LiteralPath $firstpassPath).Hash.ToLowerInvariant()-ceq'069a7362ce5e3ccd597206174aec13743c2db5a1bfbc2a42f15a5fbd1ea30d30') 'Assembly-CSharp-firstpass SHA-256'
     Assert-Contract ($firstpass.ManifestModule.ModuleVersionId.ToString()-ceq'57f03756-55de-42f5-8bb3-e983306082b2') 'Assembly-CSharp-firstpass MVID'
+    # Owner-seed load observer hooks are resolved by pinned token: name-and-parameter
+    # lookup is ambiguous for TryGetBlueprint (TryGetBlueprint<T>(string) also matches).
+    $newtonsoft=[Reflection.Assembly]::ReflectionOnlyLoadFrom((Join-Path $managed 'Newtonsoft.Json.dll'))
+    foreach($hook in @(@($assembly,'Kingmaker.Blueprints.ResourcesLibrary',0x06009708,'TryGetBlueprint','Kingmaker.Blueprints.BlueprintScriptableObject','System.String'),
+        @($newtonsoft,'Newtonsoft.Json.Serialization.DefaultSerializationBinder',0x060004C8,'BindToType','System.Type','System.String,System.String'),
+        @($firstpass,'UberDebug',0x06000664,'LogException','System.Void','System.Exception,UnityEngine.Object'),
+        @($firstpass,'UberDebug',0x06000665,'LogExceptionChannel','System.Void','System.String,System.Exception,UnityEngine.Object'))){
+        $hookMethod=$hook[0].ManifestModule.ResolveMethod($hook[2])
+        Assert-Contract ($hookMethod.DeclaringType.FullName-ceq$hook[1]-and$hookMethod.Name-ceq$hook[3]-and-not$hookMethod.IsGenericMethodDefinition-and
+            $hookMethod.ReturnType.FullName-ceq$hook[4]-and((@($hookMethod.GetParameters()|ForEach-Object{$_.ParameterType.FullName})-join',')-ceq$hook[5])) ('owner-seed observer hook token '+$hook[2].ToString('X8')+' is exactly '+$hook[1]+'.'+$hook[3])
+    }
+    $blueprintLookup=$assembly.GetType('Kingmaker.Blueprints.ResourcesLibrary',$true)
+    Assert-Contract (@($blueprintLookup.GetMethods([Reflection.BindingFlags]'Public,NonPublic,Static')|Where-Object{$_.Name-ceq'TryGetBlueprint'-and@($_.GetParameters()).Count-eq1-and$_.GetParameters()[0].ParameterType.FullName-ceq'System.String'}).Count-eq2) 'TryGetBlueprint(string) has a generic twin, so the owner-seed observer must resolve it by token'
     Assert-Contract ($null-ne$firstpass.GetType('RootMotion.FinalIK.FullBodyBipedIK',$false) -and $null-ne$firstpass.GetType('RootMotion.SolverManager',$false)) 'native FullBodyBipedIK and post-animator solver surfaces present'
     $unityCorePath=Join-Path $managed 'UnityEngine.CoreModule.dll'
     $unityCore=[Reflection.Assembly]::ReflectionOnlyLoadFrom($unityCorePath)
