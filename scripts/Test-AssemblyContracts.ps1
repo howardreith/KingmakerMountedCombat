@@ -311,6 +311,8 @@ if($Target-eq'Kingmaker'){
     }
     $blueprintLookup=$assembly.GetType('Kingmaker.Blueprints.ResourcesLibrary',$true)
     Assert-Contract (@($blueprintLookup.GetMethods([Reflection.BindingFlags]'Public,NonPublic,Static')|Where-Object{$_.Name-ceq'TryGetBlueprint'-and@($_.GetParameters()).Count-eq1-and$_.GetParameters()[0].ParameterType.FullName-ceq'System.String'}).Count-eq2) 'TryGetBlueprint(string) has a generic twin, so the owner-seed observer must resolve it by token'
+    $featureParam=$assembly.GetType('Kingmaker.Blueprints.Classes.Selection.IFeatureSelectionItem',$true).GetProperty('Param').PropertyType
+    Assert-Contract ($featureParam.FullName-ceq'Kingmaker.Blueprints.Classes.Selection.FeatureParam'-and$featureParam.IsClass) 'IFeatureSelectionItem.Param is the reference type FeatureParam, so the ordinary build driver must treat a null Param as ordinary'
     Assert-Contract ($null-ne$firstpass.GetType('RootMotion.FinalIK.FullBodyBipedIK',$false) -and $null-ne$firstpass.GetType('RootMotion.SolverManager',$false)) 'native FullBodyBipedIK and post-animator solver surfaces present'
     $unityCorePath=Join-Path $managed 'UnityEngine.CoreModule.dll'
     $unityCore=[Reflection.Assembly]::ReflectionOnlyLoadFrom($unityCorePath)

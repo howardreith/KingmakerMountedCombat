@@ -426,13 +426,14 @@ namespace KingmakerMountedCombat.Diagnostics
                 (required == null || item.Feature.AssetGuid == required) &&
                 (item.Feature.GetComponent<AddPet>() == null || ReferenceEquals(item.Feature, targetCompanionFeature)) &&
                 selection.Selection.CanSelect(controller.Preview, controller.State, selection, item))
-                .OrderBy(item => item.Feature.AssetGuid, StringComparer.Ordinal).ThenBy(item => item.Param.ToString(), StringComparer.Ordinal).ToArray();
+                // FeatureParam is a class; ordinary features offer a null Param.
+                .OrderBy(item => item.Feature.AssetGuid, StringComparer.Ordinal).ThenBy(item => item.Param == null ? string.Empty : item.Param.ToString(), StringComparer.Ordinal).ToArray();
             Require(legal.Length != 0, "Native feature choice has no legal admitted option: " + selectionId + "; required=" + required);
             var chosen = legal[0]; var index = selection.Index; var level = selection.Level; var selectionBlueprint = selection.Selection;
             return Choose("feature", chosen.Feature.AssetGuid + "/" + chosen.Param, () => builder.SetFeature(selection, chosen), () =>
             {
                 var current = controller.State.Selections.SingleOrDefault(value => ReferenceEquals(value.Selection, selectionBlueprint) && value.Index == index && value.Level == level);
-                return current?.SelectedItem != null && ReferenceEquals(current.SelectedItem.Feature, chosen.Feature) && current.SelectedItem.Param.Equals(chosen.Param);
+                return current?.SelectedItem != null && ReferenceEquals(current.SelectedItem.Feature, chosen.Feature) && object.Equals(current.SelectedItem.Param, chosen.Param);
             }, selectionId);
         }
 
