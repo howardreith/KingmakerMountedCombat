@@ -249,11 +249,11 @@ function Assert-KmcAssistedColdNoPreparation($Value,$Request){
  foreach($key in @('complete','installedBeforeWorldLoad')){Assert-KmcChunk7Boolean $Value.$key $true}
  Assert-KmcOrdinaryInteger $Value.maximumEvents 2048 2048;foreach($key in @('dropped','errors')){Assert-KmcOrdinaryInteger $Value.$key 0 0}
  Assert-KmcAssistedArray $Value.events 0 0 'assisted cold native restoration/preparation entries';Assert-KmcAssistedArray $Value.hooks 4 4 'assisted cold restoration hooks'
- $tokens=@('06000C3C','0600939D');$methods=@('Prepare','NewRound','RestoreActor','RestoreDebt');$prefixes=@('PrepareBefore','RoundBefore','RestoreActorBefore','RestoreDebtBefore');$postfixes=@('PrepareAfter','RoundAfter','RestoreActorAfter','RestoreDebtAfter')
+ $tokens=@('06000C3C','0600939D');$methods=@('Prepare','OnNewRound','RestoreActor','RestoreDebt');$prefixes=@('PrepareBefore','RoundBefore','RestoreActorBefore','RestoreDebtBefore');$postfixes=@('PrepareAfter','RoundAfter','RestoreActorAfter','RestoreDebtAfter')
  for($i=0;$i-lt4;$i++){
   $h=$Value.hooks[$i];Assert-KmcAssistedObjectValue $h @('declaringType','method','token','moduleMvid','prefix','postfix') 'assisted cold restoration hook'
   Assert-KmcBootstrapInventoryString $h.method $methods[$i];Assert-KmcBootstrapInventoryString $h.prefix $prefixes[$i];Assert-KmcBootstrapInventoryString $h.postfix $postfixes[$i]
-  if($i-lt2){Assert-KmcBootstrapInventoryString $h.declaringType $(if($i-eq0){'TurnBased.Controllers.TurnController'}else{'Kingmaker.UnitLogic.UnitCombatState'});Assert-KmcBootstrapInventoryString $h.token $tokens[$i];Assert-KmcBootstrapInventoryString $h.moduleMvid '07fa1e4d-8618-41b3-9b8d-faa17d3b26f7'}
+  if($i-lt2){Assert-KmcBootstrapInventoryString $h.declaringType $(if($i-eq0){'TurnBased.Controllers.TurnController'}else{'Kingmaker.Controllers.Combat.UnitCombatState'});Assert-KmcBootstrapInventoryString $h.token $tokens[$i];Assert-KmcBootstrapInventoryString $h.moduleMvid '07fa1e4d-8618-41b3-9b8d-faa17d3b26f7'}
   else{Assert-KmcBootstrapInventoryString $h.moduleMvid $Request.dllMvid;Assert-KmcBootstrapInventoryString $h.declaringType 'KingmakerMountedCombat.Integration.NativeCombatActorPersistence';if($h.token-isnot[string]-or$h.token-cnotmatch'^06[0-9A-F]{6}$'){throw 'Assisted cold product restore token is malformed.'}}
  }
 }
@@ -430,7 +430,8 @@ function Assert-KmcChunk7OwnerSeedColdEvidence($Request,$Artifact,$SeedRecord){
   Assert-KmcBootstrapInventoryString $e.kind $(if($k-eq0){'native-player-postload-before'}else{'native-player-postload-after'})
   Assert-KmcOrdinaryInteger $e.frame $prior $w.frame;$prior=$e.frame
   foreach($key in @('game','saveManager','player')){Assert-KmcAssistedLabel $e.$key $labels;Assert-KmcOrdinaryInteger $e.$key $w.$key $w.$key}
-  Assert-KmcBootstrapInventoryString $e.gameId $Request.persistenceLoad.gameId
+  # An owner save may carry its GameId only in header.json, so Player.GameId can still be null at PostLoad; the world captures pin it after load.
+  if($null-ne$e.gameId){Assert-KmcBootstrapInventoryString $e.gameId $Request.persistenceLoad.gameId}
   if($k-eq1-or$null-ne$e.mainActorId){Assert-KmcBootstrapInventoryString $e.mainActorId $w.mainActorId}
  }
  if($load.events[0].frame-ne$load.events[1].frame){throw 'Owner seed PostLoad callback did not return synchronously in the observed frame.'}
