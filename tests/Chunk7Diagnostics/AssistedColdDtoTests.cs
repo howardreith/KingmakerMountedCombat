@@ -29,6 +29,28 @@ internal static class AssistedColdDtoTests{
  Check("classify harness refusal without native error as runner-or-authority",c(null,null,new string[0],true)=="runner-or-authority");
  Check("classify foreign plus KMC names as unclassified",c(new[]{"CallOfTheWild.UnitPartFlying, CallOfTheWild"},null,new[]{"Could not load assembly 'KingmakerMountedCombat'."},false)=="unclassified");
  Check("classify no evidence as none",c(null,null,new string[0],false)=="none");
+ // Precedence: a runner/authority refusal decides first; then a KMC stack frame; then names.
+ const string kmcStack="  at KingmakerMountedCombat.Integration.MountedPersistenceService.OnLoad () [0x00012] in <0>:0\n  at Kingmaker.EntitySystem.Persistence.ThreadedGameLoader.Load () [0x00000] in <0>:0";
+ const string gameStack="  at Newtonsoft.Json.Serialization.DefaultSerializationBinder.BindToType (System.String assemblyName, System.String typeName) [0x00000] in <0>:0\n  at Kingmaker.EntitySystem.Persistence.ThreadedGameLoader.Load () [0x00000] in <0>:0";
+ Check("refusal plus unrelated blueprint miss is runner-or-authority",Chunk7OwnerSeedFailureClassifier.Classify(null,new[]{new string('9',32)},new string[0],true)=="runner-or-authority");
+ Check("refusal plus foreign type and KMC frame is runner-or-authority",Chunk7OwnerSeedFailureClassifier.Classify(new[]{"CallOfTheWild.UnitPartFlying, CallOfTheWild"},null,new[]{"WorkingFixtureLoader state Failed."},true,new[]{kmcStack})=="runner-or-authority");
+ Check("KMC stack frame plus foreign type text is kmc-or-loader",Chunk7OwnerSeedFailureClassifier.Classify(null,null,new[]{"Newtonsoft.Json.JsonSerializationException: Error resolving type specified in JSON 'CallOfTheWild.UnitPartFlying, CallOfTheWild'."},false,new[]{kmcStack})=="kmc-or-loader");
+ Check("KMC stack frame plus unresolved blueprint is kmc-or-loader",Chunk7OwnerSeedFailureClassifier.Classify(null,new[]{new string('9',32)},new string[0],false,new[]{gameStack,kmcStack})=="kmc-or-loader");
+ Check("foreign type with only game frames stays seed-dependency",Chunk7OwnerSeedFailureClassifier.Classify(null,null,new[]{"Newtonsoft.Json.JsonSerializationException: Error resolving type specified in JSON 'CallOfTheWild.UnitPartFlying, CallOfTheWild'."},false,new[]{gameStack})=="seed-dependency");
+ Check("KMC named outside a stack frame is not a frame",!Chunk7OwnerSeedFailureClassifier.HasKmcFrame("Could not load file or assembly 'KingmakerMountedCombat'")&&Chunk7OwnerSeedFailureClassifier.HasKmcFrame("  at (wrapper dynamic-method) KingmakerMountedCombat.Diagnostics.X.Y (object)"));
+ Check("stack bound is 4000 characters",Chunk7OwnerSeedFailureClassifier.BoundStack(new string('s',5000)).Length==4000&&Chunk7OwnerSeedFailureClassifier.BoundStack(null)==null);
+ // Exception-safe observation hooks: a throwing body neither escapes nor changes the observed call.
+ var faults=new Chunk7OwnerSeedObserverFaults();
+ Func<int,int> observed=x=>{faults.Run("UberDebug.LogException",()=>{throw new InvalidOperationException("observer body failed");});return x*2;};
+ var propagated=false;var result=0;try{result=observed(21);}catch{propagated=true;}
+ var recorded=faults.Snapshot();
+ Check("throwing observer body does not propagate and leaves the result unchanged",!propagated&&result==42);
+ Check("throwing observer body is recorded with type, message and bounded stack",faults.Count==1&&recorded.Length==1&&recorded[0].Hook=="UberDebug.LogException"&&recorded[0].ExceptionType=="System.InvalidOperationException"&&recorded[0].Message=="observer body failed"&&recorded[0].Stack!=null&&recorded[0].Stack.Length<=4000);
+ Check("throwing observer body fails qualification by name",faults.QualificationFailure()!=null&&faults.QualificationFailure().StartsWith(Chunk7OwnerSeedObserverFaults.Reason+": 1 observation hook fault(s): UberDebug.LogException System.InvalidOperationException: observer body failed",StringComparison.Ordinal));
+ Check("observer fault stack classifies as kmc-or-loader",Chunk7OwnerSeedFailureClassifier.Classify(null,null,new string[0],false,faults.Stacks())=="kmc-or-loader");
+ Check("no observer fault leaves qualification unaffected",new Chunk7OwnerSeedObserverFaults().QualificationFailure()==null);
+ var quiet=new Chunk7OwnerSeedObserverFaults();var ran=false;quiet.Run("ResourcesLibrary.TryGetBlueprint",()=>{ran=true;});
+ Check("non-throwing observer body runs once and records nothing",ran&&quiet.Count==0&&quiet.Snapshot().Length==0);
  Console.WriteLine("TOTAL PASS="+passed+" FAIL="+failed);return failed==0?0:1;
  }
 }}

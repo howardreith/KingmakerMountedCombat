@@ -24,9 +24,43 @@ function Assert-KmcBaseGameParameters {
     if(@($document.SelectNodes('//Mod')).Count-ne$mods.Count){throw 'UMM mod entries exist outside the expected container.'}
     $ids=New-Object 'Collections.Generic.HashSet[string]' ([StringComparer]::OrdinalIgnoreCase)
     foreach($mod in $mods){if([string]::IsNullOrWhiteSpace($mod.Id)-or-not$ids.Add([string]$mod.Id)){throw 'UMM mod parameter identity is empty or ambiguous.'}}
-    $kmc=@($mods|Where-Object {[string]$_.Id-ceq'KingmakerMountedCombat'})
-    if($kmc.Count-ne1-or[string]$kmc[0].Enabled-cne'true'){throw 'Base-game mode requires the existing exact KMC entry enabled; it never changes owner settings to enable it.'}
+    # Installed UMM 0.33.2.0 only reads Params.xml at startup; a mod found in Mods
+    # without an entry is enabled by default (ModEntry ctor), and Param.Save drops
+    # entries for mods it did not find. An owner who plays without KMC therefore has
+    # no KMC entry, and that is admitted. A present entry must still be the exact id
+    # and enabled: an explicit owner disable keeps blocking, and the harness never
+    # writes Params.xml to change it.
+    $kmcLike=@($mods|Where-Object {[string]::Equals([string]$_.GetAttribute('Id'),'KingmakerMountedCombat',[StringComparison]::OrdinalIgnoreCase)})
+    $kmc=@($mods|Where-Object {[string]$_.GetAttribute('Id')-ceq'KingmakerMountedCombat'})
+    if($kmcLike.Count-ne$kmc.Count-or$kmc.Count-gt1){throw 'UMM KMC parameter identity is duplicated or case-ambiguous.'}
+    if($kmc.Count-eq1-and[string]$kmc[0].GetAttribute('Enabled')-cne'true'){throw 'Base-game mode requires a present KMC entry enabled exactly; it never changes owner settings to enable it.'}
     return $document
+}
+
+# Whitespace-independent structural shape of a parsed UMM document: node kind,
+# qualified name and namespace, the exact attribute set and every non-whitespace
+# text node, in document order. Anything else in the document is refused.
+function Get-KmcBaseGameXmlShape {
+    param([Parameter(Mandatory=$true)][Xml.XmlNode]$Node)
+    switch($Node.NodeType){
+        'Document' {return [ordered]@{k='document';c=@(foreach($child in $Node.ChildNodes){if($child.NodeType-notin@('Whitespace','SignificantWhitespace')){Get-KmcBaseGameXmlShape $child}})}}
+        'XmlDeclaration' {return [ordered]@{k='declaration';v=[string]$Node.Value}}
+        'Element' {
+            [string[]]$attributes=@(foreach($attribute in $Node.Attributes){'{0}|{1}|{2}'-f$attribute.NamespaceURI,$attribute.Name,$attribute.Value})
+            [Array]::Sort($attributes,[StringComparer]::Ordinal)
+            return [ordered]@{k='element';n=[string]$Node.Name;ns=[string]$Node.NamespaceURI;a=@($attributes);
+                c=@(foreach($child in $Node.ChildNodes){if($child.NodeType-notin@('Whitespace','SignificantWhitespace')){Get-KmcBaseGameXmlShape $child}})}
+        }
+        'Text' {return [ordered]@{k='text';v=[string]$Node.Value}}
+        'CDATA' {return [ordered]@{k='text';v=[string]$Node.Value}}
+        'Comment' {return [ordered]@{k='comment';v=[string]$Node.Value}}
+        default {throw ('Base-game UMM parameters contain an unsupported node: '+$Node.NodeType)}
+    }
+}
+
+function Get-KmcBaseGameXmlShapeText {
+    param([Parameter(Mandatory=$true)][Xml.XmlNode]$Node)
+    return (Get-KmcBaseGameXmlShape $Node|ConvertTo-Json -Depth 100 -Compress)
 }
 
 function Get-KmcBaseGameDependencyDigest {
@@ -128,11 +162,41 @@ function Assert-KmcBaseGameUmmStartupDelta {
     param([Parameter(Mandatory=$true)][string]$Before,[Parameter(Mandatory=$true)][string]$After)
     $original=Assert-KmcBaseGameParameters $Before
     $current=Assert-KmcBaseGameParameters $After
-    if($current.OuterXml-ceq$original.OuterXml){return}
-    foreach($mod in @($original.SelectNodes('/Param/ModParams/Mod'))){
-        if([string]$mod.Id-cne'KingmakerMountedCombat'){[void]$mod.ParentNode.RemoveChild($mod)}
+    # UMM 0.33.2.0 writes Params.xml only on a normal exit (UI.OnDestroy) or its Save
+    # button, rebuilding ModParams from the mods it actually found. In the KMC-only
+    # ready tree that is the original's KMC entry, or - only when the original had no
+    # KMC entry - one default KMC entry (Enabled=true, default hotkey). A process that
+    # ended without OnDestroy leaves the file unchanged. One other native difference is
+    # admitted: the LastUpdateCheck stamp, present on both sides, may only move forward.
+    $beforeChecks=@($original.SelectNodes('/Param/LastUpdateCheck'))
+    $afterChecks=@($current.SelectNodes('/Param/LastUpdateCheck'))
+    if($beforeChecks.Count-eq1-and$afterChecks.Count-eq1-and$beforeChecks[0].InnerText-cne$afterChecks[0].InnerText){
+        foreach($check in @($beforeChecks[0],$afterChecks[0])){
+            if($check.Attributes.Count-ne0-or$check.ChildNodes.Count-ne1-or$check.FirstChild.NodeType-cne'Text'){throw 'UMM LastUpdateCheck is not a plain xs:dateTime element.'}
+        }
+        $beforeStamp=[DateTimeOffset]::MinValue;$afterStamp=[DateTimeOffset]::MinValue
+        try{$beforeStamp=[Xml.XmlConvert]::ToDateTimeOffset([string]$beforeChecks[0].FirstChild.Value);$afterStamp=[Xml.XmlConvert]::ToDateTimeOffset([string]$afterChecks[0].FirstChild.Value)}
+        catch{throw 'UMM LastUpdateCheck is not a valid xs:dateTime.'}
+        if($afterStamp.UtcTicks-lt$beforeStamp.UtcTicks){throw 'UMM LastUpdateCheck moved backwards.'}
+        $afterChecks[0].FirstChild.Value=$beforeChecks[0].FirstChild.Value
     }
-    if($current.OuterXml-cne$original.OuterXml){throw 'Base-game UMM startup changed more than removing absent foreign mod entries.'}
+    $actual=Get-KmcBaseGameXmlShapeText $current
+    $reduced=$original.Clone()
+    foreach($mod in @($reduced.SelectNodes('/Param/ModParams/Mod'))){
+        if([string]$mod.GetAttribute('Id')-cne'KingmakerMountedCombat'){[void]$mod.ParentNode.RemoveChild($mod)}
+    }
+    $allowed=New-Object 'Collections.Generic.List[string]'
+    $allowed.Add((Get-KmcBaseGameXmlShapeText $original))
+    $allowed.Add((Get-KmcBaseGameXmlShapeText $reduced))
+    if(@($reduced.SelectNodes('/Param/ModParams/Mod')).Count-eq0){
+        $appended=$reduced.Clone();$container=$appended.SelectSingleNode('/Param/ModParams')
+        $entry=$appended.CreateElement('Mod');$entry.SetAttribute('Id','KingmakerMountedCombat');$entry.SetAttribute('Enabled','true')
+        $hotkey=$appended.CreateElement('Hotkey');$keyCode=$appended.CreateElement('keyCode');$modifiers=$appended.CreateElement('modifiers')
+        [void]$keyCode.AppendChild($appended.CreateTextNode('None'));[void]$modifiers.AppendChild($appended.CreateTextNode('0'))
+        [void]$hotkey.AppendChild($keyCode);[void]$hotkey.AppendChild($modifiers);[void]$entry.AppendChild($hotkey);[void]$container.AppendChild($entry)
+        $allowed.Add((Get-KmcBaseGameXmlShapeText $appended))
+    }
+    if(-not$allowed.Contains($actual)){throw 'Base-game UMM parameters changed beyond the native KMC-only rewrite and a forward LastUpdateCheck.'}
 }
 
 # Parameter restoration may use the base-only reduction solely after the exact

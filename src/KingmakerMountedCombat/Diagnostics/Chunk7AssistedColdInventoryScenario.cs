@@ -231,19 +231,31 @@ namespace KingmakerMountedCombat.Diagnostics
                     error.Message.IndexOf("source", StringComparison.OrdinalIgnoreCase) >= 0 && error.Message.IndexOf("bytes", StringComparison.OrdinalIgnoreCase) >= 0;
                 var declared = loader.Descriptor != null && File.Exists(archivePath ?? "") ? Chunk7OwnerSeedObservation.DeclaredForeignTypes(loader.Descriptor, archivePath, request.PersistenceLoad.Area) : null;
                 var declaredNames = declared == null ? new string[0] : ((JArray)declared["types"]).Select(row => (string)row["type"]).ToArray();
+                // Stacks of the observed exceptions: the thrown load exception (never the
+                // harness's own assertion) and every logged exception and observer fault.
+                var assertion = IsHarnessAssertion(error);
+                var stacks = new List<string>();
+                if (!assertion && !qualified && error.StackTrace != null) stacks.Add(error.StackTrace);
+                if (resolution != null) stacks.AddRange(resolution.ObservedStacks);
+                // The other observations are recorded alongside; a runner/authority
+                // refusal decides the label first whatever else was observed.
+                var observed = qualified
+                    ? evidence["ownerSeedQualification"]["unresolvedContent"]["classification"].DeepClone()
+                    : (JToken)Chunk7OwnerSeedFailureClassifier.Classify(declaredNames.Concat(resolution?.FailedBinds ?? new string[0]),
+                        resolution?.UnresolvedBlueprints ?? new string[0], messages, false, stacks);
                 evidence["ownerSeedLoadFailure"] = new JObject {
                     ["exceptionType"] = error.GetType().FullName, ["message"] = error.Message.Length > 4096 ? error.Message.Substring(0, 4096) : error.Message,
+                    ["stack"] = Chunk7OwnerSeedFailureClassifier.BoundStack(error.StackTrace), ["harnessAssertion"] = assertion,
+                    ["observedEvidenceClassification"] = observed,
                     ["loaderState"] = loader.State.ToString(), ["loaderErrors"] = new JArray(loader.Errors), ["loaderCallbackObserved"] = loader.LoadCallbackObserved,
                     ["postLoadEntered"] = probe != null && (int)probe.Capture()["entries"] > 0, ["postLoadComplete"] = probe != null && probe.Complete,
                     ["nativeLoadFailureCount"] = persistence.NativeLoadFailureCount, ["nativeLoadFailure"] = persistence.NativeLoadFailure,
                     ["loadObservation"] = trace, ["declaredForeignTypes"] = declared, ["harnessRefused"] = harnessRefused,
                     ["qualificationRecorded"] = qualified,
-                    ["classification"] = qualified
-                        ? evidence["ownerSeedQualification"]["unresolvedContent"]["classification"].DeepClone()
-                        : Chunk7OwnerSeedFailureClassifier.Classify(declaredNames.Concat(resolution?.FailedBinds ?? new string[0]),
-                            resolution?.UnresolvedBlueprints ?? new string[0], messages, harnessRefused) };
+                    ["classification"] = harnessRefused ? (JToken)Chunk7OwnerSeedFailureClassifier.RunnerOrAuthority : observed.DeepClone() };
             }
             catch (Exception capture) { evidence["ownerSeedLoadFailure"] = new JObject { ["exceptionType"] = error.GetType().FullName, ["message"] = error.Message,
+                ["stack"] = Chunk7OwnerSeedFailureClassifier.BoundStack(error.StackTrace),
                 ["captureError"] = capture.GetType().FullName + ": " + capture.Message, ["classification"] = Chunk7OwnerSeedFailureClassifier.Unclassified }; }
         }
         private JObject CaptureFixtureReadiness()
@@ -576,6 +588,10 @@ namespace KingmakerMountedCombat.Diagnostics
             else { value.Status = "FAIL"; value.AssertionFailCount++; value.Errors = value.Errors.Concat(new[] { error }).ToArray(); }
         }
         private static string Hash(string path) { using (var sha = SHA256.Create()) using (var stream = File.OpenRead(path)) return BitConverter.ToString(sha.ComputeHash(stream)).Replace("-", "").ToLowerInvariant(); }
-        private static void Require(bool value, string reason) { if (!value) throw new InvalidOperationException(reason); }
+        // The harness's own assertion is marked so its stack (KMC frames by construction)
+        // is never taken as evidence that KMC code faulted.
+        private const string HarnessAssertionKey = "KingmakerMountedCombat.HarnessAssertion";
+        private static void Require(bool value, string reason) { if (!value) { var error = new InvalidOperationException(reason); error.Data[HarnessAssertionKey] = true; throw error; } }
+        private static bool IsHarnessAssertion(Exception error) => error.Data.Contains(HarnessAssertionKey);
     }
 }

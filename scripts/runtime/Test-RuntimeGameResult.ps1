@@ -174,7 +174,7 @@ $harmony = @($fingerprint.kingmaker.files | Where-Object role -eq 'harmony')[0]
 if ([string]$game.status -cnotin @('PASS','FAIL') -or [string]$game.loadedModId -cne 'KingmakerMountedCombat' -or
     [string]$game.gameVersion -cne [string]$fingerprint.kingmaker.displayVersion -or
     [string]$game.gameAssemblySha256 -cne [string]$gameAuthority.sha256 -or [string]$game.gameAssemblyMvid -cne [string]$gameAuthority.mvid -or
-    [string]$game.ummVersion -cne '0.28.2.0' -or [string]$game.ummSha256 -cne [string]$umm.sha256 -or
+    [string]$game.ummVersion -cne '0.33.2.0' -or [string]$game.ummSha256 -cne [string]$umm.sha256 -or
     [string]$game.harmony12Version -cne '1.2.0.1' -or [string]$game.harmony12Sha256 -cne [string]$harmony.sha256) { throw 'Runtime game-result platform identity is not exact.' }
 if ([int]$game.processId -ne $ExpectedProcessId -or [string]::IsNullOrWhiteSpace([string]$game.currentGameMode) -or
     [int]$game.frameCount -lt 0 -or [double]$game.elapsedSeconds -lt 0.0 -or

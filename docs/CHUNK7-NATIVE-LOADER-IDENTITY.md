@@ -13,3 +13,17 @@ The reader accepts that cache only in the exact staged KMC directory, with a can
 Focused validation preserves the original native reader FAIL and a controlled derivative that exposes the separate cache rejection. The final reader passes 93 positive/negative cases, including the unchanged 32 historical inventory cases, creator/dependency scalar-type negatives, foreign modules, missing/duplicate roles and malformed memory/cache identities. Re-evaluation uses the unchanged native artifact SHA256 3e4cb83625f43f4fcb866b4543dbf320ba06293cdcee8db0184d579043adf3d6; no native artifact is rewritten.
 
 This is a PowerShell reader/test change. Product DLL, candidate, native producers, transaction guards and restoration receipts are unchanged. Existing dynamic-assembly and stock-inventory limitations remain explicit.
+
+## 2026-10-17: owner reinstall of UMM 0.33.2.0
+
+The sections above describe the loader as it was installed for run 20261012-chunk7b-world03 and stay as written. On 2026-10-16 (files written 23:42:58 UTC) the owner reinstalled Unity Mod Manager. Hashed offline from the installed files:
+
+- UnityModManager.dll: UnityModManager, Version=0.33.2.0, MVID 914c93ba-b0bd-409f-9d38-84e575289dc2, 204800 bytes, SHA256 f6f7e18aff88910b01d23e3ce0829f3b4188c6784b0fcea56f9b3af8aa14d0a9.
+- 0Harmony.dll: 0Harmony, Version=2.3.6.0, MVID 4dbb7cd6-acb5-43ef-8d7e-6fc104af5bdc, SHA256 df043f05c6e43602fa8e8f38f52a3a2cf962aab7a65a9d85573ea25f01a63e80.
+- 0Harmony12.dll: byte-identical to the existing pin (SHA256 aa1cd483..., MVID 918c071f-...).
+
+The reader now pins these exact identities. Nothing was turned into a pattern or a range. The mechanisms the reader depends on were checked again in the new binaries. Harmony 2.3.6.0 still creates HarmonySharedState in memory: GetOrCreateSharedStateType (06000095) calls ModuleDefinition.CreateModule (06000E95), which assigns Guid.NewGuid, and ReflectionHelper.Load (06002DA1/06002DA2) calls Assembly.Load(byte[]). UMM 0.33.2.0 ModEntry.Load (06000111) still names its cache from the mod path plus a ushort decimal suffix and `.cache`. Its suffix hash now includes the manager version, so cache file names differ from the 0.28.2 ones; the accepted shape (0 through 65535, exact candidate directory, hash and MVID) is unchanged.
+
+KMC binds only UMM members whose signatures are unchanged: ModEntry Info/Logger/OnGUI/OnSessionStop/OnUpdate/OnUnload/OnToggle, ModInfo.Id, the ModLogger Log/Warning/Error/LogException(string,Exception) methods, and the UI capture host (get_Instance 06000151, get_Opened 06000152, ToggleWindow(bool) 0600016A). Test-AssemblyContracts checks the ModEntry, ModInfo and ModLogger surface by name and exact signature, so a later reinstall that keeps the API but moves tokens still passes, and a genuine API break still fails.
+
+Evidence produced on UMM 0.28.2.0, including the 93-case reader receipt and every native run above, stays bound to its original environment. It is not transferred to 0.33.2.0. No native run has yet been made on 0.33.2.0.
