@@ -12,23 +12,43 @@ namespace KingmakerMountedCombat.Diagnostics
         public const string Scenario = "chunk7-owned-two-pair-campaign";
         public const string SourceLeaf = "owned-two-pair-source.json";
         public const string SourceCase = "preserve-two-acquired-field";
+        // Owner-supplied seed kind: two eligible Medium riders whose Horses are
+        // created by disclosed native fixture setup in the disposable run copy.
+        // It carries seed pins and never the producer receipt or pet pins.
+        public const string OwnerSeedCase = "owner-seed-exploration";
         public string Case { get; set; }
         public string SourceRunId { get; set; }
         public string SourceArtifactSha256 { get; set; }
         public string SourceArchiveSha256 { get; set; }
         public string CheckpointSourceRunId { get; set; }
         public string CheckpointSourceArtifactSha256 { get; set; }
+        public string SeedId { get; set; }
+        public string SeedSha256 { get; set; }
         public string RiderAId { get; set; }
         public string MountAId { get; set; }
         public string RiderBId { get; set; }
         public string MountBId { get; set; }
         public string[] PartyIds { get; set; }
+        public Chunk7OwnerSeedXpAssistance XpAssistance { get; set; }
         public string SourceArea { get; set; }
         // Keep every historical serialized selection byte shape unchanged.
         public bool ShouldSerializeSourceArea() => SourceArea != null;
+        public bool ShouldSerializeSourceRunId() => !IsOwnerSeed || SourceRunId != null;
+        public bool ShouldSerializeSourceArtifactSha256() => !IsOwnerSeed || SourceArtifactSha256 != null;
+        public bool ShouldSerializeSourceArchiveSha256() => !IsOwnerSeed || SourceArchiveSha256 != null;
+        public bool ShouldSerializeCheckpointSourceRunId() => !IsOwnerSeed || CheckpointSourceRunId != null;
+        public bool ShouldSerializeCheckpointSourceArtifactSha256() => !IsOwnerSeed || CheckpointSourceArtifactSha256 != null;
+        public bool ShouldSerializeMountAId() => !IsOwnerSeed || MountAId != null;
+        public bool ShouldSerializeMountBId() => !IsOwnerSeed || MountBId != null;
+        public bool ShouldSerializeSeedId() => SeedId != null;
+        public bool ShouldSerializeSeedSha256() => SeedSha256 != null;
+        // The owner-seed shape always names its assistance key (null when rider B needs none).
+        public bool ShouldSerializeXpAssistance() => IsOwnerSeed || XpAssistance != null;
         public bool BaseGameOnly { get; set; }
         public int ExpectedNativeLoadCount { get; set; }
         public int ExpectedNativeWriteCount { get; set; }
+        internal bool IsOwnerSeed => Case == OwnerSeedCase;
+        internal const int MaximumSetupLevelupWrites = 2;
         internal string[] PairIds => new[] { RiderAId, MountAId, RiderBId, MountBId };
         internal string RuntimeScenario
         {
@@ -37,6 +57,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 switch (Case)
                 {
                     case "exploration": return "chunk7-two-pair-exploration";
+                    case OwnerSeedCase: return "chunk7-two-pair-exploration";
                     case "combat-rider-first": return "chunk7-two-pair-combat-rider-first";
                     case "combat-mount-first": return "chunk7-two-pair-combat-mount-first";
                     case "realtime-core": return "chunk7-two-pair-realtime-core";
@@ -62,11 +83,15 @@ namespace KingmakerMountedCombat.Diagnostics
         internal static bool RepeatedCheckpoint(string value) => value == "multi-exploration-three-loads-manual" ||
             value == "multi-exploration-three-area-transfers-manual";
         internal int LoadCount(string checkpoint) => Cold && checkpoint == "multi-exploration-three-loads-manual" ? 3 : 1;
-        internal int WriteCount(string checkpoint) => Case == "persistence-save" && checkpoint == "multi-owned-worker-cancel-manual" ? 2 : Case == "persistence-save" ||
+        // Owner seed: exactly the native setup level-up Autos its selection declares (bound at admission).
+        internal int WriteCount(string checkpoint) => IsOwnerSeed ? ExpectedNativeWriteCount : Case == "persistence-save" && checkpoint == "multi-owned-worker-cancel-manual" ? 2 : Case == "persistence-save" ||
             Cold && (checkpoint == "legacy-mounted-pending-tb-manual" || OwnedSchema1Cold(checkpoint)) ? 1 : 0;
         public IReadOnlyList<string> Validate(string scenario, string runId, string checkpoint)
         {
+            if (IsOwnerSeed) return ValidateOwnerSeed(scenario, runId, checkpoint);
             var errors = new List<string>();
+            if (SeedId != null || SeedSha256 != null || XpAssistance != null)
+                errors.Add("Producer-backed owned pairs cannot carry owner-seed pins or setup assistance.");
             if (scenario != Scenario || RuntimeScenario == null) errors.Add("Owned pairs require the separately closed native campaign family and case.");
             if (!Run(SourceRunId) || SourceRunId == runId || !Hash(SourceArtifactSha256) || !Hash(SourceArchiveSha256))
                 errors.Add("The exact distinct successful two-owner acquired Manual receipt and native bytes are required.");
@@ -87,7 +112,163 @@ namespace KingmakerMountedCombat.Diagnostics
                 errors.Add("Owned pairs require base-only staging and the exact selected native load/write quotas.");
             return errors;
         }
+        // Static owner-seed validation. Rider size, petless state, eligibility and the
+        // exact minimal XP target are re-checked against the loaded native actors by
+        // Chunk7OwnerSeedSetupPlan before any setup mutation.
+        private IReadOnlyList<string> ValidateOwnerSeed(string scenario, string runId, string checkpoint)
+        {
+            var errors = new List<string>();
+            if (scenario != Scenario) errors.Add("Owner-seed two-pair exploration requires its exact closed native campaign family.");
+            if (SourceRunId != null || SourceArtifactSha256 != null || SourceArchiveSha256 != null || CheckpointSourceRunId != null ||
+                CheckpointSourceArtifactSha256 != null || MountAId != null || MountBId != null || SourceArea != null)
+                errors.Add("Owner-seed two-pair exploration has no producer, checkpoint, area or pre-granted pet pins.");
+            if (!Run(SeedId) || SeedId == runId) errors.Add("An exact registered owner seed identity is required.");
+            if (!Hash(SeedSha256)) errors.Add("An exact owner seed SHA256 is required.");
+            if (!Chunk7ManualDerivedSelection.NativeId(RiderAId) || !Chunk7ManualDerivedSelection.NativeId(RiderBId) ||
+                string.Equals(RiderAId, RiderBId, StringComparison.Ordinal))
+                errors.Add("Two distinct observed native rider IDs are required.");
+            if (PartyIds == null || PartyIds.Length < 2 || PartyIds.Length > 6 ||
+                !PartyIds.All(Chunk7ManualDerivedSelection.NativeId) || PartyIds.Distinct(StringComparer.Ordinal).Count() != PartyIds.Length ||
+                !PartyIds.Contains(RiderAId) || !PartyIds.Contains(RiderBId))
+                errors.Add("The bounded full native party must contain both selected riders once.");
+            if (XpAssistance != null && (XpAssistance.UnitId != RiderBId || XpAssistance.TargetCharacterLevel < 2 ||
+                XpAssistance.TargetCharacterLevel > Chunk7OwnerSeedSetupPlan.MaximumTargetLevel))
+                errors.Add("Native XP assistance may target only rider B, within the bounded setup ceiling.");
+            if (checkpoint != null) errors.Add("Owner-seed exploration cannot select a persistence checkpoint.");
+            // Writes are only the native setup level-up Autos: at most one per rider build,
+            // bound exactly to the native autosave observation before any mutation.
+            if (!BaseGameOnly || ExpectedNativeLoadCount != 1 || ExpectedNativeWriteCount < 0 || ExpectedNativeWriteCount > MaximumSetupLevelupWrites)
+                errors.Add("Owner-seed exploration requires base-only staging, one native load and only its bounded setup level-up Auto writes.");
+            return errors;
+        }
         private static bool Run(string value) => Regex.IsMatch(value ?? "", "^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$");
         private static bool Hash(string value) => Regex.IsMatch(value ?? "", "^[a-f0-9]{64}$");
+    }
+
+    public sealed class Chunk7OwnerSeedXpAssistance
+    {
+        public string UnitId { get; set; }
+        public int TargetCharacterLevel { get; set; }
+    }
+
+    // Observed native facts for one selected rider, read before any setup mutation.
+    internal sealed class Chunk7OwnerSeedRiderFacts
+    {
+        internal string Id { get; set; }
+        internal string Size { get; set; }
+        internal string OriginalSize { get; set; }
+        internal bool InParty { get; set; }
+        internal bool Controllable { get; set; }
+        internal bool IsPet { get; set; }
+        internal bool HasPet { get; set; }
+        internal bool HasDualCompanion { get; set; }
+        internal bool InCombat { get; set; }
+        internal bool Idle { get; set; }
+        internal bool Polymorphed { get; set; }
+        internal bool HasHorseRank { get; set; }
+        internal int CharacterLevel { get; set; }
+        internal int RangerLevel { get; set; }
+        internal int Experience { get; set; }
+        internal int ReadyLevel { get; set; }
+        internal int ExperienceRate { get; set; }
+    }
+
+    // Pure owner-seed setup planning under the ordinary build driver's own Ranger
+    // eligibility rule. A refusal is a SETUP failure before any mutation, never a
+    // behaviour result.
+    internal static class Chunk7OwnerSeedSetupPlan
+    {
+        internal const int RequiredRangerLevel = 4, MaximumTargetLevel = 8;
+        // Chunk7OrdinaryBuildDriver: rangerLevel + readyLevel(xp) - characterLevel >= 4.
+        internal static bool EligibleWithoutAssistance(Chunk7OwnerSeedRiderFacts rider) =>
+            rider.RangerLevel + rider.ReadyLevel - rider.CharacterLevel >= RequiredRangerLevel;
+        internal static int MinimalTargetLevel(Chunk7OwnerSeedRiderFacts rider) =>
+            rider.CharacterLevel + RequiredRangerLevel - rider.RangerLevel;
+        internal static IReadOnlyList<string> RiderErrors(Chunk7OwnerSeedRiderFacts rider, string role)
+        {
+            var errors = new List<string>();
+            if (rider == null) { errors.Add("Rider " + role + " is absent from the loaded native party."); return errors; }
+            if (!rider.InParty) errors.Add("Rider " + role + " is not in the exact loaded native party.");
+            if (rider.Size != "Medium" || rider.OriginalSize != "Medium" || rider.Polymorphed)
+                errors.Add("Rider " + role + " is not an unpolymorphed Medium body; only medium-humanoid-horse-v1 is supported.");
+            if (!rider.Controllable || rider.IsPet || rider.InCombat || !rider.Idle)
+                errors.Add("Rider " + role + " is not a controllable idle non-pet actor outside combat.");
+            if (rider.HasPet || rider.HasDualCompanion || rider.HasHorseRank)
+                errors.Add("Rider " + role + " already owns a pet, a dual companion or Horse progression; the fixture requires a petless actor.");
+            if (rider.CharacterLevel < 1 || rider.RangerLevel < 0 || rider.RangerLevel > rider.CharacterLevel || rider.ReadyLevel < rider.CharacterLevel)
+                errors.Add("Rider " + role + " native progression observation is inconsistent.");
+            return errors;
+        }
+        // Each rider's final native build commit makes LevelUpAutoSaveController request
+        // one Auto (chained intermediate commits do not); with native autosave off the
+        // request writes nothing. The selection must declare exactly that count.
+        internal static int ExpectedSetupWrites(bool autosaveEnabled, int riderBuilds) => autosaveEnabled ? riderBuilds : 0;
+        internal static IReadOnlyList<string> WriteErrors(Chunk7OwnedPairsSelection selection, bool autosaveEnabled, bool onlyOneSave, int riderBuilds)
+        {
+            var errors = new List<string>();
+            if (onlyOneSave) errors.Add("Native OnlyOneSave/Ironman is on; its single-slot saves cannot be run-owned setup level-up Autos.");
+            if (riderBuilds < 0 || riderBuilds > Chunk7OwnedPairsSelection.MaximumSetupLevelupWrites) errors.Add("Owner-seed rider build count is outside its bound.");
+            var expected = ExpectedSetupWrites(autosaveEnabled, riderBuilds);
+            if (selection == null || selection.ExpectedNativeWriteCount != expected)
+                errors.Add("Selected native write count " + (selection == null ? "null" : selection.ExpectedNativeWriteCount.ToString()) +
+                    " differs from the observed native level-up autosave count " + expected + " (autosave " + (autosaveEnabled ? "on" : "off") + ", " + riderBuilds + " rider builds).");
+            return errors;
+        }
+        internal static IReadOnlyList<string> AssistanceErrors(Chunk7OwnedPairsSelection selection, Chunk7OwnerSeedRiderFacts riderA, Chunk7OwnerSeedRiderFacts riderB)
+        {
+            var errors = new List<string>();
+            if (selection == null || !selection.IsOwnerSeed || riderA == null || riderB == null) { errors.Add("Owner-seed setup plan lacks its selection or riders."); return errors; }
+            if (riderA.Id != selection.RiderAId || riderB.Id != selection.RiderBId) errors.Add("Observed riders differ from the selected rider roles.");
+            if (!EligibleWithoutAssistance(riderA))
+                errors.Add("Rider A is not eligible for Ranger 4 / Hunter's Bond from its own native XP; no assistance is authorized for rider A.");
+            var assistance = selection.XpAssistance;
+            if (EligibleWithoutAssistance(riderB))
+            {
+                if (assistance != null) errors.Add("Rider B is already eligible; XP assistance beyond what eligibility requires is refused.");
+                return errors;
+            }
+            var minimal = MinimalTargetLevel(riderB);
+            if (assistance == null) errors.Add("Rider B needs native XP to character level " + minimal + " but no assistance was selected.");
+            else if (assistance.UnitId != riderB.Id) errors.Add("XP assistance names an actor other than rider B.");
+            else if (assistance.TargetCharacterLevel != minimal)
+                errors.Add("XP assistance target " + assistance.TargetCharacterLevel + " differs from the exact minimal eligible level " + minimal + ".");
+            if (minimal > MaximumTargetLevel) errors.Add("Rider B would need more than the bounded setup ceiling of character level " + MaximumTargetLevel + ".");
+            if (riderB.ExperienceRate != 100) errors.Add("Exact native XP assistance requires ExperienceRatePercent 100.");
+            return errors;
+        }
+    }
+
+    // The SETUP-COMPLETE boundary. Every assistance item is recorded while it is open;
+    // after Complete any further setup mutation is refused and counted.
+    internal sealed class Chunk7OwnerSeedSetupLedger
+    {
+        internal sealed class Item
+        {
+            internal string UnitId, Kind, NativeApi, Detail;
+            internal long Before, After, Amount;
+        }
+        private readonly List<Item> items = new List<Item>();
+        internal bool Completed { get; private set; }
+        internal int RefusedAfterBoundary { get; private set; }
+        internal int CompletedFrame { get; private set; } = -1;
+        internal IReadOnlyList<Item> Items => items;
+        internal void Record(string unitId, string kind, string nativeApi, long before, long after, long amount, string detail)
+        {
+            RequireOpen(kind);
+            if (string.IsNullOrEmpty(unitId) || string.IsNullOrEmpty(kind) || string.IsNullOrEmpty(nativeApi))
+                throw new InvalidOperationException("Setup assistance must name its unit, kind and native API.");
+            items.Add(new Item { UnitId = unitId, Kind = kind, NativeApi = nativeApi, Before = before, After = after, Amount = amount, Detail = detail });
+        }
+        internal void RequireOpen(string operation)
+        {
+            if (!Completed) return;
+            RefusedAfterBoundary++;
+            throw new InvalidOperationException("Setup mutation refused after SETUP-COMPLETE: " + operation + ".");
+        }
+        internal void Complete(int frame)
+        {
+            if (Completed) throw new InvalidOperationException("SETUP-COMPLETE may be crossed only once.");
+            Completed = true; CompletedFrame = frame;
+        }
     }
 }

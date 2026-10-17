@@ -73,7 +73,22 @@ function Get-KmcChunk7OwnedPairsManualSource($Selection,[AllowNull()][string]$Pe
  if((Get-KmcSha256 $w.path)-cne$Selection.sourceArchiveSha256){throw 'Two-owner native Manual bytes changed during qualification.'}
  [pscustomobject]@{path=$w.path;descriptor=$descriptor;artifactPath=$path;artifactSha256=$Selection.sourceArtifactSha256;artifactLength=[long]$file.Length;sourceRunId=$request.runId;ancestry=$ancestry;artifact=$artifact}
 }
+# Owner-seed kind: reuse the cold owner-seed source unchanged (registry entry, lab
+# owner-supplied master, intake hash, read-only header identity and the cold no-alias
+# descriptor check), then the owned-family descriptor. No producer receipt is read.
+function Get-KmcChunk7OwnedPairsOwnerSeedSource($Selection,[AllowNull()][string]$PersistenceCase,$Fixture,$Candidate,$AreaTarget=$null){
+ $run='unassigned-owned-owner-seed';if($Selection.seedId-ceq$run){$run='unassigned-owned-owner-seed-2'}
+ Assert-KmcChunk7OwnedPairsSelection ([pscustomobject]@{scenario='chunk7-owned-two-pair-campaign';runId=$run;ownedPairs=$Selection;persistenceCase=$(if([string]::IsNullOrEmpty($PersistenceCase)){$null}else{$PersistenceCase})})
+ if($null-ne$AreaTarget){throw 'Owner-seed exploration carries no area target.'}
+ $cold=[pscustomobject][ordered]@{case='owner-seed-readonly-inventory';baseGameOnly=$true;expectedNativeLoadCount=1;expectedNativeWriteCount=0;seedId=$Selection.seedId;seedSha256=$Selection.seedSha256}
+ $source=Get-KmcChunk7OwnerSeedSource $cold $Fixture $Candidate
+ Assert-KmcChunk7OwnedPairsDescriptor ([pscustomobject]@{scenario='chunk7-owned-two-pair-campaign';runId=$run;ownedPairs=$Selection;persistenceCase=$null;persistenceLoad=$source.descriptor;fixture=$Fixture})
+ if($source.fixtureSetupOnly-ne$true-or$source.nativeAuthorityGranted-ne$false){throw 'Owner seed source claims native authority.'}
+ [pscustomobject]@{path=$source.path;descriptor=$source.descriptor;seedId=$source.seedId;registryPath=$source.registryPath;registrySha256=$source.registrySha256;registryEntry=$source.registryEntry;
+  intakePath=$source.intakePath;intakeSha256=$source.intakeSha256;ownerSeed=$true;fixtureSetupOnly=$true;nativeAuthorityGranted=$false}
+}
 function Get-KmcChunk7OwnedPairsSource($Selection,[AllowNull()][string]$PersistenceCase,$Fixture,$Candidate,$AreaTarget=$null){
+ if($null-ne$Selection-and$null-ne$Selection.PSObject.Properties['case']-and$Selection.case-ceq'owner-seed-exploration'){return Get-KmcChunk7OwnedPairsOwnerSeedSource $Selection $PersistenceCase $Fixture $Candidate $AreaTarget}
  if($PersistenceCase-ceq'multi-area-autosave'){Assert-KmcChunk7AreaTarget ([pscustomobject]@{scenario='chunk7-owned-two-pair-campaign';persistenceCase=$PersistenceCase;ownedPairs=$Selection;persistenceAreaTarget=$AreaTarget})}elseif($null-ne$AreaTarget){throw 'Only owned area autosave may carry its exact destination.'}
  $manual=Get-KmcChunk7OwnedPairsManualSource $Selection $PersistenceCase $Fixture $Candidate
  if($Selection.case-cne'persistence-load'){return $manual}
@@ -106,6 +121,13 @@ function Copy-KmcChunk7OwnedPairsSourceArtifact($Source,[string]$ProfileRoot,$Lo
  foreach($pair in @(@('scenario','chunk7-owned-two-pair-campaign'),@('runId',$Lock.RunId),@('transactionToken',$Lock.Token),@('sourceSha256',$Source.descriptor.sha256))){Assert-KmcBootstrapInventoryString $owner.($pair[0]) $pair[1]}
  if($run-cne(Join-Path (Get-KmcLabRoot) ('runtime-staging/persistence-'+$owner.runId))){throw 'Inherited copy lacks exact current lock/profile ownership.'}
  $destination=Join-Path $run 'owned-two-pair-source.json';if(Test-Path -LiteralPath $destination){throw 'Inherited lineage receipt destination already exists.'}
+ if($null-ne$Source.PSObject.Properties['ownerSeed']-and$Source.ownerSeed-eq$true){
+  # The honest owner-seed source record (cold kind's writer); no producer receipt exists to copy.
+  $ownerPath=Join-Path $run 'owner.json';Assert-KmcNotReparsePoint $ownerPath 'owner-seed profile owner';Assert-KmcNotHardLink $ownerPath 'owner-seed profile owner'
+  Assert-KmcNotReparsePoint $Source.path 'owner seed master';Assert-KmcNotHardLink $Source.path 'owner seed master'
+  if((Get-KmcSha256 $Source.path)-cne$Source.descriptor.sha256-or(Get-KmcSha256 $Source.intakePath)-cne$Source.intakeSha256){throw 'Owner seed master or intake changed before locked record placement.'}
+  return Write-KmcChunk7OwnerSeedSourceRecord $Source $destination $ownerPath (Get-KmcSha256 $ownerPath) $Lock
+ }
  Assert-KmcNotReparsePoint $Source.artifactPath 'inherited lineage';Assert-KmcNotHardLink $Source.artifactPath 'inherited lineage'
  if((Get-KmcSha256 $Source.artifactPath)-cne$Source.artifactSha256-or(Get-Item -LiteralPath $Source.artifactPath).Length-ne$Source.artifactLength){throw 'Inherited lineage changed before locked copy.'}
  [IO.File]::Copy($Source.artifactPath,$destination,$false)

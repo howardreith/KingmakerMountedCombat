@@ -49,18 +49,26 @@ namespace KingmakerMountedCombat.Diagnostics
 
         internal Chunk7OrdinaryBuildPins(string runId, string nativeInventorySha256, Chunk7OrdinaryBuildMode mode,
             string smallRaceGuid, string smallPresetGuid, string skeletonName, Gender gender, bool leftHanded,
-            int minimumRangerLevel = 4, Size expectedBodySize = Size.Small)
+            int minimumRangerLevel = 4, Size expectedBodySize = Size.Small, bool allowNativeAutoLevelupOverride = false)
         {
             RunId = runId; NativeInventorySha256 = nativeInventorySha256; Mode = mode;
             SmallRaceGuid = smallRaceGuid; SmallPresetGuid = smallPresetGuid; SkeletonName = skeletonName;
             Gender = gender; LeftHanded = leftHanded; MinimumRangerLevel = minimumRangerLevel;
-            ExpectedBodySize = expectedBodySize;
+            ExpectedBodySize = expectedBodySize; AllowNativeAutoLevelupOverride = allowNativeAutoLevelupOverride;
             Validate();
         }
+
+        // Opt-in for an existing actor whose stock level plan the native controller
+        // applies under the difficulty auto-levelup setting: the driver then takes the
+        // native UI's own player override (choosing another class on an auto-levelup
+        // controller -> CharacterBuildController.SetClass). Default false keeps the refusal.
+        internal readonly bool AllowNativeAutoLevelupOverride;
 
         internal void Validate()
         {
             Require(Regex.IsMatch(RunId ?? "", "^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$"), "Invalid run identity.");
+            Require(!AllowNativeAutoLevelupOverride || Mode == Chunk7OrdinaryBuildMode.ExistingRangerLevels,
+                "Native auto-levelup override is limited to existing-actor Ranger levels.");
             Require(Regex.IsMatch(NativeInventorySha256 ?? "", "^[a-f0-9]{64}$"), "Exact native inventory hash is required.");
             Require(NewPaidCompanion || Mode == Chunk7OrdinaryBuildMode.ExistingRangerLevels ||
                 Mode == Chunk7OrdinaryBuildMode.ExistingHorseLevels || IsRespec,
@@ -81,7 +89,7 @@ namespace KingmakerMountedCombat.Diagnostics
 
     internal sealed class Chunk7OrdinaryBuildDriver
     {
-        private const string RangerClassGuid = "cda0615668a6df14eb36ba19ee881af6";
+        internal const string RangerClassGuid = "cda0615668a6df14eb36ba19ee881af6";
         private const string HuntersBondGuid = "b705c5184a96a84428eeb35ae2517a14";
         private const string RangerCompanionGuid = "ee63330662126374e8785cc901941ac7";
         private const int ChoiceLimit = 512;
@@ -174,7 +182,8 @@ namespace KingmakerMountedCombat.Diagnostics
             if (actor == null) BindNewActor(controller);
             Require(ReferenceEquals(controller.Unit, descriptor) && ReferenceEquals(builder.Unit, descriptor) &&
                 ReferenceEquals(descriptor.Unit, actor) && actor.UniqueId == actorId, "Native level controller changed its captured actor.");
-            Require(!controller.AutoCommit && !controller.IsAutoLevelup, "An automatic level plan replaced the declared ordinary manual choices.");
+            if (pins.AllowNativeAutoLevelupOverride) Require(!controller.AutoCommit, "An automatic commit replaced the declared ordinary manual choices.");
+            else Require(!controller.AutoCommit && !controller.IsAutoLevelup, "An automatic level plan replaced the declared ordinary manual choices.");
             Require(LevelUpController.CanLevelUp(descriptor), "Native actual XP/life/combat gate does not permit this level.");
             Require(descriptor.Progression.Experience == initialXp, "Native actor XP changed outside the declared ordinary progression.");
             if (!ReferenceEquals(observedController, controller))
@@ -184,7 +193,26 @@ namespace KingmakerMountedCombat.Diagnostics
                     "Native pending level does not follow the actual actor level.");
                 Emit("native-level-open", Snapshot());
             }
+            if (pins.AllowNativeAutoLevelupOverride && controller.IsAutoLevelup) return OverrideNativeAutoLevelupPlan(controller);
             return SelectNextChoice(controller);
+        }
+
+        internal int AutoLevelupOverrideCount => autoLevelupOverrides;
+        private int autoLevelupOverrides;
+
+        // The native UI path a player takes when an auto-levelup plan opened the
+        // level: choosing another class (CharBuildSelectorItem -> CancelAutoLevelup
+        // confirmation -> CharacterBuildController.SetClass). SelectClass then marks
+        // the plan changed, so IsAutoLevelup is false and the commit drops the plans.
+        private Chunk7OrdinaryBuildStep OverrideNativeAutoLevelupPlan(LevelUpController controller)
+        {
+            Require(autoLevelupOverrides < 20, "Native auto-levelup overrides exceeded the declared bound.");
+            autoLevelupOverrides++;
+            Emit("native-auto-levelup-plan-observed", new JObject { ["plannedClass"] = controller.State.SelectedClass?.AssetGuid,
+                ["nextLevel"] = controller.State.NextLevel, ["setting"] = Game.Instance.Player.Difficulty.AutoLevelup.ToString(),
+                ["overrideCount"] = autoLevelupOverrides });
+            return Choose("class-over-native-auto-levelup-plan", ranger.AssetGuid, () => builder.SetClass(ranger),
+                () => controller.State.SelectedClass == ranger && !controller.IsAutoLevelup);
         }
 
         private void Start()

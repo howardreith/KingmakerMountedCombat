@@ -520,6 +520,19 @@ namespace KingmakerMountedCombat.Diagnostics
             if (Scenario == Chunk7OwnedPairsSelection.Scenario)
             {
                 if (PersistenceLoad == null || OwnedPairs == null) errors.Add("Inherited pairs require their exact qualified native input descriptor.");
+                else if (OwnedPairs.IsOwnerSeed)
+                {
+                    // Registry-supplied exact owner-seed names, admitted generically as in the
+                    // cold owner-seed kind; never the producer fixture identity.
+                    errors.AddRange(PersistenceLoad.Validate("persistenceLoad", PersistenceLoad.InternalName, "^[A-Za-z0-9][A-Za-z0-9_.-]{0,95}\\.zks$"));
+                    if (!Chunk7AssistedColdInventorySelection.IsOwnerSeedName(PersistenceLoad.InternalName) ||
+                        !Chunk7AssistedColdInventorySelection.IsOwnerSeedLeaf(PersistenceLoad.FileName) ||
+                        Fixture?.Working == null || PersistenceLoad.GameId == Fixture.Working.GameId || PersistenceLoad.GameId == Fixture.Baseline?.GameId ||
+                        !Guid.TryParseExact(PersistenceLoad.GameId, "D", out var ownerSeedGameId) || ownerSeedGameId == Guid.Empty ||
+                        string.IsNullOrWhiteSpace(PersistenceLoad.GameName) || PersistenceLoad.Sha256 == Fixture.Working.Sha256 ||
+                        PersistenceLoad.Sha256 == Fixture.Baseline?.Sha256 || PersistenceLoad.Sha256 != OwnedPairs.SeedSha256)
+                        errors.Add("Owner seed lacks its exact registered non-aliasing identity.");
+                }
                 else
                 {
                     var inputName = OwnedPairs.Cold ? (PersistenceCase == "multi-exploration-quick" || (PersistenceCase == "multi-exploration-auto" || PersistenceCase == "multi-area-autosave") ? PersistenceLoad.InternalName : "KMC_C7_WORLD") : Chunk7AcquiredManualSelection.OutputName;
@@ -1063,7 +1076,7 @@ namespace KingmakerMountedCombat.Diagnostics
             "C7-persistence-three-native-loads", "C7-persistence-three-native-area-transfers",
             "C7-persistence-nonselected-mount-save-deferral", "C7-persistence-owned-worker-cancel-drain",
             "C7-persistence-native-continuation", "C7-persistence-all-pair-area-before-autosave", "C7-persistence-native-combat-continuation", "C7-persistence-cleanup", "C7-persistence-runtime", "C7-persistence-interrupted",
-            "chunk7-two-pair-exploration", "C7-world-fixture", "C7-world-native-acquisition", "C7-world-two-native-mounts",
+            "chunk7-two-pair-exploration", "C7-world-fixture", "C7-world-native-acquisition", "C7-world-owner-seed-setup", "C7-world-two-native-mounts",
             "C7-world-selection-routing", "C7-world-independent-dismount", "C7-world-cycles", "C7-world-sampling", "C7-world-cleanup", "C7-world-runtime", "C7-world-visual", "C7-world-interrupted",
             "persistence-p07-save", "persistence-p07-load", "persistence-p01-save", "persistence-p01-load", "persistence-p02-save", "persistence-p02-load", "persistence-p03-save", "persistence-p03-load", "persistence-p04-save", "persistence-p04-load", "persistence-p05-save", "persistence-p05-load", "persistence-p06-load",
                     "C4-LIFE-rider-incapacitation",

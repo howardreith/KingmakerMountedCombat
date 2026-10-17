@@ -2,7 +2,7 @@
 Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot 'Chunk7OwnedPairsEvidence.ps1')
 function Get-KmcChunk7WorldRows {
-    @('chunk7-two-pair-exploration','C7-world-fixture','C7-world-native-acquisition','C7-world-two-native-mounts','C7-world-selection-routing',
+    @('chunk7-two-pair-exploration','C7-world-fixture','C7-world-native-acquisition','C7-world-owner-seed-setup','C7-world-two-native-mounts','C7-world-selection-routing',
       'C7-world-independent-dismount','C7-world-cycles','C7-world-sampling','C7-world-cleanup','C7-world-runtime','C7-world-visual','C7-world-interrupted')
 }
 function Assert-KmcChunk7ArtifactEnvelope($Request,$Artifact,[string]$Kind) {
@@ -211,8 +211,13 @@ function Assert-KmcChunk7WorldEvidence($Request,$Artifact,[string]$Status) {
     if((Get-KmcChunk7SelectedScenario $Request)-cne'chunk7-two-pair-exploration'){throw 'Chunk 7 world evidence under another scenario.'}
     if($Status-ceq'PASS'-and$Artifact.status-cne'PASS'){throw 'PASS world result requires PASS artifact.'}
     if($Artifact.status-cne'PASS'){return}
-    $o=$Artifact.observations;$owned=Test-KmcChunk7OwnedPairsScenario $Request.scenario
-    if($owned){
+    $o=$Artifact.observations;$owned=Test-KmcChunk7OwnedPairsScenario $Request.scenario;$seed=$owned-and(Test-KmcChunk7OwnedPairsOwnerSeed $Request)
+    if($seed){
+        # Owner-seed kind: the disclosed fixture setup supplies both Horses; no inherited or Working provenance.
+        $roles=Assert-KmcChunk7OwnerSeedWorldSetup $Request $o;$first=$roles[0];$mammoth=$roles[1];$second=$roles[2];$horse=$roles[3];$actors=@($roles)
+        $original=@(@($Request.ownedPairs.partyIds)+@($mammoth,$horse))
+        foreach($snapshot in @($o.snapshots)+@($o.cycles)){foreach($owner in $snapshot.owners){Assert-KmcChunk7WorldCounters $owner @('generation')}}
+    }elseif($owned){
         Assert-KmcChunk7InheritedEvidence $Request $o
         $roles=Get-KmcChunk7OwnedPairIds $Request;$first=$roles[0];$mammoth=$roles[1];$second=$roles[2];$horse=$roles[3];$actors=@($roles);$original=@($Request.ownedPairs.partyIds)
         Assert-KmcChunk7Boolean $o.capability.archiveNativeEnabled $true;Assert-KmcChunk7WorldCounters $o.capability @('nativeWriterSchema','nativePairCapacity')
@@ -262,10 +267,20 @@ function Assert-KmcChunk7WorldEvidence($Request,$Artifact,[string]$Status) {
         $same=@($after[0].owners|Where-Object ownerId -CEQ $owner.ownerId)
         if($same.Count-ne1-or$same[0].riderId-cne$owner.riderId-or$same[0].mountId-cne$owner.mountId-or$same[0].generation-ne$owner.generation-or$same[0].state-cne'Active'){throw 'Selection/movement changed exact pair ownership.'}
     }
+    # A door is not-applicable only for the owner-seed kind, by its exact observed scan shape;
+    # door behaviour is then never treated as tested. Every other kind requires the door proof.
+    $doorTested=$true
+    if($null-ne$o.door-and$null-ne$o.door.PSObject.Properties['applicable']){
+        if(-not$seed){throw 'A not-applicable door is accepted only for owner-seed exploration.'}
+        Assert-KmcChunk7DoorNotApplicable $o.door;$doorTested=$false
+        if(@($o.snapshots|Where-Object label -CEQ 'door-complete').Count-ne0){throw 'A not-applicable door cannot carry a door completion window.'}
+    }
+    if($doorTested){
     Assert-KmcChunk7DoorEvidence $o.door $owners @($first,$second)
     $doorAfter=@($o.snapshots|Where-Object label -CEQ 'door-complete')
     if($doorAfter.Count-ne1-or@($doorAfter[0].owners).Count-ne2){throw 'Two-pair door completion window missing.'}
-    foreach($owner in $owners){$same=@($doorAfter[0].owners|Where-Object ownerId -CEQ $owner.ownerId);if($same.Count-ne1-or$same[0].generation-ne$owner.generation-or$same[0].riderId-cne$owner.riderId-or$same[0].mountId-cne$owner.mountId-or$same[0].state-cne'Active'){throw 'Door work changed captured ownership.'}}
+    }
+    if($doorTested){foreach($owner in $owners){$same=@($doorAfter[0].owners|Where-Object ownerId -CEQ $owner.ownerId);if($same.Count-ne1-or$same[0].generation-ne$owner.generation-or$same[0].riderId-cne$owner.riderId-or$same[0].mountId-cne$owner.mountId-or$same[0].state-cne'Active'){throw 'Door work changed captured ownership.'}}}
     $split=@($o.snapshots|Where-Object label -CEQ 'first-dismounted-second-retained')
     if($split.Count-ne1){throw 'Independent native Dismount window missing.'}
     $retained=@($split[0].owners|Where-Object state -CEQ 'Active');$expected=@($owners|Where-Object riderId -CEQ $second)[0]
@@ -323,7 +338,8 @@ function Assert-KmcChunk7WorldEvidence($Request,$Artifact,[string]$Status) {
     if($admission.owners-ne0-or$admission.activePairs-ne0-or$admission.frame-lt$o.measurements[3].endFrame-or$admission.commands-isnot[Array]){throw 'Native progression removal ran before final sampling or settled ownership.'}
     foreach($field in @('preparationPending','serializationBusy','pendingNativeWrites')){Assert-KmcChunk7Boolean $admission.$field $false}
     $issued=@($o.inputs)+@($o.cycleInputs)+@($o.movements)
-    Assert-KmcChunk7ExactIds $admission.commands @(@($issued|ForEach-Object{[string]$_.commandObject})+@($o.door.interactions|ForEach-Object{[string]$_.commandObject})+@([string]$o.door.firstPairReturn.command)) 'commandObject'
+    $doorCommands=if($doorTested){@($o.door.interactions|ForEach-Object{[string]$_.commandObject})+@([string]$o.door.firstPairReturn.command)}else{@()}
+    Assert-KmcChunk7ExactIds $admission.commands @(@($issued|ForEach-Object{[string]$_.commandObject})+$doorCommands) 'commandObject'
     $settledCommandIds=[Collections.Generic.HashSet[long]]::new()
     foreach($command in $admission.commands){
         Assert-KmcChunk7WorldInt32 $command.commandObject
@@ -335,7 +351,10 @@ function Assert-KmcChunk7WorldEvidence($Request,$Artifact,[string]$Status) {
     foreach($field in @('combatOrPersistenceProof','thirdUnrelatedActorProven')){Assert-KmcChunk7Boolean $o.$field $false}
     foreach($field in @('pauseBefore','pauseAfter','movementBefore','movementAfter','pairedBefore','pairedAfter')){if($c.$field-isnot[bool]){throw 'Restored native settings require actual booleans.'}}
     foreach($pair in $c.pairBoundaries){Assert-KmcChunk7Boolean $pair.residueAbsent $true;Assert-KmcChunk7Boolean $pair.ownerPresent $false}
-    if($owned){
+    if($seed){
+        Assert-KmcChunk7OwnerSeedCleanup $c
+        Assert-KmcChunk7Boolean $o.combatOrPersistenceProof $false;Assert-KmcChunk7Boolean $o.thirdUnrelatedActorProven $false
+    }elseif($owned){
         foreach($field in @('pairResidueAbsent','controlsSettled','settingsAndSelectionRestored','nativeProcessesSettled','cleanupCustodySettled','inheritedPetsPreserved')){Assert-KmcChunk7Boolean $c.$field $true}
         foreach($field in @('horseRemoved','nativeSaveWritten','ordinaryRespecProven','nativeProgressionRequiresExternalWorkingRestoration')){Assert-KmcChunk7Boolean $c.$field $false}
         Assert-KmcChunk7Boolean $o.combatOrPersistenceProof $false;Assert-KmcChunk7Boolean $o.thirdUnrelatedActorProven $false
