@@ -130,5 +130,29 @@ $areaBad=[ordered]@{
 }
 function Clone-AreaSource($v){return ($v|ConvertTo-Json -Depth 30|ConvertFrom-Json)}
 foreach($m in $areaBad.GetEnumerator()){Check $m.Key {$c=New-AreaSource $true;&$m.Value $c;[void](Get-KmcChunk7OwnedPairsSource $c.selection $c.persistenceCase $c.fixture $c.candidate $c.areaTarget)} $true}
+# Owner-seed kind: the owned qualifier delegates to the established cold owner-seed
+# source (registry/master/intake/header gate, substituted here) with an exact cold
+# selection, then applies the owned-family descriptor; no producer receipt is read.
+function Get-KmcChunk7OwnerSeedSource($Selection,$Fixture,$Candidate){
+ Boundary 'owner-seed-registry-master-intake-header';$script:coldSelection=$Selection
+ [pscustomobject]@{path='C:\virtual\fixtures\owner-supplied\KMC_C7_OWNER_SEED.master.zks';descriptor=$script:seedDescriptor;seedId=$Selection.seedId;registryPath='registry';registrySha256=('a'*64);registryEntry=[pscustomobject]@{intakePath='fixtures/owner-supplied/x.json'};intakePath='C:\virtual\intake.json';intakeSha256=('b'*64);fixtureSetupOnly=$script:seedSetupOnly;nativeAuthorityGranted=$script:seedAuthority}
+}
+function New-OwnerSeedSource{
+ $script:calls=[Collections.Generic.List[string]]::new();$script:failure=$null;$script:coldSelection=$null;$script:seedSetupOnly=$true;$script:seedAuthority=$false
+ $f=[IO.File]::ReadAllText((Join-Path $testFixtures 'TwoOwnerManualExistingFixture.json'))|ConvertFrom-Json;$r=$f.request
+ $script:seedDescriptor=[pscustomobject][ordered]@{internalName='KMC_C7_OWNER_SEED';fileName='Manual_302_KMC_C7_OWNER_SEED.zks';sha256=('9'*64);length=1401014;lastWriteTimeUtcTicks=638960000000000000;gameId='ce9e3801-6f92-4f6b-8738-b990fc5111bf';gameName='Testor The Reliable';area='b10e86516b6437d45a629931c30936fe'}
+ $a='10101010-1010-4010-8010-101010101010';$b='30303030-3030-4030-8030-303030303030'
+ $s=[pscustomobject][ordered]@{case='owner-seed-exploration';seedId='KMC_C7_OWNER_SEED';seedSha256=('9'*64);riderAId=$a;riderBId=$b;partyIds=@($a,$b);xpAssistance=[pscustomobject]@{unitId=$b;targetCharacterLevel=8};baseGameOnly=$true;expectedNativeLoadCount=1;expectedNativeWriteCount=0}
+ [pscustomobject]@{selection=$s;fixture=$r.fixture;candidate=($r|ConvertTo-Json -Depth 20|ConvertFrom-Json)}
+}
+Check 'owner-seed source delegates to the exact cold owner-seed gate' {$c=New-OwnerSeedSource;$v=Get-KmcChunk7OwnedPairsSource $c.selection $null $c.fixture $c.candidate
+ $cold=$script:coldSelection;if($null-eq$cold-or(@($cold.PSObject.Properties.Name)-join',')-cne'case,baseGameOnly,expectedNativeLoadCount,expectedNativeWriteCount,seedId,seedSha256'-or$cold.case-cne'owner-seed-readonly-inventory'-or$cold.seedId-cne$c.selection.seedId-or$cold.seedSha256-cne$c.selection.seedSha256-or$cold.expectedNativeWriteCount-ne0){throw 'Cold owner-seed gate selection differs'}
+ if($v.ownerSeed-ne$true-or$v.nativeAuthorityGranted-ne$false-or$v.descriptor.sha256-cne('9'*64)-or@($script:calls|Where-Object{$_-ceq'complete-same-candidate-lineage'}).Count-ne0){throw 'Owner-seed source read producer lineage or lost its identity'}}
+Check 'owner-seed source refuses an area target' {$c=New-OwnerSeedSource;[void](Get-KmcChunk7OwnedPairsSource $c.selection $null $c.fixture $c.candidate ([pscustomobject]@{enterPoint=('e'*32);area=('f'*32);autoSaveMode='AfterEntry'}))} $true 'no area target'
+Check 'owner-seed source refuses a registry SHA that differs from the selection' {$c=New-OwnerSeedSource;$script:seedDescriptor.sha256='8'*64;[void](Get-KmcChunk7OwnedPairsSource $c.selection $null $c.fixture $c.candidate)} $true
+Check 'owner-seed source refuses a gate result that grants authority' {$c=New-OwnerSeedSource;$script:seedAuthority=$true;[void](Get-KmcChunk7OwnedPairsSource $c.selection $null $c.fixture $c.candidate)} $true 'claims native authority'
+Check 'owner-seed source propagates the cold gate refusal' {$c=New-OwnerSeedSource;$script:failure='owner-seed-registry-master-intake-header';[void](Get-KmcChunk7OwnedPairsSource $c.selection $null $c.fixture $c.candidate)} $true 'external boundary refused'
+Check 'owner-seed source refuses a checkpoint' {$c=New-OwnerSeedSource;[void](Get-KmcChunk7OwnedPairsSource $c.selection 'multi-exploration-manual' $c.fixture $c.candidate)} $true
+Check 'producer selection never takes the owner-seed route' {$c=New-Case $false $false;$script:coldSelection=$null;[void](Qualify $c);if($null-ne$script:coldSelection){throw 'Producer selection reached the owner-seed gate'}}
 $clock.Stop();$passed=@($results|Where-Object pass).Count;$failed=$results.Count-$passed
 [IO.File]::WriteAllText((Join-Path $testOutput 'receipt.json'),([pscustomobject]@{passed=$passed;failed=$failed;elapsedSeconds=$clock.Elapsed.TotalSeconds;nativeInvoked=$false;archiveRead=$false;scope='actual owned qualifier; established lineage/artifact validators and OS observations substituted';results=@($results)}|ConvertTo-Json -Depth 12),[Text.UTF8Encoding]::new($false));Write-Output ('Owned source: '+$passed+' PASS / '+$failed+' FAIL');if($failed){exit 1}

@@ -89,7 +89,8 @@ function Assert-KmcMatchedPoolEvidence($Request,$Artifact,$WorldArtifact,[string
     if($o.residentBoundaries-ne2-or$o.residentParticipants-ne2-or$o.warmupNativeCycle-ne1-or$o.measuredNativeCycle-ne2-or$o.additionalNativeInputs-ne0-or$null-ne$o.abortedWindow-or
         $o.rows-isnot[Array]-or$o.rows.Count-ne4-or$o.limits-isnot[string]-or[string]::IsNullOrWhiteSpace($o.limits)){throw 'Matched-pool sequence or evidence limits differ.'}
     if($world.cycles-isnot[Array]-or$world.cycles.Count-ne6-or$world.cycleInputs-isnot[Array]-or$world.cycleInputs.Count-ne12){throw 'Matched observation changed the original native cycle/input counts.'}
-    if(Test-KmcChunk7OwnedPairsScenario $Request.scenario){Assert-KmcChunk7InheritedEvidence $Request $world;$actorIds=@(Get-KmcChunk7OwnedPairIds $Request)}else{
+    if(Test-KmcChunk7OwnedPairsOwnerSeed $Request){$actorIds=@(Assert-KmcChunk7OwnerSeedWorldSetup $Request $world)}
+    elseif(Test-KmcChunk7OwnedPairsScenario $Request.scenario){Assert-KmcChunk7InheritedEvidence $Request $world;$actorIds=@(Get-KmcChunk7OwnedPairIds $Request)}else{
     $actorIds=@('b6628a77-4962-47a4-a17c-88d9836fc9d5','d79a4f6c-b74e-4868-95bd-533899131acb','d17c8fd0-6627-40c4-bf9a-024cf001c1f7')
     $horse=@($world.partyWithHorse|Where-Object { $_.masterId-ceq$actorIds[2] })
     if($horse.Count-ne1-or$horse[0].id-isnot[string]-or[string]::IsNullOrEmpty($horse[0].id)){throw 'Exact native Horse identity unavailable.'};$actorIds+=$horse[0].id

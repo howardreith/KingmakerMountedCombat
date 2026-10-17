@@ -41,7 +41,10 @@ namespace KingmakerMountedCombat.Diagnostics
                 source?.InternalName, source?.GameId, source?.GameName, source?.Area, source?.Sha256, source?.Length.ToString(),
                 source?.LastWriteTimeUtcTicks.ToString(), value?.PersistenceReplayTargets == null ? null :
                 string.Join(";", value.PersistenceReplayTargets.Select(target => target == null ? null :
-                    string.Join(",", target.EnterPoint, target.Area, target.AutoSaveMode))));
+                    string.Join(",", target.EnterPoint, target.Area, target.AutoSaveMode))))
+                // Owner-seed pins extend the captured key only for that kind; historical keys are unchanged.
+                + (selected?.IsOwnerSeed == true ? "\n" + string.Join("\n", selected.SeedId, selected.SeedSha256,
+                    selected.XpAssistance?.UnitId, selected.XpAssistance?.TargetCharacterLevel.ToString()) : "");
         }
         private bool OwnedPairsUnchanged() => ownedPairsRequest == null ||
             OwnedPairsKey(ownedPairsRequest) == ownedPairsKey && ownedPairsRequest.Validate().Count == 0;
