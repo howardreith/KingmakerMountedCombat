@@ -52,6 +52,61 @@ $dependency=Join-Path $f.loader 'dnlib.dll';$saved=[IO.File]::ReadAllBytes($depe
 try{[IO.File]::WriteAllText($dependency,'changed');Reject 'dependency changed between intake and staging rejected' {Assert-KmcBaseGameDependencyReceipt $receipt -VerifyFiles}}
 finally{[IO.File]::WriteAllBytes($dependency,$saved)}
 
+# UMM parameter admission and startup/exit delta. Pure parser checks: they run before
+# any guarded transaction so a live game or installer cannot hide them.
+$reduced=$f.parameters.Replace('<Mod Id="ForeignOne" Enabled="true"/>','').Replace('<Mod Id="ForeignTwo" Enabled="false"/>','')
+Check 'base-only UMM admits exact absent-mod removal' {Assert-KmcNativeUmmStartupDelta $f.parameters $reduced -BaseGameOnly}
+Check 'base-only UMM admits unchanged parameters' {Assert-KmcNativeUmmStartupDelta $f.parameters $f.parameters -BaseGameOnly}
+Reject 'historical UMM mode still refuses foreign-entry removal' {Assert-KmcNativeUmmStartupDelta $f.parameters $reduced}
+Reject 'base-only and removal-observer authorities cannot combine' {Assert-KmcNativeUmmStartupDelta $f.parameters $reduced -BaseGameOnly -RemovalObserver}
+foreach($case in @(
+    @('disabled KMC',$reduced.Replace('Enabled="true"','Enabled="false"')),
+    @('other setting changed',$reduced.Replace('<ShowOnStart>1','<ShowOnStart>0')),
+    @('new foreign entry',$reduced.Replace('</ModParams>','<Mod Id="New" Enabled="true"/></ModParams>')),
+    @('partial foreign removal',$f.parameters.Replace('<Mod Id="ForeignOne" Enabled="true"/>','')),
+    @('KMC hotkey changed',$reduced.Replace('<keyCode>None','<keyCode>A')))){
+    Reject ('base-only UMM refuses '+$case[0]) {Assert-KmcNativeUmmStartupDelta $f.parameters $case[1] -BaseGameOnly}
+}
+# Installed UMM 0.33.2.0 shape: an owner who plays without KMC has no KMC entry; on a
+# normal exit UMM rewrites ModParams from the mods it found (KMC alone in the ready tree).
+$stamp='2026-10-16T19:45:27.4249334-04:00'
+function New-OwnerParams([string]$Mods,[string]$Stamp=$script:stamp,[string]$Show='1'){
+    return ("<?xml version=`"1.0`" encoding=`"utf-8`"?>`n<Param xmlns:xsd=`"http://www.w3.org/2001/XMLSchema`" xmlns:xsi=`"http://www.w3.org/2001/XMLSchema-instance`">`n  <Hotkey>`n    <keyCode>None</keyCode>`n    <modifiers>0</modifiers>`n  </Hotkey>`n  <CheckUpdates>1</CheckUpdates>`n  <ShowOnStart>"+$Show+"</ShowOnStart>`n  <UIScale>1</UIScale>`n  <LastUpdateCheck>"+$Stamp+"</LastUpdateCheck>`n  <ModParams>"+$Mods+"</ModParams>`n</Param>")
+}
+$foreignMods="`n    <Mod Id=`"ForeignOne`" Enabled=`"true`">`n      <Hotkey>`n        <keyCode>None</keyCode>`n        <modifiers>0</modifiers>`n      </Hotkey>`n    </Mod>`n    <Mod Id=`"ForeignTwo`" Enabled=`"false`"><Hotkey><keyCode>None</keyCode><modifiers>0</modifiers></Hotkey></Mod>`n  "
+$kmcAppended="`n    <Mod Id=`"KingmakerMountedCombat`" Enabled=`"true`">`n      <Hotkey>`n        <keyCode>None</keyCode>`n        <modifiers>0</modifiers>`n      </Hotkey>`n    </Mod>`n  "
+$ownerParams=New-OwnerParams $foreignMods
+$absent=New-Fixture 'absent-kmc';[IO.File]::WriteAllText((Join-Path $absent.loader 'Params.xml'),$ownerParams)
+Check 'absent KMC entry admitted (UMM 0.33.2.0 enables an unlisted mod by default)' {Need (@((Get-KmcBaseGameDependencies $absent.game $absent.fingerprint).files).Count-eq6) 'dependency count'}
+Reject 'duplicate exact KMC entries refused' {Assert-KmcBaseGameParameters $f.parameters.Replace('</ModParams>','<Mod Id="KingmakerMountedCombat" Enabled="true"/></ModParams>')|Out-Null}
+Reject 'lone case-variant KMC entry refused' {Assert-KmcBaseGameParameters (New-OwnerParams ($foreignMods+'<Mod Id="kingmakermountedcombat" Enabled="true"/>'))|Out-Null}
+Reject 'present KMC entry without Enabled refused' {Assert-KmcBaseGameParameters (New-OwnerParams ($foreignMods+'<Mod Id="KingmakerMountedCombat"/>'))|Out-Null}
+Check 'exact default KMC append accepted when the original had none' {Assert-KmcNativeUmmStartupDelta $ownerParams (New-OwnerParams $kmcAppended) -BaseGameOnly}
+Check 'exact KMC append accepted in compact whitespace' {Assert-KmcNativeUmmStartupDelta $ownerParams ((New-OwnerParams '<Mod Id="KingmakerMountedCombat" Enabled="true"><Hotkey><keyCode>None</keyCode><modifiers>0</modifiers></Hotkey></Mod>') -replace "`n\s*",'') -BaseGameOnly}
+Check 'exact KMC append with a forward LastUpdateCheck accepted' {Assert-KmcNativeUmmStartupDelta $ownerParams (New-OwnerParams $kmcAppended '2026-10-17T09:41:01.4626062-04:00') -BaseGameOnly}
+Check 'LastUpdateCheck-only forward change accepted' {Assert-KmcNativeUmmStartupDelta $ownerParams (New-OwnerParams $foreignMods '2026-10-17T13:00:00.0000000Z') -BaseGameOnly}
+Check 'KMC absent after a run without OnDestroy accepted (unchanged)' {Assert-KmcNativeUmmStartupDelta $ownerParams $ownerParams -BaseGameOnly}
+Check 'KMC absent after a ModParams rewrite without KMC accepted' {Assert-KmcNativeUmmStartupDelta $ownerParams (New-OwnerParams '') -BaseGameOnly}
+foreach($case in @(
+    @('disabled KMC append',(New-OwnerParams $kmcAppended.Replace('Enabled="true"','Enabled="false"'))),
+    @('foreign append beside KMC',(New-OwnerParams ($kmcAppended+'<Mod Id="New" Enabled="true"/>'))),
+    @('foreign-only append',(New-OwnerParams '<Mod Id="New" Enabled="true"/>')),
+    @('KMC appended while foreign entries remain',(New-OwnerParams ($foreignMods+$kmcAppended))),
+    @('KMC append with an extra attribute',(New-OwnerParams $kmcAppended.Replace('Enabled="true"','Enabled="true" Extra="1"'))),
+    @('KMC append with a changed hotkey',(New-OwnerParams $kmcAppended.Replace('<keyCode>None','<keyCode>F10'))),
+    @('KMC append with an extra element',(New-OwnerParams $kmcAppended.Replace('</Hotkey>','</Hotkey><Extra/>'))),
+    @('KMC append without its hotkey',(New-OwnerParams '<Mod Id="KingmakerMountedCombat" Enabled="true"/>')),
+    @('LastUpdateCheck moved backwards',(New-OwnerParams $kmcAppended '2026-10-15T00:00:00.0000000Z')),
+    @('LastUpdateCheck not an xs:dateTime',(New-OwnerParams $foreignMods 'yesterday')),
+    @('LastUpdateCheck removed',(New-OwnerParams $foreignMods).Replace("<LastUpdateCheck>$stamp</LastUpdateCheck>",'')),
+    @('LastUpdateCheck with an attribute',(New-OwnerParams $foreignMods '2026-10-17T13:00:00Z').Replace('<LastUpdateCheck>','<LastUpdateCheck x="1">')),
+    @('other element change',(New-OwnerParams $kmcAppended $stamp '0')),
+    @('other element added',(New-OwnerParams $kmcAppended).Replace('<UIScale>1</UIScale>','<UIScale>1</UIScale><UIFont>Arial</UIFont>')),
+    @('root attribute changed',(New-OwnerParams $kmcAppended).Replace('xmlns:xsd="http://www.w3.org/2001/XMLSchema"','')))){
+    Reject ('base-only UMM refuses '+$case[0]) {Assert-KmcNativeUmmStartupDelta $ownerParams $case[1] -BaseGameOnly}
+}
+Reject 'base-only UMM refuses a default KMC append replacing an existing KMC entry hotkey' {Assert-KmcNativeUmmStartupDelta $f.parameters.Replace('<keyCode>None','<keyCode>F10') $reduced -BaseGameOnly}
+
 $stage=Join-Path $f.home 'staging';$backups=Join-Path $f.home 'backups';$state=Join-Path $f.home 'state'
 foreach($dir in @($stage,$backups,$state)){[void][IO.Directory]::CreateDirectory($dir)}
 $packageSource=Join-Path $f.home 'package-source/KingmakerMountedCombat';[void][IO.Directory]::CreateDirectory($packageSource)
@@ -157,19 +212,6 @@ Check 'changed runtime scripts parse without executing a launcher' {
         [void][Management.Automation.Language.Parser]::ParseFile((Join-Path $PSScriptRoot $script),[ref]$tokens,[ref]$parseErrors)
         if(@($parseErrors).Count-ne0){throw ('Parser errors in '+$script+': '+($parseErrors|Out-String))}
     }
-}
-$reduced=$f.parameters.Replace('<Mod Id="ForeignOne" Enabled="true"/>','').Replace('<Mod Id="ForeignTwo" Enabled="false"/>','')
-Check 'base-only UMM admits exact absent-mod removal' {Assert-KmcNativeUmmStartupDelta $f.parameters $reduced -BaseGameOnly}
-Check 'base-only UMM admits unchanged parameters' {Assert-KmcNativeUmmStartupDelta $f.parameters $f.parameters -BaseGameOnly}
-Reject 'historical UMM mode still refuses foreign-entry removal' {Assert-KmcNativeUmmStartupDelta $f.parameters $reduced}
-Reject 'base-only and removal-observer authorities cannot combine' {Assert-KmcNativeUmmStartupDelta $f.parameters $reduced -BaseGameOnly -RemovalObserver}
-foreach($case in @(
-    @('disabled KMC',$reduced.Replace('Enabled="true"','Enabled="false"')),
-    @('other setting changed',$reduced.Replace('<ShowOnStart>1','<ShowOnStart>0')),
-    @('new foreign entry',$reduced.Replace('</ModParams>','<Mod Id="New" Enabled="true"/></ModParams>')),
-    @('partial foreign removal',$f.parameters.Replace('<Mod Id="ForeignOne" Enabled="true"/>','')),
-    @('KMC hotkey changed',$reduced.Replace('<keyCode>None','<keyCode>A')))){
-    Reject ('base-only UMM refuses '+$case[0]) {Assert-KmcNativeUmmStartupDelta $f.parameters $case[1] -BaseGameOnly}
 }
 Check 'all offline fixture original bytes remain exact' {Assert-KmcDirectoryManifestsEqual $before (Get-KmcDirectoryManifest $f.mods) 'final original fixture';Assert-KmcDirectoryManifestsEqual $beforeDependencies (Get-KmcDirectoryManifest (Split-Path $f.loader)) 'final loader fixture'}
 Write-Host ('Base-game isolation: '+$passed+' PASS / '+$failed+' FAIL; evidence '+$testRoot)

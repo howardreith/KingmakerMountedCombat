@@ -77,40 +77,55 @@ namespace KingmakerMountedCombat.Diagnostics
             hooks.Add(new JObject { ["declaringType"] = method.DeclaringType.FullName, ["method"] = method.Name,
                 ["token"] = method.MetadataToken.ToString("X8"), ["moduleMvid"] = method.Module.ModuleVersionId.ToString("D") });
         }
+        // Every hook body runs inside the fault guard: an internal failure is recorded
+        // as an observer fault (and fails qualification by name), never rethrown into
+        // the game's call. Hooks take their arguments by value and return nothing.
+        private readonly Chunk7OwnerSeedObserverFaults faults = new Chunk7OwnerSeedObserverFaults();
+        internal Chunk7OwnerSeedObserverFaults Faults => faults;
         private static void ResolveAfter(string assetId, BlueprintScriptableObject __result)
         {
             var probe = active;
-            if (probe == null || __result != null || string.IsNullOrEmpty(assetId)) return;
-            lock (probe.sync)
+            if (probe == null) return;
+            probe.faults.Run("ResourcesLibrary.TryGetBlueprint", () =>
             {
-                probe.failures++;
-                if (probe.missing.Contains(assetId)) return;
-                if (probe.missing.Count >= Capacity) { probe.dropped++; return; }
-                probe.missing.Add(Bound(assetId, 64));
-            }
+                if (__result != null || string.IsNullOrEmpty(assetId)) return;
+                lock (probe.sync)
+                {
+                    probe.failures++;
+                    if (probe.missing.Contains(assetId)) return;
+                    if (probe.missing.Count >= Capacity) { probe.dropped++; return; }
+                    probe.missing.Add(Bound(assetId, 64));
+                }
+            });
         }
         private static void BindBefore(string assemblyName, string typeName)
         {
             var probe = active; if (probe == null) return;
-            var thread = System.Threading.Thread.CurrentThread.ManagedThreadId;
-            lock (probe.sync)
+            probe.faults.Run("DefaultSerializationBinder.BindToType prefix", () =>
             {
-                if (probe.pendingBinds.TryGetValue(thread, out var prior)) probe.FailedBind(prior);
-                probe.pendingBinds[thread] = Bound(typeName) + ", " + Bound(assemblyName);
-            }
+                var thread = System.Threading.Thread.CurrentThread.ManagedThreadId;
+                lock (probe.sync)
+                {
+                    if (probe.pendingBinds.TryGetValue(thread, out var prior)) probe.FailedBind(prior);
+                    probe.pendingBinds[thread] = Bound(typeName) + ", " + Bound(assemblyName);
+                }
+            });
         }
         private static void BindAfter()
         {
             var probe = active; if (probe == null) return;
-            lock (probe.sync) probe.pendingBinds.Remove(System.Threading.Thread.CurrentThread.ManagedThreadId);
+            probe.faults.Run("DefaultSerializationBinder.BindToType postfix", () =>
+            {
+                lock (probe.sync) probe.pendingBinds.Remove(System.Threading.Thread.CurrentThread.ManagedThreadId);
+            });
         }
         private void FailedBind(string value)
         {
             failedBindCount++;
             if (!failedBinds.Contains(value)) { if (failedBinds.Count < Capacity) failedBinds.Add(value); else dropped++; }
         }
-        private static void LogBefore(Exception ex) => active?.Logged("UberDebug.LogException", ex);
-        private static void ChannelBefore(Exception ex) => active?.Logged("UberDebug.LogExceptionChannel", ex);
+        private static void LogBefore(Exception ex) { var probe = active; if (probe != null) probe.faults.Run("UberDebug.LogException", () => probe.Logged("UberDebug.LogException", ex)); }
+        private static void ChannelBefore(Exception ex) { var probe = active; if (probe != null) probe.faults.Run("UberDebug.LogExceptionChannel", () => probe.Logged("UberDebug.LogExceptionChannel", ex)); }
         private void Logged(string source, Exception ex)
         {
             lock (sync)
@@ -122,7 +137,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (logged.Count >= 64) { dropped++; return; }
                 var chain = new JArray();
                 for (var current = ex; current != null && chain.Count < 8; current = current.InnerException)
-                    chain.Add(new JObject { ["type"] = current.GetType().FullName, ["message"] = Bound(current.Message, 2048) });
+                    chain.Add(new JObject { ["type"] = current.GetType().FullName, ["message"] = Bound(current.Message, 2048),
+                        ["stack"] = Chunk7OwnerSeedFailureClassifier.BoundStack(current.StackTrace) });
                 logged.Add(new JObject { ["source"] = source, ["thread"] = thread, ["pendingBind"] = pending, ["exceptionChain"] = chain });
             }
         }
@@ -131,13 +147,18 @@ namespace KingmakerMountedCombat.Diagnostics
         internal string[] FailedBinds { get { lock (sync) return failedBinds.Concat(pendingBinds.Values.Where(value => !failedBinds.Contains(value))).Take(Capacity).ToArray(); } }
         internal string[] LoggedMessages { get { lock (sync) return logged.SelectMany(row => ((JArray)row["exceptionChain"]).Select(item => (string)item["type"] + ": " + (string)item["message"])).ToArray(); } }
         internal int LoggedCount { get { lock (sync) return loggedCount; } }
+        // Recorded stacks of every logged exception plus every observer fault, for classification.
+        internal string[] ObservedStacks { get { lock (sync) return logged.SelectMany(row => ((JArray)row["exceptionChain"]).Select(item => (string)item["stack"])).Where(value => value != null).Concat(faults.Stacks()).ToArray(); } }
         internal JObject Capture()
         {
+            var observerFaults = new JArray(faults.Snapshot().Select(value => new JObject { ["hook"] = value.Hook, ["exceptionType"] = value.ExceptionType,
+                ["message"] = value.Message, ["stack"] = value.Stack }));
             lock (sync) return new JObject { ["contract"] = "owner-seed-native-load-observation-v1", ["installed"] = installed,
                 ["capacity"] = Capacity, ["blueprintFailureCount"] = failures, ["dropped"] = dropped,
                 ["unresolvedBlueprintIds"] = new JArray(missing.ToArray()), ["failedTypeBindCount"] = failedBindCount + pendingBinds.Count,
                 ["failedTypeBinds"] = new JArray(failedBinds.Concat(pendingBinds.Values.Where(value => !failedBinds.Contains(value))).Take(Capacity).ToArray()),
-                ["loggedExceptionCount"] = loggedCount, ["loggedExceptions"] = logged.DeepClone(), ["hooks"] = hooks.DeepClone() };
+                ["loggedExceptionCount"] = loggedCount, ["loggedExceptions"] = logged.DeepClone(), ["hooks"] = hooks.DeepClone(),
+                ["observerFaultCount"] = faults.Count, ["observerFaults"] = observerFaults };
         }
         public void Dispose()
         {
@@ -272,15 +293,17 @@ namespace KingmakerMountedCombat.Diagnostics
             var failedBinds = resolution.FailedBinds;
             if (failedBinds.Length != 0) failures.Add("The native deserializer could not bind serialized type(s): " + string.Join("; ", failedBinds));
             if (resolution.LoggedCount != 0) failures.Add("The game logged " + resolution.LoggedCount + " exception(s) during the load: " + string.Join(" | ", resolution.LoggedMessages.Take(8)));
+            var observerFault = resolution.Faults.QualificationFailure();
+            if (observerFault != null) failures.Add(observerFault);
             var declared = DeclaredForeignTypes(descriptor, archivePath, game.CurrentlyLoadedArea.AssetGuidThreadSafe);
             unresolved["declaredForeignTypes"] = declared;
             var declaredNames = ((JArray)declared["types"]).Select(row => (string)row["type"]).ToArray();
             if (declared["error"].Type != JTokenType.Null) failures.Add("The copied archive's declared types could not be read: " + (string)declared["error"]);
             if (declaredNames.Length != 0) failures.Add("The seed declares serialized state of types absent from this configuration, so it cannot have loaded (lost content): " +
                 string.Join("; ", ((JArray)declared["types"]).Select(row => (string)row["type"] + " x" + (int)row["count"] + " in " + (string)row["entry"])));
-            unresolved["total"] = (int)unresolved["total"] + failedBinds.Length + resolution.LoggedCount + declaredNames.Length;
+            unresolved["total"] = (int)unresolved["total"] + failedBinds.Length + resolution.LoggedCount + declaredNames.Length + resolution.Faults.Count;
             unresolved["classification"] = Chunk7OwnerSeedFailureClassifier.Classify(declaredNames.Concat(failedBinds), resolution.UnresolvedBlueprints,
-                resolution.LoggedMessages, false);
+                resolution.LoggedMessages.Concat(resolution.Faults.Snapshot().Select(value => value.ExceptionType + ": " + value.Message)), false, resolution.ObservedStacks);
 
             // DLC: the game's own verdicts (DlcRoot.Get 0600977D, DlcData.Enabled 0600C538,
             // DlcData.IsRequiredInSaves 04009276, DlcRoot.ListForSaves 0600977F,

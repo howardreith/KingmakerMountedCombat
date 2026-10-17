@@ -66,11 +66,11 @@ $inventoryMutations=@(@('foreign active mod',{param($v)$v.observations.modEntrie
 foreach($mutation in $inventoryMutations){$changed=Copy-TestValue $inventory;& $mutation[1] $changed;Reject $mutation[0] {Assert-KmcBaseGameNativeInventory $request $changed $dependencies}}
 
 $exact=Copy-TestValue $inventory;$pinned=Copy-TestValue $dependencies
-$harmonyHash='5f7ad0df1eb08e81f66d4006d3a9e5cb40fc05e381f36d7bd0513f334f6a251f';$ummHash='75b96e25a3a9fbadb47dd14a4ab490cb8c98143a6242aff3bba6145cd3047f39'
+$harmonyHash='df043f05c6e43602fa8e8f38f52a3a2cf962aab7a65a9d85573ea25f01a63e80';$ummHash='f6f7e18aff88910b01d23e3ce0829f3b4188c6784b0fcea56f9b3af8aa14d0a9'
 $harmonyRelative='Kingmaker_Data/Managed/UnityModManager/0Harmony.dll';$ummRelative='Kingmaker_Data/Managed/UnityModManager/UnityModManager.dll'
 $pinned.files+=@([pscustomobject]@{relativePath=$harmonyRelative;sha256=$harmonyHash});($pinned.files|Where-Object relativePath -CEQ $ummRelative).sha256=$ummHash
-$umm=$exact.observations.loadedAssemblies|Where-Object name -CEQ 'UnityModManager';$umm.sha256=$ummHash;$umm.fullName='UnityModManager, Version=0.28.2.0, Culture=neutral, PublicKeyToken=null';$umm.mvid='edf4be29-0c88-4482-876d-e946a0f9e363'
-$exact.observations.loadedAssemblies+=@([pscustomobject]@{name='0Harmony';fullName='0Harmony, Version=2.3.1.1, Culture=neutral, PublicKeyToken=null';dynamic=$false;location=(Join-Path $pinned.gameRoot $harmonyRelative);mvid='6c906b4f-1de4-40f3-a86c-b0ebb3f48ea6';sha256=$harmonyHash})
+$umm=$exact.observations.loadedAssemblies|Where-Object name -CEQ 'UnityModManager';$umm.sha256=$ummHash;$umm.fullName='UnityModManager, Version=0.33.2.0, Culture=neutral, PublicKeyToken=null';$umm.mvid='914c93ba-b0bd-409f-9d38-84e575289dc2'
+$exact.observations.loadedAssemblies+=@([pscustomobject]@{name='0Harmony';fullName='0Harmony, Version=2.3.6.0, Culture=neutral, PublicKeyToken=null';dynamic=$false;location=(Join-Path $pinned.gameRoot $harmonyRelative);mvid='4dbb7cd6-acb5-43ef-8d7e-6fc104af5bdc';sha256=$harmonyHash})
 $exact.observations.loadedAssemblies+=@([pscustomobject]@{name='HarmonySharedState';fullName='HarmonySharedState, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null';dynamic=$false;location='';mvid='b2f05641-73ed-4a8d-aa45-8bb46a4b7e2f';sha256=$null})
 ($exact.observations.loadedAssemblies|Where-Object name -CEQ 'KingmakerMountedCombat').location+='.51087.cache'
 Check 'exact pinned Harmony memory identity and UMM candidate cache' {

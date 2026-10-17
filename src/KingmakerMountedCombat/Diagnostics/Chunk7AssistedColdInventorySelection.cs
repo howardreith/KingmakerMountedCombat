@@ -18,8 +18,13 @@ namespace KingmakerMountedCombat.Diagnostics
         // the product admits them generically and never as the producer fixture.
         public const string OwnerSeedCaseName = "owner-seed-readonly-inventory";
         internal bool IsOwnerSeed => Case == OwnerSeedCaseName;
+        // Kingmaker save names legitimately contain spaces (the engine writes them as
+        // underscores only in the file name). Single interior spaces only: no leading,
+        // trailing or repeated space, no tab, newline or other whitespace, at most 64
+        // characters, first character alphanumeric and last a name character.
+        internal const string OwnerSeedNamePattern = "^(?=[\\s\\S]{1,64}\\z)[A-Za-z0-9][A-Za-z0-9_.-]*(?: [A-Za-z0-9_.-]+)*\\z";
         internal static bool IsOwnerSeedName(string value) =>
-            value != null && Regex.IsMatch(value, "^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$") && value != ManualName;
+            value != null && Regex.IsMatch(value, OwnerSeedNamePattern, RegexOptions.CultureInvariant) && value != ManualName;
         internal static bool IsOwnerSeedLeaf(string value) =>
             value != null && Regex.IsMatch(value, "^[A-Za-z0-9][A-Za-z0-9_.-]{0,95}\\.zks$") &&
             !value.EndsWith("_" + ManualName + ".zks", StringComparison.Ordinal);
@@ -125,11 +130,23 @@ namespace KingmakerMountedCombat.Diagnostics
         }
         private static void Add(List<string> list, string value) { if (!string.IsNullOrEmpty(value) && !list.Contains(value) && list.Count < 256) list.Add(value); }
 
+        internal const int StackBound = 4000;
+        internal static string BoundStack(string stack) => stack == null ? null : stack.Length > StackBound ? stack.Substring(0, StackBound) : stack;
+        // A managed frame of the KMC assembly (Mono "  at KingmakerMountedCombat.X.Y (...)",
+        // optionally behind a "(wrapper ...)" marker).
+        private static readonly Regex KmcFrame = new Regex("(?m)^\\s*at\\s+(?:\\(wrapper [^)]{1,64}\\)\\s+)?KingmakerMountedCombat\\.", RegexOptions.CultureInvariant);
+        internal static bool HasKmcFrame(string stack) => !string.IsNullOrEmpty(stack) && KmcFrame.IsMatch(stack);
+
         // declaredForeignTypes: archive-declared types whose assembly is absent;
-        // unresolvedBlueprints: native library misses; messages: exact logged/loader errors.
+        // unresolvedBlueprints: native library misses; messages: exact logged/loader errors;
+        // stacks: the recorded stack traces of the observed exceptions (never the
+        // harness's own assertion). Precedence: a runner/authority refusal decides
+        // first, whatever else was observed; then a KMC stack frame; then names.
         internal static string Classify(IEnumerable<string> declaredForeignTypes, IEnumerable<string> unresolvedBlueprints,
-            IEnumerable<string> messages, bool harnessRefused)
+            IEnumerable<string> messages, bool harnessRefused, IEnumerable<string> stacks = null)
         {
+            if (harnessRefused) return RunnerOrAuthority;
+            if ((stacks ?? new string[0]).Any(HasKmcFrame)) return KmcOrLoader;
             var namedTypes = new List<string>();
             var assemblies = NamedAssemblies(messages, namedTypes);
             foreach (var declared in declaredForeignTypes ?? new string[0])
@@ -143,8 +160,52 @@ namespace KingmakerMountedCombat.Diagnostics
             if (foreign && !kmc) return SeedDependency;
             if ((kmc || loader) && !foreign) return KmcOrLoader;
             if (foreign) return Unclassified;
-            if (harnessRefused) return RunnerOrAuthority;
             return list.Count == 0 ? None : Unclassified;
+        }
+    }
+
+    // Exception-safe observation: an observer body runs inside Run, so a fault in it
+    // is recorded and never escapes into the observed game call. Run has no
+    // return value and touches nothing of the caller, so the original method's
+    // arguments, result and control flow are unchanged. Any recorded fault fails
+    // qualification under the named reason below.
+    internal sealed class Chunk7OwnerSeedObserverFaults
+    {
+        internal const string Reason = "Observer fault";
+        internal const int Capacity = 16;
+        internal sealed class Fault { internal string Hook, ExceptionType, Message, Stack; }
+        private readonly object sync = new object();
+        private readonly List<Fault> faults = new List<Fault>();
+        private int count;
+        internal int Count { get { lock (sync) return count; } }
+        internal Fault[] Snapshot() { lock (sync) return faults.ToArray(); }
+        internal string[] Stacks() { lock (sync) return faults.Select(value => value.Stack).Where(value => value != null).ToArray(); }
+        internal void Run(string hook, Action body)
+        {
+            try { body(); }
+            catch (Exception error) { Record(hook, error); }
+        }
+        internal void Record(string hook, Exception error)
+        {
+            try
+            {
+                lock (sync)
+                {
+                    count++;
+                    if (faults.Count < Capacity)
+                        faults.Add(new Fault { Hook = hook, ExceptionType = error?.GetType().FullName,
+                            Message = error?.Message == null ? null : error.Message.Length > 2048 ? error.Message.Substring(0, 2048) : error.Message,
+                            Stack = Chunk7OwnerSeedFailureClassifier.BoundStack(error?.StackTrace) });
+                }
+            }
+            catch { }
+        }
+        // The named qualification failure, or null when no observer body faulted.
+        internal string QualificationFailure()
+        {
+            lock (sync)
+                return count == 0 ? null : Reason + ": " + count + " observation hook fault(s): " +
+                    string.Join(" | ", faults.Select(value => value.Hook + " " + value.ExceptionType + ": " + value.Message));
         }
     }
 }

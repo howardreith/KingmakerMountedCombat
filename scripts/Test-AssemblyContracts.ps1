@@ -315,9 +315,35 @@ if($Target-eq'Kingmaker'){
     }).Count-ge1) 'ImageConversion.LoadImage exact embedded-texture seam'
     $ummPath=Join-Path $managed 'UnityModManager\UnityModManager.dll'
     $ummAssembly=[Reflection.Assembly]::ReflectionOnlyLoadFrom($ummPath)
-    Assert-Contract ((Get-FileHash -Algorithm SHA256 -LiteralPath $ummPath).Hash.ToLowerInvariant()-ceq'75b96e25a3a9fbadb47dd14a4ab490cb8c98143a6242aff3bba6145cd3047f39') 'UnityModManager SHA-256'
-    Assert-Contract ($ummAssembly.ManifestModule.ModuleVersionId.ToString()-ceq'edf4be29-0c88-4482-876d-e946a0f9e363') 'UnityModManager MVID'
-    Assert-Contract ($ummAssembly.GetName().Version.ToString()-ceq'0.28.2.0') 'UnityModManager exact version'
+    Assert-Contract ((Get-FileHash -Algorithm SHA256 -LiteralPath $ummPath).Hash.ToLowerInvariant()-ceq'f6f7e18aff88910b01d23e3ce0829f3b4188c6784b0fcea56f9b3af8aa14d0a9') 'UnityModManager SHA-256'
+    Assert-Contract ($ummAssembly.ManifestModule.ModuleVersionId.ToString()-ceq'914c93ba-b0bd-409f-9d38-84e575289dc2') 'UnityModManager MVID'
+    Assert-Contract ($ummAssembly.GetName().Version.ToString()-ceq'0.33.2.0') 'UnityModManager exact version'
+    # KMC's compile-time UMM binding surface (Main.cs, Logging/UmmLogger.cs), checked by
+    # declaring type, name and exact signature instead of metadata token: a reinstall that
+    # keeps the API passes even when tokens move, while a removed, retyped or readonly
+    # member still fails. The exact identity above stays a separate pin.
+    function Get-UmmContractTypeShape($Type){if($null-eq$Type){return '<null>'};if($Type.IsGenericType){return $Type.GetGenericTypeDefinition().FullName+'['+((@($Type.GetGenericArguments())|ForEach-Object{Get-UmmContractTypeShape $_})-join',')+']'};return [string]$Type.FullName}
+    $ummModEntryName='UnityModManagerNet.UnityModManager+ModEntry'
+    $ummModEntry=$ummAssembly.GetType($ummModEntryName,$false)
+    foreach($expected in @(
+        @('Info','UnityModManagerNet.UnityModManager+ModInfo',$false),
+        @('Logger','UnityModManagerNet.UnityModManager+ModEntry+ModLogger',$false),
+        @('OnGUI',('System.Action`1['+$ummModEntryName+']'),$true),
+        @('OnSessionStop',('System.Action`1['+$ummModEntryName+']'),$true),
+        @('OnUpdate',('System.Action`2['+$ummModEntryName+',System.Single]'),$true),
+        @('OnUnload',('System.Func`2['+$ummModEntryName+',System.Boolean]'),$true),
+        @('OnToggle',('System.Func`3['+$ummModEntryName+',System.Boolean,System.Boolean]'),$true))){
+        $field=if($null-eq$ummModEntry){$null}else{$ummModEntry.GetField($expected[0],[Reflection.BindingFlags]'Public,Instance,DeclaredOnly')}
+        Assert-Contract ($null-ne$field -and $field.IsPublic -and -not $field.IsStatic -and (Get-UmmContractTypeShape $field.FieldType)-ceq$expected[1] -and (-not $expected[2] -or -not $field.IsInitOnly)) ('UMM API ModEntry.'+$expected[0]+' '+$expected[1]+$(if($expected[2]){' assignable'}else{' readable'}))
+    }
+    $ummModInfo=$ummAssembly.GetType('UnityModManagerNet.UnityModManager+ModInfo',$false)
+    $ummModInfoId=if($null-eq$ummModInfo){$null}else{$ummModInfo.GetField('Id',[Reflection.BindingFlags]'Public,Instance,DeclaredOnly')}
+    Assert-Contract ($null-ne$ummModInfoId -and $ummModInfoId.IsPublic -and -not $ummModInfoId.IsStatic -and $ummModInfoId.FieldType.FullName-ceq'System.String') 'UMM API ModInfo.Id System.String readable'
+    $ummModLogger=$ummAssembly.GetType('UnityModManagerNet.UnityModManager+ModEntry+ModLogger',$false)
+    foreach($expected in @(@('Log','System.String'),@('Warning','System.String'),@('Error','System.String'),@('LogException','System.String,System.Exception'))){
+        $methods=@(if($null-ne$ummModLogger){$ummModLogger.GetMethods([Reflection.BindingFlags]'Public,Instance,DeclaredOnly')|Where-Object{$_.Name-ceq$expected[0] -and ((@($_.GetParameters())|ForEach-Object{$_.ParameterType.FullName})-join',')-ceq$expected[1]}})
+        Assert-Contract ($methods.Count-eq1 -and $methods[0].ReturnType.FullName-ceq'System.Void' -and -not $methods[0].IsGenericMethodDefinition) ('UMM API ModLogger.'+$expected[0]+'('+$expected[1]+') void')
+    }
     foreach($name in @('Kingmaker.UnitLogic.Parts.UnitPartRider','Kingmaker.UnitLogic.Parts.UnitPartSaddled','Kingmaker.Controllers.Units.SaddledUnitController')){Assert-Contract ($null-eq$assembly.GetType($name,$false)) "mounted type absent: $name"}
     $gameVersionType=$assembly.GetType('Kingmaker.GameVersion',$false)
     $gameVersionMethod=if($null-eq$gameVersionType){$null}else{$gameVersionType.GetMethod('GetVersion',[Reflection.BindingFlags]'Public,Static')}
@@ -1293,11 +1319,12 @@ if($Target-eq'Kingmaker'){
     foreach($check in $unityChecks){$type=$unityCore.GetType($check[0],$false);$member=if($null-eq$type){$null}else{@($type.GetMembers([Reflection.BindingFlags]'Public,NonPublic,Instance,Static')|Where-Object MetadataToken -eq $check[1]|Select-Object -First 1)};$matches=$null-ne$member -and @($member).Count-eq1;if($matches){$matches=[string]@($member)[0].Name -ceq [string]$check[2]};Assert-Contract $matches "Unity token $($check[1].ToString('X8')) $($check[0]).$($check[2])"}
     $ummUi=$ummAssembly.GetType('UnityModManagerNet.UnityModManager+UI',$false)
     Assert-Contract ($null-ne$ummUi -and $ummUi.BaseType.FullName-ceq'UnityEngine.MonoBehaviour') 'UMM UI exact MonoBehaviour capture host'
+    # UMM 0.33.2.0 tokens (0.28.2.0 had 060000CA/060000CB/060000E3); the shape checks are unchanged.
     $ummUiChecks=@(
-        @(0x060000CA,'get_Instance'),
-        @(0x060000CB,'get_Opened'),
-        @(0x060000E3,'ToggleWindow'))
-    foreach($check in $ummUiChecks){$member=if($null-eq$ummUi){$null}else{@($ummUi.GetMembers([Reflection.BindingFlags]'Public,NonPublic,Instance,Static')|Where-Object MetadataToken -eq $check[0]|Select-Object -First 1)};$matches=$null-ne$member -and @($member).Count-eq1;if($matches){$matches=[string]@($member)[0].Name-ceq[string]$check[1]};if($matches -and [int]$check[0]-eq 0x060000CA){$matches=@($member)[0].IsPublic -and @($member)[0].IsStatic -and @($member)[0].ReturnType.FullName-ceq'UnityModManagerNet.UnityModManager+UI'};if($matches -and [int]$check[0]-eq 0x060000CB){$matches=@($member)[0].IsPublic -and -not @($member)[0].IsStatic -and @($member)[0].ReturnType.FullName-ceq'System.Boolean'};if($matches -and [int]$check[0]-eq 0x060000E3){$parameters=@(@($member)[0].GetParameters());$matches=@($member)[0].IsPublic -and -not @($member)[0].IsStatic -and @($member)[0].ReturnType.FullName-ceq'System.Void' -and $parameters.Count-eq1 -and $parameters[0].ParameterType.FullName-ceq'System.Boolean'};Assert-Contract $matches "UMM UI token $($check[0].ToString('X8')) $($check[1]) exact screenshot surface"}
+        @(0x06000151,'get_Instance'),
+        @(0x06000152,'get_Opened'),
+        @(0x0600016A,'ToggleWindow'))
+    foreach($check in $ummUiChecks){$member=if($null-eq$ummUi){$null}else{@($ummUi.GetMembers([Reflection.BindingFlags]'Public,NonPublic,Instance,Static')|Where-Object MetadataToken -eq $check[0]|Select-Object -First 1)};$matches=$null-ne$member -and @($member).Count-eq1;if($matches){$matches=[string]@($member)[0].Name-ceq[string]$check[1]};if($matches -and [int]$check[0]-eq 0x06000151){$matches=@($member)[0].IsPublic -and @($member)[0].IsStatic -and @($member)[0].ReturnType.FullName-ceq'UnityModManagerNet.UnityModManager+UI'};if($matches -and [int]$check[0]-eq 0x06000152){$matches=@($member)[0].IsPublic -and -not @($member)[0].IsStatic -and @($member)[0].ReturnType.FullName-ceq'System.Boolean'};if($matches -and [int]$check[0]-eq 0x0600016A){$parameters=@(@($member)[0].GetParameters());$matches=@($member)[0].IsPublic -and -not @($member)[0].IsStatic -and @($member)[0].ReturnType.FullName-ceq'System.Void' -and $parameters.Count-eq1 -and $parameters[0].ParameterType.FullName-ceq'System.Boolean'};Assert-Contract $matches "UMM UI token $($check[0].ToString('X8')) $($check[1]) exact screenshot surface"}
     $monoBehaviour=$unityCore.GetType('UnityEngine.MonoBehaviour',$false)
     $waitForEndOfFrame=$unityCore.GetType('UnityEngine.WaitForEndOfFrame',$false)
     $defaultExecutionOrder=$unityCore.GetType('UnityEngine.DefaultExecutionOrder',$false)

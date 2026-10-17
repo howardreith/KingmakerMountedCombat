@@ -3,12 +3,16 @@ function Test-KmcChunk7AssistedColdInventoryScenario([string]$Scenario){$Scenari
 function Test-KmcChunk7OwnerSeedSelection($Selection){
  $null-ne$Selection-and$Selection.GetType().FullName-ceq'System.Management.Automation.PSCustomObject'-and$null-ne$Selection.PSObject.Properties['case']-and$Selection.case-is[string]-and$Selection.case-ceq'owner-seed-readonly-inventory'
 }
+# Owner-seed internal names may hold single interior spaces (Kingmaker save names; the engine
+# writes underscores only in the file name): no leading, trailing or repeated space, no tab or
+# other whitespace, at most 64 characters. Same rule as Chunk7AssistedColdInventorySelection.IsOwnerSeedName.
+function Get-KmcChunk7OwnerSeedNamePattern {'^(?=[\s\S]{1,64}\z)[A-Za-z0-9][A-Za-z0-9_.-]*(?: [A-Za-z0-9_.-]+)*\z'}
 function Assert-KmcChunk7OwnerSeedEntry($Entry){
  Assert-KmcAssistedObjectValue $Entry @('seedId','sha256','length','internalName','fileName','type','compatibilityVersion','gameId','gameName','area','campaignDlc','dlc','masterPath','intakePath','intakeSha256') 'owner seed registry entry'
  if($Entry.seedId-isnot[string]-or$Entry.seedId-cnotmatch'^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$'){throw 'Owner seed registry identity is malformed.'}
  foreach($key in @('sha256','intakeSha256')){if($Entry.$key-isnot[string]-or$Entry.$key-cnotmatch'^[a-f0-9]{64}$'){throw 'Owner seed registry hash is malformed.'}}
  Assert-KmcOrdinaryInteger $Entry.length 1 268435456;Assert-KmcOrdinaryInteger $Entry.compatibilityVersion 1 1;Assert-KmcBootstrapInventoryString $Entry.type 'Manual'
- if($Entry.internalName-isnot[string]-or$Entry.internalName-cnotmatch'^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$'-or$Entry.internalName-ceq'KMC_C7_ASSISTED_FIXTURE'){throw 'Owner seed registry internal name is malformed or impersonates the producer fixture.'}
+ if($Entry.internalName-isnot[string]-or$Entry.internalName-cnotmatch(Get-KmcChunk7OwnerSeedNamePattern)-or$Entry.internalName-ceq'KMC_C7_ASSISTED_FIXTURE'){throw 'Owner seed registry internal name is malformed or impersonates the producer fixture.'}
  if($Entry.fileName-isnot[string]-or$Entry.fileName-cnotmatch'^[A-Za-z0-9][A-Za-z0-9_.-]{0,95}\.zks$'-or$Entry.fileName.EndsWith('_KMC_C7_ASSISTED_FIXTURE.zks',[StringComparison]::Ordinal)){throw 'Owner seed registry file name is malformed or impersonates the producer fixture.'}
  Assert-KmcOrdinaryGuid $Entry.gameId;Assert-KmcAssistedGuid32 $Entry.area
  if($Entry.gameName-isnot[string]-or[string]::IsNullOrWhiteSpace($Entry.gameName)-or$Entry.gameName.Length-gt256-or$Entry.gameName-match'[\x00-\x1f\x7f]'){throw 'Owner seed registry game name is malformed.'}
@@ -51,7 +55,7 @@ function Assert-KmcChunk7AssistedColdInventoryDescriptor($Request){
  Assert-KmcAssistedObjectValue $d @('internalName','fileName','sha256','length','lastWriteTimeUtcTicks','gameId','gameName','area') 'assisted cold descriptor'
  if(Test-KmcChunk7OwnerSeedSelection $Request.assistedColdInventory){
   # Registry-supplied exact names, admitted generically; never the producer fixture identity.
-  if($d.internalName-isnot[string]-or$d.internalName-cnotmatch'^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$'-or$d.internalName-ceq'KMC_C7_ASSISTED_FIXTURE'){throw 'Owner seed internal name is malformed or impersonates the producer fixture.'}
+  if($d.internalName-isnot[string]-or$d.internalName-cnotmatch(Get-KmcChunk7OwnerSeedNamePattern)-or$d.internalName-ceq'KMC_C7_ASSISTED_FIXTURE'){throw 'Owner seed internal name is malformed or impersonates the producer fixture.'}
   if($d.fileName-isnot[string]-or$d.fileName-cnotmatch'^[A-Za-z0-9][A-Za-z0-9_.-]{0,95}\.zks$'-or$d.fileName.EndsWith('_KMC_C7_ASSISTED_FIXTURE.zks',[StringComparison]::Ordinal)){throw 'Owner seed file name is malformed or impersonates the producer fixture.'}
   Assert-KmcBootstrapInventoryString $d.sha256 $Request.assistedColdInventory.seedSha256
  }else{
@@ -359,10 +363,10 @@ function Assert-KmcChunk7OwnerSeedQualification($Q,$Request,$World,$Entry){
  $u=$Q.unresolvedContent;Assert-KmcAssistedObjectValue $u @('method','blueprintResolution','nullBlueprintFacts','nullBlueprintItems','total','declaredForeignTypes','classification') 'owner seed unresolved content'
  Assert-KmcOrdinaryInteger $u.total 0 0;Assert-KmcAssistedArray $u.nullBlueprintFacts 0 0 'owner seed lost facts';Assert-KmcAssistedArray $u.nullBlueprintItems 0 0 'owner seed lost items'
  Assert-KmcBootstrapInventoryString $u.classification 'none'
- $r=$u.blueprintResolution;Assert-KmcAssistedObjectValue $r @('contract','installed','capacity','blueprintFailureCount','dropped','unresolvedBlueprintIds','failedTypeBindCount','failedTypeBinds','loggedExceptionCount','loggedExceptions','hooks') 'owner seed native load observation'
+ $r=$u.blueprintResolution;Assert-KmcAssistedObjectValue $r @('contract','installed','capacity','blueprintFailureCount','dropped','unresolvedBlueprintIds','failedTypeBindCount','failedTypeBinds','loggedExceptionCount','loggedExceptions','hooks','observerFaultCount','observerFaults') 'owner seed native load observation'
  Assert-KmcBootstrapInventoryString $r.contract 'owner-seed-native-load-observation-v1';Assert-KmcChunk7Boolean $r.installed $true;Assert-KmcOrdinaryInteger $r.capacity 256 256
- foreach($key in @('blueprintFailureCount','dropped','failedTypeBindCount','loggedExceptionCount')){Assert-KmcOrdinaryInteger $r.$key 0 0}
- foreach($key in @('unresolvedBlueprintIds','failedTypeBinds','loggedExceptions')){Assert-KmcAssistedArray $r.$key 0 0 ('owner seed '+$key)}
+ foreach($key in @('blueprintFailureCount','dropped','failedTypeBindCount','loggedExceptionCount','observerFaultCount')){Assert-KmcOrdinaryInteger $r.$key 0 0}
+ foreach($key in @('unresolvedBlueprintIds','failedTypeBinds','loggedExceptions','observerFaults')){Assert-KmcAssistedArray $r.$key 0 0 ('owner seed '+$key)}
  Assert-KmcAssistedArray $r.hooks 4 4 'owner seed load hooks'
  $expected=@(@('Kingmaker.Blueprints.ResourcesLibrary','TryGetBlueprint','06009708','07fa1e4d-8618-41b3-9b8d-faa17d3b26f7'),@('Newtonsoft.Json.Serialization.DefaultSerializationBinder','BindToType','060004C8','4f213745-d60e-425f-b763-df319c826ddf'),@('UberDebug','LogException','06000664','57f03756-55de-42f5-8bb3-e983306082b2'),@('UberDebug','LogExceptionChannel','06000665','57f03756-55de-42f5-8bb3-e983306082b2'))
  for($k=0;$k-lt4;$k++){$h=$r.hooks[$k];Assert-KmcAssistedObjectValue $h @('declaringType','method','token','moduleMvid') 'owner seed load hook';$keys=@('declaringType','method','token','moduleMvid');for($m=0;$m-lt4;$m++){Assert-KmcBootstrapInventoryString $h.($keys[$m]) $expected[$k][$m]}}
