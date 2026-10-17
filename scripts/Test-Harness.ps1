@@ -10299,6 +10299,12 @@ try {
                 [StringComparison]::Ordinal) -lt
                 $combatSource.IndexOf('Cancel("ground command");', [StringComparison]::Ordinal)) `
             'overlay combat-button activation can leak a same-click unit/ground command into the world'
+        $groundAdmission = $combatSource.Substring($combatSource.IndexOf('public bool TryAdmitGroundCommand', [StringComparison]::Ordinal))
+        $groundAdmission = $groundAdmission.Substring(0, $groundAdmission.IndexOf('public void CompleteGroundCommandAdmission', [StringComparison]::Ordinal))
+        Assert-Test ($groundAdmission.Contains('MountedGameModePolicy.CanQueueMountedAction(mode) && !CombatController.IsInTurnBasedCombat()') -and
+            $groundAdmission.IndexOf('CanQueueMountedAction(mode)', [StringComparison]::Ordinal) -lt
+                $groundAdmission.IndexOf('if (!CombatController.IsInTurnBasedCombat())', [StringComparison]::Ordinal)) `
+            'a paused real-time mounted ground order is refused instead of queued like an unmounted one (observed natively in 20261017-c7b-world20-ownerseed-b2s2-twopair)'
         Assert-Test (-not $patchSource.Contains('Renderer.enabled') -and
             -not $patchSource.Contains('GameObject.SetActive') -and
             -not $runtimeSource.Contains('renderer.enabled = true')) `
