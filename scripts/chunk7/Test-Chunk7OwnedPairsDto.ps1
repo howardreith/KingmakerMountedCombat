@@ -57,5 +57,27 @@ $r.ownedPairs|Add-Member -NotePropertyName sourceArea -NotePropertyValue $null
 $actual=[KingmakerMountedCombat.Tests.OwnedPairsDtoTests]::Project(($r|ConvertTo-Json -Depth 90))|ConvertFrom-Json
 if($actual.selection.PSObject.Properties['sourceArea']){throw 'Legacy DTO added a null SourceArea key'};$pass++
 $refused=$false;try{Assert-KmcChunk7OwnedPairsDescriptor $r}catch{$refused=$true};if(-not$refused){throw 'Raw legacy selection accepted an extra null SourceArea key'};$pass++
+# Owner-seed kind: the actual serializer emits exactly its closed key set (xpAssistance
+# present even when null) and never the producer/pet keys; the reader accepts the projection.
+function New-KmcOwnerSeedDtoRequest([bool]$Assisted){
+ $r=($fixtures|Where-Object name -CEQ 'exploration')[0].request|ConvertTo-Json -Depth 90|ConvertFrom-Json;$p=$r.ownedPairs
+ $assist=if($Assisted){[pscustomobject][ordered]@{unitId=$p.riderBId;targetCharacterLevel=8}}else{$null}
+ $r.ownedPairs=[pscustomobject][ordered]@{case='owner-seed-exploration';seedId='KMC_C7_OWNER_SEED';seedSha256=('9'*64);riderAId=$p.riderAId;riderBId=$p.riderBId;partyIds=@($p.riderAId,$p.riderBId,'50505050-5050-4050-8050-505050505050');xpAssistance=$assist;baseGameOnly=$true;expectedNativeLoadCount=1;expectedNativeWriteCount=0}
+ $r.persistenceLoad.internalName='KMC_C7_OWNER_SEED';$r.persistenceLoad.fileName='Manual_302_KMC_C7_OWNER_SEED.zks';$r.persistenceLoad.sha256='9'*64;$r
+}
+foreach($assisted in @($true,$false)){
+ $r=New-KmcOwnerSeedDtoRequest $assisted
+ $actual=[KingmakerMountedCombat.Tests.OwnedPairsDtoTests]::Project(($r|ConvertTo-Json -Depth 90))|ConvertFrom-Json
+ if((ConvertTo-KmcChunk7Canonical $actual.selection)-cne(ConvertTo-KmcChunk7Canonical $r.ownedPairs)){throw ('Owner-seed DTO keys/types differ (assisted='+$assisted+')')};$pass++
+ if($actual.scenario-cne'chunk7-two-pair-exploration'-or$actual.expectedWriteCount-ne0-or$actual.expectedLoadType-cne'Manual'-or$actual.fixtureArea-cne$r.persistenceLoad.area){throw 'Owner-seed DTO selected another runtime scenario, quota or input'};$pass++
+ $r.ownedPairs=$actual.selection;Assert-KmcChunk7OwnedPairsDescriptor $r;$pass++
+}
+foreach($mutation in @('producer-pin-on-seed','seed-pin-on-producer')){
+ if($mutation-ceq'producer-pin-on-seed'){$r=New-KmcOwnerSeedDtoRequest $true;$r.ownedPairs|Add-Member -NotePropertyName sourceRunId -NotePropertyValue 'synthetic-two-owner-manual'}
+ else{$r=($fixtures|Where-Object name -CEQ 'exploration')[0].request|ConvertTo-Json -Depth 90|ConvertFrom-Json;$r.ownedPairs|Add-Member -NotePropertyName seedId -NotePropertyValue 'KMC_C7_OWNER_SEED'}
+ $typed=$false;try{[void][KingmakerMountedCombat.Tests.OwnedPairsDtoTests]::Project(($r|ConvertTo-Json -Depth 90))}catch{$typed=$true}
+ $read=$false;try{Assert-KmcChunk7OwnedPairsDescriptor $r}catch{$read=$true}
+ if(-not$typed-or-not$read){throw ('Owner-seed/producer pin crossing accepted: '+$mutation)};$pass++
+}
 @{passed=$pass;failed=0;nativeInvoked=$false;archiveRead=$false;serializer='exact-installed-Newtonsoft';sourceHashes=@($sources|ForEach-Object{@{path=$_;sha256=(Get-FileHash -LiteralPath $_).Hash.ToLowerInvariant()}})}|ConvertTo-Json -Depth 6|Set-Content -LiteralPath (Join-Path $OutputDirectory 'receipt.json') -Encoding UTF8
 Write-Host ('Owned DTO PASS='+$pass+' FAIL=0')

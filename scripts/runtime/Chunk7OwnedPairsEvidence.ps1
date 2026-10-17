@@ -5,6 +5,7 @@ function Get-KmcChunk7SelectedScenario($Request){
  Assert-KmcChunk7OwnedPairsSelection $Request
  switch -CaseSensitive ($Request.ownedPairs.case){
   'exploration'{'chunk7-two-pair-exploration'}
+  'owner-seed-exploration'{'chunk7-two-pair-exploration'}
   'combat-rider-first'{'chunk7-two-pair-combat-rider-first'}
   'combat-mount-first'{'chunk7-two-pair-combat-mount-first'}
   'realtime-core'{'chunk7-two-pair-realtime-core'}
@@ -24,12 +25,40 @@ function Get-KmcChunk7OwnedLoadCount($Request){
 }
 function Get-KmcChunk7OwnedPairIds($Request){@($Request.ownedPairs.riderAId,$Request.ownedPairs.mountAId,$Request.ownedPairs.riderBId,$Request.ownedPairs.mountBId)}
 function Get-KmcChunk7SelectedFixture($Request){if(Test-KmcChunk7OwnedPairsScenario $Request.scenario){return $Request.persistenceLoad};return $Request.fixture.working}
+# The owner-supplied seed kind of the closed family: seed pins, two selected riders,
+# the full party and the exact rider-B native XP setup; no producer or pet pins.
+function Test-KmcChunk7OwnedPairsOwnerSeed($Request){
+ if($Request-is[Collections.IDictionary]){$Request=[pscustomobject]$Request}
+ if($null-eq$Request-or$null-eq$Request.PSObject.Properties['ownedPairs']){return $false};$s=$Request.ownedPairs
+ if($s-is[Collections.IDictionary]){$s=[pscustomobject]$s}
+ $null-ne$s-and$null-ne$s.PSObject.Properties['case']-and$s.case-is[string]-and$s.case-ceq'owner-seed-exploration'
+}
+function Assert-KmcChunk7OwnerSeedPairsSelection($Request,$Selection,$Checkpoint){
+ $s=$Selection
+ Assert-KmcExactProperties $s @('case','seedId','seedSha256','riderAId','riderBId','partyIds','xpAssistance','baseGameOnly','expectedNativeLoadCount','expectedNativeWriteCount') 'owner-seed two-pair selection'
+ if($Request.runId-isnot[string]-or$Request.runId-cnotmatch'^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$'){throw 'Owner-seed consumer run identity is malformed.'}
+ if($s.seedId-isnot[string]-or$s.seedId-cnotmatch'^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$'-or$s.seedId-ceq$Request.runId){throw 'Owner-seed two-pair exploration requires an exact registered seed identity.'}
+ if($s.seedSha256-isnot[string]-or$s.seedSha256-cnotmatch'^[a-f0-9]{64}$'){throw 'Owner-seed two-pair exploration requires its exact seed SHA256.'}
+ Assert-KmcOrdinaryGuid $s.riderAId;Assert-KmcOrdinaryGuid $s.riderBId
+ if($s.riderAId-ceq$s.riderBId){throw 'Owner-seed rider A and rider B must be distinct actors.'}
+ if($s.partyIds-isnot[Array]-or$s.partyIds.Count-lt2-or$s.partyIds.Count-gt6){throw 'Owner-seed full party must be bounded.'}
+ $party=[Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal);foreach($id in $s.partyIds){Assert-KmcOrdinaryGuid $id;if(-not$party.Add($id)){throw 'Owner-seed party repeats an actor.'}}
+ foreach($id in @($s.riderAId,$s.riderBId)){if(-not$party.Contains($id)){throw 'Owner-seed riders must be members of the selected party.'}}
+ if($null-ne$s.xpAssistance){
+  Assert-KmcExactProperties $s.xpAssistance @('unitId','targetCharacterLevel') 'owner-seed XP assistance'
+  if($s.xpAssistance.unitId-isnot[string]-or$s.xpAssistance.unitId-cne$s.riderBId){throw 'Owner-seed XP assistance may target only rider B.'}
+  Assert-KmcOrdinaryInteger $s.xpAssistance.targetCharacterLevel 2 8
+ }
+ if($null-ne$Checkpoint){throw 'Owner-seed exploration cannot select a persistence checkpoint.'}
+ Assert-KmcChunk7Boolean $s.baseGameOnly $true;Assert-KmcOrdinaryInteger $s.expectedNativeLoadCount 1 1;Assert-KmcOrdinaryInteger $s.expectedNativeWriteCount 0 0
+}
 function Assert-KmcChunk7OwnedPairsSelection($Request){
  if($Request-is[Collections.IDictionary]){$Request=[pscustomobject]$Request}
  $has=$null-ne$Request.PSObject.Properties['ownedPairs']
  if(-not(Test-KmcChunk7OwnedPairsScenario $Request.scenario)){if($has){throw 'Inherited two-owner selection is forbidden under another family.'};return}
  if(-not$has){throw 'Inherited two-owner campaign requires its explicit selection.'};$s=$Request.ownedPairs
  $checkpoint=$null;if($null-ne$Request.PSObject.Properties['persistenceCase']){$checkpoint=$Request.persistenceCase}
+ if(Test-KmcChunk7OwnedPairsOwnerSeed $Request){Assert-KmcChunk7OwnerSeedPairsSelection $Request $s $checkpoint;return}
  $area=$checkpoint-is[string]-and$checkpoint-ceq'multi-area-autosave'
  $fields=@('case','sourceRunId','sourceArtifactSha256','sourceArchiveSha256','checkpointSourceRunId','checkpointSourceArtifactSha256','riderAId','mountAId','riderBId','mountBId','partyIds','baseGameOnly','expectedNativeLoadCount','expectedNativeWriteCount');if($area){$fields+='sourceArea'}
  Assert-KmcExactProperties $s $fields 'inherited native pair selection'
@@ -53,6 +82,15 @@ function Assert-KmcChunk7OwnedPairsDescriptor($Request){
  Assert-KmcChunk7OwnedPairsSelection $Request
  if(-not(Test-KmcChunk7OwnedPairsScenario $Request.scenario)){throw 'Inherited descriptor belongs to the exact separate family.'}
  $d=$Request.persistenceLoad;Assert-KmcExactProperties $d @('internalName','fileName','sha256','length','lastWriteTimeUtcTicks','gameId','gameName','area') 'inherited native descriptor'
+ if(Test-KmcChunk7OwnedPairsOwnerSeed $Request){
+  # Registry-supplied exact names, admitted generically as the cold owner-seed kind does.
+  if($d.internalName-isnot[string]-or$d.internalName-cnotmatch'^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$'-or$d.internalName-ceq'KMC_C7_ASSISTED_FIXTURE'){throw 'Owner seed internal name is malformed or impersonates the producer fixture.'}
+  if($d.fileName-isnot[string]-or$d.fileName-cnotmatch'^[A-Za-z0-9][A-Za-z0-9_.-]{0,95}\.zks$'-or$d.fileName.EndsWith('_KMC_C7_ASSISTED_FIXTURE.zks',[StringComparison]::Ordinal)){throw 'Owner seed file name is malformed or impersonates the producer fixture.'}
+  if($d.sha256-isnot[string]-or$d.sha256-cnotmatch'^[a-f0-9]{64}$'){throw 'Owner seed archive hash is malformed.'};Assert-KmcBootstrapInventoryString $d.sha256 $Request.ownedPairs.seedSha256
+  Assert-KmcOrdinaryGuid $d.gameId
+  if($d.gameName-isnot[string]-or[string]::IsNullOrWhiteSpace($d.gameName)-or$d.gameName.Length-gt256-or$d.gameName-match'[\x00-\x1f\x7f]'-or$d.area-isnot[string]-or$d.area-cnotmatch'^[a-f0-9]{32}$'-or$d.gameId-ceq$Request.fixture.working.gameId-or$d.sha256-ceq$Request.fixture.working.sha256-or$d.sha256-ceq$Request.fixture.baseline.sha256){throw 'Owner seed campaign must remain distinct from protected Working/Baseline.'}
+  Assert-KmcOrdinaryInteger $d.length 1 268435456;Assert-KmcOrdinaryInteger $d.lastWriteTimeUtcTicks 1 ([DateTime]::MaxValue.Ticks);return
+ }
  $cold=$Request.ownedPairs.case-ceq'persistence-load';$type=if($cold){Get-KmcChunk7PersistenceType $Request.persistenceCase}else{'Manual'}
  if($d.sha256-isnot[string]-or$d.sha256-cnotmatch'^[a-f0-9]{64}$'){throw 'Inherited archive hash is malformed.'};if(-not$cold){Assert-KmcBootstrapInventoryString $d.sha256 $Request.ownedPairs.sourceArchiveSha256}
  if($type-ceq'Manual'){
@@ -169,4 +207,97 @@ function Assert-KmcChunk7OwnedOutputEvidence($Request,$Observations){
  Assert-KmcBootstrapInventoryString $Observations.nativeWrite.nativeType $type
  Assert-KmcBootstrapInventoryString $Observations.nativeWrite.nativeName $name
  if($area){Assert-KmcChunk7OwnedAreaSaveIdentity $Request $Observations}
+}
+
+# Owner-seed two-pair exploration evidence. The setup disclosure, every assistance
+# item, the SETUP-COMPLETE boundary and the fixture-setup (not acquisition) outcome
+# per rider are required exactly; returns the observed roles riderA, mountA, riderB, mountB.
+function Get-KmcChunk7OwnerSeedDisclosure {'Fixture setup on a disposable run copy of an owner-supplied seed: each Horse was created by the native ordinary Ranger level-up (Hunter''s Bond -> Ranger companion -> KMC Horse) and rider B received only the exact native XP its Ranger 4 eligibility requires. This is not acquisition proof; nothing is saved.'}
+function Assert-KmcChunk7OwnerSeedWorldSetup($Request,$Observations){
+ Assert-KmcChunk7OwnedPairsDescriptor $Request
+ if(-not(Test-KmcChunk7OwnedPairsOwnerSeed $Request)){throw 'Owner-seed setup evidence belongs only to the owner-seed exploration kind.'}
+ $s=$Request.ownedPairs;$o=$Observations
+ foreach($key in @('inheritedFixture','inheritedCleanup','acquisition','failurePhase')){if($null-ne$o.PSObject.Properties[$key]){throw ('Owner-seed evidence cannot carry '+$key+'.')}}
+ $seed=$o.ownerSeed;Assert-KmcExactProperties $seed @('contract','seedId','seedSha256','riderAId','riderBId','nativeLoadVerifiedByHost','fixtureSetupOnly','acquisitionProof') 'owner-seed identity'
+ foreach($pair in @(@('contract','owner-seed-two-pair-exploration-v1'),@('seedId',$s.seedId),@('seedSha256',$s.seedSha256),@('riderAId',$s.riderAId),@('riderBId',$s.riderBId))){Assert-KmcBootstrapInventoryString $seed.($pair[0]) $pair[1]}
+ Assert-KmcChunk7Boolean $seed.nativeLoadVerifiedByHost $true;Assert-KmcChunk7Boolean $seed.fixtureSetupOnly $true;Assert-KmcChunk7Boolean $seed.acquisitionProof $false
+ $c=$o.capability;Assert-KmcExactProperties $c @('archiveNativeEnabled','nativeWriterSchema','nativePairCapacity','workingSha256','inheritedManualSha256','ownerSeedSha256') 'owner-seed capability'
+ Assert-KmcChunk7Boolean $c.archiveNativeEnabled $true;Assert-KmcChunk7WorldCounters $c @('nativeWriterSchema','nativePairCapacity')
+ if($c.nativeWriterSchema-ne3-or$c.nativePairCapacity-lt2-or$null-ne$c.workingSha256-or$null-ne$c.inheritedManualSha256){throw 'Owner-seed capability differs or claims Working/inherited provenance.'}
+ Assert-KmcBootstrapInventoryString $c.ownerSeedSha256 $s.seedSha256
+ $u=$o.ownerSeedSetup
+ Assert-KmcExactProperties $u @('contract','disclosure','seedId','seedSha256','fixtureSetupOnly','acquisitionProof','producerAncestry','loadedArchiveKind','loadedArchiveCanRestore','riderFacts','nativeLevelUpAutosave','riders','events','admissionRefusals','eventCount','eventsTruncated','riderBExperience','assistance') 'owner-seed fixture setup disclosure'
+ Assert-KmcBootstrapInventoryString $u.contract 'owner-seed-fixture-setup-v1';Assert-KmcBootstrapInventoryString $u.disclosure (Get-KmcChunk7OwnerSeedDisclosure)
+ Assert-KmcBootstrapInventoryString $u.seedId $s.seedId;Assert-KmcBootstrapInventoryString $u.seedSha256 $s.seedSha256;Assert-KmcBootstrapInventoryString $u.loadedArchiveKind 'Missing'
+ Assert-KmcChunk7Boolean $u.fixtureSetupOnly $true;foreach($key in @('acquisitionProof','producerAncestry','loadedArchiveCanRestore','eventsTruncated')){Assert-KmcChunk7Boolean $u.$key $false}
+ if($u.admissionRefusals-isnot[Array]-or$u.admissionRefusals.Count-ne0){throw 'Owner-seed setup recorded an admission refusal.'}
+ $a=$u.nativeLevelUpAutosave;Assert-KmcExactProperties $a @('autosaveEnabled','onlyOneSave','settingsWritten') 'native level-up autosave observation'
+ foreach($key in @('autosaveEnabled','onlyOneSave','settingsWritten')){Assert-KmcChunk7Boolean $a.$key $false}
+ if($u.events-isnot[Array]-or$u.events.Count-lt2-or$u.events.Count-gt768){throw 'Owner-seed native build events are missing or unbounded.'};Assert-KmcOrdinaryInteger $u.eventCount $u.events.Count $u.events.Count
+ if($u.riderFacts-isnot[Array]-or$u.riderFacts.Count-ne2-or$u.riders-isnot[Array]-or$u.riders.Count-ne2){throw 'Owner-seed setup must disclose exactly two riders.'}
+ $party=@($s.partyIds);$horses=@();$roles=@()
+ for($i=0;$i-lt2;$i++){
+  $role=@('A','B')[$i];$id=if($i-eq0){$s.riderAId}else{$s.riderBId};$f=$u.riderFacts[$i];$r=$u.riders[$i]
+  Assert-KmcExactProperties $f @('role','riderId','size','originalSize','polymorphed','controllable','petless','characterLevel','rangerLevel','experience','readyLevel','eligibleWithoutAssistance','minimalTargetLevel') 'owner-seed rider facts'
+  Assert-KmcBootstrapInventoryString $f.role $role;Assert-KmcBootstrapInventoryString $f.riderId $id;Assert-KmcBootstrapInventoryString $f.size 'Medium';Assert-KmcBootstrapInventoryString $f.originalSize 'Medium'
+  Assert-KmcChunk7Boolean $f.polymorphed $false;Assert-KmcChunk7Boolean $f.controllable $true;Assert-KmcChunk7Boolean $f.petless $true
+  foreach($key in @('characterLevel','rangerLevel','experience','readyLevel','minimalTargetLevel')){Assert-KmcOrdinaryInteger $f.$key 0 1000000000}
+  if($f.eligibleWithoutAssistance-isnot[bool]-or$f.eligibleWithoutAssistance-ne(($f.rangerLevel+$f.readyLevel-$f.characterLevel)-ge4)-or$f.minimalTargetLevel-ne($f.characterLevel+4-$f.rangerLevel)){throw 'Owner-seed eligibility arithmetic differs from the ordinary driver rule.'}
+  if($i-eq0-and-not$f.eligibleWithoutAssistance){throw 'Rider A received setup without its own native eligibility.'}
+  Assert-KmcExactProperties $r @('role','riderId','before','after','nativeCommits','nativeChoices','nativeAutoLevelupOverrides','horseId','horseBlueprint','horseMasterId','horseFeatureSourceGuid','presentation','acquisitionProof','profileId','rigValidated') 'owner-seed rider setup outcome'
+  Assert-KmcBootstrapInventoryString $r.role $role;Assert-KmcBootstrapInventoryString $r.riderId $id;Assert-KmcBootstrapInventoryString $r.horseMasterId $id
+  Assert-KmcBootstrapInventoryString $r.horseBlueprint '4016c7db400ab721ff125aef9e65e202';Assert-KmcBootstrapInventoryString $r.profileId 'medium-humanoid-horse-v1'
+  Assert-KmcBootstrapInventoryString $r.presentation 'fixture-setup';Assert-KmcChunk7Boolean $r.acquisitionProof $false;Assert-KmcChunk7Boolean $r.rigValidated $true
+  Assert-KmcOrdinaryGuid $r.horseId;if($r.horseId-cin$party-or$r.horseId-cin$horses){throw 'Owner-seed setup Horse aliases a party actor or the other Horse.'};$horses+=$r.horseId
+  if($r.horseFeatureSourceGuid-isnot[string]-or$r.horseFeatureSourceGuid-cnotmatch'^[a-f0-9]{32}$'){throw 'Owner-seed Horse feature lacks its native progression source.'}
+  Assert-KmcOrdinaryInteger $r.nativeCommits 1 20;Assert-KmcOrdinaryInteger $r.nativeChoices 1 512;Assert-KmcOrdinaryInteger $r.nativeAutoLevelupOverrides 0 20
+  foreach($state in @($r.before,$r.after)){Assert-KmcExactProperties $state @('characterLevel','experience','rangerLevel','classes') 'owner-seed rider progression';foreach($key in @('characterLevel','experience','rangerLevel')){Assert-KmcOrdinaryInteger $state.$key 0 1000000000}}
+  if($r.after.rangerLevel-lt4-or$r.after.characterLevel-ne($r.before.characterLevel+$r.nativeCommits)-or$r.before.characterLevel-ne$f.characterLevel){throw 'Owner-seed rider did not reach Ranger 4 through exactly its native commits.'}
+  $roles+=@($id,$r.horseId)
+ }
+ $x=$u.riderBExperience;$assist=$s.xpAssistance
+ if($null-eq$assist){
+  Assert-KmcExactProperties $x @('assisted','experience') 'rider B unassisted experience';Assert-KmcChunk7Boolean $x.assisted $false
+  if(-not$u.riderFacts[1].eligibleWithoutAssistance){throw 'Rider B needed assistance that was not selected.'}
+ }else{
+  Assert-KmcExactProperties $x @('assisted','targetCharacterLevel','before','after','delta','threshold','characterLevelBefore','characterLevelAfter','levelReadyAfter','readyLevelAfter') 'rider B native XP assistance'
+  Assert-KmcChunk7Boolean $x.assisted $true;Assert-KmcChunk7Boolean $x.levelReadyAfter $true
+  foreach($key in @('before','after','delta','threshold','characterLevelBefore','characterLevelAfter','readyLevelAfter')){Assert-KmcOrdinaryInteger $x.$key 0 1000000000}
+  if($u.riderFacts[1].eligibleWithoutAssistance-or$x.targetCharacterLevel-ne$assist.targetCharacterLevel-or$assist.targetCharacterLevel-ne$u.riderFacts[1].minimalTargetLevel-or
+     $x.delta-le0-or$x.after-ne($x.before+$x.delta)-or$x.after-ne$x.threshold-or$x.characterLevelAfter-ne$x.characterLevelBefore-or$x.readyLevelAfter-ne$assist.targetCharacterLevel-or
+     $x.before-ne$u.riderFacts[1].experience-or$u.riders[1].before.experience-ne$x.after){throw 'Rider B XP assistance exceeds or differs from the exact minimal eligibility it requires.'}
+ }
+ $items=@($u.assistance);$expected=if($null-eq$assist){@('native-ordinary-ranger-levels','native-ordinary-ranger-levels')}else{@('native-ordinary-ranger-levels','native-xp','native-ordinary-ranger-levels')}
+ if($u.assistance-isnot[Array]-or$items.Count-ne$expected.Count){throw 'Owner-seed assistance disclosure is incomplete or contains an undeclared setup item.'}
+ $units=if($null-eq$assist){@($s.riderAId,$s.riderBId)}else{@($s.riderAId,$s.riderBId,$s.riderBId)}
+ for($i=0;$i-lt$items.Count;$i++){
+  $v=$items[$i];Assert-KmcExactProperties $v @('unitId','kind','nativeApi','before','after','amount','detail') 'owner-seed assistance item'
+  Assert-KmcBootstrapInventoryString $v.kind $expected[$i];Assert-KmcBootstrapInventoryString $v.unitId $units[$i]
+  if($v.nativeApi-isnot[string]-or[string]::IsNullOrWhiteSpace($v.nativeApi)-or$v.detail-isnot[string]){throw 'Owner-seed assistance must name its native API.'}
+  foreach($key in @('before','after','amount')){Assert-KmcOrdinaryInteger $v.$key 0 1000000000}
+  if($v.kind-ceq'native-xp'){if($v.nativeApi-cne'Kingmaker.UnitLogic.UnitProgressionData.GainExperience(int, log: false)'-or$v.before-ne$x.before-or$v.after-ne$x.after-or$v.amount-ne$x.delta){throw 'Owner-seed XP assistance item differs from its observation.'}}
+  else{$row=$u.riders[$(if($i-eq0){0}else{1})];if($v.before-ne$row.before.characterLevel-or$v.after-ne$row.after.characterLevel-or$v.amount-ne$row.nativeCommits){throw 'Owner-seed build assistance item differs from its rider outcome.'}}
+ }
+ $b=$o.setupComplete;Assert-KmcExactProperties $b @('boundary','frame','gameTicks','assistanceCount','setupSeconds','measuredClockRestarted','state') 'SETUP-COMPLETE boundary'
+ Assert-KmcBootstrapInventoryString $b.boundary 'SETUP-COMPLETE';Assert-KmcOrdinaryInteger $b.frame 0 ([int]::MaxValue);Assert-KmcOrdinaryInteger $b.gameTicks 0 ([long]::MaxValue);Assert-KmcOrdinaryInteger $b.assistanceCount $items.Count $items.Count
+ Assert-KmcChunk7Boolean $b.measuredClockRestarted $true;if(-not(Test-KmcChunk7FiniteNumber $b.setupSeconds)-or$b.setupSeconds-lt0){throw 'Owner-seed setup duration is not a finite observation.'}
+ if($b.state-eq$null-or$b.state.pairs-isnot[Array]-or$b.state.pairs.Count-ne2){throw 'SETUP-COMPLETE lacks its captured setup state.'}
+ for($i=0;$i-lt2;$i++){$p=$b.state.pairs[$i];if($p.riderId-cne$roles[$i*2]-or$p.petId-cne$roles[$i*2+1]-or$p.petMasterId-cne$roles[$i*2]){throw 'SETUP-COMPLETE state differs from the disclosed setup pairs.'}}
+ Assert-KmcChunk7ExactIds @($o.partyBefore) $party
+ foreach($id in @($s.riderAId,$s.riderBId)){$row=@($o.partyBefore|Where-Object id -CEQ $id);if($row.Count-ne1-or$null-ne$row[0].petId){throw 'Owner-seed rider was not petless before setup.'}}
+ Assert-KmcChunk7ExactIds @($o.partyWithHorse) @($party+$horses)
+ for($i=0;$i-lt2;$i++){$rider=@($o.partyWithHorse|Where-Object id -CEQ $roles[$i*2]);$horse=@($o.partyWithHorse|Where-Object id -CEQ $roles[$i*2+1]);if($rider.Count-ne1-or$horse.Count-ne1-or$rider[0].petId-cne$horse[0].id-or$horse[0].masterId-cne$rider[0].id-or$horse[0].blueprint-cne'4016c7db400ab721ff125aef9e65e202'){throw 'Owner-seed setup Horse reciprocity differs.'}}
+ return ,@($roles)
+}
+function Assert-KmcChunk7DoorNotApplicable($Door){
+ Assert-KmcExactProperties $Door @('applicable','reason','candidatesScanned','radius') 'not-applicable native door'
+ Assert-KmcChunk7Boolean $Door.applicable $false
+ if($Door.reason-isnot[string]-or[string]::IsNullOrWhiteSpace($Door.reason)-or$Door.reason.Length-gt512){throw 'Not-applicable door lacks its observed reason.'}
+ Assert-KmcOrdinaryInteger $Door.candidatesScanned 0 100000
+ if(-not(Test-KmcChunk7FiniteNumber $Door.radius)-or[double]$Door.radius-ne28.0){throw 'Not-applicable door scan radius differs from the exact probe radius.'}
+}
+function Assert-KmcChunk7OwnerSeedCleanup($Cleanup){
+ foreach($field in @('pairResidueAbsent','controlsSettled','settingsAndSelectionRestored','nativeProcessesSettled','cleanupCustodySettled','setupCompleted','ownerSeedSetupPetsPreserved','setupStateUnchangedAfterBoundary','setupRetainedInMemoryOnly')){Assert-KmcChunk7Boolean $Cleanup.$field $true}
+ foreach($field in @('horseRemoved','inheritedPetsPreserved','nativeProgressionRequiresExternalWorkingRestoration','nativeSaveWritten','ordinaryRespecProven')){Assert-KmcChunk7Boolean $Cleanup.$field $false}
+ Assert-KmcOrdinaryInteger $Cleanup.setupMutationsAfterBoundary 0 0
 }
