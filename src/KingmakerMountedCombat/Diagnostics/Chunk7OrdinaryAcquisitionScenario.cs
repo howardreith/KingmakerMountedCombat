@@ -260,7 +260,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 completion != null && ReferenceEquals(completion.Requested, probe.ObservedRequestedSave) && ReferenceEquals(completion.Written, save) &&
                 completion.Sequence == completedSavesBefore + 1 &&
                 completion.Path == Path.Combine(expectedRoot, Chunk7OrdinaryAcquisitionSelection.AutoLeaf) &&
-                save.FileName == Chunk7OrdinaryAcquisitionSelection.AutoLeaf && save.Type == SaveInfo.SaveType.Auto && save.IsAutoLevelupSave &&
+                save.FileName == Chunk7OrdinaryAcquisitionSelection.AutoLeaf && save.Type == SaveInfo.SaveType.Auto && probe.ObservedRequestedSave.IsAutoLevelupSave && !save.IsAutoLevelupSave &&
                 save.GameId == request.Fixture.Working.GameId && save.GameName == request.Fixture.Working.GameName &&
                 save.Area.AssetGuidThreadSafe == request.Fixture.Working.Area && controls.NativeCastRequestCount == castsBefore,
                 "Native terminal autosave lacks exact causal, authority, completion or descriptor proof.");

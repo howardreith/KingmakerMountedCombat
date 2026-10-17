@@ -325,7 +325,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 receipt != null && ReferenceEquals(receipt.Requested, completion.ObservedRequestedSave) && ReferenceEquals(receipt.Written, save) &&
                 receipt.Sequence == completedBefore + 1 &&
                 receipt.Path == Path.Combine(expectedRoot, Chunk7OrdinaryAcquisitionSelection.AutoLeaf) &&
-                save.FileName == Chunk7OrdinaryAcquisitionSelection.AutoLeaf && save.Type == SaveInfo.SaveType.Auto && save.IsAutoLevelupSave &&
+                save.FileName == Chunk7OrdinaryAcquisitionSelection.AutoLeaf && save.Type == SaveInfo.SaveType.Auto && completion.ObservedRequestedSave.IsAutoLevelupSave && !save.IsAutoLevelupSave &&
                 save.GameId == source.GameId && save.GameName == source.GameName && save.Area.AssetGuidThreadSafe == source.Area &&
                 world.NativeControls.NativeCastRequestCount == castsBefore,
                 "Progression autosave lacks exact actual native completion, write count, authority or descriptor proof.");

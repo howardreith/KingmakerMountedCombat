@@ -52,7 +52,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var save=ordinaryProbe.ObservedSave;var completion=persistence.LastCompletedSave;
             Require(ordinaryProbe.Complete&&ReferenceEquals(ordinaryProbe.ObservedRequestedSave,initialAuto)&&completion!=null&&completion.Sequence==2&&
                 ReferenceEquals(completion.Requested,initialAuto)&&ReferenceEquals(completion.Written,save)&&!ReferenceEquals(save,initialAuto)&&
-                save.Type==SaveInfo.SaveType.Auto&&save.IsAutoLevelupSave&&save.FileName==Chunk7AssistedFixtureSelection.InitialAutoLeaf&&
+                save.Type==SaveInfo.SaveType.Auto&&ordinaryProbe.ObservedRequestedSave.IsAutoLevelupSave&&!save.IsAutoLevelupSave&&save.FileName==Chunk7AssistedFixtureSelection.InitialAutoLeaf&&
                 save.FolderName==Path.Combine(authority.Root,save.FileName)&&completion.Path==save.FolderName&&save.IsActuallySaved&&save.HasFileOnDisk&&
                 ReferenceEquals(save.Area,preset.Area)&&save.GameId==campaignId&&save.GameName==campaignName&&
                 authority.AdmittedNativeWriteRequests==2&&authorization.AuthorizedWriteCount==2&&persistence.SnapshotCount==2&&persistence.CompletedSaveCount==2,

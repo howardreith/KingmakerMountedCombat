@@ -214,7 +214,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var save = probe.ObservedSave; var completion = persistence.LastCompletedSave; var input = request.PersistenceLoad;
             var leaf = Path.Combine(fixtureAuthority.Root, PersistenceSaveAuthorization.OwnerSeedAutoLeaf);
             Require(probe.Complete && completion != null && completion.Sequence == sequence && ReferenceEquals(completion.Requested, probe.ObservedRequestedSave) &&
-                ReferenceEquals(completion.Written, save) && save.Type == SaveInfo.SaveType.Auto && save.IsAutoLevelupSave &&
+                ReferenceEquals(completion.Written, save) && save.Type == SaveInfo.SaveType.Auto && probe.ObservedRequestedSave.IsAutoLevelupSave && !save.IsAutoLevelupSave &&
                 save.FileName == PersistenceSaveAuthorization.OwnerSeedAutoLeaf && save.FolderName == leaf && completion.Path == leaf &&
                 save.IsActuallySaved && save.HasFileOnDisk && save.GameId == input.GameId && save.GameName == input.GameName &&
                 save.Area?.AssetGuidThreadSafe == input.Area && fixtureAuthority.AdmittedNativeWriteRequests == sequence &&
@@ -228,7 +228,7 @@ namespace KingmakerMountedCombat.Diagnostics
             string sha; using (var hash = System.Security.Cryptography.SHA256.Create()) using (var stream = File.OpenRead(file.FullName))
                 sha = BitConverter.ToString(hash.ComputeHash(stream)).Replace("-", "").ToLowerInvariant();
             setupAutosaves.Add(new JObject { ["sequence"] = sequence, ["riderId"] = rider.UniqueId, ["case"] = "autosave-on", ["phase"] = "setup-levelup-auto",
-                ["type"] = save.Type.ToString(), ["autoLevelup"] = save.IsAutoLevelupSave, ["internalName"] = save.Name, ["fileName"] = save.FileName,
+                ["type"] = save.Type.ToString(), ["autoLevelup"] = probe.ObservedRequestedSave.IsAutoLevelupSave, ["internalName"] = save.Name, ["fileName"] = save.FileName,
                 ["preparedLeaf"] = index == 0 ? PersistenceSaveAuthorization.OwnerSeedAutoLeaf : PersistenceSaveAuthorization.OwnerSeedStagingLeaf,
                 ["path"] = file.FullName, ["insideRunRoot"] = true, ["length"] = file.Length, ["sha256"] = sha, ["lastWriteTimeUtcTicks"] = file.LastWriteTimeUtc.Ticks,
                 ["completionSequence"] = completion.Sequence, ["requestedObject"] = NativeOrdinaryAcquisitionProbe.Id(completion.Requested),

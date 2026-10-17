@@ -145,7 +145,9 @@ namespace KingmakerMountedCombat.Diagnostics
                         p.requestedSave != null && p.requestedSave.Type == SaveInfo.SaveType.Auto &&
                         p.requestedSave.IsAutoLevelupSave && p.requestedSave.Name == p.requestedName &&
                         save != null && !ReferenceEquals(save, p.requestedSave) && save.Name == p.requestedName &&
-                        save.Type == SaveInfo.SaveType.Auto && save.FileName == p.preparedLeaf && save.IsAutoLevelupSave,
+                        // SaveManager.SaveRoutine writes a fresh copy carrying only Type and Name,
+                        // so the level-up flag stays on the requested save.
+                        save.Type == SaveInfo.SaveType.Auto && save.FileName == p.preparedLeaf && !save.IsAutoLevelupSave,
                         "Native prepared autosave changed request/copy, world, order, category or leaf.");
                     p.observedSave = save; row["accepted"] = true;
                 });
