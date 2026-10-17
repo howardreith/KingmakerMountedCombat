@@ -89,7 +89,7 @@ function Assert-KmcMatchedPoolEvidence($Request,$Artifact,$WorldArtifact,[string
     if($o.residentBoundaries-ne2-or$o.residentParticipants-ne2-or$o.warmupNativeCycle-ne1-or$o.measuredNativeCycle-ne2-or$o.additionalNativeInputs-ne0-or$null-ne$o.abortedWindow-or
         $o.rows-isnot[Array]-or$o.rows.Count-ne4-or$o.limits-isnot[string]-or[string]::IsNullOrWhiteSpace($o.limits)){throw 'Matched-pool sequence or evidence limits differ.'}
     if($world.cycles-isnot[Array]-or$world.cycles.Count-ne6-or$world.cycleInputs-isnot[Array]-or$world.cycleInputs.Count-ne12){throw 'Matched observation changed the original native cycle/input counts.'}
-    if(Test-KmcChunk7OwnedPairsOwnerSeed $Request){$actorIds=@(Assert-KmcChunk7OwnerSeedWorldSetup $Request $world)}
+    if(Test-KmcChunk7OwnedPairsOwnerSeed $Request){$actorIds=[string[]](Assert-KmcChunk7OwnerSeedWorldSetup $Request $world)}
     elseif(Test-KmcChunk7OwnedPairsScenario $Request.scenario){Assert-KmcChunk7InheritedEvidence $Request $world;$actorIds=@(Get-KmcChunk7OwnedPairIds $Request)}else{
     $actorIds=@('b6628a77-4962-47a4-a17c-88d9836fc9d5','d79a4f6c-b74e-4868-95bd-533899131acb','d17c8fd0-6627-40c4-bf9a-024cf001c1f7')
     $horse=@($world.partyWithHorse|Where-Object { $_.masterId-ceq$actorIds[2] })
@@ -145,7 +145,7 @@ function Assert-KmcMatchedPoolEvidence($Request,$Artifact,$WorldArtifact,[string
                 if($pinned.Count-ne1-or$owner.ownerId-cne$pinned[0].ownerId-or$owner.mountId-cne$pinned[0].mountId-or$owner.generation-ne$pinned[0].generation){throw 'Matched owner/generation differs from its real native cycle.'}
             }
             $expectedRiders=@();if($active[$i]-ge1){$expectedRiders+=$actorIds[0]};if($active[$i]-eq2){$expectedRiders+=$actorIds[2]}
-            Assert-KmcChunk7ExactIds $w.owners $expectedRiders 'riderId'
+            Assert-KmcChunk7ExactIds $w.owners $expectedRiders 'riderId' -GuidValue
         }
         Assert-KmcChunk7WorldInt32 $anchors[$i].frame
         if((Get-KmcMatchedSubscriptions $anchors[$i].subscriptions)-cne$subscriptions){throw 'Matched subscribers differ from the actual native lifecycle anchor.'}
