@@ -41,7 +41,9 @@ class WorldAdapter{
  // Owner-seed cleanup boundary: the actual partial owns builder drain and setup-state checks.
  OwnerSeedGuard ownerSeed;bool OwnerSeed=>ownerSeed!=null;
  bool OwnerSeedCleanupReady(){ownerSeed.ReadyCalls++;return ownerSeed.Ready;}bool OwnerSeedOwnershipPreserved()=>ownerSeed.Preserved;
- void AddOwnerSeedCleanup(JObject c){ownerSeed.Added++;c["setupCompleted"]=true;}IEnumerable<Actor> OwnerSeedRoster(){ownerSeed.Rosters++;return new Actor[0];}
+ void AddOwnerSeedCleanup(JObject c){ownerSeed.Added++;c["setupCompleted"]=true;}
+ // The actual interrupted-drain path must label an owner-seed failure (the partial owns the label).
+ int setupFailureMarks;void MarkOwnerSeedSetupFailure(){setupFailureMarks++;}IEnumerable<Actor> OwnerSeedRoster(){ownerSeed.Rosters++;return new Actor[0];}
  // Actual ground-input settlement is exercised by WorldGroundInputAdapterTemplate.
  // This boundary lets the existing full cleanup adapter test its ownership fence.
  bool groundInputSettled=true;
@@ -56,6 +58,7 @@ class WorldAdapter{
  Settings settings=new Settings();JObject evidence=new JObject();List<string> errors=new List<string>();Dictionary<string,int> cleanupAttempts=new Dictionary<string,int>();const string EvidenceFileName="fixture",EvidenceKind="fixture";
  public WorldAdapter(){secondRider.Descriptor.Pet=secondMount;Game.Instance.State.Units.Add(secondMount);firstRider.Descriptor.Pet=firstMount;firstMount.Descriptor.Master.Value=firstRider;var horse=horseFeature;secondRider.Descriptor.Progression.Features.OnRemove=f=>{if(ReferenceEquals(f,horse)){secondMount.IsInState=false;Game.Instance.State.Units.Remove(secondMount);secondRider.Descriptor.Pet=null;}};foreach(var actor in new[]{firstRider,firstMount,secondRider,secondMount})if(!Game.Instance.State.Units.Contains(actor))Game.Instance.State.Units.Add(actor);nativeScope=new Chunk7NativeWorldScope(new RuntimeRequest(),new[]{firstRider,firstMount,secondRider,secondMount});}
  static int Id(object x){return System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(x);}static void Require(bool c,string e){if(!c)throw new Exception(e);}void Fail(string n,string e){errors.Add(e);}void Pass(string n){}object CaptureWorld(string x){return null;}IEnumerable<Actor> PartyActors(){return new Actor[0];}object CaptureRig(Actor a){return null;}
+ static void VerifyInterruptedLabel(){Game.Instance=new Game();LoadingProcess.Instance=new LoadingProcess();NativePersistenceIsolation.HasPendingWrites=false;var e=new WorldAdapter();((UnitUseAbility)e.issuedCommands[0]).ExecutionProcess.IsEnded=true;e.DrainForHost();Check(e.setupFailureMarks==1,"host interrupt before the terminal result asks the owner-seed partial to label its phase");}
  static void VerifyOwnerSeedCleanup(){
   Game.Instance=new Game();LoadingProcess.Instance=new LoadingProcess();NativePersistenceIsolation.HasPendingWrites=false;var e=new WorldAdapter();((UnitUseAbility)e.issuedCommands[0]).ExecutionProcess.IsEnded=true;var guard=new OwnerSeedGuard();e.ownerSeed=guard;
   e.BeginCleanup();Check(!e.DrainForHost()&&!e.completed&&guard.ReadyCalls>=1&&guard.Added==0&&e.secondRider.Descriptor.Progression.Features.Removed.Count==0,"owner-seed cleanup retains custody while its build session or setup state is unsettled");
@@ -162,7 +165,7 @@ __METHODS__
  features.Failing=null;var lease=e.mode;lease.Fail=true;Check(!e.DrainForHost()&&features.Removed.Count==2&&e.mode!=null&&!e.completed,"failed native mode lease remains owned after entity cleanup");
  lease.Fail=false;Check(e.DrainForHost()&&e.completed&&e.cleanupProven&&e.mode==null&&e.ummLease==null,"retry proves physical cleanup without discarding earlier failures");
  Check(e.errors.Count>=3,"physical settlement preserves original failed evidence");e.Dispose();Check(e.disposed,"actual Dispose releases only proven completed custody");var count=features.Removed.Count;e.Dispose();Check(features.Removed.Count==count,"repeated Dispose does not replay fact removal");
- VerifyWorldScope();VerifyInheritedCleanup();VerifyOwnerSeedCleanup();
+ VerifyWorldScope();VerifyInheritedCleanup();VerifyOwnerSeedCleanup();VerifyInterruptedLabel();
  VerifyDoorCustody();
  VerifyQuietCustody();
  VerifyMatchedCustody();

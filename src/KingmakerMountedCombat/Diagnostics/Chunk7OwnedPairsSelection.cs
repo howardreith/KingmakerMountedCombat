@@ -182,6 +182,9 @@ namespace KingmakerMountedCombat.Diagnostics
         // Chunk7OrdinaryBuildDriver: rangerLevel + readyLevel(xp) - characterLevel >= 4.
         internal static bool EligibleWithoutAssistance(Chunk7OwnerSeedRiderFacts rider) =>
             rider.RangerLevel + rider.ReadyLevel - rider.CharacterLevel >= RequiredRangerLevel;
+        // The ordinary build levels to the XP-ready level: Ranger must land on exactly 4.
+        internal static bool ExactlyRangerFour(Chunk7OwnerSeedRiderFacts rider) =>
+            rider.RangerLevel + rider.ReadyLevel - rider.CharacterLevel == RequiredRangerLevel;
         internal static int MinimalTargetLevel(Chunk7OwnerSeedRiderFacts rider) =>
             rider.CharacterLevel + RequiredRangerLevel - rider.RangerLevel;
         internal static IReadOnlyList<string> RiderErrors(Chunk7OwnerSeedRiderFacts rider, string role)
@@ -221,12 +224,15 @@ namespace KingmakerMountedCombat.Diagnostics
             if (riderA.Id != selection.RiderAId || riderB.Id != selection.RiderBId) errors.Add("Observed riders differ from the selected rider roles.");
             if (!EligibleWithoutAssistance(riderA))
                 errors.Add("Rider A is not eligible for Ranger 4 / Hunter's Bond from its own native XP; no assistance is authorized for rider A.");
+            else if (!ExactlyRangerFour(riderA)) errors.Add("Rider A's native XP would carry it beyond Ranger 4; extra levels are refused.");
             var assistance = selection.XpAssistance;
             if (EligibleWithoutAssistance(riderB))
             {
                 if (assistance != null) errors.Add("Rider B is already eligible; XP assistance beyond what eligibility requires is refused.");
+                else if (!ExactlyRangerFour(riderB)) errors.Add("Rider B's native XP would carry it beyond Ranger 4; extra levels are refused.");
                 return errors;
             }
+            if (riderB.ReadyLevel != riderB.CharacterLevel) errors.Add("Assisted rider B must start inside its current level's XP band (no pending level).");
             var minimal = MinimalTargetLevel(riderB);
             if (assistance == null) errors.Add("Rider B needs native XP to character level " + minimal + " but no assistance was selected.");
             else if (assistance.UnitId != riderB.Id) errors.Add("XP assistance names an actor other than rider B.");

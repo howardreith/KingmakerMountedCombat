@@ -896,7 +896,7 @@ namespace KingmakerMountedCombat.Diagnostics
             if (disposed) return true;
             if (!cleanupStarted)
             {
-                Fail("C7-world-interrupted", "World scenario interrupted before its bounded terminal result.");
+                MarkOwnerSeedSetupFailure(); Fail("C7-world-interrupted", "World scenario interrupted before its bounded terminal result.");
                 BeginCleanup();
             }
             if (!completed) PollCleanup();
