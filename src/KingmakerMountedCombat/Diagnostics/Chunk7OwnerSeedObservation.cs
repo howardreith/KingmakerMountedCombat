@@ -323,7 +323,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var declared = DeclaredForeignTypes(descriptor, archivePath, game.CurrentlyLoadedArea.AssetGuidThreadSafe);
             unresolved["declaredForeignTypes"] = declared;
             var declaredNames = ((JArray)declared["types"]).Select(row => (string)row["type"]).ToArray();
-            if (declared["error"].Type != JTokenType.Null) Failed(Chunk7OwnerSeedAssertions.DeclaredTypeScan, "The copied archive's declared types could not be read: " + (string)declared["error"]);
+            if (Chunk7OwnerSeedScan.Failed(declared)) Failed(Chunk7OwnerSeedAssertions.DeclaredTypeScan, "The copied archive's declared types could not be read: " + (string)declared["error"]);
             if (declaredNames.Length != 0) Failed(Chunk7OwnerSeedAssertions.SeedLostContent, "The seed declares serialized state of types absent from this configuration, so it cannot have loaded (lost content): " +
                 string.Join("; ", ((JArray)declared["types"]).Select(row => (string)row["type"] + " x" + (int)row["count"] + " in " + (string)row["entry"])));
             unresolved["total"] = (int)unresolved["total"] + failedBinds.Length + resolution.LoggedCount + declaredNames.Length + resolution.Faults.Count;
