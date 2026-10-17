@@ -43,6 +43,9 @@ namespace KingmakerMountedCombat.Diagnostics
         private readonly List<RuntimeSubscenarioResult> results = new List<RuntimeSubscenarioResult>();
         private NativeArchiveRestorationProbe restoration;
         private Chunk7BootstrapInventoryProbe probe;
+        private Chunk7OwnerSeedLoadProbe resolution;
+        private string seedRecordSha256;
+        private string[] seedDlc;
         private string sourcePath, archivePath, expectedMainId;
         private long sourceLength, sourceTicks, archiveLength, archiveTicks, expectedNativeMoney;
         private JObject sourceWorld, sourceReadiness;
@@ -87,17 +90,26 @@ namespace KingmakerMountedCombat.Diagnostics
                 menuPlayer?.MainCharacter.Value == null && Game.NewGameUnit == null && !Busy() &&
                 (DialogMessageBox.Instance == null || !DialogMessageBox.Instance.IsShown),
                 "Cold inventory must own the exact idle empty menu before load.");
-            RequireNoOwners(); RequireNoEffects(); ReadSource();
+            RequireNoOwners(); RequireNoEffects();
+            if (selection.IsOwnerSeed) ReadOwnerSeedSource(); else ReadSource();
             probe = new Chunk7BootstrapInventoryProbe(game); probe.Install();
             restoration = new NativeArchiveRestorationProbe(persistence); restoration.Install();
+            if (selection.IsOwnerSeed) { resolution = new Chunk7OwnerSeedLoadProbe(); resolution.Install(); }
             evidence["processId"] = Process.GetCurrentProcess().Id;
             evidence["selection"] = Chunk7EvidenceDto.Request(selection);
-            evidence["source"] = new JObject { ["runId"] = selection.SourceRunId, ["artifactSha256"] = selection.SourceArtifactSha256,
-                ["archiveSha256"] = selection.SourceArchiveSha256, ["archiveLeaf"] = request.PersistenceLoad.FileName,
-                ["sameCandidate"] = true, ["assistedSetupOnly"] = true, ["copiedArtifactPath"] = sourcePath, ["diagnosticArchiveContentRead"] = false };
-            evidence["sourceNativeWorld"] = sourceWorld.DeepClone();
-            evidence["sourceFixtureReadiness"] = sourceReadiness.DeepClone();
-            evidence["sourceNativeMoney"] = expectedNativeMoney;
+            if (selection.IsOwnerSeed)
+                evidence["seedSource"] = new JObject { ["seedId"] = selection.SeedId, ["seedSha256"] = selection.SeedSha256,
+                    ["recordSha256"] = seedRecordSha256, ["copiedRecordPath"] = sourcePath, ["archiveLeaf"] = request.PersistenceLoad.FileName,
+                    ["registeredDlc"] = new JArray(seedDlc), ["ownerAuthorized"] = true, ["producerAncestry"] = false, ["diagnosticArchiveContentRead"] = true };
+            else
+            {
+                evidence["source"] = new JObject { ["runId"] = selection.SourceRunId, ["artifactSha256"] = selection.SourceArtifactSha256,
+                    ["archiveSha256"] = selection.SourceArchiveSha256, ["archiveLeaf"] = request.PersistenceLoad.FileName,
+                    ["sameCandidate"] = true, ["assistedSetupOnly"] = true, ["copiedArtifactPath"] = sourcePath, ["diagnosticArchiveContentRead"] = false };
+                evidence["sourceNativeWorld"] = sourceWorld.DeepClone();
+                evidence["sourceFixtureReadiness"] = sourceReadiness.DeepClone();
+                evidence["sourceNativeMoney"] = expectedNativeMoney;
+            }
             evidence["beforeLoad"] = new JObject { ["frame"] = UnityEngine.Time.frameCount, ["game"] = probe.Identity(game),
                 ["saveManager"] = probe.Identity(manager), ["menuPlayer"] = probe.Identity(menuPlayer),
                 ["loadedAreaPresent"] = false, ["nativeLoading"] = false, ["authority"] = AuthoritySnapshot() };
@@ -125,6 +137,10 @@ namespace KingmakerMountedCombat.Diagnostics
                     probe != null && probe.Complete && ReferenceEquals(probe.ObservedPlayer, game.Player),
                     "Exact native cold load and Player.PostLoad did not complete.");
                 var saved = request.PersistenceLoad;
+                // An owner seed has no producer roster: bind the loaded main actor once,
+                // only when it carries the registered header name; later frames must keep it.
+                if (selection.IsOwnerSeed && expectedMainId == null && game.Player?.MainCharacter.Value?.CharacterName == saved.GameName)
+                    expectedMainId = game.Player.MainCharacter.Value.UniqueId;
                 Require(game.Player != null && game.State?.LoadedAreaState?.MainState != null &&
                     game.CurrentlyLoadedArea?.AssetGuidThreadSafe == saved.Area && game.Player.GameId == saved.GameId &&
                     game.Player.MainCharacter.Value?.CharacterName == saved.GameName &&
@@ -134,14 +150,18 @@ namespace KingmakerMountedCombat.Diagnostics
                 Require(!game.Player.IsInCombat, "Read-only authored inventory does not admit combat.");
                 var candidateActors = Chunk7NativeFieldRoster.Capture(game.Player);
                 Require(candidateActors.Length > 0 && candidateActors.Length <= 12, "Assisted cold field exceeds its twelve-actor bound.");
-                var expected = (JArray)sourceWorld["party"];
-                Require(candidateActors.Length == expected.Count && candidateActors.Select(actor => actor.UniqueId).Distinct(StringComparer.Ordinal).Count() == candidateActors.Length,
+                var expected = selection.IsOwnerSeed ? null : (JArray)sourceWorld["party"];
+                Require((expected == null || candidateActors.Length == expected.Count) && candidateActors.Select(actor => actor.UniqueId).Distinct(StringComparer.Ordinal).Count() == candidateActors.Length,
                     "Cold native party differs from its exact source roster.");
                 foreach (var actor in candidateActors)
                 {
-                    var matches = expected.Where(row => (string)row["id"] == actor.UniqueId).ToArray();
-                    Require(matches.Length == 1 && actor.Blueprint?.AssetGuid == (string)matches[0]["blueprint"],
-                        "Cold native actor or blueprint was substituted.");
+                    if (expected != null)
+                    {
+                        var matches = expected.Where(row => (string)row["id"] == actor.UniqueId).ToArray();
+                        Require(matches.Length == 1 && actor.Blueprint?.AssetGuid == (string)matches[0]["blueprint"],
+                            "Cold native actor or blueprint was substituted.");
+                    }
+                    else Require(actor.Blueprint?.AssetGuid != null, "Owner-seed native actor has no resolved blueprint.");
                     if (!actor.IsInState || !actor.IsInGame || actor.View?.AgentASP == null) return;
                     Require(actor.Descriptor.State.IsConscious && !actor.Descriptor.State.IsDead && !actor.IsInCombat &&
                         actor.Commands != null && actor.Commands.Empty && actor.Commands.Queue != null && actor.Commands.Queue.Count == 0,
@@ -149,7 +169,10 @@ namespace KingmakerMountedCombat.Diagnostics
                 }
                 RequireNoOwners(); RequireNoEffects();
                 var data = persistence.LoadedArchive;
-                Require(data != null && data.SchemaVersion == 3 && data.CampaignId == saved.GameId && data.AreaId == saved.Area &&
+                if (selection.IsOwnerSeed)
+                    Require(data == null && persistence.LoadedArchiveKind == MountedSaveReadKind.Missing && !persistence.LoadedArchiveCanRestore,
+                        "Owner seed did not take the supported missing-KMC-metadata path.");
+                else Require(data != null && data.SchemaVersion == 3 && data.CampaignId == saved.GameId && data.AreaId == saved.Area &&
                     data.Pairs.Length == 0 && data.Participations.Length == 0 && data.Slots.Length == 0 && data.Combat == null,
                     "Cold source is not the qualified empty mounted archive.");
                 var trace = restoration.Capture();
@@ -163,19 +186,65 @@ namespace KingmakerMountedCombat.Diagnostics
                 Require(characters.Length > 0 && characters.Length <= 6 && remote.Length <= 32 && remote.All(value => value != null) &&
                     remote.Select(value => value.UniqueId).Distinct(StringComparer.Ordinal).Count() == remote.Length && remote.All(value => !actors.Contains(value)),
                     "Assisted cold native character/remote roster is malformed, overlapping or unbounded.");
-                RequireSourceRoster(); loadedSemantics = CaptureSemantics();
+                if (!selection.IsOwnerSeed) RequireSourceRoster();
+                loadedSemantics = CaptureSemantics();
                 loadDescriptor = loader.Descriptor; admitted = true; RequireWorld(); VerifySourceBytes();
                 evidence["loadedWorld"] = Snapshot();
                 evidence["loader"] = CaptureLoader();
                 evidence["nativeProfileInventory"] = Chunk7NativeProfileInventory.Capture(actors);
                 Require((string)evidence["nativeProfileInventory"]["captureStatus"] == "PASS", "Native read-only body/readiness inventory failed.");
                 evidence["fixtureReadiness"] = CaptureFixtureReadiness();
-                evidence["archive"] = new JObject { ["schemaVersion"] = data.SchemaVersion, ["campaignId"] = data.CampaignId, ["areaId"] = data.AreaId,
+                if (selection.IsOwnerSeed)
+                {
+                    // Observe and record; qualify only on what this load actually showed.
+                    var qualification = Chunk7OwnerSeedObservation.Capture(game, actors, characters, loader.Descriptor, seedDlc, resolution, persistence, Busy(), archivePath);
+                    evidence["ownerSeedQualification"] = qualification;
+                    evidence["kmcMetadata"] = qualification["kmcMetadata"].DeepClone();
+                    RequireWorld();
+                    Require((bool)qualification["qualified"], "Owner seed qualification failed: " +
+                        string.Join(" | ", ((JArray)qualification["failures"]).Select(value => (string)value)));
+                }
+                else evidence["archive"] = new JObject { ["schemaVersion"] = data.SchemaVersion, ["campaignId"] = data.CampaignId, ["areaId"] = data.AreaId,
                     ["pairs"] = data.Pairs.Length, ["participations"] = data.Participations.Length, ["slots"] = data.Slots.Length,
                     ["combatPresent"] = data.Combat != null, ["nativeRestorationGrantedByDiagnostic"] = false };
                 Pass("C7-assisted-cold-native-load"); Pass("C7-assisted-cold-readonly"); BeginCleanup();
             }
-            catch (Exception error) { Fail("C7-assisted-cold-runtime", error.ToString()); BeginCleanup(); }
+            catch (Exception error) { RecordOwnerSeedFailure(error); Fail("C7-assisted-cold-runtime", error.ToString()); BeginCleanup(); }
+        }
+        // A failed or refused owner-seed load stays classifiable from the exact
+        // observed error; the normal cleanup, restoration and settlement still run.
+        private void RecordOwnerSeedFailure(Exception error)
+        {
+            if (!selection.IsOwnerSeed || evidence["ownerSeedLoadFailure"] != null) return;
+            try
+            {
+                var trace = resolution?.Capture();
+                var qualified = evidence["ownerSeedQualification"] != null;
+                var messages = new List<string>();
+                if (!qualified) messages.Add(error.GetType().FullName + ": " + error.Message);
+                messages.AddRange(loader.Errors);
+                if (loader.State == WorkingFixtureLoadState.Failed) messages.Add("WorkingFixtureLoader state Failed.");
+                if (persistence.NativeLoadFailure != null) messages.Add(persistence.NativeLoadFailure);
+                if (resolution != null) messages.AddRange(resolution.LoggedMessages);
+                var harnessRefused = authorization.UnauthorizedLoadCount != 0 || authorization.UnauthorizedWriteCount != 0 ||
+                    authorization.FatalViolationCount != 0 || error.Message.IndexOf("authority", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                    error.Message.IndexOf("source", StringComparison.OrdinalIgnoreCase) >= 0 && error.Message.IndexOf("bytes", StringComparison.OrdinalIgnoreCase) >= 0;
+                var declared = loader.Descriptor != null && File.Exists(archivePath ?? "") ? Chunk7OwnerSeedObservation.DeclaredForeignTypes(loader.Descriptor, archivePath, request.PersistenceLoad.Area) : null;
+                var declaredNames = declared == null ? new string[0] : ((JArray)declared["types"]).Select(row => (string)row["type"]).ToArray();
+                evidence["ownerSeedLoadFailure"] = new JObject {
+                    ["exceptionType"] = error.GetType().FullName, ["message"] = error.Message.Length > 4096 ? error.Message.Substring(0, 4096) : error.Message,
+                    ["loaderState"] = loader.State.ToString(), ["loaderErrors"] = new JArray(loader.Errors), ["loaderCallbackObserved"] = loader.LoadCallbackObserved,
+                    ["postLoadEntered"] = probe != null && (int)probe.Capture()["entries"] > 0, ["postLoadComplete"] = probe != null && probe.Complete,
+                    ["nativeLoadFailureCount"] = persistence.NativeLoadFailureCount, ["nativeLoadFailure"] = persistence.NativeLoadFailure,
+                    ["loadObservation"] = trace, ["declaredForeignTypes"] = declared, ["harnessRefused"] = harnessRefused,
+                    ["qualificationRecorded"] = qualified,
+                    ["classification"] = qualified
+                        ? evidence["ownerSeedQualification"]["unresolvedContent"]["classification"].DeepClone()
+                        : Chunk7OwnerSeedFailureClassifier.Classify(declaredNames.Concat(resolution?.FailedBinds ?? new string[0]),
+                            resolution?.UnresolvedBlueprints ?? new string[0], messages, harnessRefused) };
+            }
+            catch (Exception capture) { evidence["ownerSeedLoadFailure"] = new JObject { ["exceptionType"] = error.GetType().FullName, ["message"] = error.Message,
+                ["captureError"] = capture.GetType().FullName + ": " + capture.Message, ["classification"] = Chunk7OwnerSeedFailureClassifier.Unclassified }; }
         }
         private JObject CaptureFixtureReadiness()
         {
@@ -349,8 +418,35 @@ namespace KingmakerMountedCombat.Diagnostics
             var source = new FileInfo(sourcePath); var archive = new FileInfo(archivePath);
             Require(source.Exists && (source.Attributes & FileAttributes.ReparsePoint) == 0 && source.Length == sourceLength && source.LastWriteTimeUtc.Ticks == sourceTicks &&
                 archive.Exists && (archive.Attributes & FileAttributes.ReparsePoint) == 0 && archive.Length == archiveLength && archive.LastWriteTimeUtc.Ticks == archiveTicks &&
-                Hash(sourcePath) == selection.SourceArtifactSha256 && Hash(archivePath) == selection.SourceArchiveSha256,
+                Hash(sourcePath) == (selection.IsOwnerSeed ? seedRecordSha256 : selection.SourceArtifactSha256) &&
+                Hash(archivePath) == (selection.IsOwnerSeed ? selection.SeedSha256 : selection.SourceArchiveSha256),
                 "Read-only bootstrap source changed during native observation.");
+        }
+        // The harness writes an honest seed-source record (registry entry plus intake
+        // reference) beside the profile; there is no producer artifact for an owner seed.
+        private void ReadOwnerSeedSource()
+        {
+            sourcePath = Path.Combine(Path.GetDirectoryName(root), Chunk7AssistedColdInventorySelection.SourceLeaf);
+            archivePath = Path.Combine(root, request.PersistenceLoad.FileName);
+            var source = new FileInfo(sourcePath); var archive = new FileInfo(archivePath); var saved = request.PersistenceLoad;
+            Require(source.Exists && source.Length > 0 && source.Length <= 64 * 1024 && (source.Attributes & FileAttributes.ReparsePoint) == 0 &&
+                archive.Exists && archive.Length == saved.Length && archive.LastWriteTimeUtc.Ticks == saved.LastWriteTimeUtcTicks && (archive.Attributes & FileAttributes.ReparsePoint) == 0 &&
+                Hash(archivePath) == selection.SeedSha256, "Exact staged owner-seed record/archive bytes differ.");
+            seedRecordSha256 = Hash(sourcePath);
+            sourceLength = source.Length; sourceTicks = source.LastWriteTimeUtc.Ticks; archiveLength = archive.Length; archiveTicks = archive.LastWriteTimeUtc.Ticks; sourcePinned = true;
+            var record = JObject.Parse(File.ReadAllText(sourcePath)); var entry = record["registryEntry"] as JObject;
+            Require((string)record["kind"] == "kmc-owner-seed-source" && record["schemaVersion"]?.Type == JTokenType.Integer && (int)record["schemaVersion"] == 1 &&
+                (string)record["seedId"] == selection.SeedId && record["producerAncestry"]?.Type == JTokenType.Boolean && !(bool)record["producerAncestry"] &&
+                entry != null && (string)entry["seedId"] == selection.SeedId && (string)entry["sha256"] == selection.SeedSha256 &&
+                entry["length"]?.Type == JTokenType.Integer && (long)entry["length"] == saved.Length &&
+                (string)entry["internalName"] == saved.InternalName && (string)entry["fileName"] == saved.FileName && (string)entry["type"] == "Manual" &&
+                (string)entry["gameId"] == saved.GameId && (string)entry["gameName"] == saved.GameName && (string)entry["area"] == saved.Area &&
+                entry["compatibilityVersion"]?.Type == JTokenType.Integer && (int)entry["compatibilityVersion"] == 1 &&
+                entry["dlc"] is JArray dlc && dlc.Count <= 8 && dlc.All(value => value.Type == JTokenType.String),
+                "Staged owner-seed record differs from its registered seed identity.");
+            seedDlc = ((JArray)entry["dlc"]).Select(value => (string)value).ToArray();
+            Require(seedDlc.Distinct(StringComparer.Ordinal).Count() == seedDlc.Length, "Owner-seed registered DLC list repeats.");
+            VerifySourceBytes();
         }
         private void RequireAuthority(bool cleanupOnly)
         {
@@ -444,6 +540,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 // unpatch keeps its field and prevents completion/host release.
                 Exception failure = null;
                 try { restoration?.Dispose(); } catch (Exception error) { failure = error; Fail("C7-assisted-cold-cleanup", error.ToString()); }
+                try { resolution?.Dispose(); } catch (Exception error) { failure = failure ?? error; Fail("C7-assisted-cold-cleanup", error.ToString()); }
                 try { probe?.Dispose(); } catch (Exception error) { failure = failure ?? error; Fail("C7-assisted-cold-cleanup", error.ToString()); }
                 if (failure != null) throw new InvalidOperationException("Cold observer cleanup remains retained.", failure);
                 Require(probe == null || probe.IdentityReleased, "Cold observer native labels remain retained.");

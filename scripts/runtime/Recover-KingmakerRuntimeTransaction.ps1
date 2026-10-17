@@ -106,6 +106,10 @@ try{
         if((Get-KmcSaveMetadataInventory $saveRoot).digest-cne$beforeSaves.digest){
             throw 'Protected save metadata changed during legacy no-save recovery.'
         }
+        # Recorded unexpected runtime writes keep the recovery unclean (the lock is
+        # abandoned for review); the quarantine retains them byte-exact.
+        $unexpected=@();if($null-ne$restored.PSObject.Properties['unexpectedRuntimeWrites']){$unexpected=@($restored.unexpectedRuntimeWrites|Where-Object{$null-ne$_})}
+        if($unexpected.Count-ne0){throw "Recovery restored the pre-run Mods snapshot but recorded $($unexpected.Count) unexpected runtime write(s), preserved in '$($restored.runtimeQuarantine)'; re-apply any newer external deployment."}
         Close-KmcRuntimeLock $lock
         $lock=$null
         Write-Host "PASS recovered legacy no-save transaction $($raw.runId); live Mods digest=$($restored.digest)"

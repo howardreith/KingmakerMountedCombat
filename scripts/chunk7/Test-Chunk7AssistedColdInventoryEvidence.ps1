@@ -159,6 +159,62 @@ Check 'matching singleton fixture main progression is refused' $false {param($f)
 Check 'matching singleton source final Manual is refused' $false {param($f)$s=$f.source.observations;$s.finalManual=@($s.finalManual);Verify $f}
 Check 'matching singleton source selection is refused' $false {param($f)$s=$f.source.observations;$s.selection=@($s.selection);Verify $f}
 Check 'matching singleton successful observations is refused' $false {param($f)$f.artifact.observations=@($f.artifact.observations);Verify $f}
+# Owner-seed PASS branch. The emitted actual capture is re-shaped into the
+# owner-seed contract (no producer artifact; seed record + observed qualification).
+function ConvertTo-SeedFixture($f){
+ $r=$f.request;$o=$f.artifact.observations
+ $leaf='Manual_302_KMC_C7_OWNER_SEED.zks';$name='KMC_C7_OWNER_SEED'
+ $r.persistenceLoad.internalName=$name;$r.persistenceLoad.fileName=$leaf
+ $r.assistedColdInventory=[pscustomobject]@{case='owner-seed-readonly-inventory';baseGameOnly=$true;expectedNativeLoadCount=1;expectedNativeWriteCount=0;seedId=$name;seedSha256=$r.persistenceLoad.sha256}
+ foreach($row in @($o.loader,$o.settledLoader)){$row.fileName=$leaf;$row.internalName=$name;$row.path=Join-Path $f.root $leaf}
+ $o.fixtureReadiness.isolatedSaveDescriptors.descriptors[0].fileName=$leaf;$o.fixtureReadiness.isolatedSaveDescriptors.descriptors[0].internalName=$name
+ foreach($key in @('source','sourceNativeWorld','sourceFixtureReadiness','sourceNativeMoney','archive')){$o.PSObject.Properties.Remove($key)}
+ $o.selection=Clone $r.assistedColdInventory
+ $dlc=@('Tieflings','Varnhold')
+ $entry=[pscustomobject]@{seedId=$name;sha256=$r.persistenceLoad.sha256;length=$r.persistenceLoad.length;internalName=$name;fileName=$leaf;type='Manual';compatibilityVersion=1;gameId=$r.persistenceLoad.gameId;gameName=$r.persistenceLoad.gameName;area=$r.persistenceLoad.area;campaignDlc='None';dlc=$dlc;masterPath='fixtures/owner-supplied/KMC_C7_OWNER_SEED.master.zks';intakePath='fixtures/owner-supplied/KMC_C7_OWNER_SEED.intake01.json';intakeSha256=('5'*64)}
+ $record=[pscustomobject]@{schemaVersion=1;kind='kmc-owner-seed-source';seedId=$name;registrySha256=('6'*64);registryEntry=$entry;intake=[pscustomobject]@{path=$entry.intakePath;sha256=$entry.intakeSha256};ownerAuthorized=$true;producerAncestry=$false;fixtureSetupOnly=$true;nativeAuthorityGranted=$false}
+ $recordPath=Join-Path (Split-Path $f.root -Parent) 'assisted-cold-source.json';Put $recordPath (Json $record)
+ $o|Add-Member NoteProperty seedSource ([pscustomobject]@{seedId=$name;seedSha256=$r.persistenceLoad.sha256;recordSha256=(Get-KmcSha256 $recordPath);copiedRecordPath=$recordPath;archiveLeaf=$leaf;registeredDlc=$dlc;ownerAuthorized=$true;producerAncestry=$false;diagnosticArchiveContentRead=$true})
+ $party=@(foreach($actor in $o.loadedWorld.party){[pscustomobject]@{id=$actor.id;blueprint=$actor.blueprint;name='Generated actor';isMain=($actor.id-ceq$o.loadedWorld.mainActorId);isCharacter=$true;petId=$actor.petId;masterId=$actor.masterId;characterLevel=$actor.characterLevel;experience=$actor.experience;classes=@($actor.classes);alive=$true;conscious=$true;inGame=$true;inState=$true;outOfCombat=$true;commandsEmpty=$true;queuedCommands=0;directlyControllable=$true;factCounts=[pscustomobject]@{features=12;buffs=1;abilities=3;activatableAbilities=0;logic=2;total=18};equipment=@([pscustomobject]@{index=0;slotType='WeaponSlot';hasItem=$true;itemBlueprint=('d'*32)},[pscustomobject]@{index=1;slotType='ArmorSlot';hasItem=$false;itemBlueprint=$null})}})
+ $hooks=@(@('Kingmaker.Blueprints.ResourcesLibrary','TryGetBlueprint','06009708','07fa1e4d-8618-41b3-9b8d-faa17d3b26f7'),@('Newtonsoft.Json.Serialization.DefaultSerializationBinder','BindToType','060004C8','4f213745-d60e-425f-b763-df319c826ddf'),@('UberDebug','LogException','06000664','57f03756-55de-42f5-8bb3-e983306082b2'),@('UberDebug','LogExceptionChannel','06000665','57f03756-55de-42f5-8bb3-e983306082b2'))|ForEach-Object{[pscustomobject]@{declaringType=$_[0];method=$_[1];token=$_[2];moduleMvid=$_[3]}}
+ $metadata=[pscustomobject]@{kind='Missing';canRestore=$false;loadedArchivePresent=$false;mountedRestorationProven=$false;statement='The seed carries no KMC metadata; the supported missing-metadata path selected no archive. This proves no mounted restoration.'}
+ $q=[pscustomobject]@{contract='owner-seed-cold-qualification-v1';qualified=$true;failures=@()
+  identity=[pscustomobject]@{gameId=$r.persistenceLoad.gameId;gameName=$r.persistenceLoad.gameName;mainActorId=$o.loadedWorld.mainActorId;area=$r.persistenceLoad.area;descriptorType='Manual';compatibilityVersion=1}
+  party=$party
+  unresolvedContent=[pscustomobject]@{method='generated';blueprintResolution=[pscustomobject]@{contract='owner-seed-native-load-observation-v1';installed=$true;capacity=256;blueprintFailureCount=0;dropped=0;unresolvedBlueprintIds=@();failedTypeBindCount=0;failedTypeBinds=@();loggedExceptionCount=0;loggedExceptions=@();hooks=@($hooks)};nullBlueprintFacts=@();nullBlueprintItems=@();total=0;declaredForeignTypes=[pscustomobject]@{entriesRead=@([pscustomobject]@{entry='party.json'},[pscustomobject]@{entry='area.json'});types=@();error=$null;limits='generated'};classification='none'}
+  dlc=[pscustomobject]@{headerDlc=$dlc;loadedDescriptorDlc=$dlc;descriptorDlcRequired=$false;entries=@($dlc|ForEach-Object{[pscustomobject]@{dlc=$_;recognized=$true;enabled=$true;requiredInSaves=$true;inListForSaves=$true}});unavailable=@()}
+  control=[pscustomobject]@{pcController=$true;clickEventsController=$true;selectionManager=$true;mainViewReady=$true;partySelectable=$true;characterBuilderIdle=$true;mode='Default';cutscene=$false;dialogActive=$false;dialogScheduled=$false;cuePlayScheduled=$false;dialogStopScheduled=$false;popupShown=$false;inCombat=$false;nativeLoading=$false;kmcAreaTransitionPending=$false;paused=$false}
+  kmcMetadata=$metadata}
+ $o|Add-Member NoteProperty ownerSeedQualification $q;$o|Add-Member NoteProperty kmcMetadata (Clone $metadata)
+ $f|Add-Member NoteProperty recordPath $recordPath
+ $f|Add-Member NoteProperty seedRecord ([pscustomobject]@{path=$recordPath;sha256=(Get-KmcSha256 $recordPath);value=$record})
+ $f
+}
+function VerifySeed($f){Assert-KmcChunk7AssistedColdInventoryEvidence $f.request $f.artifact $f.seedRecord 'PASS'}
+function CheckSeed([string]$Name,[bool]$Expected,[scriptblock]$Action){
+ $accepted=$true;$errorText=$null;$ready=$false
+ try{$f=ConvertTo-SeedFixture (New-Fixture);$ready=$true;&$Action $f|Out-Null}catch{$accepted=$false;$errorText=$_.Exception.Message}
+ $ok=$ready-and$accepted-eq$Expected
+ if($ok){$script:passed++}else{$script:failed++}
+ $cases.Add([pscustomobject]@{name=$Name;status=$(if($ok){'PASS'}else{'FAIL'});expectedAccepted=$Expected;actualAccepted=$accepted;fixtureComposed=$ready;error=$errorText})
+ Write-Host ($(if($ok){'PASS '}else{'FAIL '})+$Name+$(if(-not$ok-and$errorText){': '+$errorText}else{''}))
+}
+CheckSeed 'owner seed observed qualification PASS is accepted' $true {param($f)VerifySeed $f}
+CheckSeed 'owner seed manifest read uses the copied seed record' $true {param($f)$m=Publish $f;Assert-KmcChunk7AssistedColdInventoryArtifact $f.request $m}
+CheckSeed 'owner seed unqualified observation refused as PASS' $false {param($f)$f.artifact.observations.ownerSeedQualification.qualified=$false;VerifySeed $f}
+CheckSeed 'owner seed recorded failure refused as PASS' $false {param($f)$f.artifact.observations.ownerSeedQualification.failures=@('Party facts lost their blueprint');VerifySeed $f}
+CheckSeed 'owner seed lost unit-part type refused' $false {param($f)$t=$f.artifact.observations.ownerSeedQualification.unresolvedContent.declaredForeignTypes;$t.types=@([pscustomobject]@{type='CallOfTheWild.UnitPartFlying, CallOfTheWild';count=3});VerifySeed $f}
+CheckSeed 'owner seed failed type bind refused' $false {param($f)$b=$f.artifact.observations.ownerSeedQualification.unresolvedContent.blueprintResolution;$b.failedTypeBindCount=1;$b.failedTypeBinds=@('CallOfTheWild.UnitPartFlying, CallOfTheWild');VerifySeed $f}
+CheckSeed 'owner seed unavailable DLC refused' $false {param($f)$d=$f.artifact.observations.ownerSeedQualification.dlc;$d.entries[1].enabled=$false;$d.unavailable=@('Varnhold');VerifySeed $f}
+CheckSeed 'owner seed blocked control refused' $false {param($f)$f.artifact.observations.ownerSeedQualification.control.cuePlayScheduled=$true;VerifySeed $f}
+CheckSeed 'owner seed restorable KMC metadata refused' $false {param($f)$f.artifact.observations.ownerSeedQualification.kmcMetadata.kind='Current';VerifySeed $f}
+CheckSeed 'owner seed partial qualification shape refused' $false {param($f)$f.artifact.observations.ownerSeedQualification.PSObject.Properties.Remove('control');VerifySeed $f}
+CheckSeed 'owner seed fabricated producer provenance refused' $false {param($f)$f.artifact.observations|Add-Member NoteProperty source ([pscustomobject]@{runId='assisted-source'});VerifySeed $f}
+CheckSeed 'owner seed claimed producer ancestry refused' $false {param($f)$f.artifact.observations.seedSource.producerAncestry=$true;VerifySeed $f}
+CheckSeed 'owner seed foreign record hash refused' $false {param($f)$f.seedRecord.sha256='f'*64;VerifySeed $f}
+CheckSeed 'owner seed record for another seed refused' $false {param($f)$f.seedRecord.value.registryEntry.gameId='99999999-9999-9999-9999-999999999999';VerifySeed $f}
+CheckSeed 'owner seed party actor lost to a dead or uncontrolled state refused' $false {param($f)$f.artifact.observations.ownerSeedQualification.party[0].conscious=$false;VerifySeed $f}
+CheckSeed 'owner seed observed actor outside the loaded field refused' $false {param($f)$f.artifact.observations.ownerSeedQualification.party[0].id='99999999-9999-9999-9999-999999999999';VerifySeed $f}
 $changed=@($script:inputPins|Where-Object{(Get-KmcSha256 $_.path)-cne$_.sha256})
 if($changed.Count-ne0){throw 'Assisted cold full-reader input changed.'}
 $receipt=[ordered]@{schemaVersion=1;kind='assisted-cold-full-evidence-generated-composition';status=$(if($script:failed-eq0-and$script:seedVerified){'PASS'}else{'FAIL'});passed=$script:passed;failed=$script:failed;positiveSeedVerified=$script:seedVerified;durationSeconds=$timer.Elapsed.TotalSeconds;inputPins=$script:inputPins.ToArray();changedInputs=$changed;cases=$cases.ToArray();nativeInvoked=$false;installedOrProtectedArchiveReads=0;archiveDecodes=0;limits=@('Actual scenario Capture world/loader/cleanup/registry and raw field/character formatting is retained from generated actual Update/PollCleanup execution.','External native profile/restoration probe, installed MVID, protected request fixture, source envelope/proof flags and filesystem paths are controlled substitutions; complete producer qualification is not claimed or executed.','Readable exported source was reserialized by the native adapter fixture. This composition serializes and hashes its own generated complete source bytes; it does not claim the exported readable bytes were the native held source.','All actual evidence validators, manifest and held-source/hash/path checks execute unchanged. No native restoration, resources, fixture eligibility, ordinary progression or acquisition is qualified.')}

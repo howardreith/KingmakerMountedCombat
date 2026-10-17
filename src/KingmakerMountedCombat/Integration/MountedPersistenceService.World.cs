@@ -29,6 +29,9 @@ namespace KingmakerMountedCombat.Integration
         private bool archiveOwnersReady;
         internal bool HasSaveAdmissionFence => admittedSave != null;
         internal MountedArchiveData LoadedArchive => loadedArchive?.Data;
+        // Read-only observation of the selected archive read (Missing for a save made without KMC).
+        internal MountedSaveReadKind? LoadedArchiveKind => loadedArchive?.Kind;
+        internal bool LoadedArchiveCanRestore => NativeMountedSaveFormat.CanRestore(loadedArchive);
         private bool ArchiveNativeEnabled => mountedWorld != null && NativeMountedSaveFormat.ArchiveNativeSupportEnabled;
         private MountedArchiveData RestorableArchive => ArchiveNativeEnabled && NativeMountedSaveFormat.CanRestore(loadedArchive)
             ? loadedArchive.Data : null;

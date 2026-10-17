@@ -1,5 +1,22 @@
 Set-StrictMode -Version Latest
 function Test-KmcChunk7AssistedColdInventoryScenario([string]$Scenario){$Scenario-ceq'chunk7-assisted-cold-inventory'}
+function Test-KmcChunk7OwnerSeedSelection($Selection){
+ $null-ne$Selection-and$Selection.GetType().FullName-ceq'System.Management.Automation.PSCustomObject'-and$null-ne$Selection.PSObject.Properties['case']-and$Selection.case-is[string]-and$Selection.case-ceq'owner-seed-readonly-inventory'
+}
+function Assert-KmcChunk7OwnerSeedEntry($Entry){
+ Assert-KmcAssistedObjectValue $Entry @('seedId','sha256','length','internalName','fileName','type','compatibilityVersion','gameId','gameName','area','campaignDlc','dlc','masterPath','intakePath','intakeSha256') 'owner seed registry entry'
+ if($Entry.seedId-isnot[string]-or$Entry.seedId-cnotmatch'^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$'){throw 'Owner seed registry identity is malformed.'}
+ foreach($key in @('sha256','intakeSha256')){if($Entry.$key-isnot[string]-or$Entry.$key-cnotmatch'^[a-f0-9]{64}$'){throw 'Owner seed registry hash is malformed.'}}
+ Assert-KmcOrdinaryInteger $Entry.length 1 268435456;Assert-KmcOrdinaryInteger $Entry.compatibilityVersion 1 1;Assert-KmcBootstrapInventoryString $Entry.type 'Manual'
+ if($Entry.internalName-isnot[string]-or$Entry.internalName-cnotmatch'^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$'-or$Entry.internalName-ceq'KMC_C7_ASSISTED_FIXTURE'){throw 'Owner seed registry internal name is malformed or impersonates the producer fixture.'}
+ if($Entry.fileName-isnot[string]-or$Entry.fileName-cnotmatch'^[A-Za-z0-9][A-Za-z0-9_.-]{0,95}\.zks$'-or$Entry.fileName.EndsWith('_KMC_C7_ASSISTED_FIXTURE.zks',[StringComparison]::Ordinal)){throw 'Owner seed registry file name is malformed or impersonates the producer fixture.'}
+ Assert-KmcOrdinaryGuid $Entry.gameId;Assert-KmcAssistedGuid32 $Entry.area
+ if($Entry.gameName-isnot[string]-or[string]::IsNullOrWhiteSpace($Entry.gameName)-or$Entry.gameName.Length-gt256-or$Entry.gameName-match'[\x00-\x1f\x7f]'){throw 'Owner seed registry game name is malformed.'}
+ if($Entry.campaignDlc-isnot[string]-or$Entry.campaignDlc-cnotin@('None','Tieflings','Varnhold','Endless','Arcane')){throw 'Owner seed registry campaign DLC is malformed.'}
+ Assert-KmcAssistedArray $Entry.dlc 0 4 'owner seed registry DLC';$seen=[Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+ foreach($dlc in $Entry.dlc){if($dlc-isnot[string]-or$dlc-cnotin@('Tieflings','Varnhold','Endless','Arcane')-or-not$seen.Add($dlc)){throw 'Owner seed registry DLC is unknown or repeated.'}}
+ foreach($key in @('masterPath','intakePath')){if($Entry.$key-isnot[string]-or$Entry.$key-cnotmatch'^fixtures/owner-supplied/[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$'){throw 'Owner seed registry path must be a lab-relative owner-supplied leaf.'}}
+}
 function Get-KmcChunk7AssistedColdInventoryRows {@('chunk7-assisted-cold-inventory','C7-assisted-cold-source','C7-assisted-cold-native-load','C7-assisted-cold-readonly','C7-assisted-cold-cleanup','C7-assisted-cold-runtime','C7-assisted-cold-interrupted')}
 function Assert-KmcChunk7AssistedColdInventorySelection($Request){
  if($Request-is[Collections.IDictionary]){$Request=[pscustomobject]$Request}
@@ -8,6 +25,17 @@ function Assert-KmcChunk7AssistedColdInventorySelection($Request){
  if(-not(Test-KmcChunk7AssistedColdInventoryScenario $Request.scenario)){if($has){throw 'Assisted cold selection is forbidden under another scenario.'};return}
  if(-not$has){throw 'Assisted cold inventory requires its explicit closed selection.'}
  $s=$Request.assistedColdInventory
+ if(Test-KmcChunk7OwnerSeedSelection $s){
+  # Owner-seed kind: owner authorization + registry/archive validation + one isolated
+  # cold load replace producer ancestry. No producer run, artifact or archive pins.
+  Assert-KmcAssistedObjectValue $s @('case','baseGameOnly','expectedNativeLoadCount','expectedNativeWriteCount','seedId','seedSha256') 'owner seed cold selection'
+  if($Request.runId-isnot[string]-or$Request.runId-cnotmatch'^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$'){throw 'Assisted cold consumer run identity is malformed.'}
+  if($s.seedId-isnot[string]-or$s.seedId-cnotmatch'^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$'-or$s.seedId-ceq$Request.runId){throw 'Owner seed cold inventory requires an exact registered seed identity.'}
+  if($s.seedSha256-isnot[string]-or$s.seedSha256-cnotmatch'^[a-f0-9]{64}$'){throw 'Owner seed cold inventory requires its exact seed SHA256.'}
+  Assert-KmcChunk7Boolean $s.baseGameOnly $true
+  Assert-KmcOrdinaryInteger $s.expectedNativeLoadCount 1 1;Assert-KmcOrdinaryInteger $s.expectedNativeWriteCount 0 0
+  return
+ }
  Assert-KmcAssistedObjectValue $s @('case','sourceRunId','sourceArtifactSha256','sourceArchiveSha256','baseGameOnly','expectedNativeLoadCount','expectedNativeWriteCount') 'assisted cold selection'
  Assert-KmcBootstrapInventoryString $s.case 'assisted-manual-readonly-inventory'
  if($Request.runId-isnot[string]-or$Request.runId-cnotmatch'^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$'){throw 'Assisted cold consumer run identity is malformed.'}
@@ -21,10 +49,17 @@ function Assert-KmcChunk7AssistedColdInventoryDescriptor($Request){
  if(-not(Test-KmcChunk7AssistedColdInventoryScenario $Request.scenario)){throw 'Assisted cold descriptor is exclusive to its exact family.'}
  $d=$Request.persistenceLoad
  Assert-KmcAssistedObjectValue $d @('internalName','fileName','sha256','length','lastWriteTimeUtcTicks','gameId','gameName','area') 'assisted cold descriptor'
+ if(Test-KmcChunk7OwnerSeedSelection $Request.assistedColdInventory){
+  # Registry-supplied exact names, admitted generically; never the producer fixture identity.
+  if($d.internalName-isnot[string]-or$d.internalName-cnotmatch'^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$'-or$d.internalName-ceq'KMC_C7_ASSISTED_FIXTURE'){throw 'Owner seed internal name is malformed or impersonates the producer fixture.'}
+  if($d.fileName-isnot[string]-or$d.fileName-cnotmatch'^[A-Za-z0-9][A-Za-z0-9_.-]{0,95}\.zks$'-or$d.fileName.EndsWith('_KMC_C7_ASSISTED_FIXTURE.zks',[StringComparison]::Ordinal)){throw 'Owner seed file name is malformed or impersonates the producer fixture.'}
+  Assert-KmcBootstrapInventoryString $d.sha256 $Request.assistedColdInventory.seedSha256
+ }else{
  Assert-KmcBootstrapInventoryString $d.internalName 'KMC_C7_ASSISTED_FIXTURE'
  if($d.fileName-isnot[string]-or$d.fileName-cnotmatch'^Manual_([1-9][0-9]*)_KMC_C7_ASSISTED_FIXTURE\.zks$'){throw 'Assisted cold source must retain its observed native Manual leaf.'}
  $number=0;$leafMatch=[regex]::Match($d.fileName,'^Manual_([1-9][0-9]*)_KMC_C7_ASSISTED_FIXTURE\.zks$');if(-not[int]::TryParse($leafMatch.Groups[1].Value,[ref]$number)-or$number-le0-or$d.fileName-cne('Manual_'+$number+'_KMC_C7_ASSISTED_FIXTURE.zks')){throw 'Assisted cold Manual number is noncanonical or outside native Int32.'}
  Assert-KmcBootstrapInventoryString $d.sha256 $Request.assistedColdInventory.sourceArchiveSha256
+ }
  Assert-KmcOrdinaryGuid $d.gameId;Assert-KmcAssistedGuid32 $d.area
  if($d.gameName-isnot[string]-or[string]::IsNullOrWhiteSpace($d.gameName)-or$d.gameName.Length-gt256-or$d.gameName-match'[\x00-\x1f\x7f]'){throw 'Assisted cold native game name is malformed.'}
  foreach($name in @('baseline','working')){
@@ -224,6 +259,7 @@ function Assert-KmcChunk7AssistedColdInventoryEvidence($Request,$Artifact,$Sourc
  Assert-KmcAssistedColdArtifactEnvelope $Request $Artifact 'chunk7-assisted-cold-inventory-evidence'
  if($Status-ceq'PASS'-and$Artifact.status-cne'PASS'){throw 'PASS assisted cold result requires its PASS native artifact.'}
  if($Artifact.status-cne'PASS'){return}
+ if(Test-KmcChunk7OwnerSeedSelection $Request.assistedColdInventory){Assert-KmcChunk7OwnerSeedColdEvidence $Request $Artifact $SourceArtifact;return}
  $o=$Artifact.observations;$s=$Request.assistedColdInventory;$source=$SourceArtifact
  if($null-eq$source-or$source.GetType().FullName-cne'System.Management.Automation.PSCustomObject'){throw 'Assisted cold native proof requires its exact qualified producer artifact.'}
  Assert-KmcOrdinaryInteger $source.schemaVersion 1 1
@@ -294,6 +330,114 @@ function Assert-KmcChunk7AssistedColdInventoryEvidence($Request,$Artifact,$Sourc
  Assert-KmcAssistedColdAuthority $o.cleanup.authority $root $b.authority.generation 1
 }
 
+# Owner-seed PASS evidence: only what this one cold load observed qualifies it.
+# Fabricated, partial or failed-qualification shapes are refused.
+function Assert-KmcChunk7OwnerSeedQualification($Q,$Request,$World,$Entry){
+ Assert-KmcAssistedObjectValue $Q @('contract','qualified','failures','identity','party','unresolvedContent','dlc','control','kmcMetadata') 'owner seed qualification'
+ Assert-KmcBootstrapInventoryString $Q.contract 'owner-seed-cold-qualification-v1';Assert-KmcChunk7Boolean $Q.qualified $true;Assert-KmcAssistedArray $Q.failures 0 0 'owner seed qualification failures'
+ $i=$Q.identity;Assert-KmcAssistedObjectValue $i @('gameId','gameName','mainActorId','area','descriptorType','compatibilityVersion') 'owner seed observed identity'
+ foreach($key in @('gameId','gameName','area')){Assert-KmcBootstrapInventoryString $i.$key $Request.persistenceLoad.$key;Assert-KmcBootstrapInventoryString $i.$key $Entry.$key}
+ Assert-KmcBootstrapInventoryString $i.mainActorId $World.mainActorId;Assert-KmcBootstrapInventoryString $i.descriptorType 'Manual';Assert-KmcOrdinaryInteger $i.compatibilityVersion 1 1
+ Assert-KmcAssistedArray $Q.party $World.party.Count $World.party.Count 'owner seed observed party'
+ foreach($row in $Q.party){
+  Assert-KmcAssistedObjectValue $row @('id','blueprint','name','isMain','isCharacter','petId','masterId','characterLevel','experience','classes','alive','conscious','inGame','inState','outOfCombat','commandsEmpty','queuedCommands','directlyControllable','factCounts','equipment') 'owner seed observed actor'
+  $actor=@($World.party|Where-Object id -CEQ $row.id);if($actor.Count-ne1){throw 'Owner seed observed actor is foreign to the loaded field.'};$actor=$actor[0]
+  Assert-KmcBootstrapInventoryString $row.blueprint $actor.blueprint;Assert-KmcChunk7Boolean $row.isMain ($row.id-ceq$World.mainActorId)
+  if($row.name-isnot[string]-or[string]::IsNullOrWhiteSpace($row.name)-or$row.name.Length-gt256){throw 'Owner seed observed actor name is missing or unbounded.'}
+  foreach($key in @('alive','conscious','inGame','inState','outOfCombat','commandsEmpty')){Assert-KmcChunk7Boolean $row.$key $true};Assert-KmcOrdinaryInteger $row.queuedCommands 0 0
+  foreach($key in @('isCharacter','directlyControllable')){if($row.$key-isnot[bool]){throw 'Owner seed observed actor flag is not boolean.'}}
+  foreach($key in @('petId','masterId')){Assert-KmcAssistedColdNullableId $row.$key $actor.$key ('owner seed '+$key)}
+  Assert-KmcOrdinaryInteger $row.characterLevel $actor.characterLevel $actor.characterLevel;Assert-KmcOrdinaryInteger $row.experience $actor.experience $actor.experience
+  Assert-KmcAssistedSame $row.classes $actor.classes 'owner seed observed class ranks'
+  $c=$row.factCounts;Assert-KmcAssistedObjectValue $c @('features','buffs','abilities','activatableAbilities','logic','total') 'owner seed fact counts';$sum=0
+  foreach($key in @('features','buffs','abilities','activatableAbilities','logic')){Assert-KmcOrdinaryInteger $c.$key 0 100000;$sum+=$c.$key};Assert-KmcOrdinaryInteger $c.total $sum $sum
+  Assert-KmcAssistedArray $row.equipment 0 128 'owner seed equipment slots';$index=0
+  foreach($slot in $row.equipment){Assert-KmcAssistedObjectValue $slot @('index','slotType','hasItem','itemBlueprint') 'owner seed equipment slot';Assert-KmcOrdinaryInteger $slot.index $index $index;$index++
+   if($slot.slotType-isnot[string]){throw 'Owner seed slot type is missing.'};if($slot.hasItem-isnot[bool]){throw 'Owner seed slot occupancy is not boolean.'}
+   if($slot.hasItem){Assert-KmcAssistedGuid32 $slot.itemBlueprint}elseif($null-ne$slot.itemBlueprint){throw 'Owner seed empty slot names an item.'}}
+ }
+ $u=$Q.unresolvedContent;Assert-KmcAssistedObjectValue $u @('method','blueprintResolution','nullBlueprintFacts','nullBlueprintItems','total','declaredForeignTypes','classification') 'owner seed unresolved content'
+ Assert-KmcOrdinaryInteger $u.total 0 0;Assert-KmcAssistedArray $u.nullBlueprintFacts 0 0 'owner seed lost facts';Assert-KmcAssistedArray $u.nullBlueprintItems 0 0 'owner seed lost items'
+ Assert-KmcBootstrapInventoryString $u.classification 'none'
+ $r=$u.blueprintResolution;Assert-KmcAssistedObjectValue $r @('contract','installed','capacity','blueprintFailureCount','dropped','unresolvedBlueprintIds','failedTypeBindCount','failedTypeBinds','loggedExceptionCount','loggedExceptions','hooks') 'owner seed native load observation'
+ Assert-KmcBootstrapInventoryString $r.contract 'owner-seed-native-load-observation-v1';Assert-KmcChunk7Boolean $r.installed $true;Assert-KmcOrdinaryInteger $r.capacity 256 256
+ foreach($key in @('blueprintFailureCount','dropped','failedTypeBindCount','loggedExceptionCount')){Assert-KmcOrdinaryInteger $r.$key 0 0}
+ foreach($key in @('unresolvedBlueprintIds','failedTypeBinds','loggedExceptions')){Assert-KmcAssistedArray $r.$key 0 0 ('owner seed '+$key)}
+ Assert-KmcAssistedArray $r.hooks 4 4 'owner seed load hooks'
+ $expected=@(@('Kingmaker.Blueprints.ResourcesLibrary','TryGetBlueprint','06009708','07fa1e4d-8618-41b3-9b8d-faa17d3b26f7'),@('Newtonsoft.Json.Serialization.DefaultSerializationBinder','BindToType','060004C8','4f213745-d60e-425f-b763-df319c826ddf'),@('UberDebug','LogException','06000664','57f03756-55de-42f5-8bb3-e983306082b2'),@('UberDebug','LogExceptionChannel','06000665','57f03756-55de-42f5-8bb3-e983306082b2'))
+ for($k=0;$k-lt4;$k++){$h=$r.hooks[$k];Assert-KmcAssistedObjectValue $h @('declaringType','method','token','moduleMvid') 'owner seed load hook';$keys=@('declaringType','method','token','moduleMvid');for($m=0;$m-lt4;$m++){Assert-KmcBootstrapInventoryString $h.($keys[$m]) $expected[$k][$m]}}
+ $t=$u.declaredForeignTypes;Assert-KmcAssistedObjectValue $t @('entriesRead','types','error','limits') 'owner seed declared types';Assert-KmcAssistedArray $t.types 0 0 'owner seed declared foreign types'
+ if($null-ne$t.error){throw 'Owner seed declared-type scan failed.'};Assert-KmcAssistedArray $t.entriesRead 2 2 'owner seed declared-type entries'
+ $d=$Q.dlc;Assert-KmcAssistedObjectValue $d @('headerDlc','loadedDescriptorDlc','descriptorDlcRequired','entries','unavailable') 'owner seed DLC verdicts'
+ Assert-KmcAssistedSame $d.headerDlc $Entry.dlc 'owner seed registered header DLC';Assert-KmcAssistedSame $d.loadedDescriptorDlc $Entry.dlc 'owner seed loaded descriptor DLC'
+ Assert-KmcChunk7Boolean $d.descriptorDlcRequired $false;Assert-KmcAssistedArray $d.unavailable 0 0 'owner seed unavailable DLC'
+ Assert-KmcAssistedArray $d.entries $Entry.dlc.Count $Entry.dlc.Count 'owner seed DLC entries'
+ for($k=0;$k-lt$d.entries.Count;$k++){$e=$d.entries[$k];Assert-KmcAssistedObjectValue $e @('dlc','recognized','enabled','requiredInSaves','inListForSaves') 'owner seed DLC entry';Assert-KmcBootstrapInventoryString $e.dlc $Entry.dlc[$k]
+  foreach($key in @('recognized','enabled')){Assert-KmcChunk7Boolean $e.$key $true};foreach($key in @('requiredInSaves','inListForSaves')){if($e.$key-isnot[bool]){throw 'Owner seed DLC verdict is not boolean.'}}}
+ $c=$Q.control;Assert-KmcAssistedObjectValue $c @('pcController','clickEventsController','selectionManager','mainViewReady','partySelectable','characterBuilderIdle','mode','cutscene','dialogActive','dialogScheduled','cuePlayScheduled','dialogStopScheduled','popupShown','inCombat','nativeLoading','kmcAreaTransitionPending','paused') 'owner seed control'
+ foreach($key in @('pcController','clickEventsController','selectionManager','mainViewReady','partySelectable','characterBuilderIdle')){Assert-KmcChunk7Boolean $c.$key $true}
+ foreach($key in @('cutscene','dialogActive','dialogScheduled','cuePlayScheduled','dialogStopScheduled','popupShown','inCombat','nativeLoading','kmcAreaTransitionPending')){Assert-KmcChunk7Boolean $c.$key $false}
+ Assert-KmcBootstrapInventoryString $c.mode 'Default';if($c.paused-isnot[bool]){throw 'Owner seed pause observation is not boolean.'}
+ $k=$Q.kmcMetadata;Assert-KmcAssistedObjectValue $k @('kind','canRestore','loadedArchivePresent','mountedRestorationProven','statement') 'owner seed KMC metadata'
+ Assert-KmcBootstrapInventoryString $k.kind 'Missing';foreach($key in @('canRestore','loadedArchivePresent','mountedRestorationProven')){Assert-KmcChunk7Boolean $k.$key $false}
+ if($k.statement-isnot[string]-or$k.statement-cnotmatch'proves no mounted restoration'){throw 'Owner seed evidence must state that missing KMC metadata proves no mounted restoration.'}
+}
+function Assert-KmcChunk7OwnerSeedColdEvidence($Request,$Artifact,$SeedRecord){
+ $o=$Artifact.observations;$s=$Request.assistedColdInventory
+ if($null-eq$SeedRecord-or$SeedRecord.value-isnot[pscustomobject]-or$SeedRecord.sha256-isnot[string]){throw 'Owner seed native proof requires its exact copied seed-source record.'}
+ $record=$SeedRecord.value;Assert-KmcAssistedObjectValue $record @('schemaVersion','kind','seedId','registrySha256','registryEntry','intake','ownerAuthorized','producerAncestry','fixtureSetupOnly','nativeAuthorityGranted') 'owner seed source record'
+ Assert-KmcOrdinaryInteger $record.schemaVersion 1 1;Assert-KmcBootstrapInventoryString $record.kind 'kmc-owner-seed-source';Assert-KmcBootstrapInventoryString $record.seedId $s.seedId
+ foreach($pair in @(@('ownerAuthorized',$true),@('producerAncestry',$false),@('fixtureSetupOnly',$true),@('nativeAuthorityGranted',$false))){Assert-KmcChunk7Boolean $record.($pair[0]) $pair[1]}
+ $entry=$record.registryEntry;Assert-KmcChunk7OwnerSeedEntry $entry
+ Assert-KmcBootstrapInventoryString $entry.seedId $s.seedId;Assert-KmcBootstrapInventoryString $entry.sha256 $s.seedSha256
+ foreach($key in @('internalName','fileName','gameId','gameName','area','sha256')){Assert-KmcBootstrapInventoryString $entry.$key $Request.persistenceLoad.$key}
+ Assert-KmcOrdinaryInteger $Request.persistenceLoad.length $entry.length $entry.length
+ $keys=@('processId','selection','seedSource','beforeLoad','resourceWrites','xpWrites','moneyWrites','profileAdmissionChanged','ordinaryAcquisitionProven','sixPairFixtureQualified','mountRequests','choiceRequests','ordinaryProgressionProven','loadedWorld','loader','nativeProfileInventory','fixtureReadiness','ownerSeedQualification','kmcMetadata','settledWorld','settledLoader','nativeLoad','noPreparation','cleanup')
+ Assert-KmcAssistedObjectValue $o $keys 'owner seed successful native observations'
+ Assert-KmcAssistedSame $o.selection $s 'owner seed request selection'
+ Assert-KmcOrdinaryInteger $o.processId 1 ([int]::MaxValue)
+ foreach($key in @('resourceWrites','xpWrites','moneyWrites','mountRequests','choiceRequests')){Assert-KmcOrdinaryInteger $o.$key 0 0}
+ foreach($key in @('profileAdmissionChanged','ordinaryAcquisitionProven','sixPairFixtureQualified','ordinaryProgressionProven')){Assert-KmcChunk7Boolean $o.$key $false}
+ $root=Get-KmcAssistedSaveRoot $Request
+ Assert-KmcAssistedObjectValue $o.seedSource @('seedId','seedSha256','recordSha256','copiedRecordPath','archiveLeaf','registeredDlc','ownerAuthorized','producerAncestry','diagnosticArchiveContentRead') 'owner seed provenance'
+ foreach($pair in @(@('seedId',$s.seedId),@('seedSha256',$s.seedSha256),@('recordSha256',$SeedRecord.sha256),@('archiveLeaf',$Request.persistenceLoad.fileName),@('copiedRecordPath',(Join-Path (Split-Path $root -Parent) 'assisted-cold-source.json')))){Assert-KmcBootstrapInventoryString $o.seedSource.($pair[0]) $pair[1]}
+ Assert-KmcAssistedSame $o.seedSource.registeredDlc $entry.dlc 'owner seed registered DLC'
+ foreach($pair in @(@('ownerAuthorized',$true),@('producerAncestry',$false),@('diagnosticArchiveContentRead',$true))){Assert-KmcChunk7Boolean $o.seedSource.($pair[0]) $pair[1]}
+ $b=$o.beforeLoad;$w=$o.loadedWorld;$f=$o.settledWorld;$load=$o.nativeLoad;$labels=Get-KmcAssistedColdLabels $load
+ Assert-KmcAssistedObjectValue $b @('frame','game','saveManager','menuPlayer','loadedAreaPresent','nativeLoading','authority') 'owner seed before-load owner'
+ Assert-KmcOrdinaryInteger $b.frame 0 ([int]::MaxValue);$before=[Collections.Generic.HashSet[int]]::new()
+ foreach($key in @('game','saveManager','menuPlayer')){Assert-KmcAssistedLabel $b.$key $labels;if(-not$before.Add([int]$b.$key)){throw 'Owner seed before-load native owner labels alias.'}}
+ foreach($key in @('loadedAreaPresent','nativeLoading')){Assert-KmcChunk7Boolean $b.$key $false}
+ Assert-KmcAssistedColdAuthority $b.authority $root $b.authority.generation 0
+ Assert-KmcAssistedColdProfile $o.nativeProfileInventory $w
+ $money=$o.nativeProfileInventory.ordinaryAcquisitionPrerequisites.nativeMoney;Assert-KmcOrdinaryInteger $money 0 ([long]::MaxValue)
+ # The owner seed has no producer roster: the loaded world is its own reference,
+ # so the same structural/reciprocity checks bind the settled world to it.
+ Assert-KmcAssistedColdWorld $w $Request $labels $w $o.fixtureReadiness $money $b.frame
+ Assert-KmcAssistedColdWorld $f $Request $labels $w $o.fixtureReadiness $money $w.frame
+ foreach($world in @($w,$f)){Assert-KmcAssistedColdAuthority $world.authority $root $b.authority.generation 1;foreach($key in @('game','saveManager')){Assert-KmcOrdinaryInteger $world.$key $b.$key $b.$key}}
+ foreach($property in $w.PSObject.Properties){if($property.Name-cne'frame'){Assert-KmcAssistedSame $f.($property.Name) $property.Value ('owner seed settled world '+$property.Name)}}
+ Assert-KmcAssistedColdLoader $o.loader $Request $w $labels $root $b.authority.generation
+ Assert-KmcAssistedColdLoader $o.settledLoader $Request $f $labels $root $b.authority.generation
+ Assert-KmcAssistedSame $o.settledLoader $o.loader 'owner seed settled loader/descriptor/authority'
+ $prior=$b.frame
+ for($k=0;$k-lt2;$k++){
+  $e=$load.events[$k];Assert-KmcAssistedObjectValue $e @('kind','frame','game','saveManager','player','gameId','mainActorId') 'owner seed native PostLoad event'
+  Assert-KmcBootstrapInventoryString $e.kind $(if($k-eq0){'native-player-postload-before'}else{'native-player-postload-after'})
+  Assert-KmcOrdinaryInteger $e.frame $prior $w.frame;$prior=$e.frame
+  foreach($key in @('game','saveManager','player')){Assert-KmcAssistedLabel $e.$key $labels;Assert-KmcOrdinaryInteger $e.$key $w.$key $w.$key}
+  Assert-KmcBootstrapInventoryString $e.gameId $Request.persistenceLoad.gameId
+  if($k-eq1-or$null-ne$e.mainActorId){Assert-KmcBootstrapInventoryString $e.mainActorId $w.mainActorId}
+ }
+ if($load.events[0].frame-ne$load.events[1].frame){throw 'Owner seed PostLoad callback did not return synchronously in the observed frame.'}
+ Assert-KmcAssistedColdNoPreparation $o.noPreparation $Request
+ Assert-KmcAssistedColdFixtureReadiness $o.fixtureReadiness $Request $w $f $o.nativeProfileInventory $root
+ Assert-KmcChunk7OwnerSeedQualification $o.ownerSeedQualification $Request $w $entry
+ Assert-KmcAssistedSame $o.kmcMetadata $o.ownerSeedQualification.kmcMetadata 'owner seed KMC metadata'
+ Assert-KmcAssistedObjectValue $o.cleanup @('custodySettled','nativeWorkerSettled','observersReleased','worldAdmitted','sourcePinned','sourceUnchanged','authority') 'owner seed completed cleanup'
+ foreach($key in @('custodySettled','nativeWorkerSettled','observersReleased','worldAdmitted','sourcePinned','sourceUnchanged')){Assert-KmcChunk7Boolean $o.cleanup.$key $true}
+ Assert-KmcAssistedColdAuthority $o.cleanup.authority $root $b.authority.generation 1
+}
 function Assert-KmcAssistedColdPending($Request,$Artifact){
  Assert-KmcChunk7AssistedColdInventoryDescriptor $Request
  Assert-KmcAssistedColdArtifactEnvelope $Request $Artifact 'chunk7-assisted-cold-inventory-cleanup-pending'

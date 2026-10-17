@@ -3583,7 +3583,10 @@ function Enter-KmcModsTransaction {
     })
     if ($kmcCollisions.Count -gt 1) { throw 'Live Mods contains ambiguous case-insensitive KMC entries.' }
     if ($kmcCollisions.Count -eq 1) {
-        [void](Assert-KmcPhase3fStartingInstallation -KmcRoot $kmcCollisions[0].FullName)
+        # Inert cache-only residue is not an installation (see Test-KmcInertKmcInstallationResidue).
+        if (-not (Test-KmcInertKmcInstallationResidue -KmcRoot $kmcCollisions[0].FullName)) {
+            [void](Assert-KmcPhase3fStartingInstallation -KmcRoot $kmcCollisions[0].FullName)
+        }
     }
     $before = Get-KmcDirectoryManifest $fullLive
     $statePath = Get-KmcTransactionStatePath $StateRoot $runId
@@ -3629,7 +3632,9 @@ function Enter-KmcModsTransaction {
     }
     elseif (Test-Path -LiteralPath $stagedKmcRoot) {
         [void](Assert-KmcChildPath $stagedKmcRoot $stagingRun 'staged KMC replacement')
-        [void](Assert-KmcPhase3fStartingInstallation -KmcRoot $stagedKmcRoot)
+        if (-not (Test-KmcInertKmcInstallationResidue -KmcRoot $stagedKmcRoot)) {
+            [void](Assert-KmcPhase3fStartingInstallation -KmcRoot $stagedKmcRoot)
+        }
         # Only the verified staging clone is replaced. The original live tree
         # is moved intact into its transactional backup and restored in finally.
         Remove-Item -LiteralPath $stagedKmcRoot -Recurse -Force
@@ -3648,6 +3653,10 @@ function Enter-KmcModsTransaction {
     $sentinel = [ordered]@{ schemaVersion=1; runId=$runId; token=[string]$Lock.Token; packageSha256=$packageHash }
     Write-KmcJsonAtomic (Join-Path $ready '.kmc-runtime-sentinel.json') $sentinel
     $staged = Get-KmcDirectoryManifest $ready
+    # The staged entry list is kept outside the live tree so restoration can
+    # classify every runtime write against the exact activated bytes.
+    $stagedManifestSidecar = Join-Path $stagingRun 'Mods-staged-manifest.json'
+    Write-KmcJsonAtomic $stagedManifestSidecar ([ordered]@{ schemaVersion=1; runId=$runId; digest=$staged.digest; entries=@($staged.entries) })
     Assert-KmcDirectoryTreeCloneable $fullLive 'live Mods tree before activation'
     Assert-KmcDirectoryManifestsEqual $before (Get-KmcDirectoryManifest $fullLive) 'Live Mods source immediately before activation'
     $state = [ordered]@{
@@ -3658,6 +3667,7 @@ function Enter-KmcModsTransaction {
         beforeDigest=$before.digest; beforeFileCount=$before.fileCount; beforeDirectoryCount=$before.directoryCount; beforeTotalBytes=$before.totalBytes
         cloneBaseDigest=$cloneBase.digest; cloneBaseFileCount=$cloneBase.fileCount; cloneBaseDirectoryCount=$cloneBase.directoryCount; cloneBaseTotalBytes=$cloneBase.totalBytes
         stagedDigest=$staged.digest; stagedFileCount=$staged.fileCount; stagedDirectoryCount=$staged.directoryCount; stagedTotalBytes=$staged.totalBytes
+        stagedManifestSidecar=$stagedManifestSidecar
     }
     if($baseGameOnly){
         # New mode has its own receipt schema. Historical schema-3 states retain
@@ -3705,7 +3715,7 @@ function Restore-KmcModsTransaction {
         if($schemaVersion-eq4){$requiredState=@($requiredState+@('baseGameDependencies','preservedClone'))}
     }
     elseif ($schemaVersion -ne 2) { throw 'Transaction state schema is outside the historical and explicit base-game contracts.' }
-    $allowedState = @($requiredState + @('stagedAtUtc','stagedAfterDigest','stagedAfterFileCount','stagedAfterDirectoryCount','stagedAfterTotalBytes','stagedTreeChangedAtRuntime','restoredAtUtc','restoredDigest'))
+    $allowedState = @($requiredState + @('stagedAtUtc','stagedAfterDigest','stagedAfterFileCount','stagedAfterDirectoryCount','stagedAfterTotalBytes','stagedTreeChangedAtRuntime','restoredAtUtc','restoredDigest','stagedManifestSidecar','runtimeWritesClassified','runtimeExpectedWrites','runtimeUnexpectedWrites'))
     $actualState = @($state.PSObject.Properties.Name)
     if (@($requiredState | Where-Object { $_ -cnotin $actualState }).Count -ne 0 -or @($actualState | Where-Object { $_ -cnotin $allowedState }).Count -ne 0) {
         throw 'Transaction state property set is missing required fields or contains unknown fields.'
@@ -3732,14 +3742,15 @@ function Restore-KmcModsTransaction {
     $backup=Assert-KmcChildPath ([string]$state.originalBackup) $BackupRoot 'recorded transaction backup'
     $stagedAfter=Assert-KmcChildPath ([string]$state.stagedAfter) $StagingRoot 'recorded staged quarantine'
     if ([string]$state.phase -ceq 'restored') {
-        $restored=Get-KmcDirectoryManifest $fullLive; Assert-KmcManifestMatchesState $restored $state 'before'; return $restored
+        # A retry re-reads the recorded findings, so it can never launder them.
+        $restored=Get-KmcDirectoryManifest $fullLive; Assert-KmcManifestMatchesState $restored $state 'before'; return (Add-KmcModsRuntimeWriteFindings $restored $state $stagedAfter)
     }
     if (Test-Path -LiteralPath $backup -PathType Container) { Assert-KmcManifestMatchesState (Get-KmcDirectoryManifest $backup) $state 'before' }
     else {
         if (Test-Path -LiteralPath $fullLive -PathType Container) {
             $current=Get-KmcDirectoryManifest $fullLive
             if ($current.digest -ceq [string]$state.beforeDigest) {
-                $state.phase='restored'; $state | Add-Member -NotePropertyName restoredAtUtc -NotePropertyValue ([DateTime]::UtcNow.ToString('o')) -Force; $state | Add-Member -NotePropertyName restoredDigest -NotePropertyValue $current.digest -Force; Write-KmcJsonAtomic $StatePath $state; return $current
+                $state.phase='restored'; $state | Add-Member -NotePropertyName restoredAtUtc -NotePropertyValue ([DateTime]::UtcNow.ToString('o')) -Force; $state | Add-Member -NotePropertyName restoredDigest -NotePropertyValue $current.digest -Force; Write-KmcJsonAtomic $StatePath $state; return (Add-KmcModsRuntimeWriteFindings $current $state $stagedAfter)
             }
         }
         throw 'Original Mods backup is absent and live Mods is not the proven original tree.'
@@ -3754,13 +3765,173 @@ function Restore-KmcModsTransaction {
         $state | Add-Member -NotePropertyName stagedAfterDirectoryCount -NotePropertyValue $runtimeStaged.directoryCount -Force
         $state | Add-Member -NotePropertyName stagedAfterTotalBytes -NotePropertyValue $runtimeStaged.totalBytes -Force
         $state | Add-Member -NotePropertyName stagedTreeChangedAtRuntime -NotePropertyValue ($runtimeStaged.digest -cne [string]$state.stagedDigest) -Force
+        if ($null -ne $state.PSObject.Properties['stagedManifestSidecar']) {
+            # Fail closed: a missing, foreign or tampered sidecar is itself an unexpected write.
+            $classification = $null
+            try {
+                $stagedEntries = Read-KmcModsStagedManifestSidecar $state $StagingRoot ([string]$Lock.RunId)
+                $classification = Get-KmcModsRuntimeWriteClassification -StagedEntries $stagedEntries -RuntimeManifest $runtimeStaged
+            }
+            catch {
+                $classification = [pscustomobject]@{ expected=@(); unexpected=@([pscustomobject]@{ change='sidecar-invalid'; kind='file'; path=[string]$state.stagedManifestSidecar; detail=$_.Exception.Message }) }
+            }
+            $state | Add-Member -NotePropertyName runtimeWritesClassified -NotePropertyValue $true -Force
+            $state | Add-Member -NotePropertyName runtimeExpectedWrites -NotePropertyValue @($classification.expected) -Force
+            $state | Add-Member -NotePropertyName runtimeUnexpectedWrites -NotePropertyValue @($classification.unexpected) -Force
+        }
         Write-KmcJsonAtomic $StatePath $state
         Move-Item -LiteralPath $fullLive -Destination $stagedAfter
     }
     Move-Item -LiteralPath $backup -Destination $fullLive
     $restored=Get-KmcDirectoryManifest $fullLive; Assert-KmcManifestMatchesState $restored $state 'before'
     $state.phase='restored'; $state | Add-Member -NotePropertyName restoredAtUtc -NotePropertyValue ([DateTime]::UtcNow.ToString('o')) -Force; $state | Add-Member -NotePropertyName restoredDigest -NotePropertyValue $restored.digest -Force; Write-KmcJsonAtomic $StatePath $state
-    return $restored
+    return (Add-KmcModsRuntimeWriteFindings $restored $state $stagedAfter)
+}
+
+# Canonical digest of a manifest entry list, computed exactly as
+# Get-KmcDirectoryManifest does (sorted kind,path; kind|path|length|sha256).
+function Get-KmcManifestEntriesDigest {
+    param([Parameter(Mandatory = $true)][AllowEmptyCollection()][object[]]$Entries)
+    if (-not ('KingmakerMountedCombat.RuntimeTooling.InventoryHasher' -as [type])) { Add-Type -Path (Join-Path $PSScriptRoot 'InventoryHasher.cs') }
+    $canonical = New-Object KingmakerMountedCombat.RuntimeTooling.ManifestCanonicalHasher
+    try {
+        foreach ($record in @($Entries | Sort-Object kind, path)) {
+            $canonical.Append(('{0}|{1}|{2}|{3}' -f $record.kind, $record.path, $record.length, $record.sha256))
+        }
+        return $canonical.Complete()
+    }
+    finally { $canonical.Dispose() }
+}
+
+function Read-KmcModsStagedManifestSidecar {
+    param([Parameter(Mandatory = $true)]$State,[Parameter(Mandatory = $true)][string]$StagingRoot,[Parameter(Mandatory = $true)][string]$RunId)
+    $expected = Join-Path (Join-Path ([IO.Path]::GetFullPath($StagingRoot)) $RunId) 'Mods-staged-manifest.json'
+    $path = Assert-KmcChildPath ([string]$State.stagedManifestSidecar) $StagingRoot 'staged Mods manifest sidecar'
+    if ($path -cne $expected) { throw 'Staged Mods manifest sidecar is not this run''s owned path.' }
+    if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { throw 'Staged Mods manifest sidecar is missing.' }
+    Assert-KmcNotReparsePoint $path 'staged Mods manifest sidecar'; Assert-KmcNotHardLink $path 'staged Mods manifest sidecar'
+    $sidecar = Read-KmcJson $path
+    Assert-KmcExactProperties $sidecar @('schemaVersion','runId','digest','entries') 'staged Mods manifest sidecar'
+    if ([int]$sidecar.schemaVersion -ne 1 -or [string]$sidecar.runId -cne $RunId) { throw 'Staged Mods manifest sidecar belongs to another run or schema.' }
+    $entries = @($sidecar.entries)
+    if ([string]$sidecar.digest -cne [string]$State.stagedDigest -or (Get-KmcManifestEntriesDigest -Entries $entries) -cne [string]$State.stagedDigest) {
+        throw 'Staged Mods manifest sidecar digest differs from the recorded staged digest.'
+    }
+    return ,$entries
+}
+
+# Classifies the live tree at restoration against the exact staged entries. The
+# only expected runtime write is UMM's new '<name>.dll.<digits>.cache' that is a
+# byte-exact copy of '<name>.dll' in both the runtime and the staged tree.
+function Get-KmcModsRuntimeWriteClassification {
+    param([Parameter(Mandatory = $true)][AllowEmptyCollection()][object[]]$StagedEntries,[Parameter(Mandatory = $true)]$RuntimeManifest)
+    $staged = @{}; $runtime = @{}
+    foreach ($entry in $StagedEntries) { $staged[('{0}|{1}' -f $entry.kind, $entry.path)] = $entry }
+    foreach ($entry in @($RuntimeManifest.entries)) { $runtime[('{0}|{1}' -f $entry.kind, $entry.path)] = $entry }
+    $expected = New-Object 'System.Collections.Generic.List[object]'; $unexpected = New-Object 'System.Collections.Generic.List[object]'
+    foreach ($key in @($staged.Keys | Sort-Object)) {
+        $before = $staged[$key]
+        if (-not $runtime.ContainsKey($key)) { $unexpected.Add([pscustomobject]@{ change='removed'; kind=[string]$before.kind; path=[string]$before.path }); continue }
+        $after = $runtime[$key]
+        if ([long]$after.length -ne [long]$before.length -or [string]$after.sha256 -cne [string]$before.sha256) {
+            $unexpected.Add([pscustomobject]@{ change='changed'; kind=[string]$before.kind; path=[string]$before.path; stagedSha256=[string]$before.sha256; runtimeSha256=[string]$after.sha256 })
+        }
+    }
+    foreach ($key in @($runtime.Keys | Sort-Object)) {
+        if ($staged.ContainsKey($key)) { continue }
+        $entry = $runtime[$key]; $isExpected = $false
+        $match = [regex]::Match([string]$entry.path, '^(.+\.dll)\.\d+\.cache$')
+        if ([string]$entry.kind -ceq 'file' -and $match.Success) {
+            $dllKey = 'file|' + $match.Groups[1].Value
+            $runtimeDll = $runtime[$dllKey]; $stagedDll = $staged[$dllKey]
+            $isExpected = $null -ne $runtimeDll -and $null -ne $stagedDll -and
+                [string]$entry.sha256 -ceq [string]$runtimeDll.sha256 -and [string]$entry.sha256 -ceq [string]$stagedDll.sha256 -and
+                [long]$entry.length -eq [long]$runtimeDll.length -and [long]$entry.length -eq [long]$stagedDll.length
+        }
+        $row = [pscustomobject]@{ change='added'; kind=[string]$entry.kind; path=[string]$entry.path; runtimeSha256=[string]$entry.sha256 }
+        if ($isExpected) { $expected.Add($row) } else { $unexpected.Add($row) }
+    }
+    return [pscustomobject]@{ expected=$expected.ToArray(); unexpected=$unexpected.ToArray() }
+}
+
+# Runtime WhatIf purity comparison: a failure names the tree and the exact
+# entries that differ. Used unchanged by the full and the development-scoped WhatIf.
+function Assert-KmcWhatIfRootsUnchanged {
+    param([Parameter(Mandatory = $true)][object[]]$Before,[Parameter(Mandatory = $true)][object[]]$After)
+    $beforeRoots=$Before; $afterRoots=$After
+    # A purity failure must name the tree and the exact entries that differ. The
+    # comparison itself is unchanged: every byte of every root is still rehashed
+    # and any difference still fails closed.
+    for($index=0;$index-lt$afterRoots.Count;$index++){
+        if($afterRoots[$index].digest-cne$beforeRoots[$index].digest){
+            $purityBefore=$beforeRoots[$index]; $purityAfter=$afterRoots[$index]
+            $purityBeforeEntries=@{}; foreach($entry in $purityBefore.entries){$purityBeforeEntries[($entry.kind+'|'+$entry.path)]=([string]$entry.length+'|'+[string]$entry.sha256)}
+            $purityAfterEntries=@{}; foreach($entry in $purityAfter.entries){$purityAfterEntries[($entry.kind+'|'+$entry.path)]=([string]$entry.length+'|'+[string]$entry.sha256)}
+            $purityDetails=New-Object 'System.Collections.Generic.List[string]'
+            foreach($key in $purityBeforeEntries.Keys){
+                if(-not$purityAfterEntries.ContainsKey($key)){$purityDetails.Add('removed '+$key)}
+                elseif($purityAfterEntries[$key]-cne$purityBeforeEntries[$key]){$purityDetails.Add('changed '+$key+' : '+$purityBeforeEntries[$key]+' -> '+$purityAfterEntries[$key])}
+                if($purityDetails.Count-ge20){break}
+            }
+            foreach($key in $purityAfterEntries.Keys){
+                if(-not$purityBeforeEntries.ContainsKey($key)){$purityDetails.Add('added '+$key)}
+                if($purityDetails.Count-ge40){break}
+            }
+            throw ('WhatIf purity failed: an external tree changed: '+$purityAfter.root+
+                ' (files '+$purityBefore.fileCount+'->'+$purityAfter.fileCount+
+                ', directories '+$purityBefore.directoryCount+'->'+$purityAfter.directoryCount+
+                ', bytes '+$purityBefore.totalBytes+'->'+$purityAfter.totalBytes+')'+
+                $(if($purityDetails.Count-eq0){''}else{[Environment]::NewLine+($purityDetails-join[Environment]::NewLine)}))
+        }
+    }
+}
+
+# Development-scoped WhatIf (opt-in only). The three historical archive roots are
+# not rehashed: the run-owned paths must be absent before and after, and the set
+# of immediate child names of each root must be unchanged. Exposed surfaces keep
+# whole-tree content identity in the caller.
+function Get-KmcWhatIfRunScopedArchiveState {
+    param([Parameter(Mandatory = $true)][string]$BackupRoot,[Parameter(Mandatory = $true)][string]$StagingRoot,
+        [Parameter(Mandatory = $true)][string]$EvidenceRoot,[Parameter(Mandatory = $true)][string]$RunId)
+    if ($RunId -cnotmatch '^[A-Za-z0-9._-]{1,120}$') { throw 'Development-scoped WhatIf requires an exact run ID.' }
+    $owned = @(
+        (Join-Path $BackupRoot $RunId), (Join-Path $StagingRoot $RunId),
+        (Join-Path $StagingRoot ('persistence-' + $RunId)), (Join-Path $EvidenceRoot $RunId))
+    $present = @($owned | Where-Object { Test-Path -LiteralPath $_ })
+    if ($present.Count -ne 0) { throw ('WhatIf purity failed: a run-owned path exists: ' + ($present -join ', ')) }
+    $roots = foreach ($root in @($BackupRoot, $StagingRoot, $EvidenceRoot)) {
+        $full = [IO.Path]::GetFullPath($root).TrimEnd('\')
+        if (-not (Test-Path -LiteralPath $full -PathType Container)) { throw "Archive root is missing: $full" }
+        Assert-KmcNotReparsePoint $full 'historical archive root'
+        [string[]]$names = @(Get-ChildItem -LiteralPath $full -Force | ForEach-Object { $_.Name })
+        [Array]::Sort($names, [StringComparer]::Ordinal)
+        [pscustomobject]@{ root = $full; names = $names }
+    }
+    return [pscustomobject]@{ scope = 'development-run-scoped'; runId = $RunId; ownedPaths = $owned; roots = @($roots) }
+}
+
+function Assert-KmcWhatIfRunScopedArchiveUnchanged {
+    param([Parameter(Mandatory = $true)]$Before,[Parameter(Mandatory = $true)]$After)
+    for ($index = 0; $index -lt $Before.roots.Count; $index++) {
+        $was = [Collections.Generic.HashSet[string]]::new([string[]]@($Before.roots[$index].names), [StringComparer]::Ordinal)
+        $now = [Collections.Generic.HashSet[string]]::new([string[]]@($After.roots[$index].names), [StringComparer]::Ordinal)
+        $added = @($After.roots[$index].names | Where-Object { -not $was.Contains($_) })
+        $removed = @($Before.roots[$index].names | Where-Object { -not $now.Contains($_) })
+        if ($added.Count -ne 0 -or $removed.Count -ne 0 -or $After.roots[$index].root -cne $Before.roots[$index].root) {
+            throw ('WhatIf purity failed: top-level entries changed under ' + $Before.roots[$index].root +
+                ' (added: ' + ($added -join ', ') + '; removed: ' + ($removed -join ', ') + ')')
+        }
+    }
+}
+
+function Add-KmcModsRuntimeWriteFindings {
+    param([Parameter(Mandatory = $true)]$Manifest,[Parameter(Mandatory = $true)]$State,[Parameter(Mandatory = $true)][string]$Quarantine)
+    # Assigned directly (never through an if-expression) so an empty list stays an empty array.
+    $findings = @()
+    if ($null -ne $State.PSObject.Properties['runtimeUnexpectedWrites']) { $findings = @($State.runtimeUnexpectedWrites | Where-Object { $null -ne $_ }) }
+    $Manifest | Add-Member -NotePropertyName unexpectedRuntimeWrites -NotePropertyValue $findings -Force
+    $Manifest | Add-Member -NotePropertyName runtimeQuarantine -NotePropertyValue $Quarantine -Force
+    return $Manifest
 }
 
 function Get-KmcSaveBackedRuntimeScenarios {
@@ -14223,6 +14394,16 @@ function Restore-KmcRuntimeTransactions {
         $restoredModsDigest = [string]$mods.digest
         $modsRestored = $restoredModsDigest -ceq [string]$state.modsDigestBefore
         if (-not $modsRestored) { throw 'Restored Mods digest differs from the combined preflight digest.' }
+        $unexpectedWrites = @()
+        if ($null -ne $mods.PSObject.Properties['unexpectedRuntimeWrites']) { $unexpectedWrites = @($mods.unexpectedRuntimeWrites | Where-Object { $null -ne $_ }) }
+        if ($unexpectedWrites.Count -ne 0) {
+            # The live tree is back at its pre-run snapshot, but something outside
+            # this run wrote into the shared Mods path during the window.
+            $modsRestored = $false
+            $first = @($unexpectedWrites | Select-Object -First 5 | ForEach-Object { '{0} {1}' -f $_.change, $_.path }) -join '; '
+            throw ("Unexpected runtime writes into the shared Mods tree were preserved byte-exact in quarantine '" + [string]$mods.runtimeQuarantine +
+                "' (" + $unexpectedWrites.Count + ' entries; first: ' + $first + '). The live Mods tree was returned to its pre-run snapshot, so any newer external deployment must be re-applied.')
+        }
     }
     catch { $errors.Add('Mods restoration failed: ' + $_.Exception.Message) }
 

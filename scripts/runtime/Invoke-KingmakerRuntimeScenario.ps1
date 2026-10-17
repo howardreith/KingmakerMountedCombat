@@ -40,6 +40,7 @@ param(
     # Explicit private compatibility selection. Other modes keep the actual live
     # mod set. This mode stages KMC alone while retaining installed UMM/Harmony.
     [switch]$BaseGameOnly,
+    [switch]$DevelopmentScopedAudit,
     [switch]$ObserveWorkingDeserialization,
     [ValidateSet('authored-main-campaign')][string]$NativeBootstrapCase,
     [string]$OrdinarySelectionPath,
@@ -302,6 +303,12 @@ $gameExecutable=Join-Path ([string]$intake.requestedLayout.kingmakerInstallDir) 
 $expectedGameExecutableHash=[string](@($fingerprint.kingmaker.files|Where-Object role -eq 'executable')[0].sha256)
 $isSaveBacked=[string]$Scenario -cne 'mod-load-smoke'
 $isManualReview=[string]$Scenario -ceq 'manual-visual-review'
+# Development-scoped WhatIf is opt-in, WhatIf-only and never a release/milestone proof.
+if($DevelopmentScopedAudit){
+    if(-not$requestedWhatIf){throw 'The development-scoped audit is valid only together with -WhatIf; native runs always keep every guard.'}
+    if($isManualReview){throw 'The development-scoped audit is refused for the manual-review scenario.'}
+    if([string]::IsNullOrEmpty($RunId)){throw 'The development-scoped audit requires an explicit -RunId so its run-owned paths are defined.'}
+}
 if($BaseGameOnly-and($isObserver-or$isManualReview)){throw 'Base-game compatibility is a separate automated selection, not a removal-observer or human-review mode.'}
 $baseGameDependencies=$null
 if($BaseGameOnly){$baseGameDependencies=Get-KmcBaseGameDependencies -GameRoot ([string]$intake.requestedLayout.kingmakerInstallDir) -Fingerprint $fingerprint}
@@ -414,11 +421,19 @@ if(-not $PSCmdlet.ShouldProcess('Steam App 640820, exact live Kingmaker Mods, an
     $WhatIfPreference=$false
     # Historical archives are compared only by this purity check. Live runs
     # still snapshot every current Mods byte and retain all save/restore guards.
+    $scopedArchiveBefore=$null
+    if($DevelopmentScopedAudit){
+        # Exposed surfaces keep whole-tree content identity; archives are run-scoped.
+        Write-Host 'WhatIf audit scope: development-run-scoped (runtime-state and live Mods content identity; archive roots run-owned paths and top-level names only).'
+        $beforeRoots=@((Get-KmcDirectoryManifest $runtimeState),$beforeMods)
+        $scopedArchiveBefore=Get-KmcWhatIfRunScopedArchiveState -BackupRoot $runtimeBackups -StagingRoot $runtimeStaging -EvidenceRoot $runtimeEvidence -RunId $RunId
+    }else{
     $beforeRoots=@(
         (Get-KmcDirectoryManifest $runtimeState),(Get-KmcDirectoryManifest $runtimeBackups),
         (Get-KmcDirectoryManifest $runtimeStaging),(Get-KmcDirectoryManifest $runtimeEvidence),
         $beforeMods
     )
+    }
     if($isSaveBacked){
         $whatIfContinuity=Assert-KmcQualificationSuiteContinuity `
             -SnapshotPath $QualificationSuiteSnapshotPath -StateRoot $runtimeState -SaveRoot $saveRoot -ModsRoot $liveMods `
@@ -433,40 +448,27 @@ if(-not $PSCmdlet.ShouldProcess('Steam App 640820, exact live Kingmaker Mods, an
             -After $whatIfContinuity.saveMetadata `
             -Description 'runtime WhatIf fixture-continuity save metadata'
     }
+    if($DevelopmentScopedAudit){
+        $afterRoots=@((Get-KmcDirectoryManifest $runtimeState),(Get-KmcDirectoryManifest $liveMods))
+        Assert-KmcWhatIfRunScopedArchiveUnchanged $scopedArchiveBefore (Get-KmcWhatIfRunScopedArchiveState -BackupRoot $runtimeBackups -StagingRoot $runtimeStaging -EvidenceRoot $runtimeEvidence -RunId $RunId)
+    }else{
     $afterRoots=@(
         (Get-KmcDirectoryManifest $runtimeState),(Get-KmcDirectoryManifest $runtimeBackups),
         (Get-KmcDirectoryManifest $runtimeStaging),(Get-KmcDirectoryManifest $runtimeEvidence),
         (Get-KmcDirectoryManifest $liveMods)
     )
-    # A purity failure must name the tree and the exact entries that differ. The
-    # comparison itself is unchanged: every byte of every root is still rehashed
-    # and any difference still fails closed.
-    for($index=0;$index-lt$afterRoots.Count;$index++){
-        if($afterRoots[$index].digest-cne$beforeRoots[$index].digest){
-            $purityBefore=$beforeRoots[$index]; $purityAfter=$afterRoots[$index]
-            $purityBeforeEntries=@{}; foreach($entry in $purityBefore.entries){$purityBeforeEntries[($entry.kind+'|'+$entry.path)]=([string]$entry.length+'|'+[string]$entry.sha256)}
-            $purityAfterEntries=@{}; foreach($entry in $purityAfter.entries){$purityAfterEntries[($entry.kind+'|'+$entry.path)]=([string]$entry.length+'|'+[string]$entry.sha256)}
-            $purityDetails=New-Object 'System.Collections.Generic.List[string]'
-            foreach($key in $purityBeforeEntries.Keys){
-                if(-not$purityAfterEntries.ContainsKey($key)){$purityDetails.Add('removed '+$key)}
-                elseif($purityAfterEntries[$key]-cne$purityBeforeEntries[$key]){$purityDetails.Add('changed '+$key+' : '+$purityBeforeEntries[$key]+' -> '+$purityAfterEntries[$key])}
-                if($purityDetails.Count-ge20){break}
-            }
-            foreach($key in $purityAfterEntries.Keys){
-                if(-not$purityBeforeEntries.ContainsKey($key)){$purityDetails.Add('added '+$key)}
-                if($purityDetails.Count-ge40){break}
-            }
-            throw ('WhatIf purity failed: an external tree changed: '+$purityAfter.root+
-                ' (files '+$purityBefore.fileCount+'->'+$purityAfter.fileCount+
-                ', directories '+$purityBefore.directoryCount+'->'+$purityAfter.directoryCount+
-                ', bytes '+$purityBefore.totalBytes+'->'+$purityAfter.totalBytes+')'+
-                $(if($purityDetails.Count-eq0){''}else{[Environment]::NewLine+($purityDetails-join[Environment]::NewLine)}))
-        }
     }
+    # Unchanged whole-tree comparison and failure detail (shared so it is testable).
+    Assert-KmcWhatIfRootsUnchanged -Before $beforeRoots -After $afterRoots
     if((Get-KmcSaveMetadataInventory $saveRoot).digest-cne$beforeSaves.digest){throw 'WhatIf purity failed: save metadata changed.'}
     Assert-KmcNoGameProcesses
     if($BootstrapOfflineCloudEvidence){[void](Assert-KmcSteamSafety $SteamPath -AllowMissingCurrentSessionCloudState)}
     if($BaseGameOnly){Assert-KmcBaseGameDependencyReceipt $baseGameDependencies -VerifyFiles;Write-Host ('Base-game-only KMC staging selected; unchanged installed loader dependency digest: '+$baseGameDependencies.dependencyDigest)}
+    if($DevelopmentScopedAudit){
+        # Deliberately not the full-proof sentence: no reader may accept it as whole-lab equality.
+        Write-Host ('Runtime WhatIf development-scoped check PASS (scope: development-run-scoped, run '+$RunId+'; NOT a full whole-lab purity proof): runtime-state and the live Mods tree were compared by whole-tree content identity and save metadata was compared; historical archives under runtime-backups, runtime-staging and runtime-evidence were checked only for run-owned paths and new top-level entries, not rehashed.')
+        return
+    }
     Write-Host 'Runtime WhatIf purity PASS; exact fixture descriptors were validated when required, and no evidence, lock, transaction, Mods, process, game, or save mutation occurred.'
     return
 }
@@ -818,6 +820,12 @@ try{
             Assert-KmcNotReparsePoint $copySource 'persistence fixture source'
             Assert-KmcNotHardLink $copySource 'persistence fixture source'
             Copy-Item -LiteralPath $copySource -Destination $copiedFixture
+            # Copy-Item carries a read-only source attribute (the owner-seed master is
+            # read-only) and SetLastWriteTimeUtc is then denied; the fresh run-owned copy
+            # is an ordinary file. Only the copy's attribute changes; its bytes are
+            # hash-verified below and the source is never modified.
+            $copiedInfo=Get-Item -LiteralPath $copiedFixture
+            if($copiedInfo.IsReadOnly){$copiedInfo.IsReadOnly=$false}
             [IO.File]::SetLastWriteTimeUtc($copiedFixture,([IO.File]::GetLastWriteTimeUtc($copySource)))
             if((Get-KmcSha256 $copiedFixture)-cne[string]$copyDescriptor.sha256){
                 throw 'Copied persistence fixture bytes differ from the admitted Working fixture.'
@@ -1121,10 +1129,11 @@ try{
         if($gamePassed-and(Test-KmcChunk7AssistedColdInventoryScenario $Scenario)){
             $verifiedAssistedColdSource=Get-KmcChunk7AssistedColdInventorySource $request.assistedColdInventory $fixturePayload $manifest
             if((ConvertTo-KmcChunk7Canonical $verifiedAssistedColdSource)-cne(ConvertTo-KmcChunk7Canonical $assistedColdSource)-or
-               (Get-KmcSha256 (Join-Path $isolatedSaves $request.persistenceLoad.fileName))-cne$request.assistedColdInventory.sourceArchiveSha256){throw 'Read-only assisted source changed during the cold process.'}
+               (Get-KmcSha256 (Join-Path $isolatedSaves $request.persistenceLoad.fileName))-cne$(if(Test-KmcChunk7OwnerSeedSelection $request.assistedColdInventory){$request.assistedColdInventory.seedSha256}else{$request.assistedColdInventory.sourceArchiveSha256})){throw 'Read-only assisted source changed during the cold process.'}
             $sourceArtifact=Read-KmcAssistedColdSourceArtifact $request
             $coldArtifact=Read-KmcJson (Join-Path $evidenceRoot 'chunk7-assisted-cold-inventory-evidence.json')
-            if($sourceArtifact.observations.processId-eq$coldArtifact.observations.processId){throw 'Assisted cold inventory reused the preparation process.'}
+            # An owner seed has no producer process to compare; its record is checked by the evidence reader.
+            if(-not(Test-KmcChunk7OwnerSeedSelection $request.assistedColdInventory)-and$sourceArtifact.observations.processId-eq$coldArtifact.observations.processId){throw 'Assisted cold inventory reused the preparation process.'}
             Assert-KmcChunk7AssistedColdInventoryEvidence $request $coldArtifact $sourceArtifact 'PASS'
         }
         if($gamePassed-and(Test-KmcChunk7BootstrapInventoryScenario $Scenario)){

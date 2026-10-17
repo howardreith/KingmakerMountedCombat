@@ -595,6 +595,18 @@ namespace KingmakerMountedCombat.Diagnostics
             else if (Scenario == Chunk7AssistedColdInventorySelection.Scenario)
             {
                 if (PersistenceLoad == null) errors.Add("Assisted cold inventory requires its exact qualified final Manual.");
+                else if (AssistedColdInventory?.IsOwnerSeed == true)
+                {
+                    // Registry-supplied exact names, admitted generically; never the producer fixture identity.
+                    errors.AddRange(PersistenceLoad.Validate("persistenceLoad", PersistenceLoad.InternalName, "^[A-Za-z0-9][A-Za-z0-9_.-]{0,95}\\.zks$"));
+                    if (!Chunk7AssistedColdInventorySelection.IsOwnerSeedName(PersistenceLoad.InternalName) ||
+                        !Chunk7AssistedColdInventorySelection.IsOwnerSeedLeaf(PersistenceLoad.FileName) ||
+                        Fixture?.Working == null || PersistenceLoad.GameId == Fixture.Working.GameId || PersistenceLoad.GameId == Fixture.Baseline?.GameId ||
+                        !Guid.TryParseExact(PersistenceLoad.GameId, "D", out var ownerSeedId) || ownerSeedId == Guid.Empty ||
+                        string.IsNullOrWhiteSpace(PersistenceLoad.GameName) || PersistenceLoad.Sha256 == Fixture.Working.Sha256 ||
+                        PersistenceLoad.Sha256 == Fixture.Baseline?.Sha256 || PersistenceLoad.Sha256 != AssistedColdInventory.SeedSha256)
+                        errors.Add("Owner seed lacks its exact registered non-aliasing identity.");
+                }
                 else
                 {
                     errors.AddRange(PersistenceLoad.Validate("persistenceLoad", Chunk7AssistedColdInventorySelection.ManualName, "^Manual_[1-9][0-9]*_KMC_C7_ASSISTED_FIXTURE\\.zks$"));

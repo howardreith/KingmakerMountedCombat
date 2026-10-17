@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text.RegularExpressions;
 
 namespace KingmakerMountedCombat.Diagnostics
@@ -12,6 +13,16 @@ namespace KingmakerMountedCombat.Diagnostics
         public const string CaseName = "assisted-manual-readonly-inventory";
         public const string SourceLeaf = "assisted-cold-source.json";
         public const string ManualName = "KMC_C7_ASSISTED_FIXTURE";
+        // Owner-supplied seed. Its exact internal and file names come from the
+        // reviewed harness registry (data, so a new seed needs no product rebuild);
+        // the product admits them generically and never as the producer fixture.
+        public const string OwnerSeedCaseName = "owner-seed-readonly-inventory";
+        internal bool IsOwnerSeed => Case == OwnerSeedCaseName;
+        internal static bool IsOwnerSeedName(string value) =>
+            value != null && Regex.IsMatch(value, "^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$") && value != ManualName;
+        internal static bool IsOwnerSeedLeaf(string value) =>
+            value != null && Regex.IsMatch(value, "^[A-Za-z0-9][A-Za-z0-9_.-]{0,95}\\.zks$") &&
+            !value.EndsWith("_" + ManualName + ".zks", StringComparison.Ordinal);
         internal static bool IsManualLeaf(string value)
         {
             const string prefix = "Manual_", suffix = "_KMC_C7_ASSISTED_FIXTURE.zks";
@@ -27,9 +38,19 @@ namespace KingmakerMountedCombat.Diagnostics
         public bool BaseGameOnly { get; set; }
         public int ExpectedNativeLoadCount { get; set; }
         public int ExpectedNativeWriteCount { get; set; }
+        public string SeedId { get; set; }
+        public string SeedSha256 { get; set; }
+        // The producer shape keeps its exact seven keys; the owner-seed shape
+        // carries its two seed pins instead of the three producer pins.
+        public bool ShouldSerializeSourceRunId() => !IsOwnerSeed || SourceRunId != null;
+        public bool ShouldSerializeSourceArtifactSha256() => !IsOwnerSeed || SourceArtifactSha256 != null;
+        public bool ShouldSerializeSourceArchiveSha256() => !IsOwnerSeed || SourceArchiveSha256 != null;
+        public bool ShouldSerializeSeedId() => SeedId != null;
+        public bool ShouldSerializeSeedSha256() => SeedSha256 != null;
 
         public IReadOnlyList<string> Validate(string scenario, string runId)
         {
+            if (IsOwnerSeed) return ValidateOwnerSeed(scenario, runId);
             var errors = new List<string>();
             if (scenario != Scenario || Case != CaseName) errors.Add("Assisted cold inventory requires its exact closed read-only family.");
             if (!Regex.IsMatch(SourceRunId ?? "", "^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$") || SourceRunId == runId)
@@ -38,7 +59,92 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (!Regex.IsMatch(value ?? "", "^[a-f0-9]{64}$")) errors.Add("Exact immutable assisted fixture artifact/archive hashes are required.");
             if (!BaseGameOnly || ExpectedNativeLoadCount != 1 || ExpectedNativeWriteCount != 0)
                 errors.Add("Assisted cold inventory requires base-only staging, one native load and zero writes.");
+            if (SeedId != null || SeedSha256 != null) errors.Add("The producer assisted cold selection cannot carry owner-seed pins.");
             return errors;
+        }
+        private IReadOnlyList<string> ValidateOwnerSeed(string scenario, string runId)
+        {
+            var errors = new List<string>();
+            if (scenario != Scenario) errors.Add("Owner-seed cold inventory requires its exact closed read-only family.");
+            if (SourceRunId != null || SourceArtifactSha256 != null || SourceArchiveSha256 != null)
+                errors.Add("Owner-seed cold inventory has no producer run, artifact or archive pins.");
+            if (!Regex.IsMatch(SeedId ?? "", "^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$") || SeedId == runId)
+                errors.Add("An exact registered owner seed identity is required.");
+            if (!Regex.IsMatch(SeedSha256 ?? "", "^[a-f0-9]{64}$")) errors.Add("An exact owner seed SHA256 is required.");
+            if (!BaseGameOnly || ExpectedNativeLoadCount != 1 || ExpectedNativeWriteCount != 0)
+                errors.Add("Owner-seed cold inventory requires base-only staging, one native load and zero writes.");
+            return errors;
+        }
+    }
+
+    // Pure classification of an owner-seed load outcome from the exact observed
+    // names and messages. It never infers a cause the evidence does not name.
+    internal static class Chunk7OwnerSeedFailureClassifier
+    {
+        internal const string SeedDependency = "seed-dependency", KmcOrLoader = "kmc-or-loader",
+            RunnerOrAuthority = "runner-or-authority", Unclassified = "unclassified", None = "none";
+        private static readonly string[] NativeAssemblies = { "Assembly-CSharp", "Assembly-CSharp-firstpass", "mscorlib", "System", "System.Core", "UnityEngine", "UnityEngine.CoreModule", "Newtonsoft.Json" };
+        private static readonly Regex[] TypePatterns = {
+            new Regex("Error resolving type specified in JSON '([^']{1,512})'", RegexOptions.CultureInvariant),
+            new Regex("Could not convert string '([^']{1,512})' to dictionary key type 'System\\.Type'", RegexOptions.CultureInvariant),
+            new Regex("Type specified in JSON '([^']{1,512})' is not compatible", RegexOptions.CultureInvariant) };
+        private static readonly Regex AssemblyPattern = new Regex("Could not load (?:assembly|file or assembly) '([^',]{1,256})", RegexOptions.CultureInvariant);
+        private static readonly Regex FindTypePattern = new Regex("Could not find type '([^']{1,512})' in assembly '([^',]{1,256})", RegexOptions.CultureInvariant);
+
+        // "Namespace.Type, Assembly[, Version=...]" -> (type, simple assembly name).
+        internal static bool TrySplitTypeName(string value, out string typeName, out string assemblyName)
+        {
+            typeName = null; assemblyName = null;
+            if (string.IsNullOrWhiteSpace(value) || value.Length > 512) return false;
+            var comma = value.IndexOf(',');
+            if (comma <= 0) return false;
+            typeName = value.Substring(0, comma).Trim();
+            var rest = value.Substring(comma + 1); var next = rest.IndexOf(',');
+            assemblyName = (next < 0 ? rest : rest.Substring(0, next)).Trim();
+            return typeName.Length > 0 && assemblyName.Length > 0;
+        }
+        internal static bool IsNativeAssembly(string assemblyName) => Array.IndexOf(NativeAssemblies, assemblyName) >= 0;
+        internal static bool IsKmcAssembly(string assemblyName) => assemblyName == "KingmakerMountedCombat";
+
+        // Exact type/assembly names named by serializer or loader messages.
+        internal static List<string> NamedAssemblies(IEnumerable<string> messages, List<string> namedTypes)
+        {
+            var assemblies = new List<string>();
+            foreach (var message in messages ?? new string[0])
+            {
+                if (message == null) continue;
+                foreach (var pattern in TypePatterns)
+                    foreach (Match match in pattern.Matches(message))
+                        if (TrySplitTypeName(match.Groups[1].Value, out var type, out var assembly))
+                        { Add(namedTypes, type + ", " + assembly); Add(assemblies, assembly); }
+                foreach (Match match in FindTypePattern.Matches(message))
+                { Add(namedTypes, match.Groups[1].Value + ", " + match.Groups[2].Value.Trim()); Add(assemblies, match.Groups[2].Value.Trim()); }
+                foreach (Match match in AssemblyPattern.Matches(message)) Add(assemblies, match.Groups[1].Value.Trim());
+            }
+            return assemblies;
+        }
+        private static void Add(List<string> list, string value) { if (!string.IsNullOrEmpty(value) && !list.Contains(value) && list.Count < 256) list.Add(value); }
+
+        // declaredForeignTypes: archive-declared types whose assembly is absent;
+        // unresolvedBlueprints: native library misses; messages: exact logged/loader errors.
+        internal static string Classify(IEnumerable<string> declaredForeignTypes, IEnumerable<string> unresolvedBlueprints,
+            IEnumerable<string> messages, bool harnessRefused)
+        {
+            var namedTypes = new List<string>();
+            var assemblies = NamedAssemblies(messages, namedTypes);
+            foreach (var declared in declaredForeignTypes ?? new string[0])
+                if (TrySplitTypeName(declared, out var type, out var assembly)) Add(assemblies, assembly);
+            var foreign = assemblies.Any(value => !IsNativeAssembly(value) && !IsKmcAssembly(value)) || (unresolvedBlueprints ?? new string[0]).Any();
+            var list = (messages ?? new string[0]).Where(value => value != null).ToList();
+            // A KMC type/assembly name is decisive; a loader failure alone is a
+            // consequence that a foreign name explains.
+            var kmc = assemblies.Any(IsKmcAssembly) || list.Any(value => value.IndexOf("KingmakerMountedCombat", StringComparison.Ordinal) >= 0);
+            var loader = list.Any(value => value.IndexOf("WorkingFixtureLoader", StringComparison.Ordinal) >= 0);
+            if (foreign && !kmc) return SeedDependency;
+            if ((kmc || loader) && !foreign) return KmcOrLoader;
+            if (foreign) return Unclassified;
+            if (harnessRefused) return RunnerOrAuthority;
+            return list.Count == 0 ? None : Unclassified;
         }
     }
 }
