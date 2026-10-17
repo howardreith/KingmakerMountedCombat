@@ -169,6 +169,9 @@ namespace KingmakerMountedCombat.Diagnostics
         // seed-content assertion; any other assertion is unclassified (a non-refusal
         // assertion never reaches seed-dependency through names); only without any
         // assertion, or with only the native-load-incomplete outcome, do the names decide.
+        // An incomplete load reaches seed-dependency only when a foreign assembly is
+        // named: a blueprint miss records nothing about who requested it, and a KMC
+        // fault can leave no KMC frame, so blueprint misses alone are unclassified.
         internal static string Classify(IEnumerable<string> declaredForeignTypes, IEnumerable<string> unresolvedBlueprints,
             IEnumerable<string> messages, bool harnessRefused, IEnumerable<string> stacks = null, IEnumerable<string> assertionIds = null) =>
             Decide(declaredForeignTypes, unresolvedBlueprints, messages, harnessRefused, stacks, assertionIds).Label;
@@ -181,22 +184,25 @@ namespace KingmakerMountedCombat.Diagnostics
             var ids = (assertionIds ?? new string[0]).Where(value => value != null).Distinct(StringComparer.Ordinal).ToArray();
             var invariant = ids.FirstOrDefault(value => Chunk7OwnerSeedAssertions.KindOf(value) == Chunk7OwnerSeedAssertions.Kind.KmcInvariant);
             if (invariant != null) return new Decision { Label = KmcOrLoader, DecidedBy = "assertion:" + invariant };
-            var names = ClassifyNames(declaredForeignTypes, unresolvedBlueprints, messages, out var kmcNamed);
+            var names = ClassifyNames(declaredForeignTypes, unresolvedBlueprints, messages, out var kmcNamed, out var foreignAssemblyNamed);
             var content = ids.FirstOrDefault(value => Chunk7OwnerSeedAssertions.KindOf(value) == Chunk7OwnerSeedAssertions.Kind.SeedContent);
             if (content != null) return new Decision { Label = kmcNamed ? Unclassified : SeedDependency, DecidedBy = "assertion:" + content };
             var other = ids.FirstOrDefault(value => Chunk7OwnerSeedAssertions.KindOf(value) != Chunk7OwnerSeedAssertions.Kind.LoadOutcome);
             if (other != null) return new Decision { Label = Unclassified, DecidedBy = "assertion:" + other };
+            if (ids.Length > 0 && names == SeedDependency && !foreignAssemblyNamed)
+                return new Decision { Label = Unclassified, DecidedBy = "assertion:" + ids[0] + ";blueprint-misses-only" };
             return new Decision { Label = names, DecidedBy = names == None ? "none" : "named-evidence" };
         }
 
         private static string ClassifyNames(IEnumerable<string> declaredForeignTypes, IEnumerable<string> unresolvedBlueprints,
-            IEnumerable<string> messages, out bool kmc)
+            IEnumerable<string> messages, out bool kmc, out bool foreignAssembly)
         {
             var namedTypes = new List<string>();
             var assemblies = NamedAssemblies(messages, namedTypes);
             foreach (var declared in declaredForeignTypes ?? new string[0])
                 if (TrySplitTypeName(declared, out var type, out var assembly)) Add(assemblies, assembly);
-            var foreign = assemblies.Any(value => !IsNativeAssembly(value) && !IsKmcAssembly(value)) || (unresolvedBlueprints ?? new string[0]).Any();
+            foreignAssembly = assemblies.Any(value => !IsNativeAssembly(value) && !IsKmcAssembly(value));
+            var foreign = foreignAssembly || (unresolvedBlueprints ?? new string[0]).Any();
             var list = (messages ?? new string[0]).Where(value => value != null).ToList();
             // A KMC type/assembly name is decisive; a loader failure alone is a
             // consequence that a foreign name explains.
@@ -224,10 +230,12 @@ namespace KingmakerMountedCombat.Diagnostics
         internal const string MetadataNotMissing = "kmc-metadata-not-missing";
         internal const string ObserverFault = "kmc-observer-fault";
         internal const string ObserverNotInstalled = "kmc-observer-not-installed";
-        // The seed's own content: lost or unresolved content, identity, DLC.
+        // The seed's own content: lost or unresolved content, DLC.
         internal const string SeedLostContent = "seed-lost-content";
-        internal const string SeedIdentityMismatch = "seed-identity-mismatch";
         internal const string SeedDlcUnavailable = "seed-dlc-unavailable";
+        // The header was verified against the registry before launch; a post-load
+        // mismatch can come from a transition or a harness error, so it claims no cause.
+        internal const string SeedIdentityMismatch = "seed-identity-mismatch";
         // The native load did not complete: an outcome that claims no cause either way,
         // so the observed evidence (frames, then names) decides the label.
         internal const string NativeLoadIncomplete = "native-load-incomplete";
@@ -241,9 +249,9 @@ namespace KingmakerMountedCombat.Diagnostics
         private static readonly Dictionary<string, Kind> Kinds = new Dictionary<string, Kind>(StringComparer.Ordinal) {
             [MountedCustody] = Kind.KmcInvariant, [NativeEffects] = Kind.KmcInvariant, [NativeRestorationEntries] = Kind.KmcInvariant,
             [MetadataNotMissing] = Kind.KmcInvariant, [ObserverFault] = Kind.KmcInvariant, [ObserverNotInstalled] = Kind.KmcInvariant,
-            [SeedLostContent] = Kind.SeedContent, [SeedIdentityMismatch] = Kind.SeedContent, [SeedDlcUnavailable] = Kind.SeedContent,
+            [SeedLostContent] = Kind.SeedContent, [SeedDlcUnavailable] = Kind.SeedContent,
             [NativeLoadIncomplete] = Kind.LoadOutcome,
-            [GameLoggedException] = Kind.Other, [DeclaredTypeScan] = Kind.Other, [NativeStructure] = Kind.Other, [ControlState] = Kind.Other,
+            [SeedIdentityMismatch] = Kind.Other, [GameLoggedException] = Kind.Other, [DeclaredTypeScan] = Kind.Other, [NativeStructure] = Kind.Other, [ControlState] = Kind.Other,
             [Qualification] = Kind.Other, [Unidentified] = Kind.Other };
         internal static Kind KindOf(string id) => id != null && Kinds.TryGetValue(id, out var kind) ? kind : Kind.Other;
         internal static bool IsKnown(string id) => id != null && Kinds.ContainsKey(id);
