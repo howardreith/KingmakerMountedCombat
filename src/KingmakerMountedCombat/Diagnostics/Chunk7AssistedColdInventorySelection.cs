@@ -136,17 +136,62 @@ namespace KingmakerMountedCombat.Diagnostics
         // optionally behind a "(wrapper ...)" marker).
         private static readonly Regex KmcFrame = new Regex("(?m)^\\s*at\\s+(?:\\(wrapper [^)]{1,64}\\)\\s+)?KingmakerMountedCombat\\.", RegexOptions.CultureInvariant);
         internal static bool HasKmcFrame(string stack) => !string.IsNullOrEmpty(stack) && KmcFrame.IsMatch(stack);
+        internal const int FrameLineCapacity = 8;
+        // The KMC frame lines of a FULL stack. Storage bounds (BoundStack) apply only
+        // after this verdict, so a deep KMC frame is never lost to truncation.
+        internal static string[] KmcFrameLines(string stack)
+        {
+            if (string.IsNullOrEmpty(stack)) return new string[0];
+            var lines = new List<string>();
+            foreach (var line in stack.Split('\n'))
+                if (KmcFrame.IsMatch(line) && lines.Count < FrameLineCapacity)
+                { var value = line.TrimEnd('\r'); lines.Add(value.Length > 512 ? value.Substring(0, 512) : value); }
+            return lines.ToArray();
+        }
+        // Every exception of the chain (inner exceptions included), each full stack.
+        internal static string[] KmcFrameLines(Exception error)
+        {
+            var lines = new List<string>(); var depth = 0;
+            for (var current = error; current != null && depth < 8; current = current.InnerException, depth++)
+                foreach (var line in KmcFrameLines(current.StackTrace)) if (lines.Count < FrameLineCapacity) lines.Add(line);
+            return lines.ToArray();
+        }
+
+        internal sealed class Decision { internal string Label, DecidedBy; }
 
         // declaredForeignTypes: archive-declared types whose assembly is absent;
         // unresolvedBlueprints: native library misses; messages: exact logged/loader errors;
-        // stacks: the recorded stack traces of the observed exceptions (never the
-        // harness's own assertion). Precedence: a runner/authority refusal decides
-        // first, whatever else was observed; then a KMC stack frame; then names.
+        // stacks: KMC frame evidence taken from the full stacks of the observed
+        // exceptions (never the harness's own assertion); assertionIds: the stable
+        // identifiers of the harness assertions that fired (Chunk7OwnerSeedAssertions).
+        // Precedence: a runner/authority refusal decides first, whatever else was
+        // observed; then a KMC stack frame; then a KMC-invariant assertion; then a
+        // seed-content assertion; any other assertion is unclassified (a non-refusal
+        // assertion never reaches seed-dependency through names); only without any
+        // assertion, or with only the native-load-incomplete outcome, do the names decide.
         internal static string Classify(IEnumerable<string> declaredForeignTypes, IEnumerable<string> unresolvedBlueprints,
-            IEnumerable<string> messages, bool harnessRefused, IEnumerable<string> stacks = null)
+            IEnumerable<string> messages, bool harnessRefused, IEnumerable<string> stacks = null, IEnumerable<string> assertionIds = null) =>
+            Decide(declaredForeignTypes, unresolvedBlueprints, messages, harnessRefused, stacks, assertionIds).Label;
+
+        internal static Decision Decide(IEnumerable<string> declaredForeignTypes, IEnumerable<string> unresolvedBlueprints,
+            IEnumerable<string> messages, bool harnessRefused, IEnumerable<string> stacks = null, IEnumerable<string> assertionIds = null)
         {
-            if (harnessRefused) return RunnerOrAuthority;
-            if ((stacks ?? new string[0]).Any(HasKmcFrame)) return KmcOrLoader;
+            if (harnessRefused) return new Decision { Label = RunnerOrAuthority, DecidedBy = "runner-or-authority-refusal" };
+            if ((stacks ?? new string[0]).Any(HasKmcFrame)) return new Decision { Label = KmcOrLoader, DecidedBy = "kmc-stack-frame" };
+            var ids = (assertionIds ?? new string[0]).Where(value => value != null).Distinct(StringComparer.Ordinal).ToArray();
+            var invariant = ids.FirstOrDefault(value => Chunk7OwnerSeedAssertions.KindOf(value) == Chunk7OwnerSeedAssertions.Kind.KmcInvariant);
+            if (invariant != null) return new Decision { Label = KmcOrLoader, DecidedBy = "assertion:" + invariant };
+            var names = ClassifyNames(declaredForeignTypes, unresolvedBlueprints, messages, out var kmcNamed);
+            var content = ids.FirstOrDefault(value => Chunk7OwnerSeedAssertions.KindOf(value) == Chunk7OwnerSeedAssertions.Kind.SeedContent);
+            if (content != null) return new Decision { Label = kmcNamed ? Unclassified : SeedDependency, DecidedBy = "assertion:" + content };
+            var other = ids.FirstOrDefault(value => Chunk7OwnerSeedAssertions.KindOf(value) != Chunk7OwnerSeedAssertions.Kind.LoadOutcome);
+            if (other != null) return new Decision { Label = Unclassified, DecidedBy = "assertion:" + other };
+            return new Decision { Label = names, DecidedBy = names == None ? "none" : "named-evidence" };
+        }
+
+        private static string ClassifyNames(IEnumerable<string> declaredForeignTypes, IEnumerable<string> unresolvedBlueprints,
+            IEnumerable<string> messages, out bool kmc)
+        {
             var namedTypes = new List<string>();
             var assemblies = NamedAssemblies(messages, namedTypes);
             foreach (var declared in declaredForeignTypes ?? new string[0])
@@ -155,13 +200,53 @@ namespace KingmakerMountedCombat.Diagnostics
             var list = (messages ?? new string[0]).Where(value => value != null).ToList();
             // A KMC type/assembly name is decisive; a loader failure alone is a
             // consequence that a foreign name explains.
-            var kmc = assemblies.Any(IsKmcAssembly) || list.Any(value => value.IndexOf("KingmakerMountedCombat", StringComparison.Ordinal) >= 0);
+            kmc = assemblies.Any(IsKmcAssembly) || list.Any(value => value.IndexOf("KingmakerMountedCombat", StringComparison.Ordinal) >= 0);
             var loader = list.Any(value => value.IndexOf("WorkingFixtureLoader", StringComparison.Ordinal) >= 0);
             if (foreign && !kmc) return SeedDependency;
             if ((kmc || loader) && !foreign) return KmcOrLoader;
             if (foreign) return Unclassified;
             return list.Count == 0 ? None : Unclassified;
         }
+    }
+
+    // Stable identifiers of the owner-seed harness assertions and what each asserts.
+    // The mapping is explicit; message text never decides a label. An identifier not
+    // listed here (including Unidentified) is neither a KMC invariant nor seed content
+    // and can only be unclassified.
+    internal static class Chunk7OwnerSeedAssertions
+    {
+        internal enum Kind { Other, KmcInvariant, SeedContent, LoadOutcome }
+        internal const string AssertionIdKey = "KingmakerMountedCombat.HarnessAssertionId";
+        // KMC invariants: a breach is a KMC (or KMC observer) fault, never the seed's.
+        internal const string MountedCustody = "kmc-mounted-custody";
+        internal const string NativeEffects = "kmc-native-write-cast-restoration";
+        internal const string NativeRestorationEntries = "kmc-native-restoration-entries";
+        internal const string MetadataNotMissing = "kmc-metadata-not-missing";
+        internal const string ObserverFault = "kmc-observer-fault";
+        internal const string ObserverNotInstalled = "kmc-observer-not-installed";
+        // The seed's own content: lost or unresolved content, identity, DLC.
+        internal const string SeedLostContent = "seed-lost-content";
+        internal const string SeedIdentityMismatch = "seed-identity-mismatch";
+        internal const string SeedDlcUnavailable = "seed-dlc-unavailable";
+        // The native load did not complete: an outcome that claims no cause either way,
+        // so the observed evidence (frames, then names) decides the label.
+        internal const string NativeLoadIncomplete = "native-load-incomplete";
+        // Everything else the harness asserts.
+        internal const string GameLoggedException = "game-logged-exception";
+        internal const string DeclaredTypeScan = "declared-type-scan-error";
+        internal const string NativeStructure = "native-structure-bound";
+        internal const string ControlState = "native-control-state";
+        internal const string Qualification = "owner-seed-qualification";
+        internal const string Unidentified = "unidentified";
+        private static readonly Dictionary<string, Kind> Kinds = new Dictionary<string, Kind>(StringComparer.Ordinal) {
+            [MountedCustody] = Kind.KmcInvariant, [NativeEffects] = Kind.KmcInvariant, [NativeRestorationEntries] = Kind.KmcInvariant,
+            [MetadataNotMissing] = Kind.KmcInvariant, [ObserverFault] = Kind.KmcInvariant, [ObserverNotInstalled] = Kind.KmcInvariant,
+            [SeedLostContent] = Kind.SeedContent, [SeedIdentityMismatch] = Kind.SeedContent, [SeedDlcUnavailable] = Kind.SeedContent,
+            [NativeLoadIncomplete] = Kind.LoadOutcome,
+            [GameLoggedException] = Kind.Other, [DeclaredTypeScan] = Kind.Other, [NativeStructure] = Kind.Other, [ControlState] = Kind.Other,
+            [Qualification] = Kind.Other, [Unidentified] = Kind.Other };
+        internal static Kind KindOf(string id) => id != null && Kinds.TryGetValue(id, out var kind) ? kind : Kind.Other;
+        internal static bool IsKnown(string id) => id != null && Kinds.ContainsKey(id);
     }
 
     // Exception-safe observation: an observer body runs inside Run, so a fault in it
@@ -173,13 +258,14 @@ namespace KingmakerMountedCombat.Diagnostics
     {
         internal const string Reason = "Observer fault";
         internal const int Capacity = 16;
-        internal sealed class Fault { internal string Hook, ExceptionType, Message, Stack; }
+        internal sealed class Fault { internal string Hook, ExceptionType, Message, Stack; internal string[] KmcFrameLines = new string[0]; }
         private readonly object sync = new object();
         private readonly List<Fault> faults = new List<Fault>();
         private int count;
         internal int Count { get { lock (sync) return count; } }
         internal Fault[] Snapshot() { lock (sync) return faults.ToArray(); }
-        internal string[] Stacks() { lock (sync) return faults.Select(value => value.Stack).Where(value => value != null).ToArray(); }
+        // KMC frame lines decided on each fault's full stack (Stack itself is bounded storage).
+        internal string[] KmcFrameLines() { lock (sync) return faults.SelectMany(value => value.KmcFrameLines).ToArray(); }
         internal void Run(string hook, Action body)
         {
             try { body(); }
@@ -195,7 +281,8 @@ namespace KingmakerMountedCombat.Diagnostics
                     if (faults.Count < Capacity)
                         faults.Add(new Fault { Hook = hook, ExceptionType = error?.GetType().FullName,
                             Message = error?.Message == null ? null : error.Message.Length > 2048 ? error.Message.Substring(0, 2048) : error.Message,
-                            Stack = Chunk7OwnerSeedFailureClassifier.BoundStack(error?.StackTrace) });
+                            Stack = Chunk7OwnerSeedFailureClassifier.BoundStack(error?.StackTrace),
+                            KmcFrameLines = Chunk7OwnerSeedFailureClassifier.KmcFrameLines(error) });
                 }
             }
             catch { }

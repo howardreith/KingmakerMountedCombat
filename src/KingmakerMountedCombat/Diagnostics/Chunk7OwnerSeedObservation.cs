@@ -35,7 +35,7 @@ namespace KingmakerMountedCombat.Diagnostics
         internal const int Capacity = 256;
         private static Chunk7OwnerSeedLoadProbe active;
         private readonly object sync = new object();
-        private readonly List<string> missing = new List<string>(), failedBinds = new List<string>();
+        private readonly List<string> missing = new List<string>(), failedBinds = new List<string>(), overflowKmcFrames = new List<string>();
         private readonly Dictionary<int, string> pendingBinds = new Dictionary<int, string>();
         private readonly JArray logged = new JArray(), hooks = new JArray();
         private HarmonyInstance harmony;
@@ -134,11 +134,22 @@ namespace KingmakerMountedCombat.Diagnostics
                 var thread = System.Threading.Thread.CurrentThread.ManagedThreadId;
                 string pending;
                 if (pendingBinds.TryGetValue(thread, out pending)) { pendingBinds.Remove(thread); FailedBind(pending); }
-                if (logged.Count >= 64) { dropped++; return; }
+                if (logged.Count >= 64)
+                {
+                    // A dropped entry still contributes its full-stack KMC frame verdict.
+                    dropped++;
+                    for (var current = ex; current != null && overflowKmcFrames.Count < Chunk7OwnerSeedFailureClassifier.FrameLineCapacity; current = current.InnerException)
+                        overflowKmcFrames.AddRange(Chunk7OwnerSeedFailureClassifier.KmcFrameLines(current.StackTrace).Take(Chunk7OwnerSeedFailureClassifier.FrameLineCapacity - overflowKmcFrames.Count));
+                    return;
+                }
                 var chain = new JArray();
                 for (var current = ex; current != null && chain.Count < 8; current = current.InnerException)
+                {
+                    // The KMC-frame verdict uses the FULL stack; only the stored text is bounded.
+                    var frames = Chunk7OwnerSeedFailureClassifier.KmcFrameLines(current.StackTrace);
                     chain.Add(new JObject { ["type"] = current.GetType().FullName, ["message"] = Bound(current.Message, 2048),
-                        ["stack"] = Chunk7OwnerSeedFailureClassifier.BoundStack(current.StackTrace) });
+                        ["stack"] = Chunk7OwnerSeedFailureClassifier.BoundStack(current.StackTrace), ["kmcFrame"] = frames.Length != 0, ["kmcFrameLines"] = new JArray(frames) });
+                }
                 logged.Add(new JObject { ["source"] = source, ["thread"] = thread, ["pendingBind"] = pending, ["exceptionChain"] = chain });
             }
         }
@@ -147,12 +158,12 @@ namespace KingmakerMountedCombat.Diagnostics
         internal string[] FailedBinds { get { lock (sync) return failedBinds.Concat(pendingBinds.Values.Where(value => !failedBinds.Contains(value))).Take(Capacity).ToArray(); } }
         internal string[] LoggedMessages { get { lock (sync) return logged.SelectMany(row => ((JArray)row["exceptionChain"]).Select(item => (string)item["type"] + ": " + (string)item["message"])).ToArray(); } }
         internal int LoggedCount { get { lock (sync) return loggedCount; } }
-        // Recorded stacks of every logged exception plus every observer fault, for classification.
-        internal string[] ObservedStacks { get { lock (sync) return logged.SelectMany(row => ((JArray)row["exceptionChain"]).Select(item => (string)item["stack"])).Where(value => value != null).Concat(faults.Stacks()).ToArray(); } }
+        // KMC frame lines of every logged exception and observer fault, decided on full stacks, for classification.
+        internal string[] ObservedKmcFrameLines { get { lock (sync) return logged.SelectMany(row => ((JArray)row["exceptionChain"]).SelectMany(item => ((JArray)item["kmcFrameLines"]).Select(value => (string)value))).Concat(overflowKmcFrames).Concat(faults.KmcFrameLines()).ToArray(); } }
         internal JObject Capture()
         {
             var observerFaults = new JArray(faults.Snapshot().Select(value => new JObject { ["hook"] = value.Hook, ["exceptionType"] = value.ExceptionType,
-                ["message"] = value.Message, ["stack"] = value.Stack }));
+                ["message"] = value.Message, ["stack"] = value.Stack, ["kmcFrame"] = value.KmcFrameLines.Length != 0, ["kmcFrameLines"] = new JArray(value.KmcFrameLines) }));
             lock (sync) return new JObject { ["contract"] = "owner-seed-native-load-observation-v1", ["installed"] = installed,
                 ["capacity"] = Capacity, ["blueprintFailureCount"] = failures, ["dropped"] = dropped,
                 ["unresolvedBlueprintIds"] = new JArray(missing.ToArray()), ["failedTypeBindCount"] = failedBindCount + pendingBinds.Count,
@@ -230,7 +241,9 @@ namespace KingmakerMountedCombat.Diagnostics
         internal static JObject Capture(Game game, UnitEntityData[] actors, UnitEntityData[] characters, SaveInfo descriptor,
             string[] headerDlc, Chunk7OwnerSeedLoadProbe resolution, MountedPersistenceService persistence, bool nativeBusy, string archivePath)
         {
-            var failures = new List<string>();
+            var failures = new List<string>(); var failureIds = new List<string>();
+            // Every failure carries the stable identifier of what it asserts (Chunk7OwnerSeedAssertions).
+            void Failed(string id, string text) { failures.Add(text); if (!failureIds.Contains(id)) failureIds.Add(id); }
             var main = game.Player.MainCharacter.Value;
             var party = new JArray(); var unresolvedFacts = new JArray(); var unresolvedItems = new JArray();
             foreach (var actor in actors)
@@ -245,7 +258,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 var counts = new JObject(); var total = 0;
                 foreach (var pair in collections)
                 {
-                    if (pair.Value == null) { failures.Add("Actor " + actor.UniqueId + " has no native " + pair.Key + " collection."); counts[pair.Key] = null; continue; }
+                    if (pair.Value == null) { Failed(Chunk7OwnerSeedAssertions.NativeStructure, "Actor " + actor.UniqueId + " has no native " + pair.Key + " collection."); counts[pair.Key] = null; continue; }
                     var raw = pair.Value.RawFacts;
                     counts[pair.Key] = raw.Count; total += raw.Count;
                     for (var i = 0; i < raw.Count && unresolvedFacts.Count < 256; i++)
@@ -263,7 +276,7 @@ namespace KingmakerMountedCombat.Diagnostics
                         unresolvedItems.Add(new JObject { ["actorId"] = actor.UniqueId, ["slotIndex"] = slotIndex });
                     slotIndex++;
                 }
-                if (slotIndex > 128) failures.Add("Actor " + actor.UniqueId + " exceeds the 128-slot equipment bound.");
+                if (slotIndex > 128) Failed(Chunk7OwnerSeedAssertions.NativeStructure, "Actor " + actor.UniqueId + " exceeds the 128-slot equipment bound.");
                 party.Add(new JObject {
                     ["id"] = actor.UniqueId, ["blueprint"] = actor.Blueprint?.AssetGuid, ["name"] = actor.CharacterName,
                     ["isMain"] = ReferenceEquals(actor, main), ["isCharacter"] = characters.Contains(actor),
@@ -277,7 +290,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     ["directlyControllable"] = actor.IsDirectlyControllable, ["factCounts"] = counts, ["equipment"] = equipment });
             }
             var sharedItems = game.Player.Inventory?.Items;
-            if (sharedItems == null) failures.Add("Native shared inventory is unavailable.");
+            if (sharedItems == null) Failed(Chunk7OwnerSeedAssertions.NativeStructure, "Native shared inventory is unavailable.");
             else for (var i = 0; i < sharedItems.Count && unresolvedItems.Count < 256; i++)
                 if (sharedItems[i] == null || sharedItems[i].Blueprint == null) unresolvedItems.Add(new JObject { ["actorId"] = null, ["inventoryIndex"] = i });
             var resolutionTrace = resolution.Capture();
@@ -285,25 +298,25 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["method"] = "structural walk of every party actor's native fact collections, equipment slots and the shared inventory for null blueprints; every native ResourcesLibrary.TryGetBlueprint miss, failed Newtonsoft type bind and game-logged exception from before the load until qualification; and the copied archive's declared serialized types whose assembly or type is absent from this process",
                 ["blueprintResolution"] = resolutionTrace, ["nullBlueprintFacts"] = unresolvedFacts, ["nullBlueprintItems"] = unresolvedItems,
                 ["total"] = resolution.FailureCount + unresolvedFacts.Count + unresolvedItems.Count };
-            if (!resolution.Installed) failures.Add("Blueprint resolution observer was not installed before load.");
+            if (!resolution.Installed) Failed(Chunk7OwnerSeedAssertions.ObserverNotInstalled, "Blueprint resolution observer was not installed before load.");
             if (resolution.FailureCount != 0 || resolution.Dropped != 0)
-                failures.Add("The native library failed to resolve " + resolution.FailureCount + " blueprint request(s) during the load: " + string.Join(", ", ((JArray)resolutionTrace["unresolvedBlueprintIds"]).Select(value => (string)value)));
-            if (unresolvedFacts.Count != 0) failures.Add("Party facts lost their blueprint: " + unresolvedFacts.ToString(Newtonsoft.Json.Formatting.None));
-            if (unresolvedItems.Count != 0) failures.Add("Party items lost their blueprint: " + unresolvedItems.ToString(Newtonsoft.Json.Formatting.None));
+                Failed(Chunk7OwnerSeedAssertions.SeedLostContent, "The native library failed to resolve " + resolution.FailureCount + " blueprint request(s) during the load: " + string.Join(", ", ((JArray)resolutionTrace["unresolvedBlueprintIds"]).Select(value => (string)value)));
+            if (unresolvedFacts.Count != 0) Failed(Chunk7OwnerSeedAssertions.SeedLostContent, "Party facts lost their blueprint: " + unresolvedFacts.ToString(Newtonsoft.Json.Formatting.None));
+            if (unresolvedItems.Count != 0) Failed(Chunk7OwnerSeedAssertions.SeedLostContent, "Party items lost their blueprint: " + unresolvedItems.ToString(Newtonsoft.Json.Formatting.None));
             var failedBinds = resolution.FailedBinds;
-            if (failedBinds.Length != 0) failures.Add("The native deserializer could not bind serialized type(s): " + string.Join("; ", failedBinds));
-            if (resolution.LoggedCount != 0) failures.Add("The game logged " + resolution.LoggedCount + " exception(s) during the load: " + string.Join(" | ", resolution.LoggedMessages.Take(8)));
+            if (failedBinds.Length != 0) Failed(Chunk7OwnerSeedAssertions.SeedLostContent, "The native deserializer could not bind serialized type(s): " + string.Join("; ", failedBinds));
+            if (resolution.LoggedCount != 0) Failed(Chunk7OwnerSeedAssertions.GameLoggedException, "The game logged " + resolution.LoggedCount + " exception(s) during the load: " + string.Join(" | ", resolution.LoggedMessages.Take(8)));
             var observerFault = resolution.Faults.QualificationFailure();
-            if (observerFault != null) failures.Add(observerFault);
+            if (observerFault != null) Failed(Chunk7OwnerSeedAssertions.ObserverFault, observerFault);
             var declared = DeclaredForeignTypes(descriptor, archivePath, game.CurrentlyLoadedArea.AssetGuidThreadSafe);
             unresolved["declaredForeignTypes"] = declared;
             var declaredNames = ((JArray)declared["types"]).Select(row => (string)row["type"]).ToArray();
-            if (declared["error"].Type != JTokenType.Null) failures.Add("The copied archive's declared types could not be read: " + (string)declared["error"]);
-            if (declaredNames.Length != 0) failures.Add("The seed declares serialized state of types absent from this configuration, so it cannot have loaded (lost content): " +
+            if (declared["error"].Type != JTokenType.Null) Failed(Chunk7OwnerSeedAssertions.DeclaredTypeScan, "The copied archive's declared types could not be read: " + (string)declared["error"]);
+            if (declaredNames.Length != 0) Failed(Chunk7OwnerSeedAssertions.SeedLostContent, "The seed declares serialized state of types absent from this configuration, so it cannot have loaded (lost content): " +
                 string.Join("; ", ((JArray)declared["types"]).Select(row => (string)row["type"] + " x" + (int)row["count"] + " in " + (string)row["entry"])));
             unresolved["total"] = (int)unresolved["total"] + failedBinds.Length + resolution.LoggedCount + declaredNames.Length + resolution.Faults.Count;
             unresolved["classification"] = Chunk7OwnerSeedFailureClassifier.Classify(declaredNames.Concat(failedBinds), resolution.UnresolvedBlueprints,
-                resolution.LoggedMessages.Concat(resolution.Faults.Snapshot().Select(value => value.ExceptionType + ": " + value.Message)), false, resolution.ObservedStacks);
+                resolution.LoggedMessages.Concat(resolution.Faults.Snapshot().Select(value => value.ExceptionType + ": " + value.Message)), false, resolution.ObservedKmcFrameLines);
 
             // DLC: the game's own verdicts (DlcRoot.Get 0600977D, DlcData.Enabled 0600C538,
             // DlcData.IsRequiredInSaves 04009276, DlcRoot.ListForSaves 0600977F,
@@ -325,10 +338,10 @@ namespace KingmakerMountedCombat.Diagnostics
             var dlcRequired = descriptor.DlcRequired;
             var dlc = new JObject { ["headerDlc"] = new JArray(headerDlc), ["loadedDescriptorDlc"] = descriptorDlc == null ? null : new JArray(descriptorDlc),
                 ["descriptorDlcRequired"] = dlcRequired, ["entries"] = dlcEntries, ["unavailable"] = unavailable };
-            if (unavailable.Count != 0) failures.Add("Required DLC unavailable on this installation: " + string.Join(", ", unavailable.Select(value => (string)value)));
-            if (dlcRequired) failures.Add("The game reports that the loaded save requires DLC this installation does not provide.");
+            if (unavailable.Count != 0) Failed(Chunk7OwnerSeedAssertions.SeedDlcUnavailable, "Required DLC unavailable on this installation: " + string.Join(", ", unavailable.Select(value => (string)value)));
+            if (dlcRequired) Failed(Chunk7OwnerSeedAssertions.SeedDlcUnavailable, "The game reports that the loaded save requires DLC this installation does not provide.");
             if (descriptorDlc == null || !descriptorDlc.SequenceEqual(headerDlc, StringComparer.Ordinal))
-                failures.Add("The loaded descriptor's DLC list differs from the registered seed header.");
+                Failed(Chunk7OwnerSeedAssertions.SeedDlcUnavailable, "The loaded descriptor's DLC list differs from the registered seed header.");
 
             // Control: input owner, view and selection readiness; nothing is clicked or selected.
             var builder = game.UI == null ? null : game.UI.CharacterBuildController;
@@ -347,19 +360,19 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["popupShown"] = popup, ["inCombat"] = game.Player.IsInCombat, ["nativeLoading"] = nativeBusy,
                 ["kmcAreaTransitionPending"] = persistence.AreaTransitionPending, ["paused"] = game.IsPaused };
             foreach (var key in new[] { "pcController", "clickEventsController", "selectionManager", "mainViewReady", "partySelectable", "characterBuilderIdle" })
-                if (!(bool)control[key]) failures.Add("Party control is not ready: " + key + " is false.");
+                if (!(bool)control[key]) Failed(Chunk7OwnerSeedAssertions.ControlState, "Party control is not ready: " + key + " is false.");
             foreach (var key in new[] { "cutscene", "dialogActive", "dialogScheduled", "cuePlayScheduled", "dialogStopScheduled", "popupShown", "inCombat", "nativeLoading", "kmcAreaTransitionPending" })
-                if ((bool)control[key]) failures.Add("A blocking native state is present: " + key + ".");
-            if (game.CurrentMode != GameModeType.Default) failures.Add("Native mode is not Default.");
+                if ((bool)control[key]) Failed(Chunk7OwnerSeedAssertions.ControlState, "A blocking native state is present: " + key + ".");
+            if (game.CurrentMode != GameModeType.Default) Failed(Chunk7OwnerSeedAssertions.ControlState, "Native mode is not Default.");
 
             var kind = persistence.LoadedArchiveKind;
             var metadata = new JObject { ["kind"] = kind?.ToString(), ["canRestore"] = persistence.LoadedArchiveCanRestore,
                 ["loadedArchivePresent"] = persistence.LoadedArchive != null, ["mountedRestorationProven"] = false,
                 ["statement"] = "The seed carries no KMC metadata; the supported missing-metadata path selected no archive. This proves no mounted restoration." };
             if (kind != MountedSaveReadKind.Missing || persistence.LoadedArchiveCanRestore || persistence.LoadedArchive != null)
-                failures.Add("KMC metadata is not the supported Missing path.");
+                Failed(Chunk7OwnerSeedAssertions.MetadataNotMissing, "KMC metadata is not the supported Missing path.");
 
-            return new JObject { ["contract"] = Contract, ["qualified"] = failures.Count == 0, ["failures"] = new JArray(failures),
+            return new JObject { ["contract"] = Contract, ["qualified"] = failures.Count == 0, ["failures"] = new JArray(failures), ["failureIds"] = new JArray(failureIds),
                 ["identity"] = new JObject { ["gameId"] = game.Player.GameId, ["gameName"] = main.CharacterName, ["mainActorId"] = main.UniqueId,
                     ["area"] = game.CurrentlyLoadedArea.AssetGuidThreadSafe, ["descriptorType"] = descriptor.Type.ToString(),
                     ["compatibilityVersion"] = descriptor.CompatibilityVersion },
