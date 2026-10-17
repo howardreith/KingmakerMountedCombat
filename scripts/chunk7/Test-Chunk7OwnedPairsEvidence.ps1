@@ -54,20 +54,20 @@ foreach($boundary in @('multi-nonselected-mount-unsettled-manual','multi-owned-w
 function Prog($cl,$xp,$rl){[pscustomobject][ordered]@{characterLevel=$cl;experience=$xp;rangerLevel=$rl;classes=@()}}
 # Owner-seed two-pair exploration: the same measured world shape with the disclosed
 # native fixture setup in place of inherited custody; door may be not-applicable only here.
-# Setup level-up Autos (assisted precedent): autosave on -> one completed run-owned Auto per
-# rider build before SETUP-COMPLETE; autosave off -> each request natively writes nothing.
+# The installed game has no level-up autosave (LevelUpAutoSaveController is never registered):
+# whatever the observed autosave setting, each rider build shows an installed probe with no
+# completion entry, save request or prepared write, and setup makes zero writes.
 function Set-KmcOwnerSeedAutosaves($v,[bool]$On){
  $r=$v.request;$o=$v.artifact.observations;$s=$r.ownedPairs;$u=$o.ownerSeedSetup
  $r.evidenceRoot=Join-Path (Join-Path (Get-KmcLabRoot) 'runtime-evidence') $r.runId
- $path=Join-Path (Get-KmcAssistedSaveRoot $r) 'Auto_1.zks';$writes=if($On){2}else{0};$s.expectedNativeWriteCount=$writes
- $u.nativeLevelUpAutosave=[pscustomobject][ordered]@{autosaveEnabled=$On;onlyOneSave=$false;autosaveSlots=3.0;settingsWritten=$false;case=$(if($On){'autosave-on'}else{'autosave-off'});riderBuilds=2;expectedWrites=$writes;selectedWrites=$writes;slotProjectionDuringBuild=($writes-gt0);mountedPersistenceProof=$false}
+ $writes=0;$s.expectedNativeWriteCount=$writes
+ $u.nativeLevelUpAutosave=[pscustomobject][ordered]@{autosaveEnabled=$On;onlyOneSave=$false;autosaveSlots=3.0;settingsWritten=$false;case='no-native-levelup-autosave';riderBuilds=2;expectedWrites=$writes;selectedWrites=$writes;slotProjectionDuringBuild=$false;mountedPersistenceProof=$false}
  $riders=@($s.riderAId,$s.riderBId)
- $autos=@(for($i=0;$i-lt2;$i++){if($On){[pscustomobject][ordered]@{sequence=($i+1);riderId=$riders[$i];case='autosave-on';phase='setup-levelup-auto';type='Auto';autoLevelup=$true;internalName='Autosave 1';fileName='Auto_1.zks';preparedLeaf=@('Auto_1.zks','Auto_2.zks')[$i];path=$path;insideRunRoot=$true;length=1200000;sha256=([string]@('a','b')[$i]*64);lastWriteTimeUtcTicks=638960000000000000;completionSequence=($i+1);requestedObject=(500+$i);writtenObject=(600+$i);admittedWrites=($i+1);authorizedWrites=($i+1);snapshots=($i+1);completedSaves=($i+1);frame=$i;completedBeforeBoundary=$true;mountedPersistenceProof=$false;probe=[pscustomobject]@{complete=$true}}}else{[pscustomobject][ordered]@{sequence=($i+1);riderId=$riders[$i];case='autosave-off';requested=$true;written=$false;probe=[pscustomobject]@{complete=$false}}}})
+ $probe={[pscustomobject][ordered]@{hooks=@([pscustomobject]@{type='Kingmaker.Controllers.LevelUpAutoSaveController';method='HandleLevelUpComplete'});events=@();errors=@();completionEntries=0;completionExits=0;saveRequests=0;preparedWrites=0;installationAttempted=$true;installed=$true;complete=$false}}
+ $autos=@(for($i=0;$i-lt2;$i++){[pscustomobject][ordered]@{sequence=($i+1);riderId=$riders[$i];case='no-native-levelup-autosave';requested=$false;written=$false;probe=(&$probe)}})
  $u|Add-Member setupAutosaves $autos -Force
  $build=@($u.assistance|Where-Object kind -CEQ 'native-ordinary-ranger-levels');$xp=@($u.assistance|Where-Object kind -CEQ 'native-xp')
- $api='Kingmaker.Controllers.LevelUpAutoSaveController.HandleLevelUpComplete -> Game.SaveGame(Auto) into the run-owned isolated save root'
- function AutoItem($unit,$n){[pscustomobject][ordered]@{unitId=$unit;kind='native-levelup-autosave';nativeApi=$api;before=($n-1);after=$n;amount=1;detail=$path}}
- $items=@($build[0]);if($On){$items+=AutoItem $riders[0] 1};$items+=$xp;$items+=$build[1];if($On){$items+=AutoItem $riders[1] 2}
+ $items=@($build[0]);$items+=$xp;$items+=$build[1]
  $u.assistance=$items
  $o.setupComplete.assistanceCount=$items.Count;$o.setupComplete|Add-Member writesAtBoundary $writes -Force;$o.setupComplete|Add-Member writeScopeClosed $true -Force
  # Stock XP table, money/item economy and a boundary no later than the first measured observation.
@@ -135,20 +135,29 @@ Check-OwnerSeed 'owner-seed measured-phase setup mutation refused' {$args[0].art
 Check-OwnerSeed 'owner-seed setup state drift after boundary refused' {$args[0].artifact.observations.cleanup.setupStateUnchangedAfterBoundary=$false}
 Check-OwnerSeed 'owner-seed setup failure cannot be a PASS' {$args[0].artifact.observations|Add-Member failurePhase 'SETUP'}
 Check-OwnerSeed 'owner-seed OnlyOneSave/Ironman setup refused' {$args[0].artifact.observations.ownerSeedSetup.nativeLevelUpAutosave.onlyOneSave=$true}
-Check 'owner-seed exploration with native autosave off and zero setup writes' {$v=New-KmcOwnerSeedWorldFixture $true $false;Assert-KmcChunk7WorldEvidence $v.request $v.artifact 'PASS'}
-Check 'owner-seed autosave off cannot declare setup writes' {$v=New-KmcOwnerSeedWorldFixture $true $false;$v.request.ownedPairs.expectedNativeWriteCount=2;Assert-KmcChunk7WorldEvidence $v.request $v.artifact 'PASS'} $true
-Check 'owner-seed autosave off cannot carry a written Auto' {$v=New-KmcOwnerSeedWorldFixture $true $false;$v.artifact.observations.ownerSeedSetup.setupAutosaves[0].written=$true;Assert-KmcChunk7WorldEvidence $v.request $v.artifact 'PASS'} $true
-Check-OwnerSeed 'owner-seed selected write count must equal the native observation' {$args[0].request.ownedPairs.expectedNativeWriteCount=1} $true 'differs from the observed'
-Check-OwnerSeed 'owner-seed observed write count must equal its native derivation' {$a=$args[0].artifact.observations.ownerSeedSetup.nativeLevelUpAutosave;$a.expectedWrites=1;$a.selectedWrites=1;$args[0].request.ownedPairs.expectedNativeWriteCount=1}
-Check-OwnerSeed 'owner-seed missing setup Auto observation refused' {$u=$args[0].artifact.observations.ownerSeedSetup;$u.setupAutosaves=@($u.setupAutosaves[0])} $true 'one native level-up autosave'
-Check-OwnerSeed 'owner-seed setup Auto after SETUP-COMPLETE refused' {$args[0].artifact.observations.ownerSeedSetup.setupAutosaves[1].frame=901} $true 'after SETUP-COMPLETE'
+Check 'owner-seed exploration with the autosave setting on and zero setup writes' {$v=New-KmcOwnerSeedWorldFixture $true $true;Assert-KmcChunk7WorldEvidence $v.request $v.artifact 'PASS'}
+Check 'owner-seed exploration with the autosave setting off and zero setup writes' {$v=New-KmcOwnerSeedWorldFixture $true $false;Assert-KmcChunk7WorldEvidence $v.request $v.artifact 'PASS'}
+foreach($on in @($true,$false)){Check ('owner-seed selection with two setup writes refused (autosave setting '+$on+')') {$v=New-KmcOwnerSeedWorldFixture $true $on;$v.request.ownedPairs.expectedNativeWriteCount=2;Assert-KmcChunk7WorldEvidence $v.request $v.artifact 'PASS'} $true 'no level-up autosave'}
+Check-OwnerSeed 'owner-seed selection with one setup write refused' {$args[0].request.ownedPairs.expectedNativeWriteCount=1} $true 'no level-up autosave'
+Check-OwnerSeed 'owner-seed observed write count must be zero' {$a=$args[0].artifact.observations.ownerSeedSetup.nativeLevelUpAutosave;$a.expectedWrites=2;$a.selectedWrites=2}
+Check-OwnerSeed 'owner-seed old autosave-on case refused' {$args[0].artifact.observations.ownerSeedSetup.nativeLevelUpAutosave.case='autosave-on'}
+Check-OwnerSeed 'owner-seed enabled slot projection refused' {$args[0].artifact.observations.ownerSeedSetup.nativeLevelUpAutosave.slotProjectionDuringBuild=$true}
+Check-OwnerSeed 'owner-seed missing per-build absence observation refused' {$u=$args[0].artifact.observations.ownerSeedSetup;$u.setupAutosaves=@($u.setupAutosaves[0])} $true 'absence of a native level-up autosave'
+Check-OwnerSeed 'owner-seed row claiming requested:true refused' {$args[0].artifact.observations.ownerSeedSetup.setupAutosaves[1].requested=$true}
+Check-OwnerSeed 'owner-seed row claiming written:true refused' {$args[0].artifact.observations.ownerSeedSetup.setupAutosaves[0].written=$true}
+foreach($key in @('completionEntries','saveRequests','preparedWrites')){Check-OwnerSeed ('owner-seed observed '+$key+' during setup refused') {param($v)$v.artifact.observations.ownerSeedSetup.setupAutosaves[1].probe.$key=1} $true 'registers no LevelUpAutoSaveController'}
+Check-OwnerSeed 'owner-seed probe that was never installed refused' {$args[0].artifact.observations.ownerSeedSetup.setupAutosaves[0].probe.installed=$false}
+Check-OwnerSeed 'owner-seed probe with a native event refused' {$args[0].artifact.observations.ownerSeedSetup.setupAutosaves[0].probe.events=@([pscustomobject]@{kind='native-level-autosave-request'})}
+Check-OwnerSeed 'owner-seed probe without its counters refused' {$args[0].artifact.observations.ownerSeedSetup.setupAutosaves[0].probe.PSObject.Properties.Remove('saveRequests')}
+Check-OwnerSeed 'owner-seed old written-Auto row shape refused' {$w=$args[0].artifact.observations.ownerSeedSetup.setupAutosaves[0];$w|Add-Member fileName 'Auto_1.zks'}
 Check-OwnerSeed 'owner-seed native write after SETUP-COMPLETE refused' {$args[0].artifact.observations.cleanup.writesAfterBoundary=1}
 Check-OwnerSeed 'owner-seed unauthorized write refused' {$args[0].artifact.observations.cleanup.unauthorizedWrites=1}
-Check-OwnerSeed 'owner-seed setup Auto outside the run root refused' {$w=$args[0].artifact.observations.ownerSeedSetup.setupAutosaves[0];$w.path='C:\Users\Howie\AppData\LocalLow\Owlcat Games\Pathfinder Kingmaker\Saved Games\Auto_1.zks'}
-Check-OwnerSeed 'owner-seed Manual setup write refused' {$w=$args[0].artifact.observations.ownerSeedSetup.setupAutosaves[1];$w.type='Manual'}
-Check-OwnerSeed 'owner-seed Quick setup leaf refused' {$w=$args[0].artifact.observations.ownerSeedSetup.setupAutosaves[0];$w.fileName='Quick_1.zks'}
-Check-OwnerSeed 'owner-seed setup Auto cannot claim mounted persistence' {$args[0].artifact.observations.ownerSeedSetup.setupAutosaves[0].mountedPersistenceProof=$true}
-Check-OwnerSeed 'owner-seed setup Auto without its assistance item refused' {$u=$args[0].artifact.observations.ownerSeedSetup;$u.assistance=@($u.assistance|Where-Object{$_.kind-cne'native-levelup-autosave'-or$_.after-ne2});$args[0].artifact.observations.setupComplete.assistanceCount=@($u.assistance).Count} $true 'assistance disclosure'
+Check-OwnerSeed 'owner-seed level-up autosave assistance item refused' {$u=$args[0].artifact.observations.ownerSeedSetup;$u.assistance=@($u.assistance)+@([pscustomobject][ordered]@{unitId=$args[0].request.ownedPairs.riderBId;kind='native-levelup-autosave';nativeApi='Game.SaveGame';before=0;after=1;amount=1;detail='Auto_1.zks'});$args[0].artifact.observations.setupComplete.assistanceCount=@($u.assistance).Count} $true 'assistance disclosure'
+# Runner final-root check: only the seed copy may remain.
+Check 'owner-seed final save root with only the seed copy accepted' {$v=New-KmcOwnerSeedWorldFixture;Assert-KmcChunk7OwnerSeedFinalSaveRoot $v.request @($v.request.persistenceLoad.fileName)}
+Check 'owner-seed final save root with an Auto_1 left refused' {$v=New-KmcOwnerSeedWorldFixture;Assert-KmcChunk7OwnerSeedFinalSaveRoot $v.request @($v.request.persistenceLoad.fileName,'Auto_1.zks')} $true 'no Auto_1'
+Check 'owner-seed final save root with only an Auto_1 refused' {$v=New-KmcOwnerSeedWorldFixture;Assert-KmcChunk7OwnerSeedFinalSaveRoot $v.request @('Auto_1.zks')} $true 'no Auto_1'
+Check 'owner-seed final save root without the seed copy refused' {$v=New-KmcOwnerSeedWorldFixture;Assert-KmcChunk7OwnerSeedFinalSaveRoot $v.request @()} $true 'no Auto_1'
 Check-OwnerSeed 'owner-seed boundary must close the write scope' {$args[0].artifact.observations.setupComplete.writeScopeClosed=$false}
 Check-OwnerSeed 'owner-seed boundary write count must equal the selection' {$args[0].artifact.observations.setupComplete.writesAtBoundary=1}
 Check-OwnerSeed 'owner-seed slot projection must be released' {$args[0].artifact.observations.cleanup.slotProjectionReleased=$false}

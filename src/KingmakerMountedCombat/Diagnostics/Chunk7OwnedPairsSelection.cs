@@ -202,10 +202,13 @@ namespace KingmakerMountedCombat.Diagnostics
                 errors.Add("Rider " + role + " native progression observation is inconsistent.");
             return errors;
         }
-        // Each rider's final native build commit makes LevelUpAutoSaveController request
-        // one Auto (chained intermediate commits do not); with native autosave off the
-        // request writes nothing. The selection must declare exactly that count.
-        internal static int ExpectedSetupWrites(bool autosaveEnabled, int riderBuilds) => autosaveEnabled ? riderBuilds : 0;
+        // The installed game (2.1.7b) has no level-up autosave: GameModesFactory builds its
+        // controllers explicitly and never constructs or registers LevelUpAutoSaveController
+        // (no reference anywhere in Assembly-CSharp, no reflective registration), so nothing
+        // handles ILevelUpCompleteUIHandler.HandleLevelUpComplete with a save. Observed natively
+        // in run 20261017-c7b-world19-ownerseed-b2s1-twopair (completionEntries=0,
+        // saveRequests=0, preparedWrites=0). Setup expects zero writes for every setting.
+        internal static int ExpectedSetupWrites(bool autosaveEnabled, int riderBuilds) => 0;
         internal static IReadOnlyList<string> WriteErrors(Chunk7OwnedPairsSelection selection, bool autosaveEnabled, bool onlyOneSave, int riderBuilds)
         {
             var errors = new List<string>();
@@ -214,7 +217,8 @@ namespace KingmakerMountedCombat.Diagnostics
             var expected = ExpectedSetupWrites(autosaveEnabled, riderBuilds);
             if (selection == null || selection.ExpectedNativeWriteCount != expected)
                 errors.Add("Selected native write count " + (selection == null ? "null" : selection.ExpectedNativeWriteCount.ToString()) +
-                    " differs from the observed native level-up autosave count " + expected + " (autosave " + (autosaveEnabled ? "on" : "off") + ", " + riderBuilds + " rider builds).");
+                    " must be " + expected + ": the native game has no level-up autosave (LevelUpAutoSaveController is never registered), whatever the autosave setting (" +
+                    (autosaveEnabled ? "on" : "off") + ", " + riderBuilds + " rider builds).");
             return errors;
         }
         internal static IReadOnlyList<string> AssistanceErrors(Chunk7OwnedPairsSelection selection, Chunk7OwnerSeedRiderFacts riderA, Chunk7OwnerSeedRiderFacts riderB)
