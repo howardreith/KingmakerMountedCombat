@@ -47,6 +47,8 @@ function New-Fixture {
  $o.nativeProfileInventory=$p
  $o.noPreparation=Clone $template.artifact.observations.noPreparation
  $o.noPreparation.hooks[2].moduleMvid=$r.dllMvid;$o.noPreparation.hooks[3].moduleMvid=$r.dllMvid
+ # Native names of token 0600939D, as the installed game and the run 20261017-c7b-world17-ownerseed-s3-cold record them.
+ $o.noPreparation.hooks[1].declaringType='Kingmaker.Controllers.Combat.UnitCombatState';$o.noPreparation.hooks[1].method='OnNewRound'
  $sourcePath=Join-Path $script:caseLab ('runtime-evidence/'+$r.assistedColdInventory.sourceRunId+'/chunk7-assisted-fixture-evidence.json')
  Put $sourcePath (Json $s);$hash=Get-KmcSha256 $sourcePath
  $r.assistedColdInventory.sourceArtifactSha256=$hash;$o.selection.sourceArtifactSha256=$hash;$o.source.artifactSha256=$hash
@@ -132,6 +134,7 @@ Check 'empty archive cannot contain pairs' $false {param($f)$f.artifact.observat
 Check 'empty schema3 cannot use legacy schema2' $false {param($f)$f.artifact.observations.archive.schemaVersion=2;Verify $f}
 Check 'archive decode cannot grant restoration' $false {param($f)$f.artifact.observations.archive.nativeRestorationGrantedByDiagnostic=$true;Verify $f}
 Check 'native Prepare entry remains refused' $false {param($f)$f.artifact.observations.noPreparation.events=@([pscustomobject]@{generated=$true});Verify $f}
+Check 'restoration round hook under a non-native method name is refused' $false {param($f)$f.artifact.observations.noPreparation.hooks[1].method='NewRound';Verify $f}
 Check 'restoration observer must precede load' $false {param($f)$f.artifact.observations.noPreparation.installedBeforeWorldLoad=$false;Verify $f}
 Check 'restoration native method token singleton is refused' $false {param($f)$h=$f.artifact.observations.noPreparation.hooks[0];$h.token=@($h.token);Verify $f}
 Check 'fixture readiness Manual cannot change to Auto' $false {param($f)$f.artifact.observations.fixtureReadiness.isolatedSaveDescriptors.descriptors[0].type='Auto';Verify $f}
@@ -211,6 +214,8 @@ CheckSeed 'owner seed observer fault refused as PASS' $false {param($f)$b=$f.art
 CheckSeed 'owner seed failed type bind refused' $false {param($f)$b=$f.artifact.observations.ownerSeedQualification.unresolvedContent.blueprintResolution;$b.failedTypeBindCount=1;$b.failedTypeBinds=@('CallOfTheWild.UnitPartFlying, CallOfTheWild');VerifySeed $f}
 CheckSeed 'owner seed unavailable DLC refused' $false {param($f)$d=$f.artifact.observations.ownerSeedQualification.dlc;$d.entries[1].enabled=$false;$d.unavailable=@('Varnhold');VerifySeed $f}
 CheckSeed 'owner seed blocked control refused' $false {param($f)$f.artifact.observations.ownerSeedQualification.control.cuePlayScheduled=$true;VerifySeed $f}
+CheckSeed 'owner seed PostLoad events with a null Player.GameId (header-only GameId) are accepted' $true {param($f)foreach($e in $f.artifact.observations.nativeLoad.events){$e.gameId=$null};VerifySeed $f}
+CheckSeed 'owner seed PostLoad event with a foreign GameId refused' $false {param($f)$f.artifact.observations.nativeLoad.events[1].gameId='00000000-0000-0000-0000-000000000001';VerifySeed $f}
 CheckSeed 'owner seed restorable KMC metadata refused' $false {param($f)$f.artifact.observations.ownerSeedQualification.kmcMetadata.kind='Current';VerifySeed $f}
 CheckSeed 'owner seed partial qualification shape refused' $false {param($f)$f.artifact.observations.ownerSeedQualification.PSObject.Properties.Remove('control');VerifySeed $f}
 CheckSeed 'owner seed fabricated producer provenance refused' $false {param($f)$f.artifact.observations|Add-Member NoteProperty source ([pscustomobject]@{runId='assisted-source'});VerifySeed $f}
