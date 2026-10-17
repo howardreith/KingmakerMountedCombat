@@ -257,6 +257,14 @@ namespace KingmakerMountedCombat.Diagnostics
         internal static bool IsKnown(string id) => id != null && Kinds.ContainsKey(id);
     }
 
+    // The declared-type scan records a null error on success. A null string assigned to
+    // a JObject property is a JValue of type String whose value is null (it serializes
+    // as null), so only a non-null error text means the scan failed.
+    internal static class Chunk7OwnerSeedScan
+    {
+        internal static bool Failed(Newtonsoft.Json.Linq.JObject declared) => declared != null && (string)declared["error"] != null;
+    }
+
     // Exception-safe observation: an observer body runs inside Run, so a fault in it
     // is recorded and never escapes into the observed game call. Run has no
     // return value and touches nothing of the caller, so the original method's
