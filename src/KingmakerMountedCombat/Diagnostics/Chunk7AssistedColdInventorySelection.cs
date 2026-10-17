@@ -259,10 +259,10 @@ namespace KingmakerMountedCombat.Diagnostics
 
     // The declared-type scan records a null error on success. A null string assigned to
     // a JObject property is a JValue of type String whose value is null (it serializes
-    // as null), so only a non-null error text means the scan failed.
+    // as null), so callers pass (string)declared["error"]: only non-null text is a failure.
     internal static class Chunk7OwnerSeedScan
     {
-        internal static bool Failed(Newtonsoft.Json.Linq.JObject declared) => declared != null && (string)declared["error"] != null;
+        internal static bool Failed(string errorText) => errorText != null;
     }
 
     // Exception-safe observation: an observer body runs inside Run, so a fault in it
