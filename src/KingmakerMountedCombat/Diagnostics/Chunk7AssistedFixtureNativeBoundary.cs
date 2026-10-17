@@ -257,7 +257,7 @@ namespace KingmakerMountedCombat.Diagnostics
             RequireModule(type);var f=type.GetField(name,BindingFlags.Instance|BindingFlags.Public|BindingFlags.NonPublic|BindingFlags.DeclaredOnly);
             if(f==null||f.MetadataToken!=token||f.FieldType!=typeof(T)||f.IsStatic)throw new InvalidOperationException("Installed assisted fixture field changed: "+name);return (T)f.GetValue(owner);
         }
-        private static void RequireMethod(Type type,string name,int token,Type returns,Type[] parameters)
+        internal static void RequireMethod(Type type,string name,int token,Type returns,Type[] parameters)
         {
             RequireModule(type);var m=type.GetMethod(name,BindingFlags.Instance|BindingFlags.Public|BindingFlags.NonPublic,null,parameters,null);
             if(m==null||m.MetadataToken!=token||m.ReturnType!=returns||m.IsStatic||m.IsVirtual)throw new InvalidOperationException("Installed assisted fixture method changed: "+name);

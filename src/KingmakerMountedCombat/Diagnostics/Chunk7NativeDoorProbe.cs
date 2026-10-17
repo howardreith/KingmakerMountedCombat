@@ -65,12 +65,7 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             Require(stage == 0 && !captured, "Door probe may begin only once.");
             RequirePairs(); Require(actors.All(Chunk7NativeFixture.Idle), "Door probe requires idle native actors.");
-            door = UnityEngine.Object.FindObjectsOfType<StandardDoor>()
-                .Where(d => d != null && d.isActiveAndEnabled && d.gameObject.activeInHierarchy && d.GetState() &&
-                    d.DisableNavmeshCutWhenOpen && d.GetComponentInChildren<NavmeshCut>() != null &&
-                    mounts.All(m => Distance(m.Position, d.transform.position) > Radius(d) + 0.5f &&
-                        Distance(m.Position, d.transform.position) <= 28f))
-                .OrderBy(d => mounts.Sum(m => Distance(m.Position, d.transform.position))).FirstOrDefault();
+            door = FindQualifyingDoor(mounts, out _);
             Require(door != null, "No bounded open native door outside both pair interaction radii; exact door fixture is required.");
             cut = door.GetComponentInChildren<NavmeshCut>();
             doorObject = door.gameObject; doorTransform = door.transform;
@@ -82,6 +77,21 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["disableOnOpen"] = door.DisableOnOpen, ["radius"] = Radius(door) };
             firstStart = mounts[0].Position;
             CloseForInput(); Next(1);
+        }
+
+        // The exact qualifying-door query Begin uses, as a read-only bounded scan: no
+        // door is acquired, closed or changed. Applicability is decided only from it.
+        internal const float ScanRadius = 28f;
+        internal static StandardDoor FindQualifyingDoor(UnitEntityData[] mounts, out int candidatesScanned)
+        {
+            var candidates = UnityEngine.Object.FindObjectsOfType<StandardDoor>() ?? new StandardDoor[0];
+            candidatesScanned = candidates.Length;
+            return candidates
+                .Where(d => d != null && d.isActiveAndEnabled && d.gameObject.activeInHierarchy && d.GetState() &&
+                    d.DisableNavmeshCutWhenOpen && d.GetComponentInChildren<NavmeshCut>() != null &&
+                    mounts.All(m => Distance(m.Position, d.transform.position) > Radius(d) + 0.5f &&
+                        Distance(m.Position, d.transform.position) <= ScanRadius))
+                .OrderBy(d => mounts.Sum(m => Distance(m.Position, d.transform.position))).FirstOrDefault();
         }
 
         internal bool Poll()

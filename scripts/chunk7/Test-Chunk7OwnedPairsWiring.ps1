@@ -82,5 +82,35 @@ Check 'source before lock, locked recheck/copy, after-native recheck'{if($source
 foreach($case in @('multi-exploration-three-loads-manual','multi-exploration-three-area-transfers-manual')){
  foreach($bad in @('load4','write1','route','source-only','checkpoint-missing')){Check ('full replay request refuses '+$case+'/'+$bad){$q=Request ('persistence-load-'+$case);switch($bad){'load4'{$q.ownedPairs.expectedNativeLoadCount=4}'write1'{$q.ownedPairs.expectedNativeWriteCount=1}'route'{if($case-ceq'multi-exploration-three-loads-manual'){$q|Add-Member persistenceReplayTargets @()}else{$q.persistenceReplayTargets[0].area=$q.persistenceLoad.area}}'source-only'{$q.ownedPairs.case='persistence-save'}'checkpoint-missing'{$q.ownedPairs.checkpointSourceRunId=$null}};Validate $q} $true}
 }
+# Owner-seed kind through the actual full request validator, quotas and runner timeout guard.
+function OwnerSeedRequest{$q=Request;$p=$q.ownedPairs;$q.ownedPairs=[pscustomobject][ordered]@{case='owner-seed-exploration';seedId='KMC_C7_OWNER_SEED';seedSha256=('9'*64);riderAId=$p.riderAId;riderBId=$p.riderBId;partyIds=@($p.riderAId,$p.riderBId,'50505050-5050-4050-8050-505050505050');xpAssistance=[pscustomobject][ordered]@{unitId=$p.riderBId;targetCharacterLevel=8};baseGameOnly=$true;expectedNativeLoadCount=1;expectedNativeWriteCount=0};$q.persistenceLoad.internalName='KMC_C7_OWNER_SEED';$q.persistenceLoad.fileName='Manual_302_KMC_C7_OWNER_SEED.zks';$q.persistenceLoad.sha256='9'*64;$q}
+Check 'full request owner-seed exploration admitted' {Validate (OwnerSeedRequest)}
+Check 'full request owner-seed exploration without assistance admitted' {$q=OwnerSeedRequest;$q.ownedPairs.xpAssistance=$null;Validate $q}
+Check 'owner-seed selects the exploration engine with one load and zero writes' {$q=OwnerSeedRequest;if((Get-KmcChunk7SelectedScenario $q)-cne'chunk7-two-pair-exploration'-or(Get-KmcChunk7OwnedWriteCount $q)-ne0-or(Get-KmcChunk7OwnedLoadCount $q)-ne1){throw 'Owner-seed quota or engine differs'}}
+Check 'full request owner-seed exploration with two setup level-up Autos admitted and quota exact' {$q=OwnerSeedRequest;$q.ownedPairs.expectedNativeWriteCount=2;Validate $q;if((Get-KmcChunk7OwnedWriteCount $q)-ne2-or(Get-KmcChunk7OwnedLoadCount $q)-ne1){throw 'Owner-seed setup write quota differs'}}
+$ownerSeedNegative=[ordered]@{
+ 'rider not in party'={param($q)$q.ownedPairs.partyIds=@($q.ownedPairs.riderAId,'50505050-5050-4050-8050-505050505050')}
+ 'rider A equals rider B'={param($q)$q.ownedPairs.riderBId=$q.ownedPairs.riderAId;$q.ownedPairs.xpAssistance.unitId=$q.ownedPairs.riderAId}
+ 'assistance for rider A'={param($q)$q.ownedPairs.xpAssistance.unitId=$q.ownedPairs.riderAId}
+ 'assistance for another party actor'={param($q)$q.ownedPairs.xpAssistance.unitId='50505050-5050-4050-8050-505050505050'}
+ 'assistance beyond the setup ceiling'={param($q)$q.ownedPairs.xpAssistance.targetCharacterLevel=9}
+ 'assistance amount key'={param($q)$q.ownedPairs.xpAssistance|Add-Member experience 42000}
+ 'assistance key omitted'={param($q)$q.ownedPairs.PSObject.Properties.Remove('xpAssistance')}
+ 'producer run pin on the seed kind'={param($q)$q.ownedPairs|Add-Member sourceRunId 'synthetic-two-owner-manual'}
+ 'producer archive pin on the seed kind'={param($q)$q.ownedPairs|Add-Member sourceArchiveSha256 ('9'*64)}
+ 'pre-granted pet pin on the seed kind'={param($q)$q.ownedPairs|Add-Member mountAId '20202020-2020-4020-8020-202020202020'}
+ 'checkpoint on the seed kind'={param($q)$q|Add-Member persistenceCase 'multi-exploration-manual'}
+ 'native writes beyond one per rider build'={param($q)$q.ownedPairs.expectedNativeWriteCount=3}
+ 'negative native write count'={param($q)$q.ownedPairs.expectedNativeWriteCount=-1}
+ 'second load on the seed kind'={param($q)$q.ownedPairs.expectedNativeLoadCount=2}
+ 'seed SHA differs from the copied input'={param($q)$q.ownedPairs.seedSha256='8'*64}
+ 'seed input impersonates the producer fixture'={param($q)$q.persistenceLoad.internalName='KMC_C7_ASSISTED_FIXTURE';$q.persistenceLoad.fileName='Manual_9_KMC_C7_ASSISTED_FIXTURE.zks'}
+ 'seed campaign aliases Working'={param($q)$q.persistenceLoad.gameId=$q.fixture.working.gameId}
+ 'seed id aliases the run'={param($q)$q.ownedPairs.seedId=$q.runId}
+}
+foreach($n in $ownerSeedNegative.GetEnumerator()){Check ('full owner-seed request refuses '+$n.Key){$q=OwnerSeedRequest;&$n.Value $q;Validate $q} $true}
+foreach($pin in @('seedId','seedSha256','xpAssistance')){Check ('full producer exploration refuses owner-seed pin '+$pin){$q=Request;$q.ownedPairs|Add-Member $pin $(if($pin-ceq'xpAssistance'){$null}else{'KMC_C7_OWNER_SEED'});Validate $q} $true}
+$timeoutGuard=@($runnerAst.FindAll({param($n)$n-is[Management.Automation.Language.IfStatementAst]-and$n.Clauses[0].Item1.Extent.Text.Contains('Test-KmcChunk7OwnedPairsOwnerSeed')-and$n.Extent.Text.Contains('Owner-seed two-pair exploration requires its declared 900-second')},$true))
+Check 'runner owner-seed outer budget guard is exact' {if($timeoutGuard.Count-ne1){throw 'Owner-seed budget guard missing'};$g=[scriptblock]::Create('param($Sel,$Bound,$Value) $Scenario="chunk7-owned-two-pair-campaign";$ownedPairsInput=[pscustomobject]@{selection=$Sel};$TimeoutSeconds=$Value;$PSBoundParameters=@{};if($Bound){$PSBoundParameters["TimeoutSeconds"]=$Value};'+[Environment]::NewLine+$timeoutGuard[0].Extent.Text+[Environment]::NewLine+'$TimeoutSeconds');$seed=(OwnerSeedRequest).ownedPairs;if((&$g $seed $false 600)-ne900-or(&$g (Request).ownedPairs $false 600)-ne600){throw 'Owner-seed budget default differs'};$refused=$false;try{[void](&$g $seed $true 600)}catch{$refused=$true};if(-not$refused){throw 'Short owner-seed budget accepted'}}
 $clock.Stop();$passed=@($results|Where-Object pass).Count;$failed=$results.Count-$passed
 [IO.File]::WriteAllText((Join-Path $bridgeOutput 'receipt.json'),([pscustomobject]@{passed=$passed;failed=$failed;elapsedSeconds=$clock.Elapsed.TotalSeconds;gameLaunches=0;archivesCreated=0;archivesRead=0;scope='actual full request validator, named result functions, quota assignments and runner guard AST; OS repository/output binding substituted';results=@($results)}|ConvertTo-Json -Depth 12),[Text.UTF8Encoding]::new($false));Write-Output ('Owned wiring: '+$passed+' PASS / '+$failed+' FAIL');if($failed){exit 1}

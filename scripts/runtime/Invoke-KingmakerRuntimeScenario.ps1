@@ -229,6 +229,11 @@ if((Test-KmcChunk7OwnedPairsScenario $Scenario)-or(Test-KmcChunk7PersistenceScen
     if(-not$PSBoundParameters.ContainsKey('TimeoutSeconds')){$TimeoutSeconds=600}
     elseif($TimeoutSeconds-lt600){throw 'Selected Chunk 7 native scenarios require the declared 600-second outer worker/cleanup budget.'}
 }
+# The owner-seed kind adds its bounded native SETUP phase (ordinary level-ups) before the measured steps.
+if((Test-KmcChunk7OwnedPairsScenario $Scenario)-and(Test-KmcChunk7OwnedPairsOwnerSeed ([pscustomobject]@{ownedPairs=$ownedPairsInput.selection}))){
+    if(-not$PSBoundParameters.ContainsKey('TimeoutSeconds')){$TimeoutSeconds=900}
+    elseif($TimeoutSeconds-ne900){throw 'Owner-seed two-pair exploration requires its declared 900-second outer setup/worker/cleanup budget.'}
+}
 if(Test-KmcChunk7RepeatedWorldCase $PersistenceCase){
     if($Scenario-cne'chunk7-persistence-load'-and-not((Test-KmcChunk7OwnedPairsScenario $Scenario)-and$ownedPairsInput.selection.case-ceq'persistence-load')){throw 'Repeated world cases are cold-load only.'}
     if(-not$PSBoundParameters.ContainsKey('TimeoutSeconds')){$TimeoutSeconds=900}
@@ -1076,7 +1081,13 @@ try{
         if($gamePassed-and(Test-KmcChunk7OwnedPairsScenario $Scenario)){
             $verifiedOwnedSource=Get-KmcChunk7OwnedPairsSource $request.ownedPairs $PersistenceCase $fixturePayload $manifest $(if($PersistenceCase-ceq'multi-area-autosave'){$request.persistenceAreaTarget}else{$null})
             if((ConvertTo-KmcChunk7Canonical $verifiedOwnedSource)-cne(ConvertTo-KmcChunk7Canonical $ownedPairsSource)){throw 'Inherited two-owner source lineage changed during native execution.'}
-            if((Get-KmcSha256 (Join-Path $profileRoot 'owned-two-pair-source.json'))-cne$request.ownedPairs.sourceArtifactSha256-or
+            if(Test-KmcChunk7OwnedPairsOwnerSeed ([pscustomobject]$request)){
+                # Owner seed: the placed record is the honest seed-source record and the copy is never written.
+                $seedRecord=Read-KmcJson (Join-Path $profileRoot 'owned-two-pair-source.json')
+                if($seedRecord.kind-cne'kmc-owner-seed-source'-or$seedRecord.seedId-cne$request.ownedPairs.seedId-or$seedRecord.registrySha256-cne$verifiedOwnedSource.registrySha256-or
+                    $seedRecord.producerAncestry-ne$false-or$seedRecord.nativeAuthorityGranted-ne$false-or
+                    (Get-KmcSha256 (Join-Path $isolatedSaves $request.persistenceLoad.fileName))-cne$request.ownedPairs.seedSha256){throw 'Owner-seed source record or immutable native copy changed during execution.'}
+            }elseif((Get-KmcSha256 (Join-Path $profileRoot 'owned-two-pair-source.json'))-cne$request.ownedPairs.sourceArtifactSha256-or
                 (Get-KmcSha256 (Join-Path $isolatedSaves $request.persistenceLoad.fileName))-cne$request.persistenceLoad.sha256){throw 'Inherited source receipt or immutable native input changed during execution.'}
             if($request.ownedPairs.case-ceq'persistence-load'-and$PersistenceCase-ceq'multi-area-autosave'){
                 $ownedColdArtifact=Read-KmcJson (Join-Path $evidenceRoot 'chunk7-persistence-evidence.json')
@@ -1084,8 +1095,18 @@ try{
             }
             $nativeLeaves=@(Get-ChildItem -LiteralPath $isolatedSaves -Filter '*.zks' -File|ForEach-Object Name)
             $writes=Get-KmcChunk7OwnedWriteCount $request
-            if($nativeLeaves.Count-ne(1+$writes)-or$request.persistenceLoad.fileName-cnotin$nativeLeaves){throw 'Inherited isolated archive inventory differs from its exact selected load/write contract.'}
-            if($writes-eq1){
+            if(Test-KmcChunk7OwnedPairsOwnerSeed ([pscustomobject]$request)){
+                # Owner seed: setup level-up Autos settle onto the one run-owned Auto_1; nothing else exists.
+                $allLeaves=@(Get-ChildItem -LiteralPath $isolatedSaves -Force|ForEach-Object Name)
+                $expectedLeaves=@($request.persistenceLoad.fileName)+$(if($writes-gt0){@('Auto_1.zks')}else{@()})
+                if((ConvertTo-KmcChunk7Canonical @($allLeaves|Sort-Object -CaseSensitive))-cne(ConvertTo-KmcChunk7Canonical @($expectedLeaves|Sort-Object -CaseSensitive))){throw 'Owner-seed isolated archive inventory differs from its setup level-up Auto contract.'}
+                if($writes-gt0){
+                    $seedWorld=Read-KmcJson (Join-Path $evidenceRoot 'chunk7-world-evidence.json')
+                    $lastAuto=@($seedWorld.observations.ownerSeedSetup.setupAutosaves)[-1]
+                    if($null-eq$lastAuto-or(Get-KmcSha256 (Join-Path $isolatedSaves 'Auto_1.zks'))-cne$lastAuto.sha256){throw 'Owner-seed settled level-up Auto differs from its last observed setup write.'}
+                }
+            }elseif($nativeLeaves.Count-ne(1+$writes)-or$request.persistenceLoad.fileName-cnotin$nativeLeaves){throw 'Inherited isolated archive inventory differs from its exact selected load/write contract.'}
+            if($writes-eq1-and-not(Test-KmcChunk7OwnedPairsOwnerSeed ([pscustomobject]$request))){
                 $ownedArtifact=Read-KmcJson (Join-Path $evidenceRoot 'chunk7-persistence-evidence.json')
                 if($PersistenceCase-ceq'owned-schema1-resave-manual'){Assert-KmcOwnedSchema1ColdSource $request $verifiedOwnedSource $ownedArtifact}
                 Assert-KmcChunk7OwnedOutputEvidence ([pscustomobject]$request) $ownedArtifact.observations

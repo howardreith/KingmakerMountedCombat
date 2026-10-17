@@ -212,7 +212,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (operation != RuntimeSaveOperation.Write) return null;
                 if (maximumNativeWriteRequests.HasValue && admittedNativeWriteRequests >= maximumNativeWriteRequests.Value)
                     return "The exact isolated scope exhausted its selected native write admission count.";
-                if (ownedPairsRequest != null && admittedNativeWriteRequests == 1 && !OwnedPairsReplacementReady(target))
+                if (OwnerSeedPlan && (ownerSeedPhase != "levelup" || admittedNativeWriteRequests != ownerSeedConfirmedWrites))
+                    return "Owner-seed native write is outside its one reserved setup level-up Auto.";
+                if (ownedPairsRequest != null && !OwnerSeedPlan && admittedNativeWriteRequests == 1 && !OwnedPairsReplacementReady(target))
                     return "Owned-pair replacement lacks its exact completed native seed and reserved staging leaf.";
                 admittedNativeWriteRequests++;
                 return null;
@@ -597,7 +599,8 @@ namespace KingmakerMountedCombat.Diagnostics
                     throw new ArgumentException("Only the exact closed owned-pair family may select this native reservation.");
                 ownedPairsRequest = ownedPairsSelectionRequest; ownedPairsGame = ownedPairsNativeGame; ownedPairsManager = ownedPairsNativeManager;
                 ownedPairsKey = OwnedPairsKey(ownedPairsSelectionRequest); ownedPairsExpectedNativeName = ownedPairsNativeOutputName;
-                if (maximumNativeWriteRequests > 0 ? string.IsNullOrWhiteSpace(ownedPairsNativeOutputName) || ownedPairsNativeOutputName.Length > 256 || ownedPairsNativeOutputName.Any(char.IsControl) : ownedPairsNativeOutputName != null)
+                // Owner-seed setup writes are native level-up Autos reserved one at a time; no output name is pre-observed.
+                if (maximumNativeWriteRequests > 0 && ownedPairsSelectionRequest.OwnedPairs.IsOwnerSeed != true ? string.IsNullOrWhiteSpace(ownedPairsNativeOutputName) || ownedPairsNativeOutputName.Length > 256 || ownedPairsNativeOutputName.Any(char.IsControl) : ownedPairsNativeOutputName != null)
                     throw new ArgumentException("Owned-pair native output name must be observed only for its selected one-write case.");
                 if (!MatchesOwnedPairsPlan(false, true)) throw new ArgumentException("Owned pairs must start with one immutable native input and no writable entry.");
             }
@@ -691,7 +694,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (assistedRejection != null) return assistedRejection;
                 if (!OwnedPairsUnchanged()) return "Owned-pair captured request changed after authority creation.";
                 if (ownedPairsRequest != null && (operation == RuntimeSaveOperation.Write && !OwnedPairsWriteReady ||
-                    operation == RuntimeSaveOperation.Load && checkLoadAdmission && maximumNativeWriteRequests > 0 && ownedPairsReservations != 1))
+                    operation == RuntimeSaveOperation.Load && checkLoadAdmission && maximumNativeWriteRequests > 0 && !OwnerSeedPlan && ownedPairsReservations != 1))
                     return "Owned-pair native admission requires its exact output reservation and load-before-write order.";
                 if (!AcquiredManualRequestUnchanged()) return "Acquired Manual captured request changed after authority creation.";
                 if (acquiredManualRequest != null && operation == RuntimeSaveOperation.Write &&

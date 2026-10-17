@@ -27,7 +27,7 @@ namespace KingmakerMountedCombat.Diagnostics
 {
     // An independent two-pair fixture. The old one-pair scenario guards remain intact.
     // No native save, combat, resource writes, direct Mount or artificial preparation.
-    internal sealed class Chunk7WorldScenarioEngine : IDisposable
+    internal sealed partial class Chunk7WorldScenarioEngine : IDisposable
     {
         internal const string ScenarioName = "chunk7-two-pair-exploration";
         internal const string EvidenceFileName = "chunk7-world-evidence.json";
@@ -119,7 +119,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 var game = Game.Instance;
                 Require(game?.Player != null && SelectionManager.Instance != null && !game.Player.IsInCombat &&
                     game.Player.GameId == request.SelectedChunk7Fixture.GameId, "The exact loaded Working world must be idle outside combat.");
-                if (request.OwnedPairs != null)
+                if (request.OwnedPairs?.IsOwnerSeed == true) BindOwnerSeed(game);
+                else if (request.OwnedPairs != null)
                 {
                     inherited = new Chunk7OwnedPairFixture(request, horses, world, controls, persistence, fixtureAuthorization, fixtureAuthority, fixtureLoader);
                     inherited.Bind(false); originalParty = inherited.Party;
@@ -161,15 +162,16 @@ namespace KingmakerMountedCombat.Diagnostics
                 MovementScreenshotCaptureCoordinator.AcquireClosedUmmLeaseRetained(out ummLease);
                 mode = new NativeModeTransitionProbe(false); mode.DispatchTemporaryValueIfRequired();
                 evidence["capability"] = new JObject { ["archiveNativeEnabled"] = true, ["nativeWriterSchema"] = 3,
-                    ["nativePairCapacity"] = GameMountedRelationshipService.NativePairCapacity, ["workingSha256"] = inherited == null ? WorkingHash : null,
+                    ["nativePairCapacity"] = GameMountedRelationshipService.NativePairCapacity, ["workingSha256"] = inherited == null && !OwnerSeed ? WorkingHash : null,
                     ["inheritedManualSha256"] = inherited == null ? null : request.OwnedPairs.SourceArchiveSha256 };
+                if (OwnerSeed) ((JObject)evidence["capability"])["ownerSeedSha256"] = request.OwnedPairs.SeedSha256;
                 evidence["snapshots"] = snapshots; evidence["inputs"] = inputs; evidence["movements"] = movements;
                 evidence["groundInputs"] = groundInputs;
                 evidence["measurements"] = measurements; evidence["cycleInputs"] = cycleInputs; evidence["cycles"] = cycles;
                 evidence["nativeProfileInventory"] = Chunk7NativeProfileInventory.Capture(originalParty);
                 Pass("C7-world-fixture"); Next(1);
             }
-            catch (Exception error) { Fail("C7-world-fixture", error.ToString()); BeginCleanup(); }
+            catch (Exception error) { MarkOwnerSeedSetupFailure(); Fail("C7-world-fixture", error.ToString()); BeginCleanup(); }
         }
         internal void Update()
         {
@@ -179,6 +181,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (cleanupStarted) { PollCleanup(); return; }
                 nativeScope.RequireCurrent();
                 screenshots?.Pump(Time.frameCount);
+                // Owner-seed SETUP steps carry their own bounded deadlines; the measured
+                // phase below keeps the unchanged historical deadline from SETUP-COMPLETE.
+                if (step >= 50 && step <= 57) { UpdateOwnerSeedSetup(); return; }
                 Require(clock.Elapsed.TotalSeconds <= 300 && clock.Elapsed.TotalSeconds - stepStarted <= (step == 40 ? 120 : 30),
                     "Bounded two-pair scenario deadline at step " + step + ".");
                 Require(!Game.Instance.Player.IsInCombat, "Exploration scenario unexpectedly entered combat.");
@@ -187,6 +192,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 {
                     case 1:
                         if (CombatController.IsInTurnBasedCombat()) return;
+                        if (OwnerSeed) { BeginOwnerSeedRider(0); Next(50); break; }
                         if (inherited != null) { inherited.RequirePreserved(); Pass("C7-owned-pairs-inherited-custody"); Next(2); break; }
                         var acquisition = new JObject(); evidence["acquisition"] = acquisition;
                         bool acquired;
@@ -232,6 +238,15 @@ namespace KingmakerMountedCombat.Diagnostics
                     case 7:
                         AssertBoth(); if (!MovementSettled()) return;
                         Pass("C7-world-selection-routing"); snapshots.Add(CaptureWorld("movement-complete"));
+                        if (OwnerSeed && Chunk7NativeDoorProbe.FindQualifyingDoor(new[] { firstMount, secondMount }, out var doorCandidates) == null)
+                        {
+                            // Owner-seed kind only: an observed absence of a qualifying door is
+                            // recorded as not applicable; door behaviour is never claimed as tested.
+                            evidence["door"] = new JObject { ["applicable"] = false,
+                                ["reason"] = "No open StandardDoor with an active-when-closed navmesh cut lies outside both pair interaction radii within the bounded scan radius.",
+                                ["candidatesScanned"] = doorCandidates, ["radius"] = Chunk7NativeDoorProbe.ScanRadius };
+                            Input(firstRider, firstRider, controls.DismountAbility, "dismount-mammoth", secondRider); Next(8); break;
+                        }
                         doorProbe = new Chunk7NativeDoorProbe(world, nativeScope, firstRider, firstMount, secondRider, secondMount);
                         evidence["door"] = doorProbe.Evidence; doorProbe.Begin(); Next(40); break;
                     case 40:
@@ -306,7 +321,7 @@ namespace KingmakerMountedCombat.Diagnostics
                         cycle++; BeginCycle(); break;
                 }
             }
-            catch (Exception error) { Fail("C7-world-runtime", error.ToString()); BeginCleanup(); }
+            catch (Exception error) { MarkOwnerSeedSetupFailure(); Fail("C7-world-runtime", error.ToString()); BeginCleanup(); }
         }
         private UnitEntityData[] PartyActors() => Enumerable.Range(0, firstRider.Group.Count).Select(index => firstRider.Group[index]).ToArray();
         private UnitEntityData Exact(string id) => originalParty.Single(x => x.UniqueId == id);
@@ -811,17 +826,19 @@ namespace KingmakerMountedCombat.Diagnostics
                     })) };
             // The temporary progression fact owns the pet entity. Remove it only
             // after every issued native process and pair lease has truly ended.
-            if (inherited == null && secondRider != null && horseFeature != null)
+            if (inherited == null && !OwnerSeed && secondRider != null && horseFeature != null)
                 TryCleanup("Horse feature", () => {
                     Require(secondRider.Descriptor.Pet == null || ReferenceEquals(secondRider.Descriptor.Pet, secondMount),
                         "Cleanup refuses to remove a replaced companion.");
                     secondRider.Descriptor.Progression.Features.RemoveFact(horseFeature); horseFeature = null;
                 });
-            if (inherited == null && secondRider != null && rankFeature != null)
+            if (inherited == null && !OwnerSeed && secondRider != null && rankFeature != null)
                 TryCleanup("owned companion rank", () => { secondRider.Descriptor.Progression.Features.RemoveFact(rankFeature); rankFeature = null; });
             var entitiesDrained = TryCleanup("native entity drain", () => Game.Instance.EntityDestroyer.Tick());
             var inheritedClean = inherited != null && TryCleanup("inherited native facts", inherited.RequirePreserved);
-            var horseClean = inherited != null ? inheritedClean : horseFeature == null && rankFeature == null && (secondMount == null ||
+            // Owner-seed setup progression and Horses are retained (in memory only; zero writes).
+            var ownerSeedClean = OwnerSeed && TryCleanup("owner-seed setup custody", () => Require(OwnerSeedCleanupReady(), "Owner-seed native build session or setup Horses have not settled."));
+            var horseClean = inherited != null ? inheritedClean : OwnerSeed ? ownerSeedClean : horseFeature == null && rankFeature == null && (secondMount == null ||
                 !secondMount.IsInState && !Game.Instance.State.Units.Contains(secondMount) &&
                 !Game.Instance.Player.ControllableCharacters.Contains(secondMount) && secondRider.Descriptor.Pet == null);
             if (!entitiesDrained || !horseClean) { RetainCleanup("The owned Horse entity or progression facts have not settled."); return; }
@@ -837,15 +854,16 @@ namespace KingmakerMountedCombat.Diagnostics
             restored &= TryCleanup("UMM presentation lease", () => { ummLease?.Dispose(); ummLease = null; });
             if (!restored) { RetainCleanup("A captured fixture lease has not restored."); return; }
             Game.Instance.IsPaused = originalPause;
-            Require(ReferenceEquals(firstRider.Descriptor.Pet, firstMount) && ReferenceEquals(firstMount.Descriptor.Master.Value, firstRider),
+            if (OwnerSeed) Require(OwnerSeedOwnershipPreserved(), "Owner-seed setup Horse ownership was not preserved after SETUP-COMPLETE.");
+            else Require(ReferenceEquals(firstRider.Descriptor.Pet, firstMount) && ReferenceEquals(firstMount.Descriptor.Master.Value, firstRider),
                 "Original Mammoth ownership was not restored.");
             if (inherited != null) evidence["inheritedCleanup"] = inherited.Capture("cleanup");
-            evidence["cleanup"] = new JObject { ["pairResidueAbsent"] = pairClean, ["horseRemoved"] = inherited == null && horseClean, ["inheritedPetsPreserved"] = inherited != null && inheritedClean,
+            evidence["cleanup"] = new JObject { ["pairResidueAbsent"] = pairClean, ["horseRemoved"] = inherited == null && !OwnerSeed && horseClean, ["inheritedPetsPreserved"] = inherited != null && inheritedClean,
                 ["controlsSettled"] = !controls.HasUnsettledRelationshipTransition, ["settingsAndSelectionRestored"] = true,
                 ["nativeProcessesSettled"] = NativeCommandsSettled(), ["cleanupCustodySettled"] = true,
-                ["nativeProgressionRequiresExternalWorkingRestoration"] = inherited == null,
+                ["nativeProgressionRequiresExternalWorkingRestoration"] = inherited == null && !OwnerSeed,
                 ["ordinaryRespecProven"] = false, ["nativeSaveWritten"] = false,
-                ["world"] = CaptureWorld("cleanup"), ["partyAfter"] = new JArray(PartyActors().Select(CaptureRig)),
+                ["world"] = CaptureWorld("cleanup"), ["partyAfter"] = new JArray((OwnerSeed ? OwnerSeedRoster() : PartyActors()).Select(CaptureRig)),
                 ["selectionBefore"] = new JArray(originalSelection.Select(x => x.UniqueId)),
                 ["selectionAfter"] = new JArray(SelectionManager.Instance.SelectedUnits.Select(x => x.UniqueId)),
                 ["pauseBefore"] = originalPause, ["pauseAfter"] = Game.Instance.IsPaused,
@@ -853,6 +871,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["pairedBefore"] = originalPaired, ["pairedAfter"] = settings.EnablePairedActivation,
                 ["pairBoundaries"] = new JArray(world.Pairs.Select(x => new JObject { ["state"] = x.Relationship.State.ToString(),
                     ["residueAbsent"] = x.Relationship.Runtime.NoPreparedPairResidue, ["ownerPresent"] = x.Relationship.PairOwner != null })) };
+            if (OwnerSeed) AddOwnerSeedCleanup((JObject)evidence["cleanup"]);
             inherited?.Release(); cleanupProven = true;
             Pass("C7-world-cleanup"); CompleteCleanupEvidence();
         }
