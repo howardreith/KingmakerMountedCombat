@@ -74,7 +74,11 @@ function Set-KmcOwnerSeedAutosaves($v,[bool]$On){
  $u|Add-Member nativeXpTable @(2000,5000,9000,15000,23000,35000,51000,75000,105000,155000,220000,315000,445000,635000,890000,1300000,1800000,2550000,3600000) -Force
  $u.nativeXpTable=@(0)+@($u.nativeXpTable)
  $economy=[pscustomobject][ordered]@{money=30000;itemRows=42;inventorySha256=('c'*64);characterIds=@($s.partyIds|Sort-Object -CaseSensitive)}
- $u|Add-Member economyBefore $economy -Force;$o.setupComplete|Add-Member economy ($economy|ConvertTo-Json -Depth 5|ConvertFrom-Json) -Force
+ $u|Add-Member economyBefore $economy -Force
+ # Each setup Horse's native bite/hoof/hoof limb items, held by that Horse (disclosed, not digested).
+ $limbs={param($h)@(@('a1b2c3d4e5f60718293a4b5c6d7e8f90','WeaponSlot'),@('b1b2c3d4e5f60718293a4b5c6d7e8f90','WeaponSlot'),@('b1b2c3d4e5f60718293a4b5c6d7e8f90','WeaponSlot'))|ForEach-Object{[pscustomobject][ordered]@{blueprint=$_[0];slot=$_[1];count=1;heldBy=$h}}}
+ $o.setupComplete|Add-Member horseItems ([pscustomobject][ordered]@{horses=@([pscustomobject][ordered]@{horseId=$u.riders[0].horseId;items=@(&$limbs $u.riders[0].horseId)},[pscustomobject][ordered]@{horseId=$u.riders[1].horseId;items=@(&$limbs $u.riders[1].horseId)});foreignHeldRows=0}) -Force
+$o.setupComplete|Add-Member economy ($economy|ConvertTo-Json -Depth 5|ConvertFrom-Json) -Force
  $o.setupComplete.frame=[int]@($o.measurements)[0].startFrame;$o.setupComplete.gameTicks=[long]@($o.inputs)[0].resourcesBefore.gameTicks
  foreach($pair in @(@('writesAfterBoundary',0),@('unauthorizedWrites',0),@('slotProjectionReleased',$true))){$o.cleanup|Add-Member $pair[0] $pair[1] -Force}
  $v
@@ -152,11 +156,19 @@ Check-OwnerSeed 'owner-seed rider A ending beyond Ranger 4 refused' {$args[0].ar
 Check-OwnerSeed 'owner-seed rider A level beyond its XP-ready level refused' {$r=$args[0].artifact.observations.ownerSeedSetup.riders[0];$r.after.characterLevel=5;$r.nativeCommits=2;$i=@($args[0].artifact.observations.ownerSeedSetup.assistance)[0];$i.after=5;$i.amount=2} $true 'stock XP table'
 Check-OwnerSeed 'owner-seed rider B before outside its current level band refused' {$v=$args[0];$f=$v.artifact.observations.ownerSeedSetup.riderFacts[1];$f.experience=15500;$f.readyLevel=5;$f.minimalTargetLevel=8;$x=$v.artifact.observations.ownerSeedSetup.riderBExperience;$x.before=15500;$x.delta=35500;$i=@($v.artifact.observations.ownerSeedSetup.assistance|Where-Object kind -CEQ 'native-xp')[0];$i.before=15500;$i.amount=35500} $true 'stock XP table'
 Check-OwnerSeed 'owner-seed native XP table must equal the stock table' {$args[0].artifact.observations.ownerSeedSetup.nativeXpTable[7]=50000}
-Check-OwnerSeed 'owner-seed money change across setup refused' {$args[0].artifact.observations.setupComplete.economy.money=29999} $true 'money or the party item'
+Check-OwnerSeed 'owner-seed money change across setup refused' {$args[0].artifact.observations.setupComplete.economy.money=29999;$args[0].artifact.observations.setupComplete.state.money=29999} $true 'money or the party item'
 Check-OwnerSeed 'owner-seed item change across setup refused' {$args[0].artifact.observations.setupComplete.economy.inventorySha256='d'*64} $true 'money or the party item'
 Check-OwnerSeed 'owner-seed missing economy observation refused' {$args[0].artifact.observations.ownerSeedSetup.PSObject.Properties.Remove('economyBefore')}
 Check-OwnerSeed 'owner-seed SETUP-COMPLETE after the first measured frame refused' {$args[0].artifact.observations.setupComplete.frame=2000000000} $true 'precede the measured'
 Check-OwnerSeed 'owner-seed SETUP-COMPLETE after the first measured tick refused' {$args[0].artifact.observations.setupComplete.gameTicks=9000000000000000000} $true 'precede the measured'
+Check-OwnerSeed 'owner-seed Horse limb row moved to a party character refused' {$args[0].artifact.observations.setupComplete.horseItems.horses[0].items[1].heldBy=$args[0].request.ownedPairs.riderAId}
+Check-OwnerSeed 'owner-seed shared item held by another unit refused' {$args[0].artifact.observations.setupComplete.horseItems.foreignHeldRows=1}
+Check-OwnerSeed 'owner-seed new unheld shared item refused' {$e=$args[0].artifact.observations.setupComplete.economy;$e.itemRows=43;$e.inventorySha256='e'*64} $true 'money or the party item'
+Check-OwnerSeed 'owner-seed missing Horse item disclosure refused' {$args[0].artifact.observations.setupComplete.PSObject.Properties.Remove('horseItems')}
+Check-OwnerSeed 'owner-seed Horse without disclosed limb items refused' {$args[0].artifact.observations.setupComplete.horseItems.horses[1].items=@()}
+Check-OwnerSeed 'owner-seed economy characters outside the party refused' {foreach($e in @($args[0].artifact.observations.ownerSeedSetup.economyBefore,$args[0].artifact.observations.setupComplete.economy)){$e.characterIds=@('nobody')}} $true 'outside the selected party'
+Check-OwnerSeed 'owner-seed economy without both riders refused' {foreach($e in @($args[0].artifact.observations.ownerSeedSetup.economyBefore,$args[0].artifact.observations.setupComplete.economy)){$e.characterIds=@($args[0].request.ownedPairs.riderAId)}} $true 'both riders'
+Check-OwnerSeed 'owner-seed boundary economy money must equal the boundary state money' {$args[0].artifact.observations.setupComplete.state.money=1} $true 'boundary state'
 Check 'owner-seed registry seed with a spaced internal name accepted' {$v=New-KmcOwnerSeedWorldFixture;$v.request.ownedPairs.seedId='KMC_C7_NO_MODS_OWNER_SEED';$v.request.persistenceLoad.internalName='KMC C7 NO MODS OWNER SEED';$v.request.persistenceLoad.fileName='Manual_303_KMC_C7_NO_MODS_OWNER_SEED.zks';foreach($n in @($v.artifact.observations.ownerSeed,$v.artifact.observations.ownerSeedSetup)){$n.seedId='KMC_C7_NO_MODS_OWNER_SEED'};Assert-KmcChunk7WorldEvidence $v.request $v.artifact 'PASS'}
 Check 'owner-seed spaced name still refuses the producer fixture name' {$v=New-KmcOwnerSeedWorldFixture;$v.request.persistenceLoad.internalName='KMC_C7_ASSISTED_FIXTURE';Assert-KmcChunk7WorldEvidence $v.request $v.artifact 'PASS'} $true 'impersonates'
 Check-OwnerSeed 'owner-seed setup cannot remove its Horse' {$args[0].artifact.observations.cleanup.horseRemoved=$true}

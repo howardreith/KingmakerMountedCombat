@@ -220,10 +220,28 @@ function Get-KmcChunk7OwnerSeedDisclosure {'Fixture setup on a disposable run co
 # Pinned here; the product emits the native table it used and must match exactly.
 function Get-KmcChunk7StockXpTable {@(0,0,2000,5000,9000,15000,23000,35000,51000,75000,105000,155000,220000,315000,445000,635000,890000,1300000,1800000,2550000,3600000)}
 function Get-KmcChunk7XpReadyLevel([long]$Experience){$t=Get-KmcChunk7StockXpTable;$level=0;while($level-lt20-and$t[$level+1]-le$Experience){$level++};$level}
-function Assert-KmcChunk7OwnerSeedEconomy($Value,[string]$Name){
+function Assert-KmcChunk7OwnerSeedEconomy($Value,[string]$Name,$Selection){
  Assert-KmcExactProperties $Value @('money','itemRows','inventorySha256','characterIds') $Name
  Assert-KmcOrdinaryInteger $Value.money 0 ([long]::MaxValue);Assert-KmcOrdinaryInteger $Value.itemRows 0 100000
  if($Value.inventorySha256-isnot[string]-or$Value.inventorySha256-cnotmatch'^[a-f0-9]{64}$'-or$Value.characterIds-isnot[Array]-or$Value.characterIds.Count-lt1){throw ('Owner-seed '+$Name+' is malformed.')}
+ # The digested characters are selected party members and include both riders.
+ $ids=@($Value.characterIds);foreach($id in $ids){if($id-isnot[string]-or$id-cnotin@($Selection.partyIds)){throw ('Owner-seed '+$Name+' digests a character outside the selected party.')}}
+ if(@($ids|Select-Object -Unique).Count-ne$ids.Count-or$Selection.riderAId-cnotin$ids-or$Selection.riderBId-cnotin$ids){throw ('Owner-seed '+$Name+' must digest both riders exactly once.')}
+}
+# Disclosure only: each setup Horse's native body/limb items, held by that Horse alone.
+function Assert-KmcChunk7OwnerSeedHorseItems($Value,[string[]]$HorseIds){
+ Assert-KmcExactProperties $Value @('horses','foreignHeldRows') 'owner-seed setup Horse item disclosure'
+ Assert-KmcOrdinaryInteger $Value.foreignHeldRows 0 0
+ if($Value.horses-isnot[Array]-or$Value.horses.Count-ne$HorseIds.Count){throw 'Owner-seed setup Horse item disclosure must cover each setup Horse.'}
+ for($i=0;$i-lt$HorseIds.Count;$i++){
+  $h=$Value.horses[$i];Assert-KmcExactProperties $h @('horseId','items') 'owner-seed setup Horse items';Assert-KmcBootstrapInventoryString $h.horseId $HorseIds[$i]
+  if($h.items-isnot[Array]-or$h.items.Count-lt1-or$h.items.Count-gt32){throw 'Owner-seed setup Horse must disclose its native body/limb items.'}
+  foreach($item in $h.items){
+   Assert-KmcExactProperties $item @('blueprint','slot','count','heldBy') 'owner-seed setup Horse item'
+   if($item.blueprint-isnot[string]-or$item.blueprint-cnotmatch'^[a-f0-9]{32}$'-or$item.slot-isnot[string]-or[string]::IsNullOrWhiteSpace($item.slot)){throw 'Owner-seed setup Horse item identity is malformed.'}
+   Assert-KmcOrdinaryInteger $item.count 1 1000;Assert-KmcBootstrapInventoryString $item.heldBy $HorseIds[$i]
+  }
+ }
 }
 function Assert-KmcChunk7OwnerSeedWorldSetup($Request,$Observations){
  Assert-KmcChunk7OwnedPairsDescriptor $Request
@@ -242,7 +260,7 @@ function Assert-KmcChunk7OwnerSeedWorldSetup($Request,$Observations){
  $table=Get-KmcChunk7StockXpTable
  if($u.nativeXpTable-isnot[Array]-or$u.nativeXpTable.Count-ne20){throw 'Owner-seed native XP table observation is missing.'}
  for($level=1;$level-le20;$level++){Assert-KmcOrdinaryInteger $u.nativeXpTable[$level-1] $table[$level] $table[$level]}
- Assert-KmcChunk7OwnerSeedEconomy $u.economyBefore 'economy before setup'
+ Assert-KmcChunk7OwnerSeedEconomy $u.economyBefore 'economy before setup' $s
  Assert-KmcBootstrapInventoryString $u.contract 'owner-seed-fixture-setup-v1';Assert-KmcBootstrapInventoryString $u.disclosure (Get-KmcChunk7OwnerSeedDisclosure)
  Assert-KmcBootstrapInventoryString $u.seedId $s.seedId;Assert-KmcBootstrapInventoryString $u.seedSha256 $s.seedSha256;Assert-KmcBootstrapInventoryString $u.loadedArchiveKind 'Missing'
  Assert-KmcChunk7Boolean $u.fixtureSetupOnly $true;foreach($key in @('acquisitionProof','producerAncestry','loadedArchiveCanRestore','eventsTruncated')){Assert-KmcChunk7Boolean $u.$key $false}
@@ -332,8 +350,10 @@ function Assert-KmcChunk7OwnerSeedWorldSetup($Request,$Observations){
   elseif($v.kind-ceq'native-levelup-autosave'){$w=$autos[$riderOf[$i]];if($v.nativeApi-cne'Kingmaker.Controllers.LevelUpAutoSaveController.HandleLevelUpComplete -> Game.SaveGame(Auto) into the run-owned isolated save root'-or$v.before-ne$riderOf[$i]-or$v.after-ne($riderOf[$i]+1)-or$v.amount-ne1-or$v.detail-cne$w.path){throw 'Owner-seed level-up Auto assistance item differs from its observed write.'}}
   else{$row=$u.riders[$riderOf[$i]];if($v.before-ne$row.before.characterLevel-or$v.after-ne$row.after.characterLevel-or$v.amount-ne$row.nativeCommits){throw 'Owner-seed build assistance item differs from its rider outcome.'}}
  }
- $b=$o.setupComplete;Assert-KmcExactProperties $b @('boundary','frame','gameTicks','assistanceCount','setupSeconds','measuredClockRestarted','state','writesAtBoundary','writeScopeClosed','economy') 'SETUP-COMPLETE boundary'
- Assert-KmcChunk7OwnerSeedEconomy $b.economy 'economy at SETUP-COMPLETE'
+ $b=$o.setupComplete;Assert-KmcExactProperties $b @('boundary','frame','gameTicks','assistanceCount','setupSeconds','measuredClockRestarted','state','writesAtBoundary','writeScopeClosed','economy','horseItems') 'SETUP-COMPLETE boundary'
+ Assert-KmcChunk7OwnerSeedEconomy $b.economy 'economy at SETUP-COMPLETE' $s
+ if($b.state-eq$null-or[long]$b.economy.money-ne[long]$b.state.money){throw 'Owner-seed boundary economy money differs from the boundary state.'}
+ Assert-KmcChunk7OwnerSeedHorseItems $b.horseItems @($u.riders[0].horseId,$u.riders[1].horseId)
  if((ConvertTo-KmcChunk7Canonical $b.economy)-cne(ConvertTo-KmcChunk7Canonical $u.economyBefore)){throw 'Owner-seed setup changed party money or the party item inventory.'}
  # SETUP-COMPLETE precedes the first measured observation.
  $firstMeasured=@($o.measurements)[0];$firstInput=@($o.inputs)[0]
