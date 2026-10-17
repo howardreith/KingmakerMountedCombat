@@ -54,7 +54,7 @@ namespace KingmakerMountedCombat.Diagnostics
         // reserved one at a time into the run root (Auto_1, then an Auto_2 staging copy
         // that the native worker moves onto Auto_1), confirmed on completion, and the
         // whole write scope closes at SETUP-COMPLETE. No other write is ever admitted.
-        internal const string OwnerSeedAutoLeaf = "Auto_1.zks", OwnerSeedStagingLeaf = "Auto_2.zks";
+        internal const string OwnerSeedAutoLeaf = Chunk7OrdinaryAcquisitionSelection.AutoLeaf, OwnerSeedStagingLeaf = Chunk7AssistedFixtureSelection.LevelupStagingLeaf;
         private string ownerSeedPhase, ownerSeedAutoName;
         private int ownerSeedConfirmedWrites;
         private bool ownerSeedClosed;

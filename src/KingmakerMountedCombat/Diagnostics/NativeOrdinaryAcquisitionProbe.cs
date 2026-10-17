@@ -34,19 +34,11 @@ namespace KingmakerMountedCombat.Diagnostics
         private SaveManager saveManager;
         internal NativeOrdinaryAcquisitionProbe(Func<UnitEntityData> actor) : this(actor, false) { }
         internal static NativeOrdinaryAcquisitionProbe ForAssistedFixture(Func<UnitEntityData> actor) => new NativeOrdinaryAcquisitionProbe(actor, true);
-        // Owner-seed setup: the exact prepared leaf of its reserved level-up Auto (Auto_1, then the Auto_2 staging copy).
-        internal static NativeOrdinaryAcquisitionProbe ForOwnerSeedSetup(Func<UnitEntityData> actor, string preparedLeaf) =>
-            preparedLeaf == PersistenceSaveAuthorization.OwnerSeedAutoLeaf || preparedLeaf == PersistenceSaveAuthorization.OwnerSeedStagingLeaf
-                ? new NativeOrdinaryAcquisitionProbe(actor, preparedLeaf) : throw new ArgumentException("Owner-seed prepared leaf is not a reserved setup leaf.");
         private NativeOrdinaryAcquisitionProbe(Func<UnitEntityData> actor, bool assistedFixture)
-            : this(actor, assistedFixture ? Chunk7AssistedFixtureSelection.LevelupStagingLeaf : Chunk7OrdinaryAcquisitionSelection.AutoLeaf) { }
-        private NativeOrdinaryAcquisitionProbe(Func<UnitEntityData> actor, string preparedLeaf)
         {
             this.actor = actor ?? throw new ArgumentNullException(nameof(actor));
-            this.preparedLeaf = preparedLeaf;
+            preparedLeaf = assistedFixture ? Chunk7AssistedFixtureSelection.LevelupStagingLeaf : Chunk7OrdinaryAcquisitionSelection.AutoLeaf;
         }
-        internal int SaveRequests => saveRequests;
-        internal int PreparedWrites => preparedWrites;
         // The scenario assigns its field before this fallible operation. A
         // partially patched observer therefore remains owned until unpatch succeeds.
         internal void Install()
