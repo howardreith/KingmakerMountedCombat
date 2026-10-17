@@ -55,13 +55,13 @@ namespace KingmakerMountedCombat.Diagnostics
                 typeof(UberDebug).Module.ModuleVersionId != new Guid("57f03756-55de-42f5-8bb3-e983306082b2") ||
                 typeof(Newtonsoft.Json.Serialization.DefaultSerializationBinder).Module.ModuleVersionId != new Guid("4f213745-d60e-425f-b763-df319c826ddf"))
                 throw new InvalidOperationException("Owner-seed load observation requires the exact pre-load native modules.");
-            var resolve = typeof(ResourcesLibrary).GetMethod("TryGetBlueprint", Flags, null, new[] { typeof(string) }, null);
-            var bind = typeof(Newtonsoft.Json.Serialization.DefaultSerializationBinder).GetMethod("BindToType", Flags, null, new[] { typeof(string), typeof(string) }, null);
-            var log = typeof(UberDebug).GetMethod("LogException", Flags, null, new[] { typeof(Exception), typeof(UnityEngine.Object) }, null);
-            var channel = typeof(UberDebug).GetMethod("LogExceptionChannel", Flags, null, new[] { typeof(string), typeof(Exception), typeof(UnityEngine.Object) }, null);
-            if (resolve == null || resolve.MetadataToken != 0x06009708 || resolve.ReturnType != typeof(BlueprintScriptableObject) ||
-                bind == null || bind.MetadataToken != 0x060004C8 || log == null || log.MetadataToken != 0x06000664 ||
-                channel == null || channel.MetadataToken != 0x06000665)
+            // Resolved by pinned token: name and parameter lookup is ambiguous for
+            // TryGetBlueprint, whose generic TryGetBlueprint<T>(string) overload matches too.
+            var resolve = Exact(typeof(ResourcesLibrary), 0x06009708, "TryGetBlueprint", typeof(BlueprintScriptableObject), typeof(string));
+            var bind = Exact(typeof(Newtonsoft.Json.Serialization.DefaultSerializationBinder), 0x060004C8, "BindToType", typeof(Type), typeof(string), typeof(string));
+            var log = Exact(typeof(UberDebug), 0x06000664, "LogException", typeof(void), typeof(Exception), typeof(UnityEngine.Object));
+            var channel = Exact(typeof(UberDebug), 0x06000665, "LogExceptionChannel", typeof(void), typeof(string), typeof(Exception), typeof(UnityEngine.Object));
+            if (resolve == null || bind == null || log == null || channel == null)
                 throw new MissingMethodException("Exact native blueprint, binder or exception-log contract changed.");
             harmony = HarmonyInstance.Create(HarmonyId); active = this;
             Patch(resolve, null, nameof(ResolveAfter));
@@ -69,6 +69,18 @@ namespace KingmakerMountedCombat.Diagnostics
             Patch(log, nameof(LogBefore), null);
             Patch(channel, nameof(ChannelBefore), null);
             installed = true;
+        }
+        internal static MethodInfo Exact(Type owner, int token, string name, Type returnType, params Type[] parameters)
+        {
+            MethodInfo method;
+            try { method = owner.Module.ResolveMethod(token) as MethodInfo; }
+            catch (ArgumentException) { return null; }
+            if (method == null || method.DeclaringType != owner || method.Name != name || method.IsGenericMethodDefinition ||
+                method.ContainsGenericParameters || method.ReturnType != returnType) return null;
+            var actual = method.GetParameters();
+            if (actual.Length != parameters.Length) return null;
+            for (var i = 0; i < actual.Length; i++) if (actual[i].ParameterType != parameters[i]) return null;
+            return method;
         }
         private void Patch(MethodInfo method, string prefix, string postfix)
         {
