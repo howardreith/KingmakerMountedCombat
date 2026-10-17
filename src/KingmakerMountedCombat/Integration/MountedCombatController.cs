@@ -1279,7 +1279,11 @@ namespace KingmakerMountedCombat.Integration
             Cancel("ground command");
 
             var game = Game.Instance;
-            if (game == null || !MountedGameModePolicy.CanAdmitMountedAction(game.CurrentMode.ToString()))
+            var mode = game?.CurrentMode.ToString();
+            // A real-time ground order given while paused queues natively, as it does for an
+            // unmounted unit; turn-based admission below still requires the active world view.
+            if (game == null || !(MountedGameModePolicy.CanAdmitMountedAction(mode) ||
+                MountedGameModePolicy.CanQueueMountedAction(mode) && !CombatController.IsInTurnBasedCombat()))
             {
                 LastFeedback = "Mounted ground movement is available only in the active world view.";
                 LastRejectionCodes = new[] { MountedCombatRejectionCode.WrongActionState };
