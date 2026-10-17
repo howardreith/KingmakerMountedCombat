@@ -17,6 +17,8 @@ function Get-KmcChunk7SelectedScenario($Request){
  }
 }
 function Get-KmcChunk7OwnedWriteCount($Request){
+ # Owner seed: exactly its declared setup level-up Autos (validated 0..2 and bound to the native observation).
+ if(Test-KmcChunk7OwnedPairsOwnerSeed $Request){return [int]$Request.ownedPairs.expectedNativeWriteCount}
  if($Request.ownedPairs.case-ceq'persistence-save'-and$Request.persistenceCase-ceq'multi-owned-worker-cancel-manual'){return 2}
  if($Request.ownedPairs.case-ceq'persistence-save'-or($Request.ownedPairs.case-ceq'persistence-load'-and$Request.persistenceCase-cin@('legacy-mounted-pending-tb-manual','owned-schema1-resave-manual'))){return 1};return 0
 }
@@ -50,7 +52,7 @@ function Assert-KmcChunk7OwnerSeedPairsSelection($Request,$Selection,$Checkpoint
   Assert-KmcOrdinaryInteger $s.xpAssistance.targetCharacterLevel 2 8
  }
  if($null-ne$Checkpoint){throw 'Owner-seed exploration cannot select a persistence checkpoint.'}
- Assert-KmcChunk7Boolean $s.baseGameOnly $true;Assert-KmcOrdinaryInteger $s.expectedNativeLoadCount 1 1;Assert-KmcOrdinaryInteger $s.expectedNativeWriteCount 0 0
+ Assert-KmcChunk7Boolean $s.baseGameOnly $true;Assert-KmcOrdinaryInteger $s.expectedNativeLoadCount 1 1;Assert-KmcOrdinaryInteger $s.expectedNativeWriteCount 0 2
 }
 function Assert-KmcChunk7OwnedPairsSelection($Request){
  if($Request-is[Collections.IDictionary]){$Request=[pscustomobject]$Request}
@@ -212,7 +214,7 @@ function Assert-KmcChunk7OwnedOutputEvidence($Request,$Observations){
 # Owner-seed two-pair exploration evidence. The setup disclosure, every assistance
 # item, the SETUP-COMPLETE boundary and the fixture-setup (not acquisition) outcome
 # per rider are required exactly; returns the observed roles riderA, mountA, riderB, mountB.
-function Get-KmcChunk7OwnerSeedDisclosure {'Fixture setup on a disposable run copy of an owner-supplied seed: each Horse was created by the native ordinary Ranger level-up (Hunter''s Bond -> Ranger companion -> KMC Horse) and rider B received only the exact native XP its Ranger 4 eligibility requires. This is not acquisition proof; nothing is saved.'}
+function Get-KmcChunk7OwnerSeedDisclosure {'Fixture setup on a disposable run copy of an owner-supplied seed: each Horse was created by the native ordinary Ranger level-up (Hunter''s Bond -> Ranger companion -> KMC Horse) and rider B received only the exact native XP its Ranger 4 eligibility requires. This is not acquisition proof; the only native writes are the game''s own level-up Autos into the run-owned isolated save root during setup, none after SETUP-COMPLETE.'}
 function Assert-KmcChunk7OwnerSeedWorldSetup($Request,$Observations){
  Assert-KmcChunk7OwnedPairsDescriptor $Request
  if(-not(Test-KmcChunk7OwnedPairsOwnerSeed $Request)){throw 'Owner-seed setup evidence belongs only to the owner-seed exploration kind.'}
@@ -226,13 +228,39 @@ function Assert-KmcChunk7OwnerSeedWorldSetup($Request,$Observations){
  if($c.nativeWriterSchema-ne3-or$c.nativePairCapacity-lt2-or$null-ne$c.workingSha256-or$null-ne$c.inheritedManualSha256){throw 'Owner-seed capability differs or claims Working/inherited provenance.'}
  Assert-KmcBootstrapInventoryString $c.ownerSeedSha256 $s.seedSha256
  $u=$o.ownerSeedSetup
- Assert-KmcExactProperties $u @('contract','disclosure','seedId','seedSha256','fixtureSetupOnly','acquisitionProof','producerAncestry','loadedArchiveKind','loadedArchiveCanRestore','riderFacts','nativeLevelUpAutosave','riders','events','admissionRefusals','eventCount','eventsTruncated','riderBExperience','assistance') 'owner-seed fixture setup disclosure'
+ Assert-KmcExactProperties $u @('contract','disclosure','seedId','seedSha256','fixtureSetupOnly','acquisitionProof','producerAncestry','loadedArchiveKind','loadedArchiveCanRestore','riderFacts','nativeLevelUpAutosave','riders','events','setupAutosaves','admissionRefusals','eventCount','eventsTruncated','riderBExperience','assistance') 'owner-seed fixture setup disclosure'
  Assert-KmcBootstrapInventoryString $u.contract 'owner-seed-fixture-setup-v1';Assert-KmcBootstrapInventoryString $u.disclosure (Get-KmcChunk7OwnerSeedDisclosure)
  Assert-KmcBootstrapInventoryString $u.seedId $s.seedId;Assert-KmcBootstrapInventoryString $u.seedSha256 $s.seedSha256;Assert-KmcBootstrapInventoryString $u.loadedArchiveKind 'Missing'
  Assert-KmcChunk7Boolean $u.fixtureSetupOnly $true;foreach($key in @('acquisitionProof','producerAncestry','loadedArchiveCanRestore','eventsTruncated')){Assert-KmcChunk7Boolean $u.$key $false}
  if($u.admissionRefusals-isnot[Array]-or$u.admissionRefusals.Count-ne0){throw 'Owner-seed setup recorded an admission refusal.'}
- $a=$u.nativeLevelUpAutosave;Assert-KmcExactProperties $a @('autosaveEnabled','onlyOneSave','settingsWritten') 'native level-up autosave observation'
- foreach($key in @('autosaveEnabled','onlyOneSave','settingsWritten')){Assert-KmcChunk7Boolean $a.$key $false}
+ $a=$u.nativeLevelUpAutosave;Assert-KmcExactProperties $a @('autosaveEnabled','onlyOneSave','autosaveSlots','settingsWritten','case','riderBuilds','expectedWrites','selectedWrites','slotProjectionDuringBuild','mountedPersistenceProof') 'native level-up autosave observation'
+ if($a.autosaveEnabled-isnot[bool]){throw 'Native autosave setting must be an observed boolean.'}
+ foreach($key in @('onlyOneSave','settingsWritten','mountedPersistenceProof')){Assert-KmcChunk7Boolean $a.$key $false}
+ if(-not(Test-KmcChunk7FiniteNumber $a.autosaveSlots)){throw 'Native autosave slot setting must be a finite observation.'}
+ Assert-KmcOrdinaryInteger $a.riderBuilds 2 2;$writesExpected=if($a.autosaveEnabled){[int]$a.riderBuilds}else{0}
+ Assert-KmcBootstrapInventoryString $a.case $(if($a.autosaveEnabled){'autosave-on'}else{'autosave-off'})
+ Assert-KmcOrdinaryInteger $a.expectedWrites $writesExpected $writesExpected;Assert-KmcOrdinaryInteger $a.selectedWrites $writesExpected $writesExpected
+ if([int]$s.expectedNativeWriteCount-ne$writesExpected){throw 'Selected native write count differs from the observed native level-up autosave count.'}
+ Assert-KmcChunk7Boolean $a.slotProjectionDuringBuild ($writesExpected-gt0)
+ $autos=@($u.setupAutosaves);if($u.setupAutosaves-isnot[Array]-or$autos.Count-ne$a.riderBuilds){throw 'Owner-seed setup must observe exactly one native level-up autosave request per rider build.'}
+ $saveRoot=Get-KmcAssistedSaveRoot $Request;$autoPath=Join-Path $saveRoot 'Auto_1.zks'
+ for($i=0;$i-lt$autos.Count;$i++){
+  $w=$autos[$i];$rid=if($i-eq0){$s.riderAId}else{$s.riderBId}
+  if($a.autosaveEnabled){
+   Assert-KmcExactProperties $w @('sequence','riderId','case','phase','type','autoLevelup','internalName','fileName','preparedLeaf','path','insideRunRoot','length','sha256','lastWriteTimeUtcTicks','completionSequence','requestedObject','writtenObject','admittedWrites','authorizedWrites','snapshots','completedSaves','frame','completedBeforeBoundary','mountedPersistenceProof','probe') 'owner-seed setup level-up Auto'
+   foreach($pair in @(@('riderId',$rid),@('case','autosave-on'),@('phase','setup-levelup-auto'),@('type','Auto'),@('fileName','Auto_1.zks'),@('preparedLeaf',@('Auto_1.zks','Auto_2.zks')[$i]),@('path',$autoPath))){Assert-KmcBootstrapInventoryString $w.($pair[0]) $pair[1]}
+   if([IO.Path]::GetDirectoryName([IO.Path]::GetFullPath($w.path))-cne[IO.Path]::GetFullPath($saveRoot)){throw 'Setup level-up Auto escaped the run-owned isolated save root.'}
+   foreach($flag in @('autoLevelup','insideRunRoot','completedBeforeBoundary')){Assert-KmcChunk7Boolean $w.$flag $true};Assert-KmcChunk7Boolean $w.mountedPersistenceProof $false
+   if($w.sha256-isnot[string]-or$w.sha256-cnotmatch'^[a-f0-9]{64}$'-or$w.internalName-isnot[string]-or[string]::IsNullOrWhiteSpace($w.internalName)){throw 'Setup level-up Auto identity is malformed.'}
+   foreach($key in @('sequence','completionSequence','admittedWrites','authorizedWrites','snapshots','completedSaves')){Assert-KmcOrdinaryInteger $w.$key ($i+1) ($i+1)}
+   Assert-KmcOrdinaryInteger $w.length 1 268435456;Assert-KmcOrdinaryInteger $w.frame 0 ([int]::MaxValue)
+   if($i-gt0-and$w.internalName-cne$autos[0].internalName){throw 'Setup level-up Autos changed their native slot name.'}
+  }else{
+   Assert-KmcExactProperties $w @('sequence','riderId','case','requested','written','probe') 'owner-seed suppressed level-up autosave'
+   Assert-KmcOrdinaryInteger $w.sequence ($i+1) ($i+1);Assert-KmcBootstrapInventoryString $w.riderId $rid;Assert-KmcBootstrapInventoryString $w.case 'autosave-off'
+   Assert-KmcChunk7Boolean $w.requested $true;Assert-KmcChunk7Boolean $w.written $false
+  }
+ }
  if($u.events-isnot[Array]-or$u.events.Count-lt2-or$u.events.Count-gt768){throw 'Owner-seed native build events are missing or unbounded.'};Assert-KmcOrdinaryInteger $u.eventCount $u.events.Count $u.events.Count
  if($u.riderFacts-isnot[Array]-or$u.riderFacts.Count-ne2-or$u.riders-isnot[Array]-or$u.riders.Count-ne2){throw 'Owner-seed setup must disclose exactly two riders.'}
  $party=@($s.partyIds);$horses=@();$roles=@()
@@ -267,18 +295,26 @@ function Assert-KmcChunk7OwnerSeedWorldSetup($Request,$Observations){
      $x.delta-le0-or$x.after-ne($x.before+$x.delta)-or$x.after-ne$x.threshold-or$x.characterLevelAfter-ne$x.characterLevelBefore-or$x.readyLevelAfter-ne$assist.targetCharacterLevel-or
      $x.before-ne$u.riderFacts[1].experience-or$u.riders[1].before.experience-ne$x.after){throw 'Rider B XP assistance exceeds or differs from the exact minimal eligibility it requires.'}
  }
- $items=@($u.assistance);$expected=if($null-eq$assist){@('native-ordinary-ranger-levels','native-ordinary-ranger-levels')}else{@('native-ordinary-ranger-levels','native-xp','native-ordinary-ranger-levels')}
+ # Ledger order: A build, [A level-up Auto], [B XP], B build, [B level-up Auto].
+ $expected=@();$units=@();$riderOf=@()
+ foreach($step in @(@('native-ordinary-ranger-levels',$s.riderAId,0),@('native-levelup-autosave',$s.riderAId,0),@('native-xp',$s.riderBId,1),@('native-ordinary-ranger-levels',$s.riderBId,1),@('native-levelup-autosave',$s.riderBId,1))){
+  if($step[0]-ceq'native-levelup-autosave'-and$writesExpected-eq0){continue};if($step[0]-ceq'native-xp'-and$null-eq$assist){continue}
+  $expected+=$step[0];$units+=$step[1];$riderOf+=$step[2]
+ }
+ $items=@($u.assistance)
  if($u.assistance-isnot[Array]-or$items.Count-ne$expected.Count){throw 'Owner-seed assistance disclosure is incomplete or contains an undeclared setup item.'}
- $units=if($null-eq$assist){@($s.riderAId,$s.riderBId)}else{@($s.riderAId,$s.riderBId,$s.riderBId)}
  for($i=0;$i-lt$items.Count;$i++){
   $v=$items[$i];Assert-KmcExactProperties $v @('unitId','kind','nativeApi','before','after','amount','detail') 'owner-seed assistance item'
   Assert-KmcBootstrapInventoryString $v.kind $expected[$i];Assert-KmcBootstrapInventoryString $v.unitId $units[$i]
   if($v.nativeApi-isnot[string]-or[string]::IsNullOrWhiteSpace($v.nativeApi)-or$v.detail-isnot[string]){throw 'Owner-seed assistance must name its native API.'}
   foreach($key in @('before','after','amount')){Assert-KmcOrdinaryInteger $v.$key 0 1000000000}
   if($v.kind-ceq'native-xp'){if($v.nativeApi-cne'Kingmaker.UnitLogic.UnitProgressionData.GainExperience(int, log: false)'-or$v.before-ne$x.before-or$v.after-ne$x.after-or$v.amount-ne$x.delta){throw 'Owner-seed XP assistance item differs from its observation.'}}
-  else{$row=$u.riders[$(if($i-eq0){0}else{1})];if($v.before-ne$row.before.characterLevel-or$v.after-ne$row.after.characterLevel-or$v.amount-ne$row.nativeCommits){throw 'Owner-seed build assistance item differs from its rider outcome.'}}
+  elseif($v.kind-ceq'native-levelup-autosave'){$w=$autos[$riderOf[$i]];if($v.nativeApi-cne'Kingmaker.Controllers.LevelUpAutoSaveController.HandleLevelUpComplete -> Game.SaveGame(Auto) into the run-owned isolated save root'-or$v.before-ne$riderOf[$i]-or$v.after-ne($riderOf[$i]+1)-or$v.amount-ne1-or$v.detail-cne$w.path){throw 'Owner-seed level-up Auto assistance item differs from its observed write.'}}
+  else{$row=$u.riders[$riderOf[$i]];if($v.before-ne$row.before.characterLevel-or$v.after-ne$row.after.characterLevel-or$v.amount-ne$row.nativeCommits){throw 'Owner-seed build assistance item differs from its rider outcome.'}}
  }
- $b=$o.setupComplete;Assert-KmcExactProperties $b @('boundary','frame','gameTicks','assistanceCount','setupSeconds','measuredClockRestarted','state') 'SETUP-COMPLETE boundary'
+ $b=$o.setupComplete;Assert-KmcExactProperties $b @('boundary','frame','gameTicks','assistanceCount','setupSeconds','measuredClockRestarted','state','writesAtBoundary','writeScopeClosed') 'SETUP-COMPLETE boundary'
+ Assert-KmcOrdinaryInteger $b.writesAtBoundary $writesExpected $writesExpected;Assert-KmcChunk7Boolean $b.writeScopeClosed $true
+ foreach($w in $autos){if($a.autosaveEnabled-and[long]$w.frame-gt[long]$b.frame){throw 'A setup level-up Auto completed after SETUP-COMPLETE.'}}
  Assert-KmcBootstrapInventoryString $b.boundary 'SETUP-COMPLETE';Assert-KmcOrdinaryInteger $b.frame 0 ([int]::MaxValue);Assert-KmcOrdinaryInteger $b.gameTicks 0 ([long]::MaxValue);Assert-KmcOrdinaryInteger $b.assistanceCount $items.Count $items.Count
  Assert-KmcChunk7Boolean $b.measuredClockRestarted $true;if(-not(Test-KmcChunk7FiniteNumber $b.setupSeconds)-or$b.setupSeconds-lt0){throw 'Owner-seed setup duration is not a finite observation.'}
  if($b.state-eq$null-or$b.state.pairs-isnot[Array]-or$b.state.pairs.Count-ne2){throw 'SETUP-COMPLETE lacks its captured setup state.'}
@@ -300,4 +336,6 @@ function Assert-KmcChunk7OwnerSeedCleanup($Cleanup){
  foreach($field in @('pairResidueAbsent','controlsSettled','settingsAndSelectionRestored','nativeProcessesSettled','cleanupCustodySettled','setupCompleted','ownerSeedSetupPetsPreserved','setupStateUnchangedAfterBoundary','setupRetainedInMemoryOnly')){Assert-KmcChunk7Boolean $Cleanup.$field $true}
  foreach($field in @('horseRemoved','inheritedPetsPreserved','nativeProgressionRequiresExternalWorkingRestoration','nativeSaveWritten','ordinaryRespecProven')){Assert-KmcChunk7Boolean $Cleanup.$field $false}
  Assert-KmcOrdinaryInteger $Cleanup.setupMutationsAfterBoundary 0 0
+ # Zero native writes after SETUP-COMPLETE; none unauthorized; the owned projection released.
+ Assert-KmcOrdinaryInteger $Cleanup.writesAfterBoundary 0 0;Assert-KmcOrdinaryInteger $Cleanup.unauthorizedWrites 0 0;Assert-KmcChunk7Boolean $Cleanup.slotProjectionReleased $true
 }

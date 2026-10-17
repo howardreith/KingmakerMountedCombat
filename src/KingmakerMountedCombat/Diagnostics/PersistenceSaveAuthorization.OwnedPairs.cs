@@ -48,7 +48,108 @@ namespace KingmakerMountedCombat.Diagnostics
         }
         private bool OwnedPairsUnchanged() => ownedPairsRequest == null ||
             OwnedPairsKey(ownedPairsRequest) == ownedPairsKey && ownedPairsRequest.Validate().Count == 0;
-        private bool OwnedPairsWriteReady => ownedPairsRequest != null && ownedPairsReservations == 1 && admittedNativeLoadRequests == 1;
+        private bool OwnedPairsWriteReady => OwnerSeedPlan ? ownerSeedPhase == "levelup" && admittedNativeLoadRequests == 1 :
+            ownedPairsRequest != null && ownedPairsReservations == 1 && admittedNativeLoadRequests == 1;
+        // Owner-seed SETUP: each native level-up Auto the ordinary build requests is
+        // reserved one at a time into the run root (Auto_1, then an Auto_2 staging copy
+        // that the native worker moves onto Auto_1), confirmed on completion, and the
+        // whole write scope closes at SETUP-COMPLETE. No other write is ever admitted.
+        internal const string OwnerSeedAutoLeaf = "Auto_1.zks", OwnerSeedStagingLeaf = "Auto_2.zks";
+        private string ownerSeedPhase, ownerSeedAutoName;
+        private int ownerSeedConfirmedWrites;
+        private bool ownerSeedClosed;
+        private bool OwnerSeedPlan => ownedPairsRequest?.OwnedPairs?.IsOwnerSeed == true;
+        internal int OwnerSeedConfirmedWrites { get { lock (sync) return ownerSeedConfirmedWrites; } }
+        internal bool OwnerSeedWritesClosed { get { lock (sync) return ownerSeedClosed; } }
+        internal string OwnerSeedPhase { get { lock (sync) return ownerSeedPhase; } }
+        private bool MatchesOwnerSeedWrites(bool requireUnwritten)
+        {
+            var source = ownedPairsRequest.PersistenceLoad;
+            if (requireUnwritten) return ownerSeedPhase == null && ownerSeedConfirmedWrites == 0 && admittedNativeWriteRequests == 0 && entries.Count == 1;
+            if (ownerSeedConfirmedWrites > maximumNativeWriteRequests.Value) return false;
+            var pending = ownerSeedPhase == "levelup" ? 1 : 0;
+            if (admittedNativeWriteRequests < ownerSeedConfirmedWrites || admittedNativeWriteRequests > ownerSeedConfirmedWrites + pending) return false;
+            foreach (var pair in entries)
+            {
+                if (pair.Key == source.FileName) continue;
+                var e = pair.Value;
+                if (pair.Key != OwnerSeedAutoLeaf && pair.Key != OwnerSeedStagingLeaf || e.Type != "Auto" || e.Name != ownerSeedAutoName ||
+                    e.Area != source.Area || e.Bootstrap || e.AdmitsBeforeArea || e.AdmissionArea != null || e.ForeignGameId != null || e.ForeignGameName != null) return false;
+                if (ownerSeedClosed && (e.Writable || e.Writing)) return false;
+            }
+            return !ownerSeedClosed || ownerSeedPhase == "closed" && ownerSeedConfirmedWrites == maximumNativeWriteRequests.Value && admittedNativeWriteRequests == ownerSeedConfirmedWrites;
+        }
+        private void RequireOwnerSeedContext(RuntimeRequest request, object nativeGame, object nativeManager)
+        {
+            if (!OwnerSeedPlan || !ReferenceEquals(request, ownedPairsRequest) || !ReferenceEquals(nativeGame, ownedPairsGame) ||
+                !ReferenceEquals(nativeManager, ownedPairsManager) || !OwnedPairsUnchanged() || admittedNativeLoadRequests != 1)
+                throw new InvalidOperationException("Owner-seed setup write lost its exact captured request, native objects or completed load.");
+        }
+        private void RequireOwnerSeedInventory()
+        {
+            var expected = ownerSeedConfirmedWrites == 0 ? new[] { ownedPairsRequest.PersistenceLoad.FileName } : new[] { ownedPairsRequest.PersistenceLoad.FileName, OwnerSeedAutoLeaf };
+            var paths = Directory.EnumerateFileSystemEntries(Root).ToArray();
+            if (paths.Length != expected.Length || paths.Any(path => Directory.Exists(path) || !expected.Contains(Path.GetFileName(path))))
+                throw new InvalidOperationException("Owner-seed isolated inventory contains a foreign, pending or missing leaf.");
+            foreach (var leaf in expected) VerifyFile(leaf, entries[leaf]);
+        }
+        internal void ReserveOwnerSeedLevelup(RuntimeRequest request, object nativeGame, object nativeManager, string nativeAutoName)
+        {
+            lock (sync)
+            {
+                RequireOwnerSeedContext(request, nativeGame, nativeManager);
+                Required(nativeAutoName, 256);
+                if (ownerSeedClosed || ownerSeedPhase == "levelup" || ownerSeedConfirmedWrites >= maximumNativeWriteRequests.Value ||
+                    admittedNativeWriteRequests != ownerSeedConfirmedWrites || ownerSeedConfirmedWrites > 0 && nativeAutoName != ownerSeedAutoName ||
+                    entries.Values.Any(value => value.Writable || value.Writing))
+                    throw new InvalidOperationException("Owner-seed level-up reservation is repeated, out of order or beyond its exact selected count.");
+                RequireOwnerSeedInventory();
+                var source = ownedPairsRequest.PersistenceLoad;
+                if (ownerSeedConfirmedWrites == 0)
+                {
+                    if (entries.Count != 1 || entries.ContainsKey(OwnerSeedAutoLeaf) || entries.ContainsKey(OwnerSeedStagingLeaf))
+                        throw new InvalidOperationException("Owner-seed first level-up Auto aliases an admitted leaf.");
+                    var first = new Entry { Name = nativeAutoName, Type = "Auto", Area = source.Area, Writable = true };
+                    VerifyFile(OwnerSeedAutoLeaf, first); VerifyFile(OwnerSeedStagingLeaf, new Entry());
+                    entries.Add(OwnerSeedAutoLeaf, first);
+                }
+                else
+                {
+                    if (!entries.TryGetValue(OwnerSeedAutoLeaf, out var settled) || settled.Hash == null)
+                        throw new InvalidOperationException("Owner-seed replacement requires the completed first level-up Auto.");
+                    var staging = new Entry { Name = nativeAutoName, Type = "Auto", Area = source.Area, Writable = true };
+                    VerifyFile(OwnerSeedStagingLeaf, staging);
+                    entries[OwnerSeedStagingLeaf] = staging; settled.Writable = true;
+                }
+                ownerSeedAutoName = nativeAutoName; ownerSeedPhase = "levelup";
+            }
+        }
+        internal void ConfirmOwnerSeedLevelup(RuntimeRequest request, object nativeGame, object nativeManager, RuntimeSaveTarget settled)
+        {
+            lock (sync)
+            {
+                RequireOwnerSeedContext(request, nativeGame, nativeManager);
+                Entry staging;
+                entries.TryGetValue(OwnerSeedStagingLeaf, out staging);
+                if (ownerSeedPhase != "levelup" || admittedNativeWriteRequests != ownerSeedConfirmedWrites + 1 || settled?.FileName != OwnerSeedAutoLeaf ||
+                    settled.SaveType != "Auto" || settled.InternalName != ownerSeedAutoName || ValidateArchiveIdentity(settled, Root) != null ||
+                    staging != null && (staging.Hash != null || staging.Writing) || entries[OwnerSeedAutoLeaf].Writing || entries[OwnerSeedAutoLeaf].Hash == null)
+                    throw new InvalidOperationException("Owner-seed level-up Auto has not completed exactly at its run-owned leaf.");
+                entries[OwnerSeedAutoLeaf].Writable = false; if (staging != null) staging.Writable = false;
+                ownerSeedConfirmedWrites++; ownerSeedPhase = "idle"; RequireOwnerSeedInventory();
+            }
+        }
+        internal void CloseOwnerSeedSetupWrites(RuntimeRequest request, object nativeGame, object nativeManager)
+        {
+            lock (sync)
+            {
+                RequireOwnerSeedContext(request, nativeGame, nativeManager);
+                if (ownerSeedClosed || ownerSeedPhase == "levelup" || ownerSeedConfirmedWrites != maximumNativeWriteRequests.Value ||
+                    admittedNativeWriteRequests != ownerSeedConfirmedWrites || entries.Values.Any(value => value.Writable || value.Writing))
+                    throw new InvalidOperationException("SETUP-COMPLETE requires exactly the selected completed setup level-up Autos and no open writer.");
+                RequireOwnerSeedInventory(); ownerSeedClosed = true; ownerSeedPhase = "closed";
+            }
+        }
         internal bool MatchesOwnedPairsPlan(bool requireReserved, bool requireUnwritten)
         {
             lock (sync)
@@ -62,6 +163,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     input.Hash != source.Sha256 || input.Writable || input.Writing || input.Bootstrap || input.AdmitsBeforeArea ||
                     input.AdmissionArea != null || input.ForeignGameId != null || input.ForeignGameName != null ||
                     admittedNativeLoadRequests > maximumNativeLoadRequests.Value || admittedNativeWriteRequests > maximumNativeWriteRequests.Value) return false;
+                if (OwnerSeedPlan) return MatchesOwnerSeedWrites(requireUnwritten);
                 if (maximumNativeWriteRequests == 0)
                     return ownedPairsReservations == 0 && entries.Count == 1 && admittedNativeWriteRequests == 0;
                 if (ownedPairsReservations == 0)

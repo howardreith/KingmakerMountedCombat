@@ -54,7 +54,26 @@ foreach($boundary in @('multi-nonselected-mount-unsettled-manual','multi-owned-w
 function Prog($cl,$xp,$rl){[pscustomobject][ordered]@{characterLevel=$cl;experience=$xp;rangerLevel=$rl;classes=@()}}
 # Owner-seed two-pair exploration: the same measured world shape with the disclosed
 # native fixture setup in place of inherited custody; door may be not-applicable only here.
-function New-KmcOwnerSeedWorldFixture([bool]$DoorApplicable=$true){
+# Setup level-up Autos (assisted precedent): autosave on -> one completed run-owned Auto per
+# rider build before SETUP-COMPLETE; autosave off -> each request natively writes nothing.
+function Set-KmcOwnerSeedAutosaves($v,[bool]$On){
+ $r=$v.request;$o=$v.artifact.observations;$s=$r.ownedPairs;$u=$o.ownerSeedSetup
+ $r.evidenceRoot=Join-Path (Join-Path (Get-KmcLabRoot) 'runtime-evidence') $r.runId
+ $path=Join-Path (Get-KmcAssistedSaveRoot $r) 'Auto_1.zks';$writes=if($On){2}else{0};$s.expectedNativeWriteCount=$writes
+ $u.nativeLevelUpAutosave=[pscustomobject][ordered]@{autosaveEnabled=$On;onlyOneSave=$false;autosaveSlots=3.0;settingsWritten=$false;case=$(if($On){'autosave-on'}else{'autosave-off'});riderBuilds=2;expectedWrites=$writes;selectedWrites=$writes;slotProjectionDuringBuild=($writes-gt0);mountedPersistenceProof=$false}
+ $riders=@($s.riderAId,$s.riderBId)
+ $autos=@(for($i=0;$i-lt2;$i++){if($On){[pscustomobject][ordered]@{sequence=($i+1);riderId=$riders[$i];case='autosave-on';phase='setup-levelup-auto';type='Auto';autoLevelup=$true;internalName='Autosave 1';fileName='Auto_1.zks';preparedLeaf=@('Auto_1.zks','Auto_2.zks')[$i];path=$path;insideRunRoot=$true;length=1200000;sha256=([string]@('a','b')[$i]*64);lastWriteTimeUtcTicks=638960000000000000;completionSequence=($i+1);requestedObject=(500+$i);writtenObject=(600+$i);admittedWrites=($i+1);authorizedWrites=($i+1);snapshots=($i+1);completedSaves=($i+1);frame=(800+$i);completedBeforeBoundary=$true;mountedPersistenceProof=$false;probe=[pscustomobject]@{complete=$true}}}else{[pscustomobject][ordered]@{sequence=($i+1);riderId=$riders[$i];case='autosave-off';requested=$true;written=$false;probe=[pscustomobject]@{complete=$false}}}})
+ $u|Add-Member setupAutosaves $autos -Force
+ $build=@($u.assistance|Where-Object kind -CEQ 'native-ordinary-ranger-levels');$xp=@($u.assistance|Where-Object kind -CEQ 'native-xp')
+ $api='Kingmaker.Controllers.LevelUpAutoSaveController.HandleLevelUpComplete -> Game.SaveGame(Auto) into the run-owned isolated save root'
+ function AutoItem($unit,$n){[pscustomobject][ordered]@{unitId=$unit;kind='native-levelup-autosave';nativeApi=$api;before=($n-1);after=$n;amount=1;detail=$path}}
+ $items=@($build[0]);if($On){$items+=AutoItem $riders[0] 1};$items+=$xp;$items+=$build[1];if($On){$items+=AutoItem $riders[1] 2}
+ $u.assistance=$items
+ $o.setupComplete.assistanceCount=$items.Count;$o.setupComplete|Add-Member writesAtBoundary $writes -Force;$o.setupComplete|Add-Member writeScopeClosed $true -Force
+ foreach($pair in @(@('writesAfterBoundary',0),@('unauthorizedWrites',0),@('slotProjectionReleased',$true))){$o.cleanup|Add-Member $pair[0] $pair[1] -Force}
+ $v
+}
+function New-KmcOwnerSeedWorldFixture([bool]$DoorApplicable=$true,[bool]$Autosave=$true){
  $v=Copy-Value @($fixtures|Where-Object name -CEQ 'exploration')[0];$r=$v.request;$o=$v.artifact.observations;$p=$r.ownedPairs
  $a=$p.riderAId;$ma=$p.mountAId;$b=$p.riderBId;$mb=$p.mountBId;$party=@($a,$b,'50505050-5050-4050-8050-505050505050','60606060-6060-4060-8060-606060606060')
  $r.ownedPairs=[pscustomobject][ordered]@{case='owner-seed-exploration';seedId='KMC_C7_OWNER_SEED';seedSha256=('9'*64);riderAId=$a;riderBId=$b;partyIds=$party;xpAssistance=[pscustomobject]@{unitId=$b;targetCharacterLevel=8};baseGameOnly=$true;expectedNativeLoadCount=1;expectedNativeWriteCount=0}
@@ -84,12 +103,12 @@ function New-KmcOwnerSeedWorldFixture([bool]$DoorApplicable=$true){
   $o.snapshots=@($o.snapshots|Where-Object label -CNE 'door-complete')
   $o.door=[pscustomobject][ordered]@{applicable=$false;reason='No open StandardDoor with an active-when-closed navmesh cut lies outside both pair interaction radii within the bounded scan radius.';candidatesScanned=3;radius=28.0}
  }
- $v.name='exploration';$v
+ $v.name='exploration';Set-KmcOwnerSeedAutosaves $v $Autosave
 }
 function Check-OwnerSeed([string]$Name,[scriptblock]$Mutation,[bool]$DoorApplicable=$true,[string]$Pattern=''){$v=New-KmcOwnerSeedWorldFixture $DoorApplicable;&$Mutation $v;Check $Name {Assert-KmcChunk7WorldEvidence $v.request $v.artifact 'PASS'} $true $Pattern}
 Check 'owner-seed exploration with a tested door' {$v=New-KmcOwnerSeedWorldFixture $true;Assert-KmcChunk7WorldEvidence $v.request $v.artifact 'PASS'}
 Check 'owner-seed exploration with a not-applicable door' {$v=New-KmcOwnerSeedWorldFixture $false;Assert-KmcChunk7WorldEvidence $v.request $v.artifact 'PASS'}
-Check 'owner-seed exploration without XP assistance' {$v=New-KmcOwnerSeedWorldFixture $true;$v.request.ownedPairs.xpAssistance=$null;$s=$v.artifact.observations.ownerSeedSetup;$s.riderFacts[1].rangerLevel=4;$s.riderFacts[1].eligibleWithoutAssistance=$true;$s.riderFacts[1].minimalTargetLevel=4;$s.riderBExperience=[pscustomobject]@{assisted=$false;experience=9000};$s.riders[1].before=Prog 4 9000 4;$s.riders[1].after=Prog 5 9000 5;$s.riders[1].nativeCommits=1;$s.assistance=@($s.assistance[0],$s.assistance[2]);$s.assistance[1].before=4;$s.assistance[1].after=5;$s.assistance[1].amount=1;$v.artifact.observations.setupComplete.assistanceCount=2;Assert-KmcChunk7WorldEvidence $v.request $v.artifact 'PASS'}
+Check 'owner-seed exploration without XP assistance' {$v=New-KmcOwnerSeedWorldFixture $true;$v.request.ownedPairs.xpAssistance=$null;$s=$v.artifact.observations.ownerSeedSetup;$s.riderFacts[1].rangerLevel=4;$s.riderFacts[1].eligibleWithoutAssistance=$true;$s.riderFacts[1].minimalTargetLevel=4;$s.riderBExperience=[pscustomobject]@{assisted=$false;experience=9000};$s.riders[1].before=Prog 4 9000 4;$s.riders[1].after=Prog 5 9000 5;$s.riders[1].nativeCommits=1;$b=@($s.assistance|Where-Object kind -CEQ 'native-ordinary-ranger-levels');$b[1].before=4;$b[1].after=5;$b[1].amount=1;$s.assistance=@($b);[void](Set-KmcOwnerSeedAutosaves $v $true);Assert-KmcChunk7WorldEvidence $v.request $v.artifact 'PASS'}
 Check-OwnerSeed 'owner-seed evidence without its assistance disclosure refused' {$args[0].artifact.observations.PSObject.Properties.Remove('ownerSeedSetup')}
 Check-OwnerSeed 'owner-seed evidence missing one assistance item refused' {$s=$args[0].artifact.observations.ownerSeedSetup;$s.assistance=@($s.assistance[0],$s.assistance[2])} $true 'assistance disclosure'
 Check-OwnerSeed 'owner-seed evidence with an undeclared money assistance refused' {$s=$args[0].artifact.observations.ownerSeedSetup;$s.assistance=@($s.assistance)+@([pscustomobject]@{unitId=$args[0].request.ownedPairs.riderAId;kind='native-money';nativeApi='Player.GainMoney';before=0;after=1;amount=1;detail='x'})} $true 'assistance disclosure'
@@ -102,7 +121,24 @@ Check-OwnerSeed 'owner-seed missing SETUP-COMPLETE boundary refused' {$args[0].a
 Check-OwnerSeed 'owner-seed measured-phase setup mutation refused' {$args[0].artifact.observations.cleanup.setupMutationsAfterBoundary=1}
 Check-OwnerSeed 'owner-seed setup state drift after boundary refused' {$args[0].artifact.observations.cleanup.setupStateUnchangedAfterBoundary=$false}
 Check-OwnerSeed 'owner-seed setup failure cannot be a PASS' {$args[0].artifact.observations|Add-Member failurePhase 'SETUP'}
-Check-OwnerSeed 'owner-seed autosave-enabled setup refused' {$args[0].artifact.observations.ownerSeedSetup.nativeLevelUpAutosave.autosaveEnabled=$true}
+Check-OwnerSeed 'owner-seed OnlyOneSave/Ironman setup refused' {$args[0].artifact.observations.ownerSeedSetup.nativeLevelUpAutosave.onlyOneSave=$true}
+Check 'owner-seed exploration with native autosave off and zero setup writes' {$v=New-KmcOwnerSeedWorldFixture $true $false;Assert-KmcChunk7WorldEvidence $v.request $v.artifact 'PASS'}
+Check 'owner-seed autosave off cannot declare setup writes' {$v=New-KmcOwnerSeedWorldFixture $true $false;$v.request.ownedPairs.expectedNativeWriteCount=2;Assert-KmcChunk7WorldEvidence $v.request $v.artifact 'PASS'} $true
+Check 'owner-seed autosave off cannot carry a written Auto' {$v=New-KmcOwnerSeedWorldFixture $true $false;$v.artifact.observations.ownerSeedSetup.setupAutosaves[0].written=$true;Assert-KmcChunk7WorldEvidence $v.request $v.artifact 'PASS'} $true
+Check-OwnerSeed 'owner-seed selected write count must equal the native observation' {$args[0].request.ownedPairs.expectedNativeWriteCount=1} $true 'differs from the observed'
+Check-OwnerSeed 'owner-seed observed write count must equal its native derivation' {$a=$args[0].artifact.observations.ownerSeedSetup.nativeLevelUpAutosave;$a.expectedWrites=1;$a.selectedWrites=1;$args[0].request.ownedPairs.expectedNativeWriteCount=1}
+Check-OwnerSeed 'owner-seed missing setup Auto observation refused' {$u=$args[0].artifact.observations.ownerSeedSetup;$u.setupAutosaves=@($u.setupAutosaves[0])} $true 'one native level-up autosave'
+Check-OwnerSeed 'owner-seed setup Auto after SETUP-COMPLETE refused' {$args[0].artifact.observations.ownerSeedSetup.setupAutosaves[1].frame=901} $true 'after SETUP-COMPLETE'
+Check-OwnerSeed 'owner-seed native write after SETUP-COMPLETE refused' {$args[0].artifact.observations.cleanup.writesAfterBoundary=1}
+Check-OwnerSeed 'owner-seed unauthorized write refused' {$args[0].artifact.observations.cleanup.unauthorizedWrites=1}
+Check-OwnerSeed 'owner-seed setup Auto outside the run root refused' {$w=$args[0].artifact.observations.ownerSeedSetup.setupAutosaves[0];$w.path='C:\Users\Howie\AppData\LocalLow\Owlcat Games\Pathfinder Kingmaker\Saved Games\Auto_1.zks'}
+Check-OwnerSeed 'owner-seed Manual setup write refused' {$w=$args[0].artifact.observations.ownerSeedSetup.setupAutosaves[1];$w.type='Manual'}
+Check-OwnerSeed 'owner-seed Quick setup leaf refused' {$w=$args[0].artifact.observations.ownerSeedSetup.setupAutosaves[0];$w.fileName='Quick_1.zks'}
+Check-OwnerSeed 'owner-seed setup Auto cannot claim mounted persistence' {$args[0].artifact.observations.ownerSeedSetup.setupAutosaves[0].mountedPersistenceProof=$true}
+Check-OwnerSeed 'owner-seed setup Auto without its assistance item refused' {$u=$args[0].artifact.observations.ownerSeedSetup;$u.assistance=@($u.assistance|Where-Object{$_.kind-cne'native-levelup-autosave'-or$_.after-ne2});$args[0].artifact.observations.setupComplete.assistanceCount=@($u.assistance).Count} $true 'assistance disclosure'
+Check-OwnerSeed 'owner-seed boundary must close the write scope' {$args[0].artifact.observations.setupComplete.writeScopeClosed=$false}
+Check-OwnerSeed 'owner-seed boundary write count must equal the selection' {$args[0].artifact.observations.setupComplete.writesAtBoundary=1}
+Check-OwnerSeed 'owner-seed slot projection must be released' {$args[0].artifact.observations.cleanup.slotProjectionReleased=$false}
 Check-OwnerSeed 'owner-seed setup cannot remove its Horse' {$args[0].artifact.observations.cleanup.horseRemoved=$true}
 Check-OwnerSeed 'owner-seed cannot claim inherited provenance' {$args[0].artifact.observations.capability.inheritedManualSha256='7'*64}
 Check-OwnerSeed 'owner-seed rider not petless before setup refused' {$args[0].artifact.observations.partyBefore[0].petId=$args[0].request.ownedPairs.riderBId}

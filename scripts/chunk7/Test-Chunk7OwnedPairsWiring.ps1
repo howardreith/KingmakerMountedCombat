@@ -87,6 +87,7 @@ function OwnerSeedRequest{$q=Request;$p=$q.ownedPairs;$q.ownedPairs=[pscustomobj
 Check 'full request owner-seed exploration admitted' {Validate (OwnerSeedRequest)}
 Check 'full request owner-seed exploration without assistance admitted' {$q=OwnerSeedRequest;$q.ownedPairs.xpAssistance=$null;Validate $q}
 Check 'owner-seed selects the exploration engine with one load and zero writes' {$q=OwnerSeedRequest;if((Get-KmcChunk7SelectedScenario $q)-cne'chunk7-two-pair-exploration'-or(Get-KmcChunk7OwnedWriteCount $q)-ne0-or(Get-KmcChunk7OwnedLoadCount $q)-ne1){throw 'Owner-seed quota or engine differs'}}
+Check 'full request owner-seed exploration with two setup level-up Autos admitted and quota exact' {$q=OwnerSeedRequest;$q.ownedPairs.expectedNativeWriteCount=2;Validate $q;if((Get-KmcChunk7OwnedWriteCount $q)-ne2-or(Get-KmcChunk7OwnedLoadCount $q)-ne1){throw 'Owner-seed setup write quota differs'}}
 $ownerSeedNegative=[ordered]@{
  'rider not in party'={param($q)$q.ownedPairs.partyIds=@($q.ownedPairs.riderAId,'50505050-5050-4050-8050-505050505050')}
  'rider A equals rider B'={param($q)$q.ownedPairs.riderBId=$q.ownedPairs.riderAId;$q.ownedPairs.xpAssistance.unitId=$q.ownedPairs.riderAId}
@@ -99,7 +100,8 @@ $ownerSeedNegative=[ordered]@{
  'producer archive pin on the seed kind'={param($q)$q.ownedPairs|Add-Member sourceArchiveSha256 ('9'*64)}
  'pre-granted pet pin on the seed kind'={param($q)$q.ownedPairs|Add-Member mountAId '20202020-2020-4020-8020-202020202020'}
  'checkpoint on the seed kind'={param($q)$q|Add-Member persistenceCase 'multi-exploration-manual'}
- 'native write on the seed kind'={param($q)$q.ownedPairs.expectedNativeWriteCount=1}
+ 'native writes beyond one per rider build'={param($q)$q.ownedPairs.expectedNativeWriteCount=3}
+ 'negative native write count'={param($q)$q.ownedPairs.expectedNativeWriteCount=-1}
  'second load on the seed kind'={param($q)$q.ownedPairs.expectedNativeLoadCount=2}
  'seed SHA differs from the copied input'={param($q)$q.ownedPairs.seedSha256='8'*64}
  'seed input impersonates the producer fixture'={param($q)$q.persistenceLoad.internalName='KMC_C7_ASSISTED_FIXTURE';$q.persistenceLoad.fileName='Manual_9_KMC_C7_ASSISTED_FIXTURE.zks'}

@@ -263,7 +263,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     request.Scenario == Chunk7AcquiredManualSelection.Scenario ? game.SaveManager : null,
                     request.OwnedPairs != null ? request : null, request.OwnedPairs != null ? game : null,
                     request.OwnedPairs != null ? game.SaveManager : null,
-                    request.OwnedPairs?.WriteCount(request.PersistenceCase) > 0 ? OwnedPairsOutputName(request) : null);
+                    request.OwnedPairs?.WriteCount(request.PersistenceCase) > 0 && !request.OwnedPairs.IsOwnerSeed ? OwnedPairsOutputName(request) : null);
                 if (request.CumulativeAcquisition?.UsesAssistedCold == true)
                     authority.ConfigureAssistedCumulative(request);
                 if (request.Scenario == Chunk7AssistedColdInventorySelection.Scenario)
@@ -308,7 +308,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (source.Type.ToString() != request.ExpectedNativeLoadType || source.OperationState != SaveInfo.StateType.None ||
                     !source.IsActuallySaved || !source.HasFileOnDisk || NativePersistenceIsolation.NativeSlotRotationEnabled || Game.Instance != game)
                     throw new InvalidOperationException("Inherited two-owner native inventory is not settled before campaign admission.");
-                if (request.OwnedPairs.WriteCount(request.PersistenceCase) > 0)
+                // Owner-seed setup level-up Autos are reserved one at a time by the scenario, never at load.
+                if (request.OwnedPairs.WriteCount(request.PersistenceCase) > 0 && !request.OwnedPairs.IsOwnerSeed)
                 {
                     var type = OwnedPairsOutputType(request);
                     authority.ReserveOwnedPairsOutput(request, game, game.SaveManager, source, Project(source),

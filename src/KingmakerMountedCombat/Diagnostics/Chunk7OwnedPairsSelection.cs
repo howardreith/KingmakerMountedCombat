@@ -48,6 +48,7 @@ namespace KingmakerMountedCombat.Diagnostics
         public int ExpectedNativeLoadCount { get; set; }
         public int ExpectedNativeWriteCount { get; set; }
         internal bool IsOwnerSeed => Case == OwnerSeedCase;
+        internal const int MaximumSetupLevelupWrites = 2;
         internal string[] PairIds => new[] { RiderAId, MountAId, RiderBId, MountBId };
         internal string RuntimeScenario
         {
@@ -82,7 +83,8 @@ namespace KingmakerMountedCombat.Diagnostics
         internal static bool RepeatedCheckpoint(string value) => value == "multi-exploration-three-loads-manual" ||
             value == "multi-exploration-three-area-transfers-manual";
         internal int LoadCount(string checkpoint) => Cold && checkpoint == "multi-exploration-three-loads-manual" ? 3 : 1;
-        internal int WriteCount(string checkpoint) => Case == "persistence-save" && checkpoint == "multi-owned-worker-cancel-manual" ? 2 : Case == "persistence-save" ||
+        // Owner seed: exactly the native setup level-up Autos its selection declares (bound at admission).
+        internal int WriteCount(string checkpoint) => IsOwnerSeed ? ExpectedNativeWriteCount : Case == "persistence-save" && checkpoint == "multi-owned-worker-cancel-manual" ? 2 : Case == "persistence-save" ||
             Cold && (checkpoint == "legacy-mounted-pending-tb-manual" || OwnedSchema1Cold(checkpoint)) ? 1 : 0;
         public IReadOnlyList<string> Validate(string scenario, string runId, string checkpoint)
         {
@@ -133,8 +135,10 @@ namespace KingmakerMountedCombat.Diagnostics
                 XpAssistance.TargetCharacterLevel > Chunk7OwnerSeedSetupPlan.MaximumTargetLevel))
                 errors.Add("Native XP assistance may target only rider B, within the bounded setup ceiling.");
             if (checkpoint != null) errors.Add("Owner-seed exploration cannot select a persistence checkpoint.");
-            if (!BaseGameOnly || ExpectedNativeLoadCount != 1 || ExpectedNativeWriteCount != 0)
-                errors.Add("Owner-seed exploration requires base-only staging, one native load and zero native writes.");
+            // Writes are only the native setup level-up Autos: at most one per rider build,
+            // bound exactly to the native autosave observation before any mutation.
+            if (!BaseGameOnly || ExpectedNativeLoadCount != 1 || ExpectedNativeWriteCount < 0 || ExpectedNativeWriteCount > MaximumSetupLevelupWrites)
+                errors.Add("Owner-seed exploration requires base-only staging, one native load and only its bounded setup level-up Auto writes.");
             return errors;
         }
         private static bool Run(string value) => Regex.IsMatch(value ?? "", "^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$");
@@ -193,6 +197,21 @@ namespace KingmakerMountedCombat.Diagnostics
                 errors.Add("Rider " + role + " already owns a pet, a dual companion or Horse progression; the fixture requires a petless actor.");
             if (rider.CharacterLevel < 1 || rider.RangerLevel < 0 || rider.RangerLevel > rider.CharacterLevel || rider.ReadyLevel < rider.CharacterLevel)
                 errors.Add("Rider " + role + " native progression observation is inconsistent.");
+            return errors;
+        }
+        // Each rider's final native build commit makes LevelUpAutoSaveController request
+        // one Auto (chained intermediate commits do not); with native autosave off the
+        // request writes nothing. The selection must declare exactly that count.
+        internal static int ExpectedSetupWrites(bool autosaveEnabled, int riderBuilds) => autosaveEnabled ? riderBuilds : 0;
+        internal static IReadOnlyList<string> WriteErrors(Chunk7OwnedPairsSelection selection, bool autosaveEnabled, bool onlyOneSave, int riderBuilds)
+        {
+            var errors = new List<string>();
+            if (onlyOneSave) errors.Add("Native OnlyOneSave/Ironman is on; its single-slot saves cannot be run-owned setup level-up Autos.");
+            if (riderBuilds < 0 || riderBuilds > Chunk7OwnedPairsSelection.MaximumSetupLevelupWrites) errors.Add("Owner-seed rider build count is outside its bound.");
+            var expected = ExpectedSetupWrites(autosaveEnabled, riderBuilds);
+            if (selection == null || selection.ExpectedNativeWriteCount != expected)
+                errors.Add("Selected native write count " + (selection == null ? "null" : selection.ExpectedNativeWriteCount.ToString()) +
+                    " differs from the observed native level-up autosave count " + expected + " (autosave " + (autosaveEnabled ? "on" : "off") + ", " + riderBuilds + " rider builds).");
             return errors;
         }
         internal static IReadOnlyList<string> AssistanceErrors(Chunk7OwnedPairsSelection selection, Chunk7OwnerSeedRiderFacts riderA, Chunk7OwnerSeedRiderFacts riderB)
