@@ -175,8 +175,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 fixtureAuthority.ReserveOwnerSeedLevelup(request, game, game.SaveManager, RuntimePersistenceScenario.SlotName(SaveInfo.SaveType.Auto));
             }
             Require(setupProbe == null, "A previous native level-up observer is still owned.");
-            setupProbe = NativeOrdinaryAcquisitionProbe.ForOwnerSeedSetup(() => rider,
-                index == 0 ? PersistenceSaveAuthorization.OwnerSeedAutoLeaf : PersistenceSaveAuthorization.OwnerSeedStagingLeaf);
+            // The existing probe factories already pin the two reserved prepared leaves:
+            // ordinary = Auto_1 (first setup Auto), assisted = Auto_2 (the staging copy).
+            setupProbe = index == 0 ? new NativeOrdinaryAcquisitionProbe(() => rider) : NativeOrdinaryAcquisitionProbe.ForAssistedFixture(() => rider);
             setupProbe.Install();
             setupDriver = new Chunk7OrdinaryBuildDriver(pins, rider, horses.HorseFeature, horses.HorseUnit.AssetGuid, RequireOwnerSeedSetupWindow, PublishSetupEvent);
         }
@@ -193,11 +194,12 @@ namespace KingmakerMountedCombat.Diagnostics
             RequireOwnerSeedAuthority();
             if (setupWritesExpected == 0)
             {
-                Require(probe != null && probe.SaveRequests == 1 && probe.PreparedWrites == 0 && !NativePersistenceIsolation.NativeSlotRotationEnabled &&
+                var observed = probe?.Capture();
+                Require(observed != null && (int)observed["saveRequests"] == 1 && (int)observed["preparedWrites"] == 0 && !NativePersistenceIsolation.NativeSlotRotationEnabled &&
                     fixtureAuthority.AdmittedNativeWriteRequests == 0 && fixtureAuthorization.AuthorizedWriteCount == 0 && persistence.CompletedSaveCount == 0,
                     "With native autosave off the level-up request must write nothing.");
                 setupAutosaves.Add(new JObject { ["sequence"] = sequence, ["riderId"] = rider.UniqueId, ["case"] = "autosave-off",
-                    ["requested"] = true, ["written"] = false, ["probe"] = probe.Capture() });
+                    ["requested"] = true, ["written"] = false, ["probe"] = observed });
                 probe.Dispose(); setupProbe = null; return true;
             }
             if (probe?.ObservedSave == null || probe.ObservedSave.OperationState != SaveInfo.StateType.None) return false;
