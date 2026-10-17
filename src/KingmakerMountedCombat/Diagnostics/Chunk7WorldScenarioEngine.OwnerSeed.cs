@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -354,7 +355,8 @@ namespace KingmakerMountedCombat.Diagnostics
             evidence["setupComplete"] = new JObject { ["boundary"] = "SETUP-COMPLETE", ["frame"] = boundaryFrame,
                 ["gameTicks"] = Game.Instance.TimeController.GameTime.Ticks, ["assistanceCount"] = setupLedger.Items.Count,
                 ["setupSeconds"] = setupClock.Elapsed.TotalSeconds, ["measuredClockRestarted"] = true, ["state"] = setupBoundaryState.DeepClone(),
-                ["writesAtBoundary"] = setupWritesAtBoundary, ["writeScopeClosed"] = fixtureAuthority.OwnerSeedWritesClosed, ["economy"] = economy };
+                ["writesAtBoundary"] = setupWritesAtBoundary, ["writeScopeClosed"] = fixtureAuthority.OwnerSeedWritesClosed, ["economy"] = economy,
+                ["horseItems"] = SetupHorseItems() };
             // The boundary is crossed only after its evidence exists, so any earlier failure is labelled SETUP.
             setupLedger.Complete(boundaryFrame);
             Pass(OwnerSeedSetupRow);
@@ -438,17 +440,39 @@ namespace KingmakerMountedCombat.Diagnostics
 
         // Money plus a digest of the shared party inventory and every party character's
         // equipped items, by blueprint and count (identification state is not included).
+        // The same fixed set at both points (Chunk7OwnerSeedEconomyDigest): a player-faction
+        // pet's native body/limb items enter the shared inventory held by the pet, so they are
+        // excluded here and disclosed per Horse instead.
         private JObject SetupEconomy()
         {
             var player = Game.Instance.Player;
-            var rows = player.Inventory.Items.Where(item => item != null).Select(item => "party|" + item.Blueprint?.AssetGuid + "|" + item.Count)
-                .Concat(setupCharacters.SelectMany(actor => actor.Body.EquipmentSlots.Where(slot => slot?.MaybeItem != null)
-                    .Select(slot => actor.UniqueId + "|" + slot.MaybeItem.Blueprint?.AssetGuid + "|" + slot.MaybeItem.Count)))
-                .OrderBy(row => row, StringComparer.Ordinal).ToArray();
+            var characterIds = new HashSet<string>(setupCharacters.Select(actor => actor.UniqueId), StringComparer.Ordinal);
+            var shared = player.Inventory.Items.Where(item => item != null).Select(item => new Chunk7OwnerSeedItemRow {
+                Blueprint = item.Blueprint?.AssetGuid, Count = item.Count, HolderId = item.HoldingSlot == null ? null : item.HoldingSlot.Owner?.Unit?.UniqueId ?? "unknown-holder" });
+            var equipped = setupCharacters.SelectMany(actor => actor.Body.EquipmentSlots.Where(slot => slot?.MaybeItem != null)
+                .Select(slot => new Chunk7OwnerSeedItemRow { Blueprint = slot.MaybeItem.Blueprint?.AssetGuid, Count = slot.MaybeItem.Count, HolderId = actor.UniqueId }));
+            int otherHeld;
+            var rows = Chunk7OwnerSeedEconomyDigest.Rows(shared.ToArray(), equipped.ToArray(), characterIds, out otherHeld);
             string sha; using (var hash = System.Security.Cryptography.SHA256.Create())
                 sha = BitConverter.ToString(hash.ComputeHash(System.Text.Encoding.UTF8.GetBytes(string.Join("\n", rows)))).Replace("-", "").ToLowerInvariant();
             return new JObject { ["money"] = player.Money, ["itemRows"] = rows.Length, ["inventorySha256"] = sha,
                 ["characterIds"] = new JArray(setupCharacters.Select(actor => actor.UniqueId).OrderBy(id => id, StringComparer.Ordinal)) };
+        }
+
+        // Disclosure only (outside the equality): each setup Horse's own native body and
+        // limb items, and how many shared-inventory rows any other non-character unit holds.
+        private JObject SetupHorseItems()
+        {
+            var player = Game.Instance.Player;
+            var characterIds = new HashSet<string>(setupCharacters.Select(actor => actor.UniqueId), StringComparer.Ordinal);
+            var horseIds = new HashSet<string>(new[] { firstMount, secondMount }.Select(mount => mount.UniqueId), StringComparer.Ordinal);
+            var horses = new JArray(new[] { firstMount, secondMount }.Select(mount => new JObject { ["horseId"] = mount.UniqueId,
+                ["items"] = new JArray(player.Inventory.Items.Where(item => item?.HoldingSlot?.Owner?.Unit != null && ReferenceEquals(item.HoldingSlot.Owner.Unit, mount))
+                    .Select(item => new JObject { ["blueprint"] = item.Blueprint?.AssetGuid, ["slot"] = item.HoldingSlot.GetType().Name,
+                        ["count"] = item.Count, ["heldBy"] = mount.UniqueId })) }));
+            var foreign = player.Inventory.Items.Count(item => item?.HoldingSlot != null && !characterIds.Contains(item.HoldingSlot.Owner?.Unit?.UniqueId ?? "") &&
+                !horseIds.Contains(item.HoldingSlot.Owner?.Unit?.UniqueId ?? ""));
+            return new JObject { ["horses"] = horses, ["foreignHeldRows"] = foreign };
         }
 
         private JObject SetupState() => new JObject { ["money"] = Game.Instance.Player.Money, ["experienceRatePercent"] = Game.Instance.Player.ExperienceRatePercent,

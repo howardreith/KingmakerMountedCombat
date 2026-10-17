@@ -244,6 +244,39 @@ namespace KingmakerMountedCombat.Diagnostics
         }
     }
 
+    // One item observation: its blueprint, stack count and the unit whose slot holds it
+    // (null for the shared, unequipped stash).
+    internal sealed class Chunk7OwnerSeedItemRow
+    {
+        internal string Blueprint { get; set; }
+        internal int Count { get; set; }
+        internal string HolderId { get; set; }
+    }
+
+    // The fixed money/item digest set, identical before setup and at SETUP-COMPLETE:
+    // shared-inventory rows that are unheld or held by a pre-setup party character, plus
+    // those characters' equipped slots. Rows held by any other unit (the setup Horses'
+    // native body/limb items) are counted separately and disclosed, never digested.
+    internal static class Chunk7OwnerSeedEconomyDigest
+    {
+        internal static string[] Rows(IEnumerable<Chunk7OwnerSeedItemRow> sharedInventory, IEnumerable<Chunk7OwnerSeedItemRow> equippedSlots,
+            ICollection<string> characterIds, out int otherHeldRows)
+        {
+            var rows = new List<string>(); var other = 0;
+            foreach (var item in sharedInventory ?? Enumerable.Empty<Chunk7OwnerSeedItemRow>())
+            {
+                if (item == null) continue;
+                if (item.HolderId == null) rows.Add("stash|" + item.Blueprint + "|" + item.Count);
+                else if (characterIds.Contains(item.HolderId)) rows.Add("held|" + item.HolderId + "|" + item.Blueprint + "|" + item.Count);
+                else other++;
+            }
+            foreach (var item in equippedSlots ?? Enumerable.Empty<Chunk7OwnerSeedItemRow>())
+                if (item != null && characterIds.Contains(item.HolderId)) rows.Add("slot|" + item.HolderId + "|" + item.Blueprint + "|" + item.Count);
+            otherHeldRows = other;
+            return rows.OrderBy(row => row, StringComparer.Ordinal).ToArray();
+        }
+    }
+
     // The SETUP-COMPLETE boundary. Every assistance item is recorded while it is open;
     // after Complete any further setup mutation is refused and counted.
     internal sealed class Chunk7OwnerSeedSetupLedger
