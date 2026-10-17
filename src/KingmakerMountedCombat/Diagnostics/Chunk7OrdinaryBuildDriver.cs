@@ -419,7 +419,8 @@ namespace KingmakerMountedCombat.Diagnostics
         private Chunk7OrdinaryBuildStep ChooseFeature(LevelUpController controller, FeatureSelectionState selection)
         {
             var items = selection.Selection.Items.ToArray();
-            Require(items.Length <= 256, "Native feature choice list exceeds the declared bound.");
+            // The general feat selection offers every feat (base game and DLC), not only legal ones.
+            Require(items.Length <= 1024, "Native feature choice list exceeds the declared bound.");
             var selectionId = (selection.Selection as BlueprintScriptableObject)?.AssetGuid;
             string required = selectionId == HuntersBondGuid ? RangerCompanionGuid : selectionId == RangerCompanionGuid ? targetCompanionFeature.AssetGuid : null;
             var legal = items.Where(item => item?.Feature != null &&

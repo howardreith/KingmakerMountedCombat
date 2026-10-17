@@ -215,7 +215,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 authorization.AuthorizedWriteCount == 1 && authority.AdmittedNativeWriteRequests == 1 &&
                 completion != null && completion.Sequence == 1 && ReferenceEquals(completion.Requested, ordinaryProbe.ObservedRequestedSave) &&
                 ReferenceEquals(completion.Written, save) && completion.Path == Path.Combine(root, Chunk7ManualDerivedSelection.OutputLeaf) &&
-                save.FileName == Chunk7ManualDerivedSelection.OutputLeaf && save.Type == SaveInfo.SaveType.Auto && save.IsAutoLevelupSave &&
+                save.FileName == Chunk7ManualDerivedSelection.OutputLeaf && save.Type == SaveInfo.SaveType.Auto && ordinaryProbe.ObservedRequestedSave.IsAutoLevelupSave && !save.IsAutoLevelupSave &&
                 save.GameId == request.PersistenceLoad.GameId && save.GameName == request.PersistenceLoad.GameName &&
                 save.Area.AssetGuidThreadSafe == request.PersistenceLoad.Area && save.HasFileOnDisk && save.IsActuallySaved,
                 "Native terminal autosave lacks exact causal, completion, descriptor or authority proof.");
