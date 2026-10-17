@@ -190,12 +190,13 @@ namespace KingmakerMountedCombat.Diagnostics
         // observed request contradicts the native fact and refuses the setup.
         private bool ObserveSetupAutosave(int index)
         {
+            if (SetupBusy()) return false;
             var rider = index == 0 ? firstRider : secondRider; var probe = setupProbe; var sequence = index + 1;
             RequireOwnerSeedAuthority();
             var observed = probe?.Capture();
             Require(observed != null && (bool)observed["installed"] && ((JArray)observed["errors"]).Count == 0 && (int)observed["completionEntries"] == 0 &&
                 (int)observed["completionExits"] == 0 && (int)observed["saveRequests"] == 0 && (int)observed["preparedWrites"] == 0 && probe.ObservedSave == null &&
-                !SetupBusy() && !setupSlotOwned && !NativePersistenceIsolation.NativeSlotRotationEnabled && fixtureAuthority.AdmittedNativeWriteRequests == 0 &&
+                !setupSlotOwned && !NativePersistenceIsolation.NativeSlotRotationEnabled && fixtureAuthority.AdmittedNativeWriteRequests == 0 &&
                 fixtureAuthorization.AuthorizedWriteCount == 0 && fixtureAuthorization.UnauthorizedWriteCount == 0 && persistence.CompletedSaveCount == 0,
                 "A native level-up autosave was observed during owner-seed setup; the installed game registers no LevelUpAutoSaveController, so this refuses the setup.");
             setupAutosaves.Add(new JObject { ["sequence"] = sequence, ["riderId"] = rider.UniqueId, ["case"] = NoLevelupAutosaveCase,
