@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "kind": "kmc-owner-seed-registry",
+  "authority": "Each entry is an owner-approved development seed. Owner authorization plus archive validation plus a successful isolated native cold load replace automated-producer ancestry for that seed only; no producer receipt is implied or required.",
+  "seeds": [
+    {
+      "seedId": "KMC_C7_OWNER_SEED",
+      "sha256": "9fc2d941c9b97e80b8675e8f8753b82e38f59eceae761bfc5f90ed56f1950fc6",
+      "length": 1401014,
+      "internalName": "KMC_C7_OWNER_SEED",
+      "fileName": "Manual_302_KMC_C7_OWNER_SEED.zks",
+      "type": "Manual",
+      "compatibilityVersion": 1,
+      "gameId": "ce9e3801-6f92-4f6b-8738-b990fc5111bf",
+      "gameName": "Testor The Reliable",
+      "area": "b10e86516b6437d45a629931c30936fe",
+      "campaignDlc": "None",
+      "dlc": ["Tieflings", "Varnhold", "Endless", "Arcane"],
+      "masterPath": "fixtures/owner-supplied/KMC_C7_OWNER_SEED.master.zks",
+      "intakePath": "fixtures/owner-supplied/KMC_C7_OWNER_SEED.intake01.json",
+      "intakeSha256": "4a6c199f1401e50a357c272c6ab93e4a579344b61e4c16e73aaac6f849be54d7"
+    }
+  ]
+}

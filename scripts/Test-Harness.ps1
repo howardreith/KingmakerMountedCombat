@@ -2282,6 +2282,94 @@ try {
             Assert-Test ($state.stagedTreeChangedAtRuntime -eq $true) 'runtime mutation was not durably recorded'
             Assert-Test (Test-Path -LiteralPath (Join-Path ([string]$state.stagedAfter) 'KingmakerMountedCombat\runtime-owned.cache')) 'runtime mutation was not preserved in quarantine'
             Assert-Test (Test-Path -LiteralPath (Join-Path ([string]$state.stagedAfter) 'ExistingMod\runtime-owned.cache')) 'existing-mod runtime mutation was not preserved in quarantine'
+            # Arbitrary runtime files are not the UMM DLL cache: both are UNEXPECTED,
+            # recorded durably and re-read by an idempotent retry.
+            $unexpectedPaths = @($restored.unexpectedRuntimeWrites | ForEach-Object { '{0}|{1}' -f $_.change, $_.path } | Sort-Object)
+            Assert-Test (($unexpectedPaths -join ',') -ceq 'added|ExistingMod/runtime-owned.cache,added|KingmakerMountedCombat/runtime-owned.cache') ('arbitrary runtime files were not classified unexpected: ' + ($unexpectedPaths -join ','))
+            Assert-Test ($state.runtimeWritesClassified -eq $true -and @($state.runtimeExpectedWrites).Count -eq 0 -and @($state.runtimeUnexpectedWrites).Count -eq 2) 'runtime write classification was not durable'
+            Assert-Test ([string]$restored.runtimeQuarantine -ceq [string]$state.stagedAfter) 'quarantine path was not attached'
+            $again = Restore-KmcModsTransaction -Lock $lock -StatePath $statePath -LiveModsRoot $mutationLive -BackupRoot $backup -StagingRoot $staging
+            Assert-Test (@($again.unexpectedRuntimeWrites).Count -eq 2) 'an idempotent retry laundered the unexpected runtime writes'
+        }
+        finally { Close-KmcRuntimeLock $lock }
+    }
+
+    Invoke-HarnessTest 'genuine UMM DLL cache is the only expected runtime write' {
+        $cacheLive = Join-Path $testRoot 'cache-game\Mods'
+        New-Item -ItemType Directory -Path (Join-Path $cacheLive 'ExistingMod') -Force | Out-Null
+        [IO.File]::WriteAllText((Join-Path $cacheLive 'ExistingMod\payload.txt'), 'preserve-cache')
+        $cacheOriginal = Get-KmcDirectoryManifest $cacheLive
+        $lock = Open-KmcRuntimeLock -StateRoot $stateRoot -RunId 'runtime-cache-test'
+        try {
+            $statePath = Enter-KmcModsTransaction -Lock $lock -LiveModsRoot $cacheLive -PackagePath $package -StateRoot $stateRoot -BackupRoot $backup -StagingRoot $staging
+            $state = Read-KmcJson $statePath
+            Assert-Test (Test-Path -LiteralPath ([string]$state.stagedManifestSidecar) -PathType Leaf) 'staged manifest sidecar was not written at entry'
+            Copy-Item -LiteralPath (Join-Path $cacheLive 'KingmakerMountedCombat\KingmakerMountedCombat.dll') -Destination (Join-Path $cacheLive 'KingmakerMountedCombat\KingmakerMountedCombat.dll.4242.cache')
+            $restored = Restore-KmcModsTransaction -Lock $lock -StatePath $statePath -LiveModsRoot $cacheLive -BackupRoot $backup -StagingRoot $staging
+            $state = Read-KmcJson $statePath
+            Assert-Test ($restored.digest -ceq $cacheOriginal.digest) 'cache run did not restore the exact original'
+            Assert-Test (@($restored.unexpectedRuntimeWrites).Count -eq 0) ('the genuine DLL cache was classified unexpected: ' + (@($restored.unexpectedRuntimeWrites | ForEach-Object { $_.path }) -join ','))
+            Assert-Test (@($state.runtimeExpectedWrites).Count -eq 1 -and [string]$state.runtimeExpectedWrites[0].path -ceq 'KingmakerMountedCombat/KingmakerMountedCombat.dll.4242.cache') 'the genuine DLL cache was not recorded expected'
+            Assert-Test (Test-Path -LiteralPath (Join-Path ([string]$state.stagedAfter) 'KingmakerMountedCombat\KingmakerMountedCombat.dll.4242.cache')) 'the cache was not preserved in quarantine'
+            # A cache that is not a byte copy of the staged DLL is unexpected.
+            $classification = Get-KmcModsRuntimeWriteClassification -StagedEntries @((Read-KmcJson ([string]$state.stagedManifestSidecar)).entries) -RuntimeManifest ([pscustomobject]@{ entries = @(@((Read-KmcJson ([string]$state.stagedManifestSidecar)).entries) + [pscustomobject]@{ kind='file'; path='KingmakerMountedCombat/KingmakerMountedCombat.dll.9.cache'; length=3; sha256=('e'*64) }) })
+            Assert-Test (@($classification.unexpected).Count -eq 1 -and @($classification.expected).Count -eq 0) 'a forged DLL cache was classified expected'
+        }
+        finally { Close-KmcRuntimeLock $lock }
+    }
+
+    Invoke-HarnessTest 'tampered staged manifest sidecar fails restoration closed' {
+        $sidecarLive = Join-Path $testRoot 'sidecar-game\Mods'
+        New-Item -ItemType Directory -Path (Join-Path $sidecarLive 'ExistingMod') -Force | Out-Null
+        [IO.File]::WriteAllText((Join-Path $sidecarLive 'ExistingMod\payload.txt'), 'preserve-sidecar')
+        $sidecarOriginal = Get-KmcDirectoryManifest $sidecarLive
+        $lock = Open-KmcRuntimeLock -StateRoot $stateRoot -RunId 'runtime-sidecar-test'
+        try {
+            $statePath = Enter-KmcModsTransaction -Lock $lock -LiveModsRoot $sidecarLive -PackagePath $package -StateRoot $stateRoot -BackupRoot $backup -StagingRoot $staging
+            $sidecarPath = [string](Read-KmcJson $statePath).stagedManifestSidecar
+            $sidecar = Read-KmcJson $sidecarPath
+            $sidecar.entries = @($sidecar.entries | Where-Object { $_.path -cne 'ExistingMod/payload.txt' })
+            Write-KmcJsonAtomic $sidecarPath $sidecar
+            $restored = Restore-KmcModsTransaction -Lock $lock -StatePath $statePath -LiveModsRoot $sidecarLive -BackupRoot $backup -StagingRoot $staging
+            Assert-Test ($restored.digest -ceq $sidecarOriginal.digest) 'tampered-sidecar restore did not return the original tree'
+            Assert-Test (@($restored.unexpectedRuntimeWrites).Count -eq 1 -and [string]$restored.unexpectedRuntimeWrites[0].change -ceq 'sidecar-invalid') 'a tampered sidecar did not fail closed'
+        }
+        finally { Close-KmcRuntimeLock $lock }
+    }
+
+    Invoke-HarnessTest 'inert KMC cache-only residue predicate is exact' {
+        $residueRoot = Join-Path $testRoot 'residue-predicate'
+        function New-Residue([string]$Name, [string[]]$Files, [switch]$Subdirectory) {
+            $root = Join-Path (Join-Path $residueRoot $Name) 'KingmakerMountedCombat'
+            New-Item -ItemType Directory -Path $root -Force | Out-Null
+            foreach ($file in $Files) { [IO.File]::WriteAllText((Join-Path $root $file), 'cache-bytes') }
+            if ($Subdirectory) { New-Item -ItemType Directory -Path (Join-Path $root 'nested') | Out-Null }
+            return $root
+        }
+        Assert-Test (Test-KmcInertKmcInstallationResidue -KmcRoot (New-Residue 'cache-only' @('KingmakerMountedCombat.dll.42328.cache'))) 'cache-only residue was not recognized'
+        Assert-Test (-not (Test-KmcInertKmcInstallationResidue -KmcRoot (New-Residue 'empty' @()))) 'an empty KMC folder was treated as residue'
+        Assert-Test (-not (Test-KmcInertKmcInstallationResidue -KmcRoot (New-Residue 'with-info' @('KingmakerMountedCombat.dll.1.cache','Info.json')))) 'cache plus Info.json was treated as residue'
+        Assert-Test (-not (Test-KmcInertKmcInstallationResidue -KmcRoot (New-Residue 'with-dll' @('KingmakerMountedCombat.dll.1.cache','KingmakerMountedCombat.dll')))) 'cache plus DLL was treated as residue'
+        Assert-Test (-not (Test-KmcInertKmcInstallationResidue -KmcRoot (New-Residue 'with-dir' @('KingmakerMountedCombat.dll.1.cache') -Subdirectory))) 'a subdirectory was treated as residue'
+        Assert-Test (-not (Test-KmcInertKmcInstallationResidue -KmcRoot (New-Residue 'foreign' @('KingmakerMountedCombat.dll.1.cache','Settings.xml')))) 'a foreign file was treated as residue'
+        Assert-Test (-not (Test-KmcInertKmcInstallationResidue -KmcRoot (New-Residue 'foreign-name' @('OtherMod.dll.1.cache')))) 'a foreign cache name was treated as residue'
+    }
+
+    Invoke-HarnessTest 'inert KMC cache-only residue stages and restores byte-exactly' {
+        $residueLive = Join-Path $testRoot 'residue-game\Mods'
+        New-Item -ItemType Directory -Path (Join-Path $residueLive 'KingmakerMountedCombat') -Force | Out-Null
+        New-Item -ItemType Directory -Path (Join-Path $residueLive 'ExistingMod') -Force | Out-Null
+        [IO.File]::WriteAllBytes((Join-Path $residueLive 'KingmakerMountedCombat\KingmakerMountedCombat.dll.42328.cache'), [byte[]](1..64))
+        [IO.File]::WriteAllText((Join-Path $residueLive 'ExistingMod\payload.txt'), 'preserve-residue')
+        $residueOriginal = Get-KmcDirectoryManifest $residueLive
+        $lock = Open-KmcRuntimeLock -StateRoot $stateRoot -RunId 'runtime-residue-test'
+        try {
+            $statePath = Enter-KmcModsTransaction -Lock $lock -LiveModsRoot $residueLive -PackagePath $package -StateRoot $stateRoot -BackupRoot $backup -StagingRoot $staging
+            Assert-Test (Test-Path -LiteralPath (Join-Path $residueLive 'KingmakerMountedCombat\Info.json')) 'staged tree lacks the packaged KMC payload'
+            Assert-Test (-not (Test-Path -LiteralPath (Join-Path $residueLive 'KingmakerMountedCombat\KingmakerMountedCombat.dll.42328.cache'))) 'residue leaked into the staged tree'
+            $restored = Restore-KmcModsTransaction -Lock $lock -StatePath $statePath -LiveModsRoot $residueLive -BackupRoot $backup -StagingRoot $staging
+            Assert-Test ($restored.digest -ceq $residueOriginal.digest) 'cache-only residue was not restored byte-exactly'
+            Assert-Test (@($restored.unexpectedRuntimeWrites).Count -eq 0) ('clean residue run recorded unexpected writes: ' + (@($restored.unexpectedRuntimeWrites | ForEach-Object { '{0} {1} {2}' -f $_.change, $_.path, $_.detail }) -join '; '))
         }
         finally { Close-KmcRuntimeLock $lock }
     }
@@ -4419,6 +4507,99 @@ try {
             Assert-Test ([string]$restoration.restoredSaveInventoryDigest -ceq [string]$combinedSavesBefore.digest) 'combined save digest differs after restoration'
             $durable = Read-KmcRunTransactionState -StatePath $combinedState -Lock $lock
             Assert-Test ([string]$durable.phase -ceq 'restored') 'combined transaction was not durably marked restored'
+        }
+        finally { Close-KmcRuntimeLock $lock }
+    }
+
+    Invoke-HarnessTest 'development-scoped WhatIf is refused without WhatIf and for manual review' {
+        $scopedRunner = Join-Path $PSScriptRoot 'runtime\Invoke-KingmakerRuntimeScenario.ps1'
+        $ErrorActionPreference = 'Continue'  # the refused child writes its refusal to stderr
+        $native = (& powershell -NoProfile -ExecutionPolicy Bypass -File $scopedRunner -Scenario mod-load-smoke -DevelopmentScopedAudit -RunId 'scoped-refusal-test' 2>&1 | Out-String)
+        Assert-Test ($LASTEXITCODE -ne 0 -and $native.Contains('valid only together with -WhatIf')) 'the scoped audit was not refused on a native run'
+        $review = (& powershell -NoProfile -ExecutionPolicy Bypass -File $scopedRunner -Scenario manual-visual-review -DevelopmentScopedAudit -RunId 'scoped-refusal-test' -WhatIf 2>&1 | Out-String)
+        Assert-Test ($LASTEXITCODE -ne 0 -and $review.Contains('refused for the manual-review scenario')) 'the scoped audit was not refused for manual review'
+    }
+
+    Invoke-HarnessTest 'development-scoped WhatIf keeps full content identity on exposed surfaces' {
+        $exposed = Join-Path $testRoot 'scoped-exposed'
+        foreach ($name in @('Mods\ExistingMod','runtime-state\transactions')) { New-Item -ItemType Directory -Path (Join-Path $exposed $name) -Force | Out-Null }
+        [IO.File]::WriteAllText((Join-Path $exposed 'Mods\ExistingMod\payload.txt'), 'mod')
+        [IO.File]::WriteAllText((Join-Path $exposed 'runtime-state\transactions\old.json'), '{}')
+        $roots = @((Join-Path $exposed 'runtime-state'), (Join-Path $exposed 'Mods'))
+        $before = @($roots | ForEach-Object { Get-KmcDirectoryManifest $_ })
+        Assert-KmcWhatIfRootsUnchanged -Before $before -After @($roots | ForEach-Object { Get-KmcDirectoryManifest $_ })
+        foreach ($mutation in @('added','changed','removed')) {
+            switch ($mutation) {
+                'added' { [IO.File]::WriteAllText((Join-Path $exposed 'Mods\ExistingMod\deployed.dll'), 'new') }
+                'changed' { [IO.File]::WriteAllText((Join-Path $exposed 'runtime-state\transactions\old.json'), '{"x":1}') }
+                'removed' { Remove-Item -LiteralPath (Join-Path $exposed 'Mods\ExistingMod\payload.txt') }
+            }
+            $refused = $null
+            try { Assert-KmcWhatIfRootsUnchanged -Before $before -After @($roots | ForEach-Object { Get-KmcDirectoryManifest $_ }) } catch { $refused = $_.Exception.Message }
+            Assert-Test ($null -ne $refused -and $refused.Contains('WhatIf purity failed: an external tree changed') -and $refused.Contains($mutation + ' file|')) ("exposed-surface " + $mutation + " was not refused with its exact detail: " + $refused)
+            $before = @($roots | ForEach-Object { Get-KmcDirectoryManifest $_ })
+        }
+    }
+
+    Invoke-HarnessTest 'development-scoped WhatIf archive roots are run-scoped and never rehashed' {
+        $archive = Join-Path $testRoot 'scoped-archives'
+        $roots = @{}; foreach ($name in @('runtime-backups','runtime-staging','runtime-evidence')) { $roots[$name] = Join-Path $archive $name; New-Item -ItemType Directory -Path (Join-Path $roots[$name] 'historical-run') -Force | Out-Null }
+        $historical = Join-Path $roots['runtime-evidence'] 'historical-run\result.json'
+        [IO.File]::WriteAllText($historical, '{"historical":true}')
+        $scoped = { Get-KmcWhatIfRunScopedArchiveState -BackupRoot $roots['runtime-backups'] -StagingRoot $roots['runtime-staging'] -EvidenceRoot $roots['runtime-evidence'] -RunId 'scoped-whatif-run' }
+        # An unrelated historical file held without sharing would fail any rehash.
+        $held = [IO.FileStream]::new($historical, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::None)
+        try { $before = & $scoped; Assert-KmcWhatIfRunScopedArchiveUnchanged $before (& $scoped) }
+        finally { $held.Dispose() }
+        foreach ($case in @('runtime-staging\persistence-scoped-whatif-run','runtime-backups\scoped-whatif-run','runtime-evidence\unrelated-new-entry')) {
+            $path = Join-Path $archive $case
+            New-Item -ItemType Directory -Path $path | Out-Null
+            $refused = $null
+            try { Assert-KmcWhatIfRunScopedArchiveUnchanged $before (& $scoped) } catch { $refused = $_.Exception.Message }
+            Assert-Test ($null -ne $refused -and $refused.StartsWith('WhatIf purity failed:')) ("archive appearance was not refused: " + $case)
+            Remove-Item -LiteralPath $path
+        }
+        New-Item -ItemType Directory -Path (Join-Path $roots['runtime-evidence'] 'scoped-whatif-run') | Out-Null
+        $preexisting = $null; try { [void](& $scoped) } catch { $preexisting = $_.Exception.Message }
+        Assert-Test ($null -ne $preexisting -and $preexisting.Contains('run-owned path exists')) 'a pre-existing run-owned path was not refused'
+    }
+
+    Invoke-HarnessTest 'scoped WhatIf sentence is never accepted as the full purity proof' {
+        . (Join-Path $PSScriptRoot 'runtime\ScopedPreflightFullAuditReevaluation.ps1')
+        $scopedSentence = 'Runtime WhatIf development-scoped check PASS (scope: development-run-scoped, run x; NOT a full whole-lab purity proof): runtime-state and the live Mods tree were compared by whole-tree content identity and save metadata was compared; historical archives under runtime-backups, runtime-staging and runtime-evidence were checked only for run-owned paths and new top-level entries, not rehashed.'
+        Assert-Test (-not $scopedSentence.Contains('Runtime WhatIf purity')) 'the scoped sentence carries the full-proof prefix'
+        $refused = $false; try { [void](Get-KmcMeasuredWrappedPurityAssertion ($scopedSentence + "`r`n")) } catch { $refused = $true }
+        Assert-Test $refused 'the full-audit reevaluation accepted the scoped sentence'
+        $full = 'Runtime WhatIf purity PASS; exact fixture descriptors were validated when required, and no evidence, lock, transaction, Mods, process, game, or save mutation occurred.'
+        Assert-Test ([regex]::Matches($scopedSentence, ('(?m)^' + [regex]::Escape($full) + '\r?$')).Count -eq 0) 'the scoped-preflight full-proof line matcher accepted the scoped sentence'
+    }
+
+    Invoke-HarnessTest 'combined restoration refuses unexpected runtime writes but preserves and restores' {
+        $conflictLive = Join-Path $testRoot 'conflict-game\Mods'
+        New-Item -ItemType Directory -Path (Join-Path $conflictLive 'ExistingMod') -Force | Out-Null
+        [IO.File]::WriteAllText((Join-Path $conflictLive 'ExistingMod\payload.txt'), 'preserve-conflict')
+        $conflictSaveRoot = Join-Path $testRoot 'conflict-saves'
+        New-Item -ItemType Directory -Path $conflictSaveRoot | Out-Null
+        New-TestSaveArchive -Path (Join-Path $conflictSaveRoot 'Manual_1_KMC_AUTOMATION_BASELINE.zks') -Name 'KMC_AUTOMATION_BASELINE'
+        New-TestSaveArchive -Path (Join-Path $conflictSaveRoot 'Manual_2_KMC_AUTOMATION_WORKING.zks') -Name 'KMC_AUTOMATION_WORKING'
+        $conflictPair = Get-KmcValidatedFixturePair $conflictSaveRoot
+        $conflictModsBefore = Get-KmcDirectoryManifest $conflictLive
+        $conflictSavesBefore = Get-KmcSaveMetadataInventory $conflictSaveRoot
+        $lock = Open-KmcRuntimeLock -StateRoot $stateRoot -RunId 'combined-conflict-test'
+        try {
+            $combinedState = New-KmcRunTransactionState -Lock $lock -Mode save-backed-v2 -LiveModsRoot $conflictLive -SaveRoot $conflictSaveRoot -StateRoot $stateRoot -ModsBefore $conflictModsBefore -SavesBefore $conflictSavesBefore
+            Enter-KmcWorkingSaveTransaction -Lock $lock -Pair $conflictPair -SaveRoot $conflictSaveRoot -StateRoot $stateRoot -BackupRoot $backup -StagingRoot $staging -Scenario fixture-intake | Out-Null
+            $modsState = Enter-KmcModsTransaction -Lock $lock -LiveModsRoot $conflictLive -PackagePath $package -StateRoot $stateRoot -BackupRoot $backup -StagingRoot $staging
+            # An external deployment lands in the shared Mods path during the window.
+            New-Item -ItemType Directory -Path (Join-Path $conflictLive 'ExternalMod') | Out-Null
+            [IO.File]::WriteAllText((Join-Path $conflictLive 'ExternalMod\deployed.dll'), 'external deployment')
+            $restoration = Restore-KmcRuntimeTransactions -Lock $lock -CombinedStatePath $combinedState -StateRoot $stateRoot -BackupRoot $backup -StagingRoot $staging
+            $quarantine = [string](Read-KmcJson $modsState).stagedAfter
+            Assert-Test (-not $restoration.modsRestored) 'unexpected runtime writes were reported restored'
+            Assert-Test ((@($restoration.errors) -join ' ').Contains($quarantine) -and (@($restoration.errors) -join ' ').Contains('ExternalMod/deployed.dll') -and (@($restoration.errors) -join ' ').Contains('re-applied')) ('restoration error does not name the quarantine and entries: ' + (@($restoration.errors) -join ' | '))
+            Assert-Test ((Get-KmcDirectoryManifest $conflictLive).digest -ceq $conflictModsBefore.digest) 'live Mods did not return to its pre-run snapshot'
+            Assert-Test ([IO.File]::ReadAllText((Join-Path $quarantine 'ExternalMod\deployed.dll')) -ceq 'external deployment') 'external deployment was not preserved in quarantine'
+            Assert-Test ([string](Read-KmcRunTransactionState -StatePath $combinedState -Lock $lock).phase -cne 'restored') 'combined transaction was marked restored'
         }
         finally { Close-KmcRuntimeLock $lock }
     }

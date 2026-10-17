@@ -11,7 +11,70 @@ function Read-KmcChunk7AssistedColdInventorySelectionFile([string]$Path,[string]
  if($after.Length-ne$length-or$after.LastWriteTimeUtc.Ticks-ne$ticks-or(Get-KmcSha256 $path)-cne$hash){throw 'Assisted cold selection changed during intake.'}
  [pscustomobject]@{path=$path;sha256=$hash;selection=$selection}
 }
+# Owner-approved development seeds are named by a reviewed, committed registry
+# (data, so a future seed needs no product rebuild). The registry replaces
+# producer ancestry only for its own entries; nothing here grants native authority.
+function Get-KmcChunk7OwnerSeedRegistryPath {Join-Path $PSScriptRoot 'Chunk7OwnerSeedRegistry.json'}
+function Read-KmcChunk7OwnerSeedRegistry {
+ $path=[IO.Path]::GetFullPath((Get-KmcChunk7OwnerSeedRegistryPath))
+ Assert-KmcNotReparsePoint $path 'owner seed registry';Assert-KmcNotHardLink $path 'owner seed registry'
+ $file=Get-Item -LiteralPath $path
+ if($file.PSIsContainer-or$file.Length-lt1-or$file.Length-gt65536){throw 'Owner seed registry is empty or oversized.'}
+ $hash=Get-KmcSha256 $path;Assert-KmcManifestJsonMembersUnique $path 'owner seed registry';$registry=Read-KmcJson $path
+ Assert-KmcAssistedObjectValue $registry @('schemaVersion','kind','authority','seeds') 'owner seed registry'
+ Assert-KmcOrdinaryInteger $registry.schemaVersion 1 1;Assert-KmcBootstrapInventoryString $registry.kind 'kmc-owner-seed-registry'
+ Assert-KmcAssistedArray $registry.seeds 1 64 'owner seed registry entries';$ids=[Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+ foreach($entry in $registry.seeds){Assert-KmcChunk7OwnerSeedEntry $entry;if(-not$ids.Add($entry.seedId)){throw 'Owner seed registry repeats a seed identity.'}}
+ if((Get-KmcSha256 $path)-cne$hash){throw 'Owner seed registry changed during intake.'}
+ [pscustomobject]@{path=$path;sha256=$hash;registry=$registry}
+}
+function Read-KmcChunk7OwnerSeedHeader([string]$Path){
+ $stream=$null;$zip=$null
+ try{
+  Add-Type -AssemblyName System.IO.Compression
+  $stream=[IO.FileStream]::new($Path,[IO.FileMode]::Open,[IO.FileAccess]::Read,[IO.FileShare]::Read)
+  $zip=[IO.Compression.ZipArchive]::new($stream,[IO.Compression.ZipArchiveMode]::Read,$false)
+  if($zip.Entries.Count-gt4096){throw 'Owner seed archive entry inventory is unbounded.'}
+  Read-KmcChunk7AssistedMetadataEntry $zip 'header.json' 1MB
+ }finally{if($zip){$zip.Dispose()};if($stream){$stream.Dispose()}}
+}
+function Get-KmcChunk7OwnerSeedSource($Selection,$Fixture,$Candidate){
+ $run='unassigned-owner-seed';if($Selection.seedId-ceq$run){$run='unassigned-owner-seed-2'}
+ Assert-KmcChunk7AssistedColdInventorySelection ([pscustomobject]@{scenario='chunk7-assisted-cold-inventory';runId=$run;assistedColdInventory=$Selection})
+ if(-not(Test-KmcChunk7OwnerSeedSelection $Selection)){throw 'Owner seed source requires the owner-seed selection kind.'}
+ $registry=Read-KmcChunk7OwnerSeedRegistry
+ $entries=@($registry.registry.seeds|Where-Object{$_.seedId-ceq$Selection.seedId})
+ if($entries.Count-ne1){throw 'Owner seed is not in the reviewed owner-seed registry.'};$entry=$entries[0]
+ if($entry.sha256-cne$Selection.seedSha256){throw 'Owner seed SHA256 differs from its registry entry.'}
+ $lab=Get-KmcLabRoot;$ownerRoot=Join-Path $lab 'fixtures/owner-supplied'
+ Assert-KmcNotReparsePoint $ownerRoot 'owner-supplied fixture root'
+ $master=Assert-KmcChildPath (Join-Path $lab $entry.masterPath) $ownerRoot 'owner seed master'
+ $intake=Assert-KmcChildPath (Join-Path $lab $entry.intakePath) $ownerRoot 'owner seed intake record'
+ foreach($pair in @(@($master,'owner seed master'),@($intake,'owner seed intake record'))){
+  if(-not(Test-Path -LiteralPath $pair[0] -PathType Leaf)){throw ($pair[1]+' is missing.')}
+  Assert-KmcNotReparsePoint $pair[0] $pair[1];Assert-KmcNotHardLink $pair[0] $pair[1]
+ }
+ if((Get-KmcSha256 $intake)-cne$entry.intakeSha256){throw 'Owner seed intake record differs from its registered SHA256.'}
+ $file=Get-Item -LiteralPath $master
+ if($file.Length-ne$entry.length-or(Get-KmcSha256 $master)-cne$entry.sha256){throw 'Owner seed master differs from its registered length/SHA256.'}
+ # Bounded read-only header qualification; the master itself is never loaded.
+ $header=Read-KmcChunk7OwnerSeedHeader $master
+ foreach($pair in @(@('Name','internalName'),@('GameId','gameId'),@('GameName','gameName'),@('Area','area'),@('Type','type'),@('CampaignDLC','campaignDlc'))){
+  if($null-eq$header.PSObject.Properties[$pair[0]]){throw ('Owner seed header lacks '+$pair[0]+'.')}
+  Assert-KmcBootstrapInventoryString $header.($pair[0]) $entry.($pair[1])
+ }
+ Assert-KmcOrdinaryInteger $header.CompatibilityVersion 1 1;Assert-KmcChunk7Boolean $header.IsAutoLevelupSave $false
+ if($header.DLC-isnot[Array]){throw 'Owner seed header DLC list is missing.'};Assert-KmcAssistedSame $header.DLC $entry.dlc 'owner seed header DLC list'
+ $after=Get-Item -LiteralPath $master
+ if($after.Length-ne$file.Length-or$after.LastWriteTimeUtc.Ticks-ne$file.LastWriteTimeUtc.Ticks-or(Get-KmcSha256 $master)-cne$entry.sha256){throw 'Owner seed master changed during read-only qualification.'}
+ $descriptor=[pscustomobject]@{internalName=$entry.internalName;fileName=$entry.fileName;sha256=$entry.sha256;length=[long]$entry.length;lastWriteTimeUtcTicks=[long]$file.LastWriteTimeUtc.Ticks;gameId=$entry.gameId;gameName=$entry.gameName;area=$entry.area}
+ # Reuses the cold family's no-alias checks against the Working/Baseline fixtures.
+ Assert-KmcChunk7AssistedColdInventoryDescriptor ([pscustomobject]@{scenario='chunk7-assisted-cold-inventory';runId=$run;assistedColdInventory=$Selection;persistenceLoad=$descriptor;fixture=$Fixture})
+ [pscustomobject]@{path=$master;descriptor=$descriptor;seedId=$entry.seedId;registryPath=$registry.path;registrySha256=$registry.sha256;registryEntry=$entry;
+  intakePath=$intake;intakeSha256=$entry.intakeSha256;fixtureSetupOnly=$true;nativeAuthorityGranted=$false}
+}
 function Get-KmcChunk7AssistedColdInventorySource($Selection,$Fixture,$Candidate){
+ if(Test-KmcChunk7OwnerSeedSelection $Selection){return Get-KmcChunk7OwnerSeedSource $Selection $Fixture $Candidate}
  # The producer gate still verifies its complete native completion/restoration,
  # final Manual bytes and bounded empty schema3 metadata. No new source alias.
  $run='unassigned-assisted-cold';if($Selection.sourceRunId-ceq$run){$run='unassigned-assisted-cold-2'}
@@ -42,7 +105,9 @@ function Copy-KmcChunk7AssistedColdInventorySourceArtifact($Source,[string]$Prof
  [void](Assert-KmcRuntimeLockOwner $Lock)
  Assert-KmcChunk7AssistedColdInventorySelection ([pscustomobject]@{scenario='chunk7-assisted-cold-inventory';runId=$Lock.RunId;assistedColdInventory=$Selection})
  $fresh=Get-KmcChunk7AssistedColdInventorySource $Selection $Fixture $Candidate
- foreach($key in @('path','artifactPath','artifactSha256','artifactLength','sourceRunId','requestPath','requestSha256','manifestSha256','descriptor','receiptPins')){Assert-KmcAssistedSame $Source.$key $fresh.$key ('assisted cold qualified source '+$key)}
+ $isSeed=Test-KmcChunk7OwnerSeedSelection $Selection
+ $keys=if($isSeed){@('path','descriptor','seedId','registrySha256','registryEntry','intakePath','intakeSha256')}else{@('path','artifactPath','artifactSha256','artifactLength','sourceRunId','requestPath','requestSha256','manifestSha256','descriptor','receiptPins')}
+ foreach($key in $keys){Assert-KmcAssistedSame $Source.$key $fresh.$key ('assisted cold qualified source '+$key)}
  $lab=Get-KmcLabRoot;$run=Assert-KmcChildPath $ProfileRoot (Join-Path $lab 'runtime-staging') 'assisted cold isolated profile'
  $expected=Join-Path $lab ('runtime-staging/persistence-'+$Lock.RunId)
  Assert-KmcBootstrapInventoryString $run $expected
@@ -55,6 +120,7 @@ function Copy-KmcChunk7AssistedColdInventorySourceArtifact($Source,[string]$Prof
  if($null-ne$owner.persistenceCase-and($owner.persistenceCase-isnot[string]-or$owner.persistenceCase-cne'')){throw 'Assisted cold profile owner contains a foreign persistence case.'}
  $destination=Join-Path $run 'assisted-cold-source.json'
  if(Test-Path -LiteralPath $destination){throw 'Assisted cold source destination already exists.'}
+ if($isSeed){return Write-KmcChunk7OwnerSeedSourceRecord $fresh $destination $ownerPath $ownerHash $Lock}
  Assert-KmcAssistedColdSourcePins $fresh
  $inputStream=$null;$outputStream=$null;$algorithm=$null
  try{
@@ -79,6 +145,7 @@ function Copy-KmcChunk7AssistedColdInventorySourceArtifact($Source,[string]$Prof
 }
 
 function Read-KmcAssistedColdSourceArtifact($Request){
+ if(Test-KmcChunk7OwnerSeedSelection $Request.assistedColdInventory){return Read-KmcChunk7OwnerSeedSourceRecord $Request}
  Assert-KmcChunk7AssistedColdInventoryDescriptor $Request
  $base=Join-Path (Get-KmcLabRoot) 'runtime-evidence'
  $evidenceRoot=Assert-KmcChildPath $Request.evidenceRoot $base 'assisted cold evidence root'
@@ -104,4 +171,32 @@ function Read-KmcAssistedColdSourceArtifact($Request){
  # This is the exact pinned raw artifact, not a replacement for the complete
  # producer gate performed before admission and again under the copy lock.
  $value
+}
+
+# The honest owner-seed source record: the registry entry and intake reference,
+# never a fabricated producer artifact. Written once (CreateNew) under the lock.
+function Write-KmcChunk7OwnerSeedSourceRecord($Fresh,[string]$Destination,[string]$OwnerPath,[string]$OwnerHash,$Lock){
+ $record=[ordered]@{schemaVersion=1;kind='kmc-owner-seed-source';seedId=$Fresh.seedId;registrySha256=$Fresh.registrySha256;registryEntry=$Fresh.registryEntry
+  intake=[ordered]@{path=$Fresh.registryEntry.intakePath;sha256=$Fresh.intakeSha256};ownerAuthorized=$true;producerAncestry=$false;fixtureSetupOnly=$true;nativeAuthorityGranted=$false}
+ $bytes=[Text.UTF8Encoding]::new($false).GetBytes((ConvertTo-Json -InputObject $record -Depth 8))
+ $stream=$null
+ try{$stream=[IO.FileStream]::new($Destination,[IO.FileMode]::CreateNew,[IO.FileAccess]::Write,[IO.FileShare]::Read);$stream.Write($bytes,0,$bytes.Length);$stream.Flush()}
+ finally{if($stream){$stream.Dispose()}}
+ # The master, intake and transaction owner are checked again after the write.
+ if((Get-KmcSha256 $Fresh.path)-cne$Fresh.descriptor.sha256-or(Get-KmcSha256 $Fresh.intakePath)-cne$Fresh.intakeSha256){throw 'Owner seed master or intake changed during record placement.'}
+ if((Get-KmcSha256 $OwnerPath)-cne$OwnerHash){throw 'Assisted cold profile owner changed during copy.'}
+ [void](Assert-KmcRuntimeLockOwner $Lock)
+ [pscustomobject]@{path=$Destination;sha256=(Get-KmcSha256 $Destination);length=[long]$bytes.Length;seedId=$Fresh.seedId;fixtureSetupOnly=$true;nativeAuthorityGranted=$false}
+}
+function Read-KmcChunk7OwnerSeedSourceRecord($Request){
+ Assert-KmcChunk7AssistedColdInventoryDescriptor $Request
+ $root=Get-KmcAssistedSaveRoot $Request
+ $path=Join-Path (Split-Path $root -Parent) 'assisted-cold-source.json'
+ Assert-KmcNotReparsePoint $path 'owner seed source record';Assert-KmcNotHardLink $path 'owner seed source record'
+ $before=Get-Item -LiteralPath $path
+ if($before.PSIsContainer-or$before.Length-lt1-or$before.Length-gt65536){throw 'Owner seed source record is empty or oversized.'}
+ $hash=Get-KmcSha256 $path;Assert-KmcManifestJsonMembersUnique $path 'owner seed source record';$value=Read-KmcJson $path
+ $after=Get-Item -LiteralPath $path
+ if($after.Length-ne$before.Length-or$after.LastWriteTimeUtc.Ticks-ne$before.LastWriteTimeUtc.Ticks-or(Get-KmcSha256 $path)-cne$hash){throw 'Owner seed source record changed during read.'}
+ [pscustomobject]@{path=$path;sha256=$hash;value=$value}
 }

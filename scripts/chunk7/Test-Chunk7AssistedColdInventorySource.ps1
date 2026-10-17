@@ -111,6 +111,78 @@ Check 'source artifact changed before copy is refused' $false {param($f)Put $f.s
 Check 'source completion receipt changed before copy is refused' $false {param($f)Put $f.source.receiptPins[1].path '{"changed":true}';Copy-Source $f}
 Check 'source artifact hardlink is refused' $false {param($f)[void](New-Item -ItemType HardLink -Path (Join-Path $script:caseLab 'artifact-link.json') -Target $f.source.artifactPath);Copy-Source $f}
 Check 'wrong actual open-lock token is refused' $false {param($f)$other=[pscustomobject]@{RunId=$f.lock.RunId;Token=('f'*64);Stream=$f.lock.Stream;Path=$f.lock.Path};Copy-KmcChunk7AssistedColdInventorySourceArtifact $f.source $f.profile $other $f.selection $f.fixture $f.candidate}
+# Owner-seed source kind. A synthetic registry and a synthetic seed archive in
+# the case lab; the real master is never touched. Actual intake, registry,
+# header read, path/link checks, no-alias checks and lock-owned record placement run.
+function Get-KmcChunk7OwnerSeedRegistryPath {$script:seedRegistryPath}
+function New-SeedArchive([string]$Path,$Header){
+ Add-Type -AssemblyName System.IO.Compression
+ [void][IO.Directory]::CreateDirectory([IO.Path]::GetDirectoryName($Path))
+ $stream=[IO.FileStream]::new($Path,[IO.FileMode]::CreateNew,[IO.FileAccess]::ReadWrite,[IO.FileShare]::None)
+ try{$zip=[IO.Compression.ZipArchive]::new($stream,[IO.Compression.ZipArchiveMode]::Create,$false)
+  try{foreach($pair in @(@('header.json',($Header|ConvertTo-Json -Depth 6 -Compress)),@('party.json','{"generated":true}'))){$entry=$zip.CreateEntry($pair[0]);$writer=[IO.StreamWriter]::new($entry.Open(),[Text.UTF8Encoding]::new($false));try{$writer.Write($pair[1])}finally{$writer.Dispose()}}}
+  finally{$zip.Dispose()}}finally{$stream.Dispose()}
+}
+function New-SeedFixture([scriptblock]$Mutate){
+ $script:caseNumber++;$script:caseLab=Join-Path $output ('seed'+$script:caseNumber);[void][IO.Directory]::CreateDirectory($script:caseLab)
+ $run='seed-cold-'+$script:caseNumber
+ $header=[pscustomobject]@{Name='KMC_C7_OWNER_SEED';GameName='Generated Owner';GameId='33333333-4444-5555-6666-777777777777';CampaignDLC='None';Type='Manual';IsAutoLevelupSave=$false;Area=('ab'*16);CompatibilityVersion=1;DLC=@('Tieflings','Varnhold')}
+ $ctx=[pscustomobject]@{header=$header;masterLeaf='KMC_C7_OWNER_SEED.master.zks';intakeText='{"kind":"owner-supplied-development-seed-intake"}';linkMaster=$false;junctionRoot=$false}
+ if($Mutate){&$Mutate $ctx 'archive'}
+ $ownerRoot=Join-Path $script:caseLab 'fixtures/owner-supplied'
+ if($ctx.junctionRoot){$real=Join-Path $script:caseLab 'elsewhere';[void][IO.Directory]::CreateDirectory($real);[void][IO.Directory]::CreateDirectory((Join-Path $script:caseLab 'fixtures'));[void](New-Item -ItemType Junction -Path $ownerRoot -Target $real)}
+ $master=Join-Path $ownerRoot $ctx.masterLeaf;New-SeedArchive $master $ctx.header
+ if($ctx.linkMaster){$other=Join-Path $script:caseLab 'master-alias.zks';[void](New-Item -ItemType HardLink -Path $other -Target $master)}
+ $intake=Join-Path $ownerRoot 'KMC_C7_OWNER_SEED.intake01.json';Put $intake $ctx.intakeText
+ $file=Get-Item -LiteralPath $master
+ $entry=[pscustomobject]@{seedId='KMC_C7_OWNER_SEED';sha256=(Get-KmcSha256 $master);length=$file.Length;internalName='KMC_C7_OWNER_SEED';fileName='Manual_302_KMC_C7_OWNER_SEED.zks';type='Manual';compatibilityVersion=1;gameId=$header.GameId;gameName=$header.GameName;area=$header.Area;campaignDlc='None';dlc=@('Tieflings','Varnhold');masterPath=('fixtures/owner-supplied/'+$ctx.masterLeaf);intakePath='fixtures/owner-supplied/KMC_C7_OWNER_SEED.intake01.json';intakeSha256=(Get-KmcSha256 $intake)}
+ $selection=[pscustomobject]@{case='owner-seed-readonly-inventory';seedId='KMC_C7_OWNER_SEED';seedSha256=$entry.sha256;baseGameOnly=$true;expectedNativeLoadCount=1;expectedNativeWriteCount=0}
+ $fixture=[pscustomobject]@{baseline=[pscustomobject]@{sha256=('b'*64);gameId='bbbbbbbb-1111-1111-1111-111111111111'};working=[pscustomobject]@{sha256=('c'*64);gameId='cccccccc-1111-1111-1111-111111111111'}}
+ $candidate=[pscustomobject]@{commit=('d'*40);dllSha256=('e'*64);dllMvid='dddddddd-1111-1111-1111-111111111111'}
+ $registry=[pscustomobject]@{schemaVersion=1;kind='kmc-owner-seed-registry';authority='generated';seeds=@($entry)}
+ $f=[pscustomobject]@{runId=$run;entry=$entry;registry=$registry;selection=$selection;fixture=$fixture;candidate=$candidate;master=$master;intake=$intake;lock=$null;profile=$null;ownerPath=$null}
+ if($Mutate){&$Mutate $f 'registry'}
+ $script:seedRegistryPath=Join-Path $script:caseLab 'Chunk7OwnerSeedRegistry.json';Put $script:seedRegistryPath ($f.registry|ConvertTo-Json -Depth 8)
+ $selectionPath=Join-Path $script:caseLab 'seed-selection.json';Put $selectionPath ($f.selection|ConvertTo-Json -Compress)
+ $f|Add-Member NoteProperty selectionPath $selectionPath
+ $f
+}
+function Open-SeedProfile($f){
+ $f.lock=Open-KmcRuntimeLock (Join-Path $script:caseLab 'runtime-state') $f.runId
+ $f.profile=Join-Path $script:caseLab ('runtime-staging/persistence-'+$f.runId);[void][IO.Directory]::CreateDirectory((Join-Path $f.profile 'Saved Games'))
+ $f.ownerPath=Join-Path $f.profile 'owner.json'
+ Put $f.ownerPath (([pscustomobject]@{runId=$f.runId;transactionToken=$f.lock.Token;scenario='chunk7-assisted-cold-inventory';persistenceCase=$null;sourceSha256=$f.entry.sha256;saveRoot=(Join-Path $f.profile 'Saved Games')})|ConvertTo-Json -Compress)
+}
+function CheckSeed([string]$Name,[bool]$Expected,[scriptblock]$Mutate,[scriptblock]$Action){
+ $f=$null;$accepted=$true;$errorText=$null;$ready=$false
+ try{$f=New-SeedFixture $Mutate;$ready=$true;&$Action $f|Out-Null}catch{$accepted=$false;$errorText=$_.Exception.Message}
+ finally{if($null-ne$f-and$null-ne$f.lock){try{Close-KmcRuntimeLock $f.lock}catch{$accepted=$false;$errorText='Generated lock cleanup failed: '+$_.Exception.Message}}}
+ # Every refusal happens before any lock or profile: no runtime-state appears.
+ $noLock=$null-eq$f-or$null-ne$f.lock-or-not(Test-Path -LiteralPath (Join-Path $script:caseLab 'runtime-state'))
+ $ok=$ready-and$noLock-and$accepted-eq$Expected
+ if($ok){$script:passed++}else{$script:failed++}
+ $cases.Add([pscustomobject]@{name=$Name;status=$(if($ok){'PASS'}else{'FAIL'});expectedAccepted=$Expected;actualAccepted=$accepted;fixtureReady=$ready;error=$errorText})
+ Write-Host ($(if($ok){'PASS '}else{'FAIL '})+$Name+$(if(-not$ok-and$errorText){': '+$errorText}else{''}))
+}
+function Get-Seed($f){Get-KmcChunk7AssistedColdInventorySource $f.selection $f.fixture $f.candidate}
+CheckSeed 'owner seed intake and source accepted without producer receipts' $true $null {param($f)$script:gateCalls=0;$r=Read-KmcChunk7AssistedColdInventorySelectionFile $f.selectionPath $f.runId;$s=Get-Seed $f;Need ($script:gateCalls-eq0) 'producer gate invoked';Need ($s.descriptor.internalName-ceq'KMC_C7_OWNER_SEED'-and$s.descriptor.fileName-ceq'Manual_302_KMC_C7_OWNER_SEED.zks'-and$s.descriptor.sha256-ceq$f.entry.sha256-and-not$s.nativeAuthorityGranted) 'seed descriptor differs';Need (-not(Test-Path -LiteralPath (Join-Path $script:caseLab 'runtime-state'))) 'intake created lock state'}
+CheckSeed 'owner seed sha mismatch refused' $false {param($f,$p)if($p-eq'registry'){$f.selection.seedSha256='f'*64}} {param($f)Get-Seed $f}
+CheckSeed 'owner seed not in registry refused' $false {param($f,$p)if($p-eq'registry'){$f.selection.seedId='OTHER_SEED'}} {param($f)Get-Seed $f}
+CheckSeed 'owner seed missing intake record refused' $false $null {param($f)Remove-Item -LiteralPath $f.intake;Get-Seed $f}
+CheckSeed 'owner seed intake record hash drift refused' $false $null {param($f)Put $f.intake '{"changed":true}';Get-Seed $f}
+CheckSeed 'owner seed header name mismatch refused' $false {param($c,$p)if($p-eq'archive'){$c.header.Name='OTHER_NAME'}} {param($f)Get-Seed $f}
+CheckSeed 'owner seed header DLC mismatch refused' $false {param($c,$p)if($p-eq'archive'){$c.header.DLC=@('Tieflings')}} {param($f)Get-Seed $f}
+CheckSeed 'owner seed header compatibility mismatch refused' $false {param($c,$p)if($p-eq'archive'){$c.header.CompatibilityVersion=2}} {param($f)Get-Seed $f}
+CheckSeed 'owner seed aliasing Working campaign refused' $false {param($f,$p)if($p-eq'registry'){$f.fixture.working.gameId=$f.entry.gameId}} {param($f)Get-Seed $f}
+CheckSeed 'owner seed aliasing Baseline bytes refused' $false {param($f,$p)if($p-eq'registry'){$f.fixture.baseline.sha256=$f.entry.sha256}} {param($f)Get-Seed $f}
+CheckSeed 'owner seed outside owner-supplied root refused' $false {param($f,$p)if($p-eq'registry'){$f.registry.seeds[0].masterPath='fixtures/other/KMC_C7_OWNER_SEED.master.zks'}} {param($f)Get-Seed $f}
+CheckSeed 'owner seed owner-supplied reparse point refused' $false {param($c,$p)if($p-eq'archive'){$c.junctionRoot=$true}} {param($f)Get-Seed $f}
+CheckSeed 'owner seed hard-linked master refused' $false {param($c,$p)if($p-eq'archive'){$c.linkMaster=$true}} {param($f)Get-Seed $f}
+CheckSeed 'owner seed impersonating the producer fixture refused' $false {param($f,$p)if($p-eq'registry'){$f.registry.seeds[0].internalName='KMC_C7_ASSISTED_FIXTURE'}} {param($f)Get-Seed $f}
+CheckSeed 'owner seed selection carrying producer pins refused' $false {param($f,$p)if($p-eq'registry'){$f.selection|Add-Member NoteProperty sourceRunId 'assisted-source'}} {param($f)Read-KmcChunk7AssistedColdInventorySelectionFile $f.selectionPath $f.runId}
+CheckSeed 'owner seed record placed once under the lock, honest and unique' $true $null {param($f)$s=Get-Seed $f;Open-SeedProfile $f;$r=Copy-KmcChunk7AssistedColdInventorySourceArtifact $s $f.profile $f.lock $f.selection $f.fixture $f.candidate;$rec=Read-KmcJson $r.path;Need ($rec.kind-ceq'kmc-owner-seed-source'-and$rec.producerAncestry-eq$false-and$rec.registryEntry.sha256-ceq$f.entry.sha256-and$rec.intake.sha256-ceq$f.entry.intakeSha256) 'record content differs';$again=$false;try{Copy-KmcChunk7AssistedColdInventorySourceArtifact $s $f.profile $f.lock $f.selection $f.fixture $f.candidate|Out-Null}catch{$again=$true};Need $again 'second placement admitted'}
+CheckSeed 'owner seed record refuses a foreign lock token' $false $null {param($f)$s=Get-Seed $f;Open-SeedProfile $f;$other=[pscustomobject]@{RunId=$f.lock.RunId;Token=('f'*64);Stream=$f.lock.Stream;Path=$f.lock.Path};Copy-KmcChunk7AssistedColdInventorySourceArtifact $s $f.profile $other $f.selection $f.fixture $f.candidate}
+CheckSeed 'owner seed master changed after qualification refused under the lock' $false $null {param($f)$s=Get-Seed $f;Open-SeedProfile $f;[IO.File]::AppendAllText($f.master,'x');Copy-KmcChunk7AssistedColdInventorySourceArtifact $s $f.profile $f.lock $f.selection $f.fixture $f.candidate}
 $changed=@($script:inputPins|Where-Object{(Get-KmcSha256 $_.path)-cne$_.sha256})
 if($changed.Count-ne0){throw 'Assisted cold test input changed.'}
 $receipt=[ordered]@{schemaVersion=1;kind='assisted-cold-source-focused';status=$(if($script:failed-eq0){'PASS'}else{'FAIL'});passed=$script:passed;failed=$script:failed;durationSeconds=$timer.Elapsed.TotalSeconds;inputPins=$script:inputPins.ToArray();changedInputs=$changed;cases=$cases.ToArray();nativeInvoked=$false;installedOrProtectedArchiveReads=0;archiveDecodes=0;limits=@('Complete producer/native artifact/archive gate explicitly substituted with strict generated argument boundary; full producer source54 remains separate.','Actual new selection/GetSource/copy functions, file/hash/link/path primitives and actual generated transaction locks execute.','All .zks files are generated non-ZIP byte buffers; no native fixture qualification or ordinary acquisition claim.')}
