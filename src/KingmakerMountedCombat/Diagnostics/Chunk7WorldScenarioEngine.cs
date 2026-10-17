@@ -183,7 +183,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 screenshots?.Pump(Time.frameCount);
                 // Owner-seed SETUP steps carry their own bounded deadlines; the measured
                 // phase below keeps the unchanged historical deadline from SETUP-COMPLETE.
-                if (step >= 50 && step <= 53) { UpdateOwnerSeedSetup(); return; }
+                if (step >= 50 && step <= 57) { UpdateOwnerSeedSetup(); return; }
                 Require(clock.Elapsed.TotalSeconds <= 300 && clock.Elapsed.TotalSeconds - stepStarted <= (step == 40 ? 120 : 30),
                     "Bounded two-pair scenario deadline at step " + step + ".");
                 Require(!Game.Instance.Player.IsInCombat, "Exploration scenario unexpectedly entered combat.");

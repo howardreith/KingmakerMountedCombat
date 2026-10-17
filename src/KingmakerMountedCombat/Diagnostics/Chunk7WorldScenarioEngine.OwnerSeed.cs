@@ -25,11 +25,13 @@ namespace KingmakerMountedCombat.Diagnostics
     // for each rider (Hunter's Bond -> Ranger companion -> KMC Horse) and, for rider
     // B only, the exact native XP its eligibility requires. SETUP-COMPLETE then closes
     // every setup mutation; MEASURED reuses the unchanged two-pair steps. The created
-    // Horses are fixture setup, never acquisition proof; nothing is saved.
+    // Horses are fixture setup, never acquisition proof. The only native writes are the
+    // game's own level-up Autos during SETUP, reserved one at a time in the run root
+    // (the assisted fixture's reviewed level-up precedent); none follow SETUP-COMPLETE.
     internal sealed partial class Chunk7WorldScenarioEngine
     {
         internal const string OwnerSeedSetupRow = "C7-world-owner-seed-setup";
-        internal const string OwnerSeedDisclosure = "Fixture setup on a disposable run copy of an owner-supplied seed: each Horse was created by the native ordinary Ranger level-up (Hunter's Bond -> Ranger companion -> KMC Horse) and rider B received only the exact native XP its Ranger 4 eligibility requires. This is not acquisition proof; nothing is saved.";
+        internal const string OwnerSeedDisclosure = "Fixture setup on a disposable run copy of an owner-supplied seed: each Horse was created by the native ordinary Ranger level-up (Hunter's Bond -> Ranger companion -> KMC Horse) and rider B received only the exact native XP its Ranger 4 eligibility requires. This is not acquisition proof; the only native writes are the game's own level-up Autos into the run-owned isolated save root during setup, none after SETUP-COMPLETE.";
         private const int OwnerSeedEventLimit = 768;
         private const double OwnerSeedSetupStepSeconds = 240, OwnerSeedSetupTotalSeconds = 420;
         private Chunk7OwnerSeedSetupLedger setupLedger;
@@ -39,6 +41,12 @@ namespace KingmakerMountedCombat.Diagnostics
         private JArray setupRiderRows, setupEvents;
         private int setupEventCount;
         private bool OwnerSeed => setupLedger != null;
+        // Native level-up autosave custody (the assisted fixture precedent): an owned slot
+        // projection while the builder is active, one reservation and probe per build.
+        private NativeOrdinaryAcquisitionProbe setupProbe;
+        private bool setupSlotOwned;
+        private int setupWritesExpected = -1, setupWritesAtBoundary = -1;
+        private JArray setupAutosaves;
 
         // A refusal before SETUP-COMPLETE is a setup failure, not a behaviour result.
         private void MarkOwnerSeedSetupFailure()
@@ -66,17 +74,26 @@ namespace KingmakerMountedCombat.Diagnostics
             setupLedger = new Chunk7OwnerSeedSetupLedger(); setupRiderRows = new JArray(); setupEvents = new JArray();
             var a = RiderFacts(firstRider); var b = RiderFacts(secondRider);
             var settings = SettingsRoot.Instance;
-            Require(settings?.AutosaveEnabled != null && settings.OnlyOneSave != null, "Native save settings are unavailable.");
+            Require(settings?.AutosaveEnabled != null && settings.OnlyOneSave != null && settings.AutosaveSlots != null, "Native save settings are unavailable.");
+            // Read-only, before any projection exists: the actual native setting decides the case.
+            Require(!NativePersistenceIsolation.NativeSlotRotationEnabled, "A pre-existing slot projection would hide the native autosave settings.");
+            var autosaveEnabled = settings.AutosaveEnabled.CurrentValue; var onlyOneSave = settings.OnlyOneSave.CurrentValue;
+            var autosaveSlots = settings.AutosaveSlots.CurrentValue;
+            var riderBuilds = new[] { firstRider, secondRider }.Count(rider => rider.Descriptor.Pet == null);
+            setupWritesExpected = Chunk7OwnerSeedSetupPlan.ExpectedSetupWrites(autosaveEnabled, riderBuilds); setupAutosaves = new JArray();
             ownerSeedSetup = new JObject { ["contract"] = "owner-seed-fixture-setup-v1", ["disclosure"] = OwnerSeedDisclosure,
                 ["seedId"] = selection.SeedId, ["seedSha256"] = selection.SeedSha256, ["fixtureSetupOnly"] = true, ["acquisitionProof"] = false,
                 ["producerAncestry"] = false, ["loadedArchiveKind"] = "Missing", ["loadedArchiveCanRestore"] = false,
                 ["riderFacts"] = new JArray(FactsRow("A", a), FactsRow("B", b)),
-                ["nativeLevelUpAutosave"] = new JObject { ["autosaveEnabled"] = settings.AutosaveEnabled.CurrentValue,
-                    ["onlyOneSave"] = settings.OnlyOneSave.CurrentValue, ["settingsWritten"] = false },
-                ["riders"] = setupRiderRows, ["events"] = setupEvents };
+                ["nativeLevelUpAutosave"] = new JObject { ["autosaveEnabled"] = autosaveEnabled, ["onlyOneSave"] = onlyOneSave,
+                    ["autosaveSlots"] = autosaveSlots, ["settingsWritten"] = false, ["case"] = autosaveEnabled ? "autosave-on" : "autosave-off",
+                    ["riderBuilds"] = riderBuilds, ["expectedWrites"] = setupWritesExpected, ["selectedWrites"] = selection.ExpectedNativeWriteCount,
+                    ["slotProjectionDuringBuild"] = setupWritesExpected > 0, ["mountedPersistenceProof"] = false },
+                ["riders"] = setupRiderRows, ["events"] = setupEvents, ["setupAutosaves"] = setupAutosaves };
             evidence["ownerSeedSetup"] = ownerSeedSetup;
             var refusals = Chunk7OwnerSeedSetupPlan.RiderErrors(a, "A").Concat(Chunk7OwnerSeedSetupPlan.RiderErrors(b, "B"))
-                .Concat(Chunk7OwnerSeedSetupPlan.AssistanceErrors(selection, a, b)).ToArray();
+                .Concat(Chunk7OwnerSeedSetupPlan.AssistanceErrors(selection, a, b))
+                .Concat(Chunk7OwnerSeedSetupPlan.WriteErrors(selection, autosaveEnabled, onlyOneSave, riderBuilds)).ToArray();
             ownerSeedSetup["admissionRefusals"] = new JArray(refusals);
             Require(refusals.Length == 0, "Owner-seed SETUP refused before any mutation (setup failure, not a behaviour result): " + string.Join(" ", refusals));
             foreach (var rider in new[] { firstRider, secondRider })
@@ -85,13 +102,6 @@ namespace KingmakerMountedCombat.Diagnostics
                 Require(MountedRiderPoseAdapter.TryValidateSupportedSurface(rider.View, SupportedMountedProfiles.Horse.RiderPoseProfile, out rigError),
                     "Owner-seed rider rig refused before setup: " + rigError);
             }
-            // The final commit of each native build (CharacterBuildController.Commit with no
-            // further level ready) makes LevelUpAutoSaveController request an Auto save; chained
-            // intermediate commits pass isChargen=true and do not. That is two native write
-            // requests for this setup. This kind authorizes zero native writes and never
-            // changes the profile setting, so an enabled autosave refuses setup here.
-            Require(!settings.AutosaveEnabled.CurrentValue && !settings.OnlyOneSave.CurrentValue,
-                "Owner-seed SETUP refused before any mutation: native level-up autosave is enabled (or Ironman), and this kind authorizes zero native writes.");
             evidence["ownerSeed"] = new JObject { ["contract"] = "owner-seed-two-pair-exploration-v1", ["seedId"] = selection.SeedId,
                 ["seedSha256"] = selection.SeedSha256, ["riderAId"] = selection.RiderAId, ["riderBId"] = selection.RiderBId,
                 ["nativeLoadVerifiedByHost"] = true, ["fixtureSetupOnly"] = true, ["acquisitionProof"] = false };
@@ -104,15 +114,15 @@ namespace KingmakerMountedCombat.Diagnostics
                 fixtureAuthorization != null && fixtureAuthority != null && fixtureLoader != null && fixtureAuthorization.IsActive &&
                 fixtureAuthorization.IsExactPersistenceScope(fixtureAuthority) && NativePersistenceIsolation.IsExactAuthority(fixtureAuthority) &&
                 fixtureAuthority.MatchesOwnedPairsPlan(true, false) && fixtureAuthority.AdmittedNativeLoadRequests == 1 &&
-                fixtureAuthority.AdmittedNativeWriteRequests == 0 && fixtureAuthorization.AuthorizedLoadCount == 1 &&
-                fixtureAuthorization.AuthorizedWriteCount == 0 && fixtureAuthorization.UnauthorizedWriteCount == 0 &&
-                fixtureAuthorization.UnauthorizedLoadCount == 0 && !NativePersistenceIsolation.HasPendingWrites &&
+                fixtureAuthority.AdmittedNativeWriteRequests <= fixtureAuthority.OwnerSeedConfirmedWrites + 1 && fixtureAuthorization.AuthorizedLoadCount == 1 &&
+                fixtureAuthorization.AuthorizedWriteCount == fixtureAuthority.AdmittedNativeWriteRequests && fixtureAuthorization.UnauthorizedWriteCount == 0 &&
+                fixtureAuthorization.UnauthorizedLoadCount == 0 &&
                 Game.Instance?.SaveManager != null && Game.Instance.SaveManager.SavePath == fixtureAuthority.Root &&
                 fixtureLoader.State == WorkingFixtureLoadState.LoadedAndVerified &&
                 fixtureLoader.WorkingPath == Path.Combine(fixtureAuthority.Root, input.FileName) && fixtureLoader.Descriptor != null &&
                 fixtureLoader.Descriptor.FileName == input.FileName && fixtureLoader.Descriptor.GameId == input.GameId &&
                 fixtureLoader.Descriptor.Area?.AssetGuidThreadSafe == input.Area,
-                "Owner-seed setup lost its exact one-load zero-write isolated authority.");
+                "Owner-seed setup lost its exact one-load, reserved-level-up-only isolated authority.");
         }
 
         // Owner-seed SETUP. Returns after advancing; measured steps never enter here.
@@ -127,7 +137,11 @@ namespace KingmakerMountedCombat.Diagnostics
                 case 52:
                     if (setupDriver.Tick() != Chunk7OrdinaryBuildStep.Complete) return;
                     FinishOwnerSeedRider(step == 50 ? 0 : 1);
-                    Next(step == 50 ? 51 : 53); break;
+                    Next(step == 50 ? 56 : 57); break;
+                case 56:
+                case 57:
+                    if (!ObserveSetupAutosave(step == 56 ? 0 : 1)) return;
+                    Next(step == 56 ? 51 : 53); break;
                 case 51:
                     ApplyOwnerSeedExperience(); BeginOwnerSeedRider(1); Next(52); break;
                 case 53:
@@ -149,7 +163,74 @@ namespace KingmakerMountedCombat.Diagnostics
             setupRiderRows.Add(new JObject { ["role"] = index == 0 ? "A" : "B", ["riderId"] = rider.UniqueId, ["before"] = ProgressionState(rider) });
             var pins = new Chunk7OrdinaryBuildPins(request.RunId, request.OwnedPairs.SeedSha256, Chunk7OrdinaryBuildMode.ExistingRangerLevels,
                 null, null, null, Gender.Male, false, Chunk7OwnerSeedSetupPlan.RequiredRangerLevel, Size.Medium, true);
+            var game = Game.Instance;
+            if (setupWritesExpected > 0)
+            {
+                Require(game.SaveManager.IsSaveAllowed() && !NativePersistenceIsolation.HasPendingWrites, "The native level-up Auto cannot be admitted in the current world state.");
+                if (!setupSlotOwned)
+                {
+                    Require(!NativePersistenceIsolation.NativeSlotRotationEnabled, "A pre-existing slot projection cannot be borrowed.");
+                    setupSlotOwned = true; NativePersistenceIsolation.EnableNativeSlotRotation();
+                }
+                fixtureAuthority.ReserveOwnerSeedLevelup(request, game, game.SaveManager, RuntimePersistenceScenario.SlotName(SaveInfo.SaveType.Auto));
+            }
+            Require(setupProbe == null, "A previous native level-up observer is still owned.");
+            setupProbe = NativeOrdinaryAcquisitionProbe.ForOwnerSeedSetup(() => rider,
+                index == 0 ? PersistenceSaveAuthorization.OwnerSeedAutoLeaf : PersistenceSaveAuthorization.OwnerSeedStagingLeaf);
+            setupProbe.Install();
             setupDriver = new Chunk7OrdinaryBuildDriver(pins, rider, horses.HorseFeature, horses.HorseUnit.AssetGuid, RequireOwnerSeedSetupWindow, PublishSetupEvent);
+        }
+
+        private bool SetupBusy() => LoadingProcess.Instance.IsLoadingInProcess || LoadingProcess.Instance.QueuedNames.Any() ||
+            NativePersistenceIsolation.HasPendingWrites || world.SerializationBusy;
+
+        // After each build's native completion: exactly its one level-up Auto (autosave on)
+        // completed at the reserved run-owned leaf, or its request natively suppressed (off).
+        private bool ObserveSetupAutosave(int index)
+        {
+            if (SetupBusy()) return false;
+            var rider = index == 0 ? firstRider : secondRider; var probe = setupProbe; var sequence = index + 1;
+            RequireOwnerSeedAuthority();
+            if (setupWritesExpected == 0)
+            {
+                Require(probe != null && probe.SaveRequests == 1 && probe.PreparedWrites == 0 && !NativePersistenceIsolation.NativeSlotRotationEnabled &&
+                    fixtureAuthority.AdmittedNativeWriteRequests == 0 && fixtureAuthorization.AuthorizedWriteCount == 0 && persistence.CompletedSaveCount == 0,
+                    "With native autosave off the level-up request must write nothing.");
+                setupAutosaves.Add(new JObject { ["sequence"] = sequence, ["riderId"] = rider.UniqueId, ["case"] = "autosave-off",
+                    ["requested"] = true, ["written"] = false, ["probe"] = probe.Capture() });
+                probe.Dispose(); setupProbe = null; return true;
+            }
+            if (probe?.ObservedSave == null || probe.ObservedSave.OperationState != SaveInfo.StateType.None) return false;
+            var save = probe.ObservedSave; var completion = persistence.LastCompletedSave; var input = request.PersistenceLoad;
+            var leaf = Path.Combine(fixtureAuthority.Root, PersistenceSaveAuthorization.OwnerSeedAutoLeaf);
+            Require(probe.Complete && completion != null && completion.Sequence == sequence && ReferenceEquals(completion.Requested, probe.ObservedRequestedSave) &&
+                ReferenceEquals(completion.Written, save) && save.Type == SaveInfo.SaveType.Auto && save.IsAutoLevelupSave &&
+                save.FileName == PersistenceSaveAuthorization.OwnerSeedAutoLeaf && save.FolderName == leaf && completion.Path == leaf &&
+                save.IsActuallySaved && save.HasFileOnDisk && save.GameId == input.GameId && save.GameName == input.GameName &&
+                save.Area?.AssetGuidThreadSafe == input.Area && fixtureAuthority.AdmittedNativeWriteRequests == sequence &&
+                fixtureAuthorization.AuthorizedWriteCount == sequence && fixtureAuthorization.UnauthorizedWriteCount == 0 &&
+                persistence.SnapshotCount == sequence && persistence.CompletedSaveCount == sequence && setupSlotOwned && NativePersistenceIsolation.NativeSlotRotationEnabled,
+                "Setup level-up Auto lacks its exact request, prepared copy, native completion, run-owned leaf or cumulative quota.");
+            NativePersistenceIsolation.RequireOwnedWrite(save);
+            var file = new FileInfo(save.FolderName);
+            Require(file.Exists && file.Length > 0 && (file.Attributes & FileAttributes.ReparsePoint) == 0 && Path.GetDirectoryName(file.FullName) == fixtureAuthority.Root,
+                "Setup level-up Auto did not materialize inside the run-owned isolated root.");
+            string sha; using (var hash = System.Security.Cryptography.SHA256.Create()) using (var stream = File.OpenRead(file.FullName))
+                sha = BitConverter.ToString(hash.ComputeHash(stream)).Replace("-", "").ToLowerInvariant();
+            setupAutosaves.Add(new JObject { ["sequence"] = sequence, ["riderId"] = rider.UniqueId, ["case"] = "autosave-on", ["phase"] = "setup-levelup-auto",
+                ["type"] = save.Type.ToString(), ["autoLevelup"] = save.IsAutoLevelupSave, ["internalName"] = save.Name, ["fileName"] = save.FileName,
+                ["preparedLeaf"] = index == 0 ? PersistenceSaveAuthorization.OwnerSeedAutoLeaf : PersistenceSaveAuthorization.OwnerSeedStagingLeaf,
+                ["path"] = file.FullName, ["insideRunRoot"] = true, ["length"] = file.Length, ["sha256"] = sha, ["lastWriteTimeUtcTicks"] = file.LastWriteTimeUtc.Ticks,
+                ["completionSequence"] = completion.Sequence, ["requestedObject"] = NativeOrdinaryAcquisitionProbe.Id(completion.Requested),
+                ["writtenObject"] = NativeOrdinaryAcquisitionProbe.Id(completion.Written), ["admittedWrites"] = fixtureAuthority.AdmittedNativeWriteRequests,
+                ["authorizedWrites"] = fixtureAuthorization.AuthorizedWriteCount, ["snapshots"] = persistence.SnapshotCount,
+                ["completedSaves"] = persistence.CompletedSaveCount, ["frame"] = Time.frameCount, ["completedBeforeBoundary"] = true,
+                ["mountedPersistenceProof"] = false, ["probe"] = probe.Capture() });
+            setupLedger.Record(rider.UniqueId, "native-levelup-autosave",
+                "Kingmaker.Controllers.LevelUpAutoSaveController.HandleLevelUpComplete -> Game.SaveGame(Auto) into the run-owned isolated save root",
+                sequence - 1, sequence, 1, file.FullName);
+            fixtureAuthority.ConfirmOwnerSeedLevelup(request, Game.Instance, Game.Instance.SaveManager, NativePersistenceIsolation.Project(save));
+            probe.Dispose(); setupProbe = null; return true;
         }
 
         private void RequireOwnerSeedSetupWindow()
@@ -157,6 +238,10 @@ namespace KingmakerMountedCombat.Diagnostics
             setupLedger.RequireOpen("native ordinary build choice");
             RequireOwnerSeedAuthority();
             Require(!Game.Instance.Player.IsInCombat, "Owner-seed setup entered combat.");
+            // The owned projection exists exactly while setup Autos are expected; otherwise the
+            // native setting stays unprojected so an off autosave requests nothing.
+            Require(setupWritesExpected > 0 ? setupSlotOwned && NativePersistenceIsolation.NativeSlotRotationEnabled : !setupSlotOwned && !NativePersistenceIsolation.NativeSlotRotationEnabled,
+                "Owner-seed builder lost or borrowed its native slot projection.");
         }
 
         private void PublishSetupEvent(JObject row)
@@ -235,13 +320,26 @@ namespace KingmakerMountedCombat.Diagnostics
                 ((JObject)setupRiderRows[index])["profileId"] = profile.Id; ((JObject)setupRiderRows[index])["rigValidated"] = true;
             }
             Require(world.Registry.ActiveCount == 0 && !controls.HasUnsettledRelationshipTransition, "Owner-seed setup already holds mounted ownership.");
+            // Close the write scope exactly once: every selected setup Auto completed, the owned
+            // projection released, and no further native write is admissible after the boundary.
+            Require(setupProbe == null && !SetupBusy(), "A native level-up observer or write still owns SETUP.");
+            fixtureAuthority.CloseOwnerSeedSetupWrites(request, Game.Instance, Game.Instance.SaveManager);
+            if (setupSlotOwned)
+            {
+                Require(NativePersistenceIsolation.NativeSlotRotationEnabled, "The owned slot projection was lost during SETUP.");
+                NativePersistenceIsolation.DisableNativeSlotRotation(); setupSlotOwned = false;
+            }
+            setupWritesAtBoundary = fixtureAuthority.AdmittedNativeWriteRequests;
+            Require(setupWritesAtBoundary == setupWritesExpected && setupAutosaves.Count == setupRiderRows.Count,
+                "SETUP-COMPLETE observed a native write count that differs from the selected setup Autos.");
             setupLedger.Complete(Time.frameCount); setupClock.Stop();
             setupBoundaryState = SetupState();
             ownerSeedSetup["assistance"] = new JArray(setupLedger.Items.Select(item => new JObject { ["unitId"] = item.UnitId, ["kind"] = item.Kind,
                 ["nativeApi"] = item.NativeApi, ["before"] = item.Before, ["after"] = item.After, ["amount"] = item.Amount, ["detail"] = item.Detail }));
             evidence["setupComplete"] = new JObject { ["boundary"] = "SETUP-COMPLETE", ["frame"] = setupLedger.CompletedFrame,
                 ["gameTicks"] = Game.Instance.TimeController.GameTime.Ticks, ["assistanceCount"] = setupLedger.Items.Count,
-                ["setupSeconds"] = setupClock.Elapsed.TotalSeconds, ["measuredClockRestarted"] = true, ["state"] = setupBoundaryState.DeepClone() };
+                ["setupSeconds"] = setupClock.Elapsed.TotalSeconds, ["measuredClockRestarted"] = true, ["state"] = setupBoundaryState.DeepClone(),
+                ["writesAtBoundary"] = setupWritesAtBoundary, ["writeScopeClosed"] = fixtureAuthority.OwnerSeedWritesClosed };
             Pass(OwnerSeedSetupRow);
             // The measured phase keeps the historical bounded deadlines from this boundary.
             clock.Restart();
@@ -262,6 +360,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private Chunk7NativeBuilderCancellation setupCancellation;
         private bool OwnerSeedCleanupReady()
         {
+            if (!ReleaseSetupWriteCustody()) return false;
             if (setupDriver != null)
             {
                 if (setupCancellation == null)
@@ -280,6 +379,25 @@ namespace KingmakerMountedCombat.Diagnostics
         // The full native field roster (characters and pets) after setup.
         private UnitEntityData[] OwnerSeedRoster() => Chunk7NativeFieldRoster.Capture(Game.Instance.Player);
 
+        // A failed SETUP may still own the probe or projection; release them only after the
+        // native writer and callbacks settle (the assisted precedent's cleanup order).
+        private bool ReleaseSetupWriteCustody()
+        {
+            if (SetupBusy() || setupProbe?.InSynchronousCallback == true) return false;
+            if (setupDriver != null) return true;
+            if (setupProbe != null)
+            {
+                if (evidence["ownerSeedSetup"] is JObject setup) setup["releasedLevelupProbe"] = setupProbe.Capture();
+                setupProbe.Dispose(); setupProbe = null;
+            }
+            if (setupSlotOwned)
+            {
+                Require(NativePersistenceIsolation.NativeSlotRotationEnabled, "Owned slot projection changed externally.");
+                NativePersistenceIsolation.DisableNativeSlotRotation(); setupSlotOwned = false;
+            }
+            return true;
+        }
+
         private bool OwnerSeedOwnershipPreserved() => !setupLedger.Completed || OwnerSeedPetsPreserved();
 
         private void AddOwnerSeedCleanup(JObject cleanup)
@@ -288,6 +406,11 @@ namespace KingmakerMountedCombat.Diagnostics
             cleanup["ownerSeedSetupPetsPreserved"] = setupLedger.Completed && OwnerSeedPetsPreserved();
             cleanup["setupStateUnchangedAfterBoundary"] = setupLedger.Completed && OwnerSeedPetsPreserved();
             cleanup["setupMutationsAfterBoundary"] = setupLedger.RefusedAfterBoundary; cleanup["setupRetainedInMemoryOnly"] = true;
+            var writesAfter = setupWritesAtBoundary < 0 ? -1 : fixtureAuthority.AdmittedNativeWriteRequests - setupWritesAtBoundary;
+            cleanup["writesAfterBoundary"] = writesAfter; cleanup["unauthorizedWrites"] = fixtureAuthorization.UnauthorizedWriteCount;
+            cleanup["slotProjectionReleased"] = !setupSlotOwned && !NativePersistenceIsolation.NativeSlotRotationEnabled;
+            if (setupLedger.Completed && (writesAfter != 0 || fixtureAuthorization.UnauthorizedWriteCount != 0))
+                Fail("C7-world-cleanup", "A native write followed SETUP-COMPLETE or was unauthorized; only setup level-up Autos are admitted.");
         }
 
         private JObject SetupState() => new JObject { ["money"] = Game.Instance.Player.Money, ["experienceRatePercent"] = Game.Instance.Player.ExperienceRatePercent,

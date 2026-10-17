@@ -1095,8 +1095,18 @@ try{
             }
             $nativeLeaves=@(Get-ChildItem -LiteralPath $isolatedSaves -Filter '*.zks' -File|ForEach-Object Name)
             $writes=Get-KmcChunk7OwnedWriteCount $request
-            if($nativeLeaves.Count-ne(1+$writes)-or$request.persistenceLoad.fileName-cnotin$nativeLeaves){throw 'Inherited isolated archive inventory differs from its exact selected load/write contract.'}
-            if($writes-eq1){
+            if(Test-KmcChunk7OwnedPairsOwnerSeed ([pscustomobject]$request)){
+                # Owner seed: setup level-up Autos settle onto the one run-owned Auto_1; nothing else exists.
+                $allLeaves=@(Get-ChildItem -LiteralPath $isolatedSaves -Force|ForEach-Object Name)
+                $expectedLeaves=@($request.persistenceLoad.fileName)+$(if($writes-gt0){@('Auto_1.zks')}else{@()})
+                if((ConvertTo-KmcChunk7Canonical @($allLeaves|Sort-Object -CaseSensitive))-cne(ConvertTo-KmcChunk7Canonical @($expectedLeaves|Sort-Object -CaseSensitive))){throw 'Owner-seed isolated archive inventory differs from its setup level-up Auto contract.'}
+                if($writes-gt0){
+                    $seedWorld=Read-KmcJson (Join-Path $evidenceRoot 'chunk7-world-evidence.json')
+                    $lastAuto=@($seedWorld.observations.ownerSeedSetup.setupAutosaves)[-1]
+                    if($null-eq$lastAuto-or(Get-KmcSha256 (Join-Path $isolatedSaves 'Auto_1.zks'))-cne$lastAuto.sha256){throw 'Owner-seed settled level-up Auto differs from its last observed setup write.'}
+                }
+            }elseif($nativeLeaves.Count-ne(1+$writes)-or$request.persistenceLoad.fileName-cnotin$nativeLeaves){throw 'Inherited isolated archive inventory differs from its exact selected load/write contract.'}
+            if($writes-eq1-and-not(Test-KmcChunk7OwnedPairsOwnerSeed ([pscustomobject]$request))){
                 $ownedArtifact=Read-KmcJson (Join-Path $evidenceRoot 'chunk7-persistence-evidence.json')
                 if($PersistenceCase-ceq'owned-schema1-resave-manual'){Assert-KmcOwnedSchema1ColdSource $request $verifiedOwnedSource $ownedArtifact}
                 Assert-KmcChunk7OwnedOutputEvidence ([pscustomobject]$request) $ownedArtifact.observations
