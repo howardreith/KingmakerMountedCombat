@@ -87,7 +87,9 @@ function OwnerSeedRequest{$q=Request;$p=$q.ownedPairs;$q.ownedPairs=[pscustomobj
 Check 'full request owner-seed exploration admitted' {Validate (OwnerSeedRequest)}
 Check 'full request owner-seed exploration without assistance admitted' {$q=OwnerSeedRequest;$q.ownedPairs.xpAssistance=$null;Validate $q}
 Check 'owner-seed selects the exploration engine with one load and zero writes' {$q=OwnerSeedRequest;if((Get-KmcChunk7SelectedScenario $q)-cne'chunk7-two-pair-exploration'-or(Get-KmcChunk7OwnedWriteCount $q)-ne0-or(Get-KmcChunk7OwnedLoadCount $q)-ne1){throw 'Owner-seed quota or engine differs'}}
-Check 'full request owner-seed exploration with two setup level-up Autos admitted and quota exact' {$q=OwnerSeedRequest;$q.ownedPairs.expectedNativeWriteCount=2;Validate $q;if((Get-KmcChunk7OwnedWriteCount $q)-ne2-or(Get-KmcChunk7OwnedLoadCount $q)-ne1){throw 'Owner-seed setup write quota differs'}}
+# The installed game has no level-up autosave: the seed kind selects zero writes only.
+Check 'full request owner-seed exploration with two setup level-up Autos refused' {$q=OwnerSeedRequest;$q.ownedPairs.expectedNativeWriteCount=2;Validate $q} $true
+Check 'runner owner-seed final save root admits only the seed copy' {if(-not$runnerAst.Extent.Text.Contains('Assert-KmcChunk7OwnerSeedFinalSaveRoot ([pscustomobject]$request) $allLeaves')-or$runnerAst.Extent.Text.Contains("Owner-seed settled level-up Auto differs")){throw 'Owner-seed final-root check differs'}}
 Check 'full request owner-seed exploration with the spaced registry seed name admitted' {$q=OwnerSeedRequest;$q.ownedPairs.seedId='KMC_C7_NO_MODS_OWNER_SEED';$q.persistenceLoad.internalName='KMC C7 NO MODS OWNER SEED';$q.persistenceLoad.fileName='Manual_303_KMC_C7_NO_MODS_OWNER_SEED.zks';Validate $q}
 $ownerSeedNegative=[ordered]@{
  'rider not in party'={param($q)$q.ownedPairs.partyIds=@($q.ownedPairs.riderAId,'50505050-5050-4050-8050-505050505050')}
@@ -102,6 +104,8 @@ $ownerSeedNegative=[ordered]@{
  'pre-granted pet pin on the seed kind'={param($q)$q.ownedPairs|Add-Member mountAId '20202020-2020-4020-8020-202020202020'}
  'checkpoint on the seed kind'={param($q)$q|Add-Member persistenceCase 'multi-exploration-manual'}
  'native writes beyond one per rider build'={param($q)$q.ownedPairs.expectedNativeWriteCount=3}
+ 'one setup level-up Auto'={param($q)$q.ownedPairs.expectedNativeWriteCount=1}
+ 'two setup level-up Autos'={param($q)$q.ownedPairs.expectedNativeWriteCount=2}
  'negative native write count'={param($q)$q.ownedPairs.expectedNativeWriteCount=-1}
  'second load on the seed kind'={param($q)$q.ownedPairs.expectedNativeLoadCount=2}
  'seed SHA differs from the copied input'={param($q)$q.ownedPairs.seedSha256='8'*64}

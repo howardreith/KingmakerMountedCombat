@@ -17,8 +17,8 @@ function Get-KmcChunk7SelectedScenario($Request){
  }
 }
 function Get-KmcChunk7OwnedWriteCount($Request){
- # Owner seed: exactly its declared setup level-up Autos (validated 0..2 and bound to the native observation).
- if(Test-KmcChunk7OwnedPairsOwnerSeed $Request){return [int]$Request.ownedPairs.expectedNativeWriteCount}
+ # Owner seed: zero writes. The installed game registers no LevelUpAutoSaveController, so setup makes no level-up Auto.
+ if(Test-KmcChunk7OwnedPairsOwnerSeed $Request){return 0}
  if($Request.ownedPairs.case-ceq'persistence-save'-and$Request.persistenceCase-ceq'multi-owned-worker-cancel-manual'){return 2}
  if($Request.ownedPairs.case-ceq'persistence-save'-or($Request.ownedPairs.case-ceq'persistence-load'-and$Request.persistenceCase-cin@('legacy-mounted-pending-tb-manual','owned-schema1-resave-manual'))){return 1};return 0
 }
@@ -52,7 +52,8 @@ function Assert-KmcChunk7OwnerSeedPairsSelection($Request,$Selection,$Checkpoint
   Assert-KmcOrdinaryInteger $s.xpAssistance.targetCharacterLevel 2 8
  }
  if($null-ne$Checkpoint){throw 'Owner-seed exploration cannot select a persistence checkpoint.'}
- Assert-KmcChunk7Boolean $s.baseGameOnly $true;Assert-KmcOrdinaryInteger $s.expectedNativeLoadCount 1 1;Assert-KmcOrdinaryInteger $s.expectedNativeWriteCount 0 2
+ Assert-KmcChunk7Boolean $s.baseGameOnly $true;Assert-KmcOrdinaryInteger $s.expectedNativeLoadCount 1 1
+ if(($s.expectedNativeWriteCount-isnot[int]-and$s.expectedNativeWriteCount-isnot[long])-or$s.expectedNativeWriteCount-ne0){throw 'Owner-seed exploration selects zero native writes: the native game has no level-up autosave (LevelUpAutoSaveController is never registered).'}
 }
 function Assert-KmcChunk7OwnedPairsSelection($Request){
  if($Request-is[Collections.IDictionary]){$Request=[pscustomobject]$Request}
@@ -271,28 +272,26 @@ function Assert-KmcChunk7OwnerSeedWorldSetup($Request,$Observations){
  if($a.autosaveEnabled-isnot[bool]){throw 'Native autosave setting must be an observed boolean.'}
  foreach($key in @('onlyOneSave','settingsWritten','mountedPersistenceProof')){Assert-KmcChunk7Boolean $a.$key $false}
  if(-not(Test-KmcChunk7FiniteNumber $a.autosaveSlots)){throw 'Native autosave slot setting must be a finite observation.'}
- Assert-KmcOrdinaryInteger $a.riderBuilds 2 2;$writesExpected=if($a.autosaveEnabled){[int]$a.riderBuilds}else{0}
- Assert-KmcBootstrapInventoryString $a.case $(if($a.autosaveEnabled){'autosave-on'}else{'autosave-off'})
+ # The installed game has no level-up autosave (LevelUpAutoSaveController is never registered):
+ # zero setup writes whatever the observed (read-only) autosave setting.
+ Assert-KmcOrdinaryInteger $a.riderBuilds 2 2;$writesExpected=0
+ Assert-KmcBootstrapInventoryString $a.case 'no-native-levelup-autosave'
  Assert-KmcOrdinaryInteger $a.expectedWrites $writesExpected $writesExpected;Assert-KmcOrdinaryInteger $a.selectedWrites $writesExpected $writesExpected
- if([int]$s.expectedNativeWriteCount-ne$writesExpected){throw 'Selected native write count differs from the observed native level-up autosave count.'}
- Assert-KmcChunk7Boolean $a.slotProjectionDuringBuild ($writesExpected-gt0)
- $autos=@($u.setupAutosaves);if($u.setupAutosaves-isnot[Array]-or$autos.Count-ne$a.riderBuilds){throw 'Owner-seed setup must observe exactly one native level-up autosave request per rider build.'}
- $saveRoot=Get-KmcAssistedSaveRoot $Request;$autoPath=Join-Path $saveRoot 'Auto_1.zks'
+ if([int]$s.expectedNativeWriteCount-ne$writesExpected){throw 'Selected native write count must be zero: the native game has no level-up autosave.'}
+ Assert-KmcChunk7Boolean $a.slotProjectionDuringBuild $false
+ $autos=@($u.setupAutosaves);if($u.setupAutosaves-isnot[Array]-or$autos.Count-ne$a.riderBuilds){throw 'Owner-seed setup must observe the absence of a native level-up autosave once per rider build.'}
  for($i=0;$i-lt$autos.Count;$i++){
   $w=$autos[$i];$rid=if($i-eq0){$s.riderAId}else{$s.riderBId}
-  if($a.autosaveEnabled){
-   Assert-KmcExactProperties $w @('sequence','riderId','case','phase','type','autoLevelup','internalName','fileName','preparedLeaf','path','insideRunRoot','length','sha256','lastWriteTimeUtcTicks','completionSequence','requestedObject','writtenObject','admittedWrites','authorizedWrites','snapshots','completedSaves','frame','completedBeforeBoundary','mountedPersistenceProof','probe') 'owner-seed setup level-up Auto'
-   foreach($pair in @(@('riderId',$rid),@('case','autosave-on'),@('phase','setup-levelup-auto'),@('type','Auto'),@('fileName','Auto_1.zks'),@('preparedLeaf',@('Auto_1.zks','Auto_2.zks')[$i]),@('path',$autoPath))){Assert-KmcBootstrapInventoryString $w.($pair[0]) $pair[1]}
-   if([IO.Path]::GetDirectoryName([IO.Path]::GetFullPath($w.path))-cne[IO.Path]::GetFullPath($saveRoot)){throw 'Setup level-up Auto escaped the run-owned isolated save root.'}
-   foreach($flag in @('autoLevelup','insideRunRoot','completedBeforeBoundary')){Assert-KmcChunk7Boolean $w.$flag $true};Assert-KmcChunk7Boolean $w.mountedPersistenceProof $false
-   if($w.sha256-isnot[string]-or$w.sha256-cnotmatch'^[a-f0-9]{64}$'-or$w.internalName-isnot[string]-or[string]::IsNullOrWhiteSpace($w.internalName)){throw 'Setup level-up Auto identity is malformed.'}
-   foreach($key in @('sequence','completionSequence','admittedWrites','authorizedWrites','snapshots','completedSaves')){Assert-KmcOrdinaryInteger $w.$key ($i+1) ($i+1)}
-   Assert-KmcOrdinaryInteger $w.length 1 268435456;Assert-KmcOrdinaryInteger $w.frame 0 ([int]::MaxValue)
-   if($i-gt0-and$w.internalName-cne$autos[0].internalName){throw 'Setup level-up Autos changed their native slot name.'}
-  }else{
-   Assert-KmcExactProperties $w @('sequence','riderId','case','requested','written','probe') 'owner-seed suppressed level-up autosave'
-   Assert-KmcOrdinaryInteger $w.sequence ($i+1) ($i+1);Assert-KmcBootstrapInventoryString $w.riderId $rid;Assert-KmcBootstrapInventoryString $w.case 'autosave-off'
-   Assert-KmcChunk7Boolean $w.requested $true;Assert-KmcChunk7Boolean $w.written $false
+  Assert-KmcExactProperties $w @('sequence','riderId','case','requested','written','probe') 'owner-seed absent level-up autosave'
+  Assert-KmcOrdinaryInteger $w.sequence ($i+1) ($i+1);Assert-KmcBootstrapInventoryString $w.riderId $rid;Assert-KmcBootstrapInventoryString $w.case 'no-native-levelup-autosave'
+  Assert-KmcChunk7Boolean $w.requested $false;Assert-KmcChunk7Boolean $w.written $false
+  # The probe was installed for the build and observed no completion entry, save request or prepared write.
+  $p=$w.probe;if($null-eq$p-or$null-eq$p.PSObject.Properties['installed']-or$null-eq$p.PSObject.Properties['complete']){throw 'Owner-seed level-up probe observation is missing.'}
+  Assert-KmcChunk7Boolean $p.installed $true;Assert-KmcChunk7Boolean $p.complete $false
+  if($p.errors-isnot[Array]-or@($p.errors).Count-ne0-or$p.events-isnot[Array]-or@($p.events).Count-ne0){throw 'Owner-seed level-up probe recorded an error or a native event.'}
+  foreach($key in @('completionEntries','completionExits','saveRequests','preparedWrites')){
+   if($null-eq$p.PSObject.Properties[$key]){throw 'Owner-seed level-up probe counter is missing.'}
+   if([int]$p.$key-ne0){throw 'A native level-up completion, save request or prepared write was observed during owner-seed setup; the installed game registers no LevelUpAutoSaveController.'}
   }
  }
  if($u.events-isnot[Array]-or$u.events.Count-lt2-or$u.events.Count-gt768){throw 'Owner-seed native build events are missing or unbounded.'};Assert-KmcOrdinaryInteger $u.eventCount $u.events.Count $u.events.Count
@@ -335,10 +334,10 @@ function Assert-KmcChunk7OwnerSeedWorldSetup($Request,$Observations){
  if($cl-lt1-or$cl-ge20-or$x.threshold-ne$table[$target]-or$x.before-lt$table[$cl]-or$x.before-ge$table[$cl+1]-or$x.delta-ne($table[$target]-$x.before)-or
     $x.after-ne$table[$target]-or$u.riders[1].after.characterLevel-ne$target-or$u.riders[1].after.rangerLevel-ne4){throw 'Rider B XP assistance differs from the stock XP table minimum or ends beyond its exact target level.'}
  }
- # Ledger order: A build, [A level-up Auto], [B XP], B build, [B level-up Auto].
+ # Ledger order: A build, [B XP], B build (no native level-up autosave exists).
  $expected=@();$units=@();$riderOf=@()
- foreach($step in @(@('native-ordinary-ranger-levels',$s.riderAId,0),@('native-levelup-autosave',$s.riderAId,0),@('native-xp',$s.riderBId,1),@('native-ordinary-ranger-levels',$s.riderBId,1),@('native-levelup-autosave',$s.riderBId,1))){
-  if($step[0]-ceq'native-levelup-autosave'-and$writesExpected-eq0){continue};if($step[0]-ceq'native-xp'-and$null-eq$assist){continue}
+ foreach($step in @(@('native-ordinary-ranger-levels',$s.riderAId,0),@('native-xp',$s.riderBId,1),@('native-ordinary-ranger-levels',$s.riderBId,1))){
+  if($step[0]-ceq'native-xp'-and$null-eq$assist){continue}
   $expected+=$step[0];$units+=$step[1];$riderOf+=$step[2]
  }
  $items=@($u.assistance)
@@ -361,7 +360,6 @@ function Assert-KmcChunk7OwnerSeedWorldSetup($Request,$Observations){
  $firstMeasured=@($o.measurements)[0];$firstInput=@($o.inputs)[0]
  if($null-eq$firstMeasured-or$null-eq$firstInput-or[long]$b.frame-gt[long]$firstMeasured.startFrame-or[long]$b.gameTicks-gt[long]$firstInput.resourcesBefore.gameTicks){throw 'SETUP-COMPLETE does not precede the measured phase.'}
  Assert-KmcOrdinaryInteger $b.writesAtBoundary $writesExpected $writesExpected;Assert-KmcChunk7Boolean $b.writeScopeClosed $true
- foreach($w in $autos){if($a.autosaveEnabled-and[long]$w.frame-gt[long]$b.frame){throw 'A setup level-up Auto completed after SETUP-COMPLETE.'}}
  Assert-KmcBootstrapInventoryString $b.boundary 'SETUP-COMPLETE';Assert-KmcOrdinaryInteger $b.frame 0 ([int]::MaxValue);Assert-KmcOrdinaryInteger $b.gameTicks 0 ([long]::MaxValue);Assert-KmcOrdinaryInteger $b.assistanceCount $items.Count $items.Count
  Assert-KmcChunk7Boolean $b.measuredClockRestarted $true;if(-not(Test-KmcChunk7FiniteNumber $b.setupSeconds)-or$b.setupSeconds-lt0){throw 'Owner-seed setup duration is not a finite observation.'}
  if($b.state-eq$null-or$b.state.pairs-isnot[Array]-or$b.state.pairs.Count-ne2){throw 'SETUP-COMPLETE lacks its captured setup state.'}
@@ -385,4 +383,9 @@ function Assert-KmcChunk7OwnerSeedCleanup($Cleanup){
  Assert-KmcOrdinaryInteger $Cleanup.setupMutationsAfterBoundary 0 0
  # Zero native writes after SETUP-COMPLETE; none unauthorized; the owned projection released.
  Assert-KmcOrdinaryInteger $Cleanup.writesAfterBoundary 0 0;Assert-KmcOrdinaryInteger $Cleanup.unauthorizedWrites 0 0;Assert-KmcChunk7Boolean $Cleanup.slotProjectionReleased $true
+}
+# Runner final-root check: owner-seed setup makes zero writes (the installed game registers
+# no LevelUpAutoSaveController), so only the immutable seed copy may remain: no Auto_1.
+function Assert-KmcChunk7OwnerSeedFinalSaveRoot($Request,[string[]]$Leaves){
+ $all=@($Leaves);if((Get-KmcChunk7OwnedWriteCount $Request)-ne0-or$all.Count-ne1-or$all[0]-cne$Request.persistenceLoad.fileName){throw 'Owner-seed isolated save root must contain only the seed copy (no Auto_1): the native game has no level-up autosave.'}
 }
