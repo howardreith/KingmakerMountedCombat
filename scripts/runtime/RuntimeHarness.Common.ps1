@@ -4059,7 +4059,7 @@ function Get-KmcPhase3dHorseRuntimeRows {
         'CM01-native-mammoth-fixture','CM01-native-mammoth-continuity','CM01-native-mammoth-child-cleanup','CM01-native-mammoth-restoration','CM01-native-mammoth-artifact','CM01-native-mammoth-interrupted','CM06-paused-queue','CM06-combat-mount-requires-qualified-paired-policy','CM02-foreign-companion','CM02-wrong-creature-target','CM06-mount-selected','CM06-multiple-selection','CM06-foreign-selection','CM01-exploration-free', 'CM02-approach-arrival',
         'CM02-geometry-change', 'CM02-obstruction', 'CM04-stop-during-approach', 'CM04-combat-end', 'CM04-disable-unload', 'CM04-command-replacement', 'CM06-repeated-request', 'CM02-ownership-change', 'CM02-size-form-change', 'CM02-lost-direct-control', 'CM02-rider-incapacitated', 'CM02-mount-incapacitated', 'CM06-hotbar-path', 'CM03-rider-before-mount-slot','CM03-mount-slot-before-rider','CM03-next-round-activation','CM03-early-end-turn','CM05-dismount-survives-feature-policy-disable','CM06-ai-auto-use',
         'CM01-combat-mount-cancel-costs-nothing', 'CM01-combat-mount-accepted',
-        'CM01-combat-mount-preparing-refused',
+        'CM01-combat-mount-preparing-admitted', 'CM01-combat-mount-foreign-turn-refused',
         'CM02-adoption-plan-invalidated', 'CM02-adoption-compensation-releases',
         'CM02-left-area', 'CM02-view-agent-lost', 'CM02-loading-cutscene', 'CM02-generation-change',
         'CM04-injected-exception', 'CM04-rider-death', 'CM04-mount-death', 'CM04-turn-end', 'CM04-mode-exit',
@@ -6746,7 +6746,7 @@ function Assert-KmcChunk6aCombatMountEvidence {
     }
     if ($pausedOnly) { $required += 'CM06-paused-queue' }
     if ($orderOnly -and $requiresEarlyEndEvidence) { $required += 'CM03-early-end-turn' }
-    if ($turnBased) { $required += 'CM01-combat-mount-preparing-refused' }
+    if ($turnBased) { $required += 'CM01-combat-mount-preparing-admitted' }
     if ($hotbarOnly) { $required += 'CM06-hotbar-path' }
     if ($orderOnly) { $required += @($(if($Request.scenario -ceq 'chunk6a-allocation-rider-first-tb'){'CM03-rider-before-mount-slot'}else{'CM03-mount-slot-before-rider'}),'CM03-next-round-activation') }
     if ($escapeOnly) { $required += 'CM05-dismount-survives-feature-policy-disable' }

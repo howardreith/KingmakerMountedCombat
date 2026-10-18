@@ -154,13 +154,13 @@ function Get-KmcChunk6aCampaignRoles([bool]$IncludeTurnBased) {
     @(
         @{name='positive';scenario='chunk6a-mount-approach';rows=@('CM01-exploration-free','CM02-approach-arrival')}
         @{name='compensation-rt';scenario='chunk6a-adoption-compensation-rt';rows=@('CM02-adoption-plan-invalidated','CM02-adoption-compensation-releases')}
-        @{name='compensation-tb';scenario='chunk6a-adoption-compensation-tb';rows=@('CM02-adoption-plan-invalidated','CM02-adoption-compensation-releases','CM01-combat-mount-preparing-refused')}
+        @{name='compensation-tb';scenario='chunk6a-adoption-compensation-tb';rows=@('CM02-adoption-plan-invalidated','CM02-adoption-compensation-releases','CM01-combat-mount-preparing-admitted')}
         @{name='geometry';scenario='chunk6a-geometry-change';rows=@('CM02-geometry-change')}
         @{name='obstruction';scenario='chunk6a-obstruction';rows=@('CM02-obstruction')}
         @{name='full-rt';scenario='chunk6a-combat-mount-rt';rows=@('CM01-combat-mount-accepted','CM02-approach-arrival','CM05-combat-dismount-accepted','CM05-combat-dismount-conserves-debt','CM05-no-duplicate-mount-turn')}
     )
     if($IncludeTurnBased) {
-        @{name='full-tb';scenario='chunk6a-combat-mount-tb';rows=@('CM01-combat-mount-accepted','CM01-combat-mount-preparing-refused','CM02-approach-arrival','CM05-combat-dismount-accepted','CM05-combat-dismount-conserves-debt','CM05-no-duplicate-mount-turn')}
+        @{name='full-tb';scenario='chunk6a-combat-mount-tb';rows=@('CM01-combat-mount-accepted','CM01-combat-mount-preparing-admitted','CM02-approach-arrival','CM05-combat-dismount-accepted','CM05-combat-dismount-conserves-debt','CM05-no-duplicate-mount-turn')}
     }
 }
 function Assert-KmcChunk6aCampaign($Payload,$Bindings,[bool]$IncludeTurnBased,[string]$LabRoot) {
@@ -239,7 +239,7 @@ function Assert-KmcIsolatedScenarioRows([string]$Id,$Binding) {
     $requirements=@{
         'CM08-mounted-mammoth-primary-hit-tb'=@('mounted-mammoth-primary-hit-tb','mounted-mammoth-primary-hit-tb')
         'CM01-mammoth-rt'=@('chunk6a-mammoth-mount-rt','CM01-combat-mount-accepted','CM02-approach-arrival')
-        'CM01-mammoth-tb'=@('chunk6a-mammoth-mount-tb','CM01-combat-mount-accepted','CM02-approach-arrival','CM01-combat-mount-preparing-refused')
+        'CM01-mammoth-tb'=@('chunk6a-mammoth-mount-tb','CM01-combat-mount-accepted','CM02-approach-arrival','CM01-combat-mount-preparing-admitted')
         'CM04-command-replacement'=@('chunk6a-command-replacement','CM04-command-replacement')
         'CM06-repeated-request'=@('chunk6a-repeated-mount-request','CM06-repeated-request')
         'CM02-ownership-change'=@('chunk6a-ownership-change','CM02-ownership-change')
@@ -289,7 +289,7 @@ function Assert-KmcIsolatedScenarioRows([string]$Id,$Binding) {
         'CM04-rider-death'=@('chunk6a-rider-death-approach','CM04-rider-death')
         'CM04-mount-death'=@('chunk6a-mount-death-approach','CM04-mount-death')
         'CM04-turn-end'=@('chunk6a-turn-end-approach-tb','CM04-turn-end')
-        'CM04-mode-exit'=@('chunk6a-mode-exit-tb','CM04-mode-exit','CM01-combat-mount-accepted','CM01-combat-mount-preparing-refused')
+        'CM04-mode-exit'=@('chunk6a-mode-exit-tb','CM04-mode-exit','CM01-combat-mount-accepted','CM01-combat-mount-preparing-admitted')
     }
     if(-not $requirements.ContainsKey($Id)){return $false}
     $required=$requirements[$Id]

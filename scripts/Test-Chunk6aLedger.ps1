@@ -1,3 +1,9 @@
+# HISTORICAL CONTRACT. This gate validates the released Chunk 6A ledger (docs/chunk6a-ledger.json,
+# preview.211) against the 6A reader revision pinned by Chunk6aHarnessIdentity.ps1. Its mandatory
+# list keeps CM01-combat-mount-preparing-refused because that is what the released ledger proved under
+# its own inputs. It is not a current development prerequisite: since the owner's 2026-10-18 decision
+# the current 6A probe emits CM01-combat-mount-preparing-admitted (and CM01-combat-mount-foreign-turn-refused
+# when the native order provides a foreign turn first). See docs/CHUNK7-KNOWN-PRODUCT-DEBT.md.
 [CmdletBinding()]
 param(
     [string]$LedgerPath,

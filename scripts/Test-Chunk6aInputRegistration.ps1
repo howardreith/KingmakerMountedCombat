@@ -16,7 +16,7 @@ foreach($name in @('CM04-stop-during-approach','CM04-combat-end','CM04-disable-u
 . (Join-Path $PSScriptRoot 'runtime/Chunk6aSupportingEvidence.ps1')
 foreach($case in @(
     @('CM01-mammoth-rt','chunk6a-mammoth-mount-rt',@('CM01-combat-mount-accepted','CM02-approach-arrival')),
-    @('CM01-mammoth-tb','chunk6a-mammoth-mount-tb',@('CM01-combat-mount-accepted','CM02-approach-arrival','CM01-combat-mount-preparing-refused')),
+    @('CM01-mammoth-tb','chunk6a-mammoth-mount-tb',@('CM01-combat-mount-accepted','CM02-approach-arrival','CM01-combat-mount-preparing-admitted')),
     @('CM04-stop-during-approach','chunk6a-stop-approach',@('CM04-stop-during-approach')),
     @('CM04-combat-end','chunk6a-combat-end-approach',@('CM04-combat-end')),
     @('CM04-disable-unload','chunk6a-disable-approach',@('CM04-disable-unload')),
@@ -48,7 +48,7 @@ foreach($case in @(
     @('CM04-rider-death','chunk6a-rider-death-approach',@('CM04-rider-death')),
     @('CM04-mount-death','chunk6a-mount-death-approach',@('CM04-mount-death')),
     @('CM04-turn-end','chunk6a-turn-end-approach-tb',@('CM04-turn-end')),
-    @('CM04-mode-exit','chunk6a-mode-exit-tb',@('CM04-mode-exit','CM01-combat-mount-accepted','CM01-combat-mount-preparing-refused')))) {
+    @('CM04-mode-exit','chunk6a-mode-exit-tb',@('CM04-mode-exit','CM01-combat-mount-accepted','CM01-combat-mount-preparing-admitted')))) {
     $binding=[pscustomobject]@{scenario=$case[1];rows=@($case[2])}
     if(-not (Assert-KmcIsolatedScenarioRows $case[0] $binding)){throw 'Missing isolated qualification mapping'};$checks++
     foreach($mutation in @('scenario','rows')) {

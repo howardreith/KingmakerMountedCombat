@@ -665,7 +665,7 @@ Assert-Kmc ($adoptBody.Success -and
 Assert-Kmc ($chunk6aScenarioText -match 'private void Chunk6aDisposeAdoptionFault\(\)' -and
     ([Regex]::Matches($chunk6aScenarioText, 'ArmMidEncounterAdoptionFault\(').Count -eq 1) -and
     $chunk6aScenarioText -match 'CM02-adoption-plan-invalidated' -and
-    $chunk6aScenarioText -match 'CM01-combat-mount-preparing-refused' -and
+    $chunk6aScenarioText -match 'CM01-combat-mount-preparing-admitted' -and
     (Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\Phase3dHorseScenarioTranche.cs')) -match 'Chunk6aDisposeAdoptionFault\(\); \}') `
     'the Chunk 6A scenario arms the adoption fault exactly once and disarms it on every cleanup path'
 
