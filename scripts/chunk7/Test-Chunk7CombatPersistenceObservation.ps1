@@ -23,7 +23,9 @@ function SourceCheckpoint($Archive,$Request){
     if($zero){for($i=0;$i-lt2;$i++){$attacks+=[pscustomobject]@{label='checkpoint-native-dismount-'+$i;nativeCastDelta=1;nativeRefusalDelta=0;clicked=$true}}}
     $source=[pscustomobject]@{inputs=$attacks}
     if($legacy){Set-Field $source 'pendingSurvivor' ([pscustomobject]@{stimulus='UnitEntityData.LeaveCombat then native RemoveUnit if still registered';participation=(Copy-Test $Archive.Participations[0].State)})}
-    [pscustomobject]@{ready=$true;provenance='source-native-setup';actorIds=$ids;targetId='99999999-9999-4999-8999-999999999999';targetGroupId='KMC.RuntimeHostile.'+$Request.runId+':two-pair-target';errors=@();checkpoint=[pscustomobject]@{label='native-checkpoint-ready'};source=$source;trace=$t}
+    # Completed A's native End, one second of later-turn game time before the save.
+    $calls=@(if(-not$rt-and-not$zero-and-not$legacy){[pscustomobject]@{kind='end';complete=$true;before=[pscustomobject]@{actorId=$first};after=[pscustomobject]@{gameTicks=$Archive.GameTimeTicks-10000000L;resources=[pscustomobject]@{standard=6.0}}}})
+    [pscustomobject]@{ready=$true;provenance='source-native-setup';actorIds=$ids;targetId='99999999-9999-4999-8999-999999999999';targetGroupId='KMC.RuntimeHostile.'+$Request.runId+':two-pair-target';errors=@();checkpoint=[pscustomobject]@{label='native-checkpoint-ready'};source=$source;trace=$t;nativeCompletion=[pscustomobject]@{errors=@();calls=$calls}}
 }
 function Continuation($Archive,$Request,[bool]$Cold,$Source){
     $kind=switch($Request.persistenceCase){'multi-rt-debt-manual'{'RealTimeDebts'};'multi-tb-debt-manual'{'TurnBasedDebts'};'zero-mounted-tb-retained-manual'{'ZeroMountedRetained'};'legacy-mounted-pending-tb-manual'{'MountedPendingOnly'}}
@@ -77,7 +79,7 @@ function CompleteCombatArtifact($Fixture,[bool]$Cold){
 }
 $complete=@();foreach($fixture in @($tb,$rt,$zero,$legacy)){foreach($isCold in @($false,$true)){$spec=CompleteCombatArtifact $fixture $isCold;$complete+=@($spec);Check ($spec.request.persistenceCase+' complete '+$spec.request.scenario) {Assert-KmcChunk7PersistenceObservation $spec.request $spec.artifact 'PASS'}}}
 $sourceTb=$complete[0];$coldTb=$complete[1];$sourceRt=$complete[2];$coldZero=$complete[5];$coldLegacy=$complete[7]
-foreach($mutation in @('missing-cost','duplicate-cost','wrong-cost-actor','wrong-action','no-actual-spend','neighbour-debt','outcome-other-owner','observer-incomplete','wrong-native-hook','target-substitution','missing-mount','snapshot-twice','worker-incomplete','source-format','live-owner-generation')){
+foreach($mutation in @('missing-cost','duplicate-cost','wrong-cost-actor','wrong-action','no-actual-spend','neighbour-debt','outcome-other-owner','observer-incomplete','wrong-native-hook','target-substitution','missing-mount','snapshot-twice','worker-incomplete','source-format','live-owner-generation','completed-A-missing-end','completed-A-partial-end','completed-A-overdecayed','completed-A-refunded')){
     Reject ('source raw proof '+$mutation){$spec=Copy-Test $sourceTb;$v=$spec.artifact.observations;$checkpoint=$v.combatCheckpoint;switch($mutation){
       'missing-cost' {$checkpoint.trace.events=@($checkpoint.trace.events|Where-Object boundary -CNE 'cost-after')}
       'duplicate-cost' {$copy=Copy-Test $checkpoint.trace.events[-1];$copy.sequence=$checkpoint.trace.events.Count+1;$checkpoint.trace.events+=@($copy)}
@@ -94,6 +96,10 @@ foreach($mutation in @('missing-cost','duplicate-cost','wrong-cost-actor','wrong
       'worker-incomplete' {$v.nativeWrite.operation='Saving'}
       'source-format' {$v.nativeWrite.sourceSchema=2}
       'live-owner-generation' {$v.snapshots[-1].owners[0].generation=99}
+      'completed-A-missing-end' {$checkpoint.nativeCompletion.calls=@()}
+      'completed-A-partial-end' {$checkpoint.nativeCompletion.calls[0].after.resources.standard=3.0}
+      'completed-A-overdecayed' {foreach($doc in @($v.nativeWrite.archive,$v.nativeWrite.nativeMetadata)){foreach($row in @($doc.Combat.Actors|Where-Object{$_.Native.Id-ceq$first})+@($doc.Pairs|Where-Object{$_.Rider.Id-ceq$first}|ForEach-Object{[pscustomobject]@{Native=$_.Rider}})){$row.Native.Standard=2.0}}}
+      'completed-A-refunded' {foreach($row in @($v.nativeWrite.archive.Combat.Actors|Where-Object{$_.Native.Id-ceq$first})+@($v.nativeWrite.archive.Pairs|Where-Object{$_.Rider.Id-ceq$first}|ForEach-Object{[pscustomobject]@{Native=$_.Rider}})){$row.Native.Standard=0.0}}
     };Assert-KmcChunk7PersistenceObservation $spec.request $spec.artifact 'PASS'}
 }
 foreach($mutation in @('hidden-prepare','whole-world-omitted','active-before-presentation','presentation-unlinked','missing-native-actor','changed-allocation','changed-owner-role','extra-restore','wrong-debt','replayed-native-cast','missing-postload','fake-movement','wrong-command','movement-reprepare','lost-native-end','wrong-source','cleanup-target','cleanup-custody')){

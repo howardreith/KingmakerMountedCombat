@@ -149,10 +149,18 @@ namespace KingmakerMountedCombat.Diagnostics
                 Require(archive.Participations.All(p => p.MountedPairId == null && p.State.Activation?.Split == true &&
                     p.State.SplitReleaseRound == archive.Combat.Round), "Zero-mounted archive dropped original split ownership.");
             else if (tb)
-                Require(archive.Combat.Current?.ActorId == actors[2].UniqueId && debt(actors[0]).Standard >= 5.9f &&
+            {
+                // Completed A keeps its native end expenditure, decayed natively by
+                // the game time that later turns consumed before the save.
+                var first = debt(actors[0]);
+                Require(archive.Combat.Current?.ActorId == actors[2].UniqueId && first.Standard > .1f && first.Standard <= 6.001f &&
                     debt(actors[2]).Standard > .1f && debt(actors[3]).Standard == 0f &&
                     archive.Participations.Count(p => p.State.BoundaryIsCurrent) == 1,
-                    "TB archive did not retain completed A and current B's distinct native expenditure.");
+                    "TB archive did not retain completed A and current B's distinct native expenditure: current=" + archive.Combat.Current?.ActorId +
+                    " A=" + first.Standard + " B=" + debt(actors[2]).Standard + " mountB=" + debt(actors[3]).Standard +
+                    " currentBoundaries=" + archive.Participations.Count(p => p.State.BoundaryIsCurrent) + ".");
+                if (!cold) RequireCompletedDecay(first, archive);
+            }
             else
                 Require(debt(actors[0]).Standard > .1f && debt(actors[3]).Standard > .1f && debt(actors[2]).Standard == 0f &&
                     archive.Combat.Current == null && archive.Combat.Roster.Length == 0 && archive.Participations.All(p => p.State.Activation == null),
@@ -169,6 +177,18 @@ namespace KingmakerMountedCombat.Diagnostics
                 }
             evidence["archiveValidated"] = true; evidence["archiveRound"] = archive.Combat.Round;
             evidence["archiveDebt"] = new JArray(actors.Select(a => JObject.FromObject(debt(a), MountedSaveCodec.CreateSerializer())));
+        }
+        private void RequireCompletedDecay(SavedNativeActor first, MountedArchiveData archive)
+        {
+            var ends = ((JArray)completion.Capture()["calls"]).Where(c => (string)c["kind"] == "end" &&
+                (string)c["before"]?["actorId"] == actors[0].UniqueId && (bool?)c["complete"] == true).ToArray();
+            Require(ends.Length == 1, "Completed A has no single observed native End.");
+            var end = ends[0]["after"]; var endStandard = (double)end["resources"]["standard"];
+            var elapsed = (archive.GameTimeTicks - (long)end["gameTicks"]) / (double)TimeSpan.TicksPerSecond;
+            Require(endStandard >= 5.9 && elapsed >= 0 && elapsed <= 30 && first.Standard <= endStandard + .001 &&
+                first.Standard + elapsed * 1.1 + .001 >= endStandard,
+                "Completed A's archived expenditure is not its native end value decayed by elapsed native time: end=" + endStandard +
+                " archived=" + first.Standard + " elapsed=" + elapsed + ".");
         }
         internal void BeginContinuation(MountedArchiveData archive)
         {
