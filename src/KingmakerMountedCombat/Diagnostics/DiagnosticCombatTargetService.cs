@@ -553,8 +553,12 @@ namespace KingmakerMountedCombat.Diagnostics
         public bool RefreshBidirectionalCombatMemoryLease()
         {
             ThrowIfDisposed();
-            return combatMemoryQueued && !combatMemoryRemoved &&
-                TryRefreshBidirectionalCombatMemoryLease();
+            if (!combatMemoryQueued || combatMemoryRemoved)
+            {
+                LastCombatMemoryLeaseFailure = !combatMemoryQueued ? "combat memory was never queued" : "combat memory was removed";
+                return false;
+            }
+            return TryRefreshBidirectionalCombatMemoryLease();
         }
 
         public void ObserveTargetLifeState()
