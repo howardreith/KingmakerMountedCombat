@@ -150,7 +150,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 nativeScope.RequireCurrent();
                 if (checkpointReady) return;
                 Require(clock.Elapsed.TotalSeconds <= 420 && clock.Elapsed.TotalSeconds - stepStarted <= 60,
-                    "Bounded combat scenario deadline at step " + step + ", action " + actionStage + ".");
+                    "Bounded combat scenario deadline at step " + step + ", action " + actionStage + "." + PrincipalBlockers());
                 if (Game.Instance.IsPaused) Game.Instance.IsPaused = false;
                 if (targetService != null && targetService.State == DiagnosticCombatTargetState.Active)
                     Require(targetService.RefreshBidirectionalCombatMemoryLease(), "Exact diagnostic combat memory or AI lease changed: " + (targetService.LastCombatMemoryLeaseFailure ?? "memory not mutual") + ".");
@@ -373,6 +373,24 @@ namespace KingmakerMountedCombat.Diagnostics
                 pair.Relationship.Rider.Commands.Empty && pair.Relationship.Mount.Commands.Empty &&
                 !pair.Combat.HasActiveCommand && !pair.Combat.HasActiveGroundMovement && !pair.Relationship.Rider.AreHandsBusyWithAnimation &&
                 !pair.Relationship.Mount.AreHandsBusyWithAnimation;
+        }
+        // Names each ReadyPrincipal term for the pair whose rider owns the current native turn.
+        private string PrincipalBlockers()
+        {
+            var turn = Game.Instance.TurnBasedCombatController?.CurrentTurn;
+            var pair = turn?.Unit == null ? null : turn.Unit == a?.Relationship.Rider ? a : turn.Unit == b?.Relationship.Rider ? b : null;
+            if (pair == null) return " Current turn: " + (turn?.Unit?.UniqueId ?? "none") + ", not a pair rider.";
+            var rider = pair.Relationship.Rider; var mount = pair.Relationship.Mount;
+            var blockers = new List<string>();
+            if (!turn.IsActing) blockers.Add("turn not acting (" + turn.Status + ")");
+            if (pair.Combat.PairedPartnerContext == null) blockers.Add("no paired partner context");
+            if (!rider.Commands.Empty) blockers.Add("rider commands: " + string.Join(",", rider.Commands.Raw.Where(c => c != null).Select(c => c.GetType().Name)));
+            if (!mount.Commands.Empty) blockers.Add("mount commands: " + string.Join(",", mount.Commands.Raw.Where(c => c != null).Select(c => c.GetType().Name)));
+            if (pair.Combat.HasActiveCommand) blockers.Add("active pair command");
+            if (pair.Combat.HasActiveGroundMovement) blockers.Add("active ground movement");
+            if (rider.AreHandsBusyWithAnimation) blockers.Add("rider hands busy");
+            if (mount.AreHandsBusyWithAnimation) blockers.Add("mount hands busy");
+            return " ReadyPrincipal(" + rider.UniqueId + ") blockers: " + (blockers.Count == 0 ? "none" : string.Join("; ", blockers)) + ".";
         }
         private void ObserveTurn()
         {
