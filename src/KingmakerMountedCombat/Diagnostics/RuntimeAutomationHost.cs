@@ -65,6 +65,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private double elapsedSeconds;
         private bool completed;
         private bool disposed;
+        private Exception deferredNativeRefreshError;
         private int saveRequestCount;
         private int loadRequestCount;
         private IDisposable saveAuthorizationLease;
@@ -408,8 +409,19 @@ namespace KingmakerMountedCombat.Diagnostics
             var host = active;
             if (host?.worldPersistenceEngine != null && !host.completed)
             {
-                if (host.worldPersistenceEngine.ReapplyModeAfterNativeRefresh())
-                    host.logger.Info("Declared Chunk 7 persistence mode reapplied after native settings refresh.");
+                // This runs inside the native settings-refresh postfix. An exception must not
+                // escape into the native coroutine: after a canceled load it repeated on every
+                // main-menu refresh and no result was ever committed (observed natively in
+                // 20261018-c7b-world25-ownerseed-b3s2-load). The host fails the run instead.
+                try
+                {
+                    if (host.worldPersistenceEngine.ReapplyModeAfterNativeRefresh())
+                        host.logger.Info("Declared Chunk 7 persistence mode reapplied after native settings refresh.");
+                }
+                catch (Exception exception)
+                {
+                    if (host.deferredNativeRefreshError == null) host.deferredNativeRefreshError = exception;
+                }
                 return;
             }
             if (host?.persistenceMode == null || host.completed ||
@@ -594,6 +606,9 @@ namespace KingmakerMountedCombat.Diagnostics
             elapsedSeconds = runtimeClock.Elapsed.TotalSeconds;
             try
             {
+                if (deferredNativeRefreshError != null)
+                    throw new InvalidOperationException("Declared persistence mode could not be reapplied after a native settings refresh: " +
+                        deferredNativeRefreshError.Message, deferredNativeRefreshError);
                 if (workingLoadCompletionPending) { DrainWorkingLoadCompletion(); return; }
                 if (chunk7Completion.Pending) { DrainChunk7Completion(); return; }
                 if (request.SchemaVersion == RuntimeRequest.SaveBackedSchemaVersion && !saveBackedFailureDrain.MayAdvanceScenario)
