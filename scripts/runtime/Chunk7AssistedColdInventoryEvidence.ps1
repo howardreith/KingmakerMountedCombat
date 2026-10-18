@@ -22,6 +22,45 @@ function Assert-KmcChunk7OwnerSeedEntry($Entry){
  foreach($key in @('masterPath','intakePath')){if($Entry.$key-isnot[string]-or$Entry.$key-cnotmatch'^fixtures/owner-supplied/[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$'){throw 'Owner seed registry path must be a lab-relative owner-supplied leaf.'}}
 }
 function Get-KmcChunk7AssistedColdInventoryRows {@('chunk7-assisted-cold-inventory','C7-assisted-cold-source','C7-assisted-cold-native-load','C7-assisted-cold-readonly','C7-assisted-cold-cleanup','C7-assisted-cold-runtime','C7-assisted-cold-interrupted')}
+function Assert-KmcChunk7StockAreaRouteObservation($Row,[string]$LoadedArea){
+ Assert-KmcAssistedObjectValue $Row @('contract','loadedAreaGuid','loadedAreaName','enumeration','maximumTransitions','observedTransitions','complete','interactionRequests','travelRequests','saveRequests','candidates','transitions') 'stock area route observation'
+ Assert-KmcBootstrapInventoryString $Row.contract 'owner-seed-stock-area-route-observation-v1'
+ Assert-KmcBootstrapInventoryString $LoadedArea 'b10e86516b6437d45a629931c30936fe'
+ Assert-KmcBootstrapInventoryString $Row.loadedAreaGuid $LoadedArea
+ Assert-KmcBootstrapInventoryString $Row.enumeration 'loaded active game objects; no inactive or unloaded scene claim'
+ Assert-KmcOrdinaryInteger $Row.maximumTransitions 64 64;Assert-KmcOrdinaryInteger $Row.observedTransitions 0 64
+ Assert-KmcChunk7Boolean $Row.complete $true
+ foreach($key in @('interactionRequests','travelRequests','saveRequests')){Assert-KmcOrdinaryInteger $Row.$key 0 0}
+ function RouteText($Value,[bool]$Nullable=$false){
+  if($Nullable-and$null-eq$Value){return}
+  if($Value-isnot[string]-or[string]::IsNullOrWhiteSpace($Value)-or$Value.Length-gt256-or$Value-match'[\x00-\x1f\x7f]'){throw 'Stock route name must be bounded scalar text.'}
+ }
+ function RouteGuid($Value){if($null-ne$Value){Assert-KmcAssistedGuid32 $Value}}
+ RouteText $Row.loadedAreaName
+ Assert-KmcAssistedArray $Row.candidates 3 3 'stock entry candidates'
+ $expected=@('80c140c44a9dfd54ebecd0829d2dd1e8','0fbacd33cce6908409a8d38f92dec7c9','00becd5302e6d1d4a8ad93b6c612b927')
+ for($i=0;$i-lt3;$i++){
+  $c=$Row.candidates[$i];Assert-KmcAssistedObjectValue $c @('requestedGuid','resolved','entryGuid','entryName','areaGuid','areaName') 'stock entry candidate'
+  Assert-KmcBootstrapInventoryString $c.requestedGuid $expected[$i]
+  if($c.resolved-isnot[bool]){throw 'Stock entry resolution must be a scalar boolean.'}
+  if($c.resolved){Assert-KmcBootstrapInventoryString $c.entryGuid $expected[$i];RouteText $c.entryName;RouteGuid $c.areaGuid;RouteText $c.areaName $true}
+  else{foreach($key in @('entryGuid','entryName','areaGuid','areaName')){if($null-ne$c.$key){throw 'Unresolved stock entry retained fabricated metadata.'}}}
+ }
+ Assert-KmcAssistedArray $Row.transitions $Row.observedTransitions $Row.observedTransitions 'loaded stock transitions'
+ $seen=[Collections.Generic.HashSet[int]]::new()
+ foreach($t in $Row.transitions){
+  Assert-KmcAssistedObjectValue $t @('instanceId','name','enabled','activeAndEnabled','activeInHierarchy','position','blueprintGuid','entryGuid','destinationAreaGuid','destinationAreaName','autoSaveMode') 'loaded stock transition'
+  Assert-KmcOrdinaryInteger $t.instanceId ([int]::MinValue) ([int]::MaxValue)
+  if($t.instanceId-eq0-or-not$seen.Add([int]$t.instanceId)){throw 'Stock transition identity is zero or duplicated.'}
+  RouteText $t.name;RouteText $t.autoSaveMode
+  foreach($key in @('enabled','activeAndEnabled','activeInHierarchy')){if($t.$key-isnot[bool]){throw 'Stock transition activity must be a scalar boolean.'}}
+  if($t.activeAndEnabled-ne($t.enabled-and$t.activeInHierarchy)){throw 'Stock transition activity flags disagree.'}
+  Assert-KmcAssistedObjectValue $t.position @('x','y','z') 'stock transition position'
+  foreach($axis in @('x','y','z')){if($t.position.$axis-isnot[ValueType]-or$t.position.$axis-is[bool]-or[double]::IsNaN([double]$t.position.$axis)-or[double]::IsInfinity([double]$t.position.$axis)){throw 'Stock transition position must be finite native coordinates.'}}
+  foreach($key in @('blueprintGuid','entryGuid','destinationAreaGuid')){RouteGuid $t.$key};RouteText $t.destinationAreaName $true
+  if($null-eq$t.entryGuid-and($null-ne$t.destinationAreaGuid-or$null-ne$t.destinationAreaName)){throw 'Stock transition destination has no authored entry.'}
+ }
+}
 function Assert-KmcChunk7AssistedColdInventorySelection($Request){
  if($Request-is[Collections.IDictionary]){$Request=[pscustomobject]$Request}
  if($null-eq$Request-or$Request.scenario-isnot[string]){throw 'Assisted cold request scenario must be a scalar string.'}
@@ -397,6 +436,13 @@ function Assert-KmcChunk7OwnerSeedColdEvidence($Request,$Artifact,$SeedRecord){
  foreach($key in @('internalName','fileName','gameId','gameName','area','sha256')){Assert-KmcBootstrapInventoryString $entry.$key $Request.persistenceLoad.$key}
  Assert-KmcOrdinaryInteger $Request.persistenceLoad.length $entry.length $entry.length
  $keys=@('processId','selection','seedSource','beforeLoad','resourceWrites','xpWrites','moneyWrites','profileAdmissionChanged','ordinaryAcquisitionProven','sixPairFixtureQualified','mountRequests','choiceRequests','ordinaryProgressionProven','loadedWorld','loader','nativeProfileInventory','fixtureReadiness','ownerSeedQualification','kmcMetadata','settledWorld','settledLoader','nativeLoad','noPreparation','cleanup','ownerSeedPostQualification')
+ # The pre-discovery evidence shape remains valid on its original inputs. Route
+ # qualification additionally requires this closed observation; unknown extra
+ # properties are still refused by the exact outer-shape check below.
+ if($null-ne$o.PSObject.Properties['stockAreaRouteObservation']){
+  $keys+=@('stockAreaRouteObservation')
+  Assert-KmcChunk7StockAreaRouteObservation $o.stockAreaRouteObservation $Request.persistenceLoad.area
+ }
  Assert-KmcAssistedObjectValue $o $keys 'owner seed successful native observations'
  Assert-KmcAssistedSame $o.selection $s 'owner seed request selection'
  Assert-KmcOrdinaryInteger $o.processId 1 ([int]::MaxValue)

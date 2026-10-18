@@ -186,7 +186,7 @@ function Assert-KmcChunk7PersistenceObservation($Request,$Artifact,[string]$Stat
     Assert-KmcChunk7PersistenceArchive $archive $Request
     if($owned){Assert-KmcChunk7OwnedArchiveProfiles $Request $o $archive;if(-not$cold){Assert-KmcChunk7OwnedOutputEvidence $Request $o}}
     $seedCheckpointSave=$owned-and-not$cold-and(Test-KmcChunk7OwnedPairsSeedCheckpointSave $Request)
-    if(-not$seedCheckpointSave-and($null-ne$o.PSObject.Properties['mountedStart']-or$null-ne$o.PSObject.Properties['ownerSeedCheckpointSource'])){throw 'Only the owner-seed checkpoint producer may carry a restored mounted start.'}
+    if(-not$seedCheckpointSave-and($null-ne$o.PSObject.Properties['mountedStart']-or$null-ne$o.PSObject.Properties['ownerSeedCheckpointSource']-or$null-ne$o.PSObject.Properties['ownerSeedCheckpointPreparation'])){throw 'Only the owner-seed checkpoint producer may carry a restored mounted start or native preparation.'}
     # Owner-seed-derived cold load: the restored world compared with its pinned producer runtime.
     $derivedCold=$owned-and$cold-and(Test-KmcChunk7OwnedPairsSeedDerivedLoad $Request)
     if($derivedCold){Assert-KmcChunk7OwnerSeedDerivedColdObservation $Request $o $archive}elseif($null-ne$o.PSObject.Properties['ownerSeedDerivedCold']){throw 'Only the owner-seed-derived consumer may carry its cold proof.'}

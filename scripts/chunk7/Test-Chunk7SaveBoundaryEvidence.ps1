@@ -226,3 +226,44 @@ foreach($owned in @($false,$true)){
  foreach($pair in @(@($true,$false),@($false,$true),@($false,$false))){Reject ('native prepared filename/flags owned='+$owned+' '+$pair[0]+'/'+$pair[1]){$bad=Copy-Test $f;$d=$bad.artifact.observations.saveBoundary.workerReplacement.prepared;$d.hasFileOnDisk=$pair[0];$d.isActuallySaved=$pair[1];Assert-KmcChunk7PersistenceObservation $bad.request $bad.artifact 'PASS'}}
 }
 Write-Host ('SAVE BOUNDARY FINAL NATIVE SHAPE READER PASS='+$passed+' FAIL=0; JSON-only native observations, no native/archive calls.')
+
+# Owner-seed connection: reuse the existing generated boundary observations and
+# the established restored-start template, preserving the measured worker/shell
+# invariants. This remains generated JSON, never a native recording.
+$fixtures=([IO.File]::ReadAllText($ownedFixturePath)|ConvertFrom-Json).fixtures
+function Copy-Value($v){Copy-Test $v}
+$seedFixtureTokens=$null;$seedFixtureErrors=$null;$seedFixtureAst=[Management.Automation.Language.Parser]::ParseFile((Join-Path $PSScriptRoot 'Test-Chunk7OwnedPairsEvidence.ps1'),[ref]$seedFixtureTokens,[ref]$seedFixtureErrors)
+foreach($name in @('New-KmcOwnerSeedCheckpointSelection','Set-KmcOwnerSeedDerivedLabels','New-KmcOwnerSeedCheckpointSaveFixture')){$definition=$seedFixtureAst.Find({param($n)$n-is[Management.Automation.Language.FunctionDefinitionAst]-and$n.Name-ceq$name},$true);if($null-eq$definition){throw 'Missing established owner-seed fixture helper.'};. ([scriptblock]::Create($definition.Extent.Text))}
+. (Join-Path $chunk7TestSource 'OwnerSeedCheckpointPreparationFixtures.ps1')
+function New-OwnerSeedSaveBoundaryFixture([bool]$Worker){
+ $f=New-OwnedSaveBoundaryFixture $Worker;$r=$f.request;$o=$f.artifact.observations;$oldInput=$r.persistenceLoad.fileName
+ $seed=New-KmcOwnerSeedCheckpointSaveFixture;$r.ownedPairs=Copy-Test $seed.request.ownedPairs;$r.ownedPairs.sourceArchiveSha256=$r.persistenceLoad.sha256;$r.ownedPairs.expectedNativeWriteCount=if($Worker){2}else{1}
+ $r.persistenceLoad.internalName='KMC_C7_SEED_WORLD';$r.persistenceLoad.fileName='Manual_303_KMC_C7_SEED_WORLD.zks'
+ $raw=$o|ConvertTo-Json -Depth 100;$raw=$raw.Replace('Manual_43_KMC_C7_WORLD.zks','Manual_304_KMC_C7_SEED_CHECKPOINT.zks').Replace('Manual_44_KMC_C7_WORLD.zks','Manual_305_KMC_C7_SEED_CHECKPOINT.zks').Replace($oldInput,$r.persistenceLoad.fileName).Replace('"KMC_C7_WORLD"','"KMC_C7_SEED_CHECKPOINT"');$o=$raw|ConvertFrom-Json;$f.artifact.observations=$o
+ Set-KmcOwnerSeedDerivedLabels $o $r.ownedPairs;$o.PSObject.Properties.Remove('acquisition')
+ foreach($row in @($o.ownedOutputAdmission.nativeInventory)+@($o.ownedOutputCompletion.nativeInventory)){if($row.fileName-ceq$r.persistenceLoad.fileName){$row.nativeName=$r.persistenceLoad.internalName}}
+ $o.ownedOutputAdmission.number=304;foreach($auth in @($o.ownedOutputAdmission.authority,$o.ownedOutputCompletion.authority)){$auth.number=304}
+ $o|Add-Member mountedStart (Copy-Test $seed.artifact.observations.mountedStart) -Force
+ $o|Add-Member ownerSeedCheckpointSource (Copy-Test $seed.artifact.observations.ownerSeedCheckpointSource) -Force;$o.ownerSeedCheckpointSource.checkpoint=$r.persistenceCase;$o.ownerSeedCheckpointSource.manualSha256=$r.ownedPairs.sourceArchiveSha256
+ if($Worker){
+  $o.inputs=@();$o.saveBoundary.workerReplacement.number=305
+  $before=Copy-Test $o.snapshots[0];$before.label='before-native-save';$before.snapshots=0;$before.nativeCastRequests=0;$o.snapshots=@($before)+@($o.snapshots)
+ }else{
+  $o.inputs=@($o.inputs[-1]);Set-KmcOwnerSeedNativePreparationFixture $f $true
+ }
+ $f
+}
+foreach($worker in @($false,$true)){
+ $f=New-OwnerSeedSaveBoundaryFixture $worker
+ Check ('owner-seed actual boundary reader '+$worker){Assert-KmcChunk7PersistenceObservation $f.request $f.artifact 'PASS'}
+ Check ('owner-seed boundary exact landed inventory '+$worker){Assert-KmcChunk7OwnedFinalSaveRoot $f.request @($f.request.persistenceLoad.fileName,'Manual_304_KMC_C7_SEED_CHECKPOINT.zks') $f.artifact.observations}
+ foreach($mutation in @('extra-staging','missing-output','missing-input','unexpected-file','duplicate-input')){
+  Reject ('owner-seed final inventory '+$worker+' '+$mutation){$leaves=@($f.request.persistenceLoad.fileName,'Manual_304_KMC_C7_SEED_CHECKPOINT.zks');switch($mutation){'extra-staging'{$leaves+='Manual_305_KMC_C7_SEED_CHECKPOINT.zks'};'missing-output'{$leaves=@($leaves[0])};'missing-input'{$leaves=@($leaves[1])};'unexpected-file'{$leaves+='stray.tmp'};'duplicate-input'{$leaves=@($leaves[0],$leaves[0])}};Assert-KmcChunk7OwnedFinalSaveRoot $f.request $leaves $f.artifact.observations}
+ }
+ foreach($mutation in @('wrong-quota','cold-source','wrong-output-name','old-input-name')){
+  Reject ('owner-seed boundary source guards '+$worker+' '+$mutation){$bad=Copy-Test $f;switch($mutation){'wrong-quota'{$bad.request.ownedPairs.expectedNativeWriteCount=3};'cold-source'{$bad.request.ownedPairs.case='owner-seed-checkpoint-load';$bad.request.ownedPairs.expectedNativeWriteCount=0};'wrong-output-name'{$bad.artifact.observations.nativeWrite.nativeName='KMC_C7_WORLD'};'old-input-name'{$bad.request.persistenceLoad.internalName='KMC_C7_ACQUIRED_FIELD'}};Assert-KmcChunk7PersistenceObservation $bad.request $bad.artifact 'PASS'}
+ }
+ if($worker){foreach($mutation in @('replacement-callback','third-request','wrong-staging-name')){Reject ('owner-seed worker exact replacement '+$mutation){$bad=Copy-Test $f;switch($mutation){'replacement-callback'{$bad.artifact.observations.ownedOutputCompletion.replacement.callbackCount=1};'third-request'{$bad.artifact.observations.ownedOutputCompletion.authority.nativeWrites=3};'wrong-staging-name'{$bad.artifact.observations.saveBoundary.workerReplacement.stagingLeaf='Manual_305_KMC_C7_WORLD.zks'}};Assert-KmcChunk7PersistenceObservation $bad.request $bad.artifact 'PASS'}}}
+ else{foreach($mutation in @('retained-B','omitted-preparation','wrong-remounted-owner','wrong-remounted-generation','remounted-role-array','slot-kind-string','extra-B-control','command-still-pending')){Reject ('owner-seed pending preparation '+$mutation){$bad=Copy-Test $f;$p=$bad.artifact.observations.ownerSeedCheckpointPreparation;switch($mutation){'retained-B'{$p.after.secondMountOwnerAbsent=$false};'omitted-preparation'{$bad.artifact.observations.PSObject.Properties.Remove('ownerSeedCheckpointPreparation')};'wrong-remounted-owner'{$p.remountedSecondOwner.ownerId=$p.before.owners[1].ownerId};'wrong-remounted-generation'{$p.remountedSecondOwner.generation++};'remounted-role-array'{$p.remountedSecondOwner.riderId=@($p.remountedSecondOwner.riderId)};'slot-kind-string'{$p.slotsAfter[0].Kind=[string]$p.slotsAfter[0].Kind};'extra-B-control'{$p.slotsAfter[0].ActorId=$bad.request.ownedPairs.riderBId};'command-still-pending'{$p.after.secondPairCommandsRetained=$true}};Assert-KmcChunk7PersistenceObservation $bad.request $bad.artifact 'PASS'}}}
+}
+Write-Host ('OWNER-SEED SAVE BOUNDARY CONNECTION PASS='+$passed+' FAIL=0; generated JSON only; final replacement inventory has two archives after two native requests.')

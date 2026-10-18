@@ -13,6 +13,15 @@ earlier mounted attack). Both transactions restored Mods/saves/profile exactly
 and released the lock. Reader work reuses the frozen DLL/package; malformed
 scalar and conflicting actor/owner review failures are preserved and repaired
 before another independent review/native attempt. No assembly contract changed.
+
+Final reader review PASS04 and 126/0 focused checks were committed/guarded-pushed
+as 2b3d6702. Fresh zero producer b12s4 PASS (126.9279735 s) and its separate-process
+cold load b12s5 PASS (119.7310995 s) reuse the unchanged preview.41 package.
+Zero pairs/two retained owners, exact debt, native continuation and each Horse's
+independent native turn at N+1 accepted. All transaction phases restored, profile bytes exact,
+lock absent. Original b12s2 remains FAIL and b12s3 never launched. Owner-seed worker,
+pending-Mount barrier and schema2 survivor source connections are next; no new
+native result is inferred from source compilation.
 Exact evidence, commands, hashes and next work: [CURRENT](CURRENT.md),
 [resume](AUTONOMOUS-RESUME.md), [evidence](docs/CHUNK7-OWNER-SEED-EVIDENCE.md).
 

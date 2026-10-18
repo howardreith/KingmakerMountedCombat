@@ -3,8 +3,9 @@
 IN PROGRESS. The completed-boundary product defect is natively closed on
 preview.41 by b12s1. Zero producer b12s2 stays FAIL because its external reader
 treated a zero-mounted save as already detached during the preceding attack.
-Do not cold-load that failed producer. Review the corrected phase/ownership
-reader, then run a fresh producer and its dependent separate-process consumer.
+That failed producer was not reused. Corrected reader review PASS and fresh
+b12s4 producer/b12s5 separate-process cold load PASS close the zero checkpoint.
+All exposed surfaces restored exactly; batch12 is settled.
 
 Pending survivor, save barrier, worker, area, removal and schema-1/2 cases are
 not blocked by an owner-save request; their exact owner-seed connections and

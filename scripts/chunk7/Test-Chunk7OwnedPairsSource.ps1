@@ -264,7 +264,7 @@ Check 'owner-seed-derived RT refuses a pair actor as companion' {$c=New-SeedComb
 # producer plus ACCEPTED cold consumer) with one write and a Quick/Auto checkpoint; the consumer
 # reads the producer's own receipt set and builds its input from the producer's nativeWrite.
 function New-SeedCheckpointSaveSource([string]$Checkpoint='multi-exploration-quick'){
- $c=New-SeedCombatSource;$c.selection.case='owner-seed-checkpoint-save';$c.selection.expectedNativeWriteCount=1;$c.persistenceCase=$Checkpoint;$c
+ $c=New-SeedCombatSource;$c.selection.case='owner-seed-checkpoint-save';$c.selection.expectedNativeWriteCount=if($Checkpoint-ceq'multi-owned-worker-cancel-manual'){2}else{1};$c.persistenceCase=$Checkpoint;$c
 }
 function New-SeedCheckpointLoadSource([string]$Checkpoint='multi-exploration-quick'){
  $p=New-SeedCheckpointSaveSource $Checkpoint;$manual=Qualify-Combat $p;$script:readCounts=@{};$script:calls=[Collections.Generic.List[string]]::new()
@@ -276,7 +276,7 @@ function New-SeedCheckpointLoadSource([string]$Checkpoint='multi-exploration-qui
  $script:checkpointArtifact=[pscustomobject]@{status='PASS';observations=[pscustomobject]@{ownedOutputAdmission=[pscustomobject]@{number=$number;leaf=$leaf};nativeWrite=[pscustomobject]@{path='';nativeName=$name;nativeType=$type;sha256=('3'*64);length=4096;archive=[pscustomobject]@{AreaId=$manual.descriptor.area}}}}
  $parentSet=Add-Set $pr $script:checkpointArtifact 'chunk7-persistence-evidence.json' ('2'*64) $p.selection.sourceArchiveSha256 $Checkpoint
  $script:checkpointArtifact.observations.nativeWrite.path=Join-Path (Join-Path $parentSet.profile 'Saved Games') $leaf;$script:hashes[$script:checkpointArtifact.observations.nativeWrite.path]='3'*64
- $s=$p.selection|ConvertTo-Json -Depth 20|ConvertFrom-Json;$s.case='owner-seed-checkpoint-load';$s.expectedNativeWriteCount=0;$s.checkpointSourceRunId=$pr.runId;$s.checkpointSourceArtifactSha256='2'*64
+ $s=$p.selection|ConvertTo-Json -Depth 20|ConvertFrom-Json;$s.case='owner-seed-checkpoint-load';$s.expectedNativeWriteCount=if($Checkpoint-ceq'legacy-mounted-pending-tb-manual'){1}else{0};$s.checkpointSourceRunId=$pr.runId;$s.checkpointSourceArtifactSha256='2'*64
  [pscustomobject]@{selection=$s;fixture=$p.fixture;candidate=$p.candidate;producer=$p.producer;consumer=$p.consumer;checkpoint=$parentSet;persistenceCase=$Checkpoint}
 }
 foreach($checkpointCase in @('multi-exploration-quick','multi-exploration-auto')){
@@ -292,7 +292,7 @@ Check 'owner-seed checkpoint producer records a later current candidate without 
  if($v.candidates.sameCandidate-ne$false-or$v.candidates.current.commit-cne('f'*40)-or$v.candidates.producer.commit-ceq('f'*40)){throw 'Cross-candidate fact was not recorded honestly'}}
 # P2 combat checkpoints: the producer chain is unchanged; the consumer's input is the producer's genuine native
 # Manual under KMC_C7_SEED_CHECKPOINT, numbered after the derived Manual it loaded.
-foreach($checkpointCase in @('multi-rt-debt-manual','multi-tb-debt-manual','zero-mounted-tb-retained-manual')){
+foreach($checkpointCase in @('multi-rt-debt-manual','multi-tb-debt-manual','zero-mounted-tb-retained-manual','legacy-mounted-pending-tb-manual')){
  Check ('owner-seed combat checkpoint producer qualifies the Manual producer and the accepted consumer '+$checkpointCase) {$c=New-SeedCheckpointSaveSource $checkpointCase;$v=Qualify-Combat $c
   if($v.ownerSeedDerived-ne$true-or$v.descriptor.internalName-cne'KMC_C7_SEED_WORLD'-or$v.descriptor.sha256-cne('5'*64)-or$v.consumerRunId-cne'synthetic-owner-seed-cold'){throw 'Combat checkpoint producer lost the Manual producer/consumer chain'}}
  Check ('owner-seed combat checkpoint consumer qualifies exactly its producer Manual '+$checkpointCase) {$c=New-SeedCheckpointLoadSource $checkpointCase;$v=Qualify-Combat $c
@@ -313,7 +313,7 @@ $checkpointSaveFaults=[ordered]@{
  'wrong ancestry (consumer is another kind)'={param($c)$c.consumer.request.ownedPairs.case='persistence-load'}
  'Manual hash mismatch'={param($c)$c.selection.sourceArchiveSha256='e'*64}
  'a Manual written instead of a Quick'={param($c)$c.persistenceCase='multi-exploration-manual'}
- 'an unconnected checkpoint'={param($c)$c.persistenceCase='legacy-mounted-pending-tb-manual'}
+ 'an unconnected checkpoint'={param($c)$c.persistenceCase='multi-area-autosave'}
  'no checkpoint'={param($c)$c.persistenceCase=$null}
  'a zero write quota'={param($c)$c.selection.expectedNativeWriteCount=0}
  'a two-write quota'={param($c)$c.selection.expectedNativeWriteCount=2}
@@ -344,5 +344,11 @@ $checkpointLoadFaults=[ordered]@{
  'an area target'={param($c)$c|Add-Member -NotePropertyName areaTarget -NotePropertyValue $true}
 }
 foreach($fault in $checkpointLoadFaults.Keys){Check ('owner-seed checkpoint consumer refuses '+$fault) {$c=New-SeedCheckpointLoadSource;&$checkpointLoadFaults[$fault] $c;$area=if($null-ne$c.PSObject.Properties['areaTarget']){[pscustomobject]@{enterPoint=('e'*32);area=('f'*32);autoSaveMode='AfterEntry'}}else{$null};[void](Get-KmcChunk7OwnedPairsSource $c.selection $c.persistenceCase $c.fixture $c.candidate $area)} $true}
+foreach($checkpointCase in @('multi-nonselected-mount-unsettled-manual','multi-owned-worker-cancel-manual')){
+ Check ('owner-seed boundary producer qualifies its exact Manual lineage '+$checkpointCase){$c=New-SeedCheckpointSaveSource $checkpointCase;$v=Qualify-Combat $c;if($v.descriptor.internalName-cne'KMC_C7_SEED_WORLD'-or$v.consumerRunId-cne'synthetic-owner-seed-cold'){throw 'Save boundary changed its accepted Manual/cold lineage.'}}
+ Check ('owner-seed boundary cold selection remains refused '+$checkpointCase){$c=New-SeedCheckpointSaveSource $checkpointCase;$c.selection.case='owner-seed-checkpoint-load';$c.selection.expectedNativeWriteCount=0;[void](Qualify-Combat $c)} $true
+ Check ('owner-seed boundary producer wrong quota refused '+$checkpointCase){$c=New-SeedCheckpointSaveSource $checkpointCase;$c.selection.expectedNativeWriteCount=3;[void](Qualify-Combat $c)} $true
+}
+Check 'owner-seed legacy cold requires its one current-format resave' {$c=New-SeedCheckpointLoadSource 'legacy-mounted-pending-tb-manual';$c.selection.expectedNativeWriteCount=0;[void](Qualify-Combat $c)} $true
 $clock.Stop();$passed=@($results|Where-Object pass).Count;$failed=$results.Count-$passed
 [IO.File]::WriteAllText((Join-Path $testOutput 'receipt.json'),([pscustomobject]@{passed=$passed;failed=$failed;elapsedSeconds=$clock.Elapsed.TotalSeconds;nativeInvoked=$false;archiveRead=$false;scope='actual owned qualifier; established lineage/artifact validators and OS observations substituted';results=@($results)}|ConvertTo-Json -Depth 12),[Text.UTF8Encoding]::new($false));Write-Output ('Owned source: '+$passed+' PASS / '+$failed+' FAIL');if($failed){exit 1}

@@ -200,6 +200,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     var qualification = Chunk7OwnerSeedObservation.Capture(game, actors, characters, loader.Descriptor, seedDlc, resolution, persistence, Busy(), archivePath);
                     evidence["ownerSeedQualification"] = qualification;
                     evidence["kmcMetadata"] = qualification["kmcMetadata"].DeepClone();
+                    evidence["stockAreaRouteObservation"] = Chunk7StockAreaObservation.Capture(game);
                     RequireWorld();
                     Require((bool)qualification["qualified"], "Owner seed qualification failed: " +
                         string.Join(" | ", ((JArray)qualification["failures"]).Select(value => (string)value)), Chunk7OwnerSeedAssertions.Qualification);

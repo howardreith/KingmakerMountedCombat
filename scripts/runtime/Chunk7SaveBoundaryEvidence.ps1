@@ -6,7 +6,7 @@ function Assert-KmcChunk7SaveBoundaryObject($Value,[bool]$Nullable=$false) {
 }
 function Assert-KmcChunk7SaveBoundarySource($Request,$Observation,$Archive) {
     $owned=$Request.scenario-ceq'chunk7-owned-two-pair-campaign'
-    if($owned){Assert-KmcChunk7OwnedPairsSelection $Request;if($Request.ownedPairs.case-cne'persistence-save'){throw 'Owned save boundaries are source-only.'}}
+    if($owned){Assert-KmcChunk7OwnedPairsSelection $Request;if($Request.ownedPairs.case-cnotin@('persistence-save','owner-seed-checkpoint-save')){throw 'Owned save boundaries are source-only.'}}
     if(((-not$owned)-and$Request.scenario-cne'chunk7-persistence-save')-or-not(Test-KmcChunk7SaveBoundaryCase $Request.persistenceCase)){throw 'Save-boundary evidence belongs to another exact request.'}
     $o=$Observation.saveBoundary;$worker=$Request.persistenceCase-ceq'multi-owned-worker-cancel-manual'
     if($o.case-isnot[string]-or$o.case-cne$Request.persistenceCase){throw 'Save-boundary case identity differs.'}
@@ -169,11 +169,12 @@ function Assert-KmcChunk7SaveBoundarySource($Request,$Observation,$Archive) {
 function Assert-KmcChunk7WorkerSeedReplacement($Request,$Observation,$Archive,$Labels) {
     $o=$Observation.saveBoundary;$seed=$o.workerSeed;$replace=$o.workerReplacement
     $owned=$Request.scenario-ceq'chunk7-owned-two-pair-campaign';$source=if($owned){$Request.persistenceLoad}else{$Request.fixture.working}
+    $name=if($owned){Get-KmcChunk7OwnedManualOutputName $Request}else{'KMC_C7_WORLD'}
     $leaf=[IO.Path]::GetFileName($Observation.nativeWrite.path)
-    if($leaf-cnotmatch'^Manual_([1-9][0-9]*)_KMC_C7_WORLD[.]zks$'){throw 'Worker seed lacks its canonical native Manual target.'}
+    if($leaf-cnotmatch('^Manual_([1-9][0-9]*)_'+$name+'[.]zks$')){throw 'Worker seed lacks its canonical native Manual target.'}
     $number=0;if(-not[int]::TryParse($Matches[1],[ref]$number)-or$number-eq[int]::MaxValue-or(-not$owned-and$number-ne300)){throw 'Worker seed number is not its selected native target.'}
     if($owned-and$leaf-cne(Get-KmcChunk7OwnedOutputLeaf $Request $Observation)){throw 'Worker seed is not the reserved inherited output.'}
-    $staging='Manual_'+($number+1).ToString([Globalization.CultureInfo]::InvariantCulture)+'_KMC_C7_WORLD.zks'
+    $staging='Manual_'+($number+1).ToString([Globalization.CultureInfo]::InvariantCulture)+'_'+$name+'.zks'
     Assert-KmcExactProperties $seed @('requested','prepared','path','sha256','length','callbackCount','completionSequence','snapshotCount','nativeWorkerSettled') 'completed native worker seed'
     Assert-KmcExactProperties $replace @('requested','stagingLeaf','landedLeaf','seedSha256','seedLength','number','callbackCount','prepared','settled','completionCount','snapshotCount','drainCount','cancelCount','committed','outcomeEstablished','path') 'native cancelled replacement'
     foreach($v in @($seed.path,$replace.path)){if($v-isnot[string]-or$v-cne$Observation.nativeWrite.path){throw 'Worker seed/replacement escaped the exact final path.'}}
@@ -192,7 +193,7 @@ function Assert-KmcChunk7WorkerSeedReplacement($Request,$Observation,$Archive,$L
     for($i=0;$i-lt$descriptors.Count;$i++){
         $d=$descriptors[$i];Assert-KmcExactProperties $d @('fileName','nativeName','nativeType','gameId','gameName','area','hasFileOnDisk','isActuallySaved','operation','autoLevelup','object') 'worker native descriptor'
         Assert-KmcChunk7SaveBoundaryObject $d.object;if(-not$Labels.Contains($d.object)){throw 'Worker descriptor is unretained.'}
-        foreach($pair in @(@('nativeName','KMC_C7_WORLD'),@('nativeType','Manual'),@('gameName',$source.gameName),@('area',$Archive.AreaId))){if($d.($pair[0])-isnot[string]-or$d.($pair[0])-cne$pair[1]){throw 'Worker descriptor native identity differs.'}}
+        foreach($pair in @(@('nativeName',$name),@('nativeType','Manual'),@('gameName',$source.gameName),@('area',$Archive.AreaId))){if($d.($pair[0])-isnot[string]-or$d.($pair[0])-cne$pair[1]){throw 'Worker descriptor native identity differs.'}}
         foreach($key in @('hasFileOnDisk','isActuallySaved','autoLevelup')){if($d.$key-isnot[bool]){throw 'Worker descriptor flag is not native Boolean.'}}
         if($d.autoLevelup-or$d.operation-isnot[string]-or[string]::IsNullOrWhiteSpace($d.operation)){throw 'Worker descriptor is not an ordinary Manual operation.'}
         if($i-eq0){if($null-ne$d.fileName-or$null-ne$d.gameId-or$d.hasFileOnDisk-or$d.isActuallySaved-or$d.operation-cne'None'){throw 'Seed request was not the native fresh unsaved descriptor.'}}

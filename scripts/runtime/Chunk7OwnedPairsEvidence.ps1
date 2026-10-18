@@ -28,8 +28,9 @@ function Get-KmcChunk7OwnedWriteCount($Request){
  if(Test-KmcChunk7OwnedPairsOwnerSeed $Request){return 0}
  # Owner-seed-derived Manual producer: exactly its one measured Manual; its cold consumer: none.
  if(Test-KmcChunk7OwnedPairsSeedManual $Request){return 1}
- # Owner-seed checkpoint producer: exactly its one selected native checkpoint; its cold consumer: none.
- if(Test-KmcChunk7OwnedPairsSeedCheckpointSave $Request){return 1};if(Test-KmcChunk7OwnedPairsSeedCheckpointLoad $Request){return 0}
+ # The worker writes a seed and its cancelled replacement to one landed archive.
+ if(Test-KmcChunk7OwnedPairsSeedCheckpointSave $Request){if($Request.persistenceCase-ceq'multi-owned-worker-cancel-manual'){return 2};return 1}
+ if(Test-KmcChunk7OwnedPairsSeedCheckpointLoad $Request){if($Request.persistenceCase-ceq'legacy-mounted-pending-tb-manual'){return 1};return 0}
  if(Test-KmcChunk7OwnedPairsSeedDerivedInput $Request){return 0}
  if($Request.ownedPairs.case-ceq'persistence-save'-and$Request.persistenceCase-ceq'multi-owned-worker-cancel-manual'){return 2}
  if($Request.ownedPairs.case-ceq'persistence-save'-or($Request.ownedPairs.case-ceq'persistence-load'-and$Request.persistenceCase-cin@('legacy-mounted-pending-tb-manual','owned-schema1-resave-manual'))){return 1};return 0
@@ -65,10 +66,11 @@ function Test-KmcChunk7OwnedPairsSeedDerivedCombat($Request){(Get-KmcChunk7Owned
 function Test-KmcChunk7OwnedPairsSeedCheckpointSave($Request){(Get-KmcChunk7OwnedPairsCase $Request)-ceq'owner-seed-checkpoint-save'}
 function Test-KmcChunk7OwnedPairsSeedCheckpointLoad($Request){(Get-KmcChunk7OwnedPairsCase $Request)-ceq'owner-seed-checkpoint-load'}
 # The checkpoints the owner-seed checkpoint pair admits; extend this one list as each family is connected.
-function Get-KmcChunk7OwnerSeedCheckpoints {@('multi-exploration-quick','multi-exploration-auto','multi-rt-debt-manual','multi-tb-debt-manual','zero-mounted-tb-retained-manual')}
+function Get-KmcChunk7OwnerSeedCheckpoints {@('multi-exploration-quick','multi-exploration-auto','multi-rt-debt-manual','multi-tb-debt-manual','zero-mounted-tb-retained-manual','legacy-mounted-pending-tb-manual')}
+function Get-KmcChunk7OwnerSeedSourceOnlyCheckpoints {@('multi-nonselected-mount-unsettled-manual','multi-owned-worker-cancel-manual')}
 # The connected combat checkpoints write a genuine native Manual under their own distinct name, never
 # KMC_C7_WORLD (acquired ancestry) or KMC_C7_SEED_WORLD (the derived input).
-function Test-KmcChunk7OwnerSeedCombatCheckpoint([string]$Checkpoint){$Checkpoint-cin@('multi-rt-debt-manual','multi-tb-debt-manual','zero-mounted-tb-retained-manual')}
+function Test-KmcChunk7OwnerSeedCombatCheckpoint([string]$Checkpoint){$Checkpoint-cin@('multi-rt-debt-manual','multi-tb-debt-manual','zero-mounted-tb-retained-manual','legacy-mounted-pending-tb-manual')}
 function Get-KmcChunk7OwnerSeedCheckpointManualName {'KMC_C7_SEED_CHECKPOINT'}
 # Every kind whose native input is the owner-seed-derived Manual itself.
 function Test-KmcChunk7OwnedPairsSeedDerivedInput($Request){(Test-KmcChunk7OwnedPairsSeedDerivedLoad $Request)-or(Test-KmcChunk7OwnedPairsSeedDerivedCombat $Request)-or(Test-KmcChunk7OwnedPairsSeedCheckpointSave $Request)}
@@ -252,6 +254,7 @@ function Assert-KmcChunk7OwnedArchiveProfiles($Request,$Observations,$Archive){
 function Get-KmcChunk7OwnedManualOutputName($Request){
  if(Test-KmcChunk7OwnedPairsSeedManual $Request){return Get-KmcChunk7OwnerSeedManualName}
  if(Test-KmcChunk7OwnedPairsSeedCheckpointSave $Request){return Get-KmcChunk7OwnerSeedCheckpointManualName}
+ if((Test-KmcChunk7OwnedPairsSeedCheckpointLoad $Request)-and$Request.persistenceCase-ceq'legacy-mounted-pending-tb-manual'){return 'KMC_C7_SCHEMA2'}
  if($Request.ownedPairs.case-ceq'persistence-load'){if($Request.persistenceCase-ceq'owned-schema1-resave-manual'){return 'KMC_C7_SCHEMA1'};return 'KMC_C7_SCHEMA2'}
  'KMC_C7_WORLD'
 }
@@ -265,7 +268,7 @@ function Get-KmcChunk7OwnedOutputLeaf($Request,$Observations){
  if($type-ceq'Manual'){
   # The owner-seed producer numbers its Manual after the owner's registered seed leaf; the owner-seed
   # checkpoint producer after the derived Manual it loaded.
-  $sourcePattern=if($seedManual){'^Manual_([1-9][0-9]*)_[A-Za-z0-9_.-]+[.]zks$'}elseif(Test-KmcChunk7OwnedPairsSeedCheckpointSave $Request){'^Manual_([1-9][0-9]*)_'+(Get-KmcChunk7OwnerSeedManualName)+'[.]zks$'}else{'^Manual_([1-9][0-9]*)_KMC_C7_(ACQUIRED_FIELD|WORLD)[.]zks$'}
+  $sourcePattern=if($seedManual){'^Manual_([1-9][0-9]*)_[A-Za-z0-9_.-]+[.]zks$'}elseif(Test-KmcChunk7OwnedPairsSeedCheckpointSave $Request){'^Manual_([1-9][0-9]*)_'+(Get-KmcChunk7OwnerSeedManualName)+'[.]zks$'}elseif(Test-KmcChunk7OwnedPairsSeedCheckpointLoad $Request){'^Manual_([1-9][0-9]*)_'+(Get-KmcChunk7OwnerSeedCheckpointManualName)+'[.]zks$'}else{'^Manual_([1-9][0-9]*)_KMC_C7_(ACQUIRED_FIELD|WORLD)[.]zks$'}
   if($Request.persistenceLoad.fileName-cnotmatch$sourcePattern){throw 'Inherited Manual source numbering is not canonical.'}
   $sourceNumber=0;if(-not[int]::TryParse($Matches[1],[ref]$sourceNumber)-or$sourceNumber-eq[int]::MaxValue-or$a.number-ne$sourceNumber+1){throw 'Reserved output is not the exact native next Manual number.'}
   $leaf='Manual_'+([int]$a.number).ToString([Globalization.CultureInfo]::InvariantCulture)+'_'+$name+'.zks'
@@ -282,12 +285,12 @@ function Assert-KmcChunk7OwnedOutputEvidence($Request,$Observations){
  $leaf=Get-KmcChunk7OwnedOutputLeaf $Request $Observations;$a=$Observations.ownedOutputAdmission;$b=$Observations.ownedOutputCompletion
  Assert-KmcExactProperties $a @('method','token','moduleMvid','number','leaf','nativeInventory','authority') 'inherited native save admission'
  Assert-KmcBootstrapInventoryString $a.method 'FindUnusedSaveNumber';Assert-KmcBootstrapInventoryString $a.token '06008024';Assert-KmcBootstrapInventoryString $a.moduleMvid '07fa1e4d-8618-41b3-9b8d-faa17d3b26f7'
- $worker=$Request.ownedPairs.case-ceq'persistence-save'-and$Request.persistenceCase-ceq'multi-owned-worker-cancel-manual'
+ $worker=$Request.ownedPairs.case-cin@('persistence-save','owner-seed-checkpoint-save')-and$Request.persistenceCase-ceq'multi-owned-worker-cancel-manual'
  $writeCount=Get-KmcChunk7OwnedWriteCount $Request
  $area=$Request.ownedPairs.case-ceq'persistence-save'-and$Request.persistenceCase-ceq'multi-area-autosave'
  $properties=@('completionSequence','callbackCount','nativeWorkerSettled','nativeInventory','authority');if($worker){$properties+='replacement'};if($area){$properties+='areaSaveIdentity'}
  Assert-KmcExactProperties $b $properties 'inherited native save settlement'
- if($worker){$replacement=$b.replacement;Assert-KmcExactProperties $replacement @('callbackCount','completedSaveCount','drainCount','committed','outcomeEstablished','path','stagingLeaf') 'inherited cancelled replacement';Assert-KmcOrdinaryInteger $replacement.callbackCount 0 0;foreach($key in @('completedSaveCount','drainCount')){Assert-KmcOrdinaryInteger $replacement.$key 1 1};foreach($key in @('committed','outcomeEstablished')){Assert-KmcChunk7Boolean $replacement.$key $true};Assert-KmcBootstrapInventoryString $replacement.path $Observations.nativeWrite.path;Assert-KmcBootstrapInventoryString $replacement.stagingLeaf ('Manual_'+($a.number+1).ToString([Globalization.CultureInfo]::InvariantCulture)+'_KMC_C7_WORLD.zks')}
+ if($worker){$replacement=$b.replacement;Assert-KmcExactProperties $replacement @('callbackCount','completedSaveCount','drainCount','committed','outcomeEstablished','path','stagingLeaf') 'inherited cancelled replacement';Assert-KmcOrdinaryInteger $replacement.callbackCount 0 0;foreach($key in @('completedSaveCount','drainCount')){Assert-KmcOrdinaryInteger $replacement.$key 1 1};foreach($key in @('committed','outcomeEstablished')){Assert-KmcChunk7Boolean $replacement.$key $true};Assert-KmcBootstrapInventoryString $replacement.path $Observations.nativeWrite.path;Assert-KmcBootstrapInventoryString $replacement.stagingLeaf ('Manual_'+($a.number+1).ToString([Globalization.CultureInfo]::InvariantCulture)+'_'+(Get-KmcChunk7OwnedManualOutputName $Request)+'.zks')}
  Assert-KmcOrdinaryInteger $b.completionSequence 1 1;Assert-KmcOrdinaryInteger $b.callbackCount $(if($area){0}else{1}) $(if($area){0}else{1});Assert-KmcChunk7Boolean $b.nativeWorkerSettled $true
  $type=Get-KmcChunk7PersistenceType $Request.persistenceCase;$name=if($type-ceq'Manual'){Get-KmcChunk7OwnedManualOutputName $Request}else{$Observations.nativeWrite.nativeName}
  if($name-isnot[string]-or[string]::IsNullOrWhiteSpace($name)-or$name.Length-gt256-or$name-match'[\x00-\x1f\x7f]'){throw 'Native output name must be an exact bounded scalar.'}
@@ -300,7 +303,7 @@ function Assert-KmcChunk7OwnedOutputEvidence($Request,$Observations){
   Assert-KmcBootstrapInventoryString $v.leaf $leaf;Assert-KmcBootstrapInventoryString $v.nativeType $type;Assert-KmcBootstrapInventoryString $v.nativeName $name
  }
  if($a.nativeInventory-isnot[Array]-or$a.nativeInventory.Count-ne1-or$b.nativeInventory-isnot[Array]-or$b.nativeInventory.Count-ne2){throw 'Inherited native inventory did not transition from one immutable input to one fresh output.'}
- $inputType=if($Request.ownedPairs.case-ceq'persistence-load'){Get-KmcChunk7PersistenceType $Request.persistenceCase}else{'Manual'}
+ $inputType=if($Request.ownedPairs.case-cin@('persistence-load','owner-seed-checkpoint-load')){Get-KmcChunk7PersistenceType $Request.persistenceCase}else{'Manual'}
  Assert-KmcChunk7OwnedNativeDescriptor $a.nativeInventory[0] $Request.persistenceLoad $inputType
  $input=@($b.nativeInventory|Where-Object fileName -CEQ $Request.persistenceLoad.fileName);$output=@($b.nativeInventory|Where-Object fileName -CEQ $leaf)
  if($input.Count-ne1-or$output.Count-ne1-or$leaf-ceq$Request.persistenceLoad.fileName){throw 'Settled inherited inventory aliases or omits the immutable input/fresh output.'}
@@ -311,6 +314,14 @@ function Assert-KmcChunk7OwnedOutputEvidence($Request,$Observations){
  Assert-KmcBootstrapInventoryString $Observations.nativeWrite.nativeType $type
  Assert-KmcBootstrapInventoryString $Observations.nativeWrite.nativeName $name
  if($area){Assert-KmcChunk7OwnedAreaSaveIdentity $Request $Observations}
+}
+function Assert-KmcChunk7OwnedFinalSaveRoot($Request,[string[]]$Leaves,$Observations){
+ Assert-KmcChunk7OwnedPairsDescriptor $Request
+ $writes=Get-KmcChunk7OwnedWriteCount $Request;$expected=@($Request.persistenceLoad.fileName)
+ if($writes-gt0){Assert-KmcChunk7OwnedOutputEvidence $Request $Observations;$expected+=Get-KmcChunk7OwnedOutputLeaf $Request $Observations}
+ # Two worker requests replace one native target. Its temporary next-number
+ # staging archive must be gone, and no other file or directory is admitted.
+ if($Leaves.Count-ne$expected.Count-or(@($Leaves|Sort-Object -CaseSensitive)-join'|')-cne(@($expected|Sort-Object -CaseSensitive)-join'|')){throw 'Inherited final save root differs from its exact immutable input and landed output inventory.'}
 }
 
 # Owner-seed two-pair exploration evidence. The setup disclosure, every assistance
@@ -713,8 +724,65 @@ function Assert-KmcChunk7OwnerSeedCheckpointSelection($Request,$Selection,$Check
  if($s.partyIds-isnot[Array]-or$s.partyIds.Count-lt4-or$s.partyIds.Count-gt12){throw 'Complete inherited field roster must be bounded.'}
  $party=[Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal);foreach($id in $s.partyIds){Assert-KmcOrdinaryGuid $id;if(-not$party.Add($id)){throw 'Inherited roster repeats an actor.'}}
  foreach($id in $ids){if(-not$party.Contains($id)){throw 'Inherited roster omits a selected pair role.'}}
- if($Checkpoint-isnot[string]-or$Checkpoint-cnotin(Get-KmcChunk7OwnerSeedCheckpoints)){throw ('The owner-seed checkpoint pair admits only its connected checkpoints: '+((Get-KmcChunk7OwnerSeedCheckpoints)-join', ')+'.')}
- $writes=if($save){1}else{0};Assert-KmcChunk7Boolean $s.baseGameOnly $true;Assert-KmcOrdinaryInteger $s.expectedNativeLoadCount 1 1;Assert-KmcOrdinaryInteger $s.expectedNativeWriteCount $writes $writes
+ if($Checkpoint-isnot[string]-or($Checkpoint-cnotin(Get-KmcChunk7OwnerSeedCheckpoints)-and(-not$save-or$Checkpoint-cnotin(Get-KmcChunk7OwnerSeedSourceOnlyCheckpoints)))){throw ('The owner-seed checkpoint pair admits only its connected checkpoints; save boundaries are source-only: '+((Get-KmcChunk7OwnerSeedCheckpoints)-join', ')+'.')}
+ $writes=Get-KmcChunk7OwnedWriteCount $Request;Assert-KmcChunk7Boolean $s.baseGameOnly $true;Assert-KmcOrdinaryInteger $s.expectedNativeLoadCount 1 1;Assert-KmcOrdinaryInteger $s.expectedNativeWriteCount $writes $writes
+}
+function Assert-KmcChunk7OwnerSeedCheckpointPreparation($Request,$Observations){
+ $o=$Observations;$roles=Get-KmcChunk7OwnedPairIds $Request;$pending=$Request.persistenceCase-ceq'multi-nonselected-mount-unsettled-manual'
+ $p=$o.ownerSeedCheckpointPreparation;$fields=@('contract','checkpoint','before','slotsBefore','input','after','slotsAfter');if($pending){$fields+='remountedSecondOwner'}
+ Assert-KmcExactProperties $p $fields 'owner-seed native second-owner preparation'
+ Assert-KmcBootstrapInventoryString $p.contract 'owner-seed-checkpoint-native-preparation-v1';Assert-KmcBootstrapInventoryString $p.checkpoint $Request.persistenceCase
+ if($o.inputs-isnot[Array]-or$o.inputs.Count-ne$(if($pending){2}else{1})-or(ConvertTo-KmcChunk7Canonical $p.input)-cne(ConvertTo-KmcChunk7Canonical $o.inputs[0])){throw 'Native second-owner preparation lacks its exact recorded Dismount input.'}
+ $input=$p.input
+ foreach($spec in @(@('label','owner-seed-native-dismount-second-pair'),@('casterId',$roles[2]),@('targetId',$roles[2]),@('abilityGuid','3af2b81f4d72bbb30501fa730fcdf36e'),@('selectionAfterInput',$roles[0]))){Assert-KmcBootstrapInventoryString $input.($spec[0]) $spec[1]}
+ Assert-KmcChunk7Boolean $input.clicked $true;Assert-KmcChunk7Boolean $input.terminal $true;Assert-KmcOrdinaryInteger $input.nativeCastDelta 1 1;Assert-KmcOrdinaryInteger $input.nativeRefusalDelta 0 0;Assert-KmcOrdinaryInteger $input.generationAtInit 1 ([long]::MaxValue)
+ if($input.control-isnot[string]-or[string]::IsNullOrWhiteSpace($input.control)){throw 'Native second-owner Dismount has no exact control identity.'}
+ $before=$p.before;$after=$p.after
+ Assert-KmcBootstrapInventoryString $before.label 'owner-seed-before-dismount-second-pair';Assert-KmcBootstrapInventoryString $after.label 'owner-seed-after-dismount-second-pair'
+ foreach($snapshot in @($before,$after)){
+  Assert-KmcChunk7NativeCounters $snapshot @('frame','gameTicks','nativeCastRequests','snapshots','semanticRestores','presentationRestores','nativePostLoads')
+  if($snapshot.actors-isnot[Array]-or$snapshot.actors.Count-ne4-or$snapshot.owners-isnot[Array]-or$snapshot.snapshots-ne0-or$snapshot.semanticRestores-ne4-or$snapshot.presentationRestores-ne2-or$snapshot.nativePostLoads-ne4){throw 'Native preparation omitted the restored actors or entered serialization/restoration again.'}
+  Assert-KmcChunk7NativeCounters $snapshot.controls @('ManagedHotbarSlotCount','DuplicateFactCount');Assert-KmcChunk7Boolean $snapshot.controls.SerializationSuspended $false
+  if($snapshot.controls.DuplicateFactCount-ne0){throw 'Native preparation duplicated owned controls.'}
+ }
+ if($before.owners.Count-ne2-or$after.owners.Count-ne1-or$before.controls.ManagedHotbarSlotCount-ne4-or$after.controls.ManagedHotbarSlotCount-ne2-or$before.nativeCastRequests-ne0-or$after.nativeCastRequests-ne1-or$after.frame-lt$before.frame){throw 'Native Dismount did not retire exactly the second owner and its controls.'}
+ foreach($field in @('secondRiderOwnerAbsent','secondMountOwnerAbsent','secondPairUnmounted','secondPairNoPreparedResidue','secondPairCanRelease','actorsIdle')){Assert-KmcChunk7Boolean $after.$field $true}
+ foreach($field in @('unsettledPreparation','unsettledTransition','secondPairCommandsRetained','worldSerializationBusy','saveBusy')){Assert-KmcChunk7Boolean $after.$field $false}
+ $elapsed=([double]$after.gameTicks-[double]$before.gameTicks)/10000000.0;if($elapsed-lt0-or$elapsed-gt30){throw 'Native second-owner preparation escaped its bounded native clock.'}
+ for($i=0;$i-lt2;$i++){
+  $prior=@($before.owners|Where-Object riderId -CEQ $roles[$i*2]);$loaded=@($o.mountedStart.owners|Where-Object riderId -CEQ $roles[$i*2])
+  if($prior.Count-ne1-or$loaded.Count-ne1-or$prior[0].ownerId-cne$loaded[0].ownerId-or$prior[0].generation-ne$loaded[0].generation-or$prior[0].mountId-cne$roles[$i*2+1]-or$prior[0].state-cne'Active'){throw 'Native preparation did not begin with the exact two restored owners.'}
+  Assert-KmcExactProperties $prior[0] @('ownerId','generation','riderId','mountId','state') 'native preparation owner'
+  foreach($spec in @(@('ownerId',$loaded[0].ownerId),@('riderId',$roles[$i*2]),@('mountId',$roles[$i*2+1]),@('state','Active'))){Assert-KmcBootstrapInventoryString $prior[0].($spec[0]) $spec[1]}
+  Assert-KmcOrdinaryInteger $prior[0].generation 1 ([long]::MaxValue)
+ }
+ $a=$before.owners|Where-Object riderId -CEQ $roles[0];$b=$before.owners|Where-Object riderId -CEQ $roles[2]
+ if((ConvertTo-KmcChunk7Canonical $after.owners[0])-cne(ConvertTo-KmcChunk7Canonical $a)-or$input.generationAtInit-ne$b.generation){throw 'Native Dismount changed the surviving owner or used another generation.'}
+ foreach($id in $roles){
+  $prior=@($before.actors|Where-Object{$_.native.Id-ceq$id});$current=@($after.actors|Where-Object{$_.native.Id-ceq$id})
+  if($prior.Count-ne1-or$current.Count-ne1){throw 'Native preparation omitted or duplicated an actor.'};$prior=$prior[0];$current=$current[0]
+  Assert-KmcChunk7PersistenceNativeActor $prior.native;Assert-KmcChunk7PersistenceNativeActor $current.native
+  foreach($v in @($prior,$current)){Assert-KmcChunk7Boolean $v.inCombat $false;if($v.prepared-isnot[bool]){throw 'Native preparation flag is not Boolean.'}}
+  if($prior.prepared-ne$current.prepared){throw 'Native Dismount manufactured preparation.'}
+  foreach($field in @('Standard','Move','Swift','Initiative','Reaction')){if([double]$current.native.$field-gt[double]$prior.native.$field+0.001-or[double]$current.native.$field+$elapsed*1.1+0.001-lt[double]$prior.native.$field){throw 'Native second-owner Dismount changed actor debt beyond elapsed game time.'}}
+  foreach($field in @('ReactionsRemaining','LastSurpriseTicks')){if($current.native.$field-ne$prior.native.$field){throw 'Native Dismount changed native reaction/surprise history.'}}
+ }
+ $loadedSlots=@($o.mountedStart.slots|ForEach-Object{$_.actorId+':'+$_.index+':'+$_.kind}|Sort-Object -CaseSensitive)
+ $beforeSlots=@($p.slotsBefore|ForEach-Object{$_.ActorId+':'+$_.Index+':'+$_.Kind}|Sort-Object -CaseSensitive)
+ $afterSlots=@($p.slotsAfter|ForEach-Object{$_.ActorId+':'+$_.Index+':'+$_.Kind}|Sort-Object -CaseSensitive)
+ $expectedSlots=@($p.slotsBefore|Where-Object ActorId -CEQ $roles[0]|ForEach-Object{$_.ActorId+':'+$_.Index+':'+$_.Kind}|Sort-Object -CaseSensitive)
+ foreach($slot in @($p.slotsBefore)+@($p.slotsAfter)){Assert-KmcExactProperties $slot @('ActorId','Index','Kind') 'native preparation control slot';Assert-KmcOrdinaryGuid $slot.ActorId;Assert-KmcOrdinaryInteger $slot.Index 0 127;Assert-KmcOrdinaryInteger $slot.Kind 2 3}
+ if($p.slotsBefore-isnot[Array]-or$p.slotsBefore.Count-ne4-or$p.slotsAfter-isnot[Array]-or$p.slotsAfter.Count-ne2-or($beforeSlots-join';')-cne($loadedSlots-join';')-or($afterSlots-join';')-cne($expectedSlots-join';')){throw 'Native second-owner Dismount changed surviving controls or retained B bindings.'}
+ foreach($pair in @(@($input.before,$before),@($input.after,$after))){foreach($field in @('frame','gameTicks','owners','actors','controls','semanticRestores','presentationRestores','nativePostLoads','snapshots','nativeCastRequests','archivePhase')){if((ConvertTo-KmcChunk7Canonical $pair[0].$field)-cne(ConvertTo-KmcChunk7Canonical $pair[1].$field)){throw 'Native preparation snapshots do not match its actual Dismount command boundary.'}}}
+ $captured=Get-KmcChunk7OwnerSeedSnapshot $o 'before-native-save';foreach($field in @('owners','actors','controls','nativeCastRequests')){if((ConvertTo-KmcChunk7Canonical $captured.$field)-cne(ConvertTo-KmcChunk7Canonical $after.$field)){throw 'The one-owner before-save boundary differs from settled native preparation.'}}
+ if($pending){
+  $next=$p.remountedSecondOwner;Assert-KmcExactProperties $next @('ownerId','generation','riderId','mountId') 'native remounted second owner';Assert-KmcOrdinaryInteger $next.generation 1 ([long]::MaxValue)
+  Assert-KmcBootstrapInventoryString $next.riderId $roles[2];Assert-KmcBootstrapInventoryString $next.mountId $roles[3]
+  if($next.ownerId-isnot[string]-or$next.ownerId-cne(ConvertTo-KmcChunk7PairIdN $next.ownerId)-or$next.ownerId-cin@($a.ownerId,$b.ownerId)-or$next.riderId-cne$roles[2]-or$next.mountId-cne$roles[3]){throw 'Native remount did not acquire one distinct exact second owner.'}
+  $mount=$o.inputs[1];foreach($spec in @(@('label','mount-horse'),@('casterId',$roles[2]),@('targetId',$roles[3]),@('abilityGuid','f053faad986631688defa003cd7bda0e'),@('selectionAfterInput',$roles[0]))){Assert-KmcBootstrapInventoryString $mount.($spec[0]) $spec[1]}
+  Assert-KmcChunk7Boolean $mount.clicked $true;Assert-KmcChunk7Boolean $mount.terminal $true;Assert-KmcOrdinaryInteger $mount.nativeCastDelta 1 1;Assert-KmcOrdinaryInteger $mount.nativeRefusalDelta 0 0;Assert-KmcOrdinaryInteger $mount.generationAtInit 0 ([long]::MaxValue)
+  if($mount.control-isnot[string]-or[string]::IsNullOrWhiteSpace($mount.control)-or$next.generation-ne$mount.generationAtInit+1){throw 'Native remount generation/control differs from its observed command.'}
+ }
 }
 # Owner-seed checkpoint producer start: the restored mounted graph replaces the native Mount inputs
 # and new bindings; the producer adopts the restored owners, generations and slots exactly.
@@ -722,7 +790,9 @@ function Assert-KmcChunk7OwnerSeedCheckpointStart($Request,$Observations,$Archiv
  if(-not(Test-KmcChunk7OwnedPairsSeedCheckpointSave $Request)){throw 'Restored-start evidence belongs only to the owner-seed checkpoint producer.'}
  $o=$Observations;$s=$Request.ownedPairs;$roles=Get-KmcChunk7OwnedPairIds $Request
  $combat=Test-KmcChunk7OwnerSeedCombatCheckpoint $Request.persistenceCase;$zero=$Request.persistenceCase-ceq'zero-mounted-tb-retained-manual'
- if(@($o.inputs).Count-ne0){throw 'The owner-seed checkpoint producer restored its pairs mounted; a native Mount input is not admitted.'}
+ $legacy=$Request.persistenceCase-ceq'legacy-mounted-pending-tb-manual';$pending=$Request.persistenceCase-ceq'multi-nonselected-mount-unsettled-manual';$single=$legacy-or$pending
+ if(-not$single-and@($o.inputs).Count-ne0){throw 'The owner-seed checkpoint producer restored its pairs mounted; a native Mount input is not admitted.'}
+ if(-not$single-and$null-ne$o.PSObject.Properties['ownerSeedCheckpointPreparation']){throw 'Native second-owner preparation belongs only to its selected source cases.'}
  if($null-eq$o.PSObject.Properties['mountedStart']){throw 'The owner-seed checkpoint producer lacks its restored mounted-start admission.'}
  $m=$o.mountedStart
  Assert-KmcExactProperties $m @('contract','restoredFromColdLoad','nativeMountInputs','newSlotBindings','archivePhase','schemaVersion','semanticRestores','presentationRestores','nativePostLoads','nativeCastRequests','snapshots','profiles','owners','slots','loadedEqualsProducerReadback','producerProcessId','processId','debtRetained','loadedArchive') 'owner-seed checkpoint restored start'
@@ -731,28 +801,37 @@ function Assert-KmcChunk7OwnerSeedCheckpointStart($Request,$Observations,$Archiv
  foreach($pair in @(@('nativeMountInputs',0),@('newSlotBindings',0),@('schemaVersion',3),@('semanticRestores',4),@('presentationRestores',2),@('nativePostLoads',4),@('nativeCastRequests',0),@('snapshots',0))){Assert-KmcOrdinaryInteger $m.($pair[0]) $pair[1] $pair[1]}
  Assert-KmcOrdinaryInteger $m.producerProcessId 1 ([int]::MaxValue);Assert-KmcOrdinaryInteger $m.processId 1 ([int]::MaxValue);if($m.producerProcessId-eq$m.processId-or$m.processId-ne$o.processId){throw 'A same-process world cannot prove the restored mounted start.'}
  if(@($m.profiles).Count-ne2-or@($m.owners).Count-ne2){throw 'The owner-seed checkpoint producer requires both restored pairs.'}
+ if($single){Assert-KmcChunk7OwnerSeedCheckpointPreparation $Request $o}
+ if($legacy){Assert-KmcChunk7LegacyPendingMigration $o.nativeWrite.nativeMetadata $Archive}
  $seen=[Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
  for($i=0;$i-lt2;$i++){
   $p=@($m.profiles|Where-Object riderId -CEQ $roles[$i*2]);if($p.Count-ne1-or$p[0].mountId-cne$roles[$i*2+1]-or$p[0].profileId-cne'medium-humanoid-horse-v1'){throw 'A restored pair lost its exact rider, mount or Horse profile.'}
   $w=@($m.owners|Where-Object riderId -CEQ $roles[$i*2]);if($w.Count-ne1-or$w[0].mountId-cne$roles[$i*2+1]){throw 'A restored owner is missing or bound to another actor.'}
   $n=ConvertTo-KmcChunk7PairIdN $w[0].ownerId;if($w[0].ownerId-cne$n-or-not$seen.Add($n)){throw 'Restored owner identity is not one exact archive (N) form.'};Assert-KmcOrdinaryInteger $w[0].generation 1 ([long]::MaxValue)
-  # The checkpoint keeps exactly the restored owner and generation: nothing was re-mounted. A combat
-  # checkpoint keeps each owner in its participation row; the zero-mounted one retains it detached.
+  # The selected preparation retired B natively; pending Mount acquires a new
+  # B owner. All other owners retain their restored identity and generation.
+  if($single-and$i-eq1){
+   if($legacy){if(@($Archive.Pairs|Where-Object{$_.Rider.Id-ceq$roles[2]-or$_.Mount.Id-ceq$roles[3]}).Count-ne0-or@($Archive.Participations|Where-Object{(ConvertTo-KmcChunk7PairIdN $_.OwnerId)-ceq$n}).Count-ne0){throw 'The legacy source retained the natively released second owner.'};continue}
+   $w=@($o.ownerSeedCheckpointPreparation.remountedSecondOwner);$n=$w[0].ownerId
+  }
   $saved=@($Archive.Pairs|Where-Object{(ConvertTo-KmcChunk7PairIdN $_.PairId)-ceq$n})
+  if($legacy){$saved=@($Archive.Pairs|Where-Object{$_.Rider.Id-ceq$roles[0]-and$_.Mount.Id-ceq$roles[1]})}
   if($combat){
-   $row=@($Archive.Participations|Where-Object{(ConvertTo-KmcChunk7PairIdN $_.OwnerId)-ceq$n})
-   if($row.Count-ne1-or$row[0].Generation-ne$w[0].generation-or$row[0].State.RiderId-cne$roles[$i*2]-or$row[0].State.MountId-cne$roles[$i*2+1]){throw 'The written checkpoint changed a restored owner participation or generation.'}
+   $archiveOwner=if($legacy-and$saved.Count-eq1){ConvertTo-KmcChunk7PairIdN $saved[0].PairId}else{$n}
+   $row=@($Archive.Participations|Where-Object{(ConvertTo-KmcChunk7PairIdN $_.OwnerId)-ceq$archiveOwner})
+   $archiveGeneration=if($legacy){1}else{$w[0].generation}
+   if($row.Count-ne1-or$row[0].Generation-ne$archiveGeneration-or(-not$legacy-and($row[0].State.RiderId-cne$roles[$i*2]-or$row[0].State.MountId-cne$roles[$i*2+1]))-or($legacy-and($null-ne$row[0].State.RiderId-or$null-ne$row[0].State.MountId-or$null-ne$row[0].State.Activation-or$row[0].State.PendingSplitId-cne$roles[1]))){throw 'The written checkpoint changed its exact live or historically migrated owner participation.'}
   }
   if($zero){if($saved.Count-ne0){throw 'The zero-mounted checkpoint kept a mounted pair.'}}
-  elseif($saved.Count-ne1-or$saved[0].Generation-ne$w[0].generation-or$saved[0].Rider.Id-cne$roles[$i*2]-or$saved[0].Mount.Id-cne$roles[$i*2+1]){throw 'The written checkpoint changed a restored owner or generation.'}
+  elseif($saved.Count-ne1-or$saved[0].Generation-ne$(if($legacy){1}else{$w[0].generation})-or$saved[0].Rider.Id-cne$roles[$i*2]-or$saved[0].Mount.Id-cne$roles[$i*2+1]){throw 'The written checkpoint changed a restored owner or its historically migrated generation.'}
  }
- if($combat-and@($Archive.Participations).Count-ne2){throw 'The written combat checkpoint lost or invented an owner participation.'}
+ if($combat-and@($Archive.Participations).Count-ne$(if($legacy){1}else{2})){throw 'The written combat checkpoint lost or invented an owner participation.'}
  if(@($m.slots).Count-ne4){throw 'The owner-seed checkpoint producer requires its four restored controls.'}
  foreach($rider in @($roles[0],$roles[2])){if((@($m.slots|Where-Object actorId -CEQ $rider|ForEach-Object{$_.kind}|Sort-Object)-join',')-cne'2,3'){throw 'A restored pair lost its exact native controls.'}}
  # Native Dismounts release the mounted controls; every other checkpoint keeps the restored bindings.
  if($zero){if(@($Archive.Slots).Count-ne0){throw 'The zero-mounted checkpoint kept a mounted control.'}}else{
- if(@($Archive.Slots).Count-ne4){throw 'The written checkpoint changed the restored control bindings.'}
- foreach($slot in $m.slots){if(@($Archive.Slots|Where-Object{$_.ActorId-ceq$slot.actorId-and$_.Index-eq$slot.index-and$_.Kind-eq$slot.kind}).Count-ne1){throw 'The written checkpoint changed the restored control bindings.'}}}
+ if(@($Archive.Slots).Count-ne$(if($single){2}else{4})){throw 'The written checkpoint changed the restored control bindings.'}
+ foreach($slot in @($m.slots|Where-Object{-not$single-or$_.actorId-ceq$roles[0]})){if(@($Archive.Slots|Where-Object{$_.ActorId-ceq$slot.actorId-and$_.Index-eq$slot.index-and$_.Kind-eq$slot.kind}).Count-ne1){throw 'The written checkpoint changed the restored control bindings.'}}}
  $l=$m.loadedArchive;if($null-eq$l-or$l.SchemaVersion-ne3-or@($l.Pairs).Count-ne2-or@($l.Participations).Count-ne0-or$null-ne$l.Combat-or$l.AreaId-cne$Request.persistenceLoad.area-or$l.CampaignId-cne$Request.persistenceLoad.gameId){throw 'The restored start is not the exact two-pair exploration graph of the selected Manual copy.'}
  [void](Get-KmcChunk7OwnerSeedSnapshot $o 'before-native-save')
  $src=$o.ownerSeedCheckpointSource
@@ -787,18 +866,23 @@ function Assert-KmcChunk7OwnerSeedCheckpointColdSource($Request,$ProducerArtifac
  Assert-KmcOrdinaryInteger $p.processId 1 ([int]::MaxValue);Assert-KmcOrdinaryInteger $c.processId 1 ([int]::MaxValue);if($p.processId-eq$c.processId){throw 'Owner-seed checkpoint cold proof did not run in a process separate from its producer.'}
  if((ConvertTo-KmcChunk7Canonical $p.nativeWrite.archive)-cne(ConvertTo-KmcChunk7Canonical $c.loadedArchive)){throw 'Cold process did not restore the exact checkpoint producer read-back graph.'}
  $combat=Test-KmcChunk7OwnerSeedCombatCheckpoint $Request.persistenceCase;$zero=$Request.persistenceCase-ceq'zero-mounted-tb-retained-manual'
- $produced=@($p.mountedStart.owners|ForEach-Object{(ConvertTo-KmcChunk7PairIdN $_.ownerId)+'|'+$_.generation+'|'+$_.riderId+'|'+$_.mountId}|Sort-Object -CaseSensitive)
+ $legacy=$Request.persistenceCase-ceq'legacy-mounted-pending-tb-manual'
+ if($legacy){Assert-KmcChunk7OwnerSeedCheckpointPreparation $Request $p;Assert-KmcChunk7CombatArchive $c.loadedArchive $Request;Assert-KmcChunk7LegacyPendingMigration $p.nativeWrite.nativeMetadata $c.loadedArchive}
+ # Schema 2 stores no stable owner identity/generation: its explicit adapter
+ # derives deterministic custody at generation one. Live preparation preserves
+ # A; the cold process must restore this validated migrated graph exactly.
+ $produced=@(if($legacy){$p.nativeWrite.archive.Pairs|ForEach-Object{(ConvertTo-KmcChunk7PairIdN $_.PairId)+'|'+$_.Generation+'|'+$_.Rider.Id+'|'+$_.Mount.Id}}else{$p.mountedStart.owners|ForEach-Object{(ConvertTo-KmcChunk7PairIdN $_.ownerId)+'|'+$_.generation+'|'+$_.riderId+'|'+$_.mountId}})|Sort-Object -CaseSensitive
  $restored=@($c.loadedArchive.Pairs|ForEach-Object{(ConvertTo-KmcChunk7PairIdN $_.PairId)+'|'+$_.Generation+'|'+$_.Rider.Id+'|'+$_.Mount.Id}|Sort-Object -CaseSensitive)
  # A combat checkpoint restores every owner through its participation; the zero-mounted one has no mounted pair.
  if($combat){
-  $participating=@($c.loadedArchive.Participations|ForEach-Object{(ConvertTo-KmcChunk7PairIdN $_.OwnerId)+'|'+$_.Generation+'|'+$_.State.RiderId+'|'+$_.State.MountId}|Sort-Object -CaseSensitive)
+  $participating=@($c.loadedArchive.Participations|ForEach-Object{(ConvertTo-KmcChunk7PairIdN $_.OwnerId)+'|'+$_.Generation+'|'+$(if($legacy){$s.riderAId}else{$_.State.RiderId})+'|'+$(if($legacy){$s.mountAId}else{$_.State.MountId})}|Sort-Object -CaseSensitive)
   if(($produced-join';')-cne($participating-join';')){throw 'Restored combat participations or generations differ from the checkpoint producer runtime.'}
   if($zero){$restored=$produced;if(@($c.loadedArchive.Pairs).Count-ne0){throw 'The zero-mounted checkpoint restored a mounted pair.'}}
   Assert-KmcChunk7Boolean $p.combatDebtProof $true;Assert-KmcChunk7Boolean $c.combatDebtProof $true
   if($p.combatCheckpoint.targetId-isnot[string]-or$p.combatCheckpoint.targetId-cne$c.combatContinuation.targetId-or$p.combatCheckpoint.targetGroupId-cne$c.combatContinuation.targetGroupId){throw 'Cold combat bound another target than the checkpoint producer saved.'}
  }
  if(($produced-join';')-cne($restored-join';')){throw 'Restored owners or generations differ from the checkpoint producer runtime.'}
- $producedSlots=@(if(-not$zero){$p.mountedStart.slots|ForEach-Object{$_.actorId+':'+$_.index+':'+$_.kind}|Sort-Object -CaseSensitive});$restoredSlots=@($c.loadedArchive.Slots|ForEach-Object{$_.ActorId+':'+$_.Index+':'+$_.Kind}|Sort-Object -CaseSensitive)
+ $producedSlots=@(if(-not$zero){$p.mountedStart.slots|Where-Object{-not$legacy-or$_.actorId-ceq$s.riderAId}|ForEach-Object{$_.actorId+':'+$_.index+':'+$_.kind}|Sort-Object -CaseSensitive});$restoredSlots=@($c.loadedArchive.Slots|ForEach-Object{$_.ActorId+':'+$_.Index+':'+$_.Kind}|Sort-Object -CaseSensitive)
  if(($producedSlots-join';')-cne($restoredSlots-join';')){throw 'Restored control bindings differ from the checkpoint producer runtime.'}
  foreach($key in @('partyIds','currentCharacterIds','remoteCapturedIds','arrangement')){if((ConvertTo-KmcChunk7Canonical $p.inheritedCleanup.$key)-cne(ConvertTo-KmcChunk7Canonical $c.inheritedFixture.$key)){throw 'Checkpoint cold source changed full-field ancestry or progression.'}}
  for($i=0;$i-lt2;$i++){foreach($key in @('riderId','mountId','sourceGuid','rank','profileId')){if((ConvertTo-KmcChunk7Canonical $p.inheritedCleanup.pairs[$i].$key)-cne(ConvertTo-KmcChunk7Canonical $c.inheritedFixture.pairs[$i].$key)){throw 'Checkpoint cold source changed inherited role/fact provenance.'}}}

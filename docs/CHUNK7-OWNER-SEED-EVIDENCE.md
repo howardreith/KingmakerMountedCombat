@@ -230,10 +230,19 @@ Candidate passed 6/6 in 388.1997642 seconds; this is offline qualification.
 |---|---|---|
 | `20261018-c7b-world41-ownerseed-b12s1-tbload` | PASS, 104.4654715 s | Separate-process cold load of accepted b11s1 (`f952f194…`), exact completed A movement 2.286 preserved at both restoration phases, native continuation/cleanup. All restoration/save flags true; profile bytes exact, lock released. |
 | `20261018-c7b-world41-ownerseed-b12s2-zerosave` | FAIL, 115.7495532 s | Game PASS; reader refused B's own mounted approach because the final checkpoint is zero-mounted. Actual active-owner snapshots distinguish the phases. All restoration/save flags true; profile bytes exact, lock released. Not an admitted cold-load source. |
+| `20261018-c7b-world41-ownerseed-b12s4-zerosave` | PASS, 126.9279735 s | Fresh native Manual after reviewed external-reader correction; zero pairs, two retained participation owners, actual mounted attacks followed by native Dismounts. All restoration/save flags true; profile bytes exact, lock released. |
+| `20261018-c7b-world41-ownerseed-b12s5-zeroload` | PASS, 119.7310995 s | Separate-process load of slot4 actual Manual; both retained owners/debt restored, native continuation and each Horse's independent native turn at N+1, duplicate cleanup. All restoration/save flags true; profile bytes exact, lock released. |
 
 Evidence SHA-256 respectively
 `2b21042ef0984e53a7da3af114c01c048ad4d01cbfb35bf2e7fc4293e3fe1f8e` and
 `5f1c81c90bb237c6365470a4dc5c29ee127e83d6c20df2a21e5fe60c59702178`.
+Fresh zero producer/load evidence SHA-256:
+`94aadf84f7a3a1f2d778460a87c2fee8bea0b2ad0ebe56abf627295a2e6d3562`,
+`90cbfd266790dc66796eb13f6be01e50ab48dfeb75dbca81e72107c09175f83e`.
+Actual producer archive `Manual_305_KMC_C7_SEED_CHECKPOINT.zks` (1,271,104 bytes),
+SHA `8f4854c12ad6a18c61258cd331ee080c38d079c77c492daf5b453565b8c18343`.
+The two new runs use harness/reader source `2b3d6702`; product remains frozen .41.
+Batch slot3 was never launched because slot2 failed; slot5 uses accepted slot4 only.
 Private raw receipts, exact source/reader/suite pins and old/new diagnostic verdicts
 remain under `analysis-cache/chunk7-continuation/owner-seed-batch12/` and the matching
 `runtime-evidence/` directories. No private saves/raw logs are published.
@@ -246,7 +255,7 @@ uses the original policy-approved push helper.
 
 ## Not yet accepted — current Directive 4 remainder
 
-- Zero-mounted producer and separate-process cold load: reader correction under review; original failed producer cannot be reused.
+- Worker cancellation, pending-Mount save fencing and legacy pending-survivor source support are being connected; no native PASS is claimed for unrun cases.
 - Pending-only serialization, nonselected-owner save fencing, worker cancellation, area/Auto continuity, disable/removal and historical schema-1/2 paths need their selected native evidence.
 - Horse derivatives retain their permanent-reference removal restriction; positive DLL-absent proof needs a qualified reference-free fixture.
 - Doors remain opportunistic. Acquisition/progression, Small, six-pair stress/performance, full 7E and human/release acceptance remain later gates.
