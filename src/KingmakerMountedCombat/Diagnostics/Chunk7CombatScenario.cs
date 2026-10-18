@@ -112,7 +112,10 @@ namespace KingmakerMountedCombat.Diagnostics
                     am = originalParty.Single(x => x.UniqueId == Chunk7WorldScenarioEngine.MammothId);
                     br = originalParty.Single(x => x.UniqueId == Chunk7WorldScenarioEngine.HorseRiderId);
                 }
-                Require(world.Registry.ActiveCount == 0 && world.Pairs.All(p => p.Relationship.State == RelationshipState.Unmounted &&
+                // Owner-seed-derived combat starts from the restored MOUNTED graph, verified in
+                // step 2 (AdmitMountedStart); every other case keeps its unmounted start.
+                if (OwnerSeedDerived) Require(!controls.HasUnsettledRelationshipTransition, "Owner-seed-derived combat found an unsettled relationship transition.");
+                else Require(world.Registry.ActiveCount == 0 && world.Pairs.All(p => p.Relationship.State == RelationshipState.Unmounted &&
                     p.Relationship.Runtime.NoPreparedPairResidue) && !controls.HasUnsettledRelationshipTransition,
                     "Combat fixture requires a settled unmounted world.");
                 Require(!settings.EnableUnifiedMountedTurn && !settings.EnablePairedCommandScheduler && !settings.EnableDiagnosticOverlay,
@@ -163,6 +166,13 @@ namespace KingmakerMountedCombat.Diagnostics
                         finally { horseFeature = br.Descriptor.GetFact(horses.HorseFeature) as Feature; rankFeature = br.Descriptor.GetFact(horses.LevelRank) as Feature; bm = br.Descriptor.Pet; nativeScope.Track(bm); }
                         Require(acquired, "Exact native Ranger option acquisition failed."); Next(2); break;
                     case 2:
+                        if (OwnerSeedDerived)
+                        {
+                            // Both pairs were restored mounted by the cold load: verify them and
+                            // skip the native Mount steps for these cases only.
+                            if (!MountedStartReady()) return;
+                            AdmitMountedStart(); Pass("C7-combat-restored-mounts"); PrepareEncounter(); Next(RealtimeScenario ? 60 : 5); break;
+                        }
                         if (!Chunk7NativeFixture.Idle(bm)) return;
                         actors = new[] { ar, am, br, bm };
                         evidence["actorIds"] = new JArray(actors.Select(x => x.UniqueId));
@@ -225,6 +235,10 @@ namespace KingmakerMountedCombat.Diagnostics
         private void PrepareEncounter()
         {
             Require(actors.All(Chunk7NativeFixture.Idle), "Initiative fixture requires the entire captured party idle before combat.");
+            var targetPosition = am.Position + Vector3.forward * (SelectedScenario == RealtimeCharge ? 8f : 3.5f);
+            // Fail closed before any fixture mutation: the authorization basis and the native
+            // placement (bounded, walkable) are proven before initiative, leases or observers.
+            var targetBasis = AdmitTargetAuthorization(targetPosition);
             foreach (var actor in actors) initiativeBefore.Add(actor, actor.Stats.Initiative.BaseValue);
             if (!RealtimeMode)
             {
@@ -253,7 +267,7 @@ namespace KingmakerMountedCombat.Diagnostics
             evidence["reactionTickCampaignSelected"] = false;
             trace.BeginEncounter(request.RunId + ":two-pair-combat");
             targetService = new DiagnosticCombatTargetService(logger, true);
-            target = targetService.Spawn(ar, am, am.Position + Vector3.forward * (SelectedScenario == RealtimeCharge ? 8f : 3.5f), request.RunId + ":two-pair-target", true, !checkpointOnly, checkpointOnly);
+            target = targetService.Spawn(ar, am, targetPosition, request.RunId + ":two-pair-target", targetBasis != null, !checkpointOnly, checkpointOnly);
             nativeScope.Track(target);
             Require(targetService.PrepareForPlayerClick(target) && targetService.QueueBidirectionalCombatMemory(ar, target),
                 "Native diagnostic target placement/visibility/combat memory was refused.");
