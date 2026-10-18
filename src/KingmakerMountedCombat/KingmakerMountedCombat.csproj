@@ -179,6 +179,7 @@
     <Compile Include="Diagnostics\NativeHorseFixtureAcquisition.cs" />
     <Compile Include="Diagnostics\Chunk7WorldScenarioEngine.cs" />
     <Compile Include="Diagnostics\Chunk7WorldScenarioEngine.OwnerSeed.cs" />
+    <Compile Include="Diagnostics\Chunk7WorldScenarioEngine.OwnerSeedManual.cs" />
     <Compile Include="Diagnostics\Chunk7NativeDoorProbe.cs" />
     <Compile Include="Diagnostics\Chunk7WorldRetentionProbe.cs" />
     <Compile Include="Diagnostics\Chunk7PersistenceScenario.Replay.cs" />

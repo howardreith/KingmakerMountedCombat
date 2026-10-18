@@ -3,7 +3,7 @@ Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot 'Chunk7OwnedPairsEvidence.ps1')
 function Get-KmcChunk7WorldRows {
     @('chunk7-two-pair-exploration','C7-world-fixture','C7-world-native-acquisition','C7-world-owner-seed-setup','C7-world-two-native-mounts','C7-world-selection-routing',
-      'C7-world-independent-dismount','C7-world-cycles','C7-world-sampling','C7-world-cleanup','C7-world-runtime','C7-world-visual','C7-world-interrupted')
+      'C7-world-independent-dismount','C7-world-cycles','C7-world-sampling','C7-world-cleanup','C7-world-runtime','C7-world-visual','C7-world-interrupted','C7-world-owner-seed-manual')
 }
 function Assert-KmcChunk7ArtifactEnvelope($Request,$Artifact,[string]$Kind) {
     Assert-KmcExactProperties $Artifact @('schemaVersion','evidenceKind','runId','scenario','branch','commit','productVersion','dllSha256','dllMvid','createdAtUtc','status','observations','errors') 'Chunk 7 artifact'
@@ -53,6 +53,14 @@ function ConvertFrom-KmcChunk7OwnerActorId($Value) {
 function ConvertFrom-KmcChunk7ActorUniqueId($Value) {
     if($Value-isnot[string]-or$Value-cnotmatch'\A[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\z'){throw 'Native actor UniqueId is not the lowercase hyphenated Guid (D) form.'}
     [Guid]::ParseExact($Value,'D')
+}
+# A pair (owner) id itself appears natively in exactly two forms: the world capture's
+# owner.Id.ToString() ("D") and the archive's SavedMountedPair.PairId owner.Id.ToString("N").
+# Only those two lowercase forms are accepted; the result is the "N" text for comparison.
+function ConvertTo-KmcChunk7PairIdN($Value) {
+    if($Value-is[string]-and$Value-cmatch'\A[0-9a-f]{32}\z'){return $Value}
+    if($Value-is[string]-and$Value-cmatch'\A[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\z'){return [Guid]::ParseExact($Value,'D').ToString('N')}
+    throw 'Pair id is not a native lowercase Guid in the capture (D) or archive (N) form.'
 }
 function Test-KmcChunk7OwnerActorMatch($OwnerValue,$ActorValue) {
     (ConvertFrom-KmcChunk7OwnerActorId $OwnerValue)-eq(ConvertFrom-KmcChunk7ActorUniqueId $ActorValue)
@@ -231,6 +239,8 @@ function Assert-KmcChunk7WorldEvidence($Request,$Artifact,[string]$Status) {
     if((Get-KmcChunk7SelectedScenario $Request)-cne'chunk7-two-pair-exploration'){throw 'Chunk 7 world evidence under another scenario.'}
     if($Status-ceq'PASS'-and$Artifact.status-cne'PASS'){throw 'PASS world result requires PASS artifact.'}
     if($Artifact.status-cne'PASS'){return}
+    # Owner-seed-derived Manual producer: setup, two native Mounts and its one native Manual only.
+    if((Test-KmcChunk7OwnedPairsScenario $Request.scenario)-and(Test-KmcChunk7OwnedPairsSeedManual $Request)){Assert-KmcChunk7OwnerSeedManualWorldEvidence $Request $Artifact.observations;return}
     $o=$Artifact.observations;$owned=Test-KmcChunk7OwnedPairsScenario $Request.scenario;$seed=$owned-and(Test-KmcChunk7OwnedPairsOwnerSeed $Request)
     if($seed){
         # Owner-seed kind: the disclosed fixture setup supplies both Horses; no inherited or Working provenance.
