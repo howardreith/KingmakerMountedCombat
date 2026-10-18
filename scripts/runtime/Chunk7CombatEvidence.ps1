@@ -54,6 +54,7 @@ function Assert-KmcChunk7CombatAttack($Attack,$Trace,[string]$Actor,[string]$Cas
     $p=Get-KmcChunk7CombatActor $Attack.before $partner;$q=Get-KmcChunk7CombatActor $Attack.after $partner
     foreach($field in @('standard','swift','reactions','reactionCooldown')){if($p.$field-ne$q.$field){throw 'The attacker''s partner spent a non-movement resource during the primary.'}}
     if($q.move-lt$p.move){throw 'The attacker''s partner movement went backwards during the primary.'}
+    if([double]$q.move-gt[double]$p.move+6.0){throw 'The attacker''s partner spent more than one native move budget during the primary.'}
     if($q.move-gt$p.move){
         $approach=@($Trace.events|Where-Object{$_.boundary-ceq'admission-after'-and$_.commandActor-ceq$partner-and$_.commandType-ceq'Kingmaker.UnitLogic.Commands.UnitMoveTo'-and
             $_.frame-ge$Attack.before.frame-and$_.frame-le$Attack.after.frame})
@@ -147,7 +148,8 @@ function Assert-KmcChunk7CombatEvidence($Request,$Artifact,[string]$Status) {
     $m=Get-KmcChunk7CombatActor $pending.before $ids[3];$n=Get-KmcChunk7CombatActor $pending.after $ids[3]
     foreach($pairing in @(@('standard',6.0),@('move',3.0),@('swift',6.0))){if([Math]::Abs([double]$n.($pairing[0])-[Math]::Max([double]$m.($pairing[0]),$pairing[1]))-gt0.001){throw 'Pending mount differs from the native forfeit outcome.'}}
     if($m.reactions-ne$n.reactions-or$m.reactionCooldown-ne$n.reactionCooldown){throw 'Pending mount reaction changed at rider removal.'};Assert-KmcChunk7Boolean $n.prepared $true
-    $removal=@($o.allocationTrace.events|Where-Object{$_.state.actor-ceq$ids[2]-and$_.boundary-cin@('remove-unit-before','remove-unit-after')}|Sort-Object sequence)
+    # Bounded to the pending row's own frames, so a later cleanup-time removal of rider B is not counted.
+    $removal=@($o.allocationTrace.events|Where-Object{$_.state.actor-ceq$ids[2]-and$_.boundary-cin@('remove-unit-before','remove-unit-after')-and$_.frame-ge$pending.before.frame-and$_.frame-le$pending.after.frame}|Sort-Object sequence)
     if($removal.Count-ne2-or$removal[0].boundary-cne'remove-unit-before'-or$removal[1].boundary-cne'remove-unit-after'){throw 'Native rider removal window is missing or repeated.'}
     $window=@($o.allocationTrace.events|Where-Object{$_.sequence-gt$removal[0].sequence-and$_.sequence-lt$removal[1].sequence}|Sort-Object sequence)
     $forfeit=@($window|Where-Object{$_.boundary-cin@('completion-force-to-end-before','completion-force-to-end-after')})
