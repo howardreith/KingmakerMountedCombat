@@ -42,6 +42,9 @@ class WorldAdapter{
  OwnerSeedGuard ownerSeed;bool OwnerSeed=>ownerSeed!=null;
  bool OwnerSeedCleanupReady(){ownerSeed.ReadyCalls++;return ownerSeed.Ready;}bool OwnerSeedOwnershipPreserved()=>ownerSeed.Preserved;
  void AddOwnerSeedCleanup(JObject c){ownerSeed.Added++;c["setupCompleted"]=true;}
+ // Owner-seed Manual producer boundary: its native save scope/observer settlement and written flag.
+ bool manualProducer,manualReady=true,manualWritten;int manualReadyCalls;bool OwnerSeedManual=>OwnerSeed&&manualProducer;bool OwnerSeedManualWritten=>OwnerSeedManual&&manualWritten;
+ bool OwnerSeedManualCleanupReady(){manualReadyCalls++;return manualReady;}
  // The actual interrupted-drain path must label an owner-seed failure (the partial owns the label).
  int setupFailureMarks;void MarkOwnerSeedSetupFailure(){setupFailureMarks++;}IEnumerable<Actor> OwnerSeedRoster(){ownerSeed.Rosters++;return new Actor[0];}
  // Actual ground-input settlement is exercised by WorldGroundInputAdapterTemplate.
@@ -66,6 +69,13 @@ class WorldAdapter{
   var c=(JObject)e.evidence["cleanup"];Check((bool)c["horseRemoved"]==false&&(bool)c["nativeProgressionRequiresExternalWorkingRestoration"]==false&&(bool)c["setupCompleted"],"owner-seed cleanup evidence claims no removal or external restoration");
   Game.Instance=new Game();LoadingProcess.Instance=new LoadingProcess();var f=new WorldAdapter();((UnitUseAbility)f.issuedCommands[0]).ExecutionProcess.IsEnded=true;f.ownerSeed=new OwnerSeedGuard{Ready=true,Preserved=false};f.firstRider.Descriptor.Pet=null;f.BeginCleanup();bool refused=false;try{refused=!f.DrainForHost();}catch{refused=true;}
   Check(refused&&!f.cleanupProven&&f.ownerSeed.Added==0,"owner-seed ownership alternative replaces the Mammoth check and refuses lost setup ownership");
+  // The Manual producer: no pair, command or fact cleanup while its native save scope is unsettled;
+  // once settled it completes without the matched-pool sidecar and records its written Manual.
+  Game.Instance=new Game();LoadingProcess.Instance=new LoadingProcess();NativePersistenceIsolation.HasPendingWrites=false;var m=new WorldAdapter();((UnitUseAbility)m.issuedCommands[0]).ExecutionProcess.IsEnded=true;m.ownerSeed=new OwnerSeedGuard{Ready=true};m.manualProducer=true;m.manualReady=false;m.manualWritten=true;m.matched.Complete=false;
+  m.BeginCleanup();Check(!m.DrainForHost()&&!m.completed&&m.manualReadyCalls>=1&&m.world.Pairs.All(p=>p.Combat.Cancels==0)&&m.ownerSeed.Added==0,"owner-seed Manual save custody fences pair and setup cleanup");
+  m.manualReady=true;Check(m.DrainForHost()&&m.completed&&m.matchedWrites==0&&!m.matchedEvidenceWritten&&(bool)((JObject)m.evidence["cleanup"])["nativeSaveWritten"],"owner-seed Manual producer completes without a matched-pool sidecar and records its written Manual");
+  Game.Instance=new Game();LoadingProcess.Instance=new LoadingProcess();var x=new WorldAdapter();((UnitUseAbility)x.issuedCommands[0]).ExecutionProcess.IsEnded=true;x.ownerSeed=new OwnerSeedGuard{Ready=true};x.matched.Complete=false;x.BeginCleanup();bool missing=false;try{x.DrainForHost();}catch{missing=true;}
+  Check(missing||!x.completed,"exploration without its matched pool still cannot complete as the Manual producer does");
  }
  static void VerifyInheritedCleanup(){Game.Instance=new Game();LoadingProcess.Instance=new LoadingProcess();NativePersistenceIsolation.HasPendingWrites=false;var e=new WorldAdapter();((UnitUseAbility)e.issuedCommands[0]).ExecutionProcess.IsEnded=true;var guard=new InheritedFixtureBoundary{Party=new[]{e.firstRider,e.firstMount,e.secondRider,e.secondMount},Reject=true};e.inherited=guard;e.BeginCleanup();Check(!e.DrainForHost()&&!e.completed&&guard.Releases==0&&e.secondRider.Descriptor.Progression.Features.Removed.Count==0,"inherited refusal retains ordinary pets/facts and registry");guard.Reject=false;Check(e.DrainForHost()&&e.completed&&guard.Captures==1&&guard.Releases==1&&e.secondRider.Descriptor.Progression.Features.Removed.Count==0,"inherited retry snapshots before registry release without removing native facts");e.Dispose();Check(guard.Releases==1&&e.secondRider.Descriptor.Progression.Features.Removed.Count==0,"inherited repeated disposal never replays fact cleanup");}
 __METHODS__

@@ -178,5 +178,57 @@ namespace KingmakerMountedCombat.Diagnostics
                 "Owned area identity retention did not release exactly.");
             areaSaveOperation = null; areaRequestedSave = null; areaPreparedSave = null; areaCompletedSave = null;
         }
+        // Owner-seed-derived cold proof, beyond the shared exact restoration checks: this
+        // separate process restored exactly the schema-3 graph its producer read back from the
+        // bytes it wrote; both pairs carry the producer's runtime owner identities, generations
+        // and profiles; the control slots are the producer's; and unrelated field actors keep
+        // their native expenditure within actual clock progress. Decode success alone is not
+        // accepted: the restored world and live registry are compared with the producer runtime.
+        private void ObserveOwnerSeedDerivedCold()
+        {
+            Require(request.OwnedPairs.IsOwnerSeedDerivedLoad && Cold && inherited != null && inherited.Bound && saved != null,
+                "Owner-seed-derived cold proof requires its bound producer custody and restored graph.");
+            var boundary = inherited.OwnerSeedBoundary; var produced = inherited.OwnerSeedArchive;
+            // Compared through the same JSON text form the producer's receipt was read from.
+            var loaded = JToken.Parse(JObject.FromObject(saved, MountedSaveCodec.CreateSerializer()).ToString(Newtonsoft.Json.Formatting.None));
+            Require(boundary != null && produced != null && JToken.DeepEquals(loaded, produced),
+                "Cold-loaded schema-3 graph differs from the producer's read-back of the Manual it wrote.");
+            Require(inherited.OwnerSeedProcessId > 0 && inherited.OwnerSeedProcessId != System.Diagnostics.Process.GetCurrentProcess().Id,
+                "Owner-seed-derived cold proof requires a process separate from its producer.");
+            var rows = boundary["pairs"] as JArray;
+            Require(rows != null && rows.Count == 2 && saved.Pairs.Length == 2 && saved.Pairs.All(pair => rows.Count(row =>
+                    (string)row["ownerId"] == Guid.Parse(pair.PairId).ToString("N") && (long)row["generation"] == pair.Generation &&
+                    (string)row["riderId"] == pair.Rider.Id && (string)row["mountId"] == pair.Mount.Id && (string)row["profileId"] == pair.ProfileId) == 1) &&
+                world.Registry.Owners.Length == 2 && world.Registry.Owners.All(owner => rows.Count(row =>
+                    (string)row["ownerId"] == owner.Id.ToString("N") && (long)row["generation"] == owner.Generation &&
+                    (string)row["riderId"] == owner.Rider?.UniqueId && (string)row["mountId"] == owner.Mount?.UniqueId) == 1),
+                "Restored pair owners, generations, actors or profiles differ from the producer runtime at its save boundary.");
+            var slotRows = boundary["slots"] as JArray; var liveSlots = controls.CapturePersistentSlots();
+            Require(slotRows != null && slotRows.Count == liveSlots.Length && liveSlots.All(s => slotRows.Count(row =>
+                    (string)row["actorId"] == s.ActorId && (int)row["index"] == s.Index && (int)row["kind"] == s.Kind) == 1),
+                "Restored control bindings differ from the producer's bound native hotbar.");
+            var elapsed = Math.Max(0, (Game.Instance.TimeController.GameTime.Ticks - (long)boundary["gameTicks"]) / (double)TimeSpan.TicksPerSecond);
+            var unrelated = boundary["unrelated"] as JArray; var pairIds = actors.Select(actor => actor.UniqueId).ToArray();
+            Require(unrelated != null && unrelated.Count == inherited.Party.Length - 4 &&
+                inherited.Party.Where(actor => !pairIds.Contains(actor.UniqueId)).All(actor => unrelated.Count(row => (string)row["actorId"] == actor.UniqueId) == 1),
+                "Producer unrelated-actor custody differs from the restored native field.");
+            var serializer = MountedSaveCodec.CreateSerializer(); var unrelatedRows = new JArray();
+            foreach (JObject row in unrelated)
+            {
+                var before = row["native"].ToObject<SavedNativeActor>(serializer); var after = MountedPersistenceService.CaptureActor(Exact((string)row["actorId"]));
+                Require(Chunk7WorldScenarioEngine.ManualDebtWithinClock(before, after, elapsed),
+                    "Unrelated native actor expenditure changed across the owner-seed-derived cold load.");
+                unrelatedRows.Add(new JObject { ["actorId"] = row["actorId"], ["before"] = row["native"].DeepClone(), ["after"] = JObject.FromObject(after, serializer) });
+            }
+            evidence["ownerSeedDerivedCold"] = new JObject { ["contract"] = "owner-seed-derived-cold-v1", ["ancestry"] = Chunk7WorldScenarioEngine.OwnerSeedDerivedAncestry,
+                ["sourceRunId"] = request.OwnedPairs.SourceRunId, ["sourceArtifactSha256"] = request.OwnedPairs.SourceArtifactSha256,
+                ["sourceArchiveSha256"] = request.OwnedPairs.SourceArchiveSha256, ["seedSha256"] = request.OwnedPairs.SeedSha256,
+                ["producerProcessId"] = inherited.OwnerSeedProcessId, ["loadedEqualsProducerReadback"] = true, ["elapsedSeconds"] = elapsed,
+                ["owners"] = new JArray(world.Registry.Owners.OrderBy(owner => owner.Id.ToString("N"), StringComparer.Ordinal).Select(owner => new JObject {
+                    ["ownerId"] = owner.Id.ToString("N"), ["generation"] = owner.Generation, ["riderId"] = owner.Rider?.UniqueId, ["mountId"] = owner.Mount?.UniqueId })),
+                ["slots"] = new JArray(liveSlots.Select(s => new JObject { ["actorId"] = s.ActorId, ["index"] = s.Index, ["kind"] = s.Kind })),
+                ["unrelated"] = unrelatedRows };
+            Pass("C7-persistence-owner-seed-derived-cold-identity");
+        }
     }
 }

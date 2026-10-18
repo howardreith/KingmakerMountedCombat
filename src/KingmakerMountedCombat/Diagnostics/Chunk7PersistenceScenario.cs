@@ -320,6 +320,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 restoration.Count("round-before", ids) == 0 && restoration.Count("restore-debt-before", ids) == 4 &&
                 restoration.Count("restore-debt-after", ids) == 4, "Cold native actor restoration invented preparation or lost its complete observer window.");
             AssertDebt(saved); evidence["coldRestoration"] = restoration.Capture(); restoration.Dispose(); restoration = null;
+            if (request.OwnedPairs?.IsOwnerSeedDerivedLoad == true) ObserveOwnerSeedDerivedCold();
             evidence["loadedArchive"] = JObject.FromObject(saved, MountedSaveCodec.CreateSerializer());
             var descriptor = request.PersistenceLoad;
             evidence["loadedDescriptor"] = new JObject { ["internalName"] = descriptor.InternalName, ["fileName"] = descriptor.FileName,
