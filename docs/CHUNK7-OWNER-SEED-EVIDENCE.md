@@ -94,6 +94,15 @@ The lab receipts are under `analysis-cache/chunk7-continuation/owner-seed-review
 | `twopair-safety-review03` | FAIL |
 | `twopair-safety-review04` | PASS |
 | `postreview-delta-review01` (`928987f2..162a6d14`) | PASS |
+| `batch3-safety-review01`, `batch3-safety-review02` | FAIL, PASS |
+| `lease-scope-review01`, `02`, `03` | FAIL, FAIL, PASS |
+| `rt-companion-review01`, `rt-companion-review02` | FAIL (B1), PASS |
+| `diag-delta-review01` | PASS |
+| `batch6-delta-review01` | PASS |
+| `batch6-product-review01` (product: TB transition in the prepared turn) | PASS |
+| `batch6-reader-review01` | PASS |
+
+Diagnoses: `owner-seed-batch05/tb-preparing-diagnosis01`, `owner-seed-batch06/rt-aoo-diagnosis01` and `owner-seed-batch06/tb-pending-move-diagnosis01`.
 
 An external targeted review of PR #5 is recorded in Directive 3.
 
@@ -151,9 +160,59 @@ An external targeted review of PR #5 is recorded in Directive 3.
 
 **Excluded:** acquisition (setup is disclosed assistance), Quick/Auto/area/removal/migration persistence, combat after load, door behaviour.
 
+## Combat checkpoints 5–7 (October 18, 2026)
+
+All three run on the same frozen candidate and reuse checkpoints 3 and 4 by pinned receipts. Both pairs start restored MOUNTED by a cold load of an independent copy of the checkpoint 3 Manual. The target is the project-spawned, runtime-only stock Mammoth, approved by the owner for owner-seed derivatives. Each run did one load and zero writes.
+
+| Field | Value |
+|---|---|
+| Product | `0.1.0-chunk7b-preview.34`, commit `bba4edde`, DLL MVID `012d4ce2-3bdd-4b47-af78-215f12e15899`, package SHA-256 `0aefa9cd…a61644d` |
+| Harness | the same commit; suite `chunk7b-world34-20261018` |
+| Reviews | `rt-companion-review02`, `diag-delta-review01`, `batch6-delta-review01`, `batch6-product-review01` and `batch6-reader-review01`, all PASS after fixes |
+
+| Checkpoint | Run | Scenario | Terminal result | Evidence SHA-256 |
+|---|---|---|---|---|
+| 5 | `20261018-c7b-world34-ownerseed-b6s5m-rt` (batch 6, slot 5) | RT with an unrelated companion action | **PASS** | `3252f61c…ec714864` |
+| 6 | `20261018-c7b-world34-ownerseed-b6s4m-tbmount` (batch 6, slot 4) | TB mount-before-rider | **PASS** | `d419ed6e…e416d9b` |
+| 7 | `20261018-c7b-world34-ownerseed-b7s1-tbrider` (batch 7, slot 1) | TB rider-before-mount | **PASS** | `ec1f8d11…f21591c0` |
+
+**Checkpoint 5 observed (RT, 10/10 subscenarios):**
+- RT Charge stayed default-off.
+- Two concurrent native primaries: rider A's own attack and Horse B's own attack. Each was one native attack with its own actor as resource owner.
+- Valerie's action:
+  - she took exactly one ordinary native UnitAttack with its own single cost, then one native Stop;
+  - zero pair touch and zero foreign events inside her window;
+  - 17 refused-before-Run pair proposals were classified (see known debt);
+  - the target was standing, conscious and idle when her window opened.
+- Local Stop with an untouched neighbour, unmounted native control, isolated local cleanup failure, and cleanup.
+
+**Checkpoints 6 and 7 observed (TB, 12/12 subscenarios each):**
+- Initiative order: in mount-first both Horses led it; in rider-first both riders led it.
+- Each pair took a full native activation: a move, a rider primary and a mount primary. A melee rider was carried into reach by its own mount's native approach.
+- The TB Charge refusal was cost-free.
+- Exact native renewal in the next round.
+- A native Dismount as the first action of the rider's prepared turn. This was admitted under the owner's October 18 decision.
+- Native rider removal ended in a mounted pending-only survivor through the game's own paired forfeit (`ForceToEnd(setCooldowns: true)` nested on the mount's turn).
+- An isolated local cleanup failure, and cleanup.
+
+**Restoration (all three):** process exited, Mods restored, save protection passed, dependencies unchanged, profile bytes restored exactly, zero accepted cache changes.
+
+**Defects found on the way (batches 5–7, all runs restored):**
+- **Product:**
+  - turn-based Mount/Dismount was refused while the rider's turn was Preparing, so it could never be a turn's first action. The owner decided to admit it (`06ec7180`).
+- **Diagnostics and harness:**
+  - a refused proposal's null-string executor (`38ad77b7`);
+  - the TB driver waiting for Acting before its first input (`73a5c2dc`);
+  - stale RT window copies and positive-only identity checks (`37489a08`);
+  - an unsettled diagnostic target provoking attacks of opportunity by standing up (`4850445b`);
+  - the own-partner approach, the native forfeit and an empty participation record (`c6f0c00c`).
+
+**Excluded:** acquisition (disclosed assistance), human review, door behaviour, Small calibration, stress, and persistence breadth beyond the one Manual.
+
 ## Not yet accepted
 
-- **Two-pair RT combat** (`owner-seed-realtime-core`) has not passed.
-  - Batch 4, slots 2–5 reached, in turn: the AI-lease check; a non-pair lease wrongly holding pair B (fixed); a null command-slot capture (fixed); then the companion-action accounting window.
-  - The last is under offline diagnosis.
-- **TB rider-first and mount-first** have not run.
+- **Acquisition:** the owner-seed setup is disclosed assistance.
+- **Quick, Auto, area, removal and migration persistence breadth:** only the one owner-seed-derived Manual and its cold load are proven.
+- **Door behaviour:** no qualifying door at the seed location.
+- **Small calibration** (catalogue still empty), **stress and performance**, **human review**.
+- **Chunk 6A regression:** the historical probe row `CM01-combat-mount-preparing-refused` asserts the superseded R3 rule (see known product debt).
