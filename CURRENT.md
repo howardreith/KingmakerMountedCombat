@@ -18,22 +18,24 @@ The old lifetime limit of 25 attempts and the mandatory whole-lab rehash are his
 **What works**, summarised in [owner-seed evidence](docs/CHUNK7-OWNER-SEED-EVIDENCE.md):
 - The owner seed `KMC_C7_NO_MODS_OWNER_SEED` (SHA-256 `3405d7c8…821b924f`) is qualified by the accepted cold load `20261017-c7b-world18-ownerseed-s4-cold`.
 - One two-pair movement, selection and control slice was accepted in `20261017-c7b-world22-ownerseed-b2s4-twopair` (preview.22, `162a6d14`). It covered disclosed native setup, both native Mounts, independent moves, an independent Dismount with the other pair retained, unmounted control and remount cycles, with verified restoration.
+- **Two-pair Manual persistence** (October 18), on preview.26 `20e23743`:
+  - `20261018-c7b-world26-ownerseed-b3s1d-save` wrote one genuine owner-seed-derived native Manual whose schema-3 read-back matches both live pairs.
+  - `20261018-c7b-world26-ownerseed-b4s1-load` cold-loaded an independent copy of it in a separate process and restored both owners with the producer's identities and generations.
+  - Restoration was verified both times.
+  - Product fix on the way: KMC refused to load its own all-pair saves (`0ccda7cc`).
 
 **Not proven:**
 - acquisition (setup is disclosed assistance);
 - door behaviour (no qualifying door at the seed location);
-- combat;
-- mounted save/load;
-- Quick/Auto/area/removal/migration breadth;
+- combat: RT combat has not passed (batch 4 stopped at the companion-action window, under diagnosis); TB has not run;
+- Quick/Auto/area/removal/migration persistence breadth;
 - Small calibration;
 - stress/performance;
 - human review.
 
-**Next concrete action (Directive 3):**
-1. Behaviour tests for the paused-ground-order decision and for pair-owner GUID forms.
-2. Mark the stale level-up-autosave families not-ready.
-3. An owner-seed-derived two-pair native Manual save, then a separate-process cold load restoring both owners.
-4. A targeted RT combat scenario and TB combat scenarios for both initiative arrangements, in one batch of at most five native scenarios.
+**Next concrete action (Directive 3):** items 1-3 are done (behaviour tests, the not-ready family gate, and the Manual save plus cold load). Remaining:
+1. Correct the RT companion-action window from its offline diagnosis (`analysis-cache/chunk7-continuation/owner-seed-batch04/rt-companion-diagnosis01.json` in the lab).
+2. Batch 5: RT combat, then TB rider-before-mount and mount-before-rider. These combat kinds reuse the accepted checkpoint 3 and 4 sources by pinned receipts, so no new save or load run is needed.
 
 **Known not-ready families:** ordinary acquisition, manual derived, native progression and assisted fixture production still wait for a level-up autosave that the installed game never requests. Do not select them until their completion contract is repaired.
 
