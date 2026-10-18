@@ -105,4 +105,16 @@ foreach($mutation in @('invented-activation','invented-rider','dropped-pending',
       'changed-native-slot' {$a.Slots[0].Index=1}
     };Assert-KmcChunk7CombatArchive $a $legacy.request;Assert-KmcChunk7LegacyPendingMigration $schema2 $a}
 }
+# P2 owner-seed combat checkpoints (generated, labelled synthetic): the restored-start and derived-target readers
+# belong only to the owner-seed checkpoint producer and accept only the owner-approved derived-copy basis.
+Reject 'restored-start reader belongs only to the owner-seed checkpoint producer' {Assert-KmcChunk7OwnerSeedCheckpointStart $tb.request ([pscustomobject]@{inputs=@()}) $tb.archive}
+$seedPins=[pscustomobject]@{seedSha256=('9'*64);sourceArchiveSha256=('7'*64);sourceRunId='synthetic-owner-seed-manual';sourceArtifactSha256=('6'*64);checkpointSourceRunId='synthetic-owner-seed-cold';checkpointSourceArtifactSha256=('8'*64)}
+$seedTargetRequest=[pscustomobject]@{ownedPairs=$seedPins;persistenceLoad=[pscustomobject]@{area=('a'*32)}}
+function New-SeedTargetAuthorization{[pscustomobject][ordered]@{contract='chunk7-combat-target-authorization-v1';basis='owner-seed-derived-disposable-copy';ownerApproval='docs/CHUNK7-OWNER-DIRECTIVES-2026-10-16.md, Owner decisions on the combat slice (October 17, 2026): combat target approved';workingSha256=$null;seedSha256=$seedPins.seedSha256;derivedManualSha256=$seedPins.sourceArchiveSha256;producerRunId=$seedPins.sourceRunId;producerArtifactSha256=$seedPins.sourceArtifactSha256;consumerRunId=$seedPins.checkpointSourceRunId;consumerArtifactSha256=$seedPins.checkpointSourceArtifactSha256;area=('a'*32);riderPosition=@(0.0,0.0,0.0);position=@(0.0,0.0,3.5);placementValidated=$true}}
+Check 'owner-seed combat checkpoint target carries the owner-approved derived-copy basis' {Assert-KmcChunk7OwnerSeedTargetAuthorization $seedTargetRequest (New-SeedTargetAuthorization)}
+foreach($mutation in @('working-basis','acquired-basis','no-approval','working-pin','seed-pin','manual-pin','consumer-pin','area','placement','missing')) {
+    Reject ('owner-seed combat checkpoint target '+$mutation) {$t=New-SeedTargetAuthorization
+        switch($mutation){'working-basis'{$t.basis='exact-working-fixture'}'acquired-basis'{$t.basis='owned-acquired-field-copy'}'no-approval'{$t.ownerApproval=$null}'working-pin'{$t.workingSha256='5'*64}'seed-pin'{$t.seedSha256='e'*64}'manual-pin'{$t.derivedManualSha256=$seedPins.seedSha256}'consumer-pin'{$t.consumerRunId='synthetic-other'}'area'{$t.area='b'*32}'placement'{$t.placementValidated=$false}'missing'{$t=$null}}
+        Assert-KmcChunk7OwnerSeedTargetAuthorization $seedTargetRequest $t}
+}
 Write-Host ('CHUNK7 COMBAT PERSISTENCE READER PASS='+$passed+' FAIL=0; synthetic validator contracts only, no native gameplay claim.')

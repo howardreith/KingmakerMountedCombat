@@ -268,10 +268,12 @@ function New-SeedCheckpointSaveSource([string]$Checkpoint='multi-exploration-qui
 }
 function New-SeedCheckpointLoadSource([string]$Checkpoint='multi-exploration-quick'){
  $p=New-SeedCheckpointSaveSource $Checkpoint;$manual=Qualify-Combat $p;$script:readCounts=@{};$script:calls=[Collections.Generic.List[string]]::new()
- $type=if($Checkpoint-ceq'multi-exploration-quick'){'Quick'}else{'Auto'};$leaf=$type+'_1.zks'
+ # A combat checkpoint is a genuine native Manual numbered after the derived Manual (303 -> 304) under its distinct name.
+ $type=if($Checkpoint-ceq'multi-exploration-quick'){'Quick'}elseif($Checkpoint-ceq'multi-exploration-auto'){'Auto'}else{'Manual'}
+ $number=if($type-ceq'Manual'){304}else{1};$name=if($type-ceq'Manual'){'KMC_C7_SEED_CHECKPOINT'}else{$type+' save'};$leaf=if($type-ceq'Manual'){'Manual_304_KMC_C7_SEED_CHECKPOINT.zks'}else{$type+'_1.zks'}
  $pr=[ordered]@{scenario='chunk7-owned-two-pair-campaign';runId='synthetic-owner-seed-checkpoint';evidenceRoot='';fixture=$p.fixture;ownedPairs=($p.selection|ConvertTo-Json -Depth 20|ConvertFrom-Json);persistenceCase=$Checkpoint;persistenceLoad=($manual.descriptor|ConvertTo-Json -Depth 5|ConvertFrom-Json)}
  foreach($key in @('branch','commit','productVersion','dllSha256','dllMvid','transactionToken')){$pr[$key]=$p.producer.request.$key};$pr=[pscustomobject]$pr
- $script:checkpointArtifact=[pscustomobject]@{status='PASS';observations=[pscustomobject]@{ownedOutputAdmission=[pscustomobject]@{number=1;leaf=$leaf};nativeWrite=[pscustomobject]@{path='';nativeName=($type+' save');nativeType=$type;sha256=('3'*64);length=4096;archive=[pscustomobject]@{AreaId=$manual.descriptor.area}}}}
+ $script:checkpointArtifact=[pscustomobject]@{status='PASS';observations=[pscustomobject]@{ownedOutputAdmission=[pscustomobject]@{number=$number;leaf=$leaf};nativeWrite=[pscustomobject]@{path='';nativeName=$name;nativeType=$type;sha256=('3'*64);length=4096;archive=[pscustomobject]@{AreaId=$manual.descriptor.area}}}}
  $parentSet=Add-Set $pr $script:checkpointArtifact 'chunk7-persistence-evidence.json' ('2'*64) $p.selection.sourceArchiveSha256 $Checkpoint
  $script:checkpointArtifact.observations.nativeWrite.path=Join-Path (Join-Path $parentSet.profile 'Saved Games') $leaf;$script:hashes[$script:checkpointArtifact.observations.nativeWrite.path]='3'*64
  $s=$p.selection|ConvertTo-Json -Depth 20|ConvertFrom-Json;$s.case='owner-seed-checkpoint-load';$s.expectedNativeWriteCount=0;$s.checkpointSourceRunId=$pr.runId;$s.checkpointSourceArtifactSha256='2'*64
@@ -288,6 +290,22 @@ foreach($checkpointCase in @('multi-exploration-quick','multi-exploration-auto')
 }
 Check 'owner-seed checkpoint producer records a later current candidate without relabelling the chain' {$c=New-SeedCheckpointSaveSource;$c.candidate.commit='f'*40;$c.candidate.dllSha256='f'*64;$c.candidate.dllMvid='ffffffff-ffff-4fff-8fff-ffffffffffff';$v=Qualify-Combat $c
  if($v.candidates.sameCandidate-ne$false-or$v.candidates.current.commit-cne('f'*40)-or$v.candidates.producer.commit-ceq('f'*40)){throw 'Cross-candidate fact was not recorded honestly'}}
+# P2 combat checkpoints: the producer chain is unchanged; the consumer's input is the producer's genuine native
+# Manual under KMC_C7_SEED_CHECKPOINT, numbered after the derived Manual it loaded.
+foreach($checkpointCase in @('multi-rt-debt-manual','multi-tb-debt-manual','zero-mounted-tb-retained-manual')){
+ Check ('owner-seed combat checkpoint producer qualifies the Manual producer and the accepted consumer '+$checkpointCase) {$c=New-SeedCheckpointSaveSource $checkpointCase;$v=Qualify-Combat $c
+  if($v.ownerSeedDerived-ne$true-or$v.descriptor.internalName-cne'KMC_C7_SEED_WORLD'-or$v.descriptor.sha256-cne('5'*64)-or$v.consumerRunId-cne'synthetic-owner-seed-cold'){throw 'Combat checkpoint producer lost the Manual producer/consumer chain'}}
+ Check ('owner-seed combat checkpoint consumer qualifies exactly its producer Manual '+$checkpointCase) {$c=New-SeedCheckpointLoadSource $checkpointCase;$v=Qualify-Combat $c
+  if($v.descriptor.fileName-cne'Manual_304_KMC_C7_SEED_CHECKPOINT.zks'-or$v.descriptor.internalName-cne'KMC_C7_SEED_CHECKPOINT'-or$v.descriptor.sha256-cne('3'*64)-or$v.checkpointRunId-cne'synthetic-owner-seed-checkpoint'-or$v.manual.descriptor.sha256-cne('5'*64)){throw 'Combat checkpoint consumer substituted the producer Manual or its lineage'}}
+ $combatCheckpointFaults=[ordered]@{
+  'a Manual written under the acquired-ancestry name'={param($c)$w=$c.checkpoint.artifact.observations;$w.nativeWrite.nativeName='KMC_C7_WORLD';$w.ownedOutputAdmission.leaf='Manual_304_KMC_C7_WORLD.zks';$w.nativeWrite.path=Join-Path (Join-Path $c.checkpoint.profile 'Saved Games') 'Manual_304_KMC_C7_WORLD.zks';$script:hashes[$w.nativeWrite.path]='3'*64}
+  'a Manual written under the derived Manual name'={param($c)$w=$c.checkpoint.artifact.observations;$w.nativeWrite.nativeName='KMC_C7_SEED_WORLD';$w.ownedOutputAdmission.leaf='Manual_304_KMC_C7_SEED_WORLD.zks';$w.nativeWrite.path=Join-Path (Join-Path $c.checkpoint.profile 'Saved Games') 'Manual_304_KMC_C7_SEED_WORLD.zks';$script:hashes[$w.nativeWrite.path]='3'*64}
+  'a Manual that skips the native next number'={param($c)$w=$c.checkpoint.artifact.observations;$w.ownedOutputAdmission.number=305;$w.ownedOutputAdmission.leaf='Manual_305_KMC_C7_SEED_CHECKPOINT.zks';$w.nativeWrite.path=Join-Path (Join-Path $c.checkpoint.profile 'Saved Games') 'Manual_305_KMC_C7_SEED_CHECKPOINT.zks';$script:hashes[$w.nativeWrite.path]='3'*64}
+  'cross-ancestry (an acquired-ancestry producer)'={param($c)$c.checkpoint.request.ownedPairs.case='persistence-save'}
+  'a slot checkpoint for a combat case'={param($c)$c.persistenceCase='multi-exploration-quick'}
+ }
+ foreach($fault in $combatCheckpointFaults.Keys){Check ('owner-seed combat checkpoint consumer refuses '+$fault+' '+$checkpointCase) {$c=New-SeedCheckpointLoadSource $checkpointCase;&$combatCheckpointFaults[$fault] $c;[void](Get-KmcChunk7OwnedPairsSource $c.selection $c.persistenceCase $c.fixture $c.candidate $null)} $true}
+}
 $checkpointSaveFaults=[ordered]@{
  'missing consumer receipt'={param($c)$c.selection.checkpointSourceRunId='synthetic-absent-consumer'}
  'wrong consumer receipt'={param($c)$c.selection.checkpointSourceArtifactSha256='e'*64}
@@ -295,7 +313,7 @@ $checkpointSaveFaults=[ordered]@{
  'wrong ancestry (consumer is another kind)'={param($c)$c.consumer.request.ownedPairs.case='persistence-load'}
  'Manual hash mismatch'={param($c)$c.selection.sourceArchiveSha256='e'*64}
  'a Manual written instead of a Quick'={param($c)$c.persistenceCase='multi-exploration-manual'}
- 'an unconnected checkpoint'={param($c)$c.persistenceCase='multi-rt-debt-manual'}
+ 'an unconnected checkpoint'={param($c)$c.persistenceCase='legacy-mounted-pending-tb-manual'}
  'no checkpoint'={param($c)$c.persistenceCase=$null}
  'a zero write quota'={param($c)$c.selection.expectedNativeWriteCount=0}
  'a two-write quota'={param($c)$c.selection.expectedNativeWriteCount=2}
