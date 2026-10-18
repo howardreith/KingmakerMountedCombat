@@ -713,24 +713,42 @@ function Assert-KmcChunk7OwnerSeedCompanionAction($Request,$Observations){
  $o=$Observations;$s=$Request.ownedPairs;$roles=Get-KmcChunk7OwnedPairIds $Request
  if($null-eq$o.PSObject.Properties['companionAction']){throw 'Owner-seed-derived RT lacks its unrelated companion action.'}
  $c=$o.companionAction
- Assert-KmcExactProperties $c @('contract','kind','justification','actorId','targetId','traceSequenceBefore','before','clicked','command','commandType','admitted','selectionAfterInput','after','traceSequenceAfter','accountedEvents','companionCommandCount','companionCostEvents','pairAccountedEvents','foreignCompanionEvents','declaredLeaseCommands','terminal') 'owner-seed companion action'
+ Assert-KmcExactProperties $c @('contract','kind','justification','actorId','targetId','traceSequenceBefore','before','clicked','command','commandType','admitted','selectionAfterInput','after','traceSequenceAfter','accountedEvents','companionCommandCount','companionCostEvents','pairRefusedProposals','pairAccountedEvents','foreignCompanionEvents','nativeStop','companionInputs','declaredLeaseCommands','terminal') 'owner-seed companion action'
  Assert-KmcBootstrapInventoryString $c.contract 'owner-seed-unrelated-companion-action-v1';Assert-KmcBootstrapInventoryString $c.kind 'ordinary-native-attack'
  Assert-KmcBootstrapInventoryString $c.actorId $s.companionId;Assert-KmcBootstrapInventoryString $c.targetId $o.targetId;Assert-KmcBootstrapInventoryString $c.commandType 'Kingmaker.UnitLogic.Commands.UnitAttack'
  if($c.actorId-cin$roles-or$c.selectionAfterInput-cnotin$roles-or[string]::IsNullOrWhiteSpace($c.justification)){throw 'The companion action escaped its unrelated actor or selection.'}
  foreach($key in @('clicked','terminal')){Assert-KmcChunk7Boolean $c.$key $true}
  Assert-KmcOrdinaryInteger $c.command 1 ([int]::MaxValue);Assert-KmcOrdinaryInteger $c.declaredLeaseCommands 1 1
  Assert-KmcOrdinaryInteger $c.traceSequenceBefore 0 ([int]::MaxValue);Assert-KmcOrdinaryInteger $c.traceSequenceAfter ([int]$c.traceSequenceBefore) ([int]::MaxValue)
- $window=@($o.allocationTrace.events|Where-Object{$_.sequence-gt$c.traceSequenceBefore-and$_.sequence-le$c.traceSequenceAfter-and$_.boundary-cin@('admission-before','admission-after','cost-before','cost-after','actor-cost-before','actor-cost-after','interrupt-before','interrupt-after')})
+ $window=@($o.allocationTrace.events|Where-Object{$_.sequence-gt$c.traceSequenceBefore-and$_.sequence-le$c.traceSequenceAfter-and$_.boundary-cin@('admission-before','admission-after','cost-before','cost-after','actor-cost-before','actor-cost-after','command-interrupt-before','command-interrupt-after')})
  if((ConvertTo-KmcChunk7Canonical @($window))-cne(ConvertTo-KmcChunk7Canonical @($c.accountedEvents))){throw 'The companion window events differ from the native trace.'}
- $pair=@($window|Where-Object{$_.commandActor-cin$roles-or$_.state.actor-cin$roles});if($pair.Count-ne0-or$c.pairAccountedEvents-ne0){throw 'A pair actor was admitted, cancelled or charged during the companion action.'}
+  # Native RT party brains keep proposing UnitAttacks on a pair actor's ManualTarget; KMC refuses each
+ # before native Run. Only closed refused-before-Run pairs are tolerated, derived here independently.
+ foreach($w in @($c.before,$c.admitted,$c.after)){if($null-eq$w.PSObject.Properties['pairCommands']){throw 'Companion window lacks the pair command custody.'}}
+ $slotted=@(foreach($w in @($c.before,$c.admitted,$c.after)){foreach($side in @('a','b')){foreach($slot in @($w.pairCommands.$side)){$slot.identity}}})
+ $pair=@($window|Where-Object{$_.commandActor-cin$roles-or$_.state.actor-cin$roles});$refused=[Collections.Generic.List[object]]::new();$accepted=[Collections.Generic.HashSet[long]]::new()
+ foreach($group in @($pair|Where-Object{$_.command-is[long]-or$_.command-is[int]}|Group-Object{[long]$_.command})){
+  $rows=@($group.Group|Sort-Object sequence);$identity=[long]$group.Name;$all=@($window|Where-Object{$null-ne$_.command-and[long]$_.command-eq$identity});$actor=$rows[0].state.actor
+  $closed=$rows.Count-eq2-and$all.Count-eq2-and$rows[0].boundary-ceq'admission-before'-and$rows[1].boundary-ceq'admission-after'-and$identity-ne[long]$c.command-and$identity-notin$slotted-and$actor-cin$roles
+  foreach($row in $rows){if($row.state.actor-cne$actor-or$row.commandType-cne'Kingmaker.UnitLogic.Commands.UnitAttack'-or$null-ne$row.commandActor-or$row.started-ne$false-or$row.acted-ne$false-or$row.finished-ne$false-or$row.result-cne'None'){$closed=$false}}
+  if(-not$closed){continue};foreach($row in $rows){[void]$accepted.Add([long]$row.sequence)}
+  $refused.Add([pscustomobject][ordered]@{actorId=$actor;command=$identity;sequenceBefore=$rows[0].sequence;sequenceAfter=$rows[1].sequence})}
+ $touched=@($pair|Where-Object{-not$accepted.Contains([long]$_.sequence)})
+ if($touched.Count-ne0-or$c.pairAccountedEvents-ne0){throw 'A pair actor was admitted, cancelled or charged during the companion action.'}
+ if((ConvertTo-KmcChunk7Canonical @($refused|Sort-Object sequenceBefore))-cne(ConvertTo-KmcChunk7Canonical @($c.pairRefusedProposals|Sort-Object sequenceBefore))){throw 'The recorded refused pair proposals differ from the native trace.'}
  $mine=@($window|Where-Object{$_.commandActor-ceq$c.actorId-or$_.state.actor-ceq$c.actorId})
- $admitted=@($mine|Where-Object boundary -CEQ 'admission-after');if($admitted.Count-ne1-or$admitted[0].command-ne$c.command-or$c.companionCommandCount-ne1){throw 'The companion did not take exactly one native command.'}
+ $admitted=@($mine|Where-Object boundary -CEQ 'admission-after');if($admitted.Count-ne1-or$admitted[0].command-ne$c.command-or$admitted[0].commandActor-cne$c.actorId-or$c.companionCommandCount-ne1){throw 'The companion did not take exactly one native command.'}
  if(@($mine|Where-Object{$_.command-ne$c.command}).Count-ne0-or$c.foreignCompanionEvents-ne0){throw 'The companion took a second native command.'}
  $before=@($mine|Where-Object{$_.boundary-ceq'cost-before'-and$_.command-eq$c.command});$after=@($mine|Where-Object{$_.boundary-ceq'cost-after'-and$_.command-eq$c.command})
  if($before.Count-ne1-or$after.Count-ne1-or$c.companionCostEvents-ne2){throw 'The companion action lacks its own single native cost event.'}
  if($after[0].sequence-le$before[0].sequence-or$after[0].state.standard-le$before[0].state.standard-or$after[0].commandType-cne'Kingmaker.UnitLogic.Commands.UnitAttack'){throw 'The companion cost was not her own native Standard spend.'}
- foreach($w in @($c.before,$c.admitted,$c.after)){if($null-eq$w.PSObject.Properties['pairCommands']){throw 'Companion window lacks the pair command custody.'}}
- if((ConvertTo-KmcChunk7Canonical $c.before.pairCommands)-cne(ConvertTo-KmcChunk7Canonical $c.after.pairCommands)-or(ConvertTo-KmcChunk7Canonical $c.before.pairCommands)-cne(ConvertTo-KmcChunk7Canonical $c.admitted.pairCommands)){throw 'The companion action reassigned or cancelled a pair command.'}
+ # Her only other input: one native Stop with only her selected, after her command finished natively.
+ if((@($c.companionInputs)-join'|')-cne'ordinary-attack-click|native-stop'){throw 'The companion took an undeclared native input.'}
+ $stop=$c.nativeStop;Assert-KmcExactProperties $stop @('selectedId','selectionAfterStop','traceSequenceBefore','traceSequenceAfter','companionManualTargetCleared','companionCommandsEmpty') 'owner-seed companion native Stop'
+ Assert-KmcBootstrapInventoryString $stop.selectedId $c.actorId;Assert-KmcBootstrapInventoryString $stop.selectionAfterStop $s.riderAId
+ foreach($key in @('companionManualTargetCleared','companionCommandsEmpty')){Assert-KmcChunk7Boolean $stop.$key $true}
+ Assert-KmcOrdinaryInteger $stop.traceSequenceBefore ([int]$after[0].sequence) ([int]$c.traceSequenceAfter);Assert-KmcOrdinaryInteger $stop.traceSequenceAfter ([int]$stop.traceSequenceBefore) ([int]$c.traceSequenceAfter)
+ if(@($mine|Where-Object{$_.sequence-gt$stop.traceSequenceBefore}).Count-ne0){throw 'The companion native Stop admitted, charged or interrupted a command.'} if((ConvertTo-KmcChunk7Canonical $c.before.pairCommands)-cne(ConvertTo-KmcChunk7Canonical $c.after.pairCommands)-or(ConvertTo-KmcChunk7Canonical $c.before.pairCommands)-cne(ConvertTo-KmcChunk7Canonical $c.admitted.pairCommands)){throw 'The companion action reassigned or cancelled a pair command.'}
  foreach($id in $roles){$a=Get-KmcChunk7CombatActor $c.before $id;$b=Get-KmcChunk7CombatActor $c.after $id
   foreach($field in @('standard','move','swift')){if([double]$b.$field-gt[double]$a.$field+0.001){throw 'A pair actor spent native resources during the companion action.'}};if($a.reactions-ne$b.reactions){throw 'A pair actor spent a reaction during the companion action.'}}
  $ownersBefore=@($c.before.owners|ForEach-Object{(ConvertTo-KmcChunk7PairIdN $_.id)+'|'+$_.generation+'|'+$_.state}|Sort-Object -CaseSensitive);$ownersAfter=@($c.after.owners|ForEach-Object{(ConvertTo-KmcChunk7PairIdN $_.id)+'|'+$_.generation+'|'+$_.state}|Sort-Object -CaseSensitive)
