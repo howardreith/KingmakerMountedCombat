@@ -551,8 +551,10 @@ namespace KingmakerMountedCombat.Diagnostics
                 }
                 else
                 {
-                    var inputName = OwnedPairs.Cold ? (PersistenceCase == "multi-exploration-quick" || (PersistenceCase == "multi-exploration-auto" || PersistenceCase == "multi-area-autosave") ? PersistenceLoad.InternalName : "KMC_C7_WORLD") : Chunk7AcquiredManualSelection.OutputName;
-                    var inputPattern = OwnedPairs.Cold ? (PersistenceCase == "multi-exploration-quick" ? "^Quick_1\\.zks$" : (PersistenceCase == "multi-exploration-auto" || PersistenceCase == "multi-area-autosave") ? "^Auto_1\\.zks$" : "^Manual_[1-9][0-9]*_KMC_C7_WORLD\\.zks$") : "^Manual_[1-9][0-9]*_KMC_C7_ACQUIRED_FIELD\\.zks$";
+                    // A cold Manual is the generic acquired-ancestry KMC_C7_WORLD, or the owner-seed checkpoint producer's distinct Manual.
+                    var coldManual = OwnedPairs.IsOwnerSeedCheckpointLoad ? Chunk7OwnedPairsSelection.OwnerSeedCheckpointManualName : "KMC_C7_WORLD";
+                    var inputName = OwnedPairs.Cold ? (PersistenceCase == "multi-exploration-quick" || (PersistenceCase == "multi-exploration-auto" || PersistenceCase == "multi-area-autosave") ? PersistenceLoad.InternalName : coldManual) : Chunk7AcquiredManualSelection.OutputName;
+                    var inputPattern = OwnedPairs.Cold ? (PersistenceCase == "multi-exploration-quick" ? "^Quick_1\\.zks$" : (PersistenceCase == "multi-exploration-auto" || PersistenceCase == "multi-area-autosave") ? "^Auto_1\\.zks$" : "^Manual_[1-9][0-9]*_" + coldManual + "\\.zks$") : "^Manual_[1-9][0-9]*_KMC_C7_ACQUIRED_FIELD\\.zks$";
                     errors.AddRange(PersistenceLoad.Validate("persistenceLoad", inputName, inputPattern));
                     if (PersistenceCase == "multi-area-autosave" && PersistenceLoad.Area !=
                         (OwnedPairs.Cold ? PersistenceAreaTarget?.Area : OwnedPairs.SourceArea))
@@ -1591,12 +1593,15 @@ namespace KingmakerMountedCombat.Diagnostics
             if (request == null || !fixtureAdmitted || request.Validate().Count != 0) return null;
             var selection = request.OwnedPairs;
             if (selection == null) return request.Fixture?.Working?.Sha256 != null && request.Fixture.Working.Sha256 == workingSha256 ? WorkingBasis : null;
-            if (selection.IsOwnerSeedDerivedCombat)
+            // Owner-seed-derived combat and the owner-seed checkpoint producer's combat checkpoints share one
+            // contract: the admitted input is exactly the pinned derived Manual (never the seed).
+            if (selection.IsOwnerSeedDerivedCombat ||
+                selection.IsOwnerSeedCheckpointSave && Chunk7OwnedPairsSelection.IsOwnerSeedCombatCheckpoint(request.PersistenceCase))
                 return request.PersistenceLoad != null && request.PersistenceLoad.Sha256 == selection.SourceArchiveSha256 &&
                     request.PersistenceLoad.Sha256 != selection.SeedSha256 && request.PersistenceLoad.InternalName == Chunk7OwnedPairsSelection.OwnerSeedManualName
                     ? OwnerSeedDerivedBasis : null;
-            // The owner-seed setup and cold-consumer kinds never spawn a combat target.
-            // The owner-seed checkpoint pair connects only exploration checkpoints so far: no target.
+            // The owner-seed setup and cold-consumer kinds never spawn a combat target; the checkpoint
+            // consumer binds its producer's saved target read-only, and exploration checkpoints have none.
             if (selection.OwnerSeedSetup || selection.IsOwnerSeedDerivedLoad || selection.IsOwnerSeedCheckpointSave || selection.IsOwnerSeedCheckpointLoad) return null;
             return AcquiredOwnedBasis;
         }

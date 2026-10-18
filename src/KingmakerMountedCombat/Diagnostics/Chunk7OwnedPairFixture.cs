@@ -42,6 +42,8 @@ namespace KingmakerMountedCombat.Diagnostics
         internal UnitEntityData[] Actors { get; private set; }
         internal Chunk7NativeWorldScope Scope { get; private set; }
         internal bool Bound => bound;
+        // Set only by a passing VerifyRestoredOwnerSeedPairs: the restored mounted start was proven.
+        internal bool RestoredOwnerSeedStartVerified { get; private set; }
         internal Chunk7OwnedPairFixture(RuntimeRequest request, HorseCompanionBlueprintService horses,
             MountedWorldService world, NativeMountedControlService controls, MountedPersistenceService persistence,
             RuntimeSaveAuthorization authorization, PersistenceSaveAuthorization authority, WorkingFixtureLoader loader)
@@ -243,6 +245,7 @@ namespace KingmakerMountedCombat.Diagnostics
             Require(slotRows != null && slotRows.Count == liveSlots.Length && liveSlots.All(s => slotRows.Count(row =>
                     (string)row["actorId"] == s.ActorId && (int)row["index"] == s.Index && (int)row["kind"] == s.Kind) == 1),
                 "Restored control bindings differ from the producer's bound native hotbar.");
+            RestoredOwnerSeedStartVerified = true;
             return new JObject { ["loadedEqualsProducerReadback"] = true, ["producerProcessId"] = OwnerSeedProcessId,
                 ["owners"] = new JArray(owners.OrderBy(owner => owner.Id.ToString("N"), StringComparer.Ordinal).Select(owner => new JObject {
                     ["ownerId"] = owner.Id.ToString("N"), ["generation"] = owner.Generation, ["riderId"] = owner.Rider?.UniqueId, ["mountId"] = owner.Mount?.UniqueId })),

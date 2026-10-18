@@ -22,6 +22,10 @@ namespace KingmakerMountedCombat.Diagnostics
     {
         internal const string CompanionJustification = "An ordinary native attack on the project's diagnostic target is the companion's own ordinary combat action: it spends only her Standard action and cannot harm the target (durability lease), the pairs or the cave population, and a ground move would not exercise the shared native action-cost boundary.";
         private bool OwnerSeedDerived => inherited != null && request.OwnedPairs?.IsOwnerSeedDerivedCombat == true;
+        // The owner-seed checkpoint producer's combat source: same derived lineage and target contract,
+        // admitted only after the persistence case verified the restored mounted start.
+        private bool OwnerSeedCheckpointSource => inherited != null && checkpointOnly && request.OwnedPairs?.IsOwnerSeedCheckpointSave == true &&
+            Chunk7OwnedPairsSelection.IsOwnerSeedCombatCheckpoint(request.PersistenceCase);
         private UnitEntityData companion;
         private UnitAttack companionAttack;
         private JObject companionAction;
@@ -93,9 +97,10 @@ namespace KingmakerMountedCombat.Diagnostics
         // fixture mutation; any refusal fails closed with its exact native reason.
         private string AdmitTargetAuthorization(Vector3 position)
         {
-            var admitted = inherited != null ? inherited.Bound && (!OwnerSeedDerived || evidence["mountedStart"] != null) : originalParty != null;
+            var admitted = inherited != null ? inherited.Bound && (!OwnerSeedDerived || evidence["mountedStart"] != null) &&
+                (!OwnerSeedCheckpointSource || inherited.RestoredOwnerSeedStartVerified) : originalParty != null;
             var basis = Chunk7CombatTargetAuthorization.Basis(request, Chunk7WorldScenarioEngine.WorkingHash, admitted);
-            var s = request.OwnedPairs; var derived = OwnerSeedDerived;
+            var s = request.OwnedPairs; var derived = OwnerSeedDerived || OwnerSeedCheckpointSource;
             var row = new JObject { ["contract"] = "chunk7-combat-target-authorization-v1", ["basis"] = basis,
                 ["ownerApproval"] = derived ? Chunk7CombatTargetAuthorization.OwnerApproval : null,
                 ["workingSha256"] = s == null ? request.Fixture?.Working?.Sha256 : null,
