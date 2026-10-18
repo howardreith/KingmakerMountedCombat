@@ -782,6 +782,7 @@ function Assert-KmcChunk7OwnerSeedFirstActionMount($Request,$Observations){
  if($prepares.Count-ne$calls-or$t.horseGrantsDuringMount-ne$calls){throw 'First-action Mount prepared the partner the wrong number of times.'}
  $before=Get-KmcChunk7CombatActor $t.before $s.mountAId;$after=Get-KmcChunk7CombatActor $t.after $s.mountAId
  if($retain){foreach($field in @('standard','move','swift')){if([double]$after.$field-lt[double]$before.$field-0.001){throw 'Retained participation replenished the Horse''s prior native spending.'}};if([double]$after.move-le0.001){throw 'Retained participation lost the Horse''s spent move.'}}
+ if($retain-and@($o.allocationTrace.events|Where-Object{$_.state.actor-ceq$s.mountAId-and($_.boundary-clike'prepare-*'-or$_.boundary-clike'clear-*')-and$_.frame-ge$m.after.frame-and$_.frame-le$t.after.frame}).Count-ne0){throw 'Retained participation prepared or cleared the Horse between its move and the Mount.'}
  Assert-KmcChunk7SameCombatBudget $t.before $t.after @($s.riderBId,$s.mountBId)
  $ownersBefore=@($t.before.owners|Where-Object{(ConvertTo-KmcChunk7PairIdN $_.id)-ceq(ConvertTo-KmcChunk7PairIdN $f.neighbourOwnerId)});$ownersAfter=@($t.after.owners|Where-Object{(ConvertTo-KmcChunk7PairIdN $_.id)-ceq(ConvertTo-KmcChunk7PairIdN $f.neighbourOwnerId)})
  if($ownersBefore.Count-ne1-or$ownersAfter.Count-ne1-or$ownersBefore[0].generation-ne$f.neighbourGeneration-or$ownersAfter[0].generation-ne$f.neighbourGeneration-or$ownersAfter[0].state-cne'Active'){throw 'Pair B''s ownership changed during pair A''s first-action Mount.'}

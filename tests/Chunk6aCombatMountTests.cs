@@ -569,7 +569,6 @@ namespace KingmakerMountedCombat.Tests
                 "A compensated relationship refused a later lawful mount.");
         }
 
-        // R3. Turn-based delivery requires the rider's turn to be ACTING. The
         // Directive 4 R3: Mount as the first action of the rider's prepared (Preparing) turn is eligible,
         // and the roster alone decides the adoption: a mount slot behind the rider retains the partner's
         // participation (no preparation); a slot ahead prepares it once. The earlier boundary stays refused.
