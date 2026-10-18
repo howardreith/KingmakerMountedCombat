@@ -143,7 +143,7 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 Require(controller.RoundNumber <= lifeDamageRound + 1 && !br.Descriptor.State.IsConscious && !br.Descriptor.State.IsDead,
                     "Native survivor continuation left its selected round or life window.");
-                if (turn?.Unit != bm || !turn.IsActing) { if (turn?.Unit?.Descriptor.State.IsConscious == true) EndNative(turn); return; }
+                if (turn?.Unit != bm || !Chunk7NativeFixture.ReadyForTurnInput(turn)) { if (turn?.Unit?.Descriptor.State.IsConscious == true) EndNative(turn); return; }
                 Require(controller.RoundNumber == lifeDamageRound + 1 && trace.GrantCount(bm) == lifeGrants[3] + 1 &&
                     trace.GrantCount(br) == lifeGrants[2] && bm.CombatState.Cooldown.StandardAction == 0f &&
                     bm.CombatState.Cooldown.MoveAction == 0f && world.Registry.FindActive(bm) == null && b.Participant.PartnerContext == null,

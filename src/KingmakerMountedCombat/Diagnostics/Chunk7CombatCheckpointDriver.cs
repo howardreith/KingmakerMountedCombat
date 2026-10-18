@@ -228,7 +228,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var turn = Game.Instance.TurnBasedCombatController.CurrentTurn;
             if (stage == 0)
             {
-                Require(ReferenceEquals(turn, originalTurn) && turn?.Unit == actors[2] && turn.IsActing &&
+                Require(ReferenceEquals(turn, originalTurn) && turn?.Unit == actors[2] && Chunk7NativeFixture.ReadyForTurnInput(turn) &&
                     world.ForActor(actors[2])?.Participant.PartnerContext != null && actors[3].HasMoveAction(),
                     "Restored native turn has no eligible exact saved partner context.");
                 BeginMovement(actors[2], actors[3]); stage = 1; return;
@@ -257,7 +257,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var pending = kind == Chunk7CombatCheckpointKind.MountedPendingOnly;
             var mounts = pending ? new[] { actors[1] } : new[] { actors[1], actors[3] };
             foreach (var mount in mounts)
-                if (turn?.Unit == mount && turn.IsActing && !independent.Contains(mount))
+                if (turn?.Unit == mount && Chunk7NativeFixture.ReadyForTurnInput(turn) && !independent.Contains(mount))
                 {
                     Require(controller.RoundNumber == sourceRound + 1 && trace.GrantCount(mount) == grantsBefore[mount] + 1 &&
                         (pending || repeatedCleanup), "A pending mount was released early/late or received duplicate native preparation.");

@@ -209,7 +209,7 @@ namespace KingmakerMountedCombat.Diagnostics
                         rounds.AfterNativeRound = ApplyRoundOrderedCleanup; Next(32); break;
                     case 32:
                         var independent = Game.Instance.TurnBasedCombatController.CurrentTurn;
-                        if (r1Injected && independent?.Unit == am && independent.IsActing)
+                        if (r1Injected && independent?.Unit == am && Chunk7NativeFixture.ReadyForTurnInput(independent))
                         {
                             Require(Game.Instance.TurnBasedCombatController.RoundNumber == splitRound + 1 && trace.GrantCount(am) == preparesAtSplit + 1,
                                 "Former mount did not receive exactly one independent native grant in N+1.");
@@ -369,7 +369,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool ReadyPrincipal(MountedPairServices pair)
         {
             var turn = Game.Instance.TurnBasedCombatController.CurrentTurn;
-            return turn?.Unit == pair.Relationship.Rider && turn.IsActing && pair.Combat.PairedPartnerContext != null &&
+            return turn?.Unit == pair.Relationship.Rider && Chunk7NativeFixture.ReadyForTurnInput(turn) && pair.Combat.PairedPartnerContext != null &&
                 pair.Relationship.Rider.Commands.Empty && pair.Relationship.Mount.Commands.Empty &&
                 !pair.Combat.HasActiveCommand && !pair.Combat.HasActiveGroundMovement && !pair.Relationship.Rider.AreHandsBusyWithAnimation &&
                 !pair.Relationship.Mount.AreHandsBusyWithAnimation;
@@ -382,7 +382,7 @@ namespace KingmakerMountedCombat.Diagnostics
             if (pair == null) return " Current turn: " + (turn?.Unit?.UniqueId ?? "none") + " (" + (turn == null ? "none" : turn.Status.ToString()) + "), not a pair rider.";
             var rider = pair.Relationship.Rider; var mount = pair.Relationship.Mount;
             var blockers = new List<string>();
-            if (!turn.IsActing) blockers.Add("turn not acting (" + turn.Status + ")");
+            if (!Chunk7NativeFixture.ReadyForTurnInput(turn)) blockers.Add("turn not ready for input (" + turn.Status + ")");
             if (pair.Combat.PairedPartnerContext == null) blockers.Add("no paired partner context");
             if (!rider.Commands.Empty) blockers.Add("rider commands: " + string.Join(",", rider.Commands.Raw.Where(c => c != null).Select(c => c.GetType().Name)));
             if (!mount.Commands.Empty) blockers.Add("mount commands: " + string.Join(",", mount.Commands.Raw.Where(c => c != null).Select(c => c.GetType().Name)));
