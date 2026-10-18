@@ -238,32 +238,6 @@ namespace KingmakerMountedCombat.Diagnostics
         private static bool Hash(string value) => Regex.IsMatch(value ?? "", "^[a-f0-9]{64}$");
     }
 
-    // The diagnostic-target authorization for the two-pair combat family, derived from the
-    // admitted fixture instead of a literal. The Working rule and the prior owned route are
-    // unchanged; the owner-seed-derived basis is the owner's 2026-10-17 approval, scoped to a
-    // disposable copy whose admitted input is exactly the pinned derived Manual (never the seed).
-    internal static class Chunk7CombatTargetAuthorization
-    {
-        internal const string WorkingBasis = "exact-working-fixture";
-        internal const string AcquiredOwnedBasis = "owned-acquired-field-copy";
-        internal const string OwnerSeedDerivedBasis = "owner-seed-derived-disposable-copy";
-        internal const string OwnerApproval = "docs/CHUNK7-OWNER-DIRECTIVES-2026-10-16.md, Owner decisions on the combat slice (October 17, 2026): combat target approved";
-        // Null forbids the target; any other value is the exact admitted basis.
-        internal static string Basis(RuntimeRequest request, string workingSha256, bool fixtureAdmitted)
-        {
-            if (request == null || !fixtureAdmitted || request.Validate().Count != 0) return null;
-            var selection = request.OwnedPairs;
-            if (selection == null) return request.Fixture?.Working?.Sha256 != null && request.Fixture.Working.Sha256 == workingSha256 ? WorkingBasis : null;
-            if (selection.IsOwnerSeedDerivedCombat)
-                return request.PersistenceLoad != null && request.PersistenceLoad.Sha256 == selection.SourceArchiveSha256 &&
-                    request.PersistenceLoad.Sha256 != selection.SeedSha256 && request.PersistenceLoad.InternalName == Chunk7OwnedPairsSelection.OwnerSeedManualName
-                    ? OwnerSeedDerivedBasis : null;
-            // The owner-seed setup and cold-consumer kinds never spawn a combat target.
-            if (selection.OwnerSeedSetup || selection.IsOwnerSeedDerivedLoad) return null;
-            return AcquiredOwnedBasis;
-        }
-    }
-
     public sealed class Chunk7OwnerSeedXpAssistance
     {
         public string UnitId { get; set; }
