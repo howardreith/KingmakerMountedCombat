@@ -19,8 +19,8 @@ function Get-KmcChunk7LifeGrant($State,[string]$Actor){
  [long]$rows[0].count
 }
 function Assert-KmcChunk7LifeOwner($Before,$After,[string]$Rider,[string]$Mount){
- $a=@($Before.owners|Where-Object riderId -CEQ $Rider);$b=@($After.owners|Where-Object riderId -CEQ $Rider)
- if($a.Count-ne1-or$b.Count-ne1-or$a[0].state-cne'Active'-or$b[0].state-cne'Active'-or$a[0].mountId-cne$Mount-or$b[0].mountId-cne$Mount-or
+ $a=@($Before.owners|Where-Object{Test-KmcChunk7OwnerActorMatch $_.riderId $Rider});$b=@($After.owners|Where-Object{Test-KmcChunk7OwnerActorMatch $_.riderId $Rider})
+ if($a.Count-ne1-or$b.Count-ne1-or$a[0].state-cne'Active'-or$b[0].state-cne'Active'-or-not(Test-KmcChunk7OwnerActorMatch $a[0].mountId $Mount)-or-not(Test-KmcChunk7OwnerActorMatch $b[0].mountId $Mount)-or
     (ConvertTo-KmcChunk7Canonical $a[0])-cne(ConvertTo-KmcChunk7Canonical $b[0])){throw 'Native life cleanup changed healthy owner identity or generation.'}
 }
 function Assert-KmcChunk7LifeActor($Actor,[string]$Id,[bool]$Conscious){
@@ -88,9 +88,9 @@ function Assert-KmcChunk7NativeLifeEvidence($Request,$Artifact,[string]$Status){
  $cb=$events[2];$ca=$events[3]
  Assert-KmcChunk7LifeOwner $cb.world $ca.world $ids[0] $ids[1]
  Assert-KmcChunk7SameCombatBudget $cb.world $ca.world @($ids[0],$ids[1],$ids[3])
- $affectedBefore=@($cb.world.owners|Where-Object riderId -CEQ $ids[2]);$affectedAfter=@($ca.world.owners|Where-Object riderId -CEQ $ids[2])
+ $affectedBefore=@($cb.world.owners|Where-Object{Test-KmcChunk7OwnerActorMatch $_.riderId $ids[2]});$affectedAfter=@($ca.world.owners|Where-Object{Test-KmcChunk7OwnerActorMatch $_.riderId $ids[2]})
  if($affectedBefore.Count-ne1-or$affectedAfter.Count-ne1-or$affectedBefore[0].state-cne'Active'-or$affectedAfter[0].state-cne'Detached'-or
-    $affectedBefore[0].id-cne$affectedAfter[0].id-or$affectedAfter[0].mountId-cne$ids[3]){throw 'Actual native life cleanup lost detached actor custody.'}
+    $affectedBefore[0].id-cne$affectedAfter[0].id-or-not(Test-KmcChunk7OwnerActorMatch $affectedAfter[0].mountId $ids[3])){throw 'Actual native life cleanup lost detached actor custody.'}
  Assert-KmcChunk7Boolean $affectedAfter[0].retainsObligations $true
  $records=@($life.deliveries|Where-Object boundary -CEQ 'UnitIncapacitated');$changes=@($life.lifeTransitions)
  if($records.Count-ne1-or$changes.Count-ne1-or$records[0].sequence-le$life.ledgerOffset-or$ca.ledgerSequence-ne$records[0].sequence-or$cb.ledgerSequence-ge$records[0].sequence-or
@@ -107,7 +107,7 @@ function Assert-KmcChunk7NativeLifeEvidence($Request,$Artifact,[string]$Status){
  foreach($i in 0..3){$baseline=Get-KmcChunk7LifeGrant $before $ids[$i];$fresh=Get-KmcChunk7LifeGrant $renewed $ids[$i];$last=Get-KmcChunk7LifeGrant $independent $ids[$i]
   if($fresh-ne$baseline+$(if($i-lt2){1}else{0})-or$last-ne$baseline+$(if($i-ne2){1}else{0})){throw 'Native next-round grants were duplicated, omitted or delayed.'}}
  foreach($id in @($ids[0],$ids[1])){$actor=Get-KmcChunk7CombatActor $renewed.world $id;if($actor.standard-ne0-or$actor.move-ne0){throw 'Healthy native renewal lacks fresh native expenditure.'}}
- $survivor=Get-KmcChunk7CombatActor $independent.world $ids[3];if($survivor.standard-ne0-or$survivor.move-ne0-or@($independent.world.owners|Where-Object{$_.state-ceq'Active'-and$_.mountId-ceq$ids[3]}).Count-ne0){throw 'Surviving mount lacks an independent native allocation.'}
+ $survivor=Get-KmcChunk7CombatActor $independent.world $ids[3];if($survivor.standard-ne0-or$survivor.move-ne0-or@($independent.world.owners|Where-Object{$_.state-ceq'Active'-and(Test-KmcChunk7OwnerActorMatch $_.mountId $ids[3])}).Count-ne0){throw 'Surviving mount lacks an independent native allocation.'}
  Assert-KmcChunk7LifeOwner $before.world $renewed.world $ids[0] $ids[1]
  foreach($window in @(@($life.healthyAttackBefore,$life.healthyEndedBeforeDamage),@($life.healthyAttackAfter,$life.healthyEndedAfterCleanup))){
   foreach($id in @($ids[0],$ids[1])){$end=@($o.nativeCompletion.calls|Where-Object{$_.kind-ceq'end'-and$_.complete-eq$true-and$_.before.actorId-ceq$id-and$_.before.frame-ge$window[0].before.frame-and$_.after.frame-le$window[1].world.frame})

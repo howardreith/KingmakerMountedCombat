@@ -8,6 +8,9 @@ function Get-KmcChunk7SelectedScenario($Request){
   'owner-seed-exploration'{'chunk7-two-pair-exploration'}
   'owner-seed-persistence-save'{'chunk7-two-pair-exploration'}
   'owner-seed-persistence-load'{'chunk7-persistence-load'}
+  'owner-seed-realtime-core'{'chunk7-two-pair-realtime-core'}
+  'owner-seed-combat-rider-first'{'chunk7-two-pair-combat-rider-first'}
+  'owner-seed-combat-mount-first'{'chunk7-two-pair-combat-mount-first'}
   'combat-rider-first'{'chunk7-two-pair-combat-rider-first'}
   'combat-mount-first'{'chunk7-two-pair-combat-mount-first'}
   'realtime-core'{'chunk7-two-pair-realtime-core'}
@@ -22,7 +25,7 @@ function Get-KmcChunk7OwnedWriteCount($Request){
  # Owner seed: zero writes. The installed game registers no LevelUpAutoSaveController, so setup makes no level-up Auto.
  if(Test-KmcChunk7OwnedPairsOwnerSeed $Request){return 0}
  # Owner-seed-derived Manual producer: exactly its one measured Manual; its cold consumer: none.
- if(Test-KmcChunk7OwnedPairsSeedManual $Request){return 1};if(Test-KmcChunk7OwnedPairsSeedDerivedLoad $Request){return 0}
+ if(Test-KmcChunk7OwnedPairsSeedManual $Request){return 1};if(Test-KmcChunk7OwnedPairsSeedDerivedInput $Request){return 0}
  if($Request.ownedPairs.case-ceq'persistence-save'-and$Request.persistenceCase-ceq'multi-owned-worker-cancel-manual'){return 2}
  if($Request.ownedPairs.case-ceq'persistence-save'-or($Request.ownedPairs.case-ceq'persistence-load'-and$Request.persistenceCase-cin@('legacy-mounted-pending-tb-manual','owned-schema1-resave-manual'))){return 1};return 0
 }
@@ -50,6 +53,9 @@ function Get-KmcChunk7OwnedPairsCase($Request){
 # labelled owner-seed-derived; neither is acquired or ordinary ancestry.
 function Test-KmcChunk7OwnedPairsSeedManual($Request){(Get-KmcChunk7OwnedPairsCase $Request)-ceq'owner-seed-persistence-save'}
 function Test-KmcChunk7OwnedPairsSeedDerivedLoad($Request){(Get-KmcChunk7OwnedPairsCase $Request)-ceq'owner-seed-persistence-load'}
+# Owner-seed-derived combat (scenarios 3-5): a disposable copy of the derived Manual, restored mounted.
+function Test-KmcChunk7OwnedPairsSeedDerivedCombat($Request){(Get-KmcChunk7OwnedPairsCase $Request)-cin@('owner-seed-realtime-core','owner-seed-combat-rider-first','owner-seed-combat-mount-first')}
+function Test-KmcChunk7OwnedPairsSeedDerivedInput($Request){(Test-KmcChunk7OwnedPairsSeedDerivedLoad $Request)-or(Test-KmcChunk7OwnedPairsSeedDerivedCombat $Request)}
 function Test-KmcChunk7OwnedPairsSeedSetup($Request){(Test-KmcChunk7OwnedPairsOwnerSeed $Request)-or(Test-KmcChunk7OwnedPairsSeedManual $Request)}
 function Get-KmcChunk7OwnerSeedManualName {'KMC_C7_SEED_WORLD'}
 function Assert-KmcChunk7OwnerSeedDerivedLoadSelection($Request,$Selection,$Checkpoint){
@@ -100,6 +106,7 @@ function Assert-KmcChunk7OwnedPairsSelection($Request){
  $checkpoint=$null;if($null-ne$Request.PSObject.Properties['persistenceCase']){$checkpoint=$Request.persistenceCase}
  if(Test-KmcChunk7OwnedPairsSeedSetup $Request){Assert-KmcChunk7OwnerSeedPairsSelection $Request $s $checkpoint;return}
  if(Test-KmcChunk7OwnedPairsSeedDerivedLoad $Request){Assert-KmcChunk7OwnerSeedDerivedLoadSelection $Request $s $checkpoint;return}
+ if(Test-KmcChunk7OwnedPairsSeedDerivedCombat $Request){Assert-KmcChunk7OwnerSeedDerivedCombatSelection $Request $s $checkpoint;return}
  $area=$checkpoint-is[string]-and$checkpoint-ceq'multi-area-autosave'
  $fields=@('case','sourceRunId','sourceArtifactSha256','sourceArchiveSha256','checkpointSourceRunId','checkpointSourceArtifactSha256','riderAId','mountAId','riderBId','mountBId','partyIds','baseGameOnly','expectedNativeLoadCount','expectedNativeWriteCount');if($area){$fields+='sourceArea'}
  Assert-KmcExactProperties $s $fields 'inherited native pair selection'
@@ -133,7 +140,7 @@ function Assert-KmcChunk7OwnedPairsDescriptor($Request){
   if($d.gameName-isnot[string]-or[string]::IsNullOrWhiteSpace($d.gameName)-or$d.gameName.Length-gt256-or$d.gameName-match'[\x00-\x1f\x7f]'-or$d.area-isnot[string]-or$d.area-cnotmatch'^[a-f0-9]{32}$'-or$d.gameId-ceq$Request.fixture.working.gameId-or$d.sha256-ceq$Request.fixture.working.sha256-or$d.sha256-ceq$Request.fixture.baseline.sha256){throw 'Owner seed campaign must remain distinct from protected Working/Baseline.'}
   Assert-KmcOrdinaryInteger $d.length 1 268435456;Assert-KmcOrdinaryInteger $d.lastWriteTimeUtcTicks 1 ([DateTime]::MaxValue.Ticks);return
  }
- if(Test-KmcChunk7OwnedPairsSeedDerivedLoad $Request){
+ if(Test-KmcChunk7OwnedPairsSeedDerivedInput $Request){
   # Exactly the producer's written owner-seed-derived Manual, never the immutable seed.
   $name=Get-KmcChunk7OwnerSeedManualName;Assert-KmcBootstrapInventoryString $d.internalName $name
   if($d.fileName-isnot[string]-or$d.fileName-cnotmatch('^Manual_([1-9][0-9]*)_'+$name+'\.zks$')){throw 'Owner-seed-derived native Manual name/number is not canonical.'}
@@ -160,7 +167,7 @@ function Assert-KmcChunk7OwnedPairsDescriptor($Request){
 function Assert-KmcChunk7InheritedSnapshot($Request,$Snapshot,[string]$Phase){
  Assert-KmcExactProperties $Snapshot @('contract','phase','sourceRunId','sourceArtifactSha256','sourceArchiveSha256','sourceCase','nativeLoadVerifiedByHost','decodedReceiptAuthorizesRestoration','inheritedPetsPreserved','ownedFactRemovalCount','partyIds','currentPartyIds','currentCharacterIds','remoteCapturedIds','arrangement','pairs','identities') 'inherited native custody'
  # Owner-seed-derived custody keeps its own labels; it is never relabelled acquired ancestry.
- $derived=Test-KmcChunk7OwnedPairsSeedDerivedLoad $Request
+ $derived=Test-KmcChunk7OwnedPairsSeedDerivedInput $Request
  $contract=if($derived){'owner-seed-derived-two-horse-native-field-v1'}else{'inherited-two-horse-native-field-v1'};$sourceCase=if($derived){'owner-seed-persistence-save'}else{'preserve-two-acquired-field'}
  foreach($pair in @(@('contract',$contract),@('phase',$Phase),@('sourceCase',$sourceCase))){Assert-KmcBootstrapInventoryString $Snapshot.($pair[0]) $pair[1]}
  foreach($key in @('sourceRunId','sourceArtifactSha256','sourceArchiveSha256')){Assert-KmcBootstrapInventoryString $Snapshot.$key $Request.ownedPairs.$key}
@@ -630,4 +637,102 @@ function Assert-KmcChunk7OwnerSeedDerivedColdSource($Request,$ProducerArtifact,$
  if(@($c.ownerSeedDerivedCold.unrelated).Count-ne@($m.boundary.unrelated).Count){throw 'Cold unrelated-actor custody differs from the producer runtime.'}
  if((ConvertTo-KmcChunk7Canonical $m.arrangement)-cne(ConvertTo-KmcChunk7Canonical $c.inheritedFixture.arrangement)-or(ConvertTo-KmcChunk7Canonical $m.arrangement)-cne(ConvertTo-KmcChunk7Canonical $c.inheritedCleanup.arrangement)){throw 'Cold process changed the producer class/XP/money arrangement.'}
  if((ConvertTo-KmcChunk7Canonical @($m.fieldWorld.party|ForEach-Object{$_.id}|Sort-Object -CaseSensitive))-cne(ConvertTo-KmcChunk7Canonical @($s.partyIds|Sort-Object -CaseSensitive))){throw 'Consumer field roster differs from the producer field.'}
+}
+# Owner-seed-derived combat selection (scenarios 3-5): the producer and seed pins of the cold
+# consumer plus the ACCEPTED consumer receipt (checkpointSource*) and, for RT only, the companion.
+function Assert-KmcChunk7OwnerSeedDerivedCombatSelection($Request,$Selection,$Checkpoint){
+ $s=$Selection;$rt=$s.case-ceq'owner-seed-realtime-core'
+ $fields=@('case','sourceRunId','sourceArtifactSha256','sourceArchiveSha256','checkpointSourceRunId','checkpointSourceArtifactSha256','seedId','seedSha256','riderAId','mountAId','riderBId','mountBId','partyIds','baseGameOnly','expectedNativeLoadCount','expectedNativeWriteCount');if($rt){$fields+='companionId'}
+ Assert-KmcExactProperties $s $fields 'owner-seed-derived combat selection'
+ if($Request.runId-isnot[string]-or$Request.runId-cnotmatch'^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$'){throw 'Owner-seed-derived combat run identity is malformed.'}
+ foreach($key in @('sourceRunId','checkpointSourceRunId','seedId')){if($s.$key-isnot[string]-or$s.$key-cnotmatch'^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$'){throw 'Owner-seed-derived combat requires exact producer, consumer and seed identities.'}}
+ if(@(@($Request.runId,$s.sourceRunId,$s.checkpointSourceRunId,$s.seedId)|Select-Object -Unique).Count-ne4){throw 'Owner-seed-derived combat producer, consumer, seed and run identities must be distinct.'}
+ foreach($key in @('sourceArtifactSha256','sourceArchiveSha256','checkpointSourceArtifactSha256','seedSha256')){if($s.$key-isnot[string]-or$s.$key-cnotmatch'^[a-f0-9]{64}$'){throw 'Owner-seed-derived combat requires exact SHA256 pins.'}}
+ if(@(@($s.sourceArtifactSha256,$s.sourceArchiveSha256,$s.checkpointSourceArtifactSha256,$s.seedSha256)|Select-Object -Unique).Count-ne4){throw 'Owner-seed-derived combat pins alias one another or the immutable seed.'}
+ $ids=[Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal);foreach($key in @('riderAId','mountAId','riderBId','mountBId')){Assert-KmcOrdinaryGuid $s.$key;if(-not$ids.Add($s.$key)){throw 'Inherited role IDs collide.'}}
+ if($s.partyIds-isnot[Array]-or$s.partyIds.Count-lt4-or$s.partyIds.Count-gt12){throw 'Complete inherited field roster must be bounded.'}
+ $party=[Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal);foreach($id in $s.partyIds){Assert-KmcOrdinaryGuid $id;if(-not$party.Add($id)){throw 'Inherited roster repeats an actor.'}}
+ foreach($id in $ids){if(-not$party.Contains($id)){throw 'Inherited roster omits a selected pair role.'}}
+ if($rt){Assert-KmcOrdinaryGuid $s.companionId;if(-not$party.Contains($s.companionId)-or$ids.Contains($s.companionId)){throw 'The RT companion must be one unrelated member of the selected party.'}}
+ if($null-ne$Checkpoint){throw 'Owner-seed-derived combat selects no persistence checkpoint.'}
+ Assert-KmcChunk7Boolean $s.baseGameOnly $true;Assert-KmcOrdinaryInteger $s.expectedNativeLoadCount 1 1;Assert-KmcOrdinaryInteger $s.expectedNativeWriteCount 0 0
+}
+# Combat-reader mapping for the derived kinds: the restored mounted start replaces the native
+# Mount inputs, the target authorization is the derived-copy basis and the source keeps its
+# owner-seed-derived label with both receipts' recorded candidate identities.
+function Assert-KmcChunk7OwnerSeedDerivedCombatStart($Request,$Observations){
+ if(-not(Test-KmcChunk7OwnedPairsSeedDerivedCombat $Request)){throw 'Mounted-start evidence belongs only to owner-seed-derived combat.'}
+ $o=$Observations;$s=$Request.ownedPairs;$roles=Get-KmcChunk7OwnedPairIds $Request
+ if(@($o.inputs|Where-Object{$_.label-cin@('mount-a','mount-b')}).Count-ne0){throw 'Owner-seed-derived combat restored its pairs mounted; a native Mount input is not admitted.'}
+ if($null-eq$o.PSObject.Properties['mountedStart']){throw 'Owner-seed-derived combat lacks its restored mounted-start admission.'}
+ $m=$o.mountedStart
+ Assert-KmcExactProperties $m @('contract','restoredFromColdLoad','nativeMountInputs','archivePhase','schemaVersion','semanticRestores','presentationRestores','nativePostLoads','nativeCastRequests','snapshots','profiles','owners','slots','loadedEqualsProducerReadback','producerProcessId','processId','debtRetained','elapsedSeconds','debt','world') 'owner-seed-derived mounted start'
+ Assert-KmcBootstrapInventoryString $m.contract 'owner-seed-derived-mounted-start-v1';Assert-KmcBootstrapInventoryString $m.archivePhase 'all-pair-presentation-restored'
+ foreach($key in @('restoredFromColdLoad','loadedEqualsProducerReadback','debtRetained')){Assert-KmcChunk7Boolean $m.$key $true}
+ foreach($pair in @(@('nativeMountInputs',0),@('schemaVersion',3),@('semanticRestores',4),@('presentationRestores',2),@('nativePostLoads',4),@('nativeCastRequests',0),@('snapshots',0))){Assert-KmcOrdinaryInteger $m.($pair[0]) $pair[1] $pair[1]}
+ Assert-KmcOrdinaryInteger $m.producerProcessId 1 ([int]::MaxValue);Assert-KmcOrdinaryInteger $m.processId 1 ([int]::MaxValue);if($m.producerProcessId-eq$m.processId){throw 'A same-process world cannot prove the restored mounted start.'}
+ if(-not(Test-KmcChunk7FiniteNumber $m.elapsedSeconds)-or$m.elapsedSeconds-lt0){throw 'Mounted-start clock observation is invalid.'}
+ if(@($m.profiles).Count-ne2-or@($m.owners).Count-ne2){throw 'Owner-seed-derived combat requires both restored pairs.'}
+ $seen=[Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+ for($i=0;$i-lt2;$i++){
+  $p=@($m.profiles|Where-Object riderId -CEQ $roles[$i*2]);if($p.Count-ne1-or$p[0].mountId-cne$roles[$i*2+1]-or$p[0].profileId-cne'medium-humanoid-horse-v1'){throw 'A restored pair lost its exact rider, mount or Horse profile.'}
+  $w=@($m.owners|Where-Object riderId -CEQ $roles[$i*2]);if($w.Count-ne1-or$w[0].mountId-cne$roles[$i*2+1]){throw 'A restored owner is missing or bound to another actor.'}
+  $n=ConvertTo-KmcChunk7PairIdN $w[0].ownerId;if($w[0].ownerId-cne$n-or-not$seen.Add($n)){throw 'Restored owner identity is not one exact archive (N) form.'};Assert-KmcOrdinaryInteger $w[0].generation 1 ([long]::MaxValue)
+  # The live world snapshot binds the restored owner (pair-owner record ids in N form) to the actor UniqueIds.
+  $live=@($m.world.owners|Where-Object{$_.state-ceq'Active'-and(ConvertTo-KmcChunk7PairIdN $_.id)-ceq$n})
+  if($live.Count-ne1-or-not(Test-KmcChunk7OwnerActorMatch $live[0].riderId $roles[$i*2])-or-not(Test-KmcChunk7OwnerActorMatch $live[0].mountId $roles[$i*2+1])-or$live[0].generation-ne$w[0].generation){throw 'Restored owner identity or generation differs from the live registry.'}
+ }
+ if(@($m.slots).Count-ne4){throw 'Owner-seed-derived combat requires its four restored controls.'}
+ foreach($rider in @($roles[0],$roles[2])){if((@($m.slots|Where-Object actorId -CEQ $rider|ForEach-Object{$_.kind}|Sort-Object)-join',')-cne'2,3'){throw 'A restored pair lost its exact native controls.'}}
+ if(@($m.debt).Count-ne4){throw 'Restored actor debt must be observed for all four actors.'}
+ foreach($row in $m.debt){if($row.actorId-cnotin$roles){throw 'Restored debt names a foreign actor.'};Assert-KmcChunk7PersistenceNativeActor $row.saved;Assert-KmcChunk7PersistenceNativeActor $row.restored
+  if(-not(Test-KmcChunk7DebtWithinClock $row.saved $row.restored ([double]$m.elapsedSeconds))){throw 'Restored debt was lost or regranted before combat.'}}
+ $src=$o.ownerSeedDerivedSource
+ Assert-KmcExactProperties $src @('contract','ancestry','acquisitionProof','ordinaryProducerAncestry','producerRunId','producerArtifactSha256','derivedManualSha256','consumerRunId','consumerArtifactSha256','seedId','seedSha256','candidates') 'owner-seed-derived combat source'
+ Assert-KmcBootstrapInventoryString $src.contract 'owner-seed-derived-combat-source-v1';Assert-KmcBootstrapInventoryString $src.ancestry 'owner-seed-derived'
+ Assert-KmcChunk7Boolean $src.acquisitionProof $false;Assert-KmcChunk7Boolean $src.ordinaryProducerAncestry $false
+ foreach($pair in @(@('producerRunId','sourceRunId'),@('producerArtifactSha256','sourceArtifactSha256'),@('derivedManualSha256','sourceArchiveSha256'),@('consumerRunId','checkpointSourceRunId'),@('consumerArtifactSha256','checkpointSourceArtifactSha256'),@('seedId','seedId'),@('seedSha256','seedSha256'))){Assert-KmcBootstrapInventoryString $src.($pair[0]) $s.($pair[1])}
+ $c=$src.candidates;Assert-KmcExactProperties $c @('contract','sameCandidate','crossCandidateAllowed','producer','current','consumerRunId','consumerArtifactSha256','manualSchema','currentWriterSchema') 'owner-seed-derived candidate identities'
+ Assert-KmcBootstrapInventoryString $c.contract 'owner-seed-derived-candidate-identity-v1';Assert-KmcChunk7Boolean $c.crossCandidateAllowed $true;if($c.sameCandidate-isnot[bool]){throw 'Cross-candidate fact must be an observed boolean.'}
+ Assert-KmcOrdinaryInteger $c.manualSchema 3 3;Assert-KmcOrdinaryInteger $c.currentWriterSchema 3 3
+ foreach($key in @('commit','dllSha256','dllMvid')){Assert-KmcBootstrapInventoryString $c.current.$key $Request.$key}
+ if($c.producer.commit-isnot[string]-or$c.producer.commit-cnotmatch'^[a-f0-9]{40}$'-or$c.producer.dllSha256-isnot[string]-or$c.producer.dllSha256-cnotmatch'^[a-f0-9]{64}$'){throw 'Producer candidate identity is not recorded exactly.'}
+ $same=$c.producer.commit-ceq$Request.commit-and$c.producer.dllSha256-ceq$Request.dllSha256-and$c.producer.dllMvid-ceq$Request.dllMvid
+ if($same-ne$c.sameCandidate){throw 'The recorded cross-candidate fact differs from the two candidate identities.'}
+ Assert-KmcBootstrapInventoryString $c.producer.runId $s.sourceRunId;Assert-KmcBootstrapInventoryString $c.consumerRunId $s.checkpointSourceRunId;Assert-KmcBootstrapInventoryString $c.consumerArtifactSha256 $s.checkpointSourceArtifactSha256
+ $t=$o.targetAuthorization
+ Assert-KmcExactProperties $t @('contract','basis','ownerApproval','workingSha256','seedSha256','derivedManualSha256','producerRunId','producerArtifactSha256','consumerRunId','consumerArtifactSha256','area','riderPosition','position','placementValidated') 'owner-seed-derived target authorization'
+ Assert-KmcBootstrapInventoryString $t.contract 'chunk7-combat-target-authorization-v1';Assert-KmcBootstrapInventoryString $t.basis 'owner-seed-derived-disposable-copy'
+ if($t.ownerApproval-isnot[string]-or-not$t.ownerApproval.StartsWith('docs/CHUNK7-OWNER-DIRECTIVES-2026-10-16.md',[StringComparison]::Ordinal)-or$null-ne$t.workingSha256){throw 'Derived target authorization must cite the owner approval and never the Working identity.'}
+ foreach($pair in @(@('seedSha256','seedSha256'),@('derivedManualSha256','sourceArchiveSha256'),@('producerRunId','sourceRunId'),@('producerArtifactSha256','sourceArtifactSha256'),@('consumerRunId','checkpointSourceRunId'),@('consumerArtifactSha256','checkpointSourceArtifactSha256'))){Assert-KmcBootstrapInventoryString $t.($pair[0]) $s.($pair[1])}
+ Assert-KmcBootstrapInventoryString $t.area $Request.persistenceLoad.area;Assert-KmcChunk7Boolean $t.placementValidated $true
+}
+# Scenario 3's unrelated companion: exactly one ordinary native command with its own single
+# native cost, and no admission, cancellation, cost or command change on either pair.
+function Assert-KmcChunk7OwnerSeedCompanionAction($Request,$Observations){
+ $o=$Observations;$s=$Request.ownedPairs;$roles=Get-KmcChunk7OwnedPairIds $Request
+ if($null-eq$o.PSObject.Properties['companionAction']){throw 'Owner-seed-derived RT lacks its unrelated companion action.'}
+ $c=$o.companionAction
+ Assert-KmcExactProperties $c @('contract','kind','justification','actorId','targetId','traceSequenceBefore','before','clicked','command','commandType','admitted','selectionAfterInput','after','traceSequenceAfter','accountedEvents','companionCommandCount','companionCostEvents','pairAccountedEvents','foreignCompanionEvents','declaredLeaseCommands','terminal') 'owner-seed companion action'
+ Assert-KmcBootstrapInventoryString $c.contract 'owner-seed-unrelated-companion-action-v1';Assert-KmcBootstrapInventoryString $c.kind 'ordinary-native-attack'
+ Assert-KmcBootstrapInventoryString $c.actorId $s.companionId;Assert-KmcBootstrapInventoryString $c.targetId $o.targetId;Assert-KmcBootstrapInventoryString $c.commandType 'Kingmaker.UnitLogic.Commands.UnitAttack'
+ if($c.actorId-cin$roles-or$c.selectionAfterInput-cnotin$roles-or[string]::IsNullOrWhiteSpace($c.justification)){throw 'The companion action escaped its unrelated actor or selection.'}
+ foreach($key in @('clicked','terminal')){Assert-KmcChunk7Boolean $c.$key $true}
+ Assert-KmcOrdinaryInteger $c.command 1 ([int]::MaxValue);Assert-KmcOrdinaryInteger $c.declaredLeaseCommands 1 1
+ Assert-KmcOrdinaryInteger $c.traceSequenceBefore 0 ([int]::MaxValue);Assert-KmcOrdinaryInteger $c.traceSequenceAfter ([int]$c.traceSequenceBefore) ([int]::MaxValue)
+ $window=@($o.allocationTrace.events|Where-Object{$_.sequence-gt$c.traceSequenceBefore-and$_.sequence-le$c.traceSequenceAfter-and$_.boundary-cin@('admission-before','admission-after','cost-before','cost-after','actor-cost-before','actor-cost-after','interrupt-before','interrupt-after')})
+ if((ConvertTo-KmcChunk7Canonical @($window))-cne(ConvertTo-KmcChunk7Canonical @($c.accountedEvents))){throw 'The companion window events differ from the native trace.'}
+ $pair=@($window|Where-Object{$_.commandActor-cin$roles-or$_.state.actor-cin$roles});if($pair.Count-ne0-or$c.pairAccountedEvents-ne0){throw 'A pair actor was admitted, cancelled or charged during the companion action.'}
+ $mine=@($window|Where-Object{$_.commandActor-ceq$c.actorId-or$_.state.actor-ceq$c.actorId})
+ $admitted=@($mine|Where-Object boundary -CEQ 'admission-after');if($admitted.Count-ne1-or$admitted[0].command-ne$c.command-or$c.companionCommandCount-ne1){throw 'The companion did not take exactly one native command.'}
+ if(@($mine|Where-Object{$_.command-ne$c.command}).Count-ne0-or$c.foreignCompanionEvents-ne0){throw 'The companion took a second native command.'}
+ $before=@($mine|Where-Object{$_.boundary-ceq'cost-before'-and$_.command-eq$c.command});$after=@($mine|Where-Object{$_.boundary-ceq'cost-after'-and$_.command-eq$c.command})
+ if($before.Count-ne1-or$after.Count-ne1-or$c.companionCostEvents-ne2){throw 'The companion action lacks its own single native cost event.'}
+ if($after[0].sequence-le$before[0].sequence-or$after[0].state.standard-le$before[0].state.standard-or$after[0].commandType-cne'Kingmaker.UnitLogic.Commands.UnitAttack'){throw 'The companion cost was not her own native Standard spend.'}
+ foreach($w in @($c.before,$c.admitted,$c.after)){if($null-eq$w.PSObject.Properties['pairCommands']){throw 'Companion window lacks the pair command custody.'}}
+ if((ConvertTo-KmcChunk7Canonical $c.before.pairCommands)-cne(ConvertTo-KmcChunk7Canonical $c.after.pairCommands)-or(ConvertTo-KmcChunk7Canonical $c.before.pairCommands)-cne(ConvertTo-KmcChunk7Canonical $c.admitted.pairCommands)){throw 'The companion action reassigned or cancelled a pair command.'}
+ foreach($id in $roles){$a=Get-KmcChunk7CombatActor $c.before $id;$b=Get-KmcChunk7CombatActor $c.after $id
+  foreach($field in @('standard','move','swift')){if([double]$b.$field-gt[double]$a.$field+0.001){throw 'A pair actor spent native resources during the companion action.'}};if($a.reactions-ne$b.reactions){throw 'A pair actor spent a reaction during the companion action.'}}
+ $ownersBefore=@($c.before.owners|ForEach-Object{(ConvertTo-KmcChunk7PairIdN $_.id)+'|'+$_.generation+'|'+$_.state}|Sort-Object -CaseSensitive);$ownersAfter=@($c.after.owners|ForEach-Object{(ConvertTo-KmcChunk7PairIdN $_.id)+'|'+$_.generation+'|'+$_.state}|Sort-Object -CaseSensitive)
+ if(($ownersBefore-join';')-cne($ownersAfter-join';')-or@($c.after.owners|Where-Object state -CEQ 'Active').Count-ne2){throw 'The companion action changed pair custody.'}
 }
