@@ -161,6 +161,8 @@ function Assert-KmcMatchedPoolArtifact($Request,$Manifest,[string]$Status) {
     $leaf='chunk7-matched-pool-measurements.json';$kind='chunk7-matched-pool-measurements'
     $present=@($Manifest.artifacts|Where-Object{$_.relativePath-ceq$leaf-or$_.kind-ceq$kind})
     if((Get-KmcChunk7SelectedScenario $Request)-cne'chunk7-two-pair-exploration'){if($present.Count-ne0){throw 'Another scenario supplied matched-pool observations.'};return}
+    # The owner-seed-derived Manual producer measures no matched pool.
+    if((Test-KmcChunk7OwnedPairsScenario $Request.scenario)-and(Test-KmcChunk7OwnedPairsSeedManual $Request)){if($present.Count-ne0){throw 'The owner-seed Manual producer cannot supply matched-pool observations.'};return}
     if($present.Count-eq0-and$Status-cne'PASS'){return}
     $artifact=Read-KmcChunk7ManifestArtifact $Request $Manifest $leaf $kind
     $world=Read-KmcChunk7ManifestArtifact $Request $Manifest 'chunk7-world-evidence.json' 'chunk7-world-evidence'

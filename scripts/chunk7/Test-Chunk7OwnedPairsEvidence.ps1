@@ -201,6 +201,150 @@ Check-OwnerSeed 'owner-seed not-applicable door radius must be exact' {$args[0].
 Check-OwnerSeed 'owner-seed not-applicable door cannot claim it was tested' {$args[0].artifact.observations.door.applicable=$true} $false
 Check-OwnerSeed 'owner-seed door with neither proof nor scan refused' {$args[0].artifact.observations.door=$null}
 Check 'not-applicable door refused for the producer exploration kind' {$v=Copy-Value @($fixtures|Where-Object name -CEQ 'exploration')[0];$v.artifact.observations.door=[pscustomobject][ordered]@{applicable=$false;reason='none';candidatesScanned=0;radius=28.0};Invoke-OwnedReader $v} $true 'only for owner-seed'
+# Owner-seed-derived persistence. Producer: the unchanged disclosed setup and two native Mounts,
+# then one native Manual whose read-back graph matches the live runtime at its save boundary.
+# The producer disclosure, pinned here independently of the reader under test.
+function Get-TestSeedManualDisclosure {'Fixture setup on a disposable run copy of an owner-supplied seed: each Horse was created by the native ordinary Ranger level-up (Hunter''s Bond -> Ranger companion -> KMC Horse) and rider B received only the exact native XP its Ranger 4 eligibility requires. This is not acquisition proof. Setup makes no native write; after SETUP-COMPLETE the only native write is one measured Manual into the run-owned isolated save root, labelled owner-seed-derived with disclosed assistance.'}
+function New-KmcOwnerSeedManualFixture{
+ $v=New-KmcOwnerSeedWorldFixture $true $false;$r=$v.request;$o=$v.artifact.observations;$p=$r.ownedPairs
+ $r.ownedPairs=[pscustomobject][ordered]@{case='owner-seed-persistence-save';seedId=$p.seedId;seedSha256=$p.seedSha256;riderAId=$p.riderAId;riderBId=$p.riderBId;partyIds=$p.partyIds;xpAssistance=$p.xpAssistance;baseGameOnly=$true;expectedNativeLoadCount=1;expectedNativeWriteCount=1}
+ $r|Add-Member persistenceCase 'multi-exploration-manual' -Force
+ $roles=@($p.riderAId,$o.ownerSeedSetup.riders[0].horseId,$p.riderBId,$o.ownerSeedSetup.riders[1].horseId);$original=@(@($p.partyIds)+@($roles[1],$roles[3]))
+ $o.ownerSeed.contract='owner-seed-derived-manual-producer-v1';$o.ownerSeedSetup.disclosure=Get-TestSeedManualDisclosure
+ $o.PSObject.Properties.Remove('door');$o.movements=@();$o|Add-Member groundInputs @() -Force;$o.cycleInputs=@();$o.cycles=@()
+ $o.inputs=@($o.inputs[0],$o.inputs[1]);$o.measurements=@($o.measurements[0],$o.measurements[1])
+ $both=@($o.snapshots|Where-Object label -CEQ 'both-mounted')[0];$complete=Copy-Value $both;$complete.label='native-manual-complete';$o.snapshots=@($both,$complete)
+ $o.factRemovalAdmission.commands=@($o.factRemovalAdmission.commands|Where-Object{[long]$_.commandObject-in@([long]$o.inputs[0].commandObject,[long]$o.inputs[1].commandObject)})
+ $root=Join-Path (Join-Path (Join-Path (Split-Path (Split-Path $r.evidenceRoot -Parent) -Parent) 'runtime-staging') ('persistence-'+$r.runId)) 'Saved Games'
+ $d=$r.persistenceLoad;$name='KMC_C7_SEED_WORLD';$leaf='Manual_303_KMC_C7_SEED_WORLD.zks';$path=Join-Path $root $leaf
+ $desc={param($file,$native)[pscustomobject][ordered]@{fileName=$file;nativeName=$native;nativeType='Manual';gameId=$d.gameId;gameName=$d.gameName;area=$d.area;hasFileOnDisk=$true;isActuallySaved=$true;operation='None';autoLevelup=$false}}
+ $auth={param($w)[pscustomobject][ordered]@{root=$root;loadCap=1;writeCap=1;nativeLoads=1;nativeWrites=$w;authorizedLoads=1;authorizedWrites=$w;reservationCount=1;number=303;leaf=$leaf;nativeName=$name;nativeType='Manual'}}
+ $seed=&$desc $d.fileName $d.internalName;$out=&$desc $leaf $name
+ $o.setupComplete|Add-Member measuredOutputReservation ([pscustomobject][ordered]@{leaf=$leaf;nativeName=$name;nativeType='Manual';number=303;reservationCount=1;unwritten=$true}) -Force
+ $o|Add-Member saveRequested ([pscustomobject][ordered]@{nativeType='Manual';nativeName=$name;frame=2000;gameTicks=10000000;snapshotCount=0;nativeSaveAllowed=$true;newSlot=$true;levelUpSave=$false;api='Game.SaveGame(SaveManager.CreateNewSave(name))'}) -Force
+ $o|Add-Member ownedOutputAdmission ([pscustomobject][ordered]@{method='FindUnusedSaveNumber';token='06008024';moduleMvid='07fa1e4d-8618-41b3-9b8d-faa17d3b26f7';number=303;leaf=$leaf;nativeInventory=@($seed);authority=(&$auth 0)}) -Force
+ $o|Add-Member ownedOutputCompletion ([pscustomobject][ordered]@{completionSequence=1;callbackCount=1;nativeWorkerSettled=$true;nativeInventory=@($seed,$out);authority=(&$auth 1)}) -Force
+ $owners=@($both.owners|Where-Object state -CEQ 'Active')
+ $actor={param($id,$standard)[pscustomobject][ordered]@{Id=$id;Standard=$standard;Move=0.5;Swift=0.0;Initiative=0.0;Reaction=0.0;ReactionsRemaining=1;LastSurpriseTicks=0}}
+ $pairs=@(for($i=0;$i-lt2;$i++){$owner=@($owners|Where-Object{(ConvertTo-KmcChunk7GuidN $_.riderId)-ceq(ConvertTo-KmcChunk7GuidN $roles[$i*2])})[0];[pscustomobject][ordered]@{PairId=(ConvertTo-KmcChunk7GuidN $owner.ownerId);Generation=[long]$owner.generation;ProfileId='medium-humanoid-horse-v1';Rider=(&$actor $roles[$i*2] 1.0);Mount=(&$actor $roles[$i*2+1] 2.0)}})
+ $slots=@(foreach($rider in @($roles[0],$roles[2])){[pscustomobject][ordered]@{ActorId=$rider;Index=12;Kind=2};[pscustomobject][ordered]@{ActorId=$rider;Index=13;Kind=3}})
+ $archive=[pscustomobject][ordered]@{SchemaVersion=3;CampaignId=$d.gameId;AreaId=$d.area;GameTimeTicks=10000000;Policy='rider-principal-distinct-native-v1';RulesId='crpg-transport-v1';Pairs=$pairs;Participations=@();Slots=$slots;Combat=$null}
+ $o|Add-Member nativeWrite ([pscustomobject][ordered]@{path=$path;sha256=('5'*64);length=2048;lastWriteTimeUtcTicks=2;fileName=$leaf;nativeType='Manual';nativeName=$name;gameId=$d.gameId;gameName=$d.gameName;area=$d.area;nativeCallback=$true;operation='None';snapshotCount=1;readKind='Current';sourceSchema=3;archive=$archive}) -Force
+ $arrangement=[pscustomobject][ordered]@{money=30000;experienceRatePercent=100;actors=@($original|Sort-Object -CaseSensitive|ForEach-Object{[pscustomobject][ordered]@{actorId=$_;blueprint=('b'*32);experience=9000;characterLevel=4;classes=@([pscustomobject]@{classGuid=('c'*32);level=4})}})}
+ $boundaryPairs=@(for($i=0;$i-lt2;$i++){[pscustomobject][ordered]@{ownerId=$pairs[$i].PairId;generation=$pairs[$i].Generation;riderId=$roles[$i*2];mountId=$roles[$i*2+1];profileId='medium-humanoid-horse-v1';state='Active';relationshipState='Mounted'}})
+ $boundarySlots=@($slots|ForEach-Object{[pscustomobject][ordered]@{actorId=$_.ActorId;index=$_.Index;kind=$_.Kind}})
+ $boundary=[pscustomobject][ordered]@{label='save-boundary';frame=1990;gameTicks=10000000;actorIds=$roles;pairs=$boundaryPairs;slots=$boundarySlots;actors=@($pairs|ForEach-Object{Copy-Value $_.Rider;Copy-Value $_.Mount});unrelated=@($original|Where-Object{$_-cnotin$roles}|Sort-Object -CaseSensitive|ForEach-Object{[pscustomobject][ordered]@{actorId=$_;native=(&$actor $_ 0.0)}});rosterIds=@($original|Sort-Object -CaseSensitive);arrangement=(Copy-Value $arrangement)}
+ $header={param($label,$snaps)[pscustomobject][ordered]@{label=$label;frame=2001;requestedIsSelectedDescriptor=$true;preparedIsCopy=$true;preparedLeaf=$leaf;preparedName=$name;preparedType='Manual';preparedPath=$path;snapshots=$snaps;activeOwners=2;nativeWrites=0;serializationBusy=$false}}
+ $o|Add-Member ownerSeedManual ([pscustomobject][ordered]@{contract='owner-seed-derived-manual-v1';ancestry='owner-seed-derived';disclosedAssistance=$true;assistanceCount=@($o.ownerSeedSetup.assistance).Count;acquisitionProof=$false;ordinaryProducerAncestry=$false;levelUpSave=$false;restorationProof=$false;setupCompletedBeforeSave=$true;setupMutationsAfterBoundary=0
+  seedId=$p.seedId;seedSha256=$p.seedSha256;seedCopyUnchanged=$true;processId=4242;boundary=$boundary;hotbar=@($boundarySlots|ForEach-Object{[pscustomobject][ordered]@{actorId=$_.actorId;abilityGuid=$(if($_.kind-eq2){'3af2b81f4d72bbb30501fa730fcdf36e'}else{'d'*32});index=$_.index;nativeApi='UnitUISettings.SetSlot(MechanicActionBarSlotAbility)';afterSetupComplete=$true}})
+  headerStarting=(&$header 'native-header-starting' 0);headerStaged=(&$header 'native-header-staged' 1);workerObservedRunning=$true;completionSequence=1
+  fieldWorld=[pscustomobject][ordered]@{gameId=$d.gameId;gameName=$d.gameName;area=$d.area;mainActorId=$p.riderAId;party=@($original|ForEach-Object{[pscustomobject][ordered]@{id=$_;blueprint=('b'*32)}})}
+  twoOwners=@(for($i=0;$i-lt2;$i++){[pscustomobject][ordered]@{actorId=$roles[$i*2];petId=$roles[$i*2+1];sourceGuid=$o.ownerSeedSetup.riders[$i].horseFeatureSourceGuid;featureGuid=('e'*32);rank=1;profileId='medium-humanoid-horse-v1';presentation='fixture-setup';acquisitionProof=$false}})
+  arrangement=$arrangement;arrangementAfterSave=(Copy-Value $arrangement)}) -Force
+ $o.cleanup.nativeSaveWritten=$true;$o.cleanup.writesAfterBoundary=1;$v.name='owner-seed-manual';$v
+}
+function Check-SeedManual([string]$Name,[scriptblock]$Mutation,[string]$Pattern=''){$v=New-KmcOwnerSeedManualFixture;&$Mutation $v;Check $Name {Assert-KmcChunk7WorldEvidence $v.request $v.artifact 'PASS'} $true $Pattern}
+Check 'owner-seed Manual producer evidence accepted' {$v=New-KmcOwnerSeedManualFixture;Assert-KmcChunk7WorldEvidence $v.request $v.artifact 'PASS'}
+Check 'owner-seed Manual producer final root with seed and its one Manual accepted' {$v=New-KmcOwnerSeedManualFixture;Assert-KmcChunk7OwnerSeedManualFinalSaveRoot $v.request @($v.request.persistenceLoad.fileName,'Manual_303_KMC_C7_SEED_WORLD.zks') 'Manual_303_KMC_C7_SEED_WORLD.zks'}
+foreach($rootCase in @('seed-only','extra-auto','extra-second-manual','no-seed')){Check ('owner-seed Manual producer final root refuses '+$rootCase) {$v=New-KmcOwnerSeedManualFixture;$s=$v.request.persistenceLoad.fileName;$set=switch($rootCase){'seed-only'{@($s)}'extra-auto'{@($s,'Manual_303_KMC_C7_SEED_WORLD.zks','Auto_1.zks')}'extra-second-manual'{@($s,'Manual_303_KMC_C7_SEED_WORLD.zks','Manual_304_KMC_C7_SEED_WORLD.zks')}'no-seed'{@('Manual_303_KMC_C7_SEED_WORLD.zks')}};Assert-KmcChunk7OwnerSeedManualFinalSaveRoot $v.request $set 'Manual_303_KMC_C7_SEED_WORLD.zks'} $true 'one fresh owner-seed-derived Manual'}
+# Write quota and descriptor: one Manual, never a second write, a non-Manual or an out-of-root write.
+Check-SeedManual 'owner-seed Manual producer refuses a second native write' {$a=$args[0].artifact.observations.ownedOutputCompletion.authority;$a.nativeWrites=2;$a.authorizedWrites=2}
+Check-SeedManual 'owner-seed Manual producer refuses a selection of two writes' {$args[0].request.ownedPairs.expectedNativeWriteCount=2}
+Check-SeedManual 'owner-seed Manual producer refuses a non-Manual output' {$w=$args[0].artifact.observations.nativeWrite;$w.nativeType='Auto'}
+Check-SeedManual 'owner-seed Manual producer refuses an Auto request' {$args[0].artifact.observations.saveRequested.nativeType='Auto'}
+Check-SeedManual 'owner-seed Manual producer refuses an out-of-root write' {$args[0].artifact.observations.nativeWrite.path='C:\foreign\Manual_303_KMC_C7_SEED_WORLD.zks'}
+Check-SeedManual 'owner-seed Manual producer refuses an acquired-ancestry output name' {$o=$args[0].artifact.observations;$o.nativeWrite.nativeName='KMC_C7_WORLD';$o.ownedOutputAdmission.leaf='Manual_303_KMC_C7_WORLD.zks'}
+Check-SeedManual 'owner-seed Manual producer refuses a level-up save label' {$args[0].artifact.observations.saveRequested.levelUpSave=$true}
+Check-SeedManual 'owner-seed Manual producer refuses an auto-levelup output descriptor' {$args[0].artifact.observations.ownedOutputCompletion.nativeInventory[1].autoLevelup=$true}
+Check-SeedManual 'owner-seed Manual producer refuses a missing callback' {$args[0].artifact.observations.ownedOutputCompletion.callbackCount=0}
+Check-SeedManual 'owner-seed Manual producer refuses an unsettled worker' {$args[0].artifact.observations.ownedOutputCompletion.nativeWorkerSettled=$false}
+Check-SeedManual 'owner-seed Manual producer refuses a missing KMC staging observation' {$args[0].artifact.observations.ownerSeedManual.PSObject.Properties.Remove('headerStaged')}
+Check-SeedManual 'owner-seed Manual producer refuses staging that did not snapshot' {$args[0].artifact.observations.ownerSeedManual.headerStaged.snapshots=0}
+Check-SeedManual 'owner-seed Manual producer refuses a write aliasing the seed bytes' {$args[0].artifact.observations.nativeWrite.sha256=$args[0].request.ownedPairs.seedSha256}
+Check-SeedManual 'owner-seed Manual producer refuses a schema-2 read-back' {$args[0].artifact.observations.nativeWrite.sourceSchema=2}
+Check-SeedManual 'owner-seed Manual producer refuses a reservation already written at SETUP-COMPLETE' {$args[0].artifact.observations.setupComplete.measuredOutputReservation.unwritten=$false}
+Check-SeedManual 'owner-seed Manual producer refuses writes after the boundary other than one' {$args[0].artifact.observations.cleanup.writesAfterBoundary=2}
+Check-SeedManual 'owner-seed Manual producer refuses an unwritten-save cleanup claim' {$args[0].artifact.observations.cleanup.nativeSaveWritten=$false}
+# Ancestry labelling: owner-seed-derived with disclosed assistance only.
+foreach($label in @('acquired','ordinary','owner-seed')){Check-SeedManual ('owner-seed Manual producer refuses ancestry '+$label) {param($v)$v.artifact.observations.ownerSeedManual.ancestry=$label}}
+Check-SeedManual 'owner-seed Manual producer refuses hidden assistance' {$args[0].artifact.observations.ownerSeedManual.disclosedAssistance=$false}
+Check-SeedManual 'owner-seed Manual producer refuses an acquisition-proof claim' {$args[0].artifact.observations.ownerSeedManual.acquisitionProof=$true}
+Check-SeedManual 'owner-seed Manual producer refuses an ordinary-ancestry claim' {$args[0].artifact.observations.ownerSeedManual.ordinaryProducerAncestry=$true}
+Check-SeedManual 'owner-seed Manual producer refuses a restoration-proof claim' {$args[0].artifact.observations.ownerSeedManual.restorationProof=$true}
+Check-SeedManual 'owner-seed Manual producer refuses the exploration disclosure' {$args[0].artifact.observations.ownerSeedSetup.disclosure=Get-KmcChunk7OwnerSeedDisclosure}
+Check-SeedManual 'owner-seed Manual producer refuses the exploration contract' {$args[0].artifact.observations.ownerSeed.contract='owner-seed-two-pair-exploration-v1'}
+Check-SeedManual 'owner-seed Manual producer refuses an assistance count that hides setup' {$args[0].artifact.observations.ownerSeedManual.assistanceCount=0}
+Check-SeedManual 'owner-seed Manual producer refuses a setup mutation after the boundary' {$args[0].artifact.observations.ownerSeedManual.setupMutationsAfterBoundary=1}
+Check-SeedManual 'owner-seed Manual producer refuses a changed seed copy' {$args[0].artifact.observations.ownerSeedManual.seedCopyUnchanged=$false}
+# The two pair records correspond to the actual runtime.
+Check-SeedManual 'owner-seed Manual producer refuses a single read-back pair' {$a=$args[0].artifact.observations.nativeWrite.archive;$a.Pairs=@($a.Pairs[0])}
+Check-SeedManual 'owner-seed Manual producer refuses a read-back generation differing from the runtime' {$args[0].artifact.observations.nativeWrite.archive.Pairs[1].Generation=9} 'differ from the live runtime'
+Check-SeedManual 'owner-seed Manual producer refuses a read-back owner differing from the runtime' {$args[0].artifact.observations.nativeWrite.archive.Pairs[0].PairId=('9'*32)} 'differ from the live runtime'
+Check-SeedManual 'owner-seed Manual producer refuses a boundary owner differing from the live registry' {$args[0].artifact.observations.ownerSeedManual.boundary.pairs[0].generation=7}
+Check-SeedManual 'owner-seed Manual producer refuses swapped mount roles' {$a=$args[0].artifact.observations.nativeWrite.archive;$m=$a.Pairs[0].Mount.Id;$a.Pairs[0].Mount.Id=$a.Pairs[1].Mount.Id;$a.Pairs[1].Mount.Id=$m}
+Check-SeedManual 'owner-seed Manual producer refuses a read-back slot differing from the hotbar' {$args[0].artifact.observations.nativeWrite.archive.Slots[0].Index=40}
+Check-SeedManual 'owner-seed Manual producer refuses read-back expenditure lost from the runtime' {$args[0].artifact.observations.nativeWrite.archive.Pairs[0].Rider.Standard=0.0} 'expenditure differs'
+Check-SeedManual 'owner-seed Manual producer refuses read-back expenditure added to the runtime' {$args[0].artifact.observations.nativeWrite.archive.Pairs[1].Mount.Standard=5.0} 'expenditure differs'
+Check-SeedManual 'owner-seed Manual producer refuses an omitted unrelated actor' {$b=$args[0].artifact.observations.ownerSeedManual.boundary;$b.unrelated=@($b.unrelated[0])}
+Check-SeedManual 'owner-seed Manual producer refuses a changed class/XP arrangement' {$args[0].artifact.observations.ownerSeedManual.arrangementAfterSave.money=1}
+Check-SeedManual 'owner-seed Manual producer refuses a move before its save' {$args[0].artifact.observations.movements=@([pscustomobject]@{label='mammoth'})} 'undeclared movements'
+Check-SeedManual 'owner-seed Manual producer refuses a matched-pool cycle' {$args[0].artifact.observations.cycles=@([pscustomobject]@{label='cycle-1-mounted'})} 'undeclared cycles'
+Check-SeedManual 'owner-seed Manual producer refuses a door step' {$args[0].artifact.observations|Add-Member door ([pscustomobject]@{applicable=$false})} 'door step'
+Check-SeedManual 'owner-seed Manual producer refuses a third input' {$o=$args[0].artifact.observations;$o.inputs=@($o.inputs)+@(Copy-Value $o.inputs[0])}
+Check 'owner-seed Manual producer refuses a matched-pool artifact' {$v=New-KmcOwnerSeedManualFixture;Assert-KmcMatchedPoolArtifact $v.request ([pscustomobject]@{artifacts=@([pscustomobject]@{relativePath='chunk7-matched-pool-measurements.json';kind='chunk7-matched-pool-measurements'})}) 'PASS'} $true 'cannot supply matched-pool'
+Check 'owner-seed exploration selection cannot become a writer' {$v=New-KmcOwnerSeedWorldFixture;$v.request|Add-Member persistenceCase 'multi-exploration-manual' -Force;Assert-KmcChunk7OwnedPairsSelection $v.request} $true 'cannot select a persistence checkpoint'
+# Consumer: the separate-process cold load of exactly that Manual, pinned to its producer.
+function New-KmcOwnerSeedDerivedColdFixture{
+ $v=Copy-Value @($fixtures|Where-Object name -CEQ 'persistence-load-multi-exploration-manual')[0];$r=$v.request;$o=$v.artifact.observations;$p=$r.ownedPairs
+ $r.ownedPairs=[pscustomobject][ordered]@{case='owner-seed-persistence-load';sourceRunId='synthetic-owner-seed-manual';sourceArtifactSha256=('6'*64);sourceArchiveSha256=$r.persistenceLoad.sha256;seedId='KMC_C7_OWNER_SEED';seedSha256=('9'*64);riderAId=$p.riderAId;mountAId=$p.mountAId;riderBId=$p.riderBId;mountBId=$p.mountBId;partyIds=$p.partyIds;baseGameOnly=$true;expectedNativeLoadCount=1;expectedNativeWriteCount=0}
+ $r.persistenceLoad.internalName='KMC_C7_SEED_WORLD';$r.persistenceLoad.fileName='Manual_303_KMC_C7_SEED_WORLD.zks';$o.loadedDescriptor=Copy-Value $r.persistenceLoad
+ foreach($s in @($o.inheritedFixture,$o.inheritedCleanup)){$s.contract='owner-seed-derived-two-horse-native-field-v1';$s.sourceCase='owner-seed-persistence-save';$s.sourceRunId=$r.ownedPairs.sourceRunId;$s.sourceArtifactSha256=$r.ownedPairs.sourceArtifactSha256;$s.sourceArchiveSha256=$r.ownedPairs.sourceArchiveSha256}
+ $o.inheritedManualSha256=$r.ownedPairs.sourceArchiveSha256;$a=$o.loadedArchive
+ $o|Add-Member ownerSeedDerivedCold ([pscustomobject][ordered]@{contract='owner-seed-derived-cold-v1';ancestry='owner-seed-derived';sourceRunId=$r.ownedPairs.sourceRunId;sourceArtifactSha256=$r.ownedPairs.sourceArtifactSha256;sourceArchiveSha256=$r.ownedPairs.sourceArchiveSha256;seedSha256=$r.ownedPairs.seedSha256;producerProcessId=4242;loadedEqualsProducerReadback=$true;elapsedSeconds=0.5
+  owners=@($a.Pairs|ForEach-Object{[pscustomobject][ordered]@{ownerId=$_.PairId;generation=$_.Generation;riderId=$_.Rider.Id;mountId=$_.Mount.Id}});slots=@($a.Slots|ForEach-Object{[pscustomobject][ordered]@{actorId=$_.ActorId;index=$_.Index;kind=$_.Kind}});unrelated=@()}) -Force
+ $v.name='persistence-load-owner-seed-derived';$v
+}
+# The minimal producer receipt fields the runner compares; derived from the consumer fixture.
+function New-KmcOwnerSeedDerivedProducer($Cold){
+ $r=$Cold.request;$o=$Cold.artifact.observations;$c=$o.ownerSeedDerivedCold
+ [pscustomobject][ordered]@{runId=$r.ownedPairs.sourceRunId;status='PASS';commit=$r.commit;dllSha256=$r.dllSha256;dllMvid=$r.dllMvid;observations=[pscustomobject][ordered]@{
+  nativeWrite=[pscustomobject][ordered]@{sha256=$r.ownedPairs.sourceArchiveSha256;archive=(Copy-Value $o.loadedArchive)}
+  ownerSeedManual=[pscustomobject][ordered]@{ancestry='owner-seed-derived';seedId=$r.ownedPairs.seedId;seedSha256=$r.ownedPairs.seedSha256;processId=4242;arrangement=(Copy-Value $o.inheritedFixture.arrangement)
+   boundary=[pscustomobject][ordered]@{pairs=@($c.owners|ForEach-Object{Copy-Value $_});slots=@($c.slots|ForEach-Object{Copy-Value $_});unrelated=@()}
+   fieldWorld=[pscustomobject][ordered]@{party=@($r.ownedPairs.partyIds|ForEach-Object{[pscustomobject]@{id=$_}})}}}}
+}
+function Check-SeedCold([string]$Name,[scriptblock]$Mutation,[string]$Pattern=''){$v=New-KmcOwnerSeedDerivedColdFixture;&$Mutation $v;Check $Name {Invoke-OwnedReader $v} $true $Pattern}
+Check 'owner-seed-derived cold evidence accepted' {Invoke-OwnedReader (New-KmcOwnerSeedDerivedColdFixture)}
+Check 'owner-seed-derived cold source matches its exact producer' {$v=New-KmcOwnerSeedDerivedColdFixture;Assert-KmcChunk7OwnerSeedDerivedColdSource $v.request (New-KmcOwnerSeedDerivedProducer $v) $v.artifact}
+Check-SeedCold 'owner-seed-derived cold refuses acquired custody labels' {$args[0].artifact.observations.inheritedFixture.contract='inherited-two-horse-native-field-v1'}
+Check-SeedCold 'owner-seed-derived cold refuses an acquired source case' {foreach($s in @($args[0].artifact.observations.inheritedFixture,$args[0].artifact.observations.inheritedCleanup)){$s.sourceCase='preserve-two-acquired-field'}}
+Check-SeedCold 'owner-seed-derived cold refuses its missing cold proof' {$args[0].artifact.observations.PSObject.Properties.Remove('ownerSeedDerivedCold')}
+Check-SeedCold 'owner-seed-derived cold refuses a same-process world' {$args[0].artifact.observations.ownerSeedDerivedCold.producerProcessId=$args[0].artifact.observations.processId} 'same-process'
+Check-SeedCold 'owner-seed-derived cold refuses decode-only restoration' {$args[0].artifact.observations.ownerSeedDerivedCold.loadedEqualsProducerReadback=$false}
+Check-SeedCold 'owner-seed-derived cold refuses a missing restored pair' {$c=$args[0].artifact.observations.ownerSeedDerivedCold;$c.owners=@($c.owners[0])}
+Check-SeedCold 'owner-seed-derived cold refuses a restored generation differing from the archive' {$args[0].artifact.observations.ownerSeedDerivedCold.owners[1].generation=9}
+Check-SeedCold 'owner-seed-derived cold refuses a restored rider identity differing from the archive' {$args[0].artifact.observations.ownerSeedDerivedCold.owners[0].riderId=$args[0].request.ownedPairs.riderBId}
+Check-SeedCold 'owner-seed-derived cold refuses lost control bindings' {$c=$args[0].artifact.observations.ownerSeedDerivedCold;$c.slots=@($c.slots|Select-Object -First 3)}
+Check-SeedCold 'owner-seed-derived cold refuses a foreign source pin' {$args[0].artifact.observations.ownerSeedDerivedCold.sourceArtifactSha256=('e'*64)}
+Check-SeedCold 'owner-seed-derived cold refuses an acquired-ancestry label' {$args[0].artifact.observations.ownerSeedDerivedCold.ancestry='acquired'}
+Check-SeedCold 'owner-seed-derived cold refuses an acquired-ancestry Manual name' {$v=$args[0];$v.request.persistenceLoad.internalName='KMC_C7_WORLD';$v.request.persistenceLoad.fileName='Manual_303_KMC_C7_WORLD.zks';$v.artifact.observations.loadedDescriptor=Copy-Value $v.request.persistenceLoad}
+Check-SeedCold 'owner-seed-derived cold refuses its immutable seed as input' {$v=$args[0];$v.request.ownedPairs.seedSha256=$v.request.ownedPairs.sourceArchiveSha256;$v.artifact.observations.ownerSeedDerivedCold.seedSha256=$v.request.ownedPairs.seedSha256}
+Check-SeedCold 'owner-seed-derived cold refuses a written native output' {$args[0].request.ownedPairs.expectedNativeWriteCount=1}
+Check-SeedCold 'owner-seed-derived cold refuses a second native load' {$args[0].request.ownedPairs.expectedNativeLoadCount=2}
+Check-SeedCold 'owner-seed-derived cold refuses carried setup assistance' {$args[0].request.ownedPairs|Add-Member xpAssistance ([pscustomobject]@{unitId=$args[0].request.ownedPairs.riderBId;targetCharacterLevel=8})}
+# No extra preparation or grant and no loss of retained debt, captured once.
+Check-SeedCold 'owner-seed-derived cold refuses an invented native preparation' {$p=$args[0].artifact.observations.coldRestoration;$p.events=@($p.events)+@([pscustomobject]@{actorId=$args[0].request.ownedPairs.riderAId;kind='prepare-before'})} 'preparation or a new round'
+Check-SeedCold 'owner-seed-derived cold refuses an invented native round' {$p=$args[0].artifact.observations.coldRestoration;$p.events=@($p.events)+@([pscustomobject]@{actorId=$args[0].request.ownedPairs.mountBId;kind='round-before'})} 'preparation or a new round'
+Check-SeedCold 'owner-seed-derived cold refuses a doubled debt restoration' {$p=$args[0].artifact.observations.coldRestoration;$e=@($p.events|Where-Object{$_.kind-ceq'restore-debt-after'})[0];$p.events=@($p.events)+@(Copy-Value $e)} 'once for each actor'
+Check-SeedCold 'owner-seed-derived cold refuses a replayed Mount' {$args[0].artifact.observations.snapshots[0].nativeCastRequests=1}
+Check-SeedCold 'owner-seed-derived cold refuses a second semantic restoration' {$s=@($args[0].artifact.observations.snapshots|Where-Object label -CEQ 'cold-restored-before-input')[0];$s.semanticRestores=5}
+Check-SeedCold 'owner-seed-derived cold refuses refunded restored debt' {$p=$args[0].artifact.observations.coldRestoration;$e=@($p.events|Where-Object{$_.kind-ceq'restore-debt-after'})[0];$e.debt.Standard=0.0}
+Check 'owner-seed-derived cold refuses an unrelated actor granted expenditure' {$v=New-KmcOwnerSeedDerivedColdFixture;$actor={param($s)[pscustomobject][ordered]@{Id='50505050-5050-4050-8050-505050505050';Standard=$s;Move=0.0;Swift=0.0;Initiative=0.0;Reaction=0.0;ReactionsRemaining=1;LastSurpriseTicks=0}};$v.artifact.observations.ownerSeedDerivedCold.unrelated=@([pscustomobject][ordered]@{actorId='50505050-5050-4050-8050-505050505050';before=(&$actor 3.0);after=(&$actor 0.0)});$v.request.ownedPairs.partyIds=@($v.request.ownedPairs.partyIds)+@('50505050-5050-4050-8050-505050505050');Assert-KmcChunk7OwnerSeedDerivedColdObservation $v.request $v.artifact.observations $v.artifact.observations.loadedArchive} $true 'expenditure changed'
+Check 'owner-seed-derived cold accepts unrelated expenditure decaying with the clock' {$v=New-KmcOwnerSeedDerivedColdFixture;$actor={param($s)[pscustomobject][ordered]@{Id='50505050-5050-4050-8050-505050505050';Standard=$s;Move=0.0;Swift=0.0;Initiative=0.0;Reaction=0.0;ReactionsRemaining=1;LastSurpriseTicks=0}};$v.artifact.observations.ownerSeedDerivedCold.unrelated=@([pscustomobject][ordered]@{actorId='50505050-5050-4050-8050-505050505050';before=(&$actor 3.0);after=(&$actor 2.6)});$v.request.ownedPairs.partyIds=@($v.request.ownedPairs.partyIds)+@('50505050-5050-4050-8050-505050505050');Assert-KmcChunk7OwnerSeedDerivedColdObservation $v.request $v.artifact.observations $v.artifact.observations.loadedArchive}
+# Runner pin: a source without matching producer evidence or with a mismatched hash is refused.
+foreach($sourceFault in @('producer-run','producer-failed','archive-hash','input-hash','same-process','graph','generation','slots','arrangement','roster','acquired-ancestry','seed-pin','candidate')){Check ('owner-seed-derived cold source refuses '+$sourceFault) {$v=New-KmcOwnerSeedDerivedColdFixture;$p=New-KmcOwnerSeedDerivedProducer $v;$m=$p.observations.ownerSeedManual
+ switch($sourceFault){'producer-run'{$p.runId='another-producer'}'producer-failed'{$p.status='FAIL'}'archive-hash'{$p.observations.nativeWrite.sha256=('e'*64)}'input-hash'{$v.request.persistenceLoad.sha256=('e'*64)}'same-process'{$m.processId=$v.artifact.observations.processId}'graph'{$p.observations.nativeWrite.archive.GameTimeTicks=1}'generation'{$m.boundary.pairs[0].generation=9}'slots'{$m.boundary.slots=@($m.boundary.slots|Select-Object -First 3)}'arrangement'{$m.arrangement.money=1}'roster'{$m.fieldWorld.party=@($m.fieldWorld.party|Select-Object -First 3)}'acquired-ancestry'{$m.ancestry='acquired'}'seed-pin'{$m.seedSha256=('e'*64)}'candidate'{$p.commit=('9'*40)}}
+ Assert-KmcChunk7OwnerSeedDerivedColdSource $v.request $p $v.artifact} $true}
 $clock.Stop();[void][IO.Directory]::CreateDirectory($OutputDirectory);$passed=@($results|Where-Object pass).Count;$failed=$results.Count-$passed
 [IO.File]::WriteAllText((Join-Path $OutputDirectory 'receipt.json'),([pscustomobject]@{passed=$passed;failed=$failed;elapsedSeconds=$clock.Elapsed.TotalSeconds;nativeInvoked=$false;archiveRead=$false;results=@($results)}|ConvertTo-Json -Depth 12),[Text.UTF8Encoding]::new($false))
 Write-Output ('Owned two-pair reader: '+$passed+' PASS / '+$failed+' FAIL');if($failed){exit 1}
