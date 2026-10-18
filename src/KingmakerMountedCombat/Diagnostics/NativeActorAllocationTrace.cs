@@ -273,8 +273,21 @@ namespace KingmakerMountedCombat.Diagnostics
         }
         private IEnumerable<UnitEntityData> ObservedPairActors => world == null ? new[] { rider, mount } :
             world.UnifiedTurn.SnapshotParticipants.SelectMany(p => p.ParticipationActors).Distinct();
+        // One scenario-declared non-pair actor (the owner-seed RT companion) whose own command
+        // admissions and interrupts are recorded too. Never the whole party: every other campaign's
+        // event stream is unchanged.
+        private UnitEntityData declaredCommandOwner;
+        internal UnitEntityData DeclaredCommandOwner => declaredCommandOwner;
+        internal void DeclareCommandOwner(UnitEntityData actor)
+        {
+            if (actor == null || ObservedPairActors.Contains(actor)) throw new InvalidOperationException("A declared command owner must be one exact non-pair actor.");
+            if (declaredCommandOwner != null && !ReferenceEquals(declaredCommandOwner, actor)) throw new InvalidOperationException("Only one extra command owner may be declared.");
+            declaredCommandOwner = actor;
+        }
+        private bool ObservesCommandActor(UnitEntityData actor) => actor != null && (ObservedPairActors.Contains(actor) || ReferenceEquals(actor, declaredCommandOwner));
         private UnitEntityData Owner(UnitCommands commands) =>
-            ObservedPairActors.SingleOrDefault(actor => ReferenceEquals(actor.Commands, commands));
+            ObservedPairActors.SingleOrDefault(actor => ReferenceEquals(actor.Commands, commands)) ??
+            (declaredCommandOwner != null && ReferenceEquals(declaredCommandOwner.Commands, commands) ? declaredCommandOwner : null);
         private UnitEntityData CooldownOwner(UnitCombatState.Cooldowns value) =>
             ObservedPairActors.SingleOrDefault(actor => ReferenceEquals(actor.CombatState.Cooldown, value)) ??
             (preparing?.Unit.CombatState.Cooldown == value ? preparing.Unit : null);
@@ -363,7 +376,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 var p = active;
                 if (p == null || __instance == null) return;
                 var actor = __instance.Executor;
-                if (!p.ObservedPairActors.Contains(actor)) return;
+                if (!p.ObservesCommandActor(actor)) return;
                 p.Record("command-interrupt-before", actor, __instance, detail: InterruptCallers());
             }
             internal static void InterruptAfter(UnitCommand __instance)
@@ -371,7 +384,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 var p = active;
                 if (p == null || __instance == null) return;
                 var actor = __instance.Executor;
-                if (!p.ObservedPairActors.Contains(actor)) return;
+                if (!p.ObservesCommandActor(actor)) return;
                 p.Record("command-interrupt-after", actor, __instance);
             }
             // The managed frames above the interrupt hook, outermost last. Harmony wrapper frames and
