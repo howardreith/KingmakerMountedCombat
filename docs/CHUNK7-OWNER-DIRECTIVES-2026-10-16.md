@@ -350,3 +350,10 @@ Asked after the combat-machinery map (lab receipt `analysis-cache/chunk7-continu
 - **Combat target.** Question: may the project-spawned, runtime-only stock Mammoth target contract (no XP or loot, destroyed on every cleanup path; `planning/DIAGNOSTIC-TARGET-POLICY.md`, previously scoped to `KMC_AUTOMATION_WORKING`) be reused on disposable copies of the owner-seed-derived Manual, with the seed and derived-save hashes in place of the Working identity? Owner answer: **approved**. The spider cave's own monsters are never used.
 - **Scenario 5 scope.** Owner answer: **both pairs mounted before combat**, with initiative forced mount-first and disclosed as setup. The mid-encounter mount-first case remains a single-pair Chunk 6 proof and an explicit later item.
 - **Scenario 3 unrelated actor.** Owner answer: **an unrelated companion (Valerie or Linzi) must take one ordinary native action during the RT window**, spending only her own resources and disturbing neither pair.
+
+### Owner decision on turn-based Mount/Dismount at turn start (October 18, 2026)
+
+Asked after batch 6 slot 2 (`20261018-c7b-world32-ownerseed-b6s2-tbrider`): KMC refused a turn-based Dismount while the rider's turn was Preparing (Chunk 6A rule R3), and the native game keeps a directly controllable unit's turn Preparing until its first command, so a voluntary Mount or Dismount could never be the first action of a turn-based turn.
+
+- **Question:** admit the transition in Preparing (product change, focused safety review first), keep the rule and adapt the test (recording the limitation as product debt), or stop turn-based work for this session.
+- **Owner answer:** **Admit in Preparing.** Implemented in `06ec7180`, reviewed in lab receipt `owner-seed-review/batch6-product-review01.json` (PASS). The scrolling boundary before native `Prepare` remains refused. The turn-based Charge refusal is unchanged.

@@ -14,3 +14,9 @@ After a real-time mounted attack, the attacking pair actors keep `CombatState.Ma
 Successor-candidate direction, not decided: stop leaving `ManualTarget` set after a direct paired attack, or refuse AI-originated proposals silently without clearing the observed player request. Either change alters the product identity and needs its own candidate and qualification.
 
 Diagnostics impact: the owner-seed RT companion window now tolerates these proposals only as closed refused-before-Run pairs and records them as `pairRefusedProposals`. After Dismount A, rider A is no longer refused by KMC and still carries `ManualTarget`, so its brain may admit a native attack before the unmounted-control click (watch RT stages 5-7).
+
+## Chunk 6A rule R3 superseded; its historical probe still asserts it (2026-10-18)
+
+The owner's October 18 decision admits a voluntary turn-based Mount/Dismount in the rider's prepared (Preparing) turn (`06ec7180`). The Chunk 6A diagnostic probe `Chunk6aCombatMountScenario` row `CM01-combat-mount-preparing-refused`, the released 6A ledgers and the 6A readers and registration tests that list it still describe the superseded rule. Re-running the Chunk 6A turn-based scenarios on preview.33 or later will fail that row by design until the 6A gate set is revised to the admitted contract. The released Chunk 6 records are left unchanged as history.
+
+`scripts/Test-Chunk6aLedger.ps1` already exits 1 on the successor: `Chunk6aHarnessIdentity.ps1` pins every `scripts/runtime/*.ps1` file to the recorded 6A reader revision, and many Chunk 7 readers have changed since. This predates the R3 change.
