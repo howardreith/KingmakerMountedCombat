@@ -548,6 +548,8 @@ namespace KingmakerMountedCombat.Diagnostics
             return combatMemoryQueued;
         }
 
+        public string LastCombatMemoryLeaseFailure { get; private set; }
+
         public bool RefreshBidirectionalCombatMemoryLease()
         {
             ThrowIfDisposed();
@@ -898,15 +900,22 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool TryRefreshBidirectionalCombatMemoryLease()
         {
             var game = Game.Instance;
-            if (game?.TimeController == null || combatMemoryObserver == null || combatMemoryTarget == null ||
-                combatMemoryObserverGroup == null || combatMemoryTargetGroup == null ||
-                combatMemoryObserverGroup.Disposed || combatMemoryTargetGroup.Disposed ||
-                combatMemoryObserver.Group != combatMemoryObserverGroup ||
-                combatMemoryTarget.Group != combatMemoryTargetGroup ||
-                !ValidateTargetBrainLeaseActive(combatMemoryTarget) ||
-                !targetSleeplessLeaseActive || !combatMemoryTarget.Sleepless ||
-                !combatMemoryObserver.IsInState || !combatMemoryTarget.IsInState ||
-                nonPairPartyAiLease == null || !nonPairPartyAiLease.ValidateActive())
+            // Each condition is named so a native refusal says which one failed (the first
+            // owner-seed RT run, 20261018-c7b-world26-ownerseed-b4s2-rt, refused here without it).
+            LastCombatMemoryLeaseFailure =
+                game?.TimeController == null ? "no game time controller" :
+                combatMemoryObserver == null || combatMemoryTarget == null ? "observer or target missing" :
+                combatMemoryObserverGroup == null || combatMemoryTargetGroup == null ? "observer or target group missing" :
+                combatMemoryObserverGroup.Disposed || combatMemoryTargetGroup.Disposed ? "observer or target group disposed" :
+                combatMemoryObserver.Group != combatMemoryObserverGroup ? "observer changed group" :
+                combatMemoryTarget.Group != combatMemoryTargetGroup ? "target changed group" :
+                !ValidateTargetBrainLeaseActive(combatMemoryTarget) ? "target brain lease inactive" :
+                !targetSleeplessLeaseActive || !combatMemoryTarget.Sleepless ? "target sleepless lease inactive" :
+                !combatMemoryObserver.IsInState ? "observer not in state" :
+                !combatMemoryTarget.IsInState ? "target not in state" :
+                nonPairPartyAiLease == null ? "non-pair party AI lease missing" :
+                !nonPairPartyAiLease.ValidateActive() ? "non-pair party AI lease: " + nonPairPartyAiLease.LastError : null;
+            if (LastCombatMemoryLeaseFailure != null)
             {
                 return false;
             }
@@ -915,6 +924,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var observedRider = combatMemoryTargetGroup.Memory.Add(combatMemoryObserver);
             if (observedTarget == null || observedRider == null)
             {
+                LastCombatMemoryLeaseFailure = "group memory refused an entry";
                 return false;
             }
             observedTarget.LastDetectTime = game.TimeController.GameTime;

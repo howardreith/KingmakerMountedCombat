@@ -153,7 +153,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     "Bounded combat scenario deadline at step " + step + ", action " + actionStage + ".");
                 if (Game.Instance.IsPaused) Game.Instance.IsPaused = false;
                 if (targetService != null && targetService.State == DiagnosticCombatTargetState.Active)
-                    Require(targetService.RefreshBidirectionalCombatMemoryLease(), "Exact diagnostic combat memory or AI lease changed.");
+                    Require(targetService.RefreshBidirectionalCombatMemoryLease(), "Exact diagnostic combat memory or AI lease changed: " + (targetService.LastCombatMemoryLeaseFailure ?? "memory not mutual") + ".");
                 ObserveTurn();
                 switch (step)
                 {
