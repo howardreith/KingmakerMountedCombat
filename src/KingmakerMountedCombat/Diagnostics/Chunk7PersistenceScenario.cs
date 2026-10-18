@@ -659,7 +659,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (RepeatedWorldCase && replayInput != null) RequireReplayInput();
                 if (Schema1ResaveCase) VerifySchema1InputImmutable();
                 if (Schema2ResaveCase) VerifySchema2InputImmutable();
-                if (savedDescriptor != null) Require(Hash(savedDescriptor.FolderName) == (string)evidence["nativeWrite"]["sha256"],
+                // A write refused before its record has no recorded hash to compare.
+                if (savedDescriptor != null && evidence["nativeWrite"] is JObject write) Require(Hash(savedDescriptor.FolderName) == (string)write["sha256"],
                     "Source archive changed after its recorded native completion.");
             });
             if (inherited != null && inherited.Bound) evidence["inheritedCleanup"] = inherited.Capture("cleanup");

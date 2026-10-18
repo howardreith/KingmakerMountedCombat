@@ -76,7 +76,7 @@ function Assert-KmcChunk7CombatArchive($Archive,$Request) {
         $a=@($Archive.Participations|Where-Object{$_.State.RiderId-ceq$first});$b=@($Archive.Participations|Where-Object{$_.State.RiderId-ceq$second})
         if($a.Count-ne1-or$b.Count-ne1){throw 'Two-pair checkpoint lost either independent owner.'}
         $mountB=$native[([Guid]$b[0].State.MountId).ToString('N')].Native
-        if($tb-and-not$zero-and($firstDebt.Standard-lt5.9-or$secondDebt.Standard-le0.1-or$mountB.Standard-ne0)){throw 'TB archive omitted the distinct completed/current native actor expenditures.'}
+        if($tb-and-not$zero-and($firstDebt.Standard-le0.1-or$firstDebt.Standard-gt6.001-or$secondDebt.Standard-le0.1-or$mountB.Standard-ne0)){throw 'TB archive omitted the distinct completed/current native actor expenditures.'}
         if(-not$tb-and($firstDebt.Standard-le0.1-or$mountB.Standard-le0.1-or$secondDebt.Standard-ne0)){throw 'RT archive omitted the distinct rider/other-pair mount expenditures.'}
     }
     $allocations=[Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
@@ -171,6 +171,14 @@ function Assert-KmcChunk7CheckpointSource($Checkpoint,$Archive,$Request) {
     }
     if($legacy){$pending=$Checkpoint.source.pendingSurvivor;if($pending.stimulus-cne'UnitEntityData.LeaveCombat then native RemoveUnit if still registered'-or
        (ConvertTo-KmcChunk7Canonical $pending.participation)-cne(ConvertTo-KmcChunk7Canonical $Archive.Participations[0].State)){throw 'Legacy pending source lacks the actual native rider-removal stimulus and preserved participation.'}}
+    if(-not$rt-and-not$zero-and-not$legacy){
+        # Completed A keeps its native end expenditure, decayed natively by later turns' game time.
+        $end=@($Checkpoint.nativeCompletion.calls|Where-Object{$_.kind-ceq'end'-and$_.before.actorId-ceq$ids[0]-and$_.complete-eq$true})
+        $first=@($Archive.Combat.Actors|Where-Object{([Guid]$_.Native.Id).ToString('N')-ceq([Guid]$ids[0]).ToString('N')})
+        if($end.Count-ne1-or$first.Count-ne1){throw 'Completed A lacks one observed native End or archived actor.'}
+        $endStandard=[double]$end[0].after.resources.standard;$elapsed=([long]$Archive.GameTimeTicks-[long]$end[0].after.gameTicks)/10000000.0;$std=[double]$first[0].Native.Standard
+        if($endStandard-lt5.9-or$elapsed-lt0-or$elapsed-gt30-or$std-gt$endStandard+0.001-or$std+$elapsed*1.1+0.001-lt$endStandard){throw 'Completed A archived expenditure is not its native end value decayed by elapsed native time.'}
+    }
     if($zero){$dismounts=@($Checkpoint.source.inputs|Where-Object{$_.label-clike'checkpoint-native-dismount-*'});if($dismounts.Count-ne2){throw 'Zero-mounted checkpoint did not execute two native Dismount inputs.'};foreach($nativeInput in $dismounts){if($nativeInput.nativeCastDelta-ne1-or$nativeInput.nativeRefusalDelta-ne0-or$nativeInput.clicked-ne$true){throw 'Native detached checkpoint input was refused or duplicated.'}}}
 }
 function Assert-KmcChunk7CheckpointContinuation($Value,$Archive,$Request,[bool]$Cold) {

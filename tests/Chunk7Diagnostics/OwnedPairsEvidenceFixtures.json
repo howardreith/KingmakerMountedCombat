@@ -45604,6 +45604,24 @@
                   "moduleMvid": "07fa1e4d-8618-41b3-9b8d-faa17d3b26f7"
                 }
               ]
+            },
+            "nativeCompletion": {
+              "errors": [],
+              "calls": [
+                {
+                  "kind": "end",
+                  "complete": true,
+                  "before": {
+                    "actorId": "10101010-1010-4010-8010-101010101010"
+                  },
+                  "after": {
+                    "gameTicks": 10000000,
+                    "resources": {
+                      "standard": 6.0
+                    }
+                  }
+                }
+              ]
             }
           },
           "combatContinuation": {
