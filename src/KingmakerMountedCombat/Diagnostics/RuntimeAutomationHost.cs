@@ -66,6 +66,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool completed;
         private bool disposed;
         private Exception deferredNativeRefreshError;
+        private bool nativeRefreshErrorRaised;
         private int saveRequestCount;
         private int loadRequestCount;
         private IDisposable saveAuthorizationLease;
@@ -420,7 +421,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 }
                 catch (Exception exception)
                 {
-                    if (host.deferredNativeRefreshError == null) host.deferredNativeRefreshError = exception;
+                    // Latched: the failure is committed once; later refreshes during the drain are ignored.
+                    if (!host.nativeRefreshErrorRaised && host.deferredNativeRefreshError == null) host.deferredNativeRefreshError = exception;
                 }
                 return;
             }
@@ -607,8 +609,12 @@ namespace KingmakerMountedCombat.Diagnostics
             try
             {
                 if (deferredNativeRefreshError != null)
+                {
+                    var refreshError = deferredNativeRefreshError;
+                    deferredNativeRefreshError = null; nativeRefreshErrorRaised = true;
                     throw new InvalidOperationException("Declared persistence mode could not be reapplied after a native settings refresh: " +
-                        deferredNativeRefreshError.Message, deferredNativeRefreshError);
+                        refreshError.Message, refreshError);
+                }
                 if (workingLoadCompletionPending) { DrainWorkingLoadCompletion(); return; }
                 if (chunk7Completion.Pending) { DrainChunk7Completion(); return; }
                 if (request.SchemaVersion == RuntimeRequest.SaveBackedSchemaVersion && !saveBackedFailureDrain.MayAdvanceScenario)
