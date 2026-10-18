@@ -6291,7 +6291,7 @@ try {
         Assert-Test ($targetSource.Contains('groupsController.Groups.Remove(runtimeGroup);') -and
             $targetSource.Contains('runtimeGroup.Dispose();') -and
             $targetSource.Contains('!runtimeGroup.Empty()')) 'project-owned transient combat group is not removed only after exact empty-group proof'
-        $nonPairLeaseAcquireIndex = $targetSource.IndexOf('nonPairPartyAiLease.Acquire(rider, mount);', [StringComparison]::Ordinal)
+        $nonPairLeaseAcquireIndex = $targetSource.IndexOf('nonPairPartyAiLease.Acquire(rider, mount, otherPairActors);', [StringComparison]::Ordinal)
         $nonPairTargetSpawnIndex = $targetSource.IndexOf('target = game.EntityCreator.SpawnUnit', [StringComparison]::Ordinal)
         $nonPairTargetRemovalIndex = $targetSource.IndexOf('var nonPairPartyAiClean = targetRemoved && groupRemoved && RuntimeFactionRemoved', [StringComparison]::Ordinal)
         Assert-Test ($nonPairLeaseAcquireIndex -ge 0 -and $nonPairTargetSpawnIndex -gt $nonPairLeaseAcquireIndex -and
@@ -6302,6 +6302,7 @@ try {
             $nonPairLeaseSource.Contains('group[index]') -and
             $nonPairLeaseSource.Contains('unit.Commands.Empty') -and
             $nonPairLeaseSource.Contains('unit.IsDirectlyControllable') -and
+            $nonPairLeaseSource.Contains('!otherPairActors.Contains(unit)') -and
             $nonPairLeaseSource.Contains('AiBackingField.GetValue(unit)') -and
             -not $nonPairLeaseSource.Contains('.Commands.Interrupt') -and
             -not $nonPairLeaseSource.Contains('.Commands.Clear') -and
