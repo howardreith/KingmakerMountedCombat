@@ -27,6 +27,11 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("animated saddle follows absolute displacement without drift or mechanics writes", AnimatedSaddleFollows);
             runner.Run("animated saddle restores its lease and recalibrates for replacement views", AnimatedSaddleCleanup);
             runner.Run("mounted stock attack requires an exact frame-bounded native request", RequiresExactNativeRequest);
+            runner.Run("a refused AI proposal neither erases nor borrows a pending player click", ProposalCannotEraseOrBorrowClick);
+            runner.Run("a click whose own Run carried another command leaves nothing to borrow", ClickBoundToItsOwnRun);
+            runner.Run("an unbound click observation expires at the next frame's Run", StaleObservationExpires);
+            runner.Run("two pairs keep separate click ownership across selection changes", ClickOwnershipIsPairLocal);
+            runner.Run("hidden-mount feedback belongs only to a real mount click", HiddenMountFeedbackOnlyForClicks);
             runner.Run("mounted stock attack sequences rider before mount", SequencesRiderBeforeMount);
             runner.Run("mounted ranged stock attack never pulls mount into melee", RangedDoesNotForceMountMelee);
             runner.Run("mounted stock attack waits persistently only in real time", WaitsPersistentlyOnlyInRealTime);
@@ -313,6 +318,102 @@ namespace KingmakerMountedCombat.Tests
                 !UnifiedMountedStockAttackPolicy.IsExactObservedPlayerRequest(
                     true, true, false, true, true, true, 100, 100),
                 "Non-principal selection was admitted.");
+        }
+
+        // Mirrors MountedCombatController.TryRouteMountedStockAttack: exact admission requires the bound
+        // player command plus the principal, target and frame; only the bound command consumes it.
+        private static bool Route(ObservedPlayerAttackRequest<object, object> request, object principal, object target,
+            object command, int frame)
+        {
+            var admitted = request.IsPlayerCommand(command) && UnifiedMountedStockAttackPolicy.IsExactObservedPlayerRequest(
+                true, true, true, true, ReferenceEquals(request.Unit, principal), ReferenceEquals(request.Target, target), frame, request.Frame);
+            request.Consume(command);
+            return admitted;
+        }
+
+        // Native ClickUnitHandler raises OnAttackRequested(unit, target) and then runs that unit's command
+        // as adjacent synchronous statements; the prefix binds before routing.
+        private static bool Click(ObservedPlayerAttackRequest<object, object> request, object rider, object target, object command, int frame)
+        {
+            request.Observe(rider, target, frame);
+            request.Bind(rider, command, frame);
+            return Route(request, rider, target, command, frame);
+        }
+
+        private static void ProposalCannotEraseOrBorrowClick()
+        {
+            var request = new ObservedPlayerAttackRequest<object, object>();
+            var rider = new object(); var target = new object(); var other = new object();
+            var click = new object();
+            request.Observe(rider, target, 100);
+            request.Bind(rider, click, 100);
+            // A refused proposal reaching the same controller on a mismatching target, then on the same
+            // actor and target: neither is admitted and neither erases the pending click.
+            var mismatching = new object(); var sameTarget = new object();
+            request.Bind(rider, mismatching, 100);
+            TestRunner.True(!Route(request, rider, other, mismatching, 100), "A mismatching proposal was admitted.");
+            TestRunner.True(!Route(request, rider, target, sameTarget, 100), "A same-target proposal borrowed the click.");
+            TestRunner.True(ReferenceEquals(request.Command, click), "A refused proposal erased the pending click.");
+            TestRunner.True(Route(request, rider, target, click, 100), "The click's own command was refused.");
+            TestRunner.True(!Route(request, rider, target, click, 100), "One click was admitted twice.");
+            TestRunner.True(!Route(request, rider, target, sameTarget, 101), "A later proposal borrowed a consumed click.");
+        }
+
+        private static void ClickBoundToItsOwnRun()
+        {
+            var request = new ObservedPlayerAttackRequest<object, object>();
+            var rider = new object(); var target = new object();
+            var autoUse = new object();
+            request.Observe(rider, target, 200);
+            request.Bind(rider, autoUse, 200);
+            var proposal = new object();
+            request.Bind(rider, proposal, 200);
+            TestRunner.True(!Route(request, rider, target, proposal, 200), "An AI attack borrowed a click whose Run carried auto-use.");
+            TestRunner.True(!Route(request, rider, target, proposal, 201), "An AI attack borrowed the click one frame later.");
+            TestRunner.True(ReferenceEquals(request.Command, autoUse), "The click lost its own bound command.");
+        }
+
+        private static void StaleObservationExpires()
+        {
+            var request = new ObservedPlayerAttackRequest<object, object>();
+            var rider = new object(); var target = new object();
+            request.Observe(rider, target, 300);
+            var proposal = new object();
+            request.Bind(rider, proposal, 301);
+            TestRunner.True(request.Unit == null && request.Command == null, "An unbound observation survived into the next frame.");
+            TestRunner.True(!Route(request, rider, target, proposal, 301), "A next-frame proposal borrowed an unbound click.");
+        }
+
+        private static void ClickOwnershipIsPairLocal()
+        {
+            var a = new ObservedPlayerAttackRequest<object, object>(); var b = new ObservedPlayerAttackRequest<object, object>();
+            var riderA = new object(); var riderB = new object(); var target = new object();
+            var clickA = new object(); var clickB = new object(); var proposalB = new object();
+            // Both riders selected: the native loop observes and runs each in turn.
+            a.Observe(riderA, target, 400); a.Bind(riderA, clickA, 400);
+            b.Observe(riderB, target, 400); b.Bind(riderB, clickB, 400);
+            TestRunner.True(!Route(b, riderB, target, proposalB, 400), "Pair B's proposal was admitted.");
+            TestRunner.True(Route(a, riderA, target, clickA, 400), "Pair A's click was refused after pair B's proposal.");
+            TestRunner.True(Route(b, riderB, target, clickB, 400), "Pair B's click was refused.");
+            // Selection then changes to rider B only: a fresh click on B admits; A holds nothing.
+            TestRunner.True(Click(b, riderB, target, new object(), 401), "A click after a selection change was refused.");
+            TestRunner.True(a.Unit == null, "Pair A retained a click after its command was consumed.");
+            // Repeated ordinary player attacks each carry their own command.
+            TestRunner.True(Click(a, riderA, target, new object(), 402) && Click(a, riderA, target, new object(), 403),
+                "Repeated player attacks were not each admitted.");
+        }
+
+        private static void HiddenMountFeedbackOnlyForClicks()
+        {
+            var request = new ObservedPlayerAttackRequest<object, object>();
+            var mount = new object(); var target = new object();
+            var proposal = new object();
+            TestRunner.True(!request.Consume(proposal), "A brain proposal on the hidden mount earned player feedback.");
+            var click = new object();
+            request.Observe(mount, target, 500); request.Bind(mount, click, 500);
+            TestRunner.True(!request.Consume(proposal), "A brain proposal consumed a real mount click.");
+            TestRunner.True(request.Consume(click), "A real mount click did not earn its feedback.");
+            TestRunner.True(!request.Consume(click), "One mount click earned feedback twice.");
         }
 
         private static void SequencesRiderBeforeMount()

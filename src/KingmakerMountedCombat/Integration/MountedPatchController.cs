@@ -501,6 +501,9 @@ namespace KingmakerMountedCombat.Integration
 
             internal static bool UnitCommandRunPrefix(UnitCommands __instance, ref UnitCommand cmd)
             {
+                // Bind a same-frame native hostile click to the exact command its own Run carries,
+                // before any refusal below, so no later command can borrow or erase that click.
+                PatchBridge.CombatFor(__instance)?.BindObservedStockRequest(__instance, cmd);
                 if (PatchBridge.Persistence?.CombatRestorationPending == true) return false;
                 // While an owned archive worker can still commit, no unit -- owned pair
                 // or not -- may run or queue a command: the worker is serializing the
