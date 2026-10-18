@@ -20,3 +20,7 @@ Diagnostics impact: the owner-seed RT companion window now tolerates these propo
 The owner's October 18 decision admits a voluntary turn-based Mount/Dismount in the rider's prepared (Preparing) turn (`06ec7180`). The Chunk 6A diagnostic probe `Chunk6aCombatMountScenario` row `CM01-combat-mount-preparing-refused`, the released 6A ledgers and the 6A readers and registration tests that list it still describe the superseded rule. Re-running the Chunk 6A turn-based scenarios on preview.33 or later will fail that row by design until the 6A gate set is revised to the admitted contract. The released Chunk 6 records are left unchanged as history.
 
 `scripts/Test-Chunk6aLedger.ps1` already exits 1 on the successor: `Chunk6aHarnessIdentity.ps1` pins every `scripts/runtime/*.ps1` file to the recorded 6A reader revision, and many Chunk 7 readers have changed since. This predates the R3 change.
+
+## Recorded combat fixtures predate the native rider-removal forfeit (2026-10-18, test debt)
+
+`tests/Chunk7Diagnostics/OwnedPairsEvidenceFixtures.json` combat fixtures were written before batch 6 slot 3 observed the native paired-removal forfeit (`ForceToEnd(setCooldowns: true)` nested on the mount's private turn). `scripts/chunk7/Chunk7NativeForfeitFixture.ps1` applies that observed shape in memory when the fixtures load (reviewed in `batch6-reader-review01`). Regenerate the recorded fixtures with the forfeit shape when convenient, then drop the load-time shaping.
