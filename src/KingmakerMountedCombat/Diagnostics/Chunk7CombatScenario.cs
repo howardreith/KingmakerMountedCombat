@@ -252,11 +252,12 @@ namespace KingmakerMountedCombat.Diagnostics
             var ai = typeof(UnitEntityData).GetField("m_AiEnabled", Flags);
             Require(ai != null && ai.FieldType == typeof(bool), "Exact native AI observation contract differs.");
             firstPairAi = new ScopedDiagnosticAiLease<UnitEntityData>(u => u.UniqueId,
-                u => (ReferenceEquals(u, ar) || ReferenceEquals(u, am) || ReferenceEquals(u, br) || ReferenceEquals(u, bm)) && u.IsInState && u.Group == ar.Group,
+                u => (ReferenceEquals(u, ar) || ReferenceEquals(u, am) || ReferenceEquals(u, br)) && u.IsInState && u.Group == ar.Group,
                 u => u.Commands.Empty, u => (bool)ai.GetValue(u), u => u.IsAIEnabled, (u, value) => u.IsAIEnabled = value);
             // Both measured pairs: pair B is excluded from the non-pair lease, so its rider's AI is
-            // suppressed here (review lease-scope-review01 B1); this lease has no per-tick empty-queue check.
-            firstPairAi.Acquire(new[] { ar, am, br, bm });
+            // suppressed here (lease-scope-review01 B1). Only rider B: KMC owns the mounted Horse's AI and
+            // restores it at a mid-run dismount (lease-scope-review02 B2). No per-tick empty-queue check.
+            firstPairAi.Acquire(new[] { ar, am, br });
             mode?.Dispose(); mode = new NativeModeTransitionProbe(!RealtimeMode);
             mode.DispatchTemporaryValueIfRequired();
             Require(mode.TemporaryValueIsCurrent && !Game.Instance.Player.IsInCombat, "Selected mode must be set before native encounter setup.");

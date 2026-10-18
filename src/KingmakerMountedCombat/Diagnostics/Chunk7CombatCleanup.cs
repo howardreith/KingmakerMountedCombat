@@ -103,7 +103,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 leasesRestored &= TryCleanup("original mode", () => { mode?.Dispose(); mode = null; });
                 leasesRestored &= TryCleanup("first pair AI", () => {
                     if (firstPairAi == null || firstPairAi.LastRestoreVerified) return;
-                    firstPairAi.ReassertAfterNativeReset(new[] { ar, am, br, bm }); firstPairAi.Restore(new[] { ar, am, br, bm });
+                    firstPairAi.ReassertAfterNativeReset(new[] { ar, am, br }); firstPairAi.Restore(new[] { ar, am, br });
                 });
                 if (!leasesRestored) { AwaitCleanup(false, "A source fixture lease has not restored."); return; }
                 cleanupServicesSettled = true;
