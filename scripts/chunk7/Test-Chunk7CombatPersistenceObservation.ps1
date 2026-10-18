@@ -79,7 +79,16 @@ function CompleteCombatArtifact($Fixture,[bool]$Cold){
 }
 $complete=@();foreach($fixture in @($tb,$rt,$zero,$legacy)){foreach($isCold in @($false,$true)){$spec=CompleteCombatArtifact $fixture $isCold;$complete+=@($spec);Check ($spec.request.persistenceCase+' complete '+$spec.request.scenario) {Assert-KmcChunk7PersistenceObservation $spec.request $spec.artifact 'PASS'}}}
 $sourceTb=$complete[0];$coldTb=$complete[1];$sourceRt=$complete[2];$coldZero=$complete[5];$coldLegacy=$complete[7]
-Check 'source TB rider approach charged to its own mount move budget' {$spec=Copy-Test $sourceTb;$i=$spec.artifact.observations.combatCheckpoint.source.inputs[2];$i.before.actors[3].move=0.09;$i.after.actors[3].move=0.74;Assert-KmcChunk7PersistenceObservation $spec.request $spec.artifact 'PASS'}
+function Set-Approach($Spec){$i=$Spec.artifact.observations.combatCheckpoint.source.inputs[2];foreach($pair in @(@($i.before.actors[3],0.09,-14.98),@($i.after.actors[3],0.74,-11.78))){$pair[0].move=$pair[1];Set-Field $pair[0] 'native' ([pscustomobject]@{timeMoved=$pair[1]});Set-Field $pair[0] 'position' ([pscustomobject]@{x=-21.0;y=0.6;z=$pair[2]})};$i}
+Check 'source TB rider approach charged to its own mount move budget' {$spec=Copy-Test $sourceTb;Set-Approach $spec|Out-Null;Assert-KmcChunk7PersistenceObservation $spec.request $spec.artifact 'PASS'}
+foreach($mutation in @('rider-own-move-moved-to-mount','unmoved-mount','untimed-move','missing-native-movement')){
+    Reject ('source TB approach '+$mutation){$spec=Copy-Test $sourceTb;$i=Set-Approach $spec;switch($mutation){
+      'rider-own-move-moved-to-mount' {$i.before.actors[2].move=0.65;$i.after.actors[2].move=0.0}
+      'unmoved-mount' {$i.after.actors[3].position.z=$i.before.actors[3].position.z}
+      'untimed-move' {$i.after.actors[3].move=5.9}
+      'missing-native-movement' {$i.after.actors[3].PSObject.Properties.Remove('native')}
+    };Assert-KmcChunk7PersistenceObservation $spec.request $spec.artifact 'PASS'}
+}
 foreach($mutation in @('missing-cost','duplicate-cost','wrong-cost-actor','wrong-action','no-actual-spend','neighbour-debt','outcome-other-owner','observer-incomplete','wrong-native-hook','target-substitution','missing-mount','snapshot-twice','worker-incomplete','source-format','live-owner-generation','completed-A-missing-end','completed-A-partial-end','completed-A-overdecayed','completed-A-refunded','approach-own-mount-refund','approach-own-mount-overbudget','approach-own-mount-standard','approach-foreign-mount-move','approach-mount-attack-moves-rider')){
     Reject ('source raw proof '+$mutation){$spec=Copy-Test $sourceTb;$v=$spec.artifact.observations;$checkpoint=$v.combatCheckpoint;switch($mutation){
       'missing-cost' {$checkpoint.trace.events=@($checkpoint.trace.events|Where-Object boundary -CNE 'cost-after')}
