@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using Kingmaker;
@@ -45,11 +46,24 @@ namespace KingmakerMountedCombat.Diagnostics
                 replayAuthorization.AuthorizedWriteCount == 0 && manager.IsSaveAllowed(),
                 "Inherited output lacks its exact unused reserved native write after the completed sole load.");
             var descriptors = manager.Take(3).ToArray();
-            Require(descriptors.Length == 1 && ReferenceEquals(descriptors[0], replaySaveAuthority.OwnedPairsSourceDescriptor) &&
-                ReferenceEquals(descriptors[0], ownedFixtureLoader.Descriptor) && descriptors[0].FileName == request.PersistenceLoad.FileName &&
-                descriptors[0].Name == request.PersistenceLoad.InternalName && descriptors[0].Type.ToString() == request.ExpectedNativeLoadType &&
-                descriptors[0].OperationState == SaveInfo.StateType.None && descriptors[0].HasFileOnDisk && descriptors[0].IsActuallySaved,
-                "Inherited native source descriptor inventory changed before its selected output.");
+            var failed = new List<string>(); var source = descriptors.Length == 1 ? descriptors[0] : null;
+            if (source == null) failed.Add("descriptorCount=" + descriptors.Length);
+            else
+            {
+                if (!ReferenceEquals(source, replaySaveAuthority.OwnedPairsSourceDescriptor)) failed.Add("notReservedSourceDescriptor(reservedIsNull=" + (replaySaveAuthority.OwnedPairsSourceDescriptor == null) + ")");
+                // WorkingFixtureLoader reads its own descriptor with SaveManager.LoadZipSave, so it is never the
+                // list's object (as observed for the owner-seed Manual); both must describe the same file.
+                var loaded = ownedFixtureLoader?.Descriptor;
+                if (loaded == null || loaded.FileName != source.FileName || loaded.FolderName != source.FolderName || loaded.Name != source.Name || loaded.GameId != source.GameId)
+                    failed.Add("notLoadedDescriptorFile(loadedIsNull=" + (loaded == null) + ")");
+                if (source.FileName != request.PersistenceLoad.FileName) failed.Add("fileName=" + source.FileName);
+                if (source.Name != request.PersistenceLoad.InternalName) failed.Add("name=" + source.Name);
+                if (source.Type.ToString() != request.ExpectedNativeLoadType) failed.Add("type=" + source.Type + "/expected=" + request.ExpectedNativeLoadType);
+                if (source.OperationState != SaveInfo.StateType.None) failed.Add("operationState=" + source.OperationState);
+                if (!source.HasFileOnDisk) failed.Add("hasFileOnDisk=false");
+                if (!source.IsActuallySaved) failed.Add("isActuallySaved=false");
+            }
+            Require(failed.Count == 0, "Inherited native source descriptor inventory changed before its selected output: " + string.Join(", ", failed.ToArray()) + ".");
             var number = manager.FindUnusedSaveNumber(type);
             var leaf = type + "_" + number.ToString(System.Globalization.CultureInfo.InvariantCulture) +
                 (type == SaveInfo.SaveType.Manual ? "_" + replaySaveAuthority.OwnedPairsOutputName : "") + ".zks";
