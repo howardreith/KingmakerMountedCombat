@@ -359,7 +359,10 @@ namespace KingmakerMountedCombat.Diagnostics
             internal static void FactAfter(ITickEachRound logic) { active?.Record("fact-after", active.preparing?.Unit, detail: logic.GetType().FullName, callback: logic); }
             internal static void AiRoundBefore(CombatAiData __instance) { if (active?.preparing?.Unit.CombatState.AIData == __instance) active.Record("ai-round-before", active.preparing.Unit); }
             internal static void AiRoundAfter(CombatAiData __instance) { if (active?.preparing?.Unit.CombatState.AIData == __instance) active.Record("ai-round-after", active.preparing.Unit); }
-            internal static void CommandBefore(UnitCommands __instance, UnitCommand cmd) { active?.Record("admission-before", active.Owner(__instance), cmd); }
+            // An attack of opportunity's admission carries its caller chain, naming the provoking path
+            // (disengage tick, provoke fan-out such as a native stand-up, or a forced feat).
+            internal static void CommandBefore(UnitCommands __instance, UnitCommand cmd) { active?.Record("admission-before", active.Owner(__instance), cmd,
+                detail: cmd is UnitAttackOfOpportunity ? InterruptCallers() : null); }
             internal static void CommandAfter(UnitCommands __instance, UnitCommand cmd) { active?.Record("admission-after", active.Owner(__instance), cmd); }
             internal static void CostBefore(UnitCommand command) { active?.Record("cost-before", command?.Executor, command); }
             internal static void EligibilityBefore() { }
