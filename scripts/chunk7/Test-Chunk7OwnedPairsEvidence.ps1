@@ -253,6 +253,8 @@ Check-SeedManual 'owner-seed Manual producer refuses a selection of two writes' 
 Check-SeedManual 'owner-seed Manual producer refuses a non-Manual output' {$w=$args[0].artifact.observations.nativeWrite;$w.nativeType='Auto'}
 Check-SeedManual 'owner-seed Manual producer refuses an Auto request' {$args[0].artifact.observations.saveRequested.nativeType='Auto'}
 Check-SeedManual 'owner-seed Manual producer refuses an out-of-root write' {$args[0].artifact.observations.nativeWrite.path='C:\foreign\Manual_303_KMC_C7_SEED_WORLD.zks'}
+Check-SeedManual 'owner-seed Manual producer refuses a save stamped before SETUP-COMPLETE' {$o=$args[0].artifact.observations;$f=[long]$o.setupComplete.frame-1;$o.ownerSeedManual.boundary.frame=$f;$o.saveRequested.frame=$f;$o.ownerSeedManual.headerStarting.frame=$f;$o.ownerSeedManual.headerStaged.frame=$f}
+Check-SeedManual 'owner-seed Manual producer refuses a save request in game time before its boundary' {$o=$args[0].artifact.observations;$o.saveRequested.gameTicks=[long]$o.ownerSeedManual.boundary.gameTicks-1}
 Check-SeedManual 'owner-seed Manual producer refuses an acquired-ancestry output name' {$o=$args[0].artifact.observations;$o.nativeWrite.nativeName='KMC_C7_WORLD';$o.ownedOutputAdmission.leaf='Manual_303_KMC_C7_WORLD.zks'}
 Check-SeedManual 'owner-seed Manual producer refuses a level-up save label' {$args[0].artifact.observations.saveRequested.levelUpSave=$true}
 Check-SeedManual 'owner-seed Manual producer refuses an auto-levelup output descriptor' {$args[0].artifact.observations.ownedOutputCompletion.nativeInventory[1].autoLevelup=$true}
