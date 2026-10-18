@@ -1106,6 +1106,12 @@ try{
                 if((Get-KmcSha256 $verifiedOwnedSource.artifactPath)-cne$request.ownedPairs.sourceArtifactSha256){throw 'Owner-seed-derived producer receipt changed during the cold process.'}
                 Assert-KmcChunk7OwnerSeedDerivedColdSource ([pscustomobject]$request) (Read-KmcJson $verifiedOwnedSource.artifactPath) $derivedColdArtifact
             }
+            if(Test-KmcChunk7OwnedPairsSeedCheckpointLoad ([pscustomobject]$request)){
+                # Separate-process cold proof against the checkpoint producer's own recorded read-back.
+                $checkpointColdArtifact=Read-KmcJson (Join-Path $evidenceRoot 'chunk7-persistence-evidence.json')
+                if((Get-KmcSha256 $verifiedOwnedSource.checkpointArtifactPath)-cne$request.ownedPairs.checkpointSourceArtifactSha256){throw 'Owner-seed checkpoint producer receipt changed during the cold process.'}
+                Assert-KmcChunk7OwnerSeedCheckpointColdSource ([pscustomobject]$request) (Read-KmcJson $verifiedOwnedSource.checkpointArtifactPath) $checkpointColdArtifact
+            }
             $nativeLeaves=@(Get-ChildItem -LiteralPath $isolatedSaves -Filter '*.zks' -File|ForEach-Object Name)
             $writes=Get-KmcChunk7OwnedWriteCount $request
             if(Test-KmcChunk7OwnedPairsOwnerSeed ([pscustomobject]$request)){

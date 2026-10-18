@@ -102,5 +102,27 @@ foreach($mutation in @('xp-on-consumer','checkpoint-on-consumer')){
  $read=$false;try{Assert-KmcChunk7OwnedPairsDescriptor $q}catch{$read=$true}
  if(-not$typed-or-not$read){throw ('Owner-seed-derived consumer accepted '+$mutation)};$pass++
 }
+# Owner-seed checkpoint pair (Directive 4): both kinds carry the Manual producer, checkpoint-parent and
+# seed pins with the four roles; the producer writes one Quick/Auto, the consumer loads that slot.
+foreach($checkpoint in @('multi-exploration-quick','multi-exploration-auto')){
+ $type=if($checkpoint-ceq'multi-exploration-quick'){'Quick'}else{'Auto'}
+ foreach($kind in @('save','load')){
+  $c=($fixtures|Where-Object name -CEQ ('persistence-'+$kind+'-'+$checkpoint))[0].request|ConvertTo-Json -Depth 90|ConvertFrom-Json;$s=$c.ownedPairs;$save=$kind-ceq'save'
+  $c.ownedPairs=[pscustomobject][ordered]@{case=('owner-seed-checkpoint-'+$kind);sourceRunId='synthetic-owner-seed-manual';sourceArtifactSha256=('6'*64);sourceArchiveSha256=$(if($save){$c.persistenceLoad.sha256}else{'7'*64});checkpointSourceRunId=$(if($save){'synthetic-owner-seed-cold'}else{'synthetic-owner-seed-checkpoint'});checkpointSourceArtifactSha256=('8'*64);seedId='KMC_C7_OWNER_SEED';seedSha256=('9'*64);riderAId=$s.riderAId;mountAId=$s.mountAId;riderBId=$s.riderBId;mountBId=$s.mountBId;partyIds=$s.partyIds;baseGameOnly=$true;expectedNativeLoadCount=1;expectedNativeWriteCount=$(if($save){1}else{0})}
+  if($save){$c.persistenceLoad.internalName='KMC_C7_SEED_WORLD';$c.persistenceLoad.fileName='Manual_303_KMC_C7_SEED_WORLD.zks'}
+  $actual=[KingmakerMountedCombat.Tests.OwnedPairsDtoTests]::Project(($c|ConvertTo-Json -Depth 90))|ConvertFrom-Json
+  if((ConvertTo-KmcChunk7Canonical $actual.selection)-cne(ConvertTo-KmcChunk7Canonical $c.ownedPairs)){throw ('Owner-seed checkpoint '+$kind+' DTO keys/types differ')};$pass++
+  $scenario=if($save){'chunk7-persistence-save'}else{'chunk7-persistence-load'};$writes=if($save){1}else{0};$inputType=if($save){'Manual'}else{$type}
+  if($actual.scenario-cne$scenario-or$actual.expectedWriteCount-ne$writes-or$actual.expectedLoadType-cne$inputType-or(Get-KmcChunk7OwnedWriteCount $c)-ne$writes){throw ('Owner-seed checkpoint '+$kind+' DTO selected another runtime scenario, quota or input')};$pass++
+  $c.ownedPairs=$actual.selection;Assert-KmcChunk7OwnedPairsDescriptor $c;$pass++
+  foreach($mutation in @('xp','companion','area')){
+   $q=$c|ConvertTo-Json -Depth 90|ConvertFrom-Json
+   switch($mutation){'xp'{$q.ownedPairs|Add-Member -NotePropertyName xpAssistance -NotePropertyValue ([pscustomobject]@{unitId=$s.riderBId;targetCharacterLevel=8})}'companion'{$q.ownedPairs|Add-Member -NotePropertyName companionId -NotePropertyValue $s.mountBId}'area'{$q.ownedPairs|Add-Member -NotePropertyName sourceArea -NotePropertyValue ('a'*32)}}
+   $typed=$false;try{[void][KingmakerMountedCombat.Tests.OwnedPairsDtoTests]::Project(($q|ConvertTo-Json -Depth 90))}catch{$typed=$true}
+   $read=$false;try{Assert-KmcChunk7OwnedPairsDescriptor $q}catch{$read=$true}
+   if(-not$typed-or-not$read){throw ('Owner-seed checkpoint '+$kind+' accepted '+$mutation)};$pass++
+  }
+ }
+}
 @{passed=$pass;failed=0;nativeInvoked=$false;archiveRead=$false;serializer='exact-installed-Newtonsoft';sourceHashes=@($sources|ForEach-Object{@{path=$_;sha256=(Get-FileHash -LiteralPath $_).Hash.ToLowerInvariant()}})}|ConvertTo-Json -Depth 6|Set-Content -LiteralPath (Join-Path $OutputDirectory 'receipt.json') -Encoding UTF8
 Write-Host ('Owned DTO PASS='+$pass+' FAIL=0')

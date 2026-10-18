@@ -132,6 +132,37 @@ Check 'full request owner-seed-derived consumer with a mismatched input hash ref
 Check 'full request owner-seed-derived consumer with a write refused' {$q=SeedDerivedRequest;$q.ownedPairs.expectedNativeWriteCount=1;Validate $q} $true
 Check 'runner owner-seed outer budget covers the Manual producer only' {$g=[scriptblock]::Create('param($Sel,$Bound,$Value) $Scenario="chunk7-owned-two-pair-campaign";$ownedPairsInput=[pscustomobject]@{selection=$Sel};$TimeoutSeconds=$Value;$PSBoundParameters=@{};if($Bound){$PSBoundParameters["TimeoutSeconds"]=$Value};'+[Environment]::NewLine+$timeoutGuard[0].Extent.Text+[Environment]::NewLine+'$TimeoutSeconds');if((&$g (SeedManualRequest).ownedPairs $false 600)-ne900-or(&$g (SeedDerivedRequest).ownedPairs $false 600)-ne600){throw 'Owner-seed-derived budgets differ'}}
 Check 'runner reads the producer world evidence and pins the consumer to its producer' {$t=$runnerAst.Extent.Text;foreach($s in @('Assert-KmcChunk7OwnerSeedDerivedColdSource ([pscustomobject]$request) (Read-KmcJson $verifiedOwnedSource.artifactPath) $derivedColdArtifact',"if(`$seedManualRun){'chunk7-world-evidence.json'}",'Assert-KmcChunk7OwnerSeedManualFinalSaveRoot ([pscustomobject]$request)')){if(-not$t.Contains($s)){throw ('Runner owner-seed-derived step absent: '+$s)}}}
+# Owner-seed checkpoint pair (Directive 4): the producer is the generic save engine on a copy of the
+# derived Manual with one write; the consumer is the generic cold engine on the producer's slot.
+function SeedCheckpointSaveRequest([string]$Checkpoint='multi-exploration-quick'){$q=Request ('persistence-save-'+$Checkpoint);$p=$q.ownedPairs;$q.ownedPairs=[pscustomobject][ordered]@{case='owner-seed-checkpoint-save';sourceRunId='synthetic-owner-seed-manual';sourceArtifactSha256=('6'*64);sourceArchiveSha256=$q.persistenceLoad.sha256;checkpointSourceRunId='synthetic-owner-seed-cold';checkpointSourceArtifactSha256=('8'*64);seedId='KMC_C7_OWNER_SEED';seedSha256=('9'*64);riderAId=$p.riderAId;mountAId=$p.mountAId;riderBId=$p.riderBId;mountBId=$p.mountBId;partyIds=$p.partyIds;baseGameOnly=$true;expectedNativeLoadCount=1;expectedNativeWriteCount=1};$q.persistenceLoad.internalName='KMC_C7_SEED_WORLD';$q.persistenceLoad.fileName='Manual_303_KMC_C7_SEED_WORLD.zks';$q}
+function SeedCheckpointLoadRequest([string]$Checkpoint='multi-exploration-quick'){$q=Request ('persistence-load-'+$Checkpoint);$p=$q.ownedPairs;$q.ownedPairs=[pscustomobject][ordered]@{case='owner-seed-checkpoint-load';sourceRunId='synthetic-owner-seed-manual';sourceArtifactSha256=('6'*64);sourceArchiveSha256=('7'*64);checkpointSourceRunId='synthetic-owner-seed-checkpoint';checkpointSourceArtifactSha256=('8'*64);seedId='KMC_C7_OWNER_SEED';seedSha256=('9'*64);riderAId=$p.riderAId;mountAId=$p.mountAId;riderBId=$p.riderBId;mountBId=$p.mountBId;partyIds=$p.partyIds;baseGameOnly=$true;expectedNativeLoadCount=1;expectedNativeWriteCount=0};$q}
+foreach($checkpoint in @('multi-exploration-quick','multi-exploration-auto')){
+ Check ('full request owner-seed checkpoint producer admitted '+$checkpoint) {Validate (SeedCheckpointSaveRequest $checkpoint)}
+ Check ('owner-seed checkpoint producer selects the generic save engine with one load and one write '+$checkpoint) {$q=SeedCheckpointSaveRequest $checkpoint;if((Get-KmcChunk7SelectedScenario $q)-cne'chunk7-persistence-save'-or(Get-KmcChunk7OwnedWriteCount $q)-ne1-or(Get-KmcChunk7OwnedLoadCount $q)-ne1){throw 'Checkpoint producer quota or engine differs'}}
+ Check ('full request owner-seed checkpoint consumer admitted '+$checkpoint) {Validate (SeedCheckpointLoadRequest $checkpoint)}
+ Check ('owner-seed checkpoint consumer selects the generic cold engine with one load and zero writes '+$checkpoint) {$q=SeedCheckpointLoadRequest $checkpoint;if((Get-KmcChunk7SelectedScenario $q)-cne'chunk7-persistence-load'-or(Get-KmcChunk7OwnedWriteCount $q)-ne0-or(Get-KmcChunk7OwnedLoadCount $q)-ne1){throw 'Checkpoint consumer quota or engine differs'}}
+}
+$seedCheckpointNegative=[ordered]@{
+ 'producer Manual instead of Quick'={param($q)$q.persistenceCase='multi-exploration-manual'}
+ 'producer without a checkpoint'={param($q)$q.PSObject.Properties.Remove('persistenceCase')}
+ 'producer zero writes'={param($q)$q.ownedPairs.expectedNativeWriteCount=0}
+ 'producer two writes'={param($q)$q.ownedPairs.expectedNativeWriteCount=2}
+ 'producer without the accepted consumer'={param($q)$q.ownedPairs.checkpointSourceRunId=$null}
+ 'producer input differs from the Manual pin'={param($q)$q.persistenceLoad.sha256='e'*64}
+ 'producer acquired-ancestry input'={param($q)$q.persistenceLoad.internalName='KMC_C7_WORLD';$q.persistenceLoad.fileName='Manual_303_KMC_C7_WORLD.zks'}
+}
+foreach($n in $seedCheckpointNegative.GetEnumerator()){Check ('full owner-seed checkpoint producer refuses '+$n.Key){$q=SeedCheckpointSaveRequest;&$n.Value $q;Validate $q} $true}
+$seedCheckpointLoadNegative=[ordered]@{
+ 'consumer write'={param($q)$q.ownedPairs.expectedNativeWriteCount=1}
+ 'consumer input aliasing its Manual'={param($q)$q.ownedPairs.sourceArchiveSha256=$q.persistenceLoad.sha256}
+ 'consumer input aliasing the seed'={param($q)$q.ownedPairs.seedSha256=$q.persistenceLoad.sha256}
+ 'consumer Manual input'={param($q)$q.persistenceLoad.internalName='KMC_C7_SEED_WORLD';$q.persistenceLoad.fileName='Manual_303_KMC_C7_SEED_WORLD.zks'}
+ 'consumer without its producer'={param($q)$q.ownedPairs.checkpointSourceRunId=$null}
+ 'consumer producer is the Manual producer'={param($q)$q.ownedPairs.checkpointSourceRunId=$q.ownedPairs.sourceRunId}
+}
+foreach($n in $seedCheckpointLoadNegative.GetEnumerator()){Check ('full owner-seed checkpoint consumer refuses '+$n.Key){$q=SeedCheckpointLoadRequest;&$n.Value $q;Validate $q} $true}
+Check 'runner owner-seed outer budget leaves the checkpoint pair at its ordinary budget' {$g=[scriptblock]::Create('param($Sel,$Bound,$Value) $Scenario="chunk7-owned-two-pair-campaign";$ownedPairsInput=[pscustomobject]@{selection=$Sel};$TimeoutSeconds=$Value;$PSBoundParameters=@{};if($Bound){$PSBoundParameters["TimeoutSeconds"]=$Value};'+[Environment]::NewLine+$timeoutGuard[0].Extent.Text+[Environment]::NewLine+'$TimeoutSeconds');if((&$g (SeedCheckpointSaveRequest).ownedPairs $false 600)-ne600-or(&$g (SeedCheckpointLoadRequest).ownedPairs $false 600)-ne600){throw 'Checkpoint budgets differ'}}
+Check 'runner compares the checkpoint consumer with its producer read-back' {$t=$runnerAst.Extent.Text;foreach($s in @('Test-KmcChunk7OwnedPairsSeedCheckpointLoad ([pscustomobject]$request)','Assert-KmcChunk7OwnerSeedCheckpointColdSource ([pscustomobject]$request) (Read-KmcJson $verifiedOwnedSource.checkpointArtifactPath) $checkpointColdArtifact')){if(-not$t.Contains($s)){throw ('Runner owner-seed checkpoint step absent: '+$s)}}}
 # The companion window accounts only boundaries the allocation trace actually emits, and the reader
 # accounts exactly the producer's list (the interrupt hooks emit command-interrupt-*).
 Check 'companion accounted boundaries are emitted by the allocation trace and mirrored by the reader' {

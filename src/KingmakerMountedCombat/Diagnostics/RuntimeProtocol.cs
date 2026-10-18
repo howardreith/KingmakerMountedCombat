@@ -562,6 +562,9 @@ namespace KingmakerMountedCombat.Diagnostics
                         PersistenceLoad.Sha256 == Fixture.Working.Sha256 || PersistenceLoad.Sha256 == Fixture.Baseline?.Sha256 ||
                         !OwnedPairs.Cold && PersistenceLoad.Sha256 != OwnedPairs.SourceArchiveSha256)
                         errors.Add("Inherited pairs cannot borrow Working, Baseline, a foreign native world or unqualified source bytes.");
+                    // The owner-seed checkpoint consumer loads the producer's fresh slot, never the derived Manual or the seed.
+                    if (OwnedPairs.IsOwnerSeedCheckpointLoad && (PersistenceLoad.Sha256 == OwnedPairs.SourceArchiveSha256 || PersistenceLoad.Sha256 == OwnedPairs.SeedSha256))
+                        errors.Add("The owner-seed checkpoint consumer input aliases its derived Manual or the immutable seed.");
                 }
             }
             else if (Scenario == Chunk7CumulativeAcquisitionSelection.Scenario)
@@ -1088,7 +1091,7 @@ namespace KingmakerMountedCombat.Diagnostics
             "C7-ordinary-native-field-inventory", "C7-ordinary-cleanup", "C7-ordinary-runtime", "C7-ordinary-interrupted",
             "chunk7-persistence-save", "chunk7-persistence-load", "C7-persistence-two-native-mounts", "C7-persistence-one-native-mount-legacy-source",
             "C7-persistence-native-category-all-pair-archive", "C7-persistence-cold-all-pair-identity-and-no-prepare",
-            "C7-persistence-owned-schema1-source", "C7-persistence-schema1-native-restoration", "C7-persistence-schema1-native-resave", "C7-persistence-schema2-native-resave",
+            "C7-persistence-owned-schema1-source", "C7-persistence-owner-seed-restored-start", "C7-persistence-schema1-native-restoration", "C7-persistence-schema1-native-resave", "C7-persistence-schema2-native-resave",
             "C7-persistence-three-native-loads", "C7-persistence-three-native-area-transfers",
             "C7-persistence-nonselected-mount-save-deferral", "C7-persistence-owned-worker-cancel-drain",
             "C7-persistence-native-continuation", "C7-persistence-all-pair-area-before-autosave", "C7-persistence-native-combat-continuation", "C7-persistence-cleanup", "C7-persistence-runtime", "C7-persistence-interrupted",
@@ -1593,7 +1596,8 @@ namespace KingmakerMountedCombat.Diagnostics
                     request.PersistenceLoad.Sha256 != selection.SeedSha256 && request.PersistenceLoad.InternalName == Chunk7OwnedPairsSelection.OwnerSeedManualName
                     ? OwnerSeedDerivedBasis : null;
             // The owner-seed setup and cold-consumer kinds never spawn a combat target.
-            if (selection.OwnerSeedSetup || selection.IsOwnerSeedDerivedLoad) return null;
+            // The owner-seed checkpoint pair connects only exploration checkpoints so far: no target.
+            if (selection.OwnerSeedSetup || selection.IsOwnerSeedDerivedLoad || selection.IsOwnerSeedCheckpointSave || selection.IsOwnerSeedCheckpointLoad) return null;
             return AcquiredOwnedBasis;
         }
     }

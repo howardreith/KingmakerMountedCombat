@@ -528,6 +528,91 @@ Check-SeedCombat 'owner-seed-derived RT refuses a Stop before her cost' 'realtim
 Check-SeedCombat 'owner-seed-derived RT refuses a companion row after the Stop' 'realtime-core' {$rows=@(Get-KmcSeedCompanionRows $args[0])+@(New-KmcSeedCompanionRow 'command-interrupt-before' 9001 $script:seedCompanion 5.2);Set-KmcSeedCompanionRows $args[0] $rows $true;$c=$args[0].artifact.observations.companionAction;$c.nativeStop.traceSequenceBefore=$c.traceSequenceAfter-1} 'native Stop admitted'
 Check 'producer-backed RT refuses a companion action' {$v=New-KmcOwnerSeedDerivedCombatFixture 'realtime-core';$plain=Copy-Value @($fixtures|Where-Object name -CEQ 'realtime-core')[0];$plain.artifact.observations|Add-Member companionAction $v.artifact.observations.companionAction -Force;Invoke-OwnedReader $plain} $true 'companion'
 Check 'producer-backed TB refuses a mounted start' {$v=New-KmcOwnerSeedDerivedCombatFixture 'combat-rider-first';$plain=Copy-Value @($fixtures|Where-Object name -CEQ 'combat-rider-first')[0];Assert-KmcChunk7OwnerSeedDerivedCombatStart $plain.request $v.artifact.observations} $true 'belongs only'
+# Owner-seed checkpoint pair (Directive 4), built from the owned Quick/Auto fixtures. Producer: a
+# disposable copy of the derived Manual restored mounted, no native Mount input, the verified
+# restored start adopted exactly, one genuine native Quick/Auto. Consumer: that checkpoint cold,
+# compared with the producer's own recorded read-back (never the Manual boundary).
+function New-KmcOwnerSeedCheckpointSelection($p,[string]$Case,[string]$Archive,[string]$Parent){
+ [pscustomobject][ordered]@{case=$Case;sourceRunId='synthetic-owner-seed-manual';sourceArtifactSha256=('6'*64);sourceArchiveSha256=$Archive;checkpointSourceRunId=$Parent;checkpointSourceArtifactSha256=('8'*64);seedId='KMC_C7_OWNER_SEED';seedSha256=('9'*64);riderAId=$p.riderAId;mountAId=$p.mountAId;riderBId=$p.riderBId;mountBId=$p.mountBId;partyIds=$p.partyIds;baseGameOnly=$true;expectedNativeLoadCount=1;expectedNativeWriteCount=$(if($Case-ceq'owner-seed-checkpoint-save'){1}else{0})}
+}
+function Set-KmcOwnerSeedDerivedLabels($o,$s){foreach($c in @($o.inheritedFixture,$o.inheritedCleanup)){$c.contract='owner-seed-derived-two-horse-native-field-v1';$c.sourceCase='owner-seed-persistence-save';$c.sourceRunId=$s.sourceRunId;$c.sourceArtifactSha256=$s.sourceArtifactSha256;$c.sourceArchiveSha256=$s.sourceArchiveSha256};$o.inheritedManualSha256=$s.sourceArchiveSha256}
+function New-KmcOwnerSeedCheckpointSaveFixture([string]$Checkpoint='multi-exploration-quick'){
+ $v=Copy-Value @($fixtures|Where-Object name -CEQ ('persistence-save-'+$Checkpoint))[0];$r=$v.request;$o=$v.artifact.observations;$p=$r.ownedPairs
+ $old=$r.persistenceLoad.fileName;$s=New-KmcOwnerSeedCheckpointSelection $p 'owner-seed-checkpoint-save' $r.persistenceLoad.sha256 'synthetic-owner-seed-cold';$r.ownedPairs=$s
+ $r.persistenceLoad.internalName='KMC_C7_SEED_WORLD';$r.persistenceLoad.fileName='Manual_303_KMC_C7_SEED_WORLD.zks'
+ foreach($row in @($o.ownedOutputAdmission.nativeInventory)+@($o.ownedOutputCompletion.nativeInventory)){if($row.fileName-ceq$old){$row.fileName=$r.persistenceLoad.fileName;$row.nativeName=$r.persistenceLoad.internalName}}
+ Set-KmcOwnerSeedDerivedLabels $o $s;$o.inputs=@();$o.PSObject.Properties.Remove('acquisition')
+ $a=$o.nativeWrite.archive;$roles=@($p.riderAId,$p.mountAId,$p.riderBId,$p.mountBId)
+ $before=Copy-Value @($o.snapshots|Where-Object label -CEQ 'native-write-complete')[0];$before.label='before-native-save';$o.snapshots=@($before)+@($o.snapshots)
+ $o|Add-Member mountedStart ([pscustomobject][ordered]@{contract='owner-seed-checkpoint-restored-start-v1';restoredFromColdLoad=$true;nativeMountInputs=0;newSlotBindings=0;archivePhase='all-pair-presentation-restored';schemaVersion=3;semanticRestores=4;presentationRestores=2;nativePostLoads=4;nativeCastRequests=0;snapshots=0
+  profiles=@(0,1|ForEach-Object{[pscustomobject][ordered]@{riderId=$roles[$_*2];mountId=$roles[$_*2+1];profileId='medium-humanoid-horse-v1'}})
+  owners=@($a.Pairs|ForEach-Object{[pscustomobject][ordered]@{ownerId=(ConvertTo-KmcChunk7PairIdN $_.PairId);generation=$_.Generation;riderId=$_.Rider.Id;mountId=$_.Mount.Id}})
+  slots=@($a.Slots|ForEach-Object{[pscustomobject][ordered]@{actorId=$_.ActorId;index=$_.Index;kind=$_.Kind}});loadedEqualsProducerReadback=$true;producerProcessId=4242;processId=$o.processId;debtRetained=$true;loadedArchive=(Copy-Value $a)}) -Force
+ $o|Add-Member ownerSeedCheckpointSource ([pscustomobject][ordered]@{contract='owner-seed-checkpoint-source-v1';role='producer';ancestry='owner-seed-derived';acquisitionProof=$false;ordinaryProducerAncestry=$false;manualProducerRunId=$s.sourceRunId;manualProducerArtifactSha256=$s.sourceArtifactSha256;manualSha256=$s.sourceArchiveSha256;acceptedConsumerRunId=$s.checkpointSourceRunId;acceptedConsumerArtifactSha256=$s.checkpointSourceArtifactSha256;seedId=$s.seedId;seedSha256=$s.seedSha256;checkpoint=$Checkpoint
+  candidates=[pscustomobject][ordered]@{contract='owner-seed-derived-candidate-identity-v1';sameCandidate=$true;crossCandidateAllowed=$true;producer=[pscustomobject][ordered]@{runId=$s.sourceRunId;commit=$r.commit;dllSha256=$r.dllSha256;dllMvid=$r.dllMvid};current=[pscustomobject][ordered]@{commit=$r.commit;dllSha256=$r.dllSha256;dllMvid=$r.dllMvid};consumerRunId=$s.checkpointSourceRunId;consumerArtifactSha256=$s.checkpointSourceArtifactSha256;manualSchema=3;currentWriterSchema=3}}) -Force
+ $v.name='persistence-owner-seed-checkpoint-save-'+$Checkpoint;$v
+}
+function New-KmcOwnerSeedCheckpointLoadFixture([string]$Checkpoint='multi-exploration-quick'){
+ $v=Copy-Value @($fixtures|Where-Object name -CEQ ('persistence-load-'+$Checkpoint))[0];$r=$v.request;$o=$v.artifact.observations
+ $s=New-KmcOwnerSeedCheckpointSelection $r.ownedPairs 'owner-seed-checkpoint-load' ('7'*64) 'synthetic-owner-seed-checkpoint';$r.ownedPairs=$s;Set-KmcOwnerSeedDerivedLabels $o $s
+ $v.name='persistence-owner-seed-checkpoint-load-'+$Checkpoint;$v
+}
+# The checkpoint producer receipt fields the runner compares; derived from the consumer fixture.
+function New-KmcOwnerSeedCheckpointProducer($Cold){
+ $r=$Cold.request;$o=$Cold.artifact.observations;$s=$r.ownedPairs;$a=$o.loadedArchive
+ [pscustomobject][ordered]@{runId=$s.checkpointSourceRunId;status='PASS';observations=[pscustomobject][ordered]@{checkpoint=$r.persistenceCase;cold=$false;processId=4343
+  nativeWrite=[pscustomobject][ordered]@{sha256=$r.persistenceLoad.sha256;length=$r.persistenceLoad.length;archive=(Copy-Value $a)}
+  ownerSeedCheckpointSource=[pscustomobject][ordered]@{manualProducerRunId=$s.sourceRunId;manualProducerArtifactSha256=$s.sourceArtifactSha256;manualSha256=$s.sourceArchiveSha256;seedId=$s.seedId;seedSha256=$s.seedSha256}
+  mountedStart=[pscustomobject][ordered]@{owners=@($a.Pairs|ForEach-Object{[pscustomobject][ordered]@{ownerId=(ConvertTo-KmcChunk7PairIdN $_.PairId);generation=$_.Generation;riderId=$_.Rider.Id;mountId=$_.Mount.Id}});slots=@($a.Slots|ForEach-Object{[pscustomobject][ordered]@{actorId=$_.ActorId;index=$_.Index;kind=$_.Kind}})}
+  inheritedCleanup=(Copy-Value $o.inheritedFixture)}}
+}
+function Check-SeedCheckpointSave([string]$Name,[scriptblock]$Mutation,[string]$Pattern=''){$v=New-KmcOwnerSeedCheckpointSaveFixture;&$Mutation $v;Check $Name {Invoke-OwnedReader $v} $true $Pattern}
+function Check-SeedCheckpointLoad([string]$Name,[scriptblock]$Mutation,[string]$Pattern=''){$v=New-KmcOwnerSeedCheckpointLoadFixture;&$Mutation $v;Check $Name {Invoke-OwnedReader $v} $true $Pattern}
+foreach($checkpointCase in @('multi-exploration-quick','multi-exploration-auto')){
+ Check ('owner-seed checkpoint producer evidence accepted '+$checkpointCase) {$v=New-KmcOwnerSeedCheckpointSaveFixture $checkpointCase;Invoke-OwnedReader $v;Assert-KmcChunk7OwnedOutputEvidence $v.request $v.artifact.observations}
+ Check ('owner-seed checkpoint consumer evidence accepted '+$checkpointCase) {Invoke-OwnedReader (New-KmcOwnerSeedCheckpointLoadFixture $checkpointCase)}
+ Check ('owner-seed checkpoint consumer matches its producer read-back '+$checkpointCase) {$v=New-KmcOwnerSeedCheckpointLoadFixture $checkpointCase;Assert-KmcChunk7OwnerSeedCheckpointColdSource $v.request (New-KmcOwnerSeedCheckpointProducer $v) $v.artifact}
+}
+Check 'owner-seed checkpoint producer maps to the generic save scenario' {if((Get-KmcChunk7SelectedScenario (New-KmcOwnerSeedCheckpointSaveFixture).request)-cne'chunk7-persistence-save'-or(Get-KmcChunk7OwnedWriteCount (New-KmcOwnerSeedCheckpointSaveFixture).request)-ne1){throw 'Checkpoint producer scenario or write quota differs'}}
+Check 'owner-seed checkpoint consumer maps to the generic load scenario' {if((Get-KmcChunk7SelectedScenario (New-KmcOwnerSeedCheckpointLoadFixture).request)-cne'chunk7-persistence-load'-or(Get-KmcChunk7OwnedWriteCount (New-KmcOwnerSeedCheckpointLoadFixture).request)-ne0){throw 'Checkpoint consumer scenario or write quota differs'}}
+# Refusals: Mount inputs on a derived start, restored-start mismatch, wrong ancestry, wrong quotas, a Manual for a Quick.
+Check-SeedCheckpointSave 'owner-seed checkpoint producer refuses native Mount inputs on its derived start' {$plain=Copy-Value @($fixtures|Where-Object name -CEQ 'persistence-save-multi-exploration-quick')[0];$args[0].artifact.observations.inputs=$plain.artifact.observations.inputs} 'Mount input is not admitted'
+Check-SeedCheckpointSave 'owner-seed checkpoint producer refuses a missing restored start' {$args[0].artifact.observations.PSObject.Properties.Remove('mountedStart')} 'restored mounted-start'
+Check-SeedCheckpointSave 'owner-seed checkpoint producer refuses a restored start that re-mounted' {$args[0].artifact.observations.mountedStart.nativeMountInputs=2}
+Check-SeedCheckpointSave 'owner-seed checkpoint producer refuses new slot bindings' {$args[0].artifact.observations.mountedStart.newSlotBindings=4}
+Check-SeedCheckpointSave 'owner-seed checkpoint producer refuses a decode-only restored start' {$args[0].artifact.observations.mountedStart.loadedEqualsProducerReadback=$false}
+Check-SeedCheckpointSave 'owner-seed checkpoint producer refuses a same-process restored start' {$m=$args[0].artifact.observations.mountedStart;$m.producerProcessId=$m.processId} 'same-process'
+Check-SeedCheckpointSave 'owner-seed checkpoint producer refuses a restored-start generation the checkpoint changed' {$args[0].artifact.observations.mountedStart.owners[1].generation=9} 'changed a restored owner'
+Check-SeedCheckpointSave 'owner-seed checkpoint producer refuses a restored-start owner bound to another actor' {$args[0].artifact.observations.mountedStart.owners[0].mountId=$args[0].request.ownedPairs.mountBId}
+Check-SeedCheckpointSave 'owner-seed checkpoint producer refuses restored slots the checkpoint changed' {$args[0].artifact.observations.mountedStart.slots[0].index=99} 'control bindings'
+Check-SeedCheckpointSave 'owner-seed checkpoint producer refuses a lost restored control' {$m=$args[0].artifact.observations.mountedStart;$m.slots=@($m.slots|Select-Object -First 3)}
+Check-SeedCheckpointSave 'owner-seed checkpoint producer refuses a non-Horse restored profile' {$args[0].artifact.observations.mountedStart.profiles[0].profileId='large-humanoid-mammoth-v1'}
+Check-SeedCheckpointSave 'owner-seed checkpoint producer refuses a restored start from another campaign' {$args[0].artifact.observations.mountedStart.loadedArchive.CampaignId='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'}
+Check-SeedCheckpointSave 'owner-seed checkpoint producer refuses a restored combat graph' {$args[0].artifact.observations.mountedStart.loadedArchive|Add-Member Combat ([pscustomobject]@{TurnBased=$true}) -Force}
+Check-SeedCheckpointSave 'owner-seed checkpoint producer refuses a missing before-save capture' {$o=$args[0].artifact.observations;$o.snapshots=@($o.snapshots|Where-Object label -CNE 'before-native-save')} 'before-native-save'
+Check-SeedCheckpointSave 'owner-seed checkpoint producer refuses acquired custody labels' {$args[0].artifact.observations.inheritedFixture.contract='inherited-two-horse-native-field-v1'}
+Check-SeedCheckpointSave 'owner-seed checkpoint producer refuses an acquired source label' {$args[0].artifact.observations.ownerSeedCheckpointSource.ancestry='acquired'}
+Check-SeedCheckpointSave 'owner-seed checkpoint producer refuses a foreign accepted-consumer pin' {$args[0].artifact.observations.ownerSeedCheckpointSource.acceptedConsumerArtifactSha256='e'*64}
+Check-SeedCheckpointSave 'owner-seed checkpoint producer refuses a relabelled checkpoint' {$args[0].artifact.observations.ownerSeedCheckpointSource.checkpoint='multi-exploration-manual'}
+Check-SeedCheckpointSave 'owner-seed checkpoint producer refuses a dishonest cross-candidate fact' {$args[0].artifact.observations.ownerSeedCheckpointSource.candidates.sameCandidate=$false} 'cross-candidate'
+Check-SeedCheckpointSave 'owner-seed checkpoint producer refuses a missing consumer receipt pin' {$args[0].request.ownedPairs.checkpointSourceRunId=$null}
+Check-SeedCheckpointSave 'owner-seed checkpoint producer refuses a Manual written instead of a Quick' {$args[0].request.persistenceCase='multi-exploration-manual';$args[0].artifact.observations.checkpoint='multi-exploration-manual'} 'connected checkpoints'
+Check-SeedCheckpointSave 'owner-seed checkpoint producer refuses a zero write quota' {$args[0].request.ownedPairs.expectedNativeWriteCount=0}
+Check-SeedCheckpointSave 'owner-seed checkpoint producer refuses the immutable seed as input' {$v=$args[0];$v.request.ownedPairs.seedSha256=$v.request.persistenceLoad.sha256}
+Check-SeedCheckpointSave 'owner-seed checkpoint producer refuses an acquired-ancestry Manual input' {$v=$args[0];$v.request.persistenceLoad.internalName='KMC_C7_WORLD';$v.request.persistenceLoad.fileName='Manual_303_KMC_C7_WORLD.zks'}
+Check 'plain owned save refuses a restored mounted start' {$v=New-KmcOwnerSeedCheckpointSaveFixture;$plain=Copy-Value @($fixtures|Where-Object name -CEQ 'persistence-save-multi-exploration-quick')[0];$plain.artifact.observations|Add-Member mountedStart $v.artifact.observations.mountedStart -Force;Invoke-OwnedReader $plain} $true 'Only the owner-seed checkpoint producer'
+Check 'restored start belongs only to the checkpoint producer' {$v=New-KmcOwnerSeedCheckpointSaveFixture;$plain=Copy-Value @($fixtures|Where-Object name -CEQ 'persistence-save-multi-exploration-quick')[0];Assert-KmcChunk7OwnerSeedCheckpointStart $plain.request $v.artifact.observations $v.artifact.observations.nativeWrite.archive} $true 'belongs only'
+Check-SeedCheckpointLoad 'owner-seed checkpoint consumer refuses a write quota' {$args[0].request.ownedPairs.expectedNativeWriteCount=1}
+Check-SeedCheckpointLoad 'owner-seed checkpoint consumer refuses the derived Manual as its input' {$v=$args[0];$v.request.ownedPairs.sourceArchiveSha256=$v.request.persistenceLoad.sha256;Set-KmcOwnerSeedDerivedLabels $v.artifact.observations $v.request.ownedPairs} 'aliases its Manual'
+Check-SeedCheckpointLoad 'owner-seed checkpoint consumer refuses a Manual-named input' {$v=$args[0];$v.request.persistenceLoad.fileName='Manual_304_KMC_C7_SEED_WORLD.zks';$v.artifact.observations.loadedDescriptor=Copy-Value $v.request.persistenceLoad}
+Check-SeedCheckpointLoad 'owner-seed checkpoint consumer refuses acquired custody labels' {$args[0].artifact.observations.inheritedCleanup.sourceCase='preserve-two-acquired-field'}
+Check-SeedCheckpointLoad 'owner-seed checkpoint consumer refuses a replayed Mount' {$args[0].artifact.observations.snapshots[0].nativeCastRequests=1}
+Check-SeedCheckpointLoad 'owner-seed checkpoint consumer refuses a restored mounted start' {$v=New-KmcOwnerSeedCheckpointSaveFixture;$args[0].artifact.observations|Add-Member mountedStart $v.artifact.observations.mountedStart -Force} 'Only the owner-seed checkpoint producer'
+Check-SeedCheckpointLoad 'owner-seed checkpoint consumer refuses the derived-Manual cold proof' {$args[0].artifact.observations|Add-Member ownerSeedDerivedCold ([pscustomobject]@{contract='owner-seed-derived-cold-v1'}) -Force} 'Only the owner-seed-derived consumer'
+foreach($sourceFault in @('producer-run','producer-failed','producer-cold','producer-checkpoint','archive-hash','length','same-process','graph','generation','slots','arrangement','manual-pin','seed-pin')){Check ('owner-seed checkpoint cold source refuses '+$sourceFault) {$v=New-KmcOwnerSeedCheckpointLoadFixture;$p=New-KmcOwnerSeedCheckpointProducer $v;$po=$p.observations
+ switch($sourceFault){'producer-run'{$p.runId='another-checkpoint'}'producer-failed'{$p.status='FAIL'}'producer-cold'{$po.cold=$true}'producer-checkpoint'{$po.checkpoint='multi-exploration-manual'}'archive-hash'{$po.nativeWrite.sha256=('e'*64)}'length'{$po.nativeWrite.length=1}'same-process'{$po.processId=$v.artifact.observations.processId}'graph'{$po.nativeWrite.archive.GameTimeTicks=1}'generation'{$po.mountedStart.owners[0].generation=9}'slots'{$po.mountedStart.slots=@($po.mountedStart.slots|Select-Object -First 3)}'arrangement'{$po.inheritedCleanup.arrangement.money=1}'manual-pin'{$po.ownerSeedCheckpointSource.manualSha256=('e'*64)}'seed-pin'{$po.ownerSeedCheckpointSource.seedSha256=('e'*64)}}
+ Assert-KmcChunk7OwnerSeedCheckpointColdSource $v.request $p $v.artifact} $true}
+Check 'owner-seed checkpoint cold source belongs only to its consumer' {$v=New-KmcOwnerSeedDerivedColdFixture;Assert-KmcChunk7OwnerSeedCheckpointColdSource $v.request (New-KmcOwnerSeedDerivedProducer $v) $v.artifact} $true 'belongs only'
 $clock.Stop();[void][IO.Directory]::CreateDirectory($OutputDirectory);$passed=@($results|Where-Object pass).Count;$failed=$results.Count-$passed
 [IO.File]::WriteAllText((Join-Path $OutputDirectory 'receipt.json'),([pscustomobject]@{passed=$passed;failed=$failed;elapsedSeconds=$clock.Elapsed.TotalSeconds;nativeInvoked=$false;archiveRead=$false;results=@($results)}|ConvertTo-Json -Depth 12),[Text.UTF8Encoding]::new($false))
 Write-Output ('Owned two-pair reader: '+$passed+' PASS / '+$failed+' FAIL');if($failed){exit 1}
