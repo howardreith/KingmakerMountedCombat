@@ -1,5 +1,53 @@
 # Chunk 7B–7D — IN PROGRESS
 
+## Active Directive 4 checkpoint — October 18, Codex takeover
+
+Continue [Directive 4](docs/CHUNK7-OWNER-DIRECTIVES-2026-10-16.md#assignment-directive-4).
+Its endpoint is still **IN PROGRESS**. Small, progression certification, six-pair
+stress/performance, full 7E, merge/release and HUMAN PLAY remain separate gates.
+
+The active successor branch now occupies the dedicated repository
+`C:\Dev\KingmakerMountedCombatLab\repo\KingmakerMountedCombat`. Use the original
+`codex-policy/Push-KingmakerMountedCombat.ps1`; copied-helper execution was rejected
+by automatic approval review even after owner approval. The original guarded helper
+successfully published `6652c7fe1e8adb0edb61c28f520275bf5f708b65`. The former successor
+worktree is preserved detached at that source as the preview.41 frozen product.
+
+**New accepted result:** `20261018-c7b-world41-ownerseed-b12s1-tbload`, preview.41,
+terminal **PASS** in 104.4654715 seconds. Codex independently reviewed Claude's
+`f1e54002` fix, then cold-loaded the accepted batch-11 TB producer in another process.
+Completed A's saved `Boundary.Movement.MetresStepped=2.286` stayed exactly `2.286`
+at both shared-world and presentation restoration. Native continuation and cleanup
+passed. Mods, Working, Baseline and protected saves were restored; profile bytes were
+restored exactly and the runtime lock was released.
+
+**Retained failure:** `20261018-c7b-world41-ownerseed-b12s2-zerosave`, terminal
+**FAIL** in 115.7495532 seconds, despite game PASS. The external reader treated the
+zero-mounted save boundary as though the preceding attacks were already detached;
+rider B was actually still mounted and its own Horse paid the native approach.
+Restoration passed. The failed producer cannot seed a cold load. The reader correction
+has focused 126/0 checks and final independent review PASS after three retained FAIL
+reviews closed malformed scalar, identity-format and conflicting-owner cases. Immutable
+raw re-evaluation is diagnostic only. No native transaction is live at this checkpoint.
+
+Earlier Directive 4 evidence remains on its original inputs: RT click integrity and
+first-action Mount in both orders (preview.35); Quick/Auto save plus cold load
+(preview.36); RT debt save/load (previews.37/.38); TB debt producer (preview.40).
+The [handoff](docs/CODEX-HANDOFF-CHUNK7-DIRECTIVE4-2026-10-18.md) records those exact
+batch/slot identities. Pending survivor, nonselected-owner barrier, worker cancel,
+area/Auto continuity, disable/removal and schemas 1/2 still require their selected
+source connections and native evidence. Doors remain opportunistic.
+
+Preview.41 was built once: DLL MVID `daf5ccc5-3a74-40e6-9563-8e8fa28daa4f`, package
+SHA-256 `291d8fb4747d1f1e307a68c259a0d6631e5ecb37909ab8fa0c3bb7f9ed252709`.
+Candidate passed 6/6 in 388.1997642 seconds (834 components, 147 source checks,
+281 harness checks, paired contracts, manifest checks and 751 Kingmaker contracts).
+Its unchanged package is reused through the existing frozen-product guard; a fresh
+suite binds the new execution root. Private batch, review, freeze and suite identities
+are in `analysis-cache/chunk7-continuation/owner-seed-batch12/`.
+
+## History — Directive 3 checkpoint (preserved below)
+
 ## Current state (October 18, 2026)
 
 **Governing instructions.** The owner's [directives of October 16–17](docs/CHUNK7-OWNER-DIRECTIVES-2026-10-16.md), including Directive 3 (the PR #5 review and the persistence/combat assignment), and the [validation policy's development-acceleration section](docs/VALIDATION-POLICY.md#development-acceleration-owner-directives-of-october-16-17-2026). The active development workflow uses:

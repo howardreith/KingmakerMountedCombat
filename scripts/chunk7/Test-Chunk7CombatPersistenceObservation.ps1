@@ -81,6 +81,61 @@ $complete=@();foreach($fixture in @($tb,$rt,$zero,$legacy)){foreach($isCold in @
 $sourceTb=$complete[0];$coldTb=$complete[1];$sourceRt=$complete[2];$coldZero=$complete[5];$coldLegacy=$complete[7]
 function Set-Approach($Spec){$i=$Spec.artifact.observations.combatCheckpoint.source.inputs[2];foreach($pair in @(@($i.before.actors[3],0.09,-14.98),@($i.after.actors[3],0.74,-11.78))){$pair[0].move=$pair[1];Set-Field $pair[0] 'native' ([pscustomobject]@{timeMoved=$pair[1]});Set-Field $pair[0] 'position' ([pscustomobject]@{x=-21.0;y=0.6;z=$pair[2]})};$i}
 Check 'source TB rider approach charged to its own mount move budget' {$spec=Copy-Test $sourceTb;Set-Approach $spec|Out-Null;Assert-KmcChunk7PersistenceObservation $spec.request $spec.artifact 'PASS'}
+function Set-ZeroMountedApproach($Spec){
+    $i=Set-Approach $Spec
+    $parts=$Spec.artifact.observations.nativeWrite.archive.Participations
+    foreach($snapshot in @($i.before,$i.after)){
+        Set-Field $snapshot 'owners' @($parts|ForEach-Object{[pscustomobject]@{id=$_.OwnerId;riderId=([Guid]$_.State.RiderId).ToString('N');mountId=([Guid]$_.State.MountId).ToString('N');generation=$_.Generation;state='Active';retainsObligations=$true}})
+        Set-Field $snapshot 'currentActor' $second;Set-Field $snapshot 'round' 3
+    }
+    $i
+}
+Check 'zero-at-save rider approach while its exact pair is still mounted' {$spec=Copy-Test $complete[4];Set-ZeroMountedApproach $spec|Out-Null;Assert-KmcChunk7PersistenceObservation $spec.request $spec.artifact 'PASS'}
+foreach($mutation in @('missing-owner','detached-before','detached-after','wrong-owner','wrong-generation','wrong-mount','changed-round','foreign-turn','duplicate-owner','nested-selected-owner','nested-foreign-owner','scalar-foreign-owner','null-foreign-owner','array-current-before','array-current-after','array-rider','array-mount','array-state','array-owner-id','array-foreign-state','same-owner-foreign-roles','cross-role-mount','cross-role-rider','foreign-rider-D','foreign-rider-uppercase','foreign-rider-garbage','foreign-mount-D','foreign-mount-uppercase','foreign-mount-garbage','untimed-movement','refunded-movement','foreign-movement','rider-move-refund','rider-swift')){
+    Reject ('zero-at-save active approach '+$mutation){$spec=Copy-Test $complete[4];$i=Set-ZeroMountedApproach $spec;switch($mutation){
+        'missing-owner' {$i.before.PSObject.Properties.Remove('owners')}
+        'detached-before' {$i.before.owners[1].state='Detached'}
+        'detached-after' {$i.after.owners[1].state='Detached'}
+        'wrong-owner' {$i.before.owners[1].id='77777777777747778777777777777777'}
+        'wrong-generation' {$i.after.owners[1].generation++}
+        'wrong-mount' {$i.before.owners[1].mountId=([Guid]$mammoth).ToString('N')}
+        'changed-round' {$i.after.round++}
+        'foreign-turn' {$i.before.currentActor=$first}
+        'duplicate-owner' {$i.before.owners+=Copy-Test $i.before.owners[1]}
+        'nested-selected-owner' {$nested=[object[]]::new(2);$nested[0]=$i.before.owners[0];$nested[1]=[object[]]@($i.before.owners[1]);$i.before.owners=$nested}
+        'nested-foreign-owner' {$nested=[object[]]::new(2);$nested[0]=[object[]]@($i.before.owners[0]);$nested[1]=$i.before.owners[1];$i.before.owners=$nested}
+        'scalar-foreign-owner' {$i.before.owners+=@('malformed-owner')}
+        'null-foreign-owner' {$i.before.owners+=@($null)}
+        'array-current-before' {$i.before.currentActor=@($second,$second)}
+        'array-current-after' {$i.after.currentActor=@($second,$second)}
+        'array-rider' {$i.before.owners[1].riderId=@($i.before.owners[1].riderId,$i.before.owners[1].riderId)}
+        'array-mount' {$i.before.owners[1].mountId=@($i.before.owners[1].mountId,$i.before.owners[1].mountId)}
+        'array-state' {$i.after.owners[1].state=@('Active','Active')}
+        'array-owner-id' {$i.before.owners[1].id=@($i.before.owners[1].id,$i.before.owners[1].id)}
+        'array-foreign-state' {$i.before.owners[0].state=@('Active','Active')}
+        'same-owner-foreign-roles' {$copy=Copy-Test $i.before.owners[1];$copy.riderId=([Guid]$first).ToString('N');$copy.mountId=([Guid]$mammoth).ToString('N');$i.before.owners+=@($copy)}
+        'cross-role-mount' {$copy=Copy-Test $i.before.owners[1];$copy.id='77777777777747778777777777777777';$copy.riderId=([Guid]$horse).ToString('N');$copy.mountId='88888888888848888888888888888888';$i.before.owners+=@($copy)}
+        'cross-role-rider' {$copy=Copy-Test $i.before.owners[1];$copy.id='77777777777747778777777777777777';$copy.riderId='88888888888848888888888888888888';$copy.mountId=([Guid]$second).ToString('N');$i.before.owners+=@($copy)}
+        'foreign-rider-D' {$copy=Copy-Test $i.before.owners[1];$copy.id='77777777777747778777777777777777';$copy.riderId=$horse;$copy.mountId='88888888888848888888888888888888';$i.before.owners+=@($copy)}
+        'foreign-rider-uppercase' {$copy=Copy-Test $i.before.owners[1];$copy.id='77777777777747778777777777777777';$copy.riderId=([Guid]$horse).ToString('N').ToUpperInvariant();$copy.mountId='88888888888848888888888888888888';$i.before.owners+=@($copy)}
+        'foreign-rider-garbage' {$copy=Copy-Test $i.before.owners[1];$copy.id='77777777777747778777777777777777';$copy.riderId='not-a-native-id';$copy.mountId='88888888888848888888888888888888';$i.before.owners+=@($copy)}
+        'foreign-mount-D' {$copy=Copy-Test $i.before.owners[1];$copy.id='77777777777747778777777777777777';$copy.riderId='88888888888848888888888888888888';$copy.mountId=$second;$i.before.owners+=@($copy)}
+        'foreign-mount-uppercase' {$copy=Copy-Test $i.before.owners[1];$copy.id='77777777777747778777777777777777';$copy.riderId='88888888888848888888888888888888';$copy.mountId=([Guid]$second).ToString('N').ToUpperInvariant();$i.before.owners+=@($copy)}
+        'foreign-mount-garbage' {$copy=Copy-Test $i.before.owners[1];$copy.id='77777777777747778777777777777777';$copy.riderId='88888888888848888888888888888888';$copy.mountId='not-a-native-id';$i.before.owners+=@($copy)}
+        'untimed-movement' {$i.after.actors[3].native.timeMoved=0.6}
+        'refunded-movement' {$i.after.actors[3].move=0.05}
+        'foreign-movement' {$i.after.actors[1].move=0.7}
+        'rider-move-refund' {$i.before.actors[2].move=0.65;$i.after.actors[2].move=0.0}
+        'rider-swift' {$i.after.actors[2].swift=1.0}
+    };Assert-KmcChunk7PersistenceObservation $spec.request $spec.artifact 'PASS'}
+}
+foreach($presentation in @($false,$true)){
+    $a=Copy-Test $coldTb.artifact.observations.loadedArchive;$a.Participations[0].State.Boundary.Movement.MetresStepped=2.286
+    $world=Copy-Test (NativeWorld $a $presentation)
+    Check ('completed boundary keeps its saved spent step; presentation='+$presentation){Assert-KmcChunk7NativeWorldRestore $world $a $presentation}
+    $world.participations[0].State.Boundary.Movement.MetresStepped=0.0
+    Reject ('completed boundary spent step reset; presentation='+$presentation){Assert-KmcChunk7NativeWorldRestore $world $a $presentation}
+}
 foreach($mutation in @('rider-own-move-moved-to-mount','unmoved-mount','untimed-move','missing-native-movement')){
     Reject ('source TB approach '+$mutation){$spec=Copy-Test $sourceTb;$i=Set-Approach $spec;switch($mutation){
       'rider-own-move-moved-to-mount' {$i.before.actors[2].move=0.65;$i.after.actors[2].move=0.0}

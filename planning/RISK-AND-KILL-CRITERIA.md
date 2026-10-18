@@ -1,3 +1,16 @@
+## 2026-10-18 — Directive 4 persistence risks
+
+IN PROGRESS. The saved non-current native-boundary movement overwrite is fixed
+and natively accepted in preview.41 b12s1; original b11s2 FAIL is preserved.
+Zero-mounted retained-state qualification remains open after b12s2's reader
+phase error, with raw/native and external verdicts kept separately. Active-pair
+approach exceptions must bind scalar native identities, generations, roles and
+turn observations and reject conflicting claims; native movement/cost bounds
+remain required. Pending survivor, global save/worker barriers, area continuity,
+permanent Horse references/removal and migration remain selected evidence gaps.
+No action budget/preparation rule, safety guard, architecture kill criterion or
+historical matrix was relaxed. [Current evidence](../docs/CHUNK7-OWNER-SEED-EVIDENCE.md).
+
 ## 2026-10-05 - preview.176 continuation audit
 
 **BLOCKED — CRITICAL at the owner's unproven-persistence stop boundary.** Frozen40c40e4 skips the old

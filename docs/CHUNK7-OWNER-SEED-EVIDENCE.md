@@ -209,7 +209,49 @@ All three run on the same frozen candidate and reuse checkpoints 3 and 4 by pinn
 
 **Excluded:** acquisition (disclosed assistance), human review, door behaviour, Small calibration, stress, and persistence breadth beyond the one Manual.
 
-## Not yet accepted
+## Directive 4 takeover checkpoint — October 18, Codex
+
+The earlier exclusions below belong to their original checkpoints. Later executor
+records in [the Directive 4 handoff](CODEX-HANDOFF-CHUNK7-DIRECTIVE4-2026-10-18.md)
+report accepted RT click integrity and first-action Mount in both orders on
+preview.35, Quick/Auto save plus separate loads on preview.36, RT debt save/load on
+previews.37/.38, and the TB debt producer on preview.40. Their PASS is not transferred
+to a later binary.
+
+Codex independently reviewed Claude's completed-boundary restore fix `f1e54002`
+and built preview.41 once from published source
+`6652c7fe1e8adb0edb61c28f520275bf5f708b65`. DLL SHA
+`2fdce155accf089e30d59970cf5862a92d8423ccb9e5086921c751f781cc74d2`, MVID
+`daf5ccc5-3a74-40e6-9563-8e8fa28daa4f`, package SHA
+`291d8fb4747d1f1e307a68c259a0d6631e5ecb37909ab8fa0c3bb7f9ed252709`.
+Candidate passed 6/6 in 388.1997642 seconds; this is offline qualification.
+
+| Native run | Result | Observations and restoration |
+|---|---|---|
+| `20261018-c7b-world41-ownerseed-b12s1-tbload` | PASS, 104.4654715 s | Separate-process cold load of accepted b11s1 (`f952f194…`), exact completed A movement 2.286 preserved at both restoration phases, native continuation/cleanup. All restoration/save flags true; profile bytes exact, lock released. |
+| `20261018-c7b-world41-ownerseed-b12s2-zerosave` | FAIL, 115.7495532 s | Game PASS; reader refused B's own mounted approach because the final checkpoint is zero-mounted. Actual active-owner snapshots distinguish the phases. All restoration/save flags true; profile bytes exact, lock released. Not an admitted cold-load source. |
+
+Evidence SHA-256 respectively
+`2b21042ef0984e53a7da3af114c01c048ad4d01cbfb35bf2e7fc4293e3fe1f8e` and
+`5f1c81c90bb237c6365470a4dc5c29ee127e83d6c20df2a21e5fe60c59702178`.
+Private raw receipts, exact source/reader/suite pins and old/new diagnostic verdicts
+remain under `analysis-cache/chunk7-continuation/owner-seed-batch12/` and the matching
+`runtime-evidence/` directories. No private saves/raw logs are published.
+
+The original world41 suite remains bound to the first two runs. The same product
+package is frozen in the former successor worktree, with a fresh root suite for
+later reader-only runs. No new DLL or inherited gameplay PASS is claimed by that
+execution-root change. The active branch is now in the dedicated repository and
+uses the original policy-approved push helper.
+
+## Not yet accepted — current Directive 4 remainder
+
+- Zero-mounted producer and separate-process cold load: reader correction under review; original failed producer cannot be reused.
+- Pending-only serialization, nonselected-owner save fencing, worker cancellation, area/Auto continuity, disable/removal and historical schema-1/2 paths need their selected native evidence.
+- Horse derivatives retain their permanent-reference removal restriction; positive DLL-absent proof needs a qualified reference-free fixture.
+- Doors remain opportunistic. Acquisition/progression, Small, six-pair stress/performance, full 7E and human/release acceptance remain later gates.
+
+## Historical exclusions at the Directive 3 checkpoint
 
 - **Acquisition:** the owner-seed setup is disclosed assistance.
 - **Quick, Auto, area, removal and migration persistence breadth:** only the one owner-seed-derived Manual and its cold load are proven.
