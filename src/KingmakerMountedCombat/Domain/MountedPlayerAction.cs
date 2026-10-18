@@ -50,7 +50,7 @@ namespace KingmakerMountedCombat.Domain
 
         public bool CombatTurnEligible { get; set; }
 
-        // The exact reason the turn is not eligible, so the Preparing boundary is
+        // The exact reason the turn is not eligible, so an unprepared rider turn is
         // refused with its own message instead of the generic wrong-turn one.
         public string CombatTurnIneligibilityReason { get; set; }
 
