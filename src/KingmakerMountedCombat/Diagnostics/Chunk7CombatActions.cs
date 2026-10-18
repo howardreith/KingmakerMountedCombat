@@ -171,10 +171,16 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             var participation = pending.Participant.CaptureParticipation(); var after = WorldSnapshot("pending-survivor-after");
             evidence["pendingSurvivor"] = new JObject { ["stimulus"] = "UnitEntityData.LeaveCombat then native RemoveUnit if still registered",
-                ["before"] = before, ["after"] = after, ["participation"] = participation == null ? null : JObject.FromObject(participation) };
+                // The persistence codec's serializer: the game's global default settings serialize this
+                // save type as an empty reference shell ({"$id":"1"}, batch 6 slot 3).
+                ["before"] = before, ["after"] = after,
+                ["participation"] = participation == null ? null : JObject.FromObject(participation, MountedSaveCodec.CreateSerializer()) };
             Require(pending.Relationship.State == RelationshipState.Mounted && participation != null && participation.Activation == null &&
                 participation.PendingSplitId == mount.UniqueId && participation.RiderId == null && participation.MountId == null &&
-                (float)Actor(before, mount)["standard"] == (float)Actor(after, mount)["standard"],
+                // Paired removal forfeits through native ForceToEnd(setCooldowns: true): max(before, 6/3/6).
+                new[] { "standard", "move", "swift" }.All(f => Math.Abs((float)Actor(after, mount)[f] -
+                    Math.Max((float)Actor(before, mount)[f], f == "move" ? 3f : 6f)) <= .001f) &&
+                (int)Actor(before, mount)["reactions"] == (int)Actor(after, mount)["reactions"],
                 "Native rider removal did not preserve its valid mounted pending-only survivor and mount debt.");
             Pass("C7-combat-native-pending-survivor");
         }

@@ -4,6 +4,7 @@ Set-StrictMode -Version Latest
 . (Join-Path $repo 'scripts/runtime/RuntimeHarness.Common.ps1')
 . (Join-Path $repo 'scripts/runtime/Chunk7PersistenceEvidence.ps1')
 . (Join-Path $repo 'scripts/runtime/Chunk7CombatEvidence.ps1')
+. (Join-Path $PSScriptRoot 'Chunk7NativeForfeitFixture.ps1')
 $passed=0
 function Check([string]$Name,[scriptblock]$Body){& $Body;$script:passed++;Write-Host ('PASS '+$Name)}
 function Reject([string]$Name,[scriptblock]$Body){$caught=$false;try{& $Body}catch{$caught=$true};if(-not$caught){throw ('Unexpected acceptance: '+$Name)};$script:passed++;Write-Host ('PASS refuses '+$Name)}
@@ -54,9 +55,13 @@ $o=[pscustomobject]@{scenario=$request.scenario;actorIds=$ids;workingSha256=$req
     nativeCompletion=[pscustomobject]@{errors=@();traceComplete=$true;observedActorIds=$ids;calls=$calls};nativeRounds=[pscustomobject]@{errors=@();token='06000BD3';moduleMvid='07fa1e4d-8618-41b3-9b8d-faa17d3b26f7';events=@([pscustomobject]@{round=4})};
     nativeInitialOrder=@($ids[0],$ids[2],$target,$ids[3],$ids[1]);inputs=$inputs;activations=$activations;snapshots=$snapshots;r1=$r1;pendingSurvivor=$pending;localFailure=$fault;
     cleanup=[pscustomobject]@{pairResidueAbsent=$true;ownedHorseRemoved=$true;nativeCombatEnded=$true;initiativeInputsRestored=$true;firstPairAiRestored=$true;controlsSettled=$true;nativeProgressionRequiresExternalWorkingRestoration=$true;nativeSaveWrittenByThisDriver=$false;delegatedPersistenceCleanup=$false}}
+Set-KmcChunk7NativeForfeitFixture $o
 $map=[ordered]@{schemaVersion=1;evidenceKind='chunk7-combat-evidence';createdAtUtc='2026-10-12T00:00:00Z';status='PASS';errors=@();observations=$o}
 foreach($field in @('runId','scenario','branch','commit','productVersion','dllSha256','dllMvid')){$map[$field]=$request.$field};$good=Copy-Value ([pscustomobject]$map)
 Check 'complete synthetic rider-first native combat evidence' {Assert-KmcChunk7CombatEvidence $request $good 'PASS'}
+Check 'own mount approach carrying its melee rider into reach' {$v=Copy-Value $good;$attack=$v.observations.inputs[3];$attack.after.actors[1].move=0.5
+    $v.observations.allocationTrace.events+=[pscustomobject]@{sequence=@($v.observations.allocationTrace.events).Count+1;boundary='admission-after';frame=$attack.before.frame+1;command=901;commandActor=$ids[1];commandType='Kingmaker.UnitLogic.Commands.UnitMoveTo';state=[pscustomobject]@{actor=$ids[1];standard=0.0;move=0.0;swift=0.0;reactions=1;reactionCooldown=0.0}}
+    Assert-KmcChunk7CombatEvidence $request $v 'PASS'}
 Check 'complete synthetic mount-first native combat evidence' {$r=Copy-Value $request;$v=Copy-Value $good;$r.scenario='chunk7-two-pair-combat-mount-first';$v.scenario=$r.scenario;$v.observations.scenario=$r.scenario;$v.observations.nativeInitialOrder=@($ids[1],$ids[3],$target,$ids[2],$ids[0]);Assert-KmcChunk7CombatEvidence $r $v 'PASS'}
 $mutations=@(
     @('foreign fixture',{$args[0].observations.workingSha256='0'*64}),@('wrong initiative arrangement',{$args[0].observations.nativeInitialOrder=@($ids[1],$ids[3],$target,$ids[2],$ids[0])}),
@@ -71,6 +76,9 @@ $mutations=@(
     @('duplicate native renewal',{$args[0].observations.snapshots[0].actors[1].native.grantSequence=3}),@('TB charge admitted',{$args[0].observations.activations[0].tbChargeRefusal.castDelta=1}),
     @('R1 cleanup restarts release',{$args[0].observations.r1.releaseAfter=4}),@('R1 mount delayed',{$args[0].observations.r1.independentRound=5}),@('R1 changes neighbour owner',{$args[0].observations.r1.duplicateAfter.owners[1].generation=2}),
     @('R1 same-length neighbour mount substitution',{$args[0].observations.r1.duplicateAfter.owners[1].mountId=$ids[1].Replace('-','')}),
+    @('partner moves without a native approach',{$args[0].observations.inputs[3].after.actors[1].move=0.5}),@('partner spends standard in the primary',{$args[0].observations.inputs[3].after.actors[1].standard=3.0}),
+    @('pending forfeit absent',{$args[0].observations.allocationTrace.events=@($args[0].observations.allocationTrace.events|Where-Object{$_.boundary-notlike'completion-force-to-end-*'})}),@('pending mount move unforfeited',{$args[0].observations.pendingSurvivor.after.actors[3].move=0.0}),
+    @('pending forfeit not nested',{$e=@($args[0].observations.allocationTrace.events|Where-Object{$_.boundary-clike'completion-force-to-end-*'});$s=$e[1].sequence;$e[1].sequence=$e[3].sequence;$e[3].sequence=$s}),
     @('pending activation invented',{$args[0].observations.pendingSurvivor.participation.Activation=[pscustomobject]@{Sequence=1}}),@('pending debt lost',{$args[0].observations.pendingSurvivor.after.actors[3].standard=0.0}),
     @('failed cleanup custody dropped',{$args[0].observations.localFailure.held.owners=@($args[0].observations.localFailure.held.owners[0])}),@('neighbour cleanup skipped',{$args[0].observations.localFailure.healthyNeighbourVisited=$false}),
     @('health delivery overclaimed',{$args[0].observations.naturalUnconsciousStimulusProven=$true}),@('cleanup incomplete',{$args[0].observations.cleanup.nativeCombatEnded=$false})
