@@ -725,7 +725,7 @@ namespace KingmakerMountedCombat.Integration
             var turnPreparing = turn != null && turn.Status == TurnController.TurnStatus.Preparing;
             var turnActing = turn != null && turn.IsActing;
             context.CombatTurnEligible = CombatMountDismountPolicy.IsTurnEligible(
-                turnBased, currentTurnIsExactRider, turnActing);
+                turnBased, currentTurnIsExactRider, turnPreparing, turnActing);
             context.CombatTurnIneligibilityReason = CombatMountDismountPolicy.DescribeTurnIneligibility(
                 state == RelationshipState.Mounted || state == RelationshipState.Faulted
                     ? "Dismount" : "Mount Companion",

@@ -304,17 +304,19 @@ Assert-Kmc ($evaluatorText -match 'context\.InCombat && !context\.PairedAdoption
     $evaluatorText -notmatch 'available only outside combat in this preview') `
     'combat Mount availability reports the paired disposition and in-flight gates instead of a blanket refusal'
 
-# R3: a turn-based relationship transition requires the rider's turn to be ACTING.
-# Preparing is refused with its own message rather than retained on an assumption.
-Assert-Kmc ($evaluatorText -match 'public static bool IsTurnEligible\(\s*\r?\n\s*bool turnBasedCombat,\s*\r?\n\s*bool currentTurnIsExactRider,\s*\r?\n\s*bool turnActing\)' -and
-    $evaluatorText -match 'return !turnBasedCombat \|\| currentTurnIsExactRider && turnActing;' -and
+# R3 (superseded by the owner's 2026-10-18 decision): a turn-based relationship transition
+# belongs to the exact rider's prepared turn, Preparing or Acting. A prepared native turn stays
+# Preparing until its first command, so refusing Preparing made a transition unavailable as the
+# first action of a turn. Earlier boundaries stay refused with their own reason.
+Assert-Kmc ($evaluatorText -match 'public static bool IsTurnEligible\(\s*\r?\n\s*bool turnBasedCombat,\s*\r?\n\s*bool currentTurnIsExactRider,\s*\r?\n\s*bool turnPreparing,\s*\r?\n\s*bool turnActing\)' -and
+    $evaluatorText -match 'return !turnBasedCombat \|\| currentTurnIsExactRider && \(turnPreparing \|\| turnActing\);' -and
     $evaluatorText -match 'public static string DescribeTurnIneligibility\(' -and
-    $evaluatorText -match 'if \(turnPreparing\)[\s\S]{0,160}finished preparing') `
-    'a turn-based relationship transition requires an acting rider turn and names the preparing boundary'
-Assert-Kmc ($playerActionText -match 'CombatMountDismountPolicy\.IsTurnEligible\(\s*\r?\n?\s*turnBased, currentTurnIsExactRider, turnActing\);' -and
+    $evaluatorText -match 'waits until the rider''s turn has been prepared') `
+    'a turn-based relationship transition is admitted in the rider''s prepared turn and names an unprepared boundary'
+Assert-Kmc ($playerActionText -match 'CombatMountDismountPolicy\.IsTurnEligible\(\s*\r?\n?\s*turnBased, currentTurnIsExactRider, turnPreparing, turnActing\);' -and
     $playerActionText -match 'context\.CombatTurnIneligibilityReason = CombatMountDismountPolicy\.DescribeTurnIneligibility\(' -and
     $evaluatorText -match 'context\.CombatTurnIneligibilityReason') `
-    'the controller decides turn eligibility from acting alone and surfaces the exact reason'
+    'the controller decides turn eligibility from the prepared or acting rider turn and surfaces the exact reason'
 
 # R4: a Dismount shell must prove that its captured target and its delivery target
 # are both the exact caster, and that the caster is still the live rider.
@@ -1696,9 +1698,9 @@ Assert-Kmc ($pairCommandText -match 'internal bool ChargeTransactionDelegating =
     $ownershipText -match 'TurnBased.Controllers.CombatController.IsInTurnBasedCombat\(\) \|\| ChargeNativeWorldLoading\) return false;' -and
     $ownershipText -match '!TurnBased.Controllers.CombatController.IsInTurnBasedCombat\(\) && !ChargeNativeWorldLoading &&') 'the deferred charge experiment exposes no Preparing or TB shell admission'
 Assert-Kmc ($chargePolicyText -match 'return Refuse\("Mounted Charge is not yet supported in turn-based mode\.", MountedCombatRejectionCode.WrongTurn\);') 'turn-based charge retains the exact qualified cost-free refusal'
-Assert-Kmc ($evaluatorText -match 'return !turnBasedCombat \|\| currentTurnIsExactRider && turnActing;' -and
+Assert-Kmc ($evaluatorText -match 'return !turnBasedCombat \|\| currentTurnIsExactRider && \(turnPreparing \|\| turnActing\);' -and
     ([Regex]::Matches($pairControllerText, 'MountedPairTurnPolicy\.CanDelegateMountMovement\(').Count -eq 1) -and
-    $spatialText -match 'public static bool CanDriveRiderGroundMovement\(') 'charge deferral preserves relationship Acting eligibility and ordinary movement policies'
+    $spatialText -match 'public static bool CanDriveRiderGroundMovement\(') 'charge deferral preserves relationship prepared-turn eligibility and ordinary movement policies'
 $trackedTextFiles = @($tracked | Where-Object { [IO.Path]::GetExtension($_).ToLowerInvariant() -in @('.cs','.ps1','.md','.json','.xml','.props','.csproj','.sln','.gitignore') })
 $trackedText = ($trackedTextFiles | ForEach-Object { Get-Content -Raw -LiteralPath (Join-Path $repoRoot $_) }) -join "`n"
 Assert-Kmc ($trackedText -notmatch '(?i)BEGIN (RSA|OPENSSH|EC) PRIVATE KEY|gh[pousr]_[A-Za-z0-9_]{20,}|password\s*[:=]\s*[^\s`"'']+') 'tracked shippable text contains no recognized secret pattern'
