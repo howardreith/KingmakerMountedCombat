@@ -66,7 +66,7 @@ foreach($mutation in @('retired-detached-owner','restarted-split-round','attache
 function NativeWorld($Archive,[bool]$Presentation) {
     $ownerRows=@();foreach($p in $Archive.Pairs){$ownerRows+=[pscustomobject]@{ownerId=$p.PairId;generation=$p.Generation;riderId=$p.Rider.Id;mountId=$p.Mount.Id;state=$(if($Presentation){'Active'}else{'Reserved'})}}
     foreach($p in $Archive.Participations|Where-Object{$null-eq$_.MountedPairId}){$ownerRows+=[pscustomobject]@{ownerId=$p.OwnerId;generation=$p.Generation;riderId=$p.State.RiderId;mountId=$p.State.MountId;state='Detached'}}
-    [pscustomobject]@{gameTicks=$Archive.GameTimeTicks;turnBased=$Archive.Combat.TurnBased;playerInCombat=$true;actors=(Copy-Test $Archive.Combat.Actors);combat=(Copy-Test $Archive.Combat);participations=(Copy-Test $Archive.Participations);owners=$ownerRows;nativeControls=(Copy-Test $Archive.Slots)}
+    [pscustomobject]@{gameTicks=$Archive.GameTimeTicks;turnBased=$Archive.Combat.TurnBased;playerInCombat=$true;actors=(Copy-Test $Archive.Combat.Actors);combat=(Copy-Test $Archive.Combat);participations=@(Copy-Test $Archive.Participations|ForEach-Object{if(-not$Presentation){$_.MountedPairId=$null};$_});owners=$ownerRows;nativeControls=(Copy-Test $Archive.Slots)}
 }
 Check 'immediate shared restore retains all actors, roster, contexts, allocations and ownership before presentation' {Assert-KmcChunk7NativeWorldRestore (NativeWorld $tb.archive $false) $tb.archive $false}
 Check 'immediate all-pair presentation retains controls and ownership' {Assert-KmcChunk7NativeWorldRestore (NativeWorld $tb.archive $true) $tb.archive $true}

@@ -107,7 +107,11 @@ function Assert-KmcChunk7NativeWorldRestore($Snapshot,$Archive,[bool]$Presentati
         if((ConvertTo-KmcChunk7Canonical @($Snapshot.combat.$field|Sort-Object -Property $keys))-cne(ConvertTo-KmcChunk7Canonical @($Archive.Combat.$field|Sort-Object -Property $keys))){throw ('Immediate shared restoration changed '+$field)}}
     if(@($Snapshot.actors).Count-ne@($Archive.Combat.Actors).Count){throw 'Immediate native restoration omitted an actor.'}
     foreach($actor in $Archive.Combat.Actors){$actual=@($Snapshot.actors|Where-Object{$_.Native.Id-ceq$actor.Native.Id});if($actual.Count-ne1-or(ConvertTo-KmcChunk7Canonical $actual[0])-cne(ConvertTo-KmcChunk7Canonical $actor)){throw 'Immediate native restoration changed an actor remainder, initiative or preparation.'}}
-    if((ConvertTo-KmcChunk7Canonical @($Snapshot.participations|Sort-Object OwnerId))-cne(ConvertTo-KmcChunk7Canonical @($Archive.Participations|Sort-Object OwnerId))){throw 'Immediate restoration changed a retained obligation, grant/context or release round.'}
+    # A participation's MountedPairId is recorded only while its owner is Active. Restoration is staged:
+    # mounted owners are Reserved at the shared-world boundary (below) and Active after presentation, so the
+    # shared-world snapshot carries a null MountedPairId and otherwise the exact archived participation.
+    $expected=@($Archive.Participations|ForEach-Object{$row=$_|ConvertTo-Json -Depth 20|ConvertFrom-Json;if(-not$Presentation){$row.MountedPairId=$null};$row})
+    if((ConvertTo-KmcChunk7Canonical @($Snapshot.participations|Sort-Object OwnerId))-cne(ConvertTo-KmcChunk7Canonical @($expected|Sort-Object OwnerId))){throw 'Immediate restoration changed a retained obligation, grant/context or release round.'}
     $ids=@($Archive.Pairs|ForEach-Object{$_.PairId})+@($Archive.Participations|ForEach-Object{$_.OwnerId})|Select-Object -Unique
     if(@($Snapshot.owners).Count-ne@($ids).Count){throw 'Immediate restoration omitted retained ownership.'}
     foreach($id in $ids){$actual=@($Snapshot.owners|Where-Object{([Guid]$_.ownerId)-eq([Guid]$id)});$pair=@($Archive.Pairs|Where-Object PairId -CEQ $id);$part=@($Archive.Participations|Where-Object OwnerId -CEQ $id)
