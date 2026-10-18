@@ -342,3 +342,11 @@ Finish
 Lead the final checkpoint with what now works and what is still unproven. State actual commands/results, substitutions, any native launches and their terminal outcomes, exact restoration, source/commit/PR head and the next dependency. Keep acquisition, Quick/Auto/area/removal/migration breadth, Small calibration, stress/performance and human review visible as remaining work unless actually completed.
 
 No additional manual seed preparation is expected from Howie. Ask for manual intervention only for a specific observed access, environment or fixture problem that cannot be resolved within the existing authorization. Do not promise continued background work after the session ends. Leave a precise resumable checkpoint if a genuine tool/host/quota limit intervenes.
+
+### Owner decisions on the combat slice (October 17, 2026)
+
+Asked after the combat-machinery map (lab receipt `analysis-cache/chunk7-continuation/owner-seed-batch03/combat-map01.json`) found that no target arrangement covered the owner-seed derivatives:
+
+- **Combat target.** Question: may the project-spawned, runtime-only stock Mammoth target contract (no XP or loot, destroyed on every cleanup path; `planning/DIAGNOSTIC-TARGET-POLICY.md`, previously scoped to `KMC_AUTOMATION_WORKING`) be reused on disposable copies of the owner-seed-derived Manual, with the seed and derived-save hashes in place of the Working identity? Owner answer: **approved**. The spider cave's own monsters are never used.
+- **Scenario 5 scope.** Owner answer: **both pairs mounted before combat**, with initiative forced mount-first and disclosed as setup. The mid-encounter mount-first case remains a single-pair Chunk 6 proof and an explicit later item.
+- **Scenario 3 unrelated actor.** Owner answer: **an unrelated companion (Valerie or Linzi) must take one ordinary native action during the RT window**, spending only her own resources and disturbing neither pair.
