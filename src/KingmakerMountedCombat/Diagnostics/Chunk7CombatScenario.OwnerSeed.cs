@@ -188,7 +188,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 var actor = (string)rows[0]["state"]?["actor"];
                 var closed = rows.Length == 2 && all.Length == 2 && (string)rows[0]["boundary"] == "admission-before" && (string)rows[1]["boundary"] == "admission-after" &&
                     identity != companionCommand && !slotted.Contains(identity) && pairIds.Contains(actor) &&
-                    rows.All(e => (string)e["state"]?["actor"] == actor && (string)e["commandType"] == StockAttackType && e["commandActor"]?.Type == JTokenType.Null &&
+                    rows.All(e => (string)e["state"]?["actor"] == actor && (string)e["commandType"] == StockAttackType &&
+                        // The trace assigns a null string, a String-typed JValue, never JTokenType.Null.
+                        e["commandActor"] != null && (string)e["commandActor"] == null &&
                         (bool?)e["started"] == false && (bool?)e["acted"] == false && (bool?)e["finished"] == false && (string)e["result"] == "None");
                 if (!closed) continue;
                 foreach (var row in rows) accepted.Add(row);

@@ -11,6 +11,7 @@ Selected cleanup regression checks:
 - Test-Chunk7HostCompletion.ps1: bounded failure gate and actual terminal host method.
 - Test-Chunk7PersistenceCleanupAdapter.ps1: preparation and transition before fact removal, actual write-once pending/final artifacts, one merged FAIL row after later cleanup success.
 - Test-Chunk7CombatCleanupAdapter.ps1: native combat cleanup ownership and independent retries.
+- Test-Chunk7RefusedPairProposals.ps1: the actual RT companion-window refused-proposal classifier, compiled against the game's Newtonsoft, on trace-shaped rows (null executor is a String-typed JValue).
 - Test-Chunk7CleanupEvidence.ps1: exact optional pending roles, request/candidate/manifest identity, nonempty FAIL errors, rejection of promotion to PASS.
 
 Closed protocol and source intake: Test-Chunk7PersistenceProtocol.ps1, Test-Chunk7PersistenceWiring.ps1, Test-Chunk7CanonicalEvidence.ps1, Test-Chunk7PersistenceSource.ps1, Test-Chunk7CombatPersistenceSource.ps1, Test-Chunk7AreaPersistenceSource.ps1. Source tests retain actual synthetic ZIP/member/hash/restoration receipts.

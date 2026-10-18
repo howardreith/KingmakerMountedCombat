@@ -55,6 +55,7 @@ $selected = @(
     'Test-Chunk7CheckpointCleanupAdapter.ps1',
     'Test-Chunk7CleanupEvidence.ps1',
     'Test-Chunk7CombatCleanupAdapter.ps1',
+    'Test-Chunk7RefusedPairProposals.ps1',
     'Test-Chunk7CombatPersistenceSource.ps1',
     'Test-Chunk7HostCompletion.ps1',
     'Test-Chunk7HostOwnedEngines.ps1',
