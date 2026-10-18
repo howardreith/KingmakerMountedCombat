@@ -79,7 +79,8 @@ function CompleteCombatArtifact($Fixture,[bool]$Cold){
 }
 $complete=@();foreach($fixture in @($tb,$rt,$zero,$legacy)){foreach($isCold in @($false,$true)){$spec=CompleteCombatArtifact $fixture $isCold;$complete+=@($spec);Check ($spec.request.persistenceCase+' complete '+$spec.request.scenario) {Assert-KmcChunk7PersistenceObservation $spec.request $spec.artifact 'PASS'}}}
 $sourceTb=$complete[0];$coldTb=$complete[1];$sourceRt=$complete[2];$coldZero=$complete[5];$coldLegacy=$complete[7]
-foreach($mutation in @('missing-cost','duplicate-cost','wrong-cost-actor','wrong-action','no-actual-spend','neighbour-debt','outcome-other-owner','observer-incomplete','wrong-native-hook','target-substitution','missing-mount','snapshot-twice','worker-incomplete','source-format','live-owner-generation','completed-A-missing-end','completed-A-partial-end','completed-A-overdecayed','completed-A-refunded')){
+Check 'source TB rider approach charged to its own mount move budget' {$spec=Copy-Test $sourceTb;$i=$spec.artifact.observations.combatCheckpoint.source.inputs[2];$i.before.actors[3].move=0.09;$i.after.actors[3].move=0.74;Assert-KmcChunk7PersistenceObservation $spec.request $spec.artifact 'PASS'}
+foreach($mutation in @('missing-cost','duplicate-cost','wrong-cost-actor','wrong-action','no-actual-spend','neighbour-debt','outcome-other-owner','observer-incomplete','wrong-native-hook','target-substitution','missing-mount','snapshot-twice','worker-incomplete','source-format','live-owner-generation','completed-A-missing-end','completed-A-partial-end','completed-A-overdecayed','completed-A-refunded','approach-own-mount-refund','approach-own-mount-overbudget','approach-own-mount-standard','approach-foreign-mount-move','approach-mount-attack-moves-rider')){
     Reject ('source raw proof '+$mutation){$spec=Copy-Test $sourceTb;$v=$spec.artifact.observations;$checkpoint=$v.combatCheckpoint;switch($mutation){
       'missing-cost' {$checkpoint.trace.events=@($checkpoint.trace.events|Where-Object boundary -CNE 'cost-after')}
       'duplicate-cost' {$copy=Copy-Test $checkpoint.trace.events[-1];$copy.sequence=$checkpoint.trace.events.Count+1;$checkpoint.trace.events+=@($copy)}
@@ -96,6 +97,11 @@ foreach($mutation in @('missing-cost','duplicate-cost','wrong-cost-actor','wrong
       'worker-incomplete' {$v.nativeWrite.operation='Saving'}
       'source-format' {$v.nativeWrite.sourceSchema=2}
       'live-owner-generation' {$v.snapshots[-1].owners[0].generation=99}
+      'approach-own-mount-refund' {$checkpoint.source.inputs[2].before.actors[3].move=0.5;$checkpoint.source.inputs[2].after.actors[3].move=0.2}
+      'approach-own-mount-overbudget' {$checkpoint.source.inputs[2].after.actors[3].move=7.0}
+      'approach-own-mount-standard' {$checkpoint.source.inputs[2].after.actors[3].standard=1.0}
+      'approach-foreign-mount-move' {$checkpoint.source.inputs[0].after.actors[3].move=0.7}
+      'approach-mount-attack-moves-rider' {$checkpoint.source.inputs[1].after.actors[0].move=0.7}
       'completed-A-missing-end' {$checkpoint.nativeCompletion.calls=@()}
       'completed-A-partial-end' {$checkpoint.nativeCompletion.calls[0].after.resources.standard=3.0}
       'completed-A-overdecayed' {foreach($doc in @($v.nativeWrite.archive,$v.nativeWrite.nativeMetadata)){foreach($row in @($doc.Combat.Actors|Where-Object{$_.Native.Id-ceq$first})+@($doc.Pairs|Where-Object{$_.Rider.Id-ceq$first}|ForEach-Object{[pscustomobject]@{Native=$_.Rider}})){$row.Native.Standard=2.0}}}

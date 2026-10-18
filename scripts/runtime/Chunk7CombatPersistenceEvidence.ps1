@@ -167,7 +167,12 @@ function Assert-KmcChunk7CheckpointSource($Checkpoint,$Archive,$Request) {
         foreach($field in @('move','swift','reactions','reactionCooldown')){if($cost.state.$field-ne$before.state.$field){throw 'Native primary changed an unrelated actor resource at spending.'}}
         $prior=@($attack.before.actors|Where-Object id -CEQ $id);$after=@($attack.after.actors|Where-Object id -CEQ $id)
         if($prior.Count-ne1-or$after.Count-ne1-or[double]$after[0].standard-le[double]$prior[0].standard){throw 'Source attack snapshot has no distinct native expenditure.'}
-        if(-not$rt){foreach($other in $ids|Where-Object{$_-cne$id}){$a=@($attack.before.actors|Where-Object id -CEQ $other);$b=@($attack.after.actors|Where-Object id -CEQ $other);foreach($field in @('standard','move','swift','reactions','reactionCooldown')){if($a.Count-ne1-or$b.Count-ne1-or$a[0].$field-ne$b[0].$field){throw 'Native primary transferred expenditure to another actor.'}}}}
+        # A rider's TB paired approach is native movement charged to its own mount's move budget.
+        $ownMount=if($id-ceq$ids[0]){$ids[1]}elseif($id-ceq$ids[2]){$ids[3]}else{$null}
+        if(-not$rt){foreach($other in $ids|Where-Object{$_-cne$id}){$a=@($attack.before.actors|Where-Object id -CEQ $other);$b=@($attack.after.actors|Where-Object id -CEQ $other);if($a.Count-ne1-or$b.Count-ne1){throw 'Native primary transferred expenditure to another actor.'}
+            foreach($field in @('standard','move','swift','reactions','reactionCooldown')){
+                if($field-ceq'move'-and$other-ceq$ownMount){if([double]$b[0].move-lt[double]$a[0].move-or[double]$b[0].move-gt6.001){throw 'Paired approach refunded or exceeded its own mount move budget.'};continue}
+                if($a[0].$field-ne$b[0].$field){throw 'Native primary transferred expenditure to another actor.'}}}}
     }
     if($legacy){$pending=$Checkpoint.source.pendingSurvivor;if($pending.stimulus-cne'UnitEntityData.LeaveCombat then native RemoveUnit if still registered'-or
        (ConvertTo-KmcChunk7Canonical $pending.participation)-cne(ConvertTo-KmcChunk7Canonical $Archive.Participations[0].State)){throw 'Legacy pending source lacks the actual native rider-removal stimulus and preserved participation.'}}
