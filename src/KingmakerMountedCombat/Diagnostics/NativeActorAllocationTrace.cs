@@ -230,6 +230,8 @@ namespace KingmakerMountedCombat.Diagnostics
                     ["command"] = Id(command), ["commandType"] = command?.GetType().FullName,
                     ["actionType"] = command?.Type.ToString(), ["timeSinceStart"] = command?.TimeSinceStart,
                     ["commandActor"] = command?.Executor?.UniqueId, ["started"] = command?.IsStarted,
+                    // An attack of opportunity's target is its provoker; its motion shows what provoked it.
+                    ["commandTarget"] = command?.Target?.Unit?.UniqueId, ["commandTargetMotion"] = command?.Target?.Unit?.HasMotionThisTick,
                     ["acted"] = command?.IsActed, ["finished"] = command?.IsFinished, ["result"] = command?.Result.ToString(),
                     ["ignoreCooldown"] = command?.IsIgnoreCooldown,
                     ["commandInitialized"] = command?.Executor != null,
