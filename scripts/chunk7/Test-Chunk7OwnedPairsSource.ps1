@@ -155,5 +155,51 @@ Check 'owner-seed source propagates the cold gate refusal' {$c=New-OwnerSeedSour
 Check 'owner-seed source refuses a checkpoint' {$c=New-OwnerSeedSource;[void](Get-KmcChunk7OwnedPairsSource $c.selection 'multi-exploration-manual' $c.fixture $c.candidate)} $true
 Check 'registry no-mods seed with a spaced internal name qualifies' {$c=New-OwnerSeedSource;$c.selection.seedId='KMC_C7_NO_MODS_OWNER_SEED';$script:seedDescriptor.internalName='KMC C7 NO MODS OWNER SEED';$script:seedDescriptor.fileName='Manual_303_KMC_C7_NO_MODS_OWNER_SEED.zks';$v=Get-KmcChunk7OwnedPairsSource $c.selection $null $c.fixture $c.candidate;if($v.descriptor.internalName-cne'KMC C7 NO MODS OWNER SEED'-or$script:coldSelection.seedId-cne'KMC_C7_NO_MODS_OWNER_SEED'){throw 'Spaced registry seed was not qualified'}}
 Check 'producer selection never takes the owner-seed route' {$c=New-Case $false $false;$script:coldSelection=$null;[void](Qualify $c);if($null-ne$script:coldSelection){throw 'Producer selection reached the owner-seed gate'}}
+# Owner-seed-derived persistence. The producer reuses the owner-seed gate with its Manual checkpoint;
+# the consumer is pinned to the producer run, its world evidence and the written Manual bytes, and its
+# producer must have loaded the owner's unchanged registered seed.
+Check 'owner-seed Manual producer source delegates to the exact cold owner-seed gate' {$c=New-OwnerSeedSource;$c.selection.case='owner-seed-persistence-save';$c.selection.expectedNativeWriteCount=1;$v=Get-KmcChunk7OwnedPairsSource $c.selection 'multi-exploration-manual' $c.fixture $c.candidate;if($v.ownerSeed-ne$true-or$v.descriptor.sha256-cne('9'*64)-or$script:coldSelection.case-cne'owner-seed-readonly-inventory'){throw 'Producer did not qualify its owner seed through the cold gate'}}
+Check 'owner-seed Manual producer source refuses a missing checkpoint' {$c=New-OwnerSeedSource;$c.selection.case='owner-seed-persistence-save';$c.selection.expectedNativeWriteCount=1;[void](Get-KmcChunk7OwnedPairsSource $c.selection $null $c.fixture $c.candidate)} $true 'multi-exploration-manual'
+function Assert-KmcChunk7WorldArtifact($Request,$Manifest,$Status){Boundary 'strict-producer-world-artifact';if($Status-cne'PASS'){throw 'source failure misclassified'}}
+function Assert-KmcMatchedPoolArtifact($Request,$Manifest,$Status){Boundary 'producer-no-matched-pool'}
+function Read-KmcChunk7ManifestArtifact($Request,$Manifest,$Leaf,$Kind){if($Leaf-cne($Kind+'.json')-or$Kind-cnotin@('chunk7-acquired-manual-evidence','chunk7-persistence-evidence','chunk7-world-evidence')){throw 'foreign artifact role'};return $script:documents[(Join-Path $Request.evidenceRoot $Leaf)]}
+function New-SeedDerivedSource{
+ $o=New-OwnerSeedSource;$script:calls=[Collections.Generic.List[string]]::new();$script:documents=@{};$script:hashes=@{};$script:readCounts=@{};$script:drift=$null
+ $f=[IO.File]::ReadAllText((Join-Path $testFixtures 'TwoOwnerManualExistingFixture.json'))|ConvertFrom-Json;$r=$f.request
+ $a=$o.selection.riderAId;$b=$o.selection.riderBId;$ma='20202020-2020-4020-8020-202020202020';$mb='40404040-4040-4040-8040-404040404040';$party=@($a,$b,$ma,$mb)
+ $ps=$o.selection|ConvertTo-Json -Depth 20|ConvertFrom-Json;$ps.case='owner-seed-persistence-save';$ps.expectedNativeWriteCount=1;$ps.partyIds=@($a,$b)
+ $pr=[ordered]@{scenario='chunk7-owned-two-pair-campaign';runId='synthetic-owner-seed-manual';evidenceRoot='';fixture=$r.fixture;ownedPairs=$ps;persistenceCase='multi-exploration-manual';persistenceLoad=($script:seedDescriptor|ConvertTo-Json -Depth 5|ConvertFrom-Json)}
+ foreach($key in @('branch','commit','productVersion','dllSha256','dllMvid','transactionToken')){$pr[$key]=$r.$key};$pr=[pscustomobject]$pr
+ $leaf='Manual_303_KMC_C7_SEED_WORLD.zks'
+ $artifact=[pscustomobject]@{observations=[pscustomobject]@{ownedOutputAdmission=[pscustomobject]@{number=303;leaf=$leaf};nativeWrite=[pscustomobject]@{path='';nativeName='KMC_C7_SEED_WORLD';nativeType='Manual';sha256=('5'*64);length=2048}
+  ownerSeedManual=[pscustomobject]@{twoOwners=@([pscustomobject]@{actorId=$a;petId=$ma},[pscustomobject]@{actorId=$b;petId=$mb});fieldWorld=[pscustomobject]@{party=@($party|ForEach-Object{[pscustomobject]@{id=$_}})}}}}
+ $producer=Add-Set $pr $artifact 'chunk7-world-evidence.json' ('6'*64) ('9'*64) 'multi-exploration-manual'
+ $artifact.observations.nativeWrite.path=Join-Path (Join-Path $producer.profile 'Saved Games') $leaf;$script:hashes[$artifact.observations.nativeWrite.path]='5'*64
+ $s=[pscustomobject][ordered]@{case='owner-seed-persistence-load';sourceRunId=$pr.runId;sourceArtifactSha256=('6'*64);sourceArchiveSha256=('5'*64);seedId=$o.selection.seedId;seedSha256=$o.selection.seedSha256;riderAId=$a;mountAId=$ma;riderBId=$b;mountBId=$mb;partyIds=$party;baseGameOnly=$true;expectedNativeLoadCount=1;expectedNativeWriteCount=0}
+ [pscustomobject]@{selection=$s;fixture=$r.fixture;candidate=$o.candidate;producer=$producer;persistenceCase='multi-exploration-manual'}
+}
+Check 'owner-seed-derived consumer qualifies exactly its producer Manual' {$c=New-SeedDerivedSource;$v=Get-KmcChunk7OwnedPairsSource $c.selection $c.persistenceCase $c.fixture $c.candidate
+ if($v.ownerSeedDerived-ne$true-or$v.descriptor.internalName-cne'KMC_C7_SEED_WORLD'-or$v.descriptor.fileName-cne'Manual_303_KMC_C7_SEED_WORLD.zks'-or$v.descriptor.sha256-cne('5'*64)-or$v.artifactSha256-cne('6'*64)-or$v.descriptor.gameId-cne$script:seedDescriptor.gameId-or$v.seed.descriptor.sha256-cne('9'*64)){throw 'Consumer source substituted the producer Manual, its evidence or the seed'}
+ foreach($gate in @('owner-seed-registry-master-intake-header','strict-manifest','strict-producer-world-artifact','producer-no-matched-pool')){if(-not$script:calls.Contains($gate)){throw ('consumer omitted required gate '+$gate)}}}
+$derivedFaults=[ordered]@{
+ 'artifact hash mismatch'={param($c)$c.selection.sourceArtifactSha256='e'*64}
+ 'archive hash mismatch'={param($c)$c.selection.sourceArchiveSha256='e'*64}
+ 'written bytes changed'={param($c)$script:hashes[$c.producer.artifact.observations.nativeWrite.path]='e'*64}
+ 'producer is exploration only'={param($c)$c.producer.request.ownedPairs.case='owner-seed-exploration';$c.producer.request.ownedPairs.expectedNativeWriteCount=0}
+ 'producer acquired ancestry'={param($c)$c.producer.request.ownedPairs=$null}
+ 'producer failed'={param($c)$c.producer.result.status='FAIL'}
+ 'producer foreign candidate'={param($c)$c.candidate.dllSha256='0'*64}
+ 'producer other seed'={param($c)$c.producer.request.ownedPairs.seedSha256='8'*64}
+ 'producer loaded another seed'={param($c)$c.producer.request.persistenceLoad.lastWriteTimeUtcTicks=1}
+ 'producer rider roles'={param($c)$c.selection.mountAId='aaaaaaaa-2222-4222-8222-222222222222';$c.selection.partyIds[2]=$c.selection.mountAId}
+ 'producer roster'={param($c)$c.selection.partyIds+=@('aaaaaaaa-3333-4333-8333-333333333333')}
+ 'Manual outside producer root'={param($c)$c.producer.artifact.observations.nativeWrite.path='C:\foreign\Manual_303_KMC_C7_SEED_WORLD.zks';$script:hashes['C:\foreign\Manual_303_KMC_C7_SEED_WORLD.zks']='5'*64}
+ 'producer checkpoint'={param($c)$c.producer.request.persistenceCase='multi-exploration-quick'}
+ 'producer owner checkpoint'={param($c)$c.producer.owner.persistenceCase=$null}
+ 'consumer checkpoint'={param($c)$c.persistenceCase='multi-tb-debt-manual'}
+ 'consumer is its own producer'={param($c)$c.selection.sourceRunId='unassigned-owned-seed-derived'}
+ 'producer world artifact refused'={param($c)$script:failure='strict-producer-world-artifact'}
+}
+foreach($derivedFault in $derivedFaults.Keys){Check ('owner-seed-derived consumer refuses '+$derivedFault) {$c=New-SeedDerivedSource;&$derivedFaults[$derivedFault] $c;[void](Get-KmcChunk7OwnedPairsSource $c.selection $c.persistenceCase $c.fixture $c.candidate)} $true}
 $clock.Stop();$passed=@($results|Where-Object pass).Count;$failed=$results.Count-$passed
 [IO.File]::WriteAllText((Join-Path $testOutput 'receipt.json'),([pscustomobject]@{passed=$passed;failed=$failed;elapsedSeconds=$clock.Elapsed.TotalSeconds;nativeInvoked=$false;archiveRead=$false;scope='actual owned qualifier; established lineage/artifact validators and OS observations substituted';results=@($results)}|ConvertTo-Json -Depth 12),[Text.UTF8Encoding]::new($false));Write-Output ('Owned source: '+$passed+' PASS / '+$failed+' FAIL');if($failed){exit 1}

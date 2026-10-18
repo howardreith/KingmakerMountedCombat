@@ -82,13 +82,48 @@ function Get-KmcChunk7OwnedPairsOwnerSeedSource($Selection,[AllowNull()][string]
  if($null-ne$AreaTarget){throw 'Owner-seed exploration carries no area target.'}
  $cold=[pscustomobject][ordered]@{case='owner-seed-readonly-inventory';baseGameOnly=$true;expectedNativeLoadCount=1;expectedNativeWriteCount=0;seedId=$Selection.seedId;seedSha256=$Selection.seedSha256}
  $source=Get-KmcChunk7OwnerSeedSource $cold $Fixture $Candidate
- Assert-KmcChunk7OwnedPairsDescriptor ([pscustomobject]@{scenario='chunk7-owned-two-pair-campaign';runId=$run;ownedPairs=$Selection;persistenceCase=$null;persistenceLoad=$source.descriptor;fixture=$Fixture})
+ Assert-KmcChunk7OwnedPairsDescriptor ([pscustomobject]@{scenario='chunk7-owned-two-pair-campaign';runId=$run;ownedPairs=$Selection;persistenceCase=$(if([string]::IsNullOrEmpty($PersistenceCase)){$null}else{$PersistenceCase});persistenceLoad=$source.descriptor;fixture=$Fixture})
  if($source.fixtureSetupOnly-ne$true-or$source.nativeAuthorityGranted-ne$false){throw 'Owner seed source claims native authority.'}
  [pscustomobject]@{path=$source.path;descriptor=$source.descriptor;seedId=$source.seedId;registryPath=$source.registryPath;registrySha256=$source.registrySha256;registryEntry=$source.registryEntry;
   intakePath=$source.intakePath;intakeSha256=$source.intakeSha256;ownerSeed=$true;fixtureSetupOnly=$true;nativeAuthorityGranted=$false}
 }
+# Owner-seed-derived cold source: exactly the Manual one successful same-candidate producer wrote,
+# pinned by its run, world evidence and written bytes, with its seed proved to be the owner's
+# unchanged registered master. Receipt decoding grants no native restoration.
+function Get-KmcChunk7OwnedPairsOwnerSeedDerivedSource($Selection,[AllowNull()][string]$PersistenceCase,$Fixture,$Candidate,$AreaTarget=$null){
+ $r=[pscustomobject]@{scenario='chunk7-owned-two-pair-campaign';runId='unassigned-owned-seed-derived';ownedPairs=$Selection;persistenceCase=$(if([string]::IsNullOrEmpty($PersistenceCase)){$null}else{$PersistenceCase})}
+ Assert-KmcChunk7OwnedPairsSelection $r
+ if($null-ne$AreaTarget){throw 'Owner-seed-derived cold load carries no area target.'}
+ $set=Get-KmcChunk7OwnedReceiptSet $Selection.sourceRunId 'chunk7-world-evidence.json';$request=$set.request
+ Assert-KmcBootstrapInventoryString $request.scenario 'chunk7-owned-two-pair-campaign';Assert-KmcBootstrapInventoryString $request.ownedPairs.case 'owner-seed-persistence-save';Assert-KmcBootstrapInventoryString $request.persistenceCase 'multi-exploration-manual'
+ Assert-KmcChunk7OwnedPairsDescriptor $request
+ foreach($key in @('seedId','seedSha256','riderAId','riderBId')){Assert-KmcBootstrapInventoryString $request.ownedPairs.$key $Selection.$key}
+ # The owner's immutable master is unchanged and is exactly the seed the producer loaded.
+ $seed=Get-KmcChunk7OwnedPairsOwnerSeedSource $request.ownedPairs 'multi-exploration-manual' $Fixture $Candidate
+ if((ConvertTo-KmcChunk7Canonical $seed.descriptor)-cne(ConvertTo-KmcChunk7Canonical $request.persistenceLoad)){throw 'Producer did not load the exact registered immutable owner seed.'}
+ Assert-KmcChunk7OwnedSourceCompletion $set $Selection.sourceRunId 'chunk7-owned-two-pair-campaign' $Fixture $Candidate $Selection.seedSha256
+ Assert-KmcBootstrapInventoryString $set.owner.persistenceCase 'multi-exploration-manual'
+ Assert-KmcChunk7WorldArtifact $request $set.manifest 'PASS';Assert-KmcMatchedPoolArtifact $request $set.manifest 'PASS'
+ $artifact=Read-KmcChunk7ManifestArtifact $request $set.manifest 'chunk7-world-evidence.json' 'chunk7-world-evidence'
+ $path=Join-Path $set.root 'chunk7-world-evidence.json';$file=Get-Item -LiteralPath $path
+ if($file.Length-le0-or$file.Length-gt8MB-or$set.pins[$path]-cne$Selection.sourceArtifactSha256){throw 'Owner-seed-derived producer receipt differs from its explicit immutable pin.'}
+ $o=$artifact.observations;$w=$o.nativeWrite;Assert-KmcBootstrapInventoryString $w.sha256 $Selection.sourceArchiveSha256
+ $roles=@($Selection.riderAId,$Selection.mountAId,$Selection.riderBId,$Selection.mountBId);$owners=@($o.ownerSeedManual.twoOwners)
+ if($owners.Count-ne2){throw 'Owner-seed-derived Manual does not retain exactly two owners.'}
+ for($i=0;$i-lt2;$i++){Assert-KmcBootstrapInventoryString $owners[$i].actorId $roles[$i*2];Assert-KmcBootstrapInventoryString $owners[$i].petId $roles[$i*2+1]}
+ if((ConvertTo-KmcChunk7Canonical @($o.ownerSeedManual.fieldWorld.party|ForEach-Object{$_.id}|Sort-Object -CaseSensitive))-cne(ConvertTo-KmcChunk7Canonical @($Selection.partyIds|Sort-Object -CaseSensitive))){throw 'Explicit owner-seed-derived field roster differs from the producer field.'}
+ $leaf=Get-KmcChunk7OwnedOutputLeaf $request $o;$expected=Join-Path (Join-Path $set.profile 'Saved Games') $leaf
+ if($w.path-isnot[string]-or$w.path-cne$expected){throw 'Owner-seed-derived Manual escaped its producer run root.'}
+ Assert-KmcNotReparsePoint $w.path 'owner-seed-derived Manual';Assert-KmcNotHardLink $w.path 'owner-seed-derived Manual'
+ if((Get-KmcSha256 $w.path)-cne$Selection.sourceArchiveSha256){throw 'Owner-seed-derived Manual bytes changed after qualification.'}
+ $descriptor=[pscustomobject]@{internalName=$w.nativeName;fileName=$leaf;sha256=$w.sha256;length=$w.length;lastWriteTimeUtcTicks=[long](Get-Item -LiteralPath $w.path).LastWriteTimeUtc.Ticks;gameId=$request.persistenceLoad.gameId;gameName=$request.persistenceLoad.gameName;area=$request.persistenceLoad.area}
+ Assert-KmcChunk7OwnedPairsDescriptor ([pscustomobject]@{scenario='chunk7-owned-two-pair-campaign';runId='unassigned-owned-seed-derived';ownedPairs=$Selection;persistenceCase=$r.persistenceCase;persistenceLoad=$descriptor;fixture=$Fixture})
+ Assert-KmcChunk7OwnedReceiptPins $set
+ [pscustomobject]@{path=$w.path;descriptor=$descriptor;artifactPath=$path;artifactSha256=$Selection.sourceArtifactSha256;artifactLength=[long]$file.Length;sourceRunId=$request.runId;ownerSeedDerived=$true;seed=$seed}
+}
 function Get-KmcChunk7OwnedPairsSource($Selection,[AllowNull()][string]$PersistenceCase,$Fixture,$Candidate,$AreaTarget=$null){
- if($null-ne$Selection-and$null-ne$Selection.PSObject.Properties['case']-and$Selection.case-ceq'owner-seed-exploration'){return Get-KmcChunk7OwnedPairsOwnerSeedSource $Selection $PersistenceCase $Fixture $Candidate $AreaTarget}
+ if($null-ne$Selection-and$null-ne$Selection.PSObject.Properties['case']-and$Selection.case-cin@('owner-seed-exploration','owner-seed-persistence-save')){return Get-KmcChunk7OwnedPairsOwnerSeedSource $Selection $PersistenceCase $Fixture $Candidate $AreaTarget}
+ if($null-ne$Selection-and$null-ne$Selection.PSObject.Properties['case']-and$Selection.case-ceq'owner-seed-persistence-load'){return Get-KmcChunk7OwnedPairsOwnerSeedDerivedSource $Selection $PersistenceCase $Fixture $Candidate $AreaTarget}
  if($PersistenceCase-ceq'multi-area-autosave'){Assert-KmcChunk7AreaTarget ([pscustomobject]@{scenario='chunk7-owned-two-pair-campaign';persistenceCase=$PersistenceCase;ownedPairs=$Selection;persistenceAreaTarget=$AreaTarget})}elseif($null-ne$AreaTarget){throw 'Only owned area autosave may carry its exact destination.'}
  $manual=Get-KmcChunk7OwnedPairsManualSource $Selection $PersistenceCase $Fixture $Candidate
  if($Selection.case-cne'persistence-load'){return $manual}
