@@ -10097,6 +10097,20 @@ try {
         }
     }
 
+    Invoke-HarnessTest 'native load admission reads the all-pair archive format it will restore' {
+        # Observed natively in 20261018-c7b-world25-ownerseed-b3s2-load: the pre-disposal admission used
+        # the schema-1/2 reader, which reports KMC's own schema-3 two-pair saves as Future and refuses them.
+        $admissionSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedLoadAdmission.cs'))
+        $serviceSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedPersistenceService.cs'))
+        $gate = $admissionSource.Substring($admissionSource.IndexOf('internal bool CanLoadBeforeWorldReplacement', [StringComparison]::Ordinal))
+        $gate = $gate.Substring(0, $gate.IndexOf('RejectedLoadCount++', [StringComparison]::Ordinal))
+        Assert-Test ($gate.Contains('rejection = ArchiveNativeEnabled') -and
+            $gate.IndexOf('NativeMountedSaveStorage.ReadArchive(reader)', [StringComparison]::Ordinal) -ge 0 -and
+            $gate.IndexOf('NativeMountedSaveStorage.ReadArchive(reader)', [StringComparison]::Ordinal) -lt $gate.IndexOf('NativeMountedSaveStorage.Read(reader)', [StringComparison]::Ordinal) -and
+            $serviceSource.Contains('if (ArchiveNativeEnabled)') -and $serviceSource.Contains('loadedArchive = NativeMountedSaveStorage.ReadArchive(save.Saver);')) `
+            'native load admission does not read the same all-pair archive format that SelectLoad restores'
+    }
+
     Invoke-HarnessTest 'private-alpha stabilization is pair-local, view-safe, and preserves native action ownership' {
         $lifecycleSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedLifecycleSubscriber.cs'))
         $runtimeSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\KingmakerMountedPairRuntime.cs'))
