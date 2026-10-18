@@ -27,6 +27,7 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("the adoption plan binds exactly the committed generation", AdoptionPlanBindsCommittedGeneration);
             runner.Run("a compensated combat mount leaves no relationship residue", CompensatedCombatMountLeavesNoResidue);
             runner.Run("a prepared rider turn admits the transition; an unprepared one is refused with its reason", PreparedRiderTurnAdmitsTheTransition);
+            runner.Run("a first-action Mount in a prepared turn takes the roster's adoption disposition", FirstActionMountTakesRosterDisposition);
             runner.Run("a dismount delivery rejects every wrong target identity", DismountTargetIdentityRejectsWrongConditions);
             runner.Run("the ledger's in-flight window is exactly admit to settle", LedgerInFlightWindowIsExact);
             runner.Run("combat Mount requires the qualified paired authority", CombatMountRequiresQualifiedAuthority);
@@ -569,6 +570,27 @@ namespace KingmakerMountedCombat.Tests
         }
 
         // R3. Turn-based delivery requires the rider's turn to be ACTING. The
+        // Directive 4 R3: Mount as the first action of the rider's prepared (Preparing) turn is eligible,
+        // and the roster alone decides the adoption: a mount slot behind the rider retains the partner's
+        // participation (no preparation); a slot ahead prepares it once. The earlier boundary stays refused.
+        private static void FirstActionMountTakesRosterDisposition()
+        {
+            TestRunner.True(CombatMountDismountPolicy.IsTurnEligible(true, true, true, false),
+                "A first-action Mount in the prepared turn was refused.");
+            TestRunner.Equal(MidEncounterAdoption.RetainPartnerParticipation,
+                MidEncounterAdoptionPolicy.Resolve(true, true, 3, 1, false, false, true),
+                "Mount-first roster did not retain the partner's participation.");
+            TestRunner.Equal(MidEncounterAdoption.PreparePartnerThisRound,
+                MidEncounterAdoptionPolicy.Resolve(true, true, 1, 3, false, false, true),
+                "Rider-first roster did not prepare the partner this round.");
+            TestRunner.True(!CombatMountDismountPolicy.IsTurnEligible(true, false, true, false) &&
+                MidEncounterAdoptionPolicy.Resolve(true, false, 1, 3, false, false, true) == MidEncounterAdoption.Unavailable,
+                "A Mount on another actor's turn was admitted or adopted.");
+            TestRunner.Equal(MidEncounterAdoption.Unavailable,
+                MidEncounterAdoptionPolicy.Resolve(true, true, 1, 3, true, false, true),
+                "A surprised partner ahead of the rider was prepared.");
+        }
+
         // Preparing boundary is admitted (Chunk 6A R3 superseded, owner decision 2026-10-18):
         // a prepared turn stays Preparing until its first command.
         private static void PreparedRiderTurnAdmitsTheTransition()

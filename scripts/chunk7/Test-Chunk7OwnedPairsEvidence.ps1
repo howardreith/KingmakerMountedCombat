@@ -370,6 +370,28 @@ function Set-KmcSeedCompanionRows($v,$Rows,[bool]$Producer=$false){
  if($Producer){$c.pairRefusedProposals=@($Rows|Where-Object{$_.state.actor-cne$script:seedCompanion}|Group-Object command|ForEach-Object{$g=@($_.Group|Sort-Object sequence);[pscustomobject][ordered]@{actorId=$g[0].state.actor;command=$g[0].command;sequenceBefore=$g[0].sequence;sequenceAfter=$g[1].sequence}})}
  if($null-ne$o.PSObject.Properties['playerClick']){$o.PSObject.Properties.Remove('playerClick');Add-KmcSeedPlayerClick $v}
 }
+# Generated (not a native recording): the Directive 4 R3 first-action Mount on a derived TB fixture.
+# Horse A moves on its released turn (round = r1.independentRound); rider A then mounts on its next
+# prepared turn: the same round when mount-first (retain, no preparation), the next when rider-first
+# (one native partner preparation, recounted from a prepare-after row inside the mount window).
+function Add-KmcSeedFirstActionMount($v,$BaseMountInput,[bool]$Retain){
+ $o=$v.artifact.observations;$p=$v.request.ownedPairs;$round=[int]$o.r1.independentRound
+ $snap={param($label,$frame,$rnd,$horseMove)$x=Copy-Value $o.pendingSurvivor.before;$x.label=$label;$x.frame=$frame;$x.round=$rnd
+  foreach($row in $x.actors){if($row.id-ceq$p.mountAId){$row.move=$horseMove}};$x}
+ $input=Copy-Value $BaseMountInput;$input.label='first-action-mount-a'
+ $at=[Array]::IndexOf(@($o.inputs|ForEach-Object label),'r1-native-dismount-a');$list=[Collections.Generic.List[object]]::new();$list.AddRange(@($o.inputs));$list.Insert($at+1,$input);$o.inputs=$list.ToArray()
+ $mountRound=$round+$(if($Retain){0}else{1});$before=&$snap 'first-action-mount-before' 300 $mountRound 1.5;$after=&$snap 'first-action-mount-after' 304 $mountRound $(if($Retain){1.5}else{0.0})
+ $neighbour=@($before.owners)[1]
+ if(-not$Retain){$n=@($o.allocationTrace.events).Count+1
+  $row=[pscustomobject][ordered]@{sequence=$n;boundary='prepare-after';frame=302;command=0;commandActor=$null;commandType=$null;state=[pscustomobject][ordered]@{actor=$p.mountAId;standard=0.0;move=0.0;swift=0.0;reactions=1;reactionCooldown=0.0}}
+  $o.allocationTrace.events=@($o.allocationTrace.events)+@($row)}
+ $disposition=if($Retain){'RetainPartnerParticipation'}else{'PreparePartnerThisRound'};$calls=if($Retain){0}else{1}
+ $o|Add-Member firstActionMount ([pscustomobject][ordered]@{contract='owner-seed-tb-first-action-mount-v1';riderId=$p.riderAId;mountId=$p.mountAId;neighbourOwnerId=$neighbour.id;neighbourGeneration=$neighbour.generation
+  horseMove=[pscustomobject][ordered]@{round=$round;before=(&$snap 'horse-independent-move-before' 290 $round 0.0);requestedDistance=0.5;clicked=$true;command=8201;after=(&$snap 'horse-independent-move-after' 294 $round 1.5);distance=0.5;terminal=$true}
+  mountTurn=[pscustomobject][ordered]@{round=$mountRound;turnStatus='Preparing';expectedDisposition=$disposition;horseGrantsBefore=3;before=$before
+   after=$after;adoptionObservation=('adopted-running-turn;identity=x;principal='+$p.riderAId+';partner='+$p.mountAId+';disposition='+$disposition+';round='+$mountRound+';principalPrepareCalls=0;partnerPrepareCalls='+$calls)
+   transactionObservation='committed;synthetic';horseGrantsDuringMount=$calls;terminal=$true}}) -Force
+}
 # Generated (not a native recording): the Directive 4 player-click window after the companion rows.
 # Native brains keep proposing on retained ManualTargets; one rider-A pair attack follows the click.
 function Add-KmcSeedPlayerClick($v){
@@ -397,7 +419,9 @@ function New-KmcOwnerSeedDerivedCombatFixture([string]$Base){
  $r.persistenceLoad.internalName='KMC_C7_SEED_WORLD';$r.persistenceLoad.fileName='Manual_303_KMC_C7_SEED_WORLD.zks'
  foreach($c in @($o.inheritedFixture,$o.inheritedCleanup)){$c.contract='owner-seed-derived-two-horse-native-field-v1';$c.sourceCase='owner-seed-persistence-save';$c.sourceRunId=$s.sourceRunId;$c.sourceArtifactSha256=$s.sourceArtifactSha256;$c.sourceArchiveSha256=$s.sourceArchiveSha256
   if($rt){$c.partyIds=@($c.partyIds)+@($script:seedCompanion);$c.currentPartyIds=@($c.currentPartyIds)+@($script:seedCompanion);$c.currentCharacterIds=@($c.currentCharacterIds)+@($script:seedCompanion);$row=Copy-Value $c.arrangement.actors[0];$row.actorId=$script:seedCompanion;$c.arrangement.actors=@($c.arrangement.actors)+@($row)}}
+ $baseMountA=@($o.inputs|Where-Object label -CEQ 'mount-a')|Select-Object -First 1
  $o.inputs=@($o.inputs|Where-Object{$_.label-cnotin@('mount-a','mount-b')})
+ if(-not$rt){Add-KmcSeedFirstActionMount $v $baseMountA ($Base-ceq'combat-mount-first')}
  $roles=@($p.riderAId,$p.mountAId,$p.riderBId,$p.mountBId);$world=Copy-Value $o.snapshots[0];$world.label='mounted-start'
  $owners=@(for($i=0;$i-lt2;$i++){$w=$world.owners[$i];[pscustomobject][ordered]@{ownerId=(ConvertTo-KmcChunk7PairIdN $w.id);generation=$w.generation;riderId=$roles[$i*2];mountId=$roles[$i*2+1]}})
  $o|Add-Member mountedStart ([pscustomobject][ordered]@{contract='owner-seed-derived-mounted-start-v1';restoredFromColdLoad=$true;nativeMountInputs=0;archivePhase='all-pair-presentation-restored';schemaVersion=3;semanticRestores=4;presentationRestores=2;nativePostLoads=4;nativeCastRequests=0;snapshots=0
@@ -454,6 +478,16 @@ Check-SeedCombat 'owner-seed-derived RT refuses a reassigned pair command' 'real
 Check-SeedCombat 'owner-seed-derived RT refuses a pair spending during the action' 'realtime-core' {$args[0].artifact.observations.companionAction.after.actors[2].standard=6} 'spent native resources'
 Check-SeedCombat 'owner-seed-derived RT refuses a companion that is a pair actor' 'realtime-core' {$args[0].artifact.observations.companionAction.actorId=$args[0].request.ownedPairs.mountBId}
 Check-SeedCombat 'owner-seed-derived RT refuses an unsettled AI lease' 'realtime-core' {$args[0].artifact.observations.companionAction.declaredLeaseCommands=2}
+foreach($base in @('combat-rider-first','combat-mount-first')){
+ Check-SeedCombat ('owner-seed-derived TB refuses a missing first-action Mount '+$base) $base {$args[0].artifact.observations.PSObject.Properties.Remove('firstActionMount')} 'lacks its first-action Mount'
+ Check-SeedCombat ('owner-seed-derived TB refuses a first-action Mount outside the prepared turn '+$base) $base {$args[0].artifact.observations.firstActionMount.mountTurn.turnStatus='Scrolling'} 'prepared turn'
+ Check-SeedCombat ('owner-seed-derived TB refuses the other adoption disposition '+$base) $base {$t=$args[0].artifact.observations.firstActionMount.mountTurn;$t.adoptionObservation=$t.adoptionObservation.Replace('Retain','X').Replace('Prepare','Retain').Replace('X','Prepare')} 'adoption disposition'
+ Check-SeedCombat ('owner-seed-derived TB refuses a duplicate partner preparation '+$base) $base {$o=$args[0].artifact.observations;$t=$o.firstActionMount.mountTurn;$n=@($o.allocationTrace.events).Count+1;$o.allocationTrace.events=@($o.allocationTrace.events)+@([pscustomobject][ordered]@{sequence=$n;boundary='prepare-after';frame=303;command=0;commandActor=$null;commandType=$null;state=[pscustomobject][ordered]@{actor=$args[0].request.ownedPairs.mountAId;standard=0.0;move=0.0;swift=0.0;reactions=1;reactionCooldown=0.0}})} 'wrong number of times'
+ Check-SeedCombat ('owner-seed-derived TB refuses an independent Horse move that spent nothing '+$base) $base {$m=$args[0].artifact.observations.firstActionMount.horseMove;foreach($row in $m.after.actors){if($row.id-ceq$args[0].request.ownedPairs.mountAId){$row.move=0.0}}} 'spent no movement'
+ Check-SeedCombat ('owner-seed-derived TB refuses pair B ownership change during the Mount '+$base) $base {$t=$args[0].artifact.observations.firstActionMount.mountTurn;@($t.after.owners)[1].generation=99} 'ownership changed'
+ Check-SeedCombat ('owner-seed-derived TB refuses pair B spending during the Mount '+$base) $base {$t=$args[0].artifact.observations.firstActionMount.mountTurn;foreach($row in $t.after.actors){if($row.id-ceq$args[0].request.ownedPairs.riderBId){$row.standard=6.0}}}
+}
+Check-SeedCombat 'owner-seed-derived TB refuses retained participation replenishing the Horse' 'combat-mount-first' {$t=$args[0].artifact.observations.firstActionMount.mountTurn;foreach($row in $t.after.actors){if($row.id-ceq$args[0].request.ownedPairs.mountAId){$row.move=0.0}}} 'replenished'
 Check-SeedCombat 'owner-seed-derived RT refuses a missing player-click window' 'realtime-core' {$args[0].artifact.observations.PSObject.Properties.Remove('playerClick')} 'player-click integrity window'
 Check-SeedCombat 'owner-seed-derived RT refuses a click that started no pair A intent' 'realtime-core' {$args[0].artifact.observations.playerClick.admitted.intent.aStarts=4} 'exactly one pair A stock intent'
 Check-SeedCombat 'owner-seed-derived RT refuses a click that started a pair B intent' 'realtime-core' {$args[0].artifact.observations.playerClick.after.intent.bStarts=3} 'exactly one pair A stock intent'

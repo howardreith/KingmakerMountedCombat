@@ -757,6 +757,35 @@ function Assert-KmcChunk7OwnerSeedCompanionAction($Request,$Observations){
  $ownersBefore=@($c.before.owners|ForEach-Object{(ConvertTo-KmcChunk7PairIdN $_.id)+'|'+$_.generation+'|'+$_.state}|Sort-Object -CaseSensitive);$ownersAfter=@($c.after.owners|ForEach-Object{(ConvertTo-KmcChunk7PairIdN $_.id)+'|'+$_.generation+'|'+$_.state}|Sort-Object -CaseSensitive)
  if(($ownersBefore-join';')-cne($ownersAfter-join';')-or@($c.after.owners|Where-Object state -CEQ 'Active').Count-ne2){throw 'The companion action changed pair custody.'}
 }
+# Directive 4 R3: after the first-action Dismount, Horse A spends its own native move on its independent
+# turn, then rider A mounts as the first action of its next prepared turn while pair B stays owned. The
+# roster decides the adoption: mount-first retains the Horse's participation (no preparation, its spent
+# move stands); rider-first prepares it exactly once. Preparations are recounted from the trace.
+function Assert-KmcChunk7OwnerSeedFirstActionMount($Request,$Observations){
+ $o=$Observations;$s=$Request.ownedPairs;$ids=@($o.actorIds)
+ if($null-eq$o.PSObject.Properties['firstActionMount']){throw 'Owner-seed-derived TB lacks its first-action Mount.'}
+ $f=$o.firstActionMount;Assert-KmcBootstrapInventoryString $f.contract 'owner-seed-tb-first-action-mount-v1'
+ Assert-KmcBootstrapInventoryString $f.riderId $s.riderAId;Assert-KmcBootstrapInventoryString $f.mountId $s.mountAId
+ $m=$f.horseMove;foreach($key in @('clicked','terminal')){Assert-KmcChunk7Boolean $m.$key $true}
+ if($m.round-ne$o.r1.independentRound-or-not(Test-KmcChunk7FiniteNumber $m.distance)-or[double]$m.distance-le0.02-or$m.command-eq0){throw 'The independent Horse did not take its own native move on its released turn.'}
+ $hb=Get-KmcChunk7CombatActor $m.before $s.mountAId;$ha=Get-KmcChunk7CombatActor $m.after $s.mountAId
+ if([double]$ha.move-le[double]$hb.move){throw 'The independent Horse move spent no movement.'}
+ Assert-KmcChunk7SameCombatBudget $m.before $m.after @($s.riderBId,$s.mountBId)
+ $t=$f.mountTurn;Assert-KmcChunk7Boolean $t.terminal $true
+ if($t.turnStatus-cnotin@('Preparing','Acting')){throw 'The first-action Mount was not taken in the rider''s prepared turn.'}
+ $retain=$Request.scenario-ceq'chunk7-two-pair-combat-mount-first'-or(Get-KmcChunk7SelectedScenario $Request)-ceq'chunk7-two-pair-combat-mount-first'
+ $expected=if($retain){'RetainPartnerParticipation'}else{'PreparePartnerThisRound'};$calls=if($retain){0}else{1}
+ if($t.expectedDisposition-cne$expected-or-not([string]$t.adoptionObservation).Contains('disposition='+$expected)-or-not([string]$t.adoptionObservation).Contains(';partnerPrepareCalls='+$calls)){throw 'First-action Mount did not take the roster''s adoption disposition.'}
+ if(-not([string]$t.transactionObservation).StartsWith('committed;')){throw 'First-action Mount did not commit its adoption transaction.'}
+ if($t.round-ne$m.round+$(if($retain){0}else{1})){throw 'The first-action Mount was not on the rider''s next prepared turn after the Horse moved.'}
+ $prepares=@($o.allocationTrace.events|Where-Object{$_.boundary-ceq'prepare-after'-and$_.state.actor-ceq$s.mountAId-and$_.frame-ge$t.before.frame-and$_.frame-le$t.after.frame})
+ if($prepares.Count-ne$calls-or$t.horseGrantsDuringMount-ne$calls){throw 'First-action Mount prepared the partner the wrong number of times.'}
+ $before=Get-KmcChunk7CombatActor $t.before $s.mountAId;$after=Get-KmcChunk7CombatActor $t.after $s.mountAId
+ if($retain){foreach($field in @('standard','move','swift')){if([double]$after.$field-lt[double]$before.$field-0.001){throw 'Retained participation replenished the Horse''s prior native spending.'}};if([double]$after.move-le0.001){throw 'Retained participation lost the Horse''s spent move.'}}
+ Assert-KmcChunk7SameCombatBudget $t.before $t.after @($s.riderBId,$s.mountBId)
+ $ownersBefore=@($t.before.owners|Where-Object{(ConvertTo-KmcChunk7PairIdN $_.id)-ceq(ConvertTo-KmcChunk7PairIdN $f.neighbourOwnerId)});$ownersAfter=@($t.after.owners|Where-Object{(ConvertTo-KmcChunk7PairIdN $_.id)-ceq(ConvertTo-KmcChunk7PairIdN $f.neighbourOwnerId)})
+ if($ownersBefore.Count-ne1-or$ownersAfter.Count-ne1-or$ownersBefore[0].generation-ne$f.neighbourGeneration-or$ownersAfter[0].generation-ne$f.neighbourGeneration-or$ownersAfter[0].state-cne'Active'){throw 'Pair B''s ownership changed during pair A''s first-action Mount.'}
+}
 # Directive 4 R1: one real ordinary player hostile click by rider A while native party-brain proposals
 # continue. Re-derived from the trace: exactly one rider-A native attack on the target before the
 # player's Stop, no KMC command on pair B, no player-facing warning, pair B unspent, custody unchanged.
