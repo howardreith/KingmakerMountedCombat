@@ -126,11 +126,23 @@ namespace KingmakerMountedCombat.Diagnostics
                 manager.SavePath == fixtureAuthority.Root && manager.IsSaveAllowed(),
                 "Owner-seed Manual lacks its exact unused reserved native write after the completed sole load.");
             var descriptors = manager.Take(3).ToArray();
-            Require(descriptors.Length == 1 && ReferenceEquals(descriptors[0], fixtureAuthority.OwnedPairsSourceDescriptor) &&
-                ReferenceEquals(descriptors[0], fixtureLoader.Descriptor) && descriptors[0].FileName == input.FileName &&
-                descriptors[0].Name == input.InternalName && descriptors[0].Type.ToString() == request.ExpectedNativeLoadType &&
-                descriptors[0].OperationState == SaveInfo.StateType.None && descriptors[0].HasFileOnDisk && descriptors[0].IsActuallySaved,
-                "Owner-seed native seed descriptor inventory changed before its sole Manual.");
+            // Each condition is named so a native refusal says which one failed (the first native
+            // producer run, 20261018-c7b-world23-ownerseed-b3s1-save, refused here without it).
+            var seed = descriptors.Length > 0 ? descriptors[0] : null;
+            var failed = new System.Collections.Generic.List<string>();
+            if (descriptors.Length != 1) failed.Add("descriptorCount=" + descriptors.Length);
+            if (seed != null)
+            {
+                if (!ReferenceEquals(seed, fixtureAuthority.OwnedPairsSourceDescriptor)) failed.Add("notReservedSourceDescriptor(reservedIsNull=" + (fixtureAuthority.OwnedPairsSourceDescriptor == null) + ")");
+                if (!ReferenceEquals(seed, fixtureLoader.Descriptor)) failed.Add("notLoadedDescriptor(loadedIsNull=" + (fixtureLoader.Descriptor == null) + ")");
+                if (seed.FileName != input.FileName) failed.Add("fileName=" + seed.FileName);
+                if (seed.Name != input.InternalName) failed.Add("name=" + seed.Name);
+                if (seed.Type.ToString() != request.ExpectedNativeLoadType) failed.Add("type=" + seed.Type + "/expected=" + request.ExpectedNativeLoadType);
+                if (seed.OperationState != SaveInfo.StateType.None) failed.Add("operationState=" + seed.OperationState);
+                if (!seed.HasFileOnDisk) failed.Add("hasFileOnDisk=false");
+                if (!seed.IsActuallySaved) failed.Add("isActuallySaved=false");
+            }
+            Require(failed.Count == 0, "Owner-seed native seed descriptor inventory changed before its sole Manual: " + string.Join(", ", failed.ToArray()) + ".");
             var number = manager.FindUnusedSaveNumber(SaveInfo.SaveType.Manual);
             var leaf = "Manual_" + number.ToString(CultureInfo.InvariantCulture) + "_" + name + ".zks";
             Require(number == fixtureAuthority.OwnedPairsOutputNumber && leaf == fixtureAuthority.OwnedPairsOutputLeaf &&
