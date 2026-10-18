@@ -543,6 +543,10 @@ function Assert-KmcChunk7OwnerSeedManualWorldEvidence($Request,$Observations){
  # The two pair records correspond to the actual runtime at the save boundary.
  $b=$m.boundary;Assert-KmcExactProperties $b @('label','frame','gameTicks','actorIds','pairs','slots','actors','unrelated','rosterIds','arrangement') 'owner-seed Manual save boundary'
  Assert-KmcBootstrapInventoryString $b.label 'save-boundary';Assert-KmcOrdinaryInteger $b.gameTicks 0 ([long]::MaxValue)
+ # The measured save follows SETUP-COMPLETE: frames and game time, not only the setupCompletedBeforeSave flag.
+ $setup=$o.setupComplete
+ if($null-eq$setup-or[long]$setup.frame-ge[long]$b.frame-or[long]$b.frame-gt[long]$q.frame-or[long]$q.frame-gt[long]$m.headerStarting.frame-or
+    [long]$m.headerStarting.frame-gt[long]$m.headerStaged.frame-or[long]$setup.gameTicks-gt[long]$b.gameTicks-or[long]$b.gameTicks-gt[long]$q.gameTicks){throw 'The owner-seed Manual save does not follow SETUP-COMPLETE in frame and game-time order.'}
  if((ConvertTo-KmcChunk7Canonical @($b.actorIds))-cne(ConvertTo-KmcChunk7Canonical @($roles))){throw 'Owner-seed Manual boundary actors differ from the four setup roles.'}
  if(@($b.pairs).Count-ne2){throw 'Owner-seed Manual boundary requires both pair owners.'}
  for($i=0;$i-lt2;$i++){
