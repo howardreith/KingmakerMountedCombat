@@ -43,8 +43,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 string.Join(";", value.PersistenceReplayTargets.Select(target => target == null ? null :
                     string.Join(",", target.EnterPoint, target.Area, target.AutoSaveMode))))
                 // Owner-seed pins extend the captured key only for the seed-pinned kinds; historical keys are unchanged.
-                + (selected?.OwnerSeedSetup == true || selected?.IsOwnerSeedDerivedLoad == true ? "\n" + string.Join("\n", selected.SeedId, selected.SeedSha256,
-                    selected.XpAssistance?.UnitId, selected.XpAssistance?.TargetCharacterLevel.ToString()) : "");
+                + (selected?.OwnerSeedSetup == true || selected?.OwnerSeedDerivedInput == true ? "\n" + string.Join("\n", selected.SeedId, selected.SeedSha256,
+                    selected.XpAssistance?.UnitId, selected.XpAssistance?.TargetCharacterLevel.ToString()) : "")
+                + (selected?.IsOwnerSeedDerivedCombat == true ? "\ncompanion:" + selected.CompanionId : "");
         }
         private bool OwnedPairsUnchanged() => ownedPairsRequest == null ||
             OwnedPairsKey(ownedPairsRequest) == ownedPairsKey && ownedPairsRequest.Validate().Count == 0;

@@ -201,5 +201,64 @@ $derivedFaults=[ordered]@{
  'producer world artifact refused'={param($c)$script:failure='strict-producer-world-artifact'}
 }
 foreach($derivedFault in $derivedFaults.Keys){Check ('owner-seed-derived consumer refuses '+$derivedFault) {$c=New-SeedDerivedSource;&$derivedFaults[$derivedFault] $c;[void](Get-KmcChunk7OwnedPairsSource $c.selection $c.persistenceCase $c.fixture $c.candidate)} $true}
+# Owner-seed-derived combat (scenarios 3-5): the producer chain above plus the ACCEPTED cold consumer
+# receipt (checkpointSource*), each pinned to its own recorded candidate. The consumer's full cold-proof
+# comparison is the reader's established validator, substituted here as a bound boundary.
+function Assert-KmcChunk7OwnerSeedDerivedColdSource($Request,$ProducerArtifact,$ColdArtifact){Boundary 'consumer-cold-proof';if(-not[object]::ReferenceEquals($ProducerArtifact,$script:producerArtifact)-or-not[object]::ReferenceEquals($ColdArtifact,$script:consumerArtifact)){throw 'cold proof bound to the wrong receipts'}}
+$script:companion='c0c0c0c0-c0c0-40c0-80c0-c0c0c0c0c0c0'
+function New-SeedCombatSource([string]$Case='owner-seed-combat-rider-first'){
+ $c=New-SeedDerivedSource;$load=$c.selection;$load.partyIds=@($load.partyIds)+@($script:companion)
+ $c.producer.artifact.observations.ownerSeedManual.fieldWorld.party=@($load.partyIds|ForEach-Object{[pscustomobject]@{id=$_}});$script:producerArtifact=$c.producer.artifact
+ $descriptor=(Get-KmcChunk7OwnedPairsSource $load $c.persistenceCase $c.fixture $c.candidate).descriptor;$script:readCounts=@{};$script:calls=[Collections.Generic.List[string]]::new()
+ $s=[ordered]@{case=$Case;sourceRunId=$load.sourceRunId;sourceArtifactSha256=$load.sourceArtifactSha256;sourceArchiveSha256=$load.sourceArchiveSha256;checkpointSourceRunId='synthetic-owner-seed-cold';checkpointSourceArtifactSha256=('7'*64);seedId=$load.seedId;seedSha256=$load.seedSha256;riderAId=$load.riderAId;mountAId=$load.mountAId;riderBId=$load.riderBId;mountBId=$load.mountBId;partyIds=$load.partyIds}
+ if($Case-ceq'owner-seed-realtime-core'){$s['companionId']=$script:companion};foreach($key in @('baseGameOnly','expectedNativeLoadCount','expectedNativeWriteCount')){$s[$key]=$load.$key};$s=[pscustomobject]$s
+ $cr=[ordered]@{scenario='chunk7-owned-two-pair-campaign';runId=$s.checkpointSourceRunId;evidenceRoot='';fixture=$c.fixture;ownedPairs=($load|ConvertTo-Json -Depth 20|ConvertFrom-Json);persistenceCase='multi-exploration-manual';persistenceLoad=($descriptor|ConvertTo-Json -Depth 5|ConvertFrom-Json)}
+ foreach($key in @('branch','commit','productVersion','dllSha256','dllMvid','transactionToken')){$cr[$key]=$c.producer.request.$key};$cr=[pscustomobject]$cr
+ $script:consumerArtifact=[pscustomobject]@{status='PASS';observations=[pscustomobject]@{ownerSeedDerivedCold=[pscustomobject]@{contract='owner-seed-derived-cold-v1'}}}
+ $consumer=Add-Set $cr $script:consumerArtifact 'chunk7-persistence-evidence.json' ('7'*64) $s.sourceArchiveSha256 'multi-exploration-manual'
+ foreach($receipt in @($consumer.result,$consumer.game)){$receipt.saveRequestCount=0;$receipt.workingSaveRequestCount=0}
+ [pscustomobject]@{selection=$s;fixture=$c.fixture;candidate=$c.candidate;producer=$c.producer;consumer=$consumer;persistenceCase=$null}
+}
+function Qualify-Combat($C){Get-KmcChunk7OwnedPairsSource $C.selection $C.persistenceCase $C.fixture $C.candidate}
+foreach($combatCase in @('owner-seed-realtime-core','owner-seed-combat-rider-first','owner-seed-combat-mount-first')){
+ Check ('owner-seed-derived combat qualifies the producer and the accepted consumer '+$combatCase) {$c=New-SeedCombatSource $combatCase;$v=Qualify-Combat $c
+  if($v.ownerSeedDerived-ne$true-or$v.descriptor.sha256-cne('5'*64)-or$v.artifactSha256-cne('6'*64)-or$v.consumerRunId-cne'synthetic-owner-seed-cold'-or$v.consumerArtifactSha256-cne('7'*64)-or$v.candidates.sameCandidate-ne$true-or$v.candidates.producer.commit-cne$c.producer.request.commit-or$v.candidates.consumer.dllSha256-cne$c.consumer.request.dllSha256){throw 'Combat source lost the producer/consumer chain or the candidate fact'}
+  foreach($gate in @('owner-seed-registry-master-intake-header','strict-producer-world-artifact','strict-checkpoint-artifact','consumer-cold-proof')){if(-not$script:calls.Contains($gate)){throw ('combat source omitted required gate '+$gate)}}}
+}
+Check 'owner-seed-derived combat records a later current candidate without relabelling the chain' {$c=New-SeedCombatSource;$c.candidate.commit='f'*40;$c.candidate.dllSha256='f'*64;$c.candidate.dllMvid='ffffffff-ffff-4fff-8fff-ffffffffffff';$v=Qualify-Combat $c
+ if($v.candidates.sameCandidate-ne$false-or$v.candidates.current.commit-cne('f'*40)-or$v.candidates.producer.commit-ceq('f'*40)-or$v.candidates.consumer.commit-ceq('f'*40)-or$v.ownerSeedDerived-ne$true){throw 'Cross-candidate fact was not recorded honestly'}}
+$combatFaults=[ordered]@{
+ 'missing producer receipt'={param($c)$c.selection.sourceRunId='synthetic-absent-producer'}
+ 'wrong producer receipt'={param($c)$c.selection.sourceArtifactSha256='e'*64}
+ 'producer FAIL'={param($c)$c.producer.result.status='FAIL'}
+ 'producer malformed recorded candidate'={param($c)$c.producer.request.dllMvid='not-a-guid'}
+ 'producer receipt from another candidate than it records'={param($c)$c.producer.result.dllSha256='0'*64}
+ 'Manual hash mismatch'={param($c)$c.selection.sourceArchiveSha256='e'*64}
+ 'written Manual bytes changed'={param($c)$script:hashes[$c.producer.artifact.observations.nativeWrite.path]='e'*64}
+ 'missing consumer receipt'={param($c)$c.selection.checkpointSourceRunId='synthetic-absent-consumer'}
+ 'wrong consumer receipt'={param($c)$c.selection.checkpointSourceArtifactSha256='e'*64}
+ 'consumer FAIL'={param($c)$c.consumer.result.status='FAIL'}
+ 'consumer game FAIL'={param($c)$c.consumer.game.status='FAIL'}
+ 'consumer errors'={param($c)$c.consumer.game.errors=@('failed')}
+ 'consumer wrote'={param($c)$c.consumer.game.saveRequestCount=1;$c.consumer.game.workingSaveRequestCount=1}
+ 'consumer second load'={param($c)$c.consumer.game.loadRequestCount=2}
+ 'consumer is another kind'={param($c)$c.consumer.request.ownedPairs.case='persistence-load'}
+ 'consumer other checkpoint'={param($c)$c.consumer.request.persistenceCase='multi-exploration-quick'}
+ 'consumer loaded another Manual'={param($c)$c.consumer.request.persistenceLoad.sha256='e'*64}
+ 'consumer pinned another producer'={param($c)$c.consumer.request.ownedPairs.sourceRunId='synthetic-other-producer'}
+ 'consumer other seed'={param($c)$c.consumer.request.ownedPairs.seedSha256='8'*64}
+ 'consumer other roster'={param($c)$c.consumer.request.ownedPairs.partyIds=@($c.consumer.request.ownedPairs.partyIds|Select-Object -First 4)}
+ 'consumer owner input is not the Manual'={param($c)$c.consumer.owner.sourceSha256='9'*64}
+ 'consumer receipt from another candidate than it records'={param($c)$c.consumer.result.dllSha256='0'*64}
+ 'consumer malformed recorded candidate'={param($c)$c.consumer.request.commit='x'}
+ 'consumer artifact refused'={param($c)$script:failure='strict-checkpoint-artifact'}
+ 'consumer cold proof refused'={param($c)$script:failure='consumer-cold-proof'}
+ 'consumer receipt drift'={param($c)$script:drift=Join-Path $c.consumer.root 'chunk7-persistence-evidence.json'}
+ 'combat selects a checkpoint'={param($c)$c.persistenceCase='multi-exploration-manual'}
+ 'TB carries a companion'={param($c)$c.selection|Add-Member -NotePropertyName companionId -NotePropertyValue $script:companion}
+}
+foreach($combatFault in $combatFaults.Keys){Check ('owner-seed-derived combat refuses '+$combatFault) {$c=New-SeedCombatSource;&$combatFaults[$combatFault] $c;[void](Qualify-Combat $c)} $true}
+Check 'owner-seed-derived RT refuses a missing companion' {$c=New-SeedCombatSource 'owner-seed-realtime-core';$c.selection.PSObject.Properties.Remove('companionId');[void](Qualify-Combat $c)} $true
+Check 'owner-seed-derived RT refuses a pair actor as companion' {$c=New-SeedCombatSource 'owner-seed-realtime-core';$c.selection.companionId=$c.selection.mountBId;[void](Qualify-Combat $c)} $true
 $clock.Stop();$passed=@($results|Where-Object pass).Count;$failed=$results.Count-$passed
 [IO.File]::WriteAllText((Join-Path $testOutput 'receipt.json'),([pscustomobject]@{passed=$passed;failed=$failed;elapsedSeconds=$clock.Elapsed.TotalSeconds;nativeInvoked=$false;archiveRead=$false;scope='actual owned qualifier; established lineage/artifact validators and OS observations substituted';results=@($results)}|ConvertTo-Json -Depth 12),[Text.UTF8Encoding]::new($false));Write-Output ('Owned source: '+$passed+' PASS / '+$failed+' FAIL');if($failed){exit 1}

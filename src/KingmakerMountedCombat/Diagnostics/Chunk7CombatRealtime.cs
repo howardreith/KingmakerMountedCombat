@@ -69,7 +69,15 @@ namespace KingmakerMountedCombat.Diagnostics
                 case 1:
                     var aDone = RealtimeAttackFinished(realtimeA); var bDone = RealtimeAttackFinished(realtimeB);
                     if (!aDone || !bDone) return;
-                    realtimeWindow["after"] = WorldSnapshot("rt-concurrent-after"); Pass("C7-rt-concurrent-primary"); NextRealtime(2); break;
+                    realtimeWindow["after"] = WorldSnapshot("rt-concurrent-after"); Pass("C7-rt-concurrent-primary");
+                    // Owner-seed-derived scenario 3: one ordinary native action by the unrelated companion.
+                    NextRealtime(OwnerSeedDerived ? 10 : 2); break;
+                case 10:
+                    if (!CompanionActionReady()) return;
+                    BeginCompanionAction(); NextRealtime(11); break;
+                case 11:
+                    if (!FinishCompanionAction()) return;
+                    Pass("C7-rt-companion-native-action"); NextRealtime(2); break;
                 case 2:
                     if (!PairIdle(a) || !PairIdle(b) || !actors.All(NativeActorReady)) return;
                     realtimeWindow = new JObject { ["kind"] = "native-stop-local", ["before"] = WorldSnapshot("rt-local-stop-before") };
