@@ -550,6 +550,7 @@ namespace KingmakerMountedCombat.Tests
             UnifiedMountedTurnPolicyTests.Register(runner);
             PairedCommandSchedulerTests.Register(runner);
             MountedStockAttackPolicyTests.Register(runner);
+            MountedGroundOrderAdmissionPolicyTests.Register(runner);
             runner.Run("Chunk 4 core native requests and leaves remain serializable", () =>
             {
                 foreach (var scenario in new[] { "chunk4-rider-incapacitation-tb", "chunk4-rider-death-tb", "chunk4-mount-death-tb",

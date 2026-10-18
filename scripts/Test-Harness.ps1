@@ -10109,6 +10109,9 @@ try {
         $overlaySource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedPlayerActionOverlay.cs'))
         $patchSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedPatchController.cs'))
         $turnPolicySource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Domain\MountedCombatSpatialPolicy.cs'))
+        $groundOrderPolicySource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Domain\MountedGroundOrderAdmissionPolicy.cs'))
+        $groundOrderTestSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'tests\MountedGroundOrderAdmissionPolicyTests.cs'))
+        $componentProgramSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'tests\Program.cs'))
         $ledgerSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\NativeLifecycleDeliveryLedger.cs'))
         $combatEngineSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\RuntimeCombatScenarioEngine.cs'))
         $movementEngineSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\RuntimeMovementScenarioEngine.cs'))
@@ -10161,9 +10164,9 @@ try {
             $combatSource.Contains('LastGroundMoveSlotRestored = commands != null') -and
             $combatSource.Contains('MountedPairTurnPolicy.CanDriveRiderGroundMovement(') -and
             $turnPolicySource.Contains('public static bool CanDriveRiderGroundMovement(') -and
-            $combatSource.Contains('requestedUnit != relationship.Rider') -and
-            $combatSource.IndexOf('Cancel("ground command");', [StringComparison]::Ordinal) -gt
-                $combatSource.IndexOf('requestedUnit != relationship.Rider', [StringComparison]::Ordinal) -and
+            $combatSource.Contains('requestedUnit == relationship.Rider,') -and
+            $combatSource.Contains('public void CancelPairCommands() => controller.Cancel("ground command");') -and
+            $groundOrderPolicySource.Contains('MountedPairTurnPolicy.CanAdmitRiderGroundMovement(') -and
             -not $patchSource.Contains('PatchBridge.Combat?.Cancel("ground command")') -and
             $turnPolicySource.Contains('public static bool CanAdmitRiderGroundMovement(')) `
             'turn-based rider ground clicks do not retain exact Mammoth Move-slot ownership and rider-turn accounting'
@@ -10301,10 +10304,18 @@ try {
             'overlay combat-button activation can leak a same-click unit/ground command into the world'
         $groundAdmission = $combatSource.Substring($combatSource.IndexOf('public bool TryAdmitGroundCommand', [StringComparison]::Ordinal))
         $groundAdmission = $groundAdmission.Substring(0, $groundAdmission.IndexOf('public void CompleteGroundCommandAdmission', [StringComparison]::Ordinal))
-        Assert-Test ($groundAdmission.Contains('MountedGameModePolicy.CanQueueMountedAction(mode) && !CombatController.IsInTurnBasedCombat()') -and
-            $groundAdmission.IndexOf('CanQueueMountedAction(mode)', [StringComparison]::Ordinal) -lt
-                $groundAdmission.IndexOf('if (!CombatController.IsInTurnBasedCombat())', [StringComparison]::Ordinal)) `
-            'a paused real-time mounted ground order is refused instead of queued like an unmounted one (observed natively in 20261017-c7b-world20-ownerseed-b2s2-twopair)'
+        # The paused-RT, unsupported-mode, unchanged-TB, save-serialization and cross-pair behaviour
+        # of this decision is exercised by MountedGroundOrderAdmissionPolicyTests (component runner);
+        # here only the production wiring is pinned: the controller delegates to that exact policy.
+        Assert-Test ($groundAdmission.Contains('MountedGroundOrderAdmissionPolicy.Decide(') -and
+            $groundAdmission.Contains('new GroundOrderFacts(this)') -and
+            $groundAdmission.Contains('return MountedGroundOrderAdmissionPolicy.LetsNativeOrderRun(disposition);') -and
+            $groundOrderPolicySource.Contains('MountedGameModePolicy.CanQueueMountedAction(mode) && !facts.InTurnBasedCombat') -and
+            $groundOrderTestSource.Contains('RealTimeDefaultAndPauseAreAdmitted') -and
+            $groundOrderTestSource.Contains('SaveSerializationRefusesBeforeCancel') -and
+            $groundOrderTestSource.Contains('OtherActorsPassThroughUntouched') -and
+            $componentProgramSource.Contains('MountedGroundOrderAdmissionPolicyTests.Register(runner);')) `
+            'a paused real-time mounted ground order is refused instead of queued like an unmounted one (observed natively in 20261017-c7b-world20-ownerseed-b2s2-twopair), or the admission no longer delegates to the behaviour-tested policy'
         Assert-Test (-not $patchSource.Contains('Renderer.enabled') -and
             -not $patchSource.Contains('GameObject.SetActive') -and
             -not $runtimeSource.Contains('renderer.enabled = true')) `
