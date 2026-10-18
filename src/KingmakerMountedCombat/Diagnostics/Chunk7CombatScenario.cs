@@ -267,7 +267,7 @@ namespace KingmakerMountedCombat.Diagnostics
             evidence["reactionTickCampaignSelected"] = false;
             trace.BeginEncounter(request.RunId + ":two-pair-combat");
             targetService = new DiagnosticCombatTargetService(logger, true);
-            target = targetService.Spawn(ar, am, targetPosition, request.RunId + ":two-pair-target", targetBasis != null, !checkpointOnly, checkpointOnly);
+            target = targetService.Spawn(ar, am, targetPosition, request.RunId + ":two-pair-target", targetBasis != null, !checkpointOnly, checkpointOnly, new[] { br, bm });
             nativeScope.Track(target);
             Require(targetService.PrepareForPlayerClick(target) && targetService.QueueBidirectionalCombatMemory(ar, target),
                 "Native diagnostic target placement/visibility/combat memory was refused.");

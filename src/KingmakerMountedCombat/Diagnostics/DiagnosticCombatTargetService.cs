@@ -216,7 +216,7 @@ namespace KingmakerMountedCombat.Diagnostics
             Vector3 position,
             string runId,
             bool exactWorkingAuthorized,
-            bool requireDurabilityLease, bool persistenceFixture = false)
+            bool requireDurabilityLease, bool persistenceFixture = false, UnitEntityData[] otherPairActors = null)
         {
             ThrowIfDisposed();
             var mountGuid = mount?.Blueprint?.AssetGuid;
@@ -265,7 +265,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 // pre-existing non-pair command and therefore never clears or owns a
                 // player command in order to make target provisioning deterministic.
                 nonPairPartyAiLease = new DiagnosticNonPairPartyAiLease();
-                nonPairPartyAiLease.Acquire(rider, mount);
+                nonPairPartyAiLease.Acquire(rider, mount, otherPairActors);
 
                 var blueprintPrimary = blueprint.Body?.EmptyHandWeapon;
                 if (blueprint.Body == null || blueprint.Body.DisableHands ||

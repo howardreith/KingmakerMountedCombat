@@ -22,6 +22,10 @@ namespace KingmakerMountedCombat.Diagnostics
         private ScopedDiagnosticAiLease<UnitEntityData> lease;
         private UnitEntityData rider;
         private UnitEntityData mount;
+        // Actors of the scenario's other mounted pairs. They are pair actors, not leased
+        // non-pair members: the two-pair scenarios command them directly (observed natively in
+        // 20261018-c7b-world27-ownerseed-b4s2b-rt, where pair B was leased and refused).
+        private readonly List<UnitEntityData> otherPairActors = new List<UnitEntityData>();
         private UnitGroup group;
         private bool disposed;
 
@@ -48,7 +52,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 ? (IReadOnlyList<ScopedDiagnosticAiLease<UnitEntityData>.State>)Array.Empty<ScopedDiagnosticAiLease<UnitEntityData>.State>()
                 : lease.States;
 
-        public void Acquire(UnitEntityData expectedRider, UnitEntityData expectedMount)
+        public void Acquire(UnitEntityData expectedRider, UnitEntityData expectedMount, UnitEntityData[] otherPairs = null)
         {
             ThrowIfDisposed();
             if (Acquired || lease != null)
@@ -63,9 +67,20 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 throw new InvalidOperationException("The exact live owner/animal player-party AI scope is unavailable.");
             }
+            var others = otherPairs ?? new UnitEntityData[0];
+            var seen = new HashSet<UnitEntityData> { expectedRider, expectedMount };
+            foreach (var actor in others)
+            {
+                if (actor == null || !actor.IsInState || actor.Group != expectedRider.Group || !seen.Add(actor))
+                {
+                    throw new InvalidOperationException("Another mounted pair's actor is missing, foreign or duplicated.");
+                }
+            }
 
             rider = expectedRider;
             mount = expectedMount;
+            otherPairActors.Clear();
+            otherPairActors.AddRange(others);
             group = rider.Group;
             GroupId = group.Id;
             GroupIsPlayerParty = group.IsPlayerParty;
@@ -76,7 +91,7 @@ namespace KingmakerMountedCombat.Diagnostics
 
             lease = new ScopedDiagnosticAiLease<UnitEntityData>(
                 unit => unit.UniqueId,
-                unit => unit != null && unit != rider && unit != mount && unit.IsInState &&
+                unit => unit != null && unit != rider && unit != mount && !otherPairActors.Contains(unit) && unit.IsInState &&
                     unit.Group == group && group.IsPlayerParty && unit.IsDirectlyControllable,
                 unit => unit.Commands != null && unit.Commands.Empty,
                 unit => (bool)AiBackingField.GetValue(unit),
@@ -221,7 +236,7 @@ namespace KingmakerMountedCombat.Diagnostics
             for (var index = 0; index < group.Count; index++)
             {
                 var unit = group[index];
-                if (unit != rider && unit != mount)
+                if (unit != rider && unit != mount && !otherPairActors.Contains(unit))
                 {
                     current.Add(unit);
                 }
