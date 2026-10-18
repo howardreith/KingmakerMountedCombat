@@ -168,10 +168,18 @@ function Assert-KmcChunk7CheckpointSource($Checkpoint,$Archive,$Request) {
         $prior=@($attack.before.actors|Where-Object id -CEQ $id);$after=@($attack.after.actors|Where-Object id -CEQ $id)
         if($prior.Count-ne1-or$after.Count-ne1-or[double]$after[0].standard-le[double]$prior[0].standard){throw 'Source attack snapshot has no distinct native expenditure.'}
         # A rider's TB paired approach is native movement charged to its own mount's move budget.
+        # The rider keeps its own move; the increase must be the mount's observed native movement.
         $ownMount=if($zero){$null}elseif($id-ceq$ids[0]){$ids[1]}elseif($id-ceq$ids[2]){$ids[3]}else{$null}
-        if(-not$rt){foreach($other in $ids|Where-Object{$_-cne$id}){$a=@($attack.before.actors|Where-Object id -CEQ $other);$b=@($attack.after.actors|Where-Object id -CEQ $other);if($a.Count-ne1-or$b.Count-ne1){throw 'Native primary transferred expenditure to another actor.'}
+        if(-not$rt){
+            $own=@('swift','reactions','reactionCooldown');if($null-ne$ownMount){$own+='move'}
+            foreach($field in $own){if($prior[0].$field-ne$after[0].$field){throw 'Native primary changed its own non-standard resource.'}}
+            foreach($other in $ids|Where-Object{$_-cne$id}){$a=@($attack.before.actors|Where-Object id -CEQ $other);$b=@($attack.after.actors|Where-Object id -CEQ $other);if($a.Count-ne1-or$b.Count-ne1){throw 'Native primary transferred expenditure to another actor.'}
             foreach($field in @('standard','move','swift','reactions','reactionCooldown')){
-                if($field-ceq'move'-and$other-ceq$ownMount){if([double]$b[0].move-lt[double]$a[0].move-or[double]$b[0].move-gt6.001){throw 'Paired approach refunded or exceeded its own mount move budget.'};continue}
+                if($field-ceq'move'-and$other-ceq$ownMount-and[double]$b[0].move-ne[double]$a[0].move){
+                    $moved=[double]$b[0].move-[double]$a[0].move
+                    $timed=if($null-ne$a[0].PSObject.Properties['native']-and$null-ne$b[0].PSObject.Properties['native']-and$null-ne$a[0].native.timeMoved-and$null-ne$b[0].native.timeMoved){[double]$b[0].native.timeMoved-[double]$a[0].native.timeMoved}else{[double]::NaN}
+                    $shift=if($null-ne$a[0].PSObject.Properties['position']-and$null-ne$b[0].PSObject.Properties['position']){[Math]::Sqrt([Math]::Pow([double]$b[0].position.x-[double]$a[0].position.x,2)+[Math]::Pow([double]$b[0].position.z-[double]$a[0].position.z,2))}else{0.0}
+                    if($moved-le0-or[double]$b[0].move-gt6.001-or-not([Math]::Abs($moved-$timed)-le0.001)-or$shift-lt0.05){throw 'Paired approach is not its own mount observed native movement within the move budget.'};continue}
                 if($a[0].$field-ne$b[0].$field){throw 'Native primary transferred expenditure to another actor.'}}}}
     }
     if($legacy){$pending=$Checkpoint.source.pendingSurvivor;if($pending.stimulus-cne'UnitEntityData.LeaveCombat then native RemoveUnit if still registered'-or
