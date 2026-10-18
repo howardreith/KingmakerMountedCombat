@@ -11,7 +11,7 @@ function Copy-Value($Value){$Value|ConvertTo-Json -Depth 90 -Compress|ConvertFro
 $ids=@('b6628a77-4962-47a4-a17c-88d9836fc9d5','d79a4f6c-b74e-4868-95bd-533899131acb','d17c8fd0-6627-40c4-bf9a-024cf001c1f7','77777777-7777-4777-8777-777777777777')
 $target='88888888-8888-4888-8888-888888888888'
 $request=[pscustomobject]@{scenario='chunk7-two-pair-combat-rider-first';runId='synthetic-c7-combat';branch='codex/test';commit='1'*40;productVersion='synthetic';dllSha256='2'*64;dllMvid='33333333-3333-4333-8333-333333333333';fixture=[pscustomobject]@{working=[pscustomobject]@{sha256='5eb4e0b4cbd8d60dc879a02ff71aadfde3f517304754857f0cc68d0f9a93f1c6'}}}
-$owners=@([pscustomobject]@{id='11111111-1111-4111-8111-111111111111';riderId=$ids[0];mountId=$ids[1];generation=1;state='Active';retainsObligations=$true},[pscustomobject]@{id='22222222-2222-4222-8222-222222222222';riderId=$ids[2];mountId=$ids[3];generation=1;state='Active';retainsObligations=$true})
+$owners=@([pscustomobject]@{id='11111111-1111-4111-8111-111111111111';riderId=$ids[0].Replace('-','');mountId=$ids[1].Replace('-','');generation=1;state='Active';retainsObligations=$true},[pscustomobject]@{id='22222222-2222-4222-8222-222222222222';riderId=$ids[2].Replace('-','');mountId=$ids[3].Replace('-','');generation=1;state='Active';retainsObligations=$true})
 function Snap([int]$Frame,[string]$Label='window'){
     [pscustomobject]@{label=$Label;frame=$Frame;gameTicks=[long]$Frame*100000;round=1;currentActor=$ids[0];owners=@($owners|ForEach-Object{Copy-Value $_});
         actors=@($ids|ForEach-Object{[pscustomobject]@{id=$_;standard=0.0;move=0.0;swift=0.0;reactions=1;reactionCooldown=0.0;prepared=$true;position=[pscustomobject]@{x=0.0;y=0.0;z=0.0};native=[pscustomobject]@{actor=$_;grantSequence=1}}})}
@@ -70,7 +70,7 @@ $mutations=@(
     @('rider pays transport',{$args[0].observations.activations[0].movement.after.actors[0].move=0.25}),@('native actor end omitted',{$args[0].observations.nativeCompletion.calls=@($args[0].observations.nativeCompletion.calls|Select-Object -Skip 1)}),
     @('duplicate native renewal',{$args[0].observations.snapshots[0].actors[1].native.grantSequence=3}),@('TB charge admitted',{$args[0].observations.activations[0].tbChargeRefusal.castDelta=1}),
     @('R1 cleanup restarts release',{$args[0].observations.r1.releaseAfter=4}),@('R1 mount delayed',{$args[0].observations.r1.independentRound=5}),@('R1 changes neighbour owner',{$args[0].observations.r1.duplicateAfter.owners[1].generation=2}),
-    @('R1 same-length neighbour mount substitution',{$args[0].observations.r1.duplicateAfter.owners[1].mountId=$ids[1]}),
+    @('R1 same-length neighbour mount substitution',{$args[0].observations.r1.duplicateAfter.owners[1].mountId=$ids[1].Replace('-','')}),
     @('pending activation invented',{$args[0].observations.pendingSurvivor.participation.Activation=[pscustomobject]@{Sequence=1}}),@('pending debt lost',{$args[0].observations.pendingSurvivor.after.actors[3].standard=0.0}),
     @('failed cleanup custody dropped',{$args[0].observations.localFailure.held.owners=@($args[0].observations.localFailure.held.owners[0])}),@('neighbour cleanup skipped',{$args[0].observations.localFailure.healthyNeighbourVisited=$false}),
     @('health delivery overclaimed',{$args[0].observations.naturalUnconsciousStimulusProven=$true}),@('cleanup incomplete',{$args[0].observations.cleanup.nativeCombatEnded=$false})
@@ -78,9 +78,9 @@ $mutations=@(
 foreach($mutation in $mutations){$bad=Copy-Value $good;& $mutation[1] $bad;Reject $mutation[0] {Assert-KmcChunk7CombatEvidence $request $bad 'PASS'}}
 Check 'failed native artifact keeps bounded partial evidence' {$v=Copy-Value $good;$v.status='FAIL';$v.errors=@('native fixture unavailable');$v.observations=[pscustomobject]@{};Assert-KmcChunk7CombatEvidence $request $v 'FAIL'}
 Reject 'failed artifact cannot fulfill PASS' {$v=Copy-Value $good;$v.status='FAIL';$v.errors=@('native fixture unavailable');Assert-KmcChunk7CombatEvidence $request $v 'PASS'}
-Check 'closed combat rows remain disjoint' {foreach($scenario in @('chunk7-two-pair-combat-rider-first','chunk7-two-pair-combat-mount-first')){if((Get-KmcChunk7CombatRows $scenario).Count-ne14){throw 'Wrong declared row set.'}}}
+Check 'closed combat rows remain disjoint' {foreach($scenario in @('chunk7-two-pair-combat-rider-first','chunk7-two-pair-combat-mount-first')){if((Get-KmcChunk7CombatRows $scenario).Count-ne15){throw 'Wrong declared row set.'}}}
 Reject 'unknown native case' {Get-KmcChunk7CombatRows 'chunk7-two-pair-combat-anything'}
-Check 'runtime rows contain both exact cases once' {$rows=@(Get-KmcChunk7CombatRuntimeRows);if($rows.Count-ne15-or@($rows|Select-Object -Unique).Count-ne15-or$rows-cnotcontains'chunk7-two-pair-combat-rider-first'-or$rows-cnotcontains'chunk7-two-pair-combat-mount-first'){throw 'Runtime row union differs.'}}
+Check 'runtime rows contain both exact cases once' {$rows=@(Get-KmcChunk7CombatRuntimeRows);if($rows.Count-ne16-or@($rows|Select-Object -Unique).Count-ne16-or$rows-cnotcontains'chunk7-two-pair-combat-rider-first'-or$rows-cnotcontains'chunk7-two-pair-combat-mount-first'){throw 'Runtime row union differs.'}}
 $artifactRoot=Join-Path $chunk7AnalysisRoot ('reader-artifact-fixture-'+[Guid]::NewGuid().ToString('N'));[IO.Directory]::CreateDirectory($artifactRoot)|Out-Null
 $artifactPath=Join-Path $artifactRoot 'chunk7-combat-evidence.json';$request|Add-Member NoteProperty evidenceRoot $artifactRoot
 [IO.File]::WriteAllText($artifactPath,($good|ConvertTo-Json -Depth 90),[Text.UTF8Encoding]::new($false))

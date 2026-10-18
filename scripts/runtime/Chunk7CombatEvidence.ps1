@@ -4,7 +4,7 @@ Set-StrictMode -Version Latest
 function Test-KmcChunk7CombatScenario([string]$Scenario) { $Scenario-cin@('chunk7-two-pair-combat-rider-first','chunk7-two-pair-combat-mount-first') }
 function Get-KmcChunk7CombatRows([string]$Scenario) {
     if(-not(Test-KmcChunk7CombatScenario $Scenario)){throw 'Unknown native combat scenario.'}
-    @($Scenario,'C7-combat-fixture','C7-combat-native-mounts','C7-combat-native-orders','C7-combat-pair-a-full-activation',
+    @($Scenario,'C7-combat-fixture','C7-combat-native-mounts','C7-combat-restored-mounts','C7-combat-native-orders','C7-combat-pair-a-full-activation',
       'C7-combat-pair-b-full-activation','C7-combat-tb-charge-refusal','C7-combat-refresh','C7-combat-r1-round-release',
       'C7-combat-native-pending-survivor','C7-combat-local-cleanup-failure','C7-combat-cleanup','C7-combat-runtime','C7-combat-interrupted')
 }
@@ -75,11 +75,15 @@ function Assert-KmcChunk7CombatEvidence($Request,$Artifact,[string]$Status) {
         $r=[Array]::IndexOf($order,$ids[2*$i]);$m=[Array]::IndexOf($order,$ids[2*$i+1])
         if($r-lt0-or$m-lt0-or(($r-lt$m)-ne$riderFirst)){throw 'Actual native initiative order does not match selected arrangement.'}
     }
-    $commands=[Collections.Generic.HashSet[long]]::new();$relationshipInputs=@($o.inputs|Where-Object{$_.label-cin@('mount-a','mount-b','r1-native-dismount-a')})
-    if($relationshipInputs.Count-ne3){throw 'Exact native mount/dismount inputs are missing.'}
-    for($i=0;$i-lt3;$i++){
-        $input=$relationshipInputs[$i];$caster=if($i-eq1){$ids[2]}else{$ids[0]};$target=if($i-eq0){$ids[1]}elseif($i-eq1){$ids[3]}else{$ids[0]}
-        $ability=if($i-eq2){'3af2b81f4d72bbb30501fa730fcdf36e'}else{'f053faad986631688defa003cd7bda0e'}
+    $commands=[Collections.Generic.HashSet[long]]::new()
+    # Owner-seed-derived combat restored both pairs mounted: only the R1 native Dismount is an input.
+    $derived=$owned-and(Test-KmcChunk7OwnedPairsSeedDerivedCombat $Request)
+    if($derived){Assert-KmcChunk7OwnerSeedDerivedCombatStart $Request $o}
+    $labels=@(if($derived){'r1-native-dismount-a'}else{'mount-a','mount-b','r1-native-dismount-a'});$relationshipInputs=@($o.inputs|Where-Object{$_.label-cin@('mount-a','mount-b','r1-native-dismount-a')})
+    if($relationshipInputs.Count-ne$labels.Count-or(@($relationshipInputs|ForEach-Object label)-join'|')-cne($labels-join'|')){throw 'Exact native mount/dismount inputs are missing.'}
+    for($i=0;$i-lt$labels.Count;$i++){
+        $input=$relationshipInputs[$i];$slot=if($derived){2}else{$i};$caster=if($slot-eq1){$ids[2]}else{$ids[0]};$target=if($slot-eq0){$ids[1]}elseif($slot-eq1){$ids[3]}else{$ids[0]}
+        $ability=if($slot-eq2){'3af2b81f4d72bbb30501fa730fcdf36e'}else{'f053faad986631688defa003cd7bda0e'}
         if($input.casterId-cne$caster-or$input.targetId-cne$target-or$input.abilityGuid-cne$ability-or$input.nativeCastDelta-ne1-or$input.nativeRefusalDelta-ne0-or
            [string]::IsNullOrEmpty($input.control)-or$input.generationAtInit-lt0-or$input.selectionAfterInput-ceq$caster){throw 'Native relationship input escaped captured caster/target/generation.'}
         Assert-KmcChunk7Boolean $input.clicked $true;Assert-KmcChunk7Boolean $input.terminal $true;Assert-KmcChunk7Boolean $input.processTerminal $true
@@ -117,7 +121,7 @@ function Assert-KmcChunk7CombatEvidence($Request,$Artifact,[string]$Status) {
        $r1.callbackRound-ne$r1.splitRound+1-or$r1.releaseBefore-ne$r1.splitRound-or$r1.releaseAfter-ne$r1.splitRound-or$r1.independentRound-ne$r1.splitRound+1-or
        $r1.independentMountTurn.actor-cne$ids[1]-or$r1.independentMountTurn.grantSequence-ne(Get-KmcChunk7CombatActor $r1.afterDismount $ids[1]).native.grantSequence+1){throw 'Detached cleanup restarted the original release round or delayed the native independent mount.'}
     Assert-KmcChunk7SameCombatBudget $r1.duplicateBefore $r1.duplicateAfter $ids
-    $priorB=@($r1.duplicateBefore.owners|Where-Object riderId -CEQ $ids[2]);$afterB=@($r1.duplicateAfter.owners|Where-Object riderId -CEQ $ids[2]);
+    $priorB=@($r1.duplicateBefore.owners|Where-Object{Test-KmcChunk7OwnerActorMatch $_.riderId $ids[2]});$afterB=@($r1.duplicateAfter.owners|Where-Object{Test-KmcChunk7OwnerActorMatch $_.riderId $ids[2]});
     if($priorB.Count-ne1-or$afterB.Count-ne1-or(ConvertTo-KmcChunk7Canonical $priorB[0])-cne(ConvertTo-KmcChunk7Canonical $afterB[0])){throw 'Duplicate cleanup changed the neighbouring owner.'}
     if(@($o.nativeRounds.events|Where-Object round -EQ $r1.callbackRound).Count-ne1){throw 'Duplicate cleanup lacks the actual native N+1 round event.'}
     $pending=$o.pendingSurvivor;$state=$pending.participation
@@ -128,7 +132,7 @@ function Assert-KmcChunk7CombatEvidence($Request,$Artifact,[string]$Status) {
     Assert-KmcChunk7SameCombatBudget $pending.before $pending.after @($ids[3]);if((Get-KmcChunk7CombatActor $pending.after $ids[3]).standard-le0){throw 'Pending mount lost spent remainder.'}
     $fault=$o.localFailure;if($fault.failureCount-ne1-or$fault.injectedPair-cne'b'){throw 'Selected cleanup fault was not isolated.'};Assert-KmcChunk7Boolean $fault.healthyNeighbourVisited $true
     Assert-KmcChunk7SameCombatBudget $fault.before $fault.held @($ids[1])
-    $held=@($fault.held.owners|Where-Object riderId -CEQ $ids[2]);if($held.Count-ne1-or$held[0].retainsObligations-ne$true){throw 'Failed cleanup lost exact pair B custody.'}
+    $held=@($fault.held.owners|Where-Object{Test-KmcChunk7OwnerActorMatch $_.riderId $ids[2]});if($held.Count-ne1-or$held[0].retainsObligations-ne$true){throw 'Failed cleanup lost exact pair B custody.'}
     if($owned){foreach($field in @('pairResidueAbsent','nativeCombatEnded','initiativeInputsRestored','firstPairAiRestored','controlsSettled','inheritedPetsPreserved')){Assert-KmcChunk7Boolean $o.cleanup.$field $true};Assert-KmcChunk7Boolean $o.cleanup.ownedHorseRemoved $false;Assert-KmcChunk7Boolean $o.cleanup.nativeProgressionRequiresExternalWorkingRestoration $false}else{foreach($field in @('pairResidueAbsent','ownedHorseRemoved','nativeCombatEnded','initiativeInputsRestored','firstPairAiRestored','controlsSettled','nativeProgressionRequiresExternalWorkingRestoration')){Assert-KmcChunk7Boolean $o.cleanup.$field $true}}
     foreach($field in @('nativeSaveWrittenByThisDriver','delegatedPersistenceCleanup')){Assert-KmcChunk7Boolean $o.cleanup.$field $false}
 }

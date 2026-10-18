@@ -83,7 +83,7 @@ $cases=@(
 foreach($case in $cases){$v=Copy-Value $case[1];& $case[2] $v;Reject $case[0] {Assert-KmcChunk7RealtimeEvidence (RequestFor $v) $v 'PASS'}}
 Check 'RT partial failed evidence remains readable' {$v=Copy-Value $core;$v.status='FAIL';$v.errors=@('prepared native slot unavailable');$v.observations=[pscustomobject]@{};Assert-KmcChunk7RealtimeEvidence (RequestFor $v) $v 'FAIL'}
 Reject 'RT partial FAIL cannot become PASS' {$v=Copy-Value $core;$v.status='FAIL';$v.errors=@('fixture failed');Assert-KmcChunk7RealtimeEvidence (RequestFor $v) $v 'PASS'}
-Check 'RT exact rows and union' {$counts=@(11,8,9);$i=0;foreach($s in @($core.scenario,$casting.scenario,$charge.scenario)){if(@(Get-KmcChunk7RealtimeRows $s).Count-ne$counts[$i++]){throw 'RT case row count differs.'}};if(@(Get-KmcChunk7RealtimeRuntimeRows).Count-ne18){throw 'RT union differs.'}}
+Check 'RT exact rows and union' {$counts=@(13,9,10);$i=0;foreach($s in @($core.scenario,$casting.scenario,$charge.scenario)){if(@(Get-KmcChunk7RealtimeRows $s).Count-ne$counts[$i++]){throw 'RT case row count differs.'}};if(@(Get-KmcChunk7RealtimeRuntimeRows).Count-ne20){throw 'RT union differs.'}}
 Reject 'foreign RT case' {Get-KmcChunk7RealtimeRows 'chunk7-two-pair-realtime-unbounded'}
 $rtArtifactRoot=Join-Path $chunk7AnalysisRoot ('realtime-reader-artifact-fixture-'+[Guid]::NewGuid().ToString('N'));[IO.Directory]::CreateDirectory($rtArtifactRoot)|Out-Null
 $rtArtifactPath=Join-Path $rtArtifactRoot 'chunk7-realtime-evidence.json';$rtRequest=RequestFor $core;$rtRequest.evidenceRoot=$rtArtifactRoot
