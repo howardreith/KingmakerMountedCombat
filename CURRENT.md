@@ -1,5 +1,44 @@
 # Chunk 7B–7D — IN PROGRESS
 
+## Current state (October 17, 2026)
+
+**Governing instructions.** The owner's [directives of October 16–17](docs/CHUNK7-OWNER-DIRECTIVES-2026-10-16.md), including Directive 3 (the PR #5 review and the persistence/combat assignment), and the [validation policy's development-acceleration section](docs/VALIDATION-POLICY.md#development-acceleration-owner-directives-of-october-16-17-2026). The active development workflow uses:
+- the approved owner-seed route;
+- a dependency-scoped development audit (`-DevelopmentScopedAudit`), labelled as not a whole-lab purity proof;
+- focused behaviour tests;
+- bounded batches of at most five declared native scenarios.
+
+The old lifetime limit of 25 attempts and the mandatory whole-lab rehash are historical, not current admission requirements. All historical attempt ids and failures are preserved.
+
+**Branch roles:**
+- **This branch, `codex/mounted-combat-chunk7-successor`,** is the unified product plus harness line. It is reviewed as draft PR #5, which is not to be merged, released or installed for human play. Product and harness identities are recorded per run: one package per committed head, pinned by commit, DLL SHA-256 and MVID, plus a fresh qualification suite.
+- **`codex/mounted-combat-chunk7-preview10-harness`** holds the root records: directives, the dated checkpoint history and earlier campaign documents. It carries no successor code.
+- **The private lab, `C:\Dev\KingmakerMountedCombatLab`,** holds fixtures (the immutable owner-seed master and its intake), runtime state and evidence, the batch ledgers and the review receipts. None of these are in Git.
+
+**What works**, summarised in [owner-seed evidence](docs/CHUNK7-OWNER-SEED-EVIDENCE.md):
+- The owner seed `KMC_C7_NO_MODS_OWNER_SEED` (SHA-256 `3405d7c8…821b924f`) is qualified by the accepted cold load `20261017-c7b-world18-ownerseed-s4-cold`.
+- One two-pair movement, selection and control slice was accepted in `20261017-c7b-world22-ownerseed-b2s4-twopair` (preview.22, `162a6d14`). It covered disclosed native setup, both native Mounts, independent moves, an independent Dismount with the other pair retained, unmounted control and remount cycles, with verified restoration.
+
+**Not proven:**
+- acquisition (setup is disclosed assistance);
+- door behaviour (no qualifying door at the seed location);
+- combat;
+- mounted save/load;
+- Quick/Auto/area/removal/migration breadth;
+- Small calibration;
+- stress/performance;
+- human review.
+
+**Next concrete action (Directive 3):**
+1. Behaviour tests for the paused-ground-order decision and for pair-owner GUID forms.
+2. Mark the stale level-up-autosave families not-ready.
+3. An owner-seed-derived two-pair native Manual save, then a separate-process cold load restoring both owners.
+4. A targeted RT combat scenario and TB combat scenarios for both initiative arrangements, in one batch of at most five native scenarios.
+
+**Known not-ready families:** ordinary acquisition, manual derived, native progression and assisted fixture production still wait for a level-up autosave that the installed game never requests. Do not select them until their completion contract is repaired.
+
+## History — state before October 16, 2026 (preserved as written)
+
 The [sustained mission](planning/CHUNK7-CONTINUATION-MISSION.md) is stopped at the owner’s October14 quota/push request. [Safe stopping point, exact continuity and resume](docs/CHUNK7-OWNER-STOP-2026-10-14.md). No game, runtime transaction, lock, sentinel or test session remains. [Claude takeover guide](docs/CLAUDE-HANDOFF-CHUNK7-2026-10-14.md) is prepared for the next owner-invoked session. The breadth candidate is not ready. Root owns integration and every live transaction on `codex/mounted-combat-chunk7-preview10-harness`, origin `https://github.com/howardreith/KingmakerMountedCombat.git`.
 
 Preview10 is frozen from published product `0e1ce2d92a368866ce0803d070a6f3b7b96bd971`. It was built once in48.5995196 seconds (source147/0, package11/0). Actual Candidate03 passed all six stages in214.1538249 seconds on harness `b8db761b3d175aebc701a270a6016838b46a3768`: components817/0, source147/0, Harness271/0, paired-activation contracts, manifest11/0 and Kingmaker contracts701/0. Candidate01/02 remain FAIL; the two external contract repairs changed no product/package bytes. Suite WhatIf passed113.3220773 seconds and append-only Create passed44.08256 seconds. [Exact artifact, source, review and suite identities](docs/CHUNK7-PREVIEW10-CANDIDATE.md).

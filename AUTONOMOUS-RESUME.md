@@ -1,5 +1,33 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## Resume here (October 17, 2026)
+
+**Governing instructions:** the [owner directives](docs/CHUNK7-OWNER-DIRECTIVES-2026-10-16.md) (Directive 3 is the active assignment) and [CURRENT](CURRENT.md#current-state-october-17-2026). The October 14 stop recorded below is superseded: development is resumed under those directives.
+
+1. **Refresh state.** Check the worktrees, actual refs, `runtime-state` transactions and locks, and that no Kingmaker or UMM process is running. Preserve unknown edits, frozen candidates and separate worktrees.
+2. **Product and harness.** This branch is `codex/mounted-combat-chunk7-successor` (draft PR #5).
+   - Build once per committed head with `scripts/Package.ps1 -ArtifactQualifier c7b-world<N>`.
+   - Create a fresh qualification suite.
+   - The launcher passes `-Confirm:$false` on native runs.
+   - The lab helper `analysis-cache/chunk7-continuation/owner-seed-batch02/Prepare-Candidate.ps1` does all three.
+3. **Before each native run:**
+   - run the scoped WhatIf (`-DevelopmentScopedAudit -WhatIf`);
+   - launch detached;
+   - tell the owner first. The whole `Mods` tree, UMM `Params.xml`, the profile and the save root are under a no-deployment window until restoration is verified.
+4. **Seed.** Use only `KMC_C7_NO_MODS_OWNER_SEED` (SHA-256 `3405d7c8…821b924f`), as fresh ordinary copies, never the master and never a hard link. Do not use the superseded `KMC_C7_OWNER_SEED`.
+5. **Next work (Directive 3):**
+   - the paused-order and GUID-form behaviour tests;
+   - the not-ready marking of the stale level-up-autosave families;
+   - the owner-seed-derived two-pair Manual save and its separate-process cold load;
+   - RT combat, then TB combat in both initiative arrangements, within one batch of at most five native scenarios.
+   - Evidence summaries go in [owner-seed evidence](docs/CHUNK7-OWNER-SEED-EVIDENCE.md).
+6. **Guarded push.**
+   - The root branch uses `C:\Dev\KingmakerMountedCombatLab\codex-policy\Push-KingmakerMountedCombat.ps1`.
+   - This branch uses an unmodified copy of that script whose only change is the repository root, pointed at `worktrees/chunk7-successor`. Verify the copy against the policy script before reuse.
+   - Never force-push. Never merge, release or install for human play.
+
+## History — October 14 stop and earlier (preserved as written)
+
 Stopped at the owner’s October14 request to conserve quota and push. Do not restart audit/native work without a resume instruction. Root is sole integrator/live executor. Branch `codex/mounted-combat-chunk7-preview10-harness`; product branch `codex/mounted-combat-chunk7-assisted-fixtures`; origin `https://github.com/howardreith/KingmakerMountedCombat.git`. Refresh actual HEAD/status and preserve all other/frozen worktrees. No game, runtime transaction, lock, sentinel or test session remains.
 
 ## Active stopping point
