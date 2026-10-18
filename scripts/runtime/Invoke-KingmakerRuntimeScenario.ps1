@@ -123,6 +123,9 @@ if($PSBoundParameters.ContainsKey('ObserveWorkingDeserialization') -and
 . (Join-Path $PSScriptRoot 'Chunk7OwnedSchema1Fixtures.ps1')
 . (Join-Path $PSScriptRoot 'Chunk7SmallCalibrationFixtures.ps1')
 . (Join-Path $PSScriptRoot 'Chunk7ProgressionFixtures.ps1')
+# Stale level-up autosave families are refused here, before any selection intake, lock,
+# transaction, Mods swap or launch (docs/CHUNK7-STALE-LEVELUP-AUTOSAVE-FAMILIES.md).
+Assert-KmcChunk7FamilyReady $Scenario $null
 if(Test-KmcChunk7NativeBootstrapScenario $Scenario){
     if(-not$BaseGameOnly-or-not$PSBoundParameters.ContainsKey('NativeBootstrapCase')-or$NativeBootstrapCase-cne'authored-main-campaign'){
         throw 'Native main bootstrap requires explicit authored-main-campaign selection and base-only staging.'
@@ -209,6 +212,8 @@ if(Test-KmcChunk7ProgressionScenario $Scenario){
     if(-not$BaseGameOnly-or[string]::IsNullOrEmpty($ProgressionSelectionPath)){throw 'Native progression requires exact source/inventory pins and explicit base-only staging.'}
     if($PSBoundParameters.ContainsKey('PersistenceSourceRunId')-or$PSBoundParameters.ContainsKey('ExpectedPersistenceSourceSha256')){throw 'Progression source is selected only through its closed selection file.'}
     $progressionSelectionInput=Read-KmcChunk7ProgressionSelectionFile $ProgressionSelectionPath $(if($RunId){$RunId}else{'unassigned-progression-run'})
+    # Progression readiness depends on the selected case; still before any lock or launch.
+    Assert-KmcChunk7FamilyReady $Scenario ([string]$progressionSelectionInput.selection.case)
 }elseif($PSBoundParameters.ContainsKey('ProgressionSelectionPath')){throw 'Progression selection is forbidden under another scenario.'}
 $fieldSelectionInput=$null;$fieldSource=$null
 if(Test-KmcChunk7FieldScenario $Scenario){

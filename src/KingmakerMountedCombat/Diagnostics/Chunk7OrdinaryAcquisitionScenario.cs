@@ -103,6 +103,12 @@ namespace KingmakerMountedCombat.Diagnostics
                 }
                 else if (stage == 1)
                 {
+                    // NOT READY - stale level-up autosave wait (docs/CHUNK7-STALE-LEVELUP-AUTOSAVE-FAMILIES.md).
+                    // The installed game never registers LevelUpAutoSaveController (GameModesFactory builds its
+                    // controllers explicitly without it), so an ordinary level-up never requests this native Auto
+                    // and the wait cannot complete. scripts/runtime/Invoke-KingmakerRuntimeScenario.ps1 refuses this
+                    // family before any lock, transaction, Mods swap or launch. Kept intact until its completion
+                    // contract is repaired; never manufacture a level-up callback or relabel a Manual as Auto.
                     if (!ObserveCompletedAutosave()) return;
                     Pass("C7-ordinary-native-autosave");
                     if (selection.Case == Chunk7OrdinaryAcquisitionSelection.PaidSmallCase) { OpenFieldSelection(); Next(2); }
@@ -251,6 +257,12 @@ namespace KingmakerMountedCombat.Diagnostics
             Require(choices.Count < 1400, "Ordinary native choice evidence exceeds its declared bound.");
             choices.Add(observation.DeepClone());
         }
+        // NOT READY - stale level-up autosave wait (docs/CHUNK7-STALE-LEVELUP-AUTOSAVE-FAMILIES.md).
+        // The installed game never registers LevelUpAutoSaveController (GameModesFactory builds its
+        // controllers explicitly without it), so an ordinary level-up never requests this native Auto
+        // and the wait cannot complete. scripts/runtime/Invoke-KingmakerRuntimeScenario.ps1 refuses this
+        // family before any lock, transaction, Mods swap or launch. Kept intact until its completion
+        // contract is repaired; never manufacture a level-up callback or relabel a Manual as Auto.
         private bool ObserveCompletedAutosave()
         {
             if (NativeBusy() || probe.ObservedSave == null || probe.ObservedSave.OperationState != SaveInfo.StateType.None || !probe.ObservedSave.HasFileOnDisk) return false;

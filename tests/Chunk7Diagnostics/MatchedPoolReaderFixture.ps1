@@ -13,8 +13,10 @@ function Invoke-MatchedPoolReaderChecks([string]$ActualCollector,[string]$Output
   return [pscustomobject]$v
  }
  $subs=[pscustomobject]@{assemblyMvid='07fa1e4d-8618-41b3-9b8d-faa17d3b26f7';executing=$false;uniqueOwnedSubscribers=1;ownedInterfaceEntries=1;entries=@([pscustomobject]@{interface='native-interface';type='KmcSubscriber';identity=-77})}
- $owners=@([pscustomobject]@{ownerId='11111111-1111-4111-8111-111111111111';riderId=$ids[0];mountId=$ids[1];generation=3000000001L;state='Active';relationshipState='Mounted';retainsObligations=$false;saveReady=$true;teardownReady=$false},
-  [pscustomobject]@{ownerId='22222222-2222-4222-8222-222222222222';riderId=$ids[2];mountId=$ids[3];generation=3000000002L;state='Active';relationshipState='Mounted';retainsObligations=$false;saveReady=$true;teardownReady=$false})
+ # Owner records carry the producer's registry key (MountedPairRegistry.Key: Guid "N"); actor ids are Guid "D".
+ $keys=@($ids|ForEach-Object{[Guid]::ParseExact($_,'D').ToString('N')})
+ $owners=@([pscustomobject]@{ownerId='11111111-1111-4111-8111-111111111111';riderId=$keys[0];mountId=$keys[1];generation=3000000001L;state='Active';relationshipState='Mounted';retainsObligations=$false;saveReady=$true;teardownReady=$false},
+  [pscustomobject]@{ownerId='22222222-2222-4222-8222-222222222222';riderId=$keys[2];mountId=$keys[3];generation=3000000002L;state='Active';relationshipState='Mounted';retainsObligations=$false;saveReady=$true;teardownReady=$false})
  $active=@(0,1,2,0)
  function Boundary([int]$index,[bool]$after){
   $frame=1000+500*$index;if($after){$frame+=151}
@@ -76,6 +78,8 @@ function Invoke-MatchedPoolReaderChecks([string]$ActualCollector,[string]$Output
   'changed allocation history cardinality'={param($v)$v.observations.rows[3].before.allocationActors=0}
   'owner-generation substitution'={param($v)$v.observations.rows[1].after.world.owners[0].generation++}
   'conflicting duplicate owner'={param($v)$v.observations.rows[2].after.world.owners[1]=Copy-Matched $v.observations.rows[2].after.world.owners[0]}
+  'owner rider in actor D form'={param($v)$v.observations.rows[1].after.world.owners[0].riderId=$ids[0]}
+  'owner rider uppercase N'={param($v)$v.observations.rows[1].after.world.owners[0].riderId=$keys[0].ToUpperInvariant()}
   'string owner-generation'={param($v)$v.observations.rows[1].after.world.owners[0].generation=[string]$v.observations.rows[1].after.world.owners[0].generation}
   'double service ticks'={param($v)$v.observations.rows[0].sample.serviceTicks[0]=[double]100}
   'short sample'={param($v)$v.observations.rows[0].sample.sampleFrames=119}

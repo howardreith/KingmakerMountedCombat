@@ -46,6 +46,12 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["completionSequence"]=sequence,["snapshots"]=persistence.SnapshotCount,["completedSaves"]=persistence.CompletedSaveCount,
                 ["authority"]=AuthoritySnapshot(),["contentInspected"]=false,["coldLoadQualified"]=false};
         }
+        // NOT READY - stale level-up autosave wait (docs/CHUNK7-STALE-LEVELUP-AUTOSAVE-FAMILIES.md).
+        // The installed game never registers LevelUpAutoSaveController (GameModesFactory builds its
+        // controllers explicitly without it), so an ordinary level-up never requests this native Auto
+        // and the wait cannot complete. scripts/runtime/Invoke-KingmakerRuntimeScenario.ps1 refuses this
+        // family before any lock, transaction, Mods swap or launch. Kept intact until its completion
+        // contract is repaired; never manufacture a level-up callback or relabel a Manual as Auto.
         private bool ObserveLevelupAutosave()
         {
             if(Busy()||ordinaryProbe?.ObservedSave==null||ordinaryProbe.ObservedSave.OperationState!=SaveInfo.StateType.None)return false;

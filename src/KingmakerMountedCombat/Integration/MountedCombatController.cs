@@ -1254,84 +1254,66 @@ namespace KingmakerMountedCombat.Integration
         {
             var pairedMountInput = unifiedTurn.MaySelectPairedPartner(requestedUnit) &&
                 SelectionManager.Instance?.SingleSelectedUnit == requestedUnit;
-            if (disposed || relationship.State != RelationshipState.Mounted || requestedUnit != relationship.Rider && !pairedMountInput)
+            // The decision is MountedGroundOrderAdmissionPolicy: an order for any unit that is not
+            // this pair's rider (or its selectable paired mount) passes through untouched; the save
+            // serialization refusal precedes the pair-local ground-command cancel; paused real-time orders
+            // queue natively while turn-based orders keep the rider-turn gates.
+            var disposition = MountedGroundOrderAdmissionPolicy.Decide(
+                disposed,
+                relationship.State == RelationshipState.Mounted,
+                requestedUnit == relationship.Rider,
+                pairedMountInput,
+                new GroundOrderFacts(this));
+            if (disposition == MountedGroundOrderDisposition.AdmitRiderTurnMovement)
             {
-                return true;
+                groundMoveOwner = relationship.PairOwner;
+                if (!relationship.IsCurrentPairOwner(groundMoveOwner)) return false;
+                riderTurnGroundMoveAdmissionPending = true;
+                unifiedTurn.RememberPairedMovementInput();
             }
-            if (TrySuppressPropagatedOverlayWorldClick())
+            var feedback = MountedGroundOrderAdmissionPolicy.Feedback(disposition, MountDisplayName);
+            var rejectionCodes = MountedGroundOrderAdmissionPolicy.RejectionCodes(disposition);
+            if (feedback != null) LastFeedback = feedback;
+            if (rejectionCodes != null) LastRejectionCodes = rejectionCodes;
+            return MountedGroundOrderAdmissionPolicy.LetsNativeOrderRun(disposition);
+        }
+
+        // The live native facts for one ground-order decision. The current turn is read once,
+        // on the first turn-based fact the decision reaches.
+        private sealed class GroundOrderFacts : IMountedGroundOrderFacts
+        {
+            private readonly MountedCombatController controller;
+            private bool turnRead;
+            private TurnController turn;
+
+            internal GroundOrderFacts(MountedCombatController controller) { this.controller = controller; }
+
+            private TurnController Turn
             {
-                return false;
+                get
+                {
+                    if (!turnRead)
+                    {
+                        turnRead = true;
+                        turn = Game.Instance?.TurnBasedCombatController?.CurrentTurn;
+                    }
+                    return turn;
+                }
             }
 
-            // The archive worker serializes live object graphs, including this
-            // actor's command queue, and entity execution stays suspended for its
-            // whole lifetime. Accepting a new owned command would still mutate
-            // that queue under the serializer, so the owned pair refuses until
-            // the save settles. This flag is held across both the ordinary
-            // completion path and an interrupted save that is still draining.
-            if (relationship.SaveSerializationSuspended)
-            {
-                LastFeedback = "A save is still being written; mounted actions resume when it finishes.";
-                LastRejectionCodes = new[] { MountedCombatRejectionCode.WrongActionState };
-                return false;
-            }
-
-            Cancel("ground command");
-
-            var game = Game.Instance;
-            var mode = game?.CurrentMode.ToString();
-            // A real-time ground order given while paused queues natively, as it does for an
-            // unmounted unit; turn-based admission below still requires the active world view.
-            if (game == null || !(MountedGameModePolicy.CanAdmitMountedAction(mode) ||
-                MountedGameModePolicy.CanQueueMountedAction(mode) && !CombatController.IsInTurnBasedCombat()))
-            {
-                LastFeedback = "Mounted ground movement is available only in the active world view.";
-                LastRejectionCodes = new[] { MountedCombatRejectionCode.WrongActionState };
-                return false;
-            }
-
-            if (!CombatController.IsInTurnBasedCombat())
-            {
-                LastRejectionCodes = new MountedCombatRejectionCode[0];
-                return true;
-            }
-
-            var turn = game.TurnBasedCombatController?.CurrentTurn;
-            if (settings.EnablePairedActivation && !unifiedTurn.CanMovePairedMount(turn))
-            {
-                LastFeedback = "The mount has no movement available in this paired activation.";
-                LastRejectionCodes = new[] { MountedCombatRejectionCode.WrongActionState };
-                return false;
-            }
-            if (!MountedPairTurnPolicy.CanAdmitRiderGroundMovement(
-                true,
-                true,
-                true,
-                turn?.Unit == relationship.Rider,
-                turn != null && turn.Status == TurnController.TurnStatus.Preparing,
-                turn != null && turn.IsActing))
-            {
-                LastFeedback = "Move the mounted pair during the rider's turn.";
-                LastRejectionCodes = new[] { MountedCombatRejectionCode.WrongTurn };
-                return false;
-            }
-
-            if (relationship.Mount?.Commands == null ||
-                relationship.Mount.Commands.GetCommand(UnitCommand.CommandType.Move) != null ||
-                relationship.Mount.Commands.Queue.Count != 0)
-            {
-                LastFeedback = "Mounted ground movement rejected: the " + MountDisplayName + " Move slot is not idle.";
-                LastRejectionCodes = new[] { MountedCombatRejectionCode.AlreadyActiveCommand };
-                return false;
-            }
-
-            groundMoveOwner = relationship.PairOwner;
-            if (!relationship.IsCurrentPairOwner(groundMoveOwner)) return false;
-            riderTurnGroundMoveAdmissionPending = true;
-            unifiedTurn.RememberPairedMovementInput();
-            LastRejectionCodes = new MountedCombatRejectionCode[0];
-            LastFeedback = "Mounted rider-turn ground movement admitted; " + MountDisplayName + " owns pathfinding.";
-            return true;
+            public bool TryConsumePropagatedOverlayWorldClick() => controller.TrySuppressPropagatedOverlayWorldClick();
+            public bool SaveSerializationSuspended => controller.relationship.SaveSerializationSuspended;
+            public void CancelPairCommands() => controller.Cancel("ground command");
+            public string CurrentModeName => Game.Instance?.CurrentMode.ToString();
+            public bool InTurnBasedCombat => CombatController.IsInTurnBasedCombat();
+            public bool PairedActivationEnabled => controller.settings.EnablePairedActivation;
+            public bool CanMovePairedMount() => controller.unifiedTurn.CanMovePairedMount(Turn);
+            public bool CurrentTurnUnitIsRider => Turn?.Unit == controller.relationship.Rider;
+            public bool RiderTurnPreparing => Turn != null && Turn.Status == TurnController.TurnStatus.Preparing;
+            public bool RiderTurnActing => Turn != null && Turn.IsActing;
+            public bool MountMoveSlotIdle => !(controller.relationship.Mount?.Commands == null ||
+                controller.relationship.Mount.Commands.GetCommand(UnitCommand.CommandType.Move) != null ||
+                controller.relationship.Mount.Commands.Queue.Count != 0);
         }
 
         public void CompleteGroundCommandAdmission(UnitEntityData routedUnit)

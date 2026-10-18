@@ -40,17 +40,28 @@ function Assert-KmcChunk7WorldCounters($Value,[string[]]$Fields) {
 function Assert-KmcChunk7WorldInt32($Value) {
     if(-not(Test-KmcExactJsonInteger $Value)-or$Value-lt[int32]::MinValue-or$Value-gt[int32]::MaxValue){throw 'Native signed Int32 observation is missing, mistyped or outside its native bound.'}
 }
-# Pair-owner records keep actor ids in Guid "N" form while actor UniqueIds are "D" form
-# (observed natively in 20261017-c7b-world21-ownerseed-b2s3-twopair); -GuidValue compares
-# the parsed Guid values and refuses any id that is not a Guid.
-function ConvertTo-KmcChunk7GuidN($Value) {
-    [Guid]$guid=[Guid]::Empty
-    if($Value-isnot[string]-or-not[Guid]::TryParse($Value,[ref]$guid)){throw 'Native actor identity is not a Guid.'}
-    $guid.ToString('N')
+# Native identity forms (observed in 20261017-c7b-world21-ownerseed-b2s3-twopair, and fixed by
+# the producer): a pair-owner record keeps its rider/mount ids as the registry key, which
+# MountedPairRegistry.Key normalizes to the compact lowercase Guid "N" form, while actor
+# UniqueIds (party rows, selection, door/command executors) are the lowercase hyphenated Guid
+# "D" form. Each side must match its own exact native pattern before the two are compared by
+# Guid value; uppercase, braces, whitespace, the other side's form or a non-Guid are refused.
+function ConvertFrom-KmcChunk7OwnerActorId($Value) {
+    if($Value-isnot[string]-or$Value-cnotmatch'\A[0-9a-f]{32}\z'){throw 'Pair-owner actor identity is not the native compact lowercase Guid (N) form.'}
+    [Guid]::ParseExact($Value,'N')
 }
+function ConvertFrom-KmcChunk7ActorUniqueId($Value) {
+    if($Value-isnot[string]-or$Value-cnotmatch'\A[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\z'){throw 'Native actor UniqueId is not the lowercase hyphenated Guid (D) form.'}
+    [Guid]::ParseExact($Value,'D')
+}
+function Test-KmcChunk7OwnerActorMatch($OwnerValue,$ActorValue) {
+    (ConvertFrom-KmcChunk7OwnerActorId $OwnerValue)-eq(ConvertFrom-KmcChunk7ActorUniqueId $ActorValue)
+}
+# -GuidValue: $Rows are pair-owner records (field in "N" form) and $Expected are actor
+# UniqueIds ("D" form); the sets are compared by Guid value after both exact-form checks.
 function Assert-KmcChunk7ExactIds($Rows,[string[]]$Expected,[string]$Field='id',[switch]$GuidValue) {
-    $actual=@($Rows|ForEach-Object{if($GuidValue){ConvertTo-KmcChunk7GuidN $_.$Field}else{[string]$_.$Field}}|Sort-Object -CaseSensitive)
-    $wanted=@($Expected|ForEach-Object{if($GuidValue){ConvertTo-KmcChunk7GuidN $_}else{$_}}|Sort-Object -CaseSensitive)
+    $actual=@($Rows|ForEach-Object{if($GuidValue){(ConvertFrom-KmcChunk7OwnerActorId $_.$Field).ToString('N')}else{[string]$_.$Field}}|Sort-Object -CaseSensitive)
+    $wanted=@($Expected|ForEach-Object{if($GuidValue){(ConvertFrom-KmcChunk7ActorUniqueId $_).ToString('N')}else{$_}}|Sort-Object -CaseSensitive)
     if(($actual-join'|')-cne($wanted-join'|')){throw 'Native actor identity set differs.'}
 }
 function Assert-KmcChunk7Resources($Before,$After,[string[]]$ActorIds) {
@@ -146,10 +157,10 @@ function Assert-KmcChunk7DoorEvidence($Door,$Owners,[string[]]$DeclaredRiders=@(
     $riders=@($DeclaredRiders);if($riders.Count-ne2-or$riders[0]-ceq$riders[1]){throw 'Exact distinct declared door riders required.'};foreach($id in $riders){Assert-KmcOrdinaryGuid $id}
     $commands=[Collections.Generic.HashSet[long]]::new()
     for($i=0;$i-lt2;$i++) {
-        $v=$Door.interactions[$i];$owner=@($Owners|Where-Object{(ConvertTo-KmcChunk7GuidN $_.riderId)-ceq(ConvertTo-KmcChunk7GuidN $riders[$i])})
+        $v=$Door.interactions[$i];$owner=@($Owners|Where-Object{Test-KmcChunk7OwnerActorMatch $_.riderId $riders[$i]})
         Assert-KmcExactProperties $v @('pair','riderId','mountId','ownerId','generation','commandObject','executorId','distanceBefore','radius','selectionAfterInput','accepted','unrelatedIdleAtInput','outcome','terminal','ownerContinuity','unrelatedIdleAtCompletion','distanceMoved') 'native mounted door input'
         Assert-KmcChunk7WorldCounters $v @('pair','generation');Assert-KmcChunk7WorldInt32 $v.commandObject
-        if($owner.Count-ne1-or$v.pair-ne$i-or$v.riderId-cne$owner[0].riderId-or$v.mountId-cne$owner[0].mountId-or
+        if($owner.Count-ne1-or$v.pair-ne$i-or-not(Test-KmcChunk7OwnerActorMatch $owner[0].riderId $v.riderId)-or-not(Test-KmcChunk7OwnerActorMatch $owner[0].mountId $v.mountId)-or
             $v.ownerId-cne$owner[0].ownerId-or$v.generation-ne$owner[0].generation-or$v.executorId-cne$v.riderId-or
             $v.selectionAfterInput-cne$riders[1-$i]-or$v.commandObject-eq0-or-not$commands.Add([long]$v.commandObject)){throw 'Door command lost its captured pair, generation, executor or changed selection.'}
         foreach($flag in @('accepted','unrelatedIdleAtInput','terminal','ownerContinuity','unrelatedIdleAtCompletion')){Assert-KmcChunk7Boolean $v.$flag $true}
@@ -164,8 +175,8 @@ function Assert-KmcChunk7DoorEvidence($Door,$Owners,[string[]]$DeclaredRiders=@(
     $r=$Door.firstPairReturn
     Assert-KmcExactProperties $r @('command','executorId','terminal','result','distanceToStart') 'native first-pair return'
     Assert-KmcChunk7WorldInt32 $r.command;Assert-KmcChunk7Boolean $r.terminal $true
-    $first=@($Owners|Where-Object{(ConvertTo-KmcChunk7GuidN $_.riderId)-ceq(ConvertTo-KmcChunk7GuidN $riders[0])})[0]
-    if($r.command-eq0-or-not$commands.Add([long]$r.command)-or$r.executorId-cne$first.mountId-or$r.result-cne'Success'-or
+    $first=@($Owners|Where-Object{Test-KmcChunk7OwnerActorMatch $_.riderId $riders[0]})[0]
+    if($r.command-eq0-or-not$commands.Add([long]$r.command)-or-not(Test-KmcChunk7OwnerActorMatch $first.mountId $r.executorId)-or$r.result-cne'Success'-or
         -not(Test-KmcChunk7FiniteNumber $r.distanceToStart)-or$r.distanceToStart-lt0-or$r.distanceToStart-gt1.25){throw 'First pair did not return through its own native mount command.'}
     $s=$Door.restoration
     Assert-KmcExactProperties $s @('exact','commandsSettled','open','enabled','cutEnabled') 'native door restoration'
@@ -292,13 +303,14 @@ function Assert-KmcChunk7WorldEvidence($Request,$Artifact,[string]$Status) {
     if($doorTested){foreach($owner in $owners){$same=@($doorAfter[0].owners|Where-Object ownerId -CEQ $owner.ownerId);if($same.Count-ne1-or$same[0].generation-ne$owner.generation-or$same[0].riderId-cne$owner.riderId-or$same[0].mountId-cne$owner.mountId-or$same[0].state-cne'Active'){throw 'Door work changed captured ownership.'}}}
     $split=@($o.snapshots|Where-Object label -CEQ 'first-dismounted-second-retained')
     if($split.Count-ne1){throw 'Independent native Dismount window missing.'}
-    $retained=@($split[0].owners|Where-Object state -CEQ 'Active');$expected=@($owners|Where-Object{(ConvertTo-KmcChunk7GuidN $_.riderId)-ceq(ConvertTo-KmcChunk7GuidN $second)})[0]
-    if($retained.Count-ne1-or$retained[0].ownerId-cne$expected.ownerId-or$retained[0].generation-ne$expected.generation){throw 'Dismount changed the other pair owner.'}
+    $retained=@($split[0].owners|Where-Object state -CEQ 'Active');$expected=@($owners|Where-Object{Test-KmcChunk7OwnerActorMatch $_.riderId $second})[0]
+    if($retained.Count-ne1-or$retained[0].ownerId-cne$expected.ownerId-or$retained[0].generation-ne$expected.generation-or
+        $retained[0].riderId-cne$expected.riderId-or$retained[0].mountId-cne$expected.mountId){throw 'Dismount changed the other pair owner.'}
     $moveSpecs=@(@('mammoth',$first,$mammoth),@('horse',$second,$horse),@('unmounted-control',$first,$first))
     if(@($o.movements).Count-ne3){throw 'Three exact native movement windows required.'}
     for($i=0;$i-lt3;$i++) {
         $v=$o.movements[$i];$s=$moveSpecs[$i]
-        $quietOwners=if($i-lt2){$owners}else{@($owners|Where-Object{(ConvertTo-KmcChunk7GuidN $_.riderId)-ceq(ConvertTo-KmcChunk7GuidN $second)})}
+        $quietOwners=if($i-lt2){$owners}else{@($owners|Where-Object{Test-KmcChunk7OwnerActorMatch $_.riderId $second})}
         Assert-KmcChunk7QuietWindow $v.optionalCaptureWindow $v @($quietOwners) $actors
         Assert-KmcChunk7Boolean $v.commandTerminal $true
         Assert-KmcChunk7WorldInt32 $v.commandObject
@@ -334,7 +346,7 @@ function Assert-KmcChunk7WorldEvidence($Request,$Artifact,[string]$Status) {
             [Guid]$id=[Guid]::Empty
             if(-not[Guid]::TryParse([string]$owner.ownerId,[ref]$id)-or-not$allOwners.Add([string]$owner.ownerId)-or
                 $owner.generation-le$previous[$owner.riderId]-or$owner.state-cne'Active'-or$owner.relationshipState-cne'Mounted'-or
-                (ConvertTo-KmcChunk7GuidN $owner.mountId)-cne(ConvertTo-KmcChunk7GuidN $(if((ConvertTo-KmcChunk7GuidN $owner.riderId)-ceq(ConvertTo-KmcChunk7GuidN $first)){$mammoth}else{$horse}))){throw 'Remount reused stale ownership/generation or wrong actor.'}
+                -not(Test-KmcChunk7OwnerActorMatch $owner.mountId $(if(Test-KmcChunk7OwnerActorMatch $owner.riderId $first){$mammoth}else{$horse}))){throw 'Remount reused stale ownership/generation or wrong actor.'}
             $previous[$owner.riderId]=[long]$owner.generation
         }
         foreach($window in @($mounted,$settled)) {
