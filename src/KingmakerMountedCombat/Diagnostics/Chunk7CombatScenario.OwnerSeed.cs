@@ -1,7 +1,9 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using Kingmaker;
 using Kingmaker.EntitySystem.Entities;
+using Kingmaker.UI.Selection;
 using Kingmaker.UnitLogic.Commands;
 using KingmakerMountedCombat.Domain;
 using KingmakerMountedCombat.Integration;
@@ -142,6 +144,8 @@ namespace KingmakerMountedCombat.Diagnostics
         private void BeginCompanionAction()
         {
             Game.Instance.IsPaused = true;
+            // Her own Run admission inside the paused click must be visible; kept for the rest of the RT case.
+            trace.DeclareCommandOwner(companion);
             companionTraceOffset = trace.EventCount;
             companionAction = new JObject { ["contract"] = "owner-seed-unrelated-companion-action-v1", ["kind"] = "ordinary-native-attack",
                 ["justification"] = CompanionJustification, ["actorId"] = companion.UniqueId, ["targetId"] = target.UniqueId,
@@ -162,29 +166,73 @@ namespace KingmakerMountedCombat.Diagnostics
             Chunk7NativeFixture.Select(ar); companionAction["selectionAfterInput"] = ar.UniqueId; Game.Instance.IsPaused = false;
         }
 
-        private static readonly string[] CompanionAccountedBoundaries = { "admission-before", "admission-after", "cost-before", "cost-after",
-            "actor-cost-before", "actor-cost-after", "interrupt-before", "interrupt-after" };
+        // Exactly the boundary names NativeActorAllocationTrace emits (statically checked by the tests).
+        internal static readonly string[] CompanionAccountedBoundaries = { "admission-before", "admission-after", "cost-before", "cost-after",
+            "actor-cost-before", "actor-cost-after", "command-interrupt-before", "command-interrupt-after" };
+        private const string StockAttackType = "Kingmaker.UnitLogic.Commands.UnitAttack";
+
+        // Native RT party brains keep proposing a UnitAttack on a pair actor's ManualTarget about every
+        // 0.35 s; KMC refuses each one in its Run prefix before native Run initializes it. Such a proposal
+        // is tolerated only as one closed refused-before-Run pair: one admission-before then one
+        // admission-after of a fresh exact UnitAttack identity with no executor, never started, result
+        // None, appearing in no other window row and in no pair command slot. Every other pair row is touch.
+        internal static JArray RefusedPairProposals(JObject[] accounted, string[] pairIds, int companionCommand, JToken[] pairCommandSets, out int pairTouched)
+        {
+            var slotted = new HashSet<int>(pairCommandSets.SelectMany(set => set.SelectMany(slot => ((JArray)slot).Select(c => (int)c["identity"]))));
+            var pairRows = accounted.Where(e => pairIds.Contains((string)e["commandActor"]) || pairIds.Contains((string)e["state"]?["actor"])).ToArray();
+            var refused = new JArray(); var accepted = new HashSet<JObject>();
+            foreach (var group in pairRows.Where(e => e["command"]?.Type == JTokenType.Integer).GroupBy(e => (int)e["command"]))
+            {
+                var rows = group.OrderBy(e => (int)e["sequence"]).ToArray(); var identity = group.Key;
+                var all = accounted.Where(e => (int?)e["command"] == identity).ToArray();
+                var actor = (string)rows[0]["state"]?["actor"];
+                var closed = rows.Length == 2 && all.Length == 2 && (string)rows[0]["boundary"] == "admission-before" && (string)rows[1]["boundary"] == "admission-after" &&
+                    identity != companionCommand && !slotted.Contains(identity) && pairIds.Contains(actor) &&
+                    rows.All(e => (string)e["state"]?["actor"] == actor && (string)e["commandType"] == StockAttackType && e["commandActor"]?.Type == JTokenType.Null &&
+                        (bool?)e["started"] == false && (bool?)e["acted"] == false && (bool?)e["finished"] == false && (string)e["result"] == "None");
+                if (!closed) continue;
+                foreach (var row in rows) accepted.Add(row);
+                refused.Add(new JObject { ["actorId"] = actor, ["command"] = identity, ["sequenceBefore"] = rows[0]["sequence"], ["sequenceAfter"] = rows[1]["sequence"] });
+            }
+            pairTouched = pairRows.Count(e => !accepted.Contains(e));
+            return refused;
+        }
 
         private bool FinishCompanionAction()
         {
             Require(PairIdle(a) && PairIdle(b) && RestoredOrLiveOwnersUnchanged(), "A pair received work or changed custody during the companion's action.");
             if (!companionAttack.IsFinished || !companion.Commands.Empty || companion.AreHandsBusyWithAnimation) return false;
+            // One native Stop with only the companion selected clears her ManualTarget, so her own brain
+            // cannot propose a second attack; it is her second and last declared input.
+            Game.Instance.IsPaused = true; var stopBefore = trace.EventCount;
+            Chunk7NativeFixture.Select(companion); SelectionManager.Instance.Stop(); Chunk7NativeFixture.Select(ar);
+            companionAction["nativeStop"] = new JObject { ["selectedId"] = companion.UniqueId, ["selectionAfterStop"] = ar.UniqueId,
+                ["traceSequenceBefore"] = stopBefore, ["traceSequenceAfter"] = trace.EventCount,
+                ["companionManualTargetCleared"] = companion.CombatState.ManualTarget == null, ["companionCommandsEmpty"] = companion.Commands.Empty };
+            companionAction["companionInputs"] = new JArray("ordinary-attack-click", "native-stop");
+            Game.Instance.IsPaused = false;
+            Require((bool)companionAction["nativeStop"]["companionManualTargetCleared"] && companion.Commands.Empty,
+                "The companion's native Stop did not clear her ManualTarget or left her a command.");
             var events = trace.EventsSince(companionTraceOffset); var command = trace.ObjectIdentity(companionAttack);
             var pairIds = actors.Select(x => x.UniqueId).ToArray();
             var accounted = events.Cast<JObject>().Where(e => CompanionAccountedBoundaries.Contains((string)e["boundary"])).ToArray();
-            var pairTouched = accounted.Where(e => pairIds.Contains((string)e["commandActor"]) || pairIds.Contains((string)e["state"]?["actor"])).ToArray();
+            companionAction["after"] = CompanionWindow("companion-after"); companionAction["traceSequenceAfter"] = trace.EventCount;
+            var refused = RefusedPairProposals(accounted, pairIds, command,
+                new[] { companionAction["before"]["pairCommands"], companionAction["admitted"]["pairCommands"], companionAction["after"]["pairCommands"] }
+                    .Select(x => (JToken)new JArray(((JObject)x).Properties().Select(prop => prop.Value))).ToArray(), out var pairTouched);
             var companionRows = accounted.Where(e => (string)e["commandActor"] == companion.UniqueId || (string)e["state"]?["actor"] == companion.UniqueId).ToArray();
             var admissions = companionRows.Where(e => (string)e["boundary"] == "admission-after").ToArray();
             var costBefore = companionRows.Where(e => (string)e["boundary"] == "cost-before" && (int?)e["command"] == command).ToArray();
             var costAfter = companionRows.Where(e => (string)e["boundary"] == "cost-after" && (int?)e["command"] == command).ToArray();
             var foreign = companionRows.Where(e => (int?)e["command"] != command).ToArray();
-            companionAction["after"] = CompanionWindow("companion-after"); companionAction["traceSequenceAfter"] = trace.EventCount;
             companionAction["accountedEvents"] = new JArray(accounted.Select(e => e.DeepClone()));
             companionAction["companionCommandCount"] = admissions.Length; companionAction["companionCostEvents"] = costBefore.Length + costAfter.Length;
-            companionAction["pairAccountedEvents"] = pairTouched.Length; companionAction["foreignCompanionEvents"] = foreign.Length;
-            Require(admissions.Length == 1 && (int?)admissions[0]["command"] == command && costBefore.Length == 1 && costAfter.Length == 1 && foreign.Length == 0,
+            companionAction["pairRefusedProposals"] = refused;
+            companionAction["pairAccountedEvents"] = pairTouched; companionAction["foreignCompanionEvents"] = foreign.Length;
+            Require(admissions.Length == 1 && (int?)admissions[0]["command"] == command && (string)admissions[0]["commandActor"] == companion.UniqueId &&
+                costBefore.Length == 1 && costAfter.Length == 1 && foreign.Length == 0,
                 "The companion did not take exactly one ordinary native command with its own single native cost.");
-            Require(pairTouched.Length == 0, "A pair actor was admitted, cancelled or charged during the companion's action.");
+            Require(pairTouched == 0, "A pair actor was admitted, cancelled or charged during the companion's action.");
             Require(JToken.DeepEquals(companionAction["before"]["pairCommands"], companionAction["after"]["pairCommands"]),
                 "The companion's action reassigned or cancelled a pair command.");
             foreach (var actor in actors)
@@ -198,7 +246,6 @@ namespace KingmakerMountedCombat.Diagnostics
             companionAction["terminal"] = true;
             return true;
         }
-
         private bool RestoredOrLiveOwnersUnchanged()
         {
             var before = companionAction["before"]["owners"] as JArray; var now = WorldSnapshot("companion-poll")["owners"];
