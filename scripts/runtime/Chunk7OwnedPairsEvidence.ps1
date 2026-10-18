@@ -757,3 +757,28 @@ function Assert-KmcChunk7OwnerSeedCompanionAction($Request,$Observations){
  $ownersBefore=@($c.before.owners|ForEach-Object{(ConvertTo-KmcChunk7PairIdN $_.id)+'|'+$_.generation+'|'+$_.state}|Sort-Object -CaseSensitive);$ownersAfter=@($c.after.owners|ForEach-Object{(ConvertTo-KmcChunk7PairIdN $_.id)+'|'+$_.generation+'|'+$_.state}|Sort-Object -CaseSensitive)
  if(($ownersBefore-join';')-cne($ownersAfter-join';')-or@($c.after.owners|Where-Object state -CEQ 'Active').Count-ne2){throw 'The companion action changed pair custody.'}
 }
+# Directive 4 R1: one real ordinary player hostile click by rider A while native party-brain proposals
+# continue. Re-derived from the trace: exactly one rider-A native attack on the target before the
+# player's Stop, no KMC command on pair B, no player-facing warning, pair B unspent, custody unchanged.
+function Assert-KmcChunk7OwnerSeedPlayerClick($Request,$Observations){
+ $o=$Observations;$s=$Request.ownedPairs;$roles=Get-KmcChunk7OwnedPairIds $Request
+ if($null-eq$o.PSObject.Properties['playerClick']){throw 'Owner-seed-derived RT lacks its player-click integrity window.'}
+ $p=$o.playerClick;$pairAttack='KingmakerMountedCombat.Integration.MountedPairAttackCommand'
+ Assert-KmcBootstrapInventoryString $p.contract 'owner-seed-rt-player-click-integrity-v1';Assert-KmcBootstrapInventoryString $p.actorId $s.riderAId;Assert-KmcBootstrapInventoryString $p.targetId $o.targetId
+ foreach($key in @('clicked','terminal')){Assert-KmcChunk7Boolean $p.$key $true}
+ foreach($w in @($p.before,$p.admitted,$p.after)){foreach($key in @('intent','manualTargets','pairCommands','target')){if($null-eq$w.PSObject.Properties[$key]){throw 'Player-click window lacks its intent, target or command custody.'}}}
+ if([long]$p.admitted.intent.aStarts-ne[long]$p.before.intent.aStarts+1-or[long]$p.after.intent.bStarts-ne[long]$p.before.intent.bStarts-or$p.after.intent.bActive-ne$false){throw 'The player click did not start exactly one pair A stock intent, or touched pair B.'}
+ Assert-KmcOrdinaryInteger $p.traceSequenceBefore 0 ([int]::MaxValue);Assert-KmcOrdinaryInteger $p.traceSequenceAfter ([int]$p.traceSequenceBefore) ([int]::MaxValue)
+ $stop=$p.stop;Assert-KmcBootstrapInventoryString $stop.selectedId $s.riderAId;Assert-KmcChunk7Boolean $stop.intentAfterStop $false
+ Assert-KmcOrdinaryInteger $stop.traceSequenceBefore ([int]$p.traceSequenceBefore) ([int]$p.traceSequenceAfter)
+ $window=@($o.allocationTrace.events|Where-Object{$_.sequence-gt$p.traceSequenceBefore-and$_.sequence-le$p.traceSequenceAfter})
+ $costs=@($window|Where-Object{$_.boundary-ceq'cost-after'-and$_.state.actor-ceq$s.riderAId-and$_.commandType-ceq$pairAttack-and$_.sequence-le$stop.traceSequenceBefore})
+ if($costs.Count-ne1-or$costs[0].commandTarget-cne$o.targetId){throw 'The player click did not cause exactly one rider-A native attack on its target before Stop.'}
+ if(@($p.riderAttackCosts).Count-ne1-or$p.riderAttackCosts[0].sequence-ne$costs[0].sequence){throw 'The recorded player-click attack differs from the native trace.'}
+ if(@($window|Where-Object{$_.commandType-ceq$pairAttack-and$_.state.actor-cin@($s.riderBId,$s.mountBId)}).Count-ne0-or$p.pairBKmcCommandRows-ne0){throw 'Pair B received a KMC attack command during the player click.'}
+ if(@($p.warnings).Count-ne0){throw 'A player-facing warning appeared while only native proposals were refused.'}
+ foreach($id in @($s.riderBId,$s.mountBId)){$a=Get-KmcChunk7CombatActor $p.before $id;$b=Get-KmcChunk7CombatActor $p.after $id
+  foreach($field in @('standard','move','swift')){if([double]$b.$field-gt[double]$a.$field+0.001){throw 'Pair B spent native resources during the player click.'}};if($a.reactions-ne$b.reactions){throw 'Pair B spent a reaction during the player click.'}}
+ $ownersBefore=@($p.before.owners|ForEach-Object{(ConvertTo-KmcChunk7PairIdN $_.id)+'|'+$_.generation+'|'+$_.state}|Sort-Object -CaseSensitive);$ownersAfter=@($p.after.owners|ForEach-Object{(ConvertTo-KmcChunk7PairIdN $_.id)+'|'+$_.generation+'|'+$_.state}|Sort-Object -CaseSensitive)
+ if(($ownersBefore-join';')-cne($ownersAfter-join';')){throw 'The player click changed pair custody.'}
+}

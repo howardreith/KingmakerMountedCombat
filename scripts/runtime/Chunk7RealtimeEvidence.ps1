@@ -4,7 +4,7 @@ function Test-KmcChunk7RealtimeScenario([string]$Scenario){$Scenario-cin@('chunk
 function Get-KmcChunk7RealtimeRows([string]$Scenario){
     if(-not(Test-KmcChunk7RealtimeScenario $Scenario)){throw 'Unknown two-pair RT case.'}
     @($Scenario,'C7-combat-fixture','C7-combat-native-mounts','C7-combat-restored-mounts','C7-combat-cleanup','C7-combat-runtime','C7-combat-interrupted')
-    if($Scenario-ceq'chunk7-two-pair-realtime-core'){@('C7-rt-charge-default-off','C7-rt-concurrent-primary','C7-rt-companion-native-action','C7-rt-local-cancel','C7-rt-unmounted-native-control','C7-combat-local-cleanup-failure')}
+    if($Scenario-ceq'chunk7-two-pair-realtime-core'){@('C7-rt-charge-default-off','C7-rt-concurrent-primary','C7-rt-companion-native-action','C7-rt-player-click-integrity','C7-rt-local-cancel','C7-rt-unmounted-native-control','C7-combat-local-cleanup-failure')}
     elseif($Scenario-ceq'chunk7-two-pair-realtime-casting'){@('C7-rt-native-casting','C7-rt-casting-neighbour')}
     else{@('C7-rt-charge-native-success','C7-rt-charge-neighbour-movement','C7-rt-charge-native-cancel')}
 }
@@ -90,7 +90,7 @@ function Assert-KmcChunk7RealtimeEvidence($Request,$Artifact,[string]$Status){
     if($derived){Assert-KmcChunk7OwnerSeedDerivedCombatStart $Request $o}else{
     $mounts=@($o.inputs|Where-Object{$_.label-cin@('mount-a','mount-b')});if($mounts.Count-ne2){throw 'Two native mounts missing.'}
     for($i=0;$i-lt2;$i++){$m=$mounts[$i];if($m.casterId-cne$ids[$i*2]-or$m.targetId-cne$ids[$i*2+1]-or$m.abilityGuid-cne'f053faad986631688defa003cd7bda0e'-or$m.nativeCastDelta-ne1-or$m.nativeRefusalDelta-ne0-or$m.generationAtInit-lt0){throw 'Native RT mount binding differs.'};foreach($f in @('clicked','terminal','processTerminal')){Assert-KmcChunk7Boolean $m.$f $true}}}
-    if((Get-KmcChunk7SelectedScenario $Request)-ceq'chunk7-two-pair-realtime-core') {Assert-KmcChunk7RealtimeCore $o $ids $trace;if($derived){Assert-KmcChunk7OwnerSeedCompanionAction $Request $o}elseif($null-ne$o.PSObject.Properties['companionAction']){throw 'Only owner-seed-derived RT records an unrelated companion action.'}}
+    if((Get-KmcChunk7SelectedScenario $Request)-ceq'chunk7-two-pair-realtime-core') {Assert-KmcChunk7RealtimeCore $o $ids $trace;if($derived){Assert-KmcChunk7OwnerSeedCompanionAction $Request $o;Assert-KmcChunk7OwnerSeedPlayerClick $Request $o}elseif($null-ne$o.PSObject.Properties['companionAction']-or$null-ne$o.PSObject.Properties['playerClick']){throw 'Only owner-seed-derived RT records an unrelated companion action or player-click window.'}}
     elseif((Get-KmcChunk7SelectedScenario $Request)-ceq'chunk7-two-pair-realtime-casting'){Assert-KmcChunk7RealtimeCasting $o $ids $trace}
     else{Assert-KmcChunk7RealtimeCharge $o $ids $trace}
     if($owned){foreach($field in @('pairResidueAbsent','nativeCombatEnded','initiativeInputsRestored','firstPairAiRestored','controlsSettled','inheritedPetsPreserved')){Assert-KmcChunk7Boolean $o.cleanup.$field $true};Assert-KmcChunk7Boolean $o.cleanup.ownedHorseRemoved $false;Assert-KmcChunk7Boolean $o.cleanup.nativeProgressionRequiresExternalWorkingRestoration $false}else{foreach($field in @('pairResidueAbsent','ownedHorseRemoved','nativeCombatEnded','initiativeInputsRestored','firstPairAiRestored','controlsSettled','nativeProgressionRequiresExternalWorkingRestoration')){Assert-KmcChunk7Boolean $o.cleanup.$field $true}}
