@@ -119,7 +119,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 var game = Game.Instance;
                 Require(game?.Player != null && SelectionManager.Instance != null && !game.Player.IsInCombat &&
                     game.Player.GameId == request.SelectedChunk7Fixture.GameId, "The exact loaded Working world must be idle outside combat.");
-                if (request.OwnedPairs?.IsOwnerSeed == true) BindOwnerSeed(game);
+                if (request.OwnedPairs?.OwnerSeedSetup == true) BindOwnerSeed(game);
                 else if (request.OwnedPairs != null)
                 {
                     inherited = new Chunk7OwnedPairFixture(request, horses, world, controls, persistence, fixtureAuthorization, fixtureAuthority, fixtureLoader);
@@ -184,7 +184,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 // Owner-seed SETUP steps carry their own bounded deadlines; the measured
                 // phase below keeps the unchanged historical deadline from SETUP-COMPLETE.
                 if (step >= 50 && step <= 57) { UpdateOwnerSeedSetup(); return; }
-                Require(clock.Elapsed.TotalSeconds <= 300 && clock.Elapsed.TotalSeconds - stepStarted <= (step == 40 ? 120 : 30),
+                // The owner-seed Manual's native worker (step 61) keeps the door probe's longer step bound.
+                Require(clock.Elapsed.TotalSeconds <= 300 && clock.Elapsed.TotalSeconds - stepStarted <= (step == 40 || step == 61 ? 120 : 30),
                     "Bounded two-pair scenario deadline at step " + step + ".");
                 Require(!Game.Instance.Player.IsInCombat, "Exploration scenario unexpectedly entered combat.");
                 if (shell != null && controls.HasExactRelationshipProcessBinding(shell)) observedExactProcess = true;
@@ -231,7 +232,12 @@ namespace KingmakerMountedCombat.Diagnostics
                         screenshots.Enqueue("C7-world-two-native-mounts", "both-mounted", Time.frameCount + 1); Next(5); break;
                     case 5:
                         if (!screenshotReady) return;
+                        // Owner-seed Manual producer: both pairs mounted, then its one native Manual.
+                        if (OwnerSeedManual) { BeginOwnerSeedManualSave(); break; }
                         BeginMeasurement("mounted-2"); Next(22); break;
+                    case 60:
+                    case 61:
+                        UpdateOwnerSeedManual(); break;
                     case 6:
                         AssertBoth(); if (!MovementSettled()) return;
                         Move(secondRider, secondMount, secondMount.Position + Vector3.forward * 2f, firstRider, "horse"); Next(7); break;
@@ -783,6 +789,8 @@ namespace KingmakerMountedCombat.Diagnostics
             if (LoadingProcess.Instance.IsLoadingInProcess || LoadingProcess.Instance.QueuedNames.Any() ||
                 NativePersistenceIsolation.HasPendingWrites || world.SerializationBusy)
             { RetainCleanup("A native load or archive worker still owns this world."); return; }
+            if (OwnerSeedManual && !TryCleanup("owner-seed Manual save custody", () => Require(OwnerSeedManualCleanupReady(), "The owner-seed native Manual save scope or its observers have not settled.")))
+            { RetainCleanup("The owner-seed native Manual save still owns this world."); return; }
             if (!TryCleanup("captured native world", () => {
                 Require(nativeScope != null, "Captured native world authority is absent."); nativeScope.RequireCurrent();
             })) { RetainCleanup("Captured native world, area or actor identity changed."); return; }
@@ -862,7 +870,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["controlsSettled"] = !controls.HasUnsettledRelationshipTransition, ["settingsAndSelectionRestored"] = true,
                 ["nativeProcessesSettled"] = NativeCommandsSettled(), ["cleanupCustodySettled"] = true,
                 ["nativeProgressionRequiresExternalWorkingRestoration"] = inherited == null && !OwnerSeed,
-                ["ordinaryRespecProven"] = false, ["nativeSaveWritten"] = false,
+                ["ordinaryRespecProven"] = false, ["nativeSaveWritten"] = OwnerSeedManualWritten,
                 ["world"] = CaptureWorld("cleanup"), ["partyAfter"] = new JArray((OwnerSeed ? OwnerSeedRoster() : PartyActors()).Select(CaptureRig)),
                 ["selectionBefore"] = new JArray(originalSelection.Select(x => x.UniqueId)),
                 ["selectionAfter"] = new JArray(SelectionManager.Instance.SelectedUnits.Select(x => x.UniqueId)),
@@ -882,13 +890,14 @@ namespace KingmakerMountedCombat.Diagnostics
             evidence["elapsedSeconds"] = clock.Elapsed.TotalSeconds;
             evidence["combatOrPersistenceProof"] = false;
             evidence["thirdUnrelatedActorProven"] = false;
-            Require(matched.Complete || errors.Count != 0, "Successful exploration lacks its separate matched-pool observation.");
+            // The owner-seed Manual producer measures no matched pool and publishes no sidecar.
+            Require(matched.Complete || errors.Count != 0 || OwnerSeedManual, "Successful exploration lacks its separate matched-pool observation.");
             if (!worldEvidenceWritten)
             {
                 RuntimeLoaderInventory.WriteArtifact(request, EvidenceFileName, EvidenceKind, errors.Count == 0 ? "PASS" : "FAIL", evidence, errors);
                 worldEvidenceWritten = true;
             }
-            WriteMatchedPoolEvidence();
+            if (!OwnerSeedManual) WriteMatchedPoolEvidence();
             completed = true;
         }
         internal bool DrainForHost()

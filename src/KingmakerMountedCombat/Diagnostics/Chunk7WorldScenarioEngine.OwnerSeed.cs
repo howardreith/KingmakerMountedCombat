@@ -54,7 +54,7 @@ namespace KingmakerMountedCombat.Diagnostics
         // A refusal before SETUP-COMPLETE is a setup failure, not a behaviour result.
         private void MarkOwnerSeedSetupFailure()
         {
-            if (request?.OwnedPairs?.IsOwnerSeed == true && evidence["failurePhase"] == null)
+            if (request?.OwnedPairs?.OwnerSeedSetup == true && evidence["failurePhase"] == null)
                 evidence["failurePhase"] = setupLedger?.Completed == true ? "MEASURED" : "SETUP";
         }
 
@@ -88,13 +88,13 @@ namespace KingmakerMountedCombat.Diagnostics
             var autosaveSlots = settings.AutosaveSlots.CurrentValue;
             var riderBuilds = new[] { firstRider, secondRider }.Count(rider => rider.Descriptor.Pet == null);
             setupWritesExpected = Chunk7OwnerSeedSetupPlan.ExpectedSetupWrites(autosaveEnabled, riderBuilds); setupAutosaves = new JArray();
-            ownerSeedSetup = new JObject { ["contract"] = "owner-seed-fixture-setup-v1", ["disclosure"] = OwnerSeedDisclosure,
+            ownerSeedSetup = new JObject { ["contract"] = "owner-seed-fixture-setup-v1", ["disclosure"] = selection.IsOwnerSeedManual ? OwnerSeedManualDisclosure : OwnerSeedDisclosure,
                 ["seedId"] = selection.SeedId, ["seedSha256"] = selection.SeedSha256, ["fixtureSetupOnly"] = true, ["acquisitionProof"] = false,
                 ["producerAncestry"] = false, ["loadedArchiveKind"] = "Missing", ["loadedArchiveCanRestore"] = false,
                 ["riderFacts"] = new JArray(FactsRow("A", a), FactsRow("B", b)),
                 ["nativeLevelUpAutosave"] = new JObject { ["autosaveEnabled"] = autosaveEnabled, ["onlyOneSave"] = onlyOneSave,
                     ["autosaveSlots"] = autosaveSlots, ["settingsWritten"] = false, ["case"] = NoLevelupAutosaveCase,
-                    ["riderBuilds"] = riderBuilds, ["expectedWrites"] = setupWritesExpected, ["selectedWrites"] = selection.ExpectedNativeWriteCount,
+                    ["riderBuilds"] = riderBuilds, ["expectedWrites"] = setupWritesExpected, ["selectedWrites"] = Chunk7OwnerSeedSetupPlan.SelectedSetupWrites(selection),
                     ["slotProjectionDuringBuild"] = false, ["mountedPersistenceProof"] = false },
                 ["riders"] = setupRiderRows, ["events"] = setupEvents, ["setupAutosaves"] = setupAutosaves,
                 ["economyBefore"] = setupEconomyBefore, ["nativeXpTable"] = new JArray(Enumerable.Range(1, 20).Select(level => BlueprintRoot.Instance.Progression.XPTable.GetBonus(level))) };
@@ -110,7 +110,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 Require(MountedRiderPoseAdapter.TryValidateSupportedSurface(rider.View, SupportedMountedProfiles.Horse.RiderPoseProfile, out rigError),
                     "Owner-seed rider rig refused before setup: " + rigError);
             }
-            evidence["ownerSeed"] = new JObject { ["contract"] = "owner-seed-two-pair-exploration-v1", ["seedId"] = selection.SeedId,
+            evidence["ownerSeed"] = new JObject { ["contract"] = selection.IsOwnerSeedManual ? OwnerSeedManualContract : "owner-seed-two-pair-exploration-v1", ["seedId"] = selection.SeedId,
                 ["seedSha256"] = selection.SeedSha256, ["riderAId"] = selection.RiderAId, ["riderBId"] = selection.RiderBId,
                 ["nativeLoadVerifiedByHost"] = true, ["fixtureSetupOnly"] = true, ["acquisitionProof"] = false };
         }
@@ -118,11 +118,14 @@ namespace KingmakerMountedCombat.Diagnostics
         private void RequireOwnerSeedAuthority()
         {
             var input = request.PersistenceLoad;
-            Require(request.OwnedPairs?.IsOwnerSeed == true && request.Validate().Count == 0 && input != null &&
+            // The Manual producer's setup admits no write: its sole reserved Manual stays unwritten.
+            var manualProducer = request.OwnedPairs?.IsOwnerSeedManual == true;
+            Require(request.OwnedPairs?.OwnerSeedSetup == true && request.Validate().Count == 0 && input != null &&
                 fixtureAuthorization != null && fixtureAuthority != null && fixtureLoader != null && fixtureAuthorization.IsActive &&
                 fixtureAuthorization.IsExactPersistenceScope(fixtureAuthority) && NativePersistenceIsolation.IsExactAuthority(fixtureAuthority) &&
-                fixtureAuthority.MatchesOwnedPairsPlan(true, false) && fixtureAuthority.AdmittedNativeLoadRequests == 1 &&
-                fixtureAuthority.AdmittedNativeWriteRequests <= fixtureAuthority.OwnerSeedConfirmedWrites + 1 && fixtureAuthorization.AuthorizedLoadCount == 1 &&
+                fixtureAuthority.MatchesOwnedPairsPlan(true, manualProducer) && fixtureAuthority.AdmittedNativeLoadRequests == 1 &&
+                (manualProducer ? fixtureAuthority.AdmittedNativeWriteRequests == 0 && fixtureAuthority.OwnedPairsReservationCount == 1 :
+                    fixtureAuthority.AdmittedNativeWriteRequests <= fixtureAuthority.OwnerSeedConfirmedWrites + 1) && fixtureAuthorization.AuthorizedLoadCount == 1 &&
                 fixtureAuthorization.AuthorizedWriteCount == fixtureAuthority.AdmittedNativeWriteRequests && fixtureAuthorization.UnauthorizedWriteCount == 0 &&
                 fixtureAuthorization.UnauthorizedLoadCount == 0 &&
                 Game.Instance?.SaveManager != null && Game.Instance.SaveManager.SavePath == fixtureAuthority.Root &&
@@ -295,7 +298,13 @@ namespace KingmakerMountedCombat.Diagnostics
             // Close the write scope exactly once: every selected setup Auto completed, the owned
             // projection released, and no further native write is admissible after the boundary.
             Require(setupProbe == null && !SetupBusy(), "A native level-up observer or write still owns SETUP.");
-            fixtureAuthority.CloseOwnerSeedSetupWrites(request, Game.Instance, Game.Instance.SaveManager);
+            // The Manual producer never opens a setup write scope: SETUP-COMPLETE proves zero
+            // setup writes and its sole measured Manual reservation still unwritten.
+            if (OwnerSeedManual)
+                Require(fixtureAuthority.MatchesOwnedPairsPlan(true, true) && fixtureAuthority.AdmittedNativeWriteRequests == 0 &&
+                    fixtureAuthorization.AuthorizedWriteCount == 0 && fixtureAuthorization.UnauthorizedWriteCount == 0 && persistence.CompletedSaveCount == 0,
+                    "SETUP-COMPLETE requires zero setup writes and the sole reserved measured Manual still unwritten.");
+            else fixtureAuthority.CloseOwnerSeedSetupWrites(request, Game.Instance, Game.Instance.SaveManager);
             if (setupSlotOwned)
             {
                 Require(NativePersistenceIsolation.NativeSlotRotationEnabled, "The owned slot projection was lost during SETUP.");
@@ -314,8 +323,9 @@ namespace KingmakerMountedCombat.Diagnostics
             evidence["setupComplete"] = new JObject { ["boundary"] = "SETUP-COMPLETE", ["frame"] = boundaryFrame,
                 ["gameTicks"] = Game.Instance.TimeController.GameTime.Ticks, ["assistanceCount"] = setupLedger.Items.Count,
                 ["setupSeconds"] = setupClock.Elapsed.TotalSeconds, ["measuredClockRestarted"] = true, ["state"] = setupBoundaryState.DeepClone(),
-                ["writesAtBoundary"] = setupWritesAtBoundary, ["writeScopeClosed"] = fixtureAuthority.OwnerSeedWritesClosed, ["economy"] = economy,
+                ["writesAtBoundary"] = setupWritesAtBoundary, ["writeScopeClosed"] = OwnerSeedManual ? fixtureAuthority.AdmittedNativeWriteRequests == 0 : fixtureAuthority.OwnerSeedWritesClosed, ["economy"] = economy,
                 ["horseItems"] = SetupHorseItems() };
+            if (OwnerSeedManual) ((JObject)evidence["setupComplete"])["measuredOutputReservation"] = ManualReservation();
             // The boundary is crossed only after its evidence exists, so any earlier failure is labelled SETUP.
             setupLedger.Complete(boundaryFrame);
             Pass(OwnerSeedSetupRow);
@@ -393,8 +403,10 @@ namespace KingmakerMountedCombat.Diagnostics
             var writesAfter = setupWritesAtBoundary < 0 ? -1 : fixtureAuthority.AdmittedNativeWriteRequests - setupWritesAtBoundary;
             cleanup["writesAfterBoundary"] = writesAfter; cleanup["unauthorizedWrites"] = fixtureAuthorization.UnauthorizedWriteCount;
             cleanup["slotProjectionReleased"] = !setupSlotOwned && !NativePersistenceIsolation.NativeSlotRotationEnabled;
-            if (setupLedger.Completed && (writesAfter != 0 || fixtureAuthorization.UnauthorizedWriteCount != 0))
-                Fail("C7-world-cleanup", "A native write followed SETUP-COMPLETE or was unauthorized; only setup level-up Autos are admitted.");
+            // The Manual producer admits exactly its one requested measured Manual after the boundary.
+            var allowedAfter = OwnerSeedManual && manualRequested != null ? 1 : 0;
+            if (setupLedger.Completed && (writesAfter != allowedAfter || fixtureAuthorization.UnauthorizedWriteCount != 0))
+                Fail("C7-world-cleanup", "A native write followed SETUP-COMPLETE beyond the selected measured Manual or was unauthorized.");
         }
 
         // Money plus a digest of the shared party inventory and every party character's
