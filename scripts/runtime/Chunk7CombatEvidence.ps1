@@ -46,7 +46,18 @@ function Assert-KmcChunk7CombatAttack($Attack,$Trace,[string]$Actor,[string]$Cas
     foreach($field in @('move','swift','reactions','reactionCooldown')){if($cost.state.$field-ne$prior.state.$field){throw 'Native primary cost changed an unrelated resource.'}}
     $a=Get-KmcChunk7CombatActor $Attack.before $Actor;$b=Get-KmcChunk7CombatActor $Attack.after $Actor
     if($b.standard-le$a.standard){throw 'Primary result lacks native spent remainder.'}
-    Assert-KmcChunk7SameCombatBudget $Attack.before $Attack.after @($Ids|Where-Object{$_-cne$Actor})
+    # Ids are rider A, mount A, rider B, mount B. The other pair is unrelated. The attacker's own partner
+    # may only spend movement, and only when the trace shows it executing a native approach UnitMoveTo
+    # inside the attack window (a melee rider carried into reach by its mount).
+    $index=[Array]::IndexOf($Ids,$Actor);if($index-lt0){throw 'Primary actor is not a pair role.'};$partner=$Ids[$index-bxor1]
+    Assert-KmcChunk7SameCombatBudget $Attack.before $Attack.after @($Ids|Where-Object{$_-cne$Actor-and$_-cne$partner})
+    $p=Get-KmcChunk7CombatActor $Attack.before $partner;$q=Get-KmcChunk7CombatActor $Attack.after $partner
+    foreach($field in @('standard','swift','reactions','reactionCooldown')){if($p.$field-ne$q.$field){throw 'The attacker''s partner spent a non-movement resource during the primary.'}}
+    if($q.move-lt$p.move){throw 'The attacker''s partner movement went backwards during the primary.'}
+    if($q.move-gt$p.move){
+        $approach=@($Trace.events|Where-Object{$_.boundary-ceq'admission-after'-and$_.commandActor-ceq$partner-and$_.commandType-ceq'Kingmaker.UnitLogic.Commands.UnitMoveTo'-and
+            $_.frame-ge$Attack.before.frame-and$_.frame-le$Attack.after.frame})
+        if($approach.Count-ne1){throw 'The attacker''s partner spent movement without one native approach move in the primary window.'}}
     return [long]$cost.command
 }
 function Assert-KmcChunk7CombatEvidence($Request,$Artifact,[string]$Status) {
@@ -129,7 +140,21 @@ function Assert-KmcChunk7CombatEvidence($Request,$Artifact,[string]$Status) {
        $state.PendingSplitId-cne$ids[3]-or$state.PendingSplitRound-ne$pending.after.round-or$state.Boundary-ne$null-or$state.Partner-ne$null-or$state.BoundaryIsCurrent-ne$false){throw 'Native removal lost mounted pending-only participation.'}
     $attack=@($o.inputs|Where-Object label -CEQ 'pending-survivor-mount-expenditure');if($attack.Count-ne1){throw 'Native pending survivor lacks preceding mount expenditure.'}
     $command=Assert-KmcChunk7CombatAttack $attack[0] $o.allocationTrace $ids[3] $ids[2] $o.targetId $ids;if(-not$commands.Add($command)){throw 'Pending survivor reused prior expenditure.'}
-    Assert-KmcChunk7SameCombatBudget $pending.before $pending.after @($ids[3]);if((Get-KmcChunk7CombatActor $pending.after $ids[3]).standard-le0){throw 'Pending mount lost spent remainder.'}
+    # Paired rider removal forfeits the live paired activation through native ForceToEnd(setCooldowns: true),
+    # nested on the mount's private turn (tb-pending-move-diagnosis01). Native writes max(before, 6/3/6); KMC
+    # never lowers or synthesizes. Pair A stays untouched; the mount's reactions are untouched.
+    Assert-KmcChunk7SameCombatBudget $pending.before $pending.after @($ids[0],$ids[1])
+    $m=Get-KmcChunk7CombatActor $pending.before $ids[3];$n=Get-KmcChunk7CombatActor $pending.after $ids[3]
+    foreach($pairing in @(@('standard',6.0),@('move',3.0),@('swift',6.0))){if([Math]::Abs([double]$n.($pairing[0])-[Math]::Max([double]$m.($pairing[0]),$pairing[1]))-gt0.001){throw 'Pending mount differs from the native forfeit outcome.'}}
+    if($m.reactions-ne$n.reactions-or$m.reactionCooldown-ne$n.reactionCooldown){throw 'Pending mount reaction changed at rider removal.'};Assert-KmcChunk7Boolean $n.prepared $true
+    $removal=@($o.allocationTrace.events|Where-Object{$_.state.actor-ceq$ids[2]-and$_.boundary-cin@('remove-unit-before','remove-unit-after')}|Sort-Object sequence)
+    if($removal.Count-ne2-or$removal[0].boundary-cne'remove-unit-before'-or$removal[1].boundary-cne'remove-unit-after'){throw 'Native rider removal window is missing or repeated.'}
+    $window=@($o.allocationTrace.events|Where-Object{$_.sequence-gt$removal[0].sequence-and$_.sequence-lt$removal[1].sequence}|Sort-Object sequence)
+    $forfeit=@($window|Where-Object{$_.boundary-cin@('completion-force-to-end-before','completion-force-to-end-after')})
+    if($forfeit.Count-ne4-or@($forfeit|Where-Object{"$($_.detail)"-cne'setCooldowns=True'}).Count-ne0-or
+       (@($forfeit|ForEach-Object{$_.boundary.Substring(24)+':'+$_.state.actor})-join'|')-cne('before:'+$ids[2]+'|before:'+$ids[3]+'|after:'+$ids[3]+'|after:'+$ids[2])){throw 'Rider removal did not nest exactly one native mount forfeit inside the rider forfeit.'}
+    if(@($window|Where-Object{$_.state.actor-ceq$ids[3]-and$_.boundary-cin@('cost-before','cost-after','actor-cost-before','actor-cost-after','admission-before','admission-after')}).Count-ne0){throw 'Rider removal charged or admitted work on the pending mount.'}
+    foreach($actor in @($ids[2],$ids[3])){if(@($window|Where-Object{$_.state.actor-ceq$actor-and$_.boundary-ceq'turn-end-after'}).Count-ne1){throw 'Rider removal did not end each forfeited native turn exactly once.'}}
     $fault=$o.localFailure;if($fault.failureCount-ne1-or$fault.injectedPair-cne'b'){throw 'Selected cleanup fault was not isolated.'};Assert-KmcChunk7Boolean $fault.healthyNeighbourVisited $true
     Assert-KmcChunk7SameCombatBudget $fault.before $fault.held @($ids[1])
     $held=@($fault.held.owners|Where-Object{Test-KmcChunk7OwnerActorMatch $_.riderId $ids[2]});if($held.Count-ne1-or$held[0].retainsObligations-ne$true){throw 'Failed cleanup lost exact pair B custody.'}
