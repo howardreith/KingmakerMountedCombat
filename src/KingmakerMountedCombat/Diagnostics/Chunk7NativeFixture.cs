@@ -9,6 +9,7 @@ using Kingmaker.UnitLogic.Abilities.Blueprints;
 using Kingmaker.UnitLogic.Commands;
 using KingmakerMountedCombat.Integration;
 using Newtonsoft.Json.Linq;
+using TurnBased.Controllers;
 
 namespace KingmakerMountedCombat.Diagnostics
 {
@@ -16,6 +17,11 @@ namespace KingmakerMountedCombat.Diagnostics
     // used by the two-pair world scenario. This never spends or resets resources.
     internal static class Chunk7NativeFixture
     {
+        // A directly controllable unit's native turn stays Preparing until its first command, a spent
+        // action or an inability to act (TurnController.Tick); input is admitted in Preparing or Acting.
+        internal static bool ReadyForTurnInput(TurnController turn) =>
+            turn != null && (turn.Status == TurnController.TurnStatus.Preparing || turn.IsActing);
+
         internal static UnitEntityData[] ValidateWorking(RuntimeRequest request, HorseCompanionBlueprintService horses)
         {
             Require(request.Fixture?.Working?.Sha256 == Chunk7WorldScenarioEngine.WorkingHash,
