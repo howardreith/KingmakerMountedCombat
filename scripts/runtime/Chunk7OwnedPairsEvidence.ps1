@@ -725,6 +725,9 @@ function Assert-KmcChunk7OwnerSeedCompanionAction($Request,$Observations){
   # Native RT party brains keep proposing UnitAttacks on a pair actor's ManualTarget; KMC refuses each
  # before native Run. Only closed refused-before-Run pairs are tolerated, derived here independently.
  foreach($w in @($c.before,$c.admitted,$c.after)){if($null-eq$w.PSObject.Properties['pairCommands']){throw 'Companion window lacks the pair command custody.'}}
+ # The window opens only on a settled diagnostic target: a native stand-up from prone provokes every engaging unit.
+ $settled=$c.before.PSObject.Properties['target'];if($null-eq$settled){throw 'Companion window lacks the diagnostic target state.'};$settled=$settled.Value;Assert-KmcBootstrapInventoryString $settled.id $c.targetId
+ foreach($key in @('prone','proneRequested')){Assert-KmcChunk7Boolean $settled.$key $false};foreach($key in @('conscious','commandsEmpty')){Assert-KmcChunk7Boolean $settled.$key $true}
  $slotted=@(foreach($w in @($c.before,$c.admitted,$c.after)){foreach($side in @('a','b')){foreach($slot in @($w.pairCommands.$side)){$slot.identity}}})
  $pair=@($window|Where-Object{$_.commandActor-cin$roles-or$_.state.actor-cin$roles});$refused=[Collections.Generic.List[object]]::new();$accepted=[Collections.Generic.HashSet[long]]::new()
  foreach($group in @($pair|Where-Object{$_.command-is[long]-or$_.command-is[int]}|Group-Object{[long]$_.command})){

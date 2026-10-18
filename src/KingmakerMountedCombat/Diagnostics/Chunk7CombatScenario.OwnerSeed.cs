@@ -130,13 +130,30 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             if (companion == null) companion = ResolveCompanion();
             return PairIdle(a) && PairIdle(b) && companion.IsInCombat && companion.IsInState && companion.Descriptor.State.IsConscious &&
-                companion.Commands.Empty && !companion.AreHandsBusyWithAnimation && companion.CombatState.Cooldown.StandardAction <= .001f && target.IsInState;
+                companion.Commands.Empty && !companion.AreHandsBusyWithAnimation && companion.CombatState.Cooldown.StandardAction <= .001f && target.IsInState &&
+                TargetSettled() && actors.All(x => x.CombatState.AttackOfOpportunityCount == x.CombatState.AttackOfOpportunityPerRound);
         }
+
+        // A prone diagnostic target provokes every unit engaging it when it stands up natively
+        // (UnitProneController, not AI-gated), which would put attacks of opportunity inside the
+        // companion's window (batch 5 slot 1, batch 6 slot 1). Read-only: the window opens only
+        // once the target is standing, conscious and idle.
+        private bool TargetSettled() =>
+            !target.Descriptor.State.Prone.Active && !target.Descriptor.State.Prone.ShouldBeActive &&
+            target.Descriptor.State.IsConscious && target.Commands.Empty;
+
+        // Read-only provenance for each companion window snapshot: the target's own state.
+        private JObject TargetState() => new JObject {
+            ["id"] = target.UniqueId, ["prone"] = target.Descriptor.State.Prone.Active,
+            ["proneRequested"] = target.Descriptor.State.Prone.ShouldBeActive, ["conscious"] = target.Descriptor.State.IsConscious,
+            ["commandsEmpty"] = target.Commands.Empty,
+            ["commandTypes"] = new JArray(target.Commands.Raw.Where(c => c != null).Select(c => c.GetType().FullName)),
+            ["engagedBy"] = new JArray(target.CombatState.EngagedBy.Select(u => u.UniqueId)) };
 
         private JObject CompanionWindow(string label)
         {
             var snapshot = WorldSnapshot(label);
-            snapshot["companion"] = trace.Snapshot(companion);
+            snapshot["companion"] = trace.Snapshot(companion); snapshot["target"] = TargetState();
             snapshot["pairCommands"] = new JObject { ["a"] = NativeCommands(a), ["b"] = NativeCommands(b) };
             return snapshot;
         }
