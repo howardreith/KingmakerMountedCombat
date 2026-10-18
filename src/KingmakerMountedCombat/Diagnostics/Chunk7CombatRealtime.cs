@@ -169,7 +169,7 @@ namespace KingmakerMountedCombat.Diagnostics
             ["type"] = command.GetType().FullName, ["abilityGuid"] = command.Spell?.Blueprint?.AssetGuid,
             ["started"] = command.IsStarted, ["acted"] = command.IsActed, ["finished"] = command.IsFinished };
         private JArray NativeCommands(MountedPairServices pair) => new JArray(new[] { pair.Relationship.Rider, pair.Relationship.Mount }
-            .Where(x => x != null).SelectMany(x => x.Commands.Raw.Concat(x.Commands.Queue)).Distinct().Select(command => new JObject {
+            .Where(x => x != null).SelectMany(x => x.Commands.Raw.Concat(x.Commands.Queue)).Where(command => command != null).Distinct().Select(command => new JObject {
                 ["identity"] = trace.ObjectIdentity(command), ["actorId"] = command.Executor?.UniqueId,
                 ["type"] = command.GetType().FullName, ["finished"] = command.IsFinished }));
         private void BeginUnmountedNativeControl()
