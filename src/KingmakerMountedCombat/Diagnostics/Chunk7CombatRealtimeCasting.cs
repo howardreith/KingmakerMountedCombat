@@ -53,6 +53,8 @@ namespace KingmakerMountedCombat.Diagnostics
             Require(!realtimeSlot.Available && heals == 1 && am.Damage < (int)realtimeCasting["wound"] &&
                 a.Relationship.State == Domain.RelationshipState.Mounted && b.Relationship.State == Domain.RelationshipState.Mounted,
                 "Native mounted casting did not consume exactly one prepared slot/heal or disturbed pair ownership.");
+            // The admission-time assignment stored a copy; store the settled neighbour record.
+            realtimeCasting["neighbour"] = castingNeighbour.Observation.DeepClone();
             realtimeCasting["after"] = WorldSnapshot("rt-cast-after"); realtimeCasting["slotAvailableAfter"] = realtimeSlot.Available;
             realtimeCasting["damageAfter"] = am.Damage; realtimeCasting["effectsAfter"] = effects;
             realtimeCasting["shellFinished"] = realtimeCastShell.IsFinished;

@@ -69,6 +69,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 case 1:
                     var aDone = RealtimeAttackFinished(realtimeA); var bDone = RealtimeAttackFinished(realtimeB);
                     if (!aDone || !bDone) return;
+                    // Assigning an already-parented JObject stores a copy, so the window kept the admission-time
+                    // records; store the settled ones (outcome and after) explicitly.
+                    realtimeWindow["a"] = realtimeA.Observation.DeepClone(); realtimeWindow["b"] = realtimeB.Observation.DeepClone();
                     realtimeWindow["after"] = WorldSnapshot("rt-concurrent-after"); Pass("C7-rt-concurrent-primary");
                     // Owner-seed-derived scenario 3: one ordinary native action by the unrelated companion.
                     NextRealtime(OwnerSeedDerived ? 10 : 2); break;
@@ -103,7 +106,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     realtimeWindow["stop"] = realtimeStop; Game.Instance.IsPaused = false; NextRealtime(4); break;
                 case 4:
                     if (!realtimeMovement.IsFinished || !PairIdle(a) || !RealtimeAttackFinished(realtimeB)) return;
-                    realtimeWindow["after"] = WorldSnapshot("rt-local-stop-settled");
+                    realtimeWindow["neighbour"] = realtimeB.Observation.DeepClone(); realtimeWindow["after"] = WorldSnapshot("rt-local-stop-settled");
                     Require(a.Relationship.State == RelationshipState.Mounted && b.Relationship.State == RelationshipState.Mounted,
                         "Native local Stop changed mounted ownership.");
                     Pass("C7-rt-local-cancel"); BeginRelationship(ar, ar, controls.DismountAbility, br, "rt-native-dismount-a"); NextRealtime(5); break;

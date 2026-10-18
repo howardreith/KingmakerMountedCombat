@@ -148,7 +148,7 @@ function Assert-KmcChunk7CheckpointSource($Checkpoint,$Archive,$Request) {
         if($attack.Count-ne1){throw 'Native checkpoint attack actor missing or duplicated.'};$attack=$attack[0]
         $caster=if($id-cin@($ids[0],$ids[1])){$ids[0]}else{$ids[2]}
         if($attack.casterId-cne$caster-or$attack.executorId-cne$caster-or$attack.selectionAfterInput-ceq$caster-or
-           $attack.nativeCastDelta-ne1-or$attack.nativeRefusalDelta-ne0-or$attack.command-le0-or$attack.outcome.resourceOwnerId-cne$id-or
+           $attack.nativeCastDelta-ne1-or$attack.nativeRefusalDelta-ne0-or$attack.command-eq0-or$attack.outcome.resourceOwnerId-cne$id-or
            $attack.outcome.targetId-cne$Checkpoint.targetId-or$attack.outcome.result-cne'Success'-or$attack.outcome.completedAttacks-ne1){throw 'Native primary lost exact actor, target, resource owner or one-shot outcome.'}
         Assert-KmcChunk7Boolean $attack.clicked $true;Assert-KmcChunk7Boolean $attack.outcome.nativeAttackRule $true
         $cost=@($Checkpoint.trace.events|Where-Object{$_.state.actor-ceq$id-and$_.boundary-ceq'cost-after'-and$_.commandType-ceq'KingmakerMountedCombat.Integration.MountedPairAttackCommand'})
@@ -188,7 +188,7 @@ function Assert-KmcChunk7CheckpointContinuation($Value,$Archive,$Request,[bool]$
     $events=@($Value.trace.events|Where-Object{$_.sequence-gt$Value.continuationTraceOffset})
     if($kind-cin@('RealTimeDebts','TurnBasedDebts')) {
         $m=$Value.driver.movement;Assert-KmcChunk7Boolean $m.terminal $true
-        if($m.executorId-cne$ids[3]-or$m.command-le0-or$m.command-ne$Value.driver.movementCommand-or$Value.driver.movementExecutorId-cne$ids[3]){throw 'Continuation ground command routed to a different actor.'}
+        if($m.executorId-cne$ids[3]-or$m.command-eq0-or$m.command-ne$Value.driver.movementCommand-or$Value.driver.movementExecutorId-cne$ids[3]){throw 'Continuation ground command routed to a different actor.'}
         $start=@($m.before.positions|Where-Object actorId -CEQ $ids[3]);$end=@($m.after.positions|Where-Object actorId -CEQ $ids[3])
         if($start.Count-ne1-or$end.Count-ne1){throw 'Native continuation omitted measured actor positions.'}
         $distance=[Math]::Sqrt([Math]::Pow([double]$end[0].x-$start[0].x,2)+[Math]::Pow([double]$end[0].y-$start[0].y,2)+[Math]::Pow([double]$end[0].z-$start[0].z,2))

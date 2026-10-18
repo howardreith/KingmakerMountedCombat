@@ -718,7 +718,7 @@ function Assert-KmcChunk7OwnerSeedCompanionAction($Request,$Observations){
  Assert-KmcBootstrapInventoryString $c.actorId $s.companionId;Assert-KmcBootstrapInventoryString $c.targetId $o.targetId;Assert-KmcBootstrapInventoryString $c.commandType 'Kingmaker.UnitLogic.Commands.UnitAttack'
  if($c.actorId-cin$roles-or$c.selectionAfterInput-cnotin$roles-or[string]::IsNullOrWhiteSpace($c.justification)){throw 'The companion action escaped its unrelated actor or selection.'}
  foreach($key in @('clicked','terminal')){Assert-KmcChunk7Boolean $c.$key $true}
- Assert-KmcOrdinaryInteger $c.command 1 ([int]::MaxValue);Assert-KmcOrdinaryInteger $c.declaredLeaseCommands 1 1
+ Assert-KmcOrdinaryInteger $c.command ([int]::MinValue) ([int]::MaxValue);if($c.command-eq0){throw 'The companion command has the null identity.'};Assert-KmcOrdinaryInteger $c.declaredLeaseCommands 1 1
  Assert-KmcOrdinaryInteger $c.traceSequenceBefore 0 ([int]::MaxValue);Assert-KmcOrdinaryInteger $c.traceSequenceAfter ([int]$c.traceSequenceBefore) ([int]::MaxValue)
  $window=@($o.allocationTrace.events|Where-Object{$_.sequence-gt$c.traceSequenceBefore-and$_.sequence-le$c.traceSequenceAfter-and$_.boundary-cin@('admission-before','admission-after','cost-before','cost-after','actor-cost-before','actor-cost-after','command-interrupt-before','command-interrupt-after')})
  if((ConvertTo-KmcChunk7Canonical @($window))-cne(ConvertTo-KmcChunk7Canonical @($c.accountedEvents))){throw 'The companion window events differ from the native trace.'}
