@@ -21,5 +21,19 @@ foreach($spec in @(@('exploration','world'),@('combat-rider-first','combat'),@('
  Check ('pending cannot PASS '+$spec[1]){Assert-KmcChunk7CleanupArtifacts $q $m 'PASS'} $true
  Check ('pending foreign family '+$spec[1]){$foreign=CopyValue $q;$foreign.ownedPairs.case=if($spec[1]-ceq'world'){'combat-rider-first'}else{'exploration'};Assert-KmcChunk7CleanupArtifacts $foreign $m 'FAIL'} $true
 }
+# Owner-seed checkpoint pair (Directive 4): generated producer/consumer requests on the owned
+# Quick/Auto fixtures keep the persistence envelope and the persistence cleanup-pending role.
+function New-SeedCheckpointRequest($F,[string]$Kind){$q=CopyValue $F.request;$s=$q.ownedPairs;$save=$Kind-ceq'save'
+ $q.ownedPairs=[pscustomobject][ordered]@{case=('owner-seed-checkpoint-'+$Kind);sourceRunId='synthetic-owner-seed-manual';sourceArtifactSha256=('6'*64);sourceArchiveSha256=$(if($save){$q.persistenceLoad.sha256}else{'7'*64});checkpointSourceRunId=$(if($save){'synthetic-owner-seed-cold'}else{'synthetic-owner-seed-checkpoint'});checkpointSourceArtifactSha256=('8'*64);seedId='KMC_C7_OWNER_SEED';seedSha256=('9'*64);riderAId=$s.riderAId;mountAId=$s.mountAId;riderBId=$s.riderBId;mountBId=$s.mountBId;partyIds=$s.partyIds;baseGameOnly=$true;expectedNativeLoadCount=1;expectedNativeWriteCount=$(if($save){1}else{0})}
+ if($save){$q.persistenceLoad.internalName='KMC_C7_SEED_WORLD';$q.persistenceLoad.fileName='Manual_303_KMC_C7_SEED_WORLD.zks'};$q}
+foreach($checkpoint in @('multi-exploration-quick','multi-exploration-auto')){foreach($kind in @('save','load')){
+ $f=@($fixtures|Where-Object name -CEQ ('persistence-'+$kind+'-'+$checkpoint))[0];$q=New-SeedCheckpointRequest $f $kind;$a=CopyValue $f.artifact;$tag='owner-seed-checkpoint-'+$kind+'-'+$checkpoint;$m=Emit $q $a $tag
+ Check ('manifest envelope '+$tag){Validate $q $m $a.evidenceKind}
+ Check ('candidate substitution '+$tag){$changed=CopyValue $q;$changed.dllSha256='0'*64;Validate $changed $m $a.evidenceKind} $true
+ Check ('manual checkpoint selects no scenario '+$tag){$changed=CopyValue $q;$changed.persistenceCase='multi-exploration-manual';[void](Get-KmcChunk7SelectedScenario $changed)} $true
+ $p=CopyValue $f.artifact;$p.evidenceKind='chunk7-persistence-cleanup-pending';$p.status='FAIL';$p.errors=@('exact retained native custody');$p.observations=[pscustomobject]@{cleanupPendingAtHostBoundary=$true};$pq=New-SeedCheckpointRequest $f $kind;$pm=Emit $pq $p ('pending-'+$tag)
+ Check ('pending exact '+$tag){Validate $pq $pm $p.evidenceKind;Assert-KmcChunk7CleanupArtifacts $pq $pm 'FAIL'}
+ Check ('pending cannot PASS '+$tag){Assert-KmcChunk7CleanupArtifacts $pq $pm 'PASS'} $true
+}}
 $passed=@($rows|Where-Object pass).Count;$failed=$rows.Count-$passed
 [IO.File]::WriteAllText((Join-Path $OutputDirectory 'receipt.json'),([pscustomobject]@{passed=$passed;failed=$failed;nativeInvoked=$false;archiveRead=$false;scope='unchanged manifest byte guards plus selected envelope/pending roles on generated JSON';rows=@($rows)}|ConvertTo-Json -Depth 8),[Text.UTF8Encoding]::new($false));Write-Output ('Owned manifest PASS='+$passed+' FAIL='+$failed);if($failed){exit 1}

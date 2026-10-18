@@ -167,6 +167,7 @@ namespace KingmakerMountedCombat.Diagnostics
                             break;
                         }
                         if (CombatController.IsInTurnBasedCombat()) return;
+                        if (OwnerSeedCheckpointSave) { if (!OwnerSeedRestoredStartReady()) return; AdmitOwnerSeedRestoredStart(); break; }
                         if (inherited != null) { inherited.RequirePreserved(); Pass("C7-owned-pairs-inherited-custody"); Next(1); break; }
                         var acquisition = new JObject(); evidence["acquisition"] = acquisition;
                         bool acquired;
@@ -252,7 +253,14 @@ namespace KingmakerMountedCombat.Diagnostics
             evidence["ordinaryRespecProven"] = false; evidence["combatDebtProof"] = CombatCase;
             evidence["nativeSchema"] = NativeMountedSaveFormat.SelectedWriterSchema;
             evidence["nativeCapacity"] = GameMountedRelationshipService.NativePairCapacity;
-            if (!Cold)
+            if (!Cold && OwnerSeedCheckpointSave)
+            {
+                // The restored mounted graph binds now and is verified at stage 0, once restoration settles.
+                BindOwnedFixture(false);
+                Require(!controls.HasUnsettledRelationshipTransition, "Owner-seed checkpoint producer found an unsettled relationship transition.");
+                snapshotBefore = persistence.SnapshotCount;
+            }
+            else if (!Cold)
             {
                 if (request.OwnedPairs != null)
                 {

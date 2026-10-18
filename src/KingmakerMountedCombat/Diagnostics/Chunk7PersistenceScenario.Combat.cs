@@ -30,6 +30,12 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             RememberOwners(); AssertOwners(); BindSlots(); snapshots.Add(Capture("before-native-save"));
             Pass(LegacyPendingCase ? "C7-persistence-one-native-mount-legacy-source" : "C7-persistence-two-native-mounts");
+            DispatchCheckpoint();
+        }
+        // The selected checkpoint after a mounted start: the native Mounts above, or the owner-seed
+        // checkpoint producer's verified restored start (AdmitOwnerSeedRestoredStart).
+        private void DispatchCheckpoint()
+        {
             if (CombatCase)
             {
                 checkpoint = new Chunk7CombatCheckpointDriver(request, world, controls, logger, CheckpointKind, inherited);

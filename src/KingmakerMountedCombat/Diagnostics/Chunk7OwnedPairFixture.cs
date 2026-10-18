@@ -111,7 +111,7 @@ namespace KingmakerMountedCombat.Diagnostics
             Scope = new Chunk7NativeWorldScope(request, party, input.Area);
             // Owner-seed-derived combat starts from the restored MOUNTED graph; its scenario
             // verifies the two restored pairs (VerifyRestoredOwnerSeedPairs) before any input.
-            if (!selection.Cold && !selection.IsOwnerSeedDerivedCombat)
+            if (!selection.Cold && !selection.IsOwnerSeedDerivedCombat && !selection.IsOwnerSeedCheckpointSave)
             {
                 Require(world.Registry.Owners.Length == 0 && !world.UnifiedTurn.HasUnsettledPreparation && !controls.HasUnsettledRelationshipTransition &&
                     world.Pairs.All(pair => pair.Relationship.State == RelationshipState.Unmounted && pair.Relationship.PairOwner == null && pair.Relationship.Runtime.NoPreparedPairResidue),
@@ -134,7 +134,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 Hash(sourcePath) == selection.SourceArtifactSha256, "Exact staged two-owner Manual receipt is absent or changed.");
             sourceLength = file.Length; sourceTicks = file.LastWriteTimeUtc.Ticks;
             var artifact = JObject.Parse(File.ReadAllText(sourcePath)); observations = artifact["observations"] as JObject;
-            if (selection.OwnerSeedDerivedInput) { ReadOwnerSeedDerivedSource(artifact); return; }
+            if (selection.OwnerSeedDerivedLineage) { ReadOwnerSeedDerivedSource(artifact); return; }
             var originalArea = request.PersistenceCase == "multi-area-autosave" ? selection.SourceArea : request.PersistenceLoad.Area;
             Require((string)artifact["scenario"] == Chunk7AcquiredManualSelection.Scenario && (string)artifact["evidenceKind"] == Chunk7AcquiredManualScenario.EvidenceKind &&
                 (string)artifact["runId"] == selection.SourceRunId && (string)artifact["status"] == "PASS" && artifact["errors"] is JArray errors && errors.Count == 0 &&
@@ -178,7 +178,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 System.Text.RegularExpressions.Regex.IsMatch((string)artifact["dllSha256"] ?? "", "^[a-f0-9]{64}$") && Guid.TryParse((string)artifact["dllMvid"], out var producerMvid) && producerMvid != Guid.Empty;
             Require((string)artifact["scenario"] == Chunk7OwnedPairsSelection.Scenario && (string)artifact["evidenceKind"] == Chunk7WorldScenarioEngine.EvidenceKind &&
                 (string)artifact["runId"] == selection.SourceRunId && (string)artifact["status"] == "PASS" && artifact["errors"] is JArray errors && errors.Count == 0 &&
-                (selection.IsOwnerSeedDerivedCombat ? recordedCandidate : sameCandidate) &&
+                (selection.CrossCandidateAllowed ? recordedCandidate : sameCandidate) &&
                 // The derived Manual's KMC metadata must be the current writer schema.
                 write?["sourceSchema"]?.Type == JTokenType.Integer && (int)write["sourceSchema"] == NativeMountedSaveFormat.SelectedWriterSchema &&
                 write["archive"]?["SchemaVersion"]?.Type == JTokenType.Integer && (int)write["archive"]["SchemaVersion"] == MountedArchiveData.Schema &&
@@ -190,12 +190,14 @@ namespace KingmakerMountedCombat.Diagnostics
                 manual["levelUpSave"]?.Type == JTokenType.Boolean && !(bool)manual["levelUpSave"] &&
                 (string)manual["seedId"] == selection.SeedId && (string)manual["seedSha256"] == selection.SeedSha256 &&
                 manual["seedCopyUnchanged"]?.Type == JTokenType.Boolean && (bool)manual["seedCopyUnchanged"] &&
-                (string)write["sha256"] == selection.SourceArchiveSha256 && (string)write["fileName"] == input.FileName &&
+                (string)write["sha256"] == selection.SourceArchiveSha256 && (selection.IsOwnerSeedCheckpointLoad || (string)write["fileName"] == input.FileName) &&
                 (string)write["nativeName"] == Chunk7OwnedPairsSelection.OwnerSeedManualName && (string)write["nativeType"] == "Manual" &&
                 (string)write["gameId"] == input.GameId && (string)write["gameName"] == input.GameName && (string)write["area"] == input.Area &&
                 write["archive"] is JObject && manual["boundary"] is JObject && manual["processId"]?.Type == JTokenType.Integer,
                 "Staged source lacks its complete successful same-candidate owner-seed-derived Manual identity.");
-            Require(input.Sha256 == selection.SourceArchiveSha256, "Source intake did not load its exact owner-seed-derived Manual bytes.");
+            // The checkpoint consumer loads the checkpoint producer's output, not the Manual; its bytes are pinned by the runner.
+            Require(selection.IsOwnerSeedCheckpointLoad ? input.Sha256 != selection.SourceArchiveSha256 && input.Sha256 != selection.SeedSha256 : input.Sha256 == selection.SourceArchiveSha256,
+                "Source intake did not load its exact owner-seed-derived Manual (or, for the checkpoint consumer, a distinct checkpoint output).");
             sourceWorld = manual["fieldWorld"] as JObject;
             var owners = manual["twoOwners"] as JArray;
             Require(sourceWorld != null && owners != null && owners.Count == 2 && owners.All(row => row is JObject) &&
@@ -209,11 +211,12 @@ namespace KingmakerMountedCombat.Diagnostics
                 "Owner-seed-derived source lacks unchanged native class/XP/funds evidence.");
             OwnerSeedBoundary = (JObject)manual["boundary"]; OwnerSeedArchive = (JObject)write["archive"]; OwnerSeedProcessId = (int)manual["processId"];
             OwnerSeedCandidates = new JObject { ["contract"] = "owner-seed-derived-candidate-identity-v1", ["sameCandidate"] = sameCandidate,
-                ["crossCandidateAllowed"] = selection.IsOwnerSeedDerivedCombat,
+                ["crossCandidateAllowed"] = selection.CrossCandidateAllowed,
                 ["producer"] = new JObject { ["runId"] = selection.SourceRunId, ["commit"] = artifact["commit"], ["dllSha256"] = artifact["dllSha256"], ["dllMvid"] = artifact["dllMvid"] },
                 ["current"] = new JObject { ["runId"] = request.RunId, ["commit"] = request.Commit, ["dllSha256"] = request.DllSha256, ["dllMvid"] = request.DllMvid },
-                ["consumerRunId"] = selection.IsOwnerSeedDerivedCombat ? selection.CheckpointSourceRunId : null,
-                ["consumerArtifactSha256"] = selection.IsOwnerSeedDerivedCombat ? selection.CheckpointSourceArtifactSha256 : null,
+                // Checkpoint* is the accepted consumer (combat, checkpoint producer) or the checkpoint producer (its consumer).
+                ["consumerRunId"] = selection.CrossCandidateAllowed ? selection.CheckpointSourceRunId : null,
+                ["consumerArtifactSha256"] = selection.CrossCandidateAllowed ? selection.CheckpointSourceArtifactSha256 : null,
                 ["manualSchema"] = (int)write["archive"]["SchemaVersion"], ["currentWriterSchema"] = NativeMountedSaveFormat.SelectedWriterSchema };
         }
         // The restored two-pair check shared by the cold consumer and the mounted-start combat
@@ -282,7 +285,7 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             RequirePreserved();
             // Owner-seed-derived custody keeps its own labels; it is never relabelled acquired ancestry.
-            var derived = selection.OwnerSeedDerivedInput;
+            var derived = selection.OwnerSeedDerivedLineage;
             return new JObject { ["contract"] = derived ? "owner-seed-derived-two-horse-native-field-v1" : "inherited-two-horse-native-field-v1", ["phase"] = phase,
                 ["sourceRunId"] = selection.SourceRunId, ["sourceArtifactSha256"] = selection.SourceArtifactSha256,
                 ["sourceArchiveSha256"] = selection.SourceArchiveSha256, ["sourceCase"] = derived ? Chunk7OwnedPairsSelection.OwnerSeedManualCase : Chunk7OwnedPairsSelection.SourceCase,
