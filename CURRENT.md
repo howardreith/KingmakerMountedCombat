@@ -1,6 +1,6 @@
 # Chunk 7B–7D — IN PROGRESS
 
-## Current state (October 17, 2026)
+## Current state (October 18, 2026)
 
 **Governing instructions.** The owner's [directives of October 16–17](docs/CHUNK7-OWNER-DIRECTIVES-2026-10-16.md), including Directive 3 (the PR #5 review and the persistence/combat assignment), and the [validation policy's development-acceleration section](docs/VALIDATION-POLICY.md#development-acceleration-owner-directives-of-october-16-17-2026). The active development workflow uses:
 - the approved owner-seed route;
@@ -23,19 +23,35 @@ The old lifetime limit of 25 attempts and the mandatory whole-lab rehash are his
   - `20261018-c7b-world26-ownerseed-b4s1-load` cold-loaded an independent copy of it in a separate process and restored both owners with the producer's identities and generations.
   - Restoration was verified both times.
   - Product fix on the way: KMC refused to load its own all-pair saves (`0ccda7cc`).
+- **Two-pair combat** (October 18), on preview.34 `bba4edde`. All three run on cold-load-restored mounted pairs against the runtime-only stock Mammoth target:
+  - RT with Valerie's ordinary native action: `20261018-c7b-world34-ownerseed-b6s5m-rt`, PASS, 10/10. Concurrent independent primaries, each paid by its own actor. The companion took exactly one ordinary command with its own cost, and neither pair was touched.
+  - TB mount-before-rider: `20261018-c7b-world34-ownerseed-b6s4m-tbmount`, PASS, 12/12.
+  - TB rider-before-mount: `20261018-c7b-world34-ownerseed-b7s1-tbrider`, PASS, 12/12.
+  - Each TB run covered:
+    - each pair's full native activation;
+    - native renewal in the next round;
+    - a native Dismount as the first action of a prepared turn;
+    - a native rider-removal forfeit with a pending-only survivor;
+    - isolated cleanup failure.
+  - Restoration was verified for every run.
+- **Product change, owner decision of October 18:** a voluntary turn-based Mount/Dismount is now admitted in the rider's prepared (Preparing) turn (`06ec7180`). This supersedes Chunk 6A rule R3, which made the transition unavailable as a turn's first action.
 
 **Not proven:**
 - acquisition (setup is disclosed assistance);
 - door behaviour (no qualifying door at the seed location);
-- combat: RT combat has not passed (batch 4 stopped at the companion-action window, under diagnosis); TB has not run;
 - Quick/Auto/area/removal/migration persistence breadth;
 - Small calibration;
 - stress/performance;
 - human review.
 
-**Next concrete action (Directive 3):** items 1-3 are done (behaviour tests, the not-ready family gate, and the Manual save plus cold load). Remaining:
-1. Correct the RT companion-action window from its offline diagnosis (`analysis-cache/chunk7-continuation/owner-seed-batch04/rt-companion-diagnosis01.json` in the lab).
-2. Batch 5: RT combat, then TB rider-before-mount and mount-before-rider. These combat kinds reuse the accepted checkpoint 3 and 4 sources by pinned receipts, so no new save or load run is needed.
+The Chunk 6A probe row `CM01-combat-mount-preparing-refused` still asserts the superseded R3 and will fail if re-run. See [known product debt](docs/CHUNK7-KNOWN-PRODUCT-DEBT.md).
+
+**Directive 3 endpoint status:** reached on the owner-seed route. The pieces are:
+- the reusable owner-seed-derived two-pair native Manual;
+- its successful separate-process cold load with both owners restored;
+- the targeted RT/TB combat slice showing independent actor expenditure.
+
+Details are in [owner-seed evidence](docs/CHUNK7-OWNER-SEED-EVIDENCE.md). Nothing is merged, released, installed for human play or claimed as HUMAN PLAY acceptance.
 
 **Known not-ready families:** ordinary acquisition, manual derived, native progression and assisted fixture production still wait for a level-up autosave that the installed game never requests. Do not select them until their completion contract is repaired.
 
