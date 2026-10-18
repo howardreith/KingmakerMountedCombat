@@ -536,7 +536,7 @@ namespace KingmakerMountedCombat.Diagnostics
                         PersistenceLoad.Sha256 == Fixture.Baseline?.Sha256 || PersistenceLoad.Sha256 != OwnedPairs.SeedSha256)
                         errors.Add("Owner seed lacks its exact registered non-aliasing identity.");
                 }
-                else if (OwnedPairs.IsOwnerSeedDerivedLoad)
+                else if (OwnedPairs.OwnerSeedDerivedInput)
                 {
                     // Exactly the producer's written owner-seed-derived Manual: its own native
                     // name, the pinned bytes, never the immutable seed or protected fixtures.

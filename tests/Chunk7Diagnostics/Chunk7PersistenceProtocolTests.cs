@@ -120,6 +120,13 @@ internal static class Chunk7PersistenceProtocolTests
         }
         foreach (var name in new[] { "C7-persistence-schema1-native-restoration", "C7-persistence-schema1-native-resave" })
             Check(RuntimeSubscenarioResult.IsMissionScenario(name), "schema-1 closed result row " + name);
+        // The owner-approved owner-seed-derived target basis leaves the Working target rule unchanged.
+        var workingCombat = Request(Cases[0], false); workingCombat.Scenario = "chunk7-two-pair-combat-rider-first"; workingCombat.PersistenceCase = null;
+        Check(workingCombat.Validate().Count == 0, "Working combat request remains valid");
+        Check(Chunk7CombatTargetAuthorization.Basis(workingCombat, workingCombat.Fixture.Working.Sha256, true) == "exact-working-fixture", "Working combat target basis stays the exact Working fixture");
+        Check(Chunk7CombatTargetAuthorization.Basis(workingCombat, new string('9', 64), true) == null, "Working combat target refused on another Working identity");
+        Check(Chunk7CombatTargetAuthorization.Basis(workingCombat, workingCombat.Fixture.Working.Sha256, false) == null, "Working combat target refused before fixture admission");
+        workingCombat.RunId = null; Check(Chunk7CombatTargetAuthorization.Basis(workingCombat, workingCombat.Fixture.Working.Sha256, true) == null, "Working combat target refused for an invalid request");
         Console.WriteLine("CHUNK7 PERSISTENCE PROTOCOL PASS=" + passed + " FAIL=0; offline protocol only"); return 0;
     }
 }

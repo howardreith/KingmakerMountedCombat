@@ -109,7 +109,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 facts[index] = fact; ranks[index] = rank;
             }
             Scope = new Chunk7NativeWorldScope(request, party, input.Area);
-            if (!selection.Cold)
+            // Owner-seed-derived combat starts from the restored MOUNTED graph; its scenario
+            // verifies the two restored pairs (VerifyRestoredOwnerSeedPairs) before any input.
+            if (!selection.Cold && !selection.IsOwnerSeedDerivedCombat)
             {
                 Require(world.Registry.Owners.Length == 0 && !world.UnifiedTurn.HasUnsettledPreparation && !controls.HasUnsettledRelationshipTransition &&
                     world.Pairs.All(pair => pair.Relationship.State == RelationshipState.Unmounted && pair.Relationship.PairOwner == null && pair.Relationship.Runtime.NoPreparedPairResidue),
@@ -132,7 +134,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 Hash(sourcePath) == selection.SourceArtifactSha256, "Exact staged two-owner Manual receipt is absent or changed.");
             sourceLength = file.Length; sourceTicks = file.LastWriteTimeUtc.Ticks;
             var artifact = JObject.Parse(File.ReadAllText(sourcePath)); observations = artifact["observations"] as JObject;
-            if (selection.IsOwnerSeedDerivedLoad) { ReadOwnerSeedDerivedSource(artifact); return; }
+            if (selection.OwnerSeedDerivedInput) { ReadOwnerSeedDerivedSource(artifact); return; }
             var originalArea = request.PersistenceCase == "multi-area-autosave" ? selection.SourceArea : request.PersistenceLoad.Area;
             Require((string)artifact["scenario"] == Chunk7AcquiredManualSelection.Scenario && (string)artifact["evidenceKind"] == Chunk7AcquiredManualScenario.EvidenceKind &&
                 (string)artifact["runId"] == selection.SourceRunId && (string)artifact["status"] == "PASS" && artifact["errors"] is JArray errors && errors.Count == 0 &&
@@ -165,12 +167,22 @@ namespace KingmakerMountedCombat.Diagnostics
         internal JObject OwnerSeedBoundary { get; private set; }
         internal JObject OwnerSeedArchive { get; private set; }
         internal int OwnerSeedProcessId { get; private set; }
+        // Combat may run a later candidate than its producer: the producer's own recorded
+        // identity is kept (the runner pins both receipts by theirs) and disclosed here.
+        internal JObject OwnerSeedCandidates { get; private set; }
         private void ReadOwnerSeedDerivedSource(JObject artifact)
         {
             var input = request.PersistenceLoad; var manual = observations?["ownerSeedManual"] as JObject; var write = observations?["nativeWrite"] as JObject;
+            var sameCandidate = (string)artifact["commit"] == request.Commit && (string)artifact["dllSha256"] == request.DllSha256 && (string)artifact["dllMvid"] == request.DllMvid;
+            var recordedCandidate = System.Text.RegularExpressions.Regex.IsMatch((string)artifact["commit"] ?? "", "^[a-f0-9]{40}$") &&
+                System.Text.RegularExpressions.Regex.IsMatch((string)artifact["dllSha256"] ?? "", "^[a-f0-9]{64}$") && Guid.TryParse((string)artifact["dllMvid"], out var producerMvid) && producerMvid != Guid.Empty;
             Require((string)artifact["scenario"] == Chunk7OwnedPairsSelection.Scenario && (string)artifact["evidenceKind"] == Chunk7WorldScenarioEngine.EvidenceKind &&
                 (string)artifact["runId"] == selection.SourceRunId && (string)artifact["status"] == "PASS" && artifact["errors"] is JArray errors && errors.Count == 0 &&
-                (string)artifact["commit"] == request.Commit && (string)artifact["dllSha256"] == request.DllSha256 && (string)artifact["dllMvid"] == request.DllMvid &&
+                (selection.IsOwnerSeedDerivedCombat ? recordedCandidate : sameCandidate) &&
+                // The derived Manual's KMC metadata must be the current writer schema.
+                write?["sourceSchema"]?.Type == JTokenType.Integer && (int)write["sourceSchema"] == NativeMountedSaveFormat.SelectedWriterSchema &&
+                write["archive"]?["SchemaVersion"]?.Type == JTokenType.Integer && (int)write["archive"]["SchemaVersion"] == MountedArchiveData.Schema &&
+                MountedArchiveData.Schema == NativeMountedSaveFormat.SelectedWriterSchema &&
                 manual != null && write != null && (string)manual["contract"] == Chunk7WorldScenarioEngine.OwnerSeedManualReceiptContract &&
                 (string)manual["ancestry"] == Chunk7WorldScenarioEngine.OwnerSeedDerivedAncestry &&
                 manual["disclosedAssistance"]?.Type == JTokenType.Boolean && (bool)manual["disclosedAssistance"] &&
@@ -196,6 +208,42 @@ namespace KingmakerMountedCombat.Diagnostics
             Require(sourceArrangement != null && JToken.DeepEquals(sourceArrangement, manual["arrangementAfterSave"]),
                 "Owner-seed-derived source lacks unchanged native class/XP/funds evidence.");
             OwnerSeedBoundary = (JObject)manual["boundary"]; OwnerSeedArchive = (JObject)write["archive"]; OwnerSeedProcessId = (int)manual["processId"];
+            OwnerSeedCandidates = new JObject { ["contract"] = "owner-seed-derived-candidate-identity-v1", ["sameCandidate"] = sameCandidate,
+                ["crossCandidateAllowed"] = selection.IsOwnerSeedDerivedCombat,
+                ["producer"] = new JObject { ["runId"] = selection.SourceRunId, ["commit"] = artifact["commit"], ["dllSha256"] = artifact["dllSha256"], ["dllMvid"] = artifact["dllMvid"] },
+                ["current"] = new JObject { ["runId"] = request.RunId, ["commit"] = request.Commit, ["dllSha256"] = request.DllSha256, ["dllMvid"] = request.DllMvid },
+                ["consumerRunId"] = selection.IsOwnerSeedDerivedCombat ? selection.CheckpointSourceRunId : null,
+                ["consumerArtifactSha256"] = selection.IsOwnerSeedDerivedCombat ? selection.CheckpointSourceArtifactSha256 : null,
+                ["manualSchema"] = (int)write["archive"]["SchemaVersion"], ["currentWriterSchema"] = NativeMountedSaveFormat.SelectedWriterSchema };
+        }
+        // The restored two-pair check shared by the cold consumer and the mounted-start combat
+        // admission: the loaded graph equals the producer's read-back (through the same JSON text
+        // form), and the live registry owners, generations, actors and profiles, and the native
+        // control slots equal the producer's runtime at its save boundary.
+        internal JObject VerifyRestoredOwnerSeedPairs(MountedArchiveData saved, MountedWorldService liveWorld, SavedMountedSlot[] liveSlots)
+        {
+            Require(bound && selection.OwnerSeedDerivedInput && OwnerSeedBoundary != null && OwnerSeedArchive != null && saved != null && liveWorld != null && liveSlots != null,
+                "Owner-seed-derived restoration check requires its bound producer custody, restored graph and live world.");
+            var loaded = JToken.Parse(JObject.FromObject(saved, MountedSaveCodec.CreateSerializer()).ToString(Newtonsoft.Json.Formatting.None));
+            Require(JToken.DeepEquals(loaded, OwnerSeedArchive), "Cold-loaded schema-3 graph differs from the producer's read-back of the Manual it wrote.");
+            Require(OwnerSeedProcessId > 0 && OwnerSeedProcessId != System.Diagnostics.Process.GetCurrentProcess().Id,
+                "Owner-seed-derived restoration requires a process separate from its producer.");
+            var rows = OwnerSeedBoundary["pairs"] as JArray; var owners = liveWorld.Registry.Owners;
+            Require(rows != null && rows.Count == 2 && saved.Pairs.Length == 2 && saved.Pairs.All(pair => rows.Count(row =>
+                    (string)row["ownerId"] == Guid.Parse(pair.PairId).ToString("N") && (long)row["generation"] == pair.Generation &&
+                    (string)row["riderId"] == pair.Rider.Id && (string)row["mountId"] == pair.Mount.Id && (string)row["profileId"] == pair.ProfileId) == 1) &&
+                owners.Length == 2 && owners.All(owner => rows.Count(row =>
+                    (string)row["ownerId"] == owner.Id.ToString("N") && (long)row["generation"] == owner.Generation &&
+                    (string)row["riderId"] == owner.Rider?.UniqueId && (string)row["mountId"] == owner.Mount?.UniqueId) == 1),
+                "Restored pair owners, generations, actors or profiles differ from the producer runtime at its save boundary.");
+            var slotRows = OwnerSeedBoundary["slots"] as JArray;
+            Require(slotRows != null && slotRows.Count == liveSlots.Length && liveSlots.All(s => slotRows.Count(row =>
+                    (string)row["actorId"] == s.ActorId && (int)row["index"] == s.Index && (int)row["kind"] == s.Kind) == 1),
+                "Restored control bindings differ from the producer's bound native hotbar.");
+            return new JObject { ["loadedEqualsProducerReadback"] = true, ["producerProcessId"] = OwnerSeedProcessId,
+                ["owners"] = new JArray(owners.OrderBy(owner => owner.Id.ToString("N"), StringComparer.Ordinal).Select(owner => new JObject {
+                    ["ownerId"] = owner.Id.ToString("N"), ["generation"] = owner.Generation, ["riderId"] = owner.Rider?.UniqueId, ["mountId"] = owner.Mount?.UniqueId })),
+                ["slots"] = new JArray(liveSlots.Select(s => new JObject { ["actorId"] = s.ActorId, ["index"] = s.Index, ["kind"] = s.Kind })) };
         }
         internal void RequirePreserved()
         {
@@ -234,7 +282,7 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             RequirePreserved();
             // Owner-seed-derived custody keeps its own labels; it is never relabelled acquired ancestry.
-            var derived = selection.IsOwnerSeedDerivedLoad;
+            var derived = selection.OwnerSeedDerivedInput;
             return new JObject { ["contract"] = derived ? "owner-seed-derived-two-horse-native-field-v1" : "inherited-two-horse-native-field-v1", ["phase"] = phase,
                 ["sourceRunId"] = selection.SourceRunId, ["sourceArtifactSha256"] = selection.SourceArtifactSha256,
                 ["sourceArchiveSha256"] = selection.SourceArchiveSha256, ["sourceCase"] = derived ? Chunk7OwnedPairsSelection.OwnerSeedManualCase : Chunk7OwnedPairsSelection.SourceCase,

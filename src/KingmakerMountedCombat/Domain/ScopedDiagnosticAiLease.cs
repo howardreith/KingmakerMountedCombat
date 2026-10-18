@@ -93,11 +93,21 @@ namespace KingmakerMountedCombat.Domain
             }
         }
 
-        public void ValidateActive(IEnumerable<TUnit> currentUnits)
+        public void ValidateActive(IEnumerable<TUnit> currentUnits) => ValidateActive(currentUnits, null);
+
+        // A caller may declare ONE exact leased unit whose own ordinary player command is
+        // in flight: only its empty-command invariant is waived; its AI stays disabled and
+        // every other unit keeps the full invariant.
+        public void ValidateActive(IEnumerable<TUnit> currentUnits, TUnit declaredCommandUnit)
         {
             RequireAcquired();
             var current = Materialize(currentUnits);
-            ValidateExactCandidates(current, states, true);
+            ValidateExactCandidates(current, states, declaredCommandUnit == null);
+            if (declaredCommandUnit != null && !states.Exists(state => ReferenceEquals(state.Unit, declaredCommandUnit)))
+            {
+                LastActiveValidationPassed = false;
+                throw new InvalidOperationException("The declared command unit is not an exact leased member.");
+            }
 
             for (var index = 0; index < states.Count; index++)
             {
@@ -105,7 +115,8 @@ namespace KingmakerMountedCombat.Domain
                 state.CommandsEmptyDuring = commandsAreEmpty(state.Unit);
                 state.RawAiDuring = getRawAiEnabled(state.Unit);
                 state.EffectiveAiDuring = getEffectiveAiEnabled(state.Unit);
-                if (!state.CommandsEmptyDuring || state.RawAiDuring || state.EffectiveAiDuring)
+                var declared = declaredCommandUnit != null && ReferenceEquals(state.Unit, declaredCommandUnit);
+                if (!state.CommandsEmptyDuring && !declared || state.RawAiDuring || state.EffectiveAiDuring)
                 {
                     LastActiveValidationPassed = false;
                     throw new InvalidOperationException(

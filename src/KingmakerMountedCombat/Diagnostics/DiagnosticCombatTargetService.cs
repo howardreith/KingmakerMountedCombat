@@ -1035,7 +1035,7 @@ namespace KingmakerMountedCombat.Diagnostics
             return spawnGroup.Disposed && !groupsController.Groups.Contains(spawnGroup);
         }
 
-        private static void ValidatePlacement(Vector3 riderPosition, Vector3 targetPosition)
+        internal static void ValidatePlacement(Vector3 riderPosition, Vector3 targetPosition)
         {
             var delta = targetPosition - riderPosition;
             delta.y = 0f;

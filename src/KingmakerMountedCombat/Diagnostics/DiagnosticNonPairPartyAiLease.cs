@@ -101,7 +101,7 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             try
             {
-                lease.ValidateActive(CaptureCurrentMembers());
+                lease.ValidateActive(CaptureCurrentMembers(), declaredCommandMember);
                 LastError = null;
                 return true;
             }
@@ -110,6 +110,38 @@ namespace KingmakerMountedCombat.Diagnostics
                 LastError = exception.Message;
                 return false;
             }
+        }
+
+        // One declared ordinary command by one exact leased member (owner-seed scenario 3):
+        // its AI stays disabled; only its own empty-command invariant is waived until the
+        // command settles. At most one declaration per lease, never a pair actor.
+        private UnitEntityData declaredCommandMember;
+        public int DeclaredMemberCommandCount { get; private set; }
+        public bool DeclaredMemberCommandOpen => declaredCommandMember != null;
+
+        public bool BeginDeclaredMemberCommand(UnitEntityData unit)
+        {
+            ThrowIfDisposed();
+            if (declaredCommandMember != null || DeclaredMemberCommandCount != 0 || !OwnsExactMember(unit) ||
+                unit.Commands == null || !unit.Commands.Empty || !ValidateActive())
+            {
+                return false;
+            }
+            declaredCommandMember = unit;
+            DeclaredMemberCommandCount++;
+            return true;
+        }
+
+        public bool EndDeclaredMemberCommand(UnitEntityData unit)
+        {
+            ThrowIfDisposed();
+            if (declaredCommandMember == null || !ReferenceEquals(unit, declaredCommandMember) ||
+                unit.Commands == null || !unit.Commands.Empty)
+            {
+                return false;
+            }
+            declaredCommandMember = null;
+            return ValidateActive();
         }
 
         public bool OwnsExactMember(UnitEntityData unit)
