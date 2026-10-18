@@ -168,7 +168,7 @@ function Assert-KmcChunk7CheckpointSource($Checkpoint,$Archive,$Request) {
         $prior=@($attack.before.actors|Where-Object id -CEQ $id);$after=@($attack.after.actors|Where-Object id -CEQ $id)
         if($prior.Count-ne1-or$after.Count-ne1-or[double]$after[0].standard-le[double]$prior[0].standard){throw 'Source attack snapshot has no distinct native expenditure.'}
         # A rider's TB paired approach is native movement charged to its own mount's move budget.
-        $ownMount=if($id-ceq$ids[0]){$ids[1]}elseif($id-ceq$ids[2]){$ids[3]}else{$null}
+        $ownMount=if($zero){$null}elseif($id-ceq$ids[0]){$ids[1]}elseif($id-ceq$ids[2]){$ids[3]}else{$null}
         if(-not$rt){foreach($other in $ids|Where-Object{$_-cne$id}){$a=@($attack.before.actors|Where-Object id -CEQ $other);$b=@($attack.after.actors|Where-Object id -CEQ $other);if($a.Count-ne1-or$b.Count-ne1){throw 'Native primary transferred expenditure to another actor.'}
             foreach($field in @('standard','move','swift','reactions','reactionCooldown')){
                 if($field-ceq'move'-and$other-ceq$ownMount){if([double]$b[0].move-lt[double]$a[0].move-or[double]$b[0].move-gt6.001){throw 'Paired approach refunded or exceeded its own mount move budget.'};continue}
