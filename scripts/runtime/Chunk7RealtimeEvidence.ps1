@@ -3,8 +3,8 @@ Set-StrictMode -Version Latest
 function Test-KmcChunk7RealtimeScenario([string]$Scenario){$Scenario-cin@('chunk7-two-pair-realtime-core','chunk7-two-pair-realtime-casting','chunk7-two-pair-realtime-charge')}
 function Get-KmcChunk7RealtimeRows([string]$Scenario){
     if(-not(Test-KmcChunk7RealtimeScenario $Scenario)){throw 'Unknown two-pair RT case.'}
-    @($Scenario,'C7-combat-fixture','C7-combat-native-mounts','C7-combat-cleanup','C7-combat-runtime','C7-combat-interrupted')
-    if($Scenario-ceq'chunk7-two-pair-realtime-core'){@('C7-rt-charge-default-off','C7-rt-concurrent-primary','C7-rt-local-cancel','C7-rt-unmounted-native-control','C7-combat-local-cleanup-failure')}
+    @($Scenario,'C7-combat-fixture','C7-combat-native-mounts','C7-combat-restored-mounts','C7-combat-cleanup','C7-combat-runtime','C7-combat-interrupted')
+    if($Scenario-ceq'chunk7-two-pair-realtime-core'){@('C7-rt-charge-default-off','C7-rt-concurrent-primary','C7-rt-companion-native-action','C7-rt-local-cancel','C7-rt-unmounted-native-control','C7-combat-local-cleanup-failure')}
     elseif($Scenario-ceq'chunk7-two-pair-realtime-casting'){@('C7-rt-native-casting','C7-rt-casting-neighbour')}
     else{@('C7-rt-charge-native-success','C7-rt-charge-neighbour-movement','C7-rt-charge-native-cancel')}
 }
@@ -49,8 +49,9 @@ function Assert-KmcChunk7RealtimePrimary($Attack,$Trace,[string]$Actor,[string]$
     return [long]$cost[0].command
 }
 function Assert-KmcChunk7RealtimeOwnerStable($Before,$After,[string]$Rider,[string]$Mount){
-    $left=@($Before.owners|Where-Object{$_.state-ceq'Active'-and$_.riderId-ceq$Rider});$right=@($After.owners|Where-Object{$_.state-ceq'Active'-and$_.riderId-ceq$Rider})
-    if($left.Count-ne1-or$right.Count-ne1-or$left[0].mountId-cne$Mount-or$right[0].mountId-cne$Mount-or$left[0].id-cne$right[0].id-or$left[0].generation-ne$right[0].generation-or$left[0].generation-le0){throw 'RT execution changed exact stable pair custody.'}
+    # Pair-owner records carry the registry's N-form actor keys; actors are D-form UniqueIds.
+    $left=@($Before.owners|Where-Object{$_.state-ceq'Active'-and(Test-KmcChunk7OwnerActorMatch $_.riderId $Rider)});$right=@($After.owners|Where-Object{$_.state-ceq'Active'-and(Test-KmcChunk7OwnerActorMatch $_.riderId $Rider)})
+    if($left.Count-ne1-or$right.Count-ne1-or-not(Test-KmcChunk7OwnerActorMatch $left[0].mountId $Mount)-or-not(Test-KmcChunk7OwnerActorMatch $right[0].mountId $Mount)-or$left[0].id-cne$right[0].id-or$left[0].generation-ne$right[0].generation-or$left[0].generation-le0){throw 'RT execution changed exact stable pair custody.'}
 }
 function Assert-KmcChunk7RealtimeStop($Stop,[string[]]$Ids){
     foreach($s in @($Stop.before,$Stop.after)){Assert-KmcChunk7RealtimeSnapshot $s $Ids}
@@ -84,9 +85,12 @@ function Assert-KmcChunk7RealtimeEvidence($Request,$Artifact,[string]$Status){
     if(-not$owned){if($o.acquisition.nativeRangerCommitCount-ne4-or$o.acquisition.horseFactRankAtCommit-ne1-or$o.acquisition.horsePresentAtNativeCommit-ne$true){throw 'Native Horse acquisition receipt differs.'}}
     Assert-KmcChunk7CheckpointTrace $trace $Request
     if($o.nativeEffects.dropped-ne0-or@($o.nativeCompletion.errors).Count-ne0-or$o.nativeCompletion.traceComplete-ne$true-or@($o.nativeRounds.errors).Count-ne0){throw 'RT raw observer is incomplete.'}
+    # Owner-seed-derived combat restored both pairs mounted: its admission replaces the native Mount inputs.
+    $derived=$owned-and(Test-KmcChunk7OwnedPairsSeedDerivedCombat $Request)
+    if($derived){Assert-KmcChunk7OwnerSeedDerivedCombatStart $Request $o}else{
     $mounts=@($o.inputs|Where-Object{$_.label-cin@('mount-a','mount-b')});if($mounts.Count-ne2){throw 'Two native mounts missing.'}
-    for($i=0;$i-lt2;$i++){$m=$mounts[$i];if($m.casterId-cne$ids[$i*2]-or$m.targetId-cne$ids[$i*2+1]-or$m.abilityGuid-cne'f053faad986631688defa003cd7bda0e'-or$m.nativeCastDelta-ne1-or$m.nativeRefusalDelta-ne0-or$m.generationAtInit-lt0){throw 'Native RT mount binding differs.'};foreach($f in @('clicked','terminal','processTerminal')){Assert-KmcChunk7Boolean $m.$f $true}}
-    if((Get-KmcChunk7SelectedScenario $Request)-ceq'chunk7-two-pair-realtime-core') {Assert-KmcChunk7RealtimeCore $o $ids $trace}
+    for($i=0;$i-lt2;$i++){$m=$mounts[$i];if($m.casterId-cne$ids[$i*2]-or$m.targetId-cne$ids[$i*2+1]-or$m.abilityGuid-cne'f053faad986631688defa003cd7bda0e'-or$m.nativeCastDelta-ne1-or$m.nativeRefusalDelta-ne0-or$m.generationAtInit-lt0){throw 'Native RT mount binding differs.'};foreach($f in @('clicked','terminal','processTerminal')){Assert-KmcChunk7Boolean $m.$f $true}}}
+    if((Get-KmcChunk7SelectedScenario $Request)-ceq'chunk7-two-pair-realtime-core') {Assert-KmcChunk7RealtimeCore $o $ids $trace;if($derived){Assert-KmcChunk7OwnerSeedCompanionAction $Request $o}elseif($null-ne$o.PSObject.Properties['companionAction']){throw 'Only owner-seed-derived RT records an unrelated companion action.'}}
     elseif((Get-KmcChunk7SelectedScenario $Request)-ceq'chunk7-two-pair-realtime-casting'){Assert-KmcChunk7RealtimeCasting $o $ids $trace}
     else{Assert-KmcChunk7RealtimeCharge $o $ids $trace}
     if($owned){foreach($field in @('pairResidueAbsent','nativeCombatEnded','initiativeInputsRestored','firstPairAiRestored','controlsSettled','inheritedPetsPreserved')){Assert-KmcChunk7Boolean $o.cleanup.$field $true};Assert-KmcChunk7Boolean $o.cleanup.ownedHorseRemoved $false;Assert-KmcChunk7Boolean $o.cleanup.nativeProgressionRequiresExternalWorkingRestoration $false}else{foreach($field in @('pairResidueAbsent','ownedHorseRemoved','nativeCombatEnded','initiativeInputsRestored','firstPairAiRestored','controlsSettled','nativeProgressionRequiresExternalWorkingRestoration')){Assert-KmcChunk7Boolean $o.cleanup.$field $true}}
@@ -107,15 +111,15 @@ function Assert-KmcChunk7RealtimeCore($o,[string[]]$ids,$trace){
     if($w.movement.casterId-cne$ids[0]-or$w.movement.executorId-cne$ids[1]-or$w.movement.command-le0){throw 'Local move escaped exact mover.'};Assert-KmcChunk7Boolean $w.movement.clicked $true
     Assert-KmcChunk7RealtimeDisplacement $w.movement.before $w.stop.before $ids[1];Assert-KmcChunk7RealtimeStop $w.stop $ids
     $u=$o.unmountedControl
-    if($u.actorId-cne$ids[0]-or$u.commandType-cne'Kingmaker.UnitLogic.Commands.UnitAttack'-or$u.selectionAfterInput-cne$ids[2]-or@($u.before.owners|Where-Object{$_.state-ceq'Active'-and$_.riderId-ceq$ids[0]}).Count-ne0){throw 'Unmounted ordinary control retained mounted authority.'}
+    if($u.actorId-cne$ids[0]-or$u.commandType-cne'Kingmaker.UnitLogic.Commands.UnitAttack'-or$u.selectionAfterInput-cne$ids[2]-or@($u.before.owners|Where-Object{$_.state-ceq'Active'-and(Test-KmcChunk7OwnerActorMatch $_.riderId $ids[0])}).Count-ne0){throw 'Unmounted ordinary control retained mounted authority.'}
     Assert-KmcChunk7Boolean $u.clicked $true;Assert-KmcChunk7Boolean $u.nativeStopSent $true;Assert-KmcChunk7Boolean $u.terminal $true
     $d=@($o.inputs|Where-Object label -CEQ 'rt-native-dismount-a');if($d.Count-ne1-or$d[0].casterId-cne$ids[0]-or$d[0].targetId-cne$ids[0]-or$d[0].abilityGuid-cne'3af2b81f4d72bbb30501fa730fcdf36e'-or$d[0].nativeCastDelta-ne1-or$d[0].nativeRefusalDelta-ne0){throw 'Native independent Dismount input is missing.'}
     foreach($f in @('clicked','terminal','processTerminal')){Assert-KmcChunk7Boolean $d[0].$f $true}
     $events=@($u.effectsAfter.events|Select-Object -Skip @($u.effectsBefore.events).Count);$hits=@($events|Where-Object{$_.kind-ceq'weapon-resolved'-and$_.actor-ceq$ids[0]-and$_.target-ceq$o.targetId})
-    if($hits.Count-ne1-or@($u.after.owners|Where-Object{$_.id-ceq$u.neighbourOwner-and$_.state-ceq'Active'-and$_.riderId-ceq$ids[2]}).Count-ne1){throw 'Unmounted native delivery repeated or changed neighbour custody.'}
+    if($hits.Count-ne1-or@($u.after.owners|Where-Object{$_.id-ceq$u.neighbourOwner-and$_.state-ceq'Active'-and(Test-KmcChunk7OwnerActorMatch $_.riderId $ids[2])}).Count-ne1){throw 'Unmounted native delivery repeated or changed neighbour custody.'}
     Assert-KmcChunk7RealtimeCost $trace $ids[0] $u.command 'Kingmaker.UnitLogic.Commands.UnitAttack' $u.before.frame $u.after.frame
     $f=$o.localFailure;if($f.failureCount-ne1-or$f.injectedPair-cne'b'){throw 'Selected local cleanup failure differs.'};Assert-KmcChunk7Boolean $f.healthyNeighbourVisited $true
-    if(@($f.held.owners|Where-Object{$_.riderId-ceq$ids[2]-and$_.mountId-ceq$ids[3]-and$_.retainsObligations}).Count-ne1){throw 'RT failed owner lost cleanup custody.'}
+    if(@($f.held.owners|Where-Object{(Test-KmcChunk7OwnerActorMatch $_.riderId $ids[2])-and(Test-KmcChunk7OwnerActorMatch $_.mountId $ids[3])-and$_.retainsObligations}).Count-ne1){throw 'RT failed owner lost cleanup custody.'}
     Assert-KmcChunk7SameCombatBudget $f.before $f.held @($ids[1])
 }
 function Assert-KmcChunk7RealtimeCasting($o,[string[]]$ids,$trace){
@@ -149,7 +153,7 @@ function Assert-KmcChunk7RealtimeCharge($o,[string[]]$ids,$trace){
            @($c.admittedNeighbourCommands|Where-Object{$_.identity-eq$c.movement.command-and$_.actorId-ceq$ids[3]-and-not$_.finished}).Count-ne1){throw 'Charge lacks concurrent exact native neighbour movement.'}
         Assert-KmcChunk7Boolean $c.movement.clicked $true;Assert-KmcChunk7RealtimeDisplacement $c.movement.before $c.after $ids[3]
         foreach($id in @($ids[2],$ids[3])){if((Get-KmcChunk7CombatActor $c.after $id).standard-ne0){throw 'Neighbour paid Charge expenditure.'}}
-        if(@($c.after.owners|Where-Object{$_.id-ceq$c.neighbourOwner-and$_.state-ceq'Active'-and$_.riderId-ceq$ids[2]}).Count-ne1){throw 'Charge changed independent neighbour owner.'}
+        if(@($c.after.owners|Where-Object{$_.id-ceq$c.neighbourOwner-and$_.state-ceq'Active'-and(Test-KmcChunk7OwnerActorMatch $_.riderId $ids[2])}).Count-ne1){throw 'Charge changed independent neighbour owner.'}
         $s=$c.settled;$lease=$s.lease
         foreach($f in @('shellActed','shellFinished','executionEnded','commandFinished')){Assert-KmcChunk7Boolean $s.$f $true}
         foreach($f in @('applied','restored','chargingRestoredExactly','speedOverrideRestoredExactly','riderChargingRestoredExactly')){Assert-KmcChunk7Boolean $lease.$f $true}

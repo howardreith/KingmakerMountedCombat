@@ -17,7 +17,7 @@ function Get-KmcChunk7OwnedReceiptSet([string]$RunId,[string]$ArtifactLeaf){
  $ownerPath=Join-Path $profile 'owner.json';Assert-KmcNotReparsePoint $ownerPath 'qualified inherited owner';Assert-KmcNotHardLink $ownerPath 'qualified inherited owner';Assert-KmcManifestJsonMembersUnique $ownerPath 'qualified inherited owner';$pins[$ownerPath]=Get-KmcSha256 $ownerPath
  [pscustomobject]@{profile=$profile;root=$root;pins=$pins;owner=(Read-KmcJson $ownerPath);request=(Read-KmcJson (Join-Path $root 'runtime-request.json'));result=(Read-KmcJson (Join-Path $root 'runtime-result.json'));game=(Read-KmcJson (Join-Path $root 'runtime-game-result.json'));isolation=(Read-KmcJson (Join-Path $root 'base-game-isolation-result.json'));manifest=(Read-KmcJson (Join-Path $root 'runtime-artifacts.json'))}
 }
-function Assert-KmcChunk7OwnedSourceCompletion($Set,[string]$RunId,[string]$Scenario,$Fixture,$Candidate,[string]$InputHash){
+function Assert-KmcChunk7OwnedSourceCompletion($Set,[string]$RunId,[string]$Scenario,$Fixture,$Candidate,[string]$InputHash,[int]$Writes=1){
  $r=$Set.request;Assert-KmcBootstrapInventoryString $r.runId $RunId;Assert-KmcBootstrapInventoryString $r.scenario $Scenario;Assert-KmcBootstrapInventoryString $r.evidenceRoot $Set.root
  foreach($key in @('working','baseline')){Assert-KmcBootstrapInventoryString $r.fixture.$key.sha256 $Fixture.$key.sha256}
  foreach($key in @('commit','dllSha256','dllMvid')){Assert-KmcBootstrapInventoryString $r.$key $Candidate.$key}
@@ -32,7 +32,8 @@ function Assert-KmcChunk7OwnedSourceCompletion($Set,[string]$RunId,[string]$Scen
  Assert-KmcBootstrapInventoryString $Set.result.gameResultSha256 $Set.pins[(Join-Path $Set.root 'runtime-game-result.json')]
  foreach($key in @('modsRestored','workingRestored','baselineImmutable','saveProtectionPassed','saveWriteAllowlistPassed')){Assert-KmcChunk7Boolean $Set.result.$key $true}
  foreach($key in @('assertionFailCount','subscenarioFailCount','baselineLoadRequestCount','unauthorizedLoadRequestCount','unauthorizedSaveRequestCount')){Assert-KmcOrdinaryInteger $Set.game.$key 0 0}
- foreach($key in @('loadRequestCount','workingLoadRequestCount','saveRequestCount','workingSaveRequestCount')){Assert-KmcOrdinaryInteger $Set.game.$key 1 1}
+ foreach($key in @('loadRequestCount','workingLoadRequestCount')){Assert-KmcOrdinaryInteger $Set.game.$key 1 1}
+ foreach($key in @('saveRequestCount','workingSaveRequestCount')){Assert-KmcOrdinaryInteger $Set.game.$key $Writes $Writes}
  Assert-KmcChunk7Boolean $Set.game.fixtureIdentityVerified $true
  Assert-KmcBootstrapInventoryString $Set.isolation.runId $r.runId;Assert-KmcBootstrapInventoryString $Set.isolation.stagingMode 'base-game-only-kmc'
  foreach($key in @('stageVerified','dependenciesUnchanged','processExited','modsRestored','saveProtectionPassed','gameReportedPass','nativeInventoryObserved','nativeCompatibilityQualified')){Assert-KmcChunk7Boolean $Set.isolation.$key $true}
@@ -101,7 +102,10 @@ function Get-KmcChunk7OwnedPairsOwnerSeedDerivedSource($Selection,[AllowNull()][
  # The owner's immutable master is unchanged and is exactly the seed the producer loaded.
  $seed=Get-KmcChunk7OwnedPairsOwnerSeedSource $request.ownedPairs 'multi-exploration-manual' $Fixture $Candidate
  if((ConvertTo-KmcChunk7Canonical $seed.descriptor)-cne(ConvertTo-KmcChunk7Canonical $request.persistenceLoad)){throw 'Producer did not load the exact registered immutable owner seed.'}
- Assert-KmcChunk7OwnedSourceCompletion $set $Selection.sourceRunId 'chunk7-owned-two-pair-campaign' $Fixture $Candidate $Selection.seedSha256
+ # Combat (scenarios 3-5) may be a later candidate: each receipt is pinned to its own recorded candidate.
+ $combat=$Selection.case-cin@('owner-seed-realtime-core','owner-seed-combat-rider-first','owner-seed-combat-mount-first')
+ $producerCandidate=if($combat){Get-KmcChunk7RecordedCandidate $request}else{$Candidate}
+ Assert-KmcChunk7OwnedSourceCompletion $set $Selection.sourceRunId 'chunk7-owned-two-pair-campaign' $Fixture $producerCandidate $Selection.seedSha256
  Assert-KmcBootstrapInventoryString $set.owner.persistenceCase 'multi-exploration-manual'
  Assert-KmcChunk7WorldArtifact $request $set.manifest 'PASS';Assert-KmcMatchedPoolArtifact $request $set.manifest 'PASS'
  $artifact=Read-KmcChunk7ManifestArtifact $request $set.manifest 'chunk7-world-evidence.json' 'chunk7-world-evidence'
@@ -119,11 +123,39 @@ function Get-KmcChunk7OwnedPairsOwnerSeedDerivedSource($Selection,[AllowNull()][
  $descriptor=[pscustomobject]@{internalName=$w.nativeName;fileName=$leaf;sha256=$w.sha256;length=$w.length;lastWriteTimeUtcTicks=[long](Get-Item -LiteralPath $w.path).LastWriteTimeUtc.Ticks;gameId=$request.persistenceLoad.gameId;gameName=$request.persistenceLoad.gameName;area=$request.persistenceLoad.area}
  Assert-KmcChunk7OwnedPairsDescriptor ([pscustomobject]@{scenario='chunk7-owned-two-pair-campaign';runId='unassigned-owned-seed-derived';ownedPairs=$Selection;persistenceCase=$r.persistenceCase;persistenceLoad=$descriptor;fixture=$Fixture})
  Assert-KmcChunk7OwnedReceiptPins $set
- [pscustomobject]@{path=$w.path;descriptor=$descriptor;artifactPath=$path;artifactSha256=$Selection.sourceArtifactSha256;artifactLength=[long]$file.Length;sourceRunId=$request.runId;ownerSeedDerived=$true;seed=$seed}
+ $result=[ordered]@{path=$w.path;descriptor=$descriptor;artifactPath=$path;artifactSha256=$Selection.sourceArtifactSha256;artifactLength=[long]$file.Length;sourceRunId=$request.runId;ownerSeedDerived=$true;seed=$seed}
+ if($combat){$consumer=Get-KmcChunk7OwnerSeedConsumerReceipt $Selection $Fixture $artifact $descriptor;foreach($key in $consumer.Keys){$result[$key]=$consumer[$key]}
+  $result['candidates']=[pscustomobject][ordered]@{producer=$producerCandidate;consumer=$consumer.consumerCandidate;current=[pscustomobject][ordered]@{commit=$Candidate.commit;dllSha256=$Candidate.dllSha256;dllMvid=$Candidate.dllMvid};sameCandidate=(($producerCandidate.commit-ceq$Candidate.commit)-and($producerCandidate.dllSha256-ceq$Candidate.dllSha256)-and($producerCandidate.dllMvid-ceq$Candidate.dllMvid))}}
+ [pscustomobject]$result
 }
-function Get-KmcChunk7OwnedPairsSource($Selection,[AllowNull()][string]$PersistenceCase,$Fixture,$Candidate,$AreaTarget=$null){
+# A receipt's own recorded candidate identity (later-candidate combat reuse); never the current one.
+function Get-KmcChunk7RecordedCandidate($Request){
+ if($Request.commit-isnot[string]-or$Request.commit-cnotmatch'\A[a-f0-9]{40}\z'-or$Request.dllSha256-isnot[string]-or$Request.dllSha256-cnotmatch'\A[a-f0-9]{64}\z'-or
+    $Request.dllMvid-isnot[string]-or$Request.dllMvid-cnotmatch'\A[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\z'){throw 'Qualified receipt does not record its exact candidate identity.'}
+ [pscustomobject][ordered]@{commit=$Request.commit;dllSha256=$Request.dllSha256;dllMvid=$Request.dllMvid}
+}
+# Owner-seed-derived combat: the ACCEPTED cold consumer receipt, pinned by run and evidence hash,
+# PASS on exactly this producer's Manual (1 load, 0 writes, separate-process proof), on its own
+# recorded candidate, which must equal the producer's (the consumer's own same-candidate rule).
+function Get-KmcChunk7OwnerSeedConsumerReceipt($Selection,$Fixture,$ProducerArtifact,$Descriptor){
+ $set=Get-KmcChunk7OwnedReceiptSet $Selection.checkpointSourceRunId 'chunk7-persistence-evidence.json';$request=$set.request
+ Assert-KmcBootstrapInventoryString $request.scenario 'chunk7-owned-two-pair-campaign';Assert-KmcBootstrapInventoryString $request.ownedPairs.case 'owner-seed-persistence-load';Assert-KmcBootstrapInventoryString $request.persistenceCase 'multi-exploration-manual'
+ Assert-KmcChunk7OwnedPairsDescriptor $request
+ foreach($key in @('sourceRunId','sourceArtifactSha256','sourceArchiveSha256','seedId','seedSha256','riderAId','mountAId','riderBId','mountBId')){Assert-KmcBootstrapInventoryString $request.ownedPairs.$key $Selection.$key}
+ if((ConvertTo-KmcChunk7Canonical $request.ownedPairs.partyIds)-cne(ConvertTo-KmcChunk7Canonical $Selection.partyIds)-or(ConvertTo-KmcChunk7Canonical $request.persistenceLoad)-cne(ConvertTo-KmcChunk7Canonical $Descriptor)){throw 'Consumer receipt did not cold-load this exact owner-seed-derived Manual.'}
+ $candidate=Get-KmcChunk7RecordedCandidate $request
+ Assert-KmcChunk7OwnedSourceCompletion $set $Selection.checkpointSourceRunId 'chunk7-owned-two-pair-campaign' $Fixture $candidate $Selection.sourceArchiveSha256 0
+ Assert-KmcBootstrapInventoryString $set.owner.persistenceCase 'multi-exploration-manual'
+ Assert-KmcChunk7PersistenceArtifact $request $set.manifest 'PASS'
+ $artifact=Read-KmcChunk7ManifestArtifact $request $set.manifest 'chunk7-persistence-evidence.json' 'chunk7-persistence-evidence'
+ $path=Join-Path $set.root 'chunk7-persistence-evidence.json';$file=Get-Item -LiteralPath $path
+ if($file.Length-le0-or$file.Length-gt16MB-or$set.pins[$path]-cne$Selection.checkpointSourceArtifactSha256){throw 'Owner-seed-derived consumer receipt differs from its explicit immutable pin.'}
+ Assert-KmcChunk7OwnerSeedDerivedColdSource $request $ProducerArtifact $artifact
+ Assert-KmcChunk7OwnedReceiptPins $set
+ [ordered]@{consumerRunId=$request.runId;consumerArtifactPath=$path;consumerArtifactSha256=$Selection.checkpointSourceArtifactSha256;consumerArtifactLength=[long]$file.Length;consumerCandidate=$candidate}
+}function Get-KmcChunk7OwnedPairsSource($Selection,[AllowNull()][string]$PersistenceCase,$Fixture,$Candidate,$AreaTarget=$null){
  if($null-ne$Selection-and$null-ne$Selection.PSObject.Properties['case']-and$Selection.case-cin@('owner-seed-exploration','owner-seed-persistence-save')){return Get-KmcChunk7OwnedPairsOwnerSeedSource $Selection $PersistenceCase $Fixture $Candidate $AreaTarget}
- if($null-ne$Selection-and$null-ne$Selection.PSObject.Properties['case']-and$Selection.case-ceq'owner-seed-persistence-load'){return Get-KmcChunk7OwnedPairsOwnerSeedDerivedSource $Selection $PersistenceCase $Fixture $Candidate $AreaTarget}
+ if($null-ne$Selection-and$null-ne$Selection.PSObject.Properties['case']-and$Selection.case-cin@('owner-seed-persistence-load','owner-seed-realtime-core','owner-seed-combat-rider-first','owner-seed-combat-mount-first')){return Get-KmcChunk7OwnedPairsOwnerSeedDerivedSource $Selection $PersistenceCase $Fixture $Candidate $AreaTarget}
  if($PersistenceCase-ceq'multi-area-autosave'){Assert-KmcChunk7AreaTarget ([pscustomobject]@{scenario='chunk7-owned-two-pair-campaign';persistenceCase=$PersistenceCase;ownedPairs=$Selection;persistenceAreaTarget=$AreaTarget})}elseif($null-ne$AreaTarget){throw 'Only owned area autosave may carry its exact destination.'}
  $manual=Get-KmcChunk7OwnedPairsManualSource $Selection $PersistenceCase $Fixture $Candidate
  if($Selection.case-cne'persistence-load'){return $manual}
