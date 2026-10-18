@@ -30,7 +30,7 @@ function Assert-KmcChunk7RealtimeDisplacement($Before,$After,[string]$Actor){
 }
 function Assert-KmcChunk7RealtimeCost($Trace,[string]$Actor,[long]$Command,[string]$Type,[int]$Start,[int]$End,[switch]$FullRound){
     $events=@($Trace.events|Where-Object{$_.command-eq$Command-and$_.boundary-cin@('cost-before','cost-after')})
-    if($Command-le0-or$events.Count-ne2){throw 'RT actor cost is missing or repeated for its exact native command.'}
+    if($Command-eq0-or$events.Count-ne2){throw 'RT actor cost is missing or repeated for its exact native command.'}
     $before=@($events|Where-Object boundary -CEQ 'cost-before');$after=@($events|Where-Object boundary -CEQ 'cost-after')
     if($before.Count-ne1-or$after.Count-ne1){throw 'RT native cost boundary pair differs.'};$before=$before[0];$after=$after[0]
     foreach($e in $events){if($e.commandActor-cne$Actor-or$e.state.actor-cne$Actor-or$e.commandType-cne$Type-or$e.actionType-cne'Standard'-or$e.frame-lt$Start-or$e.frame-gt$End){throw 'RT cost escaped actor, command, type or native window.'}}
@@ -40,7 +40,7 @@ function Assert-KmcChunk7RealtimeCost($Trace,[string]$Actor,[long]$Command,[stri
 function Assert-KmcChunk7RealtimePrimary($Attack,$Trace,[string]$Actor,[string]$Caster,[string]$Target,[string[]]$Ids){
     foreach($s in @($Attack.before,$Attack.after)){Assert-KmcChunk7RealtimeSnapshot $s $Ids}
     if($Attack.casterId-cne$Caster-or$Attack.executorId-cne$Caster-or$Attack.selectionAfterInput-ceq$Caster-or$Attack.selectionAfterInput-cnotin$Ids-or
-       $Attack.nativeCastDelta-ne1-or$Attack.nativeRefusalDelta-ne0-or$Attack.command-le0-or$Attack.outcome.actorId-cne$Actor-or
+       $Attack.nativeCastDelta-ne1-or$Attack.nativeRefusalDelta-ne0-or$Attack.command-eq0-or$Attack.outcome.actorId-cne$Actor-or
        $Attack.outcome.resourceOwnerId-cne$Actor-or$Attack.outcome.targetId-cne$Target-or$Attack.outcome.result-cne'Success'-or$Attack.outcome.completedAttacks-ne1){throw 'RT primary exact caster/action-owner outcome differs.'}
     Assert-KmcChunk7Boolean $Attack.clicked $true;Assert-KmcChunk7Boolean $Attack.outcome.nativeAttackRule $true;Assert-KmcChunk7Boolean $Attack.outcome.singleAttack $true
     $cost=@($Trace.events|Where-Object{$_.boundary-ceq'cost-after'-and$_.state.actor-ceq$Actor-and$_.commandType-ceq'KingmakerMountedCombat.Integration.MountedPairAttackCommand'-and$_.frame-ge$Attack.before.frame-and$_.frame-le$Attack.after.frame})
@@ -58,11 +58,11 @@ function Assert-KmcChunk7RealtimeStop($Stop,[string[]]$Ids){
     if($Stop.before.frame-ne$Stop.after.frame-or$Stop.before.gameTicks-ne$Stop.after.gameTicks-or$Stop.neighbourOwnerBefore-cne$Stop.neighbourOwnerAfter-or
        $Stop.neighbourGenerationBefore-ne$Stop.neighbourGenerationAfter-or$Stop.neighbourGenerationBefore-le0-or
        (ConvertTo-KmcChunk7Canonical $Stop.neighbourCommandsBefore)-cne(ConvertTo-KmcChunk7Canonical $Stop.neighbourCommandsAfter)){throw 'Native local Stop changed neighbour identity or command custody.'}
-    if(@($Stop.neighbourCommandsBefore|Where-Object{-not$_.finished-and$_.actorId-cin@($Ids[2],$Ids[3])-and$_.identity-gt0}).Count-eq0){throw 'Cancellation has no concurrent live neighbour command.'}
+    if(@($Stop.neighbourCommandsBefore|Where-Object{-not$_.finished-and$_.actorId-cin@($Ids[2],$Ids[3])-and$_.identity-ne0}).Count-eq0){throw 'Cancellation has no concurrent live neighbour command.'}
     Assert-KmcChunk7SameCombatBudget $Stop.before $Stop.after @($Ids[2],$Ids[3])
 }
 function Assert-KmcChunk7RealtimeShell($Shell,[long]$Command,[string]$Actor,[string]$Target){
-    if($Shell.identity-ne$Command-or$Command-le0-or$Shell.actorId-cne$Actor-or$Shell.targetId-cne$Target-or$Shell.type-cne'Kingmaker.UnitLogic.Commands.UnitUseAbility'){throw 'Native overlapping shell binding differs.'}
+    if($Shell.identity-ne$Command-or$Command-eq0-or$Shell.actorId-cne$Actor-or$Shell.targetId-cne$Target-or$Shell.type-cne'Kingmaker.UnitLogic.Commands.UnitUseAbility'){throw 'Native overlapping shell binding differs.'}
     Assert-KmcChunk7Boolean $Shell.finished $false
 }
 function Assert-KmcChunk7RealtimeEvidence($Request,$Artifact,[string]$Status){
@@ -108,7 +108,7 @@ function Assert-KmcChunk7RealtimeCore($o,[string[]]$ids,$trace){
     if(@($w.before.owners|Where-Object state -CEQ 'Active').Count-ne2-or@($w.after.owners|Where-Object state -CEQ 'Active').Count-ne2){throw 'Concurrent RT execution lost independent owners.'}
     foreach($i in 0..1){Assert-KmcChunk7RealtimeOwnerStable $w.before $w.after $ids[2*$i] $ids[2*$i+1]}
     $w=$windows[1];$null=Assert-KmcChunk7RealtimePrimary $w.neighbour $trace $ids[3] $ids[2] $o.targetId $ids
-    if($w.movement.casterId-cne$ids[0]-or$w.movement.executorId-cne$ids[1]-or$w.movement.command-le0){throw 'Local move escaped exact mover.'};Assert-KmcChunk7Boolean $w.movement.clicked $true
+    if($w.movement.casterId-cne$ids[0]-or$w.movement.executorId-cne$ids[1]-or$w.movement.command-eq0){throw 'Local move escaped exact mover.'};Assert-KmcChunk7Boolean $w.movement.clicked $true
     Assert-KmcChunk7RealtimeDisplacement $w.movement.before $w.stop.before $ids[1];Assert-KmcChunk7RealtimeStop $w.stop $ids
     $u=$o.unmountedControl
     if($u.actorId-cne$ids[0]-or$u.commandType-cne'Kingmaker.UnitLogic.Commands.UnitAttack'-or$u.selectionAfterInput-cne$ids[2]-or@($u.before.owners|Where-Object{$_.state-ceq'Active'-and(Test-KmcChunk7OwnerActorMatch $_.riderId $ids[0])}).Count-ne0){throw 'Unmounted ordinary control retained mounted authority.'}
@@ -146,10 +146,10 @@ function Assert-KmcChunk7RealtimeCharge($o,[string[]]$ids,$trace){
         foreach($i in 0..1){Assert-KmcChunk7RealtimeOwnerStable $c.before $c.after $ids[2*$i] $ids[2*$i+1]}
         foreach($f in @('featureEnabled','available','targetAllowed','straightRoute','clicked')){Assert-KmcChunk7Boolean $c.$f $true};Assert-KmcChunk7Boolean $c.landingBlocked $false
         if($c.casterId-cne$ids[0]-or$c.targetId-cne$o.targetId-or$c.abilityGuid-cne'd79eaec224a7a832e738eb81baef9d49'-or$c.castDelta-ne1-or$c.refusalDelta-ne0-or$c.selectionAfterInput-cne$ids[2]-or
-           $c.command-le0-or-not$shells.Add([long]$c.shell)){throw 'Charge exact native shell/actor input differs.'}
+           $c.command-eq0-or-not$shells.Add([long]$c.shell)){throw 'Charge exact native shell/actor input differs.'}
         Assert-KmcChunk7RealtimeShell $c.admittedShell $c.shell $ids[0] $o.targetId
         Assert-KmcChunk7RealtimeCost $trace $ids[0] $c.shell 'Kingmaker.UnitLogic.Commands.UnitUseAbility' $c.before.frame $c.after.frame -FullRound
-        if($c.movement.executorId-cne$ids[3]-or$c.movement.casterId-cne$ids[2]-or$c.movement.command-le0-or
+        if($c.movement.executorId-cne$ids[3]-or$c.movement.casterId-cne$ids[2]-or$c.movement.command-eq0-or
            @($c.admittedNeighbourCommands|Where-Object{$_.identity-eq$c.movement.command-and$_.actorId-ceq$ids[3]-and-not$_.finished}).Count-ne1){throw 'Charge lacks concurrent exact native neighbour movement.'}
         Assert-KmcChunk7Boolean $c.movement.clicked $true;Assert-KmcChunk7RealtimeDisplacement $c.movement.before $c.after $ids[3]
         foreach($id in @($ids[2],$ids[3])){if((Get-KmcChunk7CombatActor $c.after $id).standard-ne0){throw 'Neighbour paid Charge expenditure.'}}

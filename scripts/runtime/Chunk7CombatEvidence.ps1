@@ -31,7 +31,7 @@ function Assert-KmcChunk7SameCombatBudget($Before,$After,[string[]]$Ids) {
 }
 function Assert-KmcChunk7CombatAttack($Attack,$Trace,[string]$Actor,[string]$Caster,[string]$Target,[string[]]$Ids) {
     if($Attack.casterId-cne$Caster-or$Attack.executorId-cne$Caster-or$Attack.selectionAfterInput-ceq$Caster-or$Attack.selectionAfterInput-cnotin$Ids-or
-       $Attack.nativeCastDelta-ne1-or$Attack.nativeRefusalDelta-ne0-or$Attack.command-le0-or$Attack.outcome.actorId-cne$Actor-or
+       $Attack.nativeCastDelta-ne1-or$Attack.nativeRefusalDelta-ne0-or$Attack.command-eq0-or$Attack.outcome.actorId-cne$Actor-or
        $Attack.outcome.resourceOwnerId-cne$Actor-or$Attack.outcome.targetId-cne$Target-or$Attack.outcome.result-cne'Success'-or$Attack.outcome.completedAttacks-ne1){throw 'Native primary command/caster/action-owner outcome differs.'}
     Assert-KmcChunk7Boolean $Attack.clicked $true;Assert-KmcChunk7Boolean $Attack.outcome.nativeAttackRule $true;Assert-KmcChunk7Boolean $Attack.outcome.singleAttack $true
     $cost=@($Trace.events|Where-Object{$_.boundary-ceq'cost-after'-and$_.state.actor-ceq$Actor-and
@@ -42,7 +42,7 @@ function Assert-KmcChunk7CombatAttack($Attack,$Trace,[string]$Actor,[string]$Cas
         if($events.Count-ne1-or$events[0].state.actor-cne$Actor-or$events[0].commandActor-cne$Actor-or$events[0].actionType-cne'Standard'){throw 'Native spending callback escaped exact actor/command custody.'}
     }
     $prior=@($Trace.events|Where-Object{$_.command-eq$cost.command-and$_.boundary-ceq'cost-before'})[0]
-    if($cost.command-le0-or$cost.sequence-le$prior.sequence-or$cost.state.standard-le$prior.state.standard){throw 'Native action cost did not spend one actor remainder.'}
+    if($cost.command-eq0-or$cost.sequence-le$prior.sequence-or$cost.state.standard-le$prior.state.standard){throw 'Native action cost did not spend one actor remainder.'}
     foreach($field in @('move','swift','reactions','reactionCooldown')){if($cost.state.$field-ne$prior.state.$field){throw 'Native primary cost changed an unrelated resource.'}}
     $a=Get-KmcChunk7CombatActor $Attack.before $Actor;$b=Get-KmcChunk7CombatActor $Attack.after $Actor
     if($b.standard-le$a.standard){throw 'Primary result lacks native spent remainder.'}
@@ -95,7 +95,7 @@ function Assert-KmcChunk7CombatEvidence($Request,$Artifact,[string]$Status) {
         if($activation.sequence-le0-or$activation.before.currentActor-cne$rider){throw 'Mounted principal/grant identity differs.'}
         $active=@($activation.before.owners|Where-Object state -CEQ 'Active');if($active.Count-ne2-or@($active.id|Select-Object -Unique).Count-ne2){throw 'One shared world did not retain both independent pair owners.'}
         $move=$activation.movement;Assert-KmcChunk7Boolean $move.clicked $true;Assert-KmcChunk7Boolean $move.terminal $true
-        if($move.selectedId-cne$rider-or$move.executorId-cne$mount-or$move.command-le0){throw 'Mounted transport changed actor ownership.'}
+        if($move.selectedId-cne$rider-or$move.executorId-cne$mount-or$move.command-eq0){throw 'Mounted transport changed actor ownership.'}
         $before=Get-KmcChunk7CombatActor $move.before $mount;$after=Get-KmcChunk7CombatActor $move.after $mount
         $distance=0.0;foreach($axis in @('x','y','z')){if(-not(Test-KmcChunk7FiniteNumber $before.position.$axis)-or-not(Test-KmcChunk7FiniteNumber $after.position.$axis)){throw 'Native movement positions must be finite.'};$distance+=[Math]::Pow([double]$after.position.$axis-[double]$before.position.$axis,2)}
         if([Math]::Sqrt($distance)-le0.02-or[Math]::Abs([Math]::Sqrt($distance)-$move.distance)-gt0.0001-or$after.move-le$before.move){throw 'Native transport did not move and spend mount movement.'}

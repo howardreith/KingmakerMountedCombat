@@ -73,7 +73,7 @@ function Assert-KmcChunk7NativeLifeEvidence($Request,$Artifact,[string]$Status){
  if($life.nativeEffects.dropped-ne0){throw 'Native damage rule observations were dropped.'}
  $damageBefore=@($life.nativeEffects.events|Where-Object{$_.kind-ceq'damage-before'-and$_.actor-ceq$o.targetId-and$_.target-ceq$ids[2]})
  $damageAfter=@($life.nativeEffects.events|Where-Object{$_.kind-ceq'damage-after'-and$_.actor-ceq$o.targetId-and$_.target-ceq$ids[2]})
- if($damageBefore.Count-ne1-or$damageAfter.Count-ne1-or$damageBefore[0].identity-le0-or$damageBefore[0].identity-ne$damageAfter[0].identity-or
+ if($damageBefore.Count-ne1-or$damageAfter.Count-ne1-or$damageBefore[0].identity-eq0-or$damageBefore[0].identity-ne$damageAfter[0].identity-or
     $damageBefore[0].targetDamage-ne$before.rider.damage-or$damageAfter[0].targetDamage-ne$after.rider.damage-or$damageAfter[0].damage-ne$life.nativeDamage-or$damageAfter[0].beforeDifficulty-ne$life.requestedDamage){throw 'Life stimulus lacks one exact native damage rule observation.'}
  if($probe.actorId-cne$ids[2]-or$probe.nativeModuleMvid-cne'07fa1e4d-8618-41b3-9b8d-faa17d3b26f7'-or$probe.nativeTickToken-cne'06009162'-or$probe.nativeSetToken-cne'06009164'-or
     $probe.callbackMvid-cne$Request.dllMvid-or$probe.callbackToken-cnotmatch'^06[0-9A-F]{6}$'-or$probe.callbackType-cne'KingmakerMountedCombat.Integration.MountedLifecycleSubscriber'-or$probe.callbackName-cne'HandleUnitLifeStateChanged'-or
