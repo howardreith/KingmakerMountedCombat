@@ -5,7 +5,7 @@ function Test-KmcChunk7CombatScenario([string]$Scenario) { $Scenario-cin@('chunk
 function Get-KmcChunk7CombatRows([string]$Scenario) {
     if(-not(Test-KmcChunk7CombatScenario $Scenario)){throw 'Unknown native combat scenario.'}
     @($Scenario,'C7-combat-fixture','C7-combat-native-mounts','C7-combat-restored-mounts','C7-combat-native-orders','C7-combat-pair-a-full-activation',
-      'C7-combat-pair-b-full-activation','C7-combat-tb-charge-refusal','C7-combat-refresh','C7-combat-r1-round-release',
+      'C7-combat-pair-b-full-activation','C7-combat-tb-charge-refusal','C7-combat-refresh','C7-combat-r1-round-release','C7-combat-first-action-mount',
       'C7-combat-native-pending-survivor','C7-combat-local-cleanup-failure','C7-combat-cleanup','C7-combat-runtime','C7-combat-interrupted')
 }
 function Get-KmcChunk7CombatRuntimeRows {
@@ -90,11 +90,14 @@ function Assert-KmcChunk7CombatEvidence($Request,$Artifact,[string]$Status) {
     $commands=[Collections.Generic.HashSet[long]]::new()
     # Owner-seed-derived combat restored both pairs mounted: only the R1 native Dismount is an input.
     $derived=$owned-and(Test-KmcChunk7OwnedPairsSeedDerivedCombat $Request)
-    if($derived){Assert-KmcChunk7OwnerSeedDerivedCombatStart $Request $o}
-    $labels=@(if($derived){'r1-native-dismount-a'}else{'mount-a','mount-b','r1-native-dismount-a'});$relationshipInputs=@($o.inputs|Where-Object{$_.label-cin@('mount-a','mount-b','r1-native-dismount-a')})
+    if($derived){Assert-KmcChunk7OwnerSeedDerivedCombatStart $Request $o;Assert-KmcChunk7OwnerSeedFirstActionMount $Request $o}elseif($null-ne$o.PSObject.Properties['firstActionMount']){throw 'Only owner-seed-derived TB records a first-action Mount.'}
+    # Owner-seed-derived combat starts mounted: its relationship inputs are rider A's first-action Dismount,
+    # then (Directive 4 R3) rider A's first-action combat Mount on a later prepared turn. Slots: 0 Mount A, 1 Mount B, 2 Dismount A.
+    $labels=@(if($derived){'r1-native-dismount-a','first-action-mount-a'}else{'mount-a','mount-b','r1-native-dismount-a'});$slots=@(if($derived){2,0}else{0,1,2})
+    $relationshipInputs=@($o.inputs|Where-Object{$_.label-cin@('mount-a','mount-b','r1-native-dismount-a','first-action-mount-a')})
     if($relationshipInputs.Count-ne$labels.Count-or(@($relationshipInputs|ForEach-Object label)-join'|')-cne($labels-join'|')){throw 'Exact native mount/dismount inputs are missing.'}
     for($i=0;$i-lt$labels.Count;$i++){
-        $input=$relationshipInputs[$i];$slot=if($derived){2}else{$i};$caster=if($slot-eq1){$ids[2]}else{$ids[0]};$target=if($slot-eq0){$ids[1]}elseif($slot-eq1){$ids[3]}else{$ids[0]}
+        $input=$relationshipInputs[$i];$slot=$slots[$i];$caster=if($slot-eq1){$ids[2]}else{$ids[0]};$target=if($slot-eq0){$ids[1]}elseif($slot-eq1){$ids[3]}else{$ids[0]}
         $ability=if($slot-eq2){'3af2b81f4d72bbb30501fa730fcdf36e'}else{'f053faad986631688defa003cd7bda0e'}
         if($input.casterId-cne$caster-or$input.targetId-cne$target-or$input.abilityGuid-cne$ability-or$input.nativeCastDelta-ne1-or$input.nativeRefusalDelta-ne0-or
            [string]::IsNullOrEmpty($input.control)-or$input.generationAtInit-lt0-or$input.selectionAfterInput-ceq$caster){throw 'Native relationship input escaped captured caster/target/generation.'}

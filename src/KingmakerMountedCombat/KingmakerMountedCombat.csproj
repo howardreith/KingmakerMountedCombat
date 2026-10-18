@@ -196,6 +196,7 @@
     <Compile Include="Diagnostics\Chunk7CombatScenario.cs" />
     <Compile Include="Diagnostics\Chunk7CombatScenario.OwnerSeed.cs" />
     <Compile Include="Diagnostics\Chunk7CombatScenario.PlayerClick.cs" />
+    <Compile Include="Diagnostics\Chunk7CombatScenario.FirstActionMount.cs" />
     <Compile Include="Diagnostics\Chunk7HostCompletionGate.cs" />
     <Compile Include="Diagnostics\Chunk7NativeFixture.cs" />
     <Compile Include="Diagnostics\Chunk7PersistenceScenario.Area.cs" />

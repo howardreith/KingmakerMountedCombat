@@ -214,9 +214,24 @@ namespace KingmakerMountedCombat.Diagnostics
                             Require(Game.Instance.TurnBasedCombatController.RoundNumber == splitRound + 1 && trace.GrantCount(am) == preparesAtSplit + 1,
                                 "Former mount did not receive exactly one independent native grant in N+1.");
                             r1["independentMountTurn"] = trace.Snapshot(am); r1["independentRound"] = Game.Instance.TurnBasedCombatController.RoundNumber;
-                            Pass("C7-combat-r1-round-release"); Next(40);
+                            Pass("C7-combat-r1-round-release");
+                            // Owner-seed-derived (Directive 4 R3): the independent Horse spends its own move,
+                            // then rider A mounts as the first action of its next prepared turn.
+                            if (OwnerSeedDerived) { BeginHorseIndependentMove(independent); Next(33); break; }
+                            Next(40);
                         }
                         EndNative(independent); break;
+                    case 33:
+                        if (!FinishHorseIndependentMove()) return;
+                        EndNative(horseIndependentTurn); Next(35); break;
+                    case 35:
+                        var mountTurn = Game.Instance.TurnBasedCombatController.CurrentTurn;
+                        if (!FirstActionMountReady(mountTurn)) { if (mountTurn?.Unit != ar) EndNative(mountTurn); return; }
+                        BeginFirstActionMount(mountTurn); Next(36); break;
+                    case 36:
+                        if (!FinishFirstActionMount()) return;
+                        Pass("C7-combat-first-action-mount");
+                        EndNative(firstActionTurn); Next(40); break;
                     case 40:
                         var pendingPair = checkpointOnly ? a : b;
                         if (!ReadyPrincipal(pendingPair)) { EndNative(Game.Instance.TurnBasedCombatController.CurrentTurn); return; }
