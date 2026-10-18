@@ -187,6 +187,12 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             if (buildStage == 1)
             {
+                // NOT READY - stale level-up autosave wait (docs/CHUNK7-STALE-LEVELUP-AUTOSAVE-FAMILIES.md).
+                // The installed game never registers LevelUpAutoSaveController (GameModesFactory builds its
+                // controllers explicitly without it), so an ordinary level-up never requests this native Auto
+                // and the wait cannot complete. scripts/runtime/Invoke-KingmakerRuntimeScenario.ps1 refuses this
+                // family before any lock, transaction, Mods swap or launch. Kept intact until its completion
+                // contract is repaired; never manufacture a level-up callback or relabel a Manual as Auto.
                 if (!ObserveTerminalAutosave()) return;
                 Pass("C7-manual-derived-native-autosave");
                 if (selection.PaidHire)
@@ -207,6 +213,12 @@ namespace KingmakerMountedCombat.Diagnostics
                 Pass("C7-manual-derived-native-field"); BeginCleanup();
             }
         }
+        // NOT READY - stale level-up autosave wait (docs/CHUNK7-STALE-LEVELUP-AUTOSAVE-FAMILIES.md).
+        // The installed game never registers LevelUpAutoSaveController (GameModesFactory builds its
+        // controllers explicitly without it), so an ordinary level-up never requests this native Auto
+        // and the wait cannot complete. scripts/runtime/Invoke-KingmakerRuntimeScenario.ps1 refuses this
+        // family before any lock, transaction, Mods swap or launch. Kept intact until its completion
+        // contract is repaired; never manufacture a level-up callback or relabel a Manual as Auto.
         private bool ObserveTerminalAutosave()
         {
             if (Busy() || ordinaryProbe.ObservedSave == null || ordinaryProbe.ObservedSave.OperationState != SaveInfo.StateType.None) return false;
