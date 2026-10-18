@@ -68,8 +68,11 @@ namespace KingmakerMountedCombat.Integration
                     pair.Activation.ToSnapshot(), armedRider, armedMount, boundary);
                 partnerContext = NativeTurnPersistence.Restore(pair.Partner, actors);
                 preparedRiderTurn = pair.BoundaryIsCurrent ? boundary : null;
-                // The allocation remains the authority for delegated motion.
-                if (boundary != null) movementState.CopyGrantedMovementToContext(boundary);
+                // The allocation remains the authority for delegated motion. A
+                // non-current boundary is an identity marker that keeps its exact
+                // saved native values (e.g. ForceToEnd's spent step), so a resave
+                // captures what was loaded.
+                if (boundary != null && pair.BoundaryIsCurrent) movementState.CopyGrantedMovementToContext(boundary);
                 if (partnerContext != null) movementState.CopyGrantedMovementToContext(partnerContext);
                 LastInitiativeObservation = "saved-activation-rebound;identity=" + activation.Identity +
                     ";sequence=" + activation.Sequence + ";no-prepare-or-end";
