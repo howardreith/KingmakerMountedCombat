@@ -132,5 +132,18 @@ Check 'full request owner-seed-derived consumer with a mismatched input hash ref
 Check 'full request owner-seed-derived consumer with a write refused' {$q=SeedDerivedRequest;$q.ownedPairs.expectedNativeWriteCount=1;Validate $q} $true
 Check 'runner owner-seed outer budget covers the Manual producer only' {$g=[scriptblock]::Create('param($Sel,$Bound,$Value) $Scenario="chunk7-owned-two-pair-campaign";$ownedPairsInput=[pscustomobject]@{selection=$Sel};$TimeoutSeconds=$Value;$PSBoundParameters=@{};if($Bound){$PSBoundParameters["TimeoutSeconds"]=$Value};'+[Environment]::NewLine+$timeoutGuard[0].Extent.Text+[Environment]::NewLine+'$TimeoutSeconds');if((&$g (SeedManualRequest).ownedPairs $false 600)-ne900-or(&$g (SeedDerivedRequest).ownedPairs $false 600)-ne600){throw 'Owner-seed-derived budgets differ'}}
 Check 'runner reads the producer world evidence and pins the consumer to its producer' {$t=$runnerAst.Extent.Text;foreach($s in @('Assert-KmcChunk7OwnerSeedDerivedColdSource ([pscustomobject]$request) (Read-KmcJson $verifiedOwnedSource.artifactPath) $derivedColdArtifact',"if(`$seedManualRun){'chunk7-world-evidence.json'}",'Assert-KmcChunk7OwnerSeedManualFinalSaveRoot ([pscustomobject]$request)')){if(-not$t.Contains($s)){throw ('Runner owner-seed-derived step absent: '+$s)}}}
+# The companion window accounts only boundaries the allocation trace actually emits, and the reader
+# accounts exactly the producer's list (the interrupt hooks emit command-interrupt-*).
+Check 'companion accounted boundaries are emitted by the allocation trace and mirrored by the reader' {
+ $diag=Join-Path $bridgeRoot 'src/KingmakerMountedCombat/Diagnostics';$scenario=[IO.File]::ReadAllText((Join-Path $diag 'Chunk7CombatScenario.OwnerSeed.cs'));$traceText=[IO.File]::ReadAllText((Join-Path $diag 'NativeActorAllocationTrace.cs'))
+ $m=[regex]::Match($scenario,'CompanionAccountedBoundaries\s*=\s*\{([^}]*)\}');if(-not$m.Success){throw 'Producer boundary list missing.'}
+ $names=@([regex]::Matches($m.Groups[1].Value,'"([^"]+)"')|ForEach-Object{$_.Groups[1].Value});if($names.Count-ne8){throw 'Producer boundary list changed size.'}
+ $emitted=@([regex]::Matches($traceText,'Record\("([a-z-]+)"')|ForEach-Object{$_.Groups[1].Value}|Select-Object -Unique)
+ foreach($name in $names){if($name-cnotin$emitted){throw ('Accounted boundary never emitted by the trace: '+$name)}}
+ $reader=ExactFunction (Ast (Join-Path $bridgeRuntime 'Chunk7OwnedPairsEvidence.ps1')) 'Assert-KmcChunk7OwnerSeedCompanionAction'
+ $r=[regex]::Match($reader,'\$_\.boundary-cin@\(([^)]*)\)');$readerNames=@([regex]::Matches($r.Groups[1].Value,"'([^']+)'")|ForEach-Object{$_.Groups[1].Value})
+ if(($readerNames-join'|')-cne($names-join'|')){throw 'Reader accounted boundaries differ from the producer.'}
+ if($traceText-cnotmatch'declaredCommandOwner'-or$scenario-cnotmatch'trace\.DeclareCommandOwner\(companion\);\s*companionTraceOffset = trace\.EventCount;'){throw 'Companion admissions are not declared to the trace before the window opens.'}
+}
 $clock.Stop();$passed=@($results|Where-Object pass).Count;$failed=$results.Count-$passed
 [IO.File]::WriteAllText((Join-Path $bridgeOutput 'receipt.json'),([pscustomobject]@{passed=$passed;failed=$failed;elapsedSeconds=$clock.Elapsed.TotalSeconds;gameLaunches=0;archivesCreated=0;archivesRead=0;scope='actual full request validator, named result functions, quota assignments and runner guard AST; OS repository/output binding substituted';results=@($results)}|ConvertTo-Json -Depth 12),[Text.UTF8Encoding]::new($false));Write-Output ('Owned wiring: '+$passed+' PASS / '+$failed+' FAIL');if($failed){exit 1}
