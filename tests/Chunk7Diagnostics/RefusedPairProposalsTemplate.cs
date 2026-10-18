@@ -73,6 +73,14 @@ namespace KingmakerMountedCombat.Diagnostics
                 companionAttack, Slots(), 0, 2);
             Expect("after before before", new[] { Row("admission-after", RiderA, 20, null), Row("admission-before", RiderA, 20, null) },
                 companionAttack, Slots(), 0, 2);
+            var acted = Row("admission-after", RiderA, 21, null); acted["acted"] = (bool?)true;
+            Expect("acted pair command", new[] { Row("admission-before", RiderA, 21, null), acted }, companionAttack, Slots(), 0, 2);
+            var finished = Row("admission-after", RiderA, 22, null); finished["finished"] = (bool?)true;
+            Expect("finished pair command", new[] { Row("admission-before", RiderA, 22, null), finished }, companionAttack, Slots(), 0, 2);
+            var noExecutorProperty = Row("admission-after", RiderA, 23, null); noExecutorProperty.Remove("commandActor");
+            Expect("missing commandActor property", new[] { Row("admission-before", RiderA, 23, null), noExecutorProperty }, companionAttack, Slots(), 0, 2);
+            Expect("two rows naming different pair actors", new[] { Row("admission-before", RiderA, 24, null), Row("admission-after", RiderB, 24, null) },
+                companionAttack, Slots(), 0, 2);
             Expect("companion-only rows", new[] { Row("admission-before", Companion, companionAttack, Companion), Row("admission-after", Companion, companionAttack, Companion) },
                 companionAttack, Slots(), 0, 0);
             Console.WriteLine("TOTAL failures=" + failures);
