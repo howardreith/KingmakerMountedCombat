@@ -273,6 +273,8 @@
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedRiderPoseProfile.cs"><Link>Shared\Domain\MountedRiderPoseProfile.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedRiderGroundingPolicy.cs"><Link>Shared\Domain\MountedRiderGroundingPolicy.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedStabilizationPolicy.cs"><Link>Shared\Domain\MountedStabilizationPolicy.cs</Link></Compile>
+    <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedGroundOrderAdmissionPolicy.cs"><Link>Shared\Domain\MountedGroundOrderAdmissionPolicy.cs</Link></Compile>
+    <Compile Include="MountedGroundOrderAdmissionPolicyTests.cs" />
     <Compile Include="..\src\KingmakerMountedCombat\Domain\PoseVector3.cs"><Link>Shared\Domain\PoseVector3.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\RelationshipState.cs"><Link>Shared\Domain\RelationshipState.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\ScopedPoseBaselineLease.cs"><Link>Shared\Domain\ScopedPoseBaselineLease.cs</Link></Compile>
