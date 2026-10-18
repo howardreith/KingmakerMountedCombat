@@ -1,3 +1,21 @@
+## 2026-10-18 — Codex Directive 4 takeover, preview.41
+
+IN PROGRESS. Published source 6652c7fe on the existing successor branch; active
+checkout moved cleanly into the dedicated repository so the original approved
+push helper can run. The former successor worktree remains frozen at the same
+source. No old history, package, failed receipt or foreign worktree was discarded.
+
+Independent review of Claude's f1e54002 PASS; one preview.41 build, Candidate 6/6
+in 388.1997642 s. TB cold regression b12s1 PASS in 104.4654715 s: completed A's
+saved 2.286 step retained exactly at both restoration phases. Zero producer b12s2
+FAIL in 115.7495532 s (game PASS, reader conflated final detached state with the
+earlier mounted attack). Both transactions restored Mods/saves/profile exactly
+and released the lock. Reader work reuses the frozen DLL/package; malformed
+scalar and conflicting actor/owner review failures are preserved and repaired
+before another independent review/native attempt. No assembly contract changed.
+Exact evidence, commands, hashes and next work: [CURRENT](CURRENT.md),
+[resume](AUTONOMOUS-RESUME.md), [evidence](docs/CHUNK7-OWNER-SEED-EVIDENCE.md).
+
 ## 2026-10-07 - 6C preview191 closed; coherent192 native fixture cleanup
 
 6B remains IMPLEMENTATION STABLE - RT SUPPORTED; TB DELIVERY DEFERRED;

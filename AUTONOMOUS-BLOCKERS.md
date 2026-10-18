@@ -1,3 +1,20 @@
+## 2026-10-18 — Active Directive 4 dependencies
+
+IN PROGRESS. The completed-boundary product defect is natively closed on
+preview.41 by b12s1. Zero producer b12s2 stays FAIL because its external reader
+treated a zero-mounted save as already detached during the preceding attack.
+Do not cold-load that failed producer. Review the corrected phase/ownership
+reader, then run a fresh producer and its dependent separate-process consumer.
+
+Pending survivor, save barrier, worker, area, removal and schema-1/2 cases are
+not blocked by an owner-save request; their exact owner-seed connections and
+fixtures remain independently actionable. One-pair cases need a legitimate
+unmounted/no-owner B, and positive removal needs a reference-free fixture.
+The copied push-helper restriction was resolved by using the original helper
+from the dedicated root; no publication permission is pending. No game/lock
+remains at this checkpoint. [Exact state and next command](AUTONOMOUS-RESUME.md).
+Historical blocker records below retain their original scope and dispositions.
+
 ## 2026-10-09 - Chunk 6 final consolidation on frozen preview.205: 6C/6D/6E qualified, 6F executed, final 6A ledger 68 PASS / 18 BLOCKED / 1 FAIL (Claude)
 
 ENGINEERING COMPLETE - OWNER ACCEPTANCE PENDING for 6C, 6D and 6E on the frozen preview.205 candidate

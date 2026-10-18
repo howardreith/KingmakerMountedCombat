@@ -134,6 +134,39 @@ function Assert-KmcChunk7CheckpointTrace($Trace,$Request) {
         if($hook.Count-ne1-or$hook[0].moduleMvid-cne'07fa1e4d-8618-41b3-9b8d-faa17d3b26f7'){throw 'Native checkpoint observer is not pinned to the installed action/turn contract.'}
     }
 }
+function Test-KmcChunk7CheckpointMountedAtAttack($Attack,$Archive,[string]$Rider,[string]$Mount) {
+    # Zero-mounted describes the saved boundary. Its primaries precede native
+    # Dismount, so an approach may still belong to the exact active pair then.
+    $retained=@($Archive.Participations|Where-Object{$_.State.RiderId-ceq$Rider-and$_.State.MountId-ceq$Mount})
+    if($retained.Count-ne1){return $false}
+    $riderN=([Guid]$Rider).ToString('N');$mountN=([Guid]$Mount).ToString('N')
+    $ownerN=ConvertTo-KmcChunk7PairIdN $retained[0].OwnerId
+    foreach($snapshot in @($Attack.before,$Attack.after)) {
+        if($null-eq$snapshot.PSObject.Properties['owners']-or$snapshot.owners-isnot[Array]-or$snapshot.owners.Count-gt12-or
+           $null-eq$snapshot.PSObject.Properties['currentActor']-or$snapshot.currentActor-isnot[string]-or$snapshot.currentActor-cne$Rider-or
+           $null-eq$snapshot.PSObject.Properties['round']-or-not(Test-KmcExactJsonInteger $snapshot.round)-or$snapshot.round-lt1){return $false}
+        $owners=[Collections.Generic.List[object]]::new()
+        foreach($claim in $snapshot.owners){
+            if($claim-isnot[pscustomobject]){return $false}
+            foreach($field in @('id','riderId','mountId','state')){if($claim.$field-isnot[string]){return $false}}
+            try{
+                $claimN=ConvertTo-KmcChunk7PairIdN $claim.id
+                [void](ConvertFrom-KmcChunk7OwnerActorId $claim.riderId)
+                [void](ConvertFrom-KmcChunk7OwnerActorId $claim.mountId)
+            }catch{return $false}
+            # An owner identity or either actor in either role is one claim on
+            # this pair; a second claim must not hide behind different roles.
+            if($claimN-ceq$ownerN-or$claim.riderId-ceq$riderN-or$claim.riderId-ceq$mountN-or
+               $claim.mountId-ceq$riderN-or$claim.mountId-ceq$mountN){$owners.Add($claim)}
+        }
+        if($owners.Count-ne1){return $false};$owner=$owners[0]
+        if($owner.riderId-cne$riderN-or$owner.mountId-cne$mountN-or$owner.state-cne'Active'-or
+           $owner.retainsObligations-isnot[bool]-or-not$owner.retainsObligations-or
+           -not(Test-KmcExactJsonInteger $owner.generation)-or$owner.generation-ne$retained[0].Generation){return $false}
+        try{if((ConvertTo-KmcChunk7PairIdN $owner.id)-cne$ownerN){return $false}}catch{return $false}
+    }
+    return $Attack.before.round-eq$Attack.after.round
+}
 function Assert-KmcChunk7CheckpointSource($Checkpoint,$Archive,$Request) {
     Assert-KmcChunk7Boolean $Checkpoint.ready $true
     if($Checkpoint.provenance-cne'source-native-setup'-or@($Checkpoint.errors).Count-ne0-or$null-eq$Checkpoint.checkpoint-or
@@ -169,7 +202,8 @@ function Assert-KmcChunk7CheckpointSource($Checkpoint,$Archive,$Request) {
         if($prior.Count-ne1-or$after.Count-ne1-or[double]$after[0].standard-le[double]$prior[0].standard){throw 'Source attack snapshot has no distinct native expenditure.'}
         # A rider's TB paired approach is native movement charged to its own mount's move budget.
         # The rider keeps its own move; the increase must be the mount's observed native movement.
-        $ownMount=if($zero){$null}elseif($id-ceq$ids[0]){$ids[1]}elseif($id-ceq$ids[2]){$ids[3]}else{$null}
+        $ownMount=if($id-ceq$ids[0]){$ids[1]}elseif($id-ceq$ids[2]){$ids[3]}else{$null}
+        if($zero-and$null-ne$ownMount-and-not(Test-KmcChunk7CheckpointMountedAtAttack $attack $Archive $id $ownMount)){$ownMount=$null}
         if(-not$rt){
             $own=@('swift','reactions','reactionCooldown');if($null-ne$ownMount){$own+='move'}
             foreach($field in $own){if($prior[0].$field-ne$after[0].$field){throw 'Native primary changed its own non-standard resource.'}}

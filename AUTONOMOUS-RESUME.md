@@ -1,5 +1,71 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## Resume here — Codex takeover, Directive 4, October 18
+
+This section supersedes the active chronology below. Branch:
+`codex/mounted-combat-chunk7-successor`, active root
+`C:\Dev\KingmakerMountedCombatLab\repo\KingmakerMountedCombat`.
+Recorded HEAD before this reader/document checkpoint:
+`6652c7fe1e8adb0edb61c28f520275bf5f708b65`, published through the original guarded
+push helper. Unknown worktrees/history were preserved; the old successor worktree
+is detached at exactly that source and is now the frozen preview.41 source.
+
+No game, lock or native transaction is live. Batch 12 has two actual runs:
+1. `20261018-c7b-world41-ownerseed-b12s1-tbload` **PASS**, 104.4654715 s;
+   evidence SHA `2b21042ef0984e53a7da3af114c01c048ad4d01cbfb35bf2e7fc4293e3fe1f8e`.
+   Accepted batch-11 producer reused, exact saved completed boundary 2.286 retained
+   at both restoration phases; native continuation and exact restoration passed.
+2. `20261018-c7b-world41-ownerseed-b12s2-zerosave` **FAIL**, 115.7495532 s;
+   evidence SHA `5f1c81c90bb237c6365470a4dc5c29ee127e83d6c20df2a21e5fe60c59702178`.
+   Game PASS, reader phase error: B was Active during its attack, its own Horse's
+   approach move rose 0.0990104 to 0.7453083, and native Dismount came afterward.
+   Mods/saves/profile restored exactly. Do not admit this failed producer as input.
+
+Claude's product fix `f1e54002` has independent review PASS
+(`owner-seed-review/d4-noncurrent-boundary-review01.json`) and accepted native
+coverage above. Preview.41 product source stays 6652c7fe, DLL SHA
+`2fdce155accf089e30d59970cf5862a92d8423ccb9e5086921c751f781cc74d2`, MVID
+`daf5ccc5-3a74-40e6-9563-8e8fa28daa4f`, package SHA
+`291d8fb4747d1f1e307a68c259a0d6631e5ecb37909ab8fa0c3bb7f9ed252709`.
+Candidate 6/6 passed in 388.1997642 s. Original batch-12 runs use the original
+external-root world41 suite; preserve it. New root suite
+`chunk7b-world41-codex-20261018` SHA
+`49fc6fb093b219cf7f71ec1092297260736e764fd9719423a6eaf64907be2b22` protects the
+actual current installation. Product freeze
+`owner-seed-batch12/preview41-product-freeze-codex.json` SHA
+`4f632f87bbd0b65464e2c3a3d4e84584dffd351a18a5cc149f79504f9cd30dd8` was validated
+through `Get-KmcFrozenProductSource`; no product rebuild is needed for reader work.
+
+Current reader delta is only the two combat-persistence PS1 files plus these records.
+Focused04 passed 126/0 in 29.7798737 seconds. Independent reader reviews 01–03
+remain FAIL; review04 is PASS, bound to reader SHA
+`1811b3a15aeb300c9e296528e6ea5baeca762cd41f87aa9795566fb725092d71` and test SHA
+`0e8653b383b3283069e40b0c83d4009ee7dd335c473892188dec657884021082`.
+The revision closes scalar typing, role formatting and same/cross-role owner conflicts.
+
+**Next command/work:** inspect `git diff --check`, commit the reviewed reader/doc delta,
+and generate a new zero producer launcher using the unchanged preview.41 package,
+new root suite and the explicit three frozen-source arguments. Keep old launchers
+and FAIL evidence. Declare the producer rerun and dependent cold load before use,
+at most five declared scenarios in batch 12. Each launch needs its own scoped
+WhatIf and owner no-deployment notice; never edit input source during a live run.
+Only a terminal-PASS producer can seed the separate-process cold load.
+
+Then continue the selected pending survivor/save-barrier/worker, area/Auto,
+disable/removal and schema-1/2 source connections and native checks. Existing
+owner-seed checkpoint support still lists only Quick, Auto, RT/TB debt and zero;
+do not merely select an unconnected case. For one-pair source cases, investigate
+the already-authorized native exploration Dismount of B and prove no B owner remains.
+Keep Horse-reference removal refusal; positive DLL-absent needs a reference-free
+fixture. Preserve the mission's later gates and the original failed ledgers.
+
+Use only the original `C:\Dev\KingmakerMountedCombatLab\codex-policy\Push-KingmakerMountedCombat.ps1`
+from the dedicated root. Auto review rejected the copied helper twice, including
+after owner approval; moving the clean successor branch into this root resolved the
+tooling restriction without changing the approved helper or weakening its guards.
+
+## History — earlier resume (preserved below)
+
 ## Resume here (October 18, 2026)
 
 **Governing instructions:** the [owner directives](docs/CHUNK7-OWNER-DIRECTIVES-2026-10-16.md) (Directive 3 is the active assignment) and [CURRENT](CURRENT.md#current-state-october-17-2026). The October 14 stop recorded below is superseded: development is resumed under those directives.

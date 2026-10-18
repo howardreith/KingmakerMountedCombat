@@ -2,6 +2,33 @@
 
 Bounded known issues found by native runs, with their current disposition. Resolved entries are kept so the history of each finding stays readable.
 
+## Completed native boundary movement lost during cold restoration — PASS (October 18)
+
+Batch 11 slot 2 found a real product defect: `RestoreParticipation` restored an
+ended, non-current boundary and then overwrote its saved `MetresStepped=2.286`
+with its actor allocation's zero. A resave would drift. Claude's `f1e54002` limits
+that allocation copy to the current boundary and preserves the live partner copy.
+Codex independently reviewed the fix, then accepted the native regression
+`20261018-c7b-world41-ownerseed-b12s1-tbload` on source `6652c7fe`: the unchanged
+accepted batch-11 archive restored 2.286 at both shared-world and presentation
+boundaries, with native continuation, no extra preparation and verified restoration.
+The original preview.40 failure stays FAIL. Focused current reader tests also reject
+a reset of this value at either phase.
+
+## Zero-mounted checkpoint reader conflates save and attack phases — IN PROGRESS
+
+`20261018-c7b-world41-ownerseed-b12s2-zerosave` remains FAIL (game PASS, reader FAIL).
+The measured attacks happen while each pair is mounted; its native Dismount follows.
+Rider B's own Horse legitimately paid approach move 0.0990104 to 0.7453083. The reader
+used the final zero-mounted case name to prohibit that earlier paired approach.
+The current correction requires scalar before/after owner/turn observations bound
+to the retained owner identity/generation and exact actor roles, refuses duplicate
+owner/cross-role claims, and retains native timeMoved/displacement/budget checks.
+Three retained FAIL reviews found malformed-input and conflicting-role holes, now
+repaired with focused negatives. Final independent review PASS and 126/0 focused
+checks bind the current reader. A new native producer/cold load remains required.
+A diagnostic re-evaluation never promotes the original failed run.
+
 ## RT party-brain attack proposals after a mounted pair attack (2026-10-18) — RESOLVED in preview.35
 
 **Found by** run `20261018-c7b-world29-ownerseed-b4s2d-rt` (preview.29); the diagnosis is in lab file `analysis-cache/chunk7-continuation/owner-seed-batch04/rt-companion-diagnosis01.json`.
