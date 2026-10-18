@@ -16,6 +16,16 @@ namespace KingmakerMountedCombat.Diagnostics
         // created by disclosed native fixture setup in the disposable run copy.
         // It carries seed pins and never the producer receipt or pet pins.
         public const string OwnerSeedCase = "owner-seed-exploration";
+        // Owner-seed-derived persistence producer: the unchanged disclosed setup, both
+        // native Mounts, then exactly one genuine native Manual into the run root. Its
+        // ancestry is owner-seed-derived with disclosed assistance, never acquired or
+        // ordinary, and its output name differs from every acquired-ancestry Manual.
+        public const string OwnerSeedManualCase = "owner-seed-persistence-save";
+        // The separate-process cold consumer of exactly that Manual, pinned by the
+        // producer run, its world evidence and the written Manual bytes.
+        public const string OwnerSeedLoadCase = "owner-seed-persistence-load";
+        public const string OwnerSeedManualName = "KMC_C7_SEED_WORLD";
+        internal const string OwnerSeedCheckpoint = "multi-exploration-manual";
         public string Case { get; set; }
         public string SourceRunId { get; set; }
         public string SourceArtifactSha256 { get; set; }
@@ -33,21 +43,25 @@ namespace KingmakerMountedCombat.Diagnostics
         public string SourceArea { get; set; }
         // Keep every historical serialized selection byte shape unchanged.
         public bool ShouldSerializeSourceArea() => SourceArea != null;
-        public bool ShouldSerializeSourceRunId() => !IsOwnerSeed || SourceRunId != null;
-        public bool ShouldSerializeSourceArtifactSha256() => !IsOwnerSeed || SourceArtifactSha256 != null;
-        public bool ShouldSerializeSourceArchiveSha256() => !IsOwnerSeed || SourceArchiveSha256 != null;
-        public bool ShouldSerializeCheckpointSourceRunId() => !IsOwnerSeed || CheckpointSourceRunId != null;
-        public bool ShouldSerializeCheckpointSourceArtifactSha256() => !IsOwnerSeed || CheckpointSourceArtifactSha256 != null;
-        public bool ShouldSerializeMountAId() => !IsOwnerSeed || MountAId != null;
-        public bool ShouldSerializeMountBId() => !IsOwnerSeed || MountBId != null;
+        public bool ShouldSerializeSourceRunId() => !OwnerSeedSetup || SourceRunId != null;
+        public bool ShouldSerializeSourceArtifactSha256() => !OwnerSeedSetup || SourceArtifactSha256 != null;
+        public bool ShouldSerializeSourceArchiveSha256() => !OwnerSeedSetup || SourceArchiveSha256 != null;
+        public bool ShouldSerializeCheckpointSourceRunId() => !OwnerSeedSetup && !IsOwnerSeedDerivedLoad || CheckpointSourceRunId != null;
+        public bool ShouldSerializeCheckpointSourceArtifactSha256() => !OwnerSeedSetup && !IsOwnerSeedDerivedLoad || CheckpointSourceArtifactSha256 != null;
+        public bool ShouldSerializeMountAId() => !OwnerSeedSetup || MountAId != null;
+        public bool ShouldSerializeMountBId() => !OwnerSeedSetup || MountBId != null;
         public bool ShouldSerializeSeedId() => SeedId != null;
         public bool ShouldSerializeSeedSha256() => SeedSha256 != null;
         // The owner-seed shape always names its assistance key (null when rider B needs none).
-        public bool ShouldSerializeXpAssistance() => IsOwnerSeed || XpAssistance != null;
+        public bool ShouldSerializeXpAssistance() => OwnerSeedSetup || XpAssistance != null;
         public bool BaseGameOnly { get; set; }
         public int ExpectedNativeLoadCount { get; set; }
         public int ExpectedNativeWriteCount { get; set; }
         internal bool IsOwnerSeed => Case == OwnerSeedCase;
+        internal bool IsOwnerSeedManual => Case == OwnerSeedManualCase;
+        internal bool IsOwnerSeedDerivedLoad => Case == OwnerSeedLoadCase;
+        // Both kinds that load the owner's seed and run its disclosed native setup.
+        internal bool OwnerSeedSetup => IsOwnerSeed || IsOwnerSeedManual;
         internal const int MaximumSetupLevelupWrites = 2;
         internal string[] PairIds => new[] { RiderAId, MountAId, RiderBId, MountBId };
         internal string RuntimeScenario
@@ -58,6 +72,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 {
                     case "exploration": return "chunk7-two-pair-exploration";
                     case OwnerSeedCase: return "chunk7-two-pair-exploration";
+                    case OwnerSeedManualCase: return "chunk7-two-pair-exploration";
+                    case OwnerSeedLoadCase: return "chunk7-persistence-load";
                     case "combat-rider-first": return "chunk7-two-pair-combat-rider-first";
                     case "combat-mount-first": return "chunk7-two-pair-combat-mount-first";
                     case "realtime-core": return "chunk7-two-pair-realtime-core";
@@ -70,8 +86,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 }
             }
         }
-        internal bool Persistence => Case == "persistence-save" || Case == "persistence-load";
-        internal bool Cold => Case == "persistence-load";
+        internal bool Persistence => Case == "persistence-save" || Case == "persistence-load" || IsOwnerSeedManual || IsOwnerSeedDerivedLoad;
+        internal bool Cold => Case == "persistence-load" || IsOwnerSeedDerivedLoad;
         internal static bool SupportedCheckpoint(string value) => Array.IndexOf(new[] {
             "multi-exploration-manual", "multi-exploration-quick", "multi-exploration-auto",
             "multi-rt-debt-manual", "multi-tb-debt-manual", "zero-mounted-tb-retained-manual",
@@ -84,11 +100,13 @@ namespace KingmakerMountedCombat.Diagnostics
             value == "multi-exploration-three-area-transfers-manual";
         internal int LoadCount(string checkpoint) => Cold && checkpoint == "multi-exploration-three-loads-manual" ? 3 : 1;
         // Owner seed: exactly the native setup level-up Autos its selection declares (bound at admission).
-        internal int WriteCount(string checkpoint) => IsOwnerSeed ? ExpectedNativeWriteCount : Case == "persistence-save" && checkpoint == "multi-owned-worker-cancel-manual" ? 2 : Case == "persistence-save" ||
+        // Owner-seed Manual producer: exactly its one measured Manual (no setup write exists).
+        internal int WriteCount(string checkpoint) => IsOwnerSeed ? ExpectedNativeWriteCount : IsOwnerSeedManual ? 1 : Case == "persistence-save" && checkpoint == "multi-owned-worker-cancel-manual" ? 2 : Case == "persistence-save" ||
             Cold && (checkpoint == "legacy-mounted-pending-tb-manual" || OwnedSchema1Cold(checkpoint)) ? 1 : 0;
         public IReadOnlyList<string> Validate(string scenario, string runId, string checkpoint)
         {
-            if (IsOwnerSeed) return ValidateOwnerSeed(scenario, runId, checkpoint);
+            if (OwnerSeedSetup) return ValidateOwnerSeed(scenario, runId, checkpoint);
+            if (IsOwnerSeedDerivedLoad) return ValidateOwnerSeedDerivedLoad(scenario, runId, checkpoint);
             var errors = new List<string>();
             if (SeedId != null || SeedSha256 != null || XpAssistance != null)
                 errors.Add("Producer-backed owned pairs cannot carry owner-seed pins or setup assistance.");
@@ -134,11 +152,43 @@ namespace KingmakerMountedCombat.Diagnostics
             if (XpAssistance != null && (XpAssistance.UnitId != RiderBId || XpAssistance.TargetCharacterLevel < 2 ||
                 XpAssistance.TargetCharacterLevel > Chunk7OwnerSeedSetupPlan.MaximumTargetLevel))
                 errors.Add("Native XP assistance may target only rider B, within the bounded setup ceiling.");
+            if (IsOwnerSeedManual)
+            {
+                // The producer's only write is its one measured native Manual after SETUP-COMPLETE.
+                if (checkpoint != OwnerSeedCheckpoint) errors.Add("Owner-seed-derived Manual production selects exactly the multi-exploration-manual checkpoint.");
+                if (!BaseGameOnly || ExpectedNativeLoadCount != 1 || ExpectedNativeWriteCount != 1)
+                    errors.Add("Owner-seed-derived Manual production requires base-only staging, one native load and exactly one native Manual write.");
+                return errors;
+            }
             if (checkpoint != null) errors.Add("Owner-seed exploration cannot select a persistence checkpoint.");
             // Writes are only the native setup level-up Autos: at most one per rider build,
             // bound exactly to the native autosave observation before any mutation.
             if (!BaseGameOnly || ExpectedNativeLoadCount != 1 || ExpectedNativeWriteCount < 0 || ExpectedNativeWriteCount > MaximumSetupLevelupWrites)
                 errors.Add("Owner-seed exploration requires base-only staging, one native load and only its bounded setup level-up Auto writes.");
+            return errors;
+        }
+        // The cold consumer of one owner-seed-derived Manual: its producer run, world
+        // evidence and written bytes are exact pins; the owner's seed identity is carried
+        // only to prove the derived Manual is not the immutable master. No setup, no
+        // checkpoint parent, one load and zero writes.
+        private IReadOnlyList<string> ValidateOwnerSeedDerivedLoad(string scenario, string runId, string checkpoint)
+        {
+            var errors = new List<string>();
+            if (scenario != Scenario) errors.Add("Owner-seed-derived cold load requires its exact closed native campaign family.");
+            if (!Run(SourceRunId) || SourceRunId == runId || SourceRunId == SeedId || !Hash(SourceArtifactSha256) || !Hash(SourceArchiveSha256))
+                errors.Add("The exact distinct successful owner-seed-derived Manual producer run, world evidence and written Manual bytes are required.");
+            if (!Run(SeedId) || SeedId == runId || !Hash(SeedSha256) || SeedSha256 == SourceArchiveSha256 || SeedSha256 == SourceArtifactSha256)
+                errors.Add("The owner's immutable seed identity is required and cannot alias the derived Manual or its evidence.");
+            if (XpAssistance != null || CheckpointSourceRunId != null || CheckpointSourceArtifactSha256 != null || SourceArea != null)
+                errors.Add("The owner-seed-derived consumer carries no setup assistance, checkpoint parent or area pins.");
+            if (!PairIds.All(Chunk7ManualDerivedSelection.NativeId) || PairIds.Distinct(StringComparer.Ordinal).Count() != 4)
+                errors.Add("Four distinct observed native owner/pet IDs are required.");
+            if (PartyIds == null || PartyIds.Length < 4 || PartyIds.Length > 12 ||
+                !PartyIds.All(Chunk7ManualDerivedSelection.NativeId) || PartyIds.Distinct(StringComparer.Ordinal).Count() != PartyIds.Length ||
+                PairIds.Any(id => !PartyIds.Contains(id))) errors.Add("The bounded full native field roster must contain both exact pairs once.");
+            if (checkpoint != OwnerSeedCheckpoint) errors.Add("Owner-seed-derived cold load restores only the exploration Manual its producer wrote.");
+            if (!BaseGameOnly || ExpectedNativeLoadCount != 1 || ExpectedNativeWriteCount != 0)
+                errors.Add("Owner-seed-derived cold load requires base-only staging, one native load and zero native writes.");
             return errors;
         }
         private static bool Run(string value) => Regex.IsMatch(value ?? "", "^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$");
@@ -215,16 +265,20 @@ namespace KingmakerMountedCombat.Diagnostics
             if (onlyOneSave) errors.Add("Native OnlyOneSave/Ironman is on; its single-slot saves cannot be run-owned setup level-up Autos.");
             if (riderBuilds < 0 || riderBuilds > Chunk7OwnedPairsSelection.MaximumSetupLevelupWrites) errors.Add("Owner-seed rider build count is outside its bound.");
             var expected = ExpectedSetupWrites(autosaveEnabled, riderBuilds);
-            if (selection == null || selection.ExpectedNativeWriteCount != expected)
-                errors.Add("Selected native write count " + (selection == null ? "null" : selection.ExpectedNativeWriteCount.ToString()) +
+            // The Manual producer's selected write is its measured Manual, never a setup write.
+            var selectedSetupWrites = selection == null ? -1 : SelectedSetupWrites(selection);
+            if (selection == null || selectedSetupWrites != expected)
+                errors.Add("Selected native setup write count " + (selection == null ? "null" : selectedSetupWrites.ToString()) +
                     " must be " + expected + ": the native game has no level-up autosave (LevelUpAutoSaveController is never registered), whatever the autosave setting (" +
                     (autosaveEnabled ? "on" : "off") + ", " + riderBuilds + " rider builds).");
             return errors;
         }
+        internal static int SelectedSetupWrites(Chunk7OwnedPairsSelection selection) =>
+            selection.IsOwnerSeedManual ? selection.ExpectedNativeWriteCount - 1 : selection.ExpectedNativeWriteCount;
         internal static IReadOnlyList<string> AssistanceErrors(Chunk7OwnedPairsSelection selection, Chunk7OwnerSeedRiderFacts riderA, Chunk7OwnerSeedRiderFacts riderB)
         {
             var errors = new List<string>();
-            if (selection == null || !selection.IsOwnerSeed || riderA == null || riderB == null) { errors.Add("Owner-seed setup plan lacks its selection or riders."); return errors; }
+            if (selection == null || !selection.OwnerSeedSetup || riderA == null || riderB == null) { errors.Add("Owner-seed setup plan lacks its selection or riders."); return errors; }
             if (riderA.Id != selection.RiderAId || riderB.Id != selection.RiderBId) errors.Add("Observed riders differ from the selected rider roles.");
             if (!EligibleWithoutAssistance(riderA))
                 errors.Add("Rider A is not eligible for Ranger 4 / Hunter's Bond from its own native XP; no assistance is authorized for rider A.");
