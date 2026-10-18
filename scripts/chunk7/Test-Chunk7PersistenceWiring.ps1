@@ -108,6 +108,17 @@ foreach($file in @('Test-RuntimeGameResult.ps1','Test-RuntimeResult.ps1')){
         Reject ($file+' unknown row '+$scenario) {$bad=Copy-Test $v;$bad.subscenarioResults[0].name=if($scenario-ceq'chunk7-persistence-load'){'C7-persistence-schema2-native-resave-extra'}else{'C7-unregistered'};Assert-SubscenarioResults $bad}
     }
 }
+# P2: an owner-seed combat checkpoint producer reports its verified restored start in place of the native Mounts;
+# the generic (non-owned) combat checkpoints keep their KMC_C7_WORLD Manual leaf.
+$seedRows=@('C7-persistence-owner-seed-restored-start','C7-persistence-native-category-all-pair-archive','C7-persistence-native-combat-continuation','C7-persistence-cleanup')
+$seedResult=[pscustomobject]@{scenario='chunk7-persistence-save';subscenarioResults=@($seedRows|ForEach-Object{[pscustomobject]@{name=$_;status='PASS';assertionPassCount=1;assertionFailCount=0;errors=@()}});subscenarioTotal=$seedRows.Count;subscenarioPassCount=$seedRows.Count;subscenarioFailCount=0;assertionPassCount=$seedRows.Count;assertionFailCount=0}
+Check 'owner-seed combat checkpoint producer rows complete' {Assert-SubscenarioResults $seedResult}
+foreach($case in @('multi-rt-debt-manual','multi-tb-debt-manual','zero-mounted-tb-retained-manual')){
+    Check ('generic combat checkpoint keeps KMC_C7_WORLD '+$case) {if((Get-KmcChunk7PersistenceLeaf $case)-cne'Manual_300_KMC_C7_WORLD.zks'){throw 'Generic combat checkpoint leaf changed.'}}
+    Check ('owner-seed pair connects combat checkpoint '+$case) {if($case-cnotin(Get-KmcChunk7OwnerSeedCheckpoints)-or-not(Test-KmcChunk7OwnerSeedCombatCheckpoint $case)){throw 'Combat checkpoint is not connected to the owner-seed pair.'}}
+}
+Check 'owner-seed checkpoint Manual name is distinct from every other Manual name' {$n=Get-KmcChunk7OwnerSeedCheckpointManualName;if($n-cne'KMC_C7_SEED_CHECKPOINT'-or$n-cin@('KMC_C7_WORLD',(Get-KmcChunk7OwnerSeedManualName),'KMC_C7_ACQUIRED_FIELD','KMC_C7_SCHEMA1','KMC_C7_SCHEMA2')){throw 'Owner-seed checkpoint Manual name aliases another Manual.'}}
+foreach($case in @('legacy-mounted-pending-tb-manual','multi-area-autosave','owned-schema1-manual','multi-owned-worker-cancel-manual','multi-nonselected-mount-unsettled-manual')){Check ('owner-seed pair leaves unconnected checkpoint '+$case) {if($case-cin(Get-KmcChunk7OwnerSeedCheckpoints)-or(Test-KmcChunk7OwnerSeedCombatCheckpoint $case)){throw 'An unconnected family joined the owner-seed checkpoint pair.'}}}
 $quota=[IO.File]::ReadAllText((Join-Path $overlay 'Test-RuntimeGameResult.ps1'))
 $start=$quota.IndexOf('    $expectedNativeWrites = ');$end=$quota.IndexOf('    $expectedWorkingLoads = ',$start)
 $quotaBlock=[scriptblock]::Create($quota.Substring($start,$end-$start)+[Environment]::NewLine+'return $expectedNativeWrites')

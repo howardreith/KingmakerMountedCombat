@@ -25,8 +25,9 @@ foreach($spec in @(@('exploration','world'),@('combat-rider-first','combat'),@('
 # Quick/Auto fixtures keep the persistence envelope and the persistence cleanup-pending role.
 function New-SeedCheckpointRequest($F,[string]$Kind){$q=CopyValue $F.request;$s=$q.ownedPairs;$save=$Kind-ceq'save'
  $q.ownedPairs=[pscustomobject][ordered]@{case=('owner-seed-checkpoint-'+$Kind);sourceRunId='synthetic-owner-seed-manual';sourceArtifactSha256=('6'*64);sourceArchiveSha256=$(if($save){$q.persistenceLoad.sha256}else{'7'*64});checkpointSourceRunId=$(if($save){'synthetic-owner-seed-cold'}else{'synthetic-owner-seed-checkpoint'});checkpointSourceArtifactSha256=('8'*64);seedId='KMC_C7_OWNER_SEED';seedSha256=('9'*64);riderAId=$s.riderAId;mountAId=$s.mountAId;riderBId=$s.riderBId;mountBId=$s.mountBId;partyIds=$s.partyIds;baseGameOnly=$true;expectedNativeLoadCount=1;expectedNativeWriteCount=$(if($save){1}else{0})}
- if($save){$q.persistenceLoad.internalName='KMC_C7_SEED_WORLD';$q.persistenceLoad.fileName='Manual_303_KMC_C7_SEED_WORLD.zks'};$q}
-foreach($checkpoint in @('multi-exploration-quick','multi-exploration-auto')){foreach($kind in @('save','load')){
+ if($save){$q.persistenceLoad.internalName='KMC_C7_SEED_WORLD';$q.persistenceLoad.fileName='Manual_303_KMC_C7_SEED_WORLD.zks'}elseif($q.persistenceCase-cnotin@('multi-exploration-quick','multi-exploration-auto')){$q.persistenceLoad.internalName='KMC_C7_SEED_CHECKPOINT';$q.persistenceLoad.fileName='Manual_304_KMC_C7_SEED_CHECKPOINT.zks'};$q}
+# P2 adds the combat checkpoints: one genuine native Manual under KMC_C7_SEED_CHECKPOINT.
+foreach($checkpoint in @('multi-exploration-quick','multi-exploration-auto','multi-rt-debt-manual','multi-tb-debt-manual','zero-mounted-tb-retained-manual')){foreach($kind in @('save','load')){
  $f=@($fixtures|Where-Object name -CEQ ('persistence-'+$kind+'-'+$checkpoint))[0];$q=New-SeedCheckpointRequest $f $kind;$a=CopyValue $f.artifact;$tag='owner-seed-checkpoint-'+$kind+'-'+$checkpoint;$m=Emit $q $a $tag
  Check ('manifest envelope '+$tag){Validate $q $m $a.evidenceKind}
  Check ('candidate substitution '+$tag){$changed=CopyValue $q;$changed.dllSha256='0'*64;Validate $changed $m $a.evidenceKind} $true

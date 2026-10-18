@@ -241,6 +241,9 @@ function Assert-KmcChunk7CombatPersistenceObservation($Request,$Artifact) {
     $o=$Artifact.observations;$cold=(Get-KmcChunk7SelectedScenario $Request)-ceq'chunk7-persistence-load';$legacy=$Request.persistenceCase-ceq'legacy-mounted-pending-tb-manual'
     Assert-KmcChunk7NativeCounters $o @('nativeSchema','nativeCapacity','processId')
     $owned=Test-KmcChunk7OwnedPairsScenario $Request.scenario
+    # The owner-seed checkpoint producer starts from its verified restored mounted graph instead of native Mounts.
+    $seedCheckpointSave=$owned-and-not$cold-and(Test-KmcChunk7OwnedPairsSeedCheckpointSave $Request)
+    if(-not$seedCheckpointSave-and($null-ne$o.PSObject.Properties['mountedStart']-or$null-ne$o.PSObject.Properties['ownerSeedCheckpointSource'])){throw 'Only the owner-seed checkpoint producer may carry a restored mounted start.'}
     if($owned){
         Assert-KmcChunk7InheritedEvidence $Request $o
         if($Artifact.status-cne'PASS'-or-not(Test-KmcChunk7CombatPersistenceCase $Request.persistenceCase)-or$o.checkpoint-isnot[string]-or$o.checkpoint-cne$Request.persistenceCase-or$null-ne$o.sourceWorkingSha256-or$o.nativeSchema-ne3-or$o.nativeCapacity-ne2-or-not(Test-KmcExactJsonInteger $o.processId)-or$o.processId-le0){throw 'Inherited combat persistence case/capability differs.'}
@@ -300,12 +303,18 @@ function Assert-KmcChunk7CombatPersistenceObservation($Request,$Artifact) {
             if($actual.Count-ne1-or$actual[0].generation-ne$owner.generation-or$actual[0].riderId-cne$owner.riderId-or$actual[0].mountId-cne$owner.mountId-or$actual[0].state-cne$state){throw 'Native save changed live owner identity, generation, actor roles or required detached custody.'}
             if(-not$legacy){$saved=@($archive.Participations|Where-Object{([Guid]$_.OwnerId)-eq([Guid]$owner.ownerId)});if($saved.Count-ne1-or$saved[0].Generation-ne$owner.generation){throw 'Native schema-3 source changed stable saved custody.'}}
         }
+        if($seedCheckpointSave){
+            # Restored start (no Mount input, owners/generations/slots adopted) and the owner-approved derived target contract.
+            Assert-KmcChunk7OwnerSeedCheckpointStart $Request $o $archive
+            $sourceEvidence=$o.combatCheckpoint.source;Assert-KmcChunk7OwnerSeedTargetAuthorization $Request $(if($null-ne$sourceEvidence.PSObject.Properties['targetAuthorization']){$sourceEvidence.targetAuthorization}else{$null})
+        }else{
         $mountCount=if($legacy){1}else{2};if(@($o.inputs).Count-ne$mountCount){throw 'Wrong number of native source Mount commands.'}
         for($i=0;$i-lt$mountCount;$i++){$nativeInput=$o.inputs[$i];$rider=$ids[$i*2];$mount=$ids[$i*2+1]
             Assert-KmcChunk7NativeCounters $nativeInput @('nativeCastDelta','nativeRefusalDelta','generationAtInit')
             if($nativeInput.casterId-cne$rider-or$nativeInput.targetId-cne$mount-or$nativeInput.abilityGuid-cne'f053faad986631688defa003cd7bda0e'-or$nativeInput.nativeCastDelta-ne1-or$nativeInput.nativeRefusalDelta-ne0-or
                [string]::IsNullOrEmpty($nativeInput.control)-or$nativeInput.generationAtInit-lt0-or$nativeInput.selectionAfterInput-ceq$rider){throw 'Native source Mount lost exact caster, target, generation or captured selection.'}
             Assert-KmcChunk7Boolean $nativeInput.clicked $true;Assert-KmcChunk7Boolean $nativeInput.terminal $true}
+        }
         if(-not$owned){
         Assert-KmcChunk7NativeCounters $o.acquisition @('nativeRangerCommitCount','horseFactRankAtCommit')
         Assert-KmcChunk7Boolean $o.acquisition.horsePresentAtNativeCommit $true
