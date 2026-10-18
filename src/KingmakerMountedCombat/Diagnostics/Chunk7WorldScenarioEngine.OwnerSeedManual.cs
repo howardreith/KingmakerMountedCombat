@@ -134,7 +134,12 @@ namespace KingmakerMountedCombat.Diagnostics
             if (seed != null)
             {
                 if (!ReferenceEquals(seed, fixtureAuthority.OwnedPairsSourceDescriptor)) failed.Add("notReservedSourceDescriptor(reservedIsNull=" + (fixtureAuthority.OwnedPairsSourceDescriptor == null) + ")");
-                if (!ReferenceEquals(seed, fixtureLoader.Descriptor)) failed.Add("notLoadedDescriptor(loadedIsNull=" + (fixtureLoader.Descriptor == null) + ")");
+                // WorkingFixtureLoader reads its own descriptor with SaveManager.LoadZipSave, so it is never
+                // the list's object (observed in 20261018-c7b-world24-ownerseed-b3s1b-save); both must
+                // describe the same file. The list entry itself stays pinned to the reserved descriptor above.
+                var loaded = fixtureLoader.Descriptor;
+                if (loaded == null || loaded.FileName != seed.FileName || loaded.FolderName != seed.FolderName || loaded.Name != seed.Name || loaded.GameId != seed.GameId)
+                    failed.Add("notLoadedDescriptorFile(loadedIsNull=" + (loaded == null) + ")");
                 if (seed.FileName != input.FileName) failed.Add("fileName=" + seed.FileName);
                 if (seed.Name != input.InternalName) failed.Add("name=" + seed.Name);
                 if (seed.Type.ToString() != request.ExpectedNativeLoadType) failed.Add("type=" + seed.Type + "/expected=" + request.ExpectedNativeLoadType);
