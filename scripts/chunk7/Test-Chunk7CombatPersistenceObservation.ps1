@@ -96,10 +96,12 @@ foreach($mutation in @('missing-cost','duplicate-cost','wrong-cost-actor','wrong
       'live-owner-generation' {$v.snapshots[-1].owners[0].generation=99}
     };Assert-KmcChunk7PersistenceObservation $spec.request $spec.artifact 'PASS'}
 }
-foreach($mutation in @('hidden-prepare','whole-world-omitted','missing-native-actor','changed-allocation','changed-owner-role','extra-restore','wrong-debt','replayed-native-cast','missing-postload','fake-movement','wrong-command','movement-reprepare','lost-native-end','wrong-source','cleanup-target','cleanup-custody')){
+foreach($mutation in @('hidden-prepare','whole-world-omitted','active-before-presentation','presentation-unlinked','missing-native-actor','changed-allocation','changed-owner-role','extra-restore','wrong-debt','replayed-native-cast','missing-postload','fake-movement','wrong-command','movement-reprepare','lost-native-end','wrong-source','cleanup-target','cleanup-custody')){
     Reject ('cold raw proof '+$mutation){$spec=Copy-Test $coldTb;$v=$spec.artifact.observations;switch($mutation){
       'hidden-prepare' {$v.coldRestoration.events+= [pscustomobject]@{kind='prepare-before';actorId=$first}}
       'whole-world-omitted' {$v.coldRestoration.events=@($v.coldRestoration.events|Where-Object kind -CNE 'shared-world-restored')}
+      'active-before-presentation' {$p=$v.coldRestoration.events[-2].snapshot.participations[0];$p.MountedPairId=$v.coldRestoration.events[-1].snapshot.participations[0].MountedPairId}
+      'presentation-unlinked' {$v.coldRestoration.events[-1].snapshot.participations[0].MountedPairId=$null}
       'missing-native-actor' {$v.coldRestoration.events[-1].snapshot.actors=@($v.coldRestoration.events[-1].snapshot.actors|Select-Object -First 4)}
       'changed-allocation' {$v.coldRestoration.events[-2].snapshot.combat.Allocations[0].GrantId='other'}
       'changed-owner-role' {$v.coldRestoration.events[-1].snapshot.owners[0].mountId=$horse}
