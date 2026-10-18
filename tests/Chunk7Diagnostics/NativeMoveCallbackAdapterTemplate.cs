@@ -37,7 +37,7 @@ internal sealed class MountedCombatController {
  internal bool HasStockAttackIntent => stockIntent.Target != null;
  internal int StockAttackIntentCancelCount; internal string LastStockAttackObservation, LastFeedback;
  private UnitCommand stockIntentCommand;
- private UnitEntityData observedStockRequestUnit, observedStockRequestTarget; private int observedStockRequestFrame;
+ private readonly ObservedPlayerAttackRequest<UnitEntityData,UnitCommand> observedStockRequest = new ObservedPlayerAttackRequest<UnitEntityData,UnitCommand>();
  internal MountedCombatActionKind ArmedAction;
  internal UnitCommand activeCommand, activeDoorInteraction, activeRiderTurnGroundMove;
  private object groundMoveOwner, projectedNativeMountTurnGroundMove; private int projectedNativeMountTurnGroundMoveFrame;

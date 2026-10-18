@@ -44,9 +44,8 @@ namespace KingmakerMountedCombat.Integration
             new MountedAttackIntent<UnitEntityData, TurnController>();
         private UnitEntityData stockIntentTarget => stockIntent.Target;
         private TurnController stockIntentTurn => stockIntent.Turn;
-        private UnitEntityData observedStockRequestUnit;
-        private UnitEntityData observedStockRequestTarget;
-        private int observedStockRequestFrame = -1;
+        private readonly ObservedPlayerAttackRequest<UnitEntityData, UnitCommand> observedStockRequest =
+            new ObservedPlayerAttackRequest<UnitEntityData, UnitCommand>();
         private MountedDoorInteractionCommand activeDoorInteraction;
         private UnitMoveTo activeRiderTurnGroundMove;
         private MountedPairOwner<UnitEntityData, GameMountedRelationshipService> groundMoveOwner;
@@ -564,22 +563,32 @@ namespace KingmakerMountedCombat.Integration
 
         internal void ObserveStockAttackRequested(UnitEntityData unit, UnitEntityData target)
         {
+            // Either pair actor's native click is recorded as player provenance; admission below still
+            // requires the exact principal, selection and turn, so a hidden-mount click only earns
+            // its bounded feedback.
             if (disposed || relationship.State != RelationshipState.Mounted ||
                 unit == null || target == null ||
-                unit != relationship.Rider && !(unit == relationship.Mount &&
-                    CombatController.IsInTurnBasedCombat() &&
-                    (Game.Instance?.TurnBasedCombatController?.CurrentTurn?.Unit == unit ||
-                     unifiedTurn != null && unifiedTurn.CanAddressActor(unit, Game.Instance?.TurnBasedCombatController?.CurrentTurn))))
+                unit != relationship.Rider && unit != relationship.Mount)
             {
                 return;
             }
 
-            observedStockRequestUnit = unit;
-            observedStockRequestTarget = target;
-            observedStockRequestFrame = Time.frameCount;
+            observedStockRequest.Observe(unit, target, Time.frameCount);
             StockAttackNativeRequestCount++;
-            LastStockAttackObservation = "native-request;frame=" + observedStockRequestFrame +
+            LastStockAttackObservation = "native-request;frame=" + observedStockRequest.Frame +
                 ";unit=" + unit.UniqueId + ";target=" + target.UniqueId;
+        }
+
+        // First step of every native UnitCommands.Run on either pair actor, before any refusal: binds a
+        // same-frame click to the exact command its own synchronous Run carries.
+        internal void BindObservedStockRequest(UnitCommands commands, UnitCommand command)
+        {
+            var owner = commands == null ? null : commands == relationship.Rider?.Commands ? relationship.Rider :
+                commands == relationship.Mount?.Commands ? relationship.Mount : null;
+            if (owner != null)
+            {
+                observedStockRequest.Bind(owner, command, Time.frameCount);
+            }
         }
 
         internal void MarkPlayerFacingOverlayActivation(int frame)
@@ -904,12 +913,19 @@ namespace KingmakerMountedCombat.Integration
             {
                 // The native party click visits each owner separately. Consume only this pair's
                 // redundant mount request; never touch another party member's command or selection.
+                var hiddenMountClick = observedStockRequest.Consume(command);
                 if (!turnBased && selection != null && selection.Contains(rider))
                 {
                     return false;
                 }
                 LastFeedback = "Select the rider to attack, or use the mount on its own turn.";
                 LastRejectionCodes = new[] { MountedCombatRejectionCode.WrongActorOrSelection };
+                if (!hiddenMountClick)
+                {
+                    // A native party-brain proposal (retained ManualTarget), not player input: refuse silently.
+                    LastStockAttackObservation = "rejected-hidden-mount-proposal";
+                    return false;
+                }
                 LastStockAttackObservation = "rejected-hidden-mount-surface";
                 ShowStockFeedback();
                 return false;
@@ -917,22 +933,33 @@ namespace KingmakerMountedCombat.Integration
 
             var exactRiderSelected = UnifiedMountedStockAttackPolicy.ContainsExactPrincipal(selection, principal);
             var target = stockAttack.Target;
-            var exactObservedRequest = UnifiedMountedStockAttackPolicy.IsExactObservedPlayerRequest(
+            var playerCommand = observedStockRequest.IsPlayerCommand(command);
+            var exactObservedRequest = playerCommand && UnifiedMountedStockAttackPolicy.IsExactObservedPlayerRequest(
                 true,
                 ownerIsRider || ownerIsMount && turnBased && (turn?.Unit == mount || pairedActorTurn),
                 exactRiderSelected,
                 exactStockAttack,
-                observedStockRequestUnit == principal,
-                observedStockRequestTarget == target,
+                observedStockRequest.Unit == principal,
+                observedStockRequest.Target == target,
                 Time.frameCount,
-                observedStockRequestFrame);
-            ClearObservedStockRequest();
+                observedStockRequest.Frame);
+            // Only the click's own command consumes the observation; any other command leaves it intact.
+            observedStockRequest.Consume(command);
             if (!exactObservedRequest)
             {
                 LastFeedback = "Mounted stock attack rejected: no exact current native hostile-click request was observed.";
                 LastRejectionCodes = new[] { MountedCombatRejectionCode.CommandAdmissionFailure };
-                LastStockAttackObservation = "rejected-unobserved-command";
-                // AI/auto-use commands carry no native pointer provenance: do not spam the player.
+                if (!playerCommand)
+                {
+                    // AI/auto-use commands carry no native pointer provenance: refuse silently.
+                    LastStockAttackObservation = "rejected-unobserved-command";
+                    return false;
+                }
+                // The player's own click that fails exact admission (e.g. the rider is not the selected
+                // principal) keeps its bounded, once-per-click feedback.
+                LastFeedback = "Mounted stock attack rejected: select the rider of this pair to attack.";
+                LastStockAttackObservation = "rejected-inexact-player-click";
+                ShowStockFeedback();
                 return false;
             }
 
@@ -1154,9 +1181,7 @@ namespace KingmakerMountedCombat.Integration
 
         private void ClearObservedStockRequest()
         {
-            observedStockRequestUnit = null;
-            observedStockRequestTarget = null;
-            observedStockRequestFrame = -1;
+            observedStockRequest.Clear();
         }
 
         private void ShowStockFeedback()
