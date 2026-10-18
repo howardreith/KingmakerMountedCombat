@@ -42,8 +42,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 source?.LastWriteTimeUtcTicks.ToString(), value?.PersistenceReplayTargets == null ? null :
                 string.Join(";", value.PersistenceReplayTargets.Select(target => target == null ? null :
                     string.Join(",", target.EnterPoint, target.Area, target.AutoSaveMode))))
-                // Owner-seed pins extend the captured key only for that kind; historical keys are unchanged.
-                + (selected?.IsOwnerSeed == true ? "\n" + string.Join("\n", selected.SeedId, selected.SeedSha256,
+                // Owner-seed pins extend the captured key only for the seed-pinned kinds; historical keys are unchanged.
+                + (selected?.OwnerSeedSetup == true || selected?.IsOwnerSeedDerivedLoad == true ? "\n" + string.Join("\n", selected.SeedId, selected.SeedSha256,
                     selected.XpAssistance?.UnitId, selected.XpAssistance?.TargetCharacterLevel.ToString()) : "");
         }
         private bool OwnedPairsUnchanged() => ownedPairsRequest == null ||
@@ -222,7 +222,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     throw new InvalidOperationException("Owned-pair output reservation lacks exact unchanged request/world/native source custody.");
                 var selectedType = request.OwnedPairs.Cold ? "Manual" : request.PersistenceCase == "multi-exploration-quick" ? "Quick" :
                     request.PersistenceCase == "multi-exploration-auto" || request.PersistenceCase == "multi-area-autosave" ? "Auto" : "Manual";
-                var selectedName = request.OwnedPairs.Cold ? (Chunk7OwnedPairsSelection.OwnedSchema1Cold(request.PersistenceCase) ? "KMC_C7_SCHEMA1" : "KMC_C7_SCHEMA2") : "KMC_C7_WORLD";
+                var selectedName = request.OwnedPairs.IsOwnerSeedManual ? Chunk7OwnedPairsSelection.OwnerSeedManualName : request.OwnedPairs.Cold ? (Chunk7OwnedPairsSelection.OwnedSchema1Cold(request.PersistenceCase) ? "KMC_C7_SCHEMA1" : "KMC_C7_SCHEMA2") : "KMC_C7_WORLD";
                 if (number <= 0 || type != selectedType || nativeName != ownedPairsExpectedNativeName || string.IsNullOrWhiteSpace(nativeName) || nativeName.Length > 256 || nativeName.Any(char.IsControl) ||
                     type == "Manual" && nativeName != selectedName || type != "Manual" && number != 1)
                     throw new InvalidOperationException("Owned-pair native category/name/number differs from its closed selected case.");

@@ -132,6 +132,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 Hash(sourcePath) == selection.SourceArtifactSha256, "Exact staged two-owner Manual receipt is absent or changed.");
             sourceLength = file.Length; sourceTicks = file.LastWriteTimeUtc.Ticks;
             var artifact = JObject.Parse(File.ReadAllText(sourcePath)); observations = artifact["observations"] as JObject;
+            if (selection.IsOwnerSeedDerivedLoad) { ReadOwnerSeedDerivedSource(artifact); return; }
             var originalArea = request.PersistenceCase == "multi-area-autosave" ? selection.SourceArea : request.PersistenceLoad.Area;
             Require((string)artifact["scenario"] == Chunk7AcquiredManualSelection.Scenario && (string)artifact["evidenceKind"] == Chunk7AcquiredManualScenario.EvidenceKind &&
                 (string)artifact["runId"] == selection.SourceRunId && (string)artifact["status"] == "PASS" && artifact["errors"] is JArray errors && errors.Count == 0 &&
@@ -158,6 +159,44 @@ namespace KingmakerMountedCombat.Diagnostics
             Require(sourceArrangement != null && JToken.DeepEquals(sourceArrangement, observations["afterSaveArrangement"]),
                 "Source Manual lacks unchanged native class/XP/funds evidence.");
         }
+        // The owner-seed-derived source is the producer's own successful same-candidate world
+        // evidence: its labelled ancestry, the seed pins, the written Manual identity, its
+        // runtime boundary and read-back graph. Decoding it grants no native restoration.
+        internal JObject OwnerSeedBoundary { get; private set; }
+        internal JObject OwnerSeedArchive { get; private set; }
+        internal int OwnerSeedProcessId { get; private set; }
+        private void ReadOwnerSeedDerivedSource(JObject artifact)
+        {
+            var input = request.PersistenceLoad; var manual = observations?["ownerSeedManual"] as JObject; var write = observations?["nativeWrite"] as JObject;
+            Require((string)artifact["scenario"] == Chunk7OwnedPairsSelection.Scenario && (string)artifact["evidenceKind"] == Chunk7WorldScenarioEngine.EvidenceKind &&
+                (string)artifact["runId"] == selection.SourceRunId && (string)artifact["status"] == "PASS" && artifact["errors"] is JArray errors && errors.Count == 0 &&
+                (string)artifact["commit"] == request.Commit && (string)artifact["dllSha256"] == request.DllSha256 && (string)artifact["dllMvid"] == request.DllMvid &&
+                manual != null && write != null && (string)manual["contract"] == Chunk7WorldScenarioEngine.OwnerSeedManualReceiptContract &&
+                (string)manual["ancestry"] == Chunk7WorldScenarioEngine.OwnerSeedDerivedAncestry &&
+                manual["disclosedAssistance"]?.Type == JTokenType.Boolean && (bool)manual["disclosedAssistance"] &&
+                manual["acquisitionProof"]?.Type == JTokenType.Boolean && !(bool)manual["acquisitionProof"] &&
+                manual["levelUpSave"]?.Type == JTokenType.Boolean && !(bool)manual["levelUpSave"] &&
+                (string)manual["seedId"] == selection.SeedId && (string)manual["seedSha256"] == selection.SeedSha256 &&
+                manual["seedCopyUnchanged"]?.Type == JTokenType.Boolean && (bool)manual["seedCopyUnchanged"] &&
+                (string)write["sha256"] == selection.SourceArchiveSha256 && (string)write["fileName"] == input.FileName &&
+                (string)write["nativeName"] == Chunk7OwnedPairsSelection.OwnerSeedManualName && (string)write["nativeType"] == "Manual" &&
+                (string)write["gameId"] == input.GameId && (string)write["gameName"] == input.GameName && (string)write["area"] == input.Area &&
+                write["archive"] is JObject && manual["boundary"] is JObject && manual["processId"]?.Type == JTokenType.Integer,
+                "Staged source lacks its complete successful same-candidate owner-seed-derived Manual identity.");
+            Require(input.Sha256 == selection.SourceArchiveSha256, "Source intake did not load its exact owner-seed-derived Manual bytes.");
+            sourceWorld = manual["fieldWorld"] as JObject;
+            var owners = manual["twoOwners"] as JArray;
+            Require(sourceWorld != null && owners != null && owners.Count == 2 && owners.All(row => row is JObject) &&
+                (string)sourceWorld["gameId"] == input.GameId && (string)sourceWorld["area"] == input.Area &&
+                (string)owners[0]["actorId"] == selection.RiderAId && (string)owners[0]["petId"] == selection.MountAId &&
+                (string)owners[1]["actorId"] == selection.RiderBId && (string)owners[1]["petId"] == selection.MountBId,
+                "The owner-seed-derived source role order differs from the explicit intake.");
+            ownerRows = owners.Cast<JObject>().ToArray();
+            sourceArrangement = manual["arrangement"] as JObject;
+            Require(sourceArrangement != null && JToken.DeepEquals(sourceArrangement, manual["arrangementAfterSave"]),
+                "Owner-seed-derived source lacks unchanged native class/XP/funds evidence.");
+            OwnerSeedBoundary = (JObject)manual["boundary"]; OwnerSeedArchive = (JObject)write["archive"]; OwnerSeedProcessId = (int)manual["processId"];
+        }
         internal void RequirePreserved()
         {
             Require(bound && !released, "Inherited fixture custody is not bound."); RequireRequest(); RequireAuthority(); Scope.RequireCurrent();
@@ -182,8 +221,11 @@ namespace KingmakerMountedCombat.Diagnostics
             Require(file.Exists && file.Length == sourceLength && file.LastWriteTimeUtc.Ticks == sourceTicks && Hash(sourcePath) == selection.SourceArtifactSha256,
                 "Qualified inherited source receipt changed during native use.");
         }
-        private JObject Arrangement() => new JObject { ["money"] = Game.Instance.Player.Money, ["experienceRatePercent"] = Game.Instance.Player.ExperienceRatePercent,
-            ["actors"] = new JArray(Party.OrderBy(actor => actor.UniqueId, StringComparer.Ordinal).Select(actor => new JObject {
+        private JObject Arrangement() => ArrangementOf(Party);
+        // The one class/XP/money shape: the owner-seed Manual producer records it with this same builder.
+        internal static JObject ArrangementOf(System.Collections.Generic.IEnumerable<Kingmaker.EntitySystem.Entities.UnitEntityData> party) => new JObject {
+            ["money"] = Game.Instance.Player.Money, ["experienceRatePercent"] = Game.Instance.Player.ExperienceRatePercent,
+            ["actors"] = new JArray(party.OrderBy(actor => actor.UniqueId, StringComparer.Ordinal).Select(actor => new JObject {
                 ["actorId"] = actor.UniqueId, ["blueprint"] = actor.Blueprint.AssetGuid,
                 ["experience"] = actor.Descriptor.Progression.Experience, ["characterLevel"] = actor.Descriptor.Progression.CharacterLevel,
                 ["classes"] = new JArray(actor.Descriptor.Progression.Classes.OrderBy(value => value.CharacterClass.AssetGuid, StringComparer.Ordinal)
@@ -191,9 +233,11 @@ namespace KingmakerMountedCombat.Diagnostics
         internal JObject Capture(string phase)
         {
             RequirePreserved();
-            return new JObject { ["contract"] = "inherited-two-horse-native-field-v1", ["phase"] = phase,
+            // Owner-seed-derived custody keeps its own labels; it is never relabelled acquired ancestry.
+            var derived = selection.IsOwnerSeedDerivedLoad;
+            return new JObject { ["contract"] = derived ? "owner-seed-derived-two-horse-native-field-v1" : "inherited-two-horse-native-field-v1", ["phase"] = phase,
                 ["sourceRunId"] = selection.SourceRunId, ["sourceArtifactSha256"] = selection.SourceArtifactSha256,
-                ["sourceArchiveSha256"] = selection.SourceArchiveSha256, ["sourceCase"] = Chunk7OwnedPairsSelection.SourceCase,
+                ["sourceArchiveSha256"] = selection.SourceArchiveSha256, ["sourceCase"] = derived ? Chunk7OwnedPairsSelection.OwnerSeedManualCase : Chunk7OwnedPairsSelection.SourceCase,
                 ["nativeLoadVerifiedByHost"] = true, ["decodedReceiptAuthorizesRestoration"] = false,
                 ["inheritedPetsPreserved"] = true, ["ownedFactRemovalCount"] = 0,
                 ["partyIds"] = new JArray(Party.Select(actor => actor.UniqueId)),
