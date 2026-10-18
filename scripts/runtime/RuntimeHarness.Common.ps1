@@ -51,6 +51,42 @@ Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot 'Chunk7CumulativeAcquisitionEvidence.ps1')
 . (Join-Path $PSScriptRoot 'Chunk7AcquiredManualEvidence.ps1')
 
+# Scenario families whose live completion contract waits for a native level-up autosave.
+# Native fact: the installed game (2.1.7b) never registers LevelUpAutoSaveController -
+# GameModesFactory builds its controllers explicitly without it - so an ordinary level-up
+# never requests an Auto save and these waits can never complete. None is selected for the
+# current batch; each is NOT READY until its completion contract is repaired (see
+# docs/CHUNK7-STALE-LEVELUP-AUTOSAVE-FAMILIES.md). The runner refuses them before any lock,
+# transaction, Mods swap or launch. A null case list means every case of the scenario waits;
+# chunk7-native-progression waits only in the cases that write its terminal autosave.
+function Get-KmcChunk7StaleLevelUpAutosaveFamilies {
+    @(
+        [pscustomobject]@{scenario='chunk7-ordinary-acquisition';cases=$null;waitSite='src/KingmakerMountedCombat/Diagnostics/Chunk7OrdinaryAcquisitionScenario.cs:112 (ObserveCompletedAutosave, :266)'},
+        [pscustomobject]@{scenario='chunk7-manual-derived-acquisition';cases=$null;waitSite='src/KingmakerMountedCombat/Diagnostics/Chunk7ManualDerivedScenario.Build.cs:196 (ObserveTerminalAutosave, :222)'},
+        [pscustomobject]@{scenario='chunk7-cumulative-acquisition';cases=$null;waitSite='src/KingmakerMountedCombat/Diagnostics/Chunk7ManualDerivedScenario.Build.cs:196 (ObserveTerminalAutosave, :222; reached through Chunk7ManualDerivedScenario.CreateCumulative)'},
+        [pscustomobject]@{scenario='chunk7-assisted-fixture-preparation';cases=$null;waitSite='src/KingmakerMountedCombat/Diagnostics/Chunk7AssistedFixtureScenario.Setup.cs:161 (ObserveLevelupAutosave, Chunk7AssistedFixtureScenario.Save.cs:55)'},
+        [pscustomobject]@{scenario='chunk7-native-progression';cases=@('horse-native-level','horse-native-retrain-horse','horse-native-retrain-mammoth','owned-horse-native-level','owned-horse-native-retrain-horse','owned-horse-native-retrain-mammoth');waitSite='src/KingmakerMountedCombat/Diagnostics/Chunk7NativeProgressionSession.cs:231 (ObserveTerminalAutosave, :330)'}
+    )
+}
+# Returns the exact refusal for a stale family, or $null when the selection is admitted.
+# A chunk7-native-progression request is decided by its selected case; without one (before
+# its closed selection is read) it is not refused here, and the runner asks again with the case.
+function Get-KmcChunk7FamilyNotReadyReason([string]$Scenario,[AllowNull()][string]$ProgressionCase) {
+    foreach($family in @(Get-KmcChunk7StaleLevelUpAutosaveFamilies)){
+        if($family.scenario-cne$Scenario){continue}
+        $name=$Scenario
+        if($null-ne$family.cases){
+            if([string]::IsNullOrEmpty($ProgressionCase)-or$ProgressionCase-cnotin@($family.cases)){return $null}
+            $name=$Scenario+'/'+$ProgressionCase
+        }
+        return ('Scenario family '+$name+' is not ready: it waits for a native level-up autosave that the installed game never requests (LevelUpAutoSaveController is not registered); repair its completion contract before selection. Wait site: '+$family.waitSite+'; see docs/CHUNK7-STALE-LEVELUP-AUTOSAVE-FAMILIES.md.')
+    }
+    return $null
+}
+function Assert-KmcChunk7FamilyReady([string]$Scenario,[AllowNull()][string]$ProgressionCase) {
+    $reason=Get-KmcChunk7FamilyNotReadyReason $Scenario $ProgressionCase
+    if($null-ne$reason){throw $reason}
+}
 function Get-KmcRepositoryRoot {
     $root = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))
     $actual = (& git -C $root rev-parse --show-toplevel 2>$null).Trim()

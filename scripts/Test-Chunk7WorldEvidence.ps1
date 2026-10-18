@@ -22,8 +22,11 @@ $inputRows=@();$specs=@(@('mount-mammoth',$first,$mammoth,'f053faad986631688defa
     @('dismount-mammoth',$first,$first,'3af2b81f4d72bbb30501fa730fcdf36e',$second),@('dismount-horse',$second,$second,'3af2b81f4d72bbb30501fa730fcdf36e',$first))
 for($i=0;$i-lt4;$i++){$s=$specs[$i];$inputRows+=[pscustomobject]@{label=$s[0];casterId=$s[1];targetId=$s[2];abilityGuid=$s[3];clicked=$true;nativeCastDelta=1;nativeRefusalDelta=0;commandObject=100+$i;
     shellControl=('shell-'+$i);generationAtInit=1;selectionAfterInput=$s[4];shellTerminal=$true;processTerminal=$true;resourcesBefore=(Copy-TestValue $resources);resourcesAfter=(Copy-TestValue $resources)}}
-$owners=@([pscustomobject]@{ownerId='11111111-1111-4111-8111-111111111111';riderId=$first;mountId=$mammoth;generation=1;state='Active';relationshipState='Mounted'},
-    [pscustomobject]@{ownerId='22222222-2222-4222-8222-222222222222';riderId=$second;mountId=$horse;generation=2;state='Active';relationshipState='Mounted'})
+# The producer's own forms: owner records hold rider/mount ids as the registry key
+# (MountedPairRegistry.Key: Guid "N"), while actor UniqueIds are Guid "D".
+function ConvertTo-OwnerKey([string]$ActorId){[Guid]::ParseExact($ActorId,'D').ToString('N')}
+$owners=@([pscustomobject]@{ownerId='11111111-1111-4111-8111-111111111111';riderId=(ConvertTo-OwnerKey $first);mountId=(ConvertTo-OwnerKey $mammoth);generation=1;state='Active';relationshipState='Mounted'},
+    [pscustomobject]@{ownerId='22222222-2222-4222-8222-222222222222';riderId=(ConvertTo-OwnerKey $second);mountId=(ConvertTo-OwnerKey $horse);generation=2;state='Active';relationshipState='Mounted'})
 $snapshots=@([pscustomobject]@{label='both-mounted';owners=(Copy-TestValue $owners)},[pscustomobject]@{label='movement-complete';owners=(Copy-TestValue $owners)},
     [pscustomobject]@{label='first-dismounted-second-retained';owners=@((Copy-TestValue $owners[1]))})
 $moveRows=@();$moves=@(@('mammoth',$first,$mammoth,$second),@('horse',$second,$horse,$first),@('unmounted-control',$first,$first,$second))
@@ -58,7 +61,8 @@ $observation|Add-Member cycleInputs $cycleRows
 $observation|Add-Member cycles $cycleSnapshots
 $removalCommands=@(@($inputRows)+@($cycleRows)+@($moveRows)|ForEach-Object{[pscustomobject]@{commandObject=$_.commandObject;finished=$true;hasExecutionProcess=$true;processEnded=$true}})
 $observation|Add-Member factRemovalAdmission ([pscustomobject]@{frame=123;gameTicks=10000000L;owners=0;activePairs=0;preparationPending=$false;serializationBusy=$false;pendingNativeWrites=$false;commands=$removalCommands})
-$doorInputs=@();for($i=0;$i-lt2;$i++){$own=$owners[$i];$doorInputs+=[pscustomobject]@{pair=$i;riderId=$own.riderId;mountId=$own.mountId;ownerId=$own.ownerId;generation=$own.generation;commandObject=1800+$i;executorId=$own.riderId;distanceBefore=8.0;radius=2.0;selectionAfterInput=$owners[1-$i].riderId;accepted=$true;unrelatedIdleAtInput=$true;terminal=$true;ownerContinuity=$true;unrelatedIdleAtCompletion=$true;distanceMoved=6.0;outcome=[pscustomobject]@{Result='Success';RiderId=$own.riderId;MountId=$own.mountId;InteractionCount=1;DelegatedMoveStartCount=1;DelegatedMoveTickCount=0;DoorStateChanged=$true;RiderPathSuppressed=$true;MountMoveSlotRestored=$true;TerminalReason=$null}}}
+$doorRiders=@($first,$second);$doorMounts=@($mammoth,$horse)
+$doorInputs=@();for($i=0;$i-lt2;$i++){$own=$owners[$i];$doorInputs+=[pscustomobject]@{pair=$i;riderId=$doorRiders[$i];mountId=$doorMounts[$i];ownerId=$own.ownerId;generation=$own.generation;commandObject=1800+$i;executorId=$doorRiders[$i];distanceBefore=8.0;radius=2.0;selectionAfterInput=$doorRiders[1-$i];accepted=$true;unrelatedIdleAtInput=$true;terminal=$true;ownerContinuity=$true;unrelatedIdleAtCompletion=$true;distanceMoved=6.0;outcome=[pscustomobject]@{Result='Success';RiderId=$doorRiders[$i];MountId=$doorMounts[$i];InteractionCount=1;DelegatedMoveStartCount=1;DelegatedMoveTickCount=0;DoorStateChanged=$true;RiderPathSuppressed=$true;MountMoveSlotRestored=$true;TerminalReason=$null}}}
 $door=[pscustomobject]@{contract='two-pair-native-door-click-selection-change';interactions=$doorInputs;setupInteractions=2;completed=$true;fixture=[pscustomobject]@{name='native fixture door';object=-100;position=[pscustomobject]@{x=10.0;y=0.0;z=0.0};originalOpen=$true;originalEnabled=$false;originalCut=$false;disableOnOpen=$true;radius=2.0};firstPairReturn=[pscustomobject]@{command=1802;executorId=$mammoth;terminal=$true;result='Success';distanceToStart=0.5};restoration=[pscustomobject]@{exact=$true;commandsSettled=$true;open=$true;enabled=$false;cutEnabled=$false}}
 $observation|Add-Member door $door
 $observation.snapshots+= [pscustomobject]@{label='door-complete';owners=(Copy-TestValue $owners)}
@@ -201,6 +205,52 @@ $mutations=@(
     @('accumulated pair boundaries',{param($v)$v.observations.cycles[5].boundaryCount=3})
 )
 foreach($mutation in $mutations){$changed=Copy-TestValue $good;& $mutation[1] $changed;Reject $mutation[0] {Assert-KmcChunk7WorldEvidence $request $changed 'PASS'}}
+# Producer-to-reader identity forms. The producer writes pair-owner rider/mount ids as the
+# registry key (Guid "N", compact lowercase) and actor UniqueIds as Guid "D" (lowercase,
+# hyphenated); the reader compares the two by Guid value only after each side matches its own
+# exact form, and refuses with the identity-form message, not some later incidental check.
+function RejectIdentity([string]$Name,[scriptblock]$RejectedTrial){$message=$null;try{& $RejectedTrial}catch{$message=$_.Exception.Message}
+    if($null-eq$message){throw ('Unexpected acceptance: '+$Name)}
+    if($message-notmatch'Guid \((N|D)\) form|identity set differs|lost its captured pair|did not return through its own|Remount reused|Dismount changed the other pair owner'){throw ('Refused for an unrelated reason: '+$Name+': '+$message)}
+    $script:passed++;Write-Host ('PASS refuses '+$Name)}
+Check 'owner records in N form with actor UniqueIds in D form are accepted' {
+    $o=$good.observations;$active=@($o.snapshots[0].owners)
+    if(@($active|Where-Object{$_.riderId-cnotmatch'\A[0-9a-f]{32}\z'-or$_.mountId-cnotmatch'\A[0-9a-f]{32}\z'}).Count-ne0-or
+        @($o.partyWithHorse|Where-Object{$_.id-cnotmatch'\A[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\z'}).Count-ne0-or
+        @($o.door.interactions|Where-Object{$_.riderId-cnotmatch'-'}).Count-ne0){throw 'Fixture does not carry the producer forms.'}
+    Assert-KmcChunk7WorldEvidence $request $good 'PASS'
+}
+Check 'owner/actor identity helper matches only the exact native pair of forms' {
+    $n=$first.Replace('-','')
+    if(-not(Test-KmcChunk7OwnerActorMatch $n $first)-or(Test-KmcChunk7OwnerActorMatch $n $second)){throw 'Exact N/D Guid value match differs.'}
+    foreach($bad in @(@($first,$first),@($n,$n),@($n.ToUpperInvariant(),$first),@($n,$first.ToUpperInvariant()),@(('{'+$first+'}'),$first),@($n,('{'+$first+'}')),
+        @((' '+$n),$first),@(($n+"`n"),$first),@($n,($first+' ')),@($n.Substring(1),$first),@(($n.Substring(1)+'g'),$first),@($n,$first.Replace('-','_')),@($null,$first),@($n,$null),@(12,$first))){
+        $refused=$false;try{[void](Test-KmcChunk7OwnerActorMatch $bad[0] $bad[1])}catch{$refused=$true}
+        if(-not$refused){throw ('Wrong-form identity accepted: '+[string]$bad[0]+' / '+[string]$bad[1])}
+    }
+}
+$otherGuid='0f0e0d0c-0b0a-4908-8706-050403020100'
+$identityMutations=@(
+    @('owner riderId in actor D form',{param($v)$v.observations.snapshots[0].owners[0].riderId=$first}),
+    @('owner mountId in actor D form',{param($v)$v.observations.snapshots[0].owners[1].mountId=$horse}),
+    @('owner riderId uppercase N',{param($v)$v.observations.snapshots[0].owners[0].riderId=$first.Replace('-','').ToUpperInvariant()}),
+    @('owner riderId uppercase D',{param($v)$v.observations.snapshots[0].owners[0].riderId=$first.ToUpperInvariant()}),
+    @('owner riderId braced',{param($v)$v.observations.snapshots[0].owners[0].riderId='{'+$first+'}'}),
+    @('owner riderId padded N',{param($v)$v.observations.snapshots[0].owners[0].riderId=' '+$first.Replace('-','')}),
+    @('owner riderId malformed hex',{param($v)$v.observations.snapshots[0].owners[0].riderId=$first.Replace('-','').Substring(1)+'z'}),
+    @('owner riderId non-string',{param($v)$v.observations.snapshots[0].owners[0].riderId=12345}),
+    @('owner riderId a different Guid',{param($v)$v.observations.snapshots[0].owners[0].riderId=$otherGuid.Replace('-','')}),
+    @('owner mountId swapped to the other pair',{param($v)$v.observations.snapshots[0].owners[0].mountId=$horse.Replace('-','')}),
+    @('cycle owner rider in actor D form',{param($v)$v.observations.cycles[0].owners[0].riderId=$first}),
+    @('cycle owner mount a different Guid',{param($v)$v.observations.cycles[2].owners[1].mountId=$otherGuid.Replace('-','')}),
+    @('dismount retained owner in actor D form',{param($v)$v.observations.snapshots[2].owners[0].riderId=$second}),
+    @('door rider actor in owner N form',{param($v)$v.observations.door.interactions[0].riderId=$first.Replace('-','');$v.observations.door.interactions[0].executorId=$v.observations.door.interactions[0].riderId;$v.observations.door.interactions[0].outcome.RiderId=$v.observations.door.interactions[0].riderId}),
+    @('door mount actor uppercase D',{param($v)$v.observations.door.interactions[0].mountId=$mammoth.ToUpperInvariant();$v.observations.door.interactions[0].outcome.MountId=$v.observations.door.interactions[0].mountId}),
+    @('door mount actor a different Guid',{param($v)$v.observations.door.interactions[1].mountId=$otherGuid;$v.observations.door.interactions[1].outcome.MountId=$otherGuid}),
+    @('first-pair return executor in owner N form',{param($v)$v.observations.door.firstPairReturn.executorId=$mammoth.Replace('-','')})
+)
+if($mammoth.ToUpperInvariant()-ceq$mammoth-or$first.ToUpperInvariant()-ceq$first){throw 'Uppercase identity fixtures need hex letters.'}
+foreach($mutation in $identityMutations){$changed=Copy-TestValue $good;& $mutation[1] $changed;RejectIdentity $mutation[0] {Assert-KmcChunk7WorldEvidence $request $changed 'PASS'}}
 Check 'signed native Int32 command identities remain valid' {
     $signed=Copy-TestValue $good
     foreach($row in @($signed.observations.inputs)+@($signed.observations.cycleInputs)+@($signed.observations.movements)+@($signed.observations.door.interactions)+@($signed.observations.factRemovalAdmission.commands)){$row.commandObject=-$row.commandObject}
