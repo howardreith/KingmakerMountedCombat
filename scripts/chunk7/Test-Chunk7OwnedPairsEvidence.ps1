@@ -370,6 +370,25 @@ function Set-KmcSeedCompanionRows($v,$Rows,[bool]$Producer=$false){
  $o.allocationTrace.events=@(@($o.allocationTrace.events|Where-Object{$_.sequence-le$base})+@($Rows|ForEach-Object{Copy-Value $_}))
  $c.accountedEvents=@($Rows|ForEach-Object{Copy-Value $_});$c.traceSequenceAfter=$i;$c.nativeStop.traceSequenceBefore=$i;$c.nativeStop.traceSequenceAfter=$i
  if($Producer){$c.pairRefusedProposals=@($Rows|Where-Object{$_.state.actor-cne$script:seedCompanion}|Group-Object command|ForEach-Object{$g=@($_.Group|Sort-Object sequence);[pscustomobject][ordered]@{actorId=$g[0].state.actor;command=$g[0].command;sequenceBefore=$g[0].sequence;sequenceAfter=$g[1].sequence}})}
+ if($null-ne$o.PSObject.Properties['playerClick']){$o.PSObject.Properties.Remove('playerClick');Add-KmcSeedPlayerClick $v}
+}
+# Generated (not a native recording): the Directive 4 player-click window after the companion rows.
+# Native brains keep proposing on retained ManualTargets; one rider-A pair attack follows the click.
+function Add-KmcSeedPlayerClick($v){
+ $o=$v.artifact.observations;$p=$v.request.ownedPairs;$base=[int]$o.companionAction.traceSequenceAfter;$i=$base
+ $attack={param($b,$st)$r=New-KmcSeedTraceRow $b $p.riderAId 8101 $p.riderAId $st;$r.commandType='KingmakerMountedCombat.Integration.MountedPairAttackCommand';$r|Add-Member commandTarget $o.targetId -Force;$r}
+ $rows=@((New-KmcSeedProposal $p.riderAId 7101)+(&$attack 'admission-after' 0)+(New-KmcSeedProposal $p.mountBId 7102)+(&$attack 'cost-before' 0)+(&$attack 'cost-after' 6))
+ foreach($row in $rows){$i++;$row.sequence=$i}
+ $o.allocationTrace.events=@($o.allocationTrace.events)+@($rows)
+ $snap={param($label,$aStarts,$aActive)$x=Copy-Value $o.companionAction.before;$x.label=$label
+  $x|Add-Member intent ([pscustomobject][ordered]@{aStarts=$aStarts;aCancels=1;aRequests=$aStarts;aActive=$aActive;aObservation='synthetic';bStarts=2;bRequests=2;bActive=$false;bObservation='synthetic'}) -Force
+  $x|Add-Member manualTargets ([pscustomobject][ordered]@{riderA=$o.targetId;mountB=$o.targetId}) -Force;$x}
+ $cost=@($rows|Where-Object boundary -CEQ 'cost-after')[0]
+ $o|Add-Member playerClick ([pscustomobject][ordered]@{contract='owner-seed-rt-player-click-integrity-v1';actorId=$p.riderAId;targetId=$o.targetId;traceSequenceBefore=$base
+  before=(&$snap 'player-click-before' 4 $false);clicked=$true;admitted=(&$snap 'player-click-admitted' 5 $true)
+  stop=[pscustomobject][ordered]@{selectedId=$p.riderAId;traceSequenceBefore=$i;intentAfterStop=$false;manualTargetAfterStop=$null}
+  after=(&$snap 'player-click-after' 5 $false);traceSequenceAfter=$i;warnings=@()
+  riderAttackCosts=@([pscustomobject][ordered]@{sequence=$cost.sequence;command=8101;commandTarget=$o.targetId});pairRefusedProposals=@();pairBKmcCommandRows=0;terminal=$true}) -Force
 }
 function Get-KmcSeedCompanionRows($v){@($v.artifact.observations.companionAction.accountedEvents|ForEach-Object{Copy-Value $_})}
 function New-KmcOwnerSeedDerivedCombatFixture([string]$Base){
@@ -403,7 +422,7 @@ function New-KmcOwnerSeedDerivedCombatFixture([string]$Base){
   # brains' proposals interleave with her click; KMC refuses each before native Run.
   $rows=@((New-KmcSeedProposal $p.riderAId 7001)+(New-KmcSeedCompanionRow 'admission-before' 9001 $null 0)+(New-KmcSeedCompanionRow 'admission-after' 9001 $script:seedCompanion 0)+
    (New-KmcSeedProposal $p.mountBId 7002)+(New-KmcSeedProposal $p.riderAId 7003)+(New-KmcSeedCompanionRow 'cost-before' 9001 $script:seedCompanion 0)+(New-KmcSeedCompanionRow 'cost-after' 9001 $script:seedCompanion 5.2)+(New-KmcSeedProposal $p.mountBId 7004))
-  Set-KmcSeedCompanionRows $v $rows $true
+  Set-KmcSeedCompanionRows $v $rows $true;Add-KmcSeedPlayerClick $v
  }
  $v.name=$Base;$v
 }
@@ -437,6 +456,15 @@ Check-SeedCombat 'owner-seed-derived RT refuses a reassigned pair command' 'real
 Check-SeedCombat 'owner-seed-derived RT refuses a pair spending during the action' 'realtime-core' {$args[0].artifact.observations.companionAction.after.actors[2].standard=6} 'spent native resources'
 Check-SeedCombat 'owner-seed-derived RT refuses a companion that is a pair actor' 'realtime-core' {$args[0].artifact.observations.companionAction.actorId=$args[0].request.ownedPairs.mountBId}
 Check-SeedCombat 'owner-seed-derived RT refuses an unsettled AI lease' 'realtime-core' {$args[0].artifact.observations.companionAction.declaredLeaseCommands=2}
+Check-SeedCombat 'owner-seed-derived RT refuses a missing player-click window' 'realtime-core' {$args[0].artifact.observations.PSObject.Properties.Remove('playerClick')} 'player-click integrity window'
+Check-SeedCombat 'owner-seed-derived RT refuses a click that started no pair A intent' 'realtime-core' {$args[0].artifact.observations.playerClick.admitted.intent.aStarts=4} 'exactly one pair A stock intent'
+Check-SeedCombat 'owner-seed-derived RT refuses a click that started a pair B intent' 'realtime-core' {$args[0].artifact.observations.playerClick.after.intent.bStarts=3} 'exactly one pair A stock intent'
+Check-SeedCombat 'owner-seed-derived RT refuses a second rider-A attack before Stop' 'realtime-core' {$o=$args[0].artifact.observations;$p=$o.playerClick;$c=Copy-Value @($o.allocationTrace.events|Where-Object{$_.boundary-ceq'cost-after'-and$_.command-eq8101})[0];$c.command=8102;$c.sequence=@($o.allocationTrace.events).Count+1;$o.allocationTrace.events=@($o.allocationTrace.events)+@($c);$p.traceSequenceAfter=$c.sequence;$p.stop.traceSequenceBefore=$c.sequence} 'exactly one rider-A native attack'
+Check-SeedCombat 'owner-seed-derived RT refuses the click attack on another target' 'realtime-core' {$o=$args[0].artifact.observations;@($o.allocationTrace.events|Where-Object{$_.boundary-ceq'cost-after'-and$_.command-eq8101})[0].commandTarget=$args[0].request.ownedPairs.riderBId} 'exactly one rider-A native attack'
+Check-SeedCombat 'owner-seed-derived RT refuses a KMC command on pair B' 'realtime-core' {$o=$args[0].artifact.observations;$r=@($o.allocationTrace.events|Where-Object{$_.command-eq7102})[0];$r.commandType='KingmakerMountedCombat.Integration.MountedPairAttackCommand'} 'Pair B received a KMC attack'
+Check-SeedCombat 'owner-seed-derived RT refuses a warning during refused proposals' 'realtime-core' {$args[0].artifact.observations.playerClick.warnings=@([pscustomobject]@{text='Select the rider to attack, or use the mount on its own turn.';frame=200})} 'player-facing warning'
+Check-SeedCombat 'owner-seed-derived RT refuses an intent surviving Stop' 'realtime-core' {$args[0].artifact.observations.playerClick.stop.intentAfterStop=$true}
+Check-SeedCombat 'owner-seed-derived RT refuses pair B spending during the click' 'realtime-core' {$args[0].artifact.observations.playerClick.after.actors[3].standard=6} 'Pair B spent'
 Check-SeedCombat 'owner-seed-derived RT refuses a window opened on a prone target' 'realtime-core' {$args[0].artifact.observations.companionAction.before.target.prone=$true}
 Check-SeedCombat 'owner-seed-derived RT refuses a window without the target state' 'realtime-core' {$args[0].artifact.observations.companionAction.before.PSObject.Properties.Remove('target')} 'diagnostic target state'
 Check 'owner-seed-derived RT accepts interleaved refused pair proposals' {$v=New-KmcOwnerSeedDerivedCombatFixture 'realtime-core';if(@($v.artifact.observations.companionAction.pairRefusedProposals).Count-ne4){throw 'fixture lost its proposals'};Invoke-OwnedReader $v}

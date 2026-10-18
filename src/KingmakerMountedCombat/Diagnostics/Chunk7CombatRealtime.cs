@@ -80,7 +80,14 @@ namespace KingmakerMountedCombat.Diagnostics
                     BeginCompanionAction(); NextRealtime(11); break;
                 case 11:
                     if (!FinishCompanionAction()) return;
-                    Pass("C7-rt-companion-native-action"); NextRealtime(2); break;
+                    Pass("C7-rt-companion-native-action"); NextRealtime(12); break;
+                case 12:
+                    // Directive 4 R1: one real ordinary player hostile click while native proposals continue.
+                    if (!PlayerClickReady()) return;
+                    BeginPlayerClick(); NextRealtime(13); break;
+                case 13:
+                    if (!FinishPlayerClick()) return;
+                    Pass("C7-rt-player-click-integrity"); NextRealtime(2); break;
                 case 2:
                     if (!PairIdle(a) || !PairIdle(b) || !actors.All(NativeActorReady)) return;
                     realtimeWindow = new JObject { ["kind"] = "native-stop-local", ["before"] = WorldSnapshot("rt-local-stop-before") };
