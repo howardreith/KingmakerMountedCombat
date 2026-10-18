@@ -1,26 +1,48 @@
 # Chunk 7 known product debt
 
-Bounded known issues found by native runs. They are recorded for a successor product candidate and are not fixed by the diagnostic changes that found them.
+Bounded known issues found by native runs, with their current disposition. Resolved entries are kept so the history of each finding stays readable.
 
-## RT party-brain attack proposals after a mounted pair attack (2026-10-18)
+## RT party-brain attack proposals after a mounted pair attack (2026-10-18) — RESOLVED in preview.35
 
-Found by run `20261018-c7b-world29-ownerseed-b4s2d-rt` (preview.29). The offline diagnosis is `analysis-cache/chunk7-continuation/owner-seed-batch04/rt-companion-diagnosis01.json`.
+**Found by** run `20261018-c7b-world29-ownerseed-b4s2d-rt` (preview.29); the diagnosis is in lab file `analysis-cache/chunk7-continuation/owner-seed-batch04/rt-companion-diagnosis01.json`.
 
-After a real-time mounted attack, the attacking pair actors keep `CombatState.ManualTarget` set to the target. Both the native `UnitCommands.UpdateCombatTarget` and KMC's acceptance path (`MountedCombatController.cs:788`) set it, and KMC clears it only on the stock-intent path. The native party brain (`AiBrainController`) then proposes a `UnitAttack` on that target about every 0.3-0.4 s while combat lasts, even with AI disabled (`UseWhenAIDisabled` actions). KMC's `UnitCommands.Run` prefix refuses each proposal before native Run, so no cost, command or pair state changes. The refusal still has two visible effects in real play:
+**What happens.** After a real-time mounted attack, the attacking pair actors keep `CombatState.ManualTarget` set to the target. Two things set it: the native click handler sets it after `Run`, and KMC's acceptance path sets it too. The native party brain then proposes a `UnitAttack` on that target about every 0.35 s.
 
-- **Warning spam.** While the rider is not selected, each Horse proposal takes the hidden-mount refusal path (`MountedCombatController.cs:903-915`). That path calls `ShowStockFeedback()`, so the player sees "Select the rider to attack, or use the mount on its own turn." about every 0.35 s.
-- **Lost player clicks.** Each rider-A proposal reaches the observed-request check, and `ClearObservedStockRequest()` (`MountedCombatController.cs:929`) clears the last observed player hostile click. A real player click that falls between an AI proposal and its own Run can be refused as unobserved.
+**Two effects were recorded:**
+- **Warning spam:** hidden-mount proposals raised "Select the rider to attack, or use the mount on its own turn."
+- **Click integrity.** The review (Directive 4 R1) described this as a refused proposal erasing a pending click. The observed flaw was in the observation itself: it was keyed only on actor, target and frame (±1) and cleared by any routed command. A refused proposal could erase it, and a click whose own `Run` carried something else could leave it for a brain `UnitAttack` on the same target to borrow. Examples of "something else": an auto-use cast, a `CanNotAttack` move, or an earlier refusal such as a running save worker.
 
-Successor-candidate direction, not decided: stop leaving `ManualTarget` set after a direct paired attack, or refuse AI-originated proposals silently without clearing the observed player request. Either change alters the product identity and needs its own candidate and qualification.
+**Fix** (`4da0bec4`, reviewed `d4-controls-review01`):
+- `ObservedPlayerAttackRequest` binds the native `OnAttackRequested` observation to the exact command its own synchronous `Run` carries. The `Run` prefix binds first, before any refusal.
+- Only that command is player input, and only it consumes the observation.
+- Brain proposals are refused silently.
+- Real hidden-mount and inexact clicks keep one bounded warning each.
 
-Diagnostics impact: the owner-seed RT companion window now tolerates these proposals only as closed refused-before-Run pairs and records them as `pairRefusedProposals`. After Dismount A, rider A is no longer refused by KMC and still carries `ManualTarget`, so its brain may admit a native attack before the unmounted-control click (watch RT stages 5-7).
+**Native acceptance:** `20261018-c7b-world35-ownerseed-b8s1-rt` (preview.35). With retained ManualTargets on rider A and Horse B and 5 proposals refused in the window:
+- one real click started exactly one pair-A intent;
+- it caused exactly one rider-A native attack on its target;
+- no warning appeared;
+- the player's Stop ended the intent.
 
-## Chunk 6A rule R3 superseded; its historical probe still asserts it (2026-10-18)
+**Remaining, by design:**
+- **ManualTarget is left as native player intent.** Dismount cancels KMC's stock intent and active command, so any later attack on the retained target is a native command, never a stale KMC one.
+- **A harmless residue.** A bound observation whose `Run` was refused before routing stays inert until the next click (review note N3).
 
-The owner's October 18 decision admits a voluntary turn-based Mount/Dismount in the rider's prepared (Preparing) turn (`06ec7180`). The Chunk 6A diagnostic probe `Chunk6aCombatMountScenario` row `CM01-combat-mount-preparing-refused`, the released 6A ledgers and the 6A readers and registration tests that list it still describe the superseded rule. Re-running the Chunk 6A turn-based scenarios on preview.33 or later will fail that row by design until the 6A gate set is revised to the admitted contract. The released Chunk 6 records are left unchanged as history.
+## Chunk 6A rule R3 superseded; current probe versioned (2026-10-18) — RESOLVED for current entrypoints
 
-`scripts/Test-Chunk6aLedger.ps1` already exits 1 on the successor: `Chunk6aHarnessIdentity.ps1` pins every `scripts/runtime/*.ps1` file to the recorded 6A reader revision, and many Chunk 7 readers have changed since. This predates the R3 change.
+**Decision.** The owner's October 18 decision admits a voluntary turn-based Mount/Dismount in the rider's prepared (Preparing) turn (`06ec7180`).
 
-## Recorded combat fixtures predate the native rider-removal forfeit (2026-10-18, test debt)
+**What changed in `7930313e`:**
+- The current 6A probe emits `CM01-combat-mount-preparing-admitted`.
+- It also records `CM01-combat-mount-foreign-turn-refused` when the native order puts another actor's turn first.
+- Current readers and registrations use the new row.
 
-`tests/Chunk7Diagnostics/OwnedPairsEvidenceFixtures.json` combat fixtures were written before batch 6 slot 3 observed the native paired-removal forfeit (`ForceToEnd(setCooldowns: true)` nested on the mount's private turn). `scripts/chunk7/Chunk7NativeForfeitFixture.ps1` applies that observed shape in memory when the fixtures load (reviewed in `batch6-reader-review01`). Regenerate the recorded fixtures with the forfeit shape when convenient, then drop the load-time shaping.
+**History is kept.** The released preview.211 ledgers keep `CM01-combat-mount-preparing-refused` under their own inputs. `scripts/Test-Chunk6aLedger.ps1` is labelled a historical contract: it pins the 6A reader revision and already exits 1 on the successor because many Chunk 7 readers have changed. It is not a current development prerequisite.
+
+**Native first-action evidence:**
+- **First-action Dismount** (preview.34): batch 6 slots 4–5 and batch 7.
+- **First-action combat Mount** (preview.35) with both adoption dispositions: `PreparePartnerThisRound` in `…b8s2-tbrider` and `RetainPartnerParticipation` in `…b8s3-tbmount`.
+
+## Recorded combat fixtures predate the native rider-removal forfeit (2026-10-18) — RESOLVED
+
+The `tests/Chunk7Diagnostics/OwnedPairsEvidenceFixtures.json` combat fixtures now carry the observed native paired-removal forfeit directly (`641bc0da`). They were generated, not natively recorded; the file is labelled synthetic. The hidden load-time shaping is removed. Only the code-built TB fixture keeps the labelled generator `scripts/chunk7/Chunk7NativeForfeitFixture.ps1`.
