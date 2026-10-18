@@ -42,7 +42,17 @@ namespace KingmakerMountedCombat.Diagnostics
         public const string OwnerSeedCheckpointLoadCase = "owner-seed-checkpoint-load";
         // The checkpoints the owner-seed checkpoint pair admits; extend this one list as each
         // further family is connected.
-        internal static readonly string[] OwnerSeedCheckpoints = { "multi-exploration-quick", "multi-exploration-auto" };
+        internal static readonly string[] OwnerSeedCheckpoints = { "multi-exploration-quick", "multi-exploration-auto",
+            "multi-rt-debt-manual", "multi-tb-debt-manual", "zero-mounted-tb-retained-manual" };
+        // The connected combat checkpoints: genuine native Manuals written mid-combat from the restored
+        // two-pair start under the owner-approved diagnostic target. Their native Manual name is distinct
+        // from every acquired-ancestry KMC_C7_WORLD and from the derived KMC_C7_SEED_WORLD input.
+        public const string OwnerSeedCheckpointManualName = "KMC_C7_SEED_CHECKPOINT";
+        internal static bool IsOwnerSeedCombatCheckpoint(string checkpoint) =>
+            checkpoint == "multi-rt-debt-manual" || checkpoint == "multi-tb-debt-manual" || checkpoint == "zero-mounted-tb-retained-manual";
+        // The native Manual name a writing owned selection reserves; a non-Manual selection writes its slot name.
+        internal string OwnedManualOutputName(string checkpoint) => IsOwnerSeedManual ? OwnerSeedManualName :
+            IsOwnerSeedCheckpointSave ? OwnerSeedCheckpointManualName : Cold ? (OwnedSchema1Cold(checkpoint) ? "KMC_C7_SCHEMA1" : "KMC_C7_SCHEMA2") : "KMC_C7_WORLD";
         public string Case { get; set; }
         public string SourceRunId { get; set; }
         public string SourceArtifactSha256 { get; set; }

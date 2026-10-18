@@ -84,6 +84,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 value.EndsWith("-auto", StringComparison.Ordinal) ? SaveInfo.SaveType.Auto : SaveInfo.SaveType.Manual;
         }
         internal static string NativeName(SaveInfo.SaveType type) => type == SaveInfo.SaveType.Manual ? ManualName : RuntimePersistenceScenario.SlotName(type);
+        // The owner-seed checkpoint producer writes its Manual under its own distinct name; every other selection keeps NativeName.
+        internal static string NativeName(SaveInfo.SaveType type, Chunk7OwnedPairsSelection owned) =>
+            type == SaveInfo.SaveType.Manual && owned?.IsOwnerSeedCheckpointSave == true ? Chunk7OwnedPairsSelection.OwnerSeedCheckpointManualName : NativeName(type);
         internal static string NativeLeaf(SaveInfo.SaveType type) => type == SaveInfo.SaveType.Manual ? "Manual_300_" + ManualName + ".zks" : type + "_1.zks";
 
         internal Chunk7PersistenceScenario(RuntimeRequest request, GameMountedRelationshipService relationship,
@@ -406,8 +409,8 @@ namespace KingmakerMountedCombat.Diagnostics
             if (request.OwnedPairs != null) RequireOwnedSaveAdmission(type);
             NativePersistenceIsolation.EnableNativeSlotRotation();
             var descriptor = type == SaveInfo.SaveType.Quick ? manager.GetNextQuickslot() :
-                type == SaveInfo.SaveType.Auto ? manager.GetNextAutoslot() : manager.CreateNewSave(ManualName);
-            Require(descriptor != null && descriptor.Type == type && descriptor.Name == NativeName(type) &&
+                type == SaveInfo.SaveType.Auto ? manager.GetNextAutoslot() : manager.CreateNewSave(NativeName(type, request.OwnedPairs));
+            Require(descriptor != null && descriptor.Type == type && descriptor.Name == NativeName(type, request.OwnedPairs) &&
                 !descriptor.IsActuallySaved && manager.IsSaveAllowed(), "Actual native category admission differs.");
             if (request.OwnedPairs != null) ownedRequestedSave = descriptor;
             if (SourceSaveBoundary) { RequireSaveBoundaryAuthority(); boundaryRequestedSave = descriptor; }
@@ -422,7 +425,7 @@ namespace KingmakerMountedCombat.Diagnostics
             if (Schema1ResaveCase) { ObserveSchema1Resaved(); return; }
             if (Schema2ResaveCase) { ObserveSchema2Resaved(); return; }
             var type = NativeType(request.PersistenceCase);
-            savedDescriptor = Game.Instance.SaveManager.SingleOrDefault(s => s.Name == NativeName(type) && s.Type == type);
+            savedDescriptor = Game.Instance.SaveManager.SingleOrDefault(s => s.Name == NativeName(type, request.OwnedPairs) && s.Type == type);
             Require(savedDescriptor != null && savedDescriptor.OperationState == SaveInfo.StateType.None && savedDescriptor.HasFileOnDisk &&
                 savedDescriptor.FileName == SelectedOutputLeaf(type), "Native archive did not complete at its exact declared leaf.");
             ObserveOwnedSaveCompletion();
