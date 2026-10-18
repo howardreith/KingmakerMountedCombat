@@ -419,6 +419,142 @@
                 "commandActor": "40404040-4040-4040-8040-404040404040",
                 "commandType": "KingmakerMountedCombat.Integration.MountedPairAttackCommand",
                 "actionType": "Standard"
+              },
+              {
+                "sequence": 21,
+                "boundary": "remove-unit-before",
+                "frame": 190,
+                "detail": null,
+                "command": 0,
+                "commandActor": null,
+                "commandType": null,
+                "state": {
+                  "actor": "30303030-3030-4030-8030-303030303030",
+                  "standard": 6,
+                  "move": 3,
+                  "swift": 6,
+                  "reactions": 1,
+                  "reactionCooldown": 0
+                }
+              },
+              {
+                "sequence": 22,
+                "boundary": "completion-force-to-end-before",
+                "frame": 190,
+                "detail": "setCooldowns=True",
+                "command": 0,
+                "commandActor": null,
+                "commandType": null,
+                "state": {
+                  "actor": "30303030-3030-4030-8030-303030303030",
+                  "standard": 6,
+                  "move": 3,
+                  "swift": 6,
+                  "reactions": 1,
+                  "reactionCooldown": 0
+                }
+              },
+              {
+                "sequence": 23,
+                "boundary": "completion-force-to-end-before",
+                "frame": 190,
+                "detail": "setCooldowns=True",
+                "command": 0,
+                "commandActor": null,
+                "commandType": null,
+                "state": {
+                  "actor": "40404040-4040-4040-8040-404040404040",
+                  "standard": 6,
+                  "move": 3,
+                  "swift": 6,
+                  "reactions": 1,
+                  "reactionCooldown": 0
+                }
+              },
+              {
+                "sequence": 24,
+                "boundary": "completion-force-to-end-after",
+                "frame": 190,
+                "detail": "setCooldowns=True",
+                "command": 0,
+                "commandActor": null,
+                "commandType": null,
+                "state": {
+                  "actor": "40404040-4040-4040-8040-404040404040",
+                  "standard": 6,
+                  "move": 3,
+                  "swift": 6,
+                  "reactions": 1,
+                  "reactionCooldown": 0
+                }
+              },
+              {
+                "sequence": 25,
+                "boundary": "completion-force-to-end-after",
+                "frame": 190,
+                "detail": "setCooldowns=True",
+                "command": 0,
+                "commandActor": null,
+                "commandType": null,
+                "state": {
+                  "actor": "30303030-3030-4030-8030-303030303030",
+                  "standard": 6,
+                  "move": 3,
+                  "swift": 6,
+                  "reactions": 1,
+                  "reactionCooldown": 0
+                }
+              },
+              {
+                "sequence": 26,
+                "boundary": "turn-end-after",
+                "frame": 190,
+                "detail": null,
+                "command": 0,
+                "commandActor": null,
+                "commandType": null,
+                "state": {
+                  "actor": "40404040-4040-4040-8040-404040404040",
+                  "standard": 6,
+                  "move": 3,
+                  "swift": 6,
+                  "reactions": 1,
+                  "reactionCooldown": 0
+                }
+              },
+              {
+                "sequence": 27,
+                "boundary": "turn-end-after",
+                "frame": 190,
+                "detail": null,
+                "command": 0,
+                "commandActor": null,
+                "commandType": null,
+                "state": {
+                  "actor": "30303030-3030-4030-8030-303030303030",
+                  "standard": 6,
+                  "move": 3,
+                  "swift": 6,
+                  "reactions": 1,
+                  "reactionCooldown": 0
+                }
+              },
+              {
+                "sequence": 28,
+                "boundary": "remove-unit-after",
+                "frame": 190,
+                "detail": null,
+                "command": 0,
+                "commandActor": null,
+                "commandType": null,
+                "state": {
+                  "actor": "30303030-3030-4030-8030-303030303030",
+                  "standard": 6,
+                  "move": 3,
+                  "swift": 6,
+                  "reactions": 1,
+                  "reactionCooldown": 0
+                }
               }
             ],
             "dropped": 0,
@@ -3575,9 +3711,9 @@
                 },
                 {
                   "id": "40404040-4040-4040-8040-404040404040",
-                  "standard": 3,
-                  "move": 0,
-                  "swift": 0,
+                  "standard": 6.0,
+                  "move": 3.0,
+                  "swift": 6.0,
                   "reactions": 1,
                   "reactionCooldown": 0,
                   "prepared": true,
@@ -4488,6 +4624,142 @@
                 "commandActor": "40404040-4040-4040-8040-404040404040",
                 "commandType": "KingmakerMountedCombat.Integration.MountedPairAttackCommand",
                 "actionType": "Standard"
+              },
+              {
+                "sequence": 21,
+                "boundary": "remove-unit-before",
+                "frame": 190,
+                "detail": null,
+                "command": 0,
+                "commandActor": null,
+                "commandType": null,
+                "state": {
+                  "actor": "30303030-3030-4030-8030-303030303030",
+                  "standard": 6,
+                  "move": 3,
+                  "swift": 6,
+                  "reactions": 1,
+                  "reactionCooldown": 0
+                }
+              },
+              {
+                "sequence": 22,
+                "boundary": "completion-force-to-end-before",
+                "frame": 190,
+                "detail": "setCooldowns=True",
+                "command": 0,
+                "commandActor": null,
+                "commandType": null,
+                "state": {
+                  "actor": "30303030-3030-4030-8030-303030303030",
+                  "standard": 6,
+                  "move": 3,
+                  "swift": 6,
+                  "reactions": 1,
+                  "reactionCooldown": 0
+                }
+              },
+              {
+                "sequence": 23,
+                "boundary": "completion-force-to-end-before",
+                "frame": 190,
+                "detail": "setCooldowns=True",
+                "command": 0,
+                "commandActor": null,
+                "commandType": null,
+                "state": {
+                  "actor": "40404040-4040-4040-8040-404040404040",
+                  "standard": 6,
+                  "move": 3,
+                  "swift": 6,
+                  "reactions": 1,
+                  "reactionCooldown": 0
+                }
+              },
+              {
+                "sequence": 24,
+                "boundary": "completion-force-to-end-after",
+                "frame": 190,
+                "detail": "setCooldowns=True",
+                "command": 0,
+                "commandActor": null,
+                "commandType": null,
+                "state": {
+                  "actor": "40404040-4040-4040-8040-404040404040",
+                  "standard": 6,
+                  "move": 3,
+                  "swift": 6,
+                  "reactions": 1,
+                  "reactionCooldown": 0
+                }
+              },
+              {
+                "sequence": 25,
+                "boundary": "completion-force-to-end-after",
+                "frame": 190,
+                "detail": "setCooldowns=True",
+                "command": 0,
+                "commandActor": null,
+                "commandType": null,
+                "state": {
+                  "actor": "30303030-3030-4030-8030-303030303030",
+                  "standard": 6,
+                  "move": 3,
+                  "swift": 6,
+                  "reactions": 1,
+                  "reactionCooldown": 0
+                }
+              },
+              {
+                "sequence": 26,
+                "boundary": "turn-end-after",
+                "frame": 190,
+                "detail": null,
+                "command": 0,
+                "commandActor": null,
+                "commandType": null,
+                "state": {
+                  "actor": "40404040-4040-4040-8040-404040404040",
+                  "standard": 6,
+                  "move": 3,
+                  "swift": 6,
+                  "reactions": 1,
+                  "reactionCooldown": 0
+                }
+              },
+              {
+                "sequence": 27,
+                "boundary": "turn-end-after",
+                "frame": 190,
+                "detail": null,
+                "command": 0,
+                "commandActor": null,
+                "commandType": null,
+                "state": {
+                  "actor": "30303030-3030-4030-8030-303030303030",
+                  "standard": 6,
+                  "move": 3,
+                  "swift": 6,
+                  "reactions": 1,
+                  "reactionCooldown": 0
+                }
+              },
+              {
+                "sequence": 28,
+                "boundary": "remove-unit-after",
+                "frame": 190,
+                "detail": null,
+                "command": 0,
+                "commandActor": null,
+                "commandType": null,
+                "state": {
+                  "actor": "30303030-3030-4030-8030-303030303030",
+                  "standard": 6,
+                  "move": 3,
+                  "swift": 6,
+                  "reactions": 1,
+                  "reactionCooldown": 0
+                }
               }
             ],
             "dropped": 0,
@@ -7644,9 +7916,9 @@
                 },
                 {
                   "id": "40404040-4040-4040-8040-404040404040",
-                  "standard": 3,
-                  "move": 0,
-                  "swift": 0,
+                  "standard": 6.0,
+                  "move": 3.0,
+                  "swift": 6.0,
                   "reactions": 1,
                   "reactionCooldown": 0,
                   "prepared": true,
@@ -12930,6 +13202,142 @@
                 "commandActor": "10101010-1010-4010-8010-101010101010",
                 "commandType": "KingmakerMountedCombat.Integration.MountedPairAttackCommand",
                 "actionType": "Standard"
+              },
+              {
+                "sequence": 13,
+                "boundary": "remove-unit-before",
+                "frame": 190,
+                "detail": null,
+                "command": 0,
+                "commandActor": null,
+                "commandType": null,
+                "state": {
+                  "actor": "30303030-3030-4030-8030-303030303030",
+                  "standard": 6,
+                  "move": 3,
+                  "swift": 6,
+                  "reactions": 1,
+                  "reactionCooldown": 0
+                }
+              },
+              {
+                "sequence": 14,
+                "boundary": "completion-force-to-end-before",
+                "frame": 190,
+                "detail": "setCooldowns=True",
+                "command": 0,
+                "commandActor": null,
+                "commandType": null,
+                "state": {
+                  "actor": "30303030-3030-4030-8030-303030303030",
+                  "standard": 6,
+                  "move": 3,
+                  "swift": 6,
+                  "reactions": 1,
+                  "reactionCooldown": 0
+                }
+              },
+              {
+                "sequence": 15,
+                "boundary": "completion-force-to-end-before",
+                "frame": 190,
+                "detail": "setCooldowns=True",
+                "command": 0,
+                "commandActor": null,
+                "commandType": null,
+                "state": {
+                  "actor": "40404040-4040-4040-8040-404040404040",
+                  "standard": 6,
+                  "move": 3,
+                  "swift": 6,
+                  "reactions": 1,
+                  "reactionCooldown": 0
+                }
+              },
+              {
+                "sequence": 16,
+                "boundary": "completion-force-to-end-after",
+                "frame": 190,
+                "detail": "setCooldowns=True",
+                "command": 0,
+                "commandActor": null,
+                "commandType": null,
+                "state": {
+                  "actor": "40404040-4040-4040-8040-404040404040",
+                  "standard": 6,
+                  "move": 3,
+                  "swift": 6,
+                  "reactions": 1,
+                  "reactionCooldown": 0
+                }
+              },
+              {
+                "sequence": 17,
+                "boundary": "completion-force-to-end-after",
+                "frame": 190,
+                "detail": "setCooldowns=True",
+                "command": 0,
+                "commandActor": null,
+                "commandType": null,
+                "state": {
+                  "actor": "30303030-3030-4030-8030-303030303030",
+                  "standard": 6,
+                  "move": 3,
+                  "swift": 6,
+                  "reactions": 1,
+                  "reactionCooldown": 0
+                }
+              },
+              {
+                "sequence": 18,
+                "boundary": "turn-end-after",
+                "frame": 190,
+                "detail": null,
+                "command": 0,
+                "commandActor": null,
+                "commandType": null,
+                "state": {
+                  "actor": "40404040-4040-4040-8040-404040404040",
+                  "standard": 6,
+                  "move": 3,
+                  "swift": 6,
+                  "reactions": 1,
+                  "reactionCooldown": 0
+                }
+              },
+              {
+                "sequence": 19,
+                "boundary": "turn-end-after",
+                "frame": 190,
+                "detail": null,
+                "command": 0,
+                "commandActor": null,
+                "commandType": null,
+                "state": {
+                  "actor": "30303030-3030-4030-8030-303030303030",
+                  "standard": 6,
+                  "move": 3,
+                  "swift": 6,
+                  "reactions": 1,
+                  "reactionCooldown": 0
+                }
+              },
+              {
+                "sequence": 20,
+                "boundary": "remove-unit-after",
+                "frame": 190,
+                "detail": null,
+                "command": 0,
+                "commandActor": null,
+                "commandType": null,
+                "state": {
+                  "actor": "30303030-3030-4030-8030-303030303030",
+                  "standard": 6,
+                  "move": 3,
+                  "swift": 6,
+                  "reactions": 1,
+                  "reactionCooldown": 0
+                }
               }
             ],
             "dropped": 0,
@@ -14985,9 +15393,9 @@
                 },
                 {
                   "id": "40404040-4040-4040-8040-404040404040",
-                  "standard": 3,
-                  "move": 0,
-                  "swift": 0,
+                  "standard": 6.0,
+                  "move": 3.0,
+                  "swift": 6.0,
                   "reactions": 1,
                   "reactionCooldown": 0,
                   "prepared": true,
@@ -51958,6 +52366,142 @@
                   "reactions": 1,
                   "reactionCooldown": 0
                 }
+              },
+              {
+                "sequence": 5,
+                "boundary": "remove-unit-before",
+                "frame": 190,
+                "detail": null,
+                "command": 0,
+                "commandActor": null,
+                "commandType": null,
+                "state": {
+                  "actor": "30303030-3030-4030-8030-303030303030",
+                  "standard": 6,
+                  "move": 3,
+                  "swift": 6,
+                  "reactions": 1,
+                  "reactionCooldown": 0
+                }
+              },
+              {
+                "sequence": 6,
+                "boundary": "completion-force-to-end-before",
+                "frame": 190,
+                "detail": "setCooldowns=True",
+                "command": 0,
+                "commandActor": null,
+                "commandType": null,
+                "state": {
+                  "actor": "30303030-3030-4030-8030-303030303030",
+                  "standard": 6,
+                  "move": 3,
+                  "swift": 6,
+                  "reactions": 1,
+                  "reactionCooldown": 0
+                }
+              },
+              {
+                "sequence": 7,
+                "boundary": "completion-force-to-end-before",
+                "frame": 190,
+                "detail": "setCooldowns=True",
+                "command": 0,
+                "commandActor": null,
+                "commandType": null,
+                "state": {
+                  "actor": "40404040-4040-4040-8040-404040404040",
+                  "standard": 6,
+                  "move": 3,
+                  "swift": 6,
+                  "reactions": 1,
+                  "reactionCooldown": 0
+                }
+              },
+              {
+                "sequence": 8,
+                "boundary": "completion-force-to-end-after",
+                "frame": 190,
+                "detail": "setCooldowns=True",
+                "command": 0,
+                "commandActor": null,
+                "commandType": null,
+                "state": {
+                  "actor": "40404040-4040-4040-8040-404040404040",
+                  "standard": 6,
+                  "move": 3,
+                  "swift": 6,
+                  "reactions": 1,
+                  "reactionCooldown": 0
+                }
+              },
+              {
+                "sequence": 9,
+                "boundary": "completion-force-to-end-after",
+                "frame": 190,
+                "detail": "setCooldowns=True",
+                "command": 0,
+                "commandActor": null,
+                "commandType": null,
+                "state": {
+                  "actor": "30303030-3030-4030-8030-303030303030",
+                  "standard": 6,
+                  "move": 3,
+                  "swift": 6,
+                  "reactions": 1,
+                  "reactionCooldown": 0
+                }
+              },
+              {
+                "sequence": 10,
+                "boundary": "turn-end-after",
+                "frame": 190,
+                "detail": null,
+                "command": 0,
+                "commandActor": null,
+                "commandType": null,
+                "state": {
+                  "actor": "40404040-4040-4040-8040-404040404040",
+                  "standard": 6,
+                  "move": 3,
+                  "swift": 6,
+                  "reactions": 1,
+                  "reactionCooldown": 0
+                }
+              },
+              {
+                "sequence": 11,
+                "boundary": "turn-end-after",
+                "frame": 190,
+                "detail": null,
+                "command": 0,
+                "commandActor": null,
+                "commandType": null,
+                "state": {
+                  "actor": "30303030-3030-4030-8030-303030303030",
+                  "standard": 6,
+                  "move": 3,
+                  "swift": 6,
+                  "reactions": 1,
+                  "reactionCooldown": 0
+                }
+              },
+              {
+                "sequence": 12,
+                "boundary": "remove-unit-after",
+                "frame": 190,
+                "detail": null,
+                "command": 0,
+                "commandActor": null,
+                "commandType": null,
+                "state": {
+                  "actor": "30303030-3030-4030-8030-303030303030",
+                  "standard": 6,
+                  "move": 3,
+                  "swift": 6,
+                  "reactions": 1,
+                  "reactionCooldown": 0
+                }
               }
             ],
             "dropped": 0,
@@ -54010,9 +54554,9 @@
                 },
                 {
                   "id": "40404040-4040-4040-8040-404040404040",
-                  "standard": 3,
-                  "move": 0,
-                  "swift": 0,
+                  "standard": 6.0,
+                  "move": 3.0,
+                  "swift": 6.0,
                   "reactions": 1,
                   "reactionCooldown": 0,
                   "prepared": true,
@@ -55164,6 +55708,142 @@
                   "reactions": 1,
                   "reactionCooldown": 0
                 }
+              },
+              {
+                "sequence": 5,
+                "boundary": "remove-unit-before",
+                "frame": 190,
+                "detail": null,
+                "command": 0,
+                "commandActor": null,
+                "commandType": null,
+                "state": {
+                  "actor": "30303030-3030-4030-8030-303030303030",
+                  "standard": 6,
+                  "move": 3,
+                  "swift": 6,
+                  "reactions": 1,
+                  "reactionCooldown": 0
+                }
+              },
+              {
+                "sequence": 6,
+                "boundary": "completion-force-to-end-before",
+                "frame": 190,
+                "detail": "setCooldowns=True",
+                "command": 0,
+                "commandActor": null,
+                "commandType": null,
+                "state": {
+                  "actor": "30303030-3030-4030-8030-303030303030",
+                  "standard": 6,
+                  "move": 3,
+                  "swift": 6,
+                  "reactions": 1,
+                  "reactionCooldown": 0
+                }
+              },
+              {
+                "sequence": 7,
+                "boundary": "completion-force-to-end-before",
+                "frame": 190,
+                "detail": "setCooldowns=True",
+                "command": 0,
+                "commandActor": null,
+                "commandType": null,
+                "state": {
+                  "actor": "40404040-4040-4040-8040-404040404040",
+                  "standard": 6,
+                  "move": 3,
+                  "swift": 6,
+                  "reactions": 1,
+                  "reactionCooldown": 0
+                }
+              },
+              {
+                "sequence": 8,
+                "boundary": "completion-force-to-end-after",
+                "frame": 190,
+                "detail": "setCooldowns=True",
+                "command": 0,
+                "commandActor": null,
+                "commandType": null,
+                "state": {
+                  "actor": "40404040-4040-4040-8040-404040404040",
+                  "standard": 6,
+                  "move": 3,
+                  "swift": 6,
+                  "reactions": 1,
+                  "reactionCooldown": 0
+                }
+              },
+              {
+                "sequence": 9,
+                "boundary": "completion-force-to-end-after",
+                "frame": 190,
+                "detail": "setCooldowns=True",
+                "command": 0,
+                "commandActor": null,
+                "commandType": null,
+                "state": {
+                  "actor": "30303030-3030-4030-8030-303030303030",
+                  "standard": 6,
+                  "move": 3,
+                  "swift": 6,
+                  "reactions": 1,
+                  "reactionCooldown": 0
+                }
+              },
+              {
+                "sequence": 10,
+                "boundary": "turn-end-after",
+                "frame": 190,
+                "detail": null,
+                "command": 0,
+                "commandActor": null,
+                "commandType": null,
+                "state": {
+                  "actor": "40404040-4040-4040-8040-404040404040",
+                  "standard": 6,
+                  "move": 3,
+                  "swift": 6,
+                  "reactions": 1,
+                  "reactionCooldown": 0
+                }
+              },
+              {
+                "sequence": 11,
+                "boundary": "turn-end-after",
+                "frame": 190,
+                "detail": null,
+                "command": 0,
+                "commandActor": null,
+                "commandType": null,
+                "state": {
+                  "actor": "30303030-3030-4030-8030-303030303030",
+                  "standard": 6,
+                  "move": 3,
+                  "swift": 6,
+                  "reactions": 1,
+                  "reactionCooldown": 0
+                }
+              },
+              {
+                "sequence": 12,
+                "boundary": "remove-unit-after",
+                "frame": 190,
+                "detail": null,
+                "command": 0,
+                "commandActor": null,
+                "commandType": null,
+                "state": {
+                  "actor": "30303030-3030-4030-8030-303030303030",
+                  "standard": 6,
+                  "move": 3,
+                  "swift": 6,
+                  "reactions": 1,
+                  "reactionCooldown": 0
+                }
               }
             ],
             "dropped": 0,
@@ -57216,9 +57896,9 @@
                 },
                 {
                   "id": "40404040-4040-4040-8040-404040404040",
-                  "standard": 3,
-                  "move": 0,
-                  "swift": 0,
+                  "standard": 6.0,
+                  "move": 3.0,
+                  "swift": 6.0,
                   "reactions": 1,
                   "reactionCooldown": 0,
                   "prepared": true,
@@ -59110,6 +59790,142 @@
                   "standard": 3,
                   "move": 0,
                   "swift": 0,
+                  "reactions": 1,
+                  "reactionCooldown": 0
+                }
+              },
+              {
+                "sequence": 9,
+                "boundary": "remove-unit-before",
+                "frame": 190,
+                "detail": null,
+                "command": 0,
+                "commandActor": null,
+                "commandType": null,
+                "state": {
+                  "actor": "30303030-3030-4030-8030-303030303030",
+                  "standard": 6,
+                  "move": 3,
+                  "swift": 6,
+                  "reactions": 1,
+                  "reactionCooldown": 0
+                }
+              },
+              {
+                "sequence": 10,
+                "boundary": "completion-force-to-end-before",
+                "frame": 190,
+                "detail": "setCooldowns=True",
+                "command": 0,
+                "commandActor": null,
+                "commandType": null,
+                "state": {
+                  "actor": "30303030-3030-4030-8030-303030303030",
+                  "standard": 6,
+                  "move": 3,
+                  "swift": 6,
+                  "reactions": 1,
+                  "reactionCooldown": 0
+                }
+              },
+              {
+                "sequence": 11,
+                "boundary": "completion-force-to-end-before",
+                "frame": 190,
+                "detail": "setCooldowns=True",
+                "command": 0,
+                "commandActor": null,
+                "commandType": null,
+                "state": {
+                  "actor": "40404040-4040-4040-8040-404040404040",
+                  "standard": 6,
+                  "move": 3,
+                  "swift": 6,
+                  "reactions": 1,
+                  "reactionCooldown": 0
+                }
+              },
+              {
+                "sequence": 12,
+                "boundary": "completion-force-to-end-after",
+                "frame": 190,
+                "detail": "setCooldowns=True",
+                "command": 0,
+                "commandActor": null,
+                "commandType": null,
+                "state": {
+                  "actor": "40404040-4040-4040-8040-404040404040",
+                  "standard": 6,
+                  "move": 3,
+                  "swift": 6,
+                  "reactions": 1,
+                  "reactionCooldown": 0
+                }
+              },
+              {
+                "sequence": 13,
+                "boundary": "completion-force-to-end-after",
+                "frame": 190,
+                "detail": "setCooldowns=True",
+                "command": 0,
+                "commandActor": null,
+                "commandType": null,
+                "state": {
+                  "actor": "30303030-3030-4030-8030-303030303030",
+                  "standard": 6,
+                  "move": 3,
+                  "swift": 6,
+                  "reactions": 1,
+                  "reactionCooldown": 0
+                }
+              },
+              {
+                "sequence": 14,
+                "boundary": "turn-end-after",
+                "frame": 190,
+                "detail": null,
+                "command": 0,
+                "commandActor": null,
+                "commandType": null,
+                "state": {
+                  "actor": "40404040-4040-4040-8040-404040404040",
+                  "standard": 6,
+                  "move": 3,
+                  "swift": 6,
+                  "reactions": 1,
+                  "reactionCooldown": 0
+                }
+              },
+              {
+                "sequence": 15,
+                "boundary": "turn-end-after",
+                "frame": 190,
+                "detail": null,
+                "command": 0,
+                "commandActor": null,
+                "commandType": null,
+                "state": {
+                  "actor": "30303030-3030-4030-8030-303030303030",
+                  "standard": 6,
+                  "move": 3,
+                  "swift": 6,
+                  "reactions": 1,
+                  "reactionCooldown": 0
+                }
+              },
+              {
+                "sequence": 16,
+                "boundary": "remove-unit-after",
+                "frame": 190,
+                "detail": null,
+                "command": 0,
+                "commandActor": null,
+                "commandType": null,
+                "state": {
+                  "actor": "30303030-3030-4030-8030-303030303030",
+                  "standard": 6,
+                  "move": 3,
+                  "swift": 6,
                   "reactions": 1,
                   "reactionCooldown": 0
                 }
@@ -61179,9 +61995,9 @@
                 },
                 {
                   "id": "40404040-4040-4040-8040-404040404040",
-                  "standard": 3,
-                  "move": 0,
-                  "swift": 0,
+                  "standard": 6.0,
+                  "move": 3.0,
+                  "swift": 6.0,
                   "reactions": 1,
                   "reactionCooldown": 0,
                   "prepared": true,
