@@ -1,7 +1,8 @@
-# Synthetic TB fixtures predate the native paired-removal forfeit observed in batch 6 slot 3
-# (tb-pending-move-diagnosis01): removing rider B runs native ForceToEnd(setCooldowns: true) on the rider
-# turn with the mount's private turn nested inside it, leaving the pending mount at max(before, 6/3/6).
-# This applies that observed shape to a fixture's observations: after-values plus the removal window rows.
+# Generated (not a native recording) for the code-built synthetic TB fixture in Test-Chunk7CombatEvidence:
+# the native paired-removal forfeit observed in batch 6 slot 3 (tb-pending-move-diagnosis01). Removing
+# rider B runs native ForceToEnd(setCooldowns: true) on the rider turn with the mount's private turn nested
+# inside it, leaving the pending mount at max(before, 6/3/6). The recorded OwnedPairsEvidenceFixtures.json
+# combat fixtures carry this shape directly since 2026-10-18; this applies it to the code-built fixture.
 function Set-KmcChunk7NativeForfeitFixture($Observations){
     $ids=@($Observations.actorIds);$pending=$Observations.pendingSurvivor
     $before=@($pending.before.actors|Where-Object id -CEQ $ids[3])[0];$after=@($pending.after.actors|Where-Object id -CEQ $ids[3])[0]
