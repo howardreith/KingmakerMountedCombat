@@ -520,18 +520,34 @@ namespace KingmakerMountedCombat.Diagnostics
             if (Scenario == Chunk7OwnedPairsSelection.Scenario)
             {
                 if (PersistenceLoad == null || OwnedPairs == null) errors.Add("Inherited pairs require their exact qualified native input descriptor.");
-                else if (OwnedPairs.IsOwnerSeed)
+                else if (OwnedPairs.OwnerSeedSetup)
                 {
                     // Registry-supplied exact owner-seed names, admitted generically as in the
-                    // cold owner-seed kind; never the producer fixture identity.
+                    // cold owner-seed kind; never the producer fixture identity and never an
+                    // owner-seed-derived Manual relabelled as an owner seed.
                     errors.AddRange(PersistenceLoad.Validate("persistenceLoad", PersistenceLoad.InternalName, "^[A-Za-z0-9][A-Za-z0-9_.-]{0,95}\\.zks$"));
                     if (!Chunk7AssistedColdInventorySelection.IsOwnerSeedName(PersistenceLoad.InternalName) ||
                         !Chunk7AssistedColdInventorySelection.IsOwnerSeedLeaf(PersistenceLoad.FileName) ||
+                        PersistenceLoad.InternalName == Chunk7OwnedPairsSelection.OwnerSeedManualName ||
+                        PersistenceLoad.FileName.EndsWith("_" + Chunk7OwnedPairsSelection.OwnerSeedManualName + ".zks", StringComparison.Ordinal) ||
                         Fixture?.Working == null || PersistenceLoad.GameId == Fixture.Working.GameId || PersistenceLoad.GameId == Fixture.Baseline?.GameId ||
                         !Guid.TryParseExact(PersistenceLoad.GameId, "D", out var ownerSeedGameId) || ownerSeedGameId == Guid.Empty ||
                         string.IsNullOrWhiteSpace(PersistenceLoad.GameName) || PersistenceLoad.Sha256 == Fixture.Working.Sha256 ||
                         PersistenceLoad.Sha256 == Fixture.Baseline?.Sha256 || PersistenceLoad.Sha256 != OwnedPairs.SeedSha256)
                         errors.Add("Owner seed lacks its exact registered non-aliasing identity.");
+                }
+                else if (OwnedPairs.IsOwnerSeedDerivedLoad)
+                {
+                    // Exactly the producer's written owner-seed-derived Manual: its own native
+                    // name, the pinned bytes, never the immutable seed or protected fixtures.
+                    errors.AddRange(PersistenceLoad.Validate("persistenceLoad", Chunk7OwnedPairsSelection.OwnerSeedManualName,
+                        "^Manual_[1-9][0-9]*_" + Chunk7OwnedPairsSelection.OwnerSeedManualName + "\\.zks$"));
+                    if (Fixture?.Working == null || PersistenceLoad.GameId == Fixture.Working.GameId || PersistenceLoad.GameId == Fixture.Baseline?.GameId ||
+                        !Guid.TryParseExact(PersistenceLoad.GameId, "D", out var derivedGameId) || derivedGameId == Guid.Empty ||
+                        string.IsNullOrWhiteSpace(PersistenceLoad.GameName) || PersistenceLoad.Sha256 == Fixture.Working.Sha256 ||
+                        PersistenceLoad.Sha256 == Fixture.Baseline?.Sha256 || PersistenceLoad.Sha256 != OwnedPairs.SourceArchiveSha256 ||
+                        PersistenceLoad.Sha256 == OwnedPairs.SeedSha256)
+                        errors.Add("Owner-seed-derived cold input must be exactly the producer's written Manual, distinct from the immutable seed and protected Working/Baseline.");
                 }
                 else
                 {
