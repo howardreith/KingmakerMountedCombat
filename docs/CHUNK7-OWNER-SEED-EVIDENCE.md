@@ -96,3 +96,64 @@ The lab receipts are under `analysis-cache/chunk7-continuation/owner-seed-review
 | `postreview-delta-review01` (`928987f2..162a6d14`) | PASS |
 
 An external targeted review of PR #5 is recorded in Directive 3.
+
+## Checkpoint 3: owner-seed-derived two-pair native Manual save
+
+| Field | Value |
+|---|---|
+| Run | `20261018-c7b-world26-ownerseed-b3s1d-save`: batch 3, slot 5. This is the source used by checkpoint 4. An earlier PASS, `20261018-c7b-world25-ownerseed-b3s1c-save` on preview.25, was superseded because its candidate predates the load-admission fix. |
+| Scenario | `chunk7-owned-two-pair-campaign`, selection `owner-seed-persistence-save`, PersistenceCase `multi-exploration-manual`, base-game-only, one load, exactly one write |
+| Product | `0.1.0-chunk7b-preview.26`, commit `20e23743`, DLL MVID `7cf6a912-c79c-4c3d-96aa-e9717974fa1a` |
+| Harness | the same commit; suite `chunk7b-world26-20261018` |
+| Output | `Manual_304_KMC_C7_SEED_WORLD.zks`, SHA-256 `b4d1ede7843c600f201dcd7b71cd2558cad44210e7e0eb78d9a58f6e89f64003`; the on-disk bytes equal the recorded write |
+| Terminal result | **PASS** |
+
+**Observed:**
+- The disclosed owner-seed setup, ending at SETUP-COMPLETE, then two native Mounts.
+- Dismount and each rider's primary control were bound into empty hotbar slots. This happened after SETUP-COMPLETE and is disclosed.
+- Exactly one native Manual, written through `Game.SaveGame(SaveManager.CreateNewSave(...))`. The run observed the request, the `PrepareSave` copy, the KMC serialization barrier, the save worker and completion.
+- The schema-3 KMC metadata was read back from the written bytes. It holds two pair records equal to the live registry at the save boundary (owners, generations, riders and Horses), plus 4 control slots.
+- Ancestry is recorded as `owner-seed-derived` with disclosed assistance. Acquisition proof is false.
+
+**Restoration:** Mods and save-inventory digests identical before and after; no unexpected runtime write.
+
+**Earlier attempts (batch 3, all restored):**
+- Slot 1: a compound pre-save check failed without naming its condition.
+- Slot 2: the loader's own descriptor was required to be the same object as the save-list entry. It never can be: `WorkingFixtureLoader` uses `LoadZipSave`.
+
+## Checkpoint 4: separate-process cold load of the derived Manual
+
+| Field | Value |
+|---|---|
+| Run | `20261018-c7b-world26-ownerseed-b4s1-load`: batch 4, slot 1 |
+| Scenario | `chunk7-owned-two-pair-campaign`, selection `owner-seed-persistence-load`, pinned to checkpoint 3 by run id, world-evidence SHA-256 `01438210…` and Manual SHA-256 `b4d1ede7…`; same candidate as checkpoint 3 |
+| Product | `0.1.0-chunk7b-preview.26`, commit `20e23743` |
+| Terminal result | **PASS** |
+
+**Observed:**
+- A separate process: cold pid 24060, producer pid 57108.
+- It loaded an independent copy of the Manual through the production loader. KMC admitted it through the all-pair archive admission, fixed in `0ccda7cc`.
+- Both pairs were restored with the producer's identities:
+  - rider A `73681ef2-…` on Horse `e3a3be8b-…`, owner `6639ced4…`, generation 1;
+  - rider B `fd213210-…` on Horse `e9cd259e-…`, owner `3a4c6e04…`, generation 4.
+- Restoration entries were captured by the native restoration observer. Both restored pairs then moved natively. Zero writes, one load.
+
+**Restoration:** Mods and save-inventory digests identical before and after; no unexpected runtime write.
+
+**Earlier attempt (batch 3, slot 4, `20261018-c7b-world25-ownerseed-b3s2-load`):**
+- KMC refused its own schema-3 save at native load admission. The schema-1/2 reader reports all-pair archives as Future. This is a product defect, fixed in `0ccda7cc`.
+- The host then threw into the native settings-refresh coroutine, so no result was committed and restoration was blocked.
+- Recovered through the reviewed tooling:
+  - the game process exited on its own;
+  - Mods and saves were restored exactly;
+  - PlayerPrefs `KingdomDifficulty` and Unity's session counters were restored to the pre-run snapshot;
+  - `Params.xml` stayed byte-identical.
+
+**Excluded:** acquisition (setup is disclosed assistance), Quick/Auto/area/removal/migration persistence, combat after load, door behaviour.
+
+## Not yet accepted
+
+- **Two-pair RT combat** (`owner-seed-realtime-core`) has not passed.
+  - Batch 4, slots 2–5 reached, in turn: the AI-lease check; a non-pair lease wrongly holding pair B (fixed); a null command-slot capture (fixed); then the companion-action accounting window.
+  - The last is under offline diagnosis.
+- **TB rider-first and mount-first** have not run.
