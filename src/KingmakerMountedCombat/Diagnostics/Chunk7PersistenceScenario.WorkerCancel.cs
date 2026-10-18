@@ -57,10 +57,11 @@ namespace KingmakerMountedCombat.Diagnostics
                 NativeSaveWorkerBoundary.WorkerEntryCount == holdEntriesBefore + 1 && NativeSaveWorkerBoundary.WorkerHoldCount == holdCountBefore,
                 "Replacement cannot start without the exact ordinary seed callback, completed worker and native header.");
             var seed = completion.Written;
+            var manualName = request.OwnedPairs == null ? ManualName : replaySaveAuthority.OwnedPairsOutputName;
             var descriptors = manager.Take(4).ToArray();
             Require(descriptors.Length == 2 && descriptors.Count(v => ReferenceEquals(v, seed)) == 1 &&
                 descriptors.Count(v => v.FileName == request.SelectedChunk7Fixture.FileName) == 1 &&
-                seed.FileName == SelectedOutputLeaf(SaveInfo.SaveType.Manual) && seed.Name == ManualName && seed.Type == SaveInfo.SaveType.Manual &&
+                seed.FileName == SelectedOutputLeaf(SaveInfo.SaveType.Manual) && seed.Name == manualName && seed.Type == SaveInfo.SaveType.Manual &&
                 seed.GameId == request.SelectedChunk7Fixture.GameId && seed.GameName == request.SelectedChunk7Fixture.GameName &&
                 seed.Area?.AssetGuidThreadSafe == ExpectedArchiveArea && seed.IsActuallySaved && seed.HasFileOnDisk &&
                 seed.OperationState == SaveInfo.StateType.None && manager.IsSaveAllowed(), "The seed is not the exact completed native Manual descriptor.");
@@ -68,7 +69,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var info = new FileInfo(seed.FolderName); var seedHash = Hash(info.FullName);
             Require(info.Length > 0, "The completed native seed is empty.");
             var number = manager.FindUnusedSaveNumber(SaveInfo.SaveType.Manual);
-            var leaf = "Manual_" + number.ToString(System.Globalization.CultureInfo.InvariantCulture) + "_" + ManualName + ".zks";
+            var leaf = "Manual_" + number.ToString(System.Globalization.CultureInfo.InvariantCulture) + "_" + manualName + ".zks";
             if (request.OwnedPairs != null)
                 replaySaveAuthority.ReserveOwnedPairsReplacement(request, Game.Instance, manager, seed, BoundaryTarget(seed), number);
             Require((request.OwnedPairs == null ? number == 301 && leaf == "Manual_301_KMC_C7_WORLD.zks" :
@@ -104,10 +105,11 @@ namespace KingmakerMountedCombat.Diagnostics
                 "The held worker changed its seed before native replacement.");
             var descriptors = Game.Instance.SaveManager.Take(4).ToArray();
             var prepared = descriptors.SingleOrDefault(v => v.FileName == boundaryReplacementLeaf);
+            var manualName = request.OwnedPairs == null ? ManualName : replaySaveAuthority.OwnedPairsOutputName;
             Require(descriptors.Length == 2 && prepared != null && !ReferenceEquals(prepared, boundarySeedDescriptor) &&
                 descriptors.All(v => !ReferenceEquals(v, boundarySeedDescriptor)) &&
                 descriptors.Count(v => v.FileName == request.SelectedChunk7Fixture.FileName) == 1 &&
-                prepared.Name == ManualName && prepared.Type == SaveInfo.SaveType.Manual &&
+                prepared.Name == manualName && prepared.Type == SaveInfo.SaveType.Manual &&
                 prepared.GameId == request.SelectedChunk7Fixture.GameId && prepared.GameName == request.SelectedChunk7Fixture.GameName &&
                 prepared.Area?.AssetGuidThreadSafe == ExpectedArchiveArea,
                 "Held native replacement did not retain its own distinct prepared descriptor and source inventory.");

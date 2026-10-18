@@ -94,7 +94,8 @@ namespace KingmakerMountedCombat.Diagnostics
             // At this point A mounted through real input, B is still unmounted.
             // Only A's two real mounted hotbar slots exist at the save request;
             // B's later attachment must not invent hotbar bindings.
-            BindSlots(); BeginSaveBoundaryObservation();
+            if (OwnerSeedCheckpointSave) RequireOwnerSeedPreparedSlots(); else BindSlots();
+            BeginSaveBoundaryObservation();
             Require(actors.All(a => a.Commands.Empty) && !Mounted(secondRider, secondMount), "Native approach cannot start over a command or mounted B.");
             boundaryApproachOrigin = secondRider.Position;
             var found = false;
@@ -213,10 +214,12 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (LoadingProcess.Instance.IsLoadingInProcess || LoadingProcess.Instance.QueuedNames.Any() ||
                     NativePersistenceIsolation.HasPendingWrites || persistence.HasActiveSaveScope || persistence.HasSaveAdmissionFence || !callback) return true;
                 Require(Mounted(secondRider, secondMount) && InputSettled(), "Native deferred save completed without B's exact Mount settlement.");
-                FinishInput(); RememberOwners(); AssertOwners(); AssertSlots();
+                FinishInput();
+                if (OwnerSeedCheckpointSave) RememberOwnerSeedRemountedSecondPair(); else RememberOwners();
+                AssertOwners(); AssertSlots();
                 Require(pendingContinued != null && saveBoundaryProbe.Complete && persistence.DeferredSaveCount == 1 && persistence.FailedSaveCount == 0,
                     "Deferred native header/preparation observation failed.");
-                Pass("C7-persistence-two-native-mounts");
+                if (!OwnerSeedCheckpointSave) Pass("C7-persistence-two-native-mounts");
                 CompleteSaveBoundary("deferred-save-settled");
                 Pass("C7-persistence-nonselected-mount-save-deferral"); Next(10); return true;
             }

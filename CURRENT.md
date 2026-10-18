@@ -30,6 +30,24 @@ has focused 126/0 checks and final independent review PASS after three retained 
 reviews closed malformed scalar, identity-format and conflicting-owner cases. Immutable
 raw re-evaluation is diagnostic only. No native transaction is live at this checkpoint.
 
+**Fresh zero checkpoint accepted:** b12s4 native Manual producer PASS in
+126.9279735 s and b12s5 separate-process cold load PASS in 119.7310995 s on the
+same frozen preview.41 product, with harness/reader `2b3d6702`. The save has zero
+mounted pairs and two retained participation owners. Exact restoration, native
+continuation and each Horse's independent native turn at N+1 passed. Original b12s2 remains
+FAIL, its dependent b12s3 was never launched, and b12s5 uses accepted b12s4 only.
+Batch 12 is settled with no live transaction. Source work now connects worker
+cancellation, nonselected-owner save fencing and legacy pending-survivor migration.
+
+The next source checkpoint is preview.42: explicit owner-seed worker replacement,
+nonselected-owner Mount save fencing and legacy schema-2 pending survivor paths,
+plus read-only stock transition discovery. Focused checks pass (authority401,
+boundary authority115, actual adapters78/26, owned reader584, source205,
+boundary reader204, combat source29 plus nested29/55/126, route19 and existing
+cold composition210; no failures in these final runs). Initial failed generated
+fixtures and the corrected live-versus-migrated owner comparison remain recorded.
+Independent source review found no additional defect. Candidate packaging and
+all five declared native batch-13 cases remain TODO at this source checkpoint.
 Earlier Directive 4 evidence remains on its original inputs: RT click integrity and
 first-action Mount in both orders (preview.35); Quick/Auto save plus cold load
 (preview.36); RT debt save/load (previews.37/.38); TB debt producer (preview.40).

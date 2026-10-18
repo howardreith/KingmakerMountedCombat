@@ -1118,12 +1118,13 @@ try{
                 # Owner seed: zero writes (the native game has no level-up autosave), so only the seed copy remains: no Auto_1 or any other entry.
                 $allLeaves=@(Get-ChildItem -LiteralPath $isolatedSaves -Force|ForEach-Object Name)
                 Assert-KmcChunk7OwnerSeedFinalSaveRoot ([pscustomobject]$request) $allLeaves
-            }elseif($nativeLeaves.Count-ne(1+$writes)-or$request.persistenceLoad.fileName-cnotin$nativeLeaves){throw 'Inherited isolated archive inventory differs from its exact selected load/write contract.'}
-            if($writes-eq1-and-not(Test-KmcChunk7OwnedPairsOwnerSeed ([pscustomobject]$request))){
+            }elseif($writes-eq0){Assert-KmcChunk7OwnedFinalSaveRoot ([pscustomobject]$request) @(Get-ChildItem -LiteralPath $isolatedSaves -Force|ForEach-Object Name) $null}
+            if($writes-gt0-and-not(Test-KmcChunk7OwnedPairsOwnerSeed ([pscustomobject]$request))){
                 # The owner-seed Manual producer's receipt is its world evidence.
                 $ownedArtifact=Read-KmcJson (Join-Path $evidenceRoot $(if($seedManualRun){'chunk7-world-evidence.json'}else{'chunk7-persistence-evidence.json'}))
                 if($PersistenceCase-ceq'owned-schema1-resave-manual'){Assert-KmcOwnedSchema1ColdSource $request $verifiedOwnedSource $ownedArtifact}
                 Assert-KmcChunk7OwnedOutputEvidence ([pscustomobject]$request) $ownedArtifact.observations
+                Assert-KmcChunk7OwnedFinalSaveRoot ([pscustomobject]$request) @(Get-ChildItem -LiteralPath $isolatedSaves -Force|ForEach-Object Name) $ownedArtifact.observations
                 $outputLeaf=Get-KmcChunk7OwnedOutputLeaf ([pscustomobject]$request) $ownedArtifact.observations
                 if($outputLeaf-cnotin$nativeLeaves-or(Get-KmcSha256 (Join-Path $isolatedSaves $outputLeaf))-cne$ownedArtifact.observations.nativeWrite.sha256){throw 'Inherited fresh native output differs from its observed descriptor/hash.'}
                 if($seedManualRun){Assert-KmcChunk7OwnerSeedManualFinalSaveRoot ([pscustomobject]$request) @(Get-ChildItem -LiteralPath $isolatedSaves -Force|ForEach-Object Name) $outputLeaf}

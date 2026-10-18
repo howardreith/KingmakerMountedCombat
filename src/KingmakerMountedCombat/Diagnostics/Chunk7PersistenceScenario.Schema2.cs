@@ -28,7 +28,7 @@ namespace KingmakerMountedCombat.Diagnostics
             ValidateSchema2Continuity(schema2Imported, schema2Imported);
             schema2Input = Game.Instance.SaveManager.Single(s => s.FileName == request.PersistenceLoad.FileName);
             schema2InputHash = Hash(schema2Input.FolderName);
-            Require(schema2Input.Type == SaveInfo.SaveType.Manual && schema2Input.Name == ManualName &&
+            Require(schema2Input.Type == SaveInfo.SaveType.Manual && schema2Input.Name == request.PersistenceLoad.InternalName &&
                 schema2Input.FileName == (request.OwnedPairs == null ? NativeLeaf(SaveInfo.SaveType.Manual) : request.PersistenceLoad.FileName) &&
                 schema2Input.OperationState == SaveInfo.StateType.None && schema2Input.HasFileOnDisk,
                 "Schema-2 resave lost its exact read-only native input descriptor.");

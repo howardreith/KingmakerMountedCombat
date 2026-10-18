@@ -17,7 +17,8 @@ namespace KingmakerMountedCombat.Diagnostics
         private string ownedPairsReplacementLeaf;
         private object ownedPairsSeedDescriptor;
         internal string OwnedPairsReplacementLeaf { get { lock (sync) return ownedPairsReplacementLeaf; } }
-        private bool OwnedPairsWorkerReplacement => ownedPairsRequest?.OwnedPairs?.Case == "persistence-save" &&
+        private bool OwnedPairsWorkerReplacement => (ownedPairsRequest?.OwnedPairs?.Case == "persistence-save" ||
+            ownedPairsRequest?.OwnedPairs?.IsOwnerSeedCheckpointSave == true) &&
             ownedPairsRequest.PersistenceCase == "multi-owned-worker-cancel-manual" && maximumNativeWriteRequests == 2;
         private bool OwnedPairsReplacementReady(RuntimeSaveTarget target) => OwnedPairsWorkerReplacement &&
             ownedPairsReplacementLeaf != null && ownedPairsSeedDescriptor != null && target?.FileName == ownedPairsOutputLeaf &&

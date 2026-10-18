@@ -200,6 +200,8 @@ namespace KingmakerMountedCombat.Diagnostics
                     case 3:
                         if (!Mounted(secondRider, secondMount) || !InputSettled()) return;
                         FinishInput(); AfterNativeMounts(); break;
+                    case 6:
+                        PollOwnerSeedCheckpointPreparation(); break;
                     case 4:
                         if (!callback || NativePersistenceIsolation.HasPendingWrites || persistence.HasActiveSaveScope || persistence.HasSaveAdmissionFence) return;
                         ObserveSaved();

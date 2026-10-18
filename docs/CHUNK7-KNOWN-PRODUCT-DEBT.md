@@ -15,7 +15,7 @@ boundaries, with native continuation, no extra preparation and verified restorat
 The original preview.40 failure stays FAIL. Focused current reader tests also reject
 a reset of this value at either phase.
 
-## Zero-mounted checkpoint reader conflates save and attack phases — IN PROGRESS
+## Zero-mounted checkpoint reader conflates save and attack phases — PASS
 
 `20261018-c7b-world41-ownerseed-b12s2-zerosave` remains FAIL (game PASS, reader FAIL).
 The measured attacks happen while each pair is mounted; its native Dismount follows.
@@ -26,7 +26,10 @@ to the retained owner identity/generation and exact actor roles, refuses duplica
 owner/cross-role claims, and retains native timeMoved/displacement/budget checks.
 Three retained FAIL reviews found malformed-input and conflicting-role holes, now
 repaired with focused negatives. Final independent review PASS and 126/0 focused
-checks bind the current reader. A new native producer/cold load remains required.
+checks bind the current reader. Fresh native producer b12s4 and separate-process
+cold load b12s5 both PASS on the unchanged preview.41 product and source 2b3d6702
+reader, with exact restoration. Their zero-pair/two-retained-owner graph and native
+continuation are accepted. The original failed producer was never reused.
 A diagnostic re-evaluation never promotes the original failed run.
 
 ## RT party-brain attack proposals after a mounted pair attack (2026-10-18) — RESOLVED in preview.35

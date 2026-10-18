@@ -8,6 +8,7 @@ if(-not$OutputDirectory){$OutputDirectory=Join-Path (Get-KmcLabRoot) ('analysis-
 $clock=[Diagnostics.Stopwatch]::StartNew();$results=[Collections.Generic.List[object]]::new()
 $fixtures=(Get-Content -LiteralPath $FixturePath -Raw|ConvertFrom-Json).fixtures
 function Copy-Value($v){$v|ConvertTo-Json -Depth 90|ConvertFrom-Json}
+. (Join-Path $repo 'tests/Chunk7Diagnostics/OwnerSeedCheckpointPreparationFixtures.ps1')
 function Invoke-OwnedReader($Value){$r=$Value.request;$v=$Value.artifact;switch -Regex ($Value.name){'^exploration$'{Assert-KmcChunk7WorldEvidence $r $v 'PASS';break}'^combat-'{Assert-KmcChunk7CombatEvidence $r $v 'PASS';break}'^realtime-'{Assert-KmcChunk7RealtimeEvidence $r $v 'PASS';break}'^native-life-'{Assert-KmcChunk7NativeLifeEvidence $r $v 'PASS';break}'^persistence-'{Assert-KmcChunk7PersistenceObservation $r $v 'PASS';break}default{throw 'Unknown fixture name'}}}
 function Check([string]$Name,[scriptblock]$Body,[bool]$Refuse=$false,[string]$Pattern=''){$errorText=$null;$pass=$false;try{&$Body;$pass=-not$Refuse}catch{$errorText=$_.Exception.Message;$pass=$Refuse-and(-not$Pattern-or$errorText-match$Pattern)};$results.Add([pscustomobject]@{name=$Name;pass=$pass;expectedRefusal=$Refuse;error=$errorText});if(-not$pass){Write-Output ('FAIL '+$Name+': '+$errorText)}}
 function Mutate([string]$Name,[string]$Case,[scriptblock]$Mutation,[string]$Pattern=''){$v=Copy-Value @($fixtures|Where-Object name -CEQ $Case)[0];&$Mutation $v;Check $Name {Invoke-OwnedReader $v} $true $Pattern}
@@ -634,18 +635,37 @@ function New-KmcOwnerSeedCombatCheckpointSaveFixture([string]$Checkpoint){
  $o|Add-Member ownerSeedCheckpointSource ([pscustomobject][ordered]@{contract='owner-seed-checkpoint-source-v1';role='producer';ancestry='owner-seed-derived';acquisitionProof=$false;ordinaryProducerAncestry=$false;manualProducerRunId=$s.sourceRunId;manualProducerArtifactSha256=$s.sourceArtifactSha256;manualSha256=$s.sourceArchiveSha256;acceptedConsumerRunId=$s.checkpointSourceRunId;acceptedConsumerArtifactSha256=$s.checkpointSourceArtifactSha256;seedId=$s.seedId;seedSha256=$s.seedSha256;checkpoint=$Checkpoint
   candidates=[pscustomobject][ordered]@{contract='owner-seed-derived-candidate-identity-v1';sameCandidate=$true;crossCandidateAllowed=$true;producer=[pscustomobject][ordered]@{runId=$s.sourceRunId;commit=$r.commit;dllSha256=$r.dllSha256;dllMvid=$r.dllMvid};current=[pscustomobject][ordered]@{commit=$r.commit;dllSha256=$r.dllSha256;dllMvid=$r.dllMvid};consumerRunId=$s.checkpointSourceRunId;consumerArtifactSha256=$s.checkpointSourceArtifactSha256;manualSchema=3;currentWriterSchema=3}}) -Force
  $o.combatCheckpoint.source|Add-Member targetAuthorization ([pscustomobject][ordered]@{contract='chunk7-combat-target-authorization-v1';basis='owner-seed-derived-disposable-copy';ownerApproval='docs/CHUNK7-OWNER-DIRECTIVES-2026-10-16.md, Owner decisions on the combat slice (October 17, 2026): combat target approved';workingSha256=$null;seedSha256=$s.seedSha256;derivedManualSha256=$s.sourceArchiveSha256;producerRunId=$s.sourceRunId;producerArtifactSha256=$s.sourceArtifactSha256;consumerRunId=$s.checkpointSourceRunId;consumerArtifactSha256=$s.checkpointSourceArtifactSha256;area=$r.persistenceLoad.area;riderPosition=@(0.0,0.0,0.0);position=@(0.0,0.0,3.5);placementValidated=$true}) -Force
+ if($Checkpoint-ceq'legacy-mounted-pending-tb-manual'){
+  # Generated historical-format boundary: schema 2 has no stable live owner
+  # identity/generation. Its adapter derives another ID and generation one.
+  $o.mountedStart.owners[0].generation=7;$o.mountedStart.loadedArchive.Pairs[0].Generation=7
+  foreach($snapshot in $o.snapshots){$snapshot.owners[0].ownerId=$o.mountedStart.owners[0].ownerId;$snapshot.owners[0].generation=7}
+  Set-KmcOwnerSeedNativePreparationFixture $v $false
+ }
  $v.name='persistence-owner-seed-checkpoint-save-'+$Checkpoint;$v
 }
 function New-KmcOwnerSeedCombatCheckpointLoadFixture([string]$Checkpoint){
  $v=Copy-Value @($fixtures|Where-Object name -CEQ ('persistence-load-'+$Checkpoint))[0];$r=$v.request;$o=$v.artifact.observations
  $s=New-KmcOwnerSeedCheckpointSelection $r.ownedPairs 'owner-seed-checkpoint-load' ('7'*64) 'synthetic-owner-seed-checkpoint';$r.ownedPairs=$s;Set-KmcOwnerSeedDerivedLabels $o $s
  foreach($d in @($r.persistenceLoad,$o.loadedDescriptor)){$d.internalName='KMC_C7_SEED_CHECKPOINT';$d.fileName='Manual_304_KMC_C7_SEED_CHECKPOINT.zks'}
+ if($Checkpoint-ceq'legacy-mounted-pending-tb-manual'){
+  $s.expectedNativeWriteCount=1
+  foreach($row in @($o.ownedOutputAdmission.nativeInventory)+@($o.ownedOutputCompletion.nativeInventory)){if($row.fileName-ceq'Manual_43_KMC_C7_WORLD.zks'){$row.fileName=$r.persistenceLoad.fileName;$row.nativeName=$r.persistenceLoad.internalName}else{$row.fileName='Manual_305_KMC_C7_SCHEMA2.zks'}}
+  $o.ownedOutputAdmission.number=305;$o.ownedOutputAdmission.leaf='Manual_305_KMC_C7_SCHEMA2.zks'
+  foreach($auth in @($o.ownedOutputAdmission.authority,$o.ownedOutputCompletion.authority)){$auth.number=305;$auth.leaf='Manual_305_KMC_C7_SCHEMA2.zks'}
+  $o.nativeWrite.path=$o.nativeWrite.path.Replace('Manual_44_KMC_C7_SCHEMA2.zks','Manual_305_KMC_C7_SCHEMA2.zks')
+ }
  $v.name='persistence-owner-seed-checkpoint-load-'+$Checkpoint;$v
 }
 # The combat checkpoint producer receipt fields the runner compares: the restored start's owners and slots,
 # the written archive the cold process restored, the producer's saved target and its debt proof.
 function New-KmcOwnerSeedCombatCheckpointProducer($Cold){
  $p=New-KmcOwnerSeedCheckpointProducer $Cold;$po=$p.observations;$explore=Get-KmcSeedRestoredGraph;$c=$Cold.artifact.observations
+ if($Cold.request.persistenceCase-ceq'legacy-mounted-pending-tb-manual'){
+  $full=New-KmcOwnerSeedCombatCheckpointSaveFixture 'legacy-mounted-pending-tb-manual';$fullO=$full.artifact.observations
+  $fullO.nativeWrite.sha256=$Cold.request.persistenceLoad.sha256;$fullO.nativeWrite.length=$Cold.request.persistenceLoad.length;$fullO.nativeWrite.archive=Copy-Value $c.loadedArchive
+  $fullO.ownerSeedCheckpointSource=$po.ownerSeedCheckpointSource;$fullO.inheritedCleanup=Copy-Value $c.inheritedFixture;$fullO.processId=4343;$p.observations=$fullO;return $p
+ }
  $po.mountedStart.owners=@($explore.Pairs|ForEach-Object{[pscustomobject][ordered]@{ownerId=(ConvertTo-KmcChunk7PairIdN $_.PairId);generation=$_.Generation;riderId=$_.Rider.Id;mountId=$_.Mount.Id}})
  $po.mountedStart.slots=@($explore.Slots|ForEach-Object{[pscustomobject][ordered]@{actorId=$_.ActorId;index=$_.Index;kind=$_.Kind}})
  $po|Add-Member combatDebtProof $true;$po|Add-Member combatCheckpoint ([pscustomobject][ordered]@{targetId=$c.combatContinuation.targetId;targetGroupId=$c.combatContinuation.targetGroupId});$p
@@ -686,6 +706,47 @@ Check 'acquired-ancestry combat checkpoint keeps KMC_C7_WORLD and native Mounts'
 Check 'acquired-ancestry combat checkpoint refuses a restored mounted start' {$v=New-KmcOwnerSeedCombatCheckpointSaveFixture 'multi-tb-debt-manual';$plain=Copy-Value @($fixtures|Where-Object name -CEQ 'persistence-save-multi-tb-debt-manual')[0];$plain.artifact.observations|Add-Member mountedStart $v.artifact.observations.mountedStart;Invoke-OwnedReader $plain} $true 'Only the owner-seed checkpoint producer'
 Check 'acquired-ancestry combat checkpoint refuses the owner-seed checkpoint name' {$v=Copy-Value @($fixtures|Where-Object name -CEQ 'persistence-save-multi-tb-debt-manual')[0];$o=$v.artifact.observations;$o.nativeWrite.nativeName='KMC_C7_SEED_CHECKPOINT';$o.ownedOutputAdmission.leaf='Manual_43_KMC_C7_SEED_CHECKPOINT.zks';Invoke-OwnedReader $v} $true
 Check 'acquired-ancestry combat cold load refuses an owner-seed checkpoint Manual' {$v=Copy-Value @($fixtures|Where-Object name -CEQ 'persistence-load-multi-tb-debt-manual')[0];foreach($d in @($v.request.persistenceLoad,$v.artifact.observations.loadedDescriptor)){$d.internalName='KMC_C7_SEED_CHECKPOINT';$d.fileName='Manual_43_KMC_C7_SEED_CHECKPOINT.zks'};Invoke-OwnedReader $v} $true
+Check 'owner-seed genuine one-owner schema2 producer preserves live A and derives historical custody' {$v=New-KmcOwnerSeedCombatCheckpointSaveFixture 'legacy-mounted-pending-tb-manual';Invoke-OwnedReader $v;$o=$v.artifact.observations;if($o.mountedStart.owners[0].ownerId-ceq$o.nativeWrite.archive.Pairs[0].PairId-or$o.mountedStart.owners[0].generation-ne7-or$o.nativeWrite.archive.Pairs[0].Generation-ne1){throw 'Generated case did not distinguish live and historically migrated custody.'}}
+Check 'owner-seed schema2 cold loader writes one separate current-format Manual' {$v=New-KmcOwnerSeedCombatCheckpointLoadFixture 'legacy-mounted-pending-tb-manual';Invoke-OwnedReader $v;if((Get-KmcChunk7OwnedOutputLeaf $v.request $v.artifact.observations)-cne'Manual_305_KMC_C7_SCHEMA2.zks'-or(Get-KmcChunk7OwnedWriteCount $v.request)-ne1){throw 'Schema2 cold/resave output or quota differs.'}}
+Check 'owner-seed schema2 cold graph matches the prepared one-owner producer' {$v=New-KmcOwnerSeedCombatCheckpointLoadFixture 'legacy-mounted-pending-tb-manual';Assert-KmcChunk7OwnerSeedCheckpointColdSource $v.request (New-KmcOwnerSeedCombatCheckpointProducer $v) $v.artifact}
+foreach($fault in @('missing-preparation','direct-service-label','wrong-Dismount-caster','missing-input','extra-input','not-retired','retained-obligation','unsettled-command','unsettled-preparation','busy-save','changed-survivor','lost-actor','actor-refund','prepared-actor','second-control','slot-index-string','owner-role-array','invented-activation','wrong-migrated-owner','wrong-migrated-generation')){
+ Check ('owner-seed legacy preparation refuses '+$fault){$v=New-KmcOwnerSeedCombatCheckpointSaveFixture 'legacy-mounted-pending-tb-manual';$o=$v.artifact.observations;$p=$o.ownerSeedCheckpointPreparation
+  switch($fault){
+   'missing-preparation'{$o.PSObject.Properties.Remove('ownerSeedCheckpointPreparation')}
+   'direct-service-label'{$p.input.label='direct-service-cleanup';$o.inputs[0].label=$p.input.label}
+   'wrong-Dismount-caster'{$p.input.casterId=$v.request.ownedPairs.riderAId;$o.inputs[0].casterId=$p.input.casterId}
+   'missing-input'{$o.inputs=@()}
+   'extra-input'{$o.inputs=@($o.inputs)+@($o.inputs)}
+   'not-retired'{$p.after.secondRiderOwnerAbsent=$false}
+   'retained-obligation'{$p.after.secondPairCanRelease=$false}
+   'unsettled-command'{$p.after.secondPairCommandsRetained=$true}
+   'unsettled-preparation'{$p.after.unsettledPreparation=$true}
+   'busy-save'{$p.after.saveBusy=$true}
+   'changed-survivor'{$p.after.owners[0].generation++}
+   'lost-actor'{$p.after.actors=@($p.after.actors|Select-Object -First 3)}
+   'actor-refund'{$p.after.actors[0].native.Standard=99.0}
+   'prepared-actor'{$p.after.actors[0].prepared=$true}
+   'second-control'{$p.slotsAfter[0].ActorId=$v.request.ownedPairs.riderBId}
+   'slot-index-string'{$p.slotsAfter[0].Index=[string]$p.slotsAfter[0].Index}
+   'owner-role-array'{$p.before.owners[1].mountId=@($p.before.owners[1].mountId)}
+   'invented-activation'{$o.nativeWrite.archive.Participations[0].State.Activation=[pscustomobject]@{Sequence=1}}
+   'wrong-migrated-owner'{$old=$o.nativeWrite.archive.Pairs[0].PairId;$new=$o.mountedStart.owners[0].ownerId;$raw=$o.nativeWrite.archive|ConvertTo-Json -Depth 90;$o.nativeWrite.archive=$raw.Replace($old,$new)|ConvertFrom-Json}
+   'wrong-migrated-generation'{$o.nativeWrite.archive.Pairs[0].Generation=7;$o.nativeWrite.archive.Participations[0].Generation=7}
+  };Invoke-OwnedReader $v
+ } $true
+}
+foreach($fault in @('missing-native-preparation','changed-surviving-owner','two-owners-in-legacy-input','resave-zero-quota','schema3-input-name','both-readbacks-use-live-owner')){
+ Check ('owner-seed schema2 cold source refuses '+$fault){$v=New-KmcOwnerSeedCombatCheckpointLoadFixture 'legacy-mounted-pending-tb-manual';$p=New-KmcOwnerSeedCombatCheckpointProducer $v
+  switch($fault){
+   'missing-native-preparation'{$p.observations.PSObject.Properties.Remove('ownerSeedCheckpointPreparation')}
+   'changed-surviving-owner'{$p.observations.mountedStart.owners[0].generation++}
+   'two-owners-in-legacy-input'{$v.artifact.observations.loadedArchive.Pairs=@($v.artifact.observations.loadedArchive.Pairs)+@($p.observations.mountedStart.loadedArchive.Pairs[1])}
+   'resave-zero-quota'{$v.request.ownedPairs.expectedNativeWriteCount=0}
+   'schema3-input-name'{$v.request.persistenceLoad.internalName='KMC_C7_SCHEMA2';$v.request.persistenceLoad.fileName='Manual_305_KMC_C7_SCHEMA2.zks'}
+   'both-readbacks-use-live-owner'{$old=$v.artifact.observations.loadedArchive.Pairs[0].PairId;$new=$p.observations.mountedStart.owners[0].ownerId;foreach($object in @($p.observations.nativeWrite,$v.artifact.observations)){$key=if($object.PSObject.Properties['loadedArchive']){'loadedArchive'}else{'archive'};$raw=$object.$key|ConvertTo-Json -Depth 90;$object.$key=$raw.Replace($old,$new)|ConvertFrom-Json}}
+  };Assert-KmcChunk7OwnerSeedCheckpointColdSource $v.request $p $v.artifact
+ } $true
+}
 $clock.Stop();[void][IO.Directory]::CreateDirectory($OutputDirectory);$passed=@($results|Where-Object pass).Count;$failed=$results.Count-$passed
 [IO.File]::WriteAllText((Join-Path $OutputDirectory 'receipt.json'),([pscustomobject]@{passed=$passed;failed=$failed;elapsedSeconds=$clock.Elapsed.TotalSeconds;nativeInvoked=$false;archiveRead=$false;results=@($results)}|ConvertTo-Json -Depth 12),[Text.UTF8Encoding]::new($false))
 Write-Output ('Owned two-pair reader: '+$passed+' PASS / '+$failed+' FAIL');if($failed){exit 1}

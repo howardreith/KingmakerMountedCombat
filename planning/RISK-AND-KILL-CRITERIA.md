@@ -2,8 +2,9 @@
 
 IN PROGRESS. The saved non-current native-boundary movement overwrite is fixed
 and natively accepted in preview.41 b12s1; original b11s2 FAIL is preserved.
-Zero-mounted retained-state qualification remains open after b12s2's reader
-phase error, with raw/native and external verdicts kept separately. Active-pair
+Zero-mounted retained-state save/cold qualification passed in fresh b12s4/b12s5
+after the reviewed reader correction. Original b12s2 FAIL remains immutable; its
+archive was not used as cold input. Native and external verdicts stay separate. Active-pair
 approach exceptions must bind scalar native identities, generations, roles and
 turn observations and reject conflicting claims; native movement/cost bounds
 remain required. Pending survivor, global save/worker barriers, area continuity,

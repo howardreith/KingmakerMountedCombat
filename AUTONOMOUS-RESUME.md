@@ -1,5 +1,51 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## Latest execution checkpoint — October 18, Codex
+
+HEAD at the start of this source checkpoint was
+`2b3d6702da3b8953a31b81a37bd40a0722f2280e`, successor branch at the
+approved repository root, guarded-pushed and remote verified. No game or runtime
+transaction is live. Batch 12 is settled: fresh zero producer
+`20261018-c7b-world41-ownerseed-b12s4-zerosave` PASS (126.9279735 s, evidence
+`94aadf84f7a3a1f2d778460a87c2fee8bea0b2ad0ebe56abf627295a2e6d3562`),
+actual Manual SHA `8f4854c12ad6a18c61258cd331ee080c38d079c77c492daf5b453565b8c18343`.
+Its separate-process cold load `20261018-c7b-world41-ownerseed-b12s5-zeroload`
+PASS (119.7310995 s, evidence
+`90cbfd266790dc66796eb13f6be01e50ab48dfeb75dbca81e72107c09175f83e`).
+Zero pairs/two retained owners, native continuation and each Horse's independent native turn at N+1 were accepted. Both runs: all five restoration flags true, all three
+transaction phases restored, profile bytes exact, lock absent. Original slot2
+FAIL remains; slot3 was never launched. Unchanged frozen preview.41 source and
+package identities below apply to all four actual batch-12 runs.
+
+Preview.42 source implementation is complete with final focused checks PASS:
+authority401, boundary authority115, actual worker/preparation78/26, source147,
+owned reader584/source205, save boundary204, combat source29+nested29/55/126,
+stock route19 and existing cold scenario/reader210. Independent review found no
+additional defect; its exact-hash receipt is
+`owner-seed-review/d4-source-connections-review01.json`. Source review does not
+accept native behavior. Final commands, durations, hashes and intermediate FAILs
+are in `codex-takeover/group13/`, including `external-ps-summary01.json` SHA
+`f2472d0087f470aafe3f6b0ec8857d632d8179d9b74443894a2f3c49bc1f0607`.
+
+Next: commit and guarded-push this coherent source, build preview.42 once, run
+Candidate with SkipBuild, then scoped WhatIf and batch13 native cases. Native
+batch ledger is `owner-seed-batch13/batch13-ledger.json`, max five declared:
+worker save, pending Mount barrier save, schema2 survivor save, separate-process
+historical cold/native resave, owner-seed read-only stock route inventory. Use
+only an accepted producer for the cold selection. Resolve exact source from the
+new package manifest after commit; preserve preview.41 freeze/receipts. No game
+or runtime transaction is live now. No native launch before all gates pass.
+Next work is IN PROGRESS source support for owner-seed worker cancellation,
+nonselected-owner pending Mount/save barrier, and legacy schema-2 pending survivor
+producer/cold-resave. Agent review_zero_checkpoint_reader owns C# and focused
+source tests; map_disable_removal owns runtime PS and evidence/authority tests;
+map_area_continuity is independent reviewer. Root adds bounded read-only stock
+area transition metadata observation to the existing owner-seed cold inventory.
+No native inputs may be launched until the coherent change passes focused checks,
+independent review, clean commit/push, one candidate build and scoped WhatIf.
+Schema1, third-process current-format migration loads, area lifecycle and actual
+registered disable/removal remain required after this group. Do not stop at a
+batch checkpoint. Private batch12 ledger and prior failures are preserved.
 ## Resume here — Codex takeover, Directive 4, October 18
 
 This section supersedes the active chronology below. Branch:
