@@ -1,5 +1,22 @@
 # Chunk 7B–7D — IN PROGRESS
 
+## October 19 - batch46 native diagnosis and preview.65 correction
+
+Preview.64 Candidate passed 6/0. Batch46 Manticore game PASS 5/0 produced a
+genuine non-capital Manual, but its **original outer result remains FAIL**
+because a zero-length native achievement-cache leaf lasted beyond the
+ten-second exit check. It settled later; exact-run guarded profile recovery
+passed separately. The Manual is not yet an accepted area fixture. Batch46
+Small **original game and outer results remain FAIL**: native paid CharGen
+charged 8,000 and granted 411 class starting gold, producing net debit 7,589.
+The [batch46 record](docs/CHUNK7-BATCH46-NATIVE-FOLLOWUP-2026-10-19.md)
+pins both failures and restoration. Preview.65 source checks the installed
+native first-level grant and once-only charge, while extending only the
+read-only zero-cache settlement wait to sixty seconds. Targeted native
+verification and all downstream area, Small, removal, progression, measured
+7D and selected private 7E gates remain open under the
+[standing mission](planning/CHUNK7-COMPLETION-MISSION.md).
+
 ## October 19 — batch45 native follow-up and preview.64 diagnosis
 
 Preview.63 Candidate passed 6/0. Batch45 Manticore game PASS 5/0 produced a

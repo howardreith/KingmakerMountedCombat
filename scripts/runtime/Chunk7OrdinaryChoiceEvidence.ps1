@@ -27,7 +27,9 @@ function Get-KmcChunk7OrdinaryChoiceProof($RunId,$Selection,$Paid,$InitialActorI
         Assert-KmcOrdinaryInteger $admission.nativeCost 1;Assert-KmcOrdinaryInteger $admission.nativeExpectedFinalLevel $s.minimumRangerLevel 20
         if($admission.moneyBefore-lt$admission.nativeCost-or$admission.nativeInventorySha256-cne$s.inventoryArtifactSha256){throw 'Native paid admission is unaffordable or unbound.'}
         $explicitSpend=$admission.PSObject.Properties.Name-ccontains'spendObservationContract'
-        if($explicitSpend-and$admission.spendObservationContract-cne'native-hire-spent-v1'){throw 'Native hire spend observation contract differs.'}
+        $startingGoldSpend=$ProductVersion-cmatch'^0\.1\.0-chunk7b-preview\.(\d+)$'-and[int]$Matches[1]-ge65
+        $spendContract=if($startingGoldSpend){'native-hire-spent-v2'}else{'native-hire-spent-v1'}
+        if($explicitSpend-and$admission.spendObservationContract-cne$spendContract){throw 'Native hire spend observation contract differs.'}
         $legacySpendVersion=$ProductVersion-cin@('0.1.0-test','synthetic')-or
             ($ProductVersion-cmatch'^0\.1\.0-chunk7b-preview\.(\d+)$'-and[int]$Matches[1]-lt63)
         if(-not$explicitSpend-and-not$legacySpendVersion){throw 'Current paid native evidence omitted its required spend observation.'}
@@ -100,6 +102,10 @@ function Get-KmcChunk7OrdinaryChoiceProof($RunId,$Selection,$Paid,$InitialActorI
                 if(-not$paid-or-not$explicitSpend-or$money-ne$admission.moneyBefore){throw 'Native hire spent more than once or outside the declared paid observation.'}
                 Assert-KmcOrdinaryInteger $row.moneyBefore $admission.moneyBefore $admission.moneyBefore
                 Assert-KmcOrdinaryInteger $row.nativeCost $admission.nativeCost $admission.nativeCost
+                if($startingGoldSpend){
+                    Assert-KmcOrdinaryInteger $row.nativeStartingGold 0 ([int]::MaxValue)
+                    $expectedMoney=[long](([decimal]$admission.moneyBefore)+[decimal]$row.nativeStartingGold-[decimal]$admission.nativeCost)
+                }elseif($null-ne$row.PSObject.Properties['nativeStartingGold']){throw 'Historical hire spend cannot claim a new native gold grant.'}
                 Assert-KmcOrdinaryInteger $row.moneyAfter $expectedMoney $expectedMoney
                 $money=$expectedMoney
             }

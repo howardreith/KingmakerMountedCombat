@@ -25,6 +25,26 @@ function Use-ExplicitHireSpend($ProofArgs){
     foreach($row in $ProofArgs.Rows){if([object]::ReferenceEquals($row,$commit)){$rows.Add($spend)};$rows.Add($row)}
     $ProofArgs.Rows=$rows.ToArray()
 }
+function Add-SyntheticStartingGold($Value){
+    if($Value-is[Array]){foreach($child in $Value){Add-SyntheticStartingGold $child};return}
+    if($Value-isnot[pscustomobject]){return}
+    foreach($property in $Value.PSObject.Properties){
+        if($property.Name-cin@('money','moneyExpected','moneyAfter')-and$property.Value-eq18000){$property.Value=18411}
+        elseif($property.Value-is[pscustomobject]-or$property.Value-is[Array]){Add-SyntheticStartingGold $property.Value}
+    }
+}
+function Use-StartingGoldHireSpend($ProofArgs){
+    Use-ExplicitHireSpend $ProofArgs;$ProofArgs.ProductVersion='0.1.0-chunk7b-preview.65'
+    $ProofArgs.Rows[0].spendObservationContract='native-hire-spent-v2'
+    $spend=@($ProofArgs.Rows|Where-Object event -CEQ 'native-hire-spent')[0]
+    $spend|Add-Member -NotePropertyName nativeStartingGold -NotePropertyValue 411
+    $pastSpend=$false
+    foreach($row in $ProofArgs.Rows){
+        if([object]::ReferenceEquals($row,$spend)){$pastSpend=$true}
+        if($pastSpend){Add-SyntheticStartingGold $row}
+    }
+    Add-SyntheticStartingGold $ProofArgs.BuilderComplete
+}
 foreach($paidCase in @($false,$true)){
     Check-Choice ('actual '+$(if($paidCase){'paid'}else{'existing'})+' sequence returns exact state without mutation') {
         $a=Choice-Args $paidCase;$before=ConvertTo-KmcChunk7Canonical $a;$p=Get-KmcChunk7OrdinaryChoiceProof @a
@@ -44,6 +64,25 @@ Check-Choice 'explicit native hire spend precedes first paid commit' {
     $p=Get-KmcChunk7OrdinaryChoiceProof @a
     Need-Choice ($p.money-eq18000-and$p.nativeCommitCount-eq4) 'Explicit native spend proof differs'
 }
+Check-Choice 'current paid hire retains native starting gold and once-only cost' {
+    $a=Choice-Args $true;Use-StartingGoldHireSpend $a
+    $p=Get-KmcChunk7OrdinaryChoiceProof @a
+    Need-Choice ($p.money-eq18411-and$p.nativeCommitCount-eq4) 'Starting-gold-aware native spend proof differs'
+}
+Check-Choice 'current paid hire refuses missing native starting gold' {
+    $a=Choice-Args $true;Use-StartingGoldHireSpend $a
+    (@($a.Rows|Where-Object event -CEQ 'native-hire-spent')[0]).PSObject.Properties.Remove('nativeStartingGold')
+    $null=Get-KmcChunk7OrdinaryChoiceProof @a
+} $true
+Check-Choice 'current paid hire refuses fabricated native starting gold' {
+    $a=Choice-Args $true;Use-StartingGoldHireSpend $a
+    (@($a.Rows|Where-Object event -CEQ 'native-hire-spent')[0]).nativeStartingGold++
+    $null=Get-KmcChunk7OrdinaryChoiceProof @a
+} $true
+Check-Choice 'current paid hire refuses prior spend contract' {
+    $a=Choice-Args $true;Use-StartingGoldHireSpend $a;$a.Rows[0].spendObservationContract='native-hire-spent-v1'
+    $null=Get-KmcChunk7OrdinaryChoiceProof @a
+} $true
 Check-Choice 'contracted paid evidence refuses missing spend event' {
     $a=Choice-Args $true;$a.Rows[0]|Add-Member -NotePropertyName spendObservationContract -NotePropertyValue 'native-hire-spent-v1'
     $null=Get-KmcChunk7OrdinaryChoiceProof @a
