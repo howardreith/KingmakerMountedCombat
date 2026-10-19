@@ -1,5 +1,21 @@
 # Chunk 7B–7D — IN PROGRESS
 
+## October 19 - batch33 recovery boundary
+
+The owner reported adding the installed-game parent as a managed writable
+root, but it is not effective for the current sandbox session. A one-scenario
+`fixture-intake` check passed scoped WhatIf and then failed before game launch
+at the same Mods directory move as batch32 slot1. The exact original Mods
+tree is intact in the run's transaction backup; the live Mods root is absent
+and the lock remains active because same-account guarded rollback also got
+Access Denied. The Working archive is unchanged and no P07 load result was
+obtained. No further native work may start until the exact guarded recovery
+completes under an effective authorized context. The owner has been asked to
+activate the exact parent writable root for this sandbox session. See
+[the updated diagnosis](docs/CHUNK7-DIRECTIVE4-EXECUTION-DIAGNOSIS-2026-10-19.md)
+and [the resume record](AUTONOMOUS-RESUME.md) for the run ID and recovery path.
+The batch33 original result remains FAIL.
+
 ## October 19 - Directive 4 execution and fixture diagnosis
 
 The current pushed reference is `e67dafa4` on the successor branch; PR #5 is
