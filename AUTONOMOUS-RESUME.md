@@ -1,5 +1,34 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## October 19 - standing engineering-completion mission adopted
+
+The owner adopted [the complete standing mission](planning/CHUNK7-COMPLETION-MISSION.md)
+and its [original matrices](planning/CHUNK7-ORIGINAL-SCOPE-AND-MATRICES.md)
+after batch35. It selects remaining 7B/Directive 4, 7C, 7D and readiness-gated
+private 7E through **CHUNK 7 ENGINEERING COMPLETE — OWNER ACCEPTANCE PENDING**.
+Historical statements below that 7E is not selected or that batch35 must be
+repeated no longer direct work. No merge, release, permanent installation or
+HUMAN PLAY acceptance is selected. At adoption, actual successor HEAD and
+remote are `70c94df837b5d6887fc8dbe1fed9b35087db1c0c`, worktree clean;
+Howie profile has no Kingmaker process or active transaction lock. The owner
+package was extracted without overwrite under
+`handoffs/KMC_Chunk7_Completion_Prompt_Package_20261019_codex`.
+
+Immediate source diagnosis: the pending-only producer explicitly invokes
+native `rider.LeaveCombat()` and `CombatController.RemoveUnit` as its labelled
+lifecycle stimulus, leaving A outside combat/unprepared with native End debt
+6/3/6 and a prepared round-1 KMC grant. Installed
+`UnitCombatJoinController.Tick` loops awake groups while TB combat is passing,
+and its `TickUnit` rejoins every eligible out-of-combat group member;
+`UnitCombatPrepareController.Tick` then clears any in-combat unprepared actor's
+cooldowns. Batch35 recorded `nativePassing=true` at A's post-fence join,
+followed by preparation in the same frame, before round renewal. The existing
+trace does not record the direct JoinCombat caller, so the next bounded native
+observation must distinguish that exact call path before a product correction.
+Use the existing read-only restoration probe; do not rerun an unchanged
+downstream schema load or broaden a tracing framework. Continue independent
+profile/progression/fixture work while that observation is prepared.
+
 ## October 19 - batch35 matched schema discriminator
 
 Branch `codex/mounted-combat-chunk7-successor`; preview.53 source is committed
