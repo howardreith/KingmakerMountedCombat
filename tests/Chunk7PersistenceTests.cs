@@ -140,6 +140,32 @@ public static class Chunk7PersistenceTests
         var pendingMountedArchive = MountedArchiveCodec.Encode(migratedPendingMounted.Data);
         Check(MountedArchiveCodec.Decode(pendingMountedArchive).Kind == MountedSaveReadKind.Current,
             "linked pending-only ownership remains valid through schema3 encode and decode");
+        var retained = Archive(2);
+        var spent = retained.Pairs[0];
+        retained.Participations[0].State = new SavedPairedState { PendingSplitId = spent.Mount.Id,
+            PendingSplitRound = retained.Combat.Round, SplitReleaseRound = -1 };
+        var spentActor = retained.Combat.Actors.Single(row => row.Native.Id == spent.Rider.Id);
+        spentActor.InCombat = false; spentActor.Prepared = false;
+        retained.Combat.Roster = retained.Combat.Roster.Where(row => row.ActorId != spent.Rider.Id).ToArray();
+        retained.Combat.Current = Turn(retained.Pairs[1].Rider.Id);
+        var mountGrant = retained.Combat.Allocations.Single(row => row.ActorId == spent.Mount.Id);
+        retained.Combat.Allocations = retained.Combat.Allocations.Concat(new[] { new SavedMovementAllocation {
+            ActorId = spent.Rider.Id, Round = retained.Combat.Round,
+            RoundStartTicks = retained.Combat.RoundStartTicks, GrantId = mountGrant.GrantId,
+            Prepared = true, Movement = new SavedMovementValues() } }).ToArray();
+        Check(RetainedNativeReentryPolicy.SpentPendingRiders(retained).SequenceEqual(new[] { spent.Rider.Id }) &&
+            !RetainedNativeReentryPolicy.SpentPendingRiders(retained).Contains(retained.Pairs[1].Rider.Id),
+            "retained pending split protects only the exact spent rider, not its mount or neighboring pair");
+        Check(RetainedNativeReentryPolicy.SameRetainedRound(retained.Combat, retained.Combat.Round,
+                retained.Combat.StartTicks, retained.Combat.RoundStartTicks) &&
+            !RetainedNativeReentryPolicy.SameRetainedRound(retained.Combat, retained.Combat.Round + 1,
+                retained.Combat.StartTicks, retained.Combat.RoundStartTicks) &&
+            !RetainedNativeReentryPolicy.SameRetainedRound(retained.Combat, retained.Combat.Round,
+                retained.Combat.StartTicks + 1, retained.Combat.RoundStartTicks),
+            "retained native join custody ends at a new round or new encounter without writing a resource");
+        mountGrant.GrantId = "native:" + Guid.NewGuid().ToString("N");
+        Check(RetainedNativeReentryPolicy.SpentPendingRiders(retained).Length == 0,
+            "different native grants cannot borrow pending rider re-entry custody");
         var pendingNegative = JObject.Parse(pendingMountedArchive);
         pendingNegative["Participations"][0]["State"]["PendingSplitId"] = pendingMounted.Rider.Id;
         Reject(pendingNegative.ToString(Formatting.None), "pending-only linked ownership cannot claim the attached rider as its pending mount");

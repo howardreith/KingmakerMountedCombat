@@ -1,5 +1,23 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## October 19 — batch36 causal join and reviewed preview.55 correction
+
+The [active Chunk 7 completion mission](planning/CHUNK7-COMPLETION-MISSION.md)
+still selects remaining 7B, 7C, 7D and readiness-gated private 7E. Batch36's
+unchanged schema-3 cold load **FAIL** proved the exact caller:
+`UnitCombatJoinController.TickUnit` joins rider A during TB passing in saved
+round 1; native preparation immediately clears the restored 6/3/6 debt. See
+[batch36 and the preview.55 correction](docs/CHUNK7-DIRECTIVE4-REENTRY-CORRECTION-2026-10-19.md).
+The independent source review cleared the narrow live-owner/round-scoped
+correction for one guarded native qualification after focused checks and scoped
+WhatIf. The desktop CLR Harmony attempt remains an evidenced host limitation;
+the preview.55 compiled Boolean prefix has a fail-closed game startup check.
+The next action is the corrected schema-3 cold load, followed by schema-2
+resave and separate cold consumer if the first result supports it. Do not
+repeat the unchanged b35 discriminator or b36 caller observation. Preserve
+all earlier FAILs and restoration records. No merge, release or permanent
+installation is selected.
+
 ## October 19 - standing engineering-completion mission adopted
 
 The owner adopted [the complete standing mission](planning/CHUNK7-COMPLETION-MISSION.md)

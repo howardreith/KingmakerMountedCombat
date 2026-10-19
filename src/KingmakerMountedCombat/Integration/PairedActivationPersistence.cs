@@ -17,6 +17,12 @@ namespace KingmakerMountedCombat.Integration
 
         internal IEnumerable<UnitEntityData> PersistenceActors => ParticipationActors;
 
+        // The saved pending split is a live obligation, not merely archive
+        // metadata. A replaced/dismissed pair cannot retain re-entry custody.
+        internal bool HasExactPendingSplit(UnitEntityData mount, int round) =>
+            mount != null && ReferenceEquals(pendingSplitMount, mount) && pendingSplitRound == round &&
+            activation == null && armedRider == null && armedMount == null;
+
         internal bool HasUnsettledPreparation => nativePreparationCommands.Values.Any(command => command != null && !command.IsFinished) ||
             preparingConfusionActor != null || resumingContext != null || nativeConditionForfeitContext != null;
 

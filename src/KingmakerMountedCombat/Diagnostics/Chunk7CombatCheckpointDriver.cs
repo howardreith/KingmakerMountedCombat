@@ -52,7 +52,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private JObject movementBefore;
         private double begunSeconds;
         private int stage, continuationOffset, sourceRound;
-        private bool cold, ready, beganContinuation, continuationComplete, cleanup, cleanupComplete, disposed, ownsObservers, repeatedCleanup;
+        private bool cold, ready, beganContinuation, continuationComplete, cleanup, cleanupComplete, disposed, ownsObservers, repeatedCleanup, riderReentryObserved;
         internal bool Ready => ready;
         internal bool ContinuationComplete => continuationComplete;
         internal bool CleanupComplete => cleanupComplete;
@@ -275,15 +275,36 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             var controller = Game.Instance.TurnBasedCombatController; var turn = controller.CurrentTurn;
             var pending = kind == Chunk7CombatCheckpointKind.MountedPendingOnly;
-            var mounts = pending ? new[] { actors[1] } : new[] { actors[1], actors[3] };
-            foreach (var mount in mounts)
-                if (turn?.Unit == mount && Chunk7NativeFixture.ReadyForTurnInput(turn) && !independent.Contains(mount))
+            var expected = pending ? cold ? new[] { actors[0], actors[1] } : new[] { actors[1] } :
+                new[] { actors[1], actors[3] };
+            if (pending && cold)
+            {
+                var rider = actors[0];
+                Require(trace.GrantCount(rider) <= grantsBefore[rider] + (controller.RoundNumber > sourceRound ? 1 : 0),
+                    "Retained rider received a duplicate or early native turn grant.");
+                if (controller.RoundNumber == sourceRound)
+                    Require(!rider.IsInCombat && !rider.CombatState.Prepared && trace.GrantCount(rider) == grantsBefore[rider],
+                        "Retained rider rejoined or prepared within its saved allocation.");
+                else if (!riderReentryObserved && rider.IsInCombat && rider.CombatState.Prepared)
                 {
-                    Require(controller.RoundNumber == sourceRound + 1 && trace.GrantCount(mount) == grantsBefore[mount] + 1 &&
-                        (pending || repeatedCleanup), "A pending mount was released early/late or received duplicate native preparation.");
-                    independent.Add(mount); continuation.Add(Snapshot("independent-native-mount-" + mount.UniqueId));
+                    Require(controller.RoundNumber == sourceRound + 1 &&
+                        rider.CombatState.Cooldown.StandardAction <= .001f &&
+                        rider.CombatState.Cooldown.MoveAction <= .001f &&
+                        rider.CombatState.Cooldown.SwiftAction <= .001f,
+                        "Retained rider did not receive ordinary native preparation at the new round.");
+                    riderReentryObserved = true;
+                    continuation.Add(Snapshot("native-rider-reentry-new-round"));
                 }
-            if (independent.Count == mounts.Length) { CompleteContinuation(); return; }
+            }
+            foreach (var actor in expected)
+                if (turn?.Unit == actor && Chunk7NativeFixture.ReadyForTurnInput(turn) && !independent.Contains(actor))
+                {
+                    Require(controller.RoundNumber == sourceRound + 1 && trace.GrantCount(actor) == grantsBefore[actor] + 1 &&
+                        (pending || repeatedCleanup) && (!pending || !cold || riderReentryObserved),
+                        "Pending native actor was released early/late or received duplicate native preparation.");
+                    independent.Add(actor); continuation.Add(Snapshot("independent-native-actor-" + actor.UniqueId));
+                }
+            if (independent.Count == expected.Length) { CompleteContinuation(); return; }
             Require(controller.RoundNumber <= sourceRound + 1, "Pending native mount skipped its first legitimate independent round.");
             EndNative(turn);
         }

@@ -36,6 +36,9 @@ namespace KingmakerMountedCombat.Integration
         private static readonly MethodInfo Revert = Method("RevertNavmeshForUnit", 0x06000BB9, typeof(CombatController.TBUnitInfo));
         private static readonly MethodInfo GridTags = Method("UpdateNavigationGridTags", 0x06000BBA);
 
+        internal static long CurrentStartTicks(CombatController controller) =>
+            ((TimeSpan)Start.GetValue(controller)).Ticks;
+
         internal static IEnumerable<UnitEntityData> ReferencedActors(CombatController controller)
         {
             var known = (Dictionary<string, int>)Known.GetValue(controller);
