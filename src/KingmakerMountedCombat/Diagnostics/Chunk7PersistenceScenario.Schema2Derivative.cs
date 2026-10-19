@@ -38,6 +38,23 @@ namespace KingmakerMountedCombat.Diagnostics
             return result;
         }
 
+        internal static bool MatchesOwnedPendingSchema2(MountedArchiveReadResult native,
+            MountedArchiveData restored, MountedSaveData projection, JToken receiptedMetadata)
+        {
+            if (native?.Kind != MountedSaveReadKind.Current || native.SourceSchema != 2 ||
+                native.HistoricalData == null || native.Data == null || native.OriginalJson == null ||
+                restored == null || projection == null || !(receiptedMetadata is JObject)) return false;
+            var serializer = MountedSaveCodec.CreateSerializer();
+            // The immutable receipt owns exact input JSON numbers. DTO-to-DTO
+            // comparisons own semantic restoration: a float coordinate may be
+            // written as -19.916172 but reserialized as -19.91617.
+            return JToken.DeepEquals(JObject.Parse(native.OriginalJson), receiptedMetadata) &&
+                JToken.DeepEquals(JObject.FromObject(native.HistoricalData, serializer),
+                    JObject.FromObject(projection, serializer)) &&
+                JToken.DeepEquals(JObject.FromObject(native.Data, serializer),
+                    JObject.FromObject(restored, serializer));
+        }
+
         private void ReadOwnedSchema2Derivative()
         {
             Require(Schema2ResaveCase && request.OwnedPairs?.IsOwnerSeedCheckpointLoad == true &&
@@ -65,11 +82,6 @@ namespace KingmakerMountedCombat.Diagnostics
                 "Owned pending original archive differs from the cold input's native actors or campaign.");
             var projection = ProjectOwnedPendingSchema2(original);
             var native = NativeMountedSaveStorage.ReadArchive(schema2Input.Saver);
-            var projected = JObject.FromObject(projection, MountedSaveCodec.CreateSerializer());
-            Require(native.Kind == MountedSaveReadKind.Current && native.SourceSchema == 2 && native.HistoricalData != null &&
-                JToken.DeepEquals(JObject.Parse(native.OriginalJson), projected) &&
-                JToken.DeepEquals(JObject.FromObject(native.Data, MountedSaveCodec.CreateSerializer()), JObject.FromObject(saved, MountedSaveCodec.CreateSerializer())),
-                "Actual historical loader did not restore the faithful pending-only metadata projection.");
             var receiptPath = Path.Combine(root, "owned-schema2-derivation.json"); var receiptFile = new FileInfo(receiptPath);
             Require(receiptFile.Exists && receiptFile.Length > 0 && receiptFile.Length <= 256 * 1024 &&
                 (receiptFile.Attributes & FileAttributes.ReparsePoint) == 0 && Hash(receiptPath) == request.Schema2DerivationSha256,
@@ -80,12 +92,13 @@ namespace KingmakerMountedCombat.Diagnostics
                 (string)receipt["sourceArtifactSha256"] == request.OwnedPairs.CheckpointSourceArtifactSha256 &&
                 (string)receipt["sourceDescriptor"]?["sha256"] == (string)source["nativeWrite"]?["sha256"] &&
                 (string)receipt["descriptor"]?["sha256"] == request.PersistenceLoad.Sha256 &&
-                (string)receipt["sourceDescriptor"]?["sha256"] != request.PersistenceLoad.Sha256 && JToken.DeepEquals(receipt["metadata"], projected),
+                (string)receipt["sourceDescriptor"]?["sha256"] != request.PersistenceLoad.Sha256 &&
+                MatchesOwnedPendingSchema2(native, saved, projection, receipt["metadata"]),
                 "Owned schema-2 derivation substituted its native source, projection or actual historical input.");
             ownedSchema2CheckpointPath = path; ownedSchema2ReceiptPath = receiptPath;
             ownedSchema2CheckpointLength = file.Length; ownedSchema2ReceiptLength = receiptFile.Length;
             ownedSchema2DerivativeEvidence = new JObject { ["syntheticMetadata"] = true,
-                ["nativeInputMetadata"] = projected, ["derivationReceiptSha256"] = request.Schema2DerivationSha256,
+                ["nativeInputMetadata"] = JObject.Parse(native.OriginalJson), ["derivationReceiptSha256"] = request.Schema2DerivationSha256,
                 ["originalNativeArchiveSha256"] = source["nativeWrite"]["sha256"].DeepClone() };
             VerifyOwnedSchema2DerivativeImmutable();
         }
