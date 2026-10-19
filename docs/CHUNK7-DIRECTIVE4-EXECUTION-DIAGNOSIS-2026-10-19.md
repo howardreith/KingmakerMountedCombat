@@ -34,6 +34,17 @@ this context. The October 12 base-only Working failure and installed-mods
 Working world PASS strengthen the mod-dependency hypothesis, but product
 versions, installed sets and configuration also differed. Neither the
 missing main-character entity's origin nor any particular mod is proved.
+The earlier approved bounded read of these exact Working bytes found one
+literal main-ID match in the inline party prefix and a later same-document
+`$ref` record that its passive reader correctly refused to resolve. That
+rules out a simple claim that the saved party lacks the main ID; it does not
+show what the native party deserializer returned. Installed contract
+inspection identifies the next observation boundary as party deserialization
+return, cross-scene assignment and entity identity/count immediately before
+native `Player.PostLoad`. Slot2's invalid-return Harmony patch currently
+prevents that opt-in observer from reaching a load. Repairing and reviewing
+that diagnostic boundary is distinct from changing gameplay or the archive.
+See [the bounded actor-graph record](CHUNK7-WORKING-ACTOR-GRAPH-DIAGNOSTIC.md).
 The slot3 original game/runtime result remains FAIL (0/1 assertions), not a
 P07 cleanup verdict. No cleanup save or DLL-absent load occurred.
 
