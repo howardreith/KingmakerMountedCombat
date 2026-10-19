@@ -109,10 +109,48 @@ namespace KingmakerMountedCombat.Diagnostics
                 areaLoadingTicks++;
                 if (persistence.AreaSuspensionCount == 1 && world.Registry.ActiveCount == 0)
                     areaObservedSuspension = true;
+                // Retain only the latest native-loading boundary. A timeout
+                // still reports whether the engine reached either owner resume.
+                ((JObject)evidence["areaTransfer"])["awaitingNativeReady"] = new JObject {
+                    ["frame"] = UnityEngine.Time.frameCount,
+                    ["nativeLoading"] = LoadingProcess.Instance.IsLoadingInProcess,
+                    ["queuedLoadNames"] = LoadingProcess.Instance.QueuedNames.Count(),
+                    ["area"] = Game.Instance.CurrentlyLoadedArea?.AssetGuidThreadSafe,
+                    ["samePlayer"] = ReferenceEquals(areaWorld, Game.Instance.Player),
+                    ["suspensions"] = persistence.AreaSuspensionCount,
+                    ["resumes"] = persistence.AreaResumeCount,
+                    ["failedPairs"] = persistence.FailedAreaPairCount,
+                    ["transitionPending"] = persistence.AreaTransitionPending,
+                    ["activeOwners"] = world.Registry.ActiveCount,
+                    ["nativeWritePending"] = NativePersistenceIsolation.HasPendingWrites,
+                    ["saveScope"] = persistence.HasActiveSaveScope,
+                    ["saveFence"] = persistence.HasSaveAdmissionFence,
+                    ["feedback"] = persistence.Feedback
+                };
                 return true;
             }
             if (persistence.AreaResumeCount < 2 || persistence.AreaTransitionPending || NativePersistenceIsolation.HasPendingWrites ||
-                persistence.HasActiveSaveScope || persistence.HasSaveAdmissionFence) return true;
+                persistence.HasActiveSaveScope || persistence.HasSaveAdmissionFence)
+            {
+                // Keep one bounded, read-only observation of the native area
+                // pipeline when it has stopped loading but cannot reach the
+                // all-owner autosave barrier. This grants no destination scope.
+                ((JObject)evidence["areaTransfer"])["awaitingNativeReady"] = new JObject {
+                    ["frame"] = UnityEngine.Time.frameCount,
+                    ["area"] = Game.Instance.CurrentlyLoadedArea?.AssetGuidThreadSafe,
+                    ["samePlayer"] = ReferenceEquals(areaWorld, Game.Instance.Player),
+                    ["suspensions"] = persistence.AreaSuspensionCount,
+                    ["resumes"] = persistence.AreaResumeCount,
+                    ["failedPairs"] = persistence.FailedAreaPairCount,
+                    ["transitionPending"] = persistence.AreaTransitionPending,
+                    ["activeOwners"] = world.Registry.ActiveCount,
+                    ["nativeWritePending"] = NativePersistenceIsolation.HasPendingWrites,
+                    ["saveScope"] = persistence.HasActiveSaveScope,
+                    ["saveFence"] = persistence.HasSaveAdmissionFence,
+                    ["feedback"] = persistence.Feedback
+                };
+                return true;
+            }
             AdoptDeclaredAreaWorld();
             var archive = Game.Instance.SaveManager.SingleOrDefault(s => s.Type == SaveInfo.SaveType.Auto && s.Name == NativeName(SaveInfo.SaveType.Auto));
             if (archive == null || !archive.HasFileOnDisk || archive.OperationState != SaveInfo.StateType.None) return true;

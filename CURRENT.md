@@ -1,5 +1,40 @@
 # Chunk 7B–7D — IN PROGRESS
 
+## October 19 - preview.45 native results and bounded next repair IN PROGRESS
+
+Preview.45 was guarded-pushed at `8685fb5f` and frozen: package SHA-256
+`3a5a4b6cc14939ec8f9dec0cad0af68cbdb2623db238d3805aa7200ddf24c8f7`,
+DLL SHA-256 `bc7c5d1e06671a90ee775b7f189917a902d6eb738a685cef53ccdaa89239a834`,
+Candidate PASS 7/0. Private owner-seed batches19/20 retain their exact mixed
+verdicts. Pending current3 source, schema1 source, schema1 cold/current3 resave,
+and schema1 third-process cold PASS. Schema2 cold FAIL: native Prepare.Tick
+cleared rider A's saved 6/3/6 debt after native rejoin. Area AfterEntry Auto
+FAIL/TIMEOUT before an Auto write; three native loads FAIL/TIMEOUT on the
+second in-place Game.LoadGame; registered disable FAIL at a diagnostic prelude
+that required exploration idle inside TB combat. Dependent schema2 third cold
+and area cold were not run. All external state was restored by completed
+wrappers or separate guarded transaction/profile recovery; no game or lock
+remains. Original timeout results remain FAIL.
+
+The preview.46 source group is **unfrozen**. Its registered-disable prelude now checks
+the exact quiescent TB combat membership (actual-method adapter 47/0). The
+repeated-load harness now uses the installed native disposal entry
+`Game.LoadGameFromMainMenu`, which disposes the prior area and Player before
+delegation while retaining `Game.State`. The scenario, inherited fixture and
+reader require the exact retained State and fresh Player, area/scene state and
+actors (actual-method adapter 76/0, epoch 95/0, repeated reader 101/0, owned
+reader 59/0, owner-seed repeated reader 29/0). A bounded read-only area
+readiness observation now also captures the latest native-loading boundary to
+identify the next blocked stage if loading itself never settles.
+Fast build/components/source validation passed 3/0, with source validation
+147/0, on the complete preview.46 diff. The initial incomplete version-triad
+check failed 146/1 and remains recorded. No native credit
+transfers to these changed bytes. Independent reviews of disable, repeated-load
+and area diagnostics passed on exact source hashes; fresh affected native
+qualification remains. Schema2 still needs a resource-safe repair, and P07,
+refusal/menu, no-DLL, area cold and doors remain unrun. PR #5 stays draft; no
+merge, release, tag or permanent installation is selected.
+
 ## October 19 - preview.44 native qualification and preview.45 repair IN PROGRESS
 
 The unchanged preview.44 candidate at `8a13f714` passed Candidate 7/7 and was

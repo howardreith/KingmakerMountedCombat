@@ -195,7 +195,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 persistence.Enabled && controls.CaptureSnapshot().Enabled &&
                 aState?.Activation?.Finalized == true && pending != null && pending.Activation == null && pending.RiderId == null &&
                 pending.MountId == null && pending.PendingSplitId == bm.UniqueId && Game.Instance.IsPaused &&
-                actors.All(Chunk7NativeFixture.Idle) && world.Registry.ActiveCount == 2 && world.Registry.Owners.Length == 2 &&
+                RegisteredDisableCombatBoundary() && world.Registry.ActiveCount == 2 && world.Registry.Owners.Length == 2 &&
                 a.Relationship.State == RelationshipState.Mounted && b.Relationship.State == RelationshipState.Mounted &&
                 ReferenceEquals(a.Relationship.PairOwner, disableOwnerA) && ReferenceEquals(b.Relationship.PairOwner, disableOwnerB),
                 "Registered disable must start with A finalized and B's real pending-only survivor, both original owners.");
@@ -256,6 +256,15 @@ namespace KingmakerMountedCombat.Diagnostics
             RequireDisableVisits("retry-disable"); RequireDisableRetainedOwners(); RequireDisableDebt(before, disabled);
             Require(JToken.DeepEquals(before["participationB"], disabled["participationB"]), "Successful disable changed B's pending release.");
             disableAcceptedFrame = Time.frameCount; disablePhase = null; Game.Instance.IsPaused = true;
+        }
+
+        private bool RegisteredDisableCombatBoundary()
+        {
+            return Game.Instance.Player.IsInCombat && actors.Length == 4 &&
+                actors.All(actor => actor != null && actor.IsInState && actor.IsInGame &&
+                    actor.View?.AgentASP != null && actor.Descriptor.State.IsConscious &&
+                    actor.Commands != null && actor.Commands.Empty) &&
+                ar.IsInCombat && am.IsInCombat && !br.IsInCombat && bm.IsInCombat;
         }
 
         private void PollRegisteredDisabledFrame()

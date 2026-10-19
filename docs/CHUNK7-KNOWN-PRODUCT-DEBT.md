@@ -1,5 +1,27 @@
 # Chunk 7 known product debt
 
+## Preview.45 schema2 TB cold debt loss — FAIL; resource-safe repair unresolved
+
+`20261019-c7b-world45-ownerseed-b19s2-schema2cold` loaded the selected
+metadata-only schema2 derivative but lost rider A's saved Standard/Move/Swift
+6/3/6 after restoration. The actor was saved outside native combat with
+`Prepared=false` after its finished turn, while its spent debt remained in
+the native archive. The cold loader restored that exact debt. Later in the
+same frame, native `UnitEntityData.JoinCombat` rejoined A and native
+`UnitCombatPrepareController.Tick` cleared the 6/3/6 and set `Prepared=true`.
+The unchanged native debt assertion correctly failed. Installed assembly
+MVID `07fa1e4d-8618-41b3-9b8d-faa17d3b26f7` confirms Prepare.Tick calls
+`Cooldowns.Clear` for unprepared in-combat actors and that LeaveCombat calls
+`UnitCombatState.Clear`. An unreviewed synthetic Prepared flag or post-tick
+resource rewrite would cross the native-preparation/action authority boundary.
+The selected schema2 cold/current resave/third load is not accepted. Keep the
+original FAIL and diagnose a lawful save/turn boundary or a separately
+qualified representable schema2 input; do not weaken the cold debt assertion.
+
+Preview.45 area Auto and repeated-load timeouts and the diagnostic registered
+disable failure are recorded in the active checkpoint. Their source repairs
+and native acceptance are still IN PROGRESS.
+
 ## October 19 - preview.44 selected source connection IN PROGRESS
 
 Reviewed group44 source is applied after closure HEAD `7c1bcadc`; no preview.44

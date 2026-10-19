@@ -34,7 +34,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private int replayCompletedLoads, replayCompletedAreas, replayOrdinal, replayReadyFrames;
         private int replayPublishedLoadOrdinal;
         private bool replayCleanupOnlyAdoption;
-        private object replayPriorPlayer, replayPriorState, replaySaveManager;
+        private object replayPriorPlayer, replayPriorState, replayPriorAreaState, replayPriorMainState, replaySaveManager;
         private UnitEntityData[] replayPriorActors;
         private Chunk7OwnedPairFixture replayIncomingInherited;
         private readonly JArray replayInheritedRetirements = new JArray();
@@ -234,7 +234,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 "Native load/restoration count escaped its exact bounded epoch.");
             }
             if (replacement)
-                Require(!ReferenceEquals(replayPriorPlayer, Game.Instance.Player) && !ReferenceEquals(replayPriorState, Game.Instance.State) &&
+                Require(!ReferenceEquals(replayPriorPlayer, Game.Instance.Player) && ReferenceEquals(replayPriorState, Game.Instance.State) &&
+                    !ReferenceEquals(replayPriorAreaState, Game.Instance.State.LoadedAreaState) &&
+                    !ReferenceEquals(replayPriorMainState, Game.Instance.State.LoadedAreaState?.MainState) &&
                     next.All(a => replayPriorActors.All(old => !ReferenceEquals(a, old))), "Load callback did not replace the exact prior native world and actors.");
             AssertDebt(data);
             var actualSlots = controls.CapturePersistentSlots();
@@ -321,7 +323,10 @@ namespace KingmakerMountedCombat.Diagnostics
             Require(decision == null, "Next native repeated load was refused before world replacement: " + decision);
             var before = ReplaySnapshot();
             inherited?.BeginRepeatedLoad(replayCompletedLoads + 1);
-            replayPriorPlayer = Game.Instance.Player; replayPriorState = Game.Instance.State; replayPriorActors = actors.ToArray();
+            replayPriorPlayer = Game.Instance.Player; replayPriorState = Game.Instance.State;
+            replayPriorAreaState = Game.Instance.State.LoadedAreaState;
+            replayPriorMainState = Game.Instance.State.LoadedAreaState?.MainState;
+            replayPriorActors = actors.ToArray();
             replayOrdinal = replayCompletedLoads + 1; replayCallback = false; replayPending = true; replayReadyFrames = 0;
             var token = replayOrdinal;
             replayRequests.Add(new JObject { ["kind"] = "native-load", ["ordinal"] = token, ["before"] = before,
@@ -334,7 +339,12 @@ namespace KingmakerMountedCombat.Diagnostics
                 receipt["callbackObserved"] = true; receipt["callbackNativeLoads"] = replayAuthorization.AuthorizedLoadCount;
                 receipt["callbackFrame"] = UnityEngine.Time.frameCount;
             });
-            Game.Instance.LoadGame(replayInput);
+            // The installed Game.LoadGame routes through LoadArea without first
+            // disposing the prior Player/area state. This replay requires a
+            // replacement epoch; the native main-menu entry disposes the area
+            // and Player before it delegates to LoadGame. PersistentState itself
+            // remains the exact same Game.State object.
+            Game.Instance.LoadGameFromMainMenu(replayInput);
         }
         private RuntimeSaveTarget ReplayTarget() => new RuntimeSaveTarget { FileName = replayInput.FileName, InternalName = replayInput.Name,
             GameId = replayInput.GameId, GameName = replayInput.GameName, Area = replayInput.Area.AssetGuidThreadSafe,
