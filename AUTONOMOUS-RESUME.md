@@ -40,6 +40,14 @@ focused checks, freeze preview.57 once,
 then rerun the same source once. Do not credit migration resave or a separate
 cold consumer before their actual PASSes. Keep both b37s2 and b38s1 FAILs.
 
+The first preview.57 package command failed at compile before producing an
+artifact: the split `Schema2.cs` file lacked its own
+`using TurnBased.Controllers;` for `CombatController`. That import was added
+without changing the reviewed guard logic. The failed build has no native
+or candidate credit. Independent import-only addendum PASS is receipt SHA-256
+`edb6cb3d08231bc5725e339be00a7f71e2b9d28bcaff409bd5648a4e2891d32a`;
+one clean build remains.
+
 ## October 19 — batch36 causal join and reviewed preview.55 correction
 
 Batch37 slot 2 has now run as one guarded schema-2 cold load on the same

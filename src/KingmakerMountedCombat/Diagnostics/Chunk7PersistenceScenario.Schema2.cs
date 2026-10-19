@@ -5,6 +5,7 @@ using Kingmaker;
 using Kingmaker.EntitySystem.Persistence;
 using KingmakerMountedCombat.Integration;
 using Newtonsoft.Json.Linq;
+using TurnBased.Controllers;
 
 namespace KingmakerMountedCombat.Diagnostics
 {
