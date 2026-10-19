@@ -1,5 +1,28 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## Active October 19 batch43 correction — preview.62 source
+
+The [standing completion mission](planning/CHUNK7-COMPLETION-MISSION.md)
+remains active through the selected private 7E rehearsal. The [batch43 record](docs/CHUNK7-BATCH43-FIXTURE-CORRECTIONS-2026-10-19.md)
+preserves both preview.61 native FAILs separately: Manticore preparation
+stopped after one accepted Dismount because the fixture demanded immediate
+retirement of a `Detached` owner; F09 Small preparation completed main Ranger
+3→4, then the headless race-description UI threw after native race selection.
+No area transfer, Small Manual, area Auto/cold or Small profile PASS occurred.
+Both transactions restored Mods, protected saves and Working. The first run's
+startup settings and lock received exact-run guarded recovery; the second
+restored without separate recovery. No game or runtime lock remains.
+
+The reviewed preview.62 source correction uses the ordinary settled-admission
+sweep before Manticore transfer and the installed native `SelectRace` with
+Boolean/state readback for the headless builder. Independent review and Fast
+passed; the unchanged Manticore reader passed 62/0; neither corrected native
+scenario has run. Next: commit/guarded-push the coherent source, package once, pass Candidate,
+freeze a new suite, pass scoped WhatIf, then retry only the two changed native
+paths with fresh run IDs. Preserve all original FAILs. Continue positive
+reference-free removal, acquisition/progression, profiles, 7D and 7E after
+these focused checks; do not treat this correction as the mission endpoint.
+
 ## Active October 19 source checkpoint — group 61 fixture routes
 
 The [group 61 reviewed source checkpoint](docs/CHUNK7-GROUP61-FIXTURE-CANDIDATE-2026-10-19.md)
