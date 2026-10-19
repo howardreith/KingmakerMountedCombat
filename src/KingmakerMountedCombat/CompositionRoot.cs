@@ -207,6 +207,7 @@ namespace KingmakerMountedCombat
             }
             IsEnabled = false;
             persistence.Enabled = false;
+            persistence.ReleaseRetainedPendingReentry();
             nativeControls.SetEnabled(false);
             playerAction.SetOverlayEnabled(false);
             logger.Info("Private-alpha services disabled; native control facts and transient UI removed with no mounted state retained.");
@@ -264,6 +265,7 @@ namespace KingmakerMountedCombat
                     throw new InvalidOperationException("Update-failure cleanup retained mounted runtime residue.");
             });
             if (errors.Length != 0) throw new AggregateException("World update cleanup retained owners.", errors);
+            persistence.ReleaseRetainedPendingReentry();
             IsEnabled = false;
         }
 

@@ -1,0 +1,21 @@
+# Chunk 7 Directive 4 retained native re-entry — batch36 and preview.55
+
+Status: **batch36 diagnostic FAIL retained; preview.55 correction awaiting native qualification.** The batch35 matched schema-3/schema-2 failures and original preview.45 schema-2 failure remain unchanged. This document does not claim migration, resave, positive removal, or DLL-absent load acceptance.
+
+## Causal observation
+
+Batch36 slot 1 loaded a fresh disposable copy of the unchanged schema-3 pending-only source under the approved Howie context, base-only staging and preview.54. The game restored rider A's saved Standard/Move/Swift 6/3/6. At frame 3850, round 1 and `nativePassing=true`, `UnitCombatJoinController.TickUnit` called `UnitEntityData.JoinCombat` for A from `GameMode.Tick`; the turn actor was null at that observation. Native `UnitCombatPrepareController.Tick` then saw A in combat and unprepared, and cleared the debt before the next round. The unchanged debt assertion failed. The exact evidence is `runtime-evidence/20261019-c7b-directive4-b36s1-schema3-caller` (artifact SHA-256 `f1078cb4bff0e2b15844eac458da62ac99bc124be44ce431c0ce09f16017f01a`). This proves the re-entry caller on that input; it does not prove a migration-specific fault or authorize changing saved `Prepared=false`.
+
+The b36 guarded transaction reported Mods, protected saves, Working and profile restored exactly, no accepted cache exception, and base-only isolation restored. No Kingmaker process or runtime lock remained after it.
+
+## Reviewed correction candidate
+
+Preview.55 selects only an archived pending-only mounted pair whose rider is outside combat, unprepared and already spent in the retained native allocation. The exact rider's `JoinCombat` is deferred within the saved native round/encounter only while the same live owner ID/generation, relationship actors and pending mount obligation still exist. A different owner, cleanup, successful disable, update-failure cleanup, area/world/load replacement, mode/encounter change or new round releases custody. The patch writes no native debt or `Prepared` flag. Other actors' native joining and preparation remain untouched.
+
+The corrected cold continuation requires A to remain outside combat, unprepared and without another turn grant in the saved round, then to rejoin and prepare at the genuine next round and receive exactly one native turn grant; the pending mount also receives exactly one. The source producer keeps its already-selected continuation contract. The independent source review found no remaining code blocker to one guarded preview.55 native qualification after focused checks and scoped WhatIf. Native outcomes are still pending.
+
+The installed Kingmaker method is pinned by MVID `07fa1e4d-8618-41b3-9b8d-faa17d3b26f7` and token `0x06008355`. Preview.55 verifies in the game at startup that its compiled Boolean prefix installed exactly once; the constructor's partial-install rollback unpatches owned hooks and clears the bridge. A disposable **desktop CLR** Harmony12 attempt on the exact method failed with `SecurityException: ECall methods must be packaged into a system module` before installation, although the target has a 206-byte managed IL body. That is **DEFER — EVIDENCED for this host-only regression**, not a PASS or a game-Mono verdict. Its failed receipts and source are retained under `analysis-cache/chunk7-continuation/directive4-batch36/preview55-installed-join-v5` and `preview55-clr-patch-attempt-source`. Batch36's read-only diagnostic hook installed on the same native method inside the game; preview.55 still needs its own actual game startup and behavior check.
+
+Preview.55 offline Candidate passed 8/0 in 4.07 minutes (including Kingmaker assembly contracts), persistence data passed 74/0, selected debt-reader regressions passed 83/0, schema-2 continuity passed 35/0, and current-migration parent guards passed 56/0. These are source/reader/contract results, not native cold-load results.
+
+Next: finish focused candidate/package checks, scoped WhatIf and one corrected schema-3 cold load. If it passes, run the matched schema-2 derivative, its selected resave and independent cold consumer on frozen inputs. Preserve every original failure and report each transaction's restoration separately.

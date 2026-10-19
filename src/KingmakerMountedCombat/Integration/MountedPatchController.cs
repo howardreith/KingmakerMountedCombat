@@ -120,6 +120,15 @@ namespace KingmakerMountedCombat.Integration
                 PatchExact(typeof(SaveManager).Assembly.GetType("Kingmaker.EntitySystem.Persistence.ZipSaver", true),
                     "SaveJson", 0x06008063, new[] { typeof(string), typeof(string) }, nameof(PatchMethods.NativeSaveHeaderPrefix));
                 PatchExact(typeof(UnitEntityData), "PostLoad", 0x0600835E, Type.EmptyTypes, null, nameof(PatchMethods.ActorPostLoadPostfix));
+                PatchExact(typeof(UnitEntityData), "JoinCombat", 0x06008355, Type.EmptyTypes,
+                    nameof(PatchMethods.RetainedNativeJoinPrefix));
+                var join = typeof(UnitEntityData).GetMethod("JoinCombat", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance,
+                    null, Type.EmptyTypes, null);
+                var joinPrefix = typeof(PatchMethods).GetMethod(nameof(PatchMethods.RetainedNativeJoinPrefix), BindingFlags.NonPublic | BindingFlags.Static);
+                var joinPatches = harmony.GetPatchInfo(join);
+                if (joinPrefix?.ReturnType != typeof(bool) || joinPatches == null ||
+                    joinPatches.Prefixes.Count(p => p.owner == HarmonyId && p.patch == joinPrefix) != 1)
+                    throw new InvalidOperationException("Exact retained native JoinCombat bool guard did not install once.");
                 PatchExact(typeof(SaveManager), "IsSaveAllowed", 0x06008028, Type.EmptyTypes, null, null, nameof(PatchMethods.CombatSaveAdmissionTranspiler));
                 PatchExact(typeof(SaveManager), "SerializeAndSaveThread", 0x0600802A,
                     new[] { typeof(SaveInfo), typeof(SaveCreateDTO), typeof(SaveInfo) },
@@ -257,6 +266,7 @@ namespace KingmakerMountedCombat.Integration
                     PatchBridge.Service = null;
                     PatchBridge.PlayerAction = null;
                     PatchBridge.Combat = null;
+                    PatchBridge.ChargeSafety = null;
                     PatchBridge.UnifiedTurn = null;
                     PatchBridge.NativeControls = null;
                     PatchBridge.Persistence = null;
@@ -1000,6 +1010,9 @@ namespace KingmakerMountedCombat.Integration
                 PatchBridge.Persistence?.ObserveNativePresentationLateUpdate(__instance);
 
             internal static bool CombatPreparePrefix() => PatchBridge.Persistence?.CombatRestorationPending != true;
+
+            internal static bool RetainedNativeJoinPrefix(UnitEntityData __instance) =>
+                PatchBridge.Persistence?.AllowNativeJoinCombat(__instance) != false;
 
             internal readonly struct CombatCooldownObservation
             {

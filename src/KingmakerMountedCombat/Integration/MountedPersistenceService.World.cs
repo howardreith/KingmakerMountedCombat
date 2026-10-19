@@ -27,6 +27,22 @@ namespace KingmakerMountedCombat.Integration
         internal int ArchivePostLoadObservedCount => archivePostLoadObserved.Count;
         private bool archiveGraphReady;
         private bool archiveOwnersReady;
+        private RetainedPendingReentry retainedPendingReentry;
+        private sealed class RetainedPendingReentry
+        {
+            internal Player World;
+            internal TurnBased.Controllers.CombatController Controller;
+            internal SavedCombatData Combat;
+            internal long LoadSequence;
+            internal RetainedPendingRider[] Riders;
+        }
+        private sealed class RetainedPendingRider
+        {
+            internal UnitEntityData Rider, Mount;
+            internal MountedPairServices Pair;
+            internal Guid OwnerId;
+            internal long Generation;
+        }
         internal bool HasSaveAdmissionFence => admittedSave != null;
         internal MountedArchiveData LoadedArchive => loadedArchive?.Data;
         // Read-only observation of the selected archive read (Missing for a save made without KMC).
@@ -185,7 +201,51 @@ namespace KingmakerMountedCombat.Integration
         {
             ClearArchivePresentationReadiness();
             loadedArchive = null; archiveGraphReady = false; archiveOwnersReady = false;
+            retainedPendingReentry = null;
             archiveActors.Clear(); archiveOwners.Clear(); archivePostLoadObserved.Clear(); ArchiveRestorePhase = "not-selected";
+        }
+
+        internal void ReleaseRetainedPendingReentry() { retainedPendingReentry = null; }
+
+        internal bool AllowNativeJoinCombat(UnitEntityData unit)
+        {
+            var guard = retainedPendingReentry;
+            if (guard == null) return true;
+            var selected = guard.Riders.SingleOrDefault(row => ReferenceEquals(row.Rider, unit));
+            if (selected == null) return true;
+            var game = Game.Instance;
+            var controller = game?.TurnBasedCombatController;
+            if (!Enabled || game?.Player == null || !ReferenceEquals(game.Player, guard.World) ||
+                !ReferenceEquals(controller, guard.Controller) || restoreLoad?.Sequence != guard.LoadSequence ||
+                ArchiveRestorePhase != "all-pair-presentation-restored" || !game.Player.IsInCombat ||
+                !TurnBased.Controllers.CombatController.IsInTurnBasedCombat() || !controller.Initialized ||
+                !RetainedNativeReentryPolicy.SameRetainedRound(guard.Combat, controller.RoundNumber,
+                    NativeCombatTurnPersistence.CurrentStartTicks(controller), controller.RoundStartTime.Ticks))
+            {
+                retainedPendingReentry = null;
+                return true;
+            }
+            var relationship = selected.Pair.Relationship;
+            var owner = relationship.PairOwner;
+            if (owner == null || owner.Id != selected.OwnerId || owner.Generation != selected.Generation ||
+                !relationship.IsCurrentPairOwner(owner) || !ReferenceEquals(relationship.Rider, unit) ||
+                !ReferenceEquals(relationship.Mount, selected.Mount) ||
+                !selected.Pair.Participant.HasExactPendingSplit(selected.Mount, guard.Combat.Round))
+            {
+                guard.Riders = guard.Riders.Where(row => !ReferenceEquals(row, selected)).ToArray();
+                if (guard.Riders.Length == 0) retainedPendingReentry = null;
+                return true;
+            }
+            if (unit.IsInCombat || unit.CombatState.Prepared)
+            {
+                guard.Riders = guard.Riders.Where(row => !ReferenceEquals(row, selected)).ToArray();
+                if (guard.Riders.Length == 0) retainedPendingReentry = null;
+                return true;
+            }
+            // The archive owns this exact rider's out-of-combat, unprepared
+            // state until the native encounter advances. Other actors join and
+            // prepare normally; no cooldown or Prepared flag is written here.
+            return false;
         }
 
         private bool ResolveArchiveGraph()
@@ -362,6 +422,17 @@ namespace KingmakerMountedCombat.Integration
             foreach (var owner in archiveOwners.Values) owner.Relationship.CompleteSavedParticipationImport();
             controls.RestorePersistentSlots(data.Slots);
             ClearArchivePresentationReadiness();
+            var retainedRiders = RetainedNativeReentryPolicy.SpentPendingRiders(data);
+            retainedPendingReentry = retainedRiders.Length == 0 ? null : new RetainedPendingReentry {
+                World = Game.Instance.Player, Controller = Game.Instance.TurnBasedCombatController,
+                Combat = data.Combat, LoadSequence = loadSequence,
+                Riders = retainedRiders.Select(id => {
+                    var pair = data.Pairs.Single(row => row.Rider.Id == id);
+                    return new RetainedPendingRider { Rider = archiveActors[id], Mount = archiveActors[pair.Mount.Id],
+                        Pair = archiveOwners[OwnerKey(pair.PairId)], OwnerId = Guid.Parse(pair.PairId),
+                        Generation = pair.Generation };
+                }).ToArray()
+            };
             ArchiveRestorePhase = "all-pair-presentation-restored";
             Report("Saved mounted world restored all " + data.Pairs.Length + " attachments and " + data.Participations.Length +
                 " participation owners without Mount execution or new native preparation.");
