@@ -79,6 +79,21 @@ function CompleteCombatArtifact($Fixture,[bool]$Cold){
 }
 $complete=@();foreach($fixture in @($tb,$rt,$zero,$legacy)){foreach($isCold in @($false,$true)){$spec=CompleteCombatArtifact $fixture $isCold;$complete+=@($spec);Check ($spec.request.persistenceCase+' complete '+$spec.request.scenario) {Assert-KmcChunk7PersistenceObservation $spec.request $spec.artifact 'PASS'}}}
 $sourceTb=$complete[0];$coldTb=$complete[1];$sourceRt=$complete[2];$coldZero=$complete[5];$coldLegacy=$complete[7]
+$clockBefore=[pscustomobject]@{Combat=[pscustomobject]@{TimeSinceStart=0.0;TimeToNextRound=6.0}}
+$clockAfter=Copy-Test $clockBefore;$clockAfter.Combat.TimeSinceStart=.5041753;$clockAfter.Combat.TimeToNextRound=5.495825
+Check 'schema2 reader accepts matched native Manual clock drift' {
+    $normalizedBefore=Copy-Test $clockBefore;$normalizedAfter=Copy-Test $clockAfter
+    Assert-KmcChunk7Schema2NativeClockContinuity $clockBefore $clockAfter $normalizedBefore $normalizedAfter .504
+    if($normalizedAfter.Combat.TimeSinceStart-ne0.0-or$normalizedAfter.Combat.TimeToNextRound-ne6.0){throw 'Native clock normalization was incomplete.'}
+}
+foreach($fault in @('one-sided','early-round','backwards','beyond-elapsed','string-clock')){
+    Reject ('schema2 reader refuses '+$fault+' native clock drift') {
+        $wrong=Copy-Test $clockAfter;$elapsed=.504
+        switch($fault){'one-sided'{$wrong.Combat.TimeToNextRound=6.0}'early-round'{$wrong.Combat.TimeToNextRound=4.0}'backwards'{$wrong.Combat.TimeToNextRound=6.5}'string-clock'{$wrong.Combat.TimeSinceStart='0.5041753'}}
+        if($fault-ceq'beyond-elapsed'){$elapsed=.1}
+        Assert-KmcChunk7Schema2NativeClockContinuity $clockBefore $wrong (Copy-Test $clockBefore) (Copy-Test $wrong) $elapsed
+    }
+}
 $modernPendingSource=Copy-Test $complete[6]
 $modernPendingSource.request.productVersion='0.1.0-chunk7b-preview.57'
 $modernPendingSource.artifact.productVersion=$modernPendingSource.request.productVersion

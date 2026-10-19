@@ -487,6 +487,20 @@ function Assert-KmcChunk7CombatPersistenceObservation($Request,$Artifact) {
 # The exact pending-only cold case also writes a separate native schema-3 Manual
 # before continuation. Source-case schema-2 writing and historical intake remain
 # unchanged; no archived input is made writable.
+function Assert-KmcChunk7Schema2NativeClockContinuity($Before,$After,$NormalizedBefore,$NormalizedAfter,[double]$Elapsed) {
+    foreach($archive in @($Before,$After)){
+        foreach($field in @('TimeSinceStart','TimeToNextRound')){
+            if(-not(Test-KmcFiniteNonnegativeJsonNumber $archive.Combat.$field)){throw 'Schema-2 resave native combat clock is not a finite nonnegative JSON number.'}
+        }
+    }
+    $sinceDrift=[double]$After.Combat.TimeSinceStart-[double]$Before.Combat.TimeSinceStart
+    $nextDrift=[double]$Before.Combat.TimeToNextRound-[double]$After.Combat.TimeToNextRound
+    if($sinceDrift-lt-0.001-or$nextDrift-lt-0.001-or
+        $sinceDrift-gt($Elapsed*1.1+0.001)-or$nextDrift-gt($Elapsed*1.1+0.001)-or
+        [Math]::Abs($sinceDrift-$nextDrift)-gt0.002){throw 'Schema-2 resave changed native combat clocks outside elapsed same-round progression.'}
+    $NormalizedAfter.Combat.TimeSinceStart=$NormalizedBefore.Combat.TimeSinceStart
+    $NormalizedAfter.Combat.TimeToNextRound=$NormalizedBefore.Combat.TimeToNextRound
+}
 function Assert-KmcChunk7Schema2ResaveObservation($Request,$Observations) {
     if((Get-KmcChunk7SelectedScenario $Request)-cne'chunk7-persistence-load'-or$Request.persistenceCase-cne'legacy-mounted-pending-tb-manual'){
         throw 'Schema-2 resave belongs only to its exact pending-only cold case.'
@@ -521,6 +535,7 @@ function Assert-KmcChunk7Schema2ResaveObservation($Request,$Observations) {
     $normalizedBefore=$before|ConvertTo-Json -Depth 64|ConvertFrom-Json
     $normalizedAfter=$after|ConvertTo-Json -Depth 64|ConvertFrom-Json
     $normalizedAfter.GameTimeTicks=$normalizedBefore.GameTimeTicks
+    Assert-KmcChunk7Schema2NativeClockContinuity $before $after $normalizedBefore $normalizedAfter $elapsed
     foreach($actor in $after.Combat.Actors){
         $prior=@($before.Combat.Actors|Where-Object {$_.Native.Id-ceq$actor.Native.Id})
         if($prior.Count-ne1){throw 'Schema-2 resave substituted a native actor.'}
