@@ -8,8 +8,8 @@ function Test-KmcChunk7CombatDebtDiagnosticRequest($Request){
  # This exact owned case maps unconditionally to chunk7-persistence-load in
  # both the production C# selection and existing external selected-scenario map.
  $Request.scenario-is[string]-and$s.case-is[string]-and$Request.persistenceCase-is[string]-and
- $Request.scenario-ceq'chunk7-owned-two-pair-campaign'-and$s.case-ceq'owner-seed-checkpoint-load'-and$Request.persistenceCase-ceq'legacy-mounted-pending-tb-manual'-and
- (Test-KmcExactJsonInteger $s.expectedNativeLoadCount)-and$s.expectedNativeLoadCount-eq1-and(Test-KmcExactJsonInteger $s.expectedNativeWriteCount)-and$s.expectedNativeWriteCount-eq1
+ $Request.scenario-ceq'chunk7-owned-two-pair-campaign'-and$s.case-ceq'owner-seed-checkpoint-load'-and$Request.persistenceCase-cin@('legacy-mounted-pending-tb-manual','pending-schema3-control-manual')-and
+ (Test-KmcExactJsonInteger $s.expectedNativeLoadCount)-and$s.expectedNativeLoadCount-eq1-and(Test-KmcExactJsonInteger $s.expectedNativeWriteCount)-and$s.expectedNativeWriteCount-eq $(if($Request.persistenceCase-ceq'pending-schema3-control-manual'){0}else{1})
 }
 function Assert-KmcChunk7CombatDebtBoundaryProbe($Request,$Probe,$Archive){
  $selected=Test-KmcChunk7CombatDebtDiagnosticRequest $Request;$has=$null-ne$Probe.PSObject.Properties['debtDiagnostics']
@@ -22,7 +22,8 @@ function Assert-KmcChunk7CombatDebtBoundaryProbe($Request,$Probe,$Archive){
  }
  $d=$Probe.debtDiagnostics
  Assert-KmcExactProperties $d @('contract','runId','events','maximumEvents','errors','dropped','openCalls','requestUnchanged','complete','scope','methodEntryMayBeRefusedByProductionPrefix') 'native debt window journal'
- foreach($spec in @(@('contract','chunk7-native-debt-boundary-observer-v1'),@('runId',$Request.runId),@('scope','exact-schema2-cold-after-presentation'))){Assert-KmcBootstrapInventoryString $d.($spec[0]) $spec[1]}
+ $scope=if($Request.persistenceCase-ceq'pending-schema3-control-manual'){'exact-schema3-control-cold-after-presentation'}else{'exact-schema2-cold-after-presentation'}
+ foreach($spec in @(@('contract','chunk7-native-debt-boundary-observer-v1'),@('runId',$Request.runId),@('scope',$scope))){Assert-KmcBootstrapInventoryString $d.($spec[0]) $spec[1]}
  Assert-KmcOrdinaryInteger $d.maximumEvents 128 128
  foreach($field in @('errors','dropped','openCalls')){Assert-KmcOrdinaryInteger $d.$field 0 0}
  foreach($field in @('requestUnchanged','complete','methodEntryMayBeRefusedByProductionPrefix')){Assert-KmcChunk7Boolean $d.$field $true}
@@ -55,9 +56,10 @@ function Assert-KmcChunk7CombatDebtBoundaryProbe($Request,$Probe,$Archive){
 function Assert-KmcChunk7CombatDebtChecks($Request,$Observations){
  $selected=Test-KmcChunk7CombatDebtDiagnosticRequest $Request;$has=$null-ne$Observations.PSObject.Properties['combatDebtChecks']
  if(-not$selected){if($has){throw 'Only the selected diagnostic may carry combat debt checks.'};return}
- if(-not$has-or$Observations.combatDebtChecks-isnot[Array]-or$Observations.combatDebtChecks.Count-ne5){throw 'Passing schema2 cold/resave requires its before-bind and four exact assertion snapshots.'}
+ $count=if($Request.persistenceCase-ceq'pending-schema3-control-manual'){2}else{5}
+ if(-not$has-or$Observations.combatDebtChecks-isnot[Array]-or$Observations.combatDebtChecks.Count-ne$count){throw 'Pending-only cold load requires its exact before-bind and assertion snapshots.'}
  $fields=@('Standard','Move','Swift','Initiative','Reaction','ReactionsRemaining','LastSurpriseTicks');$priorFrame=-1L;$priorTicks=-1L
- for($j=0;$j-lt5;$j++){
+ for($j=0;$j-lt$count;$j++){
   $record=$Observations.combatDebtChecks[$j];$archive=if($j-eq4){$Observations.nativeWrite.archive}else{$Observations.loadedArchive}
   Assert-KmcExactProperties $record @('contract','phase','frame','gameTicks','savedGameTicks','elapsedSeconds','windowAccepted','actors','passed','paused','archiveRestorePhase','restorationPending','actorStates') 'combat debt comparison'
   Assert-KmcBootstrapInventoryString $record.contract 'chunk7-native-combat-debt-observation-v1';Assert-KmcBootstrapInventoryString $record.phase $(if($j-eq0){'cold-observe-before-binding'}else{'assert-combat-debt'})

@@ -19,7 +19,10 @@ namespace KingmakerMountedCombat.Diagnostics
         private static volatile NativeWorkingLoadObserver active;
         private readonly object gate = new object();
         private readonly NativeWorkingLoadContract contract;
-        private readonly bool[] attempted = new bool[5], rewritten = new bool[5];
+        // Harmony12 cannot generate a valid wrapper for the native bool MoveNext,
+        // even with a pass-through transpiler. Retain its exact field contract,
+        // but observe its factory and the loader's Task-returning Start instead.
+        private readonly bool[] attempted = new bool[6], rewritten = new bool[5];
         private readonly object[] callbacks = new object[2];
         private Game game;
         private SaveManager manager;
@@ -51,11 +54,17 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 NativeWorkingLoadContract.Require(!started && active == null && !Released, "Working observer already owns an installation.");
                 started = true; harmony = HarmonyInstance.Create(HarmonyId); active = this;
-                for (int i = 0; i < attempted.Length; i++)
+                attempted[0] = true;
+                harmony.Patch(contract.LoadRoutineFactory, null,
+                    new HarmonyMethod(typeof(Hooks).GetMethod(nameof(Hooks.IteratorReturned), HooksFlags)), null);
+                attempted[1] = true;
+                harmony.Patch(contract.Start, null,
+                    new HarmonyMethod(typeof(Hooks).GetMethod(nameof(Hooks.StartReturned), HooksFlags)), null);
+                for (int i = 2; i < attempted.Length; i++)
                 {
                     attempted[i] = true; // Custody precedes each fallible patch.
-                    harmony.Patch(contract.Owners[i], null, null, new HarmonyMethod(typeof(Hooks).GetMethod(nameof(Hooks.Rewrite), HooksFlags)));
-                    NativeWorkingLoadContract.Require(rewritten[i], "Exact Working observer rewrite did not run.");
+                    harmony.Patch(contract.Owners[i - 1], null, null, new HarmonyMethod(typeof(Hooks).GetMethod(nameof(Hooks.Rewrite), HooksFlags)));
+                    NativeWorkingLoadContract.Require(rewritten[i - 1], "Exact Working observer rewrite did not run.");
                 }
                 installed = true;
             }
@@ -67,9 +76,11 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (Released) return true;
                 if (!Observation.TryRelease(nativeBusy, i => {
                     if (!attempted[i]) return true;
-                    harmony.Unpatch(contract.Owners[i], HarmonyPatchType.Transpiler, HarmonyId);
-                    var info = harmony.GetPatchInfo(contract.Owners[i]);
-                    return info == null || !info.Transpilers.Any(p => p.owner == HarmonyId);
+                    var method = i == 0 ? contract.LoadRoutineFactory : i == 1 ? contract.Start : contract.Owners[i - 1];
+                    var kind = i < 2 ? HarmonyPatchType.Postfix : HarmonyPatchType.Transpiler;
+                    harmony.Unpatch(method, kind, HarmonyId);
+                    var info = harmony.GetPatchInfo(method);
+                    return info == null || !(i < 2 ? info.Postfixes : info.Transpilers).Any(p => p.owner == HarmonyId);
                 })) return false;
                 if (ReferenceEquals(active, this)) active = null;
                 game = null; manager = null; save = null; iterator = loader = beforePlayer = beforeScene = null; task = null;
@@ -85,6 +96,36 @@ namespace KingmakerMountedCombat.Diagnostics
             return Require(value != null && value.GetType() == contract.Owners[0].DeclaringType, ObservationFault.ForeignOwner) &&
                 Require(ReferenceEquals(contract.IteratorManager.GetValue(value), manager) && ReferenceEquals(contract.IteratorSave.GetValue(value), save) &&
                     !(bool)contract.IteratorSmoke.GetValue(value), ObservationFault.ForeignOwner);
+        }
+        private void CaptureIterator(object value)
+        {
+            lock (gate)
+            {
+                if (Released || !ReferenceEquals(active, this)) return;
+                try
+                {
+                    if (!Iterator(value) || !Require(iterator == null, ObservationFault.Duplicate)) return;
+                    iterator = value;
+                }
+                catch (Exception) { Observation.AdapterFault(ObservationFault.ReadFailure); }
+            }
+        }
+        private void CaptureStart(object actualLoader, Task actualTask)
+        {
+            lock (gate)
+            {
+                if (Released || !ReferenceEquals(active, this)) return;
+                try
+                {
+                    if (!Require(iterator != null && actualLoader != null && actualLoader.GetType() == contract.LoaderType &&
+                        ReferenceEquals(contract.IteratorLoader.GetValue(iterator), actualLoader) && loader == null &&
+                        actualTask != null, ObservationFault.ForeignOwner)) return;
+                    loader = actualLoader; task = actualTask;
+                    Observation.LoaderCreated(manager, save, loader, false);
+                    Observation.TaskReturned(loader, task);
+                }
+                catch (Exception) { Observation.AdapterFault(ObservationFault.ReadFailure); }
+            }
         }
         private bool Callback(object value, DocumentLane lane)
         {
@@ -157,6 +198,14 @@ namespace KingmakerMountedCombat.Diagnostics
         }
         private static class Hooks
         {
+            internal static void IteratorReturned(System.Collections.Generic.IEnumerator<object> __result)
+            {
+                try { active?.CaptureIterator(__result); } catch (Exception) { }
+            }
+            internal static void StartReturned(Task __result, object __instance)
+            {
+                try { active?.CaptureStart(__instance, __result); } catch (Exception) { }
+            }
             internal static IEnumerable<CodeInstruction> Rewrite(IEnumerable<CodeInstruction> instructions, MethodBase __originalMethod)
             {
                 var owner = active;

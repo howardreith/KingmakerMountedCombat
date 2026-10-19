@@ -222,7 +222,7 @@ namespace KingmakerMountedCombat.Diagnostics
         internal static bool IsChunk7PersistenceScenario(string scenario) => scenario == "chunk7-persistence-save" || scenario == "chunk7-persistence-load";
         internal static bool IsChunk7PersistenceCase(string value) => Array.IndexOf(new[] {
             "multi-exploration-manual", "multi-exploration-quick", "multi-exploration-auto", "multi-rt-debt-manual",
-            "multi-tb-debt-manual", "zero-mounted-tb-retained-manual", "legacy-mounted-pending-tb-manual", "multi-area-autosave", "legacy-schema1-resave-manual", "owned-schema1-manual", "owned-schema1-resave-manual", "owned-schema1-current-manual", "owned-schema2-pending-current-manual", "multi-exploration-three-loads-manual", "multi-exploration-three-area-transfers-manual",
+            "multi-tb-debt-manual", "zero-mounted-tb-retained-manual", "legacy-mounted-pending-tb-manual", "pending-schema3-control-manual", "multi-area-autosave", "legacy-schema1-resave-manual", "owned-schema1-manual", "owned-schema1-resave-manual", "owned-schema1-current-manual", "owned-schema2-pending-current-manual", "multi-exploration-three-loads-manual", "multi-exploration-three-area-transfers-manual",
             "multi-nonselected-mount-unsettled-manual", "multi-owned-worker-cancel-manual", "multi-malformed-refusal-manual", "multi-future-refusal-manual" }, value) >= 0;
 
         internal string ExpectedChunk7ArchiveArea => PersistenceCase == "multi-area-autosave" ? PersistenceAreaTarget?.Area : SelectedChunk7Fixture?.Area;
@@ -503,6 +503,10 @@ namespace KingmakerMountedCombat.Diagnostics
             if (Chunk7OwnedPairsSelection.CurrentMigrationCheckpoint(PersistenceCase) &&
                 (Scenario != Chunk7OwnedPairsSelection.Scenario || OwnedPairs?.IsOwnerSeedCheckpointLoad != true))
                 errors.Add("Current-format migration continuation requires its exact owner-seed checkpoint cold consumer.");
+            if (PersistenceCase == "pending-schema3-control-manual" &&
+                (Scenario != Chunk7OwnedPairsSelection.Scenario || OwnedPairs?.IsOwnerSeedCheckpointLoad != true ||
+                 OwnedPairs.ExpectedNativeLoadCount != 1 || OwnedPairs.ExpectedNativeWriteCount != 0))
+                errors.Add("Pending schema-3 control requires its exact one-load, zero-write owner-seed checkpoint consumer.");
             var loadRefusal = Scenario == Chunk7OwnedPairsSelection.Scenario && OwnedPairs?.IsOwnerSeedLoadRefusal == true;
             if (Chunk7OwnedPairsSelection.LoadRefusalCheckpoint(PersistenceCase) && !loadRefusal)
                 errors.Add("Load-refusal checkpoints require their exact owner-seed load-refusal selection.");

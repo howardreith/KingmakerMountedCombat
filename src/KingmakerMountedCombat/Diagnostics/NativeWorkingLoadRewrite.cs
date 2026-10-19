@@ -33,7 +33,10 @@ namespace KingmakerMountedCombat.Diagnostics
                 NativeWorkingLoadContract.Require(at >= 0 && at + 1 < code.Count && !add.ContainsKey(at), "Invalid native insertion site.");
                 NativeWorkingLoadContract.Require(code[at].labels.Count == 0 && (code[at + 1].labels.Count == 0 ||
                     kind == WorkingLoadNotice.CrossSceneStored && ExactCrossSceneSkip(code, at, c)) &&
-                    code[at + 1].blocks.Count == 0 && (code[at].blocks.Count == 0 || catchLog && ExactCatchBlock(code[at])), "Unsupported native branch/EH boundary.");
+                    (code[at + 1].blocks.Count == 0 || catchLog && ExactEndBlock(code[at + 1])) &&
+                    (code[at].blocks.Count == 0 || catchLog && ExactCatchBlock(code[at])),
+                    "Unsupported native branch/EH boundary at " + kind + " labels=" + code[at].labels.Count + "/" + code[at + 1].labels.Count +
+                    " blocks=" + code[at].blocks.Count + "/" + code[at + 1].blocks.Count + ".");
                 var steps = new List<CodeInstruction>();
                 if (returns) steps.Add(new CodeInstruction(OpCodes.Dup));
                 steps.Add(new CodeInstruction(OpCodes.Ldarg_0));
@@ -109,6 +112,12 @@ namespace KingmakerMountedCombat.Diagnostics
             object block = instruction.blocks[0]; var type = block.GetType();
             var kind = type.GetField("blockType"); var caught = type.GetField("catchType");
             return kind != null && caught != null && kind.GetValue(block).ToString() == "BeginCatchBlock" && Equals(caught.GetValue(block), typeof(Exception));
+        }
+        private static bool ExactEndBlock(CodeInstruction instruction)
+        {
+            if (instruction.blocks.Count != 1) return false;
+            object block = instruction.blocks[0]; var kind = block.GetType().GetField("blockType");
+            return kind != null && kind.GetValue(block).ToString() == "EndExceptionBlock";
         }
     }
 }

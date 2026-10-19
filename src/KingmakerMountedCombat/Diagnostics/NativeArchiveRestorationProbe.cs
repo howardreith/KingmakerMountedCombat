@@ -140,14 +140,17 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["events"] = debtEvents.DeepClone(), ["maximumEvents"] = MaximumDebtEvents, ["errors"] = debtErrors,
                 ["dropped"] = debtDropped, ["openCalls"] = debtOpenCalls.Count, ["requestUnchanged"] = DebtRequestUnchanged(),
                 ["complete"] = debtErrors == 0 && debtDropped == 0 && debtOpenCalls.Count == 0 && DebtIdentityCurrent(),
-                ["scope"] = "exact-schema2-cold-after-presentation", ["methodEntryMayBeRefusedByProductionPrefix"] = true };
+                ["scope"] = debtRequest.PersistenceCase == "pending-schema3-control-manual" ?
+                    "exact-schema3-control-cold-after-presentation" : "exact-schema2-cold-after-presentation",
+                ["methodEntryMayBeRefusedByProductionPrefix"] = true };
             return value;
         }
         internal static bool IsDebtDiagnosticRequest(RuntimeRequest request) =>
             request?.Scenario == Chunk7OwnedPairsSelection.Scenario && request.OwnedPairs?.IsOwnerSeedCheckpointLoad == true &&
             request.SelectedChunk7Scenario == Chunk7PersistenceScenario.LoadScenario &&
-            request.PersistenceCase == "legacy-mounted-pending-tb-manual" &&
-            request.OwnedPairs.ExpectedNativeLoadCount == 1 && request.OwnedPairs.ExpectedNativeWriteCount == 1;
+            (request.PersistenceCase == "legacy-mounted-pending-tb-manual" || request.PersistenceCase == "pending-schema3-control-manual") &&
+            request.OwnedPairs.ExpectedNativeLoadCount == 1 && request.OwnedPairs.ExpectedNativeWriteCount ==
+                (request.PersistenceCase == "pending-schema3-control-manual" ? 0 : 1);
         // The entire serialized immutable request binds source/seed ancestry, roles,
         // party, fixture and both campaign/area descriptors as well as quotas/token.
         private static string DebtRequestKey(RuntimeRequest request) => request == null ? null :

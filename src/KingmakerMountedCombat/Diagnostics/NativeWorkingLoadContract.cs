@@ -16,7 +16,7 @@ namespace KingmakerMountedCombat.Diagnostics
         internal static readonly Guid JsonMvid = new Guid("4f213745-d60e-425f-b763-df319c826ddf");
         internal readonly MethodInfo[] Owners;
         internal readonly MethodBase LoaderConstructor;
-        internal readonly MethodInfo Start, CreateSerializer, DeserializePlayer, DeserializeParty, LogException, ScenePostLoad;
+        internal readonly MethodInfo LoadRoutineFactory, Start, CreateSerializer, DeserializePlayer, DeserializeParty, LogException, ScenePostLoad;
         internal readonly FieldInfo IteratorManager, IteratorSave, IteratorSmoke, IteratorLoader, IteratorTask;
         internal readonly FieldInfo ClosureLoader, PartyClosure, PartyResult, PlayerJson, PartyJson;
         internal readonly FieldInfo GameState, PlayerState, CrossScene, MainReference, MainId, Entities, EntityId, HoldingScene;
@@ -34,6 +34,12 @@ namespace KingmakerMountedCombat.Diagnostics
             Require(game.ModuleVersionId == GameMvid && json.ModuleVersionId == JsonMvid, "Installed loader/serializer module changed.");
             Owners = new[] { Method(game, 0x0600BF00), Method(game, 0x0600BF1A), Method(game, 0x0600BF1D), Method(game, 0x06008054), Method(game, 0x06000DC7) };
             Require(Owners[0].ReturnType == typeof(bool), "Native iterator signature changed.");
+            LoadRoutineFactory = Method(game, 0x0600802C);
+            Require(LoadRoutineFactory.DeclaringType == typeof(SaveManager) &&
+                LoadRoutineFactory.ReturnType == typeof(System.Collections.Generic.IEnumerator<object>) &&
+                LoadRoutineFactory.GetParameters().Length == 2 &&
+                LoadRoutineFactory.GetParameters()[0].ParameterType == typeof(SaveInfo) &&
+                LoadRoutineFactory.GetParameters()[1].ParameterType == typeof(bool), "Native iterator factory signature changed.");
             for (int i = 0; i < Owners.Length; i++) Require(!Owners[i].IsStatic && Owners[i].GetParameters().Length == 0 &&
                 (i == 0 || Owners[i].ReturnType == typeof(void)), "Native callback signature changed.");
             IteratorManager = Field(game, 0x04008CF5); IteratorSave = Field(game, 0x04008CF4); IteratorSmoke = Field(game, 0x04008CF6);

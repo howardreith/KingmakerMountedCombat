@@ -8,7 +8,7 @@ using KingmakerMountedCombat.Diagnostics.WorkingLoadPrototype;
 
 // Native and Harmony types are external substitutes only in this standalone
 // compilation. The observer and recorder files are compiled byte-for-byte.
-namespace Kingmaker.EntitySystem.Persistence { public sealed class SaveManager { } public sealed class SaveInfo { } }
+namespace Kingmaker.EntitySystem.Persistence { public sealed class SaveManager { public IEnumerator<object> LoadRoutine(SaveInfo save, bool smoke) { return null; } } public sealed class SaveInfo { } }
 namespace Kingmaker
 {
     public sealed class Game
@@ -22,8 +22,8 @@ public sealed class AdapterPlayer { public AdapterScene Scene = new AdapterScene
 public sealed class AdapterScene { public AdapterEntity[] Entities = new AdapterEntity[0]; }
 public sealed class AdapterEntity { public string Id = "main"; public AdapterScene Scene; }
 public sealed class AdapterSerializer { }
-public sealed class AdapterLoader { public void DoLoad() { } }
-public sealed class AdapterIterator
+public sealed class AdapterLoader { public void DoLoad() { } public Task Start() { return null; } }
+public sealed class AdapterIterator : IEnumerator<object>
 {
     public Kingmaker.EntitySystem.Persistence.SaveManager Manager;
     public Kingmaker.EntitySystem.Persistence.SaveInfo Save;
@@ -31,16 +31,20 @@ public sealed class AdapterIterator
     public AdapterLoader Loader;
     public Task Task;
     public bool MoveNext() { return false; }
+    public object Current => null;
+    object System.Collections.IEnumerator.Current => Current;
+    public void Dispose() { }
+    public void Reset() { }
 }
 public sealed class AdapterPlayerClosure { public AdapterLoader Loader; public void Invoke() { } }
 public sealed class AdapterPartyClosure { public AdapterPlayerClosure Parent; public AdapterScene Result; public void Invoke() { } }
 namespace Harmony12
 {
     public sealed class CodeInstruction { }
-    public enum HarmonyPatchType { Transpiler }
+    public enum HarmonyPatchType { Transpiler, Postfix }
     public sealed class HarmonyMethod { public readonly MethodInfo Method; public HarmonyMethod(MethodInfo method) { Method = method; } }
     public sealed class Patch { public string owner; }
-    public sealed class Patches { public readonly List<Patch> Transpilers = new List<Patch>(); }
+    public sealed class Patches { public readonly List<Patch> Transpilers = new List<Patch>(); public readonly List<Patch> Postfixes = new List<Patch>(); }
     public sealed class HarmonyInstance
     {
         public static int FailPatch, FailUnpatch, RefuseRemoval, PatchCalls;
@@ -51,14 +55,14 @@ namespace Harmony12
         public static HarmonyInstance Create(string id) { return new HarmonyInstance(id); }
         public void Patch(MethodBase method, HarmonyMethod prefix, HarmonyMethod postfix, HarmonyMethod transpiler)
         {
-            PatchCalls++; var p = new Patches(); p.Transpilers.Add(new Patch { owner = id }); owned.Add(method, p);
+            PatchCalls++; var p = new Patches(); (transpiler == null ? p.Postfixes : p.Transpilers).Add(new Patch { owner = id }); owned.Add(method, p);
             if (PatchCalls == FailPatch) throw new InvalidOperationException("external patch failure after acquisition");
-            transpiler.Method.Invoke(null, new object[] { new CodeInstruction[0], method });
+            if (transpiler != null) transpiler.Method.Invoke(null, new object[] { new CodeInstruction[0], method });
         }
         public void Unpatch(MethodBase method, HarmonyPatchType type, string owner)
         {
             int count; UnpatchCalls.TryGetValue(method, out count); UnpatchCalls[method] = count + 1;
-            int index = Array.IndexOf(NativeWorkingLoadContract.TestOwners, method) + 1;
+            int index = Array.IndexOf(NativeWorkingLoadContract.TestHooks, method) + 1;
             if (index == FailUnpatch) throw new InvalidOperationException("external unpatch failure");
             if (index != RefuseRemoval) owned.Remove(method);
         }
@@ -72,7 +76,10 @@ namespace KingmakerMountedCombat.Diagnostics
     {
         internal static readonly MethodInfo[] TestOwners = { typeof(AdapterIterator).GetMethod("MoveNext"), typeof(AdapterPlayerClosure).GetMethod("Invoke"),
             typeof(AdapterPartyClosure).GetMethod("Invoke"), typeof(AdapterLoader).GetMethod("DoLoad"), typeof(AdapterPlayer).GetMethod("PostLoad") };
+        internal static readonly MethodInfo[] TestHooks = { typeof(Kingmaker.EntitySystem.Persistence.SaveManager).GetMethod("LoadRoutine"), typeof(AdapterLoader).GetMethod("Start"),
+            TestOwners[1], TestOwners[2], TestOwners[3], TestOwners[4] };
         internal readonly MethodInfo[] Owners = TestOwners;
+        internal readonly MethodInfo LoadRoutineFactory = TestHooks[0], Start = TestHooks[1];
         internal readonly FieldInfo IteratorManager = typeof(AdapterIterator).GetField("Manager"), IteratorSave = typeof(AdapterIterator).GetField("Save"),
             IteratorSmoke = typeof(AdapterIterator).GetField("Smoke"), IteratorLoader = typeof(AdapterIterator).GetField("Loader"), IteratorTask = typeof(AdapterIterator).GetField("Task"),
             PartyClosure = typeof(AdapterPartyClosure).GetField("Parent"), ClosureLoader = typeof(AdapterPlayerClosure).GetField("Loader"), PartyResult = typeof(AdapterPartyClosure).GetField("Result"),
@@ -115,6 +122,8 @@ internal static class WorkingLoadAdapterBoundaryTests
     private static readonly Type hooks = typeof(NativeWorkingLoadObserver).GetNestedType("Hooks", BindingFlags.NonPublic);
     private static readonly MethodInfo receiver = hooks.GetMethod("Receiver", BindingFlags.Static | BindingFlags.NonPublic);
     private static readonly MethodInfo returned = hooks.GetMethod("Returned", BindingFlags.Static | BindingFlags.NonPublic);
+    private static readonly MethodInfo iteratorReturned = hooks.GetMethod("IteratorReturned", BindingFlags.Static | BindingFlags.NonPublic);
+    private static readonly MethodInfo startReturned = hooks.GetMethod("StartReturned", BindingFlags.Static | BindingFlags.NonPublic);
     private static void Check(bool value, string name) { Console.WriteLine((value ? "PASS " : "FAIL ") + name); if (value) passed++; else failed++; }
     private static void Notify(WorkingLoadNotice kind, object owner, object value = null)
     {
@@ -139,8 +148,8 @@ internal static class WorkingLoadAdapterBoundaryTests
             Player = new AdapterPlayerClosure { Loader = Iterator.Loader }; Party = new AdapterPartyClosure { Parent = Player, Result = Game.State.Player.Scene };
             if (install) Owner.Install();
         }
-        internal void Loader() { Notify(WorkingLoadNotice.LoaderStored, Iterator); }
-        internal void Task() { Notify(WorkingLoadNotice.TaskStored, Iterator); }
+        internal void Loader() { iteratorReturned.Invoke(null, new object[] { Iterator }); }
+        internal void Task() { startReturned.Invoke(null, new object[] { Completion.Task, Iterator.Loader }); }
         internal void PlayerResult()
         {
             Notify(WorkingLoadNotice.PlayerSerializer, Player, new AdapterSerializer()); Notify(WorkingLoadNotice.PlayerReturned, Player, Game.State.Player); Notify(WorkingLoadNotice.PlayerStored, Player);
@@ -154,19 +163,22 @@ internal static class WorkingLoadAdapterBoundaryTests
     private static void Run()
     {
         Notify(WorkingLoadNotice.PlayerSerializer, new object(), new object()); Check(NativeWorkingLoadFields.Reads == 0, "no installed owner performs no field reads");
-        var f = new Fixture(); Check(f.Owner.Installed && Harmony12.HarmonyInstance.PatchCalls == 5, "all five exact external patch targets acquired");
+        var f = new Fixture(); Check(f.Owner.Installed && Harmony12.HarmonyInstance.PatchCalls == 6, "six exact external patch targets acquired without bool iterator patch");
         Notify(WorkingLoadNotice.PlayerSerializer, f.Player, new AdapterSerializer()); Check(NativeWorkingLoadFields.Reads == 0 && f.Owner.Observation.Events.Length == 0, "first callback before loader provenance refuses without reads");
         var foreign = new AdapterIterator { Manager = f.Game.SaveManager, Save = new Kingmaker.EntitySystem.Persistence.SaveInfo(), Loader = f.Iterator.Loader, Task = f.Iterator.Task };
-        Notify(WorkingLoadNotice.LoaderStored, foreign); Check(f.Owner.Observation.Events.Length == 0, "foreign saved descriptor cannot establish first loader");
+        iteratorReturned.Invoke(null, new object[] { foreign }); Check(f.Owner.Observation.Events.Length == 0, "foreign saved descriptor cannot establish first loader");
         f.Iterator.Smoke = true; f.Loader(); Check(f.Owner.Observation.Events.Length == 0, "smoke-test iterator refuses"); f.Iterator.Smoke = false; f.Loader();
-        Check(f.Owner.Observation.Events.Single().Phase == "loader-created", "exact iterator manager/save establishes actual loader");
+        Check(f.Owner.Observation.Events.Length == 0, "factory capture does not invent a loader or Task");
+        startReturned.Invoke(null, new object[] { f.Completion.Task, new AdapterLoader() });
+        Check(f.Owner.Observation.Events.Length == 0, "foreign Start cannot adopt the captured iterator");
+        f.Task(); Check(f.Owner.Observation.Events.Select(e => e.Phase).SequenceEqual(new[] { "loader-created", "task-returned" }), "exact iterator and Start establish native provenance");
         Notify(WorkingLoadNotice.PlayerSerializer, new AdapterPlayerClosure { Loader = new AdapterLoader() }, new AdapterSerializer());
         Notify(WorkingLoadNotice.PartySerializer, new AdapterPartyClosure { Parent = new AdapterPlayerClosure { Loader = new AdapterLoader() } }, new AdapterSerializer());
         Check(NativeWorkingLoadFields.Reads == 0, "forged initial player and party closure refuse before field traversal");
-        f.PlayerResult(); f.PartyResult(); Check(f.Owner.Observation.Events.Count(e => e.Phase == "object-assigned") == 2, "sourced callbacks may run before native Task store");
-        int events = f.Owner.Observation.Events.Length; foreign.Save = f.Save; Notify(WorkingLoadNotice.TaskStored, foreign);
-        Check(f.Owner.Observation.Events.Length == events, "same manager/save foreign iterator cannot adopt first Task"); f.Task();
-        Notify(WorkingLoadNotice.CrossSceneStored, new AdapterLoader()); Check(f.Owner.Observation.Events.Length == events + 1, "foreign loader cannot claim css assignment");
+        f.PlayerResult(); f.PartyResult(); Check(f.Owner.Observation.Events.Count(e => e.Phase == "object-assigned") == 2, "sourced callbacks preserve returned and assigned objects");
+        int events = f.Owner.Observation.Events.Length; foreign.Save = f.Save; iteratorReturned.Invoke(null, new object[] { foreign });
+        Check(f.Owner.Observation.Events.Length == events, "same manager/save foreign iterator cannot replace captured source");
+        Notify(WorkingLoadNotice.CrossSceneStored, new AdapterLoader()); Check(f.Owner.Observation.Events.Length == events, "foreign loader cannot claim css assignment");
         Notify(WorkingLoadNotice.CrossSceneStored, f.Iterator.Loader); Check(f.Owner.Observation.Events.Last().Phase == "cross-scene-assigned", "actual stored player and scene are observed");
         int reads = NativeWorkingLoadFields.Reads; Notify(WorkingLoadNotice.SceneBefore, f.Game.State.Player, f.Party.Result);
         Check(NativeWorkingLoadFields.Reads == reads, "unsettled actual Task cannot admit scene traversal");
@@ -178,7 +190,7 @@ internal static class WorkingLoadAdapterBoundaryTests
         Check(f.Owner.Observation.Events.Count(e => e.Phase.StartsWith("scene-postload-", StringComparison.Ordinal)) == 2, "exact current native player and scene bracket are recorded");
         Check(!f.Owner.TryRelease(true) && Harmony12.HarmonyInstance.UnpatchCalls.Count == 0, "native queued/loading fence retains hooks after Task settles");
         Check(!System.Threading.Tasks.Task.Run(() => f.Owner.TryRelease(false)).Result, "foreign release thread cannot dispose owner");
-        Harmony12.HarmonyInstance.FailUnpatch = 2; Check(!f.Owner.TryRelease(false) && Harmony12.HarmonyInstance.UnpatchCalls.Count == 5 && f.Owner.Observation.RetainedCount > 0, "failed unpatch retains references while all targets are attempted");
+        Harmony12.HarmonyInstance.FailUnpatch = 2; Check(!f.Owner.TryRelease(false) && Harmony12.HarmonyInstance.UnpatchCalls.Count == 6 && f.Owner.Observation.RetainedCount > 0, "failed unpatch retains references while all targets are attempted");
         Harmony12.HarmonyInstance.FailUnpatch = 0; f.Release();
         Check(f.Owner.Released && f.Owner.Observation.RetainedCount == 0 && Harmony12.HarmonyInstance.UnpatchCalls.Values.Count(x => x == 2) == 1, "retry disposes only failed target and then releases references");
         events = f.Owner.Observation.Events.Length; reads = NativeWorkingLoadFields.Reads; Notify(WorkingLoadNotice.PlayerSerializer, f.Player, new AdapterSerializer());
@@ -195,7 +207,7 @@ internal static class WorkingLoadAdapterBoundaryTests
         Harmony12.HarmonyInstance.RefuseRemoval = 0; f.Release(); Check(f.Owner.Released, "verified later hook removal completes retained retry");
         f = new Fixture(); f.Loader(); f.Task(); f.PlayerResult(); var replacement = new AdapterPlayer(); f.Game.State.Player = replacement;
         Notify(WorkingLoadNotice.PlayerStored, f.Player); Check(f.Owner.Observation.Faults.Contains(ObservationFault.BadOrder), "replacement after native return cannot be credited as that return"); f.Release();
-        Check(Harmony12.HarmonyInstance.UnpatchCalls.Count == 5, "final generated owner fully released");
+        Check(Harmony12.HarmonyInstance.UnpatchCalls.Count == 6, "final generated owner fully released");
         foreach (var absentId in new string[] { null, "" })
         {
             f = new Fixture(); f.Loader(); f.Task(); f.Completion.SetResult(0);
