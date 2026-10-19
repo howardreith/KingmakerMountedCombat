@@ -1,5 +1,34 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## Active October 19 batch45 follow-up — preview.64 source
+
+The [standing completion mission](planning/CHUNK7-COMPLETION-MISSION.md)
+remains selected through readiness-gated private 7E. The
+[batch45 record](docs/CHUNK7-BATCH45-NATIVE-FOLLOWUP-2026-10-19.md) preserves
+the two original preview.63 FAILs and separate restoration: Manticore game
+PASS 5/0 produced `Manual_305_KMC_C7_AREA_FIXTURE.zks`, but the outer profile
+check saw a transient new zero-length achievement cache, followed by exact-run
+guarded recovery; Small native paid CharGen completed, then the strict
+single-quoted-cost balance assertion failed without recording the actual
+debit. No area Auto/cold, door or Small Manual result followed. The game and
+runtime lock are absent; Mods, Working and protected saves restored after both.
+Batch45s2's profile bytes and settings restored exactly; batch45s1 has its
+separate pinned profile recovery. Do not promote either original FAIL.
+
+Preview.64 source gives a new zero-length native achievement cache up to ten
+seconds of read-only settlement after game exit, while checking other profile,
+settings and invalid cache changes immediately. It emits actual hire debit,
+current native cost and party level only on a paid assertion mismatch, without
+changing money or the failure. Focused profile protection passed 59/0, Fast
+passed 3/0 (source 147/0), and independent review passed. Current source is
+**not yet a frozen native candidate**. Next: commit and guarded-push the
+coherent source, package preview.64 once, run Candidate, freeze a fresh suite,
+pass scoped WhatIf, then run at most the changed Manticore and Small paths
+sequentially with fresh run IDs. Preserve batch43–45 original FAILs. An
+accepted fixture output still needs separate consumers. Continue positive
+reference-free removal, F10, F11 and private 7E; no merge, release, permanent
+installation or HUMAN PLAY acceptance is selected.
+
 ## Active October 19 batch44 correction — preview.63 source
 
 The [standing completion mission](planning/CHUNK7-COMPLETION-MISSION.md)

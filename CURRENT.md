@@ -1,5 +1,22 @@
 # Chunk 7B–7D — IN PROGRESS
 
+## October 19 — batch45 native follow-up and preview.64 diagnosis
+
+Preview.63 Candidate passed 6/0. Batch45 Manticore game PASS 5/0 produced a
+genuine non-capital Manual, but its **original outer result remains FAIL** on
+a transient zero-length native achievement-cache leaf at exit. Its exact-run
+guarded profile recovery passed separately; the fixture Manual is not yet an
+accepted source. Batch45 Small reached native paid CharGen completion but its
+**original game and outer results remain FAIL** because the actual balance
+did not match the earlier quoted cost; the actual debit was not in the trace.
+The [batch45 record](docs/CHUNK7-BATCH45-NATIVE-FOLLOWUP-2026-10-19.md) pins
+each result and restoration. Preview.64 adds only a bounded read-only cache
+settlement check and a failure-only hire-debit observation; it does not relax
+the paid assertion. Focused synthetic profile checks passed 59/0 and
+independent review passed. Targeted native verification, area Auto/cold,
+positive removal, Small calibration, progression, measured 7D and private 7E
+remain open under the [standing mission](planning/CHUNK7-COMPLETION-MISSION.md).
+
 ## October 19 — batch44 original native FAILs, reviewed preview.63 correction
 
 Preview.62 Candidate passed 6/0. Batch44's two declared native fixtures both

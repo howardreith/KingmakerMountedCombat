@@ -169,15 +169,21 @@ function Get-KmcPersistenceProfileCacheDelta {
                 beforeSha256=[string]$prior.sha256;afterSha256=[string]$current.sha256}
         }
     }
+    $unsettled=@()
     foreach($path in @($currentByPath.Keys)){
         if($priorByPath.ContainsKey($path)){continue}
         $current=$currentByPath[$path]
         if([long]$current.length-ne[long]$script:KmcNativeAchievementCacheSettledSize){
+            if([long]$current.length-eq0){$unsettled+=$path;continue}
             throw ('A new profile leaf used the achievement cache name without its settled native size: '+
                 $path+' '+$current.length)
         }
         $changes+=[pscustomobject]@{path=$path;change='created';length=[long]$current.length
             beforeSha256=$null;afterSha256=[string]$current.sha256}
+    }
+    if($unsettled.Count-gt0){
+        throw ('A new profile leaf used the achievement cache name without its settled native size: '+
+            (@($unsettled|Sort-Object -CaseSensitive)[0])+' 0')
     }
     return $changes
 }
@@ -186,18 +192,37 @@ function Assert-KmcPersistenceProfileUnchanged {
     param($Snapshot)
     Assert-KmcNoGameProcesses
     $after=Get-KmcQualificationTreeInventory -Root $Snapshot.profile -Scope save-root -ExcludeRelativeRoots @('Saved Games','output_log.txt')
-    $cacheChanges=Get-KmcPersistenceProfileCacheDelta $Snapshot.inventory $after
-    $analyticsChanges=Get-KmcPersistenceProfileAnalyticsDelta $Snapshot.inventory $after
     if((Get-KmcPersistenceProfileIdentityDigest $after $Snapshot.inventory)-cne
         (Get-KmcPersistenceProfileIdentityDigest $Snapshot.inventory $after)){
         throw 'Native profile/cache bytes changed during the owned persistence process; exact intake backup retained, no automatic stale overwrite performed.'
     }
     if((Get-KmcSha256 $Snapshot.paramsPath)-cne$Snapshot.paramsSha256){throw 'UMM parameters changed during the owned persistence process.'}
     if((Get-KmcPersistencePlayerPrefs)-cne$Snapshot.playerPrefsJson){throw 'Native PlayerPrefs changed during the owned persistence process.'}
+    $analyticsChanges=Get-KmcPersistenceProfileAnalyticsDelta $Snapshot.inventory $after
+    $cacheChanges=Get-KmcPersistenceProfileCacheDelta $Snapshot.inventory $after
     # Admitted native cache churn and appended analytics batches, for the caller
     # to record as expected external changes with their exact hashes. An empty
     # result means the profile really is byte-equal.
     return @($cacheChanges)+@($analyticsChanges)
+}
+
+function Wait-KmcPersistenceProfileUnchanged {
+    param($Snapshot,[ValidateRange(0,15000)][int]$MaximumWaitMilliseconds=10000,
+        [ValidateRange(25,1000)][int]$PollMilliseconds=250)
+    $elapsed=[Diagnostics.Stopwatch]::StartNew()
+    while($true){
+        try{return @(Assert-KmcPersistenceProfileUnchanged $Snapshot)}
+        catch{
+            # Only a newly created, not-yet-populated native achievement cache
+            # receives a short read-only settlement window. Every other profile,
+            # settings or process violation fails on its first observation.
+            if(-not$_.Exception.Message.StartsWith('A new profile leaf used the achievement cache name without its settled native size:',
+                    [StringComparison]::Ordinal)-or
+                    -not$_.Exception.Message.EndsWith(' 0',[StringComparison]::Ordinal)-or
+                    $elapsed.ElapsedMilliseconds-ge$MaximumWaitMilliseconds){throw}
+            Start-Sleep -Milliseconds $PollMilliseconds
+        }
+    }
 }
 
 # One observed owned LoadGameException reset changed this exact boolean.

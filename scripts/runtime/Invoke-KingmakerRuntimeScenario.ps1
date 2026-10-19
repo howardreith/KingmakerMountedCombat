@@ -1349,7 +1349,7 @@ finally{
             # Admitted native achievement-cache churn is an expected external
             # change, not restored bytes, so it is recorded rather than implied
             # away by a bare "profile unchanged" result.
-            $profileCacheChanges=@(Assert-KmcPersistenceProfileUnchanged $profileSnapshot)
+            $profileCacheChanges=@(Wait-KmcPersistenceProfileUnchanged $profileSnapshot)
         }
         catch{$errors.Add($_.Exception.Message);$saveProtection=$false}
         try{
