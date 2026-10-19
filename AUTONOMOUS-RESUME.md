@@ -1,5 +1,39 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## October 19 - batch35 matched schema discriminator
+
+Branch `codex/mounted-combat-chunk7-successor`; preview.53 source is committed
+at `2b147a725ddd9be517f4e4c769fbe000455155c0`. Batch35 slots 1 and 2
+used fresh disposable copies of the same pending-only source under the same
+Howie context, base-only staging, candidate and observer. Schema 3 and its
+metadata-only schema-2 derivative both restored A's 6/3/6 debt; native
+`JoinCombat` and `UnitCombatPrepareController.Tick` then cleared it after the
+restoration fence fell, in the retained round and within 0.011 seconds of the
+saved time. Both original runtime results are FAIL, with Mods, profile,
+protected saves and Working restored. The original preview.45 schema-2 FAIL
+is also preserved. This is shared native re-entry, not a migration-specific
+conversion failure. The post-fence join owner and a per-actor same-allocation
+preparation seam remain to be proven before a safe gameplay repair. Exact
+records: [batch35 matched discriminator](docs/CHUNK7-DIRECTIVE4-MATCHED-DEBT-DISCRIMINATOR-2026-10-19.md).
+
+The Working observer's actual Harmony12 iterator-patch failure was reproduced
+and repaired in preview.53; the real installed patch-install/remove regression
+and focused tests pass. No new Working load was made: batch34 established that
+the legacy archive may write seven live `Areas` files and startup settings,
+and its completed exact-run recovery cannot be reused for a new run. Establish
+reviewed run-specific recovery/isolation for those surfaces, then at most one
+targeted observer load. If it gives no actionable loader diagnosis, assess the
+qualified owner-seed-derived reference-free positive cleanup fixture. Area
+Auto still lacks a visited non-capital entrance; no human action is requested
+without an exact target. Do not repeat the completed b34 recovery, reset old
+FAILs, run a full campaign, merge, release or install permanently.
+
+The next work is a bounded source/contract review of the post-fence JoinCombat
+call and native allocation lifecycle, plus a reviewed new-run Working profile
+recovery plan. The already-pushed `e67dafa4` documentation is historical,
+not a commit task. Retain the batch35 private evidence and current clean
+transaction state before any new native run.
+
 ## October 19 - Working discriminator failed; exact recovery complete
 
 Branch `codex/mounted-combat-chunk7-successor` was pushed at
