@@ -88,6 +88,8 @@ namespace KingmakerMountedCombat.Diagnostics
         // The owner-seed checkpoint producer writes its Manual under its own distinct name; every other selection keeps NativeName.
         internal static string NativeName(SaveInfo.SaveType type, Chunk7OwnedPairsSelection owned) =>
             type == SaveInfo.SaveType.Manual && owned?.IsOwnerSeedCheckpointSave == true ? Chunk7OwnedPairsSelection.OwnerSeedCheckpointManualName : NativeName(type);
+        internal static string NativeName(SaveInfo.SaveType type, Chunk7OwnedPairsSelection owned, string checkpoint) =>
+            type == SaveInfo.SaveType.Manual && owned?.IsOwnerSeedCheckpointSave == true ? owned.OwnedManualOutputName(checkpoint) : NativeName(type, owned);
         internal static string NativeLeaf(SaveInfo.SaveType type) => type == SaveInfo.SaveType.Manual ? "Manual_300_" + ManualName + ".zks" : type + "_1.zks";
 
         internal Chunk7PersistenceScenario(RuntimeRequest request, GameMountedRelationshipService relationship,
@@ -137,7 +139,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 // It may retain its exact settings lease, but it gains no actor,
                 // save or cleanup authority until explicit destination adoption.
                 var declaredAreaLoading = AreaAutosaveCase && !Cold && stage == 30 && areaTransferDispatched && !areaScopeAdopted &&
-                    (LoadingProcess.Instance.IsLoadingInProcess || LoadingProcess.Instance.QueuedNames.Any());
+                    (LoadingProcess.Instance.IsLoadingInProcess || LoadingProcess.Instance.QueuedNames.Any()) ||
+                    ManticoreFixtureCase && stage == 92 && manticoreDispatched && !manticoreScopeAdopted;
                 if (declaredAreaLoading) nativeScope.RequireTransferWorld();
                 else RequireNativeWorld();
             }
@@ -150,12 +153,13 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 if (!started) Start();
                 if (cleanup) { PollCleanup(); return; }
-                Require(clock.Elapsed.TotalSeconds <= (RepeatedWorldCase ? 600 : CombatCase || AreaAutosaveCase ? 300 : 180) && clock.Elapsed.TotalSeconds - stageStarted <=
-                    (RepeatedWorldCase && stage == 70 ? 450 : CombatCase && (stage == 5 || stage == 20) || AreaAutosaveCase && stage == 30 ? 150 : 35),
+                Require(clock.Elapsed.TotalSeconds <= (RepeatedWorldCase ? 600 : CombatCase || AreaAutosaveCase || ManticoreFixtureCase ? 300 : 180) && clock.Elapsed.TotalSeconds - stageStarted <=
+                    (RepeatedWorldCase && stage == 70 ? 450 : CombatCase && (stage == 5 || stage == 20) || AreaAutosaveCase && stage == 30 || ManticoreFixtureCase && stage == 92 ? 150 : 35),
                     "Bounded native persistence deadline at stage " + stage + ".");
                 if (UpdateSaveBoundary()) return;
                 if (UpdateRepeatedWorld()) return;
                 if (UpdateAreaAutosave()) return;
+                if (UpdateManticoreFixture()) return;
                 if (UpdateLoadRefusal()) return;
                 if (LoadingProcess.Instance.IsLoadingInProcess || LoadingProcess.Instance.QueuedNames.Any()) return;
                 RequireNativeWorld();
@@ -432,8 +436,8 @@ namespace KingmakerMountedCombat.Diagnostics
             if (request.OwnedPairs != null) RequireOwnedSaveAdmission(type);
             NativePersistenceIsolation.EnableNativeSlotRotation();
             var descriptor = type == SaveInfo.SaveType.Quick ? manager.GetNextQuickslot() :
-                type == SaveInfo.SaveType.Auto ? manager.GetNextAutoslot() : manager.CreateNewSave(NativeName(type, request.OwnedPairs));
-            Require(descriptor != null && descriptor.Type == type && descriptor.Name == NativeName(type, request.OwnedPairs) &&
+                type == SaveInfo.SaveType.Auto ? manager.GetNextAutoslot() : manager.CreateNewSave(NativeName(type, request.OwnedPairs, request.PersistenceCase));
+            Require(descriptor != null && descriptor.Type == type && descriptor.Name == NativeName(type, request.OwnedPairs, request.PersistenceCase) &&
                 !descriptor.IsActuallySaved && manager.IsSaveAllowed(), "Actual native category admission differs.");
             if (request.OwnedPairs != null) ownedRequestedSave = descriptor;
             if (SourceSaveBoundary) { RequireSaveBoundaryAuthority(); boundaryRequestedSave = descriptor; }
@@ -448,7 +452,7 @@ namespace KingmakerMountedCombat.Diagnostics
             if (Schema1ResaveCase) { ObserveSchema1Resaved(); return; }
             if (Schema2ResaveCase) { ObserveSchema2Resaved(); return; }
             var type = NativeType(request.PersistenceCase);
-            savedDescriptor = Game.Instance.SaveManager.SingleOrDefault(s => s.Name == NativeName(type, request.OwnedPairs) && s.Type == type);
+            savedDescriptor = Game.Instance.SaveManager.SingleOrDefault(s => s.Name == NativeName(type, request.OwnedPairs, request.PersistenceCase) && s.Type == type);
             Require(savedDescriptor != null && savedDescriptor.OperationState == SaveInfo.StateType.None && savedDescriptor.HasFileOnDisk &&
                 savedDescriptor.FileName == SelectedOutputLeaf(type), "Native archive did not complete at its exact declared leaf.");
             ObserveOwnedSaveCompletion();
@@ -700,6 +704,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["world"] = captured ? Capture("cleanup") : null };
             CaptureRepeatedSettlement();
             ReleaseOwnedAreaObservation();
+            ReleaseManticoreObservation();
             if (pendingHostCustody) evidence["cleanupSettledAfterHostBoundary"] = true;
             pendingHostCustody = false;
             inherited?.Release(); cleanupProven = true;

@@ -1,0 +1,78 @@
+# Chunk 7 F11 measurement design — IN PROGRESS
+
+The existing opt-in `MountedRuntimeMeasurement` samples 30 warmup and 120
+measured frames. It records inclusive KMC `CompositionRoot.Update` ticks,
+whole-frame `Time.unscaledDeltaTime`, KMC log count, retained managed heap,
+owned boundaries and native subscriptions. The retained heap delta is **not**
+allocation rate. Its output explicitly says so; `Chunk7MatchedPoolEvidence`
+keeps `managedAllocationRateMeasured=false`. Neither an old heap delta nor a
+process working-set reading may be promoted into an allocation claim.
+
+The accepted owner-seed b3s1d development artifact
+`20261018-c7b-world26-ownerseed-b3s1d-save/chunk7-world-evidence.json`
+(SHA-256 `01438210fbc9cdf8f8bc228b3d973ffff7220eaa32449bf43f4462fb355723a8`)
+observed a 0-pair window with service mean 0.2056 ms, p95 0.2714 ms and
+frame p95 11.7062 ms, followed by a 1-pair window with service mean
+0.2289 ms, p95 0.2770 ms and frame p95 11.4263 ms. Both recorded zero KMC
+log messages. These are two short windows on preview.26, not final-candidate
+performance acceptance and not a 2-pair or allocation-rate measurement.
+
+The selected final design uses the same candidate, graphics/settings state,
+idle scene, camera, party and unpaused RT mode for 0/1/2 settled pairs. Each
+state receives three separately labeled windows, each with declared warmup
+and sample counts; the exact actor/owner/gear state is captured at both ends.
+No native command, save, diagnostic overlay or area load occurs inside a
+window. A conditional six-pair window is added only after an admitted fixture
+exists. Matched windows measure KMC Update cost and whole-frame time
+separately. Subscription, owner, retained-view and KMC logging counts are
+checked before and after every lifecycle cycle and across repeated windows.
+
+For allocation rate, a bounded opt-in counter must measure managed allocation
+events or allocated bytes around the same KMC Update boundary. Report bytes
+per Update and bytes per elapsed sample second; state explicitly that an
+Update-only counter excludes KMC hooks outside Update and other engine
+threads. Read-only inspection of the exact installed `mscorlib.dll` and Mono
+runtime found no `GC.GetAllocatedBytesForCurrentThread`,
+`GC.GetTotalAllocatedBytes`, or corresponding native per-thread export string.
+The inspection receipt is
+`analysis-cache/chunk7-continuation/f11-allocation-api-20261019/f11-installed-allocation-api.json`,
+SHA-256 `c6d77f5d1b49ff7a36040516d666fdfd8f70e5cb0f68c22d5b74627da9721a07`.
+`mono_gc_get_heap_size` and `mono_gc_get_used_size` report heap state, not
+allocation throughput. F11 stays **IN PROGRESS** while a supported, scoped
+allocation-event measurement seam is established; retained heap cannot stand
+in for it.
+
+The exact installed Mono PE export table does contain allocation-profiler
+registration and event names, but provides no demonstrated disable,
+unregister or destruction path. Installing a process-wide callback from this
+mod could retain it after diagnostics stop and interfere with other mods, so
+that is not an admitted product instrument. The read-only export/API receipt
+is `analysis-cache/chunk7-continuation/f11-allocation-api-20261019/f11-native-profiler-boundary.json`,
+SHA-256 `5b502936fce91e59b9fcff781ffb071d5b84ff2c168a76227bbe0efcdd6c89a3`.
+An external, process-lifetime profiler on a disposable guarded launch remains
+a candidate only after exact installed ABI, bounded output and transaction
+behavior are reviewed; this document does not authorize or claim that run.
+Read-only installed inventory found no `mono-profiler-log`, `libmono-profiler-*`
+or `mprof` binary in Kingmaker, no profiler boot setting and no guarded
+launch/output contract. The receipt is
+`analysis-cache/chunk7-continuation/f11-allocation-api-20261019/f11-external-profiler-inventory.json`,
+SHA-256 `481a171f73a1c0f9ac4cc34e46a31e9a463dcc1f986f325c2abd4727eacd40f3`.
+That route therefore also requires reviewed implementation before a measured
+F11 allocation result can be claimed.
+
+Before seeing final measurements, the comparison rule is: repeated windows
+must retain the same declared actor/owner/subscription population within
+each state, and repeated settled lifecycle cycles must return to the same
+zero-pair residue and subscription counts. Zero is the expected count of
+unprompted KMC warnings/errors in quiet windows. For timing and allocation,
+compare the three-window median at 1 and 2 pairs with the matched 0-pair
+baseline; use the baseline's observed window-to-window spread as the noise
+band, and investigate an increasing per-pair delta beyond that band. Whole
+frame p95 is context for player impact, not a proxy for KMC's own cost.
+Record the actual deltas even if they are below the investigation threshold;
+do not move the comparison rule after observing them.
+
+This document defines the measurement and acceptance comparison only. It
+does not claim a new instrument, native run, threshold PASS or ordinary-player
+usability result. Final exact-package qualification must bind any F11 evidence
+to the delivered binary and diagnostics-disabled controls.

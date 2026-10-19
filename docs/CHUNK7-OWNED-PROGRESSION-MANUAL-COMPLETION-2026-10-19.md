@@ -47,3 +47,17 @@ honestly labeled owner-seed progression route may be implemented and qualified;
 it has not been admitted by changing this acquired-source descriptor. F10
 leveling and retraining remain **IN PROGRESS** until their genuine native
 operation and output pass.
+
+Read-only source eligibility receipt
+`analysis-cache/chunk7-continuation/f10-owner-seed-eligibility-20261019/f10-owner-seed-eligibility.json`
+(SHA-256 `2adf474255f15fc33f42ef71b40c548bf88ef86720ea58cfbc079590cb33344a`)
+pins the accepted owner-seed b3 Manual and b4 cold observation. Rider A is the
+main character, level 4 with XP 9000/15000; rider B is stock Amiri, level 8
+with XP 51000/75000. Neither has a native level-up ready. The progression
+session also requires a non-main custom companion for retraining and dismissal;
+Amiri's failure of that identity condition is inferred from her recorded stock
+blueprint/view and absence of custom creation, not from a measured reference
+equality. The 400057 funds observed on both inputs do not cure either
+eligibility gap. A newly qualified, explicitly disclosed custom-companion
+fixture is needed; the b3/b4 mounted checkpoint cannot be relabeled as F10
+progression evidence.

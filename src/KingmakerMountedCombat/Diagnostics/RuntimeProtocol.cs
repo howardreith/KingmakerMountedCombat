@@ -15,7 +15,7 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private static readonly HashSet<string> SaveBackedScenarios = new HashSet<string>(StringComparer.Ordinal)
         {
-            "chunk7-owned-two-pair-campaign", "chunk7-cumulative-acquisition", "chunk7-acquired-manual-derivative", "chunk7-manual-derived-acquisition", "chunk7-native-progression", "chunk7-assisted-fixture-preparation", "chunk7-assisted-cold-inventory", "chunk7-native-main-bootstrap", "chunk7-bootstrap-cold-inventory", "chunk7-bootstrap-manual-seed", "chunk7-small-profile-calibration", "chunk7-ordinary-field-admission", "chunk7-ordinary-acquisition", "chunk7-two-pair-exploration", "chunk7-persistence-save", "chunk7-persistence-load",
+            "chunk7-small-fixture-preparation", "chunk7-owned-two-pair-campaign", "chunk7-cumulative-acquisition", "chunk7-acquired-manual-derivative", "chunk7-manual-derived-acquisition", "chunk7-native-progression", "chunk7-assisted-fixture-preparation", "chunk7-assisted-cold-inventory", "chunk7-native-main-bootstrap", "chunk7-bootstrap-cold-inventory", "chunk7-bootstrap-manual-seed", "chunk7-small-profile-calibration", "chunk7-ordinary-field-admission", "chunk7-ordinary-acquisition", "chunk7-two-pair-exploration", "chunk7-persistence-save", "chunk7-persistence-load",
             "chunk7-two-pair-combat-rider-first", "chunk7-two-pair-combat-mount-first",
             "chunk7-two-pair-realtime-core", "chunk7-two-pair-realtime-casting", "chunk7-two-pair-realtime-charge",
             "chunk7-two-pair-native-life-cleanup",
@@ -154,6 +154,8 @@ namespace KingmakerMountedCombat.Diagnostics
         public Chunk7OrdinaryAcquisitionSelection OrdinaryAcquisition { get; set; }
         public Chunk7OrdinaryFieldSelection OrdinaryField { get; set; }
         public Chunk7SmallCalibrationSelection SmallCalibration { get; set; }
+        public Chunk7SmallFixtureSelection SmallFixture { get; set; }
+        public bool ShouldSerializeSmallFixture() => SmallFixture != null;
         public Chunk7AssistedFixtureSelection AssistedFixture { get; set; }
         public bool ShouldSerializeAssistedFixture() => AssistedFixture != null;
         public Chunk7AssistedColdInventorySelection AssistedColdInventory { get; set; }
@@ -168,6 +170,7 @@ namespace KingmakerMountedCombat.Diagnostics
         internal string SelectedChunk7Scenario => OwnedPairs == null ? Scenario : OwnedPairs.RuntimeScenario;
         internal RuntimeSaveDescriptor SelectedChunk7Fixture => OwnedPairs != null
             || Scenario == Chunk7AssistedColdInventorySelection.Scenario
+            || Scenario == Chunk7SmallFixtureSelection.Scenario
             || Scenario == Chunk7SmallCalibrationSelection.Scenario && SmallCalibration?.UsesManualField == true
             || Scenario == Chunk7ProgressionSelection.Scenario && Progression?.IsOwned == true
             ? PersistenceLoad : Fixture?.Working;
@@ -223,9 +226,10 @@ namespace KingmakerMountedCombat.Diagnostics
         internal static bool IsChunk7PersistenceCase(string value) => Array.IndexOf(new[] {
             "multi-exploration-manual", "multi-exploration-quick", "multi-exploration-auto", "multi-rt-debt-manual",
             "multi-tb-debt-manual", "zero-mounted-tb-retained-manual", "legacy-mounted-pending-tb-manual", "pending-schema3-control-manual", "multi-area-autosave", "legacy-schema1-resave-manual", "owned-schema1-manual", "owned-schema1-resave-manual", "owned-schema1-current-manual", "owned-schema2-pending-current-manual", "multi-exploration-three-loads-manual", "multi-exploration-three-area-transfers-manual",
-            "multi-nonselected-mount-unsettled-manual", "multi-owned-worker-cancel-manual", "multi-malformed-refusal-manual", "multi-future-refusal-manual" }, value) >= 0;
+            "multi-nonselected-mount-unsettled-manual", "multi-owned-worker-cancel-manual", "multi-malformed-refusal-manual", "multi-future-refusal-manual", Chunk7OwnedPairsSelection.ManticoreFixtureCheckpoint }, value) >= 0;
 
-        internal string ExpectedChunk7ArchiveArea => PersistenceCase == "multi-area-autosave" ? PersistenceAreaTarget?.Area : SelectedChunk7Fixture?.Area;
+        internal string ExpectedChunk7ArchiveArea => PersistenceCase == "multi-area-autosave" ? PersistenceAreaTarget?.Area :
+            PersistenceCase == Chunk7OwnedPairsSelection.ManticoreFixtureCheckpoint ? Chunk7OwnedPairsSelection.ManticoreFixtureArea : SelectedChunk7Fixture?.Area;
         internal string ExpectedNativeLoadType => (Scenario == Chunk7AcquiredManualSelection.Scenario || Scenario == Chunk7ManualSeedSelection.Scenario || Scenario == Chunk7BootstrapInventorySelection.Scenario || Scenario == Chunk7SmallCalibrationSelection.Scenario && SmallCalibration?.UsesManualField != true || Scenario == Chunk7OrdinaryFieldSelection.Scenario) ? "Auto" : SelectedChunk7Scenario == "chunk7-persistence-load" && PersistenceLoad != null && IsChunk7PersistenceCase(PersistenceCase) ?
             (PersistenceCase == "multi-exploration-quick" ? "Quick" : PersistenceCase == "multi-exploration-auto" || PersistenceCase == "multi-area-autosave" ? "Auto" : "Manual") :
             IsTransitionAutoCase(PersistenceCase) ? "Auto" :
@@ -242,7 +246,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 SchemaVersion != SaveBackedSchemaVersion || Scenario != "export-mounted-contracts" ||
                 Fixture?.Working?.InternalName != WorkingSaveName || PersistenceLoad != null || PersistenceAlternate != null ||
                 PersistenceCase != null || PersistenceAreaTarget != null || PersistenceReplayTargets != null ||
-                OwnedPairs != null || AcquiredManual != null || ManualDerived != null || CumulativeAcquisition != null ||
+                SmallFixture != null || OwnedPairs != null || AcquiredManual != null || ManualDerived != null || CumulativeAcquisition != null ||
                 ManualSeed != null || BootstrapInventory != null || NativeBootstrap != null || AssistedFixture != null || AssistedColdInventory != null || SmallCalibration != null ||
                 OrdinaryField != null || OrdinaryAcquisition != null || Progression != null))
                 errors.Add("Working deserialization observation requires exact true on the unchanged qualified Working export request only.");
@@ -315,6 +319,16 @@ namespace KingmakerMountedCombat.Diagnostics
                 else errors.AddRange(SmallCalibration.Validate(Scenario, RunId));
             }
             else if (SmallCalibration != null) errors.Add("Small calibration selection is forbidden under another scenario.");
+            if (Scenario == Chunk7SmallFixtureSelection.Scenario)
+            {
+                if (SchemaVersion != SaveBackedSchemaVersion || SmallFixture == null)
+                    errors.Add("F09 unmounted fixture requires its exact closed schema-2 selection.");
+                else errors.AddRange(SmallFixture.Validate(Scenario, RunId));
+                if (PersistenceAlternate != null || PersistenceCase != null || PersistenceAreaTarget != null || PersistenceReplayTargets != null ||
+                    Schema1DerivationSha256 != null || Schema2DerivationSha256 != null || LoadRefusalDerivationSha256 != null)
+                    errors.Add("F09 unmounted fixture permits only its exact clean owner-seed Manual and one native output.");
+            }
+            else if (SmallFixture != null) errors.Add("F09 fixture selection is forbidden under historical and foreign scenarios.");
             if (Scenario == Chunk7OrdinaryFieldSelection.Scenario)
             {
                 if (SchemaVersion != SaveBackedSchemaVersion || OrdinaryField == null) errors.Add("Read-only field admission requires its schema-2 selection.");
@@ -494,6 +508,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 }
             }
             var ownedSchema1 = Scenario == Chunk7OwnedPairsSelection.Scenario && OwnedPairs?.Cold == true && Chunk7OwnedPairsSelection.OwnedSchema1Cold(PersistenceCase);
+            if (PersistenceCase == Chunk7OwnedPairsSelection.ManticoreFixtureCheckpoint &&
+                (Scenario != Chunk7OwnedPairsSelection.Scenario || OwnedPairs?.IsOwnerSeedCheckpointSave != true))
+                errors.Add("Manticore fixture preparation requires its exact source-only owner-seed checkpoint selection.");
             if ((Chunk7OwnedPairsSelection.OwnedSchema1Source(PersistenceCase) || Chunk7OwnedPairsSelection.OwnedSchema1Cold(PersistenceCase)) &&
                 (Scenario != Chunk7OwnedPairsSelection.Scenario || OwnedPairs == null ||
                 (Chunk7OwnedPairsSelection.OwnedSchema1Cold(PersistenceCase) ?
@@ -688,6 +705,20 @@ namespace KingmakerMountedCombat.Diagnostics
                         string.IsNullOrWhiteSpace(PersistenceLoad.GameName) || PersistenceLoad.Sha256 == Fixture.Working.Sha256 ||
                         PersistenceLoad.Sha256 == Fixture.Baseline?.Sha256 || PersistenceLoad.Sha256 != BootstrapInventory?.SourceArchiveSha256)
                         errors.Add("Bootstrap inventory source lacks its exact separately minted disposable identity.");
+                }
+            }
+            else if (Scenario == Chunk7SmallFixtureSelection.Scenario)
+            {
+                if (!Chunk7SmallFixtureSelection.IsSource(PersistenceLoad))
+                    errors.Add("F09 input is not its exact qualified clean owner seed descriptor.");
+                else
+                {
+                    errors.AddRange(PersistenceLoad.Validate("persistenceLoad", Chunk7SmallFixtureSelection.SeedInternalName,
+                        "^Manual_303_KMC_C7_NO_MODS_OWNER_SEED\\.zks$"));
+                    foreach (var anchor in new[] { Fixture?.Working, Fixture?.Baseline })
+                        if (anchor == null || anchor.GameId == PersistenceLoad.GameId || anchor.Sha256 == PersistenceLoad.Sha256 ||
+                            anchor.FileName == PersistenceLoad.FileName || anchor.InternalName == PersistenceLoad.InternalName)
+                            errors.Add("F09 owner seed must remain distinct from protected Working and Baseline.");
                 }
             }
             else if (Scenario == Chunk7SmallCalibrationSelection.Scenario && SmallCalibration?.UsesManualField == true)
@@ -1125,6 +1156,7 @@ namespace KingmakerMountedCombat.Diagnostics
             "chunk7-manual-derived-acquisition", "C7-manual-derived-source", "C7-manual-derived-native-load", "C7-manual-derived-eligibility", "C7-manual-derived-native-choices", "C7-manual-derived-native-autosave", "C7-manual-derived-native-field", "C7-manual-derived-cleanup", "C7-manual-derived-runtime", "C7-manual-derived-interrupted",
             "chunk7-cumulative-acquisition", "C7-cumulative-source", "C7-cumulative-native-load", "C7-cumulative-eligibility", "C7-cumulative-native-choices", "C7-cumulative-native-autosave", "C7-cumulative-native-field", "C7-cumulative-cleanup", "C7-cumulative-runtime", "C7-cumulative-interrupted",
             "chunk7-bootstrap-manual-seed", "C7-manual-seed-source", "C7-manual-seed-native-load", "C7-manual-seed-native-save", "C7-manual-seed-no-arrangement", "C7-manual-seed-cleanup", "C7-manual-seed-runtime", "C7-manual-seed-interrupted",
+            "chunk7-small-fixture-preparation", "C7-small-fixture-source", "C7-small-fixture-native-load", "C7-small-fixture-native-choices", "C7-small-fixture-unmounted-field", "C7-small-fixture-native-manual", "C7-small-fixture-cleanup", "C7-small-fixture-runtime", "C7-small-fixture-interrupted",
             "chunk7-assisted-cold-inventory", "C7-assisted-cold-source", "C7-assisted-cold-native-load", "C7-assisted-cold-readonly", "C7-assisted-cold-cleanup", "C7-assisted-cold-runtime", "C7-assisted-cold-interrupted",
             "chunk7-bootstrap-cold-inventory", "C7-bootstrap-inventory-source", "C7-bootstrap-inventory-native-load", "C7-bootstrap-inventory-readonly", "C7-bootstrap-inventory-cleanup", "C7-bootstrap-inventory-runtime", "C7-bootstrap-inventory-interrupted",
             "chunk7-assisted-fixture-preparation", "C7-assisted-preflight", "C7-assisted-native-start", "C7-assisted-story", "C7-assisted-setup", "C7-assisted-native-choices", "C7-assisted-manual", "C7-assisted-cleanup", "C7-assisted-runtime", "C7-assisted-interrupted",
@@ -1613,7 +1645,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 errors.Add("subscenario and assertion totals do not match the named results.");
             }
 
-            if (scenario != "chunk7-owned-two-pair-campaign" && scenario != "chunk7-cumulative-acquisition" && scenario != "chunk7-acquired-manual-derivative" && scenario != "chunk7-manual-derived-acquisition" && scenario != "chunk7-bootstrap-manual-seed" && scenario != "chunk7-bootstrap-cold-inventory" && scenario != "chunk7-native-progression" && scenario != "chunk7-native-main-bootstrap" && scenario != "chunk7-assisted-fixture-preparation" && scenario != "chunk7-assisted-cold-inventory" && scenario != "chunk7-small-profile-calibration" && scenario != "chunk7-ordinary-field-admission" && scenario != "chunk7-ordinary-acquisition" && scenario != "chunk7-two-pair-exploration" && !RuntimeRequest.IsChunk7PersistenceScenario(scenario) && !RuntimeRequest.IsChunk7CombatScenario(scenario) && RuntimeSubscenarioResult.IsMissionScenario(scenario) && !names.Contains(scenario))
+            if (scenario != "chunk7-small-fixture-preparation" && scenario != "chunk7-owned-two-pair-campaign" && scenario != "chunk7-cumulative-acquisition" && scenario != "chunk7-acquired-manual-derivative" && scenario != "chunk7-manual-derived-acquisition" && scenario != "chunk7-bootstrap-manual-seed" && scenario != "chunk7-bootstrap-cold-inventory" && scenario != "chunk7-native-progression" && scenario != "chunk7-native-main-bootstrap" && scenario != "chunk7-assisted-fixture-preparation" && scenario != "chunk7-assisted-cold-inventory" && scenario != "chunk7-small-profile-calibration" && scenario != "chunk7-ordinary-field-admission" && scenario != "chunk7-ordinary-acquisition" && scenario != "chunk7-two-pair-exploration" && !RuntimeRequest.IsChunk7PersistenceScenario(scenario) && !RuntimeRequest.IsChunk7CombatScenario(scenario) && RuntimeSubscenarioResult.IsMissionScenario(scenario) && !names.Contains(scenario))
             {
                 errors.Add("An individual mission scenario must report its own named subscenario result.");
             }

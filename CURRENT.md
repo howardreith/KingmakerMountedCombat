@@ -1,5 +1,16 @@
 # Chunk 7B–7D — IN PROGRESS
 
+## October 19 — reviewed group 61 fixture source
+
+The [group 61 checkpoint](docs/CHUNK7-GROUP61-FIXTURE-CANDIDATE-2026-10-19.md)
+adds a guarded Manticore area-fixture route, exact live-profile `Areas`
+isolation, and a KMC-alone unmounted Halfling/Horse Manual-fixture route.
+Independent reviews and focused checks pass. The first Fast source sweep
+failed on a missing F09 artifact allowlist; the corrected sweep passes 147/0.
+No group 61 native scenario has run and preview.60 remains the last frozen
+candidate. Preview.61 packaging, native fixture runs and every downstream
+area, Small, positive-removal, progression and performance gate remain open.
+
 ## October 19 — owned progression completion correction
 
 The three owned native level/retrain cases now have a closed separate native

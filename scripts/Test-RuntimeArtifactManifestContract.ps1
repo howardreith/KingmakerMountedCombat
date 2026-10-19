@@ -10,6 +10,8 @@ $names=[ordered]@{'Assert-KmcManifestJsonMembersUnique'='Assert-NoDuplicateJsonO
 $errors=$null;$tokens=$null;$ast=[Management.Automation.Language.Parser]::ParseFile($module,[ref]$tokens,[ref]$errors);if($errors.Count-ne0){throw 'Shared module syntax invalid'}
 $checks=0
 $assistedRegistrations=@(
+    '            ($relativePath -ceq ''chunk7-small-fixture-evidence.json'' -and $kind -ceq ''chunk7-small-fixture-evidence'') -or',
+    '            ($relativePath -ceq ''chunk7-small-fixture-cleanup-pending.json'' -and $kind -ceq ''chunk7-small-fixture-cleanup-pending'') -or',
     '            ($relativePath -ceq ''chunk7-assisted-cold-inventory-evidence.json'' -and $kind -ceq ''chunk7-assisted-cold-inventory-evidence'') -or',
     '            ($relativePath -ceq ''chunk7-assisted-cold-inventory-cleanup-pending.json'' -and $kind -ceq ''chunk7-assisted-cold-inventory-cleanup-pending'') -or',
     '            ($relativePath -ceq ''chunk7-assisted-fixture-evidence.json'' -and $kind -ceq ''chunk7-assisted-fixture-evidence'') -or',

@@ -111,6 +111,8 @@ function Assert-KmcReadOnlyArtifactManifest {
             ($relativePath -ceq 'horse-native-controls-ux.json' -and $kind -ceq 'horse-native-controls-ux') -or
             ($relativePath -ceq 'chunk6a-mount-preamble.json' -and $kind -ceq 'chunk6a-mount-preamble') -or
             ($relativePath -ceq 'chunk6a-native-mammoth-profile.json' -and $kind -ceq 'chunk6a-native-mammoth-profile') -or
+            ($relativePath -ceq 'chunk7-small-fixture-evidence.json' -and $kind -ceq 'chunk7-small-fixture-evidence') -or
+            ($relativePath -ceq 'chunk7-small-fixture-cleanup-pending.json' -and $kind -ceq 'chunk7-small-fixture-cleanup-pending') -or
             ($relativePath -ceq 'chunk7-assisted-cold-inventory-evidence.json' -and $kind -ceq 'chunk7-assisted-cold-inventory-evidence') -or
             ($relativePath -ceq 'chunk7-assisted-cold-inventory-cleanup-pending.json' -and $kind -ceq 'chunk7-assisted-cold-inventory-cleanup-pending') -or
             ($relativePath -ceq 'chunk7-assisted-fixture-evidence.json' -and $kind -ceq 'chunk7-assisted-fixture-evidence') -or

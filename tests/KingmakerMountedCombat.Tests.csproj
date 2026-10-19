@@ -162,6 +162,8 @@
     <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\Chunk7SmallCalibrationSelection.cs">
       <Link>Diagnostics\Chunk7SmallCalibrationSelection.cs</Link>
     </Compile>
+    <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\Chunk7SmallFixtureSelection.cs"><Link>Shared\Chunk7SmallFixtureSelection.cs</Link></Compile>
+    <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\PersistenceSaveAuthorization.SmallFixture.cs"><Link>Shared\PersistenceSaveAuthorization.SmallFixture.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\Chunk7ProgressionSelection.cs"><Link>Shared\Chunk7ProgressionSelection.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\Chunk7OrdinaryFieldSelection.cs">
       <Link>Diagnostics\Chunk7OrdinaryFieldSelection.cs</Link>
