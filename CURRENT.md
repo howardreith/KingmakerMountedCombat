@@ -1,5 +1,42 @@
 # Chunk 7B–7D — IN PROGRESS
 
+## October 19 - preview.48 batch23 settled; preview.49 diagnostic repair IN PROGRESS
+
+Frozen preview.48 `dc1c1f63` was guarded-pushed; package build PASS 11/0,
+Candidate PASS 6/0, and suite `chunk7b-world48-20261019` SHA-256
+`b1c9f1a2a4000bdb3d7a70f1ae954caba5a4032b8853e77581a0c5602621a5db`.
+The package SHA-256 is
+`f6ba06d3114a932f2d4a5cff4f3fc9335a8475c22158c7b485a4183b5ea2343e`.
+Private batch23 has three guarded WhatIf PASS and three actual runs: disable
+FAIL in 97.17 s before the toggle because native Pause mode was not yet active;
+three separate native world loads plus next-frame settlement PASS in 95.46 s;
+area Auto FAIL in 86.78 s because Oleg is effectively a capital in this
+campaign. The area case refused before transfer or save (zero requests), then
+settled cleanup. No area Auto or cold credit is claimed. Exact evidence hashes,
+result identities and restoration are in
+`analysis-cache/chunk7-continuation/owner-seed-batch23/batch23-ledger.json`.
+All three game processes exited, Mods and protected saves were restored, and
+no transaction lock remains. The area run retained six policy-accepted native
+cache changes; its profile was not byte-for-byte restored and is recorded as
+such, rather than described as exact restoration.
+
+Current uncommitted preview.49 corrects the registered-disable diagnostic to
+use Kingmaker's actual quiescent TB combat boundary instead of requiring Pause.
+Installed `Game.DoStartMode(Pause)` refuses Pause during active TB combat, even
+after its setter queues it. The diagnostic still requires unchanged native
+actor debt, preparation, clock, round, owners and controls across synchronous
+callback and later frame. Its reader now requires TB mode and no native Pause.
+The first independent review rejected a wait-for-Pause draft and remains FAIL;
+corrected-source independent review PASS receipt SHA-256
+`dbdfce391a6c52e32bdba44aa608e106e5d675fb8a312962dc3f18e83bab5ff6`.
+Changed-byte native execution is pending. Focused
+reader PASS 65/0, actual-method disable adapter PASS 48/0, final Fast PASS 3/0
+(source 147/0). An initial Fast invocation used an invalid `-AssemblyTarget`
+for Fast and failed before checks; its log is retained. Schema-2 TB debt,
+capital-safe area continuity,
+positive removal/no-DLL, real refusal/menu and other remaining Directive 4
+cases stay open. PR #5 remains draft; no merge, release, tag or permanent install.
+
 ## October 19 - preview.47 native batch22 FAIL; preview.48 source IN PROGRESS
 
 Frozen, guarded-pushed preview.47 `10cbba57` passed package build 11/0 and

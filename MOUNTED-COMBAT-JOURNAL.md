@@ -1,3 +1,23 @@
+## October 19 - preview.48 batch23 and preview.49 TB disable diagnostic
+
+Preview.48 `dc1c1f63` was packaged once (SHA-256 `f6ba06d3114a932f2d4a5cff4f3fc9335a8475c22158c7b485a4183b5ea2343e`),
+Candidate PASS 6/0 and suite frozen. Bounded batch23 used three guarded
+WhatIf/native pairs. Three-load lifecycle PASS; registered disable FAIL before
+toggle with sole `paused=false` predicate; Oleg area Auto FAIL because the
+destination is effectively capital, with no transfer or save request. All
+games exited, Mods/protected saves restored, no lock remained. The area run
+retained six policy-accepted native cache changes, not exact profile equality.
+Exact private ledger and evidence hashes are in CURRENT.md.
+
+Installed Kingmaker refuses Pause mode during active TB combat. The first
+preview.49 wait-for-Pause draft failed independent review and was replaced.
+Current source uses quiescent native TB admission and preserves synchronous
+and later-frame budget, preparation, clock, round and custody checks. Focused
+reader PASS 65/0, actual-method disable adapter PASS 48/0, final Fast PASS
+3/0 (source 147/0). Corrected-source independent review PASS receipt SHA-256
+`dbdfce391a6c52e32bdba44aa608e106e5d675fb8a312962dc3f18e83bab5ff6`;
+changed-byte native retry remains. Neither old FAIL is relabelled. PR #5 remains draft.
+
 ## October 19 - preview.47 batch22 and preview.48 repair IN PROGRESS
 
 Guarded-pushed preview.47 `10cbba57` package

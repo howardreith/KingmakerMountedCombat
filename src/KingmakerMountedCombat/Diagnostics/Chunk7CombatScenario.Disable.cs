@@ -6,6 +6,7 @@ using Kingmaker.UnitLogic;
 using KingmakerMountedCombat.Domain;
 using KingmakerMountedCombat.Integration;
 using Newtonsoft.Json.Linq;
+using TurnBased.Controllers;
 using UnityEngine;
 
 namespace KingmakerMountedCombat.Diagnostics
@@ -59,7 +60,8 @@ namespace KingmakerMountedCombat.Diagnostics
         private JObject CaptureDisableState(string label)
         {
             var serializer = MountedSaveCodec.CreateSerializer();
-            return new JObject { ["world"] = WorldSnapshot(label), ["paused"] = Game.Instance.IsPaused, ["persistenceEnabled"] = persistence.Enabled,
+            return new JObject { ["world"] = WorldSnapshot(label), ["paused"] = Game.Instance.IsPaused,
+                ["turnBased"] = CombatController.IsInTurnBasedCombat(), ["persistenceEnabled"] = persistence.Enabled,
                 ["controls"] = JObject.FromObject(controls.CaptureSnapshot(), serializer),
                 ["slots"] = JArray.FromObject(controls.CapturePersistentSlots(), serializer),
                 ["nativePrepares"] = new JArray(actors.Select(actor => new JObject { ["actorId"] = actor.UniqueId,
@@ -148,6 +150,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 JToken.DeepEquals(before["nativePrepares"], after["nativePrepares"]) &&
                 JToken.DeepEquals(before["unrelatedActors"], after["unrelatedActors"]) &&
                 JToken.DeepEquals(before["healthyAllocationId"], after["healthyAllocationId"]) &&
+                JToken.DeepEquals(before["turnBased"], after["turnBased"]) &&
                 (long)before["world"]["gameTicks"] == (long)after["world"]["gameTicks"] &&
                 (int)before["world"]["round"] == (int)after["world"]["round"] &&
                 (int)before["snapshotCount"] == 0 && (int)after["snapshotCount"] == 0 &&
@@ -198,7 +201,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["aFinalized"] = aState?.Activation?.Finalized == true,
                 ["bPendingOnly"] = pending != null && pending.Activation == null && pending.RiderId == null &&
                     pending.MountId == null && pending.PendingSplitId == bm.UniqueId,
-                ["paused"] = Game.Instance.IsPaused, ["combatBoundary"] = RegisteredDisableCombatBoundary(),
+                ["nativeTurnBased"] = CombatController.IsInTurnBasedCombat() && !Game.Instance.IsPaused,
+                ["combatBoundary"] = RegisteredDisableCombatBoundary(),
                 ["twoActiveOwners"] = world.Registry.ActiveCount == 2 && world.Registry.Owners.Length == 2,
                 ["bothMounted"] = a.Relationship.State == RelationshipState.Mounted && b.Relationship.State == RelationshipState.Mounted,
                 ["originalOwners"] = ReferenceEquals(a.Relationship.PairOwner, disableOwnerA) &&
@@ -270,7 +274,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 "Registered disable retry did not disable in the same Update through its real callback.");
             RequireDisableVisits("retry-disable"); RequireDisableRetainedOwners(); RequireDisableDebt(before, disabled);
             Require(JToken.DeepEquals(before["participationB"], disabled["participationB"]), "Successful disable changed B's pending release.");
-            disableAcceptedFrame = Time.frameCount; disablePhase = null; Game.Instance.IsPaused = true;
+            disableAcceptedFrame = Time.frameCount; disablePhase = null;
         }
 
         private bool RegisteredDisableCombatBoundary()
@@ -286,9 +290,10 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             RequireRegisteredDisableScope();
             if (Time.frameCount <= disableAcceptedFrame) return;
-            Require(disableServicesOff && Game.Instance.IsPaused && !persistence.Enabled && !controls.CaptureSnapshot().Enabled &&
+            Require(disableServicesOff && CombatController.IsInTurnBasedCombat() && !Game.Instance.IsPaused &&
+                !persistence.Enabled && !controls.CaptureSnapshot().Enabled &&
                 controls.CaptureSnapshot().ExactFactCount == 0 && controls.CaptureSnapshot().ManagedHotbarSlotCount == 0 &&
-                controls.CapturePersistentSlots().Length == 0, "Registered disable did not persist through a later paused native frame.");
+                controls.CapturePersistentSlots().Length == 0, "Registered disable did not persist through a later native TB frame.");
             var later = CaptureDisableState("registered-disabled-later-frame"); registeredDisable["disabledLaterFrame"] = later;
             RequireDisableDebt((JObject)registeredDisable["before"], later); RequireDisableRetainedOwners();
             Require(JToken.DeepEquals(registeredDisable["before"]["participationB"], later["participationB"]),

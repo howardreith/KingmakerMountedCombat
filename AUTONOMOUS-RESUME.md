@@ -1,5 +1,53 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## October 19 - batch23 native results; preview.49 source review checkpoint
+
+Branch `codex/mounted-combat-chunk7-successor`, published HEAD
+`dc1c1f63c2a53910a6d58989099ceb831928d467`. Worktree currently dirty
+with preview.49 registered-disable diagnostic sequencing, version triad and
+current documentation. Preview.48 frozen package SHA-256
+`f6ba06d3114a932f2d4a5cff4f3fc9335a8475c22158c7b485a4183b5ea2343e`,
+DLL SHA-256 `cae48cb93c39b6bb821e50027a3d89528fb51ece2e5cbee348f8d68baa06d417`,
+MVID `6e029a71-76db-4bef-a477-36f0f68abac5`, suite SHA-256
+`b1c9f1a2a4000bdb3d7a70f1ae954caba5a4032b8853e77581a0c5602621a5db`.
+Private batch23 ledger: `analysis-cache/chunk7-continuation/owner-seed-batch23/batch23-ledger.json`.
+Slot1 disable original FAIL, evidence SHA-256
+`7b4686e37ba86e289c94dcbef97a1aa064da5e33507813c09f424319b339b646`:
+sole failed prelude clause `paused=false` despite a same-frame setter call.
+Slot2 three-load PASS, evidence SHA-256
+`ace883e6cafaac52e03b846b5a7450b2a62339a9c5edf007446b366521eeae2f`.
+Slot3 area Auto original FAIL, evidence SHA-256
+`88d0efa1f35d5be775e0994a7f6012708b9385545963203fc88b8f88567f0770`:
+effective Oleg destination `IsCapital=true`, zero transfer/save requests.
+All wrappers completed; no game or lock remains. Mods/protected saves restored.
+Area profile report has six policy-accepted native cache changes and explicitly
+reports `profileBytesRestoredExactly=false`.
+
+Installed `Kingmaker.Game.IsPaused` getter tests active Pause mode; setter
+queues `StartMode(Pause)`, but `DoStartMode(Pause)` refuses while TB combat is
+active. The initial preview.49 wait-for-Pause draft was rejected by independent
+review (FAIL receipt SHA-256
+`3310dc2e4ed52d2e7a4a007c172a5ca5abac0acb960bd5a007e319f5641705c0`)
+and is not the current source. The corrected source uses exact quiescent TB
+combat admission, requires no native Pause, and retains exact synchronous and
+next-frame debt/clock/round/owner checks. Focused registered reader PASS 65/0;
+actual-method disable adapter PASS 48/0; final Fast log
+`analysis-cache/chunk7-continuation/codex-takeover/group49/fast03.log`
+PASS 3/0, source 147/0. An invalid Fast `-AssemblyTarget` invocation failed
+before checks in `fast01.log`; the initial draft's Fast 3/0 is in `fast02.log`.
+Corrected-source independent review PASS receipt SHA-256
+`dbdfce391a6c52e32bdba44aa608e106e5d675fb8a312962dc3f18e83bab5ff6`.
+It flags a genuine native uncertainty: RemoveUnit may allow next-turn time/debt
+to advance before the strict later-frame check. No preview.49 native credit
+exists. Next: inspect diff, commit/guarded-push,
+freeze one preview.49 package/Candidate/suite and retry only the changed disable
+case after scoped WhatIf. The capital area destination is not viable for this
+two-pair owner-seed case; find an independently eligible visited non-capital
+transition before another Auto attempt. Schema-2 TB cold debt requires a lawful
+boundary/representable input, not a synthetic resource rewrite. P07, real
+refusal/menu, genuine DLL-absent cold and doors remain open. PR #5 draft; no
+merge/release/tag/permanent installation/full7E/HUMAN PLAY.
+
 ## October 19 - preview.48 source review checkpoint; no live game
 
 Branch `codex/mounted-combat-chunk7-successor`, last published frozen HEAD
