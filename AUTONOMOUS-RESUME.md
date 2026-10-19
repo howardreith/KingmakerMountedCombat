@@ -1,5 +1,36 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## Active October 19 batch46 follow-up - preview.65 source
+
+The [standing completion mission](planning/CHUNK7-COMPLETION-MISSION.md)
+remains selected through readiness-gated private 7E. The
+[batch46 record](docs/CHUNK7-BATCH46-NATIVE-FOLLOWUP-2026-10-19.md) preserves
+both preview.64 original FAILs and separate restoration. Manticore game
+PASS 5/0 produced a genuine non-capital Manual, but the outer zero-length
+achievement-cache exit check failed after ten seconds; the cache settled
+later and exact-run guarded profile recovery passed. The Manual is not yet
+an accepted source. Small native paid CharGen completed; the 8,000 native
+cost and 411 native starting-gold grant explain its 7,589 net debit.
+The original strict gross-debit assertion FAIL is retained. Both transactions
+are `restored`; game and runtime lock are absent. No area Auto/cold, door,
+Small Manual/cold/profile or positive DLL-absent cleanup is claimed.
+
+Preview.65 source accepts only the installed first-level native grant plus
+the once-only unchanged hire cost, and extends the narrow read-only
+zero-cache settlement wait to sixty seconds. Independent review found no
+remaining production blocker. Focused checks passed: profile 61/0,
+ordinary reader 51/0, Manual-derived 105/0, Small fixture 72/0, Fast
+3/0 and source validation 147/0;
+the first F09 synthetic rerun failed on a missing test-only `choices`
+property and passed after correction. Next: finish Fast and focused tests,
+commit and guarded-push the coherent source, package preview.65 once, run
+Candidate, freeze a fresh suite, pass scoped WhatIf, then rerun only the
+changed Manticore producer and Small fixture sequentially with fresh run
+IDs. Preserve batch43-46 original FAILs and separate recovery. An accepted
+fixture still needs separate consumers. Continue positive reference-free
+removal, F10, F11 and private 7E; no merge, release, permanent installation
+or HUMAN PLAY acceptance is selected.
+
 ## Active October 19 batch45 follow-up — preview.64 source
 
 The [standing completion mission](planning/CHUNK7-COMPLETION-MISSION.md)

@@ -121,7 +121,24 @@ function Assert-KmcChunk7SmallFixtureEvidence($Request,$Artifact){
  foreach($key in @('forFree','matchPlayerXpExactly','importableInDungeon')){Assert-KmcChunk7Boolean $hire.$key $false};foreach($key in @('xpAssistance','moneyAssistance')){Assert-KmcOrdinaryInteger $hire.$key 0 0}
  Assert-KmcOrdinaryInteger $hire.nativeCost 1 ([long]::MaxValue);Assert-KmcOrdinaryInteger $hire.moneyBefore $hire.nativeCost ([long]::MaxValue)
  Assert-KmcOrdinaryInteger $hire.nativeReadyLevel 4 4;Assert-KmcOrdinaryInteger $hire.nativeInheritedXp 1 ([int]::MaxValue)
- Assert-KmcOrdinaryInteger $o.afterSaveArrangement.money ($hire.moneyBefore-$hire.nativeCost) ($hire.moneyBefore-$hire.nativeCost)
+ $startingGold=0
+ if($Request.productVersion-cmatch'^0\.1\.0-chunk7b-preview\.(\d+)$'-and[int]$Matches[1]-ge65){
+  Assert-KmcOrdinaryInteger $o.nativeStartingGold 0 ([int]::MaxValue);$startingGold=[long]$o.nativeStartingGold
+  $admissions=@($o.choices|Where-Object event -CEQ 'native-paid-hire-admission')
+  $spends=@($o.choices|Where-Object event -CEQ 'native-hire-spent')
+  if($admissions.Count-ne1-or$spends.Count-ne1-or$admissions[0].spendObservationContract-cne'native-hire-spent-v2'){
+   throw 'F09 native paid hire lacks its single starting-gold-aware spend event.'
+  }
+  Assert-KmcOrdinaryInteger $spends[0].moneyBefore $hire.moneyBefore $hire.moneyBefore
+  Assert-KmcOrdinaryInteger $spends[0].nativeCost $hire.nativeCost $hire.nativeCost
+  Assert-KmcOrdinaryInteger $spends[0].nativeStartingGold $startingGold $startingGold
+  Assert-KmcBootstrapInventoryString $spends[0].runId $Request.runId
+ }
+ $paidMoney=[long](([decimal]$hire.moneyBefore)+[decimal]$startingGold-[decimal]$hire.nativeCost)
+ if($Request.productVersion-cmatch'^0\.1\.0-chunk7b-preview\.(\d+)$'-and[int]$Matches[1]-ge65){
+  Assert-KmcOrdinaryInteger $spends[0].moneyAfter $paidMoney $paidMoney
+ }
+ Assert-KmcOrdinaryInteger $o.afterSaveArrangement.money $paidMoney $paidMoney
  $rows=@($o.afterSaveArrangement.actors);Assert-KmcAssistedArray $o.afterSaveArrangement.actors 7 7 'F09 exact field actor graph'
  $ids=[Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
  foreach($row in $rows){if($row.id-isnot[string]-or$row.id-cnotmatch'^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$'-or$row.id-ceq'00000000-0000-0000-0000-000000000000'-or-not$ids.Add($row.id)){throw 'F09 exact native actor identities are missing, duplicate or noncanonical.'};if($row.nativeCustomCompanion-isnot[bool]){throw 'F09 native custom-companion observation is not boolean.'}}
@@ -131,7 +148,7 @@ function Assert-KmcChunk7SmallFixtureEvidence($Request,$Artifact){
  Assert-KmcOrdinaryInteger $main[0].experience 9000 9000;Assert-KmcOrdinaryInteger $small[0].experience $hire.nativeInheritedXp $hire.nativeInheritedXp
  Assert-KmcOrdinaryInteger $o.mainNativeCommitCount 1 1;Assert-KmcOrdinaryInteger $o.paidNativeCommitCount 4 4
  foreach($key in @('mainAutoLevelupOverrideCount','paidAutoLevelupOverrideCount')){Assert-KmcOrdinaryInteger $o.$key 0 0}
- foreach($tuple in @(@($o.mainBuild,$main[0],$hire.moneyBefore),@($o.paidBuild,$small[0],($hire.moneyBefore-$hire.nativeCost)))){
+ foreach($tuple in @(@($o.mainBuild,$main[0],$hire.moneyBefore),@($o.paidBuild,$small[0],$paidMoney))){
   $build=$tuple[0];$row=$tuple[1];Assert-KmcBootstrapInventoryString $build.actorId $row.id
   foreach($key in @('level','rangerLevel')){Assert-KmcOrdinaryInteger $build.$key 4 4}
   Assert-KmcOrdinaryInteger $build.xp $row.experience $row.experience;Assert-KmcOrdinaryInteger $build.money $tuple[2] $tuple[2];Assert-KmcChunk7Boolean $build.nativeCanLevelUp $false

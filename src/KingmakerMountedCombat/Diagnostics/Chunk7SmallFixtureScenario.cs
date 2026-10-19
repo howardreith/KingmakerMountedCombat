@@ -142,9 +142,12 @@ namespace KingmakerMountedCombat.Diagnostics
                         if (hireDriver.Actor != null && actor == null) { actor = hireDriver.Actor; scope.Track(actor); }
                         if (hireDriver.Tick() != Chunk7OrdinaryBuildStep.Complete) return;
                         actor = hireDriver.Actor; pet = RequireHorse(actor); scope.Track(actor); scope.Track(pet);
+                        var startingGold = hireDriver.NativeStartingGold;
                         Require(hireDriver.NativeCommitCount == 4 && hireDriver.AutoLevelupOverrideCount == 0 &&
-                            actor.Descriptor.Progression.Experience == nativeHireXp && game.Player.Money == initialMoney - nativeHireCost,
-                            "Paid native hire must commit exactly four levels with its inherited XP and once-only actual cost.");
+                            actor.Descriptor.Progression.Experience == nativeHireXp &&
+                            game.Player.Money == checked(initialMoney + startingGold - nativeHireCost),
+                            "Paid native hire must commit exactly four levels with its inherited XP, one class grant and once-only actual cost.");
+                        evidence["nativeStartingGold"] = startingGold;
                         evidence["paidBuild"] = hireDriver.CaptureState(); evidence["afterBuildArrangement"] = Arrangement();
                         evidence["paidNativeCommitCount"] = hireDriver.NativeCommitCount;
                         evidence["paidAutoLevelupOverrideCount"] = hireDriver.AutoLevelupOverrideCount;

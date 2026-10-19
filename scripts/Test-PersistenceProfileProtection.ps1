@@ -128,6 +128,32 @@ try{
         }
         $passes++
     }finally{[void](Wait-Job $job);Receive-Job $job -ErrorAction Stop | Out-Null;Remove-Job $job}
+    [IO.File]::WriteAllBytes($secondAch,(New-Object byte[] 0))
+    $job=Start-Job -ArgumentList $secondAch,$native -ScriptBlock {
+        param($path,$size)
+        Start-Sleep -Milliseconds 11000
+        [IO.File]::WriteAllBytes($path,(New-Object byte[] $size))
+    }
+    try{
+        $settled=@(Wait-KmcPersistenceProfileUnchanged -Snapshot $snapshot -MaximumWaitMilliseconds 15000)
+        if($settled.Count-ne2-or@($settled|Where-Object {$_.change-cne'created'-or$_.length-ne$native}).Count-ne0){
+            throw 'A native cache settling after the former ten-second window was not admitted exactly.'
+        }
+        $passes++
+    }finally{[void](Wait-Job $job);Receive-Job $job -ErrorAction Stop | Out-Null;Remove-Job $job;Remove-Item -LiteralPath $secondAch -Force -ErrorAction SilentlyContinue}
+    [IO.File]::WriteAllBytes($secondAch,(New-Object byte[] 0))
+    $job=Start-Job -ArgumentList $secondAch -ScriptBlock {
+        param($path)
+        Start-Sleep -Milliseconds 11000
+        [IO.File]::Delete($path)
+    }
+    try{
+        $settled=@(Wait-KmcPersistenceProfileUnchanged -Snapshot $snapshot -MaximumWaitMilliseconds 15000)
+        if($settled.Count-ne1-or$settled[0].path-cne'achievements.dat$'-or$settled[0].length-ne$native){
+            throw 'A zero-length native cache disappearing after the former ten-second window was not checked against the exact snapshot.'
+        }
+        $passes++
+    }finally{[void](Wait-Job $job);Receive-Job $job -ErrorAction Stop | Out-Null;Remove-Job $job;Remove-Item -LiteralPath $secondAch -Force -ErrorAction SilentlyContinue}
     [IO.File]::WriteAllBytes($ach,(New-Object byte[] 4096))
     $clock=[Diagnostics.Stopwatch]::StartNew();$rejected=$false
     try{[void](Wait-KmcPersistenceProfileUnchanged -Snapshot $snapshot -MaximumWaitMilliseconds 2000)}catch{$rejected=$true}

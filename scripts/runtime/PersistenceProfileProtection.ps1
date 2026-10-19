@@ -207,7 +207,7 @@ function Assert-KmcPersistenceProfileUnchanged {
 }
 
 function Wait-KmcPersistenceProfileUnchanged {
-    param($Snapshot,[ValidateRange(0,15000)][int]$MaximumWaitMilliseconds=10000,
+    param($Snapshot,[ValidateRange(0,60000)][int]$MaximumWaitMilliseconds=60000,
         [ValidateRange(25,1000)][int]$PollMilliseconds=250)
     $elapsed=[Diagnostics.Stopwatch]::StartNew()
     while($true){

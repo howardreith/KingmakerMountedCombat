@@ -117,7 +117,8 @@ namespace KingmakerMountedCombat.Diagnostics
         private HashSet<string> originalActorIds;
         private bool started, complete, awaitingCommit, commitRecorded;
         private int lastFrame = -1, choices, commits, levelBeforeCommit, expectedFinalLevel, initialXp;
-        private long moneyBefore, hireCost;
+        private long moneyBefore, hireCost, nativeStartingGold;
+        private bool nativeStartingGoldObserved;
         private bool nativeHireSpendingObserved;
         private JObject commitBefore;
         private string actorId;
@@ -146,6 +147,15 @@ namespace KingmakerMountedCombat.Diagnostics
         internal bool Complete => complete;
         internal int AcceptedChoiceCount => choices;
         internal int NativeCommitCount => commits;
+        internal long NativeStartingGold
+        {
+            get
+            {
+                Require(pins.NewPaidCompanion && nativeStartingGoldObserved && nativeHireSpendingObserved,
+                    "Native starting gold is unavailable before the exact paid hire settles.");
+                return nativeStartingGold;
+            }
+        }
         internal JObject CaptureState() => Snapshot();
         internal bool TryGetOwnedBuildSession(out CharacterBuildController owned)
         {
@@ -250,7 +260,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     "The exact native default hire XP cannot reach the selected ordinary Ranger acquisition level.");
                 Emit("native-paid-hire-admission", new JObject { ["moneyBefore"] = moneyBefore, ["nativeCost"] = hireCost,
                     ["nativeInheritedXp"] = initialXp, ["nativeExpectedFinalLevel"] = expectedFinalLevel,
-                    ["spendObservationContract"] = "native-hire-spent-v1",
+                    ["spendObservationContract"] = "native-hire-spent-v2",
                     ["nativeInventorySha256"] = pins.NativeInventorySha256 });
                 started = true;
                 assertExactIsolatedAuthority();
@@ -469,8 +479,7 @@ namespace KingmakerMountedCombat.Diagnostics
             if (descriptor.Progression.CharacterLevel == levelBeforeCommit) return Chunk7OrdinaryBuildStep.Waiting;
             Require(descriptor.Progression.CharacterLevel == levelBeforeCommit + 1 && descriptor.Progression.Experience == initialXp,
                 "Native completion did not advance exactly one actual level with unchanged XP.");
-            var expectedMoney = pins.IsRespec ? nativeRespec.ExpectedMoneyAfter :
-                moneyBefore - (pins.NewPaidCompanion ? hireCost : 0);
+            var expectedMoney = pins.IsRespec ? nativeRespec.ExpectedMoneyAfter : moneyBefore;
             if (pins.NewPaidCompanion) RequireNativeHireMoney(false);
             else Require(Game.Instance.Player.Money == expectedMoney, "Native ordinary acquisition changed money outside its selected native callback.");
             if (!commitRecorded)
@@ -512,12 +521,43 @@ namespace KingmakerMountedCombat.Diagnostics
         private void RequireNativeHireMoney(bool complete)
         {
             if (!pins.NewPaidCompanion) return;
+            // Tick also runs while the native CharGen actor is still level zero.
+            // No class data or starting-item grant exists until its first commit.
+            if (descriptor == null || descriptor.Progression.CharacterLevel == 0)
+            {
+                Require(!complete && !nativeStartingGoldObserved && !nativeHireSpendingObserved &&
+                    Game.Instance.Player.Money == moneyBefore,
+                    "Native paid hire changed money before its first committed class level.");
+                return;
+            }
+            // Installed LevelUpController.Commit calls SetupNewCharacher before
+            // the paid success callback. Its LevelUpHelper.AddStartingItems
+            // grants the selected class's starting gold once at first level.
+            Require(ReferenceEquals(descriptor.Progression.GetMaxClass(), ranger),
+                "Native paid hire changed the selected maximum class.");
+            Require(!BlueprintRoot.Instance.DlcSettings.IsPlayingDlcGame(DlcType.Endless),
+                "The selected paid hire does not admit the Endless campaign's different starting-gold rule.");
+            var classData = descriptor.Progression.GetClassData(ranger);
+            Require(classData != null, "Native paid hire has no committed Ranger class data.");
+            var replacement = classData.Archetypes.FirstOrDefault(value => value.ReplaceStartingEquipment);
+            var observedStartingGold = replacement == null ? ranger.StartingGold : replacement.StartingGold;
+            Require(observedStartingGold >= 0, "Native paid hire has invalid class starting gold.");
+            if (!nativeStartingGoldObserved)
+            {
+                nativeStartingGold = observedStartingGold;
+                nativeStartingGoldObserved = true;
+            }
+            Require(nativeStartingGold == observedStartingGold,
+                "Native paid hire changed its selected starting-gold authority.");
             var money = Game.Instance.Player.Money;
-            var paid = moneyBefore - hireCost;
+            Require(Game.Instance.Player.GetCustomCompanionCost() == hireCost,
+                "Native paid hire cost changed before its success callback.");
+            var paid = checked(moneyBefore + nativeStartingGold - hireCost);
             if (money != moneyBefore && money != paid)
                 Emit("native-hire-money-mismatch", new JObject { ["moneyBefore"] = moneyBefore,
                     ["quotedCost"] = hireCost, ["moneyNow"] = money,
                     ["observedDebit"] = moneyBefore - money,
+                    ["nativeStartingGold"] = nativeStartingGold,
                     ["nativeCostAtObservation"] = Game.Instance.Player.GetCustomCompanionCost(),
                     ["partyLevelAtObservation"] = Game.Instance.Player.PartyLevel,
                     ["actorId"] = actorId, ["actorLevel"] = descriptor?.Progression.CharacterLevel });
@@ -529,7 +569,8 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 nativeHireSpendingObserved = true;
                 Emit("native-hire-spent", new JObject { ["moneyBefore"] = moneyBefore,
-                    ["nativeCost"] = hireCost, ["moneyAfter"] = money });
+                    ["nativeCost"] = hireCost, ["nativeStartingGold"] = nativeStartingGold,
+                    ["moneyAfter"] = money });
             }
             if (complete) Require(nativeHireSpendingObserved,
                 "Native ordinary acquisition completed without exact once-only hire expenditure.");

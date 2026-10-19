@@ -14,6 +14,19 @@ function Good([string]$Name,[scriptblock]$Action){try{&$Action;$script:pass++;Wr
 function Bad([string]$Name,[scriptblock]$Action){$caught=$false;try{&$Action}catch{$caught=$true};if($caught){$script:pass++;Write-Host ('PASS refuses '+$Name)}else{$script:fail++;Write-Host ('FAIL accepted '+$Name)}}
 function Check($F){Assert-KmcChunk7SmallFixtureEvidence $F.request $F.artifact}
 Good 'native-shaped F09 unmounted seven-actor one-Manual evidence' {Check (New-SmallFixtureSynthetic)}
+function New-SmallFixtureV2Synthetic {
+ $f=New-SmallFixtureSynthetic;$f.request.productVersion='0.1.0-chunk7b-preview.65';$f.artifact.productVersion=$f.request.productVersion
+ $o=$f.artifact.observations;$o|Add-Member -NotePropertyName nativeStartingGold -NotePropertyValue ([long]411)
+ $o|Add-Member -NotePropertyName choices -NotePropertyValue @([pscustomobject]@{event='native-paid-hire-admission';spendObservationContract='native-hire-spent-v2'},
+  [pscustomobject]@{event='native-hire-spent';runId=$f.request.runId;moneyBefore=[long]400057;nativeCost=[long]8000;nativeStartingGold=[long]411;moneyAfter=[long]392468})
+ $o.beforeSaveArrangement.money=[long]392468;$o.afterSaveArrangement.money=[long]392468;$o.paidBuild.money=[long]392468
+ return $f
+}
+Good 'current native starting gold and once-only hire cost preserve exact net balance' {Check (New-SmallFixtureV2Synthetic)}
+Bad 'current hire omits native starting gold' {$f=New-SmallFixtureV2Synthetic;$f.artifact.observations.PSObject.Properties.Remove('nativeStartingGold');Check $f}
+Bad 'current hire fabricates gold grant' {$f=New-SmallFixtureV2Synthetic;$f.artifact.observations.nativeStartingGold++;Check $f}
+Bad 'current hire duplicates spend event' {$f=New-SmallFixtureV2Synthetic;$o=$f.artifact.observations;$o.choices+=,$o.choices[1];Check $f}
+Bad 'current hire changes paid balance' {$f=New-SmallFixtureV2Synthetic;$f.artifact.observations.paidBuild.money++;Check $f}
 $cases=[ordered]@{
  'wrong family'={param($f)$f.request.scenario='chunk7-native-progression'}
  'historical F10 selection alias'={param($f)$f.request.smallFixture.case='existing-ranger-native-level'}

@@ -32,6 +32,35 @@ Good 'current paid native choices with explicit once-only spend observation' {
     $o.choices=$rows.ToArray()
     Assert-KmcManualDerivedNativeChoices $f.request $o $f.request.manualDerived
 }
+function Shift-SyntheticPaidMoney($Value){
+    if($Value-is[Array]){foreach($child in $Value){Shift-SyntheticPaidMoney $child};return}
+    if($Value-isnot[pscustomobject]){return}
+    foreach($property in $Value.PSObject.Properties){
+        if($property.Name-cin@('money','moneyExpected','moneyAfter')-and$property.Value-eq18000){$property.Value=18411}
+        elseif($property.Value-is[pscustomobject]-or$property.Value-is[Array]){Shift-SyntheticPaidMoney $property.Value}
+    }
+}
+function New-ManualDerivedV2Choices {
+    $f=New-ManualDerivedFixture;$o=$f.artifact.observations;$f.request.productVersion='0.1.0-chunk7b-preview.65'
+    $admission=$o.choices[0];$admission|Add-Member -NotePropertyName spendObservationContract -NotePropertyValue 'native-hire-spent-v2'
+    $commit=@($o.choices|Where-Object event -CEQ 'native-level-committed')[0]
+    $spend=[pscustomobject]@{event='native-hire-spent';runId=$commit.runId;frame=$commit.frame;
+        elapsedSeconds=$commit.elapsedSeconds;moneyBefore=$admission.moneyBefore;nativeCost=$admission.nativeCost;
+        nativeStartingGold=411;moneyAfter=18411}
+    $rows=[Collections.Generic.List[object]]::new()
+    foreach($row in $o.choices){if([object]::ReferenceEquals($row,$commit)){$rows.Add($spend)};$rows.Add($row)}
+    $o.choices=$rows.ToArray();Shift-SyntheticPaidMoney $o
+    return $f
+}
+Good 'current Manual-derived paid choices preserve native starting gold and cost' {
+    $f=New-ManualDerivedV2Choices
+    Assert-KmcManualDerivedNativeChoices $f.request $f.artifact.observations $f.request.manualDerived
+}
+Bad 'current Manual-derived paid choices refuse wrong native gold grant' {
+    $f=New-ManualDerivedV2Choices
+    (@($f.artifact.observations.choices|Where-Object event -CEQ 'native-hire-spent')[0]).nativeStartingGold++
+    Assert-KmcManualDerivedNativeChoices $f.request $f.artifact.observations $f.request.manualDerived
+}
 $cases=[ordered]@{
  'foreign source candidate'={param($f)$f.source.dllSha256='e'*64}
  'failed source result'={param($f)$f.source.status='FAIL'}
