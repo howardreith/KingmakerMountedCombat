@@ -1,5 +1,17 @@
 # Chunk 7B–7D — IN PROGRESS
 
+## October 19 — owned progression completion correction
+
+The three owned native level/retrain cases now have a closed separate native
+Manual checkpoint after actual choice completion, instead of waiting for a
+level-up Auto the installed game never requests. Independent source review
+corrected a proposed owner-seed source-name mismatch; the selected source
+remains the acquired two-pair `KMC_C7_WORLD` chain. Focused checks, the actual
+runner readiness gate and Fast passed offline. The acquired producer remains
+stale-Auto blocked, and no native F10 result is claimed. See the
+[progression checkpoint](docs/CHUNK7-OWNED-PROGRESSION-MANUAL-COMPLETION-2026-10-19.md)
+and [standing mission](planning/CHUNK7-COMPLETION-MISSION.md).
+
 ## October 19 — batch42 separate migration consumer
 
 Preview.60 Candidate passed 6/0. Its separate current-format cold consumer
@@ -19,6 +31,9 @@ it does not upgrade the original outer FAIL. All guarded surfaces
 were restored exactly, with no cache exception. See the
 [active resume](AUTONOMOUS-RESUME.md) and
 [batch record](docs/CHUNK7-DIRECTIVE4-REENTRY-CORRECTION-2026-10-19.md).
+The selected schema-2 restoration/resave/separate-consumer behavior has
+**PASS development evidence** on this candidate; exact final-package reuse
+or rehearsal is still required before Chunk 7 engineering completion.
 
 ## October 19 — batch41 schema-2 migration resave and separate cold result
 

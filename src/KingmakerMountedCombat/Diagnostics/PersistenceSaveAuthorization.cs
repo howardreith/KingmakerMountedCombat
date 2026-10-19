@@ -195,6 +195,7 @@ namespace KingmakerMountedCombat.Diagnostics
             lock (sync)
             {
                 if (!AssistedCumulativeUnchanged()) return "Assisted cumulative captured request changed before native/storage admission.";
+                if (!ProgressionManualUnchanged()) return "Owned progression Manual request changed before native admission.";
                 var assistedColdRejection = AssistedColdAdmission(operation);
                 if (assistedColdRejection != null) return assistedColdRejection;
                 var assistedRejection = AssistedNativeAdmission(operation, target);
@@ -615,6 +616,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (!AssistedUnchanged()) throw new InvalidOperationException("Assisted fixture captured request changed before native archive access.");
                 if (!OwnedPairsUnchanged()) throw new InvalidOperationException("Owned-pair captured request changed before native archive access.");
                 if (!AcquiredManualRequestUnchanged()) throw new InvalidOperationException("Acquired Manual captured request changed before native archive access.");
+                if (!ProgressionManualUnchanged()) throw new InvalidOperationException("Owned progression Manual request changed before native archive access.");
                 if (Canonical(path) != path || Path.GetDirectoryName(path) != Root ||
                     !entries.TryGetValue(Path.GetFileName(path), out var entry) || entry.Writing || entry.Hash == null)
                     throw new InvalidOperationException("Native load archive is not a completed exact owned entry.");
@@ -637,6 +639,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (!AcquiredManualRequestUnchanged() || acquiredManualRequest != null &&
                     (acquiredManualReservations != 1 || admittedNativeLoadRequests != 1))
                     throw new InvalidOperationException("Acquired Manual projection requires its unchanged request and admitted cold load.");
+                if (!ProgressionManualUnchanged() || progressionManualRequest != null &&
+                    (progressionManualReservations != 1 || admittedNativeLoadRequests != 1))
+                    throw new InvalidOperationException("Owned progression Manual projection requires its exact reservation and admitted cold load.");
                 if (predicted == null || Canonical(observedRoot) != Root ||
                     Canonical(predicted.FullPath) != Path.Combine(Root, predicted.FileName) ||
                     predicted.FileName != Path.GetFileName(predicted.FullPath))
@@ -697,6 +702,10 @@ namespace KingmakerMountedCombat.Diagnostics
                     operation == RuntimeSaveOperation.Load && checkLoadAdmission && maximumNativeWriteRequests > 0 && !OwnerSeedPlan && ownedPairsReservations != 1))
                     return "Owned-pair native admission requires its exact output reservation and load-before-write order.";
                 if (!AcquiredManualRequestUnchanged()) return "Acquired Manual captured request changed after authority creation.";
+                if (!ProgressionManualUnchanged()) return "Owned progression Manual request changed after authority creation.";
+                if (progressionManualRequest != null && operation == RuntimeSaveOperation.Write &&
+                    (progressionManualReservations != 1 || admittedNativeLoadRequests != 1))
+                    return "Owned progression Manual write requires exact reservation and admitted cold load.";
                 if (acquiredManualRequest != null && operation == RuntimeSaveOperation.Write &&
                     (acquiredManualReservations != 1 || admittedNativeLoadRequests != 1))
                     return "Acquired Manual write requires its exact reservation and admitted cold load.";

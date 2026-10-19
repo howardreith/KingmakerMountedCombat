@@ -38,9 +38,9 @@ $blocked=[ordered]@{
     'chunk7-cumulative-acquisition'='src/KingmakerMountedCombat/Diagnostics/Chunk7ManualDerivedScenario.Build.cs:196 (ObserveTerminalAutosave, :222; reached through Chunk7ManualDerivedScenario.CreateCumulative)'
     'chunk7-assisted-fixture-preparation'='src/KingmakerMountedCombat/Diagnostics/Chunk7AssistedFixtureScenario.Setup.cs:161 (ObserveLevelupAutosave, Chunk7AssistedFixtureScenario.Save.cs:55)'
 }
-$progressionSite='src/KingmakerMountedCombat/Diagnostics/Chunk7NativeProgressionSession.cs:231 (ObserveTerminalAutosave, :330)'
-$blockedCases=@('horse-native-level','horse-native-retrain-horse','horse-native-retrain-mammoth','owned-horse-native-level','owned-horse-native-retrain-horse','owned-horse-native-retrain-mammoth')
-$admittedCases=@('horse-native-dismiss','owned-horse-native-dismiss')
+$progressionSite='src/KingmakerMountedCombat/Diagnostics/Chunk7NativeProgressionSession.cs (legacy ObserveTerminalAutosave)'
+$blockedCases=@('horse-native-level','horse-native-retrain-horse','horse-native-retrain-mammoth')
+$admittedCases=@('horse-native-dismiss','owned-horse-native-dismiss','owned-horse-native-level','owned-horse-native-retrain-horse','owned-horse-native-retrain-mammoth')
 
 # The registry is exact and every recorded wait site is the live wait in the source.
 $families=@(Get-KmcChunk7StaleLevelUpAutosaveFamilies)
@@ -51,14 +51,19 @@ Pass 'stale family registry is exact and partitions every progression case'
 $siteChecks=@(
     @('Chunk7OrdinaryAcquisitionScenario.cs',112,'if (!ObserveCompletedAutosave()) return;'),@('Chunk7OrdinaryAcquisitionScenario.cs',266,'private bool ObserveCompletedAutosave()'),
     @('Chunk7ManualDerivedScenario.Build.cs',196,'if (!ObserveTerminalAutosave()) return;'),@('Chunk7ManualDerivedScenario.Build.cs',222,'private bool ObserveTerminalAutosave()'),
-    @('Chunk7AssistedFixtureScenario.Setup.cs',161,'if(!ObserveLevelupAutosave())return;'),@('Chunk7AssistedFixtureScenario.Save.cs',55,'private bool ObserveLevelupAutosave()'),
-    @('Chunk7NativeProgressionSession.cs',231,'if (WritesAutosave && !ObserveTerminalAutosave()) return;'),@('Chunk7NativeProgressionSession.cs',330,'private bool ObserveTerminalAutosave()'))
+    @('Chunk7AssistedFixtureScenario.Setup.cs',161,'if(!ObserveLevelupAutosave())return;'),@('Chunk7AssistedFixtureScenario.Save.cs',55,'private bool ObserveLevelupAutosave()'))
 foreach($check in $siteChecks){
     $lines=[IO.File]::ReadAllLines((Join-Path $RepositoryRoot ('src/KingmakerMountedCombat/Diagnostics/'+$check[0])))
     if(-not$lines[$check[1]-1].Contains($check[2])){throw ('Recorded wait site moved: '+$check[0]+':'+$check[1])}
     if(-not$lines[$check[1]-7].Contains('NOT READY - stale level-up autosave wait')){throw ('Wait site lacks its NOT READY note: '+$check[0]+':'+$check[1])}
 }
 Pass 'every recorded wait site is the live wait and carries its NOT READY note'
+$progressionSource=[IO.File]::ReadAllText((Join-Path $RepositoryRoot 'src/KingmakerMountedCombat/Diagnostics/Chunk7NativeProgressionSession.cs'))
+if(-not$progressionSource.Contains('if (WritesAutosave && !ObserveTerminalAutosave()) return;')-or
+   -not$progressionSource.Contains('private bool ObserveTerminalAutosave()')-or
+   -not$progressionSource.Contains('if (WritesManual)')-or
+   -not$progressionSource.Contains('private bool ObserveManualSave()')){throw 'Legacy Auto refusal or owned Manual completion route differs.'}
+Pass 'legacy progression retains Auto wait while owned completion has distinct Manual route'
 $doc=[IO.File]::ReadAllText((Join-Path $RepositoryRoot 'docs/CHUNK7-STALE-LEVELUP-AUTOSAVE-FAMILIES.md'))
 foreach($value in @($blocked.Keys)+$blockedCases+@($siteChecks|ForEach-Object{$_[0];(':'+$_[1])})+@('LevelUpAutoSaveController','follow completion with an explicitly authorized native Manual save','Never
 manufacture a level-up callback or relabel a Manual as Auto')){if(-not$doc.Contains($value)){throw ('Tracked note omits: '+$value)}}
@@ -107,7 +112,7 @@ foreach($entry in $blocked.GetEnumerator()){
 # Selection intake hashes its file, which -WhatIf would turn into a no-op, so these runs omit
 # -WhatIf and instead carry a forbidden field selection: the runner's own next intake check
 # throws right after the readiness gate, long before environment intake, approval or a lock.
-function Write-Selection([string]$Case){$p=Join-Path $output ('progression-'+$Case+'.json');[IO.File]::WriteAllText($p,(ConvertTo-KmcChunk7Canonical (New-ProgressionFixture $Case).request.progression),[Text.UTF8Encoding]::new($false));$p}
+function Write-Selection([string]$Case){$p=Join-Path $output ('progression-'+$Case+'.json');$s=(New-ProgressionFixture $Case).request.progression;if(Test-KmcChunk7OwnedProgressionCase $Case){$s.nativeWriteLeaf=$null};[IO.File]::WriteAllText($p,(ConvertTo-KmcChunk7Canonical $s),[Text.UTF8Encoding]::new($false));$p}
 foreach($case in $blockedCases){
     $r=Invoke-Runner @('-Scenario','chunk7-native-progression','-BaseGameOnly','-SaveAccessAllowed','-ProgressionSelectionPath',(Write-Selection $case),'-OrdinaryFieldSelectionPath',$missing)
     if($r.code-eq0-or-not$r.text.Contains((Expected ('chunk7-native-progression/'+$case) $progressionSite))){throw ('Runner did not refuse progression '+$case+': '+$r.text)}

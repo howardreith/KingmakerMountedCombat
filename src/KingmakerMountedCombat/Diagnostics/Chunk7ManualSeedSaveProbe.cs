@@ -45,13 +45,16 @@ namespace KingmakerMountedCombat.Diagnostics
             if (acquiredManualName != null)
             {
                 var assisted = acquiredManualName == Chunk7AssistedFixtureSelection.OutputName;
-                var prefix = "Manual_"; var suffix = "_" + (assisted ? Chunk7AssistedFixtureSelection.OutputName : Chunk7AcquiredManualSelection.OutputName) + ".zks";
-                Require((assisted || acquiredManualName == Chunk7AcquiredManualSelection.OutputName) && leaf != null &&
+                var progression = acquiredManualName == Chunk7ProgressionSelection.ManualOutputName;
+                var prefix = "Manual_"; var suffix = "_" + (assisted ? Chunk7AssistedFixtureSelection.OutputName :
+                    progression ? Chunk7ProgressionSelection.ManualOutputName : Chunk7AcquiredManualSelection.OutputName) + ".zks";
+                Require((assisted || progression || acquiredManualName == Chunk7AcquiredManualSelection.OutputName) && leaf != null &&
                     leaf.StartsWith(prefix, StringComparison.Ordinal) && leaf.EndsWith(suffix, StringComparison.Ordinal) &&
                     leaf.Length > prefix.Length + suffix.Length &&
                     int.TryParse(leaf.Substring(prefix.Length, leaf.Length - prefix.Length - suffix.Length),
                         System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var number) &&
-                    number > 0 && leaf == (assisted ? Chunk7AssistedFixtureSelection.ManualLeaf(number) : Chunk7AcquiredManualSelection.NativeOutputLeaf(number)),
+                    number > 0 && leaf == (assisted ? Chunk7AssistedFixtureSelection.ManualLeaf(number) :
+                        progression ? Chunk7ProgressionSelection.ManualLeaf(number) : Chunk7AcquiredManualSelection.NativeOutputLeaf(number)),
                     "Acquired Manual observer requires its closed name and exact canonical positive native slot.");
                 nativeName = acquiredManualName;
             }

@@ -1,6 +1,6 @@
 # Chunk 7 stale level-up autosave families
 
-Status: these families are **NOT READY**. None of them is selected for the current batch.
+Status: the families and cases in the blocked table are **NOT READY**. None of them is selected for the current batch.
 `scripts/runtime/Invoke-KingmakerRuntimeScenario.ps1` refuses each one before any selection
 intake, lock, transaction, Mods swap or game launch, so a run that is known to be futile
 cannot start. Their code paths are kept as they are, with a NOT READY note at each wait site.
@@ -27,7 +27,7 @@ until its stage deadline and then fail.
 | `chunk7-manual-derived-acquisition` (every case) | `src/KingmakerMountedCombat/Diagnostics/Chunk7ManualDerivedScenario.Build.cs:196` (build stage 1, `ObserveTerminalAutosave` at `:222`) | The native load always ends in `StartBuild`, and `TickBuild` stage 1 waits. |
 | `chunk7-cumulative-acquisition` (every case, including the assisted cumulative plan) | the same `Chunk7ManualDerivedScenario.Build.cs:196` / `:222` | `Chunk7ManualDerivedScenario.CreateCumulative` uses the same `StartBuild` / `TickBuild` path. |
 | `chunk7-assisted-fixture-preparation` | `src/KingmakerMountedCombat/Diagnostics/Chunk7AssistedFixtureScenario.Setup.cs:161` (`ObserveLevelupAutosave` at `Chunk7AssistedFixtureScenario.Save.cs:55`) | Stage 2 `TickBuild` waits for the level-up Auto before stage 3 and the final Manual. |
-| `chunk7-native-progression` / `horse-native-level`, `horse-native-retrain-horse`, `horse-native-retrain-mammoth`, `owned-horse-native-level`, `owned-horse-native-retrain-horse`, `owned-horse-native-retrain-mammoth` | `src/KingmakerMountedCombat/Diagnostics/Chunk7NativeProgressionSession.cs:231` (`ObserveTerminalAutosave` at `:330`) | `Chunk7ProgressionSelection.WritesAutosave` is true for the level and respec cases, and the session waits whenever it is true. |
+| `chunk7-native-progression` / `horse-native-level`, `horse-native-retrain-horse`, `horse-native-retrain-mammoth` | `src/KingmakerMountedCombat/Diagnostics/Chunk7NativeProgressionSession.cs (legacy ObserveTerminalAutosave)` | The historical acquired-source cases retain the native level-up Auto wait and are refused before launch. |
 
 The registry is `Get-KmcChunk7StaleLevelUpAutosaveFamilies` in
 `scripts/runtime/RuntimeHarness.Common.ps1`. The runner calls `Assert-KmcChunk7FamilyReady`
@@ -53,6 +53,14 @@ These families do not route through a level-up autosave wait:
 - The owned-pair persistence, combat, realtime and native-life families.
 - `chunk7-native-progression` with `horse-native-dismiss` or `owned-horse-native-dismiss`.
   The dismissal session writes nothing.
+- `chunk7-native-progression` with `owned-horse-native-level`,
+  `owned-horse-native-retrain-horse` or `owned-horse-native-retrain-mammoth`.
+  These cases use a distinct, authorized genuine Manual after native choice
+  completion. Admission no longer waits for a nonexistent level-up Auto.
+  They still need a fresh qualified acquired two-pair `KMC_C7_WORLD` exploration
+  Manual and actual native leveling or retraining eligibility before a native
+  result can be claimed. The owner-seed `KMC_C7_SEED_WORLD` Manual and the
+  zero-pair `KMC_C7_SEED_CHECKPOINT` cannot substitute for that ancestry.
 
 A related family has an input dependency rather than a wait.
 `chunk7-acquired-manual-derivative` does not wait for an autosave. However, its source is a
@@ -77,7 +85,7 @@ from the test, and from this note in the same change.
 2. `chunk7-manual-derived-acquisition`
 3. `chunk7-cumulative-acquisition`
 4. `chunk7-assisted-fixture-preparation`
-5. `chunk7-native-progression`: the two level cases and the four respec cases (owned and unowned)
+5. `chunk7-native-progression`: the historical level case and two historical respec cases
 6. Downstream input only: `chunk7-acquired-manual-derivative`, for fresh sources
 
 This is not a new universal prerequisite. Optional prologue production and the historical

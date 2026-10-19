@@ -19,6 +19,10 @@ namespace KingmakerMountedCombat.Diagnostics
         public const string OwnedRetrainMammothCase = "owned-horse-native-retrain-mammoth";
         public const string SourceLeaf = "Manual_300_KMC_C7_WORLD.zks";
         public const string SourceName = "KMC_C7_WORLD";
+        public const string ManualOutputName = "KMC_C7_PROGRESSION";
+        internal static string ManualLeaf(int number) => number > 0
+            ? "Manual_" + number.ToString(System.Globalization.CultureInfo.InvariantCulture) + "_" + ManualOutputName + ".zks"
+            : throw new ArgumentOutOfRangeException(nameof(number));
         public const string SourceEvidenceLeaf = "progression-source.json";
         public const string InventoryLeaf = "progression-inventory.json";
         public string Case { get; set; }
@@ -57,7 +61,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 }
             }
         }
-        internal bool WritesAutosave => OperationCase == LevelCase || IsRespec;
+        internal bool WritesAutosave => !IsOwned && (OperationCase == LevelCase || IsRespec);
+        internal bool WritesManual => IsOwned && (OperationCase == LevelCase || IsRespec);
+        internal bool WritesSave => WritesAutosave || WritesManual;
         internal bool IsRespec => OperationCase == RetrainHorseCase || OperationCase == RetrainMammothCase;
         internal Chunk7NativeProgressionCase NativeCase
         {
@@ -110,9 +116,9 @@ namespace KingmakerMountedCombat.Diagnostics
                     ControlPetId != "d79a4f6c-b74e-4868-95bd-533899131acb")
                     errors.Add("This progression family selects only the qualified Manual_300 Horse target and Mammoth control.");
             }
-            if (ExpectedNativeWriteCount != (WritesAutosave ? 1 : 0) || NativeWriteLeaf != (WritesAutosave ? "Auto_1.zks" : null))
-                errors.Add("The selected native operation has an exact terminal autosave count and leaf.");
-            if (WritesAutosave ? MinimumRangerLevel < 4 || MinimumRangerLevel > 20 : MinimumRangerLevel != 0)
+            if (ExpectedNativeWriteCount != (WritesSave ? 1 : 0) || NativeWriteLeaf != (WritesAutosave ? "Auto_1.zks" : null))
+                errors.Add("The selected native operation has an exact write count and closed output category.");
+            if (WritesSave ? MinimumRangerLevel < 4 || MinimumRangerLevel > 20 : MinimumRangerLevel != 0)
                 errors.Add("Native progression requires its bounded real Ranger level target, or no build plan for dismissal.");
             if (IsRespec)
             {
@@ -132,7 +138,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 errors.Add("Owned progression requires its exact separately qualified Manual source and protected fixture identities.");
             else
             {
-                errors.AddRange(source.Validate("persistenceLoad", "KMC_C7_WORLD", "^Manual_[1-9][0-9]*_KMC_C7_WORLD\\.zks$"));
+                errors.AddRange(source.Validate("persistenceLoad", "KMC_C7_WORLD",
+                    "^Manual_[1-9][0-9]*_KMC_C7_WORLD\\.zks$"));
                 var numberMatch = Regex.Match(source.FileName ?? "", "^Manual_([1-9][0-9]*)_KMC_C7_WORLD\\.zks$");
                 if (!numberMatch.Success || !int.TryParse(numberMatch.Groups[1].Value, System.Globalization.NumberStyles.None,
                     System.Globalization.CultureInfo.InvariantCulture, out var number) || number <= 0 ||
