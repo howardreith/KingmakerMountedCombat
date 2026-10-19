@@ -151,7 +151,8 @@ namespace KingmakerMountedCombat.Diagnostics
         internal static bool OwnedSchema1Cold(string value) => value == "owned-schema1-resave-manual";
         internal static bool CurrentMigrationCheckpoint(string value) => value == "owned-schema1-current-manual" ||
             value == "owned-schema2-pending-current-manual";
-        internal static bool IsOwnerSeedLoadOnlyCheckpoint(string value) => OwnedSchema1Cold(value) || CurrentMigrationCheckpoint(value);
+        internal static bool IsOwnerSeedLoadOnlyCheckpoint(string value) => OwnedSchema1Cold(value) || CurrentMigrationCheckpoint(value) ||
+            value == "pending-schema3-control-manual";
         internal static bool SupportedSaveBoundary(string value) => value == "multi-nonselected-mount-unsettled-manual" ||
             value == "multi-owned-worker-cancel-manual";
         internal static bool RepeatedCheckpoint(string value) => value == "multi-exploration-three-loads-manual" ||

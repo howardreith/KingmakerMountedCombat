@@ -311,6 +311,8 @@ foreach($checkpointCase in @('multi-rt-debt-manual','multi-tb-debt-manual','zero
  }
  foreach($fault in $combatCheckpointFaults.Keys){Check ('owner-seed combat checkpoint consumer refuses '+$fault+' '+$checkpointCase) {$c=New-SeedCheckpointLoadSource $checkpointCase;&$combatCheckpointFaults[$fault] $c;[void](Get-KmcChunk7OwnedPairsSource $c.selection $c.persistenceCase $c.fixture $c.candidate $null)} $true}
 }
+Check 'schema-3 pending control selects the unchanged pending-only producer Manual' {$c=New-SeedCheckpointLoadSource 'pending-schema3-control-manual';$v=Qualify-Combat $c
+ if($c.selection.expectedNativeWriteCount-ne0-or$v.descriptor.internalName-cne'KMC_C7_SEED_CHECKPOINT'-or$v.descriptor.fileName-cne'Manual_304_KMC_C7_SEED_CHECKPOINT.zks'-or$v.descriptor.sha256-cne('3'*64)-or$c.checkpoint.request.persistenceCase-cne'legacy-mounted-pending-tb-manual'){throw 'Schema-3 pending control lost its exact unconverted source or zero-write quota'}}
 $checkpointSaveFaults=[ordered]@{
  'missing consumer receipt'={param($c)$c.selection.checkpointSourceRunId='synthetic-absent-consumer'}
  'wrong consumer receipt'={param($c)$c.selection.checkpointSourceArtifactSha256='e'*64}

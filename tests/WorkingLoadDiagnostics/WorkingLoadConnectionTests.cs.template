@@ -55,6 +55,7 @@ namespace KingmakerMountedCombat.Diagnostics {
   public object OwnedPairs{get;set;} public object AcquiredManual{get;set;} public object ManualDerived{get;set;} public object CumulativeAcquisition{get;set;}
   public object ManualSeed{get;set;} public object BootstrapInventory{get;set;} public object NativeBootstrap{get;set;} public object SmallCalibration{get;set;}
   public object OrdinaryField{get;set;} public object OrdinaryAcquisition{get;set;} public object Progression{get;set;}
+  public object AssistedFixture{get;set;} public object AssistedColdInventory{get;set;}
   public string ExpectedNativeLoadType{get;set;}="Manual"; internal bool ForceInvalid;
   public IReadOnlyList<string> Validate(){var errors=new List<string>();__ADMISSION_PREFIX__ if(ForceInvalid)errors.Add("external prior admission");return errors;}
  }

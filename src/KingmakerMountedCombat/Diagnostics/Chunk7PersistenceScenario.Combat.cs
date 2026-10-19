@@ -19,7 +19,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool OwnerSeedCurrentPendingSource => OwnerSeedCheckpointSave && !Cold && LegacyPendingCase;
         private int ExpectedCombatSourceSchema => LegacyPendingCase && !OwnerSeedCurrentPendingSource ? 2 : 3;
         private bool LegacyPendingCase => request.PersistenceCase == "legacy-mounted-pending-tb-manual";
-        private bool PendingOnlyCase => LegacyPendingCase || OwnedSchema2CurrentCase;
+        private bool PendingOnlyCase => LegacyPendingCase || OwnedSchema2CurrentCase || request.PersistenceCase == "pending-schema3-control-manual";
         private bool ZeroMountedCase => request.PersistenceCase == "zero-mounted-tb-retained-manual";
         private int RequiredOwners => PendingOnlyCase ? 1 : 2;
         private int RequiredMounted => ZeroMountedCase && (Cold || combatCheckpointReady) ? 0 : RequiredOwners;
@@ -27,7 +27,8 @@ namespace KingmakerMountedCombat.Diagnostics
             ZeroMountedCase ? Chunk7CombatCheckpointKind.ZeroMountedRetained :
             TurnBasedCase ? Chunk7CombatCheckpointKind.TurnBasedDebts : Chunk7CombatCheckpointKind.RealTimeDebts;
         private static bool IsCombatCheckpoint(string value) => value == "multi-rt-debt-manual" || value == "multi-tb-debt-manual" ||
-            value == "zero-mounted-tb-retained-manual" || value == "legacy-mounted-pending-tb-manual" || value == "owned-schema2-pending-current-manual";
+            value == "zero-mounted-tb-retained-manual" || value == "legacy-mounted-pending-tb-manual" || value == "owned-schema2-pending-current-manual" ||
+            value == "pending-schema3-control-manual";
 
         private void AfterNativeMounts()
         {

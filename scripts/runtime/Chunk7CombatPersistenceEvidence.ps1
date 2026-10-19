@@ -1,8 +1,8 @@
 Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot 'Chunk7CombatDebtDiagnosticsEvidence.ps1')
-function Test-KmcChunk7CombatPersistenceCase([string]$Case) { $Case-cin@('multi-rt-debt-manual','multi-tb-debt-manual','zero-mounted-tb-retained-manual','legacy-mounted-pending-tb-manual','owned-schema2-pending-current-manual') }
+function Test-KmcChunk7CombatPersistenceCase([string]$Case) { $Case-cin@('multi-rt-debt-manual','multi-tb-debt-manual','zero-mounted-tb-retained-manual','legacy-mounted-pending-tb-manual','owned-schema2-pending-current-manual','pending-schema3-control-manual') }
 function Assert-KmcChunk7CombatArchive($Archive,$Request) {
-    $legacy=$Request.persistenceCase-cin@('legacy-mounted-pending-tb-manual','owned-schema2-pending-current-manual');$zero=$Request.persistenceCase-ceq'zero-mounted-tb-retained-manual';$tb=$Request.persistenceCase-cne'multi-rt-debt-manual'
+    $legacy=$Request.persistenceCase-cin@('legacy-mounted-pending-tb-manual','owned-schema2-pending-current-manual','pending-schema3-control-manual');$zero=$Request.persistenceCase-ceq'zero-mounted-tb-retained-manual';$tb=$Request.persistenceCase-cne'multi-rt-debt-manual'
     $pairCount=if($zero){0}elseif($legacy){1}else{2};$ownerCount=if($legacy){1}else{2};$slotCount=$pairCount*2
     Assert-KmcExactProperties $Archive @('SchemaVersion','CampaignId','AreaId','GameTimeTicks','Policy','RulesId','Pairs','Participations','Slots','Combat') 'Chunk 7 combat archive'
     if($Archive.SchemaVersion-ne3-or$Archive.CampaignId-cne(Get-KmcChunk7SelectedFixture $Request).gameId-or$Archive.AreaId-cne(Get-KmcChunk7SelectedFixture $Request).area-or
@@ -230,7 +230,7 @@ function Assert-KmcChunk7CheckpointSource($Checkpoint,$Archive,$Request) {
     if($zero){$dismounts=@($Checkpoint.source.inputs|Where-Object{$_.label-clike'checkpoint-native-dismount-*'});if($dismounts.Count-ne2){throw 'Zero-mounted checkpoint did not execute two native Dismount inputs.'};foreach($nativeInput in $dismounts){if($nativeInput.nativeCastDelta-ne1-or$nativeInput.nativeRefusalDelta-ne0-or$nativeInput.clicked-ne$true){throw 'Native detached checkpoint input was refused or duplicated.'}}}
 }
 function Assert-KmcChunk7CheckpointContinuation($Value,$Archive,$Request,[bool]$Cold) {
-    $case=$Request.persistenceCase;$kind=switch($case){'multi-rt-debt-manual'{'RealTimeDebts'};'multi-tb-debt-manual'{'TurnBasedDebts'};'zero-mounted-tb-retained-manual'{'ZeroMountedRetained'};'legacy-mounted-pending-tb-manual'{'MountedPendingOnly'};'owned-schema2-pending-current-manual'{'MountedPendingOnly'}}
+    $case=$Request.persistenceCase;$kind=switch($case){'multi-rt-debt-manual'{'RealTimeDebts'};'multi-tb-debt-manual'{'TurnBasedDebts'};'zero-mounted-tb-retained-manual'{'ZeroMountedRetained'};'legacy-mounted-pending-tb-manual'{'MountedPendingOnly'};'owned-schema2-pending-current-manual'{'MountedPendingOnly'};'pending-schema3-control-manual'{'MountedPendingOnly'}}
     Assert-KmcChunk7Boolean $Value.ready $true;Assert-KmcChunk7Boolean $Value.continuationComplete $true
     $provenance=if($Cold){'cold-native-archive-binding'}else{'source-native-setup'}
     if($Value.kind-cne$kind-or$Value.provenance-cne$provenance-or$Value.actorIds-isnot[Array]-or$Value.actorIds.Count-ne4-or
@@ -299,7 +299,7 @@ function Assert-KmcChunk7CombatRestorationProbe($Probe,$Archive,$Request) {
     Assert-KmcChunk7CombatDebtBoundaryProbe $Request $Probe $Archive
 }
 function Assert-KmcChunk7CombatPersistenceObservation($Request,$Artifact) {
-    $o=$Artifact.observations;Assert-KmcChunk7CombatDebtChecks $Request $o;$cold=(Get-KmcChunk7SelectedScenario $Request)-ceq'chunk7-persistence-load';$legacy=$Request.persistenceCase-ceq'legacy-mounted-pending-tb-manual'
+    $o=$Artifact.observations;Assert-KmcChunk7CombatDebtChecks $Request $o;$cold=(Get-KmcChunk7SelectedScenario $Request)-ceq'chunk7-persistence-load';$legacy=$Request.persistenceCase-ceq'legacy-mounted-pending-tb-manual';$control=$Request.persistenceCase-ceq'pending-schema3-control-manual'
     Assert-KmcChunk7NativeCounters $o @('nativeSchema','nativeCapacity','processId')
     $owned=Test-KmcChunk7OwnedPairsScenario $Request.scenario
     # The owner-seed checkpoint producer starts from its verified restored mounted graph instead of native Mounts.
@@ -338,6 +338,7 @@ function Assert-KmcChunk7CombatPersistenceObservation($Request,$Artifact) {
            $snapshot[0].nativeCastRequests-ne0-or$snapshot[0].archivePhase-cne'all-pair-presentation-restored'){throw 'Cold native combat substituted a source, dropped PostLoads or replayed commands.'}
         Assert-KmcChunk7CombatRestorationProbe $o.coldRestoration $archive $Request
         if($legacy){Assert-KmcChunk7Schema2ResaveObservation $Request $o}
+        if($control-and($null-ne$o.PSObject.Properties['schema2Migration']-or$null-ne$o.PSObject.Properties['nativeWrite']-or$null-ne$o.PSObject.Properties['saveRequested'])){throw 'Unconverted schema-3 control claimed migration or a native save.'}
         $binding=$continuation.driver.coldBinding
         if($binding.label-cne'read-only-cold-bind'-or@($binding.nativeActors).Count-ne4){throw 'Cold continuation omitted its read-only native fixture binding.'}
     } else {
