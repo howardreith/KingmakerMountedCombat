@@ -273,6 +273,8 @@ function Assert-KmcChunk7CheckpointContinuation($Value,$Archive,$Request,[bool]$
         $mounts=if($kind-ceq'MountedPendingOnly'){@($ids[1])}else{@($ids[1],$ids[3])}
         $renewedPending=$Cold-and$kind-ceq'MountedPendingOnly'-and
             $Request.productVersion-cmatch'^0[.]1[.]0-chunk7b-preview[.]([0-9]+)$'-and[int]$Matches[1]-ge55
+        $renewedSource=-not$Cold-and$kind-ceq'MountedPendingOnly'-and
+            $Request.productVersion-cmatch'^0[.]1[.]0-chunk7b-preview[.]([0-9]+)$'-and[int]$Matches[1]-ge55
         if($renewedPending){
             $rider=$ids[0];$join=@($Value.continuation|Where-Object{$_.PSObject.Properties['label']-and$_.label-ceq'native-rider-reentry-new-round'})
             if($join.Count-ne1-or@($Value.continuation).Count-ne5-or
@@ -328,7 +330,7 @@ function Assert-KmcChunk7CheckpointContinuation($Value,$Archive,$Request,[bool]$
             $mounts=@($rider,$ids[1])
         }
         foreach($id in $mounts){
-            $label=if($renewedPending){'independent-native-actor-'+$id}else{'independent-native-mount-'+$id}
+            $label=if($renewedPending-or$renewedSource){'independent-native-actor-'+$id}else{'independent-native-mount-'+$id}
             $row=@($Value.continuation|Where-Object{$_.PSObject.Properties['label']-and$_.label-ceq$label})
             if($row.Count-ne1-or$row[0].currentActor-cne$id-or$row[0].round-ne$Archive.Combat.Round+1-or
                 ($renewedPending-and$row[0].frame-le$join[0].frame)){throw 'Retained native actor was released before or after its first legitimate native round.'}

@@ -79,6 +79,18 @@ function CompleteCombatArtifact($Fixture,[bool]$Cold){
 }
 $complete=@();foreach($fixture in @($tb,$rt,$zero,$legacy)){foreach($isCold in @($false,$true)){$spec=CompleteCombatArtifact $fixture $isCold;$complete+=@($spec);Check ($spec.request.persistenceCase+' complete '+$spec.request.scenario) {Assert-KmcChunk7PersistenceObservation $spec.request $spec.artifact 'PASS'}}}
 $sourceTb=$complete[0];$coldTb=$complete[1];$sourceRt=$complete[2];$coldZero=$complete[5];$coldLegacy=$complete[7]
+$modernPendingSource=Copy-Test $complete[6]
+$modernPendingSource.request.productVersion='0.1.0-chunk7b-preview.57'
+$modernPendingSource.artifact.productVersion=$modernPendingSource.request.productVersion
+$modernPendingSource.artifact.observations.combatContinuation.continuation[1].label='independent-native-actor-'+$mammoth
+Check 'preview.57 pending source accepts its actual native actor label without cold rider re-entry' {
+    Assert-KmcChunk7PersistenceObservation $modernPendingSource.request $modernPendingSource.artifact 'PASS'
+}
+$wrongPendingSource=Copy-Test $modernPendingSource
+$wrongPendingSource.artifact.observations.combatContinuation.continuation[1].label='independent-native-mount-'+$mammoth
+Reject 'preview.57 pending source refuses obsolete mount-only label' {
+    Assert-KmcChunk7PersistenceObservation $wrongPendingSource.request $wrongPendingSource.artifact 'PASS'
+}
 function New-RenewedPending {
     $spec=Copy-Test $coldLegacy
     $spec.request.productVersion='0.1.0-chunk7b-preview.55'
