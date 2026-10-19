@@ -1,5 +1,10 @@
 # Chunk 7B–7D implementation plan
 
+> Historical October 15 development chronology. The active completion authority,
+> current requirement-to-evidence map and 7E selection are in
+> [CHUNK7-COMPLETION-MISSION.md](CHUNK7-COMPLETION-MISSION.md). Earlier preview
+> pins, native caps and statements that 7E is unselected below are historical.
+
 Status: IN PROGRESS. Resumed on October15 under the owner's Claude takeover from the [October14 stopping point](../docs/CHUNK7-OWNER-STOP-2026-10-14.md); see the [takeover guide](../docs/CLAUDE-HANDOFF-CHUNK7-2026-10-14.md). The breadth candidate is not ready. Authority: [active mission](CHUNK7-CONTINUATION-MISSION.md), [architecture brief](CHUNK7-DEVELOPMENT-BRIEF.md), and [opening review](CHUNK7-FOUNDATION-REVIEW.md). Root owns integration and every live transaction. Commits and focused passes are checkpoints within this sustained assignment.
 
 | Work | Implemented behavior and remaining evidence |
