@@ -1,5 +1,37 @@
 # Chunk 7 known product debt
 
+## Preview.52 native disable and zero-mounted breadth — PASS; refusal reader repair
+
+Batch27's registered UMM disable/re-enable and permanent Horse refusal passed
+in-game and in the external reader (9/0); this closes the preview.51 missing
+world-facts diagnostic gap without changing batch26's original FAIL. Batches
+28/30 passed a native zero-mounted TB retained-owner Manual and its exact
+separate-process cold load. Their schema-3 graph has zero active pairs and two
+retained participations with native combat debt. All transactions restored
+Mods, protected saves, Baseline and Working; batch27 recorded four accepted
+native profile-cache changes, so exact profile-byte restoration is false there.
+
+Batch31 malformed and future-schema probes each passed all five game
+subscenarios, but their original external results failed because the reader
+limited retained object hash labels to 1..128. Product
+`RetainedObjectIdentity` retains at most 128 objects but emits signed nonzero
+Int32 `RuntimeHelpers.GetHashCode` labels. The reader now admits that exact
+value domain while rejecting zero, nonintegers, out-of-range values and
+collisions and preserving complete state conservation. Focused tests 53/0;
+independent review 34/0 and both immutable complete artifact re-reads PASS.
+Review receipt SHA-256
+`9c9e2829e1f1eceff73dd7c889b9c5cc2ed67170109cff6c57ed9b55101a7a91`.
+The original terminal FAILs are preserved; corrected-reader PASS is separately
+recorded in private batch31.
+
+Schema2 TB migration remains a distinct unresolved product/native boundary:
+the accepted pending-only source saves A outside combat and unprepared with
+6/3/6 debt, then installed `UnitCombatPrepareController.Tick` lawfully clears
+that debt when A rejoins. No synthetic Prepared flag or resource rewrite is
+accepted. Area Auto/cold needs a suitable visited non-capital destination;
+positive reference-free removal, genuine DLL-absent cold and doors also remain
+unaccepted.
+
 ## Preview.51 disable game PASS, external evidence FAIL
 
 Batch26 completed the real registered callback, native transition, re-enable

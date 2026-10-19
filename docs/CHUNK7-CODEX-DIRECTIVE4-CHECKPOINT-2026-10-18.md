@@ -1,5 +1,38 @@
 # Chunk 7 Directive 4 Codex checkpoint
 
+## October 19 - preview.52 selected native breadth and reader-only correction
+
+Published frozen candidate: `f5fe6fcda39f809b92f2a6cab34bab4a2a108acb`,
+package SHA-256 `1b191abb67860fadd707d0f8a32e9dc08e2fbc95842178c9ca1496540d48e4da`,
+DLL SHA-256 `18f619bd28e872b73470944aaf46671887d91d99ff26f80f30a8fd50019a1433`,
+suite SHA-256 `1f71f8fb1b0e4c1f22794d6347e55fc1c6e32fca09e67d4238e883138792a64a`.
+Package build 11/0, Candidate 6/0. Private batch27-31 ledgers and immutable
+runtime-evidence roots bind individual selections, source archives, game
+artifacts and restoration. Five actual native runs; batch29 was a prelaunch
+WhatIf FAIL on a BOM-marked private JSON selection, then corrected in batch30.
+
+| Selected case | Current evidence | Status |
+| --- | --- | --- |
+| Registered two-owner disable/re-enable, local failure retry, permanent Horse removal refusal | Batch27 game and external reader 9/0 | PASS |
+| Zero-mounted TB retained-owner Manual | Batch28 game and external reader 4/0; native archive `692e1788...` | PASS |
+| Exact separate-process zero-mounted cold | Batch30 game and external reader 3/0, one load/zero writes | PASS |
+| Malformed and future metadata real native load refusals and menu refresh | Batch31 each game 5/0; original external FAILs retained. Corrected reader re-evaluates both complete immutable artifacts PASS after focused 53/0 and independent 34/0 review | PASS |
+| Schema2 TB pending-only migration | Batch19 original cold FAIL: saved A outside combat/unprepared with 6/3/6; installed native JoinCombat/Prepare.Tick clears debt; lawful boundary/representable input unresolved | FAIL |
+| Area Auto and cold | Batch23 original area preflight refused capital Oleg, zero transfer/save requests; no qualified visited non-capital target | IN PROGRESS |
+| Positive reference-free cleanup and genuine DLL-absent load | Permanent Horse references make accepted two-Horse derivative unsafe for positive removal | IN PROGRESS |
+| Doors | No qualified ordinary door on this owner-seed route | DEFER — EVIDENCED |
+
+The reader fix changes only `Chunk7LoadRefusalEvidence.ps1` and its focused
+test, not the preview.52 DLL. `RetainedObjectIdentity` uses signed nonzero
+Int32 labels and retains at most 128 references; the old external reader
+confused label value with retention count. Independent review PASS receipt
+SHA-256 `9c9e2829e1f1eceff73dd7c889b9c5cc2ed67170109cff6c57ed9b55101a7a91`.
+All five game processes exited, Mods/protected saves/Working restored; only
+batch27 had four policy-accepted native profile-cache changes and therefore
+not exact profile-byte restoration. No game or lock is live. PR #5 remains
+draft. No merge, release, tag or permanent installation. Directive 4 is
+IN PROGRESS while schema2 and removal/area prerequisites are investigated.
+
 ## October 19 - preview.46 frozen native batch21 FAIL; preview.47 diagnostic repair IN PROGRESS
 
 Guarded-pushed preview.46 `40439d09d3cf162126d3c5721eb1f2cbb4ca3d73`

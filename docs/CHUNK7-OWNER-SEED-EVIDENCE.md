@@ -1,5 +1,35 @@
 # Chunk 7 owner-seed evidence summary
 
+## October 19 - preview.52 selected native continuation
+
+The accepted owner-seed Manual `b4d1ede7...` remains the exact ancestry for
+frozen preview.52 `f5fe6fcd`. Batch27 passed registered two-owner disable,
+same-frame failed-obligation retry, native B rejoin/Tick/Clear, re-enable,
+permanent Horse removal refusal and cleanup (9/0). Batch28 passed a genuine
+zero-mounted TB retained-owner Manual (4/0) with zero pairs, two retained
+participations and native combat debt; batch30 cold-loaded its exact archive
+`692e17881b61db0bb1aefb0f20fb5d545540782896934a71ced13f56e7a1a3a4`
+in a new process (3/0). Batch29's private BOM-marked selection failed WhatIf
+before any game launch; it has no native outcome.
+
+Batch31 malformed and future metadata derivatives each passed five in-game
+subscenarios, including three real load-entry refusals, save-list refresh,
+continuation and cleanup. Original external results remain FAIL on a reader
+bound that confused signed nonzero object hash labels with the 128-object
+retention capacity. The reviewed reader-only correction passed 53/0 focused
+tests and independent 34/0 checks; both complete immutable artifacts now pass
+re-evaluation. Review receipt SHA-256
+`9c9e2829e1f1eceff73dd7c889b9c5cc2ed67170109cff6c57ed9b55101a7a91`.
+This re-evaluation changes no native observation or original verdict.
+
+Private batch27-31 ledgers contain exact run, source, package, evidence and
+restoration identities. All five launched processes exited and Mods, protected
+saves, Baseline and Working restored. Batch27 retained four policy-accepted
+native profile-cache changes; the other profile bytes restored exactly.
+Schema2 TB debt migration, area Auto/cold, positive reference-free removal and
+genuine DLL-absent cold remain open. No ordinary Horse acquisition is inferred
+from these assisted fixtures. PR #5 is draft; no permanent installation.
+
 ## October 19 - preview.44 selected source connection IN PROGRESS
 
 Reviewed group44 source is applied after closure HEAD `7c1bcadc`; no preview.44
