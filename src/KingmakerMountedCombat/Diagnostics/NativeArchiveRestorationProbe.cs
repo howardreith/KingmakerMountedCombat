@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
 using Harmony12;
@@ -136,7 +137,7 @@ namespace KingmakerMountedCombat.Diagnostics
             ["dropped"] = dropped, ["errors"] = errors + (installed ? 0 : 1), ["complete"] = Complete,
             ["installedBeforeWorldLoad"] = true, ["prepareMetric"] = "native-method-entries-including-production-refused-attempts" };
             if (debtRequest != null) value["debtDiagnostics"] = new JObject {
-                ["contract"] = "chunk7-native-debt-boundary-observer-v1", ["runId"] = debtRequest.RunId,
+                ["contract"] = "chunk7-native-debt-boundary-observer-v2", ["runId"] = debtRequest.RunId,
                 ["events"] = debtEvents.DeepClone(), ["maximumEvents"] = MaximumDebtEvents, ["errors"] = debtErrors,
                 ["dropped"] = debtDropped, ["openCalls"] = debtOpenCalls.Count, ["requestUnchanged"] = DebtRequestUnchanged(),
                 ["complete"] = debtErrors == 0 && debtDropped == 0 && debtOpenCalls.Count == 0 && DebtIdentityCurrent(),
@@ -223,10 +224,27 @@ namespace KingmakerMountedCombat.Diagnostics
         private JObject CaptureDebtBoundary(DebtBoundaryCall call, string edge)
         {
             var actors = ResolveDebtActors();
+            var controller = Game.Instance.TurnBasedCombatController;
+            // Only the exact selected post-restoration Join boundary records a
+            // bounded method path. StackTrace(false) records no file paths or
+            // arguments and does not replace, delay or suppress the native call.
+            var callers = new JArray();
+            if (call.Kind == "native-join-combat" && edge == "before")
+                foreach (var frame in (new StackTrace(1, false).GetFrames() ?? new StackFrame[0]).Take(64))
+                {
+                    if (callers.Count == 24) break;
+                    var method = frame.GetMethod();
+                    if (method?.DeclaringType == null) continue;
+                    var identity = method.DeclaringType.FullName + "." + method.Name;
+                    if (identity.Length > 512) throw new InvalidOperationException("Native join caller identity exceeds the bounded observation.");
+                    callers.Add(identity);
+                }
             return new JObject { ["kind"] = call.Kind, ["edge"] = edge, ["callId"] = call.Id,
                 ["actorId"] = call.Actor?.UniqueId, ["frame"] = Time.frameCount,
                 ["gameTicks"] = Game.Instance.TimeController.GameTime.Ticks, ["paused"] = Game.Instance.IsPaused,
                 ["nativePassing"] = TurnBased.Controllers.CombatController.IsPassing(),
+                ["nativeRound"] = controller.RoundNumber, ["currentTurnActorId"] = controller.CurrentTurn?.Unit?.UniqueId,
+                ["callerFrames"] = callers,
                 ["restorePhase"] = persistence.ArchiveRestorePhase, ["restorationPending"] = persistence.CombatRestorationPending,
                 ["actors"] = new JArray(actors.Select(actor => new JObject { ["native"] = JObject.FromObject(
                     MountedPersistenceService.CaptureActor(actor), MountedSaveCodec.CreateSerializer()),

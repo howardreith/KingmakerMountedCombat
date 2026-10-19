@@ -21,22 +21,33 @@ function Assert-KmcChunk7CombatDebtBoundaryProbe($Request,$Probe,$Archive){
   foreach($pair in @(@('declaringType',$spec[0]),@('method',$spec[1]),@('token',$spec[2]),@('prefix',$spec[3]),@('postfix',$spec[4]),@('moduleMvid','07fa1e4d-8618-41b3-9b8d-faa17d3b26f7'))){Assert-KmcBootstrapInventoryString $hook.($pair[0]) $pair[1]}
  }
  $d=$Probe.debtDiagnostics
+ $v2=$d.contract-ceq'chunk7-native-debt-boundary-observer-v2'
  Assert-KmcExactProperties $d @('contract','runId','events','maximumEvents','errors','dropped','openCalls','requestUnchanged','complete','scope','methodEntryMayBeRefusedByProductionPrefix') 'native debt window journal'
  $scope=if($Request.persistenceCase-ceq'pending-schema3-control-manual'){'exact-schema3-control-cold-after-presentation'}else{'exact-schema2-cold-after-presentation'}
- foreach($spec in @(@('contract','chunk7-native-debt-boundary-observer-v1'),@('runId',$Request.runId),@('scope',$scope))){Assert-KmcBootstrapInventoryString $d.($spec[0]) $spec[1]}
+ if($d.contract-cnotin@('chunk7-native-debt-boundary-observer-v1','chunk7-native-debt-boundary-observer-v2')){throw 'Unknown native debt observer contract.'}
+ foreach($spec in @(@('runId',$Request.runId),@('scope',$scope))){Assert-KmcBootstrapInventoryString $d.($spec[0]) $spec[1]}
  Assert-KmcOrdinaryInteger $d.maximumEvents 128 128
  foreach($field in @('errors','dropped','openCalls')){Assert-KmcOrdinaryInteger $d.$field 0 0}
  foreach($field in @('requestUnchanged','complete','methodEntryMayBeRefusedByProductionPrefix')){Assert-KmcChunk7Boolean $d.$field $true}
  if($d.events-isnot[Array]-or$d.events.Count-gt128){throw 'Native debt journal is not a bounded event array.'}
  $ids=@($Archive.Combat.Actors|ForEach-Object{$_.Native.Id});$open=@{};$next=0;$priorFrame=-1L;$priorTicks=-1L
  foreach($e in $d.events){
-  Assert-KmcExactProperties $e @('kind','edge','callId','actorId','frame','gameTicks','paused','nativePassing','restorePhase','restorationPending','actors') 'native debt event'
+  $fields=@('kind','edge','callId','actorId','frame','gameTicks','paused','nativePassing','restorePhase','restorationPending','actors')
+  if($v2){$fields+=@('nativeRound','currentTurnActorId','callerFrames')}
+  Assert-KmcExactProperties $e $fields 'native debt event'
   if($e.kind-isnot[string]-or$e.edge-isnot[string]-or$e.kind-cnotin@('native-join-combat','native-combat-prepare')-or$e.edge-cnotin@('before','after')){throw 'Unknown or nonscalar native debt event kind/edge.'}
   Assert-KmcOrdinaryInteger $e.callId 1 64;Assert-KmcOrdinaryInteger $e.frame 0 ([int]::MaxValue);Assert-KmcOrdinaryInteger $e.gameTicks 0 ([long]::MaxValue)
   foreach($field in @('paused','nativePassing')){if($e.$field-isnot[bool]){throw 'Debt event native state flag is not Boolean.'}}
   Assert-KmcChunk7Boolean $e.restorationPending $false;Assert-KmcBootstrapInventoryString $e.restorePhase 'all-pair-presentation-restored'
   if($e.frame-lt$priorFrame-or$e.gameTicks-lt$priorTicks){throw 'Debt event time/frame order regressed.'};$priorFrame=$e.frame;$priorTicks=$e.gameTicks
   if($e.kind-ceq'native-join-combat'){if($e.actorId-isnot[string]-or$e.actorId-cnotin$ids){throw 'Native join event substituted a saved actor.'}}elseif($null-ne$e.actorId){throw 'Controller prepare event invented an actor argument.'}
+  if($v2){
+   Assert-KmcOrdinaryInteger $e.nativeRound 0 ([int]::MaxValue)
+   if($null-ne$e.currentTurnActorId-and($e.currentTurnActorId-isnot[string]-or$e.currentTurnActorId-cnotin$ids)){throw 'Debt event current turn differs from the saved native actor graph.'}
+   if($e.callerFrames-isnot[Array]-or$e.callerFrames.Count-gt24-or
+      (($e.kind-ceq'native-join-combat'-and$e.edge-ceq'before')-ne($e.callerFrames.Count-gt0))){throw 'Native join caller path is missing, misplaced or unbounded.'}
+   foreach($method in $e.callerFrames){if($method-isnot[string]-or$method.Length-lt3-or$method.Length-gt512-or$method-match'[\r\n]'){throw 'Native join caller method identity is invalid.'}}
+  }
   if($e.actors-isnot[Array]-or$e.actors.Count-ne$ids.Count){throw 'Debt event omitted a native actor.'}
   for($i=0;$i-lt$ids.Count;$i++){$row=$e.actors[$i];Assert-KmcExactProperties $row @('native','inCombat','prepared') 'debt event actor';Assert-KmcChunk7PersistenceNativeActor $row.native
    Assert-KmcBootstrapInventoryString $row.native.Id $ids[$i];foreach($field in @('inCombat','prepared')){if($row.$field-isnot[bool]){throw 'Debt event actor state is not Boolean.'}}
