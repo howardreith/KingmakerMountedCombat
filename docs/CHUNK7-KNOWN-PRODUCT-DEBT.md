@@ -1,5 +1,22 @@
 # Chunk 7 known product debt
 
+## October 19 - Working prerequisite remains unresolved
+
+Batch34's base-only load-only diagnostic under the owner-authorized Howie
+account reached one request for the immutable legacy Working archive, then
+failed at native `Player.PostLoad`'s main-character cross-scene lookup before
+the callback. The distinct owner-seed control loaded in the same account and
+base-only configuration. The historical base-only Working FAIL and older
+installed-mods Working world PASS make archive dependency/configuration the
+focused lead, without proving a particular missing mod. An observer path in
+batch34 slot2 separately failed patch signature validation before any load;
+it cannot be counted as a Working result. Both original FAILs remain. The
+slot3 exact recovery restored all external surfaces and released the lock;
+that safety PASS does not qualify positive P07 cleanup, cleanup save, or
+genuine DLL-absent cold load. These require a newly admitted positive fixture
+or compatible Working dependency set. Schema-2 and area fixture debt remain
+independent.
+
 ## October 19 - narrowed Directive 4 contracts
 
 [The focused execution and fixture diagnosis](CHUNK7-DIRECTIVE4-EXECUTION-DIAGNOSIS-2026-10-19.md)
