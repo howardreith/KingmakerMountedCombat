@@ -174,10 +174,6 @@ namespace KingmakerMountedCombat.Diagnostics
                             if (OwnedSchema2CurrentCase) ObserveCurrentMigrationParent();
                             if (Schema2ResaveCase)
                             {
-                                // Native load finalization can clear the pause requested in Start.
-                                // Reassert it once, after the restored world and debt are verified,
-                                // before admitting this exact migration resave.
-                                Game.Instance.IsPaused = true;
                                 RequestSave(); Next(41); break;
                             }
                             if (CombatCase) { BeginCombatContinuation(); Next(20); } else Next(10);
@@ -270,7 +266,7 @@ namespace KingmakerMountedCombat.Diagnostics
             nativeScope = new Chunk7NativeWorldScope(request, SelectionManager.Instance.SelectedUnits,
                 Cold ? ExpectedArchiveArea : request.SelectedChunk7Fixture.Area);
             originalSelection = SelectionManager.Instance.SelectedUnits.ToArray(); originalPause = Game.Instance.IsPaused; captured = true;
-            if (Schema2ResaveCase || OwnedSchema1ColdCase) Game.Instance.IsPaused = true;
+            if (OwnedSchema1ColdCase) Game.Instance.IsPaused = true;
             MovementScreenshotCaptureCoordinator.AcquireClosedUmmLeaseRetained(out ummLease);
             evidence["checkpoint"] = request.PersistenceCase; evidence["cold"] = Cold;
             evidence["sourceWorkingSha256"] = request.OwnedPairs == null ? request.Fixture.Working.Sha256 : null;

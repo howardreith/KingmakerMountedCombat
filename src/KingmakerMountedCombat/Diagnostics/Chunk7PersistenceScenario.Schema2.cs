@@ -16,12 +16,37 @@ namespace KingmakerMountedCombat.Diagnostics
         private MountedArchiveData schema2Imported;
         private SaveInfo schema2Input;
         private string schema2InputHash;
+        private int schema2ResaveNativeRound;
+        private object schema2ResaveNativeTurn;
+        private bool schema2ResaveNativeBoundaryCaptured;
 
         private void RequestSchema2Resave()
         {
-            Require(Schema2ResaveCase && NativeMountedSaveFormat.SelectedWriterSchema == 3 && !legacyWriterHeld &&
-                saved != null && (int?)evidence["loadedSourceSchema"] == 2 &&
-                !persistence.CombatRestorationPending && Game.Instance.IsPaused,
+            var schema2Case = Schema2ResaveCase;
+            var currentWriter = NativeMountedSaveFormat.SelectedWriterSchema == 3 && !legacyWriterHeld;
+            var restoredSource = saved != null && (int?)evidence["loadedSourceSchema"] == 2;
+            var restorationSettled = !persistence.CombatRestorationPending;
+            var nativeTurnBased = CombatController.IsInTurnBasedCombat();
+            var defaultMode = Game.Instance.CurrentMode == Kingmaker.GameModes.GameModeType.Default;
+            var unpaused = !Game.Instance.IsPaused;
+            var turnController = Game.Instance.TurnBasedCombatController;
+            var nativeRound = turnController.RoundNumber;
+            var nativeTurn = turnController.CurrentTurn;
+            var savedCurrentActor = saved?.Combat?.Current?.ActorId;
+            var nativeCurrentActor = nativeTurn?.Unit?.UniqueId;
+            var roundMatches = saved?.Combat != null && nativeRound == saved.Combat.Round;
+            var currentMatches = savedCurrentActor == null ? nativeTurn == null :
+                nativeTurn != null && StringComparer.Ordinal.Equals(nativeCurrentActor, savedCurrentActor);
+            evidence["schema2ResaveAdmission"] = new JObject {
+                ["schema2Case"] = schema2Case, ["currentWriter"] = currentWriter,
+                ["restoredSource"] = restoredSource, ["restorationSettled"] = restorationSettled,
+                ["nativeTurnBased"] = nativeTurnBased, ["mode"] = Game.Instance.CurrentMode.ToString(),
+                ["defaultMode"] = defaultMode, ["unpaused"] = unpaused,
+                ["savedRound"] = saved?.Combat?.Round, ["nativeRound"] = nativeRound,
+                ["savedCurrentActor"] = savedCurrentActor, ["nativeCurrentActor"] = nativeCurrentActor,
+                ["roundMatches"] = roundMatches, ["currentMatches"] = currentMatches };
+            Require(schema2Case && currentWriter && restoredSource && restorationSettled &&
+                nativeTurnBased && defaultMode && unpaused && roundMatches && currentMatches,
                 "Schema-2 resave requires the observed cold pending-only world before continuation.");
             AssertCombatOwners(); AssertSlots(); AssertCombatDebt(saved); AssertSchema2NoPreparation();
             schema2Imported = saved;
@@ -51,14 +76,22 @@ namespace KingmakerMountedCombat.Diagnostics
             evidence["saveRequested"] = new JObject { ["nativeType"] = "Manual", ["nativeName"] = descriptor.Name,
                 ["gameTicks"] = Game.Instance.TimeController.GameTime.Ticks, ["snapshotCount"] = snapshotBefore,
                 ["nativeSaveAllowed"] = true, ["newSlot"] = true };
+            schema2ResaveNativeRound = nativeRound;
+            schema2ResaveNativeTurn = nativeTurn;
+            schema2ResaveNativeBoundaryCaptured = true;
             callback = false;
             Game.Instance.SaveGame(descriptor, () => { if (request.OwnedPairs != null) ownedSaveCallbacks++; callback = true; });
         }
 
         private void ObserveSchema2Resaved()
         {
-            Require(Schema2ResaveCase && schema2Imported != null && Game.Instance.IsPaused,
-                "Schema-2 resave left its admitted paused cold world.");
+            Require(Schema2ResaveCase && schema2Imported != null && CombatController.IsInTurnBasedCombat() &&
+                Game.Instance.CurrentMode == Kingmaker.GameModes.GameModeType.Default && !Game.Instance.IsPaused,
+                "Schema-2 resave left its admitted turn-based cold world.");
+            Require(schema2ResaveNativeBoundaryCaptured &&
+                Game.Instance.TurnBasedCombatController.RoundNumber == schema2ResaveNativeRound &&
+                ReferenceEquals(Game.Instance.TurnBasedCombatController.CurrentTurn, schema2ResaveNativeTurn),
+                "Schema-2 resave crossed the retained native turn or round before continuation.");
             savedDescriptor = Game.Instance.SaveManager.Single(s => s.Type == SaveInfo.SaveType.Manual && s.Name == Schema2OutputName);
             Require(savedDescriptor.FileName == (request.OwnedPairs == null ? Schema2OutputLeaf : replaySaveAuthority.OwnedPairsOutputLeaf) && savedDescriptor.OperationState == SaveInfo.StateType.None &&
                 savedDescriptor.HasFileOnDisk, "Schema-2 resave did not settle its separately authorized output leaf.");
