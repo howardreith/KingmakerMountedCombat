@@ -12,7 +12,7 @@ namespace KingmakerMountedCombat.Diagnostics
         // A later native load gets a new fixture owner. The old owner is retained
         // until the exact observed replacement is bound and its registry releases.
         private int replayLoadOrdinal = 1, replayAreaOrdinal, replayExpectedLoad, replayExpectedArea;
-        private object admittedPlayer, admittedState;
+        private object admittedPlayer, admittedState, admittedAreaState, admittedMainState;
         private BlueprintArea replayAreaBlueprint;
         private Chunk7OwnedPairFixture replayPredecessor, replayRetiredTo;
         private JObject replayRetirement;
@@ -35,7 +35,9 @@ namespace KingmakerMountedCombat.Diagnostics
             Require(!replayCleanupOnly && bound && !released && exactCallbackObserved && selection.Cold &&
                 request.PersistenceCase == Chunk7PersistenceScenario.ThreeLoadsCase &&
                 replayExpectedLoad == ordinal && ordinal == replayLoadOrdinal + 1 && ordinal >= 2 && ordinal <= 3 &&
-                !ReferenceEquals(admittedPlayer, game.Player) && !ReferenceEquals(admittedState, game.State) &&
+                !ReferenceEquals(admittedPlayer, game.Player) && ReferenceEquals(admittedState, game.State) &&
+                !ReferenceEquals(admittedAreaState, game.State?.LoadedAreaState) &&
+                !ReferenceEquals(admittedMainState, game.State?.LoadedAreaState?.MainState) &&
                 persistence.NativeWorldDisposalCount == ordinal - 1 && persistence.SemanticRestoreCount == ordinal * 4 &&
                 persistence.PresentationRestoreCount == ordinal * 2 && persistence.ArchivePostLoadObservedCount == 4 &&
                 persistence.ArchiveRestorePhase == "all-pair-presentation-restored",
@@ -49,7 +51,9 @@ namespace KingmakerMountedCombat.Diagnostics
             Require(bound && !released && !replayCleanupOnly && exactCallbackObserved && selection.Cold &&
                 request.PersistenceCase == Chunk7PersistenceScenario.ThreeLoadsCase &&
                 replayExpectedLoad == ordinal && ordinal == replayLoadOrdinal + 1 && ordinal >= 2 && ordinal <= 3 &&
-                !ReferenceEquals(admittedPlayer, game.Player) && !ReferenceEquals(admittedState, game.State) &&
+                !ReferenceEquals(admittedPlayer, game.Player) && ReferenceEquals(admittedState, game.State) &&
+                !ReferenceEquals(admittedAreaState, game.State?.LoadedAreaState) &&
+                !ReferenceEquals(admittedMainState, game.State?.LoadedAreaState?.MainState) &&
                 persistence.ArchiveRestorePhase == "all-pair-presentation-restored",
                 "Cleanup successor requires its exact callback-owned current native replacement.");
             // Bind(false), RequirePreserved and RetireAfterRepeatedLoad still
@@ -75,7 +79,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 next.requestKey == requestKey && next.authorityGeneration == authorityGeneration &&
                 replayExpectedLoad == replayLoadOrdinal + 1 && next.replayLoadOrdinal == replayExpectedLoad &&
                 next.sourcePath == sourcePath && next.sourceLength == sourceLength && next.sourceTicks == sourceTicks &&
-                !ReferenceEquals(next.admittedPlayer, admittedPlayer) && !ReferenceEquals(next.admittedState, admittedState),
+                !ReferenceEquals(next.admittedPlayer, admittedPlayer) && ReferenceEquals(next.admittedState, admittedState) &&
+                !ReferenceEquals(next.admittedAreaState, admittedAreaState) &&
+                !ReferenceEquals(next.admittedMainState, admittedMainState),
                 "Old inherited custody cannot retire to an unproved or unrelated native epoch.");
             next.RequirePreserved();
             Require(next.Party.Length == Party.Length && next.Party.All(actor => Party.All(old => !ReferenceEquals(old, actor))) &&

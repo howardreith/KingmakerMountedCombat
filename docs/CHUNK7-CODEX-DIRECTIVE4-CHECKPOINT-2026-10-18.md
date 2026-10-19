@@ -1,5 +1,45 @@
 # Chunk 7 Directive 4 Codex checkpoint
 
+## October 19 - preview.45 native checkpoint; successor source IN PROGRESS
+
+Frozen preview.45 `8685fb5f` package SHA-256
+`3a5a4b6cc14939ec8f9dec0cad0af68cbdb2623db238d3805aa7200ddf24c8f7`
+passed Candidate 7/0. Private batches19/20 preserve each native result and
+recovery receipt. Pending current3 producer, schema1 producer, schema1
+cold/current3 resave and its separate third-process cold PASS. Schema2 cold
+FAIL after native `UnitCombatPrepareController.Tick` cleared the rejoining
+rider's saved Standard/Move/Swift 6/3/6. Area AfterEntry Auto FAIL/TIMEOUT
+before autosave; three-load replay FAIL/TIMEOUT at the second load; registered
+disable FAIL before UMM toggle. Area cold and schema2 third cold remain deferred.
+The timed-out game processes were closed gracefully; guarded transaction and
+exact profile recovery each passed separately. Original results stay FAIL.
+No game or runtime lock remains, and the installation/protected saves were
+restored exactly. No preview.45 area, schema2 cold, repeated-load or disable
+acceptance is claimed.
+
+Unfrozen preview.46 successor changes: the disable diagnostic uses quiescent TB combat
+membership instead of exploration-only idle (actual-method adapter 47/0);
+repeated-load dispatch uses the installed `Game.LoadGameFromMainMenu` disposal
+entry rather than in-place `Game.LoadGame` (actual-method adapter 76/0).
+The scenario, inherited fixture and evidence reader now retain exact `Game.State`
+while requiring fresh Player, area/scene state and actors; inherited epochs
+PASS 95/0, repeated reader 101/0, owned reader 59/0 and owner-seed repeated
+reader 29/0. An area readiness snapshot records the latest loading or
+post-loading barrier without granting scope or save admission. A bounded installed-assembly call inventory
+confirms the load-entry distinction and native Prepare.Tick's Clear call;
+private file `analysis-cache/chunk7-continuation/codex-takeover/group46/native-boundaries46g.txt`
+is not shippable code. Fast build/components/source validation PASS 3/0,
+source validation 147/0 on the complete preview.46 diff; an incomplete
+version-triad Fast run failed source validation 146/1 and is preserved.
+The adapter's first compile failure from an
+expression-bodied extraction remains FAIL; after using a block body, 47/0
+passed. Exact-hash independent reviews passed for the disable, repeated-load,
+area and version deltas; private receipts are in `codex-takeover/group46`.
+The source still needs a clean commit and a new candidate before native use.
+Schema2 resource-safe repair is still under investigation. P07,
+real malformed/future refusal/menu, genuine no-DLL, dependent area cold and
+doors remain unrun. Directive 4 remains IN PROGRESS; PR #5 remains draft.
+
 ## October 19 - preview.45 repair checkpoint IN PROGRESS
 
 The frozen preview.44 candidate passed Candidate 7/7, but selected native

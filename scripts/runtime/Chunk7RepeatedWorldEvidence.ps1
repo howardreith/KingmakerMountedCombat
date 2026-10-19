@@ -174,7 +174,8 @@ function Assert-KmcChunk7RepeatedWorldObservation($Request,$Artifact) {
         foreach($selected in $w.selectionRebinding){Assert-KmcChunk7ReplayObject $selected.object;if($selected.id-isnot[string]-or$selected.id-cnotmatch'^[0-9a-f-]{36}$'){throw 'Selection migration has an invalid actor identity.'}}
         if($previous){
             if($w.gameObject-ne$previous.gameObject-or$w.frame-le$previous.frame){throw 'Repeated world replaced Game or observation ordering.'}
-            foreach($f in @('playerObject','stateObject')){if(($w.$f-eq$previous.$f)-ne$areas){throw 'Native load must replace and area must retain original world objects.'}}
+            if($w.stateObject-ne$previous.stateObject){throw 'Repeated boundary replaced the retained PersistentState.'}
+            if(($w.playerObject-eq$previous.playerObject)-ne$areas){throw 'Native load must replace Player and area transfer must retain Player.'}
             if($w.areaStateObject-eq$previous.areaStateObject-or$w.mainStateObject-eq$previous.mainStateObject){throw 'Repeated boundary did not replace native area state.'}
             foreach($a in $w.actors){$old=@($previous.actors|Where-Object id -CEQ $a.id)[0]
                 foreach($f in @('object','descriptor','view','viewObject')){if(($a.$f-eq$old.$f)-ne$areas){throw 'Repeated world actor/view identity violates its selected native boundary.'}}

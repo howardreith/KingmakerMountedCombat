@@ -1,5 +1,71 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## October 19 - unfrozen successor repair source; next command
+
+Branch `codex/mounted-combat-chunk7-successor`, frozen published HEAD
+`8685fb5f569958d79f0eb78b556ee1116dbdedd7`; current worktree has
+uncommitted source/test/docs changes. No game, runtime lock or active transaction.
+Preview.45 native verdicts and restoration are recorded immediately below.
+The current diff repairs the diagnostic disable combat boundary, routes
+repeated-load ordinal 2/3 through the native world-disposal entry, retains
+exact `Game.State` across those loads while requiring fresh Player/area/scene
+state and actors, and adds a bounded read-only area readiness observation
+including the native-loading interval.
+The next product version is preview.46. Actual-method adapters PASS 47/0 and
+76/0; inherited-epoch 95/0, repeated reader 101/0, owned replay reader 59/0,
+owner-seed repeated reader 29/0, and final Fast 3/0 including source 147/0
+passed on the complete preview.46 diff. The first incomplete version-triad
+Fast run failed source validation 146/1 and remains preserved in `fast02.log`.
+The first disable adapter compile FAIL was an
+expression-bodied extraction error and remains preserved in `group46`.
+Installed native call inventory: `analysis-cache/chunk7-continuation/codex-takeover/group46/native-boundaries46g.txt`.
+It confirms Game.LoadGame is in-place; Game.LoadGameFromMainMenu disposes the
+prior area and Player but retains `Game.State`; native Prepare.Tick performs
+Cooldowns.Clear on newly prepared actors. Exact-hash independent reviews PASS:
+disable `group46/disable-independent-review01.json`, repeated/area
+`group46/repeated-area-independent-review02.json`, and loading-snapshot
+supplement `group46/area-loading-independent-review02.json`. Next: inspect
+the full diff, commit/guarded-push, build/freeze preview.46
+once and run the scoped affected native cases. Schema2 TB debt remains FAIL;
+do not invent action entitlement. No changed-byte native PASS exists. Do not
+run native from this unfrozen worktree. PR #5 remains draft;
+no merge/release/tag/permanent installation/full7E/HUMAN PLAY.
+
+## October 19 - preview.45 native qualification settled; next repair IN PROGRESS
+
+Branch `codex/mounted-combat-chunk7-successor`, clean guarded-pushed HEAD
+`8685fb5f569958d79f0eb78b556ee1116dbdedd7`; PR #5 is draft. Frozen
+preview.45 package SHA-256 `3a5a4b6cc14939ec8f9dec0cad0af68cbdb2623db238d3805aa7200ddf24c8f7`,
+DLL `bc7c5d1e06671a90ee775b7f189917a902d6eb738a685cef53ccdaa89239a834`.
+Candidate passed 7/0; suite snapshot SHA-256
+`6dbeca2405392857815780c7eca68327075bd354be1a389da9fd2e6b02096ade`.
+No game process or runtime lock remains. Every completed wrapper restored its
+exposed state, or exact guarded transaction and separate profile recovery did;
+the original timed-out results remain FAIL.
+
+Private ledgers: `analysis-cache/chunk7-continuation/owner-seed-batch19/batch19-ledger.json`
+and `owner-seed-batch20/batch20-ledger.json`. Batch19: pending source PASS,
+schema2 cold FAIL, schema1 source PASS, schema1 cold/current3 resave PASS;
+schema2 third load deferred. Batch20: schema1 third-process cold PASS;
+area AfterEntry Auto FAIL/TIMEOUT before autosave, three-load FAIL/TIMEOUT at
+second callback, registered disable FAIL before toggle; area cold deferred.
+Schema1 migration's three-process chain is complete on preview.45. All prior
+failures and dependent unrun cases retain their original statuses.
+
+Exact defects to resolve: schema2 rider A debt restores as 6/3/6, then native
+`UnitCombatPrepareController.Tick` changes it to 0/0/0 when saved
+`Prepared=false`; area transfer never reaches exact two-owner restoration and
+the source-world cleanup pin then refuses the changed area; repeated load's
+second callback has semantic/presentation/postload counts 8/4/4 but no native
+disposal and retains the prior Player/State/actors; disable's diagnostic prelude
+uses exploration-only `Chunk7NativeFixture.Idle` on a valid TB combat boundary.
+Do not relax debt, owner, world, or cleanup assertions to obtain PASS. Next:
+inspect exact native contracts and failure snapshots, repair the scoped source
+and actual-method regressions, independent review, focused tests, then one new
+frozen candidate and affected native reruns. Batch18 P07/refusal/no-DLL and
+dependent area/schema2 consumers remain selected but unrun. No merge, release,
+tag, permanent installation, full7E, or HUMAN PLAY is selected.
+
 ## October 19 - preview.45 source composition IN PROGRESS
 
 Branch `codex/mounted-combat-chunk7-successor`, last clean guarded-pushed HEAD

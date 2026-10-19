@@ -130,6 +130,8 @@ namespace KingmakerMountedCombat.Diagnostics
                     persistence.SnapshotCount == 0, "Inherited source is not the native-loaded empty mounted graph.");
             }
             admittedPlayer = game.Player; admittedState = game.State;
+            admittedAreaState = game.State.LoadedAreaState;
+            admittedMainState = game.State.LoadedAreaState.MainState;
             bound = true; RequirePreserved();
         }
         private void ReadSource()
