@@ -1,5 +1,48 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## October 19 - preview.52 native breadth; reviewed refusal reader-only correction
+
+Branch `codex/mounted-combat-chunk7-successor`, published frozen HEAD
+`f5fe6fcda39f809b92f2a6cab34bab4a2a108acb`. Current worktree is dirty
+with `scripts/runtime/Chunk7LoadRefusalEvidence.ps1`, its focused regression,
+and active documentation; no product binary changed. Preview.52 package SHA-256
+`1b191abb67860fadd707d0f8a32e9dc08e2fbc95842178c9ca1496540d48e4da`,
+DLL SHA-256 `18f619bd28e872b73470944aaf46671887d91d99ff26f80f30a8fd50019a1433`,
+MVID `da349432-38eb-4cc1-a1e3-702b5da52941`, suite snapshot SHA-256
+`1f71f8fb1b0e4c1f22794d6347e55fc1c6e32fca09e67d4238e883138792a64a`.
+Package build 11/0 and Candidate 6/0 passed on frozen source.
+
+Private ledgers under `analysis-cache/chunk7-continuation/`: batch27 native
+registered-disable/permanent-Horse refusal PASS 9/0; batch28 zero-mounted TB
+Manual PASS 4/0, archive SHA-256
+`692e17881b61db0bb1aefb0f20fb5d545540782896934a71ced13f56e7a1a3a4`;
+batch29 WhatIf-only BOM selection FAIL before launch; corrected batch30 exact
+separate-process cold PASS 3/0. Batch31 malformed and future refusal native
+games each PASS 5/0, but both original external runtime results remain FAIL
+because the old reader rejected signed Int32 retained-object hash labels.
+Current reader-only correction and regression passed 53/0; independent review
+PASS receipt SHA-256
+`9c9e2829e1f1eceff73dd7c889b9c5cc2ed67170109cff6c57ed9b55101a7a91`
+adds 34/0 checks and complete re-read of both immutable native artifacts as
+PASS. No native rerun is required for this external reader change; never alter
+the original batch31 FAIL results.
+
+Five native transactions settled. Mods, protected saves, Baseline and Working
+restored; batch27 profile has four policy-accepted native cache changes and
+`profileBytesRestoredExactly=false`, while the other four profiles restored
+exactly. Game absent and `runtime-state/active-transaction.lock` absent. No
+merge, release, tag or permanent installation. PR #5 remains draft.
+
+Next command: `git diff --check` and inspect the full tracked diff, then make
+a coherent reader/documentation commit and guarded WhatIf/push through
+`codex-policy/Push-KingmakerMountedCombat.ps1`. Before any further native
+attempt, freeze a new candidate on clean published source. Diagnose the exact
+schema2 native Prepare.Tick debt loss without resource fabrication; area Auto
+needs a visited suitable non-capital destination; positive reference-free
+removal/DLL-absent cold and doors remain unaccepted. See CURRENT.md and
+docs/CHUNK7-KNOWN-PRODUCT-DEBT.md for current scope. No game or transaction
+is running.
+
 ## October 19 - batch26 external FAIL; preview.52 source and reader
 
 Last published/frozen HEAD `b547f5a56d5f2a36e10b48f50e81c992cb664090`

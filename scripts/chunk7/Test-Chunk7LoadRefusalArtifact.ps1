@@ -47,6 +47,24 @@ $results=[Collections.Generic.List[object]]::new();$clock=[Diagnostics.Stopwatch
 function Check([string]$Name,[scriptblock]$Body,[bool]$Refuse=$false,[string]$Pattern=''){$errorText=$null;$ok=$false;try{&$Body;$ok=-not$Refuse}catch{$errorText=$_.Exception.Message;$ok=$Refuse-and(-not$Pattern-or$errorText-match$Pattern)};$results.Add([pscustomobject]@{name=$Name;pass=$ok;expectedRefusal=$Refuse;error=$errorText});if(-not$ok){Write-Output ('FAIL '+$Name+': '+$errorText)}}
 function Read-Full($F){Assert-KmcChunk7PersistenceObservation $F.request $F.artifact 'PASS'}
 foreach($checkpoint in @('multi-malformed-refusal-manual','multi-future-refusal-manual')){Check ('complete actual reader, unrelated debt/prepared retained and initial empty selection '+$checkpoint){Read-Full (New-Full $checkpoint)}}
+foreach($checkpoint in @('multi-malformed-refusal-manual','multi-future-refusal-manual')){Check ('signed nonzero retained object hashes are accepted '+$checkpoint){
+ $f=New-Full $checkpoint;$refusal=$f.artifact.observations.loadRefusal
+ $states=@($refusal.baseline,$refusal.menuRefresh.before,$refusal.menuRefresh.after)+@($refusal.entries|ForEach-Object{$_.before;$_.after})
+ foreach($state in $states){
+  $state.objects.player=-1159028736;$state.objects.state=1014596864;$state.objects.areaState=1764059904
+  $state.objects.area=380367616;$state.objects.loadedArchive=2097024768
+  $hashes=@(68234240,-126786304,-1665499136,726958336)
+  for($i=0;$i-lt4;$i++){$state.objects.actors[$i].object=$hashes[$i]}
+ }
+ Read-Full $f
+}}
+$signedFaults=[ordered]@{
+ 'null retained object hash'={param($f)$f.artifact.observations.loadRefusal.baseline.objects.player=0}
+ 'out of int32 retained object hash'={param($f)$f.artifact.observations.loadRefusal.baseline.objects.player=[long]::MaxValue}
+ 'fractional retained object hash'={param($f)$f.artifact.observations.loadRefusal.baseline.objects.player=1.5}
+ 'retained actor hash aliases world object'={param($f)$f.artifact.observations.loadRefusal.baseline.objects.actors[0].object=1}
+}
+foreach($fault in $signedFaults.GetEnumerator()){Check $fault.Key {$f=New-Full;&$fault.Value $f;Read-Full $f} $true}
 $faults=[ordered]@{
  'missing actual entry'={param($f)$f.artifact.observations.loadRefusal.entries=@($f.artifact.observations.loadRefusal.entries|Select-Object -First 2)}
  'wrong entry method'={param($f)$f.artifact.observations.loadRefusal.entries[1].entry='direct-validator'}

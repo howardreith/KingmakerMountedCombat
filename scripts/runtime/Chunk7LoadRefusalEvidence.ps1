@@ -89,10 +89,10 @@ function Assert-KmcChunk7LoadRefusalState($Request,$State,$Archive,[string]$Labe
  if($State.selection-isnot[Array]-or$State.selection.Count-gt$Request.ownedPairs.partyIds.Count-or@($State.selection|Select-Object -Unique).Count-ne$State.selection.Count-or@($State.selection|Where-Object{$_-cnotin$Request.ownedPairs.partyIds}).Count-ne0){throw 'Refusal native selection is foreign or duplicated.'}
  Assert-KmcExactProperties $State.objects @('player','state','areaState','area','loadedArchive','actors') 'refusal native object identities'
  $labels=[Collections.Generic.HashSet[int]]::new()
- foreach($field in @('player','state','areaState','area','loadedArchive')){Assert-KmcOrdinaryInteger $State.objects.$field 1 128;if(-not$labels.Add([int]$State.objects.$field)){throw 'Refusal native world object identities alias.'}}
+ foreach($field in @('player','state','areaState','area','loadedArchive')){Assert-KmcOrdinaryInteger $State.objects.$field ([int]::MinValue) ([int]::MaxValue);if($State.objects.$field-eq0-or-not$labels.Add([int]$State.objects.$field)){throw 'Refusal native world object identities are null or alias.'}}
  if($State.objects.actors-isnot[Array]-or$State.objects.actors.Count-ne4){throw 'Refusal native actor identities are incomplete.'}
  Assert-KmcChunk7ExactIds $State.objects.actors $roles 'id'
- foreach($row in $State.objects.actors){Assert-KmcExactProperties $row @('id','object') 'refusal native actor object';Assert-KmcOrdinaryInteger $row.object 1 128;if(-not$labels.Add([int]$row.object)){throw 'Refusal actor objects alias another retained native object.'}}
+ foreach($row in $State.objects.actors){Assert-KmcExactProperties $row @('id','object') 'refusal native actor object';Assert-KmcOrdinaryInteger $row.object ([int]::MinValue) ([int]::MaxValue);if($row.object-eq0-or-not$labels.Add([int]$row.object)){throw 'Refusal actor object is null or aliases another retained native object.'}}
  if($State.party-isnot[Array]-or$State.party.Count-ne$Request.ownedPairs.partyIds.Count){throw 'Refusal omitted an unrelated native field actor.'}
  Assert-KmcChunk7ExactIds @($State.party|ForEach-Object{$_.native}) $Request.ownedPairs.partyIds 'Id'
  foreach($row in $State.party){Assert-KmcExactProperties $row @('native','prepared','inCombat') 'refusal native party';Assert-KmcChunk7PersistenceNativeActor $row.native;if($row.prepared-isnot[bool]){throw 'Refusal prepared observation must retain its actual native boolean.'};Assert-KmcChunk7Boolean $row.inCombat $false}

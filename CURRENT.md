@@ -1,5 +1,44 @@
 # Chunk 7B–7D — IN PROGRESS
 
+## October 19 - preview.52 selected native breadth and refusal reader correction
+
+Frozen, guarded-pushed preview.52 is `f5fe6fcda39f809b92f2a6cab34bab4a2a108acb`;
+the diagnostic package SHA-256 is
+`1b191abb67860fadd707d0f8a32e9dc08e2fbc95842178c9ca1496540d48e4da`.
+Package build passed 11/0 and Candidate passed 6/0 on that source. The accepted
+owner-seed line now has registered two-owner UMM disable/re-enable and permanent
+Horse refusal (`batch27`, nine game subscenarios), a zero-mounted TB retained-owner
+Manual (`batch28`, four), and its exact separate-process cold load (`batch30`,
+three). All three external readers passed. The cold input is the actual
+`692e17881b61db0bb1aefb0f20fb5d545540782896934a71ced13f56e7a1a3a4`
+archive with zero active pairs and two retained participations. Original
+batch24-26 failures remain FAIL. Batch29's BOM-marked private selection failed
+WhatIf before launch; its corrected batch30 selection passed.
+
+Malformed and future metadata probes (`batch31`) each passed five in-game
+subscenarios: three real load-entry refusals, native continuation and cleanup.
+Both original external results remain FAIL because the reader required object
+hash labels in 1..128; `RetainedObjectIdentity` emits any nonzero signed Int32
+hash and bounds the retained object *count* to 128. The reader-only correction
+preserves nonzero/type/collision and full-state conservation checks. Focused
+artifact tests passed 53/0; an independent review passed 34/0 additional
+checks and re-read both complete immutable native artifacts as PASS. Review
+receipt SHA-256 is
+`9c9e2829e1f1eceff73dd7c889b9c5cc2ed67170109cff6c57ed9b55101a7a91`.
+This is a corrected-reader verdict, not a rewrite of either terminal FAIL or
+a fresh product execution. Exact run hashes, quotas and restoration are in
+private batch27-31 ledgers under `analysis-cache/chunk7-continuation/`.
+
+All five launched game processes exited, Mods, protected saves and Working
+restored. Batch27 had four policy-accepted native profile-cache changes, so
+its profile was not byte-identical; the other selected native runs restored
+profile bytes exactly. No game process or transaction lock remains. The
+worktree holds only the reviewed reader/test correction and current record
+updates. Schema2 TB migration still loses saved debt when native Prepare.Tick
+rejoins an unprepared actor; area Auto/cold lacks a qualified non-capital
+destination; positive reference-free removal/DLL-absent cold and doors remain
+open. PR #5 remains draft; no merge, release, tag or permanent install.
+
 ## October 19 - preview.51 game PASS, external batch26 FAIL; preview.52 review IN PROGRESS
 
 Frozen preview.51 `b547f5a5` passed package build 11/0 and Candidate 6/0;
