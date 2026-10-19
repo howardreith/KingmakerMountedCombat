@@ -1,5 +1,16 @@
 # Chunk 7B–7D — IN PROGRESS
 
+## October 19 - matched pending-debt diagnosis
+
+Preview.53 batch35 loaded the unchanged schema-3 pending-only source and a
+metadata-only schema-2 derivative under matched Howie/base-only conditions.
+Both restored rider A's 6/3/6 debt, then native re-entry/preparation cleared it
+in the retained round. Both game/runtime verdicts are FAIL; the original
+preview.45 schema-2 FAIL remains. The Working observer's real Harmony12 patch
+installation defect is repaired and covered offline, but no new Working load
+was made pending run-specific containment of the seven `Areas` writes observed
+in batch34. See the [matched discriminator](docs/CHUNK7-DIRECTIVE4-MATCHED-DEBT-DISCRIMINATOR-2026-10-19.md).
+
 ## October 19 - batch34 Working failure distinguished and restored
 
 The Howie-context base-only owner-seed cold control remains PASS. A separate

@@ -182,6 +182,20 @@ required before either case can be accepted.
 
 ## Preview.45 schema2 TB cold debt loss — FAIL; resource-safe repair unresolved
 
+Matched preview.53 batch35 controls now isolate the cause: the unchanged
+schema-3 pending-only source and its metadata-only schema-2 derivative both
+restore rider A's 6/3/6 native debt, then native `JoinCombat` followed by
+`UnitCombatPrepareController.Tick` clears it after the restoration fence drops.
+Both fresh game/runtime verdicts are FAIL under one candidate, observer,
+Howie account and base-only configuration. The original preview.45 FAIL remains
+separate. The saved round-1 grant is already prepared in the mounted allocation
+ledger, while A's native state is outside combat/unprepared. The re-entry occurs
+within 0.011 seconds of saved time, with six seconds left to the next round.
+This rules out schema-2 conversion as the differentiating cause on this input;
+the post-fence join owner and per-actor native preparation contract remain to
+be established before a repair. See the
+[matched discriminator](CHUNK7-DIRECTIVE4-MATCHED-DEBT-DISCRIMINATOR-2026-10-19.md).
+
 `20261019-c7b-world45-ownerseed-b19s2-schema2cold` loaded the selected
 metadata-only schema2 derivative but lost rider A's saved Standard/Move/Swift
 6/3/6 after restoration. The actor was saved outside native combat with
