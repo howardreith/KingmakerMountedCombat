@@ -118,6 +118,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool started, complete, awaitingCommit, commitRecorded;
         private int lastFrame = -1, choices, commits, levelBeforeCommit, expectedFinalLevel, initialXp;
         private long moneyBefore, hireCost;
+        private bool nativeHireSpendingObserved;
         private JObject commitBefore;
         private string actorId;
         private bool presetSelected, handednessSelected;
@@ -176,6 +177,7 @@ namespace KingmakerMountedCombat.Diagnostics
             if (!started) { Start(); return Chunk7OrdinaryBuildStep.Advanced; }
             Require(Game.Instance?.UI?.CharacterBuildController == builder && Game.Instance.Player != null &&
                 !Game.Instance.Player.IsInCombat, "Exact native builder or idle campaign changed.");
+            RequireNativeHireMoney(false);
             if (awaitingCommit) return ObserveCommit();
             var controller = builder.LevelUpController;
             Require(controller != null, "Native builder closed before the selected progression completed.");
@@ -248,6 +250,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     "The exact native default hire XP cannot reach the selected ordinary Ranger acquisition level.");
                 Emit("native-paid-hire-admission", new JObject { ["moneyBefore"] = moneyBefore, ["nativeCost"] = hireCost,
                     ["nativeInheritedXp"] = initialXp, ["nativeExpectedFinalLevel"] = expectedFinalLevel,
+                    ["spendObservationContract"] = "native-hire-spent-v1",
                     ["nativeInventorySha256"] = pins.NativeInventorySha256 });
                 started = true;
                 assertExactIsolatedAuthority();
@@ -468,12 +471,13 @@ namespace KingmakerMountedCombat.Diagnostics
                 "Native completion did not advance exactly one actual level with unchanged XP.");
             var expectedMoney = pins.IsRespec ? nativeRespec.ExpectedMoneyAfter :
                 moneyBefore - (pins.NewPaidCompanion ? hireCost : 0);
-            Require(Game.Instance.Player.Money == expectedMoney, "Native ordinary acquisition did not preserve exact once-only hire expenditure.");
+            if (pins.NewPaidCompanion) RequireNativeHireMoney(false);
+            else Require(Game.Instance.Player.Money == expectedMoney, "Native ordinary acquisition changed money outside its selected native callback.");
             if (!commitRecorded)
             {
                 commits++; commitRecorded = true;
                 Emit("native-level-committed", new JObject { ["before"] = commitBefore, ["after"] = Snapshot(),
-                    ["moneyExpected"] = expectedMoney, ["commitCount"] = commits });
+                    ["moneyExpected"] = Game.Instance.Player.Money, ["commitCount"] = commits });
             }
             if (ReferenceEquals(builder.LevelUpController, observedController)) return Chunk7OrdinaryBuildStep.Waiting;
             if (builder.LevelUpController != null)
@@ -484,6 +488,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 return Chunk7OrdinaryBuildStep.Advanced;
             }
             if (LevelUpController.CanLevelUp(descriptor)) return Chunk7OrdinaryBuildStep.Waiting;
+            if (pins.NewPaidCompanion && !nativeHireSpendingObserved) return Chunk7OrdinaryBuildStep.Waiting;
+            RequireNativeHireMoney(true);
             Require(!LevelUpController.CanLevelUp(descriptor) && descriptor.Progression.CharacterLevel == expectedFinalLevel &&
                 descriptor.Progression.GetClassLevel(ranger) >= pins.MinimumRangerLevel, "Native builder ended before the declared naturally ready progression.");
             var horse = descriptor.Pet;
@@ -501,6 +507,25 @@ namespace KingmakerMountedCombat.Diagnostics
             Emit("native-builder-complete", new JObject { ["actor"] = Snapshot(), ["ordinaryChoicesComplete"] = true,
                 ["nativeFieldAdmissionProven"] = false, ["nativeSaveSettlementProven"] = false, ["poseQualified"] = false });
             return Chunk7OrdinaryBuildStep.Complete;
+        }
+
+        private void RequireNativeHireMoney(bool complete)
+        {
+            if (!pins.NewPaidCompanion) return;
+            var money = Game.Instance.Player.Money;
+            var paid = moneyBefore - hireCost;
+            Require(money == moneyBefore || money == paid,
+                "Native ordinary acquisition changed money by something other than its exact single hire cost.");
+            Require(!nativeHireSpendingObserved || money == paid,
+                "Native ordinary acquisition reversed its observed hire expenditure.");
+            if (money == paid && !nativeHireSpendingObserved)
+            {
+                nativeHireSpendingObserved = true;
+                Emit("native-hire-spent", new JObject { ["moneyBefore"] = moneyBefore,
+                    ["nativeCost"] = hireCost, ["moneyAfter"] = money });
+            }
+            if (complete) Require(nativeHireSpendingObserved,
+                "Native ordinary acquisition completed without exact once-only hire expenditure.");
         }
 
         // Native respec replaces the vacuum preview at its first commit, before

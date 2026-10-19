@@ -214,8 +214,12 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 var actor = Exact(binding.ActorId); var native = actor.UISettings?.Slots;
                 var blueprint = binding.Kind == 2 ? controls.DismountAbility : binding.Kind == 3 ? controls.RiderPrimaryAbility : null;
+                var current = native != null && binding.Index >= 0 && binding.Index < native.Length ? native[binding.Index] : null;
+                var vacated = current == null || current is MechanicActionBarSlotEmpty empty && ReferenceEquals(empty.Unit, actor);
+                var originalControl = current is MechanicActionBarSlotAbility ability && ReferenceEquals(ability.Unit, actor) &&
+                    ManticoreControlKind(ability) == binding.Kind;
                 Require(native != null && binding.Index >= 0 && binding.Index < native.Length && blueprint != null &&
-                    ManticoreControlKind(native[binding.Index]) == binding.Kind,
+                    (vacated || originalControl),
                     "Fixture control binding refuses to overwrite another native hotbar element.");
                 var fact = actor.Descriptor.Abilities.GetAbility(blueprint);
                 Require(fact != null && fact.Active && fact.Data != null && ReferenceEquals(fact.Data.Caster?.Unit, actor),
