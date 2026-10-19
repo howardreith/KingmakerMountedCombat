@@ -1,5 +1,32 @@
 # Chunk 7B–7D — IN PROGRESS
 
+## October 19 - preview.50 batch25 FAIL; preview.51 frame correction IN PROGRESS
+
+Frozen preview.50 `33e729a8` passed package build 11/0 and Candidate 6/0;
+package SHA-256 `b7b85448216915467b01152fbd763a4632186ed41e72c45bfcdd1ed2bcf8e68d`,
+DLL SHA-256 `e5d69a657047c3648bc3697d76e0308c0daf3557dea1669dd9619c670067c508`,
+suite SHA-256 `75a2ae2f9eb2e66a3d922905d8567fcc65dccd39df45ecd132af687b06749b5f`.
+Private batch25's one native disable retry remains FAIL: game evidence SHA-256
+`d09b82ea4fa2376316c4cc98756b97317a843bebf8aa50196249b86fe193b41c`,
+runtime result SHA-256
+`c892cdb5c369a694f833e7cb7a675e2cc4482cd446104b2cb73980ec4e97c05d`.
+All six native B JoinCombat/Prepare.Tick/Cooldowns.Clear events and correct
+6/3/6 → 0 debt were observed. They occurred in the retry Unity frame 4761
+after game time advanced 170000 ticks; the later polling snapshot was frame
+4762. The preview.50 diagnostic incorrectly required event frame 4762. The
+original FAIL is retained. The game exited; Mods, protected saves, Working and
+profile bytes were restored exactly, with no accepted cache changes or lock.
+
+Current preview.51 source/reader permits all causal events in one consistent
+Unity frame between retry and later snapshot, only after retry game time and
+within the later clock bound. The focused reader passes 97/0, actual-method
+adapter 49/0, Fast 3/0 (source 147/0). Independent review01 PASS SHA-256
+`fd9e6d2ebeee8ba038b1472bb346cb8c631a6238e29aaed35f6e19608fd03a2a`;
+it re-evaluated the immutable native progression component and frame/clock
+negatives 7/0. Fresh native execution is pending; no preview.51 native credit
+exists. Area,
+schema2 and the remaining Directive 4 cases stay open; PR #5 remains draft.
+
 ## October 19 - preview.49 batch24 FAIL; preview.50 reviewed source checkpoint
 
 Preview.49 `29661db4` was guarded-pushed and frozen: package SHA-256

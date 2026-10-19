@@ -1,5 +1,30 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## October 19 - batch25 native FAIL; preview.51 reviewed locally
+
+Last published/frozen HEAD `33e729a805cc54aa71d91114034075b38602f759`
+on `codex/mounted-combat-chunk7-successor`; worktree dirty with preview.51
+causal-frame source/reader/test/version change and this documentation. Frozen
+preview.50 package SHA-256
+`b7b85448216915467b01152fbd763a4632186ed41e72c45bfcdd1ed2bcf8e68d`,
+suite SHA-256 `75a2ae2f9eb2e66a3d922905d8567fcc65dccd39df45ecd132af687b06749b5f`.
+Private `analysis-cache/chunk7-continuation/owner-seed-batch25/batch25-ledger.json`
+records the original native FAIL, evidence SHA-256
+`d09b82ea4fa2376316c4cc98756b97317a843bebf8aa50196249b86fe193b41c`.
+Six exact native B events occurred in retry Unity frame 4761 after game time
+advanced 170000 ticks, before the later snapshot at frame 4762. Preview.50
+incorrectly required the event frame to equal 4762. Game, Mods, protected
+saves, Working and profile bytes were restored; lock absent. The changed
+preview.51 frame rule requires one consistent event frame within both snapshots
+and clock strictly after retry. Focused reader PASS 97/0, actual-method adapter
+49/0, Fast 3/0/source 147/0; independent review PASS receipt
+`analysis-cache/chunk7-continuation/codex-takeover/group51-disable-review/review01-pass.json`
+SHA-256 `fd9e6d2ebeee8ba038b1472bb346cb8c631a6238e29aaed35f6e19608fd03a2a`.
+It re-evaluated the immutable native progression component plus frame/clock
+negatives 7/0. Next: commit/guarded-push, freeze one package/Candidate/suite, then select a
+fresh one-slot disable run with guarded WhatIf. Preserve batch24/25 FAILs. Area,
+schema2, refusal/menu/no-DLL and doors remain open; no merge/release/tag/install.
+
 ## October 19 - preview.50 reviewed source; native retry next
 
 Branch `codex/mounted-combat-chunk7-successor`; last published HEAD

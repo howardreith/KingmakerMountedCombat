@@ -74,6 +74,7 @@ function New-RegisteredDisableFixture{
  $v
 }
 Check 'closed two-owner registered disable and permanent Horse refusal' {$v=New-RegisteredDisableFixture;Assert-KmcChunk7CombatEvidence $v.request $v.artifact 'PASS'}
+Check 'native transition may occur in retry Unity frame after game clock advances' {$v=New-RegisteredDisableFixture;$d=$v.artifact.observations.registeredDisable;foreach($event in $d.nativeTransition){$event.frame=$d.retry.world.frame};Assert-KmcChunk7CombatEvidence $v.request $v.artifact 'PASS'}
 $faults=[ordered]@{
  'wrong callback'={param($v)$v.artifact.observations.registeredDisable.callback='direct service Cancel'}
  'first disable accepted'={param($v)$v.artifact.observations.registeredDisable.firstAccepted=$true}
@@ -118,6 +119,7 @@ $faults=[ordered]@{
  'native causal boolean is text'={param($v)$d=$v.artifact.observations.registeredDisable;@($d.nativeTransition|Where-Object boundary -CEQ 'disable-join-after')[0].state.inCombat='True'}
  'native causal game clock absent'={param($v)$d=$v.artifact.observations.registeredDisable;foreach($e in $d.nativeTransition){$e.gameTicks=0}}
  'native causal frame regresses'={param($v)$d=$v.artifact.observations.registeredDisable;@($d.nativeTransition|Where-Object boundary -CEQ 'clear-after')[0].frame=0}
+ 'native causal events span Unity frames'={param($v)$d=$v.artifact.observations.registeredDisable;$d.nativeTransition[0].frame=$d.retry.world.frame}
  'native causal clock regresses within frame'={param($v)$d=$v.artifact.observations.registeredDisable;$d.nativeTransition[2].gameTicks=[long]$d.disabledLaterFrame.world.gameTicks-1000;$d.nativeTransition[3].gameTicks=[long]$d.disabledLaterFrame.world.gameTicks-2000}
  'native join prefix debt disconnected'={param($v)$d=$v.artifact.observations.registeredDisable;$e=@($d.nativeTransition|Where-Object boundary -CEQ 'disable-join-before')[0];$e.state.standard=0.0;$e.state.move=0.0;$e.state.swift=0.0}
  'native causal debt is text'={param($v)$d=$v.artifact.observations.registeredDisable;@($d.nativeTransition|Where-Object boundary -CEQ 'clear-before')[0].state.move='3.0'}
