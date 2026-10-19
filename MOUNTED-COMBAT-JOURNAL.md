@@ -1,3 +1,25 @@
+## October 19 - preview.47 batch22 and preview.48 repair IN PROGRESS
+
+Guarded-pushed preview.47 `10cbba57` package
+`a76cf9dc50b747ad4deb553faf942d8d22ca3c0abcc3e2538a3773f5c6aedf5f`;
+Candidate 6/0 plus frozen package build 11/0. Bounded three-slot native batch22
+has three immutable FAIL results: disable prelude lost pause only after native
+RemoveUnit; three loads passed in game but external final reader rejected its
+native D-form presentation and then exposed same-frame pending rider-component
+destruction; area AfterEntry returned to Oleg, restored A, rejected B's direct
+control, and wrote no Auto. Exact timed-out automation game closed normally;
+guarded combined Mods/save and separate profile recovery both PASS. Original
+FAIL remains. Private ledger and hashes are in CURRENT.md/AUTONOMOUS-RESUME.md.
+
+Preview.48 source is under review: re-pause after native survivor, exact D/N
+reader forms, next-frame repeated settlement, all-pair area eligibility
+preflight and dynamic capital/control observations. Fast 3/0, source 147/0;
+focused reader 106/0, owner-seed repeated 29/0, owned reader 680/0, area
+reader 48/0, actual cleanup adapter 99/0, actual production area preflight
+adapter 6/0. Reader and corrected area/source independent reviews PASS,
+with the earlier missing-test review FAIL retained. No new native
+credit, PR #5 draft, no merge/release/tag/permanent installation.
+
 ## October 19 - preview.44 selected source connection IN PROGRESS
 
 Reviewed group44 source is applied after closure HEAD `7c1bcadc`; no preview.44

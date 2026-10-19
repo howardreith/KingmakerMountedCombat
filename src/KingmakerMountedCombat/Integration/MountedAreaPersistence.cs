@@ -130,6 +130,18 @@ namespace KingmakerMountedCombat.Integration
                     if (matches.Length != 1) throw new InvalidOperationException("An area actor did not resolve uniquely: " + id);
                     resolved.Add(id, matches[0]);
                 }
+                // Admission is all-pair: a destination that cannot directly
+                // control the second pair must not attach the first pair.
+                foreach (var pair in transfer.Pairs)
+                {
+                    var rider = resolved[pair.RiderId]; var mount = resolved[pair.MountId];
+                    var profile = SupportedMountedProfiles.Resolve(rider, mount);
+                    var candidate = KingmakerMountedPairRuntime.CreateCandidate(rider, mount);
+                    var refusal = candidate?.ValidateSavedRelationship();
+                    if (profile?.Id != pair.ProfileId || refusal != null)
+                        throw new InvalidOperationException("Area relationship was not eligible: " +
+                            (refusal ?? "The saved mount profile changed."));
+                }
                 foreach (var pair in transfer.Pairs)
                 {
                     var owner = ArchiveNativeEnabled ? mountedWorld.CreateRestoredBoundary().Relationship : relationship;

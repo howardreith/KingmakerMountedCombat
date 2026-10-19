@@ -1,5 +1,39 @@
 # Chunk 7B–7D — IN PROGRESS
 
+## October 19 - preview.47 native batch22 FAIL; preview.48 source IN PROGRESS
+
+Frozen, guarded-pushed preview.47 `10cbba57` passed package build 11/0 and
+Candidate 6/0; package SHA-256 `a76cf9dc50b747ad4deb553faf942d8d22ca3c0abcc3e2538a3773f5c6aedf5f`.
+All three declared batch22 original results remain FAIL in
+`analysis-cache/chunk7-continuation/owner-seed-batch22/batch22-ledger.json`.
+Disable's only failed prelude clause was `paused=false` after native RemoveUnit;
+the pending survivor passed. Three native loads passed in game, but the external
+reader first confused native presentation D-form UniqueIds with compact registry
+owner IDs. Its corrected re-evaluation then found a separate final settlement
+gap: rider movement components remained listed in the same frame Unity
+scheduled their destruction. Area AfterEntry Auto returned to Oleg, restored
+pair A and refused pair B's direct-control eligibility; no Auto wrote.
+The timeout left restoration blocked until exact-PID normal close and guarded
+combined/profile recovery both passed. Owner Mods, saves and profile are restored.
+
+Current uncommitted preview.48 source re-pauses the registered-disable
+diagnostic after native removal, distinguishes the two GUID producer surfaces,
+waits a native frame before repeated-world settlement, preflights both area
+pairs before attaching either, and records/refuses a dynamically capital
+destination before area dispatch. Fast PASS 3/0 (source 147/0), repeated reader
+106/0, owner-seed repeated 29/0, owned reader 680/0, owner-seed area reader
+48/0, cleanup actual-method adapter 99/0, and new area preflight actual-method
+adapter 6/0. Reader independent review PASS receipt SHA-256
+`7345a0a6ab0fd5f1e2d2e928954fcc1e08262bfd93ab5ac81b8c52a131e2d5f0`;
+area/source review PASS receipt SHA-256
+`0a312558344c60424e9c15a88be4bdc1f3f4500cb7491d0c018fd1011b966da4`.
+Its earlier missing-test FAIL is preserved. No preview.48 native credit exists.
+
+Remaining: changed-byte disable/three-load native retries, capital/area
+measurement and area cold if viable, schema2 TB debt repair and third-process
+cold, P07 refusal/menu/no-DLL, doors and other Directive 4 cases. PR #5 is
+draft. No merge, release, tag or permanent installation is selected.
+
 ## October 19 - preview.46 native batch21 FAIL; preview.47 source IN PROGRESS
 
 Frozen, guarded-pushed preview.46 `40439d09` passed Candidate 7/0; package

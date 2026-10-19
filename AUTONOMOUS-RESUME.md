@@ -1,5 +1,46 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## October 19 - preview.48 source review checkpoint; no live game
+
+Branch `codex/mounted-combat-chunk7-successor`, last published frozen HEAD
+`10cbba57237163c90c5a38af49765bb7099d7729`. Worktree intentionally
+dirty with preview.48 source/reader/test/doc changes. Preview.47 package
+SHA-256 `a76cf9dc50b747ad4deb553faf942d8d22ca3c0abcc3e2538a3773f5c6aedf5f`,
+DLL `3e3c9f655de9e07fcb20c55f1d5e898dc4e62aa1b484f8954ecced98cf46ab8b`,
+MVID `18b9f342-ef17-4c5f-b26b-2f8b9a68c947`; package build 11/0,
+Candidate 6/0, suite snapshot SHA-256
+`efc0e743d68b52a7e84897a5f5bff31f8f51481b889f48b493feb240ad1fbf2e`.
+
+Batch22 private ledger `analysis-cache/chunk7-continuation/owner-seed-batch22/batch22-ledger.json`
+holds three original FAILs. Slot1 evidence SHA-256
+`61bcc4a262d719574da28f81d08bee5d7e635ab34044d256c2c729928150c7cc`:
+sole pause predicate false after native pending survivor. Slot2 game artifact
+SHA-256 `34f2ef9a9bc78c4008c9408ba4ba79453db1833b13666ec7450b19826dba7425`
+passed in game; corrected reader then rejects same-frame rider components in
+final settled view. Slot3 pending artifact SHA-256
+`1b435f40f9e8c5cf1681f9874532417355b3d434c21af97955e283183c1670e4`:
+LoadArea returned at Oleg; pair B failed direct control after pair A restored,
+save fence held and no Auto wrote. Original timeout result SHA-256
+`19bb2ce9f3add5dfc01913145b5c5900ecd1fdb4284b7986cc545b9994df9366`.
+Exact PID 54468 exited normally. Guarded combined recovery restored Mods digest
+`b592f4009833072b60604852ad00660a6d236957712b63ae40f28ed1b7f67cda`
+and saves digest `df434471b6f2bb3ade60ecccaa524aa7537e17f63db3d0bcce6d5a7eb70561ab`.
+Separate profile recovery PASS receipt SHA-256
+`a31d8714034130a4e77ac012d1c5616a2a5354161494c5e313fbf16c474be907`.
+No Kingmaker process or runtime lock remains.
+
+Preview.48 source and remaining limits are summarized in CURRENT.md. Fast
+`group48-fast02.log` PASS 3/0, source 147/0; repeated reader 106/0,
+owner-seed repeated 29/0, owned reader 680/0, owner-seed area 48/0,
+actual cleanup adapter 99/0, actual area preflight adapter 6/0.
+Reader independent review PASS. Initial area/source review found the missing
+preflight regression and retains its FAIL; corrected-source review PASS receipt
+SHA-256 `0a312558344c60424e9c15a88be4bdc1f3f4500cb7491d0c018fd1011b966da4`.
+Next: inspect complete diff; commit and guarded-push; freeze one
+preview.48 package/Candidate/suite; declare a bounded native batch. Preserve
+all preview.47 FAILs. Schema2 debt and other Directive 4 cases still require
+work. PR #5 remains draft; no merge/release/tag/permanent install/full7E/HUMAN PLAY.
+
 ## October 19 - preview.46 batch21 settled; preview.47 source IN PROGRESS
 
 Branch `codex/mounted-combat-chunk7-successor`, guarded-pushed frozen HEAD

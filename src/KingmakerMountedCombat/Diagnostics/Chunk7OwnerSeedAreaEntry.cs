@@ -54,6 +54,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["explored"] = data.IsExplored, ["closed"] = data.IsClosed,
                 ["entryGuid"] = resolved.AssetGuidThreadSafe, ["entryAreaGuid"] = resolved.Area.AssetGuidThreadSafe,
                 ["entryName"] = resolved.name, ["locationCountBefore"] = count, ["locationCountAfter"] = map.Locations.Count,
+                ["destinationIsCapital"] = entry.Area.IsCapital,
                 ["existingLocationOnly"] = true, ["entryEqualsRegisteredBlueprint"] = true,
                 ["navigationAssisted"] = true, ["ordinaryTravelProof"] = false, ["authoredExitProof"] = false,
                 ["nativeMode"] = "AfterEntry", ["transferRequests"] = 0, ["saveRequests"] = 0 };

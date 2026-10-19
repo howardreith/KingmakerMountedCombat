@@ -55,6 +55,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 JObject prerequisite;
                 enter = Chunk7OwnerSeedAreaEntry.Resolve(game, request, out prerequisite);
                 evidence["areaEntryPrerequisite"] = prerequisite;
+                Require(!enter.Area.IsCapital,
+                    "The selected native destination is currently a capital; both saved pairs cannot be directly controllable there.");
             }
             else enter = ResourcesLibrary.TryGetBlueprint<BlueprintAreaEnterPoint>(target.EnterPoint);
             Require(enter != null && enter.AssetGuidThreadSafe == target.EnterPoint && enter.Area != null &&
@@ -110,7 +112,13 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["nativeLoading"] = LoadingProcess.Instance.IsLoadingInProcess,
                 ["queuedLoadNames"] = LoadingProcess.Instance.QueuedNames.Count(),
                 ["area"] = Game.Instance.CurrentlyLoadedArea?.AssetGuidThreadSafe,
+                ["destinationIsCapital"] = Game.Instance.CurrentlyLoadedArea?.IsCapital,
                 ["samePlayer"] = ReferenceEquals(areaWorld, Game.Instance.Player),
+                ["actorControl"] = new JArray((actors ?? new UnitEntityData[0]).Select(actor => new JObject {
+                    ["id"] = actor?.UniqueId, ["inGame"] = actor?.IsInGame,
+                    ["directlyControllable"] = actor?.IsDirectlyControllable,
+                    ["masterId"] = actor == null || actor.Descriptor == null ? null : actor.Descriptor.Master.Value?.UniqueId
+                })),
                 ["suspensions"] = persistence.AreaSuspensionCount,
                 ["resumes"] = persistence.AreaResumeCount,
                 ["failedPairs"] = persistence.FailedAreaPairCount,
