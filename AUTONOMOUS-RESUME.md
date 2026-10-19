@@ -1,5 +1,40 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## Active October 19 checkpoint — batch42 separate cold game PASS, outer reader FAIL
+
+The [standing completion mission](planning/CHUNK7-COMPLETION-MISSION.md) remains
+active through 7B, 7C, 7D and selected private 7E. Current pushed successor HEAD
+is `0e565fe177b200ee6a679d0e6856cb8a379dca1f` (preview.60); the package
+SHA-256 is `8a19a7aa84e74b4937ddbc85e4e50ae3f9a86107cd6e11d6b4972c5abd3b24db`.
+Candidate passed 6/0 and the append-only suite is
+`chunk7b-directive4-b42-20261019` SHA-256
+`2dfb3858caa8a5a93990f35812221e0ffee9946c4f294b04c3624242716eb0ac`.
+The batch42 separate current-format cold consumer used the exact accepted
+batch41 schema-2 migration Manual. The **original game result PASS** 3/0
+restored and continued; the **original outer runtime result remains FAIL**
+(SHA-256 `92e1e1516c76699c375730252c79b6c189eb5163c5d14c2335b9dc86d3d9b720`)
+because its external reader compared a later native clock sample as though it
+were the immediate restoration probe. The immediate shared-world and
+presentation probes exactly match the saved clock and actor debt. At the later
+sample, game time advanced 0.477 seconds in the same round; both combat clocks
+and native cooldowns advanced together without a grant. Raw artifact SHA-256
+`798d9d3460d2d8d63fa9b2af631bab1e2927559f18d8b7c08986e96153ee1a00`.
+The original failure is preserved. The bounded external-reader correction
+passed independent review (SHA-256
+`ad07e6324a5a1da17969f5733e1a9db3d54233a756c5824bcb2099528bc100fc`),
+focused reader 690/0, combat neighbor 165/0, and a separate reader-only PASS
+on the immutable batch42 request/parent/artifact (receipt SHA-256
+`5413bf331e2200486f365f74a59e681307d2a021648384631e4f26bb3098e2be`).
+That reevaluation does not create a new native PASS. The batch42 transaction reported exact Mods,
+protected saves, Working and profile restoration with no cache exception;
+game and transaction lock are absent.
+
+Next: commit and guarded-push the reviewed reader/document change, then
+continue positive removal, area/door fixture, profiles and
+progression. The accepted batch41 migration Manual and every earlier original
+FAIL retain their distinct identities. Do not rebuild preview.60 for this
+external-reader/document correction.
+
 ## Active October 19 checkpoint — batch41 schema-2 resave PASS, cold consumer FAIL
 
 The [standing completion mission](planning/CHUNK7-COMPLETION-MISSION.md)

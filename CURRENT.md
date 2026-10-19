@@ -1,5 +1,25 @@
 # Chunk 7B–7D — IN PROGRESS
 
+## October 19 — batch42 separate migration consumer
+
+Preview.60 Candidate passed 6/0. Its separate current-format cold consumer
+used batch41's accepted schema-2 migrated Manual and returned **original game
+PASS** 3/0, including native restoration and continuation. The **original
+outer runtime result remains FAIL** because an external reader compared a
+later same-round native clock sample with saved time as if it were the
+immediate restoration probe. The original runtime-result SHA-256 is
+`92e1e1516c76699c375730252c79b6c189eb5163c5d14c2335b9dc86d3d9b720`.
+Exact immediate probes match; the later sample shows only bounded elapsed
+combat clock and actor cooldown progression. A narrow reader-only correction
+passed focused 690/0, combat neighbor 165/0 and independent review (SHA-256
+`ad07e6324a5a1da17969f5733e1a9db3d54233a756c5824bcb2099528bc100fc`).
+The separate immutable-artifact reader-only PASS receipt is SHA-256
+`5413bf331e2200486f365f74a59e681307d2a021648384631e4f26bb3098e2be`;
+it does not upgrade the original outer FAIL. All guarded surfaces
+were restored exactly, with no cache exception. See the
+[active resume](AUTONOMOUS-RESUME.md) and
+[batch record](docs/CHUNK7-DIRECTIVE4-REENTRY-CORRECTION-2026-10-19.md).
+
 ## October 19 — batch41 schema-2 migration resave and separate cold result
 
 Preview.59 Candidate passed 6/0. Batch41's fresh same-candidate schema-3

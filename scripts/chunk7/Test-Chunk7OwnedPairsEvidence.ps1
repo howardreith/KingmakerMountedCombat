@@ -810,6 +810,22 @@ Check 'owner-seed schema1 historical cold matches its exact original native prod
 foreach($checkpoint in @('owned-schema1-current-manual','owned-schema2-pending-current-manual')){
  Check ('current-format load-only native continuation '+$checkpoint){$v=New-KmcOwnerSeedCurrentFixture $checkpoint;Invoke-OwnedReader $v;if((Get-KmcChunk7OwnedWriteCount $v.request)-ne0){throw 'Current child acquired native save entitlement.'}}
  Check ('current-format exact historical resave parent '+$checkpoint){$v=New-KmcOwnerSeedCurrentFixture $checkpoint;Assert-KmcChunk7OwnerSeedCheckpointColdSource $v.request (New-KmcOwnerSeedCurrentParent $v) $v.artifact}
+ if($checkpoint-ceq'owned-schema2-pending-current-manual'){
+  Check 'current-format pending cold accepts bounded paired native clock progress' {
+   $v=New-KmcOwnerSeedCurrentFixture $checkpoint;$w=$v.artifact.observations.currentFormatMigration.restoredWorld
+   $w.gameTicks+=5000000L;$w.combat.TimeSinceStart+=.5;$w.combat.TimeToNextRound-=.5
+   foreach($actor in $w.actors){foreach($field in @('Standard','Move','Swift','Initiative','Reaction')){if($actor.Native.$field-ge.5){$actor.Native.$field-=.5}}}
+   Invoke-OwnedReader $v
+  }
+  foreach($fault in @('one-sided','backwards','excess','new-round','string-clock','string-ticks','fractional-ticks','refunded-debt','changed-prepared')){
+   Check ('current-format pending cold refuses '+$fault+' clock or allocation change') {
+    $v=New-KmcOwnerSeedCurrentFixture $checkpoint;$w=$v.artifact.observations.currentFormatMigration.restoredWorld
+    $w.gameTicks+=5000000L;$w.combat.TimeSinceStart+=.5;$w.combat.TimeToNextRound-=.5
+    switch($fault){'one-sided'{$w.combat.TimeToNextRound+=.5};'backwards'{$w.combat.TimeSinceStart-=1};'excess'{$w.gameTicks-=4000000L};'new-round'{$w.combat.Round++};'string-clock'{$w.combat.TimeSinceStart=[string]$w.combat.TimeSinceStart};'string-ticks'{$w.gameTicks=[string]$w.gameTicks};'fractional-ticks'{$w.gameTicks=[double]$w.gameTicks+.5};'refunded-debt'{$w.actors[0].Native.Standard+=.5};'changed-prepared'{$w.actors[0].Prepared=-not$w.actors[0].Prepared}}
+    Invoke-OwnedReader $v
+   } $true
+  }
+ }
  foreach($fault in @('save-direction','write-quota','wrong-native-name','same-process','wrong-parent-case','wrong-parent-pin','wrong-input-schema','wrong-input-hash','wrong-input-length','missing-loaded-schema','historical-loaded-schema','string-loaded-schema','missing-actual-equality','producer-output','historical-migration','derivative-request','restoration-prepare','movement-or-continuation')){
   Check ('current-format child refuses '+$fault+' '+$checkpoint){$v=New-KmcOwnerSeedCurrentFixture $checkpoint;$r=$v.request;$o=$v.artifact.observations;$m=$o.currentFormatMigration
    switch($fault){

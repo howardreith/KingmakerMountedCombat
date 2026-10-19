@@ -99,15 +99,45 @@ function Assert-KmcChunk7LegacyPendingMigration($NativeMetadata,$Archive) {
     try{$bytes=$sha.ComputeHash([Text.Encoding]::UTF8.GetBytes('kmc-schema3|'+$Archive.CampaignId+'|'+$pair.Rider.Id+'|'+$pair.Mount.Id));$owner=[Guid]::new([byte[]]$bytes[0..15]).ToString('N')}finally{$sha.Dispose()}
     if($pair.PairId-cne$owner-or$row.OwnerId-cne$owner-or$row.MountedPairId-cne$owner-or$pair.Generation-ne1-or$row.Generation-ne1){throw 'Migration changed deterministic owner custody or admitted a competing owner.'}
 }
-function Assert-KmcChunk7NativeWorldRestore($Snapshot,$Archive,[bool]$Presentation) {
+function Assert-KmcChunk7NativeWorldRestore($Snapshot,$Archive,[bool]$Presentation,[switch]$AllowElapsedNativeClock) {
     if($Snapshot.turnBased-ne$Archive.Combat.TurnBased-or$Snapshot.playerInCombat-ne$true-or$Snapshot.gameTicks-lt$Archive.GameTimeTicks){throw 'Native world mode, presence or clock differs.'}
-    foreach($field in @('TurnBased','Round','StartTicks','RoundStartTicks','TurnStartTicks','TimeSinceStart','TimeToNextRound','HasSurpriseRound','HasEnemy','HadEnemy','NextActor','BeforeCombatSelected','Current','Paired')){
+    if($AllowElapsedNativeClock){
+        if(-not(Test-KmcExactJsonInteger $Snapshot.gameTicks)-or$Snapshot.gameTicks-lt0){throw 'Current-format cold native game ticks are not a nonnegative JSON integer.'}
+        foreach($field in @('TimeSinceStart','TimeToNextRound')){
+            if(-not(Test-KmcFiniteNonnegativeJsonNumber $Archive.Combat.$field)-or-not(Test-KmcFiniteNonnegativeJsonNumber $Snapshot.combat.$field)){throw 'Current-format cold native clock is not a finite nonnegative JSON number.'}
+        }
+        $elapsed=([double]$Snapshot.gameTicks-[double]$Archive.GameTimeTicks)/10000000.0
+        $sinceDrift=[double]$Snapshot.combat.TimeSinceStart-[double]$Archive.Combat.TimeSinceStart
+        $nextDrift=[double]$Archive.Combat.TimeToNextRound-[double]$Snapshot.combat.TimeToNextRound
+        if($elapsed-lt0-or$elapsed-gt2-or$sinceDrift-lt-0.001-or$nextDrift-lt-0.001-or
+            $sinceDrift-gt($elapsed*1.1+0.001)-or$nextDrift-gt($elapsed*1.1+0.001)-or
+            [Math]::Abs($sinceDrift-$nextDrift)-gt0.002){throw 'Current-format cold native clocks changed outside bounded same-round elapsed time.'}
+    }
+    $fields=@('TurnBased','Round','StartTicks','RoundStartTicks','TurnStartTicks','HasSurpriseRound','HasEnemy','HadEnemy','NextActor','BeforeCombatSelected','Current','Paired')
+    if(-not$AllowElapsedNativeClock){$fields+=@('TimeSinceStart','TimeToNextRound')}
+    foreach($field in $fields){
         if((ConvertTo-KmcChunk7Canonical $Snapshot.combat.$field)-cne(ConvertTo-KmcChunk7Canonical $Archive.Combat.$field)){throw ('Immediate shared restoration changed '+$field)}}
     foreach($field in @('Roster','Allocations','Engagements')){
         $keys=if($field-ceq'Engagements'){@('From','To')}else{@('ActorId')}
         if((ConvertTo-KmcChunk7Canonical @($Snapshot.combat.$field|Sort-Object -Property $keys))-cne(ConvertTo-KmcChunk7Canonical @($Archive.Combat.$field|Sort-Object -Property $keys))){throw ('Immediate shared restoration changed '+$field)}}
     if(@($Snapshot.actors).Count-ne@($Archive.Combat.Actors).Count){throw 'Immediate native restoration omitted an actor.'}
-    foreach($actor in $Archive.Combat.Actors){$actual=@($Snapshot.actors|Where-Object{$_.Native.Id-ceq$actor.Native.Id});if($actual.Count-ne1-or(ConvertTo-KmcChunk7Canonical $actual[0])-cne(ConvertTo-KmcChunk7Canonical $actor)){throw 'Immediate native restoration changed an actor remainder, initiative or preparation.'}}
+    foreach($actor in $Archive.Combat.Actors){
+        $actual=@($Snapshot.actors|Where-Object{$_.Native.Id-ceq$actor.Native.Id})
+        if($actual.Count-ne1){throw 'Immediate native restoration omitted or duplicated an actor.'}
+        $comparison=$actual[0]
+        if($AllowElapsedNativeClock){
+            $comparison=$actual[0]|ConvertTo-Json -Depth 64|ConvertFrom-Json
+            foreach($field in @('Standard','Move','Swift','Initiative','Reaction')){
+                $prior=$actor.Native.$field;$now=$actual[0].Native.$field
+                if(-not(Test-KmcFiniteNonnegativeJsonNumber $prior)-or-not(Test-KmcFiniteNonnegativeJsonNumber $now)-or
+                    [double]$now-gt([double]$prior+0.001)-or[double]$now+$elapsed*1.1+0.001-lt[double]$prior){
+                    throw 'Current-format cold native actor debt changed beyond elapsed time or received a grant.'
+                }
+                $comparison.Native.$field=$prior
+            }
+        }
+        if((ConvertTo-KmcChunk7Canonical $comparison)-cne(ConvertTo-KmcChunk7Canonical $actor)){throw 'Immediate native restoration changed an actor remainder, initiative or preparation.'}
+    }
     # A participation's MountedPairId is recorded only while its owner is Active. Restoration is staged:
     # mounted owners are Reserved at the shared-world boundary (below) and Active after presentation, so the
     # shared-world snapshot carries a null MountedPairId and otherwise the exact archived participation.
