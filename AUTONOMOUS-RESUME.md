@@ -42,6 +42,11 @@ and draft PR #5 reflect this exact recovery and diagnosis, then choose a
 the historical Working archive needs an admitted dependency/configuration or
 an honestly sourced reference-free positive-cleanup derivative of the already
 qualified owner seed. Do not replay either failed batch34 route unchanged.
+The exact Working actor-graph diagnostic already found a literal main-ID
+match in the inline party prefix; its later `$ref` remains unresolved. The
+next native observation boundary is party deserialization return and
+cross-scene assignment before `Player.PostLoad`. Batch34 slot2's observer
+patch signature must be repaired and reviewed before that route can run.
 Schema-2 remains the precise saved-debt/native re-entry contract question;
 compare the unmodified schema-3 source cold to its metadata-only schema-2
 derivative if a reviewed selector can preserve all fixture guards. Area Auto
