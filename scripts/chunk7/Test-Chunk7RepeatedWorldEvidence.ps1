@@ -2,15 +2,23 @@ $ErrorActionPreference='Stop'
 Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot 'Test-Chunk7PersistenceEvidence.ps1')
 $loadRequest=Copy-Test $coldRequest;$loadRequest.persistenceCase='multi-exploration-three-loads-manual'
-$subs=[pscustomobject]@{assemblyMvid='07fa1e4d-8618-41b3-9b8d-faa17d3b26f7';executing=$false;uniqueOwnedSubscribers=1;ownedInterfaceEntries=1;entries=@([pscustomobject]@{interface='Kingmaker.PubSubSystem.IUnitLifeStateChanged';type='KingmakerMountedCombat.Integration.MountedLifecycleSubscriber';identity=-999})}
 function ReplayWorld([int]$Load,[int]$AreaOrdinal,[bool]$Mounted=$true){
     $actors=@();for($i=0;$i-lt4;$i++){$actor=$native[$i];$idBase=$Load*100+$i*10;$rider=$i-cin@(0,2);$component=if($Mounted-and$rider){$idBase+6+$AreaOrdinal*1000}else{0}
         $actors+=[pscustomobject]@{id=$actor.Id;object=$idBase+1;descriptor=$idBase+2;view=$idBase+3;viewObject=$idBase+4;inState=$true;commandsEmpty=$true;overrides=@(if($Mounted-and$rider){$component});agentOverride=$component;native=(Copy-Test $actor)}}
     $nativeOwners=@();if($Mounted){$nativeOwners=@($owners|ForEach-Object{$v=Copy-Test $_;$v.riderId=([Guid]$v.riderId).ToString('N');$v.mountId=([Guid]$v.mountId).ToString('N');$v|Add-Member NoteProperty retainsObligations $true;$v})}
+    $horseFacts=@($archive.Pairs|Where-Object ProfileId -CEQ 'medium-humanoid-horse-v1').Count
+    if($horseFacts-lt1-or$horseFacts-gt2){throw 'Synthetic replay archive needs one or two exact Horse feature facts.'}
+    $subscriberEntries=@()
+    foreach($interface in @('IAreaLoadingStagesHandler','IPartyLeaveAreaHandler','IPartyHandler','IGameModeHandler','IPartyCombatHandler','IUnitHandler','IUnitViewAttachedUIHandler','IUnitLifeStateChanged','IUnitCombatHandler','IUnitFinallyDeadHandler','IInGameHandler','ITurnBasedModeEnabledHandler','ISceneHandler')){
+        $subscriberEntries+=[pscustomobject]@{interface='Kingmaker.PubSubSystem.'+$interface;type='KingmakerMountedCombat.Integration.MountedLifecycleSubscriber';identity=-999}
+    }
+    for($i=0;$i-lt$horseFacts;$i++){$subscriberEntries+=[pscustomobject]@{interface='Kingmaker.PubSubSystem.ISceneHandler';type='KingmakerMountedCombat.Integration.HorseCompanionAddPet';identity=$Load*1000+11+$i}}
+    foreach($interface in @('IAbilityTargetSelectionUIHandler','IClickActionHandler')){$subscriberEntries+=[pscustomobject]@{interface='Kingmaker.PubSubSystem.'+$interface;type='KingmakerMountedCombat.Integration.NativeMountedControlService';identity=-998}}
+    $subscriptions=[pscustomobject]@{assemblyMvid='07fa1e4d-8618-41b3-9b8d-faa17d3b26f7';executing=$false;uniqueOwnedSubscribers=2+$horseFacts;ownedInterfaceEntries=15+$horseFacts;entries=$subscriberEntries}
     [pscustomobject]@{frame=100*$Load+50*$AreaOrdinal;gameTicks=10000000L;gameObject=-1;playerObject=$Load*1000+1;stateObject=1002;areaStateObject=$Load*1000+3+$AreaOrdinal*100;mainStateObject=$Load*1000+4+$AreaOrdinal*100;
       area=$(if($AreaOrdinal){@('b','c','d')[$AreaOrdinal-1]*32}else{'a'*32});playerInCombat=$false;boundaries=2;participants=2;failedConstructions=0;allocationActors=0;active=$(if($Mounted){2}else{0});owners=$nativeOwners;
       preparedOrViewResidue=$(if($Mounted){2}else{0});liveControlBoundaries=0;commandOwners=0;unsettledPreparation=$false;relationshipTransition=$false;serializationBusy=$false;pendingWrites=$false;saveScope=$false;saveFence=$false;
-      nativeDisposals=$Load-1;areaSuspensions=$AreaOrdinal;areaResumes=2*$AreaOrdinal;semanticRestores=4*$Load;presentationRestores=2*$Load;nativePostLoads=4;nativeCastRequests=0;snapshotCount=0;duplicateFacts=0;nativeSlots=(Copy-Test $slots);actors=$actors;subscriptions=(Copy-Test $subs);
+      nativeDisposals=$Load-1;areaSuspensions=$AreaOrdinal;areaResumes=2*$AreaOrdinal;semanticRestores=4*$Load;presentationRestores=2*$Load;nativePostLoads=4;nativeCastRequests=0;snapshotCount=0;duplicateFacts=0;nativeSlots=(Copy-Test $slots);actors=$actors;subscriptions=$subscriptions;
       label=$(if($AreaOrdinal){'area-'+$AreaOrdinal}else{'load-'+$Load});selectionRebinding=@([pscustomobject]@{id=$first;object=$Load*100+1})}
 }
 function ReplayRestoration([int]$Loads){
@@ -73,7 +81,7 @@ function New-RepeatedRunnerRequest{ConvertTo-RunnerRequest (Copy-Test $areaReque
 Check 'repeated-world request assert accepts the runner ordered-dictionary request' {Assert-KmcChunk7RepeatedWorldRequest (ConvertTo-RunnerRequest (Copy-Test $areaRequest))}
 Reject 'ordered-dictionary-missing-targets' {$r=New-RepeatedRunnerRequest;$r.Remove('persistenceReplayTargets');Assert-KmcChunk7RepeatedWorldRequest $r}
 Reject 'ordered-dictionary-save-family' {$r=New-RepeatedRunnerRequest;$r['scenario']='chunk7-persistence-save';Assert-KmcChunk7RepeatedWorldRequest $r}
-foreach($mutation in @('fourth-load','load-text','native-write','missing-callback','callback-text','callback-epoch','retained-player','foreign-state','retained-actor','changed-owner','generation-text','free-debt','extra-prepare','unrelated-prepare','extra-debt','missing-presentation','late-observer','dropped-events','wrong-hook','extra-owner','old-command','pending-worker','subscription-growth','subscription-type','identity-collision','identity-release','identity-unregistered','false-allocation-proof','false-diagnostics-proof','input-change','unsafely-settled','retained-observer','stale-selection','repeat-area-not-load','missing-restored-slot','replayed-mount','extra-save','duplicate-fact','dispatch-actor-substitution','cleanup-actor-substitution','callback-actor-from-next-world','callback-game-substituted-with-state')){
+ foreach($mutation in @('fourth-load','load-text','native-write','missing-callback','callback-text','callback-epoch','retained-player','foreign-state','retained-actor','changed-owner','generation-text','free-debt','extra-prepare','unrelated-prepare','extra-debt','missing-presentation','late-observer','dropped-events','wrong-hook','extra-owner','old-command','pending-worker','subscription-growth','subscription-type','stale-horse-subscriber','changed-process-subscriber','identity-collision','identity-release','identity-unregistered','false-allocation-proof','false-diagnostics-proof','input-change','unsafely-settled','retained-observer','stale-selection','repeat-area-not-load','missing-restored-slot','replayed-mount','extra-save','duplicate-fact','dispatch-actor-substitution','cleanup-actor-substitution','callback-actor-from-next-world','callback-game-substituted-with-state')){
     Reject $mutation {$a=Copy-Test $threeLoad;$r=$a.observations.repeatedWorlds;switch($mutation){
       'fourth-load' {$r.nativeLoadRequests=4}
       'load-text' {$r.nativeLoadRequests='3'}
@@ -99,6 +107,8 @@ foreach($mutation in @('fourth-load','load-text','native-write','missing-callbac
       'pending-worker' {$r.retention.events[0].state.pendingWrites=$true}
       'subscription-growth' {$r.worlds[2].subscriptions.entries+=Copy-Test $r.worlds[2].subscriptions.entries[0]}
       'subscription-type' {$r.worlds[2].subscriptions.ownedInterfaceEntries='1'}
+       'stale-horse-subscriber' {@($r.worlds[1].subscriptions.entries|Where-Object type -CEQ 'KingmakerMountedCombat.Integration.HorseCompanionAddPet')[0].identity=@($r.worlds[0].subscriptions.entries|Where-Object type -CEQ 'KingmakerMountedCombat.Integration.HorseCompanionAddPet')[0].identity}
+       'changed-process-subscriber' {@($r.worlds[1].subscriptions.entries|Where-Object type -CEQ 'KingmakerMountedCombat.Integration.MountedLifecycleSubscriber')[0].identity=77123}
       'identity-collision' {$r.identityRetention.faults=1}
       'identity-release' {$r.identityRetention.retainedAfterRelease=5}
       'identity-unregistered' {$r.identityRetention.ids=@($r.identityRetention.ids|Where-Object{$_-ne$r.worlds[1].playerObject})}
@@ -119,7 +129,7 @@ foreach($mutation in @('fourth-load','load-text','native-write','missing-callbac
       'callback-game-substituted-with-state' {$r.retention.events[0].state.gameObject=$r.worlds[1].stateObject;$r.finalRetention=Copy-Test $r.retention}
     };Assert-KmcChunk7PersistenceObservation $loadRequest $a 'PASS'}
 }
-foreach($mutation in @('changed-player','replaced-view','stale-mover','same-area-state','missing-suspension','missing-neighbour-resume','debt-replay','hidden-autosave','unselected-target','retained-rider-override','foreign-pending-destroy','suspension-not-callback','settled-still-callback')){
+ foreach($mutation in @('changed-player','replaced-view','stale-mover','same-area-state','missing-suspension','missing-neighbour-resume','debt-replay','hidden-autosave','unselected-target','retained-rider-override','foreign-pending-destroy','suspension-not-callback','settled-still-callback','replaced-area-horse-subscriber')){
     Reject $mutation {$a=Copy-Test $threeAreas;$r=$a.observations.repeatedWorlds;switch($mutation){
       'changed-player' {$r.worlds[1].playerObject++}
       'replaced-view' {$r.worlds[1].actors[0].view++}
@@ -134,6 +144,7 @@ foreach($mutation in @('changed-player','replaced-view','stale-mover','same-area
       'foreign-pending-destroy' {$r.retention.events[0].state.actors[0].overrides=@(12345);$r.finalRetention=Copy-Test $r.retention}
       'suspension-not-callback' {$r.retention.events[0].state.subscriptions.executing=$false;$r.finalRetention=Copy-Test $r.retention}
       'settled-still-callback' {$r.worlds[1].subscriptions.executing=$true}
+       'replaced-area-horse-subscriber' {@($r.worlds[1].subscriptions.entries|Where-Object type -CEQ 'KingmakerMountedCombat.Integration.HorseCompanionAddPet')[0].identity=76123}
     };Assert-KmcChunk7PersistenceObservation $areaRequest $a 'PASS'}
 }
 Write-Host ('CHUNK7 REPEATED WORLD READER PASS='+$passed+' FAIL=0; synthetic contract fixtures only, native route unqualified.')

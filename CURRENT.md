@@ -1,5 +1,31 @@
 # Chunk 7B–7D — IN PROGRESS
 
+## October 19 - preview.46 native batch21 FAIL; preview.47 source IN PROGRESS
+
+Frozen, guarded-pushed preview.46 `40439d09` passed Candidate 7/0; package
+SHA-256 `3237bd2edc33aa61ce409086bc439abf04733807d1960fbb18f00d824c819571`.
+All three bounded batch21 native runs FAIL and remain immutable. Registered
+disable stopped before the toggle at a composite diagnostic prelude. Repeated
+load correctly replaced Player/area/actors but the observer rejected two
+fresh per-fact Horse subscribers; native counts were 8/4/4/1. Area AfterEntry
+Auto timed out before an Auto write; the retained cleanup artifact lacks a
+native-ready observation, so the blocked native stage is unresolved. Its
+game exited normally through guarded exact-PID close; combined transaction
+and separate profile recovery passed. No game or lock remains; the owner's
+Mods, protected saves, UMM parameters and session preferences were restored
+exactly. The original runtime result still records blocked restoration/FAIL,
+with the separate recovery receipt proving later restoration.
+
+An uncommitted preview.47 diff repairs the subscriber-lifetime check for both
+the older one-Horse and owner-seed two-Horse archives and adds failure-only
+disable/area diagnostics. Fast PASS 3/0 and focused repeated reader 104/0,
+owned reader 59/0, owner-seed reader 29/0, repeated adapter 76/0, disable
+adapter 47/0 and registered reader 64/0. The first repeated-world review FAIL
+found the older-fixture regression; corrected-source independent review and the
+separate failure-diagnostics review now PASS. Fresh native runs remain. Schema2
+TB cold debt loss, area Auto/cold, disable/removal, P07 refusal/menu/no-DLL and doors remain
+unaccepted or unrun. PR #5 is draft; Directive 4 remains IN PROGRESS.
+
 ## October 19 - preview.45 native results and bounded next repair IN PROGRESS
 
 Preview.45 was guarded-pushed at `8685fb5f` and frozen: package SHA-256

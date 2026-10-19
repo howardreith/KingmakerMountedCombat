@@ -40,6 +40,39 @@ function Assert-KmcChunk7ReplaySubscriptions($Value,[bool]$InNativeCallback=$fal
     }
     if($identities.Count-ne$Value.uniqueOwnedSubscribers){throw 'Subscription unique-owner count differs from raw identities.'}
 }
+function Assert-KmcChunk7RepeatedSubscriptionBoundary($Previous,$Current,[bool]$NativeLoad,[int]$HorseFacts) {
+    $horse='KingmakerMountedCombat.Integration.HorseCompanionAddPet'
+    $lifecycle='KingmakerMountedCombat.Integration.MountedLifecycleSubscriber'
+    $controls='KingmakerMountedCombat.Integration.NativeMountedControlService'
+    $entries=@($Current.entries)
+    $h=@($entries|Where-Object type -CEQ $horse)
+    $l=@($entries|Where-Object type -CEQ $lifecycle)
+    $c=@($entries|Where-Object type -CEQ $controls)
+    if($HorseFacts-lt1-or$HorseFacts-gt2-or$Current.uniqueOwnedSubscribers-ne(2+$HorseFacts)-or
+       $Current.ownedInterfaceEntries-ne(15+$HorseFacts)-or$entries.Count-ne(15+$HorseFacts)-or
+       $h.Count-ne$HorseFacts-or$l.Count-ne13-or$c.Count-ne2-or
+       @($h|Where-Object interface -CNE 'Kingmaker.PubSubSystem.ISceneHandler').Count-ne0-or
+       @($h.identity|Select-Object -Unique).Count-ne$HorseFacts-or
+       @($l.identity|Select-Object -Unique).Count-ne1-or
+       @($c.identity|Select-Object -Unique).Count-ne1-or
+       $l[0].identity-eq$c[0].identity-or$h.identity-ccontains$l[0].identity-or$h.identity-ccontains$c[0].identity){
+        throw 'Repeated world subscriber roles/cardinality are not the exact two fact and two process-owned instances.'
+    }
+    if($null-eq$Previous){return}
+    $prior=@($Previous.entries)
+    $shape=@($entries|ForEach-Object{$_.interface+'|'+$_.type}|Sort-Object -CaseSensitive)
+    $oldShape=@($prior|ForEach-Object{$_.interface+'|'+$_.type}|Sort-Object -CaseSensitive)
+    $stable=@($entries|Where-Object type -CNE $horse|ForEach-Object{$_.interface+'|'+$_.type+'|'+$_.identity}|Sort-Object -CaseSensitive)
+    $oldStable=@($prior|Where-Object type -CNE $horse|ForEach-Object{$_.interface+'|'+$_.type+'|'+$_.identity}|Sort-Object -CaseSensitive)
+    $oldHorse=@($prior|Where-Object type -CEQ $horse|ForEach-Object{$_.identity}|Sort-Object)
+    $newHorse=@($h|ForEach-Object{$_.identity}|Sort-Object)
+    if($Current.assemblyMvid-cne$Previous.assemblyMvid-or
+       (ConvertTo-KmcChunk7Canonical $shape)-cne(ConvertTo-KmcChunk7Canonical $oldShape)-or
+       (ConvertTo-KmcChunk7Canonical $stable)-cne(ConvertTo-KmcChunk7Canonical $oldStable)-or
+       $(if($NativeLoad){@($newHorse|Where-Object{$_-in$oldHorse}).Count-ne0}else{(ConvertTo-KmcChunk7Canonical $newHorse)-cne(ConvertTo-KmcChunk7Canonical $oldHorse)})){
+        throw 'Repeated world retained stale fact subscribers or changed process-owned subscribers.'
+    }
+}
 function Assert-KmcChunk7ReplayOwners($Owners,$Archive,[bool]$Mounted) {
     if($Owners-isnot[Array]-or$Owners.Count-ne$(if($Mounted){2}else{0})){throw 'Mounted or settled native ownership differs.'}
     if(-not$Mounted){return}
@@ -162,14 +195,16 @@ function Assert-KmcChunk7RepeatedWorldObservation($Request,$Artifact) {
         foreach($field in @('gameObject','playerObject','stateObject','areaStateObject','mainStateObject')){if(-not$nativeIds.Contains($state.$field)){throw 'Native world label lacks retained exact-reference registration.'}}
         foreach($actor in $state.actors){foreach($field in @('object','descriptor','viewObject')){if(-not$nativeIds.Contains($actor.$field)){throw 'Native actor label lacks retained exact-reference registration.'}}}
     }
+    $horseFacts=@($archive.Pairs|Where-Object ProfileId -CEQ 'medium-humanoid-horse-v1').Count
     $initial=$r.worlds[0];$previous=$null
     for($index=0;$index-lt$r.worlds.Count;$index++){
         $w=$r.worlds[$index];$nativeLoads=if($areas){1}else{$index+1};$area=if($areas-and$index-gt0){$Request.persistenceReplayTargets[$index-1].area}else{$Request.persistenceLoad.area}
         $label=if($areas-and$index-gt0){'area-'+$index}else{'load-'+($index+1)}
         Assert-KmcChunk7ReplayWorld $w $archive $area $true
         if($w.label-cne$label-or$w.nativeDisposals-ne($nativeLoads-1)-or$w.semanticRestores-ne(4*$nativeLoads)-or$w.presentationRestores-ne(2*$nativeLoads)-or$w.nativePostLoads-ne4-or
-           $w.areaSuspensions-ne$(if($areas){$index}else{0})-or$w.areaResumes-ne$(if($areas){2*$index}else{0})-or
-           (ConvertTo-KmcChunk7Canonical $w.subscriptions)-cne(ConvertTo-KmcChunk7Canonical $initial.subscriptions)){throw 'Repeated world counters/subscriptions differ or accumulate.'}
+           $w.areaSuspensions-ne$(if($areas){$index}else{0})-or$w.areaResumes-ne$(if($areas){2*$index}else{0})){throw 'Repeated world counters differ or accumulate.'}
+        $priorSubscriptions=if($null-eq$previous){$null}else{$previous.subscriptions}
+        Assert-KmcChunk7RepeatedSubscriptionBoundary $priorSubscriptions $w.subscriptions (-not$areas) $horseFacts
         if($w.selectionRebinding-isnot[Array]){throw 'Repeated world omitted selection migration intent.'}
         foreach($selected in $w.selectionRebinding){Assert-KmcChunk7ReplayObject $selected.object;if($selected.id-isnot[string]-or$selected.id-cnotmatch'^[0-9a-f-]{36}$'){throw 'Selection migration has an invalid actor identity.'}}
         if($previous){
@@ -222,7 +257,7 @@ function Assert-KmcChunk7RepeatedWorldObservation($Request,$Artifact) {
     Assert-KmcChunk7ReplayWorld $r.settled $archive $previous.area $false
     foreach($f in @('gameObject','playerObject','stateObject','areaStateObject','mainStateObject')){if($r.settled.$f-ne$previous.$f){throw 'Cleanup touched an unadmitted final world.'}}
     foreach($actor in $r.settled.actors){$old=@($previous.actors|Where-Object id -CEQ $actor.id)[0];foreach($f in @('object','descriptor','view','viewObject')){if($actor.$f-ne$old.$f){throw 'Cleanup touched a substituted final native actor.'}}}
-    if((ConvertTo-KmcChunk7Canonical $r.settled.subscriptions)-cne(ConvertTo-KmcChunk7Canonical $initial.subscriptions)){throw 'Final cleanup grew or lost KMC subscriptions.'}
+    Assert-KmcChunk7RepeatedSubscriptionBoundary $previous.subscriptions $r.settled.subscriptions $false $horseFacts
     foreach($f in @('pairsClear','controlsSettled','saveCustodyClear','selectionRestored')){Assert-KmcChunk7Boolean $o.cleanup.$f $true}
     foreach($f in @('sourceHorseRemoved','nativeProgressionRequiresExternalWorkingRestoration')){Assert-KmcChunk7Boolean $o.cleanup.$f (-not$owned)}
     if($owned){Assert-KmcChunk7OwnedReplayCustody $Request $o $nativeIds}

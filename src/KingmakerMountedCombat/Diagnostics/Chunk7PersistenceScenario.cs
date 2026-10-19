@@ -549,6 +549,7 @@ namespace KingmakerMountedCombat.Diagnostics
             pendingHostCustody = true; evidence["cleanupPendingAtHostBoundary"] = true;
             if (!cleanupPendingArtifactWritten)
             {
+                if (AreaAutosaveCase) TryCleanup("area interruption observation", CaptureAreaInterruption);
                 if (checkpoint != null) evidence["checkpointCleanup"] = checkpoint.Capture();
                 RuntimeLoaderInventory.WriteArtifact(request, "chunk7-persistence-cleanup-pending.json",
                     "chunk7-persistence-cleanup-pending", "FAIL", evidence, errors);

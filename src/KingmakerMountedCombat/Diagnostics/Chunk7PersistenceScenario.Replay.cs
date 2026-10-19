@@ -40,7 +40,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private readonly JArray replayInheritedRetirements = new JArray();
         private BlueprintArea replayDestination;
         private string[] replaySelectionIds;
-        private string replaySubscriptions;
+        private string replaySubscriptionShape;
         private string ReplayCurrentArea => RepeatedAreaCase && replayCompletedAreas > 0 ?
             request.PersistenceReplayTargets[replayCompletedAreas - 1].Area : request.PersistenceLoad.Area;
 
@@ -411,9 +411,44 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["object"] = replayIdentities.Get(a) }));
             var subscriptions = state["subscriptions"];
             Require((bool)subscriptions["executing"] == false, "Settled subscriber inventory overlaps native dispatch.");
-            var canonical = string.Join(";", ((JArray)subscriptions["entries"]).Select(e => (string)e["interface"] + "|" + (string)e["type"] + "|" + (int)e["identity"]).OrderBy(s => s, StringComparer.Ordinal));
-            Require(replaySubscriptions == null || replaySubscriptions == canonical, "Repeated world accumulated or lost native KMC subscribers.");
-            replaySubscriptions = replaySubscriptions ?? canonical; replayLastWorld = state; replayWorlds.Add(state);
+            var entries = (JArray)subscriptions["entries"];
+            var horse = "KingmakerMountedCombat.Integration.HorseCompanionAddPet";
+            var lifecycle = "KingmakerMountedCombat.Integration.MountedLifecycleSubscriber";
+            var controlsType = "KingmakerMountedCombat.Integration.NativeMountedControlService";
+            var shape = string.Join(";", entries.Select(e => (string)e["interface"] + "|" + (string)e["type"])
+                .OrderBy(s => s, StringComparer.Ordinal));
+            var horses = entries.Where(e => (string)e["type"] == horse).Select(e => (int)e["identity"]).ToArray();
+            var lifecycleIds = entries.Where(e => (string)e["type"] == lifecycle).Select(e => (int)e["identity"]).Distinct().ToArray();
+            var controlIds = entries.Where(e => (string)e["type"] == controlsType).Select(e => (int)e["identity"]).Distinct().ToArray();
+            var expectedHorses = ((JArray)replayArchive["Pairs"]).Count(p => (string)p["ProfileId"] == SupportedMountedProfiles.Horse.Id);
+            var persistent = entries.Where(e => (string)e["type"] != horse)
+                .Select(e => (string)e["interface"] + "|" + (string)e["type"] + "|" + (int)e["identity"])
+                .OrderBy(s => s, StringComparer.Ordinal).ToArray();
+            Require(expectedHorses >= 1 && expectedHorses <= 2 &&
+                (int)subscriptions["uniqueOwnedSubscribers"] == 2 + expectedHorses &&
+                (int)subscriptions["ownedInterfaceEntries"] == 15 + expectedHorses &&
+                entries.Count == 15 + expectedHorses && entries.Count(e => (string)e["type"] == lifecycle) == 13 &&
+                entries.Count(e => (string)e["type"] == controlsType) == 2 && horses.Length == expectedHorses &&
+                horses.Distinct().Count() == expectedHorses && lifecycleIds.Length == 1 && controlIds.Length == 1 &&
+                lifecycleIds[0] != controlIds[0] && horses.All(id => id != lifecycleIds[0] && id != controlIds[0]) &&
+                entries.Where(e => (string)e["type"] == horse).All(e =>
+                    (string)e["interface"] == "Kingmaker.PubSubSystem.ISceneHandler") && entries.All(e =>
+                    (string)e["type"] == horse || (string)e["type"] == lifecycle || (string)e["type"] == controlsType) &&
+                (replaySubscriptionShape == null || replaySubscriptionShape == shape),
+                "Repeated world accumulated or lost native KMC subscriber roles.");
+            if (replayLastWorld != null)
+            {
+                var previous = (JArray)replayLastWorld["subscriptions"]["entries"];
+                var previousPersistent = previous.Where(e => (string)e["type"] != horse)
+                    .Select(e => (string)e["interface"] + "|" + (string)e["type"] + "|" + (int)e["identity"])
+                    .OrderBy(s => s, StringComparer.Ordinal).ToArray();
+                var previousHorses = previous.Where(e => (string)e["type"] == horse).Select(e => (int)e["identity"]).ToArray();
+                Require(persistent.SequenceEqual(previousPersistent) && previousHorses.Length == expectedHorses &&
+                    (RepeatedAreaCase ? horses.OrderBy(id => id).SequenceEqual(previousHorses.OrderBy(id => id)) :
+                        horses.All(id => !previousHorses.Contains(id))),
+                    "Repeated world retained stale fact subscribers or changed process-owned subscribers.");
+            }
+            replaySubscriptionShape = replaySubscriptionShape ?? shape; replayLastWorld = state; replayWorlds.Add(state);
             if (request.OwnedPairs != null) evidence["inheritedReplayRetirements"] = replayInheritedRetirements;
         }
         private void AssertReplayObservers()
