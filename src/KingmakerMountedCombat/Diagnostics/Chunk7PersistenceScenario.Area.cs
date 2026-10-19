@@ -17,7 +17,7 @@ namespace KingmakerMountedCombat.Diagnostics
     internal sealed partial class Chunk7PersistenceScenario
     {
         private bool AreaAutosaveCase => request.PersistenceCase == "multi-area-autosave";
-        private string ExpectedArchiveArea => AreaAutosaveCase ? request.PersistenceAreaTarget?.Area : request.SelectedChunk7Fixture.Area;
+        private string ExpectedArchiveArea => request.ExpectedChunk7ArchiveArea;
         private Player areaWorld;
         private BlueprintArea areaDestination;
         private bool areaTransferDispatched, areaScopeAdopted;

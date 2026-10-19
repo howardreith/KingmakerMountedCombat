@@ -75,6 +75,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["candidates"] = inherited.OwnerSeedCandidates?.DeepClone() };
             Pass("C7-persistence-owner-seed-restored-start");
             if (OwnerSeedSingleOwnerPreparation) { BeginOwnerSeedCheckpointPreparation(); return; }
+            if (ManticoreFixtureCase) { BeginManticoreFixture(); return; }
             snapshots.Add(Capture("before-native-save"));
             DispatchCheckpoint();
         }

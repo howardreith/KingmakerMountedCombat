@@ -48,7 +48,11 @@ namespace KingmakerMountedCombat.Diagnostics
         // further family is connected.
         internal static readonly string[] OwnerSeedCheckpoints = { "multi-exploration-quick", "multi-exploration-auto",
             "multi-rt-debt-manual", "multi-tb-debt-manual", "zero-mounted-tb-retained-manual", "legacy-mounted-pending-tb-manual", "multi-area-autosave" };
-        internal static bool IsOwnerSeedSourceOnlyCheckpoint(string checkpoint) => SupportedSaveBoundary(checkpoint) || OwnedSchema1Source(checkpoint);
+        internal const string ManticoreFixtureCheckpoint = "owner-seed-manticore-fixture-manual";
+        internal const string ManticoreFixtureManualName = "KMC_C7_AREA_FIXTURE";
+        internal const string ManticoreFixtureArea = "314e8c3b15b896a4f847c85f9250f02b";
+        internal const string ManticoreFixtureSourceSha256 = "b4d1ede7843c600f201dcd7b71cd2558cad44210e7e0eb78d9a58f6e89f64003";
+        internal static bool IsOwnerSeedSourceOnlyCheckpoint(string checkpoint) => SupportedSaveBoundary(checkpoint) || OwnedSchema1Source(checkpoint) || checkpoint == ManticoreFixtureCheckpoint;
         // The connected combat checkpoints: genuine native Manuals written mid-combat from the restored
         // two-pair start under the owner-approved diagnostic target. Their native Manual name is distinct
         // from every acquired-ancestry KMC_C7_WORLD and from the derived KMC_C7_SEED_WORLD input.
@@ -58,7 +62,7 @@ namespace KingmakerMountedCombat.Diagnostics
             checkpoint == "legacy-mounted-pending-tb-manual";
         // The native Manual name a writing owned selection reserves; a non-Manual selection writes its slot name.
         internal string OwnedManualOutputName(string checkpoint) => IsOwnerSeedManual ? OwnerSeedManualName :
-            IsOwnerSeedCheckpointSave ? OwnerSeedCheckpointManualName : Cold ? (OwnedSchema1Cold(checkpoint) ? "KMC_C7_SCHEMA1" : "KMC_C7_SCHEMA2") : "KMC_C7_WORLD";
+            IsOwnerSeedCheckpointSave ? (checkpoint == ManticoreFixtureCheckpoint ? ManticoreFixtureManualName : OwnerSeedCheckpointManualName) : Cold ? (OwnedSchema1Cold(checkpoint) ? "KMC_C7_SCHEMA1" : "KMC_C7_SCHEMA2") : "KMC_C7_WORLD";
         public string Case { get; set; }
         public string SourceRunId { get; set; }
         public string SourceArtifactSha256 { get; set; }
@@ -285,6 +289,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 errors.Add(IsOwnerSeedCheckpointSave ? "The owner-seed checkpoint producer requires the exact distinct accepted cold-consumer run and its evidence SHA256." :
                     "The owner-seed checkpoint consumer requires the exact distinct checkpoint producer run and its persistence evidence SHA256.");
             if (CompanionId != null) errors.Add("Only owner-seed-derived RT combat names an unrelated companion.");
+            if (checkpoint == ManticoreFixtureCheckpoint && (!IsOwnerSeedCheckpointSave || SourceArchiveSha256 != ManticoreFixtureSourceSha256))
+                errors.Add("Manticore fixture preparation is source-only and requires the exact accepted mounted owner-seed Manual.");
             if (Array.IndexOf(OwnerSeedCheckpoints, checkpoint) < 0 &&
                 !(IsOwnerSeedCheckpointSave && IsOwnerSeedSourceOnlyCheckpoint(checkpoint)) &&
                 !(IsOwnerSeedCheckpointLoad && IsOwnerSeedLoadOnlyCheckpoint(checkpoint)))

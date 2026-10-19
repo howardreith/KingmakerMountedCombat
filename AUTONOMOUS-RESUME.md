@@ -1,11 +1,29 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## Active October 19 source checkpoint — group 61 fixture routes
+
+The [group 61 reviewed source checkpoint](docs/CHUNK7-GROUP61-FIXTURE-CANDIDATE-2026-10-19.md)
+adds the guarded Manticore area-fixture visit and live-profile `Areas`
+isolation, plus the KMC-alone unmounted Halfling/Horse fixture route.
+Independent reviews and focused checks passed; the first Fast source sweep
+failed on an F09 leaf registration and the corrected sweep passed 147/0.
+Detached Unity ECall patching remains a test-host limit, with managed cleanup
+7/0 and actual three-hook installation reserved for the guarded F09 game run.
+No native group 61 slot has run, no current transaction lock or game was opened,
+and preview.60 remains the last frozen product candidate. The current source
+sets preview.61 for the next single package build. Next: commit and guarded
+push this coherent source, run Candidate on the unchanged preview.61 package,
+freeze a new suite, pass scoped WhatIf, and then run the declared Manticore
+fixture and F09 preparation slots sequentially under the approved Howie
+context. Do not treat either preparation output as an area Auto/cold or Small
+profile PASS. The standing mission remains active through private 7E.
+
 ## Active October 19 checkpoint — owned progression Manual development correction
 
 The [standing completion mission](planning/CHUNK7-COMPLETION-MISSION.md)
 selects the remaining 7B, 7C, 7D and private readiness-gated 7E through
 **CHUNK 7 ENGINEERING COMPLETE — OWNER ACCEPTANCE PENDING**. The latest pushed
-successor HEAD before this work is `ee0a4839c6bbda74871392e6adf0d73ef0640559`;
+successor HEAD before this work is `9e9f8d5a58cd2bebdaf640afffb315d3742170ba`;
 preview.60 remains the last frozen product candidate and batch42's exact
 results below are unchanged. Historical next actions below are chronology,
 not instructions to rebuild or rerun completed inputs.
@@ -29,12 +47,17 @@ stock ManticoreLair2 is non-capital but unexplored in the admitted owner
 source. The [reference-free removal route](docs/CHUNK7-REFERENCE-FREE-REMOVAL-ROUTE-2026-10-19.md)
 and default Halfling Small fixture are identified, not natively admitted.
 The game and runtime lock are absent after batch42; no new live transaction
-was opened for this development correction. Next: implement the exact guarded Manticore
-visit/Manual fixture route from the already qualified mounted owner-seed
-copy. Its output must be genuinely saved and separately admitted before
-the area Auto/cold scenario; do not run a native slot on the offline metadata
-alone. Continue the acquired-source F10 and Small/removal fixture work
-independently. No 7E readiness or engineering completion is claimed.
+was opened for this development correction. Current source work connects the
+guarded Manticore visit/Manual fixture route and an independent clean-seed
+unmounted Halfling fixture. Review and focused-check both routes before a
+candidate or native slot; their outputs must be genuinely saved and separately
+admitted. The F10 b3/b4 source audit (SHA-256
+`2adf474255f15fc33f42ef71b40c548bf88ef86720ea58cfbc079590cb33344a`)
+finds main plus stock Amiri without level-up readiness, so a custom-companion
+source remains necessary. The [F11 measurement design](docs/CHUNK7-F11-MEASUREMENT-DESIGN-2026-10-19.md)
+records the exact installed allocation-counter/profiler gap; retained heap
+cannot satisfy allocation-rate acceptance. Continue positive removal and
+progression independently. No 7E readiness or engineering completion is claimed.
 
 ## Active October 19 checkpoint — batch42 separate cold game PASS, outer reader FAIL
 

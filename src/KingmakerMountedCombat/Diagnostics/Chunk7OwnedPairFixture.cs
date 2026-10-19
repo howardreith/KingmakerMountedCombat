@@ -319,7 +319,7 @@ namespace KingmakerMountedCombat.Diagnostics
         internal void Release()
         {
             if (released) return;
-            Require(replayExpectedLoad == 0 && replayExpectedArea == 0 && !areaAutosavePending, "Declared native replay still owns inherited fixture custody.");
+            Require(replayExpectedLoad == 0 && replayExpectedArea == 0 && !areaAutosavePending && !manticorePending, "Declared native replay still owns inherited fixture custody.");
             if (bound) RequirePreserved();
             identities.Dispose(); released = true;
         }

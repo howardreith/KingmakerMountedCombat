@@ -1,7 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
+    <Compile Include="Diagnostics\Chunk7SmallFixtureSelection.cs" />
+    <Compile Include="Diagnostics\PersistenceSaveAuthorization.SmallFixture.cs" />
+    <Compile Include="Diagnostics\Chunk7SmallFixtureScenario.cs" />
+    <Compile Include="Diagnostics\Chunk7SmallFixtureScenario.Observation.cs" />
+    <Compile Include="Diagnostics\Chunk7SmallFixtureScenario.Save.cs" />
+    <Compile Include="Diagnostics\Chunk7SmallFixtureScenario.Cleanup.cs" />
+    <Compile Include="Diagnostics\Chunk7SmallFixtureSaveProbe.cs" />
     <Compile Include="Diagnostics\Chunk7OwnerSeedAreaEntry.cs" />
+    <Compile Include="Diagnostics\Chunk7OwnerSeedManticoreEntry.cs" />
+    <Compile Include="Diagnostics\Chunk7OwnedPairFixture.Manticore.cs" />
+    <Compile Include="Diagnostics\Chunk7PersistenceScenario.Manticore.cs" />
     <Compile Include="Diagnostics\Chunk7CombatScenario.Disable.cs" />
     <Compile Include="Diagnostics\Chunk7PersistenceScenario.LoadRefusal.cs" />
     <Compile Include="Diagnostics\RuntimeSaveAuthorization.LoadRefusal.cs" />
