@@ -19,7 +19,7 @@ belongs only to its recorded product, fixture and environment):
 | Requirement | Engineering status and exact evidence/dependency | Next action |
 | --- | --- | --- |
 | Inherited core, F01–F08 | Prior candidate-specific native PASSes retained in `CURRENT.md`; final exact-package reuse unassessed. | Map current supported contracts for final matrix after implementation readiness. |
-| 7B pending-only restoration and schema-2 migration | **IN PROGRESS**: earlier preview.45/.53/.54 FAILs retained; [preview.55 schema-3](../docs/CHUNK7-DIRECTIVE4-REENTRY-CORRECTION-2026-10-19.md) game PASS, original outer reader FAIL, independently reviewed reader-only PASS on unchanged artifact. Schema-2 correction still untested. | Run matched schema-2 derivative, then migration resave and separate cold consumer without weakening debt preservation. |
+| 7B pending-only restoration and schema-2 migration | **IN PROGRESS**: earlier preview.45/.53/.54 FAILs retained; [preview.55 schema-3](../docs/CHUNK7-DIRECTIVE4-REENTRY-CORRECTION-2026-10-19.md) game PASS, original outer reader FAIL, independently reviewed reader-only PASS on unchanged artifact. Preview.55 schema-2 cold restored debt but **FAIL** before resave because fixture pause was cleared during native load; no resave or separate consumer yet. | Independently reviewed one-time settled-world pause correction; build once, rerun schema-2 cold/resave and separate cold consumer without weakening debt preservation. |
 | 7B positive cleanup, DLL absence, area Auto/cold and door | **IN PROGRESS**: batch34 Working load FAIL and exact recovery; no positive mounted cleanup or DLL-absent cold. Batch23 capital Oleg refusal made zero transfers/saves; no admitted non-capital entrance. | Use reviewed profile custody for at most one useful Working observation or qualified reference-free owner-seed derivative; prepare bounded stock destination/door fixture. |
 | F09 profiles and pair breadth | Two-pair native evidence exists; Medium Horse/Mammoth multi-pair requalification, stock default Halfling-on-Horse Small calibration and conditional six-pair stress remain **IN PROGRESS**. | Inspect exact rigs/eligibility, implement Small profile, exercise declared fixtures and conditional stress. |
 | F10 acquisition/progression/removal | Ordinary acquisition, leveling, retraining and replacement remain **IN PROGRESS**; selected Auto-based completion paths are stale. | Repair native choice completion and separate Manual checkpoint; qualify genuine removal path. |
@@ -27,8 +27,9 @@ belongs only to its recorded product, fixture and environment):
 | F12 private 7E rehearsal | **TODO**, now selected when implementation/review gates are ready. | Freeze one exact candidate; run mapped FULL/native matrix, temporary install/upgrade/rollback/removal and representative RT/TB sessions. |
 | Owner visual and physical-input acceptance | **OWNER ACCEPTANCE PENDING** by design; not an engineering PASS claim. | Deliver exact package, captured evidence and owner-play checklist after engineering gates pass. |
 
-The next immediate action is the selected schema-2 native qualification
-described in the active
+The one-time fixture pause correction passed independent review and focused
+schema-2/observer checks. The next action is a new candidate and the same schema-2 input's
+native resave and separate cold consumer as described in the active
 [resume record](../AUTONOMOUS-RESUME.md). This adoption was a document update;
 the later preview.55 build and native slot retain their own exact identities.
 

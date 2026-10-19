@@ -2,6 +2,23 @@
 
 ## October 19 — batch36 causal join and reviewed preview.55 correction
 
+Batch37 slot 2 has now run as one guarded schema-2 cold load on the same
+preview.55 package and append-only suite, with the clean frozen-product route
+and approved Howie context. Its original game/runtime result is **FAIL** before
+any migration resave: the cold restore and saved debt checks passed, but the
+resave guard found `Game.Instance.IsPaused=false`. The retained diagnostic
+recorded `paused=false` both before actor binding and at the debt assertion.
+`Start` requested pause before the native load had fully settled; stage 0 did
+not renew that fixture pause. A narrowly scoped one-time pause request after
+`ObserveCold`, immediately before the selected schema-2 resave, passed
+independent read-only review (receipt SHA-256 `46f791abc8630118bc351afb9777f0f938f8cb877d06ab2d2f23ea173878cee0`).
+The focused schema-2 continuity contract passed 35/0 and the cold observer
+passed 157/0. No native resave or separate cold consumer is accepted yet.
+The slot-2 transaction restored Mods, protected saves, Working and profile
+bytes exactly; no cache exception, game process or active lock remains.
+See the batch37 record linked below. Next: build one new candidate and rerun the affected
+schema-2 cold/resave and separate cold consumer. Preserve the original FAIL.
+
 Batch37 slot 1 ran on frozen preview.55. Its game artifact/result PASS the
 unchanged debt comparison and N+1 rider/mount continuation. The original outer
 runtime result remains **FAIL** because its external reader expected the old
@@ -12,15 +29,15 @@ reevaluation of the immutable game artifact is **PASS**; it does not change
 the original outer FAIL. Mods, protected saves, Working and profile bytes
 were restored exactly for slot 1; no game process or runtime lock remains.
 
-Next: commit and guarded-push the external-reader/document changes, then use
+Historical next action after slot 1: commit and guarded-push the external-reader/document changes, then use
 the frozen-product route and scoped WhatIf for the matched schema-2
 derivative cold load. The disposable selection is byte-identical to batch35
 at `analysis-cache/chunk7-continuation/directive4-batch36/b37s2-schema2-corrected-selection.json`.
 Three prelaunch WhatIf attempts are preserved: a BOM in my copied selection,
 an insufficient 360-second declared timeout, and a dirty Git worktree. No
-transaction or game launch occurred. The next WhatIf uses a clean worktree,
-600-second budget and the same frozen preview.55/suite. Migration resave and
-separate cold consumer remain selected; no schema-2 migration PASS is claimed.
+transaction or game launch occurred in those attempts. The subsequent clean
+WhatIf and slot-2 native run are recorded above. Migration resave and separate
+cold consumer remain selected; no schema-2 migration PASS is claimed.
 
 The [active Chunk 7 completion mission](planning/CHUNK7-COMPLETION-MISSION.md)
 still selects remaining 7B, 7C, 7D and readiness-gated private 7E. Batch36's
