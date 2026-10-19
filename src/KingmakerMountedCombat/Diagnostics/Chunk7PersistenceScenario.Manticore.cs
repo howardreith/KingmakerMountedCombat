@@ -95,14 +95,19 @@ namespace KingmakerMountedCombat.Diagnostics
             if (stage == 90)
             {
                 var survivor = world.Registry.FindActive(secondRider);
-                Require(world.Registry.FindOwner(firstRider) == null && world.Registry.FindOwner(firstMount) == null &&
-                    world.Registry.ActiveCount == 1 && world.Registry.Owners.Length == 1 && Mounted(secondRider, secondMount) &&
+                Require(world.Registry.FindActive(firstRider) == null && world.Registry.FindActive(firstMount) == null &&
+                    world.Registry.ActiveCount == 1 && world.Registry.Owners.Length <= 2 &&
+                    world.Registry.Owners.All(owner => expectedOwners.ContainsKey(owner.Id)) && Mounted(secondRider, secondMount) &&
                     survivor != null && expectedOwners.TryGetValue(survivor.Id, out var generation) && survivor.Generation == generation,
-                    "The first ordinary Dismount did not retire only its original owner.");
+                    "The first ordinary Dismount changed active custody outside its original owner.");
                 Input(secondRider, secondRider, controls.DismountAbility, firstRider, "manticore-dismount-second-pair"); Next(91);
             }
             else if (stage == 91)
             {
+                // A completed native Dismount may leave detached custody until
+                // the world's ordinary settled-admission sweep. Require every
+                // owner gone before the native area transfer, as in the world cycle.
+                world.ReleaseSettledAdmissions();
                 RequireManticoreUnmounted();
                 Require(controls.NativeCastRequestCount == 2 && inputs.Count == 2 && persistence.SnapshotCount == 0,
                     "Unmounted fixture setup must spend exactly its two native Dismount inputs before entry.");

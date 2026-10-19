@@ -1,5 +1,18 @@
 # Chunk 7B–7D — IN PROGRESS
 
+## October 19 — batch43 native fixture FAILs and reviewed correction
+
+Preview.61 Candidate passed 6/0. The declared Manticore fixture slot failed
+after one accepted Dismount because its stage-90 assertion required immediate
+retirement of the first `Detached` owner; no area transfer or Manual occurred.
+The declared F09 Small fixture slot completed native main Ranger 3→4/Horse,
+then failed in the paid companion's headless race-description UI after native
+race selection; no Small Manual occurred. Both original FAILs and exact
+restoration are in the [batch43 record](docs/CHUNK7-BATCH43-FIXTURE-CORRECTIONS-2026-10-19.md).
+The reviewed preview.62 source correction passed Fast 3/0; affected native
+retries and all downstream area, Small and final gates remain open. The
+[standing mission](planning/CHUNK7-COMPLETION-MISSION.md) is unchanged.
+
 ## October 19 — reviewed group 61 fixture source
 
 The [group 61 checkpoint](docs/CHUNK7-GROUP61-FIXTURE-CANDIDATE-2026-10-19.md)

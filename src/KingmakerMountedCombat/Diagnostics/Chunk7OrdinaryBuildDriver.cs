@@ -337,7 +337,12 @@ namespace KingmakerMountedCombat.Diagnostics
             if (state.CanSelectRace)
             {
                 Require((pins.NewPaidCompanion || pins.IsRespec) && race != null, "Unexpected unbound native race choice.");
-                return Choose("race", race.AssetGuid, () => builder.SetRace(race), () => !controller.State.CanSelectRace && controller.Preview.Progression.Race == race);
+                // The headless fixture has no race-description selector. The UI
+                // wrapper selects the native race, then dereferences that selector;
+                // use its exact native selection call and verify the result.
+                var selected = false;
+                return Choose("race", race.AssetGuid, () => selected = controller.SelectRace(race),
+                    () => selected && !controller.State.CanSelectRace && controller.Preview.Progression.Race == race);
             }
             if (state.CanSelectGender)
                 return Choose("gender", pins.Gender.ToString(), () => builder.SetGender(pins.Gender), () => !controller.State.CanSelectGender && controller.Doll?.Gender == pins.Gender);
