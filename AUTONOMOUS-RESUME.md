@@ -1,5 +1,44 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## Active October 19 checkpoint — batch41 schema-2 resave PASS, cold consumer FAIL
+
+The [standing completion mission](planning/CHUNK7-COMPLETION-MISSION.md)
+remains active through 7B, 7C, 7D and selected private 7E. Preview.59 is pushed
+at `408323ce94b8565435a45f1e4b7ca314fd5afc18`, package SHA-256
+`f474d97cb34a7105a1f23a8a9ee722b6d41e28e50721056a9dd6034a1da728c7`,
+DLL SHA-256 `b37c2fbe31d122cf19eb9eb6c535605577bef3a7f9e2063cf7d57b469bcbdeef`,
+MVID `e604ba4e-6b22-4c2d-9b7d-f07980677c65`, suite
+`chunk7b-directive4-b41-20261019` SHA-256
+`628463de5db7420e2c86d4632a59e8167c7bbfe85ff9ccbff0603217ffa872e7`.
+Candidate passed 6/0. See the [batch41 record](docs/CHUNK7-DIRECTIVE4-REENTRY-CORRECTION-2026-10-19.md)
+for exact evidence and the unchanged earlier FAILs.
+
+Batch41 slot 1 fresh schema-3 producer **original PASS** 4/0, artifact SHA-256
+`94da9a1b446f9ff21277c346033ee27e53d086774eac8bc1e2164979afcefe98`.
+Slot 2 metadata-only schema-2 cold/resave **original PASS** 4/0, artifact
+SHA-256 `6202ee620dece6e4efe160db6748f7c1d68e0d89887885b3cc7602760be00ad9`;
+its genuine schema-3 Manual SHA-256 is
+`a779dbebacda6e177ae1d1645e481c65750aba2ed1fb8ca2d562c90d94ff492d`.
+Slot 3 separate current-format cold consumer **original FAIL** 2/1, runtime
+result SHA-256 `4b65718e7a1303d0994e4105691a1627ec8c4fde4542228d85a9053f03c3cc64`:
+the diagnostic parent graph comparator treated parsed JSON Double and typed
+Single values as unequal. The archived parent and loaded JSON graphs have zero
+leaf differences; all archive identity pins match. The reviewed narrow wire
+comparison correction passes actual-method synthetic 57/0 and exact archived
+parent/request/child offline replay 58/0. Independent review PASS is sealed at
+SHA-256 `9de8e655f3e2750df2294e83ae758992bf39215ada54d75285fa4c7996a71c0c`. No
+native retry is credited to the offline result. Each slot's guarded transaction
+reported exact Mods, protected saves, Working and profile restoration with zero
+accepted cache exceptions; game and runtime lock are absent.
+
+Next: commit and guarded-push a new preview.60 candidate. Freeze one package and
+append-only suite, run Candidate and a scoped WhatIf, then rerun only the
+affected separate cold consumer against batch41 slot 2's pinned accepted
+native Manual. The parent route requalifies its original preview.59 receipt;
+do not rerun producer/resave without a distinct reason. Preserve slot 3's
+original FAIL. On a passing consumer, continue positive removal, area fixture,
+profiles, progression and hardening toward the selected 7E readiness gate.
+
 ## Active October 19 checkpoint — batch40 clock continuity correction reviewed
 
 The [standing Chunk 7 completion mission](planning/CHUNK7-COMPLETION-MISSION.md)

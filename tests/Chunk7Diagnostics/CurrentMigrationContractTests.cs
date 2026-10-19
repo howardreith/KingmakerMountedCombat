@@ -82,12 +82,37 @@ internal static class CurrentMigrationContractTests
                 ["nativeWrite"] = new JObject { ["path"] = Path.Combine(@"C:\KmcCurrentVirtual\Saved Games", child.PersistenceLoad.FileName),
                     ["sha256"] = child.PersistenceLoad.Sha256, ["length"] = child.PersistenceLoad.Length, ["nativeName"] = child.PersistenceLoad.InternalName,
                     ["nativeType"] = "Manual", ["sourceSchema"] = 3, ["nativeCallback"] = true, ["operation"] = "None", ["snapshotCount"] = 1,
-                    ["archive"] = JObject.FromObject(archive, MountedSaveCodec.CreateSerializer()) } } };
+                    ["archive"] = JObject.Parse(MountedArchiveCodec.Encode(archive)) } } };
     }
     public static int Main(string[] arguments)
     {
-        if (arguments.Length != 1) throw new ArgumentException("Exact installed Unity dependency path required.");
+        if (arguments.Length != 1 && arguments.Length != 4)
+            throw new ArgumentException("Unity dependency, optionally followed by exact parent evidence, child request and child evidence paths, required.");
         AppDomain.CurrentDomain.AssemblyResolve += (sender, request) => new AssemblyName(request.Name).Name == "UnityEngine" ? Assembly.LoadFrom(arguments[0]) : null;
+        if (arguments.Length == 4) Check("actual schema2 parent and child wire evidence survives typed decode", () => {
+            var parent = JObject.Parse(File.ReadAllText(arguments[1]));
+            var request = JObject.Parse(File.ReadAllText(arguments[2]));
+            var evidence = JObject.Parse(File.ReadAllText(arguments[3]));
+            var read = MountedArchiveCodec.Decode(evidence["observations"]["loadedArchive"].ToString(Newtonsoft.Json.Formatting.None));
+            True(read.Kind == MountedSaveReadKind.Current && read.SourceSchema == 3, "Exact cold evidence has no current-format archive.");
+            var child = new RuntimeRequest { PersistenceCase = (string)request["persistenceCase"] };
+            var selected = request["ownedPairs"]; var descriptor = request["persistenceLoad"];
+            child.OwnedPairs.CheckpointSourceRunId = (string)selected["checkpointSourceRunId"];
+            child.OwnedPairs.SourceArchiveSha256 = (string)selected["sourceArchiveSha256"];
+            child.OwnedPairs.RiderAId = (string)selected["riderAId"];
+            child.OwnedPairs.MountAId = (string)selected["mountAId"];
+            child.PersistenceLoad.InternalName = (string)descriptor["internalName"];
+            child.PersistenceLoad.FileName = (string)descriptor["fileName"];
+            child.PersistenceLoad.Sha256 = (string)descriptor["sha256"];
+            child.PersistenceLoad.Length = (long)descriptor["length"];
+            child.PersistenceLoad.GameId = (string)descriptor["gameId"];
+            child.PersistenceLoad.Area = (string)descriptor["area"];
+            True(!JToken.DeepEquals(parent["observations"]["nativeWrite"]["archive"],
+                JObject.FromObject(read.Data, MountedSaveCodec.CreateSerializer())),
+                "Exact failure did not reproduce its parsed-versus-typed token mismatch.");
+            Chunk7PersistenceScenario.ValidateCurrentMigrationParent(parent, child, read.Data,
+                (int)evidence["observations"]["processId"]);
+        });
         foreach (var schema in new[] { true, false })
         {
             var schema1 = schema; var label = schema1 ? "schema1" : "schema2";
@@ -95,6 +120,15 @@ internal static class CurrentMigrationContractTests
                 var archive = Archive(schema1); var child = Child(archive, schema1); var parent = Parent(child, archive, schema1); var before = parent.ToString();
                 Chunk7PersistenceScenario.ValidateCurrentMigrationParent(parent, child, archive, 100);
                 True(before == parent.ToString(), "Parent mutated.");
+            });
+            if (!schema1) Check("schema2 parsed parent wire numbers match typed current archive", () => {
+                var archive = Archive(false); var child = Child(archive, false); var parent = Parent(child, archive, false);
+                archive.Combat.TimeSinceStart = .4795454f; archive.Combat.TimeToNextRound = 5.520455f;
+                parent["observations"]["nativeWrite"]["archive"] = JObject.Parse(MountedArchiveCodec.Encode(archive));
+                True(!JToken.DeepEquals(parent["observations"]["nativeWrite"]["archive"],
+                    JObject.FromObject(archive, MountedSaveCodec.CreateSerializer())),
+                    "Regression did not reproduce the parsed Double versus typed Single token mismatch.");
+                Chunk7PersistenceScenario.ValidateCurrentMigrationParent(parent, child, archive, 100);
             });
             foreach (var problem in new[] { "save-parent", "wrong-parent-case", "wrong-run", "failed-parent", "parent-errors", "missing-migration", "wrong-historical-schema", "wrong-format", "wrong-hash", "wrong-length", "wrong-name", "wrong-leaf", "no-callback", "unfinished-write", "extra-snapshot", "same-process", "wrong-manual", "write-quota", "load-quota", "derivative-authority", "source-direction", "graph-change", "role-change", "campaign-change", "missing-resaved-world", "other-migration", "bad-candidate" })
             {
