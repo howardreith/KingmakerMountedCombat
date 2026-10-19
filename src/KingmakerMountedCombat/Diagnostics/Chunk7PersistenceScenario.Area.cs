@@ -24,6 +24,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool areaObservedSuspension, areaObserverAttached;
         private int areaLoadingTicks;
         private long areaCastBaseline, areaSnapshotBaseline;
+        private int areaSemanticBaseline, areaPresentationBaseline, areaPostLoadBaseline;
         private string areaObserverError;
         private JObject areaBefore, areaHeaderStarting, areaHeaderStaged;
         private readonly Dictionary<string, int> areaViewIds = new Dictionary<string, int>(StringComparer.Ordinal);
@@ -32,7 +33,8 @@ namespace KingmakerMountedCombat.Diagnostics
         private long areaNativeTicks;
 
         // Invoked after both native Mount shells settle and owned slots are bound.
-        // The engine's authored transition is the sole source of the autosave.
+        // The declared native area entry is the sole source of the autosave.
+        // This controlled navigation is not evidence of ordinary travel or an authored exit.
         private void BeginAreaAutosave()
         {
             RequireNativeWorld();
@@ -47,7 +49,14 @@ namespace KingmakerMountedCombat.Diagnostics
             AssertOwners(); AssertSlots();
             Require(actors.Length == 4 && actors.All(a => a.Commands.Empty && a.View?.AgentASP != null && a.IsInState && a.IsInGame),
                 "Area autosave lacks four exact idle actors and live native views.");
-            var enter = ResourcesLibrary.TryGetBlueprint<BlueprintAreaEnterPoint>(target.EnterPoint);
+            BlueprintAreaEnterPoint enter;
+            if (OwnerSeedCheckpointSave)
+            {
+                JObject prerequisite;
+                enter = Chunk7OwnerSeedAreaEntry.Resolve(game, request, out prerequisite);
+                evidence["areaEntryPrerequisite"] = prerequisite;
+            }
+            else enter = ResourcesLibrary.TryGetBlueprint<BlueprintAreaEnterPoint>(target.EnterPoint);
             Require(enter != null && enter.AssetGuidThreadSafe == target.EnterPoint && enter.Area != null &&
                 enter.Area.AssetGuidThreadSafe == target.Area && enter.Area != game.CurrentlyLoadedArea,
                 "Area autosave cannot resolve the exact authorized native enter point.");
@@ -67,6 +76,10 @@ namespace KingmakerMountedCombat.Diagnostics
                 areaMovementIds.Add(rider.UniqueId, relationship.Runtime.MovementAgent.GetInstanceID());
             }
             areaCastBaseline = controls.NativeCastRequestCount; areaSnapshotBaseline = persistence.SnapshotCount;
+            areaSemanticBaseline = persistence.SemanticRestoreCount; areaPresentationBaseline = persistence.PresentationRestoreCount;
+            areaPostLoadBaseline = persistence.ArchivePostLoadObservedCount;
+            Require(areaSemanticBaseline == (OwnerSeedCheckpointSave ? 4 : 0) && areaPresentationBaseline == (OwnerSeedCheckpointSave ? 2 : 0) &&
+                areaPostLoadBaseline == (OwnerSeedCheckpointSave ? 4 : 0), "Area transition lacks its exact admitted native restoration baseline.");
             castBefore = areaCastBaseline; snapshotBefore = areaSnapshotBaseline; callback = false;
             if (inherited != null)
             {
@@ -112,7 +125,7 @@ namespace KingmakerMountedCombat.Diagnostics
             Require(ReferenceEquals(areaWorld, Game.Instance.Player) && Game.Instance.CurrentMode == GameModeType.Default &&
                 Game.Instance.CurrentlyLoadedArea.AssetGuidThreadSafe == ExpectedArchiveArea && persistence.AreaSuspensionCount == 1 &&
                 persistence.AreaResumeCount == 2 && persistence.FailedAreaPairCount == 0 && persistence.FailedSaveCount == 0 &&
-                persistence.SemanticRestoreCount == 0 && persistence.PresentationRestoreCount == 0 && controls.NativeCastRequestCount == areaCastBaseline &&
+                persistence.SemanticRestoreCount == areaSemanticBaseline && persistence.PresentationRestoreCount == areaPresentationBaseline && persistence.ArchivePostLoadObservedCount == areaPostLoadBaseline && controls.NativeCastRequestCount == areaCastBaseline &&
                 persistence.SnapshotCount == areaSnapshotBaseline + 1,
                 "Native area transition replayed native input/debt, omitted an owner or saved at another boundary.");
             AssertOwners(); AssertSlots(); AssertAreaRestoredViews(); AssertAreaNativeDebt();
@@ -167,7 +180,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 areaDestination.AssetGuidThreadSafe == target.Area && target.Area != request.SelectedChunk7Fixture.Area &&
                 ReferenceEquals(areaWorld, Game.Instance?.Player) && persistence.AreaSuspensionCount == 1 &&
                 persistence.AreaResumeCount == 2 && persistence.FailedAreaPairCount == 0 &&
-                persistence.FailedSaveCount == 0 && persistence.SemanticRestoreCount == 0 && persistence.PresentationRestoreCount == 0 &&
+                persistence.FailedSaveCount == 0 && persistence.SemanticRestoreCount == areaSemanticBaseline && persistence.PresentationRestoreCount == areaPresentationBaseline && persistence.ArchivePostLoadObservedCount == areaPostLoadBaseline &&
                 controls.NativeCastRequestCount == areaCastBaseline,
                 "Native destination cannot be adopted before the exact declared all-owner area restoration.");
             Require(nativeScope != null, "Area destination has no captured source world authority.");

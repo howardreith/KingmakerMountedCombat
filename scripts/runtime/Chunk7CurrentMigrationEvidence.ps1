@@ -3,7 +3,7 @@ Set-StrictMode -Version Latest
 function Assert-KmcChunk7CurrentMigrationObservation($Request,$Artifact){
  Assert-KmcChunk7OwnedPairsDescriptor $Request
  if(-not(Test-KmcChunk7OwnedPairsSeedCheckpointLoad $Request)-or-not(Test-KmcChunk7OwnerSeedCurrentCheckpoint $Request.persistenceCase)){throw 'Current-format continuation belongs only to its selected owner-seed cold child.'}
- if($null-ne$Request.PSObject.Properties['schema1DerivationSha256']){throw 'Current-format input must not select a historical metadata derivative.'}
+ if($null-ne$Request.PSObject.Properties['schema1DerivationSha256']-or$null-ne$Request.PSObject.Properties['schema2DerivationSha256']){throw 'Current-format input must not select a historical metadata derivative.'}
  Assert-KmcBootstrapInventoryString $Artifact.status 'PASS';$o=$Artifact.observations;$s=$Request.ownedPairs
  Assert-KmcChunk7InheritedEvidence $Request $o
  Assert-KmcBootstrapInventoryString $o.checkpoint $Request.persistenceCase

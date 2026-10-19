@@ -32,6 +32,10 @@ namespace KingmakerMountedCombat.Diagnostics
         public const string OwnerSeedRealtimeCase = "owner-seed-realtime-core";
         public const string OwnerSeedRiderFirstCase = "owner-seed-combat-rider-first";
         public const string OwnerSeedMountFirstCase = "owner-seed-combat-mount-first";
+        public const string OwnerSeedDisableCase = "owner-seed-combat-disable";
+        public const string OwnerSeedLoadRefusalCase = "owner-seed-load-refusal";
+        internal const string OwnerSeedLoadRefusalLeaf = "Manual_812_KMC_C7_SEED_REFUSAL.zks";
+        internal static bool LoadRefusalCheckpoint(string value) => value == "multi-malformed-refusal-manual" || value == "multi-future-refusal-manual";
         // Owner-seed checkpoint producer (Directive 4): a disposable copy of the same accepted
         // Manual, cold-loaded with both pairs restored mounted, writes one genuine native
         // checkpoint through the generic persistence machinery. Source* is the Manual producer,
@@ -43,7 +47,7 @@ namespace KingmakerMountedCombat.Diagnostics
         // The checkpoints the owner-seed checkpoint pair admits; extend this one list as each
         // further family is connected.
         internal static readonly string[] OwnerSeedCheckpoints = { "multi-exploration-quick", "multi-exploration-auto",
-            "multi-rt-debt-manual", "multi-tb-debt-manual", "zero-mounted-tb-retained-manual", "legacy-mounted-pending-tb-manual" };
+            "multi-rt-debt-manual", "multi-tb-debt-manual", "zero-mounted-tb-retained-manual", "legacy-mounted-pending-tb-manual", "multi-area-autosave" };
         internal static bool IsOwnerSeedSourceOnlyCheckpoint(string checkpoint) => SupportedSaveBoundary(checkpoint) || OwnedSchema1Source(checkpoint);
         // The connected combat checkpoints: genuine native Manuals written mid-combat from the restored
         // two-pair start under the owner-approved diagnostic target. Their native Manual name is distinct
@@ -92,17 +96,19 @@ namespace KingmakerMountedCombat.Diagnostics
         internal bool IsOwnerSeed => Case == OwnerSeedCase;
         internal bool IsOwnerSeedManual => Case == OwnerSeedManualCase;
         internal bool IsOwnerSeedDerivedLoad => Case == OwnerSeedLoadCase;
+        internal bool IsOwnerSeedLoadRefusal => Case == OwnerSeedLoadRefusalCase;
         // Both kinds that load the owner's seed and run its disclosed native setup.
         internal bool OwnerSeedSetup => IsOwnerSeed || IsOwnerSeedManual;
-        internal bool IsOwnerSeedDerivedCombat => Case == OwnerSeedRealtimeCase || Case == OwnerSeedRiderFirstCase || Case == OwnerSeedMountFirstCase;
+        internal bool IsOwnerSeedDerivedCombat => Case == OwnerSeedRealtimeCase || Case == OwnerSeedRiderFirstCase || Case == OwnerSeedMountFirstCase || Case == OwnerSeedDisableCase;
         internal bool IsOwnerSeedCheckpointSave => Case == OwnerSeedCheckpointSaveCase;
         internal bool IsOwnerSeedCheckpointLoad => Case == OwnerSeedCheckpointLoadCase;
         // Every kind whose native input is the owner-seed-derived Manual itself.
-        internal bool OwnerSeedDerivedInput => IsOwnerSeedDerivedLoad || IsOwnerSeedDerivedCombat || IsOwnerSeedCheckpointSave;
+        internal bool OwnerSeedDerivedInput => IsOwnerSeedDerivedLoad || IsOwnerSeedDerivedCombat || IsOwnerSeedCheckpointSave || IsOwnerSeedLoadRefusal;
         // Every kind whose staged source receipt is the owner-seed Manual producer's world evidence.
         internal bool OwnerSeedDerivedLineage => OwnerSeedDerivedInput || IsOwnerSeedCheckpointLoad;
         // Kinds whose receipts may come from an earlier candidate, each pinned to its own recorded identity.
-        internal bool CrossCandidateAllowed => IsOwnerSeedDerivedCombat || IsOwnerSeedCheckpointSave || IsOwnerSeedCheckpointLoad;
+        internal bool CrossCandidateAllowed => IsOwnerSeedDerivedCombat || IsOwnerSeedCheckpointSave || IsOwnerSeedCheckpointLoad || IsOwnerSeedLoadRefusal;
+        internal bool CrossCandidateAllowedFor(string checkpoint) => CrossCandidateAllowed || IsOwnerSeedDerivedLoad && checkpoint == "multi-exploration-three-loads-manual";
         internal const int MaximumSetupLevelupWrites = 2;
         internal string[] PairIds => new[] { RiderAId, MountAId, RiderBId, MountBId };
         internal string RuntimeScenario
@@ -115,9 +121,11 @@ namespace KingmakerMountedCombat.Diagnostics
                     case OwnerSeedCase: return "chunk7-two-pair-exploration";
                     case OwnerSeedManualCase: return "chunk7-two-pair-exploration";
                     case OwnerSeedLoadCase: return "chunk7-persistence-load";
+                    case OwnerSeedLoadRefusalCase: return "chunk7-persistence-load";
                     case OwnerSeedRealtimeCase: return "chunk7-two-pair-realtime-core";
                     case OwnerSeedRiderFirstCase: return "chunk7-two-pair-combat-rider-first";
                     case OwnerSeedMountFirstCase: return "chunk7-two-pair-combat-mount-first";
+                    case OwnerSeedDisableCase: return "chunk7-two-pair-combat-rider-first";
                     case OwnerSeedCheckpointSaveCase: return "chunk7-persistence-save";
                     case OwnerSeedCheckpointLoadCase: return "chunk7-persistence-load";
                     case "combat-rider-first": return "chunk7-two-pair-combat-rider-first";
@@ -133,8 +141,8 @@ namespace KingmakerMountedCombat.Diagnostics
             }
         }
         internal bool Persistence => Case == "persistence-save" || Case == "persistence-load" || IsOwnerSeedManual || IsOwnerSeedDerivedLoad ||
-            IsOwnerSeedCheckpointSave || IsOwnerSeedCheckpointLoad;
-        internal bool Cold => Case == "persistence-load" || IsOwnerSeedDerivedLoad || IsOwnerSeedCheckpointLoad;
+            IsOwnerSeedCheckpointSave || IsOwnerSeedCheckpointLoad || IsOwnerSeedLoadRefusal;
+        internal bool Cold => Case == "persistence-load" || IsOwnerSeedDerivedLoad || IsOwnerSeedCheckpointLoad || IsOwnerSeedLoadRefusal;
         internal static bool SupportedCheckpoint(string value) => Array.IndexOf(new[] {
             "multi-exploration-manual", "multi-exploration-quick", "multi-exploration-auto",
             "multi-rt-debt-manual", "multi-tb-debt-manual", "zero-mounted-tb-retained-manual",
@@ -160,6 +168,16 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             if (OwnerSeedSetup) return ValidateOwnerSeed(scenario, runId, checkpoint);
             if (IsOwnerSeedDerivedLoad) return ValidateOwnerSeedDerivedLoad(scenario, runId, checkpoint);
+            if (IsOwnerSeedLoadRefusal)
+            {
+                var refusalErrors = DerivedInputErrors(scenario, runId);
+                if (!LoadRefusalCheckpoint(checkpoint) || CompanionId != null || !Run(CheckpointSourceRunId) ||
+                    CheckpointSourceRunId == runId || CheckpointSourceRunId == SourceRunId || CheckpointSourceRunId == SeedId ||
+                    !Hash(CheckpointSourceArtifactSha256) || CheckpointSourceArtifactSha256 == SourceArtifactSha256 ||
+                    CheckpointSourceArtifactSha256 == SourceArchiveSha256 || CheckpointSourceArtifactSha256 == SeedSha256)
+                    refusalErrors.Add("Load refusal requires only its exact selected checkpoint and distinct accepted owner-seed cold-consumer pins.");
+                return refusalErrors;
+            }
             if (IsOwnerSeedDerivedCombat) return ValidateOwnerSeedDerivedCombat(scenario, runId, checkpoint);
             if (IsOwnerSeedCheckpointSave || IsOwnerSeedCheckpointLoad) return ValidateOwnerSeedCheckpoint(scenario, runId, checkpoint);
             var errors = new List<string>();
@@ -229,11 +247,11 @@ namespace KingmakerMountedCombat.Diagnostics
         // checkpoint parent, one load and zero writes.
         private IReadOnlyList<string> ValidateOwnerSeedDerivedLoad(string scenario, string runId, string checkpoint)
         {
-            var errors = DerivedInputErrors(scenario, runId);
+            var errors = DerivedInputErrors(scenario, runId, 0, checkpoint);
             if (CheckpointSourceRunId != null || CheckpointSourceArtifactSha256 != null)
                 errors.Add("The owner-seed-derived consumer carries no checkpoint parent.");
             if (CompanionId != null) errors.Add("Only owner-seed-derived RT combat names an unrelated companion.");
-            if (checkpoint != OwnerSeedCheckpoint) errors.Add("Owner-seed-derived cold load restores only the exploration Manual its producer wrote.");
+            if (checkpoint != OwnerSeedCheckpoint && checkpoint != "multi-exploration-three-loads-manual") errors.Add("Owner-seed-derived cold load restores only its exploration Manual through the selected one-load or three-load case.");
             return errors;
         }
         // Owner-seed-derived combat: the same producer and seed pins plus the ACCEPTED
@@ -242,7 +260,7 @@ namespace KingmakerMountedCombat.Diagnostics
         // their own recorded candidate identity. One load, zero writes, no checkpoint.
         private IReadOnlyList<string> ValidateOwnerSeedDerivedCombat(string scenario, string runId, string checkpoint)
         {
-            var errors = DerivedInputErrors(scenario, runId);
+            var errors = DerivedInputErrors(scenario, runId, 0, checkpoint);
             if (!Run(CheckpointSourceRunId) || CheckpointSourceRunId == runId || CheckpointSourceRunId == SourceRunId || CheckpointSourceRunId == SeedId ||
                 !Hash(CheckpointSourceArtifactSha256) || CheckpointSourceArtifactSha256 == SourceArtifactSha256 ||
                 CheckpointSourceArtifactSha256 == SourceArchiveSha256 || CheckpointSourceArtifactSha256 == SeedSha256)
@@ -259,7 +277,7 @@ namespace KingmakerMountedCombat.Diagnostics
         // the consumer cold-loads that checkpoint (Checkpoint* = the producer run and its evidence).
         private IReadOnlyList<string> ValidateOwnerSeedCheckpoint(string scenario, string runId, string checkpoint)
         {
-            var errors = DerivedInputErrors(scenario, runId, WriteCount(checkpoint));
+            var errors = DerivedInputErrors(scenario, runId, WriteCount(checkpoint), checkpoint);
             if (!Run(CheckpointSourceRunId) || CheckpointSourceRunId == runId || CheckpointSourceRunId == SourceRunId || CheckpointSourceRunId == SeedId ||
                 !Hash(CheckpointSourceArtifactSha256) || CheckpointSourceArtifactSha256 == SourceArtifactSha256 ||
                 CheckpointSourceArtifactSha256 == SourceArchiveSha256 || CheckpointSourceArtifactSha256 == SeedSha256)
@@ -272,7 +290,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 errors.Add("The owner-seed checkpoint pair admits only its connected checkpoints: " + string.Join(", ", OwnerSeedCheckpoints) + ".");
             return errors;
         }
-        private List<string> DerivedInputErrors(string scenario, string runId, int writes = 0)
+        private List<string> DerivedInputErrors(string scenario, string runId, int writes = 0, string checkpoint = null)
         {
             var errors = new List<string>();
             if (scenario != Scenario) errors.Add("Owner-seed-derived cold load requires its exact closed native campaign family.");
@@ -280,14 +298,15 @@ namespace KingmakerMountedCombat.Diagnostics
                 errors.Add("The exact distinct successful owner-seed-derived Manual producer run, world evidence and written Manual bytes are required.");
             if (!Run(SeedId) || SeedId == runId || !Hash(SeedSha256) || SeedSha256 == SourceArchiveSha256 || SeedSha256 == SourceArtifactSha256)
                 errors.Add("The owner's immutable seed identity is required and cannot alias the derived Manual or its evidence.");
-            if (XpAssistance != null || SourceArea != null)
-                errors.Add("The owner-seed-derived consumer carries no setup assistance or area pins.");
+            var area = (IsOwnerSeedCheckpointSave || IsOwnerSeedCheckpointLoad) && checkpoint == "multi-area-autosave";
+            if (XpAssistance != null || (area ? SourceArea != "b10e86516b6437d45a629931c30936fe" : SourceArea != null))
+                errors.Add("Only the selected owner-seed area checkpoint carries its exact original Manual area; setup assistance is forbidden.");
             if (!PairIds.All(Chunk7ManualDerivedSelection.NativeId) || PairIds.Distinct(StringComparer.Ordinal).Count() != 4)
                 errors.Add("Four distinct observed native owner/pet IDs are required.");
             if (PartyIds == null || PartyIds.Length < 4 || PartyIds.Length > 12 ||
                 !PartyIds.All(Chunk7ManualDerivedSelection.NativeId) || PartyIds.Distinct(StringComparer.Ordinal).Count() != PartyIds.Length ||
                 PairIds.Any(id => !PartyIds.Contains(id))) errors.Add("The bounded full native field roster must contain both exact pairs once.");
-            if (!BaseGameOnly || ExpectedNativeLoadCount != 1 || ExpectedNativeWriteCount != writes)
+            if (!BaseGameOnly || ExpectedNativeLoadCount != LoadCount(checkpoint) || ExpectedNativeWriteCount != writes)
                 errors.Add(writes == 0 ? "Owner-seed-derived cold load requires base-only staging, one native load and zero native writes." :
                     "The owner-seed checkpoint producer requires base-only staging, one native load and exactly one native write.");
             return errors;

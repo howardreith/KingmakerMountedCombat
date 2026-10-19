@@ -43,7 +43,8 @@ namespace KingmakerMountedCombat.Diagnostics
         }
         private bool ReleaseCleanupObservers()
         {
-            var passed = TryCleanup("native life delivery observer", () => { lifeDelivery?.Dispose(); lifeDelivery = null; });
+            var passed = TryCleanup("registered disable observer and re-enable custody", EndRegisteredDisableObservation);
+            passed &= TryCleanup("native life delivery observer", () => { lifeDelivery?.Dispose(); lifeDelivery = null; });
             passed &= TryCleanup("native life effects observer", () => { lifeEffects?.Dispose(); lifeEffects = null; });
             passed &= TryCleanup("RT effects observer", () => { realtimeEffects?.Dispose(); realtimeEffects = null; });
             passed &= TryCleanup("completion observer", () => { completion?.Dispose(); completion = null; });

@@ -10,7 +10,7 @@ function Assert-KmcChunk7RepeatedWorldRequest($Request) {
     $hasTargets=@($Request.PSObject.Properties.Name)-ccontains'persistenceReplayTargets'
     if(-not$repeated){if($hasTargets){throw 'Repeated area route belongs only to its exact cold case.'};return}
     $owned=Test-KmcChunk7OwnedPairsScenario $Request.scenario
-    if($owned){Assert-KmcChunk7OwnedPairsSelection $Request;if($Request.ownedPairs.case-cne'persistence-load'){throw 'Owned repeated worlds are cold-only.'}}
+    if($owned){Assert-KmcChunk7OwnedPairsSelection $Request;if($Request.ownedPairs.case-cne'persistence-load'-and-not($Request.ownedPairs.case-ceq'owner-seed-persistence-load'-and$selectedCase-ceq'multi-exploration-three-loads-manual')){throw 'Owned repeated worlds require their exact cold family.'}}
     elseif($Request.scenario-cne'chunk7-persistence-load'){throw 'Repeated worlds require the selected cold-load family.'}
     if(-not$areas){if($hasTargets){throw 'Repeated native loads cannot claim area-transfer coverage.'};return}
     if(-not$hasTargets-or$Request.persistenceReplayTargets-isnot[Array]-or$Request.persistenceReplayTargets.Count-ne3){throw 'Three exact native area destinations are mandatory.'}

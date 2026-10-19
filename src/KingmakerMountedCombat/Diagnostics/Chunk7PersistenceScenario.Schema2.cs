@@ -33,6 +33,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 schema2Input.OperationState == SaveInfo.StateType.None && schema2Input.HasFileOnDisk,
                 "Schema-2 resave lost its exact read-only native input descriptor.");
             VerifySchema2InputImmutable();
+            if (request.OwnedPairs?.IsOwnerSeedCheckpointLoad == true) ReadOwnedSchema2Derivative();
             snapshotBefore = persistence.SnapshotCount; castBefore = controls.NativeCastRequestCount;
             var manager = Game.Instance.SaveManager;
             if (request.OwnedPairs != null) RequireOwnedSaveAdmission(SaveInfo.SaveType.Manual);
@@ -45,6 +46,8 @@ namespace KingmakerMountedCombat.Diagnostics
             evidence["schema2Migration"] = new JObject { ["inputSchema"] = 2, ["inputSha256"] = schema2InputHash,
                 ["inputLength"] = new FileInfo(schema2Input.FolderName).Length,
                 ["migratedArchive"] = JObject.FromObject(schema2Imported, MountedSaveCodec.CreateSerializer()) };
+            if (ownedSchema2DerivativeEvidence != null)
+                foreach (var property in ownedSchema2DerivativeEvidence.Properties()) ((JObject)evidence["schema2Migration"])[property.Name] = property.Value.DeepClone();
             evidence["saveRequested"] = new JObject { ["nativeType"] = "Manual", ["nativeName"] = descriptor.Name,
                 ["gameTicks"] = Game.Instance.TimeController.GameTime.Ticks, ["snapshotCount"] = snapshotBefore,
                 ["nativeSaveAllowed"] = true, ["newSlot"] = true };
@@ -107,6 +110,7 @@ namespace KingmakerMountedCombat.Diagnostics
             Require(schema2InputHash == request.PersistenceLoad.Sha256 && Hash(schema2Input.FolderName) == schema2InputHash &&
                 new FileInfo(schema2Input.FolderName).Length == request.PersistenceLoad.Length,
                 "Read-only schema-2 input changed during native migration/resave.");
+            VerifyOwnedSchema2DerivativeImmutable();
         }
 
         private static void NormalizeSchema2Collections(JObject graph)

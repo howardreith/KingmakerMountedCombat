@@ -1,6 +1,7 @@
 Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot 'Chunk6aFoundationEvidence.ps1')
 . (Join-Path $PSScriptRoot 'Chunk6bPersistenceEvidence.ps1')
+. (Join-Path $PSScriptRoot 'CurrentRemovalEvidence.ps1')
 
 # Bounded P01 archive intake. The source must be the exact completed archive
 # from another restored owned process; no gameplay state is taken from evidence.
@@ -85,6 +86,14 @@ function Get-KmcPersistenceSource {
             $header.GameId-cne$expectedGameId-or$header.GameName-cne$expectedGameName-or
             $header.Area-cne$expectedHeaderArea){throw 'Owned archive native campaign/type/name differs.'}
     }finally{if($reader){$reader.Dispose()};if($archive){$archive.Dispose()};if($stream){$stream.Dispose()}}
+    if($NativeCase-ceq'prepare-removal'){
+        $actual=Read-KmcCampaignArchiveMembers $path
+        $schema=Get-KmcOptionalMember $actual.kmc 'SchemaVersion'
+        if(-not(Test-KmcExactJsonInteger $schema)-or$schema-cnotin@(2,3)){throw 'Prepare-removal source requires its actual historical schema2 or qualified current schema3 metadata.'}
+        if($schema-eq3){
+            Assert-KmcCurrentRemovalSource $SourceRunId $ExpectedSha256 $Fixture $ArtifactRole
+        }
+    }
     if((Get-KmcSha256 $path)-cne$ExpectedSha256){throw 'Owned archive changed during inspection.'}
     return [pscustomobject]@{path=$path;descriptor=[ordered]@{
         internalName=[string]$header.Name;fileName=$file.Name;sha256=$ExpectedSha256;length=[long]$file.Length
@@ -1355,12 +1364,19 @@ function Assert-KmcCampaignBEvidence {
 # A cleanup archive as recorded and as it lies on disk: the fixture campaign's
 # own native save, in its own area, whose KMC member records no pair at all.
 function Assert-KmcCleanupArchive {
-    param($Recorded,[string]$Root,[string]$GameId,[string]$Area)
+    param($Recorded,[string]$Root,[string]$GameId,[string]$Area,[string]$GameName)
     if($null-eq$Recorded){throw 'P07 removal lacks its cleanup archive observation.'}
     if($Recorded.leaf-cne'Manual_301_KMC_CLEANUP.zks'-or$Recorded.internalName-cne'KMC_CLEANUP'-or$Recorded.nativeType-cne'Manual'-or
         $Recorded.operation-cne'None'-or$Recorded.gameId-cne$GameId-or$Recorded.area-cne$Area-or$Recorded.kmcMember-cne'Current'-or
         $Recorded.sha256-cnotmatch'^[0-9a-f]{64}$'-or$Recorded.length-le0-or$Recorded.path-cne(Join-Path $Root $Recorded.leaf)){
         throw 'P07 cleanup archive is not the exact declared clean save of the fixture campaign.'
+    }
+    if($null-ne$Recorded.PSObject.Properties['nativeSourceSchema']){
+        if([string]::IsNullOrEmpty($GameName)){throw 'Current P07 cleanup requires its exact native campaign name.'}
+        Assert-KmcCurrentRemovalArchive $Recorded (Join-Path $Root $Recorded.leaf) $GameId $GameName $Area $false '' ''
+        $scan=Get-KmcCurrentRemovalReferenceScan $Recorded.path
+        if($scan.referenceHits.Count-ne0){throw 'Current P07 cleanup retains a registered KMC blueprint reference.'}
+        return
     }
     $s=$Recorded.snapshot
     if($null-eq$s-or(Get-KmcOptionalMember $s 'Mounted')-ne$false-or$null-ne(Get-KmcOptionalMember $s 'Rider')-or
@@ -1462,7 +1478,8 @@ function Assert-KmcRemovalEvidence {
     if($p.binding-cne'bound'-or$p.cleanupCampaign-cne$gameId-or$p.completedSaves-ne2-or$p.commits-ne0-or$p.scannedMembers-lt1-or$p.scannedBytes-le0-or@($p.referenceHits).Count-ne0){
         throw 'P07 prepared state was not bound to its own completed write with every archive member scanned clean.'
     }
-    Assert-KmcCleanupArchive -Recorded $p.cleanup -Root $root -GameId $gameId -Area $area
+    if($null-ne$w.PSObject.Properties['nativeSourceSchema']-or$null-ne$p.cleanup.PSObject.Properties['nativeSourceSchema']){Assert-KmcCurrentRemovalEvidence $Request $Rows}
+    Assert-KmcCleanupArchive -Recorded $p.cleanup -Root $root -GameId $gameId -Area $area -GameName $Request.fixture.working.gameName
     if((Get-KmcSha256 (Join-Path $root 'Manual_300_KMC_P01.zks'))-cne$w.sha256){throw 'P07 cleanup save changed the first archive on disk.'}
     # The user's next step: the exact registered disable succeeds, and
     # re-enable plus remount reuse the same actors without a fresh Mount cast.

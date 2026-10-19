@@ -1108,6 +1108,9 @@ namespace KingmakerMountedCombat.Integration
             internal static void AreaEntitiesReadyPostfix() => PatchBridge.Persistence?.RestoreAreaPair();
 
             internal static bool GameLoadAdmissionPrefix(SaveInfo saveInfo)
+                => GameLoadAdmissionCore(saveInfo, "Game.LoadGame");
+
+            private static bool GameLoadAdmissionCore(SaveInfo saveInfo, string nativeEntry)
             {
                 var authorization = PatchBridge.SaveAuthorization;
                 if (authorization != null && authorization.IsActive)
@@ -1116,7 +1119,7 @@ namespace KingmakerMountedCombat.Integration
                     {
                         var reason = authorization.ValidateLoadBeforeWorldReplacement(
                             saveInfo == null ? null : NativePersistenceIsolation.Project(saveInfo),
-                            Kingmaker.Game.Instance.SaveManager.SavePath);
+                            Kingmaker.Game.Instance.SaveManager.SavePath, nativeEntry);
                         if (reason != null)
                         {
                             authorization.ReportFatalViolation(RuntimeSaveOperation.Load, reason);
@@ -1130,13 +1133,17 @@ namespace KingmakerMountedCombat.Integration
                         return false;
                     }
                 }
-                return PatchBridge.Persistence?.CanLoadBeforeWorldReplacement(saveInfo) != false;
+                var accepted = PatchBridge.Persistence?.CanLoadBeforeWorldReplacement(saveInfo) != false;
+                if (authorization?.HasArmedOwnerSeedLoadRefusal != true) return accepted;
+                return authorization.FenceOwnerSeedLoadRefusalDecision(accepted,
+                    saveInfo == null ? null : NativePersistenceIsolation.Project(saveInfo),
+                    Kingmaker.Game.Instance.SaveManager.SavePath, nativeEntry);
             }
 
             internal static bool GameMainMenuLoadAdmissionPrefix(SaveInfo saveInfo) =>
-                GameLoadAdmissionPrefix(saveInfo) && PatchBridge.Persistence?.PrepareForNativeWorldDisposal() != false;
+                GameLoadAdmissionCore(saveInfo, "Game.LoadGameFromMainMenu") && PatchBridge.Persistence?.PrepareForNativeWorldDisposal() != false;
 
-            internal static bool GameSmokeLoadAdmissionPrefix(SaveInfo save) => GameLoadAdmissionPrefix(save);
+            internal static bool GameSmokeLoadAdmissionPrefix(SaveInfo save) => GameLoadAdmissionCore(save, "Game.LoadGameForSmokeTest");
 
             internal static bool LoadPrefix(SaveManager __instance, SaveInfo saveInfo, bool isSmokeTest, ref IEnumerator<object> __result, out bool __state)
             {

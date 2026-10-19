@@ -176,7 +176,7 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private JObject ownedSchema1FieldBaseline;
         private JArray ownedSchema1Fields;
-        private object[][] ownedSchema1OtherSlots;
+        private OwnedSchema1HotbarObservation[] ownedSchema1OtherSlots;
         private string ownedSchema1CheckpointPath, ownedSchema1ReceiptPath;
         private long ownedSchema1CheckpointLength, ownedSchema1ReceiptLength;
 
@@ -247,9 +247,47 @@ namespace KingmakerMountedCombat.Diagnostics
             Require(JToken.DeepEquals(after["actors"], before["actors"]) && (long)after["gameTicks"] >= (long)before["gameTicks"],
                 "Owned schema-1 save/load changed the complete field's native allocations or prepared state.");
         }
+        // Read-only identity custody; a native actor can have no hotbar collection.
+        // Preserve that absence as well as the collection and each element object.
+        internal sealed class OwnedSchema1HotbarObservation
+        {
+            private readonly object owner;
+            private readonly System.Collections.IEnumerable collection;
+            private readonly object[] elements;
+            private readonly bool[] inactiveOwnedTemplates;
+            private OwnedSchema1HotbarObservation(object owner, System.Collections.IEnumerable collection, Func<object, bool> inactiveOwnedTemplate)
+            {
+                this.owner = owner; this.collection = collection;
+                elements = collection?.Cast<object>().Take(129).ToArray();
+                Require(elements == null || elements.Length <= 128, "Native unrelated hotbar exceeds its observation bound.");
+                inactiveOwnedTemplates = elements?.Select(value => inactiveOwnedTemplate?.Invoke(value) == true).ToArray();
+            }
+            internal static OwnedSchema1HotbarObservation Capture(object owner, System.Collections.IEnumerable collection, Func<object, bool> inactiveOwnedTemplate = null) =>
+                new OwnedSchema1HotbarObservation(owner, collection, inactiveOwnedTemplate);
+            internal bool Preserved(object currentOwner, System.Collections.IEnumerable currentCollection, Func<object, bool> clearedOwnedTemplate = null)
+            {
+                if (!ReferenceEquals(owner, currentOwner) || !ReferenceEquals(collection, currentCollection)) return false;
+                if (elements == null) return currentCollection == null;
+                if (currentCollection == null) return false;
+                var current = currentCollection.Cast<object>().Take(129).ToArray();
+                return current.Length == elements.Length && current.Select((element, index) => inactiveOwnedTemplates[index] ?
+                    clearedOwnedTemplate?.Invoke(element) == true : ReferenceEquals(element, elements[index])).All(value => value);
+            }
+        }
+
+        private bool IsInactiveOwnedSchema1Template(Kingmaker.EntitySystem.Entities.UnitEntityData actor, object value)
+        {
+            var blueprint = (value as Kingmaker.UI.UnitSettings.MechanicActionBarSlotAbility)?.Ability?.Blueprint;
+            return blueprint != null && new[] { controls.MountAbility, controls.DismountAbility, controls.RiderPrimaryAbility,
+                controls.MountPrimaryAbility, controls.MountedChargeAbility }.Any(known => ReferenceEquals(known, blueprint)) &&
+                actor.Descriptor.Abilities.GetAbility(blueprint)?.Active != true;
+        }
+        private static bool IsClearedOwnedSchema1Template(Kingmaker.EntitySystem.Entities.UnitEntityData actor, object value) =>
+            value == null || value is Kingmaker.UI.UnitSettings.MechanicActionBarSlotEmpty empty && ReferenceEquals(empty.Unit, actor);
+
         private void PinOwnedSchema1OtherSlots()
         {
-            ownedSchema1OtherSlots = inherited.Party.Where(a => !ReferenceEquals(a, firstRider)).Select(a => a.UISettings.Slots.Cast<object>().ToArray()).ToArray();
+            ownedSchema1OtherSlots = inherited.Party.Where(a => !ReferenceEquals(a, firstRider)).Select(a => OwnedSchema1HotbarObservation.Capture(a.UISettings, a.UISettings?.Slots, value => IsInactiveOwnedSchema1Template(a, value))).ToArray();
         }
         private void CompleteOwnedSchema1Field(string phase)
         {
@@ -258,7 +296,7 @@ namespace KingmakerMountedCombat.Diagnostics
             ValidateOwnedSchema1PreservedField(ownedSchema1FieldBaseline, current, request.OwnedPairs.PartyIds);
             var other = inherited.Party.Where(a => !ReferenceEquals(a, firstRider)).ToArray();
             Require(ownedSchema1OtherSlots != null && ownedSchema1OtherSlots.Length == other.Length &&
-                other.Select((a, i) => a.UISettings.Slots.Cast<object>().SequenceEqual(ownedSchema1OtherSlots[i])).All(v => v),
+                other.Select((a, i) => ownedSchema1OtherSlots[i].Preserved(a.UISettings, a.UISettings?.Slots, value => IsClearedOwnedSchema1Template(a, value))).All(v => v),
                 "Owned schema-1 operation changed unrelated native hotbar slots.");
             Require(ownedSchema1Fields.Count < 4, "Owned schema-1 field observation bound exceeded.");
             ownedSchema1Fields.Add(current);

@@ -190,6 +190,9 @@
     <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\RuntimeSaveAuthorization.cs">
       <Link>Shared\RuntimeSaveAuthorization.cs</Link>
     </Compile>
+    <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\RuntimeSaveAuthorization.LoadRefusal.cs">
+      <Link>Shared\RuntimeSaveAuthorization.LoadRefusal.cs</Link>
+    </Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\StopEarlyCaptureBoundary.cs">
       <Link>Shared\StopEarlyCaptureBoundary.cs</Link>
     </Compile>

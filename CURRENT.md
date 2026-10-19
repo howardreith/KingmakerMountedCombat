@@ -1,5 +1,17 @@
 # Chunk 7B–7D — IN PROGRESS
 
+## October 19 - preview.44 selected source connection IN PROGRESS
+
+Reviewed group44 source is applied after closure HEAD `7c1bcadc`; no preview.44
+native PASS yet. Focused C#775/0 plus actual505-source compile PASS; merged
+PS501/0; required applied assisted236/0. Earlier FAILs are preserved. Exact
+scope, private review/check receipts, substitutions and next native dependencies
+are in [the active checkpoint](docs/CHUNK7-CODEX-DIRECTIVE4-CHECKPOINT-2026-10-18.md).
+No game/transaction is live. Finish the clean source/package review checkpoint,
+guarded-push, one proper candidate build/Candidate and suite, then selected
+migration/area/disable/refusal/removal batches. Do not stop at this source commit.
+No merge/release/tag/permanent installation, full7E or HUMAN PLAY is selected.
+
 ## October 19 - preview.43 native batches settled; Directive 4 IN PROGRESS
 
 Frozen source `3cc8f0b051d1a5ff15879489722efa2eec8c1f45` is guarded-pushed on

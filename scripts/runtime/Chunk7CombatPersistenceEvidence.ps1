@@ -302,6 +302,8 @@ function Assert-KmcChunk7CombatPersistenceObservation($Request,$Artifact) {
     $owned=Test-KmcChunk7OwnedPairsScenario $Request.scenario
     # The owner-seed checkpoint producer starts from its verified restored mounted graph instead of native Mounts.
     $seedCheckpointSave=$owned-and-not$cold-and(Test-KmcChunk7OwnedPairsSeedCheckpointSave $Request)
+    $currentPendingSource=$seedCheckpointSave-and$legacy
+    Assert-KmcOwnedSchema2Request $Request
     if(-not$seedCheckpointSave-and($null-ne$o.PSObject.Properties['mountedStart']-or$null-ne$o.PSObject.Properties['ownerSeedCheckpointSource']-or$null-ne$o.PSObject.Properties['ownerSeedCheckpointPreparation'])){throw 'Only the owner-seed checkpoint producer may carry a restored mounted start or native preparation.'}
     if($owned){
         Assert-KmcChunk7InheritedEvidence $Request $o
@@ -342,9 +344,13 @@ function Assert-KmcChunk7CombatPersistenceObservation($Request,$Artifact) {
         if($o.nativeWrite.nativeType-cne'Manual'-or$o.saveRequested.nativeType-cne'Manual'-or$o.nativeWrite.operation-cne'None'-or
            $o.nativeWrite.snapshotCount-ne1-or$o.saveRequested.snapshotCount-ne0-or$o.nativeWrite.sha256-cnotmatch'^[0-9a-f]{64}$'-or
            -not(Test-KmcExactJsonInteger $o.nativeWrite.length)-or$o.nativeWrite.length-le0-or$o.nativeWrite.length-gt256MB-or
-           $o.nativeWrite.sourceSchema-ne$(if($legacy){2}else{3})){throw 'Native combat save category, version or completion differs.'}
+           $o.nativeWrite.sourceSchema-ne$(if($legacy-and-not$currentPendingSource){2}else{3})){throw 'Native combat save category, version or completion differs.'}
         foreach($field in @('nativeSaveAllowed','newSlot')){Assert-KmcChunk7Boolean $o.saveRequested.$field $true};Assert-KmcChunk7Boolean $o.nativeWrite.nativeCallback $true
-        if($legacy){Assert-KmcChunk7LegacyPendingMigration $o.nativeWrite.nativeMetadata $archive
+        if($currentPendingSource){
+            Assert-KmcBootstrapInventoryString $o.nativeSourceContract 'owner-seed-current-pending-source-v1'
+            if($null-ne$o.PSObject.Properties['legacyWriterScope']){throw 'A genuine current pending source cannot claim a historical native writer.'}
+            if((ConvertTo-KmcChunk7Canonical $o.nativeWrite.nativeMetadata)-cne(ConvertTo-KmcChunk7Canonical $archive)){throw 'Current pending native readback differs from its actual schema3 metadata.'}
+        }elseif($legacy){Assert-KmcChunk7LegacyPendingMigration $o.nativeWrite.nativeMetadata $archive
             Assert-KmcChunk7NativeCounters $o.legacyWriterScope @('sourceSchema','owners')
             if($o.legacyWriterScope.selectedOnlyForCase-cne$Request.persistenceCase-or$o.legacyWriterScope.sourceSchema-ne2-or$o.legacyWriterScope.owners-ne1){throw 'Legacy native write escaped its singular case scope.'}
             Assert-KmcChunk7Boolean $o.legacyWriterScope.selectedCapabilityRestored $true;Assert-KmcChunk7Boolean $o.legacyWriterScope.restorationEnabledOnColdProcess $true
@@ -360,7 +366,7 @@ function Assert-KmcChunk7CombatPersistenceObservation($Request,$Artifact) {
             $actual=@($snapshot[0].owners|Where-Object{([Guid]$_.ownerId)-eq([Guid]$owner.ownerId)})
             $state=if($Request.persistenceCase-ceq'zero-mounted-tb-retained-manual'){'Detached'}else{'Active'}
             if($actual.Count-ne1-or$actual[0].generation-ne$owner.generation-or$actual[0].riderId-cne$owner.riderId-or$actual[0].mountId-cne$owner.mountId-or$actual[0].state-cne$state){throw 'Native save changed live owner identity, generation, actor roles or required detached custody.'}
-            if(-not$legacy){$saved=@($archive.Participations|Where-Object{([Guid]$_.OwnerId)-eq([Guid]$owner.ownerId)});if($saved.Count-ne1-or$saved[0].Generation-ne$owner.generation){throw 'Native schema-3 source changed stable saved custody.'}}
+            if(-not$legacy-or$currentPendingSource){$saved=@($archive.Participations|Where-Object{([Guid]$_.OwnerId)-eq([Guid]$owner.ownerId)});if($saved.Count-ne1-or$saved[0].Generation-ne$owner.generation){throw 'Native schema-3 source changed stable saved custody.'}}
         }
         if($seedCheckpointSave){
             # Restored start (no Mount input, owners/generations/slots adopted) and the owner-approved derived target contract.
@@ -397,7 +403,9 @@ function Assert-KmcChunk7Schema2ResaveObservation($Request,$Observations) {
         throw 'Schema-2 resave belongs only to its exact pending-only cold case.'
     }
     $before=$Observations.loadedArchive;$migration=$Observations.schema2Migration;$write=$Observations.nativeWrite;$after=$write.archive
-    Assert-KmcExactProperties $migration @('inputSchema','inputSha256','inputLength','migratedArchive','inputUnchanged','resavedWorld') 'schema-2 native resave migration'
+    $migrationKeys=@('inputSchema','inputSha256','inputLength','migratedArchive','inputUnchanged','resavedWorld');if(Test-KmcOwnedSchema2ColdRequest $Request){$migrationKeys+=@('syntheticMetadata','nativeInputMetadata','derivationReceiptSha256','originalNativeArchiveSha256')}
+    Assert-KmcExactProperties $migration $migrationKeys 'schema-2 native resave migration'
+    if(Test-KmcOwnedSchema2ColdRequest $Request){Assert-KmcOwnedSchema2Migration $Request $Observations}
     Assert-KmcChunk7NativeCounters $migration @('inputSchema','inputLength')
     Assert-KmcChunk7Boolean $migration.inputUnchanged $true
     if($migration.inputSha256-isnot[string]-or$migration.inputSha256-cnotmatch'^[0-9a-f]{64}$'){throw 'Schema-2 input hash must be one exact SHA256 string.'}

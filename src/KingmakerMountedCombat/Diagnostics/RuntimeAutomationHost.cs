@@ -944,7 +944,7 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 if (worldCombatEngine == null)
                 {
-                    worldCombatEngine = new Chunk7CombatScenario(request, relationship, nativeControls, horseCompanion, diagnosticSettings, logger, lifecycle, persistence, saveAuthorization, persistenceBootstrap?.Authority, fixtureLoader);
+                    worldCombatEngine = new Chunk7CombatScenario(request, relationship, nativeControls, horseCompanion, diagnosticSettings, logger, lifecycle, persistence, saveAuthorization, persistenceBootstrap?.Authority, fixtureLoader, removal, registeredToggle);
                     worldCombatEngine.Start();
                 }
                 worldCombatEngine.Update();
