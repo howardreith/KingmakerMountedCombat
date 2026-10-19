@@ -1,5 +1,29 @@
 # Chunk 7 known product debt
 
+## Preview.46 area AfterEntry Auto — FAIL/TIMEOUT; native boundary unresolved
+
+`20261019-c7b-world46-ownerseed-b21s3-areaauto` reached a mounted two-owner
+source area and selected the actual visited Oleg's Trading Post entrance.
+No Auto write occurred. The pending artifact contains `areaTransfer.before` but
+no native-ready observation; it records failed destination adoption during
+retained cleanup, without proving whether `Game.LoadArea` returned or which
+native stage stalled. The game closed gracefully and guarded transaction plus
+separate profile recovery restored all exposed state. Its original timeout
+result remains FAIL. Preview.47 adds dispatch-return and read-only interruption
+counters for a distinguishing observation; no new native acceptance exists.
+
+## Preview.46 registered disable and repeated loads — FAIL; diagnostic repairs pending
+
+Disable reached and passed the permanent Horse refusal and real pending B
+survivor, then failed a composite diagnostic prelude before the actual UMM
+toggle. Preview.47 records each prelude clause if it fails. The second native
+load in the repeated-world scenario replaced Player, area, scene and actors
+after disposal with 8/4/4/1 native counts, but its diagnostic required the two
+per-fact Horse subscribers to retain their object identities across that load.
+Preview.47 checks fresh fact instances, exact cardinality and stable process
+subscribers. Both original native runs remain FAIL; fresh changed-byte runs are
+required before either case can be accepted.
+
 ## Preview.45 schema2 TB cold debt loss — FAIL; resource-safe repair unresolved
 
 `20261019-c7b-world45-ownerseed-b19s2-schema2cold` loaded the selected

@@ -1,5 +1,61 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## October 19 - preview.46 batch21 settled; preview.47 source IN PROGRESS
+
+Branch `codex/mounted-combat-chunk7-successor`, guarded-pushed frozen HEAD
+`40439d09d3cf162126d3c5721eb1f2cbb4ca3d73`; current worktree has an
+uncommitted six-file source/reader/test diagnostic diff plus this documentation.
+Preview.46 package SHA-256 `3237bd2edc33aa61ce409086bc439abf04733807d1960fbb18f00d824c819571`,
+DLL `5adf26e5940fb41b902b464d126640a841dcc2072d8ee959dffdf24b0d913798`,
+MVID `d0cb8c99-2f9a-4cf2-9c26-f20459d3d009`; Candidate PASS 7/0 and suite
+snapshot SHA-256 `1516171035003db2b366800eae5c38ef0cea97e67623625cdf22bbc1c9e73fc9`.
+Private `analysis-cache/chunk7-continuation/owner-seed-batch21/batch21-ledger.json`
+records all three selected native runs as FAIL. Slot1 registered disable stopped
+at a composite prelude before toggle; Horse removal refusal and pending survivor
+had passed. Slot2 native load replaced Player/area/actors and reached counts
+8/4/4/1, then the diagnostic wrongly required per-fact Horse subscriber object
+identities to survive replacement. Slot3 area AfterEntry Auto timed out before an
+Auto write; its pending artifact has no awaiting-ready observation and reports
+unadopted destination custody. Exact cause of that native boundary is unknown.
+The original runtime results remain FAIL; no changed-byte native PASS exists.
+
+After slot3, the exact game PID exited through a guarded normal window close.
+Repository guarded combined recovery restored Mods/saves and protected fixtures.
+The exact separate profile recovery receipt at
+`runtime-evidence/20261019-c7b-world46-ownerseed-b21s3-areaauto/profile-recovery-after-combined.json`
+is PASS, SHA-256 `3b01c60b17c033778bbbfaad40a99107f8c5bfd1d177b2b23d37c5b3f165cdb3`.
+It verifies restored Params SHA-256 `1bdebe8e9f97f5b58a3cf0de0cec48f84764e52e54b61e4df74a2cb96e6d8696`,
+preferences `ac5553ebbc0a2a106e1c5c792357fe359fb5e7c5fbebf7385d6cf1e79062786f`,
+Mods digest `b592f4009833072b60604852ad00660a6d236957712b63ae40f28ed1b7f67cda`,
+and saves digest `df434471b6f2bb3ade60ecccaa524aa7537e17f63db3d0bcce6d5a7eb70561ab`.
+No game or runtime lock remains.
+
+Current preview.47 diff checks process-owned subscribers stable while requiring
+one or two fresh fact-owned Horse subscribers per native reload according to
+the admitted archive profile (two for the owner-seed case), and stable ones
+across area/settlement. The first independent repeated-world review caught a
+legitimate older one-Horse 3/16 route regression; its FAIL receipt is retained.
+The repaired generic reader's 104 synthetic cases, owned 59 and owner-seed 29
+pass, including stale/new identity negatives. Corrected-source independent
+review PASS receipt `group47/repeated-world-independent-review02.json` SHA-256
+`61f7f389d8de9fe6f38a28199d710a853c7c38a0293d103089545e4a650b6b94`;
+failure-only diagnostic review PASS receipt
+`group47/failure-diagnostics-independent-review01.json` SHA-256
+`936b96c1ab1bef97add8608055cc63b8dc2203b45e41b6790336b2412cb42c82`.
+Disable now emits a per-clause failure snapshot without
+changing the prelude decision. Area interruption captures dispatch-return and
+native loading/restore counters if the run enters retained cleanup. Fast
+build/components/source PASS 3/0 (147/0 source), repeated actual-method adapter
+76/0, disable actual-method adapter 47/0, registered reader 64/0 and repeated
+protocol 27/0 plus runner/completion 7/0. Corrected-source Fast is
+`group47/fast-final02.log`. Incorrect Fast `-Focused` invocation
+and missing-parameter direct script invocations failed before checks; retained
+as local command errors. Next command: inspect the reviewed complete diff and
+scope, commit/guarded-push, freeze one preview.47 candidate, and choose a new bounded native
+batch. Do not rerun unchanged area/disable failures. Schema2 debt and remaining
+P07/refusal/no-DLL/doors still require diagnosis or native execution. PR #5
+stays draft; no merge/release/tag/permanent installation/full7E/HUMAN PLAY.
+
 ## October 19 - unfrozen successor repair source; next command
 
 Branch `codex/mounted-combat-chunk7-successor`, frozen published HEAD

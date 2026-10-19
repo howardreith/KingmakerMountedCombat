@@ -97,6 +97,30 @@ namespace KingmakerMountedCombat.Diagnostics
             Next(30);
             areaTransferDispatched = true;
             game.LoadArea(enter, AutoSaveMode.AfterEntry);
+            ((JObject)evidence["areaTransfer"])["dispatchReturned"] = true;
+        }
+
+        private void CaptureAreaInterruption()
+        {
+            if (!AreaAutosaveCase || !(evidence["areaTransfer"] is JObject)) return;
+            var row = (JObject)evidence["areaTransfer"];
+            row["interruption"] = new JObject {
+                ["frame"] = UnityEngine.Time.frameCount,
+                ["dispatchReturned"] = row["dispatchReturned"]?.Value<bool>() == true,
+                ["nativeLoading"] = LoadingProcess.Instance.IsLoadingInProcess,
+                ["queuedLoadNames"] = LoadingProcess.Instance.QueuedNames.Count(),
+                ["area"] = Game.Instance.CurrentlyLoadedArea?.AssetGuidThreadSafe,
+                ["samePlayer"] = ReferenceEquals(areaWorld, Game.Instance.Player),
+                ["suspensions"] = persistence.AreaSuspensionCount,
+                ["resumes"] = persistence.AreaResumeCount,
+                ["failedPairs"] = persistence.FailedAreaPairCount,
+                ["transitionPending"] = persistence.AreaTransitionPending,
+                ["activeOwners"] = world.Registry.ActiveCount,
+                ["nativeWritePending"] = NativePersistenceIsolation.HasPendingWrites,
+                ["saveScope"] = persistence.HasActiveSaveScope,
+                ["saveFence"] = persistence.HasSaveAdmissionFence,
+                ["feedback"] = persistence.Feedback
+            };
         }
 
         // Called before the usual LoadingProcess early return so the asynchronous

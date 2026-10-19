@@ -191,13 +191,28 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             RequireRegisteredDisableScope();
             var aState = a.Participant.CaptureParticipation(); var pending = b.Participant.CaptureParticipation();
-            Require(disableObserverAttached && !disableServicesOff && completedPairs.Contains(0) && !completedPairs.Contains(1) &&
-                persistence.Enabled && controls.CaptureSnapshot().Enabled &&
-                aState?.Activation?.Finalized == true && pending != null && pending.Activation == null && pending.RiderId == null &&
-                pending.MountId == null && pending.PendingSplitId == bm.UniqueId && Game.Instance.IsPaused &&
-                RegisteredDisableCombatBoundary() && world.Registry.ActiveCount == 2 && world.Registry.Owners.Length == 2 &&
-                a.Relationship.State == RelationshipState.Mounted && b.Relationship.State == RelationshipState.Mounted &&
-                ReferenceEquals(a.Relationship.PairOwner, disableOwnerA) && ReferenceEquals(b.Relationship.PairOwner, disableOwnerB),
+            var prelude = new JObject {
+                ["observerAttached"] = disableObserverAttached, ["servicesStillOn"] = !disableServicesOff,
+                ["aCompleted"] = completedPairs.Contains(0), ["bNotCompleted"] = !completedPairs.Contains(1),
+                ["persistenceEnabled"] = persistence.Enabled, ["controlsEnabled"] = controls.CaptureSnapshot().Enabled,
+                ["aFinalized"] = aState?.Activation?.Finalized == true,
+                ["bPendingOnly"] = pending != null && pending.Activation == null && pending.RiderId == null &&
+                    pending.MountId == null && pending.PendingSplitId == bm.UniqueId,
+                ["paused"] = Game.Instance.IsPaused, ["combatBoundary"] = RegisteredDisableCombatBoundary(),
+                ["twoActiveOwners"] = world.Registry.ActiveCount == 2 && world.Registry.Owners.Length == 2,
+                ["bothMounted"] = a.Relationship.State == RelationshipState.Mounted && b.Relationship.State == RelationshipState.Mounted,
+                ["originalOwners"] = ReferenceEquals(a.Relationship.PairOwner, disableOwnerA) &&
+                    ReferenceEquals(b.Relationship.PairOwner, disableOwnerB)
+            };
+            if (prelude.Properties().Any(p => !(bool)p.Value))
+                evidence["registeredDisablePreludeFailure"] = new JObject { ["clauses"] = prelude,
+                    ["actors"] = new JArray(actors.Select(actor => new JObject { ["id"] = actor?.UniqueId,
+                        ["inState"] = actor?.IsInState, ["inGame"] = actor?.IsInGame,
+                        ["viewAgentPresent"] = actor?.View?.AgentASP != null,
+                        ["conscious"] = actor?.Descriptor?.State?.IsConscious,
+                        ["commandsPresent"] = actor?.Commands != null, ["commandsEmpty"] = actor?.Commands?.Empty,
+                        ["inCombat"] = actor?.IsInCombat })) };
+            Require(prelude.Properties().All(p => (bool)p.Value),
                 "Registered disable must start with A finalized and B's real pending-only survivor, both original owners.");
             var before = CaptureDisableState("registered-disable-before"); var allocation = AllocationRecord(am);
             Require(allocation != null && trace != null && (int)before["healthyAllocationId"] != 0,

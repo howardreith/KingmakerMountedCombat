@@ -1,5 +1,55 @@
 # Chunk 7 Directive 4 Codex checkpoint
 
+## October 19 - preview.46 frozen native batch21 FAIL; preview.47 diagnostic repair IN PROGRESS
+
+Guarded-pushed preview.46 `40439d09d3cf162126d3c5721eb1f2cbb4ca3d73`
+passed Candidate 7/0; package SHA-256
+`3237bd2edc33aa61ce409086bc439abf04733807d1960fbb18f00d824c819571`,
+DLL SHA-256 `5adf26e5940fb41b902b464d126640a841dcc2072d8ee959dffdf24b0d913798`.
+Suite snapshot SHA-256 `1516171035003db2b366800eae5c38ef0cea97e67623625cdf22bbc1c9e73fc9`.
+The private `owner-seed-batch21/batch21-ledger.json` records three actual runs,
+all FAIL. Disable slot1 game evidence SHA-256
+`7a553537be6c8d0813423c7069bc7d97e8c631665126a117462cb2123e6533b5`:
+the permanent Horse removal refusal and real pending survivor passed, but the
+registered-disable composite prelude failed before callback. Three-load slot2
+evidence SHA-256 `9e8c66f95e74a81e4f1001a4cae70ffe47fb561664fd7da6a9c618ec50974407`:
+second native load disposed/replaced Player, area/scene and actors with exact
+8/4/4 restoration/disposal 1, but the diagnostic rejected newly instantiated
+`HorseCompanionAddPet` fact subscribers. Two process-owned subscribers stayed
+stable; 4 unique subscribers and 17 interface entries remained. Area slot3
+timed out without Auto write. Its cleanup-pending artifact SHA-256
+`b40c38f49d2063cc0ecc743902a8231557191f5e54bcc2684ecf3a7cbaf13102`
+records `areaTransfer.before`, no awaiting-ready observation, and failed
+destination adoption with retained native custody. It does not establish
+whether synchronous LoadArea returned or which engine boundary stopped.
+
+Area slot3 original runtime result SHA-256
+`fd037e6c6214a7dcb1037c78f28ed4b2a8c7c8416b35cd3b4d3b9925ef59a685`
+remains FAIL/restoration-blocked. The exact PID closed via guarded normal
+window close, repository guarded transaction recovery restored Mods and saves,
+and separate exact profile recovery passed (receipt SHA-256
+`3b01c60b17c033778bbbfaad40a99107f8c5bfd1d177b2b23d37c5b3f165cdb3`).
+No game, lock or unsettled live state remains. The recovery receipt pins restored
+profile and Mods/save digests; no old native result was promoted to PASS.
+
+Unfrozen preview.47 source checks subscriber roles/cardinality from the admitted
+native archive: one Horse fact gives 3 unique/16 interface entries on the older
+Mammoth/Horse route; two Horse facts give 4/17 on the owner-seed route. Process
+subscriber identities stay stable, fact identities refresh on native reload and
+remain stable on same-Player area/settlement. The first independent review
+correctly found and preserved a FAIL for the older route; corrected-source
+independent review02 PASS (SHA-256
+`61f7f389d8de9fe6f38a28199d710a853c7c38a0293d103089545e4a650b6b94`).
+External synthetic reader 104/0, owned 59/0 and owner-seed
+29/0 pass with stale-Horse and changed-process negatives. Failure-only disable
+per-clause detail and area interruption/dispatch-return snapshot add no action,
+save, scope or native budget authority. Fast 3/0, source 147/0, disable adapter
+47/0, repeated adapter 76/0, registered reader 64/0, repeated protocol 27/0
+and runner/completion 7/0 pass. Failure-diagnostics review01 PASS (SHA-256
+`936b96c1ab1bef97add8608055cc63b8dc2203b45e41b6790336b2412cb42c82`).
+Changed-byte native execution remains; schema2 debt and remaining refusal/no-DLL/doors cases
+remain unresolved. No merge/release/tag/permanent installation or HUMAN PLAY.
+
 ## October 19 - preview.45 native checkpoint; successor source IN PROGRESS
 
 Frozen preview.45 `8685fb5f` package SHA-256
