@@ -39,7 +39,13 @@ the full paths and exact invocation pins.
 No positive cleanup archive or DLL-absent consumer exists from this batch.
 The original FAIL artifacts are retained under the two private runtime-evidence
 roots. The b32s2 `output_log.txt` supplies the exact native exception; the game
-result had no mounted assertions. New `Recover-KmcP07Head7348Profile.ps1` is a
+result had no mounted assertions. Its stack reaches `Player.PostLoad`; bounded
+inspection of installed Kingmaker MVID `07fa1e4d-8618-41b3-9b8d-faa17d3b26f7`
+shows that the main-character identity had no matching cross-scene entity at
+the first native post-load lookup. The cause of that missing entity is not yet
+established. Slot2's filesystem elevation changed the Windows execution
+identity relative to earlier sandboxed owner-seed runs, so their PASSes cannot
+be transferred to that environment. New `Recover-KmcP07Head7348Profile.ps1` is a
 one-run, hash-pinned guarded restoration after UMM appended KMC and advanced
 its update-check timestamp. Actual-owner WhatIf passed; independent review
 receipt SHA-256 `1a164d18016105f19e81664d0e091dae799aa2891f1a648ce2a0af467366bb40`

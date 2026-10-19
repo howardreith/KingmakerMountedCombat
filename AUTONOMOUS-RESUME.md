@@ -1,5 +1,26 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## October 19 - pushed recovery checkpoint and bounded native diagnosis
+
+Branch `codex/mounted-combat-chunk7-successor`; guarded-pushed commit
+`25837c956a4397dbecb750021eeb8165119db2e4` is on origin and PR #5 is
+still draft with its current Directive 4 summary. After that clean checkpoint,
+only this read-only diagnosis was added to the active documents. No product,
+reader, recovery script, package or private native artifact changed. The exact
+slot2 stack reaches `Player.PostLoad`: its main-character ID has no matching
+cross-scene entity in the process. Installed assembly MVID
+`07fa1e4d-8618-41b3-9b8d-faa17d3b26f7`. The prior Working PASSes used a
+different Windows execution identity; no inference that the archived fixture
+is globally invalid is justified. No new native attempt is selected until a
+distinct cause/fixture experiment can run under a qualified identity.
+
+Next command: `git diff --check`, commit this documentation-only diagnosis,
+guarded WhatIf/push and refresh draft PR #5; then inspect exact branch and
+remote SHA. The game is absent, original Mods/Working/profile settings are
+restored, and `runtime-state/active-transaction.lock` is absent. Directive 4
+remains IN PROGRESS: schema2 TB debt, area Auto/cold, positive P07 cleanup and
+genuine DLL-absent cold remain unaccepted; doors are DEFER — EVIDENCED.
+
 ## October 19 - P07 failed native load and completed guarded recovery
 
 Branch `codex/mounted-combat-chunk7-successor`, last pushed HEAD before this
@@ -33,6 +54,13 @@ Private recovery receipt SHA-256 is to be read from
 The live Mods tree exists, Working SHA-256 is
 `5eb4e0b4cbd8d60dc879a02ff71aadfde3f517304754857f0cc68d0f9a93f1c6`,
 game and transaction lock are absent. No cleanup archive/no-DLL credit.
+Read-only native stack diagnosis: `Player.PostLoad` required a cross-scene
+entity matching the main-character ID and found none in slot2. Installed
+assembly MVID `07fa1e4d-8618-41b3-9b8d-faa17d3b26f7`; why that entity was
+missing remains unknown. Slot2 elevation used a different Windows identity
+from the sandboxed earlier PASSes, so that fixture compatibility is not
+transferable. Do not repeat P07 until a distinct cause/fixture experiment is
+defined under a qualified runtime identity.
 
 Next command: `git diff --check`, review this exact script and documentation,
 commit, then guarded WhatIf/push through the project helper. Update draft PR #5.
