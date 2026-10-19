@@ -1,5 +1,35 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## October 19 - preview.50 reviewed source; native retry next
+
+Branch `codex/mounted-combat-chunk7-successor`; last published HEAD
+`29661db4f37bbf5158e101fe6bedc5c557400f3d`. Worktree contains the
+reviewed preview.50 diagnostic/reader/test/version change and this checkpoint
+documentation, awaiting a coherent commit and guarded push. Last frozen package
+is preview.49 SHA-256
+`dce8ccec3964d7b09064afc5e2fb2ddeb3355d37558fefe159a9aff8a1974cfe`,
+suite SHA-256 `4781fcdb46c6067dde015b2cb8cb6e03f52d80944c3b12f41faa4fc1b2266b8a`.
+Batch24 original FAIL ledger is
+`analysis-cache/chunk7-continuation/owner-seed-batch24/batch24-ledger.json`.
+The later TB frame's B rider native JoinCombat/Prepare.Tick/Cooldowns.Clear
+cleared 6/3/6 after about 24 ms; its earlier same-frame callback/retry passed.
+The game and transaction ended, Mods/protected saves/Working restored, profile
+recorded six accepted native cache changes and byte-exact restoration false.
+
+Current preview.50 source is independently reviewed PASS at
+`analysis-cache/chunk7-continuation/codex-takeover/group50-disable-review/review04-pass.json`
+SHA-256 `2526f755edad4bc1ed393eb56bdccd612c243cf1e32c9bd92d0131d5d621a78e`.
+Three earlier review FAIL receipts are preserved. Local focused reader 95/0,
+actual-method adapter 49/0, Fast 3/0 with source 147/0; reviewer independently
+reproduced 17/0 targeted cases. No preview.50 native result exists. Next commands:
+inspect `git diff --check`, commit, guarded-push through
+`codex-policy/Push-KingmakerMountedCombat.ps1` with WhatIf first, build one
+preview.50 package, Candidate and suite snapshot, then create a fresh one-slot
+batch from the qualified owner-seed disable source and run guarded WhatIf before
+actual native execution. Preserve all original FAILs and exact artifact pins.
+Area Auto/cold, schema2 lawful debt migration, refusal/menu/no-DLL and doors
+remain open; PR #5 stays draft. No game or runtime transaction currently runs.
+
 ## October 19 - batch23 native results; preview.49 source review checkpoint
 
 Branch `codex/mounted-combat-chunk7-successor`, published HEAD

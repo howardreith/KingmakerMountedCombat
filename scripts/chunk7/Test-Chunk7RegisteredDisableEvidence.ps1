@@ -19,7 +19,7 @@ function New-DisableControls([bool]$Enabled,[int]$Facts,[int]$Slots,[int]$Casts)
 function New-DisableState($v,$world,[string]$label,[bool]$Combat){
  $r=$v.request;$o=$v.artifact.observations;$roles=@(Get-KmcChunk7OwnedPairIds $r);$world=Copy-Value $world;$world.label=$label
  $world.owners=@($o.mountedStart.world.owners|ForEach-Object{Copy-Value $_})
- foreach($actor in $world.actors){if($null-ne$actor.native){$actor.native|Add-Member actorObject (1001+[Array]::IndexOf($roles,$actor.id)) -Force}}
+ foreach($actor in $world.actors){if($null-ne$actor.native){$actor.native|Add-Member actorObject (1001+[Array]::IndexOf($roles,$actor.id)) -Force;$actor.native|Add-Member inCombat $Combat -Force;$actor.native|Add-Member initiativeCooldown 0.0 -Force;$actor.native|Add-Member waitingInitiative $false -Force;$actor.native|Add-Member reactionsPerRound 1 -Force}}
  $unrelated=@($r.ownedPairs.partyIds|Where-Object{$_-cnotin$roles});if($Combat){$unrelated+=,$o.targetId}
  [pscustomobject][ordered]@{world=$world;paused=$false;turnBased=$Combat;persistenceEnabled=$true;controls=(New-DisableControls $true 6 4 $(if($Combat){4}else{0}));slots=@($o.mountedStart.slots|ForEach-Object{[pscustomobject]@{ActorId=$_.actorId;Index=$_.index;Kind=$_.kind}})
   nativePrepares=@($roles|ForEach-Object{[pscustomobject]@{actorId=$_;count=$(if($Combat){1}else{0})}})
@@ -45,15 +45,28 @@ function New-RegisteredDisableFixture{
  $pending.participation.PendingSplitRound=$pending.after.round
  $o.pendingSurvivor=$pending;$o.allocationTrace.events=@($o.allocationTrace.events|Where-Object{$_.frame-le$attack.after.frame})
  Set-KmcChunk7NativeForfeitFixture $o
+ $o.pendingSurvivor.after.actors[2].standard=6.0;$o.pendingSurvivor.after.actors[2].move=3.0;$o.pendingSurvivor.after.actors[2].swift=6.0
  $before=New-DisableState $v $o.pendingSurvivor.after 'registered-disable-before' $true
+ $before.world.actors[2].prepared=$false;$before.world.actors[2].native.inCombat=$false
  $before.participationA=[pscustomobject][ordered]@{RiderId=$roles[0];MountId=$roles[1];Activation=[pscustomobject]@{Finalized=$true};BoundaryIsCurrent=$false;Boundary=$null;Partner=$null;SplitReleaseRound=-1;PendingSplitId=$null;PendingSplitRound=-1;RenewalNotBeforeTicks=0}
  $before.participationB=Copy-Value $pending.participation
  $held=Copy-Value $before;$held.world.label='registered-disable-refused';Set-DisableUnmounted $held $true
  $retry=Copy-Value $before;$retry.world.label='registered-disable-retry-accepted';Set-DisableUnmounted $retry $false;$retry.persistenceEnabled=$false;$retry.controls=New-DisableControls $false 0 0 4
- $later=Copy-Value $retry;$later.world.label='registered-disabled-later-frame';$later.world.frame++
+ $later=Copy-Value $retry;$later.world.label='registered-disabled-later-frame';$later.world.frame++;$later.world.gameTicks+=240000
+ foreach($i in @(0,1,3)){foreach($axis in @('standard','move','swift','reactionCooldown')){$later.world.actors[$i].$axis=[Math]::Max(0.0,[double]$later.world.actors[$i].$axis-0.0235)}}
+ $later.world.actors[2].prepared=$true;$later.world.actors[2].native.inCombat=$true
+ foreach($axis in @('standard','move','swift')){$later.world.actors[2].$axis=0.0}
+ $later.world.actors[2].native.initiativeCooldown=0.4765;$later.world.actors[2].native.waitingInitiative=$true
  $reenabled=Copy-Value $later;$reenabled.world.label='registered-reenabled-before-native-teardown';$reenabled.persistenceEnabled=$true;$reenabled.controls=New-DisableControls $true 2 0 4
  $visits=@(foreach($phase in @('first-disable','retry-disable')){foreach($p in $before.pairStates){[pscustomobject][ordered]@{phase=$phase;frame=$before.world.frame;trigger='ModDisabled';pairId=$p.pairId;generation=$p.generation;riderId=$p.riderId;mountId=$p.mountId;observedOwnerId=$p.currentOwnerId;observedGeneration=$p.currentGeneration;relationshipState=$(if($phase-ceq'first-disable'){'Mounted'}else{'Unmounted'})}}})
- $o|Add-Member registeredDisable ([pscustomobject][ordered]@{contract='owner-seed-registered-disable-local-failure-v1';callback='UnityModManager.ModEntry.OnToggle';injectedPairId=$before.pairStates[1].pairId;before=$before;visits=$visits;firstAccepted=$false;held=$held;injectionCount=1;retryAccepted=$true;retry=$retry;retrySameUpdate=$true;disabledLaterFrame=$later;reenableAccepted=$true;reenabled=$reenabled;complete=$true}) -Force
+ $traceBefore=@($o.allocationTrace.events).Count;$traceRows=@();$traceNames=@('disable-join-before','disable-join-after','disable-prepare-tick-before','clear-before','clear-after','disable-prepare-tick-after')
+ for($i=0;$i-lt$traceNames.Count;$i++){$row=Copy-Value $o.allocationTrace.events[-1];$row.sequence=$traceBefore+$i+1;$row.boundary=$traceNames[$i];$row.frame=$later.world.frame
+  $row.state.actor=$roles[2];$row.state|Add-Member actorObject 1003 -Force;$row.state.standard=$(if($i-lt4){6.0}else{0.0});$row.state.move=$(if($i-lt4){3.0}else{0.0});$row.state.swift=$(if($i-lt4){6.0}else{0.0});$row.state|Add-Member inCombat ($i-gt0) -Force;$row.state|Add-Member prepared ($i-ge3) -Force
+  $row.state|Add-Member initiativeCooldown ($(if($i-eq5){0.5}else{0.0})) -Force;$row.state|Add-Member waitingInitiative ($i-eq5) -Force;$row|Add-Member gameTicks $later.world.gameTicks -Force;$row|Add-Member detail ($(if($i-in@(3,4)){'disablePrepareDepth=1'}else{$null})) -Force
+  $traceRows+=,$row}
+ $o.allocationTrace.events=@($o.allocationTrace.events)+@($traceRows)
+ foreach($spec in @(@('06008355','Kingmaker.EntitySystem.Entities.UnitEntityData.JoinCombat','DisableJoinBefore','DisableJoinAfter'),@('0600936F','Kingmaker.Controllers.Combat.UnitCombatPrepareController.Tick','DisablePrepareTickBefore','DisablePrepareTickAfter'),@('0600C3BE','Kingmaker.Controllers.Combat.UnitCombatState+Cooldowns.Clear','ClearBefore','ClearAfter'))){$o.allocationTrace.observerHooks=@($o.allocationTrace.observerHooks)+@([pscustomobject][ordered]@{token=$spec[0];method=$spec[1];moduleMvid='07fa1e4d-8618-41b3-9b8d-faa17d3b26f7';prefix=$spec[2];postfix=$spec[3]})}
+ $o|Add-Member registeredDisable ([pscustomobject][ordered]@{contract='owner-seed-registered-disable-local-failure-v1';callback='UnityModManager.ModEntry.OnToggle';injectedPairId=$before.pairStates[1].pairId;before=$before;visits=$visits;traceSequenceBefore=$traceBefore;firstAccepted=$false;held=$held;injectionCount=1;retryAccepted=$true;retry=$retry;retrySameUpdate=$true;disabledLaterFrame=$later;nativeTransition=$traceRows;traceSequenceAfter=$traceBefore+$traceRows.Count;reenableAccepted=$true;reenabled=$reenabled;complete=$true}) -Force
  $pre=New-DisableState $v $o.mountedStart.world 'removal-refusal-before' $false;$post=Copy-Value $pre;$post.world.label='removal-refusal-after'
  $world=[ordered]@{};foreach($key in @('WorldLoaded','DefaultMode','SaveAllowed')){$world[$key]=$true};foreach($key in @('PartyInCombat','AnyPartyMemberInCombat','ActiveMountedCommand','StockAttackIntent','PairedActivation','CombatRestorationPending','LoadInFlight','LoadingWorld','LoadingProcess','SaveSuspended','ActiveSaveScope','SaveDraining','WorldHoldReleasePending','ResetToMainMenuPending','InspectionFailed')){$world[$key]=$false};$world['InspectionFailure']=$null
  $refs=@($roles[1],$roles[3]|ForEach-Object{'unit native Horse ['+$_+'] is the KMC Horse'})
@@ -90,7 +103,36 @@ $faults=[ordered]@{
  'disabled native fact retained'={param($v)$v.artifact.observations.registeredDisable.retry.controls.ExactFactCount=1}
  'disabled live slot retained'={param($v)$v.artifact.observations.registeredDisable.retry.slots=@([pscustomobject]@{ActorId=$v.request.ownedPairs.riderAId;Index=1;Kind=2})}
  'save during disable'={param($v)$v.artifact.observations.registeredDisable.retry.nativeWrites=1}
- 'clock advanced'={param($v)$v.artifact.observations.registeredDisable.disabledLaterFrame.world.gameTicks++}
+ 'clock advanced'={param($v)$v.artifact.observations.registeredDisable.disabledLaterFrame.world.gameTicks=$v.artifact.observations.registeredDisable.retry.world.gameTicks}
+ 'native clear omitted'={param($v)$d=$v.artifact.observations.registeredDisable;$d.nativeTransition=@($d.nativeTransition|Where-Object boundary -CNE 'clear-after')}
+ 'native clear did not clear debt'={param($v)$d=$v.artifact.observations.registeredDisable;$e=@($d.nativeTransition|Where-Object boundary -CEQ 'clear-after')[0];$e.state.standard=6.0}
+ 'native rejoin attributed to A'={param($v)$d=$v.artifact.observations.registeredDisable;$e=@($d.nativeTransition|Where-Object boundary -CEQ 'disable-join-after')[0];$e.state.actor=$v.request.ownedPairs.riderAId}
+ 'native clear hook namespace substituted'={param($v)$h=@($v.artifact.observations.allocationTrace.observerHooks|Where-Object token -CEQ '0600C3BE')[0];$h.method='Kingmaker.UnitLogic.UnitCombatState+Cooldowns.Clear'}
+ 'native B grant sequence fabricated'={param($v)$d=$v.artifact.observations.registeredDisable;$d.disabledLaterFrame.world.actors[2].native.grantSequence=99;$d.reenabled.world.actors[2].native.grantSequence=99}
+ 'native extra Prepare event'={param($v)$o=$v.artifact.observations;$d=$o.registeredDisable;$row=Copy-Value $d.nativeTransition[-1];$row.sequence=$d.traceSequenceAfter+1;$row.boundary='prepare-after';$d.nativeTransition=@($d.nativeTransition)+@($row);$o.allocationTrace.events=@($o.allocationTrace.events)+@($row);$d.traceSequenceAfter++}
+ 'native tick entered already prepared'={param($v)$d=$v.artifact.observations.registeredDisable;@($d.nativeTransition|Where-Object boundary -CEQ 'disable-prepare-tick-before')[0].state.prepared=$true}
+ 'native clear did not enter Tick'={param($v)$d=$v.artifact.observations.registeredDisable;@($d.nativeTransition|Where-Object boundary -CEQ 'clear-before')[0].detail='disablePrepareDepth=0'}
+ 'native clear negative debt'={param($v)$d=$v.artifact.observations.registeredDisable;@($d.nativeTransition|Where-Object boundary -CEQ 'clear-after')[0].state.standard=-1.0}
+ 'native tick exit debt disconnected'={param($v)$d=$v.artifact.observations.registeredDisable;@($d.nativeTransition|Where-Object boundary -CEQ 'disable-prepare-tick-after')[0].state.standard=6.0}
+ 'native tick exit initiative fabricated'={param($v)$d=$v.artifact.observations.registeredDisable;@($d.nativeTransition|Where-Object boundary -CEQ 'disable-prepare-tick-after')[0].state.initiativeCooldown=900.0}
+ 'native causal boolean is text'={param($v)$d=$v.artifact.observations.registeredDisable;@($d.nativeTransition|Where-Object boundary -CEQ 'disable-join-after')[0].state.inCombat='True'}
+ 'native causal game clock absent'={param($v)$d=$v.artifact.observations.registeredDisable;foreach($e in $d.nativeTransition){$e.gameTicks=0}}
+ 'native causal frame regresses'={param($v)$d=$v.artifact.observations.registeredDisable;@($d.nativeTransition|Where-Object boundary -CEQ 'clear-after')[0].frame=0}
+ 'native causal clock regresses within frame'={param($v)$d=$v.artifact.observations.registeredDisable;$d.nativeTransition[2].gameTicks=[long]$d.disabledLaterFrame.world.gameTicks-1000;$d.nativeTransition[3].gameTicks=[long]$d.disabledLaterFrame.world.gameTicks-2000}
+ 'native join prefix debt disconnected'={param($v)$d=$v.artifact.observations.registeredDisable;$e=@($d.nativeTransition|Where-Object boundary -CEQ 'disable-join-before')[0];$e.state.standard=0.0;$e.state.move=0.0;$e.state.swift=0.0}
+ 'native causal debt is text'={param($v)$d=$v.artifact.observations.registeredDisable;@($d.nativeTransition|Where-Object boundary -CEQ 'clear-before')[0].state.move='3.0'}
+ 'native tick exit initiative below final'={param($v)$d=$v.artifact.observations.registeredDisable;@($d.nativeTransition|Where-Object boundary -CEQ 'disable-prepare-tick-after')[0].state.initiativeCooldown=0.01}
+ 'native cumulative pre-clear debt exceeds elapsed'={param($v)$d=$v.artifact.observations.registeredDisable;for($i=1;$i-le3;$i++){foreach($axis in @('standard','move','swift')){$d.nativeTransition[$i].state.$axis=[double]$d.retry.world.actors[2].$axis-0.02*$i}}}
+ 'disabled B reactions fabricated'={param($v)$d=$v.artifact.observations.registeredDisable;$d.disabledLaterFrame.world.actors[2].reactions=99;$d.reenabled.world.actors[2].reactions=99}
+ 'disabled B native object replaced'={param($v)$d=$v.artifact.observations.registeredDisable;$d.disabledLaterFrame.world.actors[2].native.actorObject=99;$d.reenabled.world.actors[2].native.actorObject=99}
+ 'disabled B reaction cooldown refunded'={param($v)$d=$v.artifact.observations.registeredDisable;$d.disabledLaterFrame.world.actors[2].reactionCooldown=900;$d.reenabled.world.actors[2].reactionCooldown=900}
+ 'disabled unrelated reactions fabricated'={param($v)$d=$v.artifact.observations.registeredDisable;$d.disabledLaterFrame.unrelatedActors[0].native.ReactionsRemaining=99;$d.reenabled.unrelatedActors[0].native.ReactionsRemaining=99}
+ 'disabled unrelated surprise time replaced'={param($v)$d=$v.artifact.observations.registeredDisable;$d.disabledLaterFrame.unrelatedActors[0].native.LastSurpriseTicks=123;$d.reenabled.unrelatedActors[0].native.LastSurpriseTicks=123}
+ 'disabled native budget single rounding'={param($v)$d=$v.artifact.observations.registeredDisable;$d.disabledLaterFrame.world.actors[3].standard=[double]$d.retry.world.actors[3].standard+0.0001;$d.reenabled.world.actors[3].standard=$d.disabledLaterFrame.world.actors[3].standard}
+ 'disabled control counter grows'={param($v)$d=$v.artifact.observations.registeredDisable;$d.disabledLaterFrame.controls.NativeCastRequestCount++;$d.reenabled.controls.NativeCastRequestCount++}
+ 'disabled mount B debt disappears'={param($v)$v.artifact.observations.registeredDisable.disabledLaterFrame.world.actors[3].standard=0.0}
+ 'disabled unrelated initiative refunded'={param($v)$v.artifact.observations.registeredDisable.disabledLaterFrame.unrelatedActors[0].native.Initiative=1.0}
+ 'reenable changes native debt'={param($v)$v.artifact.observations.registeredDisable.reenabled.world.actors[0].standard=1.0}
  'Pause claimed in TB'={param($v)$v.artifact.observations.registeredDisable.disabledLaterFrame.paused=$true}
  'TB mode lost later'={param($v)$v.artifact.observations.registeredDisable.disabledLaterFrame.turnBased=$false}
  'A not finalized'={param($v)$v.artifact.observations.registeredDisable.before.participationA.Activation.Finalized=$false}
@@ -120,6 +162,7 @@ Check 'healthy A may retire only after its actual participation settles' {$v=New
  $visit=@($d.visits|Where-Object{$_.pairId-ceq$a-and$_.phase-ceq'retry-disable'})[0];$visit.observedOwnerId=$null;$visit.observedGeneration=$null
  Assert-KmcChunk7CombatEvidence $v.request $v.artifact 'PASS'}
 foreach($key in $faults.Keys){$faultBody=$faults[$key];Check ('refuses '+$key) {$v=New-RegisteredDisableFixture;&$faultBody $v;Assert-KmcChunk7CombatEvidence $v.request $v.artifact 'PASS'} $true}
+Check 'serialized decimal cooldown decay sits exactly on its elapsed-time boundary' {Assert-KmcChunk7DisableDecay ([pscustomobject]@{standard=0.028}) ([pscustomobject]@{standard=0.001}) 0.024 @('standard')}
 foreach($base in @('combat-rider-first','combat-mount-first')){Check ('old acquired family remains '+$base) {$v=Copy-Value @($fixtures|Where-Object name -CEQ $base)[0];Assert-KmcChunk7CombatEvidence $v.request $v.artifact 'PASS'}}
 Check 'old family rejects new callback evidence' {$v=Copy-Value @($fixtures|Where-Object name -CEQ 'combat-rider-first')[0];$v.artifact.observations|Add-Member registeredDisable ([pscustomobject]@{});Assert-KmcChunk7CombatEvidence $v.request $v.artifact 'PASS'} $true
 Check 'closed selected case and quota' {$v=New-RegisteredDisableFixture;Assert-KmcChunk7OwnedPairsSelection $v.request;if((Get-KmcChunk7SelectedScenario $v.request)-cne'chunk7-two-pair-combat-rider-first'-or(Get-KmcChunk7OwnedLoadCount $v.request)-ne1-or(Get-KmcChunk7OwnedWriteCount $v.request)-ne0){throw 'Closed mapping changed.'}}

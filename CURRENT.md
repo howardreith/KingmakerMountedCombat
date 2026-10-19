@@ -1,5 +1,33 @@
 # Chunk 7B–7D — IN PROGRESS
 
+## October 19 - preview.49 batch24 FAIL; preview.50 reviewed source checkpoint
+
+Preview.49 `29661db4` was guarded-pushed and frozen: package SHA-256
+`dce8ccec3964d7b09064afc5e2fb2ddeb3355d37558fefe159a9aff8a1974cfe`,
+Candidate PASS 6/0, suite SHA-256
+`4781fcdb46c6067dde015b2cb8cb6e03f52d80944c3b12f41faa4fc1b2266b8a`.
+Private batch24's one native registered-disable run remains FAIL (evidence SHA-256
+`3388e1ee17eb4fc87dc5d260d773315df439fe866f98071c923555b6340d309d`).
+The callback's first local B failure and same-frame retry conserved all native
+resources. On the next native TB frame, game time advanced about 24 ms; three
+actors' cooldowns decayed, and B rejoined combat. Installed native
+`UnitCombatPrepareController.Tick` then cleared B's 6/3/6 debt and prepared it.
+The preview.49 diagnostic lacked this causal observation and failed its strict
+later-frame assertion. The game and transaction closed; Mods, protected saves
+and Working were restored. Six policy-accepted native cache changes mean profile
+bytes were not restored exactly. The original FAIL is retained.
+
+The preview.50 source/reader/test change adds exact read-only JoinCombat,
+Prepare.Tick and Cooldowns.Clear observations for B and accepts only the
+bounded, causally attributed native transition; synchronous disable/retry and
+re-enable still require exact conservation. Independent review04 PASS receipt
+SHA-256 `2526f755edad4bc1ed393eb56bdccd612c243cf1e32c9bd92d0131d5d621a78e`;
+earlier review01–03 FAIL receipts remain. Focused reader PASS 95/0, actual-method
+adapter PASS 49/0 and Fast PASS 3/0 (source 147/0). Preview.50 has no native
+credit yet. Next: freeze one package/Candidate/suite, guarded WhatIf, then one
+affected native disable rerun. Area, schema2 and other Directive 4 cases remain
+open. PR #5 is draft; no merge, release, tag or permanent install.
+
 ## October 19 - preview.48 batch23 settled; preview.49 diagnostic repair IN PROGRESS
 
 Frozen preview.48 `dc1c1f63` was guarded-pushed; package build PASS 11/0,
