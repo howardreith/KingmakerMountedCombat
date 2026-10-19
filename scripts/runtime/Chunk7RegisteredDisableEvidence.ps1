@@ -103,11 +103,11 @@ function Assert-KmcChunk7DisableNativeProgression($Request,$Observations,$Disabl
  $names=@('disable-join-before','disable-join-after','disable-prepare-tick-before','clear-before','clear-after','disable-prepare-tick-after');$matched=@()
  foreach($name in $names){$rows=@($events|Where-Object{$_.boundary-ceq$name-and$_.state.actor-ceq$Roles[2]});if($rows.Count-ne1){throw ('Native disable lacks exact rider '+$name)};$matched+=,$rows[0]}
  for($i=1;$i-lt$matched.Count;$i++){if($matched[$i].sequence-le$matched[$i-1].sequence){throw 'Native rider rejoin/preparation/clear order differs.'}}
- foreach($event in $matched){Assert-KmcOrdinaryInteger $event.frame $b.world.frame $b.world.frame;Assert-KmcOrdinaryInteger $event.gameTicks $a.world.gameTicks $b.world.gameTicks
-  if($event.gameTicks-le0-or$event.state.inCombat-isnot[bool]-or$event.state.prepared-isnot[bool]){throw 'Native causal event has invalid clock or Boolean state.'}
+ foreach($event in $matched){Assert-KmcOrdinaryInteger $event.frame $a.world.frame $b.world.frame;Assert-KmcOrdinaryInteger $event.gameTicks ($a.world.gameTicks+1) $b.world.gameTicks
+  if($event.frame-ne$matched[0].frame-or$event.state.inCombat-isnot[bool]-or$event.state.prepared-isnot[bool]){throw 'Native causal event has inconsistent frame or Boolean state.'}
   foreach($axis in @('standard','move','swift','initiativeCooldown')){if(-not(Test-KmcChunk7FiniteNumber $event.state.$axis)){throw 'Native causal resource is not a finite JSON number.'}}
  }
- if($matched[0].frame-le$a.world.frame-or$matched[0].state.inCombat-ne$false-or$matched[1].state.inCombat-ne$true-or
+ if($matched[0].state.inCombat-ne$false-or$matched[1].state.inCombat-ne$true-or
   $matched[2].state.prepared-ne$false-or$matched[3].state.prepared-ne$true-or$matched[3].detail-cne'disablePrepareDepth=1'-or$matched[4].detail-cne'disablePrepareDepth=1'-or
   [double]$matched[3].state.standard-lt5.9-or[double]$matched[3].state.move-lt2.9-or[double]$matched[3].state.swift-lt5.9-or
   [double]$matched[4].state.standard-lt0-or[double]$matched[4].state.move-lt0-or[double]$matched[4].state.swift-lt0-or

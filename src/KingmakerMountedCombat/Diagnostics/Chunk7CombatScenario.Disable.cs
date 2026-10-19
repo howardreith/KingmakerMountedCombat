@@ -252,9 +252,10 @@ namespace KingmakerMountedCombat.Diagnostics
             Require(matched.All(rows => rows.Length == 1) &&
                 matched.Select(rows => (int)rows[0]["sequence"]).SequenceEqual(
                     matched.Select(rows => (int)rows[0]["sequence"]).OrderBy(value => value)) &&
-                (int)matched[0][0]["frame"] > (int)before["world"]["frame"] &&
-                matched.All(rows => (int)rows[0]["frame"] == (int)after["world"]["frame"] &&
-                    (long)rows[0]["gameTicks"] > 0 && (long)rows[0]["gameTicks"] >= (long)before["world"]["gameTicks"] &&
+                matched.All(rows => (int)rows[0]["frame"] == (int)matched[0][0]["frame"] &&
+                    (int)rows[0]["frame"] >= (int)before["world"]["frame"] &&
+                    (int)rows[0]["frame"] <= (int)after["world"]["frame"] &&
+                    (long)rows[0]["gameTicks"] > (long)before["world"]["gameTicks"] &&
                     (long)rows[0]["gameTicks"] <= (long)after["world"]["gameTicks"] &&
                     rows[0]["state"]["inCombat"].Type == JTokenType.Boolean &&
                     rows[0]["state"]["prepared"].Type == JTokenType.Boolean &&

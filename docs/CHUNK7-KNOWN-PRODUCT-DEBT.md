@@ -1,5 +1,18 @@
 # Chunk 7 known product debt
 
+## Preview.50 registered disable event-frame diagnostic — FAIL
+
+Batch25 observed the complete native B rejoin/Tick/Clear sequence and its
+correct 6/3/6 → 0 debt transition. The six events used Unity frame 4761 after
+game time advanced 170000 ticks; the diagnostic polled in frame 4762 and
+incorrectly required the events there. Original evidence SHA-256
+`d09b82ea4fa2376316c4cc98756b97317a843bebf8aa50196249b86fe193b41c`
+remains FAIL. Preview.51 corrects the diagnostic/reader frame window while
+retaining a single causal frame and strictly advancing bounded game clock.
+Independent review PASS SHA-256
+`fd9e6d2ebeee8ba038b1472bb346cb8c631a6238e29aaed35f6e19608fd03a2a`;
+fresh native acceptance remains required.
+
 ## Preview.49 registered disable later-frame diagnostic — FAIL; preview.50 review PASS
 
 The preview.49 batch24 native callback, selected B failure and same-frame retry
