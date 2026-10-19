@@ -1,5 +1,19 @@
 # Chunk 7 known product debt
 
+## Native driver selection and incomplete control-fact evidence — IN PROGRESS
+
+Preview.42 b13s1 worker and b13s2 barrier remain FAIL despite game PASS.
+The worker's restored-start path omitted normal Select(A); strict selection
+validation stays intact. Barrier preparation exposed a distinction between stale
+hotbar AbilityData templates and live fact-bound controls. Four raw templates
+and aggregate facts6→4 cannot prove exact actor ownership. Independent review
+requires native per-actor/per-kind fact observations, including active state,
+fact/Data blueprints, caster and native lookup, with compensated-leak negatives.
+No threshold-only repair or deletion of native hotbar templates is accepted.
+Preview.43 will require new observations and fresh native attempts. All failed
+raw evidence is immutable, not reused as an accepted producer. Batch13 is fully
+restored; its read-only route inventory passed but proves no area transfer.
+
 Bounded known issues found by native runs, with their current disposition. Resolved entries are kept so the history of each finding stays readable.
 
 ## Completed native boundary movement lost during cold restoration — PASS (October 18)

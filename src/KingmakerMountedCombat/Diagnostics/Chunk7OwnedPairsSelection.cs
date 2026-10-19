@@ -44,7 +44,7 @@ namespace KingmakerMountedCombat.Diagnostics
         // further family is connected.
         internal static readonly string[] OwnerSeedCheckpoints = { "multi-exploration-quick", "multi-exploration-auto",
             "multi-rt-debt-manual", "multi-tb-debt-manual", "zero-mounted-tb-retained-manual", "legacy-mounted-pending-tb-manual" };
-        internal static bool IsOwnerSeedSourceOnlyCheckpoint(string checkpoint) => SupportedSaveBoundary(checkpoint);
+        internal static bool IsOwnerSeedSourceOnlyCheckpoint(string checkpoint) => SupportedSaveBoundary(checkpoint) || OwnedSchema1Source(checkpoint);
         // The connected combat checkpoints: genuine native Manuals written mid-combat from the restored
         // two-pair start under the owner-approved diagnostic target. Their native Manual name is distinct
         // from every acquired-ancestry KMC_C7_WORLD and from the derived KMC_C7_SEED_WORLD input.
@@ -141,6 +141,9 @@ namespace KingmakerMountedCombat.Diagnostics
             "legacy-mounted-pending-tb-manual", "multi-area-autosave" }, value) >= 0;
         internal static bool OwnedSchema1Source(string value) => value == "owned-schema1-manual";
         internal static bool OwnedSchema1Cold(string value) => value == "owned-schema1-resave-manual";
+        internal static bool CurrentMigrationCheckpoint(string value) => value == "owned-schema1-current-manual" ||
+            value == "owned-schema2-pending-current-manual";
+        internal static bool IsOwnerSeedLoadOnlyCheckpoint(string value) => OwnedSchema1Cold(value) || CurrentMigrationCheckpoint(value);
         internal static bool SupportedSaveBoundary(string value) => value == "multi-nonselected-mount-unsettled-manual" ||
             value == "multi-owned-worker-cancel-manual";
         internal static bool RepeatedCheckpoint(string value) => value == "multi-exploration-three-loads-manual" ||
@@ -150,7 +153,7 @@ namespace KingmakerMountedCombat.Diagnostics
         // Owner-seed Manual producer: exactly its one measured Manual (no setup write exists).
         internal int WriteCount(string checkpoint) => IsOwnerSeed ? ExpectedNativeWriteCount : IsOwnerSeedManual ? 1 :
             IsOwnerSeedCheckpointSave ? (checkpoint == "multi-owned-worker-cancel-manual" ? 2 : 1) :
-            IsOwnerSeedCheckpointLoad ? (checkpoint == "legacy-mounted-pending-tb-manual" ? 1 : 0) :
+            IsOwnerSeedCheckpointLoad ? (checkpoint == "legacy-mounted-pending-tb-manual" || OwnedSchema1Cold(checkpoint) ? 1 : 0) :
             Case == "persistence-save" && checkpoint == "multi-owned-worker-cancel-manual" ? 2 : Case == "persistence-save" ||
             Cold && (checkpoint == "legacy-mounted-pending-tb-manual" || OwnedSchema1Cold(checkpoint)) ? 1 : 0;
         public IReadOnlyList<string> Validate(string scenario, string runId, string checkpoint)
@@ -263,7 +266,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 errors.Add(IsOwnerSeedCheckpointSave ? "The owner-seed checkpoint producer requires the exact distinct accepted cold-consumer run and its evidence SHA256." :
                     "The owner-seed checkpoint consumer requires the exact distinct checkpoint producer run and its persistence evidence SHA256.");
             if (CompanionId != null) errors.Add("Only owner-seed-derived RT combat names an unrelated companion.");
-            if (Array.IndexOf(OwnerSeedCheckpoints, checkpoint) < 0 && !(IsOwnerSeedCheckpointSave && IsOwnerSeedSourceOnlyCheckpoint(checkpoint)))
+            if (Array.IndexOf(OwnerSeedCheckpoints, checkpoint) < 0 &&
+                !(IsOwnerSeedCheckpointSave && IsOwnerSeedSourceOnlyCheckpoint(checkpoint)) &&
+                !(IsOwnerSeedCheckpointLoad && IsOwnerSeedLoadOnlyCheckpoint(checkpoint)))
                 errors.Add("The owner-seed checkpoint pair admits only its connected checkpoints: " + string.Join(", ", OwnerSeedCheckpoints) + ".");
             return errors;
         }

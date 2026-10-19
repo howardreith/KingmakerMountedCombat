@@ -18,7 +18,9 @@ function Assert-KmcOwnedSchema1Request($Request){
  Assert-KmcChunk7OwnedPairsSelection $Request
  if(-not(Test-KmcChunk7OwnedPairsScenario $Request.scenario)-or-not(Test-KmcOwnedSchema1Case $Request.persistenceCase)){throw 'Owned schema-1 requires its closed inherited family.'}
  $cold=Test-KmcOwnedSchema1ColdRequest $Request
- Assert-KmcBootstrapInventoryString $Request.ownedPairs.case $(if($cold){'persistence-load'}else{'persistence-save'})
+ $seed=Test-KmcChunk7OwnedPairsSeedCheckpointSave $Request
+ $seedCold=Test-KmcChunk7OwnedPairsSeedCheckpointLoad $Request
+ Assert-KmcBootstrapInventoryString $Request.ownedPairs.case $(if($cold){if($seedCold){'owner-seed-checkpoint-load'}else{'persistence-load'}}else{if($seed){'owner-seed-checkpoint-save'}else{'persistence-save'}})
  $has=$null-ne$Request.PSObject.Properties['schema1DerivationSha256']
  if($cold){if(-not$has-or$Request.schema1DerivationSha256-isnot[string]-or$Request.schema1DerivationSha256-cnotmatch'^[a-f0-9]{64}$'){throw 'Owned schema-1 cold input requires its exact metadata-copy receipt.'}}
  elseif($has){throw 'Owned schema-1 native source cannot select a historical derivative.'}
@@ -62,7 +64,8 @@ function Assert-KmcOwnedSchema1Snapshot($Snapshot,$Archive,$Request,[string]$Lab
  Assert-KmcBootstrapInventoryString $Snapshot.label $Label
  Assert-KmcChunk7NativeCounters $Snapshot @('semanticRestores','presentationRestores','nativePostLoads','snapshots','nativeCastRequests','gameTicks')
  Assert-KmcChunk7NativeCounters $Snapshot.controls @('DuplicateFactCount','ManagedHotbarSlotCount');Assert-KmcChunk7Boolean $Snapshot.controls.SerializationSuspended $false
- $restores=if($Cold){2}else{0};$presentation=if($Cold){1}else{0};$casts=if($Cold){0}else{1}
+ $seedSource=-not$Cold-and(Test-KmcChunk7OwnedPairsSeedCheckpointSave $Request)
+ $restores=if($Cold){2}elseif($seedSource){4}else{0};$presentation=if($Cold){1}elseif($seedSource){2}else{0};$casts=if($Cold){0}else{1}
  if($Snapshot.semanticRestores-ne$restores-or$Snapshot.presentationRestores-ne$presentation-or$Snapshot.nativePostLoads-ne$restores-or$Snapshot.snapshots-ne$Writes-or$Snapshot.nativeCastRequests-ne$casts-or$Snapshot.controls.DuplicateFactCount-ne0-or$Snapshot.controls.ManagedHotbarSlotCount-ne$Archive.Slots.Count){throw 'Owned schema-1 native restoration/write/input/control counts differ.'}
  if($Cold){Assert-KmcBootstrapInventoryString $Snapshot.archivePhase 'all-pair-presentation-restored'}
  Assert-KmcChunk7Schema1Owners $Snapshot.owners $Archive
@@ -112,12 +115,17 @@ function Assert-KmcOwnedSchema1Observation($Request,$Artifact){
   Assert-KmcChunk7Schema1World $m.restoredWorld $imported;Assert-KmcChunk7Schema1World $m.resavedWorld $archive;Assert-KmcChunk7Schema1Probe $o.coldRestoration $imported $Request
   $specs=@(@('schema1-native-restored-before-resave',0,$imported),@('schema1-native-resave-complete',1,$archive))
  }else{
+  if(Test-KmcChunk7OwnedPairsSeedCheckpointSave $Request){
+   Assert-KmcChunk7OwnerSeedCheckpointStart $Request $o $archive
+   $specs=@(,@('native-write-complete',1,$archive))
+  }else{
   if($o.inputs.Count-ne1){throw 'The one-owner source requires exactly one ordinary native Mount.'};$row=$o.inputs[0]
   foreach($pair in @(@('label','mount-mammoth'),@('casterId',$Request.ownedPairs.riderAId),@('targetId',$Request.ownedPairs.mountAId),@('abilityGuid','f053faad986631688defa003cd7bda0e'))){Assert-KmcBootstrapInventoryString $row.($pair[0]) $pair[1]}
   Assert-KmcOrdinaryInteger $row.nativeCastDelta 1 1;Assert-KmcOrdinaryInteger $row.nativeRefusalDelta 0 0;Assert-KmcOrdinaryInteger $row.generationAtInit 0
   if($row.control-isnot[string]-or[string]::IsNullOrEmpty($row.control)-or$row.selectionAfterInput-isnot[string]-or$row.selectionAfterInput-ceq$row.casterId){throw 'Source Mount lost its native control/selection observation.'}
   Assert-KmcChunk7Boolean $row.clicked $true;Assert-KmcChunk7Boolean $row.terminal $true
   $specs=@(,@('native-write-complete',1,$archive))
+  }
  }
  foreach($spec in $specs){$rows=@($o.snapshots|Where-Object label -CEQ $spec[0]);if($rows.Count-ne1){throw 'Historical native boundary snapshot is absent or duplicate.'};Assert-KmcOwnedSchema1Snapshot $rows[0] $spec[2] $Request $spec[0] $spec[1] $cold}
  foreach($key in @('pairsClear','controlsSettled','saveCustodyClear','selectionRestored','inheritedPetsPreserved')){Assert-KmcChunk7Boolean $o.cleanup.$key $true}

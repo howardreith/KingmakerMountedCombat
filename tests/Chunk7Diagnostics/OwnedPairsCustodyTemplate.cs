@@ -13,6 +13,10 @@ namespace OwnedPairsCustodyCheck {
   private static void Assert(bool value) { if (!value) throw new Exception("Expected predicate was false."); }
   private static void Refuses(Action action) { try { action(); } catch (InvalidOperationException) { return; } throw new Exception("Expected exact boundary refusal."); }
   private static int Main() {
+   foreach(var checkpoint in new[]{"multi-exploration-manual","multi-exploration-quick","multi-exploration-auto","multi-area-autosave","multi-exploration-three-loads-manual","multi-exploration-three-area-transfers-manual","owned-schema1-resave-manual","owned-schema1-current-manual"}){var selected=checkpoint;Test("actual inherited exploration cold admission "+selected,()=>{var m=new ModeFixture(selected,true);m.Verify(false);Assert(m.Continued==1);Refuses(()=>new ModeFixture(selected,true).Verify(true));});}
+   foreach(var checkpoint in new[]{"multi-rt-debt-manual","multi-tb-debt-manual","zero-mounted-tb-retained-manual","legacy-mounted-pending-tb-manual","owned-schema2-pending-current-manual"}){var selected=checkpoint;Test("actual inherited combat cold admission "+selected,()=>{var m=new ModeFixture(selected,true);m.Verify(true);Assert(m.Continued==1);Refuses(()=>new ModeFixture(selected,true).Verify(false));});}
+   Test("actual inherited source admission retains exploration mode",()=>{var m=new ModeFixture("multi-tb-debt-manual",false);m.Verify(false);Refuses(()=>new ModeFixture("multi-tb-debt-manual",false).Verify(true));});
+   foreach(var marker in new[]{"bound","released"}){var selected=marker;Test("actual inherited admission rejects "+selected+" before continuation",()=>{var m=new ModeFixture("owned-schema1-current-manual",true);m.bound=selected=="bound";m.released=selected=="released";Refuses(()=>m.Verify(false));Assert(m.Continued==0);});}
    Test("historical Working non-transfer area is unchanged", () => Assert(new AreaBoundary(false,false).Area == "working"));
    Test("owned source uses qualified acquired area", () => Assert(new AreaBoundary(true,false).Area == "acquired"));
    Test("owned cold scope uses qualified acquired area", () => { var a=new AreaBoundary(true,false); a.Cold=true; Assert(a.StartScopeArea == "acquired"); });
@@ -56,6 +60,13 @@ namespace OwnedPairsCustodyCheck {
   // Exact selection expression used by StartNativeWorld; external scope is not constructed.
   internal string StartScopeArea => Cold ? ExpectedArchiveArea : request.SelectedChunk7Fixture.Area;
  }
+ internal sealed class ModeFixture {
+  internal bool bound,released;internal int Continued;private Selection selection;private Request request;
+  internal ModeFixture(string checkpoint,bool cold){selection=new Selection{Cold=cold};request=new Request{PersistenceCase=checkpoint};}
+  private static void Require(bool value,string reason){if(!value)throw new InvalidOperationException(reason);}
+  internal void Verify(bool combatCold){RequireBindMode(combatCold);Continued++;}
+  /*ACTUAL_BIND_MODE*/
+ }
  internal sealed class Request { internal bool Owned; internal string PersistenceCase; internal Fixtures Fixture; internal Descriptor PersistenceLoad,PersistenceAreaTarget; internal Descriptor SelectedChunk7Fixture=>Owned?PersistenceLoad:Fixture.Working; }
  internal sealed class Fixtures { internal Descriptor Working; }
  internal sealed class Descriptor { internal string Area; }
@@ -81,7 +92,7 @@ namespace OwnedPairsCustodyCheck {
   /*ACTUAL_REQUIRE*/
   /*ACTUAL_ARRANGEMENT*/
  }
- internal sealed class Selection {internal string SourceArtifactSha256="exact";}
+ internal sealed class Selection {internal string SourceArtifactSha256="exact";internal bool Cold;}
  internal sealed class Scope {internal int Calls;internal bool Refuse;internal void RequireCurrent(){Calls++;if(Refuse)throw new InvalidOperationException("world changed");}}
  internal sealed class Game {internal static Game Instance;internal Player Player=new Player();}
  internal sealed class Ref {internal Unit Value;internal Ref(Unit value){Value=value;}}
@@ -93,6 +104,12 @@ namespace OwnedPairsCustodyCheck {
  internal sealed class Blueprint {internal string AssetGuid;}
  internal sealed class Horses {internal object HorseFeature=new object(),LevelRank=new object();internal Blueprint HorseUnit=new Blueprint {AssetGuid="horse"};}
  internal sealed class FakeFileInfo {internal FakeFileInfo(string path){} internal bool Exists=>true;internal long Length=>10;internal DateTime LastWriteTimeUtc=>new DateTime(20);}
+}
+namespace KingmakerMountedCombat.Diagnostics {
+ internal static class Chunk7OwnedPairsSelection {
+  internal static bool RepeatedCheckpoint(string value)=>value=="multi-exploration-three-loads-manual"||value=="multi-exploration-three-area-transfers-manual";
+  internal static bool OwnedSchema1Cold(string value)=>value=="owned-schema1-resave-manual";
+ }
 }
 
 // Only native data containers are substituted. The production roster helper is compiled unchanged.

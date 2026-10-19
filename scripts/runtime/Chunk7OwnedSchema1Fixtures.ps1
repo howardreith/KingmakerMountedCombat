@@ -140,4 +140,12 @@ function Assert-KmcOwnedSchema1ColdSource($Request,$Source,$Artifact){
  if((ConvertTo-KmcChunk7Canonical $Artifact.observations.ownedSchema1.sourceField)-cne(ConvertTo-KmcChunk7Canonical $checkpoint.observations.ownedSchema1.fields[1])){throw 'Native full-field source allocations differ from the immutable original checkpoint.'}
  $input=Join-Path (Join-Path $profile 'Saved Games') $Request.persistenceLoad.fileName;Assert-KmcNotReparsePoint $input 'owned historical input';Assert-KmcNotHardLink $input 'owned historical input'
  if((Get-KmcSha256 $input)-cne$Request.persistenceLoad.sha256-or(Get-Item -LiteralPath $input).Length-ne$Request.persistenceLoad.length){throw 'Immutable historical derivative changed during native restoration.'}
+ foreach($spec in @(@($Source.path,$Source.descriptor,$receipt.sourceMembers,$checkpoint.observations.nativeWrite.archive),@($input,$Request.persistenceLoad,$receipt.members,$receipt.metadata))){
+  $path=$spec[0];$descriptor=$spec[1];$members=$spec[2];$metadata=$spec[3]
+  Assert-KmcNotReparsePoint $path 'requalified historical archive';Assert-KmcNotHardLink $path 'requalified historical archive';$file=Get-Item -LiteralPath $path
+  if($file.Length-ne$descriptor.length-or(Get-KmcSha256 $path)-cne$descriptor.sha256){throw 'Historical derivation archive bytes differ during requalification.'}
+  $stream=[IO.File]::Open($path,[IO.FileMode]::Open,[IO.FileAccess]::Read,[IO.FileShare]::Read)
+  try{$actual=Get-KmcOwnedSchema1Members $stream}finally{$stream.Dispose()}
+  if((ConvertTo-KmcChunk7Canonical $actual.metadata)-cne(ConvertTo-KmcChunk7Canonical $metadata)-or(ConvertTo-KmcChunk7Canonical @($actual.members|Sort-Object name -CaseSensitive))-cne(ConvertTo-KmcChunk7Canonical @($members|Sort-Object name -CaseSensitive))-or(Get-KmcSha256 $path)-cne$descriptor.sha256-or(Get-Item -LiteralPath $path).LastWriteTimeUtc.Ticks-ne$file.LastWriteTimeUtc.Ticks){throw 'Historical derivation metadata or native member inventory differs from its exact receipt.'}
+ }
 }
