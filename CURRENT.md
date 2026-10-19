@@ -1,5 +1,20 @@
 # Chunk 7B–7D — IN PROGRESS
 
+## October 19 — batch41 schema-2 migration resave and separate cold result
+
+Preview.59 Candidate passed 6/0. Batch41's fresh same-candidate schema-3
+producer passed 4/0, and its metadata-only schema-2 derivative cold/resave
+passed 4/0 with a genuine native schema-3 Manual. The separate current-format
+cold consumer's **original result remains FAIL** 2/1: its diagnostic parent
+comparison refused equal wire JSON because parsed `Double` and typed `Single`
+tokens compare unequal in Newtonsoft. Exact archived parent/child JSON graphs
+have zero leaf differences and all save identity pins match. A narrow product
+correction passed actual-method synthetic 57/0 and replay on these immutable
+evidence files 58/0; independent review passed (SHA-256
+`9de8e655f3e2750df2294e83ae758992bf39215ada54d75285fa4c7996a71c0c`). A new-candidate cold retry is
+pending. All three guarded transactions reported exact restoration. See the
+[live resume record](AUTONOMOUS-RESUME.md) and [batch41 evidence](docs/CHUNK7-DIRECTIVE4-REENTRY-CORRECTION-2026-10-19.md).
+
 ## October 19 — batch40 schema-2 native clock correction
 
 The [standing Chunk 7 engineering mission](planning/CHUNK7-COMPLETION-MISSION.md)

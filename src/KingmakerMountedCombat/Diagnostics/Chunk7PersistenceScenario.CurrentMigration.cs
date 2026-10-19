@@ -111,7 +111,11 @@ namespace KingmakerMountedCombat.Diagnostics
                 (string)write["sha256"] == child.PersistenceLoad.Sha256 && (long?)write["length"] == child.PersistenceLoad.Length &&
                 child.PersistenceLoad.Length > 0 && write["archive"] is JObject &&
                 Path.GetFileName((string)write["path"]) == child.PersistenceLoad.FileName &&
-                JToken.DeepEquals(write["archive"], JObject.FromObject(loaded, MountedSaveCodec.CreateSerializer())),
+                // The parent is a parsed evidence artifact (JSON floating values
+                // become Double); loaded is a typed archive (some values are
+                // Single). Compare their validated wire graphs, not JValue CLR
+                // storage types that are not part of the saved schema.
+                JToken.DeepEquals(write["archive"], JObject.Parse(MountedArchiveCodec.Encode(loaded))),
                 "Current-format continuation substituted the parent's genuine current-schema native write.");
             loaded.Validate();
             Require(loaded.SchemaVersion == 3 && loaded.CampaignId == child.PersistenceLoad.GameId &&
