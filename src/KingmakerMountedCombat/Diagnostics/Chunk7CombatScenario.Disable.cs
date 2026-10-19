@@ -1,4 +1,5 @@
 using System;
+using System.Globalization;
 using System.Linq;
 using Kingmaker;
 using Kingmaker.EntitySystem.Entities;
@@ -23,6 +24,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool disableObserverAttached, disableServicesOff;
         private string disablePhase;
         private int disableFaultCount, disableAcceptedFrame;
+        private int disableTraceOffset;
         private readonly JArray disableVisits = new JArray();
         private JObject registeredDisable;
 
@@ -161,6 +163,154 @@ namespace KingmakerMountedCombat.Diagnostics
                 "Registered disable/removal changed native actor debt, preparation, clock, round or save counts.");
         }
 
+        private static void RequireNativeDecay(JObject before, JObject after, double elapsed, params string[] axes)
+        {
+            foreach (var axis in axes)
+            {
+                var oldValue = NativeNumber(before[axis]); var newValue = NativeNumber(after[axis]);
+                Require(oldValue >= 0 && newValue >= 0 && newValue <= oldValue + 0.000001 &&
+                    oldValue - newValue <= elapsed + 0.003,
+                    "Disabled native frame changed " + axis + " beyond elapsed game time.");
+            }
+        }
+
+        private static double NativeNumber(JToken value)
+        {
+            Require(value != null && (value.Type == JTokenType.Integer || value.Type == JTokenType.Float),
+                "Native disable resource is not a JSON number.");
+            double result;
+            Require(double.TryParse(value.ToString(Newtonsoft.Json.Formatting.None), NumberStyles.Float,
+                CultureInfo.InvariantCulture, out result) && !double.IsNaN(result) && !double.IsInfinity(result),
+                "Native disable resource is not a finite JSON number.");
+            return result;
+        }
+
+        private void RequireNativeDisableProgression(JObject before, JObject after, JArray transition)
+        {
+            var ticks = (long)after["world"]["gameTicks"] - (long)before["world"]["gameTicks"];
+            Require(ticks > 0 && ticks <= TimeSpan.TicksPerSecond &&
+                (int)after["world"]["frame"] > (int)before["world"]["frame"] &&
+                (int)after["world"]["round"] == (int)before["world"]["round"] &&
+                JToken.DeepEquals(before["nativePrepares"], after["nativePrepares"]) &&
+                JToken.DeepEquals(before["healthyAllocationId"], after["healthyAllocationId"]) &&
+                (int)after["snapshotCount"] == 0 && (int)after["nativeWrites"] == 0 &&
+                (int)after["authorizedWrites"] == 0,
+                "Disabled native frame lacks bounded clock, stable native grants or zero-write custody.");
+            var elapsed = (double)ticks / TimeSpan.TicksPerSecond;
+            var hooks = trace.ObserverHooks.OfType<JObject>().ToArray();
+            foreach (var spec in new[] { new[] { "06008355", "Kingmaker.EntitySystem.Entities.UnitEntityData.JoinCombat", "DisableJoinBefore", "DisableJoinAfter" },
+                new[] { "0600936F", "Kingmaker.Controllers.Combat.UnitCombatPrepareController.Tick", "DisablePrepareTickBefore", "DisablePrepareTickAfter" },
+                new[] { "0600C3BE", "Kingmaker.Controllers.Combat.UnitCombatState+Cooldowns.Clear", "ClearBefore", "ClearAfter" } })
+                Require(hooks.Count(h => (string)h["token"] == spec[0] && (string)h["method"] == spec[1] &&
+                    (string)h["moduleMvid"] == "07fa1e4d-8618-41b3-9b8d-faa17d3b26f7" &&
+                    (string)h["prefix"] == spec[2] && (string)h["postfix"] == spec[3]) == 1,
+                    "Disabled native frame lacks an exact installed observation hook.");
+            var oldActors = (JArray)before["world"]["actors"];
+            var newActors = (JArray)after["world"]["actors"];
+            Require(oldActors.Count == 4 && newActors.Count == 4, "Disabled native frame lost exact actors.");
+            foreach (var counter in new[] { "TargetSelectionStartCount", "TargetSelectionEndCount", "NativeCastRequestCount",
+                "NativeRefusalCount", "DispatchAcceptedCount", "DispatchRejectedCount", "NativePrimaryShellPrepareCount" })
+                Require(JToken.DeepEquals(before["controls"][counter], after["controls"][counter]),
+                    "Disabled native frame changed a mounted control counter.");
+            foreach (var oldActor in oldActors.OfType<JObject>())
+            {
+                var next = newActors.OfType<JObject>().Single(actor => (string)actor["id"] == (string)oldActor["id"]);
+                if ((string)oldActor["id"] == br.UniqueId) continue;
+                Require(JToken.DeepEquals(oldActor["prepared"], next["prepared"]) &&
+                    JToken.DeepEquals(oldActor["native"]["inCombat"], next["native"]["inCombat"]) &&
+                    JToken.DeepEquals(oldActor["reactions"], next["reactions"]) &&
+                    JToken.DeepEquals(oldActor["native"]["actorObject"], next["native"]["actorObject"]) &&
+                    JToken.DeepEquals(oldActor["native"]["grantSequence"], next["native"]["grantSequence"]) &&
+                    JToken.DeepEquals(oldActor["native"]["reactionsPerRound"], next["native"]["reactionsPerRound"]),
+                    "Disabled native frame changed another pair actor's preparation or combat membership.");
+                RequireNativeDecay(oldActor, next, elapsed, "standard", "move", "swift", "reactionCooldown");
+                RequireNativeDecay((JObject)oldActor["native"], (JObject)next["native"], elapsed, "initiativeCooldown");
+            }
+            var oldB = oldActors.OfType<JObject>().Single(actor => (string)actor["id"] == br.UniqueId);
+            var newB = newActors.OfType<JObject>().Single(actor => (string)actor["id"] == br.UniqueId);
+            var joinedAndPrepared = !(bool)oldB["native"]["inCombat"] && !(bool)oldB["prepared"] &&
+                (bool)newB["native"]["inCombat"] && (bool)newB["prepared"];
+            Require(joinedAndPrepared && transition != null,
+                "Disabled pending rider did not expose its exact native rejoin/preparation boundary.");
+            Require(JToken.DeepEquals(oldB["native"]["actorObject"], newB["native"]["actorObject"]) &&
+                JToken.DeepEquals(oldB["reactions"], newB["reactions"]) &&
+                JToken.DeepEquals(oldB["native"]["grantSequence"], newB["native"]["grantSequence"]) &&
+                JToken.DeepEquals(oldB["native"]["reactionsPerRound"], newB["native"]["reactionsPerRound"]) &&
+                (double)newB["native"]["initiativeCooldown"] >= 0 &&
+                (double)newB["native"]["initiativeCooldown"] <= 6.0 &&
+                (bool)newB["native"]["waitingInitiative"],
+                "Disabled pending rider lost native identity/reactions or has an invalid prepared initiative.");
+            RequireNativeDecay(oldB, newB, elapsed, "reactionCooldown");
+            var bEvents = transition.OfType<JObject>().Where(item => (string)item["state"]?["actor"] == br.UniqueId).ToArray();
+            Require(!transition.OfType<JObject>().Any(item =>
+                new[] { "prepare-before", "prepare-after" }.Contains((string)item["boundary"]) &&
+                actors.Any(actor => actor.UniqueId == (string)item["state"]?["actor"])),
+                "Disabled native frame unexpectedly entered TurnController.Prepare.");
+            var names = new[] { "disable-join-before", "disable-join-after", "disable-prepare-tick-before",
+                "clear-before", "clear-after", "disable-prepare-tick-after" };
+            var matched = names.Select(name => bEvents.Where(item => (string)item["boundary"] == name).ToArray()).ToArray();
+            Require(matched.All(rows => rows.Length == 1) &&
+                matched.Select(rows => (int)rows[0]["sequence"]).SequenceEqual(
+                    matched.Select(rows => (int)rows[0]["sequence"]).OrderBy(value => value)) &&
+                (int)matched[0][0]["frame"] > (int)before["world"]["frame"] &&
+                matched.All(rows => (int)rows[0]["frame"] == (int)after["world"]["frame"] &&
+                    (long)rows[0]["gameTicks"] > 0 && (long)rows[0]["gameTicks"] >= (long)before["world"]["gameTicks"] &&
+                    (long)rows[0]["gameTicks"] <= (long)after["world"]["gameTicks"] &&
+                    rows[0]["state"]["inCombat"].Type == JTokenType.Boolean &&
+                    rows[0]["state"]["prepared"].Type == JTokenType.Boolean &&
+                    new[] { "standard", "move", "swift", "initiativeCooldown" }.All(axis =>
+                        rows[0]["state"][axis] != null &&
+                        (rows[0]["state"][axis].Type == JTokenType.Integer || rows[0]["state"][axis].Type == JTokenType.Float))) &&
+                matched.All(rows => JToken.DeepEquals(rows[0]["state"]["actorObject"], oldB["native"]["actorObject"])) &&
+                !(bool)matched[0][0]["state"]["inCombat"] && (bool)matched[1][0]["state"]["inCombat"] &&
+                matched.Skip(1).All(rows => (bool)rows[0]["state"]["inCombat"]) &&
+                matched.Take(3).All(rows => !(bool)rows[0]["state"]["prepared"]) &&
+                matched.Skip(3).All(rows => (bool)rows[0]["state"]["prepared"]) &&
+                (string)matched[3][0]["detail"] == "disablePrepareDepth=1" &&
+                (string)matched[4][0]["detail"] == "disablePrepareDepth=1" &&
+                (double)matched[3][0]["state"]["standard"] >= 5.9 && (double)matched[3][0]["state"]["move"] >= 2.9 &&
+                (double)matched[3][0]["state"]["swift"] >= 5.9 &&
+                (double)matched[4][0]["state"]["standard"] <= 0.001 && (double)matched[4][0]["state"]["move"] <= 0.001 &&
+                (double)matched[4][0]["state"]["swift"] >= 0 && (double)matched[4][0]["state"]["swift"] <= 0.001 &&
+                (double)matched[4][0]["state"]["move"] >= 0 && (double)matched[4][0]["state"]["standard"] >= 0 &&
+                (bool)matched[5][0]["state"]["prepared"] &&
+                (double)matched[5][0]["state"]["standard"] >= 0 && (double)matched[5][0]["state"]["standard"] <= 0.001 &&
+                (double)matched[5][0]["state"]["move"] >= 0 && (double)matched[5][0]["state"]["move"] <= 0.001 &&
+                (double)matched[5][0]["state"]["swift"] >= 0 && (double)matched[5][0]["state"]["swift"] <= 0.001 &&
+                (double)matched[5][0]["state"]["initiativeCooldown"] > 0 &&
+                (double)matched[5][0]["state"]["initiativeCooldown"] <= 6 &&
+                matched[5][0]["state"]["waitingInitiative"].Type == JTokenType.Boolean &&
+                (bool)matched[5][0]["state"]["waitingInitiative"],
+                "Disabled rider's native rejoin, Prepare.Tick and Cooldowns.Clear were not exactly attributed.");
+            for (var index = 1; index < matched.Length; index++)
+                Require((long)matched[index][0]["gameTicks"] >= (long)matched[index - 1][0]["gameTicks"],
+                    "Disabled native causal clock regressed within one frame.");
+            for (var index = 0; index <= 3; index++)
+                RequireNativeDecay(oldB, (JObject)matched[index][0]["state"], elapsed,
+                    "standard", "move", "swift");
+            for (var index = 1; index <= 3; index++)
+                RequireNativeDecay((JObject)matched[index - 1][0]["state"], (JObject)matched[index][0]["state"],
+                    elapsed, "standard", "move", "swift");
+            RequireNativeDecay((JObject)matched[5][0]["state"], (JObject)newB["native"],
+                elapsed, "initiativeCooldown");
+            foreach (var axis in new[] { "standard", "move", "swift" })
+                Require((double)newB[axis] <= 0.001 && (double)oldB[axis] >= (axis == "move" ? 2.9 : 5.9),
+                    "Disabled rider's native Prepare.Tick did not explain the cleared spent debt.");
+            var oldUnrelated = (JArray)before["unrelatedActors"]; var newUnrelated = (JArray)after["unrelatedActors"];
+            Require(oldUnrelated.Count == newUnrelated.Count, "Disabled native frame lost an unrelated actor.");
+            foreach (var oldRow in oldUnrelated.OfType<JObject>())
+            {
+                var next = newUnrelated.OfType<JObject>().Single(row => (string)row["native"]["Id"] == (string)oldRow["native"]["Id"]);
+                Require(JToken.DeepEquals(oldRow["prepared"], next["prepared"]) &&
+                    JToken.DeepEquals(oldRow["inCombat"], next["inCombat"]) &&
+                    JToken.DeepEquals(oldRow["native"]["ReactionsRemaining"], next["native"]["ReactionsRemaining"]) &&
+                    JToken.DeepEquals(oldRow["native"]["LastSurpriseTicks"], next["native"]["LastSurpriseTicks"]),
+                    "Disabled native frame changed unrelated actor membership or preparation.");
+                RequireNativeDecay((JObject)oldRow["native"], (JObject)next["native"], elapsed,
+                    "Standard", "Move", "Swift", "Initiative", "Reaction");
+            }
+        }
+
         private void RequireDisableVisits(string phase)
         {
             var rows = disableVisits.Where(row => (string)row["phase"] == phase).ToArray();
@@ -218,12 +368,15 @@ namespace KingmakerMountedCombat.Diagnostics
                         ["inCombat"] = actor?.IsInCombat })) };
             Require(prelude.Properties().All(p => (bool)p.Value),
                 "Registered disable must start with A finalized and B's real pending-only survivor, both original owners.");
+            Require(trace != null, "Registered disable requires its native allocation observer.");
+            trace.ObserveDisableNativeActor(br);
             var before = CaptureDisableState("registered-disable-before"); var allocation = AllocationRecord(am);
             Require(allocation != null && trace != null && (int)before["healthyAllocationId"] != 0,
                 "Registered disable requires A's existing native allocation observation.");
+            disableTraceOffset = trace.EventCount;
             registeredDisable = new JObject { ["contract"] = "owner-seed-registered-disable-local-failure-v1",
                 ["callback"] = "UnityModManager.ModEntry.OnToggle", ["injectedPairId"] = disableOwnerB.Id.ToString("N"),
-                ["before"] = before, ["visits"] = disableVisits };
+                ["before"] = before, ["visits"] = disableVisits, ["traceSequenceBefore"] = disableTraceOffset };
             evidence["registeredDisable"] = registeredDisable;
             disableCleanupFault = trigger => { if (trigger == CleanupTrigger.ModDisabled) { disableFaultCount++; throw new InvalidOperationException("C7 selected pair B ModDisabled subscriber failure"); } };
             b.Relationship.Dismounting += disableCleanupFault;
@@ -295,7 +448,10 @@ namespace KingmakerMountedCombat.Diagnostics
                 controls.CaptureSnapshot().ExactFactCount == 0 && controls.CaptureSnapshot().ManagedHotbarSlotCount == 0 &&
                 controls.CapturePersistentSlots().Length == 0, "Registered disable did not persist through a later native TB frame.");
             var later = CaptureDisableState("registered-disabled-later-frame"); registeredDisable["disabledLaterFrame"] = later;
-            RequireDisableDebt((JObject)registeredDisable["before"], later); RequireDisableRetainedOwners();
+            var transition = trace.EventsSince(disableTraceOffset); registeredDisable["nativeTransition"] = transition;
+            registeredDisable["traceSequenceAfter"] = trace.EventCount;
+            RequireNativeDisableProgression((JObject)registeredDisable["retry"], later, transition);
+            RequireDisableRetainedOwners();
             Require(JToken.DeepEquals(registeredDisable["before"]["participationB"], later["participationB"]),
                 "Disabled frame dropped or restarted B's real pending survivor.");
             var enabled = registeredToggle(true); if (enabled) disableServicesOff = false;
@@ -303,7 +459,7 @@ namespace KingmakerMountedCombat.Diagnostics
             registeredDisable["reenabled"] = CaptureDisableState("registered-reenabled-before-native-teardown");
             Require(enabled && persistence.Enabled && controls.CaptureSnapshot().Enabled && world.Registry.ActiveCount == 0,
                 "Registered re-enable did not restore services without remounting.");
-            RequireDisableDebt((JObject)registeredDisable["before"], (JObject)registeredDisable["reenabled"]);
+            RequireDisableDebt(later, (JObject)registeredDisable["reenabled"]);
             RequireDisableRetainedOwners(); inherited.RequirePreserved();
             EndRegisteredDisableObservation();
             registeredDisable["complete"] = true;
@@ -321,6 +477,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 disableServicesOff = false;
             }
             if (disableObserverAttached) { world.PairDismounting -= ObserveDisableVisit; disableObserverAttached = false; }
+            trace?.EndDisableNativeObservation();
         }
     }
 }

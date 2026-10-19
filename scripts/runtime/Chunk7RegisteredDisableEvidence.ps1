@@ -56,6 +56,70 @@ function Assert-KmcChunk7DisableDebt($Before,$After,[string[]]$Roles){
  foreach($key in @('snapshotCount','nativeWrites','authorizedWrites')){Assert-KmcOrdinaryInteger $Before.$key 0 0;Assert-KmcOrdinaryInteger $After.$key 0 0}
  foreach($key in @('TargetSelectionStartCount','TargetSelectionEndCount','NativeCastRequestCount','NativeRefusalCount','DispatchAcceptedCount','DispatchRejectedCount','NativePrimaryShellPrepareCount')){Assert-KmcChunk7DisableEqual $Before.controls.$key $After.controls.$key ('control '+$key)}
 }
+function Assert-KmcChunk7DisableDecay($Before,$After,[double]$Elapsed,[string[]]$Axes){
+ foreach($axis in $Axes){$oldRaw=$Before.$axis;$newRaw=$After.$axis
+  if(-not(Test-KmcChunk7FiniteNumber $oldRaw)-or-not(Test-KmcChunk7FiniteNumber $newRaw)){throw ('Disabled native '+$axis+' is not a finite JSON number.')}
+  $old=[double]$oldRaw;$new=[double]$newRaw
+  if($old-lt0-or$new-lt0-or$new-gt($old+0.000001)-or($old-$new)-gt($Elapsed+0.003)){throw ('Disabled native '+$axis+' changed beyond elapsed game time.')}
+ }
+}
+function Assert-KmcChunk7DisableNativeProgression($Request,$Observations,$Disable,[string[]]$Roles){
+ $a=$Disable.retry;$b=$Disable.disabledLaterFrame;$ticks=[long]$b.world.gameTicks-[long]$a.world.gameTicks
+ if($ticks-le0-or$ticks-gt[TimeSpan]::TicksPerSecond-or$b.world.frame-le$a.world.frame-or$b.world.round-ne$a.world.round){throw 'Disabled native frame lacks a bounded advancing clock and stable round.'}
+ $elapsed=$ticks/[double][TimeSpan]::TicksPerSecond
+ foreach($spec in @(@('06008355','Kingmaker.EntitySystem.Entities.UnitEntityData.JoinCombat','DisableJoinBefore','DisableJoinAfter'),@('0600936F','Kingmaker.Controllers.Combat.UnitCombatPrepareController.Tick','DisablePrepareTickBefore','DisablePrepareTickAfter'),@('0600C3BE','Kingmaker.Controllers.Combat.UnitCombatState+Cooldowns.Clear','ClearBefore','ClearAfter'))){
+  $hooks=@($Observations.allocationTrace.observerHooks|Where-Object{$_.token-ceq$spec[0]-and$_.method-ceq$spec[1]-and$_.moduleMvid-ceq'07fa1e4d-8618-41b3-9b8d-faa17d3b26f7'-and$_.prefix-ceq$spec[2]-and$_.postfix-ceq$spec[3]})
+  if($hooks.Count-ne1){throw 'Disabled native frame lacks an exact installed observation hook.'}
+ }
+ foreach($key in @('nativePrepares','healthyAllocationId')){Assert-KmcChunk7DisableEqual $a.$key $b.$key $key}
+ foreach($key in @('TargetSelectionStartCount','TargetSelectionEndCount','NativeCastRequestCount','NativeRefusalCount','DispatchAcceptedCount','DispatchRejectedCount','NativePrimaryShellPrepareCount')){Assert-KmcChunk7DisableEqual $a.controls.$key $b.controls.$key ('disabled control '+$key)}
+ foreach($key in @('snapshotCount','nativeWrites','authorizedWrites')){Assert-KmcOrdinaryInteger $b.$key 0 0}
+ foreach($i in @(0,1,3)){$before=Get-KmcChunk7CombatActor $a.world $Roles[$i];$after=Get-KmcChunk7CombatActor $b.world $Roles[$i]
+  Assert-KmcChunk7Boolean $after.prepared $before.prepared;Assert-KmcChunk7Boolean $after.native.inCombat $before.native.inCombat
+  Assert-KmcChunk7DisableEqual $before.reactions $after.reactions 'native reaction count';Assert-KmcChunk7DisableEqual $before.native.actorObject $after.native.actorObject 'native actor object'
+  Assert-KmcChunk7DisableEqual $before.native.grantSequence $after.native.grantSequence 'native grant sequence';Assert-KmcChunk7DisableEqual $before.native.reactionsPerRound $after.native.reactionsPerRound 'native reactions per round'
+  Assert-KmcChunk7DisableDecay $before $after $elapsed @('standard','move','swift','reactionCooldown')
+  Assert-KmcChunk7DisableDecay $before.native $after.native $elapsed @('initiativeCooldown')
+ }
+ $beforeB=Get-KmcChunk7CombatActor $a.world $Roles[2];$afterB=Get-KmcChunk7CombatActor $b.world $Roles[2]
+ foreach($v in @(@($beforeB.native.inCombat,$false),@($beforeB.prepared,$false),@($afterB.native.inCombat,$true),@($afterB.prepared,$true))){Assert-KmcChunk7Boolean $v[0] $v[1]}
+ Assert-KmcChunk7DisableEqual $beforeB.native.actorObject $afterB.native.actorObject 'pending native actor object';Assert-KmcChunk7DisableEqual $beforeB.reactions $afterB.reactions 'pending reaction count'
+ Assert-KmcChunk7DisableEqual $beforeB.native.grantSequence $afterB.native.grantSequence 'pending native grant sequence';Assert-KmcChunk7DisableEqual $beforeB.native.reactionsPerRound $afterB.native.reactionsPerRound 'pending reactions per round'
+ Assert-KmcChunk7DisableDecay $beforeB $afterB $elapsed @('reactionCooldown')
+ if(-not(Test-KmcChunk7FiniteNumber $afterB.native.initiativeCooldown)-or[double]$afterB.native.initiativeCooldown-lt0-or[double]$afterB.native.initiativeCooldown-gt6){throw 'Pending rider has an invalid native initiative cooldown.'}
+ Assert-KmcChunk7Boolean $afterB.native.waitingInitiative $true
+ foreach($axis in @('standard','move','swift')){if([double]$beforeB.$axis-lt$(if($axis-ceq'move'){2.9}else{5.9})-or[double]$afterB.$axis-gt0.001){throw 'Native pending rider preparation did not explain cleared spent debt.'}}
+ if($a.unrelatedActors.Count-ne$b.unrelatedActors.Count){throw 'Disabled frame lost unrelated native actors.'}
+ foreach($old in $a.unrelatedActors){$rows=@($b.unrelatedActors|Where-Object{$_.native.Id-ceq$old.native.Id});if($rows.Count-ne1){throw 'Disabled frame substituted an unrelated native actor.'};$next=$rows[0]
+  Assert-KmcChunk7Boolean $next.prepared $old.prepared;Assert-KmcChunk7Boolean $next.inCombat $old.inCombat
+  foreach($key in @('ReactionsRemaining','LastSurpriseTicks')){Assert-KmcChunk7DisableEqual $old.native.$key $next.native.$key ('unrelated '+$key)}
+  Assert-KmcChunk7DisableDecay $old.native $next.native $elapsed @('Standard','Move','Swift','Initiative','Reaction')
+ }
+ Assert-KmcOrdinaryInteger $Disable.traceSequenceBefore 0 ([int]::MaxValue);Assert-KmcOrdinaryInteger $Disable.traceSequenceAfter ($Disable.traceSequenceBefore+1) ([int]::MaxValue)
+ $events=@($Disable.nativeTransition);$full=@($Observations.allocationTrace.events)
+ if($events.Count-ne($Disable.traceSequenceAfter-$Disable.traceSequenceBefore)-or$full.Count-lt$Disable.traceSequenceAfter){throw 'Native disable transition is not a complete bounded trace slice.'}
+ for($i=0;$i-lt$events.Count;$i++){Assert-KmcOrdinaryInteger $events[$i].sequence ($Disable.traceSequenceBefore+$i+1) ($Disable.traceSequenceBefore+$i+1);Assert-KmcChunk7DisableEqual $events[$i] $full[$Disable.traceSequenceBefore+$i] 'native disable trace'}
+ if(@($events|Where-Object{$_.boundary-cin@('prepare-before','prepare-after')-and$_.state.actor-cin$Roles}).Count-ne0){throw 'Disabled native frame unexpectedly entered TurnController.Prepare.'}
+ $names=@('disable-join-before','disable-join-after','disable-prepare-tick-before','clear-before','clear-after','disable-prepare-tick-after');$matched=@()
+ foreach($name in $names){$rows=@($events|Where-Object{$_.boundary-ceq$name-and$_.state.actor-ceq$Roles[2]});if($rows.Count-ne1){throw ('Native disable lacks exact rider '+$name)};$matched+=,$rows[0]}
+ for($i=1;$i-lt$matched.Count;$i++){if($matched[$i].sequence-le$matched[$i-1].sequence){throw 'Native rider rejoin/preparation/clear order differs.'}}
+ foreach($event in $matched){Assert-KmcOrdinaryInteger $event.frame $b.world.frame $b.world.frame;Assert-KmcOrdinaryInteger $event.gameTicks $a.world.gameTicks $b.world.gameTicks
+  if($event.gameTicks-le0-or$event.state.inCombat-isnot[bool]-or$event.state.prepared-isnot[bool]){throw 'Native causal event has invalid clock or Boolean state.'}
+  foreach($axis in @('standard','move','swift','initiativeCooldown')){if(-not(Test-KmcChunk7FiniteNumber $event.state.$axis)){throw 'Native causal resource is not a finite JSON number.'}}
+ }
+ if($matched[0].frame-le$a.world.frame-or$matched[0].state.inCombat-ne$false-or$matched[1].state.inCombat-ne$true-or
+  $matched[2].state.prepared-ne$false-or$matched[3].state.prepared-ne$true-or$matched[3].detail-cne'disablePrepareDepth=1'-or$matched[4].detail-cne'disablePrepareDepth=1'-or
+  [double]$matched[3].state.standard-lt5.9-or[double]$matched[3].state.move-lt2.9-or[double]$matched[3].state.swift-lt5.9-or
+  [double]$matched[4].state.standard-lt0-or[double]$matched[4].state.move-lt0-or[double]$matched[4].state.swift-lt0-or
+  [double]$matched[4].state.standard-gt0.001-or[double]$matched[4].state.move-gt0.001-or[double]$matched[4].state.swift-gt0.001-or$matched[5].state.prepared-ne$true){throw 'Native rejoin, Prepare.Tick and Cooldowns.Clear did not exactly account for rider debt.'}
+ foreach($axis in @('standard','move','swift')){if(-not(Test-KmcChunk7FiniteNumber $matched[5].state.$axis)-or[double]$matched[5].state.$axis-lt0-or[double]$matched[5].state.$axis-gt0.001){throw 'Native Prepare.Tick exited without the observed cleared rider debt.'}}
+ if(-not(Test-KmcChunk7FiniteNumber $matched[5].state.initiativeCooldown)-or[double]$matched[5].state.initiativeCooldown-le0-or[double]$matched[5].state.initiativeCooldown-gt6-or$matched[5].state.waitingInitiative-isnot[bool]-or-not$matched[5].state.waitingInitiative){throw 'Native Prepare.Tick exit has invalid initiative state.'}
+ for($i=1;$i-lt$matched.Count;$i++){if($matched[$i].gameTicks-lt$matched[$i-1].gameTicks){throw 'Native causal clock regressed within one frame.'}}
+ for($i=0;$i-le3;$i++){Assert-KmcChunk7DisableDecay $beforeB $matched[$i].state $elapsed @('standard','move','swift')}
+ for($i=1;$i-le3;$i++){Assert-KmcChunk7DisableDecay $matched[$i-1].state $matched[$i].state $elapsed @('standard','move','swift')}
+ Assert-KmcChunk7DisableDecay $matched[5].state $afterB.native $elapsed @('initiativeCooldown')
+ foreach($event in $matched){Assert-KmcChunk7DisableEqual $event.state.actorObject $beforeB.native.actorObject 'native rider clear actor object'}
+}
 function Assert-KmcChunk7DisablePairStates($Value,$MountedStart,[string[]]$Roles,[bool]$Unmounted,[bool]$Held){
  $seen=[Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
  for($i=0;$i-lt2;$i++){
@@ -128,14 +192,17 @@ function Assert-KmcChunk7PermanentHorseRemovalRefusal($Request,$Observations){
 }
 function Assert-KmcChunk7RegisteredDisableSequence($Request,$Observations){
  $o=$Observations;$d=$o.registeredDisable;$roles=Get-KmcChunk7OwnedPairIds $Request;$originalB=@($o.mountedStart.owners|Where-Object riderId -CEQ $roles[2])[0]
- Assert-KmcExactProperties $d @('contract','callback','injectedPairId','before','visits','firstAccepted','held','injectionCount','retryAccepted','retry','retrySameUpdate','disabledLaterFrame','reenableAccepted','reenabled','complete') 'registered disable local failure'
+ Assert-KmcExactProperties $d @('contract','callback','injectedPairId','before','visits','traceSequenceBefore','firstAccepted','held','injectionCount','retryAccepted','retry','retrySameUpdate','disabledLaterFrame','nativeTransition','traceSequenceAfter','reenableAccepted','reenabled','complete') 'registered disable local failure'
  Assert-KmcBootstrapInventoryString $d.contract 'owner-seed-registered-disable-local-failure-v1';Assert-KmcBootstrapInventoryString $d.callback 'UnityModManager.ModEntry.OnToggle';Assert-KmcBootstrapInventoryString $d.injectedPairId $originalB.ownerId
  foreach($key in @('retryAccepted','retrySameUpdate','reenableAccepted','complete')){Assert-KmcChunk7Boolean $d.$key $true};Assert-KmcChunk7Boolean $d.firstAccepted $false;Assert-KmcOrdinaryInteger $d.injectionCount 1 1
  $labels=@('registered-disable-before','registered-disable-refused','registered-disable-retry-accepted','registered-disabled-later-frame','registered-reenabled-before-native-teardown');$snaps=@($d.before,$d.held,$d.retry,$d.disabledLaterFrame,$d.reenabled)
  for($i=0;$i-lt$snaps.Count;$i++){$s=$snaps[$i]
   Assert-KmcChunk7DisableSnapshot $Request $s $labels[$i] $true $o.targetId
   Assert-KmcChunk7Boolean $s.paused $false;Assert-KmcChunk7Boolean $s.turnBased $true
-  Assert-KmcChunk7DisableDebt $d.before $s $roles;Assert-KmcChunk7DisablePairStates $s $o.mountedStart $roles ($i-gt0) ($i-eq1)
+  if($i-lt3){Assert-KmcChunk7DisableDebt $d.before $s $roles}
+  elseif($i-eq3){Assert-KmcChunk7DisableNativeProgression $Request $o $d $roles}
+  else{Assert-KmcChunk7DisableDebt $d.disabledLaterFrame $s $roles}
+  Assert-KmcChunk7DisablePairStates $s $o.mountedStart $roles ($i-gt0) ($i-eq1)
   Assert-KmcChunk7DisableEqual $d.before.participationB $s.participationB 'pending survivor participation'
   $enabled=$i-lt2-or$i-eq4;Assert-KmcChunk7Boolean $s.persistenceEnabled $enabled;Assert-KmcChunk7Boolean $s.controls.Enabled $enabled
   if($i-in@(2,3)){foreach($key in @('ExactFactCount','ManagedHotbarSlotCount')){Assert-KmcOrdinaryInteger $s.controls.$key 0 0};if($s.slots.Count-ne0){throw 'Disabled services retain live native controls.'}}

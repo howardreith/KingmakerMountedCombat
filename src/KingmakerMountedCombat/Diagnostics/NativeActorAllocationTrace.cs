@@ -51,12 +51,13 @@ namespace KingmakerMountedCombat.Diagnostics
         private string encounter;
         private int dropped;
         private int observationErrors;
+        private int disablePrepareDepth;
         internal bool ObserveReactionResources { get; set; }
         internal bool ObserveGroundCooldownEligibility { get; set; }
         internal event Action<string, UnitEntityData, UnitCommand> BoundaryObserved;
         internal int EventCount => events.Count;
         internal JArray EventsSince(int offset) => new JArray(events.Skip(offset).Select(item => item.DeepClone()));
-        internal bool Complete => installed && dropped == 0 && observationErrors == 0 && identities.FaultCount == 0;
+        internal bool Complete => installed && dropped == 0 && observationErrors == 0 && identities.FaultCount == 0 && disablePrepareDepth == 0;
 
         internal NativeActorAllocationTrace(UnitEntityData rider, UnitEntityData mount, MountedCombatController combat, bool deferInstallation = false)
         {
@@ -84,6 +85,8 @@ namespace KingmakerMountedCombat.Diagnostics
             Patch(typeof(TurnController), 0x06000C37, "ApproachMovementBefore", "ApproachMovementAfter");
             Patch(typeof(TurnController), 0x06000C3C, "PrepareBefore", "PrepareAfter");
             Patch(typeof(UnitCombatState.Cooldowns), 0x0600C3BE, "ClearBefore", "ClearAfter");
+            Patch(typeof(UnitEntityData), 0x06008355, "DisableJoinBefore", "DisableJoinAfter");
+            Patch(typeof(UnitCombatPrepareController), 0x0600936F, "DisablePrepareTickBefore", "DisablePrepareTickAfter");
             Patch(typeof(UnitCombatCooldownsController), 0x0600934A, "CooldownTickBefore", "CooldownTickAfter");
             Patch(typeof(BaseUnitCombatController), 0x06009343, "CooldownEligibilityBefore", "CooldownEligibilityAfter");
             Patch(typeof(UnitCombatState), 0x060093A1, "OpportunityBefore", "OpportunityAfter");
@@ -279,6 +282,21 @@ namespace KingmakerMountedCombat.Diagnostics
         // admissions and interrupts are recorded too. Never the whole party: every other campaign's
         // event stream is unchanged.
         private UnitEntityData declaredCommandOwner;
+        // The registered-disable case keeps this exact native actor observable
+        // after its pair leaves the active participation inventory. Observation
+        // never changes native JoinCombat, preparation or cooldown behavior.
+        private UnitEntityData disableNativeActor;
+        internal void ObserveDisableNativeActor(UnitEntityData actor)
+        {
+            if (actor == null || world?.Registry.FindOwner(actor) == null || disableNativeActor != null)
+                throw new InvalidOperationException("Disable observation requires one current exact pair actor, once.");
+            disableNativeActor = actor;
+        }
+        internal void EndDisableNativeObservation()
+        {
+            if (disablePrepareDepth != 0) throw new InvalidOperationException("Native disable preparation observer has an open callback.");
+            disableNativeActor = null;
+        }
         internal UnitEntityData DeclaredCommandOwner => declaredCommandOwner;
         internal void DeclareCommandOwner(UnitEntityData actor)
         {
@@ -292,6 +310,7 @@ namespace KingmakerMountedCombat.Diagnostics
             (declaredCommandOwner != null && ReferenceEquals(declaredCommandOwner.Commands, commands) ? declaredCommandOwner : null);
         private UnitEntityData CooldownOwner(UnitCombatState.Cooldowns value) =>
             ObservedPairActors.SingleOrDefault(actor => ReferenceEquals(actor.CombatState.Cooldown, value)) ??
+            (disableNativeActor != null && ReferenceEquals(disableNativeActor.CombatState.Cooldown, value) ? disableNativeActor : null) ??
             (preparing?.Unit.CombatState.Cooldown == value ? preparing.Unit : null);
         private bool ObservesReactionActor(UnitEntityData actor) => ObserveReactionResources && ActorCombat(actor) != null;
         private static partial class Hooks
@@ -345,8 +364,20 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             internal static void PrepareBefore(TurnController __instance) { if (active == null) return; active.preparing = __instance; active.grants[__instance.Unit] = active.GrantCount(__instance.Unit) + 1; active.Record("prepare-before", __instance.Unit); }
             internal static void PrepareAfter(TurnController __instance) { active?.Record("prepare-after", __instance.Unit); if (active != null) active.preparing = null; }
-            internal static void ClearBefore(UnitCombatState.Cooldowns __instance) { if (active != null) active.Record("clear-before", active.CooldownOwner(__instance)); }
-            internal static void ClearAfter(UnitCombatState.Cooldowns __instance) { if (active != null) active.Record("clear-after", active.CooldownOwner(__instance)); }
+            internal static void ClearBefore(UnitCombatState.Cooldowns __instance)
+            { if (active != null) { var actor = active.CooldownOwner(__instance); active.Record("clear-before", actor,
+                detail: ReferenceEquals(actor, active.disableNativeActor) ? "disablePrepareDepth=" + active.disablePrepareDepth : null); } }
+            internal static void ClearAfter(UnitCombatState.Cooldowns __instance)
+            { if (active != null) { var actor = active.CooldownOwner(__instance); active.Record("clear-after", actor,
+                detail: ReferenceEquals(actor, active.disableNativeActor) ? "disablePrepareDepth=" + active.disablePrepareDepth : null); } }
+            internal static void DisableJoinBefore(UnitEntityData __instance)
+            { if (ReferenceEquals(__instance, active?.disableNativeActor)) active.Record("disable-join-before", __instance); }
+            internal static void DisableJoinAfter(UnitEntityData __instance)
+            { if (ReferenceEquals(__instance, active?.disableNativeActor)) active.Record("disable-join-after", __instance); }
+            internal static void DisablePrepareTickBefore()
+            { if (active?.disableNativeActor != null) { active.disablePrepareDepth++; active.Record("disable-prepare-tick-before", active.disableNativeActor); } }
+            internal static void DisablePrepareTickAfter()
+            { if (active?.disableNativeActor != null) { active.Record("disable-prepare-tick-after", active.disableNativeActor); active.disablePrepareDepth--; } }
             internal static void CombatClearBefore(UnitCombatState __instance) { active?.Record("combat-clear-before", __instance.Unit); }
             internal static void CombatClearAfter(UnitCombatState __instance) { active?.Record("combat-clear-after", __instance.Unit); }
             internal static void RoundBefore(UnitCombatState __instance) { active?.Record("round-state-before", __instance.Unit); }

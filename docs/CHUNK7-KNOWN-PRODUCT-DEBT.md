@@ -1,5 +1,19 @@
 # Chunk 7 known product debt
 
+## Preview.49 registered disable later-frame diagnostic — FAIL; preview.50 review PASS
+
+The preview.49 batch24 native callback, selected B failure and same-frame retry
+passed exact debt/custody checks. The next TB frame advanced about 24 ms and
+native B rider JoinCombat/Prepare.Tick/Cooldowns.Clear cleared its 6/3/6 debt.
+The diagnostic lacked that observation and failed; original evidence SHA-256
+`3388e1ee17eb4fc87dc5d260d773315df439fe866f98071c923555b6340d309d`
+remains FAIL. Reviewed preview.50 adds read-only exact native event tracing and
+requires bounded cumulative decay, preserved grants/reactions and the observed
+native Clear nested in Tick. Review04 PASS SHA-256
+`2526f755edad4bc1ed393eb56bdccd612c243cf1e32c9bd92d0131d5d621a78e`;
+fresh native acceptance is still required. This does not resolve schema2 cold
+debt loss, which must retain its own failing verdict and lawful-boundary work.
+
 ## Preview.48 native batch23 - one lifecycle PASS, two bounded FAILs
 
 Three native world loads and next-frame settled cleanup passed on preview.48
