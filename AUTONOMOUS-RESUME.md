@@ -1,5 +1,45 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## October 19 — batch38 schema-2 TB pause refusal
+
+Preview.56 at pushed product commit `1b346f48e2c50aad883fd34c33f4ea59fcd7906a`
+passed Candidate 6/0, the focused schema-2 35/0 and cold observer 157/0,
+then ran one guarded native scenario
+`20261019-c7b-directive4-b38s1-schema2-pause` on the same immutable
+metadata-only derivative. The original runtime result is **FAIL** before any
+save request: the full native cold load and 6/3/6 retained debt passed, but
+the resave guard still found no native Pause after the stage-0 setter.
+This confirms the already recorded installed Kingmaker contract below:
+`Game.IsPaused` queues Pause mode, and native `DoStartMode(Pause)` refuses it
+in active TB combat. The prior one-time-pause review was a static fixture
+assessment and does not override this native failure.
+
+The preview.56 package SHA-256 is
+`6a8bbe701c7284fcd8759f0e225f7d4d7f271280dbd8aa2f8c34dfc1f7f8083b`,
+DLL SHA-256 `c0f44c1f283c3a2f213df0c2d1635ab67f5591e3cac10ca3fee18ffc59ac9737`,
+suite `chunk7b-directive4-b38-20261019` SHA-256
+`d17301eb22076da9d37847117d0814ace88b7f19e2b3dd50acb63c7249d1ee1e`.
+The original result SHA-256 is
+`09bcc5dcc0a6d1c914b5263e420b8d942fe6a9f2209c23f13f73d785decc92a1`;
+the raw artifact SHA-256 is
+`6dc1e119fb529e5752d45ca3a183d4b8e0077f6adf28db067bb28bb695c9a02a`.
+The transaction restored Mods, protected saves, Working and profile bytes
+exactly, with zero accepted cache exceptions; no game process or lock remains.
+
+The current uncommitted correction removes the impossible Pause request for
+this TB-only schema-2 case and admits exact active TB/Default mode. A read-only
+admission record identifies every guard condition. At request and after the
+save worker, the live native round and exact current-turn reference must remain
+at the saved allocation; same-frame debt, owner, no-preparation, entire graph,
+elapsed-clock and subsequent native continuation checks remain. Independent
+read-only review **PASS** is sealed at receipt SHA-256
+`780482e15e55092c8b0a5c4e3f043018dcf60ac1b04c3386cfbea00151e0f71e`;
+it permits one guarded native attempt and cautions that exact current-turn
+reference identity can safely refuse a native object replacement. Next:
+focused checks, freeze preview.57 once,
+then rerun the same source once. Do not credit migration resave or a separate
+cold consumer before their actual PASSes. Keep both b37s2 and b38s1 FAILs.
+
 ## October 19 — batch36 causal join and reviewed preview.55 correction
 
 Batch37 slot 2 has now run as one guarded schema-2 cold load on the same
