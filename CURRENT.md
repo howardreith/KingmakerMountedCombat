@@ -1,5 +1,31 @@
 # Chunk 7B–7D — IN PROGRESS
 
+## October 19 - owner-authorized execution context and bounded cold control
+
+The owner enabled full access for this continuation. The effective runner is
+`DESKTOP-SRJJ623\Howie` (SID ending `-1001`, medium integrity), a different
+account from the earlier `CodexSandboxOffline` sandbox runner. This is a new
+execution environment, not evidence that the sandbox account gained directory
+move permission. Under Howie, the repository's exact transaction recovery
+passed WhatIf and actual: batch33's original 80-file Mods tree and protected
+saves match their before digests, the lock is absent, and no game is running.
+Batch33's original prelaunch result remains FAIL. It never changed a game
+profile or registry surface; the generic recovery restored only Mods and saves.
+
+One declared native control, `20261019-c7b-p07-howie-zero-control-b34s1`,
+used frozen preview.52 and an immutable copy of the already qualified
+zero-mounted checkpoint selection. Scoped WhatIf passed, then the native
+base-only cold load passed 3/0 assertions with one load and zero saves under
+this account. The transaction restored Mods digest
+`b592f4009833072b60604852ad00660a6d236957712b63ae40f28ed1b7f67cda`
+and save inventory digest
+`df434471b6f2bb3ade60ecccaa524aa7537e17f63db3d0bcce6d5a7eb70561ab`;
+Working remained `5eb4e0b4cbd8d60dc879a02ff71aadfde3f517304754857f0cc68d0f9a93f1c6`.
+The profile receipt reports exact restoration and zero accepted cache changes.
+This proves a qualified KMC save can load in the current account; it does not
+certify the distinct legacy Working archive or P07 cleanup. See
+[the execution diagnosis](docs/CHUNK7-DIRECTIVE4-EXECUTION-DIAGNOSIS-2026-10-19.md).
+
 ## October 19 - batch33 recovery boundary
 
 The owner reported adding the installed-game parent as a managed writable

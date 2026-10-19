@@ -1,5 +1,51 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## October 19 - recovered; Howie-context native control PASS
+
+Current branch `codex/mounted-combat-chunk7-successor`; before this
+documentation update, clean local and remote HEAD were
+`d17e98a2055335d9a82515569fbe9bf6cde1d3e4`. The owner enabled full
+access. The effective runner is now `DESKTOP-SRJJ623\Howie` (SID ending
+`-1001`, medium integrity), distinct from the earlier sandbox runner ending
+`-1005`. This account change is recorded as a new environment, not as proof
+that sandbox directory-move permission changed.
+
+The exact repository-owned recovery of stale batch33
+`20261019-c7b-p07-sandbox-fixtureload-b33s1` passed WhatIf and actual under
+Howie. Its Mods and combined states say `restored`; the pre-run Mods digest
+`b592f4009833072b60604852ad00660a6d236957712b63ae40f28ed1b7f67cda`
+and protected-save digest
+`df434471b6f2bb3ade60ecccaa524aa7537e17f63db3d0bcce6d5a7eb70561ab`
+match after recovery. Working SHA-256 remains
+`5eb4e0b4cbd8d60dc879a02ff71aadfde3f517304754857f0cc68d0f9a93f1c6`.
+No game/profile/registry change occurred in that prelaunch failure; recovery
+restored Mods and saves only. Its original runtime result remains FAIL.
+
+One bounded changed-input control then passed scoped WhatIf and native actual:
+`20261019-c7b-p07-howie-zero-control-b34s1`. Frozen preview.52/head7348,
+base-only staging, a copied pinned zero-mounted checkpoint selection, one
+native load, zero saves, and 3/0 native assertions passed. Its run and Mods
+transactions restored the same before digests. The profile receipt reports
+exact byte restoration and zero accepted cache changes. No Kingmaker process
+or transaction lock is active. This proves current-account load viability for
+that owner-seed-derived checkpoint, not legacy Working compatibility or P07
+positive cleanup. The game PID was 44488; its SID was not retained.
+
+Next action: review this documentation-only update (`git diff --check` and
+scope review), commit, use the project guarded push helper with WhatIf and
+fast-forward push, then update existing draft PR #5. Preserve all old FAILs
+and accepted PASSes on their own inputs. For P07, separate Working-specific
+archive/mod dependencies from account effects before another native run; do
+not repeat batch32 slot2 unchanged. For schema-2, the narrow discriminator is
+an exact unchanged schema-3 pending-source cold load compared with batch19's
+schema-2 trace. The current reviewed route always projects that case to
+schema-2, so any new selector needs source/safety review before live use.
+Area Auto/cold still lacks a visited non-capital destination; doors remain
+locally DEFER — EVIDENCED. No broad campaign, merge, release, tag, permanent
+installation or HUMAN PLAY acceptance is selected.
+
+Entries below preserve their historical state at the time they were written.
+
 ## October 19 - active recovery after batch33 slot1
 
 The user added the requested installed-game parent to the managed writable-root

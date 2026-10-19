@@ -3,8 +3,60 @@
 Status: IN PROGRESS. The original read-only diagnosis used pushed
 `e67dafa4ce53a23a1a41573b9c6a40a0d1ebe73b`, retained private receipts,
 the exact installed Kingmaker assembly and then-current filesystem state.
-The batch33 update below records one later guarded prelaunch FAIL and a live
-recovery blocker. The original batch32 and schema-2 results remain FAIL.
+The historical batch33 update below records a guarded prelaunch FAIL and its
+then-active recovery blocker; the next section supersedes that live state.
+The original batch32, batch33 and schema-2 results remain FAIL.
+
+## Batch33 recovery and batch34 execution context
+
+After the owner enabled full access, `whoami /user` identified the effective
+runner as `DESKTOP-SRJJ623\Howie`, SID
+`S-1-5-21-1108991106-2476425705-1721024090-1001`, at medium integrity.
+This is the account used for batch32 slot2 and differs from the sandbox
+runner ending `-1005`. It does not prove that the sandbox directory-move
+permission was repaired. The owner explicitly authorized continuation in the
+new access context. No credentials were inspected.
+
+The repository-owned `Recover-KingmakerRuntimeTransaction.ps1` passed exact
+stale-state WhatIf, then actual recovery of
+`20261019-c7b-p07-sandbox-fixtureload-b33s1` under Howie. The durable combined
+and Mods transaction phases are `restored`; the exact 80-file pre-run Mods
+digest is `b592f4009833072b60604852ad00660a6d236957712b63ae40f28ed1b7f67cda`,
+and protected-save inventory before/after is
+`df434471b6f2bb3ade60ecccaa524aa7537e17f63db3d0bcce6d5a7eb70561ab`.
+Baseline and Working are immutable/restored, the latter SHA-256
+`5eb4e0b4cbd8d60dc879a02ff71aadfde3f517304754857f0cc68d0f9a93f1c6`.
+The lock is absent and no Kingmaker process remains. The failed run stopped
+before game launch and had no profile/registry snapshot or mutation; this
+generic recovery touched Mods and saves, not another user's profile or hive.
+Its original runtime result remains FAIL.
+
+The next batch declared one native control under this Howie environment:
+`20261019-c7b-p07-howie-zero-control-b34s1`. A byte-identical copy of the
+already accepted batch30 zero-mounted selection (copy SHA-256
+`8424ce6a6606f17053ae8535db6225f5b914f1600b72457c057941328c3c3aef`)
+selected its immutable checkpoint SHA-256
+`692e17881b61db0bb1aefb0f20fb5d545540782896934a71ced13f56e7a1a3a4`.
+The frozen preview.52 DLL SHA-256 was
+`18f619bd28e872b73470944aaf46671887d91d99ff26f80f30a8fd50019a1433`;
+the package and suite were the pinned `head7348` inputs. Development-scoped
+WhatIf passed. Actual guarded base-only execution passed 3/0 native assertions
+(pair identity/no-prepare, native combat continuation and cleanup), one load
+and zero saves. The game reached the checkpoint world under this account.
+The run/Mods transactions restored the same digests above; the profile receipt
+reports exact bytes restored and zero accepted cache changes. The lock and
+Kingmaker process are absent. The retained game process PID was 44488; its
+Windows SID was not captured, so the runner SID is not silently assigned to it.
+
+This changed-input control rules out a broadly broken native load environment
+for the current runner and frozen candidate. It does not settle the different
+legacy Working archive: batch32 used the current six-mod installed clone,
+while batch34 used base-only staging and a qualified owner-seed-derived save.
+The next useful P07 experiment must isolate the Working archive and mod-set
+requirements or use an honestly qualified reference-free positive-cleanup
+derivative. Repeating batch32 slot2 unchanged is not selected. Schema-2's
+native re-entry debt failure remains independent and unresolved; the original
+batch19 FAIL and all earlier PASSes retain their own input identities.
 
 ## Batch33 slot1 update: managed permission still inactive
 
