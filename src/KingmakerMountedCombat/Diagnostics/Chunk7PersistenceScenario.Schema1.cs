@@ -251,27 +251,39 @@ namespace KingmakerMountedCombat.Diagnostics
         // Preserve that absence as well as the collection and each element object.
         internal sealed class OwnedSchema1HotbarObservation
         {
+            // Installed UnitUISettings.GetSlot allocates 140 native entries.
+            // This complete UI array is distinct from the <=128 saved KMC bindings.
+            private const int NativeHotbarCapacity = 140;
             private readonly object owner;
-            private readonly System.Collections.IEnumerable collection;
+            private readonly object[] collection;
             private readonly object[] elements;
             private readonly bool[] inactiveOwnedTemplates;
-            private OwnedSchema1HotbarObservation(object owner, System.Collections.IEnumerable collection, Func<object, bool> inactiveOwnedTemplate)
+
+            private OwnedSchema1HotbarObservation(object owner, object[] collection, Func<object, bool> inactiveOwnedTemplate)
             {
-                this.owner = owner; this.collection = collection;
-                elements = collection?.Cast<object>().Take(129).ToArray();
-                Require(elements == null || elements.Length <= 128, "Native unrelated hotbar exceeds its observation bound.");
+                this.owner = owner;
+                this.collection = collection;
+                // Native MechanicActionBarSlot[] is covariant to object[]. Reading this
+                // finite array must not call GetSlot/TryToInitialize or alter null state.
+                Require(collection == null || collection.Length <= NativeHotbarCapacity,
+                    "Native unrelated hotbar exceeds the installed native array capacity.");
+                elements = collection?.ToArray();
                 inactiveOwnedTemplates = elements?.Select(value => inactiveOwnedTemplate?.Invoke(value) == true).ToArray();
             }
-            internal static OwnedSchema1HotbarObservation Capture(object owner, System.Collections.IEnumerable collection, Func<object, bool> inactiveOwnedTemplate = null) =>
+
+            internal static OwnedSchema1HotbarObservation Capture(object owner, object[] collection,
+                Func<object, bool> inactiveOwnedTemplate = null) =>
                 new OwnedSchema1HotbarObservation(owner, collection, inactiveOwnedTemplate);
-            internal bool Preserved(object currentOwner, System.Collections.IEnumerable currentCollection, Func<object, bool> clearedOwnedTemplate = null)
+
+            internal bool Preserved(object currentOwner, object[] currentCollection, Func<object, bool> clearedOwnedTemplate = null)
             {
                 if (!ReferenceEquals(owner, currentOwner) || !ReferenceEquals(collection, currentCollection)) return false;
                 if (elements == null) return currentCollection == null;
-                if (currentCollection == null) return false;
-                var current = currentCollection.Cast<object>().Take(129).ToArray();
-                return current.Length == elements.Length && current.Select((element, index) => inactiveOwnedTemplates[index] ?
-                    clearedOwnedTemplate?.Invoke(element) == true : ReferenceEquals(element, elements[index])).All(value => value);
+                if (currentCollection == null || currentCollection.Length != elements.Length) return false;
+                var current = currentCollection.ToArray();
+                return current.Select((element, index) => inactiveOwnedTemplates[index]
+                    ? clearedOwnedTemplate?.Invoke(element) == true
+                    : ReferenceEquals(element, elements[index])).All(value => value);
             }
         }
 

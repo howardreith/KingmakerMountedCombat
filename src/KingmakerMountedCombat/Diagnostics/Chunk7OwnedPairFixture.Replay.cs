@@ -16,11 +16,13 @@ namespace KingmakerMountedCombat.Diagnostics
         private BlueprintArea replayAreaBlueprint;
         private Chunk7OwnedPairFixture replayPredecessor, replayRetiredTo;
         private JObject replayRetirement;
+        private bool replayCleanupOnly;
         internal int ReplayLoadOrdinal => replayLoadOrdinal;
+        internal bool ReplayCleanupOnly => replayCleanupOnly;
 
         internal void BeginRepeatedLoad(int ordinal)
         {
-            Require(selection.Cold && request.PersistenceCase == Chunk7PersistenceScenario.ThreeLoadsCase &&
+            Require(!replayCleanupOnly && selection.Cold && request.PersistenceCase == Chunk7PersistenceScenario.ThreeLoadsCase &&
                 bound && !released && replayExpectedLoad == 0 && replayExpectedArea == 0 &&
                 ordinal == replayLoadOrdinal + 1 && ordinal >= 2 && ordinal <= 3,
                 "Inherited load replacement is not the next selected native epoch.");
@@ -30,7 +32,7 @@ namespace KingmakerMountedCombat.Diagnostics
         internal Chunk7OwnedPairFixture CreateRepeatedLoadCandidate(int ordinal, bool exactCallbackObserved)
         {
             RequireRequest(); RequireAuthority(ordinal);
-            Require(bound && !released && exactCallbackObserved && selection.Cold &&
+            Require(!replayCleanupOnly && bound && !released && exactCallbackObserved && selection.Cold &&
                 request.PersistenceCase == Chunk7PersistenceScenario.ThreeLoadsCase &&
                 replayExpectedLoad == ordinal && ordinal == replayLoadOrdinal + 1 && ordinal >= 2 && ordinal <= 3 &&
                 !ReferenceEquals(admittedPlayer, game.Player) && !ReferenceEquals(admittedState, game.State) &&
@@ -40,6 +42,21 @@ namespace KingmakerMountedCombat.Diagnostics
                 "A fresh inherited fixture requires the exact callback and complete native replacement proof.");
             return new Chunk7OwnedPairFixture(request, horses, world, controls, persistence, authorization, authority, loader) {
                 replayLoadOrdinal = ordinal, replayPredecessor = this };
+        }
+        internal Chunk7OwnedPairFixture CreateRepeatedLoadCleanupCandidate(int ordinal, bool exactCallbackObserved)
+        {
+            RequireRequest(); RequireAuthority(ordinal);
+            Require(bound && !released && !replayCleanupOnly && exactCallbackObserved && selection.Cold &&
+                request.PersistenceCase == Chunk7PersistenceScenario.ThreeLoadsCase &&
+                replayExpectedLoad == ordinal && ordinal == replayLoadOrdinal + 1 && ordinal >= 2 && ordinal <= 3 &&
+                !ReferenceEquals(admittedPlayer, game.Player) && !ReferenceEquals(admittedState, game.State) &&
+                persistence.ArchiveRestorePhase == "all-pair-presentation-restored",
+                "Cleanup successor requires its exact callback-owned current native replacement.");
+            // Bind(false), RequirePreserved and RetireAfterRepeatedLoad still
+            // prove the full fresh roster, pets, facts, views, source and scope.
+            // Measurement counters remain mandatory on the normal creator above.
+            return new Chunk7OwnedPairFixture(request, horses, world, controls, persistence, authorization, authority, loader) {
+                replayLoadOrdinal = ordinal, replayPredecessor = this, replayCleanupOnly = true };
         }
         internal JObject RetireAfterRepeatedLoad(Chunk7OwnedPairFixture next, Func<object, int> identity)
         {

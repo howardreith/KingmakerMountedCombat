@@ -47,7 +47,7 @@ function Assert-KmcChunk7ReplayOwners($Owners,$Archive,[bool]$Mounted) {
         $actual=@($Owners|Where-Object ownerId -CEQ $pair.PairId)
         if($actual.Count-ne1){throw 'Stable native owner was lost or duplicated.'}
         $v=$actual[0];Assert-KmcChunk7NativeCounters $v @('generation')
-        if($v.generation-ne$pair.Generation-or$v.riderId-cne$pair.Rider.Id-or$v.mountId-cne$pair.Mount.Id-or$v.state-cne'Active'){throw 'Stable generation/actor roles changed.'}
+        if($v.generation-ne$pair.Generation-or-not(Test-KmcChunk7OwnerActorMatch $v.riderId $pair.Rider.Id)-or-not(Test-KmcChunk7OwnerActorMatch $v.mountId $pair.Mount.Id)-or$v.state-cne'Active'){throw 'Stable generation/actor roles changed.'}
         if(@($v.PSObject.Properties.Name)-ccontains'retainsObligations'-and$v.retainsObligations-isnot[bool]){throw 'Retained obligation predicate is not a JSON boolean.'}
     }
 }
@@ -131,6 +131,7 @@ function Assert-KmcChunk7RepeatedWorldObservation($Request,$Artifact) {
     Assert-KmcChunk7RepeatedWorldRequest $Request
     if(-not(Test-KmcChunk7RepeatedWorldCase $Request.persistenceCase)-or$Artifact.status-cne'PASS'){throw 'Repeated-world PASS requires its exact declared case.'}
     $o=$Artifact.observations;$r=$o.repeatedWorlds;$areas=$Request.persistenceCase-ceq'multi-exploration-three-area-transfers-manual';$loads=if($areas){1}else{3};$transfers=if($areas){3}else{0}
+    if($null-ne$o.PSObject.Properties['repeatedLoadCleanupAdoption']){throw 'A cleanup-only replacement cannot qualify repeated-world PASS.'}
     Assert-KmcChunk7NativeCounters $o @('nativeSchema','nativeCapacity','processId')
     $owned=Test-KmcChunk7OwnedPairsScenario $Request.scenario
     if($owned){

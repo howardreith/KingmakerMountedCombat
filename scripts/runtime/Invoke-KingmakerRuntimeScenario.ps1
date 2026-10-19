@@ -565,7 +565,7 @@ try{
         $request['persistenceReplayTargets']=@(for($leg=0;$leg-lt3;$leg++){[ordered]@{enterPoint=$PersistenceReplayAreaEnterPoints[$leg];area=$PersistenceReplayAreaAreas[$leg];autoSaveMode='None'}})
     }
     if($PersistenceCase-ceq'multi-area-autosave'-or$PersistenceCase-cin @('area-cross-entry','area-cross-exit','area-cross-entry-auto','area-cross-exit-auto')){
-        $request['persistenceAreaTarget']=[ordered]@{
+        $request['persistenceAreaTarget']=[pscustomobject][ordered]@{
             enterPoint=$PersistenceAreaEnterPoint;area=$PersistenceAreaTargetArea
             autoSaveMode=if($PersistenceCase-ceq'multi-area-autosave'-or$PersistenceCase-cin @('area-cross-entry','area-cross-entry-auto')){'AfterEntry'}else{'BeforeExit'}
         }

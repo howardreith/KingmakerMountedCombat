@@ -1,5 +1,33 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## October 19 - preview.45 source composition IN PROGRESS
+
+Branch `codex/mounted-combat-chunk7-successor`, last clean guarded-pushed HEAD
+`8a13f7142b80da4405c2c21675c6be246d9c629d`; PR #5 remains draft.
+Preview.44 package SHA `309069e337c330bb7590a0a0c620fa984f0368e85775b14dd38bddadca49ed5b`
+and Candidate 7/7 remain frozen. No game process or runtime lock is live. The
+timed-out batch17 slot4 was recovered by guarded transaction and exact profile
+recovery; receipt SHA `c37f4daf2a4f9e3d0e8ae29e06d12367cdef93996bf30c279e14b2f3a3b303b9`.
+The original scenario remains FAIL, as do batch16 schema2 cold/schema1 source
+and batch17 area prelaunch. Batch16 slot1 pending producer passed.
+
+The preview.45 worktree composition has the 140-slot hotbar observer, area-target
+DTO fix, read-only selected native combat-debt diagnostic/external reader,
+synthetic schema-2 fixture correction, repeated-world count capture and exact
+cleanup-only custody, plus the independently reviewed post-timeout profile
+recovery script. Focused applied checks pass 187/0, 29/0, 61/0, 76/0, owned
+pair reader 680/0, repeated-world adapter 75/0, owned replay epochs 91/0 and
+repeated-world reader 100/0. Prior 679/1 and the first compile failure remain
+preserved. Release build and source validation pass after qualifying
+`UnityEngine.Time.frameCount` (DLL SHA-256
+`bc7c5d1e06671a90ee775b7f189917a902d6eb738a685cef53ccdaa89239a834`).
+No game/transaction is active. Next: review composed diff and source payload,
+commit and guarded-push; one proper preview.45 package/Candidate and fresh
+current-state suite before scoped native reruns. No candidate/native preview.45
+credit exists yet. The private runtime resume is
+`analysis-cache/chunk7-continuation/codex-takeover/AUTONOMOUS-RESUME-RUNTIME44.md`.
+No merge/release/tag/permanent installation/full7E/HUMAN PLAY is selected.
+
 ## October 19 - preview.44 selected source connection IN PROGRESS
 
 Reviewed group44 source is applied after closure HEAD `7c1bcadc`; no preview.44

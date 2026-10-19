@@ -1,4 +1,41 @@
 # Generated reader fixtures only; these objects make no native or archive qualification claim.
+function Set-KmcOwnerSeedSchema2DebtDiagnosticFixture($Value){
+ $r=$Value.request;$o=$Value.artifact.observations;$p=$o.coldRestoration
+ if(-not(Test-KmcChunk7CombatDebtDiagnosticRequest $r)-or@($p.hooks).Count-ne6-or
+    $null-ne$o.PSObject.Properties['combatDebtChecks']-or$null-ne$p.PSObject.Properties['debtDiagnostics']){
+  throw 'Generated debt fixture belongs only to the exact fresh owner-seed schema2 cold/resave selection.'
+ }
+ foreach($spec in @(@('Kingmaker.EntitySystem.Entities.UnitEntityData','JoinCombat','06008355','DebtJoinBefore','DebtJoinAfter'),@('Kingmaker.Controllers.Combat.UnitCombatPrepareController','Tick','0600936F','DebtPrepareBefore','DebtPrepareAfter'))){
+  $p.hooks+=@([pscustomobject][ordered]@{declaringType=$spec[0];method=$spec[1];token=$spec[2];moduleMvid='07fa1e4d-8618-41b3-9b8d-faa17d3b26f7';prefix=$spec[3];postfix=$spec[4]})
+ }
+ # A passing paused synthetic world may have no admitted native method windows.
+ # This does not invent JoinCombat/Prepare execution or causal native evidence.
+ $p|Add-Member debtDiagnostics ([pscustomobject][ordered]@{contract='chunk7-native-debt-boundary-observer-v1';runId=$r.runId;events=@();maximumEvents=128;errors=0;dropped=0;openCalls=0;requestUnchanged=$true;complete=$true;scope='exact-schema2-cold-after-presentation';methodEntryMayBeRefusedByProductionPrefix=$true})
+ $loaded=@($o.snapshots|Where-Object label -CEQ 'cold-restored-before-input')
+ $resaved=@($o.snapshots|Where-Object label -CEQ 'schema2-native-resave-before-continuation')
+ if($loaded.Count-ne1-or$resaved.Count-ne1){throw 'Synthetic debt fields require their existing exact cold/resave boundaries.'}
+ $checks=@();$names=@('Standard','Move','Swift','Initiative','Reaction','ReactionsRemaining','LastSurpriseTicks')
+ # Actual C# call sites: before Bind, ObserveCombatCold assertion, request-resave
+ # assertion, and both imported/new archive assertions at native completion.
+ for($j=0;$j-lt5;$j++){
+  $archive=if($j-eq4){$o.nativeWrite.archive}else{$o.loadedArchive}
+  $frame=if($j-lt3){$loaded[0].frame}else{$resaved[0].frame}
+  $ticks=if($j-eq2){$o.saveRequested.gameTicks}elseif($j-lt2){$loaded[0].gameTicks}else{$resaved[0].gameTicks}
+  $elapsed=[double]([decimal]$ticks-[decimal]$archive.GameTimeTicks)/10000000.0;$window=$elapsed-ge0-and$elapsed-le30
+  $rows=@();$states=@()
+  foreach($actor in $archive.Combat.Actors){
+   $native=$actor.Native;$fields=@()
+   for($k=0;$k-lt7;$k++){$name=$names[$k];$before=$native.$name;$actual=$native.$name
+    $ok=if($k-lt5){$a=[double][single]$before;$b=[double][single]$actual;$b-le($a+0.001)-and($b+$elapsed*1.1+0.001)-ge$a}else{[decimal]$before-eq[decimal]$actual}
+    $fields+=@([pscustomobject][ordered]@{field=$name;saved=$before;actual=$actual;passed=$ok})
+   }
+   $rows+=@([pscustomobject][ordered]@{actorId=$native.Id;saved=(Copy-Value $native);actual=(Copy-Value $native);fields=$fields;passed=(@($fields|Where-Object passed -EQ $false).Count-eq0)})
+   $states+=@([pscustomobject][ordered]@{actorId=$native.Id;inCombat=$actor.InCombat;prepared=$actor.Prepared})
+  }
+  $checks+=@([pscustomobject][ordered]@{contract='chunk7-native-combat-debt-observation-v1';phase=$(if($j-eq0){'cold-observe-before-binding'}else{'assert-combat-debt'});frame=$frame;gameTicks=$ticks;savedGameTicks=$archive.GameTimeTicks;elapsedSeconds=$elapsed;windowAccepted=$window;actors=$rows;passed=($window-and@($rows|Where-Object passed -EQ $false).Count-eq0);paused=$true;archiveRestorePhase='all-pair-presentation-restored';restorationPending=$false;actorStates=$states})
+ }
+ $o|Add-Member combatDebtChecks $checks
+}
 function Set-KmcOwnerSeedSchema1Names($Value,[string]$InputName,[string]$InputLeaf,[string]$OutputName,[string]$OutputLeaf,[int]$OutputNumber){
  $r=$Value.request;$o=$Value.artifact.observations;$old=$r.persistenceLoad.fileName;$oldOutput=$o.ownedOutputAdmission.leaf
  $r.persistenceLoad.internalName=$InputName;$r.persistenceLoad.fileName=$InputLeaf
@@ -45,6 +82,12 @@ function New-KmcOwnerSeedCurrentFixture([string]$Checkpoint){
  $parent=if($Checkpoint-ceq'owned-schema1-current-manual'){New-KmcOwnerSeedSchema1ColdFixture}else{New-KmcOwnerSeedCombatCheckpointLoadFixture 'legacy-mounted-pending-tb-manual'}
  $parent.artifact.observations.nativeWrite.sha256='b'*64
  $v=Copy-Value $parent;$r=$v.request;$o=$v.artifact.observations;$p=$parent.artifact.observations
+ if($Checkpoint-ceq'owned-schema2-pending-current-manual'){
+  # A separate current-format process uses the ordinary six-hook observer.
+  # Parent-only historical cold diagnostics cannot be inherited by that child.
+  $o.PSObject.Properties.Remove('combatDebtChecks');$o.coldRestoration.PSObject.Properties.Remove('debtDiagnostics')
+  $o.coldRestoration.hooks=@($o.coldRestoration.hooks|Where-Object{$_.token-cnotin@('06008355','0600936F')})
+ }
  $parentRun=$parent.request.runId;$r.runId=$parentRun+'.current';$v.artifact.runId=$r.runId;$r.evidenceRoot=$r.evidenceRoot.Replace($parentRun,$r.runId);$r.persistenceCase=$Checkpoint;$o.checkpoint=$Checkpoint
  $r.ownedPairs.checkpointSourceRunId=$parentRun;$r.ownedPairs.checkpointSourceArtifactSha256='d'*64;$r.ownedPairs.expectedNativeWriteCount=0
  $r.PSObject.Properties.Remove('schema2DerivationSha256')

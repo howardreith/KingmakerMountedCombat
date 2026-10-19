@@ -115,6 +115,8 @@ namespace KingmakerMountedCombat.Diagnostics
             Require(saved?.SchemaVersion == 3 && saved.Combat != null && saved.Combat.TurnBased == TurnBasedCase &&
                 persistence.ArchiveRestorePhase == "all-pair-presentation-restored" && !persistence.CombatRestorationPending,
                 "Complete native combat graph was not restored: " + persistence.Feedback);
+            if (NativeArchiveRestorationProbe.IsDebtDiagnosticRequest(request))
+                RecordCombatDebtObservation(saved, "cold-observe-before-binding", Game.Instance.TimeController.GameTime.Ticks);
             BindCombatActors();
             foreach (var pair in saved.Pairs) expectedOwners.Add(Guid.Parse(pair.PairId), pair.Generation);
             foreach (var participant in saved.Participations)
@@ -175,17 +177,75 @@ namespace KingmakerMountedCombat.Diagnostics
         }
         private void AssertCombatDebt(MountedArchiveData archive)
         {
-            var elapsed = (Game.Instance.TimeController.GameTime.Ticks - archive.GameTimeTicks) / (double)TimeSpan.TicksPerSecond;
+            var observedTicks = Game.Instance.TimeController.GameTime.Ticks;
+            var observed = NativeArchiveRestorationProbe.IsDebtDiagnosticRequest(request) ?
+                RecordCombatDebtObservation(archive, "assert-combat-debt", observedTicks) : null;
+            var elapsed = (observedTicks - archive.GameTimeTicks) / (double)TimeSpan.TicksPerSecond;
             Require(elapsed >= 0 && elapsed <= 30, "Native combat debt comparison escaped its observation window.");
-            foreach (var row in archive.Combat.Actors)
+            for (var index = 0; index < archive.Combat.Actors.Length; index++)
             {
-                var before = row.Native; var actor = Exact(before.Id); var after = MountedPersistenceService.CaptureActor(actor);
+                var before = archive.Combat.Actors[index].Native;
+                var after = observed == null ? MountedPersistenceService.CaptureActor(Exact(before.Id)) : observed[index];
                 var a = new[] { before.Standard, before.Move, before.Swift, before.Initiative, before.Reaction };
                 var b = new[] { after.Standard, after.Move, after.Swift, after.Initiative, after.Reaction };
                 Require(before.ReactionsRemaining == after.ReactionsRemaining && before.LastSurpriseTicks == after.LastSurpriseTicks &&
                     Enumerable.Range(0, a.Length).All(i => b[i] <= a[i] + 0.001 && b[i] + elapsed * 1.1 + 0.001 >= a[i]),
                     "Native save/load changed an actor's spent remainder beyond elapsed native time.");
             }
+        }
+        private SavedNativeActor[] RecordCombatDebtObservation(MountedArchiveData archive, string phase, long observedTicks)
+        {
+            var nativeActors = archive.Combat.Actors.Select(row => Exact(row.Native.Id)).ToArray();
+            var observed = nativeActors.Select(MountedPersistenceService.CaptureActor).ToArray();
+            var record = CaptureCombatDebtComparison(archive, observed, observedTicks, UnityEngine.Time.frameCount, phase);
+            record["paused"] = Game.Instance.IsPaused;
+            record["archiveRestorePhase"] = persistence.ArchiveRestorePhase;
+            record["restorationPending"] = persistence.CombatRestorationPending;
+            record["actorStates"] = new JArray(nativeActors.Select(actor => new JObject {
+                ["actorId"] = actor.UniqueId, ["inCombat"] = actor.IsInCombat, ["prepared"] = actor.CombatState.Prepared }));
+            AppendCombatDebtObservation(evidence, record);
+            return observed;
+        }
+        internal static void AppendCombatDebtObservation(JObject observations, JObject value)
+        {
+            Require(observations != null && value != null && (observations["combatDebtChecks"] == null ||
+                observations["combatDebtChecks"] is JArray), "Combat debt observation journal is invalid.");
+            var checks = observations["combatDebtChecks"] as JArray;
+            if (checks == null) { checks = new JArray(); observations["combatDebtChecks"] = checks; }
+            Require(checks.Count < 32, "Combat debt observation journal exceeded its bounded count.");
+            checks.Add(value);
+        }
+        internal static JObject CaptureCombatDebtComparison(MountedArchiveData archive, SavedNativeActor[] observed,
+            long observedTicks, int frame, string phase)
+        {
+            Require(archive?.Combat?.Actors != null && archive.Combat.Actors.Length > 0 && archive.Combat.Actors.Length <= 64 &&
+                archive.Combat.Actors.All(row => row?.Native != null) && observed != null && observed.Length == archive.Combat.Actors.Length &&
+                observed.All(row => row != null) && observed.Select(row => row.Id).Distinct(StringComparer.Ordinal).Count() == observed.Length &&
+                archive.Combat.Actors.Select(row => row.Native.Id).SequenceEqual(observed.Select(row => row.Id)),
+                "Combat debt observation omitted or substituted its exact ordered native actor rows.");
+            var elapsed = (observedTicks - archive.GameTimeTicks) / (double)TimeSpan.TicksPerSecond;
+            var fields = new[] { "Standard", "Move", "Swift", "Initiative", "Reaction" };
+            var rows = new JArray();
+            for (var index = 0; index < observed.Length; index++)
+            {
+                var before = archive.Combat.Actors[index].Native; var after = observed[index];
+                var a = new[] { before.Standard, before.Move, before.Swift, before.Initiative, before.Reaction };
+                var b = new[] { after.Standard, after.Move, after.Swift, after.Initiative, after.Reaction };
+                var comparisons = new JArray(Enumerable.Range(0, a.Length).Select(i => new JObject {
+                    ["field"] = fields[i], ["saved"] = a[i], ["actual"] = b[i],
+                    ["passed"] = b[i] <= a[i] + 0.001 && b[i] + elapsed * 1.1 + 0.001 >= a[i] }));
+                comparisons.Add(new JObject { ["field"] = "ReactionsRemaining", ["saved"] = before.ReactionsRemaining,
+                    ["actual"] = after.ReactionsRemaining, ["passed"] = before.ReactionsRemaining == after.ReactionsRemaining });
+                comparisons.Add(new JObject { ["field"] = "LastSurpriseTicks", ["saved"] = before.LastSurpriseTicks,
+                    ["actual"] = after.LastSurpriseTicks, ["passed"] = before.LastSurpriseTicks == after.LastSurpriseTicks });
+                rows.Add(new JObject { ["actorId"] = before.Id, ["saved"] = JObject.FromObject(before, MountedSaveCodec.CreateSerializer()),
+                    ["actual"] = JObject.FromObject(after, MountedSaveCodec.CreateSerializer()), ["fields"] = comparisons,
+                    ["passed"] = comparisons.All(item => (bool)item["passed"]) });
+            }
+            return new JObject { ["contract"] = "chunk7-native-combat-debt-observation-v1", ["phase"] = phase,
+                ["frame"] = frame, ["gameTicks"] = observedTicks, ["savedGameTicks"] = archive.GameTimeTicks,
+                ["elapsedSeconds"] = elapsed, ["windowAccepted"] = elapsed >= 0 && elapsed <= 30,
+                ["actors"] = rows, ["passed"] = elapsed >= 0 && elapsed <= 30 && rows.All(row => (bool)row["passed"]) };
         }
         private void BeginCombatContinuation()
         {

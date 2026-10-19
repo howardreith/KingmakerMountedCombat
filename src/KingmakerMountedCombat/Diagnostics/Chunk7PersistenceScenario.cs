@@ -112,7 +112,8 @@ namespace KingmakerMountedCombat.Diagnostics
             InitializeReplayAuthority();
             if (Cold)
             {
-                restoration = new NativeArchiveRestorationProbe(persistence, CombatCase || Schema1ResaveCase || OwnedSchema1CurrentCase || RepeatedWorldCase ? world : null);
+                restoration = new NativeArchiveRestorationProbe(persistence, CombatCase || Schema1ResaveCase || OwnedSchema1CurrentCase || RepeatedWorldCase ? world : null,
+                    NativeArchiveRestorationProbe.IsDebtDiagnosticRequest(request) ? request : null);
                 restoration.Install();
             }
             InstallReplayObservation();

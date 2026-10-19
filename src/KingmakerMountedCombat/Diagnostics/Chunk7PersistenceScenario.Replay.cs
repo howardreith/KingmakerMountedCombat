@@ -32,6 +32,8 @@ namespace KingmakerMountedCombat.Diagnostics
         private SaveInfo replayInput;
         private bool replayBegun, replayPending, replayCallback;
         private int replayCompletedLoads, replayCompletedAreas, replayOrdinal, replayReadyFrames;
+        private int replayPublishedLoadOrdinal;
+        private bool replayCleanupOnlyAdoption;
         private object replayPriorPlayer, replayPriorState, replaySaveManager;
         private UnitEntityData[] replayPriorActors;
         private Chunk7OwnedPairFixture replayIncomingInherited;
@@ -115,6 +117,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool UpdateRepeatedWorld()
         {
             if (!RepeatedWorldCase || !replayBegun || stage != 70) return false;
+            Require(!replayCleanupOnlyAdoption, "A cleanup-only native world cannot resume measured replay.");
             RequireReplayAuthority();
             if (!ReplayNativeBoundaryIdle()) { replayReadyFrames = 0; return true; }
             if (replayPending)
@@ -152,9 +155,32 @@ namespace KingmakerMountedCombat.Diagnostics
                 persistence.NativeLoadFailureCount == 0 && persistence.FailedAreaPairCount == 0,
                 "Repeated world is not the exact settled exploration pair graph.");
         }
-        private void BindRepeatedLoadedWorld(int ordinal, bool replacement)
+        internal static JObject CaptureRepeatedLoadCounts(int ordinal, bool replacement, int semantic, int presentation,
+            int postLoads, int disposals, int authorized, int admitted, int frame, long gameTicks)
         {
-            RequireReplayAuthority(); RequireReplayInput();
+            Require(ordinal >= 1 && ordinal <= 3, "Repeated load count journal has an undeclared epoch.");
+            return new JObject { ["contract"] = "chunk7-repeated-load-counts-v1", ["ordinal"] = ordinal,
+                ["replacement"] = replacement, ["frame"] = frame, ["gameTicks"] = gameTicks,
+                ["actual"] = new JObject { ["semanticRestores"] = semantic, ["presentationRestores"] = presentation,
+                    ["nativePostLoads"] = postLoads, ["nativeDisposals"] = disposals, ["authorizedLoads"] = authorized, ["admittedLoads"] = admitted },
+                ["expected"] = new JObject { ["semanticRestores"] = ordinal * 4, ["presentationRestores"] = ordinal * 2,
+                    ["nativePostLoads"] = 4, ["nativeDisposals"] = ordinal - 1, ["authorizedLoads"] = ordinal, ["admittedLoads"] = ordinal } };
+        }
+        internal static void ValidateRepeatedLoadCleanupEpoch(bool cleaning, bool failed, bool areaCase,
+            int ordinal, int completed, int published, int pendingOrdinal, bool pending, bool callback, int authorized, int admitted)
+        {
+            Require(cleaning && failed && !areaCase && ordinal >= 2 && ordinal <= 3 &&
+                (ordinal == completed + 1 || ordinal == completed && published == ordinal) &&
+                ordinal == pendingOrdinal && pending && callback && authorized == ordinal && admitted == ordinal,
+                "Cleanup-only replacement requires its exact failed callback-owned bounded load epoch.");
+        }
+        private void BindRepeatedLoadedWorld(int ordinal, bool replacement, bool cleanupOnly = false)
+        {
+            if (cleanupOnly) ValidateRepeatedLoadCleanupEpoch(cleanup, errors.Count != 0, RepeatedAreaCase, ordinal,
+                replayCompletedLoads, replayPublishedLoadOrdinal, replayOrdinal, replayPending, replayCallback,
+                replayAuthorization.AuthorizedLoadCount, replaySaveAuthority.AdmittedNativeLoadRequests);
+            else Require(!replayCleanupOnlyAdoption, "Cleanup-only custody cannot qualify a measured load.");
+            RequireReplayAuthority(cleanupOnly); RequireReplayInput();
             Require(ReplayNativeBoundaryIdle() && ordinal >= 1 && ordinal <= (RepeatedAreaCase ? 1 : 3), "Repeated loaded graph is not at an admissible native boundary.");
             var data = persistence.LoadedArchive;
             Require(data != null && data.SchemaVersion == 3 && data.Pairs.Length == 2 && data.Participations.Length == 0 && data.Combat == null &&
@@ -188,10 +214,25 @@ namespace KingmakerMountedCombat.Diagnostics
                     var owner = world.Registry.FindActive(Exact(p.Rider.Id)); return owner != null && owner.Id.ToString("N") == p.PairId &&
                         owner.Generation == p.Generation && ReferenceEquals(owner.Mount, Exact(p.Mount.Id)); }),
                 "Repeated load lost exact actor roles or imported stable owner generations.");
-            Require(persistence.SemanticRestoreCount == ordinal * 4 && persistence.PresentationRestoreCount == ordinal * 2 &&
+            var counts = CaptureRepeatedLoadCounts(ordinal, replacement, persistence.SemanticRestoreCount,
+                persistence.PresentationRestoreCount, persistence.ArchivePostLoadObservedCount, persistence.NativeWorldDisposalCount,
+                replayAuthorization.AuthorizedLoadCount, replaySaveAuthority.AdmittedNativeLoadRequests,
+                UnityEngine.Time.frameCount, Game.Instance.TimeController.GameTime.Ticks);
+            if (!cleanupOnly)
+            {
+                var journal = evidence["repeatedLoadCountChecks"] as JArray;
+                if (journal == null) { journal = new JArray(); evidence["repeatedLoadCountChecks"] = journal; }
+                Require(journal.Count < 3, "Repeated native count journal exceeded its three declared loads.");
+                journal.Add(counts);
+                // Freeze the observers before the assertion can divert into teardown.
+                // These read-only snapshots grant no replacement-world admission.
+                evidence["coldRestoration"] = restoration?.Capture();
+                evidence["repeatedLoadRetentionAtBoundary"] = retention?.Capture();
+                Require(persistence.SemanticRestoreCount == ordinal * 4 && persistence.PresentationRestoreCount == ordinal * 2 &&
                 persistence.ArchivePostLoadObservedCount == 4 && persistence.NativeWorldDisposalCount == ordinal - 1 &&
                 replayAuthorization.AuthorizedLoadCount == ordinal && replaySaveAuthority.AdmittedNativeLoadRequests == ordinal,
                 "Native load/restoration count escaped its exact bounded epoch.");
+            }
             if (replacement)
                 Require(!ReferenceEquals(replayPriorPlayer, Game.Instance.Player) && !ReferenceEquals(replayPriorState, Game.Instance.State) &&
                     next.All(a => replayPriorActors.All(old => !ReferenceEquals(a, old))), "Load callback did not replace the exact prior native world and actors.");
@@ -200,14 +241,35 @@ namespace KingmakerMountedCombat.Diagnostics
             Require(actualSlots.Length == data.Slots.Length && data.Slots.Length == 4 && data.Slots.All(s => actualSlots.Count(a => a.ActorId == s.ActorId && a.Index == s.Index && a.Kind == s.Kind) == 1),
                 "Repeated world did not restore all native control slots exactly.");
             var selection = replaySelectionIds.Select(Exact).ToArray();
-            if (request.OwnedPairs != null) AdmitOwnedRepeatedLoad(ordinal, replacement, next, selection);
+            if (request.OwnedPairs != null) AdmitOwnedRepeatedLoad(ordinal, replacement, next, selection, cleanupOnly);
             var admitted = inherited?.Scope ?? new Chunk7NativeWorldScope(request, next.Concat(selection), data.AreaId);
             // Commit a fresh scope only after native authority, callback, semantic
             // graph, debt and all owner/actor identities have passed together.
             nativeScope = admitted; actors = next; firstRider = next[0]; firstMount = next[1]; secondRider = next[2]; secondMount = next[3];
             originalSelection = selection; saved = data; slots = data.Slots;
             expectedOwners.Clear(); foreach (var pair in data.Pairs) expectedOwners.Add(Guid.Parse(pair.PairId), pair.Generation);
-            replayArchive = replayArchive ?? json; replayCompletedLoads = ordinal; retention.BindActors(actors);
+            replayArchive = replayArchive ?? json;
+            if (cleanupOnly)
+            {
+                // The failed epoch is owned solely to release exact current
+                // actors/leases. Never append a world or advance measured progress.
+                replayCleanupOnlyAdoption = true;
+                evidence["repeatedLoadCleanupAdoption"] = new JObject { ["contract"] = "chunk7-repeated-load-cleanup-only-v1",
+                    ["ordinal"] = ordinal, ["acceptedLoadsBefore"] = replayCompletedLoads, ["counts"] = counts,
+                    ["publishedLoadOrdinalBefore"] = replayPublishedLoadOrdinal,
+                    ["exactCallbackObserved"] = true, ["nativeWorld"] = ReplaySnapshot(), ["qualifiesMeasuredLoad"] = false };
+                return;
+            }
+            CompleteRepeatedLoadObservation(ordinal);
+        }
+        private void CompleteRepeatedLoadObservation(int ordinal)
+        {
+            retention.BindActors(actors);
+            // Publishing native custody precedes fallible observer assertions.
+            // A later failure must retain this exact pending epoch for cleanup,
+            // without qualifying it or requesting another native load.
+            replayPublishedLoadOrdinal = ordinal;
+            replayCompletedLoads = ordinal;
             AssertReplayQuiet(); RecordRepeatedWorld("load-" + ordinal); AssertReplayObservers();
             evidence["loadedArchive"] = replayArchive.DeepClone();
             var descriptor = request.PersistenceLoad;
@@ -215,11 +277,13 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["sha256"] = descriptor.Sha256, ["length"] = descriptor.Length, ["lastWriteTimeUtcTicks"] = descriptor.LastWriteTimeUtcTicks,
                 ["gameId"] = descriptor.GameId, ["gameName"] = descriptor.GameName, ["area"] = descriptor.Area };
         }
-        private void AdmitOwnedRepeatedLoad(int ordinal, bool replacement, UnitEntityData[] next, UnitEntityData[] selection)
+        private void AdmitOwnedRepeatedLoad(int ordinal, bool replacement, UnitEntityData[] next, UnitEntityData[] selection, bool cleanupOnly = false)
         {
             Require(request.OwnedPairs != null && request.OwnedPairs.Cold && RepeatedWorldCase &&
                 ordinal == (replacement ? replayOrdinal : 1) && (!replacement || replayPending && replayCallback),
                 "Inherited replacement lacks its exact selected native callback epoch.");
+            Require(!cleanupOnly || cleanup && errors.Count != 0 && replacement && inherited != null,
+                "Inherited cleanup-only replacement cannot substitute for measured admission.");
             if (inherited == null)
             {
                 Require(!replacement && ordinal == 1 && replayIncomingInherited == null, "A later native epoch cannot bypass initial inherited admission.");
@@ -228,7 +292,10 @@ namespace KingmakerMountedCombat.Diagnostics
             else if (inherited.ReplayLoadOrdinal != ordinal)
             {
                 Require(replacement && !RepeatedAreaCase, "Only a selected native load replaces inherited native objects.");
-                if (replayIncomingInherited == null) replayIncomingInherited = inherited.CreateRepeatedLoadCandidate(ordinal, replayCallback);
+                if (replayIncomingInherited == null) replayIncomingInherited = cleanupOnly ?
+                    inherited.CreateRepeatedLoadCleanupCandidate(ordinal, replayCallback) : inherited.CreateRepeatedLoadCandidate(ordinal, replayCallback);
+                Require(cleanupOnly || !replayIncomingInherited.ReplayCleanupOnly,
+                    "Cleanup-only inherited custody cannot qualify a measured successor.");
                 Require(replayIncomingInherited.ReplayLoadOrdinal == ordinal, "A pending inherited candidate belongs to another load.");
                 if (!replayIncomingInherited.Bound) replayIncomingInherited.Bind(false);
                 replayIncomingInherited.RequirePreserved();
@@ -240,6 +307,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 inherited = replayIncomingInherited; replayIncomingInherited = null;
             }
             inherited.RequirePreserved();
+            Require(cleanupOnly || !inherited.ReplayCleanupOnly, "Cleanup-only inherited custody cannot resume measured replay.");
             Require(inherited.Actors.Length == next.Length && inherited.Actors.Where((actor, index) => !ReferenceEquals(actor, next[index])).Count() == 0 &&
                 selection.All(actor => inherited.Party.Any(field => ReferenceEquals(field, actor))),
                 "Native replay actor roles or original selection escaped the complete inherited field roster.");
@@ -247,7 +315,8 @@ namespace KingmakerMountedCombat.Diagnostics
         private void DispatchRepeatedLoad()
         {
             RequireNativeWorld(); RequireReplayAuthority(); RequireReplayInput(); AssertReplayQuiet();
-            Require(replayCompletedLoads >= 1 && replayCompletedLoads < 3 && !replayPending, "Native repeated load ordinal is already owned or exhausted.");
+            Require(!replayCleanupOnlyAdoption && replayCompletedLoads >= 1 && replayCompletedLoads < 3 && !replayPending,
+                "Native repeated load ordinal is already owned or exhausted.");
             var decision = replaySaveAuthority.Validate(RuntimeSaveOperation.Load, ReplayTarget(), replaySaveAuthority.Root);
             Require(decision == null, "Next native repeated load was refused before world replacement: " + decision);
             var before = ReplaySnapshot();
@@ -355,7 +424,7 @@ namespace KingmakerMountedCombat.Diagnostics
             if (replayPending && ReplayNativeBoundaryIdle())
             {
                 if (RepeatedAreaCase) AdmitRepeatedArea();
-                else { Require(replayCallback, "Failed repeated native load retains unadmitted world cleanup custody."); BindRepeatedLoadedWorld(replayOrdinal, true); }
+                else { Require(replayCallback, "Failed repeated native load retains unadmitted world cleanup custody."); BindRepeatedLoadedWorld(replayOrdinal, true, true); }
                 replayPending = false;
             }
             Require(!replayPending, "Repeated world still owns an unfinished native boundary.");

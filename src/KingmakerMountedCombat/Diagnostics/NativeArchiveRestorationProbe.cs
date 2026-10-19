@@ -28,11 +28,25 @@ namespace KingmakerMountedCombat.Diagnostics
         private readonly JArray events = new JArray(), hooks = new JArray();
         private int dropped, errors;
         private bool disposed, installed, installationStarted;
-        internal bool Complete => installed && dropped == 0 && errors == 0;
-        internal NativeArchiveRestorationProbe(MountedPersistenceService persistence, MountedWorldService world = null)
+        private readonly RuntimeRequest debtRequest;
+        private readonly string debtRequestKey;
+        private readonly JArray debtEvents = new JArray();
+        private readonly HashSet<int> debtOpenCalls = new HashSet<int>();
+        private UnitEntityData[] debtActors;
+        private MountedArchiveData debtArchive;
+        private Game debtGame;
+        private int debtSequence, debtErrors, debtDropped;
+        private const int MaximumDebtEvents = 128;
+        internal bool Complete => installed && dropped == 0 && errors == 0 && debtErrors == 0 && debtDropped == 0 &&
+            debtOpenCalls.Count == 0 && (debtRequest == null || DebtIdentityCurrent());
+        internal NativeArchiveRestorationProbe(MountedPersistenceService persistence, MountedWorldService world = null, RuntimeRequest debtDiagnosticRequest = null)
         {
             this.persistence = persistence ?? throw new ArgumentNullException(nameof(persistence));
             this.world = world;
+            if (debtDiagnosticRequest != null && (!IsDebtDiagnosticRequest(debtDiagnosticRequest) || world == null))
+                throw new ArgumentException("Debt-boundary diagnostics require their exact owner-seed schema2 cold/resave case.");
+            debtRequest = debtDiagnosticRequest;
+            debtRequestKey = DebtRequestKey(debtRequest);
         }
         internal void Install()
         {
@@ -47,6 +61,7 @@ namespace KingmakerMountedCombat.Diagnostics
             if (typeof(UnitEntityData).Assembly.ManifestModule.ModuleVersionId != new Guid("07fa1e4d-8618-41b3-9b8d-faa17d3b26f7"))
                 throw new InvalidOperationException("Native restoration observer MVID differs.");
             harmony = HarmonyInstance.Create(HarmonyId); active = this;
+            debtGame = Game.Instance;
             Patch(typeof(TurnController), 0x06000C3C, "PrepareBefore", "PrepareAfter");
             Patch(typeof(UnitCombatState), 0x0600939D, "RoundBefore", "RoundAfter");
             PatchProduct(nameof(NativeCombatActorPersistence.RestoreActor), "RestoreActorBefore", "RestoreActorAfter");
@@ -55,6 +70,11 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 Install(typeof(MountedPersistenceService).GetMethod("TryRestoreArchiveCombat", Flags), "SharedWorldBefore", "SharedWorldAfter");
                 Install(typeof(MountedPersistenceService).GetMethod("RestoreArchivePresentation", Flags), "PresentationBefore", "PresentationAfter");
+            }
+            if (debtRequest != null)
+            {
+                Patch(typeof(UnitEntityData), 0x06008355, "DebtJoinBefore", "DebtJoinAfter");
+                Patch(typeof(UnitCombatPrepareController), 0x0600936F, "DebtPrepareBefore", "DebtPrepareAfter");
             }
             installed = true;
         }
@@ -109,10 +129,106 @@ namespace KingmakerMountedCombat.Diagnostics
             var ids = new HashSet<string>(actors, StringComparer.Ordinal);
             return events.Count(e => (string)e["kind"] == kind && ids.Contains((string)e["actorId"]));
         }
-        internal JObject Capture() => new JObject { ["contract"] = "chunk7-native-restoration-entry-observer-v1",
+        internal JObject Capture()
+        {
+            var value = new JObject { ["contract"] = "chunk7-native-restoration-entry-observer-v1",
             ["events"] = events.DeepClone(), ["hooks"] = hooks.DeepClone(), ["maximumEvents"] = MaximumEvents,
             ["dropped"] = dropped, ["errors"] = errors + (installed ? 0 : 1), ["complete"] = Complete,
             ["installedBeforeWorldLoad"] = true, ["prepareMetric"] = "native-method-entries-including-production-refused-attempts" };
+            if (debtRequest != null) value["debtDiagnostics"] = new JObject {
+                ["contract"] = "chunk7-native-debt-boundary-observer-v1", ["runId"] = debtRequest.RunId,
+                ["events"] = debtEvents.DeepClone(), ["maximumEvents"] = MaximumDebtEvents, ["errors"] = debtErrors,
+                ["dropped"] = debtDropped, ["openCalls"] = debtOpenCalls.Count, ["requestUnchanged"] = DebtRequestUnchanged(),
+                ["complete"] = debtErrors == 0 && debtDropped == 0 && debtOpenCalls.Count == 0 && DebtIdentityCurrent(),
+                ["scope"] = "exact-schema2-cold-after-presentation", ["methodEntryMayBeRefusedByProductionPrefix"] = true };
+            return value;
+        }
+        internal static bool IsDebtDiagnosticRequest(RuntimeRequest request) =>
+            request?.Scenario == Chunk7OwnedPairsSelection.Scenario && request.OwnedPairs?.IsOwnerSeedCheckpointLoad == true &&
+            request.SelectedChunk7Scenario == Chunk7PersistenceScenario.LoadScenario &&
+            request.PersistenceCase == "legacy-mounted-pending-tb-manual" &&
+            request.OwnedPairs.ExpectedNativeLoadCount == 1 && request.OwnedPairs.ExpectedNativeWriteCount == 1;
+        // The entire serialized immutable request binds source/seed ancestry, roles,
+        // party, fixture and both campaign/area descriptors as well as quotas/token.
+        private static string DebtRequestKey(RuntimeRequest request) => request == null ? null :
+            JObject.FromObject(request, MountedSaveCodec.CreateSerializer()).ToString(Newtonsoft.Json.Formatting.None);
+        private bool DebtRequestUnchanged() => IsDebtDiagnosticRequest(debtRequest) && DebtRequestKey(debtRequest) == debtRequestKey;
+        private bool DebtIdentityCurrent()
+        {
+            try { ResolveDebtActors(); return true; }
+            catch { return false; }
+        }
+        private sealed class DebtBoundaryCall
+        {
+            internal NativeArchiveRestorationProbe Owner;
+            internal string Kind;
+            internal UnitEntityData Actor;
+            internal int Id;
+        }
+        private UnitEntityData[] ResolveDebtActors()
+        {
+            if (!DebtRequestUnchanged() || !ReferenceEquals(Game.Instance, debtGame))
+                throw new InvalidOperationException("Debt-boundary request or native game changed.");
+            var source = persistence.LoadedArchive;
+            if (source?.Combat?.Actors == null || source.Combat.Actors.Length == 0 || source.Combat.Actors.Length > 64)
+                throw new InvalidOperationException("Debt-boundary actor graph is absent or unbounded.");
+            // Re-resolve both current native rosters on every event/completion.
+            // A shared reference in both rosters is lawful; two objects with the
+            // same saved ID are ambiguous, including an old Player alias.
+            var units = Game.Instance.State.Units.Concat(Game.Instance.Player.AllCharacters).Where(unit => unit != null).ToArray();
+            var resolved = source.Combat.Actors.Select(row => {
+                var matches = units.Where(unit => unit.UniqueId == row.Native.Id).ToArray();
+                if (matches.Length == 0 || matches.Any(unit => !ReferenceEquals(unit, matches[0])))
+                    throw new InvalidOperationException("Debt-boundary exact current native actor is absent or ambiguous.");
+                return matches[0];
+            }).ToArray();
+            if (debtActors == null) { debtActors = resolved; debtArchive = source; }
+            if (!ReferenceEquals(debtArchive, source) || !source.Combat.Actors.Select(row => row.Native.Id)
+                .SequenceEqual(debtActors.Select(actor => actor.UniqueId)) || resolved.Length != debtActors.Length ||
+                resolved.Where((actor, index) => !ReferenceEquals(actor, debtActors[index])).Any())
+                throw new InvalidOperationException("Debt-boundary loaded archive or exact actor identity changed.");
+            return resolved;
+        }
+        private DebtBoundaryCall BeginDebtBoundary(string kind, UnitEntityData actor)
+        {
+            try
+            {
+                if (debtRequest == null || disposed || !installed || persistence.CombatRestorationPending ||
+                    persistence.ArchiveRestorePhase != "all-pair-presentation-restored") return null;
+                var actors = ResolveDebtActors();
+                if (actor != null && !actors.Any(value => ReferenceEquals(value, actor))) return null;
+                // Filtered prepare ticks still recheck the full request, current
+                // rosters and flags; they serialize no native snapshots/events.
+                if (kind == "native-combat-prepare" && !actors.Any(value => value.IsInCombat && !value.CombatState.Prepared)) return null;
+                if (debtEvents.Count + debtOpenCalls.Count + 2 > MaximumDebtEvents) { debtDropped++; return null; }
+                var call = new DebtBoundaryCall { Owner = this, Kind = kind, Actor = actor, Id = ++debtSequence };
+                debtEvents.Add(CaptureDebtBoundary(call, "before")); debtOpenCalls.Add(call.Id);
+                return call;
+            }
+            catch { debtErrors++; return null; }
+        }
+        private void EndDebtBoundary(DebtBoundaryCall call)
+        {
+            try
+            {
+                if (!ReferenceEquals(call?.Owner, this) || !ReferenceEquals(active, this) || !debtOpenCalls.Contains(call.Id))
+                    throw new InvalidOperationException("Debt-boundary callback outlived its exact observer.");
+                debtEvents.Add(CaptureDebtBoundary(call, "after")); debtOpenCalls.Remove(call.Id);
+            }
+            catch { debtErrors++; }
+        }
+        private JObject CaptureDebtBoundary(DebtBoundaryCall call, string edge)
+        {
+            var actors = ResolveDebtActors();
+            return new JObject { ["kind"] = call.Kind, ["edge"] = edge, ["callId"] = call.Id,
+                ["actorId"] = call.Actor?.UniqueId, ["frame"] = Time.frameCount,
+                ["gameTicks"] = Game.Instance.TimeController.GameTime.Ticks, ["paused"] = Game.Instance.IsPaused,
+                ["nativePassing"] = TurnBased.Controllers.CombatController.IsPassing(),
+                ["restorePhase"] = persistence.ArchiveRestorePhase, ["restorationPending"] = persistence.CombatRestorationPending,
+                ["actors"] = new JArray(actors.Select(actor => new JObject { ["native"] = JObject.FromObject(
+                    MountedPersistenceService.CaptureActor(actor), MountedSaveCodec.CreateSerializer()),
+                    ["inCombat"] = actor.IsInCombat, ["prepared"] = actor.CombatState.Prepared })) };
+        }
         public void Dispose()
         {
             if (disposed) return;
@@ -122,6 +238,12 @@ namespace KingmakerMountedCombat.Diagnostics
         }
         private static class Hooks
         {
+            internal static void DebtJoinBefore(UnitEntityData __instance, out DebtBoundaryCall __state) =>
+                __state = active?.BeginDebtBoundary("native-join-combat", __instance);
+            internal static void DebtJoinAfter(DebtBoundaryCall __state) { if (__state != null) __state.Owner.EndDebtBoundary(__state); }
+            internal static void DebtPrepareBefore(out DebtBoundaryCall __state) =>
+                __state = active?.BeginDebtBoundary("native-combat-prepare", null);
+            internal static void DebtPrepareAfter(DebtBoundaryCall __state) { if (__state != null) __state.Owner.EndDebtBoundary(__state); }
             internal static void PrepareBefore(TurnController __instance) => active?.Record("prepare-before", __instance.Unit);
             internal static void PrepareAfter(TurnController __instance) => active?.Record("prepare-after", __instance.Unit);
             internal static void RoundBefore(UnitCombatState __instance) => active?.Record("round-before", __instance.Unit);

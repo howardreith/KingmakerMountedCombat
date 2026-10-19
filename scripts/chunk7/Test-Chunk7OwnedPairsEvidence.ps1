@@ -1,6 +1,6 @@
-param([string]$ReaderDirectory,[string]$FixturePath,[string]$OutputDirectory)
+param([string]$ReaderDirectory,[string]$FixturePath,[string]$OutputDirectory,[string]$RepositoryRoot,[string]$MigrationFixturePath)
 $ErrorActionPreference='Stop';Set-StrictMode -Version Latest
-$repo=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
+$repo=if($RepositoryRoot){[IO.Path]::GetFullPath($RepositoryRoot)}else{[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))}
 if(-not$ReaderDirectory){$ReaderDirectory=Join-Path $repo 'scripts/runtime'}
 if(-not$FixturePath){$FixturePath=Join-Path $repo 'tests/Chunk7Diagnostics/OwnedPairsEvidenceFixtures.json'}
 . (Join-Path $ReaderDirectory 'RuntimeHarness.Common.ps1')
@@ -9,7 +9,8 @@ $clock=[Diagnostics.Stopwatch]::StartNew();$results=[Collections.Generic.List[ob
 $fixtures=(Get-Content -LiteralPath $FixturePath -Raw|ConvertFrom-Json).fixtures
 function Copy-Value($v){$v|ConvertTo-Json -Depth 90|ConvertFrom-Json}
 . (Join-Path $repo 'tests/Chunk7Diagnostics/OwnerSeedCheckpointPreparationFixtures.ps1')
-. (Join-Path $repo 'tests/Chunk7Diagnostics/OwnerSeedMigrationFixtures.ps1')
+if(-not$MigrationFixturePath){$MigrationFixturePath=Join-Path $repo 'tests/Chunk7Diagnostics/OwnerSeedMigrationFixtures.ps1'}
+. $MigrationFixturePath
 function Invoke-OwnedReader($Value){$r=$Value.request;$v=$Value.artifact;switch -Regex ($Value.name){'^exploration$'{Assert-KmcChunk7WorldEvidence $r $v 'PASS';break}'^combat-'{Assert-KmcChunk7CombatEvidence $r $v 'PASS';break}'^realtime-'{Assert-KmcChunk7RealtimeEvidence $r $v 'PASS';break}'^native-life-'{Assert-KmcChunk7NativeLifeEvidence $r $v 'PASS';break}'^persistence-'{Assert-KmcChunk7PersistenceObservation $r $v 'PASS';break}default{throw 'Unknown fixture name'}}}
 function Check([string]$Name,[scriptblock]$Body,[bool]$Refuse=$false,[string]$Pattern=''){$errorText=$null;$pass=$false;try{&$Body;$pass=-not$Refuse}catch{$errorText=$_.Exception.Message;$pass=$Refuse-and(-not$Pattern-or$errorText-match$Pattern)};$results.Add([pscustomobject]@{name=$Name;pass=$pass;expectedRefusal=$Refuse;error=$errorText});if(-not$pass){Write-Output ('FAIL '+$Name+': '+$errorText)}}
 function Mutate([string]$Name,[string]$Case,[scriptblock]$Mutation,[string]$Pattern=''){$v=Copy-Value @($fixtures|Where-Object name -CEQ $Case)[0];&$Mutation $v;Check $Name {Invoke-OwnedReader $v} $true $Pattern}
@@ -667,6 +668,7 @@ function New-KmcOwnerSeedCombatCheckpointLoadFixture([string]$Checkpoint){
   $o.ownedOutputAdmission.number=305;$o.ownedOutputAdmission.leaf='Manual_305_KMC_C7_SCHEMA2.zks'
   foreach($auth in @($o.ownedOutputAdmission.authority,$o.ownedOutputCompletion.authority)){$auth.number=305;$auth.leaf='Manual_305_KMC_C7_SCHEMA2.zks'}
   $o.nativeWrite.path=$o.nativeWrite.path.Replace('Manual_44_KMC_C7_SCHEMA2.zks','Manual_305_KMC_C7_SCHEMA2.zks')
+  Set-KmcOwnerSeedSchema2DebtDiagnosticFixture $v
  }
  $v.name='persistence-owner-seed-checkpoint-load-'+$Checkpoint;$v
 }
