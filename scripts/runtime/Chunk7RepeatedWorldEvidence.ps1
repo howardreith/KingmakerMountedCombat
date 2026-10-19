@@ -73,14 +73,20 @@ function Assert-KmcChunk7RepeatedSubscriptionBoundary($Previous,$Current,[bool]$
         throw 'Repeated world retained stale fact subscribers or changed process-owned subscribers.'
     }
 }
-function Assert-KmcChunk7ReplayOwners($Owners,$Archive,[bool]$Mounted) {
+function Assert-KmcChunk7ReplayOwners($Owners,$Archive,[bool]$Mounted,[bool]$Presentation=$false) {
     if($Owners-isnot[Array]-or$Owners.Count-ne$(if($Mounted){2}else{0})){throw 'Mounted or settled native ownership differs.'}
     if(-not$Mounted){return}
     foreach($pair in $Archive.Pairs){
         $actual=@($Owners|Where-Object ownerId -CEQ $pair.PairId)
         if($actual.Count-ne1){throw 'Stable native owner was lost or duplicated.'}
         $v=$actual[0];Assert-KmcChunk7NativeCounters $v @('generation')
-        if($v.generation-ne$pair.Generation-or-not(Test-KmcChunk7OwnerActorMatch $v.riderId $pair.Rider.Id)-or-not(Test-KmcChunk7OwnerActorMatch $v.mountId $pair.Mount.Id)-or$v.state-cne'Active'){throw 'Stable generation/actor roles changed.'}
+        # Registry snapshots retain compact owner-key actor ids (N); the native
+        # presentation callback reports actor UniqueIds (D). Both are exact,
+        # but the two producer surfaces must not be conflated.
+        $rider=if($Presentation){ConvertFrom-KmcChunk7ActorUniqueId $v.riderId}else{ConvertFrom-KmcChunk7OwnerActorId $v.riderId}
+        $mount=if($Presentation){ConvertFrom-KmcChunk7ActorUniqueId $v.mountId}else{ConvertFrom-KmcChunk7OwnerActorId $v.mountId}
+        if($v.generation-ne$pair.Generation-or$rider-ne(ConvertFrom-KmcChunk7ActorUniqueId $pair.Rider.Id)-or
+           $mount-ne(ConvertFrom-KmcChunk7ActorUniqueId $pair.Mount.Id)-or$v.state-cne'Active'){throw 'Stable generation/actor roles changed.'}
         if(@($v.PSObject.Properties.Name)-ccontains'retainsObligations'-and$v.retainsObligations-isnot[bool]){throw 'Retained obligation predicate is not a JSON boolean.'}
     }
 }
@@ -113,7 +119,7 @@ function Assert-KmcChunk7ReplayWorld($World,$Archive,[string]$Area,[bool]$Mounte
 function Assert-KmcChunk7ReplayPresentation($World,$Archive) {
     Assert-KmcChunk7NativeCounters $World @('gameTicks')
     Assert-KmcChunk7Boolean $World.playerInCombat $false;Assert-KmcChunk7Boolean $World.turnBased $false
-    Assert-KmcChunk7ReplayOwners $World.owners $Archive $true
+    Assert-KmcChunk7ReplayOwners $World.owners $Archive $true $true
     if($World.actors-isnot[Array]-or$World.actors.Count-ne4-or$null-ne$World.combat-or$World.participations-isnot[Array]-or$World.participations.Count-gt2-or
        (ConvertTo-KmcChunk7Canonical @($World.nativeControls|Sort-Object ActorId,Index))-cne(ConvertTo-KmcChunk7Canonical @($Archive.Slots|Sort-Object ActorId,Index))){throw 'Native repeated presentation omitted actors/controls or invented combat.'}
     foreach($savedActor in @($Archive.Pairs|ForEach-Object{$_.Rider;$_.Mount})){

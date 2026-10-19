@@ -25,7 +25,7 @@ function ReplayRestoration([int]$Loads){
     $h=Copy-Test $hooks;$h[1].method='OnNewRound';foreach($method in @('TryRestoreArchiveCombat','RestoreArchivePresentation')){$h+=[pscustomobject]@{method=$method;declaringType='KingmakerMountedCombat.Integration.MountedPersistenceService';moduleMvid=$request.dllMvid;token='06002000'}}
     $es=@();for($epoch=0;$epoch-lt$Loads;$epoch++){
         foreach($actor in $native){foreach($kind in @('restore-debt-before','restore-debt-after')){$es+=[pscustomobject]@{kind=$kind;actorId=$actor.Id;frame=10+$epoch*100;gameTicks=10000000L;restorePhase='validated-before-native-mutation';debt=(Copy-Test $actor);prepared=$false;inCombat=$false}}}
-        $es+=[pscustomobject]@{kind='all-owner-presentation-restored';frame=20+$epoch*100;restorePhase='all-pair-presentation-restored';snapshot=[pscustomobject]@{gameTicks=10000000L;turnBased=$false;playerInCombat=$false;actors=@($native|ForEach-Object{[pscustomobject]@{Native=(Copy-Test $_);InCombat=$false;Prepared=$false}});combat=$null;participations=@();owners=@($owners|ForEach-Object{$v=Copy-Test $_;$v.riderId=([Guid]$v.riderId).ToString('N');$v.mountId=([Guid]$v.mountId).ToString('N');$v});nativeControls=(Copy-Test $slots)}}
+        $es+=[pscustomobject]@{kind='all-owner-presentation-restored';frame=20+$epoch*100;restorePhase='all-pair-presentation-restored';snapshot=[pscustomobject]@{gameTicks=10000000L;turnBased=$false;playerInCombat=$false;actors=@($native|ForEach-Object{[pscustomobject]@{Native=(Copy-Test $_);InCombat=$false;Prepared=$false}});combat=$null;participations=@();owners=@($owners|ForEach-Object{Copy-Test $_});nativeControls=(Copy-Test $slots)}}
     }
     [pscustomobject]@{complete=$true;installedBeforeWorldLoad=$true;contract='chunk7-native-restoration-entry-observer-v1';maximumEvents=2048;dropped=0;errors=0;prepareMetric='native-method-entries-including-production-refused-attempts';hooks=$h;events=$es}
 }
@@ -81,7 +81,7 @@ function New-RepeatedRunnerRequest{ConvertTo-RunnerRequest (Copy-Test $areaReque
 Check 'repeated-world request assert accepts the runner ordered-dictionary request' {Assert-KmcChunk7RepeatedWorldRequest (ConvertTo-RunnerRequest (Copy-Test $areaRequest))}
 Reject 'ordered-dictionary-missing-targets' {$r=New-RepeatedRunnerRequest;$r.Remove('persistenceReplayTargets');Assert-KmcChunk7RepeatedWorldRequest $r}
 Reject 'ordered-dictionary-save-family' {$r=New-RepeatedRunnerRequest;$r['scenario']='chunk7-persistence-save';Assert-KmcChunk7RepeatedWorldRequest $r}
- foreach($mutation in @('fourth-load','load-text','native-write','missing-callback','callback-text','callback-epoch','retained-player','foreign-state','retained-actor','changed-owner','generation-text','free-debt','extra-prepare','unrelated-prepare','extra-debt','missing-presentation','late-observer','dropped-events','wrong-hook','extra-owner','old-command','pending-worker','subscription-growth','subscription-type','stale-horse-subscriber','changed-process-subscriber','identity-collision','identity-release','identity-unregistered','false-allocation-proof','false-diagnostics-proof','input-change','unsafely-settled','retained-observer','stale-selection','repeat-area-not-load','missing-restored-slot','replayed-mount','extra-save','duplicate-fact','dispatch-actor-substitution','cleanup-actor-substitution','callback-actor-from-next-world','callback-game-substituted-with-state')){
+ foreach($mutation in @('fourth-load','load-text','native-write','missing-callback','callback-text','callback-epoch','retained-player','foreign-state','retained-actor','changed-owner','generation-text','free-debt','extra-prepare','unrelated-prepare','extra-debt','missing-presentation','presentation-owner-form','world-owner-form','late-observer','dropped-events','wrong-hook','extra-owner','old-command','pending-worker','subscription-growth','subscription-type','stale-horse-subscriber','changed-process-subscriber','identity-collision','identity-release','identity-unregistered','false-allocation-proof','false-diagnostics-proof','input-change','unsafely-settled','retained-observer','stale-selection','repeat-area-not-load','missing-restored-slot','replayed-mount','extra-save','duplicate-fact','dispatch-actor-substitution','cleanup-actor-substitution','callback-actor-from-next-world','callback-game-substituted-with-state')){
     Reject $mutation {$a=Copy-Test $threeLoad;$r=$a.observations.repeatedWorlds;switch($mutation){
       'fourth-load' {$r.nativeLoadRequests=4}
       'load-text' {$r.nativeLoadRequests='3'}
@@ -99,6 +99,8 @@ Reject 'ordered-dictionary-save-family' {$r=New-RepeatedRunnerRequest;$r['scenar
       'unrelated-prepare' {$r.restoration.events+=[pscustomobject]@{kind='prepare-before';actorId='99999999-9999-4999-8999-999999999999'}}
       'extra-debt' {$r.restoration.events[0].kind='restore-debt-after'}
       'missing-presentation' {$r.restoration.events=@($r.restoration.events|Where-Object kind -CNE 'all-owner-presentation-restored')}
+      'presentation-owner-form' {$r.restoration.events[8].snapshot.owners[0].riderId=([Guid]$first).ToString('N')}
+      'world-owner-form' {$r.worlds[0].owners[0].riderId=$first}
       'late-observer' {$r.restoration.installedBeforeWorldLoad=$false}
       'dropped-events' {$r.retention.dropped=1}
       'wrong-hook' {$r.retention.hooks[0].moduleMvid='99999999-9999-4999-8999-999999999999'}

@@ -53,6 +53,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private readonly WorkingFixtureLoader ownedFixtureLoader;
         private bool beforeLoad, started, captured, completed, disposed, cleanup, cleanupActions, callback, originalPause, pendingHostCustody;
         private bool originalPaired, originalMovement, cleanupProven;
+        private int repeatedCleanupActionsFrame = -1;
         private readonly HashSet<string> cleanupFaults = new HashSet<string>(StringComparer.Ordinal);
         private double stageStarted;
         private int stage;
@@ -647,7 +648,11 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 cleanupActions = PerformCleanup();
                 if (!cleanupActions) { RetainCleanup("Native commands, pair cleanup or owned progression facts have not settled.", 45); return; }
+                if (RepeatedWorldCase) repeatedCleanupActionsFrame = Time.frameCount;
             }
+            // Unity destroys movement components at the end of the frame. The
+            // repeated-world settlement must sample the next native frame.
+            if (RepeatedWorldCase && Time.frameCount <= repeatedCleanupActionsFrame) return;
             var leasesRestored = TryCleanup("native mode", () => { mode?.Dispose(); mode = null; });
             if (captured)
             {

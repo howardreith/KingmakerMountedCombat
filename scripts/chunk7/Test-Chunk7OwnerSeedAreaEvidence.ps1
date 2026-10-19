@@ -32,7 +32,7 @@ function New-SeedArea {
  $before=Copy-Value $o.snapshots[0];$before.label='before-native-save';$o.snapshots=@($before)+@($o.snapshots)
  $a=$o.areaTransfer;$a.enterPoint=$entry;$a.sourceArea=$sourceArea;$a.destinationArea=$destination
  for($i=0;$i-lt4;$i++){$p=@($a.before,$a.headerStarting,$a.headerStaged,$a.after)[$i];$p.area=if($i-eq0){$sourceArea}else{$destination};$p.ownedField.area=$p.area;$custody=Copy-Value $o.inheritedFixture;$custody.phase='replay-field';$p.ownedField.custody=$custody;if($i-cin@(1,2)){$p.nativeSaveBoundary.preparedArea=$destination}}
- Put-Area $o areaEntryPrerequisite ([pscustomobject][ordered]@{contract='owner-seed-visited-area-entry-v1';sourceArea=$sourceArea;destinationArea=$destination;locationGuid='758559f44d15fc844bf30a10a83154d5';locationName='OlegsTradingPost';seen=$true;revealed=$true;explored=$true;closed=$false;entryGuid=$entry;entryAreaGuid=$destination;entryName='EnterFromGlobalMap';locationCountBefore=7;locationCountAfter=7;existingLocationOnly=$true;entryEqualsRegisteredBlueprint=$true;navigationAssisted=$true;ordinaryTravelProof=$false;authoredExitProof=$false;nativeMode='AfterEntry';transferRequests=0;saveRequests=0})
+ Put-Area $o areaEntryPrerequisite ([pscustomobject][ordered]@{contract='owner-seed-visited-area-entry-v1';sourceArea=$sourceArea;destinationArea=$destination;locationGuid='758559f44d15fc844bf30a10a83154d5';locationName='OlegsTradingPost';seen=$true;revealed=$true;explored=$true;closed=$false;entryGuid=$entry;entryAreaGuid=$destination;entryName='EnterFromGlobalMap';locationCountBefore=7;locationCountAfter=7;destinationIsCapital=$false;existingLocationOnly=$true;entryEqualsRegisteredBlueprint=$true;navigationAssisted=$true;ordinaryTravelProof=$false;authoredExitProof=$false;nativeMode='AfterEntry';transferRequests=0;saveRequests=0})
  return (Copy-Value $f)
 }
 function New-SeedAreaCold {
@@ -55,6 +55,7 @@ $bad=[ordered]@{
  'missing visited prerequisite'={param($f)$f.artifact.observations.PSObject.Properties.Remove('areaEntryPrerequisite')}
  'unexplored destination'={param($f)$f.artifact.observations.areaEntryPrerequisite.explored=$false}
  'closed destination'={param($f)$f.artifact.observations.areaEntryPrerequisite.closed=$true}
+ 'capital destination'={param($f)$f.artifact.observations.areaEntryPrerequisite.destinationIsCapital=$true}
  'wrong state entrance'={param($f)$f.artifact.observations.areaEntryPrerequisite.entryGuid='e'*32}
  'map row added'={param($f)$f.artifact.observations.areaEntryPrerequisite.locationCountAfter++}
  'prerequisite after transfer'={param($f)$f.artifact.observations.areaEntryPrerequisite.transferRequests=1}
