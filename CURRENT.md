@@ -1,5 +1,29 @@
 # Chunk 7B–7D — IN PROGRESS
 
+## October 19 - Directive 4 execution and fixture diagnosis
+
+The current pushed reference is `e67dafa4` on the successor branch; PR #5 is
+draft. Read-only comparison of batch32 with the October 12 Working controls
+found the same Working ZIP and installed Kingmaker/Harmony12 bytes. The old
+base-only load failed at `Player.PostLoad`, while the then-installed mod set
+reached the world. Batch32's current six-mod set lacks two mods present in
+that successful comparison, and other mod/UMM versions changed. The cause of
+the missing main-character cross-scene entity remains unresolved; runner
+identity changed in batch32 slot2, while the exited game process SID was not
+retained. Slot1's two denied directory moves require a narrow managed sandbox
+permission for the installed game parent under the qualified sandbox account.
+No new native run occurred. See
+[the focused diagnosis](docs/CHUNK7-DIRECTIVE4-EXECUTION-DIAGNOSIS-2026-10-19.md).
+
+The schema-2 derivative receipt proves all 22 non-KMC ZIP members unchanged.
+The actual batch19 trace restored rider A's saved debt, then native JoinCombat
+and Prepare.Tick cleared it in frame 3839 during the saved round-1 allocation.
+Whether native re-entry is a lawful new entitlement or a repairable ownership
+error remains open; the original cold result stays FAIL. Batch23 area preflight
+found its visited Oleg destination capital and issued no transfer/save. All
+batch32 surfaces are restored, no lock/game is active, and the existing
+preview.52 binary needs no rebuild for this documentation-only checkpoint.
+
 ## October 19 - P07 positive cleanup attempt FAIL; exact profile recovery PASS
 
 The pushed reader checkpoint is `7348dace0242ea11f6ad75fc24ad08d0ec29b86c`.

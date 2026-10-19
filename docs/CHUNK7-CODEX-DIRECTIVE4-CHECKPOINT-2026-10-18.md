@@ -1,5 +1,16 @@
 # Chunk 7 Directive 4 Codex checkpoint
 
+## October 19 - targeted continuation after pushed e67
+
+Read-only execution, Working-load, schema-2 and area comparison is in
+[the focused diagnosis](CHUNK7-DIRECTIVE4-EXECUTION-DIAGNOSIS-2026-10-19.md).
+No new native result, product binary or fixture was made. The exact managed
+sandbox boundary for directory staging/rollback and the proposed smallest
+owner permission are recorded there. Batch32 and schema-2 original FAILs,
+batch27 accepted cache deltas, and batch31 original external FAILs remain
+unchanged. Positive P07 and DLL-absent cold, area Auto/cold, and schema-2
+pending-only preservation remain IN PROGRESS on their separate prerequisites.
+
 ## October 19 - batch32 P07 prerequisite FAIL; safe recovery complete
 
 The successor reader checkpoint `7348dace0242ea11f6ad75fc24ad08d0ec29b86c`
