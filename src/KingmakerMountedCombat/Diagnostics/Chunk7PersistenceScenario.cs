@@ -172,7 +172,14 @@ namespace KingmakerMountedCombat.Diagnostics
                             ObserveCold();
                             if (OwnerSeedLoadRefusalCase) { BeginLoadRefusal(); Next(80); break; }
                             if (OwnedSchema2CurrentCase) ObserveCurrentMigrationParent();
-                            if (Schema2ResaveCase) { RequestSave(); Next(41); break; }
+                            if (Schema2ResaveCase)
+                            {
+                                // Native load finalization can clear the pause requested in Start.
+                                // Reassert it once, after the restored world and debt are verified,
+                                // before admitting this exact migration resave.
+                                Game.Instance.IsPaused = true;
+                                RequestSave(); Next(41); break;
+                            }
                             if (CombatCase) { BeginCombatContinuation(); Next(20); } else Next(10);
                             break;
                         }
