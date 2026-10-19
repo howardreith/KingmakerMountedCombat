@@ -13,6 +13,14 @@ original results remain FAIL; positive cleanup, its archive scan and genuine
 DLL-absent cold remain unaccepted. Do not reuse this failed load as proof that
 the Mammoth fixture is unsafe, or retry identical inputs without a distinguishing
 diagnosis. The existing permanent-Horse removal refusal remains PASS.
+The preserved native stack identifies `Player.PostLoad` as the throw site. A
+bounded read of the exact installed assembly (MVID
+`07fa1e4d-8618-41b3-9b8d-faa17d3b26f7`) shows its first lookup requires
+one cross-scene entity matching `MainCharacter.UniqueId`; none was present
+in this process. Why that entity was absent is unresolved. Slot2's elevated
+filesystem context has a different Windows identity from the sandbox context
+that ran earlier owner-seed cases, so their PASSes do not establish this
+Working fixture's load under slot2's context.
 
 Slot2 restored Mods, protected saves and Working. UMM's new KMC entry and
 update-check timestamp plus three native PlayerPrefs changes were outside the

@@ -22,6 +22,11 @@ launcher with the needed filesystem permission. It made one exact Working load
 request and no save request, then native `SaveManager.LoadRoutine` threw
 `InvalidOperationException: Sequence contains no matching element`; the load
 pipeline ended before its callback. Original game/runtime results remain FAIL.
+The preserved stack localizes the throw to `Player.PostLoad`: the main-character
+ID had no matching cross-scene entity in that process. The installed assembly
+MVID is `07fa1e4d-8618-41b3-9b8d-faa17d3b26f7`; the cause of the missing
+entity is unresolved. Slot2 elevation used a different Windows identity from
+the sandboxed earlier PASSes, so their Working-load result cannot be transferred.
 No positive removal, cleanup archive or genuine DLL-absent load was produced.
 
 Slot2's combined transaction restored Mods, Baseline, Working and protected
