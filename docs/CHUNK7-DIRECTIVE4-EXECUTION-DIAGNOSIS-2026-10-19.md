@@ -1,10 +1,40 @@
 # Chunk 7 Directive 4 execution and fixture diagnosis — 19 October 2026
 
-Status: IN PROGRESS. This is a read-only diagnosis against pushed
+Status: IN PROGRESS. The original read-only diagnosis used pushed
 `e67dafa4ce53a23a1a41573b9c6a40a0d1ebe73b`, retained private receipts,
-the exact installed Kingmaker assembly and current filesystem state. It does
-not change a native verdict, qualify an execution context, or select another
-game run. The original batch32 and schema-2 results remain FAIL.
+the exact installed Kingmaker assembly and then-current filesystem state.
+The batch33 update below records one later guarded prelaunch FAIL and a live
+recovery blocker. The original batch32 and schema-2 results remain FAIL.
+
+## Batch33 slot1 update: managed permission still inactive
+
+The owner reported adding the installed-game parent as a managed writable
+root. Under the existing `CodexSandboxOffline` session, a scoped guarded
+WhatIf for `fixture-intake` passed against the unchanged preview.52 package,
+suite and legacy Working. The actual single declared run
+`20261019-c7b-p07-sandbox-fixtureload-b33s1` then failed **before game
+launch**, again after moving the original Mods tree into its exact transaction
+backup: moving `Mods-ready` to the absent live Mods path returned Access
+Denied, as did moving `Mods-original` back. The same-account guarded recovery
+passed WhatIf but actual recovery was denied at that rollback move. The
+original run remains FAIL; it did not test the Working load. No game process
+was observed, Working retains SHA-256 `5eb4e0b4cbd8d60dc879a02ff71aadfde3f517304754857f0cc68d0f9a93f1c6`,
+the live Mods root is absent, and the exact original tree remains in
+`runtime-backups/20261019-c7b-p07-sandbox-fixtureload-b33s1/Mods-original`.
+The durable Mods state is `original-moved`, before digest
+`b592f4009833072b60604852ad00660a6d236957712b63ae40f28ed1b7f67cda`;
+an independent read-only custody check matched that digest and all 80 files
+after the failed recovery, and observed protected-save metadata digest
+`df434471b6f2bb3ade60ecccaa524aa7537e17f63db3d0bcce6d5a7eb70561ab`.
+The private custody receipt is
+`analysis-cache/chunk7-continuation/candidate-preview52-head7348/b33s1-custody.json`
+(SHA-256 `6b64694273c2b57d1e1a08cc8c34c77f74136d3db29f9f126374284fa83ee0a1`).
+The transaction lock is retained. The requested managed parent root is not
+effective for this active session. No further native launch is safe until the
+root is effective and the same-account guarded recovery completes and verifies
+all exposed surfaces. The owner has been asked to activate that exact root;
+there is no request to change ACLs, run the game as another identity, or move
+Mods manually.
 
 ## Execution boundary
 
@@ -105,6 +135,18 @@ receipt SHA-256
 The metadata projects one pending owner and retains the source combat actor
 debt. This proves the native ZIP members were held fixed, not that the schema-2
 loader reproduces every runtime behavior of schema 3.
+
+The native schema-3 producer itself has one pair, one pending participation,
+and seven combat actors. Its rider A is already `InCombat=false`,
+`Prepared=false`, with 6/3/6 debt. The schema-2 projection keeps that combat
+record and all native ZIP members; it changes the mounted metadata envelope
+and deterministically derives the historical owner identity. KMC's only
+`JoinCombat` call in actor restoration is conditional on saved `InCombat`.
+It therefore does not call `JoinCombat` for this rider while restoring the
+saved debt. The observed join comes later, after KMC's presentation restoration
+completed and while native callbacks were passing. This narrows the failure
+to native re-entry/preparation after a truthful restore, while leaving open
+whether migration changes the later lifecycle compared with schema 3.
 
 Batch19's cold restoration trace shows rider A saved outside combat and
 `Prepared=false` with Standard/Move/Swift 6/3/6. `RestoreDebt` restored all

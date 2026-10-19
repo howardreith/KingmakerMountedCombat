@@ -1,5 +1,39 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## October 19 - active recovery after batch33 slot1
+
+The user added the requested installed-game parent to the managed writable-root
+configuration, but that permission has **not taken effect in this active
+sandbox session**. A single declared `fixture-intake` load-only check using the
+unchanged preview.52 package and legacy Working archive passed its scoped
+WhatIf, then failed **before game launch** at the same Mods directory move as
+batch32 slot1. This is a new external FAIL, run
+`20261019-c7b-p07-sandbox-fixtureload-b33s1`; it supplies no Working-load or
+P07 gameplay verdict. The same-account guarded recovery passed WhatIf but its
+actual rollback was also denied. The original live Mods root is currently
+**absent**. Its exact original 80-file tree is in
+`runtime-backups/20261019-c7b-p07-sandbox-fixtureload-b33s1/Mods-original`,
+recorded by `runtime-state/transactions/20261019-c7b-p07-sandbox-fixtureload-b33s1.json`
+in `original-moved` phase with before digest
+`b592f4009833072b60604852ad00660a6d236957712b63ae40f28ed1b7f67cda`.
+An independent read-only post-failure inventory matched that digest and all
+80 files; its private receipt is
+`analysis-cache/chunk7-continuation/candidate-preview52-head7348/b33s1-custody.json`.
+The transaction lock remains active; no Kingmaker process was observed and
+Working still hashes to `5eb4e0b4cbd8d60dc879a02ff71aadfde3f517304754857f0cc68d0f9a93f1c6`.
+Do not start another native run or manually move Mods. The owner has been asked
+to make the exact installed-game parent root effective for
+`DESKTOP-SRJJ623\CodexSandboxOffline` (SID ending `-1005`) in this session.
+When effective, run `scripts/runtime/Recover-KingmakerRuntimeTransaction.ps1`
+under that **same account** through its WhatIf and actual guarded paths,
+verify lock removal and full Mods/save restoration, then reassess the native
+execution boundary. Do not reuse the historical P07 profile-recovery script.
+The launch-only `ShouldProcess` and switch-syntax errors before the transaction
+were invocation errors with no runtime evidence directory or external mutation.
+The previously published branch was
+`cedf84a08988d4c39d00c048ec5325b45b6f08c0`; this entry records the
+subsequent prelaunch failure and active recovery obligation.
+
 ## October 19 - active Directive 4 execution/fixture diagnosis
 
 The latest pushed reference before this read-only diagnosis is `e67dafa4` on
