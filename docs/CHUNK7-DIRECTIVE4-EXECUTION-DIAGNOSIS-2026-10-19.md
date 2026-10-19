@@ -1,5 +1,77 @@
 # Chunk 7 Directive 4 execution and fixture diagnosis — 19 October 2026
 
+## Batch34 Working diagnosis and exact recovery
+
+The owner-authorized effective execution context is `DESKTOP-SRJJ623\Howie`,
+SID `S-1-5-21-1108991106-2476425705-1721024090-1001`, medium integrity.
+It can stage and restore through the existing guarded transaction, as the
+slot1 owner-seed control and later failed-run restoration demonstrated. This
+does not prove that the earlier sandbox account's denied directory move was
+fixed. The batch34 environment record is distinct from earlier accounts and
+fixtures. The exited game process SID was not retained, so these comparisons
+name the guarded runner, profile and staging context rather than asserting a
+separately observed game-process identity.
+
+The frozen preview.52 base-only Working observer in batch34 slot2
+(`20261019-c7b-p07-howie-base-working-b34s2`) failed its Harmony patch
+signature with `Invalid return type Boolean ... LoadRoutine.MoveNext_Patch0`
+before any Working load. It made zero loads and saves and has a separate
+original game/runtime FAIL. Its Mods, protected saves and profile restored.
+A corrected command followed one mistyped package-path invocation that had
+failed before transaction creation; that invocation provides no game result.
+
+The existing load-only `fixture-intake` route in slot3
+(`20261019-c7b-p07-howie-base-fixture-b34s3`) made one request for the same
+legacy Working archive SHA-256
+`5eb4e0b4cbd8d60dc879a02ff71aadfde3f517304754857f0cc68d0f9a93f1c6`
+and wrote no save. Native `Player.PostLoad` again threw
+`InvalidOperationException: Sequence contains no matching element` at its
+first `Single` lookup before the exact Working load callback. This run used
+the Howie context and base-only staging that successfully loaded the distinct
+qualified owner-seed checkpoint in slot1. It therefore distinguishes a
+Working-specific prerequisite from a broadly broken load environment in
+this context. The October 12 base-only Working failure and installed-mods
+Working world PASS strengthen the mod-dependency hypothesis, but product
+versions, installed sets and configuration also differed. Neither the
+missing main-character entity's origin nor any particular mod is proved.
+The slot3 original game/runtime result remains FAIL (0/1 assertions), not a
+P07 cleanup verdict. No cleanup save or DLL-absent load occurred.
+
+Slot3's guarded Mods and protected-save transaction restored digest
+`b592f4009833072b60604852ad00660a6d236957712b63ae40f28ed1b7f67cda`
+and inventory digest
+`df434471b6f2bb3ade60ecccaa524aa7537e17f63db3d0bcce6d5a7eb70561ab`.
+The profile guard retained the lock after seven newly written `Areas` files,
+an admitted base-only UMM rewrite and changes to exactly three native startup
+PlayerPrefs keys. The repository-owned exact-run
+`scripts/runtime/Recover-KmcB34S3Profile.ps1` binds the failed run, Howie SID,
+original snapshot, seven file hashes, startup settings hashes, combined
+transaction state and current Mods/save digests. It preserves the seven files
+under that run's backup `Areas-after`, writes only the verified saved UMM
+bytes and original three registry values, and supports an interrupted
+quarantine/settings restore without broadening its accepted pins. WhatIf,
+independent source review and focused positive/negative checks passed before
+actual: exact script SHA-256
+`c4b25dc031ff96494647a60019ac556790389b5f6fa5e3fd2227de288ec085ef`,
+review receipt SHA-256
+`67eb362b8adddfa0d6045a74043c826d2d882d43cabfa11b238eb64aa6a6ae82`,
+34/0 synthetic settings-state cases, actual seven-file inventory positive,
+closed-inventory negative, and parse 0. Earlier source and test failures
+remain preserved. The actual recovery passed. Independent read-back confirms exact
+profile, UMM, PlayerPrefs, Mods and protected saves; the lock and game are
+absent. The profile snapshot SHA-256 was
+`37ff7aa3d9fa0a18957d7ce080369671002d518fcf003b3c7c7fb5a742419c14`.
+The original slot3 FAIL and `restoration-blocked` orchestration record remain
+unaltered; the separate recovery receipt records restoration, not gameplay
+success. Batch27's accepted cache changes retain their own non-exact status.
+
+The next P07 route must change an actual prerequisite: identify a compatible
+legacy Working dependency set, or qualify a reference-free positive-cleanup
+derivative of the owner seed with a supported stock companion. Another empty
+zero-pair load cannot prove positive mounted cleanup. The schema-2 pending
+debt and area destination questions below remain independent. No product DLL
+changed in batch34, and no new build is warranted by this external recovery.
+
 Status: IN PROGRESS. The original read-only diagnosis used pushed
 `e67dafa4ce53a23a1a41573b9c6a40a0d1ebe73b`, retained private receipts,
 the exact installed Kingmaker assembly and then-current filesystem state.

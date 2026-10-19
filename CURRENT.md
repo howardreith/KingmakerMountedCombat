@@ -1,5 +1,28 @@
 # Chunk 7B–7D — IN PROGRESS
 
+## October 19 - batch34 Working failure distinguished and restored
+
+The Howie-context base-only owner-seed cold control remains PASS. A separate
+base-only legacy Working observer failed before loading because its Harmony
+patch has an invalid Boolean return type (batch34 slot2, 0 loads/0 saves).
+The existing load-only fixture route then requested the same immutable legacy
+Working archive once and failed at native `Player.PostLoad`'s missing
+main-character cross-scene lookup before its callback (slot3, 1 load/0 saves,
+0/1 assertions). Both original game/runtime results remain FAIL; neither
+reached P07 positive cleanup. The same-account control rules out a broadly
+broken load environment, while historical base-only FAIL versus installed-mods
+world PASS makes an archive dependency plausible but unproved.
+
+Slot3's exact guarded recovery passed after independent safety review:
+seven new `Areas` files were preserved in its run-owned backup, and the
+profile, UMM Params, three startup PlayerPrefs, Mods and protected saves now
+match their pre-run snapshots. A separate postcheck found zero game processes
+and no active transaction lock. The recovery changes external safety code and
+documentation only; frozen preview.52 need not be rebuilt. Schema-2 pending
+debt and the visited non-capital area fixture remain unresolved. See
+[the execution diagnosis](docs/CHUNK7-DIRECTIVE4-EXECUTION-DIAGNOSIS-2026-10-19.md)
+and [the live resume record](AUTONOMOUS-RESUME.md).
+
 ## October 19 - owner-authorized execution context and bounded cold control
 
 The owner enabled full access for this continuation. The effective runner is

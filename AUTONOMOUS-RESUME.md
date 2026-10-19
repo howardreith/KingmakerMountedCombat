@@ -1,5 +1,55 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## October 19 - Working discriminator failed; exact recovery complete
+
+Branch `codex/mounted-combat-chunk7-successor` was pushed at
+`08ccdf8e8a83ef4c5aeba4becdce9632c720e405` before this recovery-script
+and documentation change. Under `DESKTOP-SRJJ623\Howie` (SID ending `-1001`,
+medium integrity), batch34 slot2
+`20261019-c7b-p07-howie-base-working-b34s2` ran the frozen preview.52
+base-only Working observer. Its observer Harmony patch failed with an invalid
+Boolean return type before any native Working load: 0 loads, 0 saves, original
+game/runtime FAIL. Its transactions and profile restored exactly. An earlier
+mistyped package path failed before transaction creation and is not a native
+result.
+
+Batch34 slot3 `20261019-c7b-p07-howie-base-fixture-b34s3` used the same
+candidate, account, base-only staging and exact legacy Working archive through
+the load-only fixture-intake route. Scoped WhatIf passed. Actual made one
+Working load request and zero saves, then native `Player.PostLoad` threw
+`Sequence contains no matching element` at its first main-character
+cross-scene lookup, before the callback. Original game/runtime FAIL remains.
+The earlier same-account owner-seed load PASS shows broad load viability, but
+does not qualify this legacy archive. The historical installed-mods Working
+world PASS used a different product/configuration; missing archive dependencies
+remain a lead, not a proved cause. No P07 cleanup assertion ran.
+
+The slot3 Mods/protected-save transaction restored its before digests, but
+the profile guard retained the lock after seven new `Areas` files, a native
+base-only UMM rewrite and three startup PlayerPrefs changes. The exact-run
+`scripts/runtime/Recover-KmcB34S3Profile.ps1` passed WhatIf, independent
+safety review and focused negative/resume checks, then actual recovery under
+the same Howie SID. It preserved the seven files in that run's `Areas-after`
+backup and restored that run's profile, UMM parameters and PlayerPrefs. A
+separate read verified exact profile, settings, 80-file Mods and protected-save
+digests; game count is zero and the transaction lock is absent. The original
+slot3 FAIL is unchanged. The recovery script is the only new tracked code;
+preview.52 does not need rebuilding for this external-safety change.
+
+Next action: verify the local and remote checkpoint, recovery review receipt
+and draft PR #5 reflect this exact recovery and diagnosis, then choose a
+*new* bounded P07 discriminator:
+the historical Working archive needs an admitted dependency/configuration or
+an honestly sourced reference-free positive-cleanup derivative of the already
+qualified owner seed. Do not replay either failed batch34 route unchanged.
+Schema-2 remains the precise saved-debt/native re-entry contract question;
+compare the unmodified schema-3 source cold to its metadata-only schema-2
+derivative if a reviewed selector can preserve all fixture guards. Area Auto
+still lacks a visited non-capital destination. Do not restart completed
+qualification or merge, release, tag, install permanently, or claim HUMAN PLAY.
+
+Entries below retain historical next actions and states at their own times.
+
 ## October 19 - recovered; Howie-context native control PASS
 
 Current branch `codex/mounted-combat-chunk7-successor`; before this
