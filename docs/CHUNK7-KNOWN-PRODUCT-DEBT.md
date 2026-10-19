@@ -1,5 +1,20 @@
 # Chunk 7 known product debt
 
+## October 19 - narrowed Directive 4 contracts
+
+[The focused execution and fixture diagnosis](CHUNK7-DIRECTIVE4-EXECUTION-DIAGNOSIS-2026-10-19.md)
+separates the batch32 staging denial, the Working native post-load failure,
+the schema-2 debt loss and the area fixture prerequisite. The same Working
+archive failed under the October 12 base-only configuration, loaded under its
+installed-mods comparison, and failed in batch32 with a changed mod set and
+runner account. Neither the absent mods nor the account change is a proven
+cause. Schema-2 native members were unchanged except the KMC metadata member;
+native JoinCombat/Prepare.Tick cleared restored debt during the same saved
+round-1 allocation. Whether that re-entry is a lawful fresh native entitlement
+or a repairable KMC ownership error remains unresolved. No gameplay patch or
+weaker assertion was made. Oleg's exact visited entrance was capital at batch23
+preflight, so area transfer and Auto were not attempted.
+
 ## P07 positive cleanup native prerequisite — FAIL; restoration settled
 
 Preview.52 at pushed `7348dace` has a current-schema3 P07 Mammoth readback and
@@ -17,10 +32,10 @@ The preserved native stack identifies `Player.PostLoad` as the throw site. A
 bounded read of the exact installed assembly (MVID
 `07fa1e4d-8618-41b3-9b8d-faa17d3b26f7`) shows its first lookup requires
 one cross-scene entity matching `MainCharacter.UniqueId`; none was present
-in this process. Why that entity was absent is unresolved. Slot2's elevated
-filesystem context has a different Windows identity from the sandbox context
-that ran earlier owner-seed cases, so their PASSes do not establish this
-Working fixture's load under slot2's context.
+in this process. Why that entity was absent is unresolved. Slot2's runner
+used a different Windows account from the sandboxed earlier runs; the exited
+game process SID was not retained. Earlier owner-seed PASSes also used a
+different archive and do not establish this Working load.
 
 Slot2 restored Mods, protected saves and Working. UMM's new KMC entry and
 update-check timestamp plus three native PlayerPrefs changes were outside the
@@ -57,9 +72,11 @@ recorded in private batch31.
 
 Schema2 TB migration remains a distinct unresolved product/native boundary:
 the accepted pending-only source saves A outside combat and unprepared with
-6/3/6 debt, then installed `UnitCombatPrepareController.Tick` lawfully clears
-that debt when A rejoins. No synthetic Prepared flag or resource rewrite is
-accepted. Area Auto/cold needs a suitable visited non-capital destination;
+6/3/6 debt, then installed `UnitCombatPrepareController.Tick` clears that
+debt when A rejoins. Whether that native preparation represents a lawful new
+allocation within the selected save contract is not established. No synthetic
+Prepared flag or resource rewrite is accepted. Area Auto/cold needs a suitable
+visited non-capital destination;
 positive reference-free removal, genuine DLL-absent cold and doors also remain
 unaccepted.
 

@@ -1,5 +1,33 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## October 19 - active Directive 4 execution/fixture diagnosis
+
+The latest pushed reference before this read-only diagnosis is `e67dafa4` on
+`codex/mounted-combat-chunk7-successor`; origin matched, the worktree was
+clean, and PR #5 remained draft. The game and transaction lock are absent;
+live Mods, Working, Baseline and protected saves were restored after batch32.
+The exact findings and owner action are in
+[the execution diagnosis](docs/CHUNK7-DIRECTIVE4-EXECUTION-DIAGNOSIS-2026-10-19.md).
+This document update has no product, reader or native fixture change. The
+preview.52 DLL and all original PASS/FAIL evidence retain their own identities.
+
+Next action: review and commit this documentation-only diagnosis, use the
+project guarded push helper (WhatIf then fast-forward push), and update draft
+PR #5. Then wait for a managed sandbox permission that lets
+`DESKTOP-SRJJ623\CodexSandboxOffline` (SID ending `-1005`) rename the installed
+`Mods` child through its exact game parent in both staging and rollback. Do
+not elevate the agent/game under another account as a permission workaround.
+After that permission is established, run a scoped guarded transaction under
+the same account and verify exact restoration. Choose a small P07 load-only
+discriminator before repeating positive cleanup. Independently, compare the
+schema-3 pending source cold against the retained schema-2 trace; batch19's
+schema-2 cold remains FAIL. Area Auto/cold still needs a visited non-capital
+destination; doors are locally DEFER — EVIDENCED. No full campaign, merge,
+release, tag, permanent install or HUMAN PLAY acceptance is selected.
+
+Entries below are historical checkpoints; their earlier commit/push commands,
+including the documentation that became `e67dafa4`, are already complete.
+
 ## October 19 - pushed recovery checkpoint and bounded native diagnosis
 
 Branch `codex/mounted-combat-chunk7-successor`; guarded-pushed commit
