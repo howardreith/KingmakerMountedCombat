@@ -183,7 +183,7 @@ function Assert-KmcChunk7PermanentHorseRemovalRefusal($Request,$Observations){
  foreach($snap in @($v.before,$v.after)){Assert-KmcChunk7Boolean $snap.turnBased $false}
  Assert-KmcChunk7DisableEqual $v.before.world.owners $v.after.world.owners 'refusal owner graph'
  foreach($snap in @($v.before,$v.after)){Assert-KmcChunk7Boolean $snap.persistenceEnabled $true;Assert-KmcChunk7Boolean $snap.controls.Enabled $true
-  Assert-KmcOrdinaryInteger $snap.controls.ExactFactCount 6 6;Assert-KmcOrdinaryInteger $snap.controls.ManagedHotbarSlotCount 4 4
+   Assert-KmcOrdinaryInteger $snap.controls.ExactFactCount 8 8;Assert-KmcOrdinaryInteger $snap.controls.ManagedHotbarSlotCount 4 4
   foreach($key in @('NativeCastRequestCount','NativeRefusalCount')){Assert-KmcOrdinaryInteger $snap.controls.$key 0 0}
   $expectedSlots=@($o.mountedStart.slots|ForEach-Object{[pscustomobject]@{ActorId=$_.actorId;Index=$_.index;Kind=$_.kind}})
   Assert-KmcChunk7DisableEqual $snap.slots $expectedSlots 'refusal original live slots'
@@ -208,8 +208,8 @@ function Assert-KmcChunk7RegisteredDisableSequence($Request,$Observations){
   if($i-in@(2,3)){foreach($key in @('ExactFactCount','ManagedHotbarSlotCount')){Assert-KmcOrdinaryInteger $s.controls.$key 0 0};if($s.slots.Count-ne0){throw 'Disabled services retain live native controls.'}}
   if($i-gt0-and$s.slots.Count-ne0){throw 'An unmounted registered-disable pair retains live native slot bindings.'}
  }
- Assert-KmcOrdinaryInteger $d.before.controls.NativeCastRequestCount 4 4;Assert-KmcOrdinaryInteger $d.before.controls.NativeRefusalCount 0 0
- Assert-KmcOrdinaryInteger $d.before.controls.ExactFactCount 6 6;Assert-KmcOrdinaryInteger $d.before.controls.ManagedHotbarSlotCount 4 4
+ Assert-KmcOrdinaryInteger $d.before.controls.NativeCastRequestCount 4 4;Assert-KmcOrdinaryInteger $d.before.controls.NativeRefusalCount 1 1
+ Assert-KmcOrdinaryInteger $d.before.controls.ExactFactCount 8 8;Assert-KmcOrdinaryInteger $d.before.controls.ManagedHotbarSlotCount 4 4
  $expectedSlots=@($o.mountedStart.slots|ForEach-Object{[pscustomobject]@{ActorId=$_.actorId;Index=$_.index;Kind=$_.kind}});Assert-KmcChunk7DisableEqual $d.before.slots $expectedSlots 'pre-disable original live slots'
  if($d.before.world.frame-ne$d.held.world.frame-or$d.before.world.frame-ne$d.retry.world.frame-or$d.disabledLaterFrame.world.frame-le$d.retry.world.frame-or$d.reenabled.world.frame-ne$d.disabledLaterFrame.world.frame){throw 'Registered disable lost same-update retry or its later native disabled frame.'}
  if($d.before.participationA.Activation.Finalized-isnot[bool]-or-not$d.before.participationA.Activation.Finalized-or$d.before.participationA.RiderId-cne$roles[0]-or$d.before.participationA.MountId-cne$roles[1]){throw 'Healthy pair A did not complete its actual activation before disable.'}
@@ -248,7 +248,7 @@ function Assert-KmcChunk7RegisteredDisableCombat($Request,$Observations){
    $command=Assert-KmcChunk7CombatAttack $attack[0] $o.allocationTrace $id $r $o.targetId $roles;if(-not$commands.Add($command)){throw 'Registered disable reused a native primary expenditure.'}
    if($i-eq0){$end=@($o.nativeCompletion.calls|Where-Object{$_.kind-ceq'end'-and$_.complete-eq$true-and$_.before.actorId-ceq$id-and$_.before.frame-ge$a.before.frame-and$_.after.frame-le$a.afterEnd.frame});if($end.Count-ne1-or(Get-KmcChunk7CombatActor $a.afterEnd $id).standard-lt5.9){throw 'Healthy pair A did not end each native actor context exactly once.'}}
   }
-  if($i-eq0){$c=$a.tbChargeRefusal;Assert-KmcChunk7Boolean $c.featureEnabled $true;Assert-KmcChunk7Boolean $c.available $false;if($c.castDelta-ne0-or[string]::IsNullOrWhiteSpace($c.reason)){throw 'Registered disable A admitted unsupported TB Charge.'};Assert-KmcChunk7SameCombatBudget $c.before $c.after $roles}
+  if($i-eq0){$c=$a.tbChargeRefusal;Assert-KmcChunk7Boolean $c.featureEnabled $true;Assert-KmcChunk7Boolean $c.available $false;Assert-KmcChunk7Boolean $c.clicked $false;Assert-KmcOrdinaryInteger $c.refusalDelta 1 1;if($c.castDelta-ne0-or[string]::IsNullOrWhiteSpace($c.reason)){throw 'Registered disable A admitted unsupported TB Charge.'};Assert-KmcChunk7SameCombatBudget $c.before $c.after $roles}
   elseif($null-ne$a.PSObject.Properties['afterEnd']-or$null-ne$a.PSObject.Properties['tbChargeRefusal']){throw 'Registered disable B escaped its actual pending-survivor boundary.'}
  }
  $pending=$o.pendingSurvivor;$state=$pending.participation

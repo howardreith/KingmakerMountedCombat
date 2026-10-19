@@ -1,5 +1,34 @@
 # Chunk 7B–7D — IN PROGRESS
 
+## October 19 - preview.51 game PASS, external batch26 FAIL; preview.52 review IN PROGRESS
+
+Frozen preview.51 `b547f5a5` passed package build 11/0 and Candidate 6/0;
+package SHA-256 `23de4014cb5b024b039b6957c7ed77008c87d231c16b8ad72278bc170fbb7867`,
+DLL SHA-256 `63aed8761d2b85e84fd59367beddc56860179624611a4f85ca514c59e4eb3719`,
+suite SHA-256 `530ef836189bfc05a4719e3429558b43ff9d75385e9eebf78be9969d9f217450`.
+Private batch26's one native run completed in the game: registered disable,
+re-enable and cleanup all emitted PASS, with game artifact SHA-256
+`192360ad10285979af16317283c5eb107d2c6f7cd296aa609719c2c9193a7967`.
+The external reader then failed: the removal assessment's world facts were
+serialized as only `{"$id":"1"}` under Kingmaker's global Newtonsoft defaults,
+so its exact safety facts were absent. Runtime result SHA-256
+`83ef4b1586d066f2c2cdab0014b2a1e82649eaeba94dede4c7470369a10e3985`
+remains FAIL; the game PASS is not external acceptance. The game exited and
+Mods, protected saves, Working and profile bytes were restored exactly; no
+runtime lock or accepted cache changes remain.
+
+Current preview.52 uses the project's explicit serializer for those world
+facts. The reader also corrects two assumptions using the actual two-Horse
+native evidence: eight registered facts before disable and one TB Charge
+refusal after A's rejected click. A private counterfactual re-read supplied
+synthetic world facts to locate further reader failures; its full-reader PASS
+is diagnostic only, never evidence acceptance. Focused reader PASS 100/0,
+actual-method adapter PASS 50/0 under hostile global JSON defaults, Fast PASS
+3/0 (source 147/0). Independent combined review PASS receipt SHA-256
+`cd996fa4ed2c423de81a57d55c8da50d70e485aabcccb8ad1b7c01ddee77e443`.
+Fresh native execution is pending. Area, schema2 and
+remaining Directive 4 cases remain open; PR #5 is draft.
+
 ## October 19 - preview.50 batch25 FAIL; preview.51 frame correction IN PROGRESS
 
 Frozen preview.50 `33e729a8` passed package build 11/0 and Candidate 6/0;

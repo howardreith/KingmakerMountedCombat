@@ -1,5 +1,22 @@
 # Chunk 7 known product debt
 
+## Preview.51 disable game PASS, external evidence FAIL
+
+Batch26 completed the real registered callback, native transition, re-enable
+and cleanup in the game. Its external reader failed because
+`removalRefusal.assessment.world` serialized as only `{"$id":"1"}` under
+Kingmaker's global Newtonsoft defaults, omitting the exact world safety facts.
+Original game artifact SHA-256
+`192360ad10285979af16317283c5eb107d2c6f7cd296aa609719c2c9193a7967`
+and external runtime FAIL remain unchanged. Preview.52 uses the project's
+explicit non-reference serializer. The reader now expects the measured eight
+two-Horse control facts and one TB Charge refusal; earlier six/zero fixture
+assumptions were false for this selected native case. A synthetic world-facts
+counterfactual helped check later reader clauses but is not accepted evidence.
+Independent review PASS receipt SHA-256
+`cd996fa4ed2c423de81a57d55c8da50d70e485aabcccb8ad1b7c01ddee77e443`.
+Fresh native execution is required.
+
 ## Preview.50 registered disable event-frame diagnostic — FAIL
 
 Batch25 observed the complete native B rejoin/Tick/Clear sequence and its

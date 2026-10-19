@@ -1,5 +1,34 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## October 19 - batch26 external FAIL; preview.52 source and reader
+
+Last published/frozen HEAD `b547f5a56d5f2a36e10b48f50e81c992cb664090`
+on `codex/mounted-combat-chunk7-successor`; worktree dirty with preview.52
+serializer/reader/test/version correction and this checkpoint. Preview.51
+package SHA-256 `23de4014cb5b024b039b6957c7ed77008c87d231c16b8ad72278bc170fbb7867`,
+suite SHA-256 `530ef836189bfc05a4719e3429558b43ff9d75385e9eebf78be9969d9f217450`.
+Private `analysis-cache/chunk7-continuation/owner-seed-batch26/batch26-ledger.json`
+records original external FAIL, game artifact SHA-256
+`192360ad10285979af16317283c5eb107d2c6f7cd296aa609719c2c9193a7967`,
+runtime result SHA-256 `83ef4b1586d066f2c2cdab0014b2a1e82649eaeba94dede4c7470369a10e3985`.
+The in-game registered-disable/re-enable/cleanup PASS is not external credit:
+`removalRefusal.assessment.world` contains only `{"$id":"1"}` under the
+game's global serializer. Mods/protected saves/Working/profile bytes restored
+exactly; game and transaction lock absent. Preview.52 uses the explicit
+non-reference save serializer at that producer. The external reader requires
+eight exact two-Horse facts and the one native TB Charge refusal observed in
+batch26, with negative cases. Actual-method adapter PASS 50/0 under hostile
+global defaults, focused reader PASS 100/0, Fast PASS 3/0/source 147/0.
+Independent review PASS receipt
+`analysis-cache/chunk7-continuation/codex-takeover/group52-disable-review/review01-pass.json`
+SHA-256 `cd996fa4ed2c423de81a57d55c8da50d70e485aabcccb8ad1b7c01ddee77e443`.
+A private clone with synthetic
+world facts passed the full reader only as a search for further blockers; it
+cannot replace native evidence. Next: commit/guarded-push, freeze one
+package/Candidate/suite, run
+scoped WhatIf and one new native disable slot. Preserve batch24–26 FAILs.
+Area, schema2, refusal/menu/no-DLL and doors remain open; no merge/release.
+
 ## October 19 - batch25 native FAIL; preview.51 reviewed locally
 
 Last published/frozen HEAD `33e729a805cc54aa71d91114034075b38602f759`
