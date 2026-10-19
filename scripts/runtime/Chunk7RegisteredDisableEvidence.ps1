@@ -11,7 +11,7 @@ function Assert-KmcChunk7DisableOwner($Owner,$Original,[string[]]$Roles,[int]$Pa
  Assert-KmcChunk7Boolean $Owner.retainsObligations $true
 }
 function Assert-KmcChunk7DisableSnapshot($Request,$Value,[string]$Label,[bool]$HasTarget,[string]$TargetId){
- Assert-KmcExactProperties $Value @('world','paused','persistenceEnabled','controls','slots','nativePrepares','unrelatedActors','healthyAllocationId','snapshotCount','nativeWrites','authorizedWrites','pairStates','participationA','participationB','aCanRelease','bCanRelease') 'registered disable snapshot'
+ Assert-KmcExactProperties $Value @('world','paused','turnBased','persistenceEnabled','controls','slots','nativePrepares','unrelatedActors','healthyAllocationId','snapshotCount','nativeWrites','authorizedWrites','pairStates','participationA','participationB','aCanRelease','bCanRelease') 'registered disable snapshot'
  $w=$Value.world;$roles=Get-KmcChunk7OwnedPairIds $Request
  Assert-KmcBootstrapInventoryString $w.label $Label
  foreach($key in @('frame','gameTicks')){Assert-KmcOrdinaryInteger $w.$key 0 ([long]::MaxValue)}
@@ -22,7 +22,7 @@ function Assert-KmcChunk7DisableSnapshot($Request,$Value,[string]$Label,[bool]$H
   if($actor.prepared-isnot[bool]){throw 'Registered disable actor preparation is not a native Boolean.'}
   foreach($axis in @('x','y','z')){if(-not(Test-KmcChunk7FiniteNumber $actor.position.$axis)){throw 'Registered disable position is not finite.'}}
  }
- foreach($key in @('paused','persistenceEnabled','aCanRelease','bCanRelease')){if($Value.$key-isnot[bool]){throw 'Registered disable state Boolean is missing or mistyped.'}}
+ foreach($key in @('paused','turnBased','persistenceEnabled','aCanRelease','bCanRelease')){if($Value.$key-isnot[bool]){throw 'Registered disable state Boolean is missing or mistyped.'}}
  foreach($key in @('snapshotCount','nativeWrites','authorizedWrites')){Assert-KmcOrdinaryInteger $Value.$key 0 0}
  if($Value.nativePrepares-isnot[Array]-or$Value.nativePrepares.Count-ne4){throw 'Registered disable must observe all four Prepare counters.'}
  if($HasTarget){Assert-KmcManualSeedObjectIdentity $Value.healthyAllocationId}elseif($null-ne$Value.healthyAllocationId){throw 'Removal refusal cannot claim a not-yet-installed combat allocation trace.'}
@@ -115,7 +115,8 @@ function Assert-KmcChunk7PermanentHorseRemovalRefusal($Request,$Observations){
  Assert-KmcChunk7DisableSnapshot $Request $v.after 'removal-refusal-after' $false $o.targetId
  Assert-KmcChunk7DisableDebt $v.before $v.after $roles
  if($v.before.world.frame-ne$v.after.world.frame){throw 'Removal assessment crossed an unobserved native frame.'}
- foreach($key in @('paused','persistenceEnabled','controls','slots','pairStates','participationA','participationB','aCanRelease','bCanRelease')){Assert-KmcChunk7DisableEqual $v.before.$key $v.after.$key ('refusal '+$key)}
+ foreach($key in @('paused','turnBased','persistenceEnabled','controls','slots','pairStates','participationA','participationB','aCanRelease','bCanRelease')){Assert-KmcChunk7DisableEqual $v.before.$key $v.after.$key ('refusal '+$key)}
+ foreach($snap in @($v.before,$v.after)){Assert-KmcChunk7Boolean $snap.turnBased $false}
  Assert-KmcChunk7DisableEqual $v.before.world.owners $v.after.world.owners 'refusal owner graph'
  foreach($snap in @($v.before,$v.after)){Assert-KmcChunk7Boolean $snap.persistenceEnabled $true;Assert-KmcChunk7Boolean $snap.controls.Enabled $true
   Assert-KmcOrdinaryInteger $snap.controls.ExactFactCount 6 6;Assert-KmcOrdinaryInteger $snap.controls.ManagedHotbarSlotCount 4 4
@@ -132,7 +133,8 @@ function Assert-KmcChunk7RegisteredDisableSequence($Request,$Observations){
  foreach($key in @('retryAccepted','retrySameUpdate','reenableAccepted','complete')){Assert-KmcChunk7Boolean $d.$key $true};Assert-KmcChunk7Boolean $d.firstAccepted $false;Assert-KmcOrdinaryInteger $d.injectionCount 1 1
  $labels=@('registered-disable-before','registered-disable-refused','registered-disable-retry-accepted','registered-disabled-later-frame','registered-reenabled-before-native-teardown');$snaps=@($d.before,$d.held,$d.retry,$d.disabledLaterFrame,$d.reenabled)
  for($i=0;$i-lt$snaps.Count;$i++){$s=$snaps[$i]
-  Assert-KmcChunk7DisableSnapshot $Request $s $labels[$i] $true $o.targetId;Assert-KmcChunk7Boolean $s.paused $true
+  Assert-KmcChunk7DisableSnapshot $Request $s $labels[$i] $true $o.targetId
+  Assert-KmcChunk7Boolean $s.paused $false;Assert-KmcChunk7Boolean $s.turnBased $true
   Assert-KmcChunk7DisableDebt $d.before $s $roles;Assert-KmcChunk7DisablePairStates $s $o.mountedStart $roles ($i-gt0) ($i-eq1)
   Assert-KmcChunk7DisableEqual $d.before.participationB $s.participationB 'pending survivor participation'
   $enabled=$i-lt2-or$i-eq4;Assert-KmcChunk7Boolean $s.persistenceEnabled $enabled;Assert-KmcChunk7Boolean $s.controls.Enabled $enabled

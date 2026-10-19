@@ -1,5 +1,20 @@
 # Chunk 7 known product debt
 
+## Preview.48 native batch23 - one lifecycle PASS, two bounded FAILs
+
+Three native world loads and next-frame settled cleanup passed on preview.48
+(`20261019-c7b-world48-ownerseed-b23s2-threeloads`, original terminal PASS).
+The registered-disable case failed before its UMM toggle solely because
+`Game.IsPaused` reported false. Kingmaker refuses Pause mode in active TB combat;
+an initial preview.49 wait-for-Pause draft failed independent review. Corrected
+preview.49 diagnostic source uses exact TB admission while preserving native
+debt, clock, round and custody checks. Corrected independent review PASS;
+fresh native execution remains. The two original FAILs
+are preserved. The area Auto case proved the selected visited Oleg destination
+is currently capital; it refused before native transfer or save. A suitable
+visited non-capital destination is not yet identified from this seed, so area
+Auto/cold is not accepted. The batch ledger holds exact evidence and restoration.
+
 ## Preview.46 area AfterEntry Auto — FAIL/TIMEOUT; native boundary unresolved
 
 `20261019-c7b-world46-ownerseed-b21s3-areaauto` reached a mounted two-owner

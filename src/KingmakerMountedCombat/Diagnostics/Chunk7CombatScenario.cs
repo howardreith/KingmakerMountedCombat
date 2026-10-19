@@ -340,9 +340,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (RegisteredDisableCase && actingIndex == 1)
                 {
                     ExerciseNativePendingSurvivor();
-                    // Native RemoveUnit can resume the game while ending the rider's turn.
-                    // Keep the selected disable stimulus paused after that native boundary.
-                    Game.Instance.IsPaused = true;
+                    // Native TB refuses Pause mode. The registered callback and its
+                    // debt snapshots run synchronously in this quiescent TB boundary.
                     BeginRegisteredDisableFailure(); Next(75); return;
                 }
                 if (checkpointOnly && checkpointKind == Chunk7CombatCheckpointKind.ZeroMountedRetained)

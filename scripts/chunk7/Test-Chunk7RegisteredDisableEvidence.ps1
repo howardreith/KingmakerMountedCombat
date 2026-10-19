@@ -21,7 +21,7 @@ function New-DisableState($v,$world,[string]$label,[bool]$Combat){
  $world.owners=@($o.mountedStart.world.owners|ForEach-Object{Copy-Value $_})
  foreach($actor in $world.actors){if($null-ne$actor.native){$actor.native|Add-Member actorObject (1001+[Array]::IndexOf($roles,$actor.id)) -Force}}
  $unrelated=@($r.ownedPairs.partyIds|Where-Object{$_-cnotin$roles});if($Combat){$unrelated+=,$o.targetId}
- [pscustomobject][ordered]@{world=$world;paused=$true;persistenceEnabled=$true;controls=(New-DisableControls $true 6 4 $(if($Combat){4}else{0}));slots=@($o.mountedStart.slots|ForEach-Object{[pscustomobject]@{ActorId=$_.actorId;Index=$_.index;Kind=$_.kind}})
+ [pscustomobject][ordered]@{world=$world;paused=$false;turnBased=$Combat;persistenceEnabled=$true;controls=(New-DisableControls $true 6 4 $(if($Combat){4}else{0}));slots=@($o.mountedStart.slots|ForEach-Object{[pscustomobject]@{ActorId=$_.actorId;Index=$_.index;Kind=$_.kind}})
   nativePrepares=@($roles|ForEach-Object{[pscustomobject]@{actorId=$_;count=$(if($Combat){1}else{0})}})
   unrelatedActors=@($unrelated|ForEach-Object{[pscustomobject]@{native=(New-KmcSeedNativeActor $_ 0.0);prepared=$true;inCombat=$Combat}});healthyAllocationId=$(if($Combat){9901}else{$null})
   snapshotCount=0;nativeWrites=0;authorizedWrites=0
@@ -91,7 +91,8 @@ $faults=[ordered]@{
  'disabled live slot retained'={param($v)$v.artifact.observations.registeredDisable.retry.slots=@([pscustomobject]@{ActorId=$v.request.ownedPairs.riderAId;Index=1;Kind=2})}
  'save during disable'={param($v)$v.artifact.observations.registeredDisable.retry.nativeWrites=1}
  'clock advanced'={param($v)$v.artifact.observations.registeredDisable.disabledLaterFrame.world.gameTicks++}
- 'not paused later'={param($v)$v.artifact.observations.registeredDisable.disabledLaterFrame.paused=$false}
+ 'Pause claimed in TB'={param($v)$v.artifact.observations.registeredDisable.disabledLaterFrame.paused=$true}
+ 'TB mode lost later'={param($v)$v.artifact.observations.registeredDisable.disabledLaterFrame.turnBased=$false}
  'A not finalized'={param($v)$v.artifact.observations.registeredDisable.before.participationA.Activation.Finalized=$false}
  'B full end fabricated'={param($v)$v.artifact.observations.activations[1]|Add-Member afterEnd $v.artifact.observations.registeredDisable.before.world}
  'R1 route substituted'={param($v)$v.artifact.observations|Add-Member r1 ([pscustomobject]@{})}
