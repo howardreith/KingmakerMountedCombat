@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using System.Reflection;
+using Newtonsoft.Json.Linq;
 using KingmakerMountedCombat.Integration;
 using KingmakerMountedCombat.Diagnostics;
 
@@ -59,6 +60,25 @@ internal static class Schema2ResaveContractTests
         Reject("resave refuses an observation beyond thirty seconds", x => x.GameTimeTicks+=310000000L);
         Reject("resave refuses duplicate actor ownership", x => x.Pairs=x.Pairs.Concat(x.Pairs).ToArray());
         Check("faithful current pending projection uses unchanged historical codec",()=>{var source=Fixture();var before=MountedArchiveCodec.Encode(source);var view=Chunk7PersistenceScenario.ProjectOwnedPendingSchema2(source);var decoded=MountedArchiveCodec.Decode(MountedSaveCodec.Encode(view));if(decoded.Kind!=MountedSaveReadKind.Current||decoded.SourceSchema!=2)throw new Exception(decoded.Feedback);Validate(source,decoded.Data);if(before!=MountedArchiveCodec.Encode(source))throw new Exception("Projection mutated native source.");});
+        Check("receipted schema2 accepts float wire precision while refusing changed metadata or restoration",()=>{
+            var source=Fixture();source.Combat.Actors[0].ReturnPoint=new[]{-19.916172f,.992301166f,-9.76273f};
+            var view=Chunk7PersistenceScenario.ProjectOwnedPendingSchema2(source);
+            var raw=JObject.Parse(MountedSaveCodec.Encode(view));((JArray)raw["Combat"]["Actors"][0]["ReturnPoint"])[0]=new JValue(-19.916172d);
+            var native=MountedArchiveCodec.Decode(raw.ToString(Newtonsoft.Json.Formatting.None));
+            if(native.Kind!=MountedSaveReadKind.Current||native.SourceSchema!=2||native.HistoricalData==null||
+                JToken.DeepEquals(raw,JObject.FromObject(view,MountedSaveCodec.CreateSerializer()))||
+                !Chunk7PersistenceScenario.MatchesOwnedPendingSchema2(native,native.Data,view,raw))
+                throw new Exception("Faithful historical input with float wire precision was refused.");
+            var changed=(JObject)raw.DeepClone();((JArray)changed["Combat"]["Actors"][0]["ReturnPoint"])[0]=new JValue(-100d);
+            if(Chunk7PersistenceScenario.MatchesOwnedPendingSchema2(native,native.Data,view,changed))
+                throw new Exception("Changed receipt was accepted.");
+            var restored=Copy(native.Data);restored.Combat.Round++;
+            if(Chunk7PersistenceScenario.MatchesOwnedPendingSchema2(native,restored,view,raw))
+                throw new Exception("Changed restoration was accepted.");
+            view.Combat.Actors[0].Native.Standard++;
+            if(Chunk7PersistenceScenario.MatchesOwnedPendingSchema2(native,native.Data,view,raw))
+                throw new Exception("Changed projected debt was accepted.");
+        });
         Check("historical writer preserves loaded schema3 instead of stale recapture",()=>{var source=Fixture();var original=MountedArchiveCodec.Encode(source);var historical=MountedSaveCodec.Decode(original);bool captured=false;var output=NativeMountedSaveFormat.CaptureOrPreserve(historical,()=>{captured=true;throw new Exception("Must preserve newer metadata.");});if(captured||output!=original)throw new Exception("Future preservation changed.");});
         Check("pending projection clones shared state and native debts",()=>{var source=Fixture();var view=Chunk7PersistenceScenario.ProjectOwnedPendingSchema2(source);if(ReferenceEquals(view.Combat,source.Combat)||ReferenceEquals(view.Combat.Paired,source.Participations[0].State)||ReferenceEquals(view.Rider,source.Pairs[0].Rider)||ReferenceEquals(view.Slots,source.Slots))throw new Exception("Projection aliases source.");view.Combat.Paired.PendingSplitRound++;if(view.Combat.Paired.PendingSplitRound==source.Participations[0].State.PendingSplitRound)throw new Exception("Pending state changed source.");});
         Check("existing migration codec remains sole source of deterministic owner identity",()=>{var source=Fixture();var id="2639ced4ae8a40d9bfec862dc1f25622";source.Pairs[0].PairId=id;source.Pairs[0].Generation=7;source.Participations[0].OwnerId=id;source.Participations[0].MountedPairId=id;source.Participations[0].Generation=7;var view=Chunk7PersistenceScenario.ProjectOwnedPendingSchema2(source);var decoded=MountedArchiveCodec.Decode(MountedSaveCodec.Encode(view));if(decoded.Kind!=MountedSaveReadKind.Current||decoded.Data.Pairs[0].PairId==id||decoded.Data.Pairs[0].Generation!=1||!MountedSaveData.SameActorDebt(view.Rider,decoded.Data.Pairs[0].Rider))throw new Exception("Wrong native or deterministic custody.");});
