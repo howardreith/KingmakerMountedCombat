@@ -271,7 +271,91 @@ function Assert-KmcChunk7CheckpointContinuation($Value,$Archive,$Request,[bool]$
         }
     } else {
         $mounts=if($kind-ceq'MountedPendingOnly'){@($ids[1])}else{@($ids[1],$ids[3])}
-        foreach($id in $mounts){$row=@($Value.continuation|Where-Object{$_.PSObject.Properties['label']-and$_.label-ceq('independent-native-mount-'+$id)});if($row.Count-ne1-or$row[0].currentActor-cne$id-or$row[0].round-ne$Archive.Combat.Round+1){throw 'Retained mount was released before or after its first legitimate native round.'};$old=@($before.grants|Where-Object actorId -CEQ $id)[0];$new=@($row[0].grants|Where-Object actorId -CEQ $id)[0];if($new.count-ne$old.count+1-or@($events|Where-Object{$_.state.actor-ceq$id-and$_.boundary-ceq'prepare-before'}).Count-ne1){throw 'Independent native mount received a missing or duplicate preparation.'}}
+        $renewedPending=$Cold-and$kind-ceq'MountedPendingOnly'-and
+            $Request.productVersion-cmatch'^0[.]1[.]0-chunk7b-preview[.]([0-9]+)$'-and[int]$Matches[1]-ge55
+        if($renewedPending){
+            $rider=$ids[0];$join=@($Value.continuation|Where-Object{$_.PSObject.Properties['label']-and$_.label-ceq'native-rider-reentry-new-round'})
+            if($join.Count-ne1-or@($Value.continuation).Count-ne5-or
+                @($Value.continuation)[0].label-cne'continuation-before-input'-or
+                @($Value.continuation)[1].label-cne'native-rider-reentry-new-round'-or
+                @($Value.continuation)[4].label-cne'continuation-complete'-or
+                @($Value.continuation|Where-Object{$_.PSObject.Properties['label']-and$_.label-clike'independent-native-actor-*'}).Count-ne2-or
+                @($join[0].nativeActors|Where-Object Id -CEQ $rider).Count-ne1-or
+                @($join[0].grants|Where-Object actorId -CEQ $rider).Count-ne1){throw 'Pending rider has no genuine next-round re-entry observation.'}
+            $ordered=@($Value.continuation)
+            for($i=0;$i-lt$ordered.Count;$i++){
+                $state=$ordered[$i]
+                if(-not(Test-KmcExactJsonInteger $state.frame)-or$state.frame-lt0-or
+                    -not(Test-KmcExactJsonInteger $state.round)-or$state.round-lt0-or
+                    -not(Test-KmcExactJsonInteger $state.gameTicks)-or$state.gameTicks-lt0-or
+                    $state.round-ne$(if($i-eq0){$Archive.Combat.Round}else{$Archive.Combat.Round+1})-or
+                    ($i-gt0-and($state.frame-lt$ordered[$i-1].frame-or$state.gameTicks-lt$ordered[$i-1].gameTicks))){
+                    throw 'Pending native continuation has invalid or out-of-order clock and round observations.'
+                }
+                foreach($grant in @($state.grants)){if(-not(Test-KmcExactJsonInteger $grant.count)-or$grant.count-lt0){throw 'Pending native grant count is missing, mistyped or negative.'}}
+            }
+            if($join[0].frame-le$before.frame-or$join[0].frame-ge$after.frame-or$join[0].gameTicks-le$before.gameTicks){throw 'Pending rider re-entry did not follow the saved allocation.'}
+            $saved=@($Archive.Combat.Actors|Where-Object{$_.Native.Id-ceq$rider})[0].Native
+            $spent=@($before.nativeActors|Where-Object Id -CEQ $rider)[0]
+            $prepared=@($join[0].nativeActors|Where-Object Id -CEQ $rider)[0]
+            $oldGrant=@($before.grants|Where-Object actorId -CEQ $rider)[0].count
+            foreach($debt in @($saved,$spent)){foreach($axis in @('Standard','Move','Swift','Initiative','Reaction')){
+                if(-not(Test-KmcChunk7FiniteNumber $debt.$axis)-or$debt.$axis-lt0){throw 'Pending rider native debt is missing, nonnumeric, nonfinite or negative.'}
+            }}
+            foreach($axis in @('Standard','Move','Swift')){if(-not(Test-KmcChunk7FiniteNumber $prepared.$axis)-or$prepared.$axis-lt0){throw 'Prepared pending rider native debt is missing, nonnumeric, nonfinite or negative.'}}
+            $elapsed=([double]$before.gameTicks-[double]$Archive.GameTimeTicks)/10000000.0
+            if($elapsed-lt0-or$elapsed-gt30){throw 'Pending rider continuation escaped the saved native debt observation window.'}
+            foreach($axis in @('Standard','Move','Swift','Initiative','Reaction')){
+                # AssertCombatDebt widens its native Single operands to Double for the
+                # Double 0.001 literal. Reconstruct that boundary before comparing.
+                $nativeSaved=[single]$saved.$axis;$nativeSpent=[single]$spent.$axis
+                if(-not(Test-KmcChunk7FiniteNumber $nativeSaved)-or-not(Test-KmcChunk7FiniteNumber $nativeSpent)-or
+                    [double]$nativeSpent-gt([double]$nativeSaved+0.001)-or
+                    ([double]$nativeSpent+$elapsed*1.1+0.001)-lt[double]$nativeSaved){
+                    throw 'Pending rider spent debt changed beyond actual native elapsed time before continuation.'
+                }
+            }
+            foreach($axis in @('ReactionsRemaining','LastSurpriseTicks')){
+                if(-not(Test-KmcExactJsonInteger $saved.$axis)-or-not(Test-KmcExactJsonInteger $spent.$axis)-or
+                    $saved.$axis-lt0-or$spent.$axis-ne$saved.$axis){throw 'Pending rider discrete native allocation changed before continuation.'}
+            }
+            if($saved.Standard-le0-or$spent.Standard-le0-or
+                $prepared.Standard-gt0.001-or$prepared.Move-gt0.001-or$prepared.Swift-gt0.001-or
+                @($join[0].grants|Where-Object actorId -CEQ $rider)[0].count-ne$oldGrant-or
+                @($events|Where-Object{$_.state.actor-ceq$rider-and$_.boundary-ceq'prepare-before'-and$_.frame-le$join[0].frame}).Count-ne0){
+                throw 'Pending rider spent state or preparation ordering changed across the retained allocation.'
+            }
+            $mounts=@($rider,$ids[1])
+        }
+        foreach($id in $mounts){
+            $label=if($renewedPending){'independent-native-actor-'+$id}else{'independent-native-mount-'+$id}
+            $row=@($Value.continuation|Where-Object{$_.PSObject.Properties['label']-and$_.label-ceq$label})
+            if($row.Count-ne1-or$row[0].currentActor-cne$id-or$row[0].round-ne$Archive.Combat.Round+1-or
+                ($renewedPending-and$row[0].frame-le$join[0].frame)){throw 'Retained native actor was released before or after its first legitimate native round.'}
+            $old=@($before.grants|Where-Object actorId -CEQ $id)[0];$new=@($row[0].grants|Where-Object actorId -CEQ $id)[0]
+            if($new.count-ne$old.count+1-or@($events|Where-Object{$_.state.actor-ceq$id-and$_.boundary-ceq'prepare-before'}).Count-ne1){throw 'Independent native actor received a missing or duplicate turn grant.'}
+            if($renewedPending){
+                $prepare=@($events|Where-Object{$_.state.actor-ceq$id-and$_.boundary-ceq'prepare-before'})[0]
+                if(-not(Test-KmcExactJsonInteger $prepare.frame)-or$prepare.frame-le$join[0].frame-or$prepare.frame-gt$row[0].frame-or
+                    -not(Test-KmcExactJsonInteger $prepare.round)-or$prepare.round-ne$Archive.Combat.Round+1-or
+                    -not(Test-KmcExactJsonInteger $prepare.gameTicks)-or$prepare.gameTicks-lt$join[0].gameTicks-or$prepare.gameTicks-gt$row[0].gameTicks-or
+                    -not(Test-KmcExactJsonInteger $prepare.state.grantSequence)-or$prepare.state.grantSequence-ne$new.count-or
+                    $prepare.currentActor-cne$id){throw 'Independent native actor preparation was outside its exact new-round turn boundary.'}
+            }
+        }
+        if($renewedPending){
+            $actorRows=@($ordered[2],$ordered[3]);$observed=@{}
+            foreach($id in $mounts){$observed[$id]=$false}
+            foreach($state in @($before,$join)+$actorRows+@($after)){
+                if($state.label-clike'independent-native-actor-*'){$observed[[string]$state.currentActor]=$true}
+                foreach($id in $mounts){
+                    $baseline=@($before.grants|Where-Object actorId -CEQ $id)[0].count
+                    $actual=@($state.grants|Where-Object actorId -CEQ $id)
+                    if($actual.Count-ne1-or$actual[0].count-ne$baseline+[int]$observed[$id]){throw 'Pending native actor grant count changed outside its exact turn.'}
+                }
+            }
+            foreach($id in $mounts){if(-not$observed[$id]){throw 'Pending native actor never received its exact new-round turn.'}}
+        }
         if($kind-ceq'ZeroMountedRetained'){
             $repeat=@($Value.continuation|Where-Object{$_.PSObject.Properties['stimulus']})
             if($repeat.Count-ne1-or$repeat[0].stimulus-cne'repeat cleanup at actual native StartRound return; no round/resource mutation'-or$repeat[0].before.round-ne$Archive.Combat.Round+1-or

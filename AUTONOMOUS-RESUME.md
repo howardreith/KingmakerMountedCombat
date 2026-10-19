@@ -2,6 +2,26 @@
 
 ## October 19 — batch36 causal join and reviewed preview.55 correction
 
+Batch37 slot 1 ran on frozen preview.55. Its game artifact/result PASS the
+unchanged debt comparison and N+1 rider/mount continuation. The original outer
+runtime result remains **FAIL** because its external reader expected the old
+mount-only label. Independent reader reviews 01-05 found and preserved separate
+false-pass or false-refusal defects; review06 **PASS** accepted the exact
+corrected reader (157/0 focused, 83/0 debt neighbors). The new reader-only
+reevaluation of the immutable game artifact is **PASS**; it does not change
+the original outer FAIL. Mods, protected saves, Working and profile bytes
+were restored exactly for slot 1; no game process or runtime lock remains.
+
+Next: commit and guarded-push the external-reader/document changes, then use
+the frozen-product route and scoped WhatIf for the matched schema-2
+derivative cold load. The disposable selection is byte-identical to batch35
+at `analysis-cache/chunk7-continuation/directive4-batch36/b37s2-schema2-corrected-selection.json`.
+Three prelaunch WhatIf attempts are preserved: a BOM in my copied selection,
+an insufficient 360-second declared timeout, and a dirty Git worktree. No
+transaction or game launch occurred. The next WhatIf uses a clean worktree,
+600-second budget and the same frozen preview.55/suite. Migration resave and
+separate cold consumer remain selected; no schema-2 migration PASS is claimed.
+
 The [active Chunk 7 completion mission](planning/CHUNK7-COMPLETION-MISSION.md)
 still selects remaining 7B, 7C, 7D and readiness-gated private 7E. Batch36's
 unchanged schema-3 cold load **FAIL** proved the exact caller:
@@ -12,11 +32,10 @@ The independent source review cleared the narrow live-owner/round-scoped
 correction for one guarded native qualification after focused checks and scoped
 WhatIf. The desktop CLR Harmony attempt remains an evidenced host limitation;
 the preview.55 compiled Boolean prefix has a fail-closed game startup check.
-The next action is the corrected schema-3 cold load, followed by schema-2
-resave and separate cold consumer if the first result supports it. Do not
-repeat the unchanged b35 discriminator or b36 caller observation. Preserve
-all earlier FAILs and restoration records. No merge, release or permanent
-installation is selected.
+The corrected schema-3 cold load above supersedes this section's original
+next action. Do not repeat the unchanged b35 discriminator or b36 caller
+observation. Preserve all earlier FAILs and restoration records. No merge,
+release or permanent installation is selected.
 
 ## October 19 - standing engineering-completion mission adopted
 
