@@ -1,5 +1,21 @@
 # Chunk 7 known product debt
 
+## October 19 - preview.43 closure and next source group IN PROGRESS
+
+Preview.43 worker cancel/drain and nonselected-owner global save barrier now
+PASS natively. Pending-schema2 and schema1 producers remain preserved FAIL;
+their dependent cold loads were not launched. All four runs restored all three
+transactions and profile bytes exactly; no game or lock remains. The schema2
+test must preserve the correct future-data guard and derive historical metadata
+from a genuine current pending save. The schema1 observer must preserve null
+hotbar collection custody without allocating native state.
+
+Exact source/package/DLL/run hashes, durations and remaining scope are in
+[the active Directive 4 checkpoint](CHUNK7-CODEX-DIRECTIVE4-CHECKPOINT-2026-10-18.md).
+The source freeze is closed. Compose and review the private group44 drafts,
+run focused affected checks, commit/guarded-push, then build the next candidate
+once and declare bounded native retries. Directive 4 remains IN PROGRESS.
+
 ## Native driver selection and incomplete control-fact evidence — IN PROGRESS
 
 Preview.42 b13s1 worker and b13s2 barrier remain FAIL despite game PASS.

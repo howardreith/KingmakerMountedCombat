@@ -1,5 +1,48 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## October 19 - preview.43 native batches settled; Directive 4 IN PROGRESS
+
+Frozen source `3cc8f0b051d1a5ff15879489722efa2eec8c1f45` is guarded-pushed on
+`codex/mounted-combat-chunk7-successor`; PR #5 remains draft. Preview.43 was
+built once and reused for Candidate PASS 6/6 (224.1519907 s). Package SHA-256
+`9e1b6bdc09c592c8ca7585d7c4137f1bb4b213adb43606d0978064a972d98e3e`,
+DLL `bb2a65d3d2afd8e5379a54e0a1db1978145ef2c2ede39ca517a236bd24fa26e4`,
+MVID `fd6820e0-d020-4311-a139-add433a38775`.
+
+| Native run suffix | Result | Seconds | Finding |
+| --- | --- | ---: | --- |
+| b14s1-worker | PASS | 96.4207832 | Selected-A cancel/drain and ordinary replacement completed. |
+| b14s2-barrier | PASS | 94.3399028 | Nonselected B unsettled Mount blocked save globally; settled native write passed. |
+| b14s3-pendingsave | FAIL | 95.2917790 | Historical writer correctly preserved loaded schema3; source fixture needs current3 write plus metadata-only schema2 derivative. |
+| b15s1-schema1save | FAIL | 88.3024618 | Diagnostic observer cast a null unrelated actor hotbar collection before writing. |
+
+Full run prefix: `20261019-c7b-world43-ownerseed-`. All four actual runs have
+five restoration flags true, all three transactions restored, exact profile
+restoration, no game and no lock. Both failed producers and all earlier FAILs
+remain immutable. Their dependent cold loads were never launched. Batches14/15
+are FAIL overall; the two P07 slots also remain unrun pending current-format
+observer connection. Ledgers: `analysis-cache/chunk7-continuation/owner-seed-batch14/`
+and `owner-seed-batch15/`.
+
+Worker evidence SHA `cde1aea0547859f2f32126e413bd5d94254e3f886d59000cb5e2e957d3e8c37d`;
+barrier `fb9aa27b1f0d322d54fcd8bb177526d26c94465722f16b71bfe6f645d805cc66`;
+pending FAIL `fd954c29ff48518bf75e37ebefd62dc9b564ced7ba94474c0ae9df3fcc7ff135`;
+schema1 FAIL `f0b8eb0e02c63d1b8f0579d1c99379d8a4c0494141e9eb2f25fde5b701888b28`.
+Accepted native output hashes: worker `7ffac650b55429bb27a6df22d818e8c54496f126441fe12076f9ed587b174572`,
+barrier `b17267eefa4b6275e5daa2f1bb2c1df54a5546e67f9b2a85df13067fc34e1176`.
+
+Preview.43 execution freeze is closed. Next source group is IN PROGRESS:
+null-aware hotbar identity observation; current pending producer and faithful
+historical schema2 derivative; controlled visited-area AfterEntry Auto and its
+actual cold load; representative repeated load; registered two-owner disable,
+permanent Horse refusal, current positive cleanup and genuine DLL-absent cold;
+real native malformed/future refusal and save-menu stability. Private draft
+checks do not establish native acceptance. Review the composed source before
+one new clean candidate build, Candidate and scoped preflight/native batches.
+Do not weaken future-data preservation, load/write quotas or restoration guards.
+No merge, release, tag, permanent installation, full7E or HUMAN PLAY is selected.
+The prior preview.41 TB and zero save/cold PASS retains its original inputs.
+
 ## October 18 — preview.42 batch 13 settled; preview.43 source IN PROGRESS
 
 Published source `b9631449357b2ef191256ded54d21c975c12cd64` on the successor branch.
