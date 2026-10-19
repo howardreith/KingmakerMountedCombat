@@ -165,7 +165,7 @@ namespace KingmakerMountedCombat.Diagnostics
             if (ownedProgression) BindOwnedRoster();
             MovementScreenshotCaptureCoordinator.AcquireClosedUmmLeaseRetained(out ummLease);
             Game.Instance.IsPaused = false;
-            var pins = selection.WritesAutosave ? new Chunk7OrdinaryBuildPins(request.RunId, selection.InventoryArtifactSha256,
+            var pins = selection.WritesSave ? new Chunk7OrdinaryBuildPins(request.RunId, selection.InventoryArtifactSha256,
                 selection.OperationCase == Chunk7ProgressionSelection.LevelCase ? Chunk7OrdinaryBuildMode.ExistingHorseLevels :
                 selection.OperationCase == Chunk7ProgressionSelection.RetrainHorseCase ? Chunk7OrdinaryBuildMode.NativeRespecHorse : Chunk7OrdinaryBuildMode.NativeRespecMammoth,
                 selection.RaceGuid, selection.PresetGuid, selection.SkeletonName, selection.Gender == "Female" ? Gender.Female : Gender.Male,
@@ -224,7 +224,8 @@ namespace KingmakerMountedCombat.Diagnostics
             Require(authorization.IsActive && authorization.AuthorityGeneration == generation && authorization.IsExactPersistenceScope(authority) &&
                 NativePersistenceIsolation.IsExactAuthority(authority) && authority.Root == root && Game.Instance?.SaveManager?.SavePath == root &&
                 NativePersistenceIsolation.ObservedStashFolder == Path.Combine(Path.GetDirectoryName(root), "Areas") &&
-                authority.MatchesProgressionPlan(request.PersistenceLoad, selection.WritesAutosave, RuntimePersistenceScenario.SlotName(SaveInfo.SaveType.Auto)) &&
+                (selection.WritesManual ? authority.MatchesProgressionManualPlan(request, Game.Instance, Game.Instance.SaveManager) :
+                    authority.MatchesProgressionPlan(request.PersistenceLoad, selection.WritesAutosave, RuntimePersistenceScenario.SlotName(SaveInfo.SaveType.Auto))) &&
                 authority.MaximumNativeLoadRequests == 1 && authority.AdmittedNativeLoadRequests == (loadingAdmission ? 0 : 1) &&
                 authorization.AuthorizedLoadCount == (loadingAdmission ? 0 : 1) &&
                 authorization.AuthorizedWriteCount <= selection.ExpectedNativeWriteCount && authority.AdmittedNativeWriteRequests <= selection.ExpectedNativeWriteCount &&

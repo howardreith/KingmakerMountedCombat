@@ -8,6 +8,7 @@ $script:passes=0
 foreach($case in Get-KmcChunk7OwnedProgressionCases){Good ('owned exact reader '+$case){$f=New-ProgressionFixture $case;Assert-KmcChunk7ProgressionEvidence $f.request $f.artifact}}
 Good 'post-process old input remains Manual300' {$f=New-ProgressionFixture;if((Get-KmcChunk7ProgressionInputLeaf $f.request)-cne'Manual_300_KMC_C7_WORLD.zks'){throw 'Historical leaf changed.'}}
 Good 'post-process owned input derives exact native Manual leaf' {$f=New-ProgressionFixture 'owned-horse-native-level';if((Get-KmcChunk7ProgressionInputLeaf $f.request)-cne'Manual_404_KMC_C7_WORLD.zks'){throw 'Owned native leaf lost.'}}
+Bad 'owned source rejects owner-seed checkpoint impersonation' {$f=New-ProgressionFixture 'owned-horse-native-level';$f.request.persistenceLoad.internalName='KMC_C7_SEED_CHECKPOINT';$f.request.persistenceLoad.fileName='Manual_404_KMC_C7_SEED_CHECKPOINT.zks';Assert-KmcChunk7OwnedProgressionDescriptor $f.request}
 Bad 'post-process foreign number remains refused' {$f=New-ProgressionFixture 'owned-horse-native-level';$f.request.persistenceLoad.fileName='Manual_0404_KMC_C7_WORLD.zks';[void](Get-KmcChunk7ProgressionInputLeaf $f.request)}
 $mutations=[ordered]@{
  'missing nested source'={param($f)$f.request.progression.PSObject.Properties.Remove('ownedSource')}
@@ -23,6 +24,7 @@ $mutations=[ordered]@{
  'target is native main'={param($f)$f.artifact.observations.source.inventoryWorld.mainActorId=$f.request.progression.actorId}
  'Small target body'={param($f)$f.artifact.observations.source.inventoryActor.originalSize='Small'}
  'unearned source XP'={param($f)$f.artifact.observations.source.inventoryActor.nativeLevelUpReadiness.experience++}
+ 'missing native Manual callback'={param($f)$f.artifact.observations.session.nativeWrite.nativeCallbackSupplied=$false}
  'source field actor missing'={param($f)$f.artifact.observations.source.inventoryWorld.party=@($f.artifact.observations.source.inventoryWorld.party|Select-Object -Skip 1)}
  'loaded actor object aliases control'={param($f)$f.artifact.observations.ownedRosterBefore.party[0].object=11}
  'matching loaded contract array'={param($f)$f.artifact.observations.ownedRosterBefore.contract=@('owned-progression-roster-v1')}

@@ -254,7 +254,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     request.Fixture.Baseline.Sha256, entries,
                     declaresTransfer ? fixture.Area : null,
                     declaresTransfer ? request.PersistenceAreaTarget.Area : null, request.Scenario == Chunk7AssistedFixtureSelection.Scenario ? (int?)3 : request.OwnedPairs != null ? (int?)request.OwnedPairs.WriteCount(request.PersistenceCase) : request.Scenario == Chunk7PersistenceScenario.SaveScenario && request.PersistenceCase == Chunk7PersistenceScenario.WorkerCancelSaveCase ? (int?)2 : (schema2Resave || request.Scenario == Chunk7CumulativeAcquisitionSelection.Scenario || request.Scenario == Chunk7AcquiredManualSelection.Scenario || request.Scenario == Chunk7ManualDerivedSelection.Scenario || request.Scenario == Chunk7ManualSeedSelection.Scenario || request.Scenario == Chunk7NativeBootstrapSelection.Scenario || request.Scenario == Chunk7OrdinaryAcquisitionSelection.Scenario ||
-                        request.Scenario == Chunk7ProgressionSelection.Scenario && request.Progression.WritesAutosave ||
+                        request.Scenario == Chunk7ProgressionSelection.Scenario && request.Progression.WritesSave ||
                         request.Scenario == Chunk7PersistenceScenario.SaveScenario && Chunk7PersistenceScenario.IsSaveBoundaryCase(request.PersistenceCase)) ? (int?)1 : null,
                     request.OwnedPairs != null ? (int?)request.OwnedPairs.LoadCount(request.PersistenceCase) : (request.Scenario == Chunk7NativeBootstrapSelection.Scenario || request.Scenario == Chunk7AssistedFixtureSelection.Scenario) ? (int?)0 : schema2Resave ? (int?)1 : request.Scenario == Chunk7AssistedColdInventorySelection.Scenario || request.Scenario == Chunk7CumulativeAcquisitionSelection.Scenario || request.Scenario == Chunk7AcquiredManualSelection.Scenario || request.Scenario == Chunk7ManualDerivedSelection.Scenario || request.Scenario == Chunk7ManualSeedSelection.Scenario || request.Scenario == Chunk7BootstrapInventorySelection.Scenario || request.Scenario == Chunk7ProgressionSelection.Scenario || request.Scenario == Chunk7SmallCalibrationSelection.Scenario || request.Scenario == Chunk7OrdinaryFieldSelection.Scenario ? (int?)1 : request.PersistenceCase == Chunk7PersistenceScenario.ThreeLoadsCase ? (int?)3 :
                     request.PersistenceCase == Chunk7PersistenceScenario.ThreeAreasCase ? (int?)1 : null,
@@ -270,6 +270,8 @@ namespace KingmakerMountedCombat.Diagnostics
                     authority.ConfigureAssistedColdInventory(request, game, game.SaveManager);
                 if (request.Scenario == Chunk7AssistedFixtureSelection.Scenario)
                     authority.ConfigureAssistedFixture(request, game, game.SaveManager, Chunk7NativeBootstrapScenario.ResolveMainPreset().Area.AssetGuidThreadSafe);
+                if (request.Scenario == Chunk7ProgressionSelection.Scenario && request.Progression.WritesManual)
+                    authority.ConfigureProgressionManual(request, game, game.SaveManager);
                 var areas = Path.Combine(runRoot, "Areas");
                 if (!Directory.Exists(areas) || Directory.EnumerateFileSystemEntries(areas).Any() ||
                     (File.GetAttributes(areas) & FileAttributes.ReparsePoint) != 0)

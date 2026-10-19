@@ -28,7 +28,9 @@ function Assert-KmcChunk7ProgressionSelection($Request){
     else{if($s.actorId-cne'd17c8fd0-6627-40c4-bf9a-024cf001c1f7'-or$s.controlActorId-cne'b6628a77-4962-47a4-a17c-88d9836fc9d5'-or$s.controlPetId-cne'd79a4f6c-b74e-4868-95bd-533899131acb'){throw 'Progression source actor/control roles differ from qualified Manual300.'}}
     $write=(Get-KmcChunk7ProgressionOperation $s.case)-cne'horse-native-dismiss';$respec=(Get-KmcChunk7ProgressionOperation $s.case)-cin@('horse-native-retrain-horse','horse-native-retrain-mammoth')
     Assert-KmcOrdinaryInteger $s.expectedNativeWriteCount ([int]$write) ([int]$write)
-    if($write){Assert-KmcOrdinaryInteger $s.minimumRangerLevel 4 20;if($s.nativeWriteLeaf-isnot[string]-or$s.nativeWriteLeaf-cne'Auto_1.zks'){throw 'Native completion autosave leaf differs.'}}
+    if($write){Assert-KmcOrdinaryInteger $s.minimumRangerLevel 4 20
+        if(Test-KmcChunk7OwnedProgressionCase $s.case){if($null-ne$s.nativeWriteLeaf){throw 'Owned progression Manual number must be observed and reserved natively.'}}
+        elseif($s.nativeWriteLeaf-isnot[string]-or$s.nativeWriteLeaf-cne'Auto_1.zks'){throw 'Historical native completion autosave leaf differs.'}}
     else{Assert-KmcOrdinaryInteger $s.minimumRangerLevel 0 0;if($null-ne$s.nativeWriteLeaf){throw 'Native dismissal has no write authority.'}}
     if($respec){
         foreach($key in @('raceGuid','presetGuid')){if($s.$key-isnot[string]-or$s.$key-cnotmatch'^[a-f0-9]{32}$'){throw 'Exact observed native respec body pin missing.'}}
@@ -342,15 +344,53 @@ function Assert-KmcProgressionPairCustody($Custody,$Archive,$Selection){
     if((Get-KmcChunk7ProgressionOperation $Selection.case)-cne'horse-native-level'-and-not$labels.Contains('native-target-cleanup-settled')){throw 'Native dismissal/retrain did not trigger complete original owner cleanup.'}
     if((Get-KmcChunk7ProgressionOperation $Selection.case)-cne'horse-native-dismiss'-and-not$labels.Contains('native-terminal-save-settled')){throw 'Native terminal save did not retain control custody.'}
 }
+function Assert-KmcProgressionManualProof($Session,$Request){
+    $p=$Session.manualSave;$w=$Session.nativeWrite
+    if($null-ne$Session.nativeCompletion-or$null-eq$p-or$null-eq$w){throw 'Owned progression Manual cannot claim an Auto completion or omit its save proof.'}
+    Assert-KmcBootstrapInventoryString $p.contract 'manual-seed-native-save-v1'
+    foreach($key in @('installed','installationAttempted','complete')){Assert-KmcChunk7Boolean $p.$key $true}
+    foreach($key in @('requests','prepares','starts','stages','completions','callbacks')){Assert-KmcOrdinaryInteger $p.$key 1 1}
+    if($p.errors-isnot[Array]-or$p.errors.Count-ne0-or$p.events-isnot[Array]-or$p.events.Count-ne6-or$p.hooks-isnot[Array]-or$p.hooks.Count-ne3){throw 'Owned progression Manual worker proof is incomplete.'}
+    $methods=@('SaveRoutine','PrepareSave','RecordCompletedSave');$tokens=@('06008029','06008025')
+    for($i=0;$i-lt3;$i++){$h=$p.hooks[$i];Assert-KmcBootstrapInventoryString $h.method $methods[$i]
+        if($i-lt2){Assert-KmcBootstrapInventoryString $h.type 'Kingmaker.EntitySystem.Persistence.SaveManager';Assert-KmcBootstrapInventoryString $h.token $tokens[$i];Assert-KmcBootstrapInventoryString $h.moduleMvid '07fa1e4d-8618-41b3-9b8d-faa17d3b26f7'}
+        else{Assert-KmcBootstrapInventoryString $h.type 'KingmakerMountedCombat.Integration.MountedPersistenceService';Assert-KmcBootstrapInventoryString $h.moduleMvid $Request.dllMvid}}
+    Assert-KmcOrdinaryInteger $w.nativeManualNumber 1 ([int]::MaxValue)
+    Assert-KmcOrdinaryInteger $w.snapshotBefore 0 ([int]::MaxValue)
+    $leaf='Manual_'+([int]$w.nativeManualNumber).ToString([Globalization.CultureInfo]::InvariantCulture)+'_KMC_C7_PROGRESSION.zks'
+    Assert-KmcBootstrapInventoryString $w.leaf $leaf;Assert-KmcBootstrapInventoryString $w.name 'KMC_C7_PROGRESSION'
+    Assert-KmcProgressionObject $w.requestedObject;Assert-KmcProgressionObject $w.writtenObject
+    if($w.requestedObject-eq$w.writtenObject){throw 'Native Manual request and prepared descriptor alias.'}
+    Assert-KmcOrdinaryInteger $w.manualCallbackCount 1 1
+    $kinds=@('native-save-request','native-save-prepared','snapshot-starting','snapshot-staged','native-worker-completed','native-save-callback')
+    $last=-1
+    for($i=0;$i-lt6;$i++){$e=$p.events[$i];Assert-KmcBootstrapInventoryString $e.kind $kinds[$i];Assert-KmcOrdinaryInteger $e.sequence ($i+1) ($i+1)
+        Assert-KmcOrdinaryInteger $e.frame $last ([int]::MaxValue);$last=$e.frame
+        Assert-KmcOrdinaryInteger $e.requested $w.requestedObject $w.requestedObject
+        $descriptor=if($i-eq0){$w.requestedObject}else{$w.writtenObject};Assert-KmcOrdinaryInteger $e.descriptor $descriptor $descriptor
+        Assert-KmcBootstrapInventoryString $e.internalName 'KMC_C7_PROGRESSION';Assert-KmcBootstrapInventoryString $e.type 'Manual'
+        if($i-gt0){Assert-KmcBootstrapInventoryString $e.fileName $leaf;Assert-KmcBootstrapInventoryString $e.path $w.path}
+        $snap=if($i-lt3){0}else{1};$complete=if($i-lt5){0}else{1}
+        Assert-KmcOrdinaryInteger $e.snapshotCount ($w.snapshotBefore+$snap) ($w.snapshotBefore+$snap)
+        Assert-KmcOrdinaryInteger $e.completedSaveCount ($w.completedWritesBefore+$complete) ($w.completedWritesBefore+$complete)
+    }
+    $worker=$p.events[4];Assert-KmcBootstrapInventoryString $worker.iteratorType 'Kingmaker.EntitySystem.Persistence.SaveManager+<SaveRoutine>d__46'
+    Assert-KmcBootstrapInventoryString $worker.workerStatus 'RanToCompletion';Assert-KmcOrdinaryInteger $worker.workerId 1 ([int]::MaxValue)
+    foreach($key in @('nativeWorkerMatches','workerCompleted')){Assert-KmcChunk7Boolean $worker.$key $true}
+    foreach($key in @('workerFaulted','workerCanceled')){Assert-KmcChunk7Boolean $worker.$key $false}
+}
 function Assert-KmcProgressionWrite($Write,$Request,$Source){
     Assert-KmcProgressionTexts $Write @('path','leaf','type','operation','sha256','name','gameId','gameName','area')
     $s=$Request.progression;$fixture=Get-KmcChunk7ProgressionFixture $Request;$root=Join-Path ([IO.Path]::GetDirectoryName([IO.Path]::GetDirectoryName($Request.evidenceRoot))) ('runtime-staging/persistence-'+$Request.runId+'/Saved Games')
-    if($Write.path-isnot[string]-or$Write.path-cne(Join-Path $root 'Auto_1.zks')-or$Write.leaf-cne'Auto_1.zks'-or$Write.type-cne'Auto'-or$Write.operation-cne'None'-or
+    $owned=Test-KmcChunk7OwnedProgressionCase $s.case
+    $leaf=if($owned){'Manual_'+([int]$Write.nativeManualNumber).ToString([Globalization.CultureInfo]::InvariantCulture)+'_KMC_C7_PROGRESSION.zks'}else{'Auto_1.zks'}
+    $saveType=if($owned){'Manual'}else{'Auto'}
+    if($Write.path-isnot[string]-or$Write.path-cne(Join-Path $root $leaf)-or$Write.leaf-cne$leaf-or$Write.type-cne$saveType-or$Write.operation-cne'None'-or
        $Write.sha256-isnot[string]-or$Write.sha256-cnotmatch'^[a-f0-9]{64}$'-or$Write.sha256-ceq$s.sourceArchiveSha256-or$Write.name-isnot[string]-or[string]::IsNullOrWhiteSpace($Write.name)-or
        $Write.gameId-cne$fixture.gameId-or$Write.gameName-cne$fixture.gameName-or$Write.area-cne$fixture.area){throw 'Native progression Auto1 identity differs.'}
     Assert-KmcOrdinaryInteger $Write.length 1 268435456;Assert-KmcOrdinaryInteger $Write.schema 3 3
     foreach($key in @('snapshotCount','completedWrites')){Assert-KmcOrdinaryInteger $Write.$key 1 1}
-    Assert-KmcChunk7Boolean $Write.nativeAutoLevelup $true;Assert-KmcChunk7Boolean $Write.nativeCallbackSupplied $false
+    Assert-KmcChunk7Boolean $Write.nativeAutoLevelup (-not$owned);Assert-KmcChunk7Boolean $Write.nativeCallbackSupplied $owned
     $a=$Write.archive;Assert-KmcExactProperties $a @('SchemaVersion','CampaignId','AreaId','GameTimeTicks','Policy','RulesId','Pairs','Participations','Slots','Combat') 'progression native output archive'
     Assert-KmcProgressionTexts $a @('CampaignId','AreaId','Policy','RulesId')
     Assert-KmcOrdinaryInteger $a.SchemaVersion 3 3;Assert-KmcOrdinaryInteger $a.GameTimeTicks $Source.GameTimeTicks
@@ -420,8 +460,9 @@ function Assert-KmcChunk7ProgressionEvidence($Request,$Artifact,[string]$Status=
     else{$respecProof=Assert-KmcProgressionUi $session.nativeUi $s $before}
     if($write){
         $choiceRows=@($session.events|Where-Object{$null-ne$_.PSObject.Properties['event']});$choices=Assert-KmcProgressionChoices $choiceRows $Request $before $respecProof
-        Assert-KmcProgressionCompletion $session.nativeCompletion $before $choices.commits $choices.initialLevel
-        Assert-KmcOrdinarySaveDescriptorBinding $session.nativeCompletion $session.nativeWrite
+        if(Test-KmcChunk7OwnedProgressionCase $s.case){Assert-KmcProgressionManualProof $session $Request}
+        else{Assert-KmcProgressionCompletion $session.nativeCompletion $before $choices.commits $choices.initialLevel
+            Assert-KmcOrdinarySaveDescriptorBinding $session.nativeCompletion $session.nativeWrite}
         Assert-KmcProgressionWrite $session.nativeWrite $Request $o.loadedArchive
         $terminal=@($nativeRows|Where-Object kind -CEQ 'native-progression-builder-complete');if($nativeRows.Count-ne2-or$terminal.Count-ne1){throw 'Native builder/session boundary incomplete.'};Assert-KmcProgressionActor $terminal[0] $s.actorId
         if($terminal[0].object-ne$before.object-or$terminal[0].xp-ne$before.xp-or$terminal[0].level-ne$choices.terminal.level-or$terminal[0].petId-cne$choices.terminal.petId-or$terminal[0].money-ne$choices.terminal.money){throw 'Native session terminal progression differs from accepted choices.'}

@@ -6,10 +6,22 @@ function New-OwnedProgressionFixture([string]$Case='owned-horse-native-level') {
  $main='88888888-1111-4111-8111-111111111111';$campaign='99999999-1111-4111-8111-111111111111';$area='c'*32
  $nested=[pscustomobject]@{case='persistence-load';sourceRunId=$s.inventoryRunId;sourceArtifactSha256=$s.inventoryArtifactSha256;sourceArchiveSha256='c'*64;checkpointSourceRunId=$s.sourceRunId;checkpointSourceArtifactSha256=$s.sourceArtifactSha256;riderAId=$s.controlActorId;mountAId=$s.controlPetId;riderBId=$s.actorId;mountBId=$s.petId;partyIds=@($main,$s.controlActorId,$s.controlPetId,$s.actorId,$s.petId);baseGameOnly=$true;expectedNativeLoadCount=1;expectedNativeWriteCount=0}
  $s|Add-Member NoteProperty ownedSource $nested
- $r.persistenceLoad.fileName='Manual_404_KMC_C7_WORLD.zks';$r.persistenceLoad.gameId=$campaign;$r.persistenceLoad.gameName='Observed isolated campaign';$r.persistenceLoad.area=$area
+ $s.nativeWriteLeaf=$null
+ $r.persistenceLoad.internalName='KMC_C7_WORLD';$r.persistenceLoad.fileName='Manual_404_KMC_C7_WORLD.zks';$r.persistenceLoad.gameId=$campaign;$r.persistenceLoad.gameName='Observed isolated campaign';$r.persistenceLoad.area=$area
  $o.selection=Copy-O $s;$o.loadedDescriptor=Copy-O $r.persistenceLoad
  $o.loadedArchive.CampaignId=$campaign;$o.loadedArchive.AreaId=$area;$o.loadedArchive.Pairs[0].ProfileId='medium-humanoid-horse-v1'
  if($null-ne$o.session.nativeWrite){$o.session.nativeWrite.gameId=$campaign;$o.session.nativeWrite.gameName=$r.persistenceLoad.gameName;$o.session.nativeWrite.area=$area;$o.session.nativeWrite.archive.CampaignId=$campaign;$o.session.nativeWrite.archive.AreaId=$area;$o.session.nativeWrite.archive.Pairs[0].ProfileId='medium-humanoid-horse-v1'}
+ if($null-ne$o.session.nativeWrite){
+  $w=$o.session.nativeWrite;$w|Add-Member NoteProperty nativeManualNumber 1;$w|Add-Member NoteProperty manualCallbackCount 1;$w|Add-Member NoteProperty snapshotBefore 0
+  $w.leaf='Manual_1_KMC_C7_PROGRESSION.zks';$w.path=Join-Path ([IO.Path]::GetDirectoryName($w.path)) $w.leaf
+  $w.type='Manual';$w.name='KMC_C7_PROGRESSION';$w.nativeAutoLevelup=$false;$w.nativeCallbackSupplied=$true
+  $o.session.nativeCompletion=$null
+  $kinds=@('native-save-request','native-save-prepared','snapshot-starting','snapshot-staged','native-worker-completed','native-save-callback')
+  $events=@();for($i=0;$i-lt6;$i++){$events+=,[pscustomobject]@{sequence=$i+1;kind=$kinds[$i];frame=$i+1;requested=$w.requestedObject;descriptor=$(if($i-eq0){$w.requestedObject}else{$w.writtenObject});internalName=$w.name;type='Manual';fileName=$(if($i-eq0){$null}else{$w.leaf});path=$(if($i-eq0){$null}else{$w.path});snapshotCount=$(if($i-lt3){0}else{1});completedSaveCount=$(if($i-lt5){0}else{1})}}
+  $events[4]|Add-Member NoteProperty iteratorType 'Kingmaker.EntitySystem.Persistence.SaveManager+<SaveRoutine>d__46';$events[4]|Add-Member NoteProperty workerStatus 'RanToCompletion';$events[4]|Add-Member NoteProperty workerId 4;$events[4]|Add-Member NoteProperty nativeWorkerMatches $true;$events[4]|Add-Member NoteProperty workerCompleted $true;$events[4]|Add-Member NoteProperty workerFaulted $false;$events[4]|Add-Member NoteProperty workerCanceled $false
+  $hooks=@([pscustomobject]@{type='Kingmaker.EntitySystem.Persistence.SaveManager';method='SaveRoutine';token='06008029';moduleMvid='07fa1e4d-8618-41b3-9b8d-faa17d3b26f7'},[pscustomobject]@{type='Kingmaker.EntitySystem.Persistence.SaveManager';method='PrepareSave';token='06008025';moduleMvid='07fa1e4d-8618-41b3-9b8d-faa17d3b26f7'},[pscustomobject]@{type='KingmakerMountedCombat.Integration.MountedPersistenceService';method='RecordCompletedSave';token='06001000';moduleMvid=$r.dllMvid})
+  $o.session|Add-Member NoteProperty manualSave ([pscustomobject]@{contract='manual-seed-native-save-v1';installed=$true;installationAttempted=$true;complete=$true;requests=1;prepares=1;starts=1;stages=1;completions=1;callbacks=1;events=$events;hooks=$hooks;errors=@()})
+ }
  $o.source|Add-Member NoteProperty ownedSource (Copy-O $nested)
  $o.source.inventoryActor|Add-Member NoteProperty originalSize 'Medium';$o.source.inventoryActor|Add-Member NoteProperty effectiveSize 'Medium'
  $o.source.inventoryActor|Add-Member NoteProperty nativeLevelUpReadiness ([pscustomobject]@{experience=20000;characterLevel=4})

@@ -1,5 +1,41 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## Active October 19 checkpoint — owned progression Manual development correction
+
+The [standing completion mission](planning/CHUNK7-COMPLETION-MISSION.md)
+selects the remaining 7B, 7C, 7D and private readiness-gated 7E through
+**CHUNK 7 ENGINEERING COMPLETE — OWNER ACCEPTANCE PENDING**. The latest pushed
+successor HEAD before this work is `ee0a4839c6bbda74871392e6adf0d73ef0640559`;
+preview.60 remains the last frozen product candidate and batch42's exact
+results below are unchanged. Historical next actions below are chronology,
+not instructions to rebuild or rerun completed inputs.
+
+The [owned F10 Manual correction](docs/CHUNK7-OWNED-PROGRESSION-MANUAL-COMPLETION-2026-10-19.md)
+now has stable source and independent review, receipt SHA-256
+`354693e49c9fe91437abcda27a4bc4dbc20b5da21ad7e749476e86313f6db427`.
+Fast passed 3/0 in 0.53 minutes; focused owned source 31/0, owned protocol
+80/0, legacy protocol 38/0, owned reader 56/0, progression neighbor 76/0,
+and actual runner stale-family gate 23/0. The first Fast build failed on a
+new test-project import and was corrected; no native run occurred. The
+three owned level/retrain cases now request a distinct genuine Manual after
+native choice completion. Their actual acquired `KMC_C7_WORLD` mounted source
+still depends on a stale-Auto acquisition producer. The owner-seed checkpoint
+is not silently substituted. F10 native qualification remains IN PROGRESS.
+
+The [area inventory](docs/CHUNK7-AREA-FIXTURE-PREPARATION-2026-10-19.md)
+is sealed at SHA-256
+`6d934bbe1daa862a105ccbdbb7dacd67b2dab478050be78658055b69577ced33`:
+stock ManticoreLair2 is non-capital but unexplored in the admitted owner
+source. The [reference-free removal route](docs/CHUNK7-REFERENCE-FREE-REMOVAL-ROUTE-2026-10-19.md)
+and default Halfling Small fixture are identified, not natively admitted.
+The game and runtime lock are absent after batch42; no new live transaction
+was opened for this development correction. Next: implement the exact guarded Manticore
+visit/Manual fixture route from the already qualified mounted owner-seed
+copy. Its output must be genuinely saved and separately admitted before
+the area Auto/cold scenario; do not run a native slot on the offline metadata
+alone. Continue the acquired-source F10 and Small/removal fixture work
+independently. No 7E readiness or engineering completion is claimed.
+
 ## Active October 19 checkpoint — batch42 separate cold game PASS, outer reader FAIL
 
 The [standing completion mission](planning/CHUNK7-COMPLETION-MISSION.md) remains

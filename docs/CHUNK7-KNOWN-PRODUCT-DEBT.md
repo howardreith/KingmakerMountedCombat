@@ -1,5 +1,29 @@
 # Chunk 7 known product debt
 
+## October 19 — pending-debt migration engineering result
+
+The historical preview.45 and matched preview.53 schema-3/schema-2 failures
+remain original FAILs. The shared native re-entry ownership correction has
+since passed the selected retained-allocation checks. Preview.59 batch41
+produced a genuine schema-3 Manual from a metadata-only schema-2 derivative
+(original game/runtime PASS 4/0). Preview.60 batch42 separately cold-loaded
+that exact Manual and returned original **game PASS 3/0** for restoration,
+continuation and cleanup. Its original outer runtime result remains FAIL on
+an external reader's exact-clock comparison of a later same-round snapshot.
+The immediate restoration probes are exact; a bounded elapsed-clock reader
+correction passed independent review and a distinct immutable-artifact
+reader-only reevaluation. See the [batch41–42 record](CHUNK7-DIRECTIVE4-REENTRY-CORRECTION-2026-10-19.md)
+and [current requirement map](../planning/CHUNK7-COMPLETION-MISSION.md).
+These later results narrow the earlier schema-2 debt statement below; they
+do not rewrite any historical verdict or credit an outer native rerun.
+
+Positive mounted cleanup with permanent-reference removal and a genuinely
+absent KMC DLL remains unaccepted. The clean owner seed is reference-free, but
+has no pet. A positive owner-derived route needs disclosed native stock Mammoth
+acquisition and rank/size eligibility, followed by a closed P07 source context;
+the legacy Working archive is not presently a qualified shortcut. Area Auto
+and door evidence still need a suitable non-capital destination and entrance.
+
 ## October 19 - Working prerequisite remains unresolved
 
 Batch34's base-only load-only diagnostic under the owner-authorized Howie

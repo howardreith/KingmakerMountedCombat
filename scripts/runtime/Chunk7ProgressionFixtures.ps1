@@ -66,8 +66,9 @@ function Copy-KmcChunk7ProgressionInputs($Source,[string]$ProfileRoot,$Lock){
 }
 function Assert-KmcChunk7ProgressionNativeHeader($Header,$Write){
     Assert-KmcProgressionTexts $Header @('Name','Type','GameId','GameName','Area')
-    if($Header.Name-cne$Write.name-or$Header.Type-cne'Auto'-or$Header.GameId-cne$Write.gameId-or$Header.GameName-cne$Write.gameName-or$Header.Area-cne$Write.area){throw 'Native progression autosave header differs.'}
-    Assert-KmcOrdinaryInteger $Header.CompatibilityVersion 1 1;Assert-KmcChunk7Boolean $Header.IsAutoLevelupSave $true
+    if($Header.Name-cne$Write.name-or$Header.Type-cne$Write.type-or$Header.GameId-cne$Write.gameId-or$Header.GameName-cne$Write.gameName-or$Header.Area-cne$Write.area){throw 'Native progression save header differs.'}
+    Assert-KmcOrdinaryInteger $Header.CompatibilityVersion 1 1
+    Assert-KmcChunk7Boolean $Header.IsAutoLevelupSave ($Write.type-ceq'Auto')
 }
 function Assert-KmcChunk7ProgressionNativeArchive($Request,$Artifact){
     Assert-KmcChunk7ProgressionEvidence $Request $Artifact 'PASS'
