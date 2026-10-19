@@ -28,7 +28,7 @@ function Assert-KmcChunk7CurrentMigrationObservation($Request,$Artifact){
  $archive=$o.loadedArchive
  if($Request.persistenceCase-ceq'owned-schema2-pending-current-manual'){
   Assert-KmcChunk7CombatPersistenceObservation $Request $Artifact
-  Assert-KmcChunk7NativeWorldRestore $m.restoredWorld $archive $true
+  Assert-KmcChunk7NativeWorldRestore $m.restoredWorld $archive $true -AllowElapsedNativeClock
   return
  }
  Assert-KmcChunk7Boolean $o.combatDebtProof $false

@@ -77,3 +77,53 @@ Slot 1 `20261019-c7b-directive4-b41s1-schema3-producer` **original game/runtime 
 Slot 3 `20261019-c7b-directive4-b41s3-schema2-current-cold` is an **original game/runtime FAIL**, 2/1. The native current-format cold restoration and cleanup passed, but `ValidateCurrentMigrationParent` rejected the parent write before continuation with “substituted the parent's genuine current-schema native write.” Original runtime result SHA-256 `4b65718e7a1303d0994e4105691a1627ec8c4fde4542228d85a9053f03c3cc64`; raw artifact SHA-256 `2ae1be37e5e5f728a201e49248d4f1584e0fd850b845736743ad8353c9ba75ee`. The parent's archived write and child's archived loaded graph have zero parsed JSON leaf differences; name, SHA-256, byte length, native callback, source schema and Manual leaf match. The parent evidence is parsed JSON (`Double` values) while the child's `JObject.FromObject` contains typed `Single` values. Newtonsoft's `JToken.DeepEquals` rejects that CLR token-type difference even when the wire JSON is identical. A focused actual-method regression reproduces the old false refusal and compares against a parsed, validated `MountedArchiveCodec.Encode(loaded)` graph. Synthetic guards pass 57/0, and an optional replay against these exact immutable parent/request/child evidence files passes 58/0. Independent review PASS is sealed at SHA-256 9de8e655f3e2750df2294e83ae758992bf39215ada54d75285fa4c7996a71c0c; a new candidate/native cold retry is required. Slot 3's original FAIL is not upgraded by offline replay.
 
 All three batch41 guarded transactions report exact Mods, protected-save, Working and profile restoration, zero accepted cache exceptions, game exit and lock clearance. The b41s2 native resave PASS and b41s3 cold FAIL remain distinct outcomes on the same preview.59 candidate.
+
+## Batch42 — separate native consumer passes; later-snapshot reader refuses
+
+Preview.60 product commit `0e565fe177b200ee6a679d0e6856cb8a379dca1f`
+is package SHA-256 `8a19a7aa84e74b4937ddbc85e4e50ae3f9a86107cd6e11d6b4972c5abd3b24db`,
+DLL SHA-256 `834fafe5c024a2a1e8a54d69172c7bdec76d222ecc424bd3d1636fc00ddfed7d`,
+MVID `7c6d0864-97ec-425e-81ee-061be68fb714`. Candidate passed 6/0.
+Append-only suite `chunk7b-directive4-b42-20261019` is SHA-256
+`2dfb3858caa8a5a93990f35812221e0ffee9946c4f294b04c3624242716eb0ac`.
+The separate current-format cold consumer used the unchanged batch41 slot 2
+native Manual SHA-256 `a779dbebacda6e177ae1d1645e481c65750aba2ed1fb8ca2d562c90d94ff492d`.
+Its scoped WhatIf passed. Batch42 slot 1
+`20261019-c7b-directive4-b42s1-schema2-current-cold` returned **original game
+PASS** 3/0: current-schema cold restoration, parent graph, native continuation
+and cleanup all passed. Game-result SHA-256 is
+`43c1da09b64b2014238813bac312711879cc2580e1fabfa54bec29786c348ac3`.
+
+The **original outer runtime result remains FAIL**, SHA-256
+`92e1e1516c76699c375730252c79b6c189eb5163c5d14c2335b9dc86d3d9b720`,
+raw artifact SHA-256 `798d9d3460d2d8d63fa9b2af631bab1e2927559f18d8b7c08986e96153ee1a00`.
+The external reader's immediate restoration probe already verifies saved
+native clock, actor debt and pair/owner state exactly. It additionally applied
+that exact saved-clock comparison to `currentFormatMigration.restoredWorld`, a
+later snapshot. The archive has `GameTimeTicks=2245124680000`,
+`TimeSinceStart=0.4795454` and `TimeToNextRound=5.520455`. The later snapshot
+has ticks `2245129450000` (+0.477 seconds), the same round, clocks
+`0.9573662` and `5.04263449`, and actor cooldowns reduced by elapsed time.
+There was no action grant or changed `Prepared` state. A bounded reader-only
+correction retains exact immediate-probe comparison, permits only paired
+same-round clock advance and actor cooldown countdown within 2 seconds at the
+later snapshot, and continues exact comparison for every other combat,
+allocation, owner, participation and actor field. It rejects non-integer
+snapshot ticks, malformed clocks, one-sided drift, excessive elapsed time,
+debt refund, new round and changed preparation. Focused external-reader checks
+passed 690/0 (receipt SHA-256
+`4132358d3c8d0ed4efce24d30907d9105a1597ac0a22758592ff33ee6d35b38f`);
+direct `Assert-KmcChunk7CurrentMigrationParent` evaluation of the immutable
+parent/request/child artifact passed. Independent review PASS is SHA-256
+`ad07e6324a5a1da17969f5733e1a9db3d54233a756c5824bcb2099528bc100fc`;
+the reviewer also ran focused reader 690/0 and combat neighbor 165/0.
+The separate final reader-only PASS receipt on the immutable original evidence
+is SHA-256 `5413bf331e2200486f365f74a59e681307d2a021648384631e4f26bb3098e2be`.
+The earlier preliminary receipt remains history. This does not change the
+original runtime FAIL or constitute another native run.
+
+The batch42 guarded transaction restored Mods, protected saves, Working and
+profile exactly, with no cache exception; the game exited and transaction lock
+cleared. The seven historical Working `Areas` writes are unrelated to this
+run and remain subject to separate run-specific isolation before any new
+legacy Working load.
