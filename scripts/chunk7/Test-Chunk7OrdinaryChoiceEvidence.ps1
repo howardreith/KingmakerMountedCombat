@@ -12,8 +12,19 @@ function Check-Choice([string]$CaseLabel,[scriptblock]$Action,[bool]$Reject=$fal
     if($ok){$script:choicePass++;$line='PASS '+$CaseLabel}else{$script:choiceFail++;$line='FAIL '+$CaseLabel+': '+$(if($null-eq$caught){'unexpected acceptance'}else{$caught.ToString()+' '+$caught.ScriptStackTrace})}
     $script:choiceLines.Add($line);Write-Host $line
 }
-function Choice-Args([bool]$Paid=$false){$f=New-OrdinaryFixture $Paid;$o=$f.artifact.observations;@{RunId=$f.request.runId;Selection=$f.request.ordinaryAcquisition;Paid=$Paid;InitialActorIds=$o.originalParty;Rows=$o.choices;BeforeMoney=$o.before.money;BuilderComplete=$o.builderComplete}}
+function Choice-Args([bool]$Paid=$false){$f=New-OrdinaryFixture $Paid;$o=$f.artifact.observations;@{RunId=$f.request.runId;Selection=$f.request.ordinaryAcquisition;Paid=$Paid;InitialActorIds=$o.originalParty;Rows=$o.choices;BeforeMoney=$o.before.money;BuilderComplete=$o.builderComplete;ProductVersion=$f.request.productVersion}}
 function Need-Choice([bool]$Value,[string]$Message){if(-not$Value){throw $Message}}
+function Use-ExplicitHireSpend($ProofArgs){
+    $admission=$ProofArgs.Rows[0]
+    $admission | Add-Member -NotePropertyName spendObservationContract -NotePropertyValue 'native-hire-spent-v1'
+    $commit=@($ProofArgs.Rows|Where-Object event -CEQ 'native-level-committed')[0]
+    $spend=[pscustomobject]@{event='native-hire-spent';runId=$commit.runId;frame=$commit.frame;
+        elapsedSeconds=$commit.elapsedSeconds;moneyBefore=$admission.moneyBefore;nativeCost=$admission.nativeCost;
+        moneyAfter=($admission.moneyBefore-$admission.nativeCost)}
+    $rows=[Collections.Generic.List[object]]::new()
+    foreach($row in $ProofArgs.Rows){if([object]::ReferenceEquals($row,$commit)){$rows.Add($spend)};$rows.Add($row)}
+    $ProofArgs.Rows=$rows.ToArray()
+}
 foreach($paidCase in @($false,$true)){
     Check-Choice ('actual '+$(if($paidCase){'paid'}else{'existing'})+' sequence returns exact state without mutation') {
         $a=Choice-Args $paidCase;$before=ConvertTo-KmcChunk7Canonical $a;$p=Get-KmcChunk7OrdinaryChoiceProof @a
@@ -28,6 +39,29 @@ Check-Choice 'minimal explicit existing selection is independent of ordinary art
     $a=Choice-Args;$a.Selection=[pscustomobject]@{existingActorId=$a.Selection.existingActorId;minimumRangerLevel=4};$a.InitialActorIds=@($a.Selection.existingActorId)
     $p=Get-KmcChunk7OrdinaryChoiceProof @a;Need-Choice ($p.finalLevel-eq4-and$p.nativeCommitCount-eq3) 'Explicit minimal selection differs'
 }
+Check-Choice 'explicit native hire spend precedes first paid commit' {
+    $a=Choice-Args $true;Use-ExplicitHireSpend $a
+    $p=Get-KmcChunk7OrdinaryChoiceProof @a
+    Need-Choice ($p.money-eq18000-and$p.nativeCommitCount-eq4) 'Explicit native spend proof differs'
+}
+Check-Choice 'contracted paid evidence refuses missing spend event' {
+    $a=Choice-Args $true;$a.Rows[0]|Add-Member -NotePropertyName spendObservationContract -NotePropertyValue 'native-hire-spent-v1'
+    $null=Get-KmcChunk7OrdinaryChoiceProof @a
+} $true
+Check-Choice 'current paid candidate refuses missing spend contract' {
+    $a=Choice-Args $true;$a.ProductVersion='0.1.0-chunk7b-preview.63'
+    $null=Get-KmcChunk7OrdinaryChoiceProof @a
+} $true
+Check-Choice 'contracted paid evidence refuses duplicate spend event' {
+    $a=Choice-Args $true;Use-ExplicitHireSpend $a
+    $a.Rows=@($a.Rows[0..6])+@($a.Rows[6])+@($a.Rows[7..($a.Rows.Count-1)])
+    $null=Get-KmcChunk7OrdinaryChoiceProof @a
+} $true
+Check-Choice 'contracted paid evidence refuses wrong spend amount' {
+    $a=Choice-Args $true;Use-ExplicitHireSpend $a
+    $a.Rows[6].moneyAfter++
+    $null=Get-KmcChunk7OrdinaryChoiceProof @a
+} $true
 Check-Choice 'declared ordinary accepted count still checked by old caller' {$f=New-OrdinaryFixture;$f.artifact.observations.acceptedChoiceCount++;Assert-KmcChunk7OrdinaryEvidence $f.request $f.artifact} $true
 Check-Choice 'declared ordinary commit count still checked by old caller' {$f=New-OrdinaryFixture;$f.artifact.observations.nativeCommitCount++;Assert-KmcChunk7OrdinaryEvidence $f.request $f.artifact} $true
 $badArgs=[ordered]@{

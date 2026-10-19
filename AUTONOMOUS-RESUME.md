@@ -1,5 +1,34 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## Active October 19 batch44 correction — preview.63 source
+
+The [standing completion mission](planning/CHUNK7-COMPLETION-MISSION.md)
+remains selected through readiness-gated private 7E. The
+[batch44 record](docs/CHUNK7-BATCH44-FIXTURE-FOLLOWUP-2026-10-19.md) retains
+both preview.62 original native FAILs: Manticore reached non-capital
+ManticoreLair2 and accepted both remounts but rejected vacated hotbar cells;
+F09 Small reached paid Halfling CharGen Total but checked the native hire cost
+before its success callback. No new Manual, area Auto/cold, door or Small
+profile result exists. Mods, protected saves and Working restored for both;
+the first run's transient profile/lock mismatch was settled by that run's
+guarded recovery. The second run accepted only recorded native achievement
+cache changes, so do not claim exact profile-byte equality. The game and lock
+are absent and both transactions are `restored`.
+
+The preview.63 correction accepts only exact actor-owned vacated hotbar cells
+for rebind, observes native hire expenditure once, waits for paid completion,
+and requires versioned explicit spend evidence. Independent review found no
+remaining offline blocker; ordinary reader 47/0, Manual-derived 103/0,
+Manticore reader 62/0, source validation 147/0 and Fast 3/0 passed. An earlier
+Fast attempt during version metadata synchronization failed and remains
+recorded. Current source is **not yet a frozen native candidate**. Next:
+commit and guarded-push the coherent source, package preview.63 once, run
+Candidate, freeze a fresh suite, pass scoped WhatIf and retry only these two
+changed native paths. Preserve batch43 and batch44 original FAILs. Accepted
+fixture outputs still need their separate consumers. Continue positive
+reference-free removal, F10, F11 and private 7E; no merge, release, permanent
+installation or HUMAN PLAY acceptance is selected.
+
 ## Active October 19 batch43 correction — preview.62 source
 
 The [standing completion mission](planning/CHUNK7-COMPLETION-MISSION.md)

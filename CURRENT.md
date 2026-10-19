@@ -1,5 +1,21 @@
 # Chunk 7B–7D — IN PROGRESS
 
+## October 19 — batch44 original native FAILs, reviewed preview.63 correction
+
+Preview.62 Candidate passed 6/0. Batch44's two declared native fixtures both
+remained **FAIL** after advancing beyond their batch43 failures: Manticore
+reached the destination and remounted both pairs, then rejected its vacated
+hotbar cells; Small reached paid Halfling CharGen Total, then checked the
+8,000 native hire cost before the success callback charged it. No new Manual,
+area Auto/cold, door or Small calibration result exists. The
+[batch44 record](docs/CHUNK7-BATCH44-FIXTURE-FOLLOWUP-2026-10-19.md) retains
+both original results and separate restoration, including the first run's
+exact guarded profile recovery and the second run's admitted native cache
+changes. The preview.63 source/reader correction passed independent review,
+focused checks and Fast 3/0 offline. Targeted native verification, positive
+removal, progression, measured 7D and private 7E remain open under the
+[standing mission](planning/CHUNK7-COMPLETION-MISSION.md).
+
 ## October 19 — batch43 native fixture FAILs and reviewed correction
 
 Preview.61 Candidate passed 6/0. The declared Manticore fixture slot failed

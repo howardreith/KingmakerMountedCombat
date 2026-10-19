@@ -1,7 +1,7 @@
 Set-StrictMode -Version Latest
 # Pure native-choice evidence only. Caller owns scenario/source/output admission.
 # RuntimeHarness.Common supplies the exact JSON primitives and ordinary snapshot validator.
-function Get-KmcChunk7OrdinaryChoiceProof($RunId,$Selection,$Paid,$InitialActorIds,$Rows,$BeforeMoney,$BuilderComplete) {
+function Get-KmcChunk7OrdinaryChoiceProof($RunId,$Selection,$Paid,$InitialActorIds,$Rows,$BeforeMoney,$BuilderComplete,[string]$ProductVersion) {
     if($RunId-isnot[string]-or$RunId-cnotmatch'^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$'){throw 'Native ordinary choice run ID must be an exact scalar identifier.'}
     if($Selection-isnot[pscustomobject]-or$Paid-isnot[bool]){throw 'Native ordinary choice selection and paid mode must be explicitly typed.'}
     Assert-KmcOrdinaryInteger $Selection.minimumRangerLevel 4 20
@@ -26,6 +26,11 @@ function Get-KmcChunk7OrdinaryChoiceProof($RunId,$Selection,$Paid,$InitialActorI
         Assert-KmcOrdinaryInteger $admission.nativeInheritedXp 0 ([int]::MaxValue)
         Assert-KmcOrdinaryInteger $admission.nativeCost 1;Assert-KmcOrdinaryInteger $admission.nativeExpectedFinalLevel $s.minimumRangerLevel 20
         if($admission.moneyBefore-lt$admission.nativeCost-or$admission.nativeInventorySha256-cne$s.inventoryArtifactSha256){throw 'Native paid admission is unaffordable or unbound.'}
+        $explicitSpend=$admission.PSObject.Properties.Name-ccontains'spendObservationContract'
+        if($explicitSpend-and$admission.spendObservationContract-cne'native-hire-spent-v1'){throw 'Native hire spend observation contract differs.'}
+        $legacySpendVersion=$ProductVersion-cin@('0.1.0-test','synthetic')-or
+            ($ProductVersion-cmatch'^0\.1\.0-chunk7b-preview\.(\d+)$'-and[int]$Matches[1]-lt63)
+        if(-not$explicitSpend-and-not$legacySpendVersion){throw 'Current paid native evidence omitted its required spend observation.'}
         $identity=$rows[1];$xp=$admission.nativeInheritedXp;$level=0;$money=$admission.moneyBefore;$expectedMoney=$money-$admission.nativeCost
         $first=2
         if($identity.actorId-cin$original-or$identity.nativeMode-cne'CharGen'){throw 'Native paid hire reused an actor or skipped CharGen.'}
@@ -86,12 +91,21 @@ function Get-KmcChunk7OrdinaryChoiceProof($RunId,$Selection,$Paid,$InitialActorI
             'native-level-committed' {
                 if($null-eq$pendingCommit-or(ConvertTo-KmcChunk7Canonical $row.before)-cne(ConvertTo-KmcChunk7Canonical $pendingCommit)){throw 'Native level commit lacks its exact prior complete Total gate.'}
                 $commits++;Assert-KmcOrdinaryInteger $row.commitCount $commits $commits
-                Assert-KmcOrdinaryInteger $row.moneyExpected $expectedMoney $expectedMoney
-                $level++;$money=$expectedMoney;Assert-KmcOrdinarySnapshot $row.after $identity $xp $level $money
+                if($paid-and-not$explicitSpend-and$money-eq$admission.moneyBefore-and$row.after.money-eq$expectedMoney){$money=$expectedMoney}
+                Assert-KmcOrdinaryInteger $row.moneyExpected $money $money
+                $level++;Assert-KmcOrdinarySnapshot $row.after $identity $xp $level $money
                 $pendingCommit=$null
+            }
+            'native-hire-spent' {
+                if(-not$paid-or-not$explicitSpend-or$money-ne$admission.moneyBefore){throw 'Native hire spent more than once or outside the declared paid observation.'}
+                Assert-KmcOrdinaryInteger $row.moneyBefore $admission.moneyBefore $admission.moneyBefore
+                Assert-KmcOrdinaryInteger $row.nativeCost $admission.nativeCost $admission.nativeCost
+                Assert-KmcOrdinaryInteger $row.moneyAfter $expectedMoney $expectedMoney
+                $money=$expectedMoney
             }
             'native-builder-complete' {
                 if($null-ne$pendingChoice-or$null-ne$pendingCommit-or$commits-lt1){throw 'Ordinary builder completion precedes committed choices.'}
+                if($paid-and$money-ne$expectedMoney){throw 'Paid native builder completed before exact hire expenditure.'}
                 Assert-KmcOrdinarySnapshot $row.actor $identity $xp $level $money
                 Assert-KmcChunk7Boolean $row.actor.nativeCanLevelUp $false;Assert-KmcChunk7Boolean $row.ordinaryChoicesComplete $true
                 foreach($field in @('nativeFieldAdmissionProven','nativeSaveSettlementProven','poseQualified')){Assert-KmcChunk7Boolean $row.$field $false}

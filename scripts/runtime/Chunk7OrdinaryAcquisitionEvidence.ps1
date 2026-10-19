@@ -79,7 +79,7 @@ function Assert-KmcChunk7OrdinaryEvidence($Request,$Artifact,[string]$Status='PA
     Assert-KmcOrdinaryAuthority $o.cleanup.authority $root $o.authority.generation 1
     $original=@('b6628a77-4962-47a4-a17c-88d9836fc9d5','d79a4f6c-b74e-4868-95bd-533899131acb','d17c8fd0-6627-40c4-bf9a-024cf001c1f7')
     if($o.originalParty-isnot[Array]-or($o.originalParty-join'|')-cne($original-join'|')){throw 'Ordinary qualified actor set differs.'}
-    $choiceProof=Get-KmcChunk7OrdinaryChoiceProof -RunId $Request.runId -Selection $s -Paid $paid -InitialActorIds $original -Rows $o.choices -BeforeMoney $o.before.money -BuilderComplete $o.builderComplete
+    $choiceProof=Get-KmcChunk7OrdinaryChoiceProof -RunId $Request.runId -Selection $s -Paid $paid -InitialActorIds $original -Rows $o.choices -BeforeMoney $o.before.money -BuilderComplete $o.builderComplete -ProductVersion $Request.productVersion
     $identity=$choiceProof.identity;$level=$choiceProof.finalLevel;$expectedMoney=$choiceProof.expectedMoney
     $accepted=$choiceProof.acceptedChoiceCount;$commits=$choiceProof.nativeCommitCount
     Assert-KmcOrdinaryInteger $o.acceptedChoiceCount $accepted $accepted;Assert-KmcOrdinaryInteger $o.nativeCommitCount $commits $commits

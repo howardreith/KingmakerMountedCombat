@@ -150,6 +150,11 @@ function Assert-KmcManualDerivedNativeChoices($Request,$O,$Selection=$null){
     foreach($row in $rows){Assert-KmcBootstrapInventoryString $row.runId $Request.runId;if($row.event-isnot[string]){throw 'Native choice event must be a scalar token.'}}
     if($paid){
         if($admission.event-cne'native-paid-hire-admission'-or$rows[1].event-cne'native-new-actor-bound'){throw 'Paid native admission/binding is missing.'}
+        $explicitSpend=$admission.PSObject.Properties.Name-ccontains'spendObservationContract'
+        if($explicitSpend-and$admission.spendObservationContract-cne'native-hire-spent-v1'){throw 'Native hire spend observation contract differs.'}
+        $legacySpendVersion=$Request.productVersion-cin@('0.1.0-test','synthetic')-or
+            ($Request.productVersion-cmatch'^0\.1\.0-chunk7b-preview\.(\d+)$'-and[int]$Matches[1]-lt63)
+        if(-not$explicitSpend-and-not$legacySpendVersion){throw 'Current paid native evidence omitted its required spend observation.'}
         Assert-KmcOrdinaryInteger $admission.moneyBefore
         Assert-KmcOrdinaryInteger $admission.nativeInheritedXp 0 ([int]::MaxValue)
         Assert-KmcOrdinaryInteger $admission.nativeCost 1 ([int]::MaxValue);Assert-KmcOrdinaryInteger $admission.nativeExpectedFinalLevel 4 20
@@ -219,12 +224,21 @@ function Assert-KmcManualDerivedNativeChoices($Request,$O,$Selection=$null){
             'native-level-committed' {
                 if($null-eq$pendingCommit-or(ConvertTo-KmcChunk7Canonical $row.before)-cne(ConvertTo-KmcChunk7Canonical $pendingCommit)){throw 'Native level commit lacks its exact prior complete Total gate.'}
                 $commits++;Assert-KmcOrdinaryInteger $row.commitCount $commits $commits
-                Assert-KmcOrdinaryInteger $row.moneyExpected $expectedMoney $expectedMoney
-                $level++;$money=$expectedMoney;Assert-KmcManualDerivedSnapshot $row.after $identity $xp $level $money
+                if($paid-and-not$explicitSpend-and$money-eq$admission.moneyBefore-and$row.after.money-eq$expectedMoney){$money=$expectedMoney}
+                Assert-KmcOrdinaryInteger $row.moneyExpected $money $money
+                $level++;Assert-KmcManualDerivedSnapshot $row.after $identity $xp $level $money
                 $pendingCommit=$null
+            }
+            'native-hire-spent' {
+                if(-not$paid-or-not$explicitSpend-or$money-ne$admission.moneyBefore){throw 'Native hire spent more than once or outside the declared paid observation.'}
+                Assert-KmcOrdinaryInteger $row.moneyBefore $admission.moneyBefore $admission.moneyBefore
+                Assert-KmcOrdinaryInteger $row.nativeCost $admission.nativeCost $admission.nativeCost
+                Assert-KmcOrdinaryInteger $row.moneyAfter $expectedMoney $expectedMoney
+                $money=$expectedMoney
             }
             'native-builder-complete' {
                 if($null-ne$pendingChoice-or$null-ne$pendingCommit-or$commits-lt1){throw 'Ordinary builder completion precedes committed choices.'}
+                if($paid-and$money-ne$expectedMoney){throw 'Paid native builder completed before exact hire expenditure.'}
                 Assert-KmcManualDerivedSnapshot $row.actor $identity $xp $level $money
                 Assert-KmcChunk7Boolean $row.actor.nativeCanLevelUp $false;Assert-KmcChunk7Boolean $row.ordinaryChoicesComplete $true
                 foreach($field in @('nativeFieldAdmissionProven','nativeSaveSettlementProven','poseQualified')){Assert-KmcChunk7Boolean $row.$field $false}

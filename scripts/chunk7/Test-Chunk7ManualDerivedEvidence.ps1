@@ -15,6 +15,23 @@ function Good([string]$Name,[scriptblock]$Body){try{&$Body;$script:passes++;Writ
 function Bad([string]$Name,[scriptblock]$Body){$rejected=$false;try{&$Body}catch{$rejected=$true};if($rejected){$script:passes++;Write-Host ('PASS refuses '+$Name)}else{$script:failures++;Write-Host ('FAIL accepted '+$Name)}}
 Good 'paid native Manual lineage, choice, Auto and field sequence' {$f=New-ManualDerivedFixture;Check-ManualDerived $f}
 Good 'existing native eligible Ranger retains exact original world' {$f=New-ManualDerivedFixture $false;Check-ManualDerived $f}
+Bad 'current paid candidate without spend observation contract' {
+    $f=New-ManualDerivedFixture;$f.request.productVersion='0.1.0-chunk7b-preview.63'
+    Assert-KmcManualDerivedNativeChoices $f.request $f.artifact.observations $f.request.manualDerived
+}
+Good 'current paid native choices with explicit once-only spend observation' {
+    $f=New-ManualDerivedFixture;$o=$f.artifact.observations
+    $f.request.productVersion='0.1.0-chunk7b-preview.63'
+    $admission=$o.choices[0];$admission|Add-Member -NotePropertyName spendObservationContract -NotePropertyValue 'native-hire-spent-v1'
+    $commit=@($o.choices|Where-Object event -CEQ 'native-level-committed')[0]
+    $spend=[pscustomobject]@{event='native-hire-spent';runId=$commit.runId;frame=$commit.frame;
+        elapsedSeconds=$commit.elapsedSeconds;moneyBefore=$admission.moneyBefore;nativeCost=$admission.nativeCost;
+        moneyAfter=($admission.moneyBefore-$admission.nativeCost)}
+    $rows=[Collections.Generic.List[object]]::new()
+    foreach($row in $o.choices){if([object]::ReferenceEquals($row,$commit)){$rows.Add($spend)};$rows.Add($row)}
+    $o.choices=$rows.ToArray()
+    Assert-KmcManualDerivedNativeChoices $f.request $o $f.request.manualDerived
+}
 $cases=[ordered]@{
  'foreign source candidate'={param($f)$f.source.dllSha256='e'*64}
  'failed source result'={param($f)$f.source.status='FAIL'}
