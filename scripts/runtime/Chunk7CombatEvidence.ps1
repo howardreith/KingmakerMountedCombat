@@ -1,12 +1,13 @@
 # Closed, bounded native two-pair combat evidence. The shared trace validator is
 # defined by Chunk7CombatPersistenceEvidence; neither reader performs mutations.
 Set-StrictMode -Version Latest
+. (Join-Path $PSScriptRoot 'Chunk7RegisteredDisableEvidence.ps1')
 function Test-KmcChunk7CombatScenario([string]$Scenario) { $Scenario-cin@('chunk7-two-pair-combat-rider-first','chunk7-two-pair-combat-mount-first') }
 function Get-KmcChunk7CombatRows([string]$Scenario) {
     if(-not(Test-KmcChunk7CombatScenario $Scenario)){throw 'Unknown native combat scenario.'}
     @($Scenario,'C7-combat-fixture','C7-combat-native-mounts','C7-combat-restored-mounts','C7-combat-native-orders','C7-combat-pair-a-full-activation',
       'C7-combat-pair-b-full-activation','C7-combat-tb-charge-refusal','C7-combat-refresh','C7-combat-r1-round-release','C7-combat-first-action-mount',
-      'C7-combat-native-pending-survivor','C7-combat-local-cleanup-failure','C7-combat-cleanup','C7-combat-runtime','C7-combat-interrupted')
+      'C7-combat-native-pending-survivor','C7-combat-local-cleanup-failure','C7-combat-permanent-horse-removal-refusal','C7-combat-registered-disable-local-failure','C7-combat-cleanup','C7-combat-runtime','C7-combat-interrupted')
 }
 function Get-KmcChunk7CombatRuntimeRows {
     @('chunk7-two-pair-combat-rider-first','chunk7-two-pair-combat-mount-first' | ForEach-Object { Get-KmcChunk7CombatRows $_ } | Select-Object -Unique)
@@ -87,6 +88,8 @@ function Assert-KmcChunk7CombatEvidence($Request,$Artifact,[string]$Status) {
         $r=[Array]::IndexOf($order,$ids[2*$i]);$m=[Array]::IndexOf($order,$ids[2*$i+1])
         if($r-lt0-or$m-lt0-or(($r-lt$m)-ne$riderFirst)){throw 'Actual native initiative order does not match selected arrangement.'}
     }
+    if($owned-and(Test-KmcChunk7OwnedPairsRegisteredDisable $Request)){Assert-KmcChunk7RegisteredDisableCombat $Request $o;return}
+    foreach($field in @('registeredDisable','removalRefusal')){if($null-ne$o.PSObject.Properties[$field]){throw 'Registered disable/removal evidence belongs only to its closed owner-seed selection.'}}
     $commands=[Collections.Generic.HashSet[long]]::new()
     # Owner-seed-derived combat restored both pairs mounted: only the R1 native Dismount is an input.
     $derived=$owned-and(Test-KmcChunk7OwnedPairsSeedDerivedCombat $Request)

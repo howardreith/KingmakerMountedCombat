@@ -200,7 +200,7 @@ namespace KingmakerMountedCombat.Diagnostics
         // accepted: the restored world and live registry are compared with the producer runtime.
         private void ObserveOwnerSeedDerivedCold()
         {
-            Require(request.OwnedPairs.IsOwnerSeedDerivedLoad && Cold && inherited != null && inherited.Bound && saved != null,
+            Require((request.OwnedPairs.IsOwnerSeedDerivedLoad || OwnerSeedLoadRefusalCase) && Cold && inherited != null && inherited.Bound && saved != null,
                 "Owner-seed-derived cold proof requires its bound producer custody and restored graph.");
             var boundary = inherited.OwnerSeedBoundary;
             var restored = inherited.VerifyRestoredOwnerSeedPairs(saved, world, controls.CapturePersistentSlots());

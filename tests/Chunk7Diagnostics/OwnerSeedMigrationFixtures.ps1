@@ -47,6 +47,7 @@ function New-KmcOwnerSeedCurrentFixture([string]$Checkpoint){
  $v=Copy-Value $parent;$r=$v.request;$o=$v.artifact.observations;$p=$parent.artifact.observations
  $parentRun=$parent.request.runId;$r.runId=$parentRun+'.current';$v.artifact.runId=$r.runId;$r.evidenceRoot=$r.evidenceRoot.Replace($parentRun,$r.runId);$r.persistenceCase=$Checkpoint;$o.checkpoint=$Checkpoint
  $r.ownedPairs.checkpointSourceRunId=$parentRun;$r.ownedPairs.checkpointSourceArtifactSha256='d'*64;$r.ownedPairs.expectedNativeWriteCount=0
+ $r.PSObject.Properties.Remove('schema2DerivationSha256')
  $r.persistenceLoad.internalName=$p.nativeWrite.nativeName;$r.persistenceLoad.fileName=Get-KmcChunk7OwnedOutputLeaf $parent.request $p;$r.persistenceLoad.sha256=$p.nativeWrite.sha256;$r.persistenceLoad.length=$p.nativeWrite.length
  $o.loadedDescriptor=Copy-Value $r.persistenceLoad;$o.loadedArchive=Copy-Value $p.nativeWrite.archive;$o.processId=$p.processId+1;$o|Add-Member loadedSourceSchema 3 -Force
  $world=if($Checkpoint-ceq'owned-schema1-current-manual'){$p.schema1Migration.resavedWorld}else{$p.schema2Migration.resavedWorld}

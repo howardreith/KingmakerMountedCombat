@@ -81,7 +81,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 removalFactsMounted = beforeControls.ExactFactCount;
                 var first = RecoveryArchive();
                 removalFirstPath = first.FolderName; removalFirstHash = Hash(removalFirstPath);
-                var read = NativeMountedSaveStorage.Read(first.Saver);
+                var read = ReadCurrentRemovalArchive(first.Saver, true);
                 Check(read.Kind == MountedSaveReadKind.Current && read.Data.Mounted &&
                     read.Data.Rider.Id == removalRiderId && read.Data.Mount.Id == removalMountId,
                     "P07-removal-first-archive-carries-the-pair");
@@ -89,7 +89,9 @@ namespace KingmakerMountedCombat.Diagnostics
                     ["ordinal"] = 1, ["path"] = removalFirstPath, ["sha256"] = removalFirstHash,
                     ["length"] = new FileInfo(removalFirstPath).Length, ["nativeType"] = first.Type.ToString(),
                     ["nativeCallback"] = callback, ["operation"] = first.OperationState.ToString(),
-                    ["snapshot"] = JObject.FromObject(read.Data, MountedSaveCodec.CreateSerializer()) });
+                    ["snapshot"] = JObject.FromObject(read.Data, MountedSaveCodec.CreateSerializer()),
+                    ["nativeSourceSchema"] = read.SourceSchema, ["snapshotProjection"] = RemovalArchiveObservation.ProjectionFormat,
+                    ["nativeArchive"] = JObject.FromObject(read.NativeArchive, MountedSaveCodec.CreateSerializer()) });
                 // A real permanent reference: the KMC Horse blueprint itself,
                 // spawned into the loaded world through the engine's own creator.
                 Check(horseCompanion.State == HorseCompanionBlueprintState.Registered && horseCompanion.HorseUnit != null &&
@@ -221,7 +223,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 Check(removal.CleanupScannedMembers > 0 && removal.CleanupReferenceHits.Count == 0,
                     "P07-cleanup-archive-members-carry-no-KMC-blueprint-identity");
                 var cleanup = game.SaveManager.Single(s => s.FolderName == removal.CleanupSavePath);
-                var read = NativeMountedSaveStorage.Read(cleanup.Saver);
+                var read = ReadCurrentRemovalArchive(cleanup.Saver, false);
                 Check(ReferenceEquals(cleanup, completion.Written) && cleanup.Name == MountedRemovalPreparation.CleanupSaveName && cleanup.OperationState == SaveInfo.StateType.None &&
                     cleanup.GameId == request.Fixture.Working.GameId &&
                     read.Kind == MountedSaveReadKind.Current && !read.Data.Mounted && read.Data.Rider == null && read.Data.Mount == null &&
@@ -239,7 +241,9 @@ namespace KingmakerMountedCombat.Diagnostics
                         ["length"] = new FileInfo(cleanup.FolderName).Length, ["nativeType"] = cleanup.Type.ToString(),
                         ["internalName"] = cleanup.Name, ["gameId"] = cleanup.GameId, ["area"] = cleanup.Area?.AssetGuidThreadSafe,
                         ["operation"] = cleanup.OperationState.ToString(), ["kmcMember"] = read.Kind.ToString(),
-                        ["snapshot"] = JObject.FromObject(read.Data, MountedSaveCodec.CreateSerializer()) },
+                        ["snapshot"] = JObject.FromObject(read.Data, MountedSaveCodec.CreateSerializer()),
+                    ["nativeSourceSchema"] = read.SourceSchema, ["snapshotProjection"] = RemovalArchiveObservation.ProjectionFormat,
+                    ["nativeArchive"] = JObject.FromObject(read.NativeArchive, MountedSaveCodec.CreateSerializer()) },
                     ["firstSha256"] = Hash(removalFirstPath) }));
                 // What the user does next: the exact registered disable, then
                 // re-enable and remount, so the shared continuation proves play.

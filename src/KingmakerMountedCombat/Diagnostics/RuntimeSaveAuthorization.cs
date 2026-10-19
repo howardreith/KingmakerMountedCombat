@@ -44,7 +44,7 @@ namespace KingmakerMountedCombat.Diagnostics
         public string Reason { get; }
     }
 
-    internal sealed class RuntimeSaveAuthorization
+    internal sealed partial class RuntimeSaveAuthorization
     {
         private const string ManualSaveType = "Manual";
         private readonly object sync = new object();
@@ -205,11 +205,14 @@ namespace KingmakerMountedCombat.Diagnostics
             }
         }
 
-        internal string ValidateLoadBeforeWorldReplacement(RuntimeSaveTarget target, string observedSaveRoot)
+        internal string ValidateLoadBeforeWorldReplacement(RuntimeSaveTarget target, string observedSaveRoot, string nativeEntry = null)
         {
             AuthorizationScope scope;
             lock (sync) { scope = activeScope; }
             if (scope == null) return null;
+            lock (sync)
+                if (loadRefusalProbe?.Armed == true)
+                    return loadRefusalProbe.ValidateEarly(target, observedSaveRoot, nativeEntry);
             // Read-only admission: the real LoadRoutine remains the counted
             // load boundary, and no previous-world cleanup has happened yet.
             return persistenceScope == null ?
@@ -448,6 +451,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 {
                     activeScope = null;
                     persistenceScope = null;
+                    loadRefusalProbe = null;
                     oneShotWorkingWriteSuppressionArmed = false;
                 }
             }

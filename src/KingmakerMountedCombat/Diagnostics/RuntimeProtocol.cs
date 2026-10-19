@@ -146,6 +146,9 @@ namespace KingmakerMountedCombat.Diagnostics
         public RuntimeSaveDescriptor PersistenceLoad { get; set; }
         public RuntimeSaveDescriptor PersistenceAlternate { get; set; }
         public string Schema1DerivationSha256 { get; set; }
+        public string Schema2DerivationSha256 { get; set; }
+        public string LoadRefusalDerivationSha256 { get; set; }
+        public bool ShouldSerializeLoadRefusalDerivationSha256() => LoadRefusalDerivationSha256 != null;
         public RuntimeAreaTransitionTarget PersistenceAreaTarget { get; set; }
         public RuntimeAreaTransitionTarget[] PersistenceReplayTargets { get; set; }
         public Chunk7OrdinaryAcquisitionSelection OrdinaryAcquisition { get; set; }
@@ -220,7 +223,7 @@ namespace KingmakerMountedCombat.Diagnostics
         internal static bool IsChunk7PersistenceCase(string value) => Array.IndexOf(new[] {
             "multi-exploration-manual", "multi-exploration-quick", "multi-exploration-auto", "multi-rt-debt-manual",
             "multi-tb-debt-manual", "zero-mounted-tb-retained-manual", "legacy-mounted-pending-tb-manual", "multi-area-autosave", "legacy-schema1-resave-manual", "owned-schema1-manual", "owned-schema1-resave-manual", "owned-schema1-current-manual", "owned-schema2-pending-current-manual", "multi-exploration-three-loads-manual", "multi-exploration-three-area-transfers-manual",
-            "multi-nonselected-mount-unsettled-manual", "multi-owned-worker-cancel-manual" }, value) >= 0;
+            "multi-nonselected-mount-unsettled-manual", "multi-owned-worker-cancel-manual", "multi-malformed-refusal-manual", "multi-future-refusal-manual" }, value) >= 0;
 
         internal string ExpectedChunk7ArchiveArea => PersistenceCase == "multi-area-autosave" ? PersistenceAreaTarget?.Area : SelectedChunk7Fixture?.Area;
         internal string ExpectedNativeLoadType => (Scenario == Chunk7AcquiredManualSelection.Scenario || Scenario == Chunk7ManualSeedSelection.Scenario || Scenario == Chunk7BootstrapInventorySelection.Scenario || Scenario == Chunk7SmallCalibrationSelection.Scenario && SmallCalibration?.UsesManualField != true || Scenario == Chunk7OrdinaryFieldSelection.Scenario) ? "Auto" : SelectedChunk7Scenario == "chunk7-persistence-load" && PersistenceLoad != null && IsChunk7PersistenceCase(PersistenceCase) ?
@@ -438,6 +441,8 @@ namespace KingmakerMountedCombat.Diagnostics
             if (PersistenceCase != null) errors.Add("No-save requests cannot select a persistence case.");
             if (PersistenceReplayTargets != null) errors.Add("No-save requests cannot declare repeated native area targets.");
             if (Schema1DerivationSha256 != null) errors.Add("No-save requests cannot select schema-1 derivative provenance.");
+            if (Schema2DerivationSha256 != null) errors.Add("No-save requests cannot select schema-2 derivative provenance.");
+            if (LoadRefusalDerivationSha256 != null) errors.Add("No-save requests cannot select load-refusal derivative provenance.");
             if (SaveAccessAllowed)
             {
                 errors.Add("Schema v1 never authorizes save access.");
@@ -498,11 +503,19 @@ namespace KingmakerMountedCombat.Diagnostics
             if (Chunk7OwnedPairsSelection.CurrentMigrationCheckpoint(PersistenceCase) &&
                 (Scenario != Chunk7OwnedPairsSelection.Scenario || OwnedPairs?.IsOwnerSeedCheckpointLoad != true))
                 errors.Add("Current-format migration continuation requires its exact owner-seed checkpoint cold consumer.");
+            var loadRefusal = Scenario == Chunk7OwnedPairsSelection.Scenario && OwnedPairs?.IsOwnerSeedLoadRefusal == true;
+            if (Chunk7OwnedPairsSelection.LoadRefusalCheckpoint(PersistenceCase) && !loadRefusal)
+                errors.Add("Load-refusal checkpoints require their exact owner-seed load-refusal selection.");
+            if (loadRefusal ? LoadRefusalDerivationSha256 == null || !Regex.IsMatch(LoadRefusalDerivationSha256, "^[0-9a-f]{64}$", RegexOptions.CultureInvariant) : LoadRefusalDerivationSha256 != null)
+                errors.Add("Load-refusal derivative provenance is exact and exclusive to its selected diagnostic.");
             var schema1 = Scenario == "chunk7-persistence-load" && PersistenceCase == "legacy-schema1-resave-manual" || ownedSchema1;
             if (PersistenceCase == "legacy-schema1-resave-manual" && !schema1)
                 errors.Add("Schema-1 resave is a cold-load-only case.");
             if (schema1 ? Schema1DerivationSha256 == null || !Regex.IsMatch(Schema1DerivationSha256, "^[0-9a-f]{64}$", RegexOptions.CultureInvariant) : Schema1DerivationSha256 != null)
                 errors.Add("Schema-1 derivative provenance must be exact and is exclusive to its cold-load case.");
+            var ownedSchema2 = OwnedPairs?.IsOwnerSeedCheckpointLoad == true && PersistenceCase == "legacy-mounted-pending-tb-manual";
+            if (ownedSchema2 ? Schema2DerivationSha256 == null || !Regex.IsMatch(Schema2DerivationSha256, "^[0-9a-f]{64}$", RegexOptions.CultureInvariant) : Schema2DerivationSha256 != null)
+                errors.Add("Schema-2 derivative provenance must be exact and exclusive to its owner-seed cold load.");
             var p07 = Scenario == "persistence-p07-save" || Scenario == "persistence-p07-load";
             var p06 = Scenario == "persistence-p06-load";
             var p03 = Scenario == "persistence-p03-save" || Scenario == "persistence-p03-load";
@@ -785,11 +798,16 @@ namespace KingmakerMountedCombat.Diagnostics
             else if (PersistenceLoad != null) errors.Add("This scenario cannot select a persistence archive.");
             if (chunk7 && PersistenceCase == "multi-area-autosave")
             {
+                if (OwnedPairs?.IsOwnerSeedCheckpointSave == true && PersistenceLoad?.Area != OwnedPairs.SourceArea)
+                    errors.Add("Owner-seed controlled area entry must load the exact original Spider Manual before transfer.");
                 if (PersistenceAreaTarget == null) errors.Add("Chunk 7 area autosave requires its exact native destination.");
                 else
                 {
                     errors.AddRange(PersistenceAreaTarget.Validate("persistenceAreaTarget", OwnedPairs != null ? OwnedPairs.SourceArea : Fixture?.Working?.Area));
                     if (PersistenceAreaTarget.AutoSaveMode != "AfterEntry") errors.Add("Chunk 7 area autosave requires AfterEntry.");
+                    if ((OwnedPairs?.IsOwnerSeedCheckpointSave == true || OwnedPairs?.IsOwnerSeedCheckpointLoad == true) &&
+                        (PersistenceAreaTarget.EnterPoint != "fd225a93828d26449803a4847947f8c1" || PersistenceAreaTarget.Area != "ead426a6c23d39548a670ee515d77df4"))
+                        errors.Add("Owner-seed area continuity selects only its disclosed visited stock destination.");
                 }
             }
             else if (IsCrossAreaFamilyCase(PersistenceCase))
@@ -807,7 +825,21 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             else if (PersistenceAreaTarget != null)
                 errors.Add("Only an exact cross-area transfer may declare a native destination.");
-            if (p06 || Scenario == "persistence-p05-load" && PersistenceCase == "alternating")
+            if (loadRefusal)
+            {
+                if (PersistenceAlternate == null) errors.Add("Load-refusal requires its one immutable metadata-only alternate.");
+                else
+                {
+                    errors.AddRange(PersistenceAlternate.Validate("persistenceAlternate", Chunk7OwnedPairsSelection.OwnerSeedManualName,
+                        "^Manual_812_KMC_C7_SEED_REFUSAL\\.zks$"));
+                    if (PersistenceLoad == null || PersistenceAlternate.Sha256 == PersistenceLoad.Sha256 ||
+                        PersistenceAlternate.FileName == PersistenceLoad.FileName || PersistenceAlternate.GameId != PersistenceLoad.GameId ||
+                        PersistenceAlternate.GameName != PersistenceLoad.GameName || PersistenceAlternate.Area != PersistenceLoad.Area ||
+                        PersistenceAlternate.Sha256 == OwnedPairs.SeedSha256 || Schema1DerivationSha256 != null)
+                        errors.Add("Load-refusal alternate must preserve the native campaign/header and differ only in pinned disposable bytes.");
+                }
+            }
+            else if (p06 || Scenario == "persistence-p05-load" && PersistenceCase == "alternating")
             {
                 if (PersistenceAlternate == null) errors.Add("Alternating native loads require the second exact archive.");
                 else
@@ -1081,7 +1113,7 @@ namespace KingmakerMountedCombat.Diagnostics
             "chunk7-two-pair-native-life-cleanup",
             "C7-combat-fixture", "C7-combat-native-mounts", "C7-combat-restored-mounts", "C7-combat-native-orders", "C7-combat-pair-a-full-activation",
             "C7-combat-pair-b-full-activation", "C7-combat-tb-charge-refusal", "C7-combat-refresh", "C7-combat-r1-round-release",
-            "C7-combat-native-pending-survivor", "C7-combat-local-cleanup-failure", "C7-combat-cleanup", "C7-combat-runtime", "C7-combat-interrupted",
+            "C7-combat-native-pending-survivor", "C7-combat-local-cleanup-failure", "C7-combat-permanent-horse-removal-refusal", "C7-combat-registered-disable-local-failure", "C7-combat-cleanup", "C7-combat-runtime", "C7-combat-interrupted",
             "C7-life-safe-native-damage", "C7-life-native-callback", "C7-life-healthy-neighbour", "C7-life-independent-survivor",
             "C7-rt-charge-default-off", "C7-rt-concurrent-primary", "C7-rt-companion-native-action", "C7-rt-player-click-integrity", "C7-combat-first-action-mount", "C7-rt-local-cancel", "C7-rt-unmounted-native-control",
             "C7-rt-native-casting", "C7-rt-casting-neighbour", "C7-rt-charge-native-success", "C7-rt-charge-neighbour-movement", "C7-rt-charge-native-cancel",
@@ -1609,7 +1641,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     ? OwnerSeedDerivedBasis : null;
             // The owner-seed setup and cold-consumer kinds never spawn a combat target; the checkpoint
             // consumer binds its producer's saved target read-only, and exploration checkpoints have none.
-            if (selection.OwnerSeedSetup || selection.IsOwnerSeedDerivedLoad || selection.IsOwnerSeedCheckpointSave || selection.IsOwnerSeedCheckpointLoad) return null;
+            if (selection.OwnerSeedSetup || selection.IsOwnerSeedDerivedLoad || selection.IsOwnerSeedCheckpointSave || selection.IsOwnerSeedCheckpointLoad || selection.IsOwnerSeedLoadRefusal) return null;
             return AcquiredOwnedBasis;
         }
     }

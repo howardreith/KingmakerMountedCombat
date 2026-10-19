@@ -66,7 +66,7 @@ namespace KingmakerMountedCombat.Diagnostics
             Require(!bound && !released && combatCold == (selection.Cold && request.PersistenceCase != "multi-exploration-manual" &&
                 request.PersistenceCase != "multi-exploration-quick" && request.PersistenceCase != "multi-exploration-auto" && request.PersistenceCase != "multi-area-autosave" &&
                 !Chunk7OwnedPairsSelection.RepeatedCheckpoint(request.PersistenceCase) && !Chunk7OwnedPairsSelection.OwnedSchema1Cold(request.PersistenceCase) &&
-                request.PersistenceCase != "owned-schema1-current-manual"),
+                request.PersistenceCase != "owned-schema1-current-manual" && !selection.IsOwnerSeedLoadRefusal),
                 "Inherited fixture is already bound or its cold mode differs.");
         }
         internal void Bind(bool combatCold)
@@ -180,12 +180,14 @@ namespace KingmakerMountedCombat.Diagnostics
         private void ReadOwnerSeedDerivedSource(JObject artifact)
         {
             var input = request.PersistenceLoad; var manual = observations?["ownerSeedManual"] as JObject; var write = observations?["nativeWrite"] as JObject;
+            var originalArea = selection.IsOwnerSeedCheckpointLoad && request.PersistenceCase == "multi-area-autosave" ? selection.SourceArea : input.Area;
+            var crossCandidate = selection.CrossCandidateAllowedFor(request.PersistenceCase);
             var sameCandidate = (string)artifact["commit"] == request.Commit && (string)artifact["dllSha256"] == request.DllSha256 && (string)artifact["dllMvid"] == request.DllMvid;
             var recordedCandidate = System.Text.RegularExpressions.Regex.IsMatch((string)artifact["commit"] ?? "", "^[a-f0-9]{40}$") &&
                 System.Text.RegularExpressions.Regex.IsMatch((string)artifact["dllSha256"] ?? "", "^[a-f0-9]{64}$") && Guid.TryParse((string)artifact["dllMvid"], out var producerMvid) && producerMvid != Guid.Empty;
             Require((string)artifact["scenario"] == Chunk7OwnedPairsSelection.Scenario && (string)artifact["evidenceKind"] == Chunk7WorldScenarioEngine.EvidenceKind &&
                 (string)artifact["runId"] == selection.SourceRunId && (string)artifact["status"] == "PASS" && artifact["errors"] is JArray errors && errors.Count == 0 &&
-                (selection.CrossCandidateAllowed ? recordedCandidate : sameCandidate) &&
+                (crossCandidate ? recordedCandidate : sameCandidate) &&
                 // The derived Manual's KMC metadata must be the current writer schema.
                 write?["sourceSchema"]?.Type == JTokenType.Integer && (int)write["sourceSchema"] == NativeMountedSaveFormat.SelectedWriterSchema &&
                 write["archive"]?["SchemaVersion"]?.Type == JTokenType.Integer && (int)write["archive"]["SchemaVersion"] == MountedArchiveData.Schema &&
@@ -199,7 +201,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 manual["seedCopyUnchanged"]?.Type == JTokenType.Boolean && (bool)manual["seedCopyUnchanged"] &&
                 (string)write["sha256"] == selection.SourceArchiveSha256 && (selection.IsOwnerSeedCheckpointLoad || (string)write["fileName"] == input.FileName) &&
                 (string)write["nativeName"] == Chunk7OwnedPairsSelection.OwnerSeedManualName && (string)write["nativeType"] == "Manual" &&
-                (string)write["gameId"] == input.GameId && (string)write["gameName"] == input.GameName && (string)write["area"] == input.Area &&
+                (string)write["gameId"] == input.GameId && (string)write["gameName"] == input.GameName && (string)write["area"] == originalArea &&
                 write["archive"] is JObject && manual["boundary"] is JObject && manual["processId"]?.Type == JTokenType.Integer,
                 "Staged source lacks its complete successful same-candidate owner-seed-derived Manual identity.");
             // The checkpoint consumer loads the checkpoint producer's output, not the Manual; its bytes are pinned by the runner.
@@ -208,7 +210,7 @@ namespace KingmakerMountedCombat.Diagnostics
             sourceWorld = manual["fieldWorld"] as JObject;
             var owners = manual["twoOwners"] as JArray;
             Require(sourceWorld != null && owners != null && owners.Count == 2 && owners.All(row => row is JObject) &&
-                (string)sourceWorld["gameId"] == input.GameId && (string)sourceWorld["area"] == input.Area &&
+                (string)sourceWorld["gameId"] == input.GameId && (string)sourceWorld["area"] == originalArea &&
                 (string)owners[0]["actorId"] == selection.RiderAId && (string)owners[0]["petId"] == selection.MountAId &&
                 (string)owners[1]["actorId"] == selection.RiderBId && (string)owners[1]["petId"] == selection.MountBId,
                 "The owner-seed-derived source role order differs from the explicit intake.");
@@ -218,12 +220,12 @@ namespace KingmakerMountedCombat.Diagnostics
                 "Owner-seed-derived source lacks unchanged native class/XP/funds evidence.");
             OwnerSeedBoundary = (JObject)manual["boundary"]; OwnerSeedArchive = (JObject)write["archive"]; OwnerSeedProcessId = (int)manual["processId"];
             OwnerSeedCandidates = new JObject { ["contract"] = "owner-seed-derived-candidate-identity-v1", ["sameCandidate"] = sameCandidate,
-                ["crossCandidateAllowed"] = selection.CrossCandidateAllowed,
+                ["crossCandidateAllowed"] = crossCandidate,
                 ["producer"] = new JObject { ["runId"] = selection.SourceRunId, ["commit"] = artifact["commit"], ["dllSha256"] = artifact["dllSha256"], ["dllMvid"] = artifact["dllMvid"] },
                 ["current"] = new JObject { ["runId"] = request.RunId, ["commit"] = request.Commit, ["dllSha256"] = request.DllSha256, ["dllMvid"] = request.DllMvid },
                 // Checkpoint* is the accepted consumer (combat, checkpoint producer) or the checkpoint producer (its consumer).
-                ["consumerRunId"] = selection.CrossCandidateAllowed ? selection.CheckpointSourceRunId : null,
-                ["consumerArtifactSha256"] = selection.CrossCandidateAllowed ? selection.CheckpointSourceArtifactSha256 : null,
+                ["consumerRunId"] = crossCandidate ? selection.CheckpointSourceRunId : null,
+                ["consumerArtifactSha256"] = crossCandidate ? selection.CheckpointSourceArtifactSha256 : null,
                 ["manualSchema"] = (int)write["archive"]["SchemaVersion"], ["currentWriterSchema"] = NativeMountedSaveFormat.SelectedWriterSchema };
         }
         // The restored two-pair check shared by the cold consumer and the mounted-start combat

@@ -116,6 +116,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 restoration.Install();
             }
             InstallReplayObservation();
+            if (OwnerSeedLoadRefusalCase) { loadRefusalObserver = new Chunk7OwnerSeedLoadProbe(); loadRefusalObserver.Install(); }
             mode = new NativeModeTransitionProbe(TurnBasedCase); mode.DispatchTemporaryValueIfRequired();
             beforeLoad = true;
         }
@@ -153,6 +154,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (UpdateSaveBoundary()) return;
                 if (UpdateRepeatedWorld()) return;
                 if (UpdateAreaAutosave()) return;
+                if (UpdateLoadRefusal()) return;
                 if (LoadingProcess.Instance.IsLoadingInProcess || LoadingProcess.Instance.QueuedNames.Any()) return;
                 RequireNativeWorld();
                 if (!CombatCase) Require(!Game.Instance.Player.IsInCombat, "Exploration persistence fixture unexpectedly entered combat.");
@@ -166,6 +168,7 @@ namespace KingmakerMountedCombat.Diagnostics
                             if (Schema1ResaveCase) { ObserveSchema1Cold(); RequestSave(); Next(40); break; }
                             if (OwnedSchema1CurrentCase) { ObserveOwnedSchema1Current(); Next(42); break; }
                             ObserveCold();
+                            if (OwnerSeedLoadRefusalCase) { BeginLoadRefusal(); Next(80); break; }
                             if (OwnedSchema2CurrentCase) ObserveCurrentMigrationParent();
                             if (Schema2ResaveCase) { RequestSave(); Next(41); break; }
                             if (CombatCase) { BeginCombatContinuation(); Next(20); } else Next(10);
@@ -343,8 +346,9 @@ namespace KingmakerMountedCombat.Diagnostics
             Require(restoration != null && restoration.Complete && restoration.Count("prepare-before", ids) == 0 &&
                 restoration.Count("round-before", ids) == 0 && restoration.Count("restore-debt-before", ids) == 4 &&
                 restoration.Count("restore-debt-after", ids) == 4, "Cold native actor restoration invented preparation or lost its complete observer window.");
-            AssertDebt(saved); evidence["coldRestoration"] = restoration.Capture(); restoration.Dispose(); restoration = null;
-            if (request.OwnedPairs?.IsOwnerSeedDerivedLoad == true) ObserveOwnerSeedDerivedCold();
+            AssertDebt(saved); evidence["coldRestoration"] = restoration.Capture();
+            if (!OwnerSeedLoadRefusalCase) { restoration.Dispose(); restoration = null; }
+            if (request.OwnedPairs?.IsOwnerSeedDerivedLoad == true || OwnerSeedLoadRefusalCase) ObserveOwnerSeedDerivedCold();
             evidence["loadedArchive"] = JObject.FromObject(saved, MountedSaveCodec.CreateSerializer());
             var descriptor = request.PersistenceLoad;
             evidence["loadedDescriptor"] = new JObject { ["internalName"] = descriptor.InternalName, ["fileName"] = descriptor.FileName,
@@ -613,6 +617,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 return;
             }
             var observersSettled = TryCleanup("save boundary observation", EndSaveBoundaryObservation);
+            observersSettled &= TryCleanup("load-refusal observation", EndLoadRefusalObservation);
             observersSettled &= TryCleanup("area observation", EndAreaObservation);
             observersSettled &= TryCleanup("repeated world observation", EndReplayObservation);
             observersSettled &= TryCleanup("cold restoration observer", () =>

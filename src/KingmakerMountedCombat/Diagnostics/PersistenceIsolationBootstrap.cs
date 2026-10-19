@@ -232,7 +232,7 @@ namespace KingmakerMountedCombat.Diagnostics
                             InternalName = "KMC_P05_POST", SaveType = "Manual", Area = fixture.Area, Writable = true });
                     }
                 }
-                if (request.Scenario == "persistence-p06-load")
+                if (request.Scenario == "persistence-p06-load" || request.OwnedPairs?.IsOwnerSeedLoadRefusal == true)
                 {
                     var variant = request.PersistenceAlternate;
                     // The foreign-header derivative is campaign B's own archive: its
@@ -287,7 +287,7 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             if (!game.SaveManager.AreSavesUpToDate) return false;
             var saves = game.SaveManager.ToArray();
-            var expectedCount = request.Scenario == "persistence-p06-load" || request.Scenario == "persistence-p05-load" && request.PersistenceCase == "alternating" ? 2 : 1;
+            var expectedCount = request.Scenario == "persistence-p06-load" || request.OwnedPairs?.IsOwnerSeedLoadRefusal == true || request.Scenario == "persistence-p05-load" && request.PersistenceCase == "alternating" ? 2 : 1;
             if (saves.Length != expectedCount || saves.Any(save => (request.OwnedPairs != null || request.Scenario == Chunk7AcquiredManualSelection.Scenario || request.Scenario == Chunk7NativeBootstrapSelection.Scenario || request.Scenario == Chunk7AssistedFixtureSelection.Scenario
                 ? authority.ValidateArchiveIdentity(Project(save), game.SaveManager.SavePath)
                 : authority.Validate(RuntimeSaveOperation.Load, Project(save), game.SaveManager.SavePath)) != null))
@@ -304,7 +304,7 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             if (request.OwnedPairs != null)
             {
-                var source = saves.Single();
+                var source = saves.Single(save => save.FileName == request.PersistenceLoad.FileName);
                 if (source.Type.ToString() != request.ExpectedNativeLoadType || source.OperationState != SaveInfo.StateType.None ||
                     !source.IsActuallySaved || !source.HasFileOnDisk || NativePersistenceIsolation.NativeSlotRotationEnabled || Game.Instance != game)
                     throw new InvalidOperationException("Inherited two-owner native inventory is not settled before campaign admission.");

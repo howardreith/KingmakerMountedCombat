@@ -222,7 +222,7 @@ function New-SeedCombatSource([string]$Case='owner-seed-combat-rider-first'){
  [pscustomobject]@{selection=$s;fixture=$c.fixture;candidate=$c.candidate;producer=$c.producer;consumer=$consumer;persistenceCase=$null}
 }
 function Qualify-Combat($C){Get-KmcChunk7OwnedPairsSource $C.selection $C.persistenceCase $C.fixture $C.candidate}
-foreach($combatCase in @('owner-seed-realtime-core','owner-seed-combat-rider-first','owner-seed-combat-mount-first')){
+foreach($combatCase in @('owner-seed-realtime-core','owner-seed-combat-rider-first','owner-seed-combat-mount-first','owner-seed-combat-disable')){
  Check ('owner-seed-derived combat qualifies the producer and the accepted consumer '+$combatCase) {$c=New-SeedCombatSource $combatCase;$v=Qualify-Combat $c
   if($v.ownerSeedDerived-ne$true-or$v.descriptor.sha256-cne('5'*64)-or$v.artifactSha256-cne('6'*64)-or$v.consumerRunId-cne'synthetic-owner-seed-cold'-or$v.consumerArtifactSha256-cne('7'*64)-or$v.candidates.sameCandidate-ne$true-or$v.candidates.producer.commit-cne$c.producer.request.commit-or$v.candidates.consumer.dllSha256-cne$c.consumer.request.dllSha256){throw 'Combat source lost the producer/consumer chain or the candidate fact'}
   foreach($gate in @('owner-seed-registry-master-intake-header','strict-producer-world-artifact','strict-checkpoint-artifact','consumer-cold-proof')){if(-not$script:calls.Contains($gate)){throw ('combat source omitted required gate '+$gate)}}}
@@ -260,6 +260,8 @@ $combatFaults=[ordered]@{
  'TB carries a companion'={param($c)$c.selection|Add-Member -NotePropertyName companionId -NotePropertyValue $script:companion}
 }
 foreach($combatFault in $combatFaults.Keys){Check ('owner-seed-derived combat refuses '+$combatFault) {$c=New-SeedCombatSource;&$combatFaults[$combatFault] $c;[void](Qualify-Combat $c)} $true}
+foreach($disableFault in @('missing consumer receipt','consumer FAIL','consumer wrote','consumer second load','combat selects a checkpoint','TB carries a companion')){Check ('registered disable source refuses '+$disableFault) {$c=New-SeedCombatSource 'owner-seed-combat-disable';&$combatFaults[$disableFault] $c;[void](Qualify-Combat $c)} $true}
+Check 'registered disable source retains exact zero-write selection' {$c=New-SeedCombatSource 'owner-seed-combat-disable';$c.selection.expectedNativeWriteCount=1;[void](Qualify-Combat $c)} $true
 Check 'owner-seed-derived RT refuses a missing companion' {$c=New-SeedCombatSource 'owner-seed-realtime-core';$c.selection.PSObject.Properties.Remove('companionId');[void](Qualify-Combat $c)} $true
 Check 'owner-seed-derived RT refuses a pair actor as companion' {$c=New-SeedCombatSource 'owner-seed-realtime-core';$c.selection.companionId=$c.selection.mountBId;[void](Qualify-Combat $c)} $true
 # Owner-seed checkpoint pair (Directive 4). The producer reuses the derived-combat chain (Manual
@@ -347,6 +349,39 @@ $checkpointLoadFaults=[ordered]@{
  'an area target'={param($c)$c|Add-Member -NotePropertyName areaTarget -NotePropertyValue $true}
 }
 foreach($fault in $checkpointLoadFaults.Keys){Check ('owner-seed checkpoint consumer refuses '+$fault) {$c=New-SeedCheckpointLoadSource;&$checkpointLoadFaults[$fault] $c;$area=if($null-ne$c.PSObject.Properties['areaTarget']){[pscustomobject]@{enterPoint=('e'*32);area=('f'*32);autoSaveMode='AfterEntry'}}else{$null};[void](Get-KmcChunk7OwnedPairsSource $c.selection $c.persistenceCase $c.fixture $c.candidate $area)} $true}
+# The controlled owner-seed cross-entry retains the original Manual lineage,
+# and its cold child consumes only the producer's genuine destination Auto.
+function New-SeedAreaSource([bool]$Cold){
+ $c=if($Cold){New-SeedCheckpointLoadSource 'multi-exploration-auto'}else{New-SeedCheckpointSaveSource 'multi-exploration-auto'}
+ $c.persistenceCase='multi-area-autosave';$c.selection|Add-Member sourceArea 'b10e86516b6437d45a629931c30936fe'
+ $t=[pscustomobject]@{enterPoint='fd225a93828d26449803a4847947f8c1';area='ead426a6c23d39548a670ee515d77df4';autoSaveMode='AfterEntry'};$c|Add-Member areaTarget $t
+ if($Cold){$r=$c.checkpoint.request;$r.persistenceCase=$c.persistenceCase;$c.checkpoint.owner.persistenceCase=$c.persistenceCase;$r.ownedPairs|Add-Member sourceArea $c.selection.sourceArea;$r|Add-Member persistenceAreaTarget ($t|ConvertTo-Json|ConvertFrom-Json);$c.checkpoint.artifact.observations.nativeWrite.archive.AreaId=$t.area;$c|Add-Member checkpointProfile (Add-AreaProfile $c.checkpoint)}
+ return $c
+}
+foreach($cold in @($false,$true)){Check ('owner-seed controlled source and actual destination Auto '+$cold){$c=New-SeedAreaSource $cold;$v=Get-KmcChunk7OwnedPairsSource $c.selection $c.persistenceCase $c.fixture $c.candidate $c.areaTarget
+ if($v.descriptor.area-cne$(if($cold){$c.areaTarget.area}else{$c.selection.sourceArea})-or$v.descriptor.fileName-cne$(if($cold){'Auto_1.zks'}else{'Manual_303_KMC_C7_SEED_WORLD.zks'})-or$v.artifactSha256-cne('6'*64)){throw 'Controlled entry substituted source, destination or original Manual lineage.'}
+ foreach($gate in @('owner-seed-registry-master-intake-header','strict-manifest','strict-producer-world-artifact','strict-checkpoint-artifact','consumer-cold-proof')){if(-not$script:calls.Contains($gate)){throw ('Controlled entry skipped required lineage/artifact gate '+$gate)}}}}
+$seedAreaFaults=[ordered]@{
+ 'source area override'={param($c)$c.selection.sourceArea='e'*32}
+ 'destination entry override'={param($c)$c.areaTarget.enterPoint='e'*32}
+ 'destination area override'={param($c)$c.areaTarget.area='f'*32}
+ 'before exit mode'={param($c)$c.areaTarget.autoSaveMode='BeforeExit'}
+ 'target missing'={param($c)$c.areaTarget=$null}
+ 'parent original area override'={param($c)$c.checkpoint.request.ownedPairs.sourceArea='d'*32}
+ 'parent entry override'={param($c)$c.checkpoint.request.persistenceAreaTarget.enterPoint='c'*32}
+ 'parent area override'={param($c)$c.checkpoint.request.persistenceAreaTarget.area='a'*32}
+ 'native Auto still source area'={param($c)$c.checkpoint.artifact.observations.nativeWrite.archive.AreaId=$c.selection.sourceArea}
+ 'profile bytes unrestored'={param($c)$c.checkpointProfile.profileBytesRestoredExactly=$false}
+ 'profile accepted cache change'={param($c)$c.checkpointProfile.acceptedNativeCacheChanges=@('changed')}
+ 'profile receipt drifts'={param($c)$script:drift=Join-Path $c.checkpoint.root 'profile-cache-changes.json'}
+ 'producer had second load'={param($c)$c.checkpoint.game.loadRequestCount=2;$c.checkpoint.game.workingLoadRequestCount=2}
+ 'producer had second write'={param($c)$c.checkpoint.game.saveRequestCount=2;$c.checkpoint.game.workingSaveRequestCount=2}
+ 'producer artifact rejected'={param($c)$script:failure='strict-checkpoint-artifact'}
+}
+foreach($m in $seedAreaFaults.GetEnumerator()){Check ('owner-seed controlled source refuses '+$m.Key){$c=New-SeedAreaSource $true;&$m.Value $c;[void](Get-KmcChunk7OwnedPairsSource $c.selection $c.persistenceCase $c.fixture $c.candidate $c.areaTarget)} $true}
+Check 'owner-seed three-load source admits original Manual from its recorded prior candidate' {$c=New-SeedDerivedSource;$c.persistenceCase='multi-exploration-three-loads-manual';$c.selection.expectedNativeLoadCount=3;$c.candidate.commit='f'*40;$c.candidate.dllSha256='f'*64;$c.candidate.dllMvid='ffffffff-ffff-4fff-8fff-ffffffffffff';$v=Get-KmcChunk7OwnedPairsSource $c.selection $c.persistenceCase $c.fixture $c.candidate
+ if($v.descriptor.fileName-cne'Manual_303_KMC_C7_SEED_WORLD.zks'-or$v.descriptor.sha256-cne$c.selection.sourceArchiveSha256-or$c.producer.request.commit-ceq$c.candidate.commit){throw 'Repeated load source changed native Manual or relabelled producer candidate.'};foreach($gate in @('owner-seed-registry-master-intake-header','strict-producer-world-artifact','strict-manifest')){if(-not$script:calls.Contains($gate)){throw ('Repeated load omitted source gate '+$gate)}}}
+foreach($fault in @('one-load','four-loads','write','checkpoint-parent','area-transfer-family','wrong-input-pin','source-wrote-twice','source-failed','source-unrestored','source-candidate-mismatch')){Check ('owner-seed three-load source refuses '+$fault){$c=New-SeedDerivedSource;$c.persistenceCase='multi-exploration-three-loads-manual';$c.selection.expectedNativeLoadCount=3;switch($fault){'one-load'{$c.selection.expectedNativeLoadCount=1};'four-loads'{$c.selection.expectedNativeLoadCount=4};'write'{$c.selection.expectedNativeWriteCount=1};'checkpoint-parent'{$c.selection|Add-Member checkpointSourceRunId 'unexpected-parent';$c.selection|Add-Member checkpointSourceArtifactSha256 ('8'*64)};'area-transfer-family'{$c.persistenceCase='multi-exploration-three-area-transfers-manual'};'wrong-input-pin'{$c.selection.sourceArchiveSha256='e'*64};'source-wrote-twice'{$c.producer.game.saveRequestCount=2;$c.producer.game.workingSaveRequestCount=2};'source-failed'{$c.producer.result.status='FAIL'};'source-unrestored'{$c.producer.result.modsRestored=$false};'source-candidate-mismatch'{$c.producer.result.dllSha256='f'*64}};[void](Get-KmcChunk7OwnedPairsSource $c.selection $c.persistenceCase $c.fixture $c.candidate)} $true}
 foreach($checkpointCase in @('multi-nonselected-mount-unsettled-manual','multi-owned-worker-cancel-manual')){
  Check ('owner-seed boundary producer qualifies its exact Manual lineage '+$checkpointCase){$c=New-SeedCheckpointSaveSource $checkpointCase;$v=Qualify-Combat $c;if($v.descriptor.internalName-cne'KMC_C7_SEED_WORLD'-or$v.consumerRunId-cne'synthetic-owner-seed-cold'){throw 'Save boundary changed its accepted Manual/cold lineage.'}}
  Check ('owner-seed boundary cold selection remains refused '+$checkpointCase){$c=New-SeedCheckpointSaveSource $checkpointCase;$c.selection.case='owner-seed-checkpoint-load';$c.selection.expectedNativeWriteCount=0;[void](Qualify-Combat $c)} $true
@@ -361,10 +396,12 @@ Check 'owner-seed historical schema1 intake resolves its exact native one-owner 
 . (Join-Path $ReaderDirectory 'Chunk7OwnedSchema1Fixtures.ps1')
 function Assert-KmcChunk7OwnerSeedCheckpointColdSource($Request,$Producer,$Cold){Boundary 'historical-native-cold-and-resave';if($Request.persistenceCase-cnotin@('owned-schema1-resave-manual','legacy-mounted-pending-tb-manual')-or$Cold.observations.cold-ne$true-or$Cold.observations.nativeWrite.sourceSchema-ne3){throw 'Historical cold proof bound incorrectly.'}}
 function Assert-KmcOwnedSchema1ColdSource($Request,$Source,$Artifact){Boundary 'schema1-actual-derivation-qualified';if($Request.persistenceLoad.sha256-ceq$Source.descriptor.sha256-or$Request.schema1DerivationSha256-cne('a'*64)){throw 'Schema1 historical input is not its receipted derivative.'}}
+function Assert-KmcOwnedSchema2ColdSource($Request,$Source,$Artifact){Boundary 'schema2-actual-derivation-qualified';if($Request.persistenceLoad.sha256-ceq$Source.descriptor.sha256-or$Request.schema2DerivationSha256-cne('a'*64)){throw 'Schema2 historical input is not its receipted derivative.'}}
 function New-CurrentSource([string]$Case){
  $historical=Get-KmcChunk7OwnerSeedCurrentParentCase $Case;$c=New-SeedCheckpointLoadSource $historical;$original=Qualify-Combat $c
  $pr=$c.checkpoint.request|ConvertTo-Json -Depth 30|ConvertFrom-Json;$pr.runId='synthetic-current-parent-'+[Guid]::NewGuid().ToString('N');$pr.ownedPairs=$c.selection|ConvertTo-Json -Depth 20|ConvertFrom-Json;$pr.persistenceCase=$historical;$pr.persistenceLoad=$original.descriptor|ConvertTo-Json -Depth 10|ConvertFrom-Json
  if($historical-ceq'owned-schema1-resave-manual'){$pr.persistenceLoad.sha256='1'*64;$pr|Add-Member schema1DerivationSha256 ('a'*64)}
+ else{$pr.persistenceLoad.sha256='1'*64;$pr|Add-Member schema2DerivationSha256 ('a'*64)}
  $name=if($historical-ceq'owned-schema1-resave-manual'){'KMC_C7_SCHEMA1'}else{'KMC_C7_SCHEMA2'};$leaf='Manual_305_'+$name+'.zks'
  $graph=[pscustomobject]@{SchemaVersion=3;AreaId=$original.descriptor.area;syntheticSourceOnly=$true}
  $artifact=[pscustomobject]@{runId=$pr.runId;status='PASS';observations=[pscustomobject]@{checkpoint=$historical;cold=$true;processId=700;ownedOutputAdmission=[pscustomobject]@{number=305;leaf=$leaf};nativeWrite=[pscustomobject]@{path='';nativeName=$name;nativeType='Manual';sourceSchema=3;sha256='';length=0;archive=$graph}}}
@@ -400,7 +437,7 @@ function New-CurrentParentCopyRig($Prototype){
  $source=$Prototype.source|ConvertTo-Json -Depth 30|ConvertFrom-Json
  [void][IO.Directory]::CreateDirectory((Split-Path $source.checkpointArtifactPath -Parent));[IO.File]::WriteAllText($source.checkpointArtifactPath,($Prototype.parent|ConvertTo-Json -Depth 30),[Text.UTF8Encoding]::new($false))
  $source.checkpointArtifactSha256=Get-KmcSha256 $source.checkpointArtifactPath;$source.checkpointArtifactLength=([IO.FileInfo]::new($source.checkpointArtifactPath)).Length
- $request=$Prototype.request|ConvertTo-Json -Depth 30|ConvertFrom-Json;$request.runId='synthetic-current-copy-'+[Guid]::NewGuid().ToString('N');$request.persistenceCase=$Prototype.case;$request.persistenceLoad=$source.descriptor;$request.ownedPairs=$Prototype.selection|ConvertTo-Json -Depth 20|ConvertFrom-Json;$request.ownedPairs.checkpointSourceArtifactSha256=$source.checkpointArtifactSha256;$request.PSObject.Properties.Remove('schema1DerivationSha256')
+ $request=$Prototype.request|ConvertTo-Json -Depth 30|ConvertFrom-Json;$request.runId='synthetic-current-copy-'+[Guid]::NewGuid().ToString('N');$request.persistenceCase=$Prototype.case;$request.persistenceLoad=$source.descriptor;$request.ownedPairs=$Prototype.selection|ConvertTo-Json -Depth 20|ConvertFrom-Json;$request.ownedPairs.checkpointSourceArtifactSha256=$source.checkpointArtifactSha256;$request.PSObject.Properties.Remove('schema1DerivationSha256');$request.PSObject.Properties.Remove('schema2DerivationSha256')
  $lock=[pscustomobject]@{RunId=$request.runId;Token=('1'*64)};$profile=Join-Path $script:virtualLab ('runtime-staging/persistence-'+$request.runId);[void][IO.Directory]::CreateDirectory((Join-Path $profile 'Saved Games'))
  $owner=[pscustomobject]@{runId=$request.runId;scenario=$request.scenario;transactionToken=$lock.Token;persistenceCase=$request.persistenceCase;sourceSha256=$request.persistenceLoad.sha256;saveRoot=(Join-Path $profile 'Saved Games')}
  $ownerPath=Join-Path $profile 'owner.json';[IO.File]::WriteAllText($ownerPath,($owner|ConvertTo-Json),[Text.UTF8Encoding]::new($false))

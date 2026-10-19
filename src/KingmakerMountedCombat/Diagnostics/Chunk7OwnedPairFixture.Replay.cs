@@ -119,9 +119,10 @@ namespace KingmakerMountedCombat.Diagnostics
         }
         private bool areaAutosavePending, areaAutosaveAdopted;
         private BlueprintArea areaAutosaveDestination;
+        private int areaAutosaveSemanticBaseline, areaAutosavePresentationBaseline, areaAutosavePostLoadBaseline;
         internal void BeginAreaAutosave(BlueprintArea destination)
         {
-            Require(bound && !released && !selection.Cold && selection.Case == "persistence-save" &&
+            Require(bound && !released && !selection.Cold && (selection.Case == "persistence-save" || selection.IsOwnerSeedCheckpointSave) &&
                 request.PersistenceCase == "multi-area-autosave" && request.PersistenceAreaTarget != null &&
                 request.PersistenceAreaTarget.AutoSaveMode == "AfterEntry" && !areaAutosavePending && !areaAutosaveAdopted &&
                 replayExpectedLoad == 0 && replayExpectedArea == 0 && destination != null &&
@@ -130,19 +131,26 @@ namespace KingmakerMountedCombat.Diagnostics
                 selection.SourceArea == request.PersistenceLoad.Area && destination.AssetGuidThreadSafe != selection.SourceArea,
                 "Inherited autosave transfer is not the exact original Manual and declared destination.");
             RequirePreserved(); RequireReplayFieldReady();
+            areaAutosaveSemanticBaseline = persistence.SemanticRestoreCount;
+            areaAutosavePresentationBaseline = persistence.PresentationRestoreCount;
+            areaAutosavePostLoadBaseline = persistence.ArchivePostLoadObservedCount;
+            Require(areaAutosaveSemanticBaseline == (selection.IsOwnerSeedCheckpointSave ? 4 : 0) &&
+                areaAutosavePresentationBaseline == (selection.IsOwnerSeedCheckpointSave ? 2 : 0) &&
+                areaAutosavePostLoadBaseline == (selection.IsOwnerSeedCheckpointSave ? 4 : 0),
+                "Area preparation did not preserve its admitted native restoration baseline.");
             areaAutosaveDestination = destination; areaAutosavePending = true;
         }
         internal void AdoptAreaAutosave(BlueprintArea destination)
         {
             RequireRequest(); RequireAuthority();
-            Require(bound && !released && !selection.Cold && selection.Case == "persistence-save" &&
+            Require(bound && !released && !selection.Cold && (selection.Case == "persistence-save" || selection.IsOwnerSeedCheckpointSave) &&
                 request.PersistenceCase == "multi-area-autosave" && areaAutosavePending && !areaAutosaveAdopted &&
                 replayExpectedLoad == 0 && replayExpectedArea == 0 && ReferenceEquals(destination, areaAutosaveDestination) &&
                 destination != null && destination.AssetGuidThreadSafe == request.PersistenceAreaTarget.Area &&
                 request.PersistenceAreaTarget.AutoSaveMode == "AfterEntry" && ReferenceEquals(game.Player, admittedPlayer) &&
                 persistence.AreaSuspensionCount == 1 && persistence.AreaResumeCount == 2 && persistence.FailedAreaPairCount == 0 &&
-                persistence.NativeWorldDisposalCount == 0 && persistence.SemanticRestoreCount == 0 &&
-                persistence.PresentationRestoreCount == 0 && persistence.ArchivePostLoadObservedCount == 0,
+                persistence.NativeWorldDisposalCount == 0 && persistence.SemanticRestoreCount == areaAutosaveSemanticBaseline &&
+                persistence.PresentationRestoreCount == areaAutosavePresentationBaseline && persistence.ArchivePostLoadObservedCount == areaAutosavePostLoadBaseline,
                 "Inherited autosave area cannot adopt before exact native all-pair restoration.");
             Scope.RequireDeclaredAreaDestination(destination.AssetGuidThreadSafe, destination);
             var prior = Scope;

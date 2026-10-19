@@ -1,5 +1,55 @@
 # Chunk 7 Directive 4 Codex checkpoint
 
+## October 19 - preview.44 selected source connection IN PROGRESS
+
+The reviewed group44 source is applied after closure HEAD `7c1bcadc` on
+`codex/mounted-combat-chunk7-successor`. No preview.44 game run is accepted yet.
+Preview.43 worker/barrier native PASS and failed migration producers retain
+their original bytes and verdicts. No game or transaction remains live.
+
+- Schema1 observation preserves null/native collection and unrelated slot
+  identities. Only exact already-inactive KMC templates may clear naturally;
+  completed-save/cold control counts stay strict.
+- The pending source writes genuine current3; a guarded, labeled metadata-only
+  schema2 copy exercises the actual historical loader and native current resave.
+  The correct future-data preservation rule is unchanged.
+- Selected owner-seed connections cover a visited distinct-area native
+  AfterEntry Auto plus its actual cold output, three native loads, registered
+  two-owner disable/local failure and permanent-Horse removal refusal. Direct
+  native LoadArea assistance is disclosed; it proves no ordinary exit/travel.
+- Positive P07 reads full current3 with an explicitly observation-only singular
+  projection. It still requires actual reference-free cleanup and a separate
+  genuine DLL-absent native load. Existing Working compatibility is unproved
+  on this candidate and will be measured, not inferred from foreign markers.
+- Malformed/future derivatives retain every native ZIP member; exact alternate
+  identity is read-only. Real load admission decides first; an unexpected accept
+  fails before native world disposal. Full conservation and save-menu refresh
+  are required. Counted load/write quotas and unselected paths remain intact.
+
+Offline source checks: merged C# 775/0, actual505-source compile PASS
+24.2910658s; merged PS 501/0 (all28 parse), original refusal PS copies81,
+artifact47, wire20, final-root9 PASS. Required applied-source assisted connection
+PASS236/0 in27.2362778s; source147/0. Compiler/input receipts and independent
+reviews are private in `analysis-cache/chunk7-continuation/codex-takeover/group44*`.
+The applied test run found a missing new partial in the linked test project,
+then an outdated exhaustive DTO property list; both FAILs remain preserved.
+Corrections add the real dependency and the two already-validated provenance
+properties. No gameplay authority was widened. Earlier composition/test failures
+also remain recorded. Private compiler proof DLL is never a package input.
+
+Portable refusal157/0 and single-build packaging22/0 pass; the latter keeps both
+existing package validators and all source/identity/immutable-output guards.
+Independent packaging review PASS081492112ddc44bfb72b4b38f54029827b7d0576753bb5db9b625ea0e37841ea.
+Cumulative DTO28/0 also passes. Next: clean commit and
+guarded push, then one proper preview.44 build/package and Candidate (includes
+Fast), freeze suite and declare bounded native batches. Every actual attempt
+needs scoped WhatIf and verified restoration before another. Remaining selected
+native work is migration1/2 through current resave and third-process cold,
+area/Auto cold, repeated load, disable/refusal, malformed/future refusal/menu,
+positive cleanup and genuine noDLL. Directive4 stays IN PROGRESS. Doors remain
+opportunistic; acquisition/progression, Small, six-pair/performance, HUMAN PLAY,
+full7E, merge/release/tag/permanent installation are not accepted here.
+
 ## October 19 - preview.43 native batches settled; Directive 4 IN PROGRESS
 
 Frozen source `3cc8f0b051d1a5ff15879489722efa2eec8c1f45` is guarded-pushed on

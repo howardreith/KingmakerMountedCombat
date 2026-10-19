@@ -33,7 +33,7 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             var selected = value?.OwnedPairs; var source = value?.PersistenceLoad;
             return string.Join("\n", value?.RunId, value?.Scenario, value?.EvidenceRoot, value?.Commit, value?.DllSha256,
-                value?.DllMvid, value?.TransactionToken, value?.PersistenceCase, value?.Schema1DerivationSha256, selected?.Case, selected?.SourceRunId,
+                value?.DllMvid, value?.TransactionToken, value?.PersistenceCase, value?.Schema1DerivationSha256, value?.Schema2DerivationSha256, selected?.Case, selected?.SourceRunId,
                 selected?.SourceArtifactSha256, selected?.SourceArchiveSha256, selected?.SourceArea,
                 value?.PersistenceAreaTarget?.EnterPoint, value?.PersistenceAreaTarget?.Area, value?.PersistenceAreaTarget?.AutoSaveMode, selected?.CheckpointSourceRunId,
                 selected?.CheckpointSourceArtifactSha256, selected?.RiderAId, selected?.MountAId, selected?.RiderBId, selected?.MountBId,
@@ -46,7 +46,11 @@ namespace KingmakerMountedCombat.Diagnostics
                 // Owner-seed pins extend the captured key only for the seed-pinned kinds; historical keys are unchanged.
                 + (selected?.OwnerSeedSetup == true || selected?.OwnerSeedDerivedLineage == true ? "\n" + string.Join("\n", selected.SeedId, selected.SeedSha256,
                     selected.XpAssistance?.UnitId, selected.XpAssistance?.TargetCharacterLevel.ToString()) : "")
-                + (selected?.IsOwnerSeedDerivedCombat == true ? "\ncompanion:" + selected.CompanionId : "");
+                + (selected?.IsOwnerSeedDerivedCombat == true ? "\ncompanion:" + selected.CompanionId : "")
+                + (selected?.IsOwnerSeedLoadRefusal == true ? "\nrefusal:" + string.Join("\n", value.LoadRefusalDerivationSha256,
+                    value.PersistenceAlternate?.FileName, value.PersistenceAlternate?.InternalName, value.PersistenceAlternate?.GameId,
+                    value.PersistenceAlternate?.GameName, value.PersistenceAlternate?.Area, value.PersistenceAlternate?.Sha256,
+                    value.PersistenceAlternate?.Length.ToString(), value.PersistenceAlternate?.LastWriteTimeUtcTicks.ToString()) : "");
         }
         private bool OwnedPairsUnchanged() => ownedPairsRequest == null ||
             OwnedPairsKey(ownedPairsRequest) == ownedPairsKey && ownedPairsRequest.Validate().Count == 0;
@@ -166,6 +170,15 @@ namespace KingmakerMountedCombat.Diagnostics
                     input.AdmissionArea != null || input.ForeignGameId != null || input.ForeignGameName != null ||
                     admittedNativeLoadRequests > maximumNativeLoadRequests.Value || admittedNativeWriteRequests > maximumNativeWriteRequests.Value) return false;
                 if (OwnerSeedPlan) return MatchesOwnerSeedWrites(requireUnwritten);
+                if (ownedPairsRequest.OwnedPairs.IsOwnerSeedLoadRefusal)
+                {
+                    var alternate = ownedPairsRequest.PersistenceAlternate;
+                    return ownedPairsReservations == 0 && entries.Count == 2 && admittedNativeWriteRequests == 0 &&
+                        alternate != null && entries.TryGetValue(alternate.FileName, out var variant) &&
+                        variant.Name == alternate.InternalName && variant.Type == "Manual" && variant.Area == alternate.Area &&
+                        variant.Hash == alternate.Sha256 && !variant.Writable && !variant.Writing && !variant.Bootstrap &&
+                        !variant.AdmitsBeforeArea && variant.AdmissionArea == null && variant.ForeignGameId == null && variant.ForeignGameName == null;
+                }
                 if (maximumNativeWriteRequests == 0)
                     return ownedPairsReservations == 0 && entries.Count == 1 && admittedNativeWriteRequests == 0;
                 if (ownedPairsReservations == 0)
@@ -186,6 +199,12 @@ namespace KingmakerMountedCombat.Diagnostics
                 return requireUnwritten ? output.Hash == null && !output.Writing && admittedNativeWriteRequests == 0 :
                     output.Hash == null && !output.Writing || admittedNativeWriteRequests >= 1;
             }
+        }
+
+        internal bool MatchesOwnerSeedLoadRefusalRequest(RuntimeRequest request)
+        {
+            lock (sync) return ReferenceEquals(request, ownedPairsRequest) && request?.OwnedPairs?.IsOwnerSeedLoadRefusal == true &&
+                OwnedPairsUnchanged() && MatchesOwnedPairsPlan(true, false) && admittedNativeLoadRequests == 1 && admittedNativeWriteRequests == 0;
         }
         internal void ReserveOwnedPairsReplacement(RuntimeRequest request, object nativeGame, object nativeManager,
             object nativeSeed, RuntimeSaveTarget seed, int number)

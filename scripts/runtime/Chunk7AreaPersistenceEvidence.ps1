@@ -21,7 +21,8 @@ function Assert-KmcChunk7AreaAutosave($Request,$Observation,$Archive) {
     Assert-KmcChunk7Boolean $row.duplicateReadyNoOp $true
     if(-not(Test-KmcExactJsonInteger $row.loadingTicks)-or$row.loadingTicks-le0-or$row.loadingTicks-gt100000){throw 'Native asynchronous area interval was not observed.'}
     if($Observation.nativeWrite.nativeType-cne'Auto'-or$Observation.nativeWrite.operation-cne'None'-or$Observation.nativeWrite.snapshotCount-ne1){throw 'Area case lacks one completed actual Auto save.'}
-    $base=$row.before
+    $base=$row.before;$seed=(Test-KmcChunk7OwnedPairsScenario $Request.scenario)-and(Test-KmcChunk7OwnedPairsSeedCheckpointSave $Request)
+    if($seed){Assert-KmcChunk7OwnerSeedAreaEntryObservation $Request $Observation.areaEntryPrerequisite}
     $phases=@(
         @($base,'before-native-transfer',$row.sourceArea,0,0,0),
         @($row.headerStarting,'native-header-starting',$row.destinationArea,1,2,0),
@@ -37,7 +38,7 @@ function Assert-KmcChunk7AreaAutosave($Request,$Observation,$Archive) {
         }
         $viewSet=[Collections.Generic.HashSet[int]]::new();$movementSet=[Collections.Generic.HashSet[int]]::new()
         if($s.label-cne$spec[1]-or$s.area-cne$spec[2]-or$s.suspensions-ne$spec[3]-or$s.resumes-ne$spec[4]-or$s.snapshots-ne$spec[5]-or
-           $s.activeOwners-ne2-or$s.semanticRestores-ne0-or$s.presentationRestores-ne0-or$s.nativePostLoads-ne0-or
+           $s.activeOwners-ne2-or$s.semanticRestores-ne$(if($seed){4}else{0})-or$s.presentationRestores-ne$(if($seed){2}else{0})-or$s.nativePostLoads-ne$(if($seed){4}else{0})-or
            $s.nativeCastRequests-ne$base.nativeCastRequests-or$s.owners-isnot[Array]-or$s.owners.Count-ne2-or$s.actors-isnot[Array]-or$s.actors.Count-ne4-or
            $s.views-isnot[Array]-or$s.views.Count-ne4-or$s.movementAuthorities-isnot[Array]-or$s.movementAuthorities.Count-ne2){
             throw 'Area header order, all-pair counts, view inventory or native replay counters differ.'

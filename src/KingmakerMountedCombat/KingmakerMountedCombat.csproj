@@ -1,6 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
+    <Compile Include="Diagnostics\Chunk7OwnerSeedAreaEntry.cs" />
+    <Compile Include="Diagnostics\Chunk7CombatScenario.Disable.cs" />
+    <Compile Include="Diagnostics\Chunk7PersistenceScenario.LoadRefusal.cs" />
+    <Compile Include="Diagnostics\RuntimeSaveAuthorization.LoadRefusal.cs" />
+    <Compile Include="Diagnostics\RuntimePersistenceRemovalScenario.CurrentArchive.cs" />
+    <Compile Include="Diagnostics\Chunk7PersistenceScenario.Schema2Derivative.cs" />
     <Compile Include="Diagnostics\Chunk7StockAreaObservation.cs" />
     <Compile Include="Diagnostics\NativeProgressionRespecProbe.cs" />
     <Compile Include="Diagnostics\NativeProgressionDismissProbe.cs" />

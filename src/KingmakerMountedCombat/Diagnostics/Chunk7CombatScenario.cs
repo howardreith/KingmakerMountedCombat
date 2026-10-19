@@ -86,8 +86,8 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool RealtimeMode => RealtimeScenario || checkpointOnly && checkpointKind == Chunk7CombatCheckpointKind.RealTimeDebts;
         internal Chunk7CombatScenario(RuntimeRequest request, GameMountedRelationshipService relationship,
             NativeMountedControlService controls, HorseCompanionBlueprintService horses, DiagnosticSettings settings, IModLogger logger, MountedLifecycleSubscriber lifecycle = null, MountedPersistenceService persistence = null, RuntimeSaveAuthorization fixtureAuthorization = null,
-            PersistenceSaveAuthorization fixtureAuthority = null, WorkingFixtureLoader fixtureLoader = null)
-        { this.request = request; world = relationship.World; this.controls = controls; this.horses = horses; this.settings = settings; this.logger = logger; this.lifecycle = lifecycle; this.persistence = persistence; this.fixtureAuthorization = fixtureAuthorization; this.fixtureAuthority = fixtureAuthority; this.fixtureLoader = fixtureLoader; }
+            PersistenceSaveAuthorization fixtureAuthority = null, WorkingFixtureLoader fixtureLoader = null, MountedRemovalPreparation removalPreparation = null, Func<bool, bool> registeredToggle = null)
+        { this.request = request; world = relationship.World; this.controls = controls; this.horses = horses; this.settings = settings; this.logger = logger; this.lifecycle = lifecycle; this.persistence = persistence; this.fixtureAuthorization = fixtureAuthorization; this.fixtureAuthority = fixtureAuthority; this.fixtureLoader = fixtureLoader; this.removalPreparation = removalPreparation; this.registeredToggle = registeredToggle; }
 
         internal void Start()
         {
@@ -98,6 +98,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 Require(request.SchemaVersion == RuntimeRequest.SaveBackedSchemaVersion && world != null &&
                     NativeMountedSaveFormat.ArchiveNativeSupportEnabled && GameMountedRelationshipService.NativePairCapacity >= 2,
                     "Reviewed native two-pair adapter and exact save-backed request are required.");
+                Require(!RegisteredDisableCase || removalPreparation != null && registeredToggle != null,
+                    "Registered disable diagnostic requires its actual removal service and registered UMM callback before fixture admission.");
                 if (request.OwnedPairs != null)
                 {
                     inherited = new Chunk7OwnedPairFixture(request, horses, world, controls, persistence, fixtureAuthorization, fixtureAuthority, fixtureLoader); inherited.Bind(false);
@@ -151,6 +153,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (checkpointReady) return;
                 if (!(clock.Elapsed.TotalSeconds <= 420 && clock.Elapsed.TotalSeconds - stepStarted <= 60))
                     throw new InvalidOperationException("Bounded combat scenario deadline at step " + step + ", action " + actionStage + "." + PrincipalBlockers());
+                if (RegisteredDisableCase && step == 75) { PollRegisteredDisabledFrame(); return; }
                 if (Game.Instance.IsPaused) Game.Instance.IsPaused = false;
                 if (targetService != null && targetService.State == DiagnosticCombatTargetState.Active)
                     Require(targetService.RefreshBidirectionalCombatMemoryLease(), "Exact diagnostic combat memory or AI lease changed: " + (targetService.LastCombatMemoryLeaseFailure ?? "memory not mutual") + ".");
@@ -171,7 +174,9 @@ namespace KingmakerMountedCombat.Diagnostics
                             // Both pairs were restored mounted by the cold load: verify them and
                             // skip the native Mount steps for these cases only.
                             if (!MountedStartReady()) return;
-                            AdmitMountedStart(); Pass("C7-combat-restored-mounts"); PrepareEncounter(); Next(RealtimeScenario ? 60 : 5); break;
+                            AdmitMountedStart(); Pass("C7-combat-restored-mounts");
+                            if (RegisteredDisableCase) ExercisePermanentHorseRemovalRefusal();
+                            PrepareEncounter(); Next(RealtimeScenario ? 60 : 5); break;
                         }
                         if (!Chunk7NativeFixture.Idle(bm)) return;
                         actors = new[] { ar, am, br, bm };
@@ -332,6 +337,10 @@ namespace KingmakerMountedCombat.Diagnostics
             if (actionStage == 3)
             {
                 if (!FinishAttack(true)) return;
+                if (RegisteredDisableCase && actingIndex == 1)
+                {
+                    ExerciseNativePendingSurvivor(); BeginRegisteredDisableFailure(); Next(75); return;
+                }
                 if (checkpointOnly && checkpointKind == Chunk7CombatCheckpointKind.ZeroMountedRetained)
                 {
                     splitRound = Game.Instance.TurnBasedCombatController.RoundNumber;

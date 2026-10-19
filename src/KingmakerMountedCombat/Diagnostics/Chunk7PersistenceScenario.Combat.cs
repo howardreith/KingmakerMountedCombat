@@ -16,6 +16,8 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool combatCheckpointReady, legacyWriterHeld, selectedArchiveCapability;
         private bool CombatCase => IsCombatCheckpoint(request.PersistenceCase);
         private bool TurnBasedCase => CombatCase && request.PersistenceCase != "multi-rt-debt-manual";
+        private bool OwnerSeedCurrentPendingSource => OwnerSeedCheckpointSave && !Cold && LegacyPendingCase;
+        private int ExpectedCombatSourceSchema => LegacyPendingCase && !OwnerSeedCurrentPendingSource ? 2 : 3;
         private bool LegacyPendingCase => request.PersistenceCase == "legacy-mounted-pending-tb-manual";
         private bool PendingOnlyCase => LegacyPendingCase || OwnedSchema2CurrentCase;
         private bool ZeroMountedCase => request.PersistenceCase == "zero-mounted-tb-retained-manual";
@@ -55,7 +57,7 @@ namespace KingmakerMountedCombat.Diagnostics
             slots = controls.CapturePersistentSlots();
             Require(slots.Length == (ZeroMountedCase ? 0 : RequiredOwners * 2), "Native checkpoint changed its declared owned control slots.");
             evidence["worldBeforeNativeSave"] = checkpoint.Capture();
-            if (LegacyPendingCase)
+            if (LegacyPendingCase && !OwnerSeedCurrentPendingSource)
             {
                 Require(world.Registry.ActiveCount == 1 && world.Registry.Owners.Length == 1 &&
                     ReferenceEquals(world.Primary.Relationship.Rider, firstRider) && ReferenceEquals(world.Primary.Relationship.Mount, firstMount) &&
@@ -135,7 +137,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var info = Game.Instance.SaveManager.SingleOrDefault(s => s.FileName == descriptor.FileName);
             Require(info != null && Hash(info.FolderName) == descriptor.Sha256, "Cold native source bytes differ from the exact selected archive.");
             var read = NativeMountedSaveStorage.ReadArchive(info.Saver);
-            Require(read.Kind == MountedSaveReadKind.Current && read.SourceSchema == (LegacyPendingCase ? 2 : 3) &&
+            Require(read.Kind == MountedSaveReadKind.Current && read.SourceSchema == ExpectedCombatSourceSchema &&
                 JToken.DeepEquals(JObject.FromObject(read.Data, MountedSaveCodec.CreateSerializer()), JObject.FromObject(saved, MountedSaveCodec.CreateSerializer())),
                 "Cold restored graph differs from the native versioned source.");
             evidence["loadedSourceSchema"] = read.SourceSchema;
@@ -148,12 +150,14 @@ namespace KingmakerMountedCombat.Diagnostics
         }
         private void ObserveCombatSaved(MountedArchiveReadResult read)
         {
-            Require(read.Kind == MountedSaveReadKind.Current && read.SourceSchema == (LegacyPendingCase ? 2 : 3) && saved?.Combat != null &&
+            Require(read.Kind == MountedSaveReadKind.Current && read.SourceSchema == ExpectedCombatSourceSchema && saved?.Combat != null &&
                 saved.CampaignId == request.SelectedChunk7Fixture.GameId && saved.AreaId == request.SelectedChunk7Fixture.Area,
                 "Native combat archive version or campaign differs from the selected checkpoint.");
+            if (OwnerSeedCurrentPendingSource)
+                evidence["nativeSourceContract"] = "owner-seed-current-pending-source-v1";
             RestoreSelectedNativeFormat();
             checkpoint.ValidateArchive(saved); AssertCombatOwners(); AssertSlots(); AssertCombatDebt(saved);
-            if (!LegacyPendingCase)
+            if (!LegacyPendingCase || OwnerSeedCurrentPendingSource)
                 Require(saved.Pairs.All(p => expectedOwners.TryGetValue(Guid.Parse(p.PairId), out var generation) && generation == p.Generation) &&
                     saved.Participations.All(p => expectedOwners.TryGetValue(Guid.Parse(p.OwnerId), out var generation) && generation == p.Generation),
                     "Native schema-3 archive changed stable owner identity or generation.");
