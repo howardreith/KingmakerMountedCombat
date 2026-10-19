@@ -1,5 +1,21 @@
 # Chunk 7B–7D — IN PROGRESS
 
+## October 19 — batch40 schema-2 native clock correction
+
+The [standing Chunk 7 engineering mission](planning/CHUNK7-COMPLETION-MISSION.md)
+selects remaining 7B/7C/7D and readiness-gated private 7E. Batch40 preview.58
+schema-3 producer passed 4/0. Its schema-2 derivative cold restored and wrote
+a genuine Manual, but the original resave result is FAIL before continuation:
+the validator refused paired native TB clock advancement within the same retained
+allocation. The output is not a qualified cold parent. Bounded production and
+reader corrections passed focused 41/0 and 165/0, exact archived replay and
+independent review (receipt SHA-256
+`716ce21fcca0f8e1a51c8b07e3c8c9bd702d27da3680d95bcfc07ab603a4d84c`).
+Freeze a new candidate and rerun its producer, schema-2 resave and dependent
+separate cold consumer. Both batch40 transactions report exact restoration.
+See the [live resume record](AUTONOMOUS-RESUME.md) and
+[diagnosis](docs/CHUNK7-DIRECTIVE4-REENTRY-CORRECTION-2026-10-19.md).
+
 ## October 19 - matched pending-debt diagnosis
 
 Preview.53 batch35 loaded the unchanged schema-3 pending-only source and a

@@ -1,5 +1,32 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## Active October 19 checkpoint — batch40 clock continuity correction reviewed
+
+The [standing Chunk 7 completion mission](planning/CHUNK7-COMPLETION-MISSION.md)
+selects remaining 7B, 7C, 7D and readiness-gated private 7E through
+**CHUNK 7 ENGINEERING COMPLETE — OWNER ACCEPTANCE PENDING**. Historical entries
+below retain their original results and next actions as chronology; they are not
+instructions to repeat completed batches.
+
+Current pushed successor HEAD is `dda134ee520c12e067d10877c2cd9e117c61db21`
+(preview.58). Batch40 slot 1 current-format schema-3 producer PASS and slot 2
+schema-2 resave original FAIL are detailed in the [re-entry correction record](docs/CHUNK7-DIRECTIVE4-REENTRY-CORRECTION-2026-10-19.md).
+Slot 2 genuinely wrote a Manual, but its before/after validator refused paired
+native TB clock progression within the same round; the output is not qualified
+for a cold child. The bounded product and external-reader correction has focused
+41/0 and 165/0 PASS, exact archived before/after offline replay PASS, and
+independent review PASS, sealed receipt SHA-256
+`716ce21fcca0f8e1a51c8b07e3c8c9bd702d27da3680d95bcfc07ab603a4d84c`.
+Both original batch40 transactions report exact restoration, with zero accepted
+cache exceptions. No game or transaction is active at this checkpoint.
+
+Next: commit and guarded-push the reviewed clock correction, bump and freeze one
+new product candidate, run Candidate and an append-only suite WhatIf, then a
+fresh same-candidate schema-3 producer. Use only that producer's successful
+original result to derive the schema-2 input, rerun its resave, and launch the
+separate cold consumer only after an accepted parent. Preserve all original
+FAILs, check each guarded settlement, and then continue the standing mission.
+
 ## October 19 — batch39 exact TB admission and producer reader
 
 Preview.57 product commit `197cc53a07b4d6933f8711943cc029aa047392c6`

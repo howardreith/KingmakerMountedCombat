@@ -174,6 +174,17 @@ namespace KingmakerMountedCombat.Diagnostics
             var original = JObject.FromObject(before, MountedSaveCodec.CreateSerializer());
             var output = JObject.FromObject(after, MountedSaveCodec.CreateSerializer());
             output["GameTimeTicks"] = original["GameTimeTicks"].DeepClone();
+            // Native TB clocks continue within the retained round while the
+            // asynchronous Manual settles. They must advance together, only
+            // within that bounded elapsed time; round and grant stay exact.
+            var sinceDrift = (double)after.Combat.TimeSinceStart - before.Combat.TimeSinceStart;
+            var nextDrift = (double)before.Combat.TimeToNextRound - after.Combat.TimeToNextRound;
+            Require(sinceDrift >= -0.001 && nextDrift >= -0.001 &&
+                sinceDrift <= elapsed * 1.1 + 0.001 && nextDrift <= elapsed * 1.1 + 0.001 &&
+                Math.Abs(sinceDrift - nextDrift) <= 0.002,
+                "Schema-2 resave changed native combat clocks outside elapsed same-round progression.");
+            output["Combat"]["TimeSinceStart"] = original["Combat"]["TimeSinceStart"].DeepClone();
+            output["Combat"]["TimeToNextRound"] = original["Combat"]["TimeToNextRound"].DeepClone();
             var oldDebts = before.Combat.Actors.ToDictionary(a => a.Native.Id, a => a.Native, StringComparer.Ordinal);
             foreach (var debt in after.Combat?.Actors.Select(a => a.Native) ?? Enumerable.Empty<SavedNativeActor>())
             {
