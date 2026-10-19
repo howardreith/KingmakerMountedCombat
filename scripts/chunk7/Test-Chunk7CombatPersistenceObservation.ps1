@@ -79,6 +79,73 @@ function CompleteCombatArtifact($Fixture,[bool]$Cold){
 }
 $complete=@();foreach($fixture in @($tb,$rt,$zero,$legacy)){foreach($isCold in @($false,$true)){$spec=CompleteCombatArtifact $fixture $isCold;$complete+=@($spec);Check ($spec.request.persistenceCase+' complete '+$spec.request.scenario) {Assert-KmcChunk7PersistenceObservation $spec.request $spec.artifact 'PASS'}}}
 $sourceTb=$complete[0];$coldTb=$complete[1];$sourceRt=$complete[2];$coldZero=$complete[5];$coldLegacy=$complete[7]
+function New-RenewedPending {
+    $spec=Copy-Test $coldLegacy
+    $spec.request.productVersion='0.1.0-chunk7b-preview.55'
+    $spec.artifact.productVersion=$spec.request.productVersion
+    $c=$spec.artifact.observations.combatContinuation
+    $before=Copy-Test $c.continuation[0]
+    $join=Copy-Test $before;$join.label='native-rider-reentry-new-round';$join.frame=4;$join.round++
+    $join.gameTicks+=60000000L;$join.nativeActors[0].Standard=0.0;$join.nativeActors[0].Move=0.0;$join.nativeActors[0].Swift=0.0
+    $rider=Copy-Test $join;$rider.label='independent-native-actor-'+$first;$rider.frame=5;$rider.gameTicks+=10000000L;$rider.currentActor=$first
+    @($rider.grants|Where-Object actorId -CEQ $first)[0].count++
+    $mount=Copy-Test $c.continuation[1];$mount.label='independent-native-actor-'+$mammoth;$mount.frame=6;$mount.gameTicks=$rider.gameTicks+10000000L
+    @($mount.grants|Where-Object actorId -CEQ $first)[0].count++
+    $after=Copy-Test $c.continuation[-1];$after.frame=7;$after.round++;$after.gameTicks=$mount.gameTicks
+    @($after.grants|Where-Object actorId -CEQ $first)[0].count++
+    @($after.grants|Where-Object actorId -CEQ $mammoth)[0].count++
+    $c.continuation=@($before,$join,$rider,$mount,$after)
+    $c.trace.events=@();Add-TraceEvent $c.trace 'prepare-before' $first 0 5;Add-TraceEvent $c.trace 'prepare-before' $mammoth 0 6
+    foreach($i in 0..1){$event=$c.trace.events[$i];$actor=if($i-eq0){$first}else{$mammoth};$turn=if($i-eq0){$rider}else{$mount}
+        Set-Field $event 'round' $join.round;Set-Field $event 'gameTicks' $turn.gameTicks;Set-Field $event 'currentActor' $actor;Set-Field $event.state 'grantSequence' 2
+    }
+    $spec
+}
+Check 'preview55 cold pending requires rider re-entry and both exact new-round grants' {$spec=New-RenewedPending;Assert-KmcChunk7PersistenceObservation $spec.request $spec.artifact 'PASS'}
+Check 'preview55 saved-to-before native Single upper tolerance admits genuine float rounding' {
+    $spec=New-RenewedPending;$a=$spec.artifact.observations.loadedArchive;$c=$spec.artifact.observations.combatContinuation
+    @($a.Combat.Actors|Where-Object{$_.Native.Id-ceq$first})[0].Native.Standard=1.001
+    @($c.continuation[0].nativeActors|Where-Object Id -CEQ $first)[0].Standard=1.002
+    Assert-KmcChunk7CheckpointContinuation $c $a $spec.request $true
+}
+foreach($mutation in @('missing-join','early-join','spent-join','early-prepare','missing-rider-turn','duplicate-rider-grant','missing-mount-turn',
+    'negative-join-standard','null-join-move','text-join-swift','extra-final-rider-grant','extra-final-mount-grant',
+    'rider-prepare-after-completion','mount-prepare-before-reentry','rider-turn-after-completion',
+    'text-join-frame','fractional-turn-round','text-turn-ticks','fractional-final-grant',
+    'saved-round-rider-prepare','early-tick-rider-prepare','wrong-sequence-rider-prepare',
+    'early-partial-debt-loss','before-precedes-archive','early-initiative-loss','single-float-tolerance-refund','free-reaction','lost-reaction-count','changed-surprise-tick')){
+    Reject ('preview55 cold pending '+$mutation){$spec=New-RenewedPending;$c=$spec.artifact.observations.combatContinuation;switch($mutation){
+        'missing-join'{$c.continuation=@($c.continuation|Where-Object label -CNE 'native-rider-reentry-new-round')}
+        'early-join'{$c.continuation[1].round--}
+        'spent-join'{$c.continuation[1].nativeActors[0].Standard=6.0}
+        'early-prepare'{$c.trace.events[0].frame=4}
+        'missing-rider-turn'{$c.continuation=@($c.continuation|Where-Object label -CNE ('independent-native-actor-'+$first))}
+        'duplicate-rider-grant'{@($c.continuation[2].grants|Where-Object actorId -CEQ $first)[0].count++}
+        'missing-mount-turn'{$c.continuation=@($c.continuation|Where-Object label -CNE ('independent-native-actor-'+$mammoth))}
+        'negative-join-standard'{$c.continuation[1].nativeActors[0].Standard=-1.0}
+        'null-join-move'{$c.continuation[1].nativeActors[0].Move=$null}
+        'text-join-swift'{$c.continuation[1].nativeActors[0].Swift='0'}
+        'extra-final-rider-grant'{(@($c.continuation[-1].grants|Where-Object actorId -CEQ $first)[0]).count++}
+        'extra-final-mount-grant'{(@($c.continuation[-1].grants|Where-Object actorId -CEQ $mammoth)[0]).count++}
+        'rider-prepare-after-completion'{$c.trace.events[0].frame=8}
+        'mount-prepare-before-reentry'{$c.trace.events[1].frame=3}
+        'rider-turn-after-completion'{$c.continuation[2].frame=8}
+        'text-join-frame'{$c.continuation[1].frame='4'}
+        'fractional-turn-round'{$c.continuation[2].round=2.5}
+        'text-turn-ticks'{$c.continuation[3].gameTicks=[string]$c.continuation[3].gameTicks}
+        'fractional-final-grant'{(@($c.continuation[-1].grants|Where-Object actorId -CEQ $first)[0]).count=2.5}
+        'saved-round-rider-prepare'{$c.trace.events[0].round=1}
+        'early-tick-rider-prepare'{$c.trace.events[0].gameTicks=$c.continuation[0].gameTicks}
+        'wrong-sequence-rider-prepare'{$c.trace.events[0].state.grantSequence=99}
+        'early-partial-debt-loss'{$c.continuation[0].nativeActors[0].Standard=1.0}
+        'before-precedes-archive'{$c.continuation[0].gameTicks=0}
+        'early-initiative-loss'{$c.continuation[0].nativeActors[0].Initiative=1.0}
+        'single-float-tolerance-refund'{$c.continuation[0].nativeActors[0].Initiative=0.001}
+        'free-reaction'{$c.continuation[0].nativeActors[0].Reaction=1.0}
+        'lost-reaction-count'{$c.continuation[0].nativeActors[0].ReactionsRemaining=0}
+        'changed-surprise-tick'{$c.continuation[0].nativeActors[0].LastSurpriseTicks=1}
+    };Assert-KmcChunk7PersistenceObservation $spec.request $spec.artifact 'PASS'}
+}
 function Set-Approach($Spec){$i=$Spec.artifact.observations.combatCheckpoint.source.inputs[2];foreach($pair in @(@($i.before.actors[3],0.09,-14.98),@($i.after.actors[3],0.74,-11.78))){$pair[0].move=$pair[1];Set-Field $pair[0] 'native' ([pscustomobject]@{timeMoved=$pair[1]});Set-Field $pair[0] 'position' ([pscustomobject]@{x=-21.0;y=0.6;z=$pair[2]})};$i}
 Check 'source TB rider approach charged to its own mount move budget' {$spec=Copy-Test $sourceTb;Set-Approach $spec|Out-Null;Assert-KmcChunk7PersistenceObservation $spec.request $spec.artifact 'PASS'}
 function Set-ZeroMountedApproach($Spec){
