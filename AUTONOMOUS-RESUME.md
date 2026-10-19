@@ -1,5 +1,46 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## October 19 - P07 failed native load and completed guarded recovery
+
+Branch `codex/mounted-combat-chunk7-successor`, last pushed HEAD before this
+recovery checkpoint `7348dace0242ea11f6ad75fc24ad08d0ec29b86c`. The
+worktree contains a reviewed, exact-run profile-recovery script and current
+record updates; commit and guarded-push them before any further candidate.
+Current preview.52 head7348 main package SHA-256
+`e87bed650a2d216217e5f38788facb84331179d12bcdbf46125f5571782e28b8`,
+observer package SHA-256
+`f1cad1de85d727497768e2493380e133fa5bd11f452f20088a47f438c01837ba`,
+DLL SHA-256 `18f619bd28e872b73470944aaf46671887d91d99ff26f80f30a8fd50019a1433`,
+suite SHA-256 `92c53c00f9606a542c570eb42478f246a0d7bc367dc0692ab2c9076ebdd0e7eb`.
+Candidate PASS 7/0; package PASS 11/0; observer package PASS 7/0. The
+historical reference-free Working/Mammoth path is now schema3-capable, but
+batch32 did not reach its positive-removal assertions.
+
+Slot1 `20261019-c7b-p07-head7348-b32s1-removal` failed prelaunch because the
+sandbox denied the staged Mods move and rollback; elevated guarded recovery
+restored original Mods/Working. Slot2
+`20261019-c7b-p07-head7348-b32s2-removal` passed scoped WhatIf and ran through
+the guarded launcher with filesystem permission. Its game result FAIL is a
+native `SaveManager.LoadRoutine` `Sequence contains no matching element` after
+one Working load request, zero writes and before callback; the external runtime
+result FAIL and original settings-guard FAIL are preserved. Combined Mods and
+saves restored. Reviewed `scripts/runtime/Recover-KmcP07Head7348Profile.ps1`
+SHA-256 `ce976a43188b8524a83c49909d6c6de9a5ef32ce143c7252d3bf8dd87e93eed8`
+passed actual-owner WhatIf and independent source review, then restored the
+exact UMM KMC append/update timestamp and three native PlayerPrefs deltas.
+Private recovery receipt SHA-256 is to be read from
+`runtime-evidence/20261019-c7b-p07-head7348-b32s2-removal/profile-recovery-exact-p07.json`.
+The live Mods tree exists, Working SHA-256 is
+`5eb4e0b4cbd8d60dc879a02ff71aadfde3f517304754857f0cc68d0f9a93f1c6`,
+game and transaction lock are absent. No cleanup archive/no-DLL credit.
+
+Next command: `git diff --check`, review this exact script and documentation,
+commit, then guarded WhatIf/push through the project helper. Update draft PR #5.
+Further P07 native execution requires a distinguishing load diagnosis; do not
+repeat slot2 under the same inputs. Schema2 TB debt needs a lawful native
+boundary or representable input; area Auto/cold needs a visited non-capital
+destination; doors remain open. No merge, release, tag or permanent install.
+
 ## October 19 - preview.52 native breadth; reviewed refusal reader-only correction
 
 Branch `codex/mounted-combat-chunk7-successor`, published frozen HEAD

@@ -1,5 +1,43 @@
 # Chunk 7B–7D — IN PROGRESS
 
+## October 19 - P07 positive cleanup attempt FAIL; exact profile recovery PASS
+
+The pushed reader checkpoint is `7348dace0242ea11f6ad75fc24ad08d0ec29b86c`.
+An unchanged preview.52 DLL (SHA-256
+`18f619bd28e872b73470944aaf46671887d91d99ff26f80f30a8fd50019a1433`)
+was packaged at that head with the removal observer: main package SHA-256
+`e87bed650a2d216217e5f38788facb84331179d12bcdbf46125f5571782e28b8`,
+observer package `f1cad1de85d727497768e2493380e133fa5bd11f452f20088a47f438c01837ba`.
+Candidate PASS 7/0 (3.71 min), package build PASS 11/0, observer packaging
+PASS 7/0. Current external-state suite SHA-256
+`92c53c00f9606a542c570eb42478f246a0d7bc367dc0692ab2c9076ebdd0e7eb`;
+suite and P07 scoped WhatIf passed.
+
+Batch32 slot1 (`20261019-c7b-p07-head7348-b32s1-removal`) failed before game
+launch: the sandbox denied a guarded Mods directory move and rollback. The
+repository's recovery WhatIf and elevated guarded recovery then restored the
+verified original Mods and Working, closed the lock, and left the game absent.
+Slot2 (`20261019-c7b-p07-head7348-b32s2-removal`) used the same guarded
+launcher with the needed filesystem permission. It made one exact Working load
+request and no save request, then native `SaveManager.LoadRoutine` threw
+`InvalidOperationException: Sequence contains no matching element`; the load
+pipeline ended before its callback. Original game/runtime results remain FAIL.
+No positive removal, cleanup archive or genuine DLL-absent load was produced.
+
+Slot2's combined transaction restored Mods, Baseline, Working and protected
+saves exactly, but UMM appended an enabled KMC entry and advanced
+`LastUpdateCheck`; three observed native PlayerPrefs keys also changed. The
+existing settings guard retained the lock rather than overwrite this new
+delta. An exact-run, hash-pinned recovery script passed actual-user WhatIf and
+independent safety review (receipt SHA-256
+`1a164d18016105f19e81664d0e091dae799aa2891f1a648ce2a0af467366bb40`),
+then restored the original parameters and preferences and released the lock.
+Recovery receipt is private under the slot2 runtime-evidence root. No game or
+transaction remains active. The slot2 native failure and original settings
+guard FAIL remain recorded; recovery does not change their verdicts. Schema2
+TB debt, area Auto/cold, positive removal/no-DLL and doors remain open; PR #5
+stays draft with no merge, release, tag or permanent install.
+
 ## October 19 - preview.52 selected native breadth and refusal reader correction
 
 Frozen, guarded-pushed preview.52 is `f5fe6fcda39f809b92f2a6cab34bab4a2a108acb`;

@@ -1,5 +1,54 @@
 # Chunk 7 Directive 4 Codex checkpoint
 
+## October 19 - batch32 P07 prerequisite FAIL; safe recovery complete
+
+The successor reader checkpoint `7348dace0242ea11f6ad75fc24ad08d0ec29b86c`
+was repackaged without changing its preview.52 DLL (SHA-256
+`18f619bd28e872b73470944aaf46671887d91d99ff26f80f30a8fd50019a1433`).
+Main package SHA-256
+`e87bed650a2d216217e5f38788facb84331179d12bcdbf46125f5571782e28b8`;
+removal observer package SHA-256
+`f1cad1de85d727497768e2493380e133fa5bd11f452f20088a47f438c01837ba`;
+suite SHA-256 `92c53c00f9606a542c570eb42478f246a0d7bc367dc0692ab2c9076ebdd0e7eb`.
+Candidate 7/0, main package 11/0, observer package 7/0; suite and scoped
+WhatIf passed. The batch has two declared P07 attempts:
+
+| Slot | Native result | Restoration |
+| --- | --- | --- |
+| b32s1 `prepare-removal` | FAIL before game launch: sandbox denied guarded Mods move and rollback | Exact original Mods/Working restored by the project's recovery script; no game or lock remained |
+| b32s2 `prepare-removal` | FAIL: one Working load, zero writes; native `SaveManager.LoadRoutine` threw `Sequence contains no matching element` before callback | Combined Mods/saves restored; exact reviewed profile recovery restored UMM parameters and three native preferences, then released lock |
+
+Slot1 lasted 24.36 s; its original runtime-result SHA-256 is
+`cafecfb722f858470e8fffeb8c9062dc70daa2070180e4e697543e8e7afd0980`.
+Slot2 lasted 41.14 s; its original runtime-result SHA-256 is
+`24e8d258ea1f7b7fd1b129217fb4b0a1f5383da4c3b8e0e70709551223867640`
+and game-result SHA-256 is
+`7e4a7ef2a3859e8583963281b0e8aef5270bbc722002b56e41118e3503f2f91b`.
+The exact profile-recovery receipt SHA-256 is
+`c17e15a0d34aed31372af4c91822e3179ddec036b42fb2763a0679492681546e`.
+Selected commands were `Test-Tiers.ps1 -Tier Candidate -AssemblyTarget Kingmaker`,
+`Package.ps1 -ArtifactQualifier c7b-p07-head7348 -IncludeRemovalObserver`,
+`New-KmcQualificationSuiteSnapshot.ps1` with the pinned package/authority
+first in WhatIf and then commit mode, and `Invoke-KingmakerRuntimeScenario.ps1`
+with `persistence-p07-save` / `prepare-removal`, the pinned suite and package,
+separate run IDs, and a scoped WhatIf before each native attempt. Slot1 used
+`Recover-KingmakerRuntimeTransaction.ps1` WhatIf then actual; slot2 used
+`Recover-KmcP07Head7348Profile.ps1` WhatIf then actual. The private launch log,
+package/suite manifests, original result roots and recovery receipt retain
+the full paths and exact invocation pins.
+No positive cleanup archive or DLL-absent consumer exists from this batch.
+The original FAIL artifacts are retained under the two private runtime-evidence
+roots. The b32s2 `output_log.txt` supplies the exact native exception; the game
+result had no mounted assertions. New `Recover-KmcP07Head7348Profile.ps1` is a
+one-run, hash-pinned guarded restoration after UMM appended KMC and advanced
+its update-check timestamp. Actual-owner WhatIf passed; independent review
+receipt SHA-256 `1a164d18016105f19e81664d0e091dae799aa2891f1a648ce2a0af467366bb40`
+passed after under-lock captured-byte, lock-token and profile checks. Actual
+recovery PASS. No game/lock remains; Working SHA-256 is
+`5eb4e0b4cbd8d60dc879a02ff71aadfde3f517304754857f0cc68d0f9a93f1c6`.
+Directive 4 remains IN PROGRESS: P07 needs a distinct load diagnosis before
+another attempt; schema2 TB debt, area Auto/cold and doors are still open.
+
 ## October 19 - preview.52 selected native breadth and reader-only correction
 
 Published frozen candidate: `f5fe6fcda39f809b92f2a6cab34bab4a2a108acb`,

@@ -1,5 +1,28 @@
 # Chunk 7 known product debt
 
+## P07 positive cleanup native prerequisite — FAIL; restoration settled
+
+Preview.52 at pushed `7348dace` has a current-schema3 P07 Mammoth readback and
+reference scan, and the historically qualified Working fixture is a candidate
+for reference-free positive cleanup. Batch32's first slot failed before launch
+on a sandbox-denied Mods move; the guarded recovery restored the pre-run tree.
+The second slot made one Working load request but native
+`SaveManager.LoadRoutine` raised `Sequence contains no matching element` before
+the exact callback. It wrote no save and reached no removal assertions. Both
+original results remain FAIL; positive cleanup, its archive scan and genuine
+DLL-absent cold remain unaccepted. Do not reuse this failed load as proof that
+the Mammoth fixture is unsafe, or retry identical inputs without a distinguishing
+diagnosis. The existing permanent-Horse removal refusal remains PASS.
+
+Slot2 restored Mods, protected saves and Working. UMM's new KMC entry and
+update-check timestamp plus three native PlayerPrefs changes were outside the
+old settings guard, which retained the lock. A one-run recovery with exact
+backup/current hashes, a two-field XML equivalence check, three-key preference
+check, live Mods/save identity and under-lock revalidation passed WhatIf and
+independent review, then restored original settings and released the lock.
+Recovery receipt is under the private slot2 evidence root; no game or
+transaction is active. This is a safety recovery, not P07 acceptance.
+
 ## Preview.52 native disable and zero-mounted breadth — PASS; refusal reader repair
 
 Batch27's registered UMM disable/re-enable and permanent Horse refusal passed
