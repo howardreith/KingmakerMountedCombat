@@ -1,4 +1,5 @@
 Set-StrictMode -Version Latest
+. (Join-Path $PSScriptRoot 'Chunk7CombatDebtDiagnosticsEvidence.ps1')
 function Test-KmcChunk7CombatPersistenceCase([string]$Case) { $Case-cin@('multi-rt-debt-manual','multi-tb-debt-manual','zero-mounted-tb-retained-manual','legacy-mounted-pending-tb-manual','owned-schema2-pending-current-manual') }
 function Assert-KmcChunk7CombatArchive($Archive,$Request) {
     $legacy=$Request.persistenceCase-cin@('legacy-mounted-pending-tb-manual','owned-schema2-pending-current-manual');$zero=$Request.persistenceCase-ceq'zero-mounted-tb-retained-manual';$tb=$Request.persistenceCase-cne'multi-rt-debt-manual'
@@ -284,7 +285,7 @@ function Assert-KmcChunk7CombatRestorationProbe($Probe,$Archive,$Request) {
     Assert-KmcChunk7Boolean $Probe.complete $true;Assert-KmcChunk7Boolean $Probe.installedBeforeWorldLoad $true
     Assert-KmcChunk7NativeCounters $Probe @('maximumEvents','dropped','errors')
     if($Probe.contract-cne'chunk7-native-restoration-entry-observer-v1'-or$Probe.maximumEvents-ne2048-or$Probe.dropped-ne0-or$Probe.errors-ne0-or
-       $Probe.prepareMetric-cne'native-method-entries-including-production-refused-attempts'-or@($Probe.hooks).Count-ne6){throw 'Whole-world native restoration observer is incomplete.'}
+       $Probe.prepareMetric-cne'native-method-entries-including-production-refused-attempts'-or@($Probe.hooks).Count-ne$(if(Test-KmcChunk7CombatDebtDiagnosticRequest $Request){8}else{6})){throw 'Whole-world native restoration observer is incomplete.'}
     foreach($token in @('06000C3C','0600939D')){$hook=@($Probe.hooks|Where-Object token -CEQ $token);if($hook.Count-ne1-or$hook[0].moduleMvid-cne'07fa1e4d-8618-41b3-9b8d-faa17d3b26f7'){throw 'Native restore observation hook differs.'}}
     foreach($method in @('RestoreActor','RestoreDebt','TryRestoreArchiveCombat','RestoreArchivePresentation')){$hook=@($Probe.hooks|Where-Object method -CEQ $method);if($hook.Count-ne1-or$hook[0].moduleMvid-cne$Request.dllMvid){throw 'Product restore observer is not bound to the selected candidate.'}}
     $ids=@($Archive.Combat.Actors|ForEach-Object{$_.Native.Id})
@@ -295,9 +296,10 @@ function Assert-KmcChunk7CombatRestorationProbe($Probe,$Archive,$Request) {
         if($kind-ceq'restore-debt-after'-and((ConvertTo-KmcChunk7Canonical $row[0].debt)-cne(ConvertTo-KmcChunk7Canonical $actor.Native)-or$row[0].restorePhase-cne'validated-before-native-mutation')){throw 'Native restore changed exact spent actor remainder.'}
     }}
     foreach($kind in @('shared-world-restored','all-owner-presentation-restored')){$row=@($Probe.events|Where-Object kind -CEQ $kind);if($row.Count-ne1){throw 'Immediate native all-owner restoration boundary missing or duplicated.'};Assert-KmcChunk7NativeWorldRestore $row[0].snapshot $Archive ($kind-ceq'all-owner-presentation-restored')}
+    Assert-KmcChunk7CombatDebtBoundaryProbe $Request $Probe $Archive
 }
 function Assert-KmcChunk7CombatPersistenceObservation($Request,$Artifact) {
-    $o=$Artifact.observations;$cold=(Get-KmcChunk7SelectedScenario $Request)-ceq'chunk7-persistence-load';$legacy=$Request.persistenceCase-ceq'legacy-mounted-pending-tb-manual'
+    $o=$Artifact.observations;Assert-KmcChunk7CombatDebtChecks $Request $o;$cold=(Get-KmcChunk7SelectedScenario $Request)-ceq'chunk7-persistence-load';$legacy=$Request.persistenceCase-ceq'legacy-mounted-pending-tb-manual'
     Assert-KmcChunk7NativeCounters $o @('nativeSchema','nativeCapacity','processId')
     $owned=Test-KmcChunk7OwnedPairsScenario $Request.scenario
     # The owner-seed checkpoint producer starts from its verified restored mounted graph instead of native Mounts.

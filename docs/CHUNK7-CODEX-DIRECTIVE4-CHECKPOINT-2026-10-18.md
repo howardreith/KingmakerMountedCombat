@@ -1,5 +1,38 @@
 # Chunk 7 Directive 4 Codex checkpoint
 
+## October 19 - preview.45 repair checkpoint IN PROGRESS
+
+The frozen preview.44 candidate passed Candidate 7/7, but selected native
+qualification found a schema-2 cold combat-debt FAIL after restoration, a
+schema-1 source diagnostic hotbar bound below the installed 140 slots, an area
+Auto request DTO refusal before launch, and a second repeated native load count
+failure followed by blocked cleanup. The repeated-load timeout was resolved by
+guarded transaction and independently reviewed exact UMM profile recovery;
+the original runtime result stays FAIL. Only the current-schema pending source
+from this batch passed. The dependent schema-2/schema-1 resaves and area cold
+load were not run. Exact immutable receipts and failures remain in the private
+batch16/17 ledgers and `AUTONOMOUS-RESUME-RUNTIME44.md`.
+
+Preview.45 source preserves the actual native debt assertion and records selected
+full seven-actor comparisons plus bounded native Join/Prepare observations to
+attribute the schema-2 loss. It raises the diagnostic-only hotbar observation
+bound to 140 while retaining strict identity checks, passes the area target as
+the strict DTO shape, and captures all six repeated-load counters before the
+assertion. A failed repeated-load epoch can adopt exact current-world custody
+solely for cleanup; it cannot qualify a measured load or dispatch another.
+Synthetic schema-2 fixture and external reader now follow the selected journal.
+The exact post-timeout profile recovery script is included for audit.
+
+Each source group received independent private review. Applied focused checks:
+schema1 187/0, area 29/0, debt probe 61/0, debt reader 76/0, owned-pair reader
+680/0, repeated-world actual methods 75/0, owned replay epochs 91/0, repeated
+world reader 100/0. The first full compile failed on a diagnostic `Time` typo;
+after correcting it to `UnityEngine.Time`, source validation 147/0 and Release
+product build passed. This is offline evidence only. Earlier failed checks remain
+recorded. The worktree is uncommitted at this checkpoint. Next: coherent diff
+review, guarded push, one proper package/Candidate/suite, then exact scoped
+WhatIf and selected native reruns. No preview.45 game PASS exists yet.
+
 ## October 19 - preview.44 selected source connection IN PROGRESS
 
 The reviewed group44 source is applied after closure HEAD `7c1bcadc` on

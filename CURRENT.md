@@ -1,5 +1,38 @@
 # Chunk 7B–7D — IN PROGRESS
 
+## October 19 - preview.44 native qualification and preview.45 repair IN PROGRESS
+
+The unchanged preview.44 candidate at `8a13f714` passed Candidate 7/7 and was
+used for the selected owner-seed continuation. Its current-schema-3 pending
+producer passed (batch16 slot1). Actual schema-2 cold load failed after native
+restoration when rider A's spent debt was cleared during the next combat window;
+the exact native writer is still under investigation (slot2). Schema-1 source
+failed in a diagnostic hotbar observer capped below the installed 140-slot native
+array (slot4). The area Auto producer was refused before game launch because a
+request hashtable was passed to the strict DTO guard (batch17 slot2). The
+repeated-load case passed its first world, then failed at the second native
+restoration count boundary and timed out during cleanup (batch17 slot4). These
+four failed results retain FAIL; dependent consumers were not launched.
+
+After the timed-out process was closed gracefully, guarded transaction recovery
+restored Mods and saves, and an independently reviewed exact recovery restored
+UMM parameters and two native session preferences. All three transaction states
+are restored; no game or runtime lock remains. The original wrapper result still
+reports blocked restoration, with a separate PASS recovery receipt. See the
+private `analysis-cache/chunk7-continuation/codex-takeover/AUTONOMOUS-RESUME-RUNTIME44.md`
+and batch16/17 ledgers for exact hashes and failures.
+
+Preview.45 source composition has focused applied hotbar 187/0, area request
+29/0, combat-debt probe 61/0, external debt reader 76/0, composed owned-pair
+reader 680/0, repeated-world actual-method adapter 75/0, owned replay epochs
+91/0, and repeated-world reader 100/0. The first product build exposed a
+diagnostic `Time` namespace typo, corrected to `UnityEngine.Time`; the subsequent
+Release build and source validation passed (DLL SHA-256
+`bc7c5d1e06671a90ee775b7f189917a902d6eb738a685cef53ccdaa89239a834`).
+Earlier failed checks, including the original 679/1 fixture run, remain FAIL.
+No preview.45 package, Candidate, or native PASS exists yet. PR #5 remains
+draft; no merge, release, tag or installation is authorized.
+
 ## October 19 - preview.44 selected source connection IN PROGRESS
 
 Reviewed group44 source is applied after closure HEAD `7c1bcadc`; no preview.44
