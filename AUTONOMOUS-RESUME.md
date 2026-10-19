@@ -1,5 +1,55 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## October 19 — batch39 exact TB admission and producer reader
+
+Preview.57 product commit `197cc53a07b4d6933f8711943cc029aa047392c6`
+is frozen as package SHA-256
+`41d29f72093b9c07aaaf1202284e5b4b13efb491480c102cc5ac49ef80744595`,
+DLL SHA-256 `54173970d4fe4dbbcc007610911c8a8128e1e03d5b3a78948a6d7ee913fba4b6`,
+MVID `a6948a6a-85dc-48bd-b572-e83d93a607cd`, suite
+`chunk7b-directive4-b39-20261019` SHA-256
+`11374ac27fba3cc515c8f7b6c94377a1808da34ace4106ce104dd7a475a48e75`.
+Candidate passed 6/0 and scoped WhatIf passed for each declared native slot.
+
+Slot 1, `20261019-c7b-directive4-b39s1-schema2-tb-admission`, is an
+**original game/runtime FAIL** before save. The exact TB admission record is
+all true: source schema 2, writer schema 3, restoration settled, Default
+mode/unpaused, saved/live round 1, both current turns null. The next guard
+requires a successful pending-only schema-3 producer from the *same* product
+commit and DLL. Its historical immutable input is from preview.45 and cannot
+be passed off as same-candidate. Original runtime-result SHA-256
+`6da349cbe2e6a701b8c568bb2a6961e25a60693d074e8140aa0c81704a4958af`,
+raw artifact SHA-256
+`355f379dd33c49f5dbd1d9c786f9d7d043055075ef6a77c4fa1d1db02fc8ff92`.
+
+Slot 2, `20261019-c7b-directive4-b39s2-schema3-producer`, used the
+qualified owner-seed two-pair Manual to produce a new current-format pending
+checkpoint. Its **game result PASS** (4/0) wrote schema 3 at native archive
+SHA-256 `2443bfc38a51fa7dc8d1cb82c6ca8edd217164026d90bef51082890d4df6c0be`.
+The **original outer runtime result FAIL** (SHA-256
+`10444d0b627edc6e94c101a2d934231d463f3da97e03b9057e1614ddd6cbc0d8`)
+is an external-reader defect: preview.55 changed the source pending-mount
+label to `independent-native-actor-*`, while the reader accepted that label
+only for cold loads. A version-gated source-label correction and two new
+positive/negative cases passed the focused reader 159/0; direct reader-only
+evaluation of the immutable raw artifact (SHA-256
+`a92f10870124bc71520ab14b486bf7d777fd9ec4e6acbf34da5bbd1f05a7d884`)
+also passed. Independent reader review passed as recorded below. The source admission
+correctly requires an original runtime PASS, so this reader-only PASS does
+not turn slot 2 into an eligible migration parent.
+
+Independent reader review **PASS** is sealed at SHA-256
+`fadc0395832e4451ef4501f120a4bd588910ebd243ddfcec167a08d3ad8e57be`:
+14/0 independent cases, 159/0 tracked focused cases, exact old-reader FAIL
+and new-reader PASS on the immutable source, plus the retained preview.55
+cold PASS. Both slot transactions report exact Mods, protected-save, Working and profile
+restoration with zero cache exceptions. No Kingmaker process or runtime lock
+remains. Next: commit and guarded-push the reviewed reader,
+bind the unchanged preview.57 package to a clean frozen product worktree,
+then rerun only the affected schema-3 producer under the corrected reader.
+If that producer passes, use its exact new receipt for the schema-2 derivative,
+resave and separate cold consumer. Preserve all batch37–39 original FAILs.
+
 ## October 19 — batch38 schema-2 TB pause refusal
 
 Preview.56 at pushed product commit `1b346f48e2c50aad883fd34c33f4ea59fcd7906a`
