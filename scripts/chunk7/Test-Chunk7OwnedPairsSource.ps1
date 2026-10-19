@@ -7,7 +7,8 @@ $testOutput=$OutputDirectory;$testFixtures=$FixtureDirectory
 $results=[Collections.Generic.List[object]]::new();$clock=[Diagnostics.Stopwatch]::StartNew();$script:virtualLab=Join-Path $testOutput 'virtual-lab'
 # Execute the actual new qualifier. Only OS file observation, the established
 # full ancestor validator and strict manifest/output validators are substituted.
-# No archive file is created, opened or decoded. JSON fixtures remain ordinary files.
+# Earlier cases use virtual OS observations; the current-format extension below
+# reads tiny generated ZIPs and exercises guarded parent copies in this private lab.
 function Get-KmcLabRoot{$script:virtualLab}
 function Boundary([string]$Name){$script:calls.Add($Name);if($script:failure-ceq$Name){throw ('external boundary refused: '+$Name)}}
 function Assert-KmcChildPath($Path,$Parent,$Description){$p=[IO.Path]::GetFullPath($Path);$q=[IO.Path]::GetFullPath($Parent).TrimEnd('\')+'\';if(-not$p.StartsWith($q,[StringComparison]::OrdinalIgnoreCase)){throw 'foreign path'};$p}
@@ -17,7 +18,8 @@ function Assert-KmcNotHardLink($Path,$Description){Boundary 'not-hardlink'}
 function Assert-KmcManifestJsonMembersUnique($Path,$Description){Boundary 'unique-json'}
 function Read-KmcJson($Path){if(-not$script:documents.ContainsKey($Path)){throw ('unadmitted receipt '+$Path)};$script:documents[$Path]}
 function Get-KmcSha256($Path){if(-not$script:hashes.ContainsKey($Path)){throw ('unadmitted hash '+$Path)};if(-not$script:readCounts.ContainsKey($Path)){$script:readCounts[$Path]=0};$script:readCounts[$Path]++;if($script:drift-ceq$Path-and$script:readCounts[$Path]-gt1){return ('0'*64)};$script:hashes[$Path]}
-function Get-Item([string]$LiteralPath){if(-not$script:hashes.ContainsKey($LiteralPath)){throw 'unknown virtual metadata'};[pscustomobject]@{Length=[long]100;LastWriteTimeUtc=[DateTime]::new(638960000000000000,[DateTimeKind]::Utc)}}
+$script:realMetadata=@{}
+function Get-Item([string]$LiteralPath){if(-not$script:hashes.ContainsKey($LiteralPath)){throw 'unknown virtual metadata'};if($script:realMetadata.ContainsKey($LiteralPath)){return $script:realMetadata[$LiteralPath]};[pscustomobject]@{Length=[long]100;LastWriteTimeUtc=[DateTime]::new(638960000000000000,[DateTimeKind]::Utc)}}
 function Get-KmcChunk7AcquiredManualSource($Selection,$Fixture,$Candidate){Boundary 'complete-same-candidate-lineage';[pscustomobject]@{descriptor=$script:parentInput;bootstrapRunId='bootstrap';coldInventoryRunId='cold';manualRunId='manual'}}
 function Assert-KmcReadOnlyArtifactManifest($Request,$Hash,[switch]$GameResult){Boundary 'strict-manifest';if($Hash-cne('b'*64)-or-not$GameResult){throw 'manifest bound incorrectly'}}
 function Assert-KmcChunk7AcquiredManualArtifact($Request,$Manifest,$Status){Boundary 'strict-two-owner-artifact';if($Status-cne'PASS'){throw 'source failure misclassified'}}
@@ -267,16 +269,17 @@ function New-SeedCheckpointSaveSource([string]$Checkpoint='multi-exploration-qui
  $c=New-SeedCombatSource;$c.selection.case='owner-seed-checkpoint-save';$c.selection.expectedNativeWriteCount=if($Checkpoint-ceq'multi-owned-worker-cancel-manual'){2}else{1};$c.persistenceCase=$Checkpoint;$c
 }
 function New-SeedCheckpointLoadSource([string]$Checkpoint='multi-exploration-quick'){
- $p=New-SeedCheckpointSaveSource $Checkpoint;$manual=Qualify-Combat $p;$script:readCounts=@{};$script:calls=[Collections.Generic.List[string]]::new()
+ $sourceCase=Get-KmcChunk7PersistenceSourceCase $Checkpoint
+ $p=New-SeedCheckpointSaveSource $sourceCase;$manual=Qualify-Combat $p;$script:readCounts=@{};$script:calls=[Collections.Generic.List[string]]::new()
  # A combat checkpoint is a genuine native Manual numbered after the derived Manual (303 -> 304) under its distinct name.
  $type=if($Checkpoint-ceq'multi-exploration-quick'){'Quick'}elseif($Checkpoint-ceq'multi-exploration-auto'){'Auto'}else{'Manual'}
  $number=if($type-ceq'Manual'){304}else{1};$name=if($type-ceq'Manual'){'KMC_C7_SEED_CHECKPOINT'}else{$type+' save'};$leaf=if($type-ceq'Manual'){'Manual_304_KMC_C7_SEED_CHECKPOINT.zks'}else{$type+'_1.zks'}
- $pr=[ordered]@{scenario='chunk7-owned-two-pair-campaign';runId='synthetic-owner-seed-checkpoint';evidenceRoot='';fixture=$p.fixture;ownedPairs=($p.selection|ConvertTo-Json -Depth 20|ConvertFrom-Json);persistenceCase=$Checkpoint;persistenceLoad=($manual.descriptor|ConvertTo-Json -Depth 5|ConvertFrom-Json)}
+ $pr=[ordered]@{scenario='chunk7-owned-two-pair-campaign';runId='synthetic-owner-seed-checkpoint';evidenceRoot='';fixture=$p.fixture;ownedPairs=($p.selection|ConvertTo-Json -Depth 20|ConvertFrom-Json);persistenceCase=$sourceCase;persistenceLoad=($manual.descriptor|ConvertTo-Json -Depth 5|ConvertFrom-Json)}
  foreach($key in @('branch','commit','productVersion','dllSha256','dllMvid','transactionToken')){$pr[$key]=$p.producer.request.$key};$pr=[pscustomobject]$pr
  $script:checkpointArtifact=[pscustomobject]@{status='PASS';observations=[pscustomobject]@{ownedOutputAdmission=[pscustomobject]@{number=$number;leaf=$leaf};nativeWrite=[pscustomobject]@{path='';nativeName=$name;nativeType=$type;sha256=('3'*64);length=4096;archive=[pscustomobject]@{AreaId=$manual.descriptor.area}}}}
- $parentSet=Add-Set $pr $script:checkpointArtifact 'chunk7-persistence-evidence.json' ('2'*64) $p.selection.sourceArchiveSha256 $Checkpoint
+ $parentSet=Add-Set $pr $script:checkpointArtifact 'chunk7-persistence-evidence.json' ('2'*64) $p.selection.sourceArchiveSha256 $sourceCase
  $script:checkpointArtifact.observations.nativeWrite.path=Join-Path (Join-Path $parentSet.profile 'Saved Games') $leaf;$script:hashes[$script:checkpointArtifact.observations.nativeWrite.path]='3'*64
- $s=$p.selection|ConvertTo-Json -Depth 20|ConvertFrom-Json;$s.case='owner-seed-checkpoint-load';$s.expectedNativeWriteCount=if($Checkpoint-ceq'legacy-mounted-pending-tb-manual'){1}else{0};$s.checkpointSourceRunId=$pr.runId;$s.checkpointSourceArtifactSha256='2'*64
+ $s=$p.selection|ConvertTo-Json -Depth 20|ConvertFrom-Json;$s.case='owner-seed-checkpoint-load';$s.expectedNativeWriteCount=if($Checkpoint-cin@('legacy-mounted-pending-tb-manual','owned-schema1-resave-manual')){1}else{0};$s.checkpointSourceRunId=$pr.runId;$s.checkpointSourceArtifactSha256='2'*64
  [pscustomobject]@{selection=$s;fixture=$p.fixture;candidate=$p.candidate;producer=$p.producer;consumer=$p.consumer;checkpoint=$parentSet;persistenceCase=$Checkpoint}
 }
 foreach($checkpointCase in @('multi-exploration-quick','multi-exploration-auto')){
@@ -350,5 +353,72 @@ foreach($checkpointCase in @('multi-nonselected-mount-unsettled-manual','multi-o
  Check ('owner-seed boundary producer wrong quota refused '+$checkpointCase){$c=New-SeedCheckpointSaveSource $checkpointCase;$c.selection.expectedNativeWriteCount=3;[void](Qualify-Combat $c)} $true
 }
 Check 'owner-seed legacy cold requires its one current-format resave' {$c=New-SeedCheckpointLoadSource 'legacy-mounted-pending-tb-manual';$c.selection.expectedNativeWriteCount=0;[void](Qualify-Combat $c)} $true
+Check 'owner-seed schema1 source uses the accepted Manual and cold lineage' {$c=New-SeedCheckpointSaveSource 'owned-schema1-manual';$v=Qualify-Combat $c;if($v.descriptor.internalName-cne'KMC_C7_SEED_WORLD'){throw 'Schema1 source changed its original Manual.'}}
+Check 'owner-seed historical schema1 intake resolves its exact native one-owner producer' {$c=New-SeedCheckpointLoadSource 'owned-schema1-resave-manual';$v=Qualify-Combat $c;if($v.descriptor.internalName-cne'KMC_C7_SEED_CHECKPOINT'-or$c.checkpoint.request.persistenceCase-cne'owned-schema1-manual'){throw 'Historical schema1 intake did not resolve its native source.'}}
+# These established evidence validators are tested with complete generated graphs
+# by Test-Chunk7OwnedPairsEvidence. Here their boundary is explicit; the public
+# source intake, receipt completion, actual synthetic ZIP read and hashing remain real.
+. (Join-Path $ReaderDirectory 'Chunk7OwnedSchema1Fixtures.ps1')
+function Assert-KmcChunk7OwnerSeedCheckpointColdSource($Request,$Producer,$Cold){Boundary 'historical-native-cold-and-resave';if($Request.persistenceCase-cnotin@('owned-schema1-resave-manual','legacy-mounted-pending-tb-manual')-or$Cold.observations.cold-ne$true-or$Cold.observations.nativeWrite.sourceSchema-ne3){throw 'Historical cold proof bound incorrectly.'}}
+function Assert-KmcOwnedSchema1ColdSource($Request,$Source,$Artifact){Boundary 'schema1-actual-derivation-qualified';if($Request.persistenceLoad.sha256-ceq$Source.descriptor.sha256-or$Request.schema1DerivationSha256-cne('a'*64)){throw 'Schema1 historical input is not its receipted derivative.'}}
+function New-CurrentSource([string]$Case){
+ $historical=Get-KmcChunk7OwnerSeedCurrentParentCase $Case;$c=New-SeedCheckpointLoadSource $historical;$original=Qualify-Combat $c
+ $pr=$c.checkpoint.request|ConvertTo-Json -Depth 30|ConvertFrom-Json;$pr.runId='synthetic-current-parent-'+[Guid]::NewGuid().ToString('N');$pr.ownedPairs=$c.selection|ConvertTo-Json -Depth 20|ConvertFrom-Json;$pr.persistenceCase=$historical;$pr.persistenceLoad=$original.descriptor|ConvertTo-Json -Depth 10|ConvertFrom-Json
+ if($historical-ceq'owned-schema1-resave-manual'){$pr.persistenceLoad.sha256='1'*64;$pr|Add-Member schema1DerivationSha256 ('a'*64)}
+ $name=if($historical-ceq'owned-schema1-resave-manual'){'KMC_C7_SCHEMA1'}else{'KMC_C7_SCHEMA2'};$leaf='Manual_305_'+$name+'.zks'
+ $graph=[pscustomobject]@{SchemaVersion=3;AreaId=$original.descriptor.area;syntheticSourceOnly=$true}
+ $artifact=[pscustomobject]@{runId=$pr.runId;status='PASS';observations=[pscustomobject]@{checkpoint=$historical;cold=$true;processId=700;ownedOutputAdmission=[pscustomobject]@{number=305;leaf=$leaf};nativeWrite=[pscustomobject]@{path='';nativeName=$name;nativeType='Manual';sourceSchema=3;sha256='';length=0;archive=$graph}}}
+ $set=Add-Set $pr $artifact 'chunk7-persistence-evidence.json' ('4'*64) $pr.persistenceLoad.sha256 $historical
+ $saveDir=Join-Path $set.profile 'Saved Games';[void][IO.Directory]::CreateDirectory($saveDir);$path=Join-Path $saveDir $leaf
+ Add-Type -AssemblyName System.IO.Compression
+ $stream=[IO.File]::Open($path,[IO.FileMode]::CreateNew,[IO.FileAccess]::ReadWrite,[IO.FileShare]::None);$zip=$null
+ try{$zip=[IO.Compression.ZipArchive]::new($stream,[IO.Compression.ZipArchiveMode]::Create,$false);foreach($entrySpec in @(@('header.json','{}'),@('kmc-mounted-state',($graph|ConvertTo-Json -Compress)))){$entry=$zip.CreateEntry($entrySpec[0]);$writer=[IO.StreamWriter]::new($entry.Open(),[Text.UTF8Encoding]::new($false));try{$writer.Write($entrySpec[1])}finally{$writer.Dispose()}}}finally{if($zip){$zip.Dispose()};$stream.Dispose()}
+ $sha=[Security.Cryptography.SHA256]::Create();$stream=[IO.File]::OpenRead($path);try{$digest=([BitConverter]::ToString($sha.ComputeHash($stream))).Replace('-','').ToLowerInvariant()}finally{$sha.Dispose();$stream.Dispose()}
+ $actual=[IO.FileInfo]::new($path);$script:hashes[$path]=$digest;$script:realMetadata[$path]=$actual;$artifact.observations.nativeWrite.path=$path;$artifact.observations.nativeWrite.sha256=$digest;$artifact.observations.nativeWrite.length=$actual.Length
+ $s=$c.selection|ConvertTo-Json -Depth 20|ConvertFrom-Json;$s.checkpointSourceRunId=$pr.runId;$s.checkpointSourceArtifactSha256='4'*64;$s.expectedNativeWriteCount=0
+ [pscustomobject]@{selection=$s;persistenceCase=$Case;fixture=$c.fixture;candidate=$c.candidate;parent=$set;original=$original}
+}
+foreach($case in @('owned-schema1-current-manual','owned-schema2-pending-current-manual')){
+ Check ('public current-format source intake qualifies accepted native resave '+$case){$c=New-CurrentSource $case;$v=Qualify-Combat $c;if($v.descriptor.sha256-cne$c.parent.artifact.observations.nativeWrite.sha256-or$v.descriptor.internalName-cnotin@('KMC_C7_SCHEMA1','KMC_C7_SCHEMA2')-or$v.checkpointRunId-cne$c.parent.request.runId){throw 'Current source lost its exact native output or parent.'};if(-not$script:calls.Contains('historical-native-cold-and-resave')-or($case-ceq'owned-schema1-current-manual'-and-not$script:calls.Contains('schema1-actual-derivation-qualified'))){throw 'Current source omitted historical requalification.'}}
+ Check ('public current-format source preserves recorded parent candidate '+$case){$c=New-CurrentSource $case;$c.candidate.commit='f'*40;$c.candidate.dllSha256='f'*64;$c.candidate.dllMvid='ffffffff-ffff-4fff-8fff-ffffffffffff';$v=Qualify-Combat $c;if($v.checkpointCandidate.commit-ceq$c.candidate.commit){throw 'Current child relabelled historical evidence as the current candidate.'}}
+ foreach($fault in @('wrong-parent-direction','wrong-parent-case','failed-parent','wrong-parent-owner-input-hash','wrong-parent-write-quota','wrong-parent-pin','changed-native-output','noncurrent-metadata','actual-metadata-differs','escaped-native-output','missing-historical-proof')){
+  Check ('public current-format source refuses '+$fault+' '+$case){$c=New-CurrentSource $case
+   switch($fault){'wrong-parent-direction'{$c.parent.request.ownedPairs.case='owner-seed-checkpoint-save'}'wrong-parent-case'{$c.parent.request.persistenceCase='multi-tb-debt-manual'}'failed-parent'{$c.parent.result.status='FAIL'}'wrong-parent-owner-input-hash'{$c.parent.owner.sourceSha256=$c.selection.sourceArchiveSha256}'wrong-parent-write-quota'{$c.parent.game.saveRequestCount=0}'wrong-parent-pin'{$c.selection.checkpointSourceArtifactSha256='e'*64}'changed-native-output'{$c.parent.artifact.observations.nativeWrite.sha256='e'*64}'noncurrent-metadata'{$c.parent.artifact.observations.nativeWrite.archive.SchemaVersion=2}'actual-metadata-differs'{$c.parent.artifact.observations.nativeWrite.archive.AreaId='f'*32}'escaped-native-output'{$c.parent.artifact.observations.nativeWrite.path='C:\foreign\Manual_305_KMC_C7_SCHEMA1.zks'}'missing-historical-proof'{$script:failure='historical-native-cold-and-resave'}}
+   [void](Qualify-Combat $c)
+  } $true
+ }
+}
+$copyPrototypes=@(foreach($case in @('owned-schema1-current-manual','owned-schema2-pending-current-manual')){$c=New-CurrentSource $case;$source=Qualify-Combat $c;[pscustomobject]@{case=$case;selection=$c.selection;source=$source;parent=$c.parent.artifact;request=$c.parent.request}})
+# The parent-copy checks use real generated files and hashes. Only the already
+# tested lock owner and link/directory observations remain external facades.
+function Read-KmcJson($Path){[IO.File]::ReadAllText($Path)|ConvertFrom-Json}
+function Get-Item([string]$LiteralPath){[IO.FileInfo]::new($LiteralPath)}
+function Get-KmcSha256($Path){$stream=[IO.File]::Open($Path,[IO.FileMode]::Open,[IO.FileAccess]::Read,[IO.FileShare]::Read);$sha=[Security.Cryptography.SHA256]::Create();try{([BitConverter]::ToString($sha.ComputeHash($stream))).Replace('-','').ToLowerInvariant()}finally{$sha.Dispose();$stream.Dispose()}}
+function Assert-KmcRuntimeLockOwner($Lock){if($null-eq$Lock-or$Lock.Token-cne('1'*64)-or$Lock.RunId-isnot[string]){throw 'Generated copy lock is not owned.'};$true}
+$script:failure=$null;$script:calls=[Collections.Generic.List[string]]::new()
+function New-CurrentParentCopyRig($Prototype){
+ $source=$Prototype.source|ConvertTo-Json -Depth 30|ConvertFrom-Json
+ [void][IO.Directory]::CreateDirectory((Split-Path $source.checkpointArtifactPath -Parent));[IO.File]::WriteAllText($source.checkpointArtifactPath,($Prototype.parent|ConvertTo-Json -Depth 30),[Text.UTF8Encoding]::new($false))
+ $source.checkpointArtifactSha256=Get-KmcSha256 $source.checkpointArtifactPath;$source.checkpointArtifactLength=([IO.FileInfo]::new($source.checkpointArtifactPath)).Length
+ $request=$Prototype.request|ConvertTo-Json -Depth 30|ConvertFrom-Json;$request.runId='synthetic-current-copy-'+[Guid]::NewGuid().ToString('N');$request.persistenceCase=$Prototype.case;$request.persistenceLoad=$source.descriptor;$request.ownedPairs=$Prototype.selection|ConvertTo-Json -Depth 20|ConvertFrom-Json;$request.ownedPairs.checkpointSourceArtifactSha256=$source.checkpointArtifactSha256;$request.PSObject.Properties.Remove('schema1DerivationSha256')
+ $lock=[pscustomobject]@{RunId=$request.runId;Token=('1'*64)};$profile=Join-Path $script:virtualLab ('runtime-staging/persistence-'+$request.runId);[void][IO.Directory]::CreateDirectory((Join-Path $profile 'Saved Games'))
+ $owner=[pscustomobject]@{runId=$request.runId;scenario=$request.scenario;transactionToken=$lock.Token;persistenceCase=$request.persistenceCase;sourceSha256=$request.persistenceLoad.sha256;saveRoot=(Join-Path $profile 'Saved Games')}
+ $ownerPath=Join-Path $profile 'owner.json';[IO.File]::WriteAllText($ownerPath,($owner|ConvertTo-Json),[Text.UTF8Encoding]::new($false))
+ [pscustomobject]@{source=$source;request=$request;lock=$lock;profile=$profile;owner=$owner;ownerPath=$ownerPath;destination=(Join-Path $profile 'owner-seed-current-parent.json')}
+}
+foreach($prototype in $copyPrototypes){
+ $rig=New-CurrentParentCopyRig $prototype
+ Check ('guarded current parent CREATE_NEW and byte hashes '+$prototype.case){Copy-KmcChunk7OwnerSeedCurrentParent $rig.source $rig.profile $rig.lock $rig.request;if((Get-KmcSha256 $rig.destination)-cne$rig.source.checkpointArtifactSha256-or(Get-KmcSha256 $rig.source.checkpointArtifactPath)-cne$rig.source.checkpointArtifactSha256){throw 'Guarded parent copy changed source or destination bytes.'}}
+ Check ('guarded current parent refuses existing destination '+$prototype.case){Copy-KmcChunk7OwnerSeedCurrentParent $rig.source $rig.profile $rig.lock $rig.request} $true
+ foreach($fault in @('owner-token','foreign-profile','unselected-current-case','wrong-parent-pin','changed-parent-bytes')){
+  Check ('guarded current parent refuses '+$fault+' '+$prototype.case){$bad=New-CurrentParentCopyRig $prototype;$originalBytes=[IO.File]::ReadAllBytes($bad.source.checkpointArtifactPath)
+   try{
+    switch($fault){'owner-token'{$bad.owner.transactionToken='0'*64;[IO.File]::WriteAllText($bad.ownerPath,($bad.owner|ConvertTo-Json),[Text.UTF8Encoding]::new($false))}'foreign-profile'{$bad.profile=Join-Path $script:virtualLab 'runtime-staging/persistence-foreign';[void][IO.Directory]::CreateDirectory($bad.profile)}'unselected-current-case'{$bad.request.ownedPairs.case='owner-seed-checkpoint-save';$bad.request.ownedPairs.expectedNativeWriteCount=1}'wrong-parent-pin'{$bad.request.ownedPairs.checkpointSourceArtifactSha256='f'*64}'changed-parent-bytes'{[IO.File]::AppendAllText($bad.source.checkpointArtifactPath,' ',[Text.UTF8Encoding]::new($false))}}
+    $errorText=$null;try{Copy-KmcChunk7OwnerSeedCurrentParent $bad.source $bad.profile $bad.lock $bad.request}catch{$errorText=$_.Exception.Message}
+    if($null-eq$errorText-or[IO.File]::Exists($bad.destination)){throw 'Guarded parent copy accepted an invalid authority or wrote before refusal.'}
+   }finally{[IO.File]::WriteAllBytes($bad.source.checkpointArtifactPath,$originalBytes)}
+  }
+ }
+}
 $clock.Stop();$passed=@($results|Where-Object pass).Count;$failed=$results.Count-$passed
-[IO.File]::WriteAllText((Join-Path $testOutput 'receipt.json'),([pscustomobject]@{passed=$passed;failed=$failed;elapsedSeconds=$clock.Elapsed.TotalSeconds;nativeInvoked=$false;archiveRead=$false;scope='actual owned qualifier; established lineage/artifact validators and OS observations substituted';results=@($results)}|ConvertTo-Json -Depth 12),[Text.UTF8Encoding]::new($false));Write-Output ('Owned source: '+$passed+' PASS / '+$failed+' FAIL');if($failed){exit 1}
+[IO.File]::WriteAllText((Join-Path $testOutput 'receipt.json'),([pscustomobject]@{passed=$passed;failed=$failed;elapsedSeconds=$clock.Elapsed.TotalSeconds;nativeInvoked=$false;archiveRead=$true;scope='actual public owned qualifier; generated current-format ZIPs only; established lineage/artifact validators and remaining OS observations substituted';results=@($results)}|ConvertTo-Json -Depth 12),[Text.UTF8Encoding]::new($false));Write-Output ('Owned source: '+$passed+' PASS / '+$failed+' FAIL');if($failed){exit 1}

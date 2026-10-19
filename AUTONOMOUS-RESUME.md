@@ -1,51 +1,76 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
-## Latest execution checkpoint — October 18, Codex
+## October 18 — preview.42 batch 13 settled; preview.43 source IN PROGRESS
 
-HEAD at the start of this source checkpoint was
-`2b3d6702da3b8953a31b81a37bd40a0722f2280e`, successor branch at the
-approved repository root, guarded-pushed and remote verified. No game or runtime
-transaction is live. Batch 12 is settled: fresh zero producer
-`20261018-c7b-world41-ownerseed-b12s4-zerosave` PASS (126.9279735 s, evidence
-`94aadf84f7a3a1f2d778460a87c2fee8bea0b2ad0ebe56abf627295a2e6d3562`),
-actual Manual SHA `8f4854c12ad6a18c61258cd331ee080c38d079c77c492daf5b453565b8c18343`.
-Its separate-process cold load `20261018-c7b-world41-ownerseed-b12s5-zeroload`
-PASS (119.7310995 s, evidence
-`90cbfd266790dc66796eb13f6be01e50ab48dfeb75dbca81e72107c09175f83e`).
-Zero pairs/two retained owners, native continuation and each Horse's independent native turn at N+1 were accepted. Both runs: all five restoration flags true, all three
-transaction phases restored, profile bytes exact, lock absent. Original slot2
-FAIL remains; slot3 was never launched. Unchanged frozen preview.41 source and
-package identities below apply to all four actual batch-12 runs.
+Published source `b9631449357b2ef191256ded54d21c975c12cd64` on the successor branch.
+One preview.42 package build was reused for Candidate **PASS 6/6** in
+221.2420399 seconds. Package SHA-256
+`286cc78595f59393739c917c86a02db7a3d1d3d9a9331531bac361a6c5c7bc95`,
+DLL SHA-256 `11e36f03fd8d58763516ca7291508c4bd367ad1ea47e8f12c67a2904b5de288e`,
+MVID `bfb6ec50-babc-4f92-9d2b-c6a4dd070b5c`. Exact private receipts are in
+`analysis-cache/chunk7-continuation/owner-seed-batch13/`.
 
-Preview.42 source implementation is complete with final focused checks PASS:
-authority401, boundary authority115, actual worker/preparation78/26, source147,
-owned reader584/source205, save boundary204, combat source29+nested29/55/126,
-stock route19 and existing cold scenario/reader210. Independent review found no
-additional defect; its exact-hash receipt is
-`owner-seed-review/d4-source-connections-review01.json`. Source review does not
-accept native behavior. Final commands, durations, hashes and intermediate FAILs
-are in `codex-takeover/group13/`, including `external-ps-summary01.json` SHA
-`f2472d0087f470aafe3f6b0ec8857d632d8179d9b74443894a2f3c49bc1f0607`.
+Batch 13 is **FAIL**: three actual runs, one PASS and two preserved FAILs;
+slots 3/4 were DEFER — EVIDENCED and never launched.
 
-Next: commit and guarded-push this coherent source, build preview.42 once, run
-Candidate with SkipBuild, then scoped WhatIf and batch13 native cases. Native
-batch ledger is `owner-seed-batch13/batch13-ledger.json`, max five declared:
-worker save, pending Mount barrier save, schema2 survivor save, separate-process
-historical cold/native resave, owner-seed read-only stock route inventory. Use
-only an accepted producer for the cold selection. Resolve exact source from the
-new package manifest after commit; preserve preview.41 freeze/receipts. No game
-or runtime transaction is live now. No native launch before all gates pass.
-Next work is IN PROGRESS source support for owner-seed worker cancellation,
-nonselected-owner pending Mount/save barrier, and legacy schema-2 pending survivor
-producer/cold-resave. Agent review_zero_checkpoint_reader owns C# and focused
-source tests; map_disable_removal owns runtime PS and evidence/authority tests;
-map_area_continuity is independent reviewer. Root adds bounded read-only stock
-area transition metadata observation to the existing owner-seed cold inventory.
-No native inputs may be launched until the coherent change passes focused checks,
-independent review, clean commit/push, one candidate build and scoped WhatIf.
-Schema1, third-process current-format migration loads, area lifecycle and actual
-registered disable/removal remain required after this group. Do not stop at a
-batch checkpoint. Private batch12 ledger and prior failures are preserved.
+- `20261018-c7b-world42-ownerseed-b13s1-worker`: FAIL, 90.8167054 s, game PASS.
+  The restored-start driver left all six field actors selected. The strict
+  selected-A native-save evidence contract rejected it. Add normal Select(A)
+  after world/authority admission, with a regression; preserve this FAIL.
+- `20261018-c7b-world42-ownerseed-b13s2-barrier`: FAIL, 90.4350347 s, game PASS.
+  Normal B Dismount retired B and its live slot bindings, but four recognized
+  hotbar templates remained. Aggregate facts 6→4 cannot independently exclude
+  an active B fact masked by an absent A fact. Independent review requires a
+  per-actor/per-kind native fact inventory and fresh binary/native retry.
+- `20261018-c7b-world42-ownerseed-b13s5-inventory`: PASS, 84.6206638 s,
+  evidence SHA `5a339ee104ccf2aa8062501d53b760816e1b9af59681121bfc090e10683966a3`.
+  Native ToIndoor/ToOutdoor both resolve to the current SpiderCave area, not a
+  second area. MapExit resolves GlobalMapArea; all three use BeforeExit.
+  This was read-only discovery, with zero travel/interaction/save requests.
+
+All actual runs have five restoration flags true, all three transaction phases
+restored, profile bytes restored exactly, and no remaining game or lock. Failed
+outputs are not accepted cold sources. Native barriers/worker/migration are still
+unaccepted. The original preview.41 TB and zero save/cold PASS results retain
+their original inputs.
+
+Preview.43 source checks are now PASS on the affected inputs: C# authority431,
+worker adapter82, preparation/facts39, current-parent guards56, schema1/schema2
+guards29/26, actual fixture bind-mode48, source147; PS owned reader680,
+source247, boundary218, schema1 reader54 and actual derivative input14, all
+with zero failures in their final runs. Affected product compile03 PASS in
+26.6666074 s. Exact commands, durations, hashes and retained failures are in
+`codex-takeover/group43/`; C# summary03 SHA
+`ef98c536fda77d7c2ad300af4884540938adb6d7be1df249b3bb1239ef1417ee`.
+
+Independent review found and closed the actual schema1-current fixture-mode
+guard omission, external result-row registration and source-schema evidence
+gaps. A generated in-memory projection of failed worker evidence also exposed
+compact owner IDs versus native hyphenated actor IDs; the reader now uses the
+existing strict native identity comparator. The original worker FAIL stays
+unchanged, and its synthetic projection has no native credit. Preparation may
+retain four templates; completed save/cold boundaries still require exactly
+their saved live slots. The final review receipt is
+`owner-seed-review/d4-group43-review01.json` and is required before qualification.
+
+Private batches14/15 declare worker/barrier retries and both migration chains
+(historical input, native schema3 resave, separate third-process actual schema3
+load). Existing positive P07 cleanup is not runnable unchanged: its diagnostic
+driver still reads the legacy schema1/2 format after the current schema3 writer.
+Those two removal slots are unrun DEFER - EVIDENCED pending a bounded current
+observer/reader connection; no Working incompatibility is inferred. Area route
+preparation must respect actual GlobalMap cleanup policy. No native run or
+Candidate packaging is claimed by these source checks.
+
+Next coherent group (preview.43) is IN PROGRESS: worker selection setup, exact
+control-fact evidence, schema1 source/historical migration/native resave and
+both schema1/schema2 third-process loads of actual schema3 native output. Root
+is sole native executor. Review, focused checks, one clean candidate build,
+Candidate and scoped WhatIf precede fresh bounded native batches. Area transfer,
+repeated lifecycle, registered disable/permanent Horse refusal, positive cleanup
+and genuine no-DLL load, native malformed/future refusal and opportunistic doors
+remain required. No merge/release/permanent installation/full7E/HUMAN PLAY.
+
 ## Resume here — Codex takeover, Directive 4, October 18
 
 This section supersedes the active chronology below. Branch:

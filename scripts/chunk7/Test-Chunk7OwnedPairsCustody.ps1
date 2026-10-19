@@ -13,7 +13,8 @@ $require=Get-ActualMethod $fixture '        internal void RequirePreserved()'
 $start=$fixture.IndexOf('        private JObject Arrangement() =>',[StringComparison]::Ordinal);$end=$fixture.IndexOf('        internal JObject Capture(', $start,[StringComparison]::Ordinal);if($start-lt0-or$end-le$start){throw 'Actual arrangement boundary absent.'};$arrangement=$fixture.Substring($start,$end-$start)
 $areaProperties=@($area -split '\r?\n'|Where-Object{$_-match '^\s*private (bool AreaAutosaveCase|string ExpectedArchiveArea) =>'})-join[Environment]::NewLine
 if(@($areaProperties -split '\r?\n').Count-ne2){throw 'Actual area property count changed.'}
-$actual=[IO.File]::ReadAllText($TemplatePath).Replace('/*ACTUAL_REQUIRE*/',$require).Replace('/*ACTUAL_ARRANGEMENT*/',$arrangement).Replace('/*AREA_PROPERTIES*/',$areaProperties)
+$bindMode=Get-ActualMethod $fixture '        private void RequireBindMode(bool combatCold)'
+$actual=[IO.File]::ReadAllText($TemplatePath).Replace('/*ACTUAL_REQUIRE*/',$require).Replace('/*ACTUAL_ARRANGEMENT*/',$arrangement).Replace('/*AREA_PROPERTIES*/',$areaProperties).Replace('/*ACTUAL_BIND_MODE*/',$bindMode)
 $actualPath=Join-Path $OutputDirectory 'actual.cs';[IO.File]::WriteAllText($actualPath,$actual,[Text.UTF8Encoding]::new($false))
 Copy-Item -LiteralPath $fixturePath -Destination (Join-Path $OutputDirectory 'FixtureSource.cs');Copy-Item -LiteralPath $areaPath -Destination (Join-Path $OutputDirectory 'AreaSource.cs')
 $compiler='C:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/MSBuild/Current/Bin/Roslyn/csc.exe';$framework='C:/Program Files (x86)/Reference Assemblies/Microsoft/Framework/.NETFramework/v4.7'

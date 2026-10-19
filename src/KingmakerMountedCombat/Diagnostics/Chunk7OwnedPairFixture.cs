@@ -61,12 +61,17 @@ namespace KingmakerMountedCombat.Diagnostics
             game = Game.Instance ?? throw new InvalidOperationException("Exact loaded Game is unavailable."); manager = game.SaveManager;
             authorityGeneration = authorization.AuthorityGeneration; requestKey = Key(request);
         }
-        internal void Bind(bool combatCold)
+        private void RequireBindMode(bool combatCold)
         {
             Require(!bound && !released && combatCold == (selection.Cold && request.PersistenceCase != "multi-exploration-manual" &&
                 request.PersistenceCase != "multi-exploration-quick" && request.PersistenceCase != "multi-exploration-auto" && request.PersistenceCase != "multi-area-autosave" &&
-                !Chunk7OwnedPairsSelection.RepeatedCheckpoint(request.PersistenceCase) && !Chunk7OwnedPairsSelection.OwnedSchema1Cold(request.PersistenceCase)),
+                !Chunk7OwnedPairsSelection.RepeatedCheckpoint(request.PersistenceCase) && !Chunk7OwnedPairsSelection.OwnedSchema1Cold(request.PersistenceCase) &&
+                request.PersistenceCase != "owned-schema1-current-manual"),
                 "Inherited fixture is already bound or its cold mode differs.");
+        }
+        internal void Bind(bool combatCold)
+        {
+            RequireBindMode(combatCold);
             RequireRequest();
             RequireAuthority();
             var input = request.PersistenceLoad;

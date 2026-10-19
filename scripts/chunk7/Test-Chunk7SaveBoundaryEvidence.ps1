@@ -8,7 +8,7 @@ function New-SaveBoundaryFixture([bool]$Worker) {
     if(-not$Worker){$arc.Slots=@($arc.Slots|Where-Object ActorId -CEQ $first);$v.snapshots[0].controls.ManagedHotbarSlotCount=2;$v.inputs[1].generationAtInit=$arc.Pairs[1].Generation-1}
     $v.nativeWrite.nativeCallback=-not$Worker;$v.nativeWrite|Add-Member NoteProperty path 'C:\private\Manual_300_KMC_C7_WORLD.zks'
     $actorRows=@();for($i=0;$i-lt4;$i++){$actorRows+=[pscustomobject]@{id=$ids[$i];object=10+$i;native=(Copy-Test $native[$i]);prepared=$false;position=[pscustomobject]@{x=0.0;y=0.0;z=0.0};commandsEmpty=$true;moving=$false}}
-    $own=@();for($i=0;$i-lt2;$i++){$p=$arc.Pairs[$i];$own+=[pscustomobject]@{id=$p.PairId;generation=$p.Generation;riderId=$p.Rider.Id;mountId=$p.Mount.Id;boundaryObject=20+$i;state='Active'}}
+    $own=@();for($i=0;$i-lt2;$i++){$p=$arc.Pairs[$i];$own+=[pscustomobject]@{id=$p.PairId;generation=$p.Generation;riderId=$p.Rider.Id.Replace('-','');mountId=$p.Mount.Id.Replace('-','');boundaryObject=20+$i;state='Active'}}
     $bounds=@();for($i=0;$i-lt2;$i++){$p=$arc.Pairs[$i];$bounds+=[pscustomobject]@{object=20+$i;ownerId=$p.PairId;state='Mounted';generation=$p.Generation;shellUnsettled=$false;saveSuspended=$false;chargeFence=$false}}
     function Row([string]$Kind,[int]$Frame){
         $x=[pscustomobject]@{kind=$Kind;frame=$Frame;gameTicks=10000000L;gameObject=1;playerObject=2;stateObject=3;saveManagerObject=4;requestedSaveObject=30;authorityGeneration=1;
@@ -65,7 +65,7 @@ function New-SaveBoundaryFixture([bool]$Worker) {
 foreach($worker in @($false,$true)) {
     $f=New-SaveBoundaryFixture $worker
     Check ('selected source native save boundary '+$worker) {Assert-KmcChunk7PersistenceObservation $f.request $f.artifact 'PASS'}
-    foreach($mutation in @('numeric-generation','boolean-text','swapped-actor','swapped-world','wrong-request','other-selected','missing-owner','released-neighbour','extra-header','native-prepare','early-header','wrong-debt','wrong-native-hook','identity-collision','identity-retained','extra-write','wrong-slots','invented-resource','fault-overclaim')) {
+    foreach($mutation in @('numeric-generation','boolean-text','swapped-actor','swapped-world','wrong-request','other-selected','missing-owner','released-neighbour','extra-header','native-prepare','early-header','wrong-debt','wrong-native-hook','identity-collision','identity-retained','extra-write','wrong-slots','invented-resource','fault-overclaim','wrong-owner-actor','owner-role-array','invalid-owner-role','whitespace-owner-role','swapped-owner-roles','conflicting-owner-role','noncanonical-owner-D')) {
         Reject ('save-boundary-'+$worker+'-'+$mutation) {$bad=Copy-Test $f;$sb=$bad.artifact.observations.saveBoundary;$row=$sb.probe.events[0];switch($mutation){
             'numeric-generation' {$row.owners[0].generation=[string]$row.owners[0].generation}
             'boolean-text' {$row.activeScope='true'}
@@ -74,6 +74,13 @@ foreach($worker in @($false,$true)) {
             'wrong-request' {$row.requestedSaveObject=31}
             'other-selected' {$row.selected=@($second)}
             'missing-owner' {$row.owners=@($row.owners[0])}
+            'wrong-owner-actor' {$row.owners[0].riderId=$row.owners[1].riderId}
+            'owner-role-array' {$row.owners[0].mountId=@($row.owners[0].mountId)}
+            'invalid-owner-role' {$row.owners[0].riderId='invalid'}
+            'whitespace-owner-role' {$row.owners[0].riderId=' '+$row.owners[0].riderId}
+            'swapped-owner-roles' {$prior=$row.owners[0].riderId;$row.owners[0].riderId=$row.owners[0].mountId;$row.owners[0].mountId=$prior}
+            'conflicting-owner-role' {$row.owners[1].mountId=$row.owners[0].riderId}
+            'noncanonical-owner-D' {$row.owners[0].riderId=([Guid]::ParseExact($row.owners[0].riderId,'N')).ToString('D')}
             'released-neighbour' {$sb.probe.events[1].boundaries[1].saveSuspended=$false}
             'extra-header' {$sb.probe.events+=Copy-Test $row}
             'native-prepare' {$sb.probe.events+=[pscustomobject]@{kind='prepare-before';frame=104;actorId=$horse}}
@@ -173,7 +180,7 @@ function New-OwnedSaveBoundaryFixture([bool]$Worker){
  $r.persistenceCase=$f.request.persistenceCase;$r.ownedPairs.expectedNativeWriteCount=if($Worker){2}else{1}
  $raw=$f.artifact.observations|ConvertTo-Json -Depth 100
  $newIds=@($r.ownedPairs.riderAId,$r.ownedPairs.mountAId,$r.ownedPairs.riderBId,$r.ownedPairs.mountBId)
- for($i=0;$i-lt4;$i++){$raw=$raw.Replace($ids[$i],$newIds[$i])}
+ for($i=0;$i-lt4;$i++){$raw=$raw.Replace($ids[$i],$newIds[$i]).Replace($ids[$i].Replace('-',''),$newIds[$i].Replace('-',''))}
  $raw=$raw.Replace($f.request.fixture.working.gameId,$r.persistenceLoad.gameId).Replace('Manual_300_KMC_C7_WORLD.zks','Manual_43_KMC_C7_WORLD.zks').Replace('Manual_301_KMC_C7_WORLD.zks','Manual_44_KMC_C7_WORLD.zks')
  $v=$raw|ConvertFrom-Json;$v.sourceWorkingSha256=$null;$v.nativeProgressionRequiresExternalWorkingRestoration=$false;$v.nativeWrite.archive.Pairs[0].ProfileId='medium-humanoid-horse-v1'
  foreach($key in @('acquisition','cleanup','inheritedFixture','inheritedCleanup','inheritedManualSha256','ownedOutputAdmission','ownedOutputCompletion')){$v|Add-Member NoteProperty $key (Copy-Test $ownedCore.artifact.observations.$key) -Force}

@@ -9,6 +9,7 @@ $clock=[Diagnostics.Stopwatch]::StartNew();$results=[Collections.Generic.List[ob
 $fixtures=(Get-Content -LiteralPath $FixturePath -Raw|ConvertFrom-Json).fixtures
 function Copy-Value($v){$v|ConvertTo-Json -Depth 90|ConvertFrom-Json}
 . (Join-Path $repo 'tests/Chunk7Diagnostics/OwnerSeedCheckpointPreparationFixtures.ps1')
+. (Join-Path $repo 'tests/Chunk7Diagnostics/OwnerSeedMigrationFixtures.ps1')
 function Invoke-OwnedReader($Value){$r=$Value.request;$v=$Value.artifact;switch -Regex ($Value.name){'^exploration$'{Assert-KmcChunk7WorldEvidence $r $v 'PASS';break}'^combat-'{Assert-KmcChunk7CombatEvidence $r $v 'PASS';break}'^realtime-'{Assert-KmcChunk7RealtimeEvidence $r $v 'PASS';break}'^native-life-'{Assert-KmcChunk7NativeLifeEvidence $r $v 'PASS';break}'^persistence-'{Assert-KmcChunk7PersistenceObservation $r $v 'PASS';break}default{throw 'Unknown fixture name'}}}
 function Check([string]$Name,[scriptblock]$Body,[bool]$Refuse=$false,[string]$Pattern=''){$errorText=$null;$pass=$false;try{&$Body;$pass=-not$Refuse}catch{$errorText=$_.Exception.Message;$pass=$Refuse-and(-not$Pattern-or$errorText-match$Pattern)};$results.Add([pscustomobject]@{name=$Name;pass=$pass;expectedRefusal=$Refuse;error=$errorText});if(-not$pass){Write-Output ('FAIL '+$Name+': '+$errorText)}}
 function Mutate([string]$Name,[string]$Case,[scriptblock]$Mutation,[string]$Pattern=''){$v=Copy-Value @($fixtures|Where-Object name -CEQ $Case)[0];&$Mutation $v;Check $Name {Invoke-OwnedReader $v} $true $Pattern}
@@ -746,6 +747,95 @@ foreach($fault in @('missing-native-preparation','changed-surviving-owner','two-
    'both-readbacks-use-live-owner'{$old=$v.artifact.observations.loadedArchive.Pairs[0].PairId;$new=$p.observations.mountedStart.owners[0].ownerId;foreach($object in @($p.observations.nativeWrite,$v.artifact.observations)){$key=if($object.PSObject.Properties['loadedArchive']){'loadedArchive'}else{'archive'};$raw=$object.$key|ConvertTo-Json -Depth 90;$object.$key=$raw.Replace($old,$new)|ConvertFrom-Json}}
   };Assert-KmcChunk7OwnerSeedCheckpointColdSource $v.request $p $v.artifact
  } $true
+}
+Check 'native-shaped stale managed templates preserve exact A live controls and B Mount only' {$v=New-KmcOwnerSeedCombatCheckpointSaveFixture 'legacy-mounted-pending-tb-manual';$p=$v.artifact.observations.ownerSeedCheckpointPreparation;Invoke-OwnedReader $v;if($p.after.controls.ManagedHotbarSlotCount-ne4-or$p.slotsAfter.Count-ne2-or$p.controlFactsAfter.totalFacts-ne4){throw 'Generated stale-template fixture omitted the native distinction.'}}
+foreach($fault in @('missing-facts','missing-row','duplicate-row','foreign-actor','wrong-kind-guid','extra-property','string-count','array-flag','inactive-fact','missing-data','wrong-data-blueprint','wrong-caster','wrong-lookup','aggregate-drift','mount-fact','charge-fact','B-primary-leak-compensated-by-A-loss')){
+ Check ('native single-owner preparation control facts refuse '+$fault){$v=New-KmcOwnerSeedCombatCheckpointSaveFixture 'legacy-mounted-pending-tb-manual';$p=$v.artifact.observations.ownerSeedCheckpointPreparation;$facts=$p.controlFactsAfter;$rows=$facts.rows;$live=@($rows|Where-Object{$_.actorId-ceq$v.request.ownedPairs.riderAId-and$_.kind-eq4})[0];$fact=$live.facts[0]
+  switch($fault){
+   'missing-facts'{$p.PSObject.Properties.Remove('controlFactsAfter')}
+   'missing-row'{$facts.rows=@($rows|Select-Object -Skip 1)}
+   'duplicate-row'{$facts.rows[0]=Copy-Value $facts.rows[1]}
+   'foreign-actor'{$facts.rows[0].actorId='aaaaaaaa-1111-4111-8111-111111111111'}
+   'wrong-kind-guid'{$live.blueprintGuid=$rows[0].blueprintGuid}
+   'extra-property'{$fact|Add-Member unrelated $true}
+   'string-count'{$live.totalFacts='1'}
+   'array-flag'{$fact.active=@($true)}
+   'inactive-fact'{$fact.active=$false;$live.activeFacts=0;$facts.activeFacts=3}
+   'missing-data'{$fact.dataPresent=$false}
+   'wrong-data-blueprint'{$fact.dataBlueprintExact=$false}
+   'wrong-caster'{$fact.casterExact=$false}
+   'wrong-lookup'{$fact.nativeLookupExact=$false}
+   'aggregate-drift'{$facts.totalFacts=3}
+   'mount-fact'{$row=@($rows|Where-Object{$_.actorId-ceq$v.request.ownedPairs.mountAId-and$_.kind-eq1})[0];$row.totalFacts=1;$row.activeFacts=1;$row.facts=@(Copy-Value $fact);$facts.totalFacts++;$facts.activeFacts++}
+   'charge-fact'{$row=@($rows|Where-Object{$_.actorId-ceq$v.request.ownedPairs.riderBId-and$_.kind-eq5})[0];$row.totalFacts=1;$row.activeFacts=1;$row.facts=@(Copy-Value $fact);$facts.totalFacts++;$facts.activeFacts++}
+   'B-primary-leak-compensated-by-A-loss'{$row=@($rows|Where-Object{$_.actorId-ceq$v.request.ownedPairs.riderBId-and$_.kind-eq3})[0];$row.totalFacts=1;$row.activeFacts=1;$row.facts=@(Copy-Value $fact);$live.totalFacts=0;$live.activeFacts=0;$live.facts=@()}
+  };Invoke-OwnedReader $v
+ } $true
+}
+Check 'owner-seed schema1 source retains native A after genuine B retirement' {Invoke-OwnedReader (New-KmcOwnerSeedSchema1SourceFixture)}
+foreach($phaseCase in @('owned-schema1-manual','legacy-mounted-pending-tb-manual')){
+ Check ('owner-seed preparation four templates and native completion two bindings '+$phaseCase){$v=if($phaseCase-ceq'owned-schema1-manual'){New-KmcOwnerSeedSchema1SourceFixture}else{New-KmcOwnerSeedCombatCheckpointSaveFixture $phaseCase};$o=$v.artifact.observations;Invoke-OwnedReader $v;if($o.ownerSeedCheckpointPreparation.after.controls.ManagedHotbarSlotCount-ne4-or@($o.snapshots|Where-Object label -CEQ 'before-native-save')[0].controls.ManagedHotbarSlotCount-ne4-or@($o.snapshots|Where-Object label -CEQ 'native-write-complete')[0].controls.ManagedHotbarSlotCount-ne2){throw 'Generated source mixed preparation and completed-write control phases.'}}
+ Check ('owner-seed native completion rejects stale preparation templates '+$phaseCase){$v=if($phaseCase-ceq'owned-schema1-manual'){New-KmcOwnerSeedSchema1SourceFixture}else{New-KmcOwnerSeedCombatCheckpointSaveFixture $phaseCase};@($v.artifact.observations.snapshots|Where-Object label -CEQ 'native-write-complete')[0].controls.ManagedHotbarSlotCount=4;Invoke-OwnedReader $v} $true
+}
+foreach($fault in @('missing-preparation','active-B-leak-compensated-by-A-loss','wrong-active-count','lost-live-slot','postsave-stale-template-count')){
+ Check ('owner-seed schema1 stale-template source refuses '+$fault){$v=New-KmcOwnerSeedSchema1SourceFixture;$o=$v.artifact.observations;$p=$o.ownerSeedCheckpointPreparation
+  switch($fault){
+   'missing-preparation'{$o.PSObject.Properties.Remove('ownerSeedCheckpointPreparation')}
+   'active-B-leak-compensated-by-A-loss'{$a=@($p.controlFactsAfter.rows|Where-Object{$_.actorId-ceq$v.request.ownedPairs.riderAId-and$_.kind-eq4})[0];$b=@($p.controlFactsAfter.rows|Where-Object{$_.actorId-ceq$v.request.ownedPairs.riderBId-and$_.kind-eq3})[0];$b.totalFacts=1;$b.activeFacts=1;$b.facts=@(Copy-Value $a.facts[0]);$a.totalFacts=0;$a.activeFacts=0;$a.facts=@()}
+   'wrong-active-count'{$p.controlFactsAfter.activeFacts=3}
+   'lost-live-slot'{$p.slotsAfter=@($p.slotsAfter|Select-Object -First 1)}
+   'postsave-stale-template-count'{@($o.snapshots|Where-Object label -CEQ 'native-write-complete')[0].controls.ManagedHotbarSlotCount=4}
+  };Invoke-OwnedReader $v
+ } $true
+}
+Check 'owner-seed schema1 historical cold writes one native current-format Manual' {Invoke-OwnedReader (New-KmcOwnerSeedSchema1ColdFixture)}
+Check 'owner-seed schema1 historical cold matches its exact original native producer' {$v=New-KmcOwnerSeedSchema1ColdFixture;Assert-KmcChunk7OwnerSeedCheckpointColdSource $v.request (New-KmcOwnerSeedSchema1Producer $v) $v.artifact}
+foreach($checkpoint in @('owned-schema1-current-manual','owned-schema2-pending-current-manual')){
+ Check ('current-format load-only native continuation '+$checkpoint){$v=New-KmcOwnerSeedCurrentFixture $checkpoint;Invoke-OwnedReader $v;if((Get-KmcChunk7OwnedWriteCount $v.request)-ne0){throw 'Current child acquired native save entitlement.'}}
+ Check ('current-format exact historical resave parent '+$checkpoint){$v=New-KmcOwnerSeedCurrentFixture $checkpoint;Assert-KmcChunk7OwnerSeedCheckpointColdSource $v.request (New-KmcOwnerSeedCurrentParent $v) $v.artifact}
+ foreach($fault in @('save-direction','write-quota','wrong-native-name','same-process','wrong-parent-case','wrong-parent-pin','wrong-input-schema','wrong-input-hash','wrong-input-length','missing-loaded-schema','historical-loaded-schema','string-loaded-schema','missing-actual-equality','producer-output','historical-migration','derivative-request','restoration-prepare','movement-or-continuation')){
+  Check ('current-format child refuses '+$fault+' '+$checkpoint){$v=New-KmcOwnerSeedCurrentFixture $checkpoint;$r=$v.request;$o=$v.artifact.observations;$m=$o.currentFormatMigration
+   switch($fault){
+    'save-direction'{$r.ownedPairs.case='owner-seed-checkpoint-save';$r.ownedPairs.expectedNativeWriteCount=1}
+    'write-quota'{$r.ownedPairs.expectedNativeWriteCount=1}
+    'wrong-native-name'{$r.persistenceLoad.internalName='KMC_C7_SEED_CHECKPOINT';$r.persistenceLoad.fileName='Manual_304_KMC_C7_SEED_CHECKPOINT.zks'}
+    'same-process'{$m.parentProcessId=$o.processId}
+    'wrong-parent-case'{$m.parentCheckpoint='multi-exploration-quick'}
+    'wrong-parent-pin'{$m.parentArtifactSha256='e'*64}
+    'wrong-input-schema'{$m.inputSchema=2}
+    'wrong-input-hash'{$m.inputSha256='e'*64}
+    'wrong-input-length'{$m.inputLength++}
+    'missing-loaded-schema'{$o.PSObject.Properties.Remove('loadedSourceSchema')}
+    'historical-loaded-schema'{$o.loadedSourceSchema=2}
+    'string-loaded-schema'{$o.loadedSourceSchema='3'}
+    'missing-actual-equality'{$m.loadedEqualsParentNativeWrite=$false}
+    'producer-output'{$o|Add-Member nativeWrite ([pscustomobject]@{sourceSchema=3})}
+    'historical-migration'{$o|Add-Member schema2Migration ([pscustomobject]@{})}
+    'derivative-request'{$r|Add-Member schema1DerivationSha256 ('e'*64)}
+    'restoration-prepare'{$o.coldRestoration.events+=@([pscustomobject]@{kind='prepare-before';actorId=$r.ownedPairs.mountAId})}
+    'movement-or-continuation'{if($checkpoint-ceq'owned-schema1-current-manual'){$o.movements[0].executorId=$r.ownedPairs.mountBId}else{$o.combatContinuation.kind='ZeroMountedRetained'}}
+   };Invoke-OwnedReader $v
+  } $true
+ }
+ foreach($fault in @('wrong-parent-process','wrong-parent-graph','wrong-parent-input-format','wrong-parent-checkpoint','wrong-parent-output-hash')){
+  Check ('current-format parent refuses '+$fault+' '+$checkpoint){$v=New-KmcOwnerSeedCurrentFixture $checkpoint;$parent=New-KmcOwnerSeedCurrentParent $v;$p=$parent.observations
+   switch($fault){'wrong-parent-process'{$p.processId++}'wrong-parent-graph'{$p.nativeWrite.archive.GameTimeTicks++}'wrong-parent-input-format'{if($checkpoint-ceq'owned-schema1-current-manual'){$p.schema1Migration.inputSchema=3}else{$p.loadedSourceSchema=3}}'wrong-parent-checkpoint'{$p.checkpoint='multi-exploration-quick'}'wrong-parent-output-hash'{$p.nativeWrite.sha256='e'*64}}
+   Assert-KmcChunk7OwnerSeedCheckpointColdSource $v.request $parent $v.artifact
+  } $true
+ }
+}
+foreach($case in @('owned-schema1-manual','owned-schema1-resave-manual','owned-schema1-current-manual','owned-schema2-pending-current-manual')){Check ('owner-seed migration exact directional selection '+$case){$v=if($case-ceq'owned-schema1-manual'){New-KmcOwnerSeedSchema1SourceFixture}elseif($case-ceq'owned-schema1-resave-manual'){New-KmcOwnerSeedSchema1ColdFixture}else{New-KmcOwnerSeedCurrentFixture $case};$v.request.ownedPairs.case=if($v.request.ownedPairs.case-ceq'owner-seed-checkpoint-save'){'owner-seed-checkpoint-load'}else{'owner-seed-checkpoint-save'};Assert-KmcChunk7OwnedPairsSelection $v.request} $true}
+# Compose each new artifact reader with the actual external result/game-result
+# subscenario validator, including their shared closed runtime-row inventory.
+foreach($leaf in @('Test-RuntimeGameResult.ps1','Test-RuntimeResult.ps1')){
+ $ast=[Management.Automation.Language.Parser]::ParseFile((Join-Path $ReaderDirectory $leaf),[ref]$null,[ref]$null)
+ $method=@($ast.FindAll({param($node)$node-is[Management.Automation.Language.FunctionDefinitionAst]-and$node.Name-ceq'Assert-SubscenarioResults'},$true));if($method.Count-ne1){throw 'Exact external runtime row validator is absent or repeated.'};Invoke-Expression $method[0].Extent.Text
+ foreach($case in @('owned-schema1-current-manual','owned-schema2-pending-current-manual')){
+  $runtime=[pscustomobject]@{scenario='chunk7-owned-two-pair-campaign';subscenarioTotal=3;subscenarioPassCount=3;subscenarioFailCount=0;assertionPassCount=3;assertionFailCount=0;subscenarioResults=@(@('chunk7-owned-two-pair-campaign','C7-persistence-current-migration-native-load','C7-persistence-current-migration-continuation')|ForEach-Object{[pscustomobject]@{name=$_;status='PASS';assertionPassCount=1;assertionFailCount=0;errors=@()}})}
+  Check ('current migration artifact and external runtime rows '+$case+' '+$leaf){Invoke-OwnedReader (New-KmcOwnerSeedCurrentFixture $case);Assert-SubscenarioResults $runtime}
+  Check ('current migration external runtime rejects unknown row '+$case+' '+$leaf){$bad=Copy-Value $runtime;$bad.subscenarioResults[2].name+='-unknown';Assert-SubscenarioResults $bad} $true
+  Check ('current migration external runtime rejects duplicate row '+$case+' '+$leaf){$bad=Copy-Value $runtime;$bad.subscenarioResults[2].name=$bad.subscenarioResults[1].name;Assert-SubscenarioResults $bad} $true
+ }
 }
 $clock.Stop();[void][IO.Directory]::CreateDirectory($OutputDirectory);$passed=@($results|Where-Object pass).Count;$failed=$results.Count-$passed
 [IO.File]::WriteAllText((Join-Path $OutputDirectory 'receipt.json'),([pscustomobject]@{passed=$passed;failed=$failed;elapsedSeconds=$clock.Elapsed.TotalSeconds;nativeInvoked=$false;archiveRead=$false;results=@($results)}|ConvertTo-Json -Depth 12),[Text.UTF8Encoding]::new($false))

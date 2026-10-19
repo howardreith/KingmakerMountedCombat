@@ -20,6 +20,12 @@ function Get-ActualPreparationMethod([string]$Signature){
 $methods=@('private void BeginOwnerSeedCheckpointPreparation()','private void PollOwnerSeedCheckpointPreparation()',
  'private void RequireOwnerSeedPreparedSlots()','private void RememberOwnerSeedRemountedSecondPair()')|ForEach-Object{Get-ActualPreparationMethod $_}
 $template=Join-Path $repo 'tests/Chunk7Diagnostics/OwnerSeedCheckpointPreparationTemplate.cs'
+$factSource=Join-Path $repo 'src/KingmakerMountedCombat/Diagnostics/Chunk7PersistenceScenario.ControlFacts.cs'
+$text=[IO.File]::ReadAllText($factSource)
+$methods+=Get-ActualPreparationMethod '        private JObject CaptureOwnerSeedControlFacts()'
+$schema1Source=Join-Path $repo 'src/KingmakerMountedCombat/Diagnostics/Chunk7PersistenceScenario.Schema1.cs'
+$text=[IO.File]::ReadAllText($schema1Source)
+$methods+=Get-ActualPreparationMethod '        private void BeginOwnedSchema1Source()'
 $actual=Join-Path $OutputDirectory 'ActualPreparation.cs'
 [IO.File]::WriteAllText($actual,([IO.File]::ReadAllText($template).Replace('__METHODS__',($methods-join[Environment]::NewLine))),[Text.UTF8Encoding]::new($false))
 $compiler='C:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/MSBuild/Current/Bin/Roslyn/csc.exe'
@@ -31,5 +37,5 @@ $test=@();$testExit=$null
 if($compileExit-eq0){Copy-Item -LiteralPath $json -Destination $OutputDirectory;$test=@(&$exe 2>&1);$testExit=$LASTEXITCODE;$test|Set-Content -LiteralPath (Join-Path $OutputDirectory 'test.log');$test|ForEach-Object{Write-Output $_}}
 $passed=@($test|Where-Object{$_-cmatch'^PASS '}).Count;$failed=@($test|Where-Object{$_-cmatch'^FAIL '}).Count
 $ok=$compileExit-eq0-and$testExit-eq0-and$passed-gt0-and$failed-eq0
-[ordered]@{status=$(if($ok){'PASS'}else{'FAIL'});passed=$passed;failed=$failed;compileExit=$compileExit;testExit=$testExit;elapsedSeconds=$clock.Elapsed.TotalSeconds;sourceSha256=(Get-FileHash -LiteralPath $source).Hash.ToLowerInvariant();templateSha256=(Get-FileHash -LiteralPath $template).Hash.ToLowerInvariant();actualSha256=(Get-FileHash -LiteralPath $actual).Hash.ToLowerInvariant();nativeInvoked=$false;limits='Four exact diagnostic methods; native input/world/debt and inherited fixture boundaries use facades. No loader or engine delivery is executed.'}|ConvertTo-Json|Set-Content -LiteralPath (Join-Path $OutputDirectory 'receipt.json')
+[ordered]@{status=$(if($ok){'PASS'}else{'FAIL'});passed=$passed;failed=$failed;compileExit=$compileExit;testExit=$testExit;elapsedSeconds=$clock.Elapsed.TotalSeconds;sourceSha256=(Get-FileHash -LiteralPath $source).Hash.ToLowerInvariant();factSourceSha256=(Get-FileHash -LiteralPath $factSource).Hash.ToLowerInvariant();schema1SourceSha256=(Get-FileHash -LiteralPath $schema1Source).Hash.ToLowerInvariant();templateSha256=(Get-FileHash -LiteralPath $template).Hash.ToLowerInvariant();actualSha256=(Get-FileHash -LiteralPath $actual).Hash.ToLowerInvariant();nativeInvoked=$false;limits='Six exact diagnostic methods including native fact observation and schema1 source slot adoption; native input/world/debt and inherited fixture boundaries use facades. No loader or engine delivery is executed.'}|ConvertTo-Json|Set-Content -LiteralPath (Join-Path $OutputDirectory 'receipt.json')
 if(-not$ok){$compile|Write-Output;throw 'Actual owner-seed preparation regression failed; retain evidence.'}

@@ -81,7 +81,7 @@ function Assert-KmcChunk7SaveBoundarySource($Request,$Observation,$Archive) {
             if($owner.Count-ne1){throw 'A required native owner disappeared.'};$owner=$owner[0]
             Assert-KmcExactProperties $owner @('id','generation','riderId','mountId','boundaryObject','state') 'Native save owner'
             Assert-KmcChunk7NativeCounters $owner @('generation');Assert-KmcChunk7SaveBoundaryObject $owner.boundaryObject
-            if($owner.generation-ne$pair.Generation-or$owner.riderId-cne$pair.Rider.Id-or$owner.mountId-cne$pair.Mount.Id-or$owner.state-cne'Active'-or-not$labels.Contains($owner.boundaryObject)){throw 'Native owner identity/generation/role differs from its committed archive.'}
+            if($owner.generation-ne$pair.Generation-or-not(Test-KmcChunk7OwnerActorMatch $owner.riderId $pair.Rider.Id)-or-not(Test-KmcChunk7OwnerActorMatch $owner.mountId $pair.Mount.Id)-or$owner.state-cne'Active'-or-not$labels.Contains($owner.boundaryObject)){throw 'Native owner identity/generation/role differs from its committed archive.'}
             if($boundaryLabels.ContainsKey($owner.id)){if($boundaryLabels[$owner.id]-ne$owner.boundaryObject){throw 'Owner boundary object changed.'}}else{$boundaryLabels[$owner.id]=$owner.boundaryObject}
         }
         foreach($x in $row.boundaries) {

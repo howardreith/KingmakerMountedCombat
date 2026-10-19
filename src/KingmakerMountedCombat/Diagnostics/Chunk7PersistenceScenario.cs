@@ -112,7 +112,7 @@ namespace KingmakerMountedCombat.Diagnostics
             InitializeReplayAuthority();
             if (Cold)
             {
-                restoration = new NativeArchiveRestorationProbe(persistence, CombatCase || Schema1ResaveCase || RepeatedWorldCase ? world : null);
+                restoration = new NativeArchiveRestorationProbe(persistence, CombatCase || Schema1ResaveCase || OwnedSchema1CurrentCase || RepeatedWorldCase ? world : null);
                 restoration.Install();
             }
             InstallReplayObservation();
@@ -164,7 +164,9 @@ namespace KingmakerMountedCombat.Diagnostics
                             if (persistence.CombatRestorationPending) return;
                             if (RepeatedWorldCase) { BeginRepeatedWorld(); break; }
                             if (Schema1ResaveCase) { ObserveSchema1Cold(); RequestSave(); Next(40); break; }
+                            if (OwnedSchema1CurrentCase) { ObserveOwnedSchema1Current(); Next(42); break; }
                             ObserveCold();
+                            if (OwnedSchema2CurrentCase) ObserveCurrentMigrationParent();
                             if (Schema2ResaveCase) { RequestSave(); Next(41); break; }
                             if (CombatCase) { BeginCombatContinuation(); Next(20); } else Next(10);
                             break;
@@ -214,12 +216,21 @@ namespace KingmakerMountedCombat.Diagnostics
                     case 40:
                         if (!callback || NativePersistenceIsolation.HasPendingWrites || persistence.HasActiveSaveScope || persistence.HasSaveAdmissionFence) return;
                         ObserveSaved(); BeginCleanup(); break;
+                    case 42:
+                        AssertOwnedSchema1Owner(); AssertSlots();
+                        Move(firstRider, firstMount, firstMount.Position + Vector3.right * 2f, secondRider, "schema1-current-first-pair"); Next(43); break;
+                    case 43:
+                        AssertOwnedSchema1Owner(); AssertSlots(); if (!MovementSettled()) return;
+                        VerifyCurrentMigrationInput();
+                        snapshots.Add(Capture("schema1-current-continuation-complete"));
+                        Pass("C7-persistence-current-migration-continuation"); BeginCleanup(); break;
                     case 5:
                         if (!checkpoint.Update()) return;
                         evidence["combatCheckpoint"] = checkpoint.Capture();
                         RequestSave(); Next(4); break;
                     case 20:
                         if (!checkpoint.UpdateContinuation()) return;
+                        if (CurrentMigrationCase) VerifyCurrentMigrationInput();
                         evidence["combatContinuation"] = checkpoint.Capture();
                         Pass("C7-persistence-native-combat-continuation"); BeginCleanup(); break;
                     case 10:
@@ -360,6 +371,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private void AssertOwners()
         {
             if (Schema1ResaveCase) { AssertSchema1Owners(); return; }
+            if (OwnedSchema1CurrentCase) { AssertOwnedSchema1Owner(); return; }
             if (OwnedSchema1SourceCase) { AssertOwnedSchema1Owner(); return; }
             if (CombatCase) { AssertCombatOwners(); return; }
             Require(Mounted(firstRider, firstMount) && Mounted(secondRider, secondMount) && world.Registry.ActiveCount == 2 &&

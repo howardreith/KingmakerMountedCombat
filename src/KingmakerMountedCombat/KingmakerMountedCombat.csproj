@@ -275,6 +275,8 @@
     <Compile Include="Diagnostics\PersistenceSaveAuthorization.OwnedPairs.cs" />
     <Compile Include="Diagnostics\Chunk7PersistenceScenario.OwnedPairs.cs" />
     <Compile Include="Diagnostics\Chunk7PersistenceScenario.OwnerSeedCheckpoint.cs" />
+    <Compile Include="Diagnostics\Chunk7PersistenceScenario.ControlFacts.cs" />
+    <Compile Include="Diagnostics\Chunk7PersistenceScenario.CurrentMigration.cs" />
     <Compile Include="Diagnostics\Chunk7ManualDerivedScenario.Cumulative.cs" />
     <Compile Include="Diagnostics\Chunk7ManualDerivedScenario.Assisted.cs" />
     <Compile Include="Diagnostics\Chunk7AcquiredManualScenario.TwoOwners.cs" />

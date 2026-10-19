@@ -1,3 +1,16 @@
+## 2026-10-18 — Directive 4 preview.42 native batch settled
+
+IN PROGRESS. Source b9631449 guarded-pushed; one preview.42 build, Candidate6/6
+PASS in221.2420399s. Native batch13: worker FAIL (selected all6 rather than A),
+barrier FAIL (stale templates require exact native fact observations), read-only
+stock route inventory PASS. Pending survivor producer/cold were not launched.
+All exposed surfaces restored exactly, no game/lock. Both failures require
+focused driver/observation repairs and a reviewed fresh binary/native attempt;
+neither failed output is admitted as a source. Group43 also connects schema1
+and both actual schema3 third-process consumers. Area/disable/removal/native
+refusal gates remain actionable. No owner-save or push permission is pending.
+Exact identities, observations and next work: CURRENT.md and AUTONOMOUS-RESUME.md.
+
 ## 2026-10-18 — Active Directive 4 dependencies
 
 IN PROGRESS. The completed-boundary product defect is natively closed on

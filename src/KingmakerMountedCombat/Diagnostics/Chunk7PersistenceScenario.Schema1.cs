@@ -267,13 +267,16 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             Require(OwnedSchema1SourceCase && inherited != null && NativeMountedSaveFormat.SelectedWriterSchema == 3,
                 "Owned schema-1 fixture source requires its closed normal schema-3 native writer.");
-            RememberOwners(); AssertOwnedSchema1Owner(); PinOwnedSchema1OtherSlots(); BindSlots();
+            if (OwnerSeedCheckpointSave) RequireOwnerSeedPreparedSlots(); else RememberOwners();
+            AssertOwnedSchema1Owner(); PinOwnedSchema1OtherSlots();
+            if (!OwnerSeedCheckpointSave) BindSlots();
             ownedSchema1FieldBaseline = CaptureOwnedSchema1Field("source-before-save");
             ownedSchema1Fields = new JArray(ownedSchema1FieldBaseline.DeepClone());
             evidence["ownedSchema1"] = new JObject { ["contract"] = "owned-schema1-fixture-v1", ["syntheticMetadata"] = false,
                 ["sourceArchiveSchema"] = 3, ["fields"] = ownedSchema1Fields };
             Game.Instance.IsPaused = true;
-            snapshots.Add(Capture("before-native-save")); RequestSave(); Next(4);
+            if (!OwnerSeedCheckpointSave) snapshots.Add(Capture("before-native-save"));
+            RequestSave(); Next(4);
         }
         private void ReadOwnedSchema1Checkpoint()
         {

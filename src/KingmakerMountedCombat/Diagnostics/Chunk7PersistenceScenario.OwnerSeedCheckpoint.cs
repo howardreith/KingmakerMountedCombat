@@ -15,7 +15,7 @@ namespace KingmakerMountedCombat.Diagnostics
     internal sealed partial class Chunk7PersistenceScenario
     {
         private bool OwnerSeedCheckpointSave => request.OwnedPairs?.IsOwnerSeedCheckpointSave == true;
-        private bool OwnerSeedSingleOwnerPreparation => OwnerSeedCheckpointSave && (PendingMountSave || LegacyPendingCase);
+        private bool OwnerSeedSingleOwnerPreparation => OwnerSeedCheckpointSave && (PendingMountSave || LegacyPendingCase || OwnedSchema1SourceCase);
         private MountedPairServices ownerSeedPreparationPair;
         private Guid ownerSeedReleasedOwner;
         private JObject ownerSeedPreparation;
@@ -93,6 +93,7 @@ namespace KingmakerMountedCombat.Diagnostics
             ownerSeedPreparation = new JObject { ["contract"] = "owner-seed-checkpoint-native-preparation-v1",
                 ["checkpoint"] = request.PersistenceCase, ["before"] = Capture("owner-seed-before-dismount-second-pair"),
                 ["slotsBefore"] = JArray.FromObject(slots, MountedSaveCodec.CreateSerializer()) };
+            ownerSeedPreparation["controlFactsBefore"] = CaptureOwnerSeedControlFacts();
             evidence["ownerSeedCheckpointPreparation"] = ownerSeedPreparation;
             Input(secondRider, secondRider, controls.DismountAbility, firstRider, "owner-seed-native-dismount-second-pair");
             Next(6);
@@ -134,6 +135,7 @@ namespace KingmakerMountedCombat.Diagnostics
             after["worldSerializationBusy"] = world.SerializationBusy;
             after["saveBusy"] = persistence.HasActiveSaveScope || persistence.HasSaveAdmissionFence || NativePersistenceIsolation.HasPendingWrites;
             ownerSeedPreparation["after"] = after;
+            ownerSeedPreparation["controlFactsAfter"] = CaptureOwnerSeedControlFacts();
             ownerSeedPreparation["slotsAfter"] = JArray.FromObject(remaining, MountedSaveCodec.CreateSerializer());
             expectedOwners.Remove(ownerSeedReleasedOwner); slots = remaining; AssertSlots();
             snapshots.Add(Capture("before-native-save"));

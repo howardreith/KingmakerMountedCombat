@@ -17,14 +17,15 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool CombatCase => IsCombatCheckpoint(request.PersistenceCase);
         private bool TurnBasedCase => CombatCase && request.PersistenceCase != "multi-rt-debt-manual";
         private bool LegacyPendingCase => request.PersistenceCase == "legacy-mounted-pending-tb-manual";
+        private bool PendingOnlyCase => LegacyPendingCase || OwnedSchema2CurrentCase;
         private bool ZeroMountedCase => request.PersistenceCase == "zero-mounted-tb-retained-manual";
-        private int RequiredOwners => LegacyPendingCase ? 1 : 2;
+        private int RequiredOwners => PendingOnlyCase ? 1 : 2;
         private int RequiredMounted => ZeroMountedCase && (Cold || combatCheckpointReady) ? 0 : RequiredOwners;
-        private Chunk7CombatCheckpointKind CheckpointKind => LegacyPendingCase ? Chunk7CombatCheckpointKind.MountedPendingOnly :
+        private Chunk7CombatCheckpointKind CheckpointKind => PendingOnlyCase ? Chunk7CombatCheckpointKind.MountedPendingOnly :
             ZeroMountedCase ? Chunk7CombatCheckpointKind.ZeroMountedRetained :
             TurnBasedCase ? Chunk7CombatCheckpointKind.TurnBasedDebts : Chunk7CombatCheckpointKind.RealTimeDebts;
         private static bool IsCombatCheckpoint(string value) => value == "multi-rt-debt-manual" || value == "multi-tb-debt-manual" ||
-            value == "zero-mounted-tb-retained-manual" || value == "legacy-mounted-pending-tb-manual";
+            value == "zero-mounted-tb-retained-manual" || value == "legacy-mounted-pending-tb-manual" || value == "owned-schema2-pending-current-manual";
 
         private void AfterNativeMounts()
         {
@@ -41,6 +42,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 checkpoint = new Chunk7CombatCheckpointDriver(request, world, controls, logger, CheckpointKind, inherited);
                 checkpoint.StartSource(actors); Next(5);
             }
+            else if (OwnedSchema1SourceCase) BeginOwnedSchema1Source();
             else if (PendingMountSave) BeginPendingMountSave();
             else if (WorkerCancelSave) BeginWorkerCancelSave();
             else if (AreaAutosaveCase) BeginAreaAutosave();
@@ -81,7 +83,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 world.Registry.Owners.All(o => expectedOwners.TryGetValue(o.Id, out var generation) && generation == o.Generation),
                 "Native checkpoint changed exact owner identities, generations or retained custody.");
             if (RequiredMounted != 0)
-                Require(Mounted(firstRider, firstMount) && (LegacyPendingCase || Mounted(secondRider, secondMount)),
+                Require(Mounted(firstRider, firstMount) && (PendingOnlyCase || Mounted(secondRider, secondMount)),
                     "Native mounted checkpoint lost an exact relationship.");
             else
                 Require(world.Registry.Owners.All(o => o.State == MountedPairOwnershipState.Detached) &&

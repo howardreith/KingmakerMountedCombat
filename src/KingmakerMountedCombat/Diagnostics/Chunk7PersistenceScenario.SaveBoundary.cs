@@ -139,6 +139,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private void BeginWorkerCancelSave()
         {
             BeginSaveBoundaryObservation();
+            Chunk7NativeFixture.Select(firstRider);
             holdEntriesBefore = NativeSaveWorkerBoundary.WorkerEntryCount; holdCountBefore = NativeSaveWorkerBoundary.WorkerHoldCount;
             Require(!NativeSaveWorkerBoundary.WorkerHeld && !NativePersistenceIsolation.HasPendingWrites &&
                 !persistence.HasActiveSaveScope && !persistence.HasSaveAdmissionFence, "Another worker already owns the selected boundary.");

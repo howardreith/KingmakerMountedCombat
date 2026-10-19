@@ -163,15 +163,17 @@ function Get-KmcChunk7OwnedPairsOwnerSeedCheckpointSource($Selection,[AllowNull(
  $r=[pscustomobject]@{scenario='chunk7-owned-two-pair-campaign';runId='unassigned-owned-seed-checkpoint';ownedPairs=$Selection;persistenceCase=$(if([string]::IsNullOrEmpty($PersistenceCase)){$null}else{$PersistenceCase})}
  Assert-KmcChunk7OwnedPairsSelection $r
  if($null-ne$AreaTarget){throw 'Owner-seed checkpoint cold load carries no area target.'}
+ if(Test-KmcChunk7OwnerSeedCurrentCheckpoint $PersistenceCase){return Get-KmcChunk7OwnedPairsOwnerSeedCurrentSource $Selection $PersistenceCase $Fixture $Candidate}
+ $sourceCase=Get-KmcChunk7PersistenceSourceCase $PersistenceCase
  $set=Get-KmcChunk7OwnedReceiptSet $Selection.checkpointSourceRunId 'chunk7-persistence-evidence.json';$request=$set.request
- Assert-KmcBootstrapInventoryString $request.scenario 'chunk7-owned-two-pair-campaign';Assert-KmcBootstrapInventoryString $request.ownedPairs.case 'owner-seed-checkpoint-save';Assert-KmcBootstrapInventoryString $request.persistenceCase $PersistenceCase
+ Assert-KmcBootstrapInventoryString $request.scenario 'chunk7-owned-two-pair-campaign';Assert-KmcBootstrapInventoryString $request.ownedPairs.case 'owner-seed-checkpoint-save';Assert-KmcBootstrapInventoryString $request.persistenceCase $sourceCase
  foreach($key in @('sourceRunId','sourceArtifactSha256','sourceArchiveSha256','seedId','seedSha256','riderAId','mountAId','riderBId','mountBId')){Assert-KmcBootstrapInventoryString $request.ownedPairs.$key $Selection.$key}
  if((ConvertTo-KmcChunk7Canonical $request.ownedPairs.partyIds)-cne(ConvertTo-KmcChunk7Canonical $Selection.partyIds)){throw 'Checkpoint producer substituted the inherited field roster.'}
  $producerCandidate=Get-KmcChunk7RecordedCandidate $request
- $manual=Get-KmcChunk7OwnedPairsOwnerSeedDerivedSource $request.ownedPairs $PersistenceCase $Fixture $producerCandidate
+ $manual=Get-KmcChunk7OwnedPairsOwnerSeedDerivedSource $request.ownedPairs $sourceCase $Fixture $producerCandidate
  if((ConvertTo-KmcChunk7Canonical $request.persistenceLoad)-cne(ConvertTo-KmcChunk7Canonical $manual.descriptor)){throw 'Checkpoint producer did not load the exact owner-seed-derived Manual.'}
  Assert-KmcChunk7OwnedSourceCompletion $set $Selection.checkpointSourceRunId 'chunk7-owned-two-pair-campaign' $Fixture $producerCandidate $Selection.sourceArchiveSha256 1
- Assert-KmcBootstrapInventoryString $set.owner.persistenceCase $PersistenceCase
+ Assert-KmcBootstrapInventoryString $set.owner.persistenceCase $sourceCase
  Assert-KmcChunk7PersistenceArtifact $request $set.manifest 'PASS'
  $artifact=Read-KmcChunk7ManifestArtifact $request $set.manifest 'chunk7-persistence-evidence.json' 'chunk7-persistence-evidence'
  $path=Join-Path $set.root 'chunk7-persistence-evidence.json';$file=Get-Item -LiteralPath $path
@@ -184,6 +186,52 @@ function Get-KmcChunk7OwnedPairsOwnerSeedCheckpointSource($Selection,[AllowNull(
  Assert-KmcChunk7OwnedPairsDescriptor ([pscustomobject]@{scenario='chunk7-owned-two-pair-campaign';runId='unassigned-owned-seed-checkpoint';ownedPairs=$Selection;persistenceCase=$PersistenceCase;persistenceLoad=$descriptor;fixture=$Fixture})
  Assert-KmcChunk7OwnedReceiptPins $set
  [pscustomobject][ordered]@{path=$w.path;descriptor=$descriptor;artifactPath=$manual.artifactPath;artifactSha256=$manual.artifactSha256;artifactLength=$manual.artifactLength;sourceRunId=$manual.sourceRunId;ownerSeedDerived=$true;seed=$manual.seed;checkpointRunId=$request.runId;checkpointArtifactPath=$path;checkpointArtifactSha256=$Selection.checkpointSourceArtifactSha256;checkpointArtifactLength=[long]$file.Length;checkpointCandidate=$producerCandidate;manual=$manual}
+}
+function Get-KmcChunk7OwnedPairsOwnerSeedCurrentSource($Selection,[string]$PersistenceCase,$Fixture,$Candidate){
+ $parentCase=Get-KmcChunk7OwnerSeedCurrentParentCase $PersistenceCase
+ $set=Get-KmcChunk7OwnedReceiptSet $Selection.checkpointSourceRunId 'chunk7-persistence-evidence.json';$request=$set.request
+ Assert-KmcBootstrapInventoryString $request.scenario 'chunk7-owned-two-pair-campaign';Assert-KmcBootstrapInventoryString $request.ownedPairs.case 'owner-seed-checkpoint-load';Assert-KmcBootstrapInventoryString $request.persistenceCase $parentCase
+ Assert-KmcChunk7OwnedPairsDescriptor $request
+ foreach($key in @('sourceRunId','sourceArtifactSha256','sourceArchiveSha256','seedId','seedSha256','riderAId','mountAId','riderBId','mountBId')){Assert-KmcBootstrapInventoryString $request.ownedPairs.$key $Selection.$key}
+ if((ConvertTo-KmcChunk7Canonical $request.ownedPairs.partyIds)-cne(ConvertTo-KmcChunk7Canonical $Selection.partyIds)){throw 'Current-format parent substituted the inherited field roster.'}
+ $parentCandidate=Get-KmcChunk7RecordedCandidate $request
+ $original=Get-KmcChunk7OwnedPairsOwnerSeedCheckpointSource $request.ownedPairs $parentCase $Fixture $parentCandidate
+ if($parentCase-ceq'legacy-mounted-pending-tb-manual'-and(ConvertTo-KmcChunk7Canonical $request.persistenceLoad)-cne(ConvertTo-KmcChunk7Canonical $original.descriptor)){throw 'Historical schema-2 parent did not load its exact native source.'}
+ # The schema-1 parent's actual input is the separately receipted derivative;
+ # its owner/save authority must bind that hash, never its native schema-3 ancestor.
+ Assert-KmcChunk7OwnedSourceCompletion $set $Selection.checkpointSourceRunId 'chunk7-owned-two-pair-campaign' $Fixture $parentCandidate $request.persistenceLoad.sha256 1
+ Assert-KmcBootstrapInventoryString $set.owner.persistenceCase $parentCase
+ Assert-KmcChunk7PersistenceArtifact $request $set.manifest 'PASS'
+ $artifact=Read-KmcChunk7ManifestArtifact $request $set.manifest 'chunk7-persistence-evidence.json' 'chunk7-persistence-evidence'
+ $path=Join-Path $set.root 'chunk7-persistence-evidence.json';$file=Get-Item -LiteralPath $path
+ if($file.Length-le0-or$file.Length-gt16MB-or$set.pins[$path]-cne$Selection.checkpointSourceArtifactSha256){throw 'Current-format parent differs from its exact accepted cold/resave pin.'}
+ Assert-KmcChunk7OwnerSeedCheckpointColdSource $request (Read-KmcJson $original.checkpointArtifactPath) $artifact
+ if($parentCase-ceq'owned-schema1-resave-manual'){Assert-KmcOwnedSchema1ColdSource $request $original $artifact}
+ $w=$artifact.observations.nativeWrite;Assert-KmcOrdinaryInteger $w.sourceSchema 3 3
+ $leaf=Get-KmcChunk7OwnedOutputLeaf $request $artifact.observations;$expected=Join-Path (Join-Path $set.profile 'Saved Games') $leaf
+ Assert-KmcBootstrapInventoryString $w.path $expected
+ Assert-KmcNotReparsePoint $w.path 'current-format native resave';Assert-KmcNotHardLink $w.path 'current-format native resave'
+ $output=Get-Item -LiteralPath $w.path
+ if($output.Length-ne$w.length-or(Get-KmcSha256 $w.path)-cne$w.sha256){throw 'Current-format native resave bytes differ from the accepted parent.'}
+ $stream=[IO.File]::Open($w.path,[IO.FileMode]::Open,[IO.FileAccess]::Read,[IO.FileShare]::Read)
+ try{$actual=Get-KmcOwnedSchema1Members $stream}finally{$stream.Dispose()}
+ if($actual.metadata.SchemaVersion-ne3-or(ConvertTo-KmcChunk7Canonical $actual.metadata)-cne(ConvertTo-KmcChunk7Canonical $w.archive)-or(Get-KmcSha256 $w.path)-cne$w.sha256-or(Get-Item -LiteralPath $w.path).LastWriteTimeUtc.Ticks-ne$output.LastWriteTimeUtc.Ticks){throw 'Current-format native metadata differs from its accepted readback or changed during qualification.'}
+ $descriptor=[pscustomobject]@{internalName=$w.nativeName;fileName=$leaf;sha256=$w.sha256;length=$w.length;lastWriteTimeUtcTicks=[long]$output.LastWriteTimeUtc.Ticks;gameId=$original.descriptor.gameId;gameName=$original.descriptor.gameName;area=$w.archive.AreaId}
+ Assert-KmcChunk7OwnedPairsDescriptor ([pscustomobject]@{scenario='chunk7-owned-two-pair-campaign';runId='unassigned-owned-seed-current';ownedPairs=$Selection;persistenceCase=$PersistenceCase;persistenceLoad=$descriptor;fixture=$Fixture})
+ Assert-KmcChunk7OwnedReceiptPins $set
+ [pscustomobject][ordered]@{path=$w.path;descriptor=$descriptor;artifactPath=$original.artifactPath;artifactSha256=$original.artifactSha256;artifactLength=$original.artifactLength;sourceRunId=$original.sourceRunId;ownerSeedDerived=$true;seed=$original.seed;checkpointRunId=$request.runId;checkpointArtifactPath=$path;checkpointArtifactSha256=$Selection.checkpointSourceArtifactSha256;checkpointArtifactLength=[long]$file.Length;checkpointCandidate=$parentCandidate;manual=$original.manual}
+}
+function Copy-KmcChunk7OwnerSeedCurrentParent($Source,[string]$ProfileRoot,$Lock,$Request){
+ [void](Assert-KmcRuntimeLockOwner $Lock);Assert-KmcChunk7OwnedPairsDescriptor $Request
+ if(-not(Test-KmcChunk7OwnedPairsSeedCheckpointLoad $Request)-or-not(Test-KmcChunk7OwnerSeedCurrentCheckpoint $Request.persistenceCase)){throw 'Current-format parent copy requires its exact load-only selection.'}
+ $run=Assert-KmcChildPath $ProfileRoot (Join-Path (Get-KmcLabRoot) 'runtime-staging') 'current-format child profile';Assert-KmcDirectoryTreeCloneable $run 'current-format child profile'
+ if($run-cne(Join-Path (Get-KmcLabRoot) ('runtime-staging/persistence-'+$Lock.RunId))){throw 'Current-format child profile differs from the current lock.'}
+ $owner=Read-KmcJson (Join-Path $run 'owner.json');foreach($spec in @(@('runId',$Request.runId),@('transactionToken',$Lock.Token),@('scenario','chunk7-owned-two-pair-campaign'),@('persistenceCase',$Request.persistenceCase),@('sourceSha256',$Request.persistenceLoad.sha256),@('saveRoot',(Join-Path $run 'Saved Games')))){Assert-KmcBootstrapInventoryString $owner.($spec[0]) $spec[1]}
+ $path=$Source.checkpointArtifactPath;$sha=$Request.ownedPairs.checkpointSourceArtifactSha256
+ [void](Read-KmcOwnedSchema1PinnedJson $path $sha 16MB)
+ $input=[IO.File]::Open($path,[IO.FileMode]::Open,[IO.FileAccess]::Read,[IO.FileShare]::Read);$output=$null;$destination=Join-Path $run 'owner-seed-current-parent.json'
+ try{$output=[IO.File]::Open($destination,[IO.FileMode]::CreateNew,[IO.FileAccess]::Write,[IO.FileShare]::None);$input.CopyTo($output)}finally{if($output){$output.Dispose()};$input.Dispose()}
+ if((Get-KmcSha256 $destination)-cne$sha-or(Get-KmcSha256 $path)-cne$sha){throw 'Accepted current-format parent changed during locked copy.'}
 }
 function Get-KmcChunk7OwnedPairsSource($Selection,[AllowNull()][string]$PersistenceCase,$Fixture,$Candidate,$AreaTarget=$null){
  if($null-ne$Selection-and$null-ne$Selection.PSObject.Properties['case']-and$Selection.case-cin@('owner-seed-exploration','owner-seed-persistence-save')){return Get-KmcChunk7OwnedPairsOwnerSeedSource $Selection $PersistenceCase $Fixture $Candidate $AreaTarget}

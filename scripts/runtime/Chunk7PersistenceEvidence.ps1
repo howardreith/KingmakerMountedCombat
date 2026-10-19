@@ -39,13 +39,14 @@ function Assert-KmcChunk7NativeCounters($Value,[string[]]$Fields) {
 . (Join-Path $PSScriptRoot 'Chunk7AreaPersistenceEvidence.ps1')
 . (Join-Path $PSScriptRoot 'Chunk7Schema1PersistenceEvidence.ps1')
 . (Join-Path $PSScriptRoot 'Chunk7OwnedSchema1Evidence.ps1')
+. (Join-Path $PSScriptRoot 'Chunk7CurrentMigrationEvidence.ps1')
 . (Join-Path $PSScriptRoot 'Chunk7RepeatedWorldEvidence.ps1')
 . (Join-Path $PSScriptRoot 'Chunk7SaveBoundaryEvidence.ps1')
-function Get-KmcChunk7PersistenceCases { @('multi-exploration-manual','multi-exploration-quick','multi-exploration-auto','multi-rt-debt-manual','multi-tb-debt-manual','zero-mounted-tb-retained-manual','legacy-mounted-pending-tb-manual','multi-area-autosave','legacy-schema1-resave-manual','multi-exploration-three-loads-manual','multi-exploration-three-area-transfers-manual','multi-nonselected-mount-unsettled-manual','multi-owned-worker-cancel-manual','owned-schema1-manual','owned-schema1-resave-manual') }
+function Get-KmcChunk7PersistenceCases { @('multi-exploration-manual','multi-exploration-quick','multi-exploration-auto','multi-rt-debt-manual','multi-tb-debt-manual','zero-mounted-tb-retained-manual','legacy-mounted-pending-tb-manual','multi-area-autosave','legacy-schema1-resave-manual','multi-exploration-three-loads-manual','multi-exploration-three-area-transfers-manual','multi-nonselected-mount-unsettled-manual','multi-owned-worker-cancel-manual','owned-schema1-manual','owned-schema1-resave-manual','owned-schema1-current-manual','owned-schema2-pending-current-manual') }
 function Test-KmcChunk7PersistenceScenario([string]$Scenario) { $Scenario -cin @('chunk7-persistence-save','chunk7-persistence-load') }
 function Get-KmcChunk7PersistenceRows {
     @('chunk7-persistence-save','chunk7-persistence-load','C7-persistence-two-native-mounts','C7-persistence-native-category-all-pair-archive',
-      'C7-persistence-cold-all-pair-identity-and-no-prepare','C7-persistence-nonselected-mount-save-deferral','C7-persistence-owned-worker-cancel-drain','C7-persistence-three-native-loads','C7-persistence-three-native-area-transfers','C7-persistence-owned-schema1-source','C7-persistence-owner-seed-restored-start','C7-persistence-schema1-native-restoration','C7-persistence-schema1-native-resave','C7-persistence-schema2-native-resave','C7-persistence-native-continuation','C7-persistence-all-pair-area-before-autosave','C7-persistence-one-native-mount-legacy-source','C7-persistence-native-combat-continuation','C7-persistence-cleanup','C7-persistence-runtime','C7-persistence-interrupted','C7-persistence-owner-seed-derived-cold-identity')
+      'C7-persistence-cold-all-pair-identity-and-no-prepare','C7-persistence-nonselected-mount-save-deferral','C7-persistence-owned-worker-cancel-drain','C7-persistence-three-native-loads','C7-persistence-three-native-area-transfers','C7-persistence-owned-schema1-source','C7-persistence-owner-seed-restored-start','C7-persistence-schema1-native-restoration','C7-persistence-schema1-native-resave','C7-persistence-schema2-native-resave','C7-persistence-native-continuation','C7-persistence-all-pair-area-before-autosave','C7-persistence-one-native-mount-legacy-source','C7-persistence-native-combat-continuation','C7-persistence-cleanup','C7-persistence-runtime','C7-persistence-interrupted','C7-persistence-owner-seed-derived-cold-identity','C7-persistence-current-migration-native-load','C7-persistence-current-migration-continuation')
 }
 function Get-KmcChunk7PersistenceType([string]$Case) {
     if($Case-cnotin(Get-KmcChunk7PersistenceCases)){throw 'Undeclared Chunk 7 native persistence case.'}
@@ -160,6 +161,7 @@ function Assert-KmcChunk7PersistenceObservation($Request,$Artifact,[string]$Stat
     Assert-KmcChunk7ArtifactEnvelope $Request $Artifact 'chunk7-persistence-evidence'
     Assert-KmcChunk7NativeCounters $Artifact @('schemaVersion')
     if($Status-cne'PASS'){return}
+    if(Test-KmcChunk7OwnerSeedCurrentCheckpoint $Request.persistenceCase){Assert-KmcChunk7CurrentMigrationObservation $Request $Artifact;return}
     if(Test-KmcOwnedSchema1Case $Request.persistenceCase){Assert-KmcOwnedSchema1Observation $Request $Artifact;return}
     if(Test-KmcChunk7RepeatedWorldCase $Request.persistenceCase){Assert-KmcChunk7RepeatedWorldObservation $Request $Artifact;return}
     if($Request.persistenceCase-ceq'legacy-schema1-resave-manual'){Assert-KmcChunk7Schema1Observation $Request $Artifact;return}
