@@ -95,6 +95,43 @@ try{
     # keep its exact length, and nothing may shrink, grow or disappear.
     $native=12288
     $ach=Join-Path $profile 'achievements.dat$'
+    [IO.File]::WriteAllBytes($ach,(New-Object byte[] 0))
+    $rejected=$false
+    try{[void](Wait-KmcPersistenceProfileUnchanged -Snapshot $snapshot -MaximumWaitMilliseconds 0)}catch{$rejected=$true}
+    if(-not$rejected){throw 'An unsettled native cache was accepted without waiting.'};$passes++
+    $secondAch=Join-Path $profile 'achievements.dat~'
+    try{
+        [IO.File]::WriteAllBytes($secondAch,(New-Object byte[] 4096))
+        $clock=[Diagnostics.Stopwatch]::StartNew();$rejected=$false
+        try{[void](Wait-KmcPersistenceProfileUnchanged -Snapshot $snapshot -MaximumWaitMilliseconds 2000)}catch{$rejected=$true}
+        if(-not$rejected-or$clock.ElapsedMilliseconds-ge1000){throw 'An invalid second cache leaf hid behind an unsettled first leaf.'};$passes++
+    }finally{Remove-Item -LiteralPath $secondAch -Force -ErrorAction SilentlyContinue}
+    foreach($foreign in @($cache,$params)){
+        $prior=[IO.File]::ReadAllBytes($foreign)
+        try{
+            [IO.File]::WriteAllText($foreign,'changed')
+            $clock=[Diagnostics.Stopwatch]::StartNew();$rejected=$false
+            try{[void](Wait-KmcPersistenceProfileUnchanged -Snapshot $snapshot -MaximumWaitMilliseconds 2000)}catch{$rejected=$true}
+            if(-not$rejected-or$clock.ElapsedMilliseconds-ge1000){throw 'Unrelated profile/settings drift hid behind an unsettled cache.'}
+            $passes++
+        }finally{[IO.File]::WriteAllBytes($foreign,$prior)}
+    }
+    $job=Start-Job -ArgumentList $ach,$native -ScriptBlock {
+        param($path,$size)
+        Start-Sleep -Milliseconds 300
+        [IO.File]::WriteAllBytes($path,(New-Object byte[] $size))
+    }
+    try{
+        $settled=@(Wait-KmcPersistenceProfileUnchanged -Snapshot $snapshot -MaximumWaitMilliseconds 5000 -PollMilliseconds 100)
+        if($settled.Count-ne1-or$settled[0].change-cne'created'-or$settled[0].length-ne$native){
+            throw 'A genuinely settled native cache was not admitted with its exact bytes.'
+        }
+        $passes++
+    }finally{[void](Wait-Job $job);Receive-Job $job -ErrorAction Stop | Out-Null;Remove-Job $job}
+    [IO.File]::WriteAllBytes($ach,(New-Object byte[] 4096))
+    $clock=[Diagnostics.Stopwatch]::StartNew();$rejected=$false
+    try{[void](Wait-KmcPersistenceProfileUnchanged -Snapshot $snapshot -MaximumWaitMilliseconds 2000)}catch{$rejected=$true}
+    if(-not$rejected-or$clock.ElapsedMilliseconds-ge1000){throw 'A nonzero invalid native cache size was waited on or accepted.'};$passes++
     [IO.File]::WriteAllBytes($ach,(New-Object byte[] $native))
     $accepted=@(Assert-KmcPersistenceProfileUnchanged $snapshot)
     if($accepted.Count-ne1-or$accepted[0].change-cne'created'-or$accepted[0].path-cne'achievements.dat$'){

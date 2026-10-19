@@ -514,6 +514,13 @@ namespace KingmakerMountedCombat.Diagnostics
             if (!pins.NewPaidCompanion) return;
             var money = Game.Instance.Player.Money;
             var paid = moneyBefore - hireCost;
+            if (money != moneyBefore && money != paid)
+                Emit("native-hire-money-mismatch", new JObject { ["moneyBefore"] = moneyBefore,
+                    ["quotedCost"] = hireCost, ["moneyNow"] = money,
+                    ["observedDebit"] = moneyBefore - money,
+                    ["nativeCostAtObservation"] = Game.Instance.Player.GetCustomCompanionCost(),
+                    ["partyLevelAtObservation"] = Game.Instance.Player.PartyLevel,
+                    ["actorId"] = actorId, ["actorLevel"] = descriptor?.Progression.CharacterLevel });
             Require(money == moneyBefore || money == paid,
                 "Native ordinary acquisition changed money by something other than its exact single hire cost.");
             Require(!nativeHireSpendingObserved || money == paid,
