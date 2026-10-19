@@ -15,13 +15,13 @@ foreach($name in @('Copy-Value','New-KmcSeedNativeActor','Add-KmcSeedFirstAction
 }
 $clock=[Diagnostics.Stopwatch]::StartNew();$results=[Collections.Generic.List[object]]::new()
 function Check([string]$Name,[scriptblock]$Body,[bool]$Refuse=$false){$errorText=$null;$ok=$false;try{&$Body;$ok=-not$Refuse}catch{$errorText=$_.Exception.Message;$ok=$Refuse};$results.Add([pscustomobject]@{name=$Name;pass=$ok;expectedRefusal=$Refuse;error=$errorText});Write-Output ($(if($ok){'PASS '}else{'FAIL '})+$Name+$(if(-not$ok){': '+$errorText}else{''}))}
-function New-DisableControls([bool]$Enabled,[int]$Facts,[int]$Slots,[int]$Casts){[pscustomobject][ordered]@{Registered=$true;Enabled=$Enabled;SerializationSuspended=$false;ExactFactCount=$Facts;DuplicateFactCount=0;ManagedHotbarSlotCount=$Slots;TargetSelectionStartCount=$Casts;TargetSelectionEndCount=$Casts;NativeCastRequestCount=$Casts;NativeRefusalCount=0;DispatchAcceptedCount=$Casts;DispatchRejectedCount=0;NativePrimaryShellPrepareCount=0;LastNativePrimaryShellObservation=$null;ActivationRecordCount=$Casts;RiderPrimaryRelationshipEndCount=0}}
+function New-DisableControls([bool]$Enabled,[int]$Facts,[int]$Slots,[int]$Casts){[pscustomobject][ordered]@{Registered=$true;Enabled=$Enabled;SerializationSuspended=$false;ExactFactCount=$Facts;DuplicateFactCount=0;ManagedHotbarSlotCount=$Slots;TargetSelectionStartCount=$Casts;TargetSelectionEndCount=$Casts;NativeCastRequestCount=$Casts;NativeRefusalCount=$(if($Casts-eq4){1}else{0});DispatchAcceptedCount=$Casts;DispatchRejectedCount=0;NativePrimaryShellPrepareCount=0;LastNativePrimaryShellObservation=$null;ActivationRecordCount=$Casts;RiderPrimaryRelationshipEndCount=0}}
 function New-DisableState($v,$world,[string]$label,[bool]$Combat){
  $r=$v.request;$o=$v.artifact.observations;$roles=@(Get-KmcChunk7OwnedPairIds $r);$world=Copy-Value $world;$world.label=$label
  $world.owners=@($o.mountedStart.world.owners|ForEach-Object{Copy-Value $_})
  foreach($actor in $world.actors){if($null-ne$actor.native){$actor.native|Add-Member actorObject (1001+[Array]::IndexOf($roles,$actor.id)) -Force;$actor.native|Add-Member inCombat $Combat -Force;$actor.native|Add-Member initiativeCooldown 0.0 -Force;$actor.native|Add-Member waitingInitiative $false -Force;$actor.native|Add-Member reactionsPerRound 1 -Force}}
  $unrelated=@($r.ownedPairs.partyIds|Where-Object{$_-cnotin$roles});if($Combat){$unrelated+=,$o.targetId}
- [pscustomobject][ordered]@{world=$world;paused=$false;turnBased=$Combat;persistenceEnabled=$true;controls=(New-DisableControls $true 6 4 $(if($Combat){4}else{0}));slots=@($o.mountedStart.slots|ForEach-Object{[pscustomobject]@{ActorId=$_.actorId;Index=$_.index;Kind=$_.kind}})
+ [pscustomobject][ordered]@{world=$world;paused=$false;turnBased=$Combat;persistenceEnabled=$true;controls=(New-DisableControls $true 8 4 $(if($Combat){4}else{0}));slots=@($o.mountedStart.slots|ForEach-Object{[pscustomobject]@{ActorId=$_.actorId;Index=$_.index;Kind=$_.kind}})
   nativePrepares=@($roles|ForEach-Object{[pscustomobject]@{actorId=$_;count=$(if($Combat){1}else{0})}})
   unrelatedActors=@($unrelated|ForEach-Object{[pscustomobject]@{native=(New-KmcSeedNativeActor $_ 0.0);prepared=$true;inCombat=$Combat}});healthyAllocationId=$(if($Combat){9901}else{$null})
   snapshotCount=0;nativeWrites=0;authorizedWrites=0
@@ -39,6 +39,7 @@ function New-RegisteredDisableFixture{
  foreach($key in @('r1','firstActionMount','localFailure')){$o.PSObject.Properties.Remove($key)}
  $o.snapshots=@();$o.inputs=@($o.inputs|Where-Object{$_.label-cin@('rider-primary','mount-primary')})
  $b=@($o.activations|Where-Object pair -EQ 1)[0];$b.PSObject.Properties.Remove('afterEnd');$b.PSObject.Properties.Remove('tbChargeRefusal')
+ $a=@($o.activations|Where-Object pair -EQ 0)[0];$a.tbChargeRefusal|Add-Member refusalDelta 1 -Force;$a.tbChargeRefusal|Add-Member clicked $false -Force
  $o.nativeCompletion.calls=@($o.nativeCompletion.calls|Where-Object{$_.before.actorId-cin@($roles[0],$roles[1])})
  $attack=@($o.inputs|Where-Object{$_.pair-eq1-and$_.label-ceq'mount-primary'})[0]
  $pending=Copy-Value $o.pendingSurvivor;$pending.before=Copy-Value $attack.after;$pending.before.label='pending-survivor-before';$pending.before.frame=$attack.after.frame+1;$pending.after=Copy-Value $pending.before;$pending.after.label='pending-survivor-after';$pending.after.frame++
@@ -102,6 +103,9 @@ $faults=[ordered]@{
  'retained command'={param($v)$v.artifact.observations.registeredDisable.retry.pairStates[1].commandsRetained=$true}
  'unsettled native shell'={param($v)$v.artifact.observations.registeredDisable.retry.pairStates[1].unsettledShell=$true}
  'disabled native fact retained'={param($v)$v.artifact.observations.registeredDisable.retry.controls.ExactFactCount=1}
+ 'two-Horse native fact count underreported'={param($v)$o=$v.artifact.observations;foreach($s in @($o.removalRefusal.before,$o.removalRefusal.after,$o.registeredDisable.before,$o.registeredDisable.held)){$s.controls.ExactFactCount=6}}
+ 'native Charge refusal count erased'={param($v)$d=$v.artifact.observations.registeredDisable;foreach($s in @($d.before,$d.held,$d.retry,$d.disabledLaterFrame,$d.reenabled)){$s.controls.NativeRefusalCount=0}}
+ 'native Charge refusal event erased'={param($v)$a=@($v.artifact.observations.activations|Where-Object pair -EQ 0)[0];$a.tbChargeRefusal.refusalDelta=0}
  'disabled live slot retained'={param($v)$v.artifact.observations.registeredDisable.retry.slots=@([pscustomobject]@{ActorId=$v.request.ownedPairs.riderAId;Index=1;Kind=2})}
  'save during disable'={param($v)$v.artifact.observations.registeredDisable.retry.nativeWrites=1}
  'clock advanced'={param($v)$v.artifact.observations.registeredDisable.disabledLaterFrame.world.gameTicks=$v.artifact.observations.registeredDisable.retry.world.gameTicks}

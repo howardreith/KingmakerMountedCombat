@@ -128,7 +128,7 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             evidence["removalRefusal"] = new JObject { ["contract"] = "owner-seed-permanent-horse-removal-refusal-v1",
                 ["assessment"] = new JObject { ["safe"] = assessment.Safe, ["mounted"] = assessment.Mounted,
-                    ["world"] = JObject.FromObject(assessment.World), ["reasons"] = new JArray(assessment.Reasons),
+                    ["world"] = JObject.FromObject(assessment.World, MountedSaveCodec.CreateSerializer()), ["reasons"] = new JArray(assessment.Reasons),
                     ["permanentReferences"] = new JArray(assessment.PermanentReferences) },
                 ["beginAccepted"] = accepted, ["state"] = removalPreparation.State.ToString(), ["status"] = removalPreparation.Status,
                 ["assessmentDelta"] = removalPreparation.AssessmentCount - assessments,
