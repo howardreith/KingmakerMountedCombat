@@ -24,6 +24,22 @@ conditional stress and selected private 7E remain open. Next implement the
 honestly disclosed F10 source/operation route or a supported F11 allocation
 seam; do not repeat the unchanged matched-pool input without a causal question.
 
+The concrete F10 next route is the accepted batch77 mounted Small Manual:
+`20261020-c7b-world90-b77s1-small-mounted-save`, archive
+`Manual_305_KMC_C7_SMALL_WORLD.zks` SHA-256
+`19297ab1ece407b650d31f64bd13a6b2dd42eebc652a299a23e39b27486e14a6`,
+with a paid custom Halfling/Horse pair (`c4e2c853-4b72-4904-ad84-d0b7bfba7470` /
+`0e0c7d2d-06b4-4510-9f81-d847340d1424`) and an unaffected main/Horse
+control. Its separate batch77 cold consumer passed. For the first F10 operation,
+admit a fresh same-candidate producer/cold copy of this honest lineage and
+exercise native custom-companion dismissal. The existing progression session's
+dismissal path needs no XP or build pins, but its selection/source reader,
+Medium-only body and two-Medium-Horse ancestry guards currently reject this
+Small fixture; add a separate, explicit qualification branch rather than
+relabeling the old acquired `KMC_C7_WORLD` source. Level/retrain require their
+own disclosed eligibility setup and genuine native choices. The original
+preview.90 archive is a source-design reference, not a PASS on a later DLL.
+
 ## Active October 20 after batch78 — standing completion mission
 
 The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
