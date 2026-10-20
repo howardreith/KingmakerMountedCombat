@@ -1,5 +1,18 @@
 # Chunk 7B–7D — IN PROGRESS
 
+## October 20 — batch88 native Small dismissal passed; outer evidence FAIL
+
+[Batch88](docs/CHUNK7-BATCH88-SMALL-DISMISSAL-2026-10-20.md) froze pushed
+`92be6bb7` as world101. Fresh mounted Small Manual and separate cold load
+passed 5/0 and 3/0. Native dismissal reached terminal game **PASS 3/0**:
+one genuine `Player.DismissCompanion` entry/exit, target pair retired, and
+control pair preserved. The original outer result remains **FAIL 0/1**.
+Its reader expected `NewRound` instead of installed `OnNewRound`; the raw
+artifact also lacks body fields (`nativeBodyBefore` is only `{"$id":"1"}`),
+so no full reader-only PASS is possible. A bounded reader/compiled observer
+correction is under review and needs fresh affected native evidence. Guarded
+restoration passed. F10, F11 and selected private 7E remain open.
+
 ## October 20 — batch87 native dismissal reached, cleanup still FAIL
 
 [Batch87](docs/CHUNK7-BATCH87-SMALL-DISMISSAL-2026-10-20.md) froze pushed

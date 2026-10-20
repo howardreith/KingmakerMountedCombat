@@ -218,7 +218,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     body.RaceGuid == selection.RaceGuid && body.PresetGuid == selection.PresetGuid && body.SkeletonName == selection.SkeletonName &&
                     body.Gender == selection.Gender && body.LeftHanded == selection.LeftHanded,
                     "Retraining body choices differ from the actual loaded native body/preset/skeleton.");
-            evidence["nativeBodyBefore"] = JObject.FromObject(body);
+            evidence["nativeBodyBefore"] = JObject.Parse(SmallRiderBodyFingerprint.Capture(body));
         }
         private void RequireAuthority(bool loadingAdmission)
         {

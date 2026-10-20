@@ -5,6 +5,11 @@ function Get-KmcChunk7ProgressionRows {@('chunk7-native-progression','C7-progres
 function Get-KmcChunk7ProgressionCases {@('horse-native-level','horse-native-dismiss','horse-native-retrain-horse','horse-native-retrain-mammoth')+(Get-KmcChunk7OwnedProgressionCases)}
 function Assert-KmcProgressionObject($Value){Assert-KmcOrdinaryInteger $Value ([int]::MinValue) ([int]::MaxValue);if($Value-eq0){throw 'Native progression object identity is zero.'}}
 function Assert-KmcProgressionText($Value){if($Value-isnot[string]-or[string]::IsNullOrEmpty($Value)){throw 'Native progression text must be a nonempty JSON string.'}}
+function Convert-KmcProgressionRegistryActorId($Value){
+    $parsed=[Guid]::Empty
+    if($Value-isnot[string]-or-not[Guid]::TryParseExact($Value,'N',[ref]$parsed)-or$parsed-eq[Guid]::Empty-or$parsed.ToString('N')-cne$Value){throw 'Progression registry actor ID is not canonical.'}
+    $parsed.ToString('D')
+}
 function Assert-KmcProgressionTexts($Row,[string[]]$Names){foreach($name in $Names){Assert-KmcProgressionText $Row.$name}}
 function Assert-KmcProgressionSnapshot($Row,$Identity,[long]$Xp,[long]$Level,[long]$Money){
     Assert-KmcOrdinaryGuid $Row.actorId
@@ -65,7 +70,7 @@ function Assert-KmcProgressionColdRestore($Probe,$Archive,$Request){
     foreach($key in @('dropped','errors')){Assert-KmcOrdinaryInteger $Probe.$key 0 0}
     if($Probe.contract-cne'chunk7-native-restoration-entry-observer-v1'-or$Probe.prepareMetric-cne'native-method-entries-including-production-refused-attempts'-or
        $Probe.hooks-isnot[Array]-or$Probe.hooks.Count-ne6-or$Probe.events-isnot[Array]-or$Probe.events.Count-gt2048){throw 'Whole-source cold observation incomplete.'}
-    foreach($entry in @(@('TurnBased.Controllers.TurnController','Prepare','06000C3C'),@('Kingmaker.Controllers.Combat.UnitCombatState','NewRound','0600939D'))){
+    foreach($entry in @(@('TurnBased.Controllers.TurnController','Prepare','06000C3C'),@('Kingmaker.Controllers.Combat.UnitCombatState','OnNewRound','0600939D'))){
         $hooks=@($Probe.hooks|Where-Object{$_.declaringType-ceq$entry[0]-and$_.method-ceq$entry[1]-and$_.token-ceq$entry[2]-and$_.moduleMvid-ceq'07fa1e4d-8618-41b3-9b8d-faa17d3b26f7'})
         if($hooks.Count-ne1){throw 'Exact installed prepare/round hook missing.'}
     }
@@ -314,9 +319,9 @@ function Assert-KmcProgressionUi($Ui,$Selection,$Before){
     Assert-KmcProgressionDismissal $Ui $Before
 }
 function Assert-KmcProgressionPairCustody($Custody,$Archive,$Selection){
-    foreach($key in @('ownerId','riderId','mountId')){Assert-KmcOrdinaryGuid $Custody.$key}
+    Assert-KmcOrdinaryGuid $Custody.ownerId
     $target=@($Archive.Pairs|Where-Object{$_.Rider.Id-ceq$Selection.actorId})[0];$control=@($Archive.Pairs|Where-Object{$_.Rider.Id-ceq$Selection.controlActorId})[0]
-    if($Custody.ownerId-cne([Guid]$target.PairId).ToString('D')-or$Custody.riderId-cne$Selection.actorId-or$Custody.mountId-cne$Selection.petId){throw 'Progression custody lost the original owner.'}
+    if($Custody.ownerId-cne([Guid]$target.PairId).ToString('D')-or(Convert-KmcProgressionRegistryActorId $Custody.riderId)-cne$Selection.actorId-or(Convert-KmcProgressionRegistryActorId $Custody.mountId)-cne$Selection.petId){throw 'Progression custody lost the original owner.'}
     Assert-KmcOrdinaryInteger $Custody.generation $target.Generation $target.Generation;Assert-KmcChunk7Boolean $Custody.targetSettled $true
     foreach($key in @('manualActorAllocationWrites','manualPreparationCalls','manualCompanionRemovals')){Assert-KmcOrdinaryInteger $Custody.$key 0 0}
     if($Custody.cleanupErrors-isnot[Array]-or$Custody.cleanupErrors.Count-ne0-or$Custody.observations-isnot[Array]-or$Custody.observations.Count-lt2-or$Custody.observations.Count-gt96){throw 'Progression custody proof incomplete.'}
@@ -438,7 +443,7 @@ function Assert-KmcChunk7ProgressionEvidence($Request,$Artifact,[string]$Status=
     Assert-KmcProgressionColdRestore $o.coldRestoration $o.loadedArchive $Request
     if($o.beforeOwners.owners-isnot[Array]-or$o.beforeOwners.owners.Count-ne2){throw 'Progression admission omitted an owner.'}
     foreach($owner in $o.beforeOwners.owners){Assert-KmcProgressionTexts $owner @('ownerId','state','riderId','mountId')}
-    foreach($pair in $o.loadedArchive.Pairs){$owner=@($o.beforeOwners.owners|Where-Object ownerId -CEQ $pair.PairId);if($owner.Count-ne1-or$owner[0].state-cne'Active'-or$owner[0].riderId-cne$pair.Rider.Id-or$owner[0].mountId-cne$pair.Mount.Id){throw 'Admitted owner differs from source.'};Assert-KmcOrdinaryInteger $owner[0].generation $pair.Generation $pair.Generation}
+    foreach($pair in $o.loadedArchive.Pairs){$owner=@($o.beforeOwners.owners|Where-Object ownerId -CEQ $pair.PairId);if($owner.Count-ne1-or$owner[0].state-cne'Active'-or(Convert-KmcProgressionRegistryActorId $owner[0].riderId)-cne$pair.Rider.Id-or(Convert-KmcProgressionRegistryActorId $owner[0].mountId)-cne$pair.Mount.Id){throw 'Admitted owner differs from source.'};Assert-KmcOrdinaryInteger $owner[0].generation $pair.Generation $pair.Generation}
     $root=Join-Path ([IO.Path]::GetDirectoryName([IO.Path]::GetDirectoryName($Request.evidenceRoot))) ('runtime-staging/persistence-'+$Request.runId+'/Saved Games')
     Assert-KmcProgressionAuthority $o.authorityBefore $root $o.authorityBefore.generation 0 $write
     Assert-KmcProgressionAuthority $o.cleanup.authority $root $o.authorityBefore.generation ([int]$write) $write
