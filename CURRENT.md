@@ -1,5 +1,18 @@
 # Chunk 7B–7D — IN PROGRESS
 
+## October 20 - batch70 F09 native Small calibration
+
+Preview.85's declared F09 run returned game **PASS 9/9** for the exact private
+MaleHalfling/Horse calibration pair, including Mount, movement, both primary
+orders, Dismount, pose and cleanup. Its original outer result remains **FAIL**:
+the external reader compared saved numeric `0.0` against observed `0` as
+different canonical strings. A narrow reader-only correction passes 36/0
+focused checks and separately accepts the immutable native artifact; the DLL
+and original result are unchanged. The guarded transaction and profile restored
+exactly. Ordinary Small admission and its save/load qualification remain open,
+as do progression, measured 7D, ordinary doors and final 7E. See the
+[batch70 record](docs/CHUNK7-BATCH70-SMALL-NATIVE-2026-10-20.md).
+
 ## October 20 - batch69 F09 combat-entry discriminator
 
 Preview.84's single F09 native run remained **FAIL** at stage 3, but the new

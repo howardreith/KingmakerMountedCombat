@@ -34,7 +34,7 @@ function Assert-KmcChunk7SmallState($State,$ActorIds){
   if($a.position-isnot[Array]-or$a.position.Count-ne3){throw 'Native position missing.'};foreach($v in $a.position){Assert-KmcChunk7SmallNumber $v (-[double]::MaxValue)}
  }
  if($State.owners-isnot[Array]-or$State.owners.Count-gt1){throw 'Small calibration admits one exact owner only.'}
- foreach($owner in $State.owners){Assert-KmcOrdinaryGuid $owner.id;Assert-KmcOrdinaryInteger $owner.generation 1}
+ foreach($owner in $State.owners){if($null-eq$owner-or$owner.GetType().FullName-cne'System.Management.Automation.PSCustomObject'-or$owner.state-isnot[string]){throw 'Native Small owner must be an object with scalar state.'};Assert-KmcOrdinaryGuid $owner.id;Assert-KmcOrdinaryInteger $owner.generation 1}
 }
 function Assert-KmcChunk7SmallResourceEqual($Left,$Right){
  foreach($a in $Left.actors){$b=@($Right.actors|Where-Object id -CEQ $a.id);if($b.Count-ne1){throw 'Actor identity disappeared.'}
@@ -97,14 +97,17 @@ function Assert-KmcChunk7SmallMountedEvidence($Request,$o){
  if((Test-KmcChunk7SmallManualCase $s)-or(Test-KmcChunk7SmallF09Case $s)){$ids=@($o.manualNativeRoster.mainActorId)+@($o.manualNativeRoster.actors.id|Where-Object{$_-cne$o.manualNativeRoster.mainActorId-and$_-cne$source.actorId-and$_-cne$source.petId}|Sort-Object -CaseSensitive)+@($source.actorId,$source.petId)}
  else{$ids=@('b6628a77-4962-47a4-a17c-88d9836fc9d5','d79a4f6c-b74e-4868-95bd-533899131acb','d17c8fd0-6627-40c4-bf9a-024cf001c1f7',$source.actorId,$source.petId)}
  $prior=-1
+ $ownerRiderId=if(Test-KmcChunk7SmallF09Case $s){$source.actorId.Replace('-','')}else{$source.actorId}
+ $ownerMountId=if(Test-KmcChunk7SmallF09Case $s){$source.petId.Replace('-','')}else{$source.petId}
  $mountedOwner=$o.inputs[0].after.owners
  if($mountedOwner-isnot[Array]-or$mountedOwner.Count-ne1){throw 'Native Mount has no exact owner.'}
  $mountedOwner=$mountedOwner[0]
- if($mountedOwner.riderId-cne$source.actorId-or$mountedOwner.mountId-cne$source.petId-or$mountedOwner.state-cne'Active'){throw 'Native mounted owner identity/state differs.'}
+ if($null-eq$mountedOwner-or$mountedOwner.GetType().FullName-cne'System.Management.Automation.PSCustomObject'-or$mountedOwner.state-isnot[string]-or$mountedOwner.riderId-isnot[string]-or$mountedOwner.mountId-isnot[string]){throw 'Native mounted owner role/state is not a scalar object field.'}
+ if($mountedOwner.riderId-cne$ownerRiderId-or$mountedOwner.mountId-cne$ownerMountId-or$mountedOwner.state-cne'Active'){throw 'Native mounted owner identity/state differs.'}
  $states=@($o.inputs|ForEach-Object{$_.before;$_.after})+@($o.movement.before,$o.movement.after)
  foreach($state in $states){
   foreach($a in $state.actors){$first=@($o.inputs[0].before.actors|Where-Object id -CEQ $a.id);if($first.Count-ne1-or$a.object-ne$first[0].object){throw 'Native actor object changed between action observations.'}}
-  foreach($owner in $state.owners){if($owner.id-cne$mountedOwner.id-or$owner.riderId-cne$source.actorId-or$owner.mountId-cne$source.petId-or$owner.generation-ne$mountedOwner.generation){throw 'Native pair owner changed between action observations.'}}
+  foreach($owner in $state.owners){if($null-eq$owner-or$owner.GetType().FullName-cne'System.Management.Automation.PSCustomObject'-or$owner.state-isnot[string]-or$owner.riderId-isnot[string]-or$owner.mountId-isnot[string]-or$owner.id-cne$mountedOwner.id-or$owner.riderId-cne$ownerRiderId-or$owner.mountId-cne$ownerMountId-or$owner.generation-ne$mountedOwner.generation){throw 'Native pair owner changed between action observations.'}}
  }
  if($o.inputs[0].before.owners.Count-ne0){throw 'Mount input began with existing ownership.'}
  foreach($state in @($o.inputs[0].after,$o.inputs[1].before,$o.inputs[1].after,$o.inputs[2].before,$o.inputs[2].after,$o.inputs[3].before,$o.movement.before,$o.movement.after)){if($state.owners.Count-ne1-or$state.owners[0].state-cne'Active'){throw 'Mounted action lost its exact active owner.'}}
@@ -116,7 +119,11 @@ function Assert-KmcChunk7SmallMountedEvidence($Request,$o){
   Assert-KmcChunk7SmallState $row.before $ids;Assert-KmcChunk7SmallState $row.after $ids
   if($row.before.frame-lt$prior-or$row.after.frame-lt$row.before.frame){throw 'Native input observation ordering differs.'};$prior=$row.after.frame
   if($i-eq0-or$i-eq3){
-   Assert-KmcOrdinaryInteger $row.generation 1;if($row.generation-ne$mountedOwner.generation){throw 'Native relationship command generation differs from its owner.'};Assert-KmcChunk7SmallResourceEqual $row.before $row.after
+   if($i-eq0-and(Test-KmcChunk7SmallF09Case $s)){
+    Assert-KmcOrdinaryInteger $row.generation 0 0;Assert-KmcOrdinaryInteger $mountedOwner.generation 1 1
+   }else{
+    Assert-KmcOrdinaryInteger $row.generation 1;if($row.generation-ne$mountedOwner.generation){throw 'Native relationship command generation differs from its owner.'}
+   };Assert-KmcChunk7SmallResourceEqual $row.before $row.after
    if($row.targetId-cne$(if($i-eq0){$source.petId}else{$source.actorId})){throw 'Native relationship target differs.'}
   }else{
    $owner=if($i-eq1){$source.actorId}else{$source.petId};$other=if($i-eq1){$source.petId}else{$source.actorId}
@@ -325,7 +332,7 @@ function Assert-KmcChunk7SmallF09Evidence($Request,$Artifact){
  foreach($a in $n.arrangement.actors){Assert-KmcOrdinaryGuid $a.actorId;$sourceActor=@($f.afterSaveArrangement.actors|Where-Object id -CEQ $a.actorId);if($sourceActor.Count-ne1){throw 'F09 cold progression actor is foreign.'};foreach($pair in @(@('blueprint','blueprint'),@('experience','experience'),@('characterLevel','level'))){if((ConvertTo-KmcChunk7Canonical $a.($pair[0]))-cne(ConvertTo-KmcChunk7Canonical $sourceActor[0].($pair[1]))){throw 'F09 cold native progression changed.'}};if($a.classes-isnot[Array]-or$a.classes.Count-ne$sourceActor[0].classes.Count){throw 'F09 cold classes differ.'};$classes=[Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal);foreach($c in $a.classes){$sourceClass=@($sourceActor[0].classes|Where-Object guid -CEQ $c.classGuid);if($sourceClass.Count-ne1){throw 'F09 cold native class is foreign.'};Assert-KmcBootstrapInventoryString $c.classGuid $sourceClass[0].guid;if(-not$classes.Add($c.classGuid)){throw 'F09 cold native class repeats.'};Assert-KmcOrdinaryInteger $c.level $sourceClass[0].level $sourceClass[0].level}}
  Assert-KmcOrdinaryInteger $n.arrangement.money $f.afterSaveArrangement.money $f.afterSaveArrangement.money
  if($n.resources.actors-isnot[Array]-or$n.resources.actors.Count-ne7){throw 'F09 cold resource roster differs.'};Assert-KmcChunk7ExactIds $n.resources.actors @($f.savedWorld.party.id) 'actorId'
- foreach($a in $n.resources.actors){Assert-KmcOrdinaryGuid $a.actorId;$sourceActor=@($f.savedWorld.party|Where-Object id -CEQ $a.actorId);if($sourceActor.Count-ne1){throw 'F09 resource actor is foreign.'};$native=$sourceActor[0].native;foreach($pair in @(@('standard','Standard'),@('move','Move'),@('swift','Swift'),@('initiative','Initiative'),@('reactions','ReactionsRemaining'))){if((ConvertTo-KmcChunk7Canonical $a.($pair[0]))-cne(ConvertTo-KmcChunk7Canonical $native.($pair[1]))){throw 'F09 cold native resources changed.'}};Assert-KmcOrdinaryInteger $a.reactionAllowance 1;Assert-KmcChunk7Boolean $a.prepared $false}
+ foreach($a in $n.resources.actors){Assert-KmcOrdinaryGuid $a.actorId;$sourceActor=@($f.savedWorld.party|Where-Object id -CEQ $a.actorId);if($sourceActor.Count-ne1){throw 'F09 resource actor is foreign.'};$native=$sourceActor[0].native;foreach($pair in @(@('standard','Standard'),@('move','Move'),@('swift','Swift'),@('initiative','Initiative'),@('reactions','ReactionsRemaining'))){$observed=$a.($pair[0]);$saved=$native.($pair[1]);if(-not(Test-KmcFiniteJsonNumber $observed)-or-not(Test-KmcFiniteJsonNumber $saved)){throw 'F09 cold native resources changed.'};$observedCanonical=ConvertTo-KmcChunk7Canonical $observed;$savedCanonical=ConvertTo-KmcChunk7Canonical $saved;if($observedCanonical-cne$savedCanonical-and-not($observedCanonical-cmatch'^-?0(?:\.0+)?$'-and$savedCanonical-cmatch'^-?0(?:\.0+)?$')){throw 'F09 cold native resources changed.'}};Assert-KmcOrdinaryInteger $a.reactionAllowance 1;Assert-KmcChunk7Boolean $a.prepared $false}
  if(@($o.bodyObservation.PSObject.Properties).Count-ne20-or@($f.savedBodyObservation.PSObject.Properties).Count-ne20){throw 'F09 cold Small body field count changed.'};foreach($p in $f.savedBodyObservation.PSObject.Properties){if((ConvertTo-KmcChunk7Canonical $o.bodyObservation.($p.Name))-cne(ConvertTo-KmcChunk7Canonical $p.Value)){throw 'F09 cold Small body changed.'}}
  Assert-KmcChunk7SmallManualBodyInventory $o $s $source
  $prior=$f.acquiredOwners[0]
