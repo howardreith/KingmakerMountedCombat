@@ -36,9 +36,10 @@ namespace KingmakerMountedCombat.Diagnostics
         private readonly HashSet<UnitDescriptor> restEntered = new HashSet<UnitDescriptor>(), restExited = new HashSet<UnitDescriptor>();
         private HarmonyInstance harmony;
         private bool disposed, installed, installationStarted, insideRespec, insideFinish, creditPending;
-        private int callbackFrame = -1, entries, exits, previews, finishes, finishExits, advances, rebinds, moneyCredits, moneyCallsObserved;
+        private int callbackFrame = -1, entries, exits, previews, finishes, finishExits, advances, rebinds, moneyCredits, startingGoldCredits, moneyCallsObserved;
         private int initialXp, initialUses, initialCost, expectedRefund;
-        private long initialMoney, finishMoneyBefore, finishTicksBefore, creditAmount, creditBefore;
+        private long initialMoney, finishMoneyBefore, finishTicksBefore, creditAmount, startingGoldAmount, creditBefore, pendingMoneyAmount;
+        private string pendingMoneyKind;
         private JObject creditBoundary;
         private UnitDescriptor previewDescriptor, reboundDescriptor;
         private UnitEntityData preview;
@@ -95,12 +96,12 @@ namespace KingmakerMountedCombat.Diagnostics
         internal bool InSynchronousCallback => callbackFrame == Time.frameCount &&
             (insideRespec || insideFinish || creditPending || petUpdateSource != null);
         internal bool Complete => installed && errors.Count == 0 && entries == 1 && exits == 1 && previews == 1 &&
-            moneyCredits == 1 && !creditPending && finishes == 1 && finishExits == 1 && advances == 1 && rebinds == 1 &&
+            startingGoldCredits == 1 && moneyCredits == 1 && !creditPending && finishes == 1 && finishExits == 1 && advances == 1 && rebinds == 1 &&
             petUpdateSource == null && outsideFinishRestEntries == outsideFinishRestExits &&
             restEntered.SetEquals(expectedRest) && restExited.SetEquals(expectedRest);
         internal UnitEntityData Preview => preview;
         internal UnitEntityData Original => original;
-        internal long ExpectedMoneyAfter => checked(initialMoney + creditAmount - initialCost);
+        internal long ExpectedMoneyAfter => checked(initialMoney + startingGoldAmount + creditAmount - initialCost);
         internal int InitialExperience => initialXp;
 
         internal void RequireExactPreview(CharacterBuildController builder)
@@ -236,6 +237,7 @@ namespace KingmakerMountedCombat.Diagnostics
             ["initialMoney"] = initialMoney, ["nativeCost"] = initialCost,
             ["initialScrollRefund"] = expectedRefund, ["nativeScrollRefund"] = creditAmount,
             ["nativeMoneyCredits"] = moneyCredits, ["moneyCreditPending"] = creditPending,
+            ["nativeStartingGold"] = startingGoldAmount, ["nativeStartingGoldCredits"] = startingGoldCredits,
             ["creditBoundary"] = creditBoundary?.DeepClone(),
             ["moneyCallsObserved"] = moneyCallsObserved, ["moneyCallBoundaries"] = moneyCallBoundaries.DeepClone(),
             ["diagnosticMoneyWrites"] = 0, ["diagnosticXpWrites"] = 0, ["diagnosticRestCalls"] = 0, ["diagnosticTimeAdvances"] = 0 };
@@ -342,15 +344,16 @@ namespace KingmakerMountedCombat.Diagnostics
                         ["currentUses"] = player.RespecsUsed, ["initialCost"] = p.initialCost,
                         ["currentCost"] = player.GetRespecCost(), ["initialMoney"] = p.initialMoney,
                         ["initialRefundEstimate"] = p.expectedRefund, ["observedRefund"] = p.creditAmount,
-                        ["nativeMoneyCredits"] = p.moneyCredits, ["creditPending"] = p.creditPending,
+                        ["nativeMoneyCredits"] = p.moneyCredits, ["nativeStartingGoldCredits"] = p.startingGoldCredits,
+                        ["creditPending"] = p.creditPending,
                         ["currentMoney"] = player.Money,
                         ["outsideFinishRestEntries"] = p.outsideFinishRestEntries,
                         ["outsideFinishRestExits"] = p.outsideFinishRestExits });
                     Require(ReferenceEquals(__instance, p.action) && p.entries == 1 && p.previews == 1 &&
-                        p.moneyCredits == 1 && !p.creditPending && p.finishes == 0 &&
+                        p.startingGoldCredits == 1 && p.moneyCredits == 1 && !p.creditPending && p.finishes == 0 &&
                         !__instance.ForFree && player.RespecsUsed == p.initialUses && player.GetRespecCost() == p.initialCost &&
-                        player.Money == checked(p.initialMoney + p.creditAmount),
-                        "Native respec finish lost its exact action or observed native scroll refund.");
+                        player.Money == checked(p.initialMoney + p.startingGoldAmount + p.creditAmount),
+                        "Native respec finish lost its exact action or observed native starting gold and scroll refund.");
                     p.finishes++; p.insideFinish = true; p.callbackFrame = Time.frameCount;
                     p.finishMoneyBefore = player.Money; p.finishTicksBefore = Game.Instance.TimeController.GameTime.Ticks;
                     foreach (var actor in player.ControllableCharacters.Where(x => !x.Descriptor.State.IsFinallyDead))
@@ -389,12 +392,30 @@ namespace KingmakerMountedCombat.Diagnostics
                             ["creditPending"] = p.creditPending, ["initialMoney"] = p.initialMoney,
                             ["moneyBefore"] = __instance.Money, ["amount"] = amount,
                             ["callbackRefund"] = callbackRefund };
-                    Require(playerExact && p.entries == 1 && p.exits == 1 &&
-                        p.finishes == 0 && p.moneyCredits == 0 && !p.creditPending &&
-                        builderExact && respecMode && __instance.Money == p.initialMoney &&
-                        amount >= 0 && amount == callbackRefund,
-                        "Native respec money credit is not the exact callback-time scroll refund.");
-                    p.moneyCredits++; p.creditPending = true; p.creditAmount = amount;
+                    Require(playerExact && p.entries == 1 && p.exits == 1 && p.finishes == 0 &&
+                        builderExact && respecMode && !p.creditPending && amount >= 0,
+                        "Native respec credit is outside the exact observed builder callback.");
+                    if (p.startingGoldCredits == 0)
+                    {
+                        var selectedClass = p.previewDescriptor.Progression.GetMaxClass();
+                        var classData = selectedClass == null ? null : p.previewDescriptor.Progression.GetClassData(selectedClass);
+                        var replacement = classData?.Archetypes.FirstOrDefault(value => value.ReplaceStartingEquipment);
+                        var nativeGold = replacement == null ? selectedClass?.StartingGold : replacement.StartingGold;
+                        Require(p.moneyCredits == 0 && __instance.Money == p.initialMoney &&
+                            selectedClass != null && classData != null &&
+                            ReferenceEquals(selectedClass, p.nativeBuilder.LevelUpController.State.SelectedClass) &&
+                            nativeGold >= 0 && amount == nativeGold,
+                            "Native respec first-level starting gold differs from its exact selected class.");
+                        p.startingGoldCredits++; p.startingGoldAmount = amount; p.pendingMoneyKind = "starting-gold";
+                    }
+                    else
+                    {
+                        Require(p.startingGoldCredits == 1 && p.moneyCredits == 0 &&
+                            __instance.Money == checked(p.initialMoney + p.startingGoldAmount) && amount == callbackRefund,
+                            "Native respec refund differs from its exact callback-time scroll value.");
+                        p.moneyCredits++; p.creditAmount = amount; p.pendingMoneyKind = "refund";
+                    }
+                    p.creditPending = true; p.pendingMoneyAmount = amount;
                     p.creditBefore = __instance.Money; p.callbackFrame = Time.frameCount;
                 });
             }
@@ -402,12 +423,15 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 var p = active; if (p == null || p.previews == 0) return;
                 p.Safe(() => {
-                    Require(p.moneyCredits == 1 && p.creditPending && p.callbackFrame == Time.frameCount &&
-                        ReferenceEquals(__instance, p.player) && amount == p.creditAmount &&
+                    Require(p.creditPending && p.callbackFrame == Time.frameCount &&
+                        ReferenceEquals(__instance, p.player) && amount == p.pendingMoneyAmount &&
                         __instance.Money == checked(p.creditBefore + amount),
                         "Native respec money credit did not settle once on the exact player.");
-                    p.creditPending = false;
-                    p.Record("native-respec-refund-credit", new JObject {
+                    var kind = p.pendingMoneyKind == "starting-gold" ? "native-respec-starting-gold" :
+                        p.pendingMoneyKind == "refund" ? "native-respec-refund-credit" : null;
+                    Require(kind != null, "Native respec credit has no exact starting-gold or refund owner.");
+                    p.creditPending = false; p.pendingMoneyKind = null;
+                    p.Record(kind, new JObject {
                         ["amount"] = amount, ["moneyBefore"] = p.creditBefore,
                         ["moneyAfter"] = __instance.Money });
                 });

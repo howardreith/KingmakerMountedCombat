@@ -50,6 +50,15 @@ scroll-refund value. The [batch94 record](../docs/CHUNK7-BATCH94-RETRAIN-CREDIT-
 preserves that failure and exact restoration. A reviewed bounded callsite
 observation is next; starting-gold ownership is not yet proven in this run.
 
+Batch95's exact Small producer/cold consumer passed, then native retrain
+original outer FAIL recorded the actual 411 `AddStartingItems` credit and a
+separate zero `RespecCompanion` scroll-refund credit in one native commit.
+The [batch95 record](../docs/CHUNK7-BATCH95-RETRAIN-TWO-NATIVE-CREDITS-2026-10-20.md)
+preserves that failure, source-backed diagnosis and restoration. A focused
+two-credit observer/reader correction passed independent review and focused
+checks; it still needs exact-candidate native verification and, if it produces
+a Manual, a separate cold consumer. F10 retrain remains open.
+
 Current requirement-to-evidence map (one status per gate family; earlier PASS
 belongs only to its recorded product, fixture and environment):
 

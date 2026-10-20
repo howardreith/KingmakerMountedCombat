@@ -1,5 +1,28 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## Active October 20 after batch95 — verify two native respec credits
+
+The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
+[Batch95](docs/CHUNK7-BATCH95-RETRAIN-TWO-NATIVE-CREDITS-2026-10-20.md)
+froze pushed `0d32cf10b621c90157e9598e7216408177de8f36` as world108.
+Mounted Small Manual 5/0 and separate cold 3/0 passed. Targeted native retrain
+original **outer FAIL** has no terminal game result or Manual. A bounded trace
+distinguished native `GainMoney(411)` in `LevelUpHelper.AddStartingItems` from
+the later `GainMoney(0)` in the `Player.RespecCompanion` scroll-refund callback.
+The exact run-owned game was closed normally after immutable failure evidence.
+Mods and saves restored; slots 1 and 3 restored profile bytes exactly, while
+slot 2 recorded three accepted native achievement-cache changes. No game or
+lock remains. Batches 90–94 original FAILs remain separate.
+
+A focused observer and reader correction requires both native credits exactly
+once in the observed order and exact balances through finish. Independent
+source review, focused evidence 101/0, installed patch construction/removal
+24/0, build and offline Candidate 7/0 in 6.5 minutes passed. Next: commit and
+guarded-push; freeze a new package/suite; run a fresh mounted Small
+producer, separate cold consumer and targeted retrain. If retrain creates a
+genuine Manual, cold-load its independent copy. Continue F09/F10/F11 and the
+selected private 7E mission.
+
 ## Active October 20 after batch94 — classify native respec credits
 
 The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
