@@ -270,7 +270,12 @@ namespace KingmakerMountedCombat.Diagnostics
             if (Scenario == Chunk7OwnedPairsSelection.Scenario)
             {
                 if (SchemaVersion != SaveBackedSchemaVersion || OwnedPairs == null) errors.Add("Owned pairs require their exact schema-2 inherited selection.");
-                else errors.AddRange(OwnedPairs.Validate(Scenario, RunId, PersistenceCase));
+                else
+                {
+                    if (!OwnedPairs.SmallFixtureLineage && OwnedPairs.ColdReceiptSha256 != null)
+                        errors.Add("Only Small fixture persistence carries the accepted F09 cold receipt.");
+                    errors.AddRange(OwnedPairs.Validate(Scenario, RunId, PersistenceCase));
+                }
             }
             else if (OwnedPairs != null) errors.Add("Inherited pair selection is forbidden under historical or foreign families.");
             if (Scenario == Chunk7CumulativeAcquisitionSelection.Scenario)
@@ -619,6 +624,24 @@ namespace KingmakerMountedCombat.Diagnostics
                         string.IsNullOrWhiteSpace(PersistenceLoad.GameName) || PersistenceLoad.Sha256 == Fixture.Working.Sha256 ||
                         PersistenceLoad.Sha256 == Fixture.Baseline?.Sha256 || PersistenceLoad.Sha256 != OwnedPairs.SeedSha256)
                         errors.Add("Owner seed lacks its exact registered non-aliasing identity.");
+                }
+                else if (OwnedPairs.SmallFixtureLineage)
+                {
+                    var source = OwnedPairs.IsSmallFixtureSave;
+                    var nativeName = source ? Chunk7SmallFixtureSelection.OutputName : Chunk7OwnedPairsSelection.SmallFixtureManualName;
+                    errors.AddRange(PersistenceLoad.Validate("persistenceLoad", nativeName,
+                        "^Manual_[1-9][0-9]*_" + nativeName + "\\.zks$"));
+                    if (!(source ? Chunk7SmallFixtureSelection.IsManualLeaf(PersistenceLoad.FileName) :
+                            Chunk7OwnedPairsSelection.IsSmallFixtureManualLeaf(PersistenceLoad.FileName)) ||
+                        Fixture?.Working == null || PersistenceLoad.GameId != Chunk7SmallFixtureSelection.CampaignId ||
+                        PersistenceLoad.GameName != Chunk7SmallFixtureSelection.CampaignName ||
+                        PersistenceLoad.Area != Chunk7SmallFixtureSelection.AreaId ||
+                        PersistenceLoad.Sha256 == Fixture.Working.Sha256 ||
+                        PersistenceLoad.Sha256 == Fixture.Baseline?.Sha256 ||
+                        (source ? PersistenceLoad.Sha256 != OwnedPairs.SourceArchiveSha256 :
+                            PersistenceLoad.Sha256 == OwnedPairs.SourceArchiveSha256) ||
+                        PersistenceLoad.Sha256 == OwnedPairs.SeedSha256)
+                        errors.Add("Small persistence input must be the exact qualified F09 Manual or a distinct genuine mounted checkpoint in its native campaign.");
                 }
                 else if (OwnedPairs.OwnerSeedDerivedInput)
                 {

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Text.RegularExpressions;
 
@@ -44,6 +45,29 @@ namespace KingmakerMountedCombat.Diagnostics
         // Its separate-process cold consumer: Source* keeps the owner-seed Manual ancestry,
         // Checkpoint* is the checkpoint producer run and its persistence evidence.
         public const string OwnerSeedCheckpointLoadCase = "owner-seed-checkpoint-load";
+        // The qualified seven-actor F09 Manual is owner-seed-derived fixture
+        // preparation, never acquired-Manual ancestry. A distinct two-pair
+        // persistence pair exercises its now-declared ordinary Small profile.
+        public const string SmallFixtureSaveCase = "small-fixture-persistence-save";
+        public const string SmallFixtureLoadCase = "small-fixture-persistence-load";
+        public const string SmallFixtureManualName = "KMC_C7_SMALL_WORLD";
+        internal static bool IsSmallFixtureManualLeaf(string value)
+        {
+            const string prefix = "Manual_", suffix = "_" + SmallFixtureManualName + ".zks";
+            if (value == null || !value.StartsWith(prefix, StringComparison.Ordinal) ||
+                !value.EndsWith(suffix, StringComparison.Ordinal) || value.Length <= prefix.Length + suffix.Length ||
+                !int.TryParse(value.Substring(prefix.Length, value.Length - prefix.Length - suffix.Length),
+                    NumberStyles.None, CultureInfo.InvariantCulture, out var number) || number <= 0 || number == int.MaxValue)
+                return false;
+            return value == prefix + number.ToString(CultureInfo.InvariantCulture) + suffix;
+        }
+        public const string SmallFixtureProducerRun = "20261020-c7b-world71-b53s1-small";
+        public const string SmallFixtureProducerArtifact = "9d26bd146970fc53192bf2f28cef8c6655a7c79beb1326c075fec0a5c406e52f";
+        public const string SmallFixtureProducerArchive = "ddf2b9cf4c0c0a49c93a659d2628ae6622f02e0a400a2df287bd5713f12ed829";
+        public const string SmallFixtureColdReceipt = "d188012fb1f9a19410a572b67381bfb15be5e813a215a79196ed734b49c59bfc";
+        public const string SmallFixtureMainHorse = "30b79228-3fe5-48ac-aa88-2de9085837b7";
+        public const string SmallFixtureRider = "c4e2c853-4b72-4904-ad84-d0b7bfba7470";
+        public const string SmallFixtureHorse = "0e0c7d2d-06b4-4510-9f81-d847340d1424";
         // The checkpoints the owner-seed checkpoint pair admits; extend this one list as each
         // further family is connected.
         internal static readonly string[] OwnerSeedCheckpoints = { "multi-exploration-quick", "multi-exploration-auto",
@@ -67,7 +91,7 @@ namespace KingmakerMountedCombat.Diagnostics
             checkpoint == "multi-rt-debt-manual" || checkpoint == "multi-tb-debt-manual" || checkpoint == "zero-mounted-tb-retained-manual" ||
             checkpoint == "legacy-mounted-pending-tb-manual";
         // The native Manual name a writing owned selection reserves; a non-Manual selection writes its slot name.
-        internal string OwnedManualOutputName(string checkpoint) => IsOwnerSeedManual ? OwnerSeedManualName :
+        internal string OwnedManualOutputName(string checkpoint) => IsSmallFixtureSave ? SmallFixtureManualName : IsOwnerSeedManual ? OwnerSeedManualName :
             IsOwnerSeedCheckpointSave ? (checkpoint == ManticoreFixtureCheckpoint ? ManticoreFixtureManualName : OwnerSeedCheckpointManualName) : Cold ? (OwnedSchema1Cold(checkpoint) ? "KMC_C7_SCHEMA1" : "KMC_C7_SCHEMA2") : "KMC_C7_WORLD";
         public string Case { get; set; }
         public string SourceRunId { get; set; }
@@ -77,6 +101,7 @@ namespace KingmakerMountedCombat.Diagnostics
         public string CheckpointSourceArtifactSha256 { get; set; }
         public string SeedId { get; set; }
         public string SeedSha256 { get; set; }
+        public string ColdReceiptSha256 { get; set; }
         public string RiderAId { get; set; }
         public string MountAId { get; set; }
         public string RiderBId { get; set; }
@@ -101,6 +126,7 @@ namespace KingmakerMountedCombat.Diagnostics
         public bool ShouldSerializeMountBId() => !OwnerSeedSetup || MountBId != null;
         public bool ShouldSerializeSeedId() => SeedId != null;
         public bool ShouldSerializeSeedSha256() => SeedSha256 != null;
+        public bool ShouldSerializeColdReceiptSha256() => ColdReceiptSha256 != null;
         // The owner-seed shape always names its assistance key (null when rider B needs none).
         public bool ShouldSerializeXpAssistance() => OwnerSeedSetup || XpAssistance != null;
         public bool BaseGameOnly { get; set; }
@@ -115,6 +141,9 @@ namespace KingmakerMountedCombat.Diagnostics
         internal bool IsOwnerSeedDerivedCombat => Case == OwnerSeedRealtimeCase || Case == OwnerSeedRiderFirstCase || Case == OwnerSeedMountFirstCase || Case == OwnerSeedDisableCase;
         internal bool IsOwnerSeedCheckpointSave => Case == OwnerSeedCheckpointSaveCase;
         internal bool IsOwnerSeedCheckpointLoad => Case == OwnerSeedCheckpointLoadCase;
+        internal bool IsSmallFixtureSave => Case == SmallFixtureSaveCase;
+        internal bool IsSmallFixtureLoad => Case == SmallFixtureLoadCase;
+        internal bool SmallFixtureLineage => IsSmallFixtureSave || IsSmallFixtureLoad;
         internal bool IsManticoreReturnArea => AreaRoute == ManticoreReturnRoute;
         // Every kind whose native input is the owner-seed-derived Manual itself.
         internal bool OwnerSeedDerivedInput => IsOwnerSeedDerivedLoad || IsOwnerSeedDerivedCombat || IsOwnerSeedCheckpointSave || IsOwnerSeedLoadRefusal;
@@ -143,6 +172,8 @@ namespace KingmakerMountedCombat.Diagnostics
                     case OwnerSeedDisableCase: return "chunk7-two-pair-combat-rider-first";
                     case OwnerSeedCheckpointSaveCase: return "chunk7-persistence-save";
                     case OwnerSeedCheckpointLoadCase: return "chunk7-persistence-load";
+                    case SmallFixtureSaveCase: return "chunk7-persistence-save";
+                    case SmallFixtureLoadCase: return "chunk7-persistence-load";
                     case "combat-rider-first": return "chunk7-two-pair-combat-rider-first";
                     case "combat-mount-first": return "chunk7-two-pair-combat-mount-first";
                     case "realtime-core": return "chunk7-two-pair-realtime-core";
@@ -156,8 +187,8 @@ namespace KingmakerMountedCombat.Diagnostics
             }
         }
         internal bool Persistence => Case == "persistence-save" || Case == "persistence-load" || IsOwnerSeedManual || IsOwnerSeedDerivedLoad ||
-            IsOwnerSeedCheckpointSave || IsOwnerSeedCheckpointLoad || IsOwnerSeedLoadRefusal;
-        internal bool Cold => Case == "persistence-load" || IsOwnerSeedDerivedLoad || IsOwnerSeedCheckpointLoad || IsOwnerSeedLoadRefusal;
+            IsOwnerSeedCheckpointSave || IsOwnerSeedCheckpointLoad || IsOwnerSeedLoadRefusal || SmallFixtureLineage;
+        internal bool Cold => Case == "persistence-load" || IsOwnerSeedDerivedLoad || IsOwnerSeedCheckpointLoad || IsOwnerSeedLoadRefusal || IsSmallFixtureLoad;
         internal static bool SupportedCheckpoint(string value) => Array.IndexOf(new[] {
             "multi-exploration-manual", "multi-exploration-quick", "multi-exploration-auto",
             "multi-rt-debt-manual", "multi-tb-debt-manual", "zero-mounted-tb-retained-manual",
@@ -183,7 +214,7 @@ namespace KingmakerMountedCombat.Diagnostics
         internal int LoadCount(string checkpoint) => Cold && checkpoint == "multi-exploration-three-loads-manual" ? 3 : 1;
         // Owner seed: exactly the native setup level-up Autos its selection declares (bound at admission).
         // Owner-seed Manual producer: exactly its one measured Manual (no setup write exists).
-        internal int WriteCount(string checkpoint) => IsOwnerSeed ? ExpectedNativeWriteCount : IsOwnerSeedManual ? 1 :
+        internal int WriteCount(string checkpoint) => IsOwnerSeed ? ExpectedNativeWriteCount : IsOwnerSeedManual || IsSmallFixtureSave ? 1 :
             IsOwnerSeedCheckpointSave ? (checkpoint == "multi-owned-worker-cancel-manual" ? 2 : 1) :
             IsOwnerSeedCheckpointLoad ? (checkpoint == "legacy-mounted-pending-tb-manual" || OwnedSchema1Cold(checkpoint) ? 1 : 0) :
             Case == "persistence-save" && checkpoint == "multi-owned-worker-cancel-manual" ? 2 : Case == "persistence-save" ||
@@ -207,6 +238,7 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             if (IsOwnerSeedDerivedCombat) return ValidateOwnerSeedDerivedCombat(scenario, runId, checkpoint);
             if (IsOwnerSeedCheckpointSave || IsOwnerSeedCheckpointLoad) return ValidateOwnerSeedCheckpoint(scenario, runId, checkpoint);
+            if (SmallFixtureLineage) return ValidateSmallFixture(scenario, runId, checkpoint);
             var errors = new List<string>();
             if (CompanionId != null) errors.Add("Only owner-seed-derived RT combat names an unrelated companion.");
             if (SeedId != null || SeedSha256 != null || XpAssistance != null)
@@ -229,6 +261,32 @@ namespace KingmakerMountedCombat.Diagnostics
                 errors.Add("Only cold persistence consumes an exact separate successful owned-pair source checkpoint.");
             if (!BaseGameOnly || ExpectedNativeLoadCount != LoadCount(checkpoint) || ExpectedNativeWriteCount != WriteCount(checkpoint))
                 errors.Add("Owned pairs require base-only staging and the exact selected native load/write quotas.");
+            return errors;
+        }
+        private IReadOnlyList<string> ValidateSmallFixture(string scenario, string runId, string checkpoint)
+        {
+            var errors = new List<string>();
+            if (scenario != Scenario || checkpoint != OwnerSeedCheckpoint)
+                errors.Add("Small fixture persistence selects only its exact exploration Manual checkpoint.");
+            if (SourceRunId != SmallFixtureProducerRun || SourceArtifactSha256 != SmallFixtureProducerArtifact ||
+                SourceArchiveSha256 != SmallFixtureProducerArchive || ColdReceiptSha256 != SmallFixtureColdReceipt ||
+                SeedId != Chunk7SmallFixtureSelection.SeedIdentity || SeedSha256 != Chunk7SmallFixtureSelection.SeedHash ||
+                runId == SourceRunId || runId == SeedId)
+                errors.Add("Small persistence requires its qualified owner-seed-derived F09 Manual and accepted cold receipt.");
+            if (RiderAId != Chunk7SmallFixtureSelection.MainActorId || MountAId != SmallFixtureMainHorse ||
+                RiderBId != SmallFixtureRider || MountBId != SmallFixtureHorse || PartyIds == null || PartyIds.Length != 7 ||
+                !PartyIds.All(Chunk7ManualDerivedSelection.NativeId) || PartyIds.Distinct(StringComparer.Ordinal).Count() != 7 ||
+                PairIds.Any(id => PartyIds == null || !PartyIds.Contains(id)))
+                errors.Add("Small persistence requires the seven distinct qualified native field actors and exact Medium/Small pair roles.");
+            if (!BaseGameOnly || ExpectedNativeLoadCount != 1 || ExpectedNativeWriteCount != (IsSmallFixtureSave ? 1 : 0) ||
+                SourceArea != null || AreaRoute != null || CompanionId != null || XpAssistance != null)
+                errors.Add("Small persistence permits only base-only one-load exploration, one producer Manual or zero cold writes, and no added setup.");
+            if (IsSmallFixtureSave ? CheckpointSourceRunId != null || CheckpointSourceArtifactSha256 != null :
+                !Run(CheckpointSourceRunId) || CheckpointSourceRunId == runId || CheckpointSourceRunId == SourceRunId ||
+                CheckpointSourceRunId == SeedId ||
+                !Hash(CheckpointSourceArtifactSha256) || CheckpointSourceArtifactSha256 == SourceArtifactSha256 ||
+                CheckpointSourceArtifactSha256 == SourceArchiveSha256)
+                errors.Add("Only the Small cold consumer carries a distinct completed mounted-checkpoint producer pin.");
             return errors;
         }
         // Static owner-seed validation. Rider size, petless state, eligibility and the

@@ -15,6 +15,8 @@ function Get-KmcChunk7SelectedScenario($Request){
   'owner-seed-combat-disable'{'chunk7-two-pair-combat-rider-first'}
   'owner-seed-checkpoint-save'{'chunk7-persistence-save'}
   'owner-seed-checkpoint-load'{'chunk7-persistence-load'}
+  'small-fixture-persistence-save'{'chunk7-persistence-save'}
+  'small-fixture-persistence-load'{'chunk7-persistence-load'}
   'owner-seed-load-refusal'{'chunk7-persistence-load'}
   'combat-rider-first'{'chunk7-two-pair-combat-rider-first'}
   'combat-mount-first'{'chunk7-two-pair-combat-mount-first'}
@@ -31,6 +33,7 @@ function Get-KmcChunk7OwnedWriteCount($Request){
  if(Test-KmcChunk7OwnedPairsOwnerSeed $Request){return 0}
  # Owner-seed-derived Manual producer: exactly its one measured Manual; its cold consumer: none.
  if(Test-KmcChunk7OwnedPairsSeedManual $Request){return 1}
+ if(Test-KmcChunk7OwnedPairsSmallSave $Request){return 1}
  # The worker writes a seed and its cancelled replacement to one landed archive.
  if(Test-KmcChunk7OwnedPairsSeedCheckpointSave $Request){if($Request.persistenceCase-ceq'multi-owned-worker-cancel-manual'){return 2};return 1}
  if(Test-KmcChunk7OwnedPairsSeedCheckpointLoad $Request){if($Request.persistenceCase-cin@('legacy-mounted-pending-tb-manual','owned-schema1-resave-manual')){return 1};return 0}
@@ -61,6 +64,33 @@ function Get-KmcChunk7OwnedPairsCase($Request){
 # measured Manual; the consumer cold-loads exactly that Manual in a separate process. Both are
 # labelled owner-seed-derived; neither is acquired or ordinary ancestry.
 function Test-KmcChunk7OwnedPairsSeedManual($Request){(Get-KmcChunk7OwnedPairsCase $Request)-ceq'owner-seed-persistence-save'}
+function Test-KmcChunk7OwnedPairsSmallSave($Request){(Get-KmcChunk7OwnedPairsCase $Request)-ceq'small-fixture-persistence-save'}
+function Test-KmcChunk7OwnedPairsSmallLoad($Request){(Get-KmcChunk7OwnedPairsCase $Request)-ceq'small-fixture-persistence-load'}
+function Test-KmcChunk7OwnedPairsSmall($Request){(Test-KmcChunk7OwnedPairsSmallSave $Request)-or(Test-KmcChunk7OwnedPairsSmallLoad $Request)}
+function Assert-KmcChunk7OwnedPairsSmallSelection($Request,$Selection,$Checkpoint){
+ $s=$Selection;$cold=Test-KmcChunk7OwnedPairsSmallLoad $Request
+ Assert-KmcExactProperties $s @('case','sourceRunId','sourceArtifactSha256','sourceArchiveSha256','checkpointSourceRunId','checkpointSourceArtifactSha256','seedId','seedSha256','coldReceiptSha256','riderAId','mountAId','riderBId','mountBId','partyIds','baseGameOnly','expectedNativeLoadCount','expectedNativeWriteCount') 'Small owner-seed-derived persistence selection'
+ Assert-KmcBootstrapInventoryString $Checkpoint 'multi-exploration-manual'
+ foreach($pair in @(@('sourceRunId','20261020-c7b-world71-b53s1-small'),@('sourceArtifactSha256','9d26bd146970fc53192bf2f28cef8c6655a7c79beb1326c075fec0a5c406e52f'),
+  @('sourceArchiveSha256','ddf2b9cf4c0c0a49c93a659d2628ae6622f02e0a400a2df287bd5713f12ed829'),@('seedId','KMC_C7_NO_MODS_OWNER_SEED'),
+  @('seedSha256','3405d7c813668ad646788efd746a62c1b16e1438fad1bc4bcbebc961821b924f'),
+  @('coldReceiptSha256','d188012fb1f9a19410a572b67381bfb15be5e813a215a79196ed734b49c59bfc'),
+  @('riderAId','73681ef2-b281-4bc6-bc05-2de68c1616cb'),@('mountAId','30b79228-3fe5-48ac-aa88-2de9085837b7'),
+  @('riderBId','c4e2c853-4b72-4904-ad84-d0b7bfba7470'),@('mountBId','0e0c7d2d-06b4-4510-9f81-d847340d1424'))){Assert-KmcBootstrapInventoryString $s.($pair[0]) $pair[1]}
+ if($Request.runId-isnot[string]-or$Request.runId-cnotmatch'^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$'-or$Request.runId-cin@($s.sourceRunId,$s.seedId)){throw 'Small run identity aliases its immutable source.'}
+ if($s.partyIds-isnot[Array]-or$s.partyIds.Count-ne7){throw 'Small persistence requires all seven native field actors.'}
+ $seen=[Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+ foreach($id in $s.partyIds){Assert-KmcOrdinaryGuid $id;if(-not$seen.Add($id)){throw 'Small field roster repeats an actor.'}}
+ foreach($id in @($s.riderAId,$s.mountAId,$s.riderBId,$s.mountBId)){if(-not$seen.Contains($id)){throw 'Small field roster omits an owned role.'}}
+ if($cold){
+  if($s.checkpointSourceRunId-isnot[string]-or$s.checkpointSourceRunId-cnotmatch'^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$'-or$s.checkpointSourceRunId-cin@($Request.runId,$s.sourceRunId,$s.seedId)-or
+   $s.checkpointSourceArtifactSha256-isnot[string]-or$s.checkpointSourceArtifactSha256-cnotmatch'^[a-f0-9]{64}$'-or$s.checkpointSourceArtifactSha256-cin@($s.sourceArtifactSha256,$s.sourceArchiveSha256)){
+   throw 'Small cold consumer requires a distinct exact mounted-checkpoint source.'
+  }
+ }elseif($null-ne$s.checkpointSourceRunId-or$null-ne$s.checkpointSourceArtifactSha256){throw 'Small producer cannot borrow a checkpoint source.'}
+ Assert-KmcChunk7Boolean $s.baseGameOnly $true;Assert-KmcOrdinaryInteger $s.expectedNativeLoadCount 1 1
+ $writes=if($cold){0}else{1};Assert-KmcOrdinaryInteger $s.expectedNativeWriteCount $writes $writes
+}
 function Test-KmcChunk7OwnedPairsSeedDerivedLoad($Request){(Get-KmcChunk7OwnedPairsCase $Request)-ceq'owner-seed-persistence-load'}
 # Owner-seed-derived combat (scenarios 3-5): a disposable copy of the derived Manual, restored mounted.
 function Test-KmcChunk7OwnedPairsSeedDerivedCombat($Request){(Get-KmcChunk7OwnedPairsCase $Request)-cin@('owner-seed-realtime-core','owner-seed-combat-rider-first','owner-seed-combat-mount-first','owner-seed-combat-disable')}
@@ -149,6 +179,7 @@ function Assert-KmcChunk7OwnedPairsSelection($Request){
  if(Test-KmcChunk7OwnedPairsSeedDerivedCombat $Request){Assert-KmcChunk7OwnerSeedDerivedCombatSelection $Request $s $checkpoint;return}
  if(Test-KmcChunk7LoadRefusal $Request){Assert-KmcChunk7LoadRefusalSelection $Request $s $checkpoint;return}
  if((Test-KmcChunk7OwnedPairsSeedCheckpointSave $Request)-or(Test-KmcChunk7OwnedPairsSeedCheckpointLoad $Request)){Assert-KmcChunk7OwnerSeedCheckpointSelection $Request $s $checkpoint;return}
+ if(Test-KmcChunk7OwnedPairsSmall $Request){Assert-KmcChunk7OwnedPairsSmallSelection $Request $s $checkpoint;return}
  $area=$checkpoint-is[string]-and$checkpoint-ceq'multi-area-autosave'
  $fields=@('case','sourceRunId','sourceArtifactSha256','sourceArchiveSha256','checkpointSourceRunId','checkpointSourceArtifactSha256','riderAId','mountAId','riderBId','mountBId','partyIds','baseGameOnly','expectedNativeLoadCount','expectedNativeWriteCount');if($area){$fields+='sourceArea'}
  Assert-KmcExactProperties $s $fields 'inherited native pair selection'
@@ -185,6 +216,17 @@ function Assert-KmcChunk7OwnedPairsDescriptor($Request){
   if($d.sha256-isnot[string]-or$d.sha256-cnotmatch'^[a-f0-9]{64}$'){throw 'Owner seed archive hash is malformed.'};Assert-KmcBootstrapInventoryString $d.sha256 $Request.ownedPairs.seedSha256
   Assert-KmcOrdinaryGuid $d.gameId
   if($d.gameName-isnot[string]-or[string]::IsNullOrWhiteSpace($d.gameName)-or$d.gameName.Length-gt256-or$d.gameName-match'[\x00-\x1f\x7f]'-or$d.area-isnot[string]-or$d.area-cnotmatch'^[a-f0-9]{32}$'-or$d.gameId-ceq$Request.fixture.working.gameId-or$d.sha256-ceq$Request.fixture.working.sha256-or$d.sha256-ceq$Request.fixture.baseline.sha256){throw 'Owner seed campaign must remain distinct from protected Working/Baseline.'}
+  Assert-KmcOrdinaryInteger $d.length 1 268435456;Assert-KmcOrdinaryInteger $d.lastWriteTimeUtcTicks 1 ([DateTime]::MaxValue.Ticks);return
+ }
+ if(Test-KmcChunk7OwnedPairsSmall $Request){
+  $name=if(Test-KmcChunk7OwnedPairsSmallSave $Request){'KMC_C7_SMALL_FIXTURE'}else{'KMC_C7_SMALL_WORLD'}
+  Assert-KmcBootstrapInventoryString $d.internalName $name
+  if($d.fileName-isnot[string]-or$d.fileName-cnotmatch('^Manual_([1-9][0-9]*)_'+$name+'\.zks$')){throw 'Small persistence native Manual name/number is not canonical.'}
+  $number=0;if(-not[int]::TryParse($Matches[1],[Globalization.NumberStyles]::None,[Globalization.CultureInfo]::InvariantCulture,[ref]$number)-or$number-le0-or$number-eq[int]::MaxValue-or$d.fileName-cne('Manual_'+$number.ToString([Globalization.CultureInfo]::InvariantCulture)+'_'+$name+'.zks')){throw 'Small persistence Manual number is not canonical.'}
+  if($d.sha256-isnot[string]-or$d.sha256-cnotmatch'^[a-f0-9]{64}$'-or$d.sha256-ceq$Request.fixture.working.sha256-or$d.sha256-ceq$Request.fixture.baseline.sha256-or$d.sha256-ceq$Request.ownedPairs.seedSha256-or
+     (Test-KmcChunk7OwnedPairsSmallSave $Request)-and$d.sha256-cne$Request.ownedPairs.sourceArchiveSha256-or
+     (Test-KmcChunk7OwnedPairsSmallLoad $Request)-and$d.sha256-ceq$Request.ownedPairs.sourceArchiveSha256){throw 'Small persistence input aliases or substitutes its qualified source.'}
+  Assert-KmcBootstrapInventoryString $d.gameId '3f7381f7-aba6-43bf-bae6-39c6a66a7180';Assert-KmcBootstrapInventoryString $d.gameName 'Testy the Modless';Assert-KmcBootstrapInventoryString $d.area 'b10e86516b6437d45a629931c30936fe'
   Assert-KmcOrdinaryInteger $d.length 1 268435456;Assert-KmcOrdinaryInteger $d.lastWriteTimeUtcTicks 1 ([DateTime]::MaxValue.Ticks);return
  }
  if(Test-KmcChunk7OwnedPairsSeedCheckpointLoad $Request){
@@ -228,8 +270,8 @@ function Assert-KmcChunk7OwnedPairsDescriptor($Request){
 function Assert-KmcChunk7InheritedSnapshot($Request,$Snapshot,[string]$Phase){
  Assert-KmcExactProperties $Snapshot @('contract','phase','sourceRunId','sourceArtifactSha256','sourceArchiveSha256','sourceCase','nativeLoadVerifiedByHost','decodedReceiptAuthorizesRestoration','inheritedPetsPreserved','ownedFactRemovalCount','partyIds','currentPartyIds','currentCharacterIds','remoteCapturedIds','arrangement','pairs','identities') 'inherited native custody'
  # Owner-seed-derived custody keeps its own labels; it is never relabelled acquired ancestry.
- $derived=Test-KmcChunk7OwnedPairsSeedDerivedLineage $Request
- $contract=if($derived){'owner-seed-derived-two-horse-native-field-v1'}else{'inherited-two-horse-native-field-v1'};$sourceCase=if((Test-KmcChunk7ManticoreManualCold $Request)-or(Test-KmcChunk7ManticoreReturnArea $Request.ownedPairs)){'owner-seed-manticore-fixture-manual'}elseif($derived){'owner-seed-persistence-save'}else{'preserve-two-acquired-field'}
+ $derived=Test-KmcChunk7OwnedPairsSeedDerivedLineage $Request;$small=Test-KmcChunk7OwnedPairsSmall $Request
+ $contract=if($small){'owner-seed-small-fixture-two-horse-native-field-v1'}elseif($derived){'owner-seed-derived-two-horse-native-field-v1'}else{'inherited-two-horse-native-field-v1'};$sourceCase=if($small){'owner-seed-default-halfling-horse-manual'}elseif((Test-KmcChunk7ManticoreManualCold $Request)-or(Test-KmcChunk7ManticoreReturnArea $Request.ownedPairs)){'owner-seed-manticore-fixture-manual'}elseif($derived){'owner-seed-persistence-save'}else{'preserve-two-acquired-field'}
  foreach($pair in @(@('contract',$contract),@('phase',$Phase),@('sourceCase',$sourceCase))){Assert-KmcBootstrapInventoryString $Snapshot.($pair[0]) $pair[1]}
  foreach($key in @('sourceRunId','sourceArtifactSha256','sourceArchiveSha256')){Assert-KmcBootstrapInventoryString $Snapshot.$key $Request.ownedPairs.$key}
  foreach($key in @('nativeLoadVerifiedByHost','inheritedPetsPreserved')){Assert-KmcChunk7Boolean $Snapshot.$key $true};Assert-KmcChunk7Boolean $Snapshot.decodedReceiptAuthorizesRestoration $false;Assert-KmcOrdinaryInteger $Snapshot.ownedFactRemovalCount 0 0
@@ -246,6 +288,7 @@ function Assert-KmcChunk7InheritedSnapshot($Request,$Snapshot,[string]$Phase){
   Assert-KmcBootstrapInventoryString $p.riderId $ids[$i*2];Assert-KmcBootstrapInventoryString $p.mountId $ids[$i*2+1]
   foreach($key in @('rider','mount','feature','rankFact')){Assert-KmcManualSeedObjectIdentity $p.$key;if(-not$labels.Contains([int]$p.$key)-or-not$used.Add([int]$p.$key)){throw 'Inherited native roles alias or are unretained.'}}
   if($p.sourceGuid-isnot[string]-or$p.sourceGuid-cnotmatch'^[0-9a-f]{32}$'-or$p.profileId-isnot[string]-or$p.profileId-cnotmatch'^[a-z0-9][a-z0-9.-]{0,127}$'){throw 'Inherited native source/profile token is malformed.'};Assert-KmcOrdinaryInteger $p.rank 1 20
+  if(Test-KmcChunk7OwnedPairsSmall $Request){Assert-KmcBootstrapInventoryString $p.profileId $(if($i-eq0){'medium-humanoid-horse-v1'}else{'small-default-halfling-horse-v1'})}
  }
  Assert-KmcExactProperties $Snapshot.arrangement @('money','experienceRatePercent','actors') 'inherited no-arrangement state';Assert-KmcOrdinaryInteger $Snapshot.arrangement.money 0;Assert-KmcOrdinaryInteger $Snapshot.arrangement.experienceRatePercent 100 100
  if($Snapshot.arrangement.actors-isnot[Array]-or$Snapshot.arrangement.actors.Count-ne$Request.ownedPairs.partyIds.Count){throw 'Inherited progression roster differs.'}
@@ -273,12 +316,48 @@ function Assert-KmcChunk7OwnedActionFixture($Request,$Observations){
 }
 
 function Assert-KmcChunk7OwnedArchiveProfiles($Request,$Observations,$Archive){
+ if(Test-KmcChunk7OwnedPairsSmall $Request){
+  $roles=Get-KmcChunk7OwnedPairIds $Request
+  $medium=@($Archive.Pairs|Where-Object{$_.Rider.Id-ceq$roles[0]})
+  $small=@($Archive.Pairs|Where-Object{$_.Rider.Id-ceq$roles[2]})
+  if($medium.Count-ne1-or$small.Count-ne1){throw 'Small mounted archive omitted either exact inherited pair.'}
+  Assert-KmcBootstrapInventoryString $medium[0].ProfileId 'medium-humanoid-horse-v1'
+  Assert-KmcBootstrapInventoryString $small[0].ProfileId 'small-default-halfling-horse-v1'
+ }
  foreach($pair in $Archive.Pairs){$rows=@($Observations.inheritedFixture.pairs|Where-Object riderId -CEQ $pair.Rider.Id)
   if($rows.Count-ne1){throw 'Mounted archive rider is outside inherited ownership.'};Assert-KmcBootstrapInventoryString $pair.Mount.Id $rows[0].mountId;Assert-KmcBootstrapInventoryString $pair.ProfileId $rows[0].profileId
  }
 }
+function Assert-KmcChunk7SmallMountedColdSource($Request,$ProducerArtifact,$ColdArtifact){
+ Assert-KmcChunk7OwnedPairsDescriptor $Request
+ if(-not(Test-KmcChunk7OwnedPairsSmallLoad $Request)){throw 'Small mounted cold proof belongs only to its declared consumer.'}
+ $s=$Request.ownedPairs;$p=$ProducerArtifact.observations;$c=$ColdArtifact.observations
+ Assert-KmcBootstrapInventoryString $ProducerArtifact.runId $s.checkpointSourceRunId
+ foreach($artifact in @($ProducerArtifact,$ColdArtifact)){Assert-KmcBootstrapInventoryString $artifact.status 'PASS'}
+ foreach($key in @('commit','dllSha256','dllMvid')){Assert-KmcBootstrapInventoryString $ProducerArtifact.$key $Request.$key}
+ Assert-KmcBootstrapInventoryString $p.checkpoint 'multi-exploration-manual';Assert-KmcBootstrapInventoryString $c.checkpoint 'multi-exploration-manual'
+ Assert-KmcChunk7Boolean $p.cold $false;Assert-KmcChunk7Boolean $c.cold $true
+ Assert-KmcBootstrapInventoryString $p.nativeWrite.sha256 $Request.persistenceLoad.sha256
+ Assert-KmcBootstrapInventoryString $p.inheritedFixture.sourceCase 'owner-seed-default-halfling-horse-manual'
+ Assert-KmcBootstrapInventoryString $c.inheritedFixture.sourceCase 'owner-seed-default-halfling-horse-manual'
+ Assert-KmcOrdinaryInteger $p.processId 1 ([int]::MaxValue);Assert-KmcOrdinaryInteger $c.processId 1 ([int]::MaxValue)
+ if($p.processId-eq$c.processId-or(ConvertTo-KmcChunk7Canonical $p.nativeWrite.archive)-cne(ConvertTo-KmcChunk7Canonical $c.loadedArchive)){
+  throw 'Small mounted cold process did not restore the exact producer read-back graph.'
+ }
+ foreach($key in @('partyIds','currentCharacterIds','remoteCapturedIds','arrangement')){
+  if((ConvertTo-KmcChunk7Canonical $p.inheritedCleanup.$key)-cne(ConvertTo-KmcChunk7Canonical $c.inheritedFixture.$key)){
+   throw 'Small mounted cold process changed the native field roster or progression.'
+  }
+ }
+ for($i=0;$i-lt2;$i++){foreach($key in @('riderId','mountId','sourceGuid','rank','profileId')){
+  if((ConvertTo-KmcChunk7Canonical $p.inheritedCleanup.pairs[$i].$key)-cne(ConvertTo-KmcChunk7Canonical $c.inheritedFixture.pairs[$i].$key)){
+   throw 'Small mounted cold process changed inherited pair provenance.'
+  }
+ }}
+}
 # The native Manual name a writing owned selection reserves (C# Chunk7OwnedPairsSelection.OwnedManualOutputName).
 function Get-KmcChunk7OwnedManualOutputName($Request){
+ if(Test-KmcChunk7OwnedPairsSmallSave $Request){return 'KMC_C7_SMALL_WORLD'}
  if(Test-KmcChunk7OwnedPairsSeedManual $Request){return Get-KmcChunk7OwnerSeedManualName}
  if(Test-KmcChunk7OwnedPairsSeedCheckpointSave $Request){if(Test-KmcChunk7ManticoreFixture $Request){return 'KMC_C7_AREA_FIXTURE'};return Get-KmcChunk7OwnerSeedCheckpointManualName}
  if((Test-KmcChunk7OwnedPairsSeedCheckpointLoad $Request)-and$Request.persistenceCase-ceq'legacy-mounted-pending-tb-manual'){return 'KMC_C7_SCHEMA2'}
@@ -296,7 +375,7 @@ function Get-KmcChunk7OwnedOutputLeaf($Request,$Observations){
  if($type-ceq'Manual'){
   # The owner-seed producer numbers its Manual after the owner's registered seed leaf; the owner-seed
   # checkpoint producer after the derived Manual it loaded.
-  $sourcePattern=if($seedManual){'^Manual_([1-9][0-9]*)_[A-Za-z0-9_.-]+[.]zks$'}elseif(Test-KmcChunk7OwnedPairsSeedCheckpointSave $Request){'^Manual_([1-9][0-9]*)_'+(Get-KmcChunk7OwnerSeedManualName)+'[.]zks$'}elseif(Test-KmcChunk7OwnedPairsSeedCheckpointLoad $Request){'^Manual_([1-9][0-9]*)_'+(Get-KmcChunk7OwnerSeedCheckpointManualName)+'[.]zks$'}else{'^Manual_([1-9][0-9]*)_KMC_C7_(ACQUIRED_FIELD|WORLD)[.]zks$'}
+  $sourcePattern=if(Test-KmcChunk7OwnedPairsSmallSave $Request){'^Manual_([1-9][0-9]*)_KMC_C7_SMALL_FIXTURE[.]zks$'}elseif($seedManual){'^Manual_([1-9][0-9]*)_[A-Za-z0-9_.-]+[.]zks$'}elseif(Test-KmcChunk7OwnedPairsSeedCheckpointSave $Request){'^Manual_([1-9][0-9]*)_'+(Get-KmcChunk7OwnerSeedManualName)+'[.]zks$'}elseif(Test-KmcChunk7OwnedPairsSeedCheckpointLoad $Request){'^Manual_([1-9][0-9]*)_'+(Get-KmcChunk7OwnerSeedCheckpointManualName)+'[.]zks$'}else{'^Manual_([1-9][0-9]*)_KMC_C7_(ACQUIRED_FIELD|WORLD)[.]zks$'}
   if($Request.persistenceLoad.fileName-cnotmatch$sourcePattern){throw 'Inherited Manual source numbering is not canonical.'}
   $sourceNumber=0;if(-not[int]::TryParse($Matches[1],[ref]$sourceNumber)-or$sourceNumber-eq[int]::MaxValue-or$a.number-ne$sourceNumber+1){throw 'Reserved output is not the exact native next Manual number.'}
   $leaf='Manual_'+([int]$a.number).ToString([Globalization.CultureInfo]::InvariantCulture)+'_'+$name+'.zks'
