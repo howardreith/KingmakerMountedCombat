@@ -1,5 +1,40 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## Active October 20 batch47 follow-up - missing causal observations
+
+The [standing completion mission](planning/CHUNK7-COMPLETION-MISSION.md)
+remains selected through readiness-gated private 7E. Preview.65 is frozen
+at pushed commit `779876ce65c8069509118bfee3f8a00e862976c8`, package SHA-256
+`85e0302ca01f74bbb9bde27206a8d81bb618ad574ca02b3c6ef16991bad97475`.
+Candidate passed 6/0. The append-only suite SHA-256 is
+`33b0ab12c72a25a2f7890b8848801f741a9d3a25d97711d281a7541131f3d53b`.
+The [batch47 record](docs/CHUNK7-BATCH47-NATIVE-FOLLOWUP-2026-10-20.md)
+preserves the two original native FAILs and separate recovery.
+
+Manticore game PASS 5/0 produced a third genuine non-capital Manual, but the
+outer zero-length achievement-cache check still failed after sixty seconds;
+the Manual is not an accepted area source. The printed leaf name matches a
+pre-existing zero-byte snapshot entry after JSON decode, so distinguish
+actual UTF-16 path identity and prior/current membership before another
+attempt; do not simply extend the wait. Small first failed its captured
+native-view identity fence; cleanup retained custody, the 900-second outer
+timer expired, and no game result or Manual was written. The exact owned game
+process was closed normally after PID/token/start/window proof. Guarded
+combined recovery restored Mods, Working and protected saves; exact-run
+`Recover-KmcProfileAfterCombinedTimeout47.ps1` then restored Params and
+PlayerPrefs after reviewed WhatIf. Final read-only check: game and lock absent,
+transaction `restored`, Mods/saves/settings/profile exact and zero cache delta.
+Do not promote either original FAIL.
+
+Next: finish the batch47 documentation/recovery-script commit and guarded
+push. Add only failure-bound actor/view/stage and zero-cache UTF-16/membership
+observations within existing code, focused tests and independent review.
+Freeze a new candidate only for a run that answers those causal questions.
+The preview.65 paid-hire net-money correction is still unverified natively.
+Continue independent positive reference-free removal, progression and 7D
+work while those fixture blockers are diagnosed. No main merge, release,
+permanent install or HUMAN PLAY acceptance is selected.
+
 ## Active October 19 batch46 follow-up - preview.65 source
 
 The [standing completion mission](planning/CHUNK7-COMPLETION-MISSION.md)

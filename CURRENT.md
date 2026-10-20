@@ -1,5 +1,24 @@
 # Chunk 7B–7D — IN PROGRESS
 
+## October 20 - batch47 native follow-up and exact restoration
+
+Preview.65 Candidate passed 6/0. Both declared batch47 native slots retain
+their **original outer FAILs**. Manticore game PASS 5/0 again produced a
+genuine non-capital Manual, but a zero-length achievement-cache postflight
+failure still prevents accepting it as an area fixture; separate exact-run
+profile recovery passed. Small reached native setup, then its strict captured
+view fence failed and cleanup retained custody. The 900-second outer timer
+expired before an atomic game result or Manual. The exact owned game process
+was closed normally, guarded combined recovery restored Mods and saves, and
+reviewed exact-run profile recovery restored startup Params/PlayerPrefs.
+Read-only final state has no game or lock and matches the run snapshot on all
+protected surfaces. The [batch47 record](docs/CHUNK7-BATCH47-NATIVE-FOLLOWUP-2026-10-20.md)
+pins both failures, causal traces and separate restoration. Next checks need
+bounded zero-cache path identity and F09 actor/view/stage observations before
+another producer attempt. Area Auto/cold, door, Small, positive removal,
+progression, measured 7D and private 7E remain open under the
+[standing mission](planning/CHUNK7-COMPLETION-MISSION.md).
+
 ## October 19 - batch46 native diagnosis and preview.65 correction
 
 Preview.64 Candidate passed 6/0. Batch46 Manticore game PASS 5/0 produced a
