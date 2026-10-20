@@ -1,5 +1,16 @@
 # Chunk 7B–7D — IN PROGRESS
 
+## October 20 - batch65 positive mounted cleanup producer PASS
+
+The reviewed preview.81 owner-stock P07 route passed Candidate 7/0 and one
+guarded native run from the qualified batch64 stock Mammoth source. It saved a
+genuinely mounted Manual and a new reference-free cleanup Manual. The
+[batch65 record](docs/CHUNK7-BATCH65-POSITIVE-CLEANUP-2026-10-20.md) pins both
+archives and exact restoration. A separate KMC-DLL-absent cold consumer remains
+mandatory, alongside ordinary doors, Small mounted, progression, 7D and
+selected private 7E under the
+[standing mission](planning/CHUNK7-COMPLETION-MISSION.md).
+
 ## October 20 - batch64 stock Mammoth fixture producer PASS
 
 The closed, base-only stock Mammoth producer from the qualified clean owner seed

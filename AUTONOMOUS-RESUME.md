@@ -1,6 +1,21 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
-## Active October 20 batch64 stock Mammoth producer engineering
+## Active October 20 batch65 positive cleanup producer
+
+The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
+The [batch65 record](docs/CHUNK7-BATCH65-POSITIVE-CLEANUP-2026-10-20.md)
+pins reviewed and guarded-pushed source `aac0b9f9`, final Candidate 7/0,
+preview.81 package SHA-256 `140556f4`, the one native producer PASS and the
+genuine reference-free `Manual_306_KMC_CLEANUP.zks` SHA-256 `2c46c270`.
+Mods, protected saves, Areas and profile bytes restored exactly; zero cache
+exceptions, no game or lock remains. Next: admit an independent copy of this
+cleanup Manual into the existing KMC-DLL-absent P07 cold consumer, with closed
+source/provenance and real observer-package checks; then review, freeze and run
+only that consumer. Continue ordinary doors, Small mounted, progression, 7D and
+readiness-gated private 7E. Do not claim engineering completion, merge,
+release, permanent installation or HUMAN PLAY acceptance.
+
+## Historical October 20 batch64 stock Mammoth producer engineering
 
 The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
 The [batch64 record](docs/CHUNK7-BATCH64-STOCK-MAMMOTH-FIXTURE-2026-10-20.md)
