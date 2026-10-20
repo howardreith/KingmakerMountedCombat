@@ -12,7 +12,7 @@ namespace KingmakerMountedCombat.Diagnostics
     internal sealed partial class Chunk7SmallFixtureScenario
     {
         private Chunk7SmallFixtureSaveProbe saveProbe;
-        private SaveInfo requestedManual;
+        private SaveInfo nativeSourceDescriptor, requestedManual;
         private bool saveRequested, saveCallback, saveProven;
         private int callbackCount;
         private void BeginManual()
@@ -26,10 +26,22 @@ namespace KingmakerMountedCombat.Diagnostics
                 authority.AdmittedNativeLoadRequests == 1 && authority.AdmittedNativeWriteRequests == 0 && authority.SmallFixtureReservations == 0,
                 "F09 completed native choices/field must settle before its separate genuine Manual request.");
             var before = manager.Take(3).ToArray();
-            Require(before.Length == 1 && ReferenceEquals(before[0], loader.Descriptor) && before[0].Type == SaveInfo.SaveType.Manual &&
-                before[0].IsActuallySaved && before[0].HasFileOnDisk && before[0].OperationState == SaveInfo.StateType.None &&
-                before[0].FileName == request.PersistenceLoad.FileName && !before[0].IsAutoLevelupSave,
-                "F09 native save inventory must contain only the immutable original seed before native numbering.");
+            var source = before.Length == 1 ? before[0] : null;
+            // LoadZipSave creates the loader's descriptor separately from the
+            // SaveManager list. Pin that list's exact source object for the
+            // post-write inventory, while proving both describe the same
+            // immutable archive under the isolated authority.
+            Require(source != null && loader.Descriptor != null && source.Type == SaveInfo.SaveType.Manual &&
+                source.IsActuallySaved && source.HasFileOnDisk && source.OperationState == SaveInfo.StateType.None &&
+                source.FileName == request.PersistenceLoad.FileName && source.FileName == loader.Descriptor.FileName &&
+                source.FolderName == loader.Descriptor.FolderName && source.Name == loader.Descriptor.Name &&
+                source.GameId == loader.Descriptor.GameId && source.GameName == loader.Descriptor.GameName &&
+                source.Area?.AssetGuidThreadSafe == request.PersistenceLoad.Area &&
+                source.Area?.AssetGuidThreadSafe == loader.Descriptor.Area?.AssetGuidThreadSafe &&
+                !source.IsAutoLevelupSave && authority.ValidateArchiveIdentity(Target(source), authority.Root) == null,
+                "F09 native save inventory differs from its sole immutable source (count=" + before.Length +
+                ", loadedIsList=" + ReferenceEquals(source, loader.Descriptor) + ").");
+            nativeSourceDescriptor = source;
             var number = manager.FindUnusedSaveNumber(SaveInfo.SaveType.Manual);
             var leaf = Chunk7SmallFixtureSelection.ManualLeaf(number);
             Require(!File.Exists(Path.Combine(authority.Root, leaf)), "F09 native Manual output already exists.");
@@ -69,7 +81,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 written.IsActuallySaved && written.HasFileOnDisk && written.OperationState == SaveInfo.StateType.None && !written.IsAutoLevelupSave,
                 "F09 Manual completion does not own its exact requested/prepared descriptors and reserved native leaf.");
             var saves = manager.Take(3).ToArray();
-            Require(saves.Length == 2 && saves.Count(value => ReferenceEquals(value, loader.Descriptor)) == 1 &&
+            Require(saves.Length == 2 && saves.Count(value => ReferenceEquals(value, nativeSourceDescriptor)) == 1 &&
                 saves.Count(value => ReferenceEquals(value, written)) == 1 && saves.All(value =>
                     authority.ValidateArchiveIdentity(Target(value), authority.Root) == null),
                 "F09 final isolated inventory must retain its original seed and only the genuine Manual output.");

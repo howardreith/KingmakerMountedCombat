@@ -1,5 +1,24 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## Active October 20 batch51 Manual source descriptor correction
+
+The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
+The [batch51 record](docs/CHUNK7-BATCH51-SMALL-NATIVE-SOURCE-DESCRIPTOR-2026-10-20.md)
+pins preview.69 Candidate 6/0 and one original native **FAIL**. F09 passed
+the previously failing money and exact unmounted seven-actor field with
+live rig inventory, then refused pre-Manual SaveManager inventory because it
+compared its sole native source list object by reference to the loader's
+separate LoadZipSave descriptor. The isolated root held only the original
+seed; no Manual/write occurred. Guarded Mods/save restoration passed;
+game/lock are absent and accepted cache changes are separate. The current
+preview.70 source correction strictly verifies the manager's sole descriptor
+against the loader and immutable archive, captures that native list object
+and requires it after the write. Independent review PASS. Focused Small
+adapter 64/0 and wiring 38/0 PASS. Next: Fast, coherent commit/guarded push,
+package once and Candidate, fresh suite/WhatIf and one native Small
+verification. Preserve batch49-51 original FAILs and continue independent
+selected scope.
+
 ## Active October 20 batch50 final field correction
 
 The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
