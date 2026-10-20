@@ -1,5 +1,17 @@
 # Chunk 7B–7D — IN PROGRESS
 
+## October 20 - batch51 Small Manual source descriptor
+
+Preview.69 Candidate passed 6/0. Its single native Small slot passed the
+unmounted field and live rig row, then failed before Manual numbering because
+the producer compared the manager's source list object by reference with the
+loader's separate descriptor. The isolated root contained only the seed; the
+original result remains **FAIL** with no Manual. Guarded Mods/save restoration
+passed, game and lock are absent, and accepted cache changes are separate.
+The narrow source-descriptor correction passed independent review and awaits
+native verification. See the
+[batch51 record](docs/CHUNK7-BATCH51-SMALL-NATIVE-SOURCE-DESCRIPTOR-2026-10-20.md).
+
 ## October 20 - batch50 Small field money assertion
 
 Preview.68 Candidate passed 6/0. Its one native Small slot reached the
