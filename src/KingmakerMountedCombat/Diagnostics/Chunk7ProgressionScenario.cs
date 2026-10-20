@@ -363,8 +363,17 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             if (pending || elapsed.Elapsed.TotalSeconds - cleanupStart <= 45) return;
             Fail("C7-progression-cleanup", reason + " Failure never relinquishes native custody.");
+            JToken sessionAtFailure = null;
+            try { sessionAtFailure = session?.Capture(); }
+            catch (Exception observationError)
+            {
+                // An optional read-only observation cannot replace the original
+                // failure or release native cleanup custody.
+                sessionAtFailure = new JObject { ["captureError"] = observationError.GetType().Name };
+            }
             RuntimeLoaderInventory.WriteArtifact(request, PendingFileName, PendingKind, "FAIL", new JObject { ["reason"] = reason,
                 ["cleanupCustodyRetained"] = true, ["cleanupPendingAtHostBoundary"] = true,
+                ["sessionAtFailure"] = sessionAtFailure,
                 ["firstOwnedRosterFailure"] = evidence["firstOwnedRosterFailure"]?.DeepClone() }, errors); pending = true;
         }
         internal bool DrainForHost()

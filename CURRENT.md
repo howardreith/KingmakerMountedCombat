@@ -1,5 +1,19 @@
 # Chunk 7B–7D — IN PROGRESS
 
+## October 20 — batch86 Small dismissal invariant distinguished
+
+[Batch86](docs/CHUNK7-BATCH86-SMALL-DISMISSAL-2026-10-20.md) froze pushed
+`61625d41` as world99. Fresh mounted Small Manual and separate cold load passed
+5/0 and 3/0. Native dismissal **FAIL** after the selector-scoped view gate:
+controllability or life state changed, then companion invalidation dismounted
+the pair. The captured artifact does not establish whether native dismissal
+entered. Exact guarded combined/profile recoveries restored Mods, protected
+saves, profile, UMM Params and preferences; no game or lock remains. The
+original batch81–86 failures are distinct. A failure-only native-flag and
+progression-session observation passed independent review; it needs a fresh
+native diagnostic before a further product correction. F10, F11 and selected
+private 7E remain open under the standing mission.
+
 ## October 20 — batch85 Small selector activity diagnosed
 
 [Batch85](docs/CHUNK7-BATCH85-SMALL-SELECTOR-ACTIVITY-2026-10-20.md)
