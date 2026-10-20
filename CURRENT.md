@@ -1,5 +1,16 @@
 # Chunk 7B–7D — IN PROGRESS
 
+## October 20 - batch72 native Small-profile verification
+
+Preview.86 ran one guarded F09 scenario on the immutable qualified Small
+Manual. Game and outer result both **PASS**, 9/9, for the exact ordinary
+Halfling/Horse profile and inherited neighboring pair. Mods, protected saves
+and profile bytes restored exactly. This verifies native Mount, motion, both
+primary orders, Dismount and bounded pose on that input. Ordinary Small
+mounted save/cold load, additional presentation, Medium breadth, progression,
+doors, measured 7D and 7E remain open. See the
+[batch72 record](docs/CHUNK7-BATCH72-SMALL-ORDINARY-NATIVE-2026-10-20.md).
+
 ## October 20 - batch71 ordinary Small-profile implementation
 
 The measured default MaleHalfling/Horse declaration is now the sole ordinary
