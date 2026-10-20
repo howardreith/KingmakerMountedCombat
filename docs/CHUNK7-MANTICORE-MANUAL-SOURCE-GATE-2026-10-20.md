@@ -29,3 +29,16 @@ package, DLL or native scenario was run for this adapter.
 This source gate does **not** qualify area Auto/cold or doors. A separate
 closed Manticore → explored Spider Cave route must preserve this Manual's
 distinct lineage; the older Spider Cave → Oleg route is not an alias.
+
+The native successor boundary cannot reuse the original Spider Cave pair
+identity. The earlier owner-seed world receipt records pair owners
+`6639ced4ae8a40d9bfec862dc1f25622` generation 1 and
+`3a4c6e04e4b347c2af942921077e265a` generation 4. Batch54's actual
+Manticore `nativeWrite.archive.Pairs` and settled native owners instead agree
+on `8fe827c326b34e3ca2831b5f3c33c252` generation 5 and
+`eb53b5ccb3aa4028941c47e22666e9cf` generation 7. The rider/Horse actor
+IDs and hotbar slots are retained. A cold/Auto consumer must bind the batch54
+saved graph and owner IDs, plus its parent world ancestry, under a distinct
+request/source witness. Passing the Manticore archive through the original
+`ownerSeedManual.boundary` would fail the pair-restoration contract and would
+misstate its provenance.

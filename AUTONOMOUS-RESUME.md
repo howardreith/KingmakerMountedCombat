@@ -16,6 +16,15 @@ Small mounted calibration, positive cleanup/removal, progression and 7D;
 readiness-gated 7E remains selected. No merge/release/permanent install or
 HUMAN PLAY acceptance.
 
+Read-only b54 graph inspection found a concrete consumer constraint: the
+Manticore native transition reminted both pair owners/generations (5 and 7),
+although riders/Horses and slots persisted. The earlier owner-seed world
+boundary recorded generations 1 and 4. The next consumer must stage/check
+batch54's actual `nativeWrite.archive` and settled owners as a distinct
+source witness while retaining the original world artifact only as ancestry;
+reusing the older `ownerSeedManual.boundary` would be false. See the
+source-gate record for exact IDs.
+
 ## Active October 20 batch54 admitted area producer
 
 The [standing completion mission](planning/CHUNK7-COMPLETION-MISSION.md)
