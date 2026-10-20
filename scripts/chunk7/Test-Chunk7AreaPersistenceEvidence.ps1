@@ -18,12 +18,13 @@ for($phase=0;$phase-lt4;$phase++) {
     $s|Add-Member NoteProperty resumes $(if($phase-eq0){0}else{2})
     $s|Add-Member NoteProperty pending ($phase-eq1-or$phase-eq2)
     $s|Add-Member NoteProperty activeOwners 2
+    $s|Add-Member NoteProperty activeSaveScope ($phase-eq1-or$phase-eq2)
     $views=@();for($actor=0;$actor-lt4;$actor++){$views+=[pscustomobject]@{id=$ids[$actor];viewId=200+$actor;baselineViewId=200+$actor;viewBound=$true;nativeMatches=1;commandsEmpty=$true}}
     $s|Add-Member NoteProperty views $views
     $movements=@();for($pair=0;$pair-lt2;$pair++){
         $runtime=if($phase-eq0){100+$pair}else{110+$pair}
         $movements+=[pscustomobject]@{riderId=$pairs[$pair].Rider.Id;baselineOverride=100+$pair;runtimeOverride=$runtime;viewOverride=$runtime;overrideComponents=@($runtime);
-            invariant=$null;stockEnabled=$false;mountId=$pairs[$pair].Mount.Id;mountStockEnabled=$true;mountOverride=0;mountOverrideComponents=@();riderViewBoundToOwner=$true;mountViewBoundToOwner=$true}
+            invariant=$null;saveSerializationSuspended=($phase-eq2);stockEnabled=$false;mountId=$pairs[$pair].Mount.Id;mountStockEnabled=$true;mountOverride=0;mountOverrideComponents=@();riderViewBoundToOwner=$true;mountViewBoundToOwner=$true}
     }
     $s|Add-Member NoteProperty movementAuthorities $movements
     $phases+=$s
@@ -45,6 +46,11 @@ $mutations=@(
  @('unobserved suspension',{param($v)$v.areaTransfer.suspensionObserved=$false}),
  @('missing loading interval',{param($v)$v.areaTransfer.loadingTicks=0}),
  @('observer fault',{param($v)$v.areaTransfer.observerError='failure'}),
+ @('staged save scope missing',{param($v)$v.areaTransfer.headerStaged.activeSaveScope=$false}),
+ @('staged second lease missing',{param($v)$v.areaTransfer.headerStaged.movementAuthorities[1].saveSerializationSuspended=$false}),
+ @('starting lease suspended early',{param($v)$v.areaTransfer.headerStarting.movementAuthorities[0].saveSerializationSuspended=$true}),
+ @('settled lease retained',{param($v)$v.areaTransfer.after.movementAuthorities[0].saveSerializationSuspended=$true}),
+ @('staged serialized invariant failed',{param($v)$v.areaTransfer.headerStaged.movementAuthorities[1].invariant='serialized AI mismatch'}),
  @('replaced native actor view',{param($v)$v.areaTransfer.after.views[2].viewId=444}),
  @('duplicate native actor',{param($v)$v.areaTransfer.headerStaged.views[3].nativeMatches=2}),
  @('unbound native view',{param($v)$v.areaTransfer.headerStarting.views[1].viewBound=$false}),

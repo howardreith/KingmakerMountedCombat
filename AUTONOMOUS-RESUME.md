@@ -1,6 +1,24 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
-## Active October 20 batch57 area Auto admission correction
+## Active October 20 batch58 area save-scope correction
+
+The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
+The [batch58 record](docs/CHUNK7-BATCH58-AREA-SAVE-SERIALIZATION-2026-10-20.md)
+preserves preview.75's original one-scenario native/outer FAIL after a genuine
+Spider Cave Auto header reached both resumed mounted owners. Only the staged
+observer failed: native saving intentionally serializes each mount's original
+AI field while the worker owns its scope. Original batch57 admission FAIL is
+separate. Current uncommitted source introduces a phase-specific invariant,
+phase flags in the external reader and positive/negative focused tests for
+preview.76. Independent review passed; focused area readers 51/0 and 45/0,
+actual extracted boundary 40/0 and Fast 3/0 passed. Next: Candidate, package once from clean source,
+append-only suite/WhatIf and one corrected area Auto producer using the same
+immutable b54 Manual and b56 cold lineage. Only an admitted genuine Auto can
+feed separate-process cold. Continue positive mounted cleanup, doors, Small,
+progression, 7D and readiness-gated private 7E. No merge, release, permanent
+install or HUMAN PLAY acceptance.
+
+## Historical October 20 batch57 area Auto admission correction
 
 The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
 The [batch57 record](docs/CHUNK7-BATCH57-MANTICORE-AUTO-ADMISSION-2026-10-20.md)

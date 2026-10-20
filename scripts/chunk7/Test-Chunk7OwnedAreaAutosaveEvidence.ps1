@@ -27,7 +27,7 @@ function New-AreaCase {
  $labels=[Collections.Generic.HashSet[int]]::new()
  for($i=0;$i-lt4;$i++){
   $s=Clone-Area $o.snapshots[0];$s.label=@('before-native-transfer','native-header-starting','native-header-staged','after-native-transfer')[$i];$s.snapshots=if($i-lt2){0}else{1}
-  Put-Area $s area $(if($i-eq0){$r.ownedPairs.sourceArea}else{$r.persistenceAreaTarget.area});Put-Area $s frame (10+$i);Put-Area $s sameWorld $true;Put-Area $s pending $false;Put-Area $s suspensions $(if($i-eq0){0}else{1});Put-Area $s resumes $(if($i-eq0){0}else{2});Put-Area $s activeOwners 2
+  Put-Area $s area $(if($i-eq0){$r.ownedPairs.sourceArea}else{$r.persistenceAreaTarget.area});Put-Area $s frame (10+$i);Put-Area $s sameWorld $true;Put-Area $s pending $false;Put-Area $s suspensions $(if($i-eq0){0}else{1});Put-Area $s resumes $(if($i-eq0){0}else{2});Put-Area $s activeOwners 2;Put-Area $s activeSaveScope ($i-eq1-or$i-eq2)
   $actors=@();$views=@();$characters=@();$ids=@($r.ownedPairs.partyIds)
   for($j=0;$j-lt$ids.Count;$j++){
    $id=$ids[$j];$pair=@($o.inheritedFixture.pairs|Where-Object{$_.riderId-ceq$id-or$_.mountId-ceq$id});$obj=if($j-eq4){1010}elseif($pair[0].riderId-ceq$id){$pair[0].rider}else{$pair[0].mount}
@@ -43,7 +43,7 @@ function New-AreaCase {
   $world=[pscustomobject]@{game=1;player=2;manager=3;state=4;areaState=$(if($i-eq0){5}else{9});mainState=$(if($i-eq0){6}else{10});worldScope=$(if($i-eq0){7}else{8});authorityGeneration=1}
   Put-Area $s ownedWorld $world;foreach($key in @('game','player','manager','state','areaState','mainState','worldScope')){[void]$labels.Add([int]$world.$key)}
   Put-Area $s views $views;$movers=@()
-  for($j=0;$j-lt2;$j++){$p=$o.inheritedFixture.pairs[$j];$m=if($i-eq0){6000+$j}else{7000+$j};$movers+=@([pscustomobject]@{riderId=$p.riderId;mountId=$p.mountId;baselineOverride=(6000+$j);runtimeOverride=$m;viewOverride=$m;overrideComponents=@($m);invariant=$null;stockEnabled=$false;mountStockEnabled=$true;mountOverride=0;mountOverrideComponents=@();riderViewBoundToOwner=$true;mountViewBoundToOwner=$true})};Put-Area $s movementAuthorities $movers
+  for($j=0;$j-lt2;$j++){$p=$o.inheritedFixture.pairs[$j];$m=if($i-eq0){6000+$j}else{7000+$j};$movers+=@([pscustomobject]@{riderId=$p.riderId;mountId=$p.mountId;baselineOverride=(6000+$j);runtimeOverride=$m;viewOverride=$m;overrideComponents=@($m);invariant=$null;saveSerializationSuspended=($i-eq2);stockEnabled=$false;mountStockEnabled=$true;mountOverride=0;mountOverrideComponents=@();riderViewBoundToOwner=$true;mountViewBoundToOwner=$true})};Put-Area $s movementAuthorities $movers
   if($i-eq1-or$i-eq2){Put-Area $s nativeSaveBoundary ([pscustomobject]@{operation=2001;requested=2002;prepared=2003;sourceDescriptor=2004;requestedType='Auto';requestedName=$o.nativeWrite.nativeName;preparedType='Auto';preparedName=$o.nativeWrite.nativeName;preparedLeaf='Auto_1.zks';preparedArea=$r.persistenceAreaTarget.area;preparedPath=$o.nativeWrite.path;completionCount=0;callbackCount=0;snapshotCount=($i-1)})}
   Put-Area $area @('before','headerStarting','headerStaged','after')[$i] $s
  }
@@ -78,6 +78,10 @@ $bad=[ordered]@{
  'old scope reused'={param($f)$f.artifact.observations.areaTransfer.headerStarting.ownedWorld.worldScope=7}
  'lost observer custody'={param($f)$f.artifact.observations.areaTransfer.identityRetention.released=$false}
  'retained native objects'={param($f)$f.artifact.observations.areaTransfer.identityRetention.retainedAfterRelease=1}
+ 'staged native save scope missing'={param($f)$f.artifact.observations.areaTransfer.headerStaged.activeSaveScope=$false}
+ 'staged second lease missing'={param($f)$f.artifact.observations.areaTransfer.headerStaged.movementAuthorities[1].saveSerializationSuspended=$false}
+ 'settled lease retained'={param($f)$f.artifact.observations.areaTransfer.after.movementAuthorities[0].saveSerializationSuspended=$true}
+ 'serialized AI invariant failed'={param($f)$f.artifact.observations.areaTransfer.headerStaged.movementAuthorities[0].invariant='serialized AI mismatch'}
  'extra retained object'={param($f)$f.artifact.observations.areaTransfer.identityRetention.ids+=@(2010)}
  'native Prepare changed'={param($f)$f.artifact.observations.areaTransfer.headerStarting.actors[0].prepared=$true}
  'native debt refund'={param($f)$f.artifact.observations.areaTransfer.headerStarting.actors[3].native.Standard=0}

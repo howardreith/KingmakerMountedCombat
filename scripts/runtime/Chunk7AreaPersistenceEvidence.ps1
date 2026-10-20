@@ -46,6 +46,7 @@ function Assert-KmcChunk7AreaAutosave($Request,$Observation,$Archive) {
         Assert-KmcChunk7Boolean $s.sameWorld $true
         if(-not(Test-KmcExactJsonInteger $s.frame)-or-not(Test-KmcExactJsonInteger $s.gameTicks)-or$s.frame-lt$priorFrame-or$s.gameTicks-lt$priorTicks){throw 'Native area snapshots are missing or out of causal order.'}
         $priorFrame=[long]$s.frame;$priorTicks=[long]$s.gameTicks
+        Assert-KmcChunk7Boolean $s.activeSaveScope ($spec[1]-ceq'native-header-starting'-or$spec[1]-ceq'native-header-staged')
         $elapsed=([double]$s.gameTicks-[double]$base.gameTicks)/10000000.0
         if($elapsed-lt0-or$elapsed-gt180){throw 'Native area debt escaped the bounded transfer clock.'}
         foreach($pair in $Archive.Pairs) {
@@ -57,6 +58,7 @@ function Assert-KmcChunk7AreaAutosave($Request,$Observation,$Archive) {
             $original=@($base.movementAuthorities|Where-Object riderId -CEQ $pair.Rider.Id)
             if($movement.Count-ne1-or$original.Count-ne1){throw 'Area transfer omitted an independent movement authority.'}
             $m=$movement[0];$initial=$original[0]
+            Assert-KmcChunk7Boolean $m.saveSerializationSuspended ($spec[1]-ceq'native-header-staged')
             if(-not(Test-KmcExactJsonInteger $m.runtimeOverride)-or$m.runtimeOverride-eq0-or-not$movementSet.Add([int]$m.runtimeOverride)-or
                -not(Test-KmcExactJsonInteger $m.baselineOverride)-or-not(Test-KmcExactJsonInteger $m.viewOverride)-or-not(Test-KmcExactJsonInteger $m.mountOverride)-or
                $m.baselineOverride-ne$initial.baselineOverride-or$m.viewOverride-ne$m.runtimeOverride-or

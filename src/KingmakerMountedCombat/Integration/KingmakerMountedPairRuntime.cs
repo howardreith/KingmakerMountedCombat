@@ -260,6 +260,18 @@ namespace KingmakerMountedCombat.Integration
 
         public string ValidateMountedInvariants()
         {
+            return ValidateMountedInvariants(false);
+        }
+
+        // Native save temporarily serializes the mount's pre-lease AI field.
+        // Keep every other mounted invariant while that exact save scope owns it.
+        internal string ValidateMountedSaveSerializationInvariants()
+        {
+            return ValidateMountedInvariants(true);
+        }
+
+        private string ValidateMountedInvariants(bool serializedAiLease)
+        {
             if (rider == null || mount == null || riderView == null || mountView == null)
             {
                 return "Prepared pair or exact mounted views are missing.";
@@ -323,7 +335,8 @@ namespace KingmakerMountedCombat.Integration
                 return "The authoritative mount movement agent changed.";
             }
 
-            if (!mountAiLeaseOwned || (bool)MammothAiBackingField.GetValue(mount))
+            if (!mountAiLeaseOwned || (bool)MammothAiBackingField.GetValue(mount) !=
+                (serializedAiLease && mountAiBackingWasEnabled))
             {
                 return "The scoped mount AI lease changed.";
             }

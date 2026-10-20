@@ -1,5 +1,15 @@
 # Chunk 7B–7D — IN PROGRESS
 
+## October 20 - batch58 Spider Cave Auto header
+
+The [batch58 record](docs/CHUNK7-BATCH58-AREA-SAVE-SERIALIZATION-2026-10-20.md)
+preserves preview.75's original native/outer FAIL. The genuine Spider Cave
+AfterEntry Auto header saw both resumed owners and one mounted snapshot, but
+the staged observer applied the ordinary AI-lease invariant inside the native
+save scope. Before/after invariants were sound. A phase-specific diagnostic
+correction and reader checks are in progress; corrected native Auto and cold
+qualification remain open. Batch57's earlier admission FAIL is separate.
+
 ## October 20 - batch57 Manticore return Auto admission
 
 The [batch57 record](docs/CHUNK7-BATCH57-MANTICORE-AUTO-ADMISSION-2026-10-20.md)
