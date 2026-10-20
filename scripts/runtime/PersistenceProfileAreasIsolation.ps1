@@ -47,7 +47,7 @@ function Assert-KmcPersistenceProfileOutsideAreasUnchanged {
     $current=Get-KmcQualificationTreeInventory -Root $Snapshot.profile -Scope save-root -ExcludeRelativeRoots @('Saved Games','output_log.txt','Areas')
     $prior=[pscustomobject]@{entries=@($Snapshot.inventory.entries|Where-Object{
         -not([string]::Equals([string]$_.path,'Areas',[StringComparison]::OrdinalIgnoreCase)-or
-            [string]$_.path.StartsWith('Areas/',[StringComparison]::OrdinalIgnoreCase))})}
+            ([string]$_.path).StartsWith('Areas/',[StringComparison]::OrdinalIgnoreCase))})}
     [void](Get-KmcPersistenceProfileCacheDelta $prior $current)
     [void](Get-KmcPersistenceProfileAnalyticsDelta $prior $current)
     if((Get-KmcPersistenceProfileIdentityDigest $current $prior)-cne

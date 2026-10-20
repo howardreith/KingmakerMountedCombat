@@ -16,13 +16,16 @@ function Assert-KmcRuntimeLockOwner($Lock) {
 function Assert-KmcNoGameProcesses {if($script:denyProcess){throw 'Test process remains active.'}}
 function Get-KmcPersistencePlayerPrefs {return '[]'}
 function Check([bool]$value,[string]$name){if(-not$value){throw ('FAIL '+$name)};$script:passed++;Write-Host ('PASS '+$name)}
-function New-Fixture([string]$name){
+function New-Fixture([string]$name,[switch]$PreexistingCache){
     $base=Join-Path $script:root $name
     $profile=Join-Path $base 'profile';$save=Join-Path $profile 'Saved Games';$areas=Join-Path $profile 'Areas'
     $game=Join-Path $base 'game';$params=Join-Path $game 'Kingmaker_Data/Managed/UnityModManager/Params.xml'
     $backup=Join-Path $base 'backups'
     foreach($directory in @($save,$areas,(Split-Path $params),$backup)){[void][IO.Directory]::CreateDirectory($directory)}
     [IO.File]::WriteAllText((Join-Path $areas 'original.bin'),'original')
+    if($PreexistingCache){
+        [IO.File]::WriteAllBytes((Join-Path $profile ('achievements.dat'+[char]0xfffd+'@')),[byte[]]@())
+    }
     [IO.File]::WriteAllText($params,'<Params />')
     Write-KmcJsonAtomic (Join-Path $script:root 'environment-intake.json') ([ordered]@{requestedLayout=[ordered]@{kingmakerSaveRoot=$save;kingmakerInstallDir=$game}})
     $lock=[pscustomobject]@{RunId='test-areas';Token=('a'*64)}
@@ -58,6 +61,21 @@ Check ($receipt.restored-and(Test-Path -LiteralPath $f.generated -PathType Conta
 $again=Restore-KmcPersistenceAreasIsolation -Lock $f.lock -Snapshot $f.snapshot -BackupRoot $f.backup
 Check ($again.restored-and$again.generatedDigest-ceq$receipt.generatedDigest) 'settlement is idempotent'
 [void](Assert-KmcPersistenceProfileUnchanged $f.snapshot)
+
+$f=New-Fixture 'cache' -PreexistingCache
+[void](Enter-KmcPersistenceAreasIsolation -Lock $f.lock -Snapshot $f.snapshot -BackupRoot $f.backup)
+[void](Assert-KmcPersistenceProfileOutsideAreasUnchanged $f.snapshot)
+Check $true 'preexisting empty achievement cache remains in outside-Areas intake'
+$newCache=Join-Path $f.profile 'achievements.dat_new'
+[IO.File]::WriteAllBytes($newCache,[byte[]]@())
+try{[void](Assert-KmcPersistenceProfileOutsideAreasUnchanged $f.snapshot);throw 'Expected unsettled cache refusal.'}
+catch{Check ($_.Exception.Message -like 'A new profile leaf used the achievement cache name without its settled native size:*') 'new empty achievement cache still refuses Areas settlement'}
+[IO.File]::WriteAllBytes($newCache,(New-Object byte[] 12288))
+[void](Assert-KmcPersistenceProfileOutsideAreasUnchanged $f.snapshot)
+Check $true 'new settled achievement cache admitted without changing Areas custody'
+[void](Restore-KmcPersistenceAreasIsolation -Lock $f.lock -Snapshot $f.snapshot -BackupRoot $f.backup)
+Check ((Test-Path -LiteralPath (Join-Path $f.areas 'original.bin'))-and
+    (Test-Path -LiteralPath $newCache)) 'cache fixture restores original Areas and retains admitted cache'
 
 $f=New-Fixture 'partial'
 $savedCopy=(Get-Command Copy-KmcDirectoryTreeExact).ScriptBlock
