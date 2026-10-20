@@ -1,5 +1,18 @@
 # Chunk 7B–7D — IN PROGRESS
 
+## October 20 - batch69 F09 combat-entry discriminator
+
+Preview.84's single F09 native run remained **FAIL** at stage 3, but the new
+observer identified the exact change: the neighboring main/Horse pair entered
+the owned combat encounter, becoming Prepared with initiative 7/5 while its
+action debt, reactions and static custody stayed exact. The guarded transaction
+and profile restored exactly. A bounded native combat-entry admission and
+external-reader witness passed independent review, the focused reader passed
+25/0 and offline Candidate passed 7/0. No Small pose or attack qualification
+is claimed. See the
+[batch69 record](docs/CHUNK7-BATCH69-SMALL-COMBAT-ENTRY-2026-10-20.md) and
+[active resume](AUTONOMOUS-RESUME.md).
+
 ## October 20 - batches 66–67 genuine DLL-absent cleanup cold load
 
 Batch65's positive mounted cleanup Manual now has a separate-process,

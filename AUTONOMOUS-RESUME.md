@@ -1,6 +1,24 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
-## Active October 20 batch68 Small calibration diagnosis
+## Active October 20 batch69 F09 combat-entry correction
+
+The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
+[Batch69](docs/CHUNK7-BATCH69-SMALL-COMBAT-ENTRY-2026-10-20.md) ran one F09
+consumer with preview.84 and preserved its original native/outer **FAIL**.
+The observer now shows an exact native combat-entry phase change in the
+neighboring main/Horse pair: Prepared false to true and initiative 0 to 7/5;
+Standard/Move/Swift, reactions and static custody stayed exact. The guarded
+transaction and profile settled exactly. The current uncommitted correction
+admits only that bounded native transition, records its witness and requires
+the external reader to reject any neighboring action-budget change. The F09
+reader passed 25/0, the assisted connection passed 265/0 after test-scaffold
+repair, offline Candidate passed 7/0, and independent review passed. Next:
+commit and guarded-push this correction, freeze one corrected
+candidate, then run one guarded F09 verification against the same immutable
+batch53 Manual. Keep ordinary Small admission closed until native evidence
+supports it. Do not call the batch69 failure a Small profile PASS.
+
+## Historical October 20 batch68 Small calibration diagnosis
 
 The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
 [Batch68](docs/CHUNK7-BATCH68-SMALL-CALIBRATION-2026-10-20.md) ran one guarded
