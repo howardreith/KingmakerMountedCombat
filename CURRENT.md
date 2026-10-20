@@ -1,5 +1,16 @@
 # Chunk 7B–7D — IN PROGRESS
 
+## October 20 — reviewed native refund observer; game verification pending
+
+Batch92's original retrain outer **FAIL** remains. A read-only hook on the
+installed `Player.GainMoney(long)` observes one callback-time refund with exact
+player, amount and before/after money; the external reader requires its exact
+position before native finish. Independent review passed, focused evidence
+93/0, patch installation/removal 24/0 and offline Candidate 7/0 in 6.47
+minutes. No game execution of this correction has occurred. See the
+[batch92 record](docs/CHUNK7-BATCH92-RETRAIN-REFUND-DISCRIMINATOR-2026-10-20.md).
+F10 retrain and the standing mission remain open.
+
 ## October 20 — batch92 retrain refund discriminator, original FAIL
 
 [Batch92](docs/CHUNK7-BATCH92-RETRAIN-REFUND-DISCRIMINATOR-2026-10-20.md)
