@@ -23,6 +23,27 @@ input case that keeps the producer identity separate and qualifies its own
 native load and mounted actions. This observation changes no product profile
 admission.
 
+The [initial private pose record](CHUNK7-SMALL-INITIAL-POSE-2026-10-20.json)
+transcribes the seven observed bone names and three Horse anchors, then proposes
+an explicit root/seat translation and thigh-relative foot targets for the first
+bounded mounted calibration. The selected root and animated-seat corrections
+sum to `-0.28` native Unity Y units for this calculation; their `-0.16`/`-0.12`
+split is a hypothesis, not a measured animation result. The values also assume
+zero Euler and aligned unit rider/Horse root axes during mounting. The proposed
+target is `stirrupFromChest - thighFromRiderRoot - (0,-0.28,0)`; the resulting
+predicted neutral pelvis is about `(-0.000025,0.122973,-0.002101)` from Chest,
+distinct from the selected rounded `(0,0.123,0)` seat target. The proposed
+target vectors have magnitudes about
+`0.339` in their assumed frame; the neutral native thigh-to-foot lengths are
+about `0.351`. This is a reach sanity check, not a measured mounted foot/stirrup
+distance. Root alignment, animated seat correction, knee behavior and visual
+fit remain unverified. The record is `IN PROGRESS`, has
+`mountedPoseQualified=false` and `normalPlayerEnabled=false`, and is not a
+production Small catalogue declaration.
+The record's `normalPlayerEnabled=false` is status metadata, not a runtime
+guard; adding the profile to the global catalogue would expose it to ordinary
+players, so that change must wait for a reviewed admission and calibration path.
+
 IN PROGRESS. The closed `chunk7-small-profile-calibration` diagnostic supports three existing source cases for a measured compiled declaration. It is not native evidence or a Small-profile acceptance gate by itself. The production Small catalogue remains empty until an explicit reviewed declaration is authored from actual observations.
 
 The cases retain distinct source and field-admission contracts:
@@ -33,7 +54,13 @@ The cases retain distinct source and field-admission contracts:
 | `compiled-manual-derived-small-horse-rt` | `preserve-acquired-field` Manual from the `paid-small-ranger-horse` Manual-derived chain | Native cold load restores the saved field roster; no party selector is opened. Exact owner, Horse, sourced facts, body, progression and resources are checked against the saved evidence. |
 | `compiled-assisted-two-owner-small-horse-rt` | `preserve-two-acquired-field` Manual from the assisted paid Small chain | Native cold load restores both native pairs and exact inherited custody before Small calibration. |
 
-Each source qualifier preserves its complete same-candidate ancestry, exact Working/Baseline pins, base-only qualification and restoration checks. The request selects only its corresponding source contract plus profile ID and immutable native inventory/declaration hashes. It cannot supply numeric pose parameters or register a profile dynamically. Bootstrap checks the compiled declaration before acquiring isolation or loading a world. Both cases permit one source load and zero writable save leaves.
+Each source qualifier preserves its complete same-candidate ancestry, exact Working/Baseline pins, base-only qualification and restoration checks. The request selects only its corresponding source contract plus profile ID and immutable native inventory/declaration hashes. It cannot supply numeric pose parameters or register a profile dynamically. Bootstrap checks the compiled declaration before acquiring isolation or loading a world. Each case permits one source load and zero writable save leaves.
+
+The pre-existing acquired-Manual Small reader's cold-restoration hook names were
+corrected to the shared native-entry contract (`OnNewRound` on
+`Kingmaker.Controllers.Combat.UnitCombatState`). Its synthetic positive and
+negative checks pass; this reader correction has no Small mounted native
+result and does not admit the distinct F09 Manual yet.
 
 After field admission, both cases exercise production Mount, native Horse ground movement after selection changes, one real-time rider primary, one real-time mount primary, native Dismount and bounded cleanup. No native Prepare, resource edits, free actions, money/XP grants, manual party insertion, or synthetic completion are selected. The real-time cost proof binds the exact UnitActionController cost-before/cost-after command pair; actor-cost hooks are turn-based only.
 

@@ -1,5 +1,24 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## Active October 20 Small calibration preparation
+
+The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
+Batch53's qualified F09 producer Manual and separate cold artifact support a
+default MaleHalfling/Horse source, while their historical original and
+corrected-reader verdicts remain distinct. The
+[Small calibration record](docs/CHUNK7-SMALL-CALIBRATION.md) now links an
+explicit `IN PROGRESS` initial pose hypothesis from pinned neutral geometry;
+it is not mounted fit or a compiled declaration. The acquired-Manual Small
+reader now uses the exact shared native cold-entry hook contract, with focused
+synthetic checks and independent review. No DLL, package or native scenario was
+run for this reader/documentation checkpoint. Next: implement a distinct
+cross-candidate, read-only F09 Manual calibration case with exact historical
+producer and cold receipts, then review a provisional compiled profile before
+bounded native mounted calibration. Keep ordinary Small admission closed until
+actual mounted evidence supports it. Continue doors, progression, measured
+F11 and readiness-gated private 7E independently; no engineering completion
+or owner acceptance is claimed.
+
 ## Active October 20 batches 66–67 DLL-absent cold consumer
 
 The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
