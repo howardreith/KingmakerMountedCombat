@@ -110,15 +110,16 @@ function Assert-KmcProgressionRespec($Probe,$Selection,$Before){
     foreach($key in @('diagnosticMoneyWrites','diagnosticXpWrites','diagnosticRestCalls','diagnosticTimeAdvances')){Assert-KmcOrdinaryInteger $Probe.$key 0 0}
     if($Probe.errors-isnot[Array]-or$Probe.errors.Count-ne0-or$Probe.events-isnot[Array]-or$Probe.events.Count-gt192-or$Probe.hooks-isnot[Array]-or$Probe.hooks.Count-ne8){throw 'Native retrain observer incomplete.'}
     Assert-KmcOrdinaryInteger $Probe.nativePetUpdates 1 32;Assert-KmcChunk7Boolean $Probe.petUpdatePending $false
-    Assert-KmcOrdinaryInteger $Probe.nativeMoneyCredits 1 1;Assert-KmcChunk7Boolean $Probe.moneyCreditPending $false
+    Assert-KmcOrdinaryInteger $Probe.nativeStartingGoldCredits 1 1;Assert-KmcOrdinaryInteger $Probe.nativeMoneyCredits 1 1;Assert-KmcChunk7Boolean $Probe.moneyCreditPending $false
     Assert-KmcOrdinaryGuid $Probe.originalPetId;Assert-KmcOrdinaryGuid $Probe.reboundPetId;Assert-KmcChunk7Boolean $Probe.originalPetRemoved $true
     if($Probe.originalPetId-cne$Before.petId-or$Probe.reboundPetId-cin@($Selection.actorId,$Selection.petId,$Selection.controlActorId,$Selection.controlPetId)){throw 'Retrain did not prove an exact new sourced pet and original removal.'}
     Assert-KmcOrdinaryInteger $Probe.initialMoney $Before.money $Before.money;Assert-KmcOrdinaryInteger $Probe.nativeCost 0 ([int]::MaxValue)
+    Assert-KmcOrdinaryInteger $Probe.nativeStartingGold 0 ([int]::MaxValue)
     Assert-KmcOrdinaryInteger $Probe.initialScrollRefund 0 ([int]::MaxValue);Assert-KmcOrdinaryInteger $Probe.nativeScrollRefund 0 ([int]::MaxValue)
     if($Probe.initialMoney-lt$Probe.nativeCost){throw 'Native retrain was not affordable before action.'}
     $contracts=@(@('Kingmaker.Player','RespecCompanion','06000DE7'),@('Kingmaker.UI.LevelUp.CharacterBuildController','HandleLevelUpStart','060039BC'),@('Kingmaker.Designers.EventConditionActionSystem.Actions.RespecCompanion','FinishRespecialization','06008ED5'),@('Kingmaker.Player','GainMoney','06000DD0'),@('Kingmaker.Game','AdvanceGameTime','06000CC6'),@('Kingmaker.Controllers.Rest.RestController','ApplyRest','060091EC'),@('Kingmaker.UI.LevelUp.CharacterBuildController','HandleUnitChangedAfterRespec','060039D7'),@('Kingmaker.UnitLogic.FactLogic.AddPet','TryUpdatePet','06002510'))
     for($i=0;$i-lt$contracts.Count;$i++){$h=$Probe.hooks[$i];Assert-KmcProgressionTexts $h @('type','method','token','moduleMvid');if($h.type-cne$contracts[$i][0]-or$h.method-cne$contracts[$i][1]-or$h.token-cne$contracts[$i][2]-or$h.moduleMvid-cne'07fa1e4d-8618-41b3-9b8d-faa17d3b26f7'){throw 'Native retrain hook contract differs.'}}
-    $r=@{};$frame=-1;$allowed=@('native-respec-enter','native-respec-preview','native-respec-ui-open','native-respec-refund-credit','native-respec-finish-enter','native-respec-time-advance','native-respec-rest-before','native-respec-rest-after','native-respec-finish-exit','native-respec-original-rebound','native-respec-pet-update')
+    $r=@{};$frame=-1;$allowed=@('native-respec-enter','native-respec-preview','native-respec-ui-open','native-respec-starting-gold','native-respec-refund-credit','native-respec-finish-enter','native-respec-time-advance','native-respec-rest-before','native-respec-rest-after','native-respec-finish-exit','native-respec-original-rebound','native-respec-pet-update')
     foreach($e in $Probe.events){
         Assert-KmcProgressionText $e.kind;Assert-KmcOrdinaryGuid $e.actorId
         if($e.kind-cnotin$allowed-or$e.actorId-cne$Selection.actorId){throw 'Unknown or foreign native retrain event.'}
@@ -127,7 +128,7 @@ function Assert-KmcProgressionRespec($Probe,$Selection,$Before){
         if($e.kind-cnotin@('native-respec-rest-before','native-respec-rest-after','native-respec-pet-update')){if($r.ContainsKey($e.kind)){throw 'Repeated native retrain boundary.'};$r[$e.kind]=$e}
     }
     foreach($kind in $allowed|Where-Object{$_-cnotin@('native-respec-rest-before','native-respec-rest-after','native-respec-pet-update')}){if(-not$r.ContainsKey($kind)){throw 'Native retrain boundary absent.'}}
-    $start=$r['native-respec-enter'];$preview=$r['native-respec-preview'];$credit=$r['native-respec-refund-credit'];$finish=$r['native-respec-finish-enter'];$end=$r['native-respec-finish-exit'];$rebound=$r['native-respec-original-rebound']
+    $start=$r['native-respec-enter'];$preview=$r['native-respec-preview'];$gold=$r['native-respec-starting-gold'];$credit=$r['native-respec-refund-credit'];$finish=$r['native-respec-finish-enter'];$end=$r['native-respec-finish-exit'];$rebound=$r['native-respec-original-rebound']
     Assert-KmcOrdinaryInteger $start.xp $Before.xp $Before.xp;Assert-KmcOrdinaryInteger $start.money $Before.money $Before.money
     Assert-KmcOrdinaryInteger $start.cost $Probe.nativeCost $Probe.nativeCost;Assert-KmcOrdinaryInteger $start.scrollRefund $Probe.initialScrollRefund $Probe.initialScrollRefund;Assert-KmcOrdinaryInteger $start.uses 0 ([int]::MaxValue)
     foreach($row in @($start,$rebound)){Assert-KmcProgressionObject $row.descriptorObject;Assert-KmcProgressionObject $row.viewObject}
@@ -135,16 +136,20 @@ function Assert-KmcProgressionRespec($Probe,$Selection,$Before){
     Assert-KmcOrdinaryGuid $start.petId;if($start.petId-cne$Before.petId){throw 'Native retrain entry has another original pet.'}
     if($preview.previewObject-eq$Before.object-or$preview.descriptorObject-eq$start.descriptorObject-or$preview.nativeCallbackToken-isnot[string]-or$preview.nativeCallbackToken-cnotmatch'^060[0-9A-F]{5}$'-or
        $preview.frame-ne$start.frame-or$r['native-respec-ui-open'].frame-ne$start.frame-or$finish.frame-lt$start.frame-or$rebound.frame-ne$finish.frame-or$end.frame-ne$finish.frame){throw 'Native vacuum preview/rebind does not follow exact native callbacks.'}
+    Assert-KmcOrdinaryInteger $gold.amount $Probe.nativeStartingGold $Probe.nativeStartingGold
+    Assert-KmcOrdinaryInteger $gold.moneyBefore $Before.money $Before.money
+    Assert-KmcOrdinaryInteger $gold.moneyAfter ($Before.money+$gold.amount) ($Before.money+$gold.amount)
     Assert-KmcOrdinaryInteger $credit.amount $Probe.nativeScrollRefund $Probe.nativeScrollRefund
-    Assert-KmcOrdinaryInteger $credit.moneyBefore $Before.money $Before.money
-    Assert-KmcOrdinaryInteger $credit.moneyAfter ($Before.money+$credit.amount) ($Before.money+$credit.amount)
-    if($credit.frame-ne$finish.frame-or$credit.gameTicks-ne$finish.gameTicks-or
-       [Array]::IndexOf($Probe.events,$credit)-le[Array]::IndexOf($Probe.events,$r['native-respec-ui-open'])-or
+    Assert-KmcOrdinaryInteger $credit.moneyBefore ($Before.money+$gold.amount) ($Before.money+$gold.amount)
+    Assert-KmcOrdinaryInteger $credit.moneyAfter ($Before.money+$gold.amount+$credit.amount) ($Before.money+$gold.amount+$credit.amount)
+    if($gold.frame-ne$finish.frame-or$gold.gameTicks-ne$finish.gameTicks-or$credit.frame-ne$finish.frame-or$credit.gameTicks-ne$finish.gameTicks-or
+       [Array]::IndexOf($Probe.events,$gold)-le[Array]::IndexOf($Probe.events,$r['native-respec-ui-open'])-or
+       [Array]::IndexOf($Probe.events,$gold)-ge[Array]::IndexOf($Probe.events,$credit)-or
        [Array]::IndexOf($Probe.events,$credit)-ge[Array]::IndexOf($Probe.events,$finish)){
-        throw 'Native refund credit is outside the exact respec callback before finish.'
+        throw 'Native starting gold and refund are outside their exact order before finish.'
     }
-    Assert-KmcOrdinaryInteger $finish.money ($Before.money+$Probe.nativeScrollRefund) ($Before.money+$Probe.nativeScrollRefund)
-    Assert-KmcOrdinaryInteger $end.money ($Before.money+$Probe.nativeScrollRefund-$Probe.nativeCost) ($Before.money+$Probe.nativeScrollRefund-$Probe.nativeCost)
+    Assert-KmcOrdinaryInteger $finish.money ($Before.money+$Probe.nativeStartingGold+$Probe.nativeScrollRefund) ($Before.money+$Probe.nativeStartingGold+$Probe.nativeScrollRefund)
+    Assert-KmcOrdinaryInteger $end.money ($Before.money+$Probe.nativeStartingGold+$Probe.nativeScrollRefund-$Probe.nativeCost) ($Before.money+$Probe.nativeStartingGold+$Probe.nativeScrollRefund-$Probe.nativeCost)
     Assert-KmcOrdinaryInteger $end.uses ($start.uses+1) ($start.uses+1);Assert-KmcOrdinaryInteger $end.nativeElapsedTicks 864000000000 864000000000
     Assert-KmcOrdinaryInteger $r['native-respec-time-advance'].deltaTicks 864000000000 864000000000
     if($r['native-respec-time-advance'].frame-ne$finish.frame-or$end.gameTicks-$finish.gameTicks-ne864000000000){throw 'Native retrain time differs from one observed native day.'}

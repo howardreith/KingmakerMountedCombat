@@ -1,5 +1,17 @@
 # Chunk 7B–7D — IN PROGRESS
 
+## October 20 — batch95 identifies both native respec credits
+
+[Batch95](docs/CHUNK7-BATCH95-RETRAIN-TWO-NATIVE-CREDITS-2026-10-20.md)
+froze pushed `0d32cf10` as world108. Fresh mounted Small Manual 5/0 and
+separate cold 3/0 passed. Retrain original **outer FAIL** has no terminal game
+result or Manual, but its native trace identified a 411 starting-gold grant
+and a later zero scroll-refund callback. Exact Mods/saves restored; slot 2
+has three accepted achievement-cache changes, so profile bytes are not exact
+there. The focused two-credit observer/reader correction passed independent
+review, build, focused checks and offline Candidate 7/0; fresh native
+verification remains. F10 retrain and the standing mission remain open.
+
 ## October 20 — batch94 native credit owner unresolved
 
 [Batch94](docs/CHUNK7-BATCH94-RETRAIN-CREDIT-OWNER-2026-10-20.md) froze pushed
