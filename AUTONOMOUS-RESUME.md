@@ -1,5 +1,26 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## Active October 20 after batch93 — identify exact native credit precondition
+
+The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
+[Batch93](docs/CHUNK7-BATCH93-RETRAIN-CREDIT-PRECONDITION-2026-10-20.md)
+froze pushed `255de34e2a11b5963b882208651de4254af4aabe` as world106.
+Fresh mounted Small Manual 5/0 and separate cold 3/0 passed. Native retrain
+original **outer FAIL** has no terminal game result or Manual: the real
+`GainMoney(long)` hook ran, but its compound callback-time credit precondition
+rejected before recording one credit. The finish still saw the native 411
+increase. The exact run-owned game was closed normally after immutable failure
+evidence; Mods, protected saves and profile bytes restored exactly, with no
+game or lock remaining. Earlier retrain failures remain separate.
+
+A one-object read-only credit boundary snapshot now distinguishes the predicate
+terms without changing native behavior or acceptance. Independent review,
+build, installed hook construction/removal 24/0 and Fast 3/0 passed. Next:
+commit and guarded-push this diagnostic change, freeze a fresh package/suite,
+then run a declared same-candidate mounted Small producer, cold consumer and
+one targeted retrain observation. Do not call batch93's hook execution a
+successful refund, and continue the standing F09/F10/F11/7E mission.
+
 ## Active October 20 after batch92 — reviewed refund observer; native verification next
 
 The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.

@@ -37,6 +37,13 @@ reader correction passed independent review, focused evidence 93/0, installed
 patch construction/removal 24/0 and offline Candidate 7/0. It has not yet
 executed the refund hook in the game; batch92's original FAIL remains.
 
+Batch93 did execute that hook on world106, after a fresh Small mounted Manual
+producer and separate cold consumer passed. Its compound credit precondition
+failed before an accepted credit or terminal retrain; the original outer FAIL
+and exact restoration are in the [batch93 record](../docs/CHUNK7-BATCH93-RETRAIN-CREDIT-PRECONDITION-2026-10-20.md).
+A reviewed one-object diagnostic snapshot will distinguish the failing term
+on a fresh candidate; no progression gate is yet closed.
+
 Current requirement-to-evidence map (one status per gate family; earlier PASS
 belongs only to its recorded product, fixture and environment):
 
