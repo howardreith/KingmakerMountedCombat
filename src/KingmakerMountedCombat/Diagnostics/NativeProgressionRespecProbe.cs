@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
 using System.Runtime.CompilerServices;
@@ -30,12 +31,12 @@ namespace KingmakerMountedCombat.Diagnostics
         private readonly object player;
         private readonly Action assertScope;
         private readonly List<string> errors = new List<string>();
-        private readonly JArray events = new JArray(), hooks = new JArray(), boundaryObservations = new JArray();
+        private readonly JArray events = new JArray(), hooks = new JArray(), boundaryObservations = new JArray(), moneyCallBoundaries = new JArray();
         private readonly HashSet<UnitDescriptor> expectedRest = new HashSet<UnitDescriptor>();
         private readonly HashSet<UnitDescriptor> restEntered = new HashSet<UnitDescriptor>(), restExited = new HashSet<UnitDescriptor>();
         private HarmonyInstance harmony;
         private bool disposed, installed, installationStarted, insideRespec, insideFinish, creditPending;
-        private int callbackFrame = -1, entries, exits, previews, finishes, finishExits, advances, rebinds, moneyCredits;
+        private int callbackFrame = -1, entries, exits, previews, finishes, finishExits, advances, rebinds, moneyCredits, moneyCallsObserved;
         private int initialXp, initialUses, initialCost, expectedRefund;
         private long initialMoney, finishMoneyBefore, finishTicksBefore, creditAmount, creditBefore;
         private JObject creditBoundary;
@@ -236,6 +237,7 @@ namespace KingmakerMountedCombat.Diagnostics
             ["initialScrollRefund"] = expectedRefund, ["nativeScrollRefund"] = creditAmount,
             ["nativeMoneyCredits"] = moneyCredits, ["moneyCreditPending"] = creditPending,
             ["creditBoundary"] = creditBoundary?.DeepClone(),
+            ["moneyCallsObserved"] = moneyCallsObserved, ["moneyCallBoundaries"] = moneyCallBoundaries.DeepClone(),
             ["diagnosticMoneyWrites"] = 0, ["diagnosticXpWrites"] = 0, ["diagnosticRestCalls"] = 0, ["diagnosticTimeAdvances"] = 0 };
         private void Patch(Type type, string name, int token, Type[] parameters, string before, string after)
         {
@@ -366,6 +368,19 @@ namespace KingmakerMountedCombat.Diagnostics
                     var builderExact = ReferenceEquals(Game.Instance.UI.CharacterBuildController, p.nativeBuilder);
                     var respecMode = p.nativeBuilder.LevelUpController?.State.Mode == LevelUpState.CharBuildMode.Respec;
                     var callbackRefund = __instance.GetScrollRefundForRespec(p.original.Descriptor);
+                    p.moneyCallsObserved++;
+                    if (p.moneyCallBoundaries.Count < 4)
+                    {
+                        var stack = new StackTrace(0, false).GetFrames();
+                        p.moneyCallBoundaries.Add(new JObject { ["frame"] = Time.frameCount,
+                            ["amount"] = amount, ["moneyBefore"] = __instance.Money,
+                            ["callbackRefund"] = callbackRefund,
+                            ["callers"] = new JArray((stack ?? new StackFrame[0]).Take(16).Select(f => {
+                                var method = f.GetMethod();
+                                return method == null ? "<unknown>" :
+                                    (method.DeclaringType?.FullName ?? "<dynamic>") + "." + method.Name;
+                            })) });
+                    }
                     if (p.creditBoundary == null)
                         p.creditBoundary = new JObject { ["frame"] = Time.frameCount,
                             ["playerExact"] = playerExact, ["builderExact"] = builderExact,

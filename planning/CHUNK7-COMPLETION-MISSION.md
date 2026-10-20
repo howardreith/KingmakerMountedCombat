@@ -44,6 +44,12 @@ and exact restoration are in the [batch93 record](../docs/CHUNK7-BATCH93-RETRAIN
 A reviewed one-object diagnostic snapshot will distinguish the failing term
 on a fresh candidate; no progression gate is yet closed.
 
+Batch94's exact Small producer/cold consumer passed, then native retrain
+original outer FAIL distinguished a 411 `GainMoney` amount from a zero native
+scroll-refund value. The [batch94 record](../docs/CHUNK7-BATCH94-RETRAIN-CREDIT-OWNER-2026-10-20.md)
+preserves that failure and exact restoration. A reviewed bounded callsite
+observation is next; starting-gold ownership is not yet proven in this run.
+
 Current requirement-to-evidence map (one status per gate family; earlier PASS
 belongs only to its recorded product, fixture and environment):
 

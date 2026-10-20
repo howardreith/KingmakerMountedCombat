@@ -1,5 +1,16 @@
 # Chunk 7B–7D — IN PROGRESS
 
+## October 20 — batch94 native credit owner unresolved
+
+[Batch94](docs/CHUNK7-BATCH94-RETRAIN-CREDIT-OWNER-2026-10-20.md) froze pushed
+`0e104511` as world107. Mounted Small Manual 5/0 and separate cold 3/0 passed.
+Native retrain original **outer FAIL** showed `GainMoney(411)` with a zero
+callback-time scroll refund. The 411 starting-gold caller remains a hypothesis
+until callsite observation. Exact Mods, saves and profile restoration passed.
+A bounded read-only first-four-call snapshot passed independent source review,
+build, installed hook checks 24/0 and Fast 3/0; it has no native verdict.
+F10 retrain and the standing mission remain open.
+
 ## October 20 — batch93 retrain credit precondition FAIL
 
 [Batch93](docs/CHUNK7-BATCH93-RETRAIN-CREDIT-PRECONDITION-2026-10-20.md)
