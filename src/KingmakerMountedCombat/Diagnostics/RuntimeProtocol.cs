@@ -565,19 +565,22 @@ namespace KingmakerMountedCombat.Diagnostics
             var p07 = Scenario == "persistence-p07-save" || Scenario == "persistence-p07-load";
             if (OwnerStockRemoval.HasValue)
             {
-                if (OwnerStockRemoval != true || Scenario != "persistence-p07-save" ||
-                    PersistenceCase != "prepare-removal")
-                    errors.Add("Owner stock Mammoth removal is exclusive to the positive P07 save case.");
+                var ownerProducer = Scenario == "persistence-p07-save" && PersistenceCase == "prepare-removal";
+                var ownerCold = Scenario == "persistence-p07-load" && PersistenceCase == "removal-no-dll";
+                if (OwnerStockRemoval != true || !(ownerProducer || ownerCold))
+                    errors.Add("Owner stock Mammoth removal is exclusive to its P07 producer or no-DLL cold consumer.");
                 if (PersistenceLoad == null) errors.Add("Owner stock Mammoth removal requires its qualified native Manual.");
                 else
                 {
-                    errors.AddRange(PersistenceLoad.Validate("persistenceLoad", "KMC_C7_STOCK_MAMMOTH",
-                        "^Manual_304_KMC_C7_STOCK_MAMMOTH\\.zks$"));
-                    if (PersistenceLoad.Sha256 != "e475d49c3590927c7f216d301aa8535f6dbbdc7af2066f4c01f58fff335866fa" ||
-                        PersistenceLoad.Length != 1257468 || PersistenceLoad.GameId != "3f7381f7-aba6-43bf-bae6-39c6a66a7180" ||
+                    errors.AddRange(PersistenceLoad.Validate("persistenceLoad", ownerCold ? "KMC_CLEANUP" : "KMC_C7_STOCK_MAMMOTH",
+                        ownerCold ? "^Manual_306_KMC_CLEANUP\\.zks$" : "^Manual_304_KMC_C7_STOCK_MAMMOTH\\.zks$"));
+                    if (PersistenceLoad.Sha256 != (ownerCold ? "2c46c2700f117b3f0d50f688d2c89bd879de79d4b0b40eaf3b2502c1015bdfc2" :
+                            "e475d49c3590927c7f216d301aa8535f6dbbdc7af2066f4c01f58fff335866fa") ||
+                        PersistenceLoad.Length != (ownerCold ? 1263594 : 1257468) ||
+                        PersistenceLoad.GameId != "3f7381f7-aba6-43bf-bae6-39c6a66a7180" ||
                         PersistenceLoad.GameName != "Testy the Modless" || PersistenceLoad.Area != "b10e86516b6437d45a629931c30936fe" ||
                         PersistenceLoad.GameId == Fixture?.Working?.GameId || PersistenceLoad.Sha256 == Fixture?.Working?.Sha256)
-                        errors.Add("Owner stock Mammoth Manual differs from its accepted batch64 native output.");
+                        errors.Add("Owner stock Mammoth Manual differs from its accepted native output.");
                 }
             }
             var p06 = Scenario == "persistence-p06-load";
@@ -871,7 +874,8 @@ namespace KingmakerMountedCombat.Diagnostics
                     // engine-minted identity, which is exactly NOT the fixture's.
                     var campaignB = Scenario == "persistence-p07-load" && PersistenceCase == "campaign-b";
                     var slotPattern = nativeSlot ? (PersistenceCase == "quick" ? "^Quick_1\\.zks$" : "^Auto_1\\.zks$") :
-                        cleanup ? "^Manual_301_KMC_CLEANUP\\.zks$" :
+                        cleanup ? (OwnerStockRemoval == true && PersistenceCase == "removal-no-dll" ?
+                            "^Manual_306_KMC_CLEANUP\\.zks$" : "^Manual_301_KMC_CLEANUP\\.zks$") :
                         death ? "^Manual_301_KMC_DEATH\\.zks$" :
                         eligibility ? "^Manual_301_KMC_SIZE\\.zks$" :
                         campaignB ? "^Manual_302_KMC_B\\.zks$" :
@@ -898,8 +902,12 @@ namespace KingmakerMountedCombat.Diagnostics
                             string.IsNullOrWhiteSpace(PersistenceLoad.GameName) || PersistenceLoad.Area == Fixture.Working.Area)
                             errors.Add("A campaign-B cold archive must carry B's own minted identity and area, never the fixture's.");
                     }
-                    else if (Fixture?.Working == null || PersistenceLoad.GameId != Fixture.Working.GameId ||
-                        PersistenceLoad.GameName != Fixture.Working.GameName || PersistenceLoad.Area != expectedArea)
+                    else if (Fixture?.Working == null || (OwnerStockRemoval == true && PersistenceCase == "removal-no-dll" ?
+                        PersistenceLoad.GameId != "3f7381f7-aba6-43bf-bae6-39c6a66a7180" ||
+                        PersistenceLoad.GameName != "Testy the Modless" ||
+                        PersistenceLoad.Area != "b10e86516b6437d45a629931c30936fe" :
+                        PersistenceLoad.GameId != Fixture.Working.GameId ||
+                        PersistenceLoad.GameName != Fixture.Working.GameName || PersistenceLoad.Area != expectedArea))
                         errors.Add("Cold archive campaign/area differs from the disposable fixture contract.");
                 }
             }

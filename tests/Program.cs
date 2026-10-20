@@ -469,6 +469,26 @@ namespace KingmakerMountedCombat.Tests
                     request.PersistenceLoad.FileName = "Manual_300_KMC_P01.zks"; request.PersistenceLoad.InternalName = "KMC_P01";
                     TestRunner.True(request.Validate().Count > 0, "The no-DLL case accepted a mounted archive leaf.");
                 }
+                {
+                    var request = ValidSaveBackedRequest();
+                    request.Scenario = "persistence-p07-load"; request.PersistenceCase = "removal-no-dll";
+                    request.OwnerStockRemoval = true;
+                    request.PersistenceLoad = new RuntimeSaveDescriptor {
+                        InternalName = "KMC_CLEANUP", FileName = "Manual_306_KMC_CLEANUP.zks",
+                        Sha256 = "2c46c2700f117b3f0d50f688d2c89bd879de79d4b0b40eaf3b2502c1015bdfc2",
+                        Length = 1263594, LastWriteTimeUtcTicks = request.Fixture.Working.LastWriteTimeUtcTicks,
+                        GameId = "3f7381f7-aba6-43bf-bae6-39c6a66a7180", GameName = "Testy the Modless",
+                        Area = "b10e86516b6437d45a629931c30936fe" };
+                    TestRunner.Equal(0, request.Validate().Count, "Exact owner stock no-DLL cold source rejected.");
+                    request.PersistenceLoad.FileName = "Manual_301_KMC_CLEANUP.zks";
+                    TestRunner.True(request.Validate().Count > 0, "Owner stock no-DLL request accepted the legacy cleanup leaf.");
+                    request.PersistenceLoad.FileName = "Manual_306_KMC_CLEANUP.zks";
+                    request.PersistenceLoad.GameId = request.Fixture.Working.GameId;
+                    TestRunner.True(request.Validate().Count > 0, "Owner stock no-DLL request accepted Working campaign ancestry.");
+                    request.PersistenceLoad.GameId = "3f7381f7-aba6-43bf-bae6-39c6a66a7180";
+                    request.PersistenceCase = "absent-kmc";
+                    TestRunner.True(request.Validate().Count > 0, "Owner stock no-DLL source escaped the genuine observer case.");
+                }
                 // Death boundaries: a writing run and a cold load of the exact
                 // no-pair archive that run wrote, under its own name.
                 foreach (var name in new[] { "rider-death", "mount-death" })
