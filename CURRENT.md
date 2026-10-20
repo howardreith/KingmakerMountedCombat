@@ -1,5 +1,18 @@
 # Chunk 7B–7D — IN PROGRESS
 
+## October 20 — batch87 native dismissal reached, cleanup still FAIL
+
+[Batch87](docs/CHUNK7-BATCH87-SMALL-DISMISSAL-2026-10-20.md) froze pushed
+`25547c97` as world100. Fresh mounted Small Manual and separate cold load
+passed 5/0 and 3/0. The targeted dismissal run remains **FAIL**: its pending
+session records one completed native dismissal and settled target pair, but
+diagnostic cleanup refused the declared still-mounted control owner due to
+GUID `N` versus `D` string formatting. Exact wrapper and native-startup profile
+restoration passed; no game or lock remains. A narrow object-identity cleanup
+correction passed independent review, focused checks and offline Candidate;
+it needs native verification. Original batch81–87
+FAILs remain distinct; F10 and the standing mission are open.
+
 ## October 20 — batch86 Small dismissal invariant distinguished
 
 [Batch86](docs/CHUNK7-BATCH86-SMALL-DISMISSAL-2026-10-20.md) froze pushed

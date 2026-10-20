@@ -296,8 +296,13 @@ namespace KingmakerMountedCombat.Diagnostics
                     {
                         if (pair.Relationship.PairOwner == null && pair.Relationship.State == RelationshipState.Unmounted && pair.Relationship.Runtime.NoPreparedPairResidue) continue;
                         var owner = pair.Relationship.PairOwner;
-                        Require(owner != null && (owner.RiderId == selection.ActorId && owner.MountId == selection.PetId ||
-                            owner.RiderId == selection.ControlActorId && owner.MountId == selection.ControlPetId), "Progression cleanup refuses an undeclared owner.");
+                        // Registry keys use GUID "N" while the admitted selection
+                        // uses GUID "D". Keep cleanup bound to the exact four
+                        // loaded actor objects, including the surviving control.
+                        Require(owner != null &&
+                            (ReferenceEquals(owner.Rider, rider) && ReferenceEquals(owner.Mount, mount) ||
+                             ReferenceEquals(owner.Rider, controlRider) && ReferenceEquals(owner.Mount, controlMount)),
+                            "Progression cleanup refuses an undeclared owner.");
                         CaptureCommands(owner.Rider); CaptureCommands(owner.Mount);
                         if (owner.Rider?.Commands == null || owner.Mount?.Commands == null ||
                             !owner.Rider.Commands.Raw.All(CommandSettled) || !owner.Mount.Commands.Raw.All(CommandSettled))
