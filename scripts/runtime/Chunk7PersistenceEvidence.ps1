@@ -167,6 +167,8 @@ function Assert-KmcChunk7PersistenceObservation($Request,$Artifact,[string]$Stat
     if($Status-cne'PASS'){return}
     if($null-ne$Artifact.observations.PSObject.Properties['manticoreFixturePreparation']-and-not(Test-KmcChunk7ManticoreFixture $Request)){throw 'Another persistence case supplied Manticore fixture preparation.'}
     if($null-ne$Artifact.observations.PSObject.Properties['manticoreManualCold']-and-not(Test-KmcChunk7ManticoreManualCold $Request)){throw 'Another persistence case supplied Manticore Manual cold proof.'}
+    $doorInventoryCase=$Request.persistenceCase-ceq'multi-area-autosave'-or(Test-KmcChunk7ManticoreManualCold $Request)
+    if($null-ne$Artifact.observations.PSObject.Properties['areaDoorInventory']-and-not$doorInventoryCase){throw 'Native door inventory belongs only to an admitted area continuation.'}
     if(Test-KmcChunk7OwnerSeedCurrentCheckpoint $Request.persistenceCase){Assert-KmcChunk7CurrentMigrationObservation $Request $Artifact;return}
     if(Test-KmcOwnedSchema1Case $Request.persistenceCase){Assert-KmcOwnedSchema1Observation $Request $Artifact;return}
     if(Test-KmcChunk7RepeatedWorldCase $Request.persistenceCase){Assert-KmcChunk7RepeatedWorldObservation $Request $Artifact;return}
@@ -289,6 +291,9 @@ function Assert-KmcChunk7PersistenceObservation($Request,$Artifact,[string]$Stat
     if($cold-and$Request.persistenceCase-ceq'multi-area-autosave'){
         Assert-KmcChunk7AreaContinuationPlans $o
         if($null-ne$o.PSObject.Properties['areaDoorInventory']){Assert-KmcChunk7AreaDoorInventory $o}
+    }
+    if($cold-and(Test-KmcChunk7ManticoreManualCold $Request)-and$null-ne$o.PSObject.Properties['areaDoorInventory']){
+        Assert-KmcChunk7AreaDoorInventory $o
     }
     if($owned){foreach($field in @('pairsClear','controlsSettled','saveCustodyClear','selectionRestored','inheritedPetsPreserved')){Assert-KmcChunk7Boolean $o.cleanup.$field $true};Assert-KmcChunk7Boolean $o.cleanup.sourceHorseRemoved $false;Assert-KmcChunk7Boolean $o.cleanup.nativeProgressionRequiresExternalWorkingRestoration $false}else{
     foreach($field in @('pairsClear','sourceHorseRemoved','controlsSettled','saveCustodyClear','selectionRestored','nativeProgressionRequiresExternalWorkingRestoration')) {Assert-KmcChunk7Boolean $o.cleanup.$field $true}    }

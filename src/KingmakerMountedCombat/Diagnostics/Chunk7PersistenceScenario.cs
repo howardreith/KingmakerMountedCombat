@@ -247,7 +247,8 @@ namespace KingmakerMountedCombat.Diagnostics
                         Pass("C7-persistence-native-combat-continuation"); BeginCleanup(); break;
                     case 10:
                         AssertOwners();
-                        if (AreaAutosaveCase) evidence["areaDoorInventory"] = Chunk7NativeDoorProbe.CaptureAreaDoorInventory(new[] { firstMount, secondMount });
+                        if (AreaAutosaveCase || Chunk7OwnedPairsSelection.IsManticoreManualCold(request.PersistenceCase))
+                            evidence["areaDoorInventory"] = Chunk7NativeDoorProbe.CaptureAreaDoorInventory(new[] { firstMount, secondMount });
                         Move(firstRider, firstMount, AreaAutosaveCase ? SelectAreaContinuationGoal(firstMount, "first-pair") : firstMount.Position + Vector3.right * 2f, secondRider, "first-pair"); Next(11); break;
                     case 11:
                         AssertOwners(); if (!MovementSettled()) return;

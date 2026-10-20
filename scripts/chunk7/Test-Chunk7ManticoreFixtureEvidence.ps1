@@ -128,6 +128,20 @@ function New-ManticoreColdReaderFixture {
 }
 function Read-ManticoreCold($f){try{Assert-KmcChunk7ManticoreManualColdObservation $f.request $f.cold.observations $f.cold.observations.loadedArchive;Assert-KmcChunk7ManticoreManualColdSource $f.request $f.producer $f.cold}catch{throw ($_.Exception.Message+' at '+$_.ScriptStackTrace)}}
 Check 'distinct post-area Manual cold reader accepts exact synthetic producer/restored identities' {$f=New-ManticoreColdReaderFixture;Read-ManticoreCold $f}
+Check 'Manticore cold door inventory binds both native mounted positions without an interaction claim' {
+ $f=New-ManticoreColdReaderFixture;$s=$f.request.ownedPairs
+ $mounts=@([pscustomobject]@{id=$s.mountAId;position=[pscustomobject]@{x=1.0;y=0.0;z=2.0}},[pscustomobject]@{id=$s.mountBId;position=[pscustomobject]@{x=2.0;y=0.0;z=3.0}})
+ $f.cold.observations|Add-Member movements @([pscustomobject]@{label='first-pair';executorId=$s.mountAId;start=$mounts[0].position},[pscustomobject]@{label='second-pair';executorId=$s.mountBId;start=$mounts[1].position}) -Force
+ $f.cold.observations|Add-Member areaDoorInventory ([pscustomobject]@{boundary='before-first-continuation';candidateCount=0;rowLimit=32;radius=28.0;mounts=$mounts;truncated=$false;rows=@();interactionTested=$false}) -Force
+ Assert-KmcChunk7AreaDoorInventory $f.cold.observations
+}
+Check 'Manticore cold door inventory rejects a substituted second mounted actor' {
+ $f=New-ManticoreColdReaderFixture;$s=$f.request.ownedPairs
+ $mounts=@([pscustomobject]@{id=$s.mountAId;position=[pscustomobject]@{x=1.0;y=0.0;z=2.0}},[pscustomobject]@{id=$s.mountAId;position=[pscustomobject]@{x=2.0;y=0.0;z=3.0}})
+ $f.cold.observations|Add-Member movements @([pscustomobject]@{label='first-pair';executorId=$s.mountAId;start=$mounts[0].position},[pscustomobject]@{label='second-pair';executorId=$s.mountBId;start=$mounts[1].position}) -Force
+ $f.cold.observations|Add-Member areaDoorInventory ([pscustomobject]@{boundary='before-first-continuation';candidateCount=0;rowLimit=32;radius=28.0;mounts=$mounts;truncated=$false;rows=@();interactionTested=$false}) -Force
+ Assert-KmcChunk7AreaDoorInventory $f.cold.observations
+} $true
 Check 'cold reader rejects old pre-area owner identity' {$f=New-ManticoreColdReaderFixture;$f.cold.observations.manticoreManualCold.owners[0].ownerId='f'*32;Read-ManticoreCold $f} $true
 Check 'cold reader rejects an altered archive graph' {$f=New-ManticoreColdReaderFixture;$f.cold.observations.loadedArchive.Pairs[0].Generation++;Read-ManticoreCold $f} $true
 Check 'cold reader rejects unrelated roster loss' {$f=New-ManticoreColdReaderFixture;$f.cold.observations.manticoreManualCold.unrelatedActorIds=@();Read-ManticoreCold $f} $true
