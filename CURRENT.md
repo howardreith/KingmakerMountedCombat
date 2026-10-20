@@ -1,5 +1,14 @@
 # Chunk 7B–7D — IN PROGRESS
 
+## October 20 - batch63 Manticore Lair door inventory
+
+Preview.79's one guarded Manticore Manual cold diagnostic passed native and
+outer runtime 4/0. Its bounded read-only inventory found zero ordinary
+`StandardDoor` candidates near either mounted actor. [Batch63](docs/CHUNK7-BATCH63-MANTICORE-DOOR-INVENTORY-2026-10-20.md)
+pins the clean package, suite, input and exact restoration. Ordinary door
+qualification remains open in another scene, along with positive mounted
+cleanup/DLL absence, Small, progression, 7D and selected private 7E.
+
 ## October 20 - batch62 Spider Cave door inventory
 
 Preview.78 Candidate passed 7/0. The one guarded cold diagnostic had native
