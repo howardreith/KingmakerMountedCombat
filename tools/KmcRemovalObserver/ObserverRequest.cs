@@ -95,7 +95,14 @@ namespace KmcRemovalObserver
             if (Archive == null) errors.Add("The cleanup archive descriptor is missing.");
             else
             {
-                if (Archive.InternalName != "KMC_CLEANUP" || Archive.FileName != "Manual_301_KMC_CLEANUP.zks") errors.Add("The archive is not the prepared cleanup save.");
+                var ownerStockCleanup = Archive.FileName == "Manual_306_KMC_CLEANUP.zks";
+                if (Archive.InternalName != "KMC_CLEANUP" ||
+                    (!ownerStockCleanup && Archive.FileName != "Manual_301_KMC_CLEANUP.zks"))
+                    errors.Add("The archive is not the prepared cleanup save.");
+                if (ownerStockCleanup && (Archive.Sha256 != "2c46c2700f117b3f0d50f688d2c89bd879de79d4b0b40eaf3b2502c1015bdfc2" ||
+                    Archive.Length != 1263594 || Archive.GameId != "3f7381f7-aba6-43bf-bae6-39c6a66a7180" ||
+                    Archive.GameName != "Testy the Modless" || Archive.Area != "b10e86516b6437d45a629931c30936fe"))
+                    errors.Add("The owner stock cleanup archive differs from the accepted native Manual.");
                 if (Archive.Sha256 == null || !Sha.IsMatch(Archive.Sha256) || Archive.Length <= 0) errors.Add("The archive identity is invalid.");
                 Guid parsed;
                 if (Archive.GameId == null || !Guid.TryParse(Archive.GameId, out parsed) || parsed == Guid.Empty || string.IsNullOrWhiteSpace(Archive.GameName))

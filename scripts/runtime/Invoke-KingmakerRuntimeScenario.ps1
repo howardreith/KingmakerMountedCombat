@@ -173,10 +173,15 @@ if(Test-KmcChunk7StockMammothFixtureScenario $Scenario){
     $stockMammothFixtureInput=Read-KmcChunk7StockMammothFixtureSelectionFile $StockMammothFixtureSelectionPath $(if($RunId){$RunId}else{'unassigned-stock-mammoth-fixture'})
 }
 if($PSBoundParameters.ContainsKey('OwnerStockRemoval')){
-    if(-not$OwnerStockRemoval-or$Scenario-cne'persistence-p07-save'-or$PersistenceCase-cne'prepare-removal'-or-not$BaseGameOnly-or
-       $PSBoundParameters.ContainsKey('PersistenceSourceRunId')-or$PSBoundParameters.ContainsKey('ExpectedPersistenceSourceSha256')-or
-       $PSBoundParameters.ContainsKey('ObserverPackagePath')-or$PSBoundParameters.ContainsKey('ObserveWorkingDeserialization')){
-        throw 'Owner stock removal selects only the closed batch64 native Manual under base-only P07 prepare-removal.'
+    $ownerProducer=$Scenario-ceq'persistence-p07-save'-and$PersistenceCase-ceq'prepare-removal'-and$BaseGameOnly-and
+        -not$PSBoundParameters.ContainsKey('PersistenceSourceRunId')-and-not$PSBoundParameters.ContainsKey('ExpectedPersistenceSourceSha256')-and
+        -not$PSBoundParameters.ContainsKey('ObserverPackagePath')
+    $ownerCold=$Scenario-ceq'persistence-p07-load'-and$PersistenceCase-ceq'removal-no-dll'-and-not$BaseGameOnly-and
+        $PersistenceSourceRunId-ceq'20261020-c7b-world81-b65s1-owner-stock-removal'-and
+        $ExpectedPersistenceSourceSha256-ceq'2c46c2700f117b3f0d50f688d2c89bd879de79d4b0b40eaf3b2502c1015bdfc2'-and
+        -not[string]::IsNullOrEmpty($ObserverPackagePath)
+    if(-not$OwnerStockRemoval-or-not($ownerProducer-or$ownerCold)-or$PSBoundParameters.ContainsKey('ObserveWorkingDeserialization')){
+        throw 'Owner stock removal selects only the closed batch64 P07 producer or its exact batch65 no-DLL cleanup consumer.'
     }
 }
 $acquiredManualInput=$null;$acquiredManualSource=$null
@@ -442,7 +447,7 @@ $ownedAreaTarget=if((Test-KmcChunk7OwnedPairsScenario $Scenario)-and$Persistence
 if(Test-KmcChunk7OwnedPairsScenario $Scenario){$ownedPairsSource=Get-KmcChunk7OwnedPairsSource $ownedPairsInput.selection $PersistenceCase $fixturePayload $manifest $ownedAreaTarget}
 if(Test-KmcChunk7SmallFixtureScenario $Scenario){$smallFixtureSource=Get-KmcChunk7SmallFixtureSource $smallFixtureInput.selection $fixturePayload $manifest}
 if(Test-KmcChunk7StockMammothFixtureScenario $Scenario){$stockMammothFixtureSource=Get-KmcChunk7StockMammothFixtureSource $stockMammothFixtureInput.selection $fixturePayload $manifest}
-$ownerStockRemovalSource=if($OwnerStockRemoval){Get-KmcOwnerStockRemovalSource $fixturePayload}else{$null}
+$ownerStockRemovalSource=if($OwnerStockRemoval-and$Scenario-ceq'persistence-p07-save'){Get-KmcOwnerStockRemovalSource $fixturePayload}else{$null}
 if(Test-KmcChunk7AcquiredManualScenario $Scenario){$acquiredManualSource=Get-KmcChunk7AcquiredManualSource $acquiredManualInput.selection $fixturePayload $manifest}
 if(Test-KmcChunk7ManualDerivedScenario $Scenario){$manualDerivedSource=Get-KmcChunk7ManualDerivedSource $manualDerivedInput.selection $fixturePayload $manifest}
 if(Test-KmcChunk7CumulativeScenario $Scenario){$cumulativeAcquisitionSource=Get-KmcChunk7CumulativeSource $cumulativeAcquisitionInput.selection $fixturePayload $manifest}
@@ -763,7 +768,7 @@ try{
             [void][IO.Directory]::CreateDirectory((Join-Path $profileRoot 'Areas'))
             $copySource=$lockedWorkingPath
             $copyDescriptor=$fixturePayload.working
-            if($OwnerStockRemoval){
+            if($OwnerStockRemoval-and$Scenario-ceq'persistence-p07-save'){
                 $currentStockRemovalSource=Get-KmcOwnerStockRemovalSource $fixturePayload
                 if((ConvertTo-KmcChunk7Canonical $currentStockRemovalSource)-cne(ConvertTo-KmcChunk7Canonical $ownerStockRemovalSource)){throw 'Stock Mammoth producer changed before locked staging.'}
                 $copySource=$currentStockRemovalSource.path;$copyDescriptor=$currentStockRemovalSource.descriptor
@@ -844,7 +849,8 @@ try{
                 elseif($sourceCase-cin @('absent-kmc','removal-no-dll')){
                     # The cleanup archive a prepare-removal run wrote, under its
                     # own name, is what the integration-absent process opens.
-                    Get-KmcPersistenceSource -SourceRunId $PersistenceSourceRunId -ExpectedSha256 $ExpectedPersistenceSourceSha256 -Fixture $fixturePayload -NativeCase prepare-removal -ArtifactRole cleanup-manual
+                    if($OwnerStockRemoval){Get-KmcOwnerStockCleanupSource $PersistenceSourceRunId $ExpectedPersistenceSourceSha256 $fixturePayload}
+                    else{Get-KmcPersistenceSource -SourceRunId $PersistenceSourceRunId -ExpectedSha256 $ExpectedPersistenceSourceSha256 -Fixture $fixturePayload -NativeCase prepare-removal -ArtifactRole cleanup-manual}
                 }
                 elseif($sourceCase-ceq'rider-size-change'){
                     # The no-pair archive an eligibility run wrote, under its own name.
