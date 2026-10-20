@@ -95,4 +95,23 @@ $mutations=@(
 foreach($mutation in $mutations){Reject $mutation[0] {$a=Copy-Test $areaObservation;& $mutation[1] $a;Assert-KmcChunk7AreaAutosave $areaRequest $a $areaArchive}}
 Reject 'cold process cannot substitute for source transfer' {$q=Copy-Test $areaRequest;$q.scenario='chunk7-persistence-load';Assert-KmcChunk7AreaAutosave $q $areaObservation $areaArchive}
 Reject 'another archive area' {$a=Copy-Test $areaArchive;$a.AreaId='a'*32;Assert-KmcChunk7AreaAutosave $areaRequest $areaObservation $a}
+$doorObservation=Copy-Test $areaObservation
+$doorObservation|Add-Member NoteProperty areaDoorInventory ([pscustomobject]@{
+    boundary='before-first-continuation';candidateCount=1;rowLimit=32;radius=28.0;mounts=@(
+        [pscustomobject]@{id=$moves[0].executorId;position=[pscustomobject]@{x=0.0;y=0.0;z=0.0}},
+        [pscustomobject]@{id=$moves[1].executorId;position=[pscustomobject]@{x=0.0;y=0.0;z=0.0}});
+    truncated=$false;interactionTested=$false;rows=@([pscustomobject]@{name='NativeDoor';position=[pscustomobject]@{x=2.0;y=0.0;z=0.0};
+        active=$true;open=$true;disableCutWhenOpen=$true;cutPresent=$true;proximityRadius=1.0;mountDistances=@(2.0,2.0);eligible=$true})})
+Check 'bounded read-only area door inventory' {Assert-KmcChunk7AreaAutosave $areaRequest $doorObservation $areaArchive}
+foreach($bad in @('distance','eligibility','tested','count','position','mount-id','boundary')){
+    Reject ('area door inventory '+$bad) {$a=Copy-Test $doorObservation;switch($bad){
+        'distance' {$a.areaDoorInventory.rows[0].mountDistances[0]=9.0}
+        'eligibility' {$a.areaDoorInventory.rows[0].eligible=$false}
+        'tested' {$a.areaDoorInventory.interactionTested=$true}
+        'count' {$a.areaDoorInventory.candidateCount=2}
+        'position' {$a.areaDoorInventory.mounts[0].position.x=1.0}
+        'mount-id' {$a.areaDoorInventory.mounts[1].id=$moves[0].executorId}
+        'boundary' {$a.areaDoorInventory.boundary='after-first-continuation'}
+    };Assert-KmcChunk7AreaAutosave $areaRequest $a $areaArchive}
+}
 Write-Host ('CHUNK7 AREA READER PASS='+$passed+' FAIL=0; affected persistence neighbors='+$neighborPass+'; synthetic evidence only.')

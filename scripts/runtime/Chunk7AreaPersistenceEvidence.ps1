@@ -101,7 +101,54 @@ function Assert-KmcChunk7AreaAutosave($Request,$Observation,$Archive) {
     Assert-KmcChunk7Boolean $row.before.pending $false
     Assert-KmcChunk7Boolean $row.after.pending $false
     Assert-KmcChunk7AreaContinuationPlans $Observation
+    if($null-ne$Observation.PSObject.Properties['areaDoorInventory']){Assert-KmcChunk7AreaDoorInventory $Observation}
     if(Test-KmcChunk7OwnedPairsScenario $Request.scenario){Assert-KmcChunk7OwnedAreaField $Request $Observation}
+}
+
+# Optional bounded read-only fixture inventory added after the accepted
+# preview.77 area route. Older immutable PASS artifacts have no such field.
+function Assert-KmcChunk7AreaDoorInventory($Observation){
+    $inventory=$Observation.areaDoorInventory
+    Assert-KmcExactProperties $inventory @('boundary','candidateCount','rowLimit','radius','mounts','truncated','rows','interactionTested') 'area door inventory'
+    Assert-KmcBootstrapInventoryString $inventory.boundary 'before-first-continuation'
+    Assert-KmcOrdinaryInteger $inventory.candidateCount 0 100000
+    Assert-KmcOrdinaryInteger $inventory.rowLimit 32 32
+    if(-not(Test-KmcChunk7FiniteNumber $inventory.radius)-or[double]$inventory.radius-ne28.0){throw 'Native door scan radius differs.'}
+    Assert-KmcChunk7Boolean $inventory.truncated ($inventory.candidateCount-gt32)
+    Assert-KmcChunk7Boolean $inventory.interactionTested $false
+    if($inventory.rows-isnot[Array]-or$inventory.rows.Count-ne[Math]::Min(32,[int]$inventory.candidateCount)){
+        throw 'Area door rows do not match the bounded native candidate count.'
+    }
+    $moves=@($Observation.movements);$first=@($moves|Where-Object label -CEQ 'first-pair');$second=@($moves|Where-Object label -CEQ 'second-pair')
+    if($inventory.mounts-isnot[Array]-or$inventory.mounts.Count-ne2-or$first.Count-ne1-or$second.Count-ne1){throw 'Area door inventory lacks both mounted actor positions.'}
+    for($i=0;$i-lt2;$i++){
+        Assert-KmcExactProperties $inventory.mounts[$i] @('id','position') 'area door mounted actor'
+        Assert-KmcBootstrapInventoryString $inventory.mounts[$i].id $(if($i-eq0){$first[0].executorId}else{$second[0].executorId})
+    }
+    foreach($axis in @('x','y','z')){
+        foreach($mount in $inventory.mounts){if(-not(Test-KmcChunk7FiniteNumber $mount.position.$axis)){throw 'Area door mount position is nonfinite.'}}
+        if([Math]::Abs([double]$inventory.mounts[0].position.$axis-[double]$first[0].start.$axis)-gt0.001){throw 'Door scan was not taken at the first mounted continuation boundary.'}
+    }
+    $prior=-1.0
+    foreach($row in $inventory.rows){
+        Assert-KmcExactProperties $row @('name','position','active','open','disableCutWhenOpen','cutPresent','proximityRadius','mountDistances','eligible') 'native area door'
+        if($row.name-isnot[string]-or[string]::IsNullOrWhiteSpace($row.name)-or$row.name.Length-gt256-or
+           $row.mountDistances-isnot[Array]-or$row.mountDistances.Count-ne2-or
+           -not(Test-KmcChunk7FiniteNumber $row.proximityRadius)-or[double]$row.proximityRadius-le0){throw 'Native area door identity or radius is malformed.'}
+        foreach($axis in @('x','y','z')){if(-not(Test-KmcChunk7FiniteNumber $row.position.$axis)){throw 'Native area door position is nonfinite.'}}
+        for($i=0;$i-lt2;$i++){
+            $start=$inventory.mounts[$i].position
+            $distance=[Math]::Sqrt([Math]::Pow([double]$start.x-[double]$row.position.x,2)+[Math]::Pow([double]$start.z-[double]$row.position.z,2))
+            if(-not(Test-KmcChunk7FiniteNumber $row.mountDistances[$i])-or
+               [Math]::Abs($distance-[double]$row.mountDistances[$i])-gt0.001){throw 'Area door distance differs from mounted actor geometry.'}
+        }
+        $sum=[double]$row.mountDistances[0]+[double]$row.mountDistances[1]
+        if($sum+0.001-lt$prior){throw 'Native door inventory is not nearest-first.'};$prior=$sum
+        foreach($key in @('active','open','disableCutWhenOpen','cutPresent','eligible')){if($row.$key-isnot[bool]){throw 'Native door state is not Boolean.'}}
+        $eligible=$row.active-and$row.open-and$row.disableCutWhenOpen-and$row.cutPresent-and
+            @($row.mountDistances|Where-Object{[double]$_-le[double]$row.proximityRadius+0.5-or[double]$_-gt28.0}).Count-eq0
+        Assert-KmcChunk7Boolean $row.eligible $eligible
+    }
 }
 
 function Assert-KmcChunk7AreaContinuationPlans($Observation) {

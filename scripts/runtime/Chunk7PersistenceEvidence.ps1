@@ -286,7 +286,10 @@ function Assert-KmcChunk7PersistenceObservation($Request,$Artifact,[string]$Stat
         if(-not(Test-KmcChunk7FiniteNumber $move.distance)-or-not(Test-KmcChunk7FiniteNumber $move.residual)-or
            [Math]::Abs($distance-[double]$move.distance)-gt0.0001-or[Math]::Abs($residual-[double]$move.residual)-gt0.0001-or$distance-lt0.75-or$residual-gt1){throw 'Native movement missed the unchanged measured endpoint.'}
     }
-    if($cold-and$Request.persistenceCase-ceq'multi-area-autosave'){Assert-KmcChunk7AreaContinuationPlans $o}
+    if($cold-and$Request.persistenceCase-ceq'multi-area-autosave'){
+        Assert-KmcChunk7AreaContinuationPlans $o
+        if($null-ne$o.PSObject.Properties['areaDoorInventory']){Assert-KmcChunk7AreaDoorInventory $o}
+    }
     if($owned){foreach($field in @('pairsClear','controlsSettled','saveCustodyClear','selectionRestored','inheritedPetsPreserved')){Assert-KmcChunk7Boolean $o.cleanup.$field $true};Assert-KmcChunk7Boolean $o.cleanup.sourceHorseRemoved $false;Assert-KmcChunk7Boolean $o.cleanup.nativeProgressionRequiresExternalWorkingRestoration $false}else{
     foreach($field in @('pairsClear','sourceHorseRemoved','controlsSettled','saveCustodyClear','selectionRestored','nativeProgressionRequiresExternalWorkingRestoration')) {Assert-KmcChunk7Boolean $o.cleanup.$field $true}    }
     Assert-KmcChunk7Boolean $o.cleanup.ordinaryRespecProven $false
