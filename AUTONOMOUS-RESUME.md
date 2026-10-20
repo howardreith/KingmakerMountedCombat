@@ -1,5 +1,29 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## Active October 20 after batch79 — standing completion mission
+
+The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
+Reviewed and guarded-pushed frame-snapshot source commit
+`6106d22f7299d64fde9d832fdcb58f423b24b3a9` passed focused actual-DLL
+8/0, independent supplemental checks, observation-lifetime 71/0, Fast 3/0
+and offline Candidate 7/0. Preview.92 package SHA-256 is
+`f6dea93fe765e29ba1f4880c605b5e4ff31e7c7a9273b0b43b9af1775ca197cc`,
+DLL SHA-256 `e7ad74f9d20f27bc236912637b5240682c92eee540aa0ec9b423774dd8167ab2`;
+batch79 suite SHA-256 is
+`028a405cf72eae0005121a5d597572fcc29fbfa81cb07410f9eb92daa196d8c8`.
+The sole native scenario `20261020-c7b-world92-b79s1-f11-frame-snapshot`
+passed game/outer 8/0 with twelve completed windows; raw sidecar SHA-256 is
+`dc9e0c9e14d75732264e35b6aca7d7bf2c3765f318e824719e23dec1dd374fb4`.
+Exact Howie profile, Mods and protected saves restored; no game process or
+transaction lock remains. See [batch79](docs/CHUNK7-BATCH79-F11-FRAME-SNAPSHOT-2026-10-20.md).
+F11 allocation-event measurement, diagnostics-off and normal-player comparisons
+remain open; the measured per-pair cost still exceeds zero-state spread. F10
+requires a genuinely eligible custom-companion source and actual native
+progression/removal operation; ordinary doors, additional profile breadth,
+conditional stress and selected private 7E remain open. Next implement the
+honestly disclosed F10 source/operation route or a supported F11 allocation
+seam; do not repeat the unchanged matched-pool input without a causal question.
+
 ## Active October 20 after batch78 — standing completion mission
 
 The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
