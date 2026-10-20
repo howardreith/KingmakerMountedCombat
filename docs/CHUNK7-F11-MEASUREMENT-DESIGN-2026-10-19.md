@@ -60,6 +60,16 @@ runtime found no `GC.GetAllocatedBytesForCurrentThread`,
 The inspection receipt is
 `analysis-cache/chunk7-continuation/f11-allocation-api-20261019/f11-installed-allocation-api.json`,
 SHA-256 `c6d77f5d1b49ff7a36040516d666fdfd8f70e5cb0f68c22d5b74627da9721a07`.
+An October 20 bounded decompilation checked the alternative
+`AppDomain.MonitoringTotalAllocatedMemorySize` on the same installed
+`mscorlib.dll` SHA-256
+`e6875b3f6d3e681da2fbd11b1077c5550305fb4654eada1113736a08929227e9`:
+the getter throws `NotImplementedException`; the monitoring enable setter
+also throws and its getter always returns false. This API cannot supply the
+F11 counter. The read-only receipt is
+`analysis-cache/chunk7-continuation/f11-allocation-api-20261019/f11-appdomain-monitoring-20261020.json`,
+SHA-256 `64ebb050ae3b8f0ee1b9f478a57e9e6aa20e8794b25d55a6c3124441674ae26d`.
+No monitoring state was enabled and no game was launched for that inspection.
 `mono_gc_get_heap_size` and `mono_gc_get_used_size` report heap state, not
 allocation throughput. F11 stays **IN PROGRESS** while a supported, scoped
 allocation-event measurement seam is established; retained heap cannot stand
