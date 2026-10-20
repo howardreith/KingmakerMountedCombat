@@ -1,5 +1,16 @@
 # Chunk 7B–7D — IN PROGRESS
 
+## October 20 - batch78 repeated F11 resident-pool observation
+
+The [batch78 record](docs/CHUNK7-BATCH78-F11-REPEATED-WINDOWS-2026-10-20.md)
+adds reviewed three-window-per-state 0/1/2/0 measurement while preserving
+batch73's original v1 reader acceptance. Preview.91 returned native/outer
+**PASS 8/0**, twelve complete/released windows, zero KMC logs, stable four
+owned subscribers and exact profile/Mods/save restoration. Median KMC Update
+means were 0.2326/0.2893/0.3035/0.2484 ms; the last zero-pair window
+contained a 122.56 ms outlier alongside full GC. Allocation rate,
+diagnostics-off controls and performance acceptance remain open.
+
 ## October 20 - batch77 Small mounted cold readiness corrected
 
 The [batches 75–77 record](docs/CHUNK7-BATCH75-77-SMALL-COLD-READINESS-2026-10-20.md)
