@@ -30,7 +30,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private readonly object player;
         private readonly Action assertScope;
         private readonly List<string> errors = new List<string>();
-        private readonly JArray events = new JArray(), hooks = new JArray();
+        private readonly JArray events = new JArray(), hooks = new JArray(), boundaryObservations = new JArray();
         private readonly HashSet<UnitDescriptor> expectedRest = new HashSet<UnitDescriptor>();
         private readonly HashSet<UnitDescriptor> restEntered = new HashSet<UnitDescriptor>(), restExited = new HashSet<UnitDescriptor>();
         private HarmonyInstance harmony;
@@ -53,7 +53,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private AddPet observedPetSource, petUpdateSource;
         private UnitDescriptor petUpdateOwner;
         private bool originalPetRemoved, originalPetViewReleased;
-        private int petUpdates;
+        private int petUpdates, outsideFinishRestEntries, outsideFinishRestExits;
 
 
         internal NativeProgressionRespecProbe(UnitEntityData original, RespecCompanion action, Action assertScope)
@@ -92,7 +92,8 @@ namespace KingmakerMountedCombat.Diagnostics
         internal bool InSynchronousCallback => callbackFrame == Time.frameCount && (insideRespec || insideFinish || petUpdateSource != null);
         internal bool Complete => installed && errors.Count == 0 && entries == 1 && exits == 1 && previews == 1 &&
             finishes == 1 && finishExits == 1 && advances == 1 && rebinds == 1 &&
-            petUpdateSource == null && restEntered.SetEquals(expectedRest) && restExited.SetEquals(expectedRest);
+            petUpdateSource == null && outsideFinishRestEntries == outsideFinishRestExits &&
+            restEntered.SetEquals(expectedRest) && restExited.SetEquals(expectedRest);
         internal UnitEntityData Preview => preview;
         internal UnitEntityData Original => original;
         internal long ExpectedMoneyAfter => checked(initialMoney + expectedRefund - initialCost);
@@ -220,12 +221,14 @@ namespace KingmakerMountedCombat.Diagnostics
         }
         internal JObject Capture() => new JObject { ["installed"] = installed, ["installationAttempted"] = installationStarted,
             ["complete"] = Complete, ["errors"] = new JArray(errors), ["hooks"] = hooks.DeepClone(), ["events"] = events.DeepClone(),
+            ["boundaryObservations"] = boundaryObservations.DeepClone(),
             ["nativeRespecEntries"] = entries, ["nativeRespecExits"] = exits, ["nativePreviewEntries"] = previews,
             ["nativeFinishEntries"] = finishes, ["nativeFinishExits"] = finishExits, ["nativeAdvanceCalls"] = advances,
             ["nativeRebinds"] = rebinds, ["nativePetUpdates"] = petUpdates, ["petUpdatePending"] = petUpdateSource != null,
             ["originalPetId"] = originalPetId, ["originalPetRemoved"] = originalPetRemoved,
             ["reboundPetId"] = reboundPetId, ["expectedRestCount"] = expectedRest.Count,
             ["observedRestEntries"] = restEntered.Count, ["observedRestExits"] = restExited.Count,
+            ["outsideFinishRestEntries"] = outsideFinishRestEntries, ["outsideFinishRestExits"] = outsideFinishRestExits,
             ["initialMoney"] = initialMoney, ["nativeCost"] = initialCost, ["nativeScrollRefund"] = expectedRefund,
             ["diagnosticMoneyWrites"] = 0, ["diagnosticXpWrites"] = 0, ["diagnosticRestCalls"] = 0, ["diagnosticTimeAdvances"] = 0 };
         private void Patch(Type type, string name, int token, Type[] parameters, string before, string after)
@@ -247,6 +250,12 @@ namespace KingmakerMountedCombat.Diagnostics
             Require(events.Count < 192, "Native respec observations exceeded their bound.");
             detail["kind"] = kind; detail["frame"] = Time.frameCount; detail["gameTicks"] = Game.Instance.TimeController.GameTime.Ticks;
             detail["actorId"] = original.UniqueId; detail["actorObject"] = Id(original); events.Add(detail);
+        }
+        private void RecordBoundary(string kind, JObject detail)
+        {
+            Require(boundaryObservations.Count < 12, "Native respec boundary observations exceeded their bound.");
+            detail["kind"] = kind; detail["frame"] = Time.frameCount;
+            detail["actorId"] = original.UniqueId; boundaryObservations.Add(detail);
         }
         private static JObject Resources(UnitDescriptor unit) => new JObject { ["id"] = unit.Unit.UniqueId,
             ["descriptorObject"] = Id(unit), ["move"] = unit.Unit.CombatState.Cooldown.MoveAction,
@@ -318,6 +327,15 @@ namespace KingmakerMountedCombat.Diagnostics
                 var p = active; if (p == null) return;
                 p.Safe(() => {
                     var player = Game.Instance.Player;
+                    p.RecordBoundary("native-respec-finish-boundary", new JObject {
+                        ["exactAction"] = ReferenceEquals(__instance, p.action), ["entries"] = p.entries,
+                        ["previews"] = p.previews, ["priorFinishEntries"] = p.finishes,
+                        ["forFree"] = __instance.ForFree, ["initialUses"] = p.initialUses,
+                        ["currentUses"] = player.RespecsUsed, ["initialCost"] = p.initialCost,
+                        ["currentCost"] = player.GetRespecCost(), ["initialMoney"] = p.initialMoney,
+                        ["expectedRefund"] = p.expectedRefund, ["currentMoney"] = player.Money,
+                        ["outsideFinishRestEntries"] = p.outsideFinishRestEntries,
+                        ["outsideFinishRestExits"] = p.outsideFinishRestExits });
                     Require(ReferenceEquals(__instance, p.action) && p.entries == 1 && p.previews == 1 && p.finishes == 0 &&
                         !__instance.ForFree && player.RespecsUsed == p.initialUses && player.GetRespecCost() == p.initialCost &&
                         player.Money == checked(p.initialMoney + p.expectedRefund),
@@ -344,7 +362,14 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 var p = active; if (p == null) return;
                 p.Safe(() => {
-                    Require(p.insideFinish && p.callbackFrame == Time.frameCount && p.expectedRest.Contains(unit) && p.restEntered.Add(unit),
+                    if (!p.insideFinish) {
+                        Require(++p.outsideFinishRestEntries <= 64, "Unowned native rest observations exceeded their bound.");
+                        if (p.outsideFinishRestEntries <= 4)
+                            p.RecordBoundary("native-rest-outside-finish-before", new JObject { ["unitId"] = unit?.Unit?.UniqueId,
+                                ["descriptorObject"] = Id(unit), ["finishEntries"] = p.finishes });
+                        return;
+                    }
+                    Require(p.callbackFrame == Time.frameCount && p.expectedRest.Contains(unit) && p.restEntered.Add(unit),
                         "Rest call is outside the exact once-only native respec roster.");
                     p.Record("native-respec-rest-before", Resources(unit));
                 });
@@ -353,7 +378,15 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 var p = active; if (p == null) return;
                 p.Safe(() => {
-                    Require(p.insideFinish && p.callbackFrame == Time.frameCount && p.restEntered.Contains(unit) && p.restExited.Add(unit),
+                    if (!p.insideFinish) {
+                        Require(++p.outsideFinishRestExits <= p.outsideFinishRestEntries,
+                            "Unowned native rest exited without an observed entry.");
+                        if (p.outsideFinishRestExits <= 4)
+                            p.RecordBoundary("native-rest-outside-finish-after", new JObject { ["unitId"] = unit?.Unit?.UniqueId,
+                                ["descriptorObject"] = Id(unit), ["finishEntries"] = p.finishes });
+                        return;
+                    }
+                    Require(p.callbackFrame == Time.frameCount && p.restEntered.Contains(unit) && p.restExited.Add(unit),
                         "Native rest exit is missing its exact entered descriptor.");
                     p.Record("native-respec-rest-after", Resources(unit));
                 });

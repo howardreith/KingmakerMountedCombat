@@ -1,5 +1,31 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## Active October 20 after batch91 — retrain finish-boundary diagnostic pending
+
+The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
+[Batch91](docs/CHUNK7-BATCH91-SMALL-RETRAIN-2026-10-20.md) froze pushed
+`25e6f7714f9d37ba01d9f1449bf4b9c91a4ae98e` as world104 (package SHA-256
+`49e448d68cad7385f9c6e4315ff85f48329feae3b0a600b03d2c47ea5ae5b827`,
+DLL SHA-256 `4bc9eea874a8ee3dcb7d97b036d34b637595305835e58e2843bf5ea21e71125c`).
+Fresh mounted Small Manual 5/0 and separate cold 3/0 passed. Native retrain
+reached the genuine Total-phase commit after the batch90 UI failure, then
+failed observer finish/rebind custody. Its original outer result is **FAIL**;
+no terminal game result or Manual save exists. The exact run-owned process
+was closed normally after timeout. Guarded combined recovery and an
+independently reviewed exact-run profile recovery passed. Mods, saves,
+Params, preferences and profile match this run's captured state; no game or
+lock remains.
+
+The next candidate adds only bounded finish-entry and outside-finish rest
+observations to distinguish the rejected native precondition. Independent
+review, focused observer/pet checks, and offline Candidate 7/0 in 6.48
+minutes passed. Next commands: commit and guarded-push; freeze a new package/suite,
+declare no more than five native scenarios, and use a fresh mounted Small
+producer/cold consumer before one targeted retrain observation. Preserve
+batch90 and batch91 original FAILs. If the finish boundary still fails,
+diagnose its exact field and do not call diagnostic instrumentation a product
+repair. Continue F09/F10/F11 and selected private 7E only as their gates allow.
+
 ## Active October 20 after batch90 — Small retrain correction awaits native qualification
 
 The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
