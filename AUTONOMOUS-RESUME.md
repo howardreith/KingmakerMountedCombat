@@ -11,9 +11,11 @@ explicit `IN PROGRESS` initial pose hypothesis from pinned neutral geometry;
 it is not mounted fit or a compiled declaration. The acquired-Manual Small
 reader now uses the exact shared native cold-entry hook contract, with focused
 synthetic checks and independent review. No DLL, package or native scenario was
-run for this reader/documentation checkpoint. Next: implement a distinct
-cross-candidate, read-only F09 Manual calibration case with exact historical
-producer and cold receipts, then review a provisional compiled profile before
+run for this reader/documentation checkpoint. A separate read-only F09 source
+preflight requalifies the original preview.71 producer and hash-pinned corrected
+cold receipt against a distinct consumer identity (local 7/0); it grants no
+load/profile authority. Next: wire a distinct cross-candidate F09 Manual
+calibration case around that preflight, then review a provisional compiled profile before
 bounded native mounted calibration. Keep ordinary Small admission closed until
 actual mounted evidence supports it. Continue doors, progression, measured
 F11 and readiness-gated private 7E independently; no engineering completion

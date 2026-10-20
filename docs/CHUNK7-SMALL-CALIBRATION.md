@@ -62,6 +62,22 @@ corrected to the shared native-entry contract (`OnNewRound` on
 negative checks pass; this reader correction has no Small mounted native
 result and does not admit the distinct F09 Manual yet.
 
+The read-only `Get-KmcChunk7SmallF09CalibrationSource` preflight now pins the
+batch53 producer Manual to preview.71 (`8f7f8976` DLL), its genuine
+`KMC_C7_SMALL_FIXTURE` archive (`ddf2b9cf`), and the accepted separate cold
+reader-only receipt (`d188012f`). It checks the original cold outer FAIL and
+game/artifact PASS separately, all nine receipt input hashes, the seven-actor
+loaded roster and empty native preparation observation. A distinct consumer
+identity is required; this preflight returns `sameCandidate=false` and
+`nativeAuthorityGranted=false`. A local read-only positive and six pin/identity
+refusals passed 7/0. This function is not yet wired as a load or Small-profile
+calibration case; the current production catalogue remains empty.
+Independent review passed on source SHA-256
+`68754937f51009b5c8ddbd6ee837a07c64163342707e3e1ac726b3a356fa2176`;
+the local read-only check receipt is
+`analysis-cache/chunk7-continuation/small-f09-cross-candidate-source-check.json`
+(SHA-256 `ca386594cb652f702343b086e6537673050a09c99d14f8c234e69a14ba22b89b`).
+
 After field admission, both cases exercise production Mount, native Horse ground movement after selection changes, one real-time rider primary, one real-time mount primary, native Dismount and bounded cleanup. No native Prepare, resource edits, free actions, money/XP grants, manual party insertion, or synthetic completion are selected. The real-time cost proof binds the exact UnitActionController cost-before/cost-after command pair; actor-cost hooks are turn-based only.
 
 The pose artifact records actual roots, seven declared rider bones, existing native Horse Chest/stirrup anchors, world/local coordinates, distances, production pose health and application counters during unmounted, idle, moving, arrived, both attacks and dismounted phases. The reader pins owner/generation/actor/rig identity and action windows, and recomputes distances. It does not invent a Small fit tolerance or turn a small/large stirrup gap into visual acceptance. HUMAN PLAY and visual/animation assessment remain separate. Performance and diagnostics-off proof are explicitly false.
