@@ -7,6 +7,7 @@ using Kingmaker.UnitLogic;
 using KingmakerMountedCombat.Domain;
 using KingmakerMountedCombat.Integration;
 using Newtonsoft.Json.Linq;
+using UnityEngine;
 
 namespace KingmakerMountedCombat.Diagnostics
 {
@@ -168,7 +169,9 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             var saved = manualSource["acquiredOwners"][0];
             var now = CaptureAssistedManualPriorPair();
-            Require(ReferenceEquals(manualPriorOwner.Descriptor, manualPriorOwnerDescriptor) &&
+            var changed = manualPriorPairBefore.Properties().Where(value =>
+                !JToken.DeepEquals(value.Value, now[value.Name])).Select(value => value.Name).ToArray();
+            var exactCustody = ReferenceEquals(manualPriorOwner.Descriptor, manualPriorOwnerDescriptor) &&
                 ReferenceEquals(manualPriorPet.Descriptor, manualPriorPetDescriptor) &&
                 ReferenceEquals(manualPriorOwner.View, manualPriorOwnerView) &&
                 ReferenceEquals(manualPriorPet.View, manualPriorPetView) &&
@@ -184,8 +187,30 @@ namespace KingmakerMountedCombat.Diagnostics
                 (string)now["featureGuid"] == (string)saved["featureGuid"] &&
                 (string)now["sourceGuid"] == (string)saved["featureSourceGuid"] &&
                 (int)now["rank"] == (int)saved["rank"] &&
-                JToken.DeepEquals(now, manualPriorPairBefore),
-                "F09 neighboring main/Horse native custody, resources or identity changed.");
+                (bool)now["reciprocal"] &&
+                (string)now["actorBlueprint"] == manualPriorOwner.Blueprint.AssetGuid;
+            if (!exactCustody || changed.Length != 0)
+            {
+                if (evidence["inheritedFixturePairDrift"] == null)
+                    evidence["inheritedFixturePairDrift"] = new JObject {
+                        ["stage"] = calibrationStage, ["frame"] = Time.frameCount,
+                        ["gameTicks"] = Game.Instance.TimeController.GameTime.Ticks,
+                        ["changedKeys"] = new JArray(changed), ["exactCustody"] = exactCustody,
+                        ["ownerInCombat"] = manualPriorOwner.IsInCombat,
+                        ["horseInCombat"] = manualPriorPet.IsInCombat,
+                        ["ownerPrepared"] = manualPriorOwner.CombatState.Prepared,
+                        ["horsePrepared"] = manualPriorPet.CombatState.Prepared,
+                        ["before"] = manualPriorPairBefore.DeepClone(), ["after"] = now.DeepClone() };
+                var reason = "F09 neighboring main/Horse changed at calibration stage " + calibrationStage +
+                    "; exactCustody=" + exactCustody + "; changed=" + string.Join(",", changed) + ".";
+                // A failed diagnostic may settle its owned UI/command leases when
+                // identity, native facts and reciprocal custody still hold. The
+                // resource mismatch remains a FAIL and is never admitted as PASS.
+                if (cleanup && exactCustody && changed.All(key => key == "resources"))
+                    Fail("C7-small-cleanup", reason);
+                else
+                    Require(false, reason);
+            }
             evidence["inheritedFixturePairAfter"] = now;
         }
 

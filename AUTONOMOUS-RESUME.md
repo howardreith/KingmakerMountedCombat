@@ -1,6 +1,26 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
-## Active October 20 reviewed private Small declaration
+## Active October 20 batch68 Small calibration diagnosis
+
+The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
+[Batch68](docs/CHUNK7-BATCH68-SMALL-CALIBRATION-2026-10-20.md) ran one guarded
+F09 Manual consumer on reviewed preview.83 and returned native/outer FAIL:
+the neighboring main/Horse snapshot changed, but the observer did not record
+the first changed field. No mounted pose or Small behavior passed. The native
+observer retained custody; the runner timed out. Its exact PID 62020 exited
+through its own window, then guarded combined recovery restored Mods and
+protected saves and a new exact-run profile recovery restored startup settings.
+The original FAIL and recovery PASS remain separate. No game process or lock
+remains. A bounded observer correction now captures the first changed field,
+stage, combat/preparation flags and before/after values, preserving the strict
+PASS assertion. On FAIL it may settle only an otherwise exact neighboring
+custody with resources as the sole difference. Build and F09 reader/wiring
+checks, Fast 2/0, Candidate 6/0 and independent safety review passed.
+Next: commit and guarded-push this checkpoint, freeze the corrected
+candidate, then run one distinguishing F09 scenario.
+Do not rerun preview.83 or call the batch68 result a profile qualification.
+
+## Historical October 20 reviewed private Small declaration
 
 The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
 The initial default MaleHalfling/Horse declaration is compiled for the exact
