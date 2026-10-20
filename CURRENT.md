@@ -12,6 +12,16 @@ patch owner. Exact Mods, protected saves, Areas and profile restoration passed.
 Ordinary doors, Small mounted, progression, measured 7D and final private 7E
 remain under the [standing mission](planning/CHUNK7-COMPLETION-MISSION.md).
 
+## October 20 - reviewed private Small declaration
+
+The stock default MaleHalfling/Horse body and proposed pose are now compiled
+behind an exact-pair, live-scope F09 diagnostic gate. Normal Small admission and
+saved-profile compatibility remain closed. Independent review, Fast 2/0 and
+Candidate 6/0 passed. No native mounted calibration has run on these bytes;
+the initial pose remains a hypothesis. See the
+[Small calibration record](docs/CHUNK7-SMALL-CALIBRATION.md) and active
+[resume action](AUTONOMOUS-RESUME.md). The standing mission remains in progress.
+
 ## October 20 - F09 Small calibration consumer preparation
 
 The distinct cross-candidate F09 Manual consumer passed focused independent review. It

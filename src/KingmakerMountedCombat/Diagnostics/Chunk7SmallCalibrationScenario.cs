@@ -34,6 +34,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private readonly DiagnosticSettings settings;
         private readonly KingmakerMountedCombat.Logging.IModLogger logger;
         private DeclaredSmallMountedProfile declaration;
+        private IDisposable privateSmallCalibrationLease;
         private readonly RuntimeSaveAuthorization authorization;
         private readonly PersistenceSaveAuthorization authority;
         private readonly MountedWorldService world;

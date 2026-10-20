@@ -71,11 +71,24 @@ namespace KingmakerMountedCombat.Integration
             MountedRiderPoseProfiles.MediumHumanoidOnHorse, false);
         private static readonly SupportedMountedProfile[] small = MountedRiderProfileCatalog.Small
             .Select(SupportedMountedProfile.FromDeclaredSmall).ToArray();
+        private static readonly SupportedMountedProfile[] privateCalibrationSmall =
+            MountedRiderProfileCatalog.PrivateCalibrationSmall.Select(SupportedMountedProfile.FromDeclaredSmall).ToArray();
+        private static readonly PrivateSmallCalibrationGate privateCalibrationGate =
+            new PrivateSmallCalibrationGate(MountedRiderProfileCatalog.PrivateCalibrationSmall);
+        internal static IDisposable AcquirePrivateSmallCalibration(DeclaredSmallMountedProfile declaration,
+            UnitEntityData rider, UnitEntityData mount, Func<bool> currentScope)
+        {
+            if (rider == null || mount == null) throw new ArgumentNullException(rider == null ? nameof(rider) : nameof(mount));
+            return privateCalibrationGate.Acquire(declaration, rider.UniqueId, mount.UniqueId, rider, mount, currentScope);
+        }
         internal static SupportedMountedProfile ResolveProfileId(string profileId)
         {
             if (profileId == Mammoth.Id) return Mammoth;
             if (profileId == Horse.Id) return Horse;
-            return small.SingleOrDefault(profile => profile.Id == profileId);
+            var qualified = small.SingleOrDefault(profile => profile.Id == profileId);
+            var privateDeclaration = privateCalibrationGate.ResolveProfileId(profileId);
+            return qualified ?? (privateDeclaration == null ? null :
+                privateCalibrationSmall.Single(profile => profile.Id == privateDeclaration.Body.ProfileId));
         }
 
         // Mount-only resolution remains for names and exact supported mount
@@ -96,7 +109,8 @@ namespace KingmakerMountedCombat.Integration
                 rider.Descriptor.Body?.IsPolymorphed != false || mount.Descriptor.Body?.IsPolymorphed != false) return null;
             if (rider.Descriptor.OriginalSize == Size.Medium && rider.Descriptor.State.Size == Size.Medium)
                 return mountProfile;
-            if (small.Length == 0 || rider.Descriptor.OriginalSize != Size.Small || rider.Descriptor.State.Size != Size.Small ||
+            var privateDeclaration = privateCalibrationGate.Resolve(rider.UniqueId, mount.UniqueId, rider, mount);
+            if (small.Length == 0 && privateDeclaration == null || rider.Descriptor.OriginalSize != Size.Small || rider.Descriptor.State.Size != Size.Small ||
                 mountProfile.BlueprintGuid != HorseBlueprintGuid) return null;
             var observed = NativeSmallRiderBody.Capture(rider, mount);
             SupportedMountedProfile result = null;
@@ -105,6 +119,11 @@ namespace KingmakerMountedCombat.Integration
                 if (profile.SmallRiderBody.Refusal(observed) != null) continue;
                 if (result != null) return null; // No ambiguous declared body/profile owner.
                 result = profile;
+            }
+            if (privateDeclaration != null && privateDeclaration.Body.Refusal(observed) == null)
+            {
+                if (result != null) return null;
+                result = privateCalibrationSmall.Single(profile => profile.Id == privateDeclaration.Body.ProfileId);
             }
             return result;
         }

@@ -39,12 +39,18 @@ about `0.351`. This is a reach sanity check, not a measured mounted foot/stirrup
 distance. Root alignment, animated seat correction, knee behavior and visual
 fit remain unverified. The record is `IN PROGRESS`, has
 `mountedPoseQualified=false` and `normalPlayerEnabled=false`, and is not a
-production Small catalogue declaration.
-The record's `normalPlayerEnabled=false` is status metadata, not a runtime
-guard; adding the profile to the global catalogue would expose it to ordinary
-players, so that change must wait for a reviewed admission and calibration path.
+qualified production Small catalogue declaration. Its values are now compiled
+only into a private F09 diagnostic declaration. The separate ordinary Small
+catalogue and saved-profile whitelist remain empty; activation requires the
+exact canonical rider and Horse object pair inside a current F09 source-world
+lease, which cleanup revokes. The record's `normalPlayerEnabled=false` remains
+status metadata; the exact-pair gate, not this field, closes ordinary admission.
 
-IN PROGRESS. The closed `chunk7-small-profile-calibration` diagnostic supports three existing source cases for a measured compiled declaration. It is not native evidence or a Small-profile acceptance gate by itself. The production Small catalogue remains empty until an explicit reviewed declaration is authored from actual observations.
+IN PROGRESS. The closed `chunk7-small-profile-calibration` diagnostic supports
+four distinct source cases. The private compiled declaration is an initial
+pose hypothesis; its source review and offline checks are not native evidence
+or a Small-profile acceptance gate. The qualified production Small catalogue
+remains empty.
 
 The cases retain distinct source and field-admission contracts:
 
@@ -76,8 +82,8 @@ preflight through the existing locked runtime runner and one-load, zero-write
 authority. Its current exact 20-field body, seven-actor/native-resource and
 neighboring-pair reader checks pass synthetic positive and refusal tests;
 actual native mounted calibration has not run. The production catalogue
-remains empty, so bootstrap correctly refuses native calibration until a
-separately reviewed initial compiled declaration exists.
+remains empty. The separately reviewed private declaration now allows only
+the exact F09 diagnostic actor pair during its live source-world lease.
 Independent review passed on source SHA-256
 `68754937f51009b5c8ddbd6ee837a07c64163342707e3e1ac726b3a356fa2176`;
 the local read-only check receipt is
@@ -92,4 +98,14 @@ Every worker/loading/serialization, UI, command/process, preparation, pair owner
 
 The read-only native inventory now also records Money, current custom-companion cost, PartyLevel, main-character XP/level, default hire XP, existing party IDs/capacity and Horse anchors. These are prerequisite observations and confer no purchase or six-pair authority.
 
-Required native sequence: preserve the already observed default Halfling/Horse body and neutral rig; author an initial private compiled declaration marked IN PROGRESS with ordinary-player admission closed; qualify this explicit cross-candidate F09 Manual under the current candidate; run the bounded native mounted calibration and correct or qualify the declaration from its evidence. An earlier candidate's source is not relabeled as the new candidate. The current F09 wiring and offline checks grant neither native mounted PASS nor normal-player Small support.
+The reviewed private declaration uses the exact saved default Halfling/Horse
+body and neutral rig and pins the inventory SHA-256 `dcdc6cdce0265a221b2f3d890d34229385098235d2546df4a9c6a399239e48a9`
+and pose-record SHA-256 `7d2385144838cccc27082cc9792f338c716961ed25016e6fff986599196411db`.
+The corrected compiled DLL SHA-256 is
+`bb9f64c1b563a820fcd03bb75c6e47cad687be8747f737c5d212c3e636dcb985`;
+independent review, Small policy 44/0, Fast 2/0 and Candidate 6/0 passed.
+Next: freeze a package and qualify the explicit cross-candidate F09 Manual
+under the current candidate, then run the bounded native mounted calibration
+and correct or qualify the declaration from its evidence. An earlier
+candidate's source is not relabeled as the new candidate. Current checks grant
+neither native mounted PASS nor normal-player Small support.

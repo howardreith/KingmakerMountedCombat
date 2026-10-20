@@ -100,6 +100,53 @@ namespace KingmakerMountedCombat.Tests
                 TestRunner.Equal(Profile, declaration.Pose.Id, "Exact independent pose identity changed.");
                 TestRunner.True(MountedRiderProfileCatalog.Small.Count == 0, "Constructing policy data registered a native profile.");
             });
+            runner.Run("private Halfling calibration has exact pair custody without ordinary admission", () =>
+            {
+                var provisional = MountedRiderProfileCatalog.PrivateCalibrationSmall.Single();
+                var id = provisional.Body.ProfileId;
+                TestRunner.True(id == "small-default-halfling-horse-v1" &&
+                    provisional.Body.NativeInventorySha256 == "dcdc6cdce0265a221b2f3d890d34229385098235d2546df4a9c6a399239e48a9" &&
+                    provisional.NativeCalibrationSha256 == "7d2385144838cccc27082cc9792f338c716961ed25016e6fff986599196411db" &&
+                    MountedRiderProfileCatalog.Small.Count == 0 && !MountedRiderProfileCatalog.IsSupportedArchiveProfile(id),
+                    "Provisional Small pose leaked into ordinary or saved-profile admission.");
+                var gate = new PrivateSmallCalibrationGate(MountedRiderProfileCatalog.PrivateCalibrationSmall);
+                const string rider = "c4e2c853-4b72-4904-ad84-d0b7bfba7470";
+                const string horse = "0e0c7d2d-06b4-4510-9f81-d847340d1424";
+                var riderObject = new object(); var horseObject = new object();
+                var current = true;
+                Func<bool> currentScope = () => current;
+                TestRunner.True(gate.Resolve(rider, horse, riderObject, horseObject) == null && gate.ResolveProfileId(id) == null,
+                    "Private Small profile resolved without owned calibration.");
+                var refused = false; try { gate.Acquire(provisional, rider.ToUpperInvariant(), horse, riderObject, horseObject, currentScope); }
+                catch (InvalidOperationException) { refused = true; }
+                TestRunner.True(refused, "Noncanonical rider acquired private Small admission.");
+                var lease = gate.Acquire(provisional, rider, horse, riderObject, horseObject, currentScope);
+                TestRunner.True(ReferenceEquals(gate.Resolve(rider, horse, riderObject, horseObject), provisional) &&
+                    ReferenceEquals(gate.ResolveProfileId(id), provisional) &&
+                    gate.Resolve(horse, rider, horseObject, riderObject) == null &&
+                    gate.Resolve(rider, horse, new object(), horseObject) == null &&
+                    gate.Resolve(rider, horse, riderObject, new object()) == null &&
+                    gate.Resolve("11111111-1111-4111-8111-111111111111", horse, riderObject, horseObject) == null,
+                    "Private Small admission escaped its exact rider/Horse pair.");
+                current = false;
+                TestRunner.True(gate.Resolve(rider, horse, riderObject, horseObject) == null && gate.ResolveProfileId(id) == null,
+                    "Changed native scope retained provisional Small admission.");
+                current = true;
+                var throwScope = false;
+                Func<bool> guardedScope = () => { if (throwScope) throw new InvalidOperationException("Native scope changed."); return true; };
+                lease.Dispose();
+                lease = gate.Acquire(provisional, rider, horse, riderObject, horseObject, guardedScope);
+                throwScope = true;
+                TestRunner.True(gate.Resolve(rider, horse, riderObject, horseObject) == null && gate.ResolveProfileId(id) == null,
+                    "Throwing native scope retained provisional Small admission.");
+                throwScope = false;
+                refused = false; try { gate.Acquire(provisional, rider, horse, riderObject, horseObject, currentScope); }
+                catch (InvalidOperationException) { refused = true; }
+                TestRunner.True(refused, "Duplicate private Small admission was accepted.");
+                lease.Dispose();
+                TestRunner.True(gate.Resolve(rider, horse, riderObject, horseObject) == null && gate.ResolveProfileId(id) == null &&
+                    MountedRiderProfileCatalog.Small.Count == 0, "Released private Small admission remained active.");
+            });
         }
 
         private static void Refuse(TestRunner runner, string name, Action<SmallRiderBodyObservation> change) => runner.Run("Small refuses " + name, () =>
