@@ -25,6 +25,13 @@ exact-run combined and profile recoveries passed. F10 retraining remains open;
 the bounded observer change is diagnostic only. See the
 [batch91 checkpoint](../docs/CHUNK7-BATCH91-SMALL-RETRAIN-2026-10-20.md).
 
+Batch92 fresh world105 Small mounted Manual and cold passed, then one
+targeted retrain diagnostic identified a 411 native-phase money credit
+after the observer's initial zero-refund estimate. The original outer FAIL
+and separate restoration are recorded in the
+[batch92 checkpoint](../docs/CHUNK7-BATCH92-RETRAIN-REFUND-DISCRIMINATOR-2026-10-20.md).
+F10 retrain remains open pending exact native credit ownership and completion.
+
 Current requirement-to-evidence map (one status per gate family; earlier PASS
 belongs only to its recorded product, fixture and environment):
 

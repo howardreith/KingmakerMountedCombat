@@ -1,5 +1,32 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## Active October 20 after batch92 — prove callback-time native refund
+
+The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
+[Batch92](docs/CHUNK7-BATCH92-RETRAIN-REFUND-DISCRIMINATOR-2026-10-20.md)
+froze pushed `53e7188df68cc60857fa8ab6bc10b22ef3596f75` as world105,
+package SHA-256 `cd70bbff8db8ea4e950028e4bab0eb6525343d1df684f1643cfc73a9584a81bc`,
+DLL SHA-256 `422099937c2f268c81f527726574662798e5644756f4a61e7b68eaf54ced3a51`.
+Mounted Small Manual 5/0 and separate cold 3/0 passed. Retrain **outer FAIL**
+has no terminal game result or Manual; its bounded evidence shows the native
+finish entry was rejected solely because money rose by 411 after the initial
+zero-refund estimate. Eight rest entry/exit pairs were outside the native
+finish window. The exact process closed normally after the discriminator
+was captured. Mods/saves and Params/PlayerPrefs restored; three recorded
+achievement-cache changes remain accepted profile exceptions. No game or
+lock remains. Batch90 and batch91 original FAILs also remain.
+
+Next: inspect the installed `Player.GainMoney(long)` token `06000DD0`
+and `Player.RespecCompanion` success callback. Add a bounded read-only exact
+native credit observation and require it once at the respec callback; compare
+the callback-time refund rather than the earlier estimate. Keep reader
+payment/finish/rest/day/rebind checks and update focused negative coverage.
+Independently review, run focused and offline Candidate, commit/push, then
+freeze a new candidate and perform only the affected native sequence. Do not
+count batch92's 411 difference alone as proof of the credit callsite or
+declare F10 qualified. Continue F09/F10/F11 and selected private 7E when
+their actual gates permit.
+
 ## Active October 20 after batch91 — retrain finish-boundary diagnostic pending
 
 The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.

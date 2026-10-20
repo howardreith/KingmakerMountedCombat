@@ -1,5 +1,17 @@
 # Chunk 7B–7D — IN PROGRESS
 
+## October 20 — batch92 retrain refund discriminator, original FAIL
+
+[Batch92](docs/CHUNK7-BATCH92-RETRAIN-REFUND-DISCRIMINATOR-2026-10-20.md)
+froze pushed `53e7188d` as world105. Fresh mounted Small Manual 5/0 and
+separate cold 3/0 passed. The retrain observer recorded a native-phase 411
+money credit between its initial zero-refund estimate and the first native
+finish entry; its frozen estimate rejected finish and rebind. The original
+outer result remains **FAIL**, with no Manual or terminal game result. Mods,
+protected saves, Params and preferences were restored; three achievement
+cache changes are recorded exceptions. F10 retrain remains open pending an
+exact native credit observation and reviewed observer/reader correction.
+
 ## October 20 — batch91 native Small retrain observer/cleanup FAIL
 
 [Batch91](docs/CHUNK7-BATCH91-SMALL-RETRAIN-2026-10-20.md) froze pushed
