@@ -94,6 +94,38 @@ namespace KingmakerMountedCombat.Diagnostics
                 .OrderBy(d => mounts.Sum(m => Distance(m.Position, d.transform.position))).FirstOrDefault();
         }
 
+        // Read-only area-fixture inventory. This does not acquire, close or click a
+        // door, and it cannot turn an absent fixture into door qualification.
+        internal static JObject CaptureAreaDoorInventory(UnitEntityData[] mounts)
+        {
+            Require(mounts != null && mounts.Length == 2 && mounts.All(m => m?.View?.AgentASP != null),
+                "Door inventory requires the two live mounted movement actors.");
+            var doors = UnityEngine.Object.FindObjectsOfType<StandardDoor>() ?? new StandardDoor[0];
+            Require(doors.Length <= 100000, "Native door inventory exceeded its read-only bound.");
+            var present = doors.Where(d => d != null).ToArray();
+            var rows = new JArray();
+            foreach (var door in present
+                .OrderBy(d => mounts.Sum(m => Distance(m.Position, d.transform.position)))
+                .ThenBy(d => d.name, StringComparer.Ordinal).Take(32))
+            {
+                var near = mounts.Select(m => Distance(m.Position, door.transform.position)).ToArray();
+                var cut = door.GetComponentInChildren<NavmeshCut>();
+                var active = door.isActiveAndEnabled && door.gameObject.activeInHierarchy;
+                var open = door.GetState();
+                var eligible = active && open && door.DisableNavmeshCutWhenOpen && cut != null &&
+                    near.All(distance => distance > Radius(door) + 0.5f && distance <= ScanRadius);
+                rows.Add(new JObject { ["name"] = door.name, ["position"] = Point(door.transform.position),
+                    ["active"] = active, ["open"] = open, ["disableCutWhenOpen"] = door.DisableNavmeshCutWhenOpen,
+                    ["cutPresent"] = cut != null, ["proximityRadius"] = Radius(door),
+                    ["mountDistances"] = new JArray(near[0], near[1]), ["eligible"] = eligible });
+            }
+            return new JObject { ["boundary"] = "before-first-continuation", ["candidateCount"] = present.Length, ["rowLimit"] = 32,
+                ["radius"] = ScanRadius, ["mounts"] = new JArray(mounts.Select(m => new JObject {
+                    ["id"] = m.UniqueId, ["position"] = Point(m.Position) })),
+                ["truncated"] = present.Length > 32, ["rows"] = rows,
+                ["interactionTested"] = false };
+        }
+
         internal bool Poll()
         {
             if (Completed) return true;

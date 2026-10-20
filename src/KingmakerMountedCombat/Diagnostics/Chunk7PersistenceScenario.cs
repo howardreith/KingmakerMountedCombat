@@ -246,7 +246,9 @@ namespace KingmakerMountedCombat.Diagnostics
                         evidence["combatContinuation"] = checkpoint.Capture();
                         Pass("C7-persistence-native-combat-continuation"); BeginCleanup(); break;
                     case 10:
-                        AssertOwners(); Move(firstRider, firstMount, AreaAutosaveCase ? SelectAreaContinuationGoal(firstMount, "first-pair") : firstMount.Position + Vector3.right * 2f, secondRider, "first-pair"); Next(11); break;
+                        AssertOwners();
+                        if (AreaAutosaveCase) evidence["areaDoorInventory"] = Chunk7NativeDoorProbe.CaptureAreaDoorInventory(new[] { firstMount, secondMount });
+                        Move(firstRider, firstMount, AreaAutosaveCase ? SelectAreaContinuationGoal(firstMount, "first-pair") : firstMount.Position + Vector3.right * 2f, secondRider, "first-pair"); Next(11); break;
                     case 11:
                         AssertOwners(); if (!MovementSettled()) return;
                         Move(secondRider, secondMount, AreaAutosaveCase ? SelectAreaContinuationGoal(secondMount, "second-pair") : secondMount.Position + Vector3.forward * 2f, firstRider, "second-pair"); Next(12); break;

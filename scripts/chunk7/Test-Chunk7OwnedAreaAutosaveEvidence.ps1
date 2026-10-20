@@ -108,6 +108,20 @@ function New-ColdArea {
  [pscustomobject]@{parent=$source;request=$r;artifact=$cold.artifact;source=[pscustomobject]@{checkpointArtifactPath=$p;checkpointArtifactSha256=$sha;checkpointArtifactLength=[long](Get-Item -LiteralPath $p).Length}}
 }
 Check-Area 'exact destination Auto cold graph with original source area' {$f=New-ColdArea;Assert-KmcChunk7OwnedAreaColdSource $f.source $f.request $f.artifact}
+Check-Area 'cold area accepts a bounded read-only door inventory' {
+ $f=New-ColdArea;$m=$f.artifact.observations.movements
+ Put-Area $f.artifact.observations areaDoorInventory ([pscustomobject]@{boundary='before-first-continuation';candidateCount=0;rowLimit=32;radius=28.0;
+    mounts=@([pscustomobject]@{id=$m[0].executorId;position=(Clone-Area $m[0].start)},[pscustomobject]@{id=$m[1].executorId;position=(Clone-Area $m[1].start)});
+    truncated=$false;rows=@();interactionTested=$false})
+ Assert-KmcChunk7OwnedAreaColdSource $f.source $f.request $f.artifact
+}
+Check-Area 'cold area rejects a forged door-interaction claim' {
+ $f=New-ColdArea;$m=$f.artifact.observations.movements
+ Put-Area $f.artifact.observations areaDoorInventory ([pscustomobject]@{boundary='before-first-continuation';candidateCount=0;rowLimit=32;radius=28.0;
+    mounts=@([pscustomobject]@{id=$m[0].executorId;position=(Clone-Area $m[0].start)},[pscustomobject]@{id=$m[1].executorId;position=(Clone-Area $m[1].start)});
+    truncated=$false;rows=@();interactionTested=$true})
+ Assert-KmcChunk7OwnedAreaColdSource $f.source $f.request $f.artifact
+} $true
 $badCold=[ordered]@{
  'cold same process'={param($f)$f.artifact.observations.processId=$f.parent.artifact.observations.processId}
  'cold wrong descriptor area'={param($f)$f.request.persistenceLoad.area=$f.request.ownedPairs.sourceArea}
