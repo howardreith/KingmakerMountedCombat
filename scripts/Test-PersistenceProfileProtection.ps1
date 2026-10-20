@@ -99,6 +99,14 @@ try{
     $rejected=$false
     try{[void](Wait-KmcPersistenceProfileUnchanged -Snapshot $snapshot -MaximumWaitMilliseconds 0)}catch{$rejected=$true}
     if(-not$rejected){throw 'An unsettled native cache was accepted without waiting.'};$passes++
+    $lookalike='achievements.dat'+[char]0xd800+'@'
+    $sameDisplay='achievements.dat'+[char]0xfffd+'@'
+    $prior=[pscustomobject]@{entries=@([pscustomobject]@{kind='file';path=$sameDisplay;length=0;sha256='e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'})}
+    $later=[pscustomobject]@{entries=@($prior.entries+[pscustomobject]@{kind='file';path=$lookalike;length=0;sha256='e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'})}
+    $detail='';try{[void](Get-KmcPersistenceProfileCacheDelta $prior $later)}catch{$detail=$_.Exception.Message}
+    if($detail-notmatch'utf16=.*d800,0040; beforeExact=0; afterExact=1 0$'){
+        throw 'A distinct native cache name with a lossy display did not retain its exact UTF-16/membership diagnosis.'
+    };$passes++
     $secondAch=Join-Path $profile 'achievements.dat~'
     try{
         [IO.File]::WriteAllBytes($secondAch,(New-Object byte[] 4096))

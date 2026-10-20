@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using Kingmaker;
 using Kingmaker.EntitySystem.Entities;
 
@@ -111,9 +112,14 @@ namespace KingmakerMountedCombat.Diagnostics
                 // is allowed; a same-ID replacement or a new view on a live actor is not.
                 if (!entry.Actor.IsInState && !live.Any(x => ReferenceEquals(x, entry.Actor))) continue;
                 // A newly acquired pet may materialize its first view after creation.
-                if (entry.View == null) entry.View = entry.Actor.View;
-                else if (!ReferenceEquals(entry.View, entry.Actor.View))
-                    throw new InvalidOperationException("Captured live native view changed; diagnostic custody remains retained.");
+                var observedView = entry.Actor.View;
+                if (entry.View == null) entry.View = observedView;
+                else if (!ReferenceEquals(entry.View, observedView))
+                    throw new InvalidOperationException("Captured live native view changed; diagnostic custody remains retained." +
+                        " actor=" + entry.Id + "; priorViewRef=" + RuntimeHelpers.GetHashCode(entry.View).ToString("x8") +
+                        "; currentViewRef=" + (ReferenceEquals(observedView, null) ? "null" : RuntimeHelpers.GetHashCode(observedView).ToString("x8")) +
+                        "; actorInState=" + entry.Actor.IsInState +
+                        "; exactLiveActor=" + live.Any(x => ReferenceEquals(x, entry.Actor)));
             }
         }
     }
