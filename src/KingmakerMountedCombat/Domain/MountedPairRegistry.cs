@@ -100,6 +100,14 @@ namespace KingmakerMountedCombat.Domain
 
         internal void RetireSettled()
         {
+            // Update checks retirement every frame. Reserved and active owners
+            // cannot settle here, so avoid a roster copy, callback and error
+            // array until there is actual detached custody to examine.
+            var detached = false;
+            for (var index = 0; index < owners.Count; index++)
+                if (owners[index].State == MountedPairOwnershipState.Detached)
+                { detached = true; break; }
+            if (!detached) return;
             var errors = VisitOwners(owner =>
             {
                 if (owner.State != MountedPairOwnershipState.Detached || owner.RetainsObligations()) return;
