@@ -224,5 +224,33 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["owners"] = restored["owners"], ["slots"] = restored["slots"], ["unrelated"] = unrelatedRows };
             Pass("C7-persistence-owner-seed-derived-cold-identity");
         }
+        // Area entry reminted both owner identities. Compare against this Manual's own
+        // post-entry producer boundary, never the earlier owner-seed Manual boundary.
+        private void ObserveManticoreManualCold()
+        {
+            Require(request.OwnedPairs.IsOwnerSeedDerivedLoad && Cold && inherited != null && inherited.Bound && saved != null,
+                "Manticore Manual cold proof requires the exact restored producer graph.");
+            var restored = inherited.VerifyRestoredOwnerSeedPairs(saved, world, controls.CapturePersistentSlots());
+            var pairIds = actors.Select(actor => actor.UniqueId).ToArray();
+            var unrelatedIds = inherited.Party.Where(actor => !pairIds.Contains(actor.UniqueId))
+                .Select(actor => actor.UniqueId).OrderBy(id => id, StringComparer.Ordinal).ToArray();
+            Require(unrelatedIds.Length == request.OwnedPairs.PartyIds.Length - 4 &&
+                unrelatedIds.SequenceEqual(request.OwnedPairs.PartyIds.Where(id => !pairIds.Contains(id)).OrderBy(id => id, StringComparer.Ordinal)),
+                "Manticore cold load lost an unrelated field actor.");
+            // The Manticore producer recorded paired native debt, but no pre-save
+            // unrelated debt. This row proves unrelated membership, not debt continuity.
+            evidence["manticoreManualCold"] = new JObject { ["contract"] = "manticore-native-manual-cold-v1",
+                ["ancestry"] = Chunk7WorldScenarioEngine.OwnerSeedDerivedAncestry,
+                ["sourceRunId"] = request.OwnedPairs.SourceRunId,
+                ["sourceArtifactSha256"] = request.OwnedPairs.SourceArtifactSha256,
+                ["sourceArchiveSha256"] = request.OwnedPairs.SourceArchiveSha256,
+                ["seedSha256"] = request.OwnedPairs.SeedSha256,
+                ["sourceArea"] = Chunk7OwnedPairsSelection.ManticoreFixtureArea,
+                ["producerProcessId"] = restored["producerProcessId"],
+                ["loadedEqualsProducerReadback"] = restored["loadedEqualsProducerReadback"],
+                ["owners"] = restored["owners"], ["slots"] = restored["slots"],
+                ["unrelatedActorIds"] = new JArray(unrelatedIds) };
+            Pass("C7-persistence-manticore-manual-cold-identity");
+        }
     }
 }

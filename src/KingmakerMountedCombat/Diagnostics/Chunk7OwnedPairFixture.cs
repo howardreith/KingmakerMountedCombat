@@ -143,6 +143,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 Hash(sourcePath) == selection.SourceArtifactSha256, "Exact staged two-owner Manual receipt is absent or changed.");
             sourceLength = file.Length; sourceTicks = file.LastWriteTimeUtc.Ticks;
             var artifact = JObject.Parse(File.ReadAllText(sourcePath)); observations = artifact["observations"] as JObject;
+            if (Chunk7OwnedPairsSelection.IsManticoreManualCold(request.PersistenceCase)) { ReadManticoreManualSource(artifact); return; }
             if (selection.OwnerSeedDerivedLineage) { ReadOwnerSeedDerivedSource(artifact); return; }
             var originalArea = request.PersistenceCase == "multi-area-autosave" ? selection.SourceArea : request.PersistenceLoad.Area;
             Require((string)artifact["scenario"] == Chunk7AcquiredManualSelection.Scenario && (string)artifact["evidenceKind"] == Chunk7AcquiredManualScenario.EvidenceKind &&
@@ -179,6 +180,83 @@ namespace KingmakerMountedCombat.Diagnostics
         // Combat may run a later candidate than its producer: the producer's own recorded
         // identity is kept (the runner pins both receipts by theirs) and disclosed here.
         internal JObject OwnerSeedCandidates { get; private set; }
+        private void ReadManticoreManualSource(JObject artifact)
+        {
+            var input = request.PersistenceLoad;
+            var write = observations?["nativeWrite"] as JObject;
+            var preparation = observations?["manticoreFixturePreparation"] as JObject;
+            var after = preparation?["afterSave"] as JObject;
+            var field = after?["field"] as JObject;
+            var native = after?["native"] as JObject;
+            var inherited = observations?["inheritedFixture"] as JObject;
+            var custody = field?["custody"] as JObject;
+            var archive = write?["archive"] as JObject;
+            var recordedCandidate = System.Text.RegularExpressions.Regex.IsMatch((string)artifact["commit"] ?? "", "^[a-f0-9]{40}$") &&
+                System.Text.RegularExpressions.Regex.IsMatch((string)artifact["dllSha256"] ?? "", "^[a-f0-9]{64}$") &&
+                Guid.TryParse((string)artifact["dllMvid"], out var producerMvid) && producerMvid != Guid.Empty;
+            Require((string)artifact["scenario"] == Chunk7OwnedPairsSelection.Scenario &&
+                (string)artifact["evidenceKind"] == "chunk7-persistence-evidence" &&
+                (string)artifact["runId"] == selection.SourceRunId && (string)artifact["status"] == "PASS" &&
+                artifact["errors"] is JArray errors && errors.Count == 0 && recordedCandidate &&
+                (string)observations?["checkpoint"] == Chunk7OwnedPairsSelection.ManticoreFixtureCheckpoint &&
+                (string)preparation?["contract"] == "owner-seed-manticore-fixture-v1" &&
+                (string)preparation?["completedArchiveSha256"] == selection.SourceArchiveSha256 &&
+                (string)write["sha256"] == selection.SourceArchiveSha256 &&
+                (string)write["nativeName"] == Chunk7OwnedPairsSelection.ManticoreFixtureManualName &&
+                (string)write["nativeType"] == "Manual" && Path.GetFileName((string)write["path"]) == input.FileName &&
+                archive != null && (int?)archive["SchemaVersion"] == MountedArchiveData.Schema &&
+                (string)archive["CampaignId"] == input.GameId && (string)archive["AreaId"] == Chunk7OwnedPairsSelection.ManticoreFixtureArea &&
+                field != null && native != null && inherited != null && custody != null &&
+                (string)field["area"] == input.Area && (string)after?["area"] == input.Area &&
+                (string)custody["sourceCase"] == Chunk7OwnedPairsSelection.OwnerSeedManualCase &&
+                (string)observations["ownerSeedCheckpointSource"]?["manualSha256"] != selection.SourceArchiveSha256 &&
+                observations["processId"]?.Type == JTokenType.Integer,
+                "Staged Manticore Manual lacks its distinct successful producer, saved graph or native area identity.");
+            var actors = field["actors"] as JArray;
+            var pairRows = custody["pairs"] as JArray;
+            var nativeOwners = native["owners"] as JArray;
+            var archivePairs = archive["Pairs"] as JArray;
+            var archiveSlots = archive["Slots"] as JArray;
+            var activeSlots = after["activeSlots"] as JArray;
+            var partyIds = custody["partyIds"] as JArray;
+            Require(actors != null && actors.Count == selection.PartyIds.Length && partyIds != null && partyIds.Count == actors.Count &&
+                selection.PartyIds.All(id => actors.Count(row => (string)row["id"] == id && row["blueprint"] != null) == 1 &&
+                    partyIds.Count(row => (string)row == id) == 1) &&
+                pairRows != null && pairRows.Count == 2 && nativeOwners != null && nativeOwners.Count == 2 &&
+                archivePairs != null && archivePairs.Count == 2 && archiveSlots != null && activeSlots != null &&
+                JToken.DeepEquals(archiveSlots, activeSlots) &&
+                (long?)native["gameTicks"] == (long?)archive["GameTimeTicks"] &&
+                JToken.DeepEquals(custody["arrangement"], inherited["arrangement"]),
+                "Manticore saved field, native owner, slot or arrangement custody differs from its producer.");
+            sourceWorld = new JObject { ["gameId"] = input.GameId, ["area"] = input.Area,
+                ["mainActorId"] = selection.RiderAId,
+                ["party"] = new JArray(actors.Select(row => new JObject { ["id"] = row["id"], ["blueprint"] = row["blueprint"] })) };
+            ownerRows = new JObject[2];
+            var boundaryPairs = new JArray();
+            for (var index = 0; index < 2; index++)
+            {
+                var rider = selection.PairIds[index * 2]; var mount = selection.PairIds[index * 2 + 1];
+                var row = pairRows[index] as JObject;
+                var savedPair = archivePairs.Single(pair => (string)pair["Rider"]?["Id"] == rider && (string)pair["Mount"]?["Id"] == mount);
+                var nativeOwner = nativeOwners.Single(owner => (string)owner["riderId"] == rider && (string)owner["mountId"] == mount);
+                Require(row != null && (string)row["riderId"] == rider && (string)row["mountId"] == mount &&
+                    (string)row["profileId"] == (string)savedPair["ProfileId"] &&
+                    (string)nativeOwner["ownerId"] == (string)savedPair["PairId"] &&
+                    (long?)nativeOwner["generation"] == (long?)savedPair["Generation"] &&
+                    (string)nativeOwner["state"] == "Active", "Manticore producer reminted or mismatched an owned pair.");
+                ownerRows[index] = new JObject { ["sourceGuid"] = row["sourceGuid"],
+                    ["featureGuid"] = HorseCompanionBlueprintService.FeatureGuid, ["rank"] = row["rank"] };
+                boundaryPairs.Add(new JObject { ["ownerId"] = nativeOwner["ownerId"], ["generation"] = nativeOwner["generation"],
+                    ["riderId"] = rider, ["mountId"] = mount, ["profileId"] = savedPair["ProfileId"] });
+            }
+            sourceArrangement = custody["arrangement"] as JObject;
+            Require(sourceArrangement != null, "Manticore Manual lacks native progression custody.");
+            OwnerSeedBoundary = new JObject { ["gameTicks"] = native["gameTicks"], ["pairs"] = boundaryPairs,
+                ["slots"] = new JArray(archiveSlots.Select(slot => new JObject { ["actorId"] = slot["ActorId"],
+                    ["index"] = slot["Index"], ["kind"] = slot["Kind"] })) };
+            OwnerSeedArchive = archive;
+            OwnerSeedProcessId = (int)observations["processId"];
+        }
         private void ReadOwnerSeedDerivedSource(JObject artifact)
         {
             var input = request.PersistenceLoad; var manual = observations?["ownerSeedManual"] as JObject; var write = observations?["nativeWrite"] as JObject;
@@ -300,7 +378,9 @@ namespace KingmakerMountedCombat.Diagnostics
             var derived = selection.OwnerSeedDerivedLineage;
             return new JObject { ["contract"] = derived ? "owner-seed-derived-two-horse-native-field-v1" : "inherited-two-horse-native-field-v1", ["phase"] = phase,
                 ["sourceRunId"] = selection.SourceRunId, ["sourceArtifactSha256"] = selection.SourceArtifactSha256,
-                ["sourceArchiveSha256"] = selection.SourceArchiveSha256, ["sourceCase"] = derived ? Chunk7OwnedPairsSelection.OwnerSeedManualCase : Chunk7OwnedPairsSelection.SourceCase,
+                ["sourceArchiveSha256"] = selection.SourceArchiveSha256, ["sourceCase"] =
+                    Chunk7OwnedPairsSelection.IsManticoreManualCold(request.PersistenceCase) ? Chunk7OwnedPairsSelection.ManticoreFixtureCheckpoint :
+                    derived ? Chunk7OwnedPairsSelection.OwnerSeedManualCase : Chunk7OwnedPairsSelection.SourceCase,
                 ["nativeLoadVerifiedByHost"] = true, ["decodedReceiptAuthorizesRestoration"] = false,
                 ["inheritedPetsPreserved"] = true, ["ownedFactRemovalCount"] = 0,
                 ["partyIds"] = new JArray(Party.Select(actor => actor.UniqueId)),

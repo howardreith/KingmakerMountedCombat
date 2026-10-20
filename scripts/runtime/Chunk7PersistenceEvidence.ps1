@@ -45,11 +45,11 @@ function Assert-KmcChunk7NativeCounters($Value,[string[]]$Fields) {
 . (Join-Path $PSScriptRoot 'Chunk7CurrentMigrationEvidence.ps1')
 . (Join-Path $PSScriptRoot 'Chunk7RepeatedWorldEvidence.ps1')
 . (Join-Path $PSScriptRoot 'Chunk7SaveBoundaryEvidence.ps1')
-function Get-KmcChunk7PersistenceCases { @('multi-exploration-manual','multi-exploration-quick','multi-exploration-auto','multi-rt-debt-manual','multi-tb-debt-manual','zero-mounted-tb-retained-manual','legacy-mounted-pending-tb-manual','pending-schema3-control-manual','multi-area-autosave','legacy-schema1-resave-manual','multi-exploration-three-loads-manual','multi-exploration-three-area-transfers-manual','multi-nonselected-mount-unsettled-manual','multi-owned-worker-cancel-manual','owned-schema1-manual','owned-schema1-resave-manual','owned-schema1-current-manual','owned-schema2-pending-current-manual','multi-malformed-refusal-manual','multi-future-refusal-manual','owner-seed-manticore-fixture-manual') }
+function Get-KmcChunk7PersistenceCases { @('multi-exploration-manual','multi-exploration-quick','multi-exploration-auto','multi-rt-debt-manual','multi-tb-debt-manual','zero-mounted-tb-retained-manual','legacy-mounted-pending-tb-manual','pending-schema3-control-manual','multi-area-autosave','legacy-schema1-resave-manual','multi-exploration-three-loads-manual','multi-exploration-three-area-transfers-manual','multi-nonselected-mount-unsettled-manual','multi-owned-worker-cancel-manual','owned-schema1-manual','owned-schema1-resave-manual','owned-schema1-current-manual','owned-schema2-pending-current-manual','multi-malformed-refusal-manual','multi-future-refusal-manual','owner-seed-manticore-fixture-manual','manticore-fixture-cold-manual') }
 function Test-KmcChunk7PersistenceScenario([string]$Scenario) { $Scenario -cin @('chunk7-persistence-save','chunk7-persistence-load') }
 function Get-KmcChunk7PersistenceRows {
     @('chunk7-persistence-save','chunk7-persistence-load','C7-persistence-two-native-mounts','C7-persistence-native-category-all-pair-archive',
-      'C7-persistence-cold-all-pair-identity-and-no-prepare','C7-persistence-nonselected-mount-save-deferral','C7-persistence-owned-worker-cancel-drain','C7-persistence-three-native-loads','C7-persistence-three-native-area-transfers','C7-persistence-owned-schema1-source','C7-persistence-owner-seed-restored-start','C7-persistence-schema1-native-restoration','C7-persistence-schema1-native-resave','C7-persistence-schema2-native-resave','C7-persistence-native-continuation','C7-persistence-all-pair-area-before-autosave','C7-persistence-one-native-mount-legacy-source','C7-persistence-native-combat-continuation','C7-persistence-cleanup','C7-persistence-runtime','C7-persistence-interrupted','C7-persistence-owner-seed-derived-cold-identity','C7-persistence-current-migration-native-load','C7-persistence-current-migration-continuation','C7-persistence-real-entry-load-refusal','C7-persistence-manticore-fixture-native-manual')
+      'C7-persistence-cold-all-pair-identity-and-no-prepare','C7-persistence-nonselected-mount-save-deferral','C7-persistence-owned-worker-cancel-drain','C7-persistence-three-native-loads','C7-persistence-three-native-area-transfers','C7-persistence-owned-schema1-source','C7-persistence-owner-seed-restored-start','C7-persistence-schema1-native-restoration','C7-persistence-schema1-native-resave','C7-persistence-schema2-native-resave','C7-persistence-native-continuation','C7-persistence-all-pair-area-before-autosave','C7-persistence-one-native-mount-legacy-source','C7-persistence-native-combat-continuation','C7-persistence-cleanup','C7-persistence-runtime','C7-persistence-interrupted','C7-persistence-owner-seed-derived-cold-identity','C7-persistence-current-migration-native-load','C7-persistence-current-migration-continuation','C7-persistence-real-entry-load-refusal','C7-persistence-manticore-fixture-native-manual','C7-persistence-manticore-manual-cold-identity')
 }
 function Get-KmcChunk7PersistenceType([string]$Case) {
     if($Case-cnotin(Get-KmcChunk7PersistenceCases)){throw 'Undeclared Chunk 7 native persistence case.'}
@@ -64,7 +64,7 @@ function Get-KmcChunk7PersistenceLeaf([string]$Case) {
     return ($type+'_1.zks')
 }
 function Get-KmcChunk7ExpectedArchiveArea($Request) {
-    if($Request.persistenceCase-ceq'owner-seed-manticore-fixture-manual'){Assert-KmcChunk7ManticoreSelection $Request;return '314e8c3b15b896a4f847c85f9250f02b'}
+    if($Request.persistenceCase-cin@('owner-seed-manticore-fixture-manual','manticore-fixture-cold-manual')){if($Request.persistenceCase-ceq'owner-seed-manticore-fixture-manual'){Assert-KmcChunk7ManticoreSelection $Request}else{Assert-KmcChunk7OwnedPairsDescriptor $Request};return '314e8c3b15b896a4f847c85f9250f02b'}
     if($Request.persistenceCase-ceq'multi-area-autosave'){Assert-KmcChunk7AreaTarget $Request;return [string]$Request.persistenceAreaTarget.area}
     return [string](Get-KmcChunk7SelectedFixture $Request).area
 }
@@ -166,6 +166,7 @@ function Assert-KmcChunk7PersistenceObservation($Request,$Artifact,[string]$Stat
     Assert-KmcChunk7NativeCounters $Artifact @('schemaVersion')
     if($Status-cne'PASS'){return}
     if($null-ne$Artifact.observations.PSObject.Properties['manticoreFixturePreparation']-and-not(Test-KmcChunk7ManticoreFixture $Request)){throw 'Another persistence case supplied Manticore fixture preparation.'}
+    if($null-ne$Artifact.observations.PSObject.Properties['manticoreManualCold']-and-not(Test-KmcChunk7ManticoreManualCold $Request)){throw 'Another persistence case supplied Manticore Manual cold proof.'}
     if(Test-KmcChunk7OwnerSeedCurrentCheckpoint $Request.persistenceCase){Assert-KmcChunk7CurrentMigrationObservation $Request $Artifact;return}
     if(Test-KmcOwnedSchema1Case $Request.persistenceCase){Assert-KmcOwnedSchema1Observation $Request $Artifact;return}
     if(Test-KmcChunk7RepeatedWorldCase $Request.persistenceCase){Assert-KmcChunk7RepeatedWorldObservation $Request $Artifact;return}
@@ -197,7 +198,8 @@ function Assert-KmcChunk7PersistenceObservation($Request,$Artifact,[string]$Stat
     if(-not$seedCheckpointSave-and($null-ne$o.PSObject.Properties['mountedStart']-or$null-ne$o.PSObject.Properties['ownerSeedCheckpointSource']-or$null-ne$o.PSObject.Properties['ownerSeedCheckpointPreparation'])){throw 'Only the owner-seed checkpoint producer may carry a restored mounted start or native preparation.'}
     # Owner-seed-derived cold load: the restored world compared with its pinned producer runtime.
     $derivedCold=$owned-and$cold-and((Test-KmcChunk7OwnedPairsSeedDerivedLoad $Request)-or(Test-KmcChunk7LoadRefusal $Request))
-    if($derivedCold){Assert-KmcChunk7OwnerSeedDerivedColdObservation $Request $o $archive}elseif($null-ne$o.PSObject.Properties['ownerSeedDerivedCold']){throw 'Only the owner-seed-derived consumer may carry its cold proof.'}
+    if(Test-KmcChunk7ManticoreManualCold $Request){Assert-KmcChunk7ManticoreManualColdObservation $Request $o $archive
+    }elseif($derivedCold){Assert-KmcChunk7OwnerSeedDerivedColdObservation $Request $o $archive}elseif($null-ne$o.PSObject.Properties['ownerSeedDerivedCold']){throw 'Only the owner-seed-derived consumer may carry its cold proof.'}
     $label=if($cold){'cold-restored-before-input'}else{'native-write-complete'}
     $snapshot=@($o.snapshots|Where-Object label -CEQ $label)
     if($snapshot.Count-ne1){throw 'Exact archive completion snapshot is missing or duplicated.'}

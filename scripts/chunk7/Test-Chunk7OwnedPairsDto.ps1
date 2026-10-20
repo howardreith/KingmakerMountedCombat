@@ -95,6 +95,26 @@ $actual=[KingmakerMountedCombat.Tests.OwnedPairsDtoTests]::Project(($p|ConvertTo
 if((ConvertTo-KmcChunk7Canonical $actual.selection)-cne(ConvertTo-KmcChunk7Canonical $p.ownedPairs)){throw 'Owner-seed-derived consumer DTO keys/types differ'};$pass++
 if($actual.scenario-cne'chunk7-persistence-load'-or$actual.expectedWriteCount-ne0-or$actual.expectedLoadType-cne'Manual'-or(Get-KmcChunk7OwnedWriteCount $p)-ne0){throw 'Owner-seed-derived consumer DTO selected another runtime scenario, quota or input'};$pass++
 $p.ownedPairs=$actual.selection;Assert-KmcChunk7OwnedPairsDescriptor $p;$pass++
+$m=$p|ConvertTo-Json -Depth 90|ConvertFrom-Json
+$m.persistenceCase='manticore-fixture-cold-manual'
+$m.ownedPairs.sourceRunId='synthetic-manticore-producer'
+$m.ownedPairs|Add-Member -NotePropertyName sourceArea -NotePropertyValue '314e8c3b15b896a4f847c85f9250f02b'
+$m.persistenceLoad.internalName='KMC_C7_AREA_FIXTURE'
+$m.persistenceLoad.fileName='Manual_305_KMC_C7_AREA_FIXTURE.zks'
+$m.persistenceLoad.area=$m.ownedPairs.sourceArea
+$actual=[KingmakerMountedCombat.Tests.OwnedPairsDtoTests]::Project(($m|ConvertTo-Json -Depth 90))|ConvertFrom-Json
+if((ConvertTo-KmcChunk7Canonical $actual.selection)-cne(ConvertTo-KmcChunk7Canonical $m.ownedPairs)-or$actual.scenario-cne'chunk7-persistence-load'-or
+   $actual.expectedWriteCount-ne0-or$actual.expectedLoadType-cne'Manual'-or$actual.fixtureArea-cne$m.ownedPairs.sourceArea){throw 'Manticore cold DTO changed source, area, load category or write quota'};$pass++
+$m.ownedPairs=$actual.selection;Assert-KmcChunk7OwnedPairsDescriptor $m;$pass++
+foreach($mutation in @('wrong-area','wrong-name','extra-checkpoint')){
+ $q=$m|ConvertTo-Json -Depth 90|ConvertFrom-Json
+ if($mutation-ceq'wrong-area'){$q.ownedPairs.sourceArea='b10e86516b6437d45a629931c30936fe'}
+ elseif($mutation-ceq'wrong-name'){$q.persistenceLoad.fileName='Manual_305_KMC_C7_SEED_WORLD.zks'}
+ else{$q.ownedPairs|Add-Member -NotePropertyName checkpointSourceRunId -NotePropertyValue 'unrelated-checkpoint'}
+ $typed=$false;try{[void][KingmakerMountedCombat.Tests.OwnedPairsDtoTests]::Project(($q|ConvertTo-Json -Depth 90))}catch{$typed=$true}
+ $reader=$false;try{Assert-KmcChunk7OwnedPairsDescriptor $q}catch{$reader=$true}
+ if(($mutation-cne'wrong-name'-and-not$typed)-or-not$reader){throw ('Manticore cold DTO admitted '+$mutation)};$pass++
+}
 foreach($mutation in @('xp-on-consumer','checkpoint-on-consumer')){
  $q=$p|ConvertTo-Json -Depth 90|ConvertFrom-Json
  if($mutation-ceq'xp-on-consumer'){$q.ownedPairs|Add-Member -NotePropertyName xpAssistance -NotePropertyValue ([pscustomobject]@{unitId=$s.riderBId;targetCharacterLevel=8})}else{$q.ownedPairs|Add-Member -NotePropertyName checkpointSourceRunId -NotePropertyValue 'synthetic-owned-checkpoint'}

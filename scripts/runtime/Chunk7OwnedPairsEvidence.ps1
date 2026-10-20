@@ -87,9 +87,12 @@ function Test-KmcChunk7OwnedPairsSeedDerivedInput($Request){(Test-KmcChunk7Owned
 function Test-KmcChunk7OwnedPairsSeedDerivedLineage($Request){(Test-KmcChunk7OwnedPairsSeedDerivedInput $Request)-or(Test-KmcChunk7OwnedPairsSeedCheckpointLoad $Request)}
 function Test-KmcChunk7OwnedPairsSeedSetup($Request){(Test-KmcChunk7OwnedPairsOwnerSeed $Request)-or(Test-KmcChunk7OwnedPairsSeedManual $Request)}
 function Get-KmcChunk7OwnerSeedManualName {'KMC_C7_SEED_WORLD'}
+function Test-KmcChunk7ManticoreManualCold($Request){(Test-KmcChunk7OwnedPairsSeedDerivedLoad $Request)-and$Request.persistenceCase-ceq'manticore-fixture-cold-manual'}
 function Assert-KmcChunk7OwnerSeedDerivedLoadSelection($Request,$Selection,$Checkpoint){
  $s=$Selection
- Assert-KmcExactProperties $s @('case','sourceRunId','sourceArtifactSha256','sourceArchiveSha256','seedId','seedSha256','riderAId','mountAId','riderBId','mountBId','partyIds','baseGameOnly','expectedNativeLoadCount','expectedNativeWriteCount') 'owner-seed-derived cold selection'
+ $manticore=$Checkpoint-ceq'manticore-fixture-cold-manual'
+ $fields=@('case','sourceRunId','sourceArtifactSha256','sourceArchiveSha256','seedId','seedSha256','riderAId','mountAId','riderBId','mountBId','partyIds','baseGameOnly','expectedNativeLoadCount','expectedNativeWriteCount');if($manticore){$fields+='sourceArea'}
+ Assert-KmcExactProperties $s $fields 'owner-seed-derived cold selection'
  if($Request.runId-isnot[string]-or$Request.runId-cnotmatch'^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$'){throw 'Owner-seed-derived consumer run identity is malformed.'}
  if($s.sourceRunId-isnot[string]-or$s.sourceRunId-cnotmatch'^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$'-or$s.sourceRunId-cin@($Request.runId,$s.seedId)){throw 'Owner-seed-derived cold load requires its exact distinct producer run.'}
  foreach($key in @('sourceArtifactSha256','sourceArchiveSha256','seedSha256')){if($s.$key-isnot[string]-or$s.$key-cnotmatch'^[a-f0-9]{64}$'){throw 'Owner-seed-derived cold load requires exact SHA256 pins.'}}
@@ -99,7 +102,8 @@ function Assert-KmcChunk7OwnerSeedDerivedLoadSelection($Request,$Selection,$Chec
  if($s.partyIds-isnot[Array]-or$s.partyIds.Count-lt4-or$s.partyIds.Count-gt12){throw 'Complete inherited field roster must be bounded.'}
  $party=[Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal);foreach($id in $s.partyIds){Assert-KmcOrdinaryGuid $id;if(-not$party.Add($id)){throw 'Inherited roster repeats an actor.'}}
  foreach($id in $ids){if(-not$party.Contains($id)){throw 'Inherited roster omits a selected pair role.'}}
- if($Checkpoint-isnot[string]-or$Checkpoint-cnotin@('multi-exploration-manual','multi-exploration-three-loads-manual')){throw 'Owner-seed-derived cold load requires its exact exploration Manual or bounded three-load case.'}
+ if($Checkpoint-isnot[string]-or$Checkpoint-cnotin@('multi-exploration-manual','multi-exploration-three-loads-manual','manticore-fixture-cold-manual')){throw 'Owner-seed-derived cold load requires its exact declared Manual or bounded three-load case.'}
+ if($manticore){Assert-KmcBootstrapInventoryString $s.sourceArea '314e8c3b15b896a4f847c85f9250f02b'}
  Assert-KmcChunk7Boolean $s.baseGameOnly $true;$loads=Get-KmcChunk7OwnedLoadCount $Request;Assert-KmcOrdinaryInteger $s.expectedNativeLoadCount $loads $loads;Assert-KmcOrdinaryInteger $s.expectedNativeWriteCount 0 0
 }
 function Assert-KmcChunk7OwnerSeedPairsSelection($Request,$Selection,$Checkpoint){
@@ -191,11 +195,12 @@ function Assert-KmcChunk7OwnedPairsDescriptor($Request){
  }
  if(Test-KmcChunk7OwnedPairsSeedDerivedInput $Request){
   # Exactly the producer's written owner-seed-derived Manual, never the immutable seed.
-  $name=Get-KmcChunk7OwnerSeedManualName;Assert-KmcBootstrapInventoryString $d.internalName $name
+  $name=if(Test-KmcChunk7ManticoreManualCold $Request){'KMC_C7_AREA_FIXTURE'}else{Get-KmcChunk7OwnerSeedManualName};Assert-KmcBootstrapInventoryString $d.internalName $name
   if($d.fileName-isnot[string]-or$d.fileName-cnotmatch('^Manual_([1-9][0-9]*)_'+$name+'\.zks$')){throw 'Owner-seed-derived native Manual name/number is not canonical.'}
   if($d.sha256-isnot[string]-or$d.sha256-cnotmatch'^[a-f0-9]{64}$'){throw 'Owner-seed-derived archive hash is malformed.'};Assert-KmcBootstrapInventoryString $d.sha256 $Request.ownedPairs.sourceArchiveSha256
   Assert-KmcOrdinaryGuid $d.gameId
   if($d.gameName-isnot[string]-or[string]::IsNullOrWhiteSpace($d.gameName)-or$d.gameName.Length-gt256-or$d.gameName-match'[\x00-\x1f\x7f]'-or$d.area-isnot[string]-or$d.area-cnotmatch'^[a-f0-9]{32}$'-or$d.gameId-ceq$Request.fixture.working.gameId-or$d.sha256-ceq$Request.fixture.working.sha256-or$d.sha256-ceq$Request.fixture.baseline.sha256-or$d.sha256-ceq$Request.ownedPairs.seedSha256){throw 'Owner-seed-derived campaign must remain distinct from protected Working/Baseline and the immutable seed.'}
+  if((Test-KmcChunk7ManticoreManualCold $Request)-and$d.area-cne$Request.ownedPairs.sourceArea){throw 'Manticore cold Manual is outside its exact saved source area.'}
   Assert-KmcOrdinaryInteger $d.length 1 268435456;Assert-KmcOrdinaryInteger $d.lastWriteTimeUtcTicks 1 ([DateTime]::MaxValue.Ticks);return
  }
  $cold=$Request.ownedPairs.case-ceq'persistence-load';$type=if($cold){Get-KmcChunk7PersistenceType $Request.persistenceCase}else{'Manual'}
@@ -217,7 +222,7 @@ function Assert-KmcChunk7InheritedSnapshot($Request,$Snapshot,[string]$Phase){
  Assert-KmcExactProperties $Snapshot @('contract','phase','sourceRunId','sourceArtifactSha256','sourceArchiveSha256','sourceCase','nativeLoadVerifiedByHost','decodedReceiptAuthorizesRestoration','inheritedPetsPreserved','ownedFactRemovalCount','partyIds','currentPartyIds','currentCharacterIds','remoteCapturedIds','arrangement','pairs','identities') 'inherited native custody'
  # Owner-seed-derived custody keeps its own labels; it is never relabelled acquired ancestry.
  $derived=Test-KmcChunk7OwnedPairsSeedDerivedLineage $Request
- $contract=if($derived){'owner-seed-derived-two-horse-native-field-v1'}else{'inherited-two-horse-native-field-v1'};$sourceCase=if($derived){'owner-seed-persistence-save'}else{'preserve-two-acquired-field'}
+ $contract=if($derived){'owner-seed-derived-two-horse-native-field-v1'}else{'inherited-two-horse-native-field-v1'};$sourceCase=if(Test-KmcChunk7ManticoreManualCold $Request){'owner-seed-manticore-fixture-manual'}elseif($derived){'owner-seed-persistence-save'}else{'preserve-two-acquired-field'}
  foreach($pair in @(@('contract',$contract),@('phase',$Phase),@('sourceCase',$sourceCase))){Assert-KmcBootstrapInventoryString $Snapshot.($pair[0]) $pair[1]}
  foreach($key in @('sourceRunId','sourceArtifactSha256','sourceArchiveSha256')){Assert-KmcBootstrapInventoryString $Snapshot.$key $Request.ownedPairs.$key}
  foreach($key in @('nativeLoadVerifiedByHost','inheritedPetsPreserved')){Assert-KmcChunk7Boolean $Snapshot.$key $true};Assert-KmcChunk7Boolean $Snapshot.decodedReceiptAuthorizesRestoration $false;Assert-KmcOrdinaryInteger $Snapshot.ownedFactRemovalCount 0 0
@@ -717,6 +722,57 @@ function Assert-KmcChunk7OwnerSeedDerivedColdSource($Request,$ProducerArtifact,$
  if(@($c.ownerSeedDerivedCold.unrelated).Count-ne@($m.boundary.unrelated).Count){throw 'Cold unrelated-actor custody differs from the producer runtime.'}
  if((ConvertTo-KmcChunk7Canonical $m.arrangement)-cne(ConvertTo-KmcChunk7Canonical $c.inheritedFixture.arrangement)-or(ConvertTo-KmcChunk7Canonical $m.arrangement)-cne(ConvertTo-KmcChunk7Canonical $c.inheritedCleanup.arrangement)){throw 'Cold process changed the producer class/XP/money arrangement.'}
  if((ConvertTo-KmcChunk7Canonical @($m.fieldWorld.party|ForEach-Object{$_.id}|Sort-Object -CaseSensitive))-cne(ConvertTo-KmcChunk7Canonical @($s.partyIds|Sort-Object -CaseSensitive))){throw 'Consumer field roster differs from the producer field.'}
+}
+# Distinct post-area Manual: batch54 reminted the owner identities. Its own
+# saved boundary is authoritative; the older owner-seed Manual is ancestry only.
+function Assert-KmcChunk7ManticoreManualColdObservation($Request,$Observations,$Archive){
+ if(-not(Test-KmcChunk7ManticoreManualCold $Request)){throw 'Manticore cold proof requires its exact declared consumer.'}
+ if($null-ne$Observations.PSObject.Properties['ownerSeedDerivedCold']){throw 'Manticore cold proof cannot masquerade as the original owner-seed Manual.'}
+ $c=$Observations.manticoreManualCold;$s=$Request.ownedPairs
+ Assert-KmcExactProperties $c @('contract','ancestry','sourceRunId','sourceArtifactSha256','sourceArchiveSha256','seedSha256','sourceArea','producerProcessId','loadedEqualsProducerReadback','owners','slots','unrelatedActorIds') 'Manticore Manual cold proof'
+ Assert-KmcBootstrapInventoryString $c.contract 'manticore-native-manual-cold-v1'
+ Assert-KmcBootstrapInventoryString $c.ancestry 'owner-seed-derived'
+ foreach($key in @('sourceRunId','sourceArtifactSha256','sourceArchiveSha256','seedSha256','sourceArea')){Assert-KmcBootstrapInventoryString $c.$key $s.$key}
+ Assert-KmcOrdinaryInteger $c.producerProcessId 1 ([int]::MaxValue)
+ if($c.producerProcessId-eq$Observations.processId){throw 'Manticore cold proof reused the producer process.'}
+ Assert-KmcChunk7Boolean $c.loadedEqualsProducerReadback $true
+ if(@($c.owners).Count-ne2-or@($c.slots).Count-ne@($Archive.Slots).Count){throw 'Manticore cold owner or slot count differs from the archive.'}
+ foreach($pair in $Archive.Pairs){$rows=@($c.owners|Where-Object{(ConvertTo-KmcChunk7PairIdN $_.ownerId)-ceq(ConvertTo-KmcChunk7PairIdN $pair.PairId)})
+  if($rows.Count-ne1-or$rows[0].generation-ne$pair.Generation-or$rows[0].riderId-cne$pair.Rider.Id-or$rows[0].mountId-cne$pair.Mount.Id){throw 'Manticore cold owner identity differs from the saved pair.'}}
+ foreach($slot in $c.slots){if(@($Archive.Slots|Where-Object{$_.ActorId-ceq$slot.actorId-and$_.Index-eq$slot.index-and$_.Kind-eq$slot.kind}).Count-ne1){throw 'Manticore cold slot differs from its saved graph.'}}
+ $savedSlots=@($Archive.Slots|ForEach-Object{$_.ActorId+':'+$_.Index+':'+$_.Kind}|Sort-Object -CaseSensitive)
+ $coldSlots=@($c.slots|ForEach-Object{$_.actorId+':'+$_.index+':'+$_.kind}|Sort-Object -CaseSensitive)
+ if(($savedSlots-join';')-cne($coldSlots-join';')){throw 'Manticore cold slots omit or duplicate a saved binding.'}
+ $roles=Get-KmcChunk7OwnedPairIds $Request
+ foreach($id in $c.unrelatedActorIds){Assert-KmcOrdinaryGuid $id}
+ Assert-KmcChunk7ExactIds @($c.unrelatedActorIds|ForEach-Object{[pscustomobject]@{id=$_}}) @($s.partyIds|Where-Object{$_-cnotin$roles})
+}
+function Assert-KmcChunk7ManticoreManualColdSource($Request,$ProducerArtifact,$ColdArtifact){
+ Assert-KmcChunk7OwnedPairsDescriptor $Request
+ if(-not(Test-KmcChunk7ManticoreManualCold $Request)){throw 'Manticore cold source requires its exact consumer.'}
+ $s=$Request.ownedPairs;$p=$ProducerArtifact.observations;$c=$ColdArtifact.observations
+ Assert-KmcBootstrapInventoryString $ProducerArtifact.runId $s.sourceRunId
+ Assert-KmcBootstrapInventoryString $ProducerArtifact.status 'PASS'
+ Assert-KmcBootstrapInventoryString $ProducerArtifact.evidenceKind 'chunk7-persistence-evidence'
+ Assert-KmcBootstrapInventoryString $p.checkpoint 'owner-seed-manticore-fixture-manual'
+ Assert-KmcBootstrapInventoryString $p.nativeWrite.sha256 $s.sourceArchiveSha256
+ Assert-KmcBootstrapInventoryString $p.nativeWrite.archive.AreaId $s.sourceArea
+ Assert-KmcBootstrapInventoryString $c.manticoreManualCold.sourceArchiveSha256 $s.sourceArchiveSha256
+ Assert-KmcBootstrapInventoryString $Request.persistenceLoad.sha256 $s.sourceArchiveSha256
+ if((ConvertTo-KmcChunk7Canonical $p.nativeWrite.archive)-cne(ConvertTo-KmcChunk7Canonical $c.loadedArchive)-or
+    $p.processId-eq$c.processId-or$p.processId-ne$c.manticoreManualCold.producerProcessId){throw 'Manticore cold process did not restore the producer read-back in a separate process.'}
+ $after=$p.manticoreFixturePreparation.afterSave
+ $produced=@($after.native.owners|ForEach-Object{(ConvertTo-KmcChunk7PairIdN $_.ownerId)+'|'+$_.generation+'|'+$_.riderId+'|'+$_.mountId}|Sort-Object -CaseSensitive)
+ $restored=@($c.manticoreManualCold.owners|ForEach-Object{(ConvertTo-KmcChunk7PairIdN $_.ownerId)+'|'+$_.generation+'|'+$_.riderId+'|'+$_.mountId}|Sort-Object -CaseSensitive)
+ if(($produced-join';')-cne($restored-join';')){throw 'Manticore cold owner identities or generations differ from the actual post-area producer.'}
+ $producedSlots=@($after.activeSlots|ForEach-Object{$_.ActorId+':'+$_.Index+':'+$_.Kind}|Sort-Object -CaseSensitive)
+ $restoredSlots=@($c.manticoreManualCold.slots|ForEach-Object{$_.actorId+':'+$_.index+':'+$_.kind}|Sort-Object -CaseSensitive)
+ if(($producedSlots-join';')-cne($restoredSlots-join';')){throw 'Manticore cold slots differ from the post-area producer.'}
+ foreach($key in @('inheritedFixture','inheritedCleanup')){
+  if((ConvertTo-KmcChunk7Canonical $after.field.custody.arrangement)-cne(ConvertTo-KmcChunk7Canonical $c.$key.arrangement)){throw 'Manticore cold load changed the post-area native progression arrangement.'}
+ }
+ if((ConvertTo-KmcChunk7Canonical @($after.field.actors|ForEach-Object{$_.id}|Sort-Object -CaseSensitive))-cne
+    (ConvertTo-KmcChunk7Canonical @($c.inheritedFixture.partyIds|Sort-Object -CaseSensitive))){throw 'Manticore cold field roster differs from the producer.'}
 }
 # Owner-seed-derived combat selection (scenarios 3-5): the producer and seed pins of the cold
 # consumer plus the ACCEPTED consumer receipt (checkpointSource*) and, for RT only, the companion.

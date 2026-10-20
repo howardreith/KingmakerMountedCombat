@@ -226,10 +226,12 @@ namespace KingmakerMountedCombat.Diagnostics
         internal static bool IsChunk7PersistenceCase(string value) => Array.IndexOf(new[] {
             "multi-exploration-manual", "multi-exploration-quick", "multi-exploration-auto", "multi-rt-debt-manual",
             "multi-tb-debt-manual", "zero-mounted-tb-retained-manual", "legacy-mounted-pending-tb-manual", "pending-schema3-control-manual", "multi-area-autosave", "legacy-schema1-resave-manual", "owned-schema1-manual", "owned-schema1-resave-manual", "owned-schema1-current-manual", "owned-schema2-pending-current-manual", "multi-exploration-three-loads-manual", "multi-exploration-three-area-transfers-manual",
-            "multi-nonselected-mount-unsettled-manual", "multi-owned-worker-cancel-manual", "multi-malformed-refusal-manual", "multi-future-refusal-manual", Chunk7OwnedPairsSelection.ManticoreFixtureCheckpoint }, value) >= 0;
+            "multi-nonselected-mount-unsettled-manual", "multi-owned-worker-cancel-manual", "multi-malformed-refusal-manual", "multi-future-refusal-manual",
+            Chunk7OwnedPairsSelection.ManticoreFixtureCheckpoint, Chunk7OwnedPairsSelection.ManticoreManualColdCheckpoint }, value) >= 0;
 
         internal string ExpectedChunk7ArchiveArea => PersistenceCase == "multi-area-autosave" ? PersistenceAreaTarget?.Area :
-            PersistenceCase == Chunk7OwnedPairsSelection.ManticoreFixtureCheckpoint ? Chunk7OwnedPairsSelection.ManticoreFixtureArea : SelectedChunk7Fixture?.Area;
+            (PersistenceCase == Chunk7OwnedPairsSelection.ManticoreFixtureCheckpoint ||
+                Chunk7OwnedPairsSelection.IsManticoreManualCold(PersistenceCase)) ? Chunk7OwnedPairsSelection.ManticoreFixtureArea : SelectedChunk7Fixture?.Area;
         internal string ExpectedNativeLoadType => (Scenario == Chunk7AcquiredManualSelection.Scenario || Scenario == Chunk7ManualSeedSelection.Scenario || Scenario == Chunk7BootstrapInventorySelection.Scenario || Scenario == Chunk7SmallCalibrationSelection.Scenario && SmallCalibration?.UsesManualField != true || Scenario == Chunk7OrdinaryFieldSelection.Scenario) ? "Auto" : SelectedChunk7Scenario == "chunk7-persistence-load" && PersistenceLoad != null && IsChunk7PersistenceCase(PersistenceCase) ?
             (PersistenceCase == "multi-exploration-quick" ? "Quick" : PersistenceCase == "multi-exploration-auto" || PersistenceCase == "multi-area-autosave" ? "Auto" : "Manual") :
             IsTransitionAutoCase(PersistenceCase) ? "Auto" :
@@ -511,6 +513,9 @@ namespace KingmakerMountedCombat.Diagnostics
             if (PersistenceCase == Chunk7OwnedPairsSelection.ManticoreFixtureCheckpoint &&
                 (Scenario != Chunk7OwnedPairsSelection.Scenario || OwnedPairs?.IsOwnerSeedCheckpointSave != true))
                 errors.Add("Manticore fixture preparation requires its exact source-only owner-seed checkpoint selection.");
+            if (Chunk7OwnedPairsSelection.IsManticoreManualCold(PersistenceCase) &&
+                (Scenario != Chunk7OwnedPairsSelection.Scenario || OwnedPairs?.IsOwnerSeedDerivedLoad != true))
+                errors.Add("Manticore Manual cold load requires its exact one-load owner-seed-derived selection.");
             if ((Chunk7OwnedPairsSelection.OwnedSchema1Source(PersistenceCase) || Chunk7OwnedPairsSelection.OwnedSchema1Cold(PersistenceCase)) &&
                 (Scenario != Chunk7OwnedPairsSelection.Scenario || OwnedPairs == null ||
                 (Chunk7OwnedPairsSelection.OwnedSchema1Cold(PersistenceCase) ?
@@ -579,13 +584,18 @@ namespace KingmakerMountedCombat.Diagnostics
                 {
                     // Exactly the producer's written owner-seed-derived Manual: its own native
                     // name, the pinned bytes, never the immutable seed or protected fixtures.
-                    errors.AddRange(PersistenceLoad.Validate("persistenceLoad", Chunk7OwnedPairsSelection.OwnerSeedManualName,
-                        "^Manual_[1-9][0-9]*_" + Chunk7OwnedPairsSelection.OwnerSeedManualName + "\\.zks$"));
+                    var manticoreCold = OwnedPairs.IsOwnerSeedDerivedLoad &&
+                        Chunk7OwnedPairsSelection.IsManticoreManualCold(PersistenceCase);
+                    var manualName = manticoreCold ? Chunk7OwnedPairsSelection.ManticoreFixtureManualName :
+                        Chunk7OwnedPairsSelection.OwnerSeedManualName;
+                    errors.AddRange(PersistenceLoad.Validate("persistenceLoad", manualName,
+                        "^Manual_[1-9][0-9]*_" + manualName + "\\.zks$"));
                     if (Fixture?.Working == null || PersistenceLoad.GameId == Fixture.Working.GameId || PersistenceLoad.GameId == Fixture.Baseline?.GameId ||
                         !Guid.TryParseExact(PersistenceLoad.GameId, "D", out var derivedGameId) || derivedGameId == Guid.Empty ||
                         string.IsNullOrWhiteSpace(PersistenceLoad.GameName) || PersistenceLoad.Sha256 == Fixture.Working.Sha256 ||
                         PersistenceLoad.Sha256 == Fixture.Baseline?.Sha256 || PersistenceLoad.Sha256 != OwnedPairs.SourceArchiveSha256 ||
-                        PersistenceLoad.Sha256 == OwnedPairs.SeedSha256)
+                        PersistenceLoad.Sha256 == OwnedPairs.SeedSha256 ||
+                        (manticoreCold && PersistenceLoad.Area != Chunk7OwnedPairsSelection.ManticoreFixtureArea))
                         errors.Add("Owner-seed-derived cold input must be exactly the producer's written Manual, distinct from the immutable seed and protected Working/Baseline.");
                 }
                 else

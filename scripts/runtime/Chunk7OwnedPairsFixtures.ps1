@@ -225,7 +225,7 @@ function Get-KmcChunk7ManticoreManualSource([string]$SourceRunId,[string]$Expect
  [pscustomobject]@{path=$path;descriptor=[pscustomobject]@{internalName=[string]$header.Name;fileName=$leaf;sha256=$ExpectedArchiveSha256;
   length=[long]$file.Length;lastWriteTimeUtcTicks=[long]$file.LastWriteTimeUtc.Ticks;gameId=[string]$header.GameId;
   gameName=[string]$header.GameName;area=[string]$header.Area};producerRunId=$SourceRunId;artifactPath=$artifactPath;
-  artifactSha256=$ExpectedArtifactSha256;candidate=$candidate;parent=$parent;fixturePreparationAssisted=$true;nativeAuthorityGranted=$false}
+  artifactSha256=$ExpectedArtifactSha256;artifactLength=[long]$artifactFile.Length;candidate=$candidate;parent=$parent;fixturePreparationAssisted=$true;nativeAuthorityGranted=$false}
 }
 # Owner-seed-derived combat: the ACCEPTED cold consumer receipt, pinned by run and evidence hash,
 # PASS on exactly this producer's Manual (1 load, 0 writes, separate-process proof), on its own
@@ -332,6 +332,33 @@ function Copy-KmcChunk7OwnerSeedCurrentParent($Source,[string]$ProfileRoot,$Lock
  if((Get-KmcSha256 $destination)-cne$sha-or(Get-KmcSha256 $path)-cne$sha){throw 'Accepted current-format parent changed during locked copy.'}
 }
 function Get-KmcChunk7OwnedPairsSource($Selection,[AllowNull()][string]$PersistenceCase,$Fixture,$Candidate,$AreaTarget=$null){
+ if($null-ne$Selection-and$Selection.case-ceq'owner-seed-persistence-load'-and$PersistenceCase-ceq'manticore-fixture-cold-manual'){
+  $r=[pscustomobject]@{scenario='chunk7-owned-two-pair-campaign';runId='unassigned-manticore-cold';ownedPairs=$Selection;persistenceCase=$PersistenceCase}
+  Assert-KmcChunk7OwnedPairsSelection $r
+  if($null-ne$AreaTarget){throw 'Manticore Manual cold load cannot request an area transfer.'}
+  $source=Get-KmcChunk7ManticoreManualSource $Selection.sourceRunId $Selection.sourceArtifactSha256 $Selection.sourceArchiveSha256 $Fixture
+  $parent=$source.parent
+  $parentArtifact=Read-KmcJson $parent.artifactPath;$manual=$parentArtifact.observations.ownerSeedManual
+  Assert-KmcBootstrapInventoryString $manual.fieldWorld.mainActorId $Selection.riderAId
+  Assert-KmcBootstrapInventoryString $manual.seedId $Selection.seedId
+  Assert-KmcBootstrapInventoryString $manual.seedSha256 $Selection.seedSha256
+  $roles=@($Selection.riderAId,$Selection.mountAId,$Selection.riderBId,$Selection.mountBId)
+  for($i=0;$i-lt2;$i++){Assert-KmcBootstrapInventoryString $manual.twoOwners[$i].actorId $roles[$i*2];Assert-KmcBootstrapInventoryString $manual.twoOwners[$i].petId $roles[$i*2+1]}
+  if((ConvertTo-KmcChunk7Canonical @($manual.fieldWorld.party|ForEach-Object{$_.id}|Sort-Object -CaseSensitive))-cne
+     (ConvertTo-KmcChunk7Canonical @($Selection.partyIds|Sort-Object -CaseSensitive))){throw 'Manticore Manual cold roster differs from its owner-seed parent.'}
+  $producer=Read-KmcJson $source.artifactPath
+  Assert-KmcBootstrapInventoryString $producer.observations.ownerSeedCheckpointSource.manualProducerRunId $parent.sourceRunId
+  Assert-KmcBootstrapInventoryString $producer.observations.ownerSeedCheckpointSource.manualProducerArtifactSha256 $parent.artifactSha256
+  Assert-KmcBootstrapInventoryString $producer.observations.ownerSeedCheckpointSource.manualSha256 $parent.descriptor.sha256
+  if((ConvertTo-KmcChunk7Canonical $producer.observations.manticoreFixturePreparation.afterSave.field.custody.partyIds)-cne
+     (ConvertTo-KmcChunk7Canonical $Selection.partyIds)){throw 'Manticore producer changed the selected field roster.'}
+  Assert-KmcBootstrapInventoryString $Selection.sourceArea $source.descriptor.area
+  Assert-KmcChunk7OwnedPairsDescriptor ([pscustomobject]@{scenario='chunk7-owned-two-pair-campaign';runId='unassigned-manticore-cold';ownedPairs=$Selection;persistenceCase=$PersistenceCase;persistenceLoad=$source.descriptor;fixture=$Fixture})
+  return [pscustomobject][ordered]@{path=$source.path;descriptor=$source.descriptor;artifactPath=$source.artifactPath;
+   artifactSha256=$source.artifactSha256;artifactLength=$source.artifactLength;sourceRunId=$source.producerRunId;
+   ownerSeedDerived=$true;manticoreManual=$true;parent=$parent;producerCandidate=$source.candidate;
+   currentCandidate=[pscustomobject][ordered]@{commit=$Candidate.commit;dllSha256=$Candidate.dllSha256;dllMvid=$Candidate.dllMvid}}
+ }
  if($null-ne$Selection-and$null-ne$Selection.PSObject.Properties['case']-and$Selection.case-cin@('owner-seed-exploration','owner-seed-persistence-save')){return Get-KmcChunk7OwnedPairsOwnerSeedSource $Selection $PersistenceCase $Fixture $Candidate $AreaTarget}
  if($null-ne$Selection-and$null-ne$Selection.PSObject.Properties['case']-and$Selection.case-cin@('owner-seed-persistence-load','owner-seed-realtime-core','owner-seed-combat-rider-first','owner-seed-combat-mount-first','owner-seed-combat-disable','owner-seed-checkpoint-save','owner-seed-load-refusal')){return Get-KmcChunk7OwnedPairsOwnerSeedDerivedSource $Selection $PersistenceCase $Fixture $Candidate $AreaTarget}
  if($null-ne$Selection-and$null-ne$Selection.PSObject.Properties['case']-and$Selection.case-ceq'owner-seed-checkpoint-load'){return Get-KmcChunk7OwnedPairsOwnerSeedCheckpointSource $Selection $PersistenceCase $Fixture $Candidate $AreaTarget}

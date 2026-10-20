@@ -49,9 +49,11 @@ namespace KingmakerMountedCombat.Diagnostics
         internal static readonly string[] OwnerSeedCheckpoints = { "multi-exploration-quick", "multi-exploration-auto",
             "multi-rt-debt-manual", "multi-tb-debt-manual", "zero-mounted-tb-retained-manual", "legacy-mounted-pending-tb-manual", "multi-area-autosave" };
         internal const string ManticoreFixtureCheckpoint = "owner-seed-manticore-fixture-manual";
+        internal const string ManticoreManualColdCheckpoint = "manticore-fixture-cold-manual";
         internal const string ManticoreFixtureManualName = "KMC_C7_AREA_FIXTURE";
         internal const string ManticoreFixtureArea = "314e8c3b15b896a4f847c85f9250f02b";
         internal const string ManticoreFixtureSourceSha256 = "b4d1ede7843c600f201dcd7b71cd2558cad44210e7e0eb78d9a58f6e89f64003";
+        internal static bool IsManticoreManualCold(string checkpoint) => checkpoint == ManticoreManualColdCheckpoint;
         internal static bool IsOwnerSeedSourceOnlyCheckpoint(string checkpoint) => SupportedSaveBoundary(checkpoint) || OwnedSchema1Source(checkpoint) || checkpoint == ManticoreFixtureCheckpoint;
         // The connected combat checkpoints: genuine native Manuals written mid-combat from the restored
         // two-pair start under the owner-approved diagnostic target. Their native Manual name is distinct
@@ -112,7 +114,8 @@ namespace KingmakerMountedCombat.Diagnostics
         internal bool OwnerSeedDerivedLineage => OwnerSeedDerivedInput || IsOwnerSeedCheckpointLoad;
         // Kinds whose receipts may come from an earlier candidate, each pinned to its own recorded identity.
         internal bool CrossCandidateAllowed => IsOwnerSeedDerivedCombat || IsOwnerSeedCheckpointSave || IsOwnerSeedCheckpointLoad || IsOwnerSeedLoadRefusal;
-        internal bool CrossCandidateAllowedFor(string checkpoint) => CrossCandidateAllowed || IsOwnerSeedDerivedLoad && checkpoint == "multi-exploration-three-loads-manual";
+        internal bool CrossCandidateAllowedFor(string checkpoint) => CrossCandidateAllowed || IsOwnerSeedDerivedLoad &&
+            (checkpoint == "multi-exploration-three-loads-manual" || IsManticoreManualCold(checkpoint));
         internal const int MaximumSetupLevelupWrites = 2;
         internal string[] PairIds => new[] { RiderAId, MountAId, RiderBId, MountBId };
         internal string RuntimeScenario
@@ -256,7 +259,8 @@ namespace KingmakerMountedCombat.Diagnostics
             if (CheckpointSourceRunId != null || CheckpointSourceArtifactSha256 != null)
                 errors.Add("The owner-seed-derived consumer carries no checkpoint parent.");
             if (CompanionId != null) errors.Add("Only owner-seed-derived RT combat names an unrelated companion.");
-            if (checkpoint != OwnerSeedCheckpoint && checkpoint != "multi-exploration-three-loads-manual") errors.Add("Owner-seed-derived cold load restores only its exploration Manual through the selected one-load or three-load case.");
+            if (checkpoint != OwnerSeedCheckpoint && checkpoint != "multi-exploration-three-loads-manual" && !IsManticoreManualCold(checkpoint))
+                errors.Add("Owner-seed-derived cold load restores only its declared owner-seed or Manticore Manual.");
             return errors;
         }
         // Owner-seed-derived combat: the same producer and seed pins plus the ACCEPTED
@@ -306,7 +310,9 @@ namespace KingmakerMountedCombat.Diagnostics
             if (!Run(SeedId) || SeedId == runId || !Hash(SeedSha256) || SeedSha256 == SourceArchiveSha256 || SeedSha256 == SourceArtifactSha256)
                 errors.Add("The owner's immutable seed identity is required and cannot alias the derived Manual or its evidence.");
             var area = (IsOwnerSeedCheckpointSave || IsOwnerSeedCheckpointLoad) && checkpoint == "multi-area-autosave";
-            if (XpAssistance != null || (area ? SourceArea != "b10e86516b6437d45a629931c30936fe" : SourceArea != null))
+            var manticoreCold = IsOwnerSeedDerivedLoad && IsManticoreManualCold(checkpoint);
+            if (XpAssistance != null || (area ? SourceArea != "b10e86516b6437d45a629931c30936fe" :
+                manticoreCold ? SourceArea != ManticoreFixtureArea : SourceArea != null))
                 errors.Add("Only the selected owner-seed area checkpoint carries its exact original Manual area; setup assistance is forbidden.");
             if (!PairIds.All(Chunk7ManualDerivedSelection.NativeId) || PairIds.Distinct(StringComparer.Ordinal).Count() != 4)
                 errors.Add("Four distinct observed native owner/pet IDs are required.");
