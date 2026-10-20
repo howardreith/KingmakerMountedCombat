@@ -155,9 +155,29 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 if (!started) Start();
                 if (cleanup) { PollCleanup(); return; }
-                Require(clock.Elapsed.TotalSeconds <= (RepeatedWorldCase ? 600 : CombatCase || AreaAutosaveCase || ManticoreFixtureCase ? 300 : 180) && clock.Elapsed.TotalSeconds - stageStarted <=
-                    (RepeatedWorldCase && stage == 70 ? 450 : CombatCase && (stage == 5 || stage == 20) || AreaAutosaveCase && stage == 30 || ManticoreFixtureCase && stage == 92 ? 150 : 35),
-                    "Bounded native persistence deadline at stage " + stage + ".");
+                var withinDeadline = clock.Elapsed.TotalSeconds <= (RepeatedWorldCase ? 600 : CombatCase || AreaAutosaveCase || ManticoreFixtureCase ? 300 : 180) && clock.Elapsed.TotalSeconds - stageStarted <=
+                    (RepeatedWorldCase && stage == 70 ? 450 : CombatCase && (stage == 5 || stage == 20) || AreaAutosaveCase && stage == 30 || ManticoreFixtureCase && stage == 92 ? 150 : 35);
+                // The first ordinary Small cold load reached all four native PostLoads
+                // but not presentation. On a recurrence, retain the exact read-only
+                // boundary that withheld stage 0 before cleanup disposes the world.
+                if (!withinDeadline && Cold && stage == 0 && request.OwnedPairs?.SmallFixtureLineage == true)
+                {
+                    var game = Game.Instance;
+                    var feedback = persistence.Feedback;
+                    evidence["smallColdReadinessAtDeadline"] = new JObject {
+                        ["archivePhase"] = persistence.ArchiveRestorePhase,
+                        ["feedback"] = feedback != null && feedback.Length > 512 ? feedback.Substring(0, 512) : feedback,
+                        ["restorationPending"] = persistence.CombatRestorationPending,
+                        ["semanticRestores"] = persistence.SemanticRestoreCount,
+                        ["presentationRestores"] = persistence.PresentationRestoreCount,
+                        ["nativePostLoads"] = persistence.ArchivePostLoadObservedCount,
+                        ["gameMode"] = game?.CurrentMode.ToString(),
+                        ["paused"] = game?.IsPaused,
+                        ["nativeLoading"] = LoadingProcess.Instance.IsLoadingInProcess,
+                        ["queuedNativeLoads"] = LoadingProcess.Instance.QueuedNames.Count()
+                    };
+                }
+                Require(withinDeadline, "Bounded native persistence deadline at stage " + stage + ".");
                 if (UpdateSaveBoundary()) return;
                 if (UpdateRepeatedWorld()) return;
                 if (UpdateAreaAutosave()) return;

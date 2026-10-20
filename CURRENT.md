@@ -2,13 +2,15 @@
 
 ## October 20 - batch74 Small mounted persistence route reviewed
 
-The [batch74 development route](docs/CHUNK7-BATCH74-SMALL-MOUNTED-PERSISTENCE-2026-10-20.md)
-uses the immutable qualified seven-actor Small Manual for a distinct genuine
-mounted save and separate cold consumer. Independent review, focused checks
-and offline Candidate 7/0 passed. Native save/cold evidence is still pending;
-the route does not change fixture ancestry or transfer earlier PASSes to a
-new DLL. The standing mission remains open through F10, ordinary doors, F11
-and selected private 7E.
+The [batch74 route](docs/CHUNK7-BATCH74-SMALL-MOUNTED-PERSISTENCE-2026-10-20.md)
+uses the immutable qualified seven-actor Small Manual. Independent review,
+focused checks and offline Candidate 7/0 passed. Preview.88's genuine mounted
+Small Manual producer returned game/outer **PASS 5/0**; the separate cold
+consumer returned original game/outer **FAIL** at its stage-0 readiness
+deadline, after four native semantic restorations but before presentation.
+Both guarded transactions restored exactly. A bounded diagnostic observation
+passed independent review and Fast 3/0; Small cold qualification, F10, ordinary doors, F11 and the
+selected private 7E remain open.
 
 ## October 20 - batch73 F11 matched-pool development measurement
 
