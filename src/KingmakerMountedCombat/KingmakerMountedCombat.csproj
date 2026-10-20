@@ -483,6 +483,7 @@
     <Compile Include="Integration\MountedPairAttackCommand.cs" />
     <Compile Include="Integration\MountedPairSingleAttack.cs" />
     <Compile Include="Integration\MountedPatchController.cs" />
+    <Compile Include="Integration\NativeMountedDismissInventorySafety.cs" />
     <Compile Include="Integration\MountedPlayerActionController.cs" />
     <Compile Include="Integration\MountedPlayerActionOverlay.cs" />
     <Compile Include="Integration\NativeMountedAbilityLogic.cs" />

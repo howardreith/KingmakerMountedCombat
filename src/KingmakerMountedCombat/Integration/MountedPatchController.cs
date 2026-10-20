@@ -66,6 +66,9 @@ namespace KingmakerMountedCombat.Integration
                 }
 
                 PatchExact(typeof(ClickGroundHandler), "RunCommand", 0x060093DC, new[] { typeof(UnitEntityData), typeof(UnityEngine.Vector3), typeof(float?), typeof(float), typeof(float), typeof(bool) }, nameof(PatchMethods.GroundCommandPrefix), nameof(PatchMethods.GroundCommandPostfix));
+                PatchExact(typeof(Kingmaker.Player), "DismissCompanion", 0x06000DD7,
+                    new[] { typeof(UnitEntityData) }, null, null,
+                    nameof(PatchMethods.MountedDismissInventoryTranspiler));
                 // The only gameplay caller of LoadingProcess.StopAll. Deferred while an
                 // owned archive worker can still commit, so the save is never
                 // abandoned mid-write on the way to the main menu.
@@ -253,7 +256,7 @@ namespace KingmakerMountedCombat.Integration
                     true);
                 PatchExact(trackerType, "UpdateUnits", 0x06004F0E, Type.EmptyTypes, nameof(PatchMethods.TrackerUpdatePrefix), nameof(PatchMethods.TrackerUpdatePostfix));
                 PatchExact(typeof(UnitActionController), "TickCommandTurnBased", 0x0600911D, new[] { typeof(UnitCommand) }, null, nameof(PatchMethods.TickCommandTurnBasedPostfix), nameof(PatchMethods.PairedEligibilityTranspiler));
-                logger.Info("Installed thirty-one exact-token Harmony12 active-pair guards, unified-turn adapters, and bounded probes.");
+                logger.Info("Installed exact-token Harmony12 active-pair guards, unified-turn adapters, and bounded probes.");
             }
             catch
             {
@@ -377,6 +380,13 @@ namespace KingmakerMountedCombat.Integration
 
         private static class PatchMethods
         {
+            internal static bool MountedDismissAutoMerge(Kingmaker.Player player, UnitEntityData actor) =>
+                NativeMountedDismissInventorySafety.AutoMerge(PatchBridge.Service, player, actor);
+            internal static IEnumerable<CodeInstruction> MountedDismissInventoryTranspiler(
+                IEnumerable<CodeInstruction> instructions, ILGenerator generator) =>
+                NativeMountedDismissInventorySafety.Rewrite(instructions, generator,
+                    typeof(PatchMethods).GetMethod(nameof(MountedDismissAutoMerge),
+                        BindingFlags.Static | BindingFlags.NonPublic));
             internal static void ChargeBuffCreatedPostfix(BuffCollection __instance, Fact __result)
             {
                 MountedChargeLease.ObserveChargeBuffCreated(__instance, __result as Buff);

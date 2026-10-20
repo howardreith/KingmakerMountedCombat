@@ -1,5 +1,30 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## Active October 20 after batch83 — exact Small dismissal inventory cause
+
+The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
+See [batch83](docs/CHUNK7-BATCH83-SMALL-DISMISSAL-2026-10-20.md) for frozen
+preview.96/suite/evidence identities and exact restoration. Fresh mounted
+Small Manual and separate cold consumer passed 5/0 and 3/0. Native dismissal
+**FAIL**: an equipped target-owned stackable merged into an existing stack,
+shrinking `Inventory.Items` from 76 to 75 during native `Player.DismissCompanion`'s
+enumeration. The native method threw before completion. Exact combined and
+separately reviewed profile recovery restored Mods, protected saves and the
+Howie profile. The original batch81–83 failures stay separate; no game or
+transaction lock remains.
+
+A scoped production candidate captures mounted rider/session/roster eligibility
+at native entry, then changes only the exact native `RemoveItem(bool)` auto-merge
+argument for that actor. Native party/in-game/equipment event order stays intact;
+unrelated actors keep native behavior. A pre-unequip prefix was rejected in
+review for reordering those events and was never used in the game. Focused
+behavior 30/0, Fast 3/0, offline Candidate 6/0 and pinned installed Harmony12
+patch/unpatch 1/0 pass; independent review passed. Freeze one new preview and
+declare a bounded native
+producer/cold/dismissal sequence. Do not call F10 dismissal PASS before its
+native completion and cleanup evidence. Continue remaining F10/F09/F11 and
+selected private 7E under the standing mission.
+
 ## Active October 20 after batch82 — native Small dismissal failure
 
 The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
