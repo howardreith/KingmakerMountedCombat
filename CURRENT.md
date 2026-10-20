@@ -1,5 +1,17 @@
 # Chunk 7B–7D — IN PROGRESS
 
+## October 20 — batch85 Small selector activity diagnosed
+
+[Batch85](docs/CHUNK7-BATCH85-SMALL-SELECTOR-ACTIVITY-2026-10-20.md)
+froze preview.82-label world98. Fresh mounted Small Manual and separate cold
+load passed 5/0 and 3/0. The native dismissal **FAIL** before removal: the
+Small rider's exact view was inactive in Default mode immediately after the
+native party selector opened. Exact combined and independently reviewed
+one-run profile recovery restored Mods, saves, profile, UMM Params and
+preferences; no game or lock remains. A selector-scoped visibility correction
+passed independent review and offline Fast 3/0; native verification, dismissal,
+F09/F10/F11 and selected private 7E remain open. Batch81–85 FAILs are distinct.
+
 ## October 20 — batch84 Small selector invalidation
 
 [Batch84](docs/CHUNK7-BATCH84-SMALL-DISMISSAL-2026-10-20.md) froze the reviewed

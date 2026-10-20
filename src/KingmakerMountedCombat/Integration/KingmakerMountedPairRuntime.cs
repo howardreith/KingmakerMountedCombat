@@ -290,20 +290,25 @@ namespace KingmakerMountedCombat.Integration
             var mountActiveSelf = mountView.gameObject.activeSelf;
             var riderActiveInHierarchy = riderView.gameObject.activeInHierarchy;
             var mountActiveInHierarchy = mountView.gameObject.activeInHierarchy;
+            var nativePartySelector = Game.Instance?.UI?.Canvas?.GroupManager;
+            var nativePartySelectorActive = nativePartySelector != null &&
+                nativePartySelector.gameObject.activeSelf && nativePartySelector.gameObject.activeInHierarchy;
             if (!MountedViewActivityPolicy.IsAdmissible(
                 modeDisposition,
                 riderActiveSelf,
                 mountActiveSelf,
                 riderActiveInHierarchy,
-                mountActiveInHierarchy))
+                mountActiveInHierarchy,
+                nativePartySelectorActive))
             {
-                // Only this failing boundary emits the four values used by the
-                // decision. Do not change the native view or cleanup behavior.
+                // Only this failing boundary emits the activity values used by
+                // the decision. Do not change native view or cleanup behavior.
                 return "Mounted rider/mount view activity is incoherent for the exact current game mode: rider=" + rider.UniqueId +
                     ";mount=" + mount.UniqueId + ";mode=" + exactMode +
                     ";disposition=" + modeDisposition + ";riderSelf=" + riderActiveSelf +
                     ";mountSelf=" + mountActiveSelf + ";riderHierarchy=" + riderActiveInHierarchy +
-                    ";mountHierarchy=" + mountActiveInHierarchy + ".";
+                    ";mountHierarchy=" + mountActiveInHierarchy +
+                    ";nativePartySelectorActive=" + nativePartySelectorActive + ".";
             }
 
             if (rider.Descriptor?.Pet != mount || mount.Descriptor?.Master.Value != rider || !mount.Descriptor.IsPet)
