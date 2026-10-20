@@ -314,13 +314,7 @@ function Assert-KmcChunk7SmallManualEvidence($Request,$Artifact){
  foreach($key in @('required','manualPartyMutation')){Assert-KmcChunk7Boolean $o.selector.$key $false};Assert-KmcOrdinaryInteger $o.selector.openCount 0 0;Assert-KmcChunk7Boolean $o.selector.fieldRestoredFromManual $true
  Assert-KmcOrdinaryInteger $o.beforeLoad.frame 0 ([int]::MaxValue);Assert-KmcChunk7Boolean $o.beforeLoad.installedBeforeWorldLoad $true;Assert-KmcChunk7Boolean $o.beforeLoad.sourceReadOnly $true
  foreach($key in @('nativeLoads','nativeWrites')){Assert-KmcOrdinaryInteger $o.beforeLoad.$key 0 0}
- $p=$o.coldNoPreparation;Assert-KmcBootstrapInventoryString $p.contract 'chunk7-native-restoration-entry-observer-v1';Assert-KmcBootstrapInventoryString $p.prepareMetric 'native-method-entries-including-production-refused-attempts'
- foreach($key in @('complete','installedBeforeWorldLoad')){Assert-KmcChunk7Boolean $p.$key $true};Assert-KmcOrdinaryInteger $p.maximumEvents 2048 2048
- foreach($key in @('dropped','errors')){Assert-KmcOrdinaryInteger $p.$key 0 0};if($p.events-isnot[Array]-or$p.events.Count-ne0-or$p.hooks-isnot[Array]-or$p.hooks.Count-ne4){throw 'Small cold preparation/restore observation is not complete and empty.'}
- $tokens=@('06000C3C','0600939D');$methods=@('Prepare','NewRound','RestoreActor','RestoreDebt');$prefixes=@('PrepareBefore','RoundBefore','RestoreActorBefore','RestoreDebtBefore');$postfixes=@('PrepareAfter','RoundAfter','RestoreActorAfter','RestoreDebtAfter')
- for($i=0;$i-lt4;$i++){$h=$p.hooks[$i];Assert-KmcBootstrapInventoryString $h.method $methods[$i];Assert-KmcBootstrapInventoryString $h.prefix $prefixes[$i];Assert-KmcBootstrapInventoryString $h.postfix $postfixes[$i]
-  if($i-lt2){$type=if($i-eq0){'TurnBased.Controllers.TurnController'}else{'Kingmaker.UnitLogic.UnitCombatState'};Assert-KmcBootstrapInventoryString $h.declaringType $type;Assert-KmcBootstrapInventoryString $h.token $tokens[$i];Assert-KmcBootstrapInventoryString $h.moduleMvid '07fa1e4d-8618-41b3-9b8d-faa17d3b26f7'}else{Assert-KmcBootstrapInventoryString $h.moduleMvid $Request.dllMvid;Assert-KmcBootstrapInventoryString $h.declaringType 'KingmakerMountedCombat.Integration.NativeCombatActorPersistence';if($h.token-isnot[string]-or$h.token-cnotmatch'^06[0-9A-F]{6}$'){throw 'Product restore hook token invalid.'}}
- }
+ Assert-KmcAssistedColdNoPreparation $o.coldNoPreparation $Request
  $n=$o.manualNativeRoster;Assert-KmcExactProperties $n @('mainActorId','arrangement','resources','actors') 'Small native full roster'
  Assert-KmcBootstrapInventoryString $n.mainActorId $saved.savedWorld.mainActorId
  if($n.actors-isnot[Array]-or$n.actors.Count-ne$saved.savedWorld.party.Count-or$n.actors.Count-lt3-or$n.actors.Count-gt24){throw 'Cold Small native roster is missing or unbounded.'}

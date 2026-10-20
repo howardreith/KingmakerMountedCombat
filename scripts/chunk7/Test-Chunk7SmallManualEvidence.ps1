@@ -57,6 +57,8 @@ $cases=[ordered]@{
  'native observation incomplete'={param($f)$f.artifact.observations.coldNoPreparation.complete=$false}
  'native observer wrong token'={param($f)$f.artifact.observations.coldNoPreparation.hooks[0].token='06000000'}
  'native observer wrong product'={param($f)$f.artifact.observations.coldNoPreparation.hooks[3].moduleMvid='aaaaaaaa-1111-4111-8111-111111111111'}
+ 'retired native round hook'={param($f)$f.artifact.observations.coldNoPreparation.hooks[1].method='NewRound'}
+ 'retired native round type'={param($f)$f.artifact.observations.coldNoPreparation.hooks[1].declaringType='Kingmaker.UnitLogic.UnitCombatState'}
  'extra load admitted'={param($f)$f.artifact.observations.authority.admittedNativeLoads=2}
  'save write admitted'={param($f)$f.artifact.observations.authority.admittedNativeWrites=1}
  'retained observer cleanup'={param($f)$f.artifact.observations.cleanup.observerReleased=$false}
