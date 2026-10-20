@@ -1,5 +1,16 @@
 # Chunk 7B–7D — IN PROGRESS
 
+## October 20 - batch57 Manticore return Auto admission
+
+The [batch57 record](docs/CHUNK7-BATCH57-MANTICORE-AUTO-ADMISSION-2026-10-20.md)
+preserves preview.74's original native/outer FAIL: the engine requested its
+AfterEntry Auto while the SaveRoutine iterator was constructed in Manticore;
+the new owned-pair authority had reserved only the Spider Cave destination.
+No Auto archive was written. A reviewed narrow admission correction accepts
+the exact departure request while requiring destination-only storage. Focused
+authority 509/0 and Fast 3/0 pass. Corrected native Auto and separate cold
+qualification remain; the standing completion mission remains in progress.
+
 ## October 20 - batch55/56 Manticore Manual cold
 
 The [batch55/56 record](docs/CHUNK7-BATCH55-56-MANTICORE-MANUAL-COLD-2026-10-20.md)

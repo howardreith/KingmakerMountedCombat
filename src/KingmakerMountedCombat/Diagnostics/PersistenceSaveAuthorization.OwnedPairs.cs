@@ -186,7 +186,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 Entry output;
                 if (ownedPairsReservations != 1 || ownedPairsSourceDescriptor == null || ownedPairsNumber <= 0 || entries.Count != (ownedPairsReplacementLeaf == null ? 2 : 3) ||
                     !entries.TryGetValue(ownedPairsOutputLeaf, out output) || output.Name != ownedPairsOutputName || output.Type != ownedPairsOutputType ||
-                    output.Area != ownedPairsRequest.ExpectedChunk7ArchiveArea || !output.Writable || output.Bootstrap || output.AdmitsBeforeArea || output.AdmissionArea != null ||
+                    output.Area != ownedPairsRequest.ExpectedChunk7ArchiveArea || !output.Writable || output.Bootstrap || output.AdmitsBeforeArea ||
+                    output.AdmissionArea != (ownedPairsRequest.PersistenceCase == "multi-area-autosave" ? ownedPairsRequest.PersistenceLoad.Area : null) ||
                     output.ForeignGameId != null || output.ForeignGameName != null) return false;
                 if (ownedPairsReplacementLeaf != null)
                 {
@@ -258,7 +259,12 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (paths.Length != 1 || paths[0] != Path.Combine(Root, request.PersistenceLoad.FileName) || Directory.Exists(paths[0]))
                     throw new InvalidOperationException("Owned-pair isolated native inventory changed before reservation.");
                 var leaf = type + "_" + number.ToString(CultureInfo.InvariantCulture) + (type == "Manual" ? "_" + nativeName : "") + ".zks";
-                var output = new Entry { Name = nativeName, Type = type, Area = request.ExpectedChunk7ArchiveArea, Writable = true };
+                // SaveRoutine's Harmony admission runs when LoadArea constructs the
+                // iterator in the departure area. PrepareSave runs after entry;
+                // BeginWrite separately requires the committed destination.
+                var output = new Entry { Name = nativeName, Type = type, Area = request.ExpectedChunk7ArchiveArea,
+                    AdmissionArea = request.PersistenceCase == "multi-area-autosave" ? request.PersistenceLoad.Area : null,
+                    Writable = true };
                 VerifyFile(leaf, output);
                 entries.Add(leaf, output); ownedPairsSourceDescriptor = nativeDescriptor; ownedPairsNumber = number;
                 ownedPairsOutputLeaf = leaf; ownedPairsOutputName = nativeName; ownedPairsOutputType = type; ownedPairsReservations = 1;

@@ -1,5 +1,24 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## Active October 20 batch57 area Auto admission correction
+
+The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
+The [batch57 record](docs/CHUNK7-BATCH57-MANTICORE-AUTO-ADMISSION-2026-10-20.md)
+preserves preview.74's one native Manticore-to-Spider Auto FAIL and exact
+restoration. The exact installed engine constructs its AfterEntry SaveRoutine
+iterator before departure, so the Harmony admission saw Manticore although
+the native prepared archive must be in Spider Cave. The reviewed correction
+adds only that selected departure admission and enforces destination-only
+`BeginWrite`. Focused authority 509/0 and Fast 3/0 passed. The product version
+is preview.75; the current source is the commit containing this section.
+Next: run Candidate on the clean reviewed source, package preview.75 once,
+create an append-only suite and scoped WhatIf, then run one corrected area
+Auto producer against the same immutable batch54 Manual and batch56 cold
+lineage. Only an accepted genuine Auto can feed a separate-process cold load.
+Keep batch57 original FAIL and its source-input identities unchanged. Continue
+positive mounted cleanup, doors, Small, progression, 7D and readiness-gated
+private 7E. No merge, release, permanent install or HUMAN PLAY acceptance.
+
 ## Active October 20 batch56 admitted Manticore Manual cold
 
 The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
