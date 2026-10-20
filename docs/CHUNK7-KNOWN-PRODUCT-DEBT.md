@@ -18,11 +18,13 @@ These later results narrow the earlier schema-2 debt statement below; they
 do not rewrite any historical verdict or credit an outer native rerun.
 
 Positive mounted cleanup with permanent-reference removal and a genuinely
-absent KMC DLL remains unaccepted. The clean owner seed is reference-free, but
-has no pet. A positive owner-derived route needs disclosed native stock Mammoth
-acquisition and rank/size eligibility, followed by a closed P07 source context;
-the legacy Working archive is not presently a qualified shortcut. Area Auto
-and door evidence still need a suitable non-capital destination and entrance.
+absent KMC DLL remains unaccepted. The clean owner seed has no pet, but
+[batch64](CHUNK7-BATCH64-STOCK-MAMMOTH-FIXTURE-2026-10-20.md) now supplies a
+qualified reference-free stock Mammoth Manual with rank-seven Large eligibility.
+It is still never-mounted; the owner-source positive cleanup and separate
+DLL-absent consumer must run. The legacy Working archive is not a qualified
+shortcut. Area Auto/cold passed in batches 60–61; an ordinary door remains
+unqualified in the inspected Spider Cave and Manticore Lair scenes.
 
 ## October 19 - Working prerequisite remains unresolved
 

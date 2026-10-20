@@ -1,5 +1,7 @@
 # Chunk 7 positive cleanup: admitted fixture route — IN PROGRESS
 
+The first step below is complete: [batch64](CHUNK7-BATCH64-STOCK-MAMMOTH-FIXTURE-2026-10-20.md) qualified a genuine reference-free stock Mammoth Manual, `Manual_304_KMC_C7_STOCK_MAMMOTH.zks`, SHA-256 `e475d49c3590927c7f216d301aa8535f6dbbdc7af2066f4c01f58fff335866fa`, from the clean owner seed. It remains never-mounted. Positive cleanup and the separate absent-DLL consumer remain open.
+
 The legacy `KMC_AUTOMATION_WORKING` load is not a qualified positive-removal
 prerequisite in the current base-only Howie context. Batch34 reached native
 `Player.PostLoad` and failed before a mounted cleanup assertion or save. Its
@@ -41,9 +43,9 @@ campaign as Working would violate existing identity guards. Keep the original
 Working path and permanent-Horse refusal intact. `absent-kmc` with integration
 disabled is not a genuine DLL-absent consumer.
 
-Before native selection, add focused closed-source/quota rejection checks,
-rank/size and native choice coverage, archive/reference readback, full cleanup
-graph checks, and genuine observer absence checks. This route is authorized
-fixture preparation under the standing mission; it has not yet run and cannot
-be called a P07 PASS. No new owner permission or replacement seed is needed
-on the present evidence.
+The producer's closed-source/quota rejection checks, rank/size and native choice
+coverage, archive/reference readback and exact restoration passed. The next
+selected implementation is the owner-source positive cleanup contract, including
+its full cleanup graph and a genuine absent-DLL observer. This route is authorized
+under the standing mission; it is not yet a positive P07 PASS. No new owner
+permission or replacement seed is needed on the present evidence.
