@@ -1,5 +1,26 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## Active October 20 batch54 admitted area producer
+
+The [standing completion mission](planning/CHUNK7-COMPLETION-MISSION.md)
+remains active. The [batch54 record](docs/CHUNK7-BATCH54-AREA-FIXTURE-PRODUCER-2026-10-20.md)
+pins current harness `7f5372be637795d988118858c9b4e52f50bffce0`, unchanged
+preview.71 product source `784a6296f9e0d91c44ad25dda826db57f609e929`,
+frozen-source record SHA-256
+`2395120222435c972fce32931f0226b21b381483c2ffc0fc01fd9100c26f8f53`,
+the one-slot declaration and native Manticore producer outer/game **PASS**.
+The genuine non-capital Manual SHA-256 is
+`86a5ff4bc18852f48388156f627ddebf1c9047ecf69f73a1b4b3b92b231f1b30`.
+The transaction is restored; Mods, protected saves, Areas and profile bytes
+passed exact checks, and no game/lock remains. Batch48 original outer FAIL
+and its recovery stay separate. Next: bind a closed source adapter to this
+producer's genuine archive and identify a visited non-capital return
+entrance for area Auto/cold; do not relabel older owner-seed ancestry or
+retry the refused capital route. Continue independent Small calibration,
+positive removal, progression and 7D; 7E remains selected when ready. The
+current documentation is the commit containing this section. No merge,
+release, permanent install or HUMAN PLAY acceptance.
+
 ## Active October 20 area fixture guard correction
 
 The [standing completion mission](planning/CHUNK7-COMPLETION-MISSION.md)
