@@ -1,5 +1,13 @@
 # Chunk 7B–7D — IN PROGRESS
 
+## October 20 - Manticore Manual source gate
+
+The [read-only source gate](docs/CHUNK7-MANTICORE-MANUAL-SOURCE-GATE-2026-10-20.md)
+admits batch54's exact genuine non-capital Manual, binds the Areas receipt to
+durable restoration state, and refuses wrong pins and the original batch48
+outer FAIL. Focused custody checks pass. It grants no native authority;
+area Auto/cold and doors remain unqualified.
+
 ## October 20 - batch54 admitted area fixture
 
 The corrected Areas guard and one declared native preview.71 Manticore
