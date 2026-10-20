@@ -1,5 +1,26 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## Active October 20 F09 Small calibration consumer preparation
+
+The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
+The successor branch has a distinct F09 Manual calibration
+consumer for batch53's qualified `KMC_C7_SMALL_FIXTURE` source. It preserves the
+preview.71 producer and separate cold-receipt identities, admits one immutable
+native load and zero writes, checks the seven-actor/two-pair cold roster,
+20-field body and saved resources, and observes native Mount/move/RT actions/
+Dismount through the shared Small reader. A focused synthetic positive and
+17 refusals passed; actual admission/projection tests passed 73/0, including
+the regression for `PoseVector3.Normalized` serialization recursion. The
+ordinary acquired-Manual neighbors passed their focused checks. No native
+Small mounted run, package or final candidate occurred. The compiled Small
+catalogue is still empty and correctly refuses calibration before load.
+Independent review passed the focused source checkpoint with reader 26/0,
+actual helper/protocol 73/0 and the historical source gate PASS. Next:
+introduce a separately reviewed initial private compiled declaration with
+ordinary-player admission
+closed before one justified native calibration. Do not treat the F09 source as
+paid acquisition, native mounted PASS or owner visual acceptance.
+
 ## Active October 20 Small calibration preparation
 
 The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.

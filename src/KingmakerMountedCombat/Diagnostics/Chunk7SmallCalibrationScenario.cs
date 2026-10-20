@@ -109,7 +109,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     inventoryActors.Children<JObject>().Count(value => (string)value["id"] == actor.UniqueId &&
                         value["character"]?["present"]?.Type == JTokenType.Boolean && (bool)value["character"]["present"]) == 1,
                     "Native field actor placed, but its bounded exact rider rig inventory is unavailable.");
-                evidence["bodyObservation"] = JObject.FromObject(body);
+                evidence["bodyObservation"] = Chunk7SmallPoseObservation.Body(body, false);
                 Pass("C7-small-native-party-placement"); BeginCalibration();
             }
             catch (Exception error) { Fail("C7-small-runtime", error.ToString()); BeginCleanup(); }
@@ -117,7 +117,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private void Start()
         {
             declaration = calibration.RequireCompiledDeclaration();
-            if (calibration.UsesManualField) { StartManualField(); return; }
+            if (calibration.UsesColdManualField) { StartManualField(); return; }
             AssertAuthority(); AssertFieldInput();
             Require(Game.Instance.CurrentMode == GameModeType.Default && request.Fixture.Working.Sha256 == Chunk7WorldScenarioEngine.WorkingHash &&
                 horses.HorseFeature != null && horses.HorseUnit != null && horses.LevelRank != null &&
@@ -143,7 +143,7 @@ namespace KingmakerMountedCombat.Diagnostics
             before = Snapshot(); snapshotsBefore = persistence.SnapshotCount; savesBefore = persistence.CompletedSaveCount; castsBefore = controls.NativeCastRequestCount;
             captured = true; MovementScreenshotCaptureCoordinator.AcquireClosedUmmLeaseRetained(out ummLease);
             evidence["processId"] = Process.GetCurrentProcess().Id; evidence["selection"] = Chunk7EvidenceDto.Request(calibration);
-            evidence["declaration"] = new JObject { ["profileId"] = declaration.Body.ProfileId, ["nativeInventorySha256"] = declaration.Body.NativeInventorySha256, ["nativeCalibrationSha256"] = declaration.NativeCalibrationSha256, ["qualificationStatus"] = "IN PROGRESS", ["pose"] = JObject.FromObject(declaration.Pose), ["mountRootOffset"] = JObject.FromObject(declaration.MountRootOffset), ["animatedSeatCorrection"] = JObject.FromObject(declaration.AnimatedSeatCorrection), ["riderEulerOffset"] = JObject.FromObject(declaration.RiderEulerOffset) };
+            evidence["declaration"] = Chunk7SmallPoseObservation.Declaration(declaration);
             evidence["before"] = before; evidence["authority"] = AuthoritySnapshot();
             evidence["sourceWasRemoteAutosave"] = true; evidence["sourceArchiveStillRemote"] = true;
             evidence["smallPoseQualified"] = false; evidence["mountedCombatProven"] = false;
@@ -190,7 +190,8 @@ namespace KingmakerMountedCombat.Diagnostics
             Require(authorization.IsActive && authorization.AuthorityGeneration == generation && authorization.IsExactPersistenceScope(authority) &&
                 NativePersistenceIsolation.IsExactAuthority(authority) && authority.Root == root && Game.Instance?.SaveManager?.SavePath == root &&
                 NativePersistenceIsolation.ObservedStashFolder == Path.Combine(Path.GetDirectoryName(root), "Areas") &&
-                (calibration.UsesManualField ? authority.MatchesReadOnlySmallManualPlan(request.PersistenceLoad) : authority.MatchesReadOnlyFieldPlan(request.PersistenceLoad)) && authority.AdmittedNativeLoadRequests == 1 && authority.AdmittedNativeWriteRequests == 0 &&
+                (calibration.UsesFixtureManualField ? authority.MatchesReadOnlySmallFixturePlan(request.PersistenceLoad) :
+                    calibration.UsesManualField ? authority.MatchesReadOnlySmallManualPlan(request.PersistenceLoad) : authority.MatchesReadOnlyFieldPlan(request.PersistenceLoad)) && authority.AdmittedNativeLoadRequests == 1 && authority.AdmittedNativeWriteRequests == 0 &&
                 authorization.AuthorizedLoadCount == 1 && authorization.AuthorizedWriteCount == 0 && authorization.UnauthorizedLoadCount == 0 &&
                 authorization.UnauthorizedWriteCount == 0 && authorization.FatalViolationCount == 0 && authorization.SuppressedWorkingWriteCount == 0 &&
                 authorization.BaselineLoadRequestCount == 0 && !authorization.IsOneShotWorkingWriteSuppressionArmed,
@@ -199,7 +200,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 Game.Instance.Player.MainCharacter.Value?.CharacterName == request.SelectedChunk7Fixture.GameName &&
                 Game.Instance.CurrentlyLoadedArea?.AssetGuidThreadSafe == request.PersistenceLoad.Area, "Field admission lost its exact campaign/area.");
             scope?.RequireCurrent();
-            if (calibration.UsesManualField && captured) RequireManualFieldIdentity();
+            if (calibration.UsesColdManualField && captured) RequireManualFieldIdentity();
             if (sourcePath != null)
             {
                 var source = new FileInfo(sourcePath); var archive = new FileInfo(archivePath);
@@ -236,7 +237,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 Require(JToken.DeepEquals(before[key], now[key]), "Field selection changed native progression or reciprocal identity: " + key);
             Require(persistence.SnapshotCount == snapshotsBefore && persistence.CompletedSaveCount == savesBefore,
                 "Calibration unexpectedly wrote a native save.");
-            if (calibration.UsesManualField) RequireManualFieldIdentity();
+            if (calibration.UsesColdManualField) RequireManualFieldIdentity();
         }
         private JObject AuthoritySnapshot() => new JObject { ["root"] = root, ["generation"] = generation, ["exactScope"] = authorization.IsExactPersistenceScope(authority),
             ["maximumNativeLoads"] = authority.MaximumNativeLoadRequests, ["maximumNativeWrites"] = authority.MaximumNativeWriteRequests,

@@ -12,6 +12,17 @@ patch owner. Exact Mods, protected saves, Areas and profile restoration passed.
 Ordinary doors, Small mounted, progression, measured 7D and final private 7E
 remain under the [standing mission](planning/CHUNK7-COMPLETION-MISSION.md).
 
+## October 20 - F09 Small calibration consumer preparation
+
+The distinct cross-candidate F09 Manual consumer passed focused independent review. It
+preserves batch53's qualified `KMC_C7_SMALL_FIXTURE` provenance and adds a
+read-only seven-actor Small calibration route with exact cold body, resources
+and neighboring pair checks. Offline source/protocol and synthetic reader
+checks pass; the actual Small mounted scenario has not run. The compiled
+Small catalogue remains empty. See the
+[Small calibration record](docs/CHUNK7-SMALL-CALIBRATION.md) and
+[standing mission](planning/CHUNK7-COMPLETION-MISSION.md).
+
 ## October 20 - batch65 positive mounted cleanup producer PASS
 
 The reviewed preview.81 owner-stock P07 route passed Candidate 7/0 and one

@@ -258,6 +258,22 @@ namespace KingmakerMountedCombat.Diagnostics
             }
         }
 
+        // The F09 fixture has its own genuine native Manual name and one-load,
+        // zero-write authority. It cannot satisfy the acquired-field predicate.
+        internal bool MatchesReadOnlySmallFixturePlan(RuntimeSaveDescriptor source)
+        {
+            lock (sync)
+            {
+                Entry entry;
+                return source != null && Chunk7SmallFixtureManualSourceSelection.IsNativeManualLeaf(source.FileName) &&
+                    source.InternalName == Chunk7SmallFixtureManualSourceSelection.NativeName && source.GameId == gameId && source.GameName == gameName &&
+                    maximumNativeLoadRequests == 1 && !maximumNativeWriteRequests.HasValue && !declaresBootstrap && entries.Count == 1 &&
+                    entries.TryGetValue(source.FileName, out entry) && entry.Name == source.InternalName && entry.Type == "Manual" &&
+                    entry.Area == source.Area && entry.Hash == source.Sha256 && !entry.Writable && !entry.Writing &&
+                    !entry.Bootstrap && !entry.AdmitsBeforeArea && entry.AdmissionArea == null && entry.ForeignGameId == null && entry.ForeignGameName == null;
+            }
+        }
+
         // The closed native-bootstrap output uses the same neutral read-only
         // Auto_1 authority shape; provenance is admitted by its request/source
         // qualifier and observed native load, never by this predicate or decode.

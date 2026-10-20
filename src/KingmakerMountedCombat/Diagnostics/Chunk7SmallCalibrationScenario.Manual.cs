@@ -28,15 +28,18 @@ namespace KingmakerMountedCombat.Diagnostics
         private UnitEntityData manualPriorOwner, manualPriorPet;
         private object manualPriorFeature, manualPriorRank, manualPriorSource, manualPriorOwnerDescriptor, manualPriorPetDescriptor, manualPriorOwnerView, manualPriorPetView;
         private JObject manualPriorPairBefore;
-        private string SourceArtifactHash => calibration.UsesManualField ? calibration.ManualSource.SourceArtifactSha256 : selection.SourceArtifactSha256;
-        private string SourceArchiveHash => calibration.UsesManualField ? calibration.ManualSource.SourceArchiveSha256 : selection.SourceArchiveSha256;
+        private string SourceArtifactHash => calibration.UsesFixtureManualField ? calibration.FixtureSource.SourceArtifactSha256 :
+            calibration.UsesManualField ? calibration.ManualSource.SourceArtifactSha256 : selection.SourceArtifactSha256;
+        private string SourceArchiveHash => calibration.UsesFixtureManualField ? calibration.FixtureSource.SourceArchiveSha256 :
+            calibration.UsesManualField ? calibration.ManualSource.SourceArchiveSha256 : selection.SourceArchiveSha256;
 
         internal void BeginBeforeLoad()
         {
-            Require(calibration.UsesManualField && !manualObservationBegun, "Only the closed Small Manual case observes one cold load.");
+            Require(calibration.UsesColdManualField && !manualObservationBegun, "Only a closed Small Manual case observes one cold load.");
             manualGame = Game.Instance; manualManager = manualGame?.SaveManager;
             Require(manualGame != null && manualManager != null && manualGame.CurrentlyLoadedArea == null && !Busy() &&
-                authority.MatchesReadOnlySmallManualPlan(request.PersistenceLoad) && authorization.IsActive &&
+                (calibration.UsesFixtureManualField ? authority.MatchesReadOnlySmallFixturePlan(request.PersistenceLoad) :
+                    authority.MatchesReadOnlySmallManualPlan(request.PersistenceLoad)) && authorization.IsActive &&
                 authorization.IsExactPersistenceScope(authority) && authorization.AuthorityGeneration == generation &&
                 NativePersistenceIsolation.IsExactAuthority(authority) && manualManager.SavePath == root &&
                 authority.AdmittedNativeLoadRequests == 0 && authority.AdmittedNativeWriteRequests == 0 &&
@@ -65,6 +68,7 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void ReadManualSource()
         {
+            if (calibration.UsesFixtureManualField) { ReadFixtureManualSource(); return; }
             sourcePath = Path.Combine(Path.GetDirectoryName(root), Chunk7SmallManualSourceSelection.SourceLeaf);
             archivePath = Path.Combine(root, request.PersistenceLoad.FileName);
             var source = new FileInfo(sourcePath); var archive = new FileInfo(archivePath);
@@ -138,22 +142,35 @@ namespace KingmakerMountedCombat.Diagnostics
             Require(current.All(value => value.IsDirectlyControllable && value.Commands.Empty && !value.IsInCombat),
                 "Small Manual full field roster is not idle and directly controllable.");
             var body = NativeSmallRiderBody.Capture(actor, pet); if (body?.NativeRigAvailable != true) return;
-            RequireBody(body); Require(JToken.DeepEquals(JObject.FromObject(body), manualSource["bodyObservation"]),
-                "Cold Small body, rig or equipment differs from its actual saved field observation.");
+            if (calibration.UsesFixtureManualField) RequireFixtureManualBody(body);
+            else
+            {
+                RequireBody(body); Require(JToken.DeepEquals(Chunk7SmallPoseObservation.Body(body, false), manualSource["bodyObservation"]),
+                    "Cold Small body, rig or equipment differs from its actual saved field observation.");
+            }
             manualActors = current; manualCharacters = Game.Instance.Player.Party.ToArray(); originalActors = current.Where(value => value != actor && value != pet)
                 .OrderBy(value => ReferenceEquals(value, Game.Instance.Player.MainCharacter.Value) ? 0 : 1).ThenBy(value => value.UniqueId, StringComparer.Ordinal).ToArray();
             originalParty = Game.Instance.Player.PartyCharacters.Select(value => value.Value.UniqueId).ToArray();
-            var savedOwner = manualSource["savedOwner"];
+            var savedCharacters = calibration.UsesFixtureManualField
+                ? manualSource["afterSaveArrangement"]?["characters"] as JArray
+                : manualSource["savedOwner"]?["partyCharacters"] as JArray;
             Require(originalParty.Length > 1 && originalParty.Length <= 6 &&
-                originalParty.OrderBy(value => value, StringComparer.Ordinal).SequenceEqual(((JArray)savedOwner["partyCharacters"]).Select(value => (string)value).OrderBy(value => value, StringComparer.Ordinal)) &&
+                savedCharacters != null && originalParty.OrderBy(value => value, StringComparer.Ordinal).SequenceEqual(savedCharacters.Select(value => (string)value).OrderBy(value => value, StringComparer.Ordinal)) &&
                 !Game.Instance.Player.RemoteCompanions.Any(value => ReferenceEquals(value.Value, actor)), "Small Manual field character membership differs.");
             manualFeature = actor.Descriptor.GetFact(horses.HorseFeature); manualRank = actor.Descriptor.GetFact(horses.LevelRank);
             manualFeatureSource = (manualFeature as Feature)?.Source;
             manualArrangement = CaptureManualArrangement();
-            Require(JToken.DeepEquals(manualArrangement, manualSource["afterSaveArrangement"]) &&
-                JToken.DeepEquals(CaptureManualResources(), manualSource["resourcesAfterSave"]),
-                "Native cold Small load changed saved XP, money, classes or actor resources.");
-            if (calibration.UsesAssistedManualField) BindAssistedManualPriorPair();
+            if (calibration.UsesFixtureManualField)
+            {
+                RequireFixtureManualArrangement(); RequireFixtureManualResources(); BindFixtureManualPriorPair();
+            }
+            else
+            {
+                Require(JToken.DeepEquals(manualArrangement, manualSource["afterSaveArrangement"]) &&
+                    JToken.DeepEquals(CaptureManualResources(), manualSource["resourcesAfterSave"]),
+                    "Native cold Small load changed saved XP, money, classes or actor resources.");
+                if (calibration.UsesAssistedManualField) BindAssistedManualPriorPair();
+            }
             scope = new Chunk7NativeWorldScope(request, current);
             RequireManualFieldIdentity();
             evidence["coldNoPreparation"] = manualRestoration.Capture();
@@ -165,9 +182,7 @@ namespace KingmakerMountedCombat.Diagnostics
             captured = true;
             MovementScreenshotCaptureCoordinator.AcquireClosedUmmLeaseRetained(out ummLease);
             evidence["processId"] = Process.GetCurrentProcess().Id; evidence["selection"] = Chunk7EvidenceDto.Request(calibration);
-            evidence["declaration"] = new JObject { ["profileId"] = declaration.Body.ProfileId, ["nativeInventorySha256"] = declaration.Body.NativeInventorySha256,
-                ["nativeCalibrationSha256"] = declaration.NativeCalibrationSha256, ["qualificationStatus"] = "IN PROGRESS", ["pose"] = JObject.FromObject(declaration.Pose),
-                ["mountRootOffset"] = JObject.FromObject(declaration.MountRootOffset), ["animatedSeatCorrection"] = JObject.FromObject(declaration.AnimatedSeatCorrection), ["riderEulerOffset"] = JObject.FromObject(declaration.RiderEulerOffset) };
+            evidence["declaration"] = Chunk7SmallPoseObservation.Declaration(declaration);
             evidence["before"] = before; evidence["field"] = before.DeepClone(); evidence["authority"] = AuthoritySnapshot();
             evidence["selector"] = new JObject { ["required"] = false, ["openCount"] = 0, ["manualPartyMutation"] = false, ["fieldRestoredFromManual"] = true };
             evidence["sourceWasRemoteAutosave"] = false; evidence["sourceArchiveStillRemote"] = false;
@@ -175,7 +190,7 @@ namespace KingmakerMountedCombat.Diagnostics
             evidence["manualNativeRoster"] = new JObject { ["mainActorId"] = originalActors[0].UniqueId, ["arrangement"] = manualArrangement.DeepClone(),
                 ["resources"] = CaptureManualResources(), ["actors"] = new JArray(current.Select(value => new JObject { ["id"] = value.UniqueId, ["blueprint"] = value.Blueprint.AssetGuid,
                     ["object"] = Id(value), ["descriptor"] = Id(value.Descriptor), ["view"] = Id(value.View) })) };
-            evidence["bodyObservation"] = JObject.FromObject(body);
+            evidence["bodyObservation"] = Chunk7SmallPoseObservation.Body(body, calibration.UsesFixtureManualField);
             evidence["profileInventory"] = Chunk7NativeProfileInventory.Capture(new[] { actor, pet });
             Require((string)evidence["profileInventory"]["captureStatus"] == "PASS", "Loaded native Small rig inventory is unavailable.");
             Pass("C7-small-readonly-source"); Pass("C7-small-native-party-placement");
@@ -191,12 +206,13 @@ namespace KingmakerMountedCombat.Diagnostics
                 current.All(value => rows.Count(row => (string)row["id"] == value.UniqueId && (string)row["blueprint"] == value.Blueprint.AssetGuid) == 1) &&
                 Game.Instance.Player.MainCharacter.Value?.UniqueId == (string)sourceWorld["mainActorId"],
                 "Small Manual full native field roster or main actor differs from the saved world.");
-            actor = Exact(calibration.ManualSource.ActorId); pet = Exact(calibration.ManualSource.PetId);
+            actor = Exact(calibration.UsesFixtureManualField ? calibration.FixtureSource.ActorId : calibration.ManualSource.ActorId);
+            pet = Exact(calibration.UsesFixtureManualField ? calibration.FixtureSource.PetId : calibration.ManualSource.PetId);
             Require(current.Contains(actor) && current.Contains(pet) && !ReferenceEquals(actor, Game.Instance.Player.MainCharacter.Value) &&
                 actor.Blueprint == BlueprintRoot.Instance.CustomCompanion && actor.Descriptor.OriginalSize == Size.Small && actor.Descriptor.State.Size == Size.Small &&
                 ReferenceEquals(actor.Descriptor.Pet, pet) && ReferenceEquals(pet.Descriptor.Master.Value, actor) && pet.Blueprint == horses.HorseUnit &&
-                current.Count(value => value.Descriptor.Pet != null) == (calibration.UsesAssistedManualField ? 2 : 1) &&
-                current.Count(value => value.Descriptor.Master.Value != null) == (calibration.UsesAssistedManualField ? 2 : 1),
+                current.Count(value => value.Descriptor.Pet != null) == (calibration.UsesAssistedManualField || calibration.UsesFixtureManualField ? 2 : 1) &&
+                current.Count(value => value.Descriptor.Master.Value != null) == (calibration.UsesAssistedManualField || calibration.UsesFixtureManualField ? 2 : 1),
                 "Small Manual does not restore its sole reciprocal native custom owner and Horse.");
             return current;
         }
@@ -290,6 +306,7 @@ namespace KingmakerMountedCombat.Diagnostics
             ["initiative"] = value.CombatState.Initiative })) };
         private void RequireManualFieldIdentity()
         {
+            if (calibration.UsesFixtureManualField) { RequireFixtureManualIdentity(); return; }
             if (calibration.UsesAssistedManualField || manualPriorOwner != null || manualPriorPet != null)
             {
                 Require(calibration.UsesAssistedManualField, "Bound assisted Small source case changed; inherited custody remains retained.");
