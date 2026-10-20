@@ -7,6 +7,7 @@ param(
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot 'RuntimeHarness.Common.ps1')
+. (Join-Path $PSScriptRoot 'Chunk7SmallFixtureColdSource.ps1')
 . (Join-Path $PSScriptRoot 'PersistenceSaveFixtures.ps1')
 . (Join-Path $PSScriptRoot 'PersistenceValidationFixtures.ps1')
 

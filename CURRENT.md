@@ -1,5 +1,18 @@
 # Chunk 7B–7D — IN PROGRESS
 
+## October 20 - batch53 F09 separate cold load
+
+Preview.71 Candidate passed 6/0. A same-candidate F09 producer wrote a genuine
+Manual and its separate cold consumer loaded an independent copy with seven
+native actors, five characters, reciprocal Horses, exact progression/money,
+one load and zero writes. The consumer's original outer result is **FAIL**
+on a too-strict external PostLoad `GameId` assertion; its native game/artifact
+are PASS. A reviewed reader-only correction passes on the unchanged capture,
+while preserving that original FAIL. Both transactions restored Mods, saves
+and profile exactly. See the [batch53 record](docs/CHUNK7-BATCH53-F09-SEPARATE-COLD-2026-10-20.md).
+Mounted Small calibration and the remaining [standing mission](planning/CHUNK7-COMPLETION-MISSION.md)
+gates remain open.
+
 ## October 20 - F09 separate cold consumer in reviewable preview.71 source
 
 The [reviewed F09 cold consumer](docs/CHUNK7-F09-SEPARATE-COLD-CONSUMER-2026-10-20.md)
