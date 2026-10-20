@@ -1,5 +1,15 @@
 # Chunk 7B–7D — IN PROGRESS
 
+## October 20 - batch55/56 Manticore Manual cold
+
+The [batch55/56 record](docs/CHUNK7-BATCH55-56-MANTICORE-MANUAL-COLD-2026-10-20.md)
+preserves the preview.72 diagnostic bind-mode native FAIL and the reviewed
+preview.73 correction. The latter loaded the genuine batch54 Manticore Manual
+in a separate process: outer/game PASS 4/0 with producer graph, two owners,
+four slots and full field roster matched. Both guarded transactions restored
+Mods, protected saves and Areas. Area Auto/cold and doors remain open; the
+[standing mission](planning/CHUNK7-COMPLETION-MISSION.md) still governs.
+
 ## October 20 - Manticore Manual source gate
 
 The [read-only source gate](docs/CHUNK7-MANTICORE-MANUAL-SOURCE-GATE-2026-10-20.md)
