@@ -39,7 +39,8 @@ function Assert-KmcChunk7ProgressionSelection($Request){
     else{Assert-KmcOrdinaryInteger $s.minimumRangerLevel 0 0;if($null-ne$s.nativeWriteLeaf){throw 'Native dismissal has no write authority.'}}
     if($respec){
         foreach($key in @('raceGuid','presetGuid')){if($s.$key-isnot[string]-or$s.$key-cnotmatch'^[a-f0-9]{32}$'){throw 'Exact observed native respec body pin missing.'}}
-        if($s.skeletonName-isnot[string]-or[string]::IsNullOrWhiteSpace($s.skeletonName)-or$s.skeletonName.Length-gt160-or$s.gender-isnot[string]-or$s.gender-cnotin@('Male','Female')-or$s.leftHanded-isnot[bool]-or$s.bodySize-isnot[string]-or$s.bodySize-cne'Medium'){throw 'Respec must preserve the exact declared Medium body.'}
+        $expectedSize=if(Test-KmcChunk7SmallProgressionCase $s.case){'Small'}else{'Medium'}
+        if($s.skeletonName-isnot[string]-or[string]::IsNullOrWhiteSpace($s.skeletonName)-or$s.skeletonName.Length-gt160-or$s.gender-isnot[string]-or$s.gender-cnotin@('Male','Female')-or$s.leftHanded-isnot[bool]-or$s.bodySize-isnot[string]-or$s.bodySize-cne$expectedSize){throw 'Respec must preserve the exact declared native body.'}
     }else{foreach($key in @('raceGuid','presetGuid','skeletonName','gender','leftHanded','bodySize')){if($null-ne$s.$key){throw 'This operation cannot reconstruct a native body.'}}}
 }
 function Assert-KmcChunk7ProgressionLoadDescriptor($Request){

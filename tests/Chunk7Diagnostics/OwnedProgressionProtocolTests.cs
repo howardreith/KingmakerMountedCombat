@@ -53,6 +53,19 @@ internal static class OwnedProgressionProtocolTests {
    TestRunner.True(r.Progression.IsSmallDismiss&&r.Progression.IsOwned&&!r.Progression.WritesSave,"Small dismissal acquired a write or lost owned custody.");
    TestRunner.True(ReferenceEquals(r.PersistenceLoad,r.SelectedChunk7Fixture),"Small mounted Manual did not select its own source.");
   });
+  tests.Run("Small Horse retrain admits its exact mounted source and native Manual",()=>{
+   var r=SmallRetrainRequest();TestRunner.Equal(0,r.Validate().Count,string.Join(";",r.Validate()));
+   TestRunner.True(r.Progression.IsSmallOwned&&r.Progression.IsRespec&&r.Progression.WritesManual&&!r.Progression.WritesAutosave,
+    "Small retrain lost its native respec or acquired Auto authority.");
+   TestRunner.True(ReferenceEquals(r.PersistenceLoad,r.SelectedChunk7Fixture),"Small retrain did not select its mounted Manual.");
+  });
+  foreach(var label in new[]{"medium body","missing rig","dismissal quota","unmounted source"})
+   tests.Run("Small Horse retrain rejects "+label,()=>{var r=SmallRetrainRequest();switch(label){
+    case "medium body":r.Progression.BodySize="Medium";break;
+    case "missing rig":r.Progression.SkeletonName=null;break;
+    case "dismissal quota":r.Progression.ExpectedNativeWriteCount=0;break;
+    case "unmounted source":r.Progression.SourceArchiveSha256=r.Progression.OwnedSource.SourceArchiveSha256;break;}
+    TestRunner.True(r.Validate().Count>0,"Invalid Small retrain admitted.");});
   foreach(var label in new[]{"wrong lineage","wrong target","wrong control","producer aliases cold","cold aliases fixture","foreign manual","max native number","foreign campaign","write authority","missing cold pin"})
    tests.Run("Small dismissal rejects "+label,()=>{var r=SmallDismissRequest();var s=r.Progression;switch(label){
     case "wrong lineage":s.OwnedSource.Case="persistence-load";break;
@@ -132,6 +145,14 @@ internal static class OwnedProgressionProtocolTests {
   r.PersistenceLoad.GameId=Chunk7SmallFixtureSelection.CampaignId;
   r.PersistenceLoad.GameName=Chunk7SmallFixtureSelection.CampaignName;
   r.PersistenceLoad.Area=Chunk7SmallFixtureSelection.AreaId;
+  return r;
+ }
+ private static RuntimeRequest SmallRetrainRequest(){
+  var r=SmallDismissRequest();var s=r.Progression;
+  s.Case=Chunk7ProgressionSelection.SmallRetrainHorseCase;
+  s.RaceGuid=Chunk7SmallFixtureSelection.RaceGuid;s.PresetGuid=Chunk7SmallFixtureSelection.PresetGuid;
+  s.SkeletonName=Chunk7SmallFixtureSelection.SkeletonName;s.Gender="Male";s.LeftHanded=false;s.BodySize="Small";
+  s.MinimumRangerLevel=4;s.ExpectedNativeWriteCount=1;
   return r;
  }
  private static RuntimeRequest Request(string selected){var f=new Fixture();var respec=selected==Chunk7ProgressionSelection.RetrainHorseCase||selected==Chunk7ProgressionSelection.RetrainMammothCase;var writes=selected!=Chunk7ProgressionSelection.DismissCase;

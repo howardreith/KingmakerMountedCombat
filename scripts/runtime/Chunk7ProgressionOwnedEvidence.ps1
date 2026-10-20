@@ -1,13 +1,13 @@
 Set-StrictMode -Version Latest
-function Get-KmcChunk7OwnedProgressionCases {@('owned-horse-native-level','owned-horse-native-dismiss','owned-horse-native-retrain-horse','owned-horse-native-retrain-mammoth','small-horse-native-dismiss')}
+function Get-KmcChunk7OwnedProgressionCases {@('owned-horse-native-level','owned-horse-native-dismiss','owned-horse-native-retrain-horse','owned-horse-native-retrain-mammoth','small-horse-native-dismiss','small-horse-native-retrain-horse')}
 function Test-KmcChunk7OwnedProgressionCase($Case){$Case-is[string]-and$Case-cin(Get-KmcChunk7OwnedProgressionCases)}
-function Test-KmcChunk7SmallProgressionCase($Case){$Case-is[string]-and$Case-ceq'small-horse-native-dismiss'}
+function Test-KmcChunk7SmallProgressionCase($Case){$Case-is[string]-and$Case-cin@('small-horse-native-dismiss','small-horse-native-retrain-horse')}
 function Get-KmcChunk7ProgressionOperation($Case){
  if($Case-isnot[string]){throw 'Progression operation requires an exact scalar case.'}
  switch -CaseSensitive($Case){
   'horse-native-level'{'horse-native-level'} 'owned-horse-native-level'{'horse-native-level'}
   'horse-native-dismiss'{'horse-native-dismiss'} 'owned-horse-native-dismiss'{'horse-native-dismiss'} 'small-horse-native-dismiss'{'horse-native-dismiss'}
-  'horse-native-retrain-horse'{'horse-native-retrain-horse'} 'owned-horse-native-retrain-horse'{'horse-native-retrain-horse'}
+  'horse-native-retrain-horse'{'horse-native-retrain-horse'} 'owned-horse-native-retrain-horse'{'horse-native-retrain-horse'} 'small-horse-native-retrain-horse'{'horse-native-retrain-horse'}
   'horse-native-retrain-mammoth'{'horse-native-retrain-mammoth'} 'owned-horse-native-retrain-mammoth'{'horse-native-retrain-mammoth'}
   default{throw 'Unknown exact progression operation.'}
  }
@@ -21,11 +21,11 @@ function Assert-KmcChunk7OwnedProgressionSelection($Request){
  if($null-ne$Request.PSObject.Properties['ownedPairs']){throw 'Progression cannot acquire outer owned-pair dispatch authority.'}
  $s=$Request.progression;$p=Get-KmcChunk7ProgressionOwnedRequest $Request;Assert-KmcChunk7OwnedPairsSelection $p;$n=$s.ownedSource
  if(Test-KmcChunk7SmallProgressionCase $s.case){
-  if($n.case-cne'small-fixture-persistence-load'-or$n.expectedNativeWriteCount-ne0-or$n.expectedNativeLoadCount-ne1){throw 'Small dismissal requires a read-only Small mounted Manual cold lineage.'}
+  if($n.case-cne'small-fixture-persistence-load'-or$n.expectedNativeWriteCount-ne0-or$n.expectedNativeLoadCount-ne1){throw 'Small progression requires a read-only Small mounted Manual cold lineage.'}
   foreach($pair in @(@('sourceRunId','checkpointSourceRunId'),@('sourceArtifactSha256','checkpointSourceArtifactSha256'))){Assert-KmcBootstrapInventoryString $s.($pair[0]) $n.($pair[1])}
   if($s.inventoryRunId-ceq$s.sourceRunId-or$s.inventoryRunId-ceq$n.sourceRunId-or$s.inventoryArtifactSha256-ceq$s.sourceArtifactSha256-or
      $s.inventoryArtifactSha256-ceq$n.sourceArtifactSha256-or$s.actorId-cne$n.riderBId-or$s.petId-cne$n.mountBId-or
-     $s.controlActorId-cne$n.riderAId-or$s.controlPetId-cne$n.mountAId){throw 'Small dismissal substituted producer/cold receipt or Medium/Small role.'}
+     $s.controlActorId-cne$n.riderAId-or$s.controlPetId-cne$n.mountAId){throw 'Small progression substituted producer/cold receipt or Medium/Small role.'}
   return
  }
  if($n.case-cne'persistence-load'-or$n.expectedNativeWriteCount-ne0-or$n.expectedNativeLoadCount-ne1){throw 'Owned progression requires a read-only exploration Manual checkpoint.'}
