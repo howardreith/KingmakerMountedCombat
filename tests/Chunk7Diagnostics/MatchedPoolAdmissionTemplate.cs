@@ -14,16 +14,16 @@ class Unified{public object[] SnapshotParticipants=new object[2];public bool Has
 class World{public Pair[] Pairs=new[]{new Pair(),new Pair()};public int BoundaryCount=2,FailedConstructionCount;public Unified UnifiedTurn=new Unified();public Registry Registry=new Registry();public bool SerializationBusy;}
 class Controls{public bool HasUnsettledRelationshipTransition;}
 class FakeClock{public TimeSpan Elapsed=TimeSpan.Zero;}
-class Sampler:IChunk7MatchedPoolWindow{public bool IsReady;public bool Ready=>IsReady;public int Count=>0;public JObject Complete()=>new JObject{{"label",Chunk7MatchedPoolCollector.Labels[0]}};public void Dispose(){}}
+class Sampler:IChunk7MatchedPoolWindow{public string Label;public bool IsReady;public bool Ready=>IsReady;public int Count=>0;public JObject Complete()=>new JObject{{"label",Label}};public void Dispose(){}}
 class AdmissionAdapter{
  object measurement,quietWindow;int pendingMatchedIndex=-1,cycle=1;Chunk7MatchedPoolPins matchedPins;Chunk7MatchedPoolCollector matched;
  Actor firstRider=new Actor(),firstMount=new Actor(),secondRider=new Actor(),secondMount=new Actor();World world=new World();NativeScope nativeScope=new NativeScope();Controls controls=new Controls();string firstOwner="owner";
  int acquires,step=34;double stepStarted;FakeClock clock=new FakeClock();Sampler sampler;
- AdmissionAdapter(){matched=new Chunk7MatchedPoolCollector(RequireMatchedPool,_=>new JObject(),(a,b)=>{},_=>{acquires++;return sampler=new Sampler();});}
+ AdmissionAdapter(){matched=new Chunk7MatchedPoolCollector(RequireMatchedPool,_=>new JObject(),(a,b)=>{},label=>{acquires++;return sampler=new Sampler{Label=label};});}
  Actor[] Actors()=>new[]{firstRider,firstMount,secondRider,secondMount};bool NativeCommandsSettled()=>true;bool PairCommandsSettled(Pair p)=>!p.CommandsPending;bool Mounted(Actor a,Actor b)=>true;void AssertBoth(){}static bool Idle(Actor a)=>a.IsInState&&a.IsInGame&&a.View?.AgentASP!=null&&a.Descriptor.State.IsConscious&&!a.IsInCombat&&a.Commands!=null&&a.Commands.Empty;
  static void Require(bool c,string e){if(!c)throw new InvalidOperationException(e);}
 __METHODS__
- bool Tick(){__DEADLINE__;return PollMatchedPool();}
+ bool Tick(){__DEADLINE__;return PollMatchedPoolGroup(0);}
  static int passed,failed;static void Check(bool value,string name){if(value){passed++;Console.WriteLine("PASS "+name);}else{failed++;Console.WriteLine("FAIL "+name);}}
  static void Refuse(string name,Action<AdmissionAdapter> mutation){Game.Instance=new Game();LoadingProcess.Instance=new LoadingProcess();NativePersistenceIsolation.HasPendingWrites=false;var a=new AdmissionAdapter();a.BeginMatchedPool(0);mutation(a);bool refused=false;try{a.Tick();}catch{refused=true;}Check(refused&&a.acquires==0&&a.matchedPins!=null,name);a.matched.Dispose();a.matchedPins.Dispose();}
  internal static int Verify(){
@@ -33,6 +33,15 @@ __METHODS__
   a.firstRider.Commands.Raw[0]=null;bool started=false;try{started=!a.Tick();}catch{}Check(started&&a.acquires==1,"ordinary native slot removal allows exactly one observer acquisition");
   bool stable=false;try{stable=!a.Tick();}catch{}Check(stable&&a.acquires==1,"warmup polls cannot reacquire observer");
   a.firstRider.Commands.Queue.Add(new Command());bool refused=false;try{a.Tick();}catch{refused=true;}Check(refused&&a.acquires==1&&!a.matched.Released,"later queued native command refuses and retains sampler for cleanup");a.matched.Dispose();a.matchedPins.Dispose();
+  a=new AdmissionAdapter();a.BeginMatchedPool(0);
+  for(int i=0;i<Chunk7MatchedPoolCollector.WindowsPerState;i++){
+   Check(!a.Tick()&&a.acquires==i+1,"same-state repeated window acquires one sampler at index "+i);
+   a.sampler.IsReady=true;var complete=a.Tick();
+   Check(complete==(i==Chunk7MatchedPoolCollector.WindowsPerState-1)&&a.matched.CompletedCount==i+1&&a.pendingMatchedIndex==(complete?-1:i+1),
+    "same-state repeated window advances only after exact completion at index "+i);
+  }
+  Check(a.matched.CompletedCount==3&&!a.matched.Complete,"first resident state cannot claim the complete twelve-window sequence");
+  a.matched.Dispose();a.matchedPins.Dispose();
   Refuse("changed world scope refuses before sampling",x=>x.nativeScope.Refuse=true);
   Refuse("same-area replaced Player refuses before sampling",x=>Game.Instance.Player=new object());
   Refuse("changed actor descriptor refuses before sampling",x=>x.firstRider.Descriptor=new Descriptor());
