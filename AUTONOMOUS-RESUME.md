@@ -1,5 +1,23 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## Active October 20 batch52 Small Manual producer PASS
+
+The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
+The [batch52 record](docs/CHUNK7-BATCH52-SMALL-MANUAL-PRODUCER-2026-10-20.md)
+pins preview.70 Candidate 6/0 and one native Small producer **PASS 6/0**.
+The genuine run-owned Manual 304 SHA-256 is
+`5f0d8e2c4ae22f7d7dc2c01d7dcc21cd8e7fd0b6b8d4de113fbbd28b5fa613b3`;
+it contains a disclosed stock default male Halfling and two permanent KMC
+Horses, with zero mounted pairs. Exact Mods/save/profile restoration passed;
+game and lock are absent. Batch49-51 original FAILs remain preserved.
+Next: qualify a separate cold consumer of an independent Manual copy, then
+route this F09-produced Manual into measured Small calibration under exact
+provenance. Existing Small calibration source cases do not accept this new
+F09 lineage, and its compiled Small catalogue is still empty. Do not relabel
+the F09 Manual as an acquired-field source or a DLL-absent removal fixture.
+Continue independent area, positive removal, progression and measured 7D
+work. The selected private 7E waits for implementation/review readiness.
+
 ## Active October 20 batch51 Manual source descriptor correction
 
 The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.

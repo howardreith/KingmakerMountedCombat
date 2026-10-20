@@ -1,5 +1,15 @@
 # Chunk 7B–7D — IN PROGRESS
 
+## October 20 - batch52 genuine Small Manual producer
+
+Preview.70 Candidate passed 6/0. One native Small slot passed all six
+declared rows and wrote the genuine `KMC_C7_SMALL_FIXTURE` Manual from the
+qualified clean seed, paid native Halfling hire and two native Horses. The
+saved archive is schema 3 with zero mounted pairs; the separate cold consumer
+and mounted Small calibration remain open. Guarded Mods, saves and profile
+restored exactly; game and lock are absent. See the
+[batch52 record](docs/CHUNK7-BATCH52-SMALL-MANUAL-PRODUCER-2026-10-20.md).
+
 ## October 20 - batch51 Small Manual source descriptor
 
 Preview.69 Candidate passed 6/0. Its single native Small slot passed the
