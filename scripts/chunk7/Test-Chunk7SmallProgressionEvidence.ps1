@@ -11,15 +11,17 @@ $c=Get-Content -Raw -LiteralPath (Join-Path $coldRoot 'chunk7-persistence-eviden
 if((Get-KmcSha256 (Join-Path $coldRoot 'chunk7-persistence-evidence.json'))-cne'7620c298c91f33f5bc456a91c4beef2a7ccb66ef4758a13605d58cc682e16f3f'){
     throw 'Historical Small cold observation changed; this read-only reader test cannot transfer a verdict.'
 }
-function New-SmallProgressionEvidenceFixture {
-    $f=New-ProgressionFixture 'owned-horse-native-dismiss';$s=$f.request.progression;$n=$q.ownedPairs
+function New-SmallProgressionEvidenceFixture([string]$Case='small-horse-native-dismiss') {
+    $base=if($Case-ceq'small-horse-native-retrain-horse'){'owned-horse-native-retrain-horse'}else{'owned-horse-native-dismiss'}
+    $f=New-ProgressionFixture $base;$s=$f.request.progression;$n=$q.ownedPairs
     $map=[ordered]@{};$map[$s.controlActorId]=$n.riderAId;$map[$s.controlPetId]=$n.mountAId
     $map[$s.actorId]=$n.riderBId;$map[$s.petId]=$n.mountBId
     $map[$f.artifact.observations.source.inventoryWorld.mainActorId]=$n.partyIds[1]
     $raw=ConvertTo-KmcChunk7Canonical $f
     foreach($entry in $map.GetEnumerator()){$raw=$raw.Replace($entry.Key,$entry.Value)}
     $f=$raw|ConvertFrom-Json;$r=$f.request;$o=$f.artifact.observations;$s=$r.progression
-    $s.case='small-horse-native-dismiss';$s.ownedSource=Copy-O $n
+    $s.case=$Case;$s.ownedSource=Copy-O $n
+    if($Case-ceq'small-horse-native-retrain-horse'){$s.raceGuid='b0c3ef2729c498f47970bb50fa1acd30';$s.presetGuid='639cebe8cbc098345af429d62fd79578';$s.skeletonName='MaleHalfling';$s.gender='Male';$s.leftHanded=$false;$s.bodySize='Small'}
     $s.sourceRunId=$n.checkpointSourceRunId;$s.sourceArtifactSha256=$n.checkpointSourceArtifactSha256
     $s.sourceArchiveSha256=$q.persistenceLoad.sha256;$s.inventoryRunId=$q.runId
     $s.inventoryArtifactSha256=(Get-KmcSha256 (Join-Path $coldRoot 'chunk7-persistence-evidence.json'))
@@ -37,7 +39,19 @@ function New-SmallProgressionEvidenceFixture {
     $source.inventoryWorld.mainActorId=$n.riderAId
     $source.inventoryWorld.party=@($source.smallColdFixture.arrangement.actors|ForEach-Object{[pscustomobject]@{id=$_.actorId;blueprint=$_.blueprint}})
     $o.nativeBodyBefore.OriginalSizeOrdinal=3;$o.nativeBodyBefore.EffectiveSizeOrdinal=3
-    foreach($row in $o.session.events){$row.xp=$source.inventoryActor.experience}
+    if($Case-ceq'small-horse-native-retrain-horse'){
+        foreach($key in @('RaceGuid','PresetGuid','SkeletonName','Gender','LeftHanded')){$o.nativeBodyBefore.$key=$s.($key.Substring(0,1).ToLowerInvariant()+$key.Substring(1))}
+        $write=$o.session.nativeWrite;$write.gameId=$r.persistenceLoad.gameId;$write.gameName=$r.persistenceLoad.gameName;$write.area=$r.persistenceLoad.area
+        $write.archive.CampaignId=$r.persistenceLoad.gameId;$write.archive.AreaId=$r.persistenceLoad.area
+        function Match-SmallXp($Value,[int]$Xp){
+            if($null-eq$Value-or$Value-is[string]-or$Value.GetType().IsValueType){return}
+            if($Value-is[Array]){foreach($item in $Value){Match-SmallXp $item $Xp};return}
+            if($Value.PSObject.Properties['xp']-and$Value.xp-eq20000){$Value.xp=$Xp}
+            foreach($property in $Value.PSObject.Properties){Match-SmallXp $property.Value $Xp}
+        }
+        Match-SmallXp $o.session $source.inventoryActor.experience
+    }
+    foreach($row in $o.session.events){if($row.PSObject.Properties['xp']){$row.xp=$source.inventoryActor.experience}}
     foreach($roster in @($o.ownedRosterBefore,$o.ownedRosterAfter)){
         $roster.originalPartyIds=Copy-O $n.partyIds;$roster.originalCharacterIds=Copy-O $c.observations.inheritedFixture.currentCharacterIds
         $roster.characterIds=@($roster.originalCharacterIds|Where-Object{!$roster.targetRemoved-or$_-cne$s.actorId})
@@ -49,6 +63,19 @@ function New-SmallProgressionEvidenceFixture {
 $script:passes=0
 Good 'Small seven-actor dismissal public reader accepts exact cold fixture and real native-operation shape' {
     $f=New-SmallProgressionEvidenceFixture;Assert-KmcChunk7ProgressionEvidence $f.request $f.artifact
+}
+Good 'Small Horse retrain public reader accepts exact cold fixture and native Manual shape' {
+    $f=New-SmallProgressionEvidenceFixture 'small-horse-native-retrain-horse';Assert-KmcChunk7ProgressionEvidence $f.request $f.artifact
+}
+Bad 'Small Horse retrain refuses changed observed body' {
+    $f=New-SmallProgressionEvidenceFixture 'small-horse-native-retrain-horse'
+    $f.artifact.observations.nativeBodyBefore.RaceGuid='aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+    Assert-KmcChunk7ProgressionEvidence $f.request $f.artifact
+}
+Bad 'Small Horse retrain refuses Auto substituted for native Manual' {
+    $f=New-SmallProgressionEvidenceFixture 'small-horse-native-retrain-horse'
+    $f.artifact.observations.session.nativeWrite.type='Auto'
+    Assert-KmcChunk7ProgressionEvidence $f.request $f.artifact
 }
 $mutations=[ordered]@{
     'coherent foreign paid-companion blueprint'={param($f)

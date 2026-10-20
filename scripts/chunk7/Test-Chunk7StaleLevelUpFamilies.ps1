@@ -40,7 +40,7 @@ $blocked=[ordered]@{
 }
 $progressionSite='src/KingmakerMountedCombat/Diagnostics/Chunk7NativeProgressionSession.cs (legacy ObserveTerminalAutosave)'
 $blockedCases=@('horse-native-level','horse-native-retrain-horse','horse-native-retrain-mammoth')
-$admittedCases=@('horse-native-dismiss','owned-horse-native-dismiss','owned-horse-native-level','owned-horse-native-retrain-horse','owned-horse-native-retrain-mammoth')
+$admittedCases=@('horse-native-dismiss','owned-horse-native-dismiss','owned-horse-native-level','owned-horse-native-retrain-horse','owned-horse-native-retrain-mammoth','small-horse-native-dismiss','small-horse-native-retrain-horse')
 
 # The registry is exact and every recorded wait site is the live wait in the source.
 $families=@(Get-KmcChunk7StaleLevelUpAutosaveFamilies)
@@ -112,7 +112,22 @@ foreach($entry in $blocked.GetEnumerator()){
 # Selection intake hashes its file, which -WhatIf would turn into a no-op, so these runs omit
 # -WhatIf and instead carry a forbidden field selection: the runner's own next intake check
 # throws right after the readiness gate, long before environment intake, approval or a lock.
-function Write-Selection([string]$Case){$p=Join-Path $output ('progression-'+$Case+'.json');$s=(New-ProgressionFixture $Case).request.progression;if(Test-KmcChunk7OwnedProgressionCase $Case){$s.nativeWriteLeaf=$null};[IO.File]::WriteAllText($p,(ConvertTo-KmcChunk7Canonical $s),[Text.UTF8Encoding]::new($false));$p}
+function Write-Selection([string]$Case){
+    $p=Join-Path $output ('progression-'+$Case+'.json')
+    if(Test-KmcChunk7SmallProgressionCase $Case){
+        $source=Join-Path $labRoot 'runtime-evidence/20261020-c7b-world102-b89s3-small-native-dismiss/runtime-request.json'
+        if((Get-KmcSha256 $source)-cne'90f0974ec2f033e7fcb4e0ba07cf0cf33a35651cdfcabe4975ff4bb276bf972b'){
+            throw 'Immutable batch89 Small progression intake source changed.'
+        }
+        $s=(Get-Content -Raw -LiteralPath $source|ConvertFrom-Json).progression
+        if($Case-ceq'small-horse-native-retrain-horse'){
+            $s.case=$Case;$s.raceGuid='b0c3ef2729c498f47970bb50fa1acd30';$s.presetGuid='639cebe8cbc098345af429d62fd79578'
+            $s.skeletonName='MaleHalfling';$s.gender='Male';$s.leftHanded=$false;$s.bodySize='Small'
+            $s.minimumRangerLevel=4;$s.expectedNativeWriteCount=1
+        }
+    }else{$s=(New-ProgressionFixture $Case).request.progression;if(Test-KmcChunk7OwnedProgressionCase $Case){$s.nativeWriteLeaf=$null}}
+    [IO.File]::WriteAllText($p,(ConvertTo-KmcChunk7Canonical $s),[Text.UTF8Encoding]::new($false));$p
+}
 foreach($case in $blockedCases){
     $r=Invoke-Runner @('-Scenario','chunk7-native-progression','-BaseGameOnly','-SaveAccessAllowed','-ProgressionSelectionPath',(Write-Selection $case),'-OrdinaryFieldSelectionPath',$missing)
     if($r.code-eq0-or-not$r.text.Contains((Expected ('chunk7-native-progression/'+$case) $progressionSite))){throw ('Runner did not refuse progression '+$case+': '+$r.text)}

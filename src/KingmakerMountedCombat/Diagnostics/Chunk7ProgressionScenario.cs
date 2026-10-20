@@ -140,7 +140,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     ReferenceEquals(actor.Descriptor.Pet, pet) && ReferenceEquals(pet.Descriptor.Master.Value, actor),
                     "Restored owner/generation, field relationship or reciprocal native pet differs from its source.");
             }
-            Require(archive.Pairs.Count(value => value.ProfileId == (selection.IsSmallDismiss ? "small-default-halfling-horse-v1" : SupportedMountedProfiles.Horse.Id) && value.Rider.Id == rider.UniqueId && value.Mount.Id == mount.UniqueId) == 1 &&
+            Require(archive.Pairs.Count(value => value.ProfileId == (selection.IsSmallOwned ? "small-default-halfling-horse-v1" : SupportedMountedProfiles.Horse.Id) && value.Rider.Id == rider.UniqueId && value.Mount.Id == mount.UniqueId) == 1 &&
                 archive.Pairs.Count(value => value.ProfileId == (ownedProgression ? SupportedMountedProfiles.Horse.Id : SupportedMountedProfiles.Mammoth.Id) && value.Rider.Id == controlRider.UniqueId && value.Mount.Id == controlMount.UniqueId) == 1,
                 "Progression substituted a profile or target/control actor role.");
             var ids = actors.Select(value => value.UniqueId).ToArray();
@@ -169,7 +169,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 selection.OperationCase == Chunk7ProgressionSelection.LevelCase ? Chunk7OrdinaryBuildMode.ExistingHorseLevels :
                 selection.OperationCase == Chunk7ProgressionSelection.RetrainHorseCase ? Chunk7OrdinaryBuildMode.NativeRespecHorse : Chunk7OrdinaryBuildMode.NativeRespecMammoth,
                 selection.RaceGuid, selection.PresetGuid, selection.SkeletonName, selection.Gender == "Female" ? Gender.Female : Gender.Male,
-                selection.LeftHanded ?? false, selection.MinimumRangerLevel, Size.Medium) : null;
+                selection.LeftHanded ?? false, selection.MinimumRangerLevel, selection.IsSmallOwned ? Size.Small : Size.Medium) : null;
             session = new Chunk7NativeProgressionSession(request, selection.NativeCase, pins, rider, mount, authorization, authority, world, persistence, horses);
             session.Start(); Pass("C7-progression-cold-source");
         }
@@ -183,7 +183,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 Require((string)item["status"] == "PASS" && item["errors"] is JArray itemErrors && itemErrors.Count == 0 &&
                     (string)item["commit"] == request.Commit && (string)item["dllSha256"] == request.DllSha256 && (string)item["dllMvid"] == request.DllMvid,
                     "Staged native source/inventory is not a same-candidate immutable PASS.");
-            if (selection.IsSmallDismiss)
+            if (selection.IsSmallOwned)
             {
                 ReadSmallOwnedSources(source, inventory); return;
             }
@@ -210,7 +210,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private void RequireBodyPins()
         {
             var body = NativeSmallRiderBody.Capture(rider, mount);
-            var size = selection.IsSmallDismiss ? Size.Small : Size.Medium;
+            var size = selection.IsSmallOwned ? Size.Small : Size.Medium;
             Require(body != null && body.OriginalSizeOrdinal == (int)size && body.EffectiveSizeOrdinal == (int)size &&
                 !body.RiderPolymorphed && !body.MountPolymorphed, "The selected progression target lacks its exact supported native body.");
             if (selection.IsRespec)

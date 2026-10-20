@@ -375,7 +375,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 archive.Kind == MountedSaveReadKind.Current && archive.SourceSchema == 3 && archive.Data != null &&
                 archive.Data.Combat == null && archive.Data.Participations.Length == 0 && archive.Data.Pairs.Length == owners.Length &&
                 owners.All(owner => archive.Data.Pairs.Count(pair => pair.PairId == owner.Id.ToString("N") && pair.Generation == owner.Generation &&
-                    pair.Rider.Id == owner.RiderId && pair.Mount.Id == owner.MountId) == 1),
+                    ArchiveActorMatchesOwner(pair.Rider.Id, owner.RiderId, owner.Rider) &&
+                    ArchiveActorMatchesOwner(pair.Mount.Id, owner.MountId, owner.Mount)) == 1),
                 "Progression autosave mounted ownership differs from actual settled native owners.");
             var file = new FileInfo(save.FolderName);
             nativeWrite = new JObject { ["path"] = file.FullName, ["sha256"] = Hash(file.FullName), ["length"] = file.Length,
@@ -387,6 +388,15 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["nativeAutoLevelup"] = save.IsAutoLevelupSave, ["nativeCallbackSupplied"] = false, ["pairs"] = archive.Data.Pairs.Length,
                 ["archive"] = JObject.FromObject(archive.Data, MountedSaveCodec.CreateSerializer()) };
             return true;
+        }
+
+        private static bool ArchiveActorMatchesOwner(string archiveId, string registryId, UnitEntityData actor)
+        {
+            // Saved actors use the native D-form UniqueId; registry custody uses
+            // the same GUID in N form. Require both exact representations and the
+            // live bound actor, rather than accepting a loose parsed equality.
+            return actor != null && Guid.TryParseExact(archiveId, "D", out var id) && id != Guid.Empty &&
+                id.ToString("D") == archiveId && id.ToString("N") == registryId && actor.UniqueId == archiveId;
         }
 
         private void RequireManualWorldReferences()
@@ -480,7 +490,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 archive.Kind == MountedSaveReadKind.Current && archive.SourceSchema == 3 && archive.Data != null &&
                 archive.Data.Combat == null && archive.Data.Participations.Length == 0 && archive.Data.Pairs.Length == owners.Length &&
                 owners.All(owner => archive.Data.Pairs.Count(pair => pair.PairId == owner.Id.ToString("N") &&
-                    pair.Generation == owner.Generation && pair.Rider.Id == owner.RiderId && pair.Mount.Id == owner.MountId) == 1),
+                    pair.Generation == owner.Generation &&
+                    ArchiveActorMatchesOwner(pair.Rider.Id, owner.RiderId, owner.Rider) &&
+                    ArchiveActorMatchesOwner(pair.Mount.Id, owner.MountId, owner.Mount)) == 1),
                 "Owned progression Manual mounted metadata differs from settled native owner custody.");
             var file = new FileInfo(written.FolderName);
             nativeWrite = new JObject { ["path"] = file.FullName, ["sha256"] = Hash(file.FullName), ["length"] = file.Length,
