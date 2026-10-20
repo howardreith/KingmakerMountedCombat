@@ -15,7 +15,13 @@ admission accepts `KMC_C7_ACQUIRED_FIELD` ancestry only, whereas this proven
 F09 source is `KMC_C7_SMALL_FIXTURE`. A new explicitly qualified F09 input case
 must preserve that honest lineage and separately observe the mounted pose;
 renaming the archive or relaxing the existing acquired-Manual gate would be
-incorrect. This observation changes no product profile admission.
+incorrect. A read-only call of the existing complete F09 cold-source qualifier
+against the *historical producer's own candidate identity* revalidated the
+batch53 Manual and all nine receipt pins on October 20. A future current
+candidate may consume those bytes only through an explicit cross-candidate
+input case that keeps the producer identity separate and qualifies its own
+native load and mounted actions. This observation changes no product profile
+admission.
 
 IN PROGRESS. The closed `chunk7-small-profile-calibration` diagnostic supports three existing source cases for a measured compiled declaration. It is not native evidence or a Small-profile acceptance gate by itself. The production Small catalogue remains empty until an explicit reviewed declaration is authored from actual observations.
 
