@@ -104,11 +104,10 @@ and pose-record SHA-256 `7d2385144838cccc27082cc9792f338c716961ed25016e6fff98659
 The corrected compiled DLL SHA-256 is
 `bb9f64c1b563a820fcd03bb75c6e47cad687be8747f737c5d212c3e636dcb985`;
 independent review, Small policy 44/0, Fast 2/0 and Candidate 6/0 passed.
-Next: freeze a package and qualify the explicit cross-candidate F09 Manual
-under the current candidate, then run the bounded native mounted calibration
-and correct or qualify the declaration from its evidence. An earlier
-candidate's source is not relabeled as the new candidate. Current checks grant
-neither native mounted PASS nor normal-player Small support.
+At that earlier checkpoint, the next step was to qualify the cross-candidate
+F09 Manual and run bounded mounted calibration. An earlier candidate's source
+was not relabeled as the new candidate. Those checks alone then granted neither
+native mounted PASS nor normal-player Small support.
 
 The first guarded native F09 consumer on preview.83 is an original
 **FAIL**, recorded in [batch68](CHUNK7-BATCH68-SMALL-CALIBRATION-2026-10-20.md).
@@ -117,3 +116,15 @@ snapshot mismatch before any mounted-pose qualification. The exact transaction
 and startup profile were recovered separately. The next observer records the
 first differing field and native stage without changing the PASS assertion;
 no conclusion about the proposed Small pose follows from batch68.
+
+The [batch70 native run](CHUNK7-BATCH70-SMALL-NATIVE-2026-10-20.md) reached
+game PASS 9/9 on preview.85 for the exact default MaleHalfling/Horse body,
+including both primary-action orders, mounted motion and Dismount. Its
+original external-reader FAIL remains separate from the corrected reader-only
+PASS. The measured pose uses the same compiled declaration and pose-record
+identity above. The reviewed batch71 ordinary-profile implementation admits exactly
+this declaration for current-body and schema-3 profile recognition; it requires
+the measured native Horse size ordinal 5 and does not admit other Halfling
+presets, equipment, sizes, forms or mounts. Native
+ordinary-player save/load, additional presentation actions and final human
+visual/physical-input acceptance still require their own evidence.

@@ -46,6 +46,7 @@ namespace KingmakerMountedCombat.Domain
     public sealed class DeclaredSmallRiderBody
     {
         public const int NativeSmallOrdinal = 3;
+        public const int NativeHorseOrdinal = 5;
         public const string HorseBlueprintGuid = "4016c7db400ab721ff125aef9e65e202";
         private readonly string[] dollEquipment, currentEquipment, visualEquipment;
 
@@ -100,8 +101,8 @@ namespace KingmakerMountedCombat.Domain
                 return "The declared Small profile requires original and effective native Small size.";
             if (current.RiderPolymorphed || current.MountPolymorphed)
                 return "Polymorphed rider or mount is outside the declared Small profile.";
-            if (current.MountBlueprintGuid != HorseBlueprintGuid || current.MountSizeOrdinal <= NativeSmallOrdinal)
-                return "The declared Small profile requires the exact larger native Horse companion.";
+            if (current.MountBlueprintGuid != HorseBlueprintGuid || current.MountSizeOrdinal != NativeHorseOrdinal)
+                return "The declared Small profile requires the exact native Large Horse companion.";
             if (current.RaceGuid != RaceGuid || current.PresetGuid != PresetGuid || current.Gender != Gender ||
                 !current.NativeRaceAndPresetIdentityExact)
                 return "The native Small race, preset or sex differs from the declared body.";

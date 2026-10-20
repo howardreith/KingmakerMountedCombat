@@ -1,6 +1,21 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
-## Active October 20 batch70 F09 native verification
+## Active October 20 batch71 ordinary Small-profile implementation
+
+The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
+[Batch71](docs/CHUNK7-BATCH71-SMALL-ADMISSION-2026-10-20.md) promotes only the
+exact batch70 measured default MaleHalfling/Horse declaration to the ordinary
+catalogue and schema-3 profile recognition, pinned to native Horse size 5.
+The private calibration lease shares the same declaration; native body/rig,
+ownership and restoration gates remain. Fast 3/0, Candidate 8/0, affected
+focused checks and independent production review passed. This checkpoint has
+no new native result. Next: commit and guarded-push the reviewed change, freeze
+one development package from that commit, then run affected native ordinary
+Small verification against the immutable qualified F09 Manual. Ordinary
+mounted save/cold load, broader presentation, progression, 7D and 7E remain
+open. No live executor or transaction lock is active.
+
+## Historical October 20 batch70 F09 native verification
 
 The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) is active through
 7B, 7C, 7D and the selected private 7E. Current branch is
@@ -14,9 +29,9 @@ reader-only and does not change the preview.85 DLL. Mods, Working, protected
 saves and profile restored exactly; no live executor or lock remains. Keep
 batch68/69 failures and the batch70 original outer FAIL. Independent reader
 review passed 24/0 on reader SHA-256 `2584ccb7` and test SHA-256 `5b7f7c8a`.
-Next: commit and guarded-push this checkpoint, then assess ordinary Small
-profile admission and its genuine
-native save/load/neighbors. F10 progression, doors, 7D and 7E remain open.
+Commit `7bc2f6c8` was guarded-pushed; the subsequent batch71 implementation
+addresses ordinary profile recognition. F10 progression, doors, 7D and 7E
+remain open.
 
 ## Historical October 20 batch69 F09 combat-entry correction
 

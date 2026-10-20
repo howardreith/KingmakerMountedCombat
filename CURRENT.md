@@ -1,5 +1,16 @@
 # Chunk 7B–7D — IN PROGRESS
 
+## October 20 - batch71 ordinary Small-profile implementation
+
+The measured default MaleHalfling/Horse declaration is now the sole ordinary
+Small profile and a schema-3 data-eligible profile. Native Horse size is pinned
+to the measured ordinal 5; other Small bodies, gear and forms remain refused.
+The private F09 lease shares that exact declaration. Fast passed 3/0, Candidate
+8/0, affected focused checks and independent review passed. This is an
+implementation checkpoint: ordinary mounted save/load, additional presentation
+actions and final owner visuals remain open. No native scenario was added in
+batch71. See the [batch71 record](docs/CHUNK7-BATCH71-SMALL-ADMISSION-2026-10-20.md).
+
 ## October 20 - batch70 F09 native Small calibration
 
 Preview.85's declared F09 run returned game **PASS 9/9** for the exact private

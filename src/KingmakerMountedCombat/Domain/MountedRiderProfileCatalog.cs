@@ -18,16 +18,16 @@ namespace KingmakerMountedCombat.Domain
         public const string MediumMammothId = "medium-humanoid-mammoth-v1";
         public const string MediumHorseId = "medium-humanoid-horse-v1";
 
-        // Deliberately empty. Populate only with one explicitly measured,
-        // reviewed native declaration; no guessed race/body/pose constants.
+        // The exact default MaleHalfling/Horse body and pose were measured in
+        // batch70. Other Small bodies, gear and mounts remain unsupported.
+        private static readonly DeclaredSmallMountedProfile halflingHorse = InitialHalflingCalibration();
         private static readonly ReadOnlyCollection<DeclaredSmallMountedProfile> small =
-            Array.AsReadOnly(Array.Empty<DeclaredSmallMountedProfile>());
+            Array.AsReadOnly(new[] { halflingHorse });
         public static IReadOnlyList<DeclaredSmallMountedProfile> Small => small;
-        // Initial default MaleHalfling/Horse pose from the pinned batch53 native
-        // body and neutral geometry. Its offsets remain a private calibration
-        // hypothesis, never ordinary-play or saved-profile admission.
+        // Retain the exact F09 calibration lease for reproducible diagnostics;
+        // it names the same declaration as ordinary admission.
         private static readonly ReadOnlyCollection<DeclaredSmallMountedProfile> privateCalibrationSmall =
-            Array.AsReadOnly(new[] { InitialHalflingCalibration() });
+            Array.AsReadOnly(new[] { halflingHorse });
         internal static IReadOnlyList<DeclaredSmallMountedProfile> PrivateCalibrationSmall => privateCalibrationSmall;
         private static DeclaredSmallMountedProfile InitialHalflingCalibration()
         {

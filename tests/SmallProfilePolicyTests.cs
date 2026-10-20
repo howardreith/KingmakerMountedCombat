@@ -20,6 +20,8 @@ namespace KingmakerMountedCombat.Tests
             Refuse(runner, "mount polymorph", value => value.MountPolymorphed = true);
             Refuse(runner, "Small body borrowed for Mammoth", value => value.MountBlueprintGuid = "e7aa96d15a45238438ae4cfb476f6bb9");
             Refuse(runner, "mount no larger than Small rider", value => value.MountSizeOrdinal = 3);
+            Refuse(runner, "Horse reduced to Medium outside calibrated pose", value => value.MountSizeOrdinal = 4);
+            Refuse(runner, "Horse enlarged to Huge outside calibrated pose", value => value.MountSizeOrdinal = 6);
             Refuse(runner, "other Small race", value => value.RaceGuid = new string('e', 32));
             Refuse(runner, "other race preset", value => value.PresetGuid = new string('e', 32));
             Refuse(runner, "other sex", value => value.Gender = "Male");
@@ -76,8 +78,8 @@ namespace KingmakerMountedCombat.Tests
             });
             runner.Run("Small profile control requires its independently valid pose surface", () =>
             { var context = Context(false, Match()); context.RiderBodyProfileSupported = false; TestRunner.True(!MountedPlayerActionEvaluator.Evaluate(context).IsEnabled, "Small bypassed live pose surface."); });
-            runner.Run("empty production catalogue cannot qualify synthetic Small profiles", () =>
-            { TestRunner.True(MountedRiderProfileCatalog.Small.Count == 0 && !MountedRiderProfileCatalog.IsSupportedArchiveProfile(Profile), "Unmeasured synthetic profile was globally enabled."); });
+            runner.Run("qualified catalogue cannot admit synthetic Small profiles", () =>
+            { TestRunner.True(MountedRiderProfileCatalog.Small.Count == 1 && !MountedRiderProfileCatalog.IsSupportedArchiveProfile(Profile), "Unmeasured synthetic profile was globally enabled."); });
             runner.Run("schema3 profile policy preserves both Medium IDs and rejects guessed/unknown IDs", () =>
             {
                 TestRunner.True(MountedRiderProfileCatalog.IsSupportedArchiveProfile("medium-humanoid-horse-v1") &&
@@ -98,17 +100,19 @@ namespace KingmakerMountedCombat.Tests
                 Throws(() => new DeclaredSmallMountedProfile(Declaration(), pose, null, Vector(), Vector(), Vector()));
                 var declaration = new DeclaredSmallMountedProfile(Declaration(), pose, new string('a', 64), Vector(), Vector(), Vector());
                 TestRunner.Equal(Profile, declaration.Pose.Id, "Exact independent pose identity changed.");
-                TestRunner.True(MountedRiderProfileCatalog.Small.Count == 0, "Constructing policy data registered a native profile.");
+                TestRunner.True(MountedRiderProfileCatalog.Small.Count == 1, "Constructing policy data changed the qualified native catalogue.");
             });
-            runner.Run("private Halfling calibration has exact pair custody without ordinary admission", () =>
+            runner.Run("qualified Halfling declaration and private calibration share exact identity", () =>
             {
                 var provisional = MountedRiderProfileCatalog.PrivateCalibrationSmall.Single();
                 var id = provisional.Body.ProfileId;
                 TestRunner.True(id == "small-default-halfling-horse-v1" &&
                     provisional.Body.NativeInventorySha256 == "dcdc6cdce0265a221b2f3d890d34229385098235d2546df4a9c6a399239e48a9" &&
                     provisional.NativeCalibrationSha256 == "7d2385144838cccc27082cc9792f338c716961ed25016e6fff986599196411db" &&
-                    MountedRiderProfileCatalog.Small.Count == 0 && !MountedRiderProfileCatalog.IsSupportedArchiveProfile(id),
-                    "Provisional Small pose leaked into ordinary or saved-profile admission.");
+                    MountedRiderProfileCatalog.Small.Count == 1 &&
+                    ReferenceEquals(MountedRiderProfileCatalog.Small[0], provisional) &&
+                    MountedRiderProfileCatalog.IsSupportedArchiveProfile(id),
+                    "Native-qualified Small declaration differs from its private calibration identity.");
                 var gate = new PrivateSmallCalibrationGate(MountedRiderProfileCatalog.PrivateCalibrationSmall);
                 const string rider = "c4e2c853-4b72-4904-ad84-d0b7bfba7470";
                 const string horse = "0e0c7d2d-06b4-4510-9f81-d847340d1424";
@@ -145,7 +149,9 @@ namespace KingmakerMountedCombat.Tests
                 TestRunner.True(refused, "Duplicate private Small admission was accepted.");
                 lease.Dispose();
                 TestRunner.True(gate.Resolve(rider, horse, riderObject, horseObject) == null && gate.ResolveProfileId(id) == null &&
-                    MountedRiderProfileCatalog.Small.Count == 0, "Released private Small admission remained active.");
+                    MountedRiderProfileCatalog.Small.Count == 1 &&
+                    MountedRiderProfileCatalog.IsSupportedArchiveProfile(id),
+                    "Released private Small calibration changed ordinary profile admission.");
             });
         }
 

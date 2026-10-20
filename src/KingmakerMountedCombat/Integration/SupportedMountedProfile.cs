@@ -122,8 +122,11 @@ namespace KingmakerMountedCombat.Integration
             }
             if (privateDeclaration != null && privateDeclaration.Body.Refusal(observed) == null)
             {
-                if (result != null) return null;
-                result = privateCalibrationSmall.Single(profile => profile.Id == privateDeclaration.Body.ProfileId);
+                // The diagnostic lease can coexist only with the same exact
+                // qualified declaration; it must not create a second claim.
+                if (result != null && !ReferenceEquals(result.SmallRiderBody, privateDeclaration.Body)) return null;
+                if (result == null)
+                    result = privateCalibrationSmall.Single(profile => profile.Id == privateDeclaration.Body.ProfileId);
             }
             return result;
         }
