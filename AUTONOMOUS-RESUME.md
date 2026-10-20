@@ -1,22 +1,39 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
-## Active October 20 batch69 F09 combat-entry correction
+## Active October 20 batch70 F09 native verification
+
+The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) is active through
+7B, 7C, 7D and the selected private 7E. Current branch is
+`codex/mounted-combat-chunk7-successor`; the last guarded-pushed commit before
+this reader/documentation checkpoint is `586347bdd944b16cad3f3564c9d26f9d8cc529b5`.
+[Batch70](docs/CHUNK7-BATCH70-SMALL-NATIVE-2026-10-20.md) ran one F09 native
+scenario on preview.85: game PASS 9/9, original outer FAIL on a lexical `0.0`
+versus `0` reader comparison. The exact frozen raw native artifact separately
+passes the corrected external reader, with focused regressions 36/0; this is
+reader-only and does not change the preview.85 DLL. Mods, Working, protected
+saves and profile restored exactly; no live executor or lock remains. Keep
+batch68/69 failures and the batch70 original outer FAIL. Independent reader
+review passed 24/0 on reader SHA-256 `2584ccb7` and test SHA-256 `5b7f7c8a`.
+Next: commit and guarded-push this checkpoint, then assess ordinary Small
+profile admission and its genuine
+native save/load/neighbors. F10 progression, doors, 7D and 7E remain open.
+
+## Historical October 20 batch69 F09 combat-entry correction
 
 The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
 [Batch69](docs/CHUNK7-BATCH69-SMALL-COMBAT-ENTRY-2026-10-20.md) ran one F09
 consumer with preview.84 and preserved its original native/outer **FAIL**.
-The observer now shows an exact native combat-entry phase change in the
+The observer showed an exact native combat-entry phase change in the
 neighboring main/Horse pair: Prepared false to true and initiative 0 to 7/5;
 Standard/Move/Swift, reactions and static custody stayed exact. The guarded
-transaction and profile settled exactly. The current uncommitted correction
+transaction and profile settled exactly. The subsequently committed correction
 admits only that bounded native transition, records its witness and requires
 the external reader to reject any neighboring action-budget change. The F09
 reader passed 25/0, the assisted connection passed 265/0 after test-scaffold
-repair, offline Candidate passed 7/0, and independent review passed. Next:
-commit and guarded-push this correction, freeze one corrected
-candidate, then run one guarded F09 verification against the same immutable
-batch53 Manual. Keep ordinary Small admission closed until native evidence
-supports it. Do not call the batch69 failure a Small profile PASS.
+repair, offline Candidate passed 7/0, and independent review passed. Commit
+`586347bd` was guarded-pushed, preview.85 frozen, and batch70 ran its one
+native verification against the same immutable batch53 Manual. Batch69 itself
+remains FAIL.
 
 ## Historical October 20 batch68 Small calibration diagnosis
 

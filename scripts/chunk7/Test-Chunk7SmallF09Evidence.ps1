@@ -66,6 +66,8 @@ function New-F09Synthetic{
  $o|Add-Member inheritedFixturePairBefore $prior;$o|Add-Member inheritedFixturePairAfter (Clone $prior)
  $admitted=Clone $prior;foreach($row in $admitted.resources){$row.prepared=$true;$row.initiative=if($row.actorId-ceq$main){7}else{5}}
  $o|Add-Member inheritedFixturePairNativeCombatAdmission ([pscustomobject]@{stage=3;frame=6;gameTicks=100;targetId=$o.targetId;targetInCombat=$true;ownerInCombat=$true;horseInCombat=$true;ownerCommandsEmpty=$true;horseCommandsEmpty=$true;before=(Clone $prior);after=$admitted})
+ foreach($state in @($o.inputs|ForEach-Object{$_.before;$_.after})+@($o.movement.before,$o.movement.after)){foreach($owner in @($state.owners)){$owner.riderId=$small.Replace('-','');$owner.mountId=$pet.Replace('-','')}}
+ $o.inputs[0].generation=0
  $o.selection=Clone $f.request.smallCalibration
  $f
 }
@@ -74,6 +76,7 @@ $script:pass=0;$script:fail=0;$watch=[Diagnostics.Stopwatch]::StartNew()
 function Good([string]$name,[scriptblock]$action){try{&$action;$script:pass++;Write-Host ('PASS '+$name)}catch{$script:fail++;Write-Host ('FAIL '+$name+': '+$_+' '+$_.ScriptStackTrace)}}
 function Bad([string]$name,[scriptblock]$action){try{&$action;$script:fail++;Write-Host ('FAIL accepted '+$name)}catch{$script:pass++;Write-Host ('PASS refuses '+$name)}}
 Good 'F09 synthetic seven-actor source and shared native mounted reader' { $f=New-F09Synthetic;Assert-KmcChunk7SmallEvidence $f.request $f.artifact }
+Good 'F09 source decimal zero equals exact observed integer zero' { $f=New-F09Synthetic;$f.artifact.observations.source.fixtureManual.savedWorld.party[0].native.Initiative=[decimal]0.0;Assert-KmcChunk7SmallEvidence $f.request $f.artifact }
 $cases=[ordered]@{
  'old acquired source alias'={param($f)$f.request.smallCalibration|Add-Member manualSource ([pscustomobject]@{})}
  'forged same candidate'={param($f)$f.artifact.observations.source.sameCandidate=$true}
@@ -83,6 +86,10 @@ $cases=[ordered]@{
  'source Small pair changed'={param($f)$f.artifact.observations.source.fixtureManual.acquiredOwners[1].horseId='bbbbbbbb-1111-4111-8111-111111111111'}
  'cold Small body changed'={param($f)$f.artifact.observations.bodyObservation.RaceGuid='a'*32}
  'cold reaction debt changed'={param($f)$f.artifact.observations.manualNativeRoster.resources.actors[0].reactions++}
+ 'cold initiative value changed'={param($f)$f.artifact.observations.manualNativeRoster.resources.actors[0].initiative=1}
+ 'cold tiny observed debt'={param($f)$f.artifact.observations.manualNativeRoster.resources.actors[0].standard=[double]1e-29}
+ 'cold tiny saved debt'={param($f)$f.artifact.observations.source.fixtureManual.savedWorld.party[0].native.Standard=[double]1e-29}
+ 'cold fractional reaction debt'={param($f)$f.artifact.observations.manualNativeRoster.resources.actors[0].reactions=[decimal]::Parse('1.0000000000000000000000000001',[Globalization.CultureInfo]::InvariantCulture)}
  'cold actor ID singleton'={param($f)$f.artifact.observations.manualNativeRoster.actors[0].id=@($f.artifact.observations.manualNativeRoster.actors[0].id)}
  'cold class GUID singleton'={param($f)$f.artifact.observations.manualNativeRoster.arrangement.actors[0].classes[0].classGuid=@($f.artifact.observations.manualNativeRoster.arrangement.actors[0].classes[0].classGuid)}
  'neighboring pair changed'={param($f)$f.artifact.observations.inheritedFixturePairAfter.petObject++}
@@ -93,6 +100,12 @@ $cases=[ordered]@{
  'neighboring combat before movement'={param($f)$f.artifact.observations.inheritedFixturePairNativeCombatAdmission.frame=1}
  'neighboring combat after primary'={param($f)$f.artifact.observations.inheritedFixturePairNativeCombatAdmission.frame=100}
  'neighboring combat final not restored'={param($f)$f.artifact.observations.inheritedFixturePairAfter=Clone $f.artifact.observations.inheritedFixturePairNativeCombatAdmission.after}
+ 'compact mounted owner changed'={param($f)$f.artifact.observations.inputs[0].after.owners[0].riderId='a'*32}
+ 'compact mounted rider singleton'={param($f)$v=$f.artifact.observations.inputs[0].after.owners[0].riderId;$f.artifact.observations.inputs[0].after.owners[0].riderId=@($v)}
+ 'compact mounted horse singleton'={param($f)$v=$f.artifact.observations.inputs[0].after.owners[0].mountId;$f.artifact.observations.inputs[0].after.owners[0].mountId=@($v)}
+ 'mounted owner state singleton'={param($f)$f.artifact.observations.inputs[0].after.owners[0].state=@('Active')}
+ 'mounted owner nested singleton'={param($f)$v=$f.artifact.observations.inputs[0].after.owners[0];$f.artifact.observations.inputs[0].after.owners=@(,@($v))}
+ 'pre-mount generation changed'={param($f)$f.artifact.observations.inputs[0].generation=1}
  'neighboring pair labels jointly forged'={param($f)$f.artifact.observations.inheritedFixturePairBefore.actorObject=999;$f.artifact.observations.inheritedFixturePairAfter.actorObject=999}
  'profile inventory singleton status'={param($f)$f.artifact.observations.profileInventory.captureStatus=@('PASS')}
  'profile inventory singleton MVID'={param($f)$f.artifact.observations.profileInventory.gameplayAssemblyMvid=@('07fa1e4d-8618-41b3-9b8d-faa17d3b26f7')}
