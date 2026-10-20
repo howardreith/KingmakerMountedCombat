@@ -88,6 +88,10 @@ function Test-KmcChunk7OwnedPairsSeedDerivedLineage($Request){(Test-KmcChunk7Own
 function Test-KmcChunk7OwnedPairsSeedSetup($Request){(Test-KmcChunk7OwnedPairsOwnerSeed $Request)-or(Test-KmcChunk7OwnedPairsSeedManual $Request)}
 function Get-KmcChunk7OwnerSeedManualName {'KMC_C7_SEED_WORLD'}
 function Test-KmcChunk7ManticoreManualCold($Request){(Test-KmcChunk7OwnedPairsSeedDerivedLoad $Request)-and$Request.persistenceCase-ceq'manticore-fixture-cold-manual'}
+function Test-KmcChunk7ManticoreReturnArea($Selection){
+ $null-ne$Selection-and$null-ne$Selection.PSObject.Properties['areaRoute']-and
+ $Selection.areaRoute-is[string]-and$Selection.areaRoute-ceq'manticore-to-spider-v1'
+}
 function Assert-KmcChunk7OwnerSeedDerivedLoadSelection($Request,$Selection,$Checkpoint){
  $s=$Selection
  $manticore=$Checkpoint-ceq'manticore-fixture-cold-manual'
@@ -137,6 +141,9 @@ function Assert-KmcChunk7OwnedPairsSelection($Request){
  if(-not(Test-KmcChunk7OwnedPairsScenario $Request.scenario)){if($has){throw 'Inherited two-owner selection is forbidden under another family.'};return}
  if(-not$has){throw 'Inherited two-owner campaign requires its explicit selection.'};$s=$Request.ownedPairs
  $checkpoint=$null;if($null-ne$Request.PSObject.Properties['persistenceCase']){$checkpoint=$Request.persistenceCase}
+ if($null-ne$s.PSObject.Properties['areaRoute']-and
+    ($s.areaRoute-isnot[string]-or$s.areaRoute-cne'manticore-to-spider-v1'-or$checkpoint-cne'multi-area-autosave'-or
+     $s.case-cnotin@('owner-seed-checkpoint-save','owner-seed-checkpoint-load'))){throw 'Only the exact owner-seed area checkpoint admits the Manticore return route.'}
  if(Test-KmcChunk7OwnedPairsSeedSetup $Request){Assert-KmcChunk7OwnerSeedPairsSelection $Request $s $checkpoint;return}
  if(Test-KmcChunk7OwnedPairsSeedDerivedLoad $Request){Assert-KmcChunk7OwnerSeedDerivedLoadSelection $Request $s $checkpoint;return}
  if(Test-KmcChunk7OwnedPairsSeedDerivedCombat $Request){Assert-KmcChunk7OwnerSeedDerivedCombatSelection $Request $s $checkpoint;return}
@@ -195,12 +202,12 @@ function Assert-KmcChunk7OwnedPairsDescriptor($Request){
  }
  if(Test-KmcChunk7OwnedPairsSeedDerivedInput $Request){
   # Exactly the producer's written owner-seed-derived Manual, never the immutable seed.
-  $name=if(Test-KmcChunk7ManticoreManualCold $Request){'KMC_C7_AREA_FIXTURE'}else{Get-KmcChunk7OwnerSeedManualName};Assert-KmcBootstrapInventoryString $d.internalName $name
+  $name=if((Test-KmcChunk7ManticoreManualCold $Request)-or(Test-KmcChunk7ManticoreReturnArea $Request.ownedPairs)){'KMC_C7_AREA_FIXTURE'}else{Get-KmcChunk7OwnerSeedManualName};Assert-KmcBootstrapInventoryString $d.internalName $name
   if($d.fileName-isnot[string]-or$d.fileName-cnotmatch('^Manual_([1-9][0-9]*)_'+$name+'\.zks$')){throw 'Owner-seed-derived native Manual name/number is not canonical.'}
   if($d.sha256-isnot[string]-or$d.sha256-cnotmatch'^[a-f0-9]{64}$'){throw 'Owner-seed-derived archive hash is malformed.'};Assert-KmcBootstrapInventoryString $d.sha256 $Request.ownedPairs.sourceArchiveSha256
   Assert-KmcOrdinaryGuid $d.gameId
   if($d.gameName-isnot[string]-or[string]::IsNullOrWhiteSpace($d.gameName)-or$d.gameName.Length-gt256-or$d.gameName-match'[\x00-\x1f\x7f]'-or$d.area-isnot[string]-or$d.area-cnotmatch'^[a-f0-9]{32}$'-or$d.gameId-ceq$Request.fixture.working.gameId-or$d.sha256-ceq$Request.fixture.working.sha256-or$d.sha256-ceq$Request.fixture.baseline.sha256-or$d.sha256-ceq$Request.ownedPairs.seedSha256){throw 'Owner-seed-derived campaign must remain distinct from protected Working/Baseline and the immutable seed.'}
-  if((Test-KmcChunk7ManticoreManualCold $Request)-and$d.area-cne$Request.ownedPairs.sourceArea){throw 'Manticore cold Manual is outside its exact saved source area.'}
+  if(((Test-KmcChunk7ManticoreManualCold $Request)-or(Test-KmcChunk7ManticoreReturnArea $Request.ownedPairs))-and$d.area-cne$Request.ownedPairs.sourceArea){throw 'Manticore Manual is outside its exact saved source area.'}
   Assert-KmcOrdinaryInteger $d.length 1 268435456;Assert-KmcOrdinaryInteger $d.lastWriteTimeUtcTicks 1 ([DateTime]::MaxValue.Ticks);return
  }
  $cold=$Request.ownedPairs.case-ceq'persistence-load';$type=if($cold){Get-KmcChunk7PersistenceType $Request.persistenceCase}else{'Manual'}
@@ -222,7 +229,7 @@ function Assert-KmcChunk7InheritedSnapshot($Request,$Snapshot,[string]$Phase){
  Assert-KmcExactProperties $Snapshot @('contract','phase','sourceRunId','sourceArtifactSha256','sourceArchiveSha256','sourceCase','nativeLoadVerifiedByHost','decodedReceiptAuthorizesRestoration','inheritedPetsPreserved','ownedFactRemovalCount','partyIds','currentPartyIds','currentCharacterIds','remoteCapturedIds','arrangement','pairs','identities') 'inherited native custody'
  # Owner-seed-derived custody keeps its own labels; it is never relabelled acquired ancestry.
  $derived=Test-KmcChunk7OwnedPairsSeedDerivedLineage $Request
- $contract=if($derived){'owner-seed-derived-two-horse-native-field-v1'}else{'inherited-two-horse-native-field-v1'};$sourceCase=if(Test-KmcChunk7ManticoreManualCold $Request){'owner-seed-manticore-fixture-manual'}elseif($derived){'owner-seed-persistence-save'}else{'preserve-two-acquired-field'}
+ $contract=if($derived){'owner-seed-derived-two-horse-native-field-v1'}else{'inherited-two-horse-native-field-v1'};$sourceCase=if((Test-KmcChunk7ManticoreManualCold $Request)-or(Test-KmcChunk7ManticoreReturnArea $Request.ownedPairs)){'owner-seed-manticore-fixture-manual'}elseif($derived){'owner-seed-persistence-save'}else{'preserve-two-acquired-field'}
  foreach($pair in @(@('contract',$contract),@('phase',$Phase),@('sourceCase',$sourceCase))){Assert-KmcBootstrapInventoryString $Snapshot.($pair[0]) $pair[1]}
  foreach($key in @('sourceRunId','sourceArtifactSha256','sourceArchiveSha256')){Assert-KmcBootstrapInventoryString $Snapshot.$key $Request.ownedPairs.$key}
  foreach($key in @('nativeLoadVerifiedByHost','inheritedPetsPreserved')){Assert-KmcChunk7Boolean $Snapshot.$key $true};Assert-KmcChunk7Boolean $Snapshot.decodedReceiptAuthorizesRestoration $false;Assert-KmcOrdinaryInteger $Snapshot.ownedFactRemovalCount 0 0
@@ -799,9 +806,15 @@ function Assert-KmcChunk7OwnerSeedDerivedCombatSelection($Request,$Selection,$Ch
 # evidence, one load and zero writes. Both select one connected checkpoint.
 function Assert-KmcChunk7OwnerSeedCheckpointSelection($Request,$Selection,$Checkpoint){
  $s=$Selection;$save=$s.case-ceq'owner-seed-checkpoint-save';$area=$Checkpoint-ceq'multi-area-autosave'
- $fields=@('case','sourceRunId','sourceArtifactSha256','sourceArchiveSha256','checkpointSourceRunId','checkpointSourceArtifactSha256','seedId','seedSha256','riderAId','mountAId','riderBId','mountBId','partyIds','baseGameOnly','expectedNativeLoadCount','expectedNativeWriteCount');if($area){$fields+='sourceArea'}
+ $fields=@('case','sourceRunId','sourceArtifactSha256','sourceArchiveSha256','checkpointSourceRunId','checkpointSourceArtifactSha256','seedId','seedSha256','riderAId','mountAId','riderBId','mountBId','partyIds','baseGameOnly','expectedNativeLoadCount','expectedNativeWriteCount');if($area){$fields+='sourceArea';if($s.PSObject.Properties['areaRoute']){$fields+='areaRoute'}}
  Assert-KmcExactProperties $s $fields 'owner-seed checkpoint selection'
- if($area){Assert-KmcBootstrapInventoryString $s.sourceArea 'b10e86516b6437d45a629931c30936fe'}
+ if($area){
+  if($s.PSObject.Properties['areaRoute']){
+   Assert-KmcBootstrapInventoryString $s.areaRoute 'manticore-to-spider-v1'
+   Assert-KmcBootstrapInventoryString $s.sourceArea '314e8c3b15b896a4f847c85f9250f02b'
+   Assert-KmcBootstrapInventoryString $s.sourceArchiveSha256 '86a5ff4bc18852f48388156f627ddebf1c9047ecf69f73a1b4b3b92b231f1b30'
+  }else{Assert-KmcBootstrapInventoryString $s.sourceArea 'b10e86516b6437d45a629931c30936fe'}
+ }
  if($Request.runId-isnot[string]-or$Request.runId-cnotmatch'^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$'){throw 'Owner-seed checkpoint run identity is malformed.'}
  foreach($key in @('sourceRunId','checkpointSourceRunId','seedId')){if($s.$key-isnot[string]-or$s.$key-cnotmatch'^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$'){throw 'Owner-seed checkpoint requires exact Manual producer, checkpoint parent and seed identities.'}}
  if(@(@($Request.runId,$s.sourceRunId,$s.checkpointSourceRunId,$s.seedId)|Select-Object -Unique).Count-ne4){throw $(if($save){'The owner-seed checkpoint producer requires the exact distinct accepted cold-consumer run.'}else{'The owner-seed checkpoint consumer requires the exact distinct checkpoint producer run.'})}
@@ -931,7 +944,7 @@ function Assert-KmcChunk7OwnerSeedCheckpointStart($Request,$Observations,$Archiv
    if($legacy-or$schema1){if(@($Archive.Pairs|Where-Object{$_.Rider.Id-ceq$roles[2]-or$_.Mount.Id-ceq$roles[3]}).Count-ne0-or@($Archive.Participations|Where-Object{(ConvertTo-KmcChunk7PairIdN $_.OwnerId)-ceq$n}).Count-ne0){throw 'The legacy source retained the natively released second owner.'};continue}
    $w=@($o.ownerSeedCheckpointPreparation.remountedSecondOwner);$n=$w[0].ownerId
   }
-  $comparisonArchive=if($manticore){$m.loadedArchive}else{$Archive}
+  $comparisonArchive=if($manticore-or(Test-KmcChunk7ManticoreReturnArea $Request.ownedPairs)){$m.loadedArchive}else{$Archive}
   $saved=@($comparisonArchive.Pairs|Where-Object{(ConvertTo-KmcChunk7PairIdN $_.PairId)-ceq$n})
   if($combat){
    $archiveOwner=$n
@@ -948,7 +961,7 @@ function Assert-KmcChunk7OwnerSeedCheckpointStart($Request,$Observations,$Archiv
  # Native Dismounts release the mounted controls; every other checkpoint keeps the restored bindings.
  if($zero){if(@($Archive.Slots).Count-ne0){throw 'The zero-mounted checkpoint kept a mounted control.'}}else{
  if(@($Archive.Slots).Count-ne$(if($single){2}else{4})){throw 'The written checkpoint changed the restored control bindings.'}
- $comparisonSlots=if($manticore){$m.loadedArchive.Slots}else{$Archive.Slots}
+ $comparisonSlots=if($manticore-or(Test-KmcChunk7ManticoreReturnArea $Request.ownedPairs)){$m.loadedArchive.Slots}else{$Archive.Slots}
  foreach($slot in @($m.slots|Where-Object{-not$single-or$_.actorId-ceq$roles[0]})){if(@($comparisonSlots|Where-Object{$_.ActorId-ceq$slot.actorId-and$_.Index-eq$slot.index-and$_.Kind-eq$slot.kind}).Count-ne1){throw 'The written checkpoint changed the restored control bindings.'}}}
  $l=$m.loadedArchive;if($null-eq$l-or$l.SchemaVersion-ne3-or@($l.Pairs).Count-ne2-or@($l.Participations).Count-ne0-or$null-ne$l.Combat-or$l.AreaId-cne$Request.persistenceLoad.area-or$l.CampaignId-cne$Request.persistenceLoad.gameId){throw 'The restored start is not the exact two-pair exploration graph of the selected Manual copy.'}
  [void](Get-KmcChunk7OwnerSeedSnapshot $o 'before-native-save')
@@ -1187,9 +1200,10 @@ function Assert-KmcChunk7OwnerSeedAreaTarget($Selection,[AllowNull()][string]$Ch
   if($null-ne$Target){throw 'Only the selected owner-seed area checkpoint carries an area target.'};return
  }
  if($Selection.case-cnotin@('owner-seed-checkpoint-save','owner-seed-checkpoint-load')){throw 'Owner-seed area target requires its exact checkpoint family.'}
- Assert-KmcBootstrapInventoryString $Selection.sourceArea 'b10e86516b6437d45a629931c30936fe'
+ $return=Test-KmcChunk7ManticoreReturnArea $Selection
+ Assert-KmcBootstrapInventoryString $Selection.sourceArea $(if($return){'314e8c3b15b896a4f847c85f9250f02b'}else{'b10e86516b6437d45a629931c30936fe'})
  Assert-KmcExactProperties $Target @('enterPoint','area','autoSaveMode') 'owner-seed controlled cross-entry target'
- foreach($spec in @(@('enterPoint','fd225a93828d26449803a4847947f8c1'),@('area','ead426a6c23d39548a670ee515d77df4'),@('autoSaveMode','AfterEntry'))){Assert-KmcBootstrapInventoryString $Target.($spec[0]) $spec[1]}
+ foreach($spec in @(@('enterPoint',$(if($return){'00becd5302e6d1d4a8ad93b6c612b927'}else{'fd225a93828d26449803a4847947f8c1'})),@('area',$(if($return){'b10e86516b6437d45a629931c30936fe'}else{'ead426a6c23d39548a670ee515d77df4'})),@('autoSaveMode','AfterEntry'))){Assert-KmcBootstrapInventoryString $Target.($spec[0]) $spec[1]}
 }
 
 . (Join-Path $PSScriptRoot 'Chunk7LoadRefusalEvidence.ps1')

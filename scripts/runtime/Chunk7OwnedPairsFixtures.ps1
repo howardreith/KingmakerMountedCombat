@@ -157,6 +157,40 @@ function Assert-KmcChunk7ManticoreAreasCustody($Request,$Areas,$Snapshot,$Durabl
  Assert-KmcBootstrapInventoryString $Transaction.phase 'restored'
 }
 
+# The accepted cold receipt and every later return Auto must carry their own
+# settled Areas transaction, not borrow the original Manual producer's proof.
+function Assert-KmcChunk7ManticoreAreasReceipt($Set){
+ $request=$Set.request;$run=$request.runId
+ Assert-KmcChunk7OwnedAreaProfileRestoration $Set $run
+ $areasPath=Join-Path $Set.root 'profile-areas-isolation.json'
+ Assert-KmcNotReparsePoint $areasPath 'Manticore Areas restoration';Assert-KmcNotHardLink $areasPath 'Manticore Areas restoration'
+ Assert-KmcManifestJsonMembersUnique $areasPath 'Manticore Areas restoration';$areasHash=Get-KmcSha256 $areasPath;$areas=Read-KmcJson $areasPath
+ Assert-KmcExactProperties $areas @('schemaVersion','runId','profileRoot','originalDigest','generatedDigest','generatedQuarantine','originalAreasRestoredExactly') 'Manticore Areas restoration'
+ $backup=Assert-KmcChildPath (Join-Path (Get-KmcLabRoot) ('runtime-backups/profile-'+$run)) (Join-Path (Get-KmcLabRoot) 'runtime-backups') 'Manticore profile backup'
+ $snapshotPath=Join-Path $backup 'snapshot.json';$durablePath=Join-Path $backup 'Areas-isolation.json'
+ foreach($item in @($snapshotPath,$durablePath)){
+  Assert-KmcNotReparsePoint $item 'Manticore durable Areas state';Assert-KmcNotHardLink $item 'Manticore durable Areas state'
+  Assert-KmcManifestJsonMembersUnique $item 'Manticore durable Areas state'
+ }
+ $snapshotHash=Get-KmcSha256 $snapshotPath;$durableHash=Get-KmcSha256 $durablePath
+ $snapshot=Read-KmcJson $snapshotPath;$durable=Read-KmcJson $durablePath
+ $generated=Join-Path $backup 'Areas-generated'
+ $transaction=Join-Path (Get-KmcLabRoot) ('runtime-state/transactions/'+$run+'.json')
+ Assert-KmcNotReparsePoint $transaction 'Manticore transaction';Assert-KmcNotHardLink $transaction 'Manticore transaction'
+ Assert-KmcManifestJsonMembersUnique $transaction 'Manticore transaction';$transactionHash=Get-KmcSha256 $transaction;$state=Read-KmcJson $transaction
+ Assert-KmcChunk7ManticoreAreasCustody $request $areas $snapshot $durable $state $snapshotHash $generated
+ Assert-KmcDirectoryTreeCloneable $generated 'Manticore generated Areas quarantine'
+ Assert-KmcBootstrapInventoryString (Get-KmcDirectoryManifest $generated).digest $durable.generatedDigest
+ if((Get-KmcSha256 $areasPath)-cne$areasHash-or(Get-KmcSha256 $snapshotPath)-cne$snapshotHash-or
+    (Get-KmcSha256 $durablePath)-cne$durableHash-or(Get-KmcSha256 $transaction)-cne$transactionHash-or
+    (Get-KmcDirectoryManifest $generated).digest-cne$durable.generatedDigest){
+  throw 'Manticore Areas or transaction custody changed during read-only admission.'
+ }
+ $Set.pins[$areasPath]=$areasHash;$Set.pins[$snapshotPath]=$snapshotHash
+ $Set.pins[$durablePath]=$durableHash;$Set.pins[$transaction]=$transactionHash
+ [pscustomobject]@{generatedPath=$generated;generatedDigest=$durable.generatedDigest}
+}
+
 # Read-only admission of the distinct non-capital Manual produced by the
 # source-only Manticore fixture. This proves provenance and settled external
 # state; it neither selects an area consumer nor grants a native load/write.
@@ -248,6 +282,51 @@ function Get-KmcChunk7OwnerSeedConsumerReceipt($Selection,$Fixture,$ProducerArti
  [ordered]@{consumerRunId=$request.runId;consumerArtifactPath=$path;consumerArtifactSha256=$Selection.checkpointSourceArtifactSha256;consumerArtifactLength=[long]$file.Length;consumerCandidate=$candidate}
 }
 # Owner-seed checkpoint consumer: the checkpoint producer's receipt set (PASS, one load, one write),
+# The new area producer loads the exact Manticore Manual, with the independently
+# accepted batch56 cold load as its checkpoint receipt. The source artifact
+# staged for the game remains the Manticore producer, never the older seed world.
+function Get-KmcChunk7ManticoreReturnSource($Selection,[string]$PersistenceCase,$Fixture,$Candidate,$AreaTarget){
+ $request=[pscustomobject]@{scenario='chunk7-owned-two-pair-campaign';runId='unassigned-manticore-return';ownedPairs=$Selection;persistenceCase=$PersistenceCase}
+ Assert-KmcChunk7OwnedPairsSelection $request
+ Assert-KmcChunk7OwnerSeedAreaTarget $Selection $PersistenceCase $AreaTarget
+ if($Selection.case-cne'owner-seed-checkpoint-save'-or-not(Test-KmcChunk7ManticoreReturnArea $Selection)){
+  throw 'Only the selected Manticore checkpoint producer may consume this source.'
+ }
+ $manual=Get-KmcChunk7ManticoreManualSource $Selection.sourceRunId $Selection.sourceArtifactSha256 $Selection.sourceArchiveSha256 $Fixture
+ Assert-KmcBootstrapInventoryString $manual.descriptor.area $Selection.sourceArea
+ $set=Get-KmcChunk7OwnedReceiptSet $Selection.checkpointSourceRunId 'chunk7-persistence-evidence.json';$cold=$set.request
+ Assert-KmcBootstrapInventoryString $cold.scenario 'chunk7-owned-two-pair-campaign'
+ Assert-KmcBootstrapInventoryString $cold.ownedPairs.case 'owner-seed-persistence-load'
+ Assert-KmcBootstrapInventoryString $cold.persistenceCase 'manticore-fixture-cold-manual'
+ Assert-KmcChunk7OwnedPairsDescriptor $cold
+ foreach($key in @('sourceRunId','sourceArtifactSha256','sourceArchiveSha256','seedId','seedSha256','riderAId','mountAId','riderBId','mountBId','sourceArea')){
+  Assert-KmcBootstrapInventoryString $cold.ownedPairs.$key $Selection.$key
+ }
+ if((ConvertTo-KmcChunk7Canonical $cold.ownedPairs.partyIds)-cne(ConvertTo-KmcChunk7Canonical $Selection.partyIds)-or
+    (ConvertTo-KmcChunk7Canonical $cold.persistenceLoad)-cne(ConvertTo-KmcChunk7Canonical $manual.descriptor)){
+  throw 'Accepted Manticore cold receipt substituted the native Manual or full field roster.'
+ }
+ $coldCandidate=Get-KmcChunk7RecordedCandidate $cold
+ Assert-KmcChunk7OwnedSourceCompletion $set $Selection.checkpointSourceRunId 'chunk7-owned-two-pair-campaign' $Fixture $coldCandidate $Selection.sourceArchiveSha256 0
+ Assert-KmcBootstrapInventoryString $set.owner.persistenceCase 'manticore-fixture-cold-manual'
+ $areaCustody=Assert-KmcChunk7ManticoreAreasReceipt $set
+ Assert-KmcChunk7PersistenceArtifact $cold $set.manifest 'PASS'
+ $artifact=Read-KmcChunk7ManifestArtifact $cold $set.manifest 'chunk7-persistence-evidence.json' 'chunk7-persistence-evidence'
+ $path=Join-Path $set.root 'chunk7-persistence-evidence.json';$file=Get-Item -LiteralPath $path
+ if($file.Length-le0-or$file.Length-gt16MB-or$set.pins[$path]-cne$Selection.checkpointSourceArtifactSha256){
+  throw 'Accepted Manticore cold evidence differs from the explicit checkpoint pin.'
+ }
+ $producer=Read-KmcJson $manual.artifactPath
+ Assert-KmcChunk7ManticoreManualColdSource $cold $producer $artifact
+ Assert-KmcChunk7OwnedReceiptPins $set
+ Assert-KmcBootstrapInventoryString (Get-KmcDirectoryManifest $areaCustody.generatedPath).digest $areaCustody.generatedDigest
+ [pscustomobject][ordered]@{path=$manual.path;descriptor=$manual.descriptor;artifactPath=$manual.artifactPath;
+  artifactSha256=$manual.artifactSha256;artifactLength=$manual.artifactLength;sourceRunId=$manual.producerRunId;
+  ownerSeedDerived=$true;manticoreManual=$true;parent=$manual.parent;seed=$manual.parent.seed;producerCandidate=$manual.candidate;
+  acceptedColdRunId=$cold.runId;acceptedColdArtifactSha256=$Selection.checkpointSourceArtifactSha256;
+  acceptedColdCandidate=$coldCandidate;currentCandidate=[pscustomobject][ordered]@{
+   commit=$Candidate.commit;dllSha256=$Candidate.dllSha256;dllMvid=$Candidate.dllMvid}}
+}
 # pinned by run and persistence-evidence hash, on its own recorded candidate. Its own source is
 # re-derived (Manual producer plus accepted consumer) and must be exactly the Manual it loaded; the
 # input is the producer's fresh native slot, described from its nativeWrite. The staged lineage
@@ -261,17 +340,24 @@ function Get-KmcChunk7OwnedPairsOwnerSeedCheckpointSource($Selection,[AllowNull(
  $set=Get-KmcChunk7OwnedReceiptSet $Selection.checkpointSourceRunId 'chunk7-persistence-evidence.json';$request=$set.request
  Assert-KmcBootstrapInventoryString $request.scenario 'chunk7-owned-two-pair-campaign';Assert-KmcBootstrapInventoryString $request.ownedPairs.case 'owner-seed-checkpoint-save';Assert-KmcBootstrapInventoryString $request.persistenceCase $sourceCase
  foreach($key in @('sourceRunId','sourceArtifactSha256','sourceArchiveSha256','seedId','seedSha256','riderAId','mountAId','riderBId','mountBId')){Assert-KmcBootstrapInventoryString $request.ownedPairs.$key $Selection.$key}
+ if((Test-KmcChunk7ManticoreReturnArea $request.ownedPairs)-ne(Test-KmcChunk7ManticoreReturnArea $Selection)){throw 'Checkpoint producer and cold consumer selected different area routes.'}
  if((ConvertTo-KmcChunk7Canonical $request.ownedPairs.partyIds)-cne(ConvertTo-KmcChunk7Canonical $Selection.partyIds)){throw 'Checkpoint producer substituted the inherited field roster.'}
  $producerCandidate=Get-KmcChunk7RecordedCandidate $request
  if($PersistenceCase-ceq'multi-area-autosave'){
   Assert-KmcBootstrapInventoryString $request.ownedPairs.sourceArea $Selection.sourceArea
   if((ConvertTo-KmcChunk7Canonical $request.persistenceAreaTarget)-cne(ConvertTo-KmcChunk7Canonical $AreaTarget)){throw 'Owner-seed area producer changed its exact controlled native destination.'}
  }
- $manual=Get-KmcChunk7OwnedPairsOwnerSeedDerivedSource $request.ownedPairs $sourceCase $Fixture $producerCandidate $AreaTarget
+ $manual=if(Test-KmcChunk7ManticoreReturnArea $Selection){
+  Get-KmcChunk7ManticoreReturnSource $request.ownedPairs $sourceCase $Fixture $producerCandidate $AreaTarget
+ }else{Get-KmcChunk7OwnedPairsOwnerSeedDerivedSource $request.ownedPairs $sourceCase $Fixture $producerCandidate $AreaTarget}
  if((ConvertTo-KmcChunk7Canonical $request.persistenceLoad)-cne(ConvertTo-KmcChunk7Canonical $manual.descriptor)){throw 'Checkpoint producer did not load the exact owner-seed-derived Manual.'}
  Assert-KmcChunk7OwnedSourceCompletion $set $Selection.checkpointSourceRunId 'chunk7-owned-two-pair-campaign' $Fixture $producerCandidate $Selection.sourceArchiveSha256 1
  Assert-KmcBootstrapInventoryString $set.owner.persistenceCase $sourceCase
- if($PersistenceCase-ceq'multi-area-autosave'){Assert-KmcChunk7OwnedAreaProfileRestoration $set $Selection.checkpointSourceRunId}
+ $areaCustody=$null
+ if($PersistenceCase-ceq'multi-area-autosave'){
+  if(Test-KmcChunk7ManticoreReturnArea $Selection){$areaCustody=Assert-KmcChunk7ManticoreAreasReceipt $set}
+  else{Assert-KmcChunk7OwnedAreaProfileRestoration $set $Selection.checkpointSourceRunId}
+ }
  Assert-KmcChunk7PersistenceArtifact $request $set.manifest 'PASS'
  $artifact=Read-KmcChunk7ManifestArtifact $request $set.manifest 'chunk7-persistence-evidence.json' 'chunk7-persistence-evidence'
  $path=Join-Path $set.root 'chunk7-persistence-evidence.json';$file=Get-Item -LiteralPath $path
@@ -283,6 +369,7 @@ function Get-KmcChunk7OwnedPairsOwnerSeedCheckpointSource($Selection,[AllowNull(
  $descriptor=[pscustomobject]@{internalName=$w.nativeName;fileName=$leaf;sha256=$w.sha256;length=$w.length;lastWriteTimeUtcTicks=[long](Get-Item -LiteralPath $w.path).LastWriteTimeUtc.Ticks;gameId=$manual.descriptor.gameId;gameName=$manual.descriptor.gameName;area=$w.archive.AreaId}
  Assert-KmcChunk7OwnedPairsDescriptor ([pscustomobject]@{scenario='chunk7-owned-two-pair-campaign';runId='unassigned-owned-seed-checkpoint';ownedPairs=$Selection;persistenceCase=$PersistenceCase;persistenceLoad=$descriptor;fixture=$Fixture;persistenceAreaTarget=$AreaTarget})
  Assert-KmcChunk7OwnedReceiptPins $set
+ if($null-ne$areaCustody){Assert-KmcBootstrapInventoryString (Get-KmcDirectoryManifest $areaCustody.generatedPath).digest $areaCustody.generatedDigest}
  [pscustomobject][ordered]@{path=$w.path;descriptor=$descriptor;artifactPath=$manual.artifactPath;artifactSha256=$manual.artifactSha256;artifactLength=$manual.artifactLength;sourceRunId=$manual.sourceRunId;ownerSeedDerived=$true;seed=$manual.seed;checkpointRunId=$request.runId;checkpointArtifactPath=$path;checkpointArtifactSha256=$Selection.checkpointSourceArtifactSha256;checkpointArtifactLength=[long]$file.Length;checkpointCandidate=$producerCandidate;manual=$manual}
 }
 function Get-KmcChunk7OwnedPairsOwnerSeedCurrentSource($Selection,[string]$PersistenceCase,$Fixture,$Candidate){
@@ -332,6 +419,9 @@ function Copy-KmcChunk7OwnerSeedCurrentParent($Source,[string]$ProfileRoot,$Lock
  if((Get-KmcSha256 $destination)-cne$sha-or(Get-KmcSha256 $path)-cne$sha){throw 'Accepted current-format parent changed during locked copy.'}
 }
 function Get-KmcChunk7OwnedPairsSource($Selection,[AllowNull()][string]$PersistenceCase,$Fixture,$Candidate,$AreaTarget=$null){
+ if((Test-KmcChunk7ManticoreReturnArea $Selection)-and$Selection.case-ceq'owner-seed-checkpoint-save'){
+  return Get-KmcChunk7ManticoreReturnSource $Selection $PersistenceCase $Fixture $Candidate $AreaTarget
+ }
  if($null-ne$Selection-and$Selection.case-ceq'owner-seed-persistence-load'-and$PersistenceCase-ceq'manticore-fixture-cold-manual'){
   $r=[pscustomobject]@{scenario='chunk7-owned-two-pair-campaign';runId='unassigned-manticore-cold';ownedPairs=$Selection;persistenceCase=$PersistenceCase}
   Assert-KmcChunk7OwnedPairsSelection $r
@@ -431,6 +521,10 @@ function Assert-KmcChunk7OwnedAreaColdSource($Source,$Request,$ColdArtifact){
  Assert-KmcManifestJsonMembersUnique $path 'owned area checkpoint';$parent=Read-KmcJson $path
  foreach($key in @('commit','dllSha256','dllMvid')){Assert-KmcBootstrapInventoryString $parent.$key $Request.$key}
  Assert-KmcBootstrapInventoryString $parent.runId $Request.ownedPairs.checkpointSourceRunId;Assert-KmcBootstrapInventoryString $parent.scenario 'chunk7-owned-two-pair-campaign';Assert-KmcBootstrapInventoryString $parent.status 'PASS'
+ if(($parent.observations.inheritedFixture.sourceCase-ceq'owner-seed-manticore-fixture-manual')-ne
+    (Test-KmcChunk7ManticoreReturnArea $Request.ownedPairs)){
+  throw 'Owned area cold source and consumer selected different native routes.'
+ }
  Assert-KmcChunk7PersistenceObservation $Request $ColdArtifact 'PASS'
  $prior=$parent.observations;$cold=$ColdArtifact.observations
  Assert-KmcBootstrapInventoryString $prior.checkpoint 'multi-area-autosave';Assert-KmcChunk7Boolean $prior.cold $false

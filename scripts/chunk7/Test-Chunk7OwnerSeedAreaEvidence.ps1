@@ -80,6 +80,37 @@ $bad=[ordered]@{
  'explicit SaveGame dispatched'={param($f)$f.artifact.observations.areaTransfer.explicitSaveGameDispatches=1}
 }
 foreach($m in $bad.GetEnumerator()){Check $m.Key {$f=New-SeedArea;&$m.Value $f;Assert-KmcChunk7PersistenceObservation $f.request $f.artifact 'PASS'} $true}
+function New-ManticoreReturnEntry {
+ $f=New-SeedArea;$s=$f.request.ownedPairs;$s|Add-Member NoteProperty areaRoute 'manticore-to-spider-v1'
+ $s.sourceArea='314e8c3b15b896a4f847c85f9250f02b'
+ $s.sourceArchiveSha256='86a5ff4bc18852f48388156f627ddebf1c9047ecf69f73a1b4b3b92b231f1b30'
+ $f.request.persistenceAreaTarget.enterPoint='00becd5302e6d1d4a8ad93b6c612b927'
+ $f.request.persistenceAreaTarget.area='b10e86516b6437d45a629931c30936fe'
+ $v=$f.artifact.observations.areaEntryPrerequisite
+ $v.contract='manticore-visited-spider-return-v1';$v.sourceArea=$s.sourceArea
+ $v.destinationArea=$f.request.persistenceAreaTarget.area
+ $v.locationGuid='1ee73aa52dab0264ca0b671d9a593c02'
+ $v.entryGuid=$f.request.persistenceAreaTarget.enterPoint;$v.entryAreaGuid=$v.destinationArea
+ $v|Add-Member NoteProperty sourceManualSha256 $s.sourceArchiveSha256
+ return $f
+}
+Check 'distinct Manticore return admits only the existing visited Spider entry' {
+ $f=New-ManticoreReturnEntry
+ Assert-KmcChunk7OwnerSeedAreaEntryObservation $f.request $f.artifact.observations.areaEntryPrerequisite
+}
+Check 'distinct Manticore return refuses array route token before source admission' {
+ $f=New-ManticoreReturnEntry;$f.request.ownedPairs.areaRoute=@('manticore-to-spider-v1')
+ Assert-KmcChunk7OwnedPairsSelection $f.request
+} $true
+foreach($fault in @('old-entry','wrong-source-manual','closed-location')){
+ Check ('distinct Manticore return refuses '+$fault) {
+  $f=New-ManticoreReturnEntry;$v=$f.artifact.observations.areaEntryPrerequisite
+  switch($fault){'old-entry'{$v.entryGuid='fd225a93828d26449803a4847947f8c1'}
+   'wrong-source-manual'{$v.sourceManualSha256='a'*64}
+   'closed-location'{$v.closed=$true}}
+  Assert-KmcChunk7OwnerSeedAreaEntryObservation $f.request $v
+ } $true
+}
 foreach($fault in @('same-process','source-area-load','wrong-owner-generation','wrong-target','write-quota','wrong-manual-lineage','extra-native-prepare')){Check ('destination cold refuses '+$fault){$f=New-SeedAreaCold;switch($fault){'same-process'{$f.artifact.observations.processId=$f.parent.artifact.observations.processId};'source-area-load'{$f.request.persistenceLoad.area=$sourceArea};'wrong-owner-generation'{$f.artifact.observations.loadedArchive.Pairs[1].Generation++};'wrong-target'{$f.request.persistenceAreaTarget.enterPoint='a'*32};'write-quota'{$f.request.ownedPairs.expectedNativeWriteCount=1};'wrong-manual-lineage'{$f.request.ownedPairs.sourceArchiveSha256='a'*64};'extra-native-prepare'{$e=Copy-Value $f.artifact.observations.coldRestoration.events[0];$e.kind='prepare-before';$f.artifact.observations.coldRestoration.events+=@($e)}};Assert-KmcChunk7OwnedAreaColdSource $f.source $f.request $f.artifact;Assert-KmcChunk7OwnerSeedCheckpointColdSource $f.request $f.parent.artifact $f.artifact} $true}
 foreach($leaf in @('Test-RuntimeGameResult.ps1','Test-RuntimeResult.ps1')){
  . Import-TestFunctions (Join-Path $ReaderDirectory $leaf) @('Assert-SubscenarioResults')

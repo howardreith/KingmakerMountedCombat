@@ -140,7 +140,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 Hash(sourcePath) == selection.SourceArtifactSha256, "Exact staged two-owner Manual receipt is absent or changed.");
             sourceLength = file.Length; sourceTicks = file.LastWriteTimeUtc.Ticks;
             var artifact = JObject.Parse(File.ReadAllText(sourcePath)); observations = artifact["observations"] as JObject;
-            if (Chunk7OwnedPairsSelection.IsManticoreManualCold(request.PersistenceCase)) { ReadManticoreManualSource(artifact); return; }
+            if (Chunk7OwnedPairsSelection.IsManticoreManualCold(request.PersistenceCase) || selection.IsManticoreReturnArea)
+            { ReadManticoreManualSource(artifact); return; }
             if (selection.OwnerSeedDerivedLineage) { ReadOwnerSeedDerivedSource(artifact); return; }
             var originalArea = request.PersistenceCase == "multi-area-autosave" ? selection.SourceArea : request.PersistenceLoad.Area;
             Require((string)artifact["scenario"] == Chunk7AcquiredManualSelection.Scenario && (string)artifact["evidenceKind"] == Chunk7AcquiredManualScenario.EvidenceKind &&
@@ -180,6 +181,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private void ReadManticoreManualSource(JObject artifact)
         {
             var input = request.PersistenceLoad;
+            var returnAutoCold = selection.IsManticoreReturnArea && selection.IsOwnerSeedCheckpointLoad;
             var write = observations?["nativeWrite"] as JObject;
             var preparation = observations?["manticoreFixturePreparation"] as JObject;
             var after = preparation?["afterSave"] as JObject;
@@ -200,11 +202,17 @@ namespace KingmakerMountedCombat.Diagnostics
                 (string)preparation?["completedArchiveSha256"] == selection.SourceArchiveSha256 &&
                 (string)write["sha256"] == selection.SourceArchiveSha256 &&
                 (string)write["nativeName"] == Chunk7OwnedPairsSelection.ManticoreFixtureManualName &&
-                (string)write["nativeType"] == "Manual" && Path.GetFileName((string)write["path"]) == input.FileName &&
+                (string)write["nativeType"] == "Manual" &&
+                (returnAutoCold ? input.Sha256 != selection.SourceArchiveSha256 &&
+                    input.Area == Chunk7OwnerSeedManticoreEntry.SourceArea :
+                    Path.GetFileName((string)write["path"]) == input.FileName &&
+                    input.Sha256 == selection.SourceArchiveSha256 &&
+                    input.Area == Chunk7OwnedPairsSelection.ManticoreFixtureArea) &&
                 archive != null && (int?)archive["SchemaVersion"] == MountedArchiveData.Schema &&
                 (string)archive["CampaignId"] == input.GameId && (string)archive["AreaId"] == Chunk7OwnedPairsSelection.ManticoreFixtureArea &&
                 field != null && native != null && inherited != null && custody != null &&
-                (string)field["area"] == input.Area && (string)after?["area"] == input.Area &&
+                (string)field["area"] == Chunk7OwnedPairsSelection.ManticoreFixtureArea &&
+                (string)after?["area"] == Chunk7OwnedPairsSelection.ManticoreFixtureArea &&
                 (string)custody["sourceCase"] == Chunk7OwnedPairsSelection.OwnerSeedManualCase &&
                 (string)observations["ownerSeedCheckpointSource"]?["manualSha256"] != selection.SourceArchiveSha256 &&
                 observations["processId"]?.Type == JTokenType.Integer,
@@ -225,7 +233,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 (long?)native["gameTicks"] == (long?)archive["GameTimeTicks"] &&
                 JToken.DeepEquals(custody["arrangement"], inherited["arrangement"]),
                 "Manticore saved field, native owner, slot or arrangement custody differs from its producer.");
-            sourceWorld = new JObject { ["gameId"] = input.GameId, ["area"] = input.Area,
+            sourceWorld = new JObject { ["gameId"] = input.GameId, ["area"] = Chunk7OwnedPairsSelection.ManticoreFixtureArea,
                 ["mainActorId"] = selection.RiderAId,
                 ["party"] = new JArray(actors.Select(row => new JObject { ["id"] = row["id"], ["blueprint"] = row["blueprint"] })) };
             ownerRows = new JObject[2];
@@ -253,6 +261,19 @@ namespace KingmakerMountedCombat.Diagnostics
                     ["index"] = slot["Index"], ["kind"] = slot["Kind"] })) };
             OwnerSeedArchive = archive;
             OwnerSeedProcessId = (int)observations["processId"];
+            var sameCandidate = (string)artifact["commit"] == request.Commit &&
+                (string)artifact["dllSha256"] == request.DllSha256 &&
+                (string)artifact["dllMvid"] == request.DllMvid;
+            OwnerSeedCandidates = new JObject { ["contract"] = "owner-seed-derived-candidate-identity-v1",
+                ["sameCandidate"] = sameCandidate, ["crossCandidateAllowed"] = true,
+                ["producer"] = new JObject { ["runId"] = selection.SourceRunId,
+                    ["commit"] = artifact["commit"], ["dllSha256"] = artifact["dllSha256"], ["dllMvid"] = artifact["dllMvid"] },
+                ["current"] = new JObject { ["runId"] = request.RunId,
+                    ["commit"] = request.Commit, ["dllSha256"] = request.DllSha256, ["dllMvid"] = request.DllMvid },
+                ["consumerRunId"] = selection.CheckpointSourceRunId,
+                ["consumerArtifactSha256"] = selection.CheckpointSourceArtifactSha256,
+                ["manualSchema"] = (int)archive["SchemaVersion"],
+                ["currentWriterSchema"] = NativeMountedSaveFormat.SelectedWriterSchema };
         }
         private void ReadOwnerSeedDerivedSource(JObject artifact)
         {
@@ -376,7 +397,8 @@ namespace KingmakerMountedCombat.Diagnostics
             return new JObject { ["contract"] = derived ? "owner-seed-derived-two-horse-native-field-v1" : "inherited-two-horse-native-field-v1", ["phase"] = phase,
                 ["sourceRunId"] = selection.SourceRunId, ["sourceArtifactSha256"] = selection.SourceArtifactSha256,
                 ["sourceArchiveSha256"] = selection.SourceArchiveSha256, ["sourceCase"] =
-                    Chunk7OwnedPairsSelection.IsManticoreManualCold(request.PersistenceCase) ? Chunk7OwnedPairsSelection.ManticoreFixtureCheckpoint :
+                    (Chunk7OwnedPairsSelection.IsManticoreManualCold(request.PersistenceCase) || selection.IsManticoreReturnArea) ?
+                        Chunk7OwnedPairsSelection.ManticoreFixtureCheckpoint :
                     derived ? Chunk7OwnedPairsSelection.OwnerSeedManualCase : Chunk7OwnedPairsSelection.SourceCase,
                 ["nativeLoadVerifiedByHost"] = true, ["decodedReceiptAuthorizesRestoration"] = false,
                 ["inheritedPetsPreserved"] = true, ["ownedFactRemovalCount"] = 0,
