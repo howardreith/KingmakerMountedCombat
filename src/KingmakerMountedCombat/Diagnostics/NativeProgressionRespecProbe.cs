@@ -31,7 +31,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private readonly object player;
         private readonly Action assertScope;
         private readonly List<string> errors = new List<string>();
-        private readonly JArray events = new JArray(), hooks = new JArray(), boundaryObservations = new JArray(), moneyCallBoundaries = new JArray();
+        private readonly JArray events = new JArray(), hooks = new JArray(), boundaryObservations = new JArray(), moneyCallBoundaries = new JArray(), petCallBoundaries = new JArray(), petCallBoundaryErrors = new JArray();
         private readonly HashSet<UnitDescriptor> expectedRest = new HashSet<UnitDescriptor>();
         private readonly HashSet<UnitDescriptor> restEntered = new HashSet<UnitDescriptor>(), restExited = new HashSet<UnitDescriptor>();
         private HarmonyInstance harmony;
@@ -240,6 +240,7 @@ namespace KingmakerMountedCombat.Diagnostics
             ["nativeStartingGold"] = startingGoldAmount, ["nativeStartingGoldCredits"] = startingGoldCredits,
             ["creditBoundary"] = creditBoundary?.DeepClone(),
             ["moneyCallsObserved"] = moneyCallsObserved, ["moneyCallBoundaries"] = moneyCallBoundaries.DeepClone(),
+            ["petCallBoundaries"] = petCallBoundaries.DeepClone(), ["petCallBoundaryErrors"] = petCallBoundaryErrors.DeepClone(),
             ["diagnosticMoneyWrites"] = 0, ["diagnosticXpWrites"] = 0, ["diagnosticRestCalls"] = 0, ["diagnosticTimeAdvances"] = 0 };
         private void Patch(Type type, string name, int token, Type[] parameters, string before, string after)
         {
@@ -267,6 +268,45 @@ namespace KingmakerMountedCombat.Diagnostics
             detail["kind"] = kind; detail["frame"] = Time.frameCount;
             detail["actorId"] = original.UniqueId; boundaryObservations.Add(detail);
         }
+        private void RecordPetCallBoundary(string kind, AddPet source)
+        {
+            if (petCallBoundaries.Count >= 8) return;
+            try
+            {
+                var current = original.Descriptor.Pet;
+                var stack = new StackTrace(0, false).GetFrames();
+                petCallBoundaries.Add(new JObject {
+                    ["kind"] = kind, ["frame"] = Time.frameCount,
+                    ["gameTicks"] = Game.Instance.TimeController.GameTime.Ticks,
+                    ["ordinal"] = petCallBoundaries.Count + 1, ["petUpdates"] = petUpdates,
+                    ["armedSourceObject"] = Id(petUpdateSource),
+                    ["sourceObject"] = Id(source), ["sourceType"] = source.GetType().FullName,
+                    ["sourceOwnerObject"] = Id(source.Owner), ["sourceOwnerIsOriginal"] = ReferenceEquals(source.Owner, original.Descriptor),
+                    ["sourceInCurrentFeatures"] = original.Descriptor.Progression.Features.SelectFactComponents<AddPet>().Any(value => ReferenceEquals(value, source)),
+                    ["sourcePetBlueprint"] = source.Pet?.AssetGuid,
+                    ["ownerPetUniqueId"] = original.Descriptor.PetUniqueId,
+                    ["current"] = PetBoundaryState(current), ["spawned"] = PetBoundaryState(source.SpawnedPet),
+                    ["observed"] = PetBoundaryState(observedPet), ["rebound"] = PetBoundaryState(reboundPet),
+                    ["currentIsRebound"] = ReferenceEquals(current, reboundPet),
+                    ["currentIsObserved"] = ReferenceEquals(current, observedPet),
+                    ["sourceIsObserved"] = ReferenceEquals(source, observedPetSource),
+                    ["callers"] = new JArray((stack ?? new StackFrame[0]).Take(16).Select(f => {
+                        var method = f.GetMethod();
+                        return method == null ? "<unknown>" :
+                            (method.DeclaringType?.FullName ?? "<dynamic>") + "." + method.Name;
+                    })) });
+            }
+            catch (Exception exception)
+            {
+                if (petCallBoundaryErrors.Count < 4)
+                    petCallBoundaryErrors.Add(exception.GetType().FullName + ": " + exception.Message);
+            }
+        }
+        private static JObject PetBoundaryState(UnitEntityData pet) => new JObject {
+            ["id"] = pet?.UniqueId, ["object"] = Id(pet),
+            ["descriptorObject"] = Id(pet?.Descriptor), ["viewObject"] = Id(pet?.View),
+            ["masterId"] = pet?.Descriptor?.Master.Value?.UniqueId,
+            ["destroyed"] = pet?.Destroyed, ["shouldBeDestroyed"] = pet?.ShouldBeDestroyed };
         private static JObject Resources(UnitDescriptor unit) => new JObject { ["id"] = unit.Unit.UniqueId,
             ["descriptorObject"] = Id(unit), ["move"] = unit.Unit.CombatState.Cooldown.MoveAction,
             ["standard"] = unit.Unit.CombatState.Cooldown.StandardAction, ["swift"] = unit.Unit.CombatState.Cooldown.SwiftAction,
@@ -497,12 +537,12 @@ namespace KingmakerMountedCombat.Diagnostics
             internal static void PetBefore(AddPet __instance)
             {
                 var p = active; if (p == null || !ReferenceEquals(__instance?.Owner?.Unit, p.original)) return;
-                p.Safe(() => p.BeginPetUpdate(__instance));
+                p.Safe(() => { p.RecordPetCallBoundary("before", __instance); p.BeginPetUpdate(__instance); });
             }
             internal static void PetAfter(AddPet __instance)
             {
                 var p = active; if (p == null || !ReferenceEquals(__instance?.Owner?.Unit, p.original)) return;
-                p.Safe(() => p.CompletePetUpdate(__instance));
+                p.Safe(() => { p.RecordPetCallBoundary("after", __instance); p.CompletePetUpdate(__instance); });
             }
             internal static void RebindAfter(CharacterBuildController __instance, UnitEntityData unit)
             {

@@ -1,5 +1,31 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## Active October 20 after batch96 — distinguish native pet binding owner
+
+The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
+[Batch96](docs/CHUNK7-BATCH96-RETRAIN-PET-SOURCE-2026-10-20.md) froze pushed
+`fd2be5a991879108e223c536a5d6620acf35cc02` as world109. Mounted Small
+Manual 5/0 and separate cold 3/0 passed. Targeted retrain original **outer
+FAIL** has no terminal game result or certified Manual. The two native credits
+(411 starting gold, zero refund), finish/day/rest and original-actor rebind
+were observed successfully. An exact AddPet source then produced a new horse,
+but before another native `TryUpdatePet` entry the rider's current pet no
+longer matched the pinned pet. The first observer failure is the pet-binding
+check; the intervening native owner is not observed. The exact run-owned game
+was closed normally after immutable pending evidence. Mods, saves and all
+three profiles restored exactly, without cache exceptions; no game or lock
+remains. Batches 90–95 original FAILs remain separate.
+
+Exact installed `AddPet`/KMC Horse source and batch96 evidence do not identify
+the intervening owner. A bounded read-only entry/exit snapshot now captures
+source, owner, pet binding/destruction states and callers without weakening
+the original assertion; capture faults are separate. Independent source review,
+build, installed hook construction/removal 24/0 and Fast 3/0 passed. Next:
+commit and guarded-push, freeze one exact candidate/suite, then run the
+affected declared Small producer/cold/retrain sequence to distinguish the
+pet owner. If retrain eventually yields a genuine Manual,
+cold-load an independent copy. Continue F09/F10/F11 and selected private 7E.
+
 ## Active October 20 after batch95 — verify two native respec credits
 
 The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.

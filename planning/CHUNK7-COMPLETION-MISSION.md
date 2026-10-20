@@ -59,6 +59,15 @@ two-credit observer/reader correction passed independent review and focused
 checks; it still needs exact-candidate native verification and, if it produces
 a Manual, a separate cold consumer. F10 retrain remains open.
 
+Batch96 verified both native credits and the finish/rebind sequence on a
+fresh candidate after its mounted Small producer and cold consumer passed.
+The targeted retrain original outer FAIL instead occurred at a later pet
+binding change before another `AddPet.TryUpdatePet` entry. The
+[batch96 record](../docs/CHUNK7-BATCH96-RETRAIN-PET-SOURCE-2026-10-20.md)
+retains the immutable failure and exact restoration. F10 retrain remains open
+pending identification of that pet lifecycle owner and a separate cold
+consumer of any genuine successful retrain Manual.
+
 Current requirement-to-evidence map (one status per gate family; earlier PASS
 belongs only to its recorded product, fixture and environment):
 
