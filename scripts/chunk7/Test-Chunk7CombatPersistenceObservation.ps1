@@ -79,6 +79,11 @@ function CompleteCombatArtifact($Fixture,[bool]$Cold){
 }
 $complete=@();foreach($fixture in @($tb,$rt,$zero,$legacy)){foreach($isCold in @($false,$true)){$spec=CompleteCombatArtifact $fixture $isCold;$complete+=@($spec);Check ($spec.request.persistenceCase+' complete '+$spec.request.scenario) {Assert-KmcChunk7PersistenceObservation $spec.request $spec.artifact 'PASS'}}}
 $sourceTb=$complete[0];$coldTb=$complete[1];$sourceRt=$complete[2];$coldZero=$complete[5];$coldLegacy=$complete[7]
+Reject 'combat persistence full reader refuses an injected native door inventory before early dispatch' {
+    $spec=Copy-Test $sourceRt
+    $spec.artifact.observations|Add-Member areaDoorInventory ([pscustomobject]@{interactionTested=$true})
+    Assert-KmcChunk7PersistenceObservation $spec.request $spec.artifact 'PASS'
+}
 $clockBefore=[pscustomobject]@{Combat=[pscustomobject]@{TimeSinceStart=0.0;TimeToNextRound=6.0}}
 $clockAfter=Copy-Test $clockBefore;$clockAfter.Combat.TimeSinceStart=.5041753;$clockAfter.Combat.TimeToNextRound=5.495825
 Check 'schema2 reader accepts matched native Manual clock drift' {
