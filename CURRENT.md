@@ -1,5 +1,16 @@
 # Chunk 7B–7D — IN PROGRESS
 
+## October 20 — batch89 Small native dismissal PASS
+
+[Batch89](docs/CHUNK7-BATCH89-SMALL-DISMISSAL-2026-10-20.md) froze pushed
+`1ed428a3` as world102. A fresh mounted Small Manual 5/0, separate cold
+3/0, and targeted native dismissal 3/0 all passed game and outer checks.
+The observer wrote all 20 native body fields, and guarded Mods, saves and
+profile restoration passed. This qualifies F10's selected Small dismissal
+development path on that candidate. Batch88's original outer FAIL and all
+earlier failures remain separate. Acquisition, leveling, retraining,
+replacement, F09 breadth, F11 and private 7E remain open.
+
 ## October 20 — batch88 native Small dismissal passed; outer evidence FAIL
 
 [Batch88](docs/CHUNK7-BATCH88-SMALL-DISMISSAL-2026-10-20.md) froze pushed

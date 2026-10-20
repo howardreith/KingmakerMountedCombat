@@ -1,5 +1,28 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## Active October 20 after batch89 — Small dismissal passed; progression breadth open
+
+The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
+[Batch89](docs/CHUNK7-BATCH89-SMALL-DISMISSAL-2026-10-20.md) froze pushed
+`1ed428a3c37b0815583063619a00d9c597255f38` as world102, package
+SHA-256 `e59f5503b3379b5a0158dcb9bae6ee237f00c013ddf587a437c5fde773b3df91`,
+DLL SHA-256 `8800f8aa699e9cdd551a364e10b09353d9de00ff62aea632597a10552c685a33`.
+Three declared native slots passed game/outer: mounted Small Manual 5/0,
+separate cold 3/0, native dismissal 3/0. The corrected observer recorded
+all 20 body fields and exact native removal/control custody. Each guarded
+transaction restored Mods and saves; slot 3's profile bytes restored
+exactly. Batch88's original outer FAIL remains separate. F10 Small
+dismissal is development-qualified on world102; the standing mission is
+still open.
+
+Next actionable engineering work: inspect the existing F10 acquisition,
+native level and retrain fixtures and select the smallest source-backed
+native operation that can complete on the approved owner-seed derivative.
+Preserve setup versus certified operation and the prior stale-Auto failures.
+Continue F09 breadth and F11 measurement independently. When all product
+gates are ready, perform selected private 7E on one exact package. No merge,
+release, permanent installation or HUMAN PLAY acceptance is authorized.
+
 ## Active October 20 after batch88 — native Small dismissal, missing body evidence
 
 The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
