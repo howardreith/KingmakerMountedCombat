@@ -44,6 +44,8 @@ foreach($row in @(
     @('chunk7-owned-two-pair-campaign','multi-area-autosave',$false,$true),
     @('chunk7-owned-two-pair-campaign','multi-exploration-three-area-transfers-manual',$false,$true),
     @('chunk7-owned-two-pair-campaign','owner-seed-manticore-fixture-manual',$false,$true),
+    @('chunk7-owned-two-pair-campaign','manticore-fixture-cold-manual',$false,$true),
+    @('chunk7-persistence-load','manticore-fixture-cold-manual',$false,$false),
     @('chunk7-persistence-load','owner-seed-manticore-fixture-manual',$false,$false),
     @('chunk7-owned-two-pair-campaign','multi-rt-debt-manual',$false,$false))){
     Check ((Test-KmcPersistenceAreasIsolationSelection -Scenario $row[0] -PersistenceCase $row[1] -ObserveWorkingDeserialization $row[2])-eq$row[3]) ('closed selection '+$row[0]+'/'+$row[1]+'/'+$row[2])

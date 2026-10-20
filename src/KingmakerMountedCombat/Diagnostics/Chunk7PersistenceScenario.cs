@@ -357,7 +357,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 restoration.Count("restore-debt-after", ids) == 4, "Cold native actor restoration invented preparation or lost its complete observer window.");
             AssertDebt(saved); evidence["coldRestoration"] = restoration.Capture();
             if (!OwnerSeedLoadRefusalCase) { restoration.Dispose(); restoration = null; }
-            if (request.OwnedPairs?.IsOwnerSeedDerivedLoad == true || OwnerSeedLoadRefusalCase) ObserveOwnerSeedDerivedCold();
+            if (Chunk7OwnedPairsSelection.IsManticoreManualCold(request.PersistenceCase)) ObserveManticoreManualCold();
+            else if (request.OwnedPairs?.IsOwnerSeedDerivedLoad == true || OwnerSeedLoadRefusalCase) ObserveOwnerSeedDerivedCold();
             evidence["loadedArchive"] = JObject.FromObject(saved, MountedSaveCodec.CreateSerializer());
             var descriptor = request.PersistenceLoad;
             evidence["loadedDescriptor"] = new JObject { ["internalName"] = descriptor.InternalName, ["fileName"] = descriptor.FileName,

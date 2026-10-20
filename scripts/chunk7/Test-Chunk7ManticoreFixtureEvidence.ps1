@@ -102,6 +102,38 @@ function Check([string]$Name,[scriptblock]$Body,[bool]$Refuse=$false){$ok=$false
 function Read-Manticore($f){try{Assert-KmcChunk7OwnedPairsDescriptor $f.request;Assert-KmcChunk7PersistenceObservation $f.request $f.artifact 'PASS'}catch{throw ($_.Exception.Message+' at '+$_.ScriptStackTrace)}}
 $baseline=New-ManticoreFixture
 Check 'closed complete native Manticore fixture preserves source and writes genuine destination Manual' {Read-Manticore $baseline}
+function New-ManticoreColdReaderFixture {
+ $producer=New-ManticoreFixture;$p=$producer.request.ownedPairs;$o=$producer.artifact.observations
+ $request=Copy-Value $producer.request;$request.runId='synthetic-manticore-cold-consumer';$request.persistenceCase='manticore-fixture-cold-manual'
+ $request.ownedPairs=[pscustomobject][ordered]@{case='owner-seed-persistence-load';sourceRunId=$producer.artifact.runId;
+  sourceArtifactSha256=('a'*64);sourceArchiveSha256=$o.nativeWrite.sha256;seedId=$p.seedId;seedSha256=$p.seedSha256;
+  riderAId=$p.riderAId;mountAId=$p.mountAId;riderBId=$p.riderBId;mountBId=$p.mountBId;partyIds=$p.partyIds;
+  sourceArea='314e8c3b15b896a4f847c85f9250f02b';baseGameOnly=$true;expectedNativeLoadCount=1;expectedNativeWriteCount=0}
+ $request.persistenceLoad.internalName='KMC_C7_AREA_FIXTURE';$request.persistenceLoad.fileName='Manual_305_KMC_C7_AREA_FIXTURE.zks'
+ $request.persistenceLoad.sha256=$o.nativeWrite.sha256;$request.persistenceLoad.area=$request.ownedPairs.sourceArea
+ $o.manticoreFixturePreparation.afterSave.field.actors=@($o.manticoreFixturePreparation.afterSave.field.custody.arrangement.actors|
+  ForEach-Object{[pscustomobject]@{id=$_.actorId;blueprint=$_.blueprint}})
+ $roles=Get-KmcChunk7OwnedPairIds $request
+ $unrelated=@($p.partyIds|Where-Object{$_-cnotin$roles}|Sort-Object -CaseSensitive)
+ $proof=[pscustomobject][ordered]@{contract='manticore-native-manual-cold-v1';ancestry='owner-seed-derived';
+  sourceRunId=$request.ownedPairs.sourceRunId;sourceArtifactSha256=$request.ownedPairs.sourceArtifactSha256;
+  sourceArchiveSha256=$request.ownedPairs.sourceArchiveSha256;seedSha256=$request.ownedPairs.seedSha256;
+  sourceArea=$request.ownedPairs.sourceArea;producerProcessId=$o.processId;loadedEqualsProducerReadback=$true;
+  owners=@($o.manticoreFixturePreparation.afterSave.native.owners|ForEach-Object{[pscustomobject]@{ownerId=$_.ownerId;generation=$_.generation;riderId=$_.riderId;mountId=$_.mountId}});
+  slots=@($o.nativeWrite.archive.Slots|ForEach-Object{[pscustomobject]@{actorId=$_.ActorId;index=$_.Index;kind=$_.Kind}});unrelatedActorIds=$unrelated}
+ $cold=[pscustomobject]@{status='PASS';observations=[pscustomobject]@{processId=($o.processId+1);loadedArchive=(Copy-Value $o.nativeWrite.archive);
+  manticoreManualCold=$proof;inheritedFixture=[pscustomobject]@{partyIds=$p.partyIds;arrangement=(Copy-Value $o.manticoreFixturePreparation.afterSave.field.custody.arrangement)};
+  inheritedCleanup=[pscustomobject]@{arrangement=(Copy-Value $o.manticoreFixturePreparation.afterSave.field.custody.arrangement)}}}
+ [pscustomobject]@{request=$request;producer=$producer.artifact;cold=$cold}
+}
+function Read-ManticoreCold($f){try{Assert-KmcChunk7ManticoreManualColdObservation $f.request $f.cold.observations $f.cold.observations.loadedArchive;Assert-KmcChunk7ManticoreManualColdSource $f.request $f.producer $f.cold}catch{throw ($_.Exception.Message+' at '+$_.ScriptStackTrace)}}
+Check 'distinct post-area Manual cold reader accepts exact synthetic producer/restored identities' {$f=New-ManticoreColdReaderFixture;Read-ManticoreCold $f}
+Check 'cold reader rejects old pre-area owner identity' {$f=New-ManticoreColdReaderFixture;$f.cold.observations.manticoreManualCold.owners[0].ownerId='f'*32;Read-ManticoreCold $f} $true
+Check 'cold reader rejects an altered archive graph' {$f=New-ManticoreColdReaderFixture;$f.cold.observations.loadedArchive.Pairs[0].Generation++;Read-ManticoreCold $f} $true
+Check 'cold reader rejects unrelated roster loss' {$f=New-ManticoreColdReaderFixture;$f.cold.observations.manticoreManualCold.unrelatedActorIds=@();Read-ManticoreCold $f} $true
+Check 'cold reader rejects duplicate slot replacing another' {$f=New-ManticoreColdReaderFixture;$f.cold.observations.manticoreManualCold.slots[1]=Copy-Value $f.cold.observations.manticoreManualCold.slots[0];Read-ManticoreCold $f} $true
+Check 'cold reader rejects native progression drift' {$f=New-ManticoreColdReaderFixture;$f.cold.observations.inheritedFixture.arrangement.money++;Read-ManticoreCold $f} $true
+Check 'ordinary cold case rejects injected Manticore proof' {$f=New-KmcOwnerSeedCheckpointSaveFixture 'multi-exploration-auto';$m=New-ManticoreColdReaderFixture;$f.artifact.observations|Add-Member manticoreManualCold $m.cold.observations.manticoreManualCold;Assert-KmcChunk7PersistenceObservation $f.request $f.artifact 'PASS'} $true
 if(-not$results[0].pass){$results|ConvertTo-Json -Depth 6|Set-Content -LiteralPath (Join-Path $OutputDirectory 'baseline-failure.json') -Encoding UTF8;[IO.File]::WriteAllText((Join-Path $OutputDirectory 'baseline.json'),($baseline|ConvertTo-Json -Depth 90));throw 'Positive baseline must pass before any negative mutation is credited.'}
 $bad=[ordered]@{
  'different mounted source bytes'={param($f)$f.request.ownedPairs.sourceArchiveSha256='e'*64}

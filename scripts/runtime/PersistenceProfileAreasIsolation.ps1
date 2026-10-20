@@ -11,7 +11,7 @@ function Test-KmcPersistenceAreasIsolationSelection {
         return $PersistenceCase-cin @('area-reload','mounted-charge-area','area-cross-entry','area-cross-exit')
     }
     return $Scenario-ceq'chunk7-owned-two-pair-campaign'-and
-        $PersistenceCase-cin @('multi-area-autosave','multi-exploration-three-area-transfers-manual','owner-seed-manticore-fixture-manual')
+        $PersistenceCase-cin @('multi-area-autosave','multi-exploration-three-area-transfers-manual','owner-seed-manticore-fixture-manual','manticore-fixture-cold-manual')
 }
 
 function Get-KmcPersistenceAreasIsolationPaths {
