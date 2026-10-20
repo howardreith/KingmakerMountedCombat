@@ -1,5 +1,15 @@
 # Chunk 7B–7D — IN PROGRESS
 
+## October 20 - batch54 admitted area fixture
+
+The corrected Areas guard and one declared native preview.71 Manticore
+producer passed end to end. It wrote a genuine non-capital Manual, SHA-256
+`86a5ff4bc18852f48388156f627ddebf1c9047ecf69f73a1b4b3b92b231f1b30`.
+The transaction restored Mods, saves, profile bytes and original Areas
+exactly. Earlier batch48 outer FAIL and separate recovery remain intact.
+See the [batch54 record](docs/CHUNK7-BATCH54-AREA-FIXTURE-PRODUCER-2026-10-20.md).
+Area Auto/cold and doors still require their distinct consumers.
+
 ## October 20 - area profile filter correction
 
 Batch48's Manticore outer FAIL is now explained by an Areas-isolation
