@@ -1,5 +1,18 @@
 # Chunk 7B–7D — IN PROGRESS
 
+## October 20 — batch83 native Small dismissal root cause
+
+[Batch83](docs/CHUNK7-BATCH83-SMALL-DISMISSAL-2026-10-20.md) repeated the
+genuine mounted Small Manual and separate cold load on preview.96; both
+passed 5/0 and 3/0. Dismissal remains **FAIL**: the installed native method
+merged an equipped stackable into another stack while enumerating the same
+inventory list, then threw before completion. Exact combined and one-run
+profile recovery restored all external surfaces. A scoped native-callsite
+auto-merge rewrite passes focused 30/0, Fast 3/0, offline Candidate 6/0 and
+pinned Harmony12 patch/unpatch 1/0; independent review passed. Native
+qualification remains. The
+standing engineering mission is open.
+
 ## October 20 — batch82 Small dismissal inventory diagnosis
 
 [Batch82](docs/CHUNK7-BATCH82-SMALL-DISMISSAL-2026-10-20.md) repeated the
