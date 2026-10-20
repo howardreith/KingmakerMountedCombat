@@ -1,5 +1,27 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## Active October 20 after batch94 — classify native respec credits
+
+The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
+[Batch94](docs/CHUNK7-BATCH94-RETRAIN-CREDIT-OWNER-2026-10-20.md) froze pushed
+`0e1045118e942e2bfc7de0bad693f0c7b0d1b32b` as world107. Fresh mounted
+Small Manual 5/0 and separate cold 3/0 passed. Targeted native retrain original
+**outer FAIL** has no terminal game result or Manual. Its credit boundary shows
+`GainMoney(411)` while the original actor's callback-time scroll-refund value
+is `0`; all other tested ownership and timing fields were true. Native
+first-level starting gold is a source-backed hypothesis for the 411 call,
+not yet an observed callsite. The exact run-owned game was closed normally
+after immutable failure evidence. Mods, saves and profile bytes restored
+exactly; no game or lock remains. Batches 90–93 original FAILs remain separate.
+
+A bounded first-four-call `GainMoney` method-name snapshot preserves the strict
+credit predicate and native behavior. Independent source review, build, actual
+patch construction/removal 24/0 and Fast 3/0 passed. Next: commit and guarded-
+push, freeze a fresh candidate/suite, then run a declared same-candidate
+mounted Small producer, cold consumer and one targeted retrain observation.
+Use the callsites to distinguish starting gold from the refund before changing
+money/finish acceptance. Continue F09/F10/F11 and selected private 7E.
+
 ## Active October 20 after batch93 — identify exact native credit precondition
 
 The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
