@@ -33,6 +33,9 @@ namespace KingmakerMountedCombat.Integration
         private readonly IModLogger logger;
         private readonly DiagnosticSettings settings;
         private readonly List<MountedPairServices> pairs = new List<MountedPairServices>();
+        // The published roster only grows. Keep a stable frame snapshot so an
+        // admission during a callback cannot change the current traversal.
+        private MountedPairServices[] pairSnapshot;
         private bool disposed;
         private bool constructingPair;
         private readonly List<FailedPairConstruction> failedConstructions = new List<FailedPairConstruction>();
@@ -45,6 +48,7 @@ namespace KingmakerMountedCombat.Integration
         internal readonly UnifiedMountedTurnCoordinator UnifiedTurn;
         internal MountedPairServices Primary => pairs[0];
         internal MountedPairServices[] Pairs => pairs.ToArray();
+        private MountedPairServices[] PairSnapshot => pairSnapshot ?? (pairSnapshot = pairs.ToArray());
         internal NativeMountedControlService NativeControls { get; private set; }
         internal Func<bool> AdmissionFenced
         {
@@ -74,6 +78,7 @@ namespace KingmakerMountedCombat.Integration
                 CompletePair(primary, primary.Participant);
                 BeforePairConstructionStep?.Invoke("publish");
                 pairs.Add(primary);
+                pairSnapshot = null;
                 UnifiedTurn.ParticipantUpdateFailed = (participant, error) => HandlePairFailure(Find(participant.Relationship), error);
             }
             catch (Exception error)
@@ -108,6 +113,7 @@ namespace KingmakerMountedCombat.Integration
                 BeforePairConstructionStep?.Invoke("publish");
                 UnifiedTurn.PublishParticipant(pair.Participant);
                 pairs.Add(pair);
+                pairSnapshot = null;
                 return pair;
             }
             catch (Exception error)
@@ -265,7 +271,7 @@ namespace KingmakerMountedCombat.Integration
                 if (lastRetirementFailure != detail) logger.Error("Mounted custody retirement retained a failed owner: " + detail);
                 lastRetirementFailure = detail;
             }
-            foreach (var pair in Pairs)
+            foreach (var pair in PairSnapshot)
             {
                 try
                 {
@@ -293,10 +299,14 @@ namespace KingmakerMountedCombat.Integration
 
         internal Exception[] Visit(Action<MountedPairServices> action)
         {
-            var errors = new List<Exception>();
-            foreach (var pair in Pairs)
-                try { action(pair); } catch (Exception error) { errors.Add(error); }
-            return errors.ToArray();
+            List<Exception> errors = null;
+            foreach (var pair in PairSnapshot)
+                try { action(pair); } catch (Exception error)
+                {
+                    if (errors == null) errors = new List<Exception>();
+                    errors.Add(error);
+                }
+            return errors == null ? Array.Empty<Exception>() : errors.ToArray();
         }
 
         internal bool DrainChargeOwnership(string reason)
@@ -314,7 +324,7 @@ namespace KingmakerMountedCombat.Integration
         internal void UpdatePairs()
         {
             RetryFailedConstructionCleanup();
-            foreach (var pair in Pairs)
+            foreach (var pair in PairSnapshot)
             {
                 try { pair.Combat.Update(); pair.Relationship.ValidateActivePair(); }
                 catch (Exception error) { HandlePairFailure(pair, error); }
