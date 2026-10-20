@@ -780,6 +780,9 @@ namespace KingmakerMountedCombat.Diagnostics
                     throw new InvalidOperationException("Acquired Manual storage requires its exact native write admission.");
                 var assistedRejection = AssistedWriteLeaseAdmission(target);
                 if (assistedRejection != null) throw new InvalidOperationException(assistedRejection);
+                if (ownedPairsRequest?.PersistenceCase == "multi-area-autosave" &&
+                    target?.Area != ownedPairsRequest.ExpectedChunk7ArchiveArea)
+                    throw new InvalidOperationException("Owned area Auto storage requires the declared destination, not its departure admission area.");
                 var rejection = ValidateLocked(RuntimeSaveOperation.Write, target, observedRoot);
                 if (rejection != null) throw new InvalidOperationException(rejection);
                 var entry = entries[target.FileName];
