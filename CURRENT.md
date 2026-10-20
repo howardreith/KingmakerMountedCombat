@@ -1,5 +1,21 @@
 # Chunk 7B–7D — IN PROGRESS
 
+## October 20 - batch49 paid remote view owner
+
+Preview.67 Candidate passed 6/0. The one native batch49 diagnostic remains
+**FAIL**, but its first retained evidence identifies the changed view as the
+paid level-4 hire: it is the sole remote companion, absent from the scene
+unit list, and the exact build driver's actor. Main and Horse remained scene
+members. The owned game window was closed normally after exact process proof;
+the guarded wrapper restored Mods, saves, settings and profile, with no game
+or lock remaining. No Small Manual or atomic game result exists. A narrow
+F09-only correction is in review: pin the paid actor's view after completed
+native CharGen and exact remote-roster checks. The original world and Horse
+fences stay active. Independent review and the focused world-scope test (75/0)
+passed; Fast passed 3/0. Native verification is pending on preview.68.
+See the [batch49 record](docs/CHUNK7-BATCH49-SMALL-VIEW-OWNER-2026-10-20.md).
+The standing mission remains active through selected private 7E.
+
 ## October 20 - batch48 failure discriminators
 
 Preview.66 Candidate passed 7/0. Batch48 Manticore game PASS 5/0 again
