@@ -21,6 +21,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private readonly Func<bool> expectedConfirmation;
         private readonly List<string> errors = new List<string>();
         private readonly JArray events = new JArray();
+        private JToken inventoryBefore;
         private HarmonyInstance harmony;
         private bool disposed, installed, installationStarted, inside;
         private int frame = -1, entries, exits;
@@ -51,7 +52,29 @@ namespace KingmakerMountedCombat.Diagnostics
         internal bool Complete => installed && entries == 1 && exits == 1 && errors.Count == 0;
         internal JObject Capture() => new JObject { ["installed"] = installed, ["installationAttempted"] = installationStarted,
             ["nativeEntries"] = entries, ["nativeExits"] = exits, ["complete"] = Complete,
-            ["errors"] = new JArray(errors), ["events"] = events.DeepClone() };
+            ["errors"] = new JArray(errors), ["events"] = events.DeepClone(),
+            ["inventoryBefore"] = inventoryBefore?.DeepClone(), ["inventoryAtCapture"] = InventorySnapshot() };
+        private JToken InventorySnapshot()
+        {
+            try
+            {
+                if (!ReferenceEquals(Game.Instance?.Player, player)) return new JObject { ["error"] = "Dismissal player changed." };
+                var items = Game.Instance.Player.Inventory.Items;
+                var rows = new JArray();
+                // The list is read only at the native entry or after the failed
+                // call has returned. Bound the record without changing inventory.
+                for (var i = 0; i < items.Count && i < 128; i++)
+                {
+                    var item = items[i];
+                    rows.Add(new JObject { ["index"] = i, ["object"] = item == null ? (JToken)JValue.CreateNull() : RuntimeHelpers.GetHashCode(item),
+                        ["blueprint"] = item?.Blueprint?.AssetGuid, ["count"] = item?.Count,
+                        ["stackable"] = item?.IsStackable, ["targetOwner"] = ReferenceEquals(item?.Owner, actor.Descriptor),
+                        ["slotObject"] = item?.HoldingSlot == null ? (JToken)JValue.CreateNull() : RuntimeHelpers.GetHashCode(item.HoldingSlot) });
+                }
+                return new JObject { ["count"] = items.Count, ["truncated"] = items.Count > 128, ["rows"] = rows };
+            }
+            catch (Exception exception) { return new JObject { ["error"] = exception.ToString() }; }
+        }
         private void Safe(Action operation)
         {
             try { assertScope(); operation(); }
@@ -76,7 +99,8 @@ namespace KingmakerMountedCombat.Diagnostics
                         !ReferenceEquals(Game.Instance.Player, p.player) || !ReferenceEquals(value, p.actor) ||
                         !value.Descriptor.State.CanRemoveFromParty || ReferenceEquals(__instance.MainCharacter.Value, value))
                         throw new InvalidOperationException("Native dismissal is outside its exact expected custom-companion confirmation.");
-                    p.entries++; p.inside = true; p.frame = Time.frameCount; p.Record("native-dismiss-enter");
+                    p.entries++; p.inside = true; p.frame = Time.frameCount;
+                    p.inventoryBefore = p.InventorySnapshot(); p.Record("native-dismiss-enter");
                 });
             }
             internal static void After(Player __instance, UnitEntityData value)
