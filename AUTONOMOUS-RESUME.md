@@ -1,5 +1,23 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## Active October 20 batches 66–67 DLL-absent cold consumer
+
+The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
+[Batches 66–67](docs/CHUNK7-BATCH66-67-DLL-ABSENT-COLD-2026-10-20.md)
+pin preview.82/observer.4, original batch66 outer FAIL with game 12/0 PASS,
+reviewed UMM append-reader correction `4663c41d`, and one fresh batch67
+native/outer PASS 12/0. The source was batch65's genuine reference-free
+cleanup Manual, SHA-256 `2c46c270`. The exact compiled DLL is
+`bc76941c`; batch67 product and observer packages are `81c14e28` and
+`f26ad509`, suite `84d09a34`. The transaction restored Mods, protected saves,
+Areas and profile bytes exactly, zero cache exceptions, no game process or
+lock. Batch66's retained lock was closed by exact guarded recovery after
+restoration; preserve its original FAIL. Next: choose a suitable admitted
+ordinary-door scene, route the qualified batch52/53 Small Manual into mounted
+calibration, advance eligible acquisition/progression and measured 7D, then
+readiness-gated private 7E. Do not claim engineering completion, merge,
+release, permanent installation or HUMAN PLAY acceptance.
+
 ## Active October 20 batch65 positive cleanup producer
 
 The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.

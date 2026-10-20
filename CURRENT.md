@@ -1,5 +1,17 @@
 # Chunk 7B–7D — IN PROGRESS
 
+## October 20 - batches 66–67 genuine DLL-absent cleanup cold load
+
+Batch65's positive mounted cleanup Manual now has a separate-process,
+genuine KMC-DLL-absent cold consumer. [Batches 66–67](docs/CHUNK7-BATCH66-67-DLL-ABSENT-COLD-2026-10-20.md)
+retain the first outer FAIL caused by a too-narrow UMM settings reader and the
+corrected batch67 native/outer PASS 12/0 as distinct results. The game loaded
+the reference-free cleanup archive, continued the world and moved the main
+character under ordinary native input with no KMC DLL, assembly, UMM entry or
+patch owner. Exact Mods, protected saves, Areas and profile restoration passed.
+Ordinary doors, Small mounted, progression, measured 7D and final private 7E
+remain under the [standing mission](planning/CHUNK7-COMPLETION-MISSION.md).
+
 ## October 20 - batch65 positive mounted cleanup producer PASS
 
 The reviewed preview.81 owner-stock P07 route passed Candidate 7/0 and one
