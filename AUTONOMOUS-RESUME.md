@@ -1,6 +1,24 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
-## Active October 20 batch59 area continuation correction
+## Active October 20 batch60–61 area Auto/cold accepted
+
+The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
+The [batch60–61 record](docs/CHUNK7-BATCH60-61-AREA-AUTO-COLD-2026-10-20.md)
+admits the genuine Spider Cave AfterEntry Auto and its separate-process cold
+consumer on frozen preview.77 (`fd390e61`, package SHA-256
+`8c8a1c28fa29c0442f6a3d4a42e40d3cbfcc9a2369162b0fa24ab59e6b347184`).
+Native/outer results are PASS 5/0 and PASS 3/0, respectively. Both guarded
+transactions restored Mods, protected saves, Areas and profile bytes exactly;
+no cache exception, game or lock remains. Batches 57–59 original FAILs remain
+separate. The area Auto/cold development route is closed, but a suitable door
+is still unqualified. Next: connect the qualified clean owner seed to a
+disclosed stock-Mammoth reference-free producer, positive mounted cleanup and
+genuine KMC-DLL-absent cold load; continue mounted Small calibration, eligible
+progression, measured hardening and readiness-gated private 7E. Keep one live
+executor and use reviewed guarded transactions. No merge, release, permanent
+installation or HUMAN PLAY acceptance.
+
+## Historical October 20 batch59 area continuation correction
 
 The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
 The [batch59 record](docs/CHUNK7-BATCH59-AREA-CONTINUATION-2026-10-20.md)

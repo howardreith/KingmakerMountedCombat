@@ -1,5 +1,15 @@
 # Chunk 7B–7D — IN PROGRESS
 
+## October 20 - batches 60–61 Spider Cave Auto and cold
+
+Preview.77's genuine Spider Cave AfterEntry Auto producer and independent
+cold-load consumer both passed end to end, 5/0 and 3/0, with two mounted
+continuation moves in each process. The [batch60–61 record](docs/CHUNK7-BATCH60-61-AREA-AUTO-COLD-2026-10-20.md)
+pins the package, archive, suites, evidence and exact transaction restoration.
+Earlier batches 57–59 retain their original FAILs. Ordinary doors, positive
+cleanup/DLL absence, Small, progression, 7D and final private 7E remain open
+under the [standing mission](planning/CHUNK7-COMPLETION-MISSION.md).
+
 ## October 20 - batch59 Spider Cave continuation
 
 The [batch59 record](docs/CHUNK7-BATCH59-AREA-CONTINUATION-2026-10-20.md)
