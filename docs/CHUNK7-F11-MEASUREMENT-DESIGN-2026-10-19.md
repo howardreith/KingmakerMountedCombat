@@ -1,6 +1,14 @@
 # Chunk 7 F11 measurement design — IN PROGRESS
 
-[Batch73](CHUNK7-BATCH73-F11-MATCHED-POOL-2026-10-20.md) now provides one
+[Batch78](CHUNK7-BATCH78-F11-REPEATED-WINDOWS-2026-10-20.md) completed one
+reviewed three-window-per-state 0/1/2/0 native observation on preview.91:
+game/outer PASS 8/0 with exact restoration, stable subscriptions and zero
+KMC messages. Median KMC Update means were 0.2326/0.2893/0.3035/0.2484 ms.
+The final zero-pair mean included a 122.56 ms full-GC-associated outlier.
+This advances the repeated-window requirement but does not measure allocation
+rate, diagnostics-off behavior or final-package performance acceptance.
+
+[Batch73](CHUNK7-BATCH73-F11-MATCHED-POOL-2026-10-20.md) provides one
 current-candidate native 0/1/2/0 resident-pool sequence on preview.87.
 It confirms stable subscription counts and zero KMC messages, while its
 diagnostic-included KMC Update means increase from about 0.343 ms at zero

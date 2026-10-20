@@ -1,6 +1,28 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
-## Active October 20 after batch77 — standing completion mission
+## Active October 20 after batch78 — standing completion mission
+
+The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
+Reviewed F11 source commit `65df53533138cd211c3be1244c9d15ea4d2d285c`
+was guarded-pushed, focused collector/admission/reader passed 67/24/73 with
+historical v1 reader replay, and offline Candidate passed 7/0. Preview.91
+package SHA-256 is
+`597c03a36a02cb24aa23945f16c7d2577e02823722b7cb9ddb18c06f44cfa6b0`,
+DLL SHA-256 `c6a1fca2421b00abd9bb1cc6fe7949966741f81d12b43a55f78f5a88641917fd`;
+batch78 suite SHA-256 is
+`f3ef743ac92450b668a8ad44d6be900fd582b0ef786e1c031d3cdf8d0d85dfee`.
+The sole guarded native scenario `20261020-c7b-world91-b78s1-f11-repeated`
+passed game/outer 8/0; its twelve-window sidecar SHA-256 is
+`3355ba79826a65bcdb2d115a87375bbc4d794678f971000310b6eb2d610b627b`.
+Exact profile/Mods/protected-save restoration passed, with no game process.
+See [batch78](docs/CHUNK7-BATCH78-F11-REPEATED-WINDOWS-2026-10-20.md).
+F11 needs allocation-event measurement and diagnostics-off controls; F10
+requires an honestly qualified eligible custom-companion progression fixture;
+ordinary doors, additional profile breadth, conditional stress and private 7E
+remain open. The last zero-pair window had a full-GC-associated 122.56 ms
+outlier, so do not declare performance accepted from the observed medians.
+
+## Historical October 20 after batch77 — Small cold checkpoint
 
 The active [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) requires
 all remaining 7B/7C/7D and readiness-gated private 7E; its endpoint has not
