@@ -3,13 +3,14 @@ Set-StrictMode -Version Latest
 # These are the selected routes which can touch the live profile's Areas cache.
 # A new route must be reviewed here before it receives this write authority.
 function Test-KmcPersistenceAreasIsolationSelection {
-    param([string]$Scenario,[string]$PersistenceCase,[bool]$ObserveWorkingDeserialization)
+    param([string]$Scenario,[string]$PersistenceCase,[bool]$ObserveWorkingDeserialization,[bool]$OwnerStockRemoval=$false)
     if($Scenario-ceq'export-mounted-contracts'){return $ObserveWorkingDeserialization}
     if($ObserveWorkingDeserialization){return $false}
     if($Scenario-ceq'chunk7-stock-mammoth-fixture-preparation'){return $true}
     if($Scenario-ceq'persistence-p07-load'){return $true}
     if($Scenario-ceq'persistence-p07-save'){
-        return $PersistenceCase-cin @('area-reload','mounted-charge-area','area-cross-entry','area-cross-exit')
+        return ($OwnerStockRemoval -and $PersistenceCase-ceq'prepare-removal') -or
+            $PersistenceCase-cin @('area-reload','mounted-charge-area','area-cross-entry','area-cross-exit')
     }
     return $Scenario-ceq'chunk7-owned-two-pair-campaign'-and
         $PersistenceCase-cin @('multi-area-autosave','multi-exploration-three-area-transfers-manual','owner-seed-manticore-fixture-manual','manticore-fixture-cold-manual')

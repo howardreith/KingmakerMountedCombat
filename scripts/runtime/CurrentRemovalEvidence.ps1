@@ -56,16 +56,20 @@ function Assert-KmcCurrentRemovalEvidence($Request,$Rows){
  if($Request.scenario-cne'persistence-p07-save'-or$Request.persistenceCase-cne'prepare-removal'){throw 'Current P07 removal evidence belongs only to its selected native save case.'}
  $open=@($Rows|Where-Object kind -CEQ 'native-write-complete');$prepared=@($Rows|Where-Object kind -CEQ 'removal-prepared');$initial=@($Rows|Where-Object kind -CEQ 'initial')
  if($open.Count-ne1-or$prepared.Count-ne1-or$initial.Count-ne1){throw 'Current P07 removal requires exact opening/cleanup observations.'}
- $w=$open[0].detail;$p=$prepared[0].detail;$f=$Request.fixture.working;$rider=$initial[0].rider.Id;$mount=$initial[0].mount.Id
+ $owner=$Request.PSObject.Properties['ownerStockRemoval'] -and $Request.ownerStockRemoval -ceq $true
+ $w=$open[0].detail;$p=$prepared[0].detail;$f=if($owner){$Request.persistenceLoad}else{$Request.fixture.working};$rider=$initial[0].rider.Id;$mount=$initial[0].mount.Id
+ if($owner-and($rider-cne'73681ef2-b281-4bc6-bc05-2de68c1616cb'-or$mount-cne'628c6d9a-5ab7-4e87-8202-9fcbe38a7827')){throw 'Owner stock removal did not mount the exact qualified native Ranger and Mammoth.'}
  $root=Join-Path (Get-KmcLabRoot) ('runtime-staging/persistence-'+$Request.runId+'/Saved Games')
- Assert-KmcCurrentRemovalArchive $w (Join-Path $root 'Manual_300_KMC_P01.zks') $f.gameId $f.gameName $f.area $true $rider $mount
- Assert-KmcCurrentRemovalArchive $p.cleanup (Join-Path $root 'Manual_301_KMC_CLEANUP.zks') $f.gameId $f.gameName $f.area $false $rider $mount
+ $first=if($owner){'Manual_305_KMC_P01.zks'}else{'Manual_300_KMC_P01.zks'}
+ $clean=if($owner){'Manual_306_KMC_CLEANUP.zks'}else{'Manual_301_KMC_CLEANUP.zks'}
+ Assert-KmcCurrentRemovalArchive $w (Join-Path $root $first) $f.gameId $f.gameName $f.area $true $rider $mount
+ Assert-KmcCurrentRemovalArchive $p.cleanup (Join-Path $root $clean) $f.gameId $f.gameName $f.area $false $rider $mount
  $scan=Get-KmcCurrentRemovalReferenceScan $p.cleanup.path
  if($scan.referenceHits.Count-ne0-or$p.referenceHits-isnot[Array]-or$p.referenceHits.Count-ne0-or$p.scannedMembers-ne$scan.scannedMembers-or$p.scannedBytes-ne$scan.scannedBytes){throw 'Current P07 cleanup scan differs from actual members or retains a registered KMC reference.'}
- $expected=@($f.fileName,'Manual_300_KMC_P01.zks','Manual_301_KMC_CLEANUP.zks')|Sort-Object -CaseSensitive
+ $expected=@($f.fileName,$first,$clean)|Sort-Object -CaseSensitive
  $actual=@(Get-ChildItem -LiteralPath $root -File -Filter '*.zks'|ForEach-Object Name|Sort-Object -CaseSensitive)
  if(($actual-join'|')-cne($expected-join'|')){throw 'Current P07 output inventory contains an unmeasured archive or omitted its protected input.'}
- $input=Join-Path $root $f.fileName;Assert-KmcNotReparsePoint $input 'current P07 immutable Working input';Assert-KmcNotHardLink $input 'current P07 immutable Working input'
+ $input=Join-Path $root $f.fileName;Assert-KmcNotReparsePoint $input 'current P07 immutable input';Assert-KmcNotHardLink $input 'current P07 immutable input'
  if((Get-KmcSha256 $input)-cne$f.sha256-or(Get-Item -LiteralPath $input).Length-ne$f.length){throw 'Current P07 changed its exact qualified disposable input.'}
 }
 function Assert-KmcCurrentRemovalSource([string]$SourceRunId,[string]$ArchiveSha,$Fixture,[string]$ArtifactRole){

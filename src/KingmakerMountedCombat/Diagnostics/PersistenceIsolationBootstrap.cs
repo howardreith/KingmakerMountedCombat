@@ -177,7 +177,7 @@ namespace KingmakerMountedCombat.Diagnostics
                             n == 1 && RuntimeRequest.IsDeathCase(request.PersistenceCase) ? "KMC_DEATH" :
                             n == 1 && RuntimeRequest.IsEligibilityCase(request.PersistenceCase) ? "KMC_SIZE" : "KMC_P01";
                         entries.Add(new PersistenceSaveEntry {
-                            FileName = "Manual_" + (300 + n) + "_" + name + ".zks", InternalName = name,
+                            FileName = "Manual_" + ((request.OwnerStockRemoval == true ? 305 : 300) + n) + "_" + name + ".zks", InternalName = name,
                             SaveType = "Manual",
                             Area = cross ? request.PersistenceAreaTarget.Area : fixture.Area,
                             Writable = true });

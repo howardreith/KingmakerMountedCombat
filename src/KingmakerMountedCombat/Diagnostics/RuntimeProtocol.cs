@@ -144,6 +144,13 @@ namespace KingmakerMountedCombat.Diagnostics
         public bool ShouldSerializeObserveWorkingDeserialization() => ObserveWorkingDeserialization.HasValue;
 
         public RuntimeSaveDescriptor PersistenceLoad { get; set; }
+        // Closed owner-seed stock Mammoth source for positive P07 removal. Its
+        // producer is qualified independently; this flag cannot relabel Working.
+        public bool? OwnerStockRemoval { get; set; }
+        public bool ShouldSerializeOwnerStockRemoval() => OwnerStockRemoval.HasValue;
+        internal static string P07OpeningLeaf(RuntimeRequest request) =>
+            request?.OwnerStockRemoval == true && request.Scenario == "persistence-p07-save" &&
+            request.PersistenceCase == "prepare-removal" ? "Manual_305_KMC_P01.zks" : "Manual_300_KMC_P01.zks";
         public RuntimeSaveDescriptor PersistenceAlternate { get; set; }
         public string Schema1DerivationSha256 { get; set; }
         public string Schema2DerivationSha256 { get; set; }
@@ -556,6 +563,23 @@ namespace KingmakerMountedCombat.Diagnostics
             if (ownedSchema2 ? Schema2DerivationSha256 == null || !Regex.IsMatch(Schema2DerivationSha256, "^[0-9a-f]{64}$", RegexOptions.CultureInvariant) : Schema2DerivationSha256 != null)
                 errors.Add("Schema-2 derivative provenance must be exact and exclusive to its owner-seed cold load.");
             var p07 = Scenario == "persistence-p07-save" || Scenario == "persistence-p07-load";
+            if (OwnerStockRemoval.HasValue)
+            {
+                if (OwnerStockRemoval != true || Scenario != "persistence-p07-save" ||
+                    PersistenceCase != "prepare-removal")
+                    errors.Add("Owner stock Mammoth removal is exclusive to the positive P07 save case.");
+                if (PersistenceLoad == null) errors.Add("Owner stock Mammoth removal requires its qualified native Manual.");
+                else
+                {
+                    errors.AddRange(PersistenceLoad.Validate("persistenceLoad", "KMC_C7_STOCK_MAMMOTH",
+                        "^Manual_304_KMC_C7_STOCK_MAMMOTH\\.zks$"));
+                    if (PersistenceLoad.Sha256 != "e475d49c3590927c7f216d301aa8535f6dbbdc7af2066f4c01f58fff335866fa" ||
+                        PersistenceLoad.Length != 1257468 || PersistenceLoad.GameId != "3f7381f7-aba6-43bf-bae6-39c6a66a7180" ||
+                        PersistenceLoad.GameName != "Testy the Modless" || PersistenceLoad.Area != "b10e86516b6437d45a629931c30936fe" ||
+                        PersistenceLoad.GameId == Fixture?.Working?.GameId || PersistenceLoad.Sha256 == Fixture?.Working?.Sha256)
+                        errors.Add("Owner stock Mammoth Manual differs from its accepted batch64 native output.");
+                }
+            }
             var p06 = Scenario == "persistence-p06-load";
             var p03 = Scenario == "persistence-p03-save" || Scenario == "persistence-p03-load";
             var p05 = Scenario == "persistence-p05-save" || Scenario == "persistence-p05-load";
@@ -879,7 +903,7 @@ namespace KingmakerMountedCombat.Diagnostics
                         errors.Add("Cold archive campaign/area differs from the disposable fixture contract.");
                 }
             }
-            else if (PersistenceLoad != null) errors.Add("This scenario cannot select a persistence archive.");
+            else if (PersistenceLoad != null && OwnerStockRemoval != true) errors.Add("This scenario cannot select a persistence archive.");
             if (chunk7 && PersistenceCase == "multi-area-autosave")
             {
                 if (OwnedPairs?.IsOwnerSeedCheckpointSave == true && PersistenceLoad?.Area != OwnedPairs.SourceArea)

@@ -24,7 +24,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 NativeMountedSaveFormat.SelectedWriterSchema == 3,
                 "P07-current-removal-keeps-the-current-native-writer");
             return ValidateCurrentRemovalArchive(NativeMountedSaveStorage.ReadArchive(saver), mounted,
-                request.Fixture.Working.GameId, request.Fixture.Working.Area, removalRiderId, removalMountId);
+                (request.PersistenceLoad ?? request.Fixture.Working).GameId,
+                (request.PersistenceLoad ?? request.Fixture.Working).Area, removalRiderId, removalMountId);
         }
 
         internal static RemovalArchiveObservation ValidateCurrentRemovalArchive(MountedArchiveReadResult read,

@@ -91,6 +91,11 @@ function Assert-RuntimeFixture {
 Assert-NoDuplicateJsonObjectProperties $RequestPath 'runtime request'
 $request = Read-KmcJson $RequestPath
 $hasWorkingObservation = @($request.PSObject.Properties.Name) -ccontains 'observeWorkingDeserialization'
+$hasOwnerStockRemoval = @($request.PSObject.Properties.Name) -ccontains 'ownerStockRemoval'
+if($hasOwnerStockRemoval -and ($request.ownerStockRemoval -isnot [bool] -or $request.ownerStockRemoval -ne $true -or
+    $request.scenario -cne 'persistence-p07-save' -or $request.persistenceCase -cne 'prepare-removal')) {
+    throw 'Owner stock removal is exclusive to the closed positive P07 save case.'
+}
 if($hasWorkingObservation -and ($request.observeWorkingDeserialization -isnot [bool] -or
     $request.observeWorkingDeserialization -ne $true -or $request.scenario -isnot [string] -or
     $request.scenario -cne 'export-mounted-contracts' -or -not(Test-JsonInteger $request.schemaVersion) -or $request.schemaVersion -ne 2)) {
@@ -182,10 +187,22 @@ elseif ($schemaVersion -eq 2) {
     $loadRefusal=Test-KmcChunk7LoadRefusal $request
     $extra=@(if(Test-KmcChunk7StockMammothFixtureScenario $request.scenario){'stockMammothFixture';'persistenceLoad'}; if(Test-KmcChunk7SmallFixtureScenario $request.scenario){'smallFixture';'persistenceLoad'}; if(Test-KmcChunk7AssistedColdInventoryScenario $request.scenario){'assistedColdInventory';'persistenceLoad'}; if(Test-KmcChunk7AssistedFixtureScenario $request.scenario){'assistedFixture'}; if(Test-KmcChunk7OwnedPairsScenario $request.scenario){'ownedPairs';'persistenceLoad'}; if(Test-KmcChunk7AcquiredManualScenario $request.scenario){'acquiredManual';'persistenceLoad'}; if(Test-KmcChunk7ManualDerivedScenario $request.scenario){'manualDerived';'persistenceLoad'}; if(Test-KmcChunk7CumulativeScenario $request.scenario){'cumulativeAcquisition';'persistenceLoad'}; if(Test-KmcChunk7ManualSeedScenario $request.scenario){'manualSeed';'persistenceLoad'}; if(Test-KmcChunk7BootstrapInventoryScenario $request.scenario){'bootstrapInventory';'persistenceLoad'}; if(Test-KmcChunk7NativeBootstrapScenario $request.scenario){'nativeBootstrap'}; if(Test-KmcChunk7ProgressionScenario $request.scenario){'progression';'persistenceLoad'}; if(Test-KmcChunk7SmallScenario $request.scenario){'smallCalibration';'persistenceLoad'}; if(Test-KmcChunk7FieldScenario $request.scenario){'ordinaryField';'persistenceLoad'}; if(Test-KmcChunk7OrdinaryScenario $request.scenario){'ordinaryAcquisition'}; if($alternating-or$validation){'persistenceAlternate'}; if($loadRefusal){'persistenceAlternate';'loadRefusalDerivationSha256'}; if($request.scenario -cin @('chunk7-persistence-load','persistence-p07-load','persistence-p01-load','persistence-p02-load','persistence-p03-load','persistence-p04-load','persistence-p05-load','persistence-p06-load')){'persistenceLoad'}; if($hasPersistenceCase){'persistenceCase'}; if($crossArea-or$chunk7Area){'persistenceAreaTarget'}; if($hasPersistenceCase-and$request.persistenceCase-ceq'multi-exploration-three-area-transfers-manual'){'persistenceReplayTargets'}; if($hasPersistenceCase-and(($request.scenario-ceq'chunk7-persistence-load'-and$request.persistenceCase-ceq'legacy-schema1-resave-manual')-or(Test-KmcOwnedSchema1ColdRequest $request))){'schema1DerivationSha256'}; if(Test-KmcOwnedSchema2ColdRequest $request){'schema2DerivationSha256'})
     if($hasWorkingObservation){$extra+=@('observeWorkingDeserialization')}
+    if($hasOwnerStockRemoval){$extra+=@('ownerStockRemoval','persistenceLoad')}
     Assert-KmcExactProperties $request @($commonRequired + @('fixture','qualificationSuite') + $extra) 'runtime request v2'
     if($loadRefusal){Assert-KmcChunk7LoadRefusalDescriptor $request}
     if(Test-KmcChunk7SmallFixtureScenario $request.scenario){Assert-KmcChunk7SmallFixtureDescriptor $request}
     if(Test-KmcChunk7StockMammothFixtureScenario $request.scenario){Assert-KmcChunk7StockMammothFixtureDescriptor $request}
+    if($hasOwnerStockRemoval){
+        $d=$request.persistenceLoad
+        Assert-KmcExactProperties $d @('internalName','fileName','sha256','length','lastWriteTimeUtcTicks','gameId','gameName','area') 'owner stock removal source'
+        foreach($pair in @(@('internalName','KMC_C7_STOCK_MAMMOTH'),@('fileName','Manual_304_KMC_C7_STOCK_MAMMOTH.zks'),
+            @('sha256','e475d49c3590927c7f216d301aa8535f6dbbdc7af2066f4c01f58fff335866fa'),
+            @('gameId','3f7381f7-aba6-43bf-bae6-39c6a66a7180'),@('gameName','Testy the Modless'),
+            @('area','b10e86516b6437d45a629931c30936fe'))){Assert-KmcBootstrapInventoryString $d.($pair[0]) $pair[1]}
+        if(-not(Test-JsonInteger $d.length)-or$d.length-ne1257468-or-not(Test-JsonInteger $d.lastWriteTimeUtcTicks)-or
+            $d.lastWriteTimeUtcTicks-le0-or$d.lastWriteTimeUtcTicks-gt[DateTime]::MaxValue.Ticks-or
+            $d.gameId-ceq$request.fixture.working.gameId){throw 'Owner stock source bytes or campaign identity differ.'}
+    }
     if($crossArea){
         $t=$request.persistenceAreaTarget
         Assert-KmcExactProperties $t @('enterPoint','area','autoSaveMode') 'cross-area transition target'

@@ -678,7 +678,9 @@ function Assert-KmcPersistenceScenarioEvidence {
         if($isP03){Assert-KmcP03Snapshot $d.snapshot $checkpoint}
         elseif($isCombat){Assert-KmcP02Snapshot $d.snapshot $checkpoint}
         $type=if($isSlot-and$checkpoint-ceq'quick'){'Quick'}elseif($isSlot-and$checkpoint-ceq'auto'){'Auto'}else{'Manual'}
-        $leaf=if($isQueued){'Manual_302_KMC_P01.zks'}elseif($type-ceq'Manual'){'Manual_300_KMC_P01.zks'}else{$type+'_1.zks'}
+        $leaf=if($isQueued){'Manual_302_KMC_P01.zks'}elseif($Request.scenario-ceq'persistence-p07-save'-and
+            $Request.persistenceCase-ceq'prepare-removal'-and$Request.PSObject.Properties['ownerStockRemoval']-and
+            $Request.ownerStockRemoval -ceq $true){'Manual_305_KMC_P01.zks'}elseif($type-ceq'Manual'){'Manual_300_KMC_P01.zks'}else{$type+'_1.zks'}
         $archive=Join-Path $root $leaf
         if($isQueued){Assert-KmcQueuedSaveEvidence $rows $root}
         if($isSlot-and-not$isQueued){
@@ -1364,9 +1366,9 @@ function Assert-KmcCampaignBEvidence {
 # A cleanup archive as recorded and as it lies on disk: the fixture campaign's
 # own native save, in its own area, whose KMC member records no pair at all.
 function Assert-KmcCleanupArchive {
-    param($Recorded,[string]$Root,[string]$GameId,[string]$Area,[string]$GameName)
+    param($Recorded,[string]$Root,[string]$GameId,[string]$Area,[string]$GameName,[string]$Leaf='Manual_301_KMC_CLEANUP.zks')
     if($null-eq$Recorded){throw 'P07 removal lacks its cleanup archive observation.'}
-    if($Recorded.leaf-cne'Manual_301_KMC_CLEANUP.zks'-or$Recorded.internalName-cne'KMC_CLEANUP'-or$Recorded.nativeType-cne'Manual'-or
+    if($Recorded.leaf-cne$Leaf-or$Recorded.internalName-cne'KMC_CLEANUP'-or$Recorded.nativeType-cne'Manual'-or
         $Recorded.operation-cne'None'-or$Recorded.gameId-cne$GameId-or$Recorded.area-cne$Area-or$Recorded.kmcMember-cne'Current'-or
         $Recorded.sha256-cnotmatch'^[0-9a-f]{64}$'-or$Recorded.length-le0-or$Recorded.path-cne(Join-Path $Root $Recorded.leaf)){
         throw 'P07 cleanup archive is not the exact declared clean save of the fixture campaign.'
@@ -1433,14 +1435,18 @@ function Assert-KmcRemovalEvidence {
         $row=$stages[$kind]
         if(($null-ne$row.rider-and$row.rider.Id-cne$riderId)-or($null-ne$row.mount-and$row.mount.Id-cne$mountId)){throw "P07 removal row $kind describes foreign actors."}
     }
-    $gameId=[string]$Request.fixture.working.gameId;$area=[string]$Request.fixture.working.area
+    $owner=$Request.PSObject.Properties['ownerStockRemoval'] -and $Request.ownerStockRemoval -ceq $true
+    $fixture=if($owner){$Request.persistenceLoad}else{$Request.fixture.working}
+    $first=if($owner){'Manual_305_KMC_P01.zks'}else{'Manual_300_KMC_P01.zks'}
+    $clean=if($owner){'Manual_306_KMC_CLEANUP.zks'}else{'Manual_301_KMC_CLEANUP.zks'}
+    $gameId=[string]$fixture.gameId;$area=[string]$fixture.area
     $root=Join-Path (Get-KmcLabRoot) ('runtime-staging/persistence-'+$Request.runId+'/Saved Games')
     $w=$stages['native-write-complete'].detail
     $x=$stages['removal-refused'].detail
     $q=$stages['removal-requested'].detail
     $p=$stages['removal-prepared'].detail
     $d=$stages['removal-disabled-reenabled'].detail
-    if($w.ordinal-ne1-or$w.path-cne(Join-Path $root 'Manual_300_KMC_P01.zks')-or$w.sha256-cnotmatch'^[0-9a-f]{64}$'-or
+    if($w.ordinal-ne1-or$w.path-cne(Join-Path $root $first)-or$w.sha256-cnotmatch'^[0-9a-f]{64}$'-or
         $w.snapshot.Mounted-ne$true-or$w.snapshot.Rider.Id-cne$riderId-or$w.snapshot.Mount.Id-cne$mountId){
         throw 'P07 removal first archive is not the exact mounted opening write.'
     }
@@ -1468,7 +1474,7 @@ function Assert-KmcRemovalEvidence {
     }
     if($stages['removal-prepared'].relationship-ceq'Mounted'-or$p.state-cne'Ready'-or$p.cleanupSaves-ne1-or$p.refusals-ne2-or$p.unconfirmed-ne0-or
         $p.snapshots-ne2-or$p.failedSaves-ne0-or$p.saveSuspended-ne$false-or$p.activeScope-ne$false-or
-        $p.cleanupLeaf-cne'Manual_301_KMC_CLEANUP.zks'-or$p.cleanupSha256-cne$p.cleanup.sha256-or$p.firstSha256-cne$w.sha256){
+        $p.cleanupLeaf-cne$clean-or$p.cleanupSha256-cne$p.cleanup.sha256-or$p.firstSha256-cne$w.sha256){
         throw 'P07 prepared state did not come from exactly one new cleanup save with the first archive untouched.'
     }
     # Readiness is bound to the persistence service's completed-write record for
@@ -1478,9 +1484,9 @@ function Assert-KmcRemovalEvidence {
     if($p.binding-cne'bound'-or$p.cleanupCampaign-cne$gameId-or$p.completedSaves-ne2-or$p.commits-ne0-or$p.scannedMembers-lt1-or$p.scannedBytes-le0-or@($p.referenceHits).Count-ne0){
         throw 'P07 prepared state was not bound to its own completed write with every archive member scanned clean.'
     }
-    if($null-ne$w.PSObject.Properties['nativeSourceSchema']-or$null-ne$p.cleanup.PSObject.Properties['nativeSourceSchema']){Assert-KmcCurrentRemovalEvidence $Request $Rows}
-    Assert-KmcCleanupArchive -Recorded $p.cleanup -Root $root -GameId $gameId -Area $area -GameName $Request.fixture.working.gameName
-    if((Get-KmcSha256 (Join-Path $root 'Manual_300_KMC_P01.zks'))-cne$w.sha256){throw 'P07 cleanup save changed the first archive on disk.'}
+    if($owner-or$null-ne$w.PSObject.Properties['nativeSourceSchema']-or$null-ne$p.cleanup.PSObject.Properties['nativeSourceSchema']){Assert-KmcCurrentRemovalEvidence $Request $Rows}
+    Assert-KmcCleanupArchive -Recorded $p.cleanup -Root $root -GameId $gameId -Area $area -GameName $fixture.gameName -Leaf $clean
+    if((Get-KmcSha256 (Join-Path $root $first))-cne$w.sha256){throw 'P07 cleanup save changed the first archive on disk.'}
     # The user's next step: the exact registered disable succeeds, and
     # re-enable plus remount reuse the same actors without a fresh Mount cast.
     if($stages['removal-disabled-reenabled'].relationship-cne'Mounted'-or$d.disabled-ne$true-or$d.reEnabled-ne$true-or$d.remounted-ne$true-or

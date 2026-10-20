@@ -420,6 +420,27 @@ namespace KingmakerMountedCombat.Tests
                     TestRunner.True(request.Validate().Count > 0, "A save-only removal case accepted a cold load.");
                 }
                 {
+                    var request = ValidSaveBackedRequest();
+                    request.Scenario = "persistence-p07-save"; request.PersistenceCase = "prepare-removal";
+                    request.OwnerStockRemoval = true;
+                    request.PersistenceLoad = new RuntimeSaveDescriptor {
+                        InternalName = "KMC_C7_STOCK_MAMMOTH", FileName = "Manual_304_KMC_C7_STOCK_MAMMOTH.zks",
+                        Sha256 = "e475d49c3590927c7f216d301aa8535f6dbbdc7af2066f4c01f58fff335866fa",
+                        Length = 1257468, LastWriteTimeUtcTicks = request.Fixture.Working.LastWriteTimeUtcTicks,
+                        GameId = "3f7381f7-aba6-43bf-bae6-39c6a66a7180", GameName = "Testy the Modless",
+                        Area = "b10e86516b6437d45a629931c30936fe" };
+                    TestRunner.Equal(0, request.Validate().Count, "Exact batch64 stock Mammoth removal source rejected.");
+                    TestRunner.Equal("Manual_305_KMC_P01.zks", RuntimeRequest.P07OpeningLeaf(request), "Owner removal opened the legacy Working leaf.");
+                    request.PersistenceLoad.Sha256 = new string('c', 64);
+                    TestRunner.True(request.Validate().Count > 0, "Owner removal accepted another source archive.");
+                    request.PersistenceLoad.Sha256 = "e475d49c3590927c7f216d301aa8535f6dbbdc7af2066f4c01f58fff335866fa";
+                    request.PersistenceCase = "disable-during-load";
+                    TestRunner.True(request.Validate().Count > 0, "Owner removal escaped its one positive cleanup case.");
+                    request.PersistenceCase = "prepare-removal"; request.OwnerStockRemoval = false;
+                    TestRunner.True(request.Validate().Count > 0, "Owner removal accepted a false opt-in flag.");
+                    TestRunner.Equal("Manual_300_KMC_P01.zks", RuntimeRequest.P07OpeningLeaf(request), "Legacy P07 opening leaf changed.");
+                }
+                {
                     var request = ValidSaveBackedRequest(); var f = request.Fixture.Working;
                     request.Scenario = "persistence-p07-save"; request.PersistenceCase = "absent-kmc";
                     TestRunner.True(request.Validate().Count > 0, "The integration-absent case accepted a writing scenario.");
