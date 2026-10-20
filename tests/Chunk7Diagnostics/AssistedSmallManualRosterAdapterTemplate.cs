@@ -10,10 +10,11 @@ namespace Kingmaker.EntitySystem.Entities { public sealed class Cooldown {public
 public sealed class BlueprintRoot {public static BlueprintRoot Instance=new BlueprintRoot();public Blueprint CustomCompanion=new Blueprint{AssetGuid="custom"};}
 public sealed class Horses {public Blueprint HorseUnit=new Blueprint{AssetGuid="horse"};public Blueprint HorseFeature=new Blueprint{AssetGuid="feature"};public Blueprint LevelRank=new Blueprint{AssetGuid="rank"};}
 public sealed class Plan {public string ActorId="owner",PetId="pet";}
-public sealed class Calibration {public Plan ManualSource=new Plan();public string Case="compiled-manual-derived-small-horse-rt";public bool UsesAssistedManualField=>Case=="compiled-assisted-two-owner-small-horse-rt";}
+public sealed class Calibration {public Plan ManualSource=new Plan(),FixtureSource=new Plan();public string Case="compiled-manual-derived-small-horse-rt";public bool UsesAssistedManualField=>Case=="compiled-assisted-two-owner-small-horse-rt";public bool UsesFixtureManualField=>Case=="compiled-owner-seed-fixture-small-horse-rt";}
 public sealed class ActualSmallRoster {
  Calibration calibration=new Calibration();Horses horses=new Horses();JObject manualSource,manualArrangement;UnitEntityData actor,pet,main;UnitEntityData[] manualActors,manualCharacters,originalActors;object manualFeature,manualRank,manualFeatureSource;
  static void Require(bool value,string message){if(!value)throw new InvalidOperationException(message);}
+ void RequireFixtureManualIdentity(){throw new InvalidOperationException("The separate F09 fixture branch is outside this assisted adapter.");}
  /*EXACT*/
  /*CAPTURE*/
  /*IDENTITY*/

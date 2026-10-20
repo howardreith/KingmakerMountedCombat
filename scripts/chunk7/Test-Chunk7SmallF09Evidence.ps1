@@ -64,6 +64,8 @@ function New-F09Synthetic{
  $o.manualNativeRoster.mainActorId=$main
  $prior=[pscustomobject]@{actorId=$main;petId=$extra[0].id;actorObject=30;petObject=4000;actorDescriptor=130;petDescriptor=5000;actorView=230;petView=6000;featureObject=501;sourceObject=502;rankObject=503;actorBlueprint='55555555555555555555555555555555';petBlueprint=$pairA.horseBlueprint;featureGuid=$pairA.featureGuid;sourceGuid=$pairA.featureSourceGuid;rank=1;reciprocal=$true;resources=@($o.manualNativeRoster.resources.actors|Where-Object{$_.actorId-cin@($main,$extra[0].id)})}
  $o|Add-Member inheritedFixturePairBefore $prior;$o|Add-Member inheritedFixturePairAfter (Clone $prior)
+ $admitted=Clone $prior;foreach($row in $admitted.resources){$row.prepared=$true;$row.initiative=if($row.actorId-ceq$main){7}else{5}}
+ $o|Add-Member inheritedFixturePairNativeCombatAdmission ([pscustomobject]@{stage=3;frame=6;gameTicks=100;targetId=$o.targetId;targetInCombat=$true;ownerInCombat=$true;horseInCombat=$true;ownerCommandsEmpty=$true;horseCommandsEmpty=$true;before=(Clone $prior);after=$admitted})
  $o.selection=Clone $f.request.smallCalibration
  $f
 }
@@ -84,6 +86,13 @@ $cases=[ordered]@{
  'cold actor ID singleton'={param($f)$f.artifact.observations.manualNativeRoster.actors[0].id=@($f.artifact.observations.manualNativeRoster.actors[0].id)}
  'cold class GUID singleton'={param($f)$f.artifact.observations.manualNativeRoster.arrangement.actors[0].classes[0].classGuid=@($f.artifact.observations.manualNativeRoster.arrangement.actors[0].classes[0].classGuid)}
  'neighboring pair changed'={param($f)$f.artifact.observations.inheritedFixturePairAfter.petObject++}
+ 'neighboring combat admission missing'={param($f)$f.artifact.observations.PSObject.Properties.Remove('inheritedFixturePairNativeCombatAdmission')}
+ 'neighboring combat action grant'={param($f)$f.artifact.observations.inheritedFixturePairNativeCombatAdmission.after.resources[0].standard=1}
+ 'neighboring combat false entry'={param($f)$f.artifact.observations.inheritedFixturePairNativeCombatAdmission.targetInCombat=$false}
+ 'neighboring combat late stage'={param($f)$f.artifact.observations.inheritedFixturePairNativeCombatAdmission.stage=8}
+ 'neighboring combat before movement'={param($f)$f.artifact.observations.inheritedFixturePairNativeCombatAdmission.frame=1}
+ 'neighboring combat after primary'={param($f)$f.artifact.observations.inheritedFixturePairNativeCombatAdmission.frame=100}
+ 'neighboring combat final not restored'={param($f)$f.artifact.observations.inheritedFixturePairAfter=Clone $f.artifact.observations.inheritedFixturePairNativeCombatAdmission.after}
  'neighboring pair labels jointly forged'={param($f)$f.artifact.observations.inheritedFixturePairBefore.actorObject=999;$f.artifact.observations.inheritedFixturePairAfter.actorObject=999}
  'profile inventory singleton status'={param($f)$f.artifact.observations.profileInventory.captureStatus=@('PASS')}
  'profile inventory singleton MVID'={param($f)$f.artifact.observations.profileInventory.gameplayAssemblyMvid=@('07fa1e4d-8618-41b3-9b8d-faa17d3b26f7')}

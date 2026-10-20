@@ -331,7 +331,33 @@ function Assert-KmcChunk7SmallF09Evidence($Request,$Artifact){
  $prior=$f.acquiredOwners[0]
  $pairKeys=@('actorId','petId','actorObject','petObject','actorDescriptor','petDescriptor','actorView','petView','featureObject','sourceObject','rankObject','actorBlueprint','petBlueprint','featureGuid','sourceGuid','rank','reciprocal','resources')
  foreach($row in @($o.inheritedFixturePairBefore,$o.inheritedFixturePairAfter)){Assert-KmcAssistedObjectValue $row $pairKeys 'F09 inherited native pair';foreach($pair in @(@('actorId','riderId'),@('petId','horseId'),@('petBlueprint','horseBlueprint'),@('featureGuid','featureGuid'),@('sourceGuid','featureSourceGuid'),@('rank','rank'))){if((ConvertTo-KmcChunk7Canonical $row.($pair[0]))-cne(ConvertTo-KmcChunk7Canonical $prior.($pair[1]))){throw 'F09 neighboring native pair changed.'}};Assert-KmcChunk7Boolean $row.reciprocal $true}
- if((ConvertTo-KmcChunk7Canonical $o.inheritedFixturePairBefore)-cne(ConvertTo-KmcChunk7Canonical $o.inheritedFixturePairAfter)){throw 'F09 neighboring pair identity/resources changed.'}
+ $admission=$o.inheritedFixturePairNativeCombatAdmission
+ Assert-KmcExactProperties $admission @('stage','frame','gameTicks','targetId','targetInCombat','ownerInCombat','horseInCombat','ownerCommandsEmpty','horseCommandsEmpty','before','after') 'F09 neighboring native combat admission'
+ Assert-KmcOrdinaryInteger $admission.stage 3 3
+ $primary=@($o.inputs|Where-Object kind -CEQ 'rider-primary')
+ if($primary.Count-ne1){throw 'F09 native combat entry lacks its first native primary window.'}
+ Assert-KmcOrdinaryInteger $admission.frame ($o.movement.after.frame+1) $primary[0].before.frame
+ Assert-KmcOrdinaryInteger $admission.gameTicks $o.movement.after.gameTicks $primary[0].before.gameTicks
+ Assert-KmcBootstrapInventoryString $admission.targetId $o.targetId
+ foreach($flag in @('targetInCombat','ownerInCombat','horseInCombat','ownerCommandsEmpty','horseCommandsEmpty')){Assert-KmcChunk7Boolean $admission.$flag $true}
+ if((ConvertTo-KmcChunk7Canonical $admission.before)-cne(ConvertTo-KmcChunk7Canonical $o.inheritedFixturePairBefore)){throw 'F09 native combat admission lacks its exact cold neighbor.'}
+ foreach($row in @($admission.before,$admission.after,$o.inheritedFixturePairAfter)){
+  Assert-KmcAssistedObjectValue $row $pairKeys 'F09 native combat neighbor'
+  foreach($key in @($pairKeys|Where-Object{$_-cne'resources'})){if((ConvertTo-KmcChunk7Canonical $row.$key)-cne(ConvertTo-KmcChunk7Canonical $o.inheritedFixturePairBefore.$key)){throw 'F09 neighboring pair identity changed during native combat.'}}
+ }
+ if($null-ne$o.PSObject.Properties['inheritedFixturePairDrift']){throw 'F09 native observer recorded unadmitted neighboring drift.'}
+ $admittedResources=@($admission.after.resources)
+ if($admittedResources.Count-ne2){throw 'F09 native combat admission must retain two neighbor resources.'}
+ Assert-KmcChunk7ExactIds $admittedResources @($prior.riderId,$prior.horseId) 'actorId'
+ foreach($saved in @($admission.before.resources)){
+  $current=@($admittedResources|Where-Object actorId -CEQ $saved.actorId)
+  if($current.Count-ne1){throw 'F09 native combat admission actor changed.'}
+  Assert-KmcExactProperties $current[0] @('actorId','move','standard','swift','prepared','reactions','reactionAllowance','initiative') 'F09 native combat resource'
+  Assert-KmcChunk7Boolean $saved.prepared $false;Assert-KmcOrdinaryInteger $saved.initiative 0 0
+  Assert-KmcChunk7Boolean $current[0].prepared $true;Assert-KmcOrdinaryInteger $current[0].initiative 1 1000
+  foreach($key in @('actorId','move','standard','swift','reactions','reactionAllowance')){if((ConvertTo-KmcChunk7Canonical $saved.$key)-cne(ConvertTo-KmcChunk7Canonical $current[0].$key)){throw 'F09 native combat admission changed a neighboring action budget.'}}
+ }
+ if((ConvertTo-KmcChunk7Canonical $o.inheritedFixturePairAfter.resources)-cne(ConvertTo-KmcChunk7Canonical $admission.before.resources)){throw 'F09 neighboring combat resources did not return to their cold state after target disposal.'}
  $beforePair=$o.inheritedFixturePairBefore
  $mainActor=@($f.savedWorld.party|Where-Object id -CEQ $prior.riderId);if($mainActor.Count-ne1){throw 'F09 inherited main actor missing.'};Assert-KmcBootstrapInventoryString $beforePair.actorBlueprint $mainActor[0].blueprint
  foreach($role in @('actor','pet')){$nativeActor=@($n.actors|Where-Object id -CEQ $beforePair.($role+'Id'));if($nativeActor.Count-ne1){throw 'F09 inherited actor absent from cold roster.'};foreach($pair in @(@('Object','object'),@('Descriptor','descriptor'),@('View','view'))){Assert-KmcOrdinaryInteger $beforePair.($role+$pair[0]) $nativeActor[0].($pair[1]) $nativeActor[0].($pair[1])}}

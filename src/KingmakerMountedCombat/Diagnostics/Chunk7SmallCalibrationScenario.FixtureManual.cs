@@ -189,7 +189,20 @@ namespace KingmakerMountedCombat.Diagnostics
                 (int)now["rank"] == (int)saved["rank"] &&
                 (bool)now["reciprocal"] &&
                 (string)now["actorBlueprint"] == manualPriorOwner.Blueprint.AssetGuid;
-            if (!exactCustody || changed.Length != 0)
+            var admitted = evidence["inheritedFixturePairNativeCombatAdmission"] as JObject;
+            var nativeCombatAdmission = exactCustody && changed.Length == 1 && changed[0] == "resources" &&
+                (admitted == null ? IsFixtureNativeCombatAdmission(now) :
+                    JToken.DeepEquals(now, admitted["after"]) && manualPriorOwner.IsInCombat && manualPriorPet.IsInCombat);
+            if (nativeCombatAdmission && evidence["inheritedFixturePairNativeCombatAdmission"] == null)
+                evidence["inheritedFixturePairNativeCombatAdmission"] = new JObject {
+                    ["stage"] = calibrationStage, ["frame"] = Time.frameCount,
+                    ["gameTicks"] = Game.Instance.TimeController.GameTime.Ticks,
+                    ["targetId"] = target.UniqueId, ["targetInCombat"] = target.IsInCombat,
+                    ["ownerInCombat"] = manualPriorOwner.IsInCombat, ["horseInCombat"] = manualPriorPet.IsInCombat,
+                    ["ownerCommandsEmpty"] = manualPriorOwner.Commands.Empty,
+                    ["horseCommandsEmpty"] = manualPriorPet.Commands.Empty,
+                    ["before"] = manualPriorPairBefore.DeepClone(), ["after"] = now.DeepClone() };
+            if (!exactCustody || (changed.Length != 0 && !nativeCombatAdmission))
             {
                 if (evidence["inheritedFixturePairDrift"] == null)
                     evidence["inheritedFixturePairDrift"] = new JObject {
@@ -212,6 +225,28 @@ namespace KingmakerMountedCombat.Diagnostics
                     Require(false, reason);
             }
             evidence["inheritedFixturePairAfter"] = now;
+        }
+
+        private bool IsFixtureNativeCombatAdmission(JObject now)
+        {
+            if (calibrationStage != 3 || targetService?.State != DiagnosticCombatTargetState.Active || target == null ||
+                !target.IsInCombat || !manualPriorOwner.IsInCombat || !manualPriorPet.IsInCombat ||
+                !manualPriorOwner.Commands.Empty || !manualPriorPet.Commands.Empty) return false;
+            var before = manualPriorPairBefore["resources"] as JArray;
+            var after = now["resources"] as JArray;
+            if (before == null || after == null || before.Count != 2 || after.Count != 2) return false;
+            return before.Children<JObject>().All(saved =>
+            {
+                var matches = after.Children<JObject>().Where(row =>
+                    (string)row["actorId"] == (string)saved["actorId"]).ToArray();
+                if (matches.Length != 1) return false;
+                var current = matches[0];
+                return saved["prepared"]?.Type == JTokenType.Boolean && !(bool)saved["prepared"] &&
+                    (int)saved["initiative"] == 0 && current["prepared"]?.Type == JTokenType.Boolean &&
+                    (bool)current["prepared"] && (int)current["initiative"] > 0 &&
+                    saved.Properties().Where(value => value.Name != "prepared" && value.Name != "initiative")
+                        .All(value => JToken.DeepEquals(value.Value, current[value.Name]));
+            });
         }
 
         private void RequireFixtureManualIdentity()
