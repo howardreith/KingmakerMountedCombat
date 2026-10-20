@@ -135,6 +135,98 @@ function Get-KmcChunk7RecordedCandidate($Request){
     $Request.dllMvid-isnot[string]-or$Request.dllMvid-cnotmatch'\A[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\z'){throw 'Qualified receipt does not record its exact candidate identity.'}
  [pscustomobject][ordered]@{commit=$Request.commit;dllSha256=$Request.dllSha256;dllMvid=$Request.dllMvid}
 }
+
+function Assert-KmcChunk7ManticoreAreasCustody($Request,$Areas,$Snapshot,$Durable,$Transaction,
+    [string]$SnapshotHash,[string]$GeneratedPath){
+ Assert-KmcOrdinaryInteger $Areas.schemaVersion 1 1
+ Assert-KmcChunk7Boolean $Areas.originalAreasRestoredExactly $true
+ Assert-KmcOrdinaryInteger $Durable.schemaVersion 1 1
+ foreach($value in @($Areas,$Snapshot,$Durable,$Transaction)){Assert-KmcBootstrapInventoryString $value.runId $Request.runId}
+ foreach($value in @($Snapshot,$Durable,$Transaction)){Assert-KmcBootstrapInventoryString $value.token $Request.transactionToken}
+ Assert-KmcBootstrapInventoryString $Durable.stage 'restored'
+ Assert-KmcBootstrapInventoryString $Snapshot.profile $Areas.profileRoot
+ Assert-KmcBootstrapInventoryString $Durable.profile $Areas.profileRoot
+ Assert-KmcBootstrapInventoryString $Durable.profileDigest $Snapshot.profileDigest
+ Assert-KmcBootstrapInventoryString $Durable.snapshotSha256 $SnapshotHash
+ foreach($key in @('originalDigest','generatedDigest')){
+  if($Areas.$key-isnot[string]-or$Areas.$key-cnotmatch'^[a-f0-9]{64}$'){throw 'Manticore Areas restoration lacks exact tree digests.'}
+  Assert-KmcBootstrapInventoryString $Durable.$key $Areas.$key
+ }
+ Assert-KmcBootstrapInventoryString $Areas.generatedQuarantine $GeneratedPath
+ Assert-KmcBootstrapInventoryString $Transaction.stagingMode 'base-game-only-kmc'
+ Assert-KmcBootstrapInventoryString $Transaction.phase 'restored'
+}
+
+# Read-only admission of the distinct non-capital Manual produced by the
+# source-only Manticore fixture. This proves provenance and settled external
+# state; it neither selects an area consumer nor grants a native load/write.
+function Get-KmcChunk7ManticoreManualSource([string]$SourceRunId,[string]$ExpectedArtifactSha256,
+    [string]$ExpectedArchiveSha256,$Fixture){
+ if($SourceRunId-cnotmatch'^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$'-or
+    $ExpectedArtifactSha256-cnotmatch'^[a-f0-9]{64}$'-or$ExpectedArchiveSha256-cnotmatch'^[a-f0-9]{64}$'-or
+    $ExpectedArtifactSha256-ceq$ExpectedArchiveSha256){throw 'Manticore Manual requires distinct exact producer and archive pins.'}
+ $set=Get-KmcChunk7OwnedReceiptSet $SourceRunId 'chunk7-persistence-evidence.json';$request=$set.request
+ Assert-KmcBootstrapInventoryString $request.scenario 'chunk7-owned-two-pair-campaign'
+ Assert-KmcBootstrapInventoryString $request.ownedPairs.case 'owner-seed-checkpoint-save'
+ Assert-KmcBootstrapInventoryString $request.persistenceCase 'owner-seed-manticore-fixture-manual'
+ $candidate=Get-KmcChunk7RecordedCandidate $request
+ Assert-KmcChunk7OwnedSourceCompletion $set $SourceRunId 'chunk7-owned-two-pair-campaign' $Fixture $candidate $request.ownedPairs.sourceArchiveSha256
+ $parent=Get-KmcChunk7OwnedPairsOwnerSeedDerivedSource $request.ownedPairs $request.persistenceCase $Fixture $candidate
+ if((ConvertTo-KmcChunk7Canonical $request.persistenceLoad)-cne(ConvertTo-KmcChunk7Canonical $parent.descriptor)){
+  throw 'Manticore producer did not load its exact qualified owner-seed Manual.'
+ }
+ Assert-KmcBootstrapInventoryString $set.owner.persistenceCase 'owner-seed-manticore-fixture-manual'
+ Assert-KmcChunk7OwnedAreaProfileRestoration $set $SourceRunId
+ $areasPath=Join-Path $set.root 'profile-areas-isolation.json'
+ Assert-KmcNotReparsePoint $areasPath 'Manticore Areas restoration';Assert-KmcNotHardLink $areasPath 'Manticore Areas restoration'
+ Assert-KmcManifestJsonMembersUnique $areasPath 'Manticore Areas restoration';$areasHash=Get-KmcSha256 $areasPath;$areas=Read-KmcJson $areasPath
+ Assert-KmcExactProperties $areas @('schemaVersion','runId','profileRoot','originalDigest','generatedDigest','generatedQuarantine','originalAreasRestoredExactly') 'Manticore Areas restoration'
+ $backup=Assert-KmcChildPath (Join-Path (Get-KmcLabRoot) ('runtime-backups/profile-'+$SourceRunId)) (Join-Path (Get-KmcLabRoot) 'runtime-backups') 'Manticore profile backup'
+ $snapshotPath=Join-Path $backup 'snapshot.json';$durablePath=Join-Path $backup 'Areas-isolation.json'
+ foreach($item in @($snapshotPath,$durablePath)){Assert-KmcNotReparsePoint $item 'Manticore durable Areas state';Assert-KmcNotHardLink $item 'Manticore durable Areas state';Assert-KmcManifestJsonMembersUnique $item 'Manticore durable Areas state'}
+ $snapshotHash=Get-KmcSha256 $snapshotPath;$durableHash=Get-KmcSha256 $durablePath
+ $snapshot=Read-KmcJson $snapshotPath;$durable=Read-KmcJson $durablePath
+ $generated=Join-Path $backup 'Areas-generated'
+ $transaction=Join-Path (Get-KmcLabRoot) ('runtime-state/transactions/'+$SourceRunId+'.json')
+ Assert-KmcNotReparsePoint $transaction 'Manticore transaction';Assert-KmcNotHardLink $transaction 'Manticore transaction'
+ Assert-KmcManifestJsonMembersUnique $transaction 'Manticore transaction';$transactionHash=Get-KmcSha256 $transaction;$state=Read-KmcJson $transaction
+ Assert-KmcChunk7ManticoreAreasCustody $request $areas $snapshot $durable $state $snapshotHash $generated
+ Assert-KmcDirectoryTreeCloneable $generated 'Manticore generated Areas quarantine'
+ Assert-KmcBootstrapInventoryString (Get-KmcDirectoryManifest $generated).digest $durable.generatedDigest
+ Assert-KmcChunk7PersistenceArtifact $request $set.manifest 'PASS'
+ $artifactPath=Join-Path $set.root 'chunk7-persistence-evidence.json';$artifactFile=Get-Item -LiteralPath $artifactPath
+ if($artifactFile.Length-le0-or$artifactFile.Length-gt16MB-or$set.pins[$artifactPath]-cne$ExpectedArtifactSha256){throw 'Manticore producer evidence differs from the caller pin.'}
+ $artifact=Read-KmcChunk7ManifestArtifact $request $set.manifest 'chunk7-persistence-evidence.json' 'chunk7-persistence-evidence'
+ $write=$artifact.observations.nativeWrite;$leaf=Get-KmcChunk7OwnedOutputLeaf $request $artifact.observations
+ if($leaf-cnotmatch'^Manual_[1-9][0-9]*_KMC_C7_AREA_FIXTURE\.zks$'-or$write.sha256-cne$ExpectedArchiveSha256-or
+    $ExpectedArchiveSha256-cin@($request.ownedPairs.sourceArchiveSha256,$request.ownedPairs.seedSha256)){
+  throw 'Manticore Manual output identity differs from its distinct source.'
+ }
+ $path=Join-Path (Join-Path $set.profile 'Saved Games') $leaf
+ if($write.path-cne$path){throw 'Manticore native Manual escaped its owned run root.'}
+ Assert-KmcNotReparsePoint $path 'Manticore Manual';Assert-KmcNotHardLink $path 'Manticore Manual'
+ $file=Get-Item -LiteralPath $path
+ if($file.Length-ne$write.length-or$file.Length-le0-or$file.Length-gt256MB-or(Get-KmcSha256 $path)-cne$ExpectedArchiveSha256){
+  throw 'Manticore Manual bytes differ from the completed native write.'
+ }
+ $header=Read-KmcChunk7OwnerSeedHeader $path
+ foreach($pair in @(@('Name','KMC_C7_AREA_FIXTURE'),@('Type','Manual'),@('GameId',$request.persistenceLoad.gameId),
+    @('GameName',$request.persistenceLoad.gameName),@('Area','314e8c3b15b896a4f847c85f9250f02b'))){
+  Assert-KmcBootstrapInventoryString $header.($pair[0]) $pair[1]
+ }
+ Assert-KmcOrdinaryInteger $header.CompatibilityVersion 1 1
+ if((Get-KmcSha256 $path)-cne$ExpectedArchiveSha256-or(Get-Item -LiteralPath $path).LastWriteTimeUtc.Ticks-ne$file.LastWriteTimeUtc.Ticks-or
+    (Get-KmcSha256 $areasPath)-cne$areasHash-or(Get-KmcSha256 $transaction)-cne$transactionHash-or
+    (Get-KmcSha256 $snapshotPath)-cne$snapshotHash-or(Get-KmcSha256 $durablePath)-cne$durableHash-or
+    (Get-KmcDirectoryManifest $generated).digest-cne$durable.generatedDigest){
+  throw 'Manticore source, Areas or transaction receipt changed during read-only admission.'
+ }
+ Assert-KmcChunk7OwnedReceiptPins $set
+ [pscustomobject]@{path=$path;descriptor=[pscustomobject]@{internalName=[string]$header.Name;fileName=$leaf;sha256=$ExpectedArchiveSha256;
+  length=[long]$file.Length;lastWriteTimeUtcTicks=[long]$file.LastWriteTimeUtc.Ticks;gameId=[string]$header.GameId;
+  gameName=[string]$header.GameName;area=[string]$header.Area};producerRunId=$SourceRunId;artifactPath=$artifactPath;
+  artifactSha256=$ExpectedArtifactSha256;candidate=$candidate;parent=$parent;fixturePreparationAssisted=$true;nativeAuthorityGranted=$false}
+}
 # Owner-seed-derived combat: the ACCEPTED cold consumer receipt, pinned by run and evidence hash,
 # PASS on exactly this producer's Manual (1 load, 0 writes, separate-process proof), on its own
 # recorded candidate, which must equal the producer's (the consumer's own same-candidate rule).

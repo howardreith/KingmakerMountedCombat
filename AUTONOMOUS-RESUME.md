@@ -1,5 +1,21 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## Active October 20 Manticore source gate
+
+The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
+The [source-gate record](docs/CHUNK7-MANTICORE-MANUAL-SOURCE-GATE-2026-10-20.md)
+documents a read-only admission of batch54's exact Manticore Manual and its
+complete ancestry/restoration receipts. Synthetic custody 13/0 and private
+batch54 source 1 admitted/3 refusals pass; no native scenario or product
+build was run. The game, lock and batch54 transaction remain settled as in
+the batch54 record. Next: independently review and connect a distinct
+Manticore → visited Spider Cave area Auto/cold request, enforcing candidate
+policy and source lineage at every boundary. Do not route the new archive
+through the older Spider Cave → Oleg owner-seed case. Continue independent
+Small mounted calibration, positive cleanup/removal, progression and 7D;
+readiness-gated 7E remains selected. No merge/release/permanent install or
+HUMAN PLAY acceptance.
+
 ## Active October 20 batch54 admitted area producer
 
 The [standing completion mission](planning/CHUNK7-COMPLETION-MISSION.md)
