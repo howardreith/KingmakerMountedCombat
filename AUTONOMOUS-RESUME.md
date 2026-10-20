@@ -1,5 +1,30 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## Active October 20 after batch85 — Small selector activity
+
+The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
+[Batch85](docs/CHUNK7-BATCH85-SMALL-SELECTOR-ACTIVITY-2026-10-20.md) froze
+pushed `52f17f1703395fc0daf130a257275cc479814216` as world98. A fresh
+mounted Small Manual and separate cold load passed 5/0 and 3/0. Dismissal
+**FAIL** before native removal: after `ShowPartySelection`, the Small rider's
+exact view was inactive in Default mode; the mount remained active. The
+guarded cleanup retained custody. Original batch81–85 failures stay separate.
+Exact combined and independently reviewed one-run profile recovery restored
+Mods, protected saves, Howie profile, UMM Params and preferences; no game or
+transaction lock remains. Do not rerun the completed one-off recovery.
+
+The narrow candidate permits temporary view inactivity only while the exact
+native party selector is active. Independent production review passed exact
+runtime/policy/test source hashes in batch85's record; focused behavior passed
+14/0 and exhaustive policy combinations 224/0, Fast 3/0. Commit and guarded
+push this coherent candidate, freeze it once, then declare a same-candidate
+mounted Manual/separate cold/native dismissal sequence of at most three
+scenarios. A native result must verify the selector gate actually applies,
+strict activity resumes on close, and native dismissal/cleanup completes.
+The reviewed inventory auto-merge repair still lacks native proof. Continue
+F09/F10/F11 and selected 7E under the standing mission; no final completion
+claim follows from this repair alone.
+
 ## Active October 20 after batch84 — Small selector invalidation
 
 The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
