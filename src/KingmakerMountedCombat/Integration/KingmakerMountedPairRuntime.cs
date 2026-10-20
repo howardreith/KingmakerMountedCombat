@@ -326,7 +326,24 @@ namespace KingmakerMountedCombat.Integration
                 riderState == null || mountState == null || !riderState.IsConscious || !mountState.IsConscious ||
                 riderState.IsFinallyDead || mountState.IsFinallyDead)
             {
-                return "Mounted controllability or life-state invariant changed.";
+                try
+                {
+                    return "Mounted controllability or life-state invariant changed: rider=" + rider.UniqueId +
+                        ";mount=" + mount.UniqueId + ";riderInGame=" + rider.IsInGame +
+                        ";mountInGame=" + mount.IsInGame + ";riderControllable=" + rider.IsDirectlyControllable +
+                        ";mountControllable=" + mount.IsDirectlyControllable +
+                        ";riderConscious=" + (riderState != null && riderState.IsConscious) +
+                        ";mountConscious=" + (mountState != null && mountState.IsConscious) +
+                        ";riderFinallyDead=" + (riderState != null && riderState.IsFinallyDead) +
+                        ";mountFinallyDead=" + (mountState != null && mountState.IsFinallyDead) +
+                        ";nativePartySelectorActive=" + nativePartySelectorActive +
+                        ";riderSelf=" + riderActiveSelf + ";mountSelf=" + mountActiveSelf + ".";
+                }
+                catch (Exception observationError)
+                {
+                    return "Mounted controllability or life-state invariant changed; observation error=" +
+                        observationError.GetType().Name + ".";
+                }
             }
 
             if (SupportedMountedProfiles.Resolve(rider, mount)?.Id != supportedProfile.Id || (int)mountState.Size <= (int)riderState.Size)

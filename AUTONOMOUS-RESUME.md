@@ -1,5 +1,30 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## Active October 20 after batch86 — Small dismissal native flags
+
+The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) is active.
+[Batch86](docs/CHUNK7-BATCH86-SMALL-DISMISSAL-2026-10-20.md) froze pushed
+`61625d41376d36e3cf6b1a0bdb836e21ba14a047` as world99. Fresh mounted
+Small Manual and separate cold load passed 5/0 and 3/0. Targeted dismissal
+**FAIL** after the selector-scoped view gate: native controllability or life
+state changed, then companion invalidation dismounted the relationship.
+Progression cleanup retained custody and timed out; the existing pending
+artifact omits the session stage, so native dismissal entry is unknown.
+The exact process exited normally; guarded combined and independently reviewed
+one-run profile recoveries restored Mods, protected saves, Howie profile,
+UMM Params and preferences. No game or transaction lock remains. Do not replay
+the completed b86 recovery. Original batch81–86 failures remain separate.
+
+The next candidate adds only failure-branch native flags and the bounded
+progression session to a cleanup-pending artifact; its unchanged invariant,
+original FAIL and custody were independently reviewed. Offline Candidate
+passed 7/0 in 5.69 minutes. Commit and guarded-push the coherent source,
+freeze one unchanged package and declare at most three same-candidate
+mounted Manual/separate cold/native dismissal scenarios. The next native
+observation should identify the exact actor flag and session stage before
+another product correction. Continue F09/F10/F11 and selected 7E; do not
+claim completion from this diagnostic checkpoint.
+
 ## Active October 20 after batch85 — Small selector activity
 
 The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
