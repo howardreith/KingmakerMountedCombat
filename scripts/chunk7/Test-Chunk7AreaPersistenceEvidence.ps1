@@ -30,8 +30,10 @@ for($phase=0;$phase-lt4;$phase++) {
     $phases+=$s
 }
 $areaObservation=[pscustomobject]@{nativeWrite=[pscustomobject]@{sha256=('5'*64);nativeCallback=$false;nativeType='Auto';operation='None';snapshotCount=1};
+    movements=@($moves);areaContinuationPlans=[pscustomobject]@{};
     areaTransfer=[pscustomobject]@{mode='AfterEntry';enterPoint=('c'*32);sourceArea=('a'*32);destinationArea=('b'*32);before=$phases[0];headerStarting=$phases[1];headerStaged=$phases[2];after=$phases[3];
         nativeSaveCallbackExpected=$false;explicitSaveGameDispatches=0;observerError=$null;loadingTicks=40;suspensionObserved=$true;duplicateReadyNoOp=$true;nativeArchiveSha256=('5'*64)}}
+foreach($move in $areaObservation.movements){$point=$move.goal;$plan=[pscustomobject]@{moverId=$move.executorId;start=$move.start;selectedAngle=90;selectedGoal=$point;proposals=@([pscustomobject]@{angle=90;requested=$point;goal=$point;traceEnd=$point;walkable=$true;travel=2.0;clampDistance=0.0;routeResidual=0.0;occupied=$false;eligible=$true})};$areaObservation.areaContinuationPlans|Add-Member NoteProperty $move.label $plan}
 Check 'two native owners restored before AfterEntry autosave with retained views and fresh movers' {Assert-KmcChunk7AreaAutosave $areaRequest $areaObservation $areaArchive}
 $mutations=@(
  @('omitted second header owner',{param($v)$v.areaTransfer.headerStarting.owners=@($v.areaTransfer.headerStarting.owners[0])}),
@@ -51,6 +53,13 @@ $mutations=@(
  @('starting lease suspended early',{param($v)$v.areaTransfer.headerStarting.movementAuthorities[0].saveSerializationSuspended=$true}),
  @('settled lease retained',{param($v)$v.areaTransfer.after.movementAuthorities[0].saveSerializationSuspended=$true}),
  @('staged serialized invariant failed',{param($v)$v.areaTransfer.headerStaged.movementAuthorities[1].invariant='serialized AI mismatch'}),
+ @('continuation plan lost',{param($v)$v.areaContinuationPlans.PSObject.Properties.Remove('first-pair')}),
+ @('continuation ray blocked',{param($v)$v.areaContinuationPlans.'second-pair'.proposals[0].routeResidual=1.1}),
+ @('continuation proposal endpoint substituted',{param($v)$v.areaContinuationPlans.'first-pair'.proposals[0].goal.x=4.0}),
+ @('continuation ray geometry substituted',{param($v)$v.areaContinuationPlans.'first-pair'.proposals[0].traceEnd.x=1.0}),
+ @('continuation requested ray shortened',{param($v)$v.areaContinuationPlans.'first-pair'.proposals[0].requested.x=1.0}),
+ @('continuation wrong ray order',{param($v)$v.areaContinuationPlans.'first-pair'.proposals[0].angle=270}),
+ @('continuation click substituted',{param($v)$v.areaContinuationPlans.'first-pair'.selectedGoal.x=4.0}),
  @('replaced native actor view',{param($v)$v.areaTransfer.after.views[2].viewId=444}),
  @('duplicate native actor',{param($v)$v.areaTransfer.headerStaged.views[3].nativeMatches=2}),
  @('unbound native view',{param($v)$v.areaTransfer.headerStarting.views[1].viewBound=$false}),

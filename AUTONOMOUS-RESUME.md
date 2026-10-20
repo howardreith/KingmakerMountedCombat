@@ -1,6 +1,23 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
-## Active October 20 batch58 area save-scope correction
+## Active October 20 batch59 area continuation correction
+
+The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
+The [batch59 record](docs/CHUNK7-BATCH59-AREA-CONTINUATION-2026-10-20.md)
+preserves preview.76's original native/outer FAIL, 4 PASS/1 FAIL. The genuine
+Spider Cave Auto completed and the corrected save-scope observer passed at
+both staged and settled phases. The first later two-metre native continuation
+terminated 1.111262 m short of its fixed eastward endpoint. Current uncommitted
+source adds a bounded read-only native navmesh choice for this area fixture,
+keeps the original movement assertion and checks the chosen goal in the reader.
+Independent review passed; focused area reader 58/0, owned-area reader 51/0
+and Fast 3/0 passed. Next: clean preview.77 candidate/package,
+append-only suite/WhatIf and one corrected producer. Only a fully accepted
+producer can feed a separate-process cold load. Continue positive mounted
+cleanup, doors, Small, progression, 7D and readiness-gated private 7E.
+No merge, release, permanent installation or HUMAN PLAY acceptance.
+
+## Historical October 20 batch58 area save-scope correction
 
 The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
 The [batch58 record](docs/CHUNK7-BATCH58-AREA-SAVE-SERIALIZATION-2026-10-20.md)

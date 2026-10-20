@@ -246,10 +246,10 @@ namespace KingmakerMountedCombat.Diagnostics
                         evidence["combatContinuation"] = checkpoint.Capture();
                         Pass("C7-persistence-native-combat-continuation"); BeginCleanup(); break;
                     case 10:
-                        AssertOwners(); Move(firstRider, firstMount, firstMount.Position + Vector3.right * 2f, secondRider, "first-pair"); Next(11); break;
+                        AssertOwners(); Move(firstRider, firstMount, AreaAutosaveCase ? SelectAreaContinuationGoal(firstMount, "first-pair") : firstMount.Position + Vector3.right * 2f, secondRider, "first-pair"); Next(11); break;
                     case 11:
                         AssertOwners(); if (!MovementSettled()) return;
-                        Move(secondRider, secondMount, secondMount.Position + Vector3.forward * 2f, firstRider, "second-pair"); Next(12); break;
+                        Move(secondRider, secondMount, AreaAutosaveCase ? SelectAreaContinuationGoal(secondMount, "second-pair") : secondMount.Position + Vector3.forward * 2f, firstRider, "second-pair"); Next(12); break;
                     case 12:
                         AssertOwners(); if (!MovementSettled()) return;
                         Pass("C7-persistence-native-continuation"); snapshots.Add(Capture("continuation-complete"));
@@ -281,6 +281,7 @@ namespace KingmakerMountedCombat.Diagnostics
             evidence["ordinaryRespecProven"] = false; evidence["combatDebtProof"] = CombatCase;
             evidence["nativeSchema"] = NativeMountedSaveFormat.SelectedWriterSchema;
             evidence["nativeCapacity"] = GameMountedRelationshipService.NativePairCapacity;
+            if (AreaAutosaveCase) evidence["areaContinuationPlans"] = areaContinuationPlans;
             if (!Cold && OwnerSeedCheckpointSave)
             {
                 // The restored mounted graph binds now and is verified at stage 0, once restoration settles.
