@@ -1,5 +1,18 @@
 # Chunk 7B–7D — IN PROGRESS
 
+## October 20 — batch81 F10 Small dismissal diagnostic
+
+[Batch81](docs/CHUNK7-BATCH81-SMALL-DISMISSAL-2026-10-20.md) added an
+independently reviewed Small/Horse dismissal route on preview.94. Its fresh
+mounted Manual and separate cold consumer passed game/outer **5/0** and **3/0**.
+The native dismissal retained cleanup after an owned field-roster mismatch;
+the original outer run **FAIL** timed out with no terminal game result. The
+exact-run guarded combined and profile recoveries restored Mods, protected
+saves, Howie profile, startup Params and session preferences; the original
+failure remains. The current candidate adds only a bounded first-mismatch
+observation to distinguish probe completion from a different native roster.
+F10 dismissal, native level/retrain/replacement, F11 and 7E remain open.
+
 ## October 20 - batch80 F11 idle registry retirement
 
 [Batch80](docs/CHUNK7-BATCH80-F11-REGISTRY-RETIREMENT-2026-10-20.md)

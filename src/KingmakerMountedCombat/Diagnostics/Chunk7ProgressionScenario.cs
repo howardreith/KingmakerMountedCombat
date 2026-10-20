@@ -110,7 +110,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 Require(session.Succeeded, "Native progression did not complete its real choices, effects and custody proof.");
                 Pass("C7-progression-native-operation"); BeginCleanup();
             }
-            catch (Exception error) { Fail("C7-progression-runtime", error.ToString()); BeginCleanup(); }
+            catch (Exception error) { CaptureOwnedRosterFailure(error); Fail("C7-progression-runtime", error.ToString()); BeginCleanup(); }
         }
         private void Start()
         {
@@ -344,7 +344,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 RuntimeLoaderInventory.WriteArtifact(request, EvidenceFileName, EvidenceKind, errors.Count == 0 && captured ? "PASS" : "FAIL", evidence, errors);
                 completed = true;
             }
-            catch (Exception error) { Fail("C7-progression-cleanup", error.ToString()); Retain("Progression cleanup guard or release refused: " + error.Message); }
+            catch (Exception error) { CaptureOwnedRosterFailure(error); Fail("C7-progression-cleanup", error.ToString()); Retain("Progression cleanup guard or release refused: " + error.Message); }
         }
         private void CaptureCommands(UnitEntityData actor) { if (actor?.Commands != null) foreach (var command in actor.Commands.Raw) if (command != null) commands.Add(command); }
         private bool CommandsSettled() => commands.All(CommandSettled);
@@ -364,7 +364,8 @@ namespace KingmakerMountedCombat.Diagnostics
             if (pending || elapsed.Elapsed.TotalSeconds - cleanupStart <= 45) return;
             Fail("C7-progression-cleanup", reason + " Failure never relinquishes native custody.");
             RuntimeLoaderInventory.WriteArtifact(request, PendingFileName, PendingKind, "FAIL", new JObject { ["reason"] = reason,
-                ["cleanupCustodyRetained"] = true, ["cleanupPendingAtHostBoundary"] = true }, errors); pending = true;
+                ["cleanupCustodyRetained"] = true, ["cleanupPendingAtHostBoundary"] = true,
+                ["firstOwnedRosterFailure"] = evidence["firstOwnedRosterFailure"]?.DeepClone() }, errors); pending = true;
         }
         internal bool DrainForHost()
         {
