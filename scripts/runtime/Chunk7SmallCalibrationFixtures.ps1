@@ -5,12 +5,13 @@ Set-StrictMode -Version Latest
 # verdict. Neither historical identity is projected onto a later consumer.
 # This is a read-only source gate; it grants no load or profile authority.
 function Get-KmcChunk7SmallF09CalibrationSource($Selection,$Fixture,$Consumer){
- Assert-KmcChunk7SmallManualSourceSelection $Selection 'unassigned-f09-calibration'
+ Assert-KmcChunk7SmallF09SourceSelection $Selection 'unassigned-f09-calibration'
  $expected=[ordered]@{
   sourceRunId='20261020-c7b-world71-b53s1-small';sourceArtifactSha256='9d26bd146970fc53192bf2f28cef8c6655a7c79beb1326c075fec0a5c406e52f';
   sourceArchiveSha256='ddf2b9cf4c0c0a49c93a659d2628ae6622f02e0a400a2df287bd5713f12ed829';
   actorId='c4e2c853-4b72-4904-ad84-d0b7bfba7470';petId='0e0c7d2d-06b4-4510-9f81-d847340d1424'}
  foreach($key in $expected.Keys){Assert-KmcBootstrapInventoryString $Selection.$key $expected[$key]}
+ Assert-KmcBootstrapInventoryString $Selection.coldReceiptSha256 'd188012fb1f9a19410a572b67381bfb15be5e813a215a79196ed734b49c59bfc'
  $consumerMvid=[Guid]::Empty
  if($Consumer.commit-isnot[string]-or$Consumer.commit-cnotmatch'^[a-f0-9]{40}$'-or
     $Consumer.dllSha256-isnot[string]-or$Consumer.dllSha256-cnotmatch'^[a-f0-9]{64}$'-or
@@ -71,6 +72,21 @@ function Get-KmcChunk7SmallF09CalibrationSource($Selection,$Fixture,$Consumer){
   artifactLength=$source.artifactLength;sourceRunId=$source.sourceRunId;historicalProducer=$producer;coldReaderReceiptSha256=$receipt.sha256;
   producerReceiptPins=$source.receiptPins;coldInputPins=$r.inputPins;coldReaderReceiptPath=$receiptPath;
   sameCandidate=$false;nativeAuthorityGranted=$false;fixtureSetupOnly=$true}
+}
+function Copy-KmcChunk7SmallF09SourceArtifact($Source,[string]$ProfileRoot,$Lock){
+ [void](Assert-KmcRuntimeLockOwner $Lock)
+ if($Source.nativeAuthorityGranted-ne$false-or$Source.sameCandidate-ne$false-or$Source.fixtureSetupOnly-ne$true){throw 'F09 source cannot grant load/profile authority or claim same-candidate acquisition.'}
+ $run=Assert-KmcChildPath $ProfileRoot (Join-Path (Get-KmcLabRoot) 'runtime-staging') 'F09 Small profile'
+ Assert-KmcDirectoryTreeCloneable $run 'F09 Small profile'
+ $owner=Read-KmcJson (Join-Path $run 'owner.json')
+ foreach($pair in @(@('scenario','chunk7-small-profile-calibration'),@('runId',$Lock.RunId),@('transactionToken',$Lock.Token),@('sourceSha256',$Source.descriptor.sha256))){Assert-KmcBootstrapInventoryString $owner.($pair[0]) $pair[1]}
+ if($run-cne(Join-Path (Get-KmcLabRoot) ('runtime-staging/persistence-'+$owner.runId))){throw 'F09 source copy lacks its exact locked profile.'}
+ $destination=Join-Path $run 'small-owner-seed-fixture-source.json'
+ if(Test-Path -LiteralPath $destination){throw 'F09 source destination already exists.'}
+ Assert-KmcNotReparsePoint $Source.artifactPath 'F09 producer artifact';Assert-KmcNotHardLink $Source.artifactPath 'F09 producer artifact'
+ if((Get-KmcSha256 $Source.artifactPath)-cne$Source.artifactSha256-or(Get-Item -LiteralPath $Source.artifactPath).Length-ne$Source.artifactLength){throw 'F09 source changed before locked copy.'}
+ [IO.File]::Copy($Source.artifactPath,$destination,$false)
+ if((Get-KmcSha256 $destination)-cne$Source.artifactSha256-or(Get-KmcSha256 $Source.artifactPath)-cne$Source.artifactSha256){throw 'F09 source changed during locked copy.'}
 }
 function Read-KmcChunk7SmallSelectionFile([string]$Path,[string]$RunId){
     $path=Assert-KmcChildPath $Path (Get-KmcLabRoot) 'Small explicit selection'

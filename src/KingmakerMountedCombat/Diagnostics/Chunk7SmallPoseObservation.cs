@@ -12,7 +12,7 @@ namespace KingmakerMountedCombat.Diagnostics
     internal static class Chunk7SmallPoseObservation
     {
         internal static JObject Capture(UnitEntityData rider, UnitEntityData mount,
-            DeclaredSmallMountedProfile declaration, KingmakerMountedPairRuntime runtime)
+            DeclaredSmallMountedProfile declaration, KingmakerMountedPairRuntime runtime, bool fixtureManual = false)
         {
             if (rider?.View?.CharacterAvatar == null || mount?.View == null || declaration == null)
                 throw new InvalidOperationException("Exact live Small rider/Horse rig is unavailable.");
@@ -27,7 +27,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["profileId"] = declaration.Body.ProfileId, ["inventorySha256"] = declaration.Body.NativeInventorySha256,
                 ["declarationSha256"] = declaration.NativeCalibrationSha256, ["coordinateConvention"] = "native-Unity",
                 ["qualificationStatus"] = "IN PROGRESS", ["visualAcceptanceProven"] = false,
-                ["body"] = JObject.FromObject(NativeSmallRiderBody.Capture(rider, mount)),
+                ["body"] = Body(NativeSmallRiderBody.Capture(rider, mount), fixtureManual),
                 ["riderRoot"] = Transform(root), ["horseRoot"] = Transform(horse),
                 ["riderBones"] = new JArray(riderNodes.Select(Transform)),
                 ["horseAnchors"] = new JArray(new[] { chest, left, right }.Select(Transform)),
@@ -47,6 +47,48 @@ namespace KingmakerMountedCombat.Diagnostics
                     ["maximumKneeResidual"] = runtime.PoseMaximumKneeTargetResidualWorldUnits,
                     ["maximumSegmentResidual"] = runtime.PoseMaximumSegmentLengthResidualWorldUnits,
                     ["componentCount"] = runtime.PoseComponentCount, ["boneCount"] = runtime.PoseBoneCount, ["failure"] = runtime.PoseFailure } };
+        }
+        internal static JObject Body(SmallRiderBodyObservation body, bool fixtureManual)
+        {
+            var native = Chunk7SmallFixtureScenario.CaptureBody(body);
+            if (fixtureManual) return native;
+            var legacy = new JObject();
+            foreach (var property in native.Properties())
+            {
+                var key = char.ToUpperInvariant(property.Name[0]) + property.Name.Substring(1);
+                if (property.Name == "avatarLocalScale")
+                {
+                    var scale = (JObject)property.Value;
+                    legacy[key] = new JObject { ["X"] = scale["x"], ["Y"] = scale["y"], ["Z"] = scale["z"] };
+                }
+                else legacy[key] = property.Value.DeepClone();
+            }
+            return legacy;
+        }
+        internal static JObject Declaration(DeclaredSmallMountedProfile declaration) => new JObject {
+            ["profileId"] = declaration.Body.ProfileId,
+            ["nativeInventorySha256"] = declaration.Body.NativeInventorySha256,
+            ["nativeCalibrationSha256"] = declaration.NativeCalibrationSha256,
+            ["qualificationStatus"] = "IN PROGRESS",
+            ["pose"] = Pose(declaration.Pose),
+            ["mountRootOffset"] = PoseVector(declaration.MountRootOffset),
+            ["animatedSeatCorrection"] = PoseVector(declaration.AnimatedSeatCorrection),
+            ["riderEulerOffset"] = PoseVector(declaration.RiderEulerOffset) };
+        private static JObject Pose(MountedRiderPoseProfile pose) => new JObject {
+            ["Id"] = pose.Id, ["PelvisBoneName"] = pose.PelvisBoneName,
+            ["PelvisPositionOffset"] = PoseVector(pose.PelvisPositionOffset),
+            ["PelvisEulerOffset"] = PoseVector(pose.PelvisEulerOffset),
+            ["LeftLeg"] = Leg(pose.LeftLeg), ["RightLeg"] = Leg(pose.RightLeg) };
+        private static JObject Leg(MountedRiderLegPoseProfile leg) => new JObject {
+            ["ThighBoneName"] = leg.ThighBoneName, ["LowerLegBoneName"] = leg.LowerLegBoneName,
+            ["FootBoneName"] = leg.FootBoneName,
+            ["FootTargetFromThigh"] = PoseVector(leg.FootTargetFromThigh),
+            ["KneeHintFromThigh"] = PoseVector(leg.KneeHintFromThigh),
+            ["FootEulerOffset"] = PoseVector(leg.FootEulerOffset) };
+        private static JObject PoseVector(PoseVector3 value)
+        {
+            if (!value.IsFinite) throw new InvalidOperationException("Small pose declaration contains a nonfinite vector.");
+            return new JObject { ["X"] = value.X, ["Y"] = value.Y, ["Z"] = value.Z };
         }
         private static Transform Exact(Transform root, string name)
         {

@@ -1,0 +1,98 @@
+[CmdletBinding()]
+param([string]$RepositoryRoot,[string]$OutputDirectory)
+$ErrorActionPreference='Stop';Set-StrictMode -Version Latest
+if(-not$RepositoryRoot){$RepositoryRoot=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))}
+if(-not$OutputDirectory){$OutputDirectory=Join-Path ([IO.Path]::GetDirectoryName([IO.Path]::GetDirectoryName($RepositoryRoot))) ('analysis-cache/chunk7-continuation/small-f09-evidence-'+[Guid]::NewGuid().ToString('N'))}
+. (Join-Path $RepositoryRoot 'scripts/runtime/RuntimeHarness.Common.ps1')
+$fixturePath=Join-Path $RepositoryRoot 'tests/Chunk7Diagnostics/SmallManualFixture.json'
+function Clone($value){$value|ConvertTo-Json -Depth 90 -Compress|ConvertFrom-Json}
+function New-F09Synthetic{
+ $f=Get-Content -Raw $fixturePath|ConvertFrom-Json;$o=$f.artifact.observations
+ $main='44444444-1111-4111-8111-111111111111';$small=$f.request.smallCalibration.manualSource.actorId;$pet=$f.request.smallCalibration.manualSource.petId
+ $extra=@(
+  [pscustomobject]@{id='77777777-1111-4111-8111-111111111111';blueprint='4016c7db400ab721ff125aef9e65e202';object=4000;descriptor=5000;view=6000;horse=$true},
+  [pscustomobject]@{id='88888888-1111-4111-8111-111111111111';blueprint='88888888888888888888888888888888';object=4001;descriptor=5001;view=6001;horse=$false},
+  [pscustomobject]@{id='cccccccc-1111-4111-8111-111111111111';blueprint='99999999999999999999999999999999';object=4002;descriptor=5002;view=6002;horse=$false},
+  [pscustomobject]@{id='aaaaaaaa-1111-4111-8111-111111111111';blueprint='aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';object=4003;descriptor=5003;view=6003;horse=$false})
+ $states=@($o.inputs|ForEach-Object{$_.before;$_.after})+@($o.movement.before,$o.movement.after)
+ foreach($state in $states){
+  $mainState=@($state.actors|Where-Object id -CEQ $main)[0];$new=@()
+  foreach($actor in $extra){$row=Clone $mainState;$row.id=$actor.id;$row.object=$actor.object;$new+=,$row}
+  $state.actors=@($mainState)+@($new)+@($state.actors|Where-Object{$_.id-cne$main})
+ }
+ $o.allocationTrace.identityRegistry.ids=@($o.allocationTrace.identityRegistry.ids)+@($extra.object)
+ $o.allocationTrace.identityRegistry.retainedCount=$o.allocationTrace.identityRegistry.ids.Count
+ foreach($actor in $extra){
+  $o.manualNativeRoster.actors+=,[pscustomobject]@{id=$actor.id;blueprint=$actor.blueprint;object=$actor.object;descriptor=$actor.descriptor;view=$actor.view}
+  $arr=Clone @($o.manualNativeRoster.arrangement.actors|Where-Object actorId -CEQ $main)[0];$arr.actorId=$actor.id;$arr.blueprint=$actor.blueprint;$o.manualNativeRoster.arrangement.actors+=,$arr
+  $res=Clone @($o.manualNativeRoster.resources.actors|Where-Object actorId -CEQ $main)[0];$res.actorId=$actor.id;$o.manualNativeRoster.resources.actors+=,$res
+ }
+ $characters=@($main,$small)+@($extra|Where-Object{-not$_.horse}|ForEach-Object{$_.id})
+ $o.before.partyCharacters=$characters;$o.field.partyCharacters=$characters
+ $o.manualNativeRoster.arrangement.actors=@($o.manualNativeRoster.arrangement.actors|Sort-Object actorId -CaseSensitive)
+ $o.manualNativeRoster.resources.actors=@($o.manualNativeRoster.resources.actors|Sort-Object actorId -CaseSensitive)
+ $savedParty=@($o.manualNativeRoster.actors|ForEach-Object{
+  $actor=$_;$resource=@($o.manualNativeRoster.resources.actors|Where-Object actorId -CEQ $actor.id)[0]
+  [pscustomobject]@{id=$actor.id;blueprint=$actor.blueprint;prepared=$false;inCombat=$false;native=[pscustomobject]@{
+    Standard=$resource.standard;Move=$resource.move;Swift=$resource.swift;Initiative=$resource.initiative;Reaction=0;ReactionsRemaining=$resource.reactions}}
+ })
+ $savedActors=@($o.manualNativeRoster.arrangement.actors|ForEach-Object{$a=$_;[pscustomobject]@{id=$a.actorId;blueprint=$a.blueprint;experience=$a.experience;level=$a.characterLevel;classes=@($a.classes|ForEach-Object{[pscustomobject]@{guid=$_.classGuid;level=$_.level}})}})
+ $arrangement=[pscustomobject]@{money=$o.manualNativeRoster.arrangement.money;experienceRatePercent=$o.manualNativeRoster.arrangement.experienceRatePercent;characters=$characters;remote=@();actors=$savedActors}
+ $body=[ordered]@{};foreach($p in $o.bodyObservation.PSObject.Properties){$name=$p.Name.Substring(0,1).ToLowerInvariant()+$p.Name.Substring(1);$body[$name]=$p.Value}
+ $body.mountBlueprintGuid='4016c7db400ab721ff125aef9e65e202';$body.mountSizeOrdinal=5;$body.avatarMirrored=$false
+ $body.avatarLocalScale=[pscustomobject]@{x=1.1;y=1.0;z=0.9};$body.dollEquipmentEntityIds=@('bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb')
+ $body.currentEquipmentBlueprints=@('cccccccccccccccccccccccccccccccc')+@($null)*11
+ $body.activeVisualEquipmentNames=@('native-small');$body.additionalLimbCount=0
+ $body=[pscustomobject]$body
+ $o.bodyObservation=Clone $body;foreach($pose in $o.poses){$pose.observation.body=Clone $body}
+ $pairA=[pscustomobject]@{riderId=$main;horseId=$extra[0].id;horseBlueprint=$extra[0].blueprint;featureGuid='7db7c50677e39f09feef56f3831fc723';featureSourceGuid='ee63330662126374e8785cc901941ac7';rank=1;reciprocal=$true}
+ $pairB=[pscustomobject]@{riderId=$small;horseId=$pet;horseBlueprint='4016c7db400ab721ff125aef9e65e202';featureGuid=$pairA.featureGuid;featureSourceGuid=$o.before.featureSourceGuid;rank=1;reciprocal=$true}
+ $write=Clone $o.source.acquiredManual.nativeWrite;$write.fileName='Manual_304_KMC_C7_SMALL_FIXTURE.zks';$write.internalName='KMC_C7_SMALL_FIXTURE'
+ $saved=[pscustomobject]@{contract='owner-seed-unmounted-small-fixture-v1';beforeSaveArrangement=(Clone $arrangement);afterSaveArrangement=$arrangement;bodyObservation=(Clone $body);savedBodyObservation=$body;savedWorld=[pscustomobject]@{mainActorId=$main;party=$savedParty};acquiredOwners=@($pairA,$pairB);nativeWrite=$write;cleanup=[pscustomobject]@{custodySettled=$true;sourceUnchanged=$true}}
+ $s=$f.request.smallCalibration.manualSource
+ $f.request.smallCalibration.PSObject.Properties.Remove('manualSource')
+ $f.request.smallCalibration.case='compiled-owner-seed-fixture-small-horse-rt'
+ $f.request.smallCalibration|Add-Member fixtureSource ([pscustomobject]@{sourceRunId=$s.sourceRunId;sourceArtifactSha256=$s.sourceArtifactSha256;sourceArchiveSha256=$s.sourceArchiveSha256;coldReceiptSha256=('c'*64);actorId=$small;petId=$pet})
+ $f.request.persistenceLoad.fileName=$write.fileName;$f.request.persistenceLoad.internalName=$write.internalName
+ $source=$o.source;$source.runId=$s.sourceRunId;$source.archiveLeaf=$write.fileName;$source.archiveName=$write.internalName;$source.sameCandidate=$false;$source.kind='qualified-owner-seed-f09-small-fixture-manual'
+ $source|Add-Member coldReceiptSha256 ('c'*64);$source|Add-Member fixtureSetupOnly $true
+ $source|Add-Member producerCommit '784a6296f9e0d91c44ad25dda826db57f609e929'
+ $source|Add-Member producerDllSha256 '8f7f89769c82e0ac15f5d972441d29e68d6f67ff4ad942fe55f25ece12047d89'
+ $source|Add-Member producerDllMvid 'bf98be50-898a-41b3-88f0-78959a0ea1a3'
+ $source.bodySelection=[pscustomobject]@{smallRaceGuid=$body.raceGuid;smallPresetGuid=$body.presetGuid;skeletonName=$body.skeletonName;gender=$body.gender;leftHanded=$body.leftHanded}
+ $source.PSObject.Properties.Remove('acquiredManual');$source|Add-Member fixtureManual $saved
+ $o.manualNativeRoster.mainActorId=$main
+ $prior=[pscustomobject]@{actorId=$main;petId=$extra[0].id;actorObject=30;petObject=4000;actorDescriptor=130;petDescriptor=5000;actorView=230;petView=6000;featureObject=501;sourceObject=502;rankObject=503;actorBlueprint='55555555555555555555555555555555';petBlueprint=$pairA.horseBlueprint;featureGuid=$pairA.featureGuid;sourceGuid=$pairA.featureSourceGuid;rank=1;reciprocal=$true;resources=@($o.manualNativeRoster.resources.actors|Where-Object{$_.actorId-cin@($main,$extra[0].id)})}
+ $o|Add-Member inheritedFixturePairBefore $prior;$o|Add-Member inheritedFixturePairAfter (Clone $prior)
+ $o.selection=Clone $f.request.smallCalibration
+ $f
+}
+[void][IO.Directory]::CreateDirectory($OutputDirectory)
+$script:pass=0;$script:fail=0;$watch=[Diagnostics.Stopwatch]::StartNew()
+function Good([string]$name,[scriptblock]$action){try{&$action;$script:pass++;Write-Host ('PASS '+$name)}catch{$script:fail++;Write-Host ('FAIL '+$name+': '+$_+' '+$_.ScriptStackTrace)}}
+function Bad([string]$name,[scriptblock]$action){try{&$action;$script:fail++;Write-Host ('FAIL accepted '+$name)}catch{$script:pass++;Write-Host ('PASS refuses '+$name)}}
+Good 'F09 synthetic seven-actor source and shared native mounted reader' { $f=New-F09Synthetic;Assert-KmcChunk7SmallEvidence $f.request $f.artifact }
+$cases=[ordered]@{
+ 'old acquired source alias'={param($f)$f.request.smallCalibration|Add-Member manualSource ([pscustomobject]@{})}
+ 'forged same candidate'={param($f)$f.artifact.observations.source.sameCandidate=$true}
+ 'wrong producer identity'={param($f)$f.artifact.observations.source.producerDllSha256='a'*64}
+ 'cold receipt altered'={param($f)$f.artifact.observations.source.coldReceiptSha256='a'*64}
+ 'foreign manual name'={param($f)$f.request.persistenceLoad.internalName='KMC_C7_ACQUIRED_FIELD'}
+ 'source Small pair changed'={param($f)$f.artifact.observations.source.fixtureManual.acquiredOwners[1].horseId='bbbbbbbb-1111-4111-8111-111111111111'}
+ 'cold Small body changed'={param($f)$f.artifact.observations.bodyObservation.RaceGuid='a'*32}
+ 'cold reaction debt changed'={param($f)$f.artifact.observations.manualNativeRoster.resources.actors[0].reactions++}
+ 'cold actor ID singleton'={param($f)$f.artifact.observations.manualNativeRoster.actors[0].id=@($f.artifact.observations.manualNativeRoster.actors[0].id)}
+ 'cold class GUID singleton'={param($f)$f.artifact.observations.manualNativeRoster.arrangement.actors[0].classes[0].classGuid=@($f.artifact.observations.manualNativeRoster.arrangement.actors[0].classes[0].classGuid)}
+ 'neighboring pair changed'={param($f)$f.artifact.observations.inheritedFixturePairAfter.petObject++}
+ 'neighboring pair labels jointly forged'={param($f)$f.artifact.observations.inheritedFixturePairBefore.actorObject=999;$f.artifact.observations.inheritedFixturePairAfter.actorObject=999}
+ 'profile inventory singleton status'={param($f)$f.artifact.observations.profileInventory.captureStatus=@('PASS')}
+ 'profile inventory singleton MVID'={param($f)$f.artifact.observations.profileInventory.gameplayAssemblyMvid=@('07fa1e4d-8618-41b3-9b8d-faa17d3b26f7')}
+ 'profile inventory singleton rider ID'={param($f)$f.artifact.observations.profileInventory.party[0].id=@($f.artifact.observations.profileInventory.party[0].id)}
+ 'preparation observed'={param($f)$f.artifact.observations.coldNoPreparation.events=@([pscustomobject]@{kind='prepare-before'})}
+ 'mounted action removed'={param($f)$f.artifact.observations.inputs=@($f.artifact.observations.inputs|Select-Object -Skip 1)}
+}
+foreach($case in $cases.GetEnumerator()){Bad $case.Key {$f=New-F09Synthetic;&$case.Value $f;Assert-KmcChunk7SmallEvidence $f.request $f.artifact}}
+$watch.Stop()
+[ordered]@{pass=$script:pass;fail=$script:fail;seconds=$watch.Elapsed.TotalSeconds;readerSha256=(Get-FileHash -LiteralPath (Join-Path $RepositoryRoot 'scripts/runtime/Chunk7SmallCalibrationEvidence.ps1')).Hash.ToLowerInvariant();fixtureSha256=(Get-FileHash -LiteralPath $fixturePath).Hash.ToLowerInvariant();nativeProof=$false;archiveReads=0;testBoundary='Strict reader; generated seven-actor F09 source and action evidence are explicitly synthetic'}|ConvertTo-Json|Set-Content -LiteralPath (Join-Path $OutputDirectory 'receipt.json') -Encoding UTF8
+Write-Host ('TOTAL PASS='+$script:pass+' FAIL='+$script:fail)
+if($script:fail){throw 'F09 Small evidence checks failed.'}

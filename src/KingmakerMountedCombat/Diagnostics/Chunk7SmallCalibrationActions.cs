@@ -62,7 +62,7 @@ namespace KingmakerMountedCombat.Diagnostics
             evidence["diagnosticsOffProven"] = false; evidence["humanVisualAcceptance"] = false;
             evidence["nativePreparationManufactured"] = false; evidence["resourceFieldsWritten"] = false;
             evidence["poseQualified"] = false; evidence["breadthQualification"] = "IN PROGRESS";
-            poses.Add(new JObject { ["phase"] = "unmounted-field", ["observation"] = Chunk7SmallPoseObservation.Capture(actor, pet, declaration, null) });
+            poses.Add(new JObject { ["phase"] = "unmounted-field", ["observation"] = Chunk7SmallPoseObservation.Capture(actor, pet, declaration, null, calibration.UsesFixtureManualField) });
             trace = new NativeActorAllocationTrace(actor, pet, world.Primary.Combat, deferInstallation: true);
             trace.Install(); trace.BeginEncounter(request.RunId + ":small-calibration");
             IssueAbility(controls.MountAbility, pet, "native-mount", true); calibrationStage = 1;
@@ -116,14 +116,14 @@ namespace KingmakerMountedCombat.Diagnostics
                 case 8:
                     if (!CommandsSettled() || pair.Relationship.State != RelationshipState.Unmounted || !pair.Relationship.Runtime.NoPreparedPairResidue) return;
                     CompleteRelationshipInput(); Pass("C7-small-native-dismount");
-                    poses.Add(new JObject { ["phase"] = "dismounted-field", ["observation"] = Chunk7SmallPoseObservation.Capture(actor, pet, declaration, null) });
+                    poses.Add(new JObject { ["phase"] = "dismounted-field", ["observation"] = Chunk7SmallPoseObservation.Capture(actor, pet, declaration, null, calibration.UsesFixtureManualField) });
                     evidence["representativeNativeActionsObserved"] = true;
                     Pass("C7-small-native-pose-observation"); BeginCleanup(); break;
             }
         }
         private void ObservePose(string phase)
         {
-            var row = Chunk7SmallPoseObservation.Capture(actor, pet, declaration, pair.Relationship.Runtime);
+            var row = Chunk7SmallPoseObservation.Capture(actor, pet, declaration, pair.Relationship.Runtime, calibration.UsesFixtureManualField);
             Require(pair.Relationship.Runtime.PoseConfigured && pair.Relationship.Runtime.PoseHealthy &&
                 pair.Relationship.Runtime.PoseProfileId == declaration.Pose.Id && pair.Relationship.Runtime.PoseComponentCount == 1,
                 "Production Small pose is absent, duplicated or unhealthy.");

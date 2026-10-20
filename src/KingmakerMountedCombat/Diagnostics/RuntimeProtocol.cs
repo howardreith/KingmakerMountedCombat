@@ -181,7 +181,7 @@ namespace KingmakerMountedCombat.Diagnostics
             || Scenario == Chunk7AssistedColdInventorySelection.Scenario
             || Scenario == Chunk7SmallFixtureSelection.Scenario
             || Scenario == Chunk7StockMammothFixtureSelection.Scenario
-            || Scenario == Chunk7SmallCalibrationSelection.Scenario && SmallCalibration?.UsesManualField == true
+            || Scenario == Chunk7SmallCalibrationSelection.Scenario && SmallCalibration?.UsesColdManualField == true
             || Scenario == Chunk7ProgressionSelection.Scenario && Progression?.IsOwned == true
             ? PersistenceLoad : Fixture?.Working;
         public Chunk7ProgressionSelection Progression { get; set; }
@@ -242,7 +242,7 @@ namespace KingmakerMountedCombat.Diagnostics
         internal string ExpectedChunk7ArchiveArea => PersistenceCase == "multi-area-autosave" ? PersistenceAreaTarget?.Area :
             (PersistenceCase == Chunk7OwnedPairsSelection.ManticoreFixtureCheckpoint ||
                 Chunk7OwnedPairsSelection.IsManticoreManualCold(PersistenceCase)) ? Chunk7OwnedPairsSelection.ManticoreFixtureArea : SelectedChunk7Fixture?.Area;
-        internal string ExpectedNativeLoadType => (Scenario == Chunk7AcquiredManualSelection.Scenario || Scenario == Chunk7ManualSeedSelection.Scenario || Scenario == Chunk7BootstrapInventorySelection.Scenario || Scenario == Chunk7SmallCalibrationSelection.Scenario && SmallCalibration?.UsesManualField != true || Scenario == Chunk7OrdinaryFieldSelection.Scenario) ? "Auto" : SelectedChunk7Scenario == "chunk7-persistence-load" && PersistenceLoad != null && IsChunk7PersistenceCase(PersistenceCase) ?
+        internal string ExpectedNativeLoadType => (Scenario == Chunk7AcquiredManualSelection.Scenario || Scenario == Chunk7ManualSeedSelection.Scenario || Scenario == Chunk7BootstrapInventorySelection.Scenario || Scenario == Chunk7SmallCalibrationSelection.Scenario && SmallCalibration?.UsesColdManualField != true || Scenario == Chunk7OrdinaryFieldSelection.Scenario) ? "Auto" : SelectedChunk7Scenario == "chunk7-persistence-load" && PersistenceLoad != null && IsChunk7PersistenceCase(PersistenceCase) ?
             (PersistenceCase == "multi-exploration-quick" ? "Quick" : PersistenceCase == "multi-exploration-auto" || PersistenceCase == "multi-area-autosave" ? "Auto" : "Manual") :
             IsTransitionAutoCase(PersistenceCase) ? "Auto" :
             Scenario == "persistence-p05-load" && PersistenceLoad != null ?
@@ -795,6 +795,21 @@ namespace KingmakerMountedCombat.Diagnostics
                         if (anchor == null || anchor.GameId == PersistenceLoad.GameId || anchor.Sha256 == PersistenceLoad.Sha256 ||
                             anchor.FileName == PersistenceLoad.FileName || anchor.InternalName == PersistenceLoad.InternalName)
                             errors.Add("Stock Mammoth owner seed must remain distinct from protected Working and Baseline.");
+                }
+            }
+            else if (Scenario == Chunk7SmallCalibrationSelection.Scenario && SmallCalibration?.UsesFixtureManualField == true)
+            {
+                if (PersistenceLoad == null) errors.Add("F09 Small calibration requires its exact qualified fixture Manual.");
+                else
+                {
+                    errors.AddRange(PersistenceLoad.Validate("persistenceLoad", Chunk7SmallFixtureManualSourceSelection.NativeName,
+                        "^Manual_[1-9][0-9]*_KMC_C7_SMALL_FIXTURE\\.zks$"));
+                    if (Fixture?.Working == null || PersistenceLoad.GameId == Fixture.Working.GameId ||
+                        !Chunk7SmallFixtureManualSourceSelection.IsNativeManualLeaf(PersistenceLoad.FileName) ||
+                        !Guid.TryParseExact(PersistenceLoad.GameId, "D", out var fixtureGameId) || fixtureGameId == Guid.Empty ||
+                        PersistenceLoad.Sha256 == Fixture.Working.Sha256 || PersistenceLoad.Sha256 == Fixture.Baseline?.Sha256 ||
+                        PersistenceLoad.Sha256 != SmallCalibration.FixtureSource?.SourceArchiveSha256)
+                        errors.Add("F09 Small Manual lacks its exact separately minted disposable identity.");
                 }
             }
             else if (Scenario == Chunk7SmallCalibrationSelection.Scenario && SmallCalibration?.UsesManualField == true)

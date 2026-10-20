@@ -53,6 +53,7 @@ The cases retain distinct source and field-admission contracts:
 | `compiled-small-horse-rt` | Ordinary paid Small acquisition artifact and unchanged remote `Auto_1.zks` | The owned native party selector brings the exact remote owner and reciprocal Horse into the field. |
 | `compiled-manual-derived-small-horse-rt` | `preserve-acquired-field` Manual from the `paid-small-ranger-horse` Manual-derived chain | Native cold load restores the saved field roster; no party selector is opened. Exact owner, Horse, sourced facts, body, progression and resources are checked against the saved evidence. |
 | `compiled-assisted-two-owner-small-horse-rt` | `preserve-two-acquired-field` Manual from the assisted paid Small chain | Native cold load restores both native pairs and exact inherited custody before Small calibration. |
+| `compiled-owner-seed-fixture-small-horse-rt` | Batch53's genuine `KMC_C7_SMALL_FIXTURE` Manual from preview.71, with its separate cold receipt and distinct current consumer identity | One read-only native Manual load restores seven actors and two pairs. Exact body, progression, saved native resources and neighboring main/Horse custody are checked before the same bounded mounted calibration. This is disclosed fixture setup, not acquired-field ancestry or ordinary acquisition proof. |
 
 Each source qualifier preserves its complete same-candidate ancestry, exact Working/Baseline pins, base-only qualification and restoration checks. The request selects only its corresponding source contract plus profile ID and immutable native inventory/declaration hashes. It cannot supply numeric pose parameters or register a profile dynamically. Bootstrap checks the compiled declaration before acquiring isolation or loading a world. Each case permits one source load and zero writable save leaves.
 
@@ -62,7 +63,7 @@ corrected to the shared native-entry contract (`OnNewRound` on
 negative checks pass; this reader correction has no Small mounted native
 result and does not admit the distinct F09 Manual yet.
 
-The read-only `Get-KmcChunk7SmallF09CalibrationSource` preflight now pins the
+The read-only `Get-KmcChunk7SmallF09CalibrationSource` preflight pins the
 batch53 producer Manual to preview.71 (`8f7f8976` DLL), its genuine
 `KMC_C7_SMALL_FIXTURE` archive (`ddf2b9cf`), and the accepted separate cold
 reader-only receipt (`d188012f`). It checks the original cold outer FAIL and
@@ -70,15 +71,20 @@ game/artifact PASS separately, all nine receipt input hashes, the seven-actor
 loaded roster and empty native preparation observation. A distinct consumer
 identity is required; this preflight returns `sameCandidate=false` and
 `nativeAuthorityGranted=false`. A local read-only positive and six pin/identity
-refusals passed 7/0. This function is not yet wired as a load or Small-profile
-calibration case; the current production catalogue remains empty.
+refusals passed 7/0. The distinct F09 calibration case now consumes that
+preflight through the existing locked runtime runner and one-load, zero-write
+authority. Its current exact 20-field body, seven-actor/native-resource and
+neighboring-pair reader checks pass synthetic positive and refusal tests;
+actual native mounted calibration has not run. The production catalogue
+remains empty, so bootstrap correctly refuses native calibration until a
+separately reviewed initial compiled declaration exists.
 Independent review passed on source SHA-256
 `68754937f51009b5c8ddbd6ee837a07c64163342707e3e1ac726b3a356fa2176`;
 the local read-only check receipt is
 `analysis-cache/chunk7-continuation/small-f09-cross-candidate-source-check.json`
 (SHA-256 `ca386594cb652f702343b086e6537673050a09c99d14f8c234e69a14ba22b89b`).
 
-After field admission, both cases exercise production Mount, native Horse ground movement after selection changes, one real-time rider primary, one real-time mount primary, native Dismount and bounded cleanup. No native Prepare, resource edits, free actions, money/XP grants, manual party insertion, or synthetic completion are selected. The real-time cost proof binds the exact UnitActionController cost-before/cost-after command pair; actor-cost hooks are turn-based only.
+After field admission, the cases exercise production Mount, native Horse ground movement after selection changes, one real-time rider primary, one real-time mount primary, native Dismount and bounded cleanup. No native Prepare, resource edits, free actions, money/XP grants, manual party insertion, or synthetic completion are selected. The real-time cost proof binds the exact UnitActionController cost-before/cost-after command pair; actor-cost hooks are turn-based only.
 
 The pose artifact records actual roots, seven declared rider bones, existing native Horse Chest/stirrup anchors, world/local coordinates, distances, production pose health and application counters during unmounted, idle, moving, arrived, both attacks and dismounted phases. The reader pins owner/generation/actor/rig identity and action windows, and recomputes distances. It does not invent a Small fit tolerance or turn a small/large stirrup gap into visual acceptance. HUMAN PLAY and visual/animation assessment remain separate. Performance and diagnostics-off proof are explicitly false.
 
@@ -86,4 +92,4 @@ Every worker/loading/serialization, UI, command/process, preparation, pair owner
 
 The read-only native inventory now also records Money, current custom-companion cost, PartyLevel, main-character XP/level, default hire XP, existing party IDs/capacity and Horse anchors. These are prerequisite observations and confer no purchase or six-pair authority.
 
-Required native sequence: observe an actual Small body/Horse field rig; preserve exact race/preset/gender/handedness/skeleton/equipment/scale and native geometry; author a measured initial private compiled declaration marked IN PROGRESS; qualify the selected remote Auto or acquired-field Manual and its full ancestry under the candidate containing that declaration; run the corresponding bounded calibration and correct or qualify the declaration from its evidence. An earlier candidate's source cannot be relabeled as the new candidate. No such fixture or numeric declaration is manufactured by these source checks.
+Required native sequence: preserve the already observed default Halfling/Horse body and neutral rig; author an initial private compiled declaration marked IN PROGRESS with ordinary-player admission closed; qualify this explicit cross-candidate F09 Manual under the current candidate; run the bounded native mounted calibration and correct or qualify the declaration from its evidence. An earlier candidate's source is not relabeled as the new candidate. The current F09 wiring and offline checks grant neither native mounted PASS nor normal-player Small support.
