@@ -12,6 +12,18 @@ patch owner. Exact Mods, protected saves, Areas and profile restoration passed.
 Ordinary doors, Small mounted, progression, measured 7D and final private 7E
 remain under the [standing mission](planning/CHUNK7-COMPLETION-MISSION.md).
 
+## October 20 - batch68 Small calibration FAIL and exact restoration
+
+The first native F09 Manual calibration on preview.83 failed an exact
+neighboring main/Horse snapshot check before pose qualification. Its observer
+retained custody and the runner timed out. The exact owned game process closed;
+guarded combined and profile recovery restored Mods, protected saves, Areas,
+UMM parameters and PlayerPrefs. The original FAIL remains. A bounded observer
+change records the first changed field while keeping the strict PASS check;
+independent review and Candidate 6/0 passed, but one distinct native run is
+needed. See the
+[batch68 record](docs/CHUNK7-BATCH68-SMALL-CALIBRATION-2026-10-20.md).
+
 ## October 20 - reviewed private Small declaration
 
 The stock default MaleHalfling/Horse body and proposed pose are now compiled

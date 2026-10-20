@@ -109,3 +109,11 @@ under the current candidate, then run the bounded native mounted calibration
 and correct or qualify the declaration from its evidence. An earlier
 candidate's source is not relabeled as the new candidate. Current checks grant
 neither native mounted PASS nor normal-player Small support.
+
+The first guarded native F09 consumer on preview.83 is an original
+**FAIL**, recorded in [batch68](CHUNK7-BATCH68-SMALL-CALIBRATION-2026-10-20.md).
+It admitted the exact Manual load but stopped at a neighboring main/Horse
+snapshot mismatch before any mounted-pose qualification. The exact transaction
+and startup profile were recovered separately. The next observer records the
+first differing field and native stage without changing the PASS assertion;
+no conclusion about the proposed Small pose follows from batch68.
