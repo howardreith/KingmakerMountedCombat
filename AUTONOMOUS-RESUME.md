@@ -1,5 +1,22 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## Active October 20 batch56 admitted Manticore Manual cold
+
+The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
+Current product source is `ebba47069cf06b2e18889c64f84e3513b2d7415a`
+on `codex/mounted-combat-chunk7-successor`, preview.73 package SHA-256
+`328a3d16b9e6a5a0b42ca5bfabf7815d9d0bac9b3b2e66217b1805d60f8edcfc`.
+The [batch55/56 record](docs/CHUNK7-BATCH55-56-MANTICORE-MANUAL-COLD-2026-10-20.md)
+keeps the original b55 native diagnostic-bind FAIL and b56 separate-process
+Manticore Manual cold outer/game PASS 4/0. Both transactions report `restored`,
+including live Mods, protected saves and Areas; no game or runtime lock remains.
+Next: independently review and connect the distinct Manticore saved graph to a
+visited Spider Cave return entrance for area Auto and cold, retaining b54's
+producer boundary and b56 cold proof. Do not reuse earlier Spider Cave owner
+identities. Continue positive mounted cleanup/DLL-absent load, Small mounted,
+progression, performance and readiness-gated private 7E. No merge, release,
+permanent installation or HUMAN PLAY acceptance.
+
 ## Active October 20 Manticore source gate
 
 The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
