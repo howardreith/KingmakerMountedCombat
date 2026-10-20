@@ -140,6 +140,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 Hash(sourcePath) == selection.SourceArtifactSha256, "Exact staged two-owner Manual receipt is absent or changed.");
             sourceLength = file.Length; sourceTicks = file.LastWriteTimeUtc.Ticks;
             var artifact = JObject.Parse(File.ReadAllText(sourcePath)); observations = artifact["observations"] as JObject;
+            if (selection.SmallFixtureLineage) { ReadSmallFixtureSource(artifact); return; }
             if (Chunk7OwnedPairsSelection.IsManticoreManualCold(request.PersistenceCase) || selection.IsManticoreReturnArea)
             { ReadManticoreManualSource(artifact); return; }
             if (selection.OwnerSeedDerivedLineage) { ReadOwnerSeedDerivedSource(artifact); return; }
@@ -168,6 +169,76 @@ namespace KingmakerMountedCombat.Diagnostics
             sourceArrangement = observations["beforeSaveArrangement"] as JObject;
             Require(sourceArrangement != null && JToken.DeepEquals(sourceArrangement, observations["afterSaveArrangement"]),
                 "Source Manual lacks unchanged native class/XP/funds evidence.");
+        }
+        private void ReadSmallFixtureSource(JObject artifact)
+        {
+            var input = request.PersistenceLoad;
+            var write = observations?["nativeWrite"] as JObject;
+            var field = observations?["fieldWorld"] as JObject;
+            var party = field?["party"] as JArray;
+            var owners = observations?["acquiredOwners"] as JArray;
+            var before = observations?["beforeSaveArrangement"] as JObject;
+            var after = observations?["afterSaveArrangement"] as JObject;
+            Require((string)artifact["scenario"] == Chunk7SmallFixtureSelection.Scenario &&
+                (string)artifact["evidenceKind"] == Chunk7SmallFixtureScenario.EvidenceKind &&
+                (string)artifact["runId"] == Chunk7OwnedPairsSelection.SmallFixtureProducerRun &&
+                (string)artifact["status"] == "PASS" && artifact["errors"] is JArray failures && failures.Count == 0 &&
+                (string)write?["sha256"] == Chunk7OwnedPairsSelection.SmallFixtureProducerArchive &&
+                (string)write?["internalName"] == Chunk7SmallFixtureSelection.OutputName &&
+                Chunk7SmallFixtureSelection.IsManualLeaf((string)write?["fileName"]) &&
+                (string)write?["gameId"] == Chunk7SmallFixtureSelection.CampaignId &&
+                (string)write?["area"] == Chunk7SmallFixtureSelection.AreaId &&
+                (string)field?["gameId"] == input.GameId && (string)field?["area"] == input.Area &&
+                (string)field?["mainActorId"] == Chunk7SmallFixtureSelection.MainActorId &&
+                party != null && party.Count == 7 &&
+                (int?)field["owners"] == 0 && observations["savedWorld"]?["owners"]?.Value<int>() == 0 &&
+                owners != null && owners.Count == 2 && before != null && after != null && JToken.DeepEquals(before, after) &&
+                (selection.IsSmallFixtureSave ? input.Sha256 == selection.SourceArchiveSha256 :
+                    input.Sha256 != selection.SourceArchiveSha256),
+                "Small fixture source lacks its exact successful seven-actor zero-pair Manual provenance.");
+            var roles = new[] { selection.RiderAId, selection.RiderBId };
+            var pets = new[] { selection.MountAId, selection.MountBId };
+            ownerRows = new JObject[2];
+            for (var index = 0; index < 2; index++)
+            {
+                var row = owners[index] as JObject;
+                Require(row != null && (string)row["riderId"] == roles[index] && (string)row["horseId"] == pets[index] &&
+                    (string)row["horseBlueprint"] == HorseCompanionBlueprintService.UnitGuid &&
+                    (string)row["featureGuid"] == horses.HorseFeature.AssetGuid &&
+                    row["reciprocal"]?.Type == JTokenType.Boolean && (bool)row["reciprocal"] &&
+                    row["featureSourceGuid"]?.Type == JTokenType.String &&
+                    row["rank"]?.Type == JTokenType.Integer && (int)row["rank"] > 0,
+                    "Small fixture role, sourced Horse or reciprocal pet differs from its producer.");
+                ownerRows[index] = new JObject { ["sourceGuid"] = row["featureSourceGuid"].DeepClone(),
+                    ["featureGuid"] = row["featureGuid"].DeepClone(), ["rank"] = row["rank"].DeepClone() };
+            }
+            sourceWorld = field;
+            sourceArrangement = ProjectSmallFixtureArrangement(before);
+            Require(sourceArrangement != null && party.Select(row => (string)row["id"]).OrderBy(id => id, StringComparer.Ordinal)
+                .SequenceEqual(selection.PartyIds.OrderBy(id => id, StringComparer.Ordinal)),
+                "Small fixture full native field roster differs from its closed seven-actor selection.");
+        }
+        private static JObject ProjectSmallFixtureArrangement(JObject source)
+        {
+            var rows = source?["actors"] as JArray;
+            Require(rows != null && rows.Count == 7 && source["money"]?.Type == JTokenType.Integer &&
+                source["experienceRatePercent"]?.Type == JTokenType.Integer &&
+                rows.All(item => item is JObject row && row["id"]?.Type == JTokenType.String &&
+                    row["blueprint"]?.Type == JTokenType.String && row["experience"]?.Type == JTokenType.Integer &&
+                    row["level"]?.Type == JTokenType.Integer && row["classes"] is JArray classes &&
+                    classes.All(value => value is JObject cls && cls["guid"]?.Type == JTokenType.String &&
+                        cls["level"]?.Type == JTokenType.Integer)),
+                "Small fixture arrangement cannot be projected into inherited native progression custody.");
+            return new JObject { ["money"] = source["money"].DeepClone(),
+                ["experienceRatePercent"] = source["experienceRatePercent"].DeepClone(),
+                ["actors"] = new JArray(rows.Children<JObject>().OrderBy(row => (string)row["id"], StringComparer.Ordinal)
+                    .Select(row => new JObject { ["actorId"] = row["id"].DeepClone(),
+                        ["blueprint"] = row["blueprint"].DeepClone(), ["experience"] = row["experience"].DeepClone(),
+                        ["characterLevel"] = row["level"].DeepClone(),
+                        ["classes"] = new JArray(((JArray)row["classes"]).Children<JObject>()
+                            .OrderBy(cls => (string)cls["guid"], StringComparer.Ordinal)
+                            .Select(cls => new JObject { ["classGuid"] = cls["guid"].DeepClone(),
+                                ["level"] = cls["level"].DeepClone() })) })) };
         }
         // The owner-seed-derived source is the producer's own successful same-candidate world
         // evidence: its labelled ancestry, the seed pins, the written Manual identity, its
@@ -394,11 +465,13 @@ namespace KingmakerMountedCombat.Diagnostics
             RequirePreserved();
             // Owner-seed-derived custody keeps its own labels; it is never relabelled acquired ancestry.
             var derived = selection.OwnerSeedDerivedLineage;
-            return new JObject { ["contract"] = derived ? "owner-seed-derived-two-horse-native-field-v1" : "inherited-two-horse-native-field-v1", ["phase"] = phase,
+            return new JObject { ["contract"] = selection.SmallFixtureLineage ? "owner-seed-small-fixture-two-horse-native-field-v1" :
+                    derived ? "owner-seed-derived-two-horse-native-field-v1" : "inherited-two-horse-native-field-v1", ["phase"] = phase,
                 ["sourceRunId"] = selection.SourceRunId, ["sourceArtifactSha256"] = selection.SourceArtifactSha256,
                 ["sourceArchiveSha256"] = selection.SourceArchiveSha256, ["sourceCase"] =
                     (Chunk7OwnedPairsSelection.IsManticoreManualCold(request.PersistenceCase) || selection.IsManticoreReturnArea) ?
                         Chunk7OwnedPairsSelection.ManticoreFixtureCheckpoint :
+                    selection.SmallFixtureLineage ? Chunk7SmallFixtureSelection.CaseName :
                     derived ? Chunk7OwnedPairsSelection.OwnerSeedManualCase : Chunk7OwnedPairsSelection.SourceCase,
                 ["nativeLoadVerifiedByHost"] = true, ["decodedReceiptAuthorizesRestoration"] = false,
                 ["inheritedPetsPreserved"] = true, ["ownedFactRemovalCount"] = 0,
