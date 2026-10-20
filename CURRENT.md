@@ -1,5 +1,17 @@
 # Chunk 7B–7D — IN PROGRESS
 
+## October 20 — batch93 retrain credit precondition FAIL
+
+[Batch93](docs/CHUNK7-BATCH93-RETRAIN-CREDIT-PRECONDITION-2026-10-20.md)
+froze pushed `255de34e` as world106. Mounted Small Manual 5/0 and separate
+cold 3/0 passed. The native retrain original **outer FAIL** executed the new
+`GainMoney` hook but rejected its compound callback-time precondition before
+accepting a credit or completing rebind/Manual. The exact transaction restored
+Mods, protected saves and profile bytes. A bounded diagnostic boundary snapshot
+passed independent source review, build, actual patch construction/removal
+24/0 and Fast 3/0; it has no native verdict. F10 retrain and the standing
+mission remain open.
+
 ## October 20 — reviewed native refund observer; game verification pending
 
 Batch92's original retrain outer **FAIL** remains. A read-only hook on the

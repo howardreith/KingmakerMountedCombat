@@ -38,6 +38,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private int callbackFrame = -1, entries, exits, previews, finishes, finishExits, advances, rebinds, moneyCredits;
         private int initialXp, initialUses, initialCost, expectedRefund;
         private long initialMoney, finishMoneyBefore, finishTicksBefore, creditAmount, creditBefore;
+        private JObject creditBoundary;
         private UnitDescriptor previewDescriptor, reboundDescriptor;
         private UnitEntityData preview;
         private CharacterBuildController nativeBuilder;
@@ -234,6 +235,7 @@ namespace KingmakerMountedCombat.Diagnostics
             ["initialMoney"] = initialMoney, ["nativeCost"] = initialCost,
             ["initialScrollRefund"] = expectedRefund, ["nativeScrollRefund"] = creditAmount,
             ["nativeMoneyCredits"] = moneyCredits, ["moneyCreditPending"] = creditPending,
+            ["creditBoundary"] = creditBoundary?.DeepClone(),
             ["diagnosticMoneyWrites"] = 0, ["diagnosticXpWrites"] = 0, ["diagnosticRestCalls"] = 0, ["diagnosticTimeAdvances"] = 0 };
         private void Patch(Type type, string name, int token, Type[] parameters, string before, string after)
         {
@@ -360,12 +362,22 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 var p = active; if (p == null || p.previews == 0) return;
                 p.Safe(() => {
-                    Require(ReferenceEquals(__instance, p.player) && p.entries == 1 && p.exits == 1 &&
+                    var playerExact = ReferenceEquals(__instance, p.player);
+                    var builderExact = ReferenceEquals(Game.Instance.UI.CharacterBuildController, p.nativeBuilder);
+                    var respecMode = p.nativeBuilder.LevelUpController?.State.Mode == LevelUpState.CharBuildMode.Respec;
+                    var callbackRefund = __instance.GetScrollRefundForRespec(p.original.Descriptor);
+                    if (p.creditBoundary == null)
+                        p.creditBoundary = new JObject { ["frame"] = Time.frameCount,
+                            ["playerExact"] = playerExact, ["builderExact"] = builderExact,
+                            ["respecMode"] = respecMode, ["entries"] = p.entries, ["exits"] = p.exits,
+                            ["finishes"] = p.finishes, ["priorMoneyCredits"] = p.moneyCredits,
+                            ["creditPending"] = p.creditPending, ["initialMoney"] = p.initialMoney,
+                            ["moneyBefore"] = __instance.Money, ["amount"] = amount,
+                            ["callbackRefund"] = callbackRefund };
+                    Require(playerExact && p.entries == 1 && p.exits == 1 &&
                         p.finishes == 0 && p.moneyCredits == 0 && !p.creditPending &&
-                        ReferenceEquals(Game.Instance.UI.CharacterBuildController, p.nativeBuilder) &&
-                        p.nativeBuilder.LevelUpController?.State.Mode == LevelUpState.CharBuildMode.Respec &&
-                        __instance.Money == p.initialMoney && amount >= 0 &&
-                        amount == __instance.GetScrollRefundForRespec(p.original.Descriptor),
+                        builderExact && respecMode && __instance.Money == p.initialMoney &&
+                        amount >= 0 && amount == callbackRefund,
                         "Native respec money credit is not the exact callback-time scroll refund.");
                     p.moneyCredits++; p.creditPending = true; p.creditAmount = amount;
                     p.creditBefore = __instance.Money; p.callbackFrame = Time.frameCount;
