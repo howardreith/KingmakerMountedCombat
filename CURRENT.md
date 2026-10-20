@@ -1,5 +1,18 @@
 # Chunk 7B–7D — IN PROGRESS
 
+## October 20 — batch96 native credits PASS, later pet binding FAIL
+
+[Batch96](docs/CHUNK7-BATCH96-RETRAIN-PET-SOURCE-2026-10-20.md) froze pushed
+`fd2be5a9` as world109. Mounted Small Manual 5/0 and separate cold 3/0
+passed. Retrain original **outer FAIL** followed accepted native credits of
+411 and 0, finish/day/rest, original rebind and one observed new-horse
+`AddPet` source. The rider's current pet then differed before another native
+`TryUpdatePet` entry. The intervening owner is unresolved. Exact Mods, saves
+and profile restoration passed; no game or lock remains. A bounded read-only
+pet-boundary snapshot passed independent review, build, actual hook checks
+24/0 and Fast 3/0, pending native verification. F10 retrain and the
+standing mission remain open.
+
 ## October 20 — batch95 identifies both native respec credits
 
 [Batch95](docs/CHUNK7-BATCH95-RETRAIN-TWO-NATIVE-CREDITS-2026-10-20.md)
