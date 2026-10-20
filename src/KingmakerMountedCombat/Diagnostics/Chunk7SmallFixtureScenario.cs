@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
 using Kingmaker;
 using Kingmaker.Blueprints;
@@ -175,9 +176,38 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 Fail("C7-small-fixture-runtime", "F09 stage=" + stage +
                     "; mainCommits=" + (mainDriver?.NativeCommitCount ?? 0) +
-                    "; hireCommits=" + (hireDriver?.NativeCommitCount ?? 0) + "; " + error);
+                    "; hireCommits=" + (hireDriver?.NativeCommitCount ?? 0) +
+                    "; roles=" + FailureRoleSnapshot() + "; " + error);
                 BeginCleanup();
             }
+        }
+
+        // The native builder may change a still-remote unit's view during a
+        // level commit. Observe the exact role and roster before deciding who
+        // can own that change; this never rebinds the captured world scope.
+        private string FailureRoleSnapshot()
+        {
+            try
+            {
+                return "main=" + FailureRole(main) + ",mainHorse=" + FailureRole(mainHorse) +
+                    ",paidBuilder=" + FailureRole(hireDriver?.Actor) +
+                    ",paidCaptured=" + FailureRole(actor) + ",paidPet=" + FailureRole(pet);
+            }
+            catch (Exception error) { return "unavailable(" + error.GetType().Name + ")"; }
+        }
+
+        private string FailureRole(UnitEntityData unit)
+        {
+            if (ReferenceEquals(unit, null)) return "null";
+            var view = unit.View;
+            return unit.UniqueId + "/level=" + unit.Descriptor.Progression.CharacterLevel +
+                "/inState=" + unit.IsInState +
+                "/inUnits=" + game.State.Units.Any(value => ReferenceEquals(value, unit)) +
+                "/inParty=" + game.Player.PartyCharacters.Count(value => ReferenceEquals(value.Value, unit)) +
+                "/inRemote=" + game.Player.RemoteCompanions.Count(value => ReferenceEquals(value.Value, unit)) +
+                "/driverActor=" + ReferenceEquals(hireDriver?.Actor, unit) +
+                "/nativeBuilder=" + ReferenceEquals(hireDriver?.ActiveNativeBuilderActor, unit) +
+                "/view=" + (ReferenceEquals(view, null) ? "null" : RuntimeHelpers.GetHashCode(view).ToString("x8"));
         }
 
         private void BindColdWorld()

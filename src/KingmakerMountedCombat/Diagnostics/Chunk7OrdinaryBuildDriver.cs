@@ -144,6 +144,7 @@ namespace KingmakerMountedCombat.Diagnostics
         }
 
         internal UnitEntityData Actor => actor;
+        internal UnitEntityData ActiveNativeBuilderActor => builder?.LevelUpController?.Unit?.Unit;
         internal bool Complete => complete;
         internal int AcceptedChoiceCount => choices;
         internal int NativeCommitCount => commits;
