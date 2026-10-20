@@ -164,6 +164,14 @@ namespace KingmakerMountedCombat.Diagnostics
             value == "multi-owned-worker-cancel-manual";
         internal static bool RepeatedCheckpoint(string value) => value == "multi-exploration-three-loads-manual" ||
             value == "multi-exploration-three-area-transfers-manual";
+        // A cold archive can still be an exploration field load. Only the combat
+        // consumers may skip the ordinary idle/empty-command readiness check.
+        internal bool RequiresCombatColdBind(string checkpoint) => Cold &&
+            checkpoint != "multi-exploration-manual" && checkpoint != "multi-exploration-quick" &&
+            checkpoint != "multi-exploration-auto" && checkpoint != "multi-area-autosave" &&
+            !RepeatedCheckpoint(checkpoint) && !IsManticoreManualCold(checkpoint) &&
+            !OwnedSchema1Cold(checkpoint) && checkpoint != "owned-schema1-current-manual" &&
+            !IsOwnerSeedLoadRefusal;
         internal int LoadCount(string checkpoint) => Cold && checkpoint == "multi-exploration-three-loads-manual" ? 3 : 1;
         // Owner seed: exactly the native setup level-up Autos its selection declares (bound at admission).
         // Owner-seed Manual producer: exactly its one measured Manual (no setup write exists).

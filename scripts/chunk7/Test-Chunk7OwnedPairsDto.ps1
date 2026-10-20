@@ -38,6 +38,9 @@ foreach($f in $fixtures){
  if((ConvertTo-KmcChunk7Canonical $actual.selection)-cne(ConvertTo-KmcChunk7Canonical $f.request.ownedPairs)){throw ('Actual DTO casing/types/null keys differ: '+$f.name)};$pass++
  if($actual.scenario-cne(Get-KmcChunk7SelectedScenario $f.request)-or$actual.expectedWriteCount-ne(Get-KmcChunk7OwnedWriteCount $f.request)-or$actual.fixtureArea-cne$f.request.persistenceLoad.area){throw ('Selected native case/fixture/quota differs: '+$f.name)};$pass++
  $expected=if($f.request.ownedPairs.case-ceq'persistence-load'){Get-KmcChunk7PersistenceType $f.request.persistenceCase}else{'Manual'};if($actual.expectedLoadType-cne$expected){throw 'Native input category differs'};$pass++
+ if($f.name-cin@('persistence-load-multi-exploration-manual','persistence-load-multi-rt-debt-manual')){
+  if($actual.requiresCombatColdBind-cne($f.name-ceq'persistence-load-multi-rt-debt-manual')){throw ('Inherited cold bind mode differs: '+$f.name)};$pass++
+ }
  $f.request.ownedPairs=$actual.selection;Assert-KmcChunk7OwnedPairsDescriptor $f.request;$pass++
 }
 # The actual serializer must leave every old closed selection unchanged while
@@ -104,7 +107,8 @@ $m.persistenceLoad.fileName='Manual_305_KMC_C7_AREA_FIXTURE.zks'
 $m.persistenceLoad.area=$m.ownedPairs.sourceArea
 $actual=[KingmakerMountedCombat.Tests.OwnedPairsDtoTests]::Project(($m|ConvertTo-Json -Depth 90))|ConvertFrom-Json
 if((ConvertTo-KmcChunk7Canonical $actual.selection)-cne(ConvertTo-KmcChunk7Canonical $m.ownedPairs)-or$actual.scenario-cne'chunk7-persistence-load'-or
-   $actual.expectedWriteCount-ne0-or$actual.expectedLoadType-cne'Manual'-or$actual.fixtureArea-cne$m.ownedPairs.sourceArea){throw 'Manticore cold DTO changed source, area, load category or write quota'};$pass++
+   $actual.expectedWriteCount-ne0-or$actual.expectedLoadType-cne'Manual'-or$actual.fixtureArea-cne$m.ownedPairs.sourceArea-or
+   $actual.requiresCombatColdBind){throw 'Manticore cold DTO changed source, area, load category, write quota or exploration bind mode'};$pass++
 $m.ownedPairs=$actual.selection;Assert-KmcChunk7OwnedPairsDescriptor $m;$pass++
 foreach($mutation in @('wrong-area','wrong-name','extra-checkpoint')){
  $q=$m|ConvertTo-Json -Depth 90|ConvertFrom-Json
