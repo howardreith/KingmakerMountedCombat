@@ -1,15 +1,16 @@
 # Chunk 7B–7D — IN PROGRESS
 
-## October 20 - batch64 stock Mammoth fixture engineering
+## October 20 - batch64 stock Mammoth fixture producer PASS
 
 The closed, base-only stock Mammoth producer from the qualified clean owner seed
-passed independent review and final Candidate 8/0 offline. It must prove seven ordinary Ranger commits, native
-rank-seven Large Mammoth, one genuine Manual and exact restoration before its
-output can be used for positive mounted cleanup and KMC-DLL-absent cold load.
-[Batch64](docs/CHUNK7-BATCH64-STOCK-MAMMOTH-FIXTURE-2026-10-20.md) records the
-current checks and remaining native prerequisite. The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md)
-remains active; ordinary door, Small mounted, progression, 7D and private 7E
-also remain open.
+passed independent review, Candidate 8/0 and one native run 5/0. It created
+a genuine `KMC_C7_STOCK_MAMMOTH` Manual with a reciprocal rank-seven Large
+stock Mammoth, current empty mounted metadata and no permanent KMC Horse
+references. [Batch64](docs/CHUNK7-BATCH64-STOCK-MAMMOTH-FIXTURE-2026-10-20.md)
+pins package, archive, evidence and exact restoration. This prepares a fixture;
+positive mounted cleanup and KMC-DLL-absent cold load remain open under the
+[standing mission](planning/CHUNK7-COMPLETION-MISSION.md), along with ordinary
+door, Small mounted, progression, 7D and selected private 7E.
 
 ## October 20 - batch63 Manticore Lair door inventory
 
