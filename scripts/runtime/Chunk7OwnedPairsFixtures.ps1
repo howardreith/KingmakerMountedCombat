@@ -476,7 +476,7 @@ function Get-KmcChunk7OwnedPairsSource($Selection,[AllowNull()][string]$Persiste
  $descriptor=[pscustomobject]@{internalName=$w.nativeName;fileName=$leaf;sha256=$w.sha256;length=$w.length;lastWriteTimeUtcTicks=[long](Get-Item -LiteralPath $w.path).LastWriteTimeUtc.Ticks;gameId=$manual.descriptor.gameId;gameName=$manual.descriptor.gameName;area=$archive.AreaId}
  Assert-KmcChunk7OwnedPairsDescriptor ([pscustomobject]@{scenario='chunk7-owned-two-pair-campaign';runId='unassigned-owned-cold';ownedPairs=$Selection;persistenceCase=$PersistenceCase;persistenceLoad=$descriptor;fixture=$Fixture;persistenceAreaTarget=$AreaTarget})
  Assert-KmcChunk7OwnedReceiptPins $set
- [pscustomobject]@{path=$w.path;descriptor=$descriptor;artifactPath=$manual.artifactPath;artifactSha256=$manual.artifactSha256;artifactLength=$manual.artifactLength;sourceRunId=$manual.sourceRunId;ancestry=$manual.ancestry;checkpointArtifactPath=$path;checkpointArtifactSha256=$Selection.checkpointSourceArtifactSha256;checkpointArtifactLength=[long]$file.Length}
+ [pscustomobject]@{path=$w.path;descriptor=$descriptor;artifactPath=$manual.artifactPath;artifactSha256=$manual.artifactSha256;artifactLength=$manual.artifactLength;sourceRunId=$manual.sourceRunId;ancestry=$manual.ancestry;checkpointArtifactPath=$path;checkpointArtifactSha256=$Selection.checkpointSourceArtifactSha256;checkpointArtifactLength=[long]$file.Length;checkpointCandidate=[pscustomobject]@{commit=$request.commit;dllSha256=$request.dllSha256;dllMvid=$request.dllMvid}}
 }
 function Copy-KmcChunk7OwnedPairsSourceArtifact($Source,[string]$ProfileRoot,$Lock){
  [void](Assert-KmcRuntimeLockOwner $Lock)
@@ -519,7 +519,11 @@ function Assert-KmcChunk7OwnedAreaColdSource($Source,$Request,$ColdArtifact){
  Assert-KmcNotReparsePoint $path 'owned area checkpoint';Assert-KmcNotHardLink $path 'owned area checkpoint';$file=Get-Item -LiteralPath $path
  if($file.Length-le0-or$file.Length-gt16MB-or$file.Length-ne$Source.checkpointArtifactLength-or(Get-KmcSha256 $path)-cne$Source.checkpointArtifactSha256){throw 'Owned area cold source changed after completed qualification.'}
  Assert-KmcManifestJsonMembersUnique $path 'owned area checkpoint';$parent=Read-KmcJson $path
- foreach($key in @('commit','dllSha256','dllMvid')){Assert-KmcBootstrapInventoryString $parent.$key $Request.$key}
+ # The accepted producer is already pinned and revalidated against its own
+ # request by Get-KmcChunk7OwnedPairsSource. A later read-only consumer may use
+ # another candidate; compare each receipt to the candidate it actually ran.
+ foreach($key in @('commit','dllSha256','dllMvid')){Assert-KmcBootstrapInventoryString $parent.$key $Source.checkpointCandidate.$key}
+ if($parent.commit-cnotmatch'^[a-f0-9]{40}$'-or$parent.dllSha256-cnotmatch'^[a-f0-9]{64}$'-or$parent.dllMvid-cnotmatch'^[a-f0-9-]{36}$'){throw 'Owned area producer candidate identity is malformed.'}
  Assert-KmcBootstrapInventoryString $parent.runId $Request.ownedPairs.checkpointSourceRunId;Assert-KmcBootstrapInventoryString $parent.scenario 'chunk7-owned-two-pair-campaign';Assert-KmcBootstrapInventoryString $parent.status 'PASS'
  if(($parent.observations.inheritedFixture.sourceCase-ceq'owner-seed-manticore-fixture-manual')-ne
     (Test-KmcChunk7ManticoreReturnArea $Request.ownedPairs)){

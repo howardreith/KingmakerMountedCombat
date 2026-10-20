@@ -1,5 +1,23 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## Active October 20 batch62 door inventory and reader-only correction
+
+The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
+Preview.78 source commit `fff874d1` passed Candidate 7/0 and yielded package
+SHA-256 `9db63e7f9a1219923efee1d9ac4e79b2175a0d126cda3a80b008572338c86051`.
+The [batch62 record](docs/CHUNK7-BATCH62-SPIDER-DOOR-INVENTORY-2026-10-20.md)
+preserves the original outer FAIL after native game PASS 3/0. An external
+reader's same-DLL assumption was corrected and the immutable-artifact
+reader-only re-evaluation passed separately. The read-only Spider Cave scan
+found zero `StandardDoor` candidates, so the ordinary-door requirement remains
+open for another admitted scene. The guarded transaction restored Mods, saves,
+Areas and profile bytes exactly, with no cache exception or live game/lock.
+Next: finish the independent stock-Mammoth reference-free positive cleanup
+route, Small mounted calibration and eligible progression while identifying a
+suitable ordinary-door fixture. Continue measured 7D and readiness-gated 7E;
+do not treat the local door absence as an exclusion. No merge, release,
+permanent installation or HUMAN PLAY acceptance.
+
 ## Active October 20 batch60–61 area Auto/cold accepted
 
 The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.

@@ -1,5 +1,17 @@
 # Chunk 7B–7D — IN PROGRESS
 
+## October 20 - batch62 Spider Cave door inventory
+
+Preview.78 Candidate passed 7/0. The one guarded cold diagnostic had native
+game PASS 3/0 and found zero `StandardDoor` candidates in Spider Cave. Its
+original outer FAIL came from a same-candidate assumption in the external area
+reader; the corrected reader passed on the unchanged artifacts in a separate
+reader-only re-evaluation. Exact restoration passed. The
+[batch62 record](docs/CHUNK7-BATCH62-SPIDER-DOOR-INVENTORY-2026-10-20.md)
+keeps both verdicts and the local door deferral distinct. Ordinary door,
+positive removal/DLL absence, Small, progression, 7D and final private 7E
+remain open under the [standing mission](planning/CHUNK7-COMPLETION-MISSION.md).
+
 ## October 20 - batches 60–61 Spider Cave Auto and cold
 
 Preview.77's genuine Spider Cave AfterEntry Auto producer and independent
