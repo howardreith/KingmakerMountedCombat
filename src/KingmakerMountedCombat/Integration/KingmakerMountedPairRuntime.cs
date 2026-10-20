@@ -284,15 +284,26 @@ namespace KingmakerMountedCombat.Integration
                 return "A mounted unit view was detached or replaced.";
             }
 
-            var modeDisposition = MountedGameModePolicy.Classify(Game.Instance?.CurrentMode.ToString());
+            var exactMode = Game.Instance == null ? "unavailable" : Game.Instance.CurrentMode.ToString();
+            var modeDisposition = MountedGameModePolicy.Classify(exactMode);
+            var riderActiveSelf = riderView.gameObject.activeSelf;
+            var mountActiveSelf = mountView.gameObject.activeSelf;
+            var riderActiveInHierarchy = riderView.gameObject.activeInHierarchy;
+            var mountActiveInHierarchy = mountView.gameObject.activeInHierarchy;
             if (!MountedViewActivityPolicy.IsAdmissible(
                 modeDisposition,
-                riderView.gameObject.activeSelf,
-                mountView.gameObject.activeSelf,
-                riderView.gameObject.activeInHierarchy,
-                mountView.gameObject.activeInHierarchy))
+                riderActiveSelf,
+                mountActiveSelf,
+                riderActiveInHierarchy,
+                mountActiveInHierarchy))
             {
-                return "Mounted rider/mount view activity is incoherent for the exact current game mode.";
+                // Only this failing boundary emits the four values used by the
+                // decision. Do not change the native view or cleanup behavior.
+                return "Mounted rider/mount view activity is incoherent for the exact current game mode: rider=" + rider.UniqueId +
+                    ";mount=" + mount.UniqueId + ";mode=" + exactMode +
+                    ";disposition=" + modeDisposition + ";riderSelf=" + riderActiveSelf +
+                    ";mountSelf=" + mountActiveSelf + ";riderHierarchy=" + riderActiveInHierarchy +
+                    ";mountHierarchy=" + mountActiveInHierarchy + ".";
             }
 
             if (rider.Descriptor?.Pet != mount || mount.Descriptor?.Master.Value != rider || !mount.Descriptor.IsPet)
