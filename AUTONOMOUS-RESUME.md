@@ -1,5 +1,29 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## Active October 20 after batch84 — Small selector invalidation
+
+The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
+[Batch84](docs/CHUNK7-BATCH84-SMALL-DISMISSAL-2026-10-20.md) froze pushed
+`7c6ba455a12d4863937ad3f452258280d23a0026` as preview.97 and ran three
+declared scenarios. A fresh genuine mounted Small Manual and separate cold
+consumer passed **5/0** and **3/0**. The targeted native dismissal **FAIL**
+before `Player.DismissCompanion`: `ShowPartySelection` was followed by mounted
+view-activity invalidation and `CompanionInvalidated`; guarded cleanup retained
+custody. Do not transfer this failure to the reviewed native auto-merge repair,
+which remains unverified in game. Exact combined and independently reviewed
+one-run profile recovery restored Mods, protected saves, profile, UMM Params
+and preferences; no game or transaction lock remains. All original batch81–84
+failures remain separate.
+
+A bounded read-only candidate now records the exact actor, mode and four view
+activity flags only at that invariant failure. Independent review passed on
+source SHA-256 `2e5c0578b5efa313847739a66a421d98b9b31abb89288d7ad703fd66c3586af9`;
+focused policy checks passed 126/0 and Fast passed 3/0. Freeze one new
+candidate and use a fresh declared
+producer/cold/diagnostic sequence to distinguish stock selector transience
+from a true invalid view. Do not relax the invariant on the current generic
+warning. Continue independent F09/F10/F11 and selected private 7E work.
+
 ## Active October 20 after batch83 — exact Small dismissal inventory cause
 
 The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.

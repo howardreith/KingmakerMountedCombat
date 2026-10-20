@@ -1,5 +1,17 @@
 # Chunk 7B–7D — IN PROGRESS
 
+## October 20 — batch84 Small selector invalidation
+
+[Batch84](docs/CHUNK7-BATCH84-SMALL-DISMISSAL-2026-10-20.md) froze the reviewed
+native inventory correction as preview.97. Fresh Small mounted Manual and
+separate cold load passed game/outer **5/0** and **3/0**. The native dismissal
+slot **FAIL** before removal: opening `ShowPartySelection` preceded a generic
+mounted view-activity invalidation and `CompanionInvalidated` dismount. Exact
+combined/profile recovery restored all live surfaces; no game or lock remains.
+A bounded read-only boundary observation passed independent review and Fast.
+Original batch81–84
+FAILs remain distinct; F10 dismissal and the standing mission remain open.
+
 ## October 20 — batch83 native Small dismissal root cause
 
 [Batch83](docs/CHUNK7-BATCH83-SMALL-DISMISSAL-2026-10-20.md) repeated the
