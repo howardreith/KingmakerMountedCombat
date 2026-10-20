@@ -10,6 +10,7 @@ function Read-KmcChunk7ProgressionSelectionFile([string]$Path,[string]$RunId){
 }
 function Get-KmcChunk7ProgressionSource($Selection,$Fixture,$Candidate){
     Assert-KmcChunk7ProgressionSelection ([pscustomobject]@{scenario='chunk7-native-progression';runId='unassigned-progression-run';progression=$Selection})
+    if(Test-KmcChunk7SmallProgressionCase $Selection.case){return Get-KmcChunk7SmallProgressionSource $Selection $Fixture $Candidate}
     if(Test-KmcChunk7OwnedProgressionCase $Selection.case){return Get-KmcChunk7OwnedProgressionSource $Selection $Fixture $Candidate}
     $sourceRoot=Assert-KmcChildPath (Join-Path (Get-KmcLabRoot) ('runtime-evidence/'+$Selection.sourceRunId)) (Join-Path (Get-KmcLabRoot) 'runtime-evidence') 'progression source receipts'
     $hashes=@{}
@@ -139,6 +140,36 @@ function Get-KmcChunk7OwnedProgressionSource($Selection,$Fixture,$Candidate){
     foreach($item in $files){if((Get-KmcSha256 $item.path)-cne$item.hash-or(Get-Item -LiteralPath $item.path).Length-ne$item.length){throw 'Owned progression source changed during exact read-only projection.'}}
     [pscustomobject]@{path=$source.path;descriptor=$source.descriptor;artifactPath=$source.checkpointArtifactPath;artifactSha256=$Selection.sourceArtifactSha256;artifactLength=[long]$source.checkpointArtifactLength;
         inventory=[pscustomobject]@{path=$source.artifactPath;sha256=$Selection.inventoryArtifactSha256;length=[long]$source.artifactLength};sourceProcessId=$artifact.observations.processId}
+}
+function Get-KmcChunk7SmallProgressionSource($Selection,$Fixture,$Candidate){
+    $source=Get-KmcChunk7OwnedPairsSource $Selection.ownedSource 'multi-exploration-manual' $Fixture $Candidate
+    $request=[pscustomobject]@{scenario='chunk7-native-progression';runId='unassigned-small-progression';progression=$Selection;persistenceLoad=$source.descriptor;fixture=$Fixture}
+    Assert-KmcChunk7ProgressionLoadDescriptor $request
+    $set=Get-KmcChunk7OwnedReceiptSet $Selection.inventoryRunId 'chunk7-persistence-evidence.json'
+    Assert-KmcChunk7OwnedSourceCompletion $set $Selection.inventoryRunId 'chunk7-owned-two-pair-campaign' $Fixture $Candidate $Selection.sourceArchiveSha256 0
+    Assert-KmcBootstrapInventoryString $set.request.ownedPairs.case 'small-fixture-persistence-load'
+    Assert-KmcBootstrapInventoryString $set.request.persistenceCase 'multi-exploration-manual'
+    Assert-KmcChunk7OwnedPairsDescriptor $set.request
+    if((ConvertTo-KmcChunk7Canonical $set.request.ownedPairs)-cne(ConvertTo-KmcChunk7Canonical $Selection.ownedSource)-or
+       (ConvertTo-KmcChunk7Canonical $set.request.persistenceLoad)-cne(ConvertTo-KmcChunk7Canonical $source.descriptor)){
+        throw 'Small dismissal cold consumer changed its mounted producer or qualified fixture lineage.'
+    }
+    Assert-KmcChunk7PersistenceArtifact $set.request $set.manifest 'PASS'
+    $producer=Read-KmcJson $source.checkpointArtifactPath
+    $coldPath=Join-Path $set.root 'chunk7-persistence-evidence.json';$cold=Read-KmcJson $coldPath
+    Assert-KmcChunk7SmallMountedColdSource $set.request $producer $cold
+    $files=@([pscustomobject]@{path=$source.checkpointArtifactPath;hash=$Selection.sourceArtifactSha256;length=$source.checkpointArtifactLength;maximum=16MB},
+        [pscustomobject]@{path=$coldPath;hash=$Selection.inventoryArtifactSha256;length=(Get-Item -LiteralPath $coldPath).Length;maximum=16MB})
+    foreach($item in $files){
+        Assert-KmcNotReparsePoint $item.path 'Small progression source';Assert-KmcNotHardLink $item.path 'Small progression source'
+        $file=Get-Item -LiteralPath $item.path
+        if($file.Length-le0-or$file.Length-gt$item.maximum-or$file.Length-ne$item.length-or(Get-KmcSha256 $item.path)-cne$item.hash){throw 'Small progression producer/cold consumer differs from immutable pins.'}
+    }
+    Assert-KmcChunk7OwnedReceiptPins $set
+    [pscustomobject]@{path=$source.path;descriptor=$source.descriptor;artifactPath=$source.checkpointArtifactPath;
+        artifactSha256=$Selection.sourceArtifactSha256;artifactLength=[long]$source.checkpointArtifactLength;
+        inventory=[pscustomobject]@{path=$coldPath;sha256=$Selection.inventoryArtifactSha256;length=[long]$files[1].length};
+        sourceProcessId=$producer.observations.processId}
 }
 function Get-KmcChunk7ProgressionInputLeaf($Request){
     Assert-KmcChunk7ProgressionLoadDescriptor $Request

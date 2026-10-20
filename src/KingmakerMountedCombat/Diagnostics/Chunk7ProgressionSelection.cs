@@ -15,6 +15,7 @@ namespace KingmakerMountedCombat.Diagnostics
         public const string RetrainMammothCase = "horse-native-retrain-mammoth";
         public const string OwnedLevelCase = "owned-horse-native-level";
         public const string OwnedDismissCase = "owned-horse-native-dismiss";
+        public const string SmallDismissCase = "small-horse-native-dismiss";
         public const string OwnedRetrainHorseCase = "owned-horse-native-retrain-horse";
         public const string OwnedRetrainMammothCase = "owned-horse-native-retrain-mammoth";
         public const string SourceLeaf = "Manual_300_KMC_C7_WORLD.zks";
@@ -46,7 +47,8 @@ namespace KingmakerMountedCombat.Diagnostics
         public string NativeWriteLeaf { get; set; }
         public Chunk7OwnedPairsSelection OwnedSource { get; set; }
         public bool ShouldSerializeOwnedSource() => OwnedSource != null;
-        internal bool IsOwned => Case == OwnedLevelCase || Case == OwnedDismissCase || Case == OwnedRetrainHorseCase || Case == OwnedRetrainMammothCase;
+        internal bool IsSmallDismiss => Case == SmallDismissCase;
+        internal bool IsOwned => IsSmallDismiss || Case == OwnedLevelCase || Case == OwnedDismissCase || Case == OwnedRetrainHorseCase || Case == OwnedRetrainMammothCase;
         internal string OperationCase
         {
             get
@@ -54,7 +56,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 switch (Case)
                 {
                     case LevelCase: case OwnedLevelCase: return LevelCase;
-                    case DismissCase: case OwnedDismissCase: return DismissCase;
+                    case DismissCase: case OwnedDismissCase: case SmallDismissCase: return DismissCase;
                     case RetrainHorseCase: case OwnedRetrainHorseCase: return RetrainHorseCase;
                     case RetrainMammothCase: case OwnedRetrainMammothCase: return RetrainMammothCase;
                     default: return null;
@@ -100,13 +102,26 @@ namespace KingmakerMountedCombat.Diagnostics
                 else
                 {
                     errors.AddRange(OwnedSource.Validate(Chunk7OwnedPairsSelection.Scenario, runId, "multi-exploration-manual"));
-                    if (OwnedSource.Case != "persistence-load" || OwnedSource.ExpectedNativeLoadCount != 1 || OwnedSource.ExpectedNativeWriteCount != 0 ||
-                        SourceRunId != OwnedSource.CheckpointSourceRunId || SourceArtifactSha256 != OwnedSource.CheckpointSourceArtifactSha256 ||
-                        InventoryRunId != OwnedSource.SourceRunId || InventoryArtifactSha256 != OwnedSource.SourceArtifactSha256)
-                        errors.Add("Owned progression requires one read-only Manual exploration checkpoint and its exact acquired inventory ancestry.");
-                    if (!((ActorId == OwnedSource.RiderAId && PetId == OwnedSource.MountAId && ControlActorId == OwnedSource.RiderBId && ControlPetId == OwnedSource.MountBId) ||
-                        (ActorId == OwnedSource.RiderBId && PetId == OwnedSource.MountBId && ControlActorId == OwnedSource.RiderAId && ControlPetId == OwnedSource.MountAId)))
-                        errors.Add("Owned progression target/control must be the exact two declared Horse pairs.");
+                    if (IsSmallDismiss)
+                    {
+                        if (!OwnedSource.IsSmallFixtureLoad || OwnedSource.ExpectedNativeLoadCount != 1 || OwnedSource.ExpectedNativeWriteCount != 0 ||
+                            SourceRunId != OwnedSource.CheckpointSourceRunId || SourceArtifactSha256 != OwnedSource.CheckpointSourceArtifactSha256 ||
+                            InventoryRunId == SourceRunId || InventoryRunId == OwnedSource.SourceRunId ||
+                            InventoryArtifactSha256 == SourceArtifactSha256 || InventoryArtifactSha256 == OwnedSource.SourceArtifactSha256 ||
+                            ActorId != OwnedSource.RiderBId || PetId != OwnedSource.MountBId ||
+                            ControlActorId != OwnedSource.RiderAId || ControlPetId != OwnedSource.MountAId)
+                            errors.Add("Small dismissal requires its exact mounted Manual producer, separate cold consumer and Small target/Medium control.");
+                    }
+                    else
+                    {
+                        if (OwnedSource.Case != "persistence-load" || OwnedSource.ExpectedNativeLoadCount != 1 || OwnedSource.ExpectedNativeWriteCount != 0 ||
+                            SourceRunId != OwnedSource.CheckpointSourceRunId || SourceArtifactSha256 != OwnedSource.CheckpointSourceArtifactSha256 ||
+                            InventoryRunId != OwnedSource.SourceRunId || InventoryArtifactSha256 != OwnedSource.SourceArtifactSha256)
+                            errors.Add("Owned progression requires one read-only Manual exploration checkpoint and its exact acquired inventory ancestry.");
+                        if (!((ActorId == OwnedSource.RiderAId && PetId == OwnedSource.MountAId && ControlActorId == OwnedSource.RiderBId && ControlPetId == OwnedSource.MountBId) ||
+                            (ActorId == OwnedSource.RiderBId && PetId == OwnedSource.MountBId && ControlActorId == OwnedSource.RiderAId && ControlPetId == OwnedSource.MountAId)))
+                            errors.Add("Owned progression target/control must be the exact two declared Horse pairs.");
+                    }
                 }
             }
             else
@@ -138,15 +153,19 @@ namespace KingmakerMountedCombat.Diagnostics
                 errors.Add("Owned progression requires its exact separately qualified Manual source and protected fixture identities.");
             else
             {
-                errors.AddRange(source.Validate("persistenceLoad", "KMC_C7_WORLD",
-                    "^Manual_[1-9][0-9]*_KMC_C7_WORLD\\.zks$"));
-                var numberMatch = Regex.Match(source.FileName ?? "", "^Manual_([1-9][0-9]*)_KMC_C7_WORLD\\.zks$");
+                var name = IsSmallDismiss ? Chunk7OwnedPairsSelection.SmallFixtureManualName : "KMC_C7_WORLD";
+                var pattern = "^Manual_([1-9][0-9]*)_" + name + "\\.zks$";
+                errors.AddRange(source.Validate("persistenceLoad", name, "^Manual_[1-9][0-9]*_" + name + "\\.zks$"));
+                var numberMatch = Regex.Match(source.FileName ?? "", pattern);
                 if (!numberMatch.Success || !int.TryParse(numberMatch.Groups[1].Value, System.Globalization.NumberStyles.None,
-                    System.Globalization.CultureInfo.InvariantCulture, out var number) || number <= 0 ||
-                    source.FileName != "Manual_" + number.ToString(System.Globalization.CultureInfo.InvariantCulture) + "_KMC_C7_WORLD.zks" ||
+                    System.Globalization.CultureInfo.InvariantCulture, out var number) || number <= 0 || IsSmallDismiss && number == int.MaxValue ||
+                    source.FileName != "Manual_" + number.ToString(System.Globalization.CultureInfo.InvariantCulture) + "_" + name + ".zks" ||
                     !Guid.TryParseExact(source.GameId, "D", out var campaign) || campaign == Guid.Empty || campaign.ToString("D") != source.GameId ||
                     source.GameId == fixture.Working.GameId)
                     errors.Add("Owned progression requires the canonical engine-minted campaign and positive native Manual number.");
+                if (IsSmallDismiss && (source.GameId != Chunk7SmallFixtureSelection.CampaignId ||
+                    source.GameName != Chunk7SmallFixtureSelection.CampaignName || source.Area != Chunk7SmallFixtureSelection.AreaId))
+                    errors.Add("Small dismissal requires its qualified seven-actor campaign and area.");
                 if (source.Sha256 != SourceArchiveSha256 || source.Sha256 == OwnedSource.SourceArchiveSha256 ||
                     source.Sha256 == fixture.Working.Sha256 || source.Sha256 == fixture.Baseline.Sha256)
                     errors.Add("Owned progression must load its exact fresh mounted checkpoint, not the unmounted ancestry or protected Working.");

@@ -16,6 +16,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private readonly bool ownedProgression;
         private readonly string ownedSelectionKey;
         private JObject ownedSourceWorld, ownedSourceInventory;
+        private JObject smallColdFixture;
         private JArray ownedSourceOwners;
         private UnitEntityData[] ownedParty, ownedCharacters, ownedActors;
         private MountedPairOwner<UnitEntityData, GameMountedRelationshipService> ownedControl;
@@ -55,6 +56,50 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["nativeSourceGraphExact"] = true, ["inventoryActor"] = actor.DeepClone(),
                 ["ownedSource"] = Chunk7EvidenceDto.Request(pins), ["inventoryWorld"] = ownedSourceWorld.DeepClone() };
         }
+        private void ReadSmallOwnedSources(JObject source, JObject inventory)
+        {
+            var pins = selection.OwnedSource;
+            var written = source["observations"]?["nativeWrite"]?["archive"];
+            var cold = inventory["observations"]?["inheritedFixture"] as JObject;
+            Require((string)source["runId"] == selection.SourceRunId &&
+                (string)source["scenario"] == Chunk7OwnedPairsSelection.Scenario &&
+                (string)source["evidenceKind"] == Chunk7PersistenceScenario.EvidenceKind &&
+                (string)source["observations"]?["checkpoint"] == "multi-exploration-manual" &&
+                (string)source["observations"]?["nativeWrite"]?["sha256"] == selection.SourceArchiveSha256 &&
+                (string)inventory["runId"] == selection.InventoryRunId &&
+                (string)inventory["scenario"] == Chunk7OwnedPairsSelection.Scenario &&
+                (string)inventory["evidenceKind"] == Chunk7PersistenceScenario.EvidenceKind &&
+                (string)inventory["observations"]?["checkpoint"] == "multi-exploration-manual" &&
+                (bool?)inventory["observations"]?["cold"] == true &&
+                JToken.DeepEquals(written, inventory["observations"]?["loadedArchive"]) &&
+                JToken.DeepEquals(written, JObject.FromObject(persistence.LoadedArchive, MountedSaveCodec.CreateSerializer())) &&
+                (string)cold?["sourceCase"] == "owner-seed-default-halfling-horse-manual" &&
+                JToken.DeepEquals(source["observations"]?["inheritedCleanup"]?["partyIds"], cold?["partyIds"]),
+                "Small dismissal requires its exact same-candidate mounted producer and independent cold-consumer graph.");
+            var arrangement = cold["arrangement"]?["actors"] as JArray;
+            ownedSourceOwners = cold["pairs"] as JArray;
+            Require(arrangement?.Count == pins.PartyIds.Length && ownedSourceOwners?.Count == 2 &&
+                cold["partyIds"] is JArray partyIds && partyIds.Count == pins.PartyIds.Length &&
+                pins.PartyIds.All(id => partyIds.Count(value => (string)value == id) == 1),
+                "Small dismissal lost its qualified seven-actor field and pair roles.");
+            for (var i = 0; i < 2; i++)
+                Require((string)ownedSourceOwners[i]["riderId"] == pins.PairIds[i * 2] &&
+                    (string)ownedSourceOwners[i]["mountId"] == pins.PairIds[i * 2 + 1],
+                    "Small dismissal substituted its qualified Medium/Small pair order.");
+            var target = arrangement.Children<JObject>().SingleOrDefault(row => (string)row["actorId"] == selection.ActorId);
+            Require(target != null && (string)target["blueprint"] == "baaff53a675a84f4983f1e2113b24552",
+                "Small dismissal target is not the paid custom Halfling in the cold field arrangement.");
+            smallColdFixture = cold;
+            ownedSourceWorld = new JObject { ["mainActorId"] = Chunk7SmallFixtureSelection.MainActorId,
+                ["party"] = new JArray(arrangement.Children<JObject>().Select(row => new JObject {
+                    ["id"] = (string)row["actorId"], ["blueprint"] = (string)row["blueprint"] })) };
+            evidence["source"] = new JObject { ["sourceRunId"] = selection.SourceRunId, ["sourceArtifactSha256"] = selection.SourceArtifactSha256,
+                ["sourceArchiveSha256"] = selection.SourceArchiveSha256, ["inventoryRunId"] = selection.InventoryRunId,
+                ["inventoryArtifactSha256"] = selection.InventoryArtifactSha256, ["sameCandidate"] = true,
+                ["nativeSourceGraphExact"] = true, ["inventoryActor"] = target.DeepClone(),
+                ["ownedSource"] = Chunk7EvidenceDto.Request(pins), ["inventoryWorld"] = ownedSourceWorld.DeepClone(),
+                ["smallColdFixture"] = cold.DeepClone(), ["smallFixtureSetupOnly"] = true };
+        }
         private void BindOwnedRoster()
         {
             var game = Game.Instance; var pins = selection.OwnedSource;
@@ -75,19 +120,26 @@ namespace KingmakerMountedCombat.Diagnostics
             foreach (var pair in new[] { new[] { rider, mount }, new[] { controlRider, controlMount } })
             {
                 var actor = pair[0]; var pet = pair[1];
-                var prior = ownedSourceOwners.Single(value => (string)value["actorId"] == actor.UniqueId);
+                var prior = ownedSourceOwners.Single(value => (string)value[selection.IsSmallDismiss ? "riderId" : "actorId"] == actor.UniqueId);
                 var fact = actor.Descriptor.GetFact(horses.HorseFeature) as Feature; var rank = actor.Descriptor.GetFact(horses.LevelRank);
-                var inventory = ((JArray)ownedSourceInventory["party"]).Single(value => (string)value["id"] == actor.UniqueId);
+                var inventory = selection.IsSmallDismiss
+                    ? ((JArray)smallColdFixture["arrangement"]["actors"]).Single(value => (string)value["actorId"] == actor.UniqueId)
+                    : ((JArray)ownedSourceInventory["party"]).Single(value => (string)value["id"] == actor.UniqueId);
+                var expectedSize = selection.IsSmallDismiss && ReferenceEquals(actor, rider) ? Size.Small : Size.Medium;
                 Require(characters.Count(value => ReferenceEquals(value, actor)) == 1 && pet.Blueprint == horses.HorseUnit &&
-                    SupportedMountedProfiles.Resolve(actor, pet)?.Id == SupportedMountedProfiles.Horse.Id &&
-                    actor.Descriptor.OriginalSize == Size.Medium && actor.Descriptor.State.Size == Size.Medium &&
-                    (string)inventory["originalSize"] == "Medium" && (string)inventory["effectiveSize"] == "Medium" &&
-                    (int)inventory["nativeLevelUpReadiness"]["characterLevel"] == actor.Descriptor.Progression.CharacterLevel &&
-                    (int)inventory["nativeLevelUpReadiness"]["experience"] == actor.Descriptor.Progression.Experience &&
+                    SupportedMountedProfiles.Resolve(actor, pet)?.Id == (expectedSize == Size.Small ? "small-default-halfling-horse-v1" : SupportedMountedProfiles.Horse.Id) &&
+                    actor.Descriptor.OriginalSize == expectedSize && actor.Descriptor.State.Size == expectedSize &&
+                    (selection.IsSmallDismiss ? (string)inventory["blueprint"] == actor.Blueprint.AssetGuid &&
+                        (int)inventory["characterLevel"] == actor.Descriptor.Progression.CharacterLevel &&
+                        (int)inventory["experience"] == actor.Descriptor.Progression.Experience :
+                        (string)inventory["originalSize"] == "Medium" && (string)inventory["effectiveSize"] == "Medium" &&
+                        (int)inventory["nativeLevelUpReadiness"]["characterLevel"] == actor.Descriptor.Progression.CharacterLevel &&
+                        (int)inventory["nativeLevelUpReadiness"]["experience"] == actor.Descriptor.Progression.Experience) &&
                     ReferenceEquals(actor.Descriptor.Pet, pet) && ReferenceEquals(pet.Descriptor.Master.Value, actor) &&
                     fact?.Source != null && rank != null && (string)prior["sourceGuid"] == fact.Source.AssetGuid &&
-                    (string)prior["featureGuid"] == horses.HorseFeature.AssetGuid && (int)prior["rank"] == rank.GetRank(),
-                    "Owned progression requires both exact Medium Horse bodies, real XP/levels and original sourced facts.");
+                    (selection.IsSmallDismiss || (string)prior["featureGuid"] == horses.HorseFeature.AssetGuid) &&
+                    (int)prior["rank"] == rank.GetRank(),
+                    "Owned progression requires exact native Horse bodies, real XP/levels and original sourced facts.");
             }
             ownedControl = world.Registry.FindActive(controlRider);
             Require(ownedControl != null && ReferenceEquals(ownedControl.Mount, controlMount), "Owned progression control owner is absent.");

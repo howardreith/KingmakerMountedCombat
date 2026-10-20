@@ -1,11 +1,12 @@
 Set-StrictMode -Version Latest
-function Get-KmcChunk7OwnedProgressionCases {@('owned-horse-native-level','owned-horse-native-dismiss','owned-horse-native-retrain-horse','owned-horse-native-retrain-mammoth')}
+function Get-KmcChunk7OwnedProgressionCases {@('owned-horse-native-level','owned-horse-native-dismiss','owned-horse-native-retrain-horse','owned-horse-native-retrain-mammoth','small-horse-native-dismiss')}
 function Test-KmcChunk7OwnedProgressionCase($Case){$Case-is[string]-and$Case-cin(Get-KmcChunk7OwnedProgressionCases)}
+function Test-KmcChunk7SmallProgressionCase($Case){$Case-is[string]-and$Case-ceq'small-horse-native-dismiss'}
 function Get-KmcChunk7ProgressionOperation($Case){
  if($Case-isnot[string]){throw 'Progression operation requires an exact scalar case.'}
  switch -CaseSensitive($Case){
   'horse-native-level'{'horse-native-level'} 'owned-horse-native-level'{'horse-native-level'}
-  'horse-native-dismiss'{'horse-native-dismiss'} 'owned-horse-native-dismiss'{'horse-native-dismiss'}
+  'horse-native-dismiss'{'horse-native-dismiss'} 'owned-horse-native-dismiss'{'horse-native-dismiss'} 'small-horse-native-dismiss'{'horse-native-dismiss'}
   'horse-native-retrain-horse'{'horse-native-retrain-horse'} 'owned-horse-native-retrain-horse'{'horse-native-retrain-horse'}
   'horse-native-retrain-mammoth'{'horse-native-retrain-mammoth'} 'owned-horse-native-retrain-mammoth'{'horse-native-retrain-mammoth'}
   default{throw 'Unknown exact progression operation.'}
@@ -19,6 +20,14 @@ function Assert-KmcChunk7OwnedProgressionSelection($Request){
  if($Request-is[Collections.IDictionary]){$Request=[pscustomobject]$Request}
  if($null-ne$Request.PSObject.Properties['ownedPairs']){throw 'Progression cannot acquire outer owned-pair dispatch authority.'}
  $s=$Request.progression;$p=Get-KmcChunk7ProgressionOwnedRequest $Request;Assert-KmcChunk7OwnedPairsSelection $p;$n=$s.ownedSource
+ if(Test-KmcChunk7SmallProgressionCase $s.case){
+  if($n.case-cne'small-fixture-persistence-load'-or$n.expectedNativeWriteCount-ne0-or$n.expectedNativeLoadCount-ne1){throw 'Small dismissal requires a read-only Small mounted Manual cold lineage.'}
+  foreach($pair in @(@('sourceRunId','checkpointSourceRunId'),@('sourceArtifactSha256','checkpointSourceArtifactSha256'))){Assert-KmcBootstrapInventoryString $s.($pair[0]) $n.($pair[1])}
+  if($s.inventoryRunId-ceq$s.sourceRunId-or$s.inventoryRunId-ceq$n.sourceRunId-or$s.inventoryArtifactSha256-ceq$s.sourceArtifactSha256-or
+     $s.inventoryArtifactSha256-ceq$n.sourceArtifactSha256-or$s.actorId-cne$n.riderBId-or$s.petId-cne$n.mountBId-or
+     $s.controlActorId-cne$n.riderAId-or$s.controlPetId-cne$n.mountAId){throw 'Small dismissal substituted producer/cold receipt or Medium/Small role.'}
+  return
+ }
  if($n.case-cne'persistence-load'-or$n.expectedNativeWriteCount-ne0-or$n.expectedNativeLoadCount-ne1){throw 'Owned progression requires a read-only exploration Manual checkpoint.'}
  foreach($pair in @(@('sourceRunId','checkpointSourceRunId'),@('sourceArtifactSha256','checkpointSourceArtifactSha256'),@('inventoryRunId','sourceRunId'),@('inventoryArtifactSha256','sourceArtifactSha256'))){Assert-KmcBootstrapInventoryString $s.($pair[0]) $n.($pair[1])}
  $a=$s.actorId-ceq$n.riderAId-and$s.petId-ceq$n.mountAId-and$s.controlActorId-ceq$n.riderBId-and$s.controlPetId-ceq$n.mountBId
@@ -30,6 +39,11 @@ function Assert-KmcChunk7OwnedProgressionDescriptor($Request){
  Assert-KmcChunk7OwnedPairsDescriptor (Get-KmcChunk7ProgressionOwnedRequest $Request)
  Assert-KmcBootstrapInventoryString $Request.persistenceLoad.sha256 $Request.progression.sourceArchiveSha256
  if($Request.persistenceLoad.sha256-ceq$Request.progression.ownedSource.sourceArchiveSha256){throw 'Progression cannot load the unmounted acquired ancestry in place of its mounted checkpoint.'}
+ if(Test-KmcChunk7SmallProgressionCase $Request.progression.case){
+  if($Request.persistenceLoad.internalName-cne'KMC_C7_SMALL_WORLD'-or$Request.persistenceLoad.fileName-cnotmatch'^Manual_[1-9][0-9]*_KMC_C7_SMALL_WORLD[.]zks$'-or
+     $Request.persistenceLoad.gameId-cne'3f7381f7-aba6-43bf-bae6-39c6a66a7180'-or$Request.persistenceLoad.gameName-cne'Testy the Modless'-or
+     $Request.persistenceLoad.area-cne'b10e86516b6437d45a629931c30936fe'){throw 'Small dismissal requires its exact qualified campaign and native Manual.'}
+ }
 }
 function Assert-KmcChunk7ProgressionIdSet($Value,$Expected,[string]$Description){
  if($Value-isnot[Array]){throw ($Description+' must be an actual JSON array.')};$seen=[Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
@@ -46,9 +60,42 @@ function Assert-KmcChunk7OwnedProgressionRoster($Request,$Observations,$Before,$
  Assert-KmcChunk7ProgressionIdSet @($world.party|ForEach-Object{$_.id}) $n.partyIds 'acquired source roster'
  foreach($actor in $world.party){if($actor.blueprint-isnot[string]-or$actor.blueprint-cnotmatch'^[0-9a-f]{32}$'){throw 'Acquired source actor blueprint is not an exact scalar GUID.'}}
  $sourceActor=$Observations.source.inventoryActor
- foreach($field in @('originalSize','effectiveSize')){Assert-KmcBootstrapInventoryString $sourceActor.$field 'Medium'}
- Assert-KmcOrdinaryInteger $sourceActor.nativeLevelUpReadiness.experience $Before.xp $Before.xp
- Assert-KmcOrdinaryInteger $sourceActor.nativeLevelUpReadiness.characterLevel $Before.level $Before.level
+ if(Test-KmcChunk7SmallProgressionCase $s.case){
+  Assert-KmcChunk7Boolean $Observations.source.smallFixtureSetupOnly $true
+  $fixture=$Observations.source.smallColdFixture
+  if($fixture-isnot[pscustomobject]-or$fixture.arrangement-isnot[pscustomobject]){throw 'Small cold fixture and arrangement must be exact JSON objects.'}
+  Assert-KmcBootstrapInventoryString $fixture.sourceCase 'owner-seed-default-halfling-horse-manual'
+  Assert-KmcBootstrapInventoryString $world.mainActorId $n.riderAId
+  Assert-KmcChunk7ProgressionIdSet $fixture.partyIds $n.partyIds 'Small cold field actors'
+  if($fixture.arrangement.actors-isnot[Array]-or$fixture.arrangement.actors.Count-ne$n.partyIds.Count){throw 'Small cold arrangement lost its seven exact native actors.'}
+  Assert-KmcChunk7ProgressionIdSet @($fixture.arrangement.actors|ForEach-Object{$_.actorId}) $n.partyIds 'Small cold arrangement actors'
+  foreach($row in $fixture.arrangement.actors){
+   $projected=@($world.party|Where-Object id -CEQ $row.actorId)
+   if($projected.Count-ne1-or$projected[0].blueprint-cne$row.blueprint){throw 'Small progression world projection differs from cold native arrangement.'}
+  }
+  $target=@($fixture.arrangement.actors|Where-Object actorId -CEQ $s.actorId)
+  if($target.Count-ne1-or(ConvertTo-KmcChunk7Canonical $target[0])-cne(ConvertTo-KmcChunk7Canonical $sourceActor)){
+   throw 'Small dismissal target inventory differs from the independent cold native observation.'
+  }
+  Assert-KmcBootstrapInventoryString $sourceActor.blueprint 'baaff53a675a84f4983f1e2113b24552'
+  if($fixture.pairs-isnot[Array]-or$fixture.pairs.Count-ne2){throw 'Small cold fixture lost the exact two sourced Horse pairs.'}
+  foreach($role in @(@($n.riderAId,$n.mountAId,'medium-humanoid-horse-v1'),@($n.riderBId,$n.mountBId,'small-default-halfling-horse-v1'))){
+   $pair=@($fixture.pairs|Where-Object riderId -CEQ $role[0]);$archive=@($Observations.loadedArchive.Pairs|Where-Object{$_.Rider.Id-ceq$role[0]})
+   if($pair.Count-ne1-or$archive.Count-ne1){throw 'Small cold fixture lost an exact mounted role.'}
+   Assert-KmcBootstrapInventoryString $pair[0].mountId $role[1]
+   Assert-KmcBootstrapInventoryString $pair[0].profileId $role[2]
+   Assert-KmcBootstrapInventoryString $pair[0].sourceGuid '97261d609529d834eba4fd4da1bc44dc'
+   Assert-KmcOrdinaryInteger $pair[0].rank 1 1
+   Assert-KmcBootstrapInventoryString $archive[0].Mount.Id $role[1]
+   Assert-KmcBootstrapInventoryString $archive[0].ProfileId $role[2]
+  }
+  Assert-KmcOrdinaryInteger $sourceActor.experience $Before.xp $Before.xp
+  Assert-KmcOrdinaryInteger $sourceActor.characterLevel $Before.level $Before.level
+ }else{
+  foreach($field in @('originalSize','effectiveSize')){Assert-KmcBootstrapInventoryString $sourceActor.$field 'Medium'}
+  Assert-KmcOrdinaryInteger $sourceActor.nativeLevelUpReadiness.experience $Before.xp $Before.xp
+  Assert-KmcOrdinaryInteger $sourceActor.nativeLevelUpReadiness.characterLevel $Before.level $Before.level
+ }
  $first=$Observations.ownedRosterBefore;$last=$Observations.ownedRosterAfter
  $control=@($Observations.loadedArchive.Pairs|Where-Object{$_.Rider.Id-ceq$s.controlActorId})[0]
  foreach($entry in @(@($first,'loaded'),@($last,'settled'))){
