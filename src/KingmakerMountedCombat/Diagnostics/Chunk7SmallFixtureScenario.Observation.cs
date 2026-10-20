@@ -140,9 +140,10 @@ namespace KingmakerMountedCombat.Diagnostics
             Require(characters.Length == 5 && characters.Count(value => ReferenceEquals(value, actor)) == 1 &&
                 originalCharacters.All(value => characters.Count(other => ReferenceEquals(value, other)) == 1) && !game.Player.RemoteCompanions.Any() &&
                 all.Length == 7 && all.All(Ready) && all.All(value => originalCharacters.Contains(value) || ReferenceEquals(value, mainHorse) || ReferenceEquals(value, actor) || ReferenceEquals(value, pet)) &&
-                ReferenceEquals(actor.Blueprint, BlueprintRoot.Instance.CustomCompanion) && game.Player.Money == initialMoney - nativeHireCost &&
+                ReferenceEquals(actor.Blueprint, BlueprintRoot.Instance.CustomCompanion) &&
                 main.Descriptor.Progression.Experience == 9000 && actor.Descriptor.Progression.Experience == nativeHireXp,
                 "F09 final field must contain its original four characters, exact paid Halfling and two reciprocal Horses only.");
+            Chunk7SmallFixtureAdmission.RequirePaidBalance(initialMoney, nativeHireCost, nativeStartingGold, game.Player.Money);
             var body = NativeSmallRiderBody.Capture(actor, pet);
             RequireSmallBody(body);
             var inventory = Chunk7NativeProfileInventory.Capture(new[] { actor, pet });

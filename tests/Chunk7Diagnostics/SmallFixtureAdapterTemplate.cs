@@ -121,6 +121,10 @@ namespace KingmakerMountedCombat.Diagnostics
             Bad("hire inherits extra levels",()=>Chunk7SmallFixtureAdmission.RequireHire(4,4,9000,false,400057,8000,15000,5));
             Bad("hire insufficient money",()=>Chunk7SmallFixtureAdmission.RequireHire(4,4,9000,false,7999,8000,9000,4));
             Bad("hire free",()=>Chunk7SmallFixtureAdmission.RequireHire(4,4,9000,false,400057,0,9000,4));
+            Good("native paid balance retains starting gold after field admission",()=>Chunk7SmallFixtureAdmission.RequirePaidBalance(400057,8000,411,392468));
+            Bad("final field silently drops native starting gold",()=>Chunk7SmallFixtureAdmission.RequirePaidBalance(400057,8000,411,392057));
+            Bad("final field charges hire twice",()=>Chunk7SmallFixtureAdmission.RequirePaidBalance(400057,8000,411,384468));
+            Bad("final field invents another grant",()=>Chunk7SmallFixtureAdmission.RequirePaidBalance(400057,8000,411,392879));
             Good("authority input-only then real post-load reservation",()=>{var r=Fresh();var g=new object();var m=new object();var a=new PersistenceSaveAuthorization(root,r.PersistenceLoad);a.ConfigureSmallFixture(r,g,m);Assert(a.MatchesSmallFixturePlan(r,g,m)&&a.SmallFixtureReservations==0&&a.Admission(RuntimeSaveOperation.Write)!=null);a.Loaded();a.ReserveSmallFixtureOutput(r,g,m,304);Assert(a.SmallFixtureReservations==1&&a.SmallFixtureNumber==304&&a.SmallFixtureOutputLeaf==Chunk7SmallFixtureSelection.ManualLeaf(304)&&a.Admission(RuntimeSaveOperation.Write)==null&&a.Admission(RuntimeSaveOperation.Delete)!=null);});
             Bad("authority reservation before load",()=>{var r=Fresh();var g=new object();var m=new object();var a=new PersistenceSaveAuthorization(root,r.PersistenceLoad);a.ConfigureSmallFixture(r,g,m);a.ReserveSmallFixtureOutput(r,g,m,304);});
             Bad("authority configure with extra write cap",()=>{var r=Fresh();var a=new PersistenceSaveAuthorization(root,r.PersistenceLoad);a.SetCaps(1,2);a.ConfigureSmallFixture(r,new object(),new object());});
