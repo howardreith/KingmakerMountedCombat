@@ -1,6 +1,6 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
-## Active October 20 batch74 Small mounted save/cold development checkpoint
+## Active October 20 batch74 Small mounted cold readiness diagnosis
 
 The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
 The [batch74 route](docs/CHUNK7-BATCH74-SMALL-MOUNTED-PERSISTENCE-2026-10-20.md)
@@ -9,12 +9,18 @@ distinct genuine mounted Manual producer and separate cold consumer. Independent
 source/reader review passed after closed typed/script parity corrections;
 focused compiled protocol 33/0, focused source/cold 14/0, and offline
 Candidate 7/0 passed. No game run or restoration claim belongs to this
-checkpoint. Next: guarded-push the reviewed code; build one clean candidate,
-admit a fresh suite and run at most the two declared native Small save/cold
-scenarios, with guarded settlement. Then continue F10, ordinary doors, F11
-and readiness-gated private 7E. Preserve the batch53 outer FAIL and separate
-reader-only PASS. No game process or transaction lock was observed at
-development preflight.
+checkpoint. Commit `43a7c209` was guarded-pushed and frozen as preview.88.
+Its fresh suite and both WhatIfs passed. Native Small mounted Manual producer
+**PASS 5/0**, writing `Manual_305_KMC_C7_SMALL_WORLD.zks`; its separate cold
+consumer original game/outer verdicts are **FAIL** at stage-0 readiness after
+four semantic restorations and zero presentation restores. See the batch74
+record for exact identities. Both transactions and profile bytes restored;
+no game process or lock remained. A bounded read-only stage-0 observation
+passed independent review and Fast 3/0; next freeze a changed diagnostic candidate, rerun a fresh
+producer/consumer pair only to capture the missing causal gate, then repair
+and verify. Do not repeat the unchanged preview.88 cold case. Continue F10,
+ordinary doors, F11 and readiness-gated private 7E. Preserve the batch53
+outer FAIL and separate reader-only PASS.
 
 ## Historical October 20 batch73 F11 measurement checkpoint
 

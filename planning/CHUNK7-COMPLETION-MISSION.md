@@ -14,7 +14,9 @@
 > historical where they say 7E is unselected or give stale native caps.
 
 Batch74 adds a reviewed Small mounted save/separate-cold route with focused
-and offline Candidate PASS. Its native result remains pending; see the
+and offline Candidate PASS. Native producer PASS 5/0 and separate cold
+original FAIL at the Small presentation/readiness deadline remain distinct;
+see the
 [batch74 checkpoint](../docs/CHUNK7-BATCH74-SMALL-MOUNTED-PERSISTENCE-2026-10-20.md).
 
 Current requirement-to-evidence map (one status per gate family; earlier PASS
