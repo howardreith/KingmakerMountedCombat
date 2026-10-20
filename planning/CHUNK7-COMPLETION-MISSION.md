@@ -134,6 +134,13 @@ Carry forward already accepted barriers, retained ownership, disable and failure
 
 ### Medium and Small profiles
 
+Batch49 identified the F09 view-change owner as the exact paid remote hire
+during native CharGen, not the Horse. Its original FAIL remains; preview.68
+delays only that actor's strict view capture until its native build completes
+and exact roster checks pass. Independent review and focused offline checks
+passed. The paid-hire money correction, Small Manual and cold consumer still
+require native verification. See the [batch49 record](../docs/CHUNK7-BATCH49-SMALL-VIEW-OWNER-2026-10-20.md).
+
 Requalify the supported Medium Horse and Mammoth surfaces under the actual multi-pair product, using compatible fixtures rather than assuming all legacy saves are valid. The declared initial Small calibration target is the previously selected **stock default Halfling body on Horse**, subject to actual native rig/eligibility inspection. Resolve exact race/preset/body/sex/handedness/rig identities from the game; do not invent them or certify all Halfling variants by implication.
 
 Implement real profile selection and persistence recognition where needed. Native effective size, original/form restrictions and reciprocal companion ownership remain authoritative. Render-scale changes are not eligibility. Declare supported equipment/body/form combinations and readable refusals for unsupported ones.

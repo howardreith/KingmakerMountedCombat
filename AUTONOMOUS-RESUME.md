@@ -1,5 +1,26 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## Active October 20 batch49 correction review
+
+The [standing completion mission](planning/CHUNK7-COMPLETION-MISSION.md)
+remains active. The [batch49 record](docs/CHUNK7-BATCH49-SMALL-VIEW-OWNER-2026-10-20.md)
+pins preview.67 package/suite, the original native FAIL, decisive paid-remote
+actor/view identity and exact separate restoration. No game or lock is live.
+The failed F09 actor was the sole paid remote companion at native level 4,
+not the Horse; its view rebuilt between paid CharGen commits. Current
+uncommitted preview.68 correction delays only F09's `scope.Track(actor)` until the
+completed native build and exact remote/party/scene checks. Main and Horse
+scope remain strict. The focused world-scope adapter passed 75/0, F09 wiring
+38/0 and Small fixture adapter 60/0; independent review PASS. A final
+world-scope rerun passed 75/0 and Fast passed 3/0. Next:
+commit/guarded-push, package once and run Candidate,
+then a new one-slot guarded Small native verification on a fresh suite and
+scoped WhatIf. Preserve batch48-49 FAILs, no Small Manual/paid-money claim,
+and continue independent selected work. The Manticore profile/cache issue
+and positive reference-free removal remain open.
+
+## October 20 batch48 follow-up - completed diagnostic
+
 ## Active October 20 batch48 follow-up - identify F09 view owner
 
 The [standing completion mission](planning/CHUNK7-COMPLETION-MISSION.md)

@@ -140,9 +140,24 @@ namespace KingmakerMountedCombat.Diagnostics
                         if (!Ready(mainHorse)) return;
                         BeginPaidHire(); break;
                     case 3:
-                        if (hireDriver.Actor != null && actor == null) { actor = hireDriver.Actor; scope.Track(actor); }
+                        // Native paid CharGen may turn its still-remote actor
+                        // off and on between level commits, rebuilding View.
+                        // Keep the original world/Horse scope strict; the
+                        // driver and exact remote roster own this actor until
+                        // its completed native build can supply a stable view.
+                        if (hireDriver.Actor != null && actor == null) actor = hireDriver.Actor;
+                        Require(actor == null || ReferenceEquals(actor, hireDriver.Actor),
+                            "F09 paid native builder replaced its captured actor during setup.");
                         if (hireDriver.Tick() != Chunk7OrdinaryBuildStep.Complete) return;
-                        actor = hireDriver.Actor; pet = RequireHorse(actor); scope.Track(actor); scope.Track(pet);
+                        Require(actor == null || ReferenceEquals(actor, hireDriver.Actor),
+                            "F09 paid native builder replaced its captured actor at completion.");
+                        actor = hireDriver.Actor; pet = RequireHorse(actor);
+                        Require(hireDriver.Complete &&
+                            game.Player.RemoteCompanions.Count(value => ReferenceEquals(value.Value, actor)) == 1 &&
+                            !game.Player.PartyCharacters.Any(value => ReferenceEquals(value.Value, actor)) &&
+                            !game.State.Units.Any(value => ReferenceEquals(value, actor)),
+                            "Completed F09 paid builder is not the exact sole remote actor before view capture.");
+                        scope.Track(actor); scope.Track(pet);
                         var startingGold = hireDriver.NativeStartingGold;
                         Require(hireDriver.NativeCommitCount == 4 && hireDriver.AutoLevelupOverrideCount == 0 &&
                             actor.Descriptor.Progression.Experience == nativeHireXp &&
