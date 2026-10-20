@@ -88,7 +88,7 @@ function New-ProgressionFixture([string]$Case='horse-native-level'){
 }
 if($only){return}
 $script:passes=0
-foreach($case in Get-KmcChunk7ProgressionCases){Good ('closed native progression evidence '+$case) {$f=New-ProgressionFixture $case;Assert-KmcChunk7ProgressionEvidence $f.request $f.artifact}}
+foreach($case in @(Get-KmcChunk7ProgressionCases|Where-Object{-not(Test-KmcChunk7SmallProgressionCase $_)})){Good ('closed native progression evidence '+$case) {$f=New-ProgressionFixture $case;Assert-KmcChunk7ProgressionEvidence $f.request $f.artifact}}
 Good 'actual closed builder keeps nullable native snapshot fields' {$f=New-ProgressionFixture;$rows=@($f.artifact.observations.session.events|Where-Object{$_.PSObject.Properties['event']});$admitted=$rows[0];$admitted.nativeMode=$null;$admitted.phase=$null;$admitted.selectedClass=$null;$admitted.nativeControllerObject=0;$terminal=($rows|Where-Object event -CEQ 'native-builder-complete').actor;$terminal.nativeMode=$null;$terminal.phase=$null;$terminal.selectedClass=$null;Assert-KmcChunk7ProgressionEvidence $f.request $f.artifact}
 Good 'observed native AddPet no-op cannot replace the earlier sourced pet' {$f=New-ProgressionFixture 'horse-native-retrain-horse';$probe=$f.artifact.observations.session.nativeUi.nativeRespec;$noop=Copy-O $probe.events[-1];$noop.petId=$null;$noop.petObject=0;$noop.petDescriptorObject=0;$noop.petViewObject=0;$probe.events+=@($noop);$probe.nativePetUpdates=2;Assert-KmcChunk7ProgressionEvidence $f.request $f.artifact}
 $cases=[ordered]@{

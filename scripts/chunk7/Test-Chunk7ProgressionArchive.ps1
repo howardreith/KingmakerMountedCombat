@@ -13,8 +13,9 @@ function New-ProgressionArchive([string]$Case='horse-native-level',[string]$Muta
     $f=New-ProgressionFixture $Case;$lab=Join-Path $archiveOutput ([Guid]::NewGuid().ToString('N'));$f.request.evidenceRoot=Join-Path $lab ('runtime-evidence/'+$f.request.runId)
     $root=Join-Path $lab ('runtime-staging/persistence-'+$f.request.runId+'/Saved Games');[void][IO.Directory]::CreateDirectory($root)
     $o=$f.artifact.observations;$o.authorityBefore.root=$root;$o.cleanup.authority.root=$root
-    $w=$o.session.nativeWrite;if($null-eq$w){return $f};$w.path=Join-Path $root 'Auto_1.zks'
-    $header=[pscustomobject]@{Name=$w.name;Type='Auto';GameId=$w.gameId;GameName=$w.gameName;Area=$w.area;CompatibilityVersion=1;IsAutoLevelupSave=$true}
+    $w=$o.session.nativeWrite;if($null-eq$w){return $f};$w.path=Join-Path $root $w.leaf
+    if($null-ne$o.session.PSObject.Properties['manualSave']-and$null-ne$o.session.manualSave){foreach($event in $o.session.manualSave.events){if($null-ne$event.path){$event.path=$w.path}}}
+    $header=[pscustomobject]@{Name=$w.name;Type=$w.type;GameId=$w.gameId;GameName=$w.gameName;Area=$w.area;CompatibilityVersion=1;IsAutoLevelupSave=$w.nativeAutoLevelup}
     switch($Mutation){'header-type-array'{$header.Type=@('Auto')}'header-id-array'{$header.GameId=@($header.GameId)}'header-name-array'{$header.Name=@($header.Name)}'header-false-auto'{$header.IsAutoLevelupSave=$false}'header-text-compatibility'{$header.CompatibilityVersion='1'}}
     $metadata=Copy-O $w.archive;if($Mutation-ceq'changed-mounted-owner'){$metadata.Pairs[0].Generation++}
     $headerText=ConvertTo-KmcChunk7Canonical $header;$metadataText=ConvertTo-KmcChunk7Canonical $metadata
@@ -28,7 +29,7 @@ function New-ProgressionArchive([string]$Case='horse-native-level',[string]$Muta
     if($Mutation-ceq'changed-final-bytes'){[IO.File]::AppendAllText($w.path,'changed')};return $f
 }
 $script:passes=0
-foreach($case in Get-KmcChunk7ProgressionCases){Good ('closed native output category '+$case){$f=New-ProgressionArchive $case;Assert-KmcChunk7ProgressionNativeArchive $f.request $f.artifact}}
+foreach($case in @(Get-KmcChunk7ProgressionCases|Where-Object{-not(Test-KmcChunk7SmallProgressionCase $_)})){Good ('closed native output category '+$case){$f=New-ProgressionArchive $case;Assert-KmcChunk7ProgressionNativeArchive $f.request $f.artifact}}
 foreach($mutation in @('header-type-array','header-id-array','header-name-array','header-false-auto','header-text-compatibility','changed-mounted-owner','duplicate-header-key','duplicate-header','duplicate-metadata','oversized-metadata','changed-final-bytes')){
     Bad ('bounded native metadata '+$mutation){$f=New-ProgressionArchive 'horse-native-level' $mutation;Assert-KmcChunk7ProgressionNativeArchive $f.request $f.artifact}
 }

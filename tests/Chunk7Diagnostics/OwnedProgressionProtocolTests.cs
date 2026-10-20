@@ -48,6 +48,23 @@ internal static class OwnedProgressionProtocolTests {
    tests.Run("owned progression exact protocol "+selected,()=>{var r=OwnedRequest(selected);TestRunner.Equal(0,r.Validate().Count,string.Join(";",r.Validate()));TestRunner.True(ReferenceEquals(r.PersistenceLoad,r.SelectedChunk7Fixture),"Owned source did not bind selected world.");TestRunner.True(r.OwnedPairs==null,"Nested source acquired outer dispatch authority.");});
    tests.Run("owned progression actual DTO "+selected,()=>{var r=OwnedRequest(selected);var j=Chunk7EvidenceDto.Request(r.Progression);TestRunner.True(j["ownedSource"] is JObject&&j["OwnedSource"]==null,"Nested source did not use actual request-shaped serializer.");TestRunner.Equal("persistence-load",(string)j["ownedSource"]["case"],"Nested source case changed.");TestRunner.Equal(1,(int)j["ownedSource"]["expectedNativeLoadCount"],"Nested load quota changed.");TestRunner.Equal(0,(int)j["ownedSource"]["expectedNativeWriteCount"],"Nested source acquired a write.");TestRunner.Equal(0,j.ToObject<Chunk7ProgressionSelection>().Validate(r.Scenario,r.RunId).Count,"Actual serialized source did not round trip.");});
   }
+  tests.Run("Small dismissal admits only its seven-actor mounted producer and separate cold consumer",()=>{
+   var r=SmallDismissRequest();TestRunner.Equal(0,r.Validate().Count,string.Join(";",r.Validate()));
+   TestRunner.True(r.Progression.IsSmallDismiss&&r.Progression.IsOwned&&!r.Progression.WritesSave,"Small dismissal acquired a write or lost owned custody.");
+   TestRunner.True(ReferenceEquals(r.PersistenceLoad,r.SelectedChunk7Fixture),"Small mounted Manual did not select its own source.");
+  });
+  foreach(var label in new[]{"wrong lineage","wrong target","wrong control","producer aliases cold","cold aliases fixture","foreign manual","max native number","foreign campaign","write authority","missing cold pin"})
+   tests.Run("Small dismissal rejects "+label,()=>{var r=SmallDismissRequest();var s=r.Progression;switch(label){
+    case "wrong lineage":s.OwnedSource.Case="persistence-load";break;
+    case "wrong target":s.ActorId=s.ControlActorId;break;case "wrong control":s.ControlPetId=s.PetId;break;
+    case "producer aliases cold":s.InventoryRunId=s.SourceRunId;break;
+    case "cold aliases fixture":s.InventoryRunId=s.OwnedSource.SourceRunId;break;
+    case "foreign manual":r.PersistenceLoad.FileName="Manual_305_KMC_C7_WORLD.zks";break;
+    case "max native number":r.PersistenceLoad.FileName="Manual_2147483647_KMC_C7_SMALL_WORLD.zks";break;
+    case "foreign campaign":r.PersistenceLoad.GameId="99999999-1111-4111-8111-111111111111";break;
+    case "write authority":s.ExpectedNativeWriteCount=1;break;
+    case "missing cold pin":s.OwnedSource.CheckpointSourceArtifactSha256=null;break;
+   }TestRunner.True(r.Validate().Count>0,"Foreign Small dismissal admission accepted.");});
   tests.Run("owned Manual reservation follows one real cold load and admits one new native slot",()=>{
    var r=OwnedRequest(Chunk7ProgressionSelection.OwnedLevelCase);
    var run=Path.Combine(root,Guid.NewGuid().ToString("N"));var saves=Path.Combine(run,"Saved Games");Directory.CreateDirectory(saves);
@@ -91,6 +108,31 @@ internal static class OwnedProgressionProtocolTests {
   var op=selected==Chunk7ProgressionSelection.OwnedLevelCase?Chunk7ProgressionSelection.LevelCase:selected==Chunk7ProgressionSelection.OwnedDismissCase?Chunk7ProgressionSelection.DismissCase:selected==Chunk7ProgressionSelection.OwnedRetrainHorseCase?Chunk7ProgressionSelection.RetrainHorseCase:Chunk7ProgressionSelection.RetrainMammothCase;
   var r=Request(op);var s=r.Progression;s.Case=selected;s.NativeWriteLeaf=null;r.PersistenceLoad.InternalName="KMC_C7_WORLD";r.PersistenceLoad.FileName="Manual_404_KMC_C7_WORLD.zks";r.PersistenceLoad.GameId="99999999-1111-4111-8111-111111111111";r.PersistenceLoad.GameName="Observed isolated campaign";r.PersistenceLoad.Area=new string('c',32);
   s.OwnedSource=new Chunk7OwnedPairsSelection{Case="persistence-load",SourceRunId=s.InventoryRunId,SourceArtifactSha256=s.InventoryArtifactSha256,SourceArchiveSha256=new string('c',64),CheckpointSourceRunId=s.SourceRunId,CheckpointSourceArtifactSha256=s.SourceArtifactSha256,RiderAId=s.ControlActorId,MountAId=s.ControlPetId,RiderBId=s.ActorId,MountBId=s.PetId,PartyIds=new[]{s.ControlActorId,s.ControlPetId,s.ActorId,s.PetId,"88888888-1111-4111-8111-111111111111"},BaseGameOnly=true,ExpectedNativeLoadCount=1,ExpectedNativeWriteCount=0};return r;
+ }
+ private static RuntimeRequest SmallDismissRequest(){
+  var r=OwnedRequest(Chunk7ProgressionSelection.OwnedDismissCase);var s=r.Progression;
+  s.Case=Chunk7ProgressionSelection.SmallDismissCase;s.ActorId=Chunk7OwnedPairsSelection.SmallFixtureRider;
+  s.PetId=Chunk7OwnedPairsSelection.SmallFixtureHorse;s.ControlActorId=Chunk7SmallFixtureSelection.MainActorId;
+  s.ControlPetId=Chunk7OwnedPairsSelection.SmallFixtureMainHorse;s.SourceRunId="small-mounted-source";
+  s.SourceArtifactSha256=new string('d',64);s.SourceArchiveSha256=new string('e',64);
+  s.InventoryRunId="small-mounted-cold";s.InventoryArtifactSha256=new string('f',64);
+  s.OwnedSource=new Chunk7OwnedPairsSelection{Case=Chunk7OwnedPairsSelection.SmallFixtureLoadCase,
+   SourceRunId=Chunk7OwnedPairsSelection.SmallFixtureProducerRun,
+   SourceArtifactSha256=Chunk7OwnedPairsSelection.SmallFixtureProducerArtifact,
+   SourceArchiveSha256=Chunk7OwnedPairsSelection.SmallFixtureProducerArchive,
+   CheckpointSourceRunId=s.SourceRunId,CheckpointSourceArtifactSha256=s.SourceArtifactSha256,
+   SeedId=Chunk7SmallFixtureSelection.SeedIdentity,SeedSha256=Chunk7SmallFixtureSelection.SeedHash,
+   ColdReceiptSha256=Chunk7OwnedPairsSelection.SmallFixtureColdReceipt,
+   RiderAId=s.ControlActorId,MountAId=s.ControlPetId,RiderBId=s.ActorId,MountBId=s.PetId,
+   PartyIds=new[]{s.ControlActorId,"5dd7bd1d-ae4c-4df7-9687-50fceb027344","8265f8cf-0969-4ec7-a266-2448de91c8c4",
+    "fd213210-71cd-41b0-b35b-68e1b18e9b43",s.ActorId,s.ControlPetId,s.PetId},
+   BaseGameOnly=true,ExpectedNativeLoadCount=1,ExpectedNativeWriteCount=0};
+  r.PersistenceLoad.InternalName=Chunk7OwnedPairsSelection.SmallFixtureManualName;
+  r.PersistenceLoad.FileName="Manual_305_KMC_C7_SMALL_WORLD.zks";r.PersistenceLoad.Sha256=s.SourceArchiveSha256;
+  r.PersistenceLoad.GameId=Chunk7SmallFixtureSelection.CampaignId;
+  r.PersistenceLoad.GameName=Chunk7SmallFixtureSelection.CampaignName;
+  r.PersistenceLoad.Area=Chunk7SmallFixtureSelection.AreaId;
+  return r;
  }
  private static RuntimeRequest Request(string selected){var f=new Fixture();var respec=selected==Chunk7ProgressionSelection.RetrainHorseCase||selected==Chunk7ProgressionSelection.RetrainMammothCase;var writes=selected!=Chunk7ProgressionSelection.DismissCase;
   return new RuntimeRequest{SchemaVersion=2,RunId="progression-test",Scenario=Chunk7ProgressionSelection.Scenario,Progression=new Chunk7ProgressionSelection{Case=selected,SourceRunId="manual300-source",SourceArchiveSha256=f.Source.Sha256,SourceArtifactSha256=new string('d',64),InventoryRunId="world-inventory",InventoryArtifactSha256=new string('e',64),

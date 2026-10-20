@@ -425,12 +425,16 @@ function Assert-KmcChunk7ProgressionEvidence($Request,$Artifact,[string]$Status=
     if(-not(Test-KmcChunk7FiniteNumber $o.elapsedSeconds)-or$o.elapsedSeconds-lt0-or$o.elapsedSeconds-gt945){throw 'Native progression exceeded its bounded completion window.'}
     foreach($key in @('sourceRunId','sourceArtifactSha256','sourceArchiveSha256','inventoryRunId','inventoryArtifactSha256')){Assert-KmcProgressionText $o.source.$key;if($o.source.$key-cne$s.$key){throw 'Progression source/inventory receipt differs.'}}
     foreach($key in @('sameCandidate','nativeSourceGraphExact')){Assert-KmcChunk7Boolean $o.source.$key $true}
-    Assert-KmcOrdinaryGuid $o.source.inventoryActor.id;if($o.source.inventoryActor.id-cne$s.actorId){throw 'Progression target lacks exact source inventory.'}
+    $sourceActorId=if(Test-KmcChunk7SmallProgressionCase $s.case){$o.source.inventoryActor.actorId}else{$o.source.inventoryActor.id}
+    Assert-KmcOrdinaryGuid $sourceActorId;if($sourceActorId-cne$s.actorId){throw 'Progression target lacks exact source inventory.'}
     $archiveRequest=if(Test-KmcChunk7OwnedProgressionCase $s.case){Get-KmcChunk7ProgressionOwnedRequest $Request}else{[pscustomobject]@{scenario='chunk7-persistence-load';fixture=$Request.fixture;persistenceCase='multi-exploration-manual'}}
     Assert-KmcChunk7PersistenceArchive $o.loadedArchive $archiveRequest
     $target=@($o.loadedArchive.Pairs|Where-Object{$_.Rider.Id-ceq$s.actorId});$control=@($o.loadedArchive.Pairs|Where-Object{$_.Rider.Id-ceq$s.controlActorId})
     if($target.Count-ne1-or$control.Count-ne1-or$target[0].Mount.Id-cne$s.petId-or$control[0].Mount.Id-cne$s.controlPetId){throw 'Progression target/control source roles differ.'}
-    if(Test-KmcChunk7OwnedProgressionCase $s.case){foreach($pair in $o.loadedArchive.Pairs){Assert-KmcBootstrapInventoryString $pair.ProfileId 'medium-humanoid-horse-v1'}}
+    if(Test-KmcChunk7OwnedProgressionCase $s.case){foreach($pair in $o.loadedArchive.Pairs){
+        $expectedProfile=if((Test-KmcChunk7SmallProgressionCase $s.case)-and$pair.Rider.Id-ceq$s.actorId){'small-default-halfling-horse-v1'}else{'medium-humanoid-horse-v1'}
+        Assert-KmcBootstrapInventoryString $pair.ProfileId $expectedProfile
+    }}
     Assert-KmcProgressionColdRestore $o.coldRestoration $o.loadedArchive $Request
     if($o.beforeOwners.owners-isnot[Array]-or$o.beforeOwners.owners.Count-ne2){throw 'Progression admission omitted an owner.'}
     foreach($owner in $o.beforeOwners.owners){Assert-KmcProgressionTexts $owner @('ownerId','state','riderId','mountId')}
@@ -439,7 +443,8 @@ function Assert-KmcChunk7ProgressionEvidence($Request,$Artifact,[string]$Status=
     Assert-KmcProgressionAuthority $o.authorityBefore $root $o.authorityBefore.generation 0 $write
     Assert-KmcProgressionAuthority $o.cleanup.authority $root $o.authorityBefore.generation ([int]$write) $write
     $body=$o.nativeBodyBefore
-    foreach($key in @('OriginalSizeOrdinal','EffectiveSizeOrdinal')){Assert-KmcOrdinaryInteger $body.$key 4 4}
+    $targetSize=if(Test-KmcChunk7SmallProgressionCase $s.case){3}else{4}
+    foreach($key in @('OriginalSizeOrdinal','EffectiveSizeOrdinal')){Assert-KmcOrdinaryInteger $body.$key $targetSize $targetSize}
     foreach($key in @('RiderPolymorphed','MountPolymorphed')){Assert-KmcChunk7Boolean $body.$key $false}
     if($respec){foreach($key in @('NativeRigAvailable','NativeRaceAndPresetIdentityExact','NativeSkeletonIsExactPreset')){Assert-KmcChunk7Boolean $body.$key $true}
         Assert-KmcProgressionTexts $body @('RaceGuid','PresetGuid','SkeletonName','Gender')

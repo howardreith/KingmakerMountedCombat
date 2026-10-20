@@ -33,7 +33,7 @@ function Request([string]$Case='horse-native-level') {
     $q|Add-Member -NotePropertyName qualificationSuite -NotePropertyValue ([pscustomobject]@{suiteId='synthetic-progression-suite';snapshotSha256='7'*64});return $q
 }
 function Validate($Q){$path=Join-Path $wiringOutput 'request.json';[IO.File]::WriteAllText($path,(ConvertTo-KmcChunk7Canonical $Q),[Text.UTF8Encoding]::new($false));&$validator -RequestPath $path|Out-Null}
-foreach($case in Get-KmcChunk7ProgressionCases){Good ('full actual progression request validator accepts '+$case) {Validate (Request $case)}}
+foreach($case in @(Get-KmcChunk7ProgressionCases|Where-Object{-not(Test-KmcChunk7SmallProgressionCase $_)})){Good ('full actual progression request validator accepts '+$case) {Validate (Request $case)}}
 # The runner holds its request as an ordered dictionary until serialization; the progression selection assert must detect dictionary keys too.
 function ConvertTo-RunnerRequest($Q){$r=[ordered]@{};foreach($p in $Q.PSObject.Properties){$r[$p.Name]=$p.Value};$r}
 Good 'progression selection assert accepts the runner ordered-dictionary request' {Assert-KmcChunk7ProgressionSelection (ConvertTo-RunnerRequest (Request))}
