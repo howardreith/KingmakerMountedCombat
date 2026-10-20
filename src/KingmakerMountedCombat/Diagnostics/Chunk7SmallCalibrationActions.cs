@@ -55,7 +55,14 @@ namespace KingmakerMountedCombat.Diagnostics
         }
         private void BeginCalibration()
         {
-            RequireNoOwners(); BodyMatches();
+            RequireNoOwners();
+            if (calibration.UsesFixtureManualField)
+            {
+                Require(privateSmallCalibrationLease == null, "F09 private calibration lease already acquired.");
+                privateSmallCalibrationLease = SupportedMountedProfiles.AcquirePrivateSmallCalibration(declaration, actor, pet,
+                    () => { scope.RequireCurrent(); return true; });
+            }
+            BodyMatches();
             mode = new NativeModeTransitionProbe(false); mode.DispatchTemporaryValueIfRequired();
             AssertAction();
             evidence["inputs"] = inputs; evidence["poses"] = poses;

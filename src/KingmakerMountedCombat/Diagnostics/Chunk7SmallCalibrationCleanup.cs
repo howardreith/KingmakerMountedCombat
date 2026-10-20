@@ -67,6 +67,9 @@ namespace KingmakerMountedCombat.Diagnostics
                     if (evidence["allocationTrace"] == null) evidence["allocationTrace"] = trace.Capture();
                     if (!TryRelease("allocation observer", () => { trace.Dispose(); trace = null; })) { Retain("Owned allocation observation has not unpatched."); return; }
                 }
+                if (privateSmallCalibrationLease != null && !TryRelease("private Small calibration admission", () =>
+                    { privateSmallCalibrationLease.Dispose(); privateSmallCalibrationLease = null; }))
+                { Retain("Private Small calibration admission has not closed."); return; }
                 if (!TryRelease("native mode", () => { mode?.Dispose(); mode = null; })) { Retain("Native mode lease has not restored."); return; }
                 AssertUnchangedProgression();
                 SelectionManager.Instance.MultiSelect(originalSelection.Where(value => value.IsInState && value.View != null).Select(value => value.View), false);

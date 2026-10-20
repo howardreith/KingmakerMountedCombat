@@ -55,7 +55,8 @@ namespace KingmakerMountedCombat.Diagnostics
         // does not assert mounted PASS or owner visual acceptance in advance.
         internal DeclaredSmallMountedProfile RequireCompiledDeclaration()
         {
-            var matches = MountedRiderProfileCatalog.Small.Where(value => value.Body.ProfileId == ProfileId).ToArray();
+            var catalogue = UsesFixtureManualField ? MountedRiderProfileCatalog.PrivateCalibrationSmall : MountedRiderProfileCatalog.Small;
+            var matches = catalogue.Where(value => value.Body.ProfileId == ProfileId).ToArray();
             if (matches.Length != 1 || matches[0].Body.NativeInventorySha256 != NativeInventorySha256 ||
                 matches[0].NativeCalibrationSha256 != NativeCalibrationSha256)
                 throw new InvalidOperationException("No unique compiled Small declaration matches the exact input provenance; native calibration admission refused.");

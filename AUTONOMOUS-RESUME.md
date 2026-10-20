@@ -1,6 +1,25 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
-## Active October 20 F09 Small calibration consumer preparation
+## Active October 20 reviewed private Small declaration
+
+The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
+The initial default MaleHalfling/Horse declaration is compiled for the exact
+F09 calibration pair only. Ordinary Small admission and saved-profile
+compatibility remain closed. Its body comes from the qualified batch53 Manual;
+the seven bones and proposed offsets come from the
+[initial private pose record](docs/CHUNK7-SMALL-INITIAL-POSE-2026-10-20.json),
+which is still a hypothesis, not mounted native evidence. The scoped gate
+requires the canonical rider and Horse objects and a live source-world lease;
+cleanup revokes it. An independent review of the corrected eight-file source
+passed, Small policy checks passed 44/0, Fast 2/0 and Candidate 6/0 on the
+reviewed DLL SHA-256 `bb9f64c1b563a820fcd03bb75c6e47cad687be8747f737c5d212c3e636dcb985`.
+No package or native scenario has run for this declaration. Next: commit and
+guarded-push the coherent checkpoint, package it once, then run one guarded
+F09 cross-candidate mounted calibration against the unchanged qualified
+batch53 Manual. Retain the batch53 original outer FAIL and reader-only PASS
+separately. Continue the remaining standing mission after this measurement.
+
+## Historical October 20 F09 Small calibration consumer preparation
 
 The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
 The successor branch has a distinct F09 Manual calibration
