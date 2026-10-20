@@ -1,5 +1,26 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## Active October 20 after batch82 — native Small dismissal failure
+
+The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
+See [batch82](docs/CHUNK7-BATCH82-SMALL-DISMISSAL-2026-10-20.md) for exact
+preview.95/suite/selection/evidence identities. The same-candidate mounted
+Small Manual producer and separate cold consumer passed 5/0 and 3/0. Native
+dismissal **FAIL**: `Player.DismissCompanion` entered once, removed the rider
+from native party lists, then threw `Collection was modified` before native
+completion or rider destruction. The guard retained cleanup. The exact-run
+combined recovery and separately reviewed profile recovery restored Mods,
+protected saves, profile files, UMM Params and session preferences. No game or
+transaction lock remains. Original batch81 and batch82 failures stay distinct.
+
+A bounded read-only inventory snapshot at native dismissal entry and first
+failure passed independent safety review, focused observer custody 24/0 and
+Fast 3/0. Freeze preview.96 once and rerun only the dependency
+producer/cold/dismissal sequence to distinguish inventory mutation from a
+nested-list failure. Do not treat the
+native exception as a completed dismissal or silently alter the failed archive.
+Continue unrelated F10/F09/F11 work under the selected standing mission.
+
 ## Active October 20 after batch81 — standing completion mission
 
 The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.

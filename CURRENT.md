@@ -1,5 +1,16 @@
 # Chunk 7B–7D — IN PROGRESS
 
+## October 20 — batch82 Small dismissal inventory diagnosis
+
+[Batch82](docs/CHUNK7-BATCH82-SMALL-DISMISSAL-2026-10-20.md) repeated the
+genuine mounted Small Manual producer and separate cold consumer on preview.95;
+both passed game/outer 5/0 and 3/0. The targeted native dismissal **FAIL**
+showed `Player.DismissCompanion` throw a collection-modified exception after
+removing the rider from the party but before native completion. The guard kept
+custody. Exact combined and independently reviewed one-run profile recovery
+restored all live surfaces. A bounded inventory observation is under review;
+F10 dismissal and the standing engineering mission remain open.
+
 ## October 20 — batch81 F10 Small dismissal diagnostic
 
 [Batch81](docs/CHUNK7-BATCH81-SMALL-DISMISSAL-2026-10-20.md) added an
