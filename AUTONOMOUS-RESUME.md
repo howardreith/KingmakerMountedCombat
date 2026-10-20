@@ -1,5 +1,23 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## Active October 20 after batch92 — reviewed refund observer; native verification next
+
+The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
+Batch92's original retrain outer FAIL is unchanged. A bounded read-only hook
+on installed `Player.GainMoney(long)` token `06000DD0` now records the single
+callback-time refund and exact before/after money. The initial estimate is
+retained separately. Finish and the strict external reader require that one
+credit between native UI open and finish, with the prior payment, rest, day,
+pet-replacement and rebind proof intact. Independent review found no blocker;
+focused evidence passed 93/0, installed patch construction/removal 24/0, and
+offline Candidate 7/0 in 6.47 minutes. These are not a native retrain PASS.
+
+Next: commit and guarded-push the reviewed correction, freeze one exact package,
+and run a declared fresh mounted Small Manual producer, separate cold consumer,
+and targeted native retrain. Preserve the batch90–92 original failures and
+settle each transaction exactly. Continue F09/F10/F11 and selected private 7E
+through the standing mission; a retrain checkpoint is not completion.
+
 ## Active October 20 after batch92 — prove callback-time native refund
 
 The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.

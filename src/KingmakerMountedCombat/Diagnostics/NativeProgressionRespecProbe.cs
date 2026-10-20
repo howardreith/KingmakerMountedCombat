@@ -34,10 +34,10 @@ namespace KingmakerMountedCombat.Diagnostics
         private readonly HashSet<UnitDescriptor> expectedRest = new HashSet<UnitDescriptor>();
         private readonly HashSet<UnitDescriptor> restEntered = new HashSet<UnitDescriptor>(), restExited = new HashSet<UnitDescriptor>();
         private HarmonyInstance harmony;
-        private bool disposed, installed, installationStarted, insideRespec, insideFinish;
-        private int callbackFrame = -1, entries, exits, previews, finishes, finishExits, advances, rebinds;
+        private bool disposed, installed, installationStarted, insideRespec, insideFinish, creditPending;
+        private int callbackFrame = -1, entries, exits, previews, finishes, finishExits, advances, rebinds, moneyCredits;
         private int initialXp, initialUses, initialCost, expectedRefund;
-        private long initialMoney, finishMoneyBefore, finishTicksBefore;
+        private long initialMoney, finishMoneyBefore, finishTicksBefore, creditAmount, creditBefore;
         private UnitDescriptor previewDescriptor, reboundDescriptor;
         private UnitEntityData preview;
         private CharacterBuildController nativeBuilder;
@@ -82,6 +82,7 @@ namespace KingmakerMountedCombat.Diagnostics
             Patch(typeof(CharacterBuildController), "HandleLevelUpStart", 0x060039BC,
                 new[] { typeof(UnitDescriptor), typeof(JToken), typeof(Action), typeof(LevelUpState.CharBuildMode) }, "BuildBefore", "BuildAfter");
             Patch(typeof(RespecCompanion), "FinishRespecialization", 0x06008ED5, Type.EmptyTypes, "FinishBefore", "FinishAfter");
+            Patch(typeof(Player), "GainMoney", 0x06000DD0, new[] { typeof(long) }, "GainBefore", "GainAfter");
             Patch(typeof(Game), "AdvanceGameTime", 0x06000CC6, new[] { typeof(TimeSpan) }, "AdvanceBefore", null);
             Patch(typeof(RestController), "ApplyRest", 0x060091EC, new[] { typeof(UnitDescriptor) }, "RestBefore", "RestAfter");
             Patch(typeof(CharacterBuildController), "HandleUnitChangedAfterRespec", 0x060039D7,
@@ -89,14 +90,15 @@ namespace KingmakerMountedCombat.Diagnostics
             Patch(typeof(AddPet), "TryUpdatePet", 0x06002510, Type.EmptyTypes, "PetBefore", "PetAfter");
             installed = true;
         }
-        internal bool InSynchronousCallback => callbackFrame == Time.frameCount && (insideRespec || insideFinish || petUpdateSource != null);
+        internal bool InSynchronousCallback => callbackFrame == Time.frameCount &&
+            (insideRespec || insideFinish || creditPending || petUpdateSource != null);
         internal bool Complete => installed && errors.Count == 0 && entries == 1 && exits == 1 && previews == 1 &&
-            finishes == 1 && finishExits == 1 && advances == 1 && rebinds == 1 &&
+            moneyCredits == 1 && !creditPending && finishes == 1 && finishExits == 1 && advances == 1 && rebinds == 1 &&
             petUpdateSource == null && outsideFinishRestEntries == outsideFinishRestExits &&
             restEntered.SetEquals(expectedRest) && restExited.SetEquals(expectedRest);
         internal UnitEntityData Preview => preview;
         internal UnitEntityData Original => original;
-        internal long ExpectedMoneyAfter => checked(initialMoney + expectedRefund - initialCost);
+        internal long ExpectedMoneyAfter => checked(initialMoney + creditAmount - initialCost);
         internal int InitialExperience => initialXp;
 
         internal void RequireExactPreview(CharacterBuildController builder)
@@ -229,7 +231,9 @@ namespace KingmakerMountedCombat.Diagnostics
             ["reboundPetId"] = reboundPetId, ["expectedRestCount"] = expectedRest.Count,
             ["observedRestEntries"] = restEntered.Count, ["observedRestExits"] = restExited.Count,
             ["outsideFinishRestEntries"] = outsideFinishRestEntries, ["outsideFinishRestExits"] = outsideFinishRestExits,
-            ["initialMoney"] = initialMoney, ["nativeCost"] = initialCost, ["nativeScrollRefund"] = expectedRefund,
+            ["initialMoney"] = initialMoney, ["nativeCost"] = initialCost,
+            ["initialScrollRefund"] = expectedRefund, ["nativeScrollRefund"] = creditAmount,
+            ["nativeMoneyCredits"] = moneyCredits, ["moneyCreditPending"] = creditPending,
             ["diagnosticMoneyWrites"] = 0, ["diagnosticXpWrites"] = 0, ["diagnosticRestCalls"] = 0, ["diagnosticTimeAdvances"] = 0 };
         private void Patch(Type type, string name, int token, Type[] parameters, string before, string after)
         {
@@ -333,13 +337,16 @@ namespace KingmakerMountedCombat.Diagnostics
                         ["forFree"] = __instance.ForFree, ["initialUses"] = p.initialUses,
                         ["currentUses"] = player.RespecsUsed, ["initialCost"] = p.initialCost,
                         ["currentCost"] = player.GetRespecCost(), ["initialMoney"] = p.initialMoney,
-                        ["expectedRefund"] = p.expectedRefund, ["currentMoney"] = player.Money,
+                        ["initialRefundEstimate"] = p.expectedRefund, ["observedRefund"] = p.creditAmount,
+                        ["nativeMoneyCredits"] = p.moneyCredits, ["creditPending"] = p.creditPending,
+                        ["currentMoney"] = player.Money,
                         ["outsideFinishRestEntries"] = p.outsideFinishRestEntries,
                         ["outsideFinishRestExits"] = p.outsideFinishRestExits });
-                    Require(ReferenceEquals(__instance, p.action) && p.entries == 1 && p.previews == 1 && p.finishes == 0 &&
+                    Require(ReferenceEquals(__instance, p.action) && p.entries == 1 && p.previews == 1 &&
+                        p.moneyCredits == 1 && !p.creditPending && p.finishes == 0 &&
                         !__instance.ForFree && player.RespecsUsed == p.initialUses && player.GetRespecCost() == p.initialCost &&
-                        player.Money == checked(p.initialMoney + p.expectedRefund),
-                        "Native respec finish lost its exact action or prior native scroll refund.");
+                        player.Money == checked(p.initialMoney + p.creditAmount),
+                        "Native respec finish lost its exact action or observed native scroll refund.");
                     p.finishes++; p.insideFinish = true; p.callbackFrame = Time.frameCount;
                     p.finishMoneyBefore = player.Money; p.finishTicksBefore = Game.Instance.TimeController.GameTime.Ticks;
                     foreach (var actor in player.ControllableCharacters.Where(x => !x.Descriptor.State.IsFinallyDead))
@@ -347,6 +354,35 @@ namespace KingmakerMountedCombat.Diagnostics
                     Require(p.expectedRest.Count > 0 && p.expectedRest.Count <= 24, "Native rest roster is outside the bounded scope.");
                     p.Record("native-respec-finish-enter", new JObject { ["money"] = p.finishMoneyBefore,
                         ["nativeRestTargets"] = new JArray(p.expectedRest.Select(Resources)) });
+                });
+            }
+            internal static void GainBefore(Player __instance, long amount)
+            {
+                var p = active; if (p == null || p.previews == 0) return;
+                p.Safe(() => {
+                    Require(ReferenceEquals(__instance, p.player) && p.entries == 1 && p.exits == 1 &&
+                        p.finishes == 0 && p.moneyCredits == 0 && !p.creditPending &&
+                        ReferenceEquals(Game.Instance.UI.CharacterBuildController, p.nativeBuilder) &&
+                        p.nativeBuilder.LevelUpController?.State.Mode == LevelUpState.CharBuildMode.Respec &&
+                        __instance.Money == p.initialMoney && amount >= 0 &&
+                        amount == __instance.GetScrollRefundForRespec(p.original.Descriptor),
+                        "Native respec money credit is not the exact callback-time scroll refund.");
+                    p.moneyCredits++; p.creditPending = true; p.creditAmount = amount;
+                    p.creditBefore = __instance.Money; p.callbackFrame = Time.frameCount;
+                });
+            }
+            internal static void GainAfter(Player __instance, long amount)
+            {
+                var p = active; if (p == null || p.previews == 0) return;
+                p.Safe(() => {
+                    Require(p.moneyCredits == 1 && p.creditPending && p.callbackFrame == Time.frameCount &&
+                        ReferenceEquals(__instance, p.player) && amount == p.creditAmount &&
+                        __instance.Money == checked(p.creditBefore + amount),
+                        "Native respec money credit did not settle once on the exact player.");
+                    p.creditPending = false;
+                    p.Record("native-respec-refund-credit", new JObject {
+                        ["amount"] = amount, ["moneyBefore"] = p.creditBefore,
+                        ["moneyAfter"] = __instance.Money });
                 });
             }
             internal static void AdvanceBefore(Game __instance, TimeSpan delta)

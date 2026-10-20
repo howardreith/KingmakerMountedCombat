@@ -32,6 +32,11 @@ and separate restoration are recorded in the
 [batch92 checkpoint](../docs/CHUNK7-BATCH92-RETRAIN-REFUND-DISCRIMINATOR-2026-10-20.md).
 F10 retrain remains open pending exact native credit ownership and completion.
 
+The follow-up read-only native `GainMoney(long)` refund observer and strict
+reader correction passed independent review, focused evidence 93/0, installed
+patch construction/removal 24/0 and offline Candidate 7/0. It has not yet
+executed the refund hook in the game; batch92's original FAIL remains.
+
 Current requirement-to-evidence map (one status per gate family; earlier PASS
 belongs only to its recorded product, fixture and environment):
 
