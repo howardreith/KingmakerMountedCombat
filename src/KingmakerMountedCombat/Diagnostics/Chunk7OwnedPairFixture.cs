@@ -63,10 +63,7 @@ namespace KingmakerMountedCombat.Diagnostics
         }
         private void RequireBindMode(bool combatCold)
         {
-            Require(!bound && !released && combatCold == (selection.Cold && request.PersistenceCase != "multi-exploration-manual" &&
-                request.PersistenceCase != "multi-exploration-quick" && request.PersistenceCase != "multi-exploration-auto" && request.PersistenceCase != "multi-area-autosave" &&
-                !Chunk7OwnedPairsSelection.RepeatedCheckpoint(request.PersistenceCase) && !Chunk7OwnedPairsSelection.OwnedSchema1Cold(request.PersistenceCase) &&
-                request.PersistenceCase != "owned-schema1-current-manual" && !selection.IsOwnerSeedLoadRefusal),
+            Require(!bound && !released && combatCold == selection.RequiresCombatColdBind(request.PersistenceCase),
                 "Inherited fixture is already bound or its cold mode differs.");
         }
         internal void Bind(bool combatCold)
