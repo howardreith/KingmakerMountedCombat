@@ -204,6 +204,16 @@ public static class Chunk7PersistenceTests
         Check(round.Kind == MountedSaveReadKind.Current && MountedArchiveCodec.Encode(round.Data) == encoded &&
             round.Data.Pairs.Length == 2 && round.Data.Participations.Length == 2,
             "two independent Medium pairs round-trip under schema3 with one native turn");
+        var smallArchive = Archive(1);
+        smallArchive.Pairs[0].ProfileId = "small-default-halfling-horse-v1";
+        var smallJson = MountedArchiveCodec.Encode(smallArchive);
+        var smallRead = MountedArchiveCodec.Decode(smallJson);
+        Check(smallRead.Kind == MountedSaveReadKind.Current && smallRead.Data.Pairs[0].ProfileId == smallArchive.Pairs[0].ProfileId &&
+            MountedArchiveCodec.Encode(smallRead.Data) == smallJson,
+            "exact declared Small profile is schema3 data-eligible without claiming native body restoration");
+        var historicalSmall = JObject.Parse(json);
+        historicalSmall["ProfileId"] = smallArchive.Pairs[0].ProfileId;
+        Reject(historicalSmall.ToString(Formatting.None), "historical schema2 cannot inherit newly declared Small profile support");
         var chargeSlots = JObject.Parse(encoded);
         chargeSlots["Slots"] = new JArray(new JObject { ["ActorId"] = two.Pairs[0].Rider.Id, ["Index"] = 127, ["Kind"] = 5 });
         Check(MountedArchiveCodec.Decode(chargeSlots.ToString(Formatting.None)).Kind == MountedSaveReadKind.Current,
