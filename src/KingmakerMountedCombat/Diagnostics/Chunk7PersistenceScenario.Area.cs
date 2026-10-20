@@ -239,7 +239,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (areaHeaderStaged != null) throw new InvalidOperationException("Area case observed a second native header stage.");
                 areaHeaderStaged = CaptureAreaWorld("native-header-staged");
                 if (inherited != null) areaHeaderStaged["nativeSaveBoundary"] = ObserveOwnedAreaHeader(true);
-                AssertOwners(); AssertAreaRestoredViews();
+                AssertOwners(); AssertAreaRestoredViews(true);
             }
             catch (Exception error) { areaObserverError = areaObserverError ?? error.ToString(); }
         }
@@ -273,6 +273,7 @@ namespace KingmakerMountedCombat.Diagnostics
             row["sameWorld"] = ReferenceEquals(areaWorld, game?.Player);
             row["suspensions"] = persistence.AreaSuspensionCount; row["resumes"] = persistence.AreaResumeCount;
             row["pending"] = persistence.AreaTransitionPending; row["activeOwners"] = world.Registry.ActiveCount;
+            row["activeSaveScope"] = persistence.HasActiveSaveScope;
             row["views"] = new JArray(actors.Select(actor => new JObject { ["id"] = actor.UniqueId,
                 ["viewId"] = actor.View == null ? 0 : actor.View.GetInstanceID(), ["baselineViewId"] = areaViewIds[actor.UniqueId],
                 ["viewBound"] = actor.View != null && ReferenceEquals(actor.View.EntityData, actor),
@@ -284,7 +285,9 @@ namespace KingmakerMountedCombat.Diagnostics
                     ["runtimeOverride"] = runtime?.MovementAgent == null ? 0 : runtime.MovementAgent.GetInstanceID(),
                     ["viewOverride"] = rider.View?.AgentOverride == null ? 0 : rider.View.AgentOverride.GetInstanceID(),
                     ["overrideComponents"] = new JArray(rider.View == null ? new int[0] : rider.View.GetComponents<RiderMovementAgent>().Select(a => a.GetInstanceID()).ToArray()),
-                    ["invariant"] = runtime?.ValidateMountedInvariants(), ["stockEnabled"] = rider.View?.AgentASP?.enabled,
+                    ["invariant"] = label == "native-header-staged" ? runtime?.ValidateMountedSaveSerializationInvariants() : runtime?.ValidateMountedInvariants(),
+                    ["saveSerializationSuspended"] = relationship?.SaveSerializationSuspended,
+                    ["stockEnabled"] = rider.View?.AgentASP?.enabled,
                     ["mountId"] = relationship?.Mount?.UniqueId, ["mountStockEnabled"] = relationship?.Mount?.View?.AgentASP?.enabled,
                     ["mountOverride"] = relationship?.Mount?.View?.AgentOverride == null ? 0 : relationship.Mount.View.AgentOverride.GetInstanceID(),
                     ["mountOverrideComponents"] = new JArray(relationship?.Mount?.View == null ? new int[0] : relationship.Mount.View.GetComponents<RiderMovementAgent>().Select(a => a.GetInstanceID()).ToArray()),
@@ -302,8 +305,11 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             return row;
         }
-        private void AssertAreaRestoredViews()
+        private void AssertAreaRestoredViews(bool stagedSerialization = false)
         {
+            if (stagedSerialization)
+                Require(persistence.HasActiveSaveScope && persistence.SaveSuspended,
+                    "Area staged header has no exact active native serialization scope.");
             foreach (var actor in actors)
                 Require(ReferenceEquals(Exact(actor.UniqueId), actor) && actor.View != null && ReferenceEquals(actor.View.EntityData, actor) &&
                     actor.View.GetInstanceID() == areaViewIds[actor.UniqueId], "Ordinary area transfer did not retain its exact native actor/view.");
@@ -315,7 +321,10 @@ namespace KingmakerMountedCombat.Diagnostics
                     overrides.Length == 1 && ReferenceEquals(overrides[0], runtime.MovementAgent) && ReferenceEquals(rider.View.AgentOverride, runtime.MovementAgent) &&
                     !rider.View.AgentASP.enabled && relation.Mount.View.AgentASP.enabled && relation.Mount.View.AgentOverride == null &&
                     relation.Mount.View.GetComponents<RiderMovementAgent>().Length == 0 && relation.IsExactCapturedView(rider) &&
-                    relation.IsExactCapturedView(relation.Mount) && runtime.ValidateMountedInvariants() == null,
+                    relation.IsExactCapturedView(relation.Mount) &&
+                    (stagedSerialization ? relation.SaveSerializationSuspended &&
+                        runtime.ValidateMountedSaveSerializationInvariants() == null :
+                        !relation.SaveSerializationSuspended && runtime.ValidateMountedInvariants() == null),
                     "Area restoration duplicated or reused stale movement/view authority.");
             }
         }
