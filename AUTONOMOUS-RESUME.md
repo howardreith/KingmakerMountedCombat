@@ -1,5 +1,33 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## Active October 20 batch48 follow-up - identify F09 view owner
+
+The [standing completion mission](planning/CHUNK7-COMPLETION-MISSION.md)
+remains active. Preview.66 diagnostic source is pushed at
+`2b113d42ffd587ef89b2da8d79c33727e4be3f9b`; package SHA-256
+`c77693fee35d927591fa3fa47f3daf6bd844d3644634d9a7045e7216ee317e86`,
+Candidate 7/0. The [batch48 record](docs/CHUNK7-BATCH48-NATIVE-DISCRIMINATORS-2026-10-20.md)
+preserves both original outer FAILs and separate restoration. Manticore
+game PASS 5/0 is not an admitted area source because the new zero-length
+cache leaf remains outside the exact profile policy; in-memory before/after
+membership is 0/1 even though the serialized name resembles an old entry.
+Exact-run recovery passed. Small first failed at F09 stage 3, with main
+commit 1, hire commits 3, changed tracked view and no exact scene-unit
+membership; its role remains unresolved. The exact owned game window was
+closed normally and the wrapper restored Mods, saves, settings and profile;
+game and lock are absent, no Manual or atomic game result exists.
+
+Preview.67 source adds only failure-bound F09 role, party/remote/scene and
+native-builder observations. Fast 3/0 and independent review PASS. Next:
+commit/guarded-push this coherent diagnostic and docs, package once, run
+Candidate and scoped WhatIf, then use one native Small run to distinguish
+the actor's role. Do not
+globally relax the view guard or accept a newly created zero-length cache.
+The paid-hire net-money correction remains unverified natively. Continue
+positive reference-free removal, area/progression and measured 7D work.
+
+## October 20 preview.66 diagnostic follow-up - completed
+
 ## Active October 20 preview.66 diagnostic follow-up
 
 The [standing completion mission](planning/CHUNK7-COMPLETION-MISSION.md)

@@ -1,5 +1,24 @@
 # Chunk 7B–7D — IN PROGRESS
 
+## October 20 - batch48 failure discriminators
+
+Preview.66 Candidate passed 7/0. Batch48 Manticore game PASS 5/0 again
+produced a non-capital Manual, but original outer result remains **FAIL**:
+the zero-length achievement-cache leaf was absent from the in-memory intake
+inventory even though its serialized display matches a pre-existing name.
+Exact-run guarded profile recovery restored settings and released its lock;
+the Manual is not an admitted area source. Small's first retained **FAIL**
+at native paid-hire stage 3 identified a tracked actor with changed view,
+`IsInState=True` and no exact `Game.State.Units` membership. The actor's
+role is not yet proved. Its owned window was closed normally after exact
+process proof, and guarded restoration settled Mods, saves, settings and
+profile; no atomic game result or Manual was produced. The
+[batch48 record](docs/CHUNK7-BATCH48-NATIVE-DISCRIMINATORS-2026-10-20.md)
+pins both original failures and restoration. A bounded F09-only role/roster
+observation is in development; no view guard is relaxed. Positive removal,
+area Auto/cold, Small, progression, measured 7D and private 7E remain open
+under the [standing mission](planning/CHUNK7-COMPLETION-MISSION.md).
+
 ## October 20 - batch47 native follow-up and exact restoration
 
 Preview.65 Candidate passed 6/0. Both declared batch47 native slots retain
