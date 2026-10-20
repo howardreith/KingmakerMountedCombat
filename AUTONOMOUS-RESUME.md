@@ -1,6 +1,21 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
-## Active October 20 batch71 ordinary Small-profile implementation
+## Active October 20 batch72 native Small-profile verification
+
+The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
+Reviewed Small admission commit `470d7847a18aef39517d78f79cf51deeda7031d7`
+was guarded-pushed and frozen as preview.86. One guarded native F09 case,
+`20261020-c7b-world86-b72s1-small-ordinary`, returned game/outer **PASS**
+9/9 with exact transaction and profile restoration. See the
+[batch72 record](docs/CHUNK7-BATCH72-SMALL-ORDINARY-NATIVE-2026-10-20.md).
+This verifies the exact default Halfling/Horse mounted calibration and
+neighbor on preview.86, without a Small mounted save or separate cold load.
+Next: implement and review the narrow genuine mounted Small save/consumer
+route, then run it on disposable copies. Continue Medium breadth, progression,
+ordinary doors, measured 7D and readiness-gated 7E. No game process or
+transaction lock remains.
+
+## Historical October 20 batch71 ordinary Small-profile implementation
 
 The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
 [Batch71](docs/CHUNK7-BATCH71-SMALL-ADMISSION-2026-10-20.md) promotes only the
@@ -9,11 +24,10 @@ catalogue and schema-3 profile recognition, pinned to native Horse size 5.
 The private calibration lease shares the same declaration; native body/rig,
 ownership and restoration gates remain. Fast 3/0, Candidate 8/0, affected
 focused checks and independent production review passed. This checkpoint has
-no new native result. Next: commit and guarded-push the reviewed change, freeze
-one development package from that commit, then run affected native ordinary
-Small verification against the immutable qualified F09 Manual. Ordinary
-mounted save/cold load, broader presentation, progression, 7D and 7E remain
-open. No live executor or transaction lock is active.
+no new native result. The change was guarded-pushed as `470d7847`, preview.86
+was frozen, and batch72 ran affected native Small verification against the
+immutable qualified F09 Manual. Ordinary mounted save/cold load, broader
+presentation, progression, 7D and 7E remain open.
 
 ## Historical October 20 batch70 F09 native verification
 

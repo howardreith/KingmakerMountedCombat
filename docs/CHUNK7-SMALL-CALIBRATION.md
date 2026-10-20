@@ -128,3 +128,9 @@ the measured native Horse size ordinal 5 and does not admit other Halfling
 presets, equipment, sizes, forms or mounts. Native
 ordinary-player save/load, additional presentation actions and final human
 visual/physical-input acceptance still require their own evidence.
+
+The [batch72 verification](CHUNK7-BATCH72-SMALL-ORDINARY-NATIVE-2026-10-20.md)
+ran preview.86 with that ordinary declaration. Game and outer reader passed
+9/9 on the pinned F09 Manual, including exact native Horse size 5 and the
+neighboring pair. The scenario made no mounted Small save. Additional
+presentation, genuine mounted save/cold load and human acceptance remain open.
