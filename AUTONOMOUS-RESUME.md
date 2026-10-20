@@ -1,6 +1,26 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
-## Active October 20 batch74 Small mounted cold readiness diagnosis
+## Active October 20 after batch77 — standing completion mission
+
+The active [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) requires
+all remaining 7B/7C/7D and readiness-gated private 7E; its endpoint has not
+been met. Source commit `c67beb339584678d1f434504517f2cad22be23fc` was
+guarded-pushed after independent review and offline Candidate 7/0. Preview.90
+package SHA-256 is
+`e132044eb5d86fb7f734b2a6c69e337315e935dc7bada1794bd56d001c6cd53c`,
+DLL SHA-256 `15777338a2d17849b51700e2ee5b4d58a2b39a1932429f6b1a09362147edff9d`.
+Batch77 suite SHA-256 is
+`75bd24617f81fab8b030639a08523cf8a032928f20c7a1fb90a3ced6a485733f`.
+The fresh mounted Small Manual and separate cold consumer both passed game and
+outer 5/0 and 3/0 respectively; profile bytes, Mods and protected saves
+restored exactly, no game process remained. See the
+[batches 75–77 evidence](docs/CHUNK7-BATCH75-77-SMALL-COLD-READINESS-2026-10-20.md).
+Next select a bounded F10 acquisition/progression source and genuine operation,
+or the independent ordinary-door/F11 gate as prerequisites allow. Do not rerun
+the unchanged Small cold input just to reconfirm this development checkpoint.
+Preserve the batch74/76 original FAILs and batch75 outer FAIL and recovery.
+
+## Historical October 20 batch74 Small mounted cold readiness diagnosis
 
 The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
 The [batch74 route](docs/CHUNK7-BATCH74-SMALL-MOUNTED-PERSISTENCE-2026-10-20.md)
