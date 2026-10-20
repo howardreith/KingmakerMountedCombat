@@ -379,6 +379,7 @@
     <Compile Include="Domain\DeclaredSmallRiderBody.cs" />
     <Compile Include="Domain\MountedRiderProfileCatalog.cs" />
     <Compile Include="Integration\NativeSmallRiderBody.cs" />
+    <Compile Include="Integration\SmallRiderBodyFingerprint.cs" />
     <Compile Include="Domain\MountedPresentationReadiness.cs" />
     <Compile Include="Integration\NativeMountedPresentationReadiness.cs" />
     <Compile Include="Integration\MountedPersistenceService.PresentationReadiness.cs" />

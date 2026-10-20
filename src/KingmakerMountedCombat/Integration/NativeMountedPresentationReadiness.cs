@@ -7,8 +7,6 @@ using Kingmaker;
 using Kingmaker.EntitySystem.Entities;
 using Kingmaker.Visual.CharacterSystem;
 using KingmakerMountedCombat.Domain;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
 using UnityEngine;
 
 namespace KingmakerMountedCombat.Integration
@@ -101,7 +99,7 @@ namespace KingmakerMountedCombat.Integration
             // LateUpdate. Changed equipment/bone objects must first pass that
             // boundary; an old sample cannot turn their transient absence into
             // permanent incompatibility.
-            identity = JObject.FromObject(NativeSmallRiderBody.Capture(rider, mount), MountedSaveCodec.CreateSerializer()).ToString(Formatting.None) +
+            identity = SmallRiderBodyFingerprint.Capture(NativeSmallRiderBody.Capture(rider, mount)) +
                 "|equipment=" + string.Join(",", visual.Select(x => x.GetInstanceID())) +
                 "|rider=" + HierarchyIdentity(avatar.transform) + "|mount=" + HierarchyIdentity(mount.View.transform);
             // The callback has already returned from native Character.LateUpdate.
