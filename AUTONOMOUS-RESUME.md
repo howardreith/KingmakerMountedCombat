@@ -1,5 +1,30 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## Active October 20 after batch88 — native Small dismissal, missing body evidence
+
+The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
+[Batch88](docs/CHUNK7-BATCH88-SMALL-DISMISSAL-2026-10-20.md) froze pushed
+`92be6bb7591636e6dbf119c870df2db79f69081d` as world101. Mounted Small
+Manual and separate cold passed 5/0 and 3/0. Native dismissal completed
+with terminal game **PASS 3/0** and genuine target removal, but the original
+outer result is **FAIL 0/1**. The reader's exact installed round hook name
+was stale. Crucially, the immutable progression artifact has only
+`{"$id":"1"}` for `nativeBodyBefore`; it lacks the observations required
+for a reader-only PASS. Registry actor-role IDs also need strict canonical
+`N`-to-archive-`D` comparison at their exact reader boundaries. The original
+FAIL and complete guarded restoration remain separate. No game or active
+transaction lock remains.
+
+Current correction projects body evidence through the existing explicit
+Small-body fingerprint JSON and narrows the external reader's hook and
+registry-role comparisons. Independent review passed; focused progression
+81/0, owned 56/0, Small 11/0, body projection 8/0 and offline Candidate
+7/0 in 5.51 minutes passed. Commit/guarded-push, freeze an unchanged candidate,
+and rerun the affected Small native dismissal with its required genuine
+mounted Manual and separate cold prerequisites in a declared batch of at most
+three scenarios. Do not claim F10 PASS from the prior game-only result.
+Continue F09/F10/F11 and selected private 7E under the standing mission.
+
 ## Active October 20 after batch87 — declared control-owner cleanup
 
 The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.

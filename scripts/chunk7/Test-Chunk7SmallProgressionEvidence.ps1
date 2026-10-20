@@ -26,6 +26,8 @@ function New-SmallProgressionEvidenceFixture {
     $r.persistenceLoad=Copy-O $q.persistenceLoad;$o.loadedDescriptor=Copy-O $r.persistenceLoad;$o.selection=Copy-O $s
     $o.loadedArchive.CampaignId=$r.persistenceLoad.gameId;$o.loadedArchive.AreaId=$r.persistenceLoad.area
     @($o.loadedArchive.Pairs|Where-Object{$_.Rider.Id-ceq$s.actorId})[0].ProfileId='small-default-halfling-horse-v1'
+    foreach($owner in $o.beforeOwners.owners){$pair=@($o.loadedArchive.Pairs|Where-Object PairId -CEQ $owner.ownerId)[0];$owner.riderId=([Guid]$pair.Rider.Id).ToString('N');$owner.mountId=([Guid]$pair.Mount.Id).ToString('N')}
+    $o.session.pairCustody.riderId=([Guid]$s.actorId).ToString('N');$o.session.pairCustody.mountId=([Guid]$s.petId).ToString('N')
     $source=$o.source
     foreach($key in @('sourceRunId','sourceArtifactSha256','sourceArchiveSha256','inventoryRunId','inventoryArtifactSha256')){$source.$key=$s.$key}
     $source.ownedSource=Copy-O $s.ownedSource
