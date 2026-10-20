@@ -91,7 +91,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 (DialogMessageBox.Instance == null || !DialogMessageBox.Instance.IsShown),
                 "Cold inventory must own the exact idle empty menu before load.");
             RequireNoOwners(); RequireNoEffects();
-            if (selection.IsOwnerSeed) ReadOwnerSeedSource(); else ReadSource();
+            if (selection.IsOwnerSeed) ReadOwnerSeedSource(); else if (selection.IsSmallFixture) ReadSmallFixtureSource(); else ReadSource();
             probe = new Chunk7BootstrapInventoryProbe(game); probe.Install();
             restoration = new NativeArchiveRestorationProbe(persistence); restoration.Install();
             if (selection.IsOwnerSeed) { resolution = new Chunk7OwnerSeedLoadProbe(); resolution.Install(); }
@@ -107,8 +107,9 @@ namespace KingmakerMountedCombat.Diagnostics
                     ["archiveSha256"] = selection.SourceArchiveSha256, ["archiveLeaf"] = request.PersistenceLoad.FileName,
                     ["sameCandidate"] = true, ["assistedSetupOnly"] = true, ["copiedArtifactPath"] = sourcePath, ["diagnosticArchiveContentRead"] = false };
                 evidence["sourceNativeWorld"] = sourceWorld.DeepClone();
-                evidence["sourceFixtureReadiness"] = sourceReadiness.DeepClone();
+                if (!selection.IsSmallFixture) evidence["sourceFixtureReadiness"] = sourceReadiness.DeepClone();
                 evidence["sourceNativeMoney"] = expectedNativeMoney;
+                if (selection.IsSmallFixture) evidence["source"]["kind"] = "qualified-owner-seed-derived-small-fixture-manual";
             }
             evidence["beforeLoad"] = new JObject { ["frame"] = UnityEngine.Time.frameCount, ["game"] = probe.Identity(game),
                 ["saveManager"] = probe.Identity(manager), ["menuPlayer"] = probe.Identity(menuPlayer),
@@ -412,6 +413,61 @@ namespace KingmakerMountedCombat.Diagnostics
                 "Source main actor lacks its exact native field and progression identity.");
             VerifySourceBytes();
         }
+        private void ReadSmallFixtureSource()
+        {
+            sourcePath = Path.Combine(Path.GetDirectoryName(root), Chunk7AssistedColdInventorySelection.SourceLeaf);
+            archivePath = Path.Combine(root, request.PersistenceLoad.FileName);
+            var source = new FileInfo(sourcePath); var archive = new FileInfo(archivePath); var saved = request.PersistenceLoad;
+            Require(source.Exists && source.Length > 0 && source.Length <= 16 * 1024 * 1024 && (source.Attributes & FileAttributes.ReparsePoint) == 0 &&
+                archive.Exists && archive.Length == saved.Length && archive.LastWriteTimeUtc.Ticks == saved.LastWriteTimeUtcTicks && (archive.Attributes & FileAttributes.ReparsePoint) == 0 &&
+                Hash(sourcePath) == selection.SourceArtifactSha256 && Hash(archivePath) == selection.SourceArchiveSha256,
+                "Exact staged F09 Manual source/archive bytes differ.");
+            sourceLength = source.Length; sourceTicks = source.LastWriteTimeUtc.Ticks; archiveLength = archive.Length; archiveTicks = archive.LastWriteTimeUtc.Ticks; sourcePinned = true;
+            var artifact = JObject.Parse(File.ReadAllText(sourcePath)); var observed = artifact["observations"];
+            var manual = observed?["nativeWrite"];
+            Require((string)artifact["runId"] == selection.SourceRunId && (string)artifact["scenario"] == Chunk7SmallFixtureSelection.Scenario &&
+                (string)artifact["evidenceKind"] == Chunk7SmallFixtureScenario.EvidenceKind && (string)artifact["status"] == "PASS" &&
+                artifact["errors"] is JArray errors && errors.Count == 0 &&
+                (string)artifact["commit"] == request.Commit && (string)artifact["dllSha256"] == request.DllSha256 && (string)artifact["dllMvid"] == request.DllMvid &&
+                observed?["processId"]?.Type == JTokenType.Integer && (int)observed["processId"] > 0 && (int)observed["processId"] != Process.GetCurrentProcess().Id &&
+                (string)observed["contract"] == "owner-seed-unmounted-small-fixture-v1" &&
+                observed["fixtureSetupOnly"]?.Type == JTokenType.Boolean && (bool)observed["fixtureSetupOnly"] &&
+                observed["producerAncestry"]?.Type == JTokenType.Boolean && !(bool)observed["producerAncestry"] &&
+                (string)manual?["sha256"] == selection.SourceArchiveSha256 && (string)manual?["fileName"] == saved.FileName &&
+                (string)manual?["internalName"] == saved.InternalName && (string)manual?["gameId"] == saved.GameId &&
+                (string)manual?["gameName"] == saved.GameName && (string)manual?["area"] == saved.Area && (string)manual?["type"] == "Manual" &&
+                (string)manual?["operationState"] == "None" && manual?["autoLevelup"]?.Type == JTokenType.Boolean && !(bool)manual["autoLevelup"] &&
+                (long)manual["length"] == saved.Length && (long)manual["lastWriteTimeUtcTicks"] == saved.LastWriteTimeUtcTicks,
+                "Staged F09 source lacks exact same-candidate completed native Manual provenance.");
+            sourceWorld = observed["savedWorld"] as JObject;
+            var arrangement = observed["afterSaveArrangement"] as JObject;
+            var party = sourceWorld?["party"] as JArray;
+            var characters = arrangement?["characters"] as JArray;
+            var actorRows = arrangement?["actors"] as JArray;
+            Require(sourceWorld != null && party != null && party.Count == 7 &&
+                (string)sourceWorld["gameId"] == saved.GameId && (string)sourceWorld["gameName"] == saved.GameName &&
+                (string)sourceWorld["area"] == saved.Area && (string)sourceWorld["mode"] == "Default" &&
+                arrangement != null && actorRows != null && actorRows.Count == 7 &&
+                characters != null && characters.Count == 5 &&
+                arrangement["remote"] is JArray remoteRows && remoteRows.Count == 0 &&
+                arrangement["money"]?.Type == JTokenType.Integer && observed["acquiredOwners"] is JArray owners && owners.Count == 2,
+                "F09 source native saved world or paid-Halfling arrangement is missing or unbounded.");
+            sourceReadiness = arrangement;
+            expectedNativeMoney = (long)arrangement["money"];
+            expectedMainId = (string)sourceWorld["mainActorId"];
+            Require(party.Select(row => (string)row["id"]).Distinct(StringComparer.Ordinal).Count() == 7 &&
+                actorRows.Select(row => (string)row["id"]).Distinct(StringComparer.Ordinal).Count() == 7 &&
+                party.All(row => actorRows.Count(actor => (string)actor["id"] == (string)row["id"] &&
+                    (string)actor["blueprint"] == (string)row["blueprint"]) == 1) &&
+                characters.Select(row => (string)row).Distinct(StringComparer.Ordinal).Count() == 5 &&
+                characters.All(row => actorRows.Count(actor => (string)actor["id"] == (string)row) == 1),
+                "F09 saved world and native arrangement disagree on their exact seven actors or five characters.");
+            Require(expectedMainId == Chunk7SmallFixtureSelection.MainActorId &&
+                party.Count(row => (string)row["id"] == expectedMainId) == 1 &&
+                characters.Count(row => (string)row == expectedMainId) == 1,
+                "F09 source main actor lacks its exact native field identity.");
+            VerifySourceBytes();
+        }
         private void RequireLoader()
         {
             var descriptor=loader.Descriptor; var saved=request.PersistenceLoad;
@@ -446,6 +502,7 @@ namespace KingmakerMountedCombat.Diagnostics
             ["level"]=value.Descriptor.Progression.CharacterLevel,["experience"]=value.Descriptor.Progression.Experience,["classes"]=CaptureClasses(value)})) };
         private void RequireSourceRoster()
         {
+            if (selection.IsSmallFixture) { RequireSmallFixtureSourceRoster(); return; }
             Require(game.Player.Money == expectedNativeMoney, "Assisted cold native funds differ from the qualified source observation.");
             var sourceCharacters=(JArray)sourceReadiness["staticPartyFacts"]["characters"];
             Require(characters.Length==sourceCharacters.Count && characters.All(actor=>sourceCharacters.Count(row=>(string)row["actorId"]==actor.UniqueId &&
@@ -458,6 +515,24 @@ namespace KingmakerMountedCombat.Diagnostics
                     (string)source["masterId"]==actor.Descriptor.Master.Value?.UniqueId && (int)source["characterLevel"]==actor.Descriptor.Progression.CharacterLevel &&
                     expectedExperience==actor.Descriptor.Progression.Experience && JToken.DeepEquals(source["classes"],CaptureClasses(actor)),
                     "Assisted cold actor/reciprocity/progression differs from its qualified source.");
+            }
+        }
+        private void RequireSmallFixtureSourceRoster()
+        {
+            Require(game.Player.Money == expectedNativeMoney, "Cold F09 native funds differ from the paid producer Manual.");
+            var expectedCharacters = ((JArray)sourceReadiness["characters"]).Select(value => (string)value).ToArray();
+            Require(characters.Select(value => value.UniqueId).SequenceEqual(expectedCharacters) && remote.Length == 0 && actors.Length == 7,
+                "Cold F09 native character or remote membership differs from its producer Manual.");
+            foreach (var actor in actors)
+            {
+                var source = ((JArray)sourceReadiness["actors"]).Single(row => (string)row["id"] == actor.UniqueId);
+                Require((string)source["blueprint"] == actor.Blueprint.AssetGuid &&
+                    (string)source["petId"] == actor.Descriptor.Pet?.UniqueId &&
+                    (string)source["masterId"] == actor.Descriptor.Master.Value?.UniqueId &&
+                    (int)source["level"] == actor.Descriptor.Progression.CharacterLevel &&
+                    (int)source["experience"] == actor.Descriptor.Progression.Experience &&
+                    JToken.DeepEquals(source["classes"], CaptureClasses(actor)),
+                    "Cold F09 actor/reciprocal Horse/progression differs from its producer Manual.");
             }
         }
         private void VerifySourceBytes()

@@ -18,6 +18,8 @@ namespace KingmakerMountedCombat.Diagnostics
         // the product admits them generically and never as the producer fixture.
         public const string OwnerSeedCaseName = "owner-seed-readonly-inventory";
         internal bool IsOwnerSeed => Case == OwnerSeedCaseName;
+        public const string SmallFixtureCaseName = "small-fixture-manual-readonly-inventory";
+        internal bool IsSmallFixture => Case == SmallFixtureCaseName;
         // Kingmaker save names legitimately contain spaces (the engine writes them as
         // underscores only in the file name). Single interior spaces only: no leading,
         // trailing or repeated space, no tab, newline or other whitespace, at most 64
@@ -57,14 +59,14 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             if (IsOwnerSeed) return ValidateOwnerSeed(scenario, runId);
             var errors = new List<string>();
-            if (scenario != Scenario || Case != CaseName) errors.Add("Assisted cold inventory requires its exact closed read-only family.");
+            if (scenario != Scenario || Case != CaseName && Case != SmallFixtureCaseName) errors.Add("Assisted cold inventory requires its exact closed read-only family.");
             if (!Regex.IsMatch(SourceRunId ?? "", "^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$") || SourceRunId == runId)
                 errors.Add("A distinct completed assisted fixture source is required.");
             foreach (var value in new[] { SourceArtifactSha256, SourceArchiveSha256 })
                 if (!Regex.IsMatch(value ?? "", "^[a-f0-9]{64}$")) errors.Add("Exact immutable assisted fixture artifact/archive hashes are required.");
             if (!BaseGameOnly || ExpectedNativeLoadCount != 1 || ExpectedNativeWriteCount != 0)
                 errors.Add("Assisted cold inventory requires base-only staging, one native load and zero writes.");
-            if (SeedId != null || SeedSha256 != null) errors.Add("The producer assisted cold selection cannot carry owner-seed pins.");
+            if (SeedId != null || SeedSha256 != null) errors.Add("A producer cold selection cannot carry owner-seed pins.");
             return errors;
         }
         private IReadOnlyList<string> ValidateOwnerSeed(string scenario, string runId)

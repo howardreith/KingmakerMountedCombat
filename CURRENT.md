@@ -1,5 +1,14 @@
 # Chunk 7B–7D — IN PROGRESS
 
+## October 20 - F09 separate cold consumer in reviewable preview.71 source
+
+The [reviewed F09 cold consumer](docs/CHUNK7-F09-SEPARATE-COLD-CONSUMER-2026-10-20.md)
+binds a new native Manual producer to the exact candidate and observes a
+separate read-only seven-actor cold load. Focused offline checks and Fast pass;
+preview.71 has no native result yet. Batch52's preview.70 producer remains
+valid evidence only for its own candidate. The [standing completion mission](planning/CHUNK7-COMPLETION-MISSION.md)
+continues through all selected 7B–7E engineering gates.
+
 ## October 20 - batch52 genuine Small Manual producer
 
 Preview.70 Candidate passed 6/0. One native Small slot passed all six
