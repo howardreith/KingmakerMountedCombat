@@ -21,8 +21,15 @@ function New-Request {
  $m=Copy-Test $b;$m.internalName='KMC_C7_ASSISTED_FIXTURE';$m.fileName='Manual_2_KMC_C7_ASSISTED_FIXTURE.zks';$m.sha256=('c'*64);$m.gameId='33333333-1111-4111-8111-111111111111';$m.gameName='Generated main';$m.area=('d'*32)
  Copy-Test ([ordered]@{schemaVersion=2;runId='generated-assisted-cold';scenario='chunk7-assisted-cold-inventory';branch='codex/mounted-combat-generated';commit=('a'*40);productVersion=(Read-KmcJson (Join-Path $testRoot 'version.json')).productVersion;dllSha256=('c'*64);dllMvid='22222222-1111-4111-8111-111111111111';transactionToken=('d'*64);evidenceRoot=(Join-Path $testLab 'runtime-evidence/generated-assisted-cold');fixture=[ordered]@{baseline=$b;working=$w;writeAuthorization=[ordered]@{mode='working-only';allowedInternalName=$w.internalName;allowedFileName=$w.fileName;baselineImmutable=$true}};qualificationSuite=[ordered]@{suiteId='generated-suite';snapshotSha256=('e'*64)};assistedColdInventory=(New-Selection);persistenceLoad=$m})
 }
-$leaves=@('RuntimeHarness.Common.ps1','Invoke-KingmakerRuntimeScenario.ps1','Test-RuntimeRequest.ps1','Test-RuntimeGameResult.ps1','Test-RuntimeResult.ps1','ScenarioDispatchEvidence.ps1','RuntimeArtifactManifestEvidence.ps1','Chunk7CleanupEvidence.ps1','Chunk7AssistedColdInventoryEvidence.ps1','Chunk7AssistedColdInventoryFixtures.ps1')
+$leaves=@('RuntimeHarness.Common.ps1','Invoke-KingmakerRuntimeScenario.ps1','Test-RuntimeRequest.ps1','Test-RuntimeGameResult.ps1','Test-RuntimeResult.ps1','ScenarioDispatchEvidence.ps1','RuntimeArtifactManifestEvidence.ps1','Chunk7CleanupEvidence.ps1','Chunk7AssistedColdInventoryEvidence.ps1','Chunk7AssistedColdInventoryFixtures.ps1','Chunk7SmallFixtureColdSource.ps1')
 foreach($leaf in $leaves){Check ('parse '+$leaf) $false {[void](Ast (Join-Path $testRuntime $leaf))}}
+foreach($leaf in @('Test-RuntimeGameResult.ps1','Test-RuntimeResult.ps1')){
+ $readerLeaf=$leaf
+ Check ('standalone '+$readerLeaf+' imports F09 source gate') $false {
+  $reader=[IO.File]::ReadAllText((Join-Path $testRuntime $readerLeaf))
+  if(([regex]::Matches($reader,[regex]::Escape(". (Join-Path "+'$PSScriptRoot'+" 'Chunk7SmallFixtureColdSource.ps1')"))).Count-ne1){throw 'Standalone result reader cannot validate the F09 source.'}
+ }
+}
 Check 'closed cold family registered once as save-backed compound' $false {if(@(Get-KmcSaveBackedRuntimeScenarios|Where-Object{$_-ceq'chunk7-assisted-cold-inventory'}).Count-ne1-or-not(Test-KmcCompoundRuntimeScenario 'chunk7-assisted-cold-inventory')){throw 'Family registration differs.'}}
 foreach($alias in @('CHUNK7-ASSISTED-COLD-INVENTORY','chunk7-assisted-cold','chunk7-assisted-cold-inventory-any')){Check ('inexact scenario unavailable '+$alias) $false {if(Test-KmcChunk7AssistedColdInventoryScenario $alias){throw 'Alias admitted.'}}}
 $body=[IO.File]::ReadAllText((Join-Path $testRuntime 'Test-RuntimeRequest.ps1'));$import=". (Join-Path "+'$PSScriptRoot'+" 'RuntimeHarness.Common.ps1')"

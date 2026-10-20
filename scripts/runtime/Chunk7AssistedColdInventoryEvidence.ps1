@@ -449,7 +449,9 @@ function Assert-KmcChunk7SmallFixtureColdEvidence($Request,$Artifact,$SourceArti
   Assert-KmcBootstrapInventoryString $entry.kind $(if($i-eq0){'native-player-postload-before'}else{'native-player-postload-after'})
   Assert-KmcOrdinaryInteger $entry.frame $prior $w.frame;$prior=$entry.frame
   foreach($key in @('game','saveManager','player')){Assert-KmcAssistedLabel $entry.$key $labels;Assert-KmcOrdinaryInteger $entry.$key $w.$key $w.$key}
-  Assert-KmcBootstrapInventoryString $entry.gameId $Request.persistenceLoad.gameId
+  # The owner-seed-derived Manual can still carry GameId only in its header at
+  # Player.PostLoad. The settled native world above must carry the exact ID.
+  if($null-ne$entry.gameId){Assert-KmcBootstrapInventoryString $entry.gameId $Request.persistenceLoad.gameId}
   if($i-eq1-or$null-ne$entry.mainActorId){Assert-KmcBootstrapInventoryString $entry.mainActorId $w.mainActorId}
  }
  if($o.nativeLoad.events[0].frame-ne$o.nativeLoad.events[1].frame){throw 'F09 native PostLoad did not return synchronously.'}

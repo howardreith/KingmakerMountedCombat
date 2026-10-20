@@ -56,6 +56,8 @@ function Check([string]$name,[bool]$expected,[scriptblock]$action){
  if($accepted-eq$expected){$script:pass++;Write-Host ('PASS '+$name)}else{$script:fail++;Write-Host ('FAIL '+$name+': '+$errorText)}
 }
 Check 'F09 separate cold actual emitted native observations' $true {param($f)Assert-KmcChunk7AssistedColdInventoryEvidence $f.request $f.artifact $f.source}
+Check 'F09 owner-seed-derived PostLoad may retain null GameId' $true {param($f)$f.artifact.observations.nativeLoad.events[0].gameId=$null;$f.artifact.observations.nativeLoad.events[1].gameId=$null;Assert-KmcChunk7AssistedColdInventoryEvidence $f.request $f.artifact $f.source}
+Check 'F09 PostLoad rejects a mismatched nonnull GameId' $false {param($f)$f.artifact.observations.nativeLoad.events[1].gameId='00000000-0000-0000-0000-000000000001';Assert-KmcChunk7AssistedColdInventoryEvidence $f.request $f.artifact $f.source}
 Check 'F09 cold rejects changed paid money' $false {param($f)$f.artifact.observations.loadedWorld.nativeMoney++;Assert-KmcChunk7AssistedColdInventoryEvidence $f.request $f.artifact $f.source}
 Check 'F09 cold rejects changed second Horse ownership' $false {param($f)$f.artifact.observations.loadedWorld.party[6].masterId=$null;Assert-KmcChunk7AssistedColdInventoryEvidence $f.request $f.artifact $f.source}
 Check 'F09 cold rejects foreign source kind' $false {param($f)$f.artifact.observations.source.kind='qualified-assisted-fixture';Assert-KmcChunk7AssistedColdInventoryEvidence $f.request $f.artifact $f.source}

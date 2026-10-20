@@ -1,5 +1,25 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## Active October 20 batch53 F09 cold reader-only PASS
+
+The [standing completion mission](planning/CHUNK7-COMPLETION-MISSION.md)
+remains active. The [batch53 record](docs/CHUNK7-BATCH53-F09-SEPARATE-COLD-2026-10-20.md)
+pins preview.71 commit `784a6296f9e0d91c44ad25dda826db57f609e929`,
+Candidate 6/0, a new same-candidate native F09 Manual producer PASS and one
+separate cold game/artifact PASS. The cold consumer's **original outer FAIL**
+on null native PostLoad `GameId` remains immutable; independent review and
+reader-only re-evaluation pass after an F09-only external reader correction.
+No new product build or native replay is needed for that reader change.
+Both transaction phases are restored; Mods, protected saves and profile
+receipts report exact restoration; no game or runtime lock is live.
+At this checkpoint the reader and standalone-validator wiring correction and
+documentation are uncommitted. Next: run focused wiring/reader checks, commit
+and guarded-push them, update draft PR #5, then admit the preview.71 F09
+Manual into exact-provenance Small mounted calibration. Do not relabel it as
+an acquired field or DLL-absent cleanup source. Continue the independent area,
+positive removal, progression, profile, 7D and readiness-gated 7E work; no
+engineering completion is claimed.
+
 ## Active October 20 F09 separate cold consumer preview.71
 
 The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
