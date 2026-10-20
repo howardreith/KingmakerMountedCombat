@@ -1,5 +1,16 @@
 # Chunk 7B–7D — IN PROGRESS
 
+## October 20 - batch73 F11 matched-pool development measurement
+
+Preview.87 reused preview.86's identical DLL bytes under a current-HEAD
+package and fresh qualification suite. Two guarded native scenarios passed and
+restored exactly. The first Manual producer had only 0/1-pair windows; the
+second zero-write exploration case produced the intended complete 0/1/2/0
+matched-pool artifact with stable subscriptions and zero KMC log messages.
+Means were 0.3416/0.4237/0.4575/0.3440 ms. This is one diagnostic-included
+sequence, not allocation-rate, diagnostics-off or final performance acceptance.
+See the [batch73 record](docs/CHUNK7-BATCH73-F11-MATCHED-POOL-2026-10-20.md).
+
 ## October 20 - batch72 native Small-profile verification
 
 Preview.86 ran one guarded F09 scenario on the immutable qualified Small

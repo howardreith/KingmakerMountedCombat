@@ -1,5 +1,22 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## Active October 20 batch73 F11 measurement checkpoint
+
+The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
+Preview.87 has the same DLL bytes/MVID as preview.86, packaged at current
+documentation HEAD `6023ce0d`. Batch73's two declared, sequential guarded
+native scenarios both passed and restored exactly. Slot 1 was a Manual producer
+with only 0/1 windows; slot 2 used the correct zero-write exploration case and
+produced a complete 0/1/2/0 matched-pool artifact. See the
+[batch73 record](docs/CHUNK7-BATCH73-F11-MATCHED-POOL-2026-10-20.md).
+The initial preview.86 WhatIf and slot-2 BOM WhatIf refusals occurred before
+any transaction; their amended inputs are retained. No game process or lock
+remains. Next: develop the distinct genuine mounted Small save/separate-cold
+route from the immutable batch53 Small Manual, then repeat affected native
+qualification on a reviewed candidate. F11 still needs repeated matched
+windows, allocation instrumentation and diagnostics-off comparison; Medium
+breadth, F10, ordinary doors and selected private 7E remain open.
+
 ## Active October 20 batch72 native Small-profile verification
 
 The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.

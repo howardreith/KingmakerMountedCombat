@@ -1,5 +1,13 @@
 # Chunk 7 F11 measurement design — IN PROGRESS
 
+[Batch73](CHUNK7-BATCH73-F11-MATCHED-POOL-2026-10-20.md) now provides one
+current-candidate native 0/1/2/0 resident-pool sequence on preview.87.
+It confirms stable subscription counts and zero KMC messages, while its
+diagnostic-included KMC Update means increase from about 0.343 ms at zero
+pairs to 0.424/0.458 ms at one/two pairs. One window per active state is
+insufficient for the three-window comparison below; managed allocation rate,
+diagnostics-off behavior and final-candidate acceptance remain unmeasured.
+
 The existing opt-in `MountedRuntimeMeasurement` samples 30 warmup and 120
 measured frames. It records inclusive KMC `CompositionRoot.Update` ticks,
 whole-frame `Time.unscaledDeltaTime`, KMC log count, retained managed heap,
