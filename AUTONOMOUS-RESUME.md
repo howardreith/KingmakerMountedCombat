@@ -1,5 +1,29 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## Active October 20 after batch81 — standing completion mission
+
+The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
+See [batch81](docs/CHUNK7-BATCH81-SMALL-DISMISSAL-2026-10-20.md) for the exact
+preview.94, suite and three declared native run IDs. Reviewed/pushed source
+`cb4e912b36d2a424f62ae367341d84a9d534f384` admitted a qualified Small
+dismissal route; fresh same-candidate mounted Manual and separate cold load
+passed 5/0 and 3/0. The native dismissal **FAIL** retained cleanup after an
+owned-roster mismatch, then timed out. Guarded combined recovery and a separately
+reviewed exact-run profile recovery restored all external surfaces. Original
+FAIL evidence and recovery receipt are separate; no game or lock remains.
+
+An attempted Harmony postfix-order repair was removed after independent review
+found its regression modeled a callback dependency absent from production.
+This checkpoint adds only a bounded read-only first-mismatch capture of the
+native session/probe and raw roster to the pending FAIL artifact; Fast 3/0,
+Candidate 7/0 and independent safety review passed. Freeze preview.95 once,
+make a fresh suite, and declare at most three new
+same-candidate scenarios: mounted Small Manual producer, separate cold
+consumer, and targeted native dismissal. Read the first-mismatch artifact
+before proposing another correction. Do not claim F10 PASS from batch81.
+Continue independent F10 level/retrain/replacement, F09 breadth, F11 measured
+hardening and readiness-gated private 7E under the standing mission.
+
 ## Active October 20 after batch80 — standing completion mission
 
 The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.

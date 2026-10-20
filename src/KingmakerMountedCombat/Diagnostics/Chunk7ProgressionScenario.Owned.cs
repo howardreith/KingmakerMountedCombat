@@ -196,6 +196,51 @@ namespace KingmakerMountedCombat.Diagnostics
             return mount.Destroyed && !mount.IsInState && ReferenceEquals(mount.View, null) &&
                 !Game.Instance.State.Units.Any(value => value != null && value.UniqueId == mount.UniqueId);
         }
+        private void CaptureOwnedRosterFailure(Exception error)
+        {
+            if (!ownedProgression || !captured || error?.Message !=
+                "Owned progression field membership changed outside its observed native target lifecycle." ||
+                evidence["firstOwnedRosterFailure"] != null) return;
+            // Capture the first mismatch, before later native cleanup can change the
+            // roster again. Each projection is read-only and independently guarded;
+            // diagnostic failure must never replace the original failure/custody.
+            var detail = new JObject { ["reason"] = error.Message };
+            evidence["firstOwnedRosterFailure"] = detail;
+            try
+            {
+                detail["expectedFieldIds"] = new JArray((ownedActors ?? Array.Empty<UnitEntityData>()).Select(value => value?.UniqueId));
+                detail["expectedPartyIds"] = new JArray((ownedParty ?? Array.Empty<UnitEntityData>()).Select(value => value?.UniqueId));
+                detail["expectedCharacterIds"] = new JArray((ownedCharacters ?? Array.Empty<UnitEntityData>()).Select(value => value?.UniqueId));
+            }
+            catch (Exception observationError) { detail["expectedRosterCaptureError"] = observationError.ToString(); }
+            try
+            {
+                bool removed = false; UnitEntityData pet = mount;
+                detail["targetTransitionObserved"] = session != null && session.TryGetObservedTargetRoster(out removed, out pet);
+                detail["targetRemoved"] = removed;
+                detail["observedPetId"] = pet?.UniqueId;
+            }
+            catch (Exception observationError) { detail["transitionObservationError"] = observationError.ToString(); }
+            try { detail["session"] = session?.Capture(); }
+            catch (Exception observationError) { detail["sessionCaptureError"] = observationError.ToString(); }
+            try
+            {
+                var player = Game.Instance.Player;
+                detail["party"] = new JArray(player.Party.Take(7).Select(value => new JObject {
+                    ["id"] = value?.UniqueId, ["object"] = value == null ? (JToken)JValue.CreateNull() : RuntimeHelpers.GetHashCode(value),
+                    ["petId"] = value?.Descriptor?.Pet?.UniqueId }));
+                detail["partyCharacters"] = new JArray(player.PartyCharacters.Take(7).Select(value => value.Value?.UniqueId));
+                detail["remoteCompanions"] = new JArray(player.RemoteCompanions.Take(7).Select(value => value.Value?.UniqueId));
+                detail["target"] = new JObject { ["riderId"] = rider?.UniqueId, ["riderInState"] = rider != null && rider.IsInState,
+                    ["riderInGame"] = rider != null && rider.IsInGame, ["riderDestroyed"] = rider != null && rider.Destroyed,
+                    ["originalPetId"] = mount?.UniqueId, ["originalPetInState"] = mount != null && mount.IsInState,
+                    ["originalPetInGame"] = mount != null && mount.IsInGame, ["originalPetDestroyed"] = mount != null && mount.Destroyed,
+                    ["currentPetId"] = rider?.Descriptor?.Pet?.UniqueId };
+            }
+            catch (Exception observationError) { detail["rawRosterCaptureError"] = observationError.ToString(); }
+            try { detail["fieldIds"] = new JArray(Chunk7NativeFieldRoster.Capture(Game.Instance.Player).Select(value => value.UniqueId)); }
+            catch (Exception observationError) { detail["fieldCaptureError"] = observationError.ToString(); }
+        }
         private JObject CaptureOwnedRoster(string phase)
         {
             var removed = false; UnitEntityData pet = mount;
