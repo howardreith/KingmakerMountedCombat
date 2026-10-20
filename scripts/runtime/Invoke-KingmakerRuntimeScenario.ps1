@@ -126,6 +126,7 @@ if($PSBoundParameters.ContainsKey('ObserveWorkingDeserialization') -and
 . (Join-Path $PSScriptRoot 'Chunk7LoadRefusalFixtures.ps1')
 . (Join-Path $PSScriptRoot 'Chunk7SmallCalibrationFixtures.ps1')
 . (Join-Path $PSScriptRoot 'Chunk7SmallFixtureFixtures.ps1')
+. (Join-Path $PSScriptRoot 'Chunk7SmallFixtureColdSource.ps1')
 . (Join-Path $PSScriptRoot 'Chunk7ProgressionFixtures.ps1')
 # Stale level-up autosave families are refused here, before any selection intake, lock,
 # transaction, Mods swap or launch (docs/CHUNK7-STALE-LEVELUP-AUTOSAVE-FAMILIES.md).

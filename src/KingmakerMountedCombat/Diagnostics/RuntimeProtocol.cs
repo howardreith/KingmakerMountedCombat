@@ -682,6 +682,17 @@ namespace KingmakerMountedCombat.Diagnostics
                         PersistenceLoad.Sha256 == Fixture.Baseline?.Sha256 || PersistenceLoad.Sha256 != AssistedColdInventory.SeedSha256)
                         errors.Add("Owner seed lacks its exact registered non-aliasing identity.");
                 }
+                else if (AssistedColdInventory?.IsSmallFixture == true)
+                {
+                    errors.AddRange(PersistenceLoad.Validate("persistenceLoad", Chunk7SmallFixtureSelection.OutputName, "^Manual_[1-9][0-9]*_KMC_C7_SMALL_FIXTURE\\.zks$"));
+                    if (!Chunk7SmallFixtureSelection.IsManualLeaf(PersistenceLoad.FileName) ||
+                        Fixture?.Working == null || PersistenceLoad.GameId == Fixture.Working.GameId || PersistenceLoad.GameId == Fixture.Baseline?.GameId ||
+                        !Guid.TryParseExact(PersistenceLoad.GameId, "D", out var smallColdId) || smallColdId == Guid.Empty ||
+                        PersistenceLoad.GameId != Chunk7SmallFixtureSelection.CampaignId || PersistenceLoad.GameName != Chunk7SmallFixtureSelection.CampaignName ||
+                        PersistenceLoad.Area != Chunk7SmallFixtureSelection.AreaId || PersistenceLoad.Sha256 == Fixture.Working.Sha256 ||
+                        PersistenceLoad.Sha256 == Fixture.Baseline?.Sha256 || PersistenceLoad.Sha256 != AssistedColdInventory.SourceArchiveSha256)
+                        errors.Add("F09 cold source lacks its exact owner-seed-derived native Manual identity.");
+                }
                 else
                 {
                     errors.AddRange(PersistenceLoad.Validate("persistenceLoad", Chunk7AssistedColdInventorySelection.ManualName, "^Manual_[1-9][0-9]*_KMC_C7_ASSISTED_FIXTURE\\.zks$"));

@@ -1,5 +1,22 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## Active October 20 F09 separate cold consumer preview.71
+
+The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
+The [F09 separate-cold checkpoint](docs/CHUNK7-F09-SEPARATE-COLD-CONSUMER-2026-10-20.md)
+records the reviewed read-only preview.71 consumer and focused offline passes.
+At this checkpoint the branch is `codex/mounted-combat-chunk7-successor`;
+commit and candidate package are pending. Batch52's preview.70 Manual cannot
+serve a preview.71 native cold run because candidate identity changed.
+No preview.71 game process, runtime lock, or transaction has been started.
+Next: inspect the final diff, commit and guarded-push; package preview.71 once,
+run Candidate and package validation; freeze a new append-only suite and a
+two-scenario declaration. Run a scoped WhatIf and one native F09 Manual
+producer, then a separate cold consumer only after the producer PASS and source
+hash pins are known. Preserve the old Manual and all earlier FAILs unchanged.
+Continue Small mounted calibration and the other selected 7B–7E gates after
+this narrow qualification; this checkpoint is not engineering completion.
+
 ## Active October 20 batch52 Small Manual producer PASS
 
 The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.

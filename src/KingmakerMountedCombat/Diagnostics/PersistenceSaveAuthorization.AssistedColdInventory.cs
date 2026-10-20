@@ -37,7 +37,9 @@ namespace KingmakerMountedCombat.Diagnostics
             // Owner seeds admit their registry-supplied exact names; the producer leaf/name test is unchanged.
             var named = selected?.IsOwnerSeed == true
                 ? Chunk7AssistedColdInventorySelection.IsOwnerSeedLeaf(source?.FileName) && Chunk7AssistedColdInventorySelection.IsOwnerSeedName(source?.InternalName)
-                : Chunk7AssistedColdInventorySelection.IsManualLeaf(source?.FileName) && source.InternalName == Chunk7AssistedColdInventorySelection.ManualName;
+                : selected?.IsSmallFixture == true
+                    ? Chunk7SmallFixtureSelection.IsManualLeaf(source?.FileName) && source.InternalName == Chunk7SmallFixtureSelection.OutputName
+                    : Chunk7AssistedColdInventorySelection.IsManualLeaf(source?.FileName) && source.InternalName == Chunk7AssistedColdInventorySelection.ManualName;
             return source != null && named &&
                 source.GameId == gameId && source.GameName == gameName && maximumNativeLoadRequests == 1 && !maximumNativeWriteRequests.HasValue &&
                 !declaresBootstrap && !bootstrapWindowOpen && entries.Count == 1 && entries.TryGetValue(source.FileName,out entry) &&

@@ -10,11 +10,26 @@ internal static class AssistedColdFixture{
  Fixture=new RuntimeFixtureIdentity{Baseline=D("KMC_AUTOMATION_BASELINE","Manual_298_KMC_AUTOMATION_BASELINE.zks",'a'),Working=D("KMC_AUTOMATION_WORKING","Manual_299_KMC_AUTOMATION_WORKING.zks",'b'),WriteAuthorization=new RuntimeSaveWriteAuthorization{Mode="working-only",AllowedInternalName="KMC_AUTOMATION_WORKING",AllowedFileName="Manual_299_KMC_AUTOMATION_WORKING.zks",BaselineImmutable=true}},QualificationSuite=new RuntimeQualificationSuiteIdentity{SuiteId="assisted-suite",SnapshotSha256=new string('4',64)}};
  // Owner-seed kind: registry-supplied names, seed pins only, no producer pins.
  internal static RuntimeRequest SeedRequest(){var r=Request();r.AssistedColdInventory=new Chunk7AssistedColdInventorySelection{Case=Chunk7AssistedColdInventorySelection.OwnerSeedCaseName,SeedId="KMC_C7_OWNER_SEED",SeedSha256=new string('c',64),BaseGameOnly=true,ExpectedNativeLoadCount=1,ExpectedNativeWriteCount=0};r.PersistenceLoad=D("KMC_C7_OWNER_SEED","Manual_302_KMC_C7_OWNER_SEED.zks",'c',Minted);return r;}
+ internal static RuntimeRequest SmallRequest(){var r=Request();r.AssistedColdInventory.Case=Chunk7AssistedColdInventorySelection.SmallFixtureCaseName;
+  r.PersistenceLoad=D(Chunk7SmallFixtureSelection.OutputName,"Manual_304_KMC_C7_SMALL_FIXTURE.zks",'c',Chunk7SmallFixtureSelection.CampaignId);
+  r.PersistenceLoad.GameName=Chunk7SmallFixtureSelection.CampaignName;r.PersistenceLoad.Area=Chunk7SmallFixtureSelection.AreaId;return r;}
 }
 internal static class AssistedColdProtocolTests{
  static int Main(){var t=new TestRunner();
  t.Run("exact qualified Manual cold request validates",()=>{var r=AssistedColdFixture.Request();TestRunner.Equal(0,r.Validate().Count,string.Join(" | ",r.Validate()));});
  t.Run("owner seed request validates without producer pins",()=>{var r=AssistedColdFixture.SeedRequest();TestRunner.Equal(0,r.Validate().Count,string.Join(" | ",r.Validate()));});
+ t.Run("F09 native Manual has a distinct read-only cold case",()=>{var r=AssistedColdFixture.SmallRequest();TestRunner.Equal(0,r.Validate().Count,string.Join(" | ",r.Validate()));});
+ foreach(var kind in new[]{"assisted-leaf","assisted-name","seed","wrong-campaign","wrong-area","wrong-hash","write","second-load","self-source"})t.Run("F09 cold refuses "+kind,()=>{var r=AssistedColdFixture.SmallRequest();switch(kind){
+  case"assisted-leaf":r.PersistenceLoad.FileName="Manual_304_KMC_C7_ASSISTED_FIXTURE.zks";break;
+  case"assisted-name":r.PersistenceLoad.InternalName=Chunk7AssistedColdInventorySelection.ManualName;break;
+  case"seed":r.AssistedColdInventory.SeedId="KMC_C7_NO_MODS_OWNER_SEED";break;
+  case"wrong-campaign":r.PersistenceLoad.GameId=AssistedColdFixture.Minted;break;
+  case"wrong-area":r.PersistenceLoad.Area=AssistedColdFixture.Area;break;
+  case"wrong-hash":r.AssistedColdInventory.SourceArchiveSha256=new string('e',64);break;
+  case"write":r.AssistedColdInventory.ExpectedNativeWriteCount=1;break;
+  case"second-load":r.AssistedColdInventory.ExpectedNativeLoadCount=2;break;
+  case"self-source":r.AssistedColdInventory.SourceRunId=r.RunId;break;}
+  TestRunner.True(r.Validate().Count>0,"Invalid F09 cold request admitted.");});
  // Owner-seed internal names: single interior spaces admitted (Kingmaker save names); the file leaf is unchanged.
  foreach(var name in new[]{"KMC C7 NO MODS OWNER SEED","KMC_C7_OWNER_SEED",new string('A',64),"A","KMC C7.v2-b_x"})t.Run("owner seed name admitted '"+name+"'",()=>{var r=AssistedColdFixture.SeedRequest();r.PersistenceLoad.InternalName=name;TestRunner.Equal(0,r.Validate().Count,string.Join(" | ",r.Validate()));TestRunner.True(Chunk7AssistedColdInventorySelection.IsOwnerSeedName(name),"name refused");});
  foreach(var name in new[]{" KMC C7 NO MODS OWNER SEED","KMC C7 NO MODS OWNER SEED ","KMC C7  NO MODS OWNER SEED","KMC\tC7 NO MODS OWNER SEED","KMC C7 NO MODS OWNER SEED\n","KMC\u00a0C7",new string('A',65),"",Chunk7AssistedColdInventorySelection.ManualName,"_KMC C7"})t.Run("owner seed name refused '"+name.Replace("\t","\\t").Replace("\n","\\n")+"'",()=>{var r=AssistedColdFixture.SeedRequest();r.PersistenceLoad.InternalName=name;TestRunner.True(r.Validate().Count>0,"Owner seed name admitted.");TestRunner.True(!Chunk7AssistedColdInventorySelection.IsOwnerSeedName(name),"name admitted");});
