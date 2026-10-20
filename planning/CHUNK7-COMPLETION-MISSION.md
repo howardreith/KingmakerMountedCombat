@@ -68,6 +68,15 @@ retains the immutable failure and exact restoration. F10 retrain remains open
 pending identification of that pet lifecycle owner and a separate cold
 consumer of any genuine successful retrain Manual.
 
+Batches97–98 rejected a cross-candidate source at WhatIf before game launch,
+then passed a fresh world110 mounted Small producer and cold consumer.
+The targeted retrain original outer FAIL captured the native feature-reapply
+gap and same-horse reattachment. The [batch97–98 record](../docs/CHUNK7-BATCH97-98-NATIVE-PET-REAPPLY-2026-10-20.md)
+preserves original evidence and exact restoration. A narrow observer
+correction passed independent review and focused actual-method 65/0; it
+awaits fresh native verification. F10 retrain and its genuine Manual cold
+consumer remain open.
+
 Current requirement-to-evidence map (one status per gate family; earlier PASS
 belongs only to its recorded product, fixture and environment):
 

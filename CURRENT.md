@@ -1,5 +1,18 @@
 # Chunk 7B–7D — IN PROGRESS
 
+## October 20 — batch98 explains native pet reapply; correction pending game
+
+[Batches97–98](docs/CHUNK7-BATCH97-98-NATIVE-PET-REAPPLY-2026-10-20.md)
+record a no-launch cross-candidate WhatIf refusal, then fresh world110 mounted
+Small Manual 5/0 and cold 3/0 PASS. Retrain original **outer FAIL** at the
+pet-binding observer has no Manual. Its native trace proves same-source
+feature reapply temporarily clears rider pet/ID and horse master before
+native reattachment of the identical live horse. Exact restoration passed.
+A narrowly scoped observer correction passed independent review, actual-method
+pet-binding regression 65/0, installed observer checks 24/0, build and offline
+Candidate 7/0; native
+verification remain. F10 retrain and the standing mission remain open.
+
 ## October 20 — batch96 native credits PASS, later pet binding FAIL
 
 [Batch96](docs/CHUNK7-BATCH96-RETRAIN-PET-SOURCE-2026-10-20.md) froze pushed
