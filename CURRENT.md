@@ -1,5 +1,18 @@
 # Chunk 7B–7D — IN PROGRESS
 
+## October 20 - batch77 Small mounted cold readiness corrected
+
+The [batches 75–77 record](docs/CHUNK7-BATCH75-77-SMALL-COLD-READINESS-2026-10-20.md)
+preserves the original batch74/76 cold FAILs and batch75 cache-related outer
+FAIL with exact-run recovery. Preview.89 identified a recursive Json.NET walk of
+`PoseVector3.Normalized` in the Small presentation identity. Reviewed commit
+`c67beb33` replaces that transient identity with a finite 20-field projection;
+focused 8/0, independent supplemental 27/0, Fast 3/0 and Candidate 7/0 passed.
+Preview.90 batch77 then passed a fresh genuinely mounted Manual producer 5/0
+and separate cold consumer 3/0, both game and outer, with exact profile, Mods
+and protected-save restoration. The cold reached `all-pair-presentation-restored`.
+F10, ordinary doors, F11, conditional stress and selected private 7E remain open.
+
 ## October 20 - batch74 Small mounted persistence route reviewed
 
 The [batch74 route](docs/CHUNK7-BATCH74-SMALL-MOUNTED-PERSISTENCE-2026-10-20.md)
