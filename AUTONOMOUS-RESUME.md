@@ -4,12 +4,13 @@
 
 The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
 The [batch64 record](docs/CHUNK7-BATCH64-STOCK-MAMMOTH-FIXTURE-2026-10-20.md)
-describes the new base-only reference-free stock Mammoth producer and its strict
-reader. Independent review passes and final preview.80 Candidate passes 8/0,
-offline only; no batch64 native scenario, package or fixture has yet been qualified.
-Complete coherent commit and guarded push, one package
-build, suite/WhatIf and one declared native producer. Preserve all batch63 and
-earlier results. Continue positive cleanup/DLL-absent cold, Small, progression,
+pins guarded-pushed `fbb1116a`, independent review, final Candidate 8/0,
+frozen package SHA `e332de9e`, one native
+producer PASS 5/0, genuine `Manual_304_KMC_C7_STOCK_MAMMOTH.zks` SHA
+`e475d49c`, and exact Mods/saves/Areas/profile restoration. No game or lock
+remains. Use an independent copy of this reference-free stock Mammoth Manual
+for positive mounted cleanup, then a separate KMC-DLL-absent cold consumer.
+Preserve all batch63 and earlier results. Continue Small, progression,
 ordinary door, 7D and selected private 7E. No merge, release, permanent
 installation or HUMAN PLAY acceptance.
 
