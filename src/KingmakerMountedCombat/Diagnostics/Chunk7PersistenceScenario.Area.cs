@@ -31,6 +31,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private readonly Dictionary<string, int> areaMovementIds = new Dictionary<string, int>(StringComparer.Ordinal);
         private SavedNativeActor[] areaActorDebt;
         private long areaNativeTicks;
+        private readonly JObject areaContinuationPlans = new JObject();
 
         // Invoked after both native Mount shells settle and owned slots are bound.
         // The declared native area entry is the sole source of the autosave.
@@ -341,6 +342,62 @@ namespace KingmakerMountedCombat.Diagnostics
                     "Area transfer lost native actor expenditure outside observed clock progress.");
             }
         }
+        // Spider Cave's inherited mount position is beside native geometry. A
+        // fixed world-axis click can terminate against that geometry even when
+        // the restored movement authority is sound. Select the first of eight
+        // exact two-metre rays whose stock navmesh trace reaches a free endpoint.
+        // This is read-only fixture planning; Move still sends one ordinary click
+        // and MovementSettled keeps the same travel/residual requirements.
+        private UnityEngine.Vector3 SelectAreaContinuationGoal(UnitEntityData mover, string label)
+        {
+            Require(AreaAutosaveCase && mover?.View?.AgentASP != null && AstarPath.active != null,
+                "Area continuation has no exact stock movement/navmesh boundary.");
+            var start = mover.Position;
+            Require(FiniteAreaPoint(start) && FiniteAreaNumber(mover.View.Corpulence) && mover.View.Corpulence > 0f,
+                "Area continuation has no finite native mover position or footprint.");
+            var attachedRider = ReferenceEquals(mover, firstMount) ? firstRider : secondRider;
+            var proposals = new JArray();
+            foreach (var angle in new[] { 90f, 270f, 0f, 180f, 45f, 135f, 225f, 315f })
+            {
+                var requested = start + UnityEngine.Quaternion.Euler(0f, angle, 0f) * UnityEngine.Vector3.forward * 2f;
+                var nearest = AstarPath.active.GetNearest(requested);
+                var walkable = nearest.node != null && nearest.node.Walkable;
+                var goal = nearest.clampedPosition;
+                if (!FiniteAreaPoint(goal)) { proposals.Add(new JObject { ["angle"] = angle, ["requested"] = Point(requested), ["eligible"] = false }); continue; }
+                var traceEnd = walkable ? Kingmaker.View.ObstacleAnalyzer.TraceAlongNavmesh(start, goal) : start;
+                if (!FiniteAreaPoint(traceEnd)) { proposals.Add(new JObject { ["angle"] = angle, ["requested"] = Point(requested), ["goal"] = Point(goal), ["eligible"] = false }); continue; }
+                var horizontalTravel = HorizontalDistance(start, goal);
+                var clampDistance = HorizontalDistance(requested, goal);
+                var routeResidual = HorizontalDistance(traceEnd, goal);
+                var occupied = Game.Instance.State.Units.Concat(Game.Instance.Player.AllCharacters).Distinct().Any(actor =>
+                    actor != null && !ReferenceEquals(actor, mover) && !ReferenceEquals(actor, attachedRider) &&
+                    actor.IsInGame && actor.View != null && (!FiniteAreaPoint(actor.Position) ||
+                    !FiniteAreaNumber(actor.View.Corpulence) || HorizontalDistance(actor.Position, goal) <
+                    mover.View.Corpulence + actor.View.Corpulence + 0.05f));
+                var eligible = walkable && clampDistance <= 0.15f &&
+                    horizontalTravel >= 1.8f && horizontalTravel <= 2.2f && routeResidual <= 0.05f && !occupied;
+                proposals.Add(new JObject { ["angle"] = angle, ["requested"] = Point(requested), ["goal"] = Point(goal),
+                    ["traceEnd"] = Point(traceEnd), ["walkable"] = walkable,
+                    ["travel"] = horizontalTravel, ["clampDistance"] = clampDistance,
+                    ["routeResidual"] = routeResidual, ["occupied"] = occupied, ["eligible"] = eligible });
+                if (!eligible) continue;
+                areaContinuationPlans[label] = new JObject {
+                    ["moverId"] = mover.UniqueId, ["start"] = Point(start), ["selectedAngle"] = angle,
+                    ["selectedGoal"] = Point(goal), ["proposals"] = proposals };
+                return goal;
+            }
+            areaContinuationPlans[label] = new JObject {
+                ["moverId"] = mover.UniqueId, ["start"] = Point(start), ["proposals"] = proposals };
+            throw new InvalidOperationException("Area fixture has no bounded traversable two-metre native continuation ray.");
+        }
+        private static float HorizontalDistance(UnityEngine.Vector3 first, UnityEngine.Vector3 second)
+        {
+            first.y = second.y = 0f;
+            return UnityEngine.Vector3.Distance(first, second);
+        }
+        private static bool FiniteAreaPoint(UnityEngine.Vector3 point) =>
+            FiniteAreaNumber(point.x) && FiniteAreaNumber(point.y) && FiniteAreaNumber(point.z);
+        private static bool FiniteAreaNumber(float value) => !float.IsNaN(value) && !float.IsInfinity(value);
         private void EndAreaObservation()
         {
             if (!areaObserverAttached) return;

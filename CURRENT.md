@@ -1,5 +1,14 @@
 # Chunk 7B–7D — IN PROGRESS
 
+## October 20 - batch59 Spider Cave continuation
+
+The [batch59 record](docs/CHUNK7-BATCH59-AREA-CONTINUATION-2026-10-20.md)
+preserves preview.76's original native/outer FAIL: the real Auto and corrected
+header observer passed, but the generic two-metre eastward continuation stopped
+1.111262 m short in Spider Cave. A bounded native-navmesh fixture selection is
+in review; its original movement threshold stays intact. Auto producer and
+separate cold qualification remain open.
+
 ## October 20 - batch58 Spider Cave Auto header
 
 The [batch58 record](docs/CHUNK7-BATCH58-AREA-SAVE-SERIALIZATION-2026-10-20.md)

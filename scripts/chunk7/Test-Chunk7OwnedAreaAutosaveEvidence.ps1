@@ -24,6 +24,7 @@ function New-AreaCase {
  ($o.ownedOutputCompletion.nativeInventory|Where-Object nativeType -CEQ 'Auto').area=$r.persistenceAreaTarget.area
  $o.snapshots[0].gameTicks=10000000
  $area=[pscustomobject]@{mode='AfterEntry';enterPoint=$r.persistenceAreaTarget.enterPoint;sourceArea=$r.ownedPairs.sourceArea;destinationArea=$r.persistenceAreaTarget.area;explicitSaveGameDispatches=0;observerError=$null;nativeArchiveSha256=$o.nativeWrite.sha256;nativeSaveCallbackExpected=$false;suspensionObserved=$true;duplicateReadyNoOp=$true;loadingTicks=2}
+ $plans=[pscustomobject]@{};foreach($move in $o.movements){$point=$move.goal;$plan=[pscustomobject]@{moverId=$move.executorId;start=$move.start;selectedAngle=90;selectedGoal=$point;proposals=@([pscustomobject]@{angle=90;requested=$point;goal=$point;traceEnd=$point;walkable=$true;travel=2.0;clampDistance=0.0;routeResidual=0.0;occupied=$false;eligible=$true})};Put-Area $plans $move.label $plan};Put-Area $o areaContinuationPlans $plans
  $labels=[Collections.Generic.HashSet[int]]::new()
  for($i=0;$i-lt4;$i++){
   $s=Clone-Area $o.snapshots[0];$s.label=@('before-native-transfer','native-header-starting','native-header-staged','after-native-transfer')[$i];$s.snapshots=if($i-lt2){0}else{1}
@@ -82,6 +83,11 @@ $bad=[ordered]@{
  'staged second lease missing'={param($f)$f.artifact.observations.areaTransfer.headerStaged.movementAuthorities[1].saveSerializationSuspended=$false}
  'settled lease retained'={param($f)$f.artifact.observations.areaTransfer.after.movementAuthorities[0].saveSerializationSuspended=$true}
  'serialized AI invariant failed'={param($f)$f.artifact.observations.areaTransfer.headerStaged.movementAuthorities[0].invariant='serialized AI mismatch'}
+ 'bounded continuation ray blocked'={param($f)$f.artifact.observations.areaContinuationPlans.'first-pair'.proposals[0].routeResidual=1.1}
+ 'bounded continuation proposal substituted'={param($f)$f.artifact.observations.areaContinuationPlans.'first-pair'.proposals[0].goal.x=4.0}
+ 'bounded continuation requested ray shortened'={param($f)$f.artifact.observations.areaContinuationPlans.'first-pair'.proposals[0].requested.x=1.0}
+ 'bounded continuation wrong ray order'={param($f)$f.artifact.observations.areaContinuationPlans.'first-pair'.proposals[0].angle=270}
+ 'bounded continuation click substituted'={param($f)$f.artifact.observations.areaContinuationPlans.'second-pair'.selectedGoal.x=4.0}
  'extra retained object'={param($f)$f.artifact.observations.areaTransfer.identityRetention.ids+=@(2010)}
  'native Prepare changed'={param($f)$f.artifact.observations.areaTransfer.headerStarting.actors[0].prepared=$true}
  'native debt refund'={param($f)$f.artifact.observations.areaTransfer.headerStarting.actors[3].native.Standard=0}
@@ -96,6 +102,7 @@ function New-ColdArea {
  $r.ownedPairs=Clone-Area $source.request.ownedPairs;$r.ownedPairs.case='persistence-load';$r.ownedPairs.expectedNativeWriteCount=0;$r.ownedPairs.checkpointSourceRunId=$source.request.runId
  Put-Area $r persistenceAreaTarget (Clone-Area $source.request.persistenceAreaTarget);$r.persistenceLoad.area=$r.persistenceAreaTarget.area;$o.loadedDescriptor=Clone-Area $r.persistenceLoad;$o.loadedArchive=Clone-Area $source.artifact.observations.nativeWrite.archive
  $o.inheritedFixture=Clone-Area $source.artifact.observations.inheritedFixture;$o.inheritedCleanup=Clone-Area $source.artifact.observations.inheritedCleanup
+ Put-Area $o areaContinuationPlans (Clone-Area $source.artifact.observations.areaContinuationPlans)
  $dir=Join-Path $script:areaLab ('runtime-evidence/'+$source.request.runId);[void][IO.Directory]::CreateDirectory($dir);$p=Join-Path $dir 'chunk7-persistence-evidence.json'
  [IO.File]::WriteAllText($p,($source.artifact|ConvertTo-Json -Depth 90),[Text.UTF8Encoding]::new($false));$sha=Get-KmcSha256 $p;$r.ownedPairs.checkpointSourceArtifactSha256=$sha
  [pscustomobject]@{parent=$source;request=$r;artifact=$cold.artifact;source=[pscustomobject]@{checkpointArtifactPath=$p;checkpointArtifactSha256=$sha;checkpointArtifactLength=[long](Get-Item -LiteralPath $p).Length}}
@@ -109,6 +116,7 @@ $badCold=[ordered]@{
  'cold mutated graph owner'={param($f)$f.artifact.observations.loadedArchive.Pairs[1].Generation++}
  'cold lost second restored owner'={param($f)$f.artifact.observations.snapshots[0].presentationRestores=1}
  'cold native Prepare event'={param($f)$e=Clone-Area $f.artifact.observations.coldRestoration.events[0];$e.kind='prepare-before';$f.artifact.observations.coldRestoration.events+=@($e)}
+ 'cold blocked continuation ray'={param($f)$f.artifact.observations.areaContinuationPlans.'second-pair'.proposals[0].routeResidual=1.1}
  'cold inherited feature mismatch'={param($f)$f.artifact.observations.inheritedFixture.pairs[1].rank++;$f.artifact.observations.inheritedCleanup.pairs[1].rank++}
 }
 foreach($m in $badCold.GetEnumerator()){Check-Area $m.Key {$f=New-ColdArea;&$m.Value $f;Assert-KmcChunk7OwnedAreaColdSource $f.source $f.request $f.artifact} $true}

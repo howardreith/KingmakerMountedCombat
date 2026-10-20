@@ -100,7 +100,61 @@ function Assert-KmcChunk7AreaAutosave($Request,$Observation,$Archive) {
     }
     Assert-KmcChunk7Boolean $row.before.pending $false
     Assert-KmcChunk7Boolean $row.after.pending $false
+    Assert-KmcChunk7AreaContinuationPlans $Observation
     if(Test-KmcChunk7OwnedPairsScenario $Request.scenario){Assert-KmcChunk7OwnedAreaField $Request $Observation}
+}
+
+function Assert-KmcChunk7AreaContinuationPlans($Observation) {
+    foreach($label in @('first-pair','second-pair')) {
+        $plan=$Observation.areaContinuationPlans.$label
+        $move=@($Observation.movements|Where-Object label -CEQ $label)
+        if($null-eq$plan-or$move.Count-ne1-or$plan.moverId-cne$move[0].executorId-or
+           $plan.proposals-isnot[Array]-or$plan.proposals.Count-lt1-or$plan.proposals.Count-gt8){
+            throw 'Area continuation lacks its bounded exact native mount plan.'
+        }
+        foreach($axis in @('x','y','z')) {
+            if(-not(Test-KmcChunk7FiniteNumber $plan.start.$axis)-or-not(Test-KmcChunk7FiniteNumber $plan.selectedGoal.$axis)-or
+               [Math]::Abs([double]$plan.start.$axis-[double]$move[0].start.$axis)-gt0.0001-or
+               [Math]::Abs([double]$plan.selectedGoal.$axis-[double]$move[0].goal.$axis)-gt0.0001){
+                throw 'Area continuation plan changed its actual native click.'
+            }
+        }
+        $angles=@(90,270,0,180,45,135,225,315)
+        for($i=0;$i-lt$plan.proposals.Count;$i++){
+            if(-not(Test-KmcChunk7FiniteNumber $plan.proposals[$i].angle)-or$plan.proposals[$i].angle-ne$angles[$i]){
+                throw 'Area continuation proposal order or angle differs from the bounded native search.'
+            }
+            Assert-KmcChunk7Boolean $plan.proposals[$i].eligible ($i-eq$plan.proposals.Count-1)
+        }
+        $selected=$plan.proposals[-1]
+        Assert-KmcChunk7Boolean $selected.walkable $true
+        Assert-KmcChunk7Boolean $selected.occupied $false
+        foreach($axis in @('x','y','z')) {
+            foreach($point in @($selected.requested,$selected.goal,$selected.traceEnd)) {
+                if(-not(Test-KmcChunk7FiniteNumber $point.$axis)){throw 'Area continuation proposal has a nonfinite native point.'}
+            }
+            if([Math]::Abs([double]$selected.goal.$axis-[double]$plan.selectedGoal.$axis)-gt0.0001){
+                throw 'Area continuation selected a different proposal endpoint.'
+            }
+        }
+        $travel=[Math]::Sqrt([Math]::Pow([double]$plan.start.x-[double]$selected.goal.x,2)+[Math]::Pow([double]$plan.start.z-[double]$selected.goal.z,2))
+        $clamp=[Math]::Sqrt([Math]::Pow([double]$selected.requested.x-[double]$selected.goal.x,2)+[Math]::Pow([double]$selected.requested.z-[double]$selected.goal.z,2))
+        $route=[Math]::Sqrt([Math]::Pow([double]$selected.traceEnd.x-[double]$selected.goal.x,2)+[Math]::Pow([double]$selected.traceEnd.z-[double]$selected.goal.z,2))
+        $radians=[double]$selected.angle*[Math]::PI/180.0
+        if(-not(Test-KmcChunk7FiniteNumber $plan.selectedAngle)-or$selected.angle-ne$plan.selectedAngle-or
+           [Math]::Abs([double]$selected.requested.x-([double]$plan.start.x+2.0*[Math]::Sin($radians)))-gt0.0001-or
+           [Math]::Abs([double]$selected.requested.y-[double]$plan.start.y)-gt0.0001-or
+           [Math]::Abs([double]$selected.requested.z-([double]$plan.start.z+2.0*[Math]::Cos($radians)))-gt0.0001-or
+           -not(Test-KmcChunk7FiniteNumber $selected.travel)-or-not(Test-KmcChunk7FiniteNumber $selected.clampDistance)-or
+           -not(Test-KmcChunk7FiniteNumber $selected.routeResidual)-or
+           [Math]::Abs($travel-[double]$selected.travel)-gt0.0001-or
+           [Math]::Abs($clamp-[double]$selected.clampDistance)-gt0.0001-or
+           [Math]::Abs($route-[double]$selected.routeResidual)-gt0.0001-or
+           $selected.travel-lt1.8-or$selected.travel-gt2.2-or
+           $selected.clampDistance-gt0.15-or$selected.routeResidual-gt0.05){
+            throw 'Area continuation selected a blocked, clamped or short native ray.'
+        }
+    }
 }
 
 # The owned area route reuses the strict full-field replay reader without changing
