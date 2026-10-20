@@ -105,9 +105,15 @@ function New-ColdArea {
  Put-Area $o areaContinuationPlans (Clone-Area $source.artifact.observations.areaContinuationPlans)
  $dir=Join-Path $script:areaLab ('runtime-evidence/'+$source.request.runId);[void][IO.Directory]::CreateDirectory($dir);$p=Join-Path $dir 'chunk7-persistence-evidence.json'
  [IO.File]::WriteAllText($p,($source.artifact|ConvertTo-Json -Depth 90),[Text.UTF8Encoding]::new($false));$sha=Get-KmcSha256 $p;$r.ownedPairs.checkpointSourceArtifactSha256=$sha
- [pscustomobject]@{parent=$source;request=$r;artifact=$cold.artifact;source=[pscustomobject]@{checkpointArtifactPath=$p;checkpointArtifactSha256=$sha;checkpointArtifactLength=[long](Get-Item -LiteralPath $p).Length}}
+ [pscustomobject]@{parent=$source;request=$r;artifact=$cold.artifact;source=[pscustomobject]@{checkpointArtifactPath=$p;checkpointArtifactSha256=$sha;checkpointArtifactLength=[long](Get-Item -LiteralPath $p).Length;checkpointCandidate=[pscustomobject]@{commit=$source.artifact.commit;dllSha256=$source.artifact.dllSha256;dllMvid=$source.artifact.dllMvid}}}
 }
 Check-Area 'exact destination Auto cold graph with original source area' {$f=New-ColdArea;Assert-KmcChunk7OwnedAreaColdSource $f.source $f.request $f.artifact}
+Check-Area 'accepted area Auto producer may feed a new read-only consumer candidate' {
+ $f=New-ColdArea;$f.request.commit='a'*40;$f.request.dllSha256='b'*64;$f.request.dllMvid='cccccccc-cccc-4ccc-8ccc-cccccccccccc'
+ $f.artifact.commit=$f.request.commit;$f.artifact.dllSha256=$f.request.dllSha256;$f.artifact.dllMvid=$f.request.dllMvid
+ foreach($hook in @($f.artifact.observations.coldRestoration.hooks|Where-Object declaringType -CEQ 'KingmakerMountedCombat.Integration.NativeCombatActorPersistence')){$hook.moduleMvid=$f.request.dllMvid}
+ Assert-KmcChunk7OwnedAreaColdSource $f.source $f.request $f.artifact
+}
 Check-Area 'cold area accepts a bounded read-only door inventory' {
  $f=New-ColdArea;$m=$f.artifact.observations.movements
  Put-Area $f.artifact.observations areaDoorInventory ([pscustomobject]@{boundary='before-first-continuation';candidateCount=0;rowLimit=32;radius=28.0;
@@ -127,6 +133,7 @@ $badCold=[ordered]@{
  'cold wrong descriptor area'={param($f)$f.request.persistenceLoad.area=$f.request.ownedPairs.sourceArea}
  'cold wrong transition point'={param($f)$f.request.persistenceAreaTarget.enterPoint='d'*32}
  'cold wrong source lineage'={param($f)$f.request.ownedPairs.checkpointSourceArtifactSha256='0'*64}
+ 'cold wrong producer candidate pin'={param($f)$f.source.checkpointCandidate.dllSha256='0'*64}
  'cold mutated graph owner'={param($f)$f.artifact.observations.loadedArchive.Pairs[1].Generation++}
  'cold lost second restored owner'={param($f)$f.artifact.observations.snapshots[0].presentationRestores=1}
  'cold native Prepare event'={param($f)$e=Clone-Area $f.artifact.observations.coldRestoration.events[0];$e.kind='prepare-before';$f.artifact.observations.coldRestoration.events+=@($e)}
