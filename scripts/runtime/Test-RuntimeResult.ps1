@@ -75,6 +75,7 @@ function Assert-SubscenarioResults {
     $missionScenarios += @(Get-KmcChunk7AssistedFixtureRows)
     $missionScenarios += @(Get-KmcChunk7AcquiredManualRows)
     $missionScenarios += @(Get-KmcChunk7SmallFixtureRows)
+    $missionScenarios += @(Get-KmcChunk7StockMammothFixtureRows)
     $missionScenarios += @(Get-KmcChunk7ManualDerivedRows)
     $missionScenarios += @(Get-KmcChunk7CumulativeRows)
     $missionScenarios += @('chunk7-owned-two-pair-campaign','C7-owned-pairs-inherited-custody')
@@ -116,6 +117,7 @@ function Assert-SubscenarioResults {
         [int]$Result.assertionPassCount -ne $assertionPass -or [int]$Result.assertionFailCount -ne $assertionFail) {
         throw 'Runtime result subscenario totals do not match the named results.'
     }
+    Assert-KmcStockMammothSubscenarioSet $Result
     # A compound scenario (Get-KmcCompoundRuntimeScenarios) reports child case rows only; its dedicated validator owns the required case set.
     if (-not (Test-KmcCompoundRuntimeScenario ([string]$Result.scenario)) -and @($missionScenarios | Where-Object { $_ -ceq [string]$Result.scenario }).Count -eq 1 -and -not $names.Contains([string]$Result.scenario)) { throw 'Individual runtime scenario did not report its own named result.' }
 }
@@ -190,6 +192,7 @@ Assert-KmcChunk7BootstrapInventoryArtifact -Request $request -Manifest $validate
 Assert-KmcChunk7AssistedColdInventoryArtifact -Request $request -Manifest $validatedArtifactManifest -Status ([string]$result.status)
 Assert-KmcChunk7AssistedFixtureArtifact -Request $request -Manifest $validatedArtifactManifest -Status ([string]$result.status)
 Assert-KmcChunk7SmallFixtureArtifact -Request $request -Manifest $validatedArtifactManifest -Status ([string]$result.status)
+Assert-KmcChunk7StockMammothFixtureArtifact -Request $request -Manifest $validatedArtifactManifest -Status ([string]$result.status)
 Assert-KmcChunk7AcquiredManualArtifact -Request $request -Manifest $validatedArtifactManifest -Status ([string]$result.status)
 Assert-KmcChunk7ManualDerivedArtifact -Request $request -Manifest $validatedArtifactManifest -Status ([string]$result.status)
 Assert-KmcChunk7CumulativeArtifact -Request $request -Manifest $validatedArtifactManifest -Status ([string]$result.status)

@@ -113,6 +113,7 @@ namespace KingmakerMountedCombat.Tests
             MountedRelationshipTests.Register(runner);
             MountedPlayerActionTests.Register(runner);
             SmallProfilePolicyTests.Register(runner);
+            StockMammothFixtureSelectionTests.Register(runner);
             MountedPresentationReadinessTests.Register(runner);
             MountedCombatDomainTests.Register(runner);
             ActorAllocationLifetimeTests.Register(runner);

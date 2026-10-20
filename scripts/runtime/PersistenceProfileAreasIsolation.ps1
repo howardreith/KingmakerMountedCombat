@@ -6,6 +6,7 @@ function Test-KmcPersistenceAreasIsolationSelection {
     param([string]$Scenario,[string]$PersistenceCase,[bool]$ObserveWorkingDeserialization)
     if($Scenario-ceq'export-mounted-contracts'){return $ObserveWorkingDeserialization}
     if($ObserveWorkingDeserialization){return $false}
+    if($Scenario-ceq'chunk7-stock-mammoth-fixture-preparation'){return $true}
     if($Scenario-ceq'persistence-p07-load'){return $true}
     if($Scenario-ceq'persistence-p07-save'){
         return $PersistenceCase-cin @('area-reload','mounted-charge-area','area-cross-entry','area-cross-exit')

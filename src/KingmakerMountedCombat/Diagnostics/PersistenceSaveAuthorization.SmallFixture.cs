@@ -45,7 +45,8 @@ namespace KingmakerMountedCombat.Diagnostics
             var type = value.GetType();
             var allowed = type == typeof(RuntimeRequest) || type == typeof(RuntimeFixtureIdentity) ||
                 type == typeof(RuntimeSaveDescriptor) || type == typeof(RuntimeSaveWriteAuthorization) ||
-                type == typeof(RuntimeQualificationSuiteIdentity) || type == typeof(Chunk7SmallFixtureSelection);
+                type == typeof(RuntimeQualificationSuiteIdentity) || type == typeof(Chunk7SmallFixtureSelection) ||
+                type == typeof(Chunk7StockMammothFixtureSelection);
             if (!allowed) return false;
             var properties = type.GetProperties(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance)
                 .Where(property => property.CanRead && property.CanWrite && property.GetIndexParameters().Length == 0)

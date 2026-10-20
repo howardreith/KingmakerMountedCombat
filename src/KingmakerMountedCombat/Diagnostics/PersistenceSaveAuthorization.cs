@@ -196,6 +196,8 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 var smallFixtureRejection = SmallFixtureAdmission(operation);
                 if (smallFixtureRejection != null) return smallFixtureRejection;
+                var stockMammothRejection = StockMammothFixtureAdmission(operation);
+                if (stockMammothRejection != null) return stockMammothRejection;
                 if (!AssistedCumulativeUnchanged()) return "Assisted cumulative captured request changed before native/storage admission.";
                 if (!ProgressionManualUnchanged()) return "Owned progression Manual request changed before native admission.";
                 var assistedColdRejection = AssistedColdAdmission(operation);
@@ -614,6 +616,7 @@ namespace KingmakerMountedCombat.Diagnostics
             lock (sync)
             {
                 if (!SmallFixtureUnchanged()) throw new InvalidOperationException("F09 captured request changed before archive access.");
+                if (!StockMammothFixtureUnchanged()) throw new InvalidOperationException("Stock Mammoth captured request changed before archive access.");
                 if (!AssistedCumulativeUnchanged()) throw new InvalidOperationException("Assisted cumulative captured request changed before native archive access.");
                 if (!AssistedColdUnchanged()) throw new InvalidOperationException("Assisted cold captured request changed before native archive access.");
                 if (!AssistedUnchanged()) throw new InvalidOperationException("Assisted fixture captured request changed before native archive access.");
@@ -637,6 +640,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (!SmallFixtureUnchanged() || smallFixtureRequest != null &&
                     (smallFixtureReservations != 1 || admittedNativeLoadRequests != 1))
                     throw new InvalidOperationException("F09 projection requires its unchanged loaded request and native Manual reservation.");
+                if (!StockMammothFixtureUnchanged() || stockMammothFixtureRequest != null &&
+                    (stockMammothFixtureReservations != 1 || admittedNativeLoadRequests != 1))
+                    throw new InvalidOperationException("Stock Mammoth projection requires its unchanged loaded request and native Manual reservation.");
                 if (!AssistedCumulativeUnchanged()) throw new InvalidOperationException("Assisted cumulative captured request changed before projection.");
                 if (!AssistedColdUnchanged()) throw new InvalidOperationException("Assisted cold captured request changed before projection.");
                 if (!AssistedUnchanged()) throw new InvalidOperationException("Assisted fixture captured request changed before projection.");
@@ -700,6 +706,8 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 var smallFixtureRejection = SmallFixtureAdmission(operation);
                 if (smallFixtureRejection != null) return smallFixtureRejection;
+                var stockMammothRejection = StockMammothFixtureAdmission(operation);
+                if (stockMammothRejection != null) return stockMammothRejection;
                 if (!AssistedCumulativeUnchanged()) return "Assisted cumulative captured request changed before native/storage admission.";
                 var assistedColdRejection = AssistedColdAdmission(operation);
                 if (assistedColdRejection != null) return assistedColdRejection;
