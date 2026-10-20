@@ -53,7 +53,9 @@ namespace KingmakerMountedCombat.Diagnostics
             if (OwnerSeedCheckpointSave)
             {
                 JObject prerequisite;
-                enter = Chunk7OwnerSeedAreaEntry.Resolve(game, request, out prerequisite);
+                enter = request.OwnedPairs.IsManticoreReturnArea ?
+                    Chunk7ManticoreReturnEntry.Resolve(game, request, out prerequisite) :
+                    Chunk7OwnerSeedAreaEntry.Resolve(game, request, out prerequisite);
                 evidence["areaEntryPrerequisite"] = prerequisite;
                 Require(!enter.Area.IsCapital,
                     "The selected native destination is currently a capital; both saved pairs cannot be directly controllable there.");

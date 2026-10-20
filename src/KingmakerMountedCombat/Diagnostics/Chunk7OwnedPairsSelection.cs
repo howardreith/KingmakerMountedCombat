@@ -52,6 +52,10 @@ namespace KingmakerMountedCombat.Diagnostics
         internal const string ManticoreManualColdCheckpoint = "manticore-fixture-cold-manual";
         internal const string ManticoreFixtureManualName = "KMC_C7_AREA_FIXTURE";
         internal const string ManticoreFixtureArea = "314e8c3b15b896a4f847c85f9250f02b";
+        internal const string ManticoreReturnRoute = "manticore-to-spider-v1";
+        internal const string ManticoreReturnEntry = "00becd5302e6d1d4a8ad93b6c612b927";
+        internal const string ManticoreReturnArea = "b10e86516b6437d45a629931c30936fe";
+        internal const string ManticoreFixtureManualSha256 = "86a5ff4bc18852f48388156f627ddebf1c9047ecf69f73a1b4b3b92b231f1b30";
         internal const string ManticoreFixtureSourceSha256 = "b4d1ede7843c600f201dcd7b71cd2558cad44210e7e0eb78d9a58f6e89f64003";
         internal static bool IsManticoreManualCold(string checkpoint) => checkpoint == ManticoreManualColdCheckpoint;
         internal static bool IsOwnerSeedSourceOnlyCheckpoint(string checkpoint) => SupportedSaveBoundary(checkpoint) || OwnedSchema1Source(checkpoint) || checkpoint == ManticoreFixtureCheckpoint;
@@ -80,10 +84,13 @@ namespace KingmakerMountedCombat.Diagnostics
         public string[] PartyIds { get; set; }
         public Chunk7OwnerSeedXpAssistance XpAssistance { get; set; }
         public string SourceArea { get; set; }
+        // Present only on the distinct Manticore Manual -> visited Spider Cave area route.
+        public string AreaRoute { get; set; }
         // Scenario 3 only: the unrelated companion whose one ordinary native action is observed.
         public string CompanionId { get; set; }
         // Keep every historical serialized selection byte shape unchanged.
         public bool ShouldSerializeSourceArea() => SourceArea != null;
+        public bool ShouldSerializeAreaRoute() => AreaRoute != null;
         public bool ShouldSerializeCompanionId() => CompanionId != null;
         public bool ShouldSerializeSourceRunId() => !OwnerSeedSetup || SourceRunId != null;
         public bool ShouldSerializeSourceArtifactSha256() => !OwnerSeedSetup || SourceArtifactSha256 != null;
@@ -108,6 +115,7 @@ namespace KingmakerMountedCombat.Diagnostics
         internal bool IsOwnerSeedDerivedCombat => Case == OwnerSeedRealtimeCase || Case == OwnerSeedRiderFirstCase || Case == OwnerSeedMountFirstCase || Case == OwnerSeedDisableCase;
         internal bool IsOwnerSeedCheckpointSave => Case == OwnerSeedCheckpointSaveCase;
         internal bool IsOwnerSeedCheckpointLoad => Case == OwnerSeedCheckpointLoadCase;
+        internal bool IsManticoreReturnArea => AreaRoute == ManticoreReturnRoute;
         // Every kind whose native input is the owner-seed-derived Manual itself.
         internal bool OwnerSeedDerivedInput => IsOwnerSeedDerivedLoad || IsOwnerSeedDerivedCombat || IsOwnerSeedCheckpointSave || IsOwnerSeedLoadRefusal;
         // Every kind whose staged source receipt is the owner-seed Manual producer's world evidence.
@@ -182,6 +190,9 @@ namespace KingmakerMountedCombat.Diagnostics
             Cold && (checkpoint == "legacy-mounted-pending-tb-manual" || OwnedSchema1Cold(checkpoint)) ? 1 : 0;
         public IReadOnlyList<string> Validate(string scenario, string runId, string checkpoint)
         {
+            if (AreaRoute != null && (!(IsOwnerSeedCheckpointSave || IsOwnerSeedCheckpointLoad) ||
+                checkpoint != "multi-area-autosave" || !IsManticoreReturnArea))
+                return new[] { "Only the exact owner-seed checkpoint area pair admits the distinct Manticore return route." };
             if (OwnerSeedSetup) return ValidateOwnerSeed(scenario, runId, checkpoint);
             if (IsOwnerSeedDerivedLoad) return ValidateOwnerSeedDerivedLoad(scenario, runId, checkpoint);
             if (IsOwnerSeedLoadRefusal)
@@ -295,6 +306,9 @@ namespace KingmakerMountedCombat.Diagnostics
         private IReadOnlyList<string> ValidateOwnerSeedCheckpoint(string scenario, string runId, string checkpoint)
         {
             var errors = DerivedInputErrors(scenario, runId, WriteCount(checkpoint), checkpoint);
+            if (IsManticoreReturnArea && (SourceArea != ManticoreFixtureArea ||
+                SourceArchiveSha256 != ManticoreFixtureManualSha256))
+                errors.Add("Manticore return requires the exact admitted native Manual and source area.");
             if (!Run(CheckpointSourceRunId) || CheckpointSourceRunId == runId || CheckpointSourceRunId == SourceRunId || CheckpointSourceRunId == SeedId ||
                 !Hash(CheckpointSourceArtifactSha256) || CheckpointSourceArtifactSha256 == SourceArtifactSha256 ||
                 CheckpointSourceArtifactSha256 == SourceArchiveSha256 || CheckpointSourceArtifactSha256 == SeedSha256)
@@ -319,7 +333,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 errors.Add("The owner's immutable seed identity is required and cannot alias the derived Manual or its evidence.");
             var area = (IsOwnerSeedCheckpointSave || IsOwnerSeedCheckpointLoad) && checkpoint == "multi-area-autosave";
             var manticoreCold = IsOwnerSeedDerivedLoad && IsManticoreManualCold(checkpoint);
-            if (XpAssistance != null || (area ? SourceArea != "b10e86516b6437d45a629931c30936fe" :
+            if (XpAssistance != null || (area ? SourceArea != (IsManticoreReturnArea ? ManticoreFixtureArea : "b10e86516b6437d45a629931c30936fe") :
                 manticoreCold ? SourceArea != ManticoreFixtureArea : SourceArea != null))
                 errors.Add("Only the selected owner-seed area checkpoint carries its exact original Manual area; setup assistance is forbidden.");
             if (!PairIds.All(Chunk7ManualDerivedSelection.NativeId) || PairIds.Distinct(StringComparer.Ordinal).Count() != 4)

@@ -584,9 +584,10 @@ namespace KingmakerMountedCombat.Diagnostics
                 {
                     // Exactly the producer's written owner-seed-derived Manual: its own native
                     // name, the pinned bytes, never the immutable seed or protected fixtures.
-                    var manticoreCold = OwnedPairs.IsOwnerSeedDerivedLoad &&
-                        Chunk7OwnedPairsSelection.IsManticoreManualCold(PersistenceCase);
-                    var manualName = manticoreCold ? Chunk7OwnedPairsSelection.ManticoreFixtureManualName :
+                    var manticoreManualInput = OwnedPairs.IsOwnerSeedDerivedLoad &&
+                        Chunk7OwnedPairsSelection.IsManticoreManualCold(PersistenceCase) ||
+                        OwnedPairs.IsOwnerSeedCheckpointSave && OwnedPairs.IsManticoreReturnArea;
+                    var manualName = manticoreManualInput ? Chunk7OwnedPairsSelection.ManticoreFixtureManualName :
                         Chunk7OwnedPairsSelection.OwnerSeedManualName;
                     errors.AddRange(PersistenceLoad.Validate("persistenceLoad", manualName,
                         "^Manual_[1-9][0-9]*_" + manualName + "\\.zks$"));
@@ -595,7 +596,7 @@ namespace KingmakerMountedCombat.Diagnostics
                         string.IsNullOrWhiteSpace(PersistenceLoad.GameName) || PersistenceLoad.Sha256 == Fixture.Working.Sha256 ||
                         PersistenceLoad.Sha256 == Fixture.Baseline?.Sha256 || PersistenceLoad.Sha256 != OwnedPairs.SourceArchiveSha256 ||
                         PersistenceLoad.Sha256 == OwnedPairs.SeedSha256 ||
-                        (manticoreCold && PersistenceLoad.Area != Chunk7OwnedPairsSelection.ManticoreFixtureArea))
+                        (manticoreManualInput && PersistenceLoad.Area != Chunk7OwnedPairsSelection.ManticoreFixtureArea))
                         errors.Add("Owner-seed-derived cold input must be exactly the producer's written Manual, distinct from the immutable seed and protected Working/Baseline.");
                 }
                 else
@@ -855,14 +856,17 @@ namespace KingmakerMountedCombat.Diagnostics
             if (chunk7 && PersistenceCase == "multi-area-autosave")
             {
                 if (OwnedPairs?.IsOwnerSeedCheckpointSave == true && PersistenceLoad?.Area != OwnedPairs.SourceArea)
-                    errors.Add("Owner-seed controlled area entry must load the exact original Spider Manual before transfer.");
+                    errors.Add("Owner-seed controlled area entry must load its exact original Manual before transfer.");
                 if (PersistenceAreaTarget == null) errors.Add("Chunk 7 area autosave requires its exact native destination.");
                 else
                 {
                     errors.AddRange(PersistenceAreaTarget.Validate("persistenceAreaTarget", OwnedPairs != null ? OwnedPairs.SourceArea : Fixture?.Working?.Area));
                     if (PersistenceAreaTarget.AutoSaveMode != "AfterEntry") errors.Add("Chunk 7 area autosave requires AfterEntry.");
                     if ((OwnedPairs?.IsOwnerSeedCheckpointSave == true || OwnedPairs?.IsOwnerSeedCheckpointLoad == true) &&
-                        (PersistenceAreaTarget.EnterPoint != "fd225a93828d26449803a4847947f8c1" || PersistenceAreaTarget.Area != "ead426a6c23d39548a670ee515d77df4"))
+                        (PersistenceAreaTarget.EnterPoint != (OwnedPairs.IsManticoreReturnArea ?
+                             Chunk7OwnedPairsSelection.ManticoreReturnEntry : "fd225a93828d26449803a4847947f8c1") ||
+                         PersistenceAreaTarget.Area != (OwnedPairs.IsManticoreReturnArea ?
+                             Chunk7OwnedPairsSelection.ManticoreReturnArea : "ead426a6c23d39548a670ee515d77df4")))
                         errors.Add("Owner-seed area continuity selects only its disclosed visited stock destination.");
                 }
             }
