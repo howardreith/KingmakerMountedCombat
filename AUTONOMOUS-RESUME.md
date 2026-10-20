@@ -1,5 +1,25 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## Active October 20 area fixture guard correction
+
+The [standing completion mission](planning/CHUNK7-COMPLETION-MISSION.md)
+remains active. The [area filter record](docs/CHUNK7-AREA-PROFILE-FILTER-CORRECTION-2026-10-20.md)
+explains batch48's original Manticore outer FAIL: the Areas-isolation filter
+cast `StartsWith`'s Boolean to a truthy string and discarded every intake
+entry. The exact UTF-8 intake snapshot already had the reported empty
+achievement leaf. The narrow PowerShell safety correction passes focused
+Areas 29/0 and profile 62/0; independent review PASS. No new native area run
+has happened. Batch53 F09 producer/cold evidence and the reader-only cold
+correction are committed and guarded-pushed at `6fb1eee8b40a9fcd58497f6bc545fc2d50b4d58c`;
+draft PR #5 is updated. The current safety correction is the commit
+containing this resume section.
+Next: freeze an applicable unchanged candidate/suite, declare at most five native cases,
+pass scoped WhatIf, then run one Manticore area-fixture producer to verify
+guarded settlement. Admit its Manual only on a new complete outer PASS; then
+continue selected area Auto/cold, Small mounted calibration, positive removal,
+progression, 7D and readiness-gated 7E. One live executor, exact restoration,
+no merge/release/permanent install/HUMAN PLAY acceptance.
+
 ## Active October 20 batch53 F09 cold reader-only PASS
 
 The [standing completion mission](planning/CHUNK7-COMPLETION-MISSION.md)
@@ -12,10 +32,11 @@ reader-only re-evaluation pass after an F09-only external reader correction.
 No new product build or native replay is needed for that reader change.
 Both transaction phases are restored; Mods, protected saves and profile
 receipts report exact restoration; no game or runtime lock is live.
-At this checkpoint the reader and standalone-validator wiring correction and
-documentation are uncommitted. Next: run focused wiring/reader checks, commit
-and guarded-push them, update draft PR #5, then admit the preview.71 F09
-Manual into exact-provenance Small mounted calibration. Do not relabel it as
+At this historical checkpoint the reader and standalone-validator wiring
+correction and documentation were uncommitted; they were later committed and
+guarded-pushed at `6fb1eee8b40a9fcd58497f6bc545fc2d50b4d58c` and draft
+PR #5 was updated. Admit the preview.71 F09 Manual into exact-provenance
+Small mounted calibration. Do not relabel it as
 an acquired field or DLL-absent cleanup source. Continue the independent area,
 positive removal, progression, profile, 7D and readiness-gated 7E work; no
 engineering completion is claimed.

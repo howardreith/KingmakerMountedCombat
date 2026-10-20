@@ -1,5 +1,16 @@
 # Chunk 7B–7D — IN PROGRESS
 
+## October 20 - area profile filter correction
+
+Batch48's Manticore outer FAIL is now explained by an Areas-isolation
+PowerShell filter that discarded all pre-run profile entries. Its reported
+empty achievement leaf was present in the exact intake snapshot. The narrow
+safety correction and cache-positive/negative regressions pass focused checks
+and independent review; no new native area run has occurred. The old FAIL and
+exact-run recovery remain separate. See the
+[area filter record](docs/CHUNK7-AREA-PROFILE-FILTER-CORRECTION-2026-10-20.md).
+The standing engineering mission remains in progress.
+
 ## October 20 - batch53 F09 separate cold load
 
 Preview.71 Candidate passed 6/0. A same-candidate F09 producer wrote a genuine
