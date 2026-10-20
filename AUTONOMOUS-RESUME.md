@@ -1,5 +1,27 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## Active October 20 after batch80 — standing completion mission
+
+The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
+Reviewed source commit `7f18a59301b6d39d6259feea2e06c48cbd2ed719`
+avoids idle registry retirement allocations without changing detached-owner
+failure isolation. Fast 3/0 and Candidate 7/0 passed. Preview.93 package
+SHA-256 is `eaf451b8acc890cc50c424f92593577360ba672e3e050af681df7ff169988ada`,
+DLL SHA-256 `cef162311511d5d8a4d1d8dba27192e090aaa71096b99d44063200311ec65c02`;
+batch80 suite SHA-256 is
+`5103556dcea9e9650e5cf4b7e8ba51ed2f5d7711dbffcf4117ca8131202bfad7`.
+The sole native scenario `20261020-c7b-world93-b80s1-f11-registry-retirement`
+passed game/outer **8/0** with twelve windows; sidecar SHA-256
+`138cc4b4ad4a6cf5b8627d08a20fd7a14eef90e36a8ebe762a2c2bb7f176b2a2`.
+Exact Mods, protected-save and Howie-profile restoration passed; zero cache
+exceptions, no game process or transaction lock. See [batch80](docs/CHUNK7-BATCH80-F11-REGISTRY-RETIREMENT-2026-10-20.md).
+F11 allocation-event rate, diagnostics-off and normal-player checks remain
+open; active-pair cost still exceeds zero-state spread. Continue the explicit
+F10 Small custom-companion dismissal source/operation route recorded below,
+or a bounded F11 allocation/diagnostics-off seam. Do not repeat the unchanged
+resident-pool route without a new causal question. F09 breadth, ordinary doors
+and private 7E remain open.
+
 ## Active October 20 after batch79 — standing completion mission
 
 The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.

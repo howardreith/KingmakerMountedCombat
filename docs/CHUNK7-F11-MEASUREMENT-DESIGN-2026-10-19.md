@@ -1,5 +1,12 @@
 # Chunk 7 F11 measurement design — IN PROGRESS
 
+[Batch80](CHUNK7-BATCH80-F11-REGISTRY-RETIREMENT-2026-10-20.md) reviewed a
+second idle-frame allocation correction in registry retirement and ran one
+guarded twelve-window 0/1/2/0 comparison on preview.93. Native/outer PASS
+8/0 and exact restoration do not establish allocated-byte rate or a causal
+cross-candidate speedup. Active-pair timing still exceeds zero-state spread;
+diagnostics-off and ordinary-player checks remain open.
+
 [Batch79](CHUNK7-BATCH79-F11-FRAME-SNAPSHOT-2026-10-20.md) corrected two
 repeated pair-array copies and successful-visit error-list creation in the
 KMC frame path. Reviewed actual-DLL and native checks passed. The twelve

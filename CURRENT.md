@@ -1,5 +1,17 @@
 # Chunk 7B–7D — IN PROGRESS
 
+## October 20 - batch80 F11 idle registry retirement
+
+[Batch80](docs/CHUNK7-BATCH80-F11-REGISTRY-RETIREMENT-2026-10-20.md)
+preserves detached-owner retirement while avoiding its per-frame snapshot and
+error allocations when no owner is detached. Independent review and offline
+Fast 3/0/Candidate 7/0 passed. Preview.93's single guarded resident-pool
+scenario passed game/outer **8/0** with exact profile, Mods and save restoration.
+Twelve windows retained zero KMC logs and stable subscribers; the first
+zero-pair window had a GC-associated mean outlier and active-pair timing still
+exceeds zero-state spread. Managed allocation rate, diagnostics-off, ordinary
+controls, F10, additional F09 breadth, ordinary doors and selected 7E remain open.
+
 ## October 20 - batch79 F11 frame-snapshot correction and native comparison
 
 [Batch79](docs/CHUNK7-BATCH79-F11-FRAME-SNAPSHOT-2026-10-20.md) removes
