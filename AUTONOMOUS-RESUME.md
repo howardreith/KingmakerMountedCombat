@@ -1,6 +1,19 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
-## Active October 20 batch63 and next independent route
+## Active October 20 batch64 stock Mammoth producer engineering
+
+The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
+The [batch64 record](docs/CHUNK7-BATCH64-STOCK-MAMMOTH-FIXTURE-2026-10-20.md)
+describes the new base-only reference-free stock Mammoth producer and its strict
+reader. Independent review passes and final preview.80 Candidate passes 8/0,
+offline only; no batch64 native scenario, package or fixture has yet been qualified.
+Complete coherent commit and guarded push, one package
+build, suite/WhatIf and one declared native producer. Preserve all batch63 and
+earlier results. Continue positive cleanup/DLL-absent cold, Small, progression,
+ordinary door, 7D and selected private 7E. No merge, release, permanent
+installation or HUMAN PLAY acceptance.
+
+## Historical October 20 batch63 and next independent route
 
 The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
 Preview.79 source `f07d2195` passed Candidate 7/0 and frozen package SHA-256

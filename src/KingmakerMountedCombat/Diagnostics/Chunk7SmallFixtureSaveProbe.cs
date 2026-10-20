@@ -25,6 +25,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private readonly Func<object, int> identity;
         private readonly Action assertWorld;
         private readonly string leaf, nativeName;
+        private readonly bool stockMammoth;
         private readonly JArray events = new JArray(), hooks = new JArray();
         private readonly List<string> errors = new List<string>();
         private readonly Dictionary<string, FieldInfo> fields = new Dictionary<string, FieldInfo>();
@@ -36,13 +37,19 @@ namespace KingmakerMountedCombat.Diagnostics
         internal bool Complete => installed && requests == 1 && prepares == 1 && starts == 1 && stages == 1 && completions == 1 && callbacks == 1 && errors.Count == 0;
         internal SaveInfo Written => prepared;
         internal Chunk7SmallFixtureSaveProbe(Game game, MountedPersistenceService persistence, Func<object, int> identity, Action assertWorld, string leaf)
+            : this(game, persistence, identity, assertWorld, leaf, Chunk7SmallFixtureSelection.OutputName) { }
+        internal Chunk7SmallFixtureSaveProbe(Game game, MountedPersistenceService persistence, Func<object, int> identity,
+            Action assertWorld, string leaf, string nativeName)
         {
             this.game = game ?? throw new ArgumentNullException(nameof(game)); manager = game.SaveManager;
             this.persistence = persistence ?? throw new ArgumentNullException(nameof(persistence));
             this.identity = identity ?? throw new ArgumentNullException(nameof(identity));
             this.assertWorld = assertWorld ?? throw new ArgumentNullException(nameof(assertWorld));
-            Require(Chunk7SmallFixtureSelection.IsManualLeaf(leaf), "F09 observer requires its exact canonical positive native Manual slot.");
-            this.leaf = leaf; nativeName = Chunk7SmallFixtureSelection.OutputName;
+            stockMammoth = nativeName == Chunk7StockMammothFixtureSelection.OutputName;
+            Require(stockMammoth ? Chunk7StockMammothFixtureSelection.IsManualLeaf(leaf) :
+                nativeName == Chunk7SmallFixtureSelection.OutputName && Chunk7SmallFixtureSelection.IsManualLeaf(leaf),
+                "Native fixture observer requires one of its two exact canonical Manual contracts.");
+            this.leaf = leaf; this.nativeName = nativeName;
         }
         internal void Install()
         {
@@ -111,7 +118,7 @@ namespace KingmakerMountedCombat.Diagnostics
             item["workerFaulted"] = worker.IsFaulted; item["workerCanceled"] = worker.IsCanceled;
         }
         internal void ObserveCallback() => Observe(() => { assertWorld(); Require(++callbacks == 1 && completions == 1, "Save callback is duplicate or precedes exact worker completion."); Record("native-save-callback", prepared); });
-        internal JObject Capture() => new JObject { ["contract"] = "small-fixture-native-save-v1", ["installed"] = installed, ["installationAttempted"] = attempted,
+        internal JObject Capture() => new JObject { ["contract"] = stockMammoth ? "stock-mammoth-fixture-native-save-v1" : "small-fixture-native-save-v1", ["installed"] = installed, ["installationAttempted"] = attempted,
             ["complete"] = Complete, ["requests"] = requests, ["prepares"] = prepares, ["starts"] = starts, ["stages"] = stages,
             ["completions"] = completions, ["callbacks"] = callbacks, ["events"] = events.DeepClone(), ["hooks"] = hooks.DeepClone(), ["errors"] = new JArray(errors) };
         private static class Hooks

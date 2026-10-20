@@ -39,6 +39,8 @@ function New-Fixture([string]$name,[switch]$PreexistingCache){
 foreach($row in @(
     @('export-mounted-contracts','',$true,$true),@('export-mounted-contracts','',$false,$false),
     @('persistence-p07-load','removal-no-dll',$false,$true),@('persistence-p07-save','area-cross-entry',$false,$true),
+    @('chunk7-stock-mammoth-fixture-preparation','',$false,$true),
+    @('chunk7-stock-mammoth-fixture-preparation','',$true,$false),
     @('persistence-p07-save','area-reload',$false,$true),
     @('persistence-p07-save','timeout',$false,$false),
     @('chunk7-owned-two-pair-campaign','multi-area-autosave',$false,$true),

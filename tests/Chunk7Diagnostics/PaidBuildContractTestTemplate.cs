@@ -31,6 +31,14 @@ namespace KingmakerMountedCombat.Tests
    Check("unknown native build mode refuses",()=>Pins((Chunk7OrdinaryBuildMode)999,Size.Medium),true);
    Check("both paid modes own native creation",()=>{if(!Pins(Chunk7OrdinaryBuildMode.NewSmallCustomCompanion,Size.Small).NewPaidCompanion||!Pins(Chunk7OrdinaryBuildMode.NewMediumCustomCompanion,Size.Medium).NewPaidCompanion)throw new Exception("paid mode");});
    Check("existing and respec do not own native creation",()=>{if(Pins(Chunk7OrdinaryBuildMode.ExistingRangerLevels,Size.Medium).NewPaidCompanion||Pins(Chunk7OrdinaryBuildMode.NativeRespecHorse,Size.Medium).NewPaidCompanion)throw new Exception("paid mode");});
+   Check("stock Mammoth fixture admits exactly Ranger ten",()=>new Chunk7OrdinaryBuildPins("synthetic-build",new string('a',64),Chunk7OrdinaryBuildMode.ExistingRangerLevels,null,null,null,Gender.Male,false,10,Size.Medium,false,true));
+   Check("stock Mammoth fixture refuses Ranger nine",()=>new Chunk7OrdinaryBuildPins("synthetic-build",new string('a',64),Chunk7OrdinaryBuildMode.ExistingRangerLevels,null,null,null,Gender.Male,false,9,Size.Medium,false,true),true);
+   Check("stock Mammoth fixture refuses Small rider",()=>new Chunk7OrdinaryBuildPins("synthetic-build",new string('a',64),Chunk7OrdinaryBuildMode.ExistingRangerLevels,null,null,null,Gender.Male,false,10,Size.Small,false,true),true);
+   Check("stock Mammoth fixture refuses respec substitution",()=>new Chunk7OrdinaryBuildPins("synthetic-build",new string('a',64),Chunk7OrdinaryBuildMode.NativeRespecMammoth,new string('b',32),new string('c',32),"SyntheticObservedRig",Gender.Female,false,10,Size.Medium,false,true),true);
+   Check("stock Mammoth native builder admits exact XP threshold",()=>Chunk7StockMammothBuildAdmission.RequireExactXp(105000,105000,10));
+   Check("stock Mammoth native builder refuses short XP",()=>Chunk7StockMammothBuildAdmission.RequireExactXp(75000,105000,9),true);
+   Check("stock Mammoth native builder refuses extra ready level",()=>Chunk7StockMammothBuildAdmission.RequireExactXp(155000,105000,11),true);
+   Check("stock Mammoth native builder refuses changed installed table",()=>Chunk7StockMammothBuildAdmission.RequireExactXp(105000,110000,10),true);
    Console.WriteLine("RESULT "+pass+" PASS / "+fail+" FAIL");return fail;
   }
  }

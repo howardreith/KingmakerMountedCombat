@@ -18,9 +18,10 @@ if($s-lt0-or$e-lt$s){throw 'Actual F09 body projection absent.'};$body[1]=$text.
 $template=Join-Path $RepositoryRoot 'tests/Chunk7Diagnostics/SmallFixtureAdapterTemplate.cs';$actual=Join-Path $OutputDirectory 'ActualSmallFixtureAdapter.cs'
 [IO.File]::WriteAllText($actual,([IO.File]::ReadAllText($template).Replace('__BODY_METHODS__',($body-join[Environment]::NewLine))),[Text.UTF8Encoding]::new($false))
 $selection=Join-Path $diag 'Chunk7SmallFixtureSelection.cs';$authority=Join-Path $diag 'PersistenceSaveAuthorization.SmallFixture.cs'
+$stockSelection=Join-Path $diag 'Chunk7StockMammothFixtureSelection.cs';$stockAuthority=Join-Path $diag 'PersistenceSaveAuthorization.StockMammothFixture.cs'
 $compiler='C:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/MSBuild/Current/Bin/Roslyn/csc.exe';$json='C:/Program Files (x86)/Steam/steamapps/common/Pathfinder Kingmaker/Kingmaker_Data/Managed/Newtonsoft.Json.dll'
 $exe=Join-Path $OutputDirectory 'SmallFixtureAdapter.exe';$watch=[Diagnostics.Stopwatch]::StartNew()
-$sources=@($actual,$selection,$authority,(Join-Path $domain 'DeclaredSmallRiderBody.cs'),(Join-Path $domain 'PoseVector3.cs'),(Join-Path $domain 'MountedRiderPoseProfile.cs'))
+$sources=@($actual,$selection,$authority,$stockSelection,$stockAuthority,(Join-Path $domain 'DeclaredSmallRiderBody.cs'),(Join-Path $domain 'PoseVector3.cs'),(Join-Path $domain 'MountedRiderPoseProfile.cs'))
 $compile=@(&$compiler /nologo /target:exe /langversion:7.3 '/nowarn:0649,0414' "/reference:$json" "/out:$exe" $sources 2>&1);$compileExit=$LASTEXITCODE;$compile|Set-Content -LiteralPath (Join-Path $OutputDirectory 'compile.log')
 $test=@();$testExit=$null
 if($compileExit-eq0){[void][Reflection.Assembly]::LoadFrom($json);$assembly=[Reflection.Assembly]::LoadFrom($exe);$capture=[IO.StringWriter]::new();$previous=[Console]::Out

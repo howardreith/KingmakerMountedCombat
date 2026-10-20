@@ -1,7 +1,7 @@
 [CmdletBinding(SupportsShouldProcess=$true,ConfirmImpact='High')]
 param(
     [ValidateSet(
-        'chunk7-small-fixture-preparation','chunk7-assisted-cold-inventory','chunk7-assisted-fixture-preparation','chunk7-owned-two-pair-campaign','chunk7-cumulative-acquisition','chunk7-acquired-manual-derivative','chunk7-manual-derived-acquisition','chunk7-bootstrap-manual-seed','chunk7-bootstrap-cold-inventory','chunk7-native-main-bootstrap','chunk7-native-progression','chunk7-small-profile-calibration','chunk7-ordinary-field-admission','chunk7-ordinary-acquisition','chunk7-two-pair-exploration','chunk7-persistence-save','chunk7-persistence-load','chunk7-two-pair-combat-rider-first','chunk7-two-pair-combat-mount-first','chunk7-two-pair-realtime-core','chunk7-two-pair-realtime-casting','chunk7-two-pair-realtime-charge','chunk7-two-pair-native-life-cleanup',
+        'chunk7-stock-mammoth-fixture-preparation','chunk7-small-fixture-preparation','chunk7-assisted-cold-inventory','chunk7-assisted-fixture-preparation','chunk7-owned-two-pair-campaign','chunk7-cumulative-acquisition','chunk7-acquired-manual-derivative','chunk7-manual-derived-acquisition','chunk7-bootstrap-manual-seed','chunk7-bootstrap-cold-inventory','chunk7-native-main-bootstrap','chunk7-native-progression','chunk7-small-profile-calibration','chunk7-ordinary-field-admission','chunk7-ordinary-acquisition','chunk7-two-pair-exploration','chunk7-persistence-save','chunk7-persistence-load','chunk7-two-pair-combat-rider-first','chunk7-two-pair-combat-mount-first','chunk7-two-pair-realtime-core','chunk7-two-pair-realtime-casting','chunk7-two-pair-realtime-charge','chunk7-two-pair-native-life-cleanup',
         'mod-load-smoke','export-mounted-contracts','export-candidate-mount-rigs','observe-mount-diagnostic-availability','horse-native-asset-audit','horse-companion-blueprint-registration','horse-companion-unmounted-suite','horse-mounted-alpha-suite','horse-native-controls-ux-suite',
         'chunk6c-casting-rt','chunk6c-casting-tb','chunk6c-casting-unmounted-rt','chunk6c-casting-unmounted-tb',
         'chunk6d-staged-rt','chunk6d-staged-tb','chunk6e-reaction-rt','chunk6e-reaction-tb',
@@ -35,7 +35,7 @@ param(
         'manual-visual-review'
     )][string]$Scenario='mod-load-smoke',
     [ValidatePattern('^[A-Za-z0-9._-]{1,120}$')][string]$RunId,
-    [ValidateRange(360,900)][int]$TimeoutSeconds=360,
+    [ValidateRange(360,1200)][int]$TimeoutSeconds=360,
     [switch]$SaveAccessAllowed,
     # Explicit private compatibility selection. Other modes keep the actual live
     # mod set. This mode stages KMC alone while retaining installed UMM/Harmony.
@@ -55,6 +55,7 @@ param(
     [string]$CumulativeAcquisitionSelectionPath,
     [string]$SmallCalibrationSelectionPath,
     [string]$SmallFixtureSelectionPath,
+    [string]$StockMammothFixtureSelectionPath,
     [string]$ProgressionSelectionPath,
     [string]$PackagePath,
     [string]$FrozenSourceRoot,
@@ -126,6 +127,7 @@ if($PSBoundParameters.ContainsKey('ObserveWorkingDeserialization') -and
 . (Join-Path $PSScriptRoot 'Chunk7LoadRefusalFixtures.ps1')
 . (Join-Path $PSScriptRoot 'Chunk7SmallCalibrationFixtures.ps1')
 . (Join-Path $PSScriptRoot 'Chunk7SmallFixtureFixtures.ps1')
+. (Join-Path $PSScriptRoot 'Chunk7StockMammothFixtureFixtures.ps1')
 . (Join-Path $PSScriptRoot 'Chunk7SmallFixtureColdSource.ps1')
 . (Join-Path $PSScriptRoot 'Chunk7ProgressionFixtures.ps1')
 # Stale level-up autosave families are refused here, before any selection intake, lock,
@@ -162,6 +164,11 @@ $smallFixtureInput=$null;$smallFixtureSource=$null
 Assert-KmcChunk7SmallFixtureLaunchArguments $PSBoundParameters $Scenario ([bool]$BaseGameOnly) $TimeoutSeconds $SmallFixtureSelectionPath
 if(Test-KmcChunk7SmallFixtureScenario $Scenario){
     $smallFixtureInput=Read-KmcChunk7SmallFixtureSelectionFile $SmallFixtureSelectionPath $(if($RunId){$RunId}else{'unassigned-f09-fixture'})
+}
+$stockMammothFixtureInput=$null;$stockMammothFixtureSource=$null
+Assert-KmcChunk7StockMammothFixtureLaunchArguments $PSBoundParameters $Scenario ([bool]$BaseGameOnly) $TimeoutSeconds $StockMammothFixtureSelectionPath
+if(Test-KmcChunk7StockMammothFixtureScenario $Scenario){
+    $stockMammothFixtureInput=Read-KmcChunk7StockMammothFixtureSelectionFile $StockMammothFixtureSelectionPath $(if($RunId){$RunId}else{'unassigned-stock-mammoth-fixture'})
 }
 $acquiredManualInput=$null;$acquiredManualSource=$null
 if(Test-KmcChunk7AcquiredManualScenario $Scenario){
@@ -425,6 +432,7 @@ if(Test-KmcChunk7FieldScenario $Scenario){$fieldSource=Get-KmcChunk7FieldSource 
 $ownedAreaTarget=if((Test-KmcChunk7OwnedPairsScenario $Scenario)-and$PersistenceCase-ceq'multi-area-autosave'){[pscustomobject]@{enterPoint=$PersistenceAreaEnterPoint;area=$PersistenceAreaTargetArea;autoSaveMode='AfterEntry'}}else{$null}
 if(Test-KmcChunk7OwnedPairsScenario $Scenario){$ownedPairsSource=Get-KmcChunk7OwnedPairsSource $ownedPairsInput.selection $PersistenceCase $fixturePayload $manifest $ownedAreaTarget}
 if(Test-KmcChunk7SmallFixtureScenario $Scenario){$smallFixtureSource=Get-KmcChunk7SmallFixtureSource $smallFixtureInput.selection $fixturePayload $manifest}
+if(Test-KmcChunk7StockMammothFixtureScenario $Scenario){$stockMammothFixtureSource=Get-KmcChunk7StockMammothFixtureSource $stockMammothFixtureInput.selection $fixturePayload $manifest}
 if(Test-KmcChunk7AcquiredManualScenario $Scenario){$acquiredManualSource=Get-KmcChunk7AcquiredManualSource $acquiredManualInput.selection $fixturePayload $manifest}
 if(Test-KmcChunk7ManualDerivedScenario $Scenario){$manualDerivedSource=Get-KmcChunk7ManualDerivedSource $manualDerivedInput.selection $fixturePayload $manifest}
 if(Test-KmcChunk7CumulativeScenario $Scenario){$cumulativeAcquisitionSource=Get-KmcChunk7CumulativeSource $cumulativeAcquisitionInput.selection $fixturePayload $manifest}
@@ -562,6 +570,7 @@ try{
     if(Test-KmcChunk7OrdinaryScenario $Scenario){$request['ordinaryAcquisition']=$ordinarySelectionInput.selection}
     if(Test-KmcChunk7SmallScenario $Scenario){$request['smallCalibration']=$smallSelectionInput.selection}
     if(Test-KmcChunk7SmallFixtureScenario $Scenario){$request['smallFixture']=$smallFixtureInput.selection}
+    if(Test-KmcChunk7StockMammothFixtureScenario $Scenario){$request['stockMammothFixture']=$stockMammothFixtureInput.selection}
     if(Test-KmcChunk7FieldScenario $Scenario){$request['ordinaryField']=$fieldSelectionInput.selection}
     if(Test-KmcChunk7OwnedPairsScenario $Scenario){$request['ownedPairs']=$ownedPairsInput.selection}
     if(Test-KmcChunk7AssistedFixtureScenario $Scenario){$request['assistedFixture']=$assistedFixtureInput.selection}
@@ -642,6 +651,13 @@ try{
         if((ConvertTo-KmcChunk7Canonical $currentSmallFixtureSource)-cne(ConvertTo-KmcChunk7Canonical $smallFixtureSource)){throw 'F09 seed or historical provenance changed before locked admission.'}
         $smallFixtureSource=$currentSmallFixtureSource
     }
+    if(Test-KmcChunk7StockMammothFixtureScenario $Scenario){
+        $currentStockInput=Read-KmcChunk7StockMammothFixtureSelectionFile $stockMammothFixtureInput.path $actualRunId
+        if($currentStockInput.sha256-cne$stockMammothFixtureInput.sha256){throw 'Stock Mammoth exact selection changed before locked admission.'}
+        $currentStockSource=Get-KmcChunk7StockMammothFixtureSource $request.stockMammothFixture $fixturePayload $manifest
+        if((ConvertTo-KmcChunk7Canonical $currentStockSource)-cne(ConvertTo-KmcChunk7Canonical $stockMammothFixtureSource)){throw 'Stock Mammoth seed or provenance changed before locked admission.'}
+        $stockMammothFixtureSource=$currentStockSource
+    }
     if(Test-KmcChunk7AcquiredManualScenario $Scenario){
         $currentAcquiredInput=Read-KmcChunk7AcquiredManualSelectionFile $acquiredManualInput.path $actualRunId
         if($currentAcquiredInput.sha256-cne$acquiredManualInput.sha256){throw 'Acquired Manual selection changed before locked admission.'}
@@ -699,7 +715,7 @@ try{
         $progressionSource=$currentProgressionSource
     }
     # Snapshot only after the under-lock fixture and save-metadata proof.
-    if($BaseGameOnly-or$Scenario -cin @('chunk7-small-fixture-preparation','chunk7-assisted-cold-inventory','chunk7-assisted-fixture-preparation','chunk7-owned-two-pair-campaign','chunk7-cumulative-acquisition','chunk7-acquired-manual-derivative','chunk7-manual-derived-acquisition','chunk7-bootstrap-manual-seed','chunk7-bootstrap-cold-inventory','chunk7-native-main-bootstrap','chunk7-native-progression','chunk7-small-profile-calibration','chunk7-ordinary-field-admission','chunk7-ordinary-acquisition','chunk7-persistence-save','chunk7-persistence-load','persistence-isolation','persistence-p07-save','persistence-p07-load','persistence-p01-save','persistence-p01-load','persistence-p02-save','persistence-p02-load','persistence-p03-save','persistence-p03-load','persistence-p04-save','persistence-p04-load','persistence-p05-save','persistence-p05-load','persistence-p06-load')){
+    if($BaseGameOnly-or$Scenario -cin @('chunk7-stock-mammoth-fixture-preparation','chunk7-small-fixture-preparation','chunk7-assisted-cold-inventory','chunk7-assisted-fixture-preparation','chunk7-owned-two-pair-campaign','chunk7-cumulative-acquisition','chunk7-acquired-manual-derivative','chunk7-manual-derived-acquisition','chunk7-bootstrap-manual-seed','chunk7-bootstrap-cold-inventory','chunk7-native-main-bootstrap','chunk7-native-progression','chunk7-small-profile-calibration','chunk7-ordinary-field-admission','chunk7-ordinary-acquisition','chunk7-persistence-save','chunk7-persistence-load','persistence-isolation','persistence-p07-save','persistence-p07-load','persistence-p01-save','persistence-p01-load','persistence-p02-save','persistence-p02-load','persistence-p03-save','persistence-p03-load','persistence-p04-save','persistence-p04-load','persistence-p05-save','persistence-p05-load','persistence-p06-load')){
         $profileSnapshot=New-KmcPersistenceProfileSnapshot -Lock $lock -SaveRoot $saveRoot -GameRoot ([string]$intake.requestedLayout.kingmakerInstallDir) -BackupRoot $runtimeBackups
         if($areasIsolationSelected){
             [void](Enter-KmcPersistenceAreasIsolation -Lock $lock -Snapshot $profileSnapshot -BackupRoot $runtimeBackups)
@@ -727,7 +743,7 @@ try{
             -After (Get-KmcSaveMetadataInventory $saveRoot) `
             -Description 'runtime immediate pre-save-transaction metadata'
         [void](Enter-KmcWorkingSaveTransaction -Lock $lock -Pair $lockedPair -SaveRoot $saveRoot -StateRoot $runtimeState -BackupRoot $runtimeBackups -StagingRoot $runtimeStaging -Scenario $Scenario)
-        if($Scenario -cin @('chunk7-small-fixture-preparation','chunk7-assisted-cold-inventory','chunk7-assisted-fixture-preparation','chunk7-owned-two-pair-campaign','chunk7-cumulative-acquisition','chunk7-acquired-manual-derivative','chunk7-manual-derived-acquisition','chunk7-bootstrap-manual-seed','chunk7-bootstrap-cold-inventory','chunk7-native-main-bootstrap','chunk7-native-progression','chunk7-small-profile-calibration','chunk7-ordinary-field-admission','chunk7-ordinary-acquisition','chunk7-persistence-save','chunk7-persistence-load','persistence-isolation','persistence-p07-save','persistence-p07-load','persistence-p01-save','persistence-p01-load','persistence-p02-save','persistence-p02-load','persistence-p03-save','persistence-p03-load','persistence-p04-save','persistence-p04-load','persistence-p05-save','persistence-p05-load','persistence-p06-load')){
+        if($Scenario -cin @('chunk7-stock-mammoth-fixture-preparation','chunk7-small-fixture-preparation','chunk7-assisted-cold-inventory','chunk7-assisted-fixture-preparation','chunk7-owned-two-pair-campaign','chunk7-cumulative-acquisition','chunk7-acquired-manual-derivative','chunk7-manual-derived-acquisition','chunk7-bootstrap-manual-seed','chunk7-bootstrap-cold-inventory','chunk7-native-main-bootstrap','chunk7-native-progression','chunk7-small-profile-calibration','chunk7-ordinary-field-admission','chunk7-ordinary-acquisition','chunk7-persistence-save','chunk7-persistence-load','persistence-isolation','persistence-p07-save','persistence-p07-load','persistence-p01-save','persistence-p01-load','persistence-p02-save','persistence-p02-load','persistence-p03-save','persistence-p03-load','persistence-p04-save','persistence-p04-load','persistence-p05-save','persistence-p05-load','persistence-p06-load')){
             $profileRoot=Assert-KmcChildPath (Join-Path $runtimeStaging ('persistence-'+$actualRunId)) $runtimeStaging 'owned persistence profile'
             if(Test-Path -LiteralPath $profileRoot){throw 'Persistence profile already exists; refusing ambiguous ownership.'}
             [void][IO.Directory]::CreateDirectory($profileRoot)
@@ -763,6 +779,9 @@ try{
                 $request['persistenceLoad']=$copyDescriptor
             }elseif(Test-KmcChunk7SmallFixtureScenario $Scenario){
                 $copySource=$smallFixtureSource.path;$copyDescriptor=$smallFixtureSource.descriptor
+                $request['persistenceLoad']=$copyDescriptor
+            }elseif(Test-KmcChunk7StockMammothFixtureScenario $Scenario){
+                $copySource=$stockMammothFixtureSource.path;$copyDescriptor=$stockMammothFixtureSource.descriptor
                 $request['persistenceLoad']=$copyDescriptor
             }elseif(Test-KmcChunk7AcquiredManualScenario $Scenario){
                 $copySource=$acquiredManualSource.path;$copyDescriptor=$acquiredManualSource.descriptor
@@ -893,6 +912,7 @@ try{
                 if(Test-KmcChunk7LoadRefusal ([pscustomobject]$request)){Copy-KmcChunk7LoadRefusalInputs $ownedLoadRefusalDerivative $profileRoot $lock $request}
             }
             if(Test-KmcChunk7SmallFixtureScenario $Scenario){[void](Copy-KmcChunk7SmallFixtureSource $smallFixtureSource $profileRoot $lock $request.smallFixture $fixturePayload $manifest)}
+            if(Test-KmcChunk7StockMammothFixtureScenario $Scenario){[void](Copy-KmcChunk7StockMammothFixtureSource $stockMammothFixtureSource $profileRoot $lock $request.stockMammothFixture $fixturePayload $manifest)}
             if(Test-KmcChunk7AcquiredManualScenario $Scenario){Copy-KmcChunk7AcquiredManualSourceArtifact $acquiredManualSource $profileRoot $lock}
             if(Test-KmcChunk7ManualDerivedScenario $Scenario){Copy-KmcChunk7ManualDerivedSourceArtifact $manualDerivedSource $profileRoot $lock}
             if(Test-KmcChunk7CumulativeScenario $Scenario){if(Test-KmcAssistedCumulativeMode $request.cumulativeAcquisition){Copy-KmcAssistedCumulativeSourceArtifacts $cumulativeAcquisitionSource $profileRoot $lock $request.cumulativeAcquisition $fixturePayload $manifest}else{Copy-KmcChunk7CumulativeSourceArtifact $cumulativeAcquisitionSource $profileRoot $lock}}
@@ -1181,6 +1201,12 @@ try{
             if((ConvertTo-KmcChunk7Canonical $verifiedSmallFixtureSource)-cne(ConvertTo-KmcChunk7Canonical $smallFixtureSource)){throw 'F09 immutable seed/provenance changed during the native process.'}
             $smallFixtureArtifact=Read-KmcJson (Join-Path $evidenceRoot 'chunk7-small-fixture-evidence.json')
             Assert-KmcChunk7SmallFixtureOutput $request $smallFixtureArtifact
+        }
+        if($gamePassed-and(Test-KmcChunk7StockMammothFixtureScenario $Scenario)){
+            $verifiedStockSource=Get-KmcChunk7StockMammothFixtureSource $request.stockMammothFixture $fixturePayload $manifest
+            if((ConvertTo-KmcChunk7Canonical $verifiedStockSource)-cne(ConvertTo-KmcChunk7Canonical $stockMammothFixtureSource)){throw 'Stock Mammoth immutable seed/provenance changed during the native process.'}
+            $stockArtifact=Read-KmcJson (Join-Path $evidenceRoot 'chunk7-stock-mammoth-fixture-evidence.json')
+            Assert-KmcChunk7StockMammothFixtureOutput $request $stockArtifact
         }
         if($gamePassed-and(Test-KmcChunk7AcquiredManualScenario $Scenario)){
             $verifiedAcquiredSource=Get-KmcChunk7AcquiredManualSource $request.acquiredManual $fixturePayload $manifest

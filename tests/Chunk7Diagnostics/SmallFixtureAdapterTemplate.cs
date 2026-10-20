@@ -27,7 +27,10 @@ namespace KingmakerMountedCombat.Diagnostics
         public string EvidenceRoot { get; set; } public string UnselectedMarker { get; set; }
         public RuntimeFixtureIdentity Fixture { get; set; } public object ForeignFamily { get; set; }
         public RuntimeSaveDescriptor PersistenceLoad { get; set; } public Chunk7SmallFixtureSelection SmallFixture { get; set; }
-        public IReadOnlyList<string> Validate() => SmallFixture == null ? new[] { "missing" } : SmallFixture.Validate(Scenario, RunId);
+        public Chunk7StockMammothFixtureSelection StockMammothFixture { get; set; }
+        public IReadOnlyList<string> Validate() => SmallFixture != null && StockMammothFixture != null ? new[] { "mixed fixture" } :
+            StockMammothFixture != null ? StockMammothFixture.Validate(Scenario, RunId) :
+            SmallFixture == null ? new[] { "missing" } : SmallFixture.Validate(Scenario, RunId);
     }
     internal enum RuntimeSaveOperation { Load, Write, Delete }
     internal static class Chunk7EvidenceDto
@@ -62,7 +65,7 @@ namespace KingmakerMountedCombat.Diagnostics
         internal void ExtraWrite() { admittedNativeWriteRequests = 2; }
         internal void SetCaps(int loads, int writes) { maximumNativeLoadRequests = loads; maximumNativeWriteRequests = writes; }
         internal void ForeignEntry() { entries.Add("foreign.zks", new Entry()); }
-        internal string Admission(RuntimeSaveOperation operation) => SmallFixtureAdmission(operation);
+        internal string Admission(RuntimeSaveOperation operation) => stockMammothFixtureRequest == null ? SmallFixtureAdmission(operation) : StockMammothFixtureAdmission(operation);
     }
     internal sealed partial class Chunk7SmallFixtureScenario
     {
@@ -89,6 +92,22 @@ namespace KingmakerMountedCombat.Diagnostics
                 FileName = Chunk7SmallFixtureSelection.SeedFileName, Sha256 = Chunk7SmallFixtureSelection.SeedHash, Length = 1239025,
                 LastWriteTimeUtcTicks = 1, GameId = Chunk7SmallFixtureSelection.CampaignId, GameName = Chunk7SmallFixtureSelection.CampaignName,
                 Area = Chunk7SmallFixtureSelection.AreaId } };
+        private static RuntimeRequest FreshStock()
+        {
+            var r = Fresh(); r.RunId = "synthetic-stock-mammoth-adapter";
+            r.Scenario = Chunk7StockMammothFixtureSelection.Scenario; r.SmallFixture = null;
+            r.StockMammothFixture = new Chunk7StockMammothFixtureSelection {
+                Case = Chunk7StockMammothFixtureSelection.CaseName,
+                SourceSeedId = Chunk7StockMammothFixtureSelection.SeedId,
+                SourceSeedSha256 = Chunk7StockMammothFixtureSelection.SeedSha256,
+                SourceQualificationRunId = Chunk7StockMammothFixtureSelection.SeedQualificationRunId,
+                SourceQualificationSha256 = Chunk7StockMammothFixtureSelection.SeedQualificationSha256,
+                SourceInventoryRunId = Chunk7StockMammothFixtureSelection.NativeInventoryRunId,
+                SourceInventorySha256 = Chunk7StockMammothFixtureSelection.NativeInventorySha256,
+                BaseGameOnly = true, ExpectedNativeLoadCount = 1, ExpectedNativeWriteCount = 1,
+                TargetRangerLevel = 10, NativeXpAssistance = 96000 };
+            return r;
+        }
         private static SmallRiderBodyObservation Body() => new SmallRiderBodyObservation {
             OriginalSizeOrdinal=3,EffectiveSizeOrdinal=3,MountBlueprintGuid=DeclaredSmallRiderBody.HorseBlueprintGuid,MountSizeOrdinal=5,
             RaceGuid=Chunk7SmallFixtureSelection.RaceGuid,PresetGuid=Chunk7SmallFixtureSelection.PresetGuid,Gender="Male",SkeletonName="MaleHalfling",
@@ -101,6 +120,15 @@ namespace KingmakerMountedCombat.Diagnostics
             root=args[0]; Directory.CreateDirectory(root);
             // A source sentinel exercises exact root inventory without a game save.
             File.WriteAllText(Path.Combine(root,Chunk7SmallFixtureSelection.SeedFileName),"synthetic storage sentinel, not a save");
+            Good("stock Mammoth exact selection and clean input",()=>{var r=FreshStock();Assert(r.Validate().Count==0&&Chunk7StockMammothFixtureSelection.IsSource(r.PersistenceLoad));Assert(typeof(Chunk7StockMammothFixtureSelection).GetProperties().Length==12);});
+            foreach(var p in typeof(Chunk7StockMammothFixtureSelection).GetProperties())
+                Good("stock Mammoth selection rejects mutation "+p.Name,()=>{var r=FreshStock();var value=p.GetValue(r.StockMammothFixture,null);p.SetValue(r.StockMammothFixture,p.PropertyType==typeof(string)?(object)((string)value+"x"):p.PropertyType==typeof(bool)?(object)!(bool)value:(int)value+1,null);Assert(r.Validate().Count>0);});
+            Good("stock Mammoth exact load then native Manual reservation",()=>{var r=FreshStock();var g=new object();var m=new object();var a=new PersistenceSaveAuthorization(root,r.PersistenceLoad);a.ConfigureStockMammothFixture(r,g,m);Assert(a.MatchesStockMammothFixturePlan(r,g,m)&&a.Admission(RuntimeSaveOperation.Write)!=null);a.Loaded();a.ReserveStockMammothFixtureOutput(r,g,m,304);Assert(a.StockMammothFixtureReservations==1&&a.StockMammothFixtureNumber==304&&a.StockMammothFixtureOutputLeaf==Chunk7StockMammothFixtureSelection.ManualLeaf(304)&&a.Admission(RuntimeSaveOperation.Write)==null&&a.Admission(RuntimeSaveOperation.Delete)!=null);});
+            Bad("stock Mammoth reservation before load",()=>{var r=FreshStock();var g=new object();var m=new object();var a=new PersistenceSaveAuthorization(root,r.PersistenceLoad);a.ConfigureStockMammothFixture(r,g,m);a.ReserveStockMammothFixtureOutput(r,g,m,304);});
+            Bad("stock Mammoth second reservation",()=>{var r=FreshStock();var g=new object();var m=new object();var a=new PersistenceSaveAuthorization(root,r.PersistenceLoad);a.ConfigureStockMammothFixture(r,g,m);a.Loaded();a.ReserveStockMammothFixtureOutput(r,g,m,304);a.ReserveStockMammothFixtureOutput(r,g,m,305);});
+            Bad("stock Mammoth foreign manager reservation",()=>{var r=FreshStock();var g=new object();var m=new object();var a=new PersistenceSaveAuthorization(root,r.PersistenceLoad);a.ConfigureStockMammothFixture(r,g,m);a.Loaded();a.ReserveStockMammothFixtureOutput(r,g,new object(),304);});
+            Good("stock Mammoth extra load and write revoke plan",()=>{var r=FreshStock();var g=new object();var m=new object();var a=new PersistenceSaveAuthorization(root,r.PersistenceLoad);a.ConfigureStockMammothFixture(r,g,m);a.ExtraLoad();Assert(!a.MatchesStockMammothFixturePlan(r,g,m));var b=new PersistenceSaveAuthorization(root,r.PersistenceLoad);b.ConfigureStockMammothFixture(r,g,m);b.Loaded();b.ReserveStockMammothFixtureOutput(r,g,m,304);b.ExtraWrite();Assert(!b.MatchesStockMammothFixturePlan(r,g,m));});
+            Good("stock Mammoth captured request drift refuses write",()=>{var r=FreshStock();var g=new object();var m=new object();var a=new PersistenceSaveAuthorization(root,r.PersistenceLoad);a.ConfigureStockMammothFixture(r,g,m);a.Loaded();a.ReserveStockMammothFixtureOutput(r,g,m,304);r.StockMammothFixture.NativeXpAssistance++;Assert(!a.MatchesStockMammothFixturePlan(r,g,m)&&a.Admission(RuntimeSaveOperation.Write)!=null);});
             Good("closed eleven-property DTO and exact source",()=>{var r=Fresh();Assert(r.Validate().Count==0&&Chunk7SmallFixtureSelection.IsSource(r.PersistenceLoad));Assert(typeof(Chunk7SmallFixtureSelection).GetProperties().Length==11);});
             foreach(var p in typeof(Chunk7SmallFixtureSelection).GetProperties())
             {

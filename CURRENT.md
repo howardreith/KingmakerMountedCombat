@@ -1,5 +1,16 @@
 # Chunk 7B–7D — IN PROGRESS
 
+## October 20 - batch64 stock Mammoth fixture engineering
+
+The closed, base-only stock Mammoth producer from the qualified clean owner seed
+passed independent review and final Candidate 8/0 offline. It must prove seven ordinary Ranger commits, native
+rank-seven Large Mammoth, one genuine Manual and exact restoration before its
+output can be used for positive mounted cleanup and KMC-DLL-absent cold load.
+[Batch64](docs/CHUNK7-BATCH64-STOCK-MAMMOTH-FIXTURE-2026-10-20.md) records the
+current checks and remaining native prerequisite. The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md)
+remains active; ordinary door, Small mounted, progression, 7D and private 7E
+also remain open.
+
 ## October 20 - batch63 Manticore Lair door inventory
 
 Preview.79's one guarded Manticore Manual cold diagnostic passed native and

@@ -7,7 +7,7 @@ function Assert-KmcChunk7SmallFixtureLaunchArguments($Bound,[string]$Scenario,[b
  if(-not$BaseGameOnly-or$TimeoutSeconds-ne900-or[string]::IsNullOrEmpty($SelectionPath)){
   throw 'F09 fixture requires KMC-alone base-game staging, its explicit selection and exact outer timeout 900 seconds (engine 720, host 780).'
  }
- foreach($key in @('NativeBootstrapCase','OrdinarySelectionPath','OrdinaryFieldSelectionPath','BootstrapInventorySelectionPath','AssistedColdInventorySelectionPath','ManualSeedSelectionPath','AcquiredManualSelectionPath','AssistedFixtureSelectionPath','OwnedPairsSelectionPath','ManualDerivedSelectionPath','CumulativeAcquisitionSelectionPath','SmallCalibrationSelectionPath','ProgressionSelectionPath','PersistenceSourceRunId','ExpectedPersistenceSourceSha256','ExpectedPersistenceAlternateSha256','PersistenceForeignSourceRunId','ObserverPackagePath','PersistenceCase','PersistenceAreaEnterPoint','PersistenceAreaTargetArea','PersistenceReplayAreaEnterPoints','PersistenceReplayAreaAreas','ObserveWorkingDeserialization')){
+ foreach($key in @('StockMammothFixtureSelectionPath','NativeBootstrapCase','OrdinarySelectionPath','OrdinaryFieldSelectionPath','BootstrapInventorySelectionPath','AssistedColdInventorySelectionPath','ManualSeedSelectionPath','AcquiredManualSelectionPath','AssistedFixtureSelectionPath','OwnedPairsSelectionPath','ManualDerivedSelectionPath','CumulativeAcquisitionSelectionPath','SmallCalibrationSelectionPath','ProgressionSelectionPath','PersistenceSourceRunId','ExpectedPersistenceSourceSha256','ExpectedPersistenceAlternateSha256','PersistenceForeignSourceRunId','ObserverPackagePath','PersistenceCase','PersistenceAreaEnterPoint','PersistenceAreaTargetArea','PersistenceReplayAreaEnterPoints','PersistenceReplayAreaAreas','ObserveWorkingDeserialization')){
   if($Bound.ContainsKey($key)){throw ('F09 fixture forbids foreign source/action/area input '+$key)}
  }
 }
@@ -76,18 +76,22 @@ function Get-KmcChunk7SmallFixtureSource($Selection,$Fixture,$Candidate){
  [pscustomobject]@{path=$seed.path;descriptor=$seed.descriptor;seedId=$seed.seedId;registryPath=$seed.registryPath;registrySha256=$seed.registrySha256;registryEntry=$seed.registryEntry;intakePath=$seed.intakePath;intakeSha256=$seed.intakeSha256;
   qualification=$q;inventory=$i;fixtureSetupOnly=$true;producerAncestry=$false;nativeAuthorityGranted=$false}
 }
-function Copy-KmcChunk7SmallFixtureSource($Source,[string]$ProfileRoot,$Lock,$Selection,$Fixture,$Candidate){
+function Copy-KmcChunk7SmallFixtureSource($Source,[string]$ProfileRoot,$Lock,$Selection,$Fixture,$Candidate,
+ [string]$OwnedScenario='chunk7-small-fixture-preparation',[string]$RecordPrefix='small-fixture'){
  [void](Assert-KmcRuntimeLockOwner $Lock);Assert-KmcChunk7SmallFixtureSelection ([pscustomobject]@{scenario='chunk7-small-fixture-preparation';runId=$Lock.RunId;smallFixture=$Selection})
+ if($OwnedScenario-cnotin@('chunk7-small-fixture-preparation','chunk7-stock-mammoth-fixture-preparation')-or
+   $RecordPrefix-cnotin@('small-fixture','stock-mammoth-fixture')-or
+   (($OwnedScenario-ceq'chunk7-small-fixture-preparation')-ne($RecordPrefix-ceq'small-fixture'))){throw 'Foreign fixture provenance-copy route.'}
  $fresh=Get-KmcChunk7SmallFixtureSource $Selection $Fixture $Candidate
  foreach($key in @('path','descriptor','seedId','registrySha256','registryEntry','intakePath','intakeSha256','qualification','inventory')){Assert-KmcAssistedSame $Source.$key $fresh.$key ('F09 qualified provenance '+$key)}
  $lab=Get-KmcLabRoot;$run=Assert-KmcChildPath $ProfileRoot (Join-Path $lab 'runtime-staging') 'F09 isolated profile'
  Assert-KmcBootstrapInventoryString $run (Join-Path $lab ('runtime-staging/persistence-'+$Lock.RunId));Assert-KmcDirectoryTreeCloneable $run 'F09 isolated profile'
  $ownerPath=Join-Path $run 'owner.json';$ownerPin=Read-KmcSmallFixturePinnedJson $ownerPath $null 16384;$owner=$ownerPin.value
  Assert-KmcAssistedObjectValue $owner @('runId','transactionToken','scenario','persistenceCase','sourceSha256','saveRoot') 'F09 profile owner'
- foreach($pair in @(@('runId',$Lock.RunId),@('transactionToken',$Lock.Token),@('scenario','chunk7-small-fixture-preparation'),@('sourceSha256',$fresh.descriptor.sha256),@('saveRoot',(Join-Path $run 'Saved Games')))){Assert-KmcBootstrapInventoryString $owner.($pair[0]) $pair[1]}
+ foreach($pair in @(@('runId',$Lock.RunId),@('transactionToken',$Lock.Token),@('scenario',$OwnedScenario),@('sourceSha256',$fresh.descriptor.sha256),@('saveRoot',(Join-Path $run 'Saved Games')))){Assert-KmcBootstrapInventoryString $owner.($pair[0]) $pair[1]}
  if($null-ne$owner.persistenceCase-and$owner.persistenceCase-cne''){throw 'F09 profile contains a foreign persistence case.'}
- [void](Write-KmcChunk7OwnerSeedSourceRecord $fresh (Join-Path $run 'small-fixture-owner-seed.json') $ownerPath $ownerPin.sha256 $Lock)
- foreach($pair in @(@($fresh.qualification,'small-fixture-seed-qualification.json'),@($fresh.inventory,'small-fixture-native-inventory.json'))){
+ [void](Write-KmcChunk7OwnerSeedSourceRecord $fresh (Join-Path $run ($RecordPrefix+'-owner-seed.json')) $ownerPath $ownerPin.sha256 $Lock)
+ foreach($pair in @(@($fresh.qualification,($RecordPrefix+'-seed-qualification.json')),@($fresh.inventory,($RecordPrefix+'-native-inventory.json')))){
   $source=$pair[0];$input=$null;$output=$null;$algorithm=$null;$destination=Join-Path $run $pair[1]
   try{
    $input=[IO.FileStream]::new($source.artifactPath,[IO.FileMode]::Open,[IO.FileAccess]::Read,[IO.FileShare]::Read);$algorithm=[Security.Cryptography.SHA256]::Create()

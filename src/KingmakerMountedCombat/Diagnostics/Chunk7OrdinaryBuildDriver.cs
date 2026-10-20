@@ -43,18 +43,21 @@ namespace KingmakerMountedCombat.Diagnostics
         internal readonly bool LeftHanded;
         internal readonly int MinimumRangerLevel;
         internal readonly Size ExpectedBodySize;
+        internal readonly bool RequireStockMammothRankSeven;
         internal bool IsRespec => Mode == Chunk7OrdinaryBuildMode.NativeRespecHorse || Mode == Chunk7OrdinaryBuildMode.NativeRespecMammoth;
 
         internal bool NewPaidCompanion => Mode == Chunk7OrdinaryBuildMode.NewSmallCustomCompanion || Mode == Chunk7OrdinaryBuildMode.NewMediumCustomCompanion;
 
         internal Chunk7OrdinaryBuildPins(string runId, string nativeInventorySha256, Chunk7OrdinaryBuildMode mode,
             string smallRaceGuid, string smallPresetGuid, string skeletonName, Gender gender, bool leftHanded,
-            int minimumRangerLevel = 4, Size expectedBodySize = Size.Small, bool allowNativeAutoLevelupOverride = false)
+            int minimumRangerLevel = 4, Size expectedBodySize = Size.Small, bool allowNativeAutoLevelupOverride = false,
+            bool requireStockMammothRankSeven = false)
         {
             RunId = runId; NativeInventorySha256 = nativeInventorySha256; Mode = mode;
             SmallRaceGuid = smallRaceGuid; SmallPresetGuid = smallPresetGuid; SkeletonName = skeletonName;
             Gender = gender; LeftHanded = leftHanded; MinimumRangerLevel = minimumRangerLevel;
             ExpectedBodySize = expectedBodySize; AllowNativeAutoLevelupOverride = allowNativeAutoLevelupOverride;
+            RequireStockMammothRankSeven = requireStockMammothRankSeven;
             Validate();
         }
 
@@ -69,6 +72,9 @@ namespace KingmakerMountedCombat.Diagnostics
             Require(Regex.IsMatch(RunId ?? "", "^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$"), "Invalid run identity.");
             Require(!AllowNativeAutoLevelupOverride || Mode == Chunk7OrdinaryBuildMode.ExistingRangerLevels,
                 "Native auto-levelup override is limited to existing-actor Ranger levels.");
+            Require(!RequireStockMammothRankSeven || Mode == Chunk7OrdinaryBuildMode.ExistingRangerLevels &&
+                MinimumRangerLevel == 10 && ExpectedBodySize == Size.Medium,
+                "The stock Mammoth rank-seven fixture requires an existing Medium Ranger reaching exactly level ten.");
             Require(Regex.IsMatch(NativeInventorySha256 ?? "", "^[a-f0-9]{64}$"), "Exact native inventory hash is required.");
             Require(NewPaidCompanion || Mode == Chunk7OrdinaryBuildMode.ExistingRangerLevels ||
                 Mode == Chunk7OrdinaryBuildMode.ExistingHorseLevels || IsRespec,
@@ -85,6 +91,15 @@ namespace KingmakerMountedCombat.Diagnostics
         }
         private static void Require(bool condition, string message)
         { if (!condition) throw new InvalidOperationException(message); }
+    }
+
+    internal static class Chunk7StockMammothBuildAdmission
+    {
+        internal static void RequireExactXp(int actualXp, int rangerTenThreshold, int naturallyReadyLevel)
+        {
+            if (rangerTenThreshold != 105000 || actualXp != rangerTenThreshold || naturallyReadyLevel != 10)
+                throw new InvalidOperationException("Stock Mammoth fixture requires the installed Ranger-ten threshold and no additional ready level.");
+        }
     }
 
     internal sealed class Chunk7OrdinaryBuildDriver
@@ -133,6 +148,9 @@ namespace KingmakerMountedCombat.Diagnostics
             pins.Validate();
             this.horseFeature = horseFeature ?? throw new ArgumentNullException(nameof(horseFeature));
             Require(Regex.IsMatch(horseUnitGuid ?? "", "^[a-f0-9]{32}$"), "Exact native Horse blueprint identity is missing.");
+            Require(!pins.RequireStockMammothRankSeven || horseFeature.AssetGuid == HorseCompanionBlueprintService.MammothFeatureGuid &&
+                horseUnitGuid == HorseCompanionBlueprintService.MammothUnitGuid,
+                "Rank-seven fixture must select the exact installed stock Mammoth feature and unit before native build.");
             this.horseUnitGuid = horseUnitGuid;
             this.assertExactIsolatedAuthority = assertExactIsolatedAuthority ?? throw new ArgumentNullException(nameof(assertExactIsolatedAuthority));
             this.publishObservation = publishObservation ?? throw new ArgumentNullException(nameof(publishObservation));
@@ -286,6 +304,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 }
                 descriptor = actor.Descriptor; actorId = actor.UniqueId; initialXp = descriptor.Progression.Experience;
                 expectedFinalLevel = ReadyLevel(initialXp);
+                if (pins.RequireStockMammothRankSeven)
+                    Chunk7StockMammothBuildAdmission.RequireExactXp(initialXp,
+                        BlueprintRoot.Instance.Progression.XPTable.GetBonus(10), expectedFinalLevel);
                 Require(LevelUpController.CanLevelUp(descriptor) && descriptor.Progression.GetClassLevel(ranger) +
                     expectedFinalLevel - descriptor.Progression.CharacterLevel >= pins.MinimumRangerLevel,
                     "Actual native XP cannot reach the selected ordinary Ranger acquisition level.");
@@ -507,6 +528,22 @@ namespace KingmakerMountedCombat.Diagnostics
             var fact = descriptor.GetFact(targetCompanionFeature) as Feature;
             Require(fact != null && fact.Source != null && horse != null && horse.Blueprint?.AssetGuid == targetCompanionUnitGuid &&
                 ReferenceEquals(horse.Descriptor.Master.Value, actor), "Ordinary native progression did not produce the sourced reciprocal Horse companion.");
+            if (pins.RequireStockMammothRankSeven)
+            {
+                var rank = ResourcesLibrary.TryGetBlueprint<BlueprintFeature>(HorseCompanionBlueprintService.LevelRankGuid);
+                var upgrade = ResourcesLibrary.TryGetBlueprint<BlueprintFeature>(HorseCompanionBlueprintService.MammothUpgradeGuid);
+                Require(targetCompanionFeature.AssetGuid == HorseCompanionBlueprintService.MammothFeatureGuid &&
+                    targetCompanionUnitGuid == HorseCompanionBlueprintService.MammothUnitGuid && rank != null && upgrade != null &&
+                    descriptor.Progression.GetClassLevel(ranger) == 10 && descriptor.Progression.CharacterLevel == 10 &&
+                    descriptor.GetFact(rank)?.GetRank() >= 7 && horse.Descriptor.GetFact(upgrade) != null &&
+                    descriptor.OriginalSize == Size.Medium && descriptor.State.Size == Size.Medium &&
+                    horse.Descriptor.State.Size == Size.Large && actor.GetActivePolymorph() == null && horse.GetActivePolymorph() == null,
+                    "Native stock Mammoth did not attain its sourced rank-seven Large upgrade over the exact Medium Ranger.");
+                Emit("native-stock-mammoth-rank-seven", new JObject { ["rangerLevel"] = descriptor.Progression.GetClassLevel(ranger),
+                    ["companionRank"] = descriptor.GetFact(rank).GetRank(), ["riderSize"] = descriptor.State.Size.ToString(),
+                    ["mountSize"] = horse.Descriptor.State.Size.ToString(), ["upgradeGuid"] = upgrade.AssetGuid,
+                    ["featureGuid"] = targetCompanionFeature.AssetGuid, ["petGuid"] = horse.Blueprint.AssetGuid });
+            }
             Require(pins.Mode != Chunk7OrdinaryBuildMode.ExistingHorseLevels || ReferenceEquals(horse, originalHorse),
                 "Ordinary existing-Horse leveling unexpectedly replaced its native pet.");
             if (pins.NewPaidCompanion || pins.IsRespec)

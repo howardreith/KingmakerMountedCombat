@@ -2,7 +2,10 @@
 <Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
     <Compile Include="Diagnostics\Chunk7SmallFixtureSelection.cs" />
+    <Compile Include="Diagnostics\Chunk7StockMammothFixtureSelection.cs" />
+    <Compile Include="Diagnostics\Chunk7StockMammothFixtureScenario.cs" />
     <Compile Include="Diagnostics\PersistenceSaveAuthorization.SmallFixture.cs" />
+    <Compile Include="Diagnostics\PersistenceSaveAuthorization.StockMammothFixture.cs" />
     <Compile Include="Diagnostics\Chunk7SmallFixtureScenario.cs" />
     <Compile Include="Diagnostics\Chunk7SmallFixtureScenario.Observation.cs" />
     <Compile Include="Diagnostics\Chunk7SmallFixtureScenario.Save.cs" />

@@ -153,6 +153,7 @@
     <Compile Include="HorseCompanionScenarioDeadlinePolicyTests.cs" />
     <Compile Include="DiagnosticTurnTraversalPolicyTests.cs" />
     <Compile Include="TestRunner.cs" />
+    <Compile Include="StockMammothFixtureSelectionTests.cs" />
     <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\DiagnosticSettings.cs">
       <Link>Shared\DiagnosticSettings.cs</Link>
     </Compile>
@@ -163,7 +164,9 @@
       <Link>Diagnostics\Chunk7SmallCalibrationSelection.cs</Link>
     </Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\Chunk7SmallFixtureSelection.cs"><Link>Shared\Chunk7SmallFixtureSelection.cs</Link></Compile>
+    <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\Chunk7StockMammothFixtureSelection.cs"><Link>Shared\Chunk7StockMammothFixtureSelection.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\PersistenceSaveAuthorization.SmallFixture.cs"><Link>Shared\PersistenceSaveAuthorization.SmallFixture.cs</Link></Compile>
+    <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\PersistenceSaveAuthorization.StockMammothFixture.cs"><Link>Shared\PersistenceSaveAuthorization.StockMammothFixture.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\Chunk7ProgressionSelection.cs"><Link>Shared\Chunk7ProgressionSelection.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\Chunk7OrdinaryFieldSelection.cs">
       <Link>Diagnostics\Chunk7OrdinaryFieldSelection.cs</Link>
