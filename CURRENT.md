@@ -1,5 +1,16 @@
 # Chunk 7B–7D — IN PROGRESS
 
+## October 20 - batch79 F11 frame-snapshot correction and native comparison
+
+[Batch79](docs/CHUNK7-BATCH79-F11-FRAME-SNAPSHOT-2026-10-20.md) removes
+specific repeated pair-array and successful-visit error-list allocations from
+the KMC frame path. Independent review, actual-DLL focused 8/0, neighboring
+71/0, Fast 3/0 and Candidate 7/0 passed. Preview.92's sole guarded native
+matched-pool scenario passed game/outer **8/0** with exact profile/Mods/save
+restoration. Twelve windows retained zero KMC logs and stable subscribers;
+one/two-pair timing remains above the zero-pair baseline. Managed allocation
+rate, diagnostics-off, ordinary-player controls and F11 acceptance remain open.
+
 ## October 20 - batch78 repeated F11 resident-pool observation
 
 The [batch78 record](docs/CHUNK7-BATCH78-F11-REPEATED-WINDOWS-2026-10-20.md)

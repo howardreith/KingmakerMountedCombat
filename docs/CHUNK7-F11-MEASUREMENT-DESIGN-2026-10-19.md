@@ -1,5 +1,12 @@
 # Chunk 7 F11 measurement design — IN PROGRESS
 
+[Batch79](CHUNK7-BATCH79-F11-FRAME-SNAPSHOT-2026-10-20.md) corrected two
+repeated pair-array copies and successful-visit error-list creation in the
+KMC frame path. Reviewed actual-DLL and native checks passed. The twelve
+new windows still show active-pair timing above the matched zero-state spread;
+they do not measure managed allocation events or establish a causal timing
+reduction. Allocation rate, diagnostics-off and ordinary-player gates stay open.
+
 [Batch78](CHUNK7-BATCH78-F11-REPEATED-WINDOWS-2026-10-20.md) completed one
 reviewed three-window-per-state 0/1/2/0 native observation on preview.91:
 game/outer PASS 8/0 with exact restoration, stable subscriptions and zero
