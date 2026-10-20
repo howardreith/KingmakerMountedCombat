@@ -182,8 +182,12 @@ function Get-KmcPersistenceProfileCacheDelta {
             beforeSha256=$null;afterSha256=[string]$current.sha256}
     }
     if($unsettled.Count-gt0){
+        $first=[string](@($unsettled|Sort-Object -CaseSensitive)[0])
+        $units=[string]::Join(',',@([char[]]$first|ForEach-Object{([int][char]$_).ToString('x4')}))
+        $beforeExact=@($Before.entries|Where-Object{[StringComparer]::Ordinal.Equals([string]$_.path,$first)}).Count
+        $afterExact=@($After.entries|Where-Object{[StringComparer]::Ordinal.Equals([string]$_.path,$first)}).Count
         throw ('A new profile leaf used the achievement cache name without its settled native size: '+
-            (@($unsettled|Sort-Object -CaseSensitive)[0])+' 0')
+            $first+'; utf16='+$units+'; beforeExact='+$beforeExact+'; afterExact='+$afterExact+' 0')
     }
     return $changes
 }

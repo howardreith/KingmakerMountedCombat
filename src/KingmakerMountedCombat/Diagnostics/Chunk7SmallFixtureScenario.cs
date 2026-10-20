@@ -171,7 +171,13 @@ namespace KingmakerMountedCombat.Diagnostics
                     default: throw new InvalidOperationException("Unknown F09 fixture phase.");
                 }
             }
-            catch (Exception error) { Fail("C7-small-fixture-runtime", error.ToString()); BeginCleanup(); }
+            catch (Exception error)
+            {
+                Fail("C7-small-fixture-runtime", "F09 stage=" + stage +
+                    "; mainCommits=" + (mainDriver?.NativeCommitCount ?? 0) +
+                    "; hireCommits=" + (hireDriver?.NativeCommitCount ?? 0) + "; " + error);
+                BeginCleanup();
+            }
         }
 
         private void BindColdWorld()

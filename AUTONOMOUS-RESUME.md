@@ -1,6 +1,22 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
-## Active October 20 batch47 follow-up - missing causal observations
+## Active October 20 preview.66 diagnostic follow-up
+
+The [standing completion mission](planning/CHUNK7-COMPLETION-MISSION.md)
+remains active. Batch47's two original FAILs and exact separate restoration
+are recorded below and in the [batch47 record](docs/CHUNK7-BATCH47-NATIVE-FOLLOWUP-2026-10-20.md).
+Preview.66 adds only bounded failure-path evidence: exact actor/view identity,
+F09 stage/commit counts, and zero-cache UTF-16 name plus ordinal membership.
+The native custody fence and profile retry/refusal remain intact. Independent
+review PASS; profile test 62/0 and Fast 3/0 (source validation 147/0) PASS.
+Next: commit/guarded-push preview.66 source, package once, run Candidate,
+freeze a fresh append-only suite and scoped WhatIf. Run only justified
+diagnostics against the frozen candidate, sequentially, then settle each
+transaction exactly. The preview.65 net-money correction remains unverified
+natively. Continue the remaining selected Chunk 7 scope; do not promote the
+diagnostic candidate to engineering completion.
+
+## October 20 batch47 follow-up - missing causal observations
 
 The [standing completion mission](planning/CHUNK7-COMPLETION-MISSION.md)
 remains selected through readiness-gated private 7E. Preview.65 is frozen
@@ -26,10 +42,9 @@ PlayerPrefs after reviewed WhatIf. Final read-only check: game and lock absent,
 transaction `restored`, Mods/saves/settings/profile exact and zero cache delta.
 Do not promote either original FAIL.
 
-Next: finish the batch47 documentation/recovery-script commit and guarded
-push. Add only failure-bound actor/view/stage and zero-cache UTF-16/membership
-observations within existing code, focused tests and independent review.
-Freeze a new candidate only for a run that answers those causal questions.
+The batch47 documentation/recovery-script commit and guarded push completed
+at `99109487afb33bf8f4554372b27aa115ce797969`. The next observation is
+tracked above.
 The preview.65 paid-hire net-money correction is still unverified natively.
 Continue independent positive reference-free removal, progression and 7D
 work while those fixture blockers are diagnosed. No main merge, release,
