@@ -179,13 +179,30 @@ namespace KingmakerMountedCombat.Diagnostics
                 "Observed respec pet identity, descriptor, view or reciprocal ownership changed.");
             if (originalPetRemoved) RequireSourcedPet(reboundPet);
         }
+        private bool IsExactNativePetReapplyGap(AddPet source)
+        {
+            return rebinds == 1 && petUpdates > 0 &&
+                ReferenceEquals(source, observedPetSource) && ReferenceEquals(source.SpawnedPet, reboundPet) &&
+                ReferenceEquals(reboundPet, observedPet) && reboundPet != null &&
+                reboundPet.UniqueId == reboundPetId && reboundPet.UniqueId == observedPetId &&
+                ReferenceEquals(reboundPet.Descriptor, reboundPetDescriptor) &&
+                ReferenceEquals(reboundPet.Descriptor, observedPetDescriptor) &&
+                ReferenceEquals(reboundPet.View, reboundPetView) && ReferenceEquals(reboundPet.View, observedPetView) &&
+                !reboundPet.Destroyed && !reboundPet.ShouldBeDestroyed &&
+                reboundPet.Descriptor.Master.Value == null && original.Descriptor.Pet == null &&
+                original.Descriptor.PetUniqueId == null;
+        }
         private void BeginPetUpdate(AddPet source)
         {
             Require(entries == 1 && exits == 1 && previews == 1 && rebinds <= 1 && petUpdateSource == null && petUpdates < 32 &&
                 ReferenceEquals(source.Owner, original.Descriptor) &&
                 original.Descriptor.Progression.Features.SelectFactComponents<AddPet>().Any(value => ReferenceEquals(value, source)),
                 "Native pet update is outside the exact observed respec actor and fact source.");
-            if (rebinds == 1) RequireCurrentPetBinding();
+            if (rebinds == 1)
+            {
+                if (IsExactNativePetReapplyGap(source)) RequireOriginalPet(originalPetRemoved);
+                else RequireCurrentPetBinding();
+            }
             else RequireOriginalPet(false);
             var pet = original.Descriptor.Pet;
             Require(pet == null || ReferenceEquals(pet, originalPet) || ReferenceEquals(pet, observedPet),

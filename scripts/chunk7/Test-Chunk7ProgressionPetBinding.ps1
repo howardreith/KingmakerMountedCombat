@@ -23,7 +23,7 @@ $begin=$tick.IndexOf('                Require(started && elapsed.Elapsed.TotalSe
 $end=$tick.IndexOf('                if (stage == 0)',[StringComparison]::Ordinal)
 if($begin-lt0-or$end-le$begin){throw 'Missing exact native Tick admission boundary.'}
 $admission=$tick.Substring($begin,$end-$begin)
-$methods=@('internal void RequireObservedPetBinding','private void RequireOriginalPet','private void RequireSourcedPet','private void PinReboundPet','private void RequireCurrentPetBinding','private void BeginPetUpdate','private void CompletePetUpdate')|ForEach-Object{Get-ExactMethod $probe $_}
+$methods=@('internal void RequireObservedPetBinding','private void RequireOriginalPet','private void RequireSourcedPet','private void PinReboundPet','private void RequireCurrentPetBinding','private bool IsExactNativePetReapplyGap','private void BeginPetUpdate','private void CompletePetUpdate')|ForEach-Object{Get-ExactMethod $probe $_}
 $template=[IO.File]::ReadAllText((Join-Path $TestSourceDirectory 'ProgressionPetBindingTemplate.cs'))
 $resourceStart=$probe.IndexOf('private static JObject Resources(UnitDescriptor unit)',[StringComparison]::Ordinal);$resourceEnd=$probe.IndexOf('};',$resourceStart)+2
 if($resourceStart-lt0-or$resourceEnd-le$resourceStart){throw 'Exact native Resources expression missing.'}
@@ -38,7 +38,7 @@ $arguments+=@('mscorlib.dll','System.dll','System.Core.dll')|ForEach-Object{'/re
 $rsp=Join-Path $OutputDirectory 'compile.rsp';[IO.File]::WriteAllLines($rsp,@(($arguments+$cs)|ForEach-Object{'"'+$_+'"'}),[Text.UTF8Encoding]::new($false))
 $timer=[Diagnostics.Stopwatch]::StartNew();& $compiler ('@'+$rsp) 2>&1|Tee-Object -FilePath $log;$compile=$LASTEXITCODE;$test=-1
 if($compile-eq0){& $exe 2>&1|Tee-Object -FilePath $log -Append;$test=$LASTEXITCODE};$timer.Stop()
-$receipt=@{compile=$compile;test=$test;elapsedSeconds=$timer.Elapsed.TotalSeconds;inputs=@($sessionPath,$probePath|ForEach-Object{@{path=$_;sha256=(Get-FileHash -LiteralPath $_).Hash.ToLowerInvariant()}});nativeProof=$false;boundary='Actual session target binding, exact Tick admission slice and seven actual native pet binding methods; native objects/callback dispatch are external stand-ins.'}
+$receipt=@{compile=$compile;test=$test;elapsedSeconds=$timer.Elapsed.TotalSeconds;inputs=@($sessionPath,$probePath|ForEach-Object{@{path=$_;sha256=(Get-FileHash -LiteralPath $_).Hash.ToLowerInvariant()}});nativeProof=$false;boundary='Actual session target binding, exact Tick admission slice and eight actual native pet binding methods; native objects/callback dispatch are external stand-ins.'}
 [IO.File]::WriteAllText((Join-Path $OutputDirectory 'receipt.json'),($receipt|ConvertTo-Json -Depth 8),[Text.UTF8Encoding]::new($false))
 if($compile-ne0-or$test-ne0){throw ('Actual pet binding regression failed: '+$OutputDirectory)}
 [ordered]@{status='PASS';elapsedSeconds=$timer.Elapsed.TotalSeconds;output=$OutputDirectory;nativeProof=$false}|ConvertTo-Json

@@ -5,7 +5,7 @@ using System.Linq;
 internal struct UnitReference { internal UnitEntityData Value; }
 internal sealed class Features { internal readonly List<AddPet> Items=new List<AddPet>(); internal IEnumerable<T> SelectFactComponents<T>() { return Items.OfType<T>(); } }
 internal sealed class Progression { internal readonly Features Features=new Features(); }
-internal sealed class UnitDescriptor { internal UnitEntityData Unit,Pet; internal UnitReference Master; internal readonly Progression Progression=new Progression(); }
+internal sealed class UnitDescriptor { internal UnitEntityData Unit,Pet; internal string PetUniqueId; internal UnitReference Master; internal readonly Progression Progression=new Progression(); }
 internal sealed class NativeCooldown { internal float MoveAction=.25f, StandardAction=3, SwiftAction=.5f; }
 internal sealed class NativeCombatState { internal readonly NativeCooldown Cooldown=new NativeCooldown(); internal bool Prepared=true; internal int AttackOfOpportunityCount=2,AttackOfOpportunityPerRound=5; internal float Initiative=7; }
 internal sealed class UnitEntityData { internal readonly NativeCombatState CombatState=new NativeCombatState(); internal string UniqueId=Guid.NewGuid().ToString(); internal UnitDescriptor Descriptor; internal object View=new object(); internal bool ShouldBeDestroyed,Destroyed; internal UnitEntityData() { Descriptor=new UnitDescriptor { Unit=this }; } }
@@ -50,13 +50,16 @@ internal sealed class PetSubject {
  internal readonly List<string> errors=new List<string>();
  internal readonly AddPet source;
  internal readonly List<string> records=new List<string>();
- internal PetSubject() {original=new UnitEntityData();originalPet=new UnitEntityData();original.Descriptor.Pet=originalPet;originalPet.Descriptor.Master=new UnitReference {Value=original};originalPetDescriptor=originalPet.Descriptor;originalPetView=originalPet.View;originalPetId=originalPet.UniqueId;source=new AddPet {Owner=original.Descriptor};original.Descriptor.Progression.Features.Items.Add(source);}
+ internal PetSubject() {original=new UnitEntityData();originalPet=new UnitEntityData();original.Descriptor.Pet=originalPet;original.Descriptor.PetUniqueId=originalPet.UniqueId;originalPet.Descriptor.Master=new UnitReference {Value=original};originalPetDescriptor=originalPet.Descriptor;originalPetView=originalPet.View;originalPetId=originalPet.UniqueId;source=new AddPet {Owner=original.Descriptor};original.Descriptor.Progression.Features.Items.Add(source);}
  internal void Begin()=>BeginPetUpdate(source);
+ internal void BeginWith(AddPet other)=>BeginPetUpdate(other);
  internal void End()=>CompletePetUpdate(source);
  internal void Bind(){PinReboundPet();rebinds=1;}
  internal void Check()=>RequireCurrentPetBinding();
- internal UnitEntityData NativeResult() {var pet=new UnitEntityData();pet.Descriptor.Master=new UnitReference {Value=original};source.SpawnedPet=pet;original.Descriptor.Pet=pet;return pet;}
+ internal UnitEntityData NativeResult() {var pet=new UnitEntityData();pet.Descriptor.Master=new UnitReference {Value=original};source.SpawnedPet=pet;original.Descriptor.Pet=pet;original.Descriptor.PetUniqueId=pet.UniqueId;return pet;}
  internal void NativeRemoveOld(){originalPet.Descriptor.Master=new UnitReference();originalPet.ShouldBeDestroyed=true;}
+ internal void NativeReapplyGap(){original.Descriptor.Pet=null;original.Descriptor.PetUniqueId=null;reboundPet.Descriptor.Master=new UnitReference();}
+ internal void NativeReattach(){original.Descriptor.Pet=reboundPet;original.Descriptor.PetUniqueId=reboundPet.UniqueId;reboundPet.Descriptor.Master=new UnitReference{Value=original};}
  internal UnitEntityData Replace(){Begin();var pet=NativeResult();End();NativeRemoveOld();Bind();return pet;}
  private void Record(string kind,JObject detail){records.Add(kind);}
  private static int Id(object value)=>value==null?0:value.GetHashCode();
@@ -111,6 +114,17 @@ internal static class Test {
  var emptyNoOp=new PetSubject();emptyNoOp.original.Descriptor.Pet=null;emptyNoOp.NativeRemoveOld();emptyNoOp.Bind();emptyNoOp.Begin();emptyNoOp.End();Check(!Refuses(emptyNoOp.Check)&&emptyNoOp.observedPet==null,"native no-op preserves an observed null result");
  var repeat=Bound();repeat.Begin();repeat.End();Check(!Refuses(repeat.Check)&&repeat.petUpdates==2,"repeat native update preserves exact sourced result");
  var repeatSubstitution=Bound();repeatSubstitution.Begin();repeatSubstitution.NativeResult();Check(Refuses(repeatSubstitution.End),"repeat native update cannot replace an observed pet");
+ var gap=Bound();gap.NativeReapplyGap();Check(!Refuses(gap.Begin)&&ReferenceEquals(gap.petUpdateSource,gap.source),"exact native feature-reapply gap admits the same live source and horse");gap.NativeReattach();Check(!Refuses(gap.End)&&gap.petUpdates==2&&!Refuses(gap.Check),"native postfix must reattach identical sourced horse reciprocally");
+ var gapNoReattach=Bound();gapNoReattach.NativeReapplyGap();gapNoReattach.Begin();Check(Refuses(gapNoReattach.End)&&ReferenceEquals(gapNoReattach.petUpdateSource,gapNoReattach.source),"native reapply gap cannot pass without postfix reattachment");
+ var gapSource=Bound();gapSource.NativeReapplyGap();var alternate=new AddPet{Owner=gapSource.original.Descriptor,SpawnedPet=gapSource.reboundPet};gapSource.original.Descriptor.Progression.Features.Items.Add(alternate);Check(Refuses(()=>gapSource.BeginWith(alternate)),"another AddPet source cannot borrow the reapply gap");
+ var gapObject=Bound();gapObject.NativeReapplyGap();gapObject.source.SpawnedPet=new UnitEntityData{UniqueId=gapObject.reboundPetId};Check(Refuses(gapObject.Begin),"same-ID replacement object cannot borrow the reapply gap");
+ var gapDescriptor=Bound();gapDescriptor.NativeReapplyGap();gapDescriptor.reboundPet.Descriptor=new UnitDescriptor();Check(Refuses(gapDescriptor.Begin),"changed pet descriptor cannot borrow the reapply gap");
+ var gapView=Bound();gapView.NativeReapplyGap();gapView.reboundPet.View=new object();Check(Refuses(gapView.Begin),"changed pet view cannot borrow the reapply gap");
+ var gapDestroyed=Bound();gapDestroyed.NativeReapplyGap();gapDestroyed.reboundPet.Destroyed=true;Check(Refuses(gapDestroyed.Begin),"destroyed horse cannot borrow the reapply gap");
+ var gapPending=Bound();gapPending.NativeReapplyGap();gapPending.reboundPet.ShouldBeDestroyed=true;Check(Refuses(gapPending.Begin),"horse pending destruction cannot borrow the reapply gap");
+ var gapMaster=Bound();gapMaster.NativeReapplyGap();gapMaster.reboundPet.Descriptor.Master=new UnitReference{Value=new UnitEntityData()};Check(Refuses(gapMaster.Begin),"foreign master cannot borrow the reapply gap");
+ var gapCurrent=Bound();gapCurrent.NativeReapplyGap();gapCurrent.original.Descriptor.Pet=new UnitEntityData();Check(Refuses(gapCurrent.Begin),"nonnull foreign current pet cannot borrow the reapply gap");
+ var gapOwnerId=Bound();gapOwnerId.NativeReapplyGap();gapOwnerId.original.Descriptor.PetUniqueId="foreign";Check(Refuses(gapOwnerId.Begin),"nonnull owner pet ID cannot borrow the reapply gap");
  var kept=new PetSubject();kept.Bind();Check(!Refuses(kept.Check)&&!kept.originalPetRemoved,"native rebind may retain original reciprocal pet");
  var expected=Bound();Check(Refuses(()=>expected.RequireObservedPetBinding(new UnitEntityData(),expected.originalPetDescriptor,expected.originalPetView)),"session cannot borrow another probe pet binding");
  var resource=new PetSubject();var receipt=resource.ResourcesNow();Check((int)receipt["reactionAllowance"]==5,"native reaction allowance uses PerRound instead of Count");Check((int)receipt["reactions"]==2,"spent native reaction count remains independently observed");Check(resource.original.CombatState.AttackOfOpportunityCount==2&&resource.original.CombatState.AttackOfOpportunityPerRound==5&&resource.original.CombatState.Cooldown.StandardAction==3,"resource observation writes no native state");

@@ -1,5 +1,33 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## Active October 20 after batch98 — verify exact native pet reapply gap
+
+The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
+[Batches97–98](docs/CHUNK7-BATCH97-98-NATIVE-PET-REAPPLY-2026-10-20.md)
+froze pushed `0906cab2499de098bbcf262819dc124f33b1630a` as world110.
+Batch97's one-run cross-candidate source WhatIf refused before launch on
+bootstrap scalar identity; no native transaction occurred. Batch98 fresh
+mounted Small Manual 5/0 and separate cold 3/0 passed. Its targeted retrain
+original **outer FAIL** has no terminal game result or certified Manual.
+The bounded native trace identified the same Horse AddPet source/pet during
+`ApplyLevelup → ReapplyFeaturesOnLevelUp`: native deactivation temporarily
+cleared rider Pet/PetUniqueId and pet Master; native `TryUpdatePet` reattached
+the identical live horse in its postfix. The old observer rejected the
+transient gap at prefix. The exact run-owned game closed normally after
+immutable evidence. Mods, saves and all three profiles restored byte-exactly;
+no cache exceptions, game or lock remain. Earlier retrain failures stay
+separate.
+
+A narrow observer correction now admits only the exact same-source/same-pet
+temporary native gap, then still requires exact reciprocal reattachment at
+postfix. No pet write or native call was added. Independent source/test review
+passed and the actual-method pet-binding regression passed 65/0 with ten
+negative cases; build, installed observer patch checks 24/0 and offline
+Candidate 7/0 in 3.77 minutes passed. Next: commit and guarded-push, freeze one exact candidate/suite and
+rerun the affected matched Small producer/cold/retrain sequence. If retrain
+produces a genuine Manual, cold-load an independent copy. Continue
+F09/F10/F11 and selected private 7E.
+
 ## Active October 20 after batch96 — distinguish native pet binding owner
 
 The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
