@@ -391,7 +391,19 @@ namespace KingmakerMountedCombat.Diagnostics
                 return Choose("native-handedness", pins.LeftHanded.ToString(), () => controller.Doll.SetLeftHanded(pins.LeftHanded), () =>
                 { handednessSelected = controller.Doll.LeftHanded == pins.LeftHanded; return handednessSelected; });
             if (state.SelectedClass == null)
+            {
+                if (pins.IsRespec)
+                {
+                    // The native respec controller can open without the visual
+                    // Class description widgets. CharacterBuildController.SetClass
+                    // selects the class and then dereferences those widgets; keep
+                    // the exact native selection and its mechanics without that UI.
+                    var selected = false;
+                    return Choose("class", ranger.AssetGuid, () => selected = controller.SelectClass(ranger),
+                        () => selected && controller.State.SelectedClass == ranger);
+                }
                 return Choose("class", ranger.AssetGuid, () => builder.SetClass(ranger), () => controller.State.SelectedClass == ranger);
+            }
             Require(state.SelectedClass == ranger, "Native selected class differs from the declared Ranger progression.");
             if (!state.StatsDistribution.IsComplete())
             {

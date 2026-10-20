@@ -1,5 +1,32 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## Active October 20 after batch90 — Small retrain correction awaits native qualification
+
+The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
+[Batch90](docs/CHUNK7-BATCH90-SMALL-RETRAIN-2026-10-20.md) froze pushed
+`44afb5391a57e2ef4482b38f0b8db67b33d08c84` as world103, package SHA-256
+`e8ad1c7fefbfddaa71a8eb31dec3a869e841018a28d527c6f54f86a5105eecfc`,
+DLL SHA-256 `9ede31a198d9b914f3bc9b4461439b8181d1f344b77d5ec64679883360e4e45d`.
+Fresh mounted Small Manual 5/0 and separate cold 3/0 passed. The original
+native retrain **FAIL 2/1** occurred in installed `CharBPhaseClass.SetupDescription`
+after the native class was selected, before any Manual write. Its artifact SHA-256
+is `89158fb1104d914fa82082799e7e273bfb1e8bba2b4a56dba55608fdc388c13ff`.
+All three guarded transactions restored Mods and protected saves; slot 3
+restored profile bytes exactly. No game, active lock or recovery action remains.
+
+This checkpoint's correction in `Chunk7OrdinaryBuildDriver.cs` uses the
+installed native `LevelUpController.SelectClass` for the respec-only class
+choice, avoiding the absent visual description control and checking native
+return plus selected class. Independent review passed. `Build-Local.ps1`,
+ordinary-choice evidence 51/0, progression wiring 219/0 and offline Candidate
+7/0 in 6.31 minutes passed; native verification is pending. Product commit
+and guarded push precede the next package. Next native work: freeze one new
+package and declare at most three fresh Small Manual/cold/retrain scenarios
+under a new suite. Do not reuse the batch90 FAIL as a PASS or the old
+world103 mounted source across candidate identities. If native respec reaches
+a new failure, diagnose that exact boundary before another run. F09/F10/F11
+and selected private 7E remain open.
+
 ## Active October 20 after batch89 — Small dismissal passed; progression breadth open
 
 The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.

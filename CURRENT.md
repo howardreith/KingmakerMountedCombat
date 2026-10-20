@@ -1,5 +1,18 @@
 # Chunk 7B–7D — IN PROGRESS
 
+## October 20 — batch90 Small native retrain class-phase FAIL
+
+[Batch90](docs/CHUNK7-BATCH90-SMALL-RETRAIN-2026-10-20.md) froze pushed
+`44afb539` as world103. Fresh mounted Small Manual and separate cold consumer
+passed 5/0 and 3/0. The native retrain **FAIL** (2/1) entered respec and
+accepted body choices, but installed `CharacterBuildController.SetClass`
+threw in its visual class-description path before any Manual save. A scoped
+native class-selection correction passed independent review and focused
+build/reader/wiring checks; it has not run in the game. All three guarded
+transactions restored Mods and protected saves, and slot 3 restored profile
+bytes exactly. Original FAIL retained; F10 retraining and the standing
+completion mission remain open.
+
 ## October 20 — batch89 Small native dismissal PASS
 
 [Batch89](docs/CHUNK7-BATCH89-SMALL-DISMISSAL-2026-10-20.md) froze pushed
