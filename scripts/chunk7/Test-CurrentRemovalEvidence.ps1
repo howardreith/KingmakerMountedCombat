@@ -22,7 +22,7 @@ function Write-RemovalSyntheticZip([string]$Path,$Header,$Kmc,$Extras){
  }finally{$zip.Dispose();$stream.Dispose()}
 }
 function Sync-RemovalArchive($v,[bool]$Cleanup,$Extras){
- $rec=if($Cleanup){$v.rows[5].detail.cleanup}else{$v.rows[1].detail};$f=$v.request.fixture.working;$name=if($Cleanup){'KMC_CLEANUP'}else{'KMC_P01'}
+ $rec=if($Cleanup){$v.rows[5].detail.cleanup}else{$v.rows[1].detail};$f=if($v.request.PSObject.Properties['ownerStockRemoval'] -and $v.request.ownerStockRemoval){$v.request.persistenceLoad}else{$v.request.fixture.working};$name=if($Cleanup){'KMC_CLEANUP'}else{'KMC_P01'}
  Write-RemovalSyntheticZip $rec.path ([ordered]@{Name=$name;Type='Manual';CompatibilityVersion=1;GameId=$f.gameId;GameName=$f.gameName;Area=$f.area}) $rec.nativeArchive $Extras
  $rec.sha256=Get-KmcSha256 $rec.path;$rec.length=(Get-Item -LiteralPath $rec.path).Length
  if($Cleanup){$scan=Get-KmcCurrentRemovalReferenceScan $rec.path;$v.rows[5].detail.cleanupSha256=$rec.sha256;$v.rows[5].detail.scannedMembers=$scan.scannedMembers;$v.rows[5].detail.scannedBytes=$scan.scannedBytes}
@@ -63,7 +63,40 @@ function New-CurrentRemovalFixture{
  foreach($row in $rows){foreach($kv in @(@('runId',$id),@('scenario',$r.scenario),@('source',$r.commit),@('dll',$r.dllSha256),@('processId',4242),@('controls',[pscustomobject]@{DuplicateFactCount=0}))){$row|Add-Member $kv[0] $kv[1] -Force}}
  $v=[pscustomobject]@{request=$r;rows=$rows};Sync-RemovalArchive $v $false $null;Sync-RemovalArchive $v $true ([ordered]@{'areas/stashed.json'='{"native":"stock references only"}'});Bind-RemovalResult $v;$v
 }
+function New-OwnerStockRemovalReaderFixture{
+ $v=New-CurrentRemovalFixture
+ $root=$script:removalRoot;$source=Join-Path $root 'Manual_304_KMC_C7_STOCK_MAMMOTH.zks'
+ Move-Item -LiteralPath (Join-Path $root 'Manual_299_KMC_AUTOMATION_WORKING.zks') -Destination $source
+ $file=Get-Item -LiteralPath $source
+ $v.request|Add-Member ownerStockRemoval $true
+ $v.request|Add-Member persistenceLoad ([pscustomobject]@{internalName='KMC_C7_STOCK_MAMMOTH';fileName=$file.Name;sha256=(Get-KmcSha256 $source);length=$file.Length;lastWriteTimeUtcTicks=$file.LastWriteTimeUtc.Ticks;gameId='3f7381f7-aba6-43bf-bae6-39c6a66a7180';gameName='Testy the Modless';area='b10e86516b6437d45a629931c30936fe'})
+ $text=$v.rows|ConvertTo-Json -Depth 60 -Compress
+ $text=$text.Replace('10101010-1010-4010-8010-101010101010','73681ef2-b281-4bc6-bc05-2de68c1616cb').Replace('20202020-2020-4020-8020-202020202020','628c6d9a-5ab7-4e87-8202-9fcbe38a7827').Replace('90909090-9090-4090-8090-909090909090','3f7381f7-aba6-43bf-bae6-39c6a66a7180').Replace(('a'*32),'b10e86516b6437d45a629931c30936fe')
+ $v.rows=$text|ConvertFrom-Json
+ Move-Item -LiteralPath (Join-Path $root 'Manual_300_KMC_P01.zks') -Destination (Join-Path $root 'Manual_305_KMC_P01.zks')
+ Move-Item -LiteralPath (Join-Path $root 'Manual_301_KMC_CLEANUP.zks') -Destination (Join-Path $root 'Manual_306_KMC_CLEANUP.zks')
+ $v.rows[1].detail.path=Join-Path $root 'Manual_305_KMC_P01.zks'
+ $v.rows[5].detail.cleanup.path=Join-Path $root 'Manual_306_KMC_CLEANUP.zks'
+ $v.rows[5].detail.cleanup.leaf='Manual_306_KMC_CLEANUP.zks';$v.rows[5].detail.cleanupLeaf='Manual_306_KMC_CLEANUP.zks'
+ Sync-RemovalArchive $v $false $null
+ Sync-RemovalArchive $v $true ([ordered]@{'areas/stashed.json'='{"native":"stock references only"}'})
+ Bind-RemovalResult $v
+ $v
+}
 Check 'current P07 full native schema3 opening and cleanup plus continuation' {$v=New-CurrentRemovalFixture;Assert-KmcPersistenceScenarioEvidence $v.request $v.manifest 'PASS' $v.game}
+Check 'owner stock P07 synthetic public reader uses distinct input and mounted305/cleanup306 graph' {$v=New-OwnerStockRemovalReaderFixture;Assert-KmcPersistenceScenarioEvidence $v.request $v.manifest 'PASS' $v.game}
+Check 'owner stock P07 public reader rejects a missing mounted305 despite valid cleanup306' {$v=New-OwnerStockRemovalReaderFixture;$v.rows[1].detail.path=Join-Path $script:removalRoot 'Manual_300_KMC_P01.zks';Bind-RemovalResult $v;Assert-KmcPersistenceScenarioEvidence $v.request $v.manifest 'PASS' $v.game} $true
+Check 'owner stock P07 public reader rejects Working ancestry relabelled as its stock input' {$v=New-OwnerStockRemovalReaderFixture;$v.request.ownerStockRemoval=$false;Bind-RemovalResult $v;Assert-KmcPersistenceScenarioEvidence $v.request $v.manifest 'PASS' $v.game} $true
+Check 'owner stock P07 refuses historical schema2 fallback even with exact two native writes' {$v=New-OwnerStockRemovalReaderFixture;$f=$v.request.persistenceLoad
+ foreach($rec in @($v.rows[1].detail,$v.rows[5].detail.cleanup)){
+  $name=if($rec.snapshot.Mounted){'KMC_P01'}else{'KMC_CLEANUP'}
+  Write-RemovalSyntheticZip $rec.path ([ordered]@{Name=$name;Type='Manual';CompatibilityVersion=1;GameId=$f.gameId;GameName=$f.gameName;Area=$f.area}) $rec.snapshot $null
+  $rec.sha256=Get-KmcSha256 $rec.path;$rec.length=(Get-Item -LiteralPath $rec.path).Length
+  foreach($key in @('nativeSourceSchema','snapshotProjection','nativeArchive')){$rec.PSObject.Properties.Remove($key)}
+ }
+ $v.rows[5].detail.firstSha256=$v.rows[1].detail.sha256;$v.rows[5].detail.cleanupSha256=$v.rows[5].detail.cleanup.sha256
+ Bind-RemovalResult $v;Assert-KmcPersistenceScenarioEvidence $v.request $v.manifest 'PASS' $v.game
+} $true
 Check 'current P07 actual cleanup source qualifies through public intake' {$v=New-CurrentRemovalFixture;$s=Get-KmcPersistenceSource $v.request.runId $v.rows[5].detail.cleanup.sha256 $v.request.fixture -NativeCase prepare-removal -ArtifactRole cleanup-manual;if($s.descriptor.sha256-cne$v.rows[5].detail.cleanup.sha256){throw 'Wrong source bytes.'}}
 Check 'historical schema2 P07 reader and public intake remain separate' {$v=New-CurrentRemovalFixture;$f=$v.request.fixture.working
  foreach($rec in @($v.rows[1].detail,$v.rows[5].detail.cleanup)){
@@ -110,5 +143,5 @@ foreach($key in @('source failed','source un-restored','source manifest changed'
  Get-KmcPersistenceSource $v.request.runId $v.rows[5].detail.cleanup.sha256 $v.request.fixture -NativeCase prepare-removal -ArtifactRole cleanup-manual|Out-Null} $true}
 foreach($key in @('schema1','schema string','future schema')){Check ('public current source refuses '+$key){$v=New-CurrentRemovalFixture;$rec=$v.rows[5].detail.cleanup;$rec.nativeArchive.SchemaVersion=switch($key){'schema1'{1}'schema string'{'3'}'future schema'{4}};Sync-RemovalArchive $v $true $null;Bind-RemovalResult $v
  Get-KmcPersistenceSource $v.request.runId $rec.sha256 $v.request.fixture -NativeCase prepare-removal -ArtifactRole cleanup-manual|Out-Null} $true}
-$clock.Stop();$summary=[ordered]@{scope='private group44 generated current P07 reader/source checks only; no native or DLL-absent credit';passed=@($results|Where-Object pass -EQ $true).Count;failed=@($results|Where-Object pass -EQ $false).Count;durationSeconds=$clock.Elapsed.TotalSeconds;inputs=@(@($PSCommandPath,(Join-Path $reader 'CurrentRemovalEvidence.ps1'),(Join-Path $reader 'PersistenceSaveFixtures.ps1'),(Join-Path $draft 'scripts/Test-PersistenceSaveFixtures.ps1'))|ForEach-Object{[pscustomobject]@{path=$_;sha256=(Get-KmcSha256 $_)}});results=$results.ToArray()}
+$clock.Stop();$summary=[ordered]@{scope='generated current P07 legacy and owner-stock reader/source checks only; no native or DLL-absent credit';passed=@($results|Where-Object pass -EQ $true).Count;failed=@($results|Where-Object pass -EQ $false).Count;durationSeconds=$clock.Elapsed.TotalSeconds;inputs=@(@($PSCommandPath,(Join-Path $reader 'CurrentRemovalEvidence.ps1'),(Join-Path $reader 'PersistenceSaveFixtures.ps1'),(Join-Path $draft 'scripts/Test-PersistenceSaveFixtures.ps1'))|ForEach-Object{[pscustomobject]@{path=$_;sha256=(Get-KmcSha256 $_)}});results=$results.ToArray()}
 [IO.File]::WriteAllText((Join-Path $OutputDirectory 'summary.json'),($summary|ConvertTo-Json -Depth 60),[Text.UTF8Encoding]::new($false));Write-Output ('RESULT '+$summary.passed+' passed; '+$summary.failed+' failed; '+$clock.Elapsed.TotalSeconds+' seconds');if($summary.failed-gt0){exit 1}

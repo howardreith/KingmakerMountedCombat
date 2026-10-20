@@ -42,6 +42,7 @@ param(
     [switch]$BaseGameOnly,
     [switch]$DevelopmentScopedAudit,
     [switch]$ObserveWorkingDeserialization,
+    [switch]$OwnerStockRemoval,
     [ValidateSet('authored-main-campaign')][string]$NativeBootstrapCase,
     [string]$OrdinarySelectionPath,
     [string]$OrdinaryFieldSelectionPath,
@@ -128,6 +129,7 @@ if($PSBoundParameters.ContainsKey('ObserveWorkingDeserialization') -and
 . (Join-Path $PSScriptRoot 'Chunk7SmallCalibrationFixtures.ps1')
 . (Join-Path $PSScriptRoot 'Chunk7SmallFixtureFixtures.ps1')
 . (Join-Path $PSScriptRoot 'Chunk7StockMammothFixtureFixtures.ps1')
+. (Join-Path $PSScriptRoot 'Chunk7OwnerStockRemovalFixtures.ps1')
 . (Join-Path $PSScriptRoot 'Chunk7SmallFixtureColdSource.ps1')
 . (Join-Path $PSScriptRoot 'Chunk7ProgressionFixtures.ps1')
 # Stale level-up autosave families are refused here, before any selection intake, lock,
@@ -169,6 +171,13 @@ $stockMammothFixtureInput=$null;$stockMammothFixtureSource=$null
 Assert-KmcChunk7StockMammothFixtureLaunchArguments $PSBoundParameters $Scenario ([bool]$BaseGameOnly) $TimeoutSeconds $StockMammothFixtureSelectionPath
 if(Test-KmcChunk7StockMammothFixtureScenario $Scenario){
     $stockMammothFixtureInput=Read-KmcChunk7StockMammothFixtureSelectionFile $StockMammothFixtureSelectionPath $(if($RunId){$RunId}else{'unassigned-stock-mammoth-fixture'})
+}
+if($PSBoundParameters.ContainsKey('OwnerStockRemoval')){
+    if(-not$OwnerStockRemoval-or$Scenario-cne'persistence-p07-save'-or$PersistenceCase-cne'prepare-removal'-or-not$BaseGameOnly-or
+       $PSBoundParameters.ContainsKey('PersistenceSourceRunId')-or$PSBoundParameters.ContainsKey('ExpectedPersistenceSourceSha256')-or
+       $PSBoundParameters.ContainsKey('ObserverPackagePath')-or$PSBoundParameters.ContainsKey('ObserveWorkingDeserialization')){
+        throw 'Owner stock removal selects only the closed batch64 native Manual under base-only P07 prepare-removal.'
+    }
 }
 $acquiredManualInput=$null;$acquiredManualSource=$null
 if(Test-KmcChunk7AcquiredManualScenario $Scenario){
@@ -433,6 +442,7 @@ $ownedAreaTarget=if((Test-KmcChunk7OwnedPairsScenario $Scenario)-and$Persistence
 if(Test-KmcChunk7OwnedPairsScenario $Scenario){$ownedPairsSource=Get-KmcChunk7OwnedPairsSource $ownedPairsInput.selection $PersistenceCase $fixturePayload $manifest $ownedAreaTarget}
 if(Test-KmcChunk7SmallFixtureScenario $Scenario){$smallFixtureSource=Get-KmcChunk7SmallFixtureSource $smallFixtureInput.selection $fixturePayload $manifest}
 if(Test-KmcChunk7StockMammothFixtureScenario $Scenario){$stockMammothFixtureSource=Get-KmcChunk7StockMammothFixtureSource $stockMammothFixtureInput.selection $fixturePayload $manifest}
+$ownerStockRemovalSource=if($OwnerStockRemoval){Get-KmcOwnerStockRemovalSource $fixturePayload}else{$null}
 if(Test-KmcChunk7AcquiredManualScenario $Scenario){$acquiredManualSource=Get-KmcChunk7AcquiredManualSource $acquiredManualInput.selection $fixturePayload $manifest}
 if(Test-KmcChunk7ManualDerivedScenario $Scenario){$manualDerivedSource=Get-KmcChunk7ManualDerivedSource $manualDerivedInput.selection $fixturePayload $manifest}
 if(Test-KmcChunk7CumulativeScenario $Scenario){$cumulativeAcquisitionSource=Get-KmcChunk7CumulativeSource $cumulativeAcquisitionInput.selection $fixturePayload $manifest}
@@ -525,7 +535,7 @@ $lock=$null
 $request=$null
 $combinedStatePath=$null
 $profileSnapshot=$null
-$areasIsolationSelected=Test-KmcPersistenceAreasIsolationSelection -Scenario $Scenario -PersistenceCase $PersistenceCase -ObserveWorkingDeserialization ([bool]$ObserveWorkingDeserialization)
+$areasIsolationSelected=Test-KmcPersistenceAreasIsolationSelection -Scenario $Scenario -PersistenceCase $PersistenceCase -ObserveWorkingDeserialization ([bool]$ObserveWorkingDeserialization) -OwnerStockRemoval ([bool]$OwnerStockRemoval)
 $modsTransactionStatePath=$null
 $baseGameStaged=$false
 $baseGameDependenciesUnchanged=$false
@@ -567,6 +577,7 @@ try{
         evidenceRoot=$evidenceRoot
     }
     if($ObserveWorkingDeserialization){$request['observeWorkingDeserialization']=$true}
+    if($OwnerStockRemoval){$request['ownerStockRemoval']=$true}
     if(Test-KmcChunk7OrdinaryScenario $Scenario){$request['ordinaryAcquisition']=$ordinarySelectionInput.selection}
     if(Test-KmcChunk7SmallScenario $Scenario){$request['smallCalibration']=$smallSelectionInput.selection}
     if(Test-KmcChunk7SmallFixtureScenario $Scenario){$request['smallFixture']=$smallFixtureInput.selection}
@@ -752,7 +763,12 @@ try{
             [void][IO.Directory]::CreateDirectory((Join-Path $profileRoot 'Areas'))
             $copySource=$lockedWorkingPath
             $copyDescriptor=$fixturePayload.working
-            if(Test-KmcChunk7OwnedPairsScenario $Scenario){
+            if($OwnerStockRemoval){
+                $currentStockRemovalSource=Get-KmcOwnerStockRemovalSource $fixturePayload
+                if((ConvertTo-KmcChunk7Canonical $currentStockRemovalSource)-cne(ConvertTo-KmcChunk7Canonical $ownerStockRemovalSource)){throw 'Stock Mammoth producer changed before locked staging.'}
+                $copySource=$currentStockRemovalSource.path;$copyDescriptor=$currentStockRemovalSource.descriptor
+                $request['persistenceLoad']=$copyDescriptor
+            }elseif(Test-KmcChunk7OwnedPairsScenario $Scenario){
                 $copySource=$ownedPairsSource.path;$copyDescriptor=$ownedPairsSource.descriptor
                 if($PersistenceCase-ceq'owned-schema1-resave-manual'){
                     # Mutation is confined to a fresh project-owned derivative,

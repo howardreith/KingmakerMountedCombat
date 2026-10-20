@@ -206,7 +206,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 }
                 if (NativePersistenceIsolation.HasPendingWrites) return;
                 Check(removal.State == RemovalPreparationState.Ready && removal.CleanupSaveCount == 1 && removal.UnconfirmedCount == 0 &&
-                    removal.CleanupSaveLeaf == "Manual_301_KMC_CLEANUP.zks" && !string.IsNullOrEmpty(removal.CleanupSavePath) &&
+                    removal.CleanupSaveLeaf == (request.OwnerStockRemoval == true ? "Manual_306_KMC_CLEANUP.zks" : "Manual_301_KMC_CLEANUP.zks") && !string.IsNullOrEmpty(removal.CleanupSavePath) &&
                     File.Exists(removal.CleanupSavePath) && Hash(removal.CleanupSavePath) == removal.CleanupSaveSha256,
                     "P07-cleanup-save-is-a-new-exact-declared-archive");
                 // Both archives this walk writes are first-ever saves: the engine
@@ -215,7 +215,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 // only for an original archive). Readiness is bound to the
                 // persistence service's completed-write record for this request.
                 var completion = persistence.LastCompletedSave;
-                Check(removal.CleanupBinding == "bound" && removal.CleanupCampaignId == request.Fixture.Working.GameId &&
+                Check(removal.CleanupBinding == "bound" && removal.CleanupCampaignId == (request.PersistenceLoad ?? request.Fixture.Working).GameId &&
                     persistence.CompletedSaveCount == 2 && completion != null && completion.Path == removal.CleanupSavePath &&
                     completion.Written != null && completion.Written.FileName == removal.CleanupSaveLeaf &&
                     NativeMountedArchiveCommit.CommitCount == 0 && NativeMountedArchiveCommit.LastCommittedDestination == null,
@@ -225,10 +225,10 @@ namespace KingmakerMountedCombat.Diagnostics
                 var cleanup = game.SaveManager.Single(s => s.FolderName == removal.CleanupSavePath);
                 var read = ReadCurrentRemovalArchive(cleanup.Saver, false);
                 Check(ReferenceEquals(cleanup, completion.Written) && cleanup.Name == MountedRemovalPreparation.CleanupSaveName && cleanup.OperationState == SaveInfo.StateType.None &&
-                    cleanup.GameId == request.Fixture.Working.GameId &&
+                    cleanup.GameId == (request.PersistenceLoad ?? request.Fixture.Working).GameId &&
                     read.Kind == MountedSaveReadKind.Current && !read.Data.Mounted && read.Data.Rider == null && read.Data.Mount == null &&
                     read.Data.Combat == null && read.Data.Slots != null && read.Data.Slots.Length == 0 &&
-                    read.Data.CampaignId == request.Fixture.Working.GameId,
+                    read.Data.CampaignId == (request.PersistenceLoad ?? request.Fixture.Working).GameId,
                     "P07-cleanup-archive-records-no-pair-combat-or-binding-in-the-fixture-campaign");
                 Check(Hash(removalFirstPath) == removalFirstHash, "P07-cleanup-save-left-the-first-archive-untouched");
                 Check(relationship.State == RelationshipState.Unmounted && !persistence.SaveSuspended &&

@@ -52,6 +52,8 @@ foreach($row in @(
     @('chunk7-owned-two-pair-campaign','multi-rt-debt-manual',$false,$false))){
     Check ((Test-KmcPersistenceAreasIsolationSelection -Scenario $row[0] -PersistenceCase $row[1] -ObserveWorkingDeserialization $row[2])-eq$row[3]) ('closed selection '+$row[0]+'/'+$row[1]+'/'+$row[2])
 }
+Check (Test-KmcPersistenceAreasIsolationSelection -Scenario persistence-p07-save -PersistenceCase prepare-removal -ObserveWorkingDeserialization $false -OwnerStockRemoval $true) 'owner-stock positive cleanup isolates native Areas writes'
+Check (-not(Test-KmcPersistenceAreasIsolationSelection -Scenario persistence-p07-save -PersistenceCase prepare-removal -ObserveWorkingDeserialization $false -OwnerStockRemoval $false)) 'legacy Working cleanup keeps its original Areas policy'
 
 $f=New-Fixture 'normal'
 [void](Enter-KmcPersistenceAreasIsolation -Lock $f.lock -Snapshot $f.snapshot -BackupRoot $f.backup)
