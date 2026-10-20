@@ -59,6 +59,23 @@ try{
         try{Assert-KmcNativeUmmStartupDelta $kmcBefore $bad -RemovalObserver:($bad-cne$observerAfter)}catch{$rejected=$true}
         if(!$rejected){throw 'A UMM delta outside the removal-observer replacement was accepted.'};$passes++
     }
+    # The settled owner profile in batch66 had no KMC parameter entry. The
+    # observer is an exact UMM default append, not a replacement in that case.
+    $ownerBefore='<Params><ModParamsList><Mod Id="Other" Enabled="true"/></ModParamsList></Params>'
+    $observerEntry='<Mod Id="KmcRemovalObserver" Enabled="true"><Hotkey><keyCode>None</keyCode><modifiers>0</modifiers></Hotkey></Mod>'
+    $ownerAfter=$ownerBefore.Replace('</ModParamsList>',$observerEntry+'</ModParamsList>')
+    Assert-KmcNativeUmmStartupDelta $ownerBefore $ownerAfter -RemovalObserver;$passes++
+    foreach($bad in @(
+        $ownerAfter.Replace('Id="Other" Enabled="true"','Id="Other" Enabled="false"'),
+        $ownerAfter.Replace('Id="KmcRemovalObserver" Enabled="true"','Id="KmcRemovalObserver" Enabled="false"'),
+        $ownerAfter.Replace('<keyCode>None</keyCode>','<keyCode>F10</keyCode>'),
+        $ownerAfter.Replace($observerEntry,'<Mod Id="Unexpected" Enabled="true"/>'+$observerEntry),
+        $ownerBefore.Replace('<Mod Id="Other" Enabled="true"/>',$observerEntry+'<Mod Id="Other" Enabled="true"/>')
+    )){
+        $rejected=$false
+        try{Assert-KmcNativeUmmStartupDelta $ownerBefore $bad -RemovalObserver}catch{$rejected=$true}
+        if(!$rejected){throw 'A UMM delta outside the exact removal-observer append was accepted.'};$passes++
+    }
     $known='20260921-chunk5-P03-condition-preparing-save-A'
     $old=[pscustomobject]@{name='EternalKingdom_h3591390253';kind='Binary';value='RmFsc2UA'}
     $new=[pscustomobject]@{name=$old.name;kind='Binary';value='VHJ1ZQA='}

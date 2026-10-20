@@ -282,20 +282,29 @@ function Assert-KmcNativeUmmStartupDelta {
     # requiring the append made a byte-identical file fail.
     if($current.OuterXml-ceq$original.OuterXml){return}
     if($RemovalObserver){
-        # A removal-observer run stages the live Mods clone WITHOUT KMC and with
-        # the observer in its place, so UMM's startup rewrite drops the KMC entry
-        # and records the observer's entry exactly where KMC's stood. Only that
-        # replacement is admitted: renaming the observer entry back must give the
-        # original document byte for byte.
+        # UMM records the staged observer in place of an existing KMC entry, or
+        # appends it when the owner's settled parameters contain no KMC entry.
+        # Both cases must leave every other parsed parameter exactly unchanged.
         $kmcBefore=@($original.SelectNodes("//Mod[@Id='KingmakerMountedCombat']"))
         $observerBefore=@($original.SelectNodes("//Mod[@Id='KmcRemovalObserver']"))
         $kmcAfter=@($current.SelectNodes("//Mod[@Id='KingmakerMountedCombat']"))
         $observerAfter=@($current.SelectNodes("//Mod[@Id='KmcRemovalObserver']"))
-        if($kmcBefore.Count-ne1-or$observerBefore.Count-ne0-or$kmcAfter.Count-ne0-or$observerAfter.Count-ne1-or
+        if($kmcBefore.Count-gt1-or$observerBefore.Count-ne0-or$kmcAfter.Count-ne0-or$observerAfter.Count-ne1-or
             [string]$observerAfter[0].GetAttribute('Enabled')-cne'true'){
             throw 'UMM parameter delta is outside the removal-observer replacement.'
         }
-        $observerAfter[0].SetAttribute('Id','KingmakerMountedCombat')
+        if($kmcBefore.Count-eq1){
+            $observerAfter[0].SetAttribute('Id','KingmakerMountedCombat')
+        }else{
+            $modList=$current.SelectSingleNode('//ModParams')
+            if($null-eq$modList){$modList=$current.SelectSingleNode('//ModParamsList')}
+            if($null-eq$modList-or$observerAfter[0].ParentNode-ne$modList-or
+                $modList.LastChild-ne$observerAfter[0]-or$observerAfter[0].OuterXml-cne
+                '<Mod Id="KmcRemovalObserver" Enabled="true"><Hotkey><keyCode>None</keyCode><modifiers>0</modifiers></Hotkey></Mod>'){
+                throw 'UMM parameter delta is outside the exact removal-observer append.'
+            }
+            [void]$modList.RemoveChild($observerAfter[0])
+        }
         if($current.OuterXml-cne$original.OuterXml){throw 'UMM parameters include a change beyond the removal-observer replacement.'}
         return
     }
