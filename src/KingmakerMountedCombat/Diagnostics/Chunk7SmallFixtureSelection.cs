@@ -95,6 +95,12 @@ namespace KingmakerMountedCombat.Diagnostics
             Require(nativeCost > 0 && money >= nativeCost && inheritedXp > 0 && readyLevel == 4,
                 "Actual native money/default hire XP cannot reach exactly Ranger 4; no shortfall is authorized.");
         }
+        internal static void RequirePaidBalance(long before, long nativeCost, long nativeStartingGold, long observed)
+        {
+            Require(before >= nativeCost && nativeCost > 0 && nativeStartingGold >= 0 &&
+                observed == checked(before + nativeStartingGold - nativeCost),
+                "Paid native hire balance must retain its one starting-gold grant and once-only actual cost.");
+        }
         private static void Require(bool value, string reason)
         { if (!value) throw new InvalidOperationException(reason); }
     }

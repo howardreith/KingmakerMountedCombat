@@ -59,7 +59,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private UnitEntityData main, mainHorse, actor, pet;
         private UnitEntityData[] originalCharacters, originalSelection;
         private JObject neighbourBefore, arrangementBeforeSave, bodyBeforeSave;
-        private long initialMoney, nativeHireCost;
+        private long initialMoney, nativeHireCost, nativeStartingGold;
         private int nativeHireXp, stage;
         private bool begun, admitted, presentationCaptured, originalPause, cleanup, completed, settled, disposed, pending;
         private double cleanupStart;
@@ -158,12 +158,12 @@ namespace KingmakerMountedCombat.Diagnostics
                             !game.State.Units.Any(value => ReferenceEquals(value, actor)),
                             "Completed F09 paid builder is not the exact sole remote actor before view capture.");
                         scope.Track(actor); scope.Track(pet);
-                        var startingGold = hireDriver.NativeStartingGold;
+                        nativeStartingGold = hireDriver.NativeStartingGold;
                         Require(hireDriver.NativeCommitCount == 4 && hireDriver.AutoLevelupOverrideCount == 0 &&
-                            actor.Descriptor.Progression.Experience == nativeHireXp &&
-                            game.Player.Money == checked(initialMoney + startingGold - nativeHireCost),
-                            "Paid native hire must commit exactly four levels with its inherited XP, one class grant and once-only actual cost.");
-                        evidence["nativeStartingGold"] = startingGold;
+                            actor.Descriptor.Progression.Experience == nativeHireXp,
+                            "Paid native hire must commit exactly four levels with its inherited XP.");
+                        Chunk7SmallFixtureAdmission.RequirePaidBalance(initialMoney, nativeHireCost, nativeStartingGold, game.Player.Money);
+                        evidence["nativeStartingGold"] = nativeStartingGold;
                         evidence["paidBuild"] = hireDriver.CaptureState(); evidence["afterBuildArrangement"] = Arrangement();
                         evidence["paidNativeCommitCount"] = hireDriver.NativeCommitCount;
                         evidence["paidAutoLevelupOverrideCount"] = hireDriver.AutoLevelupOverrideCount;

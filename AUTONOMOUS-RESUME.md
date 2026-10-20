@@ -1,5 +1,22 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## Active October 20 batch50 final field correction
+
+The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
+The [batch50 record](docs/CHUNK7-BATCH50-SMALL-FIELD-MONEY-2026-10-20.md)
+pins preview.68 Candidate 6/0 and the single original native **FAIL**.
+Native paid build and field selection reached stage 5 with the exact seven
+actors; final fixture assertion still demanded gross cost `400057-8000`
+although native starting gold 411 made the actual balance 392468. No Manual
+or cold consumer. Guarded Mods/save restoration passed and game/lock are
+absent; accepted profile cache changes are recorded separately.
+Preview.69 source correction validates the actual native net balance at
+both post-hire boundaries. Focused Small adapter passed 64/0 and independent
+review PASS; Fast passed 3/0. Next: coherent commit and guarded push, package once and
+Candidate, then a fresh-suite one-slot native Small verification. Preserve
+batch49 and batch50 original FAILs. Continue area/removal/progression and
+selected 7D/7E only on their actual prerequisites.
+
 ## Active October 20 batch49 correction review
 
 The [standing completion mission](planning/CHUNK7-COMPLETION-MISSION.md)

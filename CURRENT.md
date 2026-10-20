@@ -1,5 +1,17 @@
 # Chunk 7B–7D — IN PROGRESS
 
+## October 20 - batch50 Small field money assertion
+
+Preview.68 Candidate passed 6/0. Its one native Small slot reached the
+completed native paid hire and seven-actor field, clearing the batch49 view
+failure, then failed a stale final money assertion that omitted the native
+411 starting-gold grant. The original batch50 result remains **FAIL**; no
+Small Manual exists. Guarded Mods/save restoration passed, game and lock are
+absent, and accepted cache changes are recorded separately. A narrow
+assertion correction passed focused adapter checks 64/0 and independent
+review; native verification remains. See the
+[batch50 record](docs/CHUNK7-BATCH50-SMALL-FIELD-MONEY-2026-10-20.md).
+
 ## October 20 - batch49 paid remote view owner
 
 Preview.67 Candidate passed 6/0. The one native batch49 diagnostic remains
