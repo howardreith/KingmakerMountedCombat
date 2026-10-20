@@ -1,5 +1,32 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## Active October 20 after batch87 — declared control-owner cleanup
+
+The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
+[Batch87](docs/CHUNK7-BATCH87-SMALL-DISMISSAL-2026-10-20.md) froze pushed
+`25547c979042c5bfbfc0746f748f725bf59fe7d8` as world100. Fresh mounted
+Small Manual and separate cold load passed 5/0 and 3/0. Targeted dismissal
+**FAIL** after the pending session observed one completed native dismissal,
+settled target pair and still-mounted control owner. The diagnostic cleanup
+guard compared registry GUID `N` strings with selection GUID `D` strings,
+rejected the declared control owner and retained custody. The actor's native
+`IsInGame=false` and consequent mounted dismount were appropriate to actual
+removal; do not relax that invariant or promote the pending session to PASS.
+The exact game process accepted normal close. Combined Mods/Working/protected
+save restoration and pre-run profile/UMM Params/preferences equality passed;
+no recovery script, game process or transaction lock remains. Original
+batch81–87 FAILs remain separate.
+
+The one-site correction compares the exact loaded target/control actor object
+pairs and still refuses null/foreign owners. Independent review passed 14/0
+identity checks; focused progression wiring 219/0, owned wiring 231/0,
+custody 43/0, and offline Candidate 7/0 passed. Commit/guarded-push,
+freeze the next package, and declare at most three fresh same-candidate
+mounted Manual/separate cold/native dismissal scenarios. Verify terminal
+game/outer cleanup and genuine native removal before F10 dismissal PASS.
+Continue independent F09/F10/F11 and selected private 7E after this gate;
+engineering completion is not yet established.
+
 ## Active October 20 after batch86 — Small dismissal native flags
 
 The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) is active.
