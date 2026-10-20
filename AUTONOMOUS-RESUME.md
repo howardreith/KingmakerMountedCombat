@@ -1,5 +1,22 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## Active October 20 batch63 and next independent route
+
+The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
+Preview.79 source `f07d2195` passed Candidate 7/0 and frozen package SHA-256
+`a97c54c7395eab479b27067693af52d013d6a7cd50f9a2a458685f68b60b9bbc`.
+The [batch63 record](docs/CHUNK7-BATCH63-MANTICORE-DOOR-INVENTORY-2026-10-20.md)
+pins one native/outer PASS 4/0 on `20261020-c7b-world79-b63s1-manticore-door-inventory`.
+The Manticore Lair door inventory found zero `StandardDoor` candidates within
+28 metres before pair continuation, so door interaction remains unqualified.
+Mods, protected saves, Areas and profile bytes restored exactly; zero cache
+exceptions, no game process or lock. Next engineering action: implement/review
+the disclosed stock-Mammoth clean-owner-seed fixture producer and genuine
+positive cleanup/KMC-DLL-absent consumer, while finding a different admitted
+ordinary-door scene. Continue Small, progression, 7D and readiness-gated
+private 7E. Do not claim engineering completion or owner acceptance from this
+diagnostic.
+
 ## Active October 20 batch62 door inventory and reader-only correction
 
 The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
