@@ -80,14 +80,18 @@ function Assert-KmcMatchedPoolEvidence($Request,$Artifact,$WorldArtifact,[string
     Assert-KmcMatchedString $WorldArtifact.status 'PASS'
     $o=$Artifact.observations;$world=$WorldArtifact.observations
     Assert-KmcExactProperties $o @('contract','complete','observerReleased','residentBoundaries','residentParticipants','warmupNativeCycle','measuredNativeCycle','additionalNativeInputs','inclusiveUpdateIncludesObserverWork','managedAllocationRateMeasured','fullyInertDiagnostics','performanceAccepted','rows','abortedWindow','limits','worldEvidenceSha256') 'Matched-pool observations'
-    Assert-KmcMatchedString $o.contract 'chunk7-matched-resident-pool-v1'
+    if($o.contract-isnot[string]-or$o.contract-cnotin@('chunk7-matched-resident-pool-v1','chunk7-matched-resident-pool-v2')){throw 'Matched resident-pool contract differs.'}
+    $repeated=$o.contract-ceq'chunk7-matched-resident-pool-v2'
+    $legacyLabels=@('resident-0-after-cycle-1','resident-1-cycle-2','resident-2-cycle-2','resident-0-after-cycle-2')
+    $labels=if($repeated){@($legacyLabels|ForEach-Object{$name=$_;1..3|ForEach-Object{"${name}-window-$_"}})}else{$legacyLabels}
+    $active=if($repeated){@(0,0,0,1,1,1,2,2,2,0,0,0)}else{@(0,1,2,0)}
     Assert-KmcMatchedString $o.worldEvidenceSha256 $WorldSha256
     if($WorldSha256-cnotmatch'^[0-9a-f]{64}$'){throw 'Original world artifact hash is missing.'}
     foreach($flag in @('complete','observerReleased','inclusiveUpdateIncludesObserverWork')){Assert-KmcChunk7Boolean $o.$flag $true}
     foreach($flag in @('managedAllocationRateMeasured','fullyInertDiagnostics','performanceAccepted')){Assert-KmcChunk7Boolean $o.$flag $false}
     foreach($name in @('residentBoundaries','residentParticipants','warmupNativeCycle','measuredNativeCycle','additionalNativeInputs')){Assert-KmcChunk7WorldInt32 $o.$name}
     if($o.residentBoundaries-ne2-or$o.residentParticipants-ne2-or$o.warmupNativeCycle-ne1-or$o.measuredNativeCycle-ne2-or$o.additionalNativeInputs-ne0-or$null-ne$o.abortedWindow-or
-        $o.rows-isnot[Array]-or$o.rows.Count-ne4-or$o.limits-isnot[string]-or[string]::IsNullOrWhiteSpace($o.limits)){throw 'Matched-pool sequence or evidence limits differ.'}
+        $o.rows-isnot[Array]-or$o.rows.Count-ne$labels.Count-or$o.limits-isnot[string]-or[string]::IsNullOrWhiteSpace($o.limits)){throw 'Matched-pool sequence or evidence limits differ.'}
     if($world.cycles-isnot[Array]-or$world.cycles.Count-ne6-or$world.cycleInputs-isnot[Array]-or$world.cycleInputs.Count-ne12){throw 'Matched observation changed the original native cycle/input counts.'}
     if(Test-KmcChunk7OwnedPairsOwnerSeed $Request){$actorIds=[string[]](Assert-KmcChunk7OwnerSeedWorldSetup $Request $world)}
     elseif(Test-KmcChunk7OwnedPairsScenario $Request.scenario){Assert-KmcChunk7InheritedEvidence $Request $world;$actorIds=@(Get-KmcChunk7OwnedPairIds $Request)}else{
@@ -95,12 +99,12 @@ function Assert-KmcMatchedPoolEvidence($Request,$Artifact,$WorldArtifact,[string
     $horse=@($world.partyWithHorse|Where-Object { $_.masterId-ceq$actorIds[2] })
     if($horse.Count-ne1-or$horse[0].id-isnot[string]-or[string]::IsNullOrEmpty($horse[0].id)){throw 'Exact native Horse identity unavailable.'};$actorIds+=$horse[0].id
     }
-    $labels=@('resident-0-after-cycle-1','resident-1-cycle-2','resident-2-cycle-2','resident-0-after-cycle-2');$active=@(0,1,2,0)
     $firstMount=@($world.snapshots|Where-Object label -CEQ 'cycle-2-mount-mammoth-settled')
     if($firstMount.Count-ne1){throw 'Original cycle2 first native mount snapshot unavailable.'}
     $anchors=@($world.cycles[1],$firstMount[0],$world.cycles[2],$world.cycles[3])
     $pins=$null;$subscriptions=$null;$priorFrame=-1;$priorTicks=-1L;$actorAllocationCount=$null
-    for($i=0;$i-lt4;$i++){
+    for($i=0;$i-lt$labels.Count;$i++){
+        $group=if($repeated){[int][Math]::Floor($i/3)}else{$i}
         $row=$o.rows[$i]
         Assert-KmcExactProperties $row @('index','label','activePairs','before','after','sample') 'Matched-pool row'
         Assert-KmcChunk7WorldInt32 $row.index;Assert-KmcChunk7WorldInt32 $row.activePairs
@@ -141,15 +145,15 @@ function Assert-KmcMatchedPoolEvidence($Request,$Artifact,$WorldArtifact,[string
                 Assert-KmcMatchedInt64 $owner.generation
                 if($owner.generation-lt0-or$owner.state-cne'Active'-or$owner.relationshipState-cne'Mounted'){throw 'Matched owner is not an admitted active pair.'}
                 foreach($flag in @('retainsObligations','saveReady','teardownReady')){if($owner.$flag-isnot[bool]){throw 'Matched owner custody flag is mistyped.'}}
-                $pinned=@($anchors[$i].owners|Where-Object riderId -CEQ $owner.riderId)
+                $pinned=@($anchors[$group].owners|Where-Object riderId -CEQ $owner.riderId)
                 if($pinned.Count-ne1-or$owner.ownerId-cne$pinned[0].ownerId-or$owner.mountId-cne$pinned[0].mountId-or$owner.generation-ne$pinned[0].generation){throw 'Matched owner/generation differs from its real native cycle.'}
             }
             $expectedRiders=@();if($active[$i]-ge1){$expectedRiders+=$actorIds[0]};if($active[$i]-eq2){$expectedRiders+=$actorIds[2]}
             Assert-KmcChunk7ExactIds $w.owners $expectedRiders 'riderId' -GuidValue
         }
-        Assert-KmcChunk7WorldInt32 $anchors[$i].frame
-        if((Get-KmcMatchedSubscriptions $anchors[$i].subscriptions)-cne$subscriptions){throw 'Matched subscribers differ from the actual native lifecycle anchor.'}
-        if($row.before.world.frame-lt$anchors[$i].frame-or$row.sample.startFrame-lt$row.before.world.frame-or$row.sample.endFrame-ne$row.after.world.frame){throw 'Matched sample is not inside its captured native interval.'}
+        Assert-KmcChunk7WorldInt32 $anchors[$group].frame
+        if((Get-KmcMatchedSubscriptions $anchors[$group].subscriptions)-cne$subscriptions){throw 'Matched subscribers differ from the actual native lifecycle anchor.'}
+        if($row.before.world.frame-lt$anchors[$group].frame-or$row.sample.startFrame-lt$row.before.world.frame-or$row.sample.endFrame-ne$row.after.world.frame){throw 'Matched sample is not inside its captured native interval.'}
         if(($row.before.world.selection-join'|')-cne($row.after.world.selection-join'|')){throw 'Idle sampling changed native selection.'}
         Assert-KmcMatchedResources $row.before.world.resources $row.after.world.resources $actorIds
         foreach($sampleSide in @($row.sample.subscriptionsBefore,$row.sample.subscriptionsAfter)){if((Get-KmcMatchedSubscriptions $sampleSide)-cne$subscriptions){throw 'Timer subscriber snapshot differs from native boundaries.'}}

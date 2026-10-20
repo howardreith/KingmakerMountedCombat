@@ -286,13 +286,13 @@ namespace KingmakerMountedCombat.Diagnostics
                     case 30:
                         if (!Mounted(firstRider, firstMount) || !InputSettled()) return;
                         firstOwner = world.Registry.FindActive(firstRider).Id; FinishInput();
-                        if (cycle == 2) { BeginMatchedPool(1); Next(35); break; }
+                        if (cycle == 2) { BeginMatchedPool(3); Next(35); break; }
                         Input(secondRider, secondMount, controls.MountAbility, "cycle-" + cycle + "-mount-horse", firstRider); Next(31); break;
                     case 31:
                         if (!Mounted(secondRider, secondMount) || !InputSettled()) return;
                         secondOwner = world.Registry.FindActive(secondRider).Id; FinishInput(); AssertBoth();
                         cycles.Add(CaptureWorld("cycle-" + cycle + "-mounted"));
-                        if (cycle == 2) { BeginMatchedPool(2); Next(36); break; }
+                        if (cycle == 2) { BeginMatchedPool(6); Next(36); break; }
                         Input(firstRider, firstRider, controls.DismountAbility, "cycle-" + cycle + "-dismount-mammoth", secondRider); Next(32); break;
                     case 32:
                         if (Mounted(firstRider, firstMount) || !InputSettled()) return;
@@ -306,7 +306,7 @@ namespace KingmakerMountedCombat.Diagnostics
                             "Settled lifecycle cycle retained unexpected owners, native commands, views or service groups.");
                         cycles.Add(CaptureWorld("cycle-" + cycle + "-settled"));
                         if (cycle == 1) { BeginMatchedPool(0); Next(34); break; }
-                        if (cycle == 2) { BeginMatchedPool(3); Next(37); break; }
+                        if (cycle == 2) { BeginMatchedPool(9); Next(37); break; }
                         if (++cycle <= 3) BeginCycle();
                         else { Pass("C7-world-cycles"); BeginMeasurement("unmounted-after-cycles"); Next(23); }
                         break;
@@ -314,16 +314,16 @@ namespace KingmakerMountedCombat.Diagnostics
                         if (!CompleteMeasurement()) return;
                         Pass("C7-world-sampling"); BeginCleanup(); break;
                     case 34:
-                        if (!PollMatchedPool()) return;
+                        if (!PollMatchedPoolGroup(0)) return;
                         cycle++; BeginCycle(); break;
                     case 35:
-                        if (!PollMatchedPool()) return;
+                        if (!PollMatchedPoolGroup(1)) return;
                         Input(secondRider, secondMount, controls.MountAbility, "cycle-" + cycle + "-mount-horse", firstRider); Next(31); break;
                     case 36:
-                        if (!PollMatchedPool()) return;
+                        if (!PollMatchedPoolGroup(2)) return;
                         Input(firstRider, firstRider, controls.DismountAbility, "cycle-" + cycle + "-dismount-mammoth", secondRider); Next(32); break;
                     case 37:
-                        if (!PollMatchedPool()) return;
+                        if (!PollMatchedPoolGroup(3)) return;
                         cycle++; BeginCycle(); break;
                 }
             }
@@ -665,6 +665,17 @@ namespace KingmakerMountedCombat.Diagnostics
                 pendingMatchedIndex = -1;
             }
             return matched.Poll();
+        }
+        private bool PollMatchedPoolGroup(int group)
+        {
+            if (!PollMatchedPool()) return false;
+            var completed = matched.CompletedCount;
+            var groupEnd = (group + 1) * Chunk7MatchedPoolCollector.WindowsPerState;
+            Require(completed > group * Chunk7MatchedPoolCollector.WindowsPerState && completed <= groupEnd,
+                "Matched-pool window escaped its declared resident state.");
+            if (completed == groupEnd) return true;
+            pendingMatchedIndex = completed;
+            return false;
         }
         private static bool MatchedActorSettled(UnitEntityData actor) => actor != null && actor.IsInState && actor.IsInGame &&
             actor.View?.AgentASP != null && actor.Descriptor.State.IsConscious && !actor.IsInCombat && actor.Commands != null &&

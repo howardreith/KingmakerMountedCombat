@@ -17,10 +17,10 @@ function Invoke-MatchedPoolReaderChecks([string]$ActualCollector,[string]$Output
  $keys=@($ids|ForEach-Object{[Guid]::ParseExact($_,'D').ToString('N')})
  $owners=@([pscustomobject]@{ownerId='11111111-1111-4111-8111-111111111111';riderId=$keys[0];mountId=$keys[1];generation=3000000001L;state='Active';relationshipState='Mounted';retainsObligations=$false;saveReady=$true;teardownReady=$false},
   [pscustomobject]@{ownerId='22222222-2222-4222-8222-222222222222';riderId=$keys[2];mountId=$keys[3];generation=3000000002L;state='Active';relationshipState='Mounted';retainsObligations=$false;saveReady=$true;teardownReady=$false})
- $active=@(0,1,2,0)
+ $active=@(0,0,0,1,1,1,2,2,2,0,0,0)
  function Boundary([int]$index,[bool]$after){
-  $frame=1000+500*$index;if($after){$frame+=151}
-  $ticks=100000000L+50000000L*$index;if($after){$ticks+=15000000L}
+  $frame=1000+200*$index;if($after){$frame+=151}
+  $ticks=100000000L+20000000L*$index;if($after){$ticks+=15000000L}
   $liveOwners=@();if($active[$index]-ge1){$liveOwners+=Copy-Matched $owners[0]};if($active[$index]-eq2){$liveOwners+=Copy-Matched $owners[1]}
   [pscustomobject]@{identityPins=@($pins);actorIds=@($ids);expectedActivePairs=$active[$index];commandsSettled=$true;preparationPending=$false;relationshipTransition=$false;serializationBusy=$false;pendingNativeWrites=$false;allocationActors=4;
    world=[pscustomobject]@{label='matched-pool-boundary';frame=$frame;selection=@($ids[0]);resources=[pscustomobject]@{gameTicks=$ticks;actors=@($ids|ForEach-Object{[pscustomobject]@{id=$_;move=0.0;standard=0.0;swift=0.0;prepared=$false;reactionAllowance=3;initiative=0;reactions=1}})};
@@ -34,7 +34,7 @@ function Invoke-MatchedPoolReaderChecks([string]$ActualCollector,[string]$Output
    ownersBefore=(Copy-Matched $ownership);ownersAfter=(Copy-Matched $ownership);subscriptionsBefore=(Copy-Matched $subs);subscriptionsAfter=(Copy-Matched $subs);limits='Synthetic native boundary only; no performance proof.'}
  }
  $o=Get-Content -Raw -LiteralPath $ActualCollector|ConvertFrom-Json
- for($i=0;$i-lt4;$i++){$row=$o.rows[$i];$row.before=Boundary $i $false;$row.after=Boundary $i $true;$row.sample=Sample $i $row.label $row.before $row.after}
+ for($i=0;$i-lt12;$i++){$row=$o.rows[$i];$row.before=Boundary $i $false;$row.after=Boundary $i $true;$row.sample=Sample $i $row.label $row.before $row.after}
  $party=@();for($i=0;$i-lt4;$i++){$party+=[pscustomobject]@{id=$ids[$i];object=$pins[10+3*$i];masterId=$(if($i-eq3){$ids[2]}else{$null})}}
  $cycles=@();for($i=0;$i-lt3;$i++){$cycles+=[pscustomobject]@{label=('cycle-'+($i+1)+'-mounted');frame=(500+1000*$i);owners=@($owners|ForEach-Object{Copy-Matched $_});subscriptions=(Copy-Matched $subs)};$cycles+=[pscustomobject]@{label=('cycle-'+($i+1)+'-settled');frame=(900+800*$i);owners=@();subscriptions=(Copy-Matched $subs)}}
  $cycles[2].frame=1999;$cycles[3].frame=2499
@@ -45,6 +45,14 @@ function Invoke-MatchedPoolReaderChecks([string]$ActualCollector,[string]$Output
  $o|Add-Member worldEvidenceSha256 $worldHash
  $artifact=Artifact 'chunk7-matched-pool-measurements' $o
  Check-Matched 'actual collector shape accepts matched native external boundaries, Int64 generations and naturally decreasing heap occupancy' {Assert-KmcMatchedPoolEvidence $request $artifact $world $worldHash 'PASS'}
+ Check-Matched 'historical four-window contract remains valid on its original shape' {
+  $v=Copy-Matched $artifact;$v.observations.contract='chunk7-matched-resident-pool-v1'
+  $old=@('resident-0-after-cycle-1','resident-1-cycle-2','resident-2-cycle-2','resident-0-after-cycle-2')
+  $v.observations.rows=@(for($group=0;$group-lt4;$group++){
+   $row=Copy-Matched $v.observations.rows[$group*3];$row.index=$group;$row.label=$old[$group];$row.sample.label=$old[$group];$row
+  })
+  Assert-KmcMatchedPoolEvidence $request $v $world $worldHash 'PASS'
+ }
  Check-Matched 'elapsed native cooldown decay is permitted without refund' {$v=Copy-Matched $artifact;$v.observations.rows[0].before.world.resources.actors[0].standard=3.0;$v.observations.rows[0].after.world.resources.actors[0].standard=1.5;Assert-KmcMatchedPoolEvidence $request $v $world $worldHash 'PASS'}
  Check-Matched 'signed native reference identities remain valid' {$v=Copy-Matched $artifact;$w=Copy-Matched $world;foreach($row in $v.observations.rows){foreach($side in @($row.before,$row.after)){for($j=0;$j-lt22;$j++){$side.identityPins[$j]=-1*$side.identityPins[$j]}}};foreach($p in $w.observations.partyWithHorse){$p.object=-1*$p.object};Assert-KmcMatchedPoolEvidence $request $v $w $worldHash 'PASS'}
  $mutations=[ordered]@{
@@ -56,13 +64,13 @@ function Invoke-MatchedPoolReaderChecks([string]$ActualCollector,[string]$Output
   'array contract'={param($v)$v.observations.contract=@($v.observations.contract)}
   'extra native input'={param($v)$v.observations.additionalNativeInputs=1}
   'wrong warmup cycle'={param($v)$v.observations.warmupNativeCycle=0}
-  'missing settled final window'={param($v)$v.observations.rows=@($v.observations.rows[0..2])}
+  'missing settled final window'={param($v)$v.observations.rows=@($v.observations.rows[0..10])}
   'reordered window'={param($v)$v.observations.rows[1].index=2}
   'array active count'={param($v)$v.observations.rows[1].activePairs=@(1)}
   'one resident boundary'={param($v)$v.observations.rows[0].sample.ownersBefore.boundaries=1}
   'retained extra owner'={param($v)$v.observations.rows[0].sample.ownersAfter.owners=1}
   'pending control'={param($v)$v.observations.rows[2].sample.ownersBefore.liveControlBoundaries=1}
-  'unexpected prepared/view residue'={param($v)$v.observations.rows[3].sample.ownersAfter.preparedOrViewResidue=1}
+  'unexpected prepared/view residue'={param($v)$v.observations.rows[11].sample.ownersAfter.preparedOrViewResidue=1}
   'failed service construction'={param($v)$v.observations.rows[0].sample.ownersBefore.failedConstructions=1}
   'changed participant object'={param($v)$v.observations.rows[1].before.identityPins[7]=9001}
   'changed actor view'={param($v)$v.observations.rows[2].after.identityPins[21]=9002}
@@ -75,12 +83,12 @@ function Invoke-MatchedPoolReaderChecks([string]$ActualCollector,[string]$Output
   'pending relationship transition'={param($v)$v.observations.rows[0].before.relationshipTransition=$true}
   'pending native writer'={param($v)$v.observations.rows[0].before.pendingNativeWrites=$true}
   'native serialization'={param($v)$v.observations.rows[0].before.serializationBusy=$true}
-  'changed allocation history cardinality'={param($v)$v.observations.rows[3].before.allocationActors=0}
-  'owner-generation substitution'={param($v)$v.observations.rows[1].after.world.owners[0].generation++}
-  'conflicting duplicate owner'={param($v)$v.observations.rows[2].after.world.owners[1]=Copy-Matched $v.observations.rows[2].after.world.owners[0]}
-  'owner rider in actor D form'={param($v)$v.observations.rows[1].after.world.owners[0].riderId=$ids[0]}
-  'owner rider uppercase N'={param($v)$v.observations.rows[1].after.world.owners[0].riderId=$keys[0].ToUpperInvariant()}
-  'string owner-generation'={param($v)$v.observations.rows[1].after.world.owners[0].generation=[string]$v.observations.rows[1].after.world.owners[0].generation}
+  'changed allocation history cardinality'={param($v)$v.observations.rows[11].before.allocationActors=0}
+  'owner-generation substitution'={param($v)$v.observations.rows[3].after.world.owners[0].generation++}
+  'conflicting duplicate owner'={param($v)$v.observations.rows[6].after.world.owners[1]=Copy-Matched $v.observations.rows[6].after.world.owners[0]}
+  'owner rider in actor D form'={param($v)$v.observations.rows[3].after.world.owners[0].riderId=$ids[0]}
+  'owner rider uppercase N'={param($v)$v.observations.rows[3].after.world.owners[0].riderId=$keys[0].ToUpperInvariant()}
+  'string owner-generation'={param($v)$v.observations.rows[3].after.world.owners[0].generation=[string]$v.observations.rows[3].after.world.owners[0].generation}
   'double service ticks'={param($v)$v.observations.rows[0].sample.serviceTicks[0]=[double]100}
   'short sample'={param($v)$v.observations.rows[0].sample.sampleFrames=119}
   'nonfinite frame duration'={param($v)$v.observations.rows[0].sample.frameSeconds[0]=[double]::NaN}

@@ -77,9 +77,13 @@ internal static class MatchedPoolCollectorTests
             b.Window.FailRelease = false; b.Collector.Dispose(); Check(b.Collector.Released, "same observer later settles");
 
             b = new Boundary();
-            for (int i = 0; i < 4; i++) { b.Active = Chunk7MatchedPoolCollector.Active[i]; b.Collector.Begin(i); b.Window.IsReady = true; Check(b.Collector.Poll(), "exact bounded window " + i); }
-            Check(b.Collector.Complete && !b.Collector.Released && b.Creates == 4 && b.Comparisons == 4, "exact four-window collection finishes before observer release");
-            Reject(() => b.Collector.Begin(4), "fifth window refused"); b.Collector.Dispose();
+            for (int i = 0; i < Chunk7MatchedPoolCollector.Labels.Length; i++) {
+                b.Active = Chunk7MatchedPoolCollector.Active[i]; b.Collector.Begin(i); b.Window.IsReady = true;
+                Check(b.Collector.Poll() && b.Collector.CompletedCount == i + 1, "exact bounded window " + i);
+            }
+            Check(b.Collector.Complete && !b.Collector.Released && b.Creates == 12 && b.Comparisons == 12,
+                "three windows per resident state finish before observer release");
+            Reject(() => b.Collector.Begin(12), "thirteenth window refused"); b.Collector.Dispose();
             var evidence = b.Collector.Evidence();
             Check((bool)evidence["complete"] && (bool)evidence["observerReleased"] && !(bool)evidence["performanceAccepted"] && !(bool)evidence["managedAllocationRateMeasured"] && !(bool)evidence["fullyInertDiagnostics"],
                 "completed collection states observation limits rather than performance proof");

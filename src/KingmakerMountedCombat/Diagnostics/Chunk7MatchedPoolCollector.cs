@@ -17,9 +17,15 @@ namespace KingmakerMountedCombat.Diagnostics
     {
         internal const string FileName = "chunk7-matched-pool-measurements.json";
         internal const string Kind = "chunk7-matched-pool-measurements";
-        internal const string Contract = "chunk7-matched-resident-pool-v1";
-        internal static readonly string[] Labels = { "resident-0-after-cycle-1", "resident-1-cycle-2", "resident-2-cycle-2", "resident-0-after-cycle-2" };
-        internal static readonly int[] Active = { 0, 1, 2, 0 };
+        internal const string Contract = "chunk7-matched-resident-pool-v2";
+        internal const int WindowsPerState = 3;
+        internal static readonly string[] Labels = {
+            "resident-0-after-cycle-1-window-1", "resident-0-after-cycle-1-window-2", "resident-0-after-cycle-1-window-3",
+            "resident-1-cycle-2-window-1", "resident-1-cycle-2-window-2", "resident-1-cycle-2-window-3",
+            "resident-2-cycle-2-window-1", "resident-2-cycle-2-window-2", "resident-2-cycle-2-window-3",
+            "resident-0-after-cycle-2-window-1", "resident-0-after-cycle-2-window-2", "resident-0-after-cycle-2-window-3"
+        };
+        internal static readonly int[] Active = { 0, 0, 0, 1, 1, 1, 2, 2, 2, 0, 0, 0 };
         private readonly Action<int> guard;
         private readonly Func<int, JObject> capture;
         private readonly Action<JObject, JObject> compare;
@@ -29,6 +35,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private JObject before, aborted, pendingRow;
         private bool disposed;
         internal bool Complete => rows.Count == Labels.Length && window == null;
+        internal int CompletedCount => rows.Count;
         internal bool Released => disposed && window == null;
 
         internal Chunk7MatchedPoolCollector(Action<int> guard, Func<int, JObject> capture, Action<JObject, JObject> compare, Func<string, IChunk7MatchedPoolWindow> factory)
