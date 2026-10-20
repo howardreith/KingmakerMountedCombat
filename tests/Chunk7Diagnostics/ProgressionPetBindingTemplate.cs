@@ -24,7 +24,7 @@ internal sealed class UiOwner { internal Probe RespecProbe; internal bool Native
 internal sealed class Subject {
  internal readonly UnitEntityData rider=new UnitEntityData(),oldMount=new UnitEntityData();
  internal object originalDescriptor,originalView,originalMountDescriptor,originalMountView;
- internal UiOwner nativeUi; internal Chunk7NativeProgressionCase selectedCase; internal int WorldChecks,InputCalls;internal bool started=true,Busy;
+ internal UiOwner nativeUi; internal Chunk7NativeProgressionCase selectedCase; internal int WorldChecks,InputCalls;internal bool started=true,Busy;internal object requestedManual;
  private readonly Stopwatch elapsed=Stopwatch.StartNew();
  internal bool IsRespec=>selectedCase==Chunk7NativeProgressionCase.RespecHorse||selectedCase==Chunk7NativeProgressionCase.RespecMammoth;
  internal Subject(Chunk7NativeProgressionCase value) {selectedCase=value;rider.Descriptor.Pet=oldMount;oldMount.Descriptor.Master=new UnitReference { Value=rider };originalDescriptor=rider.Descriptor;originalView=rider.View;originalMountDescriptor=oldMount.Descriptor;originalMountView=oldMount.View;}

@@ -1,5 +1,17 @@
 # Chunk 7B–7D — IN PROGRESS
 
+## October 20 — batch91 native Small retrain observer/cleanup FAIL
+
+[Batch91](docs/CHUNK7-BATCH91-SMALL-RETRAIN-2026-10-20.md) froze pushed
+`25e6f771` as world104. Fresh mounted Small Manual and separate cold load
+passed 5/0 and 3/0. Native retrain passed the former class-description
+failure and reached Total-phase commit, but observer finish/rebind custody
+failed; the 900-second outer result is **FAIL**, with no Manual save or
+terminal game result. Exact-run combined and profile recovery restored the
+installation. A bounded diagnostic correction has focused build/observer/
+pet checks; it has no native verdict. F10 retraining and engineering
+completion remain open.
+
 ## October 20 — batch90 Small native retrain class-phase FAIL
 
 [Batch90](docs/CHUNK7-BATCH90-SMALL-RETRAIN-2026-10-20.md) froze pushed

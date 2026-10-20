@@ -19,6 +19,12 @@ original FAIL at the Small presentation/readiness deadline remain distinct;
 see the
 [batch74 checkpoint](../docs/CHUNK7-BATCH74-SMALL-MOUNTED-PERSISTENCE-2026-10-20.md).
 
+Batch91 adds a fresh world104 Small mounted Manual PASS 5/0 and cold PASS 3/0,
+then an original native retrain outer FAIL after Total-phase commit. Its
+exact-run combined and profile recoveries passed. F10 retraining remains open;
+the bounded observer change is diagnostic only. See the
+[batch91 checkpoint](../docs/CHUNK7-BATCH91-SMALL-RETRAIN-2026-10-20.md).
+
 Current requirement-to-evidence map (one status per gate family; earlier PASS
 belongs only to its recorded product, fixture and environment):
 
