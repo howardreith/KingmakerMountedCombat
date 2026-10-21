@@ -21,11 +21,22 @@ qualify ordinary door interaction. Fast passed 3/0; focused Manticore/Tomb
 reader 75/0, Areas isolation 37/0, owned DTO 182/0, source 284/0,
 manifest 143/0, owned reader 690/0, persistence wiring 158/0 and area
 source 11/0. The original synthetic Tomb reader 74/1 failure was a copied
-test-authority name mismatch, then corrected and rerun. No game or live
-transaction has run on this branch yet. Next: review final diff, commit, build
-one frozen candidate, run scoped WhatIf, then at most one guarded native
-Tomb fixture/inventory discriminator. It may reveal no qualifying door;
-no door PASS or human-navigation need is inferred.
+test-authority name mismatch, then corrected and rerun. Source route commit
+`d9459037` and preview.88 version commit `1fa14c63` were guarded-pushed.
+The exact preview.88 package SHA-256 is
+`4a75fa433fe2e134bbc5a3b914830098220028f49663099a61c5c794a50ea049`;
+Candidate passed 6/0. A preliminary preview.87-plus-preview.88-named
+package was never staged. Batch123's sole native slot passed game/outer 5/0,
+with a genuine Tomb Manual SHA-256
+`41deb60f5f512080858c519ce7bdcb70f2af8025d79075f76e40f7027a41fba4`.
+The only `StandardDoor` is closed, `disableCutWhenOpen=false`, 29.66/31.01 m
+from the mounts and ineligible; no door click was made. `Debug.isDebugBuild`
+is false, excluding Unity Recorder for F11 in this player. Transaction
+`restored`, Mods/protected saves/Areas/profile bytes exact, zero cache
+exceptions, no process or lock. See the [batch123 result](docs/CHUNK7-BATCH123-TOMB-DOOR-FIXTURE-DEVELOPMENT-2026-10-21.md).
+Next: search another admitted native door scene without replaying Spider,
+Manticore or Tomb unchanged, while advancing independent F09/F10/F11 gates.
+No door PASS or human-navigation need is inferred.
 
 ## Active October 21 after batch122 managed-Mono failure and review
 

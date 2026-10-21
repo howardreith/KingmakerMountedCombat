@@ -1,10 +1,11 @@
 # Chunk 7B–7D — IN PROGRESS
 
 [Batch123](docs/CHUNK7-BATCH123-TOMB-DOOR-FIXTURE-DEVELOPMENT-2026-10-21.md)
-adds a reviewed, source-pinned Old Cyclops Tomb fixture route with existing
-guarded Areas isolation, a distinct Manual and read-only door inventory.
-Focused offline checks passed; native scene suitability, door interaction and
-F11 Recorder availability remain unproved pending one targeted fixture run.
+passed one guarded preview.88 Old Cyclops Tomb fixture run, game and outer
+5/0, with one genuine Manual and exact restoration. Its sole secret door was
+closed, beyond the scan radius and ineligible; ordinary doors remain open.
+The actual player reports `Debug.isDebugBuild=false`, so Unity Recorder cannot
+measure F11 allocations here. The standing mission remains active.
 
 [Batch122](docs/CHUNK7-BATCH122-F11-MANAGED-MONO-PROBE-2026-10-21.md)
 preserves a failed disposable managed-Mono embedding probe: domain creation
