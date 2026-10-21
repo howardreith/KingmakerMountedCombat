@@ -6,11 +6,20 @@ if(-not$OutputDirectory){$OutputDirectory=Join-Path ([IO.Path]::GetDirectoryName
 $acquiredReader=[IO.Path]::GetFullPath($ReaderDirectory);$acquiredFixtures=[IO.Path]::GetFullPath($FixtureDirectory);$acquiredOutput=[IO.Path]::GetFullPath($OutputDirectory)
 . (Join-Path $acquiredReader 'RuntimeHarness.Common.ps1')
 . (Join-Path $acquiredReader 'Chunk7AcquiredManualEvidence.ps1')
-function New-AcquiredManualFixture([bool]$Paid=$true){$name=if($Paid){'Paid'}else{'Existing'};[IO.File]::ReadAllText((Join-Path $acquiredFixtures ('AcquiredManual'+$name+'Fixture.json')))|ConvertFrom-Json}
+function New-AcquiredManualFixture([bool]$Paid=$true){
+ $name=if($Paid){'Paid'}else{'Existing'}
+ $fixture=[IO.File]::ReadAllText((Join-Path $acquiredFixtures ('AcquiredManual'+$name+'Fixture.json')))|ConvertFrom-Json
+ $fixture.artifact.observations.noPreparation.hooks[1].method='OnNewRound'
+ $fixture.artifact.observations.noPreparation.hooks[1].declaringType='Kingmaker.Controllers.Combat.UnitCombatState'
+ return $fixture
+}
 function Check-AcquiredManual($F){Assert-KmcChunk7AcquiredManualEvidence $F.request $F.artifact $F.source}
 if($FixturesOnly){return};[void][IO.Directory]::CreateDirectory($acquiredOutput);$script:passes=0;$script:failures=0;$watch=[Diagnostics.Stopwatch]::StartNew()
 function Good([string]$Name,[scriptblock]$Body){try{&$Body;$script:passes++;Write-Host ('PASS '+$Name)}catch{$script:failures++;Write-Host ('FAIL '+$Name+': '+$_+' at '+$_.ScriptStackTrace)}}
 function Bad([string]$Name,[scriptblock]$Body){$rejected=$false;try{&$Body}catch{$rejected=$true};if($rejected){$script:passes++;Write-Host ('PASS refuses '+$Name)}else{$script:failures++;Write-Host ('FAIL accepted '+$Name)}}
+Good 'owner Manual304 PostLoad may report pending GameId before settled-world identity' {$f=New-AcquiredManualFixture $false;$f.request.persistenceLoad.fileName='Manual_304_KMC_C7_MANUAL_DERIVED_FIELD.zks';$f.artifact.observations.nativeLoad.events[0].gameId=$null;Assert-KmcAcquiredManualPostLoadGameId $f.artifact.observations.nativeLoad.events[0] $f.request}
+Bad 'owner Manual304 PostLoad cannot report a foreign populated GameId' {$f=New-AcquiredManualFixture $false;$f.request.persistenceLoad.fileName='Manual_304_KMC_C7_MANUAL_DERIVED_FIELD.zks';$f.artifact.observations.nativeLoad.events[1].gameId='11111111-1111-4111-8111-111111111111';Assert-KmcAcquiredManualPostLoadGameId $f.artifact.observations.nativeLoad.events[1] $f.request}
+Bad 'historical Manual2 PostLoad cannot lose GameId' {$f=New-AcquiredManualFixture $false;$f.artifact.observations.nativeLoad.events[0].gameId=$null;Assert-KmcAcquiredManualPostLoadGameId $f.artifact.observations.nativeLoad.events[0] $f.request}
 $cases=[ordered]@{
 'foreign source candidate'={param($f)$f.source.dllSha256='e'*64}
 'failed source acquisition'={param($f)$f.source.status='FAIL'}

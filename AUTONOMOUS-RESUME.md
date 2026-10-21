@@ -1,6 +1,33 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
-## Active October 21 after batch125 owner-seed source inventory
+## Active October 21 after batches 126–127 owner-field diagnosis
+
+The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
+[Batches 126–127](docs/CHUNK7-BATCH126-127-F10-OWNER-FIELD-2026-10-21.md)
+used preview.92 `b0dc16e7`, package SHA-256
+`c1ede7e6f28613c806bc808fbc5a45dfc5c3ab2f8886d7fcc3d855f2e7f68287`,
+DLL SHA-256 `e34a153ded5eda94edc075ca3ea5132e2512846b9f9bbedff41e76333946fdfb`,
+MVID `2bacd6bc-dc5c-4731-bfb6-be29bcf81283`. Batch126's same-candidate
+owner-seed cold source passed. Batch127's actual Ranger Horse acquisition and
+field Manual save passed in the game, but its original outer result is FAIL
+because the external reader expected a populated GameId during synchronous
+PostLoad and retired native round-hook metadata. The corrected reader passes
+on the unchanged native artifact separately; original FAIL and receipts stay
+intact. Both transactions reached `restored`, including exact profile bytes.
+
+The external Manual-derived and adjacent acquired-cold readers and focused
+tests have been corrected and independently reviewed. Focused checks: 118/0
+Manual-derived and 150/0 acquired. Commit this reader/documentation checkpoint,
+freeze a new clean exact package and suite, then rerun the same-candidate
+owner-seed cold source and one targeted producer. Only a complete outer PASS
+can supply the acquired Manual cold consumer. Do not rebuild for the historic
+reader-only re-evaluation; a new package is needed here because the guarded
+runner binds its next native run to clean HEAD. Preserve all older failures.
+No F10 acquired-cold PASS, engineering completion or 7E follows yet. The
+guarded push helper WhatIf remains rejected by automatic approval review
+(`approval required by policy; AskForApproval is Never`); no alternate push.
+
+## Historical October 21 after batch125 owner-seed source inventory
 
 The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active;
 [batch125](docs/CHUNK7-BATCH125-F10-OWNER-SEED-COLD-2026-10-21.md) passed one

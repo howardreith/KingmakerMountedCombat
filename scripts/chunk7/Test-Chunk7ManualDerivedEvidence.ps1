@@ -7,12 +7,20 @@ if(-not$FixtureDirectory){$FixtureDirectory=Join-Path $RepositoryRoot 'tests/Chu
 if(-not$OutputDirectory){$OutputDirectory=Join-Path ([IO.Path]::GetDirectoryName([IO.Path]::GetDirectoryName($RepositoryRoot))) ('analysis-cache/chunk7-continuation/manual-derived-evidence-'+[Guid]::NewGuid().ToString('N'))}
 $derivedReader=[IO.Path]::GetFullPath($ReaderDirectory);$derivedFixtures=[IO.Path]::GetFullPath($FixtureDirectory);$derivedOutput=[IO.Path]::GetFullPath($OutputDirectory)
 . (Join-Path $derivedReader 'RuntimeHarness.Common.ps1')
-function New-ManualDerivedFixture([bool]$Paid=$true){$name=if($Paid){'Paid'}else{'Existing'};return [IO.File]::ReadAllText((Join-Path $derivedFixtures ('ManualDerived'+$name+'Fixture.json')))|ConvertFrom-Json}
+function New-ManualDerivedFixture([bool]$Paid=$true){
+ $name=if($Paid){'Paid'}else{'Existing'}
+ $fixture=[IO.File]::ReadAllText((Join-Path $derivedFixtures ('ManualDerived'+$name+'Fixture.json')))|ConvertFrom-Json
+ $fixture.artifact.observations.noPreparation.hooks[1].method='OnNewRound'
+ $fixture.artifact.observations.noPreparation.hooks[1].declaringType='Kingmaker.Controllers.Combat.UnitCombatState'
+ return $fixture
+}
 function Check-ManualDerived($F){Assert-KmcChunk7ManualDerivedEvidence $F.request $F.artifact $F.source}
 function New-OwnerSeedDerivedFixture {
  $raw=[IO.File]::ReadAllText((Join-Path $derivedFixtures 'ManualDerivedExistingFixture.json'))
  $raw=$raw.Replace('Manual_1_KMC_C7_NATIVE_SEED.zks','Manual_303_KMC_C7_NO_MODS_OWNER_SEED.zks').Replace('KMC_C7_NATIVE_SEED','KMC C7 NO MODS OWNER SEED').Replace('Manual_2_KMC_C7_MANUAL_DERIVED_FIELD.zks','Manual_304_KMC_C7_MANUAL_DERIVED_FIELD.zks')
  $f=$raw|ConvertFrom-Json;$f.request.manualDerived.nativeWriteLeaf='Manual_304_KMC_C7_MANUAL_DERIVED_FIELD.zks';$f.artifact.observations.nativeNumbering.number=304
+ $f.artifact.observations.noPreparation.hooks[1].method='OnNewRound'
+ $f.artifact.observations.noPreparation.hooks[1].declaringType='Kingmaker.Controllers.Combat.UnitCombatState'
  $source=$f.source;$source.scenario='chunk7-assisted-cold-inventory';$source.evidenceKind='chunk7-assisted-cold-inventory-evidence'
  $source.observations.fixtureReadiness.staticPartyFacts|Add-Member -NotePropertyName observationScope -NotePropertyValue 'static-getters-only'
  $f.artifact.observations.fixtureReadiness.staticPartyFacts|Add-Member -NotePropertyName observationScope -NotePropertyValue 'static-getters-only'
@@ -31,6 +39,7 @@ function New-OwnerSeedDerivedFixture {
  foreach($key in @('savedWorld','afterSaveArrangement','nativeWrite')){$source.observations.PSObject.Properties.Remove($key)}
  $f.artifact.observations.sourceManualObservations=$source.observations;$f.artifact.observations.sourceNativeWorld=$world
  $f.artifact.observations.archive=[pscustomobject]@{kind='Missing';loadedArchivePresent=$false;nativeRestorationGrantedByDiagnostic=$false}
+ foreach($event in $f.artifact.observations.nativeLoad.events){$event.gameId=$null}
  $f
 }
 if($FixturesOnly){return}
@@ -40,6 +49,7 @@ function Bad([string]$Name,[scriptblock]$Body){$rejected=$false;try{&$Body}catch
 Good 'paid native Manual lineage, choices, field and Manual checkpoint' {$f=New-ManualDerivedFixture;Check-ManualDerived $f}
 Good 'existing native eligible Ranger retains exact original world' {$f=New-ManualDerivedFixture $false;Check-ManualDerived $f}
 Good 'owner-seed cold lineage preserves actual Manual 303 to field Manual 304' {$f=New-OwnerSeedDerivedFixture;Check-ManualDerived $f}
+Bad 'owner-seed populated PostLoad GameId must match the admitted archive' {$f=New-OwnerSeedDerivedFixture;$f.artifact.observations.nativeLoad.events[1].gameId='11111111-1111-4111-8111-111111111111';Check-ManualDerived $f}
 Bad 'owner-seed lineage cannot borrow bootstrap scenario' {$f=New-OwnerSeedDerivedFixture;$f.source.scenario='chunk7-bootstrap-manual-seed';Check-ManualDerived $f}
 Bad 'owner-seed lineage cannot lose qualification' {$f=New-OwnerSeedDerivedFixture;$f.source.observations.ownerSeedQualification.qualified=$false;$f.artifact.observations.sourceManualObservations=$f.source.observations;Check-ManualDerived $f}
 Bad 'owner-seed lineage cannot claim present KMC metadata' {$f=New-OwnerSeedDerivedFixture;$f.source.observations.kmcMetadata.kind='Current';$f.artifact.observations.sourceManualObservations=$f.source.observations;Check-ManualDerived $f}
