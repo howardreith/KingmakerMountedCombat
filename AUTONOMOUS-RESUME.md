@@ -29,6 +29,14 @@ automatic approval review (`approval required by policy; AskForApproval is
 Never`), so no alternate push; draft PR #5 is remote-stale. Engineering
 completion is not yet claimed.
 
+Independent [F11 measurement review](docs/CHUNK7-F11-MEASUREMENT-DESIGN-2026-10-19.md)
+rejects the cached Owlcat profiler's Detours/PDB launcher for this guarded
+Steam route. A smaller process-lifetime native shim remains possible only after
+its callback ownership, exact staging, same-thread Update attribution, bounded
+output and exit settlement are implemented and reviewed; no compatible native
+compiler was found in the current BuildTools paths. The offline Mono host
+probe is not a game allocation-rate result.
+
 ## Historical October 21 after batches 135–136 F09 presentation
 
 The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
