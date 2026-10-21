@@ -13,6 +13,13 @@
 > and [implementation chronology](CHUNK7-IMPLEMENTATION-PLAN.md) remain
 > historical where they say 7E is unselected or give stale native caps.
 
+[Batch150](../docs/CHUNK7-BATCH150-PAID-SMALL-NATIVE-PASS-2026-10-21.md)
+passes the same-package assisted producer, separate cold and genuine paid Small
+Ranger/Horse field Manual in game and strict outer evidence. This advances
+disclosed fixture setup for F09/7C; the two-owner post-field Manual consumer,
+KMC mounted cold continuation, conditional six-pair stress and final 7E remain
+open. The b145, b148 and b149 original failures retain their own inputs.
+
 [Batches 143–144](../docs/CHUNK7-BATCH143-144-ASSISTED-MANUAL-COLD-2026-10-21.md)
 add a same-candidate assisted native Manual PASS and separate cold game PASS.
 The original cold outer reader FAIL and distinct corrected-reader-only PASS are
