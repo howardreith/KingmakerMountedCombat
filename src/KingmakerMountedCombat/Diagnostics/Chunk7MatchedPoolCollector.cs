@@ -17,7 +17,7 @@ namespace KingmakerMountedCombat.Diagnostics
     {
         internal const string FileName = "chunk7-matched-pool-measurements.json";
         internal const string Kind = "chunk7-matched-pool-measurements";
-        internal const string Contract = "chunk7-matched-resident-pool-v2";
+        internal const string Contract = "chunk7-matched-resident-pool-v3";
         internal const int WindowsPerState = 3;
         internal static readonly string[] Labels = {
             "resident-0-after-cycle-1-window-1", "resident-0-after-cycle-1-window-2", "resident-0-after-cycle-1-window-3",

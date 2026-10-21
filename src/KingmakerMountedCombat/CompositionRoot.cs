@@ -314,8 +314,13 @@ namespace KingmakerMountedCombat
             }
 
             if (persistence.SaveSuspended || persistence.AreaTransitionPending || persistence.CombatRestorationPending) return;
-            world.UpdatePairs();
-            unifiedTurn.Update();
+            var phaseMeasurement = MountedRuntimeMeasurement.Current;
+            var pairStarted = phaseMeasurement?.BeginPhase() ?? 0;
+            try { world.UpdatePairs(); }
+            finally { phaseMeasurement?.EndPairUpdate(pairStarted); }
+            var turnStarted = phaseMeasurement?.BeginPhase() ?? 0;
+            try { unifiedTurn.Update(); }
+            finally { phaseMeasurement?.EndTurnUpdate(turnStarted); }
         }
 
         public void DrawGui()

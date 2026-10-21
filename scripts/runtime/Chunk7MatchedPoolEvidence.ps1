@@ -41,8 +41,10 @@ function Assert-KmcMatchedResources($Before,$After,[string[]]$ActorIds) {
         foreach($name in @('initiative','prepared','reactions','reactionAllowance')){if($a.$name-ne$b.$name){throw 'Matched idle window changed native preparation, initiative or reactions.'}}
     }
 }
-function Assert-KmcMatchedPoolSample($Sample,[string]$Label,[int]$Active) {
-    Assert-KmcExactProperties $Sample @('label','warmupFrames','sampleFrames','startFrame','endFrame','stopwatchFrequency','serviceTicks','frameSeconds','serviceMeanMs','serviceP50Ms','serviceP95Ms','frameP50Ms','frameP95Ms','managedHeapBefore','managedHeapAfter','managedHeapDelta','forcedCollection','collectionsBefore','collectionsAfter','kmcLogMessages','kmcLogCharacters','ownersBefore','ownersAfter','subscriptionsBefore','subscriptionsAfter','limits') 'Matched-pool raw sample'
+function Assert-KmcMatchedPoolSample($Sample,[string]$Label,[int]$Active,[bool]$Phased) {
+    $fields=@('label','warmupFrames','sampleFrames','startFrame','endFrame','stopwatchFrequency','serviceTicks','frameSeconds','serviceMeanMs','serviceP50Ms','serviceP95Ms','frameP50Ms','frameP95Ms','managedHeapBefore','managedHeapAfter','managedHeapDelta','forcedCollection','collectionsBefore','collectionsAfter','kmcLogMessages','kmcLogCharacters','ownersBefore','ownersAfter','subscriptionsBefore','subscriptionsAfter','limits')
+    if($Phased){$fields+=@('phaseContract','pairUpdateTicks','turnUpdateTicks')}
+    Assert-KmcExactProperties $Sample $fields 'Matched-pool raw sample'
     Assert-KmcMatchedString $Sample.label $Label
     foreach($field in @('warmupFrames','sampleFrames','startFrame','endFrame','stopwatchFrequency','managedHeapBefore','managedHeapAfter','kmcLogMessages','kmcLogCharacters')) {
         Assert-KmcMatchedInt64 $Sample.$field;if($Sample.$field-lt0){throw 'Matched-pool sample counter differs.'}
@@ -51,6 +53,16 @@ function Assert-KmcMatchedPoolSample($Sample,[string]$Label,[int]$Active) {
     if($Sample.warmupFrames-ne30-or$Sample.sampleFrames-ne120-or$Sample.endFrame-$Sample.startFrame-lt119-or$Sample.stopwatchFrequency-le0-or
        $Sample.serviceTicks-isnot[Array]-or$Sample.serviceTicks.Count-ne120-or$Sample.frameSeconds-isnot[Array]-or$Sample.frameSeconds.Count-ne120){throw 'Matched-pool sample interval differs.'}
     foreach($value in $Sample.serviceTicks){Assert-KmcMatchedInt64 $value;if($value-lt0){throw 'Matched-pool service ticks are not native integers.'}}
+    if($Phased){
+        Assert-KmcMatchedString $Sample.phaseContract 'chunk7-update-phases-v1'
+        if($Sample.pairUpdateTicks-isnot[Array]-or$Sample.turnUpdateTicks-isnot[Array]-or
+           $Sample.pairUpdateTicks.Count-ne120-or$Sample.turnUpdateTicks.Count-ne120){throw 'Matched-pool phase vectors differ from the 120-frame sample.'}
+        for($index=0;$index-lt120;$index++){
+            $pair=$Sample.pairUpdateTicks[$index];$turn=$Sample.turnUpdateTicks[$index];$total=$Sample.serviceTicks[$index]
+            Assert-KmcMatchedInt64 $pair;Assert-KmcMatchedInt64 $turn
+            if($pair-lt0-or$turn-lt0-or$pair-gt$total-or$turn-gt($total-$pair)){throw 'Matched-pool phase ticks exceed their inclusive Update frame.'}
+        }
+    }
     foreach($value in $Sample.frameSeconds){if(-not(Test-KmcChunk7FiniteNumber $value)-or$value-le0){throw 'Matched-pool frame seconds are not finite positive numbers.'}}
     $ticks=@($Sample.serviceTicks|Sort-Object);$frames=@($Sample.frameSeconds|Sort-Object)
     $summaries=@{serviceMeanMs=([double]($ticks|Measure-Object -Average).Average*1000/$Sample.stopwatchFrequency);serviceP50Ms=([double]$ticks[59]*1000/$Sample.stopwatchFrequency);serviceP95Ms=([double]$ticks[113]*1000/$Sample.stopwatchFrequency);frameP50Ms=([double]$frames[59]*1000);frameP95Ms=([double]$frames[113]*1000)}
@@ -80,8 +92,9 @@ function Assert-KmcMatchedPoolEvidence($Request,$Artifact,$WorldArtifact,[string
     Assert-KmcMatchedString $WorldArtifact.status 'PASS'
     $o=$Artifact.observations;$world=$WorldArtifact.observations
     Assert-KmcExactProperties $o @('contract','complete','observerReleased','residentBoundaries','residentParticipants','warmupNativeCycle','measuredNativeCycle','additionalNativeInputs','inclusiveUpdateIncludesObserverWork','managedAllocationRateMeasured','fullyInertDiagnostics','performanceAccepted','rows','abortedWindow','limits','worldEvidenceSha256') 'Matched-pool observations'
-    if($o.contract-isnot[string]-or$o.contract-cnotin@('chunk7-matched-resident-pool-v1','chunk7-matched-resident-pool-v2')){throw 'Matched resident-pool contract differs.'}
-    $repeated=$o.contract-ceq'chunk7-matched-resident-pool-v2'
+    if($o.contract-isnot[string]-or$o.contract-cnotin@('chunk7-matched-resident-pool-v1','chunk7-matched-resident-pool-v2','chunk7-matched-resident-pool-v3')){throw 'Matched resident-pool contract differs.'}
+    $repeated=$o.contract-cin@('chunk7-matched-resident-pool-v2','chunk7-matched-resident-pool-v3')
+    $phased=$o.contract-ceq'chunk7-matched-resident-pool-v3'
     $legacyLabels=@('resident-0-after-cycle-1','resident-1-cycle-2','resident-2-cycle-2','resident-0-after-cycle-2')
     $labels=if($repeated){@($legacyLabels|ForEach-Object{$name=$_;1..3|ForEach-Object{"${name}-window-$_"}})}else{$legacyLabels}
     $active=if($repeated){@(0,0,0,1,1,1,2,2,2,0,0,0)}else{@(0,1,2,0)}
@@ -110,7 +123,7 @@ function Assert-KmcMatchedPoolEvidence($Request,$Artifact,$WorldArtifact,[string
         Assert-KmcChunk7WorldInt32 $row.index;Assert-KmcChunk7WorldInt32 $row.activePairs
         Assert-KmcMatchedString $row.label $labels[$i]
         if($row.index-ne$i-or$row.activePairs-ne$active[$i]){throw 'Matched-pool row order/count differs.'}
-        Assert-KmcMatchedPoolSample $row.sample $labels[$i] $active[$i]
+        Assert-KmcMatchedPoolSample $row.sample $labels[$i] $active[$i] $phased
         foreach($boundary in @($row.before,$row.after)){
             Assert-KmcExactProperties $boundary @('identityPins','actorIds','expectedActivePairs','world','commandsSettled','preparationPending','relationshipTransition','serializationBusy','pendingNativeWrites','allocationActors') 'Matched native boundary'
             if($boundary.identityPins-isnot[Array]-or$boundary.identityPins.Count-ne22-or$boundary.actorIds-isnot[Array]-or$boundary.actorIds.Count-ne4){throw 'Matched native identity cardinality differs.'}
