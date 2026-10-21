@@ -243,7 +243,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 (string)source["evidenceKind"] == EvidenceKind && (string)source["status"] == "PASS" &&
                 (string)source["commit"] == request.Commit && (string)source["dllSha256"] == request.DllSha256 &&
                 (string)source["dllMvid"] == request.DllMvid &&
-                (string)observed?["selection"]?["case"] == (selection.Case == Chunk7ProgressionSelection.MediumRetrainColdCase ?
+                (string)observed?["selection"]?["case"] == (selection.IsMediumRetrainColdSource ?
                     Chunk7ProgressionSelection.MediumRetrainMammothCase : Chunk7ProgressionSelection.SmallRetrainHorseCase) &&
                 (string)observed["selection"]["actorId"] == selection.ActorId &&
                 (string)observed["selection"]["petId"] == selection.FormerPetId &&
@@ -259,8 +259,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 terminal != null && terminal.Length == 1 &&
                 (string)terminal[0]["actorId"] == selection.ActorId &&
                 (string)terminal[0]["petId"] == selection.PetId &&
-                (int?)terminal[0]["level"] == (selection.Case == Chunk7ProgressionSelection.MediumRetrainColdCase ? 10 : 4) &&
-                (int?)terminal[0]["petLevel"] == (selection.Case == Chunk7ProgressionSelection.MediumRetrainColdCase ? 6 : 2) &&
+                (int?)terminal[0]["level"] == (selection.IsMediumRetrainColdSource ? 10 : 4) &&
+                (int?)terminal[0]["petLevel"] == (selection.IsMediumRetrainColdSource ? 6 : 2) &&
                 (int?)terminal[0]["xp"] != null && (int?)terminal[0]["money"] != null &&
                 saved != null && (int?)saved["SchemaVersion"] == 3 &&
                 (string)inventory["runId"] == selection.InventoryRunId &&
@@ -330,14 +330,14 @@ namespace KingmakerMountedCombat.Diagnostics
                 !string.IsNullOrEmpty((string)priorBody["SkeletonName"]) &&
                 !string.IsNullOrEmpty((string)priorBody["Gender"]) &&
                 (bool?)priorBody["LeftHanded"] != null &&
-                (int?)priorBody["OriginalSizeOrdinal"] == (selection.Case == Chunk7ProgressionSelection.MediumRetrainColdCase ? 4 : 3) &&
-                (int?)priorBody["EffectiveSizeOrdinal"] == (selection.Case == Chunk7ProgressionSelection.MediumRetrainColdCase ? 4 : 3),
+                (int?)priorBody["OriginalSizeOrdinal"] == (selection.IsMediumRetrainColdSource ? 4 : 3) &&
+                (int?)priorBody["EffectiveSizeOrdinal"] == (selection.IsMediumRetrainColdSource ? 4 : 3),
                 "Accepted retrain producer lacks its pinned paid native body.");
             coldExpected = new JObject { ["targetLevel"] = terminal[0]["level"].DeepClone(),
                 ["targetXp"] = terminal[0]["xp"].DeepClone(), ["newPetLevel"] = terminal[0]["petLevel"].DeepClone(),
                 ["nativeMoney"] = terminal[0]["money"].DeepClone(),
                 ["targetBlueprint"] = (string)observed["source"]?["inventoryActor"]?["blueprint"],
-                ["newPetBlueprint"] = selection.Case == Chunk7ProgressionSelection.MediumRetrainColdCase ?
+                ["newPetBlueprint"] = selection.IsMediumRetrainColdSource ?
                     HorseCompanionBlueprintService.MammothUnitGuid : (string)priorBody["MountBlueprintGuid"],
                 ["nativeBody"] = new JObject { ["raceGuid"] = (string)priorBody["RaceGuid"],
                     ["presetGuid"] = (string)priorBody["PresetGuid"],
@@ -383,7 +383,7 @@ namespace KingmakerMountedCombat.Diagnostics
             Require(body != null && body.NativeRigAvailable && body.NativeRaceAndPresetIdentityExact &&
                 body.NativeSkeletonIsExactPreset && !body.RiderPolymorphed && !body.MountPolymorphed,
                 "Cold retrain native body or rig changed after restoration.");
-            var mammoth = selection.Case == Chunk7ProgressionSelection.MediumRetrainColdCase ? CaptureColdMammoth() : null;
+            var mammoth = selection.IsMediumRetrainColdSource ? CaptureColdMammoth() : null;
             var state = new JObject { ["targetId"] = rider.UniqueId, ["newPetId"] = mount.UniqueId,
                 ["targetLevel"] = rider.Descriptor.Progression.CharacterLevel,
                 ["targetXp"] = rider.Descriptor.Progression.Experience,

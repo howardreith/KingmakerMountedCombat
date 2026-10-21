@@ -116,6 +116,11 @@ consumer remain open.
 Current requirement-to-evidence map (one status per gate family; earlier PASS
 belongs only to its recorded product, fixture and environment):
 
+Batch117 updates the F10 replacement subgate in this map: native paid Medium
+Horse-to-Mammoth respec, genuine Manual and separate cold continuation now
+have development PASS on preview.84. The broader F09/F10 rows retain their
+remaining open work and earlier failure history.
+
 | Requirement | Engineering status and exact evidence/dependency | Next action |
 | --- | --- | --- |
 | Inherited core, F01–F08 | Prior candidate-specific native PASSes retained in `CURRENT.md`; final exact-package reuse unassessed. | Map current supported contracts for final matrix after implementation readiness. |

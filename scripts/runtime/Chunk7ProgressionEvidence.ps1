@@ -1,8 +1,8 @@
 Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot 'Chunk7ProgressionOwnedEvidence.ps1')
 function Test-KmcChunk7ProgressionScenario([string]$Scenario){$Scenario-ceq'chunk7-native-progression'}
-function Test-KmcChunk7ProgressionColdSelection($Selection){$null-ne$Selection-and$Selection.case-is[string]-and$Selection.case-cin@('small-horse-native-retrain-cold','small-horse-native-level-cold','medium-horse-native-retrain-cold')}
-function Get-KmcChunk7ProgressionRows {@('chunk7-native-progression','C7-progression-cold-source','C7-progression-native-operation','C7-progression-cold-continuation','C7-progression-cleanup','C7-progression-runtime','C7-progression-interrupted')}
+function Test-KmcChunk7ProgressionColdSelection($Selection){$null-ne$Selection-and$Selection.case-is[string]-and$Selection.case-cin@('small-horse-native-retrain-cold','small-horse-native-level-cold','medium-horse-native-retrain-cold','medium-horse-native-retrain-field')}
+function Get-KmcChunk7ProgressionRows {@('chunk7-native-progression','C7-progression-cold-source','C7-progression-native-operation','C7-progression-cold-continuation','C7-progression-mammoth-field','C7-progression-cleanup','C7-progression-runtime','C7-progression-interrupted')}
 function Get-KmcChunk7ProgressionCases {@('horse-native-level','horse-native-dismiss','horse-native-retrain-horse','horse-native-retrain-mammoth')+(Get-KmcChunk7OwnedProgressionCases)}
 function Assert-KmcProgressionObject($Value){Assert-KmcOrdinaryInteger $Value ([int]::MinValue) ([int]::MaxValue);if($Value-eq0){throw 'Native progression object identity is zero.'}}
 function Assert-KmcProgressionText($Value){if($Value-isnot[string]-or[string]::IsNullOrEmpty($Value)){throw 'Native progression text must be a nonempty JSON string.'}}
@@ -24,14 +24,14 @@ function Assert-KmcChunk7ProgressionSelection($Request){
     $has=$null-ne$Request.PSObject.Properties['progression']
     if(-not(Test-KmcChunk7ProgressionScenario $Request.scenario)){if($has){throw 'Progression selection is forbidden under another family.'};return}
     if(-not$has){throw 'Exact native progression selection missing.'};$s=$Request.progression
-    $properties=@('case','sourceRunId','sourceArtifactSha256','sourceArchiveSha256','inventoryRunId','inventoryArtifactSha256','actorId','petId','controlActorId','controlPetId','raceGuid','presetGuid','skeletonName','gender','leftHanded','bodySize','minimumRangerLevel','expectedNativeWriteCount','nativeWriteLeaf');if(Test-KmcChunk7OwnedProgressionCase $s.case){$properties+=@('ownedSource')};if($s.case-cin@('small-horse-native-retrain-cold','medium-horse-native-retrain-cold')){$properties+=@('formerPetId')};if($s.case-ceq'small-horse-native-level'-or(Test-KmcChunk7MediumProgressionCase $s.case)){$properties+=@('fixtureExperienceGrant')};Assert-KmcExactProperties $s $properties 'native progression selection'
+    $properties=@('case','sourceRunId','sourceArtifactSha256','sourceArchiveSha256','inventoryRunId','inventoryArtifactSha256','actorId','petId','controlActorId','controlPetId','raceGuid','presetGuid','skeletonName','gender','leftHanded','bodySize','minimumRangerLevel','expectedNativeWriteCount','nativeWriteLeaf');if(Test-KmcChunk7OwnedProgressionCase $s.case){$properties+=@('ownedSource')};if($s.case-cin@('small-horse-native-retrain-cold','medium-horse-native-retrain-cold','medium-horse-native-retrain-field')){$properties+=@('formerPetId')};if($s.case-ceq'small-horse-native-level'-or(Test-KmcChunk7MediumProgressionCase $s.case)){$properties+=@('fixtureExperienceGrant')};Assert-KmcExactProperties $s $properties 'native progression selection'
     if($s.case-isnot[string]-or($s.case-cnotin(Get-KmcChunk7ProgressionCases)-and-not(Test-KmcChunk7ProgressionColdSelection $s))){throw 'Unknown native progression case.'}
     foreach($key in @('sourceRunId','inventoryRunId')){if($s.$key-isnot[string]-or$s.$key-cnotmatch'^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$'-or$s.$key-ceq$Request.runId){throw 'Progression requires distinct completed source runs.'}}
     foreach($key in @('sourceArtifactSha256','sourceArchiveSha256','inventoryArtifactSha256')){if($s.$key-isnot[string]-or$s.$key-cnotmatch'^[a-f0-9]{64}$'){throw 'Progression source hashes are missing.'}}
     $ids=[Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
     foreach($key in @('actorId','petId','controlActorId','controlPetId')){Assert-KmcOrdinaryGuid $s.$key;if(-not$ids.Add($s.$key)){throw 'Progression actor roles conflict.'}}
     if(Test-KmcChunk7ProgressionColdSelection $s){
-        if($s.case-cin@('small-horse-native-retrain-cold','medium-horse-native-retrain-cold')){Assert-KmcOrdinaryGuid $s.formerPetId;if(-not$ids.Add($s.formerPetId)){throw 'Former native pet repeats another cold role.'}}
+        if($s.case-cin@('small-horse-native-retrain-cold','medium-horse-native-retrain-cold','medium-horse-native-retrain-field')){Assert-KmcOrdinaryGuid $s.formerPetId;if(-not$ids.Add($s.formerPetId)){throw 'Former native pet repeats another cold role.'}}
         if($s.sourceRunId-ceq$s.inventoryRunId){throw 'Retrain producer and mounted inventory runs must differ.'}
         Assert-KmcOrdinaryInteger $s.expectedNativeWriteCount 0 0;Assert-KmcOrdinaryInteger $s.minimumRangerLevel 0 0
         foreach($key in @('nativeWriteLeaf','raceGuid','presetGuid','skeletonName','gender','leftHanded','bodySize')){if($null-ne$s.$key){throw 'Cold continuation cannot declare choices, body changes or writes.'}}
@@ -464,7 +464,7 @@ function Assert-KmcProgressionWrite($Write,$Request,$Source){
     if((ConvertTo-KmcChunk7Canonical $prior)-cne(ConvertTo-KmcChunk7Canonical $after)){throw 'Native progression altered independent control slots.'}
 }
 function Assert-KmcChunk7RetrainColdState($Row,$Selection,$Saved,$Owner,$Expected){
-    $medium=$Selection.case-ceq'medium-horse-native-retrain-cold'
+    $medium=$Selection.case-cin@('medium-horse-native-retrain-cold','medium-horse-native-retrain-field')
     $properties=@('targetId','newPetId','targetLevel','targetXp','targetBlueprint','newPetLevel','newPetBlueprint','nativeBody','oldPetAbsent','targetUnpaired','controlRiderId','controlMountId','controlOwnerId','controlGeneration','nativeMoney','slots','actors','playerInCombat','snapshots','completedSaves','nativeCasts')
     if($medium){$properties+=@('nativeMammoth')}
     Assert-KmcExactProperties $Row $properties 'retrain cold state'
@@ -559,7 +559,7 @@ function Assert-KmcChunk7ProgressionColdEvidence($Request,$Artifact,[string]$Sta
     if($terminal.Count-ne1){throw 'Cold retrain producer lacks one accepted terminal native actor.'}
     $body=$producer.observations.nativeBodyBefore
     $expected=[pscustomobject]@{targetLevel=$terminal[0].level;targetXp=$terminal[0].xp;newPetLevel=$terminal[0].petLevel;
-        nativeMoney=$terminal[0].money;targetBlueprint=$producer.observations.source.inventoryActor.blueprint;newPetBlueprint=$(if($s.case-ceq'medium-horse-native-retrain-cold'){'e7aa96d15a45238438ae4cfb476f6bb9'}else{$body.MountBlueprintGuid});
+        nativeMoney=$terminal[0].money;targetBlueprint=$producer.observations.source.inventoryActor.blueprint;newPetBlueprint=$(if($s.case-cin@('medium-horse-native-retrain-cold','medium-horse-native-retrain-field')){'e7aa96d15a45238438ae4cfb476f6bb9'}else{$body.MountBlueprintGuid});
         nativeBody=[pscustomobject]@{raceGuid=$body.RaceGuid;presetGuid=$body.PresetGuid;skeletonName=$body.SkeletonName;
             gender=$body.Gender;leftHanded=$body.LeftHanded;originalSizeOrdinal=$body.OriginalSizeOrdinal;
             effectiveSizeOrdinal=$body.EffectiveSizeOrdinal}}
@@ -582,6 +582,72 @@ function Assert-KmcChunk7ProgressionColdEvidence($Request,$Artifact,[string]$Sta
     foreach($key in @('custodySettled','remainingWorldCleanupProven','workersSettled','nativeProcessesSettled','selectionRestoredToSurvivingActors','pauseRestored','nativeAcquiredStateRetained','sourceUnchanged')){Assert-KmcChunk7Boolean $o.cleanup.$key $true}
     Assert-KmcOrdinaryInteger $o.cleanup.ownersRemaining 0 0
     foreach($key in @('manualMoneyWrites','manualXpWrites','manualCompanionRemovals','manualNativeRestCalls','manualNativeTimeAdvances')){Assert-KmcOrdinaryInteger $o.cleanup.$key 0 0}
+}
+function Assert-KmcChunk7MammothFieldEvidence($Request,$Artifact,[string]$Status='PASS'){
+    Assert-KmcChunk7ProgressionColdEvidence $Request $Artifact $Status
+    if($Artifact.status-cne'PASS'){return}
+    Assert-KmcChunk7MammothFieldOutcome $Request.progression $Artifact.observations
+}
+function Assert-KmcChunk7MammothFieldOutcome($s,$o){
+    if($s.case-cne'medium-horse-native-retrain-field'){throw 'Mammoth field reader accepted another case.'}
+    $inputs=@($o.fieldInputs)
+    if($inputs.Count-ne3){throw 'Mammoth field did not retain exactly Mount, ground and Dismount inputs.'}
+    $mount=$inputs[0];$ground=$inputs[1];$dismount=$inputs[2]
+    foreach($item in @($mount,$dismount)){
+        Assert-KmcChunk7Boolean $item.clicked $true
+        Assert-KmcChunk7Boolean $item.shellTerminal $true
+        Assert-KmcChunk7Boolean $item.processTerminal $true
+        Assert-KmcOrdinaryInteger $item.nativeCastDelta 1 1
+        Assert-KmcOrdinaryInteger $item.nativeRefusalDelta 0 0
+        Assert-KmcBootstrapInventoryString $item.casterId $s.actorId
+        Assert-KmcProgressionText $item.abilityGuid
+        Assert-KmcProgressionText $item.shellControl
+        Assert-KmcOrdinaryInteger $item.generationAtInit 1 ([long]::MaxValue)
+        Assert-KmcOrdinaryInteger $item.frame 1 ([int]::MaxValue)
+        Assert-KmcOrdinaryInteger $item.settledFrame $item.frame ([int]::MaxValue)
+    }
+    Assert-KmcBootstrapInventoryString $mount.label 'mount-mammoth'
+    Assert-KmcBootstrapInventoryString $mount.targetId $s.petId
+    Assert-KmcBootstrapInventoryString $mount.abilityGuid 'f053faad986631688defa003cd7bda0e'
+    Assert-KmcBootstrapInventoryString $dismount.label 'dismount-mammoth'
+    Assert-KmcBootstrapInventoryString $dismount.targetId $s.actorId
+    Assert-KmcBootstrapInventoryString $dismount.abilityGuid '3af2b81f4d72bbb30501fa730fcdf36e'
+    if($mount.shellControl-cnotmatch ('^shell:[1-9][0-9]*:mount:'+[regex]::Escape($s.actorId)+'$')-or
+       $dismount.shellControl-cnotmatch ('^shell:[1-9][0-9]*:dismount:'+[regex]::Escape($s.actorId)+'$')-or
+       $mount.shellControl-ceq$dismount.shellControl){throw 'Mammoth field native shell identities differ.'}
+    Assert-KmcBootstrapInventoryString $ground.label 'mammoth-ground'
+    Assert-KmcBootstrapInventoryString $ground.selectedId $s.actorId
+    Assert-KmcBootstrapInventoryString $ground.executorId $s.petId
+    foreach($key in @('nativeCallEntered','nativeCallReturned','commandValidated')){Assert-KmcChunk7Boolean $ground.$key $true}
+    foreach($state in @($o.fieldMounted,$o.fieldDismounted)){
+        Assert-KmcBootstrapInventoryString $state.controlOwnerId $o.beforeOwners.owners[0].ownerId
+        Assert-KmcOrdinaryInteger $state.controlGeneration $o.beforeOwners.owners[0].generation $o.beforeOwners.owners[0].generation
+        foreach($key in @('saveSnapshots','completedSaves')){Assert-KmcOrdinaryInteger $state.$key 0 0}
+    }
+    if($o.fieldMounted.targetOwnerId-isnot[string]-or$o.fieldMounted.targetOwnerId-cnotmatch'^[a-f0-9]{32}$'-or
+       $o.fieldMounted.targetOwnerId-ceq$o.fieldMounted.controlOwnerId){throw 'Native Mammoth Mount lacks an independent owner.'}
+    Assert-KmcOrdinaryInteger $o.fieldMounted.targetGeneration 1 ([long]::MaxValue)
+    Assert-KmcBootstrapInventoryString $o.fieldMounted.targetProfileId 'medium-humanoid-mammoth-v1'
+    Assert-KmcOrdinaryInteger $o.fieldMounted.owners 2 2
+    Assert-KmcOrdinaryInteger $o.fieldMounted.nativeCasts 1 1
+    if($null-ne$o.fieldDismounted.targetOwnerId-or$null-ne$o.fieldDismounted.targetGeneration-or
+       $null-ne$o.fieldDismounted.targetProfileId){throw 'Native Mammoth Dismount retained its target owner.'}
+    Assert-KmcOrdinaryInteger $o.fieldDismounted.owners 1 1
+    Assert-KmcOrdinaryInteger $o.fieldDismounted.nativeCasts 2 2
+    foreach($key in @('commandFinished','createdByPlayer')){Assert-KmcChunk7Boolean $o.fieldMovement.$key $true}
+    Assert-KmcBootstrapInventoryString $o.fieldMovement.result 'Success'
+    Assert-KmcBootstrapInventoryString $o.fieldMovement.executorId $s.petId
+    Assert-KmcBootstrapInventoryString $o.fieldMovement.ownerId $o.fieldMounted.targetOwnerId
+    Assert-KmcOrdinaryInteger $o.fieldMovement.ownerGeneration $o.fieldMounted.targetGeneration $o.fieldMounted.targetGeneration
+    if($o.fieldMovement.distance-isnot[ValueType]-or[double]$o.fieldMovement.distance-lt0.5-or[double]$o.fieldMovement.distance-gt5){throw 'Native Mammoth field travel did not meet the bounded distance.'}
+    Assert-KmcOrdinaryInteger $o.fieldMovement.startFrame $ground.frame $ground.frame
+    Assert-KmcOrdinaryInteger $o.fieldMovement.endFrame $ground.frame ([int]::MaxValue)
+    if($mount.frame-ge$ground.frame-or$ground.frame-ge$dismount.frame-or
+       $o.fieldMovement.endFrame-ge$dismount.frame-or
+       $o.fieldMounted.frame-lt$mount.settledFrame-or$o.fieldMounted.frame-ge$ground.frame-or
+       $o.fieldDismounted.frame-lt$dismount.settledFrame){
+        throw 'Mammoth field input and settled-owner chronology differs.'
+    }
 }
 function Assert-KmcChunk7LevelColdEvidence($Request,$Artifact,[string]$Status='PASS'){
     Assert-KmcChunk7ProgressionLoadDescriptor $Request
@@ -717,7 +783,7 @@ function Assert-KmcChunk7SmallLevelOutcome($Request,$Observations,$Choices){
     Assert-KmcOrdinaryInteger $outcome.controlHorseRank $controlPair[0].rank $controlPair[0].rank
 }
 function Assert-KmcChunk7ProgressionEvidence($Request,$Artifact,[string]$Status='PASS'){
-    if(Test-KmcChunk7ProgressionColdSelection $Request.progression){if($Request.progression.case-ceq'small-horse-native-level-cold'){Assert-KmcChunk7LevelColdEvidence $Request $Artifact $Status}else{Assert-KmcChunk7ProgressionColdEvidence $Request $Artifact $Status};return}
+    if(Test-KmcChunk7ProgressionColdSelection $Request.progression){if($Request.progression.case-ceq'small-horse-native-level-cold'){Assert-KmcChunk7LevelColdEvidence $Request $Artifact $Status}elseif($Request.progression.case-ceq'medium-horse-native-retrain-field'){Assert-KmcChunk7MammothFieldEvidence $Request $Artifact $Status}else{Assert-KmcChunk7ProgressionColdEvidence $Request $Artifact $Status};return}
     Assert-KmcChunk7ProgressionLoadDescriptor $Request;Assert-KmcChunk7ArtifactEnvelope $Request $Artifact 'chunk7-progression-evidence'
     Assert-KmcOrdinaryInteger $Artifact.schemaVersion 1 1
     if($Status-ceq'PASS'-and$Artifact.status-cne'PASS'){throw 'Progression PASS requires its native PASS artifact.'};if($Artifact.status-cne'PASS'){return}

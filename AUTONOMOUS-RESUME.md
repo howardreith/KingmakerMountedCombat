@@ -1,5 +1,19 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## Active October 21 after batch118 field development — native proof next
+
+The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
+[Batch118](docs/CHUNK7-BATCH118-MEDIUM-MAMMOTH-FIELD-DEVELOPMENT-2026-10-21.md)
+adds a reviewed, offline-tested `medium-horse-native-retrain-field` consumer.
+The original batch117 preview.84 PASS remains tied to its bytes. No new game
+run or transaction occurred for this change. Finish preview.85 Candidate,
+freeze one package/suite, and declare no more than five dependent scenarios:
+paid Medium mounted Horse Manual/cold, paid Mammoth respec/Manual, read-only
+Mammoth cold, and an independent-copy Mammoth Mount/move/Dismount field run.
+Run each through guarded WhatIf and the approved Howie context, one live executor
+at a time, with exact restoration. F09 broader presentation/stress, F10 other
+progression, F11 and 7E remain open. The batch117 section below is history.
+
 ## Active October 21 after batch117 — replacement cold PASS; F09/F10/F11 next
 
 The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.

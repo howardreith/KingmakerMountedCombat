@@ -64,7 +64,7 @@ function Get-KmcChunk7ProgressionColdSource($Selection,$Fixture,$Candidate){
     if($hashes['chunk7-progression-evidence.json']-cne$Selection.sourceArtifactSha256){throw 'Cold retrain producer artifact differs from exact pin.'}
     $request=Read-KmcJson (Join-Path $root 'runtime-request.json');$result=Read-KmcJson (Join-Path $root 'runtime-result.json')
     $manifest=Read-KmcJson (Join-Path $root 'runtime-artifacts.json');$artifact=Read-KmcJson (Join-Path $root 'chunk7-progression-evidence.json')
-    $expectedProducer=if($Selection.case-ceq'medium-horse-native-retrain-cold'){'medium-horse-native-retrain-mammoth'}else{'small-horse-native-retrain-horse'}
+    $expectedProducer=if($Selection.case-cin@('medium-horse-native-retrain-cold','medium-horse-native-retrain-field')){'medium-horse-native-retrain-mammoth'}else{'small-horse-native-retrain-horse'}
     if($request.scenario-cne'chunk7-native-progression'-or$request.runId-cne$Selection.sourceRunId-or$request.progression.case-cne$expectedProducer-or
        $request.commit-cne$Candidate.commit-or$request.dllSha256-cne$Candidate.dllSha256-or$request.dllMvid-cne$Candidate.dllMvid-or
        $result.status-cne'PASS'-or$result.modsRestored-ne$true-or$result.saveProtectionPassed-ne$true-or$result.workingRestored-ne$true-or
