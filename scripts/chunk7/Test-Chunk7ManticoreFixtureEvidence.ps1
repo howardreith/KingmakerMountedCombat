@@ -102,6 +102,37 @@ function Check([string]$Name,[scriptblock]$Body,[bool]$Refuse=$false){$ok=$false
 function Read-Manticore($f){try{Assert-KmcChunk7OwnedPairsDescriptor $f.request;Assert-KmcChunk7PersistenceObservation $f.request $f.artifact 'PASS'}catch{throw ($_.Exception.Message+' at '+$_.ScriptStackTrace)}}
 $baseline=New-ManticoreFixture
 Check 'closed complete native Manticore fixture preserves source and writes genuine destination Manual' {Read-Manticore $baseline}
+function New-TombFixture {
+ $f=New-ManticoreFixture;$r=$f.request;$o=$f.artifact.observations;$p=$o.manticoreFixturePreparation
+ $r.persistenceCase='owner-seed-tomb-door-fixture-manual';$o.checkpoint=$r.persistenceCase
+ $o.ownerSeedCheckpointSource.checkpoint=$r.persistenceCase
+ $area='81b13ce8765469045864ffb878b0944b';$name='KMC_C7_TOMB_DOOR_FIXTURE';$leaf='Manual_305_KMC_C7_TOMB_DOOR_FIXTURE.zks'
+ $o.nativeWrite.path=Join-Path (Split-Path -Parent $o.nativeWrite.path) $leaf
+ $o.nativeWrite.nativeName=$name;$o.nativeWrite.archive.AreaId=$area;$o.saveRequested.nativeName=$name
+ $o.ownedOutputAdmission.leaf=$leaf
+ foreach($a in @($o.ownedOutputAdmission.authority,$o.ownedOutputCompletion.authority)){$a.leaf=$leaf;$a.nativeName=$name}
+ foreach($d in @($o.ownedOutputAdmission.nativeInventory)+@($o.ownedOutputCompletion.nativeInventory)){
+  if($d.fileName-ceq'Manual_305_KMC_C7_AREA_FIXTURE.zks'){$d.fileName=$leaf;$d.nativeName=$name;$d.area=$area}
+ }
+ $p.contract='owner-seed-tomb-door-fixture-v1';$p.checkpoint=$r.persistenceCase
+ $p.prerequisite.contract='owner-seed-tomb-entry-v1';$p.prerequisite.locationGuid='38638e43953432e42a037956f798f15e'
+ $p.prerequisite.entryGuid='c23675e173391ad4297dbe3720122bca';$p.prerequisite.destinationArea=$area
+ foreach($w in @($p.destinationUnmounted,$p.remounted,$p.afterSave)){$w.area=$area;$w.field.area=$area}
+ foreach($w in @($p.source,$p.sourceUnmounted,$p.destinationUnmounted,$p.remounted)){$w.authority.leaf=$leaf;$w.authority.nativeName=$name}
+ $p.afterSave.authority.leaf=$leaf;$p.afterSave.authority.nativeName=$name
+ foreach($input in $o.inputs){$input.label=$input.label.Replace('manticore-','tomb-')}
+ $roles=Get-KmcChunk7OwnedPairIds $r
+ $mounts=@([pscustomobject]@{id=$roles[1];position=[pscustomobject]@{x=1.0;y=0.0;z=2.0}},
+   [pscustomobject]@{id=$roles[3];position=[pscustomobject]@{x=2.0;y=0.0;z=3.0}})
+ $p|Add-Member unityDevelopmentPlayer $false
+ $p|Add-Member areaDoorInventory ([pscustomobject]@{boundary='after-fixture-remount';candidateCount=0;rowLimit=32;radius=28.0;mounts=$mounts;truncated=$false;rows=@();interactionTested=$false})
+ $o.PSObject.Properties.Remove('manticoreFixturePreparation');$o|Add-Member tombDoorFixturePreparation $p
+ Copy-Value $f
+}
+Check 'Tomb fixture accepts exact source, stock entry and read-only zero-door inventory without claiming door coverage' {$f=New-TombFixture;Read-Manticore $f}
+Check 'Tomb fixture rejects substituted stock entry' {$f=New-TombFixture;$f.artifact.observations.tombDoorFixturePreparation.prerequisite.entryGuid='f'*32;Read-Manticore $f} $true
+Check 'Tomb fixture rejects a false positive door inventory' {$f=New-TombFixture;$f.artifact.observations.tombDoorFixturePreparation.areaDoorInventory.candidateCount=1;Read-Manticore $f} $true
+Check 'Tomb fixture rejects non-isolated output area' {$f=New-TombFixture;$f.artifact.observations.nativeWrite.archive.AreaId='314e8c3b15b896a4f847c85f9250f02b';Read-Manticore $f} $true
 function New-ManticoreColdReaderFixture {
  $producer=New-ManticoreFixture;$p=$producer.request.ownedPairs;$o=$producer.artifact.observations
  $request=Copy-Value $producer.request;$request.runId='synthetic-manticore-cold-consumer';$request.persistenceCase='manticore-fixture-cold-manual'

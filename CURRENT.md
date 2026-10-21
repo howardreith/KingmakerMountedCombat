@@ -1,5 +1,11 @@
 # Chunk 7B–7D — IN PROGRESS
 
+[Batch123](docs/CHUNK7-BATCH123-TOMB-DOOR-FIXTURE-DEVELOPMENT-2026-10-21.md)
+adds a reviewed, source-pinned Old Cyclops Tomb fixture route with existing
+guarded Areas isolation, a distinct Manual and read-only door inventory.
+Focused offline checks passed; native scene suitability, door interaction and
+F11 Recorder availability remain unproved pending one targeted fixture run.
+
 [Batch122](docs/CHUNK7-BATCH122-F11-MANAGED-MONO-PROBE-2026-10-21.md)
 preserves a failed disposable managed-Mono embedding probe: domain creation
 succeeded, then the exact installed Mono DLL faulted before callback

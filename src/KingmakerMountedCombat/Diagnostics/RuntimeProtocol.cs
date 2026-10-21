@@ -237,9 +237,11 @@ namespace KingmakerMountedCombat.Diagnostics
             "multi-exploration-manual", "multi-exploration-quick", "multi-exploration-auto", "multi-rt-debt-manual",
             "multi-tb-debt-manual", "zero-mounted-tb-retained-manual", "legacy-mounted-pending-tb-manual", "pending-schema3-control-manual", "multi-area-autosave", "legacy-schema1-resave-manual", "owned-schema1-manual", "owned-schema1-resave-manual", "owned-schema1-current-manual", "owned-schema2-pending-current-manual", "multi-exploration-three-loads-manual", "multi-exploration-three-area-transfers-manual",
             "multi-nonselected-mount-unsettled-manual", "multi-owned-worker-cancel-manual", "multi-malformed-refusal-manual", "multi-future-refusal-manual",
-            Chunk7OwnedPairsSelection.ManticoreFixtureCheckpoint, Chunk7OwnedPairsSelection.ManticoreManualColdCheckpoint }, value) >= 0;
+            Chunk7OwnedPairsSelection.ManticoreFixtureCheckpoint, Chunk7OwnedPairsSelection.TombFixtureCheckpoint,
+            Chunk7OwnedPairsSelection.ManticoreManualColdCheckpoint }, value) >= 0;
 
-        internal string ExpectedChunk7ArchiveArea => PersistenceCase == "multi-area-autosave" ? PersistenceAreaTarget?.Area :
+        internal string ExpectedChunk7ArchiveArea => PersistenceCase == Chunk7OwnedPairsSelection.TombFixtureCheckpoint ? Chunk7OwnedPairsSelection.TombFixtureArea :
+            PersistenceCase == "multi-area-autosave" ? PersistenceAreaTarget?.Area :
             (PersistenceCase == Chunk7OwnedPairsSelection.ManticoreFixtureCheckpoint ||
                 Chunk7OwnedPairsSelection.IsManticoreManualCold(PersistenceCase)) ? Chunk7OwnedPairsSelection.ManticoreFixtureArea : SelectedChunk7Fixture?.Area;
         internal string ExpectedNativeLoadType => (Scenario == Chunk7AcquiredManualSelection.Scenario || Scenario == Chunk7ManualSeedSelection.Scenario || Scenario == Chunk7BootstrapInventorySelection.Scenario || Scenario == Chunk7SmallCalibrationSelection.Scenario && SmallCalibration?.UsesColdManualField != true || Scenario == Chunk7OrdinaryFieldSelection.Scenario) ? "Auto" : SelectedChunk7Scenario == "chunk7-persistence-load" && PersistenceLoad != null && IsChunk7PersistenceCase(PersistenceCase) ?
@@ -538,6 +540,9 @@ namespace KingmakerMountedCombat.Diagnostics
             if (PersistenceCase == Chunk7OwnedPairsSelection.ManticoreFixtureCheckpoint &&
                 (Scenario != Chunk7OwnedPairsSelection.Scenario || OwnedPairs?.IsOwnerSeedCheckpointSave != true))
                 errors.Add("Manticore fixture preparation requires its exact source-only owner-seed checkpoint selection.");
+            if (PersistenceCase == Chunk7OwnedPairsSelection.TombFixtureCheckpoint &&
+                (Scenario != Chunk7OwnedPairsSelection.Scenario || OwnedPairs?.IsOwnerSeedCheckpointSave != true))
+                errors.Add("Tomb fixture preparation requires its exact source-only owner-seed checkpoint selection.");
             if (Chunk7OwnedPairsSelection.IsManticoreManualCold(PersistenceCase) &&
                 (Scenario != Chunk7OwnedPairsSelection.Scenario || OwnedPairs?.IsOwnerSeedDerivedLoad != true))
                 errors.Add("Manticore Manual cold load requires its exact one-load owner-seed-derived selection.");

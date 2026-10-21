@@ -10,6 +10,7 @@ foreach($name in @('Write-TestJson','Write-TestZip','Pin-TestReceipts','New-Test
 $areaO=Copy-Test $o;$areaO.checkpoint='multi-area-autosave';$areaO.PSObject.Properties.Remove('saveRequested')
 $areaO.nativeWrite.nativeType='Auto';$areaO.nativeWrite.nativeCallback=$false;$areaO.nativeWrite.archive=Copy-Test $areaArchive
 $areaO|Add-Member NoteProperty areaTransfer (Copy-Test $areaObservation.areaTransfer)
+$areaO|Add-Member NoteProperty areaContinuationPlans (Copy-Test $areaObservation.areaContinuationPlans)
 $areaGood=New-Artifact $areaRequest $areaO
 Check 'complete area source observation without invented SaveGame or callback' {Assert-KmcChunk7PersistenceObservation $areaRequest $areaGood 'PASS'}
 foreach($mutation in @('explicit-save','callback','wrong-header-owner')){Reject ('complete area source '+$mutation){$bad=Copy-Test $areaGood;switch($mutation){
@@ -34,6 +35,7 @@ Reject 'source uses original area despite exact repinned transport' {$bad=New-Ar
 $found=Read-AreaSource $c
 $q=Copy-Test $coldRequest;$q.persistenceCase='multi-area-autosave';$q.persistenceLoad=[pscustomobject]$found.descriptor;$q|Add-Member NoteProperty persistenceAreaTarget (Copy-Test $areaRequest.persistenceAreaTarget)
 $v=Copy-Test $co;$v.checkpoint='multi-area-autosave';$v.loadedArchive=Copy-Test $areaArchive;$v.loadedDescriptor=Copy-Test $q.persistenceLoad
+$v|Add-Member NoteProperty areaContinuationPlans (Copy-Test $areaObservation.areaContinuationPlans)
 $a=New-Artifact $q $v
 Check 'complete cold Auto restoration at exact destination' {Assert-KmcChunk7PersistenceObservation $q $a 'PASS';Assert-KmcChunk7PersistenceColdSource $c.request.runId $q $a}
 Reject 'cold source substitutes enter point without changing area' {$bad=Copy-Test $q;$bad.persistenceAreaTarget.enterPoint='d'*32;Assert-KmcChunk7PersistenceColdSource $c.request.runId $bad $a}
