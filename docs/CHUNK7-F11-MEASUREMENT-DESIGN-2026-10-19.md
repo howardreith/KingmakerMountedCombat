@@ -130,6 +130,23 @@ SHA-256 `481a171f73a1c0f9ac4cc34e46a31e9a463dcc1f986f325c2abd4727eacd40f3`.
 That route therefore also requires reviewed implementation before a measured
 F11 allocation result can be claimed.
 
+An October 21 independent read-only review of the locally cached Owlcat
+profiler source found that its out-of-process route uses
+`DetourCreateProcessWithDlls`, a UnityPlayer PDB beside the game executable,
+and client/network startup. Those requirements do not fit this project's
+guarded Steam launch and read-only game installation. The source also exposes
+a Unity-plugin `StartProfiling` entry point, but that is only a possible attach
+pattern, not an approved game-side instrument. A smaller process-lifetime
+native shim would still need a reviewed exact-DLL stage/hash and request-only
+load, prior-profiler/interference policy for the process-global Mono callback,
+an allocation-free nonthrowing bounded callback with overflow and reentrancy
+counts, same-thread KMC Update bracketing, output confined to the run root, and
+process-exit finalization before Mods restoration. The host's 7,400 bytes for
+100 Mono strings are managed object-size bytes, not total Unity/native allocator
+bytes. No such shim or safe game attach exists yet. The current Visual Studio
+BuildTools installation also exposes no `cl.exe` or `clang.exe` in the inspected
+toolchain paths; no compiler or dependency was installed as a workaround.
+
 Before seeing final measurements, the comparison rule is: repeated windows
 must retain the same declared actor/owner/subscription population within
 each state, and repeated settled lifecycle cycles must return to the same
