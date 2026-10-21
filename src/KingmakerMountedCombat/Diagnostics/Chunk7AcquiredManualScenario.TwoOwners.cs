@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using Kingmaker.EntitySystem.Entities;
 using Kingmaker.UnitLogic;
+using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
 namespace KingmakerMountedCombat.Diagnostics
@@ -79,7 +80,10 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["actorId"] = value.UniqueId, ["petId"] = value.Descriptor.Pet?.UniqueId, ["masterId"] = value.Descriptor.Master.Value?.UniqueId })) };
             var resourcesMatch = JToken.DeepEquals(resources, retained["unrelatedResourcesAfter"]);
             var progressionMatch = JToken.DeepEquals(progression, retained["progressionAfter"]);
-            var relationshipsMatch = JToken.DeepEquals(relationships, retained["relationshipsAfter"]);
+            // The source is a parsed artifact while the cold graph is live. Compare their exact
+            // persisted relationship representation; native reference custody is checked above.
+            var relationshipsMatch = string.Equals(relationships.ToString(Formatting.None),
+                retained["relationshipsAfter"].ToString(Formatting.None), StringComparison.Ordinal);
             if ((!resourcesMatch || !progressionMatch || !relationshipsMatch) && evidence["twoOwnerColdMismatch"] == null)
                 evidence["twoOwnerColdMismatch"] = new JObject {
                     ["contract"] = "two-owner-cold-mismatch-v1",
