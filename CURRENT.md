@@ -1,5 +1,11 @@
 # Chunk 7B–7D — IN PROGRESS
 
+Batch110 verified the batch109 Small equipment-admission change on frozen
+world116: offline Candidate 7/0 and one guarded native/outer mounted Small
+save PASS 5/0 with its Medium neighbor, genuine Manual, and exact restoration.
+It did not measure allocation rate or normal-player diagnostics-off behavior.
+See the [batch110 record](docs/CHUNK7-BATCH110-SMALL-ADMISSION-NATIVE-2026-10-20.md).
+
 Batch109 removed the repeated sort/copy in the mounted Small-body equipment
 comparison while preserving exact ordinal multiplicity and slot order. Fast
 passed 3/0 and independent read-only review found no concrete regression.

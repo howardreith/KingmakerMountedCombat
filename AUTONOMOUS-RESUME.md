@@ -1,5 +1,24 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## Active October 20 after batch110 — Small admission native PASS; F09/F10/F11 remain
+
+The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
+[Batch110](docs/CHUNK7-BATCH110-SMALL-ADMISSION-NATIVE-2026-10-20.md)
+froze pushed `372d6867` as world116, passed Candidate 7/0, and verified the
+changed Small equipment-admission comparison in one declared guarded native
+Small mounted Manual scenario with a neighboring Medium pair, game/outer 5/0.
+The transaction restored Mods, Working, protected saves and exact profile bytes;
+no game or runtime lock remained. F11 allocated-byte/event rate and native
+diagnostics-off/ordinary controls are still open. For F10 distinct replacement,
+an exact two-Medium Horse owner-seed Manual and separate cold lineage already
+exist, but the current owned-Mammoth progression intake is tied to a blocked
+acquired Manual family. A dedicated owner-seed case must preserve its own source
+provenance, select the non-main Medium rider with the other as control, disclose
+native XP eligibility setup for Large Mammoth where needed, and review the
+resulting real Horse-to-Mammoth retrain/Manual/separate cold flow. Do not relabel
+the old acquired source or select the main character through the Small case.
+Refresh HEAD/status and current transaction state before the next operation.
+
 ## Active October 20 after batch109 — F11 partial source hardening; native gates remain
 
 The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
