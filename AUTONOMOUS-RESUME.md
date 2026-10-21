@@ -1,5 +1,36 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## Active October 21 after batches 143–144 assisted Manual/cold
+
+The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
+[Batches 143–144](docs/CHUNK7-BATCH143-144-ASSISTED-MANUAL-COLD-2026-10-21.md)
+record one frozen assisted producer and independent cold consumer on clean
+commit `39f0fdd0`, package SHA-256
+`a5712921bbbf9fe3a726b5e11554e8e87c95e04272d6bf30028c3b19435e1f7c`,
+suite SHA-256 `90eadde52ea66688cf6911df365546f48c089cc245c0c798a7ead9bf5f55e7a4`.
+Producer `20261021-c7b-world99-b142s1-assisted-dialog` **PASSed** all seven
+game/outer rows, writing a native final Manual SHA-256
+`77bdebd735c98f035b1d134bce1bd29072fea09c36c0dea5b7e48197c08af84d`.
+Separate cold `20261021-c7b-world99-b143s1-assisted-cold` game **PASSed** four
+rows with one load and zero writes. Its **original outer FAIL** was an external
+reader requiring `Player.GameId` at synchronous PostLoad when both probes were
+null; the exact loaded/settled campaign ID matched the saved descriptor. A
+reviewed conditional reader correction passed generated full-reader 125/0 and
+reader-only re-evaluation of the immutable artifact PASS. Keep original outer
+FAIL and reader-only PASS separate. Both transactions are `restored`, exact
+Mods/protected-save/profile bytes, zero cache exceptions, no process or lock.
+
+Current uncommitted changes are only the external reader regression and this
+documentation; the product DLL remains SHA-256
+`01582f104c03bb479a440fc65936dc786eefe06058d05f80862e254153434f39`.
+Next: commit the reader/docs, then choose an independent required gate from the
+[standing matrix](planning/CHUNK7-COMPLETION-MISSION.md): ordinary progression/
+acquisition, F09 conditional six-pair fixture, F11 measured allocations and
+normal-player controls, ordinary door, then readiness-gated private 7E. Do not
+rerun the unchanged assisted cold input. Earlier assisted FAILs remain.
+Prior guarded push-helper WhatIf was rejected by automatic approval review;
+do not bypass it with an alternate push. Draft PR #5 remains remote-stale.
+
 ## Active October 21 after batch142 Dialog-in-Cutscene failure
 
 The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.

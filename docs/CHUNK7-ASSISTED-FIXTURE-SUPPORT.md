@@ -35,7 +35,7 @@ Counts overlap and are not unique test totals. Private receipts preserve exact c
 
 ## Next dependency
 
-The preparation family still needs a reviewed integrated candidate and one selected guarded native preparation transaction with exact restoration. Only a fully passing same-candidate Manual may seed the distinct assisted cold-inventory family: one native load, zero writes, exact deserialization/PostLoad and empty mounted-state observations. The separate native consumer is implemented and independently reviewed as described below; it still requires native evidence. Ordinary new/existing acquisition, profile/pose evidence, combat/persistence breadth, six-pair stress and measured hardening remain mission requirements.
+Current result: [batches 143–144](CHUNK7-BATCH143-144-ASSISTED-MANUAL-COLD-2026-10-21.md) record a native assisted final Manual PASS and a separate same-candidate cold game PASS. The cold original outer reader FAIL and corrected-reader-only PASS remain distinct. Ordinary new/existing acquisition, profile/pose evidence, combat/persistence breadth, six-pair stress and measured hardening remain mission requirements. The preparation below is historical context for that result.
 
 ## Reviewed host and protocol boundaries
 

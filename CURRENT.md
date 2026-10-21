@@ -1,5 +1,14 @@
 # Chunk 7B–7D — IN PROGRESS
 
+[Batches 143–144](docs/CHUNK7-BATCH143-144-ASSISTED-MANUAL-COLD-2026-10-21.md)
+record a genuine assisted new-campaign final Manual and separate-process cold
+game PASS on one frozen preview.94 package. The cold outer reader's original
+FAIL remains separate from its reviewed reader-only PASS: synchronous
+`Player.PostLoad` saw null `GameId` before the settled world carried the exact
+saved campaign ID. Both guarded runs restored Mods, protected saves and profile
+bytes exactly. This advances disclosed fixture preparation, not ordinary
+acquisition/progression or final-package 7E.
+
 [Batch142](docs/CHUNK7-BATCH142-ASSISTED-DIALOG-IN-CUTSCENE-2026-10-21.md)
 retains another distinct assisted native **FAIL**. The prior fix waited on a
 cutscene lock even during an ordinary active PC Dialog, so the producer made

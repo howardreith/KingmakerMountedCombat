@@ -111,6 +111,8 @@ Check 'loaded actor cannot alias unrelated view' $false {param($f)$f.artifact.ob
 Check 'registry missing loaded actor identity is refused' $false {param($f)$o=$f.artifact.observations;$id=$o.loadedWorld.party[0].object;$o.nativeLoad.identities.ids=@($o.nativeLoad.identities.ids|Where-Object{$_-ne$id});$o.nativeLoad.identities.retainedCount--;Verify $f}
 Check 'released observer registry cannot prove retained snapshot identities' $false {param($f)$f.artifact.observations.nativeLoad.identities.released=$true;Verify $f}
 Check 'PostLoad after-event wrong Player is refused' $false {param($f)$f.artifact.observations.nativeLoad.events[1].player=$f.artifact.observations.beforeLoad.menuPlayer;Verify $f}
+Check 'PostLoad may retain null Player.GameId while settled world has exact campaign' $true {param($f)foreach($e in $f.artifact.observations.nativeLoad.events){$e.gameId=$null};Verify $f}
+Check 'PostLoad nonnull foreign Player.GameId is refused' $false {param($f)$f.artifact.observations.nativeLoad.events[1].gameId='00000000-0000-0000-0000-000000000001';Verify $f}
 Check 'PostLoad return cannot move to a different frame' $false {param($f)$f.artifact.observations.nativeLoad.events[1].frame++;Verify $f}
 Check 'PostLoad native hook contract cannot drift' $false {param($f)$f.artifact.observations.nativeLoad.hooks[0].token='06000DC8';Verify $f}
 Check 'PostLoad event singleton kind is refused' $false {param($f)$e=$f.artifact.observations.nativeLoad.events[1];$e.kind=@($e.kind);Verify $f}
