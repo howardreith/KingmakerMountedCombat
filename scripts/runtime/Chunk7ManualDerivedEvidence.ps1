@@ -277,7 +277,7 @@ function Assert-KmcManualDerivedNativeChoices($Request,$O,$Selection=$null){
     if(-not$finished-or-not$horseSelected-or-not$bondSelected){throw 'Native ordinary completion/companion selection chain is incomplete.'}
     Assert-KmcOrdinaryInteger $o.acceptedChoiceCount $accepted $accepted;Assert-KmcOrdinaryInteger $o.nativeCommitCount $commits $commits
     if($accepted-lt2-or$accepted-gt512-or$commits-gt20){throw 'Ordinary native choice bounds differ.'}
-    if($Request.scenario-ceq'chunk7-manual-derived-acquisition'-or(Test-KmcAssistedCumulativeMode $Request.cumulativeAcquisition)){
+    if($Request.scenario-ceq'chunk7-manual-derived-acquisition'-or$Request.scenario-ceq'chunk7-cumulative-acquisition'){
      if($null-ne$o.PSObject.Properties['nativeAcquisition']){throw 'Manual acquisition cannot claim an unregistered level-up Auto observer.'}
      if($paid){Assert-KmcOrdinaryInteger $admission.moneyBefore $s.readiness.money $s.readiness.money;Assert-KmcOrdinaryInteger $admission.nativeCost $s.readiness.nativeHireCost $s.readiness.nativeHireCost;Assert-KmcOrdinaryInteger $xp $s.readiness.defaultHireExperience $s.readiness.defaultHireExperience}
      else{Assert-KmcOrdinaryInteger $identity.level $s.existingLevel $s.existingLevel;Assert-KmcOrdinaryInteger $xp $s.existingExperience $s.existingExperience;Assert-KmcOrdinaryInteger $identity.rangerLevel $s.existingRangerLevel $s.existingRangerLevel;Assert-KmcOrdinaryInteger $expectedMoney $s.readiness.money $s.readiness.money}
@@ -476,7 +476,7 @@ function Assert-KmcManualDerivedNativeSave($Request,$O,$Labels,[string]$Root){
  $leaf=$selection.nativeWriteLeaf;$name='KMC_C7_MANUAL_DERIVED_FIELD';$path=Join-Path $Root $leaf
  $n=$O.nativeNumbering;$r=$O.saveRequested;$p=$O.nativeSave;$w=$O.nativeWrite;$field=$O.field
  foreach($pair in @(@('method','FindUnusedSaveNumber'),@('token','06008024'),@('moduleMvid','07fa1e4d-8618-41b3-9b8d-faa17d3b26f7'),@('nativeSaveType','Manual'),@('fileName',$leaf))){Assert-KmcBootstrapInventoryString $n.($pair[0]) $pair[1]}
- $expectedNumber=if($leaf-ceq'Manual_301_KMC_C7_MANUAL_DERIVED_FIELD.zks'){301}elseif($leaf-ceq'Manual_304_KMC_C7_MANUAL_DERIVED_FIELD.zks'){304}else{2}
+ $expectedNumber=if($leaf-ceq'Manual_301_KMC_C7_MANUAL_DERIVED_FIELD.zks'){301}elseif($leaf-ceq'Manual_303_KMC_C7_MANUAL_DERIVED_FIELD.zks'){303}elseif($leaf-ceq'Manual_304_KMC_C7_MANUAL_DERIVED_FIELD.zks'){304}else{2}
  Assert-KmcOrdinaryInteger $n.number $expectedNumber $expectedNumber;Assert-KmcOrdinaryInteger $n.frame $field.frame $O.settledWorld.frame
  foreach($key in @('outputInitiallyAbsent')){Assert-KmcChunk7Boolean $n.$key $true};Assert-KmcChunk7Boolean $n.slotProjectionEnabled $false
  if((ConvertTo-KmcChunk7Canonical $n.sourceDescriptors)-cne(ConvertTo-KmcChunk7Canonical $O.fixtureReadiness.isolatedSaveDescriptors.descriptors)){throw 'Manual numbering changed its immutable source inventory.'}
@@ -568,18 +568,7 @@ function Assert-KmcManualDerivedNativeSave($Request,$O,$Labels,[string]$Root){
 }
 function Assert-KmcManualDerivedOutcome($Request,$O,$Choice,$Labels,[string]$Root,$Selection=$null){
  if($null-eq$Selection){$Selection=$Request.manualDerived};$s=$Selection;$paid=Test-KmcManualDerivedPaidCase $s.case;$w=$O.nativeWrite
- if($Request.scenario-ceq'chunk7-manual-derived-acquisition'-or(Test-KmcAssistedCumulativeMode $Request.cumulativeAcquisition)){
-  Assert-KmcManualDerivedNativeSave $Request $O $Labels $Root
- }else{
- foreach($pair in @(@('path',(Join-Path $Root 'Auto_1.zks')),@('leaf','Auto_1.zks'),@('type','Auto'),@('operation','None'))){Assert-KmcBootstrapInventoryString $w.($pair[0]) $pair[1]}
- foreach($key in @('gameId','gameName','area')){Assert-KmcBootstrapInventoryString $w.$key $Request.persistenceLoad.$key}
- if($w.name-isnot[string]-or[string]::IsNullOrWhiteSpace($w.name)-or$w.name.Length-gt256-or$w.name-match'[\x00-\x1f\x7f]'-or$w.name-ceq$Request.persistenceLoad.internalName){throw 'Native Auto name is absent or aliases the immutable Manual.'}
- if($w.sha256-isnot[string]-or$w.sha256-cnotmatch'^[a-f0-9]{64}$'-or$w.sha256-ceq$Request.persistenceLoad.sha256-or$w.sha256-ceq$Request.fixture.working.sha256-or$w.sha256-ceq$Request.fixture.baseline.sha256){throw 'Native Auto output must be fresh.'}
- Assert-KmcOrdinaryInteger $w.length 1 268435456;Assert-KmcOrdinaryInteger $w.lastWriteTimeUtcTicks 1 ([DateTime]::MaxValue.Ticks);Assert-KmcOrdinaryInteger $w.schema 3 3;Assert-KmcOrdinaryInteger $w.descriptorCount 2 2
- foreach($key in @('authorizedWrites','admittedWrites','completedWrites','snapshotCount')){Assert-KmcOrdinaryInteger $w.$key 1 1}
- foreach($key in @('autoLevelup','emptyMountedArchive')){Assert-KmcChunk7Boolean $w.$key $true};Assert-KmcChunk7Boolean $w.nativeCallbackSupplied $false;Assert-KmcChunk7Boolean $w.saveBeforeFieldSelection $paid
- Assert-KmcChunk7Boolean $O.slotProjection.initiallyEnabled $false;Assert-KmcChunk7Boolean $O.slotProjection.enabledForTerminalAuto $true;Assert-KmcOrdinaryInteger $O.slotProjection.maximumNativeWrites 1 1
- }
+ Assert-KmcManualDerivedNativeSave $Request $O $Labels $Root
  $f=$O.field;Assert-KmcOrdinaryInteger $f.frame $O.loadedWorld.frame $O.settledWorld.frame
  foreach($pair in @(@('actorId',$Choice.actorId),@('petId',$Choice.petId),@('horseBlueprint','4016c7db400ab721ff125aef9e65e202'),@('featureBlueprint','7db7c50677e39f09feef56f3831fc723'))){Assert-KmcBootstrapInventoryString $f.($pair[0]) $pair[1]}
  if($f.featureSourceGuid-isnot[string]-or$f.featureSourceGuid-cnotmatch'^[a-f0-9]{32}$'){throw 'Native acquired feature lacks its exact source GUID.'};Assert-KmcOrdinaryInteger $f.rank 1 20

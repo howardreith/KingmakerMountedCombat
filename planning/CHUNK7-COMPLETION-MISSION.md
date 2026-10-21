@@ -186,6 +186,8 @@ and its genuine field Manual/acquired cold chain remain F10 work.
 
 [Batch140](../docs/CHUNK7-BATCH140-ASSISTED-STOP-SETTLEMENT-2026-10-21.md) records the distinct diagnostic native **FAIL**: only the installed dialog-stop flag stayed true after Default mode returned and the dialog/cue cleared. A scoped fixture-readiness correction passed focused checks but awaits review, Candidate and native producer verification. The assisted cold chain and ordinary new-character acquisition remain open.
 
+The [October 21 cumulative Manual checkpoint](../docs/CHUNK7-F10-CUMULATIVE-MANUAL-PREPARATION-2026-10-21.md) repairs the legacy source/reader path offline using exact acquired Manual 302 and requested native Manual 303 output; its prelaunch guard, downstream two-owner intake and native qualification remain open under the F10 row. This does not alter the original stale Auto failure or any current F10 verdict.
+
 | Requirement | Engineering status and exact evidence/dependency | Next action |
 | --- | --- | --- |
 | Inherited core, F01–F08 | Prior candidate-specific native PASSes retained in `CURRENT.md`; final exact-package reuse unassessed. | Map current supported contracts for final matrix after implementation readiness. |

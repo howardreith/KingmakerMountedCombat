@@ -48,9 +48,11 @@ namespace KingmakerMountedCombat.Tests
         {
             var s=Existing();var n=Native(s);Check("eligible pet-free owner needs no hire funds",Admits(s,n));
             s=Paid();n=Native(s);Check("exact paid Small boundary at actual cost admits",Admits(s,n));
-            s=Existing();s.NativeWriteLeaf=Chunk7ManualDerivedSelection.OutputLeaf;n=Native(s);
-            Check("cumulative native readiness retains its distinct Auto selection",Chunk7ManualDerivedAdmission.Validate(s,"new-run",n,true).Count==0);
-            Check("Manual-derived native readiness rejects cumulative Auto selection",Chunk7ManualDerivedAdmission.Validate(s,"new-run",n).Count!=0);
+            s=Existing();s.NativeWriteLeaf=Chunk7ManualDerivedSelection.CumulativeLegacyOutputLeaf;n=Native(s);
+            Check("cumulative native readiness admits its distinct Manual selection",Chunk7ManualDerivedAdmission.Validate(s,"new-run",n,true,true).Count==0);
+            Check("Manual-derived native readiness rejects cumulative Manual selection",Chunk7ManualDerivedAdmission.Validate(s,"new-run",n).Count!=0);
+            s.NativeWriteLeaf=Chunk7ManualDerivedSelection.OutputLeaf;
+            Check("cumulative native readiness refuses the unregistered Auto wait",Chunk7ManualDerivedAdmission.Validate(s,"new-run",n,true,true).Count!=0);
             s=Existing();n=Native(s);Array.Reverse(n.PartyCharacterIds);Check("native roster order is not membership authority",Admits(s,n));
             s=Existing();s.Readiness.PartyCharacterIds=new[]{MainId,Target,"30000000-0000-0000-0000-000000000003","40000000-0000-0000-0000-000000000004","50000000-0000-0000-0000-000000000005","60000000-0000-0000-0000-000000000006"};n=Native(s);
             Check("existing acquisition does not need a seventh field slot",Admits(s,n));

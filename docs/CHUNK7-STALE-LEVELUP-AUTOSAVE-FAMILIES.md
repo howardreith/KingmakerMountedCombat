@@ -1,12 +1,12 @@
 # Chunk 7 stale level-up autosave families
 
 Status: the families and cases in the blocked table are **NOT READY**. The
-assisted new-campaign fixture was removed from that table after its completion
-path changed to the initial native Auto followed by a final native Manual. Its
-reader and source checks remain development work; no native success is implied.
-`scripts/runtime/Invoke-KingmakerRuntimeScenario.ps1` refuses each one before any selection
-intake, lock, transaction, Mods swap or game launch, so a run that is known to be futile
-cannot start. Their code paths are kept as they are, with a NOT READY note at each wait site.
+assisted new-campaign fixture and the cumulative legacy source mode now have
+native Manual completion paths. The cumulative legacy source mode is separately
+refused before approval, lock, transaction or launch until its exact-source,
+same-candidate native qualification is prepared. No native cumulative success is
+implied. The remaining stale Auto families are refused before selection intake,
+lock, transaction, Mods swap or game launch.
 
 ## Native fact
 
@@ -48,7 +48,6 @@ operation from its retained native choices, without unblocking those families.
 | Family (scenario / case) | Wait site | Route verified by code path |
 | --- | --- | --- |
 | `chunk7-ordinary-acquisition` (every case) | `src/KingmakerMountedCombat/Diagnostics/Chunk7OrdinaryAcquisitionScenario.cs:112` (stage 1, `ObserveCompletedAutosave` at `:266`) | `RuntimeAutomationHost` builds `Chunk7OrdinaryAcquisitionScenario`. Stage 0 completes the build and stage 1 waits. |
-| `chunk7-cumulative-acquisition` (legacy Auto source mode only) | `Chunk7ManualDerivedScenario.Build.cs` / `ObserveTerminalAutosave` | The legacy source mode still waits for a native level-up Auto. The assisted producer-and-cold mode now has a separate Manual completion path; its native qualification remains pending. |
 | `chunk7-native-progression` / `horse-native-level`, `horse-native-retrain-horse`, `horse-native-retrain-mammoth` | `src/KingmakerMountedCombat/Diagnostics/Chunk7NativeProgressionSession.cs (legacy ObserveTerminalAutosave)` | The historical acquired-source cases retain the native level-up Auto wait and are refused before launch. |
 
 The registry is `Get-KmcChunk7StaleLevelUpAutosaveFamilies` in
@@ -78,7 +77,8 @@ These families do not route through a level-up autosave wait:
   engineering route whose owner-seed source, same-candidate native producer and separate
   cold consumer passed in [batches 131–133](CHUNK7-BATCH131-133-F10-ACQUIRED-COLD-2026-10-21.md).
   This does not pass the historical Auto producer. Assisted cumulative dispatch now takes the
-  Manual path; the legacy source mode retains the blocked Auto route. Neither has a native cumulative PASS yet.
+  Manual path; the legacy source mode now requests its own native Manual 303 from
+  exact acquired Manual 302. Neither has a native cumulative PASS yet.
 - `chunk7-assisted-cold-inventory`.
 - `chunk7-assisted-fixture-preparation`. The selected producer now follows the
   bounded native Ranger choices with its guarded final Manual, without waiting
@@ -100,7 +100,8 @@ These families do not route through a level-up autosave wait:
 `chunk7-acquired-manual-derivative` does not wait for an autosave. Its one-owner
 cases now consume the new Manual-derived field archive, require the acquired pair
 already in the saved field roster, and produce a later genuine Manual. The
-two-owner cumulative route retains its historical Auto intake. Neither route
+two-owner cumulative route still retains historical Auto intake and needs a
+separate Manual 303 adaptation. Neither route
 transfers a PASS from the other or from the pre-repair fixture.
 
 ## Repair each family needs before it is selected
@@ -127,8 +128,14 @@ from the test, and from this note in the same change.
 ## Families that remain to be corrected
 
 1. `chunk7-ordinary-acquisition`
-2. `chunk7-cumulative-acquisition` legacy Auto source mode
-3. `chunk7-native-progression`: the historical level case and two historical respec cases
+2. `chunk7-native-progression`: the historical level case and two historical respec cases
+
+`chunk7-cumulative-acquisition` legacy Auto wait has been replaced by a distinct guarded native
+Manual 303 request from exact acquired Manual 302. Its production selection,
+authority, observer and external reader pass focused offline checks. It remains
+refused by a separate prelaunch `legacy-manual` gate pending a fresh same-candidate
+Manual 302 source and native result. The original stale Auto failure and frozen
+Auto fixture remain historical evidence, not a Manual PASS.
 
 The selected owner-seed Manual-derived producer and one-owner acquired cold
 consumer are repaired and passed actual native qualification in batches 131–133.

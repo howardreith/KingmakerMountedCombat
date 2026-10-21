@@ -6,22 +6,22 @@ if(-not$ReaderDirectory){$ReaderDirectory=Join-Path $RepositoryRoot 'scripts/run
 if(-not$FixtureDirectory){$FixtureDirectory=Join-Path $RepositoryRoot 'tests/Chunk7Diagnostics'}
 if(-not$OutputDirectory){$OutputDirectory=Join-Path ([IO.Path]::GetDirectoryName([IO.Path]::GetDirectoryName($RepositoryRoot))) ('analysis-cache/chunk7-continuation/chunk7cumulativeevidence-'+[Guid]::NewGuid().ToString('N'))}
 . (Join-Path $ReaderDirectory 'RuntimeHarness.Common.ps1')
-function New-CumulativeFixture([bool]$Paid=$true){$name=if($Paid){'Paid'}else{'Existing'};[IO.File]::ReadAllText((Join-Path $FixtureDirectory ('Cumulative'+$name+'Fixture.json')))|ConvertFrom-Json}
+. (Join-Path $PSScriptRoot 'Convert-Chunk7CumulativeManualFixture.ps1')
+function New-CumulativeFixture([bool]$Paid=$true){$name=if($Paid){'Paid'}else{'Existing'};$historical=[IO.File]::ReadAllText((Join-Path $FixtureDirectory ('Cumulative'+$name+'Fixture.json')))|ConvertFrom-Json;Convert-KmcSyntheticCumulativeManualFixture $historical $FixtureDirectory $name}
 function Check-Cumulative($F){Assert-KmcChunk7CumulativeEvidence $F.request $F.artifact $F.source}
 if($FixturesOnly){return}
 [void][IO.Directory]::CreateDirectory($OutputDirectory);$script:passes=0;$script:failures=0
 function Good([string]$Name,[scriptblock]$Body){try{&$Body;$script:passes++;Write-Host ('PASS '+$Name)}catch{$script:failures++;Write-Host ('FAIL '+$Name+': '+$_+' '+$_.ScriptStackTrace)}}
 function Bad([string]$Name,[scriptblock]$Body){$rejected=$false;try{&$Body}catch{$rejected=$true};if($rejected){$script:passes++;Write-Host ('PASS refuses '+$Name)}else{$script:failures++;Write-Host ('FAIL accepted '+$Name)}}
 foreach($paid in @($true,$false)){Good ('closed cumulative '+$paid){Check-Cumulative (New-CumulativeFixture $paid)}}
-Good 'assisted Manual native choices omit the Auto observer' {
+Good 'cumulative Manual native choices omit the Auto observer' {
  $f=New-CumulativeFixture;$f.request.cumulativeAcquisition|Add-Member -NotePropertyName sourceMode -NotePropertyValue 'assisted-producer-and-cold'
- $f.artifact.observations.PSObject.Properties.Remove('nativeAcquisition')
  $choice=Assert-KmcManualDerivedNativeChoices $f.request $f.artifact.observations $f.request.cumulativeAcquisition
- if($choice.actorId-cne$f.artifact.observations.field.actorId){throw 'Assisted Manual choice identity differs.'}
+ if($choice.actorId-cne$f.artifact.observations.field.actorId){throw 'Manual choice identity differs.'}
 }
-Bad 'legacy Auto native choices omit the installed observer' {
- $f=New-CumulativeFixture;$f.artifact.observations.PSObject.Properties.Remove('nativeAcquisition')
- Assert-KmcManualDerivedNativeChoices $f.request $f.artifact.observations $f.request.cumulativeAcquisition
+Bad 'frozen Auto fixture cannot pass the new Manual reader' {
+ $f=[IO.File]::ReadAllText((Join-Path $FixtureDirectory 'CumulativePaidFixture.json'))|ConvertFrom-Json
+ Check-Cumulative $f
 }
 $cases=[ordered]@{
  'one-owner missing prior pin'={param($f)$f.request.cumulativeAcquisition.priorOwnerId=$null}
@@ -29,6 +29,7 @@ $cases=[ordered]@{
  'prior pet is party character'={param($f)$f.request.cumulativeAcquisition.readiness.partyCharacterIds+=,$f.request.cumulativeAcquisition.priorPetId}
  'foreign candidate'={param($f)$f.source.dllSha256='e'*64}
  'third-owner source family'={param($f)$f.source.observations.selection.case='preserve-two-acquired-field'}
+ 'different valid source number'={param($f)$f.request.persistenceLoad.fileName='Manual_305_KMC_C7_ACQUIRED_FIELD.zks'}
  'source relationship reversed'={param($f)$f.source.observations.nativeProfileInventory.party[1].masterId=$f.artifact.observations.field.actorId}
  'prior pair missing in source'={param($f)$f.source.observations.nativeProfileInventory.party[0].petId=$null}
  'prior field owner remote'={param($f)$f.source.observations.savedOwner.remoteCompanions=@($f.request.cumulativeAcquisition.priorOwnerId)}

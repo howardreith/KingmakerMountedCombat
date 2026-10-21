@@ -35,15 +35,14 @@ function Expected([string]$Name,[string]$Site){'Scenario family '+$Name+' is not
 $blocked=[ordered]@{
     'chunk7-ordinary-acquisition'='src/KingmakerMountedCombat/Diagnostics/Chunk7OrdinaryAcquisitionScenario.cs:112 (ObserveCompletedAutosave, :266)'
 }
-$cumulativeSite='src/KingmakerMountedCombat/Diagnostics/Chunk7ManualDerivedScenario.Build.cs (legacy TickBuild/ObserveTerminalAutosave; reached through Chunk7ManualDerivedScenario.CreateCumulative)'
+$manualReason='Scenario family chunk7-cumulative-acquisition/legacy-manual is not ready: the new Manual_303 completion is awaiting same-candidate native qualification from exact Manual_302 source; preserve the prelaunch guard until that source and review gates are settled.'
 $progressionSite='src/KingmakerMountedCombat/Diagnostics/Chunk7NativeProgressionSession.cs (legacy ObserveTerminalAutosave)'
 $blockedCases=@('horse-native-level','horse-native-retrain-horse','horse-native-retrain-mammoth')
 $admittedCases=@('horse-native-dismiss','owned-horse-native-dismiss','owned-horse-native-level','owned-horse-native-retrain-horse','owned-horse-native-retrain-mammoth','small-horse-native-dismiss','small-horse-native-retrain-horse','small-horse-native-level','medium-horse-native-retrain-mammoth')
 
 # The registry is exact and every recorded wait site is the live wait in the source.
 $families=@(Get-KmcChunk7StaleLevelUpAutosaveFamilies)
-if((($families|ForEach-Object scenario)-join'|')-cne((@($blocked.Keys)+'chunk7-cumulative-acquisition'+'chunk7-native-progression')-join'|')){throw 'Stale family registry differs.'}
-if(((@($families|Where-Object scenario -CEQ 'chunk7-cumulative-acquisition')[0].cases)-join'|')-cne'legacy-auto'){throw 'Cumulative legacy Auto refusal differs.'}
+if((($families|ForEach-Object scenario)-join'|')-cne((@($blocked.Keys)+'chunk7-native-progression')-join'|')){throw 'Stale family registry differs.'}
 if(((@($families|Where-Object scenario -CEQ 'chunk7-native-progression')[0].cases)-join'|')-cne($blockedCases-join'|')){throw 'Stale progression cases differ.'}
 if(@(Compare-Object @(Get-KmcChunk7ProgressionCases) @($blockedCases+$admittedCases)).Count-ne0){throw 'Progression cases are not partitioned into exactly blocked and admitted.'}
 Pass 'stale family registry is exact and partitions every progression case'
@@ -56,8 +55,9 @@ foreach($check in $siteChecks){
 }
 Pass 'every recorded wait site is the live wait and carries its NOT READY note'
 $manualSource=[IO.File]::ReadAllText((Join-Path $RepositoryRoot 'src/KingmakerMountedCombat/Diagnostics/Chunk7ManualDerivedScenario.Build.cs'))
-foreach($value in @('if (cumulative == null || cumulative.UsesAssistedCold) { TickManualBuild(); return; }','if (!ObserveTerminalAutosave()) return;','private bool ObserveTerminalAutosave()','NOT READY - stale level-up autosave wait')){if(-not$manualSource.Contains($value)){throw ('Cumulative completion dispatch changed: '+$value)}}
-Pass 'assisted cumulative uses Manual completion while legacy Auto wait remains guarded'
+foreach($value in @('TickManualBuild();','BeginManualDerivedSave();','ObserveManualDerivedSave()')){if(-not$manualSource.Contains($value)){throw ('Cumulative Manual completion dispatch changed: '+$value)}}
+if($manualSource.Contains('ObserveTerminalAutosave()')){throw 'Cumulative source retains the obsolete Auto wait.'}
+Pass 'cumulative legacy and assisted paths use native Manual completion'
 $progressionSource=[IO.File]::ReadAllText((Join-Path $RepositoryRoot 'src/KingmakerMountedCombat/Diagnostics/Chunk7NativeProgressionSession.cs'))
 if(-not$progressionSource.Contains('if (WritesAutosave && !ObserveTerminalAutosave()) return;')-or
    -not$progressionSource.Contains('private bool ObserveTerminalAutosave()')-or
@@ -73,7 +73,7 @@ Pass 'tracked note records every blocked family, case, wait site and the require
 foreach($entry in $blocked.GetEnumerator()){
     foreach($case in @($null,'horse-native-dismiss')){if((Get-KmcChunk7FamilyNotReadyReason $entry.Key $case)-cne(Expected $entry.Key $entry.Value)){throw ('Reason differs: '+$entry.Key)}}
 }
-if((Get-KmcChunk7FamilyNotReadyReason 'chunk7-cumulative-acquisition' 'legacy-auto')-cne(Expected 'chunk7-cumulative-acquisition/legacy-auto' $cumulativeSite)){throw 'Legacy cumulative refusal differs.'}
+if((Get-KmcChunk7FamilyNotReadyReason 'chunk7-cumulative-acquisition' 'legacy-manual')-cne$manualReason){throw 'Legacy cumulative Manual qualification guard differs.'}
 foreach($case in @($null,'assisted-manual')){if($null-ne(Get-KmcChunk7FamilyNotReadyReason 'chunk7-cumulative-acquisition' $case)){throw 'Assisted cumulative Manual was refused.'}}
 foreach($case in $blockedCases){if((Get-KmcChunk7FamilyNotReadyReason 'chunk7-native-progression' $case)-cne(Expected ('chunk7-native-progression/'+$case) $progressionSite)){throw ('Progression reason differs: '+$case)}}
 Pass 'every blocked family and progression case has its exact refusal'
@@ -95,7 +95,7 @@ $later=@('Read-KmcChunk7FieldSelectionFile','Read-KmcChunk7OrdinarySelectionFile
 $approval=@($ast.FindAll({param($n)$n-is[Management.Automation.Language.InvokeMemberExpressionAst]-and$n.Member.Extent.Text-ceq'ShouldProcess'},$true))
 if($asserts.Count-ne3-or$progressionRead.Count-lt1-or$cumulativeRead.Count-lt1-or$approval.Count-ne1-or
     $asserts[0].Extent.Text-cne'Assert-KmcChunk7FamilyReady $Scenario $null'-or$asserts[0].Extent.StartOffset-ge$first-or
-    $asserts[1].Extent.Text-cne'Assert-KmcChunk7FamilyReady $Scenario $(if(Test-KmcAssistedCumulativeMode $cumulativeAcquisitionInput.selection){''assisted-manual''}else{''legacy-auto''})'-or
+    $asserts[1].Extent.Text-cne'Assert-KmcChunk7FamilyReady $Scenario $(if(Test-KmcAssistedCumulativeMode $cumulativeAcquisitionInput.selection){''assisted-manual''}else{''legacy-manual''})'-or
     $asserts[1].Extent.StartOffset-le$cumulativeRead[0].Extent.StartOffset-or$asserts[1].Extent.StartOffset-ge$approval[0].Extent.StartOffset-or
     $asserts[2].Extent.Text-cne'Assert-KmcChunk7FamilyReady $Scenario ([string]$progressionSelectionInput.selection.case)'-or
     $asserts[2].Extent.StartOffset-le$progressionRead[0].Extent.StartOffset-or$asserts[2].Extent.StartOffset-ge$later-or
@@ -114,10 +114,11 @@ foreach($entry in $blocked.GetEnumerator()){
     Pass ('actual runner refuses '+$entry.Key+' before any intake or lock')
 }
 $legacyFixture=Read-KmcJson (Join-Path $RepositoryRoot 'tests/Chunk7Diagnostics/CumulativePaidFixture.json')
+$legacyFixture.request.cumulativeAcquisition.nativeWriteLeaf='Manual_303_KMC_C7_MANUAL_DERIVED_FIELD.zks'
 $legacySelection=Join-Path $output 'legacy-cumulative-selection.json'
 [IO.File]::WriteAllText($legacySelection,($legacyFixture.request.cumulativeAcquisition|ConvertTo-Json -Depth 30),[Text.UTF8Encoding]::new($false))
 $legacyResult=Invoke-Runner @('-Scenario','chunk7-cumulative-acquisition','-RunId','stale-cumulative-gate','-BaseGameOnly','-SaveAccessAllowed','-CumulativeAcquisitionSelectionPath',$legacySelection)
-if($legacyResult.code-eq0-or-not$legacyResult.text.Contains((Expected 'chunk7-cumulative-acquisition/legacy-auto' $cumulativeSite))){throw ('Actual legacy cumulative refusal differs: '+$legacyResult.text)}
+if($legacyResult.code-eq0-or-not$legacyResult.text.Contains($manualReason)){throw ('Actual legacy cumulative Manual refusal differs: '+$legacyResult.text)}
 Pass 'actual legacy cumulative selection is refused before approval, lock and launch'
 # Progression: a real closed selection under the lab cache is read, then refused by its case.
 # Selection intake hashes its file, which -WhatIf would turn into a no-op, so these runs omit

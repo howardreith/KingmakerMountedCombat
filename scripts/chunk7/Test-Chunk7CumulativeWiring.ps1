@@ -24,7 +24,7 @@ $body=[IO.File]::ReadAllText((Join-Path $bridgeRuntime 'Test-RuntimeRequest.ps1'
 if(([regex]::Matches($body,[regex]::Escape($import))).Count-ne1){throw 'Actual request import boundary changed'}
 $validator=[scriptblock]::Create($body.Replace($import,'# Common already loaded; actual validator body follows.'))
 function Validate($Q){$path=Join-Path $bridgeOutput 'request.json';[IO.File]::WriteAllText($path,(ConvertTo-KmcChunk7Canonical $Q),[Text.UTF8Encoding]::new($false));&$validator -RequestPath $path|Out-Null}
-Good 'full request accepts exact one-Manual-load one-Auto-write family' {Validate (Request)}
+Good 'full request accepts exact one-Manual-load one-Manual-write family' {Validate (Request)}
 # The runner holds its request as an ordered dictionary until serialization; the selection assert must detect dictionary keys too.
 function RunnerRequest {$q=Request;$r=[ordered]@{schemaVersion=2;runId=$q.runId;scenario=$q.scenario};$r['cumulativeAcquisition']=$q.cumulativeAcquisition;$r}
 Good 'cumulative selection assert accepts the runner ordered-dictionary request' {Assert-KmcChunk7CumulativeSelection (RunnerRequest)}
@@ -52,13 +52,13 @@ foreach($n in $negative.GetEnumerator()){Bad ('full request '+$n.Key){$q=Request
 Good 'historical fixture request unchanged' {$q=Request;$q.scenario='fixture-intake';$q.PSObject.Properties.Remove('cumulativeAcquisition');$q.PSObject.Properties.Remove('persistenceLoad');Validate $q}
 foreach($leaf in @('Test-RuntimeGameResult.ps1','Test-RuntimeResult.ps1')){
  . ([scriptblock]::Create((ExactFunction (Ast (Join-Path $bridgeRuntime $leaf)) 'Assert-SubscenarioResults')))
- $names=@('C7-cumulative-source','C7-cumulative-native-load','C7-cumulative-eligibility','C7-cumulative-native-choices','C7-cumulative-native-autosave','C7-cumulative-native-field','C7-cumulative-cleanup')
+ $names=@('C7-cumulative-source','C7-cumulative-native-load','C7-cumulative-eligibility','C7-cumulative-native-choices','C7-cumulative-native-field','C7-cumulative-native-manual-save','C7-cumulative-cleanup')
  $result=[pscustomobject]@{scenario='chunk7-cumulative-acquisition';subscenarioResults=@($names|ForEach-Object{[pscustomobject]@{name=$_;status='PASS';assertionPassCount=1;assertionFailCount=0;errors=@()}});subscenarioTotal=7;subscenarioPassCount=7;subscenarioFailCount=0;assertionPassCount=7;assertionFailCount=0}
  Good ($leaf+' exact closed rows'){Assert-SubscenarioResults $result}
  Bad ($leaf+' arbitrary row'){$q=CopyValue $result;$q.subscenarioResults[0].name='C7-cumulative-any';Assert-SubscenarioResults $q}
  Bad ($leaf+' duplicated row'){$q=CopyValue $result;$q.subscenarioResults[1].name=$q.subscenarioResults[0].name;Assert-SubscenarioResults $q}
- $manual=CopyValue $result;$manual.subscenarioResults[4].name='C7-cumulative-native-manual-save'
- Good ($leaf+' exact assisted Manual row'){Assert-SubscenarioResults $manual}
+ $auto=CopyValue $result;$auto.subscenarioResults[5].name='C7-cumulative-native-autosave'
+ Bad ($leaf+' obsolete Auto row') {Assert-SubscenarioResults $auto}
 }
 $gameAst=Ast (Join-Path $bridgeRuntime 'Test-RuntimeGameResult.ps1')
 foreach($quotaName in @('expectedNativeWrites','expectedWorkingLoads')){
@@ -89,6 +89,9 @@ function ManifestFixture([bool]$Pending=$false){
  $nativeRoot=Join-Path ([IO.Path]::GetDirectoryName([IO.Path]::GetDirectoryName($f.request.evidenceRoot))) ('runtime-staging/persistence-'+$f.request.runId+'/Saved Games');$o=$f.artifact.observations
  foreach($row in @($o.beforeLoad,$o.loadedWorld,$o.settledWorld,$o.cleanup)){$row.authority.root=$nativeRoot}
  $o.fixtureReadiness.isolatedSaveDescriptors.root=$nativeRoot;$o.nativeWrite.path=Join-Path $nativeRoot $o.nativeWrite.leaf
+ $o.saveRequested.authority.root=$nativeRoot
+ foreach($row in @($o.savedWorld,$o.savedFieldWorld)){$row.authority.root=$nativeRoot}
+ foreach($event in $o.nativeSave.events){if($null-ne$event.path){$event.path=Join-Path $nativeRoot $o.nativeWrite.leaf}}
  $sourceDir=Join-Path $bridgeOutput $f.request.cumulativeAcquisition.sourceRunId;[void][IO.Directory]::CreateDirectory($sourceDir);$sourcePath=Join-Path $sourceDir 'chunk7-acquired-manual-evidence.json';[IO.File]::WriteAllText($sourcePath,(ConvertTo-KmcChunk7Canonical $f.source),[Text.UTF8Encoding]::new($false))
  $sha=Get-KmcSha256 $sourcePath;$f.request.cumulativeAcquisition.sourceArtifactSha256=$sha;$o.selection.sourceArtifactSha256=$sha;$o.source.artifactSha256=$sha;$o.choices[0].nativeInventorySha256=$sha
  $kind='chunk7-cumulative-acquisition-evidence'
