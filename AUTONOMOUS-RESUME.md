@@ -1,6 +1,22 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
-## Active October 21 after Medium mounted-route development — native proof next
+## Active October 21 after batch115 — mounted Medium Horse Manual/cold PASS
+
+The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
+[Batch115](docs/CHUNK7-BATCH115-MEDIUM-MOUNTED-DEVELOPMENT-2026-10-21.md)
+froze pushed `268ecec3` as world119, passed Candidate 7/0 and then passed two
+declared native scenarios: genuine two-pair paid Medium Horse mounted Manual
+game/outer 5/0, followed by its separate-process independent-copy cold load
+game/outer 3/0 with zero writes. Both transactions settled exact Mods, Working,
+protected saves and profile bytes with no cache exceptions, game process or
+lock. Next implement the distinct F10 Horse-to-Mammoth replacement/Manual/cold
+operation from the now-qualified Doll-backed paid Medium source. Do not relabel
+the mounted Horse Manual as replacement, transfer old preview PASS to world119,
+or use the stale F09 Small source gate without addressing its changed reader
+pins. F09/F10/F11 and selected private 7E remain open. The development paragraph
+below is history.
+
+## Historical October 21 after Medium mounted-route development — native proof next
 
 The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
 The distinct paid Medium Human/Horse mounted Manual and separate cold route now
