@@ -146,9 +146,11 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (horses.State != HorseCompanionBlueprintState.Registered) return;
                 RequireNoOwners(); RequireNoEffects();
                 var data = persistence.LoadedArchive;
-                Require(data != null && data.SchemaVersion == 3 && data.CampaignId == saved.GameId && data.AreaId == saved.Area &&
-                    data.Pairs.Length == 0 && data.Participations.Length == 0 && data.Slots.Length == 0 && data.Combat == null,
-                    "Cold source is not the qualified empty mounted archive.");
+                Require(selection.UsesOwnerSeedCold
+                    ? data == null && persistence.LoadedArchiveKind == MountedSaveReadKind.Missing && !persistence.LoadedArchiveCanRestore
+                    : data != null && data.SchemaVersion == 3 && data.CampaignId == saved.GameId && data.AreaId == saved.Area &&
+                      data.Pairs.Length == 0 && data.Participations.Length == 0 && data.Slots.Length == 0 && data.Combat == null,
+                    "Cold source differs from its qualified empty or missing mounted metadata.");
                 var trace = restoration.Capture();
                 Require(restoration.Complete && trace["events"] is JArray entries && entries.Count == 0,
                     "Cold inventory observed native Prepare/round or KMC actor/debt restoration entries.");
@@ -160,9 +162,11 @@ namespace KingmakerMountedCombat.Diagnostics
                 evidence["nativeProfileInventory"] = Chunk7NativeProfileInventory.Capture(actors);
                 Require((string)evidence["nativeProfileInventory"]["captureStatus"] == "PASS", "Native read-only body/readiness inventory failed.");
                 evidence["fixtureReadiness"] = CaptureFixtureReadiness();
-                evidence["archive"] = new JObject { ["schemaVersion"] = data.SchemaVersion, ["campaignId"] = data.CampaignId, ["areaId"] = data.AreaId,
-                    ["pairs"] = data.Pairs.Length, ["participations"] = data.Participations.Length, ["slots"] = data.Slots.Length,
-                    ["combatPresent"] = data.Combat != null, ["nativeRestorationGrantedByDiagnostic"] = false };
+                evidence["archive"] = selection.UsesOwnerSeedCold
+                    ? new JObject { ["kind"] = "Missing", ["loadedArchivePresent"] = false, ["nativeRestorationGrantedByDiagnostic"] = false }
+                    : new JObject { ["schemaVersion"] = data.SchemaVersion, ["campaignId"] = data.CampaignId, ["areaId"] = data.AreaId,
+                        ["pairs"] = data.Pairs.Length, ["participations"] = data.Participations.Length, ["slots"] = data.Slots.Length,
+                        ["combatPresent"] = data.Combat != null, ["nativeRestorationGrantedByDiagnostic"] = false };
                 RequireManualReadiness();
                 Pass("C7-manual-derived-native-load"); StartBuild();
             }
@@ -220,7 +224,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     ["actorId"] = value.UniqueId, ["blueprintGuid"] = value.Blueprint.AssetGuid, ["isMain"] = ReferenceEquals(value, main),
                     ["lockedCompanionComponent"] = value.Blueprint.GetComponent<Kingmaker.Blueprints.LockedCompanionComponent>() != null })) };
 
-            if (cumulative != null) result["staticPartyFacts"]["observationScope"] = "static-getters-only";
+            if (cumulative != null || selection.UsesOwnerSeedCold) result["staticPartyFacts"]["observationScope"] = "static-getters-only";
 
             var saves = manager.Take(33).ToArray();
             Require(saves.Length <= 32 && saves.All(value => value != null), "Isolated native descriptor inventory is null or exceeds its bound.");
@@ -254,6 +258,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 "Exact staged successful Manual artifact/archive bytes differ.");
             sourceLength = source.Length; sourceTicks = source.LastWriteTimeUtc.Ticks; archiveLength = archive.Length; archiveTicks = archive.LastWriteTimeUtc.Ticks; sourcePinned = true;
             var artifact = JObject.Parse(File.ReadAllText(sourcePath)); sourceObservations = artifact["observations"] as JObject;
+            if (selection.UsesOwnerSeedCold) { ReadOwnerSeedColdSource(artifact); return; }
             Require((string)artifact["runId"] == selection.SourceRunId && (string)artifact["scenario"] == Chunk7ManualSeedSelection.Scenario &&
                 (string)artifact["evidenceKind"] == Chunk7ManualSeedScenario.EvidenceKind && (string)artifact["status"] == "PASS" &&
                 artifact["errors"] is JArray sourceErrors && sourceErrors.Count == 0 &&

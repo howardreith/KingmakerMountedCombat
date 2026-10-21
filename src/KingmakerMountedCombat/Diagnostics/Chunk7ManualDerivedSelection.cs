@@ -17,6 +17,10 @@ namespace KingmakerMountedCombat.Diagnostics
         public const string SourceLeaf = "manual-derived-source.json";
         public const string ManualOutputName = "KMC_C7_MANUAL_DERIVED_FIELD";
         public const string ManualOutputLeaf = "Manual_2_KMC_C7_MANUAL_DERIVED_FIELD.zks";
+        // A registered owner seed is Manual_303; its first genuine new Manual is 304.
+        public const string OwnerSeedOutputLeaf = "Manual_304_KMC_C7_MANUAL_DERIVED_FIELD.zks";
+        public const string OwnerSeedInputLeaf = "Manual_303_KMC_C7_NO_MODS_OWNER_SEED.zks";
+        public const string OwnerSeedInputName = "KMC C7 NO MODS OWNER SEED";
         // Retained for the separate cumulative family until its own completion path is repaired.
         public const string OutputLeaf = "Auto_1.zks";
         public const int RangerAcquisitionLevel = 4;
@@ -41,6 +45,7 @@ namespace KingmakerMountedCombat.Diagnostics
         public Chunk7MediumHireBodyPins MediumBody { get; set; }
         public bool ShouldSerializeMediumBody() => MediumBody != null;
         internal bool PaidHire => Case == PaidSmallCase || Case == PaidMediumCase;
+        internal bool UsesOwnerSeedCold => NativeWriteLeaf == OwnerSeedOutputLeaf;
 
         public IReadOnlyList<string> Validate(string scenario, string runId, bool cumulativeAuto = false)
         {
@@ -52,7 +57,8 @@ namespace KingmakerMountedCombat.Diagnostics
             foreach (var value in new[] { SourceArtifactSha256, SourceArchiveSha256 })
                 if (!Regex.IsMatch(value ?? "", "^[a-f0-9]{64}$")) errors.Add("Exact immutable Manual source hashes are required.");
             if (!BaseGameOnly || ExpectedNativeLoadCount != 1 || ExpectedNativeWriteCount != 1 ||
-                NativeWriteLeaf != (cumulativeAuto ? OutputLeaf : ManualOutputLeaf))
+                (cumulativeAuto ? NativeWriteLeaf != OutputLeaf :
+                    NativeWriteLeaf != ManualOutputLeaf && NativeWriteLeaf != OwnerSeedOutputLeaf))
                 errors.Add("Acquisition requires its exact base-only one-load, one-write native output.");
             if (Readiness == null) errors.Add("Observed source readiness pins are required.");
             else errors.AddRange(Readiness.Validate());

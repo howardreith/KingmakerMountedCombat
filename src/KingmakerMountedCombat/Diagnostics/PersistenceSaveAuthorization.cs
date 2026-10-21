@@ -117,8 +117,11 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 Entry input;
                 if (acquiredManualRequest == null || !AcquiredManualRequestUnchanged() ||
-                    source == null || source.FileName != (acquiredManualRequest.AcquiredManual.Case == Chunk7AcquiredManualSelection.TwoOwnerCaseName ?
-                        "Auto_1.zks" : Chunk7ManualDerivedSelection.ManualOutputLeaf) || source.GameId != gameId || source.GameName != gameName ||
+                    source == null ||
+                    !(acquiredManualRequest.AcquiredManual.Case == Chunk7AcquiredManualSelection.TwoOwnerCaseName ? source.FileName == "Auto_1.zks" :
+                        (source.FileName == Chunk7ManualDerivedSelection.ManualOutputLeaf || source.FileName == Chunk7ManualDerivedSelection.OwnerSeedOutputLeaf) &&
+                        source.FileName == acquiredManualRequest.PersistenceLoad.FileName) ||
+                    source.GameId != gameId || source.GameName != gameName ||
                     maximumNativeLoadRequests != 1 || maximumNativeWriteRequests != 1 || declaresBootstrap || bootstrapWindowOpen ||
                     !entries.TryGetValue(source.FileName, out input) || input.Name != source.InternalName ||
                     input.Type != acquiredManualRequest.ExpectedNativeLoadType ||
@@ -288,8 +291,10 @@ namespace KingmakerMountedCombat.Diagnostics
             lock (sync)
             {
                 Entry input, output;
-                if (source == null || source.FileName != "Manual_1_KMC_C7_NATIVE_SEED.zks" || source.InternalName != Chunk7ManualSeedSelection.OutputName ||
-                    source.GameId != gameId || source.GameName != gameName || outputLeaf != Chunk7ManualDerivedSelection.ManualOutputLeaf ||
+                if (source == null ||
+                    !(source.FileName == "Manual_1_KMC_C7_NATIVE_SEED.zks" && source.InternalName == Chunk7ManualSeedSelection.OutputName && outputLeaf == Chunk7ManualDerivedSelection.ManualOutputLeaf ||
+                      source.FileName == Chunk7ManualDerivedSelection.OwnerSeedInputLeaf && source.InternalName == Chunk7ManualDerivedSelection.OwnerSeedInputName && outputLeaf == Chunk7ManualDerivedSelection.OwnerSeedOutputLeaf) ||
+                    source.GameId != gameId || source.GameName != gameName ||
                     outputName != Chunk7ManualDerivedSelection.ManualOutputName ||
                     maximumNativeLoadRequests != 1 || maximumNativeWriteRequests != 1 || declaresBootstrap || bootstrapWindowOpen || entries.Count != 2 ||
                     !entries.TryGetValue(source.FileName, out input) || input.Name != source.InternalName || input.Type != "Manual" ||

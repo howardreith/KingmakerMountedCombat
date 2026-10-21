@@ -295,7 +295,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var number = manager.FindUnusedSaveNumber(SaveInfo.SaveType.Manual);
             var leaf = "Manual_" + number.ToString(System.Globalization.CultureInfo.InvariantCulture) + "_" +
                 Chunk7ManualDerivedSelection.ManualOutputName + ".zks";
-            Require(number == 2 && leaf == Chunk7ManualDerivedSelection.ManualOutputLeaf &&
+            Require(number == (selection.UsesOwnerSeedCold ? 304 : 2) && leaf == selection.NativeWriteLeaf &&
                 !File.Exists(Path.Combine(root, leaf)), "Native Manual numbering or output absence differs.");
             evidence["nativeNumbering"] = new JObject { ["method"] = "FindUnusedSaveNumber",
                 ["token"] = "06008024", ["moduleMvid"] = typeof(SaveManager).Module.ModuleVersionId.ToString("D"),
@@ -331,12 +331,12 @@ namespace KingmakerMountedCombat.Diagnostics
                 completion != null && completion.Sequence == 1 &&
                 ReferenceEquals(completion.Requested, requestedManual) &&
                 ReferenceEquals(completion.Written, manualSaveProbe.Written) &&
-                completion.Path == Path.Combine(root, Chunk7ManualDerivedSelection.ManualOutputLeaf),
+                completion.Path == Path.Combine(root, selection.NativeWriteLeaf),
                 "Native Manual completion lacks exact request, worker, callback or authority proof.");
             var save = completion.Written; var saves = manager.Take(3).ToArray();
             Require(saves.Length == 2 && saves.Count(value => value.FileName == request.PersistenceLoad.FileName) == 1 &&
                 saves.Count(value => ReferenceEquals(value, save)) == 1 &&
-                save.FileName == Chunk7ManualDerivedSelection.ManualOutputLeaf &&
+                save.FileName == selection.NativeWriteLeaf &&
                 save.Name == Chunk7ManualDerivedSelection.ManualOutputName && save.Type == SaveInfo.SaveType.Manual &&
                 !save.IsAutoLevelupSave && save.HasFileOnDisk && save.IsActuallySaved &&
                 save.OperationState == SaveInfo.StateType.None && save.GameId == request.PersistenceLoad.GameId &&

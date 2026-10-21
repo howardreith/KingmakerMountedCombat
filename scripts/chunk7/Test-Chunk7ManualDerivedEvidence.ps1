@@ -9,12 +9,41 @@ $derivedReader=[IO.Path]::GetFullPath($ReaderDirectory);$derivedFixtures=[IO.Pat
 . (Join-Path $derivedReader 'RuntimeHarness.Common.ps1')
 function New-ManualDerivedFixture([bool]$Paid=$true){$name=if($Paid){'Paid'}else{'Existing'};return [IO.File]::ReadAllText((Join-Path $derivedFixtures ('ManualDerived'+$name+'Fixture.json')))|ConvertFrom-Json}
 function Check-ManualDerived($F){Assert-KmcChunk7ManualDerivedEvidence $F.request $F.artifact $F.source}
+function New-OwnerSeedDerivedFixture {
+ $raw=[IO.File]::ReadAllText((Join-Path $derivedFixtures 'ManualDerivedExistingFixture.json'))
+ $raw=$raw.Replace('Manual_1_KMC_C7_NATIVE_SEED.zks','Manual_303_KMC_C7_NO_MODS_OWNER_SEED.zks').Replace('KMC_C7_NATIVE_SEED','KMC C7 NO MODS OWNER SEED').Replace('Manual_2_KMC_C7_MANUAL_DERIVED_FIELD.zks','Manual_304_KMC_C7_MANUAL_DERIVED_FIELD.zks')
+ $f=$raw|ConvertFrom-Json;$f.request.manualDerived.nativeWriteLeaf='Manual_304_KMC_C7_MANUAL_DERIVED_FIELD.zks';$f.artifact.observations.nativeNumbering.number=304
+ $source=$f.source;$source.scenario='chunk7-assisted-cold-inventory';$source.evidenceKind='chunk7-assisted-cold-inventory-evidence'
+ $source.observations.fixtureReadiness.staticPartyFacts|Add-Member -NotePropertyName observationScope -NotePropertyValue 'static-getters-only'
+ $f.artifact.observations.fixtureReadiness.staticPartyFacts|Add-Member -NotePropertyName observationScope -NotePropertyValue 'static-getters-only'
+ $world=$source.observations.savedWorld;$arrangement=$source.observations.afterSaveArrangement
+ $world|Add-Member -NotePropertyName nativeMoney -NotePropertyValue $arrangement.money
+ foreach($actor in $world.party){$progression=@($arrangement.actors|Where-Object actorId -CEQ $actor.id)[0]
+  $actor|Add-Member -NotePropertyName experience -NotePropertyValue $progression.experience
+  $actor|Add-Member -NotePropertyName characterLevel -NotePropertyValue $progression.characterLevel
+  $actor|Add-Member -NotePropertyName classes -NotePropertyValue @($progression.classes|ForEach-Object{[pscustomobject]@{guid=$_.classGuid;level=$_.level}})
+ }
+ $source.observations.loadedWorld=$world
+ $source.observations.selection=[pscustomobject]@{case='owner-seed-readonly-inventory';seedId='KMC_C7_NO_MODS_OWNER_SEED';seedSha256=$f.request.manualDerived.sourceArchiveSha256;baseGameOnly=$true;expectedNativeLoadCount=1;expectedNativeWriteCount=0}
+ $source.observations|Add-Member -NotePropertyName seedSource -NotePropertyValue ([pscustomobject]@{archiveLeaf=$f.request.persistenceLoad.fileName;ownerAuthorized=$true;producerAncestry=$false})
+ $source.observations|Add-Member -NotePropertyName ownerSeedQualification -NotePropertyValue ([pscustomobject]@{qualified=$true})
+ $source.observations|Add-Member -NotePropertyName kmcMetadata -NotePropertyValue ([pscustomobject]@{kind='Missing';loadedArchivePresent=$false})
+ foreach($key in @('savedWorld','afterSaveArrangement','nativeWrite')){$source.observations.PSObject.Properties.Remove($key)}
+ $f.artifact.observations.sourceManualObservations=$source.observations;$f.artifact.observations.sourceNativeWorld=$world
+ $f.artifact.observations.archive=[pscustomobject]@{kind='Missing';loadedArchivePresent=$false;nativeRestorationGrantedByDiagnostic=$false}
+ $f
+}
 if($FixturesOnly){return}
 [void][IO.Directory]::CreateDirectory($derivedOutput);$script:passes=0;$script:failures=0
 function Good([string]$Name,[scriptblock]$Body){try{&$Body;$script:passes++;Write-Host ('PASS '+$Name)}catch{$script:failures++;Write-Host ('FAIL '+$Name+': '+$_+' at '+$_.ScriptStackTrace)}}
 function Bad([string]$Name,[scriptblock]$Body){$rejected=$false;try{&$Body}catch{$rejected=$true};if($rejected){$script:passes++;Write-Host ('PASS refuses '+$Name)}else{$script:failures++;Write-Host ('FAIL accepted '+$Name)}}
 Good 'paid native Manual lineage, choices, field and Manual checkpoint' {$f=New-ManualDerivedFixture;Check-ManualDerived $f}
 Good 'existing native eligible Ranger retains exact original world' {$f=New-ManualDerivedFixture $false;Check-ManualDerived $f}
+Good 'owner-seed cold lineage preserves actual Manual 303 to field Manual 304' {$f=New-OwnerSeedDerivedFixture;Check-ManualDerived $f}
+Bad 'owner-seed lineage cannot borrow bootstrap scenario' {$f=New-OwnerSeedDerivedFixture;$f.source.scenario='chunk7-bootstrap-manual-seed';Check-ManualDerived $f}
+Bad 'owner-seed lineage cannot lose qualification' {$f=New-OwnerSeedDerivedFixture;$f.source.observations.ownerSeedQualification.qualified=$false;$f.artifact.observations.sourceManualObservations=$f.source.observations;Check-ManualDerived $f}
+Bad 'owner-seed lineage cannot claim present KMC metadata' {$f=New-OwnerSeedDerivedFixture;$f.source.observations.kmcMetadata.kind='Current';$f.artifact.observations.sourceManualObservations=$f.source.observations;Check-ManualDerived $f}
+Bad 'owner-seed output cannot claim old Manual numbering' {$f=New-OwnerSeedDerivedFixture;$f.artifact.observations.nativeNumbering.number=2;Check-ManualDerived $f}
 Bad 'current paid candidate without spend observation contract' {
     $f=New-ManualDerivedFixture;$f.request.productVersion='0.1.0-chunk7b-preview.63'
     Assert-KmcManualDerivedNativeChoices $f.request $f.artifact.observations $f.request.manualDerived

@@ -16,6 +16,67 @@ namespace KingmakerMountedCombat.Diagnostics
         private JToken SelectedSourceArrangement => assistedSourceProjection?["afterSaveArrangement"] ?? sourceObservations["afterSaveArrangement"];
         private JToken SelectedSourceResources => assistedSourceProjection?["resourcesAfterSave"] ?? sourceObservations["resourcesAfterSave"];
 
+        private void ReadOwnerSeedColdSource(JObject artifact)
+        {
+            var observations = sourceObservations;
+            Require((string)artifact["runId"] == selection.SourceRunId &&
+                (string)artifact["scenario"] == Chunk7AssistedColdInventorySelection.Scenario &&
+                (string)artifact["evidenceKind"] == Chunk7AssistedColdInventoryScenario.EvidenceKind &&
+                (string)artifact["status"] == "PASS" && artifact["errors"] is JArray errors && errors.Count == 0 &&
+                (string)artifact["commit"] == request.Commit && (string)artifact["dllSha256"] == request.DllSha256 &&
+                (string)artifact["dllMvid"] == request.DllMvid && observations != null &&
+                (string)observations["selection"]?["case"] == "owner-seed-readonly-inventory" &&
+                (string)observations["selection"]?["seedId"] == "KMC_C7_NO_MODS_OWNER_SEED" &&
+                (string)observations["selection"]?["seedSha256"] == selection.SourceArchiveSha256 &&
+                (string)observations["seedSource"]?["archiveLeaf"] == request.PersistenceLoad.FileName &&
+                (string)observations["seedSource"]?["seedSha256"] == selection.SourceArchiveSha256 &&
+                AssistedTrue(observations["seedSource"]?["ownerAuthorized"]) &&
+                AssistedFalse(observations["seedSource"]?["producerAncestry"]) &&
+                AssistedTrue(observations["ownerSeedQualification"]?["qualified"]) &&
+                (string)observations["kmcMetadata"]?["kind"] == "Missing" &&
+                AssistedFalse(observations["kmcMetadata"]?["loadedArchivePresent"]) &&
+                AssistedTrue(observations["cleanup"]?["custodySettled"]) &&
+                AssistedTrue(observations["cleanup"]?["sourceUnchanged"]) &&
+                AssistedTrue(observations["cleanup"]?["observersReleased"]),
+                "Registered owner-seed source lacks exact same-candidate cold qualification and missing-metadata provenance.");
+            sourceWorld = observations["loadedWorld"] as JObject;
+            var settled = observations["settledWorld"] as JObject;
+            var party = sourceWorld?["party"] as JArray;
+            Require(sourceWorld != null && settled != null && party != null && party.Count > 0 && party.Count <= 6 &&
+                (string)sourceWorld["gameId"] == request.PersistenceLoad.GameId &&
+                (string)sourceWorld["gameName"] == request.PersistenceLoad.GameName &&
+                (string)sourceWorld["area"] == request.PersistenceLoad.Area &&
+                (string)settled["gameId"] == request.PersistenceLoad.GameId &&
+                (string)settled["mainActorId"] == (string)sourceWorld["mainActorId"] &&
+                (string)observations["fixtureReadiness"]?["captureStatus"] == "PASS" &&
+                (string)observations["nativeProfileInventory"]?["captureStatus"] == "PASS",
+                "Owner-seed cold source lacks bounded native world and readiness observations.");
+            expectedMainId = (string)sourceWorld["mainActorId"];
+            Require(Chunk7ManualDerivedSelection.NativeId(expectedMainId) &&
+                party.Count(row => (string)row["id"] == expectedMainId) == 1 &&
+                party.All(row => Chunk7ManualDerivedSelection.NativeId((string)row["id"]) &&
+                    Chunk7ManualDerivedSelection.BlueprintId((string)row["blueprint"]) &&
+                    row["classes"] is JArray && row["experience"]?.Type == JTokenType.Integer),
+                "Owner-seed cold party lacks exact actor, blueprint or progression identity.");
+            assistedSourceProjection = new JObject {
+                ["fixtureReadiness"] = observations["fixtureReadiness"].DeepClone(),
+                ["nativeProfileInventory"] = observations["nativeProfileInventory"].DeepClone(),
+                ["afterSaveArrangement"] = new JObject {
+                    ["money"] = sourceWorld["nativeMoney"].DeepClone(),
+                    ["experienceRatePercent"] = observations["fixtureReadiness"]["experienceRatePercent"].DeepClone(),
+                    ["actors"] = new JArray(party.OrderBy(row => (string)row["id"], StringComparer.Ordinal)
+                        .Select(row => new JObject {
+                            ["actorId"] = row["id"].DeepClone(), ["blueprint"] = row["blueprint"].DeepClone(),
+                            ["experience"] = row["experience"].DeepClone(),
+                            ["characterLevel"] = row["characterLevel"].DeepClone(),
+                            ["classes"] = new JArray(((JArray)row["classes"])
+                                .OrderBy(value => (string)value["guid"], StringComparer.Ordinal)
+                                .Select(value => new JObject { ["classGuid"] = value["guid"].DeepClone(),
+                                    ["level"] = value["level"].DeepClone() })) }))
+                }
+            };
+        }
+
         private void ReadAssistedCumulativeSource()
         {
             sourcePath = Path.Combine(Path.GetDirectoryName(root), Chunk7CumulativeAcquisitionSelection.SourceLeaf);

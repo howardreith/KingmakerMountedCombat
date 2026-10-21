@@ -48,6 +48,7 @@ function Get-KmcChunk7AcquiredManualSource($Selection,$Fixture,$Candidate){
  $artifactPath=Join-Path $root $sourceLeaf;$file=Get-Item -LiteralPath $artifactPath
  if($file.Length-le0-or$file.Length-gt16MB-or$files[$artifactPath]-cne$Selection.sourceArtifactSha256){throw 'Caller-pinned successful Manual-derived acquisition differs.'}
  Assert-KmcBootstrapInventoryString $artifact.observations.nativeWrite.sha256 $Selection.sourceArchiveSha256
+ if(-not$two){Assert-KmcBootstrapInventoryString $artifact.observations.selection.nativeWriteLeaf $artifact.observations.nativeWrite.fileName}
  if($two){Assert-KmcChunk7CumulativeOutput $request $artifact}else{Assert-KmcChunk7ManualDerivedOutput $request $artifact};Assert-KmcBootstrapInventoryString $artifact.observations.field.actorId $Selection.actorId;Assert-KmcBootstrapInventoryString $artifact.observations.field.petId $Selection.petId
  $w=$artifact.observations.nativeWrite
  $descriptor=[pscustomobject]@{internalName=$w.name;fileName=$w.leaf;sha256=$w.sha256;length=$w.length;lastWriteTimeUtcTicks=$w.lastWriteTimeUtcTicks;gameId=$w.gameId;gameName=$w.gameName;area=$w.area}

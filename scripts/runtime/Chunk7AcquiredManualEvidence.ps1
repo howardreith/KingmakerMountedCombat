@@ -21,8 +21,9 @@ function Assert-KmcChunk7AcquiredManualDescriptor($Request){
  if(-not(Test-KmcChunk7AcquiredManualScenario $Request.scenario)){throw 'Manual seed descriptor belongs only to its closed family.'}
  $d=$Request.persistenceLoad
  Assert-KmcExactProperties $d @('internalName','fileName','sha256','length','lastWriteTimeUtcTicks','gameId','gameName','area') 'Manual seed immutable descriptor'
- $sourceLeaf=if($Request.acquiredManual.case-ceq'preserve-two-acquired-field'){'Auto_1.zks'}else{'Manual_2_KMC_C7_MANUAL_DERIVED_FIELD.zks'}
- Assert-KmcBootstrapInventoryString $d.fileName $sourceLeaf;Assert-KmcBootstrapInventoryString $d.sha256 $Request.acquiredManual.sourceArchiveSha256
+ if($Request.acquiredManual.case-ceq'preserve-two-acquired-field'){Assert-KmcBootstrapInventoryString $d.fileName 'Auto_1.zks'}
+ elseif($d.fileName-cnotin@('Manual_2_KMC_C7_MANUAL_DERIVED_FIELD.zks','Manual_304_KMC_C7_MANUAL_DERIVED_FIELD.zks')){throw 'One-owner acquired source is not a closed field Manual.'}
+ Assert-KmcBootstrapInventoryString $d.sha256 $Request.acquiredManual.sourceArchiveSha256
  if($Request.acquiredManual.case-ceq'preserve-acquired-field'){Assert-KmcBootstrapInventoryString $d.internalName 'KMC_C7_MANUAL_DERIVED_FIELD'}
  foreach($key in @('internalName','gameName')){if($d.$key-isnot[string]-or[string]::IsNullOrWhiteSpace($d.$key)-or$d.$key.Length-gt256-or$d.$key-match'[\x00-\x1f\x7f]'){throw 'Manual seed source native name is malformed.'}}
  Assert-KmcOrdinaryGuid $d.gameId
@@ -72,6 +73,7 @@ function Assert-KmcChunk7AcquiredManualEvidence($Request,$Artifact,$SourceArtifa
  if($source.errors-isnot[Array]-or$source.errors.Count-ne0){throw 'Cold inventory source was not an error-free bootstrap.'}
  foreach($key in @('gameId','gameName','area')){Assert-KmcBootstrapInventoryString $source.observations.nativeWrite.$key $Request.persistenceLoad.$key}
  Assert-KmcBootstrapInventoryString $source.observations.nativeWrite.sha256 $s.sourceArchiveSha256
+ if(-not$two){Assert-KmcBootstrapInventoryString $source.observations.selection.nativeWriteLeaf $Request.persistenceLoad.fileName}
  if((ConvertTo-KmcChunk7Canonical $o.sourceNativeWorld)-cne(ConvertTo-KmcChunk7Canonical $source.observations.loadedWorld)){throw 'Cold inventory changed its qualified source native world.'}
  if((ConvertTo-KmcChunk7Canonical $o.selection)-cne(ConvertTo-KmcChunk7Canonical $s)){throw 'Cold inventory selection changed.'}
  Assert-KmcOrdinaryInteger $o.processId 1 ([int]::MaxValue);Assert-KmcOrdinaryInteger $source.observations.processId 1 ([int]::MaxValue)
