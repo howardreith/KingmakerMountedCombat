@@ -1,5 +1,17 @@
 # Chunk 7B–7D — IN PROGRESS
 
+## October 20 — batch100 Small retrain separate cold PASS
+
+[Batch100](docs/CHUNK7-BATCH100-SMALL-RETRAIN-COLD-2026-10-20.md) froze pushed
+`e4a455e6` as world112. Fresh mounted Small Manual 5/0, its independent cold
+3/0, native Small Horse retrain 3/0 and the genuine one-pair retrain Manual's
+separate cold consumer 3/0 passed game and outer checks. All four guarded
+transactions restored Mods, protected saves, Working and profile bytes. The
+new cold check preserves target/new-pet progression and money, the surviving
+Medium control pair, exactly-once native debt restoration and five frames
+without a replayed preparation. F10 acquisition/leveling, F09 breadth, F11
+and selected private 7E remain **IN PROGRESS**.
+
 ## October 20 — batch99 Small retrain native PASS; cold consumer pending
 
 [Batch99](docs/CHUNK7-BATCH99-SMALL-RETRAIN-NATIVE-2026-10-20.md) froze pushed

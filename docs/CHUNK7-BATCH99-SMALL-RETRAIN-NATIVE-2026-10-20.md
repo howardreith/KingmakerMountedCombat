@@ -4,7 +4,7 @@ The [standing completion mission](../planning/CHUNK7-COMPLETION-MISSION.md) rema
 
 | Native scenario | Original verdict and frozen evidence |
 | --- | --- |
-| `20261021-c7b-world111-b99s1-small-mounted-save` | Game/outer **PASS 5/0**. Genuine mounted Manual SHA-256 `752cf4b614a72b0e5c8643ecab1dd112992ecc0897587dfd96d74581fb8ae89d`; evidence `6de9876fb45ab418dc0f80151c8abb5f9b055734ccaef8cdb2f22d24cb6000ed`; outer `67f43cc9aad46750292b82159af077a91f3be0d153bbb7ab030fffc5b10e10bc`. |
+| `20261021-c7b-world111-b99s1-small-mounted-save` | Game/outer **PASS 5/0**. Genuine mounted Manual SHA-256 `752cf4b614a72b0e5c8643ecab1dd112992ecc0897587dfd96d74581fb8ae89d`; evidence `4b73ff77dae07a68c08ce3f8c7540c06f85614bba1c344fdbd7a70eeb3cea81c` (corrected in batch100); outer `67f43cc9aad46750292b82159af077a91f3be0d153bbb7ab030fffc5b10e10bc`. |
 | `20261021-c7b-world111-b99s2-small-mounted-cold` | Independent native cold game/outer **PASS 3/0** on exact slot-1 Manual. Evidence `cb8815227733b861af987e0ebe8ced50422624802a7efadfece7694cf8570c8e`; outer `8212e5903c163b6506612867fb601b54a2dd40159f225eeb1df9ca5446fa5e61`. |
 | `20261021-c7b-world111-b99s3-small-native-retrain` | Native retrain game/outer **PASS 3/0**. Evidence `bc5ab7d3ede7d591dc56f96fc704fd1cb01ce9983f1eb65ed8d80cff1730a7ea`; outer `5ea342268fda4c3ca06e59c6834073f4d04fe82a5330b6d1afc14c86fa1addf4`. Genuine new `Manual_306_KMC_C7_PROGRESSION.zks`, SHA-256 `6d20fea4532be5a0e7f9eaaf01da22b6c2f498c19fe53a696d081d2bc36a0444`, length 1,275,728 bytes. |
 
