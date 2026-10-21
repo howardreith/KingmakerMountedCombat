@@ -1,18 +1,27 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
-## Active October 21 after batch118 field development — native proof next
+## Active October 21 after batch118 field FAIL — terminal cause next
 
 The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
 [Batch118](docs/CHUNK7-BATCH118-MEDIUM-MAMMOTH-FIELD-DEVELOPMENT-2026-10-21.md)
-adds a reviewed, offline-tested `medium-horse-native-retrain-field` consumer.
-The original batch117 preview.84 PASS remains tied to its bytes. No new game
-run or transaction occurred for this change. Finish preview.85 Candidate,
-freeze one package/suite, and declare no more than five dependent scenarios:
-paid Medium mounted Horse Manual/cold, paid Mammoth respec/Manual, read-only
-Mammoth cold, and an independent-copy Mammoth Mount/move/Dismount field run.
-Run each through guarded WhatIf and the approved Howie context, one live executor
-at a time, with exact restoration. F09 broader presentation/stress, F10 other
-progression, F11 and 7E remain open. The batch117 section below is history.
+froze preview.85 `c7b-world122` and ran all five declared native slots. Slots
+1-4 PASSed paid Medium Horse Manual/cold and paid Horse-to-Mammoth Manual/cold.
+Slot 5 **FAILed** the Dismount release postcondition after native Mount and a
+successful 1.953 m player-directed Mammoth move. Its Dismount shell was created
+and settled, but the frozen evidence lacks the terminal delivery and pair state
+needed to distinguish refusal from a mismatched postcondition. All five guarded
+transactions restored Mods, Working, protected saves and exact Howie profile
+bytes; no game or transaction remains active. Preserve this FAIL and the old
+batch117 PASSes on their own bytes.
+
+Preview.86 source adds one read-only `fieldDismountBoundary`
+snapshot before the unchanged assertion. A reviewer found no concrete safety
+blocker; Fast 3/0 and focused source/reader checks passed. Next: run Candidate once, freeze
+package/suite, then declare at most five native slots to establish the exact
+same-candidate paid lineage and one changed Dismount observation. Use the approved
+Howie context, WhatIf per slot, and exact restoration. Do not repeat the
+preview.85 field run unchanged. F09 broader presentation/stress, F10 other
+progression, F11 and 7E remain open. The older section below is history.
 
 ## Active October 21 after batch117 — replacement cold PASS; F09/F10/F11 next
 
