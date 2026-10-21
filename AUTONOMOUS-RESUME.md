@@ -1,5 +1,26 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## Active October 20 after batch102 — continue standing F10/F11 gates
+
+The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
+[Batches101–102](docs/CHUNK7-BATCH101-102-F11-UPDATE-TIMING-2026-10-20.md)
+added independently reviewed phase timing and removed one per-frame managed
+component array. The exact world113 and world114 diagnostic packages each
+passed one declared matched 0/1/2/0 native scenario, game/outer 8/0, with
+exact guarded Mods, saves, Working and profile restoration. Current pushed
+source HEAD before this documentation update is
+`f3ff874eb97f8d7e97f03206dc812b2bbf76c421`; world114 DLL SHA-256 is
+`49e3b899e32bbe996b9449e86c9871cfac9ebeb934aa0339e774f4e169080b86`.
+No game or transaction lock remains. The two DLLs and sidecars are distinct;
+the measured phase reduction is not an allocation-rate or causal speedup claim.
+
+Next: repair a source-backed genuine F10 acquisition/leveling Manual completion
+path, or advance independent F09/F11 requirements. The installed game does not
+emit a level-up Auto; do not select a stale Auto-wait path unchanged. F11 still
+needs bounded allocation-event measurement, diagnostics-off and ordinary-player
+controls. F09 breadth/ordinary doors and readiness-gated private 7E remain
+selected. Do not replay batches101–102 solely to resume.
+
 ## Active October 20 after batch100 — next F10 acquisition/leveling path
 
 The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.

@@ -1,5 +1,13 @@
 # Chunk 7 F11 measurement design — IN PROGRESS
 
+[Batches101–102](CHUNK7-BATCH101-102-F11-UPDATE-TIMING-2026-10-20.md)
+added opt-in KMC Update phase spans and localized the active-pair increase
+primarily to `world.UpdatePairs`. A reviewed correction reuses a Unity list in
+the mounted pose invariant check rather than allocating a component array each
+frame. Separate exact-DLL native 0/1/2/0 sequences passed 8/0 with restoration.
+The comparison is diagnostic; allocated-byte/event rate, diagnostics-off and
+final-package acceptance remain open.
+
 [Batch80](CHUNK7-BATCH80-F11-REGISTRY-RETIREMENT-2026-10-20.md) reviewed a
 second idle-frame allocation correction in registry retirement and ran one
 guarded twelve-window 0/1/2/0 comparison on preview.93. Native/outer PASS
