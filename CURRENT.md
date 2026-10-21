@@ -1,5 +1,14 @@
 # Chunk 7B–7D — IN PROGRESS
 
+[Batch124](docs/CHUNK7-BATCH124-THORN-RIVER-DOOR-FIXTURE-2026-10-21.md)
+passed one guarded preview.89 Thorn River Camp fixture run, game and outer
+5/0, with a distinct genuine Manual and exact restoration. Its bounded
+after-remount inventory found zero `StandardDoor` candidates; no door was
+clicked and ordinary-door qualification remains open. This exhausts the
+revealed field destinations on the admitted owner-seed source. The standing
+[completion mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active;
+F09/F10/F11 and the selected 7E rehearsal still require work.
+
 [Batch123](docs/CHUNK7-BATCH123-TOMB-DOOR-FIXTURE-DEVELOPMENT-2026-10-21.md)
 passed one guarded preview.88 Old Cyclops Tomb fixture run, game and outer
 5/0, with one genuine Manual and exact restoration. Its sole secret door was

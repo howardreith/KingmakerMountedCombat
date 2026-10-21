@@ -1,5 +1,34 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## Active October 21 after batch124 Thorn River inventory
+
+The [standing completion mission](planning/CHUNK7-COMPLETION-MISSION.md)
+remains active. [Batch124](docs/CHUNK7-BATCH124-THORN-RIVER-DOOR-FIXTURE-2026-10-21.md)
+froze preview.89 from `a610eda7b6f0482f8ae0cd3c8b0e1d5609d85e87`, then passed one
+declared guarded Thorn River Camp source-only transfer/Manual and bounded
+door inventory, game/outer **5/0**. Package SHA-256 is
+`03fc2f88afb8ed166fa2dc29a386e6ebcdfe2c45edb7739bb5941a0b43376ac8`;
+suite `chunk7b-completion-b124-20261021` SHA-256 is
+`aead64a81c00bfbc1314f1830604a5873d8cfd0301065ef8cdd23e61d7135f64`.
+The output Thorn Manual SHA-256 is
+`312faae6abc5b8fd087bf25553240f2b88102584f3ff342c816a69a8e5af0ff3`.
+The native scene contained zero `StandardDoor` candidates. No door
+interaction or door PASS occurred. The accepted owner-seed revealed field
+destinations have now all been inventoried. Transaction `restored`: Mods,
+protected saves, live Areas and profile bytes exact, zero cache exceptions;
+no game process or active runtime lock. The source review and focused readers
+passed; Candidate passed 6/0. Earlier Spider, Manticore and Tomb results stay
+bound to their own inputs.
+
+Next: pursue an independently admitted ordinary-door source with a known
+suitable door and safe mounted approach; do not replay these unchanged scenes
+or fabricate visited flags. Advance the open F09/F10/F11 work in the
+[requirement table](planning/CHUNK7-COMPLETION-MISSION.md) while that source
+is investigated, then perform the selected exact-package 7E rehearsal once
+all implementation and review gates are ready. Do not label preview.89 a final
+package. Historical Tomb actions below are complete, not the current next
+command.
+
 ## Active October 21 Tomb fixture route after batch122
 
 Read-only source/fixture inspection found an independently actionable door
