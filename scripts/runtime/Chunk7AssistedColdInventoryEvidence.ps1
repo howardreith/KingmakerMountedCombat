@@ -377,7 +377,10 @@ function Assert-KmcChunk7AssistedColdInventoryEvidence($Request,$Artifact,$Sourc
   Assert-KmcBootstrapInventoryString $e.kind $(if($i-eq0){'native-player-postload-before'}else{'native-player-postload-after'})
   Assert-KmcOrdinaryInteger $e.frame $prior $w.frame;$prior=$e.frame
   foreach($key in @('game','saveManager','player')){Assert-KmcAssistedLabel $e.$key $labels;Assert-KmcOrdinaryInteger $e.$key $w.$key $w.$key}
-  Assert-KmcBootstrapInventoryString $e.gameId $Request.persistenceLoad.gameId
+  # Player.GameId can remain null at both synchronous PostLoad probes while
+  # the descriptor and settled native world already carry the exact campaign.
+  # A nonnull event value must still match that campaign.
+  if($null-ne$e.gameId){Assert-KmcBootstrapInventoryString $e.gameId $Request.persistenceLoad.gameId}
   if($i-eq1-or$null-ne$e.mainActorId){Assert-KmcBootstrapInventoryString $e.mainActorId $w.mainActorId}
  }
  if($load.events[0].frame-ne$load.events[1].frame){throw 'Assisted cold PostLoad callback did not return synchronously in the observed frame.'}
