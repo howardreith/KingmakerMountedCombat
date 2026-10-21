@@ -77,8 +77,20 @@ namespace KingmakerMountedCombat.Diagnostics
             var progression = new JObject { ["actors"] = new JArray(((JArray)CaptureNoArrangement()["actors"]).Where(row => ids.Contains((string)row["actorId"])).Select(row => row.DeepClone())) };
             var relationships = new JObject { ["actors"] = new JArray(OwnedActors().Where(value => ids.Contains(value.UniqueId)).Select(value => new JObject {
                 ["actorId"] = value.UniqueId, ["petId"] = value.Descriptor.Pet?.UniqueId, ["masterId"] = value.Descriptor.Master.Value?.UniqueId })) };
-            Require(JToken.DeepEquals(resources, retained["unrelatedResourcesAfter"]) && JToken.DeepEquals(progression, retained["progressionAfter"]) &&
-                JToken.DeepEquals(relationships, retained["relationshipsAfter"]), "Cumulative prior/unrelated resources, progression or relationships changed during native cold load/field/save.");
+            var resourcesMatch = JToken.DeepEquals(resources, retained["unrelatedResourcesAfter"]);
+            var progressionMatch = JToken.DeepEquals(progression, retained["progressionAfter"]);
+            var relationshipsMatch = JToken.DeepEquals(relationships, retained["relationshipsAfter"]);
+            if ((!resourcesMatch || !progressionMatch || !relationshipsMatch) && evidence["twoOwnerColdMismatch"] == null)
+                evidence["twoOwnerColdMismatch"] = new JObject {
+                    ["contract"] = "two-owner-cold-mismatch-v1",
+                    ["resourcesMatch"] = resourcesMatch, ["progressionMatch"] = progressionMatch,
+                    ["relationshipsMatch"] = relationshipsMatch,
+                    ["expectedResources"] = retained["unrelatedResourcesAfter"].DeepClone(), ["actualResources"] = resources,
+                    ["expectedProgression"] = retained["progressionAfter"].DeepClone(), ["actualProgression"] = progression,
+                    ["expectedRelationships"] = retained["relationshipsAfter"].DeepClone(), ["actualRelationships"] = relationships
+                };
+            Require(resourcesMatch && progressionMatch && relationshipsMatch,
+                "Cumulative prior/unrelated resources, progression or relationships changed during native cold load/field/save.");
             var all = OwnedActors();
             Require(all.Count(value => value.Descriptor.Pet != null) == 2 && all.Count(value => value.Descriptor.Master.Value != null) == 2,
                 "Two-owner Manual refuses missing, foreign or third native companion relationships.");
