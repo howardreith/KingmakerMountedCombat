@@ -1,5 +1,18 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## Active October 20 after batch107 — Small later-level native qualification next
+
+The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
+[Batch107](docs/CHUNK7-BATCH107-SMALL-LATER-LEVEL-DEVELOPMENT-2026-10-20.md)
+adds the reviewed, offline-tested Small Horse later-level producer and distinct
+two-pair cold consumer. No native run, package or preview was made. The next
+bounded step is one frozen same-candidate package/suite, followed by guarded
+WhatIf and up to four dependent native scenarios: mounted Small Manual, mounted
+cold, level Manual, and separate level cold. Admit the level cold source resolver
+against the actual producer before that load. Preserve exact current Mods/profile/
+save restoration, immutable masters, one live executor, all old FAILs and the
+standing 7B–7E scope. Refresh HEAD/status and transaction state before staging.
+
 ## Active October 20 after batch106 — six-pair domain coverage, native fixture open
 
 The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.

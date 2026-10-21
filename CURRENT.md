@@ -1,5 +1,12 @@
 # Chunk 7B–7D — IN PROGRESS
 
+Batch107 adds the bounded Small Horse later-level producer and separate two-pair
+cold consumer as a **development checkpoint only**. Fast 3/0, focused
+producer/source/reader checks and independent read-only review passed; no new
+candidate or native game run exists. The real same-candidate four-slot
+Manual/cold/level/cold sequence and source-resolver positive admission remain
+required; see the [checkpoint](docs/CHUNK7-BATCH107-SMALL-LATER-LEVEL-DEVELOPMENT-2026-10-20.md).
+
 Batch106 added one six-pair **offline domain** custody stress case. Fast passed
 3/0 and the world114 product DLL stayed byte-identical. Native six-pair
 fixture, lifecycle and performance qualification remain open; see the

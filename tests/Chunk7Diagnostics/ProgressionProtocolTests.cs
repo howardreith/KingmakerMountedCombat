@@ -30,6 +30,15 @@ internal static class ProgressionProtocolTests {
     var changed=ColdRequest();mutation(changed);TestRunner.True(changed.Validate().Count>0,"Altered retrain cold request accepted.");
    }
   });
+  tests.Run("Small level cold selects its two-pair read-only native Manual",()=>{
+   var r=LevelColdRequest();TestRunner.Equal(0,r.Validate().Count,string.Join(";",r.Validate()));
+   foreach(var mutation in new Action<RuntimeRequest>[]{x=>x.Progression.FormerPetId="0e0c7d2d-06b4-4510-9f81-d847340d1424",
+    x=>x.Progression.ExpectedNativeWriteCount=1,x=>x.Progression.NativeWriteLeaf="Auto_1.zks",
+    x=>x.Progression.FixtureExperienceGrant=6000,x=>x.PersistenceLoad.FileName="Manual_300_KMC_C7_WORLD.zks",
+    x=>x.Progression.SourceRunId=x.Progression.InventoryRunId}){
+    var changed=LevelColdRequest();mutation(changed);TestRunner.True(changed.Validate().Count>0,"Altered level cold request accepted.");
+   }
+  });
   tests.Run("matches progression plan never spends load or write",()=>{var f=new Fixture();var a=f.Scope(true);for(var i=0;i<4;i++)TestRunner.True(a.MatchesProgressionPlan(f.Source,true,"Autosave"),"Exact plan refused.");TestRunner.Equal(0,a.AdmittedNativeLoadRequests,"Plan check spent load.");TestRunner.Equal(0,a.AdmittedNativeWriteRequests,"Plan check spent write.");});
   tests.Run("native progression load cap survives write admission",()=>{var f=new Fixture();var a=f.Scope(true);TestRunner.True(a.AuthorizeNativeRequest(RuntimeSaveOperation.Load,f.Load,f.Saves)==null,"Initial load refused.");TestRunner.True(a.AuthorizeNativeRequest(RuntimeSaveOperation.Load,f.Load,f.Saves)!=null,"Second load admitted.");TestRunner.True(a.AuthorizeNativeRequest(RuntimeSaveOperation.Write,f.Write,f.Saves)==null,"One exact terminal save refused.");TestRunner.True(a.AuthorizeNativeRequest(RuntimeSaveOperation.Write,f.Write,f.Saves)!=null,"Second native write admitted.");TestRunner.Equal(1,a.AdmittedNativeLoadRequests,"Load quota changed.");TestRunner.Equal(1,a.AdmittedNativeWriteRequests,"Write quota changed.");});
   tests.Run("dismissal scope cannot write",()=>{var f=new Fixture();var a=f.Scope(false);TestRunner.True(a.MatchesProgressionPlan(f.Source,false,"Autosave"),"Exact dismissal plan refused.");TestRunner.True(a.AuthorizeNativeRequest(RuntimeSaveOperation.Write,f.Write,f.Saves)!=null,"Dismissal wrote a save.");});
@@ -58,6 +67,9 @@ internal static class ProgressionProtocolTests {
   r.PersistenceLoad=Descriptor(Chunk7ProgressionSelection.ManualOutputName,"Manual_306_KMC_C7_PROGRESSION.zks",p.SourceArchiveSha256);
   r.PersistenceLoad.GameId=Chunk7SmallFixtureSelection.CampaignId;r.PersistenceLoad.GameName=Chunk7SmallFixtureSelection.CampaignName;
   r.PersistenceLoad.Area=Chunk7SmallFixtureSelection.AreaId;return r;
+ }
+ private static RuntimeRequest LevelColdRequest(){var r=ColdRequest();r.Progression.Case=Chunk7ProgressionSelection.SmallLevelColdCase;
+  r.Progression.PetId=r.Progression.FormerPetId;r.Progression.FormerPetId=null;return r;
  }
  private static RuntimeSaveDescriptor Descriptor(string name,string leaf,string hash)=>new RuntimeSaveDescriptor{InternalName=name,FileName=leaf,Sha256=hash,Length=10,LastWriteTimeUtcTicks=638907120000000000L,GameId=Campaign,GameName="Fixture",Area=Area};
  private sealed class Fixture{

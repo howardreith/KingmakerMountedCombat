@@ -16,8 +16,10 @@ namespace KingmakerMountedCombat.Diagnostics
         public const string OwnedLevelCase = "owned-horse-native-level";
         public const string OwnedDismissCase = "owned-horse-native-dismiss";
         public const string SmallDismissCase = "small-horse-native-dismiss";
+        public const string SmallLevelCase = "small-horse-native-level";
         public const string SmallRetrainHorseCase = "small-horse-native-retrain-horse";
         public const string SmallRetrainColdCase = "small-horse-native-retrain-cold";
+        public const string SmallLevelColdCase = "small-horse-native-level-cold";
         public const string OwnedRetrainHorseCase = "owned-horse-native-retrain-horse";
         public const string OwnedRetrainMammothCase = "owned-horse-native-retrain-mammoth";
         public const string SourceLeaf = "Manual_300_KMC_C7_WORLD.zks";
@@ -47,13 +49,16 @@ namespace KingmakerMountedCombat.Diagnostics
         public bool? LeftHanded { get; set; }
         public string BodySize { get; set; }
         public int MinimumRangerLevel { get; set; }
+        public int? FixtureExperienceGrant { get; set; }
+        public bool ShouldSerializeFixtureExperienceGrant() => FixtureExperienceGrant.HasValue;
         public int ExpectedNativeWriteCount { get; set; }
         public string NativeWriteLeaf { get; set; }
         public Chunk7OwnedPairsSelection OwnedSource { get; set; }
         public bool ShouldSerializeOwnedSource() => OwnedSource != null;
         internal bool IsSmallDismiss => Case == SmallDismissCase;
-        internal bool IsColdOnly => Case == SmallRetrainColdCase;
-        internal bool IsSmallOwned => IsSmallDismiss || Case == SmallRetrainHorseCase;
+        internal bool IsLevelCold => Case == SmallLevelColdCase;
+        internal bool IsColdOnly => Case == SmallRetrainColdCase || IsLevelCold;
+        internal bool IsSmallOwned => IsSmallDismiss || Case == SmallRetrainHorseCase || Case == SmallLevelCase;
         internal bool IsOwned => IsSmallOwned || Case == OwnedLevelCase || Case == OwnedDismissCase || Case == OwnedRetrainHorseCase || Case == OwnedRetrainMammothCase;
         internal string OperationCase
         {
@@ -61,7 +66,7 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 switch (Case)
                 {
-                    case LevelCase: case OwnedLevelCase: return LevelCase;
+                    case LevelCase: case OwnedLevelCase: case SmallLevelCase: return LevelCase;
                     case DismissCase: case OwnedDismissCase: case SmallDismissCase: return DismissCase;
                     case RetrainHorseCase: case OwnedRetrainHorseCase: case SmallRetrainHorseCase: return RetrainHorseCase;
                     case RetrainMammothCase: case OwnedRetrainMammothCase: return RetrainMammothCase;
@@ -101,10 +106,13 @@ namespace KingmakerMountedCombat.Diagnostics
                 foreach (var hash in new[] { SourceArtifactSha256, SourceArchiveSha256, InventoryArtifactSha256 })
                     if (!Regex.IsMatch(hash ?? "", "^[a-f0-9]{64}$")) errors.Add("Retrain cold source hashes are required.");
                 var coldIds = new HashSet<string>(StringComparer.Ordinal);
-                foreach (var id in new[] { ActorId, PetId, FormerPetId, ControlActorId, ControlPetId })
+                if (IsLevelCold ? FormerPetId != null : FormerPetId == null)
+                    errors.Add("Cold continuation has the wrong former-pet role for its native operation.");
+                foreach (var id in IsLevelCold ? new[] { ActorId, PetId, ControlActorId, ControlPetId } :
+                    new[] { ActorId, PetId, FormerPetId, ControlActorId, ControlPetId })
                     if (!Guid.TryParseExact(id, "D", out var parsed) || parsed == Guid.Empty || parsed.ToString("D") != id || !coldIds.Add(id))
                         errors.Add("Five distinct exact retrain actor and pet IDs are required.");
-                if (ExpectedNativeWriteCount != 0 || NativeWriteLeaf != null || MinimumRangerLevel != 0 || OwnedSource != null ||
+                if (ExpectedNativeWriteCount != 0 || NativeWriteLeaf != null || MinimumRangerLevel != 0 || OwnedSource != null || FixtureExperienceGrant.HasValue ||
                     RaceGuid != null || PresetGuid != null || SkeletonName != null || Gender != null || LeftHanded != null || BodySize != null)
                     errors.Add("Retrain cold continuation cannot carry native choices, body reconstruction or write authority.");
                 return errors;
@@ -157,6 +165,8 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             if (ExpectedNativeWriteCount != (WritesSave ? 1 : 0) || NativeWriteLeaf != (WritesAutosave ? "Auto_1.zks" : null))
                 errors.Add("The selected native operation has an exact write count and closed output category.");
+            if (Case == SmallLevelCase ? FixtureExperienceGrant != 6000 || MinimumRangerLevel != 4 : FixtureExperienceGrant.HasValue)
+                errors.Add("Only the Small later-level case may declare the exact native 6,000 XP shortfall over its level-four source.");
             if (WritesSave ? MinimumRangerLevel < 4 || MinimumRangerLevel > 20 : MinimumRangerLevel != 0)
                 errors.Add("Native progression requires its bounded real Ranger level target, or no build plan for dismissal.");
             if (IsRespec)

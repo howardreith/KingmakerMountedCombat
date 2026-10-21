@@ -59,6 +59,22 @@ internal static class OwnedProgressionProtocolTests {
     "Small retrain lost its native respec or acquired Auto authority.");
    TestRunner.True(ReferenceEquals(r.PersistenceLoad,r.SelectedChunk7Fixture),"Small retrain did not select its mounted Manual.");
   });
+  tests.Run("Small later-level admits the exact disclosed XP shortfall and one native Manual",()=>{
+   var r=SmallLevelRequest();TestRunner.Equal(0,r.Validate().Count,string.Join(";",r.Validate()));
+   TestRunner.True(r.Progression.IsSmallOwned&&!r.Progression.IsRespec&&r.Progression.WritesManual&&!r.Progression.WritesAutosave,
+    "Small later-level lost its owned native level operation or acquired Auto authority.");
+   var dto=Chunk7EvidenceDto.Request(r.Progression);
+   TestRunner.Equal(6000,(int)dto["fixtureExperienceGrant"],"Disclosed fixture XP shortfall was not serialized.");
+   TestRunner.Equal(0,dto.ToObject<Chunk7ProgressionSelection>().Validate(r.Scenario,r.RunId).Count,
+    "Small native-level selection did not round trip.");
+  });
+  foreach(var label in new[]{"missing grant","different grant","higher minimum","grant on dismissal","grant on retrain"})
+   tests.Run("Small later-level refuses "+label,()=>{var r=label=="grant on dismissal"?SmallDismissRequest():label=="grant on retrain"?SmallRetrainRequest():SmallLevelRequest();switch(label){
+    case "missing grant":r.Progression.FixtureExperienceGrant=null;break;
+    case "different grant":r.Progression.FixtureExperienceGrant=6001;break;
+    case "higher minimum":r.Progression.MinimumRangerLevel=5;break;
+    default:r.Progression.FixtureExperienceGrant=6000;break;
+   }TestRunner.True(r.Validate().Count>0,"Unexpected XP fixture authority admitted.");});
   foreach(var label in new[]{"medium body","missing rig","dismissal quota","unmounted source"})
    tests.Run("Small Horse retrain rejects "+label,()=>{var r=SmallRetrainRequest();switch(label){
     case "medium body":r.Progression.BodySize="Medium";break;
@@ -153,6 +169,12 @@ internal static class OwnedProgressionProtocolTests {
   s.RaceGuid=Chunk7SmallFixtureSelection.RaceGuid;s.PresetGuid=Chunk7SmallFixtureSelection.PresetGuid;
   s.SkeletonName=Chunk7SmallFixtureSelection.SkeletonName;s.Gender="Male";s.LeftHanded=false;s.BodySize="Small";
   s.MinimumRangerLevel=4;s.ExpectedNativeWriteCount=1;
+  return r;
+ }
+ private static RuntimeRequest SmallLevelRequest(){
+  var r=SmallDismissRequest();var s=r.Progression;
+  s.Case=Chunk7ProgressionSelection.SmallLevelCase;
+  s.MinimumRangerLevel=4;s.ExpectedNativeWriteCount=1;s.FixtureExperienceGrant=6000;
   return r;
  }
  private static RuntimeRequest Request(string selected){var f=new Fixture();var respec=selected==Chunk7ProgressionSelection.RetrainHorseCase||selected==Chunk7ProgressionSelection.RetrainMammothCase;var writes=selected!=Chunk7ProgressionSelection.DismissCase;
