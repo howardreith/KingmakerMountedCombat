@@ -20,6 +20,14 @@ disclosed fixture setup for F09/7C; the two-owner post-field Manual consumer,
 KMC mounted cold continuation, conditional six-pair stress and final 7E remain
 open. The b145, b148 and b149 original failures retain their own inputs.
 
+[Batch154](../docs/CHUNK7-BATCH154-POSTFIELD-MANUAL-PASS-2026-10-21.md)
+passes the corrected post-field two-owner acquired Manual on a fresh same-package
+lineage after its assisted producer, cold and paid Small Manual passed. A separate
+first launch failed before an atomic game result during Steamworks startup; it
+and the b151–b153 original derivative failures remain immutable. This acquired
+Manual is save-only; mounted cold, conditional six-pair stress and final 7E
+remain open.
+
 [Batches 143–144](../docs/CHUNK7-BATCH143-144-ASSISTED-MANUAL-COLD-2026-10-21.md)
 add a same-candidate assisted native Manual PASS and separate cold game PASS.
 The original cold outer reader FAIL and distinct corrected-reader-only PASS are
