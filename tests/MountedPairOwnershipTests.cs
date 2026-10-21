@@ -17,6 +17,7 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("legacy pending-split survivor remains addressable without active membership", PendingSurvivor);
             runner.Run("persisted custody imports exact IDs and generations without native attachment or grants", StableImport);
             runner.Run("failed retirement retains its owner and cannot skip independent settled custody", RetirementIsolation);
+            runner.Run("six-pair custody preserves independent routing and retained cleanup", SixPairCustody);
         }
 
         private sealed class Actor { internal string Id = Guid.NewGuid().ToString("N"); }
@@ -169,6 +170,81 @@ namespace KingmakerMountedCombat.Tests
                 () => b.Retained, () => true, () => true, out _, out _, 1), "Second native pair admitted.");
             TestRunner.Equal(0, b.Runtime.Acquisitions, "Capacity refusal happened after attachment.");
             TestRunner.Equal(1, world.Registry.Owners.Length, "Capacity refusal mutated custody.");
+        }
+        private static void SixPairCustody()
+        {
+            var world = new World();
+            var pairs = new Boundary[6];
+            var owners = new MountedPairOwner<Actor, Boundary>[6];
+            var requests = new MountedPairRequest<Actor, Boundary>[6];
+            for (var index = 0; index < pairs.Length; index++)
+            {
+                pairs[index] = new Boundary();
+                owners[index] = world.Mount(pairs[index], index + 1);
+                requests[index] = world.Registry.CaptureRequest(world.Session, "campaign",
+                    pairs[index].Rider, pairs[index].Mount, index + 1, pairs[index], true);
+                TestRunner.True(requests[index] != null &&
+                    world.Registry.IsActiveOwner(owners[index], pairs[index].Rider, pairs[index].Mount),
+                    "A pair lost its own actor or command custody during six-pair admission.");
+            }
+            var replacement = new Boundary();
+            TestRunner.True(world.Registry.AdmissionRefusal(world.Session, "campaign",
+                replacement.Rider, replacement.Mount, 6) != null,
+                "A seventh active pair bypassed the declared six-pair domain capacity.");
+            TestRunner.Equal(0, replacement.Runtime.Acquisitions,
+                "Capacity refusal acquired a seventh movement lease.");
+
+            // Pair 2 leaves active membership while native participation still owns it.
+            pairs[2].Participation = true;
+            TestRunner.True(pairs[2].Relationship.Dismount(CleanupTrigger.Manual).Succeeded,
+                "The selected pair failed to dismount before retained custody.");
+            world.Registry.Detach(owners[2]); world.Registry.RetireSettled();
+            TestRunner.True(ReferenceEquals(world.Registry.FindOwner(pairs[2].Rider), owners[2]) &&
+                world.Registry.FindActive(pairs[2].Rider) == null &&
+                world.Registry.CaptureRequest(world.Session, "campaign", pairs[2].Rider,
+                    pairs[2].Mount, 3, pairs[2], true) == null &&
+                !world.Registry.TryResolve(requests[2], world.Session, "campaign", 3, out _),
+                "Detached participation still routed a mounted command or lost cleanup custody.");
+            var next = world.Mount(replacement, 7);
+            TestRunner.Equal(6, world.Registry.ActiveCount,
+                "Retained custody incorrectly consumed an active-pair slot.");
+            for (var index = 0; index < pairs.Length; index++)
+            {
+                if (index == 2) continue;
+                TestRunner.True(world.Registry.TryResolve(requests[index], world.Session,
+                    "campaign", index + 1, out var boundary) && ReferenceEquals(boundary, pairs[index]) &&
+                    world.Registry.IsActiveOwner(owners[index], pairs[index].Rider, pairs[index].Mount),
+                    "A neighboring command or actor crossed owners after unrelated cleanup.");
+            }
+            TestRunner.True(world.Registry.IsActiveOwner(next, replacement.Rider, replacement.Mount),
+                "Replacement pair did not receive independent ownership.");
+
+            pairs[4].Preparing = true;
+            TestRunner.True(!world.Registry.AllSaveReady(),
+                "One preparing pair disappeared from the aggregate save barrier.");
+            pairs[4].Preparing = false;
+            pairs[2].ChargeCleanup = true;
+            TestRunner.True(!world.Registry.AllSaveReady(),
+                "Detached cleanup disappeared from the aggregate save barrier.");
+            pairs[2].ChargeCleanup = false;
+            TestRunner.True(world.Registry.AllSaveReady(),
+                "Settled neighboring pairs retained a false save refusal.");
+            pairs[2].Participation = false; world.Registry.RetireSettled();
+            TestRunner.True(!world.Registry.Owns(owners[2]) &&
+                world.Registry.IsActiveOwner(next, replacement.Rider, replacement.Mount),
+                "Retiring detached custody damaged the replacement pair.");
+            for (var index = 0; index < pairs.Length; index++)
+            {
+                if (index == 2) continue;
+                TestRunner.True(pairs[index].Relationship.Dismount(CleanupTrigger.Manual).Succeeded,
+                    "Independent pair cleanup failed.");
+                world.Registry.Detach(owners[index]);
+            }
+            TestRunner.True(replacement.Relationship.Dismount(CleanupTrigger.Manual).Succeeded,
+                "Replacement cleanup failed.");
+            world.Registry.Detach(next); world.Registry.RetireSettled();
+            TestRunner.Equal(0, world.Registry.Owners.Length,
+                "Six-pair teardown retained an owner after all obligations settled.");
         }
         private static void Sessions()
         {
