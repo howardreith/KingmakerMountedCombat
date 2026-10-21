@@ -11,8 +11,18 @@ transactions settled with exact Mods, Working, protected-save and profile-byte
 restoration; no game or lock remained. Next refresh actual refs and transaction
 state, then design the genuine mounted Medium Horse/Mammoth and
 Horse-to-Mammoth replacement/Manual/cold path from this Doll-backed fixture.
-The unmounted fixture PASS does not qualify those operations. F09/F10/F11 and
-selected private 7E remain open. The batch113 directions below are history.
+The unmounted fixture PASS does not qualify those operations. The existing
+`small-fixture-persistence-save/load` route is closed to the preview.71
+Halfling producer and its corrected-reader cold receipt; it cannot consume
+the new Human Manual by changing its selection JSON. Add a distinct Medium
+mounted source/admission with batch114's real producer and cold receipts,
+then genuine mounted-save/cold and replacement/Manual/cold checks. The paid
+Medium target is rider `93f5f59d-403a-4ab2-a5e2-f91ff4d57f5f` with Horse
+`af4e8966-4d8d-4573-a16c-c2b402a71693`; the independent main/Horse are
+`73681ef2-b281-4bc6-bc05-2de68c1616cb` and
+`a3e58763-2386-4ee7-a96d-8ccc21123b22`. These IDs are fixture pins, not
+actor fabrication. F09/F10/F11 and selected private 7E remain open. The
+batch113 directions below are history.
 
 ## Historical October 21 after batch113 development — Medium cold native sequence next
 
