@@ -128,6 +128,12 @@ Check-AssistedSource 'settled native achievement cache is recorded but not byte 
  $f.profileReceipt.acceptedNativeCacheChanges=@([pscustomobject]@{path='achievements.dat';change='created';length=12288;beforeSha256='';afterSha256=('a'*64)})
  Flush-GeneratedSource $f;$null=Validate-GeneratedSource $f
 }
+Check-AssistedSource 'pinned UTF-8 native cache name retains its bounded characters' {
+ $f=New-GeneratedSource;$f.profileReceipt.profileBytesRestoredExactly=$false
+ $nativeSuffix=([string][char]0xfffd)+'H'+([string][char]0xfffd)+([string][char]0xfffd)+([string][char]0xfffd)+([string][char]0xfffd)
+ $f.profileReceipt.acceptedNativeCacheChanges=@([pscustomobject]@{path=('achievements.dat'+$nativeSuffix);change='rewritten';length=12288;beforeSha256=('a'*64);afterSha256=('b'*64)})
+ Flush-GeneratedSource $f;$null=Validate-GeneratedSource $f
+}
 Check-AssistedSource 'unapproved profile path cannot borrow cache exception' {
  $f=New-GeneratedSource;$f.profileReceipt.profileBytesRestoredExactly=$false
  $f.profileReceipt.acceptedNativeCacheChanges=@([pscustomobject]@{path='Areas';change='created';length=12288;beforeSha256='';afterSha256=('a'*64)})
