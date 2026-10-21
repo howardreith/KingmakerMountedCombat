@@ -1,5 +1,27 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## Active October 21 after batch122 managed-Mono failure and review
+
+[Batch122](docs/CHUNK7-BATCH122-F11-MANAGED-MONO-PROBE-2026-10-21.md)
+preserves the isolated managed-Mono probe **FAIL**: the exact installed Mono
+domain initialized, then `mono_domain_assembly_open` faulted before the managed
+callback was installed. Private receipt SHA-256 is
+`58754c6bcdf8d4233c84af3bc0af3dd860b56441b8cd9c0aa5357cd7e344d7fc`.
+Independent read-only review rejected installing the process-global legacy
+profiler from the KMC managed DLL on current evidence. Exact installed Unity
+2018.4 Recorder APIs exist; their `GC.Alloc` marker validity and positive
+response in this player remain unobserved. Read `Debug.isDebugBuild` during the
+next already-required guarded native case, without a standalone recorder run.
+If false, stop the documented Recorder route. If true, design a bounded
+`GC.Alloc` validity/positive-control probe with exact enabled/filter
+restoration before claiming event rate. Do not relabel heap delta.
+The two-pair world diagnostic now records `Debug.isDebugBuild` once after
+admission; independent review found no concrete defect. Focused Fast passed
+4/0, including world reader 195/0. The local build has new DLL bytes, but no
+game, staged package, Mods, profile or save changed. Continue the
+standing mission's F09/F10/door and private 7E gates independently. Batch121
+below is historical.
+
 ## Active October 21 after batch121 installed-Mono host discriminator
 
 [Batch121](docs/CHUNK7-BATCH121-F11-INSTALLED-MONO-ALLOCATION-PROBE-2026-10-21.md)
