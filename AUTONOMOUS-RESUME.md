@@ -1,5 +1,27 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## Active October 20 after batch99 — cold-load genuine retrain Manual
+
+The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
+[Batch99](docs/CHUNK7-BATCH99-SMALL-RETRAIN-NATIVE-2026-10-20.md) froze pushed
+`7dcf2a654315a2f021866ed7952f1165ac4c1e16` as world111, package SHA-256
+`ac8f0a7ec38b6fb4592fe74db1fc347786fd06932a8ee7043a051143b3f72cf9`,
+DLL SHA-256 `ca81a6d828370bf909d213345e4b0a1405e78d1806dc81132f6bf0a2e5f3ff33`.
+Three scoped-WhatIf-admitted native scenarios passed: mounted Small Manual 5/0,
+its separate cold consumer 3/0, and native Small Horse retrain 3/0. The latter
+wrote genuine `Manual_306_KMC_C7_PROGRESSION.zks`, SHA-256
+`6d20fea4532be5a0e7f9eaaf01da22b6c2f498c19fe53a696d081d2bc36a0444`,
+at `runtime-staging/persistence-20261021-c7b-world111-b99s3-small-native-retrain/Saved Games`.
+Transaction state is restored, with original Mods/protected-save digests.
+No game or active lock remains. Original batch90–98 FAILs are unchanged.
+
+Next: design a bounded independent cold consumer for the **one-pair post-retrain**
+Manual. Assert original target/new pet, removed former owner, retained Medium
+control pair/slots and no replayed action or native write. The existing
+two-pair mounted cold case does not cover that result. Review its admission,
+reader and actual installed dependencies before a new candidate/native run;
+then continue F09/F10/F11 and selected private 7E. Do not restart batch99.
+
 ## Active October 20 after batch98 — verify exact native pet reapply gap
 
 The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
