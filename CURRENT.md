@@ -1,5 +1,16 @@
 # Chunk 7B–7D — IN PROGRESS
 
+## October 20 — batch99 Small retrain native PASS; cold consumer pending
+
+[Batch99](docs/CHUNK7-BATCH99-SMALL-RETRAIN-NATIVE-2026-10-20.md) froze pushed
+`7dcf2a65` as world111. Same-candidate mounted Small Manual 5/0, separate
+cold 3/0, and native Small Horse retrain 3/0 passed game and outer checks.
+Retrain wrote a genuine schema-3 Manual with only the preserved Medium control
+pair; native pet feature reapply completed its exact reciprocal rebind.
+The retrain Manual still requires an independent cold consumer, and F10 plus
+the standing completion mission remain open. Earlier retrain failures keep
+their original verdicts.
+
 ## October 20 — batch98 explains native pet reapply; correction pending game
 
 [Batches97–98](docs/CHUNK7-BATCH97-98-NATIVE-PET-REAPPLY-2026-10-20.md)
