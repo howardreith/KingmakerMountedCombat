@@ -16,15 +16,25 @@ $rawSource=Read-KmcJson (Join-Path $EmittedRoot 'cold-f09-generated-source.json'
 $template=Read-KmcJson (Join-Path $repo 'tests/Chunk7Diagnostics/BootstrapInventoryEvidenceFixture.json')
 $script:caseLab=$null;$script:qualified=$null;$script:pass=0;$script:fail=0
 function Get-KmcLabRoot {$script:caseLab}
-function Get-KmcChunk7SmallFixtureColdSource($SourceRunId,$ArtifactSha256,$ArchiveSha256,$Fixture,$Candidate){
+function Get-KmcChunk7SmallFixtureColdSource($SourceRunId,$ArtifactSha256,$ArchiveSha256,$Fixture,$Candidate,[string]$ExpectedProducerCase='owner-seed-default-halfling-horse-manual'){
+ if($ExpectedProducerCase-cne$script:qualified.producerCase){throw 'Synthetic paid reader received a foreign producer case.'}
  if($SourceRunId-cne$script:qualified.sourceRunId-or$ArtifactSha256-cne$script:qualified.artifactSha256-or
     $ArchiveSha256-cne$script:qualified.descriptor.sha256){throw 'Generated F09 qualification pin differs.'}
  $script:qualified
 }
-function New-Fixture {
+function New-Fixture([bool]$Medium=$false) {
  $script:caseLab=Join-Path $OutputRoot ([Guid]::NewGuid().ToString('N'))
  [void][IO.Directory]::CreateDirectory($script:caseLab)
  $r=Clone $rawRequest;$a=Clone $rawArtifact;$s=Clone $rawSource;$o=$a.observations
+ if($Medium){
+  foreach($name in @('r','a','s')){
+   $value=Get-Variable -Name $name -ValueOnly
+   $json=ConvertTo-Json -InputObject $value -Depth 80 -Compress
+   $json=$json.Replace('KMC_C7_SMALL_FIXTURE','KMC_C7_MEDIUM_FIXTURE').Replace('small-fixture-manual-readonly-inventory','medium-fixture-manual-readonly-inventory').Replace('owner-seed-unmounted-small-fixture-v1','owner-seed-unmounted-medium-fixture-v1').Replace('qualified-owner-seed-derived-small-fixture-manual','qualified-owner-seed-derived-medium-fixture-manual').Replace('owner-seed-default-halfling-horse-manual','owner-seed-default-human-horse-manual')
+   Set-Variable -Name $name -Value (ConvertFrom-Json -InputObject $json)
+  }
+  $o=$a.observations
+ }
  $r.evidenceRoot=Join-Path $script:caseLab ('runtime-evidence/'+$r.runId)
  $r|Add-Member NoteProperty fixture ([pscustomobject]@{baseline=[pscustomobject]@{sha256=('b'*64);gameId='bbbbbbbb-1111-1111-1111-111111111111'};working=[pscustomobject]@{sha256=('c'*64);gameId='cccccccc-1111-1111-1111-111111111111'}})
  $root=Join-Path $script:caseLab ('runtime-staging/persistence-'+$r.runId+'/Saved Games')
@@ -39,6 +49,7 @@ function New-Fixture {
  $r.assistedColdInventory.sourceArtifactSha256=$sourceHash;$o.selection.sourceArtifactSha256=$sourceHash;$o.source.artifactSha256=$sourceHash
  $script:qualified=[pscustomobject]@{path='synthetic-archive';artifactPath=$sourcePath;artifactSha256=$sourceHash;
   sourceRunId=$r.assistedColdInventory.sourceRunId;sourceProcessId=$s.observations.processId;
+  producerCase=$(if($Medium){'owner-seed-default-human-horse-manual'}else{'owner-seed-default-halfling-horse-manual'});
   descriptor=[pscustomobject]@{sha256=$r.persistenceLoad.sha256}}
  $profile=Clone $template.artifact.observations.nativeProfileInventory;$rows=@()
  foreach($actor in $o.loadedWorld.party){$v=Clone $profile.party[0];$v.id=$actor.id;$v.blueprintGuid=$actor.blueprint;$v.nativeLevelUpReadiness.characterLevel=$actor.characterLevel;$v.nativeLevelUpReadiness.experience=$actor.experience;$rows+=,$v};$profile.party=$rows
@@ -55,7 +66,14 @@ function Check([string]$name,[bool]$expected,[scriptblock]$action){
  try{$f=New-Fixture;&$action $f|Out-Null}catch{$accepted=$false;$errorText=$_.Exception.Message}
  if($accepted-eq$expected){$script:pass++;Write-Host ('PASS '+$name)}else{$script:fail++;Write-Host ('FAIL '+$name+': '+$errorText)}
 }
+function CheckMedium([string]$name,[bool]$expected,[scriptblock]$action){
+ $accepted=$true;$errorText=$null
+ try{$f=New-Fixture $true;&$action $f|Out-Null}catch{$accepted=$false;$errorText=$_.Exception.Message}
+ if($accepted-eq$expected){$script:pass++;Write-Host ('PASS '+$name)}else{$script:fail++;Write-Host ('FAIL '+$name+': '+$errorText)}
+}
 Check 'F09 separate cold actual emitted native observations' $true {param($f)Assert-KmcChunk7AssistedColdInventoryEvidence $f.request $f.artifact $f.source}
+CheckMedium 'Medium cold reader admits its own exact synthetic lineage' $true {param($f)Assert-KmcChunk7AssistedColdInventoryEvidence $f.request $f.artifact $f.source}
+CheckMedium 'Medium cold reader refuses Small provenance kind' $false {param($f)$f.artifact.observations.source.kind='qualified-owner-seed-derived-small-fixture-manual';Assert-KmcChunk7AssistedColdInventoryEvidence $f.request $f.artifact $f.source}
 Check 'F09 owner-seed-derived PostLoad may retain null GameId' $true {param($f)$f.artifact.observations.nativeLoad.events[0].gameId=$null;$f.artifact.observations.nativeLoad.events[1].gameId=$null;Assert-KmcChunk7AssistedColdInventoryEvidence $f.request $f.artifact $f.source}
 Check 'F09 PostLoad rejects a mismatched nonnull GameId' $false {param($f)$f.artifact.observations.nativeLoad.events[1].gameId='00000000-0000-0000-0000-000000000001';Assert-KmcChunk7AssistedColdInventoryEvidence $f.request $f.artifact $f.source}
 Check 'F09 cold rejects changed paid money' $false {param($f)$f.artifact.observations.loadedWorld.nativeMoney++;Assert-KmcChunk7AssistedColdInventoryEvidence $f.request $f.artifact $f.source}

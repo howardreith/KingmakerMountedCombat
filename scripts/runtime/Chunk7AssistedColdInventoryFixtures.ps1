@@ -75,8 +75,9 @@ function Get-KmcChunk7OwnerSeedSource($Selection,$Fixture,$Candidate){
 }
 function Get-KmcChunk7AssistedColdInventorySource($Selection,$Fixture,$Candidate){
  if(Test-KmcChunk7OwnerSeedSelection $Selection){return Get-KmcChunk7OwnerSeedSource $Selection $Fixture $Candidate}
- if(Test-KmcChunk7SmallFixtureColdSelection $Selection){
-  return Get-KmcChunk7SmallFixtureColdSource $Selection.sourceRunId $Selection.sourceArtifactSha256 $Selection.sourceArchiveSha256 $Fixture $Candidate
+ if(Test-KmcChunk7PaidFixtureColdSelection $Selection){
+  $producerCase=if(Test-KmcChunk7MediumFixtureColdSelection $Selection){'owner-seed-default-human-horse-manual'}else{'owner-seed-default-halfling-horse-manual'}
+  return Get-KmcChunk7SmallFixtureColdSource $Selection.sourceRunId $Selection.sourceArtifactSha256 $Selection.sourceArchiveSha256 $Fixture $Candidate $producerCase
  }
  # The producer gate still verifies its complete native completion/restoration,
  # final Manual bytes and bounded empty schema3 metadata. No new source alias.
@@ -109,7 +110,7 @@ function Copy-KmcChunk7AssistedColdInventorySourceArtifact($Source,[string]$Prof
  Assert-KmcChunk7AssistedColdInventorySelection ([pscustomobject]@{scenario='chunk7-assisted-cold-inventory';runId=$Lock.RunId;assistedColdInventory=$Selection})
  $fresh=Get-KmcChunk7AssistedColdInventorySource $Selection $Fixture $Candidate
  $isSeed=Test-KmcChunk7OwnerSeedSelection $Selection
- $isSmall=Test-KmcChunk7SmallFixtureColdSelection $Selection
+ $isSmall=Test-KmcChunk7PaidFixtureColdSelection $Selection
  $keys=if($isSeed){@('path','descriptor','seedId','registrySha256','registryEntry','intakePath','intakeSha256')}
   elseif($isSmall){@('path','artifactPath','artifactSha256','artifactLength','sourceRunId','sourceProcessId','descriptor','receiptPins')}
   else{@('path','artifactPath','artifactSha256','artifactLength','sourceRunId','requestPath','requestSha256','manifestSha256','descriptor','receiptPins')}
@@ -156,7 +157,7 @@ function Read-KmcAssistedColdSourceArtifact($Request){
  $base=Join-Path (Get-KmcLabRoot) 'runtime-evidence'
  $evidenceRoot=Assert-KmcChildPath $Request.evidenceRoot $base 'assisted cold evidence root'
  Assert-KmcBootstrapInventoryString $evidenceRoot (Join-Path $base $Request.runId)
- $leaf=if(Test-KmcChunk7SmallFixtureColdSelection $Request.assistedColdInventory){'chunk7-small-fixture-evidence.json'}else{'chunk7-assisted-fixture-evidence.json'}
+ $leaf=if(Test-KmcChunk7PaidFixtureColdSelection $Request.assistedColdInventory){'chunk7-small-fixture-evidence.json'}else{'chunk7-assisted-fixture-evidence.json'}
  $path=Join-Path (Join-Path $base $Request.assistedColdInventory.sourceRunId) $leaf
  $path=Assert-KmcChildPath $path $base 'assisted cold producer artifact'
  Assert-KmcNotReparsePoint $path 'assisted cold producer artifact';Assert-KmcNotHardLink $path 'assisted cold producer artifact'

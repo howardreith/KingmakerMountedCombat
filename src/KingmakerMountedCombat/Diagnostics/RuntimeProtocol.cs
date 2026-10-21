@@ -756,10 +756,12 @@ namespace KingmakerMountedCombat.Diagnostics
                         PersistenceLoad.Sha256 == Fixture.Baseline?.Sha256 || PersistenceLoad.Sha256 != AssistedColdInventory.SeedSha256)
                         errors.Add("Owner seed lacks its exact registered non-aliasing identity.");
                 }
-                else if (AssistedColdInventory?.IsSmallFixture == true)
+                else if (AssistedColdInventory?.IsPaidFixture == true)
                 {
-                    errors.AddRange(PersistenceLoad.Validate("persistenceLoad", Chunk7SmallFixtureSelection.OutputName, "^Manual_[1-9][0-9]*_KMC_C7_SMALL_FIXTURE\\.zks$"));
-                    if (!Chunk7SmallFixtureSelection.IsManualLeaf(PersistenceLoad.FileName) ||
+                    var mediumFixture = AssistedColdInventory.IsMediumFixture;
+                    errors.AddRange(PersistenceLoad.Validate("persistenceLoad", mediumFixture ? Chunk7SmallFixtureSelection.MediumOutputName : Chunk7SmallFixtureSelection.OutputName,
+                        mediumFixture ? "^Manual_[1-9][0-9]*_KMC_C7_MEDIUM_FIXTURE\\.zks$" : "^Manual_[1-9][0-9]*_KMC_C7_SMALL_FIXTURE\\.zks$"));
+                    if (!(mediumFixture ? Chunk7SmallFixtureSelection.IsMediumManualLeaf(PersistenceLoad.FileName) : Chunk7SmallFixtureSelection.IsManualLeaf(PersistenceLoad.FileName)) ||
                         Fixture?.Working == null || PersistenceLoad.GameId == Fixture.Working.GameId || PersistenceLoad.GameId == Fixture.Baseline?.GameId ||
                         !Guid.TryParseExact(PersistenceLoad.GameId, "D", out var smallColdId) || smallColdId == Guid.Empty ||
                         PersistenceLoad.GameId != Chunk7SmallFixtureSelection.CampaignId || PersistenceLoad.GameName != Chunk7SmallFixtureSelection.CampaignName ||

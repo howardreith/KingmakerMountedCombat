@@ -91,7 +91,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 (DialogMessageBox.Instance == null || !DialogMessageBox.Instance.IsShown),
                 "Cold inventory must own the exact idle empty menu before load.");
             RequireNoOwners(); RequireNoEffects();
-            if (selection.IsOwnerSeed) ReadOwnerSeedSource(); else if (selection.IsSmallFixture) ReadSmallFixtureSource(); else ReadSource();
+            if (selection.IsOwnerSeed) ReadOwnerSeedSource(); else if (selection.IsPaidFixture) ReadSmallFixtureSource(); else ReadSource();
             probe = new Chunk7BootstrapInventoryProbe(game); probe.Install();
             restoration = new NativeArchiveRestorationProbe(persistence); restoration.Install();
             if (selection.IsOwnerSeed) { resolution = new Chunk7OwnerSeedLoadProbe(); resolution.Install(); }
@@ -107,9 +107,10 @@ namespace KingmakerMountedCombat.Diagnostics
                     ["archiveSha256"] = selection.SourceArchiveSha256, ["archiveLeaf"] = request.PersistenceLoad.FileName,
                     ["sameCandidate"] = true, ["assistedSetupOnly"] = true, ["copiedArtifactPath"] = sourcePath, ["diagnosticArchiveContentRead"] = false };
                 evidence["sourceNativeWorld"] = sourceWorld.DeepClone();
-                if (!selection.IsSmallFixture) evidence["sourceFixtureReadiness"] = sourceReadiness.DeepClone();
+                if (!selection.IsPaidFixture) evidence["sourceFixtureReadiness"] = sourceReadiness.DeepClone();
                 evidence["sourceNativeMoney"] = expectedNativeMoney;
-                if (selection.IsSmallFixture) evidence["source"]["kind"] = "qualified-owner-seed-derived-small-fixture-manual";
+                if (selection.IsPaidFixture) evidence["source"]["kind"] = selection.IsMediumFixture
+                    ? "qualified-owner-seed-derived-medium-fixture-manual" : "qualified-owner-seed-derived-small-fixture-manual";
             }
             evidence["beforeLoad"] = new JObject { ["frame"] = UnityEngine.Time.frameCount, ["game"] = probe.Identity(game),
                 ["saveManager"] = probe.Identity(manager), ["menuPlayer"] = probe.Identity(menuPlayer),
@@ -430,7 +431,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 artifact["errors"] is JArray errors && errors.Count == 0 &&
                 (string)artifact["commit"] == request.Commit && (string)artifact["dllSha256"] == request.DllSha256 && (string)artifact["dllMvid"] == request.DllMvid &&
                 observed?["processId"]?.Type == JTokenType.Integer && (int)observed["processId"] > 0 && (int)observed["processId"] != Process.GetCurrentProcess().Id &&
-                (string)observed["contract"] == "owner-seed-unmounted-small-fixture-v1" &&
+                (string)observed["contract"] == (selection.IsMediumFixture ? "owner-seed-unmounted-medium-fixture-v1" : "owner-seed-unmounted-small-fixture-v1") &&
+                (string)observed["selection"]?["case"] == (selection.IsMediumFixture ? Chunk7SmallFixtureSelection.MediumCaseName : Chunk7SmallFixtureSelection.CaseName) &&
                 observed["fixtureSetupOnly"]?.Type == JTokenType.Boolean && (bool)observed["fixtureSetupOnly"] &&
                 observed["producerAncestry"]?.Type == JTokenType.Boolean && !(bool)observed["producerAncestry"] &&
                 (string)manual?["sha256"] == selection.SourceArchiveSha256 && (string)manual?["fileName"] == saved.FileName &&
@@ -502,7 +504,7 @@ namespace KingmakerMountedCombat.Diagnostics
             ["level"]=value.Descriptor.Progression.CharacterLevel,["experience"]=value.Descriptor.Progression.Experience,["classes"]=CaptureClasses(value)})) };
         private void RequireSourceRoster()
         {
-            if (selection.IsSmallFixture) { RequireSmallFixtureSourceRoster(); return; }
+            if (selection.IsPaidFixture) { RequireSmallFixtureSourceRoster(); return; }
             Require(game.Player.Money == expectedNativeMoney, "Assisted cold native funds differ from the qualified source observation.");
             var sourceCharacters=(JArray)sourceReadiness["staticPartyFacts"]["characters"];
             Require(characters.Length==sourceCharacters.Count && characters.All(actor=>sourceCharacters.Count(row=>(string)row["actorId"]==actor.UniqueId &&

@@ -8,6 +8,14 @@ function Test-KmcChunk7SmallFixtureColdSelection($Selection){
   $null-ne$Selection.PSObject.Properties['case']-and$Selection.case-is[string]-and
   $Selection.case-ceq'small-fixture-manual-readonly-inventory'
 }
+function Test-KmcChunk7MediumFixtureColdSelection($Selection){
+ $null-ne$Selection-and$Selection.GetType().FullName-ceq'System.Management.Automation.PSCustomObject'-and
+  $null-ne$Selection.PSObject.Properties['case']-and$Selection.case-is[string]-and
+  $Selection.case-ceq'medium-fixture-manual-readonly-inventory'
+}
+function Test-KmcChunk7PaidFixtureColdSelection($Selection){
+ (Test-KmcChunk7SmallFixtureColdSelection $Selection) -or (Test-KmcChunk7MediumFixtureColdSelection $Selection)
+}
 # Owner-seed internal names may hold single interior spaces (Kingmaker save names; the engine
 # writes underscores only in the file name): no leading, trailing or repeated space, no tab or
 # other whitespace, at most 64 characters. Same rule as Chunk7AssistedColdInventorySelection.IsOwnerSeedName.
@@ -85,7 +93,7 @@ function Assert-KmcChunk7AssistedColdInventorySelection($Request){
   return
  }
  Assert-KmcAssistedObjectValue $s @('case','sourceRunId','sourceArtifactSha256','sourceArchiveSha256','baseGameOnly','expectedNativeLoadCount','expectedNativeWriteCount') 'assisted cold selection'
- if($s.case-isnot[string]-or$s.case-cnotin@('assisted-manual-readonly-inventory','small-fixture-manual-readonly-inventory')){throw 'Unknown producer cold selection case.'}
+ if($s.case-isnot[string]-or$s.case-cnotin@('assisted-manual-readonly-inventory','small-fixture-manual-readonly-inventory','medium-fixture-manual-readonly-inventory')){throw 'Unknown producer cold selection case.'}
  if($Request.runId-isnot[string]-or$Request.runId-cnotmatch'^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$'){throw 'Assisted cold consumer run identity is malformed.'}
  if($s.sourceRunId-isnot[string]-or$s.sourceRunId-cnotmatch'^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$'-or$s.sourceRunId-ceq$Request.runId){throw 'Assisted cold inventory requires a distinct completed source run.'}
  foreach($key in @('sourceArtifactSha256','sourceArchiveSha256')){if($s.$key-isnot[string]-or$s.$key-cnotmatch'^[a-f0-9]{64}$'){throw 'Assisted cold immutable source hashes are required.'}}
@@ -103,14 +111,15 @@ function Assert-KmcChunk7AssistedColdInventoryDescriptor($Request){
   if($d.fileName-isnot[string]-or$d.fileName-cnotmatch'^[A-Za-z0-9][A-Za-z0-9_.-]{0,95}\.zks$'-or$d.fileName.EndsWith('_KMC_C7_ASSISTED_FIXTURE.zks',[StringComparison]::Ordinal)){throw 'Owner seed file name is malformed or impersonates the producer fixture.'}
   Assert-KmcBootstrapInventoryString $d.sha256 $Request.assistedColdInventory.seedSha256
  }else{
- $isSmall=Test-KmcChunk7SmallFixtureColdSelection $Request.assistedColdInventory
- $name=if($isSmall){'KMC_C7_SMALL_FIXTURE'}else{'KMC_C7_ASSISTED_FIXTURE'}
+ $isPaid=Test-KmcChunk7PaidFixtureColdSelection $Request.assistedColdInventory
+ $isMedium=Test-KmcChunk7MediumFixtureColdSelection $Request.assistedColdInventory
+ $name=if($isMedium){'KMC_C7_MEDIUM_FIXTURE'}elseif($isPaid){'KMC_C7_SMALL_FIXTURE'}else{'KMC_C7_ASSISTED_FIXTURE'}
  Assert-KmcBootstrapInventoryString $d.internalName $name
  if($d.fileName-isnot[string]-or$d.fileName-cnotmatch('^Manual_([1-9][0-9]*)_'+$name+'\.zks$')){throw 'Producer cold source must retain its observed native Manual leaf.'}
  $number=0;$leafMatch=[regex]::Match($d.fileName,'^Manual_([1-9][0-9]*)_'+$name+'\.zks$');if(-not[int]::TryParse($leafMatch.Groups[1].Value,[ref]$number)-or$number-le0-or$d.fileName-cne('Manual_'+$number+'_'+$name+'.zks')){throw 'Producer cold Manual number is noncanonical or outside native Int32.'}
- if($isSmall-and$number-eq[int]::MaxValue){throw 'F09 Manual number is the reserved native upper boundary.'}
+ if($isPaid-and$number-eq[int]::MaxValue){throw 'F09 Manual number is the reserved native upper boundary.'}
  Assert-KmcBootstrapInventoryString $d.sha256 $Request.assistedColdInventory.sourceArchiveSha256
- if($isSmall){
+ if($isPaid){
   foreach($pair in @(@('gameId','3f7381f7-aba6-43bf-bae6-39c6a66a7180'),@('gameName','Testy the Modless'),@('area','b10e86516b6437d45a629931c30936fe'))){Assert-KmcBootstrapInventoryString $d.($pair[0]) $pair[1]}
  }
  }
@@ -314,7 +323,7 @@ function Assert-KmcChunk7AssistedColdInventoryEvidence($Request,$Artifact,$Sourc
  if($Status-ceq'PASS'-and$Artifact.status-cne'PASS'){throw 'PASS assisted cold result requires its PASS native artifact.'}
  if($Artifact.status-cne'PASS'){return}
  if(Test-KmcChunk7OwnerSeedSelection $Request.assistedColdInventory){Assert-KmcChunk7OwnerSeedColdEvidence $Request $Artifact $SourceArtifact;return}
- if(Test-KmcChunk7SmallFixtureColdSelection $Request.assistedColdInventory){Assert-KmcChunk7SmallFixtureColdEvidence $Request $Artifact $SourceArtifact;return}
+ if(Test-KmcChunk7PaidFixtureColdSelection $Request.assistedColdInventory){Assert-KmcChunk7SmallFixtureColdEvidence $Request $Artifact $SourceArtifact;return}
  $o=$Artifact.observations;$s=$Request.assistedColdInventory;$source=$SourceArtifact
  if($null-eq$source-or$source.GetType().FullName-cne'System.Management.Automation.PSCustomObject'){throw 'Assisted cold native proof requires its exact qualified producer artifact.'}
  Assert-KmcOrdinaryInteger $source.schemaVersion 1 1
@@ -408,7 +417,8 @@ function Get-KmcChunk7SmallFixtureColdExpected($Source){
 }
 function Assert-KmcChunk7SmallFixtureColdEvidence($Request,$Artifact,$SourceArtifact){
  $s=$Request.assistedColdInventory;$o=$Artifact.observations
- $qualified=Get-KmcChunk7SmallFixtureColdSource $s.sourceRunId $s.sourceArtifactSha256 $s.sourceArchiveSha256 $Request.fixture $Request
+ $medium=Test-KmcChunk7MediumFixtureColdSelection $s
+ $qualified=Get-KmcChunk7SmallFixtureColdSource $s.sourceRunId $s.sourceArtifactSha256 $s.sourceArchiveSha256 $Request.fixture $Request $(if($medium){'owner-seed-default-human-horse-manual'}else{'owner-seed-default-halfling-horse-manual'})
  Assert-KmcBootstrapInventoryString $qualified.artifactSha256 $s.sourceArtifactSha256
  Assert-KmcBootstrapInventoryString $qualified.descriptor.sha256 $Request.persistenceLoad.sha256
  Assert-KmcAssistedSame $SourceArtifact (Read-KmcJson $qualified.artifactPath) 'F09 cold verified immutable producer artifact'
@@ -422,7 +432,8 @@ function Assert-KmcChunk7SmallFixtureColdEvidence($Request,$Artifact,$SourceArti
  foreach($key in @('profileAdmissionChanged','ordinaryAcquisitionProven','sixPairFixtureQualified','ordinaryProgressionProven')){Assert-KmcChunk7Boolean $o.$key $false}
  $root=Get-KmcAssistedSaveRoot $Request
  Assert-KmcAssistedObjectValue $o.source @('runId','artifactSha256','archiveSha256','archiveLeaf','sameCandidate','assistedSetupOnly','copiedArtifactPath','diagnosticArchiveContentRead','kind') 'F09 cold source provenance'
- foreach($pair in @(@('runId',$s.sourceRunId),@('artifactSha256',$s.sourceArtifactSha256),@('archiveSha256',$s.sourceArchiveSha256),@('archiveLeaf',$Request.persistenceLoad.fileName),@('copiedArtifactPath',(Join-Path (Split-Path $root -Parent) 'assisted-cold-source.json')), @('kind','qualified-owner-seed-derived-small-fixture-manual'))){Assert-KmcBootstrapInventoryString $o.source.($pair[0]) $pair[1]}
+ $kind=if($medium){'qualified-owner-seed-derived-medium-fixture-manual'}else{'qualified-owner-seed-derived-small-fixture-manual'}
+ foreach($pair in @(@('runId',$s.sourceRunId),@('artifactSha256',$s.sourceArtifactSha256),@('archiveSha256',$s.sourceArchiveSha256),@('archiveLeaf',$Request.persistenceLoad.fileName),@('copiedArtifactPath',(Join-Path (Split-Path $root -Parent) 'assisted-cold-source.json')), @('kind',$kind))){Assert-KmcBootstrapInventoryString $o.source.($pair[0]) $pair[1]}
  foreach($key in @('sameCandidate','assistedSetupOnly')){Assert-KmcChunk7Boolean $o.source.$key $true}
  Assert-KmcChunk7Boolean $o.source.diagnosticArchiveContentRead $false
  Assert-KmcOrdinaryInteger $o.sourceNativeMoney $expected.money $expected.money

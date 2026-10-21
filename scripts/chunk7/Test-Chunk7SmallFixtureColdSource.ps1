@@ -23,6 +23,21 @@ Check 'actual batch52 F09 native Manual and complete producer receipts' $true {
     $s.sourceProcessId-ne$artifact.observations.processId-or$s.nativeAuthorityGranted-ne$false-or
     $s.producerAncestry-ne$false-or$s.receiptPins.Count-ne9){throw 'F09 cold source did not preserve actual producer identity.'}
 }
+$mediumRoot=Join-Path (Get-KmcLabRoot) 'runtime-evidence/20261021-c7b-world117-b112s1-medium-paid'
+$mediumRequest=Read-KmcJson (Join-Path $mediumRoot 'runtime-request.json')
+$mediumArtifact=Read-KmcJson (Join-Path $mediumRoot 'chunk7-small-fixture-evidence.json')
+$mediumArtifactHash=Get-KmcSha256 (Join-Path $mediumRoot 'chunk7-small-fixture-evidence.json')
+$mediumArchiveHash=[string]$mediumArtifact.observations.nativeWrite.sha256
+Check 'actual batch112 Medium native Manual and complete producer receipts' $true {
+ $s=Get-KmcChunk7SmallFixtureColdSource $mediumRequest.runId $mediumArtifactHash $mediumArchiveHash $mediumRequest.fixture $mediumRequest 'owner-seed-default-human-horse-manual'
+ if($s.path-cne$mediumArtifact.observations.nativeWrite.path-or$s.descriptor.sha256-cne$mediumArchiveHash-or$s.sourceProcessId-ne$mediumArtifact.observations.processId-or$s.receiptPins.Count-ne9){throw 'Medium cold source did not preserve actual producer identity.'}
+}
+Check 'Medium Manual cannot impersonate Small producer case' $false {
+ Get-KmcChunk7SmallFixtureColdSource $mediumRequest.runId $mediumArtifactHash $mediumArchiveHash $mediumRequest.fixture $mediumRequest
+}
+Check 'Small Manual cannot impersonate Medium producer case' $false {
+ Get-KmcChunk7SmallFixtureColdSource $request.runId $artifactHash $archiveHash $request.fixture $request 'owner-seed-default-human-horse-manual'
+}
 Check 'wrong source artifact hash' $false {Get-KmcChunk7SmallFixtureColdSource $request.runId ('0'*64) $archiveHash $request.fixture $request}
 Check 'wrong source archive hash' $false {Get-KmcChunk7SmallFixtureColdSource $request.runId $artifactHash ('0'*64) $request.fixture $request}
 Check 'source run traversal' $false {Get-KmcChunk7SmallFixtureColdSource '../other' $artifactHash $archiveHash $request.fixture $request}
