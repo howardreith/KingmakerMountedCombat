@@ -1,5 +1,11 @@
 # Chunk 7B–7D — IN PROGRESS
 
+The batch143 assisted Manual gives F09 a new bounded fixture lead: one genuine
+Ranger/Horse pair, five unused native character slots, party level 5, quoted
+15,000 default-hire XP and exactly one 12,500 paid-hire cost in money. A first
+nonfree native hire/Horse pilot on that immutable source needs its own admitted
+scenario and evidence; no six-pair stress or cap expansion is claimed.
+
 [Batches 143–144](docs/CHUNK7-BATCH143-144-ASSISTED-MANUAL-COLD-2026-10-21.md)
 record a genuine assisted new-campaign final Manual and separate-process cold
 game PASS on one frozen preview.94 package. The cold outer reader's original

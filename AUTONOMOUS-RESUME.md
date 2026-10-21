@@ -20,16 +20,35 @@ reader-only re-evaluation of the immutable artifact PASS. Keep original outer
 FAIL and reader-only PASS separate. Both transactions are `restored`, exact
 Mods/protected-save/profile bytes, zero cache exceptions, no process or lock.
 
-Current uncommitted changes are only the external reader regression and this
-documentation; the product DLL remains SHA-256
+Reader regression and documentation are committed at `53a99e99`; the product
+DLL remains SHA-256
 `01582f104c03bb479a440fc65936dc786eefe06058d05f80862e254153434f39`.
-Next: commit the reader/docs, then choose an independent required gate from the
+Next: choose an independent required gate from the
 [standing matrix](planning/CHUNK7-COMPLETION-MISSION.md): ordinary progression/
 acquisition, F09 conditional six-pair fixture, F11 measured allocations and
 normal-player controls, ordinary door, then readiness-gated private 7E. Do not
 rerun the unchanged assisted cold input. Earlier assisted FAILs remain.
-Prior guarded push-helper WhatIf was rejected by automatic approval review;
-do not bypass it with an alternate push. Draft PR #5 remains remote-stale.
+The repository-owned guarded helper at
+`C:/Dev/KingmakerMountedCombatLab/codex-policy/Push-KingmakerMountedCombat.ps1`
+passed WhatIf from the actual successor worktree and fast-forward pushed clean
+HEAD `53a99e990a08372e51ae7d11860efe7daf655b1f`; the helper verified the
+remote SHA. Draft PR #5 remains a draft and its body now records batches
+143–144 and the remaining gates. The earlier copied-helper approval rejection
+was specific to the old worktree path and was not used for this push.
+
+F09's next bounded source experiment can use the immutable assisted Manual
+above, without replaying its prologue. Its saved-world/native-profile evidence
+has one field character (the main Ranger) and one reciprocal Horse, a native
+six-character field limit, party level 5, 15,000 quoted default-hire XP, and
+money 12,500 equal to one genuine paid-hire cost 12,500. This supports a
+**pilot hypothesis**, not six-pair qualification: admit the same-candidate
+producer through its pinned source gate and test one ordinary nonfree
+`CreateCustomCompanion`/Ranger Horse operation with existing native build
+ownership, zero money/XP assistance for that first hire, and exact disposal.
+Only after that pilot should a distinct, explicitly bounded five-hire setup
+and six-pair lifecycle/performance route be considered. The product's current
+two-pair save admission and the lack of four further pets remain open; do not
+count this read-only inventory as engine feasibility or a scope deferral.
 
 ## Active October 21 after batch142 Dialog-in-Cutscene failure
 
