@@ -1,5 +1,32 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## Active October 21 after batch141 Cutscene-mode gap
+
+The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
+[Batch141](docs/CHUNK7-BATCH141-ASSISTED-CUTSCENE-MODE-2026-10-21.md)
+records native run `20261021-c7b-world97-b140s1-assisted-stop` as **FAIL** on
+clean commit `6cfb0653`, package SHA-256
+`3180a458431b4eab90fdf141c6252ebbab6a7b44597817f4afab794e5f55a46d`,
+suite snapshot SHA-256
+`d0259f7182e8a30e9f415f1f89fe3786059abdbe804dd8e5b7dcc4342776d7d1`.
+After 37 native story clicks, terminal Exit entered `Cutscene` mode. At frame
+6083, cutscene lock dropped while mode remained `Cutscene`; the fixture driver
+refused it. Original evidence SHA-256
+`48792d23d1cb351a0cae501505617bc35682cd4c8ae5b42dbe5e703c53cbf7a9`.
+The transaction is `restored` with exact Mods/protected-save/profile bytes,
+zero cache exceptions and no game process or lock. Earlier FAILs remain.
+
+Current uncommitted correction waits while native mode is `Cutscene` or its
+lock is present. Other mode, dialog, readiness, choice and time guards remain;
+no native call/state is changed. Focused core passed 250/0 and source 147/0.
+Independent read-only review found no concrete blocker. Candidate passed 6/0 in
+3.98 minutes. Next: commit, build a clean-HEAD
+package and matched suite, pass scoped WhatIf, then run one corrected guarded
+producer. If a final native Manual passes, admit a separate independent-copy
+cold consumer. Ordinary acquisition, F09, broader F10, doors, F11 and 7E remain
+open. The prior guarded push-helper WhatIf was rejected by automatic approval
+review; do not bypass it with an alternate push. Draft PR #5 is remote-stale.
+
 ## Active October 21 after batch140 native stop diagnosis
 
 The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.

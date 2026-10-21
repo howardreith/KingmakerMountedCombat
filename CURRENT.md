@@ -1,5 +1,14 @@
 # Chunk 7B–7D — IN PROGRESS
 
+[Batch141](docs/CHUNK7-BATCH141-ASSISTED-CUTSCENE-MODE-2026-10-21.md)
+retains a third distinct assisted native **FAIL**: the terminal Exit reached
+native `Cutscene` mode, but its cutscene-lock flag dropped one frame before the
+mode changed. The driver incorrectly refused that mode/flag gap. The guarded
+run restored Mods, protected saves and profile bytes exactly. A scoped wait on
+the native mode or lock passes focused core 250/0, Candidate 6/0 and independent
+review; native verification remains open. No final Manual or independent cold
+consumer exists.
+
 [Batch140](docs/CHUNK7-BATCH140-ASSISTED-STOP-SETTLEMENT-2026-10-21.md)
 keeps the second assisted native run FAIL but distinguishes its cause: the
 installed dialog controller retained `m_DialogStopScheduled=true` after the

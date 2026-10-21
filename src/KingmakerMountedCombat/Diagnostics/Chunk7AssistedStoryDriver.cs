@@ -155,7 +155,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 if(pending==null && !current.DialogActive && (current.Mode=="Cutscene"||current.Cutscene) && previousFrame>=0 && current.Frame>previousFrame)
                     progressStart=current.ElapsedMilliseconds;
                 if(current.ElapsedMilliseconds-progressStart>ProgressMilliseconds)throw NoProgress(current);
-                if(current.NativeBusy||current.TransitionPending || current.Mode!="Dialog"&&current.Cutscene)
+                if(current.NativeBusy||current.TransitionPending || current.Mode=="Cutscene"||current.Cutscene)
                     return Status=Chunk7AssistedStoryStatus.Waiting;
                 if(current.Mode!="Dialog")throw new InvalidOperationException("Only native Default, pending transition or ordinary PC story Dialog is selected.");
                 if(current.ManagerKind.HasValue && SelectedStatus(current.ManagerKind.Value)==null)throw new InvalidOperationException("Only common, book and interchapter native dialog kinds are selected.");

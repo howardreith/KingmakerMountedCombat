@@ -13,6 +13,10 @@
 > and [implementation chronology](CHUNK7-IMPLEMENTATION-PLAN.md) remain
 > historical where they say 7E is unselected or give stale native caps.
 
+[Batch141](../docs/CHUNK7-BATCH141-ASSISTED-CUTSCENE-MODE-2026-10-21.md)
+retains the corrected assisted producer's separate native FAIL and scoped
+Cutscene-mode gap correction; the final Manual and cold consumer remain open.
+
 [Batch120](../docs/CHUNK7-BATCH120-MAMMOTH-FIELD-READER-2026-10-21.md)
 records preview.87's four-slot paid Medium/Mammoth chain. The Mammoth field
 game passed native Mount, movement, Dismount and natural owner retirement;

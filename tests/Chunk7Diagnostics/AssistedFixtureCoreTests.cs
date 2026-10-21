@@ -58,6 +58,13 @@ static class AssistedCoreTests
   Check("scheduled native transition waits without click",()=>{var r=new Rig();r.State.TransitionPending=true;using(var d=r.Driver())return d.Tick()==Chunk7AssistedStoryStatus.Waiting&&r.Clicks==0;});
   Check("native busy waits without click",()=>{var r=new Rig();r.State.NativeBusy=true;using(var d=r.Driver())return d.Tick()==Chunk7AssistedStoryStatus.Waiting&&r.Clicks==0;});
   Check("native cutscene waits without click",()=>{var r=new Rig();r.State.Mode="Cutscene";r.State.Cutscene=true;using(var d=r.Driver())return d.Tick()==Chunk7AssistedStoryStatus.Waiting&&r.Clicks==0;});
+  Check("post-exit Cutscene mode waits across cleared cutscene lock",()=>{var r=new Rig();SystemOffer(r,true);using(var d=r.Driver()){
+   if(d.Tick()!=Chunk7AssistedStoryStatus.Clicked)return false;Closed(r,1,28000);
+   if(d.Tick()!=Chunk7AssistedStoryStatus.Waiting)return false;
+   r.State.Cutscene=false;r.State.Frame++;r.State.ElapsedMilliseconds=28100;
+   if(d.Tick()!=Chunk7AssistedStoryStatus.Waiting||r.Clicks!=1)return false;
+   r.State.Mode="Default";r.State.Frame++;r.State.ElapsedMilliseconds=28200;
+   return d.Tick()==Chunk7AssistedStoryStatus.ReadyAtObservedFrame&&r.Clicks==1;}});
   Check("Default current frame is observational ready only",()=>{var r=new Rig();r.State.Mode="Default";r.State.DialogActive=false;using(var d=r.Driver()){var s=d.Tick();r.State.Mode="Dialog";r.State.DialogActive=true;r.State.Frame++;return s==Chunk7AssistedStoryStatus.ReadyAtObservedFrame&&d.Tick()==Chunk7AssistedStoryStatus.Clicked;}});
   Check("pending Default is not ready",()=>{var r=new Rig();r.State.Mode="Default";r.State.DialogActive=false;r.State.TransitionPending=true;using(var d=r.Driver())return d.Tick()==Chunk7AssistedStoryStatus.Waiting;});
   Check("stalled Default names the three observed native transition sources without changing its bound",()=>{var r=new Rig();r.State.Mode="Default";r.State.DialogActive=false;r.State.TransitionPending=true;
