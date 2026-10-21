@@ -30,6 +30,15 @@ internal static class ProgressionProtocolTests {
     var changed=ColdRequest();mutation(changed);TestRunner.True(changed.Validate().Count>0,"Altered retrain cold request accepted.");
    }
   });
+  tests.Run("Medium Mammoth retrain cold selects one exact read-only native Manual",()=>{
+   var r=MediumColdRequest();TestRunner.Equal(0,r.Validate().Count,string.Join(";",r.Validate()));
+   foreach(var mutation in new Action<RuntimeRequest>[]{x=>x.Progression.FormerPetId=x.Progression.PetId,
+    x=>x.Progression.ExpectedNativeWriteCount=1,x=>x.Progression.NativeWriteLeaf="Auto_1.zks",
+    x=>x.Progression.FixtureExperienceGrant=96000,x=>x.Progression.RaceGuid=new string('a',32),
+    x=>x.Progression.SourceRunId=x.Progression.InventoryRunId}){
+    var changed=MediumColdRequest();mutation(changed);TestRunner.True(changed.Validate().Count>0,"Altered Medium Mammoth retrain cold request accepted.");
+   }
+  });
   tests.Run("Small level cold selects its two-pair read-only native Manual",()=>{
    var r=LevelColdRequest();TestRunner.Equal(0,r.Validate().Count,string.Join(";",r.Validate()));
    foreach(var mutation in new Action<RuntimeRequest>[]{x=>x.Progression.FormerPetId="0e0c7d2d-06b4-4510-9f81-d847340d1424",
@@ -70,6 +79,15 @@ internal static class ProgressionProtocolTests {
  }
  private static RuntimeRequest LevelColdRequest(){var r=ColdRequest();r.Progression.Case=Chunk7ProgressionSelection.SmallLevelColdCase;
   r.Progression.PetId=r.Progression.FormerPetId;r.Progression.FormerPetId=null;return r;
+ }
+ private static RuntimeRequest MediumColdRequest(){var r=ColdRequest();var p=r.Progression;
+  p.Case=Chunk7ProgressionSelection.MediumRetrainColdCase;
+  p.ActorId="93f5f59d-403a-4ab2-a5e2-f91ff4d57f5f";
+  p.PetId="f454f686-2657-48a7-89f6-79ad70a0774c";
+  p.FormerPetId="af4e8966-4d8d-4573-a16c-c2b402a71693";
+  p.ControlActorId="73681ef2-b281-4bc6-bc05-2de68c1616cb";
+  p.ControlPetId="a3e58763-2386-4ee7-a96d-8ccc21123b22";
+  return r;
  }
  private static RuntimeSaveDescriptor Descriptor(string name,string leaf,string hash)=>new RuntimeSaveDescriptor{InternalName=name,FileName=leaf,Sha256=hash,Length=10,LastWriteTimeUtcTicks=638907120000000000L,GameId=Campaign,GameName="Fixture",Area=Area};
  private sealed class Fixture{

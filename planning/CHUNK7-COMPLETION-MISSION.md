@@ -13,6 +13,11 @@
 > and [implementation chronology](CHUNK7-IMPLEMENTATION-PLAN.md) remain
 > historical where they say 7E is unselected or give stale native caps.
 
+[Batch116](../docs/CHUNK7-BATCH116-MEDIUM-MAMMOTH-PRODUCER-2026-10-21.md)
+passed the genuine paid Medium Horse mounted Manual/cold and the rider-B native
+Horse-to-Mammoth respec/Manual on preview.83, with exact restoration. The
+independent Mammoth cold consumer is still unqualified; F10 is not complete.
+
 [Batch115](../docs/CHUNK7-BATCH115-MEDIUM-MOUNTED-DEVELOPMENT-2026-10-21.md)
 qualified the distinct paid Medium two-Horse mounted Manual and independent-copy
 separate-process cold load on world119, game/outer 5/0 and 3/0 with exact

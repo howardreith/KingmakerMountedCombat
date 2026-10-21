@@ -19,6 +19,7 @@ namespace KingmakerMountedCombat.Diagnostics
         public const string SmallLevelCase = "small-horse-native-level";
         public const string SmallRetrainHorseCase = "small-horse-native-retrain-horse";
         public const string MediumRetrainMammothCase = "medium-horse-native-retrain-mammoth";
+        public const string MediumRetrainColdCase = "medium-horse-native-retrain-cold";
         public const string SmallRetrainColdCase = "small-horse-native-retrain-cold";
         public const string SmallLevelColdCase = "small-horse-native-level-cold";
         public const string OwnedRetrainHorseCase = "owned-horse-native-retrain-horse";
@@ -58,7 +59,7 @@ namespace KingmakerMountedCombat.Diagnostics
         public bool ShouldSerializeOwnedSource() => OwnedSource != null;
         internal bool IsSmallDismiss => Case == SmallDismissCase;
         internal bool IsLevelCold => Case == SmallLevelColdCase;
-        internal bool IsColdOnly => Case == SmallRetrainColdCase || IsLevelCold;
+        internal bool IsColdOnly => Case == SmallRetrainColdCase || Case == MediumRetrainColdCase || IsLevelCold;
         internal bool IsSmallOwned => IsSmallDismiss || Case == SmallRetrainHorseCase || Case == SmallLevelCase;
         internal bool IsMediumOwned => Case == MediumRetrainMammothCase;
         internal bool IsPaidOwned => IsSmallOwned || IsMediumOwned;
@@ -204,7 +205,7 @@ namespace KingmakerMountedCombat.Diagnostics
                         source.Area != Chunk7SmallFixtureSelection.AreaId ||
                         source.Sha256 != SourceArchiveSha256 ||
                         source.Sha256 == fixture.Working.Sha256 || source.Sha256 == fixture.Baseline.Sha256)
-                        errors.Add("Retrain cold Manual does not match its engine-minted Small campaign and exact source hash.");
+                        errors.Add("Retrain cold Manual does not match its engine-minted paid campaign and exact source hash.");
                 }
                 return errors;
             }

@@ -1,5 +1,22 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## Active October 21 after batch116 — Mammoth producer PASS, cold pending
+
+The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
+[Batch116](docs/CHUNK7-BATCH116-MEDIUM-MAMMOTH-PRODUCER-2026-10-21.md)
+froze pushed `fa44b615` as preview.83/world120. Paid two-pair Medium Horse
+mounted Manual/cold passed 5/0 and 3/0; genuine rider-B Horse-to-Mammoth
+native respec/Manual passed 3/0 at Ranger 10, companion rank 7 and Large
+Mammoth. Three guarded transactions restored exact Mods, Working, protected
+saves and Howie profile bytes with no cache exception or active game/lock.
+The next task is to finish review of the new distinct
+`medium-horse-native-retrain-cold` consumer, then freeze one new candidate and
+run its same-candidate mounted Manual/cold/Mammoth producer/separate Mammoth
+cold chain (at most four declared native scenarios). Do not cold-load the
+preview.83 producer under changed product bytes or call source/reader offline
+tests native cold proof. F09/F10/F11 and selected private 7E remain open.
+The batch115 paragraph below is history.
+
 ## Active October 21 after batch115 — mounted Medium Horse Manual/cold PASS
 
 The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.

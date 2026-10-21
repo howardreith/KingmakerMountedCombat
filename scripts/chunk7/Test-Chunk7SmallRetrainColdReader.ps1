@@ -13,7 +13,7 @@ $producer=Read-KmcJson $path;$observed=$producer.observations;$saved=$observed.s
 $terminal=@($observed.session.events|Where-Object{$null-ne$_.PSObject.Properties['kind']-and$_.kind-ceq'native-progression-builder-complete'})
 if($terminal.Count-ne1-or$saved.Pairs.Count-ne1){throw 'Historical retrain producer shape changed.'}
 $body=$observed.nativeBodyBefore
-$selection=[pscustomobject]@{actorId=$observed.selection.actorId;petId=$observed.ownedRosterAfter.currentPetId;
+$selection=[pscustomobject]@{case='small-horse-native-retrain-cold';actorId=$observed.selection.actorId;petId=$observed.ownedRosterAfter.currentPetId;
     controlActorId=$observed.selection.controlActorId;controlPetId=$observed.selection.controlPetId}
 $owner=[pscustomobject]@{ownerId=$saved.Pairs[0].PairId;generation=$saved.Pairs[0].Generation}
 $expected=[pscustomobject]@{targetLevel=$terminal[0].level;targetXp=$terminal[0].xp;newPetLevel=$terminal[0].petLevel;
@@ -46,6 +46,7 @@ $altered=New-State;$altered.slots[1]=Clone $altered.slots[0];Refuses 'duplicate 
 $altered=New-State;$altered.nativeBody=(Clone $altered.nativeBody);$altered.nativeBody.raceGuid='0'*32;Refuses 'changed native body' $altered
 $altered=New-State;$altered.actors[0].inCombat=$true;Refuses 'actor entered combat' $altered
 $altered=New-State;$altered.actors[0].prepared='false';Refuses 'text Prepared flag' $altered
+$altered=New-State;$altered.actors[0].prepared=$true;Refuses 'unexpected native preparation' $altered
 $interval=[pscustomobject]@{coldInitialFrame=100;coldContinuationFrame=105;coldInitial=(New-State);coldContinuation=(New-State)}
 Assert-KmcChunk7RetrainColdInterval $interval
 Write-Host 'PASS five-frame unchanged continuation'
@@ -61,4 +62,4 @@ foreach($entry in @([pscustomobject]@{kind='restore-debt-before';actorId=$select
     if(-not$refused){throw ('Extra native observer event accepted: '+$entry.kind)}
     Write-Host ('PASS refuses extra '+$entry.kind)
 }
-Write-Host 'TOTAL PASS 16 FAIL 0; strict reader snapshot/observer regression, no native cold proof'
+Write-Host 'TOTAL PASS 17 FAIL 0; strict reader snapshot/observer regression, no native cold proof'
