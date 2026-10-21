@@ -40,7 +40,7 @@ $blocked=[ordered]@{
 }
 $progressionSite='src/KingmakerMountedCombat/Diagnostics/Chunk7NativeProgressionSession.cs (legacy ObserveTerminalAutosave)'
 $blockedCases=@('horse-native-level','horse-native-retrain-horse','horse-native-retrain-mammoth')
-$admittedCases=@('horse-native-dismiss','owned-horse-native-dismiss','owned-horse-native-level','owned-horse-native-retrain-horse','owned-horse-native-retrain-mammoth','small-horse-native-dismiss','small-horse-native-retrain-horse','small-horse-native-level')
+$admittedCases=@('horse-native-dismiss','owned-horse-native-dismiss','owned-horse-native-level','owned-horse-native-retrain-horse','owned-horse-native-retrain-mammoth','small-horse-native-dismiss','small-horse-native-retrain-horse','small-horse-native-level','medium-horse-native-retrain-mammoth')
 
 # The registry is exact and every recorded wait site is the live wait in the source.
 $families=@(Get-KmcChunk7StaleLevelUpAutosaveFamilies)
@@ -114,7 +114,21 @@ foreach($entry in $blocked.GetEnumerator()){
 # throws right after the readiness gate, long before environment intake, approval or a lock.
 function Write-Selection([string]$Case){
     $p=Join-Path $output ('progression-'+$Case+'.json')
-    if(Test-KmcChunk7SmallProgressionCase $Case){
+    if(Test-KmcChunk7MediumProgressionCase $Case){
+        $producerRun='20261021-c7b-world119-b115s1-medium-mounted'
+        $coldRun='20261021-c7b-world119-b115s2-medium-mounted-cold'
+        $producerPath=Join-Path $labRoot ('runtime-evidence/'+$producerRun+'/chunk7-persistence-evidence.json')
+        $coldPath=Join-Path $labRoot ('runtime-evidence/'+$coldRun+'/chunk7-persistence-evidence.json')
+        $producer=Read-KmcJson $producerPath;$cold=Read-KmcJson $coldPath
+        $request=Read-KmcJson (Join-Path $labRoot ('runtime-evidence/'+$coldRun+'/runtime-request.json'))
+        $s=[pscustomobject][ordered]@{case=$Case;sourceRunId=$producerRun;sourceArtifactSha256=(Get-KmcSha256 $producerPath)
+            sourceArchiveSha256=$producer.observations.nativeWrite.sha256;inventoryRunId=$coldRun;inventoryArtifactSha256=(Get-KmcSha256 $coldPath)
+            actorId=$request.ownedPairs.riderBId;petId=$request.ownedPairs.mountBId
+            controlActorId=$request.ownedPairs.riderAId;controlPetId=$request.ownedPairs.mountAId
+            raceGuid='0a5d473ead98b0646b94495af250fdc4';presetGuid='58181bf151eb0c0408f82546541dcc03'
+            skeletonName='MaleHuman';gender='Male';leftHanded=$false;bodySize='Medium';minimumRangerLevel=10
+            expectedNativeWriteCount=1;nativeWriteLeaf=$null;ownedSource=$request.ownedPairs;fixtureExperienceGrant=96000}
+    }elseif(Test-KmcChunk7SmallProgressionCase $Case){
         $source=Join-Path $labRoot 'runtime-evidence/20261020-c7b-world102-b89s3-small-native-dismiss/runtime-request.json'
         if((Get-KmcSha256 $source)-cne'90f0974ec2f033e7fcb4e0ba07cf0cf33a35651cdfcabe4975ff4bb276bf972b'){
             throw 'Immutable batch89 Small progression intake source changed.'

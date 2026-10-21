@@ -540,7 +540,8 @@ namespace KingmakerMountedCombat.Diagnostics
             var fact = descriptor.GetFact(targetCompanionFeature) as Feature;
             Require(fact != null && fact.Source != null && horse != null && horse.Blueprint?.AssetGuid == targetCompanionUnitGuid &&
                 ReferenceEquals(horse.Descriptor.Master.Value, actor), "Ordinary native progression did not produce the sourced reciprocal Horse companion.");
-            if (pins.RequireStockMammothRankSeven)
+            if (pins.RequireStockMammothRankSeven ||
+                pins.Mode == Chunk7OrdinaryBuildMode.NativeRespecMammoth && pins.MinimumRangerLevel == 10)
             {
                 var rank = ResourcesLibrary.TryGetBlueprint<BlueprintFeature>(HorseCompanionBlueprintService.LevelRankGuid);
                 var upgrade = ResourcesLibrary.TryGetBlueprint<BlueprintFeature>(HorseCompanionBlueprintService.MammothUpgradeGuid);
@@ -551,7 +552,8 @@ namespace KingmakerMountedCombat.Diagnostics
                     descriptor.OriginalSize == Size.Medium && descriptor.State.Size == Size.Medium &&
                     horse.Descriptor.State.Size == Size.Large && actor.GetActivePolymorph() == null && horse.GetActivePolymorph() == null,
                     "Native stock Mammoth did not attain its sourced rank-seven Large upgrade over the exact Medium Ranger.");
-                Emit("native-stock-mammoth-rank-seven", new JObject { ["rangerLevel"] = descriptor.Progression.GetClassLevel(ranger),
+                Emit(pins.RequireStockMammothRankSeven ? "native-stock-mammoth-rank-seven" : "native-retrain-mammoth-rank-seven",
+                    new JObject { ["rangerLevel"] = descriptor.Progression.GetClassLevel(ranger),
                     ["companionRank"] = descriptor.GetFact(rank).GetRank(), ["riderSize"] = descriptor.State.Size.ToString(),
                     ["mountSize"] = horse.Descriptor.State.Size.ToString(), ["upgradeGuid"] = upgrade.AssetGuid,
                     ["featureGuid"] = targetCompanionFeature.AssetGuid, ["petGuid"] = horse.Blueprint.AssetGuid });

@@ -1,14 +1,16 @@
 Set-StrictMode -Version Latest
-function Get-KmcChunk7OwnedProgressionCases {@('owned-horse-native-level','owned-horse-native-dismiss','owned-horse-native-retrain-horse','owned-horse-native-retrain-mammoth','small-horse-native-dismiss','small-horse-native-retrain-horse','small-horse-native-level')}
+function Get-KmcChunk7OwnedProgressionCases {@('owned-horse-native-level','owned-horse-native-dismiss','owned-horse-native-retrain-horse','owned-horse-native-retrain-mammoth','small-horse-native-dismiss','small-horse-native-retrain-horse','small-horse-native-level','medium-horse-native-retrain-mammoth')}
 function Test-KmcChunk7OwnedProgressionCase($Case){$Case-is[string]-and$Case-cin(Get-KmcChunk7OwnedProgressionCases)}
 function Test-KmcChunk7SmallProgressionCase($Case){$Case-is[string]-and$Case-cin@('small-horse-native-dismiss','small-horse-native-retrain-horse','small-horse-native-level')}
+function Test-KmcChunk7MediumProgressionCase($Case){$Case-is[string]-and$Case-ceq'medium-horse-native-retrain-mammoth'}
+function Test-KmcChunk7PaidProgressionCase($Case){(Test-KmcChunk7SmallProgressionCase $Case)-or(Test-KmcChunk7MediumProgressionCase $Case)}
 function Get-KmcChunk7ProgressionOperation($Case){
  if($Case-isnot[string]){throw 'Progression operation requires an exact scalar case.'}
  switch -CaseSensitive($Case){
   'horse-native-level'{'horse-native-level'} 'owned-horse-native-level'{'horse-native-level'} 'small-horse-native-level'{'horse-native-level'}
   'horse-native-dismiss'{'horse-native-dismiss'} 'owned-horse-native-dismiss'{'horse-native-dismiss'} 'small-horse-native-dismiss'{'horse-native-dismiss'}
   'horse-native-retrain-horse'{'horse-native-retrain-horse'} 'owned-horse-native-retrain-horse'{'horse-native-retrain-horse'} 'small-horse-native-retrain-horse'{'horse-native-retrain-horse'}
-  'horse-native-retrain-mammoth'{'horse-native-retrain-mammoth'} 'owned-horse-native-retrain-mammoth'{'horse-native-retrain-mammoth'}
+  'horse-native-retrain-mammoth'{'horse-native-retrain-mammoth'} 'owned-horse-native-retrain-mammoth'{'horse-native-retrain-mammoth'} 'medium-horse-native-retrain-mammoth'{'horse-native-retrain-mammoth'}
   default{throw 'Unknown exact progression operation.'}
  }
 }
@@ -20,12 +22,14 @@ function Assert-KmcChunk7OwnedProgressionSelection($Request){
  if($Request-is[Collections.IDictionary]){$Request=[pscustomobject]$Request}
  if($null-ne$Request.PSObject.Properties['ownedPairs']){throw 'Progression cannot acquire outer owned-pair dispatch authority.'}
  $s=$Request.progression;$p=Get-KmcChunk7ProgressionOwnedRequest $Request;Assert-KmcChunk7OwnedPairsSelection $p;$n=$s.ownedSource
- if(Test-KmcChunk7SmallProgressionCase $s.case){
-  if($n.case-cne'small-fixture-persistence-load'-or$n.expectedNativeWriteCount-ne0-or$n.expectedNativeLoadCount-ne1){throw 'Small progression requires a read-only Small mounted Manual cold lineage.'}
+ if(Test-KmcChunk7PaidProgressionCase $s.case){
+  $medium=Test-KmcChunk7MediumProgressionCase $s.case
+  $expectedCase=if($medium){'medium-fixture-persistence-load'}else{'small-fixture-persistence-load'}
+  if($n.case-cne$expectedCase-or$n.expectedNativeWriteCount-ne0-or$n.expectedNativeLoadCount-ne1){throw 'Paid progression requires its read-only mounted Manual cold lineage.'}
   foreach($pair in @(@('sourceRunId','checkpointSourceRunId'),@('sourceArtifactSha256','checkpointSourceArtifactSha256'))){Assert-KmcBootstrapInventoryString $s.($pair[0]) $n.($pair[1])}
   if($s.inventoryRunId-ceq$s.sourceRunId-or$s.inventoryRunId-ceq$n.sourceRunId-or$s.inventoryArtifactSha256-ceq$s.sourceArtifactSha256-or
      $s.inventoryArtifactSha256-ceq$n.sourceArtifactSha256-or$s.actorId-cne$n.riderBId-or$s.petId-cne$n.mountBId-or
-     $s.controlActorId-cne$n.riderAId-or$s.controlPetId-cne$n.mountAId){throw 'Small progression substituted producer/cold receipt or Medium/Small role.'}
+     $s.controlActorId-cne$n.riderAId-or$s.controlPetId-cne$n.mountAId){throw 'Paid progression substituted producer/cold receipt or exact target/control role.'}
   return
  }
  if($n.case-cne'persistence-load'-or$n.expectedNativeWriteCount-ne0-or$n.expectedNativeLoadCount-ne1){throw 'Owned progression requires a read-only exploration Manual checkpoint.'}
@@ -39,10 +43,11 @@ function Assert-KmcChunk7OwnedProgressionDescriptor($Request){
  Assert-KmcChunk7OwnedPairsDescriptor (Get-KmcChunk7ProgressionOwnedRequest $Request)
  Assert-KmcBootstrapInventoryString $Request.persistenceLoad.sha256 $Request.progression.sourceArchiveSha256
  if($Request.persistenceLoad.sha256-ceq$Request.progression.ownedSource.sourceArchiveSha256){throw 'Progression cannot load the unmounted acquired ancestry in place of its mounted checkpoint.'}
- if(Test-KmcChunk7SmallProgressionCase $Request.progression.case){
-  if($Request.persistenceLoad.internalName-cne'KMC_C7_SMALL_WORLD'-or$Request.persistenceLoad.fileName-cnotmatch'^Manual_[1-9][0-9]*_KMC_C7_SMALL_WORLD[.]zks$'-or
+ if(Test-KmcChunk7PaidProgressionCase $Request.progression.case){
+  $name=if(Test-KmcChunk7MediumProgressionCase $Request.progression.case){'KMC_C7_MEDIUM_WORLD'}else{'KMC_C7_SMALL_WORLD'}
+  if($Request.persistenceLoad.internalName-cne$name-or$Request.persistenceLoad.fileName-cnotmatch('^Manual_[1-9][0-9]*_'+$name+'[.]zks$')-or
      $Request.persistenceLoad.gameId-cne'3f7381f7-aba6-43bf-bae6-39c6a66a7180'-or$Request.persistenceLoad.gameName-cne'Testy the Modless'-or
-     $Request.persistenceLoad.area-cne'b10e86516b6437d45a629931c30936fe'){throw 'Small progression requires its exact qualified campaign and native Manual.'}
+     $Request.persistenceLoad.area-cne'b10e86516b6437d45a629931c30936fe'){throw 'Paid progression requires its exact qualified campaign and native Manual.'}
  }
 }
 function Assert-KmcChunk7ProgressionIdSet($Value,$Expected,[string]$Description){
@@ -60,11 +65,14 @@ function Assert-KmcChunk7OwnedProgressionRoster($Request,$Observations,$Before,$
  Assert-KmcChunk7ProgressionIdSet @($world.party|ForEach-Object{$_.id}) $n.partyIds 'acquired source roster'
  foreach($actor in $world.party){if($actor.blueprint-isnot[string]-or$actor.blueprint-cnotmatch'^[0-9a-f]{32}$'){throw 'Acquired source actor blueprint is not an exact scalar GUID.'}}
  $sourceActor=$Observations.source.inventoryActor
- if(Test-KmcChunk7SmallProgressionCase $s.case){
-  Assert-KmcChunk7Boolean $Observations.source.smallFixtureSetupOnly $true
-  $fixture=$Observations.source.smallColdFixture
-  if($fixture-isnot[pscustomobject]-or$fixture.arrangement-isnot[pscustomobject]){throw 'Small cold fixture and arrangement must be exact JSON objects.'}
-  Assert-KmcBootstrapInventoryString $fixture.sourceCase 'owner-seed-default-halfling-horse-manual'
+ if(Test-KmcChunk7PaidProgressionCase $s.case){
+  $medium=Test-KmcChunk7MediumProgressionCase $s.case
+  $setupKey=if($medium){'mediumFixtureSetupOnly'}else{'smallFixtureSetupOnly'}
+  $fixtureKey=if($medium){'mediumColdFixture'}else{'smallColdFixture'}
+  Assert-KmcChunk7Boolean $Observations.source.$setupKey $true
+  $fixture=$Observations.source.$fixtureKey
+  if($fixture-isnot[pscustomobject]-or$fixture.arrangement-isnot[pscustomobject]){throw 'Paid cold fixture and arrangement must be exact JSON objects.'}
+  Assert-KmcBootstrapInventoryString $fixture.sourceCase $(if($medium){'owner-seed-default-human-horse-manual'}else{'owner-seed-default-halfling-horse-manual'})
   Assert-KmcBootstrapInventoryString $world.mainActorId $n.riderAId
   Assert-KmcChunk7ProgressionIdSet $fixture.partyIds $n.partyIds 'Small cold field actors'
   if($fixture.arrangement.actors-isnot[Array]-or$fixture.arrangement.actors.Count-ne$n.partyIds.Count){throw 'Small cold arrangement lost its seven exact native actors.'}
@@ -79,7 +87,8 @@ function Assert-KmcChunk7OwnedProgressionRoster($Request,$Observations,$Before,$
   }
   Assert-KmcBootstrapInventoryString $sourceActor.blueprint 'baaff53a675a84f4983f1e2113b24552'
   if($fixture.pairs-isnot[Array]-or$fixture.pairs.Count-ne2){throw 'Small cold fixture lost the exact two sourced Horse pairs.'}
-  foreach($role in @(@($n.riderAId,$n.mountAId,'medium-humanoid-horse-v1'),@($n.riderBId,$n.mountBId,'small-default-halfling-horse-v1'))){
+  $targetProfile=if($medium){'medium-humanoid-horse-v1'}else{'small-default-halfling-horse-v1'}
+  foreach($role in @(@($n.riderAId,$n.mountAId,'medium-humanoid-horse-v1'),@($n.riderBId,$n.mountBId,$targetProfile))){
    $pair=@($fixture.pairs|Where-Object riderId -CEQ $role[0]);$archive=@($Observations.loadedArchive.Pairs|Where-Object{$_.Rider.Id-ceq$role[0]})
    if($pair.Count-ne1-or$archive.Count-ne1){throw 'Small cold fixture lost an exact mounted role.'}
    Assert-KmcBootstrapInventoryString $pair[0].mountId $role[1]
@@ -89,7 +98,7 @@ function Assert-KmcChunk7OwnedProgressionRoster($Request,$Observations,$Before,$
    Assert-KmcBootstrapInventoryString $archive[0].Mount.Id $role[1]
    Assert-KmcBootstrapInventoryString $archive[0].ProfileId $role[2]
   }
-  $sourceXp=if($s.case-ceq'small-horse-native-level'){$Observations.fixtureExperienceSetup.sourceXp}else{$Before.xp}
+  $sourceXp=if($s.case-ceq'small-horse-native-level'-or$medium){$Observations.fixtureExperienceSetup.sourceXp}else{$Before.xp}
   Assert-KmcOrdinaryInteger $sourceActor.experience $sourceXp $sourceXp
   Assert-KmcOrdinaryInteger $sourceActor.characterLevel $Before.level $Before.level
  }else{

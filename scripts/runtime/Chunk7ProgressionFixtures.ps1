@@ -11,7 +11,7 @@ function Read-KmcChunk7ProgressionSelectionFile([string]$Path,[string]$RunId){
 function Get-KmcChunk7ProgressionSource($Selection,$Fixture,$Candidate){
     Assert-KmcChunk7ProgressionSelection ([pscustomobject]@{scenario='chunk7-native-progression';runId='unassigned-progression-run';progression=$Selection})
     if(Test-KmcChunk7ProgressionColdSelection $Selection){return Get-KmcChunk7ProgressionColdSource $Selection $Fixture $Candidate}
-    if(Test-KmcChunk7SmallProgressionCase $Selection.case){return Get-KmcChunk7SmallProgressionSource $Selection $Fixture $Candidate}
+    if(Test-KmcChunk7PaidProgressionCase $Selection.case){return Get-KmcChunk7PaidProgressionSource $Selection $Fixture $Candidate}
     if(Test-KmcChunk7OwnedProgressionCase $Selection.case){return Get-KmcChunk7OwnedProgressionSource $Selection $Fixture $Candidate}
     $sourceRoot=Assert-KmcChildPath (Join-Path (Get-KmcLabRoot) ('runtime-evidence/'+$Selection.sourceRunId)) (Join-Path (Get-KmcLabRoot) 'runtime-evidence') 'progression source receipts'
     $hashes=@{}
@@ -238,23 +238,24 @@ function Get-KmcChunk7OwnedProgressionSource($Selection,$Fixture,$Candidate){
     [pscustomobject]@{path=$source.path;descriptor=$source.descriptor;artifactPath=$source.checkpointArtifactPath;artifactSha256=$Selection.sourceArtifactSha256;artifactLength=[long]$source.checkpointArtifactLength;
         inventory=[pscustomobject]@{path=$source.artifactPath;sha256=$Selection.inventoryArtifactSha256;length=[long]$source.artifactLength};sourceProcessId=$artifact.observations.processId}
 }
-function Get-KmcChunk7SmallProgressionSource($Selection,$Fixture,$Candidate){
+function Get-KmcChunk7PaidProgressionSource($Selection,$Fixture,$Candidate){
     $source=Get-KmcChunk7OwnedPairsSource $Selection.ownedSource 'multi-exploration-manual' $Fixture $Candidate
     $request=[pscustomobject]@{scenario='chunk7-native-progression';runId='unassigned-small-progression';progression=$Selection;persistenceLoad=$source.descriptor;fixture=$Fixture}
     Assert-KmcChunk7ProgressionLoadDescriptor $request
     $set=Get-KmcChunk7OwnedReceiptSet $Selection.inventoryRunId 'chunk7-persistence-evidence.json'
     Assert-KmcChunk7OwnedSourceCompletion $set $Selection.inventoryRunId 'chunk7-owned-two-pair-campaign' $Fixture $Candidate $Selection.sourceArchiveSha256 0
-    Assert-KmcBootstrapInventoryString $set.request.ownedPairs.case 'small-fixture-persistence-load'
+    $medium=Test-KmcChunk7MediumProgressionCase $Selection.case
+    Assert-KmcBootstrapInventoryString $set.request.ownedPairs.case $(if($medium){'medium-fixture-persistence-load'}else{'small-fixture-persistence-load'})
     Assert-KmcBootstrapInventoryString $set.request.persistenceCase 'multi-exploration-manual'
     Assert-KmcChunk7OwnedPairsDescriptor $set.request
     if((ConvertTo-KmcChunk7Canonical $set.request.ownedPairs)-cne(ConvertTo-KmcChunk7Canonical $Selection.ownedSource)-or
        (ConvertTo-KmcChunk7Canonical $set.request.persistenceLoad)-cne(ConvertTo-KmcChunk7Canonical $source.descriptor)){
-        throw 'Small progression cold consumer changed its mounted producer or qualified fixture lineage.'
+        throw 'Paid progression cold consumer changed its mounted producer or qualified fixture lineage.'
     }
     Assert-KmcChunk7PersistenceArtifact $set.request $set.manifest 'PASS'
     $producer=Read-KmcJson $source.checkpointArtifactPath
     $coldPath=Join-Path $set.root 'chunk7-persistence-evidence.json';$cold=Read-KmcJson $coldPath
-    Assert-KmcChunk7SmallMountedColdSource $set.request $producer $cold
+    Assert-KmcChunk7PaidMountedColdSource $set.request $producer $cold
     $files=@([pscustomobject]@{path=$source.checkpointArtifactPath;hash=$Selection.sourceArtifactSha256;length=$source.checkpointArtifactLength;maximum=16MB},
         [pscustomobject]@{path=$coldPath;hash=$Selection.inventoryArtifactSha256;length=(Get-Item -LiteralPath $coldPath).Length;maximum=16MB})
     foreach($item in $files){

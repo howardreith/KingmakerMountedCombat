@@ -41,7 +41,7 @@ function Request([string]$Case='horse-native-level') {
     $q|Add-Member -NotePropertyName qualificationSuite -NotePropertyValue ([pscustomobject]@{suiteId='synthetic-progression-suite';snapshotSha256='7'*64});return $q
 }
 function Validate($Q){$path=Join-Path $wiringOutput 'request.json';[IO.File]::WriteAllText($path,(ConvertTo-KmcChunk7Canonical $Q),[Text.UTF8Encoding]::new($false));&$validator -RequestPath $path|Out-Null}
-foreach($case in @(Get-KmcChunk7ProgressionCases|Where-Object{-not(Test-KmcChunk7SmallProgressionCase $_)})){Good ('full actual progression request validator accepts '+$case) {Validate (Request $case)}}
+foreach($case in @(Get-KmcChunk7ProgressionCases|Where-Object{-not(Test-KmcChunk7PaidProgressionCase $_)})){Good ('full actual progression request validator accepts '+$case) {Validate (Request $case)}}
 # The runner holds its request as an ordered dictionary until serialization; the owned-progression authority guard must detect dictionary keys too.
 function ConvertTo-RunnerRequest($Q){$r=[ordered]@{};foreach($p in $Q.PSObject.Properties){$r[$p.Name]=$p.Value};$r}
 Good 'ordered-dictionary progression request carrying outer ownedPairs meets the authority refusal first' {$r=ConvertTo-RunnerRequest (Request);$r['ownedPairs']=[pscustomobject]@{case='exploration'};$m=$null;try{Assert-KmcChunk7OwnedProgressionSelection $r}catch{$m=$_.Exception.Message};if($m-cne'Progression cannot acquire outer owned-pair dispatch authority.'){throw ('Expected the owned-pair authority refusal, observed: '+$m)}}
@@ -74,7 +74,7 @@ foreach($name in @('expectedNativeWrites','expectedWorkingLoads')){
     Good ('progression actual native quota '+$name){if((&$quota)-ne$wantedQuota){throw 'Progression request quota changed.'}}
     $request=Request 'horse-native-dismiss';$wantedQuota=if($name-ceq'expectedNativeWrites'){0}else{1}
     Good ('dismissal actual native quota '+$name){if((&$quota)-ne$wantedQuota){throw 'Dismissal request quota changed.'}}
-    foreach($ownedCase in @(Get-KmcChunk7OwnedProgressionCases|Where-Object{-not(Test-KmcChunk7SmallProgressionCase $_)})){$request=Request $ownedCase;$wantedQuota=if($name-ceq'expectedNativeWrites'){$request.progression.expectedNativeWriteCount}else{1};Good ($ownedCase+' actual quota '+$name){if((&$quota)-ne$wantedQuota){throw 'Owned progression quota changed.'}}}
+    foreach($ownedCase in @(Get-KmcChunk7OwnedProgressionCases|Where-Object{-not(Test-KmcChunk7PaidProgressionCase $_)})){$request=Request $ownedCase;$wantedQuota=if($name-ceq'expectedNativeWrites'){$request.progression.expectedNativeWriteCount}else{1};Good ($ownedCase+' actual quota '+$name){if((&$quota)-ne$wantedQuota){throw 'Owned progression quota changed.'}}}
 }
 $runnerAst=Ast (Join-Path $wiringRuntime 'Invoke-KingmakerRuntimeScenario.ps1');$sources=@(Commands $runnerAst 'Get-KmcChunk7ProgressionSource');$copies=@(Commands $runnerAst 'Copy-KmcChunk7ProgressionInputs')
 $lock=@(Commands $runnerAst 'Open-KmcRuntimeLock');$snapshot=@(Commands $runnerAst 'New-KmcPersistenceProfileSnapshot');$entry=@(Commands $runnerAst 'Enter-KmcWorkingSaveTransaction');$stage=@(Commands $runnerAst 'Enter-KmcModsTransaction')
@@ -112,6 +112,6 @@ Good 'retained progression custody receipt is admitted only as FAIL' {$f=Manifes
 Bad 'retained progression custody cannot be promoted to PASS' {$f=ManifestFixture $true;Assert-KmcChunk7CleanupArtifacts $f.request $f.manifest 'PASS'}
 Bad 'foreign scenario cannot borrow progression custody receipt' {$f=ManifestFixture $true;$f.request.scenario='chunk7-two-pair-exploration';Assert-KmcChunk7CleanupArtifacts $f.request $f.manifest 'FAIL'}
 
-foreach($ownedCase in @(Get-KmcChunk7OwnedProgressionCases|Where-Object{-not(Test-KmcChunk7SmallProgressionCase $_)})){Good ($ownedCase+' strict exact manifest'){$f=ManifestFixture $false $ownedCase;Manifest $f;Assert-KmcChunk7ProgressionArtifact $f.request $f.manifest 'PASS'}}
+foreach($ownedCase in @(Get-KmcChunk7OwnedProgressionCases|Where-Object{-not(Test-KmcChunk7PaidProgressionCase $_)})){Good ($ownedCase+' strict exact manifest'){$f=ManifestFixture $false $ownedCase;Manifest $f;Assert-KmcChunk7ProgressionArtifact $f.request $f.manifest 'PASS'}}
 Good 'post-process leaf resolution is at the immutable-source recheck boundary' {$leaves=@(Commands $runnerAst 'Get-KmcChunk7ProgressionInputLeaf');if($leaves.Count-ne1-or$leaves[0].Extent.StartOffset-le$sources[2].Extent.StartOffset){throw 'Qualified dynamic leaf escaped final source verification.'}}
 Write-Host ('TOTAL PASS '+$script:passes+' FAIL 0; exact AST/request/reader/quota only; no guarded runner invocation')

@@ -18,6 +18,7 @@ namespace KingmakerMountedCombat.Diagnostics
         public const string SmallDismissCase = "small-horse-native-dismiss";
         public const string SmallLevelCase = "small-horse-native-level";
         public const string SmallRetrainHorseCase = "small-horse-native-retrain-horse";
+        public const string MediumRetrainMammothCase = "medium-horse-native-retrain-mammoth";
         public const string SmallRetrainColdCase = "small-horse-native-retrain-cold";
         public const string SmallLevelColdCase = "small-horse-native-level-cold";
         public const string OwnedRetrainHorseCase = "owned-horse-native-retrain-horse";
@@ -59,7 +60,9 @@ namespace KingmakerMountedCombat.Diagnostics
         internal bool IsLevelCold => Case == SmallLevelColdCase;
         internal bool IsColdOnly => Case == SmallRetrainColdCase || IsLevelCold;
         internal bool IsSmallOwned => IsSmallDismiss || Case == SmallRetrainHorseCase || Case == SmallLevelCase;
-        internal bool IsOwned => IsSmallOwned || Case == OwnedLevelCase || Case == OwnedDismissCase || Case == OwnedRetrainHorseCase || Case == OwnedRetrainMammothCase;
+        internal bool IsMediumOwned => Case == MediumRetrainMammothCase;
+        internal bool IsPaidOwned => IsSmallOwned || IsMediumOwned;
+        internal bool IsOwned => IsPaidOwned || Case == OwnedLevelCase || Case == OwnedDismissCase || Case == OwnedRetrainHorseCase || Case == OwnedRetrainMammothCase;
         internal string OperationCase
         {
             get
@@ -69,7 +72,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     case LevelCase: case OwnedLevelCase: case SmallLevelCase: return LevelCase;
                     case DismissCase: case OwnedDismissCase: case SmallDismissCase: return DismissCase;
                     case RetrainHorseCase: case OwnedRetrainHorseCase: case SmallRetrainHorseCase: return RetrainHorseCase;
-                    case RetrainMammothCase: case OwnedRetrainMammothCase: return RetrainMammothCase;
+                    case RetrainMammothCase: case OwnedRetrainMammothCase: case MediumRetrainMammothCase: return RetrainMammothCase;
                     default: return null;
                 }
             }
@@ -134,15 +137,16 @@ namespace KingmakerMountedCombat.Diagnostics
                 else
                 {
                     errors.AddRange(OwnedSource.Validate(Chunk7OwnedPairsSelection.Scenario, runId, "multi-exploration-manual"));
-                    if (IsSmallOwned)
+                    if (IsPaidOwned)
                     {
-                        if (!OwnedSource.IsSmallFixtureLoad || OwnedSource.ExpectedNativeLoadCount != 1 || OwnedSource.ExpectedNativeWriteCount != 0 ||
+                        if (!(IsSmallOwned ? OwnedSource.IsSmallFixtureLoad : OwnedSource.IsMediumFixtureLoad) ||
+                            OwnedSource.ExpectedNativeLoadCount != 1 || OwnedSource.ExpectedNativeWriteCount != 0 ||
                             SourceRunId != OwnedSource.CheckpointSourceRunId || SourceArtifactSha256 != OwnedSource.CheckpointSourceArtifactSha256 ||
                             InventoryRunId == SourceRunId || InventoryRunId == OwnedSource.SourceRunId ||
                             InventoryArtifactSha256 == SourceArtifactSha256 || InventoryArtifactSha256 == OwnedSource.SourceArtifactSha256 ||
                             ActorId != OwnedSource.RiderBId || PetId != OwnedSource.MountBId ||
                             ControlActorId != OwnedSource.RiderAId || ControlPetId != OwnedSource.MountAId)
-                            errors.Add("Small progression requires its exact mounted Manual producer, separate cold consumer and Small target/Medium control.");
+                            errors.Add("Paid progression requires its exact mounted Manual producer, separate cold consumer and target/control roles.");
                     }
                     else
                     {
@@ -165,8 +169,9 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             if (ExpectedNativeWriteCount != (WritesSave ? 1 : 0) || NativeWriteLeaf != (WritesAutosave ? "Auto_1.zks" : null))
                 errors.Add("The selected native operation has an exact write count and closed output category.");
-            if (Case == SmallLevelCase ? FixtureExperienceGrant != 6000 || MinimumRangerLevel != 4 : FixtureExperienceGrant.HasValue)
-                errors.Add("Only the Small later-level case may declare the exact native 6,000 XP shortfall over its level-four source.");
+            if (Case == SmallLevelCase ? FixtureExperienceGrant != 6000 || MinimumRangerLevel != 4 :
+                IsMediumOwned ? FixtureExperienceGrant != 96000 || MinimumRangerLevel != 10 : FixtureExperienceGrant.HasValue)
+                errors.Add("Only selected Small level or paid Medium Mammoth setup may declare its exact one-time native XP shortfall.");
             if (WritesSave ? MinimumRangerLevel < 4 || MinimumRangerLevel > 20 : MinimumRangerLevel != 0)
                 errors.Add("Native progression requires its bounded real Ranger level target, or no build plan for dismissal.");
             if (IsRespec)
@@ -207,17 +212,18 @@ namespace KingmakerMountedCombat.Diagnostics
                 errors.Add("Owned progression requires its exact separately qualified Manual source and protected fixture identities.");
             else
             {
-                var name = IsSmallOwned ? Chunk7OwnedPairsSelection.SmallFixtureManualName : "KMC_C7_WORLD";
+                var name = IsSmallOwned ? Chunk7OwnedPairsSelection.SmallFixtureManualName :
+                    IsMediumOwned ? Chunk7OwnedPairsSelection.MediumFixtureManualName : "KMC_C7_WORLD";
                 var pattern = "^Manual_([1-9][0-9]*)_" + name + "\\.zks$";
                 errors.AddRange(source.Validate("persistenceLoad", name, "^Manual_[1-9][0-9]*_" + name + "\\.zks$"));
                 var numberMatch = Regex.Match(source.FileName ?? "", pattern);
                 if (!numberMatch.Success || !int.TryParse(numberMatch.Groups[1].Value, System.Globalization.NumberStyles.None,
-                    System.Globalization.CultureInfo.InvariantCulture, out var number) || number <= 0 || IsSmallOwned && number == int.MaxValue ||
+                    System.Globalization.CultureInfo.InvariantCulture, out var number) || number <= 0 || IsPaidOwned && number == int.MaxValue ||
                     source.FileName != "Manual_" + number.ToString(System.Globalization.CultureInfo.InvariantCulture) + "_" + name + ".zks" ||
                     !Guid.TryParseExact(source.GameId, "D", out var campaign) || campaign == Guid.Empty || campaign.ToString("D") != source.GameId ||
                     source.GameId == fixture.Working.GameId)
                     errors.Add("Owned progression requires the canonical engine-minted campaign and positive native Manual number.");
-                if (IsSmallOwned && (source.GameId != Chunk7SmallFixtureSelection.CampaignId ||
+                if (IsPaidOwned && (source.GameId != Chunk7SmallFixtureSelection.CampaignId ||
                     source.GameName != Chunk7SmallFixtureSelection.CampaignName || source.Area != Chunk7SmallFixtureSelection.AreaId))
                     errors.Add("Small progression requires its qualified seven-actor campaign and area.");
                 if (source.Sha256 != SourceArchiveSha256 || source.Sha256 == OwnedSource.SourceArchiveSha256 ||

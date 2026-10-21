@@ -5,7 +5,7 @@ if(-not$PSBoundParameters.ContainsKey('RepositoryRoot')){$RepositoryRoot=[IO.Pat
 if(-not$PSBoundParameters.ContainsKey('ReaderDirectory')){$ReaderDirectory=Join-Path $RepositoryRoot 'scripts/runtime'}
 . (Join-Path $RepositoryRoot 'scripts/chunk7/Test-Chunk7ProgressionEvidence.ps1') -RepositoryRoot $RepositoryRoot -ReaderDirectory $ReaderDirectory -FixturesOnly
 $script:passes=0
-foreach($case in @(Get-KmcChunk7OwnedProgressionCases|Where-Object{-not(Test-KmcChunk7SmallProgressionCase $_)})){Good ('owned exact reader '+$case){$f=New-ProgressionFixture $case;Assert-KmcChunk7ProgressionEvidence $f.request $f.artifact}}
+foreach($case in @(Get-KmcChunk7OwnedProgressionCases|Where-Object{-not(Test-KmcChunk7PaidProgressionCase $_)})){Good ('owned exact reader '+$case){$f=New-ProgressionFixture $case;Assert-KmcChunk7ProgressionEvidence $f.request $f.artifact}}
 Good 'post-process old input remains Manual300' {$f=New-ProgressionFixture;if((Get-KmcChunk7ProgressionInputLeaf $f.request)-cne'Manual_300_KMC_C7_WORLD.zks'){throw 'Historical leaf changed.'}}
 Good 'post-process owned input derives exact native Manual leaf' {$f=New-ProgressionFixture 'owned-horse-native-level';if((Get-KmcChunk7ProgressionInputLeaf $f.request)-cne'Manual_404_KMC_C7_WORLD.zks'){throw 'Owned native leaf lost.'}}
 Bad 'owned source rejects owner-seed checkpoint impersonation' {$f=New-ProgressionFixture 'owned-horse-native-level';$f.request.persistenceLoad.internalName='KMC_C7_SEED_CHECKPOINT';$f.request.persistenceLoad.fileName='Manual_404_KMC_C7_SEED_CHECKPOINT.zks';Assert-KmcChunk7OwnedProgressionDescriptor $f.request}

@@ -68,6 +68,24 @@ internal static class OwnedProgressionProtocolTests {
    TestRunner.Equal(0,dto.ToObject<Chunk7ProgressionSelection>().Validate(r.Scenario,r.RunId).Count,
     "Small native-level selection did not round trip.");
   });
+  tests.Run("paid Medium Horse to Mammoth retrain admits only its mounted source and exact eligibility grant",()=>{
+   var r=MediumMammothRequest();TestRunner.Equal(0,r.Validate().Count,string.Join(";",r.Validate()));
+   TestRunner.True(r.Progression.IsMediumOwned&&r.Progression.IsRespec&&r.Progression.WritesManual&&!r.Progression.WritesAutosave,
+    "Paid Medium replacement lost native Manual or acquired Auto authority.");
+   TestRunner.True(ReferenceEquals(r.PersistenceLoad,r.SelectedChunk7Fixture),"Medium mounted Manual did not select its own source.");
+   var dto=Chunk7EvidenceDto.Request(r.Progression);
+   TestRunner.Equal(96000,(int)dto["fixtureExperienceGrant"],"Medium eligibility grant changed in serialized request.");
+   TestRunner.Equal(0,dto.ToObject<Chunk7ProgressionSelection>().Validate(r.Scenario,r.RunId).Count,
+    "Medium native replacement did not round trip.");
+  });
+  foreach(var label in new[]{"missing grant","different grant","higher minimum","Small source","wrong profile body","wrong target","foreign mounted name","unmounted ancestor"})
+   tests.Run("paid Medium replacement refuses "+label,()=>{var r=MediumMammothRequest();var s=r.Progression;switch(label){
+    case "missing grant":s.FixtureExperienceGrant=null;break;case "different grant":s.FixtureExperienceGrant=95999;break;
+    case "higher minimum":s.MinimumRangerLevel=11;break;case "Small source":s.OwnedSource.Case=Chunk7OwnedPairsSelection.SmallFixtureLoadCase;break;
+    case "wrong profile body":s.BodySize="Small";break;case "wrong target":s.ActorId=s.ControlActorId;break;
+    case "foreign mounted name":r.PersistenceLoad.FileName="Manual_305_KMC_C7_SMALL_WORLD.zks";break;
+    case "unmounted ancestor":s.SourceArchiveSha256=s.OwnedSource.SourceArchiveSha256;r.PersistenceLoad.Sha256=s.SourceArchiveSha256;break;
+   }TestRunner.True(r.Validate().Count>0,"Invalid paid Medium replacement was admitted.");});
   foreach(var label in new[]{"missing grant","different grant","higher minimum","grant on dismissal","grant on retrain"})
    tests.Run("Small later-level refuses "+label,()=>{var r=label=="grant on dismissal"?SmallDismissRequest():label=="grant on retrain"?SmallRetrainRequest():SmallLevelRequest();switch(label){
     case "missing grant":r.Progression.FixtureExperienceGrant=null;break;
@@ -175,6 +193,26 @@ internal static class OwnedProgressionProtocolTests {
   var r=SmallDismissRequest();var s=r.Progression;
   s.Case=Chunk7ProgressionSelection.SmallLevelCase;
   s.MinimumRangerLevel=4;s.ExpectedNativeWriteCount=1;s.FixtureExperienceGrant=6000;
+  return r;
+ }
+ private static RuntimeRequest MediumMammothRequest(){
+  var r=SmallDismissRequest();var s=r.Progression;
+  s.Case=Chunk7ProgressionSelection.MediumRetrainMammothCase;
+  s.ActorId=Chunk7OwnedPairsSelection.MediumFixtureRider;s.PetId=Chunk7OwnedPairsSelection.MediumFixtureHorse;
+  s.ControlPetId=Chunk7OwnedPairsSelection.MediumFixtureMainHorse;
+  s.RaceGuid=Chunk7SmallFixtureSelection.MediumRaceGuid;s.PresetGuid=Chunk7SmallFixtureSelection.MediumPresetGuid;
+  s.SkeletonName=Chunk7SmallFixtureSelection.MediumSkeletonName;s.Gender="Male";s.LeftHanded=false;s.BodySize="Medium";
+  s.MinimumRangerLevel=10;s.ExpectedNativeWriteCount=1;s.FixtureExperienceGrant=96000;
+  s.OwnedSource.Case=Chunk7OwnedPairsSelection.MediumFixtureLoadCase;
+  s.OwnedSource.SourceRunId=Chunk7OwnedPairsSelection.MediumFixtureProducerRun;
+  s.OwnedSource.SourceArtifactSha256=Chunk7OwnedPairsSelection.MediumFixtureProducerArtifact;
+  s.OwnedSource.SourceArchiveSha256=Chunk7OwnedPairsSelection.MediumFixtureProducerArchive;
+  s.OwnedSource.ColdReceiptSha256=Chunk7OwnedPairsSelection.MediumFixtureColdArtifact;
+  s.OwnedSource.MountAId=s.ControlPetId;s.OwnedSource.RiderBId=s.ActorId;s.OwnedSource.MountBId=s.PetId;
+  s.OwnedSource.PartyIds=new[]{s.ControlActorId,"5dd7bd1d-ae4c-4df7-9687-50fceb027344","8265f8cf-0969-4ec7-a266-2448de91c8c4",
+   "fd213210-71cd-41b0-b35b-68e1b18e9b43",s.ActorId,s.ControlPetId,s.PetId};
+  r.PersistenceLoad.InternalName=Chunk7OwnedPairsSelection.MediumFixtureManualName;
+  r.PersistenceLoad.FileName="Manual_305_KMC_C7_MEDIUM_WORLD.zks";
   return r;
  }
  private static RuntimeRequest Request(string selected){var f=new Fixture();var respec=selected==Chunk7ProgressionSelection.RetrainHorseCase||selected==Chunk7ProgressionSelection.RetrainMammothCase;var writes=selected!=Chunk7ProgressionSelection.DismissCase;
