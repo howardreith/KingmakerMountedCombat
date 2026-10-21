@@ -1,5 +1,13 @@
 # Chunk 7B–7D — IN PROGRESS
 
+Batch111's [fixture discriminator](docs/CHUNK7-BATCH111-MEDIUM-REPLACEMENT-FIXTURE-DISCRIMINATOR-2026-10-20.md)
+found no native Doll/preset on the non-main Medium Horse rider in the accepted
+owner-seed inventory. Its proposed Horse-to-Mammoth respec case was withdrawn
+before declaration or native launch. A Doll-backed paid Medium producer with a
+genuine Manual/cold route is the next F10 source task. The historical
+level-up-Auto completion path is still blocked. No product or native evidence
+changed; F09/F10/F11 and private 7E remain open.
+
 Batch110 verified the batch109 Small equipment-admission change on frozen
 world116: offline Candidate 7/0 and one guarded native/outer mounted Small
 save PASS 5/0 with its Medium neighbor, genuine Manual, and exact restoration.
