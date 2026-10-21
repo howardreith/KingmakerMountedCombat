@@ -309,7 +309,7 @@ namespace KingmakerMountedCombat.Diagnostics
             if (request.Scenario == Chunk7AcquiredManualSelection.Scenario)
             {
                 var source = saves.Single();
-                var expectedType = request.AcquiredManual.Case == Chunk7AcquiredManualSelection.TwoOwnerCaseName ? SaveInfo.SaveType.Auto : SaveInfo.SaveType.Manual;
+                var expectedType = request.ExpectedNativeLoadType == "Auto" ? SaveInfo.SaveType.Auto : SaveInfo.SaveType.Manual;
                 if (source.Type != expectedType || source.OperationState != SaveInfo.StateType.None ||
                     !source.IsActuallySaved || !source.HasFileOnDisk ||
                     source.IsAutoLevelupSave != (expectedType == SaveInfo.SaveType.Auto) ||
