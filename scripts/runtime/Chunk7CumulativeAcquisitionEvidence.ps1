@@ -1,6 +1,6 @@
 Set-StrictMode -Version Latest
 function Test-KmcChunk7CumulativeScenario([string]$Scenario){$Scenario-ceq'chunk7-cumulative-acquisition'}
-function Get-KmcChunk7CumulativeRows {@('chunk7-cumulative-acquisition','C7-cumulative-source','C7-cumulative-native-load','C7-cumulative-eligibility','C7-cumulative-native-choices','C7-cumulative-native-autosave','C7-cumulative-native-field','C7-cumulative-native-manual-save','C7-cumulative-cleanup','C7-cumulative-runtime','C7-cumulative-interrupted')}
+function Get-KmcChunk7CumulativeRows {@('chunk7-cumulative-acquisition','C7-cumulative-source','C7-cumulative-native-load','C7-cumulative-eligibility','C7-cumulative-native-choices','C7-cumulative-native-field','C7-cumulative-native-manual-save','C7-cumulative-cleanup','C7-cumulative-runtime','C7-cumulative-interrupted')}
 function Assert-KmcChunk7CumulativeSelection($Request){
  if($Request-is[Collections.IDictionary]){$Request=[pscustomobject]$Request}
  $has=$null-ne$Request.PSObject.Properties['cumulativeAcquisition']
@@ -13,7 +13,7 @@ function Assert-KmcChunk7CumulativeSelection($Request){
  if($s.case-isnot[string]-or$s.case-cnotin@('existing-ranger-horse','paid-small-ranger-horse','paid-medium-ranger-horse')-or$s.sourceRunId-isnot[string]-or$s.sourceRunId-cnotmatch'^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$'-or$s.sourceRunId-ceq$Request.runId){throw 'Manual-derived case/source run differs.'}
  foreach($key in @('sourceArtifactSha256','sourceArchiveSha256')){if($s.$key-isnot[string]-or$s.$key-cnotmatch'^[a-f0-9]{64}$'){throw 'Manual-derived source requires exact SHA256 pins.'}}
  Assert-KmcChunk7Boolean $s.baseGameOnly $true
- Assert-KmcBootstrapInventoryString $s.nativeWriteLeaf $(if(Test-KmcAssistedCumulativeMode $s){'Manual_301_KMC_C7_MANUAL_DERIVED_FIELD.zks'}else{'Auto_1.zks'})
+ Assert-KmcBootstrapInventoryString $s.nativeWriteLeaf $(if(Test-KmcAssistedCumulativeMode $s){'Manual_301_KMC_C7_MANUAL_DERIVED_FIELD.zks'}else{'Manual_303_KMC_C7_MANUAL_DERIVED_FIELD.zks'})
  foreach($key in @('expectedNativeLoadCount','expectedNativeWriteCount')){Assert-KmcOrdinaryInteger $s.$key 1 1}
  $p=$s.readiness;Assert-KmcExactProperties $p @('mainActorId','mainLevel','mainExperience','money','experienceRatePercent','nativeHireCost','defaultHireExperience','partyCharacterIds') 'native readiness pins'
  Assert-KmcOrdinaryGuid $p.mainActorId;Assert-KmcOrdinaryInteger $p.mainLevel 1 20;Assert-KmcOrdinaryInteger $p.mainExperience 0 ([int]::MaxValue)
@@ -46,6 +46,7 @@ function Assert-KmcChunk7CumulativeDescriptor($Request){
  $d=$Request.persistenceLoad;Assert-KmcExactProperties $d @('internalName','fileName','sha256','length','lastWriteTimeUtcTicks','gameId','gameName','area') 'cumulative immutable descriptor'
  $name=if(Test-KmcAssistedCumulativeMode $Request.cumulativeAcquisition){'KMC_C7_ASSISTED_FIXTURE'}else{'KMC_C7_ACQUIRED_FIELD'}
  Assert-KmcBootstrapInventoryString $d.internalName $name;Assert-KmcBootstrapInventoryString $d.sha256 $Request.cumulativeAcquisition.sourceArchiveSha256
+ if(-not(Test-KmcAssistedCumulativeMode $Request.cumulativeAcquisition)){Assert-KmcBootstrapInventoryString $d.fileName 'Manual_302_KMC_C7_ACQUIRED_FIELD.zks'}
  if($d.fileName-isnot[string]-or$d.fileName-cnotmatch('^Manual_([1-9][0-9]*)_'+$name+'\.zks$')){throw 'Cumulative source must retain its actual native acquired Manual number.'}
  $number=0;if(-not[int]::TryParse($Matches[1],[Globalization.NumberStyles]::None,[Globalization.CultureInfo]::InvariantCulture,[ref]$number)-or$number-le0-or$d.fileName-cne('Manual_'+$number.ToString([Globalization.CultureInfo]::InvariantCulture)+'_'+$name+'.zks')){throw 'Cumulative native Manual number is malformed or out of range.'}
  Assert-KmcOrdinaryGuid $d.gameId

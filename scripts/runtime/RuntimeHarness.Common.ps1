@@ -66,7 +66,6 @@ Set-StrictMode -Version Latest
 function Get-KmcChunk7StaleLevelUpAutosaveFamilies {
     @(
         [pscustomobject]@{scenario='chunk7-ordinary-acquisition';cases=$null;waitSite='src/KingmakerMountedCombat/Diagnostics/Chunk7OrdinaryAcquisitionScenario.cs:112 (ObserveCompletedAutosave, :266)'},
-        [pscustomobject]@{scenario='chunk7-cumulative-acquisition';cases=@('legacy-auto');waitSite='src/KingmakerMountedCombat/Diagnostics/Chunk7ManualDerivedScenario.Build.cs (legacy TickBuild/ObserveTerminalAutosave; reached through Chunk7ManualDerivedScenario.CreateCumulative)'},
         [pscustomobject]@{scenario='chunk7-native-progression';cases=@('horse-native-level','horse-native-retrain-horse','horse-native-retrain-mammoth');waitSite='src/KingmakerMountedCombat/Diagnostics/Chunk7NativeProgressionSession.cs (legacy ObserveTerminalAutosave)'}
     )
 }
@@ -74,6 +73,9 @@ function Get-KmcChunk7StaleLevelUpAutosaveFamilies {
 # A chunk7-native-progression request is decided by its selected case; without one (before
 # its closed selection is read) it is not refused here, and the runner asks again with the case.
 function Get-KmcChunk7FamilyNotReadyReason([string]$Scenario,[AllowNull()][string]$ProgressionCase) {
+    if($Scenario-ceq'chunk7-cumulative-acquisition'-and$ProgressionCase-ceq'legacy-manual'){
+        return 'Scenario family chunk7-cumulative-acquisition/legacy-manual is not ready: the new Manual_303 completion is awaiting same-candidate native qualification from exact Manual_302 source; preserve the prelaunch guard until that source and review gates are settled.'
+    }
     foreach($family in @(Get-KmcChunk7StaleLevelUpAutosaveFamilies)){
         if($family.scenario-cne$Scenario){continue}
         $name=$Scenario

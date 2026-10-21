@@ -47,7 +47,7 @@ foreach($assisted in @($false,$true)){
  $run='output-'+[Guid]::NewGuid().ToString('N');$evidenceRoot=Join-Path $script:fixtureLab ('runtime-evidence/'+$run)
  $saveRoot=Join-Path $script:fixtureLab ('runtime-staging/persistence-'+$run+'/Saved Games')
  [void][IO.Directory]::CreateDirectory($evidenceRoot);[void][IO.Directory]::CreateDirectory($saveRoot)
- $leaf=if($assisted){'Manual_301_KMC_C7_MANUAL_DERIVED_FIELD.zks'}else{'Auto_1.zks'}
+ $leaf=if($assisted){'Manual_301_KMC_C7_MANUAL_DERIVED_FIELD.zks'}else{'Manual_303_KMC_C7_MANUAL_DERIVED_FIELD.zks'}
  $input=Join-Path $saveRoot 'Manual_300_KMC_C7_ASSISTED_FIXTURE.zks';$output=Join-Path $saveRoot $leaf
  [IO.File]::WriteAllText($input,'generated immutable input');[IO.File]::WriteAllText($output,'generated settled output')
  $request=[pscustomobject]@{runId=$run;evidenceRoot=$evidenceRoot;persistenceLoad=[pscustomobject]@{fileName=[IO.Path]::GetFileName($input);sha256=(Get-KmcSha256 $input);length=[long](Get-Item -LiteralPath $input).Length};cumulativeAcquisition=[pscustomobject]@{nativeWriteLeaf=$leaf}}
@@ -55,7 +55,7 @@ foreach($assisted in @($false,$true)){
  $info=Get-Item -LiteralPath $output;$write=[pscustomobject]@{path=$output;sha256=(Get-KmcSha256 $output);length=[long]$info.Length;lastWriteTimeUtcTicks=[long]$info.LastWriteTimeUtc.Ticks}
  $artifact=[pscustomobject]@{observations=[pscustomobject]@{nativeWrite=$write}}
  Assert-KmcChunk7CumulativeOutput $request $artifact;Check $true ('settled generated output accepts exact '+$leaf)
- $write.path=Join-Path $saveRoot $(if($assisted){'Auto_1.zks'}else{'Manual_301_KMC_C7_MANUAL_DERIVED_FIELD.zks'})
+ $write.path=Join-Path $saveRoot $(if($assisted){'Manual_303_KMC_C7_MANUAL_DERIVED_FIELD.zks'}else{'Manual_301_KMC_C7_MANUAL_DERIVED_FIELD.zks'})
  $refused=$false;try{Assert-KmcChunk7CumulativeOutput $request $artifact}catch{$refused=$true};Check $refused ('settled output refuses wrong category '+$leaf)
  $write.path=$output;$request.cumulativeAcquisition.nativeWriteLeaf='foreign.zks'
  $refused=$false;try{Assert-KmcChunk7CumulativeOutput $request $artifact}catch{$refused=$true};Check $refused ('settled output refuses changed selection '+$leaf)

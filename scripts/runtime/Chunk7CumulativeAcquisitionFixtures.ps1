@@ -71,7 +71,7 @@ function Copy-KmcChunk7CumulativeSourceArtifact($Source,[string]$ProfileRoot,$Lo
 }
 function Assert-KmcChunk7CumulativeOutput($Request,$Artifact){
  $w=$Artifact.observations.nativeWrite;$root=Join-Path (Join-Path (Join-Path (Split-Path (Split-Path $Request.evidenceRoot -Parent) -Parent) 'runtime-staging') ('persistence-'+$Request.runId)) 'Saved Games'
- $leaf=if(Test-KmcAssistedCumulativeMode $Request.cumulativeAcquisition){'Manual_301_KMC_C7_MANUAL_DERIVED_FIELD.zks'}else{'Auto_1.zks'}
+ $leaf=if(Test-KmcAssistedCumulativeMode $Request.cumulativeAcquisition){'Manual_301_KMC_C7_MANUAL_DERIVED_FIELD.zks'}else{'Manual_303_KMC_C7_MANUAL_DERIVED_FIELD.zks'}
  Assert-KmcBootstrapInventoryString $Request.cumulativeAcquisition.nativeWriteLeaf $leaf
  $path=Assert-KmcChildPath $w.path $root 'native Manual-derived output';Assert-KmcBootstrapInventoryString $path (Join-Path $root $leaf)
  Assert-KmcNotReparsePoint $path 'native Manual-derived output';Assert-KmcNotHardLink $path 'native Manual-derived output';$file=Get-Item -LiteralPath $path

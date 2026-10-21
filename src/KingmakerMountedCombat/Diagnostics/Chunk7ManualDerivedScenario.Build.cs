@@ -25,7 +25,6 @@ namespace KingmakerMountedCombat.Diagnostics
         private const string RangerClassGuid = "cda0615668a6df14eb36ba19ee881af6";
         private JObject sourceObservations;
         private Chunk7OrdinaryBuildDriver driver;
-        private NativeOrdinaryAcquisitionProbe ordinaryProbe;
         private Chunk7ManualSeedSaveProbe manualSaveProbe;
         private SaveInfo requestedManual;
         private bool manualSaveCallback;
@@ -37,7 +36,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private object acquiredDescriptor, acquiredView, acquiredPetDescriptor, acquiredPetView;
         private UnitEntityData[] originalSelection;
         private string[] originalPartyCharacters;
-        private bool presentationCaptured, originalPause, slotProjectionOwned, buildStarted, buildInputAttempted, acquisitionProven;
+        private bool presentationCaptured, originalPause, buildStarted, buildInputAttempted, acquisitionProven;
         private MovementCaptureOverlayLease ummLease;
         private UnityModManagerNet.UnityModManager.UI ummInstance;
         private bool originalUmmOpened;
@@ -86,7 +85,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     Chunk7MediumHireBodySource.Matches(SelectedSourceInventory, selection.MediumBody) &&
                     Chunk7MediumHireBodySource.Matches(evidence["nativeProfileInventory"], selection.MediumBody) && NativeMediumBodyMatches()
             };
-            var failures = Chunk7ManualDerivedAdmission.Validate(selection, request.RunId, actual, cumulative != null, cumulative?.UsesAssistedCold == true);
+            var failures = Chunk7ManualDerivedAdmission.Validate(selection, request.RunId, actual, cumulative != null, cumulative != null);
             Require(failures.Count == 0, "Native Manual-derived acquisition is ineligible: " + string.Join(" | ", failures));
             evidence["liveEligibility"] = new JObject { ["nativeXpThresholds"] = new JArray(actual.XpThresholds),
                 ["mainActorId"] = actual.MainActorId, ["mainLevel"] = actual.MainLevel, ["mainExperience"] = actual.MainExperience,
@@ -142,8 +141,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 "A pre-existing builder or dialog cannot be borrowed.");
             Require(horses.State == HorseCompanionBlueprintState.Registered && horses.HorseFeature != null && horses.HorseUnit != null && horses.LevelRank != null,
                 "Exact ordinary Horse registration is not ready.");
-            Require(game.SaveManager.IsSaveAllowed() && !NativePersistenceIsolation.NativeSlotRotationEnabled &&
-                (cumulative == null || !game.SaveManager.Any(save => save.Type == SaveInfo.SaveType.Auto)),
+            Require(game.SaveManager.IsSaveAllowed() && !NativePersistenceIsolation.NativeSlotRotationEnabled,
                 "Native save is unavailable or has a pre-existing slot projection.");
             RequireLiveEligibility();
             originalSelection = SelectionManager.Instance.SelectedUnits.ToArray();
@@ -167,16 +165,10 @@ namespace KingmakerMountedCombat.Diagnostics
                 Chunk7ManualDerivedSelection.RangerAcquisitionLevel, medium ? Size.Medium : Size.Small);
             driver = new Chunk7OrdinaryBuildDriver(pins, paid ? null : actors.Single(actor => actor.UniqueId == selection.ExistingActorId),
                 horses.HorseFeature, horses.HorseUnit.AssetGuid, AssertChoiceAuthority, ObserveChoice);
-            if (cumulative != null && !cumulative.UsesAssistedCold)
-            {
-                ordinaryProbe = new NativeOrdinaryAcquisitionProbe(() => driver.Actor); ordinaryProbe.Install();
-                // The still-refused cumulative family retains its original Auto contract.
-                slotProjectionOwned = true; NativePersistenceIsolation.EnableNativeSlotRotation();
-            }
             evidence["choices"] = choices; evidence["beforeChoices"] = CaptureNoArrangement();
             evidence["originalPartyCharacters"] = new JArray(originalPartyCharacters);
             evidence["slotProjection"] = new JObject { ["initiallyEnabled"] = false,
-                ["enabledForTerminalAuto"] = cumulative != null && !cumulative.UsesAssistedCold, ["maximumNativeWrites"] = 1 };
+                ["enabledForTerminalAuto"] = false, ["maximumNativeWrites"] = 1 };
             evidence["vendorDialogueProven"] = false; evidence["mountedCombatProven"] = false; evidence["smallPoseQualified"] = false;
             buildStarted = true; buildStage = 0; buildStageStart = clock.Elapsed.TotalSeconds; game.IsPaused = false;
             Pass("C7-manual-derived-eligibility");
@@ -186,8 +178,7 @@ namespace KingmakerMountedCombat.Diagnostics
             RequireAuthority(false); RequireNoOwners(); RequireNoEffects();
             Require(!cleanup && !Busy() && !game.Player.IsInCombat && !game.CutsceneLock && !game.IsModeActive(GameModeType.Dialog) &&
                 (DialogMessageBox.Instance == null || !DialogMessageBox.Instance.IsShown) &&
-                slotProjectionOwned == (cumulative != null && !cumulative.UsesAssistedCold) &&
-                NativePersistenceIsolation.NativeSlotRotationEnabled == (cumulative != null && !cumulative.UsesAssistedCold),
+                !NativePersistenceIsolation.NativeSlotRotationEnabled,
                 "Native writer, unexpected UI or lost projection/world blocks ordinary input.");
         }
         private void ObserveChoice(JObject observation)
@@ -195,47 +186,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private void TickBuild()
         {
             AssertChoiceAuthority();
-            if (cumulative == null || cumulative.UsesAssistedCold) { TickManualBuild(); return; }
-            Require(clock.Elapsed.TotalSeconds - buildStageStart <= (buildStage == 0 ? 600 : 90), "Manual acquisition stage timed out: " + buildStage);
-            if (buildStage == 0)
-            {
-                if (!buildInputAttempted)
-                {
-                    RequireLiveEligibility();
-                    Require(game.CurrentMode == GameModeType.Default, "Initial native choice left the idle admitted mode.");
-                    buildInputAttempted = true; // one attempted entry; thrown native input proceeds only to cleanup
-                }
-                if (driver.Tick() != Chunk7OrdinaryBuildStep.Complete) return;
-                RequireAcquiredActor(); evidence["builderComplete"] = driver.CaptureState();
-                Pass("C7-manual-derived-native-choices"); buildStage = 1; buildStageStart = clock.Elapsed.TotalSeconds; return;
-            }
-            if (buildStage == 1)
-            {
-                // NOT READY - stale level-up autosave wait (docs/CHUNK7-STALE-LEVELUP-AUTOSAVE-FAMILIES.md).
-                // The installed game never registers LevelUpAutoSaveController (GameModesFactory builds its
-                // controllers explicitly without it), so an ordinary level-up never requests this native Auto
-                // and the wait cannot complete. scripts/runtime/Invoke-KingmakerRuntimeScenario.ps1 refuses this
-                // cumulative family before any lock, transaction, Mods swap or launch. Kept intact until its completion
-                // contract is repaired; never manufacture a level-up callback or relabel a Manual as Auto.
-                if (!ObserveTerminalAutosave()) return;
-                Pass("C7-manual-derived-native-autosave");
-                if (selection.PaidHire)
-                {
-                    fieldAdmission = new Chunk7NativePartyFieldAdmission(driver.Actor, originalPartyCharacters, AssertFieldAuthority);
-                    fieldAdmission.Open(); buildStage = 2; buildStageStart = clock.Elapsed.TotalSeconds; return;
-                }
-                buildStage = 3;
-            }
-            if (buildStage == 2)
-            {
-                if (!fieldAdmission.Tick()) return;
-                evidence["fieldSelection"] = fieldAdmission.Capture(); buildStage = 3; buildStageStart = clock.Elapsed.TotalSeconds;
-            }
-            if (buildStage == 3 && CaptureField())
-            {
-                acquisitionProven = true; evidence["ordinaryAcquisitionProven"] = true;
-                Pass("C7-manual-derived-native-field"); BeginCleanup();
-            }
+            TickManualBuild();
         }
         private void TickManualBuild()
         {
@@ -296,7 +247,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var number = manager.FindUnusedSaveNumber(SaveInfo.SaveType.Manual);
             var leaf = "Manual_" + number.ToString(System.Globalization.CultureInfo.InvariantCulture) + "_" +
                 Chunk7ManualDerivedSelection.ManualOutputName + ".zks";
-            Require(number == (cumulative?.UsesAssistedCold == true ? 301 : selection.UsesOwnerSeedCold ? 304 : 2) &&
+            Require(number == (cumulative?.UsesAssistedCold == true ? 301 : cumulative != null ? 303 : selection.UsesOwnerSeedCold ? 304 : 2) &&
                 leaf == selection.NativeWriteLeaf &&
                 !File.Exists(Path.Combine(root, leaf)), "Native Manual numbering or output absence differs.");
             evidence["nativeNumbering"] = new JObject { ["method"] = "FindUnusedSaveNumber",
@@ -401,45 +352,6 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["isInState"] = actor.IsInState, ["commandsEmpty"] = actor.Commands.Empty }));
             return snapshot;
         }
-        // NOT READY - stale level-up autosave wait (docs/CHUNK7-STALE-LEVELUP-AUTOSAVE-FAMILIES.md).
-        // The installed game never registers LevelUpAutoSaveController (GameModesFactory builds its
-        // controllers explicitly without it), so an ordinary level-up never requests this native Auto
-        // and the wait cannot complete. scripts/runtime/Invoke-KingmakerRuntimeScenario.ps1 refuses this
-        // family before any lock, transaction, Mods swap or launch. Kept intact until its completion
-        // contract is repaired; never manufacture a level-up callback or relabel a Manual as Auto.
-        private bool ObserveTerminalAutosave()
-        {
-            if (Busy() || ordinaryProbe.ObservedSave == null || ordinaryProbe.ObservedSave.OperationState != SaveInfo.StateType.None) return false;
-            var save = ordinaryProbe.ObservedSave; var completion = persistence.LastCompletedSave;
-            Require(ordinaryProbe.Complete && persistence.CompletedSaveCount == 1 && persistence.SnapshotCount == 1 &&
-                authorization.AuthorizedWriteCount == 1 && authority.AdmittedNativeWriteRequests == 1 &&
-                completion != null && completion.Sequence == 1 && ReferenceEquals(completion.Requested, ordinaryProbe.ObservedRequestedSave) &&
-                ReferenceEquals(completion.Written, save) && completion.Path == Path.Combine(root, Chunk7ManualDerivedSelection.OutputLeaf) &&
-                save.FileName == Chunk7ManualDerivedSelection.OutputLeaf && save.Type == SaveInfo.SaveType.Auto && ordinaryProbe.ObservedRequestedSave.IsAutoLevelupSave && !save.IsAutoLevelupSave &&
-                save.GameId == request.PersistenceLoad.GameId && save.GameName == request.PersistenceLoad.GameName &&
-                save.Area.AssetGuidThreadSafe == request.PersistenceLoad.Area && save.HasFileOnDisk && save.IsActuallySaved,
-                "Native terminal autosave lacks exact causal, completion, descriptor or authority proof.");
-            NativePersistenceIsolation.RequireOwnedWrite(save); VerifySourceBytes(); RequireNoOwners(); RequireNoEffects();
-            var file = new FileInfo(save.FolderName); var archive = NativeMountedSaveStorage.ReadArchive(save.Saver);
-            Require(file.Exists && file.FullName == Path.Combine(root, Chunk7ManualDerivedSelection.OutputLeaf) &&
-                archive.Kind == MountedSaveReadKind.Current && archive.SourceSchema == 3 && archive.Data != null &&
-                archive.Data.CampaignId == request.PersistenceLoad.GameId && archive.Data.AreaId == request.PersistenceLoad.Area &&
-                archive.Data.Pairs.Length == 0 && archive.Data.Participations.Length == 0 && archive.Data.Slots.Length == 0 && archive.Data.Combat == null,
-                "Ordinary native autosave contains unsupported or invented mounted restoration state.");
-            var saves = manager.ToArray();
-            Require(saves.Length == 2 && saves.Count(value => value.FileName == request.PersistenceLoad.FileName) == 1 &&
-                saves.Count(value => ReferenceEquals(value, save)) == 1, "Native descriptor inventory differs from the one immutable Manual plus one terminal Auto.");
-            evidence["nativeWrite"] = new JObject { ["path"] = file.FullName, ["leaf"] = save.FileName, ["length"] = file.Length,
-                ["sha256"] = Hash(file.FullName), ["lastWriteTimeUtcTicks"] = file.LastWriteTimeUtc.Ticks, ["name"] = save.Name,
-                ["requestedObject"] = NativeOrdinaryAcquisitionProbe.Id(completion.Requested), ["writtenObject"] = NativeOrdinaryAcquisitionProbe.Id(completion.Written),
-                ["completionSequence"] = completion.Sequence, ["completedWritesBefore"] = 0, ["type"] = save.Type.ToString(), ["autoLevelup"] = save.IsAutoLevelupSave, ["operation"] = save.OperationState.ToString(),
-                ["gameId"] = save.GameId, ["gameName"] = save.GameName, ["area"] = save.Area.AssetGuidThreadSafe,
-                ["authorizedWrites"] = authorization.AuthorizedWriteCount, ["admittedWrites"] = authority.AdmittedNativeWriteRequests,
-                ["completedWrites"] = persistence.CompletedSaveCount, ["snapshotCount"] = persistence.SnapshotCount,
-                ["nativeCallbackSupplied"] = false, ["saveBeforeFieldSelection"] = selection.PaidHire,
-                ["schema"] = archive.SourceSchema, ["emptyMountedArchive"] = true, ["descriptorCount"] = saves.Length };
-            return true;
-        }
         private void RequireAcquiredActor()
         {
             var actor = driver?.Actor; if (actor == null) { Require(acquiredActor == null, "Acquired actor disappeared from its native builder."); return; }
@@ -520,7 +432,6 @@ namespace KingmakerMountedCombat.Diagnostics
             Require(DialogMessageBox.Instance == null || !DialogMessageBox.Instance.IsShown, "Unexpected native message box retains final presentation custody.");
             Require(ummInstance != null && ReferenceEquals(UnityModManagerNet.UnityModManager.UI.Instance, ummInstance),
                 "Captured UMM instance was replaced; final presentation custody is retained.");
-            if (slotProjectionOwned) { NativePersistenceIsolation.DisableNativeSlotRotation(); slotProjectionOwned = false; }
             SelectionManager.Instance.MultiSelect(originalSelection.Select(actor => actor.View), false);
             Require(SelectionManager.Instance.SelectedUnits.SequenceEqual(originalSelection), "Exact original native selection was not restored.");
             ummLease?.Dispose();

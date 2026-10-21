@@ -29,7 +29,8 @@ function Assert-KmcChunk7AcquiredManualArtifact($Request,$Manifest,$Status){Boun
 function Read-KmcChunk7ManifestArtifact($Request,$Manifest,$Leaf,$Kind){if($Leaf-cne'chunk7-acquired-manual-evidence.json'-or$Kind-cne'chunk7-acquired-manual-evidence'){throw 'foreign artifact role'};return $script:artifact}
 function Assert-KmcChunk7AcquiredManualOutput($Request,$Artifact){Boundary 'settled-native-output'}
 function New-Case([bool]$Paid=$true){
- $tag=if($Paid){'Paid'}else{'Existing'};$f=[IO.File]::ReadAllText((Join-Path $sourceFixtures ('Cumulative'+$tag+'Fixture.json')))|ConvertFrom-Json
+ $tag=if($Paid){'Paid'}else{'Existing'};$json=[IO.File]::ReadAllText((Join-Path $sourceFixtures ('Cumulative'+$tag+'Fixture.json')));$f=$json.Replace('Manual_7_KMC_C7_ACQUIRED_FIELD.zks','Manual_302_KMC_C7_ACQUIRED_FIELD.zks')|ConvertFrom-Json
+ $f.request.cumulativeAcquisition.nativeWriteLeaf='Manual_303_KMC_C7_MANUAL_DERIVED_FIELD.zks'
  $script:calls=[Collections.Generic.List[string]]::new();$script:failure=$null;$script:drift=$null;$script:documents=@{};$script:hashes=@{};$script:readCounts=@{}
  $s=$f.request.cumulativeAcquisition;$script:artifact=$f.source;$run=$s.sourceRunId;$root=Join-Path $script:virtualLab ('runtime-evidence/'+$run);$profile=Join-Path $script:virtualLab ('runtime-staging/persistence-'+$run);$script:sourceRoot=$root
  $script:sourceRequest=[pscustomobject]@{scenario='chunk7-acquired-manual-derivative';runId=$run;evidenceRoot=$root;branch=$f.request.branch;commit=$f.request.commit;productVersion=$f.request.productVersion;dllSha256=$f.request.dllSha256;dllMvid=$f.request.dllMvid;transactionToken=('a'*64);fixture=$f.request.fixture;acquiredManual=$f.source.observations.selection;
@@ -47,7 +48,7 @@ function New-Case([bool]$Paid=$true){
 function Qualify($C){Get-KmcChunk7CumulativeSource $C.selection $C.fixture $C.candidate}
 function Good([string]$Name,[scriptblock]$Action){&$Action;$script:passes++;Write-Host ('PASS '+$Name)}
 function Bad([string]$Name,[scriptblock]$Action){$bad=$false;try{&$Action}catch{$bad=$true};if(-not$bad){throw ('Accepted '+$Name)};$script:passes++;Write-Host ('PASS refuses '+$Name)}
-foreach($paid in @($true,$false)){Good ('exact real qualifier body '+$paid){$c=New-Case $paid;$r=Qualify $c;if($r.descriptor.fileName-cne'Manual_7_KMC_C7_ACQUIRED_FIELD.zks'-or$r.descriptor.sha256-cne$c.selection.sourceArchiveSha256){throw 'Observed descriptor lost'};foreach($gate in @('full-bootstrap-cold-lineage','strict-manifest','full-manual-artifact','settled-native-output')){if(@($script:calls|Where-Object{$_-ceq$gate}).Count-ne1){throw ('Required external gate omitted '+$gate)}}}}
+foreach($paid in @($true,$false)){Good ('exact real qualifier body '+$paid){$c=New-Case $paid;$r=Qualify $c;if($r.descriptor.fileName-cne'Manual_302_KMC_C7_ACQUIRED_FIELD.zks'-or$r.descriptor.sha256-cne$c.selection.sourceArchiveSha256){throw 'Observed descriptor lost'};foreach($gate in @('full-bootstrap-cold-lineage','strict-manifest','full-manual-artifact','settled-native-output')){if(@($script:calls|Where-Object{$_-ceq$gate}).Count-ne1){throw ('Required external gate omitted '+$gate)}}}}
 foreach($gate in @('cloneable','not-reparse','not-hardlink','unique-json','full-bootstrap-cold-lineage','strict-manifest','full-manual-artifact','settled-native-output')){Bad ('mandatory external refusal '+$gate){$c=New-Case;$script:failure=$gate;[void](Qualify $c)}}
 $cases=[ordered]@{
  'source already has two owners'={param($c)$c.request.acquiredManual.case='preserve-two-acquired-field'}
@@ -69,6 +70,7 @@ $cases=[ordered]@{
  'foreign source role'={param($c)$c.owner.scenario='chunk7-bootstrap-cold-inventory'}
  'foreign persistence case'={param($c)$c.owner.persistenceCase='multi-exploration-manual'}
  'source metadata substituted'={param($c)$c.artifact.observations.nativeWrite.sha256='0'*64}
+ 'other valid acquired Manual number'={param($c)$c.artifact.observations.nativeWrite.fileName='Manual_305_KMC_C7_ACQUIRED_FIELD.zks'}
  'caller readiness money changed'={param($c)$c.selection.readiness.money++}
  'native cost exceeds Int32'={param($c)$c.selection.readiness.nativeHireCost=2147483648}
  'source restore digest absent'={param($c)$c.result.restoredSaveInventoryDigest=$null}

@@ -11,8 +11,11 @@ namespace KingmakerMountedCombat.Diagnostics
     {
         public const string Scenario = "chunk7-cumulative-acquisition";
         public const string SourceLeaf = "cumulative-acquisition-source.json";
-        public const string OutputLeaf = "Auto_1.zks";
-        public const string AssistedManualOutputLeaf = "Manual_301_KMC_C7_MANUAL_DERIVED_FIELD.zks";
+        // The legacy Auto_1 wait is historical: native level-up does not request it.
+        // This distinct acquired-field lineage follows its source Manual_302.
+        public const string LegacyManualOutputLeaf = Chunk7ManualDerivedSelection.CumulativeLegacyOutputLeaf;
+        public const string LegacySourceLeaf = "Manual_302_KMC_C7_ACQUIRED_FIELD.zks";
+        public const string AssistedManualOutputLeaf = Chunk7ManualDerivedSelection.CumulativeAssistedOutputLeaf;
         public const string AssistedSourceMode = "assisted-producer-and-cold";
         public const string AssistedColdLeaf = "cumulative-assisted-cold-source.json";
         public string SourceMode { get; set; }
@@ -61,7 +64,9 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             // These are pure field/choice rules. Actual cumulative source identity
             // and authority are checked separately and never delegated to seed intake.
-            errors.AddRange(NativeChoicePins().Validate(Chunk7ManualDerivedSelection.Scenario, runId, true, UsesAssistedCold));
+            if (NativeWriteLeaf != (UsesAssistedCold ? AssistedManualOutputLeaf : LegacyManualOutputLeaf))
+                errors.Add("Cumulative acquisition requires its source-specific native Manual output.");
+            errors.AddRange(NativeChoicePins().Validate(Chunk7ManualDerivedSelection.Scenario, runId, true, true));
             if (!Chunk7ManualDerivedSelection.NativeId(PriorOwnerId) || !Chunk7ManualDerivedSelection.NativeId(PriorPetId) || PriorOwnerId == PriorPetId ||
                 Readiness?.PartyCharacterIds == null || Array.IndexOf(Readiness.PartyCharacterIds, PriorOwnerId) < 0 ||
                 Array.IndexOf(Readiness.PartyCharacterIds, PriorPetId) >= 0 || ExistingActorId == PriorOwnerId || ExistingActorId == PriorPetId)
@@ -86,13 +91,6 @@ namespace KingmakerMountedCombat.Diagnostics
                 text == number.ToString(CultureInfo.InvariantCulture);
         }
         internal static bool IsAcquiredManualLeaf(string value)
-        {
-            const string prefix = "Manual_", suffix = "_KMC_C7_ACQUIRED_FIELD.zks";
-            if (value == null || !value.StartsWith(prefix, StringComparison.Ordinal) || !value.EndsWith(suffix, StringComparison.Ordinal)) return false;
-            var text = value.Substring(prefix.Length, value.Length - prefix.Length - suffix.Length);
-            int number;
-            return int.TryParse(text, NumberStyles.None, CultureInfo.InvariantCulture, out number) && number > 0 &&
-                text == number.ToString(CultureInfo.InvariantCulture);
-        }
+            => value == LegacySourceLeaf;
     }
 }

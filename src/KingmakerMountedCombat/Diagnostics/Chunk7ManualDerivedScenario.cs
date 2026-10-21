@@ -380,7 +380,7 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 if (completed) return;
                 RequireAuthority(true);
-                if (Busy() || probe?.InSynchronousCallback == true || ordinaryProbe?.InSynchronousCallback == true ||
+                if (Busy() || probe?.InSynchronousCallback == true ||
                     manualSaveProbe?.InCallback == true || persistence.DrainForTeardown(0) == OwnedWorkerTeardownVerdict.Refused)
                 { Retain("Cold native load/callback or worker retains observer custody."); return; }
                 RequireNoOwners();
@@ -394,7 +394,6 @@ namespace KingmakerMountedCombat.Diagnostics
                 try { VerifySourceBytes(); } catch (Exception error) { sourceUnchanged = false; Fail("C7-manual-derived-cleanup", error.ToString()); }
                 if (admitted && evidence["settledWorld"] == null) evidence["settledWorld"] = Snapshot();
                 try { CaptureCumulativeFinal(); } catch (Exception error) { Fail("C7-manual-derived-cleanup", error.ToString()); }
-                if (ordinaryProbe != null && evidence["nativeAcquisition"] == null) evidence["nativeAcquisition"] = ordinaryProbe.Capture();
                 if (manualSaveProbe != null && evidence["nativeSave"] == null) evidence["nativeSave"] = manualSaveProbe.Capture();
                 if (probe != null && evidence["nativeLoad"] == null) evidence["nativeLoad"] = probe.Capture();
                 if (restoration != null && evidence["noPreparation"] == null)
@@ -403,11 +402,9 @@ namespace KingmakerMountedCombat.Diagnostics
                     if (!restoration.Complete || !(observed["events"] is JArray rows) || rows.Count != 0)
                         Fail("C7-manual-derived-cleanup", "Native preparation/round or KMC restoration was observed during acquisition.");
                 }
-                // Both exact observers are attempted independently. A failed
-                // unpatch keeps its field and prevents completion/host release.
-                Exception failure = null; var saveObserverReleased = ordinaryProbe == null && manualSaveProbe == null;
-                try { ordinaryProbe?.Dispose(); saveObserverReleased = true; } catch (Exception error) { failure = error; Fail("C7-manual-derived-cleanup", error.ToString()); }
-                try { manualSaveProbe?.Dispose(); saveObserverReleased = saveObserverReleased && true; }
+                // A failed unpatch retains observer custody and prevents host release.
+                Exception failure = null; var saveObserverReleased = manualSaveProbe == null;
+                try { manualSaveProbe?.Dispose(); saveObserverReleased = true; }
                 catch (Exception error) { saveObserverReleased = false; failure = failure ?? error; Fail("C7-manual-derived-cleanup", error.ToString()); }
                 try { restoration?.Dispose(); } catch (Exception error) { failure = error; Fail("C7-manual-derived-cleanup", error.ToString()); }
                 // Retain the whole load-observation graph until the acquisition observer

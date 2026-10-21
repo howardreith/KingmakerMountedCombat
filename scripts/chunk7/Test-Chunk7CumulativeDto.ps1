@@ -31,12 +31,14 @@ $arguments+=@('mscorlib.dll','System.dll','System.Core.dll')|ForEach-Object{'/re
 if(-not$FixtureDirectory){$FixtureDirectory=Join-Path $RepositoryRoot 'tests/Chunk7Diagnostics'}
 
 . (Join-Path $ReaderDirectory 'RuntimeHarness.Common.ps1')
+. (Join-Path $PSScriptRoot 'Convert-Chunk7CumulativeManualFixture.ps1')
 $script:passes=0
 function Good([string]$Name,[scriptblock]$Action){&$Action;$script:passes++;Write-Host ('PASS '+$Name)}
 function Bad([string]$Name,[scriptblock]$Action){$bad=$false;try{&$Action}catch{$bad=$true};if(-not$bad){throw ('Accepted '+$Name)};$script:passes++;Write-Host ('PASS refuses '+$Name)}
 foreach($name in @('CumulativePaid','CumulativeExisting','TwoOwnerManualPaid','TwoOwnerManualExisting','AcquiredManualPaid','AcquiredManualExisting')){
  $fixture=Join-Path $FixtureDirectory ($name+'Fixture.json');if(-not(Test-Path -LiteralPath $fixture)){$fixture=Join-Path $RepositoryRoot ('tests/Chunk7Diagnostics/'+$name+'Fixture.json')}
  $f=[IO.File]::ReadAllText($fixture)|ConvertFrom-Json;$isCumulative=$name.StartsWith('Cumulative',[StringComparison]::Ordinal)
+ if($isCumulative){$f=Convert-KmcSyntheticCumulativeManualFixture $f $FixtureDirectory $name.Substring('Cumulative'.Length)}
  $key=if($isCumulative){'cumulativeAcquisition'}else{'acquiredManual'}
  $raw=[KingmakerMountedCombat.Tests.CumulativeDtoTests]::Project(($f.request|ConvertTo-Json -Depth 60));$actual=$raw|ConvertFrom-Json
  [IO.File]::WriteAllText((Join-Path $OutputDirectory ($name+'.json')),$raw,[Text.UTF8Encoding]::new($false))

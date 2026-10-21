@@ -403,13 +403,14 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 Entry input, output;
                 if (source == null || !Chunk7CumulativeAcquisitionSelection.IsAcquiredManualLeaf(source.FileName) || source.InternalName != Chunk7AcquiredManualSelection.OutputName ||
-                    source.GameId != gameId || source.GameName != gameName || outputLeaf != Chunk7CumulativeAcquisitionSelection.OutputLeaf ||
-                    string.IsNullOrWhiteSpace(outputName) || outputName.Length > 256 || outputName.Any(char.IsControl) ||
+                    source.GameId != gameId || source.GameName != gameName ||
+                    outputLeaf != Chunk7CumulativeAcquisitionSelection.LegacyManualOutputLeaf ||
+                    outputName != Chunk7ManualDerivedSelection.ManualOutputName ||
                     maximumNativeLoadRequests != 1 || maximumNativeWriteRequests != 1 || declaresBootstrap || bootstrapWindowOpen || entries.Count != 2 ||
                     !entries.TryGetValue(source.FileName, out input) || input.Name != source.InternalName || input.Type != "Manual" ||
                     input.Area != source.Area || input.Hash != source.Sha256 || input.Writable || input.Writing || input.Bootstrap ||
                     input.AdmitsBeforeArea || input.AdmissionArea != null || input.ForeignGameId != null || input.ForeignGameName != null ||
-                    !entries.TryGetValue(outputLeaf, out output) || output.Name != outputName || output.Type != "Auto" || output.Area != source.Area ||
+                    !entries.TryGetValue(outputLeaf, out output) || output.Name != outputName || output.Type != "Manual" || output.Area != source.Area ||
                     !output.Writable || output.Bootstrap || output.AdmitsBeforeArea || output.AdmissionArea != null ||
                     output.ForeignGameId != null || output.ForeignGameName != null || admittedNativeLoadRequests > 1 || admittedNativeWriteRequests > 1)
                     return false;
