@@ -146,6 +146,8 @@ and its genuine field Manual/acquired cold chain remain F10 work.
 
 [Batch138](../docs/CHUNK7-BATCH138-ASSISTED-MANUAL-COMPLETION-2026-10-21.md) repairs the selected F10 assisted new-campaign producer's unreachable level-up Auto wait. The two-write initial Auto/final Manual route passed focused source, reader, generated archive and Candidate checks; native producer and cold qualification remain open. This preparation does not prove ordinary new-character acquisition.
 
+[Batch139](../docs/CHUNK7-BATCH139-ASSISTED-STORY-TRANSITION-DIAGNOSTIC-2026-10-21.md) retains the first assisted native producer **FAIL** after initial Auto and 37 story clicks. The final Manual was not reached; exact restoration passed. A reviewed read-only diagnostic will distinguish the three native sources of the lingering transition-pending flag on one new run. New-character acquisition remains unqualified.
+
 | Requirement | Engineering status and exact evidence/dependency | Next action |
 | --- | --- | --- |
 | Inherited core, F01–F08 | Prior candidate-specific native PASSes retained in `CURRENT.md`; final exact-package reuse unassessed. | Map current supported contracts for final matrix after implementation readiness. |

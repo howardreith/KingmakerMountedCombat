@@ -60,6 +60,10 @@ static class AssistedCoreTests
   Check("native cutscene waits without click",()=>{var r=new Rig();r.State.Mode="Cutscene";r.State.Cutscene=true;using(var d=r.Driver())return d.Tick()==Chunk7AssistedStoryStatus.Waiting&&r.Clicks==0;});
   Check("Default current frame is observational ready only",()=>{var r=new Rig();r.State.Mode="Default";r.State.DialogActive=false;using(var d=r.Driver()){var s=d.Tick();r.State.Mode="Dialog";r.State.DialogActive=true;r.State.Frame++;return s==Chunk7AssistedStoryStatus.ReadyAtObservedFrame&&d.Tick()==Chunk7AssistedStoryStatus.Clicked;}});
   Check("pending Default is not ready",()=>{var r=new Rig();r.State.Mode="Default";r.State.DialogActive=false;r.State.TransitionPending=true;using(var d=r.Driver())return d.Tick()==Chunk7AssistedStoryStatus.Waiting;});
+  Check("stalled Default names the three observed native transition sources without changing its bound",()=>{var r=new Rig();r.State.Mode="Default";r.State.DialogActive=false;r.State.TransitionPending=true;
+   r.State.ScheduledStart=true;r.State.CuePlayScheduled=false;r.State.DialogStopScheduled=true;using(var d=r.Driver()){
+   if(d.Tick()!=Chunk7AssistedStoryStatus.Waiting)return false;r.State.Frame++;r.State.ElapsedMilliseconds=Chunk7AssistedStoryDriver.ProgressMilliseconds+1;
+   return Throws(()=>d.Tick())&&r.Clicks==0&&d.Failure.Contains("scheduledStart=True cuePlayScheduled=False dialogStopScheduled=True")&&d.Failure.Contains("mode=Default");}});
   Check("missing PC readiness waits finitely",()=>{var r=new Rig();r.State.UiStatus="missing-current-part";using(var d=r.Driver()){d.Tick();r.State.ElapsedMilliseconds=30001;return Throws(()=>d.Tick())&&r.Clicks==0;}});
   Check("total deadline before any native click",()=>BadStory(r=>r.State.ElapsedMilliseconds=300001));
   Check("no native progress deadline retains one click",()=>{var r=new Rig();using(var d=r.Driver()){d.Tick();r.State.ElapsedMilliseconds=30001;r.State.Frame++;return Throws(()=>d.Tick())&&r.Clicks==1;}});

@@ -73,6 +73,13 @@ static class Tests {
  Check("kind change between read and dispatch refuses",()=>{var r=new FacadeRig();var s=r.Boundary.ReadStory();Interchapter(r);return Throws(()=>r.Boundary.Click(s,0,0,r.Enter))&&r.ClickCount==0;});
  Check("native busy waits",()=>Waits(r=>r.Busy=true));
  Check("scheduled StartDialog waits",()=>Waits(r=>r.Game.Player.Dialog.Scheduled=new Kingmaker.DialogSystem.StartDialogData()));
+ Check("pending transition observation keeps its three native causes separate",()=>{var r=new FacadeRig();
+  r.Game.Player.Dialog.Scheduled=new Kingmaker.DialogSystem.StartDialogData();var start=r.Boundary.ReadStory();
+  r.Game.Player.Dialog.Scheduled=null;r.Game.DialogController.m_CuePlayScheduled=true;var cue=r.Boundary.ReadStory();
+  r.Game.DialogController.m_CuePlayScheduled=false;r.Game.DialogController.m_DialogStopScheduled=true;var stop=r.Boundary.ReadStory();
+  return start.TransitionPending&&start.ScheduledStart&&!start.CuePlayScheduled&&!start.DialogStopScheduled&&
+   cue.TransitionPending&&!cue.ScheduledStart&&cue.CuePlayScheduled&&!cue.DialogStopScheduled&&
+   stop.TransitionPending&&!stop.ScheduledStart&&!stop.CuePlayScheduled&&stop.DialogStopScheduled&&r.ClickCount==0;});
  Check("retained cue to play does not block the click",()=>{var r=new FacadeRig();r.Game.DialogController.m_CueToPlay=new Kingmaker.DialogSystem.Blueprints.BlueprintCue();using(var d=r.Driver())return d.Tick()==Chunk7AssistedStoryStatus.Clicked&&r.ClickCount==1;});
  Check("displayed continue cue does not block the click",()=>{var r=new FacadeRig();r.Game.DialogController.m_ContinueCue=new Kingmaker.DialogSystem.Blueprints.BlueprintCue();using(var d=r.Driver())return d.Tick()==Chunk7AssistedStoryStatus.Clicked&&r.ClickCount==1;});
  Check("interchapter page with a retained cue and continue cue clicks its option",()=>{var r=new FacadeRig();Interchapter(r);r.Game.DialogController.m_CueToPlay=new Kingmaker.DialogSystem.Blueprints.BlueprintCue();r.Game.DialogController.m_ContinueCue=new Kingmaker.DialogSystem.Blueprints.BlueprintCue();using(var d=r.Driver())return d.Tick()==Chunk7AssistedStoryStatus.Clicked&&r.ClickCount==1;});
