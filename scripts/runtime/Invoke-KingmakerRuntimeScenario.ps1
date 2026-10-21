@@ -104,6 +104,11 @@ param(
 
 $ErrorActionPreference='Stop'
 Set-StrictMode -Version Latest
+# Keep WhatIf for the one guarded ShouldProcess boundary. Selection intake is
+# read-only, but PowerShell otherwise forwards WhatIf to Get-Item/Get-FileHash
+# before the boundary and prevents those reads from returning their contracts.
+$requestedWhatIf=[bool]$WhatIfPreference
+$WhatIfPreference=$false
 if($PSBoundParameters.ContainsKey('ObserveWorkingDeserialization') -and
     (-not$ObserveWorkingDeserialization -or $Scenario -cne 'export-mounted-contracts' -or -not$BaseGameOnly -or -not$SaveAccessAllowed)) {
     throw 'Working deserialization observation requires its exact true opt-in, export-mounted-contracts, qualified save access and explicit base-only staging.'
@@ -323,8 +328,6 @@ if($Scenario-ceq'persistence-p06-load'){
 $isObserver=$Scenario-ceq'persistence-p07-load'-and$PersistenceCase-cin @('removal-no-dll','mounted-charge-removal-no-dll')
 if($isObserver-and[string]::IsNullOrWhiteSpace($ObserverPackagePath)){throw 'The no-DLL removal case requires the removal-observer package.'}
 if(-not$isObserver-and-not[string]::IsNullOrWhiteSpace($ObserverPackagePath)){throw 'Only the no-DLL removal case takes the removal-observer package.'}
-$requestedWhatIf=[bool]$WhatIfPreference
-$WhatIfPreference=$false
 $KmcFrozenProductContext=$null
 $frozenParameters=@('FrozenSourceRoot','FrozenSourceFreezePath','ExpectedFrozenSourceFreezeSha256')
 $boundFrozen=@($frozenParameters | Where-Object {$PSBoundParameters.ContainsKey($_)})

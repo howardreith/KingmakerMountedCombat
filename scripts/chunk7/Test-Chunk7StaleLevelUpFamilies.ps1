@@ -169,4 +169,23 @@ foreach($entry in $next.GetEnumerator()){
     if($r.code-eq0-or$r.text.Contains('is not ready')-or-not$r.text.Contains($entry.Value)){throw ('Selected family did not pass readiness: '+$entry.Key+': '+$r.text)}
     Pass ('actual runner admits '+$entry.Key+' to its own intake checks')
 }
+# WhatIf must reach the guarded ShouldProcess boundary only after read-only
+# selection intake. A second scenario's forbidden argument stops this probe
+# before environment/suite admission, lock, transaction or launch.
+$assistedSelectionPath=Join-Path $output 'assisted-whatif-selection.json'
+$assistedSelection=[ordered]@{
+    case='authored-main-ranger4-manual';ownerAuthorizationSha256='052eb32338bba397e852cba8605ebc6878deff1dd907675041d5b1d2f802e28e'
+    baseGameOnly=$true;assistedSetupOnly=$true;storyPolicy='first-unused-eligible-row-else-root-system-button'
+    assistancePolicy='native-main-ranger4-and-one-hire-shortfalls';expectedNativeLoadCount=0;maximumNativeWriteCount=3
+    targetRangerLevel=4;maximumTargetLevel=8;maximumStoryChoices=48;maximumStorySeconds=300
+    maximumExperienceShortfall=200000;maximumMoneyShortfall=100000;nativeInitialAutoLeaf='Auto_1.zks'
+    nativeManualName='KMC_C7_ASSISTED_FIXTURE'
+}
+[IO.File]::WriteAllText($assistedSelectionPath,($assistedSelection|ConvertTo-Json -Depth 4),[Text.UTF8Encoding]::new($false))
+$assistedWhatIf=Invoke-Runner @('-Scenario','chunk7-assisted-fixture-preparation','-BaseGameOnly','-SaveAccessAllowed',
+    '-AssistedFixtureSelectionPath',$assistedSelectionPath,'-OrdinaryFieldSelectionPath',$missing,'-WhatIf')
+if($assistedWhatIf.code-eq0-or-not$assistedWhatIf.text.Contains('Field selection is forbidden under another scenario.')){
+    throw ('Assisted WhatIf selection intake did not reach the next safe refusal: '+$assistedWhatIf.text)
+}
+Pass 'assisted WhatIf hashes its closed selection before the next intake refusal'
 Write-Host ('TOTAL PASS '+$script:passes+' FAIL 0; actual runner refusals and shared readiness decision only; no lock, transaction, Mods or launch')
