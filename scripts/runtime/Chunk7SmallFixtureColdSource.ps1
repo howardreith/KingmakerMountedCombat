@@ -5,7 +5,9 @@ Set-StrictMode -Version Latest
 # gate proves that lineage before a separate cold process may copy the archive;
 # it does not grant a load, write, profile or mounted-action authority.
 function Get-KmcChunk7SmallFixtureColdSource {
- param([string]$SourceRunId,[string]$ArtifactSha256,[string]$ArchiveSha256,$Fixture,$Candidate)
+ param([string]$SourceRunId,[string]$ArtifactSha256,[string]$ArchiveSha256,$Fixture,$Candidate,
+  [string]$ExpectedProducerCase='owner-seed-default-halfling-horse-manual')
+ if($ExpectedProducerCase-cnotin@('owner-seed-default-halfling-horse-manual','owner-seed-default-human-horse-manual')){throw 'Unknown paid producer body case.'}
  if($SourceRunId-cnotmatch'^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$'-or
     $ArtifactSha256-cnotmatch'^[a-f0-9]{64}$'-or$ArchiveSha256-cnotmatch'^[a-f0-9]{64}$'){
   throw 'F09 cold source requires one canonical producer run and exact artifact/archive hashes.'
@@ -13,6 +15,7 @@ function Get-KmcChunk7SmallFixtureColdSource {
  $producer=Get-KmcSmallFixtureHistoricalArtifact $SourceRunId 'chunk7-small-fixture-evidence.json' 'chunk7-small-fixture-evidence' $ArtifactSha256 1
  $request=$producer.request;$artifact=$producer.artifact
  Assert-KmcBootstrapInventoryString $request.scenario 'chunk7-small-fixture-preparation'
+ Assert-KmcBootstrapInventoryString $request.smallFixture.case $ExpectedProducerCase
  Assert-KmcChunk7SmallFixtureDescriptor $request
  foreach($key in @('commit','dllSha256','dllMvid')){Assert-KmcBootstrapInventoryString $request.$key $Candidate.$key}
  # The package manifest calls this value `version`; the in-game request calls

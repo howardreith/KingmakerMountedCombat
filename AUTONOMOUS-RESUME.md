@@ -1,5 +1,19 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## Active October 21 after batch113 development — Medium cold native sequence next
+
+The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
+[Batch112 native](docs/CHUNK7-BATCH112-PAID-MEDIUM-FIXTURE-NATIVE-2026-10-21.md)
+passed the paid Medium Human/Horse unmounted producer on world117 (one genuine
+Manual, game/outer 6/0, exact restoration). [Batch113](docs/CHUNK7-BATCH113-MEDIUM-COLD-DEVELOPMENT-2026-10-21.md)
+adds a distinct reviewed Medium Manual cold case with focused offline PASS;
+no new candidate/native cold exists. Next refresh HEAD/status and transaction
+state, freeze an unchanged candidate, declare at most two dependent native
+slots, then run a fresh Medium producer and separate-process cold load on
+independent copies through the guarded route. The world117 Manual cannot be
+reused across changed product bytes. F09/F10/F11 and private 7E remain open;
+the prior batch112 development paragraph is historical.
+
 ## Active October 20 after batch112 — paid Medium producer ready for candidate
 
 The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.

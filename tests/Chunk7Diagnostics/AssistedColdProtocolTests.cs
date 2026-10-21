@@ -13,12 +13,24 @@ internal static class AssistedColdFixture{
  internal static RuntimeRequest SmallRequest(){var r=Request();r.AssistedColdInventory.Case=Chunk7AssistedColdInventorySelection.SmallFixtureCaseName;
   r.PersistenceLoad=D(Chunk7SmallFixtureSelection.OutputName,"Manual_304_KMC_C7_SMALL_FIXTURE.zks",'c',Chunk7SmallFixtureSelection.CampaignId);
   r.PersistenceLoad.GameName=Chunk7SmallFixtureSelection.CampaignName;r.PersistenceLoad.Area=Chunk7SmallFixtureSelection.AreaId;return r;}
+ internal static RuntimeRequest MediumRequest(){var r=SmallRequest();r.AssistedColdInventory.Case=Chunk7AssistedColdInventorySelection.MediumFixtureCaseName;
+  r.PersistenceLoad.InternalName=Chunk7SmallFixtureSelection.MediumOutputName;
+  r.PersistenceLoad.FileName="Manual_304_KMC_C7_MEDIUM_FIXTURE.zks";return r;}
 }
 internal static class AssistedColdProtocolTests{
  static int Main(){var t=new TestRunner();
  t.Run("exact qualified Manual cold request validates",()=>{var r=AssistedColdFixture.Request();TestRunner.Equal(0,r.Validate().Count,string.Join(" | ",r.Validate()));});
  t.Run("owner seed request validates without producer pins",()=>{var r=AssistedColdFixture.SeedRequest();TestRunner.Equal(0,r.Validate().Count,string.Join(" | ",r.Validate()));});
  t.Run("F09 native Manual has a distinct read-only cold case",()=>{var r=AssistedColdFixture.SmallRequest();TestRunner.Equal(0,r.Validate().Count,string.Join(" | ",r.Validate()));});
+ t.Run("paid Medium Manual has its own read-only cold case",()=>{var r=AssistedColdFixture.MediumRequest();TestRunner.Equal(0,r.Validate().Count,string.Join(" | ",r.Validate()));});
+ foreach(var kind in new[]{"small-leaf","small-name","wrong-campaign","wrong-hash","second-load","write"})t.Run("Medium cold refuses "+kind,()=>{var r=AssistedColdFixture.MediumRequest();switch(kind){
+  case "small-leaf":r.PersistenceLoad.FileName="Manual_304_KMC_C7_SMALL_FIXTURE.zks";break;
+  case "small-name":r.PersistenceLoad.InternalName=Chunk7SmallFixtureSelection.OutputName;break;
+  case "wrong-campaign":r.PersistenceLoad.GameId=AssistedColdFixture.Minted;break;
+  case "wrong-hash":r.AssistedColdInventory.SourceArchiveSha256=new string('e',64);break;
+  case "second-load":r.AssistedColdInventory.ExpectedNativeLoadCount=2;break;
+  case "write":r.AssistedColdInventory.ExpectedNativeWriteCount=1;break;}
+  TestRunner.True(r.Validate().Count>0,"Invalid Medium cold request admitted.");});
  foreach(var kind in new[]{"assisted-leaf","assisted-name","seed","wrong-campaign","wrong-area","wrong-hash","write","second-load","self-source"})t.Run("F09 cold refuses "+kind,()=>{var r=AssistedColdFixture.SmallRequest();switch(kind){
   case"assisted-leaf":r.PersistenceLoad.FileName="Manual_304_KMC_C7_ASSISTED_FIXTURE.zks";break;
   case"assisted-name":r.PersistenceLoad.InternalName=Chunk7AssistedColdInventorySelection.ManualName;break;

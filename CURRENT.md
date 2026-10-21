@@ -1,5 +1,12 @@
 # Chunk 7B–7D — IN PROGRESS
 
+[Batch112 native](docs/CHUNK7-BATCH112-PAID-MEDIUM-FIXTURE-NATIVE-2026-10-21.md)
+qualified the paid Medium Human/Horse unmounted Manual producer, game and outer
+6/0 with exact transaction restoration on world117. [Batch113](docs/CHUNK7-BATCH113-MEDIUM-COLD-DEVELOPMENT-2026-10-21.md)
+adds a reviewed, offline-tested distinct Medium cold-load case; it has not yet
+run natively. Neither result qualifies mounted Medium or Horse-to-Mammoth
+replacement. F09/F10/F11 and selected private 7E remain open.
+
 [Batch112](docs/CHUNK7-BATCH112-PAID-MEDIUM-FIXTURE-DEVELOPMENT-2026-10-20.md)
 adds a reviewed, offline-tested paid Medium Human/Horse unmounted Manual
 producer from the qualified clean owner seed. It is fixture setup only; native
