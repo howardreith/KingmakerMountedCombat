@@ -28,6 +28,13 @@ and the b151–b153 original derivative failures remain immutable. This acquired
 Manual is save-only; mounted cold, conditional six-pair stress and final 7E
 remain open.
 
+[Batch155](../docs/CHUNK7-BATCH155-ACQUIRED-MOUNTED-COLD-2026-10-21.md)
+passes the specific acquired two-pair mounted Manual and independent cold chain
+on the unchanged frozen preview.94 product. The reader now admits the real
+unselected empty-string owner checkpoint while refusing named or non-string
+values. The initial prelaunch WhatIf refusal remains separate. Conditional
+six-pair breadth, broader progression, F11 and private final 7E remain open.
+
 [Batches 143–144](../docs/CHUNK7-BATCH143-144-ASSISTED-MANUAL-COLD-2026-10-21.md)
 add a same-candidate assisted native Manual PASS and separate cold game PASS.
 The original cold outer reader FAIL and distinct corrected-reader-only PASS are
