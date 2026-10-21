@@ -35,7 +35,6 @@ function Expected([string]$Name,[string]$Site){'Scenario family '+$Name+' is not
 $blocked=[ordered]@{
     'chunk7-ordinary-acquisition'='src/KingmakerMountedCombat/Diagnostics/Chunk7OrdinaryAcquisitionScenario.cs:112 (ObserveCompletedAutosave, :266)'
     'chunk7-cumulative-acquisition'='src/KingmakerMountedCombat/Diagnostics/Chunk7ManualDerivedScenario.Build.cs (TickBuild/ObserveTerminalAutosave; reached through Chunk7ManualDerivedScenario.CreateCumulative)'
-    'chunk7-assisted-fixture-preparation'='src/KingmakerMountedCombat/Diagnostics/Chunk7AssistedFixtureScenario.Setup.cs:161 (ObserveLevelupAutosave, Chunk7AssistedFixtureScenario.Save.cs:55)'
 }
 $progressionSite='src/KingmakerMountedCombat/Diagnostics/Chunk7NativeProgressionSession.cs (legacy ObserveTerminalAutosave)'
 $blockedCases=@('horse-native-level','horse-native-retrain-horse','horse-native-retrain-mammoth')
@@ -48,8 +47,7 @@ if(((@($families|Where-Object scenario -CEQ 'chunk7-native-progression')[0].case
 if(@(Compare-Object @(Get-KmcChunk7ProgressionCases) @($blockedCases+$admittedCases)).Count-ne0){throw 'Progression cases are not partitioned into exactly blocked and admitted.'}
 Pass 'stale family registry is exact and partitions every progression case'
 $siteChecks=@(
-    @('Chunk7OrdinaryAcquisitionScenario.cs',112,'if (!ObserveCompletedAutosave()) return;'),@('Chunk7OrdinaryAcquisitionScenario.cs',266,'private bool ObserveCompletedAutosave()'),
-    @('Chunk7AssistedFixtureScenario.Setup.cs',161,'if(!ObserveLevelupAutosave())return;'),@('Chunk7AssistedFixtureScenario.Save.cs',55,'private bool ObserveLevelupAutosave()'))
+    @('Chunk7OrdinaryAcquisitionScenario.cs',112,'if (!ObserveCompletedAutosave()) return;'),@('Chunk7OrdinaryAcquisitionScenario.cs',266,'private bool ObserveCompletedAutosave()'))
 foreach($check in $siteChecks){
     $lines=[IO.File]::ReadAllLines((Join-Path $RepositoryRoot ('src/KingmakerMountedCombat/Diagnostics/'+$check[0])))
     if(-not$lines[$check[1]-1].Contains($check[2])){throw ('Recorded wait site moved: '+$check[0]+':'+$check[1])}
@@ -101,7 +99,7 @@ Pass 'runner refuses before selection intake, approval, lock, transaction, Mods 
 # Actual runner: each blocked family is refused with its exact reason even with -WhatIf and with
 # otherwise-plausible arguments, before the family's own selection is read.
 $missing=Join-Path $output 'never-read-selection.json'
-$selectionParameter=@{'chunk7-ordinary-acquisition'='OrdinarySelectionPath';'chunk7-cumulative-acquisition'='CumulativeAcquisitionSelectionPath';'chunk7-assisted-fixture-preparation'='AssistedFixtureSelectionPath'}
+$selectionParameter=@{'chunk7-ordinary-acquisition'='OrdinarySelectionPath';'chunk7-cumulative-acquisition'='CumulativeAcquisitionSelectionPath'}
 foreach($entry in $blocked.GetEnumerator()){
     foreach($extra in @(@(),@('-BaseGameOnly','-SaveAccessAllowed',('-'+$selectionParameter[$entry.Key]),$missing))){
         $r=Invoke-Runner (@('-Scenario',$entry.Key,'-WhatIf')+$extra)
@@ -159,6 +157,7 @@ foreach($case in $admittedCases){
     Pass ('actual runner admits chunk7-native-progression/'+$case+' to its own intake checks')
 }
 $next=[ordered]@{
+    'chunk7-assisted-fixture-preparation'='Assisted setup requires explicit base-only staging and the exact owner-authorized closed selection.'
     'chunk7-owned-two-pair-campaign'='Inherited two-pair campaign requires explicit base-only staging and a qualified two-owner native Manual selection.'
     'chunk7-assisted-cold-inventory'='Assisted cold inventory requires base-only staging and exact completed assisted final Manual source pins.'
     'chunk7-native-progression'='Native progression requires exact source/inventory pins and explicit base-only staging.'

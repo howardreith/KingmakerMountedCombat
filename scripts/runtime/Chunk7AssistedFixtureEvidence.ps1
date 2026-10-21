@@ -508,7 +508,9 @@ function Assert-KmcAssistedWrite($Value,$Request,$Expected,$Labels,[string]$Root
     foreach($key in @('completionSequence','snapshots','completedSaves')){Assert-KmcOrdinaryInteger $Value.$key $Sequence $Sequence}
     Assert-KmcBootstrapInventoryString $Value.operation 'None'
     foreach($key in @('contentInspected','coldLoadQualified')){Assert-KmcChunk7Boolean $Value.$key $false}
-    Assert-KmcChunk7Boolean $Value.autoLevelup ($Phase-ceq'levelup-auto')
+    # The level-up request carries this flag, while native PrepareSave writes
+    # the settled Auto descriptor with the flag cleared.
+    Assert-KmcChunk7Boolean $Value.autoLevelup $false
     foreach($key in @('requestedDescriptor','preparedDescriptor')){Assert-KmcAssistedLabel $Value.$key $Labels}
     if($Value.requestedDescriptor-eq$Value.preparedDescriptor){throw 'Assisted native PrepareSave did not create a distinct descriptor.'}
     if($Value.sha256-isnot[string]-or$Value.sha256-cnotmatch'^[a-f0-9]{64}$'-or$Value.sha256-ceq$Request.fixture.working.sha256-or$Value.sha256-ceq$Request.fixture.baseline.sha256){throw 'Assisted output is not a fresh native archive identity.'}
@@ -859,8 +861,10 @@ function Assert-KmcChunk7AssistedFixtureEvidence($Request,$Artifact,[string]$Sta
     $o=$Artifact.observations;$root=Get-KmcAssistedSaveRoot $Request
     Assert-KmcAssistedArray $o.nativeWrites 2 3 'assisted native writes'
     $levelups=$o.nativeWrites.Count-2;$writes=$o.nativeWrites.Count;$manual=$o.nativeWrites[-1];$auto=$o.nativeWrites[$levelups]
+    $hasBuilder=$null-ne$o.PSObject.Properties['builderComplete']
     $keys=@('selection','processId','assistanceOnly','ordinaryAcquisitionProven','ordinaryProgressionProven','mountedCombatProven','smallPoseQualified','workingDeserialized','diagnosticArchiveContentRead','nativeWrites','choices','preservation','preflight','before','initialWorld','bootstrapIdentityBridge','bootstrapProbe','derivedTarget','setup','beforeSetup','nativeProfileInventory','fixtureReadiness','fieldWorld','afterSetupActors','nativeNumbering','beforeManualArrangement','afterManualArrangement','settledDescriptors','finalManual','savedWorld','setupAtCleanup','manualProbe','settledWorld','identityRegistry','cleanup','elapsedSeconds','preset')
-    if($levelups-eq1){$keys+=@('builderComplete','ordinaryProbe','ordinaryIdentityBridge','afterLevelupDescriptors')}
+    if($hasBuilder){$keys+='builderComplete'}
+    if($levelups-eq1){$keys+=@('ordinaryProbe','ordinaryIdentityBridge','afterLevelupDescriptors')}
     Assert-KmcAssistedObjectValue $o $keys 'assisted successful observations'
     Assert-KmcAssistedSame $o.selection $Request.assistedFixture 'assisted request selection'
     Assert-KmcOrdinaryInteger $o.processId 1 ([int]::MaxValue)
@@ -967,7 +971,9 @@ function Assert-KmcChunk7AssistedFixtureEvidence($Request,$Artifact,[string]$Sta
         foreach($key in @('object','descriptor','view','blueprint','masterId','petId','characterLevel','classes','features','buffs','actions')){Assert-KmcAssistedSame $after.$key $actor.$key ('assisted after-setup '+$key)}
         $xp=if($actor.id-ceq$expected.mainActorId){$o.setup.hireFunds.after.experience}else{$actor.experience};Assert-KmcOrdinaryInteger $after.experience $xp $xp
     }
+    if($hasBuilder-ne($d.targetLevel-gt$d.characterLevel)){throw 'Assisted native builder evidence differs from the derived Ranger level target.'}
     if($levelups-eq1){
+        if(-not$hasBuilder){throw 'Legacy level-up Auto lacks its native builder proof.'}
         $s=[pscustomobject]@{existingActorId=$expected.mainActorId;minimumRangerLevel=4}
         $proof=Get-KmcChunk7OrdinaryChoiceProof $Request.runId $s $false @($o.beforeSetup.party.id) $o.choices $o.setup.experience.after.money $o.builderComplete
         Assert-KmcOrdinaryInteger $proof.identity.rangerLevel $d.rangerLevel $d.rangerLevel
@@ -980,6 +986,23 @@ function Assert-KmcChunk7AssistedFixtureEvidence($Request,$Artifact,[string]$Sta
         if($auto.preparedDescriptor-eq$o.nativeWrites[0].requestedDescriptor){throw 'Assisted level Auto reused an old requested descriptor.'}
         Assert-KmcAssistedOrdinaryProbe $o $proof $labels
         Assert-KmcAssistedDescriptors $o.afterLevelupDescriptors $Request $auto $null $labels
+        $mainFinal=@($o.fieldWorld.party|Where-Object id -CEQ $expected.mainActorId)[0]
+        Assert-KmcBootstrapInventoryString $o.builderComplete.petId $mainFinal.petId
+        $finalRank=@($mainFinal.classes|Where-Object guid -CEQ 'cda0615668a6df14eb36ba19ee881af6')[0].level
+        Assert-KmcOrdinaryInteger $o.builderComplete.rangerLevel $finalRank $finalRank
+    }elseif($hasBuilder){
+        # The installed game has no LevelUpAutoSaveController in its active mode
+        # factory. The current producer therefore proves native choices and the
+        # resulting Horse, then writes only its selected final native Manual.
+        $s=[pscustomobject]@{existingActorId=$expected.mainActorId;minimumRangerLevel=4}
+        $proof=Get-KmcChunk7OrdinaryChoiceProof $Request.runId $s $false @($o.beforeSetup.party.id) $o.choices $o.setup.experience.after.money $o.builderComplete
+        Assert-KmcOrdinaryInteger $proof.identity.rangerLevel $d.rangerLevel $d.rangerLevel
+        Assert-KmcOrdinaryInteger $proof.initialLevel $d.characterLevel $d.characterLevel
+        Assert-KmcOrdinaryInteger $proof.finalLevel $d.targetLevel $d.targetLevel
+        Assert-KmcOrdinaryInteger $proof.xp $o.setup.experience.after.experience $o.setup.experience.after.experience
+        Assert-KmcOrdinaryInteger $proof.identity.frame $o.setup.experience.after.frame $o.fieldWorld.frame
+        Assert-KmcOrdinaryInteger $proof.lastFrame $proof.identity.frame $o.fieldWorld.frame
+        Assert-KmcOrdinaryInteger $o.setup.hireFunds.before.frame $proof.lastFrame ([int]::MaxValue)
         $mainFinal=@($o.fieldWorld.party|Where-Object id -CEQ $expected.mainActorId)[0]
         Assert-KmcBootstrapInventoryString $o.builderComplete.petId $mainFinal.petId
         $finalRank=@($mainFinal.classes|Where-Object guid -CEQ 'cda0615668a6df14eb36ba19ee881af6')[0].level

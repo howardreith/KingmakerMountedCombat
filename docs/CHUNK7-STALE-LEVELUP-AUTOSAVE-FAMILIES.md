@@ -1,6 +1,9 @@
 # Chunk 7 stale level-up autosave families
 
-Status: the families and cases in the blocked table are **NOT READY**. None of them is selected for the current batch.
+Status: the families and cases in the blocked table are **NOT READY**. The
+assisted new-campaign fixture was removed from that table after its completion
+path changed to the initial native Auto followed by a final native Manual. Its
+reader and source checks remain development work; no native success is implied.
 `scripts/runtime/Invoke-KingmakerRuntimeScenario.ps1` refuses each one before any selection
 intake, lock, transaction, Mods swap or game launch, so a run that is known to be futile
 cannot start. Their code paths are kept as they are, with a NOT READY note at each wait site.
@@ -46,7 +49,6 @@ operation from its retained native choices, without unblocking those families.
 | --- | --- | --- |
 | `chunk7-ordinary-acquisition` (every case) | `src/KingmakerMountedCombat/Diagnostics/Chunk7OrdinaryAcquisitionScenario.cs:112` (stage 1, `ObserveCompletedAutosave` at `:266`) | `RuntimeAutomationHost` builds `Chunk7OrdinaryAcquisitionScenario`. Stage 0 completes the build and stage 1 waits. |
 | `chunk7-cumulative-acquisition` (every case, including the assisted cumulative plan) | the same `Chunk7ManualDerivedScenario.Build.cs:196` / `:222` | `Chunk7ManualDerivedScenario.CreateCumulative` uses the same `StartBuild` / `TickBuild` path. |
-| `chunk7-assisted-fixture-preparation` | `src/KingmakerMountedCombat/Diagnostics/Chunk7AssistedFixtureScenario.Setup.cs:161` (`ObserveLevelupAutosave` at `Chunk7AssistedFixtureScenario.Save.cs:55`) | Stage 2 `TickBuild` waits for the level-up Auto before stage 3 and the final Manual. |
 | `chunk7-native-progression` / `horse-native-level`, `horse-native-retrain-horse`, `horse-native-retrain-mammoth` | `src/KingmakerMountedCombat/Diagnostics/Chunk7NativeProgressionSession.cs (legacy ObserveTerminalAutosave)` | The historical acquired-source cases retain the native level-up Auto wait and are refused before launch. |
 
 The registry is `Get-KmcChunk7StaleLevelUpAutosaveFamilies` in
@@ -78,6 +80,11 @@ These families do not route through a level-up autosave wait:
   This does not pass the historical Auto producer. Cumulative dispatch still takes the
   blocked Auto route.
 - `chunk7-assisted-cold-inventory`.
+- `chunk7-assisted-fixture-preparation`. The selected producer now follows the
+  bounded native Ranger choices with its guarded final Manual, without waiting
+  for a level-up Auto. It still needs its own actual new-campaign native result
+  and independent cold consumer; fixture assistance does not certify ordinary
+  acquisition or progression.
 - The owned-pair persistence, combat, realtime and native-life families.
 - `chunk7-native-progression` with `horse-native-dismiss` or `owned-horse-native-dismiss`.
   The dismissal session writes nothing.
@@ -121,8 +128,7 @@ from the test, and from this note in the same change.
 
 1. `chunk7-ordinary-acquisition`
 2. `chunk7-cumulative-acquisition`
-3. `chunk7-assisted-fixture-preparation`
-4. `chunk7-native-progression`: the historical level case and two historical respec cases
+3. `chunk7-native-progression`: the historical level case and two historical respec cases
 
 The selected owner-seed Manual-derived producer and one-owner acquired cold
 consumer are repaired and passed actual native qualification in batches 131–133.

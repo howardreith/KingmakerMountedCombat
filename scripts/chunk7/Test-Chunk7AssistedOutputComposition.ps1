@@ -27,12 +27,12 @@ function Write-CompositionArchive($Write,[bool]$ForeignHeader){
  }finally{if($zip){$zip.Dispose()};if($stream){$stream.Dispose()}}
 }
 $clock=[Diagnostics.Stopwatch]::StartNew();$cases=[Collections.Generic.List[object]]::new();$script:passed=0;$script:failed=0;$script:caseNumber=0
-function Run-OutputComposition([string]$Name,[int]$Writes,[bool]$Expected,[scriptblock]$Mutation=$null,[bool]$ForeignHeader=$false){
+function Run-OutputComposition([string]$Name,[int]$Writes,[bool]$Expected,[scriptblock]$Mutation=$null,[bool]$ForeignHeader=$false,[bool]$Built=$false){
  if($CaseNames.Count-gt0-and$Name-cnotin$CaseNames){return}
  $script:caseNumber++;$script:compositionLab=Join-Path $output ('case-'+$script:caseNumber);[void][IO.Directory]::CreateDirectory($script:compositionLab)
  $ready=$false;$accepted=$true;$errorText=$null;$stack=$null
  try{
-  $f=if($Writes-eq2){New-AssistedTwoWriteFixture}else{New-AssistedCompositionFixture};$o=$f.artifact.observations;$root=Get-KmcAssistedSaveRoot $f.request
+  $f=if($Writes-eq2){if($Built){New-AssistedTwoWriteBuiltFixture}else{New-AssistedTwoWriteFixture}}else{New-AssistedCompositionFixture};$o=$f.artifact.observations;$root=Get-KmcAssistedSaveRoot $f.request
   [void][IO.Directory]::CreateDirectory($root)
   $anchorPath=Join-Path $root $f.request.fixture.working.fileName;[IO.File]::WriteAllText($anchorPath,'generated immutable Working anchor',[Text.UTF8Encoding]::new($false));Set-CompositionFile $f.request.fixture.working $anchorPath
   $auto=$o.nativeWrites[$Writes-2];[IO.File]::WriteAllText($auto.path,'generated current native Auto boundary',[Text.UTF8Encoding]::new($false));Set-CompositionFile $auto $auto.path
@@ -48,6 +48,7 @@ function Run-OutputComposition([string]$Name,[int]$Writes,[bool]$Expected,[scrip
  Write-Host ($(if($ok){'PASS '}else{'FAIL '})+$Name+$(if(-not$ok-and$errorText){': '+$errorText}else{''}))
 }
 Run-OutputComposition 'complete two-write artifact and actual generated Manual archive' 2 $true
+Run-OutputComposition 'native Ranger build two-write artifact and actual generated Manual archive' 2 $true $null $false $true
 Run-OutputComposition 'complete three-write artifact accepts replaced initial Auto bytes' 3 $true
 Run-OutputComposition 'coherently pinned Manual with foreign header campaign refused' 3 $false $null $true
 Run-OutputComposition 'current Auto byte drift refused after full evidence passes' 3 $false {param($f,$root)[IO.File]::AppendAllText((Join-Path $root 'Auto_1.zks'),'drift')}

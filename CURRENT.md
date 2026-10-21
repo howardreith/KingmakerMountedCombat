@@ -1,5 +1,17 @@
 # Chunk 7B–7D — IN PROGRESS
 
+[Batch138](docs/CHUNK7-BATCH138-ASSISTED-MANUAL-COMPLETION-2026-10-21.md)
+replaces the assisted producer's impossible level-up Auto wait with its
+guarded final native Manual after verified Ranger/Horse choices. The exact
+two-write built evidence and generated archive path pass focused reader checks;
+the historical three-write generated path remains separately readable. Source
+validation, wiring, stale-family guard, source and authority checks pass.
+Independent review found no active write-authority blocker. There has been no
+native execution of this repaired route, so F10 fresh-campaign setup and its
+separate cold consumer remain unqualified. The standing
+[completion mission](planning/CHUNK7-COMPLETION-MISSION.md), F09/F11, ordinary
+door and 7E work remain open.
+
 [Batch137](docs/CHUNK7-BATCH137-F11-STARTUP-AND-SIX-PAIR-FEASIBILITY-2026-10-21.md)
 passed one guarded, base-only no-save native startup control on a clean-HEAD
 package with the same preview.94 DLL bytes: shipped diagnostic overlay off,
