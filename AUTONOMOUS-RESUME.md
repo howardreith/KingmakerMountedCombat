@@ -24,6 +24,15 @@ controls, ordinary doors, and readiness-gated 7E remain open. The guarded
 push-helper WhatIf was earlier rejected by automatic approval review, so do
 not substitute an ordinary push. Draft PR #5 remains remote-stale.
 
+The first clean-source package after `ac848d6c` was built once, with the same
+DLL SHA-256, but its assisted WhatIf failed before suite/package admission:
+PowerShell inherited `-WhatIf` into selection `Get-Item`/`Get-FileHash` before
+the runner cleared the preference. No lock, launch, save or transaction began.
+The narrow runner fix moves the capture/clear ahead of selection intake and
+retains the original guarded `ShouldProcess` point. Its actual-runner regression
+passed 29/0; source validation passed 147/0. After independent safety review,
+commit this fix, rebuild the manifest for clean HEAD, and repeat scoped WhatIf.
+
 ## Active October 21 after batch137 F11 native startup control
 
 The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
