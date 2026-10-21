@@ -55,7 +55,10 @@ function Get-KmcChunk7OwnedPairsManualSource($Selection,[AllowNull()][string]$Pe
  $ancestry=Get-KmcChunk7AcquiredManualSource $request.acquiredManual $Fixture $Candidate
  if((ConvertTo-KmcChunk7Canonical $request.persistenceLoad)-cne(ConvertTo-KmcChunk7Canonical $ancestry.descriptor)){throw 'Two-owner Manual did not load its exact qualified cumulative Auto.'}
  Assert-KmcChunk7OwnedSourceCompletion $set $Selection.sourceRunId 'chunk7-acquired-manual-derivative' $Fixture $Candidate $request.acquiredManual.sourceArchiveSha256
- if($null-ne$set.owner.persistenceCase){throw 'Two-owner Manual owner unexpectedly selects a persistence checkpoint.'}
+ # The runner serializes an unselected string parameter as "" in owner.json.
+ # Keep its wire type: an array/object must not impersonate an empty checkpoint.
+ $ownerCheckpoint=$set.owner.persistenceCase
+ if($null-ne$ownerCheckpoint-and($ownerCheckpoint-isnot[string]-or$ownerCheckpoint-cne'')){throw 'Two-owner Manual owner unexpectedly selects a persistence checkpoint.'}
  Assert-KmcChunk7AcquiredManualArtifact $request $set.manifest 'PASS'
  $artifact=Read-KmcChunk7ManifestArtifact $request $set.manifest 'chunk7-acquired-manual-evidence.json' 'chunk7-acquired-manual-evidence'
  $path=Join-Path $set.root 'chunk7-acquired-manual-evidence.json';$file=Get-Item -LiteralPath $path
