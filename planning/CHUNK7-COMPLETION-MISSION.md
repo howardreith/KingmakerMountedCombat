@@ -13,6 +13,12 @@
 > and [implementation chronology](CHUNK7-IMPLEMENTATION-PLAN.md) remain
 > historical where they say 7E is unselected or give stale native caps.
 
+[Batch117](../docs/CHUNK7-BATCH117-MEDIUM-MAMMOTH-COLD-2026-10-21.md)
+passed preview.84's four-scenario Medium mounted Horse/independent cold,
+genuine Horse-to-Mammoth respec/Manual/independent cold chain. F10's distinct
+replacement/Manual/cold is now development PASS on this lineage; mounted
+Mammoth F09, remaining F10, F11 and final-package 7E remain open.
+
 [Batch116](../docs/CHUNK7-BATCH116-MEDIUM-MAMMOTH-PRODUCER-2026-10-21.md)
 passed the genuine paid Medium Horse mounted Manual/cold and the rider-B native
 Horse-to-Mammoth respec/Manual on preview.83, with exact restoration. The
