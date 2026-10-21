@@ -1,5 +1,16 @@
 # Chunk 7B–7D — IN PROGRESS
 
+## October 20 — batch103 scoped paid-hire operation from retained F09 evidence
+
+[Batch103](docs/CHUNK7-BATCH103-F10-PAID-HIRE-READER-2026-10-20.md)
+applies the existing strict native-choice proof to immutable batch53 paid-hire
+events. One reader-only operation PASS and five altered-input refusals establish
+paid custom-companion Horse acquisition and four native commits within that
+fixture. The F09 fixture-only verdict, original failures and later F10 gates
+remain unchanged. No DLL or native run was made. New-campaign/existing-character
+acquisition, later leveling, replacement, F09/F11 breadth and private 7E are
+still open.
+
 ## October 20 — batches101–102 F11 phase measurement and allocation-site correction
 
 [Batches101–102](docs/CHUNK7-BATCH101-102-F11-UPDATE-TIMING-2026-10-20.md)

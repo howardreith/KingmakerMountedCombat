@@ -1,5 +1,21 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## Active October 20 after batch103 — continue F10 native routes and F09/F11
+
+The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
+[Batch103](docs/CHUNK7-BATCH103-F10-PAID-HIRE-READER-2026-10-20.md) is a
+reader-only, hash-pinned limited PASS over the batch53 native paid-hire
+operation: four real commits, Horse selected on the fourth, native payment,
+party admission and genuine Manual. The original F09 producer remains fixture
+setup only; this is not a new-game or existing-character F10 completion. The
+new operation reader passed one positive and five negative checks; F09 and
+ordinary-choice neighbors passed 72/0 and 51/0. No DLL, native run or live
+transaction occurred. Current branch is `codex/mounted-combat-chunk7-successor`;
+refresh HEAD and worktree before editing. The latest known native batch102 ended
+restored, with no game or lock. Next: repair a selected genuine F10 Manual
+completion route or advance independent F09/F11; the installed level-up Auto
+still cannot complete. No previous batch needs replay merely to resume.
+
 ## Active October 20 after batch102 — continue standing F10/F11 gates
 
 The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
@@ -20,6 +36,15 @@ emit a level-up Auto; do not select a stale Auto-wait path unchanged. F11 still
 needs bounded allocation-event measurement, diagnostics-off and ordinary-player
 controls. F09 breadth/ordinary doors and readiness-gated private 7E remain
 selected. Do not replay batches101–102 solely to resume.
+
+The [stale-family source audit](docs/CHUNK7-STALE-LEVELUP-AUTOSAVE-FAMILIES.md)
+now identifies the exact F10 repair boundary: the installed Auto controller is
+unregistered, the shared observer's `Complete` requires an Auto, and the
+manual-derived selector/authority/reader/downstream source all name `Auto_1`.
+The build driver already proves actual native commits. Preserve the prelaunch
+refusal until a separately authorized, genuinely numbered Manual after settled
+field admission is implemented and its complete source/output/consumer contract
+is reviewed; do not change only the stage wait.
 
 ## Active October 20 after batch100 — next F10 acquisition/leveling path
 

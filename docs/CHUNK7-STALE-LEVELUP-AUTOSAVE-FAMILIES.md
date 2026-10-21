@@ -19,6 +19,24 @@ Each family below waits, after its native choices complete, for a terminal nativ
 requested descriptor `IsAutoLevelupSave`. That wait can never complete. The run would stall
 until its stage deadline and then fail.
 
+October 20 source audit after batch102: the shared
+`NativeOrdinaryAcquisitionProbe` installs its completion hook on that
+unregistered controller and defines `Complete` as one observed Auto request
+plus one prepared Auto write. Installation can succeed while the native method
+never runs. `Chunk7OrdinaryBuildDriver.ObserveCommit` independently checks the
+actual actor's one-level native advancement, unchanged XP, native UI closure,
+sourced reciprocal Horse, and paid-hire money where applicable. That existing
+proof is a sound input to a new completion contract, but it is not itself a
+save or cold-load result. Changing only `TickBuild`'s wait would still leave the
+selection's `Auto_1.zks`, persistence authority, `nativeWrite` observation,
+external reader and downstream acquired/cumulative source intake bound to an
+impossible Auto. No family was unblocked or run by this audit.
+
+[Batch103](CHUNK7-BATCH103-F10-PAID-HIRE-READER-2026-10-20.md) separately
+re-evaluates the retained F09 paid-hire choice sequence. It proves a limited
+native paid custom-companion acquisition operation in that fixture, without
+changing its fixture-only provenance or repairing any stale Auto-wait family.
+
 ## Blocked families
 
 | Family (scenario / case) | Wait site | Route verified by code path |
@@ -75,6 +93,16 @@ Separate actual native choice completion from persistence. When a persistent out
 follow completion with an explicitly authorized native Manual save. Update the request and
 authority, the writer quota, the descriptor and reader, and downstream intake together. Never
 manufacture a level-up callback or relabel a Manual as Auto.
+
+For the manual-derived family, the narrow route is one read-only qualified
+Manual seed load, the already bounded ordinary native choices and paid field
+admission where selected, then one separately reserved native Manual after the
+actor/Horse and field state settle. Capture the actual native save number,
+request/prepared/written object chain, worker and callback through the existing
+Manual-probe pattern. The resulting archive must be qualified as a new field
+source with honest seed and assistance provenance, not impersonate the old
+remote-companion Auto. Keep the prelaunch stale-family refusal until selection,
+authority, runtime, reader, downstream intake and focused negative checks agree.
 
 When a family is repaired, remove its row from `Get-KmcChunk7StaleLevelUpAutosaveFamilies`,
 from the test, and from this note in the same change.
