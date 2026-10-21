@@ -272,7 +272,9 @@ namespace KingmakerMountedCombat.Diagnostics
                     (!PostFieldManual || ((string)sourceObservations["nativeWrite"]["leaf"] == Chunk7CumulativeAcquisitionSelection.AssistedManualOutputLeaf &&
                         (string)sourceObservations["selection"]?["sourceMode"] == Chunk7CumulativeAcquisitionSelection.AssistedSourceMode ||
                         (string)sourceObservations["nativeWrite"]["leaf"] == Chunk7CumulativeAcquisitionSelection.LegacyManualOutputLeaf &&
-                        sourceObservations["selection"]?["sourceMode"] == null) &&
+                        sourceObservations["selection"]?["sourceMode"] == null ||
+                        (string)sourceObservations["nativeWrite"]["leaf"] == Chunk7CumulativeAcquisitionSelection.OwnerSeedManualOutputLeaf &&
+                        (string)sourceObservations["selection"]?["sourceMode"] == Chunk7CumulativeAcquisitionSelection.OwnerSeedSourceMode) &&
                         sourceObservations["nativeWrite"]["emptyMountedArchive"]?.Type == JTokenType.Boolean &&
                         (bool)sourceObservations["nativeWrite"]["emptyMountedArchive"]) &&
                     sourceObservations["nativeSave"]?["complete"]?.Type == JTokenType.Boolean &&

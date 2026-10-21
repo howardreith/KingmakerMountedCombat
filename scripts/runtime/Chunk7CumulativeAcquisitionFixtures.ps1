@@ -21,6 +21,7 @@ function Get-KmcChunk7CumulativeSource($Selection,$Fixture,$Candidate){
  Assert-KmcBootstrapInventoryString $request.runId $Selection.sourceRunId;Assert-KmcBootstrapInventoryString $request.scenario 'chunk7-acquired-manual-derivative';Assert-KmcBootstrapInventoryString $request.evidenceRoot $root
  Assert-KmcChunk7AcquiredManualDescriptor $request
  Assert-KmcBootstrapInventoryString $request.acquiredManual.case 'preserve-acquired-field'
+ if(Test-KmcOwnerSeedCumulativeMode $Selection){Assert-KmcBootstrapInventoryString $request.persistenceLoad.fileName 'Manual_304_KMC_C7_MANUAL_DERIVED_FIELD.zks'}
  foreach($key in @('working','baseline')){Assert-KmcBootstrapInventoryString $request.fixture.$key.sha256 $Fixture.$key.sha256}
  foreach($key in @('commit','dllSha256','dllMvid')){Assert-KmcBootstrapInventoryString $request.$key $Candidate.$key}
  # Complete bootstrap and cold source qualification is repeated unchanged. Decoded
@@ -29,7 +30,7 @@ function Get-KmcChunk7CumulativeSource($Selection,$Fixture,$Candidate){
  if((ConvertTo-KmcChunk7Canonical $request.persistenceLoad)-cne(ConvertTo-KmcChunk7Canonical $lineage.descriptor)){throw 'Manual source did not load the exact qualified bootstrap descriptor.'}
  foreach($key in @('runId','scenario','transactionToken')){Assert-KmcBootstrapInventoryString $owner.$key $request.$key}
  Assert-KmcBootstrapInventoryString $owner.sourceSha256 $request.acquiredManual.sourceArchiveSha256;Assert-KmcBootstrapInventoryString $owner.saveRoot (Join-Path $profile 'Saved Games')
- if($null-ne$owner.persistenceCase){throw 'Manual source owner unexpectedly selects another persistence case.'}
+ if($null-ne$owner.persistenceCase-and($owner.persistenceCase-isnot[string]-or$owner.persistenceCase-cne'')){throw 'Manual source owner unexpectedly selects another persistence case.'}
  foreach($receipt in @($result,$game)){
   foreach($key in @('runId','scenario','branch','commit','productVersion','dllSha256','dllMvid','transactionToken')){Assert-KmcBootstrapInventoryString $receipt.$key $request.$key}
   Assert-KmcBootstrapInventoryString $receipt.status 'PASS';if($receipt.errors-isnot[Array]-or$receipt.errors.Count-ne0){throw 'Manual-derived acquisition requires an error-free completed Manual seed.'}
@@ -71,7 +72,7 @@ function Copy-KmcChunk7CumulativeSourceArtifact($Source,[string]$ProfileRoot,$Lo
 }
 function Assert-KmcChunk7CumulativeOutput($Request,$Artifact){
  $w=$Artifact.observations.nativeWrite;$root=Join-Path (Join-Path (Join-Path (Split-Path (Split-Path $Request.evidenceRoot -Parent) -Parent) 'runtime-staging') ('persistence-'+$Request.runId)) 'Saved Games'
- $leaf=if(Test-KmcAssistedCumulativeMode $Request.cumulativeAcquisition){'Manual_301_KMC_C7_MANUAL_DERIVED_FIELD.zks'}else{'Manual_303_KMC_C7_MANUAL_DERIVED_FIELD.zks'}
+ $leaf=Get-KmcCumulativeOutputLeaf $Request.cumulativeAcquisition
  Assert-KmcBootstrapInventoryString $Request.cumulativeAcquisition.nativeWriteLeaf $leaf
  $path=Assert-KmcChildPath $w.path $root 'native Manual-derived output';Assert-KmcBootstrapInventoryString $path (Join-Path $root $leaf)
  Assert-KmcNotReparsePoint $path 'native Manual-derived output';Assert-KmcNotHardLink $path 'native Manual-derived output';$file=Get-Item -LiteralPath $path

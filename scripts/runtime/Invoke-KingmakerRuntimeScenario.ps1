@@ -217,7 +217,7 @@ if(Test-KmcChunk7CumulativeScenario $Scenario){
         if($PSBoundParameters.ContainsKey($name)){throw 'Manual-derived acquisition selects only its closed one-load one-terminal-write source file.'}
     }
     $cumulativeAcquisitionInput=Read-KmcChunk7CumulativeSelectionFile $CumulativeAcquisitionSelectionPath $(if($RunId){$RunId}else{'unassigned-cumulative'})
-    Assert-KmcChunk7FamilyReady $Scenario $(if(Test-KmcAssistedCumulativeMode $cumulativeAcquisitionInput.selection){'assisted-manual'}else{'legacy-manual'})
+    Assert-KmcChunk7FamilyReady $Scenario $(if(Test-KmcAssistedCumulativeMode $cumulativeAcquisitionInput.selection){'assisted-manual'}elseif(Test-KmcOwnerSeedCumulativeMode $cumulativeAcquisitionInput.selection){'owner-seed-manual'}else{'legacy-manual'})
 }elseif($PSBoundParameters.ContainsKey('CumulativeAcquisitionSelectionPath')){throw 'Manual-derived selection is forbidden under another scenario.'}
 $manualSeedInput=$null;$manualSeedSource=$null
 if(Test-KmcChunk7ManualSeedScenario $Scenario){

@@ -18,6 +18,7 @@ namespace KingmakerMountedCombat.Diagnostics
         public const string ManualOutputName = "KMC_C7_MANUAL_DERIVED_FIELD";
         public const string ManualOutputLeaf = "Manual_2_KMC_C7_MANUAL_DERIVED_FIELD.zks";
         public const string CumulativeLegacyOutputLeaf = "Manual_303_KMC_C7_MANUAL_DERIVED_FIELD.zks";
+        public const string CumulativeOwnerSeedOutputLeaf = "Manual_306_KMC_C7_MANUAL_DERIVED_FIELD.zks";
         public const string CumulativeAssistedOutputLeaf = "Manual_301_KMC_C7_MANUAL_DERIVED_FIELD.zks";
         // A registered owner seed is Manual_303; its first genuine new Manual is 304.
         public const string OwnerSeedOutputLeaf = "Manual_304_KMC_C7_MANUAL_DERIVED_FIELD.zks";
@@ -60,7 +61,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (!Regex.IsMatch(value ?? "", "^[a-f0-9]{64}$")) errors.Add("Exact immutable Manual source hashes are required.");
             if (!BaseGameOnly || ExpectedNativeLoadCount != 1 || ExpectedNativeWriteCount != 1 ||
                 (cumulativeAuto ? !cumulativeManual || NativeWriteLeaf != CumulativeAssistedOutputLeaf &&
-                    NativeWriteLeaf != CumulativeLegacyOutputLeaf :
+                    NativeWriteLeaf != CumulativeLegacyOutputLeaf && NativeWriteLeaf != CumulativeOwnerSeedOutputLeaf :
                     NativeWriteLeaf != ManualOutputLeaf && NativeWriteLeaf != OwnerSeedOutputLeaf))
                 errors.Add("Acquisition requires its exact base-only one-load, one-write native output.");
             if (Readiness == null) errors.Add("Observed source readiness pins are required.");

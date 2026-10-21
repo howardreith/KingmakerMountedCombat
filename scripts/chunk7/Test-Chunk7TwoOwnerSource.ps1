@@ -57,6 +57,22 @@ function Qualify($C){Get-KmcChunk7AcquiredManualSource $C.selection $C.fixture $
 function Good([string]$Name,[scriptblock]$Action){&$Action;$script:passes++;Write-Host ('PASS '+$Name)}
 function Bad([string]$Name,[scriptblock]$Action){$bad=$false;try{&$Action}catch{$bad=$true};if(-not$bad){throw ('Accepted '+$Name)};$script:passes++;Write-Host ('PASS refuses '+$Name)}
 foreach($paid in @($true,$false)){Good ('exact real qualifier body '+$paid){$c=New-Case $paid;$r=Qualify $c;if($r.descriptor.fileName-cne'Manual_303_KMC_C7_MANUAL_DERIVED_FIELD.zks'-or$r.descriptor.sha256-cne$c.selection.sourceArchiveSha256){throw 'Observed descriptor lost'};foreach($gate in @('full-bootstrap-cold-lineage','strict-manifest','full-manual-artifact','settled-native-output')){if(@($script:calls|Where-Object{$_-ceq$gate}).Count-ne1){throw ('Required external gate omitted '+$gate)}}}}
+function New-OwnerSeedCase {
+ $c=New-Case
+ $s=$c.request.cumulativeAcquisition
+ $s|Add-Member -NotePropertyName sourceMode -NotePropertyValue 'owner-seed-one-owner'
+ $s.nativeWriteLeaf='Manual_306_KMC_C7_MANUAL_DERIVED_FIELD.zks'
+ $c.request.persistenceLoad.fileName='Manual_305_KMC_C7_ACQUIRED_FIELD.zks'
+ $c.candidate.persistenceLoad.fileName='Manual_306_KMC_C7_MANUAL_DERIVED_FIELD.zks'
+ $c.artifact.observations.nativeWrite.leaf='Manual_306_KMC_C7_MANUAL_DERIVED_FIELD.zks'
+ $path=Join-Path (Split-Path $c.artifact.observations.nativeWrite.path -Parent) 'Manual_306_KMC_C7_MANUAL_DERIVED_FIELD.zks'
+ $c.artifact.observations.nativeWrite.path=$path
+ $script:hashes[$path]=$c.selection.sourceArchiveSha256
+ $c
+}
+Good 'owner-seed cumulative Manual 306 admits two-owner downstream source' {$c=New-OwnerSeedCase;$r=Qualify $c;if($r.descriptor.fileName-cne'Manual_306_KMC_C7_MANUAL_DERIVED_FIELD.zks'){throw 'Manual 306 consumer descriptor differs.'}}
+Bad 'Manual 306 cannot borrow legacy cumulative mode' {$c=New-OwnerSeedCase;$c.request.cumulativeAcquisition.PSObject.Properties.Remove('sourceMode');[void](Qualify $c)}
+Bad 'Manual 306 cannot borrow legacy cumulative input' {$c=New-OwnerSeedCase;$c.request.persistenceLoad.fileName='Manual_302_KMC_C7_ACQUIRED_FIELD.zks';[void](Qualify $c)}
 foreach($gate in @('cloneable','not-reparse','not-hardlink','unique-json','full-bootstrap-cold-lineage','strict-manifest','full-manual-artifact','settled-native-output')){Bad ('mandatory external refusal '+$gate){$c=New-Case;$script:failure=$gate;[void](Qualify $c)}}
 $cases=[ordered]@{
  'prior pair source pin changed'={param($c)$c.request.cumulativeAcquisition.priorOwnerId='99999999-1111-4111-8111-111111111111'}

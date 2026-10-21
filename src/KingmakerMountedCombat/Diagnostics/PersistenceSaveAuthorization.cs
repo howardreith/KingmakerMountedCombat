@@ -122,7 +122,8 @@ namespace KingmakerMountedCombat.Diagnostics
                         !acquiredManualRequest.AcquiredManual.UsesPostFieldManual ? source.FileName == "Auto_1.zks" :
                         acquiredManualRequest.AcquiredManual.UsesPostFieldManual ?
                         (source.FileName == Chunk7CumulativeAcquisitionSelection.AssistedManualOutputLeaf ||
-                         source.FileName == Chunk7CumulativeAcquisitionSelection.LegacyManualOutputLeaf) &&
+                         source.FileName == Chunk7CumulativeAcquisitionSelection.LegacyManualOutputLeaf ||
+                         source.FileName == Chunk7CumulativeAcquisitionSelection.OwnerSeedManualOutputLeaf) &&
                         source.InternalName == Chunk7ManualDerivedSelection.ManualOutputName &&
                         source.FileName == acquiredManualRequest.PersistenceLoad.FileName :
                         (source.FileName == Chunk7ManualDerivedSelection.ManualOutputLeaf || source.FileName == Chunk7ManualDerivedSelection.OwnerSeedOutputLeaf) &&
@@ -405,7 +406,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 Entry input, output;
                 if (source == null || !Chunk7CumulativeAcquisitionSelection.IsAcquiredManualLeaf(source.FileName) || source.InternalName != Chunk7AcquiredManualSelection.OutputName ||
                     source.GameId != gameId || source.GameName != gameName ||
-                    outputLeaf != Chunk7CumulativeAcquisitionSelection.LegacyManualOutputLeaf ||
+                    !((source.FileName == Chunk7CumulativeAcquisitionSelection.LegacySourceLeaf && outputLeaf == Chunk7CumulativeAcquisitionSelection.LegacyManualOutputLeaf) ||
+                      (source.FileName == Chunk7CumulativeAcquisitionSelection.OwnerSeedSourceLeaf && outputLeaf == Chunk7CumulativeAcquisitionSelection.OwnerSeedManualOutputLeaf)) ||
                     outputName != Chunk7ManualDerivedSelection.ManualOutputName ||
                     maximumNativeLoadRequests != 1 || maximumNativeWriteRequests != 1 || declaresBootstrap || bootstrapWindowOpen || entries.Count != 2 ||
                     !entries.TryGetValue(source.FileName, out input) || input.Name != source.InternalName || input.Type != "Manual" ||
