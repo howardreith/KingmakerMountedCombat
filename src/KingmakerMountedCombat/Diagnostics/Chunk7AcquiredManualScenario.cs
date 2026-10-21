@@ -250,6 +250,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 (string)sourceObservations["nativeWrite"]?["gameName"] == request.PersistenceLoad.GameName &&
                 (string)sourceObservations["nativeWrite"]?["area"] == request.PersistenceLoad.Area &&
                 (string)sourceObservations["nativeWrite"]?["leaf"] == request.PersistenceLoad.FileName &&
+                (TwoOwners || (string)sourceObservations["selection"]?["nativeWriteLeaf"] == request.PersistenceLoad.FileName) &&
                 (string)sourceObservations["field"]?["actorId"] == selection.ActorId && (string)sourceObservations["field"]?["petId"] == selection.PetId &&
                 sourceObservations["cleanup"]?["custodySettled"]?.Type == JTokenType.Boolean && (bool)sourceObservations["cleanup"]["custodySettled"],
                 "Staged source lacks exact same-candidate successful Manual-derived acquisition provenance.");

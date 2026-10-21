@@ -718,7 +718,10 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (PersistenceLoad == null) errors.Add("Manual-derived acquisition requires its exact native Manual seed source.");
                 else
                 {
-                    errors.AddRange(PersistenceLoad.Validate("persistenceLoad", Chunk7ManualSeedSelection.OutputName, "^Manual_1_KMC_C7_NATIVE_SEED\\.zks$"));
+                    var ownerSeed = ManualDerived?.UsesOwnerSeedCold == true;
+                    errors.AddRange(PersistenceLoad.Validate("persistenceLoad",
+                        ownerSeed ? Chunk7ManualDerivedSelection.OwnerSeedInputName : Chunk7ManualSeedSelection.OutputName,
+                        ownerSeed ? "^Manual_303_KMC_C7_NO_MODS_OWNER_SEED\\.zks$" : "^Manual_1_KMC_C7_NATIVE_SEED\\.zks$"));
                     if (Fixture?.Working == null || PersistenceLoad.GameId == Fixture.Working.GameId ||
                         !Guid.TryParseExact(PersistenceLoad.GameId, "D", out var mintedDerivedId) || mintedDerivedId == Guid.Empty ||
                         string.IsNullOrWhiteSpace(PersistenceLoad.GameName) || PersistenceLoad.Sha256 == Fixture.Working.Sha256 ||
@@ -734,7 +737,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     if (string.IsNullOrWhiteSpace(PersistenceLoad.InternalName) || PersistenceLoad.InternalName.Length > 256 || PersistenceLoad.InternalName.Any(char.IsControl))
                         errors.Add("Native bootstrap autosave name is missing or invalid.");
                     var sourcePattern = AcquiredManual?.Case == Chunk7AcquiredManualSelection.TwoOwnerCaseName ?
-                        "^Auto_1\\.zks$" : "^Manual_2_KMC_C7_MANUAL_DERIVED_FIELD\\.zks$";
+                        "^Auto_1\\.zks$" : "^Manual_(2|304)_KMC_C7_MANUAL_DERIVED_FIELD\\.zks$";
                     errors.AddRange(PersistenceLoad.Validate("persistenceLoad", PersistenceLoad.InternalName, sourcePattern));
                     if (AcquiredManual?.Case == Chunk7AcquiredManualSelection.CaseName &&
                         PersistenceLoad.InternalName != Chunk7ManualDerivedSelection.ManualOutputName)

@@ -1,4 +1,47 @@
 Set-StrictMode -Version Latest
+function Get-KmcChunk7ManualDerivedOwnerSeedSource($Selection,$Fixture,$Candidate){
+ $lab=Get-KmcLabRoot;$root=Assert-KmcChildPath (Join-Path $lab ('runtime-evidence/'+$Selection.sourceRunId)) (Join-Path $lab 'runtime-evidence') 'owner-seed cold evidence'
+ Assert-KmcNotReparsePoint $root 'owner-seed cold evidence'
+ $receiptLeaves=@('runtime-request.json','runtime-result.json','runtime-game-result.json','runtime-artifacts.json','base-game-isolation-result.json','chunk7-assisted-cold-inventory-evidence.json')
+ $pins=@{}
+ foreach($leaf in $receiptLeaves){$path=Join-Path $root $leaf;Assert-KmcNotReparsePoint $path 'owner-seed cold receipt';Assert-KmcNotHardLink $path 'owner-seed cold receipt';Assert-KmcManifestJsonMembersUnique $path 'owner-seed cold receipt';$pins[$path]=Get-KmcSha256 $path}
+ $request=Read-KmcJson (Join-Path $root 'runtime-request.json');$result=Read-KmcJson (Join-Path $root 'runtime-result.json');$game=Read-KmcJson (Join-Path $root 'runtime-game-result.json');$isolation=Read-KmcJson (Join-Path $root 'base-game-isolation-result.json')
+ Assert-KmcBootstrapInventoryString $request.runId $Selection.sourceRunId;Assert-KmcBootstrapInventoryString $request.scenario 'chunk7-assisted-cold-inventory';Assert-KmcBootstrapInventoryString $request.evidenceRoot $root
+ foreach($key in @('commit','dllSha256','dllMvid')){Assert-KmcBootstrapInventoryString $request.$key $Candidate.$key}
+ foreach($key in @('working','baseline')){Assert-KmcBootstrapInventoryString $request.fixture.$key.sha256 $Fixture.$key.sha256}
+ Assert-KmcBootstrapInventoryString $request.assistedColdInventory.case 'owner-seed-readonly-inventory'
+ Assert-KmcBootstrapInventoryString $request.assistedColdInventory.seedId 'KMC_C7_NO_MODS_OWNER_SEED'
+ Assert-KmcBootstrapInventoryString $request.assistedColdInventory.seedSha256 $Selection.sourceArchiveSha256
+ $seed=Get-KmcChunk7OwnerSeedSource $request.assistedColdInventory $Fixture $Candidate
+ Assert-KmcChunk7AssistedColdInventoryDescriptor $request
+ if((ConvertTo-KmcChunk7Canonical $request.persistenceLoad)-cne(ConvertTo-KmcChunk7Canonical $seed.descriptor)){throw 'Owner-seed cold request did not use its registered immutable master descriptor.'}
+ Assert-KmcChunk7ManualDerivedDescriptor ([pscustomobject]@{scenario='chunk7-manual-derived-acquisition';runId='unassigned-manual-derived';manualDerived=$Selection;persistenceLoad=$seed.descriptor;fixture=$Fixture})
+ foreach($receipt in @($result,$game)){
+  foreach($key in @('runId','scenario','branch','commit','productVersion','dllSha256','dllMvid','transactionToken')){Assert-KmcBootstrapInventoryString $receipt.$key $request.$key}
+  Assert-KmcBootstrapInventoryString $receipt.status 'PASS';if($receipt.errors-isnot[Array]-or$receipt.errors.Count-ne0){throw 'Owner-seed cold source is not error-free.'}
+  Assert-KmcBootstrapInventoryString $receipt.evidenceManifestSha256 $pins[(Join-Path $root 'runtime-artifacts.json')]
+ }
+ Assert-KmcBootstrapInventoryString $result.gameResultSha256 $pins[(Join-Path $root 'runtime-game-result.json')]
+ if($result.restoredSaveInventoryDigest-isnot[string]-or$result.restoredSaveInventoryDigest-cnotmatch'^[a-f0-9]{64}$'){throw 'Owner-seed cold source lacks exact restoration identity.'}
+ foreach($key in @('modsRestored','workingRestored','baselineImmutable','saveProtectionPassed','saveWriteAllowlistPassed')){Assert-KmcChunk7Boolean $result.$key $true}
+ foreach($key in @('assertionFailCount','subscenarioFailCount','baselineLoadRequestCount','unauthorizedLoadRequestCount','unauthorizedSaveRequestCount','saveRequestCount','workingSaveRequestCount')){Assert-KmcOrdinaryInteger $game.$key 0 0}
+ foreach($key in @('loadRequestCount','workingLoadRequestCount')){Assert-KmcOrdinaryInteger $game.$key 1 1}
+ Assert-KmcChunk7Boolean $game.fixtureIdentityVerified $true
+ Assert-KmcBootstrapInventoryString $isolation.runId $request.runId;Assert-KmcBootstrapInventoryString $isolation.stagingMode 'base-game-only-kmc'
+ foreach($key in @('stageVerified','dependenciesUnchanged','processExited','modsRestored','saveProtectionPassed','gameReportedPass','nativeInventoryObserved','nativeCompatibilityQualified')){Assert-KmcChunk7Boolean $isolation.$key $true}
+ Assert-KmcReadOnlyArtifactManifest $request $pins[(Join-Path $root 'runtime-artifacts.json')] -GameResult
+ $manifest=Read-KmcJson (Join-Path $root 'runtime-artifacts.json');Assert-KmcChunk7AssistedColdInventoryArtifact $request $manifest 'PASS'
+ $artifactPath=Join-Path $root 'chunk7-assisted-cold-inventory-evidence.json';$artifact=Read-KmcChunk7ManifestArtifact $request $manifest 'chunk7-assisted-cold-inventory-evidence.json' 'chunk7-assisted-cold-inventory-evidence'
+ $file=Get-Item -LiteralPath $artifactPath
+ if($file.Length-le0-or$file.Length-gt16MB-or$pins[$artifactPath]-cne$Selection.sourceArtifactSha256){throw 'Caller-pinned owner-seed cold artifact differs.'}
+ $projected=Get-KmcChunk7OwnerSeedAcquisitionProjection $artifact.observations
+ Assert-KmcManualDerivedSourcePins $Selection $projected
+ foreach($path in $pins.Keys){if((Get-KmcSha256 $path)-cne$pins[$path]){throw 'Owner-seed cold qualification receipt changed during intake.'}}
+ if((Get-KmcSha256 $seed.path)-cne$Selection.sourceArchiveSha256){throw 'Registered owner-seed master changed during qualification.'}
+ [pscustomobject]@{path=$seed.path;descriptor=$seed.descriptor;artifactPath=$artifactPath;artifactSha256=$Selection.sourceArtifactSha256;artifactLength=[long]$file.Length;
+  ownerSeedId=$seed.seedId;bootstrapRunId=$null;coldInventoryRunId=$request.runId;manualRunId=$null;
+  fixtureSetupOnly=$true;ordinaryAcquisitionProven=$false}
+}
 function Read-KmcChunk7ManualDerivedSelectionFile([string]$Path,[string]$RunId){
  $path=Assert-KmcChildPath $Path (Get-KmcLabRoot) 'Manual-derived selection';Assert-KmcNotReparsePoint $path 'Manual-derived selection';Assert-KmcNotHardLink $path 'Manual-derived selection'
  $file=Get-Item -LiteralPath $path;if($file.Length-le0-or$file.Length-gt32KB){throw 'Manual-derived selection is empty or oversized.'}
@@ -9,6 +52,7 @@ function Read-KmcChunk7ManualDerivedSelectionFile([string]$Path,[string]$RunId){
 }
 function Get-KmcChunk7ManualDerivedSource($Selection,$Fixture,$Candidate){
  Assert-KmcChunk7ManualDerivedSelection ([pscustomobject]@{scenario='chunk7-manual-derived-acquisition';runId='unassigned-manual-derived';manualDerived=$Selection})
+ if($Selection.nativeWriteLeaf-ceq'Manual_304_KMC_C7_MANUAL_DERIVED_FIELD.zks'){return Get-KmcChunk7ManualDerivedOwnerSeedSource $Selection $Fixture $Candidate}
  $lab=Get-KmcLabRoot;$profile=Assert-KmcChildPath (Join-Path $lab ('runtime-staging/persistence-'+$Selection.sourceRunId)) (Join-Path $lab 'runtime-staging') 'qualified Manual profile'
  Assert-KmcDirectoryTreeCloneable $profile 'qualified Manual profile'
  $root=Assert-KmcChildPath (Join-Path $lab ('runtime-evidence/'+$Selection.sourceRunId)) (Join-Path $lab 'runtime-evidence') 'qualified Manual evidence';Assert-KmcNotReparsePoint $root 'qualified Manual evidence';$files=@{}
@@ -69,7 +113,7 @@ function Copy-KmcChunk7ManualDerivedSourceArtifact($Source,[string]$ProfileRoot,
 }
 function Assert-KmcChunk7ManualDerivedOutput($Request,$Artifact){
  $w=$Artifact.observations.nativeWrite;$root=Join-Path (Join-Path (Join-Path (Split-Path (Split-Path $Request.evidenceRoot -Parent) -Parent) 'runtime-staging') ('persistence-'+$Request.runId)) 'Saved Games'
- $path=Assert-KmcChildPath $w.path $root 'native Manual-derived output';Assert-KmcBootstrapInventoryString $path (Join-Path $root 'Manual_2_KMC_C7_MANUAL_DERIVED_FIELD.zks')
+ $path=Assert-KmcChildPath $w.path $root 'native Manual-derived output';Assert-KmcBootstrapInventoryString $path (Join-Path $root $Request.manualDerived.nativeWriteLeaf)
  Assert-KmcNotReparsePoint $path 'native Manual-derived output';Assert-KmcNotHardLink $path 'native Manual-derived output';$file=Get-Item -LiteralPath $path
  if($file.Length-ne$w.length-or$file.LastWriteTimeUtc.Ticks-ne$w.lastWriteTimeUtcTicks-or(Get-KmcSha256 $path)-cne$w.sha256){throw 'Native field Manual output differs from its settled receipt.'}
  $input=Join-Path $root $Request.persistenceLoad.fileName;Assert-KmcNotReparsePoint $input 'immutable Manual input';Assert-KmcNotHardLink $input 'immutable Manual input'
