@@ -1,0 +1,19 @@
+# Batch149: native paid Small Manual, external evidence failure
+
+Status: **IN PROGRESS** under the [standing completion mission](../planning/CHUNK7-COMPLETION-MISSION.md). The original b145, b148 and b149 failures remain distinct. This checkpoint does not qualify a two-pair cold consumer, six-pair stress, or final 7E.
+
+The clean `93392970` preview.94 package SHA-256 was `3a0cd0bd0dfa55f7ede6a2b12c931c1c6626080fbf5c0b1ffd6cf8700e714ce9`; DLL SHA-256 `4bfc59ef85b129e1de6711f077221a9196798ddafc18ddfb275ca10aee31bcee`, MVID `89551b93-0acd-4410-a95b-4ece3a1ba25d`; suite `chunk7b-completion-b149-manual301-20261021` SHA-256 `58db6657b235e4ed9aefc3b1f87da197a390175d98ba3bf930501bfb910a1432`. Candidate passed 6/0. Three declared native scenarios used the approved Howie context, guarded staging and separate transactions:
+
+| Run | Result |
+| --- | --- |
+| `20261021-c7b-world104-b149s1-assisted-producer` | Game and outer **PASS 7/7**. Final assisted Manual SHA-256 `c0bc3421abce97ce6eb151c8921f0b15f106ef1595fadfb533e3b74de3e9102b`. |
+| `20261021-c7b-world104-b149s2-assisted-cold` | Separate game and outer **PASS 4/4**, one native load and zero writes. |
+| `20261021-c7b-world104-b149s3-paid-small` | Game **PASS 7/0**: genuine paid level-five Halfling Ranger/Horse creation, field admission, native Manual 301 save, and cleanup. Archive SHA-256 `2005327bb522630866057d68206edd7230176fc7768d1cdf0f1785bf3c7ec0b3`. Original outer result **FAIL**: the strict reader requested absent `nativeAcquisition` from an assisted Manual operation. Its preserved game artifact SHA-256 is `06b52ee7f94b47b702ecde2ed757f2a3aaeb1b95e79c8859281567125145d599`, game-result SHA-256 `0fb5df704933153fc8f60ae3b1ede62d9750469552518d7da5a4874e48de9a13`, outer-result SHA-256 `eadba86eab2ff5308b5391c19da8f2a7ec57d13d05b7354e17667f66bd0f5494`. |
+
+Reader-only continuation of the immutable b149 artifact confirmed a second evidence defect: `field.bodyObservation` is `{"$id":"1"}` with no size, race, preset or rig fields. It cannot be promoted to PASS by a reader change. The game did check the paid actor's native size and rig during field capture, but those checks do not replace the required serialized observations. The Manual contains a native paid actor and Horse but `emptyMountedArchive=true`; it is a setup output, not yet a KMC-mounted two-pair continuation.
+
+The narrow next correction routes only assisted cumulative Manual choices around the Auto observer while leaving legacy Auto's three-hook assertion intact. Product diagnostics project the measured body through the existing explicit 20-field `SmallRiderBodyFingerprint` serializer, which avoids ambient JSON reference metadata and represents unavailable equipment arrays as null; the body must exist. Focused cumulative reader passed 78/0, Small Manual protocol 73/0, fingerprint 8/0 and Fast 3/0; independent read-only review found no blocker. A fresh candidate and paid native verification are required before any outer PASS claim.
+
+All three b149 transactions report phase `restored`, exact Mods and save-inventory digests, Working and protected saves restored, and no restoration errors. Their `profile-cache-changes.json` receipts contain zero accepted changes and `profileBytesRestoredExactly=true`. No Kingmaker process or recent runtime lock remained at the checkpoint. The original outer FAIL, the game PASS and the reader-only diagnosis retain separate identities. No archive or historical evidence was modified.
+
+Next: freeze a clean reviewed candidate, run Candidate and guarded WhatIf, then at most three sequential same-package scenarios: assisted producer, independent cold, and corrected paid Small Manual. If that output passes both game and outer checks, add the distinct post-field Manual lineage to the acquired-Manual consumer and verify cold mounted continuation. Continue the remaining selected 7B/7C/7D and readiness-gated private 7E requirements without reopening completed controls.

@@ -480,6 +480,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     actor.Descriptor.State.Size == actor.Descriptor.OriginalSize, "Selected paid body's original/effective size differs.");
             var body = NativeSmallRiderBody.Capture(actor, pet);
             if (selection.PaidHire && body?.NativeRigAvailable != true) return false;
+            Require(body != null, "Acquired field body observation is unavailable.");
             evidence["field"] = new JObject { ["frame"] = UnityEngine.Time.frameCount, ["actorId"] = actor.UniqueId,
                 ["actorObject"] = probe.Identity(actor), ["actorDescriptor"] = probe.Identity(actor.Descriptor), ["actorView"] = probe.Identity(actor.View),
                 ["petId"] = pet.UniqueId, ["petObject"] = probe.Identity(pet), ["petDescriptor"] = probe.Identity(pet.Descriptor), ["petView"] = probe.Identity(pet.View),
@@ -488,7 +489,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["rank"] = actor.Descriptor.GetFact(horses.LevelRank).GetRank(), ["reciprocal"] = true,
                 ["partyCharacters"] = new JArray(game.Player.PartyCharacters.Select(value => value.Value.UniqueId)),
                 ["profileInventory"] = Chunk7NativeProfileInventory.Capture(new[] { actor, pet }),
-                ["bodyObservation"] = JObject.FromObject(body ?? new SmallRiderBodyObservation()),
+                ["bodyObservation"] = JObject.Parse(SmallRiderBodyFingerprint.Capture(body)),
                 ["ordinaryFieldAdmissionProven"] = true, ["mountedOrPoseAcceptanceProven"] = false };
             evidence["afterChoices"] = CaptureNoArrangement(); return true;
         }
