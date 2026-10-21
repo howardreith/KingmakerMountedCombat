@@ -71,12 +71,58 @@ function New-F09Synthetic{
  $o.selection=Clone $f.request.smallCalibration
  $f
 }
+function New-F09PresentationSynthetic{
+ $f=New-F09Synthetic;$f.request.smallCalibration.case='compiled-owner-seed-fixture-small-horse-presentation-rt'
+ $o=$f.artifact.observations;$o.selection.case=$f.request.smallCalibration.case
+ $s=$f.request.smallCalibration.fixtureSource;$rows=@();$n=9000
+ $castEvents=@();$costEvents=@($o.allocationTrace.events)
+ $slots=@(1..5|ForEach-Object{[pscustomobject]@{owner=$s.actorId;slot=(9500+$_);item=0;blueprint=$null;holdingSlot=0;count=$null;charges=$null}})
+ foreach($spec in @(@('scroll-friendly','cd635d5720937b044a354dba17abad8d',$s.petId),@('potion-self','d52566ae8cbe8dc4dae977ef51c27d91',$s.actorId))){
+  $n++;$item=[pscustomobject]@{item=$n;blueprint=$spec[1];count=2;exactSlot=$true;holdingSlot=(9500+$rows.Count+1)}
+  $after=Clone $item;$after.count=1
+  $beforeSpend=[pscustomobject]@{kind='item-spend-before';identity=$n;actor=$s.actorId;blueprint=$spec[1];count=2;result=$null}
+  $afterSpend=[pscustomobject]@{kind='item-spend-after';identity=$n;actor=$s.actorId;blueprint=$spec[1];count=1;result=$true}
+  $beforeCost=Clone $costEvents[0];$afterCost=Clone $costEvents[1]
+  foreach($event in @($beforeCost,$afterCost)){$event.command=($n+100);$event.commandActor=$s.actorId;$event.commandType='Kingmaker.UnitLogic.Commands.UnitUseAbility';$event.state.actor=$s.actorId;$event.state.actorObject=$o.before.actorObject}
+  $beforeCost.sequence=$costEvents.Count+1;$afterCost.sequence=$costEvents.Count+2
+  $beforeCost.frame=$o.poses[5].observation.frame;$afterCost.frame=$beforeCost.frame
+  $costOffset=$costEvents.Count;$eventOffset=$castEvents.Count
+  $costEvents+=@($beforeCost,$afterCost);$castEvents+=@($beforeSpend,$afterSpend)
+  $o.allocationTrace.identityRegistry.ids+=($n+100)
+  $rows+=,[pscustomobject]@{kind=$spec[0];actorId=$s.actorId;targetId=$spec[2];itemBlueprint=$spec[1];abilityGuid=('a'*32);
+   clicked=$true;terminal=$true;processTerminal=$true;nativeResult='Success';selectionAfterInput=$o.manualNativeRoster.mainActorId;shell=($n+100);
+   woundBefore=0;woundAtInput=1;woundAfter=0;beforeItem=$item;afterItem=$after;
+   beforePose=(Clone $o.poses[5].observation);activePose=(Clone $o.poses[5].observation);afterPose=(Clone $o.poses[5].observation);
+   eventOffset=$eventOffset;costOffset=$costOffset;nativeEvents=@($beforeSpend,$afterSpend);nativeCosts=@($beforeCost,$afterCost)}
+ }
+ $o.allocationTrace.events=$costEvents;$o.allocationTrace.identityRegistry.retainedCount=$o.allocationTrace.identityRegistry.ids.Count
+ $items=@($rows|ForEach-Object{$row=$_;[pscustomobject]@{blueprint=$row.itemBlueprint;rider=$s.actorId;requestedCount=2;slot=$row.beforeItem.holdingSlot;
+  slotOriginallyEmpty=$true;stacked=(Clone $row.beforeItem);beforeCleanup=(Clone $row.afterItem);
+  removalPostconditions=[pscustomobject]@{item=$row.beforeItem.item;collection=0;holdingSlot=0;exactInventoryResident=$false};
+  afterCleanup=[pscustomobject]@{item=$row.beforeItem.item;exactInventoryResident=$false};
+  quickSlotsBefore=(Clone $slots);quickSlotsAfter=(Clone $slots);ownedItemReleased=$true;disposed=$true;slotRestored=$true;noOwnedItemResident=$true}})
+ $o|Add-Member presentation ([pscustomobject]@{contract='small-native-item-presentation-v1';fixtureSetupOnly=$true;spellSlotWrites=0;
+  nativePreparationManufactured=$false;inputs=$rows;originalSlots=[pscustomobject]@{restored=$true;before=$slots;after=(Clone $slots)};items=$items;
+  castTrace=[pscustomobject]@{dropped=0;faults=0;events=$castEvents};released=$true})
+ $f
+}
 [void][IO.Directory]::CreateDirectory($OutputDirectory)
 $script:pass=0;$script:fail=0;$watch=[Diagnostics.Stopwatch]::StartNew()
 function Good([string]$name,[scriptblock]$action){try{&$action;$script:pass++;Write-Host ('PASS '+$name)}catch{$script:fail++;Write-Host ('FAIL '+$name+': '+$_+' '+$_.ScriptStackTrace)}}
 function Bad([string]$name,[scriptblock]$action){try{&$action;$script:fail++;Write-Host ('FAIL accepted '+$name)}catch{$script:pass++;Write-Host ('PASS refuses '+$name)}}
 Good 'F09 synthetic seven-actor source and shared native mounted reader' { $f=New-F09Synthetic;Assert-KmcChunk7SmallEvidence $f.request $f.artifact }
 Good 'F09 source decimal zero equals exact observed integer zero' { $f=New-F09Synthetic;$f.artifact.observations.source.fixtureManual.savedWorld.party[0].native.Initiative=[decimal]0.0;Assert-KmcChunk7SmallEvidence $f.request $f.artifact }
+Good 'separate presentation case retains qualified F09 source selection' { $f=New-F09Synthetic;$f.request.smallCalibration.case='compiled-owner-seed-fixture-small-horse-presentation-rt';Assert-KmcChunk7SmallSelection $f.request }
+Good 'F09 presentation reader binds two native item spends and costs' { $f=New-F09PresentationSynthetic;Assert-KmcChunk7SmallEvidence $f.request $f.artifact }
+Bad 'presentation reader refuses missing native rider cost' { $f=New-F09PresentationSynthetic;$f.artifact.observations.presentation.inputs[0].nativeCosts=@();Assert-KmcChunk7SmallEvidence $f.request $f.artifact }
+Bad 'presentation reader refuses original slot drift' { $f=New-F09PresentationSynthetic;$f.artifact.observations.presentation.originalSlots.restored=$false;Assert-KmcChunk7SmallEvidence $f.request $f.artifact }
+Bad 'presentation reader refuses spend from another item' { $f=New-F09PresentationSynthetic;$f.artifact.observations.presentation.inputs[0].nativeEvents[1].identity++;$f.artifact.observations.presentation.castTrace.events[1].identity++;Assert-KmcChunk7SmallEvidence $f.request $f.artifact }
+Bad 'presentation reader refuses raw trace mismatch' { $f=New-F09PresentationSynthetic;$f.artifact.observations.presentation.inputs[0].nativeEvents[1].count=2;Assert-KmcChunk7SmallEvidence $f.request $f.artifact }
+Bad 'presentation reader refuses callback with no action spend' { $f=New-F09PresentationSynthetic;$f.artifact.observations.presentation.inputs[0].nativeCosts[1].state.standard=0;$f.artifact.observations.allocationTrace.events[7].state.standard=0;Assert-KmcChunk7SmallEvidence $f.request $f.artifact }
+Bad 'presentation reader refuses extra pair action cost' { $f=New-F09PresentationSynthetic;$f.artifact.observations.presentation.inputs[0].nativeCosts+=,(Clone $f.artifact.observations.presentation.inputs[0].nativeCosts[1]);Assert-KmcChunk7SmallEvidence $f.request $f.artifact }
+Bad 'presentation reader refuses foreign quick-slot occupant' { $f=New-F09PresentationSynthetic;$f.artifact.observations.presentation.originalSlots.after[0].item=999;Assert-KmcChunk7SmallEvidence $f.request $f.artifact }
+Bad 'presentation reader refuses missing active pose' { $f=New-F09PresentationSynthetic;$f.artifact.observations.presentation.inputs[0].PSObject.Properties.Remove('activePose');Assert-KmcChunk7SmallEvidence $f.request $f.artifact }
+Bad 'presentation reader refuses unhealthy active pose' { $f=New-F09PresentationSynthetic;$f.artifact.observations.presentation.inputs[0].activePose.runtime.healthy=$false;Assert-KmcChunk7SmallEvidence $f.request $f.artifact }
 $cases=[ordered]@{
  'old acquired source alias'={param($f)$f.request.smallCalibration|Add-Member manualSource ([pscustomobject]@{})}
  'forged same candidate'={param($f)$f.artifact.observations.source.sameCandidate=$true}
@@ -112,6 +158,8 @@ $cases=[ordered]@{
  'profile inventory singleton rider ID'={param($f)$f.artifact.observations.profileInventory.party[0].id=@($f.artifact.observations.profileInventory.party[0].id)}
  'preparation observed'={param($f)$f.artifact.observations.coldNoPreparation.events=@([pscustomobject]@{kind='prepare-before'})}
  'mounted action removed'={param($f)$f.artifact.observations.inputs=@($f.artifact.observations.inputs|Select-Object -Skip 1)}
+ 'presentation case cannot borrow primary-only PASS'={param($f)$f.request.smallCalibration.case='compiled-owner-seed-fixture-small-horse-presentation-rt';$f.artifact.observations.selection.case=$f.request.smallCalibration.case}
+ 'primary-only case cannot claim presentation'={param($f)$f.artifact.observations|Add-Member presentation ([pscustomobject]@{contract='small-native-item-presentation-v1'})}
 }
 foreach($case in $cases.GetEnumerator()){Bad $case.Key {$f=New-F09Synthetic;&$case.Value $f;Assert-KmcChunk7SmallEvidence $f.request $f.artifact}}
 $watch.Stop()

@@ -12,6 +12,7 @@ namespace KingmakerMountedCombat.Diagnostics
         internal const string ManualCaseName = "compiled-manual-derived-small-horse-rt";
         internal const string AssistedManualCaseName = "compiled-assisted-two-owner-small-horse-rt";
         internal const string FixtureManualCaseName = "compiled-owner-seed-fixture-small-horse-rt";
+        internal const string FixturePresentationCaseName = "compiled-owner-seed-fixture-small-horse-presentation-rt";
         public string Case { get; set; }
         public Chunk7OrdinaryFieldSelection Source { get; set; }
         public Chunk7SmallManualSourceSelection ManualSource { get; set; }
@@ -21,7 +22,8 @@ namespace KingmakerMountedCombat.Diagnostics
         public bool ShouldSerializeFixtureSource() => FixtureSource != null;
         internal bool UsesAssistedManualField => Case == AssistedManualCaseName;
         internal bool UsesManualField => Case == ManualCaseName || UsesAssistedManualField;
-        internal bool UsesFixtureManualField => Case == FixtureManualCaseName;
+        internal bool UsesPresentation => Case == FixturePresentationCaseName;
+        internal bool UsesFixtureManualField => Case == FixtureManualCaseName || UsesPresentation;
         internal bool UsesColdManualField => UsesManualField || UsesFixtureManualField;
         public string ProfileId { get; set; }
         public string NativeInventorySha256 { get; set; }
@@ -29,7 +31,7 @@ namespace KingmakerMountedCombat.Diagnostics
         internal IReadOnlyList<string> Validate(string scenario, string runId)
         {
             var errors = new List<string>();
-            if (scenario != Scenario || Case != CaseName && Case != ManualCaseName && Case != AssistedManualCaseName && Case != FixtureManualCaseName) errors.Add("The closed compiled Small calibration case differs.");
+            if (scenario != Scenario || Case != CaseName && Case != ManualCaseName && Case != AssistedManualCaseName && Case != FixtureManualCaseName && Case != FixturePresentationCaseName) errors.Add("The closed compiled Small calibration case differs.");
             if (UsesManualField)
             {
                 if (Source != null || FixtureSource != null || ManualSource == null) errors.Add("The Small Manual case requires only its exact acquired Manual source.");

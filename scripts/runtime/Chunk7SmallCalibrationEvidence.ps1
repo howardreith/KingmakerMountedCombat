@@ -1,6 +1,6 @@
 Set-StrictMode -Version Latest
 function Test-KmcChunk7SmallScenario([string]$Scenario){$Scenario-ceq'chunk7-small-profile-calibration'}
-function Get-KmcChunk7SmallRows {@('chunk7-small-profile-calibration','C7-small-readonly-source','C7-small-native-party-placement','C7-small-production-mount','C7-small-native-ground','C7-small-rider-primary','C7-small-mount-primary','C7-small-native-dismount','C7-small-native-pose-observation','C7-small-cleanup','C7-small-runtime','C7-small-interrupted')}
+function Get-KmcChunk7SmallRows {@('chunk7-small-profile-calibration','C7-small-readonly-source','C7-small-native-party-placement','C7-small-production-mount','C7-small-native-ground','C7-small-rider-primary','C7-small-mount-primary','C7-small-scroll-presentation','C7-small-potion-presentation','C7-small-native-dismount','C7-small-native-pose-observation','C7-small-cleanup','C7-small-runtime','C7-small-interrupted')}
 function Assert-KmcChunk7SmallSelection($Request){
  if($Request-is[Collections.IDictionary]){$Request=[pscustomobject]$Request}
  $has=$null-ne$Request.PSObject.Properties['smallCalibration']
@@ -253,7 +253,8 @@ function Assert-KmcChunk7SmallArtifact($Request,$Manifest,[string]$Status='PASS'
 
 # The new case is a distinct field-durable source. No legacy Working alias is admitted.
 function Test-KmcChunk7SmallAssistedCase($Selection){$null-ne$Selection-and$Selection.case-is[string]-and$Selection.case-ceq'compiled-assisted-two-owner-small-horse-rt'}
-function Test-KmcChunk7SmallF09Case($Selection){$null-ne$Selection-and$Selection.case-is[string]-and$Selection.case-ceq'compiled-owner-seed-fixture-small-horse-rt'}
+function Test-KmcChunk7SmallF09Case($Selection){$null-ne$Selection-and$Selection.case-is[string]-and$Selection.case-cin@('compiled-owner-seed-fixture-small-horse-rt','compiled-owner-seed-fixture-small-horse-presentation-rt')}
+function Test-KmcChunk7SmallPresentationCase($Selection){$null-ne$Selection-and$Selection.case-is[string]-and$Selection.case-ceq'compiled-owner-seed-fixture-small-horse-presentation-rt'}
 function Test-KmcChunk7SmallManualCase($Selection){$null-ne$Selection-and$Selection.case-is[string]-and$Selection.case-cin@('compiled-manual-derived-small-horse-rt','compiled-assisted-two-owner-small-horse-rt')}
 function Get-KmcChunk7SmallSelectedSource($Selection){if(Test-KmcChunk7SmallF09Case $Selection){$Selection.fixtureSource}elseif(Test-KmcChunk7SmallManualCase $Selection){$Selection.manualSource}else{$Selection.source}}
 function Assert-KmcChunk7SmallF09SourceSelection($S,[string]$RunId){
@@ -288,6 +289,82 @@ function Assert-KmcChunk7SmallManualBodyInventory($O,$S,$Source){
  $rider=@($O.profileInventory.party|Where-Object id -CEQ $S.actorId)
  if($rider.Count-ne1){throw 'F09 native Small rider inventory is absent.'}
  Assert-KmcChunk7Boolean $rider[0].character.present $true
+}
+function Assert-KmcChunk7SmallPresentationEvidence($Request,$O){
+ $p=$O.presentation;$s=$Request.smallCalibration.fixtureSource
+ Assert-KmcExactProperties $p @('contract','fixtureSetupOnly','spellSlotWrites','nativePreparationManufactured','inputs','originalSlots','items','castTrace','released') 'Small native item presentation'
+ Assert-KmcBootstrapInventoryString $p.contract 'small-native-item-presentation-v1'
+ foreach($key in @('fixtureSetupOnly','released')){Assert-KmcChunk7Boolean $p.$key $true}
+ Assert-KmcChunk7Boolean $p.nativePreparationManufactured $false;Assert-KmcOrdinaryInteger $p.spellSlotWrites 0 0
+ if($p.inputs-isnot[Array]-or$p.inputs.Count-ne2-or$p.items-isnot[Array]-or$p.items.Count-ne2){throw 'Small presentation requires exactly one scroll and one potion native input.'}
+ if($p.originalSlots.restored-isnot[bool]-or-not$p.originalSlots.restored-or$p.originalSlots.before-isnot[Array]-or$p.originalSlots.after-isnot[Array]-or$p.originalSlots.before.Count-lt5-or
+  (ConvertTo-KmcChunk7Canonical $p.originalSlots.before)-cne(ConvertTo-KmcChunk7Canonical $p.originalSlots.after)){throw 'Exact original Small quick-slot owner/item placement was not restored.'}
+ foreach($item in $p.items){
+  foreach($key in @('ownedItemReleased','disposed','slotRestored','noOwnedItemResident','slotOriginallyEmpty')){Assert-KmcChunk7Boolean $item.$key $true}
+  if((ConvertTo-KmcChunk7Canonical $item.quickSlotsBefore)-cne(ConvertTo-KmcChunk7Canonical $p.originalSlots.before)-or
+   (ConvertTo-KmcChunk7Canonical $item.quickSlotsAfter)-cne(ConvertTo-KmcChunk7Canonical $p.originalSlots.after)){throw 'Small item lease does not retain exact original quick-slot snapshots.'}
+ }
+ foreach($pair in @(@('scroll-friendly','cd635d5720937b044a354dba17abad8d',$s.petId),@('potion-self','d52566ae8cbe8dc4dae977ef51c27d91',$s.actorId))){
+  $i=[array]::IndexOf(@('scroll-friendly','potion-self'),$pair[0]);$row=$p.inputs[$i]
+  foreach($key in @('clicked','terminal','processTerminal')){Assert-KmcChunk7Boolean $row.$key $true}
+  foreach($key in @('woundBefore','woundAtInput','woundAfter')){Assert-KmcOrdinaryInteger $row.$key 0 ([int]::MaxValue)}
+  if($row.woundAtInput-le0-or$row.woundAfter-ge$row.woundAtInput-or$row.nativeResult-cne'Success'-or$row.kind-cne$pair[0]-or$row.actorId-cne$s.actorId-or$row.targetId-cne$pair[2]-or$row.itemBlueprint-cne$pair[1]-or$row.selectionAfterInput-cne$O.manualNativeRoster.mainActorId){throw 'Native Small item input role, healing or terminal result differs.'}
+  if($row.abilityGuid-isnot[string]-or$row.abilityGuid-cnotmatch'^[a-f0-9]{32}$'){throw 'Native Small item ability is missing.'}
+  Assert-KmcOrdinaryInteger $row.shell ([int]::MinValue) ([int]::MaxValue);if($row.shell-eq0){throw 'Native Small item shell identity is absent.'}
+  Assert-KmcOrdinaryInteger $row.beforeItem.count 2 2;Assert-KmcOrdinaryInteger $row.afterItem.count 1 1
+  if($row.beforeItem.item-ne$row.afterItem.item-or$row.beforeItem.blueprint-cne$pair[1]-or$row.afterItem.blueprint-cne$pair[1]-or$row.beforeItem.exactSlot-isnot[bool]-or-not$row.beforeItem.exactSlot-or$row.afterItem.exactSlot-isnot[bool]-or-not$row.afterItem.exactSlot){throw 'Exact native item identity, source or in-slot one-unit spend differs.'}
+  $lease=$p.items[$i]
+  if($lease.blueprint-cne$pair[1]-or$lease.rider-cne$s.actorId-or$lease.requestedCount-ne2-or$lease.slot-ne$row.beforeItem.holdingSlot-or
+   $lease.stacked.item-ne$row.beforeItem.item-or$lease.stacked.count-ne2-or$lease.beforeCleanup.item-ne$row.beforeItem.item-or
+   $lease.beforeCleanup.count-ne1-or$lease.removalPostconditions.item-ne$row.beforeItem.item-or
+   $lease.removalPostconditions.collection-ne0-or$lease.removalPostconditions.holdingSlot-ne0-or
+   $lease.removalPostconditions.exactInventoryResident-ne$false-or$lease.afterCleanup.item-ne$row.beforeItem.item-or
+   $lease.afterCleanup.exactInventoryResident-ne$false){throw 'Small leased item cleanup is not bound to its exact acquired identity.'}
+  if($row.beforePose.profileId-cne$Request.smallCalibration.profileId-or$row.afterPose.profileId-cne$Request.smallCalibration.profileId-or$row.beforePose.riderId-cne$s.actorId-or$row.afterPose.riderId-cne$s.actorId-or$row.beforePose.mountId-cne$s.petId-or$row.afterPose.mountId-cne$s.petId){throw 'Small item input lost its compiled mounted pose.'}
+  foreach($pose in @($row.beforePose,$row.afterPose)){
+   Assert-KmcChunk7Boolean $pose.runtime.configured $true;Assert-KmcChunk7Boolean $pose.runtime.healthy $true
+   Assert-KmcOrdinaryInteger $pose.runtime.componentCount 1 1
+   if($pose.qualificationStatus-cne'IN PROGRESS'-or$pose.runtime.poseProfileId-cne$Request.smallCalibration.profileId-or$pose.riderRoot.instanceId-ne$O.poses[0].observation.riderRoot.instanceId-or$pose.horseRoot.instanceId-ne$O.poses[0].observation.horseRoot.instanceId){throw 'Small item pose lost the compiled rig or runtime ownership.'}
+  }
+  Assert-KmcOrdinaryInteger $row.beforePose.frame $O.poses[5].observation.frame $O.inputs[3].before.frame
+  Assert-KmcOrdinaryInteger $row.afterPose.frame $row.beforePose.frame $O.inputs[3].before.frame
+  if($i-eq1-and$row.beforePose.frame-lt$p.inputs[0].afterPose.frame){throw 'Potion input preceded the exact scroll terminal.'}
+  if($null-eq$row.PSObject.Properties['activePose']-or$row.activePose.profileId-cne$Request.smallCalibration.profileId-or$row.activePose.riderId-cne$s.actorId-or$row.activePose.mountId-cne$s.petId-or$row.activePose.frame-lt$row.beforePose.frame-or$row.activePose.frame-gt$row.afterPose.frame){throw 'Active Small item pose differs or was not observed.'}
+  foreach($key in @('configured','healthy')){Assert-KmcChunk7Boolean $row.activePose.runtime.$key $true}
+  Assert-KmcOrdinaryInteger $row.activePose.runtime.componentCount 1 1
+  if($row.activePose.qualificationStatus-cne'IN PROGRESS'-or$row.activePose.runtime.poseProfileId-cne$Request.smallCalibration.profileId-or
+   $row.activePose.riderRoot.instanceId-ne$O.poses[0].observation.riderRoot.instanceId-or
+   $row.activePose.horseRoot.instanceId-ne$O.poses[0].observation.horseRoot.instanceId){throw 'Active Small item pose lost the compiled rig or runtime ownership.'}
+  if($row.nativeEvents-isnot[Array]-or$row.nativeEvents.Count-eq0-or$row.nativeEvents.Count-gt2048-or$row.nativeCosts-isnot[Array]-or$row.nativeCosts.Count-eq0-or$row.nativeCosts.Count-gt16000){throw 'Bounded native Small item/cost event slices are missing.'}
+  Assert-KmcOrdinaryInteger $row.eventOffset 0 2048;Assert-KmcOrdinaryInteger $row.costOffset 0 16000
+  if($row.eventOffset+$row.nativeEvents.Count-gt$p.castTrace.events.Count-or
+   (ConvertTo-KmcChunk7Canonical @($p.castTrace.events|Select-Object -Skip $row.eventOffset -First $row.nativeEvents.Count))-cne(ConvertTo-KmcChunk7Canonical $row.nativeEvents)-or
+   $row.costOffset+$row.nativeCosts.Count-gt$O.allocationTrace.events.Count-or
+   (ConvertTo-KmcChunk7Canonical @($O.allocationTrace.events|Select-Object -Skip $row.costOffset -First $row.nativeCosts.Count))-cne(ConvertTo-KmcChunk7Canonical $row.nativeCosts)){throw 'Small item event/cost evidence is not its exact raw observer slice.'}
+  $spends=@($row.nativeEvents|Where-Object{$_.kind-cin@('item-spend-before','item-spend-after')})
+  $beforeSpend=@($spends|Where-Object kind -CEQ 'item-spend-before');$afterSpend=@($spends|Where-Object kind -CEQ 'item-spend-after')
+  if($spends.Count-ne2-or$beforeSpend.Count-ne1-or$afterSpend.Count-ne1-or$beforeSpend[0].identity-ne$row.beforeItem.item-or
+   $afterSpend[0].identity-ne$row.afterItem.item-or$beforeSpend[0].actor-cne$s.actorId-or$afterSpend[0].actor-cne$s.actorId-or
+   $beforeSpend[0].blueprint-cne$pair[1]-or$afterSpend[0].blueprint-cne$pair[1]-or
+   $beforeSpend[0].count-ne2-or$afterSpend[0].count-ne1-or$afterSpend[0].result-isnot[bool]-or-not$afterSpend[0].result){throw 'Small item input lacks one exact leased-item native spend.'}
+  $pairCosts=@($row.nativeCosts|Where-Object{$_.boundary-cin@('cost-before','cost-after')-and$_.state.actor-cin@($s.actorId,$s.petId)})
+  $beforeCost=@($pairCosts|Where-Object boundary -CEQ 'cost-before');$afterCost=@($pairCosts|Where-Object boundary -CEQ 'cost-after')
+  if($pairCosts.Count-ne2-or$beforeCost.Count-ne1-or$afterCost.Count-ne1){throw 'Small item input lacks exactly one pair-owned native action cost.'}
+  $b=$beforeCost[0];$a=$afterCost[0]
+  foreach($event in @($b,$a)){
+   Assert-KmcChunk7Boolean $event.acted $true;Assert-KmcChunk7Boolean $event.nativeTurnBased $false
+   if($event.command-ne$row.shell-or$event.commandActor-cne$s.actorId-or$event.state.actor-cne$s.actorId-or
+    $event.commandType-cne'Kingmaker.UnitLogic.Commands.UnitUseAbility'-or$event.actionType-cnotin@('Standard','Move','Swift')){throw 'Small item cost command, actor or native action type differs.'}
+   foreach($key in @('standard','move','swift','reactionCooldown')){Assert-KmcChunk7SmallNumber $event.state.$key};Assert-KmcOrdinaryInteger $event.state.reactions 0
+  }
+  if($a.sequence-le$b.sequence-or$a.actionType-cne$b.actionType){throw 'Small item native action cost order/type differs.'}
+  $resource=$a.actionType.ToLowerInvariant()
+  if($a.state.$resource-le$b.state.$resource){throw 'Native Small item action did not consume its selected resource.'}
+  foreach($key in @('standard','move','swift','reactionCooldown','reactions')){if($key-cne$resource-and
+   (ConvertTo-KmcChunk7Canonical $a.state.$key)-cne(ConvertTo-KmcChunk7Canonical $b.state.$key)){throw 'Native Small item cost changed another resource.'}}
+ }
+ foreach($key in @('dropped','faults')){Assert-KmcOrdinaryInteger $p.castTrace.$key 0 0}
+ if($p.castTrace.events-isnot[Array]-or$p.castTrace.events.Count-eq0-or$p.castTrace.events.Count-gt2048){throw 'Installed native Small item observer has no bounded events.'}
 }
 function Assert-KmcChunk7SmallF09Evidence($Request,$Artifact){
  $o=$Artifact.observations;$s=$Request.smallCalibration.fixtureSource;$source=$o.source;$saved=$source.fixtureManual
@@ -375,6 +452,8 @@ function Assert-KmcChunk7SmallF09Evidence($Request,$Artifact){
  foreach($flag in @('custodySettled','nativeWorkerSettled','selectorClosed','selectionRestored','pauseRestored','acquiredNativeStateRetained','sourceUnchanged')){Assert-KmcChunk7Boolean $o.cleanup.$flag $true}
  foreach($key in @('nativeWrites','manualPartyMutations','manualRefunds','manualFactRemovals','manualCompanionRemovals')){Assert-KmcOrdinaryInteger $o.cleanup.$key 0 0}
  Assert-KmcChunk7SmallMountedEvidence $Request $o
+ if(Test-KmcChunk7SmallPresentationCase $Request.smallCalibration){Assert-KmcChunk7SmallPresentationEvidence $Request $o}
+ elseif($null-ne$o.PSObject.Properties['presentation']){throw 'Historical F09 Small calibration cannot claim the separate presentation case.'}
 }
 function Assert-KmcChunk7SmallManualSourceSelection($S,[string]$RunId){
  Assert-KmcExactProperties $S @('sourceRunId','sourceArtifactSha256','sourceArchiveSha256','actorId','petId') 'Small acquired Manual source'
