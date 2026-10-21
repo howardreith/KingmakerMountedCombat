@@ -1,5 +1,16 @@
 # Chunk 7B–7D — IN PROGRESS
 
+## October 20 — batches101–102 F11 phase measurement and allocation-site correction
+
+[Batches101–102](docs/CHUNK7-BATCH101-102-F11-UPDATE-TIMING-2026-10-20.md)
+added reviewed KMC Update phase spans, localized the active-pair increase to
+`world.UpdatePairs`, and removed one per-frame managed component array using
+the installed Unity list overload. Both one-scenario native comparisons passed
+game/outer 8/0 on their exact DLLs, with guarded restoration. They do not
+establish allocation rate, causal speedup or final-package F11 acceptance.
+F09 breadth, F10 acquisition/leveling/replacement, F11 diagnostics-off and
+ordinary controls, and the selected private 7E remain open.
+
 ## October 20 — batch100 Small retrain separate cold PASS
 
 [Batch100](docs/CHUNK7-BATCH100-SMALL-RETRAIN-COLD-2026-10-20.md) froze pushed
