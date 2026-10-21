@@ -47,6 +47,9 @@ namespace KingmakerMountedCombat.Integration
         private GameObject positionAnchorObject;
         private Transform positionAnchor;
         private MountedRiderPoseAdapter poseAdapter;
+        // Unity's List<T> overload preserves the exact component-cardinality
+        // check without allocating a new array on every mounted Update.
+        private readonly List<MountedRiderPoseAdapter> poseComponents = new List<MountedRiderPoseAdapter>(1);
         private bool poseComponentOwned;
         private bool poseBaselineRestoreVerified;
         private bool replacementRiderViewReleaseVerified;
@@ -379,12 +382,23 @@ namespace KingmakerMountedCombat.Integration
                 riderView.transform.parent != positionAnchor || !poseComponentOwned || poseAdapter == null ||
                 !poseAdapter.IsHealthy || supportedProfile == null ||
                 poseAdapter.ProfileId != supportedProfile.RiderPoseProfile.Id ||
-                poseAdapter.BoneCount != 7 || riderView.GetComponents<MountedRiderPoseAdapter>().Length != 1)
+                poseAdapter.BoneCount != 7 || !HasExactOwnedPoseComponent())
             {
                 return "The scoped mount position attachment or exact supported rider pose is unavailable or changed.";
             }
 
             return null;
+        }
+
+        private bool HasExactOwnedPoseComponent()
+        {
+            poseComponents.Clear();
+            try
+            {
+                riderView.GetComponents(poseComponents);
+                return poseComponents.Count == 1 && ReferenceEquals(poseComponents[0], poseAdapter);
+            }
+            finally { poseComponents.Clear(); } // Do not retain a detached Unity component.
         }
 
         public void AcquireMovementAuthority(MountedPair pair)
