@@ -392,15 +392,20 @@ function Assert-KmcChunk7SmallPresentationEvidence($Request,$O){
    $starts=@($row.nativeEvents|Where-Object{$_.kind-ceq'start-before'-and$_.actor-ceq$s.actorId-and$_.identity-ne$row.shell})
    if($child.Count-ne1-or$starts.Count-ne1-or$starts[0].identity-ne$row.nativeFollowupShell-or$child[0].executor-cne$s.actorId-or
     $child[0].spell.blueprint-cne$row.nativeFollowupAbilityGuid-or$child[0].spell.caster-cne$s.actorId-or$child[0].spell.sourceItem-ne0-or
-    $child[0].spell.sourceItemBlueprint-or$child[0].ignoreCooldown-isnot[bool]-or-not$child[0].ignoreCooldown-or
+    $child[0].spell.sourceItemBlueprint-or$child[0].ignoreCooldown-isnot[bool]-or
     $child[0].started-isnot[bool]-or-not$child[0].started-or$child[0].acted-isnot[bool]-or-not$child[0].acted-or
     $child[0].finished-isnot[bool]-or-not$child[0].finished-or$child[0].result-cne'Success'-or
     $child[0].processEnded-isnot[bool]-or-not$child[0].processEnded){throw 'Native sticky-touch child shell does not match its exact terminal observer.'}
    $casts=@($row.nativeEvents|Where-Object{$_.kind-ceq'cast-after'-and$_.ability.identity-eq$child[0].spell.identity-and$_.ability.blueprint-ceq$row.nativeFollowupAbilityGuid-and$_.ability.sourceItem-eq0-and$_.actor-ceq$s.actorId-and$_.target-ceq$s.petId})
+   $actions=@($row.nativeEvents|Where-Object{$_.kind-ceq'action-before'-and$_.identity-eq$row.nativeFollowupShell-and$_.actor-ceq$s.actorId})
    $heals=@($row.nativeEvents|Where-Object{$_.kind-ceq'heal'-and$_.actor-ceq$s.actorId-and$_.target-ceq$s.petId-and$_.value-gt0})
-   if($casts.Count-ne1-or$heals.Count-ne1-or$starts[0].shell.spell.identity-ne$child[0].spell.identity-or
+   if($casts.Count-ne1-or$actions.Count-ne1-or$heals.Count-ne1-or$starts[0].shell.spell.identity-ne$child[0].spell.identity-or
+    $starts[0].shell.ignoreCooldown-isnot[bool]-or-not$starts[0].shell.ignoreCooldown-or
+    $actions[0].shell.spell.identity-ne$child[0].spell.identity-or
+    $actions[0].shell.ignoreCooldown-isnot[bool]-or-not$actions[0].shell.ignoreCooldown-or
     [array]::IndexOf($row.nativeEvents,$afterSpend[0])-ge[array]::IndexOf($row.nativeEvents,$starts[0])-or
-    [array]::IndexOf($row.nativeEvents,$starts[0])-ge[array]::IndexOf($row.nativeEvents,$casts[0])-or
+    [array]::IndexOf($row.nativeEvents,$starts[0])-ge[array]::IndexOf($row.nativeEvents,$actions[0])-or
+    [array]::IndexOf($row.nativeEvents,$actions[0])-ge[array]::IndexOf($row.nativeEvents,$casts[0])-or
     [array]::IndexOf($row.nativeEvents,$casts[0])-ge[array]::IndexOf($row.nativeEvents,$heals[0])){throw 'Exact native sticky-touch delivery start, cast and heal order was not observed.'}
   }elseif($row.nativeFollowupShell-ne0-or$null-ne$row.nativeFollowupAbilityGuid-or$pairCosts.Count-ne2){throw 'Potion self-input unexpectedly gained a native pair cost or child.'}
  }

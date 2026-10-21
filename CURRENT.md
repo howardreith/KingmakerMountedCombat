@@ -1,5 +1,16 @@
 # Chunk 7B–7D — IN PROGRESS
 
+The [batches 135–136 F09 presentation record](docs/CHUNK7-BATCH135-136-F09-PRESENTATION-2026-10-21.md)
+adds a preview.94 game **PASS 11/11** for the selected mounted Halfling/Horse
+scroll-to-Horse and potion-self item presentation, with native spending,
+healing, pose, Dismount and cleanup. Its original outer result remains **FAIL**
+on a time-limited native cooldown flag read at terminal time; a reviewed
+corrected reader separately passes on the frozen b136 artifact. Batch135's
+earlier game/outer FAIL remains separate. Both transactions restored exactly.
+F09 conditional six-pair stress, broader F10, F11, ordinary door and selected
+7E remain open. See the [active resume](AUTONOMOUS-RESUME.md) and
+[standing mission](planning/CHUNK7-COMPLETION-MISSION.md).
+
 The [batches 131–133 F10 chain](docs/CHUNK7-BATCH131-133-F10-ACQUIRED-COLD-2026-10-21.md)
 passed on one exact preview.92 package: owner-seed cold source, original Ranger
 Horse acquisition with a genuine field Manual, and a separate acquired Manual
