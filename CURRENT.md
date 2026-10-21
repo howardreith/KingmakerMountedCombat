@@ -1,5 +1,17 @@
 # Chunk 7B–7D — IN PROGRESS
 
+The [batches 128–129 F10 record](docs/CHUNK7-BATCH128-129-F10-OWNER-FIELD-2026-10-21.md)
+establishes a same-candidate owner-seed cold PASS and a genuine Ranger Horse
+acquisition/field Manual producer PASS, both native and outer, on preview.92
+with exact restoration. The acquired Manual cold consumer has not run. Its
+read-only source intake exposed a narrow external-reader mismatch with the
+guarded owner's empty persistence-case field; that reader is corrected,
+independently reviewed and passes synthetic 30/0 and real source 3/0. A new
+clean package/commit must bind a same-candidate cold source and producer
+before the separate consumer. The original batch127 outer FAIL stays intact.
+The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) and selected 7E
+remain active; engineering completion is not claimed.
+
 The [batches 126–127 F10 record](docs/CHUNK7-BATCH126-127-F10-OWNER-FIELD-2026-10-21.md)
 records a preview.92 owner-seed cold PASS followed by native Ranger Horse
 acquisition and genuine field Manual save PASS. Batch127's original outer

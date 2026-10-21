@@ -28,7 +28,7 @@ function Get-KmcChunk7AcquiredManualSource($Selection,$Fixture,$Candidate){
  if((ConvertTo-KmcChunk7Canonical $request.persistenceLoad)-cne(ConvertTo-KmcChunk7Canonical $lineage.descriptor)){throw 'Acquisition source did not load the exact qualified Manual descriptor.'}
  foreach($key in @('runId','scenario','transactionToken')){Assert-KmcBootstrapInventoryString $owner.$key $request.$key}
  Assert-KmcBootstrapInventoryString $owner.sourceSha256 $acquisition.sourceArchiveSha256;Assert-KmcBootstrapInventoryString $owner.saveRoot (Join-Path $profile 'Saved Games')
- if($null-ne$owner.persistenceCase){throw 'Manual source owner unexpectedly selects another persistence case.'}
+ if($null-ne$owner.persistenceCase-and($owner.persistenceCase-isnot[string]-or$owner.persistenceCase-cne'')){throw 'Manual source owner unexpectedly selects another persistence case.'}
  foreach($receipt in @($result,$game)){
   foreach($key in @('runId','scenario','branch','commit','productVersion','dllSha256','dllMvid','transactionToken')){Assert-KmcBootstrapInventoryString $receipt.$key $request.$key}
   Assert-KmcBootstrapInventoryString $receipt.status 'PASS';if($receipt.errors-isnot[Array]-or$receipt.errors.Count-ne0){throw 'Manual-derived acquisition requires an error-free completed Manual-derived acquisition.'}
