@@ -123,6 +123,21 @@ $mutations=[ordered]@{
  'wrong output hash pin'={param($f)$f.selection.sourceArchiveSha256='0'*64}
 }
 foreach($entry in $mutations.GetEnumerator()){Check-AssistedSource $entry.Key {$f=New-GeneratedSource;&$entry.Value $f;Flush-GeneratedSource $f;$null=Validate-GeneratedSource $f} $true}
+Check-AssistedSource 'settled native achievement cache is recorded but not byte exact' {
+ $f=New-GeneratedSource;$f.profileReceipt.profileBytesRestoredExactly=$false
+ $f.profileReceipt.acceptedNativeCacheChanges=@([pscustomobject]@{path='achievements.dat';change='created';length=12288;beforeSha256='';afterSha256=('a'*64)})
+ Flush-GeneratedSource $f;$null=Validate-GeneratedSource $f
+}
+Check-AssistedSource 'unapproved profile path cannot borrow cache exception' {
+ $f=New-GeneratedSource;$f.profileReceipt.profileBytesRestoredExactly=$false
+ $f.profileReceipt.acceptedNativeCacheChanges=@([pscustomobject]@{path='Areas';change='created';length=12288;beforeSha256='';afterSha256=('a'*64)})
+ Flush-GeneratedSource $f;$null=Validate-GeneratedSource $f
+} $true
+Check-AssistedSource 'native cache change cannot claim byte exact profile' {
+ $f=New-GeneratedSource
+ $f.profileReceipt.acceptedNativeCacheChanges=@([pscustomobject]@{path='achievements.dat';change='created';length=12288;beforeSha256='';afterSha256=('a'*64)})
+ Flush-GeneratedSource $f;$null=Validate-GeneratedSource $f
+} $true
 Check-AssistedSource 'caller artifact hash is exact' {$f=New-GeneratedSource;$f.selection.sourceArtifactSha256='0'*64;$null=Validate-GeneratedSource $f} $true
 Check-AssistedSource 'receipt drift during archive boundary refused' {$f=New-GeneratedSource;$script:mutationTarget=$f.profile;$script:sourceMutation={ [IO.File]::AppendAllText((Join-Path $script:mutationTarget 'owner.json'),' ') };$null=Validate-GeneratedSource $f} $true
 Check-AssistedSource 'Manual drift during archive boundary refused' {$f=New-GeneratedSource;$script:mutationTarget=$f.artifact.observations.finalManual.path;$script:sourceMutation={ [IO.File]::AppendAllText($script:mutationTarget,'x') };$null=Validate-GeneratedSource $f} $true

@@ -162,6 +162,44 @@ function Assert-KmcChunk7AssistedFixtureOutput($Request,$Artifact) {
     $anchorPath=Assert-KmcChildPath (Join-Path $root $anchor.fileName) $root 'assisted immutable Working anchor'
     Assert-KmcAssistedSettledFile $anchorPath $anchor 'assisted immutable Working anchor'
 }
+function Assert-KmcAssistedProfileReceipt($Receipt,[string]$RunId) {
+    Assert-KmcAssistedObjectValue $Receipt @('schemaVersion','runId','profileRoot','snapshotProfileDigest','policy','acceptedNativeCacheChanges','profileBytesRestoredExactly') 'assisted profile receipt'
+    Assert-KmcOrdinaryInteger $Receipt.schemaVersion 1 1
+    Assert-KmcBootstrapInventoryString $Receipt.runId $RunId
+    Assert-KmcBootstrapInventoryString $Receipt.policy 'native-achievement-cache-settled-size'
+    if($Receipt.profileRoot-isnot[string]-or[string]::IsNullOrWhiteSpace($Receipt.profileRoot)-or
+       $Receipt.snapshotProfileDigest-isnot[string]-or$Receipt.snapshotProfileDigest-cnotmatch'^[a-f0-9]{64}$') {
+        throw 'Assisted profile receipt root or snapshot digest is malformed.'
+    }
+    Assert-KmcAssistedArray $Receipt.acceptedNativeCacheChanges 0 512 'assisted native cache changes'
+    Assert-KmcChunk7Boolean $Receipt.profileBytesRestoredExactly ($Receipt.acceptedNativeCacheChanges.Count-eq0)
+    $seen=[Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+    foreach($entry in $Receipt.acceptedNativeCacheChanges) {
+        Assert-KmcAssistedObjectValue $entry @('path','change','length','beforeSha256','afterSha256') 'assisted native cache change'
+        if($entry.path-isnot[string]-or-not$seen.Add($entry.path)) {throw 'Assisted native cache path is malformed or repeated.'}
+        Assert-KmcOrdinaryInteger $entry.length 0 16777216
+        $achievement=$entry.path-cmatch'^achievements\.dat[^/\\.]{0,11}$'
+        $analyticsBatch=$entry.path-cmatch'^Unity/[0-9a-f-]{36}/Analytics/ArchivedEvents/[0-9]{1,20}\.[0-9a-f]{1,16}$'
+        $analyticsLeaf=$entry.path-cmatch'^Unity/[0-9a-f-]{36}/Analytics/ArchivedEvents/[0-9]{1,20}\.[0-9a-f]{1,16}/[a-z]$'
+        if($achievement) {
+            if($entry.change-ceq'rewritten') {
+                if($entry.beforeSha256-isnot[string]-or$entry.beforeSha256-cnotmatch'^[a-f0-9]{64}$'-or
+                   $entry.afterSha256-isnot[string]-or$entry.afterSha256-cnotmatch'^[a-f0-9]{64}$'-or
+                   $entry.beforeSha256-ceq$entry.afterSha256) {throw 'Assisted rewritten achievement cache hashes are invalid.'}
+            } elseif($entry.change-ceq'created') {
+                if($entry.length-ne12288-or$entry.beforeSha256-cne''-or
+                   $entry.afterSha256-isnot[string]-or$entry.afterSha256-cnotmatch'^[a-f0-9]{64}$') {throw 'Assisted new achievement cache is not settled.'}
+            } else {throw 'Assisted achievement cache transition is not admitted.'}
+        } elseif($analyticsBatch-or$analyticsLeaf) {
+            if($entry.change-cnotin@('created','dispatched')-or($analyticsBatch-and$entry.length-ne0)) {throw 'Assisted analytics transition is not admitted.'}
+            $presentHash=if($entry.change-ceq'created'){$entry.afterSha256}else{$entry.beforeSha256}
+            $absentHash=if($entry.change-ceq'created'){$entry.beforeSha256}else{$entry.afterSha256}
+            if($absentHash-cne''-or($analyticsBatch-and$presentHash-cne'')-or
+               ($analyticsLeaf-and($presentHash-isnot[string]-or$presentHash-cnotmatch'^[a-f0-9]{64}$'))) {throw 'Assisted analytics cache hashes are invalid.'}
+        } else {throw 'Assisted profile receipt contains an unapproved cache path.'}
+    }
+}
+
 function Get-KmcChunk7AssistedFixtureSource($Selection,$Fixture,$Candidate) {
     Assert-KmcChunk7AssistedSourceSelection $Selection
     foreach($key in @('commit','dllSha256')){$width=if($key-ceq'commit'){40}else{64};if($Candidate.$key-isnot[string]-or$Candidate.$key-cnotmatch('^[a-f0-9]{'+$width+'}$')){throw 'Assisted source candidate pin is malformed.'}}
@@ -205,11 +243,7 @@ function Get-KmcChunk7AssistedFixtureSource($Selection,$Fixture,$Candidate) {
     Assert-KmcChunk7Boolean $game.fixtureIdentityVerified $false
     Assert-KmcBootstrapInventoryString $isolation.runId $request.runId;Assert-KmcBootstrapInventoryString $isolation.stagingMode 'base-game-only-kmc'
     foreach($key in @('stageVerified','dependenciesUnchanged','processExited','modsRestored','saveProtectionPassed','gameReportedPass','nativeInventoryObserved','nativeCompatibilityQualified')){Assert-KmcChunk7Boolean $isolation.$key $true}
-    Assert-KmcOrdinaryInteger $profileReceipt.schemaVersion 1 1;Assert-KmcBootstrapInventoryString $profileReceipt.runId $request.runId
-    Assert-KmcBootstrapInventoryString $profileReceipt.policy 'native-achievement-cache-settled-size'
-    if($profileReceipt.snapshotProfileDigest-isnot[string]-or$profileReceipt.snapshotProfileDigest-cnotmatch'^[a-f0-9]{64}$'){throw 'Assisted source profile restoration digest is malformed.'}
-    Assert-KmcChunk7Boolean $profileReceipt.profileBytesRestoredExactly $true
-    if($profileReceipt.acceptedNativeCacheChanges-isnot[Array]-or$profileReceipt.acceptedNativeCacheChanges.Count-ne0){throw 'Assisted source profile restoration is not byte exact.'}
+    Assert-KmcAssistedProfileReceipt $profileReceipt $request.runId
     $manifestHash=$hashes[(Join-Path $root 'runtime-artifacts.json')]
     Assert-KmcReadOnlyArtifactManifest $request $manifestHash -GameResult
     $manifest=Read-KmcJson (Join-Path $root 'runtime-artifacts.json');Assert-KmcChunk7AssistedFixtureArtifact $request $manifest 'PASS'
