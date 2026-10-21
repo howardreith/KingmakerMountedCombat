@@ -25,18 +25,29 @@ function New-Observation {
                 nativeRefusalDelta=0;shellControl=('shell:2:dismount:'+$s.actorId);generationAtInit=2;shellTerminal=$true;
                 processTerminal=$true;settledFrame=111});
         fieldMounted=[pscustomobject]@{frame=101;targetOwnerId='33333333333333333333333333333333';targetGeneration=3;
-            targetProfileId='medium-humanoid-mammoth-v1';controlOwnerId=$owner.ownerId;
+            targetProfileId='medium-humanoid-mammoth-v1';releasedOwnerId='33333333333333333333333333333333';
+            releasedOwnerState='Active';releasedBoundaryState='Mounted';controlOwnerId=$owner.ownerId;
             controlGeneration=$owner.generation;owners=2;nativeCasts=1;saveSnapshots=0;completedSaves=0};
         fieldMovement=[pscustomobject]@{commandFinished=$true;createdByPlayer=$true;result='Success';executorId=$s.petId;
             ownerId='33333333333333333333333333333333';ownerGeneration=3;
             distance=1.5;startFrame=102;endFrame=109};
-        fieldDismounted=[pscustomobject]@{frame=111;targetOwnerId=$null;targetGeneration=$null;targetProfileId=$null;
+        fieldDismountBoundary=[pscustomobject]@{frame=111;shellResult='Success';shellFinished=$true;processEnded=$true;
+            targetOwnerId=$null;targetGeneration=$null;targetState=$null;
+            releasedOwnerId='33333333333333333333333333333333';releasedOwnerState='Detached';releasedBoundaryState='Unmounted';
+            targetCustodyOwnerId='33333333333333333333333333333333';targetCustodyState='Detached';
+            mountCustodyOwnerId='33333333333333333333333333333333';mountCustodyState='Detached';
+            controlOwnerId=$owner.ownerId;controlGeneration=$owner.generation;owners=2;activeOwners=1;
+            riderPetId=$s.petId;riderPetIsMammoth=$true;mountMasterId=$s.actorId;mountMasterIsRider=$true;
+            nativeCasts=2;nativeRefusals=0;dispatchAccepted=2;dispatchRejected=0;
+            shellLifecycle=('DeliverConsumed;control=shell:2:dismount:'+$s.actorId+';predicate=consumed-success;kind=Dismount')};
+        fieldDismounted=[pscustomobject]@{frame=112;targetOwnerId=$null;targetGeneration=$null;targetProfileId=$null;
+            releasedOwnerId='33333333333333333333333333333333';releasedOwnerState='Retired';releasedBoundaryState='Unmounted';
             controlOwnerId=$owner.ownerId;controlGeneration=$owner.generation;owners=1;
             nativeCasts=2;saveSnapshots=0;completedSaves=0}}
 }
 Assert-KmcChunk7MammothFieldOutcome $s (New-Observation)
 Write-Host 'PASS source-bound native Mammoth field outcome shape'
-foreach($name in @('wrong profile','wrong moving actor','no travel','failed move','refunded cast','wrong ability','foreign shell','neighbor replaced','changed target owner','retained Mammoth','extra save','reordered input','late movement','late mount observation')){
+foreach($name in @('wrong profile','wrong moving actor','no travel','failed move','refunded cast','wrong ability','foreign shell','neighbor replaced','changed target owner','retained Mammoth','extra save','reordered input','late movement','late mount observation','refused dismount dispatch','foreign detached custody','split mount custody','faulted boundary','unretired Mammoth','owner not retired')){
     $o=New-Observation
     switch($name){
         'wrong profile'{$o.fieldMounted.targetProfileId='medium-humanoid-horse-v1'}
@@ -53,9 +64,15 @@ foreach($name in @('wrong profile','wrong moving actor','no travel','failed move
         'reordered input'{$o.fieldInputs[1].frame=99}
         'late movement'{$o.fieldMovement.endFrame=110}
         'late mount observation'{$o.fieldMounted.frame=103}
+        'refused dismount dispatch'{$o.fieldDismountBoundary.dispatchRejected=1}
+        'foreign detached custody'{$o.fieldDismountBoundary.targetCustodyOwnerId='0'*32}
+        'split mount custody'{$o.fieldDismountBoundary.mountCustodyOwnerId='0'*32}
+        'faulted boundary'{$o.fieldDismountBoundary.releasedBoundaryState='Faulted'}
+        'unretired Mammoth'{$o.fieldDismounted.owners=2}
+        'owner not retired'{$o.fieldDismounted.releasedOwnerState='Detached'}
     }
     $refused=$false;try{Assert-KmcChunk7MammothFieldOutcome $s $o}catch{$refused=$true}
     if(-not$refused){throw ('Mammoth field reader accepted '+$name)}
     Write-Host ('PASS refuses '+$name)
 }
-Write-Host 'TOTAL PASS 15 FAIL 0; synthetic field outcome, no native qualification'
+Write-Host 'TOTAL PASS 21 FAIL 0; synthetic field outcome, no native qualification'

@@ -1,6 +1,27 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
-## Active October 21 after batch118 field FAIL — terminal cause next
+## Active October 21 after batch119 Dismount diagnosis — correction next
+
+The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
+[Batch119](docs/CHUNK7-BATCH119-MAMMOTH-DISMOUNT-CUSTODY-2026-10-21.md)
+ran four serial preview.86 native scenarios with exact restoration. Three
+same-candidate paid lineage steps passed; the field case is **FAIL 3/1**. Its
+new snapshot proves native Dismount dispatch succeeded, the Mammoth active
+owner was gone, the Horse owner remained and native pet/master links were
+intact. The failed assertion counted a detached owner before natural registry
+retirement. Preserve this and batch118's distinct FAIL. Preview.87 source now
+requires exact shared detached rider/Mammoth custody, an Unmounted boundary,
+and natural retirement before PASS; the reader asserts terminal and final
+states. Independent review found no remaining concrete blocker. Fast 3/0,
+source admission 6/0 and field reader 21/0 passed, offline only. The correction
+has no native result. Next: commit/guarded-push, Candidate once, freeze package
+and suite, then declare the minimum four-slot same-candidate paid lineage and
+corrected field consumer. Stop if any dependency fails; do not replay batch119
+unchanged. F09, schema migration, F11 and selected 7E remain open.
+
+The batch118 section below is historical.
+
+## Batch118 field FAIL and first terminal observation
 
 The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
 [Batch118](docs/CHUNK7-BATCH118-MEDIUM-MAMMOTH-FIELD-DEVELOPMENT-2026-10-21.md)
