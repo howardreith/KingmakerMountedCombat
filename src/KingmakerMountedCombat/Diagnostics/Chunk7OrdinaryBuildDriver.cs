@@ -392,12 +392,11 @@ namespace KingmakerMountedCombat.Diagnostics
                 { handednessSelected = controller.Doll.LeftHanded == pins.LeftHanded; return handednessSelected; });
             if (state.SelectedClass == null)
             {
-                if (pins.IsRespec)
+                if (pins.IsRespec || pins.NewPaidCompanion)
                 {
-                    // The native respec controller can open without the visual
-                    // Class description widgets. CharacterBuildController.SetClass
-                    // selects the class and then dereferences those widgets; keep
-                    // the exact native selection and its mechanics without that UI.
+                    // Headless respec and paid CharGen have no class-description
+                    // widgets. The UI wrapper selects the class before dereferencing
+                    // those widgets; retain its native selection and mechanics.
                     var selected = false;
                     return Choose("class", ranger.AssetGuid, () => selected = controller.SelectClass(ranger),
                         () => selected && controller.State.SelectedClass == ranger);
