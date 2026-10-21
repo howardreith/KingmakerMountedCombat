@@ -66,11 +66,7 @@ function Get-KmcAssistedCumulativeSource($Selection,$Fixture,$Candidate){
  Assert-KmcChunk7Boolean $game.fixtureIdentityVerified $true;Assert-KmcChunk7Boolean $game.movementExperimentEnabled $false;Assert-KmcBootstrapInventoryString $game.currentGameMode 'Default';Assert-KmcChunk7Boolean $game.loadedAreaPresent $true
  Assert-KmcBootstrapInventoryString $isolation.runId $request.runId;Assert-KmcBootstrapInventoryString $isolation.stagingMode 'base-game-only-kmc'
  foreach($key in @('stageVerified','dependenciesUnchanged','processExited','modsRestored','saveProtectionPassed','gameReportedPass','nativeInventoryObserved','nativeCompatibilityQualified')){Assert-KmcChunk7Boolean $isolation.$key $true}
- Assert-KmcOrdinaryInteger $profileReceipt.schemaVersion 1 1;Assert-KmcBootstrapInventoryString $profileReceipt.runId $request.runId
- Assert-KmcBootstrapInventoryString $profileReceipt.policy 'native-achievement-cache-settled-size'
- if($profileReceipt.snapshotProfileDigest-isnot[string]-or$profileReceipt.snapshotProfileDigest-cnotmatch'^[a-f0-9]{64}$'){throw 'Assisted cold profile restoration digest is malformed.'}
- Assert-KmcChunk7Boolean $profileReceipt.profileBytesRestoredExactly $true
- if($profileReceipt.acceptedNativeCacheChanges-isnot[Array]-or$profileReceipt.acceptedNativeCacheChanges.Count-ne0){throw 'Assisted cold profile restoration is not byte exact.'}
+ Assert-KmcAssistedProfileReceipt $profileReceipt $request.runId
  Assert-KmcReadOnlyArtifactManifest $request $manifestHash -GameResult
  Assert-KmcChunk7AssistedColdInventoryArtifact $request $manifest 'PASS'
  $producer=(Read-KmcAssistedConnectionJson $source.artifactPath $Selection.sourceArtifactSha256).value
