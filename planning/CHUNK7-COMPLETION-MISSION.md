@@ -137,6 +137,13 @@ Focused readers and source review pass; neither native scenario has yet
 qualified on this candidate. The original Auto-route failures remain FAIL,
 and cumulative, assisted and historical Auto-wait families remain refused.
 
+[Batch125](../docs/CHUNK7-BATCH125-F10-OWNER-SEED-COLD-2026-10-21.md) passed a
+separate preview.91 native read-only cold inventory of the registered clean
+owner seed, 4/0 with exact restoration. The producer's current source qualifier
+still accepts bootstrap Manual ancestry only; the newly observed assisted cold
+artifact cannot be relabeled as that producer. A closed owner-seed source mode
+and its genuine field Manual/acquired cold chain remain F10 work.
+
 | Requirement | Engineering status and exact evidence/dependency | Next action |
 | --- | --- | --- |
 | Inherited core, F01–F08 | Prior candidate-specific native PASSes retained in `CURRENT.md`; final exact-package reuse unassessed. | Map current supported contracts for final matrix after implementation readiness. |

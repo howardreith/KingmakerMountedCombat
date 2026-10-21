@@ -1,10 +1,19 @@
 # Chunk 7B–7D — IN PROGRESS
 
+The [batch125 owner-seed cold inventory](docs/CHUNK7-BATCH125-F10-OWNER-SEED-COLD-2026-10-21.md)
+passed one preview.91 guarded native load 4/0 with zero writes and exact
+restoration. It established the pet-free, level-4-ready Ranger source for F10.
+The acquisition producer still admits only the historical bootstrap Manual
+ancestry; an honest owner-seed source mode and native producer/consumer chain
+remain open. The local preview.91 source commit is `ed40ef95`; automatic
+approval review rejected the guarded push helper's WhatIf before it ran.
+Draft PR #5 has not yet received this checkpoint.
+
 The F10 Manual-derived producer and one-owner acquired cold consumer now have
 a reviewed source route that replaces the game's nonexistent level-up Auto
 completion with a genuine, separately authorized field Manual. Focused
-producer/consumer readers and production compilation pass; preview.91 is the
-next candidate identity. No native producer or consumer PASS transfers from
+producer/consumer readers and production compilation pass on preview.91.
+No native producer or consumer PASS transfers from
 the old Auto fixture. The cumulative, assisted and historical progression
 Auto waits remain refused. See the [stale-family contract](docs/CHUNK7-STALE-LEVELUP-AUTOSAVE-FAMILIES.md)
 and [active resume](AUTONOMOUS-RESUME.md). Engineering completion is not claimed.
