@@ -24,7 +24,7 @@ $body=[IO.File]::ReadAllText((Join-Path $bridgeRuntime 'Test-RuntimeRequest.ps1'
 if(([regex]::Matches($body,[regex]::Escape($import))).Count-ne1){throw 'Actual request import boundary changed'}
 $validator=[scriptblock]::Create($body.Replace($import,'# Common already loaded; actual validator body follows.'))
 function Validate($Q){$path=Join-Path $bridgeOutput 'request.json';[IO.File]::WriteAllText($path,(ConvertTo-KmcChunk7Canonical $Q),[Text.UTF8Encoding]::new($false));&$validator -RequestPath $path|Out-Null}
-Good 'full request accepts exact one-Manual-load one-Auto-write family' {Validate (Request)}
+Good 'full request accepts exact one-Manual-load one-Manual-write family' {Validate (Request)}
 # The runner holds its request as an ordered dictionary until serialization; the Manual-derived selection assert must detect dictionary keys too.
 function ConvertTo-RunnerRequest($Q){$r=[ordered]@{};foreach($p in $Q.PSObject.Properties){$r[$p.Name]=$p.Value};$r}
 Good 'Manual-derived selection assert accepts the runner ordered-dictionary request' {Assert-KmcChunk7ManualDerivedSelection (ConvertTo-RunnerRequest (Request))}
@@ -52,7 +52,7 @@ foreach($n in $negative.GetEnumerator()){Bad ('full request '+$n.Key){$q=Request
 Good 'historical fixture request unchanged' {$q=Request;$q.scenario='fixture-intake';$q.PSObject.Properties.Remove('manualDerived');$q.PSObject.Properties.Remove('persistenceLoad');Validate $q}
 foreach($leaf in @('Test-RuntimeGameResult.ps1','Test-RuntimeResult.ps1')){
  . ([scriptblock]::Create((ExactFunction (Ast (Join-Path $bridgeRuntime $leaf)) 'Assert-SubscenarioResults')))
- $names=@('C7-manual-derived-source','C7-manual-derived-native-load','C7-manual-derived-eligibility','C7-manual-derived-native-choices','C7-manual-derived-native-autosave','C7-manual-derived-native-field','C7-manual-derived-cleanup')
+ $names=@('C7-manual-derived-source','C7-manual-derived-native-load','C7-manual-derived-eligibility','C7-manual-derived-native-choices','C7-manual-derived-native-field','C7-manual-derived-native-manual-save','C7-manual-derived-cleanup')
  $result=[pscustomobject]@{scenario='chunk7-manual-derived-acquisition';subscenarioResults=@($names|ForEach-Object{[pscustomobject]@{name=$_;status='PASS';assertionPassCount=1;assertionFailCount=0;errors=@()}});subscenarioTotal=7;subscenarioPassCount=7;subscenarioFailCount=0;assertionPassCount=7;assertionFailCount=0}
  Good ($leaf+' exact closed rows'){Assert-SubscenarioResults $result}
  Bad ($leaf+' arbitrary row'){$q=CopyValue $result;$q.subscenarioResults[0].name='C7-manual-derived-any';Assert-SubscenarioResults $q}
@@ -85,8 +85,9 @@ Good 'source requalified before locked staging and unchanged source after native
 function ManifestFixture([bool]$Pending=$false){
  $f=New-ManualDerivedFixture;$f.request.evidenceRoot=Join-Path $bridgeOutput ('manifest-'+[Guid]::NewGuid().ToString('N'));[void][IO.Directory]::CreateDirectory($f.request.evidenceRoot)
  $nativeRoot=Join-Path ([IO.Path]::GetDirectoryName([IO.Path]::GetDirectoryName($f.request.evidenceRoot))) ('runtime-staging/persistence-'+$f.request.runId+'/Saved Games');$o=$f.artifact.observations
- foreach($row in @($o.beforeLoad,$o.loadedWorld,$o.settledWorld,$o.cleanup)){$row.authority.root=$nativeRoot}
+ foreach($row in @($o.beforeLoad,$o.loadedWorld,$o.settledWorld,$o.saveRequested,$o.cleanup)){$row.authority.root=$nativeRoot}
  $o.fixtureReadiness.isolatedSaveDescriptors.root=$nativeRoot;$o.nativeWrite.path=Join-Path $nativeRoot $o.nativeWrite.leaf
+ foreach($event in @($o.nativeSave.events|Where-Object{$_.kind-cne'native-save-request'})){$event.path=$o.nativeWrite.path}
  $sourceDir=Join-Path $bridgeOutput $f.request.manualDerived.sourceRunId;[void][IO.Directory]::CreateDirectory($sourceDir);$sourcePath=Join-Path $sourceDir 'chunk7-manual-seed-evidence.json';[IO.File]::WriteAllText($sourcePath,(ConvertTo-KmcChunk7Canonical $f.source),[Text.UTF8Encoding]::new($false))
  $sha=Get-KmcSha256 $sourcePath;$f.request.manualDerived.sourceArtifactSha256=$sha;$o.selection.sourceArtifactSha256=$sha;$o.source.artifactSha256=$sha;$o.choices[0].nativeInventorySha256=$sha
  $kind='chunk7-manual-derived-evidence'

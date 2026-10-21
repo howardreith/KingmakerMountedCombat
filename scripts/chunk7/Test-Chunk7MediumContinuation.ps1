@@ -21,9 +21,9 @@ Bad 'cumulative' 'legacy Small pins borrowed' {param($f)$f.request.cumulativeAcq
 Bad 'cumulative' 'native selector skipped' {param($f)$f.artifact.observations.fieldSelection.openCount=0}
 Bad 'acquired' 'Small field body substituted' {param($f)$f.artifact.observations.bodyObservation.OriginalSizeOrdinal=3}
 Bad 'acquired' 'foreign Medium field rig' {param($f)$f.artifact.observations.bodyObservation.SkeletonName='Foreign'}
-Bad 'acquired' 'nonpaid source sequence substituted' {param($f)$f.source.observations.nativeWrite.saveBeforeFieldSelection=$false;$f.artifact.observations.sourceAcquisition.nativeWrite.saveBeforeFieldSelection=$false}
-Bad 'acquired' 'paid source selector authority omitted' {param($f)$f.artifact.observations.sourceSavedBeforeSelector=$false}
-Bad 'acquired' 'native field selector skipped' {param($f)$f.artifact.observations.selector.openCount=0}
+Bad 'acquired' 'field Manual source order substituted' {param($f)$f.source.observations.nativeWrite.saveAfterFieldSelection=$false;$f.artifact.observations.sourceAcquisition.nativeWrite.saveAfterFieldSelection=$false}
+Bad 'acquired' 'unearned source selector authority' {param($f)$f.artifact.observations.sourceSavedBeforeSelector=$true}
+Bad 'acquired' 'native field selector fabricated' {param($f)$f.artifact.observations.selector.openCount=1}
 Bad 'acquired' 'unknown paid body case' {param($f)$f.source.observations.selection.case='paid-foreign-ranger-horse';$f.artifact.observations.sourceAcquisition.selection.case='paid-foreign-ranger-horse'}
 $timer.Stop();@{schemaVersion=1;pass=$script:passes;fail=$script:failures;seconds=$timer.Elapsed.TotalSeconds;nativeExecution=$false;archiveAccess=$false;fixtureKind='synthetic-json-only';readerPins=@('Chunk7ManualDerivedEvidence.ps1','Chunk7CumulativeAcquisitionEvidence.ps1','Chunk7AcquiredManualEvidence.ps1')|ForEach-Object{@{path=$_;sha256=(Get-FileHash -LiteralPath (Join-Path $ReaderDirectory $_)).Hash.ToLowerInvariant()}};fixturePins=@('CumulativeMediumFixture.json','AcquiredManualMediumFixture.json')|ForEach-Object{@{path=$_;sha256=(Get-FileHash -LiteralPath (Join-Path $FixtureDirectory $_)).Hash.ToLowerInvariant()}}}|ConvertTo-Json -Depth 6|Set-Content -LiteralPath (Join-Path $OutputDirectory 'receipt.json') -Encoding UTF8
 Write-Host ('TOTAL PASS='+$script:passes+' FAIL='+$script:failures);if($script:failures-ne0){throw 'Medium continuation reader checks failed.'}

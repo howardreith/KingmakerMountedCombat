@@ -44,7 +44,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private Chunk7BootstrapInventoryProbe probe;
         private string sourcePath, archivePath, expectedMainId;
         private long sourceLength, sourceTicks, archiveLength, archiveTicks;
-        private JObject sourceWorld;
+        private JObject sourceWorld, sourceSavedWorld;
         private UnitEntityData[] actors;
         private object nativePlayer, state, areaState, mainState, area, mainActor;
         private object[] descriptors, views;
@@ -216,11 +216,12 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["systemSaveTimeTicks"] = value.SystemSaveTime.Ticks, ["systemSaveTimeKind"] = value.SystemSaveTime.Kind.ToString() }));
             result["isolatedSaveDescriptors"] = new JObject { ["root"] = manager.SavePath, ["metadataOnly"] = true,
                 ["maximumObservedDescriptors"] = 32, ["descriptors"] = saveRows };
+            var sourceType = TwoOwners ? SaveInfo.SaveType.Auto : SaveInfo.SaveType.Manual;
             Require(saves.Length == 1 && saves[0].FileName == request.PersistenceLoad.FileName && saves[0].Name == request.PersistenceLoad.InternalName &&
                 saves[0].GameId == request.PersistenceLoad.GameId && saves[0].GameName == request.PersistenceLoad.GameName &&
-                saves[0].Area?.AssetGuidThreadSafe == request.PersistenceLoad.Area && saves[0].Type == SaveInfo.SaveType.Auto &&
-                saves[0].IsAutoLevelupSave && saves[0].HasFileOnDisk && saves[0].OperationState == SaveInfo.StateType.None,
-                "Read-only isolated descriptor inventory differs from its sole qualified Auto_1 source.");
+                saves[0].Area?.AssetGuidThreadSafe == request.PersistenceLoad.Area && saves[0].Type == sourceType &&
+                saves[0].IsAutoLevelupSave == TwoOwners && saves[0].HasFileOnDisk && saves[0].OperationState == SaveInfo.StateType.None,
+                "Read-only isolated descriptor inventory differs from its sole qualified acquisition source.");
             Require(ReferenceEquals(settings, Kingmaker.UI.SettingsUI.SettingsRoot.Instance) && ReferenceEquals(onlyOne, settings.OnlyOneSave) &&
                 ReferenceEquals(enabled, settings.AutosaveEnabled) && ReferenceEquals(slots, settings.AutosaveSlots) &&
                 !NativePersistenceIsolation.NativeSlotRotationEnabled && slots.OverrideDefaultValue == null,
@@ -248,7 +249,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 (string)sourceObservations["nativeWrite"]?["gameId"] == request.PersistenceLoad.GameId &&
                 (string)sourceObservations["nativeWrite"]?["gameName"] == request.PersistenceLoad.GameName &&
                 (string)sourceObservations["nativeWrite"]?["area"] == request.PersistenceLoad.Area &&
-                (string)sourceObservations["nativeWrite"]?["leaf"] == "Auto_1.zks" &&
+                (string)sourceObservations["nativeWrite"]?["leaf"] == request.PersistenceLoad.FileName &&
                 (string)sourceObservations["field"]?["actorId"] == selection.ActorId && (string)sourceObservations["field"]?["petId"] == selection.PetId &&
                 sourceObservations["cleanup"]?["custodySettled"]?.Type == JTokenType.Boolean && (bool)sourceObservations["cleanup"]["custodySettled"],
                 "Staged source lacks exact same-candidate successful Manual-derived acquisition provenance.");
@@ -257,17 +258,41 @@ namespace KingmakerMountedCombat.Diagnostics
                 "Only the closed complete ordinary acquisition routes may produce this derivative.");
             sourcePaidMedium = sourceCase == Chunk7ManualDerivedSelection.PaidMediumCase;
             sourcePaid = sourceCase == Chunk7ManualDerivedSelection.PaidSmallCase || sourcePaidMedium;
-            Require(sourceObservations["nativeWrite"]?["saveBeforeFieldSelection"]?.Type == JTokenType.Boolean &&
-                (bool)sourceObservations["nativeWrite"]["saveBeforeFieldSelection"] == sourcePaid,
-                "Native acquisition save/field order differs from its closed source case.");
+            if (TwoOwners)
+                Require(sourceObservations["nativeWrite"]?["saveBeforeFieldSelection"]?.Type == JTokenType.Boolean &&
+                    (bool)sourceObservations["nativeWrite"]["saveBeforeFieldSelection"] == sourcePaid &&
+                    (string)sourceObservations["nativeWrite"]["type"] == "Auto",
+                    "Cumulative Auto source/field order differs from its closed case.");
+            else
+                Require(sourceObservations["nativeWrite"]?["saveAfterFieldSelection"]?.Type == JTokenType.Boolean &&
+                    (bool)sourceObservations["nativeWrite"]["saveAfterFieldSelection"] &&
+                    (string)sourceObservations["nativeWrite"]["type"] == "Manual" &&
+                    (string)sourceObservations["nativeWrite"]["internalName"] == Chunk7ManualDerivedSelection.ManualOutputName &&
+                    sourceObservations["nativeSave"]?["complete"]?.Type == JTokenType.Boolean &&
+                    (bool)sourceObservations["nativeSave"]["complete"],
+                    "One-owner source requires its completed native field Manual, not a pre-field Auto.");
             sourceWorld = sourceObservations["loadedWorld"] as JObject;
-            Require(sourceWorld != null && sourceWorld["party"] is JArray party && party.Count > 0 && party.Count <= 24 &&
+            var party = sourceWorld?["party"] as JArray;
+            Require(sourceWorld != null && party != null && party.Count > 0 && party.Count <= 24 &&
                 (string)sourceWorld["gameId"] == request.PersistenceLoad.GameId && (string)sourceWorld["area"] == request.PersistenceLoad.Area,
                 "Source native world/party is missing or unbounded.");
             expectedMainId = (string)sourceWorld["mainActorId"];
             Require(Guid.TryParseExact(expectedMainId, "D", out var mainId) && mainId != Guid.Empty &&
                 ((JArray)sourceWorld["party"]).Count(row => (string)row["id"] == expectedMainId) == 1,
                 "Source main actor lacks its exact native party identity.");
+            if (!TwoOwners)
+            {
+                sourceSavedWorld = sourceObservations["savedFieldWorld"] as JObject;
+                Require(sourceSavedWorld != null && sourceSavedWorld["party"] is JArray savedParty &&
+                    savedParty.Count >= party.Count + (sourcePaid ? 2 : 1) && savedParty.Count <= 24 &&
+                    (string)sourceSavedWorld["gameId"] == request.PersistenceLoad.GameId &&
+                    (string)sourceSavedWorld["area"] == request.PersistenceLoad.Area &&
+                    (string)sourceSavedWorld["mainActorId"] == expectedMainId &&
+                    savedParty.Count(row => (string)row["id"] == selection.ActorId) == 1 &&
+                    savedParty.Count(row => (string)row["id"] == selection.PetId) == 1 &&
+                    sourceObservations["afterSaveArrangement"]?["acquired"] is JArray acquired && acquired.Count == 2,
+                    "One-owner Manual lacks its exact saved field roster and acquired progression.");
+            }
             RequireTwoOwnerSource();
         }
         private void VerifySourceBytes()
@@ -308,9 +333,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 game.Player.GameId == request.PersistenceLoad.GameId && game.Player.MainCharacter.Value.CharacterName == request.PersistenceLoad.GameName &&
                 game.Player.MainCharacter.Value.UniqueId == expectedMainId, "Admitted cold native world or main actor was replaced.");
             var current = Chunk7NativeFieldRoster.Capture(game.Player);
-            Require(current.Length == actors.Length || fieldTransitionOpen && sourcePaid &&
+            Require(current.Length == actors.Length || fieldTransitionOpen && TwoOwners && sourcePaid &&
                 current.Length >= actors.Length && current.Length <= actors.Length + 2, "Admitted cold party count changed.");
-            Require(current.All(value => actors.Any(actor => ReferenceEquals(actor, value)) || fieldTransitionOpen && sourcePaid &&
+            Require(current.All(value => actors.Any(actor => ReferenceEquals(actor, value)) || fieldTransitionOpen && TwoOwners && sourcePaid &&
                 (ReferenceEquals(value, acquiredActor) || ReferenceEquals(value, acquiredPet))), "Native field transition contains a foreign actor.");
             for (var i = 0; i < actors.Length; i++)
                 Require(current.Count(actor => ReferenceEquals(actor, actors[i])) == 1 && ReferenceEquals(actors[i].Descriptor, descriptors[i]) &&

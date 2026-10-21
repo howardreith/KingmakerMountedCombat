@@ -13,7 +13,7 @@ if($FixturesOnly){return}
 [void][IO.Directory]::CreateDirectory($derivedOutput);$script:passes=0;$script:failures=0
 function Good([string]$Name,[scriptblock]$Body){try{&$Body;$script:passes++;Write-Host ('PASS '+$Name)}catch{$script:failures++;Write-Host ('FAIL '+$Name+': '+$_+' at '+$_.ScriptStackTrace)}}
 function Bad([string]$Name,[scriptblock]$Body){$rejected=$false;try{&$Body}catch{$rejected=$true};if($rejected){$script:passes++;Write-Host ('PASS refuses '+$Name)}else{$script:failures++;Write-Host ('FAIL accepted '+$Name)}}
-Good 'paid native Manual lineage, choice, Auto and field sequence' {$f=New-ManualDerivedFixture;Check-ManualDerived $f}
+Good 'paid native Manual lineage, choices, field and Manual checkpoint' {$f=New-ManualDerivedFixture;Check-ManualDerived $f}
 Good 'existing native eligible Ranger retains exact original world' {$f=New-ManualDerivedFixture $false;Check-ManualDerived $f}
 Bad 'current paid candidate without spend observation contract' {
     $f=New-ManualDerivedFixture;$f.request.productVersion='0.1.0-chunk7b-preview.63'
@@ -88,14 +88,21 @@ $cases=[ordered]@{
  'registry release premature'={param($f)$f.artifact.observations.nativeLoad.identities.released=$true}
  'registry capacity exceeded'={param($f)$f.artifact.observations.nativeLoad.identities.ids=@(1..129);$f.artifact.observations.nativeLoad.identities.retainedCount=129}
  'output source bytes alias'={param($f)$f.artifact.observations.nativeWrite.sha256=$f.request.persistenceLoad.sha256}
- 'foreign descriptor slot'={param($f)$f.artifact.observations.nativeWrite.leaf='Auto_2.zks'}
+ 'foreign descriptor slot'={param($f)$f.artifact.observations.nativeWrite.leaf='Manual_3_KMC_C7_MANUAL_DERIVED_FIELD.zks'}
+ 'saved field omits acquired Horse'={param($f)$o=$f.artifact.observations;$o.savedFieldWorld.party=@($o.savedFieldWorld.party|Where-Object id -CNE $o.field.petId)}
+ 'saved field aliases acquired role'={param($f)$o=$f.artifact.observations;$pet=@($o.savedFieldWorld.party|Where-Object id -CEQ $o.field.petId)[0];$pet.object=$o.savedFieldWorld.party[0].object}
+ 'saved field changes Horse blueprint'={param($f)$o=$f.artifact.observations;$pet=@($o.savedFieldWorld.party|Where-Object id -CEQ $o.field.petId)[0];$pet.blueprint='a'*32}
+ 'saved field changes original actor'={param($f)$f.artifact.observations.savedFieldWorld.party[0].isInState=$false}
  'native write repeated'={param($f)$f.artifact.observations.nativeWrite.completedWrites=2}
- 'wrong native category'={param($f)$f.artifact.observations.nativeWrite.type='Manual'}
- 'manual save callback injected'={param($f)$f.artifact.observations.nativeWrite.nativeCallbackSupplied=$true}
- 'partial completion callback'={param($f)$f.artifact.observations.nativeAcquisition.completionExits--}
- 'autosave outside actual completion'={param($f)($f.artifact.observations.nativeAcquisition.events|Where-Object kind -CEQ 'native-level-autosave-request').insideObservedCompletion=$false}
- 'prepared save identity changed'={param($f)($f.artifact.observations.nativeAcquisition.events|Where-Object kind -CEQ 'native-level-autosave-prepared').saveObject++}
- 'foreign native hook'={param($f)$f.artifact.observations.nativeAcquisition.hooks[0].moduleMvid='11111111-1111-4111-8111-111111111111'}
+ 'wrong native category'={param($f)$f.artifact.observations.nativeWrite.type='Auto'}
+ 'missing Manual callback'={param($f)$f.artifact.observations.nativeSave.callbacks--}
+ 'Manual save before settled field'={param($f)$f.artifact.observations.nativeNumbering.frame=10}
+ 'prepared save identity changed'={param($f)$f.artifact.observations.nativeSave.events[1].descriptor++}
+ 'source descriptor aliases world actor'={param($f)$f.artifact.observations.sourceDescriptorObject=$f.artifact.observations.loadedWorld.party[0].object}
+ 'settled source descriptor substituted'={param($f)($f.artifact.observations.settledDescriptors|Where-Object fileName -CEQ $f.request.persistenceLoad.fileName).descriptor++}
+ 'acquired progression omitted'={param($f)$f.artifact.observations.beforeSaveArrangement.PSObject.Properties.Remove('acquired');$f.artifact.observations.afterSaveArrangement.PSObject.Properties.Remove('acquired')}
+ 'acquired progression changes during save'={param($f)$f.artifact.observations.afterSaveArrangement.acquired[0].experience++}
+ 'foreign native hook'={param($f)$f.artifact.observations.nativeSave.hooks[0].moduleMvid='11111111-1111-4111-8111-111111111111'}
  'native field actor aliases world'={param($f)$f.artifact.observations.field.actorView=$f.artifact.observations.loadedWorld.state}
  'native pet labels collide'={param($f)$f.artifact.observations.field.petDescriptor=$f.artifact.observations.field.actorDescriptor}
  'native field Small race changed'={param($f)$f.artifact.observations.field.bodyObservation.RaceGuid='a'*32}
@@ -119,7 +126,7 @@ $cases=[ordered]@{
  'paid source hash array'={param($f)$f.artifact.observations.choices[0].nativeInventorySha256=@($f.request.manualDerived.sourceArtifactSha256)}
 }
 foreach($pair in $cases.GetEnumerator()){Bad $pair.Key {$f=New-ManualDerivedFixture;&$pair.Value $f;Check-ManualDerived $f}}
-foreach($path in @('nativeWrite.authorizedWrites','nativeAcquisition.preparedWrites','nativeAcquisition.events.0.actorObject','field.actorDescriptor','liveEligibility.defaultHireExperience','fixtureReadiness.mainProgression.characterLevel','settledWorld.completedSaves')){
+foreach($path in @('nativeWrite.authorizedWrites','nativeSave.prepares','nativeSave.events.0.descriptor','field.actorDescriptor','liveEligibility.defaultHireExperience','fixtureReadiness.mainProgression.characterLevel','settledWorld.completedSaves')){
  foreach($form in @('text','float','boolean','array')){Bad ($path+' coerces '+$form){$f=New-ManualDerivedFixture;$o=$f.artifact.observations;$keys=$path.Split('.');for($i=0;$i-lt$keys.Length-1;$i++){if($o-is[Array]){$o=$o[[int]$keys[$i]]}else{$o=$o.($keys[$i])}};$o.($keys[-1])=switch($form){'text'{[string]$o.($keys[-1])};'float'{[double]$o.($keys[-1])};'boolean'{$true};'array'{,@($o.($keys[-1]))}};Check-ManualDerived $f}}
 }
 Bad 'existing insufficient native earned XP' {$f=New-ManualDerivedFixture $false;$f.artifact.observations.liveEligibility.nativeXpThresholds[4]=7000;Check-ManualDerived $f}

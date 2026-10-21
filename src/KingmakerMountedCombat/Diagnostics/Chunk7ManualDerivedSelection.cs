@@ -15,6 +15,9 @@ namespace KingmakerMountedCombat.Diagnostics
         public const string PaidSmallCase = "paid-small-ranger-horse";
         public const string PaidMediumCase = "paid-medium-ranger-horse";
         public const string SourceLeaf = "manual-derived-source.json";
+        public const string ManualOutputName = "KMC_C7_MANUAL_DERIVED_FIELD";
+        public const string ManualOutputLeaf = "Manual_2_KMC_C7_MANUAL_DERIVED_FIELD.zks";
+        // Retained for the separate cumulative family until its own completion path is repaired.
         public const string OutputLeaf = "Auto_1.zks";
         public const int RangerAcquisitionLevel = 4;
         public string Case { get; set; }
@@ -39,7 +42,7 @@ namespace KingmakerMountedCombat.Diagnostics
         public bool ShouldSerializeMediumBody() => MediumBody != null;
         internal bool PaidHire => Case == PaidSmallCase || Case == PaidMediumCase;
 
-        public IReadOnlyList<string> Validate(string scenario, string runId)
+        public IReadOnlyList<string> Validate(string scenario, string runId, bool cumulativeAuto = false)
         {
             var errors = new List<string>();
             if (scenario != Scenario || Case != ExistingCase && Case != PaidSmallCase && Case != PaidMediumCase)
@@ -48,8 +51,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 errors.Add("A distinct completed Manual seed run is required.");
             foreach (var value in new[] { SourceArtifactSha256, SourceArchiveSha256 })
                 if (!Regex.IsMatch(value ?? "", "^[a-f0-9]{64}$")) errors.Add("Exact immutable Manual source hashes are required.");
-            if (!BaseGameOnly || ExpectedNativeLoadCount != 1 || ExpectedNativeWriteCount != 1 || NativeWriteLeaf != OutputLeaf)
-                errors.Add("Manual-derived acquisition selects base-only, one Manual load and one terminal Auto_1 write.");
+            if (!BaseGameOnly || ExpectedNativeLoadCount != 1 || ExpectedNativeWriteCount != 1 ||
+                NativeWriteLeaf != (cumulativeAuto ? OutputLeaf : ManualOutputLeaf))
+                errors.Add("Acquisition requires its exact base-only one-load, one-write native output.");
             if (Readiness == null) errors.Add("Observed source readiness pins are required.");
             else errors.AddRange(Readiness.Validate());
             if (Case == ExistingCase)

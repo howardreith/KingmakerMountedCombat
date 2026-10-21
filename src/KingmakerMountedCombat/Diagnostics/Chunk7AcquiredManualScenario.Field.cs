@@ -31,9 +31,13 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private UnitEntityData[] BindColdActors()
         {
-            var expected = ((JArray)sourceWorld["party"]).Select(row => new { Id = (string)row["id"], Blueprint = (string)row["blueprint"] }).ToList();
-            Require(expected.All(row => row.Id != selection.PetId), "Source original roster already aliases its newly acquired Horse.");
-            if (!sourcePaid) expected.Add(new { Id = selection.PetId, Blueprint = (string)sourceObservations["field"]["horseBlueprint"] });
+            var expected = ((JArray)(TwoOwners ? sourceWorld : sourceSavedWorld)["party"])
+                .Select(row => new { Id = (string)row["id"], Blueprint = (string)row["blueprint"] }).ToList();
+            if (TwoOwners)
+            {
+                Require(expected.All(row => row.Id != selection.PetId), "Cumulative original roster already aliases its newly acquired Horse.");
+                if (!sourcePaid) expected.Add(new { Id = selection.PetId, Blueprint = (string)sourceObservations["field"]["horseBlueprint"] });
+            }
             var current = Chunk7NativeFieldRoster.Capture(game.Player);
             Require(current.Length == expected.Count && current.All(value => value != null) &&
                 current.Select(value => value.UniqueId).Distinct(StringComparer.Ordinal).Count() == current.Length,
@@ -67,7 +71,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 "Cold native field character roster is unbounded or duplicate.");
             var fieldMembers = game.Player.PartyCharacters.Count(value => ReferenceEquals(value.Value, acquiredActor));
             var remoteMembers = game.Player.RemoteCompanions.Count(value => ReferenceEquals(value.Value, acquiredActor));
-            Require(sourcePaid ? fieldMembers == 0 && remoteMembers == 1 && !acquiredActor.IsInGame && originalCharacters.Length < 6 :
+            Require(TwoOwners && sourcePaid ? fieldMembers == 0 && remoteMembers == 1 && !acquiredActor.IsInGame && originalCharacters.Length < 6 :
                 fieldMembers == 1 && remoteMembers == 0 && actors.Any(value => ReferenceEquals(value, acquiredActor)) && actors.Any(value => ReferenceEquals(value, acquiredPet)),
                 "Cold owner membership differs from the actual source native save/selector order.");
             ownerBound = true; RequireAcquiredOwner();
@@ -77,6 +81,15 @@ namespace KingmakerMountedCombat.Diagnostics
             var actualOriginals = CaptureNoArrangement();
             actualOriginals["actors"] = new JArray(((JArray)actualOriginals["actors"]).Where(row => originals.Contains((string)row["actorId"])).Select(row => row.DeepClone()));
             Require(JToken.DeepEquals(actualOriginals, sourceObservations["afterChoices"]), "Cold original class/XP/money state differs from the completed acquisition.");
+            if (!TwoOwners)
+            {
+                var savedAcquired = (JArray)sourceObservations["afterSaveArrangement"]["acquired"];
+                var coldAcquired = new JArray(((JArray)CaptureNoArrangement()["actors"])
+                    .Where(row => (string)row["actorId"] == selection.ActorId || (string)row["actorId"] == selection.PetId)
+                    .Select(row => row.DeepClone()));
+                Require(JToken.DeepEquals(coldAcquired, savedAcquired),
+                    "Cold owner/Horse XP, level or class ranks differ from the exact saved field Manual.");
+            }
             resourceBefore = CaptureResources(); evidence["resourcesBeforeField"] = resourceBefore.DeepClone();
         }
         private UnitEntityData[] OwnedActors() => (actors ?? new UnitEntityData[0]).Concat(new[] { acquiredActor, acquiredPet })
@@ -140,8 +153,8 @@ namespace KingmakerMountedCombat.Diagnostics
         private void StartField()
         {
             AssertFieldAuthority(); Require(!fieldStarted, "Native field admission may begin once."); fieldStarted = true;
-            evidence["sourceSavedBeforeSelector"] = sourcePaid;
-            if (!sourcePaid) { evidence["selector"] = new JObject { ["required"] = false, ["openCount"] = 0, ["manualPartyMutation"] = false }; return; }
+            evidence["sourceSavedBeforeSelector"] = TwoOwners && sourcePaid;
+            if (!TwoOwners || !sourcePaid) { evidence["selector"] = new JObject { ["required"] = false, ["openCount"] = 0, ["manualPartyMutation"] = false }; return; }
             Require(game.UI?.CharacterBuildController != null && game.UI.CharacterBuildController.LevelUpController == null && game.UI.CharacterBuildController.Unit == null,
                 "A pre-existing character builder prevents native field input.");
             originalSelection = SelectionManager.Instance.SelectedUnits.ToArray();
@@ -163,7 +176,7 @@ namespace KingmakerMountedCombat.Diagnostics
             Require(current.Length == expected.Length && current.All(value => expected.Count(actor => ReferenceEquals(actor, value)) == 1) &&
                 expected.All(value => value.Commands.Empty && !value.IsInCombat && value.IsDirectlyControllable) &&
                 game.Player.PartyCharacters.Count(value => ReferenceEquals(value.Value, acquiredActor)) == 1 &&
-                game.Player.PartyCharacters.Count == originalCharacters.Length + (sourcePaid ? 1 : 0) &&
+                game.Player.PartyCharacters.Count == originalCharacters.Length + (TwoOwners && sourcePaid ? 1 : 0) &&
                 originalCharacters.All(id => game.Player.PartyCharacters.Count(value => value.Value?.UniqueId == id) == 1) &&
                 !game.Player.RemoteCompanions.Any(value => ReferenceEquals(value.Value, acquiredActor)),
                 "Native field placement changed original membership or left the acquired pair unsettled.");

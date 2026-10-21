@@ -15,7 +15,7 @@ an ordinary level-up never requests an Auto save. Nothing handles
 prepared writes). The owner-seed exploration setup already expects zero writes for this reason
 (`Chunk7OwnedPairsSelection.ExpectedSetupWrites`).
 
-Each family below waits, after its native choices complete, for a terminal native Auto whose
+Each still-blocked family below waits, after its native choices complete, for a terminal native Auto whose
 requested descriptor `IsAutoLevelupSave`. That wait can never complete. The run would stall
 until its stage deadline and then fail.
 
@@ -45,7 +45,6 @@ operation from its retained native choices, without unblocking those families.
 | Family (scenario / case) | Wait site | Route verified by code path |
 | --- | --- | --- |
 | `chunk7-ordinary-acquisition` (every case) | `src/KingmakerMountedCombat/Diagnostics/Chunk7OrdinaryAcquisitionScenario.cs:112` (stage 1, `ObserveCompletedAutosave` at `:266`) | `RuntimeAutomationHost` builds `Chunk7OrdinaryAcquisitionScenario`. Stage 0 completes the build and stage 1 waits. |
-| `chunk7-manual-derived-acquisition` (every case) | `src/KingmakerMountedCombat/Diagnostics/Chunk7ManualDerivedScenario.Build.cs:196` (build stage 1, `ObserveTerminalAutosave` at `:222`) | The native load always ends in `StartBuild`, and `TickBuild` stage 1 waits. |
 | `chunk7-cumulative-acquisition` (every case, including the assisted cumulative plan) | the same `Chunk7ManualDerivedScenario.Build.cs:196` / `:222` | `Chunk7ManualDerivedScenario.CreateCumulative` uses the same `StartBuild` / `TickBuild` path. |
 | `chunk7-assisted-fixture-preparation` | `src/KingmakerMountedCombat/Diagnostics/Chunk7AssistedFixtureScenario.Setup.cs:161` (`ObserveLevelupAutosave` at `Chunk7AssistedFixtureScenario.Save.cs:55`) | Stage 2 `TickBuild` waits for the level-up Auto before stage 3 and the final Manual. |
 | `chunk7-native-progression` / `horse-native-level`, `horse-native-retrain-horse`, `horse-native-retrain-mammoth` | `src/KingmakerMountedCombat/Diagnostics/Chunk7NativeProgressionSession.cs (legacy ObserveTerminalAutosave)` | The historical acquired-source cases retain the native level-up Auto wait and are refused before launch. |
@@ -70,6 +69,13 @@ These families do not route through a level-up autosave wait:
 
 - `chunk7-owned-two-pair-campaign`. This includes owner-seed exploration, whose setup already
   expects zero level-up writes.
+- `chunk7-manual-derived-acquisition`. The non-cumulative cases now finish native choices and
+  field admission, then request a distinct native `Manual_2_KMC_C7_MANUAL_DERIVED_FIELD.zks`.
+  The producer observes request, prepared write, worker, callback, and settled field roster;
+  its strict reader binds the newly acquired owner/Horse to that field state. This is an
+  engineering route awaiting same-candidate native producer and cold-consumer qualification,
+  not a claim that the historical Auto producer passed. Cumulative dispatch still takes the
+  blocked Auto route.
 - `chunk7-assisted-cold-inventory`.
 - The owned-pair persistence, combat, realtime and native-life families.
 - `chunk7-native-progression` with `horse-native-dismiss` or `owned-horse-native-dismiss`.
@@ -83,12 +89,11 @@ These families do not route through a level-up autosave wait:
   result can be claimed. The owner-seed `KMC_C7_SEED_WORLD` Manual and the
   zero-pair `KMC_C7_SEED_CHECKPOINT` cannot substitute for that ancestry.
 
-A related family has an input dependency rather than a wait.
-`chunk7-acquired-manual-derivative` does not wait for an autosave. However, its source is a
-level-up Auto descriptor (`Chunk7AcquiredManualScenario.Save.cs`, `IsAutoLevelupSave`), and only
-the blocked manual-derived or cumulative families produce that descriptor. It stays admitted
-for already retained sources. It cannot get a fresh source until one of those producers is
-repaired.
+`chunk7-acquired-manual-derivative` does not wait for an autosave. Its one-owner
+cases now consume the new Manual-derived field archive, require the acquired pair
+already in the saved field roster, and produce a later genuine Manual. The
+two-owner cumulative route retains its historical Auto intake. Neither route
+transfers a PASS from the other or from the pre-repair fixture.
 
 ## Repair each family needs before it is selected
 
@@ -97,15 +102,16 @@ follow completion with an explicitly authorized native Manual save. Update the r
 authority, the writer quota, the descriptor and reader, and downstream intake together. Never
 manufacture a level-up callback or relabel a Manual as Auto.
 
-For the manual-derived family, the narrow route is one read-only qualified
+For the manual-derived family, the selected narrow route is one read-only qualified
 Manual seed load, the already bounded ordinary native choices and paid field
 admission where selected, then one separately reserved native Manual after the
 actor/Horse and field state settle. Capture the actual native save number,
 request/prepared/written object chain, worker and callback through the existing
 Manual-probe pattern. The resulting archive must be qualified as a new field
 source with honest seed and assistance provenance, not impersonate the old
-remote-companion Auto. Keep the prelaunch stale-family refusal until selection,
-authority, runtime, reader, downstream intake and focused negative checks agree.
+remote-companion Auto. The prelaunch refusal was removed only for this non-cumulative
+route after selection, authority, runtime, reader, downstream intake and focused
+negative checks were updated. Native producer and cold-consumer results remain due.
 
 When a family is repaired, remove its row from `Get-KmcChunk7StaleLevelUpAutosaveFamilies`,
 from the test, and from this note in the same change.
@@ -113,11 +119,12 @@ from the test, and from this note in the same change.
 ## Families that remain to be corrected
 
 1. `chunk7-ordinary-acquisition`
-2. `chunk7-manual-derived-acquisition`
-3. `chunk7-cumulative-acquisition`
-4. `chunk7-assisted-fixture-preparation`
-5. `chunk7-native-progression`: the historical level case and two historical respec cases
-6. Downstream input only: `chunk7-acquired-manual-derivative`, for fresh sources
+2. `chunk7-cumulative-acquisition`
+3. `chunk7-assisted-fixture-preparation`
+4. `chunk7-native-progression`: the historical level case and two historical respec cases
+
+The Manual-derived producer and one-owner acquired cold consumer are repaired in
+source and focused readers; their actual native qualification is pending.
 
 This is not a new universal prerequisite. Optional prologue production and the historical
 automation families are not repaired by this change.

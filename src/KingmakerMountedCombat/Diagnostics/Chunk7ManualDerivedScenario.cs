@@ -17,7 +17,8 @@ using Newtonsoft.Json.Linq;
 namespace KingmakerMountedCombat.Diagnostics
 {
     // Separate no-grant native acquisition family. The historical read-only bridge is unchanged.
-    // One exact native cold load is followed by one terminal native Auto save after legal choices.
+    // One exact native cold load is followed by a Manual checkpoint after legal choices
+    // and field settlement. The still-refused cumulative variant retains its Auto contract.
     internal sealed partial class Chunk7ManualDerivedScenario : IDisposable
     {
         internal const string EvidenceFileName = "chunk7-manual-derived-evidence.json";
@@ -85,7 +86,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 (DialogMessageBox.Instance == null || !DialogMessageBox.Instance.IsShown),
                 "Cold inventory must own the exact idle empty menu before load.");
             RequireNoOwners(); RequireNoEffects();
-            Require(MatchesSelectedPlan(true), "Selected Auto output was not initially absent/unwritten.");
+            Require(MatchesSelectedPlan(true), "Selected native output was not initially absent/unwritten.");
             if (cumulative == null) ReadSource(); else ReadCumulativeSource();
             probe = new Chunk7BootstrapInventoryProbe(game); probe.Install();
             restoration = new NativeArchiveRestorationProbe(persistence); restoration.Install();
@@ -372,10 +373,11 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 if (completed) return;
                 RequireAuthority(true);
-                if (Busy() || probe?.InSynchronousCallback == true || ordinaryProbe?.InSynchronousCallback == true || persistence.DrainForTeardown(0) == OwnedWorkerTeardownVerdict.Refused)
+                if (Busy() || probe?.InSynchronousCallback == true || ordinaryProbe?.InSynchronousCallback == true ||
+                    manualSaveProbe?.InCallback == true || persistence.DrainForTeardown(0) == OwnedWorkerTeardownVerdict.Refused)
                 { Retain("Cold native load/callback or worker retains observer custody."); return; }
                 RequireNoOwners();
-                if (errors.Count == 0) Require(acquisitionProven, "Manual-derived acquisition cannot complete before native choices, autosave and field proof.");
+                if (errors.Count == 0) Require(acquisitionProven, "Manual-derived acquisition cannot complete before native choices, save and field proof.");
                 if (!DrainBuildCustody()) { Retain("Owned native builder/selector still retains custody."); return; }
                 // Observation failures never authorize unrelated native cleanup mutations.
                 // Once native custody is settled, release our own observers even
@@ -386,6 +388,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (admitted && evidence["settledWorld"] == null) evidence["settledWorld"] = Snapshot();
                 try { CaptureCumulativeFinal(); } catch (Exception error) { Fail("C7-manual-derived-cleanup", error.ToString()); }
                 if (ordinaryProbe != null && evidence["nativeAcquisition"] == null) evidence["nativeAcquisition"] = ordinaryProbe.Capture();
+                if (manualSaveProbe != null && evidence["nativeSave"] == null) evidence["nativeSave"] = manualSaveProbe.Capture();
                 if (probe != null && evidence["nativeLoad"] == null) evidence["nativeLoad"] = probe.Capture();
                 if (restoration != null && evidence["noPreparation"] == null)
                 {
@@ -395,8 +398,10 @@ namespace KingmakerMountedCombat.Diagnostics
                 }
                 // Both exact observers are attempted independently. A failed
                 // unpatch keeps its field and prevents completion/host release.
-                Exception failure = null; var saveObserverReleased = ordinaryProbe == null;
+                Exception failure = null; var saveObserverReleased = ordinaryProbe == null && manualSaveProbe == null;
                 try { ordinaryProbe?.Dispose(); saveObserverReleased = true; } catch (Exception error) { failure = error; Fail("C7-manual-derived-cleanup", error.ToString()); }
+                try { manualSaveProbe?.Dispose(); saveObserverReleased = saveObserverReleased && true; }
+                catch (Exception error) { saveObserverReleased = false; failure = failure ?? error; Fail("C7-manual-derived-cleanup", error.ToString()); }
                 try { restoration?.Dispose(); } catch (Exception error) { failure = error; Fail("C7-manual-derived-cleanup", error.ToString()); }
                 // Retain the whole load-observation graph until the acquisition observer
                 // has released its native callbacks; never abandon partial installs.

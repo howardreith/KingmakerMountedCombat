@@ -27,7 +27,7 @@ $mutations=[ordered]@{
  'prepared before exit'={param($p,$w)$rows=@($p.events);$temp=$rows[-1];$rows[-1]=$rows[-2];$rows[-2]=$temp;$p.events=$rows}
  'rejected copy'={param($p,$w)($p.events|Where-Object kind -CEQ 'native-level-autosave-prepared').accepted=$false}
 }
-foreach($family in @('ordinary','manual','progression')){
+foreach($family in @('ordinary','progression')){
  Check-Descriptor ($family+' actual request/copy/completion relation') {$f=New-DescriptorFixture $family;Validate-Descriptor $f $family}
  foreach($mutation in $mutations.GetEnumerator()){Check-Descriptor ($family+' refuses '+$mutation.Key) {$f=New-DescriptorFixture $family;$p=Probe-Descriptor $f $family;$w=Write-Descriptor $f $family;&$mutation.Value $p $w;Validate-Descriptor $f $family} $true}
  foreach($field in @('requestedObject','writtenObject','completionSequence','completedWritesBefore')){foreach($form in @('string','array','boolean','double')){Check-Descriptor ($family+' refuses '+$field+' '+$form) {$f=New-DescriptorFixture $family;$w=Write-Descriptor $f $family;$v=$w.$field;$w.$field=switch($form){'string'{[string]$v}'array'{,@($v)}'boolean'{$true}'double'{[double]$v}};Validate-Descriptor $f $family} $true}}
@@ -37,7 +37,14 @@ foreach($family in @('ordinary','manual','progression')){
 Check-Descriptor 'ordinary existing natural advancement neighbor' {$f=New-OrdinaryFixture $false;Validate-Descriptor $f 'ordinary'}
 Check-Descriptor 'Manual-derived existing natural advancement neighbor' {$f=New-ManualDerivedFixture $false;Validate-Descriptor $f 'manual'}
 foreach($case in @('horse-native-retrain-horse','horse-native-retrain-mammoth','horse-native-dismiss')){Check-Descriptor ('progression '+$case+' neighbor') {$f=New-ProgressionFixture $case;Validate-Descriptor $f 'progression'}}
-Check-Descriptor 'Manual refuses a correlated second completion sequence' {$f=New-ManualDerivedFixture;$f.artifact.observations.nativeWrite.completedWritesBefore=1;$f.artifact.observations.nativeWrite.completionSequence=2;Validate-Descriptor $f 'manual'} $true
+Check-Descriptor 'Manual refuses a correlated second completion sequence' {$f=New-ManualDerivedFixture;$f.artifact.observations.nativeWrite.completionSequence=2;Validate-Descriptor $f 'manual'} $true
+foreach($field in @('requestedObject','writtenObject','requestedDescriptor','writtenDescriptor')){
+ foreach($form in @('string','array','boolean','double')){
+  Check-Descriptor ('Manual refuses '+$field+' '+$form) {$f=New-ManualDerivedFixture;$w=$f.artifact.observations.nativeWrite;$v=$w.$field;$w.$field=switch($form){'string'{[string]$v}'array'{,@($v)}'boolean'{$true}'double'{[double]$v}};Validate-Descriptor $f 'manual'} $true
+ }
+}
+Check-Descriptor 'Manual refuses prepared descriptor alias' {$f=New-ManualDerivedFixture;$f.artifact.observations.nativeSave.events[1].descriptor=$f.artifact.observations.saveRequested.descriptor;Validate-Descriptor $f 'manual'} $true
+Check-Descriptor 'Manual refuses callback before worker completion' {$f=New-ManualDerivedFixture;$f.artifact.observations.nativeSave.events[5].frame=$f.artifact.observations.nativeSave.events[3].frame;Validate-Descriptor $f 'manual'} $true
 Check-Descriptor 'ordinary refuses a singleton-array final callback kind' {$f=New-OrdinaryFixture;$r=$f.artifact.observations.nativeObserver.events[-2];$r.kind=@($r.kind);Validate-Descriptor $f 'ordinary'} $true
 $terminal='ORDINARY SAVE DESCRIPTOR READER PASS='+$script:pass+' FAIL='+$script:fail;$script:lines.Add($terminal);Write-Host $terminal
 [IO.File]::WriteAllLines((Join-Path $descriptorOutput 'output.log'),$script:lines,[Text.UTF8Encoding]::new($false));$r=[ordered]@{schemaVersion=1;pass=$script:pass;fail=$script:fail;testPath=$PSCommandPath;testSha256=(Get-FileHash -LiteralPath $PSCommandPath).Hash.ToLowerInvariant();repositoryRoot=$RepositoryRoot;nativeInvoked=$false;archiveRead=$false;scope='Actual full strict evidence readers with generated JSON only; no qualifier/runner/native admission.'};[IO.File]::WriteAllText((Join-Path $descriptorOutput 'receipt.json'),($r|ConvertTo-Json -Depth 6),[Text.UTF8Encoding]::new($false));if($script:fail-ne0){throw 'Descriptor evidence regressions failed; preserved.'}
