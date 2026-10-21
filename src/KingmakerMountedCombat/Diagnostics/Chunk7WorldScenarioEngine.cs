@@ -164,6 +164,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 evidence["capability"] = new JObject { ["archiveNativeEnabled"] = true, ["nativeWriterSchema"] = 3,
                     ["nativePairCapacity"] = GameMountedRelationshipService.NativePairCapacity, ["workingSha256"] = inherited == null && !OwnerSeed ? WorkingHash : null,
                     ["inheritedManualSha256"] = inherited == null ? null : request.OwnedPairs.SourceArchiveSha256 };
+                evidence["unityDevelopmentPlayer"] = UnityEngine.Debug.isDebugBuild;
                 if (OwnerSeed) ((JObject)evidence["capability"])["ownerSeedSha256"] = request.OwnedPairs.SeedSha256;
                 evidence["snapshots"] = snapshots; evidence["inputs"] = inputs; evidence["movements"] = movements;
                 evidence["groundInputs"] = groundInputs;

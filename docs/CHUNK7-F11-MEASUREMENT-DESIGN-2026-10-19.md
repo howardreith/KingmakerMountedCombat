@@ -1,5 +1,18 @@
 # Chunk 7 F11 measurement design — IN PROGRESS
 
+[Batch122](CHUNK7-BATCH122-F11-MANAGED-MONO-PROBE-2026-10-21.md)
+preserves a failed managed-on-Mono embedding probe: the exact Mono DLL faulted
+at assembly loading, before callback registration. Independent review found
+the process-global profiler install/event controls lack demonstrated exclusive
+ownership and reversible teardown in Kingmaker. No KMC-managed profiler is
+admitted. The exact installed Unity 2018.4 Recorder metadata includes
+`GC.Alloc`-relevant validity, sample-count and thread-filter APIs. A bounded
+read-only `Debug.isDebugBuild` observation should ride the next independently
+required native case. The official 2018.4 contract limits Recorder to Editor
+and Development Players. Only a true development-build result warrants a
+guarded validity/positive-control probe; invalid or zero response cannot
+become an allocation-rate result.
+
 [Batch121's installed-Mono host discriminator](CHUNK7-BATCH121-F11-INSTALLED-MONO-ALLOCATION-PROBE-2026-10-21.md)
 has now proved that a legacy allocation callback on the exact Kingmaker Mono
 DLL can count 100 controlled allocations in a disposable process. Its

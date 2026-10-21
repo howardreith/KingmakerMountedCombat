@@ -1,5 +1,16 @@
 # Chunk 7B–7D — IN PROGRESS
 
+[Batch122](docs/CHUNK7-BATCH122-F11-MANAGED-MONO-PROBE-2026-10-21.md)
+preserves a failed disposable managed-Mono embedding probe: domain creation
+succeeded, then the exact installed Mono DLL faulted before callback
+registration. Independent review found no safe KMC-managed global-profiler
+installation on this evidence. The next lower-risk F11 discriminator is a
+bounded `GC.Alloc` Unity Recorder validity and positive-control observation;
+the exact installed API is present, but marker availability in this player is
+unknown. The two-pair diagnostic now records `Debug.isDebugBuild` after
+admission, for the next independently required native case. Focused Fast
+passed 4/0; no game, live files or package changed. F11 remains open.
+
 [Batch121](docs/CHUNK7-BATCH121-F11-INSTALLED-MONO-ALLOCATION-PROBE-2026-10-21.md)
 proved 100/100 allocation callbacks from Kingmaker's exact installed Mono
 DLL in a disposable host. The explicit Mono cleanup variant exited 1 after
@@ -24,8 +35,8 @@ historical on its own inputs.
 The current preview.87 offline quiet/defaults and diagnostics-off checks pass
 28/0 and 29/0; these do not measure allocation rate or native normal-player
 behavior. The pinned installed Mono profiler export inventory supports a
-process-lifetime instrument investigation, with ABI and guarded-output
-contracts still unproven. Old Cyclops Tomb is a revealed/unvisited owner-seed
+isolated investigation; process-global ownership and safe teardown remain
+unproven. Old Cyclops Tomb is a revealed/unvisited owner-seed
 destination candidate for a new door fixture; no door or safe scene has been
 observed there. The two inspected scenes remain local zero-door results.
 
