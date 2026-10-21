@@ -112,7 +112,7 @@ namespace KingmakerMountedCombat.Domain
                 return "Native handedness, mirroring or body scale differs from the declared profile.";
             if (!ExactSet(current.DollEquipmentEntityIds, dollEquipment, false))
                 return "Native Doll equipment differs from the declared Small body.";
-            if (current.CurrentEquipmentBlueprints == null || !current.CurrentEquipmentBlueprints.SequenceEqual(currentEquipment, StringComparer.Ordinal))
+            if (!ExactOrdered(current.CurrentEquipmentBlueprints, currentEquipment))
                 return "Active hand or worn equipment is outside the declared Small combination.";
             if (!ExactSet(current.ActiveVisualEquipmentNames, visualEquipment, true) || current.AdditionalLimbCount != 0)
                 return "The native visual equipment or extra limbs differ from the declared Small body.";
@@ -121,9 +121,32 @@ namespace KingmakerMountedCombat.Domain
 
         private static bool ExactSet(string[] actual, string[] expected, bool permitDuplicateNames)
         {
-            if (actual == null || actual.Length != expected.Length || actual.Length > 128 || actual.Any(string.IsNullOrWhiteSpace)) return false;
-            if (!permitDuplicateNames && actual.Distinct(StringComparer.Ordinal).Count() != actual.Length) return false;
-            return actual.OrderBy(value => value, StringComparer.Ordinal).SequenceEqual(expected, StringComparer.Ordinal);
+            if (actual == null || actual.Length != expected.Length || actual.Length > 128) return false;
+            for (var index = 0; index < actual.Length; index++)
+                if (string.IsNullOrWhiteSpace(actual[index])) return false;
+            // The declaration stores an ordinal-sorted array and, for Doll IDs,
+            // already rejects duplicates. Count each distinct expected value in
+            // the bounded current array instead of sorting/copying it per frame.
+            for (var index = 0; index < expected.Length;)
+            {
+                var value = expected[index];
+                var end = index + 1;
+                while (end < expected.Length && string.Equals(expected[end], value, StringComparison.Ordinal)) end++;
+                if (!permitDuplicateNames && end != index + 1) return false;
+                var found = 0;
+                for (var current = 0; current < actual.Length; current++)
+                    if (string.Equals(actual[current], value, StringComparison.Ordinal)) found++;
+                if (found != end - index) return false;
+                index = end;
+            }
+            return true;
+        }
+        private static bool ExactOrdered(string[] actual, string[] expected)
+        {
+            if (actual == null || actual.Length != expected.Length) return false;
+            for (var index = 0; index < actual.Length; index++)
+                if (!string.Equals(actual[index], expected[index], StringComparison.Ordinal)) return false;
+            return true;
         }
         private static bool SameScale(PoseVector3 left, PoseVector3 right) => left.IsFinite &&
             Math.Abs(left.X - right.X) <= 0.0001f && Math.Abs(left.Y - right.Y) <= 0.0001f && Math.Abs(left.Z - right.Z) <= 0.0001f;

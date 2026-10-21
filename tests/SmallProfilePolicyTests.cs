@@ -44,6 +44,14 @@ namespace KingmakerMountedCombat.Tests
             Refuse(runner, "unexpected natural limb", value => value.AdditionalLimbCount = 1);
             runner.Run("visual equipment comparison is order independent with exact multiplicity", () =>
             { var body = Observation(); body.ActiveVisualEquipmentNames = new[] { "clothes", "skin" }; TestRunner.True(Declaration().Refusal(body) == null, "Equivalent visual multiset was rejected."); });
+            runner.Run("repeated visual names retain their exact multiplicity", () =>
+            {
+                var declaration = Declaration(visual: new[] { "skin", "clothes", "skin" });
+                var body = Observation(); body.ActiveVisualEquipmentNames = new[] { "skin", "skin", "clothes" };
+                TestRunner.True(declaration.Refusal(body) == null, "Equivalent repeated visual names were rejected.");
+                body.ActiveVisualEquipmentNames = new[] { "skin", "clothes", "clothes" };
+                TestRunner.True(declaration.Refusal(body) != null, "A missing visual name was hidden by another duplicate.");
+            });
             runner.Run("declaration owns copied equipment values", () =>
             {
                 var slots = new string[12]; var declaration = Declaration(slots); slots[0] = new string('e', 32);
@@ -158,8 +166,8 @@ namespace KingmakerMountedCombat.Tests
         private static void Refuse(TestRunner runner, string name, Action<SmallRiderBodyObservation> change) => runner.Run("Small refuses " + name, () =>
         { var observed = Observation(); change(observed); string error; TestRunner.True(Declaration().Match(observed, out error) == null && error != null, "Changed body was admitted."); });
         private static SmallRiderBodyMatch Match() { string error; return Declaration().Match(Observation(), out error); }
-        private static DeclaredSmallRiderBody Declaration(string[] slots = null) => new DeclaredSmallRiderBody(Profile, new string('a', 64), Race, Preset,
-            "Female", "SyntheticSmallSkeleton", false, false, new PoseVector3(1f, 1f, 1f), new[] { Equipment }, slots ?? new string[12], new[] { "skin", "clothes" });
+        private static DeclaredSmallRiderBody Declaration(string[] slots = null, string[] visual = null) => new DeclaredSmallRiderBody(Profile, new string('a', 64), Race, Preset,
+            "Female", "SyntheticSmallSkeleton", false, false, new PoseVector3(1f, 1f, 1f), new[] { Equipment }, slots ?? new string[12], visual ?? new[] { "skin", "clothes" });
         private static SmallRiderBodyObservation Observation() => new SmallRiderBodyObservation
         {
             OriginalSizeOrdinal = 3, EffectiveSizeOrdinal = 3, MountBlueprintGuid = DeclaredSmallRiderBody.HorseBlueprintGuid, MountSizeOrdinal = 5,

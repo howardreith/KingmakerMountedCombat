@@ -1,5 +1,19 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## Active October 20 after batch109 — F11 partial source hardening; native gates remain
+
+The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
+[Batch109](docs/CHUNK7-BATCH109-F11-SMALL-BODY-COMPARISON-2026-10-20.md)
+replaces repeated LINQ sort/copy of bounded Small body equipment names with an
+ordinal exact-count comparison. Fast 3/0 and independent read-only review
+passed. The new local compiled DLL has not been frozen, packaged or run in the
+game. Batch108 world115 native evidence applies only to its exact earlier
+bytes. Latest native transactions were all restored exactly; no game or lock
+remains. Refresh HEAD/status before the next action. Continue a distinct
+required F09/F10/F11 gate, including native diagnostics-off/ordinary controls,
+genuine replacement, ordinary door or an admitted allocation-rate measurement
+seam. Do not call this partial hardening F11 acceptance.
+
 ## Active October 20 after batch108 — Small later level native PASS; continue remaining gates
 
 The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
