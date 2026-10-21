@@ -29,7 +29,7 @@ function Invoke-MatchedPoolReaderChecks([string]$ActualCollector,[string]$Output
  function Sample([int]$index,[string]$label,$before,$after){
   $ownership=[pscustomobject]@{boundaries=2;failedConstructions=0;owners=$active[$index];active=$active[$index];allocationActors=4;participants=2;preparedOrViewResidue=$active[$index];liveControlBoundaries=0}
   [pscustomobject]@{label=$label;warmupFrames=30;sampleFrames=120;startFrame=($before.world.frame+31);endFrame=$after.world.frame;stopwatchFrequency=1000000L;
-   serviceTicks=@(1..120|ForEach-Object{100L});frameSeconds=@(1..120|ForEach-Object{0.01});serviceMeanMs=0.1;serviceP50Ms=0.1;serviceP95Ms=0.1;frameP50Ms=10.0;frameP95Ms=10.0;
+   serviceTicks=@(1..120|ForEach-Object{100L});phaseContract='chunk7-update-phases-v1';pairUpdateTicks=@(1..120|ForEach-Object{20L});turnUpdateTicks=@(1..120|ForEach-Object{10L});frameSeconds=@(1..120|ForEach-Object{0.01});serviceMeanMs=0.1;serviceP50Ms=0.1;serviceP95Ms=0.1;frameP50Ms=10.0;frameP95Ms=10.0;
    managedHeapBefore=100000L;managedHeapAfter=99000L;managedHeapDelta=-1000L;forcedCollection=$false;collectionsBefore=@(1,1,1);collectionsAfter=@(2,1,1);kmcLogMessages=2L;kmcLogCharacters=30L;
    ownersBefore=(Copy-Matched $ownership);ownersAfter=(Copy-Matched $ownership);subscriptionsBefore=(Copy-Matched $subs);subscriptionsAfter=(Copy-Matched $subs);limits='Synthetic native boundary only; no performance proof.'}
  }
@@ -49,8 +49,15 @@ function Invoke-MatchedPoolReaderChecks([string]$ActualCollector,[string]$Output
   $v=Copy-Matched $artifact;$v.observations.contract='chunk7-matched-resident-pool-v1'
   $old=@('resident-0-after-cycle-1','resident-1-cycle-2','resident-2-cycle-2','resident-0-after-cycle-2')
   $v.observations.rows=@(for($group=0;$group-lt4;$group++){
-   $row=Copy-Matched $v.observations.rows[$group*3];$row.index=$group;$row.label=$old[$group];$row.sample.label=$old[$group];$row
+   $row=Copy-Matched $v.observations.rows[$group*3];$row.index=$group;$row.label=$old[$group];$row.sample.label=$old[$group]
+   foreach($name in @('phaseContract','pairUpdateTicks','turnUpdateTicks')){$row.sample.PSObject.Properties.Remove($name)}
+   $row
   })
+  Assert-KmcMatchedPoolEvidence $request $v $world $worldHash 'PASS'
+ }
+ Check-Matched 'historical repeated-window contract remains valid without phase vectors' {
+  $v=Copy-Matched $artifact;$v.observations.contract='chunk7-matched-resident-pool-v2'
+  foreach($row in $v.observations.rows){foreach($name in @('phaseContract','pairUpdateTicks','turnUpdateTicks')){$row.sample.PSObject.Properties.Remove($name)}}
   Assert-KmcMatchedPoolEvidence $request $v $world $worldHash 'PASS'
  }
  Check-Matched 'elapsed native cooldown decay is permitted without refund' {$v=Copy-Matched $artifact;$v.observations.rows[0].before.world.resources.actors[0].standard=3.0;$v.observations.rows[0].after.world.resources.actors[0].standard=1.5;Assert-KmcMatchedPoolEvidence $request $v $world $worldHash 'PASS'}
@@ -90,6 +97,10 @@ function Invoke-MatchedPoolReaderChecks([string]$ActualCollector,[string]$Output
   'owner rider uppercase N'={param($v)$v.observations.rows[3].after.world.owners[0].riderId=$keys[0].ToUpperInvariant()}
   'string owner-generation'={param($v)$v.observations.rows[3].after.world.owners[0].generation=[string]$v.observations.rows[3].after.world.owners[0].generation}
   'double service ticks'={param($v)$v.observations.rows[0].sample.serviceTicks[0]=[double]100}
+  'missing phase vector'={param($v)$v.observations.rows[0].sample.PSObject.Properties.Remove('pairUpdateTicks')}
+  'short phase vector'={param($v)$v.observations.rows[0].sample.turnUpdateTicks=@(1..119|ForEach-Object{10L})}
+  'phase cost exceeds inclusive frame'={param($v)$v.observations.rows[0].sample.pairUpdateTicks[0]=91L}
+  'invented phase contract'={param($v)$v.observations.rows[0].sample.phaseContract='other'}
   'short sample'={param($v)$v.observations.rows[0].sample.sampleFrames=119}
   'nonfinite frame duration'={param($v)$v.observations.rows[0].sample.frameSeconds[0]=[double]::NaN}
   'derived timing mismatch'={param($v)$v.observations.rows[0].sample.serviceP95Ms=100.0}

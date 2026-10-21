@@ -19,6 +19,8 @@ namespace KingmakerMountedCombat.Diagnostics
         private readonly MountedWorldService world;
         private readonly string label;
         private readonly long[] serviceTicks = new long[SampleFrames];
+        private readonly long[] pairUpdateTicks = new long[SampleFrames];
+        private readonly long[] turnUpdateTicks = new long[SampleFrames];
         private readonly float[] frameSeconds = new float[SampleFrames];
         private readonly JObject before;
         private readonly JObject subscriptionsBefore;
@@ -38,6 +40,15 @@ namespace KingmakerMountedCombat.Diagnostics
             current = this;
         }
         internal long BeginFrame() => disposed || Ready ? 0 : Stopwatch.GetTimestamp();
+        // These two opt-in spans locate the measured per-pair Update increase.
+        // A zero entry means the ordinary disabled/save/area gate skipped it.
+        internal long BeginPhase() => disposed || Ready || warmup < WarmupFrames ? 0 : Stopwatch.GetTimestamp();
+        internal void EndPairUpdate(long started) => RecordPhase(started, pairUpdateTicks);
+        internal void EndTurnUpdate(long started) => RecordPhase(started, turnUpdateTicks);
+        private void RecordPhase(long started, long[] samples)
+        {
+            if (started != 0 && !disposed && !Ready) samples[count] = Stopwatch.GetTimestamp() - started;
+        }
         internal void EndFrame(long started)
         {
             if (disposed || Ready || started == 0) return;
@@ -72,6 +83,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["startFrame"] = startFrame, ["endFrame"] = Time.frameCount,
                 ["stopwatchFrequency"] = Stopwatch.Frequency,
                 ["serviceTicks"] = new JArray(serviceTicks), ["frameSeconds"] = new JArray(frameSeconds),
+                ["phaseContract"] = "chunk7-update-phases-v1",
+                ["pairUpdateTicks"] = new JArray(pairUpdateTicks), ["turnUpdateTicks"] = new JArray(turnUpdateTicks),
                 ["serviceMeanMs"] = serviceTicks.Average() * 1000d / Stopwatch.Frequency,
                 ["serviceP50Ms"] = ticks[(count - 1) / 2] * 1000d / Stopwatch.Frequency,
                 ["serviceP95Ms"] = ticks[(int)Math.Ceiling(count * .95d) - 1] * 1000d / Stopwatch.Frequency,
@@ -83,7 +96,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["kmcLogMessages"] = Interlocked.Read(ref messages), ["kmcLogCharacters"] = Interlocked.Read(ref characters),
                 ["ownersBefore"] = before, ["ownersAfter"] = CaptureOwners(world),
                 ["subscriptionsBefore"] = subscriptionsBefore, ["subscriptionsAfter"] = Chunk4SubscriptionSnapshot.Capture(),
-                ["limits"] = "Main-thread KMC Update includes observer overhead; frame delta includes native game/rendering. Managed heap delta is process-wide retained memory, not allocated bytes. No GC is forced. Other game/loader logs are excluded."
+                ["limits"] = "Main-thread KMC Update and pair/turn spans include observer overhead; pair/turn spans exclude other KMC Update work. A zero span means its gate did not execute or resolution was insufficient. Frame delta includes native game/rendering. Managed heap delta is process-wide retained memory, not allocated bytes. No GC is forced. Other game/loader logs are excluded."
             };
         }
         private static JObject CaptureOwners(MountedWorldService world) => new JObject {
