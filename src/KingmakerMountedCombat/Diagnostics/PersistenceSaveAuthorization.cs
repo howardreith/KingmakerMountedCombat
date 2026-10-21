@@ -121,7 +121,8 @@ namespace KingmakerMountedCombat.Diagnostics
                     !(acquiredManualRequest.AcquiredManual.Case == Chunk7AcquiredManualSelection.TwoOwnerCaseName &&
                         !acquiredManualRequest.AcquiredManual.UsesPostFieldManual ? source.FileName == "Auto_1.zks" :
                         acquiredManualRequest.AcquiredManual.UsesPostFieldManual ?
-                        source.FileName == Chunk7CumulativeAcquisitionSelection.AssistedManualOutputLeaf &&
+                        (source.FileName == Chunk7CumulativeAcquisitionSelection.AssistedManualOutputLeaf ||
+                         source.FileName == Chunk7CumulativeAcquisitionSelection.LegacyManualOutputLeaf) &&
                         source.InternalName == Chunk7ManualDerivedSelection.ManualOutputName &&
                         source.FileName == acquiredManualRequest.PersistenceLoad.FileName :
                         (source.FileName == Chunk7ManualDerivedSelection.ManualOutputLeaf || source.FileName == Chunk7ManualDerivedSelection.OwnerSeedOutputLeaf) &&

@@ -754,7 +754,7 @@ namespace KingmakerMountedCombat.Diagnostics
                         errors.Add("Native bootstrap autosave name is missing or invalid.");
                     var sourcePattern = AcquiredManual?.Case == Chunk7AcquiredManualSelection.TwoOwnerCaseName && AcquiredManual.SourceMode == null ?
                         "^Auto_1\\.zks$" : AcquiredManual?.UsesPostFieldManual == true ?
-                        "^Manual_301_KMC_C7_MANUAL_DERIVED_FIELD\\.zks$" : "^Manual_(2|304)_KMC_C7_MANUAL_DERIVED_FIELD\\.zks$";
+                        "^Manual_(301|303)_KMC_C7_MANUAL_DERIVED_FIELD\\.zks$" : "^Manual_(2|304)_KMC_C7_MANUAL_DERIVED_FIELD\\.zks$";
                     errors.AddRange(PersistenceLoad.Validate("persistenceLoad", PersistenceLoad.InternalName, sourcePattern));
                     if ((AcquiredManual?.Case == Chunk7AcquiredManualSelection.CaseName || AcquiredManual?.UsesPostFieldManual == true) &&
                         PersistenceLoad.InternalName != Chunk7ManualDerivedSelection.ManualOutputName)
