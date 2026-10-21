@@ -1,5 +1,14 @@
 # Chunk 7B–7D — IN PROGRESS
 
+[Batch142](docs/CHUNK7-BATCH142-ASSISTED-DIALOG-IN-CUTSCENE-2026-10-21.md)
+retains another distinct assisted native **FAIL**. The prior fix waited on a
+cutscene lock even during an ordinary active PC Dialog, so the producer made
+one click and hit its unchanged progress bound. The guarded transaction
+restored Mods, protected saves and profile bytes exactly. The narrower
+predicate retains Cutscene-mode waiting while admitting Dialog-in-cutscene
+through existing dialog guards; focused core passed 251/0, Candidate 6/0 and
+independent review. Native producer and independent cold consumer remain open.
+
 [Batch141](docs/CHUNK7-BATCH141-ASSISTED-CUTSCENE-MODE-2026-10-21.md)
 retains a third distinct assisted native **FAIL**: the terminal Exit reached
 native `Cutscene` mode, but its cutscene-lock flag dropped one frame before the

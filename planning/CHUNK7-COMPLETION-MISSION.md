@@ -13,6 +13,10 @@
 > and [implementation chronology](CHUNK7-IMPLEMENTATION-PLAN.md) remain
 > historical where they say 7E is unselected or give stale native caps.
 
+[Batch142](../docs/CHUNK7-BATCH142-ASSISTED-DIALOG-IN-CUTSCENE-2026-10-21.md)
+retains another assisted native FAIL and narrows the fixture's Cutscene/Dialog
+mode guard. The final Manual and independent cold consumer remain open.
+
 [Batch141](../docs/CHUNK7-BATCH141-ASSISTED-CUTSCENE-MODE-2026-10-21.md)
 retains the corrected assisted producer's separate native FAIL and scoped
 Cutscene-mode gap correction; the final Manual and cold consumer remain open.
