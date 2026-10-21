@@ -134,8 +134,10 @@ from the test, and from this note in the same change.
 Manual 303 request from exact acquired Manual 302. Its production selection,
 authority, observer and external reader pass focused offline checks. It remains
 refused by a separate prelaunch `legacy-manual` gate pending a fresh same-candidate
-Manual 302 source and native result. The original stale Auto failure and frozen
-Auto fixture remain historical evidence, not a Manual PASS.
+one-owner acquired Manual 302 source and native result. Batch158 produced a two-owner
+Manual 302 for its distinct selected path, which does not satisfy this source contract.
+The original stale Auto failure and frozen Auto fixture remain historical evidence,
+not a Manual PASS.
 
 The selected owner-seed Manual-derived producer and one-owner acquired cold
 consumer are repaired and passed actual native qualification in batches 131–133.
