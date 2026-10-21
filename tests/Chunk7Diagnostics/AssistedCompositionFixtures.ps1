@@ -128,3 +128,31 @@ function New-AssistedTwoWriteFixture {
     $o.choices=@()
     $f
 }
+
+function New-AssistedTwoWriteBuiltFixture {
+    # Installed Kingmaker omits the level-up Auto controller. Native Ranger
+    # choices still complete, then the selected final Manual captures them.
+    $f=New-AssistedCompositionFixture;$o=$f.artifact.observations
+    $o.nativeWrites=@($o.nativeWrites[0],$o.nativeWrites[2]);$manual=$o.nativeWrites[1]
+    foreach($key in @('completionSequence','snapshots','completedSaves')){$manual.$key=2}
+    foreach($a in @($manual.authority,$o.savedWorld.authority,$o.settledWorld.authority,$o.cleanup.authority)){$a.levelupWrites=0;$a.reservationCount=1;$a.admittedNativeWrites=2;$a.authorizedWrites=2}
+    $o.fieldWorld.authority.levelupWrites=0;$o.fieldWorld.authority.reservationCount=0;$o.fieldWorld.authority.admittedNativeWrites=1;$o.fieldWorld.authority.authorizedWrites=1
+    $o.finalManual=Copy-O $manual
+    foreach($rows in @($o.nativeNumbering.sourceDescriptors,$o.settledDescriptors)){
+        $auto=@($rows|Where-Object fileName -CEQ 'Auto_1.zks')[0]
+        $auto.descriptor=$o.nativeWrites[0].preparedDescriptor;$auto.autoLevelup=$false
+    }
+    $auto=@($o.fixtureReadiness.isolatedSaveDescriptors.descriptors|Where-Object fileName -CEQ 'Auto_1.zks')[0]
+    $auto.isAutoLevelupSave=$false
+    foreach($row in $o.preservation.rows|Where-Object{$_.purpose.StartsWith('hire-funds')}){
+        $row.state.snapshots=1;$row.state.completedSaves=1
+        $row.canonicalJson=ConvertTo-Json -InputObject $row.state -Depth 64 -Compress
+        $row.sha256=Hash-CompositionText $row.canonicalJson
+    }
+    $hireBefore=@($o.preservation.rows|Where-Object purpose -CEQ 'hire-funds-before')[0]
+    foreach($snapshot in @($o.setup.hireFunds.before,$o.setup.hireFunds.after)){$snapshot.preservedStateSha256=$hireBefore.sha256}
+    $o.setupAtCleanup=Copy-O $o.setup
+    foreach($event in $o.manualProbe.events){$event.snapshotCount--;$event.completedSaveCount--}
+    foreach($key in @('ordinaryProbe','ordinaryIdentityBridge','afterLevelupDescriptors')){$o.PSObject.Properties.Remove($key)}
+    $f
+}

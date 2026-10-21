@@ -1,5 +1,29 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## Active October 21 after batch138 assisted Manual completion repair
+
+The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
+[Batch138](docs/CHUNK7-BATCH138-ASSISTED-MANUAL-COMPLETION-2026-10-21.md)
+repairs the selected assisted new-campaign fixture's unreachable level-up Auto
+wait. The active native route now proves the Ranger/Horse choice result, then
+requests its already selected final native Manual; the initial Auto and Manual
+are the only two writes. The generated two-write archive reader, source and
+authority checks, independent production/safety review, and Candidate 6/0
+(6.68 minutes) passed. Development DLL SHA-256 is
+`959420a999e0cb076f617bf1517a1d5adb01daac965e8b343c125705618f685e`.
+No native game, Mods swap, save or profile transaction was started by this
+offline repair. Original and intermediate offline FAILs remain in batch138.
+
+Next: commit the coherent reviewed change, build one clean-HEAD qualification
+package, perform scoped WhatIf and one guarded assisted new-campaign producer
+diagnostic using the current 48-choice `assisted-selection02.json` under the
+approved Howie context. A successful Manual requires an independent-copy cold
+consumer. Neither assisted setup nor this offline checkpoint proves ordinary
+new-character acquisition. F09 six-pair, F11 allocation and ordinary-player
+controls, ordinary doors, and readiness-gated 7E remain open. The guarded
+push-helper WhatIf was earlier rejected by automatic approval review, so do
+not substitute an ordinary push. Draft PR #5 remains remote-stale.
+
 ## Active October 21 after batch137 F11 native startup control
 
 The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.

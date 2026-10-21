@@ -147,7 +147,7 @@ function Assert-KmcChunk7AssistedFixtureOutput($Request,$Artifact) {
     Assert-KmcBootstrapInventoryString $manual.internalName 'KMC_C7_ASSISTED_FIXTURE';Assert-KmcBootstrapInventoryString $manual.type 'Manual'
     Assert-KmcChunk7Boolean $manual.autoLevelup $false
     Assert-KmcBootstrapInventoryString $auto.fileName 'Auto_1.zks';Assert-KmcBootstrapInventoryString $auto.type 'Auto'
-    Assert-KmcChunk7Boolean $auto.autoLevelup ($writes.Count-eq3)
+    Assert-KmcChunk7Boolean $auto.autoLevelup $false
     foreach($write in @($manual,$auto)){
         Assert-KmcBootstrapInventoryString $write.operation 'None'
         if($write.path-isnot[string]){throw 'Assisted output path is not a scalar string.'}

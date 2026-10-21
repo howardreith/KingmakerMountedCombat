@@ -26,11 +26,13 @@ namespace KingmakerMountedCombat.Diagnostics
         private UnitEntityData[] originalActors,originalCharacters,originalRemote,originalSelection;
         private object[] originalDescriptors,originalViews;
         private Chunk7OrdinaryBuildDriver driver;
-        private NativeOrdinaryAcquisitionProbe ordinaryProbe;
+        // Retained for the historical observer regression; the active builder
+        // never installs it because this player has no level-up Auto controller.
+        private NativeOrdinaryAcquisitionProbe ordinaryProbe = null;
         private Chunk7NativeBuilderCancellation cancellation;
         private MovementCaptureOverlayLease ummLease;
         private UnityModManagerNet.UnityModManager.UI ummInstance;
-        private bool originalUmmOpened,originalPause,presentationCaptured,buildComplete,levelAutoComplete;
+        private bool originalUmmOpened,originalPause,presentationCaptured,buildComplete;
         private int experienceReads,moneyReads;private string preservationPurpose;
         private void CaptureInitialRoster()
         {
@@ -122,7 +124,6 @@ namespace KingmakerMountedCombat.Diagnostics
             var table=BlueprintRoot.Instance.Progression.XPTable;var xp=main.Descriptor.Progression.Experience;
             Require(table?.Bonuses!=null&&table.Bonuses.Length>=21&&Enumerable.Range(targetLevel+1,20-targetLevel).All(level=>xp<table.GetBonus(level)),
                 "Observed XP exceeds the bounded selected attained level; no extra native levels are authorized.");
-            authority.ReserveAssistedLevelup(request,game,saveManager,Target(initialAuto));
             originalSelection=SelectionManager.Instance.SelectedUnits.ToArray();
             Require(originalSelection.Distinct().Count()==originalSelection.Length&&originalSelection.All(x=>originalActors.Contains(x)),"Initial selection is foreign or duplicate.");
             originalPause=game.IsPaused;ummInstance=UnityModManagerNet.UnityModManager.UI.Instance;
@@ -131,7 +132,6 @@ namespace KingmakerMountedCombat.Diagnostics
             var pins=new Chunk7OrdinaryBuildPins(request.RunId,HashText(evidence["derivedTarget"].ToString(Formatting.None)),Chunk7OrdinaryBuildMode.ExistingRangerLevels,
                 null,null,null,Gender.Male,false,4,Size.Medium);
             driver=new Chunk7OrdinaryBuildDriver(pins,main,horses.HorseFeature,horses.HorseUnit.AssetGuid,AssertChoiceAuthority,ObserveChoice);
-            ordinaryProbe=NativeOrdinaryAcquisitionProbe.ForAssistedFixture(()=>driver.Actor);ordinaryProbe.Install();
             game.IsPaused=false;
         }
         private void AssertChoiceAuthority()
@@ -148,18 +148,7 @@ namespace KingmakerMountedCombat.Diagnostics
             if(!buildComplete)
             {
                 if(driver.Tick()!=Chunk7OrdinaryBuildStep.Complete)return;
-                RequireAcquiredHorse();evidence["builderComplete"]=driver.CaptureState();buildComplete=true;Pass("C7-assisted-native-choices");return;
-            }
-            if(!levelAutoComplete)
-            {
-                // NOT READY - stale level-up autosave wait (docs/CHUNK7-STALE-LEVELUP-AUTOSAVE-FAMILIES.md).
-                // The installed game never registers LevelUpAutoSaveController (GameModesFactory builds its
-                // controllers explicitly without it), so an ordinary level-up never requests this native Auto
-                // and the wait cannot complete. scripts/runtime/Invoke-KingmakerRuntimeScenario.ps1 refuses this
-                // family before any lock, transaction, Mods swap or launch. Kept intact until its completion
-                // contract is repaired; never manufacture a level-up callback or relabel a Manual as Auto.
-                if(!ObserveLevelupAutosave())return;levelAutoComplete=true;
-                evidence["ordinaryProbe"]=ordinaryProbe.Capture();ordinaryProbe.Dispose();stage=3;
+                RequireAcquiredHorse();evidence["builderComplete"]=driver.CaptureState();buildComplete=true;Pass("C7-assisted-native-choices");stage=3;
             }
         }
         private void RequireAcquiredHorse()

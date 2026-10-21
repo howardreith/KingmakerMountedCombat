@@ -148,7 +148,7 @@ $assistedFixtureInput=$null
 if(Test-KmcChunk7AssistedFixtureScenario $Scenario){
     if(-not$BaseGameOnly-or[string]::IsNullOrEmpty($AssistedFixtureSelectionPath)){throw 'Assisted setup requires explicit base-only staging and the exact owner-authorized closed selection.'}
     foreach($name in @('NativeBootstrapCase','PersistenceSourceRunId','ExpectedPersistenceSourceSha256','ExpectedPersistenceAlternateSha256','PersistenceForeignSourceRunId','PersistenceCase','PersistenceAreaEnterPoint','PersistenceAreaTargetArea','PersistenceReplayAreaEnterPoints','PersistenceReplayAreaAreas')){
-        if($PSBoundParameters.ContainsKey($name)){throw 'Assisted setup permits only its authored new campaign and cumulative native Auto/Manual writes.'}
+        if($PSBoundParameters.ContainsKey($name)){throw 'Assisted setup permits only its authored new campaign, initial native Auto and final native Manual.'}
     }
     $assistedFixtureInput=Read-KmcChunk7AssistedPreparationSelectionFile $AssistedFixtureSelectionPath $(if($RunId){$RunId}else{'unassigned-assisted-fixture'})
 }elseif($PSBoundParameters.ContainsKey('AssistedFixtureSelectionPath')){throw 'Assisted fixture selection is forbidden under another scenario.'}

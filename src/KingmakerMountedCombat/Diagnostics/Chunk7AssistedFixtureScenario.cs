@@ -276,7 +276,7 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             Require(!cleanup&&stage>=1&&stage<=3&&binding!=null,"Assisted setup authority is outside its live selected phase.");
             RequireAuthority(false);RequireNoOwners();RequireWorld();
-            Require(authority.AssistedPhase=="setup"||stage==2&&authority.AssistedPhase=="levelup-auto","Assisted setup storage phase changed.");
+            Require(authority.AssistedPhase=="setup","Assisted setup storage phase changed.");
         }
         private string RequireNativeWriteOrigin(RuntimeSaveTarget target)
         {

@@ -144,6 +144,8 @@ still accepts bootstrap Manual ancestry only; the newly observed assisted cold
 artifact cannot be relabeled as that producer. A closed owner-seed source mode
 and its genuine field Manual/acquired cold chain remain F10 work.
 
+[Batch138](../docs/CHUNK7-BATCH138-ASSISTED-MANUAL-COMPLETION-2026-10-21.md) repairs the selected F10 assisted new-campaign producer's unreachable level-up Auto wait. The two-write initial Auto/final Manual route passed focused source, reader, generated archive and Candidate checks; native producer and cold qualification remain open. This preparation does not prove ordinary new-character acquisition.
+
 | Requirement | Engineering status and exact evidence/dependency | Next action |
 | --- | --- | --- |
 | Inherited core, F01–F08 | Prior candidate-specific native PASSes retained in `CURRENT.md`; final exact-package reuse unassessed. | Map current supported contracts for final matrix after implementation readiness. |
