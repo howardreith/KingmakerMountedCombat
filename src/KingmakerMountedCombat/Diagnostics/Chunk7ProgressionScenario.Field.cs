@@ -22,6 +22,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private long fieldControlGeneration;
         private Guid fieldMammothOwner;
         private long fieldMammothGeneration;
+        private MountedPairOwner<UnitEntityData, GameMountedRelationshipService> fieldMammothOwnerRecord;
         private UnitUseAbility fieldShell;
         private UnitCommand fieldMove;
         private Vector3 fieldMoveStart;
@@ -67,6 +68,7 @@ namespace KingmakerMountedCombat.Diagnostics
                         world.Registry.Owners.Length == 2 && mounted.Id != fieldControlOwner,
                         "Native player Mount did not establish the exact independent Mammoth profile.");
                     fieldMammothOwner = mounted.Id; fieldMammothGeneration = mounted.Generation;
+                    fieldMammothOwnerRecord = mounted;
                     FinishFieldAbility();
                     evidence["fieldMounted"] = FieldState();
                     FieldNext(2); break;
@@ -105,11 +107,36 @@ namespace KingmakerMountedCombat.Diagnostics
                     // postcondition fails. A terminal shell alone does not prove
                     // that its synchronous Dismount dispatch was accepted.
                     evidence["fieldDismountBoundary"] = CaptureFieldDismountBoundary();
-                    Require(world.Registry.FindActive(rider) == null && world.Registry.Owners.Length == 1 &&
+                    var detached = world.Registry.FindOwner(rider);
+                    Require(fieldShell.Result == UnitCommand.ResultType.Success &&
+                        fieldMammothOwnerRecord != null &&
+                        fieldMammothOwnerRecord.Boundary.State == RelationshipState.Unmounted &&
+                        world.Registry.FindActive(rider) == null &&
+                        world.Registry.FindActive(mount) == null &&
+                        world.Registry.ActiveCount == 1 &&
+                        (detached == null && world.Registry.FindOwner(mount) == null &&
+                         world.Registry.Owners.Length == 1 ||
+                         detached != null && detached.Id == fieldMammothOwner &&
+                         detached.Generation == fieldMammothGeneration &&
+                         detached.State == MountedPairOwnershipState.Detached &&
+                         ReferenceEquals(detached, fieldMammothOwnerRecord) &&
+                         ReferenceEquals(world.Registry.FindOwner(mount), detached) &&
+                         world.Registry.Owners.Length == 2) &&
                         ReferenceEquals(rider.Descriptor.Pet, mount) &&
                         ReferenceEquals(mount.Descriptor.Master.Value, rider),
-                        "Native player Dismount did not release only the Mammoth pair.");
+                        "Native player Dismount did not detach only the Mammoth pair.");
                     FinishFieldAbility();
+                    FieldNext(6); break;
+                case 6:
+                    FieldDeadline();
+                    if (world.Registry.Owners.Length != 1) return;
+                    Require(world.Registry.ActiveCount == 1 &&
+                        fieldMammothOwnerRecord.State == MountedPairOwnershipState.Retired &&
+                        world.Registry.FindOwner(rider) == null && world.Registry.FindOwner(mount) == null &&
+                        world.Registry.FindActive(controlRider)?.Id == fieldControlOwner &&
+                        ReferenceEquals(rider.Descriptor.Pet, mount) &&
+                        ReferenceEquals(mount.Descriptor.Master.Value, rider),
+                        "Native Mammoth Dismount retirement changed the surviving pair or pet identity.");
                     evidence["fieldDismounted"] = FieldState();
                     Require(fieldInputs.Count == 3 && world.NativeControls.NativeCastRequestCount == 2 &&
                         persistence.SnapshotCount == 0 && persistence.CompletedSaveCount == 0,
@@ -228,6 +255,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["targetOwnerId"] = world.Registry.FindActive(rider)?.Id.ToString("N"),
                 ["targetGeneration"] = world.Registry.FindActive(rider)?.Generation,
                 ["targetProfileId"] = world.Registry.FindActive(rider)?.Boundary.Runtime.MountProfileId,
+                ["releasedOwnerId"] = fieldMammothOwnerRecord?.Id.ToString("N"),
+                ["releasedOwnerState"] = fieldMammothOwnerRecord?.State.ToString(),
+                ["releasedBoundaryState"] = fieldMammothOwnerRecord?.Boundary.State.ToString(),
                 ["controlOwnerId"] = fieldControlOwner.ToString("N"),
                 ["controlGeneration"] = fieldControlGeneration,
                 ["owners"] = world.Registry.Owners.Length,
@@ -239,6 +269,8 @@ namespace KingmakerMountedCombat.Diagnostics
         private JObject CaptureFieldDismountBoundary()
         {
             var target = world.Registry.FindActive(rider);
+            var custody = world.Registry.FindOwner(rider);
+            var mountCustody = world.Registry.FindOwner(mount);
             var control = world.Registry.FindActive(controlRider);
             return new JObject {
                 ["frame"] = Time.frameCount,
@@ -248,9 +280,17 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["targetOwnerId"] = target?.Id.ToString("N"),
                 ["targetGeneration"] = target?.Generation,
                 ["targetState"] = target?.Boundary.State.ToString(),
+                ["releasedOwnerId"] = fieldMammothOwnerRecord?.Id.ToString("N"),
+                ["releasedOwnerState"] = fieldMammothOwnerRecord?.State.ToString(),
+                ["releasedBoundaryState"] = fieldMammothOwnerRecord?.Boundary.State.ToString(),
+                ["targetCustodyOwnerId"] = custody?.Id.ToString("N"),
+                ["targetCustodyState"] = custody?.State.ToString(),
+                ["mountCustodyOwnerId"] = mountCustody?.Id.ToString("N"),
+                ["mountCustodyState"] = mountCustody?.State.ToString(),
                 ["controlOwnerId"] = control?.Id.ToString("N"),
                 ["controlGeneration"] = control?.Generation,
                 ["owners"] = world.Registry.Owners.Length,
+                ["activeOwners"] = world.Registry.ActiveCount,
                 ["riderPetId"] = rider.Descriptor.Pet?.UniqueId,
                 ["riderPetIsMammoth"] = ReferenceEquals(rider.Descriptor.Pet, mount),
                 ["mountMasterId"] = mount.Descriptor.Master.Value?.UniqueId,

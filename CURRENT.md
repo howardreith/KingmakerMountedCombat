@@ -1,5 +1,15 @@
 # Chunk 7B–7D — IN PROGRESS
 
+[Batch119](docs/CHUNK7-BATCH119-MAMMOTH-DISMOUNT-CUSTODY-2026-10-21.md)
+completed a four-slot preview.86 diagnostic chain. Its field result remains
+**FAIL 3/1**, but the new snapshot proves successful native Dismount dispatch,
+no active Mammoth owner, intact pet/master references and a stable Horse pair.
+The old assertion counted a detached owner before natural retirement. Reviewed
+preview.87 source now checks exact detached rider/Mammoth custody and Unmounted
+boundary, then waits for natural retirement before PASS. Fast and focused reader
+checks pass; a corrected-candidate native result is pending. Batch118 below
+retains its original preview.85 FAIL.
+
 [Batch118](docs/CHUNK7-BATCH118-MEDIUM-MAMMOTH-FIELD-DEVELOPMENT-2026-10-21.md)
 ran five declared preview.85 native scenarios. The paid Medium Horse Manual,
 separate cold, paid Mammoth replacement Manual, and separate Mammoth cold passed.

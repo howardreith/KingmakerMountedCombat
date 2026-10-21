@@ -628,12 +628,47 @@ function Assert-KmcChunk7MammothFieldOutcome($s,$o){
        $o.fieldMounted.targetOwnerId-ceq$o.fieldMounted.controlOwnerId){throw 'Native Mammoth Mount lacks an independent owner.'}
     Assert-KmcOrdinaryInteger $o.fieldMounted.targetGeneration 1 ([long]::MaxValue)
     Assert-KmcBootstrapInventoryString $o.fieldMounted.targetProfileId 'medium-humanoid-mammoth-v1'
+    Assert-KmcBootstrapInventoryString $o.fieldMounted.releasedOwnerId $o.fieldMounted.targetOwnerId
+    Assert-KmcBootstrapInventoryString $o.fieldMounted.releasedOwnerState 'Active'
+    Assert-KmcBootstrapInventoryString $o.fieldMounted.releasedBoundaryState 'Mounted'
     Assert-KmcOrdinaryInteger $o.fieldMounted.owners 2 2
     Assert-KmcOrdinaryInteger $o.fieldMounted.nativeCasts 1 1
+    $boundary=$o.fieldDismountBoundary
+    Assert-KmcBootstrapInventoryString $boundary.shellResult 'Success'
+    foreach($key in @('shellFinished','processEnded','riderPetIsMammoth','mountMasterIsRider')){Assert-KmcChunk7Boolean $boundary.$key $true}
+    foreach($key in @('targetOwnerId','targetGeneration','targetState')){if($null-ne$boundary.$key){throw 'Native Dismount retained active Mammoth ownership at terminal delivery.'}}
+    Assert-KmcBootstrapInventoryString $boundary.releasedOwnerId $o.fieldMounted.targetOwnerId
+    Assert-KmcBootstrapInventoryString $boundary.releasedBoundaryState 'Unmounted'
+    Assert-KmcBootstrapInventoryString $boundary.controlOwnerId $o.fieldMounted.controlOwnerId
+    Assert-KmcOrdinaryInteger $boundary.controlGeneration $o.fieldMounted.controlGeneration $o.fieldMounted.controlGeneration
+    Assert-KmcBootstrapInventoryString $boundary.riderPetId $s.petId
+    Assert-KmcBootstrapInventoryString $boundary.mountMasterId $s.actorId
+    Assert-KmcOrdinaryInteger $boundary.activeOwners 1 1
+    Assert-KmcOrdinaryInteger $boundary.owners 1 2
+    if($boundary.owners-eq2){
+        Assert-KmcBootstrapInventoryString $boundary.releasedOwnerState 'Detached'
+        Assert-KmcBootstrapInventoryString $boundary.targetCustodyOwnerId $o.fieldMounted.targetOwnerId
+        Assert-KmcBootstrapInventoryString $boundary.targetCustodyState 'Detached'
+        Assert-KmcBootstrapInventoryString $boundary.mountCustodyOwnerId $boundary.targetCustodyOwnerId
+        Assert-KmcBootstrapInventoryString $boundary.mountCustodyState 'Detached'
+    }elseif($null-ne$boundary.targetCustodyOwnerId-or$null-ne$boundary.targetCustodyState-or
+           $null-ne$boundary.mountCustodyOwnerId-or$null-ne$boundary.mountCustodyState){throw 'Retired Mammoth retained indexed custody.'}
+    else{Assert-KmcBootstrapInventoryString $boundary.releasedOwnerState 'Retired'}
+    Assert-KmcOrdinaryInteger $boundary.nativeCasts 2 2
+    Assert-KmcOrdinaryInteger $boundary.nativeRefusals 0 0
+    Assert-KmcOrdinaryInteger $boundary.dispatchAccepted 2 2
+    Assert-KmcOrdinaryInteger $boundary.dispatchRejected 0 0
+    Assert-KmcProgressionText $boundary.shellLifecycle
+    if($boundary.shellLifecycle-cnotmatch ('DeliverConsumed;control='+[regex]::Escape($dismount.shellControl)+';predicate=consumed-success;kind=Dismount')){
+        throw 'Mammoth Dismount lacks exact successful native shell delivery.'
+    }
     if($null-ne$o.fieldDismounted.targetOwnerId-or$null-ne$o.fieldDismounted.targetGeneration-or
        $null-ne$o.fieldDismounted.targetProfileId){throw 'Native Mammoth Dismount retained its target owner.'}
     Assert-KmcOrdinaryInteger $o.fieldDismounted.owners 1 1
     Assert-KmcOrdinaryInteger $o.fieldDismounted.nativeCasts 2 2
+    Assert-KmcBootstrapInventoryString $o.fieldDismounted.releasedOwnerId $o.fieldMounted.targetOwnerId
+    Assert-KmcBootstrapInventoryString $o.fieldDismounted.releasedOwnerState 'Retired'
+    Assert-KmcBootstrapInventoryString $o.fieldDismounted.releasedBoundaryState 'Unmounted'
     foreach($key in @('commandFinished','createdByPlayer')){Assert-KmcChunk7Boolean $o.fieldMovement.$key $true}
     Assert-KmcBootstrapInventoryString $o.fieldMovement.result 'Success'
     Assert-KmcBootstrapInventoryString $o.fieldMovement.executorId $s.petId
@@ -645,7 +680,7 @@ function Assert-KmcChunk7MammothFieldOutcome($s,$o){
     if($mount.frame-ge$ground.frame-or$ground.frame-ge$dismount.frame-or
        $o.fieldMovement.endFrame-ge$dismount.frame-or
        $o.fieldMounted.frame-lt$mount.settledFrame-or$o.fieldMounted.frame-ge$ground.frame-or
-       $o.fieldDismounted.frame-lt$dismount.settledFrame){
+       $boundary.frame-lt$dismount.settledFrame-or$o.fieldDismounted.frame-lt$boundary.frame){
         throw 'Mammoth field input and settled-owner chronology differs.'
     }
 }
