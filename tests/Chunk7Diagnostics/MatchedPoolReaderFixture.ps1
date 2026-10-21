@@ -45,6 +45,27 @@ function Invoke-MatchedPoolReaderChecks([string]$ActualCollector,[string]$Output
  $o|Add-Member worldEvidenceSha256 $worldHash
  $artifact=Artifact 'chunk7-matched-pool-measurements' $o
  Check-Matched 'actual collector shape accepts matched native external boundaries, Int64 generations and naturally decreasing heap occupancy' {Assert-KmcMatchedPoolEvidence $request $artifact $world $worldHash 'PASS'}
+ $f11Request=Copy-Matched $request
+ $f11Request|Add-Member f11AllocationProbe ([pscustomobject]@{contract='f11-native-allocation-v1'})
+ $f11Artifact=Copy-Matched $artifact
+ $f11Artifact.observations.managedAllocationRateMeasured=$true
+ foreach($row in $f11Artifact.observations.rows){
+  $row.sample|Add-Member nativeAllocation ([pscustomobject]@{
+   contract='f11-native-allocation-v1';helperSha256='fd7454205bc1b9be2e777f470b40559ed86c7c903dc9a338bd9cda41fab3c13d';monoSha256='9dde653c0eda16e02441437e64faa058cda6c5c8c82a193b17895249b2099534';windowThreadId=1234L;handshakeCallbacks=1L;handshakeObjectBytes=280L
+   callbacksPerUpdate=@(1..120|ForEach-Object{1L});objectBytesPerUpdate=@(1..120|ForEach-Object{80L});foreignCallbacksPerUpdate=@(1..120|ForEach-Object{0L})
+   overflowPerUpdate=@(1..120|ForEach-Object{0L});reentrantPerUpdate=@(1..120|ForEach-Object{0L});activePerUpdate=@(1..120|ForEach-Object{0L});threadIdPerUpdate=@(1..120|ForEach-Object{1234L});closeStatusPerUpdate=@(1..120|ForEach-Object{1L})
+   totalObjectBytes=9600L;elapsedFrameSeconds=1.2;objectBytesPerElapsedSecond=8000.0;limits='Synthetic Mono object bytes only.'
+  })
+ }
+ Check-Matched 'selected F11 native allocation vectors reconcile with all 120 measured Updates' {Assert-KmcMatchedPoolEvidence $f11Request $f11Artifact $world $worldHash 'PASS'}
+ Reject-Matched 'unselected native allocation claim' {Assert-KmcMatchedPoolEvidence $request $f11Artifact $world $worldHash 'PASS'}
+ Reject-Matched 'missing selected F11 window' {$v=Copy-Matched $f11Artifact;$v.observations.rows[0].sample.nativeAllocation.PSObject.Properties.Remove('objectBytesPerUpdate');Assert-KmcMatchedPoolEvidence $f11Request $v $world $worldHash 'PASS'}
+ Reject-Matched 'short selected F11 window' {$v=Copy-Matched $f11Artifact;$v.observations.rows[0].sample.nativeAllocation.callbacksPerUpdate=@(1..119|ForEach-Object{1L});Assert-KmcMatchedPoolEvidence $f11Request $v $world $worldHash 'PASS'}
+ Reject-Matched 'fabricated selected F11 byte rate' {$v=Copy-Matched $f11Artifact;$v.observations.rows[0].sample.nativeAllocation.objectBytesPerElapsedSecond=9000.0;Assert-KmcMatchedPoolEvidence $f11Request $v $world $worldHash 'PASS'}
+ Reject-Matched 'silent selected F11 callback handshake' {$v=Copy-Matched $f11Artifact;$v.observations.rows[0].sample.nativeAllocation.handshakeCallbacks=0L;Assert-KmcMatchedPoolEvidence $f11Request $v $world $worldHash 'PASS'}
+ Reject-Matched 'selected F11 window overflow' {$v=Copy-Matched $f11Artifact;$v.observations.rows[0].sample.nativeAllocation.overflowPerUpdate[0]=1L;Assert-KmcMatchedPoolEvidence $f11Request $v $world $worldHash 'PASS'}
+ Reject-Matched 'selected F11 window thread change' {$v=Copy-Matched $f11Artifact;$v.observations.rows[0].sample.nativeAllocation.threadIdPerUpdate[0]=1235L;Assert-KmcMatchedPoolEvidence $f11Request $v $world $worldHash 'PASS'}
+ Reject-Matched 'selected F11 without measured flag' {$v=Copy-Matched $f11Artifact;$v.observations.managedAllocationRateMeasured=$false;Assert-KmcMatchedPoolEvidence $f11Request $v $world $worldHash 'PASS'}
  Check-Matched 'historical four-window contract remains valid on its original shape' {
   $v=Copy-Matched $artifact;$v.observations.contract='chunk7-matched-resident-pool-v1'
   $old=@('resident-0-after-cycle-1','resident-1-cycle-2','resident-2-cycle-2','resident-0-after-cycle-2')

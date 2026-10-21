@@ -21,6 +21,7 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("request rejects save name in no-save mode", RequestRejectsSaveNameInNoSaveMode);
             runner.Run("request requires exact hash and MVID formats", RequestRequiresBuildIdentity);
             runner.Run("request accepts exact save-backed fixture", RequestAcceptsExactSaveBackedFixture);
+            runner.Run("F11 native observer request pins exact run-owned code and refuses other scenarios", F11NativeObserverRequestIsClosed);
             runner.Run("request accepts combat core control suite", RequestAcceptsCombatCoreControlSuite);
             runner.Run("request accepts observation-only horse native asset audit", RequestAcceptsHorseNativeAssetAudit);
             runner.Run("request accepts horse companion blueprint registration audit", RequestAcceptsHorseCompanionBlueprintRegistration);
@@ -697,6 +698,30 @@ namespace KingmakerMountedCombat.Tests
         {
             var request = ValidSaveBackedRequest();
             TestRunner.Equal(0, request.Validate().Count, "Valid save-backed fixture request was rejected.");
+        }
+
+        private static void F11NativeObserverRequestIsClosed()
+        {
+            var request = ValidSaveBackedRequest();
+            request.EvidenceRoot = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "kmc-f11-protocol", "runtime-evidence", request.RunId);
+            var selected = new F11NativeAllocationSelection {
+                Contract = F11NativeAllocationSelection.ContractId, BaseGameOnly = true,
+                Path = F11NativeAllocationSelection.ExpectedPath(request.RunId, request.EvidenceRoot),
+                Sha256 = F11NativeAllocationSelection.HelperSha256,
+                LoadedMonoPath = F11NativeAllocationSelection.ExpectedMonoPath(),
+                LoadedMonoSha256 = F11NativeAllocationSelection.MonoSha256
+            };
+            TestRunner.Equal(0, new System.Collections.Generic.List<string>(selected.Validate(request.RunId, request.EvidenceRoot)).Count,
+                "Exact native observer descriptor was rejected.");
+            request.F11AllocationProbe = selected;
+            TestRunner.True(request.Validate().Count > 0, "Another scenario admitted native helper loading.");
+            selected.Path = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "arbitrary.dll");
+            TestRunner.True(new System.Collections.Generic.List<string>(selected.Validate(request.RunId, request.EvidenceRoot)).Count > 0,
+                "Arbitrary native library path was admitted.");
+            selected.Path = F11NativeAllocationSelection.ExpectedPath(request.RunId, request.EvidenceRoot);
+            selected.Sha256 = Sha;
+            TestRunner.True(new System.Collections.Generic.List<string>(selected.Validate(request.RunId, request.EvidenceRoot)).Count > 0,
+                "A caller-supplied matching hash could replace the reviewed helper pin.");
         }
 
         private static void RequestRejectsMismatchedFixtureIdentity()

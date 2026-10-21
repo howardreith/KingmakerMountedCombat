@@ -41,9 +41,10 @@ function Assert-KmcMatchedResources($Before,$After,[string[]]$ActorIds) {
         foreach($name in @('initiative','prepared','reactions','reactionAllowance')){if($a.$name-ne$b.$name){throw 'Matched idle window changed native preparation, initiative or reactions.'}}
     }
 }
-function Assert-KmcMatchedPoolSample($Sample,[string]$Label,[int]$Active,[bool]$Phased) {
+function Assert-KmcMatchedPoolSample($Sample,[string]$Label,[int]$Active,[bool]$Phased,[bool]$ExpectAllocation) {
     $fields=@('label','warmupFrames','sampleFrames','startFrame','endFrame','stopwatchFrequency','serviceTicks','frameSeconds','serviceMeanMs','serviceP50Ms','serviceP95Ms','frameP50Ms','frameP95Ms','managedHeapBefore','managedHeapAfter','managedHeapDelta','forcedCollection','collectionsBefore','collectionsAfter','kmcLogMessages','kmcLogCharacters','ownersBefore','ownersAfter','subscriptionsBefore','subscriptionsAfter','limits')
     if($Phased){$fields+=@('phaseContract','pairUpdateTicks','turnUpdateTicks')}
+    if($ExpectAllocation){$fields+='nativeAllocation'}
     Assert-KmcExactProperties $Sample $fields 'Matched-pool raw sample'
     Assert-KmcMatchedString $Sample.label $Label
     foreach($field in @('warmupFrames','sampleFrames','startFrame','endFrame','stopwatchFrequency','managedHeapBefore','managedHeapAfter','kmcLogMessages','kmcLogCharacters')) {
@@ -79,6 +80,38 @@ function Assert-KmcMatchedPoolSample($Sample,[string]$Label,[int]$Active,[bool]$
     }
     if($Sample.ownersBefore.allocationActors-ne$Sample.ownersAfter.allocationActors){throw 'Idle sampling changed retained actor allocations.'}
     if($Sample.limits-isnot[string]-or[string]::IsNullOrWhiteSpace($Sample.limits)){throw 'Raw sample limits missing.'}
+    if($ExpectAllocation){
+        $native=$Sample.nativeAllocation
+        Assert-KmcExactProperties $native @('contract','helperSha256','monoSha256','windowThreadId','handshakeCallbacks','handshakeObjectBytes','callbacksPerUpdate','objectBytesPerUpdate','foreignCallbacksPerUpdate','overflowPerUpdate','reentrantPerUpdate','activePerUpdate','threadIdPerUpdate','closeStatusPerUpdate','totalObjectBytes','elapsedFrameSeconds','objectBytesPerElapsedSecond','limits') 'F11 native allocation sample'
+        Assert-KmcMatchedString $native.contract 'f11-native-allocation-v1'
+        Assert-KmcMatchedString $native.helperSha256 'fd7454205bc1b9be2e777f470b40559ed86c7c903dc9a338bd9cda41fab3c13d'
+        Assert-KmcMatchedString $native.monoSha256 '9dde653c0eda16e02441437e64faa058cda6c5c8c82a193b17895249b2099534'
+        Assert-KmcMatchedInt64 $native.windowThreadId
+        if($native.windowThreadId-le0-or$native.windowThreadId-gt[uint32]::MaxValue){throw 'F11 sampled OS thread ID is invalid.'}
+        foreach($name in @('handshakeCallbacks','handshakeObjectBytes')){Assert-KmcMatchedInt64 $native.$name;if($native.$name-le0){throw 'F11 native callback handshake did not observe a managed allocation.'}}
+        foreach($name in @('callbacksPerUpdate','objectBytesPerUpdate','foreignCallbacksPerUpdate','overflowPerUpdate','reentrantPerUpdate','activePerUpdate','threadIdPerUpdate','closeStatusPerUpdate')){
+            if($native.$name-isnot[Array]-or$native.$name.Count-ne120){throw 'F11 allocation vector differs from the measured 120 Updates.'}
+            foreach($value in $native.$name){Assert-KmcMatchedInt64 $value;if($value-lt0){throw 'F11 allocation count is negative.'}}
+        }
+        for($index=0;$index-lt120;$index++){
+            if($native.overflowPerUpdate[$index]-ne0-or$native.reentrantPerUpdate[$index]-ne0-or$native.activePerUpdate[$index]-ne0-or
+                $native.threadIdPerUpdate[$index]-ne$native.windowThreadId-or$native.closeStatusPerUpdate[$index]-cnotin@(1,2)){
+                throw 'F11 native allocation window safety counters differ.'
+            }
+        }
+        $sum=[decimal]0
+        foreach($value in $native.objectBytesPerUpdate){$sum+=[decimal]$value}
+        Assert-KmcMatchedInt64 $native.totalObjectBytes
+        if($native.totalObjectBytes-ne$sum){throw 'F11 total object bytes differ from raw Update windows.'}
+        $elapsed=0d;foreach($value in $Sample.frameSeconds){$elapsed+=[double]$value}
+        if(-not(Test-KmcChunk7FiniteNumber $native.elapsedFrameSeconds)-or
+            [Math]::Abs([double]$native.elapsedFrameSeconds-$elapsed)-gt0.00001-or
+            -not(Test-KmcChunk7FiniteNumber $native.objectBytesPerElapsedSecond)-or
+            [Math]::Abs([double]$native.objectBytesPerElapsedSecond-([double]$sum/$elapsed))-gt0.01-or
+            $native.limits-isnot[string]-or[string]::IsNullOrWhiteSpace($native.limits)){
+            throw 'F11 elapsed-time rate or limits differ from raw observations.'
+        }
+    }
 }
 function Assert-KmcMatchedPoolEvidence($Request,$Artifact,$WorldArtifact,[string]$WorldSha256,[string]$Status) {
     Assert-KmcChunk7ArtifactEnvelope $Request $Artifact 'chunk7-matched-pool-measurements'
@@ -101,7 +134,9 @@ function Assert-KmcMatchedPoolEvidence($Request,$Artifact,$WorldArtifact,[string
     Assert-KmcMatchedString $o.worldEvidenceSha256 $WorldSha256
     if($WorldSha256-cnotmatch'^[0-9a-f]{64}$'){throw 'Original world artifact hash is missing.'}
     foreach($flag in @('complete','observerReleased','inclusiveUpdateIncludesObserverWork')){Assert-KmcChunk7Boolean $o.$flag $true}
-    foreach($flag in @('managedAllocationRateMeasured','fullyInertDiagnostics','performanceAccepted')){Assert-KmcChunk7Boolean $o.$flag $false}
+    $f11Selected=@($Request.PSObject.Properties.Name)-ccontains'f11AllocationProbe'
+    Assert-KmcChunk7Boolean $o.managedAllocationRateMeasured $f11Selected
+    foreach($flag in @('fullyInertDiagnostics','performanceAccepted')){Assert-KmcChunk7Boolean $o.$flag $false}
     foreach($name in @('residentBoundaries','residentParticipants','warmupNativeCycle','measuredNativeCycle','additionalNativeInputs')){Assert-KmcChunk7WorldInt32 $o.$name}
     if($o.residentBoundaries-ne2-or$o.residentParticipants-ne2-or$o.warmupNativeCycle-ne1-or$o.measuredNativeCycle-ne2-or$o.additionalNativeInputs-ne0-or$null-ne$o.abortedWindow-or
         $o.rows-isnot[Array]-or$o.rows.Count-ne$labels.Count-or$o.limits-isnot[string]-or[string]::IsNullOrWhiteSpace($o.limits)){throw 'Matched-pool sequence or evidence limits differ.'}
@@ -123,7 +158,7 @@ function Assert-KmcMatchedPoolEvidence($Request,$Artifact,$WorldArtifact,[string
         Assert-KmcChunk7WorldInt32 $row.index;Assert-KmcChunk7WorldInt32 $row.activePairs
         Assert-KmcMatchedString $row.label $labels[$i]
         if($row.index-ne$i-or$row.activePairs-ne$active[$i]){throw 'Matched-pool row order/count differs.'}
-        Assert-KmcMatchedPoolSample $row.sample $labels[$i] $active[$i] $phased
+        Assert-KmcMatchedPoolSample $row.sample $labels[$i] $active[$i] $phased $f11Selected
         foreach($boundary in @($row.before,$row.after)){
             Assert-KmcExactProperties $boundary @('identityPins','actorIds','expectedActivePairs','world','commandsSettled','preparationPending','relationshipTransition','serializationBusy','pendingNativeWrites','allocationActors') 'Matched native boundary'
             if($boundary.identityPins-isnot[Array]-or$boundary.identityPins.Count-ne22-or$boundary.actorIds-isnot[Array]-or$boundary.actorIds.Count-ne4){throw 'Matched native identity cardinality differs.'}

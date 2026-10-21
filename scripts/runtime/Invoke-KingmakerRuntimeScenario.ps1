@@ -42,6 +42,7 @@ param(
     [switch]$BaseGameOnly,
     [switch]$DevelopmentScopedAudit,
     [switch]$ObserveWorkingDeserialization,
+    [switch]$F11NativeAllocationProbe,
     [switch]$OwnerStockRemoval,
     [ValidateSet('authored-main-campaign')][string]$NativeBootstrapCase,
     [string]$OrdinarySelectionPath,
@@ -112,6 +113,10 @@ $WhatIfPreference=$false
 if($PSBoundParameters.ContainsKey('ObserveWorkingDeserialization') -and
     (-not$ObserveWorkingDeserialization -or $Scenario -cne 'export-mounted-contracts' -or -not$BaseGameOnly -or -not$SaveAccessAllowed)) {
     throw 'Working deserialization observation requires its exact true opt-in, export-mounted-contracts, qualified save access and explicit base-only staging.'
+}
+if($F11NativeAllocationProbe -and ($Scenario -cne 'chunk7-owned-two-pair-campaign' -or
+    -not$BaseGameOnly -or -not$SaveAccessAllowed -or [string]::IsNullOrWhiteSpace($OwnedPairsSelectionPath))) {
+    throw 'F11 native allocation observation requires the inherited two-pair exploration, an explicit owned selection, qualified save access and base-only staging.'
 }
 . (Join-Path $PSScriptRoot 'RuntimeHarness.Common.ps1')
 . (Join-Path $PSScriptRoot 'PersistenceProfileProtection.ps1')
@@ -345,6 +350,19 @@ $runtimeState=Join-Path $labRoot 'runtime-state'
 $runtimeBackups=Join-Path $labRoot 'runtime-backups'
 $runtimeStaging=Join-Path $labRoot 'runtime-staging'
 $runtimeEvidence=Join-Path $labRoot 'runtime-evidence'
+$f11SourcePath='C:\Dev\KingmakerMountedCombatLab\analysis-cache\chunk7-continuation\f11-native-shim-20261021\KmcF11AllocationProbe.dll'
+$f11HelperSha='fd7454205bc1b9be2e777f470b40559ed86c7c903dc9a338bd9cda41fab3c13d'
+$f11MonoPath='C:\Program Files (x86)\Steam\steamapps\common\Pathfinder Kingmaker\MonoBleedingEdge\EmbedRuntime\mono-2.0-bdwgc.dll'
+$f11MonoSha='9dde653c0eda16e02441437e64faa058cda6c5c8c82a193b17895249b2099534'
+if($F11NativeAllocationProbe){
+    if(-not(Test-Path -LiteralPath $f11SourcePath -PathType Leaf)-or-not(Test-Path -LiteralPath $f11MonoPath -PathType Leaf)){
+        throw 'The reviewed F11 helper or exact installed Mono is absent.'
+    }
+    Assert-KmcNotReparsePoint $f11SourcePath 'F11 helper source'; Assert-KmcNotHardLink $f11SourcePath 'F11 helper source'
+    if((Get-KmcSha256 $f11SourcePath)-cne$f11HelperSha-or(Get-KmcSha256 $f11MonoPath)-cne$f11MonoSha){
+        throw 'The reviewed F11 helper or installed Mono bytes differ.'
+    }
+}
 $liveMods=[string]$intake.requestedLayout.kingmakerModsRoot
 $saveRoot=[string]$intake.requestedLayout.kingmakerSaveRoot
 $gameExecutable=Join-Path ([string]$intake.requestedLayout.kingmakerInstallDir) 'Kingmaker.exe'
@@ -586,6 +604,11 @@ try{
         evidenceRoot=$evidenceRoot
     }
     if($ObserveWorkingDeserialization){$request['observeWorkingDeserialization']=$true}
+    if($F11NativeAllocationProbe){$request['f11AllocationProbe']=[ordered]@{
+        contract='f11-native-allocation-v1';baseGameOnly=$true
+        path=(Join-Path (Join-Path (Join-Path $runtimeStaging $actualRunId) 'f11-native-probe') 'KmcF11AllocationProbe.dll')
+        sha256=$f11HelperSha;loadedMonoPath=$f11MonoPath;loadedMonoSha256=$f11MonoSha
+    }}
     if($OwnerStockRemoval){$request['ownerStockRemoval']=$true}
     if(Test-KmcChunk7OrdinaryScenario $Scenario){$request['ordinaryAcquisition']=$ordinarySelectionInput.selection}
     if(Test-KmcChunk7SmallScenario $Scenario){$request['smallCalibration']=$smallSelectionInput.selection}
@@ -957,6 +980,17 @@ try{
         $stageArguments['BaseGameDependencies']=$baseGameDependencies
     }
     $modsTransactionStatePath=Enter-KmcModsTransaction -Lock $lock -LiveModsRoot $liveMods -PackagePath $(if($isObserver){$ObserverPackagePath}else{$PackagePath}) -StateRoot $runtimeState -BackupRoot $runtimeBackups -StagingRoot $runtimeStaging -StagingMode $(if($BaseGameOnly){'base-game-only-kmc'}elseif($isObserver){'live-clone-minus-kmc-plus-observer'}else{'live-clone-plus-kmc-overlay'}) @stageArguments
+    if($F11NativeAllocationProbe){
+        $f11RunRoot=Assert-KmcChildPath (Join-Path (Join-Path $runtimeStaging $actualRunId) 'f11-native-probe') $runtimeStaging 'F11 run-owned staging'
+        if(Test-Path -LiteralPath $f11RunRoot){throw 'F11 run-owned staging already exists.'}
+        New-Item -ItemType Directory -Path $f11RunRoot | Out-Null
+        $f11Staged=Join-Path $f11RunRoot 'KmcF11AllocationProbe.dll'
+        Copy-Item -LiteralPath $f11SourcePath -Destination $f11Staged
+        Assert-KmcNotReparsePoint $f11Staged 'F11 staged helper'; Assert-KmcNotHardLink $f11Staged 'F11 staged helper'
+        if((Get-KmcSha256 $f11SourcePath)-cne$f11HelperSha-or(Get-KmcSha256 $f11Staged)-cne$f11HelperSha){
+            throw 'The F11 helper changed during its guarded run-owned copy.'
+        }
+    }
     if($BaseGameOnly){
         $baseGameStaged=$true
         Write-KmcJsonAtomic (Join-Path $evidenceRoot 'base-game-isolation-admission.json') ([ordered]@{schemaVersion=1;runId=$actualRunId;

@@ -80,7 +80,8 @@ namespace KingmakerMountedCombat.Diagnostics
             ["contract"] = Contract, ["complete"] = Complete, ["observerReleased"] = Released,
             ["residentBoundaries"] = 2, ["residentParticipants"] = 2, ["warmupNativeCycle"] = 1,
             ["measuredNativeCycle"] = 2, ["additionalNativeInputs"] = 0,
-            ["inclusiveUpdateIncludesObserverWork"] = true, ["managedAllocationRateMeasured"] = false,
+            ["inclusiveUpdateIncludesObserverWork"] = true,
+            ["managedAllocationRateMeasured"] = Complete && rows.All(row => row["sample"]?["nativeAllocation"] != null),
             ["fullyInertDiagnostics"] = false, ["performanceAccepted"] = false,
             ["rows"] = rows.DeepClone(), ["abortedWindow"] = aborted?.DeepClone(),
             ["limits"] = "Inclusive KMC Update contains native safety/scenario and sampler work. Whole-frame delta is native game/render elapsed time. Managed heap occupancy includes other code and uncollected garbage; it is not allocated bytes, allocation rate or leak proof. This sequence matches resident pools but does not remove time/order or observer overhead." };

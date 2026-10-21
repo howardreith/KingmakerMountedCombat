@@ -238,6 +238,7 @@
     <Compile Include="Diagnostics\Chunk7NativeProfileInventory.cs" />
     <Compile Include="Diagnostics\RuntimeLoaderInventory.cs" />
     <Compile Include="Diagnostics\MountedRuntimeMeasurement.cs" />
+    <Compile Include="Diagnostics\F11NativeAllocationProbe.cs" />
     <Compile Include="Diagnostics\Chunk7MatchedPoolCollector.cs" />
     <Compile Include="Diagnostics\MountedOptionalDiagnosticsWindow.cs" />
     <Compile Include="Diagnostics\Phase3dHorseScenarioTranche.cs" />

@@ -56,7 +56,7 @@ if($compileExit-is[int]-and$compileExit-eq0-and$loaderCompileExit-is[int]-and$lo
  try{$ErrorActionPreference='Continue';$run=@(& $loaderExe $exe $fixtureRoot 2>&1);$adapterExit=$global:LASTEXITCODE}finally{$ErrorActionPreference=$savedPreference}
  $lines=@($run|ForEach-Object{$_.ToString()});$summary=@($lines|Where-Object{$_-cmatch'^STARTUP TRACE PASS=([0-9]+) FAIL=([0-9]+)$'})
  if($summary.Count-eq1-and$summary[0]-cmatch'^STARTUP TRACE PASS=([0-9]+) FAIL=([0-9]+)$'){$adapterPass=[int]$Matches[1];$adapterFail=[int]$Matches[2]}
- if($adapterExit-is[int]-and$adapterExit-eq0-and$adapterPass-eq44-and$adapterFail-eq0){
+ if($adapterExit-is[int]-and$adapterExit-eq0-and$adapterPass-eq45-and$adapterFail-eq0){
   $powershell=Pin-Startup (Join-Path $PSHOME 'powershell.exe');$readerArgs=@('-NoProfile','-NonInteractive','-File',$readerTest,'-RepositoryRoot',$RepositoryRoot,'-FixtureRoot',$fixtureRoot,'-OutputRoot',$OutputRoot)
   if(-not[string]::IsNullOrWhiteSpace($SourceOverlayRoot)){$readerArgs+=@('-SourceOverlayRoot',$SourceOverlayRoot)}
   $global:LASTEXITCODE=$null
@@ -68,7 +68,7 @@ if($compileExit-is[int]-and$compileExit-eq0-and$loaderCompileExit-is[int]-and$lo
 [void](Write-StartupFile 'adapter.log' (($run|ForEach-Object{$_.ToString()})-join[Environment]::NewLine));[void](Write-StartupFile 'reader.log' (($readerRun|ForEach-Object{$_.ToString()})-join[Environment]::NewLine))
 $clock.Stop();$run|ForEach-Object{Write-Output $_};$readerRun|ForEach-Object{Write-Output $_}
 $changed=@($inputs.Keys|Where-Object{(Get-FileHash -LiteralPath $_ -Algorithm SHA256).Hash.ToLowerInvariant()-cne$inputs[$_]})
-$ok=$compileExit-is[int]-and$compileExit-eq0-and$loaderCompileExit-is[int]-and$loaderCompileExit-eq0-and$adapterExit-is[int]-and$adapterExit-eq0-and$adapterPass-eq44-and$adapterFail-eq0-and$readerExit-is[int]-and$readerExit-eq0-and$readerPass-eq45-and$readerFail-eq0-and$changed.Count-eq0
+$ok=$compileExit-is[int]-and$compileExit-eq0-and$loaderCompileExit-is[int]-and$loaderCompileExit-eq0-and$adapterExit-is[int]-and$adapterExit-eq0-and$adapterPass-eq45-and$adapterFail-eq0-and$readerExit-is[int]-and$readerExit-eq0-and$readerPass-eq45-and$readerFail-eq0-and$changed.Count-eq0
 $outputs=@(Get-ChildItem -LiteralPath $OutputRoot -File -Recurse|Where-Object{$_.Extension-notin@('.exe','.dll')}|Sort-Object FullName|ForEach-Object{[ordered]@{path=$_.FullName;sha256=(Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()}})
 $inputRows=@($inputs.Keys|Sort-Object|ForEach-Object{[ordered]@{path=$_;sha256=$inputs[$_]}})
 $receipt=[ordered]@{schemaVersion=1;kind='runtime-startup-actual-method-and-reader-tests';status=$(if($ok){'PASS'}else{'FAIL'});compileExit=$compileExit;loaderCompileExit=$loaderCompileExit;serializerDependenciesResolvedInPlace=$true;adapterExit=$adapterExit;readerExit=$readerExit;adapterPass=$adapterPass;adapterFail=$adapterFail;readerPass=$readerPass;readerFail=$readerFail;durationSeconds=$clock.Elapsed.TotalSeconds;inputs=$inputRows;outputs=$outputs;changedInputs=$changed;compilerNoConfigOnArgv=$true;actualMainAndCompositionMethods=$true;actualHostEntryPrefixAndResultDtos=$true;actualRecorder=$true;actualJsonSettings=$true;externalNativeServicesUnityClockAndRestOfHostFacaded=$true;fullGameResultQualificationExecuted=$false;nativeInvoked=$false;archiveOperations=0}

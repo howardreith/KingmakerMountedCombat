@@ -193,6 +193,25 @@ returned thread ID. Guarded staging, exact helper/hash pinning, request-only
 load, run-root evidence and process-exit-before-restoration remain unimplemented.
 No native allocation rate or F11 PASS follows from this host.
 
+The October 21 implementation checkpoint adds a request-only game adapter for
+the reviewed private helper. The exact base-only two-pair exploration request
+and external reader pin the helper and installed Mono SHA-256 values. The
+guarded runner copies the helper to a run-owned staging directory outside the
+two-file Mod overlay, checks source and copy identity, and waits for the
+disposable game process to exit before restoring the transaction. The product
+loads only that run copy, retains it through process exit, and performs a
+positive in-process managed-allocation callback handshake outside all sample
+windows. Each of 12 matched states uses 30 warmup and 120 measured Updates;
+the observer brackets UpdateCore on its owning OS thread and emits raw object
+bytes, callback counts, foreign callbacks, thread identity and close/overflow/
+reentrancy/active state per window. The external reader independently rejects
+missing or unsafe vectors and a silent handshake. A competing UpdateCore
+exception retains precedence over observer cleanup failures. Independent
+source review found no blocker; focused matched-pool 87/0, quiet-window 28/0,
+extracted startup 45/0 plus reader 45/0, and Candidate 7/0 passed offline.
+Game callback delivery, actual rates, profile effects and transaction
+restoration remain to be measured in one declared guarded native scenario.
+
 Before seeing final measurements, the comparison rule is: repeated windows
 must retain the same declared actor/owner/subscription population within
 each state, and repeated settled lifecycle cycles must return to the same
