@@ -12,6 +12,14 @@ F11 and final-package 7E remain open; pending-only migration has prior
 development evidence subject to final-package reuse. Batch119 below is
 historical on its own inputs.
 
+The current preview.87 offline quiet/defaults and diagnostics-off checks pass
+28/0 and 29/0; these do not measure allocation rate or native normal-player
+behavior. The pinned installed Mono profiler export inventory supports a
+process-lifetime instrument investigation, with ABI and guarded-output
+contracts still unproven. Old Cyclops Tomb is a revealed/unvisited owner-seed
+destination candidate for a new door fixture; no door or safe scene has been
+observed there. The two inspected scenes remain local zero-door results.
+
 [Batch119](docs/CHUNK7-BATCH119-MAMMOTH-DISMOUNT-CUSTODY-2026-10-21.md)
 completed a four-slot preview.86 diagnostic chain. Its field result remains
 **FAIL 3/1**, but the new snapshot proves successful native Dismount dispatch,

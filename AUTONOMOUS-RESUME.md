@@ -21,6 +21,26 @@ the unchanged field case. Pending-only migration already has separate
 development PASS evidence from batches 41–42, subject to final-package reuse.
 F09 breadth, F11 and 7E are still open. The batch119 section below is historical.
 
+The subsequent requirement audit confirmed that batches 41–42 already cover
+development migration, batches 65/67 positive cleanup and genuine DLL-absent
+cold load, and batches 60–61 area Auto/cold. Those are final-package reuse
+questions, not missing first-pass development runs. Current preview.87
+offline quiet/default settings and diagnostics-off method checks pass 28/0
+and 29/0; they confer no native normal-player or allocation-rate proof.
+The next independent F11 action is to pin the exact installed Mono profiler
+ABI and a process-lifetime, disposable-host loading/output/settlement route
+before proposing an allocation-event native run. The existing installed-PE
+receipt is
+`analysis-cache/chunk7-continuation/f11-allocation-api-20261019/f11-native-profiler-boundary.json`;
+it does not establish a reversible
+in-mod callback. For the ordinary-door fixture, the owner-seed inventory has
+revealed but unvisited Old Cyclops Tomb at location
+`38638e43953432e42a037956f798f15e`, entry
+`c23675e173391ad4297dbe3720122bca`, area
+`81b13ce8765469045864ffb878b0944b`. Its door count and safe mounted
+free-control state are unknown; Spider Cave and Manticore Lair are locally
+negative. Do not claim a door or start an unreviewed transfer.
+
 ## Active October 21 after batch119 Dismount diagnosis — correction next
 
 The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
