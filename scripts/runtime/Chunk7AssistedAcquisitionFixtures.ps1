@@ -9,7 +9,9 @@ function Read-KmcAssistedConnectionJson([string]$Path,$ExpectedHash=$null){
   $stream=[IO.FileStream]::new($path,[IO.FileMode]::Open,[IO.FileAccess]::Read,[IO.FileShare]::Read);$hashAlgorithm=[Security.Cryptography.SHA256]::Create()
   $hash=[BitConverter]::ToString($hashAlgorithm.ComputeHash($stream)).Replace('-','').ToLowerInvariant()
   if($null-ne$ExpectedHash-and$hash-cne$ExpectedHash){throw 'Assisted connection receipt hash differs.'}
-  Assert-KmcManifestJsonMembersUnique $path 'assisted connection receipt';$value=Read-KmcJson $path;Assert-KmcConnectionObject $value 'receipt'
+  Assert-KmcManifestJsonMembersUnique $path 'assisted connection receipt'
+  $value=[IO.File]::ReadAllText($path,[Text.UTF8Encoding]::new($false,$true))|ConvertFrom-Json
+  Assert-KmcConnectionObject $value 'receipt'
   $stream.Position=0;$afterHash=[BitConverter]::ToString($hashAlgorithm.ComputeHash($stream)).Replace('-','').ToLowerInvariant();$after=Get-Item -LiteralPath $path
   if($stream.Length-ne$info.Length-or$after.Length-ne$info.Length-or$after.LastWriteTimeUtc.Ticks-ne$info.LastWriteTimeUtc.Ticks-or$afterHash-cne$hash){throw 'Assisted connection receipt changed during read.'}
  }finally{try{if($hashAlgorithm){$hashAlgorithm.Dispose()}}finally{if($stream){$stream.Dispose()}}}

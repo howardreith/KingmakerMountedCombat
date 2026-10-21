@@ -220,7 +220,10 @@ function Get-KmcChunk7AssistedFixtureSource($Selection,$Fixture,$Candidate) {
         $pins.Add([pscustomobject]@{path=$path;sha256=$hash;length=[long]$file.Length;lastWriteTimeUtcTicks=[long]$file.LastWriteTimeUtc.Ticks})
     }
     $request=Read-KmcJson (Join-Path $root 'runtime-request.json');$result=Read-KmcJson (Join-Path $root 'runtime-result.json');$game=Read-KmcJson (Join-Path $root 'runtime-game-result.json')
-    $owner=Read-KmcJson $ownerPath;$isolation=Read-KmcJson (Join-Path $root 'base-game-isolation-result.json');$profileReceipt=Read-KmcJson (Join-Path $root 'profile-cache-changes.json')
+    $owner=Read-KmcJson $ownerPath;$isolation=Read-KmcJson (Join-Path $root 'base-game-isolation-result.json')
+    # Native cache leaf names can contain Unicode replacement characters. Read
+    # the already-pinned JSON as strict UTF-8 before applying the exact path rule.
+    $profileReceipt=[IO.File]::ReadAllText((Join-Path $root 'profile-cache-changes.json'),[Text.UTF8Encoding]::new($false,$true))|ConvertFrom-Json
     Assert-KmcBootstrapInventoryString $request.runId $Selection.sourceRunId;Assert-KmcBootstrapInventoryString $request.scenario 'chunk7-assisted-fixture-preparation';Assert-KmcBootstrapInventoryString $request.evidenceRoot $root
     Assert-KmcChunk7AssistedFixtureSelection $request
     foreach($key in @('working','baseline')){Assert-KmcAssistedSame $request.fixture.$key $Fixture.$key ('assisted source exact '+$key+' descriptor')}
