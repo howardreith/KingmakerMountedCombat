@@ -72,6 +72,7 @@ namespace KingmakerMountedCombat.Diagnostics
             poses.Add(new JObject { ["phase"] = "unmounted-field", ["observation"] = Chunk7SmallPoseObservation.Capture(actor, pet, declaration, null, calibration.UsesFixtureManualField) });
             trace = new NativeActorAllocationTrace(actor, pet, world.Primary.Combat, deferInstallation: true);
             trace.Install(); trace.BeginEncounter(request.RunId + ":small-calibration");
+            if (calibration.UsesPresentation) BeginPresentationFixture();
             IssueAbility(controls.MountAbility, pet, "native-mount", true); calibrationStage = 1;
         }
         private bool CommandsSettled() => issued.All(value => value.IsFinished && (!(value is UnitUseAbility) ||
@@ -115,7 +116,13 @@ namespace KingmakerMountedCombat.Diagnostics
                     IssuePrimary(true); calibrationStage = 6; break;
                 case 6:
                     if (!FinishPrimary(pet)) return;
-                    ObservePose("mount-primary-complete"); Pass("C7-small-mount-primary"); calibrationStage = 7; break;
+                    ObservePose("mount-primary-complete"); Pass("C7-small-mount-primary");
+                    if (calibration.UsesPresentation)
+                    {
+                        calibrationStage = 11;
+                    }
+                    else calibrationStage = 7;
+                    break;
                 case 7:
                     if (!CommandsSettled()) return;
                     if (!EndEncounter()) return;
@@ -126,6 +133,20 @@ namespace KingmakerMountedCombat.Diagnostics
                     poses.Add(new JObject { ["phase"] = "dismounted-field", ["observation"] = Chunk7SmallPoseObservation.Capture(actor, pet, declaration, null, calibration.UsesFixtureManualField) });
                     evidence["representativeNativeActionsObserved"] = true;
                     Pass("C7-small-native-pose-observation"); BeginCleanup(); break;
+                case 9:
+                    if (!FinishPresentationInput()) return;
+                    Pass("C7-small-scroll-presentation");
+                    calibrationStage = 12; break;
+                case 10:
+                    if (!FinishPresentationInput()) return;
+                    Pass("C7-small-potion-presentation");
+                    calibrationStage = 7; break;
+                case 11:
+                    if (!NativeReady(actor) || !CommandsSettled()) return;
+                    BeginPresentationInput(presentationScroll, pet, "scroll-friendly"); calibrationStage = 9; break;
+                case 12:
+                    if (!NativeReady(actor) || !CommandsSettled()) return;
+                    BeginPresentationInput(presentationPotion, actor, "potion-self"); calibrationStage = 10; break;
             }
         }
         private void ObservePose(string phase)

@@ -62,6 +62,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (world.Registry.Owners.Length != 0 || world.Pairs.Any(value => !value.Relationship.Runtime.NoPreparedPairResidue || value.Relationship.PairOwner != null) ||
                     !CommandsSettled() || world.UnifiedTurn.HasUnsettledPreparation)
                 { Retain("Pair ownership/view/preparation residue remains pending."); return; }
+                if (presentationTrace != null && !TryRelease("native Small item presentation fixture", () =>
+                    Require(ReleasePresentationFixture(), "Native Small item/process custody remains pending.")))
+                { Retain("Owned native Small item presentation cleanup remains pending."); return; }
                 if (trace != null)
                 {
                     if (evidence["allocationTrace"] == null) evidence["allocationTrace"] = trace.Capture();

@@ -630,6 +630,7 @@
     <Compile Include="Diagnostics\Chunk7SmallPoseObservation.cs" />
     <Compile Include="Diagnostics\Chunk7SmallCalibrationScenario.cs" />
     <Compile Include="Diagnostics\Chunk7SmallCalibrationActions.cs" />
+    <Compile Include="Diagnostics\Chunk7SmallCalibrationPresentation.cs" />
     <Compile Include="Diagnostics\Chunk7SmallCalibrationCleanup.cs" />
     <Compile Include="Main.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

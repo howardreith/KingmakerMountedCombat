@@ -66,6 +66,7 @@ namespace KingmakerMountedCombat.Diagnostics
         internal bool ProcessesSettled => processes.All(p => p.IsEnded);
         internal IReadOnlyList<UnitUseAbility> Shells => shells;
         internal IReadOnlyList<UnitEntityData> Summons => summons;
+        internal Action<UnitUseAbility> ActionBoundaryObserved { get; set; }
         internal void BeginCase(string id) { caseId = id; }
         internal int Identity(object value) => identities.Get(value);
         internal JArray EventsSince(int offset) => new JArray(events.Skip(offset).Select(e => e.DeepClone()));
@@ -114,6 +115,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var process = shell.ExecutionProcess;
             if (process != null && !processes.Contains(process)) processes.Add(process);
             Record(kind, shell, shell.Executor)["shell"] = Shell(shell);
+            if (kind == "action-before") ActionBoundaryObserved?.Invoke(shell);
         }
         private static void Guard(Action<NativeCastingItemTrace> body)
         {
