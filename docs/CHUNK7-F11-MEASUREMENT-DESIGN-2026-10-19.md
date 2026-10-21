@@ -22,6 +22,32 @@ controlled allocations and 7,400 bytes via the installed object-size API.
 These are offline ABI observations, not an admitted game profiler,
 allocation-rate result or change to the predeclared comparison rule below.
 
+An October 21 disposable two-handle follow-up used the exact installed Mono
+DLL's modern `mono_profiler_create`,
+`mono_profiler_set_gc_allocation_callback` and
+`mono_profiler_enable_allocations` exports. Two distinct profiler handles each
+counted 100 controlled Mono strings and 7,400 managed object-size bytes.
+Clearing only the first handle's callback left the second receiving 20 further
+allocations; clearing the second stopped both counters. The process exited 0
+without calling Mono domain cleanup. The private source, binary and structured
+receipt are under
+`analysis-cache/chunk7-continuation/f11-mono-multi-profiler-host-20261021/`;
+receipt SHA-256 is
+`4fab715eb31c581725b10c8d2063f1c09e983104511c4bc2c5496319b6a48c12`.
+This demonstrates separate callback registration/removal in an isolated host,
+not safe game-side installation. Allocation instrumentation remained globally
+enabled for that disposable process's lifetime, callback removal was not
+tested against concurrent game threads, and no KMC Update attribution or
+normal-player inertness was measured. F11 allocation rate remains open.
+An independent read-only safety review found the result narrows profiler
+coexistence but does not admit a Mono-managed callback: the earlier managed
+embedding attempt failed before registration, and neither global allocation
+enablement nor concurrent callback removal has a proven reversible owner. The
+next candidate is a run-scoped, process-lifetime native observer with exact
+ABI/build/staging, allocation-free callback, thread gate, bounded output and
+process exit before guarded restoration; it still requires review before a
+game run.
+
 [Batches101–102](CHUNK7-BATCH101-102-F11-UPDATE-TIMING-2026-10-20.md)
 added opt-in KMC Update phase spans and localized the active-pair increase
 primarily to `world.UpdatePairs`. A reviewed correction reuses a Unity list in
