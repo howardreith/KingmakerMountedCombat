@@ -1,5 +1,14 @@
 # Chunk 7B–7D — IN PROGRESS
 
+[Batch137](docs/CHUNK7-BATCH137-F11-STARTUP-AND-SIX-PAIR-FEASIBILITY-2026-10-21.md)
+passed one guarded, base-only no-save native startup control on a clean-HEAD
+package with the same preview.94 DLL bytes: shipped diagnostic overlay off,
+no overlay object or startup actions, and zero save/load requests. Its
+transaction restored Mods, protected saves and profile bytes exactly. This
+does not establish request-free ordinary-world controls or allocation rate.
+The retained F09 source has five field riders and two native Horse pets; the
+missing six-pair fixture and production two-pair cap remain open.
+
 The [batches 135–136 F09 presentation record](docs/CHUNK7-BATCH135-136-F09-PRESENTATION-2026-10-21.md)
 adds a preview.94 game **PASS 11/11** for the selected mounted Halfling/Horse
 scroll-to-Horse and potion-self item presentation, with native spending,

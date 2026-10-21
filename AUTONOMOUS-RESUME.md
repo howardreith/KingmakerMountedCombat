@@ -1,6 +1,35 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
-## Active October 21 after batches 135–136 F09 presentation
+## Active October 21 after batch137 F11 native startup control
+
+The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
+[Batch137](docs/CHUNK7-BATCH137-F11-STARTUP-AND-SIX-PAIR-FEASIBILITY-2026-10-21.md)
+passed one base-only, guarded `mod-load-smoke` on a clean-HEAD package with
+byte-identical preview.94 DLL SHA-256
+`4731d2c612940c9a56c79300c2b34b680f9cd2e02f4300d08e08c3d0cfb35ef1`.
+The original package-pin WhatIf refusal preceded staging. The rebuilt package
+SHA-256 `428e6ebe494033f39b18ba65c115c45d97a0395c4847ec53ff1bfcea040a1887`
+passed scoped WhatIf and one native no-save scenario; game and outer PASS.
+Native startup reported overlay off/no object, zero actions and zero saves or
+loads. The transaction is `restored`, with exact Mods, Working/protected-save
+inventory and profile bytes, no cache exception, no game process or lock.
+The automation host remained present, so F11 ordinary player controls and
+allocation rate remain unqualified. The retained F09 Small source has five
+field riders and two native Horse pets, with three level-four nonpet actors
+unable to level. A six-pair stress fixture needs one rider and four genuine
+mounts plus a reviewed diagnostic capacity/save boundary; no engine ceiling
+has been demonstrated.
+
+Next: pursue a guarded, request-free ordinary-world F11 control and a safe
+allocation-event measurement route, or advance bounded F10 new-character
+progression and an admitted ordinary-door source while instrumentation is
+designed. Do not replay the unchanged F09 presentation or matched debt cases.
+No final 7E rehearsal is ready. The guarded push-helper WhatIf was rejected by
+automatic approval review (`approval required by policy; AskForApproval is
+Never`), so no alternate push; draft PR #5 is remote-stale. Engineering
+completion is not yet claimed.
+
+## Historical October 21 after batches 135–136 F09 presentation
 
 The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
 [Batches 135–136](docs/CHUNK7-BATCH135-136-F09-PRESENTATION-2026-10-21.md)
@@ -22,8 +51,7 @@ focused synthetic checks 57/0. Its receipt is
 Both transactions reached `restored` with exact Mods, Working/save inventory
 and profile bytes, zero cache exceptions; no game process or lock remains.
 
-Next: commit this external-reader/documentation checkpoint without rebuilding
-unchanged DLL bytes. Select the next required behavior, including conditional
+Next: select the next required behavior, including conditional
 six-pair native stress, remaining F10 progression/acquisition breadth, ordinary
 door and F11 measured diagnostics-off behavior. Later map the selected exact
 package 7E matrix. Do not transfer these preview PASSes without matching
