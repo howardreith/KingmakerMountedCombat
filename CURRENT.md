@@ -1,5 +1,15 @@
 # Chunk 7B–7D — IN PROGRESS
 
+[Batch140](docs/CHUNK7-BATCH140-ASSISTED-STOP-SETTLEMENT-2026-10-21.md)
+keeps the second assisted native run FAIL but distinguishes its cause: the
+installed dialog controller retained `m_DialogStopScheduled=true` after the
+terminal Exit, while Default mode, cleared dialog/cue, and ready main view were
+observed. The run restored Mods, protected saves and profile bytes exactly. A
+narrow fixture correction recognizes that completed native stop without writing
+the flag or relaxing pending-start/cue/active-dialog guards; focused tests pass
+249/0. Native verification, the final Manual and independent cold consumer
+remain open.
+
 [Batch139](docs/CHUNK7-BATCH139-ASSISTED-STORY-TRANSITION-DIAGNOSTIC-2026-10-21.md)
 retains the first repaired assisted native producer as FAIL: initial new-game
 Auto and 37 real story clicks occurred, but after the terminal Exit the game

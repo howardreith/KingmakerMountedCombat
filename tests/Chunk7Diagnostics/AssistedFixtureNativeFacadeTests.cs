@@ -80,6 +80,15 @@ static class Tests {
   return start.TransitionPending&&start.ScheduledStart&&!start.CuePlayScheduled&&!start.DialogStopScheduled&&
    cue.TransitionPending&&!cue.ScheduledStart&&cue.CuePlayScheduled&&!cue.DialogStopScheduled&&
    stop.TransitionPending&&!stop.ScheduledStart&&!stop.CuePlayScheduled&&stop.DialogStopScheduled&&r.ClickCount==0;});
+ Check("cleared Default dialog ignores only its retained stop flag",()=>{var r=new FacadeRig();r.Default();
+  r.Game.DialogController.Dialog=null;r.Game.DialogController.m_CurrentCue=null;r.Game.DialogController.m_DialogStopScheduled=true;
+  var settled=r.Boundary.ReadStory();r.Game.CurrentMode=Kingmaker.GameModes.GameModeType.Dialog;var stillActive=r.Boundary.ReadStory();
+  r.Default();r.Game.DialogController.Dialog=new Kingmaker.DialogSystem.Blueprints.BlueprintDialog{AssetGuidThreadSafe=FacadeRig.G(2)};var uncleared=r.Boundary.ReadStory();
+  r.Game.DialogController.Dialog=null;r.Game.Player.Dialog.Scheduled=new Kingmaker.DialogSystem.StartDialogData();var scheduled=r.Boundary.ReadStory();
+  r.Game.Player.Dialog.Scheduled=null;r.Game.DialogController.m_CuePlayScheduled=true;var cue=r.Boundary.ReadStory();
+  r.Game.DialogController.m_CuePlayScheduled=false;
+  using(var d=r.Driver())return settled.DialogStopScheduled&&!settled.TransitionPending&&settled.Mode=="Default"&&stillActive.TransitionPending&&uncleared.TransitionPending&&
+   scheduled.TransitionPending&&cue.TransitionPending&&d.Tick()==Chunk7AssistedStoryStatus.ReadyAtObservedFrame&&r.ClickCount==0;});
  Check("retained cue to play does not block the click",()=>{var r=new FacadeRig();r.Game.DialogController.m_CueToPlay=new Kingmaker.DialogSystem.Blueprints.BlueprintCue();using(var d=r.Driver())return d.Tick()==Chunk7AssistedStoryStatus.Clicked&&r.ClickCount==1;});
  Check("displayed continue cue does not block the click",()=>{var r=new FacadeRig();r.Game.DialogController.m_ContinueCue=new Kingmaker.DialogSystem.Blueprints.BlueprintCue();using(var d=r.Driver())return d.Tick()==Chunk7AssistedStoryStatus.Clicked&&r.ClickCount==1;});
  Check("interchapter page with a retained cue and continue cue clicks its option",()=>{var r=new FacadeRig();Interchapter(r);r.Game.DialogController.m_CueToPlay=new Kingmaker.DialogSystem.Blueprints.BlueprintCue();r.Game.DialogController.m_ContinueCue=new Kingmaker.DialogSystem.Blueprints.BlueprintCue();using(var d=r.Driver())return d.Tick()==Chunk7AssistedStoryStatus.Clicked&&r.ClickCount==1;});
