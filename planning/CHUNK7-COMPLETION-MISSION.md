@@ -13,6 +13,13 @@
 > and [implementation chronology](CHUNK7-IMPLEMENTATION-PLAN.md) remain
 > historical where they say 7E is unselected or give stale native caps.
 
+[Batch120](../docs/CHUNK7-BATCH120-MAMMOTH-FIELD-READER-2026-10-21.md)
+records preview.87's four-slot paid Medium/Mammoth chain. The Mammoth field
+game passed native Mount, movement, Dismount and natural owner retirement;
+the original outer reader FAIL and separate corrected-reader PASS remain
+distinct. This advances the mounted Mammoth development evidence without
+closing F09 breadth, migration, F11 or exact-package 7E.
+
 [Batch117](../docs/CHUNK7-BATCH117-MEDIUM-MAMMOTH-COLD-2026-10-21.md)
 passed preview.84's four-scenario Medium mounted Horse/independent cold,
 genuine Horse-to-Mammoth respec/Manual/independent cold chain. F10's distinct

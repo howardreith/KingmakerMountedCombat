@@ -1,5 +1,16 @@
 # Chunk 7B–7D — IN PROGRESS
 
+[Batch120](docs/CHUNK7-BATCH120-MAMMOTH-FIELD-READER-2026-10-21.md)
+ran four declared preview.87 scenarios. The paid Medium Horse mounted Manual,
+its separate cold load and paid Mammoth replacement Manual passed. The Mammoth
+field game passed Mount, a 1.975 m player-created move, Dismount, exact detached
+custody and next-frame natural retirement; its original outer result remains
+**FAIL** because the reader required an owner generation before the initial
+Mount. The corrected external reader passed the unchanged game evidence 39/0,
+with focused checks 23/0. Every transaction restored exactly. F09 breadth,
+schema migration, F11 and final-package 7E remain open. Batch119 below is
+historical on its own inputs.
+
 [Batch119](docs/CHUNK7-BATCH119-MAMMOTH-DISMOUNT-CUSTODY-2026-10-21.md)
 completed a four-slot preview.86 diagnostic chain. Its field result remains
 **FAIL 3/1**, but the new snapshot proves successful native Dismount dispatch,

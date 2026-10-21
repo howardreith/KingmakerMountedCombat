@@ -602,16 +602,17 @@ function Assert-KmcChunk7MammothFieldOutcome($s,$o){
         Assert-KmcBootstrapInventoryString $item.casterId $s.actorId
         Assert-KmcProgressionText $item.abilityGuid
         Assert-KmcProgressionText $item.shellControl
-        Assert-KmcOrdinaryInteger $item.generationAtInit 1 ([long]::MaxValue)
         Assert-KmcOrdinaryInteger $item.frame 1 ([int]::MaxValue)
         Assert-KmcOrdinaryInteger $item.settledFrame $item.frame ([int]::MaxValue)
     }
     Assert-KmcBootstrapInventoryString $mount.label 'mount-mammoth'
     Assert-KmcBootstrapInventoryString $mount.targetId $s.petId
     Assert-KmcBootstrapInventoryString $mount.abilityGuid 'f053faad986631688defa003cd7bda0e'
+    Assert-KmcOrdinaryInteger $mount.generationAtInit 0 0
     Assert-KmcBootstrapInventoryString $dismount.label 'dismount-mammoth'
     Assert-KmcBootstrapInventoryString $dismount.targetId $s.actorId
     Assert-KmcBootstrapInventoryString $dismount.abilityGuid '3af2b81f4d72bbb30501fa730fcdf36e'
+    Assert-KmcOrdinaryInteger $dismount.generationAtInit $o.fieldMounted.targetGeneration $o.fieldMounted.targetGeneration
     if($mount.shellControl-cnotmatch ('^shell:[1-9][0-9]*:mount:'+[regex]::Escape($s.actorId)+'$')-or
        $dismount.shellControl-cnotmatch ('^shell:[1-9][0-9]*:dismount:'+[regex]::Escape($s.actorId)+'$')-or
        $mount.shellControl-ceq$dismount.shellControl){throw 'Mammoth field native shell identities differ.'}
