@@ -1,5 +1,17 @@
 # Chunk 7B–7D — IN PROGRESS
 
+The [batches 131–133 F10 chain](docs/CHUNK7-BATCH131-133-F10-ACQUIRED-COLD-2026-10-21.md)
+passed on one exact preview.92 package: owner-seed cold source, original Ranger
+Horse acquisition with a genuine field Manual, and a separate acquired Manual
+cold consumer preserving the same Ranger/Horse pair. All three game/outer
+results passed and restored Mods, saves and profile bytes exactly. This closes
+the specific existing-campaign Ranger acquisition and saved-continuation route
+in development. General/new-character acquisition, other progression breadth,
+F09, F11, ordinary doors and selected final 7E remain open. The original
+batch127 outer FAIL remains separate. See the [active resume](AUTONOMOUS-RESUME.md)
+and [standing mission](planning/CHUNK7-COMPLETION-MISSION.md); engineering
+completion is not claimed.
+
 The [batches 128–129 F10 record](docs/CHUNK7-BATCH128-129-F10-OWNER-FIELD-2026-10-21.md)
 establishes a same-candidate owner-seed cold PASS and a genuine Ranger Horse
 acquisition/field Manual producer PASS, both native and outer, on preview.92
