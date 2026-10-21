@@ -1,5 +1,18 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## Active October 20 after batch106 — six-pair domain coverage, native fixture open
+
+The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
+[Batch106](docs/CHUNK7-BATCH106-SIX-PAIR-DOMAIN-CUSTODY-2026-10-20.md)
+adds one six-pair domain custody scenario covering independent routing,
+retained cleanup, replacement admission, aggregate save barriers and teardown.
+Fast passed 3/0; the product DLL remains world114 byte-identical. This is
+offline component evidence, not native six-pair lifecycle or performance
+qualification. No game, transaction or save ran. Refresh actual HEAD/status
+before work. Next, seek an admitted six-pair native fixture without relaxing
+ordinary support limits, or advance an independent required native F09/F10/F11
+gate. F11 allocation rate and diagnostics-off native controls remain open.
+
 ## Active October 20 after batch105 — native F11 and remaining F09/F10 gates
 
 The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.

@@ -1,5 +1,10 @@
 # Chunk 7B–7D — IN PROGRESS
 
+Batch106 added one six-pair **offline domain** custody stress case. Fast passed
+3/0 and the world114 product DLL stayed byte-identical. Native six-pair
+fixture, lifecycle and performance qualification remain open; see the
+[checkpoint](docs/CHUNK7-BATCH106-SIX-PAIR-DOMAIN-CUSTODY-2026-10-20.md).
+
 The [private player guide](docs/CHUNK7-PLAYER-GUIDE.md) reflects the current
 single declared Small default male Halfling/Horse profile and its strict
 body/gear/form limits. This is a documentation correction, not a new candidate
