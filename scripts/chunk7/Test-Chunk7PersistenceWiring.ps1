@@ -39,6 +39,12 @@ $base=[pscustomobject]@{schemaVersion=2;runId='synthetic-wiring';scenario='chunk
 function Invoke-Request($Value){$path=Join-Path $private 'request.json';$Value|ConvertTo-Json -Depth 90|Set-Content -LiteralPath $path;& $validator -RequestPath $path|Out-Null}
 foreach($case in Get-KmcChunk7PersistenceCases){foreach($scenario in @('chunk7-persistence-save','chunk7-persistence-load')){
     $q=Copy-Test $base;$q.scenario=$scenario;$q.persistenceCase=$case
+    if($case-cin@('owner-seed-manticore-fixture-manual','owner-seed-tomb-door-fixture-manual')){
+        Reject ($case+' requires its source-only inherited family under '+$scenario) {Invoke-Request $q};continue
+    }
+    if($case-ceq'manticore-fixture-cold-manual'-and$scenario-ceq'chunk7-persistence-load'){
+        Reject ($case+' requires its inherited cold family under '+$scenario) {Invoke-Request $q};continue
+    }
     if(Test-KmcOwnedSchema1Case $case){Reject ($case+' requires its separate inherited family under '+$scenario) {Invoke-Request $q};continue}
     if(($case-ceq'legacy-schema1-resave-manual'-or(Test-KmcChunk7RepeatedWorldCase $case))-and$scenario-ceq'chunk7-persistence-save'){Reject ($case+' cannot produce a fabricated source') {Invoke-Request $q};continue}
     if($case-ceq'multi-exploration-three-area-transfers-manual'){$q|Add-Member NoteProperty persistenceReplayTargets @(
@@ -118,7 +124,8 @@ foreach($case in @('multi-rt-debt-manual','multi-tb-debt-manual','zero-mounted-t
     Check ('owner-seed pair connects combat checkpoint '+$case) {if($case-cnotin(Get-KmcChunk7OwnerSeedCheckpoints)-or-not(Test-KmcChunk7OwnerSeedCombatCheckpoint $case)){throw 'Combat checkpoint is not connected to the owner-seed pair.'}}
 }
 Check 'owner-seed checkpoint Manual name is distinct from every other Manual name' {$n=Get-KmcChunk7OwnerSeedCheckpointManualName;if($n-cne'KMC_C7_SEED_CHECKPOINT'-or$n-cin@('KMC_C7_WORLD',(Get-KmcChunk7OwnerSeedManualName),'KMC_C7_ACQUIRED_FIELD','KMC_C7_SCHEMA1','KMC_C7_SCHEMA2')){throw 'Owner-seed checkpoint Manual name aliases another Manual.'}}
-foreach($case in @('legacy-mounted-pending-tb-manual','multi-area-autosave','owned-schema1-manual','multi-owned-worker-cancel-manual','multi-nonselected-mount-unsettled-manual')){Check ('owner-seed pair leaves unconnected checkpoint '+$case) {if($case-cin(Get-KmcChunk7OwnerSeedCheckpoints)-or(Test-KmcChunk7OwnerSeedCombatCheckpoint $case)){throw 'An unconnected family joined the owner-seed checkpoint pair.'}}}
+foreach($case in @('legacy-mounted-pending-tb-manual','multi-area-autosave')){Check ('owner-seed pair retains connected checkpoint '+$case) {if($case-cnotin(Get-KmcChunk7OwnerSeedCheckpoints)){throw 'An established owner-seed checkpoint was dropped.'}}}
+foreach($case in @('owned-schema1-manual','multi-owned-worker-cancel-manual','multi-nonselected-mount-unsettled-manual')){Check ('owner-seed pair keeps source-only checkpoint distinct '+$case) {if($case-cin(Get-KmcChunk7OwnerSeedCheckpoints)-or$case-cnotin(Get-KmcChunk7OwnerSeedSourceOnlyCheckpoints)){throw 'Source-only checkpoint direction changed.'}}}
 $quota=[IO.File]::ReadAllText((Join-Path $overlay 'Test-RuntimeGameResult.ps1'))
 $start=$quota.IndexOf('    $expectedNativeWrites = ');$end=$quota.IndexOf('    $expectedWorkingLoads = ',$start)
 $quotaBlock=[scriptblock]::Create($quota.Substring($start,$end-$start)+[Environment]::NewLine+'return $expectedNativeWrites')

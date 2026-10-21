@@ -51,7 +51,8 @@ namespace KingmakerMountedCombat.Diagnostics
                     AdoptDeclaredAreaWorld();
             }
             if (ManticoreFixtureCase && manticoreDispatched && !manticoreScopeAdopted &&
-                Game.Instance?.CurrentlyLoadedArea?.AssetGuidThreadSafe == Chunk7OwnedPairsSelection.ManticoreFixtureArea)
+                Game.Instance?.CurrentlyLoadedArea?.AssetGuidThreadSafe ==
+                    (TombFixtureCase ? Chunk7OwnedPairsSelection.TombFixtureArea : Chunk7OwnedPairsSelection.ManticoreFixtureArea))
                 AdoptManticoreFixtureWorld();
             else if (ManticoreFixtureCase && manticoreDispatched && !manticoreScopeAdopted &&
                 Game.Instance?.CurrentlyLoadedArea?.AssetGuidThreadSafe == Chunk7OwnerSeedManticoreEntry.SourceArea)

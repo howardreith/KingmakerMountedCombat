@@ -60,6 +60,56 @@ namespace KingmakerMountedCombat.Diagnostics
         { if (!value) throw new InvalidOperationException(message); }
     }
 
+    // The door candidate is a different revealed, unvisited stock location.
+    // Keep its exact entrance and provenance separate from Manticore evidence.
+    internal static class Chunk7OwnerSeedTombEntry
+    {
+        internal const string SourceArea = Chunk7OwnerSeedManticoreEntry.SourceArea;
+        internal const string Location = "38638e43953432e42a037956f798f15e";
+        internal const string Entry = "c23675e173391ad4297dbe3720122bca";
+
+        internal static BlueprintAreaEnterPoint Resolve(Game game, RuntimeRequest request, out JObject observation)
+        {
+            observation = null;
+            Require(request?.OwnedPairs?.IsOwnerSeedCheckpointSave == true &&
+                request.PersistenceCase == Chunk7OwnedPairsSelection.TombFixtureCheckpoint &&
+                request.PersistenceLoad?.Sha256 == Chunk7OwnedPairsSelection.TombFixtureSourceSha256 &&
+                request.PersistenceLoad.Area == SourceArea && request.PersistenceAreaTarget == null &&
+                request.PersistenceReplayTargets == null && game?.Player != null &&
+                game.Player.GameId == request.PersistenceLoad.GameId && !game.Player.IsInCombat &&
+                game.CurrentMode == GameModeType.Default && game.CurrentlyLoadedArea?.AssetGuidThreadSafe == SourceArea,
+                "Tomb fixture preparation requires its exact accepted source and closed native route.");
+            var map = game.Player.GlobalMap;
+            var location = ResourcesLibrary.TryGetBlueprint<BlueprintLocation>(Location);
+            LocationData data = null;
+            Require(map?.Locations != null && location != null && location.AssetGuidThreadSafe == Location &&
+                map.Locations.TryGetValue(location, out data) && data != null && ReferenceEquals(data.Blueprint, location) &&
+                data.IsSeen && data.IsRevealed && !data.IsClosed && !data.IsExplored,
+                "Tomb fixture preparation requires its existing revealed/open, still unexplored saved location.");
+            var count = map.Locations.Count;
+            var resolved = data.AreaEntrance;
+            var entry = ResourcesLibrary.TryGetBlueprint<BlueprintAreaEnterPoint>(Entry);
+            Require(entry != null && ReferenceEquals(resolved, entry) && entry.AssetGuidThreadSafe == Entry &&
+                entry.Area != null && entry.Area.AssetGuidThreadSafe == Chunk7OwnedPairsSelection.TombFixtureArea &&
+                !entry.Area.IsCapital && !ReferenceEquals(entry.Area, game.CurrentlyLoadedArea) && map.Locations.Count == count,
+                "Tomb fixture preparation refused a different actual entrance or a capital destination.");
+            observation = new JObject {
+                ["contract"] = "owner-seed-tomb-entry-v1", ["sourceArea"] = SourceArea,
+                ["sourceSha256"] = request.PersistenceLoad.Sha256,
+                ["locationGuid"] = location.AssetGuidThreadSafe, ["entryGuid"] = resolved.AssetGuidThreadSafe,
+                ["destinationArea"] = entry.Area.AssetGuidThreadSafe, ["destinationIsCapital"] = entry.Area.IsCapital,
+                ["seen"] = data.IsSeen, ["revealed"] = data.IsRevealed, ["closed"] = data.IsClosed, ["explored"] = data.IsExplored,
+                ["locationCountBefore"] = count, ["locationCountAfter"] = map.Locations.Count,
+                ["existingLocationOnly"] = true, ["actualEntranceExact"] = true,
+                ["navigationAssisted"] = true, ["ordinaryTravelProof"] = false, ["nativeMode"] = "None",
+                ["transferRequests"] = 0, ["saveRequests"] = 0 };
+            return entry;
+        }
+
+        private static void Require(bool value, string message)
+        { if (!value) throw new InvalidOperationException(message); }
+    }
+
     // The Manticore Manual is a distinct mounted source. Its return route may
     // use only the already-explored Spider Cave location and its actual stock
     // entrance; reading Locations never creates or edits a map record.

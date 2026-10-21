@@ -10,14 +10,16 @@ namespace KingmakerMountedCombat.Diagnostics
     {
         private BlueprintArea manticoreDestination;
         private bool manticorePending, manticoreAdopted, manticoreRequested;
+        private bool TombFixturePreparation => request.PersistenceCase == Chunk7OwnedPairsSelection.TombFixtureCheckpoint;
+        private string FixtureDestinationArea => TombFixturePreparation ? Chunk7OwnedPairsSelection.TombFixtureArea : Chunk7OwnedPairsSelection.ManticoreFixtureArea;
 
         internal void BeginManticorePreparation(BlueprintArea destination)
         {
             Require(bound && !released && !manticoreRequested && !manticorePending && !manticoreAdopted &&
-                selection.IsOwnerSeedCheckpointSave && request.PersistenceCase == Chunk7OwnedPairsSelection.ManticoreFixtureCheckpoint &&
+                selection.IsOwnerSeedCheckpointSave && (request.PersistenceCase == Chunk7OwnedPairsSelection.ManticoreFixtureCheckpoint || TombFixturePreparation) &&
                 request.PersistenceLoad.Sha256 == Chunk7OwnedPairsSelection.ManticoreFixtureSourceSha256 &&
                 request.PersistenceLoad.Area == Chunk7OwnerSeedManticoreEntry.SourceArea && request.PersistenceAreaTarget == null &&
-                destination != null && destination.AssetGuidThreadSafe == Chunk7OwnedPairsSelection.ManticoreFixtureArea && !destination.IsCapital &&
+                destination != null && destination.AssetGuidThreadSafe == FixtureDestinationArea && !destination.IsCapital &&
                 replayExpectedLoad == 0 && replayExpectedArea == 0 && !areaAutosavePending,
                 "Unmounted Manticore preparation lacks its exact unused source-only transfer.");
             RequirePreserved(); RequireReplayFieldReady(); RequireManticoreUnmountedBoundary();
@@ -28,9 +30,9 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             RequireRequest(); RequireAuthority();
             Require(bound && !released && manticorePending && !manticoreAdopted &&
-                selection.IsOwnerSeedCheckpointSave && request.PersistenceCase == Chunk7OwnedPairsSelection.ManticoreFixtureCheckpoint &&
+                selection.IsOwnerSeedCheckpointSave && (request.PersistenceCase == Chunk7OwnedPairsSelection.ManticoreFixtureCheckpoint || TombFixturePreparation) &&
                 ReferenceEquals(destination, manticoreDestination) && destination != null &&
-                destination.AssetGuidThreadSafe == Chunk7OwnedPairsSelection.ManticoreFixtureArea &&
+                destination.AssetGuidThreadSafe == FixtureDestinationArea &&
                 ReferenceEquals(game.Player, admittedPlayer) && ReferenceEquals(game.State, admittedState),
                 "Only the declared completed unmounted Manticore entry may adopt destination custody.");
             RequireManticoreUnmountedBoundary();

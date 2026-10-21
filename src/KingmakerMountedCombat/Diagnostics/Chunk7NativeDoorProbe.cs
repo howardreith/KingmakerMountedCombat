@@ -96,8 +96,10 @@ namespace KingmakerMountedCombat.Diagnostics
 
         // Read-only area-fixture inventory. This does not acquire, close or click a
         // door, and it cannot turn an absent fixture into door qualification.
-        internal static JObject CaptureAreaDoorInventory(UnitEntityData[] mounts)
+        internal static JObject CaptureAreaDoorInventory(UnitEntityData[] mounts, string boundary = "before-first-continuation")
         {
+            if (boundary != "before-first-continuation" && boundary != "after-fixture-remount")
+                throw new ArgumentException("Door inventory boundary is not declared.", nameof(boundary));
             Require(mounts != null && mounts.Length == 2 && mounts.All(m => m?.View?.AgentASP != null),
                 "Door inventory requires the two live mounted movement actors.");
             var doors = UnityEngine.Object.FindObjectsOfType<StandardDoor>() ?? new StandardDoor[0];
@@ -119,7 +121,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     ["cutPresent"] = cut != null, ["proximityRadius"] = Radius(door),
                     ["mountDistances"] = new JArray(near[0], near[1]), ["eligible"] = eligible });
             }
-            return new JObject { ["boundary"] = "before-first-continuation", ["candidateCount"] = present.Length, ["rowLimit"] = 32,
+            return new JObject { ["boundary"] = boundary, ["candidateCount"] = present.Length, ["rowLimit"] = 32,
                 ["radius"] = ScanRadius, ["mounts"] = new JArray(mounts.Select(m => new JObject {
                     ["id"] = m.UniqueId, ["position"] = Point(m.Position) })),
                 ["truncated"] = present.Length > 32, ["rows"] = rows,

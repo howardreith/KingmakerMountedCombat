@@ -17,7 +17,9 @@ namespace KingmakerMountedCombat.Diagnostics
     internal sealed partial class Chunk7PersistenceScenario
     {
         private bool ManticoreFixtureCase => OwnerSeedCheckpointSave && !Cold &&
-            request.PersistenceCase == Chunk7OwnedPairsSelection.ManticoreFixtureCheckpoint;
+            (request.PersistenceCase == Chunk7OwnedPairsSelection.ManticoreFixtureCheckpoint ||
+                request.PersistenceCase == Chunk7OwnedPairsSelection.TombFixtureCheckpoint);
+        private bool TombFixtureCase => request.PersistenceCase == Chunk7OwnedPairsSelection.TombFixtureCheckpoint;
         private BlueprintAreaEnterPoint manticoreEntry;
         private JObject manticorePreparation;
         private Guid[] manticoreOriginalOwners;
@@ -42,7 +44,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 "Manticore fixture preparation requires its restored start before any source mutation.");
             RequireManticoreReady(); AssertOwners(); AssertSlots();
             JObject prerequisite;
-            manticoreEntry = Chunk7OwnerSeedManticoreEntry.Resolve(Game.Instance, request, out prerequisite);
+            manticoreEntry = TombFixtureCase ? Chunk7OwnerSeedTombEntry.Resolve(Game.Instance, request, out prerequisite) :
+                Chunk7OwnerSeedManticoreEntry.Resolve(Game.Instance, request, out prerequisite);
             manticoreOriginalOwners = expectedOwners.Keys.ToArray(); manticoreOriginalSlots = slots.ToArray();
             manticoreIdentities = new RetainedObjectIdentity(4096);
             manticoreHotbars = inherited.Party.Select(actor => {
@@ -51,14 +54,15 @@ namespace KingmakerMountedCombat.Diagnostics
                 return new ManticoreHotbarPin { Actor = actor, Owner = actor.UISettings, Collection = collection,
                     Elements = collection?.Cast<object>().ToArray(), Managed = collection?.Select(value => ManticoreControlKind(value) != 0).ToArray() };
             }).ToArray();
-            manticorePreparation = new JObject { ["contract"] = "owner-seed-manticore-fixture-v1", ["checkpoint"] = request.PersistenceCase,
+            manticorePreparation = new JObject { ["contract"] = TombFixtureCase ? "owner-seed-tomb-door-fixture-v1" : "owner-seed-manticore-fixture-v1", ["checkpoint"] = request.PersistenceCase,
                 ["prerequisite"] = prerequisite, ["transferRequests"] = 0, ["nativeMode"] = "None",
                 ["navigationAssisted"] = true, ["ordinaryTravelProof"] = false,
                 ["nativeAreaCallbackExpected"] = false, ["explicitSaveGameDispatches"] = 0,
                 ["originalSlots"] = JArray.FromObject(manticoreOriginalSlots, MountedSaveCodec.CreateSerializer()) };
-            evidence["manticoreFixturePreparation"] = manticorePreparation;
+            if (TombFixtureCase) manticorePreparation["unityDevelopmentPlayer"] = UnityEngine.Debug.isDebugBuild;
+            evidence[TombFixtureCase ? "tombDoorFixturePreparation" : "manticoreFixturePreparation"] = manticorePreparation;
             manticorePreparation["source"] = CaptureManticoreWorld("source-mounted");
-            Input(firstRider, firstRider, controls.DismountAbility, secondRider, "manticore-dismount-first-pair"); Next(90);
+            Input(firstRider, firstRider, controls.DismountAbility, secondRider, TombFixtureCase ? "tomb-dismount-first-pair" : "manticore-dismount-first-pair"); Next(90);
         }
 
         // This owns the asynchronous entry interval before the ordinary captured
@@ -77,7 +81,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 Require(manticoreLoadingTicks > 0, "Manticore entry missed its native loading boundary.");
                 manticorePreparation["destinationUnmounted"] = CaptureManticoreWorld("destination-unmounted");
                 manticorePreparation["loadingTicks"] = manticoreLoadingTicks;
-                Input(firstRider, firstMount, controls.MountAbility, secondRider, "manticore-mount-first-pair"); Next(93); return true;
+                Input(firstRider, firstMount, controls.MountAbility, secondRider, TombFixtureCase ? "tomb-mount-first-pair" : "manticore-mount-first-pair"); Next(93); return true;
             }
             if (LoadingProcess.Instance.IsLoadingInProcess || LoadingProcess.Instance.QueuedNames.Any()) return true;
             if (stage == 95)
@@ -87,7 +91,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 ObserveSaved(); RequireManticoreReady(); AssertManticoreHotbars();
                 manticorePreparation["afterSave"] = CaptureManticoreWorld("native-manual-complete");
                 manticorePreparation["completedArchiveSha256"] = evidence["nativeWrite"]?["sha256"];
-                Pass("C7-persistence-manticore-fixture-native-manual"); Next(10); return true;
+                Pass(TombFixtureCase ? "C7-persistence-tomb-door-fixture-native-manual" : "C7-persistence-manticore-fixture-native-manual"); Next(10); return true;
             }
             RequireManticoreReady(false);
             if (!InputSettled() || !inherited.Party.All(Chunk7NativeFixture.Idle)) return true;
@@ -100,7 +104,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     world.Registry.Owners.All(owner => expectedOwners.ContainsKey(owner.Id)) && Mounted(secondRider, secondMount) &&
                     survivor != null && expectedOwners.TryGetValue(survivor.Id, out var generation) && survivor.Generation == generation,
                     "The first ordinary Dismount changed active custody outside its original owner.");
-                Input(secondRider, secondRider, controls.DismountAbility, firstRider, "manticore-dismount-second-pair"); Next(91);
+                Input(secondRider, secondRider, controls.DismountAbility, firstRider, TombFixtureCase ? "tomb-dismount-second-pair" : "manticore-dismount-second-pair"); Next(91);
             }
             else if (stage == 91)
             {
@@ -127,7 +131,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     world.Registry.FindOwner(secondRider) == null && world.Registry.FindOwner(secondMount) == null &&
                     !manticoreOriginalOwners.Contains(world.Registry.FindActive(firstRider).Id),
                     "The first destination Mount acquired another actor or retained the second owner.");
-                Input(secondRider, secondMount, controls.MountAbility, firstRider, "manticore-mount-second-pair"); Next(94);
+                Input(secondRider, secondMount, controls.MountAbility, firstRider, TombFixtureCase ? "tomb-mount-second-pair" : "manticore-mount-second-pair"); Next(94);
             }
             else if (stage == 94)
             {
@@ -137,6 +141,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 RememberOwners(); AssertOwners(); RebindManticoreSlots(); RequireManticoreReady();
                 snapshots.Add(Capture("before-native-save"));
                 manticorePreparation["remounted"] = CaptureManticoreWorld("destination-remounted");
+                if (TombFixtureCase) manticorePreparation["areaDoorInventory"] =
+                    Chunk7NativeDoorProbe.CaptureAreaDoorInventory(new[] { firstMount, secondMount }, "after-fixture-remount");
                 manticorePreparation["reboundSlots"] = JArray.FromObject(slots, MountedSaveCodec.CreateSerializer());
                 manticorePreparation["controlRebindings"] = 4;
                 manticorePreparation["explicitSaveGameDispatches"] = 1;

@@ -1,5 +1,32 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## Active October 21 Tomb fixture route after batch122
+
+Read-only source/fixture inspection found an independently actionable door
+candidate without owner navigation. The accepted owner-seed Manual source is
+`runtime-staging/persistence-20261018-c7b-world26-ownerseed-b3s1d-save/Saved Games/Manual_304_KMC_C7_SEED_WORLD.zks`,
+SHA-256 `b4d1ede7843c600f201dcd7b71cd2558cad44210e7e0eb78d9a58f6e89f64003`.
+The revealed, still-unvisited Old Cyclops Tomb location
+`38638e43953432e42a037956f798f15e` maps to entrance
+`c23675e173391ad4297dbe3720122bca` and area
+`81b13ce8765469045864ffb878b0944b` in the retained stock metadata.
+The closed Tomb branch now reuses the guarded Manticore transfer custody on a
+fresh disposable copy: native Dismount both, actual `AreaEntrance` with
+`LoadArea(entry, None)`, non-capital/free-control/full-party checks, native
+Mount both, one genuine distinct Manual and read-only `StandardDoor` inventory.
+The source is immutable and Tomb is in the existing Areas isolation/recovery
+selection. It also records `Debug.isDebugBuild` for F11. Independent source/
+safety review found no blocker and emphasized that inventory alone cannot
+qualify ordinary door interaction. Fast passed 3/0; focused Manticore/Tomb
+reader 75/0, Areas isolation 37/0, owned DTO 182/0, source 284/0,
+manifest 143/0, owned reader 690/0, persistence wiring 158/0 and area
+source 11/0. The original synthetic Tomb reader 74/1 failure was a copied
+test-authority name mismatch, then corrected and rerun. No game or live
+transaction has run on this branch yet. Next: review final diff, commit, build
+one frozen candidate, run scoped WhatIf, then at most one guarded native
+Tomb fixture/inventory discriminator. It may reveal no qualifying door;
+no door PASS or human-navigation need is inferred.
+
 ## Active October 21 after batch122 managed-Mono failure and review
 
 [Batch122](docs/CHUNK7-BATCH122-F11-MANAGED-MONO-PROBE-2026-10-21.md)
