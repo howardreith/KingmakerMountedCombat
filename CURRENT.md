@@ -1,5 +1,14 @@
 # Chunk 7B–7D — IN PROGRESS
 
+[Batch115](docs/CHUNK7-BATCH115-MEDIUM-MOUNTED-DEVELOPMENT-2026-10-21.md)
+qualified world119's paid two-pair Medium Horse mounted Manual and separate
+process cold load, game/outer 5/0 and 3/0. The cold consumer restored the exact
+two-pair archive and wrote no save. Both guarded transactions restored current
+Mods, Working, protected saves and profile bytes exactly, with no cache
+exceptions. Horse-to-Mammoth replacement, F09/F10/F11, progression and private
+7E still require their selected engineering evidence. The batch114 paragraph
+below is historical fixture provenance.
+
 [Batch114](docs/CHUNK7-BATCH114-MEDIUM-MANUAL-COLD-2026-10-21.md) passed a fresh
 world118 paid Medium Human/Horse unmounted Manual 6/0 and its independent-copy,
 separate-process cold load 4/0 with seven actors, reciprocal Horses and zero
