@@ -42,6 +42,7 @@ foreach($kind in @('ordinary claim','new process','projection','cold bytes')){Ba
 function New-AssistedSmallSource {
  $f=[IO.File]::ReadAllText($TwoOwnerFixturePath)|ConvertFrom-Json;$o=$f.artifact.observations;$choice=$o.sourceAcquisition.selection
  $choice|Add-Member sourceMode 'assisted-producer-and-cold';$choice|Add-Member assistedColdRunId 'synthetic-assisted-cold';$choice|Add-Member assistedColdArtifactSha256 ('a'*64)
+ $choice.nativeWriteLeaf='Manual_301_KMC_C7_MANUAL_DERIVED_FIELD.zks'
  $o.sourceAcquisition|Add-Member assistedSource ([pscustomobject]@{contract='assisted-producer-cold-cumulative-v1';setupWasAssisted=$true;setupIsOrdinaryAcquisitionProof=$false})
  $s=[pscustomobject]@{sourceRunId=$f.request.runId;sourceArtifactSha256='a'*64;sourceArchiveSha256=$o.nativeWrite.sha256;actorId=$o.selection.actorId;petId=$o.selection.petId}
  [pscustomobject]@{source=$s;observations=$o}

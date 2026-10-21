@@ -48,7 +48,7 @@ operation from its retained native choices, without unblocking those families.
 | Family (scenario / case) | Wait site | Route verified by code path |
 | --- | --- | --- |
 | `chunk7-ordinary-acquisition` (every case) | `src/KingmakerMountedCombat/Diagnostics/Chunk7OrdinaryAcquisitionScenario.cs:112` (stage 1, `ObserveCompletedAutosave` at `:266`) | `RuntimeAutomationHost` builds `Chunk7OrdinaryAcquisitionScenario`. Stage 0 completes the build and stage 1 waits. |
-| `chunk7-cumulative-acquisition` (every case, including the assisted cumulative plan) | the same `Chunk7ManualDerivedScenario.Build.cs:196` / `:222` | `Chunk7ManualDerivedScenario.CreateCumulative` uses the same `StartBuild` / `TickBuild` path. |
+| `chunk7-cumulative-acquisition` (legacy Auto source mode only) | `Chunk7ManualDerivedScenario.Build.cs` / `ObserveTerminalAutosave` | The legacy source mode still waits for a native level-up Auto. The assisted producer-and-cold mode now has a separate Manual completion path; its native qualification remains pending. |
 | `chunk7-native-progression` / `horse-native-level`, `horse-native-retrain-horse`, `horse-native-retrain-mammoth` | `src/KingmakerMountedCombat/Diagnostics/Chunk7NativeProgressionSession.cs (legacy ObserveTerminalAutosave)` | The historical acquired-source cases retain the native level-up Auto wait and are refused before launch. |
 
 The registry is `Get-KmcChunk7StaleLevelUpAutosaveFamilies` in
@@ -77,8 +77,8 @@ These families do not route through a level-up autosave wait:
   its strict reader binds the newly acquired owner/Horse to that field state. This is an
   engineering route whose owner-seed source, same-candidate native producer and separate
   cold consumer passed in [batches 131–133](CHUNK7-BATCH131-133-F10-ACQUIRED-COLD-2026-10-21.md).
-  This does not pass the historical Auto producer. Cumulative dispatch still takes the
-  blocked Auto route.
+  This does not pass the historical Auto producer. Assisted cumulative dispatch now takes the
+  Manual path; the legacy source mode retains the blocked Auto route. Neither has a native cumulative PASS yet.
 - `chunk7-assisted-cold-inventory`.
 - `chunk7-assisted-fixture-preparation`. The selected producer now follows the
   bounded native Ranger choices with its guarded final Manual, without waiting
@@ -127,7 +127,7 @@ from the test, and from this note in the same change.
 ## Families that remain to be corrected
 
 1. `chunk7-ordinary-acquisition`
-2. `chunk7-cumulative-acquisition`
+2. `chunk7-cumulative-acquisition` legacy Auto source mode
 3. `chunk7-native-progression`: the historical level case and two historical respec cases
 
 The selected owner-seed Manual-derived producer and one-owner acquired cold

@@ -57,6 +57,8 @@ foreach($leaf in @('Test-RuntimeGameResult.ps1','Test-RuntimeResult.ps1')){
  Good ($leaf+' exact closed rows'){Assert-SubscenarioResults $result}
  Bad ($leaf+' arbitrary row'){$q=CopyValue $result;$q.subscenarioResults[0].name='C7-cumulative-any';Assert-SubscenarioResults $q}
  Bad ($leaf+' duplicated row'){$q=CopyValue $result;$q.subscenarioResults[1].name=$q.subscenarioResults[0].name;Assert-SubscenarioResults $q}
+ $manual=CopyValue $result;$manual.subscenarioResults[4].name='C7-cumulative-native-manual-save'
+ Good ($leaf+' exact assisted Manual row'){Assert-SubscenarioResults $manual}
 }
 $gameAst=Ast (Join-Path $bridgeRuntime 'Test-RuntimeGameResult.ps1')
 foreach($quotaName in @('expectedNativeWrites','expectedWorkingLoads')){
@@ -71,10 +73,10 @@ $runnerPath=Join-Path $bridgeRuntime 'Invoke-KingmakerRuntimeScenario.ps1';$runn
 Good 'runner exact family and selection path registered' {if(-not$metadata.Parameters.ContainsKey('CumulativeAcquisitionSelectionPath')-or'chunk7-cumulative-acquisition'-cnotin@($metadata.Parameters.Scenario.Attributes|Where-Object{$_-is[Management.Automation.ValidateSetAttribute]})[0].ValidValues){throw 'Closed runner parameter absent'}}
 $selection=@($runnerAst.FindAll({param($n)$n-is[Management.Automation.Language.IfStatementAst]-and$n.Clauses[0].Item1.Extent.Text-ceq'Test-KmcChunk7CumulativeScenario $Scenario'-and$n.Extent.Text.Contains('requires explicit base-only staging and exact successful Manual lineage plus observed readiness pins')},$true))
 if($selection.Count-ne1){throw 'Exact explicit selection guard missing'}
-function Read-KmcChunk7CumulativeSelectionFile($Path,$RunId){[pscustomobject]@{path=$Path;selection=@{}}}
+function Read-KmcChunk7CumulativeSelectionFile($Path,$RunId){[pscustomobject]@{path=$Path;selection=[pscustomobject]@{sourceMode='assisted-producer-and-cold'}}}
 $selectionGuard=[scriptblock]::Create('param($Family,$Bindings,$Base,$InputPath) $Scenario=$Family;$BaseGameOnly=$Base;$CumulativeAcquisitionSelectionPath=$InputPath;$RunId="cold";$PSBoundParameters=$Bindings;'+[Environment]::NewLine+$selection[0].Extent.Text)
 function Selected([string]$Family,[hashtable]$Bindings,[bool]$Base=$true,[string]$InputPath='selection.json'){&$selectionGuard $Family $Bindings $Base $InputPath}
-Good 'explicit base-only source selection admitted' {Selected 'chunk7-cumulative-acquisition' @{CumulativeAcquisitionSelectionPath='selection.json'}}
+Good 'explicit base-only assisted Manual source selection admitted' {Selected 'chunk7-cumulative-acquisition' @{CumulativeAcquisitionSelectionPath='selection.json'}}
 Bad 'selection missing' {Selected 'chunk7-cumulative-acquisition' @{} $true ''}
 Bad 'base-only missing' {Selected 'chunk7-cumulative-acquisition' @{CumulativeAcquisitionSelectionPath='selection.json'} $false}
 Bad 'foreign selection family' {Selected 'fixture-intake' @{CumulativeAcquisitionSelectionPath='selection.json'}}

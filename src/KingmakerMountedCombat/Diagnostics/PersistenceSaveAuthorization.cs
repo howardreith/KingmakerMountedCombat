@@ -360,8 +360,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 Entry output;
                 if (key == null || assistedCumulativeRequest != null || assistedRequest != null || assistedColdRequest != null ||
                     acquiredManualRequest != null || ownedPairsRequest != null || admittedNativeLoadRequests != 0 || admittedNativeWriteRequests != 0 ||
-                    !entries.TryGetValue(Chunk7CumulativeAcquisitionSelection.OutputLeaf, out output) ||
-                    !MatchesAssistedCumulativeEntries(request.PersistenceLoad, output.Name, true))
+                    !entries.TryGetValue(Chunk7CumulativeAcquisitionSelection.AssistedManualOutputLeaf, out output) ||
+                    !MatchesAssistedCumulativeEntries(request.PersistenceLoad, Chunk7ManualDerivedSelection.ManualOutputName, true))
                     throw new InvalidOperationException("Assisted cumulative acquisition requires its unused closed one-load/one-write authority.");
                 assistedCumulativeRequest = request; assistedCumulativeSelection = request.CumulativeAcquisition;
                 assistedCumulativeDescriptor = request.PersistenceLoad; assistedCumulativeKey = key;
@@ -370,7 +370,7 @@ namespace KingmakerMountedCombat.Diagnostics
         internal bool MatchesAssistedCumulativePlan(RuntimeRequest request, string outputLeaf, string outputName, bool requireUnwritten)
         {
             lock (sync) return assistedCumulativeRequest != null && ReferenceEquals(assistedCumulativeRequest, request) &&
-                AssistedCumulativeUnchanged() && outputLeaf == Chunk7CumulativeAcquisitionSelection.OutputLeaf &&
+                AssistedCumulativeUnchanged() && outputLeaf == Chunk7CumulativeAcquisitionSelection.AssistedManualOutputLeaf &&
                 MatchesAssistedCumulativeEntries(request.PersistenceLoad, outputName, requireUnwritten);
         }
         private bool MatchesAssistedCumulativeEntries(RuntimeSaveDescriptor source, string outputName, bool requireUnwritten)
@@ -382,7 +382,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 !entries.TryGetValue(source.FileName, out input) || input.Name != source.InternalName || input.Type != "Manual" || input.Area != source.Area ||
                 input.Hash != source.Sha256 || input.Writable || input.Writing || input.Bootstrap || input.AdmitsBeforeArea || input.AdmissionArea != null ||
                 input.ForeignGameId != null || input.ForeignGameName != null ||
-                !entries.TryGetValue(Chunk7CumulativeAcquisitionSelection.OutputLeaf, out output) || output.Name != outputName || output.Type != "Auto" || output.Area != source.Area ||
+                !entries.TryGetValue(Chunk7CumulativeAcquisitionSelection.AssistedManualOutputLeaf, out output) ||
+                output.Name != Chunk7ManualDerivedSelection.ManualOutputName || output.Name != outputName ||
+                output.Type != "Manual" || output.Area != source.Area ||
                 !output.Writable || output.Bootstrap || output.AdmitsBeforeArea || output.AdmissionArea != null || output.ForeignGameId != null || output.ForeignGameName != null ||
                 admittedNativeLoadRequests > 1 || admittedNativeWriteRequests > 1) return false;
             return requireUnwritten ? output.Hash == null && !output.Writing && admittedNativeWriteRequests == 0 :

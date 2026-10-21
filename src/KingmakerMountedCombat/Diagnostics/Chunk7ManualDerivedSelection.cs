@@ -47,7 +47,7 @@ namespace KingmakerMountedCombat.Diagnostics
         internal bool PaidHire => Case == PaidSmallCase || Case == PaidMediumCase;
         internal bool UsesOwnerSeedCold => NativeWriteLeaf == OwnerSeedOutputLeaf;
 
-        public IReadOnlyList<string> Validate(string scenario, string runId, bool cumulativeAuto = false)
+        public IReadOnlyList<string> Validate(string scenario, string runId, bool cumulativeAuto = false, bool cumulativeManual = false)
         {
             var errors = new List<string>();
             if (scenario != Scenario || Case != ExistingCase && Case != PaidSmallCase && Case != PaidMediumCase)
@@ -57,7 +57,7 @@ namespace KingmakerMountedCombat.Diagnostics
             foreach (var value in new[] { SourceArtifactSha256, SourceArchiveSha256 })
                 if (!Regex.IsMatch(value ?? "", "^[a-f0-9]{64}$")) errors.Add("Exact immutable Manual source hashes are required.");
             if (!BaseGameOnly || ExpectedNativeLoadCount != 1 || ExpectedNativeWriteCount != 1 ||
-                (cumulativeAuto ? NativeWriteLeaf != OutputLeaf :
+                (cumulativeAuto ? NativeWriteLeaf != (cumulativeManual ? Chunk7CumulativeAcquisitionSelection.AssistedManualOutputLeaf : OutputLeaf) :
                     NativeWriteLeaf != ManualOutputLeaf && NativeWriteLeaf != OwnerSeedOutputLeaf))
                 errors.Add("Acquisition requires its exact base-only one-load, one-write native output.");
             if (Readiness == null) errors.Add("Observed source readiness pins are required.");

@@ -71,9 +71,11 @@ function Copy-KmcChunk7CumulativeSourceArtifact($Source,[string]$ProfileRoot,$Lo
 }
 function Assert-KmcChunk7CumulativeOutput($Request,$Artifact){
  $w=$Artifact.observations.nativeWrite;$root=Join-Path (Join-Path (Join-Path (Split-Path (Split-Path $Request.evidenceRoot -Parent) -Parent) 'runtime-staging') ('persistence-'+$Request.runId)) 'Saved Games'
- $path=Assert-KmcChildPath $w.path $root 'native Manual-derived output';Assert-KmcBootstrapInventoryString $path (Join-Path $root 'Auto_1.zks')
+ $leaf=if(Test-KmcAssistedCumulativeMode $Request.cumulativeAcquisition){'Manual_301_KMC_C7_MANUAL_DERIVED_FIELD.zks'}else{'Auto_1.zks'}
+ Assert-KmcBootstrapInventoryString $Request.cumulativeAcquisition.nativeWriteLeaf $leaf
+ $path=Assert-KmcChildPath $w.path $root 'native Manual-derived output';Assert-KmcBootstrapInventoryString $path (Join-Path $root $leaf)
  Assert-KmcNotReparsePoint $path 'native Manual-derived output';Assert-KmcNotHardLink $path 'native Manual-derived output';$file=Get-Item -LiteralPath $path
- if($file.Length-ne$w.length-or$file.LastWriteTimeUtc.Ticks-ne$w.lastWriteTimeUtcTicks-or(Get-KmcSha256 $path)-cne$w.sha256){throw 'Native terminal Auto output differs from its settled receipt.'}
+ if($file.Length-ne$w.length-or$file.LastWriteTimeUtc.Ticks-ne$w.lastWriteTimeUtcTicks-or(Get-KmcSha256 $path)-cne$w.sha256){throw 'Native cumulative output differs from its settled receipt.'}
  $input=Join-Path $root $Request.persistenceLoad.fileName;Assert-KmcNotReparsePoint $input 'immutable Manual input';Assert-KmcNotHardLink $input 'immutable Manual input'
  if((Get-KmcSha256 $input)-cne$Request.persistenceLoad.sha256-or(Get-Item -LiteralPath $input).Length-ne$Request.persistenceLoad.length){throw 'Manual-derived acquisition changed its immutable input.'}
 }

@@ -1,6 +1,6 @@
 Set-StrictMode -Version Latest
 function Test-KmcChunk7CumulativeScenario([string]$Scenario){$Scenario-ceq'chunk7-cumulative-acquisition'}
-function Get-KmcChunk7CumulativeRows {@('chunk7-cumulative-acquisition','C7-cumulative-source','C7-cumulative-native-load','C7-cumulative-eligibility','C7-cumulative-native-choices','C7-cumulative-native-autosave','C7-cumulative-native-field','C7-cumulative-cleanup','C7-cumulative-runtime','C7-cumulative-interrupted')}
+function Get-KmcChunk7CumulativeRows {@('chunk7-cumulative-acquisition','C7-cumulative-source','C7-cumulative-native-load','C7-cumulative-eligibility','C7-cumulative-native-choices','C7-cumulative-native-autosave','C7-cumulative-native-field','C7-cumulative-native-manual-save','C7-cumulative-cleanup','C7-cumulative-runtime','C7-cumulative-interrupted')}
 function Assert-KmcChunk7CumulativeSelection($Request){
  if($Request-is[Collections.IDictionary]){$Request=[pscustomobject]$Request}
  $has=$null-ne$Request.PSObject.Properties['cumulativeAcquisition']
@@ -12,7 +12,8 @@ function Assert-KmcChunk7CumulativeSelection($Request){
  if(Test-KmcAssistedCumulativeMode $s){Assert-KmcAssistedCumulativePins $s $Request.runId}
  if($s.case-isnot[string]-or$s.case-cnotin@('existing-ranger-horse','paid-small-ranger-horse','paid-medium-ranger-horse')-or$s.sourceRunId-isnot[string]-or$s.sourceRunId-cnotmatch'^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$'-or$s.sourceRunId-ceq$Request.runId){throw 'Manual-derived case/source run differs.'}
  foreach($key in @('sourceArtifactSha256','sourceArchiveSha256')){if($s.$key-isnot[string]-or$s.$key-cnotmatch'^[a-f0-9]{64}$'){throw 'Manual-derived source requires exact SHA256 pins.'}}
- Assert-KmcChunk7Boolean $s.baseGameOnly $true;Assert-KmcBootstrapInventoryString $s.nativeWriteLeaf 'Auto_1.zks'
+ Assert-KmcChunk7Boolean $s.baseGameOnly $true
+ Assert-KmcBootstrapInventoryString $s.nativeWriteLeaf $(if(Test-KmcAssistedCumulativeMode $s){'Manual_301_KMC_C7_MANUAL_DERIVED_FIELD.zks'}else{'Auto_1.zks'})
  foreach($key in @('expectedNativeLoadCount','expectedNativeWriteCount')){Assert-KmcOrdinaryInteger $s.$key 1 1}
  $p=$s.readiness;Assert-KmcExactProperties $p @('mainActorId','mainLevel','mainExperience','money','experienceRatePercent','nativeHireCost','defaultHireExperience','partyCharacterIds') 'native readiness pins'
  Assert-KmcOrdinaryGuid $p.mainActorId;Assert-KmcOrdinaryInteger $p.mainLevel 1 20;Assert-KmcOrdinaryInteger $p.mainExperience 0 ([int]::MaxValue)

@@ -63,8 +63,13 @@ namespace KingmakerMountedCombat.Diagnostics
                     entries.Add(new PersistenceSaveEntry { FileName = request.ManualDerived.NativeWriteLeaf,
                         InternalName = Chunk7ManualDerivedSelection.ManualOutputName, SaveType = "Manual", Area = fixture.Area, Writable = true });
                 if (request.Scenario == Chunk7CumulativeAcquisitionSelection.Scenario)
-                    entries.Add(new PersistenceSaveEntry { FileName = Chunk7ManualDerivedSelection.OutputLeaf,
-                        InternalName = RuntimePersistenceScenario.SlotName(SaveInfo.SaveType.Auto), SaveType = "Auto", Area = fixture.Area, Writable = true });
+                    entries.Add(new PersistenceSaveEntry {
+                        FileName = request.CumulativeAcquisition.UsesAssistedCold
+                            ? Chunk7CumulativeAcquisitionSelection.AssistedManualOutputLeaf : Chunk7ManualDerivedSelection.OutputLeaf,
+                        InternalName = request.CumulativeAcquisition.UsesAssistedCold
+                            ? Chunk7ManualDerivedSelection.ManualOutputName : RuntimePersistenceScenario.SlotName(SaveInfo.SaveType.Auto),
+                        SaveType = request.CumulativeAcquisition.UsesAssistedCold ? "Manual" : "Auto",
+                        Area = fixture.Area, Writable = true });
                 if (request.Scenario == Chunk7ManualSeedSelection.Scenario)
                     entries.Add(new PersistenceSaveEntry { FileName = request.ManualSeed.OutputLeaf,
                         InternalName = Chunk7ManualSeedSelection.OutputName, SaveType = "Manual", Area = fixture.Area, Writable = true });
