@@ -17,6 +17,7 @@ namespace KingmakerMountedCombat.Diagnostics
         public const string OwnedDismissCase = "owned-horse-native-dismiss";
         public const string SmallDismissCase = "small-horse-native-dismiss";
         public const string SmallRetrainHorseCase = "small-horse-native-retrain-horse";
+        public const string SmallRetrainColdCase = "small-horse-native-retrain-cold";
         public const string OwnedRetrainHorseCase = "owned-horse-native-retrain-horse";
         public const string OwnedRetrainMammothCase = "owned-horse-native-retrain-mammoth";
         public const string SourceLeaf = "Manual_300_KMC_C7_WORLD.zks";
@@ -35,6 +36,8 @@ namespace KingmakerMountedCombat.Diagnostics
         public string InventoryArtifactSha256 { get; set; }
         public string ActorId { get; set; }
         public string PetId { get; set; }
+        public string FormerPetId { get; set; }
+        public bool ShouldSerializeFormerPetId() => FormerPetId != null;
         public string ControlActorId { get; set; }
         public string ControlPetId { get; set; }
         public string RaceGuid { get; set; }
@@ -49,6 +52,7 @@ namespace KingmakerMountedCombat.Diagnostics
         public Chunk7OwnedPairsSelection OwnedSource { get; set; }
         public bool ShouldSerializeOwnedSource() => OwnedSource != null;
         internal bool IsSmallDismiss => Case == SmallDismissCase;
+        internal bool IsColdOnly => Case == SmallRetrainColdCase;
         internal bool IsSmallOwned => IsSmallDismiss || Case == SmallRetrainHorseCase;
         internal bool IsOwned => IsSmallOwned || Case == OwnedLevelCase || Case == OwnedDismissCase || Case == OwnedRetrainHorseCase || Case == OwnedRetrainMammothCase;
         internal string OperationCase
@@ -87,6 +91,24 @@ namespace KingmakerMountedCombat.Diagnostics
         public IReadOnlyList<string> Validate(string scenario, string runId)
         {
             var errors = new List<string>();
+            if (IsColdOnly)
+            {
+                if (scenario != Scenario) errors.Add("Retrain cold continuation requires its exact progression scenario.");
+                foreach (var sourceRun in new[] { SourceRunId, InventoryRunId })
+                    if (!Regex.IsMatch(sourceRun ?? "", "^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$") || sourceRun == runId)
+                        errors.Add("Retrain cold continuation requires distinct producer/inventory runs.");
+                if (SourceRunId == InventoryRunId) errors.Add("Retrain producer and mounted inventory runs differ.");
+                foreach (var hash in new[] { SourceArtifactSha256, SourceArchiveSha256, InventoryArtifactSha256 })
+                    if (!Regex.IsMatch(hash ?? "", "^[a-f0-9]{64}$")) errors.Add("Retrain cold source hashes are required.");
+                var coldIds = new HashSet<string>(StringComparer.Ordinal);
+                foreach (var id in new[] { ActorId, PetId, FormerPetId, ControlActorId, ControlPetId })
+                    if (!Guid.TryParseExact(id, "D", out var parsed) || parsed == Guid.Empty || parsed.ToString("D") != id || !coldIds.Add(id))
+                        errors.Add("Five distinct exact retrain actor and pet IDs are required.");
+                if (ExpectedNativeWriteCount != 0 || NativeWriteLeaf != null || MinimumRangerLevel != 0 || OwnedSource != null ||
+                    RaceGuid != null || PresetGuid != null || SkeletonName != null || Gender != null || LeftHanded != null || BodySize != null)
+                    errors.Add("Retrain cold continuation cannot carry native choices, body reconstruction or write authority.");
+                return errors;
+            }
             if (scenario != Scenario || OperationCase == null)
                 errors.Add("Native progression requires its exact closed scenario/case.");
             foreach (var sourceRun in new[] { SourceRunId, InventoryRunId })
@@ -146,11 +168,31 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             else if (RaceGuid != null || PresetGuid != null || SkeletonName != null || Gender != null || LeftHanded.HasValue || BodySize != null)
                 errors.Add("Leveling or dismissal cannot declare body reconstruction choices.");
+            if (FormerPetId != null) errors.Add("Native progression producer cannot declare a cold former-pet identity.");
             return errors;
         }
         internal IReadOnlyList<string> ValidateOwnedDescriptor(RuntimeSaveDescriptor source, RuntimeFixtureIdentity fixture)
         {
             var errors = new List<string>();
+            if (IsColdOnly)
+            {
+                if (source == null || fixture?.Working == null || fixture.Baseline == null)
+                    errors.Add("Retrain cold continuation requires its own exact Manual and protected fixture identities.");
+                else
+                {
+                    errors.AddRange(source.Validate("persistenceLoad", ManualOutputName, "^Manual_[1-9][0-9]*_KMC_C7_PROGRESSION\\.zks$"));
+                    var match = Regex.Match(source.FileName ?? "", "^Manual_([1-9][0-9]*)_KMC_C7_PROGRESSION\\.zks$");
+                    if (!match.Success || !int.TryParse(match.Groups[1].Value, out var number) || number <= 0 ||
+                        source.FileName != ManualLeaf(number) ||
+                        source.GameId != Chunk7SmallFixtureSelection.CampaignId ||
+                        source.GameName != Chunk7SmallFixtureSelection.CampaignName ||
+                        source.Area != Chunk7SmallFixtureSelection.AreaId ||
+                        source.Sha256 != SourceArchiveSha256 ||
+                        source.Sha256 == fixture.Working.Sha256 || source.Sha256 == fixture.Baseline.Sha256)
+                        errors.Add("Retrain cold Manual does not match its engine-minted Small campaign and exact source hash.");
+                }
+                return errors;
+            }
             if (!IsOwned || OwnedSource == null || source == null || fixture?.Working == null || fixture.Baseline == null)
                 errors.Add("Owned progression requires its exact separately qualified Manual source and protected fixture identities.");
             else

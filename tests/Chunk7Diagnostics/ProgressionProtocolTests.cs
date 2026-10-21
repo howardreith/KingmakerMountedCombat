@@ -20,7 +20,16 @@ internal static class ProgressionProtocolTests {
     case "wrong respec body":r.Progression.BodySize="Small";break;case "missing handedness":r.Progression.LeftHanded=null;break;case "dismissal write":r.Progression.ExpectedNativeWriteCount=1;break;
     case "second write":r.Progression.ExpectedNativeWriteCount=2;break;case "unbounded level":r.Progression.MinimumRangerLevel=21;break;case "wrong autosave leaf":r.Progression.NativeWriteLeaf="Auto_2.zks";break;}
     TestRunner.True(r.Validate().Count>0,"Invalid progression request accepted.");});
-  tests.Run("progression exact rows are registered",()=>{foreach(var name in new[]{"C7-progression-cold-source","C7-progression-native-operation","C7-progression-cleanup","C7-progression-runtime","C7-progression-interrupted"})TestRunner.True(RuntimeSubscenarioResult.IsMissionScenario(name),"Unknown exact progression row.");TestRunner.True(!RuntimeSubscenarioResult.IsMissionScenario("C7-progression-any"),"Wildcard progression admitted.");});
+  tests.Run("progression exact rows are registered",()=>{foreach(var name in new[]{"C7-progression-cold-source","C7-progression-native-operation","C7-progression-cold-continuation","C7-progression-cleanup","C7-progression-runtime","C7-progression-interrupted"})TestRunner.True(RuntimeSubscenarioResult.IsMissionScenario(name),"Unknown exact progression row.");TestRunner.True(!RuntimeSubscenarioResult.IsMissionScenario("C7-progression-any"),"Wildcard progression admitted.");});
+  tests.Run("retrain cold selects one exact read-only native Manual",()=>{
+   var r=ColdRequest();TestRunner.Equal(0,r.Validate().Count,"Valid retrain cold request refused.");
+   foreach(var mutation in new Action<RuntimeRequest>[]{x=>x.Progression.FormerPetId=x.Progression.PetId,
+    x=>x.Progression.ExpectedNativeWriteCount=1,x=>x.Progression.NativeWriteLeaf="Auto_1.zks",
+    x=>x.PersistenceLoad.FileName="Manual_300_KMC_C7_WORLD.zks",x=>x.Progression.RaceGuid=new string('a',32),
+    x=>x.Progression.SourceRunId=x.Progression.InventoryRunId}){
+    var changed=ColdRequest();mutation(changed);TestRunner.True(changed.Validate().Count>0,"Altered retrain cold request accepted.");
+   }
+  });
   tests.Run("matches progression plan never spends load or write",()=>{var f=new Fixture();var a=f.Scope(true);for(var i=0;i<4;i++)TestRunner.True(a.MatchesProgressionPlan(f.Source,true,"Autosave"),"Exact plan refused.");TestRunner.Equal(0,a.AdmittedNativeLoadRequests,"Plan check spent load.");TestRunner.Equal(0,a.AdmittedNativeWriteRequests,"Plan check spent write.");});
   tests.Run("native progression load cap survives write admission",()=>{var f=new Fixture();var a=f.Scope(true);TestRunner.True(a.AuthorizeNativeRequest(RuntimeSaveOperation.Load,f.Load,f.Saves)==null,"Initial load refused.");TestRunner.True(a.AuthorizeNativeRequest(RuntimeSaveOperation.Load,f.Load,f.Saves)!=null,"Second load admitted.");TestRunner.True(a.AuthorizeNativeRequest(RuntimeSaveOperation.Write,f.Write,f.Saves)==null,"One exact terminal save refused.");TestRunner.True(a.AuthorizeNativeRequest(RuntimeSaveOperation.Write,f.Write,f.Saves)!=null,"Second native write admitted.");TestRunner.Equal(1,a.AdmittedNativeLoadRequests,"Load quota changed.");TestRunner.Equal(1,a.AdmittedNativeWriteRequests,"Write quota changed.");});
   tests.Run("dismissal scope cannot write",()=>{var f=new Fixture();var a=f.Scope(false);TestRunner.True(a.MatchesProgressionPlan(f.Source,false,"Autosave"),"Exact dismissal plan refused.");TestRunner.True(a.AuthorizeNativeRequest(RuntimeSaveOperation.Write,f.Write,f.Saves)!=null,"Dismissal wrote a save.");});
@@ -41,6 +50,15 @@ internal static class ProgressionProtocolTests {
    RaceGuid=respec?new string('a',32):null,PresetGuid=respec?new string('b',32):null,SkeletonName=respec?"ExactObservedMediumRig":null,Gender=respec?"Male":null,LeftHanded=respec?(bool?)false:null,BodySize=respec?"Medium":null,MinimumRangerLevel=writes?4:0,ExpectedNativeWriteCount=writes?1:0,NativeWriteLeaf=writes?"Auto_1.zks":null},
   PersistenceLoad=f.Source,Branch="codex/mounted-combat-chunk7-foundation",Commit=new string('1',40),ProductVersion=BuildIdentity.ProductVersion,DllSha256=new string('2',64),DllMvid=Campaign,TransactionToken=new string('3',64),EvidenceRoot=root,
   Fixture=new RuntimeFixtureIdentity{Baseline=Descriptor("KMC_AUTOMATION_BASELINE","Manual_298_KMC_AUTOMATION_BASELINE.zks",new string('a',64)),Working=Descriptor("KMC_AUTOMATION_WORKING","Manual_299_KMC_AUTOMATION_WORKING.zks",new string('b',64)),WriteAuthorization=new RuntimeSaveWriteAuthorization{Mode="working-only",AllowedInternalName="KMC_AUTOMATION_WORKING",AllowedFileName="Manual_299_KMC_AUTOMATION_WORKING.zks",BaselineImmutable=true}},QualificationSuite=new RuntimeQualificationSuiteIdentity{SuiteId="progression-suite",SnapshotSha256=new string('4',64)}};}
+ private static RuntimeRequest ColdRequest(){var r=Request(Chunk7ProgressionSelection.LevelCase);var p=r.Progression;
+  p.Case=Chunk7ProgressionSelection.SmallRetrainColdCase;p.ActorId="c4e2c853-4b72-4904-ad84-d0b7bfba7470";
+  p.PetId="c862fa24-d1c1-4f95-9f50-009d7f864264";p.FormerPetId="0e0c7d2d-06b4-4510-9f81-d847340d1424";
+  p.ControlActorId="73681ef2-b281-4bc6-bc05-2de68c1616cb";p.ControlPetId="30b79228-3fe5-48ac-aa88-2de9085837b7";
+  p.ExpectedNativeWriteCount=0;p.NativeWriteLeaf=null;p.MinimumRangerLevel=0;
+  r.PersistenceLoad=Descriptor(Chunk7ProgressionSelection.ManualOutputName,"Manual_306_KMC_C7_PROGRESSION.zks",p.SourceArchiveSha256);
+  r.PersistenceLoad.GameId=Chunk7SmallFixtureSelection.CampaignId;r.PersistenceLoad.GameName=Chunk7SmallFixtureSelection.CampaignName;
+  r.PersistenceLoad.Area=Chunk7SmallFixtureSelection.AreaId;return r;
+ }
  private static RuntimeSaveDescriptor Descriptor(string name,string leaf,string hash)=>new RuntimeSaveDescriptor{InternalName=name,FileName=leaf,Sha256=hash,Length=10,LastWriteTimeUtcTicks=638907120000000000L,GameId=Campaign,GameName="Fixture",Area=Area};
  private sealed class Fixture{
   internal string Run,Saves;internal RuntimeSaveDescriptor Source;private string hash;

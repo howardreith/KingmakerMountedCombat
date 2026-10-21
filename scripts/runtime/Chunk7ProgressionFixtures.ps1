@@ -10,6 +10,7 @@ function Read-KmcChunk7ProgressionSelectionFile([string]$Path,[string]$RunId){
 }
 function Get-KmcChunk7ProgressionSource($Selection,$Fixture,$Candidate){
     Assert-KmcChunk7ProgressionSelection ([pscustomobject]@{scenario='chunk7-native-progression';runId='unassigned-progression-run';progression=$Selection})
+    if(Test-KmcChunk7ProgressionColdSelection $Selection){return Get-KmcChunk7ProgressionColdSource $Selection $Fixture $Candidate}
     if(Test-KmcChunk7SmallProgressionCase $Selection.case){return Get-KmcChunk7SmallProgressionSource $Selection $Fixture $Candidate}
     if(Test-KmcChunk7OwnedProgressionCase $Selection.case){return Get-KmcChunk7OwnedProgressionSource $Selection $Fixture $Candidate}
     $sourceRoot=Assert-KmcChildPath (Join-Path (Get-KmcLabRoot) ('runtime-evidence/'+$Selection.sourceRunId)) (Join-Path (Get-KmcLabRoot) 'runtime-evidence') 'progression source receipts'
@@ -48,6 +49,53 @@ function Get-KmcChunk7ProgressionSource($Selection,$Fixture,$Candidate){
     [pscustomobject]@{path=$source.path;descriptor=$source.descriptor;artifactPath=$artifactPath;artifactSha256=$Selection.sourceArtifactSha256;artifactLength=[long]$file.Length;
         inventory=$inventory;sourceProcessId=$artifact.observations.processId}
 }
+function Get-KmcChunk7ProgressionColdSource($Selection,$Fixture,$Candidate){
+    $set=Get-KmcChunk7OwnedReceiptSet $Selection.sourceRunId 'chunk7-progression-evidence.json'
+    Assert-KmcChunk7OwnedSourceCompletion $set $Selection.sourceRunId 'chunk7-native-progression' $Fixture $Candidate $set.request.progression.sourceArchiveSha256 1
+    $base=Join-Path (Get-KmcLabRoot) 'runtime-evidence'
+    $root=Assert-KmcChildPath (Join-Path $base $Selection.sourceRunId) $base 'retrain producer evidence'
+    $hashes=@{}
+    foreach($leaf in @('runtime-request.json','runtime-result.json','runtime-game-result.json','runtime-artifacts.json','base-game-isolation-result.json','chunk7-progression-evidence.json')){
+        $path=Assert-KmcChildPath (Join-Path $root $leaf) $base 'retrain producer receipt'
+        Assert-KmcNotReparsePoint $path 'retrain producer receipt';Assert-KmcNotHardLink $path 'retrain producer receipt'
+        Assert-KmcManifestJsonMembersUnique $path 'retrain producer receipt';$hashes[$leaf]=Get-KmcSha256 $path
+    }
+    if($hashes['chunk7-progression-evidence.json']-cne$Selection.sourceArtifactSha256){throw 'Cold retrain producer artifact differs from exact pin.'}
+    $request=Read-KmcJson (Join-Path $root 'runtime-request.json');$result=Read-KmcJson (Join-Path $root 'runtime-result.json')
+    $manifest=Read-KmcJson (Join-Path $root 'runtime-artifacts.json');$artifact=Read-KmcJson (Join-Path $root 'chunk7-progression-evidence.json')
+    if($request.scenario-cne'chunk7-native-progression'-or$request.runId-cne$Selection.sourceRunId-or$request.progression.case-cne'small-horse-native-retrain-horse'-or
+       $request.commit-cne$Candidate.commit-or$request.dllSha256-cne$Candidate.dllSha256-or$request.dllMvid-cne$Candidate.dllMvid-or
+       $result.status-cne'PASS'-or$result.modsRestored-ne$true-or$result.saveProtectionPassed-ne$true-or$result.workingRestored-ne$true-or
+       $artifact.status-cne'PASS'-or$artifact.observations.processId-le0-or$artifact.observations.selection.actorId-cne$Selection.actorId-or
+       $artifact.observations.selection.petId-cne$Selection.formerPetId-or$artifact.observations.selection.controlActorId-cne$Selection.controlActorId-or
+       $artifact.observations.selection.controlPetId-cne$Selection.controlPetId-or$artifact.observations.selection.inventoryRunId-cne$Selection.inventoryRunId-or
+       $request.progression.inventoryArtifactSha256-cne$Selection.inventoryArtifactSha256){throw 'Cold retrain source is not the exact same-candidate completed Small producer.'}
+    Assert-KmcChunk7ProgressionLoadDescriptor $request
+    Assert-KmcReadOnlyArtifactManifest $request $hashes['runtime-artifacts.json'] -GameResult
+    Assert-KmcChunk7ProgressionNativeArchive $request $artifact
+    $write=$artifact.observations.session.nativeWrite;$archive=$write.archive;$roster=$artifact.observations.ownedRosterAfter
+    if($write.sha256-cne$Selection.sourceArchiveSha256-or$write.type-cne'Manual'-or$archive.SchemaVersion-ne3-or$archive.Pairs.Count-ne1-or
+       @($archive.Pairs|Where-Object{$_.Rider.Id-ceq$Selection.controlActorId-and$_.Mount.Id-ceq$Selection.controlPetId-and$_.ProfileId-ceq'medium-humanoid-horse-v1'}).Count-ne1-or
+       @($archive.Pairs|Where-Object{$_.Rider.Id-ceq$Selection.actorId-or$_.Mount.Id-ceq$Selection.petId-or$_.Mount.Id-ceq$Selection.formerPetId}).Count-ne0-or
+       $roster.currentPetId-cne$Selection.petId-or$roster.originalPet.id-cne$Selection.formerPetId-or$roster.originalPet.destroyed-ne$true-or
+       $roster.originalPet.presentInNativeState-ne$false-or$roster.nativeTargetTransitionObserved-ne$true){throw 'Cold retrain source lost its exact surviving control, retired old pet or new target pet.'}
+    $inventoryPath=Assert-KmcChildPath (Join-Path (Join-Path $base $Selection.inventoryRunId) 'chunk7-persistence-evidence.json') $base 'retrain mounted cold inventory'
+    Assert-KmcNotReparsePoint $inventoryPath 'retrain mounted cold inventory';Assert-KmcNotHardLink $inventoryPath 'retrain mounted cold inventory'
+    $inventory=Get-Item -LiteralPath $inventoryPath
+    if($inventory.Length-le0-or$inventory.Length-gt16MB-or(Get-KmcSha256 $inventoryPath)-cne$Selection.inventoryArtifactSha256){throw 'Retrain mounted cold inventory differs from its immutable source.'}
+    $path=Assert-KmcChildPath $write.path (Join-Path (Get-KmcLabRoot) 'runtime-staging') 'native retrain Manual'
+    Assert-KmcNotReparsePoint $path 'native retrain Manual';Assert-KmcNotHardLink $path 'native retrain Manual'
+    $file=Get-Item -LiteralPath $path
+    if($file.Length-ne$write.length-or(Get-KmcSha256 $path)-cne$write.sha256){throw 'Native retrain Manual bytes differ from accepted producer.'}
+    $descriptor=[pscustomobject]@{internalName=$write.name;fileName=$write.leaf;sha256=$write.sha256;length=[long]$file.Length;
+        lastWriteTimeUtcTicks=[long]$file.LastWriteTimeUtc.Ticks;gameId=$write.gameId;gameName=$write.gameName;area=$write.area}
+    Assert-KmcChunk7ProgressionLoadDescriptor ([pscustomobject]@{scenario='chunk7-native-progression';runId='unassigned-progression-cold';progression=$Selection;persistenceLoad=$descriptor;fixture=$Fixture})
+    foreach($leaf in $hashes.Keys){if((Get-KmcSha256 (Join-Path $root $leaf))-cne$hashes[$leaf]){throw 'Retrain producer receipt changed during cold source admission.'}}
+    Assert-KmcChunk7OwnedReceiptPins $set
+    [pscustomobject]@{path=$path;descriptor=$descriptor;artifactPath=(Join-Path $root 'chunk7-progression-evidence.json');artifactSha256=$Selection.sourceArtifactSha256;
+        artifactLength=[long](Get-Item -LiteralPath (Join-Path $root 'chunk7-progression-evidence.json')).Length;
+        inventory=[pscustomobject]@{path=$inventoryPath;sha256=$Selection.inventoryArtifactSha256;length=[long]$inventory.Length};sourceProcessId=$artifact.observations.processId}
+}
 function Copy-KmcChunk7ProgressionInputs($Source,[string]$ProfileRoot,$Lock){
     [void](Assert-KmcRuntimeLockOwner $Lock)
     $run=Assert-KmcChildPath $ProfileRoot (Join-Path (Get-KmcLabRoot) 'runtime-staging') 'progression owned profile';Assert-KmcDirectoryTreeCloneable $run 'progression owned profile'
@@ -73,6 +121,7 @@ function Assert-KmcChunk7ProgressionNativeHeader($Header,$Write){
 }
 function Assert-KmcChunk7ProgressionNativeArchive($Request,$Artifact){
     Assert-KmcChunk7ProgressionEvidence $Request $Artifact 'PASS'
+    if(Test-KmcChunk7ProgressionColdSelection $Request.progression){return}
     if((Get-KmcChunk7ProgressionOperation $Request.progression.case)-ceq'horse-native-dismiss'){return}
     $w=$Artifact.observations.session.nativeWrite;$path=$w.path
     Assert-KmcNotReparsePoint $path 'progression native autosave';Assert-KmcNotHardLink $path 'progression native autosave'
@@ -173,6 +222,7 @@ function Get-KmcChunk7SmallProgressionSource($Selection,$Fixture,$Candidate){
 }
 function Get-KmcChunk7ProgressionInputLeaf($Request){
     Assert-KmcChunk7ProgressionLoadDescriptor $Request
+    if(Test-KmcChunk7ProgressionColdSelection $Request.progression){return $Request.persistenceLoad.fileName}
     if(Test-KmcChunk7OwnedProgressionCase $Request.progression.case){return $Request.persistenceLoad.fileName}
     return 'Manual_300_KMC_C7_WORLD.zks'
 }

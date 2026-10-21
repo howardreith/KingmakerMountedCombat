@@ -52,6 +52,8 @@ Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot 'Chunk7AcquiredManualEvidence.ps1')
 . (Join-Path $PSScriptRoot 'Chunk7SmallFixtureEvidence.ps1')
 . (Join-Path $PSScriptRoot 'Chunk7StockMammothFixtureEvidence.ps1')
+. (Join-Path $PSScriptRoot 'Chunk7OwnedPairsFixtures.ps1')
+. (Join-Path $PSScriptRoot 'Chunk7ProgressionFixtures.ps1')
 
 # Scenario families whose live completion contract waits for a native level-up autosave.
 # Native fact: the installed game (2.1.7b) never registers LevelUpAutoSaveController -
