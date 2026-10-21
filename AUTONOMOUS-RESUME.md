@@ -1,6 +1,38 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
-## Active October 21 F10 Manual-derived field source and cold consumer
+## Active October 21 after batch125 owner-seed source inventory
+
+The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active;
+[batch125](docs/CHUNK7-BATCH125-F10-OWNER-SEED-COLD-2026-10-21.md) passed one
+declared preview.91 base-only read-only load of the clean owner seed, game/outer
+4/0 with zero writes and exact restoration. Local source commit is
+`ed40ef959c1a79f745568f014a30bfd0dbde8df4`; package SHA-256
+`d3bf0d9caf58e43bd15b858a8b11ed72d35d24ac48201ec34a5a45a486807bae`,
+DLL SHA-256 `974197d0fb655a228acdad82c1cfd65955403df4e06e88eb03b7200765c14537`,
+MVID `70833b73-da58-4be8-8fe1-2d352dd81d23`, suite SHA-256
+`db91d29c6cd4fe0307537507bc84cfe316886f798bc4a9d5baa78bb69a84a678`.
+The current candidate observed a pet-free Human Ranger level 3 at 9,000 XP,
+four original party characters, 400,057 gold and only-one-save off. Runtime
+result SHA-256 `dd96e0c1c2f334ecffe8fcf3300efec32f48f55eb2736a69af7349a1cec3107f`;
+transaction `restored`, SHA-256
+`bb0426d791cdfc49988f9b46c3ff73fd08a0e5d516732e27aa975ba837c5d07a`;
+Mods, protected saves and profile bytes exact, zero cache exceptions, no game
+or active lock. No acquisition or acquired cold PASS follows from this inventory.
+
+Next implementation: give the Manual-derived producer an explicit registered
+owner-seed source mode using the actual batch125 assisted cold artifact and
+immutable master, without impersonating the bootstrap Manual. Bind the source
+qualifier, native load/descriptor authority, acquisition observations, strict
+reader and saved field Manual together; preserve cumulative Auto refusal and
+all original failures. Focused review/tests precede a new candidate and
+separate native producer/cold consumer. Do not replay the failed prologue.
+The guarded push helper's WhatIf was rejected by automatic approval review
+before it ran (`approval required by policy; AskForApproval is Never`); local
+commit `ed40ef95` is unpushed, and no alternate push path was used. Draft PR #5
+is still the existing remote checkpoint. Continue independent F09/F11/door work
+under the standing mission; engineering completion and 7E remain open.
+
+## Historical October 21 F10 Manual-derived field source checkpoint
 
 The [standing completion mission](planning/CHUNK7-COMPLETION-MISSION.md)
 continues. The current successor branch now selects preview.91 for a coherent
@@ -23,11 +55,10 @@ reservation 70/0, acquired adapter 74/0, save-probe 39/0, source readers
 30/0 each, medium continuation 14/0, wiring 67/0 each, and stale-family
 guard 28/0 passed. These are offline synthetic/contract results, not native
 acquisition or cold-load qualification. No game, package, Mods, profile or
-save was touched during this correction. The next step is Candidate on the
-committed preview.91 source, then a same-candidate guarded Manual seed,
-Manual-derived producer and separate acquired cold consumer on fresh disposable
-copies after exact dependency-scoped WhatIf. Preserve one live executor and
-all actual prior batch failures. F09/F10/F11, doors and selected 7E remain open.
+save was touched during this source correction. Candidate and an owner-seed
+cold inventory were subsequently run as the newer active section records.
+Preserve one live executor and all actual prior batch failures. F09/F10/F11,
+doors and selected 7E remain open.
 
 ## Active October 21 after batch124 Thorn River inventory
 
