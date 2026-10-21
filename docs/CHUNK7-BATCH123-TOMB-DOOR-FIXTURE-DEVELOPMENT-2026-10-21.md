@@ -1,6 +1,6 @@
 # Chunk 7 batch123: Old Cyclops Tomb fixture route, development
 
-Status: **reviewed offline; native fixture/inventory result pending.** The standing
+Status: **native fixture/inventory PASS; ordinary door remains unqualified.** The standing
 [completion mission](../planning/CHUNK7-COMPLETION-MISSION.md) remains active.
 This route is one targeted ordinary-door fixture discriminator, not a door PASS.
 
@@ -42,7 +42,64 @@ plans supplied to both producer and cold observations; its preceding failures
 remain test evidence, not native results. No game process, Mods staging, live
 profile write, package or save transaction was started during this checkpoint.
 
-Next: commit and freeze a candidate, perform scoped preflight, then run at most
-one native Tomb preparation/inventory case. If no qualifying ordinary door is
-observed, keep the door gate open and continue the standing mission's other
-selected work. Preserve exact restoration and all older negative scene results.
+## One native discriminator on preview.88
+
+The source was committed at `d945903799fa169af8ad8b5a07004db094730686`;
+the exact candidate version commit is
+`1fa14c63434aa7d7fa796e6e602b6eb79b8cc36e`. The delivered diagnostic
+package for this run is
+`C:\Dev\KingmakerMountedCombatLab\artifacts\KingmakerMountedCombat-0.1.0-chunk7b-preview.88-c7b-world88-tomb-door-inventory-diagnostic.zip`,
+SHA-256 `4a75fa433fe2e134bbc5a3b914830098220028f49663099a61c5c794a50ea049`;
+DLL SHA-256 `94ef562f1f92a5fe9f41895c6ff54e7ca07ae1e9842f15a95800d944d0386aab`,
+MVID `6a49b94a-8f1f-4cd3-a66b-e0b4c3773d8c`. The previously created,
+misnamed preview.87-plus-preview.88 package was never staged or run. Candidate
+checks passed 6/0 in 4.34 minutes with the package build reused.
+
+The append-only current-state suite `chunk7b-completion-b123-20261021` is
+SHA-256 `6d094c85abd9bc3492f4564bacb764e1b4e7c0b5b4af299e37f6204638855b5b`.
+The sole declared slot is in the private
+`analysis-cache/chunk7-continuation/b123-tomb-door/declared-b123.json`;
+the fresh selection copy is byte-identical to the prior admitted Manticore
+owner-seed selection, SHA-256
+`0a240abd3d199c470322d9f9c6268ac2cc82882f89b685c868c3df54470ae3cb`.
+Scoped WhatIf passed. The first live command was rejected during parameter
+binding because one suite-hash character was omitted; it acquired no lock and
+started no game. The corrected invocation executed exactly one native scenario
+under the approved Howie SID.
+
+`20261021-c7b-world88-b123s1-tomb-door` passed the game and outer reader
+**5/0**, with one source load and one genuine destination Manual. Runtime
+result SHA-256 `b0cefe847e4b40fe8b22ed80325af46b7f76eef02bfc444def95ff20de2a696a`;
+game result SHA-256 `491753cbbbad44d15b33c6ee559fd2f79b23ea651e6b446433084598d953e684`;
+persistence evidence SHA-256
+`159d9a206c11e59c28fd5e2b8382476db780f2a0ec8f0e874cfc9b4a10962653`.
+The output `Manual_305_KMC_C7_TOMB_DOOR_FIXTURE.zks` is 1,037,548 bytes,
+SHA-256 `41deb60f5f512080858c519ce7bdcb70f2af8025d79075f76e40f7027a41fba4`,
+saved in the exact Tomb area. This is a prepared fixture, not a successful
+ordinary door click.
+
+The after-remount inventory found one native `StandardDoor`, named
+`SecretDoorOpen`, at `(-4.93, 0.7, -10.48)`. It was ineligible as a door
+candidate: `open=false`, `disableCutWhenOpen=false`, and its two mounted
+actors were 29.663 m and 31.011 m away, beyond the 28 m scan radius.
+`eligible=false`, `interactionTested=false`; no door mutation or interaction
+was made. The distinct Spider Cave and Manticore zero-door observations remain
+on their own earlier inputs. Tomb establishes no ordinary-door coverage.
+`Debug.isDebugBuild=false` on the actual game player, ruling out the Unity
+2018.4 development-player-only Recorder route for F11; it does not measure
+allocation rate.
+
+The transaction state is `restored`, SHA-256
+`e282156fb7b153279bcb58bda4aceb99707b44883382c0c9f66f0fc106e99d0b`.
+Mods digest before/after is
+`b592f4009833072b60604852ad00660a6d236957712b63ae40f28ed1b7f67cda`;
+protected-save inventory digest before/after is
+`df434471b6f2bb3ade60ecccaa524aa7537e17f63db3d0bcce6d5a7eb70561ab`.
+Baseline immutable, Working restored, save allowlist and save protection passed.
+Original live `Areas` was restored exactly, profile bytes are exact, and there
+are zero accepted cache exceptions. No Kingmaker process or runtime lock remains.
+
+Continue the ordinary-door fixture search without replaying these three
+unchanged scenes. Continue F11 through a separately reviewed allocation-event
+route and the remaining progression/profile/performance work under the active
+standing mission. No 7E final-package claim follows from this development run.
