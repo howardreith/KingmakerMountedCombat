@@ -88,9 +88,10 @@ namespace KingmakerMountedCombat.Diagnostics
         // The owner-seed checkpoint producer writes its Manual under its own distinct name; every other selection keeps NativeName.
         internal static string NativeName(SaveInfo.SaveType type, Chunk7OwnedPairsSelection owned) =>
             type == SaveInfo.SaveType.Manual && owned?.IsSmallFixtureSave == true ? Chunk7OwnedPairsSelection.SmallFixtureManualName :
+            type == SaveInfo.SaveType.Manual && owned?.IsMediumFixtureSave == true ? Chunk7OwnedPairsSelection.MediumFixtureManualName :
             type == SaveInfo.SaveType.Manual && owned?.IsOwnerSeedCheckpointSave == true ? Chunk7OwnedPairsSelection.OwnerSeedCheckpointManualName : NativeName(type);
         internal static string NativeName(SaveInfo.SaveType type, Chunk7OwnedPairsSelection owned, string checkpoint) =>
-            type == SaveInfo.SaveType.Manual && (owned?.IsOwnerSeedCheckpointSave == true || owned?.IsSmallFixtureSave == true) ?
+            type == SaveInfo.SaveType.Manual && (owned?.IsOwnerSeedCheckpointSave == true || owned?.IsSmallFixtureSave == true || owned?.IsMediumFixtureSave == true) ?
                 owned.OwnedManualOutputName(checkpoint) : NativeName(type, owned);
         internal static string NativeLeaf(SaveInfo.SaveType type) => type == SaveInfo.SaveType.Manual ? "Manual_300_" + ManualName + ".zks" : type + "_1.zks";
 
@@ -160,7 +161,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 // The first ordinary Small cold load reached all four native PostLoads
                 // but not presentation. On a recurrence, retain the exact read-only
                 // boundary that withheld stage 0 before cleanup disposes the world.
-                if (!withinDeadline && Cold && stage == 0 && request.OwnedPairs?.SmallFixtureLineage == true)
+                if (!withinDeadline && Cold && stage == 0 && request.OwnedPairs?.PaidFixtureLineage == true)
                 {
                     var game = Game.Instance;
                     var feedback = persistence.Feedback;

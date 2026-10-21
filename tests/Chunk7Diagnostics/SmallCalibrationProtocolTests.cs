@@ -27,7 +27,11 @@ internal static class SmallCalibrationProtocolTests {
   tests.Run("Small mounted cold request accepts distinct mounted Manual",()=>TestRunner.Equal(0,SmallMountedRequest(true).Validate().Count,"Qualified mounted cold request refused."));
   tests.Run("Small mounted request refuses out-of-range source Manual",()=>{var r=SmallMountedRequest(false);r.PersistenceLoad.FileName="Manual_2147483648_KMC_C7_SMALL_FIXTURE.zks";TestRunner.True(r.Validate().Count>0,"Out-of-range source Manual admitted.");});
   tests.Run("Small mounted request refuses out-of-range cold Manual",()=>{var r=SmallMountedRequest(true);r.PersistenceLoad.FileName="Manual_2147483648_KMC_C7_SMALL_WORLD.zks";TestRunner.True(r.Validate().Count>0,"Out-of-range cold Manual admitted.");});
-  tests.Run("Non-Small owned request refuses F09 cold receipt",()=>{var r=SmallMountedRequest(false);r.OwnedPairs.Case="persistence-save";TestRunner.True(r.Validate().Any(e=>e=="Only Small fixture persistence carries the accepted F09 cold receipt."),"Historical family accepted Small-only receipt.");});
+  tests.Run("Non-Small owned request refuses F09 cold receipt",()=>{var r=SmallMountedRequest(false);r.OwnedPairs.Case="persistence-save";TestRunner.True(r.Validate().Any(e=>e=="Only paid fixture persistence carries an accepted cold receipt."),"Historical family accepted Small-only receipt.");});
+  tests.Run("Medium mounted save request accepts the paid Human/Horse Manual",()=>TestRunner.Equal(0,MediumMountedRequest(false).Validate().Count,"Paid Medium source refused."));
+  tests.Run("Medium mounted cold request accepts a distinct mounted Manual",()=>TestRunner.Equal(0,MediumMountedRequest(true).Validate().Count,"Paid Medium cold source refused."));
+  tests.Run("Medium mounted cold refuses the unmounted source archive",()=>{var r=MediumMountedRequest(true);r.PersistenceLoad.Sha256=Chunk7OwnedPairsSelection.MediumFixtureProducerArchive;TestRunner.True(r.Validate().Count>0,"Unchanged paid source impersonated mounted checkpoint.");});
+  tests.Run("Medium mounted output accepts only a canonical Manual",()=>{TestRunner.True(Chunk7OwnedPairsSelection.IsMediumFixtureManualLeaf("Manual_305_KMC_C7_MEDIUM_WORLD.zks"),"Canonical Medium Manual refused.");TestRunner.True(!Chunk7OwnedPairsSelection.IsMediumFixtureManualLeaf("Manual_0305_KMC_C7_MEDIUM_WORLD.zks"),"Noncanonical Medium Manual admitted.");});
   foreach(var leaf in new[]{"Manual_305_KMC_C7_SMALL_WORLD.zks","Manual_1_KMC_C7_SMALL_WORLD.zks"})
    tests.Run("Small mounted output accepts canonical "+leaf,()=>TestRunner.True(Chunk7OwnedPairsSelection.IsSmallFixtureManualLeaf(leaf),"Canonical native Manual refused."));
   foreach(var leaf in new[]{"Manual_2147483648_KMC_C7_SMALL_WORLD.zks","Manual_2147483647_KMC_C7_SMALL_WORLD.zks","Manual_0305_KMC_C7_SMALL_WORLD.zks","Auto_305_KMC_C7_SMALL_WORLD.zks","Manual_305_KMC_C7_SMALL_FIXTURE.zks"})
@@ -51,6 +55,24 @@ internal static class SmallCalibrationProtocolTests {
   r.PersistenceLoad=Descriptor(cold?Chunk7OwnedPairsSelection.SmallFixtureManualName:Chunk7SmallFixtureSelection.OutputName,
    cold?"Manual_305_KMC_C7_SMALL_WORLD.zks":"Manual_304_KMC_C7_SMALL_FIXTURE.zks",
    cold?new string('7',64):Chunk7OwnedPairsSelection.SmallFixtureProducerArchive);
+  r.PersistenceLoad.GameId=Chunk7SmallFixtureSelection.CampaignId;r.PersistenceLoad.GameName=Chunk7SmallFixtureSelection.CampaignName;
+  r.PersistenceLoad.Area=Chunk7SmallFixtureSelection.AreaId;return r;}
+ private static RuntimeRequest MediumMountedRequest(bool cold){var r=FieldRequest();r.RunId=cold?"medium-cold-run":"medium-save-run";
+  r.Scenario=Chunk7OwnedPairsSelection.Scenario;r.OrdinaryField=null;r.PersistenceCase="multi-exploration-manual";
+  r.OwnedPairs=new Chunk7OwnedPairsSelection{Case=cold?Chunk7OwnedPairsSelection.MediumFixtureLoadCase:Chunk7OwnedPairsSelection.MediumFixtureSaveCase,
+   SourceRunId=Chunk7OwnedPairsSelection.MediumFixtureProducerRun,SourceArtifactSha256=Chunk7OwnedPairsSelection.MediumFixtureProducerArtifact,
+   SourceArchiveSha256=Chunk7OwnedPairsSelection.MediumFixtureProducerArchive,ColdReceiptSha256=Chunk7OwnedPairsSelection.MediumFixtureColdArtifact,
+   SeedId=Chunk7SmallFixtureSelection.SeedIdentity,SeedSha256=Chunk7SmallFixtureSelection.SeedHash,
+   CheckpointSourceRunId=cold?"medium-save-run":null,CheckpointSourceArtifactSha256=cold?new string('5',64):null,
+   RiderAId=Chunk7SmallFixtureSelection.MainActorId,MountAId=Chunk7OwnedPairsSelection.MediumFixtureMainHorse,
+   RiderBId=Chunk7OwnedPairsSelection.MediumFixtureRider,MountBId=Chunk7OwnedPairsSelection.MediumFixtureHorse,
+   PartyIds=new[]{Chunk7SmallFixtureSelection.MainActorId,Chunk7OwnedPairsSelection.MediumFixtureMainHorse,
+    Chunk7OwnedPairsSelection.MediumFixtureRider,Chunk7OwnedPairsSelection.MediumFixtureHorse,
+    "11111111-1111-4111-8111-111111111111","22222222-2222-4222-8222-222222222222","33333333-3333-4333-8333-333333333333"},
+   BaseGameOnly=true,ExpectedNativeLoadCount=1,ExpectedNativeWriteCount=cold?0:1};
+  r.PersistenceLoad=Descriptor(cold?Chunk7OwnedPairsSelection.MediumFixtureManualName:Chunk7SmallFixtureSelection.MediumOutputName,
+   cold?"Manual_305_KMC_C7_MEDIUM_WORLD.zks":"Manual_304_KMC_C7_MEDIUM_FIXTURE.zks",
+   cold?new string('7',64):Chunk7OwnedPairsSelection.MediumFixtureProducerArchive);
   r.PersistenceLoad.GameId=Chunk7SmallFixtureSelection.CampaignId;r.PersistenceLoad.GameName=Chunk7SmallFixtureSelection.CampaignName;
   r.PersistenceLoad.Area=Chunk7SmallFixtureSelection.AreaId;return r;}
  private static RuntimeRequest FieldRequest(){var source=Descriptor("Autosave","Auto_1.zks",new string('f',64));return new RuntimeRequest{SchemaVersion=2,RunId="field-test",Scenario=Chunk7OrdinaryFieldSelection.Scenario,
