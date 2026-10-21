@@ -221,6 +221,14 @@ unchanged artifact. The transaction restored Mods/Working/protected saves with
 development observations; diagnostics-off normal-player comparison and
 performance acceptance are still open.
 
+[Batch157](CHUNK7-BATCH157-F11-OBSERVER-OFF-COMPARISON-2026-10-21.md) ran
+the same product and suite with the private Mono profiler absent. Its guarded
+game and outer result passed 8/0, and its four-state median KMC Update means
+were 0.198/0.238/0.258/0.206 ms, compared with batch156's profiler-enabled
+0.226/0.269/0.288/0.218 ms. This bounds observer overhead in the matched
+automation route. It does not qualify request-free ordinary play or turn the
+allocation artifact's `performanceAccepted=false` into a PASS.
+
 Before seeing final measurements, the comparison rule is: repeated windows
 must retain the same declared actor/owner/subscription population within
 each state, and repeated settled lifecycle cycles must return to the same
