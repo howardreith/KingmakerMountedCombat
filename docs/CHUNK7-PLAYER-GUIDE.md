@@ -5,19 +5,27 @@ final engineering handoff; native breadth and owner play acceptance are pending.
 This guide does not authorize installation into a human campaign.
 
 The current private implementation admits at most two mounted pairs. Its declared
-profiles are Medium riders on the KMC Horse or supported native Mammoth. Native
-multi-pair qualification is still incomplete. No Small profile is enabled yet;
-the Small catalogue remains empty until a specific observed body and pose are
-qualified. Six-pair stress is a separate required fixture/evidence gate.
+profiles are eligible Medium riders on the KMC Horse or supported native Mammoth,
+plus one exact Small profile: the stock default **male Halfling on the KMC Horse**
+(`small-default-halfling-horse-v1`). The Small rider must retain the measured
+male Halfling preset, native skeleton, handedness, body scale, default Doll and
+visual equipment, and the exact twelve observed equipment slots. Rider and
+Horse must be unpolymorphed; the Horse must have its measured native Large size.
+Other Small races, Halfling presets or sexes, altered gear/rig/body, Small on
+Mammoth and unsupported forms are outside this declaration and can refuse Mount
+or saved restoration. Changing render scale does not make another body eligible.
+The exact Small [native Mount/movement/primary result](CHUNK7-BATCH72-SMALL-ORDINARY-NATIVE-2026-10-20.md)
+and later [mounted Manual/cold result](CHUNK7-BATCH100-SMALL-RETRAIN-COLD-2026-10-20.md)
+are development evidence on their recorded candidates; representative
+spell/item presentation, Medium breadth, conditional six-pair stress and final
+exact-package acceptance remain open.
 
 Select the rider and open their ability drawer. Use **Mount Companion** on that
 rider's own supported animal companion, and **Dismount** on the rider to separate
 them. KMC does not fill action-bar slots automatically. You can drag a control to
 an empty slot. The Horse is a Ranger companion choice;
 KMC owns its addition to the native choice list, while Kingmaker owns acquisition
-and progression. The candidate's precise Small body and equipment support must be
-listed here after measured native qualification; an arbitrary Small character is
-not implicitly supported.
+and progression. An arbitrary Small character is not implicitly supported.
 
 The supported preset uses the mount to carry and move the pair. Rider and mount
 retain their own actions, health, defenses and effects. Use ordinary movement,
