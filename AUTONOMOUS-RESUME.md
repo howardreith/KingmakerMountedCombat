@@ -1,6 +1,20 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
-## Active October 21 after batch113 development — Medium cold native sequence next
+## Active October 21 after batch114 — Medium Manual/cold PASS; mounted replacement next
+
+The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
+[Batch114](docs/CHUNK7-BATCH114-MEDIUM-MANUAL-COLD-2026-10-21.md) froze
+world118 at pushed `fcc9a516` and passed two dependent guarded native scenarios:
+fresh paid Medium Human/Horse unmounted Manual 6/0, then separate-process cold
+inventory 4/0 with one load, zero writes and seven retained actors. Both
+transactions settled with exact Mods, Working, protected-save and profile-byte
+restoration; no game or lock remained. Next refresh actual refs and transaction
+state, then design the genuine mounted Medium Horse/Mammoth and
+Horse-to-Mammoth replacement/Manual/cold path from this Doll-backed fixture.
+The unmounted fixture PASS does not qualify those operations. F09/F10/F11 and
+selected private 7E remain open. The batch113 directions below are history.
+
+## Historical October 21 after batch113 development — Medium cold native sequence next
 
 The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
 [Batch112 native](docs/CHUNK7-BATCH112-PAID-MEDIUM-FIXTURE-NATIVE-2026-10-21.md)

@@ -1,5 +1,14 @@
 # Chunk 7B–7D — IN PROGRESS
 
+[Batch114](docs/CHUNK7-BATCH114-MEDIUM-MANUAL-COLD-2026-10-21.md) passed a fresh
+world118 paid Medium Human/Horse unmounted Manual 6/0 and its independent-copy,
+separate-process cold load 4/0 with seven actors, reciprocal Horses and zero
+cold save writes. Both guarded transactions restored Mods, Working, protected
+saves and exact profile bytes. This is a qualified fixture lineage; mounted
+Medium Horse/Mammoth and genuine Horse-to-Mammoth replacement/Manual/cold are
+still required. F09/F10/F11 and selected private 7E remain open. The earlier
+batch113 pending-cold description below is historical.
+
 [Batch112 native](docs/CHUNK7-BATCH112-PAID-MEDIUM-FIXTURE-NATIVE-2026-10-21.md)
 qualified the paid Medium Human/Horse unmounted Manual producer, game and outer
 6/0 with exact transaction restoration on world117. [Batch113](docs/CHUNK7-BATCH113-MEDIUM-COLD-DEVELOPMENT-2026-10-21.md)
