@@ -4,7 +4,7 @@ function Test-KmcAcquiredManualPostFieldMode($Selection){$null-ne$Selection-and$
 function Test-KmcAcquiredManualAutoSource($Selection){$Selection.case-ceq'preserve-two-acquired-field'-and-not(Test-KmcAcquiredManualPostFieldMode $Selection)}
 function Assert-KmcAcquiredManualPostLoadGameId($Event,$Request){
  if($null-ne$Event.gameId){Assert-KmcBootstrapInventoryString $Event.gameId $Request.persistenceLoad.gameId}
- elseif($Request.persistenceLoad.fileName-cne'Manual_304_KMC_C7_MANUAL_DERIVED_FIELD.zks'-and-not((Test-KmcAcquiredManualPostFieldMode $Request.acquiredManual)-and$Request.persistenceLoad.fileName-ceq'Manual_301_KMC_C7_MANUAL_DERIVED_FIELD.zks')){throw 'Bootstrap Manual PostLoad lost its required GameId.'}
+ elseif($Request.persistenceLoad.fileName-cne'Manual_304_KMC_C7_MANUAL_DERIVED_FIELD.zks'-and-not((Test-KmcAcquiredManualPostFieldMode $Request.acquiredManual)-and$Request.persistenceLoad.fileName-cin@('Manual_301_KMC_C7_MANUAL_DERIVED_FIELD.zks','Manual_303_KMC_C7_MANUAL_DERIVED_FIELD.zks'))){throw 'Bootstrap Manual PostLoad lost its required GameId.'}
 }
 function Get-KmcChunk7AcquiredManualRows {@('chunk7-acquired-manual-derivative','C7-acquired-manual-source','C7-acquired-manual-native-load','C7-acquired-manual-restored-owner','C7-acquired-manual-native-field','C7-acquired-manual-numbering','C7-acquired-manual-native-save','C7-acquired-manual-no-arrangement','C7-acquired-manual-cleanup','C7-acquired-manual-runtime','C7-acquired-manual-interrupted')}
 function Assert-KmcChunk7AcquiredManualSelection($Request){
@@ -28,7 +28,7 @@ function Assert-KmcChunk7AcquiredManualDescriptor($Request){
  $d=$Request.persistenceLoad
  Assert-KmcExactProperties $d @('internalName','fileName','sha256','length','lastWriteTimeUtcTicks','gameId','gameName','area') 'Manual seed immutable descriptor'
  if(Test-KmcAcquiredManualAutoSource $Request.acquiredManual){Assert-KmcBootstrapInventoryString $d.fileName 'Auto_1.zks'}
- elseif(Test-KmcAcquiredManualPostFieldMode $Request.acquiredManual){Assert-KmcBootstrapInventoryString $d.fileName 'Manual_301_KMC_C7_MANUAL_DERIVED_FIELD.zks'}
+ elseif(Test-KmcAcquiredManualPostFieldMode $Request.acquiredManual){if($d.fileName-cnotin@('Manual_301_KMC_C7_MANUAL_DERIVED_FIELD.zks','Manual_303_KMC_C7_MANUAL_DERIVED_FIELD.zks')){throw 'Post-field two-owner Manual is not a closed cumulative output.'}}
  elseif($d.fileName-cnotin@('Manual_2_KMC_C7_MANUAL_DERIVED_FIELD.zks','Manual_304_KMC_C7_MANUAL_DERIVED_FIELD.zks')){throw 'One-owner acquired source is not a closed field Manual.'}
  Assert-KmcBootstrapInventoryString $d.sha256 $Request.acquiredManual.sourceArchiveSha256
  if($Request.acquiredManual.case-ceq'preserve-acquired-field'-or(Test-KmcAcquiredManualPostFieldMode $Request.acquiredManual)){Assert-KmcBootstrapInventoryString $d.internalName 'KMC_C7_MANUAL_DERIVED_FIELD'}
@@ -95,7 +95,12 @@ function Assert-KmcChunk7AcquiredManualEvidence($Request,$Artifact,$SourceArtifa
  $selectorNeeded=$two-and$paid-and-not$post
  if($two-and-not$post){Assert-KmcChunk7Boolean $source.observations.nativeWrite.saveBeforeFieldSelection $paid}
  else{Assert-KmcChunk7Boolean $source.observations.nativeWrite.saveAfterFieldSelection $true;Assert-KmcBootstrapInventoryString $source.observations.nativeWrite.type 'Manual';Assert-KmcBootstrapInventoryString $source.observations.nativeWrite.internalName 'KMC_C7_MANUAL_DERIVED_FIELD'}
- if($post){Assert-KmcBootstrapInventoryString $source.observations.selection.sourceMode 'assisted-producer-and-cold';Assert-KmcBootstrapInventoryString $source.observations.nativeWrite.leaf 'Manual_301_KMC_C7_MANUAL_DERIVED_FIELD.zks';Assert-KmcChunk7Boolean $source.observations.nativeWrite.emptyMountedArchive $true}
+ if($post){
+  if($Request.persistenceLoad.fileName-ceq'Manual_301_KMC_C7_MANUAL_DERIVED_FIELD.zks'){Assert-KmcBootstrapInventoryString $source.observations.selection.sourceMode 'assisted-producer-and-cold'}
+  else{if($null-ne$source.observations.selection.PSObject.Properties['sourceMode']){throw 'Legacy cumulative Manual cannot claim assisted source mode.'}}
+  Assert-KmcBootstrapInventoryString $source.observations.nativeWrite.leaf $Request.persistenceLoad.fileName
+  Assert-KmcChunk7Boolean $source.observations.nativeWrite.emptyMountedArchive $true
+ }
  Assert-KmcChunk7Boolean $o.sourceSavedBeforeSelector $selectorNeeded
  $loadedExpected=if($two-and-not$post){[pscustomobject]@{mainActorId=$o.sourceNativeWorld.mainActorId;party=@($o.sourceNativeWorld.party)}}else{[pscustomobject]@{mainActorId=$source.observations.savedFieldWorld.mainActorId;party=@($source.observations.savedFieldWorld.party)}}
  if($two-and-not$post-and-not$paid){$loadedExpected.party+=,[pscustomobject]@{id=$s.petId;blueprint=$source.observations.field.horseBlueprint}}

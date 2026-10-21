@@ -1,5 +1,11 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## Active October 21 after F10 two-owner Manual 303 consumer preparation
+
+The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active. The [reviewed Manual 303 consumer checkpoint](docs/CHUNK7-F10-TWO-OWNER-MANUAL303-CONSUMER-2026-10-21.md) adds a closed two-owner post-field source route for exact cumulative legacy Manual 303 while retaining the assisted Manual 301 and historical Auto contracts. Fast 3/0, affected reader/authority/source tests and the extracted actual custody test pass; initial custody compile/runtime failures were repaired in its disposable test host. Independent review found no blocker but requires a genuine same-candidate cumulative producer before the full reader and native consumer can qualify. No game or guarded transaction ran for this checkpoint.
+
+Next: commit and guarded-push this reviewed consumer change; freeze a clean candidate and prepare the shortest same-candidate acquired Manual 302 lineage. Lift only the temporary cumulative `legacy-manual` refusal when that exact source is ready, then run one declared producer and conditionally its consumer/cold continuation under guarded WhatIf and settlement, one live executor, immutable sources and batches of at most five. Continue the standing F09/F10/F11, doors and selected private 7E gates. No engineering-complete, merge, release, permanent installation or HUMAN PLAY claim.
+
 ## Active October 21 after F10 cumulative Manual source/reader preparation
 
 The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active. The [F10 cumulative checkpoint](docs/CHUNK7-F10-CUMULATIVE-MANUAL-PREPARATION-2026-10-21.md) replaces the legacy impossible level-up Auto wait with an exact acquired Manual 302 source and requested native Manual 303 output. Focused Fast and cumulative/neighbor checks pass; independent review found no remaining source/reader blocker. The separate prelaunch `legacy-manual` guard still refuses a native run pending a new same-candidate source. No game, live Mods, protected save, profile or transaction changed in this checkpoint; the synthetic projected fixture is not native evidence. Original historical failures remain.

@@ -186,7 +186,7 @@ and its genuine field Manual/acquired cold chain remain F10 work.
 
 [Batch140](../docs/CHUNK7-BATCH140-ASSISTED-STOP-SETTLEMENT-2026-10-21.md) records the distinct diagnostic native **FAIL**: only the installed dialog-stop flag stayed true after Default mode returned and the dialog/cue cleared. A scoped fixture-readiness correction passed focused checks but awaits review, Candidate and native producer verification. The assisted cold chain and ordinary new-character acquisition remain open.
 
-The [October 21 cumulative Manual checkpoint](../docs/CHUNK7-F10-CUMULATIVE-MANUAL-PREPARATION-2026-10-21.md) repairs the legacy source/reader path offline using exact acquired Manual 302 and requested native Manual 303 output; its prelaunch guard, downstream two-owner intake and native qualification remain open under the F10 row. This does not alter the original stale Auto failure or any current F10 verdict.
+The [October 21 cumulative Manual checkpoint](../docs/CHUNK7-F10-CUMULATIVE-MANUAL-PREPARATION-2026-10-21.md) repairs the legacy producer source/reader path offline using exact acquired Manual 302 and requested native Manual 303 output. The subsequent [two-owner consumer checkpoint](../docs/CHUNK7-F10-TWO-OWNER-MANUAL303-CONSUMER-2026-10-21.md) closes Manual 303 downstream intake offline. The prelaunch guard, genuine same-candidate producer, full consumer reader/native result and cold continuation remain open under the F10 row. Neither checkpoint alters the original stale Auto failure or current F10 verdict.
 
 | Requirement | Engineering status and exact evidence/dependency | Next action |
 | --- | --- | --- |

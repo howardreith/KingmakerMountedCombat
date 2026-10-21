@@ -1,5 +1,7 @@
 # Chunk 7B–7D — IN PROGRESS
 
+The [F10 two-owner Manual 303 consumer checkpoint](docs/CHUNK7-F10-TWO-OWNER-MANUAL303-CONSUMER-2026-10-21.md) closes the downstream acquired-Manual source/authority/reader path offline, with Fast 3/0 and focused tests passing independent review. Its full Manual 303 reader and native continuation await a genuine same-candidate cumulative producer; no native run or final-package acceptance follows. Broader F09/F10/F11, doors and private 7E remain open.
+
 The [F10 cumulative Manual preparation](docs/CHUNK7-F10-CUMULATIVE-MANUAL-PREPARATION-2026-10-21.md) replaces the impossible legacy level-up Auto wait with an exact Manual 302 input and requested native Manual 303 output. Focused offline checks and independent source/reader review pass; a distinct prelaunch guard retains native refusal until a fresh same-candidate source is ready. No cumulative native PASS or final-package acceptance follows. The downstream two-owner Manual 303 intake, broader F09/F10/F11, doors and private 7E remain open.
 
 The [F09 fixture-entitlement checkpoint](docs/CHUNK7-F09-NATIVE-FIXTURE-ENTITLEMENT-2026-10-21.md) adds a reviewed per-level native `CanLevelUp` guard to the old four-level Horse setup helper. Fast passed 3/0; no native stress or six-pair fixture was produced. The retained five-rider/two-Horse source remains insufficient. F09, F10, request-free F11 and private 7E remain open.
