@@ -67,6 +67,15 @@ namespace KingmakerMountedCombat.Diagnostics
                 (string)inventory?["captureKind"] == "installed-native-small-body-catalogue" &&
                 (string)inventory?["gameplayAssemblyMvid"] == typeof(Kingmaker.Game).Module.ModuleVersionId.ToString("D"),
                 "F09 accepted native Halfling catalogue or installed module differs.");
+            if (request.SmallFixture.IsMedium)
+            {
+                var pins = new Chunk7MediumHireBodyPins { TemplateActorId = Chunk7SmallFixtureSelection.MainActorId,
+                    RaceGuid = Chunk7SmallFixtureSelection.MediumRaceGuid,
+                    PresetGuid = Chunk7SmallFixtureSelection.MediumPresetGuid,
+                    SkeletonName = Chunk7SmallFixtureSelection.MediumSkeletonName, Gender = "Male", LeftHanded = false };
+                Require(Chunk7MediumHireBodySource.Matches(inventory, pins),
+                    "Paid Medium body lacks its exact accepted Doll-backed native Human template.");
+            }
             evidence["source"] = new JObject { ["seedId"] = Chunk7SmallFixtureSelection.SeedIdentity, ["seedSha256"] = source.Sha256,
                 ["seedQualificationRunId"] = Chunk7SmallFixtureSelection.QualificationRun, ["seedQualificationArtifactSha256"] = Chunk7SmallFixtureSelection.QualificationHash,
                 ["nativeInventoryRunId"] = Chunk7SmallFixtureSelection.InventoryRun, ["nativeInventoryArtifactSha256"] = Chunk7SmallFixtureSelection.InventoryHash,
@@ -142,10 +151,10 @@ namespace KingmakerMountedCombat.Diagnostics
                 all.Length == 7 && all.All(Ready) && all.All(value => originalCharacters.Contains(value) || ReferenceEquals(value, mainHorse) || ReferenceEquals(value, actor) || ReferenceEquals(value, pet)) &&
                 ReferenceEquals(actor.Blueprint, BlueprintRoot.Instance.CustomCompanion) &&
                 main.Descriptor.Progression.Experience == 9000 && actor.Descriptor.Progression.Experience == nativeHireXp,
-                "F09 final field must contain its original four characters, exact paid Halfling and two reciprocal Horses only.");
+                "F09 final field must contain its original four characters, exact selected paid body and two reciprocal Horses only.");
             Chunk7SmallFixtureAdmission.RequirePaidBalance(initialMoney, nativeHireCost, nativeStartingGold, game.Player.Money);
             var body = NativeSmallRiderBody.Capture(actor, pet);
-            RequireSmallBody(body);
+            RequireSelectedBody(body);
             var inventory = Chunk7NativeProfileInventory.Capture(new[] { actor, pet });
             Require((string)inventory["captureStatus"] == "PASS" && inventory["party"] is JArray party && party.Count == 2,
                 "F09 unmounted live rig inventory did not complete.");
@@ -168,10 +177,20 @@ namespace KingmakerMountedCombat.Diagnostics
         }
         internal static void RequireSmallBody(SmallRiderBodyObservation body)
         {
-            Require(body != null && body.OriginalSizeOrdinal == 3 && body.EffectiveSizeOrdinal == 3 && !body.RiderPolymorphed && !body.MountPolymorphed &&
-                body.MountBlueprintGuid == DeclaredSmallRiderBody.HorseBlueprintGuid && body.MountSizeOrdinal > 3 &&
-                body.RaceGuid == Chunk7SmallFixtureSelection.RaceGuid && body.PresetGuid == Chunk7SmallFixtureSelection.PresetGuid &&
-                body.Gender == "Male" && body.SkeletonName == Chunk7SmallFixtureSelection.SkeletonName && !body.LeftHanded &&
+            RequireObservedBody(body, 3, Chunk7SmallFixtureSelection.RaceGuid,
+                Chunk7SmallFixtureSelection.PresetGuid, Chunk7SmallFixtureSelection.SkeletonName);
+        }
+        private void RequireSelectedBody(SmallRiderBodyObservation body)
+            => RequireObservedBody(body, request.SmallFixture.IsMedium ? 4 : 3,
+                request.SmallFixture.SelectedRaceGuid, request.SmallFixture.SelectedPresetGuid,
+                request.SmallFixture.SelectedSkeletonName);
+        private static void RequireObservedBody(SmallRiderBodyObservation body, int size, string raceGuid,
+            string presetGuid, string skeletonName)
+        {
+            Require(body != null && body.OriginalSizeOrdinal == size && body.EffectiveSizeOrdinal == size && !body.RiderPolymorphed && !body.MountPolymorphed &&
+                body.MountBlueprintGuid == DeclaredSmallRiderBody.HorseBlueprintGuid && body.MountSizeOrdinal > size &&
+                body.RaceGuid == raceGuid && body.PresetGuid == presetGuid &&
+                body.Gender == "Male" && body.SkeletonName == skeletonName && !body.LeftHanded &&
                 body.NativeRaceAndPresetIdentityExact && body.NativeSkeletonIsExactPreset && body.NativeRigAvailable && body.AvatarLocalScale.IsFinite &&
                 Math.Abs(body.AvatarLocalScale.X) >= 0.01f && Math.Abs(body.AvatarLocalScale.Y) >= 0.01f && Math.Abs(body.AvatarLocalScale.Z) >= 0.01f &&
                 Math.Abs(body.AvatarLocalScale.X) <= 10 && Math.Abs(body.AvatarLocalScale.Y) <= 10 && Math.Abs(body.AvatarLocalScale.Z) <= 10 &&
@@ -182,7 +201,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 body.CurrentEquipmentBlueprints.All(value => value == null || System.Text.RegularExpressions.Regex.IsMatch(value, "^[a-f0-9]{32}$")) &&
                 body.ActiveVisualEquipmentNames != null && body.ActiveVisualEquipmentNames.Length > 0 && body.ActiveVisualEquipmentNames.Length <= 128 &&
                 body.ActiveVisualEquipmentNames.All(value => !string.IsNullOrWhiteSpace(value) && value.Length <= 160) && body.AdditionalLimbCount == 0,
-                "F09 live unmounted body/equipment differs from its exact default male right-handed Halfling and Horse catalogue pins.");
+                "F09 live unmounted body/equipment differs from its exact selected native Doll body and Horse pins.");
         }
         // PoseVector3 exposes derived properties including Normalized. Project
         // the three measured components explicitly; never serialize its recursive

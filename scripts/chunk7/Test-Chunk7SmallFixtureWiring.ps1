@@ -60,6 +60,8 @@ $request|Add-Member smallFixture (Get-KmcChunk7SmallFixturePins)
 $script:requestNumber=0
 function Public-Request($Value){$script:requestNumber++;$p=Join-Path $OutputDirectory ('request-'+$script:requestNumber+'.json');[IO.File]::WriteAllText($p,($Value|ConvertTo-Json -Depth 40),[Text.UTF8Encoding]::new($false));& (Join-Path $RepositoryRoot 'scripts/runtime/Test-RuntimeRequest.ps1') -RequestPath $p}
 Good 'actual external request validator accepts closed F09 seed input' {Public-Request $request}
+Good 'actual external request validator accepts distinct paid Medium case' {$r=$request|ConvertTo-Json -Depth 40|ConvertFrom-Json;$r.smallFixture.case='owner-seed-default-human-horse-manual';Public-Request $r}
+Bad 'actual external request rejects unknown paid body case' {$r=$request|ConvertTo-Json -Depth 40|ConvertFrom-Json;$r.smallFixture.case='owner-seed-unknown-body-manual';Public-Request $r}
 Bad 'actual external request rejects installed clone' {$r=$request|ConvertTo-Json -Depth 40|ConvertFrom-Json;$r.smallFixture.baseGameOnly=$false;Public-Request $r}
 Bad 'actual external request rejects foreign selection' {$r=$request|ConvertTo-Json -Depth 40|ConvertFrom-Json;$r|Add-Member ownedPairs ([pscustomobject]@{});Public-Request $r}
 Bad 'actual external request rejects extra selection property' {$r=$request|ConvertTo-Json -Depth 40|ConvertFrom-Json;$r.smallFixture|Add-Member moneyGrant 1;Public-Request $r}

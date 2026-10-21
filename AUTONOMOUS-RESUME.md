@@ -1,5 +1,18 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## Active October 20 after batch112 — paid Medium producer ready for candidate
+
+The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
+[Batch112](docs/CHUNK7-BATCH112-PAID-MEDIUM-FIXTURE-DEVELOPMENT-2026-10-20.md)
+adds the exact Doll-backed paid Medium Human/Horse case to the guarded F09
+fixture route. Fast and focused checks passed; independent review found no
+concrete defect. No package/native run exists yet. Next refresh status and
+transaction state, freeze an unchanged Candidate and one package/suite, then
+declare and guarded-WhatIf the Medium producer on an isolated seed copy before
+native launch. Its output requires separate Medium cold admission; do not feed
+it through Small-only consumers. F09/F10/F11 and private 7E remain open. The
+batch111 instructions below are historical after this implementation.
+
 ## Active October 20 after batch111 — Medium replacement fixture requires Doll-backed companion
 
 The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.

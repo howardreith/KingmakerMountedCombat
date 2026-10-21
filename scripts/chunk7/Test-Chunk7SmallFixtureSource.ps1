@@ -23,6 +23,11 @@ Good 'read-only actual immutable seed/cold/catalogue receipt chains' {
  $script:source=Get-KmcChunk7SmallFixtureSource $script:selection $script:originalRequest.fixture $script:originalRequest
  if($script:source.nativeAuthorityGranted-ne$false-or$script:source.producerAncestry-ne$false-or$script:source.qualification.receiptPins.Count-ne5-or$script:source.inventory.receiptPins.Count-ne5){throw 'F09 source claimed authority or lost historical pins.'}
 }
+Good 'read-only actual Medium Human Doll template receipt chain' {
+ $medium=Get-KmcChunk7SmallFixturePins 'owner-seed-default-human-horse-manual'
+ $accepted=Get-KmcChunk7SmallFixtureSource $medium $script:originalRequest.fixture $script:originalRequest
+ if($accepted.inventory.artifactSha256-cne$script:source.inventory.artifactSha256){throw 'Medium source changed the native catalogue.'}
+}
 if($null-eq$script:source){throw 'Required real F09 provenance unavailable; preserve failed receipt output.'}
 $script:immutablePins=@($script:source.qualification.receiptPins+$script:source.inventory.receiptPins+@([pscustomobject]@{path=$script:source.path;sha256=$script:source.descriptor.sha256;length=$script:source.descriptor.length;lastWriteTimeUtcTicks=$script:source.descriptor.lastWriteTimeUtcTicks}))
 $script:realRead=(Get-Command Read-KmcSmallFixturePinnedJson).ScriptBlock;$script:mutation=$null
@@ -37,6 +42,8 @@ $cases=[ordered]@{
  'catalogue profile promoted'={param($p,$v)if((Split-Path -Leaf $p)-ceq'chunk7-world-evidence.json'){$v.observations.nativeProfileInventory.poseQualified=$true}}
 }
 foreach($case in $cases.GetEnumerator()){Bad $case.Key {$script:mutation=$case.Value;try{[void](Get-KmcChunk7SmallFixtureSource $script:selection $script:originalRequest.fixture $script:originalRequest)}finally{$script:mutation=$null}}}
+$medium=Get-KmcChunk7SmallFixturePins 'owner-seed-default-human-horse-manual'
+Bad 'Medium catalogue missing Doll' {$script:mutation={param($p,$v)if((Split-Path -Leaf $p)-ceq'chunk7-world-evidence.json'){($v.observations.nativeProfileInventory.party|Where-Object id -CEQ '73681ef2-b281-4bc6-bc05-2de68c1616cb').dollPresent=$false}};try{[void](Get-KmcChunk7SmallFixtureSource $medium $script:originalRequest.fixture $script:originalRequest)}finally{$script:mutation=$null}}
 # Execute the actual mutating copy helper only against fresh private analysis
 # directories. The existing historical qualifier and runtime-lock owner are the
 # two external facades below; real held artifact hashing and CREATE_NEW execute.
