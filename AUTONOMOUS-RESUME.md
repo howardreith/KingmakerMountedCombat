@@ -1,5 +1,26 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## Active October 21 after batch120 Mammoth field reader re-evaluation
+
+The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
+[Batch120](docs/CHUNK7-BATCH120-MAMMOTH-FIELD-READER-2026-10-21.md) used
+preview.87 `eb4481c`/world124 in four serial native scenarios. Slots 1–3
+passed paid Medium mounted Manual/cold and paid Mammoth replacement Manual.
+Slot 4 game/artifact passed 4/0: successful native Mount, Mammoth ground move,
+native Dismount, exact Detached custody and next-frame Retired owner with the
+Horse control preserved. Its **original outer FAIL 0/1** is retained: the
+external reader required nonzero `generationAtInit` for initial Mount even
+though the cold source had no Mammoth owner. The corrected reader requires zero
+at Mount and the exact mounted generation at Dismount. Focused checks passed
+23/0, unchanged game-result re-evaluation passed 39/0, Fast passed 3/0. No
+product build or native rerun followed this reader-only correction. Four
+transactions restored Mods, Working, protected saves and exact Howie profile
+bytes with zero cache exceptions; no Kingmaker process is active. The next
+action is to commit/guarded-push this external-reader/evidence correction and
+advance the next actionable F09/F10/F11 or pending-only migration gate without
+replaying the unchanged field case. F09 breadth, migration, F11 and 7E are
+still open. The batch119 section below is historical.
+
 ## Active October 21 after batch119 Dismount diagnosis — correction next
 
 The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.

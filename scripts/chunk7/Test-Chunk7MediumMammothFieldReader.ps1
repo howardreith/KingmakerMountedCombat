@@ -16,13 +16,13 @@ function New-Observation {
         fieldInputs=@(
             [pscustomobject]@{label='mount-mammoth';frame=100;casterId=$s.actorId;targetId=$s.petId;
                 abilityGuid='f053faad986631688defa003cd7bda0e';clicked=$true;nativeCastDelta=1;
-                nativeRefusalDelta=0;shellControl=('shell:1:mount:'+$s.actorId);generationAtInit=1;shellTerminal=$true;
+                nativeRefusalDelta=0;shellControl=('shell:1:mount:'+$s.actorId);generationAtInit=0;shellTerminal=$true;
                 processTerminal=$true;settledFrame=101},
             [pscustomobject]@{label='mammoth-ground';frame=102;selectedId=$s.actorId;executorId=$s.petId;
                 nativeCallEntered=$true;nativeCallReturned=$true;commandValidated=$true},
             [pscustomobject]@{label='dismount-mammoth';frame=110;casterId=$s.actorId;targetId=$s.actorId;
                 abilityGuid='3af2b81f4d72bbb30501fa730fcdf36e';clicked=$true;nativeCastDelta=1;
-                nativeRefusalDelta=0;shellControl=('shell:2:dismount:'+$s.actorId);generationAtInit=2;shellTerminal=$true;
+                nativeRefusalDelta=0;shellControl=('shell:2:dismount:'+$s.actorId);generationAtInit=3;shellTerminal=$true;
                 processTerminal=$true;settledFrame=111});
         fieldMounted=[pscustomobject]@{frame=101;targetOwnerId='33333333333333333333333333333333';targetGeneration=3;
             targetProfileId='medium-humanoid-mammoth-v1';releasedOwnerId='33333333333333333333333333333333';
@@ -47,7 +47,7 @@ function New-Observation {
 }
 Assert-KmcChunk7MammothFieldOutcome $s (New-Observation)
 Write-Host 'PASS source-bound native Mammoth field outcome shape'
-foreach($name in @('wrong profile','wrong moving actor','no travel','failed move','refunded cast','wrong ability','foreign shell','neighbor replaced','changed target owner','retained Mammoth','extra save','reordered input','late movement','late mount observation','refused dismount dispatch','foreign detached custody','split mount custody','faulted boundary','unretired Mammoth','owner not retired')){
+foreach($name in @('wrong profile','wrong moving actor','no travel','failed move','refunded cast','wrong ability','foreign shell','neighbor replaced','changed target owner','retained Mammoth','extra save','reordered input','late movement','late mount observation','refused dismount dispatch','foreign detached custody','split mount custody','faulted boundary','unretired Mammoth','owner not retired','existing owner at mount','wrong owner generation at dismount')){
     $o=New-Observation
     switch($name){
         'wrong profile'{$o.fieldMounted.targetProfileId='medium-humanoid-horse-v1'}
@@ -70,9 +70,11 @@ foreach($name in @('wrong profile','wrong moving actor','no travel','failed move
         'faulted boundary'{$o.fieldDismountBoundary.releasedBoundaryState='Faulted'}
         'unretired Mammoth'{$o.fieldDismounted.owners=2}
         'owner not retired'{$o.fieldDismounted.releasedOwnerState='Detached'}
+        'existing owner at mount'{$o.fieldInputs[0].generationAtInit=1}
+        'wrong owner generation at dismount'{$o.fieldInputs[2].generationAtInit=2}
     }
     $refused=$false;try{Assert-KmcChunk7MammothFieldOutcome $s $o}catch{$refused=$true}
     if(-not$refused){throw ('Mammoth field reader accepted '+$name)}
     Write-Host ('PASS refuses '+$name)
 }
-Write-Host 'TOTAL PASS 21 FAIL 0; synthetic field outcome, no native qualification'
+Write-Host 'TOTAL PASS 23 FAIL 0; synthetic field outcome, no native qualification'
