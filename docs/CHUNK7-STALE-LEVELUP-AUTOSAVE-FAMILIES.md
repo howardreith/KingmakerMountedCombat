@@ -36,6 +36,9 @@ impossible Auto. No family was unblocked or run by this audit.
 re-evaluates the retained F09 paid-hire choice sequence. It proves a limited
 native paid custom-companion acquisition operation in that fixture, without
 changing its fixture-only provenance or repairing any stale Auto-wait family.
+[Batch104](CHUNK7-BATCH104-F10-EXISTING-ACQUISITION-READER-2026-10-20.md)
+likewise proves a source-specific existing owner-seed Ranger acquisition
+operation from its retained native choices, without unblocking those families.
 
 ## Blocked families
 
