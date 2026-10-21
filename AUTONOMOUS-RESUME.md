@@ -1,6 +1,37 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
-## Active October 21 after batches 128–129 qualified owner field
+## Active October 21 after batches 131–133 acquired cold PASS
+
+The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
+[Batches 131–133](docs/CHUNK7-BATCH131-133-F10-ACQUIRED-COLD-2026-10-21.md)
+passed the complete same-candidate owner-seed cold, native existing Ranger
+Horse acquisition/field Manual and independent acquired Manual cold chain.
+Candidate source `77d17afe2d672775e88b4bae7ecdcee2ee4f877a`, package SHA-256
+`815b4a40fcd1f41f73d9abaa15c4fc6b1dab4dcf8dc921dcc1dcf461ec39920a`,
+DLL SHA-256 `e34a153ded5eda94edc075ca3ea5132e2512846b9f9bbedff41e76333946fdfb`,
+MVID `2bacd6bc-dc5c-4731-bfb6-be29bcf81283`, suite SHA-256
+`c164bbb158fe07fdc602f2f48fe072588e3287a55ae8949423e9f6f37fbfb284`.
+All three game and outer results PASS; each one-load transaction is `restored`,
+with exact Mods/Working/protected-save/profile bytes and zero cache exceptions.
+The producer saved `Manual_304_KMC_C7_MANUAL_DERIVED_FIELD.zks` SHA-256
+`f85bb1f44b82b36e031c84c97126c7e5e124ec2f1befad9af32415e74845977a`;
+the separate cold consumer retained original Ranger
+`73681ef2-b281-4bc6-bc05-2de68c1616cb` and Horse
+`c2e4979e-0bb8-40dc-aa2d-7f9c19009bfc`, then saved genuine
+`Manual_305_KMC_C7_ACQUIRED_FIELD.zks` SHA-256
+`e3dcd77431f3b325e6a73415bccaf54b70c33e8d6058f0d9b81ec0743a090e25`.
+No game process or active transaction lock remains. Original batch127 outer
+FAIL and its separate reader re-evaluation remain intact.
+
+Next: select the next actionable requirement. General/new-campaign acquisition,
+F09 breadth, ordinary door, F11 measured allocation and diagnostics-off native
+behavior, and exact-package 7E remain open. Do not restart the prologue or
+transfer this preview PASS to final package. Commit the documentation checkpoint
+before any new package; the guarded push-helper WhatIf remains rejected by
+automatic approval review (`approval required by policy; AskForApproval is
+Never`), so no alternate push. Engineering completion is not yet claimed.
+
+## Historical October 21 after batches 128–129 qualified owner field
 
 The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
 [Batches 128–129](docs/CHUNK7-BATCH128-129-F10-OWNER-FIELD-2026-10-21.md)
