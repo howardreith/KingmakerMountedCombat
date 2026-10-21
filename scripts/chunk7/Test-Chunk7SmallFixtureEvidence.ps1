@@ -23,6 +23,32 @@ function New-SmallFixtureV2Synthetic {
  return $f
 }
 Good 'current native starting gold and once-only hire cost preserve exact net balance' {Check (New-SmallFixtureV2Synthetic)}
+function New-MediumFixtureSynthetic {
+ $f=New-SmallFixtureV2Synthetic
+ $f.request.smallFixture.case='owner-seed-default-human-horse-manual'
+ $f.artifact.observations.selection.case=$f.request.smallFixture.case
+ $o=$f.artifact.observations;$o.contract='owner-seed-unmounted-medium-fixture-v1'
+ foreach($body in @($o.bodyObservation,$o.savedBodyObservation)){
+  $body.originalSizeOrdinal=4;$body.effectiveSizeOrdinal=4
+  $body.raceGuid='0a5d473ead98b0646b94495af250fdc4'
+  $body.presetGuid='58181bf151eb0c0408f82546541dcc03';$body.skeletonName='MaleHuman'
+ }
+ $r=$o.unmountedProfileInventory.party[0]
+ $r.originalSize='Medium';$r.effectiveSize='Medium';$r.raceGuid=$o.bodyObservation.raceGuid
+ $r.dollPresetGuid=$o.bodyObservation.presetGuid;$r.character.skeleton.name='MaleHuman'
+ $o.nativeSave.contract='medium-fixture-native-save-v1'
+ # Only the output identity changes; the qualified source, native actor graph,
+ # one-write chain, and mounted-state absence keep their independent assertions.
+ $wire=$f|ConvertTo-Json -Depth 100
+ $wire=$wire.Replace('KMC_C7_SMALL_FIXTURE','KMC_C7_MEDIUM_FIXTURE')
+ return $wire|ConvertFrom-Json
+}
+Good 'distinct paid Medium native-shaped Manual evidence' {Check (New-MediumFixtureSynthetic)}
+Bad 'Medium case cannot borrow Small body' {$f=New-MediumFixtureSynthetic;$f.artifact.observations.bodyObservation.originalSizeOrdinal=3;Check $f}
+Bad 'Medium case cannot borrow Small output name' {$f=New-MediumFixtureSynthetic;$f.artifact.observations.nativeWrite.internalName='KMC_C7_SMALL_FIXTURE';Check $f}
+Bad 'Medium case cannot borrow Small live rig' {$f=New-MediumFixtureSynthetic;$f.artifact.observations.unmountedProfileInventory.party[0].character.skeleton.name='MaleHalfling';Check $f}
+Bad 'Medium case cannot borrow Small reserved leaf' {$f=New-MediumFixtureSynthetic;$f.artifact.observations.savedWorld.authority.outputLeaf='Manual_304_KMC_C7_SMALL_FIXTURE.zks';Check $f}
+Bad 'Medium case cannot borrow Small save probe contract' {$f=New-MediumFixtureSynthetic;$f.artifact.observations.nativeSave.contract='small-fixture-native-save-v1';Check $f}
 Bad 'current hire omits native starting gold' {$f=New-SmallFixtureV2Synthetic;$f.artifact.observations.PSObject.Properties.Remove('nativeStartingGold');Check $f}
 Bad 'current hire fabricates gold grant' {$f=New-SmallFixtureV2Synthetic;$f.artifact.observations.nativeStartingGold++;Check $f}
 Bad 'current hire duplicates spend event' {$f=New-SmallFixtureV2Synthetic;$o=$f.artifact.observations;$o.choices+=,$o.choices[1];Check $f}

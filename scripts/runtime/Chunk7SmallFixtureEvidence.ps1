@@ -1,8 +1,9 @@
 Set-StrictMode -Version Latest
 # F09 first capture is an unmounted fixture producer. These pins grant no profile
 # admission, mounted action, ordinary F10 ancestry or successful cold derivative.
-function Get-KmcChunk7SmallFixturePins {
- [pscustomobject][ordered]@{case='owner-seed-default-halfling-horse-manual';seedId='KMC_C7_NO_MODS_OWNER_SEED';seedSha256='3405d7c813668ad646788efd746a62c1b16e1438fad1bc4bcbebc961821b924f';
+function Get-KmcChunk7SmallFixturePins([string]$Case='owner-seed-default-halfling-horse-manual') {
+ if($Case-cnotin@('owner-seed-default-halfling-horse-manual','owner-seed-default-human-horse-manual')){throw 'Unknown paid fixture body case.'}
+ [pscustomobject][ordered]@{case=$Case;seedId='KMC_C7_NO_MODS_OWNER_SEED';seedSha256='3405d7c813668ad646788efd746a62c1b16e1438fad1bc4bcbebc961821b924f';
   seedQualificationRunId='20261017-c7b-world18-ownerseed-s4-cold';seedQualificationArtifactSha256='c0a4bf3ed11f1bc8d80ffa6f999491562f1896d2f3b38f4518067ad87a9ff74a';
   nativeInventoryRunId='20261018-c7b-world26-ownerseed-b3s1d-save';nativeInventoryArtifactSha256='01438210fbc9cdf8f8bc228b3d973ffff7220eaa32449bf43f4462fb355723a8';
   baseGameOnly=$true;expectedNativeLoadCount=1;expectedNativeWriteCount=1;targetRangerLevel=4}
@@ -16,7 +17,7 @@ function Assert-KmcChunk7SmallFixtureSelection($Request){
  if(-not$has){throw 'F09 exact closed fixture selection is missing.'}
  Assert-KmcBootstrapInventoryString $Request.scenario 'chunk7-small-fixture-preparation'
  if($Request.runId-isnot[string]-or$Request.runId-cnotmatch'^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$'){throw 'F09 fixture run ID is not canonical.'}
- $expected=Get-KmcChunk7SmallFixturePins;$s=$Request.smallFixture
+ $s=$Request.smallFixture;$expected=Get-KmcChunk7SmallFixturePins $s.case
  Assert-KmcAssistedObjectValue $s @($expected.PSObject.Properties.Name) 'F09 closed unmounted fixture selection'
  foreach($key in @('case','seedId','seedSha256','seedQualificationRunId','seedQualificationArtifactSha256','nativeInventoryRunId','nativeInventoryArtifactSha256')){Assert-KmcBootstrapInventoryString $s.$key $expected.$key}
  Assert-KmcChunk7Boolean $s.baseGameOnly $true
@@ -52,16 +53,20 @@ function Assert-KmcSmallFixtureAuthority($Row,$Request,[long]$Loads,[long]$Write
  foreach($key in @('admittedNativeWrites','authorizedWrites')){Assert-KmcOrdinaryInteger $Row.$key $Writes $Writes}
  foreach($key in @('unauthorizedLoads','unauthorizedWrites','fatalViolations','suppressedWrites')){Assert-KmcOrdinaryInteger $Row.$key 0 0}
  if($Writes-eq0){Assert-KmcOrdinaryInteger $Row.reservations 0 0;Assert-KmcOrdinaryInteger $Row.manualNumber 0 0;if($null-ne$Row.outputLeaf){throw 'F09 builder opened a writable output early.'}}
- else{Assert-KmcOrdinaryInteger $Row.reservations 1 1;Assert-KmcOrdinaryInteger $Row.manualNumber 1 ([int]::MaxValue-1);Assert-KmcBootstrapInventoryString $Row.outputLeaf ('Manual_'+$Row.manualNumber.ToString([Globalization.CultureInfo]::InvariantCulture)+'_KMC_C7_SMALL_FIXTURE.zks')}
+ else{$output=if($Request.smallFixture.case-ceq'owner-seed-default-human-horse-manual'){'KMC_C7_MEDIUM_FIXTURE'}else{'KMC_C7_SMALL_FIXTURE'};Assert-KmcOrdinaryInteger $Row.reservations 1 1;Assert-KmcOrdinaryInteger $Row.manualNumber 1 ([int]::MaxValue-1);Assert-KmcBootstrapInventoryString $Row.outputLeaf ('Manual_'+$Row.manualNumber.ToString([Globalization.CultureInfo]::InvariantCulture)+'_'+$output+'.zks')}
 }
-function Assert-KmcSmallFixtureBody($Body){
+function Assert-KmcSmallFixtureBody($Body,[string]$Case='owner-seed-default-halfling-horse-manual'){
+ $medium=$Case-ceq'owner-seed-default-human-horse-manual';if(-not$medium-and$Case-cne'owner-seed-default-halfling-horse-manual'){throw 'Unknown paid body case.'}
  Assert-KmcAssistedObjectValue $Body @('originalSizeOrdinal','effectiveSizeOrdinal','riderPolymorphed','mountPolymorphed','mountBlueprintGuid','mountSizeOrdinal','raceGuid','presetGuid','gender','skeletonName','leftHanded','avatarMirrored','nativeRaceAndPresetIdentityExact','nativeSkeletonIsExactPreset','nativeRigAvailable','avatarLocalScale','dollEquipmentEntityIds','currentEquipmentBlueprints','activeVisualEquipmentNames','additionalLimbCount') 'F09 unmounted native body'
- foreach($key in @('originalSizeOrdinal','effectiveSizeOrdinal')){Assert-KmcOrdinaryInteger $Body.$key 3 3}
- Assert-KmcOrdinaryInteger $Body.mountSizeOrdinal 4 8
+ $size=if($medium){4}else{3};foreach($key in @('originalSizeOrdinal','effectiveSizeOrdinal')){Assert-KmcOrdinaryInteger $Body.$key $size $size}
+ Assert-KmcOrdinaryInteger $Body.mountSizeOrdinal ($size+1) 8
  foreach($key in @('riderPolymorphed','mountPolymorphed','leftHanded')){Assert-KmcChunk7Boolean $Body.$key $false}
  foreach($key in @('nativeRaceAndPresetIdentityExact','nativeSkeletonIsExactPreset','nativeRigAvailable')){Assert-KmcChunk7Boolean $Body.$key $true}
  if($Body.avatarMirrored-isnot[bool]){throw 'F09 native mirroring must be observed as a boolean.'}
- foreach($p in @(@('mountBlueprintGuid','4016c7db400ab721ff125aef9e65e202'),@('raceGuid','b0c3ef2729c498f47970bb50fa1acd30'),@('presetGuid','639cebe8cbc098345af429d62fd79578'),@('gender','Male'),@('skeletonName','MaleHalfling'))){Assert-KmcBootstrapInventoryString $Body.($p[0]) $p[1]}
+ $race=if($medium){'0a5d473ead98b0646b94495af250fdc4'}else{'b0c3ef2729c498f47970bb50fa1acd30'}
+ $preset=if($medium){'58181bf151eb0c0408f82546541dcc03'}else{'639cebe8cbc098345af429d62fd79578'}
+ $skeleton=if($medium){'MaleHuman'}else{'MaleHalfling'}
+ foreach($p in @(@('mountBlueprintGuid','4016c7db400ab721ff125aef9e65e202'),@('raceGuid',$race),@('presetGuid',$preset),@('gender','Male'),@('skeletonName',$skeleton))){Assert-KmcBootstrapInventoryString $Body.($p[0]) $p[1]}
  Assert-KmcAssistedObjectValue $Body.avatarLocalScale @('x','y','z') 'F09 native avatar scale'
  foreach($key in @('x','y','z')){if(-not(Test-KmcChunk7FiniteNumber $Body.avatarLocalScale.$key)-or[Math]::Abs([double]$Body.avatarLocalScale.$key)-lt0.01-or[Math]::Abs([double]$Body.avatarLocalScale.$key)-gt10){throw 'F09 native avatar scale is invalid.'}}
  Assert-KmcAssistedArray $Body.dollEquipmentEntityIds 0 128 'F09 exact Doll equipment IDs';$seen=[Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
@@ -84,7 +89,8 @@ function Assert-KmcSmallFixtureLiveTransforms($Rows,[string[]]$Names){
   }
  }
 }
-function Assert-KmcSmallFixtureLiveInventory($Inventory,$Body,[string]$RiderId,[string]$HorseId){
+function Assert-KmcSmallFixtureLiveInventory($Inventory,$Body,[string]$RiderId,[string]$HorseId,[string]$Case='owner-seed-default-halfling-horse-manual'){
+ $size=if($Case-ceq'owner-seed-default-human-horse-manual'){'Medium'}elseif($Case-ceq'owner-seed-default-halfling-horse-manual'){'Small'}else{throw 'Unknown paid live body case.'}
  Assert-KmcOrdinaryInteger $Inventory.schemaVersion 1 1
  foreach($p in @(@('captureStatus','PASS'),@('captureKind','installed-native-small-body-catalogue'),@('gameplayAssemblyMvid','07fa1e4d-8618-41b3-9b8d-faa17d3b26f7'))){Assert-KmcBootstrapInventoryString $Inventory.($p[0]) $p[1]}
  foreach($key in @('profileAdmissionChanged','nativeFixtureCreated','poseQualified','ordinaryAcquisitionProven')){Assert-KmcChunk7Boolean $Inventory.$key $false}
@@ -93,7 +99,7 @@ function Assert-KmcSmallFixtureLiveInventory($Inventory,$Body,[string]$RiderId,[
  if($r.Count-ne1-or$h.Count-ne1-or$RiderId-ceq$HorseId){throw 'F09 live rig observation has foreign or repeated actors.'};$r=$r[0];$h=$h[0]
  Assert-KmcBootstrapInventoryString $r.raceGuid $Body.raceGuid;Assert-KmcBootstrapInventoryString $r.dollPresetGuid $Body.presetGuid
  Assert-KmcBootstrapInventoryString $r.dollGender 'Male';Assert-KmcChunk7Boolean $r.dollLeftHanded $false;Assert-KmcChunk7Boolean $r.polymorphed $false
- Assert-KmcBootstrapInventoryString $r.originalSize 'Small';Assert-KmcBootstrapInventoryString $r.effectiveSize 'Small'
+ Assert-KmcBootstrapInventoryString $r.originalSize $size;Assert-KmcBootstrapInventoryString $r.effectiveSize $size
  Assert-KmcBootstrapInventoryString $r.petId $HorseId;Assert-KmcBootstrapInventoryString $h.masterId $RiderId;Assert-KmcBootstrapInventoryString $h.blueprintGuid $Body.mountBlueprintGuid
  Assert-KmcChunk7Boolean $r.character.present $true;Assert-KmcChunk7Boolean $r.character.skeleton.present $true
  Assert-KmcBootstrapInventoryString $r.character.skeleton.name $Body.skeletonName
@@ -106,7 +112,9 @@ function Assert-KmcSmallFixtureLiveInventory($Inventory,$Body,[string]$RiderId,[
 function Assert-KmcChunk7SmallFixtureEvidence($Request,$Artifact){
  Assert-KmcChunk7SmallFixtureDescriptor $Request;Assert-KmcAssistedColdArtifactEnvelope $Request $Artifact 'chunk7-small-fixture-evidence'
  Assert-KmcBootstrapInventoryString $Artifact.status 'PASS';$o=$Artifact.observations
- Assert-KmcBootstrapInventoryString $o.contract 'owner-seed-unmounted-small-fixture-v1';Assert-KmcAssistedSame $o.selection $Request.smallFixture 'F09 exact selection'
+ $medium=$Request.smallFixture.case-ceq'owner-seed-default-human-horse-manual'
+ $output=if($medium){'KMC_C7_MEDIUM_FIXTURE'}else{'KMC_C7_SMALL_FIXTURE'}
+ Assert-KmcBootstrapInventoryString $o.contract $(if($medium){'owner-seed-unmounted-medium-fixture-v1'}else{'owner-seed-unmounted-small-fixture-v1'});Assert-KmcAssistedSame $o.selection $Request.smallFixture 'F09 exact selection'
  foreach($key in @('fixtureSetupOnly')){Assert-KmcChunk7Boolean $o.$key $true}
  foreach($key in @('producerAncestry','profileAdmissionChanged','poseQualified','mountedBehaviorQualified','coldLoadQualified')){Assert-KmcChunk7Boolean $o.$key $false}
  foreach($key in @('xpWrites','moneyWrites','resourceWrites','mountRequests','manualPartyMutations')){Assert-KmcOrdinaryInteger $o.$key 0 0}
@@ -116,7 +124,7 @@ function Assert-KmcChunk7SmallFixtureEvidence($Request,$Artifact){
  foreach($key in @('seedId','seedSha256','seedQualificationRunId','seedQualificationArtifactSha256','nativeInventoryRunId','nativeInventoryArtifactSha256')){Assert-KmcBootstrapInventoryString $o.source.$key $Request.smallFixture.$key}
  Assert-KmcAssistedSame $o.source.descriptor $Request.persistenceLoad 'F09 source descriptor';foreach($key in @('masterLoaded','producerAncestry')){Assert-KmcChunk7Boolean $o.source.$key $false}
  Assert-KmcAssistedSame $o.neighboursBefore $o.neighboursAfter 'F09 preserved original companions';Assert-KmcAssistedSame $o.beforeSaveArrangement $o.afterSaveArrangement 'F09 native save changed progression or membership'
- Assert-KmcSmallFixtureBody $o.bodyObservation;Assert-KmcSmallFixtureBody $o.savedBodyObservation;Assert-KmcAssistedSame $o.bodyObservation $o.savedBodyObservation 'F09 saved body/equipment'
+ Assert-KmcSmallFixtureBody $o.bodyObservation $Request.smallFixture.case;Assert-KmcSmallFixtureBody $o.savedBodyObservation $Request.smallFixture.case;Assert-KmcAssistedSame $o.bodyObservation $o.savedBodyObservation 'F09 saved body/equipment'
  $hire=$o.paidHireAdmission
  foreach($key in @('forFree','matchPlayerXpExactly','importableInDungeon')){Assert-KmcChunk7Boolean $hire.$key $false};foreach($key in @('xpAssistance','moneyAssistance')){Assert-KmcOrdinaryInteger $hire.$key 0 0}
  Assert-KmcOrdinaryInteger $hire.nativeCost 1 ([long]::MaxValue);Assert-KmcOrdinaryInteger $hire.moneyBefore $hire.nativeCost ([long]::MaxValue)
@@ -159,7 +167,7 @@ function Assert-KmcChunk7SmallFixtureEvidence($Request,$Artifact){
   Assert-KmcAssistedArray $r[0].features 1 128 'F09 native sourced rider features';$fact=@($r[0].features|Where-Object guid -CEQ $owner.featureGuid);$rank=@($r[0].features|Where-Object guid -CEQ '1670990255e4fe948a863bafd5dbda5d')
   if($fact.Count-ne1-or$rank.Count-ne1){throw 'F09 registered Horse feature or native companion rank fact is absent/ambiguous.'};Assert-KmcBootstrapInventoryString $fact[0].source $owner.featureSourceGuid;Assert-KmcOrdinaryInteger $rank[0].rank $owner.rank $owner.rank
  }
- Assert-KmcSmallFixtureLiveInventory $o.unmountedProfileInventory $o.bodyObservation $small[0].id $small[0].petId
+ Assert-KmcSmallFixtureLiveInventory $o.unmountedProfileInventory $o.bodyObservation $small[0].id $small[0].petId $Request.smallFixture.case
  Assert-KmcAssistedArray $o.afterSaveArrangement.characters 5 5 'F09 native field characters';Assert-KmcAssistedArray $o.afterSaveArrangement.remote 0 0 'F09 no remaining remote companions'
  $expectedCharacters=@('73681ef2-b281-4bc6-bc05-2de68c1616cb','5dd7bd1d-ae4c-4df7-9687-50fceb027344','8265f8cf-0969-4ec7-a266-2448de91c8c4','fd213210-71cd-41b0-b35b-68e1b18e9b43',$small[0].id)
  Assert-KmcAssistedSame @($o.afterSaveArrangement.characters|Sort-Object -CaseSensitive) @($expectedCharacters|Sort-Object -CaseSensitive) 'F09 exact original four plus paid character'
@@ -171,11 +179,11 @@ function Assert-KmcChunk7SmallFixtureEvidence($Request,$Artifact){
  }
  foreach($row in $o.nativeLoad.events){foreach($key in @('game','saveManager','player')){Assert-KmcOrdinaryInteger $row.$key $o.loadedWorld.$key $o.loadedWorld.$key}}
  Assert-KmcAssistedColdNoPreparation $o.noPreparation $Request
- $w=$o.nativeWrite;Assert-KmcBootstrapInventoryString $w.type 'Manual';Assert-KmcBootstrapInventoryString $w.internalName 'KMC_C7_SMALL_FIXTURE';Assert-KmcBootstrapInventoryString $w.operationState 'None';Assert-KmcBootstrapInventoryString $w.readKind 'Current';Assert-KmcOrdinaryInteger $w.sourceSchema 3 3
+ $w=$o.nativeWrite;Assert-KmcBootstrapInventoryString $w.type 'Manual';Assert-KmcBootstrapInventoryString $w.internalName $output;Assert-KmcBootstrapInventoryString $w.operationState 'None';Assert-KmcBootstrapInventoryString $w.readKind 'Current';Assert-KmcOrdinaryInteger $w.sourceSchema 3 3
  foreach($key in @('callbackCount','completionSequence','snapshotCount')){Assert-KmcOrdinaryInteger $w.$key 1 1};foreach($key in @('isActuallySaved','hasFileOnDisk','nativeWorkerSettled')){Assert-KmcChunk7Boolean $w.$key $true};foreach($key in @('autoLevelup','slotProjectionEnabled')){Assert-KmcChunk7Boolean $w.$key $false}
  Assert-KmcSmallFixtureEmptyArchive $w.archive $Request.persistenceLoad
  Assert-KmcBootstrapInventoryString $w.fileName $o.savedWorld.authority.outputLeaf;Assert-KmcBootstrapInventoryString $w.path (Join-Path (Get-KmcAssistedSaveRoot $Request) $w.fileName)
- $p=$o.nativeSave;Assert-KmcBootstrapInventoryString $p.contract 'small-fixture-native-save-v1';foreach($key in @('installed','complete')){Assert-KmcChunk7Boolean $p.$key $true};foreach($key in @('requests','prepares','starts','stages','completions','callbacks')){Assert-KmcOrdinaryInteger $p.$key 1 1};Assert-KmcAssistedArray $p.errors 0 0 'F09 save observer errors'
+ $p=$o.nativeSave;Assert-KmcBootstrapInventoryString $p.contract $(if($medium){'medium-fixture-native-save-v1'}else{'small-fixture-native-save-v1'});foreach($key in @('installed','complete')){Assert-KmcChunk7Boolean $p.$key $true};foreach($key in @('requests','prepares','starts','stages','completions','callbacks')){Assert-KmcOrdinaryInteger $p.$key 1 1};Assert-KmcAssistedArray $p.errors 0 0 'F09 save observer errors'
  foreach($key in @('custodySettled','nativeWorkerSettled','observersReleased','worldAdmitted','sourceUnchanged','selectorClosed','selectionRestored','pauseRestored','ummLeaseReleased','acquiredNativeStateRetained')){Assert-KmcChunk7Boolean $o.cleanup.$key $true}
  foreach($key in @('manualRefunds','manualCompanionRemovals','manualFactRemovals','manualPartyMutations')){Assert-KmcOrdinaryInteger $o.cleanup.$key 0 0}
  Assert-KmcSmallFixtureAuthority $o.cleanup.authority $Request 1 1 $generation

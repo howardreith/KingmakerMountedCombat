@@ -102,7 +102,8 @@ namespace KingmakerMountedCombat.Diagnostics
             restoration = new NativeArchiveRestorationProbe(persistence); restoration.Install();
             evidence["processId"] = Process.GetCurrentProcess().Id;
             evidence["selection"] = Chunk7EvidenceDto.Request(request.SmallFixture);
-            evidence["contract"] = "owner-seed-unmounted-small-fixture-v1";
+            evidence["contract"] = request.SmallFixture.IsMedium
+                ? "owner-seed-unmounted-medium-fixture-v1" : "owner-seed-unmounted-small-fixture-v1";
             evidence["fixtureSetupOnly"] = true; evidence["producerAncestry"] = false;
             evidence["profileAdmissionChanged"] = false; evidence["poseQualified"] = false;
             evidence["mountedBehaviorQualified"] = false; evidence["coldLoadQualified"] = false;
@@ -288,8 +289,10 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["nativeInheritedXp"] = nativeHireXp, ["nativeReadyLevel"] = ReadyLevel(nativeHireXp), ["forFree"] = false,
                 ["matchPlayerXpExactly"] = false, ["importableInDungeon"] = false, ["xpAssistance"] = 0, ["moneyAssistance"] = 0 };
             hireDriver = new Chunk7OrdinaryBuildDriver(new Chunk7OrdinaryBuildPins(request.RunId, request.SmallFixture.NativeInventoryArtifactSha256,
-                Chunk7OrdinaryBuildMode.NewSmallCustomCompanion, Chunk7SmallFixtureSelection.RaceGuid, Chunk7SmallFixtureSelection.PresetGuid,
-                Chunk7SmallFixtureSelection.SkeletonName, Gender.Male, false, 4, Size.Small), null,
+                request.SmallFixture.IsMedium ? Chunk7OrdinaryBuildMode.NewMediumCustomCompanion : Chunk7OrdinaryBuildMode.NewSmallCustomCompanion,
+                request.SmallFixture.SelectedRaceGuid, request.SmallFixture.SelectedPresetGuid,
+                request.SmallFixture.SelectedSkeletonName, Gender.Male, false, 4,
+                request.SmallFixture.IsMedium ? Size.Medium : Size.Small), null,
                 horses.HorseFeature, horses.HorseUnit.AssetGuid, RequireChoiceAuthority, ObserveChoice);
             stage = 3;
         }

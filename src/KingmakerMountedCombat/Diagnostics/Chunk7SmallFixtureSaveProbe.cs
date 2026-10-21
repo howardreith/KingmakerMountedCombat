@@ -25,7 +25,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private readonly Func<object, int> identity;
         private readonly Action assertWorld;
         private readonly string leaf, nativeName;
-        private readonly bool stockMammoth;
+        private readonly bool stockMammoth, paidMedium;
         private readonly JArray events = new JArray(), hooks = new JArray();
         private readonly List<string> errors = new List<string>();
         private readonly Dictionary<string, FieldInfo> fields = new Dictionary<string, FieldInfo>();
@@ -46,9 +46,11 @@ namespace KingmakerMountedCombat.Diagnostics
             this.identity = identity ?? throw new ArgumentNullException(nameof(identity));
             this.assertWorld = assertWorld ?? throw new ArgumentNullException(nameof(assertWorld));
             stockMammoth = nativeName == Chunk7StockMammothFixtureSelection.OutputName;
+            paidMedium = nativeName == Chunk7SmallFixtureSelection.MediumOutputName;
             Require(stockMammoth ? Chunk7StockMammothFixtureSelection.IsManualLeaf(leaf) :
-                nativeName == Chunk7SmallFixtureSelection.OutputName && Chunk7SmallFixtureSelection.IsManualLeaf(leaf),
-                "Native fixture observer requires one of its two exact canonical Manual contracts.");
+                nativeName == Chunk7SmallFixtureSelection.OutputName && Chunk7SmallFixtureSelection.IsManualLeaf(leaf) ||
+                paidMedium && Chunk7SmallFixtureSelection.IsMediumManualLeaf(leaf),
+                "Native fixture observer requires an exact canonical Manual contract.");
             this.leaf = leaf; this.nativeName = nativeName;
         }
         internal void Install()
@@ -118,7 +120,8 @@ namespace KingmakerMountedCombat.Diagnostics
             item["workerFaulted"] = worker.IsFaulted; item["workerCanceled"] = worker.IsCanceled;
         }
         internal void ObserveCallback() => Observe(() => { assertWorld(); Require(++callbacks == 1 && completions == 1, "Save callback is duplicate or precedes exact worker completion."); Record("native-save-callback", prepared); });
-        internal JObject Capture() => new JObject { ["contract"] = stockMammoth ? "stock-mammoth-fixture-native-save-v1" : "small-fixture-native-save-v1", ["installed"] = installed, ["installationAttempted"] = attempted,
+        internal JObject Capture() => new JObject { ["contract"] = stockMammoth ? "stock-mammoth-fixture-native-save-v1" :
+            paidMedium ? "medium-fixture-native-save-v1" : "small-fixture-native-save-v1", ["installed"] = installed, ["installationAttempted"] = attempted,
             ["complete"] = Complete, ["requests"] = requests, ["prepares"] = prepares, ["starts"] = starts, ["stages"] = stages,
             ["completions"] = completions, ["callbacks"] = callbacks, ["events"] = events.DeepClone(), ["hooks"] = hooks.DeepClone(), ["errors"] = new JArray(errors) };
         private static class Hooks

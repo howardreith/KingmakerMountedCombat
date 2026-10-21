@@ -70,6 +70,11 @@ namespace KingmakerMountedCombat.Diagnostics
     internal sealed partial class Chunk7SmallFixtureScenario
     {
         __BODY_METHODS__
+        internal static void RequireMediumBodyForTest(SmallRiderBodyObservation body)
+        {
+            RequireObservedBody(body, 4, Chunk7SmallFixtureSelection.MediumRaceGuid,
+                Chunk7SmallFixtureSelection.MediumPresetGuid, Chunk7SmallFixtureSelection.MediumSkeletonName);
+        }
         private static void Require(bool value, string reason) { if (!value) throw new InvalidOperationException(reason); }
     }
     internal static class SmallFixtureAdapterTests
@@ -130,6 +135,12 @@ namespace KingmakerMountedCombat.Diagnostics
             Good("stock Mammoth extra load and write revoke plan",()=>{var r=FreshStock();var g=new object();var m=new object();var a=new PersistenceSaveAuthorization(root,r.PersistenceLoad);a.ConfigureStockMammothFixture(r,g,m);a.ExtraLoad();Assert(!a.MatchesStockMammothFixturePlan(r,g,m));var b=new PersistenceSaveAuthorization(root,r.PersistenceLoad);b.ConfigureStockMammothFixture(r,g,m);b.Loaded();b.ReserveStockMammothFixtureOutput(r,g,m,304);b.ExtraWrite();Assert(!b.MatchesStockMammothFixturePlan(r,g,m));});
             Good("stock Mammoth captured request drift refuses write",()=>{var r=FreshStock();var g=new object();var m=new object();var a=new PersistenceSaveAuthorization(root,r.PersistenceLoad);a.ConfigureStockMammothFixture(r,g,m);a.Loaded();a.ReserveStockMammothFixtureOutput(r,g,m,304);r.StockMammothFixture.NativeXpAssistance++;Assert(!a.MatchesStockMammothFixturePlan(r,g,m)&&a.Admission(RuntimeSaveOperation.Write)!=null);});
             Good("closed eleven-property DTO and exact source",()=>{var r=Fresh();Assert(r.Validate().Count==0&&Chunk7SmallFixtureSelection.IsSource(r.PersistenceLoad));Assert(typeof(Chunk7SmallFixtureSelection).GetProperties().Length==11);});
+            Good("distinct Medium body selection keeps closed source and output",()=>{var r=Fresh();r.SmallFixture.Case=Chunk7SmallFixtureSelection.MediumCaseName;
+                Assert(r.Validate().Count==0&&Chunk7SmallFixtureSelection.IsSource(r.PersistenceLoad));
+                Assert(r.SmallFixture.SelectedOutputName==Chunk7SmallFixtureSelection.MediumOutputName&&
+                    r.SmallFixture.SelectedManualLeaf(304)=="Manual_304_KMC_C7_MEDIUM_FIXTURE.zks"&&
+                    r.SmallFixture.IsSelectedManualLeaf("Manual_304_KMC_C7_MEDIUM_FIXTURE.zks")&&
+                    !r.SmallFixture.IsSelectedManualLeaf("Manual_304_KMC_C7_SMALL_FIXTURE.zks"));});
             foreach(var p in typeof(Chunk7SmallFixtureSelection).GetProperties())
             {
                 Good("selection rejects mutation "+p.Name,()=>{var r=Fresh();var value=p.GetValue(r.SmallFixture,null);p.SetValue(r.SmallFixture,p.PropertyType==typeof(string)?(object)((string)value+"x"):p.PropertyType==typeof(bool)?(object)!(bool)value:(int)value+1,null);Assert(r.Validate().Count>0);});
@@ -154,6 +165,11 @@ namespace KingmakerMountedCombat.Diagnostics
             Bad("final field charges hire twice",()=>Chunk7SmallFixtureAdmission.RequirePaidBalance(400057,8000,411,384468));
             Bad("final field invents another grant",()=>Chunk7SmallFixtureAdmission.RequirePaidBalance(400057,8000,411,392879));
             Good("authority input-only then real post-load reservation",()=>{var r=Fresh();var g=new object();var m=new object();var a=new PersistenceSaveAuthorization(root,r.PersistenceLoad);a.ConfigureSmallFixture(r,g,m);Assert(a.MatchesSmallFixturePlan(r,g,m)&&a.SmallFixtureReservations==0&&a.Admission(RuntimeSaveOperation.Write)!=null);a.Loaded();a.ReserveSmallFixtureOutput(r,g,m,304);Assert(a.SmallFixtureReservations==1&&a.SmallFixtureNumber==304&&a.SmallFixtureOutputLeaf==Chunk7SmallFixtureSelection.ManualLeaf(304)&&a.Admission(RuntimeSaveOperation.Write)==null&&a.Admission(RuntimeSaveOperation.Delete)!=null);});
+            Good("Medium authority reserves only its own native Manual",()=>{var r=Fresh();r.SmallFixture.Case=Chunk7SmallFixtureSelection.MediumCaseName;
+                var g=new object();var m=new object();var a=new PersistenceSaveAuthorization(root,r.PersistenceLoad);
+                a.ConfigureSmallFixture(r,g,m);a.Loaded();a.ReserveSmallFixtureOutput(r,g,m,304);
+                Assert(a.MatchesSmallFixturePlan(r,g,m)&&a.SmallFixtureOutputLeaf=="Manual_304_KMC_C7_MEDIUM_FIXTURE.zks"&&
+                    a.Admission(RuntimeSaveOperation.Write)==null&&a.Admission(RuntimeSaveOperation.Delete)!=null);});
             Bad("authority reservation before load",()=>{var r=Fresh();var g=new object();var m=new object();var a=new PersistenceSaveAuthorization(root,r.PersistenceLoad);a.ConfigureSmallFixture(r,g,m);a.ReserveSmallFixtureOutput(r,g,m,304);});
             Bad("authority configure with extra write cap",()=>{var r=Fresh();var a=new PersistenceSaveAuthorization(root,r.PersistenceLoad);a.SetCaps(1,2);a.ConfigureSmallFixture(r,new object(),new object());});
             Bad("authority foreign native game",()=>{var r=Fresh();var g=new object();var m=new object();var a=new PersistenceSaveAuthorization(root,r.PersistenceLoad);a.ConfigureSmallFixture(r,g,m);a.Loaded();a.ReserveSmallFixtureOutput(r,new object(),m,304);});
@@ -167,6 +183,11 @@ namespace KingmakerMountedCombat.Diagnostics
             ConfigureMutation("captured exact source timestamp",r=>r.PersistenceLoad.LastWriteTimeUtcTicks++);
             ConfigureMutation("captured catalogue pin",r=>r.SmallFixture.NativeInventoryArtifactSha256=new string('0',64));
             Good("body capture is bounded vector-only wire JSON",()=>{var b=Body();Chunk7SmallFixtureScenario.RequireSmallBody(b);var o=Chunk7SmallFixtureScenario.CaptureBody(b);Assert(((JObject)o["avatarLocalScale"]).Properties().Count()==3&&o["currentEquipmentBlueprints"] is JArray slots&&slots.Count==12&&slots.All(v=>v.Type==JTokenType.Null));Assert(o.ToString(Formatting.None).Length<4096);});
+            Good("Medium body requires its own native Human rig and size",()=>{var b=Body();b.OriginalSizeOrdinal=4;b.EffectiveSizeOrdinal=4;
+                b.RaceGuid=Chunk7SmallFixtureSelection.MediumRaceGuid;b.PresetGuid=Chunk7SmallFixtureSelection.MediumPresetGuid;
+                b.SkeletonName=Chunk7SmallFixtureSelection.MediumSkeletonName;
+                Chunk7SmallFixtureScenario.RequireMediumBodyForTest(b);});
+            Bad("Medium body refuses Small rig",()=>Chunk7SmallFixtureScenario.RequireMediumBodyForTest(Body()));
             var changes=new Dictionary<string,Action<SmallRiderBodyObservation>> {
                 {"female",b=>b.Gender="Female"},{"fat preset",b=>b.PresetGuid="4031e194544440c47a50ed30073bcf09"},{"left handed",b=>b.LeftHanded=true},
                 {"Medium",b=>b.EffectiveSizeOrdinal=4},{"polymorph",b=>b.RiderPolymorphed=true},{"foreign Horse",b=>b.MountBlueprintGuid=new string('0',32)},

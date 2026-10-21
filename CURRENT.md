@@ -1,5 +1,11 @@
 # Chunk 7B–7D — IN PROGRESS
 
+[Batch112](docs/CHUNK7-BATCH112-PAID-MEDIUM-FIXTURE-DEVELOPMENT-2026-10-20.md)
+adds a reviewed, offline-tested paid Medium Human/Horse unmounted Manual
+producer from the qualified clean owner seed. It is fixture setup only; native
+producer, distinct Medium cold admission and replacement qualification remain
+open. No new game run or transaction has occurred on these source bytes.
+
 Batch111's [fixture discriminator](docs/CHUNK7-BATCH111-MEDIUM-REPLACEMENT-FIXTURE-DISCRIMINATOR-2026-10-20.md)
 found no native Doll/preset on the non-main Medium Horse rider in the accepted
 owner-seed inventory. Its proposed Horse-to-Mammoth respec case was withdrawn

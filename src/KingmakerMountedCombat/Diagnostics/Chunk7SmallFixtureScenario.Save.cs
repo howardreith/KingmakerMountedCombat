@@ -43,7 +43,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 ", loadedIsList=" + ReferenceEquals(source, loader.Descriptor) + ").");
             nativeSourceDescriptor = source;
             var number = manager.FindUnusedSaveNumber(SaveInfo.SaveType.Manual);
-            var leaf = Chunk7SmallFixtureSelection.ManualLeaf(number);
+            var leaf = request.SmallFixture.SelectedManualLeaf(number);
             Require(!File.Exists(Path.Combine(authority.Root, leaf)), "F09 native Manual output already exists.");
             authority.ReserveSmallFixtureOutput(request, game, manager, number);
             Require(authority.SmallFixtureOutputLeaf == leaf && authority.SmallFixtureReservations == 1,
@@ -51,10 +51,11 @@ namespace KingmakerMountedCombat.Diagnostics
             evidence["nativeNumbering"] = new JObject { ["method"] = "FindUnusedSaveNumber", ["token"] = "06008024",
                 ["moduleMvid"] = typeof(SaveManager).Module.ModuleVersionId.ToString("D"), ["number"] = number,
                 ["fileName"] = leaf, ["outputInitiallyAbsent"] = true, ["slotProjectionEnabled"] = false };
-            saveProbe = new Chunk7SmallFixtureSaveProbe(game, persistence, loadProbe.Identity, RequireWorld, leaf); saveProbe.Install();
-            requestedManual = manager.CreateNewSave(Chunk7SmallFixtureSelection.OutputName);
+            saveProbe = new Chunk7SmallFixtureSaveProbe(game, persistence, loadProbe.Identity, RequireWorld, leaf,
+                request.SmallFixture.SelectedOutputName); saveProbe.Install();
+            requestedManual = manager.CreateNewSave(request.SmallFixture.SelectedOutputName);
             Require(requestedManual != null && requestedManual.Type == SaveInfo.SaveType.Manual &&
-                requestedManual.Name == Chunk7SmallFixtureSelection.OutputName && !requestedManual.IsActuallySaved && !requestedManual.HasFileOnDisk &&
+                requestedManual.Name == request.SmallFixture.SelectedOutputName && !requestedManual.IsActuallySaved && !requestedManual.HasFileOnDisk &&
                 !requestedManual.IsAutoLevelupSave && ReferenceEquals(requestedManual.Area, game.CurrentlyLoadedArea) && manager.IsSaveAllowed(),
                 "F09 native new-save descriptor is not the exact separate Manual.");
             saveProbe.Expect(requestedManual);
@@ -75,7 +76,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var completion = persistence.LastCompletedSave; var written = saveProbe.Written;
             Require(completion != null && completion.Sequence == 1 && ReferenceEquals(completion.Requested, requestedManual) &&
                 ReferenceEquals(completion.Written, written) && completion.Path == Path.Combine(authority.Root, authority.SmallFixtureOutputLeaf) &&
-                written.Type == SaveInfo.SaveType.Manual && written.Name == Chunk7SmallFixtureSelection.OutputName &&
+                written.Type == SaveInfo.SaveType.Manual && written.Name == request.SmallFixture.SelectedOutputName &&
                 written.FileName == authority.SmallFixtureOutputLeaf && written.GameId == request.PersistenceLoad.GameId &&
                 written.GameName == request.PersistenceLoad.GameName && written.Area?.AssetGuidThreadSafe == request.PersistenceLoad.Area &&
                 written.IsActuallySaved && written.HasFileOnDisk && written.OperationState == SaveInfo.StateType.None && !written.IsAutoLevelupSave,
@@ -89,7 +90,7 @@ namespace KingmakerMountedCombat.Diagnostics
             Require(read.Kind == MountedSaveReadKind.Current && read.SourceSchema == 3 && archive != null,
                 "F09 native output must have actual current schema-3 metadata read back from its written archive.");
             RequireEmptyArchive(archive, request.PersistenceLoad.GameId, request.PersistenceLoad.Area);
-            var after = Arrangement(); var body = NativeSmallRiderBody.Capture(actor, pet); RequireSmallBody(body);
+            var after = Arrangement(); var body = NativeSmallRiderBody.Capture(actor, pet); RequireSelectedBody(body);
             Require(JToken.DeepEquals(arrangementBeforeSave, after) && JToken.DeepEquals(bodyBeforeSave, CaptureBody(body)),
                 "F09 save changed native ownership, XP, money, progression, field membership or live body/equipment.");
             Require(restoration.Complete && restoration.Capture()["events"] is JArray events && events.Count == 0 &&

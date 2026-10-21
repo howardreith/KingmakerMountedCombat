@@ -13,6 +13,13 @@
 > and [implementation chronology](CHUNK7-IMPLEMENTATION-PLAN.md) remain
 > historical where they say 7E is unselected or give stale native caps.
 
+[Batch112](../docs/CHUNK7-BATCH112-PAID-MEDIUM-FIXTURE-DEVELOPMENT-2026-10-20.md)
+implements a distinct guarded paid Medium Human/Horse unmounted Manual
+producer using the accepted Doll-backed owner-seed body. It passed offline
+checks and independent review; native producer, Medium cold continuation and
+replacement remain open. This updates the F10 row below without promoting
+fixture setup to acquisition or replacement qualification.
+
 Batch74 adds a reviewed Small mounted save/separate-cold route with focused
 and offline Candidate PASS. Native producer PASS 5/0 and separate cold
 original FAIL at the Small presentation/readiness deadline remain distinct;

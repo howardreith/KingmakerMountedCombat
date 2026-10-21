@@ -10,11 +10,11 @@ if(-not$OutputDirectory.StartsWith($analysis+[IO.Path]::DirectorySeparatorChar,[
 function Method([string]$Text,[string]$Signature){$s=$Text.IndexOf($Signature,[StringComparison]::Ordinal);if($s-lt0-or$s-ne$Text.LastIndexOf($Signature,[StringComparison]::Ordinal)){throw 'Actual F09 method absent or ambiguous.'};$o=$Text.IndexOf('{',$s);$d=1;$e=$o+1;while($d-gt0-and$e-lt$Text.Length){if($Text[$e]-ceq'{'){$d++}elseif($Text[$e]-ceq'}'){$d--};$e++};if($d-ne0){throw 'Unbalanced actual F09 method.'};$Text.Substring($s,$e-$s)}
 $diag=Join-Path $RepositoryRoot 'src/KingmakerMountedCombat/Diagnostics';$domain=Join-Path $RepositoryRoot 'src/KingmakerMountedCombat/Domain'
 $observation=Join-Path $diag 'Chunk7SmallFixtureScenario.Observation.cs';$text=[IO.File]::ReadAllText($observation)
-$body=@((Method $text 'internal static void RequireSmallBody('),(Method $text 'internal static JObject CaptureBody('))
+$body=@((Method $text 'internal static void RequireSmallBody('),(Method $text 'private static void RequireObservedBody('),(Method $text 'internal static JObject CaptureBody('))
 # CaptureBody is expression-bodied: bound by the following class closure, not by
 # a block-body brace scanner (the first brace belongs to the JObject initializer).
 $s=$text.IndexOf('internal static JObject CaptureBody(',[StringComparison]::Ordinal);$e=$text.IndexOf(';',$s)
-if($s-lt0-or$e-lt$s){throw 'Actual F09 body projection absent.'};$body[1]=$text.Substring($s,$e-$s+1)
+if($s-lt0-or$e-lt$s){throw 'Actual F09 body projection absent.'};$body[2]=$text.Substring($s,$e-$s+1)
 $template=Join-Path $RepositoryRoot 'tests/Chunk7Diagnostics/SmallFixtureAdapterTemplate.cs';$actual=Join-Path $OutputDirectory 'ActualSmallFixtureAdapter.cs'
 [IO.File]::WriteAllText($actual,([IO.File]::ReadAllText($template).Replace('__BODY_METHODS__',($body-join[Environment]::NewLine))),[Text.UTF8Encoding]::new($false))
 $selection=Join-Path $diag 'Chunk7SmallFixtureSelection.cs';$authority=Join-Path $diag 'PersistenceSaveAuthorization.SmallFixture.cs'

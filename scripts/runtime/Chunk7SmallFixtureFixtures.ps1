@@ -72,6 +72,16 @@ function Get-KmcChunk7SmallFixtureSource($Selection,$Fixture,$Candidate){
  $race=@($inv.smallRaces|Where-Object raceGuid -CEQ 'b0c3ef2729c498f47970bb50fa1acd30');if($race.Count-ne1){throw 'F09 native Halfling race is absent or ambiguous.'};Assert-KmcBootstrapInventoryString $race[0].size 'Small'
  $preset=@($race[0].presets|Where-Object presetGuid -CEQ '639cebe8cbc098345af429d62fd79578');if($preset.Count-ne1){throw 'F09 native default Halfling preset is absent or ambiguous.'}
  Assert-KmcChunk7Boolean $preset[0].present $true;Assert-KmcBootstrapInventoryString $preset[0].maleSkeleton.name 'MaleHalfling';Assert-KmcChunk7Boolean $preset[0].maleSkeleton.present $true
+ if($Selection.case-ceq'owner-seed-default-human-horse-manual'){
+  $main=@($inv.party|Where-Object id -CEQ '73681ef2-b281-4bc6-bc05-2de68c1616cb')
+  if($main.Count-ne1){throw 'F09 native Human body template is absent or ambiguous.'}
+  Assert-KmcBootstrapInventoryString $main[0].raceGuid '0a5d473ead98b0646b94495af250fdc4'
+  Assert-KmcBootstrapInventoryString $main[0].originalSize 'Medium'
+  Assert-KmcChunk7Boolean $main[0].dollPresent $true
+  Assert-KmcBootstrapInventoryString $main[0].dollGender 'Male'
+  Assert-KmcBootstrapInventoryString $main[0].dollPresetGuid '58181bf151eb0c0408f82546541dcc03'
+  Assert-KmcBootstrapInventoryString $main[0].character.skeleton.name 'MaleHuman'
+ }
  foreach($p in @($q,$i)){foreach($pin in $p.receiptPins){Assert-KmcAssistedSettledFile $pin.path $pin 'F09 original immutable provenance'}}
  [pscustomobject]@{path=$seed.path;descriptor=$seed.descriptor;seedId=$seed.seedId;registryPath=$seed.registryPath;registrySha256=$seed.registrySha256;registryEntry=$seed.registryEntry;intakePath=$seed.intakePath;intakeSha256=$seed.intakeSha256;
   qualification=$q;inventory=$i;fixtureSetupOnly=$true;producerAncestry=$false;nativeAuthorityGranted=$false}

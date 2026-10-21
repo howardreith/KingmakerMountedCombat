@@ -10,7 +10,12 @@ namespace KingmakerMountedCombat.Diagnostics
     {
         public const string Scenario = "chunk7-small-fixture-preparation";
         public const string CaseName = "owner-seed-default-halfling-horse-manual";
+        // This family keeps its historical protocol name. The distinct case
+        // produces a paid Medium native companion from the same clean seed;
+        // its own output name and body identity prevent Small ancestry reuse.
+        public const string MediumCaseName = "owner-seed-default-human-horse-manual";
         public const string OutputName = "KMC_C7_SMALL_FIXTURE";
+        public const string MediumOutputName = "KMC_C7_MEDIUM_FIXTURE";
         public const string SourceLeaf = "small-fixture-owner-seed.json";
         public const string QualificationLeaf = "small-fixture-seed-qualification.json";
         public const string InventoryLeaf = "small-fixture-native-inventory.json";
@@ -23,6 +28,9 @@ namespace KingmakerMountedCombat.Diagnostics
         public const string RaceGuid = "b0c3ef2729c498f47970bb50fa1acd30";
         public const string PresetGuid = "639cebe8cbc098345af429d62fd79578";
         public const string SkeletonName = "MaleHalfling";
+        public const string MediumRaceGuid = "0a5d473ead98b0646b94495af250fdc4";
+        public const string MediumPresetGuid = "58181bf151eb0c0408f82546541dcc03";
+        public const string MediumSkeletonName = "MaleHuman";
         public const string MainActorId = "73681ef2-b281-4bc6-bc05-2de68c1616cb";
         public const string SeedFileName = "Manual_303_KMC_C7_NO_MODS_OWNER_SEED.zks";
         public const string SeedInternalName = "KMC C7 NO MODS OWNER SEED";
@@ -41,11 +49,16 @@ namespace KingmakerMountedCombat.Diagnostics
         public int ExpectedNativeLoadCount { get; set; }
         public int ExpectedNativeWriteCount { get; set; }
         public int TargetRangerLevel { get; set; }
+        internal bool IsMedium => Case == MediumCaseName;
+        internal string SelectedOutputName => IsMedium ? MediumOutputName : OutputName;
+        internal string SelectedRaceGuid => IsMedium ? MediumRaceGuid : RaceGuid;
+        internal string SelectedPresetGuid => IsMedium ? MediumPresetGuid : PresetGuid;
+        internal string SelectedSkeletonName => IsMedium ? MediumSkeletonName : SkeletonName;
 
         public IReadOnlyList<string> Validate(string scenario, string runId)
         {
             var errors = new List<string>();
-            if (scenario != Scenario || Case != CaseName || SeedId != SeedIdentity || SeedSha256 != SeedHash)
+            if (scenario != Scenario || Case != CaseName && Case != MediumCaseName || SeedId != SeedIdentity || SeedSha256 != SeedHash)
                 errors.Add("F09 unmounted fixture requires its closed qualified clean owner seed.");
             if (SeedQualificationRunId != QualificationRun || SeedQualificationArtifactSha256 != QualificationHash ||
                 NativeInventoryRunId != InventoryRun || NativeInventoryArtifactSha256 != InventoryHash ||
@@ -68,6 +81,25 @@ namespace KingmakerMountedCombat.Diagnostics
                 value.Length > prefix.Length + suffix.Length && int.TryParse(value.Substring(prefix.Length,
                     value.Length - prefix.Length - suffix.Length), NumberStyles.None, CultureInfo.InvariantCulture, out var number) &&
                 number > 0 && number != int.MaxValue && value == ManualLeaf(number);
+        }
+        internal string SelectedManualLeaf(int number)
+        {
+            if (number <= 0 || number == int.MaxValue) throw new ArgumentOutOfRangeException(nameof(number));
+            return IsMedium ? "Manual_" + number.ToString(CultureInfo.InvariantCulture) + "_" + MediumOutputName + ".zks"
+                : ManualLeaf(number);
+        }
+        internal bool IsSelectedManualLeaf(string value)
+        {
+            if (!IsMedium) return IsManualLeaf(value);
+            return IsMediumManualLeaf(value);
+        }
+        internal static bool IsMediumManualLeaf(string value)
+        {
+            const string prefix = "Manual_", suffix = "_" + MediumOutputName + ".zks";
+            return value != null && value.StartsWith(prefix, StringComparison.Ordinal) && value.EndsWith(suffix, StringComparison.Ordinal) &&
+                value.Length > prefix.Length + suffix.Length && int.TryParse(value.Substring(prefix.Length,
+                    value.Length - prefix.Length - suffix.Length), NumberStyles.None, CultureInfo.InvariantCulture, out var number) &&
+                number > 0 && number != int.MaxValue && value == prefix + number.ToString(CultureInfo.InvariantCulture) + suffix;
         }
 
         internal static bool IsSource(RuntimeSaveDescriptor source) => source != null &&

@@ -13,7 +13,7 @@ namespace KingmakerMountedCombat.Diagnostics
         internal int SmallFixtureNumber { get { lock (sync) return smallFixtureNumber; } }
         internal int SmallFixtureReservations { get { lock (sync) return smallFixtureReservations; } }
         internal string SmallFixtureOutputLeaf { get { lock (sync) return smallFixtureReservations == 1
-            ? Chunk7SmallFixtureSelection.ManualLeaf(smallFixtureNumber) : null; } }
+            ? smallFixtureRequest.SmallFixture.SelectedManualLeaf(smallFixtureNumber) : null; } }
 
         private static string SmallFixtureKey(RuntimeRequest request)
         {
@@ -101,8 +101,8 @@ namespace KingmakerMountedCombat.Diagnostics
                     entries.Count != 1 + smallFixtureReservations || smallFixtureReservations > 1 ||
                     !SmallFixtureInput(request.PersistenceLoad)) return false;
                 if (smallFixtureReservations == 0) return admittedNativeWriteRequests == 0;
-                return entries.TryGetValue(Chunk7SmallFixtureSelection.ManualLeaf(smallFixtureNumber), out var output) &&
-                    output.Name == Chunk7SmallFixtureSelection.OutputName && output.Type == "Manual" &&
+                return entries.TryGetValue(request.SmallFixture.SelectedManualLeaf(smallFixtureNumber), out var output) &&
+                    output.Name == request.SmallFixture.SelectedOutputName && output.Type == "Manual" &&
                     output.Area == request.PersistenceLoad.Area && output.Writable && !output.Bootstrap &&
                     !output.AdmitsBeforeArea && output.AdmissionArea == null && output.ForeignGameId == null && output.ForeignGameName == null &&
                     (output.Hash == null && !output.Writing || admittedNativeWriteRequests == 1);
@@ -115,11 +115,11 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (!MatchesSmallFixturePlan(request, game, manager) || smallFixtureReservations != 0 ||
                     admittedNativeLoadRequests != 1 || admittedNativeWriteRequests != 0)
                     throw new InvalidOperationException("F09 Manual reservation requires its settled native load and unused write cap.");
-                var leaf = Chunk7SmallFixtureSelection.ManualLeaf(observedNumber);
+                var leaf = request.SmallFixture.SelectedManualLeaf(observedNumber);
                 var paths = Directory.EnumerateFileSystemEntries(Root).ToArray();
                 if (paths.Length != 1 || paths[0] != Path.Combine(Root, request.PersistenceLoad.FileName) || Directory.Exists(paths[0]))
                     throw new InvalidOperationException("F09 isolated source inventory changed before native numbering.");
-                var output = new Entry { Name = Chunk7SmallFixtureSelection.OutputName, Type = "Manual",
+                var output = new Entry { Name = request.SmallFixture.SelectedOutputName, Type = "Manual",
                     Area = request.PersistenceLoad.Area, Writable = true };
                 VerifyFile(leaf, output);
                 entries.Add(leaf, output); smallFixtureNumber = observedNumber; smallFixtureReservations = 1;
