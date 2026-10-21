@@ -1,5 +1,13 @@
 # Chunk 7B–7D — IN PROGRESS
 
+## October 20 — batch105 current-candidate diagnostics-off contracts
+
+[Batch105](docs/CHUNK7-BATCH105-F11-DIAGNOSTICS-OFF-CONTRACTS-2026-10-20.md)
+passed an actual world114-DLL quiet/defaults contract 28/0 and current-source
+cooldown diagnostics-off contract 29/0. The latter stubs external native
+boundaries; neither is native diagnostics-off or allocation-rate proof. F09,
+F10, F11 native/player controls and private 7E remain open.
+
 ## October 20 — batch104 existing owner-seed Ranger acquisition operation
 
 [Batch104](docs/CHUNK7-BATCH104-F10-EXISTING-ACQUISITION-READER-2026-10-20.md)

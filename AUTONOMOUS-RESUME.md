@@ -1,5 +1,22 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## Active October 20 after batch105 — native F11 and remaining F09/F10 gates
+
+The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
+[Batch105](docs/CHUNK7-BATCH105-F11-DIAGNOSTICS-OFF-CONTRACTS-2026-10-20.md)
+passed 28/0 actual world114-DLL quiet/defaults checks and 29/0 current-source
+cooldown observer checks. No native game or transaction ran. The latest actual
+native batch102 remained restored; current branch is
+`codex/mounted-combat-chunk7-successor` (refresh HEAD/status before edits).
+The unchanged installed Mono lacks an admitted allocation counter; native
+diagnostics-off and ordinary controls remain untested on the final product.
+Batch103 paid-hire and batch104 existing Ranger acquisition remain limited
+reader-only claims on immutable batch53 fixture inputs, not complete F10.
+The last assisted fresh-campaign attempt stalled after 13 native story clicks;
+do not restart that prologue automation as a universal prerequisite. Next choose
+a bounded native diagnostics-off/player-control route or another independent
+F09/F10 required behavior, with source/fixture admission and focused review.
+
 ## Active October 20 after batch104 — choose the next real native F10 route
 
 The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
