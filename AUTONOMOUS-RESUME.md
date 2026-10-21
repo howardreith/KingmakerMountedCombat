@@ -1,5 +1,22 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## Active October 20 after batch111 — Medium replacement fixture requires Doll-backed companion
+
+The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
+[Batch111](docs/CHUNK7-BATCH111-MEDIUM-REPLACEMENT-FIXTURE-DISCRIMINATOR-2026-10-20.md)
+is a read-only discriminator: the non-main Medium Horse owner in the accepted
+two-Medium seed lineage has no native Doll/preset, so current exact-body native
+respec cannot use it for Horse-to-Mammoth replacement. The unrun prototype was
+archived privately and withdrawn; worktree returned clean at pushed `fcb1c461`.
+No native run, candidate, save or transaction occurred. Next repair the blocked
+paid-Medium custom-companion producer's false terminal level-up Auto dependency
+as an honest native-choice plus separate Manual completion (including authority,
+reader and downstream source), or establish another bounded Doll-backed Medium
+route. Then qualify real replacement and separate cold continuation. F09/F10/F11
+and private 7E remain open. Refresh HEAD/status and transaction state before
+the next operation. The batch110 paragraph below is historical; its proposed
+non-main seed retrain is superseded by this observed Doll absence.
+
 ## Active October 20 after batch110 — Small admission native PASS; F09/F10/F11 remain
 
 The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
