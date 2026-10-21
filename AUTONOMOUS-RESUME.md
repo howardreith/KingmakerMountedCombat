@@ -1,5 +1,24 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## Active October 21 after batch117 — replacement cold PASS; F09/F10/F11 next
+
+The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
+[Batch117](docs/CHUNK7-BATCH117-MEDIUM-MAMMOTH-COLD-2026-10-21.md) froze
+pushed `9353bb36` as preview.84/world121 and passed a four-scenario native
+same-candidate chain, game/outer 5/0, 3/0, 3/0, 3/0. The separate Mammoth
+cold load retained exact Ranger 10, rank 7, Large Mammoth, zero writes and the
+independent mounted control Horse. Four guarded transactions restored Mods,
+Working, protected saves and exact Howie profile bytes with zero cache
+exceptions; no game or lock remained. The first slot-1 WhatIf failed due to
+concurrent offline Candidate test debris; after Candidate ended, its isolated
+rerun passed before any game launch. This is a preflight correction, not a
+native failure. Next choose the next actionable standing-mission gate: mounted
+Mammoth F09 field behavior or independent
+F10/F11 progression/performance work. Do not treat the replacement cold PASS as
+mounted Mammoth field proof or final-package 7E reuse. No merge, release,
+permanent installation or HUMAN PLAY acceptance is selected. The batch116
+paragraph below is history.
+
 ## Active October 21 after batch116 — Mammoth producer PASS, cold pending
 
 The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.

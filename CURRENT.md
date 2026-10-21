@@ -1,5 +1,16 @@
 # Chunk 7B–7D — IN PROGRESS
 
+[Batch117](docs/CHUNK7-BATCH117-MEDIUM-MAMMOTH-COLD-2026-10-21.md)
+passed the four-scenario same-candidate preview.84 Medium chain: mounted Horse
+Manual 5/0, separate cold 3/0, genuine paid Horse-to-Mammoth respec/Manual
+3/0, and separate Mammoth cold 3/0. The cold consumer retained exact Ranger 10,
+rank 7, Large Mammoth, retired-Horse absence and the independent mounted Horse
+owner across five frames, with zero save writes. Each guarded transaction
+restored Mods, Working, protected saves and exact profile bytes with zero cache
+exceptions. F10 replacement/Manual/cold has development PASS; F09 mounted
+Mammoth breadth, other progression/removal, F11 and selected private 7E remain
+open. The batch116 paragraph below is historical.
+
 [Batch116](docs/CHUNK7-BATCH116-MEDIUM-MAMMOTH-PRODUCER-2026-10-21.md)
 passed three guarded native scenarios on preview.83: paid Medium Horse mounted
 Manual 5/0, separate cold load 3/0, and genuine rider-B Horse-to-Mammoth
