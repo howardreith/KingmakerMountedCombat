@@ -10,7 +10,7 @@ namespace KingmakerMountedCombat.Tests
         private static readonly string Hash = new string('a', 64);
         private static Chunk7ManualDerivedSelection Existing() => new Chunk7ManualDerivedSelection {
             Case = Chunk7ManualDerivedSelection.ExistingCase, SourceRunId = "completed-manual", SourceArtifactSha256 = Hash, SourceArchiveSha256 = new string('b',64),
-            BaseGameOnly = true, ExpectedNativeLoadCount = 1, ExpectedNativeWriteCount = 1, NativeWriteLeaf = "Auto_1.zks",
+            BaseGameOnly = true, ExpectedNativeLoadCount = 1, ExpectedNativeWriteCount = 1, NativeWriteLeaf = "Manual_2_KMC_C7_MANUAL_DERIVED_FIELD.zks",
             Readiness = new Chunk7ManualDerivedReadinessPins { MainActorId = MainId, MainLevel = 1, MainExperience = 0, Money = 10, ExperienceRatePercent = 100,
                 NativeHireCost = 50, DefaultHireExperience = 0, PartyCharacterIds = new[] { MainId, Target } },
             ExistingActorId = Target, ExistingLevel = 1, ExistingExperience = 400, ExistingRangerLevel = 0 };
@@ -48,6 +48,9 @@ namespace KingmakerMountedCombat.Tests
         {
             var s=Existing();var n=Native(s);Check("eligible pet-free owner needs no hire funds",Admits(s,n));
             s=Paid();n=Native(s);Check("exact paid Small boundary at actual cost admits",Admits(s,n));
+            s=Existing();s.NativeWriteLeaf=Chunk7ManualDerivedSelection.OutputLeaf;n=Native(s);
+            Check("cumulative native readiness retains its distinct Auto selection",Chunk7ManualDerivedAdmission.Validate(s,"new-run",n,true).Count==0);
+            Check("Manual-derived native readiness rejects cumulative Auto selection",Chunk7ManualDerivedAdmission.Validate(s,"new-run",n).Count!=0);
             s=Existing();n=Native(s);Array.Reverse(n.PartyCharacterIds);Check("native roster order is not membership authority",Admits(s,n));
             s=Existing();s.Readiness.PartyCharacterIds=new[]{MainId,Target,"30000000-0000-0000-0000-000000000003","40000000-0000-0000-0000-000000000004","50000000-0000-0000-0000-000000000005","60000000-0000-0000-0000-000000000006"};n=Native(s);
             Check("existing acquisition does not need a seventh field slot",Admits(s,n));

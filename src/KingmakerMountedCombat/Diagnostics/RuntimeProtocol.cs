@@ -246,7 +246,7 @@ namespace KingmakerMountedCombat.Diagnostics
             PersistenceCase == "multi-area-autosave" ? PersistenceAreaTarget?.Area :
             (PersistenceCase == Chunk7OwnedPairsSelection.ManticoreFixtureCheckpoint ||
                 Chunk7OwnedPairsSelection.IsManticoreManualCold(PersistenceCase)) ? Chunk7OwnedPairsSelection.ManticoreFixtureArea : SelectedChunk7Fixture?.Area;
-        internal string ExpectedNativeLoadType => (Scenario == Chunk7AcquiredManualSelection.Scenario || Scenario == Chunk7ManualSeedSelection.Scenario || Scenario == Chunk7BootstrapInventorySelection.Scenario || Scenario == Chunk7SmallCalibrationSelection.Scenario && SmallCalibration?.UsesColdManualField != true || Scenario == Chunk7OrdinaryFieldSelection.Scenario) ? "Auto" : SelectedChunk7Scenario == "chunk7-persistence-load" && PersistenceLoad != null && IsChunk7PersistenceCase(PersistenceCase) ?
+        internal string ExpectedNativeLoadType => (Scenario == Chunk7AcquiredManualSelection.Scenario && AcquiredManual?.Case == Chunk7AcquiredManualSelection.TwoOwnerCaseName || Scenario == Chunk7ManualSeedSelection.Scenario || Scenario == Chunk7BootstrapInventorySelection.Scenario || Scenario == Chunk7SmallCalibrationSelection.Scenario && SmallCalibration?.UsesColdManualField != true || Scenario == Chunk7OrdinaryFieldSelection.Scenario) ? "Auto" : SelectedChunk7Scenario == "chunk7-persistence-load" && PersistenceLoad != null && IsChunk7PersistenceCase(PersistenceCase) ?
             (PersistenceCase == "multi-exploration-quick" ? "Quick" : PersistenceCase == "multi-exploration-auto" || PersistenceCase == "multi-area-autosave" ? "Auto" : "Manual") :
             IsTransitionAutoCase(PersistenceCase) ? "Auto" :
             Scenario == "persistence-p05-load" && PersistenceLoad != null ?
@@ -728,12 +728,17 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             else if (Scenario == Chunk7AcquiredManualSelection.Scenario)
             {
-                if (PersistenceLoad == null) errors.Add("Acquired Manual requires its exact native Auto_1 source.");
+                if (PersistenceLoad == null) errors.Add("Acquired Manual requires its exact native acquisition source.");
                 else
                 {
                     if (string.IsNullOrWhiteSpace(PersistenceLoad.InternalName) || PersistenceLoad.InternalName.Length > 256 || PersistenceLoad.InternalName.Any(char.IsControl))
                         errors.Add("Native bootstrap autosave name is missing or invalid.");
-                    errors.AddRange(PersistenceLoad.Validate("persistenceLoad", PersistenceLoad.InternalName, "^Auto_1\\.zks$"));
+                    var sourcePattern = AcquiredManual?.Case == Chunk7AcquiredManualSelection.TwoOwnerCaseName ?
+                        "^Auto_1\\.zks$" : "^Manual_2_KMC_C7_MANUAL_DERIVED_FIELD\\.zks$";
+                    errors.AddRange(PersistenceLoad.Validate("persistenceLoad", PersistenceLoad.InternalName, sourcePattern));
+                    if (AcquiredManual?.Case == Chunk7AcquiredManualSelection.CaseName &&
+                        PersistenceLoad.InternalName != Chunk7ManualDerivedSelection.ManualOutputName)
+                        errors.Add("One-owner acquired source requires its exact field Manual name.");
                     if (Fixture?.Working == null || PersistenceLoad.GameId == Fixture.Working.GameId ||
                         !Guid.TryParseExact(PersistenceLoad.GameId, "D", out var mintedAcquiredId) || mintedAcquiredId == Guid.Empty ||
                         string.IsNullOrWhiteSpace(PersistenceLoad.GameName) || PersistenceLoad.Sha256 == Fixture.Working.Sha256 ||
@@ -1292,7 +1297,7 @@ namespace KingmakerMountedCombat.Diagnostics
             "C7-rt-charge-default-off", "C7-rt-concurrent-primary", "C7-rt-companion-native-action", "C7-rt-player-click-integrity", "C7-combat-first-action-mount", "C7-rt-local-cancel", "C7-rt-unmounted-native-control",
             "C7-rt-native-casting", "C7-rt-casting-neighbour", "C7-rt-charge-native-success", "C7-rt-charge-neighbour-movement", "C7-rt-charge-native-cancel",
             "chunk7-owned-two-pair-campaign", "C7-owned-pairs-inherited-custody", "chunk7-acquired-manual-derivative", "C7-acquired-manual-source", "C7-acquired-manual-native-load", "C7-acquired-manual-restored-owner", "C7-acquired-manual-native-field", "C7-acquired-manual-numbering", "C7-acquired-manual-native-save", "C7-acquired-manual-no-arrangement", "C7-acquired-manual-cleanup", "C7-acquired-manual-runtime", "C7-acquired-manual-interrupted",
-            "chunk7-manual-derived-acquisition", "C7-manual-derived-source", "C7-manual-derived-native-load", "C7-manual-derived-eligibility", "C7-manual-derived-native-choices", "C7-manual-derived-native-autosave", "C7-manual-derived-native-field", "C7-manual-derived-cleanup", "C7-manual-derived-runtime", "C7-manual-derived-interrupted",
+            "chunk7-manual-derived-acquisition", "C7-manual-derived-source", "C7-manual-derived-native-load", "C7-manual-derived-eligibility", "C7-manual-derived-native-choices", "C7-manual-derived-native-field", "C7-manual-derived-native-manual-save", "C7-manual-derived-cleanup", "C7-manual-derived-runtime", "C7-manual-derived-interrupted",
             "chunk7-cumulative-acquisition", "C7-cumulative-source", "C7-cumulative-native-load", "C7-cumulative-eligibility", "C7-cumulative-native-choices", "C7-cumulative-native-autosave", "C7-cumulative-native-field", "C7-cumulative-cleanup", "C7-cumulative-runtime", "C7-cumulative-interrupted",
             "chunk7-bootstrap-manual-seed", "C7-manual-seed-source", "C7-manual-seed-native-load", "C7-manual-seed-native-save", "C7-manual-seed-no-arrangement", "C7-manual-seed-cleanup", "C7-manual-seed-runtime", "C7-manual-seed-interrupted",
             "chunk7-small-fixture-preparation", "C7-small-fixture-source", "C7-small-fixture-native-load", "C7-small-fixture-native-choices", "C7-small-fixture-unmounted-field", "C7-small-fixture-native-manual", "C7-small-fixture-cleanup", "C7-small-fixture-runtime", "C7-small-fixture-interrupted",

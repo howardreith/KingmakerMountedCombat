@@ -45,8 +45,10 @@ namespace KingmakerMountedCombat.Diagnostics
                 game.Player.SavedInArea == game.CurrentlyLoadedArea && actors.All(actor => actor.Commands.Empty) && manager.IsSaveAllowed() &&
                 !NativePersistenceIsolation.NativeSlotRotationEnabled, "Fresh native Acquired Manual derivative dispatch is not eligible.");
             var saves = manager.Take(3).ToArray();
-            Require(saves.Length == 1 && saves[0].Type == SaveInfo.SaveType.Auto && saves[0].FileName == request.PersistenceLoad.FileName &&
-                saves[0].IsActuallySaved && saves[0].IsAutoLevelupSave && ReferenceEquals(saves[0], authority.AcquiredManualSourceDescriptor) && saves[0].OperationState == SaveInfo.StateType.None, "Acquired Manual derivative native source inventory changed before numbering.");
+            Require(saves.Length == 1 && saves[0].Type.ToString() == request.ExpectedNativeLoadType && saves[0].FileName == request.PersistenceLoad.FileName &&
+                saves[0].IsActuallySaved && saves[0].IsAutoLevelupSave == TwoOwners &&
+                ReferenceEquals(saves[0], authority.AcquiredManualSourceDescriptor) && saves[0].OperationState == SaveInfo.StateType.None,
+                "Acquired Manual derivative native source inventory changed before numbering.");
             var number = manager.FindUnusedSaveNumber(SaveInfo.SaveType.Manual);
             var observedLeaf = "Manual_" + number.ToString(System.Globalization.CultureInfo.InvariantCulture) + "_" + Chunk7AcquiredManualSelection.OutputName + ".zks";
             Require(number == authority.AcquiredManualNumber && observedLeaf == OutputLeaf && !File.Exists(Path.Combine(root, observedLeaf)),
@@ -84,7 +86,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 ReferenceEquals(completion.Written, saveProbe.Written) && completion.Path == Path.Combine(root, OutputLeaf),
                 "Native Manual completion belongs to another requested/prepared descriptor.");
             var written = completion.Written; var saves = manager.Take(3).ToArray();
-            Require(saves.Length == 2 && saves.Count(value => value.FileName == request.PersistenceLoad.FileName && value.Type == SaveInfo.SaveType.Auto) == 1 &&
+            Require(saves.Length == 2 && saves.Count(value => value.FileName == request.PersistenceLoad.FileName &&
+                value.Type.ToString() == request.ExpectedNativeLoadType && value.IsAutoLevelupSave == TwoOwners) == 1 &&
                 saves.Count(value => ReferenceEquals(value, written)) == 1 && written.Type == SaveInfo.SaveType.Manual && written.FileName == OutputLeaf &&
                 written.Name == Chunk7AcquiredManualSelection.OutputName && written.GameId == request.PersistenceLoad.GameId && written.GameName == request.PersistenceLoad.GameName &&
                 written.Area?.AssetGuidThreadSafe == request.PersistenceLoad.Area && written.IsActuallySaved && written.HasFileOnDisk &&

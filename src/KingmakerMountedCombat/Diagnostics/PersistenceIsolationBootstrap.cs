@@ -59,7 +59,10 @@ namespace KingmakerMountedCombat.Diagnostics
                             RuntimeRequest.IsTransitionAutoCase(request.PersistenceCase) ? "Auto" : "Manual",
                         Area = fixture.Area, InitialSha256 = fixture.Sha256, Writable = false }
                 };
-                if (request.Scenario == Chunk7ManualDerivedSelection.Scenario || request.Scenario == Chunk7CumulativeAcquisitionSelection.Scenario)
+                if (request.Scenario == Chunk7ManualDerivedSelection.Scenario)
+                    entries.Add(new PersistenceSaveEntry { FileName = Chunk7ManualDerivedSelection.ManualOutputLeaf,
+                        InternalName = Chunk7ManualDerivedSelection.ManualOutputName, SaveType = "Manual", Area = fixture.Area, Writable = true });
+                if (request.Scenario == Chunk7CumulativeAcquisitionSelection.Scenario)
                     entries.Add(new PersistenceSaveEntry { FileName = Chunk7ManualDerivedSelection.OutputLeaf,
                         InternalName = RuntimePersistenceScenario.SlotName(SaveInfo.SaveType.Auto), SaveType = "Auto", Area = fixture.Area, Writable = true });
                 if (request.Scenario == Chunk7ManualSeedSelection.Scenario)
@@ -301,10 +304,12 @@ namespace KingmakerMountedCombat.Diagnostics
             if (request.Scenario == Chunk7AcquiredManualSelection.Scenario)
             {
                 var source = saves.Single();
-                if (source.Type != SaveInfo.SaveType.Auto || source.OperationState != SaveInfo.StateType.None ||
-                    !source.IsActuallySaved || !source.HasFileOnDisk || !source.IsAutoLevelupSave ||
+                var expectedType = request.AcquiredManual.Case == Chunk7AcquiredManualSelection.TwoOwnerCaseName ? SaveInfo.SaveType.Auto : SaveInfo.SaveType.Manual;
+                if (source.Type != expectedType || source.OperationState != SaveInfo.StateType.None ||
+                    !source.IsActuallySaved || !source.HasFileOnDisk ||
+                    source.IsAutoLevelupSave != (expectedType == SaveInfo.SaveType.Auto) ||
                     NativePersistenceIsolation.NativeSlotRotationEnabled || Game.Instance != game)
-                    throw new InvalidOperationException("Acquired Auto native inventory is not settled before Manual reservation.");
+                    throw new InvalidOperationException("Acquired native source inventory is not settled before Manual reservation.");
                 var number = game.SaveManager.FindUnusedSaveNumber(SaveInfo.SaveType.Manual);
                 authority.ReserveAcquiredManualOutput(request, game, game.SaveManager, source, Project(source), number);
             }

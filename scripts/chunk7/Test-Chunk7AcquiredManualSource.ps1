@@ -47,7 +47,7 @@ function New-Case([bool]$Paid=$true){
 function Qualify($C){Get-KmcChunk7AcquiredManualSource $C.selection $C.fixture $C.candidate}
 function Good([string]$Name,[scriptblock]$Action){&$Action;$script:passes++;Write-Host ('PASS '+$Name)}
 function Bad([string]$Name,[scriptblock]$Action){$bad=$false;try{&$Action}catch{$bad=$true};if(-not$bad){throw ('Accepted '+$Name)};$script:passes++;Write-Host ('PASS refuses '+$Name)}
-foreach($paid in @($true,$false)){Good ('exact real qualifier body '+$paid){$c=New-Case $paid;$r=Qualify $c;if($r.descriptor.fileName-cne'Auto_1.zks'-or$r.descriptor.sha256-cne$c.selection.sourceArchiveSha256){throw 'Observed descriptor lost'};foreach($gate in @('full-bootstrap-cold-lineage','strict-manifest','full-manual-artifact','settled-native-output')){if(@($script:calls|Where-Object{$_-ceq$gate}).Count-ne1){throw ('Required external gate omitted '+$gate)}}}}
+foreach($paid in @($true,$false)){Good ('exact real qualifier body '+$paid){$c=New-Case $paid;$r=Qualify $c;if($r.descriptor.fileName-cne'Manual_2_KMC_C7_MANUAL_DERIVED_FIELD.zks'-or$r.descriptor.sha256-cne$c.selection.sourceArchiveSha256){throw 'Observed descriptor lost'};foreach($gate in @('full-bootstrap-cold-lineage','strict-manifest','full-manual-artifact','settled-native-output')){if(@($script:calls|Where-Object{$_-ceq$gate}).Count-ne1){throw ('Required external gate omitted '+$gate)}}}}
 foreach($gate in @('cloneable','not-reparse','not-hardlink','unique-json','full-bootstrap-cold-lineage','strict-manifest','full-manual-artifact','settled-native-output')){Bad ('mandatory external refusal '+$gate){$c=New-Case;$script:failure=$gate;[void](Qualify $c)}}
 $cases=[ordered]@{
  'candidate SHA'={param($c)$c.candidate.dllSha256='0'*64}

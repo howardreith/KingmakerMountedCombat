@@ -130,6 +130,13 @@ Horse-to-Mammoth respec, genuine Manual and separate cold continuation now
 have development PASS on preview.84. The broader F09/F10 rows retain their
 remaining open work and earlier failure history.
 
+The next F10 source route is preview.91: the non-cumulative Manual-derived
+acquisition now saves after native field admission, and its one-owner acquired
+cold consumer expects that exact Manual and saved owner/Horse progression.
+Focused readers and source review pass; neither native scenario has yet
+qualified on this candidate. The original Auto-route failures remain FAIL,
+and cumulative, assisted and historical Auto-wait families remain refused.
+
 | Requirement | Engineering status and exact evidence/dependency | Next action |
 | --- | --- | --- |
 | Inherited core, F01–F08 | Prior candidate-specific native PASSes retained in `CURRENT.md`; final exact-package reuse unassessed. | Map current supported contracts for final matrix after implementation readiness. |

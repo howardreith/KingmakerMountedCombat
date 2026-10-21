@@ -60,7 +60,7 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             // These are pure field/choice rules. Actual cumulative source identity
             // and authority are checked separately and never delegated to seed intake.
-            errors.AddRange(NativeChoicePins().Validate(Chunk7ManualDerivedSelection.Scenario, runId));
+            errors.AddRange(NativeChoicePins().Validate(Chunk7ManualDerivedSelection.Scenario, runId, true));
             if (!Chunk7ManualDerivedSelection.NativeId(PriorOwnerId) || !Chunk7ManualDerivedSelection.NativeId(PriorPetId) || PriorOwnerId == PriorPetId ||
                 Readiness?.PartyCharacterIds == null || Array.IndexOf(Readiness.PartyCharacterIds, PriorOwnerId) < 0 ||
                 Array.IndexOf(Readiness.PartyCharacterIds, PriorPetId) >= 0 || ExistingActorId == PriorOwnerId || ExistingActorId == PriorPetId)

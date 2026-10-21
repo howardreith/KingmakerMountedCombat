@@ -43,8 +43,8 @@
       "snapshotSha256": "4444444444444444444444444444444444444444444444444444444444444444"
     },
     "persistenceLoad": {
-      "internalName": "Autosave",
-      "fileName": "Auto_1.zks",
+      "internalName": "KMC_C7_MANUAL_DERIVED_FIELD",
+      "fileName": "Manual_2_KMC_C7_MANUAL_DERIVED_FIELD.zks",
       "sha256": "8888888888888888888888888888888888888888888888888888888888888888",
       "length": 100,
       "lastWriteTimeUtcTicks": 638960000000000000,
@@ -92,7 +92,7 @@
         "runId": "synthetic-manual-derived-paid",
         "artifactSha256": "9999999999999999999999999999999999999999999999999999999999999999",
         "archiveSha256": "8888888888888888888888888888888888888888888888888888888888888888",
-        "archiveLeaf": "Auto_1.zks",
+        "archiveLeaf": "Manual_2_KMC_C7_MANUAL_DERIVED_FIELD.zks",
         "sameCandidate": true,
         "diagnosticArchiveContentRead": false
       },
@@ -167,8 +167,8 @@
           "fatalViolations": 0,
           "suppressedWrites": 0,
           "reservationCount": 1,
-          "manualNumber": 7,
-          "outputLeaf": "Manual_7_KMC_C7_ACQUIRED_FIELD.zks"
+          "manualNumber": 3,
+          "outputLeaf": "Manual_3_KMC_C7_ACQUIRED_FIELD.zks"
         }
       },
       "resourceWrites": 0,
@@ -207,8 +207,8 @@
           "fatalViolations": 0,
           "suppressedWrites": 0,
           "reservationCount": 1,
-          "manualNumber": 7,
-          "outputLeaf": "Manual_7_KMC_C7_ACQUIRED_FIELD.zks"
+          "manualNumber": 3,
+          "outputLeaf": "Manual_3_KMC_C7_ACQUIRED_FIELD.zks"
         },
         "party": [
           {
@@ -217,6 +217,26 @@
             "object": 8,
             "descriptor": 9,
             "view": 10,
+            "isInGame": true,
+            "isInState": true,
+            "commandsEmpty": true
+          },
+          {
+            "id": "11111111-2222-4333-8444-555555555555",
+            "blueprint": "99999999999999999999999999999999",
+            "object": 17,
+            "descriptor": 18,
+            "view": 19,
+            "isInGame": true,
+            "isInState": true,
+            "commandsEmpty": true
+          },
+          {
+            "id": "66666666-7777-4888-8999-aaaaaaaaaaaa",
+            "blueprint": "4016c7db400ab721ff125aef9e65e202",
+            "object": 20,
+            "descriptor": 21,
+            "view": 22,
             "isInGame": true,
             "isInState": true,
             "commandsEmpty": true
@@ -260,8 +280,8 @@
           "fatalViolations": 0,
           "suppressedWrites": 0,
           "reservationCount": 1,
-          "manualNumber": 7,
-          "outputLeaf": "Manual_7_KMC_C7_ACQUIRED_FIELD.zks"
+          "manualNumber": 3,
+          "outputLeaf": "Manual_3_KMC_C7_ACQUIRED_FIELD.zks"
         },
         "party": [
           {
@@ -583,8 +603,8 @@
           "fatalViolations": 0,
           "suppressedWrites": 0,
           "reservationCount": 1,
-          "manualNumber": 7,
-          "outputLeaf": "Manual_7_KMC_C7_ACQUIRED_FIELD.zks"
+          "manualNumber": 3,
+          "outputLeaf": "Manual_3_KMC_C7_ACQUIRED_FIELD.zks"
         },
         "selectorClosed": true,
         "presentationRestored": true,
@@ -648,13 +668,13 @@
           "maximumObservedDescriptors": 32,
           "descriptors": [
             {
-              "fileName": "Auto_1.zks",
-              "internalName": "Autosave",
+              "fileName": "Manual_2_KMC_C7_MANUAL_DERIVED_FIELD.zks",
+              "internalName": "KMC_C7_MANUAL_DERIVED_FIELD",
               "gameId": "22222222-1111-4111-8111-111111111111",
               "gameName": "Native",
               "area": "33333333333333333333333333333333",
-              "type": "Auto",
-              "isAutoLevelupSave": true,
+              "type": "Manual",
+              "isAutoLevelupSave": false,
               "isActuallySaved": true,
               "hasFileOnDisk": true,
               "operationState": "None",
@@ -694,8 +714,8 @@
           "fatalViolations": 0,
           "suppressedWrites": 0,
           "reservationCount": 1,
-          "manualNumber": 7,
-          "outputLeaf": "Manual_7_KMC_C7_ACQUIRED_FIELD.zks"
+          "manualNumber": 3,
+          "outputLeaf": "Manual_3_KMC_C7_ACQUIRED_FIELD.zks"
         },
         "party": [
           {
@@ -743,17 +763,17 @@
         "moduleMvid": "07fa1e4d-8618-41b3-9b8d-faa17d3b26f7",
         "frame": 26,
         "nativeSaveType": "Manual",
-        "number": 7,
-        "fileName": "Manual_7_KMC_C7_ACQUIRED_FIELD.zks",
+        "number": 3,
+        "fileName": "Manual_3_KMC_C7_ACQUIRED_FIELD.zks",
         "sourceDescriptors": [
           {
-            "fileName": "Auto_1.zks",
-            "internalName": "Autosave",
+            "fileName": "Manual_2_KMC_C7_MANUAL_DERIVED_FIELD.zks",
+            "internalName": "KMC_C7_MANUAL_DERIVED_FIELD",
             "gameId": "22222222-1111-4111-8111-111111111111",
             "gameName": "Native",
             "area": "33333333333333333333333333333333",
-            "type": "Auto",
-            "isAutoLevelupSave": true,
+            "type": "Manual",
+            "isAutoLevelupSave": false,
             "isActuallySaved": true,
             "hasFileOnDisk": true,
             "operationState": "None",
@@ -786,13 +806,13 @@
           "fatalViolations": 0,
           "suppressedWrites": 0,
           "reservationCount": 1,
-          "manualNumber": 7,
-          "outputLeaf": "Manual_7_KMC_C7_ACQUIRED_FIELD.zks"
+          "manualNumber": 3,
+          "outputLeaf": "Manual_3_KMC_C7_ACQUIRED_FIELD.zks"
         }
       },
       "nativeWrite": {
-        "path": "C:\\Dev\\KingmakerMountedCombatLab\\runtime-staging\\persistence-synthetic-acquired-manual-paid\\Saved Games\\Manual_7_KMC_C7_ACQUIRED_FIELD.zks",
-        "fileName": "Manual_7_KMC_C7_ACQUIRED_FIELD.zks",
+        "path": "C:\\Dev\\KingmakerMountedCombatLab\\runtime-staging\\persistence-synthetic-acquired-manual-paid\\Saved Games\\Manual_3_KMC_C7_ACQUIRED_FIELD.zks",
+        "fileName": "Manual_3_KMC_C7_ACQUIRED_FIELD.zks",
         "internalName": "KMC_C7_ACQUIRED_FIELD",
         "type": "Manual",
         "sha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
@@ -853,13 +873,13 @@
             "player": 4,
             "requested": 11,
             "descriptor": 12,
-            "fileName": "Manual_7_KMC_C7_ACQUIRED_FIELD.zks",
+            "fileName": "Manual_3_KMC_C7_ACQUIRED_FIELD.zks",
             "internalName": "KMC_C7_ACQUIRED_FIELD",
             "type": "Manual",
             "gameId": "22222222-1111-4111-8111-111111111111",
             "gameName": "Native",
             "area": "33333333333333333333333333333333",
-            "path": "C:\\Dev\\KingmakerMountedCombatLab\\runtime-staging\\persistence-synthetic-acquired-manual-paid\\Saved Games\\Manual_7_KMC_C7_ACQUIRED_FIELD.zks",
+            "path": "C:\\Dev\\KingmakerMountedCombatLab\\runtime-staging\\persistence-synthetic-acquired-manual-paid\\Saved Games\\Manual_3_KMC_C7_ACQUIRED_FIELD.zks",
             "snapshotCount": 0,
             "completedSaveCount": 0
           },
@@ -872,13 +892,13 @@
             "player": 4,
             "requested": 11,
             "descriptor": 12,
-            "fileName": "Manual_7_KMC_C7_ACQUIRED_FIELD.zks",
+            "fileName": "Manual_3_KMC_C7_ACQUIRED_FIELD.zks",
             "internalName": "KMC_C7_ACQUIRED_FIELD",
             "type": "Manual",
             "gameId": "22222222-1111-4111-8111-111111111111",
             "gameName": "Native",
             "area": "33333333333333333333333333333333",
-            "path": "C:\\Dev\\KingmakerMountedCombatLab\\runtime-staging\\persistence-synthetic-acquired-manual-paid\\Saved Games\\Manual_7_KMC_C7_ACQUIRED_FIELD.zks",
+            "path": "C:\\Dev\\KingmakerMountedCombatLab\\runtime-staging\\persistence-synthetic-acquired-manual-paid\\Saved Games\\Manual_3_KMC_C7_ACQUIRED_FIELD.zks",
             "snapshotCount": 0,
             "completedSaveCount": 0
           },
@@ -891,13 +911,13 @@
             "player": 4,
             "requested": 11,
             "descriptor": 12,
-            "fileName": "Manual_7_KMC_C7_ACQUIRED_FIELD.zks",
+            "fileName": "Manual_3_KMC_C7_ACQUIRED_FIELD.zks",
             "internalName": "KMC_C7_ACQUIRED_FIELD",
             "type": "Manual",
             "gameId": "22222222-1111-4111-8111-111111111111",
             "gameName": "Native",
             "area": "33333333333333333333333333333333",
-            "path": "C:\\Dev\\KingmakerMountedCombatLab\\runtime-staging\\persistence-synthetic-acquired-manual-paid\\Saved Games\\Manual_7_KMC_C7_ACQUIRED_FIELD.zks",
+            "path": "C:\\Dev\\KingmakerMountedCombatLab\\runtime-staging\\persistence-synthetic-acquired-manual-paid\\Saved Games\\Manual_3_KMC_C7_ACQUIRED_FIELD.zks",
             "snapshotCount": 1,
             "completedSaveCount": 0
           },
@@ -910,13 +930,13 @@
             "player": 4,
             "requested": 11,
             "descriptor": 12,
-            "fileName": "Manual_7_KMC_C7_ACQUIRED_FIELD.zks",
+            "fileName": "Manual_3_KMC_C7_ACQUIRED_FIELD.zks",
             "internalName": "KMC_C7_ACQUIRED_FIELD",
             "type": "Manual",
             "gameId": "22222222-1111-4111-8111-111111111111",
             "gameName": "Native",
             "area": "33333333333333333333333333333333",
-            "path": "C:\\Dev\\KingmakerMountedCombatLab\\runtime-staging\\persistence-synthetic-acquired-manual-paid\\Saved Games\\Manual_7_KMC_C7_ACQUIRED_FIELD.zks",
+            "path": "C:\\Dev\\KingmakerMountedCombatLab\\runtime-staging\\persistence-synthetic-acquired-manual-paid\\Saved Games\\Manual_3_KMC_C7_ACQUIRED_FIELD.zks",
             "snapshotCount": 1,
             "completedSaveCount": 0,
             "workerFaulted": false,
@@ -939,13 +959,13 @@
             "player": 4,
             "requested": 11,
             "descriptor": 12,
-            "fileName": "Manual_7_KMC_C7_ACQUIRED_FIELD.zks",
+            "fileName": "Manual_3_KMC_C7_ACQUIRED_FIELD.zks",
             "internalName": "KMC_C7_ACQUIRED_FIELD",
             "type": "Manual",
             "gameId": "22222222-1111-4111-8111-111111111111",
             "gameName": "Native",
             "area": "33333333333333333333333333333333",
-            "path": "C:\\Dev\\KingmakerMountedCombatLab\\runtime-staging\\persistence-synthetic-acquired-manual-paid\\Saved Games\\Manual_7_KMC_C7_ACQUIRED_FIELD.zks",
+            "path": "C:\\Dev\\KingmakerMountedCombatLab\\runtime-staging\\persistence-synthetic-acquired-manual-paid\\Saved Games\\Manual_3_KMC_C7_ACQUIRED_FIELD.zks",
             "snapshotCount": 1,
             "completedSaveCount": 1
           }
@@ -975,20 +995,20 @@
       "settledDescriptors": [
         {
           "descriptor": 16,
-          "fileName": "Auto_1.zks",
-          "internalName": "Autosave",
-          "type": "Auto",
+          "fileName": "Manual_2_KMC_C7_MANUAL_DERIVED_FIELD.zks",
+          "internalName": "KMC_C7_MANUAL_DERIVED_FIELD",
+          "type": "Manual",
           "gameId": "22222222-1111-4111-8111-111111111111",
           "gameName": "Native",
           "area": "33333333333333333333333333333333",
           "isActuallySaved": true,
           "hasFileOnDisk": true,
           "operationState": "None",
-          "autoLevelup": true
+          "autoLevelup": false
         },
         {
           "descriptor": 12,
-          "fileName": "Manual_7_KMC_C7_ACQUIRED_FIELD.zks",
+          "fileName": "Manual_3_KMC_C7_ACQUIRED_FIELD.zks",
           "internalName": "KMC_C7_ACQUIRED_FIELD",
           "type": "Manual",
           "gameId": "22222222-1111-4111-8111-111111111111",
@@ -1094,7 +1114,7 @@
           "baseGameOnly": true,
           "expectedNativeLoadCount": 1,
           "expectedNativeWriteCount": 1,
-          "nativeWriteLeaf": "Auto_1.zks",
+          "nativeWriteLeaf": "Manual_2_KMC_C7_MANUAL_DERIVED_FIELD.zks",
           "readiness": {
             "mainActorId": "44444444-1111-4111-8111-111111111111",
             "mainLevel": 4,
@@ -1461,9 +1481,15 @@
               200,
               201,
               202,
-              203
+              203,
+              301,
+              302,
+              303,
+              304,
+              305,
+              306
             ],
-            "retainedCount": 16,
+            "retainedCount": 22,
             "faults": 0,
             "released": false
           }
@@ -1610,9 +1636,9 @@
           }
         },
         "nativeWrite": {
-          "path": "C:\\Dev\\KingmakerMountedCombatLab\\runtime-staging\\persistence-synthetic-manual-derived-paid\\Saved Games\\Auto_1.zks",
-          "leaf": "Auto_1.zks",
-          "type": "Auto",
+          "path": "C:\\Dev\\KingmakerMountedCombatLab\\runtime-staging\\persistence-synthetic-manual-derived-paid\\Saved Games\\Manual_2_KMC_C7_MANUAL_DERIVED_FIELD.zks",
+          "leaf": "Manual_2_KMC_C7_MANUAL_DERIVED_FIELD.zks",
+          "type": "Manual",
           "operation": "None",
           "sha256": "8888888888888888888888888888888888888888888888888888888888888888",
           "gameId": "22222222-1111-4111-8111-111111111111",
@@ -1620,21 +1646,29 @@
           "area": "33333333333333333333333333333333",
           "length": 100,
           "schema": 3,
-          "name": "Autosave",
+          "name": "KMC_C7_MANUAL_DERIVED_FIELD",
           "authorizedWrites": 1,
           "admittedWrites": 1,
           "completedWrites": 1,
           "snapshotCount": 1,
-          "autoLevelup": true,
-          "nativeCallbackSupplied": false,
-          "saveBeforeFieldSelection": true,
+          "autoLevelup": false,
           "lastWriteTimeUtcTicks": 638960000000000000,
           "descriptorCount": 2,
           "emptyMountedArchive": true,
-          "requestedObject": 999,
-          "writtenObject": -1000,
+          "requestedObject": 301,
+          "writtenObject": 302,
           "completionSequence": 1,
-          "completedWritesBefore": 0
+          "callbackCount": 1,
+          "slotProjectionEnabled": false,
+          "fileName": "Manual_2_KMC_C7_MANUAL_DERIVED_FIELD.zks",
+          "isActuallySaved": true,
+          "operationState": "None",
+          "requestedDescriptor": 301,
+          "internalName": "KMC_C7_MANUAL_DERIVED_FIELD",
+          "hasFileOnDisk": true,
+          "saveAfterFieldSelection": true,
+          "writtenDescriptor": 302,
+          "nativeWorkerSettled": true
         },
         "elapsedSeconds": 30,
         "sourceManualObservations": {
@@ -4064,27 +4098,29 @@
             "actor": {
               "actorId": "11111111-2222-4333-8444-555555555555",
               "actorObject": 99,
-              "attributePoints": 0,
               "descriptorObject": 199,
-              "distributionPoints": 0,
+              "nativeControllerObject": 0,
               "level": 4,
+              "rangerLevel": 4,
+              "xp": 6000,
               "money": 18000,
               "nativeCanLevelUp": false,
-              "nativeControllerObject": 0,
               "nativeIsComplete": false,
               "nativeMode": "LevelUp",
+              "phase": "Class",
               "nextLevel": 5,
+              "selectedClass": "cda0615668a6df14eb36ba19ee881af6",
+              "attributePoints": 0,
+              "distributionPoints": 0,
+              "skillTotal": 4,
+              "skillSpent": 4,
+              "skillRemaining": 0,
               "pendingFeatures": 0,
               "pendingSpellGroups": 0,
-              "petBlueprint": "4016c7db400ab721ff125aef9e65e202",
               "petId": "66666666-7777-4888-8999-aaaaaaaaaaaa",
-              "phase": "Class",
-              "rangerLevel": 4,
-              "selectedClass": "cda0615668a6df14eb36ba19ee881af6",
-              "skillRemaining": 0,
-              "skillSpent": 4,
-              "skillTotal": 4,
-              "xp": 6000
+              "petBlueprint": "4016c7db400ab721ff125aef9e65e202",
+              "petLevel": 1,
+              "petExperience": 0
             },
             "ordinaryChoicesComplete": true,
             "nativeFieldAdmissionProven": false,
@@ -4125,210 +4161,6 @@
         },
         "acceptedChoiceCount": 6,
         "nativeCommitCount": 4,
-        "nativeAcquisition": {
-          "installationAttempted": true,
-          "installed": true,
-          "complete": true,
-          "errors": [],
-          "hooks": [
-            {
-              "type": "Kingmaker.Controllers.LevelUpAutoSaveController",
-              "method": "HandleLevelUpComplete",
-              "token": "0600906B",
-              "moduleMvid": "07fa1e4d-8618-41b3-9b8d-faa17d3b26f7"
-            },
-            {
-              "type": "Kingmaker.Game",
-              "method": "SaveGame",
-              "token": "06000CE4",
-              "moduleMvid": "07fa1e4d-8618-41b3-9b8d-faa17d3b26f7"
-            },
-            {
-              "type": "Kingmaker.EntitySystem.Persistence.SaveManager",
-              "method": "PrepareSave",
-              "token": "06008025",
-              "moduleMvid": "07fa1e4d-8618-41b3-9b8d-faa17d3b26f7"
-            }
-          ],
-          "events": [
-            {
-              "actorId": "11111111-2222-4333-8444-555555555555",
-              "actorObject": 99,
-              "autoLevelup": null,
-              "characterLevel": 1,
-              "completionActorId": "11111111-2222-4333-8444-555555555555",
-              "frame": 41,
-              "inState": true,
-              "insideObservedCompletion": true,
-              "isChargen": true,
-              "kind": "native-level-completion-enter",
-              "saveLeaf": null,
-              "saveName": null,
-              "saveObject": 0,
-              "savePath": null,
-              "saveType": null
-            },
-            {
-              "actorId": "11111111-2222-4333-8444-555555555555",
-              "actorObject": 99,
-              "autoLevelup": null,
-              "characterLevel": 1,
-              "completionActorId": "11111111-2222-4333-8444-555555555555",
-              "frame": 41,
-              "inState": true,
-              "insideObservedCompletion": true,
-              "isChargen": true,
-              "kind": "native-level-completion-exit",
-              "saveLeaf": null,
-              "saveName": null,
-              "saveObject": 0,
-              "savePath": null,
-              "saveType": null
-            },
-            {
-              "actorId": "11111111-2222-4333-8444-555555555555",
-              "actorObject": 99,
-              "autoLevelup": null,
-              "characterLevel": 2,
-              "completionActorId": "11111111-2222-4333-8444-555555555555",
-              "frame": 42,
-              "inState": true,
-              "insideObservedCompletion": true,
-              "isChargen": true,
-              "kind": "native-level-completion-enter",
-              "saveLeaf": null,
-              "saveName": null,
-              "saveObject": 0,
-              "savePath": null,
-              "saveType": null
-            },
-            {
-              "actorId": "11111111-2222-4333-8444-555555555555",
-              "actorObject": 99,
-              "autoLevelup": null,
-              "characterLevel": 2,
-              "completionActorId": "11111111-2222-4333-8444-555555555555",
-              "frame": 42,
-              "inState": true,
-              "insideObservedCompletion": true,
-              "isChargen": true,
-              "kind": "native-level-completion-exit",
-              "saveLeaf": null,
-              "saveName": null,
-              "saveObject": 0,
-              "savePath": null,
-              "saveType": null
-            },
-            {
-              "actorId": "11111111-2222-4333-8444-555555555555",
-              "actorObject": 99,
-              "autoLevelup": null,
-              "characterLevel": 3,
-              "completionActorId": "11111111-2222-4333-8444-555555555555",
-              "frame": 43,
-              "inState": true,
-              "insideObservedCompletion": true,
-              "isChargen": true,
-              "kind": "native-level-completion-enter",
-              "saveLeaf": null,
-              "saveName": null,
-              "saveObject": 0,
-              "savePath": null,
-              "saveType": null
-            },
-            {
-              "actorId": "11111111-2222-4333-8444-555555555555",
-              "actorObject": 99,
-              "autoLevelup": null,
-              "characterLevel": 3,
-              "completionActorId": "11111111-2222-4333-8444-555555555555",
-              "frame": 43,
-              "inState": true,
-              "insideObservedCompletion": true,
-              "isChargen": true,
-              "kind": "native-level-completion-exit",
-              "saveLeaf": null,
-              "saveName": null,
-              "saveObject": 0,
-              "savePath": null,
-              "saveType": null
-            },
-            {
-              "actorId": "11111111-2222-4333-8444-555555555555",
-              "actorObject": 99,
-              "autoLevelup": null,
-              "characterLevel": 4,
-              "completionActorId": "11111111-2222-4333-8444-555555555555",
-              "frame": 44,
-              "inState": true,
-              "insideObservedCompletion": true,
-              "isChargen": false,
-              "kind": "native-level-completion-enter",
-              "saveLeaf": null,
-              "saveName": null,
-              "saveObject": 0,
-              "savePath": null,
-              "saveType": null
-            },
-            {
-              "actorId": "11111111-2222-4333-8444-555555555555",
-              "actorObject": 99,
-              "autoLevelup": true,
-              "characterLevel": 4,
-              "completionActorId": "11111111-2222-4333-8444-555555555555",
-              "frame": 44,
-              "inState": true,
-              "insideObservedCompletion": true,
-              "isChargen": false,
-              "kind": "native-level-autosave-request",
-              "saveLeaf": "Auto_1.zks",
-              "saveName": "Autosave",
-              "saveObject": 999,
-              "savePath": null,
-              "saveType": "Auto"
-            },
-            {
-              "actorId": "11111111-2222-4333-8444-555555555555",
-              "actorObject": 99,
-              "autoLevelup": null,
-              "characterLevel": 4,
-              "completionActorId": "11111111-2222-4333-8444-555555555555",
-              "frame": 44,
-              "inState": true,
-              "insideObservedCompletion": true,
-              "isChargen": false,
-              "kind": "native-level-completion-exit",
-              "saveLeaf": null,
-              "saveName": null,
-              "saveObject": 0,
-              "savePath": null,
-              "saveType": null
-            },
-            {
-              "actorId": "11111111-2222-4333-8444-555555555555",
-              "actorObject": 99,
-              "autoLevelup": true,
-              "characterLevel": 4,
-              "completionActorId": null,
-              "frame": 45,
-              "inState": true,
-              "insideObservedCompletion": false,
-              "isChargen": false,
-              "kind": "native-level-autosave-prepared",
-              "saveLeaf": "Auto_1.zks",
-              "saveName": "Autosave",
-              "saveObject": -1000,
-              "savePath": null,
-              "saveType": "Auto",
-              "requestedSaveObject": 999,
-              "accepted": true
-            }
-          ],
-          "completionEntries": 4,
-          "completionExits": 4,
-          "saveRequests": 1,
-          "preparedWrites": 1
-        },
         "field": {
           "actorId": "11111111-2222-4333-8444-555555555555",
           "actorObject": 99,
@@ -4353,23 +4185,6 @@
                 "nativeLevelUpReadiness": {
                   "experience": 6000,
                   "characterLevel": 4
-                },
-                "originalSize": "Medium",
-                "effectiveSize": "Medium",
-                "polymorphed": false,
-                "dollPresent": true,
-                "raceGuid": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
-                "dollPresetGuid": "ffffffffffffffffffffffffffffffff",
-                "dollGender": "Male",
-                "dollLeftHanded": false,
-                "raceId": "Human",
-                "dollRaceId": "Human",
-                "character": {
-                  "present": true,
-                  "skeleton": {
-                    "present": true,
-                    "name": "SyntheticObservedMediumRig"
-                  }
                 }
               },
               {
@@ -4420,7 +4235,7 @@
         },
         "slotProjection": {
           "initiallyEnabled": false,
-          "enabledForTerminalAuto": true,
+          "enabledForTerminalAuto": false,
           "maximumNativeWrites": 1
         },
         "liveEligibility": {
@@ -4471,9 +4286,455 @@
           "exactSmallCatalogueMember": false,
           "arrangementGranted": false,
           "exactMediumBodyMember": true
+        },
+        "nativeNumbering": {
+          "method": "FindUnusedSaveNumber",
+          "token": "06008024",
+          "moduleMvid": "07fa1e4d-8618-41b3-9b8d-faa17d3b26f7",
+          "frame": 190,
+          "nativeSaveType": "Manual",
+          "number": 2,
+          "fileName": "Manual_2_KMC_C7_MANUAL_DERIVED_FIELD.zks",
+          "outputInitiallyAbsent": true,
+          "slotProjectionEnabled": false,
+          "sourceDescriptors": [
+            {
+              "fileName": "Manual_1_KMC_C7_NATIVE_SEED.zks",
+              "internalName": "KMC_C7_NATIVE_SEED",
+              "gameId": "22222222-1111-4111-8111-111111111111",
+              "gameName": "Native",
+              "area": "33333333333333333333333333333333",
+              "type": "Manual",
+              "isAutoLevelupSave": false,
+              "isActuallySaved": true,
+              "hasFileOnDisk": true,
+              "operationState": "None",
+              "systemSaveTimeTicks": 638960000000000000,
+              "systemSaveTimeKind": "Local"
+            }
+          ]
+        },
+        "saveRequested": {
+          "frame": 191,
+          "descriptor": 301,
+          "name": "KMC_C7_MANUAL_DERIVED_FIELD",
+          "type": "Manual",
+          "nativeSaveAllowed": true,
+          "newSlot": true,
+          "snapshotCount": 0,
+          "authority": {
+            "root": "C:\\Dev\\KingmakerMountedCombatLab\\runtime-staging\\persistence-synthetic-manual-derived-paid\\Saved Games",
+            "generation": 2,
+            "maximumNativeLoads": 1,
+            "maximumNativeWrites": 1,
+            "admittedNativeLoads": 1,
+            "admittedNativeWrites": 0,
+            "authorizedLoads": 1,
+            "authorizedWrites": 0,
+            "unauthorizedLoads": 0,
+            "unauthorizedWrites": 0,
+            "fatalViolations": 0,
+            "suppressedWrites": 0
+          }
+        },
+        "beforeSaveArrangement": {
+          "money": 18000,
+          "experienceRatePercent": 100,
+          "actors": [
+            {
+              "actorId": "44444444-1111-4111-8111-111111111111",
+              "blueprint": "55555555555555555555555555555555",
+              "experience": 6000,
+              "characterLevel": 4,
+              "classes": [
+                {
+                  "classGuid": "66666666666666666666666666666666",
+                  "level": 4
+                }
+              ]
+            }
+          ],
+          "acquired": [
+            {
+              "actorId": "11111111-2222-4333-8444-555555555555",
+              "blueprint": "99999999999999999999999999999999",
+              "experience": 6000,
+              "characterLevel": 4,
+              "classes": [
+                {
+                  "classGuid": "cda0615668a6df14eb36ba19ee881af6",
+                  "level": 4
+                }
+              ]
+            },
+            {
+              "actorId": "66666666-7777-4888-8999-aaaaaaaaaaaa",
+              "blueprint": "4016c7db400ab721ff125aef9e65e202",
+              "experience": 0,
+              "characterLevel": 1,
+              "classes": [
+                {
+                  "classGuid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                  "level": 1
+                }
+              ]
+            }
+          ]
+        },
+        "afterSaveArrangement": {
+          "money": 18000,
+          "experienceRatePercent": 100,
+          "actors": [
+            {
+              "actorId": "44444444-1111-4111-8111-111111111111",
+              "blueprint": "55555555555555555555555555555555",
+              "experience": 6000,
+              "characterLevel": 4,
+              "classes": [
+                {
+                  "classGuid": "66666666666666666666666666666666",
+                  "level": 4
+                }
+              ]
+            }
+          ],
+          "acquired": [
+            {
+              "actorId": "11111111-2222-4333-8444-555555555555",
+              "blueprint": "99999999999999999999999999999999",
+              "experience": 6000,
+              "characterLevel": 4,
+              "classes": [
+                {
+                  "classGuid": "cda0615668a6df14eb36ba19ee881af6",
+                  "level": 4
+                }
+              ]
+            },
+            {
+              "actorId": "66666666-7777-4888-8999-aaaaaaaaaaaa",
+              "blueprint": "4016c7db400ab721ff125aef9e65e202",
+              "experience": 0,
+              "characterLevel": 1,
+              "classes": [
+                {
+                  "classGuid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                  "level": 1
+                }
+              ]
+            }
+          ]
+        },
+        "savedWorld": {
+          "frame": 200,
+          "game": 1,
+          "saveManager": 2,
+          "player": 4,
+          "state": 5,
+          "areaState": 6,
+          "mainState": 7,
+          "gameId": "22222222-1111-4111-8111-111111111111",
+          "gameName": "Native",
+          "mainActorId": "44444444-1111-4111-8111-111111111111",
+          "area": "33333333333333333333333333333333",
+          "mode": "Default",
+          "cutscene": false,
+          "inCombat": false,
+          "nativeLoading": false,
+          "authority": {
+            "root": "C:\\Dev\\KingmakerMountedCombatLab\\runtime-staging\\persistence-synthetic-manual-derived-paid\\Saved Games",
+            "generation": 2,
+            "maximumNativeLoads": 1,
+            "maximumNativeWrites": 1,
+            "admittedNativeLoads": 1,
+            "admittedNativeWrites": 1,
+            "authorizedLoads": 1,
+            "authorizedWrites": 1,
+            "unauthorizedLoads": 0,
+            "unauthorizedWrites": 0,
+            "fatalViolations": 0,
+            "suppressedWrites": 0
+          },
+          "party": [
+            {
+              "id": "44444444-1111-4111-8111-111111111111",
+              "blueprint": "55555555555555555555555555555555",
+              "object": 8,
+              "descriptor": 9,
+              "view": 10,
+              "isInGame": true,
+              "isInState": true,
+              "commandsEmpty": true
+            }
+          ],
+          "owners": 0,
+          "slots": 0,
+          "casts": 0,
+          "snapshots": 1,
+          "completedSaves": 1,
+          "semanticRestores": 0,
+          "presentationRestores": 0
+        },
+        "nativeSave": {
+          "contract": "manual-seed-native-save-v1",
+          "installed": true,
+          "installationAttempted": true,
+          "complete": true,
+          "requests": 1,
+          "prepares": 1,
+          "starts": 1,
+          "stages": 1,
+          "completions": 1,
+          "callbacks": 1,
+          "events": [
+            {
+              "sequence": 1,
+              "kind": "native-save-request",
+              "frame": 191,
+              "game": 1,
+              "saveManager": 2,
+              "player": 4,
+              "requested": 301,
+              "descriptor": 301,
+              "fileName": null,
+              "internalName": "KMC_C7_MANUAL_DERIVED_FIELD",
+              "type": "Manual",
+              "gameId": null,
+              "gameName": "Native",
+              "area": "33333333333333333333333333333333",
+              "path": null,
+              "snapshotCount": 0,
+              "completedSaveCount": 0
+            },
+            {
+              "sequence": 2,
+              "kind": "native-save-prepared",
+              "frame": 192,
+              "game": 1,
+              "saveManager": 2,
+              "player": 4,
+              "requested": 301,
+              "descriptor": 302,
+              "fileName": "Manual_2_KMC_C7_MANUAL_DERIVED_FIELD.zks",
+              "internalName": "KMC_C7_MANUAL_DERIVED_FIELD",
+              "type": "Manual",
+              "gameId": "22222222-1111-4111-8111-111111111111",
+              "gameName": "Native",
+              "area": "33333333333333333333333333333333",
+              "path": "C:\\Dev\\KingmakerMountedCombatLab\\runtime-staging\\persistence-synthetic-manual-derived-paid\\Saved Games\\Manual_2_KMC_C7_MANUAL_DERIVED_FIELD.zks",
+              "snapshotCount": 0,
+              "completedSaveCount": 0
+            },
+            {
+              "sequence": 3,
+              "kind": "snapshot-starting",
+              "frame": 193,
+              "game": 1,
+              "saveManager": 2,
+              "player": 4,
+              "requested": 301,
+              "descriptor": 302,
+              "fileName": "Manual_2_KMC_C7_MANUAL_DERIVED_FIELD.zks",
+              "internalName": "KMC_C7_MANUAL_DERIVED_FIELD",
+              "type": "Manual",
+              "gameId": "22222222-1111-4111-8111-111111111111",
+              "gameName": "Native",
+              "area": "33333333333333333333333333333333",
+              "path": "C:\\Dev\\KingmakerMountedCombatLab\\runtime-staging\\persistence-synthetic-manual-derived-paid\\Saved Games\\Manual_2_KMC_C7_MANUAL_DERIVED_FIELD.zks",
+              "snapshotCount": 0,
+              "completedSaveCount": 0
+            },
+            {
+              "sequence": 4,
+              "kind": "snapshot-staged",
+              "frame": 194,
+              "game": 1,
+              "saveManager": 2,
+              "player": 4,
+              "requested": 301,
+              "descriptor": 302,
+              "fileName": "Manual_2_KMC_C7_MANUAL_DERIVED_FIELD.zks",
+              "internalName": "KMC_C7_MANUAL_DERIVED_FIELD",
+              "type": "Manual",
+              "gameId": "22222222-1111-4111-8111-111111111111",
+              "gameName": "Native",
+              "area": "33333333333333333333333333333333",
+              "path": "C:\\Dev\\KingmakerMountedCombatLab\\runtime-staging\\persistence-synthetic-manual-derived-paid\\Saved Games\\Manual_2_KMC_C7_MANUAL_DERIVED_FIELD.zks",
+              "snapshotCount": 1,
+              "completedSaveCount": 0
+            },
+            {
+              "sequence": 5,
+              "kind": "native-worker-completed",
+              "frame": 195,
+              "game": 1,
+              "saveManager": 2,
+              "player": 4,
+              "requested": 301,
+              "descriptor": 302,
+              "fileName": "Manual_2_KMC_C7_MANUAL_DERIVED_FIELD.zks",
+              "internalName": "KMC_C7_MANUAL_DERIVED_FIELD",
+              "type": "Manual",
+              "gameId": "22222222-1111-4111-8111-111111111111",
+              "gameName": "Native",
+              "area": "33333333333333333333333333333333",
+              "path": "C:\\Dev\\KingmakerMountedCombatLab\\runtime-staging\\persistence-synthetic-manual-derived-paid\\Saved Games\\Manual_2_KMC_C7_MANUAL_DERIVED_FIELD.zks",
+              "snapshotCount": 1,
+              "completedSaveCount": 0,
+              "workerFaulted": false,
+              "iteratorType": "Kingmaker.EntitySystem.Persistence.SaveManager+<SaveRoutine>d__46",
+              "workerCanceled": false,
+              "workerStatus": "RanToCompletion",
+              "iterator": 304,
+              "workerId": 17,
+              "scope": 303,
+              "workerCompleted": true,
+              "nativeWorkerMatches": true,
+              "worker": 305
+            },
+            {
+              "sequence": 6,
+              "kind": "native-save-callback",
+              "frame": 196,
+              "game": 1,
+              "saveManager": 2,
+              "player": 4,
+              "requested": 301,
+              "descriptor": 302,
+              "fileName": "Manual_2_KMC_C7_MANUAL_DERIVED_FIELD.zks",
+              "internalName": "KMC_C7_MANUAL_DERIVED_FIELD",
+              "type": "Manual",
+              "gameId": "22222222-1111-4111-8111-111111111111",
+              "gameName": "Native",
+              "area": "33333333333333333333333333333333",
+              "path": "C:\\Dev\\KingmakerMountedCombatLab\\runtime-staging\\persistence-synthetic-manual-derived-paid\\Saved Games\\Manual_2_KMC_C7_MANUAL_DERIVED_FIELD.zks",
+              "snapshotCount": 1,
+              "completedSaveCount": 1
+            }
+          ],
+          "hooks": [
+            {
+              "type": "Kingmaker.EntitySystem.Persistence.SaveManager",
+              "method": "SaveRoutine",
+              "token": "06008029",
+              "moduleMvid": "07fa1e4d-8618-41b3-9b8d-faa17d3b26f7"
+            },
+            {
+              "type": "Kingmaker.EntitySystem.Persistence.SaveManager",
+              "method": "PrepareSave",
+              "token": "06008025",
+              "moduleMvid": "07fa1e4d-8618-41b3-9b8d-faa17d3b26f7"
+            },
+            {
+              "type": "KingmakerMountedCombat.Integration.MountedPersistenceService",
+              "method": "RecordCompletedSave",
+              "token": "0600A777",
+              "moduleMvid": "33333333-3333-4333-8333-333333333333"
+            }
+          ],
+          "errors": []
+        },
+        "settledDescriptors": [
+          {
+            "descriptor": 306,
+            "fileName": "Manual_1_KMC_C7_NATIVE_SEED.zks",
+            "internalName": "KMC_C7_NATIVE_SEED",
+            "type": "Manual",
+            "gameId": "22222222-1111-4111-8111-111111111111",
+            "gameName": "Native",
+            "area": "33333333333333333333333333333333",
+            "isActuallySaved": true,
+            "hasFileOnDisk": true,
+            "operationState": "None",
+            "autoLevelup": false
+          },
+          {
+            "descriptor": 302,
+            "fileName": "Manual_2_KMC_C7_MANUAL_DERIVED_FIELD.zks",
+            "internalName": "KMC_C7_MANUAL_DERIVED_FIELD",
+            "type": "Manual",
+            "gameId": "22222222-1111-4111-8111-111111111111",
+            "gameName": "Native",
+            "area": "33333333333333333333333333333333",
+            "isActuallySaved": true,
+            "hasFileOnDisk": true,
+            "operationState": "None",
+            "autoLevelup": false
+          }
+        ],
+        "sourceDescriptorObject": 306,
+        "savedFieldWorld": {
+          "frame": 200,
+          "game": 1,
+          "saveManager": 2,
+          "player": 4,
+          "state": 5,
+          "areaState": 6,
+          "mainState": 7,
+          "gameId": "22222222-1111-4111-8111-111111111111",
+          "gameName": "Native",
+          "mainActorId": "44444444-1111-4111-8111-111111111111",
+          "area": "33333333333333333333333333333333",
+          "mode": "Default",
+          "cutscene": false,
+          "inCombat": false,
+          "nativeLoading": false,
+          "authority": {
+            "root": "C:\\Dev\\KingmakerMountedCombatLab\\runtime-staging\\persistence-synthetic-manual-derived-paid\\Saved Games",
+            "generation": 2,
+            "maximumNativeLoads": 1,
+            "maximumNativeWrites": 1,
+            "admittedNativeLoads": 1,
+            "admittedNativeWrites": 1,
+            "authorizedLoads": 1,
+            "authorizedWrites": 1,
+            "unauthorizedLoads": 0,
+            "unauthorizedWrites": 0,
+            "fatalViolations": 0,
+            "suppressedWrites": 0
+          },
+          "party": [
+            {
+              "id": "44444444-1111-4111-8111-111111111111",
+              "blueprint": "55555555555555555555555555555555",
+              "object": 8,
+              "descriptor": 9,
+              "view": 10,
+              "isInGame": true,
+              "isInState": true,
+              "commandsEmpty": true
+            },
+            {
+              "id": "11111111-2222-4333-8444-555555555555",
+              "blueprint": "99999999999999999999999999999999",
+              "object": 99,
+              "descriptor": 199,
+              "view": 200,
+              "isInGame": true,
+              "isInState": true,
+              "commandsEmpty": true
+            },
+            {
+              "id": "66666666-7777-4888-8999-aaaaaaaaaaaa",
+              "blueprint": "4016c7db400ab721ff125aef9e65e202",
+              "object": 201,
+              "descriptor": 202,
+              "view": 203,
+              "isInGame": true,
+              "isInState": true,
+              "commandsEmpty": true
+            }
+          ],
+          "owners": 0,
+          "slots": 0,
+          "casts": 0,
+          "snapshots": 1,
+          "completedSaves": 1,
+          "semanticRestores": 0,
+          "presentationRestores": 0
         }
       },
-      "sourceSavedBeforeSelector": true,
+      "sourceSavedBeforeSelector": false,
       "fieldWorld": {
         "frame": 24,
         "game": 1,
@@ -4504,8 +4765,8 @@
           "fatalViolations": 0,
           "suppressedWrites": 0,
           "reservationCount": 1,
-          "manualNumber": 7,
-          "outputLeaf": "Manual_7_KMC_C7_ACQUIRED_FIELD.zks"
+          "manualNumber": 3,
+          "outputLeaf": "Manual_3_KMC_C7_ACQUIRED_FIELD.zks"
         },
         "party": [
           {
@@ -4595,19 +4856,19 @@
         "actorBlueprint": "99999999999999999999999999999999",
         "actorObject": 17,
         "actorDescriptor": 18,
-        "actorView": 0,
-        "actorInGame": false,
+        "actorView": 19,
+        "actorInGame": true,
         "actorInState": true,
-        "actorAgentReady": false,
+        "actorAgentReady": true,
         "actorCommandsEmpty": true,
         "petId": "66666666-7777-4888-8999-aaaaaaaaaaaa",
         "petBlueprint": "4016c7db400ab721ff125aef9e65e202",
         "petObject": 20,
         "petDescriptor": 21,
-        "petView": 0,
-        "petInGame": false,
+        "petView": 22,
+        "petInGame": true,
         "petInState": true,
-        "petAgentReady": false,
+        "petAgentReady": true,
         "petCommandsEmpty": true,
         "featureObject": 23,
         "rankObject": 24,
@@ -4616,11 +4877,10 @@
         "rank": 1,
         "reciprocal": true,
         "partyCharacters": [
-          "44444444-1111-4111-8111-111111111111"
-        ],
-        "remoteCompanions": [
+          "44444444-1111-4111-8111-111111111111",
           "11111111-2222-4333-8444-555555555555"
         ],
+        "remoteCompanions": [],
         "progression": {
           "money": 18000,
           "experienceRatePercent": 100,
@@ -4813,26 +5073,9 @@
         }
       },
       "selector": {
-        "required": true,
-        "manualPartyMutation": false,
-        "action": "native-ShowPartySelection",
-        "actorId": "11111111-2222-4333-8444-555555555555",
-        "nativeCap": 6,
-        "openCount": 1,
-        "switchCount": 1,
-        "goCount": 1,
-        "openActiveSelf": true,
-        "readyActiveInHierarchy": true,
-        "closedExactInstance": true,
-        "closedActiveSelf": false,
-        "readyAlpha": 1
-      },
-      "presentation": {
-        "selectionRestored": true,
-        "ummInstanceRestored": true,
-        "ummOpenedRestored": true,
-        "pauseRestored": true,
-        "slotProjectionEnabled": false
+        "required": false,
+        "openCount": 0,
+        "manualPartyMutation": false
       },
       "bodyObservation": {
         "OriginalSizeOrdinal": 4,
@@ -4953,8 +5196,8 @@
       "reservation": {
         "frame": 1,
         "sourceDescriptor": 16,
-        "number": 7,
-        "outputLeaf": "Manual_7_KMC_C7_ACQUIRED_FIELD.zks",
+        "number": 3,
+        "outputLeaf": "Manual_3_KMC_C7_ACQUIRED_FIELD.zks",
         "count": 1,
         "beforeLoad": true,
         "initialEntries": 1,
@@ -4964,16 +5207,16 @@
         "sourceDescriptors": [
           {
             "descriptor": 16,
-            "fileName": "Auto_1.zks",
-            "internalName": "Autosave",
-            "type": "Auto",
+            "fileName": "Manual_2_KMC_C7_MANUAL_DERIVED_FIELD.zks",
+            "internalName": "KMC_C7_MANUAL_DERIVED_FIELD",
+            "type": "Manual",
             "gameId": "22222222-1111-4111-8111-111111111111",
             "gameName": "Native",
             "area": "33333333333333333333333333333333",
             "isActuallySaved": true,
             "hasFileOnDisk": true,
             "operationState": "None",
-            "autoLevelup": true
+            "autoLevelup": false
           }
         ],
         "slotProjectionEnabled": false,
@@ -4994,8 +5237,8 @@
           "fatalViolations": 0,
           "suppressedWrites": 0,
           "reservationCount": 1,
-          "manualNumber": 7,
-          "outputLeaf": "Manual_7_KMC_C7_ACQUIRED_FIELD.zks"
+          "manualNumber": 3,
+          "outputLeaf": "Manual_3_KMC_C7_ACQUIRED_FIELD.zks"
         }
       }
     },
@@ -5023,7 +5266,7 @@
         "baseGameOnly": true,
         "expectedNativeLoadCount": 1,
         "expectedNativeWriteCount": 1,
-        "nativeWriteLeaf": "Auto_1.zks",
+        "nativeWriteLeaf": "Manual_2_KMC_C7_MANUAL_DERIVED_FIELD.zks",
         "readiness": {
           "mainActorId": "44444444-1111-4111-8111-111111111111",
           "mainLevel": 4,
@@ -5390,9 +5633,15 @@
             200,
             201,
             202,
-            203
+            203,
+            301,
+            302,
+            303,
+            304,
+            305,
+            306
           ],
-          "retainedCount": 16,
+          "retainedCount": 22,
           "faults": 0,
           "released": false
         }
@@ -5539,9 +5788,9 @@
         }
       },
       "nativeWrite": {
-        "path": "C:\\Dev\\KingmakerMountedCombatLab\\runtime-staging\\persistence-synthetic-manual-derived-paid\\Saved Games\\Auto_1.zks",
-        "leaf": "Auto_1.zks",
-        "type": "Auto",
+        "path": "C:\\Dev\\KingmakerMountedCombatLab\\runtime-staging\\persistence-synthetic-manual-derived-paid\\Saved Games\\Manual_2_KMC_C7_MANUAL_DERIVED_FIELD.zks",
+        "leaf": "Manual_2_KMC_C7_MANUAL_DERIVED_FIELD.zks",
+        "type": "Manual",
         "operation": "None",
         "sha256": "8888888888888888888888888888888888888888888888888888888888888888",
         "gameId": "22222222-1111-4111-8111-111111111111",
@@ -5549,21 +5798,29 @@
         "area": "33333333333333333333333333333333",
         "length": 100,
         "schema": 3,
-        "name": "Autosave",
+        "name": "KMC_C7_MANUAL_DERIVED_FIELD",
         "authorizedWrites": 1,
         "admittedWrites": 1,
         "completedWrites": 1,
         "snapshotCount": 1,
-        "autoLevelup": true,
-        "nativeCallbackSupplied": false,
-        "saveBeforeFieldSelection": true,
+        "autoLevelup": false,
         "lastWriteTimeUtcTicks": 638960000000000000,
         "descriptorCount": 2,
         "emptyMountedArchive": true,
-        "requestedObject": 999,
-        "writtenObject": -1000,
+        "requestedObject": 301,
+        "writtenObject": 302,
         "completionSequence": 1,
-        "completedWritesBefore": 0
+        "callbackCount": 1,
+        "slotProjectionEnabled": false,
+        "fileName": "Manual_2_KMC_C7_MANUAL_DERIVED_FIELD.zks",
+        "isActuallySaved": true,
+        "operationState": "None",
+        "requestedDescriptor": 301,
+        "internalName": "KMC_C7_MANUAL_DERIVED_FIELD",
+        "hasFileOnDisk": true,
+        "saveAfterFieldSelection": true,
+        "writtenDescriptor": 302,
+        "nativeWorkerSettled": true
       },
       "elapsedSeconds": 30,
       "sourceManualObservations": {
@@ -7993,27 +8250,29 @@
           "actor": {
             "actorId": "11111111-2222-4333-8444-555555555555",
             "actorObject": 99,
-            "attributePoints": 0,
             "descriptorObject": 199,
-            "distributionPoints": 0,
+            "nativeControllerObject": 0,
             "level": 4,
+            "rangerLevel": 4,
+            "xp": 6000,
             "money": 18000,
             "nativeCanLevelUp": false,
-            "nativeControllerObject": 0,
             "nativeIsComplete": false,
             "nativeMode": "LevelUp",
+            "phase": "Class",
             "nextLevel": 5,
+            "selectedClass": "cda0615668a6df14eb36ba19ee881af6",
+            "attributePoints": 0,
+            "distributionPoints": 0,
+            "skillTotal": 4,
+            "skillSpent": 4,
+            "skillRemaining": 0,
             "pendingFeatures": 0,
             "pendingSpellGroups": 0,
-            "petBlueprint": "4016c7db400ab721ff125aef9e65e202",
             "petId": "66666666-7777-4888-8999-aaaaaaaaaaaa",
-            "phase": "Class",
-            "rangerLevel": 4,
-            "selectedClass": "cda0615668a6df14eb36ba19ee881af6",
-            "skillRemaining": 0,
-            "skillSpent": 4,
-            "skillTotal": 4,
-            "xp": 6000
+            "petBlueprint": "4016c7db400ab721ff125aef9e65e202",
+            "petLevel": 1,
+            "petExperience": 0
           },
           "ordinaryChoicesComplete": true,
           "nativeFieldAdmissionProven": false,
@@ -8054,210 +8313,6 @@
       },
       "acceptedChoiceCount": 6,
       "nativeCommitCount": 4,
-      "nativeAcquisition": {
-        "installationAttempted": true,
-        "installed": true,
-        "complete": true,
-        "errors": [],
-        "hooks": [
-          {
-            "type": "Kingmaker.Controllers.LevelUpAutoSaveController",
-            "method": "HandleLevelUpComplete",
-            "token": "0600906B",
-            "moduleMvid": "07fa1e4d-8618-41b3-9b8d-faa17d3b26f7"
-          },
-          {
-            "type": "Kingmaker.Game",
-            "method": "SaveGame",
-            "token": "06000CE4",
-            "moduleMvid": "07fa1e4d-8618-41b3-9b8d-faa17d3b26f7"
-          },
-          {
-            "type": "Kingmaker.EntitySystem.Persistence.SaveManager",
-            "method": "PrepareSave",
-            "token": "06008025",
-            "moduleMvid": "07fa1e4d-8618-41b3-9b8d-faa17d3b26f7"
-          }
-        ],
-        "events": [
-          {
-            "actorId": "11111111-2222-4333-8444-555555555555",
-            "actorObject": 99,
-            "autoLevelup": null,
-            "characterLevel": 1,
-            "completionActorId": "11111111-2222-4333-8444-555555555555",
-            "frame": 41,
-            "inState": true,
-            "insideObservedCompletion": true,
-            "isChargen": true,
-            "kind": "native-level-completion-enter",
-            "saveLeaf": null,
-            "saveName": null,
-            "saveObject": 0,
-            "savePath": null,
-            "saveType": null
-          },
-          {
-            "actorId": "11111111-2222-4333-8444-555555555555",
-            "actorObject": 99,
-            "autoLevelup": null,
-            "characterLevel": 1,
-            "completionActorId": "11111111-2222-4333-8444-555555555555",
-            "frame": 41,
-            "inState": true,
-            "insideObservedCompletion": true,
-            "isChargen": true,
-            "kind": "native-level-completion-exit",
-            "saveLeaf": null,
-            "saveName": null,
-            "saveObject": 0,
-            "savePath": null,
-            "saveType": null
-          },
-          {
-            "actorId": "11111111-2222-4333-8444-555555555555",
-            "actorObject": 99,
-            "autoLevelup": null,
-            "characterLevel": 2,
-            "completionActorId": "11111111-2222-4333-8444-555555555555",
-            "frame": 42,
-            "inState": true,
-            "insideObservedCompletion": true,
-            "isChargen": true,
-            "kind": "native-level-completion-enter",
-            "saveLeaf": null,
-            "saveName": null,
-            "saveObject": 0,
-            "savePath": null,
-            "saveType": null
-          },
-          {
-            "actorId": "11111111-2222-4333-8444-555555555555",
-            "actorObject": 99,
-            "autoLevelup": null,
-            "characterLevel": 2,
-            "completionActorId": "11111111-2222-4333-8444-555555555555",
-            "frame": 42,
-            "inState": true,
-            "insideObservedCompletion": true,
-            "isChargen": true,
-            "kind": "native-level-completion-exit",
-            "saveLeaf": null,
-            "saveName": null,
-            "saveObject": 0,
-            "savePath": null,
-            "saveType": null
-          },
-          {
-            "actorId": "11111111-2222-4333-8444-555555555555",
-            "actorObject": 99,
-            "autoLevelup": null,
-            "characterLevel": 3,
-            "completionActorId": "11111111-2222-4333-8444-555555555555",
-            "frame": 43,
-            "inState": true,
-            "insideObservedCompletion": true,
-            "isChargen": true,
-            "kind": "native-level-completion-enter",
-            "saveLeaf": null,
-            "saveName": null,
-            "saveObject": 0,
-            "savePath": null,
-            "saveType": null
-          },
-          {
-            "actorId": "11111111-2222-4333-8444-555555555555",
-            "actorObject": 99,
-            "autoLevelup": null,
-            "characterLevel": 3,
-            "completionActorId": "11111111-2222-4333-8444-555555555555",
-            "frame": 43,
-            "inState": true,
-            "insideObservedCompletion": true,
-            "isChargen": true,
-            "kind": "native-level-completion-exit",
-            "saveLeaf": null,
-            "saveName": null,
-            "saveObject": 0,
-            "savePath": null,
-            "saveType": null
-          },
-          {
-            "actorId": "11111111-2222-4333-8444-555555555555",
-            "actorObject": 99,
-            "autoLevelup": null,
-            "characterLevel": 4,
-            "completionActorId": "11111111-2222-4333-8444-555555555555",
-            "frame": 44,
-            "inState": true,
-            "insideObservedCompletion": true,
-            "isChargen": false,
-            "kind": "native-level-completion-enter",
-            "saveLeaf": null,
-            "saveName": null,
-            "saveObject": 0,
-            "savePath": null,
-            "saveType": null
-          },
-          {
-            "actorId": "11111111-2222-4333-8444-555555555555",
-            "actorObject": 99,
-            "autoLevelup": true,
-            "characterLevel": 4,
-            "completionActorId": "11111111-2222-4333-8444-555555555555",
-            "frame": 44,
-            "inState": true,
-            "insideObservedCompletion": true,
-            "isChargen": false,
-            "kind": "native-level-autosave-request",
-            "saveLeaf": "Auto_1.zks",
-            "saveName": "Autosave",
-            "saveObject": 999,
-            "savePath": null,
-            "saveType": "Auto"
-          },
-          {
-            "actorId": "11111111-2222-4333-8444-555555555555",
-            "actorObject": 99,
-            "autoLevelup": null,
-            "characterLevel": 4,
-            "completionActorId": "11111111-2222-4333-8444-555555555555",
-            "frame": 44,
-            "inState": true,
-            "insideObservedCompletion": true,
-            "isChargen": false,
-            "kind": "native-level-completion-exit",
-            "saveLeaf": null,
-            "saveName": null,
-            "saveObject": 0,
-            "savePath": null,
-            "saveType": null
-          },
-          {
-            "actorId": "11111111-2222-4333-8444-555555555555",
-            "actorObject": 99,
-            "autoLevelup": true,
-            "characterLevel": 4,
-            "completionActorId": null,
-            "frame": 45,
-            "inState": true,
-            "insideObservedCompletion": false,
-            "isChargen": false,
-            "kind": "native-level-autosave-prepared",
-            "saveLeaf": "Auto_1.zks",
-            "saveName": "Autosave",
-            "saveObject": -1000,
-            "savePath": null,
-            "saveType": "Auto",
-            "requestedSaveObject": 999,
-            "accepted": true
-          }
-        ],
-        "completionEntries": 4,
-        "completionExits": 4,
-        "saveRequests": 1,
-        "preparedWrites": 1
-      },
       "field": {
         "actorId": "11111111-2222-4333-8444-555555555555",
         "actorObject": 99,
@@ -8282,23 +8337,6 @@
               "nativeLevelUpReadiness": {
                 "experience": 6000,
                 "characterLevel": 4
-              },
-              "originalSize": "Medium",
-              "effectiveSize": "Medium",
-              "polymorphed": false,
-              "dollPresent": true,
-              "raceGuid": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
-              "dollPresetGuid": "ffffffffffffffffffffffffffffffff",
-              "dollGender": "Male",
-              "dollLeftHanded": false,
-              "raceId": "Human",
-              "dollRaceId": "Human",
-              "character": {
-                "present": true,
-                "skeleton": {
-                  "present": true,
-                  "name": "SyntheticObservedMediumRig"
-                }
               }
             },
             {
@@ -8349,7 +8387,7 @@
       },
       "slotProjection": {
         "initiallyEnabled": false,
-        "enabledForTerminalAuto": true,
+        "enabledForTerminalAuto": false,
         "maximumNativeWrites": 1
       },
       "liveEligibility": {
@@ -8400,6 +8438,452 @@
         "exactSmallCatalogueMember": false,
         "arrangementGranted": false,
         "exactMediumBodyMember": true
+      },
+      "nativeNumbering": {
+        "method": "FindUnusedSaveNumber",
+        "token": "06008024",
+        "moduleMvid": "07fa1e4d-8618-41b3-9b8d-faa17d3b26f7",
+        "frame": 190,
+        "nativeSaveType": "Manual",
+        "number": 2,
+        "fileName": "Manual_2_KMC_C7_MANUAL_DERIVED_FIELD.zks",
+        "outputInitiallyAbsent": true,
+        "slotProjectionEnabled": false,
+        "sourceDescriptors": [
+          {
+            "fileName": "Manual_1_KMC_C7_NATIVE_SEED.zks",
+            "internalName": "KMC_C7_NATIVE_SEED",
+            "gameId": "22222222-1111-4111-8111-111111111111",
+            "gameName": "Native",
+            "area": "33333333333333333333333333333333",
+            "type": "Manual",
+            "isAutoLevelupSave": false,
+            "isActuallySaved": true,
+            "hasFileOnDisk": true,
+            "operationState": "None",
+            "systemSaveTimeTicks": 638960000000000000,
+            "systemSaveTimeKind": "Local"
+          }
+        ]
+      },
+      "saveRequested": {
+        "frame": 191,
+        "descriptor": 301,
+        "name": "KMC_C7_MANUAL_DERIVED_FIELD",
+        "type": "Manual",
+        "nativeSaveAllowed": true,
+        "newSlot": true,
+        "snapshotCount": 0,
+        "authority": {
+          "root": "C:\\Dev\\KingmakerMountedCombatLab\\runtime-staging\\persistence-synthetic-manual-derived-paid\\Saved Games",
+          "generation": 2,
+          "maximumNativeLoads": 1,
+          "maximumNativeWrites": 1,
+          "admittedNativeLoads": 1,
+          "admittedNativeWrites": 0,
+          "authorizedLoads": 1,
+          "authorizedWrites": 0,
+          "unauthorizedLoads": 0,
+          "unauthorizedWrites": 0,
+          "fatalViolations": 0,
+          "suppressedWrites": 0
+        }
+      },
+      "beforeSaveArrangement": {
+        "money": 18000,
+        "experienceRatePercent": 100,
+        "actors": [
+          {
+            "actorId": "44444444-1111-4111-8111-111111111111",
+            "blueprint": "55555555555555555555555555555555",
+            "experience": 6000,
+            "characterLevel": 4,
+            "classes": [
+              {
+                "classGuid": "66666666666666666666666666666666",
+                "level": 4
+              }
+            ]
+          }
+        ],
+        "acquired": [
+          {
+            "actorId": "11111111-2222-4333-8444-555555555555",
+            "blueprint": "99999999999999999999999999999999",
+            "experience": 6000,
+            "characterLevel": 4,
+            "classes": [
+              {
+                "classGuid": "cda0615668a6df14eb36ba19ee881af6",
+                "level": 4
+              }
+            ]
+          },
+          {
+            "actorId": "66666666-7777-4888-8999-aaaaaaaaaaaa",
+            "blueprint": "4016c7db400ab721ff125aef9e65e202",
+            "experience": 0,
+            "characterLevel": 1,
+            "classes": [
+              {
+                "classGuid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "level": 1
+              }
+            ]
+          }
+        ]
+      },
+      "afterSaveArrangement": {
+        "money": 18000,
+        "experienceRatePercent": 100,
+        "actors": [
+          {
+            "actorId": "44444444-1111-4111-8111-111111111111",
+            "blueprint": "55555555555555555555555555555555",
+            "experience": 6000,
+            "characterLevel": 4,
+            "classes": [
+              {
+                "classGuid": "66666666666666666666666666666666",
+                "level": 4
+              }
+            ]
+          }
+        ],
+        "acquired": [
+          {
+            "actorId": "11111111-2222-4333-8444-555555555555",
+            "blueprint": "99999999999999999999999999999999",
+            "experience": 6000,
+            "characterLevel": 4,
+            "classes": [
+              {
+                "classGuid": "cda0615668a6df14eb36ba19ee881af6",
+                "level": 4
+              }
+            ]
+          },
+          {
+            "actorId": "66666666-7777-4888-8999-aaaaaaaaaaaa",
+            "blueprint": "4016c7db400ab721ff125aef9e65e202",
+            "experience": 0,
+            "characterLevel": 1,
+            "classes": [
+              {
+                "classGuid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "level": 1
+              }
+            ]
+          }
+        ]
+      },
+      "savedWorld": {
+        "frame": 200,
+        "game": 1,
+        "saveManager": 2,
+        "player": 4,
+        "state": 5,
+        "areaState": 6,
+        "mainState": 7,
+        "gameId": "22222222-1111-4111-8111-111111111111",
+        "gameName": "Native",
+        "mainActorId": "44444444-1111-4111-8111-111111111111",
+        "area": "33333333333333333333333333333333",
+        "mode": "Default",
+        "cutscene": false,
+        "inCombat": false,
+        "nativeLoading": false,
+        "authority": {
+          "root": "C:\\Dev\\KingmakerMountedCombatLab\\runtime-staging\\persistence-synthetic-manual-derived-paid\\Saved Games",
+          "generation": 2,
+          "maximumNativeLoads": 1,
+          "maximumNativeWrites": 1,
+          "admittedNativeLoads": 1,
+          "admittedNativeWrites": 1,
+          "authorizedLoads": 1,
+          "authorizedWrites": 1,
+          "unauthorizedLoads": 0,
+          "unauthorizedWrites": 0,
+          "fatalViolations": 0,
+          "suppressedWrites": 0
+        },
+        "party": [
+          {
+            "id": "44444444-1111-4111-8111-111111111111",
+            "blueprint": "55555555555555555555555555555555",
+            "object": 8,
+            "descriptor": 9,
+            "view": 10,
+            "isInGame": true,
+            "isInState": true,
+            "commandsEmpty": true
+          }
+        ],
+        "owners": 0,
+        "slots": 0,
+        "casts": 0,
+        "snapshots": 1,
+        "completedSaves": 1,
+        "semanticRestores": 0,
+        "presentationRestores": 0
+      },
+      "nativeSave": {
+        "contract": "manual-seed-native-save-v1",
+        "installed": true,
+        "installationAttempted": true,
+        "complete": true,
+        "requests": 1,
+        "prepares": 1,
+        "starts": 1,
+        "stages": 1,
+        "completions": 1,
+        "callbacks": 1,
+        "events": [
+          {
+            "sequence": 1,
+            "kind": "native-save-request",
+            "frame": 191,
+            "game": 1,
+            "saveManager": 2,
+            "player": 4,
+            "requested": 301,
+            "descriptor": 301,
+            "fileName": null,
+            "internalName": "KMC_C7_MANUAL_DERIVED_FIELD",
+            "type": "Manual",
+            "gameId": null,
+            "gameName": "Native",
+            "area": "33333333333333333333333333333333",
+            "path": null,
+            "snapshotCount": 0,
+            "completedSaveCount": 0
+          },
+          {
+            "sequence": 2,
+            "kind": "native-save-prepared",
+            "frame": 192,
+            "game": 1,
+            "saveManager": 2,
+            "player": 4,
+            "requested": 301,
+            "descriptor": 302,
+            "fileName": "Manual_2_KMC_C7_MANUAL_DERIVED_FIELD.zks",
+            "internalName": "KMC_C7_MANUAL_DERIVED_FIELD",
+            "type": "Manual",
+            "gameId": "22222222-1111-4111-8111-111111111111",
+            "gameName": "Native",
+            "area": "33333333333333333333333333333333",
+            "path": "C:\\Dev\\KingmakerMountedCombatLab\\runtime-staging\\persistence-synthetic-manual-derived-paid\\Saved Games\\Manual_2_KMC_C7_MANUAL_DERIVED_FIELD.zks",
+            "snapshotCount": 0,
+            "completedSaveCount": 0
+          },
+          {
+            "sequence": 3,
+            "kind": "snapshot-starting",
+            "frame": 193,
+            "game": 1,
+            "saveManager": 2,
+            "player": 4,
+            "requested": 301,
+            "descriptor": 302,
+            "fileName": "Manual_2_KMC_C7_MANUAL_DERIVED_FIELD.zks",
+            "internalName": "KMC_C7_MANUAL_DERIVED_FIELD",
+            "type": "Manual",
+            "gameId": "22222222-1111-4111-8111-111111111111",
+            "gameName": "Native",
+            "area": "33333333333333333333333333333333",
+            "path": "C:\\Dev\\KingmakerMountedCombatLab\\runtime-staging\\persistence-synthetic-manual-derived-paid\\Saved Games\\Manual_2_KMC_C7_MANUAL_DERIVED_FIELD.zks",
+            "snapshotCount": 0,
+            "completedSaveCount": 0
+          },
+          {
+            "sequence": 4,
+            "kind": "snapshot-staged",
+            "frame": 194,
+            "game": 1,
+            "saveManager": 2,
+            "player": 4,
+            "requested": 301,
+            "descriptor": 302,
+            "fileName": "Manual_2_KMC_C7_MANUAL_DERIVED_FIELD.zks",
+            "internalName": "KMC_C7_MANUAL_DERIVED_FIELD",
+            "type": "Manual",
+            "gameId": "22222222-1111-4111-8111-111111111111",
+            "gameName": "Native",
+            "area": "33333333333333333333333333333333",
+            "path": "C:\\Dev\\KingmakerMountedCombatLab\\runtime-staging\\persistence-synthetic-manual-derived-paid\\Saved Games\\Manual_2_KMC_C7_MANUAL_DERIVED_FIELD.zks",
+            "snapshotCount": 1,
+            "completedSaveCount": 0
+          },
+          {
+            "sequence": 5,
+            "kind": "native-worker-completed",
+            "frame": 195,
+            "game": 1,
+            "saveManager": 2,
+            "player": 4,
+            "requested": 301,
+            "descriptor": 302,
+            "fileName": "Manual_2_KMC_C7_MANUAL_DERIVED_FIELD.zks",
+            "internalName": "KMC_C7_MANUAL_DERIVED_FIELD",
+            "type": "Manual",
+            "gameId": "22222222-1111-4111-8111-111111111111",
+            "gameName": "Native",
+            "area": "33333333333333333333333333333333",
+            "path": "C:\\Dev\\KingmakerMountedCombatLab\\runtime-staging\\persistence-synthetic-manual-derived-paid\\Saved Games\\Manual_2_KMC_C7_MANUAL_DERIVED_FIELD.zks",
+            "snapshotCount": 1,
+            "completedSaveCount": 0,
+            "workerFaulted": false,
+            "iteratorType": "Kingmaker.EntitySystem.Persistence.SaveManager+<SaveRoutine>d__46",
+            "workerCanceled": false,
+            "workerStatus": "RanToCompletion",
+            "iterator": 304,
+            "workerId": 17,
+            "scope": 303,
+            "workerCompleted": true,
+            "nativeWorkerMatches": true,
+            "worker": 305
+          },
+          {
+            "sequence": 6,
+            "kind": "native-save-callback",
+            "frame": 196,
+            "game": 1,
+            "saveManager": 2,
+            "player": 4,
+            "requested": 301,
+            "descriptor": 302,
+            "fileName": "Manual_2_KMC_C7_MANUAL_DERIVED_FIELD.zks",
+            "internalName": "KMC_C7_MANUAL_DERIVED_FIELD",
+            "type": "Manual",
+            "gameId": "22222222-1111-4111-8111-111111111111",
+            "gameName": "Native",
+            "area": "33333333333333333333333333333333",
+            "path": "C:\\Dev\\KingmakerMountedCombatLab\\runtime-staging\\persistence-synthetic-manual-derived-paid\\Saved Games\\Manual_2_KMC_C7_MANUAL_DERIVED_FIELD.zks",
+            "snapshotCount": 1,
+            "completedSaveCount": 1
+          }
+        ],
+        "hooks": [
+          {
+            "type": "Kingmaker.EntitySystem.Persistence.SaveManager",
+            "method": "SaveRoutine",
+            "token": "06008029",
+            "moduleMvid": "07fa1e4d-8618-41b3-9b8d-faa17d3b26f7"
+          },
+          {
+            "type": "Kingmaker.EntitySystem.Persistence.SaveManager",
+            "method": "PrepareSave",
+            "token": "06008025",
+            "moduleMvid": "07fa1e4d-8618-41b3-9b8d-faa17d3b26f7"
+          },
+          {
+            "type": "KingmakerMountedCombat.Integration.MountedPersistenceService",
+            "method": "RecordCompletedSave",
+            "token": "0600A777",
+            "moduleMvid": "33333333-3333-4333-8333-333333333333"
+          }
+        ],
+        "errors": []
+      },
+      "settledDescriptors": [
+        {
+          "descriptor": 306,
+          "fileName": "Manual_1_KMC_C7_NATIVE_SEED.zks",
+          "internalName": "KMC_C7_NATIVE_SEED",
+          "type": "Manual",
+          "gameId": "22222222-1111-4111-8111-111111111111",
+          "gameName": "Native",
+          "area": "33333333333333333333333333333333",
+          "isActuallySaved": true,
+          "hasFileOnDisk": true,
+          "operationState": "None",
+          "autoLevelup": false
+        },
+        {
+          "descriptor": 302,
+          "fileName": "Manual_2_KMC_C7_MANUAL_DERIVED_FIELD.zks",
+          "internalName": "KMC_C7_MANUAL_DERIVED_FIELD",
+          "type": "Manual",
+          "gameId": "22222222-1111-4111-8111-111111111111",
+          "gameName": "Native",
+          "area": "33333333333333333333333333333333",
+          "isActuallySaved": true,
+          "hasFileOnDisk": true,
+          "operationState": "None",
+          "autoLevelup": false
+        }
+      ],
+      "sourceDescriptorObject": 306,
+      "savedFieldWorld": {
+        "frame": 200,
+        "game": 1,
+        "saveManager": 2,
+        "player": 4,
+        "state": 5,
+        "areaState": 6,
+        "mainState": 7,
+        "gameId": "22222222-1111-4111-8111-111111111111",
+        "gameName": "Native",
+        "mainActorId": "44444444-1111-4111-8111-111111111111",
+        "area": "33333333333333333333333333333333",
+        "mode": "Default",
+        "cutscene": false,
+        "inCombat": false,
+        "nativeLoading": false,
+        "authority": {
+          "root": "C:\\Dev\\KingmakerMountedCombatLab\\runtime-staging\\persistence-synthetic-manual-derived-paid\\Saved Games",
+          "generation": 2,
+          "maximumNativeLoads": 1,
+          "maximumNativeWrites": 1,
+          "admittedNativeLoads": 1,
+          "admittedNativeWrites": 1,
+          "authorizedLoads": 1,
+          "authorizedWrites": 1,
+          "unauthorizedLoads": 0,
+          "unauthorizedWrites": 0,
+          "fatalViolations": 0,
+          "suppressedWrites": 0
+        },
+        "party": [
+          {
+            "id": "44444444-1111-4111-8111-111111111111",
+            "blueprint": "55555555555555555555555555555555",
+            "object": 8,
+            "descriptor": 9,
+            "view": 10,
+            "isInGame": true,
+            "isInState": true,
+            "commandsEmpty": true
+          },
+          {
+            "id": "11111111-2222-4333-8444-555555555555",
+            "blueprint": "99999999999999999999999999999999",
+            "object": 99,
+            "descriptor": 199,
+            "view": 200,
+            "isInGame": true,
+            "isInState": true,
+            "commandsEmpty": true
+          },
+          {
+            "id": "66666666-7777-4888-8999-aaaaaaaaaaaa",
+            "blueprint": "4016c7db400ab721ff125aef9e65e202",
+            "object": 201,
+            "descriptor": 202,
+            "view": 203,
+            "isInGame": true,
+            "isInState": true,
+            "commandsEmpty": true
+          }
+        ],
+        "owners": 0,
+        "slots": 0,
+        "casts": 0,
+        "snapshots": 1,
+        "completedSaves": 1,
+        "semanticRestores": 0,
+        "presentationRestores": 0
       }
     },
     "errors": [],

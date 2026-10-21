@@ -39,7 +39,7 @@ namespace KingmakerMountedCombat.Diagnostics
             if (!Regex.IsMatch(SourceRunId ?? "", "^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$") || SourceRunId == runId)
                 errors.Add("A distinct completed Manual-derived acquisition run is required.");
             foreach (var hash in new[] { SourceArtifactSha256, SourceArchiveSha256 })
-                if (!Regex.IsMatch(hash ?? "", "^[a-f0-9]{64}$")) errors.Add("Exact immutable acquisition artifact and Auto hashes are required.");
+                if (!Regex.IsMatch(hash ?? "", "^[a-f0-9]{64}$")) errors.Add("Exact immutable acquisition artifact and archive hashes are required.");
             if (!Chunk7ManualDerivedSelection.NativeId(ActorId) || !Chunk7ManualDerivedSelection.NativeId(PetId) || ActorId == PetId)
                 errors.Add("The two distinct observed native owner/pet identities are required.");
             if (!BaseGameOnly || ExpectedNativeLoadCount != 1 || ExpectedNativeWriteCount != 1)

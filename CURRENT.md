@@ -1,5 +1,14 @@
 # Chunk 7B–7D — IN PROGRESS
 
+The F10 Manual-derived producer and one-owner acquired cold consumer now have
+a reviewed source route that replaces the game's nonexistent level-up Auto
+completion with a genuine, separately authorized field Manual. Focused
+producer/consumer readers and production compilation pass; preview.91 is the
+next candidate identity. No native producer or consumer PASS transfers from
+the old Auto fixture. The cumulative, assisted and historical progression
+Auto waits remain refused. See the [stale-family contract](docs/CHUNK7-STALE-LEVELUP-AUTOSAVE-FAMILIES.md)
+and [active resume](AUTONOMOUS-RESUME.md). Engineering completion is not claimed.
+
 [Batch124](docs/CHUNK7-BATCH124-THORN-RIVER-DOOR-FIXTURE-2026-10-21.md)
 passed one guarded preview.89 Thorn River Camp fixture run, game and outer
 5/0, with a distinct genuine Manual and exact restoration. Its bounded

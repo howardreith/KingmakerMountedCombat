@@ -56,9 +56,11 @@ namespace KingmakerMountedCombat.Tests
                 Check("legacy JSON shape remains exact without additive null",JToken.DeepEquals(Chunk7EvidenceDto.Request(plan),request));
             }
             var cumulative=Chunk7EvidenceDto.Request(selection).ToObject<Chunk7CumulativeAcquisitionSelection>();
+            cumulative.NativeWriteLeaf=Chunk7CumulativeAcquisitionSelection.OutputLeaf;
             cumulative.PriorOwnerId=selection.Readiness.MainActorId;cumulative.PriorPetId="99999999-1111-4111-8111-111111111111";
             Check("cumulative Medium validates in its own family",cumulative.Validate(Chunk7CumulativeAcquisitionSelection.Scenario,"current-run").Count==0);
-            Check("cumulative choice projection retains exact typed Medium pins",JToken.DeepEquals(Chunk7EvidenceDto.Request(cumulative.NativeChoicePins()),Chunk7EvidenceDto.Request(selection)));
+            var expectedProjection=Chunk7EvidenceDto.Request(selection);expectedProjection["nativeWriteLeaf"]=Chunk7CumulativeAcquisitionSelection.OutputLeaf;
+            Check("cumulative choice projection retains exact typed Medium pins and its separate Auto output",JToken.DeepEquals(Chunk7EvidenceDto.Request(cumulative.NativeChoicePins()),expectedProjection));
             cumulative.PriorPetId=cumulative.PriorOwnerId;Check("cumulative conflicting owner refuses",cumulative.Validate(Chunk7CumulativeAcquisitionSelection.Scenario,"current-run").Count!=0);
             return passes;
         }

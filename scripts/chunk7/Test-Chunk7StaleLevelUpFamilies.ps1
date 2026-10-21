@@ -34,8 +34,7 @@ function Expected([string]$Name,[string]$Site){'Scenario family '+$Name+' is not
 
 $blocked=[ordered]@{
     'chunk7-ordinary-acquisition'='src/KingmakerMountedCombat/Diagnostics/Chunk7OrdinaryAcquisitionScenario.cs:112 (ObserveCompletedAutosave, :266)'
-    'chunk7-manual-derived-acquisition'='src/KingmakerMountedCombat/Diagnostics/Chunk7ManualDerivedScenario.Build.cs:196 (ObserveTerminalAutosave, :222)'
-    'chunk7-cumulative-acquisition'='src/KingmakerMountedCombat/Diagnostics/Chunk7ManualDerivedScenario.Build.cs:196 (ObserveTerminalAutosave, :222; reached through Chunk7ManualDerivedScenario.CreateCumulative)'
+    'chunk7-cumulative-acquisition'='src/KingmakerMountedCombat/Diagnostics/Chunk7ManualDerivedScenario.Build.cs (TickBuild/ObserveTerminalAutosave; reached through Chunk7ManualDerivedScenario.CreateCumulative)'
     'chunk7-assisted-fixture-preparation'='src/KingmakerMountedCombat/Diagnostics/Chunk7AssistedFixtureScenario.Setup.cs:161 (ObserveLevelupAutosave, Chunk7AssistedFixtureScenario.Save.cs:55)'
 }
 $progressionSite='src/KingmakerMountedCombat/Diagnostics/Chunk7NativeProgressionSession.cs (legacy ObserveTerminalAutosave)'
@@ -50,7 +49,6 @@ if(@(Compare-Object @(Get-KmcChunk7ProgressionCases) @($blockedCases+$admittedCa
 Pass 'stale family registry is exact and partitions every progression case'
 $siteChecks=@(
     @('Chunk7OrdinaryAcquisitionScenario.cs',112,'if (!ObserveCompletedAutosave()) return;'),@('Chunk7OrdinaryAcquisitionScenario.cs',266,'private bool ObserveCompletedAutosave()'),
-    @('Chunk7ManualDerivedScenario.Build.cs',196,'if (!ObserveTerminalAutosave()) return;'),@('Chunk7ManualDerivedScenario.Build.cs',222,'private bool ObserveTerminalAutosave()'),
     @('Chunk7AssistedFixtureScenario.Setup.cs',161,'if(!ObserveLevelupAutosave())return;'),@('Chunk7AssistedFixtureScenario.Save.cs',55,'private bool ObserveLevelupAutosave()'))
 foreach($check in $siteChecks){
     $lines=[IO.File]::ReadAllLines((Join-Path $RepositoryRoot ('src/KingmakerMountedCombat/Diagnostics/'+$check[0])))
@@ -58,6 +56,9 @@ foreach($check in $siteChecks){
     if(-not$lines[$check[1]-7].Contains('NOT READY - stale level-up autosave wait')){throw ('Wait site lacks its NOT READY note: '+$check[0]+':'+$check[1])}
 }
 Pass 'every recorded wait site is the live wait and carries its NOT READY note'
+$manualSource=[IO.File]::ReadAllText((Join-Path $RepositoryRoot 'src/KingmakerMountedCombat/Diagnostics/Chunk7ManualDerivedScenario.Build.cs'))
+foreach($value in @('if (cumulative == null) { TickManualBuild(); return; }','if (!ObserveTerminalAutosave()) return;','private bool ObserveTerminalAutosave()','NOT READY - stale level-up autosave wait')){if(-not$manualSource.Contains($value)){throw ('Cumulative-only stale Auto route changed: '+$value)}}
+Pass 'cumulative Auto wait remains guarded after Manual-derived dispatch'
 $progressionSource=[IO.File]::ReadAllText((Join-Path $RepositoryRoot 'src/KingmakerMountedCombat/Diagnostics/Chunk7NativeProgressionSession.cs'))
 if(-not$progressionSource.Contains('if (WritesAutosave && !ObserveTerminalAutosave()) return;')-or
    -not$progressionSource.Contains('private bool ObserveTerminalAutosave()')-or
@@ -76,7 +77,7 @@ foreach($entry in $blocked.GetEnumerator()){
 foreach($case in $blockedCases){if((Get-KmcChunk7FamilyNotReadyReason 'chunk7-native-progression' $case)-cne(Expected ('chunk7-native-progression/'+$case) $progressionSite)){throw ('Progression reason differs: '+$case)}}
 Pass 'every blocked family and progression case has its exact refusal'
 $admitted=@('chunk7-owned-two-pair-campaign','chunk7-assisted-cold-inventory','chunk7-two-pair-exploration','chunk7-two-pair-combat','chunk7-persistence-save','chunk7-persistence-load',
-    'chunk7-acquired-manual-derivative','chunk7-bootstrap-manual-seed','chunk7-bootstrap-cold-inventory','chunk7-native-main-bootstrap','chunk7-small-profile-calibration','chunk7-ordinary-field-admission','mod-load-smoke')
+    'chunk7-acquired-manual-derivative','chunk7-manual-derived-acquisition','chunk7-bootstrap-manual-seed','chunk7-bootstrap-cold-inventory','chunk7-native-main-bootstrap','chunk7-small-profile-calibration','chunk7-ordinary-field-admission','mod-load-smoke')
 foreach($name in $admitted){if($null-ne(Get-KmcChunk7FamilyNotReadyReason $name $null)){throw ('Selected family refused: '+$name)}}
 foreach($case in @($admittedCases)+@($null,'')){if($null-ne(Get-KmcChunk7FamilyNotReadyReason 'chunk7-native-progression' $case)){throw ('Admitted progression case refused: '+$case)}}
 foreach($name in @('CHUNK7-ORDINARY-ACQUISITION','chunk7-ordinary-acquisition ','chunk7-manual-derived')){if($null-ne(Get-KmcChunk7FamilyNotReadyReason $name $null)){throw ('Inexact name matched: '+$name)}}
@@ -100,7 +101,7 @@ Pass 'runner refuses before selection intake, approval, lock, transaction, Mods 
 # Actual runner: each blocked family is refused with its exact reason even with -WhatIf and with
 # otherwise-plausible arguments, before the family's own selection is read.
 $missing=Join-Path $output 'never-read-selection.json'
-$selectionParameter=@{'chunk7-ordinary-acquisition'='OrdinarySelectionPath';'chunk7-manual-derived-acquisition'='ManualDerivedSelectionPath';'chunk7-cumulative-acquisition'='CumulativeAcquisitionSelectionPath';'chunk7-assisted-fixture-preparation'='AssistedFixtureSelectionPath'}
+$selectionParameter=@{'chunk7-ordinary-acquisition'='OrdinarySelectionPath';'chunk7-cumulative-acquisition'='CumulativeAcquisitionSelectionPath';'chunk7-assisted-fixture-preparation'='AssistedFixtureSelectionPath'}
 foreach($entry in $blocked.GetEnumerator()){
     foreach($extra in @(@(),@('-BaseGameOnly','-SaveAccessAllowed',('-'+$selectionParameter[$entry.Key]),$missing))){
         $r=Invoke-Runner (@('-Scenario',$entry.Key,'-WhatIf')+$extra)
@@ -162,6 +163,7 @@ $next=[ordered]@{
     'chunk7-assisted-cold-inventory'='Assisted cold inventory requires base-only staging and exact completed assisted final Manual source pins.'
     'chunk7-native-progression'='Native progression requires exact source/inventory pins and explicit base-only staging.'
     'chunk7-acquired-manual-derivative'='Acquired Manual acquisition requires explicit base-only staging'
+    'chunk7-manual-derived-acquisition'='Manual-derived acquisition requires explicit base-only staging'
 }
 foreach($entry in $next.GetEnumerator()){
     $r=Invoke-Runner @('-Scenario',$entry.Key,'-WhatIf')

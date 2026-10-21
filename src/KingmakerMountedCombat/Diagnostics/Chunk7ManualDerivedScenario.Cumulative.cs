@@ -48,7 +48,7 @@ namespace KingmakerMountedCombat.Diagnostics
             root = Path.Combine(Path.GetDirectoryName(Path.GetDirectoryName(request.EvidenceRoot)), "runtime-staging", "persistence-" + request.RunId, "Saved Games");
         }
         private bool MatchesSelectedPlan(bool unwritten) => cumulative == null
-            ? authority.MatchesManualDerivedPlan(request.PersistenceLoad, Chunk7ManualDerivedSelection.OutputLeaf, RuntimePersistenceScenario.SlotName(SaveInfo.SaveType.Auto), unwritten)
+            ? authority.MatchesManualDerivedPlan(request.PersistenceLoad, Chunk7ManualDerivedSelection.ManualOutputLeaf, Chunk7ManualDerivedSelection.ManualOutputName, unwritten)
             : cumulative.UsesAssistedCold
                 ? authority.MatchesAssistedCumulativePlan(request, Chunk7CumulativeAcquisitionSelection.OutputLeaf, RuntimePersistenceScenario.SlotName(SaveInfo.SaveType.Auto), unwritten)
                 : authority.MatchesCumulativeAcquisitionPlan(request.PersistenceLoad, Chunk7CumulativeAcquisitionSelection.OutputLeaf, RuntimePersistenceScenario.SlotName(SaveInfo.SaveType.Auto), unwritten);

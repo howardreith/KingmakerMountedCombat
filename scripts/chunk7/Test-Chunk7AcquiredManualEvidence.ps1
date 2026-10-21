@@ -18,6 +18,9 @@ $cases=[ordered]@{
 'foreign Auto input'={param($f)$f.request.persistenceLoad.fileName='Auto_2.zks'}
 'Working campaign alias'={param($f)$f.request.persistenceLoad.gameId=$f.request.fixture.working.gameId}
 'missing acquisition lineage'={param($f)$f.artifact.observations.sourceAcquisition=$null}
+ 'source field omits acquired Horse'={param($f)$s=$f.source.observations.savedFieldWorld;$pet=$f.request.acquiredManual.petId;$s.party=@($s.party|Where-Object id -CNE $pet)}
+ 'cold field changes acquired Horse blueprint'={param($f)$o=$f.artifact.observations;$pet=@($o.loadedWorld.party|Where-Object id -CEQ $f.request.acquiredManual.petId)[0];$pet.blueprint='a'*32}
+ 'cold field changes acquired owner identity'={param($f)$o=$f.artifact.observations;$owner=@($o.loadedWorld.party|Where-Object id -CEQ $f.request.acquiredManual.actorId)[0];$owner.descriptor++}
 'source copied graph changed'={param($f)$f.artifact.observations.sourceNativeWorld.party[0].id='aaaaaaaa-1111-4111-8111-111111111111'}
 'actor and pet alias'={param($f)$f.request.acquiredManual.petId=$f.request.acquiredManual.actorId}
 'excess load quota'={param($f)$f.request.acquiredManual.expectedNativeLoadCount=2}
@@ -72,9 +75,9 @@ foreach($paid in @($false,$true)){
  foreach($key in @('actorId','petId','featureGuid','sourceGuid')){Bad ($flow+' scalar-array owner '+$key){$f=New-AcquiredManualFixture $paid;$f.artifact.observations.loadedOwner.$key=@($f.artifact.observations.loadedOwner.$key);Check-AcquiredManual $f}}
  foreach($key in @('nativeMethod','nativeMethodToken','nativeMethodMvid','outputLeaf')){Bad ($flow+' scalar-array reservation '+$key){$f=New-AcquiredManualFixture $paid;$f.artifact.observations.reservation.$key=@($f.artifact.observations.reservation.$key);Check-AcquiredManual $f}}
 }
-foreach($key in @('openCount','switchCount','goCount')){Bad ('paid native selector incomplete '+$key){$f=New-AcquiredManualFixture;$f.artifact.observations.selector.$key=0;Check-AcquiredManual $f}}
+Bad 'one-owner field Manual fabricates native selector' {$f=New-AcquiredManualFixture;$f.artifact.observations.selector.openCount=1;Check-AcquiredManual $f}
 foreach($key in @('OriginalSizeOrdinal','EffectiveSizeOrdinal')){Bad ('paid body wrong '+$key){$f=New-AcquiredManualFixture;$f.artifact.observations.bodyObservation.$key=4;Check-AcquiredManual $f}}
-Bad 'paid acquired actor already field before declared selector' {$f=New-AcquiredManualFixture;$f.artifact.observations.loadedOwner.actorInGame=$true;Check-AcquiredManual $f}
+Bad 'paid acquired actor claims remote after field Manual' {$f=New-AcquiredManualFixture;$f.artifact.observations.loadedOwner.actorInGame=$false;Check-AcquiredManual $f}
 Bad 'existing route silently opens selector' {$f=New-AcquiredManualFixture $false;$f.artifact.observations.selector.openCount=1;Check-AcquiredManual $f}
 $watch.Stop();[ordered]@{status=$(if($script:failures-eq0){'PASS'}else{'FAIL'});pass=$script:passes;fail=$script:failures;seconds=$watch.Elapsed.TotalSeconds;readerSha256=(Get-FileHash -LiteralPath (Join-Path $acquiredReader 'Chunk7AcquiredManualEvidence.ps1')).Hash.ToLowerInvariant();fixtures=@('Existing','Paid')|ForEach-Object{@{name=$_;sha256=(Get-FileHash -LiteralPath (Join-Path $acquiredFixtures ('AcquiredManual'+$_+'Fixture.json'))).Hash.ToLowerInvariant()}};nativeProof=$false;archiveReads=0}|ConvertTo-Json -Depth 4|Set-Content -LiteralPath (Join-Path $acquiredOutput 'receipt.json') -Encoding UTF8
 Write-Host ('TOTAL PASS='+$script:passes+' FAIL='+$script:failures);if($script:failures-gt0){throw 'Acquired Manual evidence checks failed.'}

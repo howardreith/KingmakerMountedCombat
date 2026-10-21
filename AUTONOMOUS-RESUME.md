@@ -1,5 +1,34 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## Active October 21 F10 Manual-derived field source and cold consumer
+
+The [standing completion mission](planning/CHUNK7-COMPLETION-MISSION.md)
+continues. The current successor branch now selects preview.91 for a coherent
+F10 source correction: non-cumulative `chunk7-manual-derived-acquisition`
+finishes native choices and field admission, requests and proves one genuine
+`Manual_2_KMC_C7_MANUAL_DERIVED_FIELD.zks`, and records the settled acquired
+owner/Horse in the saved field roster. Its one-owner acquired cold consumer
+loads that Manual, checks the exact saved acquired progression and field
+membership, then produces its own later Manual. The two-owner cumulative Auto
+path remains refused and unchanged in contract. The historical Auto failures
+stay FAIL on their own inputs. The [stale-family note](docs/CHUNK7-STALE-LEVELUP-AUTOSAVE-FAMILIES.md)
+records the new boundary.
+
+Independent read-only review found no concrete production/safety blocker after
+the source and consumer correction; a previously found cumulative admission
+regression and reader identity gaps were corrected before this checkpoint.
+Production `dotnet build` passed 0 warnings/errors. Focused Manual-derived
+reader 112/0, acquired cold reader 147/0, Manual admission 72/0, acquired
+reservation 70/0, acquired adapter 74/0, save-probe 39/0, source readers
+30/0 each, medium continuation 14/0, wiring 67/0 each, and stale-family
+guard 28/0 passed. These are offline synthetic/contract results, not native
+acquisition or cold-load qualification. No game, package, Mods, profile or
+save was touched during this correction. The next step is Candidate on the
+committed preview.91 source, then a same-candidate guarded Manual seed,
+Manual-derived producer and separate acquired cold consumer on fresh disposable
+copies after exact dependency-scoped WhatIf. Preserve one live executor and
+all actual prior batch failures. F09/F10/F11, doors and selected 7E remain open.
+
 ## Active October 21 after batch124 Thorn River inventory
 
 The [standing completion mission](planning/CHUNK7-COMPLETION-MISSION.md)
