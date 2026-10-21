@@ -57,6 +57,9 @@ namespace KingmakerMountedCombat.Diagnostics
         private double cleanupStart;
         private string sourceEvidencePath, inventoryPath;
         private long sourceEvidenceLength, sourceEvidenceTicks, inventoryLength, inventoryTicks;
+        private int coldFirstFrame;
+        private JObject coldInitial;
+        private JObject coldExpected;
         internal static bool SupportsScenario(string scenario) => scenario == Chunk7ProgressionSelection.Scenario;
         internal bool IsCompleted => completed;
         internal IReadOnlyList<string> Errors => errors;
@@ -101,9 +104,10 @@ namespace KingmakerMountedCombat.Diagnostics
                 {
                     if (persistence.ArchiveRestorePhase != "all-pair-presentation-restored")
                     { Require(elapsed.Elapsed.TotalSeconds <= 180, "Actual all-pair native restoration did not become ready: " + persistence.Feedback); return; }
-                    Start();
+                    if (selection.IsColdOnly) StartCold(); else Start();
                 }
                 RequireScope();
+                if (selection.IsColdOnly) { TickCold(); return; }
                 session.Tick();
                 if (!session.IsComplete) return;
                 evidence["session"] = session.Capture();
