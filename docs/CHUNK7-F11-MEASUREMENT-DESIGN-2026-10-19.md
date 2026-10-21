@@ -165,13 +165,33 @@ a Unity-plugin `StartProfiling` entry point, but that is only a possible attach
 pattern, not an approved game-side instrument. A smaller process-lifetime
 native shim would still need a reviewed exact-DLL stage/hash and request-only
 load, prior-profiler/interference policy for the process-global Mono callback,
-an allocation-free nonthrowing bounded callback with overflow and reentrancy
-counts, same-thread KMC Update bracketing, output confined to the run root, and
+same-thread KMC Update bracketing, output confined to the run root, and
 process-exit finalization before Mods restoration. The host's 7,400 bytes for
 100 Mono strings are managed object-size bytes, not total Unity/native allocator
-bytes. No such shim or safe game attach exists yet. The current Visual Studio
-BuildTools installation also exposes no `cl.exe` or `clang.exe` in the inspected
-toolchain paths; no compiler or dependency was installed as a workaround.
+bytes. The current Visual Studio BuildTools installation exposes no `cl.exe` or
+`clang.exe` in the inspected toolchain paths.
+
+The private, lab-only `analysis-cache/chunk7-continuation/f11-native-shim-20261021/`
+now contains a native C process-lifetime observer built with a portable Zig
+compiler in that cache, plus an isolated .NET 10 host that loads the exact
+installed Mono. Its receipt SHA-256 is
+`a93a25298c8944f991fbf31aee7802c5b8cea8409f13d3f0d6a665f3af44ed56`;
+the observer source/DLL hashes are `fabca1fb60bd75d4b254ace4fa7f73fe43fbdadc81fcd9eabb27aff608df857e`
+and `fd7454205bc1b9be2e777f470b40559ed86c7c903dc9a338bd9cda41fab3c13d`.
+The exact installed Mono hash is
+`9dde653c0eda16e02441437e64faa058cda6c5c8c82a193b17895249b2099534`.
+The isolated host exited zero: wrong loaded-module path, duplicate start and
+foreign-thread Begin/End/Read were refused; same-thread windows counted 100
+objects/7,400 bytes and 20/1,480 bytes; inactive allocations did not change a
+closed window. A concurrent foreign producer exercised `EndWindow`'s pending
+drain result (`2`) in one run, and the recorded run closed with 31 foreign
+callbacks and a stable subsequent snapshot. Independent source review admits
+these **offline ABI observations only**. A game adapter must call the first
+Begin on the verified Unity Update thread, enforce successful Begin–End–settled
+Read order, handle pending drain with a bounded refusal/retry, and verify the
+returned thread ID. Guarded staging, exact helper/hash pinning, request-only
+load, run-root evidence and process-exit-before-restoration remain unimplemented.
+No native allocation rate or F11 PASS follows from this host.
 
 Before seeing final measurements, the comparison rule is: repeated windows
 must retain the same declared actor/owner/subscription population within
