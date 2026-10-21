@@ -188,6 +188,8 @@ and its genuine field Manual/acquired cold chain remain F10 work.
 
 The [October 21 cumulative Manual checkpoint](../docs/CHUNK7-F10-CUMULATIVE-MANUAL-PREPARATION-2026-10-21.md) repairs the legacy producer source/reader path offline using exact acquired Manual 302 and requested native Manual 303 output. The subsequent [two-owner consumer checkpoint](../docs/CHUNK7-F10-TWO-OWNER-MANUAL303-CONSUMER-2026-10-21.md) closes Manual 303 downstream intake offline. The prelaunch guard, genuine same-candidate producer, full consumer reader/native result and cold continuation remain open under the F10 row. Neither checkpoint alters the original stale Auto failure or current F10 verdict.
 
+[Batch158](../docs/CHUNK7-BATCH158-F10-SOURCE-LINEAGE-2026-10-21.md) adds four actual same-package PASSes for the assisted producer, separate cold, paid Small two-owner Manual 301 and two-owner acquired Manual 302. This **does not** supply the legacy cumulative one-owner Manual 302 source. The already-qualified owner-seed one-owner lineage instead yields acquired Manual 305. The strict 302/303 legacy numbering needs an explicit compatible one-owner route or a genuinely eligible 302 source before the native cumulative and downstream consumer can run. The prelaunch guard stays in force; this updates the F10 dependency without promoting its verdict.
+
 | Requirement | Engineering status and exact evidence/dependency | Next action |
 | --- | --- | --- |
 | Inherited core, F01–F08 | Prior candidate-specific native PASSes retained in `CURRENT.md`; final exact-package reuse unassessed. | Map current supported contracts for final matrix after implementation readiness. |
