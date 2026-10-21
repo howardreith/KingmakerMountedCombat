@@ -20,7 +20,17 @@ internal static class ProgressionProtocolTests {
     case "wrong respec body":r.Progression.BodySize="Small";break;case "missing handedness":r.Progression.LeftHanded=null;break;case "dismissal write":r.Progression.ExpectedNativeWriteCount=1;break;
     case "second write":r.Progression.ExpectedNativeWriteCount=2;break;case "unbounded level":r.Progression.MinimumRangerLevel=21;break;case "wrong autosave leaf":r.Progression.NativeWriteLeaf="Auto_2.zks";break;}
     TestRunner.True(r.Validate().Count>0,"Invalid progression request accepted.");});
-  tests.Run("progression exact rows are registered",()=>{foreach(var name in new[]{"C7-progression-cold-source","C7-progression-native-operation","C7-progression-cold-continuation","C7-progression-cleanup","C7-progression-runtime","C7-progression-interrupted"})TestRunner.True(RuntimeSubscenarioResult.IsMissionScenario(name),"Unknown exact progression row.");TestRunner.True(!RuntimeSubscenarioResult.IsMissionScenario("C7-progression-any"),"Wildcard progression admitted.");});
+  tests.Run("progression exact rows are registered",()=>{foreach(var name in new[]{"C7-progression-cold-source","C7-progression-native-operation","C7-progression-cold-continuation","C7-progression-mammoth-field","C7-progression-cleanup","C7-progression-runtime","C7-progression-interrupted"})TestRunner.True(RuntimeSubscenarioResult.IsMissionScenario(name),"Unknown exact progression row.");TestRunner.True(!RuntimeSubscenarioResult.IsMissionScenario("C7-progression-any"),"Wildcard progression admitted.");});
+  tests.Run("Medium Mammoth field selects its paid read-only Manual",()=>{
+   var r=MediumColdRequest();r.Progression.Case=Chunk7ProgressionSelection.MediumRetrainFieldCase;
+   TestRunner.Equal(0,r.Validate().Count,string.Join(";",r.Validate()));
+   foreach(var mutation in new Action<RuntimeRequest>[]{x=>x.Progression.FormerPetId=x.Progression.PetId,
+    x=>x.Progression.ExpectedNativeWriteCount=1,x=>x.Progression.FixtureExperienceGrant=96000,
+    x=>x.Progression.NativeWriteLeaf="Auto_1.zks",x=>x.Progression.SourceRunId=x.Progression.InventoryRunId}){
+    var changed=MediumColdRequest();changed.Progression.Case=Chunk7ProgressionSelection.MediumRetrainFieldCase;
+    mutation(changed);TestRunner.True(changed.Validate().Count>0,"Altered Mammoth field request accepted.");
+   }
+  });
   tests.Run("retrain cold selects one exact read-only native Manual",()=>{
    var r=ColdRequest();TestRunner.Equal(0,r.Validate().Count,"Valid retrain cold request refused.");
    foreach(var mutation in new Action<RuntimeRequest>[]{x=>x.Progression.FormerPetId=x.Progression.PetId,

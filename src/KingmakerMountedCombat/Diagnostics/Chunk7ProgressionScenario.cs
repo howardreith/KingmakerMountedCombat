@@ -108,6 +108,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 }
                 RequireScope();
                 if (selection.IsLevelCold) { TickLevelCold(); return; }
+                if (selection.IsField) { TickField(); return; }
                 if (selection.IsColdOnly) { TickCold(); return; }
                 session.Tick();
                 if (!session.IsComplete) return;

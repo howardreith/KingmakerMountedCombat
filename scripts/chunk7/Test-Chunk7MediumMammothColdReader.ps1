@@ -47,6 +47,10 @@ function Refuses([string]$name,[scriptblock]$mutation){
 }
 Assert-KmcChunk7RetrainColdState (New-State) $selection $saved $owner $expected
 Write-Host 'PASS batch116 producer-bound Mammoth cold snapshot'
+$fieldSelection=[pscustomobject]@{case='medium-horse-native-retrain-field';actorId=$selection.actorId;petId=$selection.petId;
+    formerPetId=$selection.formerPetId;controlActorId=$selection.controlActorId;controlPetId=$selection.controlPetId}
+Assert-KmcChunk7RetrainColdState (New-State) $fieldSelection $saved $owner $expected
+Write-Host 'PASS Mammoth field case retains the same pre-input native cold contract'
 Refuses 'lost Large upgrade' {param($s)$s.nativeMammoth.mountSize='Medium'}
 Refuses 'rank below seven' {param($s)$s.nativeMammoth.companionRank=6}
 Refuses 'rank inflated during cold load' {param($s)$s.nativeMammoth.companionRank=8}
@@ -61,4 +65,4 @@ $interval.coldContinuation.nativeMammoth.companionRank=8;$refused=$false
 try{Assert-KmcChunk7RetrainColdInterval $interval}catch{$refused=$true}
 if(-not$refused){throw 'Changed Mammoth rank after five frames was accepted.'}
 Write-Host 'PASS refuses changed continuation rank'
-Write-Host 'TOTAL PASS 10 FAIL 0; synthetic cold snapshot anchored to immutable native producer, no native cold qualification'
+Write-Host 'TOTAL PASS 11 FAIL 0; synthetic cold snapshot anchored to immutable native producer, no native field qualification'

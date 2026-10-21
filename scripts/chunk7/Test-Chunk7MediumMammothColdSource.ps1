@@ -31,6 +31,12 @@ if($source.descriptor.sha256-cne$selection.sourceArchiveSha256-or
    $source.descriptor.fileName-cne'Manual_306_KMC_C7_PROGRESSION.zks'-or
    $source.sourceProcessId-ne$artifact.observations.processId){throw 'Genuine Mammoth Manual did not resolve from its accepted producer.'}
 Write-Host 'PASS batch116 genuine Mammoth Manual resolves with same-candidate receipts'
+$field=New-ColdSelection;$field.case='medium-horse-native-retrain-field'
+$fieldSource=Get-KmcChunk7ProgressionSource $field $request.fixture $candidate
+if($fieldSource.descriptor.sha256-cne$selection.sourceArchiveSha256-or$fieldSource.sourceProcessId-ne$source.sourceProcessId){
+    throw 'Mammoth field source did not resolve the same accepted producer Manual.'
+}
+Write-Host 'PASS Mammoth field source resolves the exact paid Manual'
 foreach($name in @('changed output pin','retired Horse aliases new Mammoth','foreign candidate','inventory aliases producer')){
     $selection=New-ColdSelection;$current=$candidate
     switch($name){
@@ -43,4 +49,4 @@ foreach($name in @('changed output pin','retired Horse aliases new Mammoth','for
     if(-not$refused){throw ('Mammoth cold source accepted '+$name)}
     Write-Host ('PASS refuses '+$name)
 }
-Write-Host 'TOTAL PASS 5 FAIL 0; immutable producer source admission only, no native cold qualification'
+Write-Host 'TOTAL PASS 6 FAIL 0; immutable producer source admission only, no native field qualification'

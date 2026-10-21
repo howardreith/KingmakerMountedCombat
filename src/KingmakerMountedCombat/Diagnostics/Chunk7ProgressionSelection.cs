@@ -20,6 +20,7 @@ namespace KingmakerMountedCombat.Diagnostics
         public const string SmallRetrainHorseCase = "small-horse-native-retrain-horse";
         public const string MediumRetrainMammothCase = "medium-horse-native-retrain-mammoth";
         public const string MediumRetrainColdCase = "medium-horse-native-retrain-cold";
+        public const string MediumRetrainFieldCase = "medium-horse-native-retrain-field";
         public const string SmallRetrainColdCase = "small-horse-native-retrain-cold";
         public const string SmallLevelColdCase = "small-horse-native-level-cold";
         public const string OwnedRetrainHorseCase = "owned-horse-native-retrain-horse";
@@ -59,7 +60,9 @@ namespace KingmakerMountedCombat.Diagnostics
         public bool ShouldSerializeOwnedSource() => OwnedSource != null;
         internal bool IsSmallDismiss => Case == SmallDismissCase;
         internal bool IsLevelCold => Case == SmallLevelColdCase;
-        internal bool IsColdOnly => Case == SmallRetrainColdCase || Case == MediumRetrainColdCase || IsLevelCold;
+        internal bool IsMediumRetrainColdSource => Case == MediumRetrainColdCase || Case == MediumRetrainFieldCase;
+        internal bool IsField => Case == MediumRetrainFieldCase;
+        internal bool IsColdOnly => Case == SmallRetrainColdCase || IsMediumRetrainColdSource || IsLevelCold;
         internal bool IsSmallOwned => IsSmallDismiss || Case == SmallRetrainHorseCase || Case == SmallLevelCase;
         internal bool IsMediumOwned => Case == MediumRetrainMammothCase;
         internal bool IsPaidOwned => IsSmallOwned || IsMediumOwned;
