@@ -1,5 +1,9 @@
 Set-StrictMode -Version Latest
 function Test-KmcChunk7AcquiredManualScenario([string]$Scenario){$Scenario-ceq'chunk7-acquired-manual-derivative'}
+function Assert-KmcAcquiredManualPostLoadGameId($Event,$Request){
+ if($null-ne$Event.gameId){Assert-KmcBootstrapInventoryString $Event.gameId $Request.persistenceLoad.gameId}
+ elseif($Request.persistenceLoad.fileName-cne'Manual_304_KMC_C7_MANUAL_DERIVED_FIELD.zks'){throw 'Bootstrap Manual PostLoad lost its required GameId.'}
+}
 function Get-KmcChunk7AcquiredManualRows {@('chunk7-acquired-manual-derivative','C7-acquired-manual-source','C7-acquired-manual-native-load','C7-acquired-manual-restored-owner','C7-acquired-manual-native-field','C7-acquired-manual-numbering','C7-acquired-manual-native-save','C7-acquired-manual-no-arrangement','C7-acquired-manual-cleanup','C7-acquired-manual-runtime','C7-acquired-manual-interrupted')}
 function Assert-KmcChunk7AcquiredManualSelection($Request){
  if($Request-is[Collections.IDictionary]){$Request=[pscustomobject]$Request}
@@ -121,7 +125,7 @@ function Assert-KmcChunk7AcquiredManualEvidence($Request,$Artifact,$SourceArtifa
  $prior=$b.frame
  for($i=0;$i-lt2;$i++){$e=$load.events[$i];$kind=if($i-eq0){'native-player-postload-before'}else{'native-player-postload-after'};Assert-KmcBootstrapInventoryString $e.kind $kind;Assert-KmcOrdinaryInteger $e.frame $prior $w.frame;$prior=$e.frame
   foreach($key in @('game','saveManager','player')){Assert-KmcAcquiredManualObjectIdentity $e.$key;if($e.$key-ne$w.$key){throw 'Native PostLoad callback owner was substituted.'}}
-  Assert-KmcBootstrapInventoryString $e.gameId $Request.persistenceLoad.gameId
+  Assert-KmcAcquiredManualPostLoadGameId $e $Request
   if($i-eq1){Assert-KmcBootstrapInventoryString $e.mainActorId $w.mainActorId}else{if($null-ne$e.mainActorId){Assert-KmcBootstrapInventoryString $e.mainActorId $w.mainActorId}}
  }
  if($load.events[0].frame-ne$load.events[1].frame){throw 'Native PostLoad did not return in its exact synchronous callback.'}
@@ -129,9 +133,9 @@ function Assert-KmcChunk7AcquiredManualEvidence($Request,$Artifact,$SourceArtifa
  foreach($key in @('complete','installedBeforeWorldLoad')){Assert-KmcChunk7Boolean $p.$key $true};Assert-KmcOrdinaryInteger $p.maximumEvents 2048 2048
  foreach($key in @('dropped','errors')){Assert-KmcOrdinaryInteger $p.$key 0 0}
  if($p.events-isnot[Array]-or$p.events.Count-ne0-or$p.hooks-isnot[Array]-or$p.hooks.Count-ne4){throw 'Cold inventory observed native preparation/round or actor/debt restoration.'}
- $tokens=@('06000C3C','0600939D');$methods=@('Prepare','NewRound','RestoreActor','RestoreDebt');$prefixes=@('PrepareBefore','RoundBefore','RestoreActorBefore','RestoreDebtBefore');$postfixes=@('PrepareAfter','RoundAfter','RestoreActorAfter','RestoreDebtAfter')
+ $tokens=@('06000C3C','0600939D');$methods=@('Prepare','OnNewRound','RestoreActor','RestoreDebt');$prefixes=@('PrepareBefore','RoundBefore','RestoreActorBefore','RestoreDebtBefore');$postfixes=@('PrepareAfter','RoundAfter','RestoreActorAfter','RestoreDebtAfter')
  for($i=0;$i-lt4;$i++){$h=$p.hooks[$i];Assert-KmcBootstrapInventoryString $h.method $methods[$i];Assert-KmcBootstrapInventoryString $h.prefix $prefixes[$i];Assert-KmcBootstrapInventoryString $h.postfix $postfixes[$i]
-  if($i-lt2){$type=if($i-eq0){'TurnBased.Controllers.TurnController'}else{'Kingmaker.UnitLogic.UnitCombatState'};Assert-KmcBootstrapInventoryString $h.declaringType $type;Assert-KmcBootstrapInventoryString $h.token $tokens[$i];Assert-KmcBootstrapInventoryString $h.moduleMvid '07fa1e4d-8618-41b3-9b8d-faa17d3b26f7'}else{Assert-KmcBootstrapInventoryString $h.moduleMvid $Request.dllMvid;Assert-KmcBootstrapInventoryString $h.declaringType 'KingmakerMountedCombat.Integration.NativeCombatActorPersistence';if($h.token-isnot[string]-or$h.token-cnotmatch'^06[0-9A-F]{6}$'){throw 'Product restore hook token invalid.'}}
+  if($i-lt2){$type=if($i-eq0){'TurnBased.Controllers.TurnController'}else{'Kingmaker.Controllers.Combat.UnitCombatState'};Assert-KmcBootstrapInventoryString $h.declaringType $type;Assert-KmcBootstrapInventoryString $h.token $tokens[$i];Assert-KmcBootstrapInventoryString $h.moduleMvid '07fa1e4d-8618-41b3-9b8d-faa17d3b26f7'}else{Assert-KmcBootstrapInventoryString $h.moduleMvid $Request.dllMvid;Assert-KmcBootstrapInventoryString $h.declaringType 'KingmakerMountedCombat.Integration.NativeCombatActorPersistence';if($h.token-isnot[string]-or$h.token-cnotmatch'^06[0-9A-F]{6}$'){throw 'Product restore hook token invalid.'}}
  }
  $a=$o.archive;Assert-KmcOrdinaryInteger $a.schemaVersion 3 3;foreach($pair in @(@('campaignId','gameId'),@('areaId','area'))){Assert-KmcBootstrapInventoryString $a.($pair[0]) $Request.persistenceLoad.($pair[1])}
  foreach($key in @('pairs','participations','slots')){Assert-KmcOrdinaryInteger $a.$key 0 0};foreach($key in @('combatPresent','nativeRestorationGrantedByDiagnostic')){Assert-KmcChunk7Boolean $a.$key $false}

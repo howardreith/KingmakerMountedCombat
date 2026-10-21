@@ -1,22 +1,20 @@
 # Chunk 7B–7D — IN PROGRESS
 
-The [batch125 owner-seed cold inventory](docs/CHUNK7-BATCH125-F10-OWNER-SEED-COLD-2026-10-21.md)
-passed one preview.91 guarded native load 4/0 with zero writes and exact
-restoration. It established the pet-free, level-4-ready Ranger source for F10.
-The acquisition producer still admits only the historical bootstrap Manual
-ancestry; an honest owner-seed source mode and native producer/consumer chain
-remain open. The local preview.91 source commit is `ed40ef95`; automatic
-approval review rejected the guarded push helper's WhatIf before it ran.
-Draft PR #5 has not yet received this checkpoint.
-
-The F10 Manual-derived producer and one-owner acquired cold consumer now have
-a reviewed source route that replaces the game's nonexistent level-up Auto
-completion with a genuine, separately authorized field Manual. Focused
-producer/consumer readers and production compilation pass on preview.91.
-No native producer or consumer PASS transfers from
-the old Auto fixture. The cumulative, assisted and historical progression
-Auto waits remain refused. See the [stale-family contract](docs/CHUNK7-STALE-LEVELUP-AUTOSAVE-FAMILIES.md)
-and [active resume](AUTONOMOUS-RESUME.md). Engineering completion is not claimed.
+The [batches 126–127 F10 record](docs/CHUNK7-BATCH126-127-F10-OWNER-FIELD-2026-10-21.md)
+records a preview.92 owner-seed cold PASS followed by native Ranger Horse
+acquisition and genuine field Manual save PASS. Batch127's original outer
+result remains FAIL: its reader expected a populated GameId during synchronous
+PostLoad and retired native round-hook metadata. A corrected external reader
+passes separately on the same frozen artifact; it cannot certify the original
+outer run as a producer source. The reader and tests were independently
+reviewed, with focused producer 118/0 and acquired 150/0. Both native
+transactions restored Mods, saves and profile bytes exactly. The next exact
+candidate needs a same-candidate cold source, a complete outer producer PASS,
+then an independent acquired Manual cold consumer. The historical Auto waits
+remain refused; see the [stale-family contract](docs/CHUNK7-STALE-LEVELUP-AUTOSAVE-FAMILIES.md)
+and [active resume](AUTONOMOUS-RESUME.md). Automatic approval review still
+blocks the guarded push helper's WhatIf, so draft PR #5 is behind these local
+checkpoints. Engineering completion is not claimed.
 
 [Batch124](docs/CHUNK7-BATCH124-THORN-RIVER-DOOR-FIXTURE-2026-10-21.md)
 passed one guarded preview.89 Thorn River Camp fixture run, game and outer
