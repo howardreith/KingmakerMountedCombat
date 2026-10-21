@@ -1,6 +1,37 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
-## Active October 21 after batches 126–127 owner-field diagnosis
+## Active October 21 after batches 128–129 qualified owner field
+
+The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
+[Batches 128–129](docs/CHUNK7-BATCH128-129-F10-OWNER-FIELD-2026-10-21.md)
+used external-reader commit `db548da79550bfb953a1dddb29f19d0d80cb3fde`,
+package SHA-256 `7486bff8087160ea108108ea9f91eb04a17e034df900f9b0af3b5f115941d7f4`,
+suite SHA-256 `5dc1d78a9315296175622d0def837375e1d64097a5829c19138b26390f1a150a`.
+The DLL SHA-256 `e34a153ded5eda94edc075ca3ea5132e2512846b9f9bbedff41e76333946fdfb`
+and MVID `2bacd6bc-dc5c-4731-bfb6-be29bcf81283` stayed unchanged.
+Batch128 owner-seed cold passed with one load and zero writes. Batch129 native
+Ranger Horse acquisition and field `Manual_304_KMC_C7_MANUAL_DERIVED_FIELD.zks`
+passed game and outer validation with one load and one write. Both transactions
+restored Mods, Working, protected saves and profile bytes exactly, with zero
+cache exceptions. The qualified native output archive SHA-256 is
+`57ed9fc9fa17b9756f42fc56511d1a077f3b63bdc53d599fb92641feb48e26ec`.
+
+The separate acquired cold consumer has **not** run. Its initial read-only
+source intake found an external-reader contract error: actual guarded owner
+receipts use empty `persistenceCase` for this scenario; the synthetic reader
+expected null. The qualifier now admits only null/empty and still refuses a
+named case. Synthetic 30/0 and real batch129 source 3/0 pass after the narrow
+correction; independent review covered its provenance and safe read boundary.
+Commit this external-reader/documentation checkpoint, then freeze a new clean
+package and suite. Because the guarded runner binds each native source to
+package commit, run a same-candidate owner-seed cold source and producer once
+more, then the independent acquired Manual cold consumer. The original
+batch127 outer FAIL remains separate; do not transfer PASS across commits.
+The guarded push helper WhatIf remains rejected by automatic approval review
+(`approval required by policy; AskForApproval is Never`); no alternate push.
+F10 and selected 7E engineering completion remain open.
+
+## Historical October 21 after batches 126–127 owner-field diagnosis
 
 The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
 [Batches 126–127](docs/CHUNK7-BATCH126-127-F10-OWNER-FIELD-2026-10-21.md)
