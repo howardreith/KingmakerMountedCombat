@@ -58,6 +58,7 @@ static class AssistedCoreTests
   Check("scheduled native transition waits without click",()=>{var r=new Rig();r.State.TransitionPending=true;using(var d=r.Driver())return d.Tick()==Chunk7AssistedStoryStatus.Waiting&&r.Clicks==0;});
   Check("native busy waits without click",()=>{var r=new Rig();r.State.NativeBusy=true;using(var d=r.Driver())return d.Tick()==Chunk7AssistedStoryStatus.Waiting&&r.Clicks==0;});
   Check("native cutscene waits without click",()=>{var r=new Rig();r.State.Mode="Cutscene";r.State.Cutscene=true;using(var d=r.Driver())return d.Tick()==Chunk7AssistedStoryStatus.Waiting&&r.Clicks==0;});
+  Check("native Dialog inside cutscene remains clickable",()=>{var r=new Rig();r.State.Cutscene=true;using(var d=r.Driver())return d.Tick()==Chunk7AssistedStoryStatus.Clicked&&r.Clicks==1;});
   Check("post-exit Cutscene mode waits across cleared cutscene lock",()=>{var r=new Rig();SystemOffer(r,true);using(var d=r.Driver()){
    if(d.Tick()!=Chunk7AssistedStoryStatus.Clicked)return false;Closed(r,1,28000);
    if(d.Tick()!=Chunk7AssistedStoryStatus.Waiting)return false;

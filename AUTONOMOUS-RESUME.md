@@ -1,5 +1,28 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## Active October 21 after batch142 Dialog-in-Cutscene failure
+
+The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
+[Batch142](docs/CHUNK7-BATCH142-ASSISTED-DIALOG-IN-CUTSCENE-2026-10-21.md)
+retains `20261021-c7b-world98-b141s1-assisted-cutscene` as a separate **FAIL**:
+batch141's broad cutscene-lock wait stalled an ordinary active PC Dialog after
+one story click. Clean package SHA-256
+`fcb7b8c3b5a90630e6cea4baefbb9c68995cb283aebc1bcd849634f50baafcb5`;
+suite SHA-256 `bc97c7da5672865f2316ab7e44070d19b4d85db5ec4e5c202424935749b41598`;
+native evidence SHA-256
+`56db75e6cad8a211f0a905fa99608c05889310f7a068ae452f98324b3d269ed5`.
+Transaction is `restored`: exact Mods/protected-save/profile bytes, zero cache
+exceptions, no game or lock. Earlier failures remain.
+
+Current correction waits on `Cutscene` mode or on cutscene lock outside
+`Dialog` mode. Focused core passed 251/0, source 147/0, Candidate 6/0 in 3.81
+minutes; independent review found no blocker. Next: commit, freeze a clean-HEAD package and
+matched suite, pass scoped WhatIf, then run one corrected guarded producer.
+If a genuine final Manual passes, separately qualify an independent-copy cold
+consumer. Ordinary acquisition, F09, broader F10, doors, F11 and 7E remain
+open. Prior guarded push-helper WhatIf was rejected by automatic approval
+review; do not bypass it. Draft PR #5 remains remote-stale.
+
 ## Active October 21 after batch141 Cutscene-mode gap
 
 The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
