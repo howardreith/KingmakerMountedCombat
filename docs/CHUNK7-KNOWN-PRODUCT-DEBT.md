@@ -1,5 +1,16 @@
 # Chunk 7 known product debt
 
+## October 21 — current disposition after later engineering batches
+
+The pending-only schema-2 resave and separate cold consumer have development
+PASS evidence from batches 41–42; the consumer's original outer FAIL and its
+separate corrected-reader PASS remain distinct. Batches 65 and 67 later passed
+positive mounted cleanup and a genuine independent KMC-DLL-absent cold load.
+Batches 60–61 passed the selected area Auto/cold route. The historical
+statements below describe the evidence available at their own checkpoints.
+Current open work includes an ordinary-door fixture, F09 breadth, F10 remaining
+acquisition/progression scope, F11 measurement/usability, and final-package 7E.
+
 ## October 19 — pending-debt migration engineering result
 
 The historical preview.45 and matched preview.53 schema-3/schema-2 failures

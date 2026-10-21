@@ -8,7 +8,8 @@ custody and next-frame natural retirement; its original outer result remains
 **FAIL** because the reader required an owner generation before the initial
 Mount. The corrected external reader passed the unchanged game evidence 39/0,
 with focused checks 23/0. Every transaction restored exactly. F09 breadth,
-schema migration, F11 and final-package 7E remain open. Batch119 below is
+F11 and final-package 7E remain open; pending-only migration has prior
+development evidence subject to final-package reuse. Batch119 below is
 historical on its own inputs.
 
 [Batch119](docs/CHUNK7-BATCH119-MAMMOTH-DISMOUNT-CUSTODY-2026-10-21.md)

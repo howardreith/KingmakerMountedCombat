@@ -16,10 +16,10 @@ at Mount and the exact mounted generation at Dismount. Focused checks passed
 product build or native rerun followed this reader-only correction. Four
 transactions restored Mods, Working, protected saves and exact Howie profile
 bytes with zero cache exceptions; no Kingmaker process is active. The next
-action is to commit/guarded-push this external-reader/evidence correction and
-advance the next actionable F09/F10/F11 or pending-only migration gate without
-replaying the unchanged field case. F09 breadth, migration, F11 and 7E are
-still open. The batch119 section below is historical.
+action is to advance the next actionable F09/F10/F11 gate without replaying
+the unchanged field case. Pending-only migration already has separate
+development PASS evidence from batches 41–42, subject to final-package reuse.
+F09 breadth, F11 and 7E are still open. The batch119 section below is historical.
 
 ## Active October 21 after batch119 Dismount diagnosis — correction next
 
