@@ -70,7 +70,7 @@ $stages=[Collections.Generic.List[object]]::new();$stages.Add((Run-Child $compil
 $jobs=@(
  [pscustomobject]@{name='core';test=$core;count=124;prefix='ASSISTED FIXTURE CORE';facade=$false},
  [pscustomobject]@{name='affected';test=$affected;count=19;prefix='ASSISTED AFFECTED';facade=$false},
- [pscustomobject]@{name='native-facade';test=$nativeTests;count=105;prefix='ASSISTED NATIVE FACADE';facade=$true}
+ [pscustomobject]@{name='native-facade';test=$nativeTests;count=106;prefix='ASSISTED NATIVE FACADE';facade=$true}
 )
 $passed=0;$failed=0
 if($stages[0].exitCode-eq0){foreach($job in $jobs){
@@ -84,7 +84,7 @@ if($stages[0].exitCode-eq0){foreach($job in $jobs){
  if($ok){$passed+=$job.count;Write-Host $expected}else{$failed++;Write-Host ('FAIL focused stage '+$job.name)}
 }}
 $changed=@($inputs.Keys|Where-Object{(Get-FileHash -LiteralPath $_ -Algorithm SHA256).Hash.ToLowerInvariant()-cne$inputs[$_]})
-$all=$passed-eq248-and$failed-eq0-and$stages.Count-eq7-and@($stages|Where-Object{$_.exitCode-ne0}).Count-eq0-and$changed.Count-eq0
+$all=$passed-eq249-and$failed-eq0-and$stages.Count-eq7-and@($stages|Where-Object{$_.exitCode-ne0}).Count-eq0-and$changed.Count-eq0
 $rows=@($inputs.Keys|Sort-Object|ForEach-Object{[ordered]@{path=$_;sha256=$inputs[$_]}})
 [ordered]@{schemaVersion=1;kind='actual-assisted-core-portable';status=$(if($all){'PASS'}else{'FAIL'});passed=$passed;failed=$failed;stages=@($stages);inputs=$rows;changedInputs=$changed;nativeEngineInvoked=$false;archiveOperations=0;limits=@('Actual services and formatter; generated external game/UI/effect objects','Exact NativeBoundary constructor/read/call prefix, only metadata helper tail substituted','Installed serializer managed dependencies read in place; no engine calls or proprietary copies','No connected host, fixture qualification or native assistance proof')}|ConvertTo-Json -Depth 8|Set-Content -LiteralPath (Join-Path $OutputRoot 'receipt.json') -Encoding UTF8
 Write-Host ('ASSISTED CORE PORTABLE: '+$passed+' PASS / '+$failed+' FAIL')

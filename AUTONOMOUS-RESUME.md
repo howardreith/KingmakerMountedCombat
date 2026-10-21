@@ -1,5 +1,35 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## Active October 21 after batch140 native stop diagnosis
+
+The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
+[Batch140](docs/CHUNK7-BATCH140-ASSISTED-STOP-SETTLEMENT-2026-10-21.md)
+retains the second assisted native **FAIL** on the exact preview.94 diagnostic
+package. Run `20261021-c7b-world96-b139s1-assisted-pending` observed 37 native
+story clicks and a terminal Exit, then Default mode with dialog/cue null but
+`m_DialogStopScheduled=true` for the unchanged 30-second bound; scheduled start
+and cue play were false. Exact installed IL confirms StopDialog sets the flag,
+stops Dialog mode and clears dialog/cue; only a later Tick clears the flag.
+Evidence SHA-256 is
+`2a485560ca345a335510bec21d50adf468bc2bc12e9aeaa269b7a0e11425c2b3`.
+The transaction is `restored` with exact Mods/protected-save/profile bytes,
+zero cache exceptions, no game process or lock. Batch138 and batch139 failures
+remain separately recorded.
+
+Current correction treats the stop flag as pending only while
+Dialog mode remains active or native dialog/cue remains uncleared. Scheduled
+start/cue, all other readiness gates and the two-frame post-click wait remain.
+Focused core 249/0, wiring 87/0, source validation 147/0, development DLL
+SHA-256 `cc3a79f348eac28c3ac88ec2be939ef8f8cc26e1a32ee035425e6fcf70255d0a`.
+Independent review found no concrete blocker for bounded native verification.
+Candidate passed 6/0 in 3.87 minutes. Next: commit, build one clean-HEAD
+package/suite, pass scoped WhatIf, and run one corrected guarded assisted
+producer. If its final Manual passes, a separate independent-copy cold
+consumer remains mandatory. Ordinary new-character acquisition is separate;
+F09 six-pair, broader F10, ordinary doors, F11 and 7E remain open. Guarded
+push-helper WhatIf was previously rejected by automatic approval review, so
+do not use an alternate push; draft PR #5 remains remote-stale.
+
 ## Active October 21 after batch139 assisted native story failure
 
 The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.

@@ -77,10 +77,15 @@ namespace KingmakerMountedCombat.Diagnostics
             // stores both cue fields, Tick clears only m_CuePlayScheduled, Clear clears m_CueToPlay).
             var play=controller!=null&&ReadField<bool>(typeof(NativeController),controller,"m_CuePlayScheduled",0x04005E6F);
             var stop=controller!=null&&ReadField<bool>(typeof(NativeController),controller,"m_DialogStopScheduled",0x04005E70);
+            // Native StopDialog sets this flag before synchronously stopping
+            // Dialog mode and clearing Dialog/CurrentCue. Tick clears the flag
+            // later, but the finished Default-mode controller can retain it.
+            // Only an uncleared or still-active dialog has a pending stop.
+            var stopPending=stop&&(game.IsModeActive(GameModeType.Dialog)||!ReferenceEquals(dialog,null)||!ReferenceEquals(cue,null));
             var popup=DialogMessageBox.Instance;
             var result=new Chunk7AssistedStorySnapshot{Identity=identity,Frame=frame,ElapsedMilliseconds=elapsed.ElapsedMilliseconds,
                 Mode=game.CurrentMode.ToString(),MouseController=game.IsControllerMouse,NativeBusy=nativeBusy(),Cutscene=game.CutsceneLock,
-                UnexpectedPopup=popup!=null&&popup.IsShown,TransitionPending=!ReferenceEquals(scheduled,null)||play||stop,
+                UnexpectedPopup=popup!=null&&popup.IsShown,TransitionPending=!ReferenceEquals(scheduled,null)||play||stopPending,
                 ScheduledStart=!ReferenceEquals(scheduled,null),CuePlayScheduled=play,DialogStopScheduled=stop,
                 DialogActive=game.IsModeActive(GameModeType.Dialog),MainViewReady=main.View!=null&&main.View.AgentASP!=null,
                 Controller=controller,Dialog=dialog,Cue=cue,DialogGuid=dialog==null?null:dialog.AssetGuidThreadSafe,CueGuid=cue==null?null:cue.AssetGuidThreadSafe,

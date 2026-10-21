@@ -148,6 +148,8 @@ and its genuine field Manual/acquired cold chain remain F10 work.
 
 [Batch139](../docs/CHUNK7-BATCH139-ASSISTED-STORY-TRANSITION-DIAGNOSTIC-2026-10-21.md) retains the first assisted native producer **FAIL** after initial Auto and 37 story clicks. The final Manual was not reached; exact restoration passed. A reviewed read-only diagnostic will distinguish the three native sources of the lingering transition-pending flag on one new run. New-character acquisition remains unqualified.
 
+[Batch140](../docs/CHUNK7-BATCH140-ASSISTED-STOP-SETTLEMENT-2026-10-21.md) records the distinct diagnostic native **FAIL**: only the installed dialog-stop flag stayed true after Default mode returned and the dialog/cue cleared. A scoped fixture-readiness correction passed focused checks but awaits review, Candidate and native producer verification. The assisted cold chain and ordinary new-character acquisition remain open.
+
 | Requirement | Engineering status and exact evidence/dependency | Next action |
 | --- | --- | --- |
 | Inherited core, F01–F08 | Prior candidate-specific native PASSes retained in `CURRENT.md`; final exact-package reuse unassessed. | Map current supported contracts for final matrix after implementation readiness. |
