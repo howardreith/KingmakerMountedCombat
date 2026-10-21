@@ -9,6 +9,7 @@ namespace KingmakerMountedCombat.Diagnostics
     internal sealed partial class Chunk7AcquiredManualScenario
     {
         private bool TwoOwners => selection.Case == Chunk7AcquiredManualSelection.TwoOwnerCaseName;
+        private bool PostFieldManual => selection.UsesPostFieldManual;
         private UnitEntityData priorOwner, priorPet;
         private object priorDescriptor, priorPetDescriptor, priorView, priorPetView, priorFeature, priorFeatureSource, priorRank;
         private bool priorBound;

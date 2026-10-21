@@ -10,9 +10,13 @@ namespace KingmakerMountedCombat.Diagnostics
         public const string Scenario = "chunk7-acquired-manual-derivative";
         public const string CaseName = "preserve-acquired-field";
         public const string TwoOwnerCaseName = "preserve-two-acquired-field";
+        public const string PostFieldManualMode = "post-field-manual";
         public const string SourceLeaf = "acquired-manual-source.json";
         public const string OutputName = "KMC_C7_ACQUIRED_FIELD";
         public string Case { get; set; }
+        public string SourceMode { get; set; }
+        public bool ShouldSerializeSourceMode() => SourceMode != null;
+        internal bool UsesPostFieldManual => Case == TwoOwnerCaseName && SourceMode == PostFieldManualMode;
         public string SourceRunId { get; set; }
         public string SourceArtifactSha256 { get; set; }
         public string SourceArchiveSha256 { get; set; }
@@ -29,6 +33,8 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             var errors = new List<string>();
             if (scenario != Scenario || Case != CaseName && Case != TwoOwnerCaseName) errors.Add("Acquired Manual requires its exact field-preserving family.");
+            if (SourceMode != null && !UsesPostFieldManual)
+                errors.Add("Only the two-owner post-field Manual source may select the closed source mode.");
             if (Case == TwoOwnerCaseName)
             {
                 if (!Chunk7ManualDerivedSelection.NativeId(PriorOwnerId) || !Chunk7ManualDerivedSelection.NativeId(PriorPetId) ||

@@ -102,8 +102,8 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             var selected = request?.AcquiredManual; var source = request?.PersistenceLoad;
             return string.Join("\n", request?.RunId, request?.Scenario, request?.EvidenceRoot, request?.Commit, request?.DllSha256,
-                request?.DllMvid, request?.TransactionToken, selected?.Case, selected?.SourceRunId, selected?.SourceArtifactSha256,
-                selected?.SourceArchiveSha256, selected?.ActorId, selected?.PetId, selected?.BaseGameOnly.ToString(),
+                request?.DllMvid, request?.TransactionToken, selected?.Case, selected?.SourceMode, selected?.SourceRunId, selected?.SourceArtifactSha256,
+                selected?.SourceArchiveSha256, selected?.ActorId, selected?.PetId, selected?.PriorOwnerId, selected?.PriorPetId, selected?.BaseGameOnly.ToString(),
                 selected?.ExpectedNativeLoadCount.ToString(), selected?.ExpectedNativeWriteCount.ToString(), source?.FileName,
                 source?.InternalName, source?.GameId, source?.GameName, source?.Area, source?.Sha256, source?.Length.ToString(),
                 source?.LastWriteTimeUtcTicks.ToString());
@@ -118,7 +118,12 @@ namespace KingmakerMountedCombat.Diagnostics
                 Entry input;
                 if (acquiredManualRequest == null || !AcquiredManualRequestUnchanged() ||
                     source == null ||
-                    !(acquiredManualRequest.AcquiredManual.Case == Chunk7AcquiredManualSelection.TwoOwnerCaseName ? source.FileName == "Auto_1.zks" :
+                    !(acquiredManualRequest.AcquiredManual.Case == Chunk7AcquiredManualSelection.TwoOwnerCaseName &&
+                        !acquiredManualRequest.AcquiredManual.UsesPostFieldManual ? source.FileName == "Auto_1.zks" :
+                        acquiredManualRequest.AcquiredManual.UsesPostFieldManual ?
+                        source.FileName == Chunk7CumulativeAcquisitionSelection.AssistedManualOutputLeaf &&
+                        source.InternalName == Chunk7ManualDerivedSelection.ManualOutputName &&
+                        source.FileName == acquiredManualRequest.PersistenceLoad.FileName :
                         (source.FileName == Chunk7ManualDerivedSelection.ManualOutputLeaf || source.FileName == Chunk7ManualDerivedSelection.OwnerSeedOutputLeaf) &&
                         source.FileName == acquiredManualRequest.PersistenceLoad.FileName) ||
                     source.GameId != gameId || source.GameName != gameName ||

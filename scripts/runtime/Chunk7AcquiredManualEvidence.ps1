@@ -1,8 +1,10 @@
 Set-StrictMode -Version Latest
 function Test-KmcChunk7AcquiredManualScenario([string]$Scenario){$Scenario-ceq'chunk7-acquired-manual-derivative'}
+function Test-KmcAcquiredManualPostFieldMode($Selection){$null-ne$Selection-and$Selection.case-ceq'preserve-two-acquired-field'-and$null-ne$Selection.PSObject.Properties['sourceMode']-and$Selection.sourceMode-ceq'post-field-manual'}
+function Test-KmcAcquiredManualAutoSource($Selection){$Selection.case-ceq'preserve-two-acquired-field'-and-not(Test-KmcAcquiredManualPostFieldMode $Selection)}
 function Assert-KmcAcquiredManualPostLoadGameId($Event,$Request){
  if($null-ne$Event.gameId){Assert-KmcBootstrapInventoryString $Event.gameId $Request.persistenceLoad.gameId}
- elseif($Request.persistenceLoad.fileName-cne'Manual_304_KMC_C7_MANUAL_DERIVED_FIELD.zks'){throw 'Bootstrap Manual PostLoad lost its required GameId.'}
+ elseif($Request.persistenceLoad.fileName-cne'Manual_304_KMC_C7_MANUAL_DERIVED_FIELD.zks'-and-not((Test-KmcAcquiredManualPostFieldMode $Request.acquiredManual)-and$Request.persistenceLoad.fileName-ceq'Manual_301_KMC_C7_MANUAL_DERIVED_FIELD.zks')){throw 'Bootstrap Manual PostLoad lost its required GameId.'}
 }
 function Get-KmcChunk7AcquiredManualRows {@('chunk7-acquired-manual-derivative','C7-acquired-manual-source','C7-acquired-manual-native-load','C7-acquired-manual-restored-owner','C7-acquired-manual-native-field','C7-acquired-manual-numbering','C7-acquired-manual-native-save','C7-acquired-manual-no-arrangement','C7-acquired-manual-cleanup','C7-acquired-manual-runtime','C7-acquired-manual-interrupted')}
 function Assert-KmcChunk7AcquiredManualSelection($Request){
@@ -11,7 +13,7 @@ function Assert-KmcChunk7AcquiredManualSelection($Request){
  if(-not(Test-KmcChunk7AcquiredManualScenario $Request.scenario)){if($has){throw 'Manual seed selection is forbidden under another family.'};return}
  if(-not$has){throw 'Manual seed requires its exact explicit selection.'};$s=$Request.acquiredManual
  if($s.case-isnot[string]-or$s.case-cnotin@('preserve-acquired-field','preserve-two-acquired-field')){throw 'Acquired Manual case is not closed.'}
- $keys=@('case','sourceRunId','sourceArtifactSha256','sourceArchiveSha256','actorId','petId','baseGameOnly','expectedNativeLoadCount','expectedNativeWriteCount');if($s.case-ceq'preserve-two-acquired-field'){$keys+=@('priorOwnerId','priorPetId')};Assert-KmcExactProperties $s $keys 'Manual seed selection'
+ $keys=@('case','sourceRunId','sourceArtifactSha256','sourceArchiveSha256','actorId','petId','baseGameOnly','expectedNativeLoadCount','expectedNativeWriteCount');if($s.case-ceq'preserve-two-acquired-field'){$keys+=@('priorOwnerId','priorPetId')};if($null-ne$s.PSObject.Properties['sourceMode']){$keys+='sourceMode';Assert-KmcBootstrapInventoryString $s.sourceMode 'post-field-manual';if($s.case-cne'preserve-two-acquired-field'){throw 'Only two-owner Manual may select post-field source mode.'}};Assert-KmcExactProperties $s $keys 'Manual seed selection'
  if($s.case-ceq'preserve-two-acquired-field'){foreach($key in @('priorOwnerId','priorPetId')){Assert-KmcOrdinaryGuid $s.$key};if(@($s.actorId,$s.petId,$s.priorOwnerId,$s.priorPetId|Select-Object -Unique).Count-ne4){throw 'Two-owner Manual requires four distinct native IDs.'}}
  $ids=[Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal);[void]$ids.Add($Request.runId)
  foreach($key in @('sourceRunId')){if($s.$key-isnot[string]-or$s.$key-cnotmatch'^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$'-or-not$ids.Add($s.$key)){throw 'Manual seed requires distinct completed bootstrap and cold-inventory runs.'}}
@@ -25,10 +27,11 @@ function Assert-KmcChunk7AcquiredManualDescriptor($Request){
  if(-not(Test-KmcChunk7AcquiredManualScenario $Request.scenario)){throw 'Manual seed descriptor belongs only to its closed family.'}
  $d=$Request.persistenceLoad
  Assert-KmcExactProperties $d @('internalName','fileName','sha256','length','lastWriteTimeUtcTicks','gameId','gameName','area') 'Manual seed immutable descriptor'
- if($Request.acquiredManual.case-ceq'preserve-two-acquired-field'){Assert-KmcBootstrapInventoryString $d.fileName 'Auto_1.zks'}
+ if(Test-KmcAcquiredManualAutoSource $Request.acquiredManual){Assert-KmcBootstrapInventoryString $d.fileName 'Auto_1.zks'}
+ elseif(Test-KmcAcquiredManualPostFieldMode $Request.acquiredManual){Assert-KmcBootstrapInventoryString $d.fileName 'Manual_301_KMC_C7_MANUAL_DERIVED_FIELD.zks'}
  elseif($d.fileName-cnotin@('Manual_2_KMC_C7_MANUAL_DERIVED_FIELD.zks','Manual_304_KMC_C7_MANUAL_DERIVED_FIELD.zks')){throw 'One-owner acquired source is not a closed field Manual.'}
  Assert-KmcBootstrapInventoryString $d.sha256 $Request.acquiredManual.sourceArchiveSha256
- if($Request.acquiredManual.case-ceq'preserve-acquired-field'){Assert-KmcBootstrapInventoryString $d.internalName 'KMC_C7_MANUAL_DERIVED_FIELD'}
+ if($Request.acquiredManual.case-ceq'preserve-acquired-field'-or(Test-KmcAcquiredManualPostFieldMode $Request.acquiredManual)){Assert-KmcBootstrapInventoryString $d.internalName 'KMC_C7_MANUAL_DERIVED_FIELD'}
  foreach($key in @('internalName','gameName')){if($d.$key-isnot[string]-or[string]::IsNullOrWhiteSpace($d.$key)-or$d.$key.Length-gt256-or$d.$key-match'[\x00-\x1f\x7f]'){throw 'Manual seed source native name is malformed.'}}
  Assert-KmcOrdinaryGuid $d.gameId
  if($d.gameId-ceq$Request.fixture.working.gameId-or$d.sha256-ceq$Request.fixture.working.sha256-or$d.sha256-ceq$Request.fixture.baseline.sha256-or$d.area-isnot[string]-or$d.area-cnotmatch'^[a-f0-9]{32}$'){throw 'Manual seed source must be the distinct native-minted campaign.'}
@@ -70,7 +73,7 @@ function Assert-KmcChunk7AcquiredManualEvidence($Request,$Artifact,$SourceArtifa
  Assert-KmcChunk7AcquiredManualDescriptor $Request;Assert-KmcChunk7ArtifactEnvelope $Request $Artifact 'chunk7-acquired-manual-evidence'
  if($Status-ceq'PASS'-and$Artifact.status-cne'PASS'){throw 'PASS cold inventory requires its PASS native artifact.'}
  if($Artifact.status-cne'PASS'){return}
- $o=$Artifact.observations;$s=$Request.acquiredManual;$source=$SourceArtifact;$two=$s.case-ceq'preserve-two-acquired-field'
+ $o=$Artifact.observations;$s=$Request.acquiredManual;$source=$SourceArtifact;$two=$s.case-ceq'preserve-two-acquired-field';$post=Test-KmcAcquiredManualPostFieldMode $s
  if($s.case-ceq'preserve-two-acquired-field'){Assert-KmcBootstrapInventoryString $source.evidenceKind 'chunk7-cumulative-acquisition-evidence'}
  foreach($key in @('commit','dllSha256','dllMvid')){Assert-KmcBootstrapInventoryString $source.$key $Request.$key}
  Assert-KmcBootstrapInventoryString $source.runId $s.sourceRunId;Assert-KmcBootstrapInventoryString $source.scenario $(if($s.case-ceq'preserve-two-acquired-field'){'chunk7-cumulative-acquisition'}else{'chunk7-manual-derived-acquisition'});Assert-KmcBootstrapInventoryString $source.status 'PASS'
@@ -89,12 +92,13 @@ function Assert-KmcChunk7AcquiredManualEvidence($Request,$Artifact,$SourceArtifa
  if((ConvertTo-KmcChunk7Canonical $o.sourceAcquisition)-cne(ConvertTo-KmcChunk7Canonical $source.observations)){throw 'Derivative substituted its complete source acquisition observations.'}
  $paid=Test-KmcManualDerivedPaidCase $source.observations.selection.case;if($source.observations.selection.case-isnot[string]-or$source.observations.selection.case-cnotin@('existing-ranger-horse','paid-small-ranger-horse','paid-medium-ranger-horse')){throw 'Acquired Manual source case differs.'}
  Assert-KmcBootstrapInventoryString $source.observations.field.actorId $s.actorId;Assert-KmcBootstrapInventoryString $source.observations.field.petId $s.petId
- $selectorNeeded=$two-and$paid
- if($two){Assert-KmcChunk7Boolean $source.observations.nativeWrite.saveBeforeFieldSelection $paid}
+ $selectorNeeded=$two-and$paid-and-not$post
+ if($two-and-not$post){Assert-KmcChunk7Boolean $source.observations.nativeWrite.saveBeforeFieldSelection $paid}
  else{Assert-KmcChunk7Boolean $source.observations.nativeWrite.saveAfterFieldSelection $true;Assert-KmcBootstrapInventoryString $source.observations.nativeWrite.type 'Manual';Assert-KmcBootstrapInventoryString $source.observations.nativeWrite.internalName 'KMC_C7_MANUAL_DERIVED_FIELD'}
+ if($post){Assert-KmcBootstrapInventoryString $source.observations.selection.sourceMode 'assisted-producer-and-cold';Assert-KmcBootstrapInventoryString $source.observations.nativeWrite.leaf 'Manual_301_KMC_C7_MANUAL_DERIVED_FIELD.zks';Assert-KmcChunk7Boolean $source.observations.nativeWrite.emptyMountedArchive $true}
  Assert-KmcChunk7Boolean $o.sourceSavedBeforeSelector $selectorNeeded
- $loadedExpected=if($two){[pscustomobject]@{mainActorId=$o.sourceNativeWorld.mainActorId;party=@($o.sourceNativeWorld.party)}}else{[pscustomobject]@{mainActorId=$source.observations.savedFieldWorld.mainActorId;party=@($source.observations.savedFieldWorld.party)}}
- if($two-and-not$paid){$loadedExpected.party+=,[pscustomobject]@{id=$s.petId;blueprint=$source.observations.field.horseBlueprint}}
+ $loadedExpected=if($two-and-not$post){[pscustomobject]@{mainActorId=$o.sourceNativeWorld.mainActorId;party=@($o.sourceNativeWorld.party)}}else{[pscustomobject]@{mainActorId=$source.observations.savedFieldWorld.mainActorId;party=@($source.observations.savedFieldWorld.party)}}
+ if($two-and-not$post-and-not$paid){$loadedExpected.party+=,[pscustomobject]@{id=$s.petId;blueprint=$source.observations.field.horseBlueprint}}
  $fieldExpected=[pscustomobject]@{mainActorId=$loadedExpected.mainActorId;party=@($loadedExpected.party)}
  if($selectorNeeded){$actorProfile=@($source.observations.field.profileInventory.party|Where-Object id -CEQ $s.actorId);if($actorProfile.Count-ne1){throw 'Qualified source acquired actor profile is missing.'};$fieldExpected.party+=,[pscustomobject]@{id=$s.actorId;blueprint=$actorProfile[0].blueprintGuid};$fieldExpected.party+=,[pscustomobject]@{id=$s.petId;blueprint=$source.observations.field.horseBlueprint}}
  $b=$o.beforeLoad;$w=$o.loadedWorld;$d=$o.fieldWorld;$v=$o.savedWorld;$f=$o.settledWorld;$load=$o.nativeLoad;$registry=$load.identities
@@ -225,9 +229,9 @@ function Assert-KmcAcquiredManualNativeSave($Request,$O,$Labels,[string]$Root){
  foreach($d in $O.settledDescriptors){if($d.fileName-isnot[string]-or-not$leaves.Add($d.fileName)){throw 'Settled descriptor leaf is invalid or duplicate.'}
   $source=$d.fileName-ceq$Request.persistenceLoad.fileName;if(-not$source-and$d.fileName-cne$leaf){throw 'Foreign settled descriptor.'}
   Assert-KmcAcquiredManualObjectIdentity $d.descriptor;if(-not$Labels.Contains([int]$d.descriptor)){throw 'Settled descriptor label was not retained.'}
-  if($source){if(-not$roles.Add([int]$d.descriptor)){throw 'Source descriptor aliases a native owner.'};Assert-KmcBootstrapInventoryString $d.internalName $Request.persistenceLoad.internalName;Assert-KmcBootstrapInventoryString $d.type $(if($Request.acquiredManual.case-ceq'preserve-two-acquired-field'){'Auto'}else{'Manual'})}else{Assert-KmcOrdinaryInteger $d.descriptor $write.writtenDescriptor $write.writtenDescriptor;Assert-KmcBootstrapInventoryString $d.internalName 'KMC_C7_ACQUIRED_FIELD';Assert-KmcBootstrapInventoryString $d.type 'Manual'}
+  if($source){if(-not$roles.Add([int]$d.descriptor)){throw 'Source descriptor aliases a native owner.'};Assert-KmcBootstrapInventoryString $d.internalName $Request.persistenceLoad.internalName;Assert-KmcBootstrapInventoryString $d.type $(if(Test-KmcAcquiredManualAutoSource $Request.acquiredManual){'Auto'}else{'Manual'})}else{Assert-KmcOrdinaryInteger $d.descriptor $write.writtenDescriptor $write.writtenDescriptor;Assert-KmcBootstrapInventoryString $d.internalName 'KMC_C7_ACQUIRED_FIELD';Assert-KmcBootstrapInventoryString $d.type 'Manual'}
   foreach($key in @('gameId','gameName','area')){Assert-KmcBootstrapInventoryString $d.$key $Request.persistenceLoad.$key};Assert-KmcBootstrapInventoryString $d.operationState 'None'
-  foreach($key in @('isActuallySaved','hasFileOnDisk')){Assert-KmcChunk7Boolean $d.$key $true};Assert-KmcChunk7Boolean $d.autoLevelup ($source-and$Request.acquiredManual.case-ceq'preserve-two-acquired-field')
+  foreach($key in @('isActuallySaved','hasFileOnDisk')){Assert-KmcChunk7Boolean $d.$key $true};Assert-KmcChunk7Boolean $d.autoLevelup ($source-and(Test-KmcAcquiredManualAutoSource $Request.acquiredManual))
  }
  if(-not$leaves.Contains($Request.persistenceLoad.fileName)-or-not$leaves.Contains($leaf)){throw 'Native settled two-entry inventory differs.'}
  foreach($row in @($O.beforeSaveArrangement,$O.afterSaveArrangement)){Assert-KmcAcquiredManualArrangement $row $f $O.nativeProfileInventory;Assert-KmcOrdinaryInteger $row.experienceRatePercent $O.fixtureReadiness.experienceRatePercent $O.fixtureReadiness.experienceRatePercent}
@@ -284,14 +288,14 @@ function Assert-KmcAcquiredFixtureReadiness($Row,$Request,$World,$Settled,$Inven
  if($d.descriptors-isnot[Array]-or$d.descriptors.Count-ne1){throw 'Read-only isolated inventory must contain exactly its admitted acquisition descriptor.'};$v=$d.descriptors[0]
  Assert-KmcExactProperties $v @('fileName','internalName','gameId','gameName','area','type','isAutoLevelupSave','isActuallySaved','hasFileOnDisk','operationState','systemSaveTimeTicks','systemSaveTimeKind') 'isolated native descriptor'
  foreach($key in @('fileName','internalName','gameId','gameName','area')){Assert-KmcBootstrapInventoryString $v.$key $Request.persistenceLoad.$key}
- Assert-KmcBootstrapInventoryString $v.type $(if($Request.acquiredManual.case-ceq'preserve-two-acquired-field'){'Auto'}else{'Manual'});Assert-KmcBootstrapInventoryString $v.operationState 'None';Assert-KmcChunk7Boolean $v.hasFileOnDisk $true;Assert-KmcChunk7Boolean $v.isAutoLevelupSave ($Request.acquiredManual.case-ceq'preserve-two-acquired-field')
+ Assert-KmcBootstrapInventoryString $v.type $(if(Test-KmcAcquiredManualAutoSource $Request.acquiredManual){'Auto'}else{'Manual'});Assert-KmcBootstrapInventoryString $v.operationState 'None';Assert-KmcChunk7Boolean $v.hasFileOnDisk $true;Assert-KmcChunk7Boolean $v.isAutoLevelupSave (Test-KmcAcquiredManualAutoSource $Request.acquiredManual)
  # Installed getters06007FE1/06007FE2 both return nonempty FolderName; a disk-backed settled descriptor has both true.
  Assert-KmcChunk7Boolean $v.isActuallySaved $true;Assert-KmcOrdinaryInteger $v.systemSaveTimeTicks 0 ([DateTime]::MaxValue.Ticks)
  if($v.systemSaveTimeKind-isnot[string]-or$v.systemSaveTimeKind-cnotin@('Unspecified','Utc','Local')){throw 'Native save timestamp kind is malformed.'}
 }
 
 function Assert-KmcAcquiredManualField($Request,$O,$Source,$Labels,[string]$Root,[bool]$Paid){
- $s=$Request.acquiredManual;$b=$O.beforeLoad;$w=$O.loadedWorld;$d=$O.fieldWorld;$v=$O.savedWorld;$r=$O.reservation;$selectorNeeded=$Paid-and$s.case-ceq'preserve-two-acquired-field'
+ $s=$Request.acquiredManual;$b=$O.beforeLoad;$w=$O.loadedWorld;$d=$O.fieldWorld;$v=$O.savedWorld;$r=$O.reservation;$selectorNeeded=$Paid-and(Test-KmcAcquiredManualAutoSource $s)
  Assert-KmcOrdinaryInteger $r.number 1 ([int]::MaxValue);Assert-KmcOrdinaryInteger $r.count 1 1;Assert-KmcOrdinaryInteger $r.frame $b.frame $b.frame
  foreach($pair in @(@('initialEntries',1),@('reservedEntries',2),@('initialWritableEntries',0),@('reservedWritableEntries',1))){Assert-KmcOrdinaryInteger $r.($pair[0]) $pair[1] $pair[1]}
  Assert-KmcChunk7Boolean $r.beforeLoad $true;Assert-KmcChunk7Boolean $r.slotProjectionEnabled $false
@@ -306,8 +310,8 @@ function Assert-KmcAcquiredManualField($Request,$O,$Source,$Labels,[string]$Root
  Assert-KmcOrdinaryInteger $sourceDescriptor.descriptor $r.sourceDescriptor $r.sourceDescriptor
  if(-not$Labels.Contains([int]$r.sourceDescriptor)){throw 'Reserved native source descriptor was not retained.'}
  foreach($key in @('fileName','internalName','gameId','gameName','area')){Assert-KmcBootstrapInventoryString $sourceDescriptor.$key $Request.persistenceLoad.$key}
- foreach($key in @('isActuallySaved','hasFileOnDisk')){Assert-KmcChunk7Boolean $sourceDescriptor.$key $true};Assert-KmcChunk7Boolean $sourceDescriptor.autoLevelup ($Request.acquiredManual.case-ceq'preserve-two-acquired-field')
- Assert-KmcBootstrapInventoryString $sourceDescriptor.type $(if($Request.acquiredManual.case-ceq'preserve-two-acquired-field'){'Auto'}else{'Manual'});Assert-KmcBootstrapInventoryString $sourceDescriptor.operationState 'None'
+ foreach($key in @('isActuallySaved','hasFileOnDisk')){Assert-KmcChunk7Boolean $sourceDescriptor.$key $true};Assert-KmcChunk7Boolean $sourceDescriptor.autoLevelup (Test-KmcAcquiredManualAutoSource $Request.acquiredManual)
+ Assert-KmcBootstrapInventoryString $sourceDescriptor.type $(if(Test-KmcAcquiredManualAutoSource $Request.acquiredManual){'Auto'}else{'Manual'});Assert-KmcBootstrapInventoryString $sourceDescriptor.operationState 'None'
  $settledSource=@($O.settledDescriptors|Where-Object fileName -CEQ $Request.persistenceLoad.fileName);if($settledSource.Count-ne1-or(ConvertTo-KmcChunk7Canonical $settledSource[0])-cne(ConvertTo-KmcChunk7Canonical $sourceDescriptor)){throw 'Native source descriptor changed across cold load or fresh save.'}
  foreach($actor in $w.party){$now=@($d.party|Where-Object id -CEQ $actor.id);if($now.Count-ne1-or(ConvertTo-KmcChunk7Canonical $now[0])-cne(ConvertTo-KmcChunk7Canonical $actor)){throw 'Owned field selector changed an original actor/view.'}}
  foreach($key in @('game','saveManager','player','state','areaState','mainState','mainActorId','party')){if((ConvertTo-KmcChunk7Canonical $v.$key)-cne(ConvertTo-KmcChunk7Canonical $d.$key)){throw 'Manual write changed the exact field world.'}}
@@ -324,7 +328,7 @@ function Assert-KmcAcquiredManualField($Request,$O,$Source,$Labels,[string]$Root
   foreach($a in $world.party){foreach($key in @('object','descriptor','view')){[void]$roles.Add([int]$a.$key)}}
   foreach($spec in @(@('actor',$s.actorId),@('pet',$s.petId))){$name=$spec[0];$id=$spec[1];$native=@($world.party|Where-Object id -CEQ $id)
    foreach($key in @('Object','Descriptor','View')){$label=$owner.($name+$key)
-    if($key-ceq'View'-and$i-eq0-and$Paid-and$label-eq0){Assert-KmcOrdinaryInteger $label 0 0;continue}
+    if($key-ceq'View'-and$i-eq0-and$selectorNeeded-and$label-eq0){Assert-KmcOrdinaryInteger $label 0 0;continue}
     Assert-KmcAcquiredManualObjectIdentity $label;if(-not$Labels.Contains([int]$label)){throw 'Acquired owner label was not retained.'}
     if($native.Count-eq1){$nativeKey=$key.ToLowerInvariant();Assert-KmcOrdinaryInteger $label $native[0].$nativeKey $native[0].$nativeKey}elseif(-not$roles.Add([int]$label)){throw 'Remote acquired owner aliases another native role.'}
    }
@@ -359,7 +363,7 @@ function Assert-KmcAcquiredManualField($Request,$O,$Source,$Labels,[string]$Root
  $originalProgression=[pscustomobject]@{money=$O.loadedArrangement.money;experienceRatePercent=$O.loadedArrangement.experienceRatePercent;actors=@($O.loadedArrangement.actors|Where-Object{$_.actorId-cin@($Source.afterChoices.actors.actorId)})}
  if((ConvertTo-KmcChunk7Canonical $originalProgression)-cne(ConvertTo-KmcChunk7Canonical $Source.afterChoices)){throw 'Cold original progression differs from the completed acquisition.'}
  foreach($spec in @(@($s.actorId,'level','xp'),@($s.petId,'petLevel','petExperience'))){$row=@($O.loadedArrangement.actors|Where-Object actorId -CEQ $spec[0]);if($row.Count-ne1){throw 'Cold acquired progression actor missing.'};Assert-KmcOrdinaryInteger $row[0].characterLevel $Source.builderComplete.($spec[1]) $Source.builderComplete.($spec[1]);Assert-KmcOrdinaryInteger $row[0].experience $Source.builderComplete.($spec[2]) $Source.builderComplete.($spec[2])}
- if($s.case-ceq'preserve-acquired-field'){
+ if($s.case-ceq'preserve-acquired-field'-or(Test-KmcAcquiredManualPostFieldMode $s)){
   $saved=@($Source.afterSaveArrangement.acquired);$cold=@($O.loadedArrangement.actors|Where-Object{$_.actorId-cin@($s.actorId,$s.petId)})
   if($saved.Count-ne2-or$cold.Count-ne2-or(ConvertTo-KmcChunk7Canonical $cold)-cne(ConvertTo-KmcChunk7Canonical $saved)){throw 'Cold acquired XP, level or class inventory differs from the exact saved field Manual.'}
  }

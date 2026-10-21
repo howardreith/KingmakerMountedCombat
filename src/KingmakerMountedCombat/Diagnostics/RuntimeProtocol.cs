@@ -246,7 +246,7 @@ namespace KingmakerMountedCombat.Diagnostics
             PersistenceCase == "multi-area-autosave" ? PersistenceAreaTarget?.Area :
             (PersistenceCase == Chunk7OwnedPairsSelection.ManticoreFixtureCheckpoint ||
                 Chunk7OwnedPairsSelection.IsManticoreManualCold(PersistenceCase)) ? Chunk7OwnedPairsSelection.ManticoreFixtureArea : SelectedChunk7Fixture?.Area;
-        internal string ExpectedNativeLoadType => (Scenario == Chunk7AcquiredManualSelection.Scenario && AcquiredManual?.Case == Chunk7AcquiredManualSelection.TwoOwnerCaseName || Scenario == Chunk7ManualSeedSelection.Scenario || Scenario == Chunk7BootstrapInventorySelection.Scenario || Scenario == Chunk7SmallCalibrationSelection.Scenario && SmallCalibration?.UsesColdManualField != true || Scenario == Chunk7OrdinaryFieldSelection.Scenario) ? "Auto" : SelectedChunk7Scenario == "chunk7-persistence-load" && PersistenceLoad != null && IsChunk7PersistenceCase(PersistenceCase) ?
+        internal string ExpectedNativeLoadType => (Scenario == Chunk7AcquiredManualSelection.Scenario && AcquiredManual?.Case == Chunk7AcquiredManualSelection.TwoOwnerCaseName && AcquiredManual.SourceMode == null || Scenario == Chunk7ManualSeedSelection.Scenario || Scenario == Chunk7BootstrapInventorySelection.Scenario || Scenario == Chunk7SmallCalibrationSelection.Scenario && SmallCalibration?.UsesColdManualField != true || Scenario == Chunk7OrdinaryFieldSelection.Scenario) ? "Auto" : SelectedChunk7Scenario == "chunk7-persistence-load" && PersistenceLoad != null && IsChunk7PersistenceCase(PersistenceCase) ?
             (PersistenceCase == "multi-exploration-quick" ? "Quick" : PersistenceCase == "multi-exploration-auto" || PersistenceCase == "multi-area-autosave" ? "Auto" : "Manual") :
             IsTransitionAutoCase(PersistenceCase) ? "Auto" :
             Scenario == "persistence-p05-load" && PersistenceLoad != null ?
@@ -736,12 +736,13 @@ namespace KingmakerMountedCombat.Diagnostics
                 {
                     if (string.IsNullOrWhiteSpace(PersistenceLoad.InternalName) || PersistenceLoad.InternalName.Length > 256 || PersistenceLoad.InternalName.Any(char.IsControl))
                         errors.Add("Native bootstrap autosave name is missing or invalid.");
-                    var sourcePattern = AcquiredManual?.Case == Chunk7AcquiredManualSelection.TwoOwnerCaseName ?
-                        "^Auto_1\\.zks$" : "^Manual_(2|304)_KMC_C7_MANUAL_DERIVED_FIELD\\.zks$";
+                    var sourcePattern = AcquiredManual?.Case == Chunk7AcquiredManualSelection.TwoOwnerCaseName && AcquiredManual.SourceMode == null ?
+                        "^Auto_1\\.zks$" : AcquiredManual?.UsesPostFieldManual == true ?
+                        "^Manual_301_KMC_C7_MANUAL_DERIVED_FIELD\\.zks$" : "^Manual_(2|304)_KMC_C7_MANUAL_DERIVED_FIELD\\.zks$";
                     errors.AddRange(PersistenceLoad.Validate("persistenceLoad", PersistenceLoad.InternalName, sourcePattern));
-                    if (AcquiredManual?.Case == Chunk7AcquiredManualSelection.CaseName &&
+                    if ((AcquiredManual?.Case == Chunk7AcquiredManualSelection.CaseName || AcquiredManual?.UsesPostFieldManual == true) &&
                         PersistenceLoad.InternalName != Chunk7ManualDerivedSelection.ManualOutputName)
-                        errors.Add("One-owner acquired source requires its exact field Manual name.");
+                        errors.Add("Field Manual acquired source requires its exact native name.");
                     if (Fixture?.Working == null || PersistenceLoad.GameId == Fixture.Working.GameId ||
                         !Guid.TryParseExact(PersistenceLoad.GameId, "D", out var mintedAcquiredId) || mintedAcquiredId == Guid.Empty ||
                         string.IsNullOrWhiteSpace(PersistenceLoad.GameName) || PersistenceLoad.Sha256 == Fixture.Working.Sha256 ||
