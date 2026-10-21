@@ -51,6 +51,14 @@ namespace KingmakerMountedCombat.Diagnostics
                 SettingsRoot.Instance.AutoLevelup.CurrentValue = AutolevelupState.Off;
                 for (var rangerLevel = 1; rangerLevel <= 4; rangerLevel++)
                 {
+                    // StartWithoutAssigningStaticInstance can construct a controller
+                    // even when this disposable actor has no native level-up due.
+                    // Fixture setup must not turn that into four free levels.
+                    if (!LevelUpController.CanLevelUp(owner.Descriptor))
+                    {
+                        throw new InvalidOperationException("Native Ranger fixture owner has no level-up entitlement before Ranger level " +
+                            rangerLevel + ".");
+                    }
                     LevelUpController controller = null;
                     var committed = false;
                     try
