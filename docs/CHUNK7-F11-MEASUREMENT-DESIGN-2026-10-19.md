@@ -212,6 +212,15 @@ extracted startup 45/0 plus reader 45/0, and Candidate 7/0 passed offline.
 Game callback delivery, actual rates, profile effects and transaction
 restoration remain to be measured in one declared guarded native scenario.
 
+[Batch156](CHUNK7-BATCH156-F11-NATIVE-ALLOCATION-2026-10-21.md) executed that
+single guarded scenario: game PASS 8/0, positive in-process callback handshake
+and twelve complete raw windows. The original outer FAIL from a Single/Double
+reader roundtrip remains distinct from a reviewed reader-only PASS on its
+unchanged artifact. The transaction restored Mods/Working/protected saves with
+26 accepted profile cache changes. The measured 0/1/2/0 rates remain
+development observations; diagnostics-off normal-player comparison and
+performance acceptance are still open.
+
 Before seeing final measurements, the comparison rule is: repeated windows
 must retain the same declared actor/owner/subscription population within
 each state, and repeated settled lifecycle cycles must return to the same

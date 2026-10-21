@@ -103,7 +103,9 @@ function Assert-KmcMatchedPoolSample($Sample,[string]$Label,[int]$Active,[bool]$
         foreach($value in $native.objectBytesPerUpdate){$sum+=[decimal]$value}
         Assert-KmcMatchedInt64 $native.totalObjectBytes
         if($native.totalObjectBytes-ne$sum){throw 'F11 total object bytes differ from raw Update windows.'}
-        $elapsed=0d;foreach($value in $Sample.frameSeconds){$elapsed+=[double]$value}
+        # The product stores Unity frame deltas as Single before summing them
+        # as Double. Reconstruct those exact values from JSON round-trip text.
+        $elapsed=0d;foreach($value in $Sample.frameSeconds){$elapsed+=[double][single]$value}
         if(-not(Test-KmcChunk7FiniteNumber $native.elapsedFrameSeconds)-or
             [Math]::Abs([double]$native.elapsedFrameSeconds-$elapsed)-gt0.00001-or
             -not(Test-KmcChunk7FiniteNumber $native.objectBytesPerElapsedSecond)-or

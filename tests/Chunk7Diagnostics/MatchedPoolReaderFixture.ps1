@@ -58,6 +58,13 @@ function Invoke-MatchedPoolReaderChecks([string]$ActualCollector,[string]$Output
   })
  }
  Check-Matched 'selected F11 native allocation vectors reconcile with all 120 measured Updates' {Assert-KmcMatchedPoolEvidence $f11Request $f11Artifact $world $worldHash 'PASS'}
+ Check-Matched 'F11 rate reconstructs product Single frame deltas before Double summation' {
+  $v=Copy-Matched $f11Artifact;$s=$v.observations.rows[0].sample;$n=$s.nativeAllocation
+  $s.frameSeconds=@(1..120|ForEach-Object{0.010123457});$s.frameP50Ms=10.123457;$s.frameP95Ms=10.123457
+  $n.objectBytesPerUpdate=@(1..120|ForEach-Object{25338L});$n.totalObjectBytes=3040560L
+  $n.elapsedFrameSeconds=120d*[double][single]0.010123457;$n.objectBytesPerElapsedSecond=3040560d/$n.elapsedFrameSeconds
+  Assert-KmcMatchedPoolEvidence $f11Request $v $world $worldHash 'PASS'
+ }
  Reject-Matched 'unselected native allocation claim' {Assert-KmcMatchedPoolEvidence $request $f11Artifact $world $worldHash 'PASS'}
  Reject-Matched 'missing selected F11 window' {$v=Copy-Matched $f11Artifact;$v.observations.rows[0].sample.nativeAllocation.PSObject.Properties.Remove('objectBytesPerUpdate');Assert-KmcMatchedPoolEvidence $f11Request $v $world $worldHash 'PASS'}
  Reject-Matched 'short selected F11 window' {$v=Copy-Matched $f11Artifact;$v.observations.rows[0].sample.nativeAllocation.callbacksPerUpdate=@(1..119|ForEach-Object{1L});Assert-KmcMatchedPoolEvidence $f11Request $v $world $worldHash 'PASS'}
