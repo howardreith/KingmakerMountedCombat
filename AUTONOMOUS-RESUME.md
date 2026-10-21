@@ -1,5 +1,20 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## Active October 20 after batch104 — choose the next real native F10 route
+
+The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
+[Batch104](docs/CHUNK7-BATCH104-F10-EXISTING-ACQUISITION-READER-2026-10-20.md)
+adds one source-specific existing owner-seed Ranger acquisition reader PASS and
+five altered-input refusals to the paid-hire operation reader of batch103. Both
+use the immutable preview.71 batch53 F09 evidence; that producer remains
+fixture setup only, with its original verdict and failure history intact. No
+DLL or new native transaction was performed. Current successor HEAD must be
+refreshed before further edits. The latest native batch102 was restored, with
+no game or lock. Next: identify a finite new-character route or repair an
+applicable Manual completion pipeline; do not choose legacy Working merely
+because the stale scenario names it. Continue F09/F11 independently. The
+ordinary level-up Auto remains impossible in this installed game.
+
 ## Active October 20 after batch103 — continue F10 native routes and F09/F11
 
 The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.

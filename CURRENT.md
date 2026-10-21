@@ -1,5 +1,15 @@
 # Chunk 7B–7D — IN PROGRESS
 
+## October 20 — batch104 existing owner-seed Ranger acquisition operation
+
+[Batch104](docs/CHUNK7-BATCH104-F10-EXISTING-ACQUISITION-READER-2026-10-20.md)
+adds a separate reader-only, source-specific PASS: the existing owner-seed main
+Ranger acquired a sourced Horse on one ordinary native level 3-to-4 commit,
+with no XP/money assistance. One positive and five altered-input refusals
+passed. The batch53 F09 fixture-only verdict and historical Auto-wait blocker
+remain unchanged. New-campaign/general existing support, later leveling,
+replacement, F09/F11 breadth and private 7E remain open.
+
 ## October 20 — batch103 scoped paid-hire operation from retained F09 evidence
 
 [Batch103](docs/CHUNK7-BATCH103-F10-PAID-HIRE-READER-2026-10-20.md)
