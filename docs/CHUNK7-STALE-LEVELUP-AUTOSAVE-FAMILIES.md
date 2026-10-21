@@ -73,8 +73,9 @@ These families do not route through a level-up autosave wait:
   field admission, then request a distinct native `Manual_2_KMC_C7_MANUAL_DERIVED_FIELD.zks`.
   The producer observes request, prepared write, worker, callback, and settled field roster;
   its strict reader binds the newly acquired owner/Horse to that field state. This is an
-  engineering route awaiting same-candidate native producer and cold-consumer qualification,
-  not a claim that the historical Auto producer passed. Cumulative dispatch still takes the
+  engineering route whose owner-seed source, same-candidate native producer and separate
+  cold consumer passed in [batches 131–133](CHUNK7-BATCH131-133-F10-ACQUIRED-COLD-2026-10-21.md).
+  This does not pass the historical Auto producer. Cumulative dispatch still takes the
   blocked Auto route.
 - `chunk7-assisted-cold-inventory`.
 - The owned-pair persistence, combat, realtime and native-life families.
@@ -123,8 +124,10 @@ from the test, and from this note in the same change.
 3. `chunk7-assisted-fixture-preparation`
 4. `chunk7-native-progression`: the historical level case and two historical respec cases
 
-The Manual-derived producer and one-owner acquired cold consumer are repaired in
-source and focused readers; their actual native qualification is pending.
+The selected owner-seed Manual-derived producer and one-owner acquired cold
+consumer are repaired and passed actual native qualification in batches 131–133.
+Other Manual-derived source modes and the blocked historical families above
+retain their own readiness and evidence requirements.
 
 This is not a new universal prerequisite. Optional prologue production and the historical
 automation families are not repaired by this change.
