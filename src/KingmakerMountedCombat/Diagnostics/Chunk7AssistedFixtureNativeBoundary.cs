@@ -81,6 +81,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var result=new Chunk7AssistedStorySnapshot{Identity=identity,Frame=frame,ElapsedMilliseconds=elapsed.ElapsedMilliseconds,
                 Mode=game.CurrentMode.ToString(),MouseController=game.IsControllerMouse,NativeBusy=nativeBusy(),Cutscene=game.CutsceneLock,
                 UnexpectedPopup=popup!=null&&popup.IsShown,TransitionPending=!ReferenceEquals(scheduled,null)||play||stop,
+                ScheduledStart=!ReferenceEquals(scheduled,null),CuePlayScheduled=play,DialogStopScheduled=stop,
                 DialogActive=game.IsModeActive(GameModeType.Dialog),MainViewReady=main.View!=null&&main.View.AgentASP!=null,
                 Controller=controller,Dialog=dialog,Cue=cue,DialogGuid=dialog==null?null:dialog.AssetGuidThreadSafe,CueGuid=cue==null?null:cue.AssetGuidThreadSafe,
                 Offers=new Chunk7AssistedStoryOffer[0],Rows=new Chunk7AssistedStoryRow[0],UiStatus="not-dialog"};

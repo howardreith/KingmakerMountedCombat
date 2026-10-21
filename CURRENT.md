@@ -1,14 +1,25 @@
 # Chunk 7B–7D — IN PROGRESS
 
+[Batch139](docs/CHUNK7-BATCH139-ASSISTED-STORY-TRANSITION-DIAGNOSTIC-2026-10-21.md)
+retains the first repaired assisted native producer as FAIL: initial new-game
+Auto and 37 real story clicks occurred, but after the terminal Exit the game
+returned to Default while its combined native transition-pending flag remained
+true for 30 seconds. The guarded transaction restored Mods, protected saves and
+profile bytes exactly. A reviewed read-only diagnostic now distinguishes the
+three native sources of that flag on the next justified run; focused tests pass
+248/0, with no new native execution yet. F10 new-character acquisition and its
+final Manual/cold chain remain open under the standing completion mission.
+
 [Batch138](docs/CHUNK7-BATCH138-ASSISTED-MANUAL-COMPLETION-2026-10-21.md)
 replaces the assisted producer's impossible level-up Auto wait with its
 guarded final native Manual after verified Ranger/Horse choices. The exact
 two-write built evidence and generated archive path pass focused reader checks;
 the historical three-write generated path remains separately readable. Source
 validation, wiring, stale-family guard, source and authority checks pass.
-Independent review found no active write-authority blocker. There has been no
-native execution of this repaired route, so F10 fresh-campaign setup and its
-separate cold consumer remain unqualified. The standing
+Independent review found no active write-authority blocker. At that offline
+checkpoint the repaired route had no native execution; batch139 records its
+first native FAIL, so F10 fresh-campaign setup and its separate cold consumer
+remain unqualified. The standing
 [completion mission](planning/CHUNK7-COMPLETION-MISSION.md), F09/F11, ordinary
 door and 7E work remain open.
 

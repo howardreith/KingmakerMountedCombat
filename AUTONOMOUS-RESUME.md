@@ -1,5 +1,33 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## Active October 21 after batch139 assisted native story failure
+
+The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
+[Batch139](docs/CHUNK7-BATCH139-ASSISTED-STORY-TRANSITION-DIAGNOSTIC-2026-10-21.md)
+retains the first assisted producer native **FAIL** on preview.94. The guarded
+run `20261021-c7b-world95-b138s1-assisted-manual` issued one initial Auto and
+37 native story clicks; after the terminal Exit, Default mode returned but
+`TransitionPending` stayed true for 30 seconds. No Ranger choices or final
+Manual occurred. The transaction is `restored` with exact Mods/protected-save
+inventory/profile bytes, zero cache exceptions, no game process or lock.
+Original evidence SHA-256 is
+`320bbc778624ce1f85bf20838e0e23ce6e27530dab1962a80257b6853af5be2c`.
+The approved Howie context remains unchanged.
+
+Current uncommitted diagnostic source adds only three already-read native
+pending components to the existing no-progress exception; it changes no gate,
+timer or input. Focused actual-source core/native-facade tests pass 248/0,
+source validation 147/0, development DLL SHA-256
+`53c12b13c8b633d7112f8365553ea3b0b1a9572fa675ca21aa053363a2e0f68e`.
+Independent review found no concrete blocker. Candidate passed 6/0 in 4.57
+minutes on this unchanged source. Next: commit, package from clean HEAD, create its append-only matched suite,
+pass scoped WhatIf, and run at most one new assisted native scenario to identify
+which scheduled native field remained true. Diagnose native ownership before
+changing readiness or rerunning. F09 six-pair, broader F10, ordinary doors,
+F11 allocation/player controls and 7E remain open. Guarded push-helper WhatIf
+was earlier rejected by automatic approval review, so no alternate push;
+draft PR #5 remains remote-stale.
+
 ## Active October 21 after batch138 assisted Manual completion repair
 
 The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.

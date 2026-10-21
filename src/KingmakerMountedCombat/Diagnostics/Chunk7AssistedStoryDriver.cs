@@ -21,6 +21,9 @@ namespace KingmakerMountedCombat.Diagnostics
         internal int Frame;
         internal string Mode, UiStatus, DialogGuid, CueGuid;
         internal bool MouseController, UnexpectedPopup, NativeBusy, Cutscene, TransitionPending, DialogActive, MainViewReady;
+        // Read-only native sources of TransitionPending, retained at timeout
+        // so a stalled authored-campaign transition has a distinguishing cause.
+        internal bool ScheduledStart, CuePlayScheduled, DialogStopScheduled;
         internal object Controller, Dialog, Cue, Ui, Common, Manager, PcDialog, CurrentPart, OffersList, RowsList;
         // SystemButton/ContinueCue describe the COMMON continue/exit affordance observed from the PC dialog.
         internal object SystemButton, SystemButtonAnswer, ContinueCue;
@@ -125,7 +128,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     // click until a strictly later observed frame.
                     if(pending!=null&&current.Frame<=pending.Frame)
                     {
-                        if(current.ElapsedMilliseconds-progressStart>ProgressMilliseconds)throw new InvalidOperationException("Assisted story setup made no observed native progress within its bound.");
+                        if(current.ElapsedMilliseconds-progressStart>ProgressMilliseconds)throw NoProgress(current);
                         return Status=Chunk7AssistedStoryStatus.Waiting;
                     }
                     pending=null;pendingAttempt=null;progressStart=current.ElapsedMilliseconds;return Status=Chunk7AssistedStoryStatus.ReadyAtObservedFrame;
@@ -151,7 +154,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 // that never ends is still terminated by the unchanged total deadline.
                 if(pending==null && !current.DialogActive && (current.Mode=="Cutscene"||current.Cutscene) && previousFrame>=0 && current.Frame>previousFrame)
                     progressStart=current.ElapsedMilliseconds;
-                if(current.ElapsedMilliseconds-progressStart>ProgressMilliseconds)throw new InvalidOperationException("Assisted story setup made no observed native progress within its bound.");
+                if(current.ElapsedMilliseconds-progressStart>ProgressMilliseconds)throw NoProgress(current);
                 if(current.NativeBusy||current.TransitionPending || current.Mode!="Dialog"&&current.Cutscene)
                     return Status=Chunk7AssistedStoryStatus.Waiting;
                 if(current.Mode!="Dialog")throw new InvalidOperationException("Only native Default, pending transition or ordinary PC story Dialog is selected.");
@@ -252,6 +255,14 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             catch(Exception error){failed=true;Failure=Bound(error.GetType().Name+": "+error.Message);Status=Chunk7AssistedStoryStatus.Failed;throw;}
             finally{executing=false;}
+        }
+        private static InvalidOperationException NoProgress(Chunk7AssistedStorySnapshot current)
+        {
+            return new InvalidOperationException("Assisted story setup made no observed native progress within its bound. " +
+                "mode="+current.Mode+" frame="+current.Frame+" transitionPending="+current.TransitionPending+
+                " scheduledStart="+current.ScheduledStart+" cuePlayScheduled="+current.CuePlayScheduled+
+                " dialogStopScheduled="+current.DialogStopScheduled+" nativeBusy="+current.NativeBusy+
+                " cutscene="+current.Cutscene+" dialogActive="+current.DialogActive);
         }
         internal static void RequireSameClickState(Chunk7AssistedStorySnapshot expected,Chunk7AssistedStorySnapshot actual)
         {
