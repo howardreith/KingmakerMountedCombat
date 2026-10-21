@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.IO;
+using System.Diagnostics;
 using System.Text.RegularExpressions;
 
 namespace KingmakerMountedCombat.Diagnostics
@@ -143,6 +145,11 @@ namespace KingmakerMountedCombat.Diagnostics
         public bool? ObserveWorkingDeserialization { get; set; }
         public bool ShouldSerializeObserveWorkingDeserialization() => ObserveWorkingDeserialization.HasValue;
 
+        // Private, guarded F11 measurement only. The native observer is not a
+        // package member and ordinary requests cannot name or load native code.
+        public F11NativeAllocationSelection F11AllocationProbe { get; set; }
+        public bool ShouldSerializeF11AllocationProbe() => F11AllocationProbe != null;
+
         public RuntimeSaveDescriptor PersistenceLoad { get; set; }
         // Closed owner-seed stock Mammoth source for positive P07 removal. Its
         // producer is qualified independently; this flag cannot relabel Working.
@@ -258,6 +265,15 @@ namespace KingmakerMountedCombat.Diagnostics
         public IReadOnlyList<string> Validate()
         {
             var errors = new List<string>();
+            if (F11AllocationProbe != null)
+            {
+                if (SchemaVersion != SaveBackedSchemaVersion ||
+                    Scenario != Chunk7OwnedPairsSelection.Scenario ||
+                    SelectedChunk7Scenario != "chunk7-two-pair-exploration" ||
+                    OwnedPairs == null)
+                    errors.Add("F11 native allocation observation is exclusive to the owned two-pair exploration request.");
+                errors.AddRange(F11AllocationProbe.Validate(RunId, EvidenceRoot));
+            }
             if (ObserveWorkingDeserialization.HasValue && (ObserveWorkingDeserialization != true ||
                 SchemaVersion != SaveBackedSchemaVersion || Scenario != "export-mounted-contracts" ||
                 Fixture?.Working?.InternalName != WorkingSaveName || PersistenceLoad != null || PersistenceAlternate != null ||
@@ -1085,6 +1101,49 @@ namespace KingmakerMountedCombat.Diagnostics
                     errors.Add("fixture.writeAuthorization.mode does not match the selected runtime scenario.");
                 }
             }
+        }
+    }
+
+    public sealed class F11NativeAllocationSelection
+    {
+        internal const string ContractId = "f11-native-allocation-v1";
+        internal const string HelperSha256 = "fd7454205bc1b9be2e777f470b40559ed86c7c903dc9a338bd9cda41fab3c13d";
+        internal const string MonoSha256 = "9dde653c0eda16e02441437e64faa058cda6c5c8c82a193b17895249b2099534";
+        internal const string HelperLeaf = "KmcF11AllocationProbe.dll";
+
+        public string Contract { get; set; }
+        public bool BaseGameOnly { get; set; }
+        public string Path { get; set; }
+        public string Sha256 { get; set; }
+        public string LoadedMonoPath { get; set; }
+        public string LoadedMonoSha256 { get; set; }
+
+        internal static string ExpectedPath(string runId, string evidenceRoot)
+        {
+            var evidence = System.IO.Path.GetFullPath(evidenceRoot);
+            if (!string.Equals(System.IO.Path.GetFileName(evidence), runId, StringComparison.OrdinalIgnoreCase) ||
+                !string.Equals(System.IO.Path.GetFileName(System.IO.Path.GetDirectoryName(evidence)), "runtime-evidence", StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException("F11 evidence root is not the run-owned lab path.");
+            var lab = System.IO.Path.GetDirectoryName(System.IO.Path.GetDirectoryName(evidence));
+            return System.IO.Path.Combine(lab, "runtime-staging", runId, "f11-native-probe", HelperLeaf);
+        }
+
+        internal static string ExpectedMonoPath()
+        {
+            var executable = Process.GetCurrentProcess().MainModule.FileName;
+            return System.IO.Path.Combine(System.IO.Path.GetDirectoryName(executable), "MonoBleedingEdge", "EmbedRuntime", "mono-2.0-bdwgc.dll");
+        }
+
+        internal IEnumerable<string> Validate(string runId, string evidenceRoot)
+        {
+            if (Contract != ContractId || !BaseGameOnly ||
+                Sha256 != HelperSha256 || LoadedMonoSha256 != MonoSha256 ||
+                !string.Equals(LoadedMonoPath, ExpectedMonoPath(), StringComparison.OrdinalIgnoreCase))
+                yield return "F11 native observer contract, staging mode or reviewed binary identity differs.";
+            if (string.IsNullOrEmpty(runId) || !Regex.IsMatch(runId, "^[A-Za-z0-9._-]{1,120}$") || string.IsNullOrEmpty(evidenceRoot) ||
+                string.IsNullOrEmpty(Path) || !System.IO.Path.IsPathRooted(Path) ||
+                !string.Equals(System.IO.Path.GetFullPath(Path), ExpectedPath(runId, evidenceRoot), StringComparison.OrdinalIgnoreCase))
+                yield return "F11 native observer must use the exact run-owned staging path.";
         }
     }
 

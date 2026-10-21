@@ -91,6 +91,7 @@ function Assert-RuntimeFixture {
 Assert-NoDuplicateJsonObjectProperties $RequestPath 'runtime request'
 $request = Read-KmcJson $RequestPath
 $hasWorkingObservation = @($request.PSObject.Properties.Name) -ccontains 'observeWorkingDeserialization'
+$hasF11AllocationProbe = @($request.PSObject.Properties.Name) -ccontains 'f11AllocationProbe'
 $hasOwnerStockRemoval = @($request.PSObject.Properties.Name) -ccontains 'ownerStockRemoval'
 if($hasOwnerStockRemoval -and ($request.ownerStockRemoval -isnot [bool] -or $request.ownerStockRemoval -ne $true -or
     -not(($request.scenario -ceq 'persistence-p07-save' -and $request.persistenceCase -ceq 'prepare-removal') -or
@@ -101,6 +102,31 @@ if($hasWorkingObservation -and ($request.observeWorkingDeserialization -isnot [b
     $request.observeWorkingDeserialization -ne $true -or $request.scenario -isnot [string] -or
     $request.scenario -cne 'export-mounted-contracts' -or -not(Test-JsonInteger $request.schemaVersion) -or $request.schemaVersion -ne 2)) {
     throw 'Working observation requires one exact true Boolean in its schema-2 export request.'
+}
+if($hasF11AllocationProbe){
+    if($request.schemaVersion-ne2-or$request.scenario-cne'chunk7-owned-two-pair-campaign'-or
+        (Get-KmcChunk7SelectedScenario $request)-cne'chunk7-two-pair-exploration'){
+        throw 'F11 native allocation observation is exclusive to inherited two-pair exploration.'
+    }
+    $f11=$request.f11AllocationProbe
+    Assert-KmcExactProperties $f11 @('contract','baseGameOnly','path','sha256','loadedMonoPath','loadedMonoSha256') 'F11 native allocation selection'
+    $expectedF11Path=Join-Path (Join-Path (Join-Path 'C:\Dev\KingmakerMountedCombatLab\runtime-staging' ([string]$request.runId)) 'f11-native-probe') 'KmcF11AllocationProbe.dll'
+    $expectedMonoPath='C:\Program Files (x86)\Steam\steamapps\common\Pathfinder Kingmaker\MonoBleedingEdge\EmbedRuntime\mono-2.0-bdwgc.dll'
+    if($f11.contract-cne'f11-native-allocation-v1'-or$f11.baseGameOnly-isnot[bool]-or-not$f11.baseGameOnly-or
+        $f11.path-cne$expectedF11Path-or$f11.sha256-cne'fd7454205bc1b9be2e777f470b40559ed86c7c903dc9a338bd9cda41fab3c13d'-or
+        $f11.loadedMonoPath-cne$expectedMonoPath-or$f11.loadedMonoSha256-cne'9dde653c0eda16e02441437e64faa058cda6c5c8c82a193b17895249b2099534'){
+        throw 'F11 native selection differs from the reviewed run-owned helper or exact installed Mono.'
+    }
+    Assert-KmcNotReparsePoint $expectedF11Path 'F11 staged helper'; Assert-KmcNotHardLink $expectedF11Path 'F11 staged helper'
+    if((Get-KmcSha256 $expectedF11Path)-cne$f11.sha256-or(Get-KmcSha256 $expectedMonoPath)-cne$f11.loadedMonoSha256){
+        throw 'F11 staged helper or installed Mono bytes differ from the closed request.'
+    }
+    $isolationPath=Join-Path ([string]$request.evidenceRoot) 'base-game-isolation-admission.json'
+    if(-not(Test-Path -LiteralPath $isolationPath -PathType Leaf)){throw 'F11 native selection lacks base-only transaction admission.'}
+    $isolation=Read-KmcJson $isolationPath
+    if($isolation.runId-cne$request.runId-or$isolation.stagingMode-cne'base-game-only-kmc'){
+        throw 'F11 native selection does not match the base-only transaction.'
+    }
 }
 Assert-KmcChunk7OrdinarySelection $request
 Assert-KmcChunk7NativeBootstrapSelection $request
@@ -188,6 +214,7 @@ elseif ($schemaVersion -eq 2) {
     $loadRefusal=Test-KmcChunk7LoadRefusal $request
     $extra=@(if(Test-KmcChunk7StockMammothFixtureScenario $request.scenario){'stockMammothFixture';'persistenceLoad'}; if(Test-KmcChunk7SmallFixtureScenario $request.scenario){'smallFixture';'persistenceLoad'}; if(Test-KmcChunk7AssistedColdInventoryScenario $request.scenario){'assistedColdInventory';'persistenceLoad'}; if(Test-KmcChunk7AssistedFixtureScenario $request.scenario){'assistedFixture'}; if(Test-KmcChunk7OwnedPairsScenario $request.scenario){'ownedPairs';'persistenceLoad'}; if(Test-KmcChunk7AcquiredManualScenario $request.scenario){'acquiredManual';'persistenceLoad'}; if(Test-KmcChunk7ManualDerivedScenario $request.scenario){'manualDerived';'persistenceLoad'}; if(Test-KmcChunk7CumulativeScenario $request.scenario){'cumulativeAcquisition';'persistenceLoad'}; if(Test-KmcChunk7ManualSeedScenario $request.scenario){'manualSeed';'persistenceLoad'}; if(Test-KmcChunk7BootstrapInventoryScenario $request.scenario){'bootstrapInventory';'persistenceLoad'}; if(Test-KmcChunk7NativeBootstrapScenario $request.scenario){'nativeBootstrap'}; if(Test-KmcChunk7ProgressionScenario $request.scenario){'progression';'persistenceLoad'}; if(Test-KmcChunk7SmallScenario $request.scenario){'smallCalibration';'persistenceLoad'}; if(Test-KmcChunk7FieldScenario $request.scenario){'ordinaryField';'persistenceLoad'}; if(Test-KmcChunk7OrdinaryScenario $request.scenario){'ordinaryAcquisition'}; if($alternating-or$validation){'persistenceAlternate'}; if($loadRefusal){'persistenceAlternate';'loadRefusalDerivationSha256'}; if($request.scenario -cin @('chunk7-persistence-load','persistence-p07-load','persistence-p01-load','persistence-p02-load','persistence-p03-load','persistence-p04-load','persistence-p05-load','persistence-p06-load')){'persistenceLoad'}; if($hasPersistenceCase){'persistenceCase'}; if($crossArea-or$chunk7Area){'persistenceAreaTarget'}; if($hasPersistenceCase-and$request.persistenceCase-ceq'multi-exploration-three-area-transfers-manual'){'persistenceReplayTargets'}; if($hasPersistenceCase-and(($request.scenario-ceq'chunk7-persistence-load'-and$request.persistenceCase-ceq'legacy-schema1-resave-manual')-or(Test-KmcOwnedSchema1ColdRequest $request))){'schema1DerivationSha256'}; if(Test-KmcOwnedSchema2ColdRequest $request){'schema2DerivationSha256'})
     if($hasWorkingObservation){$extra+=@('observeWorkingDeserialization')}
+    if($hasF11AllocationProbe){$extra+=@('f11AllocationProbe')}
     if($hasOwnerStockRemoval){$extra+='ownerStockRemoval';if($request.scenario-ceq'persistence-p07-save'){$extra+='persistenceLoad'}}
     Assert-KmcExactProperties $request @($commonRequired + @('fixture','qualificationSuite') + $extra) 'runtime request v2'
     if($loadRefusal){Assert-KmcChunk7LoadRefusalDescriptor $request}

@@ -1,5 +1,6 @@
 using System;
 using System.Linq;
+using System.Runtime.ExceptionServices;
 using KingmakerMountedCombat.Diagnostics;
 using KingmakerMountedCombat.Domain;
 using KingmakerMountedCombat.Integration;
@@ -277,8 +278,14 @@ namespace KingmakerMountedCombat
             var measurement = MountedRuntimeMeasurement.Current;
             if (measurement == null) { UpdateCore(deltaTime); return; }
             var started = measurement.BeginFrame();
+            Exception failure = null;
             try { UpdateCore(deltaTime); }
-            finally { measurement.EndFrame(started); }
+            catch (Exception ex) { failure = ex; }
+            try { measurement.EndNativeAllocationWindow(); }
+            catch (Exception ex) { if (failure == null) failure = ex; }
+            try { measurement.EndFrame(started); }
+            catch (Exception ex) { if (failure == null) failure = ex; }
+            if (failure != null) ExceptionDispatchInfo.Capture(failure).Throw();
         }
 
         private void UpdateCore(float deltaTime)

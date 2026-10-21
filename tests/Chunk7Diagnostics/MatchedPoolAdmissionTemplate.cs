@@ -14,9 +14,11 @@ class Unified{public object[] SnapshotParticipants=new object[2];public bool Has
 class World{public Pair[] Pairs=new[]{new Pair(),new Pair()};public int BoundaryCount=2,FailedConstructionCount;public Unified UnifiedTurn=new Unified();public Registry Registry=new Registry();public bool SerializationBusy;}
 class Controls{public bool HasUnsettledRelationshipTransition;}
 class FakeClock{public TimeSpan Elapsed=TimeSpan.Zero;}
+class Request{public object F11AllocationProbe;public string RunId="synthetic";public string EvidenceRoot="synthetic";}
+class F11NativeAllocationProbe{public static int Installs;public static F11NativeAllocationProbe Attach(object selection,string runId,string evidenceRoot){Installs++;return new F11NativeAllocationProbe();}}
 class Sampler:IChunk7MatchedPoolWindow{public string Label;public bool IsReady;public bool Ready=>IsReady;public int Count=>0;public JObject Complete()=>new JObject{{"label",Label}};public void Dispose(){}}
 class AdmissionAdapter{
- object measurement,quietWindow;int pendingMatchedIndex=-1,cycle=1;Chunk7MatchedPoolPins matchedPins;Chunk7MatchedPoolCollector matched;
+ object measurement,quietWindow;int pendingMatchedIndex=-1,cycle=1;Chunk7MatchedPoolPins matchedPins;Chunk7MatchedPoolCollector matched;Request request=new Request();F11NativeAllocationProbe allocationProbe;
  Actor firstRider=new Actor(),firstMount=new Actor(),secondRider=new Actor(),secondMount=new Actor();World world=new World();NativeScope nativeScope=new NativeScope();Controls controls=new Controls();string firstOwner="owner";
  int acquires,step=34;double stepStarted;FakeClock clock=new FakeClock();Sampler sampler;
  AdmissionAdapter(){matched=new Chunk7MatchedPoolCollector(RequireMatchedPool,_=>new JObject(),(a,b)=>{},label=>{acquires++;return sampler=new Sampler{Label=label};});}

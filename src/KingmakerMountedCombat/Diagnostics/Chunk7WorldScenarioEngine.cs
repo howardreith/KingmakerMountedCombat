@@ -82,6 +82,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private Guid firstOwner, secondOwner;
         private readonly JArray measurements = new JArray(), cycleInputs = new JArray(), cycles = new JArray();
         private MountedRuntimeMeasurement measurement;
+        private F11NativeAllocationProbe allocationProbe;
         private readonly Chunk7MatchedPoolCollector matched;
         private Chunk7MatchedPoolPins matchedPins;
         private int pendingMatchedIndex = -1;
@@ -98,7 +99,7 @@ namespace KingmakerMountedCombat.Diagnostics
             this.request = request; world = relationship.World; this.controls = controls;
             this.horses = horses; this.settings = settings; this.logger = logger; this.optionalTelemetry = optionalTelemetry; this.persistence = persistence; this.fixtureAuthorization = fixtureAuthorization; this.fixtureAuthority = fixtureAuthority; this.fixtureLoader = fixtureLoader;
             matched = new Chunk7MatchedPoolCollector(RequireMatchedPool, CaptureMatchedPool, CompareMatchedPool,
-                label => new MatchedWindow(label, world));
+                label => new MatchedWindow(label, world, allocationProbe));
         }
         internal static bool SupportsScenario(string scenario) => scenario == ScenarioName;
         internal static bool SupportsRequest(RuntimeRequest request) => SupportsScenario(request?.SelectedChunk7Scenario);
@@ -662,6 +663,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 // Finished native commands can remain in Raw until the ordinary
                 // RemoveFinishedAndUpdateQueue pass. Never run that pass ourselves.
                 if (!Actors().All(actor => actor.Commands.Empty)) return false;
+                if (pendingMatchedIndex == 0 && request.F11AllocationProbe != null)
+                    allocationProbe = F11NativeAllocationProbe.Attach(request.F11AllocationProbe, request.RunId, request.EvidenceRoot);
                 matched.Begin(pendingMatchedIndex);
                 pendingMatchedIndex = -1;
             }
@@ -747,7 +750,8 @@ namespace KingmakerMountedCombat.Diagnostics
         private sealed class MatchedWindow : IChunk7MatchedPoolWindow
         {
             private readonly MountedRuntimeMeasurement value;
-            internal MatchedWindow(string label, MountedWorldService world) { value = new MountedRuntimeMeasurement(label, world); }
+            internal MatchedWindow(string label, MountedWorldService world, F11NativeAllocationProbe allocationProbe)
+            { value = new MountedRuntimeMeasurement(label, world, allocationProbe); }
             public bool Ready => value.Ready;
             public int Count => value.Count;
             public JObject Complete() => value.Complete();

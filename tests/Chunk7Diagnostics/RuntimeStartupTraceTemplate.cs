@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Runtime.ExceptionServices;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Serialization;
 
@@ -20,9 +21,9 @@ namespace KingmakerMountedCombat.Diagnostics
         internal static bool ReadFocus(){if(ThrowFocus)throw new InvalidOperationException("focus");return Focus;}
         internal static bool ReadBackground(){if(ThrowBackground)throw new InvalidOperationException("background");return Background;}
         internal static RuntimeStartupTrace New(){return new RuntimeStartupTrace(1000,Clock,ReadFrame,ReadFocus,ReadBackground);}
-        internal static void Reset(){Ticks=0;Frame=100;ClockReads=0;Focus=true;Background=false;ThrowClock=ThrowFrame=ThrowFocus=ThrowBackground=false;Calls.Clear();Fault=null;LogFault=null;}
+        internal static void Reset(){Ticks=0;Frame=100;ClockReads=0;Focus=true;Background=false;ThrowClock=ThrowFrame=ThrowFocus=ThrowBackground=false;Calls.Clear();Fault=null;LogFault=null;MeasurementEndFault=false;MountedRuntimeMeasurement.Current=null;}
         internal static readonly List<string> Calls=new List<string>();
-        internal static string Fault; internal static Exception LogFault; internal static readonly Exception NativeError=new InvalidOperationException("native boundary error");
+        internal static string Fault; internal static Exception LogFault; internal static bool MeasurementEndFault; internal static readonly Exception NativeError=new InvalidOperationException("native boundary error");
         internal static void Effect(string name){Calls.Add(name);Ticks+=7;if(Fault==name)throw NativeError;}
     }
     sealed class Unit { internal Combat Combat=new Combat(); }
@@ -31,7 +32,7 @@ namespace KingmakerMountedCombat.Diagnostics
     sealed class Service { private string name;internal Service(string n){name=n;}internal void Update(){Values.Effect(name);} }
     sealed class Persistence { internal bool ActiveSaveWorkerRunning,SaveSuspended,AreaTransitionPending,CombatRestorationPending;internal void Update(){Values.Effect("persistence");} }
     sealed class Telemetry { internal void Update(float x){Values.Effect("telemetry");} }
-    sealed class MountedRuntimeMeasurement { internal static MountedRuntimeMeasurement Current;internal long BeginFrame(){Values.Effect("measure-start");return 0;}internal void EndFrame(long x){Values.Effect("measure-end");} }
+    sealed class MountedRuntimeMeasurement { internal static MountedRuntimeMeasurement Current;internal long BeginFrame(){Values.Effect("measure-start");return 0;}internal void EndNativeAllocationWindow(){Values.Effect("measure-native-end");if(Values.MeasurementEndFault)throw new InvalidOperationException("observer close");}internal void EndFrame(long x){Values.Effect("measure-end");}internal long BeginPhase(){return 0;}internal void EndPairUpdate(long x){}internal void EndTurnUpdate(long x){} }
     sealed class RuntimeAutomationHost
     {
         internal readonly RuntimeStartupTrace startupTrace; private bool disposed,completed;
@@ -127,6 +128,8 @@ __RESULT2__
                 Values.Reset();Main.root=new CompositionRoot(true);Values.Fault=stage;var log=Main.Invoke();s=Main.root.runtimeAutomation.startupTrace.Capture();
                 Check("original native exception path "+stage,log.Logger.Errors.Count==1&&ReferenceEquals(log.Logger.Errors[0],Values.NativeError)&&ReferenceEquals(Main.root.Failure,Values.NativeError)&&Main.root.Failures==1&&s.ClosedCallbacks==1&&!s.OrderingFailure&&Values.Calls.Count(x=>x==stage)==1);
             }
+            Values.Reset();Main.root=new CompositionRoot(true);MountedRuntimeMeasurement.Current=new MountedRuntimeMeasurement();Values.Fault="horse";Values.MeasurementEndFault=true;var measuredFault=Main.Invoke();
+            Check("native Update error survives a failing F11 observer close and completes frame cleanup",ReferenceEquals(Main.root.Failure,Values.NativeError)&&ReferenceEquals(measuredFault.Logger.Errors.Single(),Values.NativeError)&&Values.Calls.Count(x=>x=="measure-native-end")==1&&Values.Calls.Count(x=>x=="measure-end")==1);
             Values.Reset();Main.root=new CompositionRoot(true);Values.Fault="horse";Values.LogFault=new IOException("logger boundary");Exception escaped=null;try{Main.Invoke();}catch(Exception e){escaped=e;}
             Check("trace finally does not replace logger exception",ReferenceEquals(escaped,Values.LogFault)&&Main.root.runtimeAutomation.startupTrace.Capture().ClosedCallbacks==1);
             Values.Reset();Main.root=new CompositionRoot(true);Values.ThrowClock=Values.ThrowFrame=Values.ThrowFocus=Values.ThrowBackground=true;Main.Invoke();
