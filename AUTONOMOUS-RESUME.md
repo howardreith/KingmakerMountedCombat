@@ -1,5 +1,37 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## Active October 21 after batches 135–136 F09 presentation
+
+The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
+[Batches 135–136](docs/CHUNK7-BATCH135-136-F09-PRESENTATION-2026-10-21.md)
+used the unchanged qualified F09 Small Manual source. b135 preview.93 game/outer
+FAIL at an overstrict cost-pair assertion remains frozen. Preview.94 source
+`47ce6989935f6a33e0036a26babb68c4480fbce8`, package SHA-256
+`8319045452536b02ae4a22368cb1af0121e85144fa2ecb154a40dee1c519904b`,
+DLL SHA-256 `4731d2c612940c9a56c79300c2b34b680f9cd2e02f4300d08e08c3d0cfb35ef1`
+and MVID `1910163a-f2df-49d0-9903-f5dafe5150ca` passed Candidate 6/0. Its
+one guarded b136 native scenario passed game 11/11 for mounted scroll/Potion
+presentation, native spending, healing, Dismount and cleanup. The original
+outer result remains FAIL because the native child cooldown waiver had expired
+by terminal capture. Reviewed reader-only correction SHA-256
+`81d3e6d994dc4dfcbe0b1c07619181f7fa1edd0f02f50cf177d674e2e21a5a50`
+passes on the exact immutable b136 artifact SHA-256
+`5a7c3af2ba6815f41f62a59830f1984969867ce534c09ec384f4f252c08cc16f`;
+focused synthetic checks 57/0. Its receipt is
+`analysis-cache/chunk7-continuation/b136-f09-sticky-touch/reader-only-reevaluation.json`.
+Both transactions reached `restored` with exact Mods, Working/save inventory
+and profile bytes, zero cache exceptions; no game process or lock remains.
+
+Next: commit this external-reader/documentation checkpoint without rebuilding
+unchanged DLL bytes. Select the next required behavior, including conditional
+six-pair native stress, remaining F10 progression/acquisition breadth, ordinary
+door and F11 measured diagnostics-off behavior. Later map the selected exact
+package 7E matrix. Do not transfer these preview PASSes without matching
+final-package inputs or restart completed qualification. The guarded push-helper
+WhatIf was rejected by automatic approval review (`approval required by policy;
+AskForApproval is Never`), so no alternate push; draft PR #5 is remote-stale.
+Engineering completion is not yet claimed.
+
 ## Active October 21 after batches 131–133 acquired cold PASS
 
 The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
