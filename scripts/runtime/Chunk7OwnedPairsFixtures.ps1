@@ -2,6 +2,7 @@ Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot 'Chunk7OwnedSchema2Fixtures.ps1')
 . (Join-Path $PSScriptRoot 'Chunk7SmallCalibrationFixtures.ps1')
 . (Join-Path $PSScriptRoot 'Chunk7SmallFixtureColdSource.ps1')
+. (Join-Path $PSScriptRoot 'Chunk7MediumMountedSource.ps1')
 function Read-KmcChunk7OwnedPairsSelectionFile([string]$Path,[string]$RunId,[AllowNull()][string]$PersistenceCase){
  $path=Assert-KmcChildPath $Path (Get-KmcLabRoot) 'owned two-pair selection';Assert-KmcNotReparsePoint $path 'owned two-pair selection';Assert-KmcNotHardLink $path 'owned two-pair selection'
  $file=Get-Item -LiteralPath $path;if($file.Length-le0-or$file.Length-gt32KB){throw 'Owned two-pair selection is empty or oversized.'}
@@ -480,9 +481,71 @@ function Get-KmcChunk7OwnedPairsSmallSource($Selection,[string]$PersistenceCase,
   checkpointArtifactLength=[long]$checkpointFile.Length;checkpointCandidate=[pscustomobject]@{commit=$request.commit;dllSha256=$request.dllSha256;dllMvid=$request.dllMvid};
   fixtureSetupOnly=$true;nativeAuthorityGranted=$false}
 }
+function Get-KmcChunk7OwnedPairsMediumSource($Selection,[string]$PersistenceCase,$Fixture,$Candidate,$AreaTarget=$null){
+ $run='unassigned-medium-persistence-source'
+ Assert-KmcChunk7OwnedPairsSelection ([pscustomobject]@{scenario='chunk7-owned-two-pair-campaign';runId=$run;ownedPairs=$Selection;persistenceCase=$PersistenceCase})
+ if($null-ne$AreaTarget){throw 'Medium persistence carries no area-transfer target.'}
+ $source=Get-KmcChunk7MediumMountedSource $Fixture $Candidate
+ foreach($pair in @(@('sourceRunId',$source.sourceRunId),@('sourceArtifactSha256',$source.artifactSha256),
+  @('sourceArchiveSha256',$source.descriptor.sha256),@('coldReceiptSha256',$source.coldArtifactSha256))){
+  Assert-KmcBootstrapInventoryString $Selection.($pair[0]) $pair[1]
+ }
+ $artifact=Read-KmcJson $source.artifactPath;$o=$artifact.observations
+ Assert-KmcBootstrapInventoryString $o.acquiredOwners[0].riderId $Selection.riderAId
+ Assert-KmcBootstrapInventoryString $o.acquiredOwners[0].horseId $Selection.mountAId
+ Assert-KmcBootstrapInventoryString $o.acquiredOwners[1].riderId $Selection.riderBId
+ Assert-KmcBootstrapInventoryString $o.acquiredOwners[1].horseId $Selection.mountBId
+ if((ConvertTo-KmcChunk7Canonical @($o.fieldWorld.party.id|Sort-Object -CaseSensitive))-cne
+    (ConvertTo-KmcChunk7Canonical @($Selection.partyIds|Sort-Object -CaseSensitive))){throw 'Medium persistence source substituted its seven-actor native roster.'}
+ if(Test-KmcChunk7OwnedPairsMediumSave ([pscustomobject]@{ownedPairs=$Selection})){
+  Assert-KmcChunk7OwnedPairsDescriptor ([pscustomobject]@{scenario='chunk7-owned-two-pair-campaign';runId=$run;ownedPairs=$Selection;persistenceCase=$PersistenceCase;persistenceLoad=$source.descriptor;fixture=$Fixture})
+  return [pscustomobject]@{path=$source.path;descriptor=$source.descriptor;artifactPath=$source.artifactPath;
+   artifactSha256=$source.artifactSha256;artifactLength=$source.artifactLength;sourceRunId=$source.sourceRunId;
+   producerCandidate=$source.producerCandidate;coldArtifactSha256=$source.coldArtifactSha256;
+   fixtureSetupOnly=$true;nativeAuthorityGranted=$false}
+ }
+ $set=Get-KmcChunk7OwnedReceiptSet $Selection.checkpointSourceRunId 'chunk7-persistence-evidence.json';$request=$set.request
+ Assert-KmcBootstrapInventoryString $request.scenario 'chunk7-owned-two-pair-campaign'
+ Assert-KmcBootstrapInventoryString $request.ownedPairs.case 'medium-fixture-persistence-save'
+ Assert-KmcBootstrapInventoryString $request.persistenceCase 'multi-exploration-manual'
+ Assert-KmcChunk7OwnedPairsDescriptor $request
+ foreach($key in @('sourceRunId','sourceArtifactSha256','sourceArchiveSha256','seedId','seedSha256','coldReceiptSha256','riderAId','mountAId','riderBId','mountBId')){
+  Assert-KmcBootstrapInventoryString $request.ownedPairs.$key $Selection.$key
+ }
+ if((ConvertTo-KmcChunk7Canonical $request.ownedPairs.partyIds)-cne(ConvertTo-KmcChunk7Canonical $Selection.partyIds)-or
+   (ConvertTo-KmcChunk7Canonical $request.persistenceLoad)-cne(ConvertTo-KmcChunk7Canonical $source.descriptor)){
+  throw 'Medium mounted checkpoint producer substituted its qualified paid input.'
+ }
+ Assert-KmcChunk7OwnedSourceCompletion $set $Selection.checkpointSourceRunId 'chunk7-owned-two-pair-campaign' $Fixture $Candidate $Selection.sourceArchiveSha256
+ Assert-KmcBootstrapInventoryString $set.owner.persistenceCase $PersistenceCase
+ Assert-KmcChunk7PersistenceArtifact $request $set.manifest 'PASS'
+ $checkpoint=Read-KmcChunk7ManifestArtifact $request $set.manifest 'chunk7-persistence-evidence.json' 'chunk7-persistence-evidence'
+ $checkpointPath=Join-Path $set.root 'chunk7-persistence-evidence.json';$checkpointFile=Get-Item -LiteralPath $checkpointPath
+ if($checkpointFile.Length-le0-or$checkpointFile.Length-gt16MB-or$set.pins[$checkpointPath]-cne$Selection.checkpointSourceArtifactSha256){throw 'Medium mounted checkpoint receipt differs from its exact producer pin.'}
+ $w=$checkpoint.observations.nativeWrite;$leaf=Get-KmcChunk7OwnedOutputLeaf $request $checkpoint.observations
+ Assert-KmcBootstrapInventoryString $w.nativeName 'KMC_C7_MEDIUM_WORLD'
+ Assert-KmcBootstrapInventoryString $w.path (Join-Path (Join-Path $set.profile 'Saved Games') $leaf)
+ Assert-KmcNotReparsePoint $w.path 'Medium mounted checkpoint';Assert-KmcNotHardLink $w.path 'Medium mounted checkpoint'
+ $file=Get-Item -LiteralPath $w.path
+ if($file.Length-ne$w.length-or(Get-KmcSha256 $w.path)-cne$w.sha256){throw 'Medium mounted checkpoint bytes differ from completed native write.'}
+ $descriptor=[pscustomobject]@{internalName=$w.nativeName;fileName=$leaf;sha256=$w.sha256;length=$w.length;
+  lastWriteTimeUtcTicks=[long]$file.LastWriteTimeUtc.Ticks;gameId=$source.descriptor.gameId;
+  gameName=$source.descriptor.gameName;area=$w.archive.AreaId}
+ Assert-KmcChunk7OwnedPairsDescriptor ([pscustomobject]@{scenario='chunk7-owned-two-pair-campaign';runId=$run;ownedPairs=$Selection;
+  persistenceCase=$PersistenceCase;persistenceLoad=$descriptor;fixture=$Fixture})
+ Assert-KmcChunk7OwnedReceiptPins $set
+ [pscustomobject]@{path=$w.path;descriptor=$descriptor;artifactPath=$source.artifactPath;
+  artifactSha256=$source.artifactSha256;artifactLength=$source.artifactLength;sourceRunId=$source.sourceRunId;
+  checkpointArtifactPath=$checkpointPath;checkpointArtifactSha256=$Selection.checkpointSourceArtifactSha256;
+  checkpointArtifactLength=[long]$checkpointFile.Length;checkpointCandidate=[pscustomobject]@{commit=$request.commit;dllSha256=$request.dllSha256;dllMvid=$request.dllMvid};
+  fixtureSetupOnly=$true;nativeAuthorityGranted=$false}
+}
 function Get-KmcChunk7OwnedPairsSource($Selection,[AllowNull()][string]$PersistenceCase,$Fixture,$Candidate,$AreaTarget=$null){
  if($null-ne$Selection-and$Selection.case-cin@('small-fixture-persistence-save','small-fixture-persistence-load')){
   return Get-KmcChunk7OwnedPairsSmallSource $Selection $PersistenceCase $Fixture $Candidate $AreaTarget
+ }
+ if($null-ne$Selection-and$Selection.case-cin@('medium-fixture-persistence-save','medium-fixture-persistence-load')){
+  return Get-KmcChunk7OwnedPairsMediumSource $Selection $PersistenceCase $Fixture $Candidate $AreaTarget
  }
  if((Test-KmcChunk7ManticoreReturnArea $Selection)-and$Selection.case-ceq'owner-seed-checkpoint-save'){
   return Get-KmcChunk7ManticoreReturnSource $Selection $PersistenceCase $Fixture $Candidate $AreaTarget

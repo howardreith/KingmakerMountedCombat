@@ -140,7 +140,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 Hash(sourcePath) == selection.SourceArtifactSha256, "Exact staged two-owner Manual receipt is absent or changed.");
             sourceLength = file.Length; sourceTicks = file.LastWriteTimeUtc.Ticks;
             var artifact = JObject.Parse(File.ReadAllText(sourcePath)); observations = artifact["observations"] as JObject;
-            if (selection.SmallFixtureLineage) { ReadSmallFixtureSource(artifact); return; }
+            if (selection.PaidFixtureLineage) { ReadPaidFixtureSource(artifact); return; }
             if (Chunk7OwnedPairsSelection.IsManticoreManualCold(request.PersistenceCase) || selection.IsManticoreReturnArea)
             { ReadManticoreManualSource(artifact); return; }
             if (selection.OwnerSeedDerivedLineage) { ReadOwnerSeedDerivedSource(artifact); return; }
@@ -170,8 +170,13 @@ namespace KingmakerMountedCombat.Diagnostics
             Require(sourceArrangement != null && JToken.DeepEquals(sourceArrangement, observations["afterSaveArrangement"]),
                 "Source Manual lacks unchanged native class/XP/funds evidence.");
         }
-        private void ReadSmallFixtureSource(JObject artifact)
+        private void ReadPaidFixtureSource(JObject artifact)
         {
+            var medium = selection.MediumFixtureLineage;
+            var producerRun = medium ? Chunk7OwnedPairsSelection.MediumFixtureProducerRun : Chunk7OwnedPairsSelection.SmallFixtureProducerRun;
+            var producerArchive = medium ? Chunk7OwnedPairsSelection.MediumFixtureProducerArchive : Chunk7OwnedPairsSelection.SmallFixtureProducerArchive;
+            var producerCase = medium ? Chunk7SmallFixtureSelection.MediumCaseName : Chunk7SmallFixtureSelection.CaseName;
+            var producerName = medium ? Chunk7SmallFixtureSelection.MediumOutputName : Chunk7SmallFixtureSelection.OutputName;
             var input = request.PersistenceLoad;
             var write = observations?["nativeWrite"] as JObject;
             var field = observations?["fieldWorld"] as JObject;
@@ -181,11 +186,13 @@ namespace KingmakerMountedCombat.Diagnostics
             var after = observations?["afterSaveArrangement"] as JObject;
             Require((string)artifact["scenario"] == Chunk7SmallFixtureSelection.Scenario &&
                 (string)artifact["evidenceKind"] == Chunk7SmallFixtureScenario.EvidenceKind &&
-                (string)artifact["runId"] == Chunk7OwnedPairsSelection.SmallFixtureProducerRun &&
+                (string)artifact["runId"] == producerRun &&
                 (string)artifact["status"] == "PASS" && artifact["errors"] is JArray failures && failures.Count == 0 &&
-                (string)write?["sha256"] == Chunk7OwnedPairsSelection.SmallFixtureProducerArchive &&
-                (string)write?["internalName"] == Chunk7SmallFixtureSelection.OutputName &&
-                Chunk7SmallFixtureSelection.IsManualLeaf((string)write?["fileName"]) &&
+                (string)observations?["selection"]?["case"] == producerCase &&
+                (string)write?["sha256"] == producerArchive &&
+                (string)write?["internalName"] == producerName &&
+                (medium ? Chunk7SmallFixtureSelection.IsMediumManualLeaf((string)write?["fileName"]) :
+                    Chunk7SmallFixtureSelection.IsManualLeaf((string)write?["fileName"])) &&
                 (string)write?["gameId"] == Chunk7SmallFixtureSelection.CampaignId &&
                 (string)write?["area"] == Chunk7SmallFixtureSelection.AreaId &&
                 (string)field?["gameId"] == input.GameId && (string)field?["area"] == input.Area &&
@@ -193,9 +200,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 party != null && party.Count == 7 &&
                 (int?)field["owners"] == 0 && observations["savedWorld"]?["owners"]?.Value<int>() == 0 &&
                 owners != null && owners.Count == 2 && before != null && after != null && JToken.DeepEquals(before, after) &&
-                (selection.IsSmallFixtureSave ? input.Sha256 == selection.SourceArchiveSha256 :
+                (selection.IsSmallFixtureSave || selection.IsMediumFixtureSave ? input.Sha256 == selection.SourceArchiveSha256 :
                     input.Sha256 != selection.SourceArchiveSha256),
-                "Small fixture source lacks its exact successful seven-actor zero-pair Manual provenance.");
+                "Paid fixture source lacks its exact successful seven-actor zero-pair Manual provenance.");
             var roles = new[] { selection.RiderAId, selection.RiderBId };
             var pets = new[] { selection.MountAId, selection.MountBId };
             ownerRows = new JObject[2];
@@ -208,7 +215,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     row["reciprocal"]?.Type == JTokenType.Boolean && (bool)row["reciprocal"] &&
                     row["featureSourceGuid"]?.Type == JTokenType.String &&
                     row["rank"]?.Type == JTokenType.Integer && (int)row["rank"] > 0,
-                    "Small fixture role, sourced Horse or reciprocal pet differs from its producer.");
+                    "Paid fixture role, sourced Horse or reciprocal pet differs from its producer.");
                 ownerRows[index] = new JObject { ["sourceGuid"] = row["featureSourceGuid"].DeepClone(),
                     ["featureGuid"] = row["featureGuid"].DeepClone(), ["rank"] = row["rank"].DeepClone() };
             }
@@ -216,7 +223,7 @@ namespace KingmakerMountedCombat.Diagnostics
             sourceArrangement = ProjectSmallFixtureArrangement(before);
             Require(sourceArrangement != null && party.Select(row => (string)row["id"]).OrderBy(id => id, StringComparer.Ordinal)
                 .SequenceEqual(selection.PartyIds.OrderBy(id => id, StringComparer.Ordinal)),
-                "Small fixture full native field roster differs from its closed seven-actor selection.");
+                "Paid fixture full native field roster differs from its closed seven-actor selection.");
         }
         private static JObject ProjectSmallFixtureArrangement(JObject source)
         {
@@ -466,12 +473,14 @@ namespace KingmakerMountedCombat.Diagnostics
             // Owner-seed-derived custody keeps its own labels; it is never relabelled acquired ancestry.
             var derived = selection.OwnerSeedDerivedLineage;
             return new JObject { ["contract"] = selection.SmallFixtureLineage ? "owner-seed-small-fixture-two-horse-native-field-v1" :
+                    selection.MediumFixtureLineage ? "owner-seed-medium-fixture-two-horse-native-field-v1" :
                     derived ? "owner-seed-derived-two-horse-native-field-v1" : "inherited-two-horse-native-field-v1", ["phase"] = phase,
                 ["sourceRunId"] = selection.SourceRunId, ["sourceArtifactSha256"] = selection.SourceArtifactSha256,
                 ["sourceArchiveSha256"] = selection.SourceArchiveSha256, ["sourceCase"] =
                     (Chunk7OwnedPairsSelection.IsManticoreManualCold(request.PersistenceCase) || selection.IsManticoreReturnArea) ?
                         Chunk7OwnedPairsSelection.ManticoreFixtureCheckpoint :
                     selection.SmallFixtureLineage ? Chunk7SmallFixtureSelection.CaseName :
+                    selection.MediumFixtureLineage ? Chunk7SmallFixtureSelection.MediumCaseName :
                     derived ? Chunk7OwnedPairsSelection.OwnerSeedManualCase : Chunk7OwnedPairsSelection.SourceCase,
                 ["nativeLoadVerifiedByHost"] = true, ["decodedReceiptAuthorizesRestoration"] = false,
                 ["inheritedPetsPreserved"] = true, ["ownedFactRemovalCount"] = 0,

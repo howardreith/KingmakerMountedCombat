@@ -1,6 +1,25 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
-## Active October 21 after batch114 — Medium Manual/cold PASS; mounted replacement next
+## Active October 21 after Medium mounted-route development — native proof next
+
+The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
+The distinct paid Medium Human/Horse mounted Manual and separate cold route now
+uses batch114's pinned unmounted producer/cold as fixture ancestry only.
+Focused source, protocol, admission, output-number and paid cold-graph tests pass;
+the integrated production/safety review found no remaining concrete defect.
+No new mounted native scenario, package or candidate has run. Freeze an unchanged
+Candidate and suite, then declare at most two dependent native scenarios:
+the actual `medium-fixture-persistence-save` Manual from an independent copy of
+batch114's paid source, and `medium-fixture-persistence-load` in a separate
+process from an independent copy of that newly written mounted Manual. Use the
+guarded WhatIf and live route with exact settlement. The earlier Small F09
+source-gate check currently fails because two live reader scripts differ from
+its historical exact-byte input pins; its accepted old verdict remains on its
+original inputs, and this does not transfer Small qualification to Medium.
+F09/F10/F11 and selected private 7E remain open. The batch114 paragraph below
+is history after this development checkpoint.
+
+## Historical October 21 after batch114 — Medium Manual/cold PASS; mounted replacement next
 
 The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
 [Batch114](docs/CHUNK7-BATCH114-MEDIUM-MANUAL-COLD-2026-10-21.md) froze

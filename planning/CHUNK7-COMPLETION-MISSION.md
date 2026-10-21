@@ -13,6 +13,9 @@
 > and [implementation chronology](CHUNK7-IMPLEMENTATION-PLAN.md) remain
 > historical where they say 7E is unselected or give stale native caps.
 
+[Batch115 development](../docs/CHUNK7-BATCH115-MEDIUM-MOUNTED-DEVELOPMENT-2026-10-21.md)
+adds a distinct paid Medium mounted Manual/cold route with focused offline
+checks and independent review; native mounted execution remains open.
 [Batch114](../docs/CHUNK7-BATCH114-MEDIUM-MANUAL-COLD-2026-10-21.md) passed the
 fresh same-candidate paid Medium Human/Horse Manual 6/0 and independent-copy
 cold load 4/0, with exact restoration and zero cold writes. This qualifies an

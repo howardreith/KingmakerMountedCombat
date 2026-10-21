@@ -272,8 +272,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (SchemaVersion != SaveBackedSchemaVersion || OwnedPairs == null) errors.Add("Owned pairs require their exact schema-2 inherited selection.");
                 else
                 {
-                    if (!OwnedPairs.SmallFixtureLineage && OwnedPairs.ColdReceiptSha256 != null)
-                        errors.Add("Only Small fixture persistence carries the accepted F09 cold receipt.");
+                    if (!OwnedPairs.PaidFixtureLineage && OwnedPairs.ColdReceiptSha256 != null)
+                        errors.Add("Only paid fixture persistence carries an accepted cold receipt.");
                     errors.AddRange(OwnedPairs.Validate(Scenario, RunId, PersistenceCase));
                 }
             }
@@ -625,14 +625,19 @@ namespace KingmakerMountedCombat.Diagnostics
                         PersistenceLoad.Sha256 == Fixture.Baseline?.Sha256 || PersistenceLoad.Sha256 != OwnedPairs.SeedSha256)
                         errors.Add("Owner seed lacks its exact registered non-aliasing identity.");
                 }
-                else if (OwnedPairs.SmallFixtureLineage)
+                else if (OwnedPairs.PaidFixtureLineage)
                 {
-                    var source = OwnedPairs.IsSmallFixtureSave;
-                    var nativeName = source ? Chunk7SmallFixtureSelection.OutputName : Chunk7OwnedPairsSelection.SmallFixtureManualName;
+                    var medium = OwnedPairs.MediumFixtureLineage;
+                    var source = OwnedPairs.IsSmallFixtureSave || OwnedPairs.IsMediumFixtureSave;
+                    var sourceName = medium ? Chunk7SmallFixtureSelection.MediumOutputName : Chunk7SmallFixtureSelection.OutputName;
+                    var mountedName = medium ? Chunk7OwnedPairsSelection.MediumFixtureManualName : Chunk7OwnedPairsSelection.SmallFixtureManualName;
+                    var nativeName = source ? sourceName : mountedName;
                     errors.AddRange(PersistenceLoad.Validate("persistenceLoad", nativeName,
                         "^Manual_[1-9][0-9]*_" + nativeName + "\\.zks$"));
-                    if (!(source ? Chunk7SmallFixtureSelection.IsManualLeaf(PersistenceLoad.FileName) :
-                            Chunk7OwnedPairsSelection.IsSmallFixtureManualLeaf(PersistenceLoad.FileName)) ||
+                    if (!(source ? (medium ? Chunk7SmallFixtureSelection.IsMediumManualLeaf(PersistenceLoad.FileName) :
+                                Chunk7SmallFixtureSelection.IsManualLeaf(PersistenceLoad.FileName)) :
+                            (medium ? Chunk7OwnedPairsSelection.IsMediumFixtureManualLeaf(PersistenceLoad.FileName) :
+                                Chunk7OwnedPairsSelection.IsSmallFixtureManualLeaf(PersistenceLoad.FileName))) ||
                         Fixture?.Working == null || PersistenceLoad.GameId != Chunk7SmallFixtureSelection.CampaignId ||
                         PersistenceLoad.GameName != Chunk7SmallFixtureSelection.CampaignName ||
                         PersistenceLoad.Area != Chunk7SmallFixtureSelection.AreaId ||
@@ -641,7 +646,7 @@ namespace KingmakerMountedCombat.Diagnostics
                         (source ? PersistenceLoad.Sha256 != OwnedPairs.SourceArchiveSha256 :
                             PersistenceLoad.Sha256 == OwnedPairs.SourceArchiveSha256) ||
                         PersistenceLoad.Sha256 == OwnedPairs.SeedSha256)
-                        errors.Add("Small persistence input must be the exact qualified F09 Manual or a distinct genuine mounted checkpoint in its native campaign.");
+                        errors.Add("Paid fixture persistence input must be its exact qualified Manual or a distinct genuine mounted checkpoint in its native campaign.");
                 }
                 else if (OwnedPairs.OwnerSeedDerivedInput)
                 {
