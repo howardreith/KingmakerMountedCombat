@@ -7,13 +7,17 @@ if(-not$FixtureDirectory){$FixtureDirectory=Join-Path $RepositoryRoot 'tests/Chu
 if(-not$OutputDirectory){$OutputDirectory=Join-Path ([IO.Path]::GetDirectoryName([IO.Path]::GetDirectoryName($RepositoryRoot))) ('analysis-cache/chunk7-continuation/chunk7cumulativeevidence-'+[Guid]::NewGuid().ToString('N'))}
 . (Join-Path $ReaderDirectory 'RuntimeHarness.Common.ps1')
 . (Join-Path $PSScriptRoot 'Convert-Chunk7CumulativeManualFixture.ps1')
-function New-CumulativeFixture([bool]$Paid=$true){$name=if($Paid){'Paid'}else{'Existing'};$historical=[IO.File]::ReadAllText((Join-Path $FixtureDirectory ('Cumulative'+$name+'Fixture.json')))|ConvertFrom-Json;Convert-KmcSyntheticCumulativeManualFixture $historical $FixtureDirectory $name}
+function New-CumulativeFixture([bool]$Paid=$true,[bool]$OwnerSeed=$false){$name=if($Paid){'Paid'}else{'Existing'};$historical=[IO.File]::ReadAllText((Join-Path $FixtureDirectory ('Cumulative'+$name+'Fixture.json')))|ConvertFrom-Json;Convert-KmcSyntheticCumulativeManualFixture $historical $FixtureDirectory $name $OwnerSeed}
 function Check-Cumulative($F){Assert-KmcChunk7CumulativeEvidence $F.request $F.artifact $F.source}
 if($FixturesOnly){return}
 [void][IO.Directory]::CreateDirectory($OutputDirectory);$script:passes=0;$script:failures=0
 function Good([string]$Name,[scriptblock]$Body){try{&$Body;$script:passes++;Write-Host ('PASS '+$Name)}catch{$script:failures++;Write-Host ('FAIL '+$Name+': '+$_+' '+$_.ScriptStackTrace)}}
 function Bad([string]$Name,[scriptblock]$Body){$rejected=$false;try{&$Body}catch{$rejected=$true};if($rejected){$script:passes++;Write-Host ('PASS refuses '+$Name)}else{$script:failures++;Write-Host ('FAIL accepted '+$Name)}}
 foreach($paid in @($true,$false)){Good ('closed cumulative '+$paid){Check-Cumulative (New-CumulativeFixture $paid)}}
+Good 'owner-seed one-owner 305 to native 306 reader' {Check-Cumulative (New-CumulativeFixture $true $true)}
+Bad 'owner-seed output cannot borrow legacy source number' {$f=New-CumulativeFixture $true $true;$f.request.persistenceLoad.fileName='Manual_302_KMC_C7_ACQUIRED_FIELD.zks';Check-Cumulative $f}
+Bad 'owner-seed output cannot borrow legacy source mode' {$f=New-CumulativeFixture $true $true;$f.request.cumulativeAcquisition.PSObject.Properties.Remove('sourceMode');Check-Cumulative $f}
+Bad 'owner-seed source cannot borrow legacy output' {$f=New-CumulativeFixture $true $true;$f.request.cumulativeAcquisition.nativeWriteLeaf='Manual_303_KMC_C7_MANUAL_DERIVED_FIELD.zks';Check-Cumulative $f}
 Good 'cumulative Manual native choices omit the Auto observer' {
  $f=New-CumulativeFixture;$f.request.cumulativeAcquisition|Add-Member -NotePropertyName sourceMode -NotePropertyValue 'assisted-producer-and-cold'
  $choice=Assert-KmcManualDerivedNativeChoices $f.request $f.artifact.observations $f.request.cumulativeAcquisition

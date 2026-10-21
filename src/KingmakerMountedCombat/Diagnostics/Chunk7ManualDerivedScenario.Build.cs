@@ -247,7 +247,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var number = manager.FindUnusedSaveNumber(SaveInfo.SaveType.Manual);
             var leaf = "Manual_" + number.ToString(System.Globalization.CultureInfo.InvariantCulture) + "_" +
                 Chunk7ManualDerivedSelection.ManualOutputName + ".zks";
-            Require(number == (cumulative?.UsesAssistedCold == true ? 301 : cumulative != null ? 303 : selection.UsesOwnerSeedCold ? 304 : 2) &&
+            Require(number == (cumulative?.UsesAssistedCold == true ? 301 : cumulative?.UsesOwnerSeedOneOwner == true ? 306 : cumulative != null ? 303 : selection.UsesOwnerSeedCold ? 304 : 2) &&
                 leaf == selection.NativeWriteLeaf &&
                 !File.Exists(Path.Combine(root, leaf)), "Native Manual numbering or output absence differs.");
             evidence["nativeNumbering"] = new JObject { ["method"] = "FindUnusedSaveNumber",

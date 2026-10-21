@@ -49,6 +49,24 @@ function Qualify($C){Get-KmcChunk7CumulativeSource $C.selection $C.fixture $C.ca
 function Good([string]$Name,[scriptblock]$Action){&$Action;$script:passes++;Write-Host ('PASS '+$Name)}
 function Bad([string]$Name,[scriptblock]$Action){$bad=$false;try{&$Action}catch{$bad=$true};if(-not$bad){throw ('Accepted '+$Name)};$script:passes++;Write-Host ('PASS refuses '+$Name)}
 foreach($paid in @($true,$false)){Good ('exact real qualifier body '+$paid){$c=New-Case $paid;$r=Qualify $c;if($r.descriptor.fileName-cne'Manual_302_KMC_C7_ACQUIRED_FIELD.zks'-or$r.descriptor.sha256-cne$c.selection.sourceArchiveSha256){throw 'Observed descriptor lost'};foreach($gate in @('full-bootstrap-cold-lineage','strict-manifest','full-manual-artifact','settled-native-output')){if(@($script:calls|Where-Object{$_-ceq$gate}).Count-ne1){throw ('Required external gate omitted '+$gate)}}}}
+function New-OwnerSeedCase {
+ $c=New-Case
+ $c.owner.persistenceCase=''
+ $c.selection|Add-Member -NotePropertyName sourceMode -NotePropertyValue 'owner-seed-one-owner'
+ $c.selection.nativeWriteLeaf='Manual_306_KMC_C7_MANUAL_DERIVED_FIELD.zks'
+ $c.candidate.persistenceLoad.fileName='Manual_305_KMC_C7_ACQUIRED_FIELD.zks'
+ $c.artifact.observations.nativeWrite.fileName='Manual_305_KMC_C7_ACQUIRED_FIELD.zks'
+ $path=Join-Path (Split-Path $c.artifact.observations.nativeWrite.path -Parent) 'Manual_305_KMC_C7_ACQUIRED_FIELD.zks'
+ $c.artifact.observations.nativeWrite.path=$path
+ $script:hashes[$path]=$c.selection.sourceArchiveSha256
+ $c
+}
+Good 'owner-seed one-owner source 305 qualifies only with exact Manual 304 ancestry' {$c=New-OwnerSeedCase;$r=Qualify $c;if($r.descriptor.fileName-cne'Manual_305_KMC_C7_ACQUIRED_FIELD.zks'){throw 'Owner-seed descriptor differs.'}}
+Bad 'owner-seed 305 without explicit mode' {$c=New-OwnerSeedCase;$c.selection.PSObject.Properties.Remove('sourceMode');[void](Qualify $c)}
+Bad 'owner-seed 305 with wrong output 303' {$c=New-OwnerSeedCase;$c.selection.nativeWriteLeaf='Manual_303_KMC_C7_MANUAL_DERIVED_FIELD.zks';[void](Qualify $c)}
+Bad 'owner-seed 305 without Manual 304 ancestry' {$c=New-OwnerSeedCase;$script:sourceRequest.persistenceLoad.fileName='Manual_2_KMC_C7_MANUAL_DERIVED_FIELD.zks';[void](Qualify $c)}
+Bad 'owner-seed 305 with named persistence case' {$c=New-OwnerSeedCase;$c.owner.persistenceCase='multi-exploration-manual';[void](Qualify $c)}
+Bad 'owner-seed 305 with array persistence case' {$c=New-OwnerSeedCase;$c.owner.persistenceCase=@('');[void](Qualify $c)}
 foreach($gate in @('cloneable','not-reparse','not-hardlink','unique-json','full-bootstrap-cold-lineage','strict-manifest','full-manual-artifact','settled-native-output')){Bad ('mandatory external refusal '+$gate){$c=New-Case;$script:failure=$gate;[void](Qualify $c)}}
 $cases=[ordered]@{
  'source already has two owners'={param($c)$c.request.acquiredManual.case='preserve-two-acquired-field'}

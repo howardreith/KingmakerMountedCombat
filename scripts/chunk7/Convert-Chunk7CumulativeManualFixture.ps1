@@ -3,18 +3,22 @@ Set-StrictMode -Version Latest
 # Test-only projection. The frozen Auto fixtures remain untouched and cannot be
 # presented as native Manual evidence. This builds a synthetic Manual receipt for
 # the new reader path from the corresponding Manual-derived test fixture.
-function Convert-KmcSyntheticCumulativeManualFixture($Fixture, [string]$FixtureDirectory, [string]$Name) {
+function Convert-KmcSyntheticCumulativeManualFixture($Fixture, [string]$FixtureDirectory, [string]$Name, [bool]$OwnerSeed = $false) {
     $serialized = $Fixture | ConvertTo-Json -Depth 100 -Compress
-    $Fixture = $serialized.Replace('Manual_7_KMC_C7_ACQUIRED_FIELD.zks', 'Manual_302_KMC_C7_ACQUIRED_FIELD.zks') | ConvertFrom-Json
+    $Fixture = $serialized.Replace('Manual_7_KMC_C7_ACQUIRED_FIELD.zks', $(if($OwnerSeed){'Manual_305_KMC_C7_ACQUIRED_FIELD.zks'}else{'Manual_302_KMC_C7_ACQUIRED_FIELD.zks'})) | ConvertFrom-Json
     $manual = [IO.File]::ReadAllText((Join-Path $FixtureDirectory ('ManualDerived' + $Name + 'Fixture.json'))) | ConvertFrom-Json
     $o = $Fixture.artifact.observations
     $m = $manual.artifact.observations
-    $leaf = 'Manual_303_KMC_C7_MANUAL_DERIVED_FIELD.zks'
+    $leaf = if($OwnerSeed){'Manual_306_KMC_C7_MANUAL_DERIVED_FIELD.zks'}else{'Manual_303_KMC_C7_MANUAL_DERIVED_FIELD.zks'}
     $root = $o.beforeLoad.authority.root
     $manualRoot = $m.beforeLoad.authority.root
     $manualLeaf = $m.nativeWrite.leaf
     $Fixture.request.cumulativeAcquisition.nativeWriteLeaf = $leaf
     $o.selection.nativeWriteLeaf = $leaf
+    if($OwnerSeed){
+        $Fixture.request.cumulativeAcquisition | Add-Member -NotePropertyName sourceMode -NotePropertyValue 'owner-seed-one-owner'
+        $o.selection | Add-Member -NotePropertyName sourceMode -NotePropertyValue 'owner-seed-one-owner'
+    }
     $o.PSObject.Properties.Remove('nativeAcquisition')
     $o.slotProjection.enabledForTerminalAuto = $false
 
@@ -29,7 +33,7 @@ function Convert-KmcSyntheticCumulativeManualFixture($Fixture, [string]$FixtureD
         if ($null -eq $o.PSObject.Properties[$key]) { $o | Add-Member -NotePropertyName $key -NotePropertyValue $value }
         else { $o.$key = $value }
     }
-    $o.nativeNumbering.number = 303
+    $o.nativeNumbering.number = if($OwnerSeed){306}else{303}
     $o.nativeNumbering.sourceDescriptors = @($o.fixtureReadiness.isolatedSaveDescriptors.descriptors | ForEach-Object { $_ | ConvertTo-Json -Depth 100 | ConvertFrom-Json })
     $o.nativeWrite.fileName = $leaf
     $o.settledDescriptors[0].fileName = $Fixture.request.persistenceLoad.fileName

@@ -74,7 +74,7 @@ foreach($entry in $blocked.GetEnumerator()){
     foreach($case in @($null,'horse-native-dismiss')){if((Get-KmcChunk7FamilyNotReadyReason $entry.Key $case)-cne(Expected $entry.Key $entry.Value)){throw ('Reason differs: '+$entry.Key)}}
 }
 if((Get-KmcChunk7FamilyNotReadyReason 'chunk7-cumulative-acquisition' 'legacy-manual')-cne$manualReason){throw 'Legacy cumulative Manual qualification guard differs.'}
-foreach($case in @($null,'assisted-manual')){if($null-ne(Get-KmcChunk7FamilyNotReadyReason 'chunk7-cumulative-acquisition' $case)){throw 'Assisted cumulative Manual was refused.'}}
+foreach($case in @($null,'assisted-manual','owner-seed-manual')){if($null-ne(Get-KmcChunk7FamilyNotReadyReason 'chunk7-cumulative-acquisition' $case)){throw 'Selected cumulative Manual route was refused.'}}
 foreach($case in $blockedCases){if((Get-KmcChunk7FamilyNotReadyReason 'chunk7-native-progression' $case)-cne(Expected ('chunk7-native-progression/'+$case) $progressionSite)){throw ('Progression reason differs: '+$case)}}
 Pass 'every blocked family and progression case has its exact refusal'
 $admitted=@('chunk7-owned-two-pair-campaign','chunk7-assisted-cold-inventory','chunk7-two-pair-exploration','chunk7-two-pair-combat','chunk7-persistence-save','chunk7-persistence-load',
@@ -95,7 +95,7 @@ $later=@('Read-KmcChunk7FieldSelectionFile','Read-KmcChunk7OrdinarySelectionFile
 $approval=@($ast.FindAll({param($n)$n-is[Management.Automation.Language.InvokeMemberExpressionAst]-and$n.Member.Extent.Text-ceq'ShouldProcess'},$true))
 if($asserts.Count-ne3-or$progressionRead.Count-lt1-or$cumulativeRead.Count-lt1-or$approval.Count-ne1-or
     $asserts[0].Extent.Text-cne'Assert-KmcChunk7FamilyReady $Scenario $null'-or$asserts[0].Extent.StartOffset-ge$first-or
-    $asserts[1].Extent.Text-cne'Assert-KmcChunk7FamilyReady $Scenario $(if(Test-KmcAssistedCumulativeMode $cumulativeAcquisitionInput.selection){''assisted-manual''}else{''legacy-manual''})'-or
+    $asserts[1].Extent.Text-cne'Assert-KmcChunk7FamilyReady $Scenario $(if(Test-KmcAssistedCumulativeMode $cumulativeAcquisitionInput.selection){''assisted-manual''}elseif(Test-KmcOwnerSeedCumulativeMode $cumulativeAcquisitionInput.selection){''owner-seed-manual''}else{''legacy-manual''})'-or
     $asserts[1].Extent.StartOffset-le$cumulativeRead[0].Extent.StartOffset-or$asserts[1].Extent.StartOffset-ge$approval[0].Extent.StartOffset-or
     $asserts[2].Extent.Text-cne'Assert-KmcChunk7FamilyReady $Scenario ([string]$progressionSelectionInput.selection.case)'-or
     $asserts[2].Extent.StartOffset-le$progressionRead[0].Extent.StartOffset-or$asserts[2].Extent.StartOffset-ge$later-or
@@ -120,6 +120,14 @@ $legacySelection=Join-Path $output 'legacy-cumulative-selection.json'
 $legacyResult=Invoke-Runner @('-Scenario','chunk7-cumulative-acquisition','-RunId','stale-cumulative-gate','-BaseGameOnly','-SaveAccessAllowed','-CumulativeAcquisitionSelectionPath',$legacySelection)
 if($legacyResult.code-eq0-or-not$legacyResult.text.Contains($manualReason)){throw ('Actual legacy cumulative Manual refusal differs: '+$legacyResult.text)}
 Pass 'actual legacy cumulative selection is refused before approval, lock and launch'
+$ownerFixture=Read-KmcJson (Join-Path $RepositoryRoot 'tests/Chunk7Diagnostics/CumulativePaidFixture.json')
+$ownerFixture.request.cumulativeAcquisition|Add-Member -NotePropertyName sourceMode -NotePropertyValue 'owner-seed-one-owner'
+$ownerFixture.request.cumulativeAcquisition.nativeWriteLeaf='Manual_306_KMC_C7_MANUAL_DERIVED_FIELD.zks'
+$ownerSelection=Join-Path $output 'owner-seed-cumulative-selection.json'
+[IO.File]::WriteAllText($ownerSelection,($ownerFixture.request.cumulativeAcquisition|ConvertTo-Json -Depth 30),[Text.UTF8Encoding]::new($false))
+$ownerResult=Invoke-Runner @('-Scenario','chunk7-cumulative-acquisition','-RunId','owner-seed-cumulative-preflight','-BaseGameOnly','-SaveAccessAllowed','-CumulativeAcquisitionSelectionPath',$ownerSelection,'-OrdinaryFieldSelectionPath',$missing)
+if($ownerResult.code-eq0-or-not$ownerResult.text.Contains('Field selection is forbidden under another scenario.')-or$ownerResult.text.Contains($manualReason)){throw ('Actual owner-seed cumulative prelaunch decision differs: '+$ownerResult.text)}
+Pass 'actual owner-seed cumulative selection passes readiness and reaches the next safe intake guard'
 # Progression: a real closed selection under the lab cache is read, then refused by its case.
 # Selection intake hashes its file, which -WhatIf would turn into a no-op, so these runs omit
 # -WhatIf and instead carry a forbidden field selection: the runner's own next intake check

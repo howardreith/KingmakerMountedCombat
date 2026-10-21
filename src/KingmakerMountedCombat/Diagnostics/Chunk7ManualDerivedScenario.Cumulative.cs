@@ -52,7 +52,7 @@ namespace KingmakerMountedCombat.Diagnostics
             : cumulative.UsesAssistedCold
                 ? authority.MatchesAssistedCumulativePlan(request, Chunk7CumulativeAcquisitionSelection.AssistedManualOutputLeaf,
                     Chunk7ManualDerivedSelection.ManualOutputName, unwritten)
-                : authority.MatchesCumulativeAcquisitionPlan(request.PersistenceLoad, Chunk7CumulativeAcquisitionSelection.LegacyManualOutputLeaf,
+                : authority.MatchesCumulativeAcquisitionPlan(request.PersistenceLoad, cumulative.NativeWriteLeaf,
                     Chunk7ManualDerivedSelection.ManualOutputName, unwritten);
 
         private void ReadCumulativeSource()

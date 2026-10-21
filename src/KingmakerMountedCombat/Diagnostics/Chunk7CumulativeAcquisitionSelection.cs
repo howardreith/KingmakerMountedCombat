@@ -15,6 +15,9 @@ namespace KingmakerMountedCombat.Diagnostics
         // This distinct acquired-field lineage follows its source Manual_302.
         public const string LegacyManualOutputLeaf = Chunk7ManualDerivedSelection.CumulativeLegacyOutputLeaf;
         public const string LegacySourceLeaf = "Manual_302_KMC_C7_ACQUIRED_FIELD.zks";
+        public const string OwnerSeedSourceMode = "owner-seed-one-owner";
+        public const string OwnerSeedSourceLeaf = "Manual_305_KMC_C7_ACQUIRED_FIELD.zks";
+        public const string OwnerSeedManualOutputLeaf = Chunk7ManualDerivedSelection.CumulativeOwnerSeedOutputLeaf;
         public const string AssistedManualOutputLeaf = Chunk7ManualDerivedSelection.CumulativeAssistedOutputLeaf;
         public const string AssistedSourceMode = "assisted-producer-and-cold";
         public const string AssistedColdLeaf = "cumulative-assisted-cold-source.json";
@@ -25,6 +28,7 @@ namespace KingmakerMountedCombat.Diagnostics
         public bool ShouldSerializeAssistedColdRunId() => AssistedColdRunId != null;
         public bool ShouldSerializeAssistedColdArtifactSha256() => AssistedColdArtifactSha256 != null;
         internal bool UsesAssistedCold => SourceMode == AssistedSourceMode;
+        internal bool UsesOwnerSeedOneOwner => SourceMode == OwnerSeedSourceMode;
         internal string SelectedManualName => UsesAssistedCold ? "KMC_C7_ASSISTED_FIXTURE" : "KMC_C7_ACQUIRED_FIELD";
         public string Case { get; set; }
         public string SourceRunId { get; set; }
@@ -53,7 +57,12 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             var errors = new List<string>();
             if (scenario != Scenario) errors.Add("Cumulative acquisition requires its exact separate family.");
-            if (SourceMode != null || AssistedColdRunId != null || AssistedColdArtifactSha256 != null)
+            if (UsesOwnerSeedOneOwner)
+            {
+                if (AssistedColdRunId != null || AssistedColdArtifactSha256 != null)
+                    errors.Add("Owner-seed cumulative source cannot borrow assisted cold pins.");
+            }
+            else if (SourceMode != null || AssistedColdRunId != null || AssistedColdArtifactSha256 != null)
             {
                 if (!UsesAssistedCold || !System.Text.RegularExpressions.Regex.IsMatch(AssistedColdRunId ?? "", "^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$") ||
                     AssistedColdRunId == SourceRunId || AssistedColdRunId == runId ||
@@ -64,7 +73,8 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             // These are pure field/choice rules. Actual cumulative source identity
             // and authority are checked separately and never delegated to seed intake.
-            if (NativeWriteLeaf != (UsesAssistedCold ? AssistedManualOutputLeaf : LegacyManualOutputLeaf))
+            if (NativeWriteLeaf != (UsesAssistedCold ? AssistedManualOutputLeaf :
+                UsesOwnerSeedOneOwner ? OwnerSeedManualOutputLeaf : LegacyManualOutputLeaf))
                 errors.Add("Cumulative acquisition requires its source-specific native Manual output.");
             errors.AddRange(NativeChoicePins().Validate(Chunk7ManualDerivedSelection.Scenario, runId, true, true));
             if (!Chunk7ManualDerivedSelection.NativeId(PriorOwnerId) || !Chunk7ManualDerivedSelection.NativeId(PriorPetId) || PriorOwnerId == PriorPetId ||
@@ -82,7 +92,7 @@ namespace KingmakerMountedCombat.Diagnostics
         };
         internal bool IsSelectedManualLeaf(string value)
         {
-            if (!UsesAssistedCold) return IsAcquiredManualLeaf(value);
+            if (!UsesAssistedCold) return value == (UsesOwnerSeedOneOwner ? OwnerSeedSourceLeaf : LegacySourceLeaf);
             const string prefix = "Manual_", suffix = "_KMC_C7_ASSISTED_FIXTURE.zks";
             if (value == null || !value.StartsWith(prefix, StringComparison.Ordinal) || !value.EndsWith(suffix, StringComparison.Ordinal)) return false;
             var text = value.Substring(prefix.Length, value.Length - prefix.Length - suffix.Length);
@@ -91,6 +101,6 @@ namespace KingmakerMountedCombat.Diagnostics
                 text == number.ToString(CultureInfo.InvariantCulture);
         }
         internal static bool IsAcquiredManualLeaf(string value)
-            => value == LegacySourceLeaf;
+            => value == LegacySourceLeaf || value == OwnerSeedSourceLeaf;
     }
 }

@@ -59,9 +59,10 @@ namespace KingmakerMountedCombat.Diagnostics
                             (number == 2 ? Chunk7ManualDerivedSelection.ManualOutputLeaf :
                                 number == 301 ? Chunk7CumulativeAcquisitionSelection.AssistedManualOutputLeaf :
                                 number == 303 ? Chunk7CumulativeAcquisitionSelection.LegacyManualOutputLeaf :
+                                number == 306 ? Chunk7CumulativeAcquisitionSelection.OwnerSeedManualOutputLeaf :
                                 Chunk7ManualDerivedSelection.OwnerSeedOutputLeaf) :
                             Chunk7AcquiredManualSelection.NativeOutputLeaf(number)) &&
-                    (!derived || number == 2 || number == 301 || number == 303 || number == 304),
+                    (!derived || number == 2 || number == 301 || number == 303 || number == 304 || number == 306),
                     "Acquired Manual observer requires its closed name and exact canonical positive native slot.");
                 nativeName = acquiredManualName;
             }

@@ -476,7 +476,7 @@ function Assert-KmcManualDerivedNativeSave($Request,$O,$Labels,[string]$Root){
  $leaf=$selection.nativeWriteLeaf;$name='KMC_C7_MANUAL_DERIVED_FIELD';$path=Join-Path $Root $leaf
  $n=$O.nativeNumbering;$r=$O.saveRequested;$p=$O.nativeSave;$w=$O.nativeWrite;$field=$O.field
  foreach($pair in @(@('method','FindUnusedSaveNumber'),@('token','06008024'),@('moduleMvid','07fa1e4d-8618-41b3-9b8d-faa17d3b26f7'),@('nativeSaveType','Manual'),@('fileName',$leaf))){Assert-KmcBootstrapInventoryString $n.($pair[0]) $pair[1]}
- $expectedNumber=if($leaf-ceq'Manual_301_KMC_C7_MANUAL_DERIVED_FIELD.zks'){301}elseif($leaf-ceq'Manual_303_KMC_C7_MANUAL_DERIVED_FIELD.zks'){303}elseif($leaf-ceq'Manual_304_KMC_C7_MANUAL_DERIVED_FIELD.zks'){304}else{2}
+ $expectedNumber=if($leaf-ceq'Manual_301_KMC_C7_MANUAL_DERIVED_FIELD.zks'){301}elseif($leaf-ceq'Manual_303_KMC_C7_MANUAL_DERIVED_FIELD.zks'){303}elseif($leaf-ceq'Manual_304_KMC_C7_MANUAL_DERIVED_FIELD.zks'){304}elseif($leaf-ceq'Manual_306_KMC_C7_MANUAL_DERIVED_FIELD.zks'){306}else{2}
  Assert-KmcOrdinaryInteger $n.number $expectedNumber $expectedNumber;Assert-KmcOrdinaryInteger $n.frame $field.frame $O.settledWorld.frame
  foreach($key in @('outputInitiallyAbsent')){Assert-KmcChunk7Boolean $n.$key $true};Assert-KmcChunk7Boolean $n.slotProjectionEnabled $false
  if((ConvertTo-KmcChunk7Canonical $n.sourceDescriptors)-cne(ConvertTo-KmcChunk7Canonical $O.fixtureReadiness.isolatedSaveDescriptors.descriptors)){throw 'Manual numbering changed its immutable source inventory.'}
