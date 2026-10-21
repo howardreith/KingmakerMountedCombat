@@ -1,5 +1,12 @@
 # Chunk 7B–7D — IN PROGRESS
 
+Batch109 removed the repeated sort/copy in the mounted Small-body equipment
+comparison while preserving exact ordinal multiplicity and slot order. Fast
+passed 3/0 and independent read-only review found no concrete regression.
+There was no new native run or frozen package; F11 measured allocation rate and
+native ordinary-controls qualification remain open. See the
+[batch109 record](docs/CHUNK7-BATCH109-F11-SMALL-BODY-COMPARISON-2026-10-20.md).
+
 Batch108 qualified the world115 Small Horse later-level route natively: fresh
 mounted Manual and cold PASS 5/0 and 3/0, genuine native level/Manual PASS 3/0,
 and separate-process two-pair level cold PASS 3/0. The real source resolver
