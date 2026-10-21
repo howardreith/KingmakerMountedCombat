@@ -101,6 +101,10 @@ namespace KingmakerMountedCombat.Diagnostics
                 case 5:
                     FieldDeadline();
                     if (!FieldAbilitySettled()) return;
+                    // Keep the exact native delivery and pair state even when the
+                    // postcondition fails. A terminal shell alone does not prove
+                    // that its synchronous Dismount dispatch was accepted.
+                    evidence["fieldDismountBoundary"] = CaptureFieldDismountBoundary();
                     Require(world.Registry.FindActive(rider) == null && world.Registry.Owners.Length == 1 &&
                         ReferenceEquals(rider.Descriptor.Pet, mount) &&
                         ReferenceEquals(mount.Descriptor.Master.Value, rider),
@@ -230,6 +234,33 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["nativeCasts"] = world.NativeControls.NativeCastRequestCount,
                 ["saveSnapshots"] = persistence.SnapshotCount,
                 ["completedSaves"] = persistence.CompletedSaveCount };
+        }
+
+        private JObject CaptureFieldDismountBoundary()
+        {
+            var target = world.Registry.FindActive(rider);
+            var control = world.Registry.FindActive(controlRider);
+            return new JObject {
+                ["frame"] = Time.frameCount,
+                ["shellResult"] = fieldShell.Result.ToString(),
+                ["shellFinished"] = fieldShell.IsFinished,
+                ["processEnded"] = fieldShell.ExecutionProcess == null || fieldShell.ExecutionProcess.IsEnded,
+                ["targetOwnerId"] = target?.Id.ToString("N"),
+                ["targetGeneration"] = target?.Generation,
+                ["targetState"] = target?.Boundary.State.ToString(),
+                ["controlOwnerId"] = control?.Id.ToString("N"),
+                ["controlGeneration"] = control?.Generation,
+                ["owners"] = world.Registry.Owners.Length,
+                ["riderPetId"] = rider.Descriptor.Pet?.UniqueId,
+                ["riderPetIsMammoth"] = ReferenceEquals(rider.Descriptor.Pet, mount),
+                ["mountMasterId"] = mount.Descriptor.Master.Value?.UniqueId,
+                ["mountMasterIsRider"] = ReferenceEquals(mount.Descriptor.Master.Value, rider),
+                ["nativeCasts"] = world.NativeControls.NativeCastRequestCount,
+                ["nativeRefusals"] = world.NativeControls.NativeRefusalCount,
+                ["dispatchAccepted"] = world.NativeControls.DispatchAcceptedCount,
+                ["dispatchRejected"] = world.NativeControls.DispatchRejectedCount,
+                ["shellLifecycle"] = world.NativeControls.DescribeNativeShellLifecycle()
+            };
         }
     }
 }

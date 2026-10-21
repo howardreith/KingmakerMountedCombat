@@ -1,13 +1,15 @@
 # Chunk 7B–7D — IN PROGRESS
 
 [Batch118](docs/CHUNK7-BATCH118-MEDIUM-MAMMOTH-FIELD-DEVELOPMENT-2026-10-21.md)
-adds an independently reviewed, offline-tested paid Mammoth field consumer on
-preview.85 source: separate cold admission, native player Mount, real ground
-movement, Dismount and stable neighboring Horse ownership. Fast 3/0 and focused
-protocol/source/reader/wiring checks pass; no new package or game run has been
-claimed. The next bounded step is a five-scenario same-candidate native chain
-after Candidate/package/suite freeze. Batch117 results below retain their
-preview.84 identity.
+ran five declared preview.85 native scenarios. The paid Medium Horse Manual,
+separate cold, paid Mammoth replacement Manual, and separate Mammoth cold passed.
+The field case cold-loaded and mounted the Mammoth, then moved it 1.953 m through
+a successful player-created native click, but **FAILed** the final Dismount
+release assertion after its shell settled. Every transaction restored Mods,
+Working, protected saves and exact Howie profile bytes. Preview.86 source now
+adds one read-only terminal dispatch/owner snapshot for a distinguishing run;
+it is not yet a new native result. The standing mission continues; F09 field,
+schema migration, F11 and 7E remain open. Batch117 below retains its identity.
 
 [Batch117](docs/CHUNK7-BATCH117-MEDIUM-MAMMOTH-COLD-2026-10-21.md)
 passed the four-scenario same-candidate preview.84 Medium chain: mounted Horse
