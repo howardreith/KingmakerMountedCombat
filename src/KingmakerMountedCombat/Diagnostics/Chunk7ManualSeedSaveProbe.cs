@@ -56,9 +56,11 @@ namespace KingmakerMountedCombat.Diagnostics
                         System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var number) &&
                     number > 0 && leaf == (assisted ? Chunk7AssistedFixtureSelection.ManualLeaf(number) :
                         progression ? Chunk7ProgressionSelection.ManualLeaf(number) : derived ?
-                            (number == 2 ? Chunk7ManualDerivedSelection.ManualOutputLeaf : Chunk7ManualDerivedSelection.OwnerSeedOutputLeaf) :
+                            (number == 2 ? Chunk7ManualDerivedSelection.ManualOutputLeaf :
+                                number == 301 ? Chunk7CumulativeAcquisitionSelection.AssistedManualOutputLeaf :
+                                Chunk7ManualDerivedSelection.OwnerSeedOutputLeaf) :
                             Chunk7AcquiredManualSelection.NativeOutputLeaf(number)) &&
-                    (!derived || number == 2 || number == 304),
+                    (!derived || number == 2 || number == 301 || number == 304),
                     "Acquired Manual observer requires its closed name and exact canonical positive native slot.");
                 nativeName = acquiredManualName;
             }
