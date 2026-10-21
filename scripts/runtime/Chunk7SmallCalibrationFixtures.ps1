@@ -4,6 +4,19 @@ Set-StrictMode -Version Latest
 # source with that producer identity, then retain the separate cold reader-only
 # verdict. Neither historical identity is projected onto a later consumer.
 # This is a read-only source gate; it grants no load or profile authority.
+function Resolve-KmcF09AcceptedReaderPin($Pin){
+ $prior=Join-Path (Get-KmcRepositoryRoot) 'scripts/runtime'
+ $snapshot=Join-Path (Get-KmcLabRoot) 'analysis-cache/chunk7-continuation/f09-accepted-readers-6fb1eee8'
+ foreach($row in @(
+  @('Chunk7AssistedColdInventoryEvidence.ps1','0ecb969f676392a23bf5c9ab02bcad0ace20db7621d54af93bd8b89ca663e071',75040),
+  @('Chunk7SmallFixtureColdSource.ps1','2e11048380afad6102e8a54dd4f10a31d0e5e74e360c49b5c9b587278cd4da0b',5531))){
+  if($Pin.path-ceq(Join-Path $prior $row[0])){
+   if($Pin.sha256-cne$row[1]-or$Pin.length-ne$row[2]){throw 'Historical F09 reader identity differs from the accepted receipt.'}
+   return Assert-KmcChildPath (Join-Path $snapshot $row[0]) (Join-Path (Get-KmcLabRoot) 'analysis-cache') 'immutable accepted F09 reader'
+  }
+ }
+ return $Pin.path
+}
 function Get-KmcChunk7SmallF09CalibrationSource($Selection,$Fixture,$Consumer){
  Assert-KmcChunk7SmallF09SourceSelection $Selection 'unassigned-f09-calibration'
  $expected=[ordered]@{
@@ -38,7 +51,7 @@ function Get-KmcChunk7SmallF09CalibrationSource($Selection,$Fixture,$Consumer){
  if($r.inputPins-isnot[Array]-or$r.inputPins.Count-ne9){throw 'F09 cold reader input pin set changed.'}
  $seen=[Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
  foreach($pin in $r.inputPins){
-  $path=Assert-KmcChildPath $pin.path $lab 'F09 cold reader input'
+  $path=Assert-KmcChildPath (Resolve-KmcF09AcceptedReaderPin $pin) $lab 'F09 cold reader input'
   if(-not$seen.Add($path)-or$pin.sha256-isnot[string]-or$pin.sha256-cnotmatch'^[a-f0-9]{64}$') {throw 'F09 cold reader input pin is missing or repeated.'}
   Assert-KmcNotReparsePoint $path 'F09 cold reader input';Assert-KmcNotHardLink $path 'F09 cold reader input'
   $file=Get-Item -LiteralPath $path
@@ -62,7 +75,7 @@ function Get-KmcChunk7SmallF09CalibrationSource($Selection,$Fixture,$Consumer){
  Assert-KmcAssistedSettledFile $source.path $source.descriptor 'F09 producer archive at final source boundary'
  foreach($pin in $source.receiptPins){Assert-KmcAssistedSettledFile $pin.path $pin 'F09 producer receipt at final source boundary'}
  foreach($pin in $r.inputPins){
-  $path=Assert-KmcChildPath $pin.path $lab 'F09 cold input at final source boundary'
+  $path=Assert-KmcChildPath (Resolve-KmcF09AcceptedReaderPin $pin) $lab 'F09 cold input at final source boundary'
   Assert-KmcNotReparsePoint $path 'F09 cold input at final source boundary';Assert-KmcNotHardLink $path 'F09 cold input at final source boundary'
   $file=Get-Item -LiteralPath $path
   if($file.PSIsContainer-or$file.Length-ne[long]$pin.length-or(Get-KmcSha256 $path)-cne$pin.sha256){throw 'F09 cold input changed before qualification returned.'}
