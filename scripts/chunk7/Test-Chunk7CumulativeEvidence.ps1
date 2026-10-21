@@ -13,6 +13,16 @@ if($FixturesOnly){return}
 function Good([string]$Name,[scriptblock]$Body){try{&$Body;$script:passes++;Write-Host ('PASS '+$Name)}catch{$script:failures++;Write-Host ('FAIL '+$Name+': '+$_+' '+$_.ScriptStackTrace)}}
 function Bad([string]$Name,[scriptblock]$Body){$rejected=$false;try{&$Body}catch{$rejected=$true};if($rejected){$script:passes++;Write-Host ('PASS refuses '+$Name)}else{$script:failures++;Write-Host ('FAIL accepted '+$Name)}}
 foreach($paid in @($true,$false)){Good ('closed cumulative '+$paid){Check-Cumulative (New-CumulativeFixture $paid)}}
+Good 'assisted Manual native choices omit the Auto observer' {
+ $f=New-CumulativeFixture;$f.request.cumulativeAcquisition|Add-Member -NotePropertyName sourceMode -NotePropertyValue 'assisted-producer-and-cold'
+ $f.artifact.observations.PSObject.Properties.Remove('nativeAcquisition')
+ $choice=Assert-KmcManualDerivedNativeChoices $f.request $f.artifact.observations $f.request.cumulativeAcquisition
+ if($choice.actorId-cne$f.artifact.observations.field.actorId){throw 'Assisted Manual choice identity differs.'}
+}
+Bad 'legacy Auto native choices omit the installed observer' {
+ $f=New-CumulativeFixture;$f.artifact.observations.PSObject.Properties.Remove('nativeAcquisition')
+ Assert-KmcManualDerivedNativeChoices $f.request $f.artifact.observations $f.request.cumulativeAcquisition
+}
 $cases=[ordered]@{
  'one-owner missing prior pin'={param($f)$f.request.cumulativeAcquisition.priorOwnerId=$null}
  'prior actor chosen for second build'={param($f)$f.request.cumulativeAcquisition.existingActorId=$f.request.cumulativeAcquisition.priorOwnerId}

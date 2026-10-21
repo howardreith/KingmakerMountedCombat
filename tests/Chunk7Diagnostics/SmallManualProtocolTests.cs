@@ -29,7 +29,7 @@ namespace KingmakerMountedCombat.Tests
      CurrentEquipmentBlueprints=new string[12], ActiveVisualEquipmentNames=new[]{"native-small"} };
     var fixtureBody=Chunk7SmallPoseObservation.Body(observed,true);
     var legacyBody=Chunk7SmallPoseObservation.Body(observed,false);
-    Require(fixtureBody.Properties().Count()==20&&fixtureBody["avatarLocalScale"]["x"].Value<float>()==1.1f&&
+    Require(fixtureBody.Properties().Count()==20&&legacyBody.Properties().Count()==20&&legacyBody.Property("$id")==null&&fixtureBody["avatarLocalScale"]["x"].Value<float>()==1.1f&&
      fixtureBody["avatarLocalScale"]["Normalized"]==null&&legacyBody["AvatarLocalScale"]["X"].Value<float>()==1.1f&&
      legacyBody["AvatarLocalScale"]["Normalized"]==null,"Small body evidence included derived vector properties or lost native scale.");
     var body=new DeclaredSmallRiderBody("small-test-horse-v1",new string('a',64),observed.RaceGuid,observed.PresetGuid,
