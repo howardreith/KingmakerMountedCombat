@@ -348,11 +348,12 @@ function Assert-KmcChunk7SmallPresentationEvidence($Request,$O){
    $beforeSpend[0].blueprint-cne$pair[1]-or$afterSpend[0].blueprint-cne$pair[1]-or
    $beforeSpend[0].count-ne2-or$afterSpend[0].count-ne1-or$afterSpend[0].result-isnot[bool]-or-not$afterSpend[0].result){throw 'Small item input lacks one exact leased-item native spend.'}
   $pairCosts=@($row.nativeCosts|Where-Object{$_.boundary-cin@('cost-before','cost-after')-and$_.state.actor-cin@($s.actorId,$s.petId)})
-  $beforeCost=@($pairCosts|Where-Object boundary -CEQ 'cost-before');$afterCost=@($pairCosts|Where-Object boundary -CEQ 'cost-after')
-  if($pairCosts.Count-ne2-or$beforeCost.Count-ne1-or$afterCost.Count-ne1){throw 'Small item input lacks exactly one pair-owned native action cost.'}
+  $rootCosts=@($pairCosts|Where-Object command -EQ $row.shell)
+  $beforeCost=@($rootCosts|Where-Object boundary -CEQ 'cost-before');$afterCost=@($rootCosts|Where-Object boundary -CEQ 'cost-after')
+  if($rootCosts.Count-ne2-or$beforeCost.Count-ne1-or$afterCost.Count-ne1){throw 'Small item input lacks exactly one paid root action cost.'}
   $b=$beforeCost[0];$a=$afterCost[0]
   foreach($event in @($b,$a)){
-   Assert-KmcChunk7Boolean $event.acted $true;Assert-KmcChunk7Boolean $event.nativeTurnBased $false
+   Assert-KmcChunk7Boolean $event.acted $true;Assert-KmcChunk7Boolean $event.nativeTurnBased $false;Assert-KmcChunk7Boolean $event.ignoreCooldown $false
    if($event.command-ne$row.shell-or$event.commandActor-cne$s.actorId-or$event.state.actor-cne$s.actorId-or
     $event.commandType-cne'Kingmaker.UnitLogic.Commands.UnitUseAbility'-or$event.actionType-cnotin@('Standard','Move','Swift')){throw 'Small item cost command, actor or native action type differs.'}
    foreach($key in @('standard','move','swift','reactionCooldown')){Assert-KmcChunk7SmallNumber $event.state.$key};Assert-KmcOrdinaryInteger $event.state.reactions 0
@@ -362,6 +363,46 @@ function Assert-KmcChunk7SmallPresentationEvidence($Request,$O){
   if($a.state.$resource-le$b.state.$resource){throw 'Native Small item action did not consume its selected resource.'}
   foreach($key in @('standard','move','swift','reactionCooldown','reactions')){if($key-cne$resource-and
    (ConvertTo-KmcChunk7Canonical $a.state.$key)-cne(ConvertTo-KmcChunk7Canonical $b.state.$key)){throw 'Native Small item cost changed another resource.'}}
+  $root=@($p.castTrace.shells|Where-Object identity -EQ $row.shell)
+  if($root.Count-ne1-or$root[0].executor-cne$s.actorId-or$root[0].spell.blueprint-cne$row.abilityGuid-or
+   $root[0].spell.sourceItem-ne$row.beforeItem.item-or$root[0].spell.sourceItemBlueprint-cne$pair[1]-or
+   $root[0].ignoreCooldown-isnot[bool]-or$root[0].ignoreCooldown-or$root[0].acted-isnot[bool]-or-not$root[0].acted-or
+   $root[0].finished-isnot[bool]-or-not$root[0].finished-or$root[0].result-cne'Success'-or
+   $root[0].processEnded-isnot[bool]-or-not$root[0].processEnded){throw 'Paid native item shell is not bound to its exact leased item and terminal command.'}
+  $rootStarts=@($row.nativeEvents|Where-Object{$_.kind-ceq'start-before'-and$_.identity-eq$row.shell-and$_.actor-ceq$s.actorId})
+  $rootCasts=@($row.nativeEvents|Where-Object{$_.kind-ceq'cast-after'-and$_.actor-ceq$s.actorId-and$_.target-ceq$pair[2]-and$_.ability.identity-eq$root[0].spell.identity})
+  if($rootStarts.Count-ne1-or$rootCasts.Count-ne1-or$rootStarts[0].shell.spell.identity-ne$root[0].spell.identity-or
+   $rootStarts[0].shell.spell.sourceItem-ne$row.beforeItem.item-or$rootCasts[0].ability.blueprint-cne$row.abilityGuid-or
+   $rootCasts[0].ability.sourceItem-ne$row.beforeItem.item-or
+   [array]::IndexOf($row.nativeEvents,$rootStarts[0])-ge[array]::IndexOf($row.nativeEvents,$rootCasts[0])-or
+   [array]::IndexOf($row.nativeEvents,$rootCasts[0])-ge[array]::IndexOf($row.nativeEvents,$afterSpend[0])){throw 'Paid native item start, cast and item spend are not one ordered source-item action.'}
+  Assert-KmcOrdinaryInteger $row.nativeFollowupShell ([int]::MinValue) ([int]::MaxValue)
+  if($i-eq0){
+   if($row.nativeFollowupShell-eq0-or$row.nativeFollowupShell-eq$row.shell-or$row.nativeFollowupAbilityGuid-cne'47808d23c67033d4bbab86a1070fd62f'-or$pairCosts.Count-ne4){throw 'Scroll lacks the exact installed native sticky-touch delivery.'}
+   $childCosts=@($pairCosts|Where-Object command -EQ $row.nativeFollowupShell)
+   $cb=@($childCosts|Where-Object boundary -CEQ 'cost-before');$ca=@($childCosts|Where-Object boundary -CEQ 'cost-after')
+   if($childCosts.Count-ne2-or$cb.Count-ne1-or$ca.Count-ne1-or$cb[0].sequence-le$a.sequence-or$ca[0].sequence-le$cb[0].sequence){throw 'Scroll delivery cost boundaries are absent, extra or unordered.'}
+   foreach($event in @($cb[0],$ca[0])){
+    Assert-KmcChunk7Boolean $event.acted $true;Assert-KmcChunk7Boolean $event.nativeTurnBased $false;Assert-KmcChunk7Boolean $event.ignoreCooldown $true
+    if($event.commandActor-cne$s.actorId-or$event.state.actor-cne$s.actorId-or$event.commandType-cne'Kingmaker.UnitLogic.Commands.UnitUseAbility'-or$event.actionType-cne'Standard') {throw 'Native scroll delivery actor, type or cooldown contract differs.'}
+    foreach($key in @('standard','move','swift','reactionCooldown')){Assert-KmcChunk7SmallNumber $event.state.$key};Assert-KmcOrdinaryInteger $event.state.reactions 0
+   }
+   foreach($key in @('standard','move','swift','reactionCooldown','reactions')){if((ConvertTo-KmcChunk7Canonical $cb[0].state.$key)-cne(ConvertTo-KmcChunk7Canonical $ca[0].state.$key)){throw 'Native sticky-touch delivery spent a second action.'}}
+   $child=@($p.castTrace.shells|Where-Object identity -EQ $row.nativeFollowupShell)
+   $starts=@($row.nativeEvents|Where-Object{$_.kind-ceq'start-before'-and$_.actor-ceq$s.actorId-and$_.identity-ne$row.shell})
+   if($child.Count-ne1-or$starts.Count-ne1-or$starts[0].identity-ne$row.nativeFollowupShell-or$child[0].executor-cne$s.actorId-or
+    $child[0].spell.blueprint-cne$row.nativeFollowupAbilityGuid-or$child[0].spell.caster-cne$s.actorId-or$child[0].spell.sourceItem-ne0-or
+    $child[0].spell.sourceItemBlueprint-or$child[0].ignoreCooldown-isnot[bool]-or-not$child[0].ignoreCooldown-or
+    $child[0].started-isnot[bool]-or-not$child[0].started-or$child[0].acted-isnot[bool]-or-not$child[0].acted-or
+    $child[0].finished-isnot[bool]-or-not$child[0].finished-or$child[0].result-cne'Success'-or
+    $child[0].processEnded-isnot[bool]-or-not$child[0].processEnded){throw 'Native sticky-touch child shell does not match its exact terminal observer.'}
+   $casts=@($row.nativeEvents|Where-Object{$_.kind-ceq'cast-after'-and$_.ability.identity-eq$child[0].spell.identity-and$_.ability.blueprint-ceq$row.nativeFollowupAbilityGuid-and$_.ability.sourceItem-eq0-and$_.actor-ceq$s.actorId-and$_.target-ceq$s.petId})
+   $heals=@($row.nativeEvents|Where-Object{$_.kind-ceq'heal'-and$_.actor-ceq$s.actorId-and$_.target-ceq$s.petId-and$_.value-gt0})
+   if($casts.Count-ne1-or$heals.Count-ne1-or$starts[0].shell.spell.identity-ne$child[0].spell.identity-or
+    [array]::IndexOf($row.nativeEvents,$afterSpend[0])-ge[array]::IndexOf($row.nativeEvents,$starts[0])-or
+    [array]::IndexOf($row.nativeEvents,$starts[0])-ge[array]::IndexOf($row.nativeEvents,$casts[0])-or
+    [array]::IndexOf($row.nativeEvents,$casts[0])-ge[array]::IndexOf($row.nativeEvents,$heals[0])){throw 'Exact native sticky-touch delivery start, cast and heal order was not observed.'}
+  }elseif($row.nativeFollowupShell-ne0-or$null-ne$row.nativeFollowupAbilityGuid-or$pairCosts.Count-ne2){throw 'Potion self-input unexpectedly gained a native pair cost or child.'}
  }
  foreach($key in @('dropped','faults')){Assert-KmcOrdinaryInteger $p.castTrace.$key 0 0}
  if($p.castTrace.events-isnot[Array]-or$p.castTrace.events.Count-eq0-or$p.castTrace.events.Count-gt2048){throw 'Installed native Small item observer has no bounded events.'}

@@ -2,11 +2,13 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Kingmaker;
+using Kingmaker.Blueprints;
 using Kingmaker.EntitySystem.Entities;
 using Kingmaker.Items;
 using Kingmaker.RuleSystem;
 using Kingmaker.RuleSystem.Rules.Damage;
 using Kingmaker.UnitLogic.Abilities;
+using Kingmaker.UnitLogic.Abilities.Components;
 using Kingmaker.UnitLogic.Commands;
 using Kingmaker.UnitLogic.Commands.Base;
 using KingmakerMountedCombat.Integration;
@@ -139,12 +141,13 @@ namespace KingmakerMountedCombat.Diagnostics
             var nativeCosts = costs.Children<JObject>().Where(value =>
                 ((string)value["boundary"] == "cost-before" || (string)value["boundary"] == "cost-after") &&
                 ((string)value["state"]?["actor"] == actor.UniqueId || (string)value["state"]?["actor"] == pet.UniqueId)).ToArray();
-            var beforeCosts = nativeCosts.Where(value => (string)value["boundary"] == "cost-before").ToArray();
-            var afterCosts = nativeCosts.Where(value => (string)value["boundary"] == "cost-after").ToArray();
+            var rootIdentity = trace.ObjectIdentity(presentationShell);
+            var rootCosts = nativeCosts.Where(value => (int?)value["command"] == rootIdentity).ToArray();
+            var beforeCosts = rootCosts.Where(value => (string)value["boundary"] == "cost-before").ToArray();
+            var afterCosts = rootCosts.Where(value => (string)value["boundary"] == "cost-after").ToArray();
             var actionType = presentationShell.Type.ToString();
             var resource = actionType == "Standard" ? "standard" : actionType == "Move" ? "move" :
                 actionType == "Swift" ? "swift" : null;
-            var costIdentity = trace.ObjectIdentity(presentationShell);
             var exactSpends = beforeSpends.Length == 1 && afterSpends.Length == 1 &&
                 new[] { beforeSpends[0], afterSpends[0] }.All(value =>
                     (int?)value["identity"] == presentationTrace.Identity(presentationCurrent.Item) &&
@@ -154,20 +157,25 @@ namespace KingmakerMountedCombat.Diagnostics
                 (bool?)afterSpends[0]["result"] == true;
             var exactCosts = resource != null && beforeCosts.Length == 1 && afterCosts.Length == 1 &&
                 new[] { beforeCosts[0], afterCosts[0] }.All(value =>
-                    (int?)value["command"] == costIdentity &&
+                    (int?)value["command"] == rootIdentity &&
                     (string)value["commandType"] == typeof(UnitUseAbility).FullName &&
                     (string)value["actionType"] == actionType &&
                     (string)value["state"]?["actor"] == actor.UniqueId &&
-                    (string)value["commandActor"] == actor.UniqueId && (bool?)value["acted"] == true) &&
+                    (string)value["commandActor"] == actor.UniqueId && (bool?)value["acted"] == true &&
+                    (bool?)value["ignoreCooldown"] == false && (bool?)value["nativeTurnBased"] == false) &&
                 (int?)afterCosts[0]["sequence"] > (int?)beforeCosts[0]["sequence"] &&
                 (double?)afterCosts[0]["state"]?[resource] > (double?)beforeCosts[0]["state"]?[resource] &&
                 new[] { "standard", "move", "swift", "reactionCooldown", "reactions" }
                     .Where(value => value != resource).All(value => JToken.DeepEquals(
                         beforeCosts[0]["state"]?[value], afterCosts[0]["state"]?[value]));
+            var childIdentity = 0;
+            var exactDelivery = presentationInput.Value<string>("kind") == "scroll-friendly"
+                ? ExactNativeTouchDelivery(events, nativeCosts, rootIdentity, afterCosts, out childIdentity)
+                : nativeCosts.Length == 2;
             Require(presentationTrace.Complete && presentationShell.IsActed && presentationShell.IsFinished &&
                 ReferenceEquals(presentationShell.Spell?.SourceItem, presentationCurrent.Item) && exactSpends &&
                 presentationCurrent.IsExactlyEquipped(1) && presentationCurrent.Item.Count == 1 &&
-                trace.Complete && exactCosts &&
+                trace.Complete && exactCosts && exactDelivery &&
                 presentationActivePose,
                 "Native Small item use did not spend one exact unit and one native rider action, settle its process or show an active pose.");
             var healed = presentationShell.Target?.Unit;
@@ -180,6 +188,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 pair.Relationship.Runtime, calibration.UsesFixtureManualField);
             presentationInput["nativeEvents"] = events;
             presentationInput["nativeCosts"] = costs;
+            presentationInput["nativeFollowupShell"] = childIdentity;
+            presentationInput["nativeFollowupAbilityGuid"] = childIdentity == 0 ? null :
+                presentationTrace.Shells.Single(value => trace.ObjectIdentity(value) == childIdentity).Spell.Blueprint.AssetGuid;
             presentationInput["nativeResult"] = presentationShell.Result.ToString();
             presentationInput["terminal"] = true;
             presentationInput["processTerminal"] = presentationShell.ExecutionProcess == null || presentationShell.ExecutionProcess.IsEnded;
@@ -187,6 +198,43 @@ namespace KingmakerMountedCombat.Diagnostics
             presentationCurrent = null;
             presentationShell = null;
             return true;
+        }
+        private bool ExactNativeTouchDelivery(JArray events, JObject[] nativeCosts, int rootIdentity,
+            JObject[] rootAfterCosts, out int childIdentity)
+        {
+            childIdentity = 0;
+            var sticky = presentationShell.Spell?.Blueprint?.GetComponent<AbilityEffectStickyTouch>();
+            var delivery = sticky?.TouchDeliveryAbility;
+            var starts = events.Children<JObject>().Where(value => (string)value["kind"] == "start-before" &&
+                (string)value["actor"] == actor.UniqueId && (int?)value["identity"] != rootIdentity).ToArray();
+            if (delivery == null || starts.Length != 1 || nativeCosts.Length != 4 || rootAfterCosts.Length != 1)
+                return false;
+            var child = presentationTrace.Shells.SingleOrDefault(value =>
+                presentationTrace.Identity(value) == (int?)starts[0]["identity"]);
+            if (child == null || child == presentationShell || child.Executor != actor ||
+                child.Target?.Unit != pet || child.Spell?.Blueprint != delivery ||
+                child.Spell.SourceItem != null || !child.IsIgnoreCooldown || !child.IsActed ||
+                !child.IsFinished || child.Result.ToString() != "Success" ||
+                child.ExecutionProcess == null || !child.ExecutionProcess.IsEnded)
+                return false;
+            childIdentity = trace.ObjectIdentity(child);
+            var exactChildIdentity = childIdentity;
+            var childCosts = nativeCosts.Where(value => (int?)value["command"] == exactChildIdentity).ToArray();
+            var before = childCosts.SingleOrDefault(value => (string)value["boundary"] == "cost-before");
+            var after = childCosts.SingleOrDefault(value => (string)value["boundary"] == "cost-after");
+            if (childCosts.Length != 2 || before == null || after == null ||
+                (int?)before["sequence"] <= (int?)rootAfterCosts[0]["sequence"] ||
+                (int?)after["sequence"] <= (int?)before["sequence"])
+                return false;
+            return new[] { before, after }.All(value =>
+                    (string)value["commandType"] == typeof(UnitUseAbility).FullName &&
+                    (string)value["actionType"] == child.Type.ToString() &&
+                    (string)value["state"]?["actor"] == actor.UniqueId &&
+                    (string)value["commandActor"] == actor.UniqueId &&
+                    (bool?)value["acted"] == true && (bool?)value["ignoreCooldown"] == true &&
+                    (bool?)value["nativeTurnBased"] == false) &&
+                new[] { "standard", "move", "swift", "reactionCooldown", "reactions" }.All(value =>
+                    JToken.DeepEquals(before["state"]?[value], after["state"]?[value]));
         }
         private void ObservePresentationActionBoundary(UnitUseAbility observed)
         {

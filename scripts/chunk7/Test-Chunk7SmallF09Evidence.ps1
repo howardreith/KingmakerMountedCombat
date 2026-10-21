@@ -75,25 +75,49 @@ function New-F09PresentationSynthetic{
  $f=New-F09Synthetic;$f.request.smallCalibration.case='compiled-owner-seed-fixture-small-horse-presentation-rt'
  $o=$f.artifact.observations;$o.selection.case=$f.request.smallCalibration.case
  $s=$f.request.smallCalibration.fixtureSource;$rows=@();$n=9000
- $castEvents=@();$costEvents=@($o.allocationTrace.events)
+ $castEvents=@();$castShells=@();$costEvents=@($o.allocationTrace.events)
  $slots=@(1..5|ForEach-Object{[pscustomobject]@{owner=$s.actorId;slot=(9500+$_);item=0;blueprint=$null;holdingSlot=0;count=$null;charges=$null}})
  foreach($spec in @(@('scroll-friendly','cd635d5720937b044a354dba17abad8d',$s.petId),@('potion-self','d52566ae8cbe8dc4dae977ef51c27d91',$s.actorId))){
   $n++;$item=[pscustomobject]@{item=$n;blueprint=$spec[1];count=2;exactSlot=$true;holdingSlot=(9500+$rows.Count+1)}
   $after=Clone $item;$after.count=1
   $beforeSpend=[pscustomobject]@{kind='item-spend-before';identity=$n;actor=$s.actorId;blueprint=$spec[1];count=2;result=$null}
   $afterSpend=[pscustomobject]@{kind='item-spend-after';identity=$n;actor=$s.actorId;blueprint=$spec[1];count=1;result=$true}
+  $rootAbilityIdentity=$n+300
+  $rootSpell=[pscustomobject]@{identity=$rootAbilityIdentity;blueprint=('a'*32);caster=$s.actorId;sourceItem=$n;sourceItemBlueprint=$spec[1]}
   $beforeCost=Clone $costEvents[0];$afterCost=Clone $costEvents[1]
-  foreach($event in @($beforeCost,$afterCost)){$event.command=($n+100);$event.commandActor=$s.actorId;$event.commandType='Kingmaker.UnitLogic.Commands.UnitUseAbility';$event.state.actor=$s.actorId;$event.state.actorObject=$o.before.actorObject}
+  foreach($event in @($beforeCost,$afterCost)){$event.command=($n+100);$event.commandActor=$s.actorId;$event.commandType='Kingmaker.UnitLogic.Commands.UnitUseAbility';$event.state.actor=$s.actorId;$event.state.actorObject=$o.before.actorObject;$event|Add-Member ignoreCooldown $false -Force}
   $beforeCost.sequence=$costEvents.Count+1;$afterCost.sequence=$costEvents.Count+2
   $beforeCost.frame=$o.poses[5].observation.frame;$afterCost.frame=$beforeCost.frame
   $costOffset=$costEvents.Count;$eventOffset=$castEvents.Count
-  $costEvents+=@($beforeCost,$afterCost);$castEvents+=@($beforeSpend,$afterSpend)
+  $nativeCosts=@($beforeCost,$afterCost)
+  $nativeEvents=@([pscustomobject]@{kind='start-before';identity=($n+100);actor=$s.actorId;shell=[pscustomobject]@{spell=(Clone $rootSpell)}},
+   [pscustomobject]@{kind='cast-after';actor=$s.actorId;target=$spec[2];ability=(Clone $rootSpell)},$beforeSpend,$afterSpend)
+  $castShells+=,[pscustomobject]@{identity=($n+100);executor=$s.actorId;spell=(Clone $rootSpell);ignoreCooldown=$false;
+   started=$true;acted=$true;finished=$true;result='Success';processEnded=$true}
+  $followupShell=0;$followupGuid=$null
+  if($spec[0]-ceq'scroll-friendly'){
+   $followupShell=$n+200;$followupGuid='47808d23c67033d4bbab86a1070fd62f'
+   $childBefore=Clone $afterCost;$childAfter=Clone $afterCost
+   foreach($event in @($childBefore,$childAfter)){$event.command=$followupShell;$event.ignoreCooldown=$true}
+   $childBefore.boundary='cost-before';$childAfter.boundary='cost-after'
+   $childBefore.sequence=$afterCost.sequence+1;$childAfter.sequence=$afterCost.sequence+2
+   $nativeCosts+=@($childBefore,$childAfter)
+   $childSpell=[pscustomobject]@{identity=($n+400);blueprint=$followupGuid;caster=$s.actorId;sourceItem=0;sourceItemBlueprint=$null}
+   $nativeEvents+=@([pscustomobject]@{kind='start-before';identity=$followupShell;actor=$s.actorId;shell=[pscustomobject]@{spell=(Clone $childSpell)}},
+    [pscustomobject]@{kind='cast-after';actor=$s.actorId;target=$s.petId;ability=(Clone $childSpell)},
+    [pscustomobject]@{kind='heal';actor=$s.actorId;target=$s.petId;value=1})
+   $castShells+=,[pscustomobject]@{identity=$followupShell;executor=$s.actorId;spell=(Clone $childSpell);
+    ignoreCooldown=$true;started=$true;acted=$true;finished=$true;result='Success';processEnded=$true}
+   $o.allocationTrace.identityRegistry.ids+=$followupShell
+  }
+  $costEvents+=$nativeCosts;$castEvents+=$nativeEvents
   $o.allocationTrace.identityRegistry.ids+=($n+100)
   $rows+=,[pscustomobject]@{kind=$spec[0];actorId=$s.actorId;targetId=$spec[2];itemBlueprint=$spec[1];abilityGuid=('a'*32);
    clicked=$true;terminal=$true;processTerminal=$true;nativeResult='Success';selectionAfterInput=$o.manualNativeRoster.mainActorId;shell=($n+100);
+   nativeFollowupShell=$followupShell;nativeFollowupAbilityGuid=$followupGuid;
    woundBefore=0;woundAtInput=1;woundAfter=0;beforeItem=$item;afterItem=$after;
    beforePose=(Clone $o.poses[5].observation);activePose=(Clone $o.poses[5].observation);afterPose=(Clone $o.poses[5].observation);
-   eventOffset=$eventOffset;costOffset=$costOffset;nativeEvents=@($beforeSpend,$afterSpend);nativeCosts=@($beforeCost,$afterCost)}
+   eventOffset=$eventOffset;costOffset=$costOffset;nativeEvents=$nativeEvents;nativeCosts=$nativeCosts}
  }
  $o.allocationTrace.events=$costEvents;$o.allocationTrace.identityRegistry.retainedCount=$o.allocationTrace.identityRegistry.ids.Count
  $items=@($rows|ForEach-Object{$row=$_;[pscustomobject]@{blueprint=$row.itemBlueprint;rider=$s.actorId;requestedCount=2;slot=$row.beforeItem.holdingSlot;
@@ -103,22 +127,28 @@ function New-F09PresentationSynthetic{
   quickSlotsBefore=(Clone $slots);quickSlotsAfter=(Clone $slots);ownedItemReleased=$true;disposed=$true;slotRestored=$true;noOwnedItemResident=$true}})
  $o|Add-Member presentation ([pscustomobject]@{contract='small-native-item-presentation-v1';fixtureSetupOnly=$true;spellSlotWrites=0;
   nativePreparationManufactured=$false;inputs=$rows;originalSlots=[pscustomobject]@{restored=$true;before=$slots;after=(Clone $slots)};items=$items;
-  castTrace=[pscustomobject]@{dropped=0;faults=0;events=$castEvents};released=$true})
+  castTrace=[pscustomobject]@{dropped=0;faults=0;events=$castEvents;shells=$castShells};released=$true})
  $f
 }
 [void][IO.Directory]::CreateDirectory($OutputDirectory)
 $script:pass=0;$script:fail=0;$watch=[Diagnostics.Stopwatch]::StartNew()
 function Good([string]$name,[scriptblock]$action){try{&$action;$script:pass++;Write-Host ('PASS '+$name)}catch{$script:fail++;Write-Host ('FAIL '+$name+': '+$_+' '+$_.ScriptStackTrace)}}
-function Bad([string]$name,[scriptblock]$action){try{&$action;$script:fail++;Write-Host ('FAIL accepted '+$name)}catch{$script:pass++;Write-Host ('PASS refuses '+$name)}}
+function Bad([string]$name,[scriptblock]$action){try{&$action;$script:fail++;Write-Host ('FAIL accepted '+$name)}catch{if($_.ScriptStackTrace -notmatch 'Assert-KmcChunk7Small'){$script:fail++;Write-Host ('FAIL mutation '+$name+': '+$_+' '+$_.ScriptStackTrace)}else{$script:pass++;Write-Host ('PASS refuses '+$name)}}}
 Good 'F09 synthetic seven-actor source and shared native mounted reader' { $f=New-F09Synthetic;Assert-KmcChunk7SmallEvidence $f.request $f.artifact }
 Good 'F09 source decimal zero equals exact observed integer zero' { $f=New-F09Synthetic;$f.artifact.observations.source.fixtureManual.savedWorld.party[0].native.Initiative=[decimal]0.0;Assert-KmcChunk7SmallEvidence $f.request $f.artifact }
 Good 'separate presentation case retains qualified F09 source selection' { $f=New-F09Synthetic;$f.request.smallCalibration.case='compiled-owner-seed-fixture-small-horse-presentation-rt';Assert-KmcChunk7SmallSelection $f.request }
 Good 'F09 presentation reader binds two native item spends and costs' { $f=New-F09PresentationSynthetic;Assert-KmcChunk7SmallEvidence $f.request $f.artifact }
+Bad 'presentation reader refuses scroll without native sticky-touch shell' { $f=New-F09PresentationSynthetic;$f.artifact.observations.presentation.inputs[0].nativeFollowupShell=0;Assert-KmcChunk7SmallEvidence $f.request $f.artifact }
+Bad 'presentation reader refuses paid sticky-touch delivery' { $f=New-F09PresentationSynthetic;$r=$f.artifact.observations.presentation.inputs[0];$r.nativeCosts[3].state.standard=9;$f.artifact.observations.allocationTrace.events[$r.costOffset+3].state.standard=9;Assert-KmcChunk7SmallEvidence $f.request $f.artifact }
+Bad 'presentation reader refuses foreign native delivery spell' { $f=New-F09PresentationSynthetic;$f.artifact.observations.presentation.castTrace.shells[1].spell.blueprint='b'*32;Assert-KmcChunk7SmallEvidence $f.request $f.artifact }
+Bad 'presentation reader refuses wrong sticky-touch target' { $f=New-F09PresentationSynthetic;$r=$f.artifact.observations.presentation.inputs[0];$r.nativeEvents[5].target=$r.actorId;$f.artifact.observations.presentation.castTrace.events[$r.eventOffset+5].target=$r.actorId;Assert-KmcChunk7SmallEvidence $f.request $f.artifact }
+Bad 'presentation reader refuses detached delivery ability identity' { $f=New-F09PresentationSynthetic;$r=$f.artifact.observations.presentation.inputs[0];$r.nativeEvents[5].ability.identity++;$f.artifact.observations.presentation.castTrace.events[$r.eventOffset+5].ability.identity++;Assert-KmcChunk7SmallEvidence $f.request $f.artifact }
+Bad 'presentation reader refuses delivery before paid scroll cast' { $f=New-F09PresentationSynthetic;$r=$f.artifact.observations.presentation.inputs[0];$events=@($r.nativeEvents);$r.nativeEvents=@($events[4],$events[5],$events[0],$events[1],$events[2],$events[3],$events[6]);for($k=0;$k-lt$r.nativeEvents.Count;$k++){$f.artifact.observations.presentation.castTrace.events[$r.eventOffset+$k]=$r.nativeEvents[$k]};Assert-KmcChunk7SmallEvidence $f.request $f.artifact }
 Bad 'presentation reader refuses missing native rider cost' { $f=New-F09PresentationSynthetic;$f.artifact.observations.presentation.inputs[0].nativeCosts=@();Assert-KmcChunk7SmallEvidence $f.request $f.artifact }
 Bad 'presentation reader refuses original slot drift' { $f=New-F09PresentationSynthetic;$f.artifact.observations.presentation.originalSlots.restored=$false;Assert-KmcChunk7SmallEvidence $f.request $f.artifact }
-Bad 'presentation reader refuses spend from another item' { $f=New-F09PresentationSynthetic;$f.artifact.observations.presentation.inputs[0].nativeEvents[1].identity++;$f.artifact.observations.presentation.castTrace.events[1].identity++;Assert-KmcChunk7SmallEvidence $f.request $f.artifact }
-Bad 'presentation reader refuses raw trace mismatch' { $f=New-F09PresentationSynthetic;$f.artifact.observations.presentation.inputs[0].nativeEvents[1].count=2;Assert-KmcChunk7SmallEvidence $f.request $f.artifact }
-Bad 'presentation reader refuses callback with no action spend' { $f=New-F09PresentationSynthetic;$f.artifact.observations.presentation.inputs[0].nativeCosts[1].state.standard=0;$f.artifact.observations.allocationTrace.events[7].state.standard=0;Assert-KmcChunk7SmallEvidence $f.request $f.artifact }
+Bad 'presentation reader refuses spend from another item' { $f=New-F09PresentationSynthetic;$r=$f.artifact.observations.presentation.inputs[0];$r.nativeEvents[3].identity++;$f.artifact.observations.presentation.castTrace.events[$r.eventOffset+3].identity++;Assert-KmcChunk7SmallEvidence $f.request $f.artifact }
+Bad 'presentation reader refuses raw trace mismatch' { $f=New-F09PresentationSynthetic;$f.artifact.observations.presentation.inputs[0].nativeEvents[3].count=2;Assert-KmcChunk7SmallEvidence $f.request $f.artifact }
+Bad 'presentation reader refuses callback with no action spend' { $f=New-F09PresentationSynthetic;$r=$f.artifact.observations.presentation.inputs[0];$r.nativeCosts[1].state.standard=0;$f.artifact.observations.allocationTrace.events[$r.costOffset+1].state.standard=0;Assert-KmcChunk7SmallEvidence $f.request $f.artifact }
 Bad 'presentation reader refuses extra pair action cost' { $f=New-F09PresentationSynthetic;$f.artifact.observations.presentation.inputs[0].nativeCosts+=,(Clone $f.artifact.observations.presentation.inputs[0].nativeCosts[1]);Assert-KmcChunk7SmallEvidence $f.request $f.artifact }
 Bad 'presentation reader refuses foreign quick-slot occupant' { $f=New-F09PresentationSynthetic;$f.artifact.observations.presentation.originalSlots.after[0].item=999;Assert-KmcChunk7SmallEvidence $f.request $f.artifact }
 Bad 'presentation reader refuses missing active pose' { $f=New-F09PresentationSynthetic;$f.artifact.observations.presentation.inputs[0].PSObject.Properties.Remove('activePose');Assert-KmcChunk7SmallEvidence $f.request $f.artifact }
