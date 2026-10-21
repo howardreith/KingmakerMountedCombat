@@ -1,5 +1,15 @@
 # Chunk 7B–7D — IN PROGRESS
 
+[Batch116](docs/CHUNK7-BATCH116-MEDIUM-MAMMOTH-PRODUCER-2026-10-21.md)
+passed three guarded native scenarios on preview.83: paid Medium Horse mounted
+Manual 5/0, separate cold load 3/0, and genuine rider-B Horse-to-Mammoth
+native respec/Manual 3/0. The producer reached Ranger 10, companion rank 7,
+and a Large Mammoth while retaining the independent control Horse. All three
+transactions restored Mods, saves and profile bytes exactly. F10's separate
+Mammoth Manual cold load remains open; current cold-consumer implementation
+has focused offline checks and is awaiting a new candidate/native run. F09,
+F11 and private 7E remain open. The batch115 paragraph below is history.
+
 [Batch115](docs/CHUNK7-BATCH115-MEDIUM-MOUNTED-DEVELOPMENT-2026-10-21.md)
 qualified world119's paid two-pair Medium Horse mounted Manual and separate
 process cold load, game/outer 5/0 and 3/0. The cold consumer restored the exact

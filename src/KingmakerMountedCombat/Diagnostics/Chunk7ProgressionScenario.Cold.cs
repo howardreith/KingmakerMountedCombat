@@ -243,7 +243,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 (string)source["evidenceKind"] == EvidenceKind && (string)source["status"] == "PASS" &&
                 (string)source["commit"] == request.Commit && (string)source["dllSha256"] == request.DllSha256 &&
                 (string)source["dllMvid"] == request.DllMvid &&
-                (string)observed?["selection"]?["case"] == Chunk7ProgressionSelection.SmallRetrainHorseCase &&
+                (string)observed?["selection"]?["case"] == (selection.Case == Chunk7ProgressionSelection.MediumRetrainColdCase ?
+                    Chunk7ProgressionSelection.MediumRetrainMammothCase : Chunk7ProgressionSelection.SmallRetrainHorseCase) &&
                 (string)observed["selection"]["actorId"] == selection.ActorId &&
                 (string)observed["selection"]["petId"] == selection.FormerPetId &&
                 (string)observed["selection"]["controlActorId"] == selection.ControlActorId &&
@@ -258,7 +259,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 terminal != null && terminal.Length == 1 &&
                 (string)terminal[0]["actorId"] == selection.ActorId &&
                 (string)terminal[0]["petId"] == selection.PetId &&
-                (int?)terminal[0]["level"] == 4 && (int?)terminal[0]["petLevel"] == 2 &&
+                (int?)terminal[0]["level"] == (selection.Case == Chunk7ProgressionSelection.MediumRetrainColdCase ? 10 : 4) &&
+                (int?)terminal[0]["petLevel"] == (selection.Case == Chunk7ProgressionSelection.MediumRetrainColdCase ? 6 : 2) &&
                 (int?)terminal[0]["xp"] != null && (int?)terminal[0]["money"] != null &&
                 saved != null && (int?)saved["SchemaVersion"] == 3 &&
                 (string)inventory["runId"] == selection.InventoryRunId &&
@@ -328,14 +330,15 @@ namespace KingmakerMountedCombat.Diagnostics
                 !string.IsNullOrEmpty((string)priorBody["SkeletonName"]) &&
                 !string.IsNullOrEmpty((string)priorBody["Gender"]) &&
                 (bool?)priorBody["LeftHanded"] != null &&
-                (int?)priorBody["OriginalSizeOrdinal"] == 3 &&
-                (int?)priorBody["EffectiveSizeOrdinal"] == 3,
-                "Accepted retrain producer lacks its pinned Small native body.");
+                (int?)priorBody["OriginalSizeOrdinal"] == (selection.Case == Chunk7ProgressionSelection.MediumRetrainColdCase ? 4 : 3) &&
+                (int?)priorBody["EffectiveSizeOrdinal"] == (selection.Case == Chunk7ProgressionSelection.MediumRetrainColdCase ? 4 : 3),
+                "Accepted retrain producer lacks its pinned paid native body.");
             coldExpected = new JObject { ["targetLevel"] = terminal[0]["level"].DeepClone(),
                 ["targetXp"] = terminal[0]["xp"].DeepClone(), ["newPetLevel"] = terminal[0]["petLevel"].DeepClone(),
                 ["nativeMoney"] = terminal[0]["money"].DeepClone(),
                 ["targetBlueprint"] = (string)observed["source"]?["inventoryActor"]?["blueprint"],
-                ["newPetBlueprint"] = (string)priorBody["MountBlueprintGuid"],
+                ["newPetBlueprint"] = selection.Case == Chunk7ProgressionSelection.MediumRetrainColdCase ?
+                    HorseCompanionBlueprintService.MammothUnitGuid : (string)priorBody["MountBlueprintGuid"],
                 ["nativeBody"] = new JObject { ["raceGuid"] = (string)priorBody["RaceGuid"],
                     ["presetGuid"] = (string)priorBody["PresetGuid"],
                     ["skeletonName"] = (string)priorBody["SkeletonName"],
@@ -360,7 +363,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 ReferenceEquals(Exact(selection.ControlPetId), controlMount),
                 "Cold retrain actor membership or object identity changed after restoration.");
             Require(Game.Instance.CurrentMode == GameModeType.Default && !Game.Instance.Player.IsInCombat &&
-                actors.All(value => !value.IsInCombat) && restoration != null && restoration.Complete &&
+                actors.All(value => !value.IsInCombat && !value.CombatState.Prepared) && restoration != null && restoration.Complete &&
                 restoration.Count("prepare-before", actors.Select(value => value.UniqueId)) == 0 &&
                 restoration.Count("round-before", actors.Select(value => value.UniqueId)) == 0 &&
                 restoration.Count("restore-debt-before", actors.Select(value => value.UniqueId)) == 2 &&
@@ -380,7 +383,8 @@ namespace KingmakerMountedCombat.Diagnostics
             Require(body != null && body.NativeRigAvailable && body.NativeRaceAndPresetIdentityExact &&
                 body.NativeSkeletonIsExactPreset && !body.RiderPolymorphed && !body.MountPolymorphed,
                 "Cold retrain native body or rig changed after restoration.");
-            return new JObject { ["targetId"] = rider.UniqueId, ["newPetId"] = mount.UniqueId,
+            var mammoth = selection.Case == Chunk7ProgressionSelection.MediumRetrainColdCase ? CaptureColdMammoth() : null;
+            var state = new JObject { ["targetId"] = rider.UniqueId, ["newPetId"] = mount.UniqueId,
                 ["targetLevel"] = rider.Descriptor.Progression.CharacterLevel,
                 ["targetXp"] = rider.Descriptor.Progression.Experience,
                 ["targetBlueprint"] = rider.Blueprint?.AssetGuid,
@@ -403,6 +407,29 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["playerInCombat"] = Game.Instance.Player.IsInCombat,
                 ["snapshots"] = persistence.SnapshotCount, ["completedSaves"] = persistence.CompletedSaveCount,
                 ["nativeCasts"] = world.NativeControls.NativeCastRequestCount };
+            if (mammoth != null) state["nativeMammoth"] = mammoth;
+            return state;
+        }
+
+        private JObject CaptureColdMammoth()
+        {
+            var ranger = ResourcesLibrary.TryGetBlueprint<BlueprintCharacterClass>(Chunk7OrdinaryBuildDriver.RangerClassGuid);
+            var feature = ResourcesLibrary.TryGetBlueprint<BlueprintFeature>(HorseCompanionBlueprintService.MammothFeatureGuid);
+            var rank = ResourcesLibrary.TryGetBlueprint<BlueprintFeature>(HorseCompanionBlueprintService.LevelRankGuid);
+            var upgrade = ResourcesLibrary.TryGetBlueprint<BlueprintFeature>(HorseCompanionBlueprintService.MammothUpgradeGuid);
+            var sourced = feature == null ? null : rider.Descriptor.GetFact(feature) as Feature;
+            Require(ranger != null && feature != null && rank != null && upgrade != null && sourced?.Source != null &&
+                rider.Descriptor.Progression.GetClassLevel(ranger) == 10 && rider.Descriptor.Progression.CharacterLevel == 10 &&
+                rider.Descriptor.GetFact(rank)?.GetRank() == 7 && mount.Descriptor.GetFact(upgrade) != null &&
+                rider.Descriptor.OriginalSize == Kingmaker.Enums.Size.Medium && rider.Descriptor.State.Size == Kingmaker.Enums.Size.Medium &&
+                mount.Blueprint?.AssetGuid == HorseCompanionBlueprintService.MammothUnitGuid &&
+                mount.Descriptor.State.Size == Kingmaker.Enums.Size.Large &&
+                rider.GetActivePolymorph() == null && mount.GetActivePolymorph() == null,
+                "Cold Mammoth replacement lost its native Ranger-ten sourced rank-seven Large upgrade.");
+            return new JObject { ["rangerLevel"] = 10, ["companionRank"] = rider.Descriptor.GetFact(rank).GetRank(),
+                ["featureGuid"] = feature.AssetGuid, ["featureSourceGuid"] = sourced.Source.AssetGuid,
+                ["upgradeGuid"] = upgrade.AssetGuid, ["petGuid"] = mount.Blueprint.AssetGuid,
+                ["riderSize"] = rider.Descriptor.State.Size.ToString(), ["mountSize"] = mount.Descriptor.State.Size.ToString() };
         }
 
         private void TickCold()

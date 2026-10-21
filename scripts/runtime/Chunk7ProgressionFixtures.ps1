@@ -64,13 +64,14 @@ function Get-KmcChunk7ProgressionColdSource($Selection,$Fixture,$Candidate){
     if($hashes['chunk7-progression-evidence.json']-cne$Selection.sourceArtifactSha256){throw 'Cold retrain producer artifact differs from exact pin.'}
     $request=Read-KmcJson (Join-Path $root 'runtime-request.json');$result=Read-KmcJson (Join-Path $root 'runtime-result.json')
     $manifest=Read-KmcJson (Join-Path $root 'runtime-artifacts.json');$artifact=Read-KmcJson (Join-Path $root 'chunk7-progression-evidence.json')
-    if($request.scenario-cne'chunk7-native-progression'-or$request.runId-cne$Selection.sourceRunId-or$request.progression.case-cne'small-horse-native-retrain-horse'-or
+    $expectedProducer=if($Selection.case-ceq'medium-horse-native-retrain-cold'){'medium-horse-native-retrain-mammoth'}else{'small-horse-native-retrain-horse'}
+    if($request.scenario-cne'chunk7-native-progression'-or$request.runId-cne$Selection.sourceRunId-or$request.progression.case-cne$expectedProducer-or
        $request.commit-cne$Candidate.commit-or$request.dllSha256-cne$Candidate.dllSha256-or$request.dllMvid-cne$Candidate.dllMvid-or
        $result.status-cne'PASS'-or$result.modsRestored-ne$true-or$result.saveProtectionPassed-ne$true-or$result.workingRestored-ne$true-or
        $artifact.status-cne'PASS'-or$artifact.observations.processId-le0-or$artifact.observations.selection.actorId-cne$Selection.actorId-or
        $artifact.observations.selection.petId-cne$Selection.formerPetId-or$artifact.observations.selection.controlActorId-cne$Selection.controlActorId-or
        $artifact.observations.selection.controlPetId-cne$Selection.controlPetId-or$artifact.observations.selection.inventoryRunId-cne$Selection.inventoryRunId-or
-       $request.progression.inventoryArtifactSha256-cne$Selection.inventoryArtifactSha256){throw 'Cold retrain source is not the exact same-candidate completed Small producer.'}
+       $request.progression.inventoryArtifactSha256-cne$Selection.inventoryArtifactSha256){throw 'Cold retrain source is not the exact same-candidate completed paid producer.'}
     Assert-KmcChunk7ProgressionLoadDescriptor $request
     Assert-KmcReadOnlyArtifactManifest $request $hashes['runtime-artifacts.json'] -GameResult
     Assert-KmcChunk7ProgressionNativeArchive $request $artifact
