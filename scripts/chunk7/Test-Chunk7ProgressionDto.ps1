@@ -30,7 +30,7 @@ $arguments+=@('mscorlib.dll','System.dll','System.Core.dll')|ForEach-Object{'/re
 [void][Reflection.Assembly]::LoadFrom($newtonsoft);[void][Reflection.Assembly]::LoadFrom($dll)
 . $FixtureScript -RepositoryRoot $RepositoryRoot -ReaderDirectory $ReaderDirectory -FixturesOnly
 $script:passes=0
-foreach($case in @(Get-KmcChunk7ProgressionCases|Where-Object{-not(Test-KmcChunk7SmallProgressionCase $_)})){
+foreach($case in @(Get-KmcChunk7ProgressionCases|Where-Object{-not(Test-KmcChunk7PaidProgressionCase $_)})){
     $f=New-ProgressionFixture $case;$raw=[KingmakerMountedCombat.Tests.ProgressionDtoTests]::Project(($f.request|ConvertTo-Json -Depth 60));$actual=$raw|ConvertFrom-Json
     [IO.File]::WriteAllText((Join-Path $OutputDirectory ($case+'.json')),$raw,[Text.UTF8Encoding]::new($false))
     Good ($case+' actual DTO projection matches exact request') {if((ConvertTo-KmcChunk7Canonical $actual.selection)-cne(ConvertTo-KmcChunk7Canonical $f.request.progression)-or(ConvertTo-KmcChunk7Canonical $actual.descriptor)-cne(ConvertTo-KmcChunk7Canonical $f.request.persistenceLoad)){throw 'Actual DTO evidence shape differs.'}}

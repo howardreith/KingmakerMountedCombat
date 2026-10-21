@@ -24,7 +24,7 @@ function Assert-KmcChunk7ProgressionSelection($Request){
     $has=$null-ne$Request.PSObject.Properties['progression']
     if(-not(Test-KmcChunk7ProgressionScenario $Request.scenario)){if($has){throw 'Progression selection is forbidden under another family.'};return}
     if(-not$has){throw 'Exact native progression selection missing.'};$s=$Request.progression
-    $properties=@('case','sourceRunId','sourceArtifactSha256','sourceArchiveSha256','inventoryRunId','inventoryArtifactSha256','actorId','petId','controlActorId','controlPetId','raceGuid','presetGuid','skeletonName','gender','leftHanded','bodySize','minimumRangerLevel','expectedNativeWriteCount','nativeWriteLeaf');if(Test-KmcChunk7OwnedProgressionCase $s.case){$properties+=@('ownedSource')};if($s.case-ceq'small-horse-native-retrain-cold'){$properties+=@('formerPetId')};if($s.case-ceq'small-horse-native-level'){$properties+=@('fixtureExperienceGrant')};Assert-KmcExactProperties $s $properties 'native progression selection'
+    $properties=@('case','sourceRunId','sourceArtifactSha256','sourceArchiveSha256','inventoryRunId','inventoryArtifactSha256','actorId','petId','controlActorId','controlPetId','raceGuid','presetGuid','skeletonName','gender','leftHanded','bodySize','minimumRangerLevel','expectedNativeWriteCount','nativeWriteLeaf');if(Test-KmcChunk7OwnedProgressionCase $s.case){$properties+=@('ownedSource')};if($s.case-ceq'small-horse-native-retrain-cold'){$properties+=@('formerPetId')};if($s.case-ceq'small-horse-native-level'-or(Test-KmcChunk7MediumProgressionCase $s.case)){$properties+=@('fixtureExperienceGrant')};Assert-KmcExactProperties $s $properties 'native progression selection'
     if($s.case-isnot[string]-or($s.case-cnotin(Get-KmcChunk7ProgressionCases)-and-not(Test-KmcChunk7ProgressionColdSelection $s))){throw 'Unknown native progression case.'}
     foreach($key in @('sourceRunId','inventoryRunId')){if($s.$key-isnot[string]-or$s.$key-cnotmatch'^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$'-or$s.$key-ceq$Request.runId){throw 'Progression requires distinct completed source runs.'}}
     foreach($key in @('sourceArtifactSha256','sourceArchiveSha256','inventoryArtifactSha256')){if($s.$key-isnot[string]-or$s.$key-cnotmatch'^[a-f0-9]{64}$'){throw 'Progression source hashes are missing.'}}
@@ -41,6 +41,7 @@ function Assert-KmcChunk7ProgressionSelection($Request){
     else{if($s.actorId-cne'd17c8fd0-6627-40c4-bf9a-024cf001c1f7'-or$s.controlActorId-cne'b6628a77-4962-47a4-a17c-88d9836fc9d5'-or$s.controlPetId-cne'd79a4f6c-b74e-4868-95bd-533899131acb'){throw 'Progression source actor/control roles differ from qualified Manual300.'}}
     $write=(Get-KmcChunk7ProgressionOperation $s.case)-cne'horse-native-dismiss';$respec=(Get-KmcChunk7ProgressionOperation $s.case)-cin@('horse-native-retrain-horse','horse-native-retrain-mammoth')
     if($s.case-ceq'small-horse-native-level'){Assert-KmcOrdinaryInteger $s.fixtureExperienceGrant 6000 6000;Assert-KmcOrdinaryInteger $s.minimumRangerLevel 4 4}
+    if(Test-KmcChunk7MediumProgressionCase $s.case){Assert-KmcOrdinaryInteger $s.fixtureExperienceGrant 96000 96000;Assert-KmcOrdinaryInteger $s.minimumRangerLevel 10 10}
     Assert-KmcOrdinaryInteger $s.expectedNativeWriteCount ([int]$write) ([int]$write)
     if($write){Assert-KmcOrdinaryInteger $s.minimumRangerLevel 4 20
         if(Test-KmcChunk7OwnedProgressionCase $s.case){if($null-ne$s.nativeWriteLeaf){throw 'Owned progression Manual number must be observed and reserved natively.'}}
@@ -223,7 +224,7 @@ function Assert-KmcProgressionChoices($Rows,$Request,$Before,$Respec){
     Assert-KmcChunk7Boolean $identity.nativeCanLevelUp $true
     if($retrain){if($identity.actorObject-ne$Respec.preview.previewObject-or$identity.descriptorObject-ne$Respec.preview.descriptorObject-or$identity.nativeMode-cne'Respec'){throw 'Native choice preview is not the observed respec preview.'}}
     elseif($identity.actorObject-ne$Before.object-or$identity.petId-cne$s.petId){throw 'Native existing Horse readiness identity differs.'}
-    $accepted=0;$commits=0;$pendingChoice=$null;$pendingCommit=$null;$finished=$false;$rebound=$false;$lastFrame=-1;$lastTime=-1;$horse=$false;$bond=$false
+    $accepted=0;$commits=0;$pendingChoice=$null;$pendingCommit=$null;$finished=$false;$rebound=$false;$lastFrame=-1;$lastTime=-1;$horse=$false;$bond=$false;$mammothRank=0
     foreach($row in $Rows){
         Assert-KmcProgressionTexts $row @('event','runId')
         Assert-KmcOrdinaryInteger $row.frame 0 ([int]::MaxValue)
@@ -231,6 +232,12 @@ function Assert-KmcProgressionChoices($Rows,$Request,$Before,$Respec){
         $lastFrame=$row.frame;$lastTime=$row.elapsedSeconds
         if([object]::ReferenceEquals($row,$initial)){continue};if($finished){throw 'Native progression choices continued after completion.'}
         switch -CaseSensitive ($row.event){
+            'native-retrain-mammoth-rank-seven' {
+                if($s.case-cne'medium-horse-native-retrain-mammoth'-or$mammothRank-ne0-or$null-ne$pendingChoice-or$null-ne$pendingCommit-or$commits-ne10-or$level-ne10){throw 'Unexpected, early or repeated native Mammoth upgrade observation.'}
+                Assert-KmcOrdinaryInteger $row.rangerLevel 10 10;Assert-KmcOrdinaryInteger $row.companionRank 7 20
+                foreach($pin in @(@('riderSize','Medium'),@('mountSize','Large'),@('upgradeGuid','6a23d16a4476af644af89d91f9f96790'),@('featureGuid','6adc3aab7cde56b40aa189a797254271'),@('petGuid','e7aa96d15a45238438ae4cfb476f6bb9'))){Assert-KmcBootstrapInventoryString $row.($pin[0]) $pin[1]}
+                $mammothRank++
+            }
             'native-level-open' {if($null-ne$pendingChoice-or$null-ne$pendingCommit){throw 'Overlapping native builder level.'};Assert-KmcProgressionSnapshot $row $identity $xp $level $money;Assert-KmcChunk7Boolean $row.nativeCanLevelUp $true;Assert-KmcOrdinaryInteger $row.nextLevel ($level+1) ($level+1)}
             'native-choice-requested' {
                 Assert-KmcProgressionText $row.kind
@@ -285,7 +292,8 @@ function Assert-KmcProgressionChoices($Rows,$Request,$Before,$Respec){
             default {throw 'Unknown native progression choice event.'}
         }
     }
-    if(-not$finished-or$accepted-lt1-or$accepted-gt512-or$commits-gt20-or($retrain-and(-not$horse-or-not$bond))){throw 'Native progression choices/companion chain incomplete.'}
+    if(-not$finished-or$accepted-lt1-or$accepted-gt512-or$commits-gt20-or($retrain-and(-not$horse-or-not$bond))-or
+       ($s.case-ceq'medium-horse-native-retrain-mammoth'-and$mammothRank-ne1)){throw 'Native progression choices/companion chain incomplete.'}
     [pscustomobject]@{commits=$commits;terminal=$terminal;initialLevel=$(if($retrain){0}else{$Before.level})}
 }
 function Assert-KmcProgressionCompletion($Probe,$Before,[long]$Commits,[long]$InitialLevel){
@@ -648,23 +656,25 @@ function Assert-KmcChunk7LevelColdEvidence($Request,$Artifact,[string]$Status='P
     Assert-KmcOrdinaryInteger $o.cleanup.ownersRemaining 0 0
     foreach($key in @('manualMoneyWrites','manualXpWrites','manualCompanionRemovals','manualNativeRestCalls','manualNativeTimeAdvances')){Assert-KmcOrdinaryInteger $o.cleanup.$key 0 0}
 }
-function Assert-KmcChunk7SmallLevelSetup($Request,$Observations,$Before){
+function Assert-KmcChunk7PaidExperienceSetup($Request,$Observations,$Before){
     $s=$Request.progression;$setup=$Observations.fixtureExperienceSetup
+    $medium=Test-KmcChunk7MediumProgressionCase $s.case
     Assert-KmcExactProperties $setup @('contract','methodToken','methodModuleMvid','sourceXp','sourceLevel','nextThreshold','nativeGrant','afterXp','afterLevel','petXpBefore','petXpAfter','petLevelBefore','petLevelAfter','controlXpBefore','controlXpAfter','controlPetXpBefore','controlPetXpAfter','moneyBefore','moneyAfter','snapshotsBefore','snapshotsAfter','completedSavesBefore','completedSavesAfter','castsBefore','castsAfter','sourceInitiallyUnready','targetReadyAfterGrant','ordinaryLevelChoicesStarted') 'Small later-level fixture setup'
-    Assert-KmcBootstrapInventoryString $setup.contract 'small-native-level-eligibility-setup-v1'
+    Assert-KmcBootstrapInventoryString $setup.contract $(if($medium){'medium-native-mammoth-eligibility-setup-v1'}else{'small-native-level-eligibility-setup-v1'})
     Assert-KmcBootstrapInventoryString $setup.methodToken '06001F80'
     Assert-KmcBootstrapInventoryString $setup.methodModuleMvid '07fa1e4d-8618-41b3-9b8d-faa17d3b26f7'
-    $rows=$Observations.source.smallColdFixture.arrangement.actors
+    $fixture=if($medium){$Observations.source.mediumColdFixture}else{$Observations.source.smallColdFixture}
+    $rows=$fixture.arrangement.actors
     $target=@($rows|Where-Object actorId -CEQ $s.actorId);$pet=@($rows|Where-Object actorId -CEQ $s.petId)
     $control=@($rows|Where-Object actorId -CEQ $s.controlActorId);$controlPet=@($rows|Where-Object actorId -CEQ $s.controlPetId)
     if($target.Count-ne1-or$pet.Count-ne1-or$control.Count-ne1-or$controlPet.Count-ne1){throw 'Small XP setup lacks four exact source actors.'}
-    foreach($item in @(@('sourceXp',$target[0].experience),@('sourceLevel',$target[0].characterLevel),@('petXpBefore',$pet[0].experience),@('petLevelBefore',$pet[0].characterLevel),@('controlXpBefore',$control[0].experience),@('controlPetXpBefore',$controlPet[0].experience),@('moneyBefore',$Observations.source.smallColdFixture.arrangement.money))){Assert-KmcOrdinaryInteger $setup.($item[0]) $item[1] $item[1]}
+    foreach($item in @(@('sourceXp',$target[0].experience),@('sourceLevel',$target[0].characterLevel),@('petXpBefore',$pet[0].experience),@('petLevelBefore',$pet[0].characterLevel),@('controlXpBefore',$control[0].experience),@('controlPetXpBefore',$controlPet[0].experience),@('moneyBefore',$fixture.arrangement.money))){Assert-KmcOrdinaryInteger $setup.($item[0]) $item[1] $item[1]}
     Assert-KmcOrdinaryInteger $setup.sourceXp 9000 9000;Assert-KmcOrdinaryInteger $setup.sourceLevel 4 4
-    Assert-KmcOrdinaryInteger $setup.nextThreshold 15000 15000
+    Assert-KmcOrdinaryInteger $setup.nextThreshold $(if($medium){105000}else{15000}) $(if($medium){105000}else{15000})
     Assert-KmcOrdinaryInteger $setup.nativeGrant $s.fixtureExperienceGrant $s.fixtureExperienceGrant
     Assert-KmcOrdinaryInteger $setup.afterXp $Before.xp $Before.xp
     Assert-KmcOrdinaryInteger $setup.afterLevel $Before.level $Before.level
-    if($setup.nextThreshold-$setup.sourceXp-ne$setup.nativeGrant-or$setup.afterXp-ne$setup.nextThreshold-or$setup.afterLevel-ne$setup.sourceLevel){throw 'Small fixture XP changed beyond one native eligibility threshold.'}
+    if($setup.nextThreshold-$setup.sourceXp-ne$setup.nativeGrant-or$setup.afterXp-ne$setup.nextThreshold-or$setup.afterLevel-ne$setup.sourceLevel){throw 'Paid fixture XP changed beyond its one native eligibility grant.'}
     foreach($pair in @(@('petXpBefore','petXpAfter'),@('petLevelBefore','petLevelAfter'),@('controlXpBefore','controlXpAfter'),@('controlPetXpBefore','controlPetXpAfter'),@('moneyBefore','moneyAfter'),@('snapshotsBefore','snapshotsAfter'),@('completedSavesBefore','completedSavesAfter'),@('castsBefore','castsAfter'))){
         Assert-KmcOrdinaryInteger $setup.($pair[0]) 0 ([int]::MaxValue)
         Assert-KmcOrdinaryInteger $setup.($pair[1]) $setup.($pair[0]) $setup.($pair[0])
@@ -707,7 +717,7 @@ function Assert-KmcChunk7ProgressionEvidence($Request,$Artifact,[string]$Status=
     if(-not(Test-KmcChunk7FiniteNumber $o.elapsedSeconds)-or$o.elapsedSeconds-lt0-or$o.elapsedSeconds-gt945){throw 'Native progression exceeded its bounded completion window.'}
     foreach($key in @('sourceRunId','sourceArtifactSha256','sourceArchiveSha256','inventoryRunId','inventoryArtifactSha256')){Assert-KmcProgressionText $o.source.$key;if($o.source.$key-cne$s.$key){throw 'Progression source/inventory receipt differs.'}}
     foreach($key in @('sameCandidate','nativeSourceGraphExact')){Assert-KmcChunk7Boolean $o.source.$key $true}
-    $sourceActorId=if(Test-KmcChunk7SmallProgressionCase $s.case){$o.source.inventoryActor.actorId}else{$o.source.inventoryActor.id}
+    $sourceActorId=if(Test-KmcChunk7PaidProgressionCase $s.case){$o.source.inventoryActor.actorId}else{$o.source.inventoryActor.id}
     Assert-KmcOrdinaryGuid $sourceActorId;if($sourceActorId-cne$s.actorId){throw 'Progression target lacks exact source inventory.'}
     $archiveRequest=if(Test-KmcChunk7OwnedProgressionCase $s.case){Get-KmcChunk7ProgressionOwnedRequest $Request}else{[pscustomobject]@{scenario='chunk7-persistence-load';fixture=$Request.fixture;persistenceCase='multi-exploration-manual'}}
     Assert-KmcChunk7PersistenceArchive $o.loadedArchive $archiveRequest
@@ -740,7 +750,7 @@ function Assert-KmcChunk7ProgressionEvidence($Request,$Artifact,[string]$Status=
     $nativeRows=@($session.events|Where-Object{$null-eq$_.PSObject.Properties['event']});foreach($row in $nativeRows){Assert-KmcProgressionText $row.kind};$beforeRows=@($nativeRows|Where-Object kind -CEQ 'native-progression-admitted')
     if($beforeRows.Count-ne1){throw 'Native progression live admission missing.'};$before=$beforeRows[0];Assert-KmcProgressionActor $before $s.actorId
     if($before.petId-cne$s.petId){throw 'Native admission target pet differs.'}
-    if($s.case-ceq'small-horse-native-level'){Assert-KmcChunk7SmallLevelSetup $Request $o $before}
+    if($s.case-ceq'small-horse-native-level'-or(Test-KmcChunk7MediumProgressionCase $s.case)){Assert-KmcChunk7PaidExperienceSetup $Request $o $before}
     elseif($null-ne$o.PSObject.Properties['fixtureExperienceSetup']){throw 'Non-level progression carried a fixture XP grant.'}
     Assert-KmcProgressionPairCustody $session.pairCustody $o.loadedArchive $s
     Assert-KmcChunk7Boolean $session.nativeAutomaticTargetCleanupObserved ((Get-KmcChunk7ProgressionOperation $s.case)-cne'horse-native-level')

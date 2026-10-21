@@ -170,7 +170,8 @@ namespace KingmakerMountedCombat.Diagnostics
             originalSelection = SelectionManager.Instance.SelectedUnits.ToArray(); pause = Game.Instance.IsPaused; captured = true;
             RequireBodyPins();
             if (ownedProgression) BindOwnedRoster();
-            if (selection.Case == Chunk7ProgressionSelection.SmallLevelCase) PrepareSmallLevelFixture();
+            if (selection.Case == Chunk7ProgressionSelection.SmallLevelCase || selection.IsMediumOwned)
+                PreparePaidExperienceFixture();
             MovementScreenshotCaptureCoordinator.AcquireClosedUmmLeaseRetained(out ummLease);
             Game.Instance.IsPaused = false;
             var pins = selection.WritesSave ? new Chunk7OrdinaryBuildPins(request.RunId, selection.InventoryArtifactSha256,
@@ -181,8 +182,9 @@ namespace KingmakerMountedCombat.Diagnostics
             session = new Chunk7NativeProgressionSession(request, selection.NativeCase, pins, rider, mount, authorization, authority, world, persistence, horses);
             session.Start(); Pass("C7-progression-cold-source");
         }
-        private void PrepareSmallLevelFixture()
+        private void PreparePaidExperienceFixture()
         {
+            var medium = selection.IsMediumOwned;
             // This is disclosed eligibility setup, before the ordinary native
             // level-up operation. It is never counted as a level choice or grant.
             var game = Game.Instance;
@@ -191,11 +193,11 @@ namespace KingmakerMountedCombat.Diagnostics
                 (DialogMessageBox.Instance == null || !DialogMessageBox.Instance.IsShown) &&
                 !NativePersistenceIsolation.NativeSlotRotationEnabled &&
                 authority.MatchesProgressionManualPlan(request, game, game.SaveManager) && game.SaveManager.IsSaveAllowed(),
-                "Small native level setup requires idle native choices and an available exact one-Manual plan before XP changes.");
+                "Paid native eligibility setup requires idle native choices and an available exact one-Manual plan before XP changes.");
             var sourceActor = evidence["source"]?["inventoryActor"] as JObject;
             var progression = rider.Descriptor.Progression;
             var table = Kingmaker.Blueprints.Root.BlueprintRoot.Instance.Progression.XPTable;
-            var threshold = table.GetBonus(progression.CharacterLevel + 1);
+            var threshold = table.GetBonus(medium ? 10 : progression.CharacterLevel + 1);
             var grant = selection.FixtureExperienceGrant.Value;
             var beforeXp = progression.Experience;
             var beforeLevel = progression.CharacterLevel;
@@ -207,11 +209,12 @@ namespace KingmakerMountedCombat.Diagnostics
             var snapshots = persistence.SnapshotCount;
             var writes = persistence.CompletedSaveCount;
             var casts = world.NativeControls.NativeCastRequestCount;
-            Require(sourceActor != null && beforeLevel == 4 && (int)sourceActor["characterLevel"] == beforeLevel &&
+            Require(sourceActor != null && beforeLevel == 4 && beforeXp == 9000 &&
+                (!medium || threshold == 105000) && (int)sourceActor["characterLevel"] == beforeLevel &&
                 (int)sourceActor["experience"] == beforeXp && Game.Instance.Player.ExperienceRatePercent == 100 &&
                 threshold > beforeXp && threshold - beforeXp == grant && !Kingmaker.UnitLogic.Class.LevelUp.LevelUpController.CanLevelUp(rider.Descriptor) &&
                 !Busy() && rider.Commands.Empty && mount.Commands.Empty && controlRider.Commands.Empty && controlMount.Commands.Empty,
-                "Small native level setup lacks its exact unready level-four source and one-level XP shortfall.");
+                "Paid native eligibility setup lacks its exact unready level-four source and bounded XP shortfall.");
             Chunk7AssistedFixtureNativeBoundary.RequireMethod(typeof(Kingmaker.UnitLogic.UnitProgressionData),
                 "GainExperience", 0x06001F80, typeof(void), new[] { typeof(int), typeof(bool) });
             progression.GainExperience(grant, false);
@@ -225,7 +228,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 world.Registry.FindActive(rider)?.Mount == mount && world.Registry.FindActive(controlRider)?.Mount == controlMount,
                 "Bounded native XP eligibility setup changed another actor, owner, resource or save boundary.");
             evidence["fixtureExperienceSetup"] = new JObject {
-                ["contract"] = "small-native-level-eligibility-setup-v1", ["methodToken"] = "06001F80",
+                ["contract"] = medium ? "medium-native-mammoth-eligibility-setup-v1" : "small-native-level-eligibility-setup-v1",
+                ["methodToken"] = "06001F80",
                 ["methodModuleMvid"] = "07fa1e4d-8618-41b3-9b8d-faa17d3b26f7",
                 ["sourceXp"] = beforeXp, ["sourceLevel"] = beforeLevel, ["nextThreshold"] = threshold,
                 ["nativeGrant"] = grant, ["afterXp"] = progression.Experience, ["afterLevel"] = progression.CharacterLevel,
@@ -250,9 +254,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 Require((string)item["status"] == "PASS" && item["errors"] is JArray itemErrors && itemErrors.Count == 0 &&
                     (string)item["commit"] == request.Commit && (string)item["dllSha256"] == request.DllSha256 && (string)item["dllMvid"] == request.DllMvid,
                     "Staged native source/inventory is not a same-candidate immutable PASS.");
-            if (selection.IsSmallOwned)
+            if (selection.IsPaidOwned)
             {
-                ReadSmallOwnedSources(source, inventory); return;
+                ReadPaidOwnedSources(source, inventory); return;
             }
             if (ownedProgression)
             {

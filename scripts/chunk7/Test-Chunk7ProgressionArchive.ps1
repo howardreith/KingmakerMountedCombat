@@ -29,7 +29,7 @@ function New-ProgressionArchive([string]$Case='horse-native-level',[string]$Muta
     if($Mutation-ceq'changed-final-bytes'){[IO.File]::AppendAllText($w.path,'changed')};return $f
 }
 $script:passes=0
-foreach($case in @(Get-KmcChunk7ProgressionCases|Where-Object{-not(Test-KmcChunk7SmallProgressionCase $_)})){Good ('closed native output category '+$case){$f=New-ProgressionArchive $case;Assert-KmcChunk7ProgressionNativeArchive $f.request $f.artifact}}
+foreach($case in @(Get-KmcChunk7ProgressionCases|Where-Object{-not(Test-KmcChunk7PaidProgressionCase $_)})){Good ('closed native output category '+$case){$f=New-ProgressionArchive $case;Assert-KmcChunk7ProgressionNativeArchive $f.request $f.artifact}}
 foreach($mutation in @('header-type-array','header-id-array','header-name-array','header-false-auto','header-text-compatibility','changed-mounted-owner','duplicate-header-key','duplicate-header','duplicate-metadata','oversized-metadata','changed-final-bytes')){
     Bad ('bounded native metadata '+$mutation){$f=New-ProgressionArchive 'horse-native-level' $mutation;Assert-KmcChunk7ProgressionNativeArchive $f.request $f.artifact}
 }
