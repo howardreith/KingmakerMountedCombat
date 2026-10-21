@@ -39,7 +39,7 @@ $base=[pscustomobject]@{schemaVersion=2;runId='synthetic-wiring';scenario='chunk
 function Invoke-Request($Value){$path=Join-Path $private 'request.json';$Value|ConvertTo-Json -Depth 90|Set-Content -LiteralPath $path;& $validator -RequestPath $path|Out-Null}
 foreach($case in Get-KmcChunk7PersistenceCases){foreach($scenario in @('chunk7-persistence-save','chunk7-persistence-load')){
     $q=Copy-Test $base;$q.scenario=$scenario;$q.persistenceCase=$case
-    if($case-cin@('owner-seed-manticore-fixture-manual','owner-seed-tomb-door-fixture-manual')){
+    if($case-cin@('owner-seed-manticore-fixture-manual','owner-seed-tomb-door-fixture-manual','owner-seed-thorn-river-door-fixture-manual')){
         Reject ($case+' requires its source-only inherited family under '+$scenario) {Invoke-Request $q};continue
     }
     if($case-ceq'manticore-fixture-cold-manual'-and$scenario-ceq'chunk7-persistence-load'){

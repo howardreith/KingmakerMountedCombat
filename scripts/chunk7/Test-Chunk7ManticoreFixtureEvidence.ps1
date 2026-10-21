@@ -133,6 +133,32 @@ Check 'Tomb fixture accepts exact source, stock entry and read-only zero-door in
 Check 'Tomb fixture rejects substituted stock entry' {$f=New-TombFixture;$f.artifact.observations.tombDoorFixturePreparation.prerequisite.entryGuid='f'*32;Read-Manticore $f} $true
 Check 'Tomb fixture rejects a false positive door inventory' {$f=New-TombFixture;$f.artifact.observations.tombDoorFixturePreparation.areaDoorInventory.candidateCount=1;Read-Manticore $f} $true
 Check 'Tomb fixture rejects non-isolated output area' {$f=New-TombFixture;$f.artifact.observations.nativeWrite.archive.AreaId='314e8c3b15b896a4f847c85f9250f02b';Read-Manticore $f} $true
+function New-ThornRiverFixture {
+ $f=New-TombFixture;$r=$f.request;$o=$f.artifact.observations;$p=$o.tombDoorFixturePreparation
+ $r.persistenceCase='owner-seed-thorn-river-door-fixture-manual';$o.checkpoint=$r.persistenceCase
+ $o.ownerSeedCheckpointSource.checkpoint=$r.persistenceCase
+ $area='7d72372ade2f14448a3fec6d61e06bd8';$name='KMC_C7_THORN_RIVER_DOOR_FIXTURE';$leaf='Manual_305_KMC_C7_THORN_RIVER_DOOR_FIXTURE.zks'
+ $o.nativeWrite.path=Join-Path (Split-Path -Parent $o.nativeWrite.path) $leaf
+ $o.nativeWrite.nativeName=$name;$o.nativeWrite.archive.AreaId=$area;$o.saveRequested.nativeName=$name
+ $o.ownedOutputAdmission.leaf=$leaf
+ foreach($a in @($o.ownedOutputAdmission.authority,$o.ownedOutputCompletion.authority)){$a.leaf=$leaf;$a.nativeName=$name}
+ foreach($d in @($o.ownedOutputAdmission.nativeInventory)+@($o.ownedOutputCompletion.nativeInventory)){
+  if($d.fileName-ceq'Manual_305_KMC_C7_TOMB_DOOR_FIXTURE.zks'){$d.fileName=$leaf;$d.nativeName=$name;$d.area=$area}
+ }
+ $p.contract='owner-seed-thorn-river-door-fixture-v1';$p.checkpoint=$r.persistenceCase
+ $p.prerequisite.contract='owner-seed-thorn-river-entry-v1';$p.prerequisite.locationGuid='e929000884b47804f9c026c873aaa57b'
+ $p.prerequisite.entryGuid='1ab738bc965352a479b68d1bd325c810';$p.prerequisite.destinationArea=$area
+ foreach($w in @($p.destinationUnmounted,$p.remounted,$p.afterSave)){$w.area=$area;$w.field.area=$area}
+ foreach($w in @($p.source,$p.sourceUnmounted,$p.destinationUnmounted,$p.remounted)){$w.authority.leaf=$leaf;$w.authority.nativeName=$name}
+ $p.afterSave.authority.leaf=$leaf;$p.afterSave.authority.nativeName=$name
+ foreach($input in $o.inputs){$input.label=$input.label.Replace('tomb-','thorn-river-')}
+ $o.PSObject.Properties.Remove('tombDoorFixturePreparation');$o|Add-Member thornRiverDoorFixturePreparation $p
+ Copy-Value $f
+}
+Check 'Thorn River accepts exact source, entry and bounded read-only inventory' {$f=New-ThornRiverFixture;Read-Manticore $f}
+Check 'Thorn River refuses substituted stock entrance' {$f=New-ThornRiverFixture;$f.artifact.observations.thornRiverDoorFixturePreparation.prerequisite.entryGuid='f'*32;Read-Manticore $f} $true
+Check 'Thorn River refuses false door inventory' {$f=New-ThornRiverFixture;$f.artifact.observations.thornRiverDoorFixturePreparation.areaDoorInventory.candidateCount=1;Read-Manticore $f} $true
+Check 'Thorn River refuses output in another area' {$f=New-ThornRiverFixture;$f.artifact.observations.nativeWrite.archive.AreaId='81b13ce8765469045864ffb878b0944b';Read-Manticore $f} $true
 function New-ManticoreColdReaderFixture {
  $producer=New-ManticoreFixture;$p=$producer.request.ownedPairs;$o=$producer.artifact.observations
  $request=Copy-Value $producer.request;$request.runId='synthetic-manticore-cold-consumer';$request.persistenceCase='manticore-fixture-cold-manual'

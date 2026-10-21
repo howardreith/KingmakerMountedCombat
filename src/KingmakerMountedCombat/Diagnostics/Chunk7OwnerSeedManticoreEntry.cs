@@ -110,6 +110,56 @@ namespace KingmakerMountedCombat.Diagnostics
         { if (!value) throw new InvalidOperationException(message); }
     }
 
+    // The same immutable owner seed exposes one final revealed field entrance.
+    // This only reads the saved row and uses its actual native area entry.
+    internal static class Chunk7OwnerSeedThornRiverEntry
+    {
+        internal const string SourceArea = Chunk7OwnerSeedManticoreEntry.SourceArea;
+        internal const string Location = "e929000884b47804f9c026c873aaa57b";
+        internal const string Entry = "1ab738bc965352a479b68d1bd325c810";
+
+        internal static BlueprintAreaEnterPoint Resolve(Game game, RuntimeRequest request, out JObject observation)
+        {
+            observation = null;
+            Require(request?.OwnedPairs?.IsOwnerSeedCheckpointSave == true &&
+                request.PersistenceCase == Chunk7OwnedPairsSelection.ThornRiverFixtureCheckpoint &&
+                request.PersistenceLoad?.Sha256 == Chunk7OwnedPairsSelection.ThornRiverFixtureSourceSha256 &&
+                request.PersistenceLoad.Area == SourceArea && request.PersistenceAreaTarget == null &&
+                request.PersistenceReplayTargets == null && game?.Player != null &&
+                game.Player.GameId == request.PersistenceLoad.GameId && !game.Player.IsInCombat &&
+                game.CurrentMode == GameModeType.Default && game.CurrentlyLoadedArea?.AssetGuidThreadSafe == SourceArea,
+                "Thorn River fixture preparation requires its exact accepted source and closed native route.");
+            var map = game.Player.GlobalMap;
+            var location = ResourcesLibrary.TryGetBlueprint<BlueprintLocation>(Location);
+            LocationData data = null;
+            Require(map?.Locations != null && location != null && location.AssetGuidThreadSafe == Location &&
+                map.Locations.TryGetValue(location, out data) && data != null && ReferenceEquals(data.Blueprint, location) &&
+                data.IsSeen && data.IsRevealed && !data.IsClosed && !data.IsExplored,
+                "Thorn River requires its existing revealed/open, still unexplored saved location.");
+            var count = map.Locations.Count;
+            var resolved = data.AreaEntrance;
+            var entry = ResourcesLibrary.TryGetBlueprint<BlueprintAreaEnterPoint>(Entry);
+            Require(entry != null && ReferenceEquals(resolved, entry) && entry.AssetGuidThreadSafe == Entry &&
+                entry.Area != null && entry.Area.AssetGuidThreadSafe == Chunk7OwnedPairsSelection.ThornRiverFixtureArea &&
+                !entry.Area.IsCapital && !ReferenceEquals(entry.Area, game.CurrentlyLoadedArea) && map.Locations.Count == count,
+                "Thorn River refused a different actual entrance or a capital destination.");
+            observation = new JObject {
+                ["contract"] = "owner-seed-thorn-river-entry-v1", ["sourceArea"] = SourceArea,
+                ["sourceSha256"] = request.PersistenceLoad.Sha256,
+                ["locationGuid"] = location.AssetGuidThreadSafe, ["entryGuid"] = resolved.AssetGuidThreadSafe,
+                ["destinationArea"] = entry.Area.AssetGuidThreadSafe, ["destinationIsCapital"] = entry.Area.IsCapital,
+                ["seen"] = data.IsSeen, ["revealed"] = data.IsRevealed, ["closed"] = data.IsClosed, ["explored"] = data.IsExplored,
+                ["locationCountBefore"] = count, ["locationCountAfter"] = map.Locations.Count,
+                ["existingLocationOnly"] = true, ["actualEntranceExact"] = true,
+                ["navigationAssisted"] = true, ["ordinaryTravelProof"] = false, ["nativeMode"] = "None",
+                ["transferRequests"] = 0, ["saveRequests"] = 0 };
+            return entry;
+        }
+
+        private static void Require(bool value, string message)
+        { if (!value) throw new InvalidOperationException(message); }
+    }
+
     // The Manticore Manual is a distinct mounted source. Its return route may
     // use only the already-explored Spider Cave location and its actual stock
     // entrance; reading Locations never creates or edits a map record.

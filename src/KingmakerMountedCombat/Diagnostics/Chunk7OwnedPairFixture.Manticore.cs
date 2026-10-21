@@ -11,12 +11,14 @@ namespace KingmakerMountedCombat.Diagnostics
         private BlueprintArea manticoreDestination;
         private bool manticorePending, manticoreAdopted, manticoreRequested;
         private bool TombFixturePreparation => request.PersistenceCase == Chunk7OwnedPairsSelection.TombFixtureCheckpoint;
-        private string FixtureDestinationArea => TombFixturePreparation ? Chunk7OwnedPairsSelection.TombFixtureArea : Chunk7OwnedPairsSelection.ManticoreFixtureArea;
+        private bool ThornRiverFixturePreparation => request.PersistenceCase == Chunk7OwnedPairsSelection.ThornRiverFixtureCheckpoint;
+        private string FixtureDestinationArea => TombFixturePreparation ? Chunk7OwnedPairsSelection.TombFixtureArea :
+            ThornRiverFixturePreparation ? Chunk7OwnedPairsSelection.ThornRiverFixtureArea : Chunk7OwnedPairsSelection.ManticoreFixtureArea;
 
         internal void BeginManticorePreparation(BlueprintArea destination)
         {
             Require(bound && !released && !manticoreRequested && !manticorePending && !manticoreAdopted &&
-                selection.IsOwnerSeedCheckpointSave && (request.PersistenceCase == Chunk7OwnedPairsSelection.ManticoreFixtureCheckpoint || TombFixturePreparation) &&
+                selection.IsOwnerSeedCheckpointSave && (request.PersistenceCase == Chunk7OwnedPairsSelection.ManticoreFixtureCheckpoint || TombFixturePreparation || ThornRiverFixturePreparation) &&
                 request.PersistenceLoad.Sha256 == Chunk7OwnedPairsSelection.ManticoreFixtureSourceSha256 &&
                 request.PersistenceLoad.Area == Chunk7OwnerSeedManticoreEntry.SourceArea && request.PersistenceAreaTarget == null &&
                 destination != null && destination.AssetGuidThreadSafe == FixtureDestinationArea && !destination.IsCapital &&
@@ -30,7 +32,7 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             RequireRequest(); RequireAuthority();
             Require(bound && !released && manticorePending && !manticoreAdopted &&
-                selection.IsOwnerSeedCheckpointSave && (request.PersistenceCase == Chunk7OwnedPairsSelection.ManticoreFixtureCheckpoint || TombFixturePreparation) &&
+                selection.IsOwnerSeedCheckpointSave && (request.PersistenceCase == Chunk7OwnedPairsSelection.ManticoreFixtureCheckpoint || TombFixturePreparation || ThornRiverFixturePreparation) &&
                 ReferenceEquals(destination, manticoreDestination) && destination != null &&
                 destination.AssetGuidThreadSafe == FixtureDestinationArea &&
                 ReferenceEquals(game.Player, admittedPlayer) && ReferenceEquals(game.State, admittedState),

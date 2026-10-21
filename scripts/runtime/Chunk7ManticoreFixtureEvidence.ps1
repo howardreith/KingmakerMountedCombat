@@ -25,6 +25,18 @@ function Assert-KmcChunk7TombSelection($Request){
   if($null-ne$Request.PSObject.Properties[$name]-and$null-ne$Request.$name){throw 'Tomb preparation cannot carry another target or derivative route.'}
  }
 }
+function Test-KmcChunk7ThornRiverFixture($Request){
+ $null-ne$Request.PSObject.Properties['persistenceCase']-and$Request.persistenceCase-is[string]-and$Request.persistenceCase-ceq'owner-seed-thorn-river-door-fixture-manual'-and
+ $Request.scenario-is[string]-and$Request.scenario-ceq'chunk7-owned-two-pair-campaign'-and
+ $null-ne$Request.PSObject.Properties['ownedPairs']-and$Request.ownedPairs.case-is[string]-and$Request.ownedPairs.case-ceq'owner-seed-checkpoint-save'
+}
+function Assert-KmcChunk7ThornRiverSelection($Request){
+ if(-not(Test-KmcChunk7ThornRiverFixture $Request)){throw 'Thorn River preparation requires its exact source-only inherited checkpoint.'}
+ Assert-KmcBootstrapInventoryString $Request.ownedPairs.sourceArchiveSha256 'b4d1ede7843c600f201dcd7b71cd2558cad44210e7e0eb78d9a58f6e89f64003'
+ foreach($name in @('persistenceAreaTarget','persistenceReplayTargets','schema1DerivationSha256','schema2DerivationSha256','loadRefusalDerivationSha256')){
+  if($null-ne$Request.PSObject.Properties[$name]-and$null-ne$Request.$name){throw 'Thorn River preparation cannot carry another target or derivative route.'}
+ }
+}
 function Assert-KmcChunk7ManticorePrerequisite($Request,$Value){
  Assert-KmcChunk7ManticoreSelection $Request
  Assert-KmcExactProperties $Value @('contract','sourceArea','sourceSha256','locationGuid','entryGuid','destinationArea','destinationIsCapital','seen','revealed','closed','explored','locationCountBefore','locationCountAfter','existingLocationOnly','actualEntranceExact','navigationAssisted','ordinaryTravelProof','nativeMode','transferRequests','saveRequests') 'Manticore fixture prerequisite'
@@ -38,6 +50,15 @@ function Assert-KmcChunk7TombPrerequisite($Request,$Value){
  Assert-KmcChunk7TombSelection $Request
  Assert-KmcExactProperties $Value @('contract','sourceArea','sourceSha256','locationGuid','entryGuid','destinationArea','destinationIsCapital','seen','revealed','closed','explored','locationCountBefore','locationCountAfter','existingLocationOnly','actualEntranceExact','navigationAssisted','ordinaryTravelProof','nativeMode','transferRequests','saveRequests') 'Tomb fixture prerequisite'
  foreach($pair in @(@('contract','owner-seed-tomb-entry-v1'),@('sourceArea','b10e86516b6437d45a629931c30936fe'),@('sourceSha256',$Request.persistenceLoad.sha256),@('locationGuid','38638e43953432e42a037956f798f15e'),@('entryGuid','c23675e173391ad4297dbe3720122bca'),@('destinationArea','81b13ce8765469045864ffb878b0944b'),@('nativeMode','None'))){Assert-KmcBootstrapInventoryString $Value.($pair[0]) $pair[1]}
+ foreach($key in @('seen','revealed','existingLocationOnly','actualEntranceExact','navigationAssisted')){Assert-KmcChunk7Boolean $Value.$key $true}
+ foreach($key in @('closed','explored','destinationIsCapital','ordinaryTravelProof')){Assert-KmcChunk7Boolean $Value.$key $false}
+ Assert-KmcOrdinaryInteger $Value.locationCountBefore 1 4096;Assert-KmcOrdinaryInteger $Value.locationCountAfter $Value.locationCountBefore $Value.locationCountBefore
+ foreach($key in @('transferRequests','saveRequests')){Assert-KmcOrdinaryInteger $Value.$key 0 0}
+}
+function Assert-KmcChunk7ThornRiverPrerequisite($Request,$Value){
+ Assert-KmcChunk7ThornRiverSelection $Request
+ Assert-KmcExactProperties $Value @('contract','sourceArea','sourceSha256','locationGuid','entryGuid','destinationArea','destinationIsCapital','seen','revealed','closed','explored','locationCountBefore','locationCountAfter','existingLocationOnly','actualEntranceExact','navigationAssisted','ordinaryTravelProof','nativeMode','transferRequests','saveRequests') 'Thorn River fixture prerequisite'
+ foreach($pair in @(@('contract','owner-seed-thorn-river-entry-v1'),@('sourceArea','b10e86516b6437d45a629931c30936fe'),@('sourceSha256',$Request.persistenceLoad.sha256),@('locationGuid','e929000884b47804f9c026c873aaa57b'),@('entryGuid','1ab738bc965352a479b68d1bd325c810'),@('destinationArea','7d72372ade2f14448a3fec6d61e06bd8'),@('nativeMode','None'))){Assert-KmcBootstrapInventoryString $Value.($pair[0]) $pair[1]}
  foreach($key in @('seen','revealed','existingLocationOnly','actualEntranceExact','navigationAssisted')){Assert-KmcChunk7Boolean $Value.$key $true}
  foreach($key in @('closed','explored','destinationIsCapital','ordinaryTravelProof')){Assert-KmcChunk7Boolean $Value.$key $false}
  Assert-KmcOrdinaryInteger $Value.locationCountBefore 1 4096;Assert-KmcOrdinaryInteger $Value.locationCountAfter $Value.locationCountBefore $Value.locationCountBefore
@@ -133,22 +154,22 @@ function Assert-KmcChunk7TombDoorInventory($Inventory,$Remounted,$Roles){
  }
 }
 function Assert-KmcChunk7ManticoreFixtureObservation($Request,$Observations,$Archive){
- $tomb=Test-KmcChunk7TombFixture $Request
- if($tomb){Assert-KmcChunk7TombSelection $Request}else{Assert-KmcChunk7ManticoreSelection $Request}
- $o=$Observations;$p=if($tomb){$o.tombDoorFixturePreparation}else{$o.manticoreFixturePreparation};$roles=Get-KmcChunk7OwnedPairIds $Request
- $destination=if($tomb){'81b13ce8765469045864ffb878b0944b'}else{'314e8c3b15b896a4f847c85f9250f02b'}
- $prefix=if($tomb){'tomb'}else{'manticore'}
+ $tomb=Test-KmcChunk7TombFixture $Request;$thorn=Test-KmcChunk7ThornRiverFixture $Request
+ if($tomb){Assert-KmcChunk7TombSelection $Request}elseif($thorn){Assert-KmcChunk7ThornRiverSelection $Request}else{Assert-KmcChunk7ManticoreSelection $Request}
+ $o=$Observations;$p=if($tomb){$o.tombDoorFixturePreparation}elseif($thorn){$o.thornRiverDoorFixturePreparation}else{$o.manticoreFixturePreparation};$roles=Get-KmcChunk7OwnedPairIds $Request
+ $destination=if($tomb){'81b13ce8765469045864ffb878b0944b'}elseif($thorn){'7d72372ade2f14448a3fec6d61e06bd8'}else{'314e8c3b15b896a4f847c85f9250f02b'}
+ $prefix=if($tomb){'tomb'}elseif($thorn){'thorn-river'}else{'manticore'}
  $properties=@('contract','checkpoint','prerequisite','transferRequests','nativeMode','navigationAssisted','ordinaryTravelProof','nativeAreaCallbackExpected','explicitSaveGameDispatches','source','originalSlots','sourceUnmounted','dispatchReturned','destinationUnmounted','loadingTicks','remounted','reboundSlots','controlRebindings','afterSave','completedArchiveSha256','identityRetention')
- if($tomb){$properties+=@('areaDoorInventory','unityDevelopmentPlayer')}
+ if($tomb-or$thorn){$properties+=@('areaDoorInventory','unityDevelopmentPlayer')}
  Assert-KmcExactProperties $p $properties 'native area fixture preparation'
- Assert-KmcBootstrapInventoryString $p.contract $(if($tomb){'owner-seed-tomb-door-fixture-v1'}else{'owner-seed-manticore-fixture-v1'});Assert-KmcBootstrapInventoryString $p.checkpoint $Request.persistenceCase;Assert-KmcBootstrapInventoryString $p.nativeMode 'None'
- if($tomb){if($p.unityDevelopmentPlayer-isnot[bool]){throw 'Tomb Unity development-player observation is not Boolean.'};Assert-KmcChunk7TombDoorInventory $p.areaDoorInventory $p.remounted $roles}
+ Assert-KmcBootstrapInventoryString $p.contract $(if($tomb){'owner-seed-tomb-door-fixture-v1'}elseif($thorn){'owner-seed-thorn-river-door-fixture-v1'}else{'owner-seed-manticore-fixture-v1'});Assert-KmcBootstrapInventoryString $p.checkpoint $Request.persistenceCase;Assert-KmcBootstrapInventoryString $p.nativeMode 'None'
+ if($tomb-or$thorn){if($p.unityDevelopmentPlayer-isnot[bool]){throw 'Door-fixture Unity development-player observation is not Boolean.'};Assert-KmcChunk7TombDoorInventory $p.areaDoorInventory $p.remounted $roles}
  foreach($key in @('navigationAssisted','dispatchReturned')){Assert-KmcChunk7Boolean $p.$key $true}
  foreach($key in @('ordinaryTravelProof','nativeAreaCallbackExpected')){Assert-KmcChunk7Boolean $p.$key $false}
  foreach($key in @('transferRequests','explicitSaveGameDispatches')){Assert-KmcOrdinaryInteger $p.$key 1 1}
  Assert-KmcOrdinaryInteger $p.controlRebindings 4 4;Assert-KmcOrdinaryInteger $p.loadingTicks 1 1000000
  Assert-KmcBootstrapInventoryString $Request.persistenceLoad.area 'b10e86516b6437d45a629931c30936fe';Assert-KmcBootstrapInventoryString $Request.persistenceLoad.sha256 $Request.ownedPairs.sourceArchiveSha256
- if($tomb){Assert-KmcChunk7TombPrerequisite $Request $p.prerequisite}else{Assert-KmcChunk7ManticorePrerequisite $Request $p.prerequisite}
+ if($tomb){Assert-KmcChunk7TombPrerequisite $Request $p.prerequisite}elseif($thorn){Assert-KmcChunk7ThornRiverPrerequisite $Request $p.prerequisite}else{Assert-KmcChunk7ManticorePrerequisite $Request $p.prerequisite}
  Assert-KmcBootstrapInventoryString $p.completedArchiveSha256 $o.nativeWrite.sha256;Assert-KmcBootstrapInventoryString $Archive.AreaId $destination
  $ret=$p.identityRetention;Assert-KmcExactProperties $ret @('capacity','ids','faults','released','retainedAfterRelease') 'Manticore retained native identities'
  Assert-KmcOrdinaryInteger $ret.capacity 4096 4096;foreach($key in @('faults','retainedAfterRelease')){Assert-KmcOrdinaryInteger $ret.$key 0 0};Assert-KmcChunk7Boolean $ret.released $true

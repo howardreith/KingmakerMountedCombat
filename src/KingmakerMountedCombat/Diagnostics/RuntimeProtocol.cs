@@ -238,9 +238,11 @@ namespace KingmakerMountedCombat.Diagnostics
             "multi-tb-debt-manual", "zero-mounted-tb-retained-manual", "legacy-mounted-pending-tb-manual", "pending-schema3-control-manual", "multi-area-autosave", "legacy-schema1-resave-manual", "owned-schema1-manual", "owned-schema1-resave-manual", "owned-schema1-current-manual", "owned-schema2-pending-current-manual", "multi-exploration-three-loads-manual", "multi-exploration-three-area-transfers-manual",
             "multi-nonselected-mount-unsettled-manual", "multi-owned-worker-cancel-manual", "multi-malformed-refusal-manual", "multi-future-refusal-manual",
             Chunk7OwnedPairsSelection.ManticoreFixtureCheckpoint, Chunk7OwnedPairsSelection.TombFixtureCheckpoint,
+            Chunk7OwnedPairsSelection.ThornRiverFixtureCheckpoint,
             Chunk7OwnedPairsSelection.ManticoreManualColdCheckpoint }, value) >= 0;
 
         internal string ExpectedChunk7ArchiveArea => PersistenceCase == Chunk7OwnedPairsSelection.TombFixtureCheckpoint ? Chunk7OwnedPairsSelection.TombFixtureArea :
+            PersistenceCase == Chunk7OwnedPairsSelection.ThornRiverFixtureCheckpoint ? Chunk7OwnedPairsSelection.ThornRiverFixtureArea :
             PersistenceCase == "multi-area-autosave" ? PersistenceAreaTarget?.Area :
             (PersistenceCase == Chunk7OwnedPairsSelection.ManticoreFixtureCheckpoint ||
                 Chunk7OwnedPairsSelection.IsManticoreManualCold(PersistenceCase)) ? Chunk7OwnedPairsSelection.ManticoreFixtureArea : SelectedChunk7Fixture?.Area;
@@ -543,6 +545,9 @@ namespace KingmakerMountedCombat.Diagnostics
             if (PersistenceCase == Chunk7OwnedPairsSelection.TombFixtureCheckpoint &&
                 (Scenario != Chunk7OwnedPairsSelection.Scenario || OwnedPairs?.IsOwnerSeedCheckpointSave != true))
                 errors.Add("Tomb fixture preparation requires its exact source-only owner-seed checkpoint selection.");
+            if (PersistenceCase == Chunk7OwnedPairsSelection.ThornRiverFixtureCheckpoint &&
+                (Scenario != Chunk7OwnedPairsSelection.Scenario || OwnedPairs?.IsOwnerSeedCheckpointSave != true))
+                errors.Add("Thorn River fixture preparation requires its exact source-only owner-seed checkpoint selection.");
             if (Chunk7OwnedPairsSelection.IsManticoreManualCold(PersistenceCase) &&
                 (Scenario != Chunk7OwnedPairsSelection.Scenario || OwnedPairs?.IsOwnerSeedDerivedLoad != true))
                 errors.Add("Manticore Manual cold load requires its exact one-load owner-seed-derived selection.");

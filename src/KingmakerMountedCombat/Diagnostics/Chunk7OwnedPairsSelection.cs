@@ -96,6 +96,7 @@ namespace KingmakerMountedCombat.Diagnostics
             "multi-rt-debt-manual", "multi-tb-debt-manual", "zero-mounted-tb-retained-manual", "legacy-mounted-pending-tb-manual", "multi-area-autosave" };
         internal const string ManticoreFixtureCheckpoint = "owner-seed-manticore-fixture-manual";
         internal const string TombFixtureCheckpoint = "owner-seed-tomb-door-fixture-manual";
+        internal const string ThornRiverFixtureCheckpoint = "owner-seed-thorn-river-door-fixture-manual";
         internal const string ManticoreManualColdCheckpoint = "manticore-fixture-cold-manual";
         internal const string ManticoreFixtureManualName = "KMC_C7_AREA_FIXTURE";
         internal const string ManticoreFixtureArea = "314e8c3b15b896a4f847c85f9250f02b";
@@ -107,8 +108,11 @@ namespace KingmakerMountedCombat.Diagnostics
         internal const string TombFixtureSourceSha256 = ManticoreFixtureSourceSha256;
         internal const string TombFixtureManualName = "KMC_C7_TOMB_DOOR_FIXTURE";
         internal const string TombFixtureArea = "81b13ce8765469045864ffb878b0944b";
+        internal const string ThornRiverFixtureSourceSha256 = ManticoreFixtureSourceSha256;
+        internal const string ThornRiverFixtureManualName = "KMC_C7_THORN_RIVER_DOOR_FIXTURE";
+        internal const string ThornRiverFixtureArea = "7d72372ade2f14448a3fec6d61e06bd8";
         internal static bool IsManticoreManualCold(string checkpoint) => checkpoint == ManticoreManualColdCheckpoint;
-        internal static bool IsOwnerSeedSourceOnlyCheckpoint(string checkpoint) => SupportedSaveBoundary(checkpoint) || OwnedSchema1Source(checkpoint) || checkpoint == ManticoreFixtureCheckpoint || checkpoint == TombFixtureCheckpoint;
+        internal static bool IsOwnerSeedSourceOnlyCheckpoint(string checkpoint) => SupportedSaveBoundary(checkpoint) || OwnedSchema1Source(checkpoint) || checkpoint == ManticoreFixtureCheckpoint || checkpoint == TombFixtureCheckpoint || checkpoint == ThornRiverFixtureCheckpoint;
         // The connected combat checkpoints: genuine native Manuals written mid-combat from the restored
         // two-pair start under the owner-approved diagnostic target. Their native Manual name is distinct
         // from every acquired-ancestry KMC_C7_WORLD and from the derived KMC_C7_SEED_WORLD input.
@@ -118,7 +122,7 @@ namespace KingmakerMountedCombat.Diagnostics
             checkpoint == "legacy-mounted-pending-tb-manual";
         // The native Manual name a writing owned selection reserves; a non-Manual selection writes its slot name.
         internal string OwnedManualOutputName(string checkpoint) => IsSmallFixtureSave ? SmallFixtureManualName : IsMediumFixtureSave ? MediumFixtureManualName : IsOwnerSeedManual ? OwnerSeedManualName :
-            IsOwnerSeedCheckpointSave ? (checkpoint == ManticoreFixtureCheckpoint ? ManticoreFixtureManualName : checkpoint == TombFixtureCheckpoint ? TombFixtureManualName : OwnerSeedCheckpointManualName) : Cold ? (OwnedSchema1Cold(checkpoint) ? "KMC_C7_SCHEMA1" : "KMC_C7_SCHEMA2") : "KMC_C7_WORLD";
+            IsOwnerSeedCheckpointSave ? (checkpoint == ManticoreFixtureCheckpoint ? ManticoreFixtureManualName : checkpoint == TombFixtureCheckpoint ? TombFixtureManualName : checkpoint == ThornRiverFixtureCheckpoint ? ThornRiverFixtureManualName : OwnerSeedCheckpointManualName) : Cold ? (OwnedSchema1Cold(checkpoint) ? "KMC_C7_SCHEMA1" : "KMC_C7_SCHEMA2") : "KMC_C7_WORLD";
         public string Case { get; set; }
         public string SourceRunId { get; set; }
         public string SourceArtifactSha256 { get; set; }
@@ -436,6 +440,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 errors.Add("Manticore fixture preparation is source-only and requires the exact accepted mounted owner-seed Manual.");
             if (checkpoint == TombFixtureCheckpoint && (!IsOwnerSeedCheckpointSave || SourceArchiveSha256 != TombFixtureSourceSha256))
                 errors.Add("Tomb door fixture preparation is source-only and requires the exact accepted mounted owner-seed Manual.");
+            if (checkpoint == ThornRiverFixtureCheckpoint && (!IsOwnerSeedCheckpointSave || SourceArchiveSha256 != ThornRiverFixtureSourceSha256))
+                errors.Add("Thorn River door fixture preparation is source-only and requires the exact accepted mounted owner-seed Manual.");
             if (Array.IndexOf(OwnerSeedCheckpoints, checkpoint) < 0 &&
                 !(IsOwnerSeedCheckpointSave && IsOwnerSeedSourceOnlyCheckpoint(checkpoint)) &&
                 !(IsOwnerSeedCheckpointLoad && IsOwnerSeedLoadOnlyCheckpoint(checkpoint)))

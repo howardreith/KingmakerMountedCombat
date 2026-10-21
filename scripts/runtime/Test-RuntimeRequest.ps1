@@ -159,7 +159,7 @@ elseif ($schemaVersion -eq 2) {
     }elseif(Test-KmcChunk7PersistenceScenario $request.scenario){
         if(-not$hasPersistenceCase-or$request.persistenceCase-cnotin(Get-KmcChunk7PersistenceCases)){throw 'Chunk 7 requires an exact declared native persistence case.'}
         if(Test-KmcOwnedSchema1Case $request.persistenceCase){throw 'Owned schema-1 fixture cases require their separate inherited family.'}
-        if($request.persistenceCase-cin@('owner-seed-manticore-fixture-manual','owner-seed-tomb-door-fixture-manual')){throw 'Area fixture preparation requires its separate source-only inherited family.'}
+        if($request.persistenceCase-cin@('owner-seed-manticore-fixture-manual','owner-seed-tomb-door-fixture-manual','owner-seed-thorn-river-door-fixture-manual')){throw 'Area fixture preparation requires its separate source-only inherited family.'}
         Assert-KmcChunk7AreaTarget $request
         Assert-KmcChunk7RepeatedWorldRequest $request
         if($request.persistenceCase-ceq'legacy-schema1-resave-manual'){Assert-KmcChunk7Schema1Request $request}
