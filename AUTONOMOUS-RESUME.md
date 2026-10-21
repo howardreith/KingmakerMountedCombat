@@ -1,5 +1,29 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## Active October 20 after batch100 — next F10 acquisition/leveling path
+
+The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
+[Batch100](docs/CHUNK7-BATCH100-SMALL-RETRAIN-COLD-2026-10-20.md) froze pushed
+`e4a455e69d0503d30e02ebb243a0ebe0358e1bea` as world112. Four declared
+native scenarios passed game/outer 5/0, 3/0, 3/0 and 3/0: fresh mounted Small
+Manual, mounted separate cold, genuine native Small Horse retrain, and its
+one-pair Manual's separate cold load. The last source Manual SHA-256 is
+`6ca84c4107efd19b870343d4d6ba0d7d52ba5f49a4df7bc277ddd36d89692272`;
+its native cold artifact is
+`aca2e32fc80783df7c303c8cb41991fab2c4f145d9fa72f53344623811f34b86`.
+All four transactions ended at `restored`, Mods/protected saves/Working and
+profiles byte-exact, with no game or lock remaining. Original failures remain
+on their own inputs. The batch99 mounted-save artifact hash typo is corrected
+in its document and explained in batch100.
+
+Next: choose the next exact F10 acquisition or leveling route. Consult
+[the stale level-up autosave diagnosis](docs/CHUNK7-STALE-LEVELUP-AUTOSAVE-FAMILIES.md)
+and current native fixtures before selecting another run. The installed game
+does not emit level-up Auto; repair an applicable terminal Manual contract
+instead of selecting a known futile family. Preserve the reviewed batch100
+candidate/evidence as development qualification. Continue F09 breadth, F11
+measurement and final 7E when prerequisites hold; do not rerun batch100.
+
 ## Active October 20 after batch99 — cold-load genuine retrain Manual
 
 The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
