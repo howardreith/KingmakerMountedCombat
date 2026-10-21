@@ -3,6 +3,9 @@
 ## Active October 20 after batch105 — native F11 and remaining F09/F10 gates
 
 The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
+[The private player guide](docs/CHUNK7-PLAYER-GUIDE.md) now names the one
+declared Small default male Halfling/Horse profile and its exact body/gear/form
+limits; this documentation correction changed no product or native evidence.
 [Batch105](docs/CHUNK7-BATCH105-F11-DIAGNOSTICS-OFF-CONTRACTS-2026-10-20.md)
 passed 28/0 actual world114-DLL quiet/defaults checks and 29/0 current-source
 cooldown observer checks. No native game or transaction ran. The latest actual

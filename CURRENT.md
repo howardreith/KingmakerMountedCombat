@@ -1,5 +1,10 @@
 # Chunk 7B–7D — IN PROGRESS
 
+The [private player guide](docs/CHUNK7-PLAYER-GUIDE.md) reflects the current
+single declared Small default male Halfling/Horse profile and its strict
+body/gear/form limits. This is a documentation correction, not a new candidate
+or native qualification.
+
 ## October 20 — batch105 current-candidate diagnostics-off contracts
 
 [Batch105](docs/CHUNK7-BATCH105-F11-DIAGNOSTICS-OFF-CONTRACTS-2026-10-20.md)
