@@ -216,11 +216,11 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["systemSaveTimeTicks"] = value.SystemSaveTime.Ticks, ["systemSaveTimeKind"] = value.SystemSaveTime.Kind.ToString() }));
             result["isolatedSaveDescriptors"] = new JObject { ["root"] = manager.SavePath, ["metadataOnly"] = true,
                 ["maximumObservedDescriptors"] = 32, ["descriptors"] = saveRows };
-            var sourceType = TwoOwners ? SaveInfo.SaveType.Auto : SaveInfo.SaveType.Manual;
+            var sourceType = TwoOwners && !PostFieldManual ? SaveInfo.SaveType.Auto : SaveInfo.SaveType.Manual;
             Require(saves.Length == 1 && saves[0].FileName == request.PersistenceLoad.FileName && saves[0].Name == request.PersistenceLoad.InternalName &&
                 saves[0].GameId == request.PersistenceLoad.GameId && saves[0].GameName == request.PersistenceLoad.GameName &&
                 saves[0].Area?.AssetGuidThreadSafe == request.PersistenceLoad.Area && saves[0].Type == sourceType &&
-                saves[0].IsAutoLevelupSave == TwoOwners && saves[0].HasFileOnDisk && saves[0].OperationState == SaveInfo.StateType.None,
+                saves[0].IsAutoLevelupSave == (TwoOwners && !PostFieldManual) && saves[0].HasFileOnDisk && saves[0].OperationState == SaveInfo.StateType.None,
                 "Read-only isolated descriptor inventory differs from its sole qualified acquisition source.");
             Require(ReferenceEquals(settings, Kingmaker.UI.SettingsUI.SettingsRoot.Instance) && ReferenceEquals(onlyOne, settings.OnlyOneSave) &&
                 ReferenceEquals(enabled, settings.AutosaveEnabled) && ReferenceEquals(slots, settings.AutosaveSlots) &&
@@ -259,7 +259,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 "Only the closed complete ordinary acquisition routes may produce this derivative.");
             sourcePaidMedium = sourceCase == Chunk7ManualDerivedSelection.PaidMediumCase;
             sourcePaid = sourceCase == Chunk7ManualDerivedSelection.PaidSmallCase || sourcePaidMedium;
-            if (TwoOwners)
+            if (TwoOwners && !PostFieldManual)
                 Require(sourceObservations["nativeWrite"]?["saveBeforeFieldSelection"]?.Type == JTokenType.Boolean &&
                     (bool)sourceObservations["nativeWrite"]["saveBeforeFieldSelection"] == sourcePaid &&
                     (string)sourceObservations["nativeWrite"]["type"] == "Auto",
@@ -269,9 +269,13 @@ namespace KingmakerMountedCombat.Diagnostics
                     (bool)sourceObservations["nativeWrite"]["saveAfterFieldSelection"] &&
                     (string)sourceObservations["nativeWrite"]["type"] == "Manual" &&
                     (string)sourceObservations["nativeWrite"]["internalName"] == Chunk7ManualDerivedSelection.ManualOutputName &&
+                    (!PostFieldManual || (string)sourceObservations["selection"]?["sourceMode"] == Chunk7CumulativeAcquisitionSelection.AssistedSourceMode &&
+                        (string)sourceObservations["nativeWrite"]["leaf"] == Chunk7CumulativeAcquisitionSelection.AssistedManualOutputLeaf &&
+                        sourceObservations["nativeWrite"]["emptyMountedArchive"]?.Type == JTokenType.Boolean &&
+                        (bool)sourceObservations["nativeWrite"]["emptyMountedArchive"]) &&
                     sourceObservations["nativeSave"]?["complete"]?.Type == JTokenType.Boolean &&
                     (bool)sourceObservations["nativeSave"]["complete"],
-                    "One-owner source requires its completed native field Manual, not a pre-field Auto.");
+                    "Field Manual source requires its completed native post-field save, not a pre-field Auto.");
             sourceWorld = sourceObservations["loadedWorld"] as JObject;
             var party = sourceWorld?["party"] as JArray;
             Require(sourceWorld != null && party != null && party.Count > 0 && party.Count <= 24 &&
@@ -281,7 +285,7 @@ namespace KingmakerMountedCombat.Diagnostics
             Require(Guid.TryParseExact(expectedMainId, "D", out var mainId) && mainId != Guid.Empty &&
                 ((JArray)sourceWorld["party"]).Count(row => (string)row["id"] == expectedMainId) == 1,
                 "Source main actor lacks its exact native party identity.");
-            if (!TwoOwners)
+            if (!TwoOwners || PostFieldManual)
             {
                 sourceSavedWorld = sourceObservations["savedFieldWorld"] as JObject;
                 Require(sourceSavedWorld != null && sourceSavedWorld["party"] is JArray savedParty &&
@@ -292,7 +296,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     savedParty.Count(row => (string)row["id"] == selection.ActorId) == 1 &&
                     savedParty.Count(row => (string)row["id"] == selection.PetId) == 1 &&
                     sourceObservations["afterSaveArrangement"]?["acquired"] is JArray acquired && acquired.Count == 2,
-                    "One-owner Manual lacks its exact saved field roster and acquired progression.");
+                    "Field Manual lacks its exact saved roster and acquired progression.");
             }
             RequireTwoOwnerSource();
         }

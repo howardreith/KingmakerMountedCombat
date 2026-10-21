@@ -14,12 +14,27 @@ function New-AcquiredManualFixture([bool]$Paid=$true){
  return $fixture
 }
 function Check-AcquiredManual($F){Assert-KmcChunk7AcquiredManualEvidence $F.request $F.artifact $F.source}
+function New-PostFieldDescriptorFixture {
+ $f=New-AcquiredManualFixture
+ $s=$f.request.acquiredManual
+ $s.case='preserve-two-acquired-field'
+ $s|Add-Member -NotePropertyName sourceMode -NotePropertyValue 'post-field-manual'
+ $s|Add-Member -NotePropertyName priorOwnerId -NotePropertyValue '44444444-1111-4111-8111-111111111111'
+ $s|Add-Member -NotePropertyName priorPetId -NotePropertyValue '66666666-1111-4111-8111-111111111111'
+ $f.request.persistenceLoad.fileName='Manual_301_KMC_C7_MANUAL_DERIVED_FIELD.zks'
+ return $f
+}
 if($FixturesOnly){return};[void][IO.Directory]::CreateDirectory($acquiredOutput);$script:passes=0;$script:failures=0;$watch=[Diagnostics.Stopwatch]::StartNew()
 function Good([string]$Name,[scriptblock]$Body){try{&$Body;$script:passes++;Write-Host ('PASS '+$Name)}catch{$script:failures++;Write-Host ('FAIL '+$Name+': '+$_+' at '+$_.ScriptStackTrace)}}
 function Bad([string]$Name,[scriptblock]$Body){$rejected=$false;try{&$Body}catch{$rejected=$true};if($rejected){$script:passes++;Write-Host ('PASS refuses '+$Name)}else{$script:failures++;Write-Host ('FAIL accepted '+$Name)}}
 Good 'owner Manual304 PostLoad may report pending GameId before settled-world identity' {$f=New-AcquiredManualFixture $false;$f.request.persistenceLoad.fileName='Manual_304_KMC_C7_MANUAL_DERIVED_FIELD.zks';$f.artifact.observations.nativeLoad.events[0].gameId=$null;Assert-KmcAcquiredManualPostLoadGameId $f.artifact.observations.nativeLoad.events[0] $f.request}
 Bad 'owner Manual304 PostLoad cannot report a foreign populated GameId' {$f=New-AcquiredManualFixture $false;$f.request.persistenceLoad.fileName='Manual_304_KMC_C7_MANUAL_DERIVED_FIELD.zks';$f.artifact.observations.nativeLoad.events[1].gameId='11111111-1111-4111-8111-111111111111';Assert-KmcAcquiredManualPostLoadGameId $f.artifact.observations.nativeLoad.events[1] $f.request}
 Bad 'historical Manual2 PostLoad cannot lose GameId' {$f=New-AcquiredManualFixture $false;$f.artifact.observations.nativeLoad.events[0].gameId=$null;Assert-KmcAcquiredManualPostLoadGameId $f.artifact.observations.nativeLoad.events[0] $f.request}
+Good 'two-owner post-field Manual301 has a closed descriptor' {$f=New-PostFieldDescriptorFixture;Assert-KmcChunk7AcquiredManualDescriptor $f.request}
+Good 'post-field Manual301 PostLoad may report pending GameId' {$f=New-PostFieldDescriptorFixture;$f.artifact.observations.nativeLoad.events[0].gameId=$null;Assert-KmcAcquiredManualPostLoadGameId $f.artifact.observations.nativeLoad.events[0] $f.request}
+Bad 'post-field mode cannot borrow pre-field Auto' {$f=New-PostFieldDescriptorFixture;$f.request.persistenceLoad.fileName='Auto_1.zks';Assert-KmcChunk7AcquiredManualDescriptor $f.request}
+Bad 'post-field Manual cannot omit its mode' {$f=New-PostFieldDescriptorFixture;$f.request.acquiredManual.PSObject.Properties.Remove('sourceMode');Assert-KmcChunk7AcquiredManualDescriptor $f.request}
+Bad 'post-field mode rejects a foreign mode value' {$f=New-PostFieldDescriptorFixture;$f.request.acquiredManual.sourceMode='pre-field-manual';Assert-KmcChunk7AcquiredManualDescriptor $f.request}
 $cases=[ordered]@{
 'foreign source candidate'={param($f)$f.source.dllSha256='e'*64}
 'failed source acquisition'={param($f)$f.source.status='FAIL'}

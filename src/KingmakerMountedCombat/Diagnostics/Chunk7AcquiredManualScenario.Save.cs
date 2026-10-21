@@ -46,7 +46,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 !NativePersistenceIsolation.NativeSlotRotationEnabled, "Fresh native Acquired Manual derivative dispatch is not eligible.");
             var saves = manager.Take(3).ToArray();
             Require(saves.Length == 1 && saves[0].Type.ToString() == request.ExpectedNativeLoadType && saves[0].FileName == request.PersistenceLoad.FileName &&
-                saves[0].IsActuallySaved && saves[0].IsAutoLevelupSave == TwoOwners &&
+                saves[0].IsActuallySaved && saves[0].IsAutoLevelupSave == (TwoOwners && !PostFieldManual) &&
                 ReferenceEquals(saves[0], authority.AcquiredManualSourceDescriptor) && saves[0].OperationState == SaveInfo.StateType.None,
                 "Acquired Manual derivative native source inventory changed before numbering.");
             var number = manager.FindUnusedSaveNumber(SaveInfo.SaveType.Manual);
@@ -87,7 +87,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 "Native Manual completion belongs to another requested/prepared descriptor.");
             var written = completion.Written; var saves = manager.Take(3).ToArray();
             Require(saves.Length == 2 && saves.Count(value => value.FileName == request.PersistenceLoad.FileName &&
-                value.Type.ToString() == request.ExpectedNativeLoadType && value.IsAutoLevelupSave == TwoOwners) == 1 &&
+                value.Type.ToString() == request.ExpectedNativeLoadType && value.IsAutoLevelupSave == (TwoOwners && !PostFieldManual)) == 1 &&
                 saves.Count(value => ReferenceEquals(value, written)) == 1 && written.Type == SaveInfo.SaveType.Manual && written.FileName == OutputLeaf &&
                 written.Name == Chunk7AcquiredManualSelection.OutputName && written.GameId == request.PersistenceLoad.GameId && written.GameName == request.PersistenceLoad.GameName &&
                 written.Area?.AssetGuidThreadSafe == request.PersistenceLoad.Area && written.IsActuallySaved && written.HasFileOnDisk &&
