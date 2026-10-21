@@ -1,5 +1,24 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## Active October 21 after batch121 installed-Mono host discriminator
+
+[Batch121](docs/CHUNK7-BATCH121-F11-INSTALLED-MONO-ALLOCATION-PROBE-2026-10-21.md)
+loaded Kingmaker's exact installed Mono DLL in a disposable .NET 10 host and
+observed 100 callbacks from 100 controlled Mono string allocations. The
+first explicit-`mono_jit_cleanup` variant exited 1 after callback removal;
+the process-lifetime variant skipped that call and exited 0. A second
+process-lifetime host counted 7,400 bytes with the installed object-size API
+and exited 0; its receipt SHA-256 is
+`2326eb8b0149f6e331e2faa51d2dfb28309c954ee1be92caa9f3d5e4217ecca5`.
+No game, Mods,
+profile, save or product package was touched. Private receipt SHA-256 is
+`bb953a283b7d233e3944bb2c2d2abf176c9fe90d988f14c97bf11fc90de984ef`.
+Next: design and independently review a bounded opt-in process-lifetime
+allocation observer, including exact no-request inertness, callback/output
+limits and game-side attribution, before any guarded game run. F11 allocation
+rate remains unmeasured; the selected standing mission remains active. The
+batch120 section below is historical.
+
 ## Active October 21 after batch120 Mammoth field reader re-evaluation
 
 The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
