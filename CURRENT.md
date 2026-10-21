@@ -1,5 +1,14 @@
 # Chunk 7B–7D — IN PROGRESS
 
+[Batch121](docs/CHUNK7-BATCH121-F11-INSTALLED-MONO-ALLOCATION-PROBE-2026-10-21.md)
+proved 100/100 allocation callbacks from Kingmaker's exact installed Mono
+DLL in a disposable host. The explicit Mono cleanup variant exited 1 after
+callback removal; a process-lifetime variant exited 0 and a second counted
+7,400 managed object bytes. No game or product
+binary changed. F11 still needs a reviewed opt-in native observation route,
+bounded KMC Update allocation data, normal-player controls and final-package
+qualification.
+
 [Batch120](docs/CHUNK7-BATCH120-MAMMOTH-FIELD-READER-2026-10-21.md)
 ran four declared preview.87 scenarios. The paid Medium Horse mounted Manual,
 its separate cold load and paid Mammoth replacement Manual passed. The Mammoth

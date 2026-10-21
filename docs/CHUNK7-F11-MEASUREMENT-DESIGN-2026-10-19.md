@@ -1,5 +1,14 @@
 # Chunk 7 F11 measurement design — IN PROGRESS
 
+[Batch121's installed-Mono host discriminator](CHUNK7-BATCH121-F11-INSTALLED-MONO-ALLOCATION-PROBE-2026-10-21.md)
+has now proved that a legacy allocation callback on the exact Kingmaker Mono
+DLL can count 100 controlled allocations in a disposable process. Its
+explicit-cleanup variant failed after callback removal; the process-lifetime
+variant exited cleanly. A second process-lifetime host counted the same 100
+controlled allocations and 7,400 bytes via the installed object-size API.
+These are offline ABI observations, not an admitted game profiler,
+allocation-rate result or change to the predeclared comparison rule below.
+
 [Batches101–102](CHUNK7-BATCH101-102-F11-UPDATE-TIMING-2026-10-20.md)
 added opt-in KMC Update phase spans and localized the active-pair increase
 primarily to `world.UpdatePairs`. A reviewed correction reuses a Unity list in
