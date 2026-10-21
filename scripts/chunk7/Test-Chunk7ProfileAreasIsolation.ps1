@@ -48,6 +48,8 @@ foreach($row in @(
     @('chunk7-owned-two-pair-campaign','owner-seed-manticore-fixture-manual',$false,$true),
     @('chunk7-owned-two-pair-campaign','owner-seed-tomb-door-fixture-manual',$false,$true),
     @('chunk7-persistence-load','owner-seed-tomb-door-fixture-manual',$false,$false),
+    @('chunk7-owned-two-pair-campaign','owner-seed-thorn-river-door-fixture-manual',$false,$true),
+    @('chunk7-persistence-load','owner-seed-thorn-river-door-fixture-manual',$false,$false),
     @('chunk7-owned-two-pair-campaign','manticore-fixture-cold-manual',$false,$true),
     @('chunk7-persistence-load','manticore-fixture-cold-manual',$false,$false),
     @('chunk7-persistence-load','owner-seed-manticore-fixture-manual',$false,$false),
