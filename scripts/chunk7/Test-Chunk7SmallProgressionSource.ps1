@@ -32,6 +32,16 @@ if($result.descriptor.fileName-cne'Manual_305_KMC_C7_SMALL_WORLD.zks'-or
    $result.inventory.sha256-cne$selection.inventoryArtifactSha256-or
    $result.sourceProcessId-ne$producer.observations.processId){throw 'Small producer/cold read-only projection changed.'}
 Write-Host 'PASS immutable batch77 Small producer and separate cold consumer resolve with honest fixture lineage'
+ $levelSelection=New-SmallSelection
+ $levelSelection.case='small-horse-native-level'
+ $levelSelection.minimumRangerLevel=4
+ $levelSelection.expectedNativeWriteCount=1
+ $levelSelection|Add-Member -NotePropertyName fixtureExperienceGrant -NotePropertyValue 6000
+ $levelResult=Get-KmcChunk7ProgressionSource $levelSelection $coldRequest.fixture $candidate
+ if($levelResult.descriptor.fileName-cne$result.descriptor.fileName-or
+    $levelResult.artifactSha256-cne$result.artifactSha256-or
+    $levelResult.inventory.sha256-cne$result.inventory.sha256){throw 'Small level source no longer resolves the qualified producer and cold inventory.'}
+ Write-Host 'PASS bounded Small later-level setup resolves the unchanged qualified producer and cold inventory'
 foreach($name in @('changed cold artifact pin','producer aliases cold run','foreign nested source case')){
     $selection=New-SmallSelection
     switch($name){
@@ -43,4 +53,4 @@ foreach($name in @('changed cold artifact pin','producer aliases cold run','fore
     if(-not$refused){throw ('Small source accepted '+$name)}
     Write-Host ('PASS refuses '+$name)
 }
-Write-Host 'TOTAL PASS 4 FAIL 0; read-only historical input projection, no new candidate or native qualification'
+Write-Host 'TOTAL PASS 5 FAIL 0; read-only historical input projection, no new candidate or native qualification'

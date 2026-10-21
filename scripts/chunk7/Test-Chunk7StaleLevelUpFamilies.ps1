@@ -40,7 +40,7 @@ $blocked=[ordered]@{
 }
 $progressionSite='src/KingmakerMountedCombat/Diagnostics/Chunk7NativeProgressionSession.cs (legacy ObserveTerminalAutosave)'
 $blockedCases=@('horse-native-level','horse-native-retrain-horse','horse-native-retrain-mammoth')
-$admittedCases=@('horse-native-dismiss','owned-horse-native-dismiss','owned-horse-native-level','owned-horse-native-retrain-horse','owned-horse-native-retrain-mammoth','small-horse-native-dismiss','small-horse-native-retrain-horse')
+$admittedCases=@('horse-native-dismiss','owned-horse-native-dismiss','owned-horse-native-level','owned-horse-native-retrain-horse','owned-horse-native-retrain-mammoth','small-horse-native-dismiss','small-horse-native-retrain-horse','small-horse-native-level')
 
 # The registry is exact and every recorded wait site is the live wait in the source.
 $families=@(Get-KmcChunk7StaleLevelUpAutosaveFamilies)
@@ -124,6 +124,10 @@ function Write-Selection([string]$Case){
             $s.case=$Case;$s.raceGuid='b0c3ef2729c498f47970bb50fa1acd30';$s.presetGuid='639cebe8cbc098345af429d62fd79578'
             $s.skeletonName='MaleHalfling';$s.gender='Male';$s.leftHanded=$false;$s.bodySize='Small'
             $s.minimumRangerLevel=4;$s.expectedNativeWriteCount=1
+        }
+        if($Case-ceq'small-horse-native-level'){
+            $s.case=$Case;$s.minimumRangerLevel=4;$s.expectedNativeWriteCount=1
+            $s|Add-Member -NotePropertyName fixtureExperienceGrant -NotePropertyValue 6000
         }
     }else{$s=(New-ProgressionFixture $Case).request.progression;if(Test-KmcChunk7OwnedProgressionCase $Case){$s.nativeWriteLeaf=$null}}
     [IO.File]::WriteAllText($p,(ConvertTo-KmcChunk7Canonical $s),[Text.UTF8Encoding]::new($false));$p

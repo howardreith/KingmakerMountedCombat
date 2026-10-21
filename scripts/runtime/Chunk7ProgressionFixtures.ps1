@@ -50,6 +50,7 @@ function Get-KmcChunk7ProgressionSource($Selection,$Fixture,$Candidate){
         inventory=$inventory;sourceProcessId=$artifact.observations.processId}
 }
 function Get-KmcChunk7ProgressionColdSource($Selection,$Fixture,$Candidate){
+    if($Selection.case-ceq'small-horse-native-level-cold'){return Get-KmcChunk7LevelColdSource $Selection $Fixture $Candidate}
     $set=Get-KmcChunk7OwnedReceiptSet $Selection.sourceRunId 'chunk7-progression-evidence.json'
     Assert-KmcChunk7OwnedSourceCompletion $set $Selection.sourceRunId 'chunk7-native-progression' $Fixture $Candidate $set.request.progression.sourceArchiveSha256 1
     $base=Join-Path (Get-KmcLabRoot) 'runtime-evidence'
@@ -91,6 +92,53 @@ function Get-KmcChunk7ProgressionColdSource($Selection,$Fixture,$Candidate){
         lastWriteTimeUtcTicks=[long]$file.LastWriteTimeUtc.Ticks;gameId=$write.gameId;gameName=$write.gameName;area=$write.area}
     Assert-KmcChunk7ProgressionLoadDescriptor ([pscustomobject]@{scenario='chunk7-native-progression';runId='unassigned-progression-cold';progression=$Selection;persistenceLoad=$descriptor;fixture=$Fixture})
     foreach($leaf in $hashes.Keys){if((Get-KmcSha256 (Join-Path $root $leaf))-cne$hashes[$leaf]){throw 'Retrain producer receipt changed during cold source admission.'}}
+    Assert-KmcChunk7OwnedReceiptPins $set
+    [pscustomobject]@{path=$path;descriptor=$descriptor;artifactPath=(Join-Path $root 'chunk7-progression-evidence.json');artifactSha256=$Selection.sourceArtifactSha256;
+        artifactLength=[long](Get-Item -LiteralPath (Join-Path $root 'chunk7-progression-evidence.json')).Length;
+        inventory=[pscustomobject]@{path=$inventoryPath;sha256=$Selection.inventoryArtifactSha256;length=[long]$inventory.Length};sourceProcessId=$artifact.observations.processId}
+}
+function Get-KmcChunk7LevelColdSource($Selection,$Fixture,$Candidate){
+    $set=Get-KmcChunk7OwnedReceiptSet $Selection.sourceRunId 'chunk7-progression-evidence.json'
+    Assert-KmcChunk7OwnedSourceCompletion $set $Selection.sourceRunId 'chunk7-native-progression' $Fixture $Candidate $set.request.progression.sourceArchiveSha256 1
+    $base=Join-Path (Get-KmcLabRoot) 'runtime-evidence'
+    $root=Assert-KmcChildPath (Join-Path $base $Selection.sourceRunId) $base 'Small level producer evidence'
+    $hashes=@{}
+    foreach($leaf in @('runtime-request.json','runtime-result.json','runtime-game-result.json','runtime-artifacts.json','base-game-isolation-result.json','chunk7-progression-evidence.json')){
+        $path=Assert-KmcChildPath (Join-Path $root $leaf) $base 'Small level producer receipt'
+        Assert-KmcNotReparsePoint $path 'Small level producer receipt';Assert-KmcNotHardLink $path 'Small level producer receipt'
+        Assert-KmcManifestJsonMembersUnique $path 'Small level producer receipt';$hashes[$leaf]=Get-KmcSha256 $path
+    }
+    if($hashes['chunk7-progression-evidence.json']-cne$Selection.sourceArtifactSha256){throw 'Cold level producer artifact differs from exact pin.'}
+    $request=Read-KmcJson (Join-Path $root 'runtime-request.json');$result=Read-KmcJson (Join-Path $root 'runtime-result.json')
+    $artifact=Read-KmcJson (Join-Path $root 'chunk7-progression-evidence.json')
+    if($request.scenario-cne'chunk7-native-progression'-or$request.runId-cne$Selection.sourceRunId-or$request.progression.case-cne'small-horse-native-level'-or
+       $request.commit-cne$Candidate.commit-or$request.dllSha256-cne$Candidate.dllSha256-or$request.dllMvid-cne$Candidate.dllMvid-or
+       $result.status-cne'PASS'-or$result.modsRestored-ne$true-or$result.saveProtectionPassed-ne$true-or$result.workingRestored-ne$true-or
+       $artifact.status-cne'PASS'-or$artifact.observations.processId-le0-or$artifact.observations.selection.actorId-cne$Selection.actorId-or
+       $artifact.observations.selection.petId-cne$Selection.petId-or$artifact.observations.selection.controlActorId-cne$Selection.controlActorId-or
+       $artifact.observations.selection.controlPetId-cne$Selection.controlPetId-or$artifact.observations.selection.inventoryRunId-cne$Selection.inventoryRunId-or
+       $request.progression.inventoryArtifactSha256-cne$Selection.inventoryArtifactSha256){throw 'Cold level source is not the exact same-candidate completed Small producer.'}
+    Assert-KmcChunk7ProgressionLoadDescriptor $request
+    Assert-KmcReadOnlyArtifactManifest $request $hashes['runtime-artifacts.json'] -GameResult
+    Assert-KmcChunk7ProgressionNativeArchive $request $artifact
+    $write=$artifact.observations.session.nativeWrite;$archive=$write.archive
+    if($write.sha256-cne$Selection.sourceArchiveSha256-or$write.type-cne'Manual'-or$archive.SchemaVersion-ne3-or$archive.Pairs.Count-ne2-or
+       @($archive.Pairs|Where-Object{$_.Rider.Id-ceq$Selection.actorId-and$_.Mount.Id-ceq$Selection.petId-and$_.ProfileId-ceq'small-default-halfling-horse-v1'}).Count-ne1-or
+       @($archive.Pairs|Where-Object{$_.Rider.Id-ceq$Selection.controlActorId-and$_.Mount.Id-ceq$Selection.controlPetId-and$_.ProfileId-ceq'medium-humanoid-horse-v1'}).Count-ne1){
+        throw 'Cold level source lost its exact two settled mounted owners.'
+    }
+    $inventoryPath=Assert-KmcChildPath (Join-Path (Join-Path $base $Selection.inventoryRunId) 'chunk7-persistence-evidence.json') $base 'Small level mounted cold inventory'
+    Assert-KmcNotReparsePoint $inventoryPath 'Small level mounted cold inventory';Assert-KmcNotHardLink $inventoryPath 'Small level mounted cold inventory'
+    $inventory=Get-Item -LiteralPath $inventoryPath
+    if($inventory.Length-le0-or$inventory.Length-gt16MB-or(Get-KmcSha256 $inventoryPath)-cne$Selection.inventoryArtifactSha256){throw 'Small level mounted inventory differs from its immutable source.'}
+    $path=Assert-KmcChildPath $write.path (Join-Path (Get-KmcLabRoot) 'runtime-staging') 'native Small level Manual'
+    Assert-KmcNotReparsePoint $path 'native Small level Manual';Assert-KmcNotHardLink $path 'native Small level Manual'
+    $file=Get-Item -LiteralPath $path
+    if($file.Length-ne$write.length-or(Get-KmcSha256 $path)-cne$write.sha256){throw 'Native Small level Manual bytes differ from accepted producer.'}
+    $descriptor=[pscustomobject]@{internalName=$write.name;fileName=$write.leaf;sha256=$write.sha256;length=[long]$file.Length;
+        lastWriteTimeUtcTicks=[long]$file.LastWriteTimeUtc.Ticks;gameId=$write.gameId;gameName=$write.gameName;area=$write.area}
+    Assert-KmcChunk7ProgressionLoadDescriptor ([pscustomobject]@{scenario='chunk7-native-progression';runId='unassigned-level-cold';progression=$Selection;persistenceLoad=$descriptor;fixture=$Fixture})
+    foreach($leaf in $hashes.Keys){if((Get-KmcSha256 (Join-Path $root $leaf))-cne$hashes[$leaf]){throw 'Small level producer receipt changed during cold source admission.'}}
     Assert-KmcChunk7OwnedReceiptPins $set
     [pscustomobject]@{path=$path;descriptor=$descriptor;artifactPath=(Join-Path $root 'chunk7-progression-evidence.json');artifactSha256=$Selection.sourceArtifactSha256;
         artifactLength=[long](Get-Item -LiteralPath (Join-Path $root 'chunk7-progression-evidence.json')).Length;
@@ -201,7 +249,7 @@ function Get-KmcChunk7SmallProgressionSource($Selection,$Fixture,$Candidate){
     Assert-KmcChunk7OwnedPairsDescriptor $set.request
     if((ConvertTo-KmcChunk7Canonical $set.request.ownedPairs)-cne(ConvertTo-KmcChunk7Canonical $Selection.ownedSource)-or
        (ConvertTo-KmcChunk7Canonical $set.request.persistenceLoad)-cne(ConvertTo-KmcChunk7Canonical $source.descriptor)){
-        throw 'Small dismissal cold consumer changed its mounted producer or qualified fixture lineage.'
+        throw 'Small progression cold consumer changed its mounted producer or qualified fixture lineage.'
     }
     Assert-KmcChunk7PersistenceArtifact $set.request $set.manifest 'PASS'
     $producer=Read-KmcJson $source.checkpointArtifactPath

@@ -1,11 +1,11 @@
 Set-StrictMode -Version Latest
-function Get-KmcChunk7OwnedProgressionCases {@('owned-horse-native-level','owned-horse-native-dismiss','owned-horse-native-retrain-horse','owned-horse-native-retrain-mammoth','small-horse-native-dismiss','small-horse-native-retrain-horse')}
+function Get-KmcChunk7OwnedProgressionCases {@('owned-horse-native-level','owned-horse-native-dismiss','owned-horse-native-retrain-horse','owned-horse-native-retrain-mammoth','small-horse-native-dismiss','small-horse-native-retrain-horse','small-horse-native-level')}
 function Test-KmcChunk7OwnedProgressionCase($Case){$Case-is[string]-and$Case-cin(Get-KmcChunk7OwnedProgressionCases)}
-function Test-KmcChunk7SmallProgressionCase($Case){$Case-is[string]-and$Case-cin@('small-horse-native-dismiss','small-horse-native-retrain-horse')}
+function Test-KmcChunk7SmallProgressionCase($Case){$Case-is[string]-and$Case-cin@('small-horse-native-dismiss','small-horse-native-retrain-horse','small-horse-native-level')}
 function Get-KmcChunk7ProgressionOperation($Case){
  if($Case-isnot[string]){throw 'Progression operation requires an exact scalar case.'}
  switch -CaseSensitive($Case){
-  'horse-native-level'{'horse-native-level'} 'owned-horse-native-level'{'horse-native-level'}
+  'horse-native-level'{'horse-native-level'} 'owned-horse-native-level'{'horse-native-level'} 'small-horse-native-level'{'horse-native-level'}
   'horse-native-dismiss'{'horse-native-dismiss'} 'owned-horse-native-dismiss'{'horse-native-dismiss'} 'small-horse-native-dismiss'{'horse-native-dismiss'}
   'horse-native-retrain-horse'{'horse-native-retrain-horse'} 'owned-horse-native-retrain-horse'{'horse-native-retrain-horse'} 'small-horse-native-retrain-horse'{'horse-native-retrain-horse'}
   'horse-native-retrain-mammoth'{'horse-native-retrain-mammoth'} 'owned-horse-native-retrain-mammoth'{'horse-native-retrain-mammoth'}
@@ -42,7 +42,7 @@ function Assert-KmcChunk7OwnedProgressionDescriptor($Request){
  if(Test-KmcChunk7SmallProgressionCase $Request.progression.case){
   if($Request.persistenceLoad.internalName-cne'KMC_C7_SMALL_WORLD'-or$Request.persistenceLoad.fileName-cnotmatch'^Manual_[1-9][0-9]*_KMC_C7_SMALL_WORLD[.]zks$'-or
      $Request.persistenceLoad.gameId-cne'3f7381f7-aba6-43bf-bae6-39c6a66a7180'-or$Request.persistenceLoad.gameName-cne'Testy the Modless'-or
-     $Request.persistenceLoad.area-cne'b10e86516b6437d45a629931c30936fe'){throw 'Small dismissal requires its exact qualified campaign and native Manual.'}
+     $Request.persistenceLoad.area-cne'b10e86516b6437d45a629931c30936fe'){throw 'Small progression requires its exact qualified campaign and native Manual.'}
  }
 }
 function Assert-KmcChunk7ProgressionIdSet($Value,$Expected,[string]$Description){
@@ -75,7 +75,7 @@ function Assert-KmcChunk7OwnedProgressionRoster($Request,$Observations,$Before,$
   }
   $target=@($fixture.arrangement.actors|Where-Object actorId -CEQ $s.actorId)
   if($target.Count-ne1-or(ConvertTo-KmcChunk7Canonical $target[0])-cne(ConvertTo-KmcChunk7Canonical $sourceActor)){
-   throw 'Small dismissal target inventory differs from the independent cold native observation.'
+   throw 'Small progression target inventory differs from the independent cold native observation.'
   }
   Assert-KmcBootstrapInventoryString $sourceActor.blueprint 'baaff53a675a84f4983f1e2113b24552'
   if($fixture.pairs-isnot[Array]-or$fixture.pairs.Count-ne2){throw 'Small cold fixture lost the exact two sourced Horse pairs.'}
@@ -89,7 +89,8 @@ function Assert-KmcChunk7OwnedProgressionRoster($Request,$Observations,$Before,$
    Assert-KmcBootstrapInventoryString $archive[0].Mount.Id $role[1]
    Assert-KmcBootstrapInventoryString $archive[0].ProfileId $role[2]
   }
-  Assert-KmcOrdinaryInteger $sourceActor.experience $Before.xp $Before.xp
+  $sourceXp=if($s.case-ceq'small-horse-native-level'){$Observations.fixtureExperienceSetup.sourceXp}else{$Before.xp}
+  Assert-KmcOrdinaryInteger $sourceActor.experience $sourceXp $sourceXp
   Assert-KmcOrdinaryInteger $sourceActor.characterLevel $Before.level $Before.level
  }else{
   foreach($field in @('originalSize','effectiveSize')){Assert-KmcBootstrapInventoryString $sourceActor.$field 'Medium'}
