@@ -1,6 +1,12 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
-## Active October 21 after batches 143–144 assisted Manual/cold
+## Active October 21 after batch145 assisted cumulative pilot
+
+The [batch145 checkpoint](docs/CHUNK7-BATCH145-ASSISTED-CUMULATIVE-PILOT-2026-10-21.md) is active under the [standing completion mission](planning/CHUNK7-COMPLETION-MISSION.md). The endpoint remains **CHUNK 7 ENGINEERING COMPLETE — OWNER ACCEPTANCE PENDING** and has not been reached. Reviewed source `8261546b` produced one candidate package SHA-256 `cb6f309dedaed24fda3268df59b28a8da5bfc9a7b5f591b6824f4d76714786b5` / DLL SHA-256 `a2f7b10c9e41c562d431790f6f73b8f71b467ff7e860349b725559b211fc7692` and suite SHA-256 `6da0f3da0be740b55e0ce9f91f73999fa15cc725784229d6557c389a4ebcb6e9`. Three declared native scenarios in the approved Howie context: assisted producer **PASS 7/7**, separate cold **PASS 4/4**, paid Small/Horse pilot **FAIL** at native CharGen class-description UI after source/load/eligibility PASS. All three transactions reached `restored`, with exact Mods/Working/protected-save/profile bytes and zero accepted cache changes; no game or lock remains. The original FAIL is retained.
+
+The current source correction sends only headless paid CharGen class choice to `LevelUpController.SelectClass`, preserving native mechanics and the unrelated existing-actor UI route. It passed Fast 3/0 and independent review; native verification is outstanding. A synthetic cumulative-source test descriptor was also corrected to its admitted Manual shape. Next: commit the coherent correction, package one new clean candidate, run `scripts/Test-Tiers.ps1 -Tier Candidate -AssemblyTarget Kingmaker -SkipBuild`, create an append-only suite after WhatIf, then run one fresh same-candidate producer, separate cold and corrected paid Small pilot, at most three declared native scenarios. The preview.94 source/cold cannot cross the changed DLL's same-candidate gate. The downstream two-owner/Small consumer still assumes pre-field Auto; the post-field Manual needs a separate exact contract and review. F09 six-pair breadth, F11, doors, progression and selected final 7E remain open. No merge, release or HUMAN PLAY acceptance is selected.
+
+## Historical October 21 after batches 143–144 assisted Manual/cold
 
 The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
 [Batches 143–144](docs/CHUNK7-BATCH143-144-ASSISTED-MANUAL-COLD-2026-10-21.md)

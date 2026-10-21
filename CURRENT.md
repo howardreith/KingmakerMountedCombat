@@ -1,5 +1,7 @@
 # Chunk 7B–7D — IN PROGRESS
 
+[Batch145](docs/CHUNK7-BATCH145-ASSISTED-CUMULATIVE-PILOT-2026-10-21.md) establishes a fresh same-candidate assisted producer **PASS 7/7** and separate cold **PASS 4/4** on preview.94, followed by an original paid Small acquisition **FAIL** in native CharGen class-description UI. All three transactions restored exactly with zero cache exceptions. The narrow headless class-selection correction passed Fast 3/0 and independent review; a new candidate/native verification remains open. The downstream two-owner/Small consumer still expects pre-field Auto ancestry and needs a distinct post-field Manual contract. The standing engineering mission remains **IN PROGRESS**; no two-pair, six-pair or final 7E verdict follows from this pilot.
+
 The batch143 assisted Manual gives F09 a new bounded fixture lead: one genuine
 Ranger/Horse pair, five unused native character slots, party level 5, quoted
 15,000 default-hire XP and exactly one 12,500 paid-hire cost in money. A first
