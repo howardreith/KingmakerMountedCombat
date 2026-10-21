@@ -1,5 +1,13 @@
 # Chunk 7B–7D — IN PROGRESS
 
+Batch108 qualified the world115 Small Horse later-level route natively: fresh
+mounted Manual and cold PASS 5/0 and 3/0, genuine native level/Manual PASS 3/0,
+and separate-process two-pair level cold PASS 3/0. The real source resolver
+admitted the exact producer before the cold load; all four guarded transactions
+restored Mods, saves and profile bytes. This is development evidence on one
+candidate, with final-package reuse still unassessed. F09, F10, F11 and private
+7E remain in progress; see the [batch108 record](docs/CHUNK7-BATCH108-SMALL-LATER-LEVEL-NATIVE-2026-10-20.md).
+
 Batch107 adds the bounded Small Horse later-level producer and separate two-pair
 cold consumer as a **development checkpoint only**. Fast 3/0, focused
 producer/source/reader checks and independent read-only review passed; no new
