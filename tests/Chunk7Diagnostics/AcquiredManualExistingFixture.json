@@ -480,8 +480,8 @@
             "postfix": "PrepareAfter"
           },
           {
-            "declaringType": "Kingmaker.UnitLogic.UnitCombatState",
-            "method": "NewRound",
+            "declaringType": "Kingmaker.Controllers.Combat.UnitCombatState",
+            "method": "OnNewRound",
             "token": "0600939D",
             "moduleMvid": "07fa1e4d-8618-41b3-9b8d-faa17d3b26f7",
             "prefix": "RoundBefore",
@@ -1368,8 +1368,8 @@
               "postfix": "PrepareAfter"
             },
             {
-              "declaringType": "Kingmaker.UnitLogic.UnitCombatState",
-              "method": "NewRound",
+              "declaringType": "Kingmaker.Controllers.Combat.UnitCombatState",
+              "method": "OnNewRound",
               "token": "0600939D",
               "moduleMvid": "07fa1e4d-8618-41b3-9b8d-faa17d3b26f7",
               "prefix": "RoundBefore",
@@ -1886,8 +1886,8 @@
                 "postfix": "PrepareAfter"
               },
               {
-                "declaringType": "Kingmaker.UnitLogic.UnitCombatState",
-                "method": "NewRound",
+                "declaringType": "Kingmaker.Controllers.Combat.UnitCombatState",
+                "method": "OnNewRound",
                 "token": "0600939D",
                 "moduleMvid": "07fa1e4d-8618-41b3-9b8d-faa17d3b26f7",
                 "prefix": "RoundBefore",
@@ -2327,8 +2327,8 @@
                   "postfix": "PrepareAfter"
                 },
                 {
-                  "declaringType": "Kingmaker.UnitLogic.UnitCombatState",
-                  "method": "NewRound",
+                  "declaringType": "Kingmaker.Controllers.Combat.UnitCombatState",
+                  "method": "OnNewRound",
                   "token": "0600939D",
                   "moduleMvid": "07fa1e4d-8618-41b3-9b8d-faa17d3b26f7",
                   "prefix": "RoundBefore",
@@ -5102,8 +5102,8 @@
             "postfix": "PrepareAfter"
           },
           {
-            "declaringType": "Kingmaker.UnitLogic.UnitCombatState",
-            "method": "NewRound",
+            "declaringType": "Kingmaker.Controllers.Combat.UnitCombatState",
+            "method": "OnNewRound",
             "token": "0600939D",
             "moduleMvid": "07fa1e4d-8618-41b3-9b8d-faa17d3b26f7",
             "prefix": "RoundBefore",
@@ -5620,8 +5620,8 @@
               "postfix": "PrepareAfter"
             },
             {
-              "declaringType": "Kingmaker.UnitLogic.UnitCombatState",
-              "method": "NewRound",
+              "declaringType": "Kingmaker.Controllers.Combat.UnitCombatState",
+              "method": "OnNewRound",
               "token": "0600939D",
               "moduleMvid": "07fa1e4d-8618-41b3-9b8d-faa17d3b26f7",
               "prefix": "RoundBefore",
@@ -6061,8 +6061,8 @@
                 "postfix": "PrepareAfter"
               },
               {
-                "declaringType": "Kingmaker.UnitLogic.UnitCombatState",
-                "method": "NewRound",
+                "declaringType": "Kingmaker.Controllers.Combat.UnitCombatState",
+                "method": "OnNewRound",
                 "token": "0600939D",
                 "moduleMvid": "07fa1e4d-8618-41b3-9b8d-faa17d3b26f7",
                 "prefix": "RoundBefore",

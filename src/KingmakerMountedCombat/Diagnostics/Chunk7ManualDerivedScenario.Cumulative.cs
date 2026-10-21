@@ -50,7 +50,8 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool MatchesSelectedPlan(bool unwritten) => cumulative == null
             ? authority.MatchesManualDerivedPlan(request.PersistenceLoad, selection.NativeWriteLeaf, Chunk7ManualDerivedSelection.ManualOutputName, unwritten)
             : cumulative.UsesAssistedCold
-                ? authority.MatchesAssistedCumulativePlan(request, Chunk7CumulativeAcquisitionSelection.OutputLeaf, RuntimePersistenceScenario.SlotName(SaveInfo.SaveType.Auto), unwritten)
+                ? authority.MatchesAssistedCumulativePlan(request, Chunk7CumulativeAcquisitionSelection.AssistedManualOutputLeaf,
+                    Chunk7ManualDerivedSelection.ManualOutputName, unwritten)
                 : authority.MatchesCumulativeAcquisitionPlan(request.PersistenceLoad, Chunk7CumulativeAcquisitionSelection.OutputLeaf, RuntimePersistenceScenario.SlotName(SaveInfo.SaveType.Auto), unwritten);
 
         private void ReadCumulativeSource()

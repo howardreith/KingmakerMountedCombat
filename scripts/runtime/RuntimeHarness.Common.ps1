@@ -66,7 +66,7 @@ Set-StrictMode -Version Latest
 function Get-KmcChunk7StaleLevelUpAutosaveFamilies {
     @(
         [pscustomobject]@{scenario='chunk7-ordinary-acquisition';cases=$null;waitSite='src/KingmakerMountedCombat/Diagnostics/Chunk7OrdinaryAcquisitionScenario.cs:112 (ObserveCompletedAutosave, :266)'},
-        [pscustomobject]@{scenario='chunk7-cumulative-acquisition';cases=$null;waitSite='src/KingmakerMountedCombat/Diagnostics/Chunk7ManualDerivedScenario.Build.cs (TickBuild/ObserveTerminalAutosave; reached through Chunk7ManualDerivedScenario.CreateCumulative)'},
+        [pscustomobject]@{scenario='chunk7-cumulative-acquisition';cases=@('legacy-auto');waitSite='src/KingmakerMountedCombat/Diagnostics/Chunk7ManualDerivedScenario.Build.cs (legacy TickBuild/ObserveTerminalAutosave; reached through Chunk7ManualDerivedScenario.CreateCumulative)'},
         [pscustomobject]@{scenario='chunk7-native-progression';cases=@('horse-native-level','horse-native-retrain-horse','horse-native-retrain-mammoth');waitSite='src/KingmakerMountedCombat/Diagnostics/Chunk7NativeProgressionSession.cs (legacy ObserveTerminalAutosave)'}
     )
 }

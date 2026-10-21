@@ -24,10 +24,10 @@ namespace KingmakerMountedCombat.Diagnostics
     internal static class Chunk7ManualDerivedAdmission
     {
         internal static IReadOnlyList<string> Validate(Chunk7ManualDerivedSelection selection, string runId,
-            Chunk7ManualDerivedNativeReadiness actual, bool cumulativeAuto = false)
+            Chunk7ManualDerivedNativeReadiness actual, bool cumulativeAuto = false, bool cumulativeManual = false)
         {
             if (selection == null) return new[] { "Manual-derived selection is missing." };
-            var errors = new List<string>(selection.Validate(Chunk7ManualDerivedSelection.Scenario, runId, cumulativeAuto));
+            var errors = new List<string>(selection.Validate(Chunk7ManualDerivedSelection.Scenario, runId, cumulativeAuto, cumulativeManual));
             if (actual == null) { errors.Add("Fresh native readiness observation is missing."); return errors; }
             if (errors.Count != 0) return errors;
             var pins = selection.Readiness;

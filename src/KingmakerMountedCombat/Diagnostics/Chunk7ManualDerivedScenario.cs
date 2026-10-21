@@ -18,7 +18,9 @@ namespace KingmakerMountedCombat.Diagnostics
 {
     // Separate no-grant native acquisition family. The historical read-only bridge is unchanged.
     // One exact native cold load is followed by a Manual checkpoint after legal choices
-    // and field settlement. The still-refused cumulative variant retains its Auto contract.
+    // and field settlement. Assisted cumulative acquisition uses the same Manual
+    // completion after retaining its first pair; the legacy cumulative source
+    // mode still has a refused native level-up Auto contract.
     internal sealed partial class Chunk7ManualDerivedScenario : IDisposable
     {
         internal const string EvidenceFileName = "chunk7-manual-derived-evidence.json";

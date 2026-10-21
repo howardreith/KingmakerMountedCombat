@@ -86,7 +86,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     Chunk7MediumHireBodySource.Matches(SelectedSourceInventory, selection.MediumBody) &&
                     Chunk7MediumHireBodySource.Matches(evidence["nativeProfileInventory"], selection.MediumBody) && NativeMediumBodyMatches()
             };
-            var failures = Chunk7ManualDerivedAdmission.Validate(selection, request.RunId, actual, cumulative != null);
+            var failures = Chunk7ManualDerivedAdmission.Validate(selection, request.RunId, actual, cumulative != null, cumulative?.UsesAssistedCold == true);
             Require(failures.Count == 0, "Native Manual-derived acquisition is ineligible: " + string.Join(" | ", failures));
             evidence["liveEligibility"] = new JObject { ["nativeXpThresholds"] = new JArray(actual.XpThresholds),
                 ["mainActorId"] = actual.MainActorId, ["mainLevel"] = actual.MainLevel, ["mainExperience"] = actual.MainExperience,
@@ -167,7 +167,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 Chunk7ManualDerivedSelection.RangerAcquisitionLevel, medium ? Size.Medium : Size.Small);
             driver = new Chunk7OrdinaryBuildDriver(pins, paid ? null : actors.Single(actor => actor.UniqueId == selection.ExistingActorId),
                 horses.HorseFeature, horses.HorseUnit.AssetGuid, AssertChoiceAuthority, ObserveChoice);
-            if (cumulative != null)
+            if (cumulative != null && !cumulative.UsesAssistedCold)
             {
                 ordinaryProbe = new NativeOrdinaryAcquisitionProbe(() => driver.Actor); ordinaryProbe.Install();
                 // The still-refused cumulative family retains its original Auto contract.
@@ -176,7 +176,7 @@ namespace KingmakerMountedCombat.Diagnostics
             evidence["choices"] = choices; evidence["beforeChoices"] = CaptureNoArrangement();
             evidence["originalPartyCharacters"] = new JArray(originalPartyCharacters);
             evidence["slotProjection"] = new JObject { ["initiallyEnabled"] = false,
-                ["enabledForTerminalAuto"] = cumulative != null, ["maximumNativeWrites"] = 1 };
+                ["enabledForTerminalAuto"] = cumulative != null && !cumulative.UsesAssistedCold, ["maximumNativeWrites"] = 1 };
             evidence["vendorDialogueProven"] = false; evidence["mountedCombatProven"] = false; evidence["smallPoseQualified"] = false;
             buildStarted = true; buildStage = 0; buildStageStart = clock.Elapsed.TotalSeconds; game.IsPaused = false;
             Pass("C7-manual-derived-eligibility");
@@ -186,7 +186,8 @@ namespace KingmakerMountedCombat.Diagnostics
             RequireAuthority(false); RequireNoOwners(); RequireNoEffects();
             Require(!cleanup && !Busy() && !game.Player.IsInCombat && !game.CutsceneLock && !game.IsModeActive(GameModeType.Dialog) &&
                 (DialogMessageBox.Instance == null || !DialogMessageBox.Instance.IsShown) &&
-                slotProjectionOwned == (cumulative != null) && NativePersistenceIsolation.NativeSlotRotationEnabled == (cumulative != null),
+                slotProjectionOwned == (cumulative != null && !cumulative.UsesAssistedCold) &&
+                NativePersistenceIsolation.NativeSlotRotationEnabled == (cumulative != null && !cumulative.UsesAssistedCold),
                 "Native writer, unexpected UI or lost projection/world blocks ordinary input.");
         }
         private void ObserveChoice(JObject observation)
@@ -194,7 +195,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private void TickBuild()
         {
             AssertChoiceAuthority();
-            if (cumulative == null) { TickManualBuild(); return; }
+            if (cumulative == null || cumulative.UsesAssistedCold) { TickManualBuild(); return; }
             Require(clock.Elapsed.TotalSeconds - buildStageStart <= (buildStage == 0 ? 600 : 90), "Manual acquisition stage timed out: " + buildStage);
             if (buildStage == 0)
             {
@@ -295,7 +296,8 @@ namespace KingmakerMountedCombat.Diagnostics
             var number = manager.FindUnusedSaveNumber(SaveInfo.SaveType.Manual);
             var leaf = "Manual_" + number.ToString(System.Globalization.CultureInfo.InvariantCulture) + "_" +
                 Chunk7ManualDerivedSelection.ManualOutputName + ".zks";
-            Require(number == (selection.UsesOwnerSeedCold ? 304 : 2) && leaf == selection.NativeWriteLeaf &&
+            Require(number == (cumulative?.UsesAssistedCold == true ? 301 : selection.UsesOwnerSeedCold ? 304 : 2) &&
+                leaf == selection.NativeWriteLeaf &&
                 !File.Exists(Path.Combine(root, leaf)), "Native Manual numbering or output absence differs.");
             evidence["nativeNumbering"] = new JObject { ["method"] = "FindUnusedSaveNumber",
                 ["token"] = "06008024", ["moduleMvid"] = typeof(SaveManager).Module.ModuleVersionId.ToString("D"),

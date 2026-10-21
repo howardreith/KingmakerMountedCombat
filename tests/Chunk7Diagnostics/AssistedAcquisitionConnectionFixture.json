@@ -73,7 +73,7 @@
       "baseGameOnly": true,
       "expectedNativeLoadCount": 1,
       "expectedNativeWriteCount": 1,
-      "nativeWriteLeaf": "Auto_1.zks",
+      "nativeWriteLeaf": "Manual_301_KMC_C7_MANUAL_DERIVED_FIELD.zks",
       "readiness": {
         "mainActorId": "33333333-3333-3333-3333-333333333333",
         "mainLevel": 5,

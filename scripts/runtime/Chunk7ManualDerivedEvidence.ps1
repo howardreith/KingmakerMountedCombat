@@ -404,7 +404,7 @@ function Assert-KmcNativeAcquisitionProof($Request,$Artifact,$SourceArtifact,$Se
   # PostLoad callbacks, then the exact archive GameId in the settled world.
   # A populated callback ID must still match the loaded archive.
   if($null-ne$e.gameId){Assert-KmcBootstrapInventoryString $e.gameId $Request.persistenceLoad.gameId}
-  elseif(-not$ownerSeed){throw 'Bootstrap Manual PostLoad lost its required GameId.'}
+  elseif(-not$ownerSeed-and$null-eq$AssistedProjection){throw 'Bootstrap Manual PostLoad lost its required GameId.'}
   if($i-eq1){Assert-KmcBootstrapInventoryString $e.mainActorId $w.mainActorId}else{if($null-ne$e.mainActorId){Assert-KmcBootstrapInventoryString $e.mainActorId $w.mainActorId}}
  }
  if($load.events[0].frame-ne$load.events[1].frame){throw 'Native PostLoad did not return in its exact synchronous callback.'}
@@ -472,10 +472,11 @@ function Assert-KmcManualDerivedEligibility($Selection,$E){
  }
 }
 function Assert-KmcManualDerivedNativeSave($Request,$O,$Labels,[string]$Root){
- $leaf=$Request.manualDerived.nativeWriteLeaf;$name='KMC_C7_MANUAL_DERIVED_FIELD';$path=Join-Path $Root $leaf
+ $selection=if($Request.scenario-ceq'chunk7-cumulative-acquisition'){$Request.cumulativeAcquisition}else{$Request.manualDerived}
+ $leaf=$selection.nativeWriteLeaf;$name='KMC_C7_MANUAL_DERIVED_FIELD';$path=Join-Path $Root $leaf
  $n=$O.nativeNumbering;$r=$O.saveRequested;$p=$O.nativeSave;$w=$O.nativeWrite;$field=$O.field
  foreach($pair in @(@('method','FindUnusedSaveNumber'),@('token','06008024'),@('moduleMvid','07fa1e4d-8618-41b3-9b8d-faa17d3b26f7'),@('nativeSaveType','Manual'),@('fileName',$leaf))){Assert-KmcBootstrapInventoryString $n.($pair[0]) $pair[1]}
- $expectedNumber=if($leaf-ceq'Manual_304_KMC_C7_MANUAL_DERIVED_FIELD.zks'){304}else{2}
+ $expectedNumber=if($leaf-ceq'Manual_301_KMC_C7_MANUAL_DERIVED_FIELD.zks'){301}elseif($leaf-ceq'Manual_304_KMC_C7_MANUAL_DERIVED_FIELD.zks'){304}else{2}
  Assert-KmcOrdinaryInteger $n.number $expectedNumber $expectedNumber;Assert-KmcOrdinaryInteger $n.frame $field.frame $O.settledWorld.frame
  foreach($key in @('outputInitiallyAbsent')){Assert-KmcChunk7Boolean $n.$key $true};Assert-KmcChunk7Boolean $n.slotProjectionEnabled $false
  if((ConvertTo-KmcChunk7Canonical $n.sourceDescriptors)-cne(ConvertTo-KmcChunk7Canonical $O.fixtureReadiness.isolatedSaveDescriptors.descriptors)){throw 'Manual numbering changed its immutable source inventory.'}
@@ -549,7 +550,7 @@ function Assert-KmcManualDerivedNativeSave($Request,$O,$Labels,[string]$Root){
  }
  $original=$O.afterSaveArrangement|ConvertTo-Json -Depth 64|ConvertFrom-Json;$original.PSObject.Properties.Remove('acquired')
  if((ConvertTo-KmcChunk7Canonical $original)-cne(ConvertTo-KmcChunk7Canonical $O.afterChoices)){throw 'Save arrangement changed the original actor progression.'}
- $world=$O.savedFieldWorld;$old=$O.savedWorld;$paid=Test-KmcManualDerivedPaidCase $Request.manualDerived.case
+ $world=$O.savedFieldWorld;$old=$O.savedWorld;$paid=Test-KmcManualDerivedPaidCase $selection.case
  if((@($world.PSObject.Properties.Name)-join'|')-cne(@($old.PSObject.Properties.Name)-join'|')){throw 'Saved field world changed its native world shape.'}
  foreach($key in $old.PSObject.Properties.Name|Where-Object{$_-cne'party'}){if((ConvertTo-KmcChunk7Canonical $world.$key)-cne(ConvertTo-KmcChunk7Canonical $old.$key)){throw 'Saved field world changed native world identity or authority.'}}
  if($world.party-isnot[Array]-or$world.party.Count-ne($O.loadedWorld.party.Count+$(if($paid){2}else{1}))){throw 'Saved field roster omits or adds an actor.'}
@@ -567,7 +568,7 @@ function Assert-KmcManualDerivedNativeSave($Request,$O,$Labels,[string]$Root){
 }
 function Assert-KmcManualDerivedOutcome($Request,$O,$Choice,$Labels,[string]$Root,$Selection=$null){
  if($null-eq$Selection){$Selection=$Request.manualDerived};$s=$Selection;$paid=Test-KmcManualDerivedPaidCase $s.case;$w=$O.nativeWrite
- if($Request.scenario-ceq'chunk7-manual-derived-acquisition'){
+ if($Request.scenario-ceq'chunk7-manual-derived-acquisition'-or(Test-KmcAssistedCumulativeMode $Request.cumulativeAcquisition)){
   Assert-KmcManualDerivedNativeSave $Request $O $Labels $Root
  }else{
  foreach($pair in @(@('path',(Join-Path $Root 'Auto_1.zks')),@('leaf','Auto_1.zks'),@('type','Auto'),@('operation','None'))){Assert-KmcBootstrapInventoryString $w.($pair[0]) $pair[1]}

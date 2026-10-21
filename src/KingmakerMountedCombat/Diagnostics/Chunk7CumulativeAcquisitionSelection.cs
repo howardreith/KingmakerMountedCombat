@@ -12,6 +12,7 @@ namespace KingmakerMountedCombat.Diagnostics
         public const string Scenario = "chunk7-cumulative-acquisition";
         public const string SourceLeaf = "cumulative-acquisition-source.json";
         public const string OutputLeaf = "Auto_1.zks";
+        public const string AssistedManualOutputLeaf = "Manual_301_KMC_C7_MANUAL_DERIVED_FIELD.zks";
         public const string AssistedSourceMode = "assisted-producer-and-cold";
         public const string AssistedColdLeaf = "cumulative-assisted-cold-source.json";
         public string SourceMode { get; set; }
@@ -60,7 +61,7 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             // These are pure field/choice rules. Actual cumulative source identity
             // and authority are checked separately and never delegated to seed intake.
-            errors.AddRange(NativeChoicePins().Validate(Chunk7ManualDerivedSelection.Scenario, runId, true));
+            errors.AddRange(NativeChoicePins().Validate(Chunk7ManualDerivedSelection.Scenario, runId, true, UsesAssistedCold));
             if (!Chunk7ManualDerivedSelection.NativeId(PriorOwnerId) || !Chunk7ManualDerivedSelection.NativeId(PriorPetId) || PriorOwnerId == PriorPetId ||
                 Readiness?.PartyCharacterIds == null || Array.IndexOf(Readiness.PartyCharacterIds, PriorOwnerId) < 0 ||
                 Array.IndexOf(Readiness.PartyCharacterIds, PriorPetId) >= 0 || ExistingActorId == PriorOwnerId || ExistingActorId == PriorPetId)
