@@ -1,5 +1,13 @@
 # Chunk 7B–7D — IN PROGRESS
 
+The reviewed [six-pair admission and fixture gate](docs/CHUNK7-SIX-PAIR-ADMISSION-2026-10-22.md)
+now selects six native active pairs, with twelve retained owners. Actual
+ownership 42/0, archive/failure-latch 20/0, codec 77/0, Fast 3/0 and affected
+readers passed offline. The exact b185 checkpoint gate passed 54/0 without
+replaying acquisition ancestry. No six-pair native action has run. Next is
+the distinct opt-in mounted lifecycle/performance observer and its review,
+then guarded native qualification on a new frozen candidate.
+
 The reviewed [batch185 sixth-Horse cold consumer](docs/CHUNK7-BATCH185-SIXTH-HORSE-COLD-2026-10-22.md)
 passed one separate-process native load, original game/outer 4/0. It preserved
 the genuine batch184 Manual308's twelve field actors/six sourced Horses and

@@ -56,6 +56,7 @@ Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot 'Chunk7F09EightActorSource.ps1')
 . (Join-Path $PSScriptRoot 'Chunk7F09NineActorSource.ps1')
 . (Join-Path $PSScriptRoot 'Chunk7F09SixthHireSource.ps1')
+. (Join-Path $PSScriptRoot 'Chunk7SixPairCheckpointSource.ps1')
 . (Join-Path $PSScriptRoot 'Chunk7ProgressionFixtures.ps1')
 
 # Scenario families whose live completion contract waits for a native level-up autosave.

@@ -85,8 +85,8 @@ namespace KingmakerMountedCombat.Diagnostics
         internal void BeginBeforeLoad()
         {
             Require(!beforeLoad && Game.Instance?.CurrentlyLoadedArea == null && NativeMountedSaveFormat.ArchiveNativeSupportEnabled &&
-                NativeMountedSaveFormat.SelectedWriterSchema == 3 && GameMountedRelationshipService.NativePairCapacity == 2,
-                "Progression cold observation must precede native load under explicit schema 3/two-pair capacity.");
+                NativeMountedSaveFormat.SelectedWriterSchema == 3 && GameMountedRelationshipService.NativePairCapacity == 6,
+                "Progression cold observation must precede native load under explicit schema 3/six-pair capacity.");
             RequireAuthority(true); beforeLoadGame = Game.Instance; beforeLoad = true;
             restoration = new NativeArchiveRestorationProbe(persistence, world);
             restoration.Install();

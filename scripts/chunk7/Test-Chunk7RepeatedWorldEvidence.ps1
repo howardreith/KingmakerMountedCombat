@@ -53,6 +53,7 @@ function New-ReplayArtifact($Req,[bool]$Areas){
 }
 $threeLoad=New-ReplayArtifact $loadRequest $false
 Check 'three exact immutable native loads and independent old-world cleanup' {Assert-KmcChunk7PersistenceObservation $loadRequest $threeLoad 'PASS'}
+Check 'selected six-capacity candidate retains all existing repeated-world assertions' {$v=Copy-Test $threeLoad;$v.observations.nativeCapacity=6;Assert-KmcChunk7PersistenceObservation $loadRequest $v 'PASS'}
 $areaRequest=Copy-Test $loadRequest;$areaRequest.persistenceCase='multi-exploration-three-area-transfers-manual'
 $areaRequest|Add-Member NoteProperty persistenceReplayTargets @(for($i=0;$i-lt3;$i++){[pscustomobject]@{enterPoint=@('1','2','3')[$i]*32;area=@('b','c','d')[$i]*32;autoSaveMode='None'}})
 $threeAreas=New-ReplayArtifact $areaRequest $true

@@ -81,7 +81,7 @@ function Assert-KmcOwnedSchema1Observation($Request,$Artifact){
  Assert-KmcBootstrapInventoryString $Artifact.status 'PASS';$o=$Artifact.observations;$cold=Test-KmcOwnedSchema1ColdRequest $Request
  Assert-KmcBootstrapInventoryString $o.checkpoint $Request.persistenceCase;Assert-KmcBootstrapInventoryString $o.inheritedManualSha256 $Request.ownedPairs.sourceArchiveSha256
  if($null-ne$o.sourceWorkingSha256){throw 'Inherited schema-1 cannot claim Working identity.'}
- Assert-KmcOrdinaryInteger $o.nativeSchema 3 3;Assert-KmcOrdinaryInteger $o.nativeCapacity 2 2;Assert-KmcOrdinaryInteger $o.processId 1 ([int]::MaxValue)
+ Assert-KmcOrdinaryInteger $o.nativeSchema 3 3;if(-not(Test-KmcChunk7NativePairCapacity $o.nativeCapacity)){throw 'Native capacity must be the historical two or selected six.'};Assert-KmcOrdinaryInteger $o.processId 1 ([int]::MaxValue)
  Assert-KmcChunk7Boolean $o.cold $cold;foreach($name in @('combatDebtProof','ordinaryRespecProven','nativeProgressionRequiresExternalWorkingRestoration')){Assert-KmcChunk7Boolean $o.$name $false}
  Assert-KmcChunk7OwnedOutputEvidence $Request $o
  $v=$o.ownedSchema1;$keys=@('contract','syntheticMetadata','sourceArchiveSchema','fields');if($cold){$keys+=@('sourceCheckpointRunId','sourceCheckpointArtifactSha256','originalNativeArchiveSha256','sourceField')}

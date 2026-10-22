@@ -1,6 +1,29 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
-## Active October 22 — batch185 cold PASS; six-pair engineering next
+## Active October 22 — reviewed six-pair capacity; native observer next
+
+The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
+[Six-pair admission](docs/CHUNK7-SIX-PAIR-ADMISSION-2026-10-22.md) and the
+bounded exact b185 checkpoint gate have independent source/safety review.
+Focused PASS: gate54/0, actual ownership42/0, actual archive/world20/0,
+codec77/0; full Fast3/0 (849 components,147 source) and affected readers
+41/174/103/119/56/692 all zero failures. Original test/probe failures remain
+recorded. No new native run, transaction, package or frozen suite exists.
+
+Next: finish the distinct opt-in six-pair native observer using actual selected
+ability input and all twelve actor resource/identity snapshots. Reuse existing
+owned-fixture/world cleanup machinery where appropriate, with an explicit
+closed case and six sourced roles; preserve remote Linzi and all progression.
+The new source gate grants fixture custody only: producer b184, qualifier b185,
+six unmounted Horses, no Areas or native authority. Connect its pinned closure
+at the guarded copy boundary before live use. Review and focused-test the
+observer, then build/freeze once and run a declared batch of at most five.
+Six Mounts/lifecycle/performance and mounted Manual/cold remain unqualified.
+No game/active lock remains; current-state restoration from b185 was exact.
+Continue F10/F11, ordinary door and private 7E; no routine authorization round,
+merge, release, permanent installation or HUMAN PLAY acceptance.
+
+## Historical October 22 — batch185 cold PASS; six-pair engineering next
 
 The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
 [Batch185](docs/CHUNK7-BATCH185-SIXTH-HORSE-COLD-2026-10-22.md) completed one

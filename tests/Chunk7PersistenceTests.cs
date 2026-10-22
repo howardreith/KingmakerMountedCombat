@@ -315,8 +315,8 @@ public static class Chunk7PersistenceTests
         Check(!NativeMountedSaveFormat.CanRestore(misleading) && NativeMountedSaveFormat.CaptureOrPreserve(misleading,()=>old)==encoded,
             "Current status alone cannot authorize a newer native format");
         var selectedNativeSupport = NativeMountedSaveFormat.ArchiveNativeSupportEnabled;
-        Check(selectedNativeSupport && NativeMountedSaveFormat.NativePairCapacity == 2 && NativeMountedSaveFormat.SelectedWriterSchema == 3,
-            "reviewed world integration deliberately selects two-pair schema3 native support");
+        Check(selectedNativeSupport && NativeMountedSaveFormat.NativePairCapacity == 6 && NativeMountedSaveFormat.SelectedWriterSchema == 3,
+            "reviewed world integration deliberately selects six-pair schema3 native support");
         NativeMountedSaveFormat.ArchiveNativeSupportEnabled = false;
         Check(!NativeMountedSaveFormat.CanRestore(round),
             "successful archive decoding does not select native support by itself");
@@ -332,13 +332,19 @@ public static class Chunk7PersistenceTests
             Check(NativeMountedSaveFormat.SelectedWriterSchema == 3 && NativeMountedSaveFormat.CanRestore(selected) &&
                 NativeMountedSaveFormat.CaptureOrPreserve((MountedArchiveReadResult)null, () => selected.Data) == selectedJson,
                 "selected all-pair native adapter accepts and writes the entire selected-capacity schema3 graph");
-            var overCapacityJson = MountedArchiveCodec.Encode(Archive(6));
-            var overCapacity = MountedArchiveCodec.Decode(overCapacityJson); var overCapacityCaptures = 0;
-            Check(overCapacity.Kind == MountedSaveReadKind.Current && !NativeMountedSaveFormat.CanRestore(overCapacity) &&
+            // Seven pairs are invalid at the codec as well as beyond native
+            // admission. Do not pretend decoding accepted this graph.
+            var oversizedData = Archive(7);
+            var overCapacityJson = JObject.FromObject(oversizedData, MountedSaveCodec.CreateSerializer()).ToString(Formatting.None);
+            Reject(overCapacityJson, "seven-pair wire graph remains codec-invalid with its original bytes preserved");
+            var overCapacity = new MountedArchiveReadResult { Kind = MountedSaveReadKind.Current,
+                SourceSchema = 3, Data = oversizedData, OriginalJson = overCapacityJson };
+            var overCapacityCaptures = 0;
+            Check(!NativeMountedSaveFormat.CanRestore(overCapacity) &&
                 NativeMountedSaveFormat.CaptureOrPreserve(overCapacity, () => { overCapacityCaptures++; return round.Data; }) == overCapacityJson &&
                 overCapacityCaptures == 0 && MountedLoadAdmissionPolicy.Rejection(overCapacity, overCapacity.Data.CampaignId,
                     overCapacity.Data.AreaId, true, true, false, false, true).Contains("capacity"),
-                "offline six-pair decoding does not authorize restoration beyond the selected native capacity or reinterpret its original");
+                "a forged Current result cannot authorize a seventh pair, capture or reinterpret its original");
             var oversizedWriteRefused = false;
             try { NativeMountedSaveFormat.CaptureOrPreserve((MountedArchiveReadResult)null, () => overCapacity.Data); }
             catch (InvalidOperationException) { oversizedWriteRefused = true; }

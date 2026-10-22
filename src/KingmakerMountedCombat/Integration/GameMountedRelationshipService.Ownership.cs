@@ -7,8 +7,7 @@ namespace KingmakerMountedCombat.Integration
 {
     internal sealed partial class GameMountedRelationshipService
     {
-        // This adapter is deliberately stricter than the six-pair registry. It is
-        // removed only with all-pair native capture/restore and turn integration.
+        // Admission and archive restoration select the same all-pair capacity.
         internal const int NativePairCapacity = NativeMountedSaveFormat.NativePairCapacity;
         internal MountedWorldService World { get; set; }
         private bool importedMountedOwnership;

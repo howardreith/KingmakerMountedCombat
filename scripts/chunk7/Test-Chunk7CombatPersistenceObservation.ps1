@@ -79,6 +79,13 @@ function CompleteCombatArtifact($Fixture,[bool]$Cold){
 }
 $complete=@();foreach($fixture in @($tb,$rt,$zero,$legacy)){foreach($isCold in @($false,$true)){$spec=CompleteCombatArtifact $fixture $isCold;$complete+=@($spec);Check ($spec.request.persistenceCase+' complete '+$spec.request.scenario) {Assert-KmcChunk7PersistenceObservation $spec.request $spec.artifact 'PASS'}}}
 $sourceTb=$complete[0];$coldTb=$complete[1];$sourceRt=$complete[2];$coldZero=$complete[5];$coldLegacy=$complete[7]
+foreach($spec in $complete){Check ('six-capacity preserves '+$spec.request.persistenceCase+' '+$spec.request.scenario) {
+    # Retain the already-admitted generated graph: serializing its empty native
+    # controls through Copy-Test changes that fixture's null/empty array shape.
+    $prior=$spec.artifact.observations.nativeCapacity
+    try{$spec.artifact.observations.nativeCapacity=6;Assert-KmcChunk7PersistenceObservation $spec.request $spec.artifact 'PASS'}
+    finally{$spec.artifact.observations.nativeCapacity=$prior}
+}}
 Reject 'combat persistence full reader refuses an injected native door inventory before early dispatch' {
     $spec=Copy-Test $sourceRt
     $spec.artifact.observations|Add-Member areaDoorInventory ([pscustomobject]@{interactionTested=$true})

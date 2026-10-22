@@ -7,8 +7,9 @@ namespace KingmakerMountedCombat.Integration
     internal static class NativeMountedSaveFormat
     {
         internal const int WriterSchema = 2;
-        // Shared with runtime admission; offline decoding deliberately supports a larger graph.
-        internal const int NativePairCapacity = 2;
+        // Shared by native admission and the reviewed all-pair archive adapter.
+        // Retained cleanup owners have their separate twelve-owner bound.
+        internal const int NativePairCapacity = 6;
         // Enabled only with the reviewed all-pair world adapter, independently of decoding.
         internal static bool ArchiveNativeSupportEnabled { get; set; } = true;
         internal static int SelectedWriterSchema => ArchiveNativeSupportEnabled ? MountedArchiveData.Schema : WriterSchema;

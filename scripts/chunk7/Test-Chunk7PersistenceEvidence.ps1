@@ -35,6 +35,8 @@ $o=[pscustomobject]@{checkpoint=$request.persistenceCase;cold=$false;sourceWorki
 function New-Artifact($Request,$Observation){$v=[ordered]@{schemaVersion=1;evidenceKind='chunk7-persistence-evidence';createdAtUtc='2026-10-12T00:00:00Z';status='PASS';errors=@();observations=$Observation};foreach($field in @('runId','scenario','branch','commit','productVersion','dllSha256','dllMvid')){$v[$field]=$Request.$field};[pscustomobject]$v}
 $good=New-Artifact $request $o
 Check 'complete synthetic manual all-pair native observation' {Assert-KmcChunk7PersistenceObservation $request $good 'PASS'}
+Check 'six-capacity candidate preserves the same two-pair Manual assertions' {$v=Copy-Test $good;$v.observations.nativeCapacity=6;Assert-KmcChunk7PersistenceObservation $request $v 'PASS'}
+foreach($capacity in @($null,0,1,3,4,5,7,'6',6.0,$true,@(6))){Reject 'unsupported or mistyped native capacity' {$v=Copy-Test $good;$v.observations.nativeCapacity=$capacity;Assert-KmcChunk7PersistenceObservation $request $v 'PASS'}}
 foreach($type in @('Quick','Auto')) {Check ('actual native category reader '+$type) {$q=Copy-Test $request;$a=Copy-Test $good;$q.persistenceCase='multi-exploration-'+$type.ToLowerInvariant();$a.observations.checkpoint=$q.persistenceCase;$a.observations.nativeWrite.nativeType=$type;$a.observations.saveRequested.nativeType=$type;Assert-KmcChunk7PersistenceObservation $q $a 'PASS'}}
 foreach($mutation in @('missing-pair','duplicate-actor','owner-generation','foreign-fixture','dropped-slot','duplicate-slot','free-debt','replayed-input','native-callback','wrong-category','cleanup','fake-combat-proof','missed-movement')) {
     Reject $mutation {$a=Copy-Test $good;$v=$a.observations;switch($mutation){

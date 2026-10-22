@@ -810,6 +810,7 @@ Check 'owner-seed schema1 historical cold matches its exact original native prod
 foreach($checkpoint in @('owned-schema1-current-manual','owned-schema2-pending-current-manual')){
  Check ('current-format load-only native continuation '+$checkpoint){$v=New-KmcOwnerSeedCurrentFixture $checkpoint;Invoke-OwnedReader $v;if((Get-KmcChunk7OwnedWriteCount $v.request)-ne0){throw 'Current child acquired native save entitlement.'}}
  Check ('current-format exact historical resave parent '+$checkpoint){$v=New-KmcOwnerSeedCurrentFixture $checkpoint;Assert-KmcChunk7OwnerSeedCheckpointColdSource $v.request (New-KmcOwnerSeedCurrentParent $v) $v.artifact}
+ Check ('six-capacity current-format historical resave child '+$checkpoint){$v=New-KmcOwnerSeedCurrentFixture $checkpoint;$v.artifact.observations.nativeCapacity=6;Invoke-OwnedReader $v}
  if($checkpoint-ceq'owned-schema2-pending-current-manual'){
   Check 'current-format pending cold accepts bounded paired native clock progress' {
    $v=New-KmcOwnerSeedCurrentFixture $checkpoint;$w=$v.artifact.observations.currentFormatMigration.restoredWorld
