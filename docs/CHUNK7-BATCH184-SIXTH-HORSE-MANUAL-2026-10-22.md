@@ -20,8 +20,23 @@ early return. A read-only reproduction pinpointed it; the reviewed correction
 now binds one admitted cost for both branches. The full raw-artifact regression
 passed 9/0, including eight negative mutations, and the neighboring reader
 passed 118/0. Full immutable game-result/archive and separate native-loader
-re-evaluations are pending; no original verdict or isolation flag is promoted.
+re-evaluations now PASS; no original verdict or isolation flag is promoted.
 No new DLL or second game is required for this external-reader correction.
+
+The full re-evaluation receipt is
+`analysis-cache/chunk7-continuation/b184-reader-only-reevaluation.json`, SHA-256
+`6a625108153175d6004b7cd8258eb47d9d37a2efa8f057eff1e428773a3969c0`.
+It validates the original game/artifact 7/0 and actual settled archive with
+reader commit `fdf580d4`, retaining all ten original evidence hashes. The
+separate base-only receipt `b184-base-only-reader-reevaluation.json`, SHA-256
+`ed4ac7708fa0ad35aaba711c1765dc3d2424ea003d71bd391442b347c8fb1648`,
+validates the original loaded assembly inventory. Both declare
+`nativeInvoked=false`; original isolation qualification flags remain false.
+The first full-re-evaluation helper failed before reading the evidence because
+its JSON pin array was nested by the helper. Its v1 helper/log remain FAIL;
+the distinct v2 helper removes that nesting and passed. This is separate from
+the original native-run reader failure. Sixth-Horse cold continuity is still
+unqualified.
 
 Raw evidence under `runtime-evidence/20261022-c7b-world184-b184s1-sixthhorse-manual`:
 request `de86a7d0f6ab9ec5bb95ae20180958e7fb737e3156e93e8426475f58d8a94f94`,

@@ -13,6 +13,15 @@
 > and [implementation chronology](CHUNK7-IMPLEMENTATION-PLAN.md) remain
 > historical where they say 7E is unselected or give stale native caps.
 
+[Batch184](../docs/CHUNK7-BATCH184-SIXTH-HORSE-MANUAL-2026-10-22.md)
+adds the genuine sixth paid native Horse Manual: game/artifact 7/0, twelve
+field actors/six characters and exactly remote Linzi. The original outer
+reader FAIL remains separate from reviewed immutable game/archive and
+base-only inventory re-evaluation PASSes. Mods/save/profile restoration was
+exact with zero cache exceptions. The next required behavior is an independent
+sixth-Horse cold consumer; mounted breadth, conditional six-pair stress and
+the remaining engineering mission stay open.
+
 [Batch183](../docs/CHUNK7-BATCH183-LINZI-NATIVE-DEPARTURE-2026-10-22.md)
 passed the exact native Linzi departure from the cold-qualified fifth-Horse
 field: game 5/0, one load/zero saves, ten retained actors/five characters,
