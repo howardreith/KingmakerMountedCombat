@@ -1,6 +1,37 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
-## Active October 22 — batch186 recovered; distinguish sibling failure next
+## Active October 22 — owner-requested Claude transfer after batch187
+
+Read [the Claude handoff](docs/CLAUDE-HANDOFF-CHUNK7-BATCH187-2026-10-22.md)
+and the [standing mission](planning/CHUNK7-COMPLETION-MISSION.md). The existing
+successor branch is in repo/KingmakerMountedCombat, not the old detached
+worktrees/chunk7-successor. Native work is stopped at the owner's transfer
+request. No Kingmaker process/active lock, pending recovery or owner action.
+
+Batch187 is FAIL, with decisive exact sibling-index drift/clamp evidence and
+separate exact restoration. Native/outer failures remain immutable. The small
+explicit-JObject cleanup evidence repair is independently reviewed, Fast3/0
+and installed-serializer7/0; no new diagnostic package or native run. Its
+child-output logging gap was corrected by one SkipBuild verification capture
+(Fast2/0,849 components,147 source; JSON7/0), without rebuilding.
+
+Next uncompleted work: implement/test/review sibling-slot ownership and pose
+retry ordering, and complete a narrowly guarded unattended terminal FAIL exit
+before another native attempt. The owner is often away and asked to avoid
+routine manual intervention. Do not relaunch the unchanged failed candidate.
+The unfinished exit draft is preserved under
+handoffs/KMC_Claude_Chunk7_20261022_B187/UNREVIEWED-failure-exit-draft, with hashes;
+it is not in active source and has no compile/test/implementation-review claim.
+
+First safe command from this checkout: git status --short; git log -1 --oneline.
+Then inspect Domain/ScopedTransformAttachmentLease.cs, the runtime presentation
+cleanup, and the handoff's exact b187 native-layout reproduction. Preserve all
+frozen evidence. The private handoff publication.json records the pushed commit;
+settled-state-readback.json proves the current surfaces without a recovery run.
+After correction, continue six-mounted Manual/cold, remaining F10/F11/doors and
+private7E. No merge/release/permanent installation or HUMAN PLAY acceptance.
+
+## Historical October 22 — batch186 recovered; distinguish sibling failure next
 
 The [standing completion mission](planning/CHUNK7-COMPLETION-MISSION.md) remains
 active through private7E. [Batch186](docs/CHUNK7-BATCH186-SIX-PAIR-RESTORATION-FAILURE-2026-10-22.md)
