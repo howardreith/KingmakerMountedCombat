@@ -1,5 +1,15 @@
 # Chunk 7B–7D — IN PROGRESS
 
+[Batch176](docs/CHUNK7-BATCH176-FOURTH-HORSE-MANUAL-NAME-FAIL-2026-10-22.md)
+is an original guarded game/outer **FAIL 4/1**. The fourth native Horse setup
+passed again, but the new Manual was refused before `Game.SaveGame` because its
+requested name repeated the loaded b171 source name and native `CreateNewSave`
+made it unique. One native load, zero saves; run/save/Mods/profile bytes restored
+exactly. A distinct output-name correction passed independent review and
+Candidate 9/0 but has no corrected native verdict yet. Four-Horse Manual
+and cold preservation remain IN PROGRESS, as do the standing mission's other
+engineering gates and selected private 7E.
+
 [Batch175](docs/CHUNK7-BATCH175-FOURTH-HORSE-NATIVE-SETUP-2026-10-22.md)
 passed one guarded zero-write fourth-Horse native setup from the accepted
 batch171/batch174 three-Horse lineage: game and original outer 4/0, nine field

@@ -450,7 +450,8 @@ function Assert-KmcChunk7SmallMountedColdSource($Request,$ProducerArtifact,$Cold
 }
 # The native Manual name a writing owned selection reserves (C# Chunk7OwnedPairsSelection.OwnedManualOutputName).
 function Get-KmcChunk7OwnedManualOutputName($Request){
- if((Test-KmcChunk7OwnedPairsSmallSave $Request)-or(Test-KmcChunk7OwnedPairsSmallThirdHorseSave $Request)-or(Test-KmcChunk7OwnedPairsFourthSave $Request)){return 'KMC_C7_SMALL_WORLD'}
+ if(Test-KmcChunk7OwnedPairsFourthSave $Request){return 'KMC_C7_FOUR_HORSE_WORLD'}
+ if((Test-KmcChunk7OwnedPairsSmallSave $Request)-or(Test-KmcChunk7OwnedPairsSmallThirdHorseSave $Request)){return 'KMC_C7_SMALL_WORLD'}
  if(Test-KmcChunk7OwnedPairsMediumSave $Request){return 'KMC_C7_MEDIUM_WORLD'}
  if(Test-KmcChunk7OwnedPairsSeedManual $Request){return Get-KmcChunk7OwnerSeedManualName}
  if(Test-KmcChunk7OwnedPairsSeedCheckpointSave $Request){if(Test-KmcChunk7ManticoreFixture $Request){return 'KMC_C7_AREA_FIXTURE'};if(Test-KmcChunk7TombFixture $Request){return 'KMC_C7_TOMB_DOOR_FIXTURE'};if(Test-KmcChunk7ThornRiverFixture $Request){return 'KMC_C7_THORN_RIVER_DOOR_FIXTURE'};return Get-KmcChunk7OwnerSeedCheckpointManualName}

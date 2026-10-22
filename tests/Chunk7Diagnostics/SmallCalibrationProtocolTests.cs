@@ -38,9 +38,11 @@ internal static class SmallCalibrationProtocolTests {
    var r=FourthHorseManualRequest();TestRunner.Equal(0,r.Validate().Count,string.Join(" | ",r.Validate()));
    TestRunner.Equal("chunk7-two-pair-exploration",r.SelectedChunk7Scenario,"Fourth-Horse Manual routed through another host.");
    TestRunner.Equal(1,r.OwnedPairs.WriteCount(r.PersistenceCase),"Fourth-Horse Manual lost its one write quota.");
-   TestRunner.Equal(Chunk7OwnedPairsSelection.SmallFixtureManualName,
+   TestRunner.Equal(Chunk7OwnedPairsSelection.FourthHorseManualName,
     Chunk7PersistenceScenario.NativeName(Kingmaker.EntitySystem.Persistence.SaveInfo.SaveType.Manual,r.OwnedPairs,r.PersistenceCase),
     "Fourth-Horse Manual name differs from its reserved output.");
+   TestRunner.True(Chunk7OwnedPairsSelection.FourthHorseManualName!=r.PersistenceLoad.InternalName,
+    "Fourth-Horse Manual repeats its loaded source name and would be renamed by native CreateNewSave.");
   });
   foreach(var bad in new[]{"missing checkpoint","zero write","changed source","foreign case"})
    tests.Run("fourth-Horse Manual refuses "+bad,()=>{var r=FourthHorseManualRequest();switch(bad){
