@@ -12,7 +12,7 @@ namespace KingmakerMountedCombat.Diagnostics
     {
         private void ReadThirdHorseSource()
         {
-            if (selection.IsFifthHorseSource) { ReadFifthHorseSource(); return; }
+            if (selection.IsPaidHorseWorld) { ReadFifthHorseSource(); return; }
             var fourth = selection.IsFourthHorseSource;
             var count = fourth ? 9 : 8;
             var horseCount = fourth ? 4 : 3;
@@ -128,11 +128,16 @@ namespace KingmakerMountedCombat.Diagnostics
                     JToken.DeepEquals(source["classes"], CaptureClasses(actor)),
                     "Cold third-Horse actor, reciprocal pet or class rank differs from its native save.");
             }
+            if (selection.IsSixthHorse) CaptureSixthRemote();
             CaptureThirdHorseFacts();
         }
 
         private void ReadFifthHorseSource()
         {
+            var sixth = selection.IsSixthHorse;
+            var priorCount = sixth ? 11 : 9;
+            var count = selection.HorseWorldActorCount;
+            var horseCount = selection.HorseWorldHorseCount;
             sourcePath = Path.Combine(Path.GetDirectoryName(root), Chunk7AssistedColdInventorySelection.SourceLeaf);
             archivePath = Path.Combine(root, request.PersistenceLoad.FileName);
             var source = new FileInfo(sourcePath); var archive = new FileInfo(archivePath); var saved = request.PersistenceLoad;
@@ -147,7 +152,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var artifact = JObject.Parse(File.ReadAllText(sourcePath)); var observed = artifact["observations"] as JObject;
             var write = observed?["nativeWrite"] as JObject; var savedWorld = observed?["savedFieldWorld"] as JObject;
             var oldWorld = observed?["sourceNativeWorld"] as JObject;
-            var oldFacts = observed?["sourceManualObservations"]?["fourthHorseFacts"] as JArray;
+            var oldFacts = observed?["sourceManualObservations"]?[sixth ? "fifthHorseFacts" : "fourthHorseFacts"] as JArray;
             var beforeFacts = observed?["f09PriorHorsesBefore"] as JArray;
             var afterFacts = observed?["f09PriorHorsesAfter"] as JArray;
             var field = observed?["field"] as JObject; var progress = observed?["afterSaveArrangement"] as JObject;
@@ -170,9 +175,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 observed["archive"]?["participations"]?.Value<int>() == 0 &&
                 observed["archive"]?["slots"]?.Value<int>() == 0 &&
                 observed["archive"]?["combatPresent"]?.Value<bool>() == false &&
-                prior != null && prior.Count == 9 && savedParty != null && savedParty.Count == 11 &&
-                original != null && original.Count == 9 && acquired != null && acquired.Count == 2 &&
-                oldFacts != null && oldFacts.Count == 4 && beforeFacts != null && beforeFacts.Count == 4 &&
+                prior != null && prior.Count == priorCount && savedParty != null && savedParty.Count == count &&
+                original != null && original.Count == priorCount && acquired != null && acquired.Count == 2 &&
+                oldFacts != null && oldFacts.Count == horseCount - 1 && beforeFacts != null && beforeFacts.Count == horseCount - 1 &&
                 afterFacts != null && JToken.DeepEquals(beforeFacts, afterFacts) &&
                 newNative != null && newNative.Count == 2 && field["reciprocal"]?.Value<bool>() == true &&
                 field["ordinaryFieldAdmissionProven"]?.Value<bool>() == true,
@@ -183,6 +188,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 prior.Count(row => (string)row["id"] == expectedMainId) == 1,
                 "Fifth-Horse producer changed its native campaign or main actor.");
             var allProgress = original.Concat(acquired).ToArray();
+            Require(allProgress.Select(row => (string)row["actorId"]).Distinct(StringComparer.Ordinal).Count() == priorCount + 2,
+                "Paid Horse-world saved progression repeats an actor.");
             var party = new JArray();
             foreach (var row in savedParty)
             {
@@ -205,16 +212,18 @@ namespace KingmakerMountedCombat.Diagnostics
                     ["classes"] = new JArray(((JArray)matching[0]["classes"]).Select(value => new JObject {
                         ["guid"] = value["classGuid"].DeepClone(), ["level"] = value["level"].DeepClone() })) });
             }
-            Require(party.Select(row => (string)row["id"]).Distinct(StringComparer.Ordinal).Count() == 11 &&
-                (string)field["actorId"] == "82deb3d9-d734-4843-81c6-384becf082d9" &&
-                (string)field["petId"] == "1ed01148-1646-469c-a3d5-153df01192b8" &&
+            Require(party.Select(row => (string)row["id"]).Distinct(StringComparer.Ordinal).Count() == count &&
+                (string)field["actorId"] == (sixth ? "d8c2f840-9d59-4b5e-9250-c628a36c5589" : "82deb3d9-d734-4843-81c6-384becf082d9") &&
+                (string)field["petId"] == (sixth ? "130fd1b5-c9f4-4b9f-80de-6980e0d21556" : "1ed01148-1646-469c-a3d5-153df01192b8") &&
                 (string)field["horseBlueprint"] == HorseCompanionBlueprintService.UnitGuid,
                 "Fifth-Horse output lost its exact paid rider or mount.");
+            if (sixth) ReadSixthRemoteSource(observed, prior, allProgress, party);
             sourceWorld = new JObject { ["gameId"] = saved.GameId, ["gameName"] = saved.GameName,
                 ["area"] = saved.Area, ["mainActorId"] = expectedMainId, ["party"] = party };
             sourceReadiness = new JObject { ["money"] = progress["money"].DeepClone(),
                 ["experienceRatePercent"] = progress["experienceRatePercent"].DeepClone(),
-                ["actors"] = new JArray(allProgress.OrderBy(value => (string)value["actorId"], StringComparer.Ordinal).Select(value => value.DeepClone())) };
+                ["actors"] = new JArray(allProgress.Where(value => party.Any(row => (string)row["id"] == (string)value["actorId"]))
+                    .OrderBy(value => (string)value["actorId"], StringComparer.Ordinal).Select(value => value.DeepClone())) };
             expectedNativeMoney = (long)progress["money"];
             thirdHorseOwners = new JArray(oldFacts.Select(value => new JObject {
                 ["riderId"] = value["riderId"].DeepClone(), ["mountId"] = value["mountId"].DeepClone(),
@@ -222,9 +231,9 @@ namespace KingmakerMountedCombat.Diagnostics
             thirdHorseOwners.Add(new JObject { ["riderId"] = field["actorId"].DeepClone(),
                 ["mountId"] = field["petId"].DeepClone(), ["sourceGuid"] = field["featureSourceGuid"].DeepClone(),
                 ["rank"] = field["rank"].DeepClone() });
-            Require(thirdHorseOwners.Count == 5 &&
-                thirdHorseOwners.Select(value => (string)value["riderId"]).Distinct(StringComparer.Ordinal).Count() == 5 &&
-                thirdHorseOwners.Select(value => (string)value["mountId"]).Distinct(StringComparer.Ordinal).Count() == 5 &&
+            Require(thirdHorseOwners.Count == horseCount &&
+                thirdHorseOwners.Select(value => (string)value["riderId"]).Distinct(StringComparer.Ordinal).Count() == horseCount &&
+                thirdHorseOwners.Select(value => (string)value["mountId"]).Distinct(StringComparer.Ordinal).Count() == horseCount &&
                 thirdHorseOwners.All(value => party.Count(row => (string)row["id"] == (string)value["riderId"] &&
                     (string)row["petId"] == (string)value["mountId"]) == 1 &&
                     party.Count(row => (string)row["id"] == (string)value["mountId"] &&
@@ -232,6 +241,46 @@ namespace KingmakerMountedCombat.Diagnostics
                     (string)row["blueprint"] == HorseCompanionBlueprintService.UnitGuid) == 1),
                 "Fifth-Horse producer does not retain five reciprocal native pet links.");
             VerifySourceBytes();
+        }
+
+        private JObject sixthRemoteExpected, sixthRemoteAtLoad;
+        private void ReadSixthRemoteSource(JObject observed, JArray prior, JToken[] progress, JArray field)
+        {
+            var old = prior.Single(row => (string)row["id"] == DepartureActorId);
+            var p = progress.Single(row => (string)row["actorId"] == DepartureActorId);
+            var roster = observed["savedSixthRoster"] as JObject;
+            Require(old["petId"]?.Type == JTokenType.Null && old["masterId"]?.Type == JTokenType.Null &&
+                (string)old["blueprint"] == (string)p["blueprint"] &&
+                (int)old["characterLevel"] == (int)p["characterLevel"] && (int)old["experience"] == (int)p["experience"] &&
+                JToken.DeepEquals(old["classes"], new JArray(((JArray)p["classes"]).Select(row => new JObject {
+                    ["guid"] = row["classGuid"].DeepClone(), ["level"] = row["level"].DeepClone() }))) &&
+                !field.Any(row => (string)row["id"] == DepartureActorId) &&
+                roster?["remoteCompanionIds"] is JArray ids && ids.Count == 1 && (string)ids[0] == DepartureActorId &&
+                roster["partyCharacterIds"] is JArray characters && characters.Count == 6 &&
+                characters.Select(row => (string)row).OrderBy(id => id, StringComparer.Ordinal).SequenceEqual(
+                    field.Where(row => row["masterId"]?.Type == JTokenType.Null).Select(row => (string)row["id"]).OrderBy(id => id, StringComparer.Ordinal)) &&
+                roster["manualPartyMutation"]?.Value<bool>() == false,
+                "Sixth-Horse source lost the genuine remote Linzi roster or original progression.");
+            sixthRemoteExpected = new JObject { ["id"] = DepartureActorId, ["blueprint"] = old["blueprint"].DeepClone(),
+                ["petId"] = JValue.CreateNull(), ["masterId"] = JValue.CreateNull(),
+                ["characterLevel"] = p["characterLevel"].DeepClone(), ["experience"] = p["experience"].DeepClone(),
+                ["classes"] = old["classes"].DeepClone() };
+        }
+        private JObject CaptureSixthRemote()
+        {
+            Require(selection.IsSixthHorse && sixthRemoteExpected != null && remote.Length == 1 &&
+                remote[0].UniqueId == DepartureActorId && !actors.Contains(remote[0]) && !characters.Contains(remote[0]),
+                "Sixth-Horse cold load lost its exact remote Linzi membership.");
+            Require(game.Player.RemoteCompanions.Select(value => value.Value).SequenceEqual(remote),
+                "Sixth-Horse cold native remote membership changed.");
+            var actor = remote[0];
+            var semantics = new JObject { ["id"] = actor.UniqueId, ["blueprint"] = actor.Blueprint.AssetGuid,
+                ["petId"] = actor.Descriptor.Pet == null ? JValue.CreateNull() : new JValue(actor.Descriptor.Pet.UniqueId),
+                ["masterId"] = actor.Descriptor.Master.Value == null ? JValue.CreateNull() : new JValue(actor.Descriptor.Master.Value.UniqueId),
+                ["characterLevel"] = actor.Descriptor.Progression.CharacterLevel,
+                ["experience"] = actor.Descriptor.Progression.Experience, ["classes"] = CaptureClasses(actor) };
+            Require(JToken.DeepEquals(semantics, sixthRemoteExpected), "Cold remote Linzi progression or pet links differ from the saved source.");
+            return new JObject { ["semantics"] = semantics, ["object"] = probe.Identity(actor), ["descriptor"] = probe.Identity(actor.Descriptor) };
         }
 
         private JArray CaptureThirdHorseFacts()

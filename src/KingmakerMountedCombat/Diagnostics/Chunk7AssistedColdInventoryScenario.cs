@@ -123,6 +123,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (selection.IsThirdHorse) evidence["source"]["kind"] = "qualified-assisted-third-horse-manual";
                 if (selection.IsFourthHorseSource) evidence["source"]["kind"] = "reader-reevaluated-assisted-fourth-horse-manual";
                 if (selection.IsFifthHorseSource) evidence["source"]["kind"] = "qualified-paid-fifth-horse-manual";
+                if (selection.IsSixthHorse) evidence["source"]["kind"] = "reader-reevaluated-paid-sixth-horse-manual";
             }
             evidence["beforeLoad"] = new JObject { ["frame"] = UnityEngine.Time.frameCount, ["game"] = probe.Identity(game),
                 ["saveManager"] = probe.Identity(manager), ["menuPlayer"] = probe.Identity(menuPlayer),
@@ -216,8 +217,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 loadedSemantics = CaptureSemantics();
                 if (selection.IsHorseWorld) {
                     thirdHorseFactsAtLoad = CaptureThirdHorseFacts();
-                    evidence[selection.IsFifthHorseSource ? "fifthHorseFacts" : selection.IsFourthHorseSource ? "fourthHorseFacts" : "thirdHorseFacts"] = thirdHorseFactsAtLoad.DeepClone();
+                    evidence[selection.IsSixthHorse ? "sixthHorseFacts" : selection.IsFifthHorseSource ? "fifthHorseFacts" : selection.IsFourthHorseSource ? "fourthHorseFacts" : "thirdHorseFacts"] = thirdHorseFactsAtLoad.DeepClone();
                 }
+                if (selection.IsSixthHorse) { sixthRemoteAtLoad = CaptureSixthRemote(); evidence["remoteAtLoad"] = sixthRemoteAtLoad.DeepClone(); }
                 loadDescriptor = loader.Descriptor; admitted = true; RequireWorld(); VerifySourceBytes();
                 evidence["loadedWorld"] = Snapshot();
                 evidence["loader"] = CaptureLoader();
@@ -630,7 +632,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 "Cold inventory encountered a refused native boundary.");
             if (admitted)
             {
-                if (cleanupOnly && departure != null) RequireWorldReferences();
+                if (cleanupOnly && (departure != null || selection.IsSixthHorse)) RequireWorldReferences();
                 else RequireWorld();
             }
         }
@@ -653,6 +655,8 @@ namespace KingmakerMountedCombat.Diagnostics
             Require(JToken.DeepEquals(loadedSemantics, CaptureSemantics()), "Admitted assisted cold progression or reciprocal field semantics changed.");
             if (selection.IsHorseWorld) Require(JToken.DeepEquals(thirdHorseFactsAtLoad, CaptureThirdHorseFacts()),
                 "Admitted cold sourced Horse facts or ranks changed.");
+            if (selection.IsSixthHorse) Require(JToken.DeepEquals(sixthRemoteAtLoad, CaptureSixthRemote()),
+                "Admitted cold remote Linzi object, descriptor or progression changed.");
             Require(current.Length == actors.Length, "Admitted cold party count changed.");
             for (var i = 0; i < actors.Length; i++)
                 Require(current.Count(actor => ReferenceEquals(actor, actors[i])) == 1 && ReferenceEquals(actors[i].Descriptor, descriptors[i]) &&
@@ -690,14 +694,14 @@ namespace KingmakerMountedCombat.Diagnostics
             ["mainActorId"] = game.Player.MainCharacter.Value.UniqueId, ["area"] = game.CurrentlyLoadedArea.AssetGuidThreadSafe,
             ["mode"] = game.CurrentMode.ToString(), ["cutscene"] = game.CutsceneLock, ["inCombat"] = game.Player.IsInCombat,
             ["nativeLoading"] = Busy(), ["authority"] = AuthoritySnapshot(), ["loadedDescriptor"] = probe.Identity(loader.Descriptor),
-            ["party"] = new JArray((selection.IsFifthHorseDeparture ? Chunk7NativeFieldRoster.Capture(game.Player) : actors).Select(actor => new JObject { ["id"] = actor.UniqueId, ["blueprint"] = actor.Blueprint.AssetGuid,
+            ["party"] = new JArray((selection.IsFifthHorseDeparture || selection.IsSixthHorse ? Chunk7NativeFieldRoster.Capture(game.Player) : actors).Select(actor => new JObject { ["id"] = actor.UniqueId, ["blueprint"] = actor.Blueprint.AssetGuid,
                 ["object"] = probe.Identity(actor), ["descriptor"] = probe.Identity(actor.Descriptor), ["view"] = probe.Identity(actor.View),
                 ["isInGame"] = actor.IsInGame, ["isInState"] = actor.IsInState, ["commandsEmpty"] = actor.Commands.Empty,
                 ["queuedCommands"] = actor.Commands.Queue.Count, ["conscious"] = actor.Descriptor.State.IsConscious, ["dead"] = actor.Descriptor.State.IsDead,
                 ["inCombat"] = actor.IsInCombat, ["petId"] = actor.Descriptor.Pet?.UniqueId, ["masterId"] = actor.Descriptor.Master.Value?.UniqueId,
                 ["characterLevel"] = actor.Descriptor.Progression.CharacterLevel, ["experience"] = actor.Descriptor.Progression.Experience, ["classes"] = CaptureClasses(actor) })),
-            ["partyCharacterIds"] = new JArray((selection.IsFifthHorseDeparture ? game.Player.PartyCharacters.Select(value => value.Value) : characters).Select(value => value.UniqueId)),
-            ["remoteCompanionIds"] = new JArray((selection.IsFifthHorseDeparture ? game.Player.RemoteCompanions.Select(value => value.Value) : remote).Select(value => value.UniqueId)), ["nativeMoney"] = game.Player.Money, ["dialogScheduled"] = game.Player.Dialog?.Scheduled != null,
+            ["partyCharacterIds"] = new JArray((selection.IsFifthHorseDeparture || selection.IsSixthHorse ? game.Player.PartyCharacters.Select(value => value.Value) : characters).Select(value => value.UniqueId)),
+            ["remoteCompanionIds"] = new JArray((selection.IsFifthHorseDeparture || selection.IsSixthHorse ? game.Player.RemoteCompanions.Select(value => value.Value) : remote).Select(value => value.UniqueId)), ["nativeMoney"] = game.Player.Money, ["dialogScheduled"] = game.Player.Dialog?.Scheduled != null,
             ["owners"] = world.Registry.Owners.Length, ["slots"] = controls.CapturePersistentSlots().Length,
             ["casts"] = controls.NativeCastRequestCount, ["snapshots"] = persistence.SnapshotCount, ["completedSaves"] = persistence.CompletedSaveCount,
             ["semanticRestores"] = persistence.SemanticRestoreCount, ["presentationRestores"] = persistence.PresentationRestoreCount };
@@ -729,7 +733,14 @@ namespace KingmakerMountedCombat.Diagnostics
                 try { RequireNoEffects(); } catch (Exception error) { Fail("C7-assisted-cold-cleanup", error.ToString()); }
                 var sourceUnchanged = sourcePinned;
                 try { VerifySourceBytes(); } catch (Exception error) { sourceUnchanged = false; Fail("C7-assisted-cold-cleanup", error.ToString()); }
-                if (admitted && evidence["settledWorld"] == null) { evidence["settledWorld"] = Snapshot(); evidence["settledLoader"] = CaptureLoader(); }
+                if (selection.IsSixthHorse && admitted && evidence["remoteSettled"] == null)
+                {
+                    try { RequireWorld(); evidence["remoteSettled"] = CaptureSixthRemote(); }
+                    catch (Exception error) { Fail("C7-assisted-cold-cleanup", error.ToString()); }
+                }
+                if (admitted && evidence["settledWorld"] == null) {
+                    evidence["settledWorld"] = Snapshot(); evidence["settledLoader"] = CaptureLoader();
+                }
                 if (probe != null && evidence["nativeLoad"] == null) evidence["nativeLoad"] = probe.Capture();
                 if (restoration != null && evidence["noPreparation"] == null) evidence["noPreparation"] = restoration.Capture();
                 // Both exact observers are attempted independently. A failed
