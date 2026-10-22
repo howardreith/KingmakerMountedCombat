@@ -1,6 +1,32 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
-## Active October 22 — sixth paid Horse implementation, before native batch184
+## Active October 22 — batch184 restored, external reader correction
+
+The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
+[Batch184](docs/CHUNK7-BATCH184-SIXTH-HORSE-MANUAL-2026-10-22.md) ran once on
+guarded-pushed product source `b6d3b965`, ZIP `fa1431af`, DLL `64175c59`, suite
+`8d1972a5`. Native game/artifact PASS 7/0 produced genuine sixth-Horse Manual308
+SHA `b1e817a6`, twelve field actors/six characters and exactly remote Linzi.
+The original outer FAIL `e399ea8a` is preserved: the Manual choice-reader early
+return missed the post-departure price correction. A reviewed reader-only fix
+now binds the same verified admitted price in both branches; real artifact
+regression 9/0 and neighboring reader 118/0 passed. No DLL changed.
+
+All transactions restored with zero errors; Mods/save digests match their
+current-state snapshots, profile exact, zero cache exceptions, no game/lock.
+The wrapper exited 1; do not relaunch it. Original ten-file evidence pins
+remained unchanged after exit. Next exact actions: run the prepared private
+`analysis-cache/chunk7-continuation/b184-reader-only-reevaluation.ps1` and
+`b184-base-only-reader-reevaluation.ps1` from this committed clean reader,
+retain both new receipts separately from original FAILs/flags, then implement
+the distinct sixth-Horse cold consumer of an independent Manual308 copy.
+Private current execution note is `b184-current-execution.md`; next-source
+design is `b185-sixth-cold-and-capacity-next.md` in that same directory.
+Mounted capacity is still two; six unmounted Horses are fixture evidence,
+not six mounted pairs. Continue remaining 7C/7D and private 7E, with no merge,
+release, permanent installation or HUMAN PLAY acceptance.
+
+## Historical October 22 — sixth paid Horse implementation, before native batch184
 
 The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
 The [batch184 sixth-hire implementation](docs/CHUNK7-BATCH184-SIXTH-HORSE-MANUAL-2026-10-22.md)
