@@ -76,7 +76,7 @@ function Assert-KmcChunk7OwnerSeedEntry($Entry){
  foreach($dlc in $Entry.dlc){if($dlc-isnot[string]-or$dlc-cnotin@('Tieflings','Varnhold','Endless','Arcane')-or-not$seen.Add($dlc)){throw 'Owner seed registry DLC is unknown or repeated.'}}
  foreach($key in @('masterPath','intakePath')){if($Entry.$key-isnot[string]-or$Entry.$key-cnotmatch'^fixtures/owner-supplied/[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$'){throw 'Owner seed registry path must be a lab-relative owner-supplied leaf.'}}
 }
-function Get-KmcChunk7AssistedColdInventoryRows {@('chunk7-assisted-cold-inventory','C7-assisted-cold-source','C7-assisted-cold-native-load','C7-assisted-cold-readonly','C7-assisted-cold-selector','C7-assisted-cold-cleanup','C7-assisted-cold-runtime','C7-assisted-cold-interrupted')}
+function Get-KmcChunk7AssistedColdInventoryRows {@('chunk7-assisted-cold-inventory','C7-assisted-cold-source','C7-assisted-cold-native-load','C7-assisted-cold-readonly','C7-assisted-cold-selector','C7-assisted-cold-native-departure','C7-assisted-cold-cleanup','C7-assisted-cold-runtime','C7-assisted-cold-interrupted')}
 function Assert-KmcChunk7StockAreaRouteObservation($Row,[string]$LoadedArea){
  Assert-KmcAssistedObjectValue $Row @('contract','loadedAreaGuid','loadedAreaName','enumeration','maximumTransitions','observedTransitions','complete','interactionRequests','travelRequests','saveRequests','candidates','transitions') 'stock area route observation'
  Assert-KmcBootstrapInventoryString $Row.contract 'owner-seed-stock-area-route-observation-v1'

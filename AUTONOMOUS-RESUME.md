@@ -1,6 +1,38 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
-## Active October 22 — batch183 native departure implementation
+## Active October 22 — batch183 native departure settled
+
+The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
+[Batch183](docs/CHUNK7-BATCH183-LINZI-NATIVE-DEPARTURE-2026-10-22.md) ran one
+guarded native scenario on source `633f7bf1`, frozen ZIP `d49c54a9`, DLL
+`2a972906`, suite `c4aec6b0`. Game PASS 5/0 proves the ordinary native Linzi
+6→5 character/11→10 actor departure with all five Horse owners retained.
+One load/zero saves, no resource writes or preparation. Original outer FAIL
+`21b7c6a1` remains an omitted exact subscenario-name reader failure. The narrow
+external-reader correction has independent review and wiring 118/0. Separate
+immutable game/artifact reader PASS `2899d3de` and base-only native-inventory
+reader PASS `a62f9a60` preserve every original receipt/flag. No new DLL was built.
+
+Combined and Mods transactions are restored without errors; exact Mods digest
+`b592f400`, save inventory `df434471`, exact profile bytes and zero cache
+exceptions. Wrapper exited, no game or active lock. No recovery script ran.
+The original BOM selection/preflight FAIL and corrected no-BOM v2 input are
+separate; only the v2 helper launched a game. Earlier source-test and test-
+isolation failures remain recorded in the batch doc.
+
+Next: commit/guarded-push this reviewed reader-only result and update draft
+PR #5. Then implement the distinct sixth paid Halfling/Horse acquisition on
+a fresh unchanged Manual_307 copy, reusing the proved native departure as
+disclosed setup before native choices. Bind batch183's original game PASS,
+original outer FAIL and separate reader-only PASSes honestly. Use a new
+internal output name (for example KMC_C7_SIX_HORSE_WORLD) and native Manual_308
+to avoid the previously observed CreateNewSave name collision; then qualify
+an independent cold copy with twelve field actors/six native Horses and
+remote Linzi. Working notes: analysis-cache/chunk7-continuation/b184-sixth-hire-design.md.
+Continue mounted breadth/conditional stress, remaining 7C/7D and selected
+private 7E. No merge/release/permanent installation or HUMAN PLAY acceptance.
+
+## Historical October 22 — batch183 native departure implementation
 
 The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
 The reviewed [batch183 departure case](docs/CHUNK7-BATCH183-LINZI-NATIVE-DEPARTURE-2026-10-22.md)
