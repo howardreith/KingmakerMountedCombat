@@ -13,6 +13,12 @@
 > and [implementation chronology](CHUNK7-IMPLEMENTATION-PLAN.md) remain
 > historical where they say 7E is unselected or give stale native caps.
 
+[Batch174](../docs/CHUNK7-BATCH174-THIRD-HORSE-COLD-ORIGINAL-PASS-2026-10-22.md)
+adds a fresh original game/outer PASS for the same exact frozen product's
+three-Horse native Manual cold continuation under the corrected clean reader.
+The two remaining story Horses, sixth rider, conditional six-pair stress and
+private exact-package rehearsal remain open. Batch172/173 failures stay separate.
+
 [Batch173](../docs/CHUNK7-BATCH173-THIRD-HORSE-COLD-2026-10-21.md)
 adds a genuine separate-process three-Horse cold-load game PASS, with the
 original outer PID-reader FAIL and an independently reviewed reader-only PASS
