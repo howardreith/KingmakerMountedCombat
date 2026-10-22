@@ -1,5 +1,14 @@
 # Chunk 7B–7D — IN PROGRESS
 
+The reviewed [batch181 fifth paid Horse Manual](docs/CHUNK7-BATCH181-FIFTH-HORSE-MANUAL-2026-10-22.md)
+passed native game and original outer 7/0 on one guarded base-only run.
+Five field characters/four native Horses became six characters/five Horses;
+the native paid Halfling builder wrote genuine Manual_307 while all four
+prior Horse references survived. One load and one save were requested.
+Run/save/Mods/profile bytes restored exactly with zero accepted cache changes.
+The archive still needs separate cold qualification. Sixth rider, mounted
+fifth/sixth pair and conditional six-pair stress remain **IN PROGRESS**.
+
 The reviewed [batch180 native selector observation](docs/CHUNK7-BATCH180-FOURTH-HORSE-SELECTOR-2026-10-22.md)
 passed game and original outer 5/0 on a separate disposable load of the genuine
 fourth-Horse Manual. Linzi is optional in the opened native selector
