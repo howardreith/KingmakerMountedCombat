@@ -283,6 +283,7 @@
     <Compile Include="Diagnostics\Chunk7OrdinaryAcquisitionScenario.cs" />
     <Compile Include="Diagnostics\Chunk7OrdinaryFieldSelection.cs" />
     <Compile Include="Diagnostics\Chunk7NativePartyFieldAdmission.cs" />
+    <Compile Include="Diagnostics\Chunk7NativePartyOptionalityProbe.cs" />
     <Compile Include="Diagnostics\Chunk7OrdinaryFieldScenario.cs" />
     <Compile Include="Diagnostics\Chunk7EvidenceDto.cs" />
     <Compile Include="Diagnostics\Chunk7NativeBootstrapSelection.cs" />

@@ -813,7 +813,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 }
                 else if (AssistedColdInventory?.IsHorseWorld == true)
                 {
-                    var fourth = AssistedColdInventory.IsFourthHorse;
+                    var fourth = AssistedColdInventory.IsFourthHorseSource;
                     var name = fourth ? Chunk7OwnedPairsSelection.FourthHorseManualName : Chunk7OwnedPairsSelection.SmallFixtureManualName;
                     var leaf = fourth ? "Manual_306_KMC_C7_FOUR_HORSE_WORLD.zks" : "Manual_305_KMC_C7_SMALL_WORLD.zks";
                     errors.AddRange(PersistenceLoad.Validate("persistenceLoad", name,
@@ -1398,7 +1398,7 @@ namespace KingmakerMountedCombat.Diagnostics
             "chunk7-bootstrap-manual-seed", "C7-manual-seed-source", "C7-manual-seed-native-load", "C7-manual-seed-native-save", "C7-manual-seed-no-arrangement", "C7-manual-seed-cleanup", "C7-manual-seed-runtime", "C7-manual-seed-interrupted",
             "chunk7-small-fixture-preparation", "C7-small-fixture-source", "C7-small-fixture-native-load", "C7-small-fixture-native-choices", "C7-small-fixture-unmounted-field", "C7-small-fixture-native-manual", "C7-small-fixture-cleanup", "C7-small-fixture-runtime", "C7-small-fixture-interrupted",
             "chunk7-stock-mammoth-fixture-preparation", "C7-stock-mammoth-source", "C7-stock-mammoth-native-load", "C7-stock-mammoth-native-choices", "C7-stock-mammoth-native-manual", "C7-stock-mammoth-cleanup", "C7-stock-mammoth-runtime", "C7-stock-mammoth-interrupted",
-            "chunk7-assisted-cold-inventory", "C7-assisted-cold-source", "C7-assisted-cold-native-load", "C7-assisted-cold-readonly", "C7-assisted-cold-cleanup", "C7-assisted-cold-runtime", "C7-assisted-cold-interrupted",
+            "chunk7-assisted-cold-inventory", "C7-assisted-cold-source", "C7-assisted-cold-native-load", "C7-assisted-cold-readonly", "C7-assisted-cold-selector", "C7-assisted-cold-cleanup", "C7-assisted-cold-runtime", "C7-assisted-cold-interrupted",
             "chunk7-bootstrap-cold-inventory", "C7-bootstrap-inventory-source", "C7-bootstrap-inventory-native-load", "C7-bootstrap-inventory-readonly", "C7-bootstrap-inventory-cleanup", "C7-bootstrap-inventory-runtime", "C7-bootstrap-inventory-interrupted",
             "chunk7-assisted-fixture-preparation", "C7-assisted-preflight", "C7-assisted-native-start", "C7-assisted-story", "C7-assisted-setup", "C7-assisted-native-choices", "C7-assisted-manual", "C7-assisted-cleanup", "C7-assisted-runtime", "C7-assisted-interrupted",
             "chunk7-native-main-bootstrap", "C7-bootstrap-preflight", "C7-bootstrap-native-start", "C7-bootstrap-native-world", "C7-bootstrap-autosave", "C7-bootstrap-cleanup", "C7-bootstrap-runtime", "C7-bootstrap-interrupted",

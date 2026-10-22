@@ -78,7 +78,7 @@ function Get-KmcChunk7OwnerSeedSource($Selection,$Fixture,$Candidate){
 function Get-KmcChunk7AssistedColdInventorySource($Selection,$Fixture,$Candidate){
  if(Test-KmcChunk7OwnerSeedSelection $Selection){return Get-KmcChunk7OwnerSeedSource $Selection $Fixture $Candidate}
  if(Test-KmcChunk7ThirdHorseColdSelection $Selection){return Get-KmcChunk7ThirdHorseColdSource $Selection $Fixture $Candidate}
- if(Test-KmcChunk7FourthHorseColdSelection $Selection){return Get-KmcChunk7FourthHorseColdSource $Selection $Fixture $Candidate}
+ if(Test-KmcChunk7FourthHorseSourceSelection $Selection){return Get-KmcChunk7FourthHorseColdSource $Selection $Fixture $Candidate}
  if(Test-KmcChunk7PaidFixtureColdSelection $Selection){
   $producerCase=if(Test-KmcChunk7MediumFixtureColdSelection $Selection){'owner-seed-default-human-horse-manual'}else{'owner-seed-default-halfling-horse-manual'}
   return Get-KmcChunk7SmallFixtureColdSource $Selection.sourceRunId $Selection.sourceArtifactSha256 $Selection.sourceArchiveSha256 $Fixture $Candidate $producerCase
@@ -114,7 +114,7 @@ function Copy-KmcChunk7AssistedColdInventorySourceArtifact($Source,[string]$Prof
  Assert-KmcChunk7AssistedColdInventorySelection ([pscustomobject]@{scenario='chunk7-assisted-cold-inventory';runId=$Lock.RunId;assistedColdInventory=$Selection})
  $fresh=Get-KmcChunk7AssistedColdInventorySource $Selection $Fixture $Candidate
  $isSeed=Test-KmcChunk7OwnerSeedSelection $Selection
- $isFourth=Test-KmcChunk7FourthHorseColdSelection $Selection
+ $isFourth=Test-KmcChunk7FourthHorseSourceSelection $Selection
  $isSmall=(Test-KmcChunk7PaidFixtureColdSelection $Selection)-or(Test-KmcChunk7HorseWorldColdSelection $Selection)
  $keys=if($isSeed){@('path','descriptor','seedId','registrySha256','registryEntry','intakePath','intakeSha256')}
   elseif($isSmall){@('path','artifactPath','artifactSha256','artifactLength','sourceRunId','sourceProcessId','descriptor','receiptPins')}

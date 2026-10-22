@@ -16,8 +16,9 @@ using Newtonsoft.Json.Linq;
 
 namespace KingmakerMountedCombat.Diagnostics
 {
-    // Observation only after one exact native cold load. This scenario never
-    // issues a save, native action, choice, level, purchase, or resource write.
+    // Observation only after one exact native cold load. The distinct fourth-
+    // Horse selector case opens and closes one owned native party selector;
+    // neither case issues a save, party switch, choice, purchase or resource write.
     internal sealed partial class Chunk7AssistedColdInventoryScenario : IDisposable
     {
         internal const string EvidenceFileName = "chunk7-assisted-cold-inventory-evidence.json";
@@ -43,6 +44,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private readonly List<string> errors = new List<string>();
         private readonly List<RuntimeSubscenarioResult> results = new List<RuntimeSubscenarioResult>();
         private NativeArchiveRestorationProbe restoration;
+        private Chunk7NativePartyOptionalityProbe optionality;
         private Chunk7BootstrapInventoryProbe probe;
         private Chunk7OwnerSeedLoadProbe resolution;
         private string seedRecordSha256;
@@ -119,7 +121,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (selection.IsPaidFixture) evidence["source"]["kind"] = selection.IsMediumFixture
                     ? "qualified-owner-seed-derived-medium-fixture-manual" : "qualified-owner-seed-derived-small-fixture-manual";
                 if (selection.IsThirdHorse) evidence["source"]["kind"] = "qualified-assisted-third-horse-manual";
-                if (selection.IsFourthHorse) evidence["source"]["kind"] = "reader-reevaluated-assisted-fourth-horse-manual";
+                if (selection.IsFourthHorseSource) evidence["source"]["kind"] = "reader-reevaluated-assisted-fourth-horse-manual";
             }
             evidence["beforeLoad"] = new JObject { ["frame"] = UnityEngine.Time.frameCount, ["game"] = probe.Identity(game),
                 ["saveManager"] = probe.Identity(manager), ["menuPlayer"] = probe.Identity(menuPlayer),
@@ -141,6 +143,12 @@ namespace KingmakerMountedCombat.Diagnostics
                     "Unexpected native dialog; cold inventory issues no input.");
                 Require(clock.Elapsed.TotalSeconds <= 180, "Cold inventory exceeded its bounded native load/readiness window.");
                 if (Busy()) return;
+                if (optionality != null)
+                {
+                    if (!optionality.Tick()) return;
+                    evidence["selectorProbe"] = optionality.Capture();
+                    Pass("C7-assisted-cold-selector"); BeginCleanup(); return;
+                }
                 Require(loader.State == WorkingFixtureLoadState.LoadedAndVerified && loader.LoadCallbackObserved && loader.Errors.Count == 0,
                     "Assisted cold load requires the actual one-shot loader callback and completed verification.", Chunk7OwnerSeedAssertions.NativeLoadIncomplete);
                 RequireLoader();
@@ -201,7 +209,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 loadedSemantics = CaptureSemantics();
                 if (selection.IsHorseWorld) {
                     thirdHorseFactsAtLoad = CaptureThirdHorseFacts();
-                    evidence[selection.IsFourthHorse ? "fourthHorseFacts" : "thirdHorseFacts"] = thirdHorseFactsAtLoad.DeepClone();
+                    evidence[selection.IsFourthHorseSource ? "fourthHorseFacts" : "thirdHorseFacts"] = thirdHorseFactsAtLoad.DeepClone();
                 }
                 loadDescriptor = loader.Descriptor; admitted = true; RequireWorld(); VerifySourceBytes();
                 evidence["loadedWorld"] = Snapshot();
@@ -223,7 +231,18 @@ namespace KingmakerMountedCombat.Diagnostics
                 else evidence["archive"] = new JObject { ["schemaVersion"] = data.SchemaVersion, ["campaignId"] = data.CampaignId, ["areaId"] = data.AreaId,
                     ["pairs"] = data.Pairs.Length, ["participations"] = data.Participations.Length, ["slots"] = data.Slots.Length,
                     ["combatPresent"] = data.Combat != null, ["nativeRestorationGrantedByDiagnostic"] = false };
-                Pass("C7-assisted-cold-native-load"); Pass("C7-assisted-cold-readonly"); BeginCleanup();
+                Pass("C7-assisted-cold-native-load"); Pass("C7-assisted-cold-readonly");
+                if (selection.IsFourthHorseSelector)
+                {
+                    var linzi = actors.Single(actor => actor.UniqueId == "8265f8cf-0969-4ec7-a266-2448de91c8c4");
+                    Require(linzi.Descriptor.Pet == null && characters.Length == 5 && remote.Length == 0 &&
+                        game.CurrentMode == GameModeType.Default, "Exact petless Linzi field is unavailable for the opened selector observation.");
+                    optionality = new Chunk7NativePartyOptionalityProbe(linzi,
+                        characters.Select(value => value.UniqueId).ToArray(), RequireSelectorAuthority,
+                        () => RequireAuthority(true));
+                    optionality.Open();
+                }
+                else BeginCleanup();
             }
             catch (Exception error) { RecordOwnerSeedFailure(error); Fail("C7-assisted-cold-runtime", error.ToString()); BeginCleanup(); }
         }
@@ -626,6 +645,13 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool Busy() => LoadingProcess.Instance != null && (LoadingProcess.Instance.IsLoadingInProcess || LoadingProcess.Instance.QueuedNames.Any()) ||
             NativePersistenceIsolation.HasPendingWrites || persistence.AreaTransitionPending || persistence.HasActiveSaveScope ||
             persistence.HasSaveAdmissionFence || world.SerializationBusy;
+        private void RequireSelectorAuthority()
+        {
+            RequireAuthority(false); RequireNoOwners(); RequireNoEffects(); VerifySourceBytes();
+            Require(selection.IsFourthHorseSelector && admitted && !Busy() && !game.Player.IsInCombat &&
+                authority.AdmittedNativeWriteRequests == 0 && authorization.AuthorizedWriteCount == 0,
+                "Opened selector lost exact fourth-Horse zero-write custody.");
+        }
         private void RequireNoOwners() => Require(world.Registry.Owners.Length == 0 && !controls.HasUnsettledRelationshipTransition &&
             !world.UnifiedTurn.HasUnsettledPreparation && world.Pairs.All(pair => pair.Relationship.State == RelationshipState.Unmounted &&
                 pair.Relationship.PairOwner == null && pair.Relationship.Runtime.NoPreparedPairResidue && !pair.Combat.HasActiveCommand &&
@@ -665,6 +691,11 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 if (completed) return;
                 RequireAuthority(true);
+                if (optionality != null)
+                {
+                    if (!optionality.TryDrain()) { Retain("Owned native selector has not closed."); return; }
+                    evidence["selectorProbe"] = optionality.Capture();
+                }
                 if (Busy() || probe?.InSynchronousCallback == true || persistence.DrainForTeardown(0) == OwnedWorkerTeardownVerdict.Refused)
                 { Retain("Cold native load/callback or worker retains observer custody."); return; }
                 RequireNoOwners();

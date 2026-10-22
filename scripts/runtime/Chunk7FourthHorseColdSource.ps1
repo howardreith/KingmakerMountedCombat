@@ -12,7 +12,7 @@ function Get-KmcChunk7FourthHorseColdSource($Selection,$Fixture,$Candidate){
  $reevaluationHash='c9bc4ed9acc977112d540fb5c6c71acb5bcc6e668a8ba31d086c4d2f6ae5768f'
  $run='unassigned-fourth-horse-cold';if($Selection.sourceRunId-ceq$run){$run='unassigned-fourth-horse-cold-2'}
  Assert-KmcChunk7AssistedColdInventorySelection ([pscustomobject]@{scenario='chunk7-assisted-cold-inventory';runId=$run;assistedColdInventory=$Selection})
- if(-not(Test-KmcChunk7FourthHorseColdSelection $Selection)-or$Selection.sourceRunId-cne$producer-or
+ if(-not(Test-KmcChunk7FourthHorseSourceSelection $Selection)-or$Selection.sourceRunId-cne$producer-or
   $Selection.sourceArtifactSha256-cne$worldHash-or$Selection.sourceArchiveSha256-cne$archiveHash){throw 'Fourth-Horse cold input is not the exact retained batch178 source.'}
  $set=Get-KmcChunk7OwnedReceiptSet $producer 'chunk7-world-evidence.json';$r=$set.request
  Assert-KmcBootstrapInventoryString $r.scenario 'chunk7-owned-two-pair-campaign'
@@ -83,7 +83,17 @@ function Get-KmcChunk7FourthHorseColdSource($Selection,$Fixture,$Candidate){
  if($pins.Count-ne10){throw 'Fourth-Horse producer and reader-only receipt set is incomplete.'}
  foreach($pin in $pins){Assert-KmcAssistedSettledFile $pin.path $pin 'fourth-Horse producer receipt'}
  Assert-KmcChunk7OwnedReceiptPins $set
- [pscustomobject]@{path=$archive;descriptor=$descriptor;artifactPath=$path;artifactSha256=$worldHash;
+ $result=[pscustomobject]@{path=$archive;descriptor=$descriptor;artifactPath=$path;artifactSha256=$worldHash;
   artifactLength=[long](Get-Item -LiteralPath $path).Length;sourceRunId=$producer;
   sourceProcessId=[int]$set.game.processId;receiptPins=$pins;fixtureSetupOnly=$true;nativeAuthorityGranted=$false}
+ if(Test-KmcChunk7FourthHorseSelectorSelection $Selection){
+  # The optionality experiment starts from the nine-actor source whose separate
+  # b179 original game/outer cold PASS has already been admitted. The older
+  # fourth-Horse cold case keeps its own unchanged producer-only gate.
+  $nine=Get-KmcChunk7F09NineActorSource $Fixture
+  Assert-KmcAssistedSame $nine.path $result.path 'selector source accepted nine-actor Manual'
+  Assert-KmcAssistedSame $nine.descriptor $result.descriptor 'selector source accepted native descriptor'
+  Assert-KmcChunk7Boolean $nine.nativeAuthorityGranted $false
+ }
+ $result
 }
