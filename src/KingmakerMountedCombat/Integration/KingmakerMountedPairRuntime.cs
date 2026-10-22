@@ -479,7 +479,10 @@ namespace KingmakerMountedCombat.Integration
             positionAnchor.localRotation = Quaternion.identity;
             positionAnchor.localScale = Vector3.one;
 
-            riderAttachmentLease.Acquire(riderView.transform, positionAnchor);
+            ObserveAttachmentBoundary("acquire-before");
+            try { riderAttachmentLease.Acquire(riderView.transform, positionAnchor); }
+            catch { ObserveAttachmentBoundary("acquire-failed"); throw; }
+            ObserveAttachmentBoundary("acquire-after");
             riderOverride.Configure(
                 mount,
                 positionAnchor,
@@ -562,7 +565,11 @@ namespace KingmakerMountedCombat.Integration
 
                 try
                 {
-                    riderAttachmentLease.Restore();
+                    var observeRestore = riderAttachmentLease.IsAcquired;
+                    if (observeRestore) ObserveAttachmentBoundary("restore-before");
+                    try { riderAttachmentLease.Restore(); }
+                    catch { if (observeRestore) ObserveAttachmentBoundary("restore-failed"); throw; }
+                    if (observeRestore) ObserveAttachmentBoundary("restore-after");
                 }
                 catch (Exception exception)
                 {
@@ -608,6 +615,18 @@ namespace KingmakerMountedCombat.Integration
             // agent/avoidance lease is restored and nav-safe dismount placement is
             // attempted.
             TryReleasePreparedReferences();
+        }
+
+        private void ObserveAttachmentBoundary(string phase)
+        {
+            if (!SixPairAttachmentObservation.IsActive) return;
+            // Even Unity object lookup failure is observational only.
+            try
+            {
+                SixPairAttachmentObservation.Record(phase, rider?.UniqueId, riderView == null ? null : riderView.transform,
+                    riderAttachmentLease.OriginalParent, riderAttachmentLease.OriginalSiblingIndex, positionAnchor);
+            }
+            catch { }
         }
 
         public void RestoreMovementAuthority(MountedPair pair, CleanupTrigger trigger)

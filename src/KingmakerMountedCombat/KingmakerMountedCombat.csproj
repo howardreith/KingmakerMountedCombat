@@ -4,6 +4,7 @@
     <Compile Include="Diagnostics\Chunk7SmallFixtureSelection.cs" />
     <Compile Include="Diagnostics\Chunk7WorldScenarioEngine.ThirdHorse.cs" />
     <Compile Include="Diagnostics\Chunk7WorldScenarioEngine.SixPair.cs" />
+    <Compile Include="Diagnostics\SixPairAttachmentObservation.cs" />
     <Compile Include="Diagnostics\Chunk7WorldScenarioEngine.ThirdHorseManual.cs" />
     <Compile Include="Diagnostics\Chunk7StockMammothFixtureSelection.cs" />
     <Compile Include="Diagnostics\Chunk7StockMammothFixtureScenario.cs" />

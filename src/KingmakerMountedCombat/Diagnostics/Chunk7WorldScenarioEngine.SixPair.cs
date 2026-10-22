@@ -20,6 +20,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private JObject sixObservation, sixSampleBefore;
         private RetainedObjectIdentity sixIdentities;
         private object[] sixPins;
+        private SixPairAttachmentObservation sixAttachmentObservation;
         private static readonly int[] SixSampleActive = { 0, 1, 2, 6, 0 };
         private UnitEntityData SixRider(int index) => inherited.Actors[index * 2];
         private UnitEntityData SixMount(int index) => inherited.Actors[index * 2 + 1];
@@ -36,6 +37,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["performanceAccepted"] = false, ["requestFreeControlsProven"] = false,
                 ["identityScopeReleased"] = false, ["cycles"] = sixCycles, ["samples"] = sixSamples };
             evidence["sixPairStress"] = sixObservation;
+            sixAttachmentObservation = new SixPairAttachmentObservation(Enumerable.Range(0, 6).Select(i => SixRider(i).UniqueId), logger);
             sixCycle = 1; sixIndex = 0; Next(1000);
         }
         private void RequireSixOwnership()
@@ -205,6 +207,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private void ReleaseSixSamplePins()
         {
             if (!SixPairStress) return;
+            sixAttachmentObservation?.Dispose(); sixAttachmentObservation = null;
             sixIdentities?.Dispose(); sixIdentities = null; sixPins = null;
             if (sixObservation != null) sixObservation["identityScopeReleased"] = true;
         }
