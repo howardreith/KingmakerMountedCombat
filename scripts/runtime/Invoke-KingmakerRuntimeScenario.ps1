@@ -278,9 +278,9 @@ if((Test-KmcChunk7OwnedPairsScenario $Scenario)-or(Test-KmcChunk7PersistenceScen
 }
 # The owner-seed kinds (exploration and the owner-seed-derived Manual producer) add their bounded
 # native SETUP phase (ordinary level-ups) before the measured steps.
-if((Test-KmcChunk7OwnedPairsScenario $Scenario)-and((Test-KmcChunk7OwnedPairsOwnerSeed ([pscustomobject]@{ownedPairs=$ownedPairsInput.selection}))-or(Test-KmcChunk7OwnedPairsSeedManual ([pscustomobject]@{ownedPairs=$ownedPairsInput.selection})))){
+if((Test-KmcChunk7OwnedPairsScenario $Scenario)-and((Test-KmcChunk7OwnedPairsOwnerSeed ([pscustomobject]@{ownedPairs=$ownedPairsInput.selection}))-or(Test-KmcChunk7OwnedPairsSeedManual ([pscustomobject]@{ownedPairs=$ownedPairsInput.selection}))-or(Test-KmcChunk7OwnedPairsSmallThirdHorse ([pscustomobject]@{ownedPairs=$ownedPairsInput.selection})))){
     if(-not$PSBoundParameters.ContainsKey('TimeoutSeconds')){$TimeoutSeconds=900}
-    elseif($TimeoutSeconds-ne900){throw 'Owner-seed two-pair exploration requires its declared 900-second outer setup/worker/cleanup budget.'}
+    elseif($TimeoutSeconds-ne900){throw 'Selected ordinary native setup requires its declared 900-second outer setup/worker/cleanup budget.'}
 }
 if(Test-KmcChunk7RepeatedWorldCase $PersistenceCase){
     if($Scenario-cne'chunk7-persistence-load'-and-not((Test-KmcChunk7OwnedPairsScenario $Scenario)-and$ownedPairsInput.selection.case-cin@('persistence-load','owner-seed-persistence-load'))){throw 'Repeated world cases are cold-load only.'}

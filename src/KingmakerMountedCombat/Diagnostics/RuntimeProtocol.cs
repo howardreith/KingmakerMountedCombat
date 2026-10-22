@@ -654,7 +654,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 else if (OwnedPairs.PaidFixtureLineage)
                 {
                     var medium = OwnedPairs.MediumFixtureLineage;
-                    var source = OwnedPairs.IsSmallFixtureSave || OwnedPairs.IsMediumFixtureSave;
+                    var source = OwnedPairs.IsSmallFixtureSave || OwnedPairs.IsSmallThirdHorse || OwnedPairs.IsMediumFixtureSave;
                     var sourceName = medium ? Chunk7SmallFixtureSelection.MediumOutputName : Chunk7SmallFixtureSelection.OutputName;
                     var mountedName = medium ? Chunk7OwnedPairsSelection.MediumFixtureManualName : Chunk7OwnedPairsSelection.SmallFixtureManualName;
                     var nativeName = source ? sourceName : mountedName;

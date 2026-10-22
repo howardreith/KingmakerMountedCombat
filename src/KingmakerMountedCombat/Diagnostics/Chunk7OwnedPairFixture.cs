@@ -200,7 +200,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 party != null && party.Count == 7 &&
                 (int?)field["owners"] == 0 && observations["savedWorld"]?["owners"]?.Value<int>() == 0 &&
                 owners != null && owners.Count == 2 && before != null && after != null && JToken.DeepEquals(before, after) &&
-                (selection.IsSmallFixtureSave || selection.IsMediumFixtureSave ? input.Sha256 == selection.SourceArchiveSha256 :
+                (selection.IsSmallFixtureSave || selection.IsSmallThirdHorse || selection.IsMediumFixtureSave ? input.Sha256 == selection.SourceArchiveSha256 :
                     input.Sha256 != selection.SourceArchiveSha256),
                 "Paid fixture source lacks its exact successful seven-actor zero-pair Manual provenance.");
             var roles = new[] { selection.RiderAId, selection.RiderBId };
@@ -503,6 +503,35 @@ namespace KingmakerMountedCombat.Diagnostics
             Require(replayExpectedLoad == 0 && replayExpectedArea == 0 && !areaAutosavePending && !manticorePending, "Declared native replay still owns inherited fixture custody.");
             if (bound) RequirePreserved();
             identities.Dispose(); released = true;
+        }
+        // The third-Horse diagnostic deliberately changes one story actor after
+        // Release. Retain only immutable source and original-pair custody; the
+        // exact seven-actor arrangement is no longer a valid invariant.
+        internal void RequireReleasedThirdHorseSourceCustody()
+        {
+            Require(bound && released && selection.IsSmallThirdHorse, "Third-Horse source custody is not released.");
+            RequireRequest(); RequireAuthority(); Scope.RequireCurrent();
+            var current = Chunk7NativeFieldRoster.Capture(game.Player);
+            Require(Party.All(actor => current.Count(value => ReferenceEquals(value, actor)) == 1) &&
+                partyCharacters.All(actor => game.Player.PartyCharacters.Count(value => ReferenceEquals(value.Value, actor)) == 1),
+                "An inherited field actor or character was replaced during third-Horse setup.");
+            for (var index = 0; index < 2; index++)
+            {
+                var rider = Actors[index * 2]; var mount = Actors[index * 2 + 1]; var row = ownerRows[index];
+                Require(ReferenceEquals(rider.Descriptor, descriptors[index * 2]) && ReferenceEquals(mount.Descriptor, descriptors[index * 2 + 1]) &&
+                    ReferenceEquals(rider.View, views[index * 2]) && ReferenceEquals(mount.View, views[index * 2 + 1]) &&
+                    ReferenceEquals(rider.Descriptor.Pet, mount) && ReferenceEquals(mount.Descriptor.Master.Value, rider) &&
+                    mount.Blueprint == horses.HorseUnit &&
+                    ReferenceEquals(rider.Descriptor.GetFact(horses.HorseFeature), facts[index]) &&
+                    ReferenceEquals(rider.Descriptor.GetFact(horses.LevelRank), ranks[index]) &&
+                    ((Feature)facts[index]).Source?.AssetGuid == (string)row["sourceGuid"] &&
+                    rider.Descriptor.GetFact(horses.LevelRank).GetRank() == (int)row["rank"],
+                    "An inherited Horse, feature source or rank changed during third-Horse setup.");
+            }
+            var file = new FileInfo(sourcePath);
+            Require(file.Exists && file.Length == sourceLength && file.LastWriteTimeUtc.Ticks == sourceTicks &&
+                Hash(sourcePath) == selection.SourceArtifactSha256,
+                "Qualified inherited source receipt changed during third-Horse setup.");
         }
         private void RequireAuthority(int? observedLoads = null)
         {

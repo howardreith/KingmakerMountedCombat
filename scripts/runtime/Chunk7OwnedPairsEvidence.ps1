@@ -17,6 +17,7 @@ function Get-KmcChunk7SelectedScenario($Request){
   'owner-seed-checkpoint-load'{'chunk7-persistence-load'}
   'small-fixture-persistence-save'{'chunk7-persistence-save'}
   'small-fixture-persistence-load'{'chunk7-persistence-load'}
+  'small-fixture-third-horse-setup'{'chunk7-two-pair-exploration'}
   'medium-fixture-persistence-save'{'chunk7-persistence-save'}
   'medium-fixture-persistence-load'{'chunk7-persistence-load'}
   'owner-seed-load-refusal'{'chunk7-persistence-load'}
@@ -68,14 +69,16 @@ function Get-KmcChunk7OwnedPairsCase($Request){
 function Test-KmcChunk7OwnedPairsSeedManual($Request){(Get-KmcChunk7OwnedPairsCase $Request)-ceq'owner-seed-persistence-save'}
 function Test-KmcChunk7OwnedPairsSmallSave($Request){(Get-KmcChunk7OwnedPairsCase $Request)-ceq'small-fixture-persistence-save'}
 function Test-KmcChunk7OwnedPairsSmallLoad($Request){(Get-KmcChunk7OwnedPairsCase $Request)-ceq'small-fixture-persistence-load'}
-function Test-KmcChunk7OwnedPairsSmall($Request){(Test-KmcChunk7OwnedPairsSmallSave $Request)-or(Test-KmcChunk7OwnedPairsSmallLoad $Request)}
+function Test-KmcChunk7OwnedPairsSmallThirdHorse($Request){(Get-KmcChunk7OwnedPairsCase $Request)-ceq'small-fixture-third-horse-setup'}
+function Test-KmcChunk7OwnedPairsSmall($Request){(Test-KmcChunk7OwnedPairsSmallSave $Request)-or(Test-KmcChunk7OwnedPairsSmallLoad $Request)-or(Test-KmcChunk7OwnedPairsSmallThirdHorse $Request)}
 function Test-KmcChunk7OwnedPairsMediumSave($Request){(Get-KmcChunk7OwnedPairsCase $Request)-ceq'medium-fixture-persistence-save'}
 function Test-KmcChunk7OwnedPairsMediumLoad($Request){(Get-KmcChunk7OwnedPairsCase $Request)-ceq'medium-fixture-persistence-load'}
 function Test-KmcChunk7OwnedPairsMedium($Request){(Test-KmcChunk7OwnedPairsMediumSave $Request)-or(Test-KmcChunk7OwnedPairsMediumLoad $Request)}
 function Assert-KmcChunk7OwnedPairsSmallSelection($Request,$Selection,$Checkpoint){
- $s=$Selection;$cold=Test-KmcChunk7OwnedPairsSmallLoad $Request
+ $s=$Selection;$cold=Test-KmcChunk7OwnedPairsSmallLoad $Request;$third=Test-KmcChunk7OwnedPairsSmallThirdHorse $Request
  Assert-KmcExactProperties $s @('case','sourceRunId','sourceArtifactSha256','sourceArchiveSha256','checkpointSourceRunId','checkpointSourceArtifactSha256','seedId','seedSha256','coldReceiptSha256','riderAId','mountAId','riderBId','mountBId','partyIds','baseGameOnly','expectedNativeLoadCount','expectedNativeWriteCount') 'Small owner-seed-derived persistence selection'
- Assert-KmcBootstrapInventoryString $Checkpoint 'multi-exploration-manual'
+ if($third){if(-not[string]::IsNullOrEmpty($Checkpoint)){throw 'Third-Horse setup has no persistence checkpoint.'}}
+ else{Assert-KmcBootstrapInventoryString $Checkpoint 'multi-exploration-manual'}
  foreach($pair in @(@('sourceRunId','20261020-c7b-world71-b53s1-small'),@('sourceArtifactSha256','9d26bd146970fc53192bf2f28cef8c6655a7c79beb1326c075fec0a5c406e52f'),
   @('sourceArchiveSha256','ddf2b9cf4c0c0a49c93a659d2628ae6622f02e0a400a2df287bd5713f12ed829'),@('seedId','KMC_C7_NO_MODS_OWNER_SEED'),
   @('seedSha256','3405d7c813668ad646788efd746a62c1b16e1438fad1bc4bcbebc961821b924f'),
@@ -94,7 +97,7 @@ function Assert-KmcChunk7OwnedPairsSmallSelection($Request,$Selection,$Checkpoin
   }
  }elseif($null-ne$s.checkpointSourceRunId-or$null-ne$s.checkpointSourceArtifactSha256){throw 'Small producer cannot borrow a checkpoint source.'}
  Assert-KmcChunk7Boolean $s.baseGameOnly $true;Assert-KmcOrdinaryInteger $s.expectedNativeLoadCount 1 1
- $writes=if($cold){0}else{1};Assert-KmcOrdinaryInteger $s.expectedNativeWriteCount $writes $writes
+ $writes=if($cold-or$third){0}else{1};Assert-KmcOrdinaryInteger $s.expectedNativeWriteCount $writes $writes
 }
 function Assert-KmcChunk7OwnedPairsMediumSelection($Request,$Selection,$Checkpoint){
  $s=$Selection;$cold=Test-KmcChunk7OwnedPairsMediumLoad $Request
@@ -250,7 +253,7 @@ function Assert-KmcChunk7OwnedPairsDescriptor($Request){
  }
  if((Test-KmcChunk7OwnedPairsSmall $Request)-or(Test-KmcChunk7OwnedPairsMedium $Request)){
   $medium=Test-KmcChunk7OwnedPairsMedium $Request
-  $producer=(Test-KmcChunk7OwnedPairsSmallSave $Request)-or(Test-KmcChunk7OwnedPairsMediumSave $Request)
+  $producer=(Test-KmcChunk7OwnedPairsSmallSave $Request)-or(Test-KmcChunk7OwnedPairsSmallThirdHorse $Request)-or(Test-KmcChunk7OwnedPairsMediumSave $Request)
   $name=if($medium){if($producer){'KMC_C7_MEDIUM_FIXTURE'}else{'KMC_C7_MEDIUM_WORLD'}}else{if($producer){'KMC_C7_SMALL_FIXTURE'}else{'KMC_C7_SMALL_WORLD'}}
   Assert-KmcBootstrapInventoryString $d.internalName $name
   if($d.fileName-isnot[string]-or$d.fileName-cnotmatch('^Manual_([1-9][0-9]*)_'+$name+'\.zks$')){throw 'Small persistence native Manual name/number is not canonical.'}
