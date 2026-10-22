@@ -1,5 +1,11 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## Active October 21 after reviewed F09 third-Horse source diagnostic
+
+The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active; engineering completion is not reached. The reviewed [third-Horse diagnostic](docs/CHUNK7-F09-THIRD-HORSE-SOURCE-2026-10-21.md) adds an exact batch53 Small Manual, one-load/zero-write path for native XP assistance and four ordinary Ranger UI commits on one story actor while preserving the original two Horses and source custody. Fast 3/0, Small protocol 42/0, inherited reader 690/0 and six synthetic reader positive/negative cases passed. No native scenario, third Horse, derivative save or new transaction has run on this source change.
+
+Next: commit and guarded-push this coherent reviewed change, freeze one candidate/package and append-only suite, run guarded WhatIf and one declared third-Horse diagnostic on a disposable copy under the approved Howie context, then read original game/outer results and settlement. A PASS only proves source-specific in-memory third-Horse setup; conditional six-pair stress, broader F10, F11 normal-player, ordinary door, other 7C/7D and selected private 7E remain open. Do not replay earlier owner-seed setup or treat a synthetic reader case as native evidence.
+
 ## Active October 21 after batch167 exact stock respec readiness PASS
 
 The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active; engineering completion is not reached. [Batch167](docs/CHUNK7-BATCH167-F09-NATIVE-RESPEC-INVENTORY-2026-10-21.md) used reviewed commit `75d695d9`, one new package SHA-256 `b92fdb9d8cddd21b551dec0c3aa836cf954a20851552aec5816fc0ecbaebcf10`, DLL SHA-256 `e86a652a2d450c794b9abdc62a498aa4232234861e873df8c389c22db09f9b7e`, and append-only suite SHA-256 `8f6aa4408887f9b13ae20d700549a306f682459ccccfab80a99fff32eb27915e`. Both suite and runner WhatIf passed; original native game/outer PASS 4/0, one load/zero writes. The three petless level-4 stock companions are selector members and satisfy native respec eligibility despite `CanLevelUp=false`; no respec started. Guarded stage restored Mods/Working/protected saves, with 27 accepted achievement-cache changes rather than exact profile bytes; no game or lock remains.

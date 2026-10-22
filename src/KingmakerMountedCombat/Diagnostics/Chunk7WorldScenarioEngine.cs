@@ -183,6 +183,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (cleanupStarted) { PollCleanup(); return; }
                 nativeScope.RequireCurrent();
                 screenshots?.Pump(Time.frameCount);
+                if (ThirdHorseSetup && step >= 80 && step <= 81) { UpdateThirdHorseSetup(); return; }
                 // Owner-seed SETUP steps carry their own bounded deadlines; the measured
                 // phase below keeps the unchanged historical deadline from SETUP-COMPLETE.
                 if (step >= 50 && step <= 57) { UpdateOwnerSeedSetup(); return; }
@@ -196,7 +197,12 @@ namespace KingmakerMountedCombat.Diagnostics
                     case 1:
                         if (CombatController.IsInTurnBasedCombat()) return;
                         if (OwnerSeed) { BeginOwnerSeedRider(0); Next(50); break; }
-                        if (inherited != null) { inherited.RequirePreserved(); Pass("C7-owned-pairs-inherited-custody"); Next(2); break; }
+                        if (inherited != null)
+                        {
+                            inherited.RequirePreserved(); Pass("C7-owned-pairs-inherited-custody");
+                            if (ThirdHorseSetup) { BeginThirdHorseSetup(); Next(80); break; }
+                            Next(2); break;
+                        }
                         var acquisition = new JObject(); evidence["acquisition"] = acquisition;
                         bool acquired;
                         try { acquired = NativeHorseFixtureAcquisition.Create(secondRider, horses, logger, acquisition); }
@@ -807,6 +813,17 @@ namespace KingmakerMountedCombat.Diagnostics
             { RetainCleanup("A native load or archive worker still owns this world."); return; }
             if (OwnerSeedManual && !TryCleanup("owner-seed Manual save custody", () => Require(OwnerSeedManualCleanupReady(), "The owner-seed native Manual save scope or its observers have not settled.")))
             { RetainCleanup("The owner-seed native Manual save still owns this world."); return; }
+            if (ThirdHorseSetup && thirdDriver != null && !thirdDriver.Complete)
+            {
+                if (thirdCancellation == null)
+                    thirdCancellation = new Chunk7NativeBuilderCancellation(Game.Instance.UI.CharacterBuildController,
+                        () => { nativeScope.RequireCurrent(); RequireThirdHorseOriginals(); },
+                        () => LoadingProcess.Instance.IsLoadingInProcess || LoadingProcess.Instance.QueuedNames.Any() || NativePersistenceIsolation.HasPendingWrites);
+                var cancelled = false;
+                if (!TryCleanup("third-Horse native builder cancellation", () => cancelled = thirdCancellation.TryDrain()))
+                { RetainCleanup("Third-Horse native builder cancellation retains custody."); return; }
+                if (!cancelled) { RetainCleanup("Third-Horse native builder cancellation is pending."); return; }
+            }
             if (!TryCleanup("captured native world", () => {
                 Require(nativeScope != null, "Captured native world authority is absent."); nativeScope.RequireCurrent();
             })) { RetainCleanup("Captured native world, area or actor identity changed."); return; }
@@ -850,19 +867,24 @@ namespace KingmakerMountedCombat.Diagnostics
                     })) };
             // The temporary progression fact owns the pet entity. Remove it only
             // after every issued native process and pair lease has truly ended.
-            if (inherited == null && !OwnerSeed && secondRider != null && horseFeature != null)
+            if (inherited == null && !OwnerSeed && !ThirdHorseSetup && secondRider != null && horseFeature != null)
                 TryCleanup("Horse feature", () => {
                     Require(secondRider.Descriptor.Pet == null || ReferenceEquals(secondRider.Descriptor.Pet, secondMount),
                         "Cleanup refuses to remove a replaced companion.");
                     secondRider.Descriptor.Progression.Features.RemoveFact(horseFeature); horseFeature = null;
                 });
-            if (inherited == null && !OwnerSeed && secondRider != null && rankFeature != null)
+            if (inherited == null && !OwnerSeed && !ThirdHorseSetup && secondRider != null && rankFeature != null)
                 TryCleanup("owned companion rank", () => { secondRider.Descriptor.Progression.Features.RemoveFact(rankFeature); rankFeature = null; });
             var entitiesDrained = TryCleanup("native entity drain", () => Game.Instance.EntityDestroyer.Tick());
             var inheritedClean = inherited != null && TryCleanup("inherited native facts", inherited.RequirePreserved);
             // Owner-seed setup progression and Horses are retained (in memory only; zero writes).
             var ownerSeedClean = OwnerSeed && TryCleanup("owner-seed setup custody", () => Require(OwnerSeedCleanupReady(), "Owner-seed native build session or setup Horses have not settled."));
-            var horseClean = inherited != null ? inheritedClean : OwnerSeed ? ownerSeedClean : horseFeature == null && rankFeature == null && (secondMount == null ||
+            var thirdHorseClean = ThirdHorseSetup && TryCleanup("third Horse native setup custody", () => {
+                if (!thirdSourceReleased) inherited?.RequirePreserved();
+                else if (thirdSetupCompleted) RequireThirdHorseSetupPreserved();
+                else RequireThirdHorseOriginals();
+            });
+            var horseClean = ThirdHorseSetup ? thirdHorseClean : inherited != null ? inheritedClean : OwnerSeed ? ownerSeedClean : horseFeature == null && rankFeature == null && (secondMount == null ||
                 !secondMount.IsInState && !Game.Instance.State.Units.Contains(secondMount) &&
                 !Game.Instance.Player.ControllableCharacters.Contains(secondMount) && secondRider.Descriptor.Pet == null);
             if (!entitiesDrained || !horseClean) { RetainCleanup("The owned Horse entity or progression facts have not settled."); return; }
@@ -882,10 +904,10 @@ namespace KingmakerMountedCombat.Diagnostics
             else Require(ReferenceEquals(firstRider.Descriptor.Pet, firstMount) && ReferenceEquals(firstMount.Descriptor.Master.Value, firstRider),
                 "Original Mammoth ownership was not restored.");
             if (inherited != null) evidence["inheritedCleanup"] = inherited.Capture("cleanup");
-            evidence["cleanup"] = new JObject { ["pairResidueAbsent"] = pairClean, ["horseRemoved"] = inherited == null && !OwnerSeed && horseClean, ["inheritedPetsPreserved"] = inherited != null && inheritedClean,
+            evidence["cleanup"] = new JObject { ["pairResidueAbsent"] = pairClean, ["horseRemoved"] = inherited == null && !OwnerSeed && !ThirdHorseSetup && horseClean, ["inheritedPetsPreserved"] = ThirdHorseSetup && thirdHorseClean || inherited != null && inheritedClean,
                 ["controlsSettled"] = !controls.HasUnsettledRelationshipTransition, ["settingsAndSelectionRestored"] = true,
                 ["nativeProcessesSettled"] = NativeCommandsSettled(), ["cleanupCustodySettled"] = true,
-                ["nativeProgressionRequiresExternalWorkingRestoration"] = inherited == null && !OwnerSeed,
+                ["nativeProgressionRequiresExternalWorkingRestoration"] = inherited == null && !OwnerSeed && !ThirdHorseSetup,
                 ["ordinaryRespecProven"] = false, ["nativeSaveWritten"] = OwnerSeedManualWritten,
                 ["world"] = CaptureWorld("cleanup"), ["partyAfter"] = new JArray((OwnerSeed ? OwnerSeedRoster() : PartyActors()).Select(CaptureRig)),
                 ["selectionBefore"] = new JArray(originalSelection.Select(x => x.UniqueId)),
@@ -907,13 +929,13 @@ namespace KingmakerMountedCombat.Diagnostics
             evidence["combatOrPersistenceProof"] = false;
             evidence["thirdUnrelatedActorProven"] = false;
             // The owner-seed Manual producer measures no matched pool and publishes no sidecar.
-            Require(matched.Complete || errors.Count != 0 || OwnerSeedManual, "Successful exploration lacks its separate matched-pool observation.");
+            Require(matched.Complete || errors.Count != 0 || OwnerSeedManual || ThirdHorseSetup, "Successful exploration lacks its separate matched-pool observation.");
             if (!worldEvidenceWritten)
             {
                 RuntimeLoaderInventory.WriteArtifact(request, EvidenceFileName, EvidenceKind, errors.Count == 0 ? "PASS" : "FAIL", evidence, errors);
                 worldEvidenceWritten = true;
             }
-            if (!OwnerSeedManual) WriteMatchedPoolEvidence();
+            if (!OwnerSeedManual && !ThirdHorseSetup) WriteMatchedPoolEvidence();
             completed = true;
         }
         internal bool DrainForHost()

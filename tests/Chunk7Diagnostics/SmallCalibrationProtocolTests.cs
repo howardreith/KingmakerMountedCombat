@@ -25,6 +25,17 @@ internal static class SmallCalibrationProtocolTests {
   tests.Run("Small mounted cold selection refuses seed as producer",()=>{var s=SmallMountedSelection(true);s.CheckpointSourceRunId=s.SeedId;TestRunner.True(s.Validate(Chunk7OwnedPairsSelection.Scenario,"small-cold-run","multi-exploration-manual").Count>0,"Seed alias accepted as cold producer.");});
   tests.Run("Small mounted save request accepts exact F09 descriptor",()=>TestRunner.Equal(0,SmallMountedRequest(false).Validate().Count,"Qualified mounted save request refused."));
   tests.Run("Small mounted cold request accepts distinct mounted Manual",()=>TestRunner.Equal(0,SmallMountedRequest(true).Validate().Count,"Qualified mounted cold request refused."));
+  tests.Run("third-Horse setup admits exact unmounted Small source with zero writes",()=>{
+   var r=SmallThirdHorseRequest();TestRunner.Equal(0,r.Validate().Count,"Exact third-Horse setup request refused.");
+   TestRunner.Equal("chunk7-two-pair-exploration",r.SelectedChunk7Scenario,"Third-Horse setup routed through another native host.");
+  });
+  foreach(var bad in new[]{"checkpoint","write","cold-source","foreign-source"})
+   tests.Run("third-Horse setup refuses "+bad,()=>{var r=SmallThirdHorseRequest();switch(bad){
+    case "checkpoint":r.PersistenceCase="multi-exploration-manual";break;
+    case "write":r.OwnedPairs.ExpectedNativeWriteCount=1;break;
+    case "cold-source":r.PersistenceLoad.InternalName=Chunk7OwnedPairsSelection.SmallFixtureManualName;r.PersistenceLoad.FileName="Manual_305_KMC_C7_SMALL_WORLD.zks";break;
+    case "foreign-source":r.PersistenceLoad.Sha256=new string('8',64);break;
+   }TestRunner.True(r.Validate().Count>0,"Third-Horse setup accepted altered source or authority.");});
   tests.Run("Small mounted request refuses out-of-range source Manual",()=>{var r=SmallMountedRequest(false);r.PersistenceLoad.FileName="Manual_2147483648_KMC_C7_SMALL_FIXTURE.zks";TestRunner.True(r.Validate().Count>0,"Out-of-range source Manual admitted.");});
   tests.Run("Small mounted request refuses out-of-range cold Manual",()=>{var r=SmallMountedRequest(true);r.PersistenceLoad.FileName="Manual_2147483648_KMC_C7_SMALL_WORLD.zks";TestRunner.True(r.Validate().Count>0,"Out-of-range cold Manual admitted.");});
   tests.Run("Non-Small owned request refuses F09 cold receipt",()=>{var r=SmallMountedRequest(false);r.OwnedPairs.Case="persistence-save";TestRunner.True(r.Validate().Any(e=>e=="Only paid fixture persistence carries an accepted cold receipt."),"Historical family accepted Small-only receipt.");});
@@ -57,6 +68,10 @@ internal static class SmallCalibrationProtocolTests {
    cold?new string('7',64):Chunk7OwnedPairsSelection.SmallFixtureProducerArchive);
   r.PersistenceLoad.GameId=Chunk7SmallFixtureSelection.CampaignId;r.PersistenceLoad.GameName=Chunk7SmallFixtureSelection.CampaignName;
   r.PersistenceLoad.Area=Chunk7SmallFixtureSelection.AreaId;return r;}
+ private static RuntimeRequest SmallThirdHorseRequest(){var r=SmallMountedRequest(false);
+  r.RunId="small-third-horse-run";r.PersistenceCase=null;
+  r.OwnedPairs.Case=Chunk7OwnedPairsSelection.SmallThirdHorseCase;
+  r.OwnedPairs.ExpectedNativeWriteCount=0;return r;}
  private static RuntimeRequest MediumMountedRequest(bool cold){var r=FieldRequest();r.RunId=cold?"medium-cold-run":"medium-save-run";
   r.Scenario=Chunk7OwnedPairsSelection.Scenario;r.OrdinaryField=null;r.PersistenceCase="multi-exploration-manual";
   r.OwnedPairs=new Chunk7OwnedPairsSelection{Case=cold?Chunk7OwnedPairsSelection.MediumFixtureLoadCase:Chunk7OwnedPairsSelection.MediumFixtureSaveCase,
