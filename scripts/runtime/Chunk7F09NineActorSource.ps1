@@ -74,3 +74,60 @@ function Get-KmcChunk7F09NineActorSource($Fixture){
   petlessSpecialBodyActorId=$linzi[0].id;nativeFreeFieldCharacterSlots=1
   nativeHireCostNow=18000;fixtureSetupOnly=$true;nativeAuthorityGranted=$false}
 }
+
+# Batch180 observes an opened selector on the same immutable four-Horse Manual.
+# It proves only that Linzi is optional in that exact world. No roster operation
+# or paid-hire authority is inferred from a read-only observation.
+function Get-KmcChunk7F09SelectorOptionalitySource($Fixture){
+ $run='20261022-c7b-world180-b180s1-fourthhorse-selector'
+ $artifactHash='985101587995147c4a548b6f81ed6c88837cc54ac39f3ca22b8352a32afb2e96'
+ $gameHash='d5f89642eb0660e494b42c3534412c52352da85d7631d1a856f63e62b3e83dd3'
+ $outerHash='48e44ca5a4386abded6611eea786137dec601bd97512b93c662cd16d364881f0'
+ $nine=Get-KmcChunk7F09NineActorSource $Fixture
+ $set=Get-KmcChunk7OwnedReceiptSet $run 'chunk7-assisted-cold-inventory-evidence.json';$r=$set.request
+ $recorded=Get-KmcChunk7RecordedCandidate $r
+ Assert-KmcBootstrapInventoryString $r.scenario 'chunk7-assisted-cold-inventory'
+ Assert-KmcBootstrapInventoryString $r.assistedColdInventory.case 'fourth-horse-open-selector-inventory'
+ Assert-KmcChunk7AssistedColdInventoryDescriptor $r
+ if((ConvertTo-KmcChunk7Canonical $r.persistenceLoad)-cne(ConvertTo-KmcChunk7Canonical $nine.descriptor)){
+  throw 'Selector observation substituted the four-Horse native Manual.'
+ }
+ foreach($key in @('sourceRunId','sourceArtifactSha256','sourceArchiveSha256')){
+  $expected=switch($key){
+   'sourceRunId'{$nine.producerRunId}
+   'sourceArtifactSha256'{$nine.producerArtifactSha256}
+   'sourceArchiveSha256'{$nine.descriptor.sha256}
+  }
+  Assert-KmcBootstrapInventoryString $r.assistedColdInventory.$key $expected
+ }
+ Assert-KmcChunk7Boolean $r.assistedColdInventory.baseGameOnly $true
+ Assert-KmcOrdinaryInteger $r.assistedColdInventory.expectedNativeLoadCount 1 1
+ Assert-KmcOrdinaryInteger $r.assistedColdInventory.expectedNativeWriteCount 0 0
+ Assert-KmcChunk7OwnedSourceCompletion $set $run 'chunk7-assisted-cold-inventory' $Fixture $recorded $nine.descriptor.sha256 0
+ foreach($pair in @(@('runtime-result.json',$outerHash),@('runtime-game-result.json',$gameHash),
+   @('chunk7-assisted-cold-inventory-evidence.json',$artifactHash))){
+  Assert-KmcBootstrapInventoryString $set.pins[(Join-Path $set.root $pair[0])] $pair[1]
+ }
+ Assert-KmcChunk7AssistedColdInventoryArtifact $r $set.manifest 'PASS'
+ $a=Read-KmcChunk7ManifestArtifact $r $set.manifest 'chunk7-assisted-cold-inventory-evidence.json' 'chunk7-assisted-cold-inventory-evidence'
+ $o=$a.observations;$p=$o.selectorProbe
+ Assert-KmcBootstrapInventoryString $o.source.archiveSha256 $nine.descriptor.sha256
+ Assert-KmcBootstrapInventoryString $o.source.runId $nine.producerRunId
+ Assert-KmcAssistedSame @($o.loadedWorld.party.id) $nine.rosterIds 'selector observed nine-actor roster'
+ Assert-KmcBootstrapInventoryString $p.contract 'installed-native-open-selector-optionality-v1'
+ Assert-KmcBootstrapInventoryString $p.actorId $nine.petlessSpecialBodyActorId
+ Assert-KmcBootstrapInventoryString $p.action 'native-ShowPartySelection'
+ foreach($key in @('openCount','closeCount')){Assert-KmcOrdinaryInteger $p.$key 1 1}
+ foreach($key in @('switchCount','goCount')){Assert-KmcOrdinaryInteger $p.$key 0 0}
+ foreach($key in @('activeInHierarchy','closed','eligibleForNativeRemoval')){Assert-KmcChunk7Boolean $p.$key $true}
+ foreach($key in @('mainCharacter','lockedCompanion','mustBeInParty','requiredByOpenedSelector')){Assert-KmcChunk7Boolean $p.$key $false}
+ if([double]$p.readyAlpha-ne1){throw 'Native selector was not fully ready at its optionality observation.'}
+ Assert-KmcAssistedSame @($p.selectedActorIds) $nine.characterIds 'selector preserved selected character roster'
+ Assert-KmcOrdinaryInteger $set.game.loadRequestCount 1 1
+ Assert-KmcOrdinaryInteger $set.game.saveRequestCount 0 0
+ Assert-KmcChunk7OwnedReceiptPins $set
+ [pscustomobject][ordered]@{nineActorSource=$nine;selectorRunId=$run;selectorArtifactSha256=$artifactHash
+  selectorGameSha256=$gameHash;selectorOuterSha256=$outerHash;optionalActorId=$p.actorId
+  eligibleForNativeRemoval=$true;nativeRosterTransitionProven=$false
+  fixtureSetupOnly=$true;nativeAuthorityGranted=$false}
+}

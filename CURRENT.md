@@ -5,7 +5,9 @@ passed game and original outer 5/0 on a separate disposable load of the genuine
 fourth-Horse Manual. Linzi is optional in the opened native selector
 (`MustBeInParty=false`), which establishes a feasible sixth-rider roster route
 but does not perform removal. One load, zero saves, zero roster switches/Go;
-run, save, Mods and profile bytes restored exactly. The fifth paid Horse in
+run, save, Mods and profile bytes restored exactly. The reviewed read-only
+selector source gate passed actual-receipt and changed-anchor checks 4/0 and
+grants no native build authority. The fifth paid Horse in
 the open slot, actual sixth selector transition/paid hire, their Manual/cold
 preservation and conditional six-pair stress remain **IN PROGRESS**.
 
