@@ -1,6 +1,17 @@
 # Chunk 7B–7D — IN PROGRESS
 
-Claude's [batch190 preparation](docs/CHUNK7-B190-SIX-PAIR-SAMPLER-CUSTODY-2026-10-22.md)
+Claude [batch190](docs/CHUNK7-BATCH190-SIX-PAIR-MEASUREMENT-PASS-2026-10-22.md) passed one
+declared zero-write six-pair lifecycle on frozen candidate `c7b-world190-sixmeasure`
+(`62a68e64`): game 6/0, outer PASS, 36 native casts and 0 refusals, sibling order verified after
+all three cycles. With full custody moved to window boundaries, the per-state KMC Update medians
+were 0.294/0.339/0.404/0.486/0.290 ms at 0/1/2/6/0 active pairs, against about 5 ms in batch188.
+The pair phase was unchanged at 0.003–0.173 ms, so batch188's extra ~4.7 ms was the observer's
+own work. This is F11 development evidence with an automation request present;
+`performanceAccepted` stays false. Restoration was exact with zero cache changes; no game or
+lock remains. Next: SHOULD-FIX 3, then the remaining F10/F11/door work and private 7E.
+Standing mission remains IN PROGRESS.
+
+Historical batch190 preparation checkpoint: Claude's [batch190 preparation](docs/CHUNK7-B190-SIX-PAIR-SAMPLER-CUSTODY-2026-10-22.md)
 moves the six-pair observer's full inherited custody out of the measured frames. That check
 re-hashes the 183 KB staged receipt and rebuilds roster and progression on every frame; it now
 runs at each sampling window's boundaries, as the two-pair matched pool already does. The

@@ -1,6 +1,27 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
-## Active October 22 — Claude batch190 preparation: six-pair sampler custody
+## Active October 22 — Claude after batch190
+
+Read the [batch190 PASS record](docs/CHUNK7-BATCH190-SIX-PAIR-MEASUREMENT-PASS-2026-10-22.md),
+the [batch189 PASS record](docs/CHUNK7-BATCH189-SIX-MOUNTED-MANUAL-COLD-PASS-2026-10-22.md)
+and the [standing mission](planning/CHUNK7-COMPLETION-MISSION.md).
+
+Batch190 passed one zero-write six-pair lifecycle on frozen candidate
+`c7b-world190-sixmeasure` (`62a68e64`), with exact restoration. Its six-pair KMC Update
+medians were 0.294/0.339/0.404/0.486/0.290 ms at 0/1/2/6/0 pairs. That is F11 development
+evidence, not acceptance. No Kingmaker process, lock or pending recovery remains, and HEAD is
+no longer frozen.
+
+Next uncompleted action:
+1. Commit and guarded-push the batch190 record.
+2. SHOULD-FIX 3: feed the unattended exit's FAIL result through the full
+   `Test-RuntimeGameResult.ps1` offline, on real six-pair artifacts.
+3. Remaining F10/F11/doors work, then private 7E.
+
+No merge, release, permanent installation or HUMAN PLAY acceptance. Private execution
+note: analysis-cache/chunk7-continuation/b188-claude-current-execution.md.
+
+## Historical October 22 — Claude batch190 preparation: six-pair sampler custody
 
 Read the [batch190 preparation](docs/CHUNK7-B190-SIX-PAIR-SAMPLER-CUSTODY-2026-10-22.md),
 the [batch189 PASS record](docs/CHUNK7-BATCH189-SIX-MOUNTED-MANUAL-COLD-PASS-2026-10-22.md)
