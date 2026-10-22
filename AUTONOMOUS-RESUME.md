@@ -1,6 +1,25 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
-## Active October 22 — batch183 native departure settled
+## Active October 22 — sixth paid Horse implementation, before native batch184
+
+The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
+The [batch184 sixth-hire implementation](docs/CHUNK7-BATCH184-SIXTH-HORSE-MANUAL-2026-10-22.md)
+has independent source/safety review and focused offline PASS. General source
+routing and the mandatory copy closure passed 18/0. Candidate passed 7/0 before
+the final reviewed price correction; affected admission/reader passed 86/0
+and 22/0. That correction preserves source price 12,500, then captures the
+native post-departure price (expected 18,000 from exact installed getters)
+before any paid input. Its compilation is pending in the clean package build.
+No batch184 native run, game or transaction has started. Next:
+commit/guarded-push, freeze one package/current-state suite and pass the scoped
+WhatIf before declaring the single sixth paid Manual scenario. Use fresh
+unchanged batch181 Manual_307; repeat the real Linzi departure before paid
+choices, preserve all original progression, then write distinct Manual_308
+`KMC_C7_SIX_HORSE_WORLD`. Separate cold qualification and mounted six-pair
+stress follow only their actual prerequisites. Continue remaining 7C/7D and
+private 7E; no completion or owner acceptance claim.
+
+## Historical October 22 — batch183 native departure settled
 
 The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
 [Batch183](docs/CHUNK7-BATCH183-LINZI-NATIVE-DEPARTURE-2026-10-22.md) ran one

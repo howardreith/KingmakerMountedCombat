@@ -61,7 +61,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 };
                 if (request.Scenario == Chunk7ManualDerivedSelection.Scenario)
                     entries.Add(new PersistenceSaveEntry { FileName = request.ManualDerived.NativeWriteLeaf,
-                        InternalName = Chunk7ManualDerivedSelection.ManualOutputName, SaveType = "Manual", Area = fixture.Area, Writable = true });
+                        InternalName = request.ManualDerived.SelectedOutputName, SaveType = "Manual", Area = fixture.Area, Writable = true });
                 if (request.Scenario == Chunk7CumulativeAcquisitionSelection.Scenario)
                     entries.Add(new PersistenceSaveEntry {
                         FileName = request.CumulativeAcquisition.NativeWriteLeaf,

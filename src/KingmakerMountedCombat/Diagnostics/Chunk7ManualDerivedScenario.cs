@@ -96,7 +96,7 @@ namespace KingmakerMountedCombat.Diagnostics
             evidence["selection"] = Chunk7EvidenceDto.Request(cumulative == null ? (object)selection : cumulative);
             evidence["source"] = new JObject { ["runId"] = selection.SourceRunId, ["artifactSha256"] = selection.SourceArtifactSha256,
                 ["archiveSha256"] = selection.SourceArchiveSha256, ["archiveLeaf"] = request.PersistenceLoad.FileName,
-                ["sameCandidate"] = !selection.UsesF09FourHorseCold, ["diagnosticArchiveContentRead"] = false };
+                ["sameCandidate"] = !selection.UsesF09FourHorseCold && !selection.UsesF09FiveHorseCold, ["diagnosticArchiveContentRead"] = false };
             evidence["sourceNativeWorld"] = sourceWorld.DeepClone();
             evidence["sourceManualObservations"] = sourceObservations.DeepClone();
             CaptureAssistedCumulativeSource();
@@ -120,6 +120,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 Require(clock.Elapsed.TotalSeconds <= 1005, "Cold inventory exceeded its bounded native load/readiness window.");
                 if (Busy()) return;
                 if (!admitted) Require(clock.Elapsed.TotalSeconds <= 300, "Initial Manual cold load/readiness exceeded its bounded window.");
+                if (admitted && sixthDeparture != null && !buildStarted) { TickSixthDeparture(); return; }
                 if (admitted && buildStarted) { TickBuild(); return; }
                 Require(authority.AdmittedNativeLoadRequests == 1 && authorization.AuthorizedLoadCount == 1 &&
                     probe != null && probe.Complete && ReferenceEquals(probe.ObservedPlayer, game.Player),
@@ -226,7 +227,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     ["actorId"] = value.UniqueId, ["blueprintGuid"] = value.Blueprint.AssetGuid, ["isMain"] = ReferenceEquals(value, main),
                     ["lockedCompanionComponent"] = value.Blueprint.GetComponent<Kingmaker.Blueprints.LockedCompanionComponent>() != null })) };
 
-            if (cumulative != null || selection.UsesOwnerSeedCold || selection.UsesF09FourHorseCold)
+            if (cumulative != null || selection.UsesOwnerSeedCold || selection.UsesF09FourHorseCold || selection.UsesF09FiveHorseCold)
                 result["staticPartyFacts"]["observationScope"] = "static-getters-only";
 
             var saves = manager.Take(33).ToArray();
@@ -262,7 +263,7 @@ namespace KingmakerMountedCombat.Diagnostics
             sourceLength = source.Length; sourceTicks = source.LastWriteTimeUtc.Ticks; archiveLength = archive.Length; archiveTicks = archive.LastWriteTimeUtc.Ticks; sourcePinned = true;
             var artifact = JObject.Parse(File.ReadAllText(sourcePath)); sourceObservations = artifact["observations"] as JObject;
             if (selection.UsesOwnerSeedCold) { ReadOwnerSeedColdSource(artifact); return; }
-            if (selection.UsesF09FourHorseCold) { ReadF09FourHorseColdSource(artifact); return; }
+            if (selection.UsesF09FourHorseCold || selection.UsesF09FiveHorseCold) { ReadF09HorseColdSource(artifact); return; }
             Require((string)artifact["runId"] == selection.SourceRunId && (string)artifact["scenario"] == Chunk7ManualSeedSelection.Scenario &&
                 (string)artifact["evidenceKind"] == Chunk7ManualSeedScenario.EvidenceKind && (string)artifact["status"] == "PASS" &&
                 artifact["errors"] is JArray sourceErrors && sourceErrors.Count == 0 &&
@@ -317,7 +318,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 "Cold inventory encountered a refused native boundary.");
             if (admitted)
             {
-                if (buildStarted && Busy()) RequireWorldReferences();
+                if (buildStarted && Busy() || cleanupOnly && selection.UsesF09FiveHorseCold) RequireWorldReferences();
                 else RequireWorld();
             }
             if (!cleanupOnly && !Busy()) RequireCumulativeValues();
@@ -338,10 +339,19 @@ namespace KingmakerMountedCombat.Diagnostics
             Require(current.All(actor => actor != null) && current.Select(actor => actor.UniqueId).Distinct(StringComparer.Ordinal).Count() == current.Length,
                 "Native party contains null or duplicate actor identities.");
             for (var i = 0; i < actors.Length; i++)
+            {
+                if (IsDepartedSourceActor(actors[i]))
+                {
+                    Require(!current.Any(actor => ReferenceEquals(actor, actors[i])) && ReferenceEquals(actors[i].Descriptor, descriptors[i]),
+                        "The declared remote source actor re-entered the field or changed descriptor.");
+                    continue;
+                }
                 Require(current.Count(actor => ReferenceEquals(actor, actors[i])) == 1 && ReferenceEquals(actors[i].Descriptor, descriptors[i]) &&
                     ReferenceEquals(actors[i].View, views[i]) && actors[i].IsInState && actors[i].IsInGame,
                     "Admitted original actor, descriptor or view was replaced.");
+            }
             RequireAcquiredActor();
+            RequireSixthRoster();
             Require(current.All(actor => actors.Any(original => ReferenceEquals(actor, original)) ||
                 ReferenceEquals(actor, acquiredActor) || ReferenceEquals(actor, acquiredPet)),
                 "An unrelated actor entered the admitted native party.");
@@ -369,7 +379,7 @@ namespace KingmakerMountedCombat.Diagnostics
             ["mainActorId"] = game.Player.MainCharacter.Value.UniqueId, ["area"] = game.CurrentlyLoadedArea.AssetGuidThreadSafe,
             ["mode"] = game.CurrentMode.ToString(), ["cutscene"] = game.CutsceneLock, ["inCombat"] = game.Player.IsInCombat,
             ["nativeLoading"] = Busy(), ["authority"] = AuthoritySnapshot(),
-            ["party"] = new JArray(actors.Select(actor => new JObject { ["id"] = actor.UniqueId, ["blueprint"] = actor.Blueprint.AssetGuid,
+            ["party"] = new JArray(actors.Where(actor => !IsDepartedSourceActor(actor)).Select(actor => new JObject { ["id"] = actor.UniqueId, ["blueprint"] = actor.Blueprint.AssetGuid,
                 ["object"] = probe.Identity(actor), ["descriptor"] = probe.Identity(actor.Descriptor), ["view"] = probe.Identity(actor.View),
                 ["isInGame"] = actor.IsInGame, ["isInState"] = actor.IsInState, ["commandsEmpty"] = actor.Commands.Empty })),
             ["owners"] = world.Registry.Owners.Length, ["slots"] = controls.CapturePersistentSlots().Length,

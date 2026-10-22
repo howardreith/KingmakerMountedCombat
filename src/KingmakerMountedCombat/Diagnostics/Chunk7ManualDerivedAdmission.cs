@@ -20,6 +20,8 @@ namespace KingmakerMountedCombat.Diagnostics
         internal bool TargetLiving, TargetIsPet, TargetHasPet, TargetHasDualCompanion, TargetInField, TargetIdle, TargetCanLevelUp;
         internal bool ExactSmallCatalogueMember;
         internal bool ExactMediumBodyMember;
+        internal bool NativeDepartureCompleted;
+        internal int NativeDepartureHireCost;
     }
     internal static class Chunk7ManualDerivedAdmission
     {
@@ -31,10 +33,19 @@ namespace KingmakerMountedCombat.Diagnostics
             if (actual == null) { errors.Add("Fresh native readiness observation is missing."); return errors; }
             if (errors.Count != 0) return errors;
             var pins = selection.Readiness;
+            // Pins always describe the unchanged six-character input. Only the
+            // owning scenario can supply completion of the exact native selector
+            // operation; a caller cannot request a projected roster as input.
+            var expectedParty = selection.UsesF09FiveHorseCold
+                ? pins.PartyCharacterIds.Where(id => id != Chunk7ManualDerivedSelection.F09DepartureActorId).ToArray()
+                : pins.PartyCharacterIds;
+            if (selection.UsesF09FiveHorseCold && (!actual.NativeDepartureCompleted || actual.NativeDepartureHireCost <= 0 ||
+                actual.NativeHireCost != actual.NativeDepartureHireCost))
+                errors.Add("The declared native field departure and retained native hire-price observation are required.");
             if (actual.MainActorId != pins.MainActorId || actual.MainLevel != pins.MainLevel || actual.MainExperience != pins.MainExperience ||
                 actual.Money != pins.Money || actual.ExperienceRatePercent != pins.ExperienceRatePercent ||
-                actual.NativeHireCost != pins.NativeHireCost || actual.DefaultHireExperience != pins.DefaultHireExperience ||
-                actual.PartyCharacterIds == null || !actual.PartyCharacterIds.OrderBy(value => value, StringComparer.Ordinal).SequenceEqual(pins.PartyCharacterIds))
+                (!selection.UsesF09FiveHorseCold && actual.NativeHireCost != pins.NativeHireCost) || actual.DefaultHireExperience != pins.DefaultHireExperience ||
+                actual.PartyCharacterIds == null || !actual.PartyCharacterIds.OrderBy(value => value, StringComparer.Ordinal).SequenceEqual(expectedParty))
                 errors.Add("Live native readiness differs from the qualified source pins.");
             var table = actual.XpThresholds;
             if (table == null || table.Length != 21 || table.Any(value => value < 0) ||
@@ -46,7 +57,7 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 if (actual.MainLevel < Chunk7ManualDerivedSelection.RangerAcquisitionLevel ||
                     ReadyLevel(table, actual.DefaultHireExperience) < Chunk7ManualDerivedSelection.RangerAcquisitionLevel ||
-                    actual.NativeHireCost <= 0 || actual.Money < actual.NativeHireCost || pins.PartyCharacterIds.Length >= 6 ||
+                    actual.NativeHireCost <= 0 || actual.Money < actual.NativeHireCost || expectedParty.Length >= 6 ||
                     (selection.Case == Chunk7ManualDerivedSelection.PaidSmallCase ? !actual.ExactSmallCatalogueMember : !actual.ExactMediumBodyMember))
                     errors.Add("A legal paid hire lacks attained level, funds, its exact declared body or a native field slot.");
             }

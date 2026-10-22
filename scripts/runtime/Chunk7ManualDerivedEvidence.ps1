@@ -9,9 +9,9 @@ function Get-KmcChunk7OwnerSeedAcquisitionProjection($Observations){
  [pscustomobject]@{fixtureReadiness=$Observations.fixtureReadiness;nativeProfileInventory=$Observations.nativeProfileInventory;
   afterSaveArrangement=[pscustomobject]@{money=$world.nativeMoney;experienceRatePercent=$Observations.fixtureReadiness.experienceRatePercent;actors=$actors}}
 }
-function Assert-KmcF09PriorHorseRetention($SourceWorld,$Facts,$Observed){
+function Assert-KmcF09PriorHorseRetention($SourceWorld,$Facts,$Observed,[int]$ExpectedCount=4){
  $before=@($Observed.f09PriorHorsesBefore);$after=@($Observed.f09PriorHorsesAfter);$facts=@($Facts)
- if($before.Count-ne4-or$after.Count-ne4-or$facts.Count-ne4-or
+ if($before.Count-ne$ExpectedCount-or$after.Count-ne$ExpectedCount-or$facts.Count-ne$ExpectedCount-or
   (ConvertTo-KmcChunk7Canonical $before)-cne(ConvertTo-KmcChunk7Canonical $after)){
   throw 'F09 native four-Horse references were not retained through the new Manual.'
  }
@@ -36,6 +36,12 @@ function Assert-KmcF09PriorHorseRetention($SourceWorld,$Facts,$Observed){
 function Test-KmcChunk7ManualDerivedScenario([string]$Scenario){$Scenario-ceq'chunk7-manual-derived-acquisition'}
 function Get-KmcChunk7ManualDerivedRows {@('chunk7-manual-derived-acquisition','C7-manual-derived-source','C7-manual-derived-native-load','C7-manual-derived-eligibility','C7-manual-derived-native-choices','C7-manual-derived-native-field','C7-manual-derived-native-manual-save','C7-manual-derived-cleanup','C7-manual-derived-runtime','C7-manual-derived-interrupted')}
 function Test-KmcManualDerivedPaidCase([string]$Case){$Case-ceq'paid-small-ranger-horse'-or$Case-ceq'paid-medium-ranger-horse'}
+function Test-KmcManualDerivedSixthHire($Selection){$Selection.nativeWriteLeaf-ceq'Manual_308_KMC_C7_SIX_HORSE_WORLD.zks'}
+function Get-KmcManualDerivedOutputName($Selection){if(Test-KmcManualDerivedSixthHire $Selection){'KMC_C7_SIX_HORSE_WORLD'}else{'KMC_C7_MANUAL_DERIVED_FIELD'}}
+function Get-KmcManualDerivedRetainedCharacterIds($Selection){
+ if(Test-KmcManualDerivedSixthHire $Selection){@($Selection.readiness.partyCharacterIds|Where-Object{$_-cne'8265f8cf-0969-4ec7-a266-2448de91c8c4'})}
+ else{@($Selection.readiness.partyCharacterIds)}
+}
 function Assert-KmcMediumHireBodyPins($Pins,$Readiness){
  Assert-KmcExactProperties $Pins @('templateActorId','raceGuid','presetGuid','skeletonName','gender','leftHanded') 'Medium native body pins'
  Assert-KmcOrdinaryGuid $Pins.templateActorId
@@ -70,12 +76,18 @@ function Assert-KmcChunk7ManualDerivedSelection($Request){
  if($s.case-isnot[string]-or$s.case-cnotin@('existing-ranger-horse','paid-small-ranger-horse','paid-medium-ranger-horse')-or$s.sourceRunId-isnot[string]-or$s.sourceRunId-cnotmatch'^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$'-or$s.sourceRunId-ceq$Request.runId){throw 'Manual-derived case/source run differs.'}
  foreach($key in @('sourceArtifactSha256','sourceArchiveSha256')){if($s.$key-isnot[string]-or$s.$key-cnotmatch'^[a-f0-9]{64}$'){throw 'Manual-derived source requires exact SHA256 pins.'}}
  Assert-KmcChunk7Boolean $s.baseGameOnly $true
- if($s.nativeWriteLeaf-cnotin@('Manual_2_KMC_C7_MANUAL_DERIVED_FIELD.zks','Manual_304_KMC_C7_MANUAL_DERIVED_FIELD.zks','Manual_307_KMC_C7_MANUAL_DERIVED_FIELD.zks')){throw 'Manual-derived output is outside the closed source modes.'}
+ if($s.nativeWriteLeaf-cnotin@('Manual_2_KMC_C7_MANUAL_DERIVED_FIELD.zks','Manual_304_KMC_C7_MANUAL_DERIVED_FIELD.zks','Manual_307_KMC_C7_MANUAL_DERIVED_FIELD.zks','Manual_308_KMC_C7_SIX_HORSE_WORLD.zks')){throw 'Manual-derived output is outside the closed source modes.'}
  if($s.nativeWriteLeaf-ceq'Manual_307_KMC_C7_MANUAL_DERIVED_FIELD.zks'-and
   ($s.case-cne'paid-small-ranger-horse'-or$s.sourceRunId-cne'20261022-c7b-world180-b180s1-fourthhorse-selector'-or
    $s.sourceArtifactSha256-cne'985101587995147c4a548b6f81ed6c88837cc54ac39f3ca22b8352a32afb2e96'-or
    $s.sourceArchiveSha256-cne'e82f7bb0775535ac2d9b782c6e53fa92a0893ab71bdf375a1e7cc06d50188759')){
   throw 'F09 fifth paid Horse lacks its exact admitted source.'
+ }
+ if((Test-KmcManualDerivedSixthHire $s)-and
+  ($s.case-cne'paid-small-ranger-horse'-or$s.sourceRunId-cne'20261022-c7b-world183-b183s1-linzi-departure'-or
+   $s.sourceArtifactSha256-cne'978220bfa22f13f77f8ac827c8c2fa33abd0d9e437cc7196961217490fd61487'-or
+   $s.sourceArchiveSha256-cne'afbeaa5bc749d91bd969581977f396ff4b0c2716691625a9648b2bb827c2318e')){
+  throw 'F09 sixth paid Horse lacks its exact admitted departure source.'
  }
  foreach($key in @('expectedNativeLoadCount','expectedNativeWriteCount')){Assert-KmcOrdinaryInteger $s.$key 1 1}
  $p=$s.readiness;Assert-KmcExactProperties $p @('mainActorId','mainLevel','mainExperience','money','experienceRatePercent','nativeHireCost','defaultHireExperience','partyCharacterIds') 'native readiness pins'
@@ -85,6 +97,7 @@ function Assert-KmcChunk7ManualDerivedSelection($Request){
  $ids=[Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal);$last=''
  foreach($id in $p.partyCharacterIds){Assert-KmcOrdinaryGuid $id;if(-not$ids.Add($id)-or[StringComparer]::Ordinal.Compare($last,$id)-ge0){throw 'Readiness party IDs must be unique and ordinally sorted.'};$last=$id}
  if(-not$ids.Contains($p.mainActorId)){throw 'Readiness main character is absent from the native party.'}
+ if((Test-KmcManualDerivedSixthHire $s)-and($ids.Count-ne6-or-not$ids.Contains('8265f8cf-0969-4ec7-a266-2448de91c8c4')-or$p.mainActorId-ceq'8265f8cf-0969-4ec7-a266-2448de91c8c4')){throw 'Sixth-hire pins must retain the unchanged full source roster including optional Linzi.'}
  if($s.case-ceq'existing-ranger-horse'){
   Assert-KmcOrdinaryGuid $s.existingActorId;if(-not$ids.Contains($s.existingActorId)){throw 'Existing actor is absent from observed field party.'}
   Assert-KmcOrdinaryInteger $s.existingLevel 1 19;Assert-KmcOrdinaryInteger $s.existingExperience 0 ([int]::MaxValue);Assert-KmcOrdinaryInteger $s.existingRangerLevel 0 3
@@ -105,8 +118,9 @@ function Assert-KmcChunk7ManualDerivedDescriptor($Request){
  $d=$Request.persistenceLoad;Assert-KmcExactProperties $d @('internalName','fileName','sha256','length','lastWriteTimeUtcTicks','gameId','gameName','area') 'Manual-derived immutable descriptor'
  $owner=$Request.manualDerived.nativeWriteLeaf-ceq'Manual_304_KMC_C7_MANUAL_DERIVED_FIELD.zks'
  $f09=$Request.manualDerived.nativeWriteLeaf-ceq'Manual_307_KMC_C7_MANUAL_DERIVED_FIELD.zks'
- Assert-KmcBootstrapInventoryString $d.internalName $(if($f09){'KMC_C7_FOUR_HORSE_WORLD'}elseif($owner){'KMC C7 NO MODS OWNER SEED'}else{'KMC_C7_NATIVE_SEED'})
- Assert-KmcBootstrapInventoryString $d.fileName $(if($f09){'Manual_306_KMC_C7_FOUR_HORSE_WORLD.zks'}elseif($owner){'Manual_303_KMC_C7_NO_MODS_OWNER_SEED.zks'}else{'Manual_1_KMC_C7_NATIVE_SEED.zks'})
+ $sixth=Test-KmcManualDerivedSixthHire $Request.manualDerived
+ Assert-KmcBootstrapInventoryString $d.internalName $(if($sixth){'KMC_C7_MANUAL_DERIVED_FIELD'}elseif($f09){'KMC_C7_FOUR_HORSE_WORLD'}elseif($owner){'KMC C7 NO MODS OWNER SEED'}else{'KMC_C7_NATIVE_SEED'})
+ Assert-KmcBootstrapInventoryString $d.fileName $(if($sixth){'Manual_307_KMC_C7_MANUAL_DERIVED_FIELD.zks'}elseif($f09){'Manual_306_KMC_C7_FOUR_HORSE_WORLD.zks'}elseif($owner){'Manual_303_KMC_C7_NO_MODS_OWNER_SEED.zks'}else{'Manual_1_KMC_C7_NATIVE_SEED.zks'})
  Assert-KmcBootstrapInventoryString $d.sha256 $Request.manualDerived.sourceArchiveSha256
  Assert-KmcOrdinaryGuid $d.gameId
  if($d.gameName-isnot[string]-or[string]::IsNullOrWhiteSpace($d.gameName)-or$d.gameName.Length-gt256-or$d.gameName-match'[\x00-\x1f\x7f]'-or$d.area-isnot[string]-or$d.area-cnotmatch'^[a-f0-9]{32}$'-or
@@ -163,7 +177,7 @@ function Assert-KmcManualDerivedFixtureReadiness($Row,$Request,$World,$Settled,$
  }
  if($levels-ne$m.characterLevel){throw 'Native class ranks do not sum to the observed main level.'}
  $p=$Row.staticPartyFacts;$factKeys=@('selectorOpened','liveSelectorRequiredAuthorityAvailable','membershipOrRemovalQualified','characters')
- $observedScope=$Cumulative-or($Request.scenario-ceq'chunk7-manual-derived-acquisition'-and$Request.manualDerived.nativeWriteLeaf-cin@('Manual_304_KMC_C7_MANUAL_DERIVED_FIELD.zks','Manual_307_KMC_C7_MANUAL_DERIVED_FIELD.zks'))
+ $observedScope=$Cumulative-or($Request.scenario-ceq'chunk7-manual-derived-acquisition'-and$Request.manualDerived.nativeWriteLeaf-cin@('Manual_304_KMC_C7_MANUAL_DERIVED_FIELD.zks','Manual_307_KMC_C7_MANUAL_DERIVED_FIELD.zks','Manual_308_KMC_C7_SIX_HORSE_WORLD.zks'))
  if($observedScope){$factKeys+='observationScope'};Assert-KmcExactProperties $p $factKeys 'static native party facts'
  if($observedScope){Assert-KmcBootstrapInventoryString $p.observationScope 'static-getters-only'}
  foreach($key in @('selectorOpened','liveSelectorRequiredAuthorityAvailable','membershipOrRemovalQualified')){Assert-KmcChunk7Boolean $p.$key $false}
@@ -360,14 +374,14 @@ function Assert-KmcManualDerivedNativeChoices($Request,$O,$Selection=$null){
  Assert-KmcOrdinarySaveDescriptorBinding $probe $o.nativeWrite
  Assert-KmcOrdinaryInteger $o.nativeWrite.completedWritesBefore 0 0
  Assert-KmcOrdinaryInteger $o.nativeWrite.completionSequence 1 1
- if($paid){Assert-KmcOrdinaryInteger $admission.moneyBefore $s.readiness.money $s.readiness.money;Assert-KmcOrdinaryInteger $admission.nativeCost $s.readiness.nativeHireCost $s.readiness.nativeHireCost;Assert-KmcOrdinaryInteger $xp $s.readiness.defaultHireExperience $s.readiness.defaultHireExperience}
+ if($paid){$cost=$s.readiness.nativeHireCost;if(Test-KmcManualDerivedSixthHire $s){$cost=$O.departureReadiness.nativeHireCost};Assert-KmcOrdinaryInteger $admission.moneyBefore $s.readiness.money $s.readiness.money;Assert-KmcOrdinaryInteger $admission.nativeCost $cost $cost;Assert-KmcOrdinaryInteger $xp $s.readiness.defaultHireExperience $s.readiness.defaultHireExperience}
  else{Assert-KmcOrdinaryInteger $identity.level $s.existingLevel $s.existingLevel;Assert-KmcOrdinaryInteger $xp $s.existingExperience $s.existingExperience;Assert-KmcOrdinaryInteger $identity.rangerLevel $s.existingRangerLevel $s.existingRangerLevel;Assert-KmcOrdinaryInteger $expectedMoney $s.readiness.money $s.readiness.money}
  [pscustomobject]@{actorId=$identity.actorId;actorObject=$identity.actorObject;descriptorObject=$identity.descriptorObject;petId=$O.builderComplete.petId;level=$level;xp=$xp;money=$expectedMoney;commits=$commits}
 }
 function Assert-KmcChunk7ManualDerivedEvidence($Request,$Artifact,$SourceArtifact,[string]$Status='PASS'){
  Assert-KmcChunk7ManualDerivedDescriptor $Request;Assert-KmcChunk7ArtifactEnvelope $Request $Artifact 'chunk7-manual-derived-evidence'
  if($Status-ceq'PASS'-and$Artifact.status-cne'PASS'){throw 'PASS Manual-derived result needs its PASS native artifact.'};if($Artifact.status-cne'PASS'){return}
- if($Request.manualDerived.nativeWriteLeaf-cin@('Manual_304_KMC_C7_MANUAL_DERIVED_FIELD.zks','Manual_307_KMC_C7_MANUAL_DERIVED_FIELD.zks')){
+ if($Request.manualDerived.nativeWriteLeaf-cin@('Manual_304_KMC_C7_MANUAL_DERIVED_FIELD.zks','Manual_307_KMC_C7_MANUAL_DERIVED_FIELD.zks','Manual_308_KMC_C7_SIX_HORSE_WORLD.zks')){
   Assert-KmcBootstrapInventoryString $SourceArtifact.scenario 'chunk7-assisted-cold-inventory';Assert-KmcBootstrapInventoryString $SourceArtifact.evidenceKind 'chunk7-assisted-cold-inventory-evidence'
  }else{Assert-KmcBootstrapInventoryString $SourceArtifact.scenario 'chunk7-bootstrap-manual-seed';Assert-KmcBootstrapInventoryString $SourceArtifact.evidenceKind 'chunk7-manual-seed-evidence'}
  Assert-KmcNativeAcquisitionProof $Request $Artifact $SourceArtifact $Request.manualDerived
@@ -378,6 +392,7 @@ function Assert-KmcNativeAcquisitionProof($Request,$Artifact,$SourceArtifact,$Se
  $o=$Artifact.observations;$s=$Selection;$source=$SourceArtifact;$paid=Test-KmcManualDerivedPaidCase $s.case
  $sourceValues=$source.observations;$sourceWrite=$null;$sourceWorld=$null;$ownerSeed=$s.nativeWriteLeaf-ceq'Manual_304_KMC_C7_MANUAL_DERIVED_FIELD.zks'
  $f09=$s.nativeWriteLeaf-ceq'Manual_307_KMC_C7_MANUAL_DERIVED_FIELD.zks'
+ $sixth=Test-KmcManualDerivedSixthHire $s
  if($ownerSeed){
   if($Cumulative-or$null-ne$AssistedProjection){throw 'Owner-seed cold provenance is not cumulative.'}
   Assert-KmcBootstrapInventoryString $sourceValues.selection.case 'owner-seed-readonly-inventory'
@@ -387,6 +402,14 @@ function Assert-KmcNativeAcquisitionProof($Request,$Artifact,$SourceArtifact,$Se
   Assert-KmcChunk7Boolean $sourceValues.seedSource.ownerAuthorized $true;Assert-KmcChunk7Boolean $sourceValues.seedSource.producerAncestry $false
   Assert-KmcChunk7Boolean $sourceValues.ownerSeedQualification.qualified $true
   Assert-KmcBootstrapInventoryString $sourceValues.kmcMetadata.kind 'Missing';Assert-KmcChunk7Boolean $sourceValues.kmcMetadata.loadedArchivePresent $false
+  $sourceWorld=$sourceValues.loadedWorld;$sourceWrite=$Request.persistenceLoad
+  $sourceValues=Get-KmcChunk7OwnerSeedAcquisitionProjection $source.observations
+ }elseif($sixth){
+  if($Cumulative-or$null-ne$AssistedProjection){throw 'Sixth paid Horse is a separate Manual-derived source.'}
+  Assert-KmcBootstrapInventoryString $sourceValues.selection.case 'fifth-horse-native-field-departure'
+  Assert-KmcBootstrapInventoryString $sourceValues.source.archiveSha256 $s.sourceArchiveSha256
+  Assert-KmcBootstrapInventoryString $sourceValues.source.archiveLeaf $Request.persistenceLoad.fileName
+  Assert-KmcChunk7NativeFieldDeparture $sourceValues $sourceValues.loadedWorld $sourceValues.settledWorld $sourceValues.fifthHorseFacts
   $sourceWorld=$sourceValues.loadedWorld;$sourceWrite=$Request.persistenceLoad
   $sourceValues=Get-KmcChunk7OwnerSeedAcquisitionProjection $source.observations
  }elseif($f09){
@@ -408,7 +431,11 @@ function Assert-KmcNativeAcquisitionProof($Request,$Artifact,$SourceArtifact,$Se
   $sourceValues=$AssistedProjection;$sourceWrite=$source.observations.finalManual;$sourceWorld=$source.observations.settledWorld
  }
  if(-not(Test-KmcFiniteJsonNumber $o.elapsedSeconds)-or$o.elapsedSeconds-lt0-or$o.elapsedSeconds-gt1050){throw 'Manual-derived elapsed observation exceeds its declared native bound.'}
- if($f09){
+ if($sixth){
+  foreach($pair in @(@('commit','633f7bf1fb3da3d72fe9144fedfb17fe8dddae61'),
+   @('dllSha256','2a972906060d410a233c90676417da45c21a6d18185b18acc0b6a2972944ed29'),
+   @('dllMvid','1c7a6c63-ca56-45a3-adbe-91d34fe470b0'))){Assert-KmcBootstrapInventoryString $source.($pair[0]) $pair[1]}
+ }elseif($f09){
   foreach($pair in @(@('commit','1ff7995964de6df54f856e1f370c5a36a209100e'),
    @('dllSha256','590bde8ef5f6411a9260236aeb73d29fbb8eef1ac10d239ce74ff509e3d97562'),
    @('dllMvid','41a392bf-15eb-40a1-acaf-9f6c5f2f236b'))){Assert-KmcBootstrapInventoryString $source.($pair[0]) $pair[1]}
@@ -421,13 +448,14 @@ function Assert-KmcNativeAcquisitionProof($Request,$Artifact,$SourceArtifact,$Se
  if($f09){
   Assert-KmcF09PriorHorseRetention $sourceWorld $source.observations.fourthHorseFacts $o
  }
+ if($sixth){Assert-KmcF09PriorHorseRetention $sourceWorld $source.observations.fifthHorseFacts $o 5;Assert-KmcSixthHireDeparture $s $o}
  if((ConvertTo-KmcChunk7Canonical $o.selection)-cne(ConvertTo-KmcChunk7Canonical $s)){throw 'Manual-derived observed selection changed.'}
  Assert-KmcManualDerivedSourcePins $s $sourceValues
  Assert-KmcOrdinaryInteger $o.processId 1 ([int]::MaxValue);Assert-KmcOrdinaryInteger $source.observations.processId 1 ([int]::MaxValue);if($o.processId-eq$source.observations.processId){throw 'Manual-derived native process was not cold.'}
  foreach($key in @('resourceWrites','xpWrites','moneyWrites')){Assert-KmcOrdinaryInteger $o.$key 0 0}
  foreach($key in @('profileAdmissionChanged','sixPairFixtureQualified','vendorDialogueProven','mountedCombatProven','smallPoseQualified')){Assert-KmcChunk7Boolean $o.$key $false};Assert-KmcChunk7Boolean $o.ordinaryAcquisitionProven $true
  foreach($key in @('runId','artifactSha256','archiveSha256')){$selectionKey=if($key-ceq'runId'){'sourceRunId'}elseif($key-ceq'artifactSha256'){'sourceArtifactSha256'}else{'sourceArchiveSha256'};Assert-KmcBootstrapInventoryString $o.source.$key $s.$selectionKey}
- Assert-KmcBootstrapInventoryString $o.source.archiveLeaf $Request.persistenceLoad.fileName;Assert-KmcChunk7Boolean $o.source.sameCandidate (-not$f09);Assert-KmcChunk7Boolean $o.source.diagnosticArchiveContentRead $false
+ Assert-KmcBootstrapInventoryString $o.source.archiveLeaf $Request.persistenceLoad.fileName;Assert-KmcChunk7Boolean $o.source.sameCandidate (-not($f09-or$sixth));Assert-KmcChunk7Boolean $o.source.diagnosticArchiveContentRead $false
  $b=$o.beforeLoad;$w=$o.loadedWorld;$f=$o.settledWorld;$load=$o.nativeLoad;$registry=$load.identities
  Assert-KmcBootstrapInventoryString $load.contract 'bootstrap-native-postload-v1';foreach($key in @('installed','installationAttempted','complete')){Assert-KmcChunk7Boolean $load.$key $true}
  foreach($key in @('entries','exits')){Assert-KmcOrdinaryInteger $load.$key 1 1}
@@ -444,11 +472,17 @@ function Assert-KmcNativeAcquisitionProof($Request,$Artifact,$SourceArtifact,$Se
  foreach($key in @('loadedAreaPresent','nativeLoading')){Assert-KmcChunk7Boolean $b.$key $false}
  Assert-KmcChunk7ManualSeedAuthority $b.authority $root $b.authority.generation 0 0
  Assert-KmcManualSeedWorld $w $Request $labels $o.sourceNativeWorld $b.frame 0
- Assert-KmcManualSeedWorld $f $Request $labels $o.sourceNativeWorld $w.frame 1
+ $finalSource=$o.sourceNativeWorld
+ if($sixth){$finalSource=ConvertFrom-Json -InputObject (ConvertTo-Json -InputObject $o.sourceNativeWorld -Depth 64);$finalSource.party=@($finalSource.party|Where-Object id -CNE '8265f8cf-0969-4ec7-a266-2448de91c8c4')}
+ Assert-KmcManualSeedWorld $f $Request $labels $finalSource $w.frame 1
  Assert-KmcChunk7ManualSeedAuthority $w.authority $root $b.authority.generation 1 0
  foreach($row in @($f)){Assert-KmcChunk7ManualSeedAuthority $row.authority $root $b.authority.generation 1 1}
  foreach($row in @($w,$f)){if($row.game-ne$b.game-or$row.saveManager-ne$b.saveManager){throw 'Manual seed replaced the exact Game or SaveManager.'}}
- foreach($key in @('game','saveManager','player','state','areaState','mainState','mainActorId','party')){if((ConvertTo-KmcChunk7Canonical $f.$key)-cne(ConvertTo-KmcChunk7Canonical $w.$key)){throw 'Final cold world or actors changed before cleanup.'}}
+ foreach($key in @('game','saveManager','player','state','areaState','mainState','mainActorId','party')){
+  $expected=$w.$key
+  if($sixth-and$key-ceq'party'){$expected=@($w.party|Where-Object id -CNE '8265f8cf-0969-4ec7-a266-2448de91c8c4')}
+  if((ConvertTo-KmcChunk7Canonical $f.$key)-cne(ConvertTo-KmcChunk7Canonical $expected)){throw 'Final cold world or actors changed before cleanup.'}
+ }
  $prior=$b.frame
  for($i=0;$i-lt2;$i++){$e=$load.events[$i];$kind=if($i-eq0){'native-player-postload-before'}else{'native-player-postload-after'};Assert-KmcBootstrapInventoryString $e.kind $kind;Assert-KmcOrdinaryInteger $e.frame $prior $w.frame;$prior=$e.frame
   foreach($key in @('game','saveManager','player')){Assert-KmcManualSeedObjectIdentity $e.$key;if($e.$key-ne$w.$key){throw 'Native PostLoad callback owner was substituted.'}}
@@ -456,7 +490,7 @@ function Assert-KmcNativeAcquisitionProof($Request,$Artifact,$SourceArtifact,$Se
   # PostLoad callbacks, then the exact archive GameId in the settled world.
   # A populated callback ID must still match the loaded archive.
   if($null-ne$e.gameId){Assert-KmcBootstrapInventoryString $e.gameId $Request.persistenceLoad.gameId}
-  elseif(-not$ownerSeed-and-not$f09-and$null-eq$AssistedProjection-and-not($Cumulative-and(Test-KmcOwnerSeedCumulativeMode $s))){throw 'Bootstrap Manual PostLoad lost its required GameId.'}
+  elseif(-not$ownerSeed-and-not$f09-and-not$sixth-and$null-eq$AssistedProjection-and-not($Cumulative-and(Test-KmcOwnerSeedCumulativeMode $s))){throw 'Bootstrap Manual PostLoad lost its required GameId.'}
   if($i-eq1){Assert-KmcBootstrapInventoryString $e.mainActorId $w.mainActorId}else{if($null-ne$e.mainActorId){Assert-KmcBootstrapInventoryString $e.mainActorId $w.mainActorId}}
  }
  if($load.events[0].frame-ne$load.events[1].frame){throw 'Native PostLoad did not return in its exact synchronous callback.'}
@@ -492,20 +526,86 @@ function Assert-KmcNativeAcquisitionProof($Request,$Artifact,$SourceArtifact,$Se
  if((ConvertTo-KmcChunk7Canonical $o.nativeProfileInventory.ordinaryAcquisitionPrerequisites)-cne(ConvertTo-KmcChunk7Canonical $sourceValues.nativeProfileInventory.ordinaryAcquisitionPrerequisites)){throw 'Native readiness differs from Manual source.'}
  if((ConvertTo-KmcChunk7Canonical $o.beforeChoices)-cne(ConvertTo-KmcChunk7Canonical $sourceValues.afterSaveArrangement)){throw 'Native arrangement changed before choices.'}
  if($s.case-ceq'paid-medium-ranger-horse'){Assert-KmcMediumHireBodySource $o.nativeProfileInventory $s.mediumBody}
- Assert-KmcManualDerivedEligibility $s $o.liveEligibility
+ $departurePrice=$null;if($sixth){$departurePrice=$o.departureReadiness}
+ Assert-KmcManualDerivedEligibility $s $o.liveEligibility $departurePrice
  $choice=Assert-KmcManualDerivedNativeChoices $Request $o $s
  Assert-KmcManualDerivedOutcome $Request $o $choice $labels $root $s
  foreach($key in @('custodySettled','nativeWorkerSettled','observersReleased','worldAdmitted','sourcePinned','sourceUnchanged','selectionRestored','pauseRestored','slotProjectionRestored','acquiredNativeStateRetained','ummInstanceRestored','ummOpenStateRestored')){Assert-KmcChunk7Boolean $o.cleanup.$key $true}
  foreach($key in @('manualRefunds','manualFactRemovals','manualCompanionRemovals')){Assert-KmcOrdinaryInteger $o.cleanup.$key 0 0}
  Assert-KmcChunk7ManualSeedAuthority $o.cleanup.authority $root $b.authority.generation 1 1
 }
-function Assert-KmcManualDerivedEligibility($Selection,$E){
+function Assert-KmcSixthHireDeparture($Selection,$O){
+ if(-not(Test-KmcManualDerivedSixthHire $Selection)){throw 'Native departure proof belongs only to the exact sixth paid-hire source.'}
+ $id='8265f8cf-0969-4ec7-a266-2448de91c8c4';$d=$O.nativeDeparture
+ Assert-KmcExactProperties $d @('contract','action','actorId','originalPartyCharacterIds','openCount','switchCount','goCount','manualPartyMutation','mustBeInParty','readyAlpha','readyActiveInHierarchy','selectedPartyCharacterIds','closedExactInstance','closedActiveSelf','remoteActorId','settledPartyCharacterIds','nativeDepartureProven') 'sixth-hire native departure'
+ foreach($pair in @(@('contract','installed-native-single-field-departure-v1'),@('action','native-ShowPartySelection'),@('actorId',$id),@('remoteActorId',$id))){Assert-KmcBootstrapInventoryString $d.($pair[0]) $pair[1]}
+ foreach($key in @('openCount','switchCount','goCount')){Assert-KmcOrdinaryInteger $d.$key 1 1}
+ foreach($key in @('manualPartyMutation','mustBeInParty','closedActiveSelf')){Assert-KmcChunk7Boolean $d.$key $false}
+ foreach($key in @('readyActiveInHierarchy','closedExactInstance','nativeDepartureProven')){Assert-KmcChunk7Boolean $d.$key $true}
+ if(-not(Test-KmcFiniteJsonNumber $d.readyAlpha)-or$d.readyAlpha-ne1){throw 'Departure selector never reached native input readiness.'}
+ $retained=@(Get-KmcManualDerivedRetainedCharacterIds $Selection)
+ Assert-KmcAssistedSame @($d.originalPartyCharacterIds|Sort-Object) $Selection.readiness.partyCharacterIds 'sixth-hire unchanged source characters'
+ foreach($key in @('selectedPartyCharacterIds','settledPartyCharacterIds')){Assert-KmcAssistedSame @($d.$key|Sort-Object) $retained 'sixth-hire exact native departed character set'}
+ Assert-KmcAssistedSame $O.originalPartyCharacters $retained 'sixth-hire builder characters after departure'
+ Assert-KmcAssistedSame $O.departureBeforeArrangement $O.departureAfterArrangement 'sixth-hire departure preserves all original actor progression and money'
+ Assert-KmcAssistedSame $O.beforeChoices $O.departureAfterArrangement 'sixth-hire no changes between departure and choices'
+ $before=$O.departureBeforeWorld;$after=$O.departureAfterWorld;$loaded=$O.loadedWorld
+ Assert-KmcOrdinaryInteger $before.frame $loaded.frame $O.field.frame
+ Assert-KmcOrdinaryInteger $after.frame $before.frame $O.field.frame
+ if($loaded.party-isnot[Array]-or$loaded.party.Count-ne11-or$before.party-isnot[Array]-or$before.party.Count-ne11-or$after.party-isnot[Array]-or$after.party.Count-ne10){throw 'Sixth-hire departure requires eleven source and ten retained field actors.'}
+ foreach($key in $loaded.PSObject.Properties.Name|Where-Object{$_-cne'frame'}){Assert-KmcAssistedSame $before.$key $loaded.$key ('sixth-hire exact before-departure world '+$key)}
+ foreach($key in $before.PSObject.Properties.Name|Where-Object{$_-cne'frame'-and$_-cne'party'}){Assert-KmcAssistedSame $after.$key $before.$key ('sixth-hire native departure preserves world '+$key)}
+ Assert-KmcAssistedSame $after.party @($before.party|Where-Object id -CNE $id) 'sixth-hire exact retained native actor objects'
+ $target=@($loaded.party|Where-Object id -CEQ $id);if($target.Count-ne1){throw 'Sixth-hire original departure actor missing or duplicated.'}
+ foreach($roster in @($O.departureRoster,$O.savedSixthRoster)){
+  Assert-KmcExactProperties $roster @('partyCharacterIds','remoteCompanionIds','departureActorId','departureObject','departureDescriptor','manualPartyMutation') 'sixth-hire native roster'
+  Assert-KmcBootstrapInventoryString $roster.departureActorId $id
+  Assert-KmcOrdinaryInteger $roster.departureObject $target[0].object $target[0].object
+  Assert-KmcOrdinaryInteger $roster.departureDescriptor $target[0].descriptor $target[0].descriptor
+  Assert-KmcChunk7Boolean $roster.manualPartyMutation $false
+  Assert-KmcAssistedSame $roster.remoteCompanionIds @($id) 'sixth-hire Linzi remains exactly remote'
+ }
+ Assert-KmcAssistedSame @($O.departureRoster.partyCharacterIds|Sort-Object) $retained 'sixth-hire pre-build native character set'
+ Assert-KmcAssistedSame $O.savedSixthRoster.partyCharacterIds $O.field.partyCharacters 'sixth-hire saved field character set'
+ if($O.savedFieldWorld.party.Count-ne12-or$id-cin@($O.savedFieldWorld.party.id)-or$id-cin@($O.field.partyCharacters)){throw 'Sixth-hire saved field must contain twelve actors while Linzi remains remote.'}
+ $price=$O.departureReadiness
+ Assert-KmcExactProperties $price @('contract','frame','nativePartyLevel','nativeHireBaseCost','nativeHireCost','money','observationOnly') 'sixth-hire native post-departure price'
+ Assert-KmcBootstrapInventoryString $price.contract 'installed-native-post-departure-hire-readiness-v1'
+ Assert-KmcChunk7Boolean $price.observationOnly $true
+ Assert-KmcOrdinaryInteger $price.frame $after.frame $O.field.frame
+ Assert-KmcOrdinaryInteger $price.nativePartyLevel 1 20
+ Assert-KmcOrdinaryInteger $price.nativeHireBaseCost 1 ([int]::MaxValue)
+ Assert-KmcOrdinaryInteger $price.nativeHireCost 1 ([int]::MaxValue)
+ Assert-KmcOrdinaryInteger $price.money $O.beforeChoices.money $O.beforeChoices.money
+ $sourceLevels=@();$retainedLevels=@()
+ foreach($character in $Selection.readiness.partyCharacterIds){
+  $row=@($O.sourceNativeWorld.party|Where-Object id -CEQ $character)
+  if($row.Count-ne1){throw 'Native hire price lacks an exact source character level.'}
+  Assert-KmcOrdinaryInteger $row[0].characterLevel 1 20;$sourceLevels+=,[int]$row[0].characterLevel
+  if($character-cne$id){$retainedLevels+=,[int]$row[0].characterLevel}
+ }
+ $sourceLevel=[int][Math]::Round(($sourceLevels|Measure-Object -Sum).Sum/$sourceLevels.Count)
+ $retainedLevel=[int][Math]::Round(($retainedLevels|Measure-Object -Sum).Sum/$retainedLevels.Count)
+ # Pinned installed native getters: rounded average field character level,
+ # then native base cost times that level squared. This only verifies the
+ # captured native price; it never supplies a price or resource to the game.
+ Assert-KmcOrdinaryInteger $price.nativePartyLevel $retainedLevel $retainedLevel
+ $sourceCost=[long]$price.nativeHireBaseCost*$sourceLevel*$sourceLevel
+ $retainedCost=[long]$price.nativeHireBaseCost*$retainedLevel*$retainedLevel
+ Assert-KmcOrdinaryInteger $Selection.readiness.nativeHireCost $sourceCost $sourceCost
+ Assert-KmcOrdinaryInteger $price.nativeHireCost $retainedCost $retainedCost
+}
+function Assert-KmcManualDerivedEligibility($Selection,$E,$DeparturePrice=$null){
  $s=$Selection;$p=$s.readiness
- foreach($key in @('mainActorId','mainLevel','mainExperience','money','experienceRatePercent','nativeHireCost','defaultHireExperience')){if((ConvertTo-KmcChunk7Canonical $E.$key)-cne(ConvertTo-KmcChunk7Canonical $p.$key)){throw 'Live native eligibility differs from exact selected source pin.'}}
+ $expectedParty=@(Get-KmcManualDerivedRetainedCharacterIds $s)
+ $cost=$p.nativeHireCost
+ if(Test-KmcManualDerivedSixthHire $s){Assert-KmcChunk7Boolean $E.nativeDepartureCompleted $true;$cost=$DeparturePrice.nativeHireCost;Assert-KmcOrdinaryInteger $E.nativeDepartureHireCost $cost $cost}
+ foreach($key in @('mainActorId','mainLevel','mainExperience','money','experienceRatePercent','defaultHireExperience')){if((ConvertTo-KmcChunk7Canonical $E.$key)-cne(ConvertTo-KmcChunk7Canonical $p.$key)){throw 'Live native eligibility differs from exact selected source pin.'}}
+ Assert-KmcOrdinaryInteger $E.nativeHireCost $cost $cost
  if($E.partyCharacterIds-isnot[Array]){throw 'Live party eligibility is missing.'};$ids=[Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
  foreach($id in $E.partyCharacterIds){Assert-KmcOrdinaryGuid $id;if(-not$ids.Add($id)){throw 'Live party eligibility repeats actor.'}}
  [string[]]$ordered=@($E.partyCharacterIds);[Array]::Sort($ordered,[StringComparer]::Ordinal)
- if((ConvertTo-KmcChunk7Canonical $ordered)-cne(ConvertTo-KmcChunk7Canonical $p.partyCharacterIds)){throw 'Live eligibility party differs.'}
+ if((ConvertTo-KmcChunk7Canonical $ordered)-cne(ConvertTo-KmcChunk7Canonical $expectedParty)){throw 'Live eligibility party differs.'}
  $table=$E.nativeXpThresholds;if($table-isnot[Array]-or$table.Count-ne21){throw 'Native XP table observation must contain exactly bounded indices zero to twenty.'};$last=0
  foreach($xp in $table){Assert-KmcOrdinaryInteger $xp $last ([int]::MaxValue);$last=$xp}
  Assert-KmcOrdinaryInteger $E.defaultHireExperience $table[$p.mainLevel] $table[$p.mainLevel]
@@ -514,7 +614,7 @@ function Assert-KmcManualDerivedEligibility($Selection,$E){
  while($ready-lt20-and$table[$ready+1]-le$xp){$ready++}
  if(Test-KmcManualDerivedPaidCase $s.case){
   if($s.case-ceq'paid-medium-ranger-horse'){Assert-KmcChunk7Boolean $E.exactMediumBodyMember $true}else{Assert-KmcChunk7Boolean $E.exactSmallCatalogueMember $true}
-  if($p.mainLevel-lt4-or$ready-lt4-or$p.money-lt$p.nativeHireCost-or$p.partyCharacterIds.Count-ge6){throw 'Native paid readiness lacks attained level/funds/slot.'}
+  if($p.mainLevel-lt4-or$ready-lt4-or$p.money-lt$cost-or$expectedParty.Count-ge6){throw 'Native paid readiness lacks attained level/funds/slot.'}
   if($null-ne$E.existingActorId){throw 'Paid eligibility borrows an existing actor.'}
  }else{
   foreach($key in @('existingActorId','existingLevel','existingExperience','existingRangerLevel')){if((ConvertTo-KmcChunk7Canonical $E.$key)-cne(ConvertTo-KmcChunk7Canonical $s.$key)){throw 'Existing native eligibility changed.'}}
@@ -525,10 +625,10 @@ function Assert-KmcManualDerivedEligibility($Selection,$E){
 }
 function Assert-KmcManualDerivedNativeSave($Request,$O,$Labels,[string]$Root){
  $selection=if($Request.scenario-ceq'chunk7-cumulative-acquisition'){$Request.cumulativeAcquisition}else{$Request.manualDerived}
- $leaf=$selection.nativeWriteLeaf;$name='KMC_C7_MANUAL_DERIVED_FIELD';$path=Join-Path $Root $leaf
+ $leaf=$selection.nativeWriteLeaf;$name=Get-KmcManualDerivedOutputName $selection;$path=Join-Path $Root $leaf
  $n=$O.nativeNumbering;$r=$O.saveRequested;$p=$O.nativeSave;$w=$O.nativeWrite;$field=$O.field
  foreach($pair in @(@('method','FindUnusedSaveNumber'),@('token','06008024'),@('moduleMvid','07fa1e4d-8618-41b3-9b8d-faa17d3b26f7'),@('nativeSaveType','Manual'),@('fileName',$leaf))){Assert-KmcBootstrapInventoryString $n.($pair[0]) $pair[1]}
- $expectedNumber=if($leaf-ceq'Manual_301_KMC_C7_MANUAL_DERIVED_FIELD.zks'){301}elseif($leaf-ceq'Manual_303_KMC_C7_MANUAL_DERIVED_FIELD.zks'){303}elseif($leaf-ceq'Manual_304_KMC_C7_MANUAL_DERIVED_FIELD.zks'){304}elseif($leaf-ceq'Manual_306_KMC_C7_MANUAL_DERIVED_FIELD.zks'){306}elseif($leaf-ceq'Manual_307_KMC_C7_MANUAL_DERIVED_FIELD.zks'){307}else{2}
+ $expectedNumber=if(Test-KmcManualDerivedSixthHire $selection){308}elseif($leaf-ceq'Manual_301_KMC_C7_MANUAL_DERIVED_FIELD.zks'){301}elseif($leaf-ceq'Manual_303_KMC_C7_MANUAL_DERIVED_FIELD.zks'){303}elseif($leaf-ceq'Manual_304_KMC_C7_MANUAL_DERIVED_FIELD.zks'){304}elseif($leaf-ceq'Manual_306_KMC_C7_MANUAL_DERIVED_FIELD.zks'){306}elseif($leaf-ceq'Manual_307_KMC_C7_MANUAL_DERIVED_FIELD.zks'){307}else{2}
  Assert-KmcOrdinaryInteger $n.number $expectedNumber $expectedNumber;Assert-KmcOrdinaryInteger $n.frame $field.frame $O.settledWorld.frame
  foreach($key in @('outputInitiallyAbsent')){Assert-KmcChunk7Boolean $n.$key $true};Assert-KmcChunk7Boolean $n.slotProjectionEnabled $false
  if((ConvertTo-KmcChunk7Canonical $n.sourceDescriptors)-cne(ConvertTo-KmcChunk7Canonical $O.fixtureReadiness.isolatedSaveDescriptors.descriptors)){throw 'Manual numbering changed its immutable source inventory.'}
@@ -605,14 +705,16 @@ function Assert-KmcManualDerivedNativeSave($Request,$O,$Labels,[string]$Root){
  $world=$O.savedFieldWorld;$old=$O.savedWorld;$paid=Test-KmcManualDerivedPaidCase $selection.case
  if((@($world.PSObject.Properties.Name)-join'|')-cne(@($old.PSObject.Properties.Name)-join'|')){throw 'Saved field world changed its native world shape.'}
  foreach($key in $old.PSObject.Properties.Name|Where-Object{$_-cne'party'}){if((ConvertTo-KmcChunk7Canonical $world.$key)-cne(ConvertTo-KmcChunk7Canonical $old.$key)){throw 'Saved field world changed native world identity or authority.'}}
- if($world.party-isnot[Array]-or$world.party.Count-ne($O.loadedWorld.party.Count+$(if($paid){2}else{1}))){throw 'Saved field roster omits or adds an actor.'}
+ $originalField=@($O.loadedWorld.party)
+ if(Test-KmcManualDerivedSixthHire $selection){$originalField=@($originalField|Where-Object id -CNE '8265f8cf-0969-4ec7-a266-2448de91c8c4')}
+ if($world.party-isnot[Array]-or$world.party.Count-ne($originalField.Count+$(if($paid){2}else{1}))){throw 'Saved field roster omits or adds an actor.'}
  $seen=[Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal);$seenObjects=[Collections.Generic.HashSet[int]]::new()
  foreach($actor in $world.party){Assert-KmcOrdinaryGuid $actor.id;if(-not$seen.Add($actor.id)){throw 'Saved field roster repeats an actor.'}
   if($actor.blueprint-isnot[string]-or$actor.blueprint-cnotmatch'^[a-f0-9]{32}$'){throw 'Saved field actor blueprint is malformed.'}
   foreach($key in @('object','descriptor','view')){Assert-KmcManualSeedObjectIdentity $actor.$key;if(-not$Labels.Contains([int]$actor.$key)-or-not$seenObjects.Add([int]$actor.$key)){throw 'Saved field actor identity is unretained or aliased.'}}
   foreach($key in @('isInGame','isInState','commandsEmpty')){Assert-KmcChunk7Boolean $actor.$key $true}
  }
- foreach($actor in $O.loadedWorld.party){$match=@($world.party|Where-Object id -CEQ $actor.id);if($match.Count-ne1-or(ConvertTo-KmcChunk7Canonical $match[0])-cne(ConvertTo-KmcChunk7Canonical $actor)){throw 'Saved field world changed an original native actor.'}}
+ foreach($actor in $originalField){$match=@($world.party|Where-Object id -CEQ $actor.id);if($match.Count-ne1-or(ConvertTo-KmcChunk7Canonical $match[0])-cne(ConvertTo-KmcChunk7Canonical $actor)){throw 'Saved field world changed an original native actor.'}}
  $owner=@($world.party|Where-Object id -CEQ $O.field.actorId);$pet=@($world.party|Where-Object id -CEQ $O.field.petId)
  if($owner.Count-ne1-or$pet.Count-ne1){throw 'Saved field roster omitted its acquired owner or Horse.'}
  foreach($pair in @(@($owner[0],'actorObject','actorDescriptor','actorView'),@($pet[0],'petObject','petDescriptor','petView'))){$row=$pair[0];$keys=@('object','descriptor','view');for($i=0;$i-lt3;$i++){Assert-KmcOrdinaryInteger $row.($keys[$i]) $O.field.($pair[$i+1]) $O.field.($pair[$i+1])}}
@@ -648,9 +750,10 @@ function Assert-KmcManualDerivedOutcome($Request,$O,$Choice,$Labels,[string]$Roo
   foreach($key in @('openActiveSelf','readyActiveInHierarchy','closedExactInstance')){Assert-KmcChunk7Boolean $g.$key $true};foreach($key in @('closedActiveSelf','manualPartyMutation')){Assert-KmcChunk7Boolean $g.$key $false}
   if(-not(Test-KmcChunk7FiniteNumber $g.readyAlpha)-or$g.readyAlpha-ne1){throw 'Native selector did not reach its actual input-ready state.'}
  }elseif($null-ne$O.PSObject.Properties['fieldSelection']){throw 'Existing acquisition cannot open a party selector.'}
- if($f.partyCharacters-isnot[Array]-or$f.partyCharacters.Count-ne($s.readiness.partyCharacterIds.Count+$(if($paid){1}else{0}))){throw 'Native final field-party count differs.'}
+ $retainedCharacters=@(Get-KmcManualDerivedRetainedCharacterIds $s)
+ if($f.partyCharacters-isnot[Array]-or$f.partyCharacters.Count-ne($retainedCharacters.Count+$(if($paid){1}else{0}))){throw 'Native final field-party count differs.'}
  $ids=[Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal);foreach($id in $f.partyCharacters){Assert-KmcOrdinaryGuid $id;if(-not$ids.Add($id)){throw 'Native field repeats a character.'}}
- foreach($id in $s.readiness.partyCharacterIds){if(-not$ids.Contains($id)){throw 'Original native character was removed.'}};if(-not$ids.Contains($Choice.actorId)){throw 'Acquired native actor was not admitted to field.'}
+ foreach($id in $retainedCharacters){if(-not$ids.Contains($id)){throw 'Original native character was removed.'}};if(-not$ids.Contains($Choice.actorId)){throw 'Acquired native actor was not admitted to field.'}
  $before=$O.beforeChoices;$after=$O.afterChoices;Assert-KmcOrdinaryInteger $after.money $Choice.money $Choice.money;Assert-KmcOrdinaryInteger $after.experienceRatePercent 100 100
  if($before.actors-isnot[Array]-or$after.actors-isnot[Array]-or$before.actors.Count-ne$after.actors.Count){throw 'Original actor progression inventory differs.'}
  foreach($a in $before.actors){$matches=@($after.actors|Where-Object actorId -CEQ $a.actorId);if($matches.Count-ne1){throw 'Original progression actor is absent/duplicated.'};$b=$matches[0]
@@ -670,7 +773,8 @@ function Assert-KmcChunk7ManualDerivedArtifact($Request,$Manifest,[string]$Statu
  if($artifact.status-ceq'PASS'){
   $f09=$Request.manualDerived.nativeWriteLeaf-ceq'Manual_307_KMC_C7_MANUAL_DERIVED_FIELD.zks'
   if($f09){[void](Get-KmcChunk7F09SelectorOptionalitySource $Request.fixture)}
-  $sourceLeaf=if($Request.manualDerived.nativeWriteLeaf-cin@('Manual_304_KMC_C7_MANUAL_DERIVED_FIELD.zks','Manual_307_KMC_C7_MANUAL_DERIVED_FIELD.zks')){'chunk7-assisted-cold-inventory-evidence.json'}else{'chunk7-manual-seed-evidence.json'}
+  if(Test-KmcManualDerivedSixthHire $Request.manualDerived){[void](Get-KmcChunk7F09SixthHireSource $Request.fixture)}
+  $sourceLeaf=if($Request.manualDerived.nativeWriteLeaf-cin@('Manual_304_KMC_C7_MANUAL_DERIVED_FIELD.zks','Manual_307_KMC_C7_MANUAL_DERIVED_FIELD.zks','Manual_308_KMC_C7_SIX_HORSE_WORLD.zks')){'chunk7-assisted-cold-inventory-evidence.json'}else{'chunk7-manual-seed-evidence.json'}
   $path=Join-Path (Join-Path (Split-Path $Request.evidenceRoot -Parent) $Request.manualDerived.sourceRunId) $sourceLeaf
   Assert-KmcNotReparsePoint $path 'qualified Manual lineage';Assert-KmcNotHardLink $path 'qualified Manual lineage';$file=Get-Item -LiteralPath $path
   if($file.Length-le0-or$file.Length-gt16MB-or(Get-KmcSha256 $path)-cne$Request.manualDerived.sourceArtifactSha256){throw 'Qualified Manual lineage is absent or changed.'}
