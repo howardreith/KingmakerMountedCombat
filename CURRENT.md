@@ -1,5 +1,15 @@
 # Chunk 7B–7D — IN PROGRESS
 
+The reviewed [batch182 fifth-Horse cold consumer](docs/CHUNK7-BATCH182-FIFTH-HORSE-COLD-2026-10-22.md)
+passed one guarded separate-process base-only Manual load: native game and
+original outer 4/0, eleven field actors, six characters and five distinct
+reciprocal sourced Horses. One load, zero saves or resource writes, and no
+native preparation. Run/save/Mods/profile bytes restored exactly with zero
+accepted cache changes. This closes only the fifth-Horse unmounted Manual/cold
+preservation row; ordinary sixth-rider roster transition/build, mounted
+fifth/sixth pair, conditional six-pair stress and the wider standing mission
+remain **IN PROGRESS**.
+
 The reviewed [batch181 fifth paid Horse Manual](docs/CHUNK7-BATCH181-FIFTH-HORSE-MANUAL-2026-10-22.md)
 passed native game and original outer 7/0 on one guarded base-only run.
 Five field characters/four native Horses became six characters/five Horses;
