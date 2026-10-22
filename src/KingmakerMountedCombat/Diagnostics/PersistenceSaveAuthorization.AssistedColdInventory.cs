@@ -39,6 +39,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 ? Chunk7AssistedColdInventorySelection.IsOwnerSeedLeaf(source?.FileName) && Chunk7AssistedColdInventorySelection.IsOwnerSeedName(source?.InternalName)
                 : selected?.IsSmallFixture == true
                     ? Chunk7SmallFixtureSelection.IsManualLeaf(source?.FileName) && source.InternalName == Chunk7SmallFixtureSelection.OutputName
+                    : selected?.IsThirdHorse == true
+                        ? source?.FileName == "Manual_305_KMC_C7_SMALL_WORLD.zks" && source.InternalName == Chunk7OwnedPairsSelection.SmallFixtureManualName
                     : selected?.IsMediumFixture == true
                         ? Chunk7SmallFixtureSelection.IsMediumManualLeaf(source?.FileName) && source.InternalName == Chunk7SmallFixtureSelection.MediumOutputName
                     : Chunk7AssistedColdInventorySelection.IsManualLeaf(source?.FileName) && source.InternalName == Chunk7AssistedColdInventorySelection.ManualName;
