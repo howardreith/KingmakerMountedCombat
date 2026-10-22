@@ -89,6 +89,13 @@ foreach($leaf in @('Test-RuntimeGameResult.ps1','Test-RuntimeResult.ps1')){
  $names=@('C7-assisted-cold-source','C7-assisted-cold-native-load','C7-assisted-cold-readonly','C7-assisted-cold-cleanup')
  $result=[pscustomobject]@{scenario='chunk7-assisted-cold-inventory';subscenarioResults=@($names|ForEach-Object{[pscustomobject]@{name=$_;status='PASS';assertionPassCount=1;assertionFailCount=0;errors=@()}});subscenarioTotal=4;subscenarioPassCount=4;subscenarioFailCount=0;assertionPassCount=4;assertionFailCount=0}
  Check ($leaf+' exact cold rows') $false {Assert-SubscenarioResults $result}
+ Check ($leaf+' exact native departure row') $false {
+  $q=Copy-Test $result;$q.subscenarioResults+=,[pscustomobject]@{name='C7-assisted-cold-native-departure';status='PASS';assertionPassCount=1;assertionFailCount=0;errors=@()}
+  $q.subscenarioTotal=$q.subscenarioPassCount=$q.assertionPassCount=5;Assert-SubscenarioResults $q
+ }
+ Check ($leaf+' native departure row refuses an inexact name') $true {
+  $q=Copy-Test $result;$q.subscenarioResults[0].name='C7-assisted-cold-native-departures';Assert-SubscenarioResults $q
+ }
  Check ($leaf+' arbitrary row refuses') $true {$q=Copy-Test $result;$q.subscenarioResults[0].name='C7-assisted-any';Assert-SubscenarioResults $q}
  Check ($leaf+' duplicate row refuses') $true {$q=Copy-Test $result;$q.subscenarioResults[1].name=$q.subscenarioResults[0].name;Assert-SubscenarioResults $q}
 }
