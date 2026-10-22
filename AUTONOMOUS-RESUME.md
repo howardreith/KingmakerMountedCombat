@@ -1,5 +1,11 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## Active October 21 after batch172 third-Horse cold authority FAIL
+
+The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active. [Batch172](docs/CHUNK7-BATCH172-THIRD-HORSE-COLD-AUTHORITY-FAIL-2026-10-21.md) is an original game/outer **FAIL before native load**: the new read-only third-Horse Manual case was omitted from `PersistenceSaveAuthorization.AssistedColdEntry`. Run/save/Mods restored, with exact profile bytes and no accepted cache changes. A reviewed exact-Manual authority correction passes focused actual-authority 149/0 and Fast 3/0. The immutable b171 producer is still the cold source; no third-Horse cold verdict exists yet.
+
+Next: commit and guarded-push this correction/failure record, freeze a new package and current-state suite, then guarded WhatIf and one fresh separate-process third-Horse cold consumer. Preserve b172 FAIL and its restoration independently. Continue the selected F09 breadth, F11, doors, 7C/7D and readiness-gated private 7E after this row. No merge, release, permanent installation or HUMAN PLAY acceptance.
+
 ## Active October 21 after batch171 native three-Horse Manual PASS
 
 The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active. [Batch171](docs/CHUNK7-BATCH171-F09-THIRD-HORSE-MANUAL-PASS-2026-10-21.md) on reviewed/pushed `4bb63b4f2fafa0f47da6e3cf35f12ca8ff6b25e1` passed Candidate 7/0, then one guarded native producer **game PASS 5/0 / outer PASS**. The one genuine Manual `Manual_305_KMC_C7_SMALL_WORLD.zks` is retained in the isolated b171 run root, SHA-256 `f70a54865c86a599c3b25f6f2574abde2f663cd07b82472eac4bcbe245ea8c84`, with eight native field actors and empty unmounted KMC metadata. Run/save/Mods transactions restored; 402 accepted native cache changes mean profile bytes were not exact. Batch170 original FAIL remains recorded. No independent cold consumer exists yet, so F09 persistence is **IN PROGRESS**.
