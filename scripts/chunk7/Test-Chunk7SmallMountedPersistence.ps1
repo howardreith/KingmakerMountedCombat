@@ -71,6 +71,32 @@ $sourceDescriptor=[pscustomobject]@{internalName=$producer.observations.nativeWr
  length=$producer.observations.nativeWrite.length;lastWriteTimeUtcTicks=$producer.observations.nativeWrite.lastWriteTimeUtcTicks;
  gameId=$producer.observations.nativeWrite.gameId;gameName=$producer.observations.nativeWrite.gameName;area=$producer.observations.nativeWrite.area}
 $request|Add-Member -NotePropertyName persistenceLoad -NotePropertyValue $sourceDescriptor
+$thirdManualSelection=Copy-Selection $selection;$thirdManualSelection.case='small-fixture-third-horse-persistence-save'
+$thirdManualRequest=[pscustomobject]@{scenario=$request.scenario;runId='test-small-third-horse-manual';ownedPairs=$thirdManualSelection;
+ persistenceCase='multi-exploration-manual';fixture=$request.fixture;persistenceLoad=$sourceDescriptor}
+Check 'third-Horse Manual admits the same immutable seven-actor source and one reserved write' $true {
+ Assert-KmcChunk7OwnedPairsDescriptor $thirdManualRequest
+ $source=Get-KmcChunk7OwnedPairsSmallSource $thirdManualSelection 'multi-exploration-manual' $consumer.fixture $consumer
+ Assert-KmcBootstrapInventoryString $source.descriptor.sha256 $selection.sourceArchiveSha256
+ $o=[pscustomobject]@{ownedOutputAdmission=[pscustomobject]@{number=305;leaf='Manual_305_KMC_C7_SMALL_WORLD.zks'}}
+ Assert-KmcBootstrapInventoryString (Get-KmcChunk7OwnedOutputLeaf $thirdManualRequest $o) 'Manual_305_KMC_C7_SMALL_WORLD.zks'
+ Assert-KmcMatchedPoolArtifact $thirdManualRequest ([pscustomobject]@{artifacts=@()}) 'PASS'
+}
+Check 'third-Horse Manual refuses zero-write authority' $false {
+ $bad=Copy-Selection $thirdManualRequest;$bad.ownedPairs.expectedNativeWriteCount=0
+ Assert-KmcChunk7OwnedPairsDescriptor $bad
+}
+Check 'third-Horse Manual refuses a fabricated checkpoint source' $false {
+ $bad=Copy-Selection $thirdManualRequest;$bad.ownedPairs.checkpointSourceRunId='other';$bad.ownedPairs.checkpointSourceArtifactSha256='0'*64
+ Assert-KmcChunk7OwnedPairsDescriptor $bad
+}
+Check 'third-Horse Manual refuses a matched-pool sidecar' $false {
+ Assert-KmcMatchedPoolArtifact $thirdManualRequest ([pscustomobject]@{artifacts=@([pscustomobject]@{relativePath='chunk7-matched-pool-measurements.json';kind='chunk7-matched-pool-measurements'})}) 'PASS'
+}
+Check 'third-Horse Manual outer settlement reads its world artifact' $true {
+ Assert-KmcBootstrapInventoryString (Get-KmcChunk7OwnedWriteArtifactLeaf $thirdManualRequest) 'chunk7-world-evidence.json'
+ Assert-KmcBootstrapInventoryString (Get-KmcChunk7OwnedWriteArtifactLeaf $request) 'chunk7-persistence-evidence.json'
+}
 Check 'Small producer reserves the next genuine Manual number' $true {
  $o=[pscustomobject]@{ownedOutputAdmission=[pscustomobject]@{number=305;leaf='Manual_305_KMC_C7_SMALL_WORLD.zks'}}
  Assert-KmcBootstrapInventoryString (Get-KmcChunk7OwnedOutputLeaf $request $o) 'Manual_305_KMC_C7_SMALL_WORLD.zks'

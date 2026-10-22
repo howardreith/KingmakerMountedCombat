@@ -183,7 +183,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (cleanupStarted) { PollCleanup(); return; }
                 nativeScope.RequireCurrent();
                 screenshots?.Pump(Time.frameCount);
-                if (ThirdHorseSetup && step >= 80 && step <= 81) { UpdateThirdHorseSetup(); return; }
+                if (ThirdHorseSetup && step >= 80 && step <= 83) { UpdateThirdHorseSetup(); return; }
                 // Owner-seed SETUP steps carry their own bounded deadlines; the measured
                 // phase below keeps the unchanged historical deadline from SETUP-COMPLETE.
                 if (step >= 50 && step <= 57) { UpdateOwnerSeedSetup(); return; }
@@ -813,6 +813,8 @@ namespace KingmakerMountedCombat.Diagnostics
             { RetainCleanup("A native load or archive worker still owns this world."); return; }
             if (OwnerSeedManual && !TryCleanup("owner-seed Manual save custody", () => Require(OwnerSeedManualCleanupReady(), "The owner-seed native Manual save scope or its observers have not settled.")))
             { RetainCleanup("The owner-seed native Manual save still owns this world."); return; }
+            if (ThirdHorseManual && !TryCleanup("third-Horse Manual save custody", () => Require(OwnerSeedManualCleanupReady(), "The third-Horse native Manual save scope or its observers have not settled.")))
+            { RetainCleanup("The third-Horse native Manual save still owns this world."); return; }
             if (ThirdHorseSetup && thirdDriver != null && !thirdDriver.Complete)
             {
                 if (thirdCancellation == null)
@@ -908,7 +910,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["controlsSettled"] = !controls.HasUnsettledRelationshipTransition, ["settingsAndSelectionRestored"] = true,
                 ["nativeProcessesSettled"] = NativeCommandsSettled(), ["cleanupCustodySettled"] = true,
                 ["nativeProgressionRequiresExternalWorkingRestoration"] = inherited == null && !OwnerSeed && !ThirdHorseSetup,
-                ["ordinaryRespecProven"] = false, ["nativeSaveWritten"] = OwnerSeedManualWritten,
+                ["ordinaryRespecProven"] = false, ["nativeSaveWritten"] = OwnerSeedManualWritten || ThirdHorseManualWritten,
                 ["world"] = CaptureWorld("cleanup"), ["partyAfter"] = new JArray((OwnerSeed ? OwnerSeedRoster() : PartyActors()).Select(CaptureRig)),
                 ["selectionBefore"] = new JArray(originalSelection.Select(x => x.UniqueId)),
                 ["selectionAfter"] = new JArray(SelectionManager.Instance.SelectedUnits.Select(x => x.UniqueId)),

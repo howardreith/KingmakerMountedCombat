@@ -29,6 +29,18 @@ internal static class SmallCalibrationProtocolTests {
    var r=SmallThirdHorseRequest();TestRunner.Equal(0,r.Validate().Count,"Exact third-Horse setup request refused.");
    TestRunner.Equal("chunk7-two-pair-exploration",r.SelectedChunk7Scenario,"Third-Horse setup routed through another native host.");
   });
+  tests.Run("third-Horse native Manual admits exact source and one reserved write",()=>{
+   var r=SmallThirdHorseManualRequest();TestRunner.Equal(0,r.Validate().Count,"Exact third-Horse Manual request refused.");
+   TestRunner.Equal("chunk7-two-pair-exploration",r.SelectedChunk7Scenario,"Third-Horse Manual routed through another native host.");
+   TestRunner.Equal(1,r.OwnedPairs.WriteCount(r.PersistenceCase),"Third-Horse Manual lost its exact write quota.");
+  });
+  foreach(var bad in new[]{"missing checkpoint","zero write","foreign source","borrowed cold parent"})
+   tests.Run("third-Horse native Manual refuses "+bad,()=>{var r=SmallThirdHorseManualRequest();switch(bad){
+    case "missing checkpoint":r.PersistenceCase=null;break;
+    case "zero write":r.OwnedPairs.ExpectedNativeWriteCount=0;break;
+    case "foreign source":r.PersistenceLoad.Sha256=new string('8',64);break;
+    case "borrowed cold parent":r.OwnedPairs.CheckpointSourceRunId="foreign";r.OwnedPairs.CheckpointSourceArtifactSha256=new string('8',64);break;
+   }TestRunner.True(r.Validate().Count>0,"Third-Horse Manual accepted altered source or authority.");});
   foreach(var bad in new[]{"checkpoint","write","cold-source","foreign-source"})
    tests.Run("third-Horse setup refuses "+bad,()=>{var r=SmallThirdHorseRequest();switch(bad){
     case "checkpoint":r.PersistenceCase="multi-exploration-manual";break;
@@ -72,6 +84,9 @@ internal static class SmallCalibrationProtocolTests {
   r.RunId="small-third-horse-run";r.PersistenceCase=null;
   r.OwnedPairs.Case=Chunk7OwnedPairsSelection.SmallThirdHorseCase;
   r.OwnedPairs.ExpectedNativeWriteCount=0;return r;}
+ private static RuntimeRequest SmallThirdHorseManualRequest(){var r=SmallMountedRequest(false);
+  r.RunId="small-third-horse-manual-run";
+  r.OwnedPairs.Case=Chunk7OwnedPairsSelection.SmallThirdHorseSaveCase;return r;}
  private static RuntimeRequest MediumMountedRequest(bool cold){var r=FieldRequest();r.RunId=cold?"medium-cold-run":"medium-save-run";
   r.Scenario=Chunk7OwnedPairsSelection.Scenario;r.OrdinaryField=null;r.PersistenceCase="multi-exploration-manual";
   r.OwnedPairs=new Chunk7OwnedPairsSelection{Case=cold?Chunk7OwnedPairsSelection.MediumFixtureLoadCase:Chunk7OwnedPairsSelection.MediumFixtureSaveCase,
