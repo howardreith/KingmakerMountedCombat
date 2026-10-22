@@ -13,6 +13,12 @@
 > and [implementation chronology](CHUNK7-IMPLEMENTATION-PLAN.md) remain
 > historical where they say 7E is unselected or give stale native caps.
 
+[Batch173](../docs/CHUNK7-BATCH173-THIRD-HORSE-COLD-2026-10-21.md)
+adds a genuine separate-process three-Horse cold-load game PASS, with the
+original outer PID-reader FAIL and an independently reviewed reader-only PASS
+retained separately. The conditional six-pair, other story Horses, request-free
+controls and private exact-package rehearsal remain open.
+
 [Batches 163–166](../docs/CHUNK7-BATCH163-166-F10-OWNER-CUMULATIVE-COLD-2026-10-21.md)
 add a same-frozen-product original PASS for owner-seed cumulative paid Small
 Manual 306, two-owner acquired Manual 307, genuine mounted Manual 308, and

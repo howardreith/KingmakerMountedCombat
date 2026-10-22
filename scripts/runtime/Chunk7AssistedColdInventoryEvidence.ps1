@@ -22,6 +22,13 @@ function Test-KmcChunk7ThirdHorseColdSelection($Selection){
   $null-ne$Selection.PSObject.Properties['case']-and$Selection.case-is[string]-and
   $Selection.case-ceq'third-horse-manual-readonly-inventory'
 }
+function Assert-KmcAssistedColdSeparateProcess($Selection,$SourceArtifact,$ColdArtifact,$VerifiedSource){
+ if(Test-KmcChunk7OwnerSeedSelection $Selection){return}
+ $sourceProcessId=if(Test-KmcChunk7ThirdHorseColdSelection $Selection){$VerifiedSource.sourceProcessId}else{$SourceArtifact.observations.processId}
+ Assert-KmcOrdinaryInteger $sourceProcessId 1 ([int]::MaxValue)
+ Assert-KmcOrdinaryInteger $ColdArtifact.observations.processId 1 ([int]::MaxValue)
+ if($sourceProcessId-eq$ColdArtifact.observations.processId){throw 'Assisted cold inventory reused the preparation process.'}
+}
 # Owner-seed internal names may hold single interior spaces (Kingmaker save names; the engine
 # writes underscores only in the file name): no leading, trailing or repeated space, no tab or
 # other whitespace, at most 64 characters. Same rule as Chunk7AssistedColdInventorySelection.IsOwnerSeedName.

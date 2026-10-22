@@ -90,6 +90,14 @@ Check 'root singleton source is refused' $false {param($f)$f.source=@($f.source)
 foreach($key in @('status','evidenceKind','createdAtUtc')){Check ('singleton artifact '+$key+' is refused') $false {param($f)$f.artifact.$key=@($f.artifact.$key);Verify $f}}
 Check 'unknown observation field is refused' $false {param($f)$f.artifact.observations|Add-Member NoteProperty extra $true;Verify $f}
 Check 'same source process is refused' $false {param($f)$f.artifact.observations.processId=$f.source.observations.processId;Verify $f}
+Check 'world-source producer PID comes from its pinned game receipt' $true {param($f)
+ $f.request.assistedColdInventory.case='third-horse-manual-readonly-inventory'
+ $f.source.observations.PSObject.Properties.Remove('processId')
+ Assert-KmcAssistedColdSeparateProcess $f.request.assistedColdInventory $f.source $f.artifact ([pscustomobject]@{sourceProcessId=($f.artifact.observations.processId+1)})}
+Check 'world-source same producer PID is refused' $false {param($f)
+ $f.request.assistedColdInventory.case='third-horse-manual-readonly-inventory'
+ $f.source.observations.PSObject.Properties.Remove('processId')
+ Assert-KmcAssistedColdSeparateProcess $f.request.assistedColdInventory $f.source $f.artifact ([pscustomobject]@{sourceProcessId=$f.artifact.observations.processId})}
 Check 'foreign source candidate is refused' $false {param($f)$f.source.dllSha256='f'*64;Verify $f}
 Check 'source setup proof cannot become ordinary acquisition' $false {param($f)$f.source.observations.ordinaryAcquisitionProven=$true;Verify $f}
 Check 'source settled roster clone must remain exact' $false {param($f)$f.artifact.observations.sourceNativeWorld.party[1].blueprint='e'*32;Verify $f}

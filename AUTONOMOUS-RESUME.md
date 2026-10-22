@@ -1,5 +1,11 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## Active October 21 after batch173 third-Horse cold game PASS / outer FAIL
+
+The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active. [Batch173](docs/CHUNK7-BATCH173-THIRD-HORSE-COLD-2026-10-21.md) on the corrected reviewed authority passed one genuine separate-process native cold load **game 4/0**: eight field actors, three reciprocal native Horses, one load, zero writes and no preparation. Its original outer reader is **FAIL** because a generic runner PID check assumed the world producer artifact has `observations.processId`; a reviewed external-reader correction passed focused 219/0 and an immutable b173 reader-only PASS. Original outer FAIL stays separate. Run/save/Mods and profile bytes restored exactly. Batch172's pre-load FAIL remains distinct.
+
+Next: commit and guarded-push the b173 reader correction and record, update draft PR #5, then pursue the next actionable standing-mission gate (F09 additional Horse/six-pair fixture, F11 normal-player controls, doors or remaining progression) without rerunning unchanged b173 solely to rename its original result. Exact-package 7E must cover this cold path when ready. No merge, release, permanent installation or HUMAN PLAY acceptance.
+
 ## Active October 21 after batch172 third-Horse cold authority FAIL
 
 The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active. [Batch172](docs/CHUNK7-BATCH172-THIRD-HORSE-COLD-AUTHORITY-FAIL-2026-10-21.md) is an original game/outer **FAIL before native load**: the new read-only third-Horse Manual case was omitted from `PersistenceSaveAuthorization.AssistedColdEntry`. Run/save/Mods restored, with exact profile bytes and no accepted cache changes. A reviewed exact-Manual authority correction passes focused actual-authority 149/0 and Fast 3/0. The immutable b171 producer is still the cold source; no third-Horse cold verdict exists yet.
