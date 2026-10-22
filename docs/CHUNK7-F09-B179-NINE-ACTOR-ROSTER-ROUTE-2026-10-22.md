@@ -50,3 +50,15 @@ sixth route, observe Linzi's exact `MustBeInParty`/locked status under an owned
 selector and settle it without altering the immutable master. Six-pair active
 capacity and performance remain conditional and unqualified; ordinary mounted
 admission still caps active pairs at two.
+
+## Batch180 optionality update
+
+[Batch180](CHUNK7-BATCH180-FOURTH-HORSE-SELECTOR-2026-10-22.md) supplied that
+distinct native observation: a ready opened selector reported Linzi optional,
+with no `SwitchCharacter`, `Go` or save. The read-only
+`Get-KmcChunk7F09SelectorOptionalitySource` rechecks the original b178/b179
+lineage and hash-pins batch180's original game/outer PASS and exact selector
+artifact. Actual-receipt plus wrong-Working-anchor checks pass 4/0; independent
+review found no blocker. It explicitly grants no roster-transition or native
+build authority. The actual fifth paid hire, sixth removal/hire, their Manual/
+cold preservation and conditional six-pair stress are still open.

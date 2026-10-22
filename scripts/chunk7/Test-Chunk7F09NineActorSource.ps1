@@ -18,4 +18,15 @@ $wrong.working.sha256='f'*64
 $refused=$false
 try{[void](Get-KmcChunk7F09NineActorSource $wrong)}catch{$refused=$true}
 if(-not$refused){throw 'Nine-actor F09 source admitted a changed Working anchor.'}
-Write-Host 'F09 NINE-ACTOR SOURCE PASS=2 FAIL=0 (nativeInvoked=false; setup only)'
+$selector=Get-KmcChunk7F09SelectorOptionalitySource $request.fixture
+if($selector.selectorRunId-cne'20261022-c7b-world180-b180s1-fourthhorse-selector'-or
+   $selector.optionalActorId-cne'8265f8cf-0969-4ec7-a266-2448de91c8c4'-or
+   $selector.eligibleForNativeRemoval-ne$true-or$selector.nativeRosterTransitionProven-ne$false-or
+   $selector.fixtureSetupOnly-ne$true-or$selector.nativeAuthorityGranted-ne$false-or
+   $selector.nineActorSource.descriptor.sha256-cne$source.descriptor.sha256){
+ throw 'Selector optionality source granted unproved native roster/build authority.'
+}
+$refused=$false
+try{[void](Get-KmcChunk7F09SelectorOptionalitySource $wrong)}catch{$refused=$true}
+if(-not$refused){throw 'Selector optionality source admitted a changed Working anchor.'}
+Write-Host 'F09 NINE-ACTOR/SELECTOR SOURCE PASS=4 FAIL=0 (nativeInvoked=false; setup only)'

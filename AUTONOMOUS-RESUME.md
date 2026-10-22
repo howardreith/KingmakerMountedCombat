@@ -9,6 +9,8 @@ on reviewed product source `1ff79959`, package ZIP `0bf3291f`, DLL `590bde8e`
 and suite `bd0de844`. Linzi was selected in the ready native selector and
 `MustBeInParty=false`, with zero roster switches/Go and zero saves. Run/save/
 Mods/profile bytes restored exactly; no game process or active lock remains.
+The reviewed read-only selector source gate passed 4/0 on actual receipts and
+a changed-Working refusal, without granting a native build or roster mutation.
 This is eligibility, not a completed fifth/sixth build or six-pair stress.
 
 Next: implement and review the distinct fifth paid Horse derivative of the
