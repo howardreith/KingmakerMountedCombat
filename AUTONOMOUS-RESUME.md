@@ -1,5 +1,26 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## Active October 22 after batch179 fourth-Horse cold original PASS
+
+The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active
+through readiness-gated private 7E. [Batch179](docs/CHUNK7-BATCH179-FOURTH-HORSE-COLD-2026-10-22.md)
+passed a separate-process fourth-Horse Manual 306 cold load **game/original
+outer 4/0** on reviewed source `09ed5702`, package ZIP `bfd5296c`, DLL
+`0fe4ad49`, suite `69058dc0`. Nine actors and four distinct reciprocal
+sourced Horses survived; one native load, zero writes, no preparation and
+settled custody were observed. Run/save/Mods/profile bytes restored exactly;
+no game process or active lock remains. Batch178's original outer FAIL and
+separate reader-only PASS are not rewritten. Batches176/177 FAIL remain separate.
+
+Next: inspect the exact fourth-Horse saved lineage and native party-slot
+constraints for a supported
+fifth/sixth-pair fixture route. Build only the next bounded source/behavior
+needed for conditional six-pair stress, or advance an independent standing
+requirement if that route is blocked. F11 request-free normal-player controls,
+doors, remaining 7C/7D and selected private 7E remain open. Do not repeat
+batch179 merely to relabel development evidence. No merge/release/permanent
+installation/HUMAN PLAY acceptance.
+
 ## Active October 22 after batch178 fourth-Horse Manual game PASS / original outer FAIL
 
 The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active through readiness-gated private 7E. [Batches177–178](docs/CHUNK7-BATCH177-178-FOURTH-HORSE-MANUAL-2026-10-22.md) used reviewed/pushed `7bf5b89b`, package `6e554a5c`, DLL `906a506f`, suite `9861dfc0`. Batch177 original outer FAIL was a Steamworks `steam_api64` startup exit before any game result; the exact private output log was retained and run/save/Mods/profile bytes restored. Batch178 on the unchanged candidate passed native game **5/0**, writing `Manual_306_KMC_C7_FOUR_HORSE_WORLD.zks` SHA-256 `e82f7bb0775535ac2d9b782c6e53fa92a0893ab71bdf375a1e7cc06d50188759` from the exact b171 `Manual_305` source. The original outer FAIL was a closed output-number reader omission. Corrected external reader plus focused tests and independent review passed; immutable b178 reader-only PASS receipt `c9bc4ed9acc977112d540fb5c6c71acb5bcc6e668a8ba31d086c4d2f6ae5768f` is separate. Exactly two isolated archive leaves have the expected hashes. B178 run/save/Mods/profile bytes restored exactly, no game/lock. B175 PASS and b176 FAIL remain distinct.
