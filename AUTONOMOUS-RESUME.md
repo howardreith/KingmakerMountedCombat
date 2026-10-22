@@ -1,6 +1,34 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
-## Active October 22 — Claude after batch189
+## Active October 22 — Claude batch190 preparation: six-pair sampler custody
+
+Read the [batch190 preparation](docs/CHUNK7-B190-SIX-PAIR-SAMPLER-CUSTODY-2026-10-22.md),
+the [batch189 PASS record](docs/CHUNK7-BATCH189-SIX-MOUNTED-MANUAL-COLD-PASS-2026-10-22.md)
+and the [standing mission](planning/CHUNK7-COMPLETION-MISSION.md).
+
+The six-pair observer now runs full inherited custody only at sampling-window boundaries
+(contract v2, `measuredFramesCarryFullCustody=false`). Offline tests pass and the independent
+review is CLEAR, with its SHOULD-FIX applied. No native run yet. No Kingmaker process, lock
+or pending recovery remains.
+
+Next uncompleted action:
+1. Commit and guarded-push this coherent change.
+2. Build one package with qualifier `c7b-world190-sixmeasure`, then Candidate with
+   -SkipBuild. Freeze a new suite and run the scoped WhatIf with the batch188 zero-write
+   six-pair selection (`analysis-cache/chunk7-continuation/b188-sixslot-selection.json`),
+   provided it still validates unchanged.
+3. Run ONE zero-write six-pair lifecycle scenario, launched orphaned via WMI with a receipt
+   wrapper. Keep HEAD and every input frozen until settlement and read-only restoration
+   verification. Record the per-state KMC Update means as F11 development evidence;
+   `performanceAccepted` stays false.
+4. SHOULD-FIX 3: feed the unattended exit's real FAIL result through the full
+   `Test-RuntimeGameResult.ps1` offline.
+5. Remaining F10/F11/doors work, then private 7E.
+
+No merge, release, permanent installation or HUMAN PLAY acceptance. Private execution
+note: analysis-cache/chunk7-continuation/b188-claude-current-execution.md.
+
+## Historical October 22 — Claude after batch189
 
 Read the [batch189 PASS record](docs/CHUNK7-BATCH189-SIX-MOUNTED-MANUAL-COLD-PASS-2026-10-22.md),
 the [batch188 PASS record](docs/CHUNK7-BATCH188-SIX-PAIR-LIFECYCLE-PASS-2026-10-22.md)

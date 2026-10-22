@@ -20,11 +20,13 @@ namespace KingmakerMountedCombat.Diagnostics {
  class Runtime { public bool NoPreparedPairResidue=true; } class Relationship { public Runtime Runtime=new Runtime(); } class Pair { public object Participant=new object();public Relationship Relationship=new Relationship(); }
  class Unified { public bool HasUnsettledPreparation;public object[] SnapshotParticipants;public int TrackedAllocationActorCount; }
  class World { public Registry Registry=new Registry();public Pair[] Pairs=Enumerable.Range(0,6).Select(i=>new Pair()).ToArray();public Unified UnifiedTurn=new Unified();public int BoundaryCount=>Pairs.Length;public int FailedConstructionCount;public bool SerializationBusy;public World(){UnifiedTurn.SnapshotParticipants=Pairs.Select(p=>p.Participant).ToArray();} }
- class Inherited { public Actor[] Actors=Enumerable.Range(0,12).Select(i=>new Actor()).ToArray();public bool Reject;public void RequirePreserved(){if(Reject)throw new InvalidOperationException("inherited native custody changed");} }
+ class Inherited { public Actor[] Actors=Enumerable.Range(0,12).Select(i=>new Actor()).ToArray();public bool Reject;public int Calls,DuringOpenWindow;
+  public void RequirePreserved(){Calls++;var open=MountedRuntimeMeasurement.Active;if(open!=null&&!open.Ready)DuringOpenWindow++;if(Reject)throw new InvalidOperationException("inherited native custody changed");} }
  class Shell { public int Pending; } class Controls { public bool HasUnsettledRelationshipTransition;public object MountAbility=new object(),DismountAbility=new object();public int NativeCastRequestCount,NativeRefusalCount;public bool HasExactRelationshipProcessBinding(Shell s)=>s.Pending>0; }
  class Persistence { public int SnapshotCount,SemanticRestoreCount,PresentationRestoreCount; }
  class Clock { public TimeSpan Elapsed; }
- class MountedRuntimeMeasurement:IDisposable { readonly int start=Time.frameCount;public bool Ready=>Time.frameCount-start>=150;public static int Starts,Releases;public MountedRuntimeMeasurement(string label,World world){Starts++;}public JObject Complete()=>new JObject();public void Dispose(){Releases++;} }
+ class MountedRuntimeMeasurement:IDisposable { readonly int start=Time.frameCount;public bool Ready=>Time.frameCount-start>=150;public static int Starts,Releases;public static MountedRuntimeMeasurement Active;
+  public MountedRuntimeMeasurement(string label,World world){Starts++;Active=this;}public JObject Complete()=>new JObject();public void Dispose(){Releases++;if(ReferenceEquals(Active,this))Active=null;} }
  internal sealed partial class Chunk7WorldScenarioEngine {
   readonly Request request=new Request();readonly Inherited inherited=new Inherited();readonly World world=new World();readonly Controls controls=new Controls();readonly Persistence persistence=new Persistence();readonly Clock clock=new Clock();
   readonly JObject evidence=new JObject();readonly JArray inputs=new JArray(),groundInputs=new JArray(),snapshots=new JArray();readonly List<string> passed=new List<string>();
@@ -52,7 +54,7 @@ namespace KingmakerMountedCombat.Diagnostics {
    if(movementFrames>0&&!holdMovement)movementFrames--;
   }
   static Chunk7WorldScenarioEngine Create(){GameReset();return new Chunk7WorldScenarioEngine();}
-  static void GameReset(){Kingmaker.Game.Instance=new Kingmaker.Game();Time.frameCount=0;MountedRuntimeMeasurement.Starts=MountedRuntimeMeasurement.Releases=0;Integration.GameMountedRelationshipService.NativePairCapacity=6;Integration.NativePersistenceIsolation.HasPendingWrites=false;}
+  static void GameReset(){Kingmaker.Game.Instance=new Kingmaker.Game();Time.frameCount=0;MountedRuntimeMeasurement.Starts=MountedRuntimeMeasurement.Releases=0;MountedRuntimeMeasurement.Active=null;Integration.GameMountedRelationshipService.NativePairCapacity=6;Integration.NativePersistenceIsolation.HasPendingWrites=false;}
   void Drive(int count=20000){for(int i=0;i<count&&!cleanup;i++){TickNative();UpdateSixPairStress();}}
   static int checks,failures;static void Check(bool ok,string label){checks++;Console.WriteLine((ok?"PASS ":"FAIL ")+label);if(!ok)failures++;}
   static void Refuse(string label,Action<Chunk7WorldScenarioEngine> mutate,bool afterBegin=false){var e=Create();bool refused=false;try{if(afterBegin)e.BeginSixPairStress();mutate(e);if(afterBegin){e.TickNative();e.UpdateSixPairStress();}else e.BeginSixPairStress();}catch(InvalidOperationException){refused=true;}Check(refused,label);}
@@ -65,6 +67,12 @@ namespace KingmakerMountedCombat.Diagnostics {
    Check(e.sixPins==null&&e.sixIdentities==null&&(bool)e.sixObservation["identityScopeReleased"],"actual partial releases exact native pin scope before cleanup");
    Check(e.passed.Count==4&&e.passed.Distinct().Count()==4,"actual partial emits four distinct selected result rows once");
    Check(e.siblingCaptures==1&&e.siblingChecks==3,"actual partial captures native sibling order once and requires it after each settled cycle");
+   Check(e.inherited.Calls>0&&e.inherited.DuringOpenWindow==0&&(string)e.sixObservation["contract"]=="cold-qualified-six-pair-lifecycle-v2"&&
+    e.sixObservation["measuredFramesCarryFullCustody"].Value<bool>()==false,"actual partial verifies full inherited custody outside open windows only and declares it");
+   var b=Create();b.BeginSixPairStress();for(int i=0;i<20000&&(MountedRuntimeMeasurement.Active==null||MountedRuntimeMeasurement.Active.Ready);i++){b.TickNative();b.UpdateSixPairStress();}
+   for(int i=0;i<5;i++){b.TickNative();b.UpdateSixPairStress();}var openBefore=MountedRuntimeMeasurement.Active!=null&&!MountedRuntimeMeasurement.Active.Ready;b.inherited.Reject=true;
+   bool caught=false,caughtWhileOpen=false,caughtAtReady=false;try{for(int i=0;i<1000;i++){var open=MountedRuntimeMeasurement.Active!=null&&!MountedRuntimeMeasurement.Active.Ready;b.TickNative();try{b.UpdateSixPairStress();}catch(InvalidOperationException){caught=true;caughtWhileOpen=open&&MountedRuntimeMeasurement.Active!=null&&!MountedRuntimeMeasurement.Active.Ready;caughtAtReady=MountedRuntimeMeasurement.Active!=null&&MountedRuntimeMeasurement.Active.Ready;throw;}}}catch(InvalidOperationException){}
+   Check(openBefore&&caught&&!caughtWhileOpen&&caughtAtReady&&b.sixSamples.Count==0,"changed inherited custody inside an open window is refused at that window's ready boundary before its row is recorded");
    var w=Create();w.BeginSixPairStress();w.holdInput=true;w.Drive(25);Check(w.inputs.Count==1&&w.finishedInputs==0,"pending native input never replays or finishes early");w.holdInput=false;w.Drive();Check(w.cleanup&&w.finishedInputs==36,"native input continuation completes once after release");
    var r=Create();r.BeginSixPairStress();r.holdRetirement=true;for(int i=0;i<300&&!r.inputs.Any(x=>(string)x["label"]=="six-cycle-1-dismount-0");i++){r.TickNative();r.UpdateSixPairStress();}r.Drive(25);Check(r.step==1004&&r.inputs.Count==7&&r.finishedInputs==6,"native dismount shell terminal waits for exact owner retirement");r.holdRetirement=false;r.world.Registry.Items.RemoveAll(x=>ReferenceEquals(x.Rider,r.pendingRider));r.Drive();Check(r.cleanup&&r.finishedInputs==36,"owner retirement continuation completes without second dismount");
    var m=Create();m.BeginSixPairStress();m.holdMovement=true;m.Drive(100);Check(m.moves==1&&m.inputs.Count==6&&!m.cleanup,"native movement wait never replays ground input");m.holdMovement=false;m.Drive();Check(m.cleanup&&m.moves==6,"ground continuation preserves exact six input bound");

@@ -114,6 +114,14 @@ function Check([string]$Name,[scriptblock]$Body,[bool]$Reject=$false){
  Write-Output ($(if($ok){'PASS '}else{'FAIL '})+$Name+$(if(-not$ok){': '+$message}else{''}))
 }
 Check 'complete six-pair generated raw evidence under actual reader dispatch' {Assert-KmcChunk7WorldEvidence $request $artifact 'PASS'}
+# v2 declares that full inherited custody ran only at sampling-window boundaries.
+function New-V2Artifact{$v=Clone $artifact;$v.observations.sixPairStress.contract='cold-qualified-six-pair-lifecycle-v2';$v.observations.sixPairStress|Add-Member measuredFramesCarryFullCustody $false;$v}
+Check 'v2 six-pair evidence with boundary-only full custody under actual reader dispatch' {Assert-KmcChunk7WorldEvidence $request (New-V2Artifact) 'PASS'}
+Check 'strict six-pair reader refuses v2 claiming full custody on measured frames' {$v=New-V2Artifact;$v.observations.sixPairStress.measuredFramesCarryFullCustody=$true;Assert-KmcChunk7WorldEvidence $request $v 'PASS'} $true
+Check 'strict six-pair reader refuses v2 without its custody declaration' {$v=New-V2Artifact;$v.observations.sixPairStress.PSObject.Properties.Remove('measuredFramesCarryFullCustody');Assert-KmcChunk7WorldEvidence $request $v 'PASS'} $true
+Check 'strict six-pair reader refuses a mistyped v2 custody declaration' {$v=New-V2Artifact;$v.observations.sixPairStress.measuredFramesCarryFullCustody='false';Assert-KmcChunk7WorldEvidence $request $v 'PASS'} $true
+Check 'strict six-pair reader refuses v1 carrying the v2 declaration' {$v=Clone $artifact;$v.observations.sixPairStress|Add-Member measuredFramesCarryFullCustody $false;Assert-KmcChunk7WorldEvidence $request $v 'PASS'} $true
+Check 'strict six-pair reader refuses an unknown contract version' {$v=Clone $artifact;$v.observations.sixPairStress.contract='cold-qualified-six-pair-lifecycle-v3';Assert-KmcChunk7WorldEvidence $request $v 'PASS'} $true
 foreach($fault in @('missing-sixth-owner','duplicate-mounted-role','wrong-sixth-profile','remote-XP','remote-descriptor','remote-field-alias','changed-source-class','wrong-producer',
  'load2','write1','missing-input','duplicated-shell','foreign-caster','wrong-selected-neighbor','debt-refund','prepared-change','missing-move','neighbor-command','wrong-ground-call',
  'raw-missing-twelfth','raw-missing-command','raw-neighbor-command','raw-truncated','raw-read-failure',

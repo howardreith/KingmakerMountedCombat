@@ -125,11 +125,17 @@ function Assert-KmcChunk7SixPairStressEvidence($Request,$O){
  Assert-KmcChunk7InheritedEvidence $Request $O
  Assert-KmcAssistedSame $O.inheritedFixture.remote $O.inheritedCleanup.remote 'six-pair remote native identity/progression retention'
  $roles=@(Get-KmcChunk7SixPairRoles);$s=$O.sixPairStress
- Assert-KmcExactProperties $s @('contract','archiveProducerRunId','coldQualificationRunId','fixtureSetupWrites','nativeSaveRequests','nativeLoadRequests',
+ # v1 (batch186-188) verified full inherited custody on every measured frame; v2 verifies it
+ # at sampling-window boundaries and declares that its measured frames carry only the guard.
+ $fields=@('contract','archiveProducerRunId','coldQualificationRunId','fixtureSetupWrites','nativeSaveRequests','nativeLoadRequests',
   'requiredCycles','requiredGroundInputs','requiredAbilityInputs','requiredWindows','windowsPerState','performanceAccepted','requestFreeControlsProven',
   'identityScopeReleased','cycles','samples','nativeCastRequests','nativeRefusals','saveSnapshots','semanticRestores','presentationRestores',
-  'riderParents','riderParentChildren','siblingOrderVerifiedCycles') 'six-pair native lifecycle observation'
- foreach($pair in @(@('contract','cold-qualified-six-pair-lifecycle-v1'),@('archiveProducerRunId','20261022-c7b-world184-b184s1-sixthhorse-manual'),@('coldQualificationRunId',$Request.ownedPairs.sourceRunId))){Assert-KmcBootstrapInventoryString $s.($pair[0]) $pair[1]}
+  'riderParents','riderParentChildren','siblingOrderVerifiedCycles')
+ $v2=$null-ne$s.PSObject.Properties['contract']-and$s.contract-is[string]-and$s.contract-ceq'cold-qualified-six-pair-lifecycle-v2'
+ if($v2){$fields+='measuredFramesCarryFullCustody'}
+ Assert-KmcExactProperties $s $fields 'six-pair native lifecycle observation'
+ foreach($pair in @(@('contract',$(if($v2){'cold-qualified-six-pair-lifecycle-v2'}else{'cold-qualified-six-pair-lifecycle-v1'})),@('archiveProducerRunId','20261022-c7b-world184-b184s1-sixthhorse-manual'),@('coldQualificationRunId',$Request.ownedPairs.sourceRunId))){Assert-KmcBootstrapInventoryString $s.($pair[0]) $pair[1]}
+ if($v2){Assert-KmcChunk7Boolean $s.measuredFramesCarryFullCustody $false}
  foreach($key in @('fixtureSetupWrites','nativeSaveRequests','nativeRefusals','saveSnapshots','semanticRestores','presentationRestores')){Assert-KmcOrdinaryInteger $s.$key 0 0}
  foreach($pair in @(@('nativeLoadRequests',1),@('requiredCycles',3),@('requiredGroundInputs',6),@('requiredAbilityInputs',36),@('requiredWindows',15),@('windowsPerState',3),@('nativeCastRequests',36))){Assert-KmcOrdinaryInteger $s.($pair[0]) $pair[1] $pair[1]}
  foreach($key in @('performanceAccepted','requestFreeControlsProven')){Assert-KmcChunk7Boolean $s.$key $false};Assert-KmcChunk7Boolean $s.identityScopeReleased $true
