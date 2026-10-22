@@ -242,8 +242,13 @@ namespace KingmakerMountedCombat.Diagnostics
             Emit("native-auto-levelup-plan-observed", new JObject { ["plannedClass"] = controller.State.SelectedClass?.AssetGuid,
                 ["nextLevel"] = controller.State.NextLevel, ["setting"] = Game.Instance.Player.Difficulty.AutoLevelup.ToString(),
                 ["overrideCount"] = autoLevelupOverrides });
-            return Choose("class-over-native-auto-levelup-plan", ranger.AssetGuid, () => builder.SetClass(ranger),
-                () => controller.State.SelectedClass == ranger && !controller.IsAutoLevelup);
+            // The headless native LevelUp controller has no class-description
+            // widgets. CharacterBuildController.SetClass selects the class and
+            // then dereferences those widgets; the exact native selection below
+            // retains the plan override/mechanics without that presentation call.
+            var selected = false;
+            return Choose("class-over-native-auto-levelup-plan", ranger.AssetGuid, () => selected = controller.SelectClass(ranger),
+                () => selected && controller.State.SelectedClass == ranger && !controller.IsAutoLevelup);
         }
 
         private void Start()

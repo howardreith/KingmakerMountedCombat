@@ -1,5 +1,11 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## Active October 21 after batch168 native auto-plan failure
+
+The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active. [Batch168](docs/CHUNK7-BATCH168-F09-THIRD-HORSE-FAIL-2026-10-21.md) is an original game/outer **FAIL** on exact reviewed third-Horse source `c3b522cc`: its one native load and two inherited Horses passed, but headless native auto-levelup `CharacterBuildController.SetClass` threw in absent class-description UI before the first Ranger commit. Owned cancellation and all three transaction surfaces restored; 25 accepted profile cache changes mean profile bytes were not exact. An independently reviewed one-call native-controller `SelectClass` correction passes Fast 3/0; no corrected game outcome exists yet.
+
+Next: commit and guarded-push the narrow reviewed correction and failure record, freeze one new exact candidate and current-state suite, then run guarded WhatIf and one fresh native diagnostic on the unchanged batch53 Small source. Preserve batch168 FAIL and restoration independently. A corrected third Horse would still be in-memory only; conditional six-pair stress, broader F10, F11 normal-player, ordinary door, other 7C/7D and private 7E remain open. No merge, release, permanent install or HUMAN PLAY acceptance.
+
 ## Active October 21 after reviewed F09 third-Horse source diagnostic
 
 The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active; engineering completion is not reached. The reviewed [third-Horse diagnostic](docs/CHUNK7-F09-THIRD-HORSE-SOURCE-2026-10-21.md) adds an exact batch53 Small Manual, one-load/zero-write path for native XP assistance and four ordinary Ranger UI commits on one story actor while preserving the original two Horses and source custody. Fast 3/0, Small protocol 42/0, inherited reader 690/0 and six synthetic reader positive/negative cases passed. No native scenario, third Horse, derivative save or new transaction has run on this source change.
