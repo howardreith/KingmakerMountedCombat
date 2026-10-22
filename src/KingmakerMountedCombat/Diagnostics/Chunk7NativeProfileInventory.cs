@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Kingmaker;
+using Kingmaker.Blueprints;
 using Kingmaker.Blueprints.Classes;
 using Kingmaker.Blueprints.Root;
 using Kingmaker.EntitySystem.Entities;
@@ -75,13 +76,16 @@ namespace KingmakerMountedCombat.Diagnostics
                 throw new InvalidOperationException("Native party exceeds the bounded field roster.");
             var money = player.Money;
             var cost = player.GetCustomCompanionCost();
+            var respecCost = player.GetRespecCost();
             var level = main.Descriptor.Progression.CharacterLevel;
-            if (level < 0 || level > 20 || cost < 0)
+            if (level < 0 || level > 20 || cost < 0 || respecCost < 0)
                 throw new InvalidOperationException("Native acquisition level/cost is outside the observed contract.");
             return new JObject
             {
                 ["observationOnly"] = true, ["purchaseAuthorized"] = false, ["sixPairFixtureQualified"] = false,
                 ["nativeMoney"] = money, ["nativeHireCostNow"] = cost, ["nativeAffordableNow"] = money >= cost,
+                ["nativeRespecCostNow"] = respecCost, ["nativeRespecAffordableNow"] = money >= respecCost,
+                ["nativeDifficultyRespecAllowed"] = player.Difficulty.RespecAllowed,
                 ["nativePartyLevel"] = player.PartyLevel, ["nativeFieldCharacterLimit"] = 6,
                 ["nativePartyCharacterIds"] = new JArray(party.Select(value => value.UniqueId)),
                 ["mainCharacterId"] = main.UniqueId, ["mainCharacterLevel"] = level,
@@ -117,6 +121,13 @@ namespace KingmakerMountedCombat.Diagnostics
             var descriptor = actor.Descriptor;
             var doll = descriptor.Doll;
             var level = descriptor.Progression.CharacterLevel;
+            // Mirror only the installed RespecCompanion.CanRespec predicate and
+            // its selector roster. This inventory does not start a retrain.
+            var levelLimit = actor.Blueprint?.GetComponent<ClassLevelLimit>()?.LevelLimit ?? 0;
+            var player = Game.Instance.Player;
+            var inSelectorRoster = player.PartyCharacters.Concat(player.RemoteCompanions)
+                .Any(reference => ReferenceEquals(reference.Value, actor));
+            var nativeRespecPredicate = !descriptor.State.IsFinallyDead && !descriptor.IsPet && level > levelLimit;
             var character = actor.View == null ? null : actor.View.GetComponent<Character>();
             var equipment = doll?.EquipmentEntityIds?.ToArray() ?? new string[0];
             if (equipment.Length > 128) throw new InvalidOperationException("Native doll equipment IDs exceed the bounded inventory limit.");
@@ -141,6 +152,14 @@ namespace KingmakerMountedCombat.Diagnostics
                     ["canLevelUp"] = LevelUpController.CanLevelUp(descriptor),
                     ["isDead"] = descriptor.State.IsDead, ["partyInCombat"] = Game.Instance.Player.IsInCombat,
                     ["controllerCreated"] = false, ["completeChoicesObserved"] = false, ["ordinaryAcquisitionProven"] = false
+                },
+                ["nativeRespecReadiness"] = new JObject
+                {
+                    ["observationOnly"] = true, ["classLevelLimit"] = levelLimit,
+                    ["inSelectorRoster"] = inSelectorRoster,
+                    ["nativeCanRespecPredicate"] = nativeRespecPredicate,
+                    ["nativeSelectorCandidate"] = inSelectorRoster && nativeRespecPredicate,
+                    ["nativeActionStarted"] = false
                 }
             };
         }
