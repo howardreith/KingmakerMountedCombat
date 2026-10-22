@@ -38,17 +38,19 @@ function Get-KmcChunk7ThirdHorseColdExpected($Producer,[bool]$Fourth=$false){
 
 function Assert-KmcChunk7ThirdHorseColdEvidence($Request,$Artifact,$SourceArtifact){
  $s=$Request.assistedColdInventory;$o=$Artifact.observations
- $fourth=Test-KmcChunk7FourthHorseColdSelection $s
+ $fourth=Test-KmcChunk7FourthHorseSourceSelection $s
  $qualified=if($fourth){Get-KmcChunk7FourthHorseColdSource $s $Request.fixture $Request}else{Get-KmcChunk7ThirdHorseColdSource $s $Request.fixture $Request}
  Assert-KmcAssistedSame $SourceArtifact (Read-KmcJson $qualified.artifactPath) 'third-Horse immutable producer artifact'
  $expected=Get-KmcChunk7ThirdHorseColdExpected $SourceArtifact $fourth
  $factKey=if($fourth){'fourthHorseFacts'}else{'thirdHorseFacts'}
  $sourceKind=if($fourth){'reader-reevaluated-assisted-fourth-horse-manual'}else{'qualified-assisted-third-horse-manual'}
- Assert-KmcAssistedObjectValue $o @('processId','selection','source','sourceNativeWorld','sourceNativeMoney','beforeLoad',
+ $keys=@('processId','selection','source','sourceNativeWorld','sourceNativeMoney','beforeLoad',
   'resourceWrites','xpWrites','moneyWrites','profileAdmissionChanged','ordinaryAcquisitionProven',
   'sixPairFixtureQualified','mountRequests','choiceRequests','ordinaryProgressionProven','loadedWorld','loader',
   'nativeProfileInventory','fixtureReadiness','archive','settledWorld','settledLoader','nativeLoad',
-  'noPreparation',$factKey,'cleanup') 'Horse-world separate cold observations'
+  'noPreparation',$factKey,'cleanup')
+ if(Test-KmcChunk7FourthHorseSelectorSelection $s){$keys+=@('selectorProbe')}
+ Assert-KmcAssistedObjectValue $o $keys 'Horse-world separate cold observations'
  Assert-KmcAssistedSame $o.selection $s 'third-Horse exact cold selection'
  Assert-KmcAssistedSame $o.sourceNativeWorld ([pscustomobject]@{gameId=$Request.persistenceLoad.gameId;
   gameName=$Request.persistenceLoad.gameName;area=$Request.persistenceLoad.area;
@@ -106,6 +108,24 @@ function Assert-KmcChunk7ThirdHorseColdEvidence($Request,$Artifact,$SourceArtifa
  Assert-KmcOrdinaryInteger $o.nativeProfileInventory.ordinaryAcquisitionPrerequisites.nativeMoney $expected.money $expected.money
  Assert-KmcAssistedColdFixtureReadiness $o.fixtureReadiness $Request $w $f $o.nativeProfileInventory $root
  Assert-KmcAssistedSame $o.$factKey $expected.owners 'sourced native Horse facts/ranks survived cold load'
+ if(Test-KmcChunk7FourthHorseSelectorSelection $s){
+  $p=$o.selectorProbe
+  Assert-KmcAssistedObjectValue $p @('contract','actorId','action','openCount','switchCount','goCount',
+   'observedFrame','readyAlpha','activeInHierarchy','selectedActorIds','mainCharacter','lockedCompanion',
+   'mustBeInParty','requiredByOpenedSelector','eligibleForNativeRemoval','closeCount','closed') 'owned opened native selector'
+  Assert-KmcBootstrapInventoryString $p.contract 'installed-native-open-selector-optionality-v1'
+  Assert-KmcBootstrapInventoryString $p.action 'native-ShowPartySelection'
+  Assert-KmcBootstrapInventoryString $p.actorId '8265f8cf-0969-4ec7-a266-2448de91c8c4'
+  foreach($pair in @(@('openCount',1),@('closeCount',1),@('switchCount',0),@('goCount',0))){Assert-KmcOrdinaryInteger $p.($pair[0]) $pair[1] $pair[1]}
+  Assert-KmcOrdinaryInteger $p.observedFrame $w.frame $f.frame
+  if(-not(Test-KmcFiniteJsonNumber $p.readyAlpha)-or[double]$p.readyAlpha-ne1.0){throw 'Opened native selector was not fully ready.'}
+  foreach($key in @('activeInHierarchy','closed')){Assert-KmcChunk7Boolean $p.$key $true}
+  Assert-KmcChunk7Boolean $p.mainCharacter $false
+  foreach($key in @('lockedCompanion','mustBeInParty','requiredByOpenedSelector','eligibleForNativeRemoval')){if($p.$key-isnot[bool]){throw 'Opened selector eligibility is not a native boolean observation.'}}
+  if($p.requiredByOpenedSelector -ne ($p.mustBeInParty -and (-not $p.lockedCompanion)) -or
+     $p.eligibleForNativeRemoval -ne (-not $p.mustBeInParty)){throw 'Opened selector eligibility fields disagree.'}
+  Assert-KmcAssistedSame $p.selectedActorIds $w.partyCharacterIds 'opened native selector five-character roster'
+ }
  Assert-KmcAssistedObjectValue $o.cleanup @('custodySettled','nativeWorkerSettled','observersReleased','worldAdmitted','sourcePinned','sourceUnchanged','authority') 'third-Horse cold cleanup'
  foreach($key in @('custodySettled','nativeWorkerSettled','observersReleased','worldAdmitted','sourcePinned','sourceUnchanged')){Assert-KmcChunk7Boolean $o.cleanup.$key $true}
  Assert-KmcAssistedColdAuthority $o.cleanup.authority $root $b.authority.generation 1

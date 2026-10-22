@@ -12,7 +12,7 @@ namespace KingmakerMountedCombat.Diagnostics
     {
         private void ReadThirdHorseSource()
         {
-            var fourth = selection.IsFourthHorse;
+            var fourth = selection.IsFourthHorseSource;
             var count = fourth ? 9 : 8;
             var horseCount = fourth ? 4 : 3;
             sourcePath = Path.Combine(Path.GetDirectoryName(root), Chunk7AssistedColdInventorySelection.SourceLeaf);
@@ -113,7 +113,7 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void RequireThirdHorseSourceRoster()
         {
-            Require(actors.Length == (selection.IsFourthHorse ? 9 : 8) && game.Player.Money == expectedNativeMoney &&
+            Require(actors.Length == (selection.IsFourthHorseSource ? 9 : 8) && game.Player.Money == expectedNativeMoney &&
                 JToken.DeepEquals(sourceReadiness, Chunk7OwnedPairFixture.ArrangementOf(actors)),
                 "Cold third-Horse native roster, money or progression differs from the saved Manual.");
             foreach (var actor in actors)
@@ -132,7 +132,7 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private JArray CaptureThirdHorseFacts()
         {
-            Require(thirdHorseOwners != null && thirdHorseOwners.Count == (selection.IsFourthHorse ? 4 : 3) &&
+            Require(thirdHorseOwners != null && thirdHorseOwners.Count == (selection.IsFourthHorseSource ? 4 : 3) &&
                 horses.HorseFeature != null && horses.LevelRank != null && horses.HorseUnit != null,
                 "Cold three-Horse feature catalogue is unavailable.");
             var result = new JArray();

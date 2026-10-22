@@ -27,8 +27,16 @@ function Test-KmcChunk7FourthHorseColdSelection($Selection){
   $null-ne$Selection.PSObject.Properties['case']-and$Selection.case-is[string]-and
   $Selection.case-ceq'fourth-horse-manual-readonly-inventory'
 }
+function Test-KmcChunk7FourthHorseSelectorSelection($Selection){
+ $null-ne$Selection-and$Selection.GetType().FullName-ceq'System.Management.Automation.PSCustomObject'-and
+  $null-ne$Selection.PSObject.Properties['case']-and$Selection.case-is[string]-and
+  $Selection.case-ceq'fourth-horse-open-selector-inventory'
+}
+function Test-KmcChunk7FourthHorseSourceSelection($Selection){
+ (Test-KmcChunk7FourthHorseColdSelection $Selection)-or(Test-KmcChunk7FourthHorseSelectorSelection $Selection)
+}
 function Test-KmcChunk7HorseWorldColdSelection($Selection){
- (Test-KmcChunk7ThirdHorseColdSelection $Selection)-or(Test-KmcChunk7FourthHorseColdSelection $Selection)
+ (Test-KmcChunk7ThirdHorseColdSelection $Selection)-or(Test-KmcChunk7FourthHorseSourceSelection $Selection)
 }
 function Assert-KmcAssistedColdSeparateProcess($Selection,$SourceArtifact,$ColdArtifact,$VerifiedSource){
  if(Test-KmcChunk7OwnerSeedSelection $Selection){return}
@@ -55,7 +63,7 @@ function Assert-KmcChunk7OwnerSeedEntry($Entry){
  foreach($dlc in $Entry.dlc){if($dlc-isnot[string]-or$dlc-cnotin@('Tieflings','Varnhold','Endless','Arcane')-or-not$seen.Add($dlc)){throw 'Owner seed registry DLC is unknown or repeated.'}}
  foreach($key in @('masterPath','intakePath')){if($Entry.$key-isnot[string]-or$Entry.$key-cnotmatch'^fixtures/owner-supplied/[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$'){throw 'Owner seed registry path must be a lab-relative owner-supplied leaf.'}}
 }
-function Get-KmcChunk7AssistedColdInventoryRows {@('chunk7-assisted-cold-inventory','C7-assisted-cold-source','C7-assisted-cold-native-load','C7-assisted-cold-readonly','C7-assisted-cold-cleanup','C7-assisted-cold-runtime','C7-assisted-cold-interrupted')}
+function Get-KmcChunk7AssistedColdInventoryRows {@('chunk7-assisted-cold-inventory','C7-assisted-cold-source','C7-assisted-cold-native-load','C7-assisted-cold-readonly','C7-assisted-cold-selector','C7-assisted-cold-cleanup','C7-assisted-cold-runtime','C7-assisted-cold-interrupted')}
 function Assert-KmcChunk7StockAreaRouteObservation($Row,[string]$LoadedArea){
  Assert-KmcAssistedObjectValue $Row @('contract','loadedAreaGuid','loadedAreaName','enumeration','maximumTransitions','observedTransitions','complete','interactionRequests','travelRequests','saveRequests','candidates','transitions') 'stock area route observation'
  Assert-KmcBootstrapInventoryString $Row.contract 'owner-seed-stock-area-route-observation-v1'
@@ -114,7 +122,7 @@ function Assert-KmcChunk7AssistedColdInventorySelection($Request){
   return
  }
  Assert-KmcAssistedObjectValue $s @('case','sourceRunId','sourceArtifactSha256','sourceArchiveSha256','baseGameOnly','expectedNativeLoadCount','expectedNativeWriteCount') 'assisted cold selection'
- if($s.case-isnot[string]-or$s.case-cnotin@('assisted-manual-readonly-inventory','small-fixture-manual-readonly-inventory','medium-fixture-manual-readonly-inventory','third-horse-manual-readonly-inventory','fourth-horse-manual-readonly-inventory')){throw 'Unknown producer cold selection case.'}
+ if($s.case-isnot[string]-or$s.case-cnotin@('assisted-manual-readonly-inventory','small-fixture-manual-readonly-inventory','medium-fixture-manual-readonly-inventory','third-horse-manual-readonly-inventory','fourth-horse-manual-readonly-inventory','fourth-horse-open-selector-inventory')){throw 'Unknown producer cold selection case.'}
  if($Request.runId-isnot[string]-or$Request.runId-cnotmatch'^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$'){throw 'Assisted cold consumer run identity is malformed.'}
  if($s.sourceRunId-isnot[string]-or$s.sourceRunId-cnotmatch'^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$'-or$s.sourceRunId-ceq$Request.runId){throw 'Assisted cold inventory requires a distinct completed source run.'}
  foreach($key in @('sourceArtifactSha256','sourceArchiveSha256')){if($s.$key-isnot[string]-or$s.$key-cnotmatch'^[a-f0-9]{64}$'){throw 'Assisted cold immutable source hashes are required.'}}
@@ -133,7 +141,7 @@ function Assert-KmcChunk7AssistedColdInventoryDescriptor($Request){
   Assert-KmcBootstrapInventoryString $d.sha256 $Request.assistedColdInventory.seedSha256
  }else{
  $isThird=Test-KmcChunk7ThirdHorseColdSelection $Request.assistedColdInventory
- $isFourth=Test-KmcChunk7FourthHorseColdSelection $Request.assistedColdInventory
+ $isFourth=Test-KmcChunk7FourthHorseSourceSelection $Request.assistedColdInventory
  $isPaid=Test-KmcChunk7PaidFixtureColdSelection $Request.assistedColdInventory
  $isMedium=Test-KmcChunk7MediumFixtureColdSelection $Request.assistedColdInventory
  $name=if($isFourth){'KMC_C7_FOUR_HORSE_WORLD'}elseif($isThird){'KMC_C7_SMALL_WORLD'}elseif($isMedium){'KMC_C7_MEDIUM_FIXTURE'}elseif($isPaid){'KMC_C7_SMALL_FIXTURE'}else{'KMC_C7_ASSISTED_FIXTURE'}

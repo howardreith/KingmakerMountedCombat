@@ -30,7 +30,12 @@ namespace KingmakerMountedCombat.Diagnostics
         internal bool IsThirdHorse => Case == ThirdHorseCaseName;
         public const string FourthHorseCaseName = "fourth-horse-manual-readonly-inventory";
         internal bool IsFourthHorse => Case == FourthHorseCaseName;
-        internal bool IsHorseWorld => IsThirdHorse || IsFourthHorse;
+        // A separate, opt-in native selector observation on the same immutable
+        // four-Horse Manual. It does not change the source's cold-load verdict.
+        public const string FourthHorseSelectorCaseName = "fourth-horse-open-selector-inventory";
+        internal bool IsFourthHorseSelector => Case == FourthHorseSelectorCaseName;
+        internal bool IsFourthHorseSource => IsFourthHorse || IsFourthHorseSelector;
+        internal bool IsHorseWorld => IsThirdHorse || IsFourthHorseSource;
         // Kingmaker save names legitimately contain spaces (the engine writes them as
         // underscores only in the file name). Single interior spaces only: no leading,
         // trailing or repeated space, no tab, newline or other whitespace, at most 64
@@ -70,7 +75,7 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             if (IsOwnerSeed) return ValidateOwnerSeed(scenario, runId);
             var errors = new List<string>();
-            if (scenario != Scenario || Case != CaseName && Case != SmallFixtureCaseName && Case != MediumFixtureCaseName && !IsHorseWorld) errors.Add("Assisted cold inventory requires its exact closed read-only family.");
+            if (scenario != Scenario || Case != CaseName && Case != SmallFixtureCaseName && Case != MediumFixtureCaseName && !IsHorseWorld) errors.Add("Assisted cold inventory requires its exact closed family.");
             if (!Regex.IsMatch(SourceRunId ?? "", "^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$") || SourceRunId == runId)
                 errors.Add("A distinct completed assisted fixture source is required.");
             foreach (var value in new[] { SourceArtifactSha256, SourceArchiveSha256 })
