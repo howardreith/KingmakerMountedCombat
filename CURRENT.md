@@ -1,5 +1,15 @@
 # Chunk 7B–7D — IN PROGRESS
 
+[Batch179](docs/CHUNK7-BATCH179-FOURTH-HORSE-COLD-2026-10-22.md) passed
+the separate-process fourth-Horse Manual cold load on a reviewed package:
+native game and original outer 4/0, nine field actors, four reciprocal sourced
+Horses, one load, zero writes and no native preparation. Run/save/Mods/profile
+bytes restored exactly. Batch178's original outer FAIL and its distinct
+reader-only PASS remain separate. This closes only the development unmounted
+fourth-Horse Manual/cold row. Fifth/sixth supported pairs, conditional six-pair
+stress, F11 normal-player controls, doors, remaining 7C/7D and private 7E
+remain **IN PROGRESS**.
+
 [Batches177–178](docs/CHUNK7-BATCH177-178-FOURTH-HORSE-MANUAL-2026-10-22.md)
 used one corrected fourth-Horse Manual candidate. Batch177 is an original outer
 FAIL at Steamworks startup, before a native result. Batch178 passed native game
