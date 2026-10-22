@@ -1,6 +1,27 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
-## Active October 22 — reviewed sixth-Horse cold consumer
+## Active October 22 — batch185 cold PASS; six-pair engineering next
+
+The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
+[Batch185](docs/CHUNK7-BATCH185-SIXTH-HORSE-COLD-2026-10-22.md) completed one
+native cold load: original game/outer PASS4/0, twelve field actors/six sourced
+Horses, exact remote Linzi, one load/zero saves and no preparation/resource
+writes. Frozen source `29f1d9c5`, ZIP `2e8c3c3a`, DLL `782e1a21`, suite
+`9f81ada6`. Wrapper exited0; all transactions restored, exact Mods/save/profile
+bytes, zero cache exceptions, no game/lock. Original b184 FAIL and separate
+reader proofs remain unchanged. Sixteen-file post-exit evidence pins are in
+private `b185-settled-evidence-pins.json`, SHA `7d5c4d14`.
+
+Next: implement/review a bounded fixture gate over the accepted b185 receipts
+and unchanged copied Manual308 (producer remains b184), then native capacity/
+all-pair lifecycle coverage and a distinct six-pair mounted stress scenario.
+Do not recursively rerun the completed acquisition ancestry for every lookup,
+or treat six unmounted Horses as six mounted pairs. Private plan:
+`analysis-cache/chunk7-continuation/b186-six-pair-capability-plan.md`.
+Continue F10/F11, ordinary door and private 7E after their actual prerequisites.
+No merge, release, permanent installation or HUMAN PLAY acceptance.
+
+## Historical October 22 — reviewed sixth-Horse cold consumer, before build/run
 
 The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
 [Batch185](docs/CHUNK7-BATCH185-SIXTH-HORSE-COLD-2026-10-22.md) adds the exact
