@@ -42,6 +42,7 @@ namespace KingmakerMountedCombat.Diagnostics {
   bool MovementSettled()=>movementFrames==0;
   void BeginCleanup(){cleanup=true;ReleaseSixSamplePins();}
   void Pass(string name){passed.Add(name);}
+  int siblingCaptures,siblingChecks;void CaptureSixSiblingOrder(){siblingCaptures++;}void RequireSixSiblingOrder(){Require(siblingCaptures==1,"sibling order verified before capture");siblingChecks++;}
   bool NativeCommandsSettled()=>pendingFrames<=0&&movementFrames==0;
   static bool PairCommandsSettled(Pair pair)=>true;
   JObject CaptureWorld(string label)=>new JObject{{"label",label},{"resources",new JObject{{"actors",new JArray(Actors().Select(a=>new JObject{{"id",a.UniqueId}}))}}}};
@@ -63,6 +64,7 @@ namespace KingmakerMountedCombat.Diagnostics {
    Check(e.sixSamples.Count==15&&MountedRuntimeMeasurement.Starts==15&&MountedRuntimeMeasurement.Releases==15,"actual partial opens/closes fifteen sampler boundaries");
    Check(e.sixPins==null&&e.sixIdentities==null&&(bool)e.sixObservation["identityScopeReleased"],"actual partial releases exact native pin scope before cleanup");
    Check(e.passed.Count==4&&e.passed.Distinct().Count()==4,"actual partial emits four distinct selected result rows once");
+   Check(e.siblingCaptures==1&&e.siblingChecks==3,"actual partial captures native sibling order once and requires it after each settled cycle");
    var w=Create();w.BeginSixPairStress();w.holdInput=true;w.Drive(25);Check(w.inputs.Count==1&&w.finishedInputs==0,"pending native input never replays or finishes early");w.holdInput=false;w.Drive();Check(w.cleanup&&w.finishedInputs==36,"native input continuation completes once after release");
    var r=Create();r.BeginSixPairStress();r.holdRetirement=true;for(int i=0;i<300&&!r.inputs.Any(x=>(string)x["label"]=="six-cycle-1-dismount-0");i++){r.TickNative();r.UpdateSixPairStress();}r.Drive(25);Check(r.step==1004&&r.inputs.Count==7&&r.finishedInputs==6,"native dismount shell terminal waits for exact owner retirement");r.holdRetirement=false;r.world.Registry.Items.RemoveAll(x=>ReferenceEquals(x.Rider,r.pendingRider));r.Drive();Check(r.cleanup&&r.finishedInputs==36,"owner retirement continuation completes without second dismount");
    var m=Create();m.BeginSixPairStress();m.holdMovement=true;m.Drive(100);Check(m.moves==1&&m.inputs.Count==6&&!m.cleanup,"native movement wait never replays ground input");m.holdMovement=false;m.Drive();Check(m.cleanup&&m.moves==6,"ground continuation preserves exact six input bound");

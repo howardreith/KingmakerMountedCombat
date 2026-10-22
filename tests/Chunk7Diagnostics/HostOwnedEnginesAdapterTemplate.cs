@@ -7,7 +7,7 @@ sealed class Persistence{internal bool AreaTransitionPending,HasActiveSaveScope,
 sealed class Engine{internal bool Ready,ThrowDispose;internal int Polls,Disposals;internal IReadOnlyList<string> Results=new string[0],Errors=new string[0];internal bool DrainForHost(){Polls++;return Ready;}internal void Dispose(){Disposals++;if(ThrowDispose)throw new InvalidOperationException("retained exact engine lease");}}
 sealed class HostOwnedEnginesAdapter{
  readonly Chunk7HostCompletionGate chunk7Completion=new Chunk7HostCompletionGate();readonly Clock runtimeClock=new Clock();readonly Persistence persistence=new Persistence();Engine worldPersistenceEngine,worldCombatEngine,worldEngine,ordinaryEngine;
- Engine assistedColdInventoryEngine,assistedFixtureEngine,acquiredManualEngine,manualDerivedEngine,manualSeedEngine,bootstrapInventoryEngine,nativeBootstrapEngine,smallCalibrationEngine,progressionEngine,ordinaryFieldEngine;
+ Engine assistedColdInventoryEngine,assistedFixtureEngine,acquiredManualEngine,manualDerivedEngine,manualSeedEngine,bootstrapInventoryEngine,nativeBootstrapEngine,smallCalibrationEngine,progressionEngine,ordinaryFieldEngine,smallFixtureEngine,stockMammothFixtureEngine;
  static int passed;IReadOnlyList<string> subscenarioResults;int worldCleanup;List<string> faults=new List<string>();
  void RecordChunk7CleanupFailure(string e){faults.Add(e);}void CollectEngineErrors(IReadOnlyList<string> e,string p){}bool SettleChunk7World(){worldCleanup++;return true;}
 __METHOD__
@@ -39,6 +39,8 @@ __METHOD__
   VerifyOwner("Small calibration",(h,e)=>h.smallCalibrationEngine=e,h=>h.smallCalibrationEngine);
   VerifyOwner("progression",(h,e)=>h.progressionEngine=e,h=>h.progressionEngine);
   VerifyOwner("ordinary field",(h,e)=>h.ordinaryFieldEngine=e,h=>h.ordinaryFieldEngine);
+  VerifyOwner("unmounted Small fixture",(h,e)=>h.smallFixtureEngine=e,h=>h.smallFixtureEngine);
+  VerifyOwner("stock Mammoth fixture",(h,e)=>h.stockMammothFixtureEngine=e,h=>h.stockMammothFixtureEngine);
  }
  static void VerifyOwner(string name,Action<HostOwnedEnginesAdapter,Engine> bind,Func<HostOwnedEnginesAdapter,Engine> get){
   var h=new HostOwnedEnginesAdapter();var retained=new Engine();var neighbour=new Engine{Ready=true};

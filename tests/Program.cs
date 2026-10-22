@@ -112,6 +112,7 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("result requires lowercase evidence manifest SHA-256", ResultRequiresEvidenceManifestSha256);
             MountedPairOwnershipTests.Register(runner);
             MountedRelationshipTests.Register(runner);
+            TransformAttachmentSlotTests.Register(runner);
             MountedPlayerActionTests.Register(runner);
             SmallProfilePolicyTests.Register(runner);
             StockMammothFixtureSelectionTests.Register(runner);

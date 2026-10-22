@@ -1809,7 +1809,7 @@ namespace KingmakerMountedCombat.Diagnostics
         }
         private void DrainChunk7Completion()
         {
-            if (!TrySettleChunk7Custody()) return;
+            if (!TrySettleChunk7Custody()) { TryQuitRetainedSixPairFailure(); return; }
             CompleteSaveBackedWhenIdle(chunk7CompletionStatus ?? "FAIL", chunk7CompletionErrors);
         }
 
