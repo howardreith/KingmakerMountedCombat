@@ -29,7 +29,10 @@ review CLEAR). [Batch189](../docs/CHUNK7-BATCH189-SIX-MOUNTED-MANUAL-COLD-PASS-2
 then passed both on one frozen candidate: producer game 6/0 and cold consumer game 3/0, each
 with outer PASS and exact restoration. The separate-process proof shows the restored graph,
 owners, generations and slots equal to the producer's read-back. The six-pair performance
-measurement remains open (observer overhead in batch188).
+measurement remains open (observer overhead in batch188). The
+[batch190 preparation](../docs/CHUNK7-B190-SIX-PAIR-SAMPLER-CUSTODY-2026-10-22.md) moves that
+observer's full custody to sampling-window boundaries (offline, independent review CLEAR); the
+native measurement itself is still pending.
 [Batch185](../docs/CHUNK7-BATCH185-SIXTH-HORSE-COLD-2026-10-22.md)
 passed original game/outer 4/0 on one separate-process load of batch184's
 genuine sixth-Horse Manual308: twelve field actors, six sourced Horses and

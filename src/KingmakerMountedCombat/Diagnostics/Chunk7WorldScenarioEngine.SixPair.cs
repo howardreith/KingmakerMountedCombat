@@ -28,12 +28,15 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             Require(SixPairStress && inherited?.Actors.Length == 12 && GameMountedRelationshipService.NativePairCapacity == 6,
                 "Six-pair stress requires twelve exact inherited roles and selected capacity six.");
-            sixObservation = new JObject { ["contract"] = "cold-qualified-six-pair-lifecycle-v1",
+            // v2: full inherited custody (which hashes the staged source receipt and rebuilds the
+            // roster and progression) runs at sampling-window boundaries; measured frames carry
+            // only the lightweight scope, ownership, settledness and identity-pin guard.
+            sixObservation = new JObject { ["contract"] = "cold-qualified-six-pair-lifecycle-v2",
                 ["archiveProducerRunId"] = "20261022-c7b-world184-b184s1-sixthhorse-manual",
                 ["coldQualificationRunId"] = Chunk7OwnedPairsSelection.SixPairSourceRun,
                 ["fixtureSetupWrites"] = 0, ["nativeSaveRequests"] = 0, ["nativeLoadRequests"] = 1,
                 ["requiredCycles"] = 3, ["requiredGroundInputs"] = 6, ["requiredAbilityInputs"] = 36,
-                ["requiredWindows"] = 15, ["windowsPerState"] = 3,
+                ["requiredWindows"] = 15, ["windowsPerState"] = 3, ["measuredFramesCarryFullCustody"] = false,
                 ["performanceAccepted"] = false, ["requestFreeControlsProven"] = false,
                 ["identityScopeReleased"] = false, ["cycles"] = sixCycles, ["samples"] = sixSamples };
             evidence["sixPairStress"] = sixObservation;
@@ -41,9 +44,9 @@ namespace KingmakerMountedCombat.Diagnostics
             sixAttachmentObservation = new SixPairAttachmentObservation(Enumerable.Range(0, 6).Select(i => SixRider(i).UniqueId), logger);
             sixCycle = 1; sixIndex = 0; Next(1000);
         }
-        private void RequireSixOwnership()
+        private void RequireSixOwnership(bool fullCustody = true)
         {
-            inherited.RequirePreserved();
+            if (fullCustody) inherited.RequirePreserved();
             Require(world.Registry.ActiveCount == sixActive.Count && world.Registry.Owners.Length == sixActive.Count &&
                 !controls.HasUnsettledRelationshipTransition && !world.UnifiedTurn.HasUnsettledPreparation,
                 "Six-pair native ownership has unsettled or additional custody.");
@@ -61,7 +64,8 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             Require(clock.Elapsed.TotalSeconds <= 600 && clock.Elapsed.TotalSeconds - stepStarted <= 60,
                 "Bounded six-pair scenario deadline at step " + step + ".");
-            inherited.RequirePreserved();
+            // An open sampling window verifies full custody at its own boundaries instead.
+            if (measurement == null) inherited.RequirePreserved();
             Require(!Game.Instance.Player.IsInCombat, "Six-pair exploration entered unexpected native combat.");
             if (shell != null && controls.HasExactRelationshipProcessBinding(shell)) observedExactProcess = true;
             switch (step)
@@ -147,9 +151,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 .Concat(pairs.SelectMany(pair => new object[] { pair, pair.Participant }))
                 .Concat(Actors().SelectMany(actor => new object[] { actor, actor.Descriptor, actor.View })).ToArray();
         }
-        private void RequireSixSample()
+        private void RequireSixSample(bool fullCustody)
         {
-            RequireSixOwnership();
+            RequireSixOwnership(fullCustody);
             Require(sixActive.Count == SixSampleActive[sixSampleGroup] && !Game.Instance.IsPaused &&
                 Actors().All(MatchedActorSettled) && NativeCommandsSettled() && world.BoundaryCount == 6 &&
                 world.UnifiedTurn.SnapshotParticipants.Length == 6 && world.FailedConstructionCount == 0 &&
@@ -190,7 +194,9 @@ namespace KingmakerMountedCombat.Diagnostics
         }
         private bool PollSixSample()
         {
-            RequireSixSample();
+            // Full custody before the window opens and after it is ready; the measured frames
+            // between carry only the lightweight guard, as the two-pair matched pool does.
+            RequireSixSample(measurement == null || measurement.Ready);
             if (measurement == null)
             {
                 if (!Actors().All(actor => actor.Commands.Empty)) return false;

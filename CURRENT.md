@@ -1,6 +1,17 @@
 # Chunk 7B–7D — IN PROGRESS
 
-Claude [batch189](docs/CHUNK7-BATCH189-SIX-MOUNTED-MANUAL-COLD-PASS-2026-10-22.md) passed both
+Claude's [batch190 preparation](docs/CHUNK7-B190-SIX-PAIR-SAMPLER-CUSTODY-2026-10-22.md)
+moves the six-pair observer's full inherited custody out of the measured frames. That check
+re-hashes the 183 KB staged receipt and rebuilds roster and progression on every frame; it now
+runs at each sampling window's boundaries, as the two-pair matched pool already does. The
+observation contract becomes v2 and declares `measuredFramesCarryFullCustody=false`; the closed
+reader accepts the exact v1 or v2 shape. Diagnostics only. Offline: orchestration 21/0 with
+all four targeted mutations caught, reader 50/0; independent review CLEAR, its SHOULD-FIX
+applied. No native run yet. Next: one frozen candidate and one zero-write six-pair sampling
+run, then SHOULD-FIX 3, the remaining F10/F11/door work and private 7E. Standing mission
+remains IN PROGRESS.
+
+Historical batch189 checkpoint: Claude [batch189](docs/CHUNK7-BATCH189-SIX-MOUNTED-MANUAL-COLD-PASS-2026-10-22.md) passed both
 declared native scenarios on frozen candidate `c7b-world189-sixpersist` (`a2ef0e95`). The
 producer mounted all six roles natively (0 refusals) and bound twelve slots. It wrote
 `Manual_309_KMC_C7_SIX_MOUNTED_WORLD.zks`, whose read-back holds 6 pairs and 12 slots, and moved
