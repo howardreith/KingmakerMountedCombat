@@ -20,6 +20,7 @@ function Get-KmcChunk7SelectedScenario($Request){
   'small-fixture-third-horse-setup'{'chunk7-two-pair-exploration'}
   'small-fixture-third-horse-persistence-save'{'chunk7-two-pair-exploration'}
   'third-horse-fixture-fourth-horse-setup'{'chunk7-two-pair-exploration'}
+  'third-horse-fixture-fourth-horse-persistence-save'{'chunk7-two-pair-exploration'}
   'medium-fixture-persistence-save'{'chunk7-persistence-save'}
   'medium-fixture-persistence-load'{'chunk7-persistence-load'}
   'owner-seed-load-refusal'{'chunk7-persistence-load'}
@@ -38,7 +39,7 @@ function Get-KmcChunk7OwnedWriteCount($Request){
  if(Test-KmcChunk7OwnedPairsOwnerSeed $Request){return 0}
  # Owner-seed-derived Manual producer: exactly its one measured Manual; its cold consumer: none.
  if(Test-KmcChunk7OwnedPairsSeedManual $Request){return 1}
- if((Test-KmcChunk7OwnedPairsSmallSave $Request)-or(Test-KmcChunk7OwnedPairsSmallThirdHorseSave $Request)-or(Test-KmcChunk7OwnedPairsMediumSave $Request)){return 1}
+ if((Test-KmcChunk7OwnedPairsSmallSave $Request)-or(Test-KmcChunk7OwnedPairsSmallThirdHorseSave $Request)-or(Test-KmcChunk7OwnedPairsFourthSave $Request)-or(Test-KmcChunk7OwnedPairsMediumSave $Request)){return 1}
  # The worker writes a seed and its cancelled replacement to one landed archive.
  if(Test-KmcChunk7OwnedPairsSeedCheckpointSave $Request){if($Request.persistenceCase-ceq'multi-owned-worker-cancel-manual'){return 2};return 1}
  if(Test-KmcChunk7OwnedPairsSeedCheckpointLoad $Request){if($Request.persistenceCase-cin@('legacy-mounted-pending-tb-manual','owned-schema1-resave-manual')){return 1};return 0}
@@ -47,7 +48,7 @@ function Get-KmcChunk7OwnedWriteCount($Request){
  if($Request.ownedPairs.case-ceq'persistence-save'-or($Request.ownedPairs.case-ceq'persistence-load'-and$Request.persistenceCase-cin@('legacy-mounted-pending-tb-manual','owned-schema1-resave-manual'))){return 1};return 0
 }
 function Get-KmcChunk7OwnedWriteArtifactLeaf($Request){
- if((Test-KmcChunk7OwnedPairsSeedManual $Request)-or(Test-KmcChunk7OwnedPairsSmallThirdHorseSave $Request)){return 'chunk7-world-evidence.json'}
+ if((Test-KmcChunk7OwnedPairsSeedManual $Request)-or(Test-KmcChunk7OwnedPairsSmallThirdHorseSave $Request)-or(Test-KmcChunk7OwnedPairsFourthSave $Request)){return 'chunk7-world-evidence.json'}
  return 'chunk7-persistence-evidence.json'
 }
 function Get-KmcChunk7OwnedLoadCount($Request){
@@ -82,14 +83,18 @@ function Test-KmcChunk7OwnedPairsSmallSave($Request){(Get-KmcChunk7OwnedPairsCas
 function Test-KmcChunk7OwnedPairsSmallLoad($Request){(Get-KmcChunk7OwnedPairsCase $Request)-ceq'small-fixture-persistence-load'}
 function Test-KmcChunk7OwnedPairsSmallThirdHorse($Request){(Get-KmcChunk7OwnedPairsCase $Request)-ceq'small-fixture-third-horse-setup'}
 function Test-KmcChunk7OwnedPairsSmallThirdHorseSave($Request){(Get-KmcChunk7OwnedPairsCase $Request)-ceq'small-fixture-third-horse-persistence-save'}
-function Test-KmcChunk7OwnedPairsFourthHorse($Request){(Get-KmcChunk7OwnedPairsCase $Request)-ceq'third-horse-fixture-fourth-horse-setup'}
+function Test-KmcChunk7OwnedPairsFourthSave($Request){(Get-KmcChunk7OwnedPairsCase $Request)-ceq'third-horse-fixture-fourth-horse-persistence-save'}
+function Test-KmcChunk7OwnedPairsFourthHorse($Request){(Get-KmcChunk7OwnedPairsCase $Request)-cin@('third-horse-fixture-fourth-horse-setup','third-horse-fixture-fourth-horse-persistence-save')}
 function Test-KmcChunk7OwnedPairsSmall($Request){(Test-KmcChunk7OwnedPairsSmallSave $Request)-or(Test-KmcChunk7OwnedPairsSmallLoad $Request)-or(Test-KmcChunk7OwnedPairsSmallThirdHorse $Request)-or(Test-KmcChunk7OwnedPairsSmallThirdHorseSave $Request)}
 function Test-KmcChunk7OwnedPairsMediumSave($Request){(Get-KmcChunk7OwnedPairsCase $Request)-ceq'medium-fixture-persistence-save'}
 function Test-KmcChunk7OwnedPairsMediumLoad($Request){(Get-KmcChunk7OwnedPairsCase $Request)-ceq'medium-fixture-persistence-load'}
 function Test-KmcChunk7OwnedPairsMedium($Request){(Test-KmcChunk7OwnedPairsMediumSave $Request)-or(Test-KmcChunk7OwnedPairsMediumLoad $Request)}
 function Assert-KmcChunk7OwnedPairsFourthSelection($Request,$s,$Checkpoint){
  Assert-KmcExactProperties $s @('case','sourceRunId','sourceArtifactSha256','sourceArchiveSha256','checkpointSourceRunId','checkpointSourceArtifactSha256','seedId','seedSha256','coldReceiptSha256','riderAId','mountAId','riderBId','mountBId','partyIds','baseGameOnly','expectedNativeLoadCount','expectedNativeWriteCount') 'three-Horse fourth-setup selection'
- if($null-ne$Checkpoint-or$null-ne$s.checkpointSourceRunId-or$null-ne$s.checkpointSourceArtifactSha256){throw 'Fourth-Horse setup selects no checkpoint.'}
+ $save=Test-KmcChunk7OwnedPairsFourthSave $Request
+ if(($save-and$Checkpoint-cne'multi-exploration-manual')-or
+    (-not$save-and-not[string]::IsNullOrEmpty([string]$Checkpoint))-or
+    $null-ne$s.checkpointSourceRunId-or$null-ne$s.checkpointSourceArtifactSha256){throw 'Fourth-Horse setup/Manual checkpoint differs.'}
  foreach($pair in @(@('sourceRunId','20261021-c7b-world171-b171s1-thirdhorse-manual'),
   @('sourceArtifactSha256','57ab380ae5c4c95fbed1647446b3ca264f7e140c91a3b7ea4bb41037085450b1'),
   @('sourceArchiveSha256','f70a54865c86a599c3b25f6f2574abde2f663cd07b82472eac4bcbe245ea8c84'),
@@ -101,7 +106,7 @@ function Assert-KmcChunk7OwnedPairsFourthSelection($Request,$s,$Checkpoint){
  $expected=@($s.riderAId,$s.mountAId,$s.riderBId,$s.mountBId,'fd213210-71cd-41b0-b35b-68e1b18e9b43','da28f0a7-6eb0-4392-b2e0-f401a889b3aa','5dd7bd1d-ae4c-4df7-9687-50fceb027344','8265f8cf-0969-4ec7-a266-2448de91c8c4')
  if($s.partyIds-isnot[Array]-or$s.partyIds.Count-ne8-or
   (ConvertTo-KmcChunk7Canonical @($s.partyIds|Sort-Object -CaseSensitive))-cne(ConvertTo-KmcChunk7Canonical @($expected|Sort-Object -CaseSensitive))){throw 'Fourth-Horse setup requires the exact eight-actor three-Horse field.'}
- Assert-KmcChunk7Boolean $s.baseGameOnly $true;Assert-KmcOrdinaryInteger $s.expectedNativeLoadCount 1 1;Assert-KmcOrdinaryInteger $s.expectedNativeWriteCount 0 0
+ Assert-KmcChunk7Boolean $s.baseGameOnly $true;Assert-KmcOrdinaryInteger $s.expectedNativeLoadCount 1 1;Assert-KmcOrdinaryInteger $s.expectedNativeWriteCount $(if($save){1}else{0}) $(if($save){1}else{0})
 }
 function Assert-KmcChunk7OwnedPairsSmallSelection($Request,$Selection,$Checkpoint){
  $s=$Selection;$cold=Test-KmcChunk7OwnedPairsSmallLoad $Request;$third=Test-KmcChunk7OwnedPairsSmallThirdHorse $Request
@@ -445,7 +450,7 @@ function Assert-KmcChunk7SmallMountedColdSource($Request,$ProducerArtifact,$Cold
 }
 # The native Manual name a writing owned selection reserves (C# Chunk7OwnedPairsSelection.OwnedManualOutputName).
 function Get-KmcChunk7OwnedManualOutputName($Request){
- if((Test-KmcChunk7OwnedPairsSmallSave $Request)-or(Test-KmcChunk7OwnedPairsSmallThirdHorseSave $Request)){return 'KMC_C7_SMALL_WORLD'}
+ if((Test-KmcChunk7OwnedPairsSmallSave $Request)-or(Test-KmcChunk7OwnedPairsSmallThirdHorseSave $Request)-or(Test-KmcChunk7OwnedPairsFourthSave $Request)){return 'KMC_C7_SMALL_WORLD'}
  if(Test-KmcChunk7OwnedPairsMediumSave $Request){return 'KMC_C7_MEDIUM_WORLD'}
  if(Test-KmcChunk7OwnedPairsSeedManual $Request){return Get-KmcChunk7OwnerSeedManualName}
  if(Test-KmcChunk7OwnedPairsSeedCheckpointSave $Request){if(Test-KmcChunk7ManticoreFixture $Request){return 'KMC_C7_AREA_FIXTURE'};if(Test-KmcChunk7TombFixture $Request){return 'KMC_C7_TOMB_DOOR_FIXTURE'};if(Test-KmcChunk7ThornRiverFixture $Request){return 'KMC_C7_THORN_RIVER_DOOR_FIXTURE'};return Get-KmcChunk7OwnerSeedCheckpointManualName}

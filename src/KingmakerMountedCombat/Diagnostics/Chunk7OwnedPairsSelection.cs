@@ -62,6 +62,7 @@ namespace KingmakerMountedCombat.Diagnostics
         // Ranger commitments; it is neither the seven-actor Small source nor
         // permission for a four-pair archive or ordinary higher capacity.
         public const string FourthHorseCase = "third-horse-fixture-fourth-horse-setup";
+        public const string FourthHorseSaveCase = "third-horse-fixture-fourth-horse-persistence-save";
         public const string FourthHorseSourceRun = "20261021-c7b-world171-b171s1-thirdhorse-manual";
         public const string FourthHorseSourceArtifact = "57ab380ae5c4c95fbed1647446b3ca264f7e140c91a3b7ea4bb41037085450b1";
         public const string FourthHorseSourceArchive = "f70a54865c86a599c3b25f6f2574abde2f663cd07b82472eac4bcbe245ea8c84";
@@ -139,7 +140,7 @@ namespace KingmakerMountedCombat.Diagnostics
             checkpoint == "multi-rt-debt-manual" || checkpoint == "multi-tb-debt-manual" || checkpoint == "zero-mounted-tb-retained-manual" ||
             checkpoint == "legacy-mounted-pending-tb-manual";
         // The native Manual name a writing owned selection reserves; a non-Manual selection writes its slot name.
-        internal string OwnedManualOutputName(string checkpoint) => IsSmallFixtureSave || IsSmallThirdHorseSave ? SmallFixtureManualName : IsMediumFixtureSave ? MediumFixtureManualName : IsOwnerSeedManual ? OwnerSeedManualName :
+        internal string OwnedManualOutputName(string checkpoint) => IsSmallFixtureSave || IsSmallThirdHorseSave || IsFourthHorseSave ? SmallFixtureManualName : IsMediumFixtureSave ? MediumFixtureManualName : IsOwnerSeedManual ? OwnerSeedManualName :
             IsOwnerSeedCheckpointSave ? (checkpoint == ManticoreFixtureCheckpoint ? ManticoreFixtureManualName : checkpoint == TombFixtureCheckpoint ? TombFixtureManualName : checkpoint == ThornRiverFixtureCheckpoint ? ThornRiverFixtureManualName : OwnerSeedCheckpointManualName) : Cold ? (OwnedSchema1Cold(checkpoint) ? "KMC_C7_SCHEMA1" : "KMC_C7_SCHEMA2") : "KMC_C7_WORLD";
         public string Case { get; set; }
         public string SourceRunId { get; set; }
@@ -195,7 +196,8 @@ namespace KingmakerMountedCombat.Diagnostics
         internal bool IsSmallThirdHorseSave => Case == SmallThirdHorseSaveCase;
         internal bool SmallThirdHorseSetup => IsSmallThirdHorse || IsSmallThirdHorseSave;
         internal bool SmallFixtureLineage => IsSmallFixtureSave || IsSmallFixtureLoad || SmallThirdHorseSetup;
-        internal bool IsFourthHorse => Case == FourthHorseCase;
+        internal bool IsFourthHorseSave => Case == FourthHorseSaveCase;
+        internal bool IsFourthHorse => Case == FourthHorseCase || IsFourthHorseSave;
         internal bool IsMediumFixtureSave => Case == MediumFixtureSaveCase;
         internal bool IsMediumFixtureLoad => Case == MediumFixtureLoadCase;
         internal bool MediumFixtureLineage => IsMediumFixtureSave || IsMediumFixtureLoad;
@@ -233,6 +235,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     case SmallThirdHorseCase: return "chunk7-two-pair-exploration";
                     case SmallThirdHorseSaveCase: return "chunk7-two-pair-exploration";
                     case FourthHorseCase: return "chunk7-two-pair-exploration";
+                    case FourthHorseSaveCase: return "chunk7-two-pair-exploration";
                     case MediumFixtureSaveCase: return "chunk7-persistence-save";
                     case MediumFixtureLoadCase: return "chunk7-persistence-load";
                     case "combat-rider-first": return "chunk7-two-pair-combat-rider-first";
@@ -248,7 +251,7 @@ namespace KingmakerMountedCombat.Diagnostics
             }
         }
         internal bool Persistence => Case == "persistence-save" || Case == "persistence-load" || IsOwnerSeedManual || IsOwnerSeedDerivedLoad ||
-            IsOwnerSeedCheckpointSave || IsOwnerSeedCheckpointLoad || IsOwnerSeedLoadRefusal || IsSmallFixtureSave || IsSmallFixtureLoad || IsSmallThirdHorseSave || MediumFixtureLineage;
+            IsOwnerSeedCheckpointSave || IsOwnerSeedCheckpointLoad || IsOwnerSeedLoadRefusal || IsSmallFixtureSave || IsSmallFixtureLoad || IsSmallThirdHorseSave || IsFourthHorseSave || MediumFixtureLineage;
         internal bool Cold => Case == "persistence-load" || IsOwnerSeedDerivedLoad || IsOwnerSeedCheckpointLoad || IsOwnerSeedLoadRefusal || IsSmallFixtureLoad || IsMediumFixtureLoad;
         internal static bool SupportedCheckpoint(string value) => Array.IndexOf(new[] {
             "multi-exploration-manual", "multi-exploration-quick", "multi-exploration-auto",
@@ -275,7 +278,7 @@ namespace KingmakerMountedCombat.Diagnostics
         internal int LoadCount(string checkpoint) => Cold && checkpoint == "multi-exploration-three-loads-manual" ? 3 : 1;
         // Owner seed: exactly the native setup level-up Autos its selection declares (bound at admission).
         // Owner-seed Manual producer: exactly its one measured Manual (no setup write exists).
-        internal int WriteCount(string checkpoint) => IsOwnerSeed ? ExpectedNativeWriteCount : IsOwnerSeedManual || IsSmallFixtureSave || IsSmallThirdHorseSave || IsMediumFixtureSave ? 1 :
+        internal int WriteCount(string checkpoint) => IsOwnerSeed ? ExpectedNativeWriteCount : IsOwnerSeedManual || IsSmallFixtureSave || IsSmallThirdHorseSave || IsFourthHorseSave || IsMediumFixtureSave ? 1 :
             IsOwnerSeedCheckpointSave ? (checkpoint == "multi-owned-worker-cancel-manual" ? 2 : 1) :
             IsOwnerSeedCheckpointLoad ? (checkpoint == "legacy-mounted-pending-tb-manual" || OwnedSchema1Cold(checkpoint) ? 1 : 0) :
             Case == "persistence-save" && checkpoint == "multi-owned-worker-cancel-manual" ? 2 : Case == "persistence-save" ||
@@ -329,8 +332,8 @@ namespace KingmakerMountedCombat.Diagnostics
         private IReadOnlyList<string> ValidateFourthHorse(string scenario, string runId, string checkpoint)
         {
             var errors = new List<string>();
-            if (scenario != Scenario || checkpoint != null)
-                errors.Add("Fourth-Horse setup is a distinct zero-write exploration case.");
+            if (scenario != Scenario || checkpoint != (IsFourthHorseSave ? OwnerSeedCheckpoint : null))
+                errors.Add("Fourth-Horse setup and Manual are distinct closed exploration cases.");
             if (SourceRunId != FourthHorseSourceRun || SourceArtifactSha256 != FourthHorseSourceArtifact ||
                 SourceArchiveSha256 != FourthHorseSourceArchive || ColdReceiptSha256 != FourthHorseColdArtifact ||
                 SeedId != Chunk7SmallFixtureSelection.SeedIdentity || SeedSha256 != Chunk7SmallFixtureSelection.SeedHash ||
@@ -346,10 +349,10 @@ namespace KingmakerMountedCombat.Diagnostics
                     .OrderBy(id => id, StringComparer.Ordinal)
                     .SequenceEqual(PartyIds.OrderBy(id => id, StringComparer.Ordinal)))
                 errors.Add("Fourth-Horse setup requires all eight exact native field actors, including three inherited Horses.");
-            if (!BaseGameOnly || ExpectedNativeLoadCount != 1 || ExpectedNativeWriteCount != 0 ||
+            if (!BaseGameOnly || ExpectedNativeLoadCount != 1 || ExpectedNativeWriteCount != (IsFourthHorseSave ? 1 : 0) ||
                 CheckpointSourceRunId != null || CheckpointSourceArtifactSha256 != null ||
                 SourceArea != null || AreaRoute != null || CompanionId != null || XpAssistance != null)
-                errors.Add("Fourth-Horse setup permits one base-only native load, zero writes and no alternate target or checkpoint.");
+                errors.Add("Fourth-Horse selection permits one base-only native load, its exact selected write count and no alternate target.");
             return errors;
         }
         private IReadOnlyList<string> ValidateSmallFixture(string scenario, string runId, string checkpoint)

@@ -34,6 +34,21 @@ internal static class SmallCalibrationProtocolTests {
    TestRunner.Equal("chunk7-two-pair-exploration",r.SelectedChunk7Scenario,"Fourth-Horse setup routed through another native host.");
    TestRunner.Equal(0,r.OwnedPairs.WriteCount(r.PersistenceCase),"Fourth-Horse setup gained a native write.");
   });
+  tests.Run("fourth-Horse native Manual admits its exact eight-actor source and one write",()=>{
+   var r=FourthHorseManualRequest();TestRunner.Equal(0,r.Validate().Count,string.Join(" | ",r.Validate()));
+   TestRunner.Equal("chunk7-two-pair-exploration",r.SelectedChunk7Scenario,"Fourth-Horse Manual routed through another host.");
+   TestRunner.Equal(1,r.OwnedPairs.WriteCount(r.PersistenceCase),"Fourth-Horse Manual lost its one write quota.");
+   TestRunner.Equal(Chunk7OwnedPairsSelection.SmallFixtureManualName,
+    Chunk7PersistenceScenario.NativeName(Kingmaker.EntitySystem.Persistence.SaveInfo.SaveType.Manual,r.OwnedPairs,r.PersistenceCase),
+    "Fourth-Horse Manual name differs from its reserved output.");
+  });
+  foreach(var bad in new[]{"missing checkpoint","zero write","changed source","foreign case"})
+   tests.Run("fourth-Horse Manual refuses "+bad,()=>{var r=FourthHorseManualRequest();switch(bad){
+    case "missing checkpoint":r.PersistenceCase=null;break;
+    case "zero write":r.OwnedPairs.ExpectedNativeWriteCount=0;break;
+    case "changed source":r.PersistenceLoad.Sha256=new string('8',64);break;
+    case "foreign case":r.OwnedPairs.Case=Chunk7OwnedPairsSelection.FourthHorseCase;break;
+   }TestRunner.True(r.Validate().Count>0,"Fourth-Horse Manual accepted changed native authority.");});
   foreach(var bad in new[]{"seven-actor roster","different cold receipt","different Manual","write","checkpoint","foreign case"})
    tests.Run("fourth-Horse request refuses "+bad,()=>{var r=FourthHorseRequest();switch(bad){
     case "seven-actor roster":r.OwnedPairs.PartyIds=r.OwnedPairs.PartyIds.Take(7).ToArray();break;
@@ -120,6 +135,10 @@ internal static class SmallCalibrationProtocolTests {
   r.PersistenceLoad.GameId=Chunk7SmallFixtureSelection.CampaignId;
   r.PersistenceLoad.GameName=Chunk7SmallFixtureSelection.CampaignName;
   r.PersistenceLoad.Area=Chunk7SmallFixtureSelection.AreaId;return r;}
+ private static RuntimeRequest FourthHorseManualRequest(){var r=FourthHorseRequest();
+  r.RunId="fourth-horse-manual-run";r.PersistenceCase="multi-exploration-manual";
+  r.OwnedPairs.Case=Chunk7OwnedPairsSelection.FourthHorseSaveCase;
+  r.OwnedPairs.ExpectedNativeWriteCount=1;return r;}
  private static RuntimeRequest MediumMountedRequest(bool cold){var r=FieldRequest();r.RunId=cold?"medium-cold-run":"medium-save-run";
   r.Scenario=Chunk7OwnedPairsSelection.Scenario;r.OrdinaryField=null;r.PersistenceCase="multi-exploration-manual";
   r.OwnedPairs=new Chunk7OwnedPairsSelection{Case=cold?Chunk7OwnedPairsSelection.MediumFixtureLoadCase:Chunk7OwnedPairsSelection.MediumFixtureSaveCase,

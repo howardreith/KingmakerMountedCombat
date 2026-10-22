@@ -3,7 +3,7 @@ Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot 'Chunk7OwnedPairsEvidence.ps1')
 function Get-KmcChunk7WorldRows {
     @('chunk7-two-pair-exploration','C7-world-fixture','C7-world-native-acquisition','C7-world-owner-seed-setup','C7-world-two-native-mounts','C7-world-selection-routing',
-      'C7-world-independent-dismount','C7-world-cycles','C7-world-sampling','C7-world-cleanup','C7-world-runtime','C7-world-visual','C7-world-interrupted','C7-world-owner-seed-manual','C7-small-third-horse-native-setup','C7-small-third-horse-native-manual','C7-f09-fourth-horse-native-setup')
+      'C7-world-independent-dismount','C7-world-cycles','C7-world-sampling','C7-world-cleanup','C7-world-runtime','C7-world-visual','C7-world-interrupted','C7-world-owner-seed-manual','C7-small-third-horse-native-setup','C7-small-third-horse-native-manual','C7-f09-fourth-horse-native-setup','C7-f09-fourth-horse-native-manual')
 }
 function Assert-KmcChunk7FourthHorseZeroWrite($Observations){
     Assert-KmcChunk7Boolean $Observations.cleanup.nativeSaveWritten $false
@@ -78,7 +78,7 @@ function Assert-KmcChunk7ThirdHorseSetupEvidence($Request,$Observations){
     Assert-KmcChunk7Boolean $Observations.cleanup.pairResidueAbsent $true
     Assert-KmcChunk7Boolean $Observations.cleanup.nativeProgressionRequiresExternalWorkingRestoration $false
     if($fourth){
-      Assert-KmcChunk7FourthHorseZeroWrite $Observations
+      if(-not(Test-KmcChunk7OwnedPairsFourthSave $Request)){Assert-KmcChunk7FourthHorseZeroWrite $Observations}
       if(@($Observations.cleanup.partyAfter).Count-ne9){throw 'Fourth-Horse cleanup lost the ninth native field actor.'}
       $prior=@($Observations.inheritedFixture.pairs)
       if($prior.Count-ne3-or$prior[2].riderId-cne'fd213210-71cd-41b0-b35b-68e1b18e9b43'-or$prior[2].mountId-cne'da28f0a7-6eb0-4392-b2e0-f401a889b3aa'){throw 'Fourth-Horse diagnostic lacks its exact third inherited Horse.'}
@@ -89,7 +89,8 @@ function Assert-KmcChunk7ThirdHorseManualEvidence($Request,$Observations){
     Assert-KmcChunk7ThirdHorseSetupEvidence $Request $Observations
     $o=$Observations;$s=$o.thirdHorseSetup;$m=$o.thirdHorseManual;$w=$o.nativeWrite;$q=$o.saveRequested
     Assert-KmcExactProperties $m @('contract','disclosedAssistance','acquisitionProof','setupCompletedBeforeSave','boundary','arrangementAfterSave','headerStarting','headerStaged','workerObservedRunning','completionSequence','fieldActorIds') 'third-Horse Manual receipt'
-    Assert-KmcBootstrapInventoryString $m.contract 'small-third-horse-manual-producer-v1'
+    $fourth=Test-KmcChunk7OwnedPairsFourthSave $Request
+    Assert-KmcBootstrapInventoryString $m.contract $(if($fourth){'three-horse-source-fourth-native-horse-manual-v1'}else{'small-third-horse-manual-producer-v1'})
     foreach($key in @('disclosedAssistance','setupCompletedBeforeSave')){Assert-KmcChunk7Boolean $m.$key $true}
     Assert-KmcChunk7Boolean $m.acquisitionProof $false
     if($m.workerObservedRunning-isnot[bool]){throw 'Third-Horse native worker observation is missing.'}
@@ -113,7 +114,7 @@ function Assert-KmcChunk7ThirdHorseManualEvidence($Request,$Observations){
     foreach($key in @('Pairs','Participations','Slots')){if($a.$key-isnot[Array]-or$a.$key.Count-ne0){throw ('Third-Horse unmounted save carries unexpected '+$key+'.')}}
     if($null-ne$a.Combat){throw 'Third-Horse unmounted save carries combat ownership.'}
     if((ConvertTo-KmcChunk7Canonical $m.boundary)-cne(ConvertTo-KmcChunk7Canonical $m.arrangementAfterSave)){throw 'Native Manual changed the third-Horse field arrangement.'}
-    if($m.boundary.actors-isnot[Array]-or$m.boundary.actors.Count-ne8){throw 'Third-Horse save boundary lacks its eight field actors.'}
+    if($m.boundary.actors-isnot[Array]-or$m.boundary.actors.Count-ne$(if($fourth){9}else{8})){throw 'Horse save boundary lacks the exact field roster.'}
     $ids=@(@($Request.ownedPairs.partyIds)+@($s.horseId)|Sort-Object -CaseSensitive)
     if((ConvertTo-KmcChunk7Canonical @($m.boundary.actors.actorId|Sort-Object -CaseSensitive))-cne(ConvertTo-KmcChunk7Canonical $ids)-or
        (ConvertTo-KmcChunk7Canonical @($m.fieldActorIds|Sort-Object -CaseSensitive))-cne(ConvertTo-KmcChunk7Canonical $ids)){throw 'Third-Horse Manual field does not retain the exact source seven and native third Horse.'}
@@ -368,7 +369,7 @@ function Assert-KmcChunk7WorldEvidence($Request,$Artifact,[string]$Status) {
     if((Get-KmcChunk7SelectedScenario $Request)-cne'chunk7-two-pair-exploration'){throw 'Chunk 7 world evidence under another scenario.'}
     if($Status-ceq'PASS'-and$Artifact.status-cne'PASS'){throw 'PASS world result requires PASS artifact.'}
     if($Artifact.status-cne'PASS'){return}
-    if((Test-KmcChunk7OwnedPairsScenario $Request.scenario)-and(Test-KmcChunk7OwnedPairsSmallThirdHorseSave $Request)){
+    if((Test-KmcChunk7OwnedPairsScenario $Request.scenario)-and((Test-KmcChunk7OwnedPairsSmallThirdHorseSave $Request)-or(Test-KmcChunk7OwnedPairsFourthSave $Request))){
         Assert-KmcChunk7ThirdHorseManualEvidence $Request $Artifact.observations;return
     }
     if((Test-KmcChunk7OwnedPairsScenario $Request.scenario)-and(Test-KmcChunk7OwnedPairsSmallThirdHorse $Request)){
