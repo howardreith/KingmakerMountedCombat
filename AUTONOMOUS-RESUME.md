@@ -1,5 +1,11 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## Active October 22 after batch174 third-Horse cold original PASS
+
+The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active. [Batch174](docs/CHUNK7-BATCH174-THIRD-HORSE-COLD-ORIGINAL-PASS-2026-10-22.md) passed one guarded genuine separate-process third-Horse cold consumer **game 4/0 / original outer PASS 4/0** on unchanged frozen product `4724771b`, suite `aa76dcb5`, and corrected clean harness `545f6554`. Eight actors, five native characters, three distinct sourced reciprocal Horses, one load, zero writes and no preparation were observed. Run/save/Mods/profile bytes restored exactly; no process or lock remained. Batch172/173 original FAILs and the b173 reader-only PASS remain separate.
+
+Next: record and guarded-push b174 evidence, update draft PR #5, then pursue F09 breadth using the accepted eight-actor b171 Manual/cold lineage: the two remaining petless stock companions and one open native character slot are fixture leads, not six-pair proof. Keep existing two-pair product cap until a reviewed diagnostic-only capacity plan. Continue F11 request-free controls, ordinary door, other 7C/7D and readiness-gated private 7E. No merge, release, permanent installation or HUMAN PLAY acceptance.
+
 ## Active October 21 after batch173 third-Horse cold game PASS / outer FAIL
 
 The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active. [Batch173](docs/CHUNK7-BATCH173-THIRD-HORSE-COLD-2026-10-21.md) on the corrected reviewed authority passed one genuine separate-process native cold load **game 4/0**: eight field actors, three reciprocal native Horses, one load, zero writes and no preparation. Its original outer reader is **FAIL** because a generic runner PID check assumed the world producer artifact has `observations.processId`; a reviewed external-reader correction passed focused 219/0 and an immutable b173 reader-only PASS. Original outer FAIL stays separate. Run/save/Mods and profile bytes restored exactly. Batch172's pre-load FAIL remains distinct.
