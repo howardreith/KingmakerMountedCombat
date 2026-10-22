@@ -784,7 +784,11 @@ namespace KingmakerMountedCombat.Diagnostics
                 var key = part + "|" + error.GetType().FullName + "|" + error.Message;
                 cleanupAttempts.TryGetValue(key, out var count); cleanupAttempts[key] = count + 1;
                 if (count == 0) Fail("C7-world-cleanup", part + ": " + error);
-                evidence["cleanupFailureAttempts"] = JObject.FromObject(cleanupAttempts);
+                // Native Json.NET settings can serialize dictionaries as arrays.
+                // Failure evidence must retain its explicit object wire contract.
+                var attempts = new JObject();
+                foreach (var item in cleanupAttempts) attempts[item.Key] = item.Value;
+                evidence["cleanupFailureAttempts"] = attempts;
                 return false;
             }
         }

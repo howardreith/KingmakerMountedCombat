@@ -1,5 +1,17 @@
 # Chunk 7B–7D — IN PROGRESS
 
+Owner requested transfer to Claude. The [batch187 handoff](docs/CLAUDE-HANDOFF-CHUNK7-BATCH187-2026-10-22.md)
+records the decisive shared-parent sibling-index failure, unchanged original
+native/outer FAILs, exact restoration and next implementation steps. No game
+or lock remains. Fresh read-only Mods/save/profile/Params/PlayerPrefs checks
+match the run snapshot with zero cache exceptions. The reviewed cleanup JSON
+fix passes installed-serializer7/0 and Fast3/0; no new native package/run.
+The uncompiled, unreviewed unattended FAIL-exit draft is preserved privately
+outside active source. No further native attempt until that path and the causal
+attachment correction are reviewed/tested. Standing mission remains IN PROGRESS.
+
+Historical pre-batch187 checkpoint:
+
 [Batch186](docs/CHUNK7-BATCH186-SIX-PAIR-RESTORATION-FAILURE-2026-10-22.md)
 failed on native sibling-index restoration during the third six-pair lifecycle
 cycle. Its original FAIL remains; owner normal exit followed by guarded combined
