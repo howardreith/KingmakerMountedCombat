@@ -171,7 +171,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 evidence["groundInputs"] = groundInputs;
                 evidence["measurements"] = measurements; evidence["cycleInputs"] = cycleInputs; evidence["cycles"] = cycles;
                 evidence["nativeProfileInventory"] = Chunk7NativeProfileInventory.Capture(originalParty);
-                Pass("C7-world-fixture"); Next(1);
+                Pass("C7-world-fixture");
+                if (SixPairStress) BeginSixPairStress(); else Next(1);
             }
             catch (Exception error) { MarkOwnerSeedSetupFailure(); Fail("C7-world-fixture", error.ToString()); BeginCleanup(); }
         }
@@ -183,6 +184,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (cleanupStarted) { PollCleanup(); return; }
                 nativeScope.RequireCurrent();
                 screenshots?.Pump(Time.frameCount);
+                if (SixPairStress) { UpdateSixPairStress(); return; }
                 if (ThirdHorseSetup && step >= 80 && step <= 83) { UpdateThirdHorseSetup(); return; }
                 // Owner-seed SETUP steps carry their own bounded deadlines; the measured
                 // phase below keeps the unchanged historical deadline from SETUP-COMPLETE.
@@ -402,7 +404,7 @@ namespace KingmakerMountedCombat.Diagnostics
             Select(selected); Game.Instance.IsPaused = true;
             var all = Actors(); var before = all.ToDictionary(x => x, x => x.Commands.Move);
             moveStart = executor.Position; moveGoal = goal;
-            Require(groundInputs.Count < 3, "The closed world scenario has only three ground inputs.");
+            Require(groundInputs.Count < (SixPairStress ? 6 : 3), "The closed world scenario exhausted its declared ground inputs.");
             var attempt = new JObject { ["contract"] = "chunk7-world-ground-input/v1", ["label"] = label,
                 ["selectedId"] = selected.UniqueId, ["executorId"] = executor.UniqueId, ["requestedGoal"] = Point(goal),
                 ["nativeCallEntered"] = false, ["nativeCallReturned"] = false, ["commandValidationPassed"] = false };
@@ -477,7 +479,9 @@ namespace KingmakerMountedCombat.Diagnostics
         private GroundInputSnapshot CaptureGroundInput(UnitEntityData[] actors)
         {
             var snapshot = new GroundInputSnapshot(); var rows = new JArray(); snapshot.Data["actors"] = rows;
-            // The native field is four captured actors; slot/queue output is capped, never a world scan.
+            // Only the selected case's exact captured roles; slot/queue output
+            // is capped for each actor, never an unbounded world scan.
+            var actorBound = SixPairStress ? 12 : 4;
             try
             {
                 var game = Game.Instance; var selected = SelectionManager.Instance.SelectedUnits;
@@ -495,8 +499,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 snapshot.Data["restorationPending"] = persistence?.CombatRestorationPending == true;
             }
             catch (Exception error) { RecordGroundInputError(snapshot.Data, "environmentError", error); }
-            if (actors == null || actors.Length != 4) snapshot.CommandsComplete = false;
-            foreach (var actor in (actors ?? new UnitEntityData[0]).Take(4))
+            if (actors == null || actors.Length != actorBound) snapshot.CommandsComplete = false;
+            foreach (var actor in (actors ?? new UnitEntityData[0]).Take(actorBound))
             {
                 var row = new JObject { ["object"] = Id(actor) }; rows.Add(row); var referencesCaptured = false;
                 try
@@ -596,7 +600,8 @@ namespace KingmakerMountedCombat.Diagnostics
             .Select(x => new JObject { ["ownerId"] = x["ownerId"], ["riderId"] = x["riderId"],
                 ["mountId"] = x["mountId"], ["generation"] = x["generation"], ["state"] = x["state"],
                 ["relationshipState"] = x["relationshipState"] }));
-        private UnitEntityData[] Actors() => new[] { firstRider, firstMount, secondRider, secondMount }.Where(x => x != null).ToArray();
+        private UnitEntityData[] Actors() => SixPairStress && inherited != null ? inherited.Actors :
+            new[] { firstRider, firstMount, secondRider, secondMount }.Where(x => x != null).ToArray();
         private JObject Resources() => new JObject { ["gameTicks"] = Game.Instance.TimeController.GameTime.Ticks,
             ["actors"] = new JArray(Actors().Select(x => new JObject { ["id"] = x.UniqueId,
                 ["move"] = x.CombatState.Cooldown.MoveAction, ["standard"] = x.CombatState.Cooldown.StandardAction,
@@ -804,6 +809,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var observersGone = TryCleanup("optional capture window", () => { quietWindow?.Dispose(); quietWindow = null; });
             observersGone &= TryCleanup("measurement", () => { measurement?.Dispose(); measurement = null; });
             observersGone &= TryCleanup("matched-pool measurement", () => { matched.Dispose(); matchedPins?.Dispose(); matchedPins = null; });
+            observersGone &= TryCleanup("six-pair identity scope", ReleaseSixSamplePins);
             if (!observersGone) { RetainCleanup("An owned observer has not detached."); return; }
             if (!captured) { inherited?.Release(); cleanupProven = true; CompleteCleanupEvidence(); return; }
             // Neither fact removal nor actor/view teardown can race a native load,
@@ -931,13 +937,14 @@ namespace KingmakerMountedCombat.Diagnostics
             evidence["combatOrPersistenceProof"] = false;
             evidence["thirdUnrelatedActorProven"] = false;
             // The owner-seed Manual producer measures no matched pool and publishes no sidecar.
-            Require(matched.Complete || errors.Count != 0 || OwnerSeedManual || ThirdHorseSetup, "Successful exploration lacks its separate matched-pool observation.");
+            Require(matched.Complete || errors.Count != 0 || OwnerSeedManual || ThirdHorseSetup || SixPairStress && sixSamples.Count == 15,
+                "Successful exploration lacks its declared matched-pool observation.");
             if (!worldEvidenceWritten)
             {
                 RuntimeLoaderInventory.WriteArtifact(request, EvidenceFileName, EvidenceKind, errors.Count == 0 ? "PASS" : "FAIL", evidence, errors);
                 worldEvidenceWritten = true;
             }
-            if (!OwnerSeedManual && !ThirdHorseSetup) WriteMatchedPoolEvidence();
+            if (!OwnerSeedManual && !ThirdHorseSetup && !SixPairStress) WriteMatchedPoolEvidence();
             completed = true;
         }
         internal bool DrainForHost()

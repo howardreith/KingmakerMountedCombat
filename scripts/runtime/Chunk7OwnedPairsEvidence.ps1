@@ -6,6 +6,7 @@ function Get-KmcChunk7SelectedScenario($Request){
  Assert-KmcChunk7OwnedPairsSelection $Request
  switch -CaseSensitive ($Request.ownedPairs.case){
   'exploration'{'chunk7-two-pair-exploration'}
+  'six-horse-cold-fixture-lifecycle-stress'{'chunk7-two-pair-exploration'}
   'owner-seed-exploration'{'chunk7-two-pair-exploration'}
   'owner-seed-persistence-save'{'chunk7-two-pair-exploration'}
   'owner-seed-persistence-load'{'chunk7-persistence-load'}
@@ -54,7 +55,10 @@ function Get-KmcChunk7OwnedWriteArtifactLeaf($Request){
 function Get-KmcChunk7OwnedLoadCount($Request){
  if($Request.ownedPairs.case-cin@('persistence-load','owner-seed-persistence-load')-and$Request.persistenceCase-ceq'multi-exploration-three-loads-manual'){return 3};return 1
 }
-function Get-KmcChunk7OwnedPairIds($Request){@($Request.ownedPairs.riderAId,$Request.ownedPairs.mountAId,$Request.ownedPairs.riderBId,$Request.ownedPairs.mountBId)}
+function Get-KmcChunk7OwnedPairIds($Request){
+ if(Test-KmcChunk7SixPairStress $Request){return Get-KmcChunk7SixPairRoles}
+ @($Request.ownedPairs.riderAId,$Request.ownedPairs.mountAId,$Request.ownedPairs.riderBId,$Request.ownedPairs.mountBId)
+}
 function Get-KmcChunk7InheritedPairIds($Request){
  $ids=@(Get-KmcChunk7OwnedPairIds $Request)
  if(Test-KmcChunk7OwnedPairsFourthHorse $Request){return @($ids)+@('fd213210-71cd-41b0-b35b-68e1b18e9b43','da28f0a7-6eb0-4392-b2e0-f401a889b3aa')}
@@ -246,6 +250,7 @@ function Assert-KmcChunk7OwnedPairsSelection($Request){
  if(Test-KmcChunk7LoadRefusal $Request){Assert-KmcChunk7LoadRefusalSelection $Request $s $checkpoint;return}
  if((Test-KmcChunk7OwnedPairsSeedCheckpointSave $Request)-or(Test-KmcChunk7OwnedPairsSeedCheckpointLoad $Request)){Assert-KmcChunk7OwnerSeedCheckpointSelection $Request $s $checkpoint;return}
  if(Test-KmcChunk7OwnedPairsFourthHorse $Request){Assert-KmcChunk7OwnedPairsFourthSelection $Request $s $checkpoint;return}
+ if(Test-KmcChunk7SixPairStress $Request){Assert-KmcChunk7SixPairStressSelection $Request $s $checkpoint;return}
  if(Test-KmcChunk7OwnedPairsSmall $Request){Assert-KmcChunk7OwnedPairsSmallSelection $Request $s $checkpoint;return}
  if(Test-KmcChunk7OwnedPairsMedium $Request){Assert-KmcChunk7OwnedPairsMediumSelection $Request $s $checkpoint;return}
  $area=$checkpoint-is[string]-and$checkpoint-ceq'multi-area-autosave'
@@ -286,6 +291,7 @@ function Assert-KmcChunk7OwnedPairsDescriptor($Request){
   if($d.gameName-isnot[string]-or[string]::IsNullOrWhiteSpace($d.gameName)-or$d.gameName.Length-gt256-or$d.gameName-match'[\x00-\x1f\x7f]'-or$d.area-isnot[string]-or$d.area-cnotmatch'^[a-f0-9]{32}$'-or$d.gameId-ceq$Request.fixture.working.gameId-or$d.sha256-ceq$Request.fixture.working.sha256-or$d.sha256-ceq$Request.fixture.baseline.sha256){throw 'Owner seed campaign must remain distinct from protected Working/Baseline.'}
   Assert-KmcOrdinaryInteger $d.length 1 268435456;Assert-KmcOrdinaryInteger $d.lastWriteTimeUtcTicks 1 ([DateTime]::MaxValue.Ticks);return
  }
+ if(Test-KmcChunk7SixPairStress $Request){Assert-KmcChunk7SixPairStressDescriptor $Request;return}
  if(Test-KmcChunk7OwnedPairsFourthHorse $Request){
   Assert-KmcBootstrapInventoryString $d.internalName 'KMC_C7_SMALL_WORLD';Assert-KmcBootstrapInventoryString $d.fileName 'Manual_305_KMC_C7_SMALL_WORLD.zks'
   Assert-KmcBootstrapInventoryString $d.sha256 $Request.ownedPairs.sourceArchiveSha256
@@ -346,6 +352,7 @@ function Assert-KmcChunk7OwnedPairsDescriptor($Request){
  Assert-KmcOrdinaryInteger $d.length 1 268435456;Assert-KmcOrdinaryInteger $d.lastWriteTimeUtcTicks 1 ([DateTime]::MaxValue.Ticks)
 }
 function Assert-KmcChunk7InheritedSnapshot($Request,$Snapshot,[string]$Phase){
+ if(Test-KmcChunk7SixPairStress $Request){Assert-KmcChunk7SixPairInheritedSnapshot $Request $Snapshot $Phase;return}
  Assert-KmcExactProperties $Snapshot @('contract','phase','sourceRunId','sourceArtifactSha256','sourceArchiveSha256','sourceCase','nativeLoadVerifiedByHost','decodedReceiptAuthorizesRestoration','inheritedPetsPreserved','ownedFactRemovalCount','partyIds','currentPartyIds','currentCharacterIds','remoteCapturedIds','arrangement','pairs','identities') 'inherited native custody'
  # Owner-seed-derived custody keeps its own labels; it is never relabelled acquired ancestry.
  $derived=Test-KmcChunk7OwnedPairsSeedDerivedLineage $Request;$small=Test-KmcChunk7OwnedPairsSmall $Request;$medium=Test-KmcChunk7OwnedPairsMedium $Request;$fourth=Test-KmcChunk7OwnedPairsFourthHorse $Request

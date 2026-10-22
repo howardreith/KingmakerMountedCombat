@@ -546,6 +546,17 @@ function Get-KmcChunk7OwnedPairsMediumSource($Selection,[string]$PersistenceCase
   fixtureSetupOnly=$true;nativeAuthorityGranted=$false}
 }
 function Get-KmcChunk7OwnedPairsSource($Selection,[AllowNull()][string]$PersistenceCase,$Fixture,$Candidate,$AreaTarget=$null){
+ if($null-ne$Selection-and$Selection.case-ceq'six-horse-cold-fixture-lifecycle-stress'){
+  # The runner's unselected string parameter binds as "". Normalize only at
+  # this typed source boundary; wire selection still requires JSON null.
+  $r=[pscustomobject]@{scenario='chunk7-owned-two-pair-campaign';runId='unassigned-six-pair-stress';ownedPairs=$Selection;persistenceCase=$(if([string]::IsNullOrEmpty($PersistenceCase)){$null}else{$PersistenceCase})}
+  Assert-KmcChunk7OwnedPairsSelection $r
+  if($null-ne$AreaTarget){throw 'Six-pair stress admits no Areas source or destination.'}
+  $source=Get-KmcChunk7SixPairCheckpointSource $Fixture
+  $r|Add-Member persistenceLoad $source.descriptor;$r|Add-Member fixture $Fixture;Assert-KmcChunk7OwnedPairsDescriptor $r
+  $source|Add-Member sixPairCheckpoint $true;$source|Add-Member sourceRunId $source.qualificationRunId
+  return $source
+ }
  if($null-ne$Selection-and$Selection.case-cin@('third-horse-fixture-fourth-horse-setup','third-horse-fixture-fourth-horse-persistence-save')){
   $save=$Selection.case-ceq'third-horse-fixture-fourth-horse-persistence-save'
   if ($save) {
@@ -636,6 +647,10 @@ function Copy-KmcChunk7OwnedPairsSourceArtifact($Source,[string]$ProfileRoot,$Lo
  foreach($pair in @(@('scenario','chunk7-owned-two-pair-campaign'),@('runId',$Lock.RunId),@('transactionToken',$Lock.Token),@('sourceSha256',$Source.descriptor.sha256))){Assert-KmcBootstrapInventoryString $owner.($pair[0]) $pair[1]}
  if($run-cne(Join-Path (Get-KmcLabRoot) ('runtime-staging/persistence-'+$owner.runId))){throw 'Inherited copy lacks exact current lock/profile ownership.'}
  $destination=Join-Path $run 'owned-two-pair-source.json';if(Test-Path -LiteralPath $destination){throw 'Inherited lineage receipt destination already exists.'}
+ # Select from the lock-owned archive before any other source-kind early return.
+ $six=$Source.descriptor.sha256-ceq'b1e817a60c8bbe35b5947b4eab3b3f35060493ca20873d5de5fdf8a81efbc291'
+ if($six-and$null-ne$Source.PSObject.Properties['ownerSeed']){throw 'Qualified six-pair Manual cannot impersonate an owner seed.'}
+ if(-not$six-and$null-ne$Source.PSObject.Properties['sixPairCheckpoint']){throw 'Six-pair checkpoint marker is attached to another source archive.'}
  if($null-ne$Source.PSObject.Properties['ownerSeed']-and$Source.ownerSeed-eq$true){
   # The honest owner-seed source record (cold kind's writer); no producer receipt exists to copy.
   $ownerPath=Join-Path $run 'owner.json';Assert-KmcNotReparsePoint $ownerPath 'owner-seed profile owner';Assert-KmcNotHardLink $ownerPath 'owner-seed profile owner'
@@ -644,9 +659,22 @@ function Copy-KmcChunk7OwnedPairsSourceArtifact($Source,[string]$ProfileRoot,$Lo
   return Write-KmcChunk7OwnerSeedSourceRecord $Source $destination $ownerPath (Get-KmcSha256 $ownerPath) $Lock
  }
  Assert-KmcNotReparsePoint $Source.artifactPath 'inherited lineage';Assert-KmcNotHardLink $Source.artifactPath 'inherited lineage'
+ # The lock-owned archive identity selects this route. An omitted optional
+ # marker must not demote Manual308 to the older generic receipt copier.
+ if($six){
+  if($null-eq$Source.PSObject.Properties['sixPairCheckpoint']){throw 'Six-pair source copy lacks its qualification marker.'}
+  Assert-KmcChunk7Boolean $Source.sixPairCheckpoint $true
+  Assert-KmcBootstrapInventoryString $Source.artifactPath (Join-Path (Get-KmcLabRoot) 'runtime-evidence/20261022-c7b-world185-b185s1-sixthhorse-cold/chunk7-assisted-cold-inventory-evidence.json')
+  Assert-KmcBootstrapInventoryString $Source.artifactSha256 '012d1caff175d34614fcd255f0b6ad897e0ef1a9650791cb3c0d55ce13b47241'
+  Assert-KmcBootstrapInventoryString $Source.sourceRunId '20261022-c7b-world185-b185s1-sixthhorse-cold'
+  Assert-KmcBootstrapInventoryString $Source.archiveProducerRunId '20261022-c7b-world184-b184s1-sixthhorse-manual'
+  Assert-KmcChunk7SixPairCheckpointPins $Source.receiptPins
+  Assert-KmcAssistedSettledFile $Source.path $Source.descriptor 'six-pair immutable copied Manual308'
+ }
  if((Get-KmcSha256 $Source.artifactPath)-cne$Source.artifactSha256-or(Get-Item -LiteralPath $Source.artifactPath).Length-ne$Source.artifactLength){throw 'Inherited lineage changed before locked copy.'}
  [IO.File]::Copy($Source.artifactPath,$destination,$false)
  if((Get-KmcSha256 $destination)-cne$Source.artifactSha256-or(Get-KmcSha256 $Source.artifactPath)-cne$Source.artifactSha256){throw 'Inherited lineage changed during locked copy.'}
+ if($six){Assert-KmcChunk7SixPairCheckpointPins $Source.receiptPins;Assert-KmcAssistedSettledFile $Source.path $Source.descriptor 'six-pair immutable copied Manual308'}
 }
 
 # Only the new owned-area chain requires this additional exact profile result.

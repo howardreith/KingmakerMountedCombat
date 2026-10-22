@@ -1,5 +1,11 @@
 # Chunk 7B–7D — IN PROGRESS
 
+The reviewed [six-pair observer](docs/CHUNK7-SIX-PAIR-OBSERVER-2026-10-22.md)
+now has focused source/custody/orchestration/reader/cleanup checks and independent
+safety review. No six-pair native action has run yet. Next is one clean frozen
+candidate and a declared one-load/zero-save native lifecycle/routing/sampling
+scenario; wider progression, controls, doors and private 7E remain selected.
+
 The reviewed [six-pair admission and fixture gate](docs/CHUNK7-SIX-PAIR-ADMISSION-2026-10-22.md)
 now selects six native active pairs, with twelve retained owners. Actual
 ownership 42/0, archive/failure-latch 20/0, codec 77/0, Fast 3/0 and affected

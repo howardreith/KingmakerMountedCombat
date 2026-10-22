@@ -41,7 +41,7 @@ function Assert-KmcMatchedResources($Before,$After,[string[]]$ActorIds) {
         foreach($name in @('initiative','prepared','reactions','reactionAllowance')){if($a.$name-ne$b.$name){throw 'Matched idle window changed native preparation, initiative or reactions.'}}
     }
 }
-function Assert-KmcMatchedPoolSample($Sample,[string]$Label,[int]$Active,[bool]$Phased,[bool]$ExpectAllocation) {
+function Assert-KmcMatchedPoolSample($Sample,[string]$Label,[int]$Active,[bool]$Phased,[bool]$ExpectAllocation,[ValidateSet(2,6)][int]$Residents=2) {
     $fields=@('label','warmupFrames','sampleFrames','startFrame','endFrame','stopwatchFrequency','serviceTicks','frameSeconds','serviceMeanMs','serviceP50Ms','serviceP95Ms','frameP50Ms','frameP95Ms','managedHeapBefore','managedHeapAfter','managedHeapDelta','forcedCollection','collectionsBefore','collectionsAfter','kmcLogMessages','kmcLogCharacters','ownersBefore','ownersAfter','subscriptionsBefore','subscriptionsAfter','limits')
     if($Phased){$fields+=@('phaseContract','pairUpdateTicks','turnUpdateTicks')}
     if($ExpectAllocation){$fields+='nativeAllocation'}
@@ -76,7 +76,7 @@ function Assert-KmcMatchedPoolSample($Sample,[string]$Label,[int]$Active,[bool]$
     foreach($state in @($Sample.ownersBefore,$Sample.ownersAfter)){
         Assert-KmcExactProperties $state @('boundaries','failedConstructions','owners','active','allocationActors','participants','preparedOrViewResidue','liveControlBoundaries') 'Matched resident sample ownership'
         foreach($name in @('boundaries','failedConstructions','owners','active','allocationActors','participants','preparedOrViewResidue','liveControlBoundaries')){Assert-KmcChunk7WorldInt32 $state.$name;if($state.$name-lt0){throw 'Negative matched-pool ownership observation.'}}
-        if($state.boundaries-ne2-or$state.participants-ne2-or$state.failedConstructions-ne0-or$state.active-ne$Active-or$state.owners-ne$Active-or$state.preparedOrViewResidue-ne$Active-or$state.liveControlBoundaries-ne0){throw 'Matched resident pool contains unfinished or changed custody.'}
+        if($state.boundaries-ne$Residents-or$state.participants-ne$Residents-or$state.failedConstructions-ne0-or$state.active-ne$Active-or$state.owners-ne$Active-or$state.preparedOrViewResidue-ne$Active-or$state.liveControlBoundaries-ne0){throw 'Matched resident pool contains unfinished or changed custody.'}
     }
     if($Sample.ownersBefore.allocationActors-ne$Sample.ownersAfter.allocationActors){throw 'Idle sampling changed retained actor allocations.'}
     if($Sample.limits-isnot[string]-or[string]::IsNullOrWhiteSpace($Sample.limits)){throw 'Raw sample limits missing.'}
@@ -214,6 +214,7 @@ function Assert-KmcMatchedPoolEvidence($Request,$Artifact,$WorldArtifact,[string
 function Assert-KmcMatchedPoolArtifact($Request,$Manifest,[string]$Status) {
     $leaf='chunk7-matched-pool-measurements.json';$kind='chunk7-matched-pool-measurements'
     $present=@($Manifest.artifacts|Where-Object{$_.relativePath-ceq$leaf-or$_.kind-ceq$kind})
+    if(Test-KmcChunk7SixPairStress $Request){if($present.Count-ne0){throw 'Six-pair stress embeds its distinct fifteen-window measurement, never the two-pair sidecar.'};return}
     if((Get-KmcChunk7SelectedScenario $Request)-cne'chunk7-two-pair-exploration'){if($present.Count-ne0){throw 'Another scenario supplied matched-pool observations.'};return}
     # These bounded native setup cases measure no mounted movement pool.
     if((Test-KmcChunk7OwnedPairsScenario $Request.scenario)-and((Test-KmcChunk7OwnedPairsSeedManual $Request)-or(Test-KmcChunk7OwnedPairsSmallThirdHorse $Request)-or(Test-KmcChunk7OwnedPairsSmallThirdHorseSave $Request)-or(Test-KmcChunk7OwnedPairsFourthHorse $Request))){if($present.Count-ne0){throw 'A bounded native setup case cannot supply matched-pool observations.'};return}

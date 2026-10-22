@@ -79,6 +79,9 @@ namespace OwnedPairsCustodyCheck {
   internal readonly Game game; internal Unit[] Party,Actors; private Unit[] partyCharacters;
   private object[] descriptors,views,facts,ranks; private JObject[] ownerRows; private JObject sourceArrangement;
   internal Horses horses=new Horses(); internal Scope Scope=new Scope(); private string sourcePath="receipt"; private long sourceLength=10,sourceTicks=20;
+  // This legacy facade selects only two/three inherited pairs. The six-case
+  // actual decoder/remote method has its separate pinned-input regression.
+  private void RequireSixPairRemote() { }
   private Selection selection=new Selection(); private int InheritedPairCount=>selection.IsFourthHorse?3:2; internal string CurrentHash="exact";
   internal Fixture(bool fourth=false) {
    game=new Game(); Game.Instance=game;
