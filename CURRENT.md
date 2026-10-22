@@ -1,5 +1,12 @@
 # Chunk 7B–7D — IN PROGRESS
 
+The reviewed [F09 nine-actor source gate](docs/CHUNK7-F09-B179-NINE-ACTOR-ROSTER-ROUTE-2026-10-22.md)
+pins the genuine b178 Manual and b179 original cold PASS without granting
+native fixture authority. Actual-receipt and changed-anchor checks passed 2/0.
+The saved field has four sourced Horses, five characters, one open slot and
+enough observed funds for a fifth paid hire. Linzi's optional selector status
+and a sixth supported rider remain unproved; no fifth/sixth native action ran.
+
 [Batch179](docs/CHUNK7-BATCH179-FOURTH-HORSE-COLD-2026-10-22.md) passed
 the separate-process fourth-Horse Manual cold load on a reviewed package:
 native game and original outer 4/0, nine field actors, four reciprocal sourced

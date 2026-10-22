@@ -13,6 +13,12 @@
 > and [implementation chronology](CHUNK7-IMPLEMENTATION-PLAN.md) remain
 > historical where they say 7E is unselected or give stale native caps.
 
+The [post-batch179 nine-actor route](../docs/CHUNK7-F09-B179-NINE-ACTOR-ROSTER-ROUTE-2026-10-22.md)
+adds a reviewed read-only source gate for the four-Horse cold Manual. It
+establishes one open native field slot and an exact guarded fifth-hire path;
+native fifth/sixth-pair actions, Linzi selector eligibility and conditional
+six-pair stress remain open.
+
 [Batch179](../docs/CHUNK7-BATCH179-FOURTH-HORSE-COLD-2026-10-22.md)
 closes the development fourth-Horse unmounted Manual/cold preservation row with
 an original game/outer PASS, one separate-process load, nine actors and four
