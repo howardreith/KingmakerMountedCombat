@@ -10,17 +10,17 @@ suite `b152c2db`: game and original outer **4/0**. Eleven actors, six native
 characters and five distinct sourced reciprocal Horses survived. One load,
 zero native saves/resource writes and no preparation. Run, save, Mods and
 profile bytes restored exactly, zero accepted cache changes; no game/lock.
-The detached scenario test facade compile failure is separately recorded and
-preexists this change; focused source/protocol/authority/projection and
-Candidate checks passed. The batch178 original outer FAIL and reader-only
-recovery remain separate.
+The detached scenario test facade compile failure is separately recorded; a
+reviewed test-only correction passed 92/0 after the native run without changing
+its candidate. Focused source/protocol/authority/projection and Candidate
+checks passed. The batch178 original outer FAIL and reader-only recovery
+remain separate.
 
 Next: inspect the exact native selector transition contract and implement a
 bounded ordinary Linzi roster removal from the cold-qualified batch181
 five-Horse Manual, without treating batch180 eligibility as the transition.
 Then make a distinct sixth supported paid rider/Horse, genuine Manual and
-separate cold continuation before conditional six-pair stress. Repair the
-stale detached scenario test facade before selected private FULL. Continue
+separate cold continuation before conditional six-pair stress. Continue
 F10/F11, doors, broader 7C/7D and readiness-gated private 7E. No merge,
 release, permanent install or HUMAN PLAY acceptance.
 
