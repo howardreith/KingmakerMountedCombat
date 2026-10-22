@@ -15,6 +15,9 @@ function Good([string]$Name,[scriptblock]$Body){try{&$Body;$script:passes++;Writ
 function Bad([string]$Name,[scriptblock]$Body){$rejected=$false;try{&$Body}catch{$rejected=$true};if($rejected){$script:passes++;Write-Host ('PASS refuses '+$Name)}else{$script:failures++;Write-Host ('FAIL accepted '+$Name)}}
 foreach($paid in @($true,$false)){Good ('closed cumulative '+$paid){Check-Cumulative (New-CumulativeFixture $paid)}}
 Good 'owner-seed one-owner 305 to native 306 reader' {Check-Cumulative (New-CumulativeFixture $true $true)}
+Good 'owner-seed one-owner PostLoad null GameId with settled archive identity' {$f=New-CumulativeFixture $true $true;foreach($e in $f.artifact.observations.nativeLoad.events){$e.gameId=$null};Check-Cumulative $f}
+Bad 'owner-seed one-owner PostLoad populated foreign GameId' {$f=New-CumulativeFixture $true $true;$f.artifact.observations.nativeLoad.events[1].gameId='11111111-1111-4111-8111-111111111111';Check-Cumulative $f}
+Bad 'legacy one-owner PostLoad null GameId remains refused' {$f=New-CumulativeFixture;foreach($e in $f.artifact.observations.nativeLoad.events){$e.gameId=$null};Check-Cumulative $f}
 Bad 'owner-seed output cannot borrow legacy source number' {$f=New-CumulativeFixture $true $true;$f.request.persistenceLoad.fileName='Manual_302_KMC_C7_ACQUIRED_FIELD.zks';Check-Cumulative $f}
 Bad 'owner-seed output cannot borrow legacy source mode' {$f=New-CumulativeFixture $true $true;$f.request.cumulativeAcquisition.PSObject.Properties.Remove('sourceMode');Check-Cumulative $f}
 Bad 'owner-seed source cannot borrow legacy output' {$f=New-CumulativeFixture $true $true;$f.request.cumulativeAcquisition.nativeWriteLeaf='Manual_303_KMC_C7_MANUAL_DERIVED_FIELD.zks';Check-Cumulative $f}
