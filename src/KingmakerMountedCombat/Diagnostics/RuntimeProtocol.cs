@@ -796,6 +796,21 @@ namespace KingmakerMountedCombat.Diagnostics
                         PersistenceLoad.Sha256 == Fixture.Baseline?.Sha256 || PersistenceLoad.Sha256 != AssistedColdInventory.SeedSha256)
                         errors.Add("Owner seed lacks its exact registered non-aliasing identity.");
                 }
+                else if (AssistedColdInventory?.IsThirdHorse == true)
+                {
+                    errors.AddRange(PersistenceLoad.Validate("persistenceLoad", Chunk7OwnedPairsSelection.SmallFixtureManualName,
+                        "^Manual_305_KMC_C7_SMALL_WORLD\\.zks$"));
+                    if (PersistenceLoad.FileName != "Manual_305_KMC_C7_SMALL_WORLD.zks" ||
+                        Fixture?.Working == null || PersistenceLoad.GameId == Fixture.Working.GameId ||
+                        PersistenceLoad.GameId == Fixture.Baseline?.GameId ||
+                        PersistenceLoad.GameId != Chunk7SmallFixtureSelection.CampaignId ||
+                        PersistenceLoad.GameName != Chunk7SmallFixtureSelection.CampaignName ||
+                        PersistenceLoad.Area != Chunk7SmallFixtureSelection.AreaId ||
+                        PersistenceLoad.Sha256 == Fixture.Working.Sha256 ||
+                        PersistenceLoad.Sha256 == Fixture.Baseline?.Sha256 ||
+                        PersistenceLoad.Sha256 != AssistedColdInventory.SourceArchiveSha256)
+                        errors.Add("Third-Horse cold source lacks its exact distinct native Manual 305 identity.");
+                }
                 else if (AssistedColdInventory?.IsPaidFixture == true)
                 {
                     var mediumFixture = AssistedColdInventory.IsMediumFixture;

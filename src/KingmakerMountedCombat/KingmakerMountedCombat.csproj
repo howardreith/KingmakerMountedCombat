@@ -288,6 +288,7 @@
     <Compile Include="Diagnostics\Chunk7NativeBootstrapSelection.cs" />
     <Compile Include="Diagnostics\Chunk7AssistedColdInventorySelection.cs" />
     <Compile Include="Diagnostics\Chunk7AssistedColdInventoryScenario.cs" />
+    <Compile Include="Diagnostics\Chunk7AssistedColdInventoryScenario.ThirdHorse.cs" />
     <Compile Include="Diagnostics\Chunk7OwnerSeedObservation.cs" />
     <Compile Include="Diagnostics\PersistenceSaveAuthorization.AssistedColdInventory.cs" />
     <Compile Include="Diagnostics\Chunk7BootstrapInventorySelection.cs" />

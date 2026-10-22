@@ -23,6 +23,11 @@ namespace KingmakerMountedCombat.Diagnostics
         public const string MediumFixtureCaseName = "medium-fixture-manual-readonly-inventory";
         internal bool IsMediumFixture => Case == MediumFixtureCaseName;
         internal bool IsPaidFixture => IsSmallFixture || IsMediumFixture;
+        // The separately written eight-actor F09 Manual has its own zero-write
+        // cold consumer. It is setup-assisted and cannot impersonate either paid
+        // seven-actor source or mounted two-pair checkpoint ancestry.
+        public const string ThirdHorseCaseName = "third-horse-manual-readonly-inventory";
+        internal bool IsThirdHorse => Case == ThirdHorseCaseName;
         // Kingmaker save names legitimately contain spaces (the engine writes them as
         // underscores only in the file name). Single interior spaces only: no leading,
         // trailing or repeated space, no tab, newline or other whitespace, at most 64
@@ -62,7 +67,7 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             if (IsOwnerSeed) return ValidateOwnerSeed(scenario, runId);
             var errors = new List<string>();
-            if (scenario != Scenario || Case != CaseName && Case != SmallFixtureCaseName && Case != MediumFixtureCaseName) errors.Add("Assisted cold inventory requires its exact closed read-only family.");
+            if (scenario != Scenario || Case != CaseName && Case != SmallFixtureCaseName && Case != MediumFixtureCaseName && Case != ThirdHorseCaseName) errors.Add("Assisted cold inventory requires its exact closed read-only family.");
             if (!Regex.IsMatch(SourceRunId ?? "", "^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$") || SourceRunId == runId)
                 errors.Add("A distinct completed assisted fixture source is required.");
             foreach (var value in new[] { SourceArtifactSha256, SourceArchiveSha256 })

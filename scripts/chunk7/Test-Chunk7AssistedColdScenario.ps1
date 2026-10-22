@@ -14,14 +14,16 @@ function Write-AssistedColdTestFile([string]$Name,[string]$Text){$p=Join-Path $O
 [void](Pin $PSCommandPath)
 $kind='actual-assisted-cold-scenario';$main='KingmakerMountedCombat.Diagnostics.AssistedColdScenarioTests';$managedJson=$true
 $substitutions=@('Whole actual scenario with File/FileInfo in-memory byte and monotonic-clock aliases. Native world/loader/authority/probe installation+disposal/profile/restoration are controlled facades.','Stock area component enumeration and blueprint lookups are a controlled native facade; no route is qualified.','Actual BootstrapInventoryProbe Observe/Capture and retained identity registry execute; native installation/PostLoad do not.','Generated producer semantic fields are copied from actual offline host formatter output; external request/profile/receipt/Manual fields are explicit synthetic boundaries. No completed lineage or archive is claimed.')
-$sourceMethods=@('Whole Chunk7AssistedColdInventoryScenario.cs','Chunk7BootstrapInventoryProbe.cs::Observe','Chunk7BootstrapInventoryProbe.cs::Capture')
+$sourceMethods=@('Whole Chunk7AssistedColdInventoryScenario.cs','Whole Chunk7AssistedColdInventoryScenario.ThirdHorse.cs','Chunk7BootstrapInventoryProbe.cs::Observe','Chunk7BootstrapInventoryProbe.cs::Capture')
 $actualText='using Stopwatch=KingmakerMountedCombat.Diagnostics.ColdClock;'+[Environment]::NewLine+'using File=KingmakerMountedCombat.Diagnostics.ColdFiles;'+[Environment]::NewLine+'using FileInfo=KingmakerMountedCombat.Diagnostics.ColdFileInfo;'+[Environment]::NewLine+[IO.File]::ReadAllText((Source 'src/KingmakerMountedCombat/Diagnostics/Chunk7AssistedColdInventoryScenario.cs'))
 $actual=Write-AssistedColdTestFile 'actual.cs' $actualText
+$thirdText='using File=KingmakerMountedCombat.Diagnostics.ColdFiles;'+[Environment]::NewLine+'using FileInfo=KingmakerMountedCombat.Diagnostics.ColdFileInfo;'+[Environment]::NewLine+[IO.File]::ReadAllText((Source 'src/KingmakerMountedCombat/Diagnostics/Chunk7AssistedColdInventoryScenario.ThirdHorse.cs'))
+$third=Write-AssistedColdTestFile 'third-horse.cs' $thirdText
 $probe=[IO.File]::ReadAllText((Source 'src/KingmakerMountedCombat/Diagnostics/Chunk7BootstrapInventoryProbe.cs'))
 $template='using Time=UnityEngine.Time;'+[Environment]::NewLine+[IO.File]::ReadAllText((Source 'tests/Chunk7Diagnostics/AssistedColdScenarioTemplate.cs'))
 $template=$template.Replace('/*ACTUAL_PROBE_OBSERVE*/',(Member $probe 'private void Observe(Player player, bool before)')).Replace('/*ACTUAL_PROBE_CAPTURE*/',(Member $probe 'internal JObject Capture() =>'))
 $templatePath=Write-AssistedColdTestFile 'template.cs' $template
-$sources=@($actual,$templatePath,(Source 'src/KingmakerMountedCombat/Diagnostics/Chunk7AssistedColdInventorySelection.cs'),(Source 'src/KingmakerMountedCombat/Diagnostics/RetainedObjectIdentity.cs'))
+$sources=@($actual,$third,$templatePath,(Source 'src/KingmakerMountedCombat/Diagnostics/Chunk7AssistedColdInventorySelection.cs'),(Source 'src/KingmakerMountedCombat/Diagnostics/RetainedObjectIdentity.cs'))
 $semanticFixture=Source 'tests/Chunk7Diagnostics/AssistedColdProducerSemantics.json'
 
 $compiler=Pin 'C:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/MSBuild/Current/Bin/Roslyn/csc.exe'
