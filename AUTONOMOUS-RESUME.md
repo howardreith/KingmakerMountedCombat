@@ -1,10 +1,36 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## Active October 22 after batch174 source-route review
+
+The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active
+through readiness-gated private 7E. Batch174's original third-Horse Manual cold
+PASS, exact product/source identities and restoration are recorded below. The
+[eight-actor F09 route](docs/CHUNK7-F09-B174-SIX-PAIR-FIXTURE-ROUTE-2026-10-22.md)
+uses the accepted batch171 Manual and b174 cold receipt as the next source:
+Valerie is the remaining Medium petless story rider; Linzi is a special Small
+female stock body outside the one shipped default male Halfling declaration.
+There is one free character slot, and the product's ordinary native pair cap
+remains two. The [F09 source gate](scripts/runtime/Chunk7F09EightActorSource.ps1)
+passed against the actual retained b171/b174 receipts and refused a mutated
+Working fixture hash. Fast 3/0 and independent source/safety review passed.
+It returns no native authority and does not certify a future candidate.
+No new native scenario or six-pair verdict came from this read-only checkpoint.
+
+Next: wire this distinct eight-actor source into an explicit bounded Valerie
+Horse derivative on a disposable copy, preserving all three existing Horse
+facts, native progression and source bytes. Review and test the exact intake
+before one guarded native scenario. Treat Linzi's possible native Horse and
+supported mounted-body admission separately; six supported active pairs may
+need an ordinary roster replacement plus paid hires. Continue independent
+F11 normal-player, door and 7C/7D work. Do not rebuild or rerun b174 to
+restate its PASS. No merge, release, permanent installation or HUMAN PLAY
+acceptance.
+
 ## Active October 22 after batch174 third-Horse cold original PASS
 
 The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active. [Batch174](docs/CHUNK7-BATCH174-THIRD-HORSE-COLD-ORIGINAL-PASS-2026-10-22.md) passed one guarded genuine separate-process third-Horse cold consumer **game 4/0 / original outer PASS 4/0** on unchanged frozen product `4724771b`, suite `aa76dcb5`, and corrected clean harness `545f6554`. Eight actors, five native characters, three distinct sourced reciprocal Horses, one load, zero writes and no preparation were observed. Run/save/Mods/profile bytes restored exactly; no process or lock remained. Batch172/173 original FAILs and the b173 reader-only PASS remain separate.
 
-Next: record and guarded-push b174 evidence, update draft PR #5, then pursue F09 breadth using the accepted eight-actor b171 Manual/cold lineage: the two remaining petless stock companions and one open native character slot are fixture leads, not six-pair proof. Keep existing two-pair product cap until a reviewed diagnostic-only capacity plan. Continue F11 request-free controls, ordinary door, other 7C/7D and readiness-gated private 7E. No merge, release, permanent installation or HUMAN PLAY acceptance.
+Historical next action at this checkpoint: record and guarded-push b174 evidence, update draft PR #5, then pursue F09 breadth using the accepted eight-actor b171 Manual/cold lineage. The commit/push and PR update are complete; the active next action is above.
 
 ## Active October 21 after batch173 third-Horse cold game PASS / outer FAIL
 
