@@ -22,9 +22,17 @@ function Test-KmcChunk7ThirdHorseColdSelection($Selection){
   $null-ne$Selection.PSObject.Properties['case']-and$Selection.case-is[string]-and
   $Selection.case-ceq'third-horse-manual-readonly-inventory'
 }
+function Test-KmcChunk7FourthHorseColdSelection($Selection){
+ $null-ne$Selection-and$Selection.GetType().FullName-ceq'System.Management.Automation.PSCustomObject'-and
+  $null-ne$Selection.PSObject.Properties['case']-and$Selection.case-is[string]-and
+  $Selection.case-ceq'fourth-horse-manual-readonly-inventory'
+}
+function Test-KmcChunk7HorseWorldColdSelection($Selection){
+ (Test-KmcChunk7ThirdHorseColdSelection $Selection)-or(Test-KmcChunk7FourthHorseColdSelection $Selection)
+}
 function Assert-KmcAssistedColdSeparateProcess($Selection,$SourceArtifact,$ColdArtifact,$VerifiedSource){
  if(Test-KmcChunk7OwnerSeedSelection $Selection){return}
- $sourceProcessId=if(Test-KmcChunk7ThirdHorseColdSelection $Selection){$VerifiedSource.sourceProcessId}else{$SourceArtifact.observations.processId}
+ $sourceProcessId=if(Test-KmcChunk7HorseWorldColdSelection $Selection){$VerifiedSource.sourceProcessId}else{$SourceArtifact.observations.processId}
  Assert-KmcOrdinaryInteger $sourceProcessId 1 ([int]::MaxValue)
  Assert-KmcOrdinaryInteger $ColdArtifact.observations.processId 1 ([int]::MaxValue)
  if($sourceProcessId-eq$ColdArtifact.observations.processId){throw 'Assisted cold inventory reused the preparation process.'}
@@ -106,7 +114,7 @@ function Assert-KmcChunk7AssistedColdInventorySelection($Request){
   return
  }
  Assert-KmcAssistedObjectValue $s @('case','sourceRunId','sourceArtifactSha256','sourceArchiveSha256','baseGameOnly','expectedNativeLoadCount','expectedNativeWriteCount') 'assisted cold selection'
- if($s.case-isnot[string]-or$s.case-cnotin@('assisted-manual-readonly-inventory','small-fixture-manual-readonly-inventory','medium-fixture-manual-readonly-inventory','third-horse-manual-readonly-inventory')){throw 'Unknown producer cold selection case.'}
+ if($s.case-isnot[string]-or$s.case-cnotin@('assisted-manual-readonly-inventory','small-fixture-manual-readonly-inventory','medium-fixture-manual-readonly-inventory','third-horse-manual-readonly-inventory','fourth-horse-manual-readonly-inventory')){throw 'Unknown producer cold selection case.'}
  if($Request.runId-isnot[string]-or$Request.runId-cnotmatch'^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$'){throw 'Assisted cold consumer run identity is malformed.'}
  if($s.sourceRunId-isnot[string]-or$s.sourceRunId-cnotmatch'^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$'-or$s.sourceRunId-ceq$Request.runId){throw 'Assisted cold inventory requires a distinct completed source run.'}
  foreach($key in @('sourceArtifactSha256','sourceArchiveSha256')){if($s.$key-isnot[string]-or$s.$key-cnotmatch'^[a-f0-9]{64}$'){throw 'Assisted cold immutable source hashes are required.'}}
@@ -125,16 +133,18 @@ function Assert-KmcChunk7AssistedColdInventoryDescriptor($Request){
   Assert-KmcBootstrapInventoryString $d.sha256 $Request.assistedColdInventory.seedSha256
  }else{
  $isThird=Test-KmcChunk7ThirdHorseColdSelection $Request.assistedColdInventory
+ $isFourth=Test-KmcChunk7FourthHorseColdSelection $Request.assistedColdInventory
  $isPaid=Test-KmcChunk7PaidFixtureColdSelection $Request.assistedColdInventory
  $isMedium=Test-KmcChunk7MediumFixtureColdSelection $Request.assistedColdInventory
- $name=if($isThird){'KMC_C7_SMALL_WORLD'}elseif($isMedium){'KMC_C7_MEDIUM_FIXTURE'}elseif($isPaid){'KMC_C7_SMALL_FIXTURE'}else{'KMC_C7_ASSISTED_FIXTURE'}
+ $name=if($isFourth){'KMC_C7_FOUR_HORSE_WORLD'}elseif($isThird){'KMC_C7_SMALL_WORLD'}elseif($isMedium){'KMC_C7_MEDIUM_FIXTURE'}elseif($isPaid){'KMC_C7_SMALL_FIXTURE'}else{'KMC_C7_ASSISTED_FIXTURE'}
  Assert-KmcBootstrapInventoryString $d.internalName $name
  if($d.fileName-isnot[string]-or$d.fileName-cnotmatch('^Manual_([1-9][0-9]*)_'+$name+'\.zks$')){throw 'Producer cold source must retain its observed native Manual leaf.'}
  $number=0;$leafMatch=[regex]::Match($d.fileName,'^Manual_([1-9][0-9]*)_'+$name+'\.zks$');if(-not[int]::TryParse($leafMatch.Groups[1].Value,[ref]$number)-or$number-le0-or$d.fileName-cne('Manual_'+$number+'_'+$name+'.zks')){throw 'Producer cold Manual number is noncanonical or outside native Int32.'}
- if(($isPaid-or$isThird)-and$number-eq[int]::MaxValue){throw 'F09 Manual number is the reserved native upper boundary.'}
+ if(($isPaid-or$isThird-or$isFourth)-and$number-eq[int]::MaxValue){throw 'F09 Manual number is the reserved native upper boundary.'}
  if($isThird-and$number-ne305){throw 'Third-Horse cold input is not the produced Manual 305.'}
+ if($isFourth-and$number-ne306){throw 'Fourth-Horse cold input is not the produced Manual 306.'}
  Assert-KmcBootstrapInventoryString $d.sha256 $Request.assistedColdInventory.sourceArchiveSha256
- if($isPaid-or$isThird){
+ if($isPaid-or$isThird-or$isFourth){
   foreach($pair in @(@('gameId','3f7381f7-aba6-43bf-bae6-39c6a66a7180'),@('gameName','Testy the Modless'),@('area','b10e86516b6437d45a629931c30936fe'))){Assert-KmcBootstrapInventoryString $d.($pair[0]) $pair[1]}
  }
  }
@@ -338,7 +348,7 @@ function Assert-KmcChunk7AssistedColdInventoryEvidence($Request,$Artifact,$Sourc
  if($Status-ceq'PASS'-and$Artifact.status-cne'PASS'){throw 'PASS assisted cold result requires its PASS native artifact.'}
  if($Artifact.status-cne'PASS'){return}
  if(Test-KmcChunk7OwnerSeedSelection $Request.assistedColdInventory){Assert-KmcChunk7OwnerSeedColdEvidence $Request $Artifact $SourceArtifact;return}
- if(Test-KmcChunk7ThirdHorseColdSelection $Request.assistedColdInventory){Assert-KmcChunk7ThirdHorseColdEvidence $Request $Artifact $SourceArtifact;return}
+ if(Test-KmcChunk7HorseWorldColdSelection $Request.assistedColdInventory){Assert-KmcChunk7ThirdHorseColdEvidence $Request $Artifact $SourceArtifact;return}
  if(Test-KmcChunk7PaidFixtureColdSelection $Request.assistedColdInventory){Assert-KmcChunk7SmallFixtureColdEvidence $Request $Artifact $SourceArtifact;return}
  $o=$Artifact.observations;$s=$Request.assistedColdInventory;$source=$SourceArtifact
  if($null-eq$source-or$source.GetType().FullName-cne'System.Management.Automation.PSCustomObject'){throw 'Assisted cold native proof requires its exact qualified producer artifact.'}

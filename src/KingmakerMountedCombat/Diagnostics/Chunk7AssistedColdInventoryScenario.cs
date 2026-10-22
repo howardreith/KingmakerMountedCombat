@@ -96,7 +96,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 (DialogMessageBox.Instance == null || !DialogMessageBox.Instance.IsShown),
                 "Cold inventory must own the exact idle empty menu before load.");
             RequireNoOwners(); RequireNoEffects();
-            if (selection.IsOwnerSeed) ReadOwnerSeedSource(); else if (selection.IsThirdHorse) ReadThirdHorseSource();
+            if (selection.IsOwnerSeed) ReadOwnerSeedSource(); else if (selection.IsHorseWorld) ReadThirdHorseSource();
             else if (selection.IsPaidFixture) ReadSmallFixtureSource(); else ReadSource();
             probe = new Chunk7BootstrapInventoryProbe(game); probe.Install();
             restoration = new NativeArchiveRestorationProbe(persistence); restoration.Install();
@@ -111,14 +111,15 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 evidence["source"] = new JObject { ["runId"] = selection.SourceRunId, ["artifactSha256"] = selection.SourceArtifactSha256,
                     ["archiveSha256"] = selection.SourceArchiveSha256, ["archiveLeaf"] = request.PersistenceLoad.FileName,
-                    ["sameCandidate"] = !selection.IsThirdHorse, ["assistedSetupOnly"] = true,
+                    ["sameCandidate"] = !selection.IsHorseWorld, ["assistedSetupOnly"] = true,
                     ["copiedArtifactPath"] = sourcePath, ["diagnosticArchiveContentRead"] = false };
                 evidence["sourceNativeWorld"] = sourceWorld.DeepClone();
-                if (!selection.IsPaidFixture && !selection.IsThirdHorse) evidence["sourceFixtureReadiness"] = sourceReadiness.DeepClone();
+                if (!selection.IsPaidFixture && !selection.IsHorseWorld) evidence["sourceFixtureReadiness"] = sourceReadiness.DeepClone();
                 evidence["sourceNativeMoney"] = expectedNativeMoney;
                 if (selection.IsPaidFixture) evidence["source"]["kind"] = selection.IsMediumFixture
                     ? "qualified-owner-seed-derived-medium-fixture-manual" : "qualified-owner-seed-derived-small-fixture-manual";
                 if (selection.IsThirdHorse) evidence["source"]["kind"] = "qualified-assisted-third-horse-manual";
+                if (selection.IsFourthHorse) evidence["source"]["kind"] = "reader-reevaluated-assisted-fourth-horse-manual";
             }
             evidence["beforeLoad"] = new JObject { ["frame"] = UnityEngine.Time.frameCount, ["game"] = probe.Identity(game),
                 ["saveManager"] = probe.Identity(manager), ["menuPlayer"] = probe.Identity(menuPlayer),
@@ -198,9 +199,9 @@ namespace KingmakerMountedCombat.Diagnostics
                     "Assisted cold native character/remote roster is malformed, overlapping or unbounded.");
                 if (!selection.IsOwnerSeed) RequireSourceRoster();
                 loadedSemantics = CaptureSemantics();
-                if (selection.IsThirdHorse) {
+                if (selection.IsHorseWorld) {
                     thirdHorseFactsAtLoad = CaptureThirdHorseFacts();
-                    evidence["thirdHorseFacts"] = thirdHorseFactsAtLoad.DeepClone();
+                    evidence[selection.IsFourthHorse ? "fourthHorseFacts" : "thirdHorseFacts"] = thirdHorseFactsAtLoad.DeepClone();
                 }
                 loadDescriptor = loader.Descriptor; admitted = true; RequireWorld(); VerifySourceBytes();
                 evidence["loadedWorld"] = Snapshot();
@@ -516,7 +517,7 @@ namespace KingmakerMountedCombat.Diagnostics
             ["level"]=value.Descriptor.Progression.CharacterLevel,["experience"]=value.Descriptor.Progression.Experience,["classes"]=CaptureClasses(value)})) };
         private void RequireSourceRoster()
         {
-            if (selection.IsThirdHorse) { RequireThirdHorseSourceRoster(); return; }
+            if (selection.IsHorseWorld) { RequireThirdHorseSourceRoster(); return; }
             if (selection.IsPaidFixture) { RequireSmallFixtureSourceRoster(); return; }
             Require(game.Player.Money == expectedNativeMoney, "Assisted cold native funds differ from the qualified source observation.");
             var sourceCharacters=(JArray)sourceReadiness["staticPartyFacts"]["characters"];
@@ -614,7 +615,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 game.Player.RemoteCompanions.Select(value => value.Value).SequenceEqual(remote), "Admitted raw native character/remote membership changed.");
             RequireLoader();
             Require(JToken.DeepEquals(loadedSemantics, CaptureSemantics()), "Admitted assisted cold progression or reciprocal field semantics changed.");
-            if (selection.IsThirdHorse) Require(JToken.DeepEquals(thirdHorseFactsAtLoad, CaptureThirdHorseFacts()),
+            if (selection.IsHorseWorld) Require(JToken.DeepEquals(thirdHorseFactsAtLoad, CaptureThirdHorseFacts()),
                 "Admitted cold sourced Horse facts or ranks changed.");
             Require(current.Length == actors.Length, "Admitted cold party count changed.");
             for (var i = 0; i < actors.Length; i++)

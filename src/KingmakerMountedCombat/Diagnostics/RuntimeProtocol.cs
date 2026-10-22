@@ -811,11 +811,14 @@ namespace KingmakerMountedCombat.Diagnostics
                         PersistenceLoad.Sha256 == Fixture.Baseline?.Sha256 || PersistenceLoad.Sha256 != AssistedColdInventory.SeedSha256)
                         errors.Add("Owner seed lacks its exact registered non-aliasing identity.");
                 }
-                else if (AssistedColdInventory?.IsThirdHorse == true)
+                else if (AssistedColdInventory?.IsHorseWorld == true)
                 {
-                    errors.AddRange(PersistenceLoad.Validate("persistenceLoad", Chunk7OwnedPairsSelection.SmallFixtureManualName,
-                        "^Manual_305_KMC_C7_SMALL_WORLD\\.zks$"));
-                    if (PersistenceLoad.FileName != "Manual_305_KMC_C7_SMALL_WORLD.zks" ||
+                    var fourth = AssistedColdInventory.IsFourthHorse;
+                    var name = fourth ? Chunk7OwnedPairsSelection.FourthHorseManualName : Chunk7OwnedPairsSelection.SmallFixtureManualName;
+                    var leaf = fourth ? "Manual_306_KMC_C7_FOUR_HORSE_WORLD.zks" : "Manual_305_KMC_C7_SMALL_WORLD.zks";
+                    errors.AddRange(PersistenceLoad.Validate("persistenceLoad", name,
+                        fourth ? "^Manual_306_KMC_C7_FOUR_HORSE_WORLD\\.zks$" : "^Manual_305_KMC_C7_SMALL_WORLD\\.zks$"));
+                    if (PersistenceLoad.FileName != leaf ||
                         Fixture?.Working == null || PersistenceLoad.GameId == Fixture.Working.GameId ||
                         PersistenceLoad.GameId == Fixture.Baseline?.GameId ||
                         PersistenceLoad.GameId != Chunk7SmallFixtureSelection.CampaignId ||
@@ -824,7 +827,7 @@ namespace KingmakerMountedCombat.Diagnostics
                         PersistenceLoad.Sha256 == Fixture.Working.Sha256 ||
                         PersistenceLoad.Sha256 == Fixture.Baseline?.Sha256 ||
                         PersistenceLoad.Sha256 != AssistedColdInventory.SourceArchiveSha256)
-                        errors.Add("Third-Horse cold source lacks its exact distinct native Manual 305 identity.");
+                        errors.Add("Horse-world cold source lacks its exact distinct native Manual identity.");
                 }
                 else if (AssistedColdInventory?.IsPaidFixture == true)
                 {
