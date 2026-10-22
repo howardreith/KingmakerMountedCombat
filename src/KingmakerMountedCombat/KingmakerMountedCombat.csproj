@@ -316,6 +316,7 @@
     <Compile Include="Diagnostics\Chunk7ManualDerivedAdmission.cs" />
     <Compile Include="Diagnostics\Chunk7ManualDerivedScenario.cs" />
     <Compile Include="Diagnostics\Chunk7ManualDerivedScenario.Build.cs" />
+    <Compile Include="Diagnostics\Chunk7ManualDerivedScenario.SixthHire.cs" />
     <Compile Include="Diagnostics\Chunk7ManualSeedScenario.cs" />
     <Compile Include="Diagnostics\Chunk7ManualSeedScenario.Save.cs" />
     <Compile Include="Diagnostics\Chunk7ManualSeedSaveProbe.cs" />

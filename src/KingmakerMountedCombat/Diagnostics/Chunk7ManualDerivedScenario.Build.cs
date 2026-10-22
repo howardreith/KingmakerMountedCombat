@@ -47,9 +47,9 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void RequireF09PriorHorses()
         {
-            if (!selection.UsesF09FourHorseCold) return;
-            var facts = sourceObservations?["fourthHorseFacts"] as JArray;
-            Require(facts != null && facts.Count == 4, "F09 source lost its four native Horse relationships.");
+            if (!selection.UsesF09FourHorseCold && !selection.UsesF09FiveHorseCold) return;
+            var facts = sourceObservations?[selection.UsesF09FiveHorseCold ? "fifthHorseFacts" : "fourthHorseFacts"] as JArray;
+            Require(facts != null && facts.Count == (selection.UsesF09FiveHorseCold ? 5 : 4), "F09 source lost its native Horse relationships.");
             var rows = new JArray();
             foreach (var item in facts)
             {
@@ -92,7 +92,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 "Loaded Manual actor/class/XP/money state differs from its observed native source.");
             Require(actual["saveSettings"]?["onlyOneSave"]?.Type == JTokenType.Boolean && !(bool)actual["saveSettings"]["onlyOneSave"] &&
                 !NativePersistenceIsolation.NativeSlotRotationEnabled, "Manual acquisition refuses one-save mode or a pre-existing slot projection.");
-            RequireLiveEligibility();
+            if (!selection.UsesF09FiveHorseCold) RequireLiveEligibility();
             RequireF09PriorHorses();
         }
         private void RequireLiveEligibility()
@@ -119,6 +119,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 TargetCanLevelUp = target != null && LevelUpController.CanLevelUp(target.Descriptor),
                 ExactSmallCatalogueMember = selection.Case == Chunk7ManualDerivedSelection.PaidSmallCase &&
                     CatalogueContains(SelectedSourceInventory) && CatalogueContains(evidence["nativeProfileInventory"]),
+                NativeDepartureCompleted = sixthDeparture?.Completed == true,
+                NativeDepartureHireCost = sixthDepartureHireCost,
                 ExactMediumBodyMember = selection.Case == Chunk7ManualDerivedSelection.PaidMediumCase &&
                     Chunk7MediumHireBodySource.Matches(SelectedSourceInventory, selection.MediumBody) &&
                     Chunk7MediumHireBodySource.Matches(evidence["nativeProfileInventory"], selection.MediumBody) && NativeMediumBodyMatches()
@@ -137,6 +139,11 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["exactSmallCatalogueMember"] = actual.ExactSmallCatalogueMember, ["arrangementGranted"] = false };
             if (selection.Case == Chunk7ManualDerivedSelection.PaidMediumCase)
                 evidence["liveEligibility"]["exactMediumBodyMember"] = actual.ExactMediumBodyMember;
+            if (selection.UsesF09FiveHorseCold)
+            {
+                evidence["liveEligibility"]["nativeDepartureCompleted"] = actual.NativeDepartureCompleted;
+                evidence["liveEligibility"]["nativeDepartureHireCost"] = actual.NativeDepartureHireCost;
+            }
         }
         private bool CatalogueContains(JToken inventory)
         {
@@ -181,9 +188,10 @@ namespace KingmakerMountedCombat.Diagnostics
                 "Exact ordinary Horse registration is not ready.");
             Require(game.SaveManager.IsSaveAllowed() && !NativePersistenceIsolation.NativeSlotRotationEnabled,
                 "Native save is unavailable or has a pre-existing slot projection.");
+            if (selection.UsesF09FiveHorseCold && sixthDeparture == null) { StartSixthDeparture(); return; }
             RequireLiveEligibility();
             originalSelection = SelectionManager.Instance.SelectedUnits.ToArray();
-            Require(originalSelection.All(value => actors.Any(actor => ReferenceEquals(actor, value))) && originalSelection.Distinct().Count() == originalSelection.Length,
+            Require(originalSelection.All(value => !IsDepartedSourceActor(value) && actors.Any(actor => ReferenceEquals(actor, value))) && originalSelection.Distinct().Count() == originalSelection.Length,
                 "Native pre-choice selection includes an unowned or duplicate actor.");
             originalPause = game.IsPaused;
             originalPartyCharacters = game.Player.PartyCharacters.Select(value => value.Value.UniqueId).OrderBy(value => value, StringComparer.Ordinal).ToArray();
@@ -286,8 +294,8 @@ namespace KingmakerMountedCombat.Diagnostics
             evidence["sourceDescriptorObject"] = probe.Identity(saves[0]);
             var number = manager.FindUnusedSaveNumber(SaveInfo.SaveType.Manual);
             var leaf = "Manual_" + number.ToString(System.Globalization.CultureInfo.InvariantCulture) + "_" +
-                Chunk7ManualDerivedSelection.ManualOutputName + ".zks";
-            Require(number == (cumulative?.UsesAssistedCold == true ? 301 : cumulative?.UsesOwnerSeedOneOwner == true ? 306 : cumulative != null ? 303 : selection.UsesF09FourHorseCold ? 307 : selection.UsesOwnerSeedCold ? 304 : 2) &&
+                selection.SelectedOutputName + ".zks";
+            Require(number == (cumulative?.UsesAssistedCold == true ? 301 : cumulative?.UsesOwnerSeedOneOwner == true ? 306 : cumulative != null ? 303 : selection.UsesF09FiveHorseCold ? 308 : selection.UsesF09FourHorseCold ? 307 : selection.UsesOwnerSeedCold ? 304 : 2) &&
                 leaf == selection.NativeWriteLeaf &&
                 !File.Exists(Path.Combine(root, leaf)), "Native Manual numbering or output absence differs.");
             evidence["nativeNumbering"] = new JObject { ["method"] = "FindUnusedSaveNumber",
@@ -298,11 +306,11 @@ namespace KingmakerMountedCombat.Diagnostics
             beforeManualSaveArrangement = CaptureManualSaveArrangement();
             evidence["beforeSaveArrangement"] = beforeManualSaveArrangement.DeepClone();
             manualSaveProbe = new Chunk7ManualSeedSaveProbe(game, persistence, probe.Identity, RequireWorldReferences,
-                leaf, Chunk7ManualDerivedSelection.ManualOutputName);
+                leaf, selection.SelectedOutputName);
             manualSaveProbe.Install();
-            requestedManual = manager.CreateNewSave(Chunk7ManualDerivedSelection.ManualOutputName);
+            requestedManual = manager.CreateNewSave(selection.SelectedOutputName);
             Require(requestedManual != null && requestedManual.Type == SaveInfo.SaveType.Manual &&
-                requestedManual.Name == Chunk7ManualDerivedSelection.ManualOutputName &&
+                requestedManual.Name == selection.SelectedOutputName &&
                 !requestedManual.IsActuallySaved && !requestedManual.HasFileOnDisk &&
                 !requestedManual.IsAutoLevelupSave && requestedManual.Area == game.CurrentlyLoadedArea,
                 "Native Manual descriptor differs from the exact fresh field checkpoint.");
@@ -318,7 +326,7 @@ namespace KingmakerMountedCombat.Diagnostics
             if (!manualSaveCallback || Busy()) return false;
             RequireAuthority(false); RequireWorld(); RequireNoOwners(); RequireNoEffects(); VerifySourceBytes();
             RequireF09PriorHorses();
-            if (selection.UsesF09FourHorseCold) evidence["f09PriorHorsesAfter"] = f09PriorHorses.DeepClone();
+            if (selection.UsesF09FourHorseCold || selection.UsesF09FiveHorseCold) evidence["f09PriorHorsesAfter"] = f09PriorHorses.DeepClone();
             var completion = persistence.LastCompletedSave;
             Require(manualCallbackCount == 1 && manualSaveProbe != null && manualSaveProbe.Complete &&
                 persistence.CompletedSaveCount == 1 && persistence.SnapshotCount == 1 &&
@@ -332,7 +340,7 @@ namespace KingmakerMountedCombat.Diagnostics
             Require(saves.Length == 2 && saves.Count(value => value.FileName == request.PersistenceLoad.FileName) == 1 &&
                 saves.Count(value => ReferenceEquals(value, save)) == 1 &&
                 save.FileName == selection.NativeWriteLeaf &&
-                save.Name == Chunk7ManualDerivedSelection.ManualOutputName && save.Type == SaveInfo.SaveType.Manual &&
+                save.Name == selection.SelectedOutputName && save.Type == SaveInfo.SaveType.Manual &&
                 !save.IsAutoLevelupSave && save.HasFileOnDisk && save.IsActuallySaved &&
                 save.OperationState == SaveInfo.StateType.None && save.GameId == request.PersistenceLoad.GameId &&
                 save.GameName == request.PersistenceLoad.GameName && save.Area?.AssetGuidThreadSafe == request.PersistenceLoad.Area,
@@ -374,17 +382,19 @@ namespace KingmakerMountedCombat.Diagnostics
             evidence["nativeSave"] = manualSaveProbe.Capture();
             evidence["savedWorld"] = Snapshot();
             evidence["savedFieldWorld"] = CaptureSavedFieldWorld();
+            if (selection.UsesF09FiveHorseCold) evidence["savedSixthRoster"] = CaptureSixthRoster();
             return true;
         }
         private JObject CaptureSavedFieldWorld()
         {
             RequireAcquiredActor();
             var current = Chunk7NativeFieldRoster.Capture(game.Player);
-            Require(current.Length == actors.Length + (selection.PaidHire ? 2 : 1) &&
+            var retained = actors.Where(actor => !IsDepartedSourceActor(actor)).ToArray();
+            Require(current.Length == retained.Length + (selection.PaidHire ? 2 : 1) &&
                 current.All(value => value != null && value.IsInGame && value.IsInState && value.View?.AgentASP != null && value.Commands.Empty) &&
                 current.Count(value => ReferenceEquals(value, acquiredActor)) == 1 &&
                 current.Count(value => ReferenceEquals(value, acquiredPet)) == 1 &&
-                actors.All(original => current.Count(value => ReferenceEquals(value, original)) == 1),
+                retained.All(original => current.Count(value => ReferenceEquals(value, original)) == 1),
                 "Saved Manual field roster differs from the settled acquired native pair.");
             var snapshot = Snapshot();
             snapshot["party"] = new JArray(current.Select(actor => new JObject {
@@ -465,6 +475,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 cancellation = new Chunk7NativeBuilderCancellation(builder, AssertCleanupInputAuthority, Busy);
             if (cancellation != null && !cancellation.TryDrain()) return false;
             if (fieldAdmission != null && !fieldAdmission.TryDrain()) return false;
+            if (sixthDeparture != null && !sixthDeparture.TryDrain()) return false;
             return true;
         }
         private void RestoreAcquisitionPresentation()

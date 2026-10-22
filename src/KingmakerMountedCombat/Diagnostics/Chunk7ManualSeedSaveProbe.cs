@@ -47,14 +47,15 @@ namespace KingmakerMountedCombat.Diagnostics
                 var assisted = acquiredManualName == Chunk7AssistedFixtureSelection.OutputName;
                 var progression = acquiredManualName == Chunk7ProgressionSelection.ManualOutputName;
                 var derived = acquiredManualName == Chunk7ManualDerivedSelection.ManualOutputName;
+                var sixth = acquiredManualName == Chunk7ManualDerivedSelection.F09SixthOutputName;
                 var prefix = "Manual_"; var suffix = "_" + (assisted ? Chunk7AssistedFixtureSelection.OutputName :
-                    progression ? Chunk7ProgressionSelection.ManualOutputName : derived ? Chunk7ManualDerivedSelection.ManualOutputName : Chunk7AcquiredManualSelection.OutputName) + ".zks";
-                Require((assisted || progression || derived || acquiredManualName == Chunk7AcquiredManualSelection.OutputName) && leaf != null &&
+                    progression ? Chunk7ProgressionSelection.ManualOutputName : sixth ? Chunk7ManualDerivedSelection.F09SixthOutputName : derived ? Chunk7ManualDerivedSelection.ManualOutputName : Chunk7AcquiredManualSelection.OutputName) + ".zks";
+                Require((assisted || progression || derived || sixth || acquiredManualName == Chunk7AcquiredManualSelection.OutputName) && leaf != null &&
                     leaf.StartsWith(prefix, StringComparison.Ordinal) && leaf.EndsWith(suffix, StringComparison.Ordinal) &&
                     leaf.Length > prefix.Length + suffix.Length &&
                     int.TryParse(leaf.Substring(prefix.Length, leaf.Length - prefix.Length - suffix.Length),
                         System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var number) &&
-                    number > 0 && leaf == (assisted ? Chunk7AssistedFixtureSelection.ManualLeaf(number) :
+                    number > 0 && leaf == (sixth ? Chunk7ManualDerivedSelection.F09SixthOutputLeaf : assisted ? Chunk7AssistedFixtureSelection.ManualLeaf(number) :
                         progression ? Chunk7ProgressionSelection.ManualLeaf(number) : derived ?
                             (number == 2 ? Chunk7ManualDerivedSelection.ManualOutputLeaf :
                                 number == 301 ? Chunk7CumulativeAcquisitionSelection.AssistedManualOutputLeaf :
@@ -63,7 +64,7 @@ namespace KingmakerMountedCombat.Diagnostics
                                 number == 307 ? Chunk7ManualDerivedSelection.F09FifthOutputLeaf :
                                 Chunk7ManualDerivedSelection.OwnerSeedOutputLeaf) :
                             Chunk7AcquiredManualSelection.NativeOutputLeaf(number)) &&
-                    (!derived || number == 2 || number == 301 || number == 303 || number == 304 || number == 306 || number == 307),
+                    (!derived || number == 2 || number == 301 || number == 303 || number == 304 || number == 306 || number == 307) && (!sixth || number == 308),
                     "Acquired Manual observer requires its closed name and exact canonical positive native slot.");
                 nativeName = acquiredManualName;
             }

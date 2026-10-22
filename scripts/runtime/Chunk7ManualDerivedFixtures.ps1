@@ -53,6 +53,18 @@ function Read-KmcChunk7ManualDerivedSelectionFile([string]$Path,[string]$RunId){
 function Get-KmcChunk7ManualDerivedSource($Selection,$Fixture,$Candidate){
  Assert-KmcChunk7ManualDerivedSelection ([pscustomobject]@{scenario='chunk7-manual-derived-acquisition';runId='unassigned-manual-derived';manualDerived=$Selection})
  if($Selection.nativeWriteLeaf-ceq'Manual_304_KMC_C7_MANUAL_DERIVED_FIELD.zks'){return Get-KmcChunk7ManualDerivedOwnerSeedSource $Selection $Fixture $Candidate}
+ if(Test-KmcManualDerivedSixthHire $Selection){
+  $source=Get-KmcChunk7F09SixthHireSource $Fixture
+  foreach($key in @('sourceRunId','artifactSha256')){
+   $selectionKey=if($key-ceq'sourceRunId'){'sourceRunId'}else{'sourceArtifactSha256'}
+   Assert-KmcBootstrapInventoryString $Selection.$selectionKey $source.$key
+  }
+  Assert-KmcBootstrapInventoryString $Selection.sourceArchiveSha256 $source.descriptor.sha256
+  Assert-KmcChunk7ManualDerivedDescriptor ([pscustomobject]@{scenario='chunk7-manual-derived-acquisition';runId='unassigned-manual-derived';manualDerived=$Selection;persistenceLoad=$source.descriptor;fixture=$Fixture})
+  $projection=Get-KmcChunk7OwnerSeedAcquisitionProjection (Read-KmcJson $source.artifactPath).observations
+  Assert-KmcManualDerivedSourcePins $Selection $projection
+  return $source
+ }
  if($Selection.nativeWriteLeaf-ceq'Manual_307_KMC_C7_MANUAL_DERIVED_FIELD.zks'){
   $gate=Get-KmcChunk7F09SelectorOptionalitySource $Fixture;$source=$gate.nineActorSource
   if($Selection.case-cne'paid-small-ranger-horse'-or$Selection.sourceRunId-cne$gate.selectorRunId-or
@@ -122,6 +134,8 @@ function Get-KmcChunk7ManualDerivedSource($Selection,$Fixture,$Candidate){
 }
 function Copy-KmcChunk7ManualDerivedSourceArtifact($Source,[string]$ProfileRoot,$Lock){
  [void](Assert-KmcRuntimeLockOwner $Lock)
+ $sixth=$Source.descriptor.fileName-ceq'Manual_307_KMC_C7_MANUAL_DERIVED_FIELD.zks'
+ if($sixth){Assert-KmcSixthHireReceiptPins $Source}
  $run=Assert-KmcChildPath $ProfileRoot (Join-Path (Get-KmcLabRoot) 'runtime-staging') 'Manual-derived profile';Assert-KmcDirectoryTreeCloneable $run 'Manual-derived profile';$owner=Read-KmcJson (Join-Path $run 'owner.json')
  foreach($pair in @(@('scenario','chunk7-manual-derived-acquisition'),@('runId',$Lock.RunId),@('transactionToken',$Lock.Token),@('sourceSha256',$Source.descriptor.sha256))){Assert-KmcBootstrapInventoryString $owner.($pair[0]) $pair[1]}
  if($run-cne(Join-Path (Get-KmcLabRoot) ('runtime-staging/persistence-'+$owner.runId))){throw 'Manual-derived copy lacks its exact locked profile.'}
@@ -130,6 +144,7 @@ function Copy-KmcChunk7ManualDerivedSourceArtifact($Source,[string]$ProfileRoot,
  if((Get-KmcSha256 $Source.artifactPath)-cne$Source.artifactSha256-or(Get-Item -LiteralPath $Source.artifactPath).Length-ne$Source.artifactLength){throw 'Manual-derived source receipt changed before locked copy.'}
  [IO.File]::Copy($Source.artifactPath,$destination,$false)
  if((Get-KmcSha256 $destination)-cne$Source.artifactSha256-or(Get-KmcSha256 $Source.artifactPath)-cne$Source.artifactSha256){throw 'Manual-derived lineage changed during locked copy.'}
+ if($sixth){Assert-KmcSixthHireReceiptPins $Source}
 }
 function Assert-KmcChunk7ManualDerivedOutput($Request,$Artifact){
  $w=$Artifact.observations.nativeWrite;$root=Join-Path (Join-Path (Join-Path (Split-Path (Split-Path $Request.evidenceRoot -Parent) -Parent) 'runtime-staging') ('persistence-'+$Request.runId)) 'Saved Games'

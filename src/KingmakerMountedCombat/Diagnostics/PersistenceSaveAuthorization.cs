@@ -301,9 +301,10 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (source == null ||
                     !(source.FileName == "Manual_1_KMC_C7_NATIVE_SEED.zks" && source.InternalName == Chunk7ManualSeedSelection.OutputName && outputLeaf == Chunk7ManualDerivedSelection.ManualOutputLeaf ||
                       source.FileName == Chunk7ManualDerivedSelection.OwnerSeedInputLeaf && source.InternalName == Chunk7ManualDerivedSelection.OwnerSeedInputName && outputLeaf == Chunk7ManualDerivedSelection.OwnerSeedOutputLeaf ||
-                      source.FileName == "Manual_306_KMC_C7_FOUR_HORSE_WORLD.zks" && source.InternalName == "KMC_C7_FOUR_HORSE_WORLD" && outputLeaf == Chunk7ManualDerivedSelection.F09FifthOutputLeaf) ||
+                      source.FileName == "Manual_306_KMC_C7_FOUR_HORSE_WORLD.zks" && source.InternalName == "KMC_C7_FOUR_HORSE_WORLD" && outputLeaf == Chunk7ManualDerivedSelection.F09FifthOutputLeaf ||
+                      source.FileName == Chunk7ManualDerivedSelection.F09FifthOutputLeaf && source.InternalName == Chunk7ManualDerivedSelection.ManualOutputName && outputLeaf == Chunk7ManualDerivedSelection.F09SixthOutputLeaf) ||
                     source.GameId != gameId || source.GameName != gameName ||
-                    outputName != Chunk7ManualDerivedSelection.ManualOutputName ||
+                    outputName != (outputLeaf == Chunk7ManualDerivedSelection.F09SixthOutputLeaf ? Chunk7ManualDerivedSelection.F09SixthOutputName : Chunk7ManualDerivedSelection.ManualOutputName) ||
                     maximumNativeLoadRequests != 1 || maximumNativeWriteRequests != 1 || declaresBootstrap || bootstrapWindowOpen || entries.Count != 2 ||
                     !entries.TryGetValue(source.FileName, out input) || input.Name != source.InternalName || input.Type != "Manual" ||
                     input.Area != source.Area || input.Hash != source.Sha256 || input.Writable || input.Writing || input.Bootstrap ||

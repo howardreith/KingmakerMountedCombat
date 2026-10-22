@@ -1,5 +1,13 @@
 Set-StrictMode -Version Latest
 
+function Assert-KmcSixthHireReceiptPins($Source){
+ Assert-KmcBootstrapInventoryString $Source.sourceRunId '20261022-c7b-world183-b183s1-linzi-departure'
+ Assert-KmcBootstrapInventoryString $Source.artifactSha256 '978220bfa22f13f77f8ac827c8c2fa33abd0d9e437cc7196961217490fd61487'
+ Assert-KmcBootstrapInventoryString $Source.descriptor.sha256 'afbeaa5bc749d91bd969581977f396ff4b0c2716691625a9648b2bb827c2318e'
+ if($Source.receiptPins-isnot[Array]-or$Source.receiptPins.Count-ne28-or@($Source.receiptPins.path|Sort-Object -Unique).Count-ne28){throw 'Sixth-hire source requires its exact 28-receipt closure.'}
+ foreach($pin in $Source.receiptPins){Assert-KmcAssistedSettledFile $pin.path $pin 'sixth-hire receipt closure'}
+}
+
 # Read-only provenance for the next paid sixth-Horse derivative. Batch183 made
 # no save: the immutable input remains batch181 Manual_307. Its original outer
 # FAIL and the two distinct accepted reader re-evaluations are never rewritten.

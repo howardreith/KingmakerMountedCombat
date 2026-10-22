@@ -750,9 +750,10 @@ namespace KingmakerMountedCombat.Diagnostics
                 else
                 {
                     var ownerSeed = ManualDerived?.UsesOwnerSeedCold == true;
+                    var sixth = ManualDerived?.UsesF09FiveHorseCold == true;
                     errors.AddRange(PersistenceLoad.Validate("persistenceLoad",
-                        ManualDerived?.UsesF09FourHorseCold == true ? "KMC_C7_FOUR_HORSE_WORLD" : ownerSeed ? Chunk7ManualDerivedSelection.OwnerSeedInputName : Chunk7ManualSeedSelection.OutputName,
-                        ManualDerived?.UsesF09FourHorseCold == true ? "^Manual_306_KMC_C7_FOUR_HORSE_WORLD\\.zks$" : ownerSeed ? "^Manual_303_KMC_C7_NO_MODS_OWNER_SEED\\.zks$" : "^Manual_1_KMC_C7_NATIVE_SEED\\.zks$"));
+                        sixth ? Chunk7ManualDerivedSelection.ManualOutputName : ManualDerived?.UsesF09FourHorseCold == true ? "KMC_C7_FOUR_HORSE_WORLD" : ownerSeed ? Chunk7ManualDerivedSelection.OwnerSeedInputName : Chunk7ManualSeedSelection.OutputName,
+                        sixth ? "^Manual_307_KMC_C7_MANUAL_DERIVED_FIELD\\.zks$" : ManualDerived?.UsesF09FourHorseCold == true ? "^Manual_306_KMC_C7_FOUR_HORSE_WORLD\\.zks$" : ownerSeed ? "^Manual_303_KMC_C7_NO_MODS_OWNER_SEED\\.zks$" : "^Manual_1_KMC_C7_NATIVE_SEED\\.zks$"));
                     if (Fixture?.Working == null || PersistenceLoad.GameId == Fixture.Working.GameId ||
                         !Guid.TryParseExact(PersistenceLoad.GameId, "D", out var mintedDerivedId) || mintedDerivedId == Guid.Empty ||
                         string.IsNullOrWhiteSpace(PersistenceLoad.GameName) || PersistenceLoad.Sha256 == Fixture.Working.Sha256 ||

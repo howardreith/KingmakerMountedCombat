@@ -12,7 +12,7 @@ $start=$raw.IndexOf('    internal enum Chunk7OrdinaryBuildMode',[StringCompariso
 if($start-lt0-or$end-le$start){throw 'Actual pure build-pin source boundaries missing.'}
 $fragment='using System;using System.Text.RegularExpressions;using Kingmaker.Enums;using Kingmaker.Blueprints;using Kingmaker.UnitLogic;namespace KingmakerMountedCombat.Diagnostics {'+$raw.Substring($start,$end-$start)+'}'
 $pinPath=Join-Path $OutputDirectory 'ActualBuildPins.cs';[IO.File]::WriteAllText($pinPath,$fragment,[Text.UTF8Encoding]::new($false))
-$build=[IO.File]::ReadAllText($BuildSource);$matches=[regex]::Matches($build,'\["saveBeforeFieldSelection"\]\s*=\s*([^,\r\n]+)')
+$build=[IO.File]::ReadAllText($BuildSource);$matches=[regex]::Matches($build,'\["saveAfterFieldSelection"\]\s*=\s*([^,\r\n]+)')
 if($matches.Count-ne1){throw 'Actual emitted native write field is ambiguous.'};$expression=$matches[0].Groups[1].Value.Trim()
 $template=[IO.File]::ReadAllText($TestTemplate);if(($template.Split(@('__ACTUAL_SAVE_ORDER_EXPRESSION__'),[StringSplitOptions]::None)).Length-ne2){throw 'Actual save order marker differs.'}
 $testPath=Join-Path $OutputDirectory 'ActualPaidBuildContractTests.cs';[IO.File]::WriteAllText($testPath,$template.Replace('__ACTUAL_SAVE_ORDER_EXPRESSION__',$expression),[Text.UTF8Encoding]::new($false))

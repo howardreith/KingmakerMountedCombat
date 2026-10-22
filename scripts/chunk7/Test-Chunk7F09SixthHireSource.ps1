@@ -3,6 +3,7 @@ param([string]$RepositoryRoot)
 $ErrorActionPreference='Stop';Set-StrictMode -Version Latest
 if(-not$PSBoundParameters.ContainsKey('RepositoryRoot')){$RepositoryRoot=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))}
 . (Join-Path $RepositoryRoot 'scripts/runtime/RuntimeHarness.Common.ps1')
+. (Join-Path $RepositoryRoot 'scripts/runtime/Chunk7ManualDerivedFixtures.ps1')
 $run='20261022-c7b-world183-b183s1-linzi-departure'
 $set=Get-KmcChunk7OwnedReceiptSet $run 'chunk7-assisted-cold-inventory-evidence.json'
 $fixture=$set.request.fixture
@@ -32,7 +33,18 @@ foreach($mutation in @('outer promoted','foreign error','native failure','second
  if(-not$refused){throw ('Sixth-hire provenance admitted '+$mutation)}
  $passed++
 }
-$source=Get-KmcChunk7F09SixthHireSource $fixture
+$artifact=Read-KmcJson (Join-Path $set.root 'chunk7-assisted-cold-inventory-evidence.json')
+$i=$artifact.observations.nativeProfileInventory.ordinaryAcquisitionPrerequisites
+$selection=[pscustomobject][ordered]@{case='paid-small-ranger-horse';sourceRunId=$run;
+ sourceArtifactSha256='978220bfa22f13f77f8ac827c8c2fa33abd0d9e437cc7196961217490fd61487';
+ sourceArchiveSha256='afbeaa5bc749d91bd969581977f396ff4b0c2716691625a9648b2bb827c2318e';baseGameOnly=$true;
+ expectedNativeLoadCount=1;expectedNativeWriteCount=1;nativeWriteLeaf='Manual_308_KMC_C7_SIX_HORSE_WORLD.zks';
+ readiness=[pscustomobject]@{mainActorId=$i.mainCharacterId;mainLevel=$i.mainCharacterLevel;mainExperience=$i.mainCharacterExperience;
+ money=$i.nativeMoney;experienceRatePercent=100;nativeHireCost=$i.nativeHireCostNow;defaultHireExperience=$i.nativeDefaultHireExperienceNow;
+ partyCharacterIds=@($i.nativePartyCharacterIds|Sort-Object)};
+ existingActorId=$null;existingLevel=$null;existingExperience=$null;existingRangerLevel=$null;
+ smallRaceGuid='b0c3ef2729c498f47970bb50fa1acd30';smallPresetGuid='639cebe8cbc098345af429d62fd79578';skeletonName='MaleHalfling';gender='Male';leftHanded=$false}
+$source=Get-KmcChunk7ManualDerivedSource $selection $fixture ([pscustomobject]@{})
 if($source.sourceRunId-cne$run-or$source.originalOuterStatus-cne'FAIL'-or$source.nativeGameStatus-cne'PASS'-or
  $source.readerOnlyStatus-cne'PASS'-or$source.nativeAuthorityGranted-ne$false-or$source.ordinaryAcquisitionProven-ne$false-or
  $source.fixtureSetupOnly-ne$true-or$source.nativeRosterTransitionProven-ne$true-or
@@ -43,4 +55,16 @@ if($source.sourceRunId-cne$run-or$source.originalOuterStatus-cne'FAIL'-or$source
  throw 'Sixth-hire source gate lost native transition, immutable Manual or distinct failure/re-evaluation identities.'
 }
 $passed++
+Assert-KmcSixthHireReceiptPins $source;$passed++
+foreach($mutation in @('missing pins','missing receipt','changed hash','foreign source')){
+ $wrong=CopyValue $source
+ switch($mutation){
+  'missing pins'{$wrong.PSObject.Properties.Remove('receiptPins')}
+  'missing receipt'{$wrong.receiptPins=@($wrong.receiptPins|Select-Object -Skip 1)}
+  'changed hash'{$wrong.receiptPins[0].sha256='f'*64}
+  'foreign source'{$wrong.sourceRunId='other-departure'}
+ }
+ $refused=$false;try{Assert-KmcSixthHireReceiptPins $wrong}catch{$refused=$true}
+ if(-not$refused){throw ('Sixth-hire copy boundary admitted '+$mutation)};$passed++
+}
 Write-Host ('SIXTH-HIRE READ-ONLY SOURCE PASS='+$passed+' FAIL=0 (nativeInvoked=false; no acquisition/save authority)')

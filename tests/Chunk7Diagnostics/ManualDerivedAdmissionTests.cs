@@ -30,6 +30,16 @@ namespace KingmakerMountedCombat.Tests
             selection.SmallRaceGuid = selection.SmallPresetGuid = selection.SkeletonName = selection.Gender = null; selection.LeftHanded = null;
             return selection;
         }
+        private static Chunk7ManualDerivedSelection Sixth()
+        {
+            var s = Paid(); s.SourceRunId = "20261022-c7b-world183-b183s1-linzi-departure";
+            s.SourceArtifactSha256 = "978220bfa22f13f77f8ac827c8c2fa33abd0d9e437cc7196961217490fd61487";
+            s.SourceArchiveSha256 = "afbeaa5bc749d91bd969581977f396ff4b0c2716691625a9648b2bb827c2318e";
+            s.NativeWriteLeaf = Chunk7ManualDerivedSelection.F09SixthOutputLeaf;
+            s.Readiness.PartyCharacterIds = new[] { MainId, Target, "30000000-0000-0000-0000-000000000003",
+                "40000000-0000-0000-0000-000000000004", "50000000-0000-0000-0000-000000000005", Chunk7ManualDerivedSelection.F09DepartureActorId };
+            return s;
+        }
         private static void RejectMedium(string name, Action<Chunk7ManualDerivedSelection,Chunk7ManualDerivedNativeReadiness> mutate)
         { var s = Medium(); var n = Native(s); mutate(s,n); Check(name,!Admits(s,n)); }
         private static Chunk7ManualDerivedNativeReadiness Native(Chunk7ManualDerivedSelection selection) => new Chunk7ManualDerivedNativeReadiness {
@@ -123,6 +133,22 @@ namespace KingmakerMountedCombat.Tests
             s=Existing();n=Native(s);s.MediumBody=Medium().MediumBody;Check("existing actor rejects Medium body authority",!Admits(s,n));
             Check("legacy selection omits additive Medium JSON property",!Paid().ShouldSerializeMediumBody()&&!Existing().ShouldSerializeMediumBody());
             Check("Medium selection emits typed body property",Medium().ShouldSerializeMediumBody());
+            s=Sixth();n=Native(s);Check("sixth hire cannot start from its full source roster",!Admits(s,n));
+            n.PartyCharacterIds=n.PartyCharacterIds.Where(id=>id!=Chunk7ManualDerivedSelection.F09DepartureActorId).ToArray();
+            Check("a five-character projection alone is not native departure proof",!Admits(s,n));
+            n.NativeDepartureCompleted=true;n.NativeDepartureHireCost=n.NativeHireCost;Check("completed exact departure admits a real field slot without changing source pins",Admits(s,n)&&s.Readiness.PartyCharacterIds.Length==6);
+            n.NativeHireCost++;Check("post-departure price drift refuses",!Admits(s,n));n.NativeHireCost--;
+            n.NativeDepartureHireCost=0;Check("completed departure without native price observation refuses",!Admits(s,n));n.NativeDepartureHireCost=n.NativeHireCost;
+            n.NativeDepartureHireCost=n.NativeHireCost=100;Check("post-departure funds use actual retained native price",!Admits(s,n));
+            s.Readiness.Money=n.Money=200;Check("changed native hire price admits after exact native departure without replacing source price pins",Admits(s,n)&&s.Readiness.NativeHireCost==50);
+            n.PartyCharacterIds=s.Readiness.PartyCharacterIds.ToArray();Check("completion cannot admit the unchanged full roster",!Admits(s,n));
+            n.PartyCharacterIds=s.Readiness.PartyCharacterIds.Where(id=>id!=Target).ToArray();Check("departure of another character refuses",!Admits(s,n));
+            n.PartyCharacterIds=s.Readiness.PartyCharacterIds.Where(id=>id!=Chunk7ManualDerivedSelection.F09DepartureActorId).ToArray();
+            s.SourceRunId="other-departure";Check("sixth hire cannot borrow a different native departure",!Admits(s,n));
+            s=Sixth();n=Native(s);n.NativeDepartureCompleted=true;n.NativeDepartureHireCost=n.NativeHireCost;n.PartyCharacterIds=s.Readiness.PartyCharacterIds.Where(id=>id!=Chunk7ManualDerivedSelection.F09DepartureActorId).ToArray();
+            s.Readiness.PartyCharacterIds=n.PartyCharacterIds;Check("caller cannot erase Linzi from source pins",!Admits(s,n));
+            s=Sixth();s.Readiness=null;Check("sixth hire with missing readiness rejects without throwing",s.Validate(Chunk7ManualDerivedSelection.Scenario,"new-run").Count>0);
+            Check("sixth output name is distinct from loaded source",Sixth().SelectedOutputName==Chunk7ManualDerivedSelection.F09SixthOutputName&&Paid().SelectedOutputName==Chunk7ManualDerivedSelection.ManualOutputName);
             Console.WriteLine("RESULT "+pass+" PASS / "+fail+" FAIL");return fail==0?0:1;
         }
         public static int Main(string[] args) => MainMethod();

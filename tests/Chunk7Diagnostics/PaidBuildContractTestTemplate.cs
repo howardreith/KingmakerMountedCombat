@@ -11,13 +11,13 @@ namespace KingmakerMountedCombat.Tests
   private static void Check(string name,Action action,bool refuses=false){try{action();if(refuses)throw new Exception("unexpected acceptance");pass++;Console.WriteLine("PASS "+name);}catch(Exception e){if(refuses&&e.Message!="unexpected acceptance"){pass++;Console.WriteLine("PASS refuses "+name);}else{fail++;Console.WriteLine("FAIL "+name+": "+e.Message);}}}
   private static bool Emitted(Chunk7ManualDerivedSelection selection)=>__ACTUAL_SAVE_ORDER_EXPRESSION__;
   private static Chunk7OrdinaryBuildPins Pins(Chunk7OrdinaryBuildMode mode,Size size)=>new Chunk7OrdinaryBuildPins("synthetic-build",new string('a',64),mode,new string('b',32),new string('c',32),"SyntheticObservedRig",Gender.Female,false,4,size);
-  private static void Flag(string bodyCase,bool expected){if(Emitted(new Chunk7ManualDerivedSelection{Case=bodyCase})!=expected)throw new Exception("wrong emitted native save-before-selector provenance");}
+  private static void Flag(string bodyCase,bool expected){if(Emitted(new Chunk7ManualDerivedSelection{Case=bodyCase})!=expected)throw new Exception("wrong emitted native Manual-after-field provenance");}
   public static int Run()
   {
    pass=fail=0;
-   Check("existing emits no selector-after-save claim",()=>Flag(Chunk7ManualDerivedSelection.ExistingCase,false));
-   Check("paid Small emits native save-before-selector order",()=>Flag(Chunk7ManualDerivedSelection.PaidSmallCase,true));
-   Check("paid Medium emits native save-before-selector order",()=>Flag(Chunk7ManualDerivedSelection.PaidMediumCase,true));
+   Check("existing emits native Manual after settled acquired field",()=>Flag(Chunk7ManualDerivedSelection.ExistingCase,true));
+   Check("paid Small emits native Manual after field selector",()=>Flag(Chunk7ManualDerivedSelection.PaidSmallCase,true));
+   Check("paid Medium emits native Manual after field selector",()=>Flag(Chunk7ManualDerivedSelection.PaidMediumCase,true));
    Check("Medium build admits exact Medium size",()=>Pins(Chunk7OrdinaryBuildMode.NewMediumCustomCompanion,Size.Medium));
    Check("Small build admits exact Small size",()=>Pins(Chunk7OrdinaryBuildMode.NewSmallCustomCompanion,Size.Small));
    Check("Medium build refuses Small size",()=>Pins(Chunk7OrdinaryBuildMode.NewMediumCustomCompanion,Size.Small),true);
