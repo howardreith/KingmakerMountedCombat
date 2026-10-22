@@ -2,7 +2,7 @@ using System;using System.Collections.Generic;using System.Linq;using KingmakerM
 using UnitEntityData=Kingmaker.EntitySystem.Entities.UnitEntityData;using Actor=Kingmaker.EntitySystem.Entities.UnitEntityData;using MountedPairServices=Pair;
 enum RelationshipState{Unmounted,Mounted}enum CleanupTrigger{Exception}
 class JObject:Dictionary<string,object>{public new object this[string key]{get{object value;return TryGetValue(key,out value)?value:null;}set{base[key]=value;}}public static JObject FromObject(object x){return new JObject();}}
-class JArray{public JArray(object x){}}
+class JArray{public int Count;public JArray(object x){var values=x as System.Collections.ICollection;Count=values?.Count??0;}}
 class Lease:IDisposable{public bool Fail;public int Releases;public void Dispose(){Releases++;if(Fail)throw new Exception("lease pending");}}
 class MatchedLease:Lease{public bool Complete=true;}
 class Clock{public TimeSpan Elapsed=TimeSpan.Zero;}
@@ -24,7 +24,10 @@ class Unified{public bool HasUnsettledPreparation;}class Registry{public object[
 class World{public Pair[] Pairs=new[]{new Pair(),new Pair()};public Pair Primary=>Pairs[0];public bool SerializationBusy;public Unified UnifiedTurn=new Unified();public Registry Registry=new Registry();}
 class Controls{public bool HasUnsettledRelationshipTransition;public bool ShellPending;public bool HasUnsettledShellFor(Relationship r){return ShellPending;}public object DescribeNativeShellLifecycle(){return null;}}
 class Settings{public bool EnableUnsafeMovementExperiment,EnablePairedActivation;}
-class Game{public NativeArea CurrentlyLoadedArea=new NativeArea();public static Game Instance=new Game();public bool IsPaused;public Destroyer EntityDestroyer=new Destroyer();public State State=new State();public Player Player=new Player();public TimeController TimeController=new TimeController();}
+class Ui{public object CharacterBuildController;}
+class Game{public NativeArea CurrentlyLoadedArea=new NativeArea();public static Game Instance=new Game();public bool IsPaused;public Destroyer EntityDestroyer=new Destroyer();public State State=new State();public Player Player=new Player();public TimeController TimeController=new TimeController();public Ui UI=new Ui();}
+class ThirdDriver{public bool Complete;}
+class Chunk7NativeBuilderCancellation{public Chunk7NativeBuilderCancellation(object controller,Action scope,Func<bool> busy){throw new Exception("third-Horse builder is not selected by this cleanup facade");}public bool TryDrain(){return false;}}
 class TimeController{public TimeSpan GameTime=TimeSpan.Zero;}class LoadingProcess{public static LoadingProcess Instance=new LoadingProcess();public bool IsLoadingInProcess;public string[] QueuedNames=new string[0];}static class NativePersistenceIsolation{public static bool HasPendingWrites;}static class Time{public static int frameCount;}
 class Destroyer{public void Tick(){}}class State{public NativeAreaState LoadedAreaState=new NativeAreaState();public List<Actor> Units=new List<Actor>();}class Player{public string GameId="campaign";public Reference MainCharacter=new Reference{Value=new Actor()};public List<Actor> ControllableCharacters=new List<Actor>();}
 class SelectionManager{public static SelectionManager Instance=new SelectionManager();public Actor[] SelectedUnits=new Actor[0];public void MultiSelect(IEnumerable<View> v,bool x){SelectedUnits=v.Select(y=>y.Actor).ToArray();}}
@@ -37,6 +40,15 @@ class DoorProbe{public Command[] IssuedCommands=new Command[0];public bool Ready
 class InheritedFixtureBoundary{public Actor[] Party;public bool Bound=true,Reject,Released;public int Captures,Releases;public void RequirePreserved(){if(Reject||Released)throw new Exception("inherited custody retained");}public object Capture(string phase){RequirePreserved();Captures++;return new JObject();}public void Release(){if(!Released){Released=true;Releases++;}}}
 class OwnerSeedGuard{public bool Ready,Preserved=true;public int ReadyCalls,Added,Rosters;}
 class WorldAdapter{
+ // Legacy cleanup cases select no third-Horse builder. Its separate partial
+ // owns those checks; keep this facade current without certifying that case.
+ bool ThirdHorseManual,ThirdHorseSetup,ThirdHorseManualWritten,thirdSourceReleased,thirdSetupCompleted;
+ ThirdDriver thirdDriver;Chunk7NativeBuilderCancellation thirdCancellation;
+ void RequireThirdHorseOriginals(){throw new Exception("third-Horse case not selected");}
+ void RequireThirdHorseSetupPreserved(){throw new Exception("third-Horse case not selected");}
+ bool SixPairStress;JArray sixSamples=new JArray(null);JObject sixObservation;
+ Lease sixIdentities;object[] sixPins;
+ __SIX_RELEASE__
  InheritedFixtureBoundary inherited;
  // Owner-seed cleanup boundary: the actual partial owns builder drain and setup-state checks.
  OwnerSeedGuard ownerSeed;bool OwnerSeed=>ownerSeed!=null;
@@ -160,6 +172,21 @@ __METHODS__
  bool refused=false;try{e.Dispose();}catch(InvalidOperationException){refused=true;}Check(refused&&!e.disposed&&e.horseFeature!=null,"ground input custody remains owned through Dispose polling");
  e.groundInputSettled=true;Check(e.DrainForHost()&&e.completed&&e.horseFeature==null,"exact native ground input settlement permits existing cleanup completion");
  }
+ static void VerifySixCleanup(){
+ Game.Instance=new Game();LoadingProcess.Instance=new LoadingProcess();NativePersistenceIsolation.HasPendingWrites=false;
+ var e=new WorldAdapter();((UnitUseAbility)e.issuedCommands[0]).ExecutionProcess.IsEnded=true;
+ e.SixPairStress=true;e.inherited=new InheritedFixtureBoundary{Party=new[]{e.firstRider,e.firstMount,e.secondRider,e.secondMount}};
+ e.world.Pairs=Enumerable.Range(0,6).Select(_=>new Pair()).ToArray();e.sixSamples=new JArray(new int[15]);
+ var pins=new Lease{Fail=true};e.sixIdentities=pins;e.sixPins=new object[54];e.sixObservation=new JObject{["identityScopeReleased"]=false};
+ e.BeginCleanup();Check(!e.DrainForHost()&&e.sixIdentities==pins&&e.sixPins!=null&&!(bool)e.sixObservation["identityScopeReleased"]&&e.world.Pairs.All(p=>p.Combat.Cancels==0),
+ "actual six-pin release failure retains its owner and fences every native pair cleanup");
+ pins.Fail=false;e.world.Pairs[5].Relationship.Reject=true;
+ Check(!e.DrainForHost()&&e.sixIdentities==null&&e.sixPins==null&&(bool)e.sixObservation["identityScopeReleased"]&&e.world.Pairs.Take(5).All(p=>p.Relationship.PairOwner==null)&&e.world.Pairs[5].Relationship.PairOwner!=null,
+ "actual six-pair cleanup releases independent five owners and keeps the failing sixth");
+ e.world.Pairs[5].Relationship.Reject=false;
+ Check(e.DrainForHost()&&e.completed&&e.world.Pairs.All(p=>p.Relationship.PairOwner==null)&&e.matchedWrites==0&&e.errors.Count>0,
+ "six-pair settlement preserves original failure and publishes no legacy two-pair sidecar");
+ }
  static int passed;static void Check(bool condition,string name){if(!condition)throw new Exception(name);passed++;Console.WriteLine("PASS "+name);}
  public static void Verify(){var e=new WorldAdapter();var features=e.secondRider.Descriptor.Progression.Features;var command=(UnitUseAbility)e.issuedCommands[0];
  Game.Instance.IsPaused=true;e.BeginCleanup();Check(features.Removed.Count==0&&command.Interruptions==0&&Game.Instance.IsPaused,"BeginCleanup preserves pause, facts, and live commands");
@@ -181,6 +208,7 @@ __METHODS__
  VerifyQuietCustody();
  VerifyMatchedCustody();
  VerifyGroundInputCustody();
+ VerifySixCleanup();
  Console.WriteLine("CHUNK7 WORLD CLEANUP ADAPTER PASS="+passed+" FAIL=0; actual source methods with external native boundary stubs only");}
 }
 static class Program{static int Main(){try{WorldAdapter.Verify();return 0;}catch(Exception e){Console.Error.WriteLine(e);return 1;}}}

@@ -69,6 +69,18 @@ namespace KingmakerMountedCombat.Diagnostics
         public const string FourthHorseSourceRun = "20261021-c7b-world171-b171s1-thirdhorse-manual";
         public const string FourthHorseSourceArtifact = "57ab380ae5c4c95fbed1647446b3ca264f7e140c91a3b7ea4bb41037085450b1";
         public const string FourthHorseSourceArchive = "f70a54865c86a599c3b25f6f2574abde2f663cd07b82472eac4bcbe245ea8c84";
+        public const string SixPairStressCase = "six-horse-cold-fixture-lifecycle-stress";
+        public const string SixPairSourceRun = "20261022-c7b-world185-b185s1-sixthhorse-cold";
+        public const string SixPairSourceArtifact = "012d1caff175d34614fcd255f0b6ad897e0ef1a9650791cb3c0d55ce13b47241";
+        public const string SixPairSourceArchive = "b1e817a60c8bbe35b5947b4eab3b3f35060493ca20873d5de5fdf8a81efbc291";
+        // Exact source-observed roles, never created or inferred from selection.
+        internal static string[] SixPairRoles => new[] {
+            "73681ef2-b281-4bc6-bc05-2de68c1616cb", "30b79228-3fe5-48ac-aa88-2de9085837b7",
+            "c4e2c853-4b72-4904-ad84-d0b7bfba7470", "0e0c7d2d-06b4-4510-9f81-d847340d1424",
+            "fd213210-71cd-41b0-b35b-68e1b18e9b43", "da28f0a7-6eb0-4392-b2e0-f401a889b3aa",
+            "5dd7bd1d-ae4c-4df7-9687-50fceb027344", "e486e6e9-aa36-423e-9d9e-9dfbe4a94a07",
+            "82deb3d9-d734-4843-81c6-384becf082d9", "1ed01148-1646-469c-a3d5-153df01192b8",
+            "d8c2f840-9d59-4b5e-9250-c628a36c5589", "130fd1b5-c9f4-4b9f-80de-6980e0d21556" };
         public const string FourthHorseColdArtifact = "4439fbea3608dad76634174b555f9d4ea243f2b4d0480029b03b7de66f9c8766";
         public const string FourthHorsePriorRider = "fd213210-71cd-41b0-b35b-68e1b18e9b43";
         public const string FourthHorsePriorMount = "da28f0a7-6eb0-4392-b2e0-f401a889b3aa";
@@ -200,6 +212,7 @@ namespace KingmakerMountedCombat.Diagnostics
         internal bool SmallThirdHorseSetup => IsSmallThirdHorse || IsSmallThirdHorseSave;
         internal bool SmallFixtureLineage => IsSmallFixtureSave || IsSmallFixtureLoad || SmallThirdHorseSetup;
         internal bool IsFourthHorseSave => Case == FourthHorseSaveCase;
+        internal bool IsSixPairStress => Case == SixPairStressCase;
         internal bool IsFourthHorse => Case == FourthHorseCase || IsFourthHorseSave;
         internal bool IsMediumFixtureSave => Case == MediumFixtureSaveCase;
         internal bool IsMediumFixtureLoad => Case == MediumFixtureLoadCase;
@@ -215,7 +228,7 @@ namespace KingmakerMountedCombat.Diagnostics
         internal bool CrossCandidateAllowedFor(string checkpoint) => CrossCandidateAllowed || IsOwnerSeedDerivedLoad &&
             (checkpoint == "multi-exploration-three-loads-manual" || IsManticoreManualCold(checkpoint));
         internal const int MaximumSetupLevelupWrites = 2;
-        internal string[] PairIds => new[] { RiderAId, MountAId, RiderBId, MountBId };
+        internal string[] PairIds => IsSixPairStress ? SixPairRoles : new[] { RiderAId, MountAId, RiderBId, MountBId };
         internal string RuntimeScenario
         {
             get
@@ -239,6 +252,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     case SmallThirdHorseSaveCase: return "chunk7-two-pair-exploration";
                     case FourthHorseCase: return "chunk7-two-pair-exploration";
                     case FourthHorseSaveCase: return "chunk7-two-pair-exploration";
+                    case SixPairStressCase: return "chunk7-two-pair-exploration";
                     case MediumFixtureSaveCase: return "chunk7-persistence-save";
                     case MediumFixtureLoadCase: return "chunk7-persistence-load";
                     case "combat-rider-first": return "chunk7-two-pair-combat-rider-first";
@@ -306,6 +320,7 @@ namespace KingmakerMountedCombat.Diagnostics
             if (IsOwnerSeedDerivedCombat) return ValidateOwnerSeedDerivedCombat(scenario, runId, checkpoint);
             if (IsOwnerSeedCheckpointSave || IsOwnerSeedCheckpointLoad) return ValidateOwnerSeedCheckpoint(scenario, runId, checkpoint);
             if (IsFourthHorse) return ValidateFourthHorse(scenario, runId, checkpoint);
+            if (IsSixPairStress) return ValidateSixPairStress(scenario, runId, checkpoint);
             if (SmallFixtureLineage) return ValidateSmallFixture(scenario, runId, checkpoint);
             if (MediumFixtureLineage) return ValidateMediumFixture(scenario, runId, checkpoint);
             var errors = new List<string>();
@@ -356,6 +371,21 @@ namespace KingmakerMountedCombat.Diagnostics
                 CheckpointSourceRunId != null || CheckpointSourceArtifactSha256 != null ||
                 SourceArea != null || AreaRoute != null || CompanionId != null || XpAssistance != null)
                 errors.Add("Fourth-Horse selection permits one base-only native load, its exact selected write count and no alternate target.");
+            return errors;
+        }
+        private IReadOnlyList<string> ValidateSixPairStress(string scenario, string runId, string checkpoint)
+        {
+            var errors = new List<string>(); var roles = SixPairRoles;
+            if (scenario != Scenario || checkpoint != null || !Run(runId) || runId == SixPairSourceRun ||
+                SourceRunId != SixPairSourceRun || SourceArtifactSha256 != SixPairSourceArtifact || SourceArchiveSha256 != SixPairSourceArchive)
+                errors.Add("Six-pair stress requires the exact accepted batch185 cold checkpoint and distinct run.");
+            if (RiderAId != roles[0] || MountAId != roles[1] || RiderBId != roles[2] || MountBId != roles[3] ||
+                PartyIds == null || !PartyIds.OrderBy(id => id, StringComparer.Ordinal).SequenceEqual(roles.OrderBy(id => id, StringComparer.Ordinal)))
+                errors.Add("Six-pair stress requires all twelve exact sourced native roles once.");
+            if (!BaseGameOnly || ExpectedNativeLoadCount != 1 || ExpectedNativeWriteCount != 0 ||
+                CheckpointSourceRunId != null || CheckpointSourceArtifactSha256 != null || ColdReceiptSha256 != null ||
+                SeedId != null || SeedSha256 != null || XpAssistance != null || SourceArea != null || AreaRoute != null || CompanionId != null)
+                errors.Add("Six-pair stress admits one base-only load, zero saves and no fixture/progression assistance.");
             return errors;
         }
         private IReadOnlyList<string> ValidateSmallFixture(string scenario, string runId, string checkpoint)

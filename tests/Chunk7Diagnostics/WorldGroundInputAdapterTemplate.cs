@@ -84,7 +84,12 @@ internal sealed class Engine
     private JObject moveRecord,quietBefore; private MountedOptionalDiagnosticsWindow quietWindow; private object measurement;
     private readonly Stopwatch clock=Stopwatch.StartNew(); private readonly World world=new World(); private readonly Persistence persistence=new Persistence();
     private readonly Func<MovementTelemetryWriter> optionalTelemetry=()=>new MovementTelemetryWriter();
-    internal Engine(){firstRider=new UnitEntityData("rider-a");firstMount=new UnitEntityData("pet-a");secondRider=new UnitEntityData("rider-b");secondMount=new UnitEntityData("pet-b");}
+    private bool SixPairStress;
+    private sealed class Inherited { internal UnitEntityData[] Actors; }
+    private Inherited inherited;
+    internal Engine(bool six=false){firstRider=new UnitEntityData("rider-a");firstMount=new UnitEntityData("pet-a");secondRider=new UnitEntityData("rider-b");secondMount=new UnitEntityData("pet-b");
+        SixPairStress=six;if(six)inherited=new Inherited{Actors=new[]{firstRider,firstMount,secondRider,secondMount}.Concat(Enumerable.Range(4,8).Select(i=>new UnitEntityData("actor-"+i))).ToArray()};}
+    internal void SetActorCount(int count){inherited.Actors=inherited.Actors.Take(count).Concat(Enumerable.Range(inherited.Actors.Length,Math.Max(0,count-inherited.Actors.Length)).Select(i=>new UnitEntityData("extra-"+i))).ToArray();}
     internal UnitEntityData A(int i)=>Actors()[i]; internal JArray Attempts=>groundInputs; internal JArray Movements=>movements;
     internal List<UnitCommand> Owned=>issuedCommands; internal List<UnitCommand> Awaited=>groundCommandsAwaited;
     internal bool Settled()=>NativeCommandsSettled();
@@ -111,10 +116,10 @@ internal static class Program
     private static int passed,failed;
     private static void Check(bool ok,string name){Console.WriteLine((ok?"PASS ":"FAIL ")+name);if(ok)passed++;else failed++;}
     private static Exception Run(Engine e,string label="mammoth",int rider=0,int mover=1,int other=2){try{e.Run(label,rider,mover,other);return null;}catch(Exception x){return x;}}
-    private static Engine Fresh()
+    private static Engine Fresh(bool six=false)
     {
         SelectionManager.Instance=new SelectionManager();Game.Instance=new Game();Game.Instance.UI.SelectionManager=SelectionManager.Instance;
-        ClickGroundHandler.Calls=0;ClickGroundHandler.OnMove=_=>{};MountedOptionalDiagnosticsWindow.Installs=0;return new Engine();
+        ClickGroundHandler.Calls=0;ClickGroundHandler.OnMove=_=>{};MountedOptionalDiagnosticsWindow.Installs=0;return new Engine(six);
     }
     private static int Obj(object x)=>x==null?0:RuntimeHelpers.GetHashCode(x);
     private static JObject Attempt(Engine e)=>e.Attempts.Count==0?null:(JObject)e.Attempts[0];
@@ -250,6 +255,38 @@ internal static class Program
         }
         {
             var e=Fresh();Check(e.Attempts.Count==0&&ClickGroundHandler.Calls==0&&e.Owned.Count==0&&e.Awaited.Count==0,"observer is inactive outside actual selected Move");
+        }
+        {
+            var e=Fresh(true);var cmd=new UnitMoveTo(e.A(11));ClickGroundHandler.OnMove=_=>e.A(11).Commands.Storage[3]=cmd;
+            var x=Run(e,"six-ground-5",10,11,0);var row=Attempt(e);
+            Check(x==null&&ClickGroundHandler.Calls==1&&HasNew(e,cmd)&&row?["before"]?["actors"]?.Count()==12&&row?["after"]?["actors"]?.Count()==12,
+                "actual six-pair Move inspects all twelve actors before and after native dispatch");
+            Check(Actor(row,"after",11)?["publicMoveObject"]?.Value<int>()==Obj(cmd)&&e.Movements.Count==1&&SelectionManager.Instance.SelectedUnits.Single()==e.A(0),
+                "sixth Horse receives its exact new player command while selection changes to a neighbor");
+        }
+        foreach(var count in new[]{11,13})
+        {
+            var e=Fresh(true);e.SetActorCount(count);var x=Run(e,"six-bound");
+            Check(x!=null&&ClickGroundHandler.Calls==0&&!ReadBool(Attempt(e)?["before"],"commandsComplete"),
+                "six-pair command custody refuses wrong actor cardinality before native input "+count);
+        }
+        {
+            var e=Fresh(true);var cmd=new UnitMoveTo(e.A(11));var unexpected=new UnitMoveTo(e.A(8));
+            ClickGroundHandler.OnMove=_=>{e.A(11).Commands.Storage[3]=cmd;e.A(8).Commands.Storage[3]=unexpected;};
+            var x=Run(e,"six-neighbor",10,11,0);e.Drain();
+            Check(x!=null&&HasNew(e,cmd)&&HasNew(e,unexpected)&&cmd.Interrupts==1&&unexpected.Interrupts==1,
+                "unexpected fifth-pair movement preserves FAIL and exact cleanup custody beyond the legacy four actors");
+        }
+        {
+            var e=Fresh(true);var cmd=new UnitMoveTo(e.A(11));var ability=new UnitUseAbility{Executor=e.A(8),Type=UnitCommand.CommandType.Standard,IsFinished=true,ExecutionProcess=new Execution()};
+            ClickGroundHandler.OnMove=_=>{e.A(11).Commands.Storage[3]=cmd;e.A(8).Commands.Storage[1]=ability;};
+            Run(e,"six-process",10,11,0);e.Drain();
+            Check(e.Awaited.Contains(ability)&&ability.Interrupts==0&&!e.Settled(),"live native process on fifth pair is awaited without borrowing cancellation authority");
+            ability.ExecutionProcess.IsEnded=true;Check(e.Settled(),"six-pair cleanup settles only after the exact neighboring native process ends");
+        }
+        {
+            var e=Fresh(true);for(var i=0;i<7;i++){ClickGroundHandler.OnMove=_=>e.A(11).Commands.Storage[3]=new UnitMoveTo(e.A(11));Run(e,"six-limit",10,11,0);}
+            Check(e.Attempts.Count==6&&ClickGroundHandler.Calls==6,"six-pair case dispatches at most six declared native ground inputs");
         }
     }
     internal static int Main(){try{MainCases();}catch(Exception e){Check(false,"unexpected test exception: "+e);}Console.WriteLine("RESULT "+passed+" PASS / "+failed+" FAIL");return failed==0?0:1;}

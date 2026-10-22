@@ -33,7 +33,10 @@ namespace KingmakerMountedCombat.Diagnostics
         private readonly RetainedObjectIdentity identities = new RetainedObjectIdentity(128);
         private JObject observations, sourceWorld, sourceArrangement;
         private JObject[] ownerRows;
-        private int InheritedPairCount => selection.IsFourthHorse ? 3 : 2;
+        private int InheritedPairCount => selection.IsSixPairStress ? 6 : selection.IsFourthHorse ? 3 : 2;
+        private UnitEntityData sixRemote;
+        private object sixRemoteDescriptor;
+        private JObject sixRemoteArrangement;
         private object[] descriptors, views, facts, ranks;
         private UnitEntityData[] partyCharacters;
         private string sourcePath;
@@ -145,6 +148,7 @@ namespace KingmakerMountedCombat.Diagnostics
             sourceLength = file.Length; sourceTicks = file.LastWriteTimeUtc.Ticks;
             var artifact = JObject.Parse(File.ReadAllText(sourcePath)); observations = artifact["observations"] as JObject;
             if (selection.IsFourthHorse) { ReadFourthHorseSource(artifact); return; }
+            if (selection.IsSixPairStress) { ReadSixPairSource(artifact); return; }
             if (selection.PaidFixtureLineage) { ReadPaidFixtureSource(artifact); return; }
             if (Chunk7OwnedPairsSelection.IsManticoreManualCold(request.PersistenceCase) || selection.IsManticoreReturnArea)
             { ReadManticoreManualSource(artifact); return; }
@@ -174,6 +178,69 @@ namespace KingmakerMountedCombat.Diagnostics
             sourceArrangement = observations["beforeSaveArrangement"] as JObject;
             Require(sourceArrangement != null && JToken.DeepEquals(sourceArrangement, observations["afterSaveArrangement"]),
                 "Source Manual lacks unchanged native class/XP/funds evidence.");
+        }
+        private void ReadSixPairSource(JObject artifact)
+        {
+            Require((string)artifact["runId"] == Chunk7OwnedPairsSelection.SixPairSourceRun && (string)artifact["status"] == "PASS" &&
+                (string)artifact["scenario"] == Chunk7AssistedColdInventorySelection.Scenario &&
+                (string)artifact["evidenceKind"] == "chunk7-assisted-cold-inventory-evidence" &&
+                artifact["errors"] is JArray errors && errors.Count == 0,
+                "Six-pair fixture requires its exact accepted read-only cold observation.");
+            observations = artifact["observations"] as JObject;
+            sourceWorld = observations?["settledWorld"] as JObject;
+            var rows = observations?["sixthHorseFacts"] as JArray;
+            Require(sourceWorld?["party"] is JArray party && party.Count == 12 && rows?.Count == 6 &&
+                JToken.DeepEquals(sourceWorld["party"], observations["loadedWorld"]?["party"]) &&
+                (string)observations["source"]?["runId"] == "20261022-c7b-world184-b184s1-sixthhorse-manual" &&
+                (string)observations["source"]?["archiveSha256"] == selection.SourceArchiveSha256 &&
+                (int?)observations["archive"]?["pairs"] == 0 && (int?)observations["archive"]?["participations"] == 0 &&
+                (int?)observations["archive"]?["slots"] == 0 && (bool?)observations["archive"]?["combatPresent"] == false,
+                "Six-pair checkpoint lost its twelve native actors, six sourced Horses or empty mounted metadata.");
+            ownerRows = rows.Cast<JObject>().ToArray(); var roles = selection.PairIds;
+            var riders = Enumerable.Range(0, 6).Select(i => roles[i * 2]).OrderBy(id => id, StringComparer.Ordinal).ToArray();
+            var sourceCharacters = sourceWorld["partyCharacterIds"] as JArray;
+            var liveCharacters = game.Player.PartyCharacters.Select(value => value.Value).ToArray();
+            Require(sourceCharacters?.Count == 6 && sourceCharacters.Values<string>().OrderBy(id => id, StringComparer.Ordinal).SequenceEqual(riders) &&
+                JToken.DeepEquals(sourceCharacters, observations["loadedWorld"]?["partyCharacterIds"]) && liveCharacters.Length == 6 &&
+                liveCharacters.All(actor => actor != null) && liveCharacters.Select(actor => actor.UniqueId).OrderBy(id => id, StringComparer.Ordinal).SequenceEqual(riders),
+                "Six-pair native character roster differs from the exact six cold-qualified riders.");
+            for (var i = 0; i < 6; i++)
+                Require((string)ownerRows[i]["riderId"] == roles[i * 2] && (string)ownerRows[i]["mountId"] == roles[i * 2 + 1] &&
+                    (bool?)ownerRows[i]["reciprocal"] == true && (int?)ownerRows[i]["rank"] == 1,
+                    "Six-pair source role, reciprocal ownership or rank changed.");
+            // Exact checkpoint progression; no XP, level, resource or roster setup.
+            sourceArrangement = new JObject { ["money"] = sourceWorld["nativeMoney"].DeepClone(), ["experienceRatePercent"] = 100,
+                ["actors"] = new JArray(((JArray)sourceWorld["party"]).OrderBy(row => (string)row["id"], StringComparer.Ordinal).Select(row => new JObject {
+                    ["actorId"] = row["id"].DeepClone(), ["blueprint"] = row["blueprint"].DeepClone(),
+                    ["experience"] = row["experience"].DeepClone(), ["characterLevel"] = row["characterLevel"].DeepClone(),
+                    ["classes"] = new JArray(((JArray)row["classes"]).OrderBy(value => (string)value["guid"], StringComparer.Ordinal).Select(value =>
+                        new JObject { ["classGuid"] = value["guid"].DeepClone(), ["level"] = value["level"].DeepClone() })) })) };
+            var remote = game.Player.RemoteCompanions.Select(value => value.Value).ToArray();
+            Require(remote.Length == 1 && remote[0]?.UniqueId == "8265f8cf-0969-4ec7-a266-2448de91c8c4",
+                "Six-pair fixture requires exactly the original remote Linzi.");
+            sixRemote = remote[0]; sixRemoteDescriptor = sixRemote.Descriptor;
+            sixRemoteArrangement = ArrangementOf(new[] { sixRemote }); RequireSixPairRemote();
+        }
+        private void RequireSixPairRemote()
+        {
+            if (!selection.IsSixPairStress) return;
+            Require(sixRemote != null && game.Player.RemoteCompanions.Count == 1 &&
+                ReferenceEquals(game.Player.RemoteCompanions[0].Value, sixRemote) && ReferenceEquals(sixRemote.Descriptor, sixRemoteDescriptor) &&
+                sixRemote.Blueprint.AssetGuid == "77c11edb92ce0fd408ad96b40fd27121" && sixRemote.Descriptor.Pet == null &&
+                sixRemote.Descriptor.Master.Value == null && sixRemote.Descriptor.Progression.CharacterLevel == 4 &&
+                sixRemote.Descriptor.Progression.Experience == 9000 && sixRemote.Descriptor.Progression.Classes.Count == 1 &&
+                sixRemote.Descriptor.Progression.Classes.Single().CharacterClass.AssetGuid == "772c83a25e2268e448e841dcd548235f" &&
+                sixRemote.Descriptor.Progression.Classes.Single().Level == 4 &&
+                JToken.DeepEquals(sixRemoteArrangement, ArrangementOf(new[] { sixRemote })),
+                "Six-pair actions changed the exact remote Linzi object, progression or pet links.");
+        }
+        internal JObject CaptureSixPairRemote()
+        {
+            Require(selection.IsSixPairStress, "Remote Linzi observation belongs only to the six-pair fixture.");
+            RequireSixPairRemote();
+            return new JObject { ["actorId"] = sixRemote.UniqueId, ["object"] = identities.Get(sixRemote),
+                ["descriptor"] = identities.Get(sixRemote.Descriptor), ["petId"] = JValue.CreateNull(), ["masterId"] = JValue.CreateNull(),
+                ["arrangement"] = ArrangementOf(new[] { sixRemote }) };
         }
         private void ReadFourthHorseSource(JObject artifact)
         {
@@ -505,6 +572,7 @@ namespace KingmakerMountedCombat.Diagnostics
         internal void RequirePreserved()
         {
             Require(bound && !released, "Inherited fixture custody is not bound."); RequireRequest(); RequireAuthority(); Scope.RequireCurrent();
+            RequireSixPairRemote();
             var currentParty = Chunk7NativeFieldRoster.Capture(game.Player);
             var currentCharacters = game.Player.PartyCharacters.Select(value => value.Value).ToArray();
             Require(currentParty.Length == Party.Length && Party.All(actor => currentParty.Count(value => ReferenceEquals(value, actor)) == 1) &&
@@ -540,7 +608,8 @@ namespace KingmakerMountedCombat.Diagnostics
             RequirePreserved();
             // Owner-seed-derived custody keeps its own labels; it is never relabelled acquired ancestry.
             var derived = selection.OwnerSeedDerivedLineage;
-            return new JObject { ["contract"] = selection.IsFourthHorse ? "small-fixture-three-horse-native-field-v1" :
+            var captured = new JObject { ["contract"] = selection.IsSixPairStress ? "cold-qualified-six-horse-native-field-v1" :
+                    selection.IsFourthHorse ? "small-fixture-three-horse-native-field-v1" :
                     selection.SmallFixtureLineage ? "owner-seed-small-fixture-two-horse-native-field-v1" :
                     selection.MediumFixtureLineage ? "owner-seed-medium-fixture-two-horse-native-field-v1" :
                     derived ? "owner-seed-derived-two-horse-native-field-v1" : "inherited-two-horse-native-field-v1", ["phase"] = phase,
@@ -548,6 +617,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["sourceArchiveSha256"] = selection.SourceArchiveSha256, ["sourceCase"] =
                     (Chunk7OwnedPairsSelection.IsManticoreManualCold(request.PersistenceCase) || selection.IsManticoreReturnArea) ?
                         Chunk7OwnedPairsSelection.ManticoreFixtureCheckpoint :
+                    selection.IsSixPairStress ? Chunk7AssistedColdInventorySelection.SixthHorseCaseName :
                     selection.IsFourthHorse ? Chunk7OwnedPairsSelection.SmallThirdHorseSaveCase :
                     selection.SmallFixtureLineage ? Chunk7SmallFixtureSelection.CaseName :
                     selection.MediumFixtureLineage ? Chunk7SmallFixtureSelection.MediumCaseName :
@@ -566,6 +636,12 @@ namespace KingmakerMountedCombat.Diagnostics
                     ["sourceGuid"] = ((Feature)facts[index]).Source.AssetGuid, ["rank"] = Actors[index * 2].Descriptor.GetFact(horses.LevelRank).GetRank(),
                     ["profileId"] = SupportedMountedProfiles.Resolve(Actors[index * 2], Actors[index * 2 + 1])?.Id })),
                 ["identities"] = new JObject { ["capacity"] = identities.Capacity, ["ids"] = new JArray(identities.Ids), ["faults"] = identities.FaultCount } };
+            if (selection.IsSixPairStress)
+            {
+                captured["remote"] = CaptureSixPairRemote();
+                ((JObject)captured["identities"])["ids"] = new JArray(identities.Ids);
+            }
+            return captured;
         }
         internal void Release()
         {

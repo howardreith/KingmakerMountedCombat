@@ -10,8 +10,13 @@ $methods=$text.Substring($start,$end-$start)+[Environment]::NewLine+$text.Substr
 $probe=Join-Path $chunk7AnalysisRoot ('probe-'+[Guid]::NewGuid().ToString('N'));[void][IO.Directory]::CreateDirectory($probe)
 $scope=Join-Path $repo 'src/KingmakerMountedCombat/Diagnostics/Chunk7NativeWorldScope.cs'
 $adapter=[IO.File]::ReadAllText((Join-Path $chunk7TestSource 'WorldCleanupAdapterTemplate.cs')).Replace('__METHODS__',$methods)
+$sixSource=Join-Path $repo 'src/KingmakerMountedCombat/Diagnostics/Chunk7WorldScenarioEngine.SixPair.cs'
+$six=[IO.File]::ReadAllText($sixSource);$s=$six.IndexOf('private void ReleaseSixSamplePins()',[StringComparison]::Ordinal)
+if($s-lt0){throw 'Actual six-pair cleanup release absent.'};$open=$six.IndexOf('{',$s);$depth=1;$e=$open+1
+while($depth-gt0-and$e-lt$six.Length){if($six[$e]-ceq'{'){$depth++}elseif($six[$e]-ceq'}'){$depth--};$e++}
+if($depth-ne0){throw 'Unbalanced six-pair cleanup release.'};$adapter=$adapter.Replace('__SIX_RELEASE__',$six.Substring($s,$e-$s))
 [IO.File]::WriteAllText((Join-Path $probe 'WorldCleanupAdapter.cs'),$adapter)
-[ordered]@{source=$source;sha256=(Get-FileHash -LiteralPath $source -Algorithm SHA256).Hash.ToLowerInvariant();methods=@('BeginCleanup','TryCleanup','NativeCommandsSettled','PairCommandsSettled','RetainCleanup','PollCleanup','CompleteCleanupEvidence','DrainForHost','Dispose')}|ConvertTo-Json|Set-Content -LiteralPath (Join-Path $probe 'world-cleanup-source.json')
+[ordered]@{source=$source;sha256=(Get-FileHash -LiteralPath $source -Algorithm SHA256).Hash.ToLowerInvariant();sixSource=$sixSource;sixSha256=(Get-KmcSha256 $sixSource);methods=@('BeginCleanup','TryCleanup','NativeCommandsSettled','PairCommandsSettled','RetainCleanup','PollCleanup','CompleteCleanupEvidence','DrainForHost','Dispose','ReleaseSixSamplePins')}|ConvertTo-Json|Set-Content -LiteralPath (Join-Path $probe 'world-cleanup-source.json')
 $vs=Join-Path ([Environment]::GetFolderPath('ProgramFilesX86')) 'Microsoft Visual Studio/Installer/vswhere.exe'
 $compiler=@(& $vs -latest -products * -requires Microsoft.Component.MSBuild -find 'MSBuild/**/Bin/Roslyn/csc.exe')|Select-Object -First 1
 $exe=Join-Path $probe 'WorldCleanupAdapter.exe'

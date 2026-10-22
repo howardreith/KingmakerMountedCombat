@@ -33,6 +33,27 @@ $arguments+=@('mscorlib.dll','System.dll','System.Core.dll')|ForEach-Object{'/re
 if(-not$FixtureDirectory){$FixtureDirectory=Join-Path $RepositoryRoot 'tests/Chunk7Diagnostics'}
 $fixtures=(Get-Content -Raw -LiteralPath (Join-Path $FixtureDirectory 'OwnedPairsEvidenceFixtures.json')|ConvertFrom-Json).fixtures
 $pass=0
+$sixCold=Read-KmcJson (Join-Path (Get-KmcLabRoot) 'runtime-evidence/20261022-c7b-world185-b185s1-sixthhorse-cold/runtime-request.json')
+$six=$sixCold|ConvertTo-Json -Depth 40|ConvertFrom-Json;$six.scenario='chunk7-owned-two-pair-campaign';$six.runId='generated-six-pair-dto'
+$six.PSObject.Properties.Remove('assistedColdInventory');$six|Add-Member persistenceCase $null
+$roles=@(Get-KmcChunk7SixPairRoles)
+$six|Add-Member ownedPairs ([pscustomobject][ordered]@{case='six-horse-cold-fixture-lifecycle-stress';sourceRunId='20261022-c7b-world185-b185s1-sixthhorse-cold';
+ sourceArtifactSha256='012d1caff175d34614fcd255f0b6ad897e0ef1a9650791cb3c0d55ce13b47241';sourceArchiveSha256=$six.persistenceLoad.sha256;
+ checkpointSourceRunId=$null;checkpointSourceArtifactSha256=$null;riderAId=$roles[0];mountAId=$roles[1];riderBId=$roles[2];mountBId=$roles[3];
+ partyIds=$roles;baseGameOnly=$true;expectedNativeLoadCount=1;expectedNativeWriteCount=0})
+$projection=[KingmakerMountedCombat.Tests.OwnedPairsDtoTests]::Project(($six|ConvertTo-Json -Depth 40))|ConvertFrom-Json
+Assert-KmcAssistedSame $projection.selection $six.ownedPairs 'six-pair typed DTO exact keys/nulls/types';$pass++
+if($projection.scenario-cne'chunk7-two-pair-exploration'-or$projection.expectedLoadType-cne'Manual'-or$projection.expectedWriteCount-ne0-or$projection.requiresCombatColdBind-ne$false){throw 'Six-pair typed DTO changed its zero-write exploration mode.'};$pass++
+Assert-KmcChunk7OwnedPairsDescriptor $six;$pass++
+foreach($fault in @('producer','artifact','write','load','duplicate','missing actor','role','checkpoint')){
+ $v=$six|ConvertTo-Json -Depth 40|ConvertFrom-Json
+ switch($fault){'producer'{$v.ownedPairs.sourceRunId='20261022-c7b-world184-b184s1-sixthhorse-manual'};'artifact'{$v.ownedPairs.sourceArtifactSha256='f'*64}
+  'write'{$v.ownedPairs.expectedNativeWriteCount=1};'load'{$v.ownedPairs.expectedNativeLoadCount=2};'duplicate'{$v.ownedPairs.partyIds[11]=$v.ownedPairs.partyIds[0]}
+  'missing actor'{$v.ownedPairs.partyIds=@($v.ownedPairs.partyIds|Select-Object -Skip 1)};'role'{$v.ownedPairs.riderBId=$v.ownedPairs.riderAId};'checkpoint'{$v.persistenceCase='multi-exploration-manual'}}
+ $typed=$false;try{[void][KingmakerMountedCombat.Tests.OwnedPairsDtoTests]::Project(($v|ConvertTo-Json -Depth 40))}catch{$typed=$true}
+ $reader=$false;try{Assert-KmcChunk7OwnedPairsDescriptor $v}catch{$reader=$true}
+ if(-not$typed-or-not$reader){throw ('Six-pair DTO/reader admitted '+$fault)};$pass++
+}
 foreach($f in $fixtures){
  $raw=[KingmakerMountedCombat.Tests.OwnedPairsDtoTests]::Project(($f.request|ConvertTo-Json -Depth 90));$actual=$raw|ConvertFrom-Json
  if((ConvertTo-KmcChunk7Canonical $actual.selection)-cne(ConvertTo-KmcChunk7Canonical $f.request.ownedPairs)){throw ('Actual DTO casing/types/null keys differ: '+$f.name)};$pass++

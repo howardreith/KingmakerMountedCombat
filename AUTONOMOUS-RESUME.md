@@ -1,6 +1,36 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
-## Active October 22 — reviewed six-pair capacity; native observer next
+## Active October 22 — reviewed six-pair observer; freeze candidate next
+
+The [standing completion mission](planning/CHUNK7-COMPLETION-MISSION.md) remains
+active through private 7E. The [six-pair observer](docs/CHUNK7-SIX-PAIR-OBSERVER-2026-10-22.md)
+now has focused checks and independent source/safety review. Exact b185-qualified
+Manual308 remains producer b184. No new observer package/suite/native run exists.
+
+Actual PASS: ground70/0, source/remote34/0, complete six-pair partial18/0,
+request/authority525/0, DTO193/0, legacy custody52/0, cleanup78/0, held-lock
+copy10/0, whole reader41/0. Neighbors: matched67/24/88, resource18, wiring224,
+manifest143, inherited/current692, all zero failures. Source147/0. Original
+failed development probes and all historical native failures remain preserved.
+Review corrections require12 ground actors, exact6 live/source characters,
+mandatory16pin copy before any owner-seed early return, exact distinct owner
+roles and all36 next-rider selections. Final review has no concrete blocker.
+
+Next: coherent commit/guarded-push; build one package with qualifier
+c7b-world186-sixstress; Candidate -SkipBuild -AssemblyTarget Kingmaker on those
+fresh outputs; current-state suite and scoped WhatIf. Then declare exactly one
+native case 20261022-c7b-world186-b186s1-sixpairs-stress, owned-family
+six-horse-cold-fixture-lifecycle-stress, one load/zero saves,36 ability/six ground
+inputs,3 lifecycle cycles,15 embedded 0/1/2/6/0 windows,54 exact native pins.
+No setup/resource/preparation writes, Areas or allocation helper. No performance
+or request-free acceptance claim. Fully settle and verify current-state Mods,
+protected saves/profile restoration before editing frozen inputs or proceeding.
+Private execution note: analysis-cache/chunk7-continuation/b186-six-observer-current-execution.md.
+Mounted six-pair Manual/cold and remaining F10/F11/doors/private7E follow actual
+prerequisites. No game/active lock, recovery script, merge/release/permanent
+installation or HUMAN PLAY acceptance. Do not stop the mission at this checkpoint.
+
+## Historical October 22 — reviewed six-pair capacity; native observer next
 
 The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
 [Six-pair admission](docs/CHUNK7-SIX-PAIR-ADMISSION-2026-10-22.md) and the
