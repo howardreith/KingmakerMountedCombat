@@ -34,6 +34,40 @@ internal static class ManualDerivedProtocolTests {
    TestRunner.True(!authority.MatchesManualDerivedPlan(source,Chunk7ManualDerivedSelection.OwnerSeedOutputLeaf,Chunk7ManualDerivedSelection.ManualOutputName,true),"Owner seed borrowed bootstrap name.");
   }finally{BootstrapVirtualDirectory.Owner=false;}
  });
+ tests.Run("F09 paid Small admits only exact four-Horse selector lineage",()=>{
+  var r=Request();r.ManualDerived.Case=Chunk7ManualDerivedSelection.PaidSmallCase;
+  r.ManualDerived.ExistingActorId=null;r.ManualDerived.ExistingLevel=null;r.ManualDerived.ExistingExperience=null;r.ManualDerived.ExistingRangerLevel=null;
+  r.ManualDerived.SourceRunId="20261022-c7b-world180-b180s1-fourthhorse-selector";
+  r.ManualDerived.SourceArtifactSha256="985101587995147c4a548b6f81ed6c88837cc54ac39f3ca22b8352a32afb2e96";
+  r.ManualDerived.SourceArchiveSha256="e82f7bb0775535ac2d9b782c6e53fa92a0893ab71bdf375a1e7cc06d50188759";
+  r.ManualDerived.NativeWriteLeaf=Chunk7ManualDerivedSelection.F09FifthOutputLeaf;
+  r.ManualDerived.SmallRaceGuid="b0c3ef2729c498f47970bb50fa1acd30";
+  r.ManualDerived.SmallPresetGuid="639cebe8cbc098345af429d62fd79578";
+  r.ManualDerived.SkeletonName="MaleHalfling";r.ManualDerived.Gender="Male";r.ManualDerived.LeftHanded=false;
+  r.PersistenceLoad.FileName="Manual_306_KMC_C7_FOUR_HORSE_WORLD.zks";
+  r.PersistenceLoad.InternalName="KMC_C7_FOUR_HORSE_WORLD";
+  r.PersistenceLoad.Sha256=r.ManualDerived.SourceArchiveSha256;
+  TestRunner.Equal(0,r.Validate().Count,string.Join("; ",r.Validate()));
+  r.ManualDerived.SourceRunId="other-selector";
+  TestRunner.True(r.Validate().Count>0,"F09 borrowed an unqualified selector run.");
+  r.ManualDerived.SourceRunId="20261022-c7b-world180-b180s1-fourthhorse-selector";
+  r.PersistenceLoad.FileName=Chunk7ManualDerivedSelection.OwnerSeedInputLeaf;
+  TestRunner.True(r.Validate().Count>0,"F09 borrowed the owner seed archive.");
+ });
+ tests.Run("F09 authority confines Manual 306 to fresh Manual 307",()=>{
+  BootstrapVirtualDirectory.F09=true;
+  try{
+   var f=new Fixture();var source=ColdSource();source.FileName="Manual_306_KMC_C7_FOUR_HORSE_WORLD.zks";
+   source.InternalName="KMC_C7_FOUR_HORSE_WORLD";source.Sha256="e82f7bb0775535ac2d9b782c6e53fa92a0893ab71bdf375a1e7cc06d50188759";
+   var entries=new[]{new PersistenceSaveEntry{FileName=source.FileName,InternalName=source.InternalName,SaveType="Manual",Area=NewArea,InitialSha256=source.Sha256},
+    new PersistenceSaveEntry{FileName=Chunk7ManualDerivedSelection.F09FifthOutputLeaf,InternalName=Chunk7ManualDerivedSelection.ManualOutputName,SaveType="Manual",Area=NewArea,Writable=true}};
+   var authority=f.Scope(entries);
+   TestRunner.True(authority.MatchesManualDerivedPlan(source,Chunk7ManualDerivedSelection.F09FifthOutputLeaf,Chunk7ManualDerivedSelection.ManualOutputName,true),"Exact F09 fifth output refused.");
+   TestRunner.True(!authority.MatchesManualDerivedPlan(source,Chunk7ManualDerivedSelection.OwnerSeedOutputLeaf,Chunk7ManualDerivedSelection.ManualOutputName,true),"F09 borrowed owner-seed output.");
+   source.InternalName="other";
+   TestRunner.True(!authority.MatchesManualDerivedPlan(source,Chunk7ManualDerivedSelection.F09FifthOutputLeaf,Chunk7ManualDerivedSelection.ManualOutputName,true),"F09 borrowed a foreign Manual name.");
+  }finally{BootstrapVirtualDirectory.F09=false;}
+ });
  return tests.Complete();}
  private static RuntimeRequest Request()=>new RuntimeRequest{SchemaVersion=2,RunId="bootstrap-test",Scenario=Chunk7ManualDerivedSelection.Scenario,ManualDerived=new Chunk7ManualDerivedSelection{Case=Chunk7ManualDerivedSelection.ExistingCase,SourceRunId="source-bootstrap",SourceArtifactSha256=new string('c',64),SourceArchiveSha256=new string('d',64),BaseGameOnly=true,ExpectedNativeLoadCount=1,ExpectedNativeWriteCount=1,NativeWriteLeaf="Manual_2_KMC_C7_MANUAL_DERIVED_FIELD.zks",ExistingActorId="44444444-1111-4111-8111-111111111111",ExistingLevel=1,ExistingExperience=6000,ExistingRangerLevel=1,Readiness=new Chunk7ManualDerivedReadinessPins{MainActorId="44444444-1111-4111-8111-111111111111",MainLevel=1,MainExperience=6000,Money=20000,ExperienceRatePercent=100,NativeHireCost=2000,DefaultHireExperience=0,PartyCharacterIds=new[]{"44444444-1111-4111-8111-111111111111"}}},PersistenceLoad=ColdSource(),Branch="codex/mounted-combat-chunk7-foundation",Commit=new string('1',40),ProductVersion=BuildIdentity.ProductVersion,DllSha256=new string('2',64),DllMvid=Id,TransactionToken=new string('3',64),EvidenceRoot=@"C:\KmcBootstrapVirtual\evidence",Fixture=new RuntimeFixtureIdentity{Baseline=Descriptor("KMC_AUTOMATION_BASELINE","Manual_298_KMC_AUTOMATION_BASELINE.zks",new string('a',64)),Working=Descriptor("KMC_AUTOMATION_WORKING","Manual_299_KMC_AUTOMATION_WORKING.zks",new string('b',64)),WriteAuthorization=new RuntimeSaveWriteAuthorization{Mode="working-only",AllowedInternalName="KMC_AUTOMATION_WORKING",AllowedFileName="Manual_299_KMC_AUTOMATION_WORKING.zks",BaselineImmutable=true}},QualificationSuite=new RuntimeQualificationSuiteIdentity{SuiteId="bootstrap-suite",SnapshotSha256=new string('4',64)}};
  private static RuntimeSaveDescriptor Descriptor(string n,string f,string h)=>new RuntimeSaveDescriptor{InternalName=n,FileName=f,Sha256=h,Length=10,LastWriteTimeUtcTicks=638907120000000000L,GameId=Id,GameName="Anchor",Area=Area};
@@ -46,7 +80,7 @@ internal static class ManualDerivedProtocolTests {
  internal PersistenceSaveAuthorization Scope(PersistenceSaveEntry[] entries=null,int? loads=1,int? writes=1)=>new PersistenceSaveAuthorization(@"C:\KmcBootstrapVirtual\run",NewId,"Native",new string('a',64),entries??Entries(),null,null,writes,loads);
  }
 }
-internal static class BootstrapVirtualDirectory {internal static bool Owner;internal static IEnumerable<string> EnumerateFileSystemEntries(string path)=>new[]{path+"\\"+(Owner?Chunk7ManualDerivedSelection.OwnerSeedInputLeaf:"Manual_1_KMC_C7_NATIVE_SEED.zks")};internal static bool Exists(string path)=>!path.EndsWith(".zks",StringComparison.Ordinal);}
-internal static class BootstrapVirtualFile {internal static bool OutputExists;internal static bool Exists(string path)=>path.EndsWith("Manual_1_KMC_C7_NATIVE_SEED.zks",StringComparison.Ordinal)||path.EndsWith(Chunk7ManualDerivedSelection.OwnerSeedInputLeaf,StringComparison.Ordinal)||(OutputExists&&path.EndsWith("Manual_2_KMC_C7_MANUAL_DERIVED_FIELD.zks",StringComparison.Ordinal));internal static void Delete(string path){throw new InvalidOperationException("Unexpected filesystem mutation.");}}
-internal static class BootstrapVirtualStorage {internal static void RequireDirectory(string path){if(string.IsNullOrEmpty(path))throw new InvalidOperationException();}internal static string Hash(string path)=>new string(path.EndsWith("Manual_1_KMC_C7_NATIVE_SEED.zks",StringComparison.Ordinal)||path.EndsWith(Chunk7ManualDerivedSelection.OwnerSeedInputLeaf,StringComparison.Ordinal)?'d':'f',64);}
+internal static class BootstrapVirtualDirectory {internal static bool Owner,F09;internal static IEnumerable<string> EnumerateFileSystemEntries(string path)=>new[]{path+"\\"+(F09?"Manual_306_KMC_C7_FOUR_HORSE_WORLD.zks":Owner?Chunk7ManualDerivedSelection.OwnerSeedInputLeaf:"Manual_1_KMC_C7_NATIVE_SEED.zks")};internal static bool Exists(string path)=>!path.EndsWith(".zks",StringComparison.Ordinal);}
+internal static class BootstrapVirtualFile {internal static bool OutputExists;internal static bool Exists(string path)=>path.EndsWith("Manual_1_KMC_C7_NATIVE_SEED.zks",StringComparison.Ordinal)||path.EndsWith(Chunk7ManualDerivedSelection.OwnerSeedInputLeaf,StringComparison.Ordinal)||path.EndsWith("Manual_306_KMC_C7_FOUR_HORSE_WORLD.zks",StringComparison.Ordinal)||(OutputExists&&path.EndsWith("Manual_2_KMC_C7_MANUAL_DERIVED_FIELD.zks",StringComparison.Ordinal));internal static void Delete(string path){throw new InvalidOperationException("Unexpected filesystem mutation.");}}
+internal static class BootstrapVirtualStorage {internal static void RequireDirectory(string path){if(string.IsNullOrEmpty(path))throw new InvalidOperationException();}internal static string Hash(string path)=>path.EndsWith("Manual_306_KMC_C7_FOUR_HORSE_WORLD.zks",StringComparison.Ordinal)?"e82f7bb0775535ac2d9b782c6e53fa92a0893ab71bdf375a1e7cc06d50188759":new string(path.EndsWith("Manual_1_KMC_C7_NATIVE_SEED.zks",StringComparison.Ordinal)||path.EndsWith(Chunk7ManualDerivedSelection.OwnerSeedInputLeaf,StringComparison.Ordinal)?'d':'f',64);}
 }
