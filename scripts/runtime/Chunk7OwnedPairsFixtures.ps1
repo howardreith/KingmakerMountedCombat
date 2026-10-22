@@ -546,6 +546,21 @@ function Get-KmcChunk7OwnedPairsMediumSource($Selection,[string]$PersistenceCase
   fixtureSetupOnly=$true;nativeAuthorityGranted=$false}
 }
 function Get-KmcChunk7OwnedPairsSource($Selection,[AllowNull()][string]$PersistenceCase,$Fixture,$Candidate,$AreaTarget=$null){
+ if($null-ne$Selection-and$Selection.case-ceq'third-horse-fixture-fourth-horse-setup'){
+  if(-not[string]::IsNullOrEmpty($PersistenceCase) -or $null -ne $AreaTarget){throw 'Fourth-Horse setup admits no checkpoint or area route.'}
+  Assert-KmcChunk7OwnedPairsSelection ([pscustomobject]@{scenario='chunk7-owned-two-pair-campaign';runId='unassigned-fourth-horse';ownedPairs=$Selection;persistenceCase=$null})
+  $source=Get-KmcChunk7F09EightActorSource $Fixture
+  $request=[pscustomobject]@{scenario='chunk7-owned-two-pair-campaign';runId='unassigned-fourth-horse';ownedPairs=$Selection;persistenceCase=$null;persistenceLoad=$source.descriptor;fixture=$Fixture}
+  Assert-KmcChunk7OwnedPairsDescriptor $request
+  if($source.producerRunId-cne$Selection.sourceRunId-or$source.producerArtifactSha256-cne$Selection.sourceArtifactSha256-or
+     $source.coldArtifactSha256-cne$Selection.coldReceiptSha256-or$source.descriptor.sha256-cne$Selection.sourceArchiveSha256-or
+     (ConvertTo-KmcChunk7Canonical @($source.rosterIds|Sort-Object -CaseSensitive))-cne
+      (ConvertTo-KmcChunk7Canonical @($Selection.partyIds|Sort-Object -CaseSensitive))){throw 'Fourth-Horse source gate and selected immutable input differ.'}
+  $artifact=Get-Item -LiteralPath $source.producerArtifactPath
+  return [pscustomobject]@{path=$source.path;descriptor=$source.descriptor;artifactPath=$source.producerArtifactPath;
+   artifactSha256=$source.producerArtifactSha256;artifactLength=[long]$artifact.Length;sourceRunId=$source.producerRunId;
+   coldReaderReceiptSha256=$source.coldArtifactSha256;fixtureSetupOnly=$true;nativeAuthorityGranted=$false}
+ }
  if($null-ne$Selection-and$Selection.case-cin@('small-fixture-persistence-save','small-fixture-persistence-load','small-fixture-third-horse-setup','small-fixture-third-horse-persistence-save')){
   return Get-KmcChunk7OwnedPairsSmallSource $Selection $PersistenceCase $Fixture $Candidate $AreaTarget
  }

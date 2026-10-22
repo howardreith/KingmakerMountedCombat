@@ -3,21 +3,28 @@ Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot 'Chunk7OwnedPairsEvidence.ps1')
 function Get-KmcChunk7WorldRows {
     @('chunk7-two-pair-exploration','C7-world-fixture','C7-world-native-acquisition','C7-world-owner-seed-setup','C7-world-two-native-mounts','C7-world-selection-routing',
-      'C7-world-independent-dismount','C7-world-cycles','C7-world-sampling','C7-world-cleanup','C7-world-runtime','C7-world-visual','C7-world-interrupted','C7-world-owner-seed-manual','C7-small-third-horse-native-setup','C7-small-third-horse-native-manual')
+      'C7-world-independent-dismount','C7-world-cycles','C7-world-sampling','C7-world-cleanup','C7-world-runtime','C7-world-visual','C7-world-interrupted','C7-world-owner-seed-manual','C7-small-third-horse-native-setup','C7-small-third-horse-native-manual','C7-f09-fourth-horse-native-setup')
+}
+function Assert-KmcChunk7FourthHorseZeroWrite($Observations){
+    Assert-KmcChunk7Boolean $Observations.cleanup.nativeSaveWritten $false
+    foreach($key in @('nativeWrite','thirdHorseManual','saveRequested')){
+        if($null-ne$Observations.PSObject.Properties[$key]){throw 'Fourth-Horse diagnostic requested or reported a native save.'}
+    }
 }
 function Assert-KmcChunk7ThirdHorseSetupEvidence($Request,$Observations){
     Assert-KmcChunk7OwnedPairsDescriptor $Request
     Assert-KmcChunk7InheritedSnapshot $Request $Observations.inheritedFixture 'admitted'
+    $fourth=Test-KmcChunk7OwnedPairsFourthHorse $Request
     $s=$Observations.thirdHorseSetup
     Assert-KmcExactProperties $s @('contract','sourceRunId','sourceArchiveSha256','disclosure','fixtureSetupOnly','sixPairQualified','saveRequests','nativeCastRequests','targetRiderId','before','events','xpAssistance','nativeBuild','nativeCommitCount','autoLevelupOverrideCount','after','horseId','nativeHorse','fieldActorIds') 'third-Horse native setup'
-    Assert-KmcBootstrapInventoryString $s.contract 'small-source-third-native-horse-setup-v1'
+    Assert-KmcBootstrapInventoryString $s.contract $(if($fourth){'three-horse-source-fourth-native-horse-setup-v1'}else{'small-source-third-native-horse-setup-v1'})
     Assert-KmcBootstrapInventoryString $s.sourceRunId $Request.ownedPairs.sourceRunId
     Assert-KmcBootstrapInventoryString $s.sourceArchiveSha256 $Request.ownedPairs.sourceArchiveSha256
     Assert-KmcChunk7Boolean $s.fixtureSetupOnly $true;Assert-KmcChunk7Boolean $s.sixPairQualified $false
     foreach($name in @('saveRequests','nativeCastRequests')){Assert-KmcOrdinaryInteger $s.$name 0 0}
     Assert-KmcOrdinaryInteger $s.autoLevelupOverrideCount 0 4
     Assert-KmcOrdinaryInteger $s.nativeCommitCount 4 4
-    Assert-KmcBootstrapInventoryString $s.targetRiderId 'fd213210-71cd-41b0-b35b-68e1b18e9b43'
+    Assert-KmcBootstrapInventoryString $s.targetRiderId $(if($fourth){'5dd7bd1d-ae4c-4df7-9687-50fceb027344'}else{'fd213210-71cd-41b0-b35b-68e1b18e9b43'})
     if((ConvertTo-KmcChunk7Canonical $s.before)-cne(ConvertTo-KmcChunk7Canonical $Observations.inheritedFixture.arrangement)){throw 'Third-Horse setup did not begin at exact admitted Small progression.'}
     Assert-KmcExactProperties $s.xpAssistance @('nativeApi','before','after','delta','targetLevel','characterLevelUnchanged','moneyUnchanged') 'third-Horse XP assistance'
     Assert-KmcBootstrapInventoryString $s.xpAssistance.nativeApi 'UnitProgressionData.GainExperience(42000, false)'
@@ -46,7 +53,8 @@ function Assert-KmcChunk7ThirdHorseSetupEvidence($Request,$Observations){
     Assert-KmcBootstrapInventoryString $s.nativeBuild.actorId $s.targetRiderId
     Assert-KmcOrdinaryInteger $s.nativeBuild.level 8 8;Assert-KmcOrdinaryInteger $s.nativeBuild.xp 51000 51000
     Assert-KmcOrdinaryInteger $s.nativeBuild.rangerLevel 4 4
-    if($s.before.actors-isnot[Array]-or$s.after.actors-isnot[Array]-or$s.before.actors.Count-ne7-or$s.after.actors.Count-ne7-or
+    $count=if($fourth){8}else{7}
+    if($s.before.actors-isnot[Array]-or$s.after.actors-isnot[Array]-or$s.before.actors.Count-ne$count-or$s.after.actors.Count-ne$count-or
        $s.before.money-ne$s.after.money-or$s.before.experienceRatePercent-ne$s.after.experienceRatePercent){throw 'Third-Horse setup changed native roster, money or XP scaling.'}
     foreach($prior in $s.before.actors){
         $after=@($s.after.actors|Where-Object actorId -CEQ $prior.actorId)
@@ -69,6 +77,13 @@ function Assert-KmcChunk7ThirdHorseSetupEvidence($Request,$Observations){
     Assert-KmcChunk7Boolean $Observations.cleanup.inheritedPetsPreserved $true
     Assert-KmcChunk7Boolean $Observations.cleanup.pairResidueAbsent $true
     Assert-KmcChunk7Boolean $Observations.cleanup.nativeProgressionRequiresExternalWorkingRestoration $false
+    if($fourth){
+      Assert-KmcChunk7FourthHorseZeroWrite $Observations
+      if(@($Observations.cleanup.partyAfter).Count-ne9){throw 'Fourth-Horse cleanup lost the ninth native field actor.'}
+      $prior=@($Observations.inheritedFixture.pairs)
+      if($prior.Count-ne3-or$prior[2].riderId-cne'fd213210-71cd-41b0-b35b-68e1b18e9b43'-or$prior[2].mountId-cne'da28f0a7-6eb0-4392-b2e0-f401a889b3aa'){throw 'Fourth-Horse diagnostic lacks its exact third inherited Horse.'}
+      foreach($key in @('controlsSettled','settingsAndSelectionRestored','nativeProcessesSettled','cleanupCustodySettled')){Assert-KmcChunk7Boolean $Observations.cleanup.$key $true}
+    }
 }
 function Assert-KmcChunk7ThirdHorseManualEvidence($Request,$Observations){
     Assert-KmcChunk7ThirdHorseSetupEvidence $Request $Observations
@@ -359,6 +374,9 @@ function Assert-KmcChunk7WorldEvidence($Request,$Artifact,[string]$Status) {
     if((Test-KmcChunk7OwnedPairsScenario $Request.scenario)-and(Test-KmcChunk7OwnedPairsSmallThirdHorse $Request)){
         Assert-KmcChunk7ThirdHorseSetupEvidence $Request $Artifact.observations;return
     }
+    if((Test-KmcChunk7OwnedPairsScenario $Request.scenario)-and(Test-KmcChunk7OwnedPairsFourthHorse $Request)){
+        Assert-KmcChunk7ThirdHorseSetupEvidence $Request $Artifact.observations;return
+    }
     # Owner-seed-derived Manual producer: setup, two native Mounts and its one native Manual only.
     if((Test-KmcChunk7OwnedPairsScenario $Request.scenario)-and(Test-KmcChunk7OwnedPairsSeedManual $Request)){Assert-KmcChunk7OwnerSeedManualWorldEvidence $Request $Artifact.observations;return}
     $o=$Artifact.observations;$owned=Test-KmcChunk7OwnedPairsScenario $Request.scenario;$seed=$owned-and(Test-KmcChunk7OwnedPairsOwnerSeed $Request)
@@ -528,7 +546,7 @@ function Assert-KmcChunk7WorldArtifact($Request,$Manifest,[string]$Status) {
     Assert-KmcChunk7WorldEvidence $Request $artifact $Status
     if($artifact.status-ceq'PASS') {
         $shots=@($Manifest.artifacts|Where-Object{$_.relativePath-ceq'movement-visuals/chunk7-two-pair-mounted.png'-and$_.kind-ceq'screenshot'})
-        if((Test-KmcChunk7OwnedPairsSmallThirdHorse $Request)-or(Test-KmcChunk7OwnedPairsSmallThirdHorseSave $Request)){if($shots.Count-ne0){throw 'Third-Horse setup cannot claim a two-pair mounted screenshot.'}}
+        if((Test-KmcChunk7OwnedPairsSmallThirdHorse $Request)-or(Test-KmcChunk7OwnedPairsSmallThirdHorseSave $Request)-or(Test-KmcChunk7OwnedPairsFourthHorse $Request)){if($shots.Count-ne0){throw 'Horse setup cannot claim a two-pair mounted screenshot.'}}
         elseif($shots.Count-ne1){throw 'Two-pair screenshot is not immutably manifested.'}
     }
 }

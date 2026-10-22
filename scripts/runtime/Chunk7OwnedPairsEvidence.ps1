@@ -19,6 +19,7 @@ function Get-KmcChunk7SelectedScenario($Request){
   'small-fixture-persistence-load'{'chunk7-persistence-load'}
   'small-fixture-third-horse-setup'{'chunk7-two-pair-exploration'}
   'small-fixture-third-horse-persistence-save'{'chunk7-two-pair-exploration'}
+  'third-horse-fixture-fourth-horse-setup'{'chunk7-two-pair-exploration'}
   'medium-fixture-persistence-save'{'chunk7-persistence-save'}
   'medium-fixture-persistence-load'{'chunk7-persistence-load'}
   'owner-seed-load-refusal'{'chunk7-persistence-load'}
@@ -53,6 +54,11 @@ function Get-KmcChunk7OwnedLoadCount($Request){
  if($Request.ownedPairs.case-cin@('persistence-load','owner-seed-persistence-load')-and$Request.persistenceCase-ceq'multi-exploration-three-loads-manual'){return 3};return 1
 }
 function Get-KmcChunk7OwnedPairIds($Request){@($Request.ownedPairs.riderAId,$Request.ownedPairs.mountAId,$Request.ownedPairs.riderBId,$Request.ownedPairs.mountBId)}
+function Get-KmcChunk7InheritedPairIds($Request){
+ $ids=@(Get-KmcChunk7OwnedPairIds $Request)
+ if(Test-KmcChunk7OwnedPairsFourthHorse $Request){return @($ids)+@('fd213210-71cd-41b0-b35b-68e1b18e9b43','da28f0a7-6eb0-4392-b2e0-f401a889b3aa')}
+ return $ids
+}
 function Get-KmcChunk7SelectedFixture($Request){if(Test-KmcChunk7OwnedPairsScenario $Request.scenario){return $Request.persistenceLoad};return $Request.fixture.working}
 # The owner-supplied seed kind of the closed family: seed pins, two selected riders,
 # the full party and the exact rider-B native XP setup; no producer or pet pins.
@@ -76,10 +82,27 @@ function Test-KmcChunk7OwnedPairsSmallSave($Request){(Get-KmcChunk7OwnedPairsCas
 function Test-KmcChunk7OwnedPairsSmallLoad($Request){(Get-KmcChunk7OwnedPairsCase $Request)-ceq'small-fixture-persistence-load'}
 function Test-KmcChunk7OwnedPairsSmallThirdHorse($Request){(Get-KmcChunk7OwnedPairsCase $Request)-ceq'small-fixture-third-horse-setup'}
 function Test-KmcChunk7OwnedPairsSmallThirdHorseSave($Request){(Get-KmcChunk7OwnedPairsCase $Request)-ceq'small-fixture-third-horse-persistence-save'}
+function Test-KmcChunk7OwnedPairsFourthHorse($Request){(Get-KmcChunk7OwnedPairsCase $Request)-ceq'third-horse-fixture-fourth-horse-setup'}
 function Test-KmcChunk7OwnedPairsSmall($Request){(Test-KmcChunk7OwnedPairsSmallSave $Request)-or(Test-KmcChunk7OwnedPairsSmallLoad $Request)-or(Test-KmcChunk7OwnedPairsSmallThirdHorse $Request)-or(Test-KmcChunk7OwnedPairsSmallThirdHorseSave $Request)}
 function Test-KmcChunk7OwnedPairsMediumSave($Request){(Get-KmcChunk7OwnedPairsCase $Request)-ceq'medium-fixture-persistence-save'}
 function Test-KmcChunk7OwnedPairsMediumLoad($Request){(Get-KmcChunk7OwnedPairsCase $Request)-ceq'medium-fixture-persistence-load'}
 function Test-KmcChunk7OwnedPairsMedium($Request){(Test-KmcChunk7OwnedPairsMediumSave $Request)-or(Test-KmcChunk7OwnedPairsMediumLoad $Request)}
+function Assert-KmcChunk7OwnedPairsFourthSelection($Request,$s,$Checkpoint){
+ Assert-KmcExactProperties $s @('case','sourceRunId','sourceArtifactSha256','sourceArchiveSha256','checkpointSourceRunId','checkpointSourceArtifactSha256','seedId','seedSha256','coldReceiptSha256','riderAId','mountAId','riderBId','mountBId','partyIds','baseGameOnly','expectedNativeLoadCount','expectedNativeWriteCount') 'three-Horse fourth-setup selection'
+ if($null-ne$Checkpoint-or$null-ne$s.checkpointSourceRunId-or$null-ne$s.checkpointSourceArtifactSha256){throw 'Fourth-Horse setup selects no checkpoint.'}
+ foreach($pair in @(@('sourceRunId','20261021-c7b-world171-b171s1-thirdhorse-manual'),
+  @('sourceArtifactSha256','57ab380ae5c4c95fbed1647446b3ca264f7e140c91a3b7ea4bb41037085450b1'),
+  @('sourceArchiveSha256','f70a54865c86a599c3b25f6f2574abde2f663cd07b82472eac4bcbe245ea8c84'),
+  @('coldReceiptSha256','4439fbea3608dad76634174b555f9d4ea243f2b4d0480029b03b7de66f9c8766'),
+  @('seedId','KMC_C7_NO_MODS_OWNER_SEED'),@('seedSha256','3405d7c813668ad646788efd746a62c1b16e1438fad1bc4bcbebc961821b924f'),
+  @('riderAId','73681ef2-b281-4bc6-bc05-2de68c1616cb'),@('mountAId','30b79228-3fe5-48ac-aa88-2de9085837b7'),
+  @('riderBId','c4e2c853-4b72-4904-ad84-d0b7bfba7470'),@('mountBId','0e0c7d2d-06b4-4510-9f81-d847340d1424'))){Assert-KmcBootstrapInventoryString $s.($pair[0]) $pair[1]}
+ if($Request.runId-isnot[string]-or$Request.runId-cnotmatch'^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$'-or$Request.runId-cin@($s.sourceRunId,$s.seedId)){throw 'Fourth-Horse run aliases an immutable source.'}
+ $expected=@($s.riderAId,$s.mountAId,$s.riderBId,$s.mountBId,'fd213210-71cd-41b0-b35b-68e1b18e9b43','da28f0a7-6eb0-4392-b2e0-f401a889b3aa','5dd7bd1d-ae4c-4df7-9687-50fceb027344','8265f8cf-0969-4ec7-a266-2448de91c8c4')
+ if($s.partyIds-isnot[Array]-or$s.partyIds.Count-ne8-or
+  (ConvertTo-KmcChunk7Canonical @($s.partyIds|Sort-Object -CaseSensitive))-cne(ConvertTo-KmcChunk7Canonical @($expected|Sort-Object -CaseSensitive))){throw 'Fourth-Horse setup requires the exact eight-actor three-Horse field.'}
+ Assert-KmcChunk7Boolean $s.baseGameOnly $true;Assert-KmcOrdinaryInteger $s.expectedNativeLoadCount 1 1;Assert-KmcOrdinaryInteger $s.expectedNativeWriteCount 0 0
+}
 function Assert-KmcChunk7OwnedPairsSmallSelection($Request,$Selection,$Checkpoint){
  $s=$Selection;$cold=Test-KmcChunk7OwnedPairsSmallLoad $Request;$third=Test-KmcChunk7OwnedPairsSmallThirdHorse $Request
  Assert-KmcExactProperties $s @('case','sourceRunId','sourceArtifactSha256','sourceArchiveSha256','checkpointSourceRunId','checkpointSourceArtifactSha256','seedId','seedSha256','coldReceiptSha256','riderAId','mountAId','riderBId','mountBId','partyIds','baseGameOnly','expectedNativeLoadCount','expectedNativeWriteCount') 'Small owner-seed-derived persistence selection'
@@ -217,6 +240,7 @@ function Assert-KmcChunk7OwnedPairsSelection($Request){
  if(Test-KmcChunk7OwnedPairsSeedDerivedCombat $Request){Assert-KmcChunk7OwnerSeedDerivedCombatSelection $Request $s $checkpoint;return}
  if(Test-KmcChunk7LoadRefusal $Request){Assert-KmcChunk7LoadRefusalSelection $Request $s $checkpoint;return}
  if((Test-KmcChunk7OwnedPairsSeedCheckpointSave $Request)-or(Test-KmcChunk7OwnedPairsSeedCheckpointLoad $Request)){Assert-KmcChunk7OwnerSeedCheckpointSelection $Request $s $checkpoint;return}
+ if(Test-KmcChunk7OwnedPairsFourthHorse $Request){Assert-KmcChunk7OwnedPairsFourthSelection $Request $s $checkpoint;return}
  if(Test-KmcChunk7OwnedPairsSmall $Request){Assert-KmcChunk7OwnedPairsSmallSelection $Request $s $checkpoint;return}
  if(Test-KmcChunk7OwnedPairsMedium $Request){Assert-KmcChunk7OwnedPairsMediumSelection $Request $s $checkpoint;return}
  $area=$checkpoint-is[string]-and$checkpoint-ceq'multi-area-autosave'
@@ -255,6 +279,14 @@ function Assert-KmcChunk7OwnedPairsDescriptor($Request){
   if($d.sha256-isnot[string]-or$d.sha256-cnotmatch'^[a-f0-9]{64}$'){throw 'Owner seed archive hash is malformed.'};Assert-KmcBootstrapInventoryString $d.sha256 $Request.ownedPairs.seedSha256
   Assert-KmcOrdinaryGuid $d.gameId
   if($d.gameName-isnot[string]-or[string]::IsNullOrWhiteSpace($d.gameName)-or$d.gameName.Length-gt256-or$d.gameName-match'[\x00-\x1f\x7f]'-or$d.area-isnot[string]-or$d.area-cnotmatch'^[a-f0-9]{32}$'-or$d.gameId-ceq$Request.fixture.working.gameId-or$d.sha256-ceq$Request.fixture.working.sha256-or$d.sha256-ceq$Request.fixture.baseline.sha256){throw 'Owner seed campaign must remain distinct from protected Working/Baseline.'}
+  Assert-KmcOrdinaryInteger $d.length 1 268435456;Assert-KmcOrdinaryInteger $d.lastWriteTimeUtcTicks 1 ([DateTime]::MaxValue.Ticks);return
+ }
+ if(Test-KmcChunk7OwnedPairsFourthHorse $Request){
+  Assert-KmcBootstrapInventoryString $d.internalName 'KMC_C7_SMALL_WORLD';Assert-KmcBootstrapInventoryString $d.fileName 'Manual_305_KMC_C7_SMALL_WORLD.zks'
+  Assert-KmcBootstrapInventoryString $d.sha256 $Request.ownedPairs.sourceArchiveSha256
+  Assert-KmcBootstrapInventoryString $d.gameId '3f7381f7-aba6-43bf-bae6-39c6a66a7180';Assert-KmcBootstrapInventoryString $d.gameName 'Testy the Modless'
+  Assert-KmcBootstrapInventoryString $d.area 'b10e86516b6437d45a629931c30936fe'
+  if($d.sha256-ceq$Request.fixture.working.sha256-or$d.sha256-ceq$Request.fixture.baseline.sha256-or$d.sha256-ceq$Request.ownedPairs.seedSha256){throw 'Fourth-Horse Manual aliases a protected or immutable seed archive.'}
   Assert-KmcOrdinaryInteger $d.length 1 268435456;Assert-KmcOrdinaryInteger $d.lastWriteTimeUtcTicks 1 ([DateTime]::MaxValue.Ticks);return
  }
  if((Test-KmcChunk7OwnedPairsSmall $Request)-or(Test-KmcChunk7OwnedPairsMedium $Request)){
@@ -311,8 +343,8 @@ function Assert-KmcChunk7OwnedPairsDescriptor($Request){
 function Assert-KmcChunk7InheritedSnapshot($Request,$Snapshot,[string]$Phase){
  Assert-KmcExactProperties $Snapshot @('contract','phase','sourceRunId','sourceArtifactSha256','sourceArchiveSha256','sourceCase','nativeLoadVerifiedByHost','decodedReceiptAuthorizesRestoration','inheritedPetsPreserved','ownedFactRemovalCount','partyIds','currentPartyIds','currentCharacterIds','remoteCapturedIds','arrangement','pairs','identities') 'inherited native custody'
  # Owner-seed-derived custody keeps its own labels; it is never relabelled acquired ancestry.
- $derived=Test-KmcChunk7OwnedPairsSeedDerivedLineage $Request;$small=Test-KmcChunk7OwnedPairsSmall $Request;$medium=Test-KmcChunk7OwnedPairsMedium $Request
- $contract=if($small){'owner-seed-small-fixture-two-horse-native-field-v1'}elseif($medium){'owner-seed-medium-fixture-two-horse-native-field-v1'}elseif($derived){'owner-seed-derived-two-horse-native-field-v1'}else{'inherited-two-horse-native-field-v1'};$sourceCase=if($small){'owner-seed-default-halfling-horse-manual'}elseif($medium){'owner-seed-default-human-horse-manual'}elseif((Test-KmcChunk7ManticoreManualCold $Request)-or(Test-KmcChunk7ManticoreReturnArea $Request.ownedPairs)){'owner-seed-manticore-fixture-manual'}elseif($derived){'owner-seed-persistence-save'}else{'preserve-two-acquired-field'}
+ $derived=Test-KmcChunk7OwnedPairsSeedDerivedLineage $Request;$small=Test-KmcChunk7OwnedPairsSmall $Request;$medium=Test-KmcChunk7OwnedPairsMedium $Request;$fourth=Test-KmcChunk7OwnedPairsFourthHorse $Request
+ $contract=if($fourth){'small-fixture-three-horse-native-field-v1'}elseif($small){'owner-seed-small-fixture-two-horse-native-field-v1'}elseif($medium){'owner-seed-medium-fixture-two-horse-native-field-v1'}elseif($derived){'owner-seed-derived-two-horse-native-field-v1'}else{'inherited-two-horse-native-field-v1'};$sourceCase=if($fourth){'small-fixture-third-horse-persistence-save'}elseif($small){'owner-seed-default-halfling-horse-manual'}elseif($medium){'owner-seed-default-human-horse-manual'}elseif((Test-KmcChunk7ManticoreManualCold $Request)-or(Test-KmcChunk7ManticoreReturnArea $Request.ownedPairs)){'owner-seed-manticore-fixture-manual'}elseif($derived){'owner-seed-persistence-save'}else{'preserve-two-acquired-field'}
  foreach($pair in @(@('contract',$contract),@('phase',$Phase),@('sourceCase',$sourceCase))){Assert-KmcBootstrapInventoryString $Snapshot.($pair[0]) $pair[1]}
  foreach($key in @('sourceRunId','sourceArtifactSha256','sourceArchiveSha256')){Assert-KmcBootstrapInventoryString $Snapshot.$key $Request.ownedPairs.$key}
  foreach($key in @('nativeLoadVerifiedByHost','inheritedPetsPreserved')){Assert-KmcChunk7Boolean $Snapshot.$key $true};Assert-KmcChunk7Boolean $Snapshot.decodedReceiptAuthorizesRestoration $false;Assert-KmcOrdinaryInteger $Snapshot.ownedFactRemovalCount 0 0
@@ -322,14 +354,15 @@ function Assert-KmcChunk7InheritedSnapshot($Request,$Snapshot,[string]$Phase){
  foreach($id in $Snapshot.currentCharacterIds){if($id-cnotin$Snapshot.partyIds){throw 'Native field character is outside the admitted roster.'}}
  foreach($id in @($Request.ownedPairs.riderAId,$Request.ownedPairs.riderBId)){if($id-cnotin$Snapshot.currentCharacterIds){throw 'Inherited rider left the native character roster.'}}
  Assert-KmcExactProperties $Snapshot.identities @('capacity','ids','faults') 'inherited identity registry';Assert-KmcOrdinaryInteger $Snapshot.identities.capacity 128 128;Assert-KmcOrdinaryInteger $Snapshot.identities.faults 0 0
- if($Snapshot.identities.ids-isnot[Array]-or$Snapshot.identities.ids.Count-ne8){throw 'Inherited identity registry requires its exact eight retained objects.'}
+ $pairCount=if($fourth){3}else{2}
+ if($Snapshot.identities.ids-isnot[Array]-or$Snapshot.identities.ids.Count-ne($pairCount*4)){throw 'Inherited identity registry requires the exact retained pair objects.'}
  $labels=[Collections.Generic.HashSet[int]]::new();foreach($id in $Snapshot.identities.ids){Assert-KmcManualSeedObjectIdentity $id;if(-not$labels.Add([int]$id)){throw 'Inherited registry label repeats.'}}
- if($Snapshot.pairs-isnot[Array]-or$Snapshot.pairs.Count-ne2){throw 'Inherited snapshot requires prior/new two-pair order.'};$used=[Collections.Generic.HashSet[int]]::new();$ids=Get-KmcChunk7OwnedPairIds $Request
- for($i=0;$i-lt2;$i++){$p=$Snapshot.pairs[$i];Assert-KmcExactProperties $p @('riderId','mountId','rider','mount','feature','rankFact','sourceGuid','rank','profileId') 'inherited pair custody'
+ if($Snapshot.pairs-isnot[Array]-or$Snapshot.pairs.Count-ne$pairCount){throw 'Inherited snapshot requires its exact prior Horse order.'};$used=[Collections.Generic.HashSet[int]]::new();$ids=Get-KmcChunk7InheritedPairIds $Request
+ for($i=0;$i-lt$pairCount;$i++){$p=$Snapshot.pairs[$i];Assert-KmcExactProperties $p @('riderId','mountId','rider','mount','feature','rankFact','sourceGuid','rank','profileId') 'inherited pair custody'
   Assert-KmcBootstrapInventoryString $p.riderId $ids[$i*2];Assert-KmcBootstrapInventoryString $p.mountId $ids[$i*2+1]
   foreach($key in @('rider','mount','feature','rankFact')){Assert-KmcManualSeedObjectIdentity $p.$key;if(-not$labels.Contains([int]$p.$key)-or-not$used.Add([int]$p.$key)){throw 'Inherited native roles alias or are unretained.'}}
   if($p.sourceGuid-isnot[string]-or$p.sourceGuid-cnotmatch'^[0-9a-f]{32}$'-or$p.profileId-isnot[string]-or$p.profileId-cnotmatch'^[a-z0-9][a-z0-9.-]{0,127}$'){throw 'Inherited native source/profile token is malformed.'};Assert-KmcOrdinaryInteger $p.rank 1 20
-  if($small-or$medium){Assert-KmcBootstrapInventoryString $p.profileId $(if($small-and$i-eq1){'small-default-halfling-horse-v1'}else{'medium-humanoid-horse-v1'})}
+  if($small-or$medium-or$fourth){Assert-KmcBootstrapInventoryString $p.profileId $(if(($small-or$fourth)-and$i-eq1){'small-default-halfling-horse-v1'}else{'medium-humanoid-horse-v1'})}
  }
  Assert-KmcExactProperties $Snapshot.arrangement @('money','experienceRatePercent','actors') 'inherited no-arrangement state';Assert-KmcOrdinaryInteger $Snapshot.arrangement.money 0;Assert-KmcOrdinaryInteger $Snapshot.arrangement.experienceRatePercent 100 100
  if($Snapshot.arrangement.actors-isnot[Array]-or$Snapshot.arrangement.actors.Count-ne$Request.ownedPairs.partyIds.Count){throw 'Inherited progression roster differs.'}

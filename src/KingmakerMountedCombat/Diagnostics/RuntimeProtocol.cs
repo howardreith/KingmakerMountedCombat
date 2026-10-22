@@ -292,8 +292,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (SchemaVersion != SaveBackedSchemaVersion || OwnedPairs == null) errors.Add("Owned pairs require their exact schema-2 inherited selection.");
                 else
                 {
-                    if (!OwnedPairs.PaidFixtureLineage && OwnedPairs.ColdReceiptSha256 != null)
-                        errors.Add("Only paid fixture persistence carries an accepted cold receipt.");
+                    if (!OwnedPairs.PaidFixtureLineage && !OwnedPairs.IsFourthHorse && OwnedPairs.ColdReceiptSha256 != null)
+                        errors.Add("Only paid fixture persistence or the exact fourth-Horse source carries an accepted cold receipt.");
                     errors.AddRange(OwnedPairs.Validate(Scenario, RunId, PersistenceCase));
                 }
             }
@@ -650,6 +650,21 @@ namespace KingmakerMountedCombat.Diagnostics
                         string.IsNullOrWhiteSpace(PersistenceLoad.GameName) || PersistenceLoad.Sha256 == Fixture.Working.Sha256 ||
                         PersistenceLoad.Sha256 == Fixture.Baseline?.Sha256 || PersistenceLoad.Sha256 != OwnedPairs.SeedSha256)
                         errors.Add("Owner seed lacks its exact registered non-aliasing identity.");
+                }
+                else if (OwnedPairs.IsFourthHorse)
+                {
+                    errors.AddRange(PersistenceLoad.Validate("persistenceLoad",
+                        Chunk7OwnedPairsSelection.SmallFixtureManualName,
+                        "^Manual_305_KMC_C7_SMALL_WORLD\\.zks$"));
+                    if (PersistenceLoad.FileName != "Manual_305_KMC_C7_SMALL_WORLD.zks" ||
+                        PersistenceLoad.Sha256 != Chunk7OwnedPairsSelection.FourthHorseSourceArchive ||
+                        PersistenceLoad.GameId != Chunk7SmallFixtureSelection.CampaignId ||
+                        PersistenceLoad.GameName != Chunk7SmallFixtureSelection.CampaignName ||
+                        PersistenceLoad.Area != Chunk7SmallFixtureSelection.AreaId ||
+                        Fixture?.Working == null || PersistenceLoad.Sha256 == Fixture.Working.Sha256 ||
+                        PersistenceLoad.Sha256 == Fixture.Baseline?.Sha256 ||
+                        PersistenceLoad.Sha256 == OwnedPairs.SeedSha256)
+                        errors.Add("Fourth-Horse setup requires the exact separately qualified eight-actor native Manual.");
                 }
                 else if (OwnedPairs.PaidFixtureLineage)
                 {
@@ -1397,6 +1412,7 @@ namespace KingmakerMountedCombat.Diagnostics
             "C7-persistence-native-continuation", "C7-persistence-all-pair-area-before-autosave", "C7-persistence-native-combat-continuation", "C7-persistence-cleanup", "C7-persistence-runtime", "C7-persistence-interrupted",
             "chunk7-two-pair-exploration", "C7-world-fixture", "C7-world-native-acquisition", "C7-world-owner-seed-setup", "C7-world-two-native-mounts",
             "C7-world-selection-routing", "C7-world-independent-dismount", "C7-world-cycles", "C7-world-sampling", "C7-world-cleanup", "C7-world-runtime", "C7-world-visual", "C7-world-interrupted",
+            "C7-world-owner-seed-manual", "C7-small-third-horse-native-setup", "C7-small-third-horse-native-manual", "C7-f09-fourth-horse-native-setup",
             "persistence-p07-save", "persistence-p07-load", "persistence-p01-save", "persistence-p01-load", "persistence-p02-save", "persistence-p02-load", "persistence-p03-save", "persistence-p03-load", "persistence-p04-save", "persistence-p04-load", "persistence-p05-save", "persistence-p05-load", "persistence-p06-load",
                     "C4-LIFE-rider-incapacitation",
         "C4-LIFE-rider-death-live-command",

@@ -49,6 +49,10 @@ namespace OwnedPairsCustodyCheck {
    Test("pet in both native character containers still refuses", () => { var f=new Fixture(); f.game.Player.Party.Add(f.Actors[1]); f.game.Player.PartyCharacters.Add(new Ref(f.Actors[1])); Refuses(f.Verify); });
    Test("missing reciprocal native pet master refuses", () => { var f=new Fixture(); f.Actors[1].Descriptor.Master=new Ref(null); Refuses(f.Verify); });
    Test("same-ID reciprocal pet replacement refuses exact old custody", () => { var f=new Fixture(); var replacement=Fixture.Actor(f.Actors[1].UniqueId); replacement.Descriptor.Master=new Ref(f.Actors[0]); f.Actors[0].Descriptor.Pet=replacement; Refuses(f.Verify); });
+   Test("actual eight-actor three-Horse custody passes",()=>new Fixture(true).Verify());
+   Test("third inherited Horse replacement refuses",()=>{var f=new Fixture(true);f.Actors[4].Descriptor.Pet=Fixture.Actor("replacement");Refuses(f.Verify);});
+   Test("third inherited Horse rank drift refuses",()=>{var f=new Fixture(true);f.Actors[4].Descriptor.GetFact(f.horses.LevelRank).Rank++;Refuses(f.Verify);});
+   Test("second unrelated eight-actor progression drift refuses",()=>{var f=new Fixture(true);f.Party[7].Descriptor.Progression.Experience++;Refuses(f.Verify);});
    Console.WriteLine("RESULT: "+pass+" PASS / "+fail+" FAIL"); return fail==0?0:1;
   }
  }
@@ -67,7 +71,7 @@ namespace OwnedPairsCustodyCheck {
   internal void Verify(bool combatCold){RequireBindMode(combatCold);Continued++;}
   /*ACTUAL_BIND_MODE*/
  }
- internal sealed class Request { internal bool Owned; internal string PersistenceCase; internal Fixtures Fixture; internal Descriptor PersistenceLoad,PersistenceAreaTarget; internal Descriptor SelectedChunk7Fixture=>Owned?PersistenceLoad:Fixture.Working; }
+ internal sealed class Request { internal bool Owned; internal string PersistenceCase; internal Fixtures Fixture; internal Descriptor PersistenceLoad,PersistenceAreaTarget; internal Descriptor SelectedChunk7Fixture=>Owned?PersistenceLoad:Fixture.Working; internal string ExpectedChunk7ArchiveArea=>PersistenceCase=="multi-area-autosave"?PersistenceAreaTarget?.Area:SelectedChunk7Fixture?.Area; }
  internal sealed class Fixtures { internal Descriptor Working; }
  internal sealed class Descriptor { internal string Area; }
  internal sealed class Fixture {
@@ -75,13 +79,14 @@ namespace OwnedPairsCustodyCheck {
   internal readonly Game game; internal Unit[] Party,Actors; private Unit[] partyCharacters;
   private object[] descriptors,views,facts,ranks; private JObject[] ownerRows; private JObject sourceArrangement;
   internal Horses horses=new Horses(); internal Scope Scope=new Scope(); private string sourcePath="receipt"; private long sourceLength=10,sourceTicks=20;
-  private Selection selection=new Selection(); internal string CurrentHash="exact";
-  internal Fixture() {
+  private Selection selection=new Selection(); private int InheritedPairCount=>selection.IsFourthHorse?3:2; internal string CurrentHash="exact";
+  internal Fixture(bool fourth=false) {
    game=new Game(); Game.Instance=game;
-   Party=new[] {Actor("rider-a"),Actor("mount-a"),Actor("rider-b"),Actor("mount-b"),Actor("unrelated")}; Actors=Party.Take(4).ToArray();
-   partyCharacters=new[]{Party[0],Party[2],Party[4]}; game.Player.Party=partyCharacters.ToList(); game.Player.PartyCharacters=partyCharacters.Select(a=>new Ref(a)).ToList();
-   descriptors=Actors.Select(a=>(object)a.Descriptor).ToArray();views=Actors.Select(a=>a.View).ToArray(); facts=new object[2];ranks=new object[2];ownerRows=new JObject[2];
-   for(var i=0;i<2;i++){var rider=Actors[i*2];var mount=Actors[i*2+1];mount.Blueprint=horses.HorseUnit;rider.Descriptor.Pet=mount;mount.Descriptor.Master=new Ref(rider);var fact=new Feature {Source=new Blueprint {AssetGuid="source"}};var rank=new Fact {Rank=4};rider.Descriptor.Facts.Add(horses.HorseFeature,fact);rider.Descriptor.Facts.Add(horses.LevelRank,rank);facts[i]=fact;ranks[i]=rank;ownerRows[i]=new JObject{["sourceGuid"]="source",["rank"]=4};}
+   selection.IsFourthHorse=fourth;
+   Party=fourth?new[] {Actor("rider-a"),Actor("mount-a"),Actor("rider-b"),Actor("mount-b"),Actor("rider-c"),Actor("mount-c"),Actor("unrelated"),Actor("other")}:new[] {Actor("rider-a"),Actor("mount-a"),Actor("rider-b"),Actor("mount-b"),Actor("unrelated")}; Actors=Party.Take(fourth?6:4).ToArray();
+   partyCharacters=fourth?new[]{Party[0],Party[2],Party[4],Party[6],Party[7]}:new[]{Party[0],Party[2],Party[4]}; game.Player.Party=partyCharacters.ToList(); game.Player.PartyCharacters=partyCharacters.Select(a=>new Ref(a)).ToList();
+   descriptors=Actors.Select(a=>(object)a.Descriptor).ToArray();views=Actors.Select(a=>a.View).ToArray(); facts=new object[InheritedPairCount];ranks=new object[InheritedPairCount];ownerRows=new JObject[InheritedPairCount];
+   for(var i=0;i<InheritedPairCount;i++){var rider=Actors[i*2];var mount=Actors[i*2+1];mount.Blueprint=horses.HorseUnit;rider.Descriptor.Pet=mount;mount.Descriptor.Master=new Ref(rider);var fact=new Feature {Source=new Blueprint {AssetGuid="source"}};var rank=new Fact {Rank=4};rider.Descriptor.Facts.Add(horses.HorseFeature,fact);rider.Descriptor.Facts.Add(horses.LevelRank,rank);facts[i]=fact;ranks[i]=rank;ownerRows[i]=new JObject{["sourceGuid"]="source",["rank"]=4};}
    sourceArrangement=Arrangement();
   }
   internal static Unit Actor(string id)=>new Unit {UniqueId=id,Blueprint=new Blueprint {AssetGuid="unit"}};
@@ -92,7 +97,7 @@ namespace OwnedPairsCustodyCheck {
   /*ACTUAL_REQUIRE*/
   /*ACTUAL_ARRANGEMENT*/
  }
- internal sealed class Selection {internal string SourceArtifactSha256="exact";internal bool Cold;}
+ internal sealed class Selection {internal string SourceArtifactSha256="exact";internal bool Cold,IsFourthHorse;internal bool RequiresCombatColdBind(string checkpoint)=>Cold&&checkpoint!="multi-exploration-manual"&&checkpoint!="multi-exploration-quick"&&checkpoint!="multi-exploration-auto"&&checkpoint!="multi-area-autosave"&&checkpoint!="multi-exploration-three-loads-manual"&&checkpoint!="multi-exploration-three-area-transfers-manual"&&checkpoint!="owned-schema1-resave-manual"&&checkpoint!="owned-schema1-current-manual";}
  internal sealed class Scope {internal int Calls;internal bool Refuse;internal void RequireCurrent(){Calls++;if(Refuse)throw new InvalidOperationException("world changed");}}
  internal sealed class Game {internal static Game Instance;internal Player Player=new Player();}
  internal sealed class Ref {internal Unit Value;internal Ref(Unit value){Value=value;}}

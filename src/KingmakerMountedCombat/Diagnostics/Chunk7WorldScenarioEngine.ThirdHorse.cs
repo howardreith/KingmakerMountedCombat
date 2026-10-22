@@ -23,7 +23,8 @@ namespace KingmakerMountedCombat.Diagnostics
         private JObject thirdBefore;
         private JArray thirdEvents;
         private bool thirdSourceReleased, thirdSetupCompleted;
-        private bool ThirdHorseSetup => request.OwnedPairs?.SmallThirdHorseSetup == true;
+        private bool FourthHorseSetup => request.OwnedPairs?.IsFourthHorse == true;
+        private bool ThirdHorseSetup => request.OwnedPairs?.SmallThirdHorseSetup == true || FourthHorseSetup;
         private bool ThirdHorseManual => request.OwnedPairs?.IsSmallThirdHorseSave == true;
 
         private void BeginThirdHorseSetup()
@@ -34,7 +35,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 fixtureAuthority.AdmittedNativeLoadRequests == 1 && fixtureAuthority.AdmittedNativeWriteRequests == 0 &&
                 fixtureAuthorization.AuthorizedLoadCount == 1 && fixtureAuthorization.AuthorizedWriteCount == 0 &&
                 persistence.CompletedSaveCount == 0, "Third-Horse setup lacks exact one-load, zero-write inherited authority.");
-            thirdRider = originalParty.SingleOrDefault(actor => actor.UniqueId == ThirdHorseRiderId);
+            thirdRider = originalParty.SingleOrDefault(actor => actor.UniqueId ==
+                (FourthHorseSetup ? Chunk7OwnedPairsSelection.FourthHorseTargetRider : ThirdHorseRiderId));
             Require(thirdRider != null && thirdRider.Descriptor.Pet == null && !thirdRider.Descriptor.IsPet &&
                 thirdRider.IsDirectlyControllable && thirdRider.IsInState && thirdRider.IsInGame && Idle(thirdRider) &&
                 thirdRider.Descriptor.State.Size == Size.Medium && thirdRider.Descriptor.OriginalSize == Size.Medium &&
@@ -45,15 +47,18 @@ namespace KingmakerMountedCombat.Diagnostics
                 Game.Instance.Player.PartyCharacters.Count(value => ReferenceEquals(value.Value, thirdRider)) == 1 &&
                 Game.Instance.Player.ExperienceRatePercent == 100 && Game.Instance.Player.PartyCharacters.Count() == 5 &&
                 Game.Instance.Player.RemoteCompanions.Count() == 0,
-                "The selected batch53 story rider is not the exact petless, XP-short native field actor.");
+                "The selected story rider is not the exact petless, XP-short native field actor.");
             RequireThirdHorseOriginals();
             thirdBefore = Chunk7OwnedPairFixture.ArrangementOf(originalParty);
             thirdEvents = new JArray();
             evidence["thirdHorseSetup"] = new JObject {
-                ["contract"] = "small-source-third-native-horse-setup-v1",
+                ["contract"] = FourthHorseSetup ? "three-horse-source-fourth-native-horse-setup-v1" :
+                    "small-source-third-native-horse-setup-v1",
                 ["sourceRunId"] = request.OwnedPairs.SourceRunId,
                 ["sourceArchiveSha256"] = request.OwnedPairs.SourceArchiveSha256,
-                ["disclosure"] = "Disposable batch53 Small Manual derivative: one story companion receives exact native XP to level 8 and four ordinary Ranger UI commits. This is fixture setup, not unassisted acquisition or six-pair stress.",
+                ["disclosure"] = FourthHorseSetup ?
+                    "Disposable batch171 three-Horse Manual derivative: Valerie receives exact native XP to level 8 and four ordinary Ranger UI commits. This is fixture setup, not unassisted acquisition or six-pair stress." :
+                    "Disposable batch53 Small Manual derivative: one story companion receives exact native XP to level 8 and four ordinary Ranger UI commits. This is fixture setup, not unassisted acquisition or six-pair stress.",
                 ["fixtureSetupOnly"] = true, ["sixPairQualified"] = false,
                 ["saveRequests"] = 0, ["nativeCastRequests"] = 0,
                 ["targetRiderId"] = thirdRider.UniqueId, ["before"] = thirdBefore.DeepClone(),
@@ -135,7 +140,7 @@ namespace KingmakerMountedCombat.Diagnostics
             };
             ((JObject)evidence["thirdHorseSetup"])["fieldActorIds"] = new JArray(
                 Chunk7NativeFieldRoster.Capture(Game.Instance.Player).Select(actor => actor.UniqueId));
-            Pass("C7-small-third-horse-native-setup");
+            Pass(FourthHorseSetup ? "C7-f09-fourth-horse-native-setup" : "C7-small-third-horse-native-setup");
             if (ThirdHorseManual) Next(82);
             else BeginCleanup();
         }
@@ -167,7 +172,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 "Third-Horse setup changed native funds or XP scaling.");
             var beforeRows = (JArray)thirdBefore["actors"];
             var nowRows = (JArray)now["actors"];
-            foreach (var prior in beforeRows.Where(row => (string)row["actorId"] != ThirdHorseRiderId))
+            foreach (var prior in beforeRows.Where(row => (string)row["actorId"] != thirdRider.UniqueId))
                 Require(JToken.DeepEquals(prior, nowRows.Single(row => (string)row["actorId"] == (string)prior["actorId"])),
                     "Third-Horse setup changed an unrelated native actor's XP or classes.");
         }
@@ -181,7 +186,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 thirdRider.Descriptor.GetFact(horses.HorseFeature) != null &&
                 thirdRider.Descriptor.GetFact(horses.LevelRank) != null &&
                 Game.Instance.Player.PartyCharacters.Count(value => ReferenceEquals(value.Value, thirdRider)) == 1 &&
-                Chunk7NativeFieldRoster.Capture(Game.Instance.Player).Length == 8 &&
+                Chunk7NativeFieldRoster.Capture(Game.Instance.Player).Length == (FourthHorseSetup ? 9 : 8) &&
                 Game.Instance.Player.RemoteCompanions.Count() == 0,
                 "Third-Horse setup lost its actual sourced pet or eight-actor native field.");
         }
