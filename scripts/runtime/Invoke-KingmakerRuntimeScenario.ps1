@@ -278,7 +278,7 @@ if((Test-KmcChunk7OwnedPairsScenario $Scenario)-or(Test-KmcChunk7PersistenceScen
 }
 # The owner-seed kinds (exploration and the owner-seed-derived Manual producer) add their bounded
 # native SETUP phase (ordinary level-ups) before the measured steps.
-if((Test-KmcChunk7OwnedPairsScenario $Scenario)-and((Test-KmcChunk7OwnedPairsOwnerSeed ([pscustomobject]@{ownedPairs=$ownedPairsInput.selection}))-or(Test-KmcChunk7OwnedPairsSeedManual ([pscustomobject]@{ownedPairs=$ownedPairsInput.selection}))-or(Test-KmcChunk7OwnedPairsSmallThirdHorse ([pscustomobject]@{ownedPairs=$ownedPairsInput.selection})))){
+if((Test-KmcChunk7OwnedPairsScenario $Scenario)-and((Test-KmcChunk7OwnedPairsOwnerSeed ([pscustomobject]@{ownedPairs=$ownedPairsInput.selection}))-or(Test-KmcChunk7OwnedPairsSeedManual ([pscustomobject]@{ownedPairs=$ownedPairsInput.selection}))-or(Test-KmcChunk7OwnedPairsSmallThirdHorse ([pscustomobject]@{ownedPairs=$ownedPairsInput.selection}))-or(Test-KmcChunk7OwnedPairsSmallThirdHorseSave ([pscustomobject]@{ownedPairs=$ownedPairsInput.selection})))){
     if(-not$PSBoundParameters.ContainsKey('TimeoutSeconds')){$TimeoutSeconds=900}
     elseif($TimeoutSeconds-ne900){throw 'Selected ordinary native setup requires its declared 900-second outer setup/worker/cleanup budget.'}
 }
@@ -1255,8 +1255,8 @@ try{
                 Assert-KmcChunk7OwnerSeedFinalSaveRoot ([pscustomobject]$request) $allLeaves
             }elseif($writes-eq0){Assert-KmcChunk7OwnedFinalSaveRoot ([pscustomobject]$request) @(Get-ChildItem -LiteralPath $isolatedSaves -Force|ForEach-Object Name) $null}
             if($writes-gt0-and-not(Test-KmcChunk7OwnedPairsOwnerSeed ([pscustomobject]$request))){
-                # The owner-seed Manual producer's receipt is its world evidence.
-                $ownedArtifact=Read-KmcJson (Join-Path $evidenceRoot $(if($seedManualRun){'chunk7-world-evidence.json'}else{'chunk7-persistence-evidence.json'}))
+                # Exact exploration Manual producers publish their receipt in world evidence.
+                $ownedArtifact=Read-KmcJson (Join-Path $evidenceRoot (Get-KmcChunk7OwnedWriteArtifactLeaf ([pscustomobject]$request)))
                 if($PersistenceCase-ceq'owned-schema1-resave-manual'){Assert-KmcOwnedSchema1ColdSource $request $verifiedOwnedSource $ownedArtifact}
                 if(Test-KmcOwnedSchema2ColdRequest ([pscustomobject]$request)){Assert-KmcOwnedSchema2ColdSource $request $verifiedOwnedSource $ownedArtifact}
                 Assert-KmcChunk7OwnedOutputEvidence ([pscustomobject]$request) $ownedArtifact.observations

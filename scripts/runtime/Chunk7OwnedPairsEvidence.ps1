@@ -18,6 +18,7 @@ function Get-KmcChunk7SelectedScenario($Request){
   'small-fixture-persistence-save'{'chunk7-persistence-save'}
   'small-fixture-persistence-load'{'chunk7-persistence-load'}
   'small-fixture-third-horse-setup'{'chunk7-two-pair-exploration'}
+  'small-fixture-third-horse-persistence-save'{'chunk7-two-pair-exploration'}
   'medium-fixture-persistence-save'{'chunk7-persistence-save'}
   'medium-fixture-persistence-load'{'chunk7-persistence-load'}
   'owner-seed-load-refusal'{'chunk7-persistence-load'}
@@ -36,13 +37,17 @@ function Get-KmcChunk7OwnedWriteCount($Request){
  if(Test-KmcChunk7OwnedPairsOwnerSeed $Request){return 0}
  # Owner-seed-derived Manual producer: exactly its one measured Manual; its cold consumer: none.
  if(Test-KmcChunk7OwnedPairsSeedManual $Request){return 1}
- if((Test-KmcChunk7OwnedPairsSmallSave $Request)-or(Test-KmcChunk7OwnedPairsMediumSave $Request)){return 1}
+ if((Test-KmcChunk7OwnedPairsSmallSave $Request)-or(Test-KmcChunk7OwnedPairsSmallThirdHorseSave $Request)-or(Test-KmcChunk7OwnedPairsMediumSave $Request)){return 1}
  # The worker writes a seed and its cancelled replacement to one landed archive.
  if(Test-KmcChunk7OwnedPairsSeedCheckpointSave $Request){if($Request.persistenceCase-ceq'multi-owned-worker-cancel-manual'){return 2};return 1}
  if(Test-KmcChunk7OwnedPairsSeedCheckpointLoad $Request){if($Request.persistenceCase-cin@('legacy-mounted-pending-tb-manual','owned-schema1-resave-manual')){return 1};return 0}
  if(Test-KmcChunk7OwnedPairsSeedDerivedInput $Request){return 0}
  if($Request.ownedPairs.case-ceq'persistence-save'-and$Request.persistenceCase-ceq'multi-owned-worker-cancel-manual'){return 2}
  if($Request.ownedPairs.case-ceq'persistence-save'-or($Request.ownedPairs.case-ceq'persistence-load'-and$Request.persistenceCase-cin@('legacy-mounted-pending-tb-manual','owned-schema1-resave-manual'))){return 1};return 0
+}
+function Get-KmcChunk7OwnedWriteArtifactLeaf($Request){
+ if((Test-KmcChunk7OwnedPairsSeedManual $Request)-or(Test-KmcChunk7OwnedPairsSmallThirdHorseSave $Request)){return 'chunk7-world-evidence.json'}
+ return 'chunk7-persistence-evidence.json'
 }
 function Get-KmcChunk7OwnedLoadCount($Request){
  if($Request.ownedPairs.case-cin@('persistence-load','owner-seed-persistence-load')-and$Request.persistenceCase-ceq'multi-exploration-three-loads-manual'){return 3};return 1
@@ -70,7 +75,8 @@ function Test-KmcChunk7OwnedPairsSeedManual($Request){(Get-KmcChunk7OwnedPairsCa
 function Test-KmcChunk7OwnedPairsSmallSave($Request){(Get-KmcChunk7OwnedPairsCase $Request)-ceq'small-fixture-persistence-save'}
 function Test-KmcChunk7OwnedPairsSmallLoad($Request){(Get-KmcChunk7OwnedPairsCase $Request)-ceq'small-fixture-persistence-load'}
 function Test-KmcChunk7OwnedPairsSmallThirdHorse($Request){(Get-KmcChunk7OwnedPairsCase $Request)-ceq'small-fixture-third-horse-setup'}
-function Test-KmcChunk7OwnedPairsSmall($Request){(Test-KmcChunk7OwnedPairsSmallSave $Request)-or(Test-KmcChunk7OwnedPairsSmallLoad $Request)-or(Test-KmcChunk7OwnedPairsSmallThirdHorse $Request)}
+function Test-KmcChunk7OwnedPairsSmallThirdHorseSave($Request){(Get-KmcChunk7OwnedPairsCase $Request)-ceq'small-fixture-third-horse-persistence-save'}
+function Test-KmcChunk7OwnedPairsSmall($Request){(Test-KmcChunk7OwnedPairsSmallSave $Request)-or(Test-KmcChunk7OwnedPairsSmallLoad $Request)-or(Test-KmcChunk7OwnedPairsSmallThirdHorse $Request)-or(Test-KmcChunk7OwnedPairsSmallThirdHorseSave $Request)}
 function Test-KmcChunk7OwnedPairsMediumSave($Request){(Get-KmcChunk7OwnedPairsCase $Request)-ceq'medium-fixture-persistence-save'}
 function Test-KmcChunk7OwnedPairsMediumLoad($Request){(Get-KmcChunk7OwnedPairsCase $Request)-ceq'medium-fixture-persistence-load'}
 function Test-KmcChunk7OwnedPairsMedium($Request){(Test-KmcChunk7OwnedPairsMediumSave $Request)-or(Test-KmcChunk7OwnedPairsMediumLoad $Request)}
@@ -253,7 +259,7 @@ function Assert-KmcChunk7OwnedPairsDescriptor($Request){
  }
  if((Test-KmcChunk7OwnedPairsSmall $Request)-or(Test-KmcChunk7OwnedPairsMedium $Request)){
   $medium=Test-KmcChunk7OwnedPairsMedium $Request
-  $producer=(Test-KmcChunk7OwnedPairsSmallSave $Request)-or(Test-KmcChunk7OwnedPairsSmallThirdHorse $Request)-or(Test-KmcChunk7OwnedPairsMediumSave $Request)
+  $producer=(Test-KmcChunk7OwnedPairsSmallSave $Request)-or(Test-KmcChunk7OwnedPairsSmallThirdHorse $Request)-or(Test-KmcChunk7OwnedPairsSmallThirdHorseSave $Request)-or(Test-KmcChunk7OwnedPairsMediumSave $Request)
   $name=if($medium){if($producer){'KMC_C7_MEDIUM_FIXTURE'}else{'KMC_C7_MEDIUM_WORLD'}}else{if($producer){'KMC_C7_SMALL_FIXTURE'}else{'KMC_C7_SMALL_WORLD'}}
   Assert-KmcBootstrapInventoryString $d.internalName $name
   if($d.fileName-isnot[string]-or$d.fileName-cnotmatch('^Manual_([1-9][0-9]*)_'+$name+'\.zks$')){throw 'Small persistence native Manual name/number is not canonical.'}
@@ -406,7 +412,7 @@ function Assert-KmcChunk7SmallMountedColdSource($Request,$ProducerArtifact,$Cold
 }
 # The native Manual name a writing owned selection reserves (C# Chunk7OwnedPairsSelection.OwnedManualOutputName).
 function Get-KmcChunk7OwnedManualOutputName($Request){
- if(Test-KmcChunk7OwnedPairsSmallSave $Request){return 'KMC_C7_SMALL_WORLD'}
+ if((Test-KmcChunk7OwnedPairsSmallSave $Request)-or(Test-KmcChunk7OwnedPairsSmallThirdHorseSave $Request)){return 'KMC_C7_SMALL_WORLD'}
  if(Test-KmcChunk7OwnedPairsMediumSave $Request){return 'KMC_C7_MEDIUM_WORLD'}
  if(Test-KmcChunk7OwnedPairsSeedManual $Request){return Get-KmcChunk7OwnerSeedManualName}
  if(Test-KmcChunk7OwnedPairsSeedCheckpointSave $Request){if(Test-KmcChunk7ManticoreFixture $Request){return 'KMC_C7_AREA_FIXTURE'};if(Test-KmcChunk7TombFixture $Request){return 'KMC_C7_TOMB_DOOR_FIXTURE'};if(Test-KmcChunk7ThornRiverFixture $Request){return 'KMC_C7_THORN_RIVER_DOOR_FIXTURE'};return Get-KmcChunk7OwnerSeedCheckpointManualName}
@@ -425,7 +431,7 @@ function Get-KmcChunk7OwnedOutputLeaf($Request,$Observations){
  if($type-ceq'Manual'){
   # The owner-seed producer numbers its Manual after the owner's registered seed leaf; the owner-seed
   # checkpoint producer after the derived Manual it loaded.
-  $sourcePattern=if(Test-KmcChunk7OwnedPairsSmallSave $Request){'^Manual_([1-9][0-9]*)_KMC_C7_SMALL_FIXTURE[.]zks$'}elseif(Test-KmcChunk7OwnedPairsMediumSave $Request){'^Manual_([1-9][0-9]*)_KMC_C7_MEDIUM_FIXTURE[.]zks$'}elseif($seedManual){'^Manual_([1-9][0-9]*)_[A-Za-z0-9_.-]+[.]zks$'}elseif(Test-KmcChunk7OwnedPairsSeedCheckpointSave $Request){'^Manual_([1-9][0-9]*)_'+(Get-KmcChunk7OwnerSeedManualName)+'[.]zks$'}elseif(Test-KmcChunk7OwnedPairsSeedCheckpointLoad $Request){'^Manual_([1-9][0-9]*)_'+(Get-KmcChunk7OwnerSeedCheckpointManualName)+'[.]zks$'}else{'^Manual_([1-9][0-9]*)_KMC_C7_(ACQUIRED_FIELD|WORLD)[.]zks$'}
+  $sourcePattern=if((Test-KmcChunk7OwnedPairsSmallSave $Request)-or(Test-KmcChunk7OwnedPairsSmallThirdHorseSave $Request)){'^Manual_([1-9][0-9]*)_KMC_C7_SMALL_FIXTURE[.]zks$'}elseif(Test-KmcChunk7OwnedPairsMediumSave $Request){'^Manual_([1-9][0-9]*)_KMC_C7_MEDIUM_FIXTURE[.]zks$'}elseif($seedManual){'^Manual_([1-9][0-9]*)_[A-Za-z0-9_.-]+[.]zks$'}elseif(Test-KmcChunk7OwnedPairsSeedCheckpointSave $Request){'^Manual_([1-9][0-9]*)_'+(Get-KmcChunk7OwnerSeedManualName)+'[.]zks$'}elseif(Test-KmcChunk7OwnedPairsSeedCheckpointLoad $Request){'^Manual_([1-9][0-9]*)_'+(Get-KmcChunk7OwnerSeedCheckpointManualName)+'[.]zks$'}else{'^Manual_([1-9][0-9]*)_KMC_C7_(ACQUIRED_FIELD|WORLD)[.]zks$'}
   if($Request.persistenceLoad.fileName-cnotmatch$sourcePattern){throw 'Inherited Manual source numbering is not canonical.'}
   $sourceNumber=0;if(-not[int]::TryParse($Matches[1],[ref]$sourceNumber)-or$sourceNumber-eq[int]::MaxValue-or$a.number-ne$sourceNumber+1){throw 'Reserved output is not the exact native next Manual number.'}
   $leaf='Manual_'+([int]$a.number).ToString([Globalization.CultureInfo]::InvariantCulture)+'_'+$name+'.zks'

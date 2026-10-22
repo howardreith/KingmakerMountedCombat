@@ -3,7 +3,7 @@ Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot 'Chunk7OwnedPairsEvidence.ps1')
 function Get-KmcChunk7WorldRows {
     @('chunk7-two-pair-exploration','C7-world-fixture','C7-world-native-acquisition','C7-world-owner-seed-setup','C7-world-two-native-mounts','C7-world-selection-routing',
-      'C7-world-independent-dismount','C7-world-cycles','C7-world-sampling','C7-world-cleanup','C7-world-runtime','C7-world-visual','C7-world-interrupted','C7-world-owner-seed-manual','C7-small-third-horse-native-setup')
+      'C7-world-independent-dismount','C7-world-cycles','C7-world-sampling','C7-world-cleanup','C7-world-runtime','C7-world-visual','C7-world-interrupted','C7-world-owner-seed-manual','C7-small-third-horse-native-setup','C7-small-third-horse-native-manual')
 }
 function Assert-KmcChunk7ThirdHorseSetupEvidence($Request,$Observations){
     Assert-KmcChunk7OwnedPairsDescriptor $Request
@@ -69,6 +69,55 @@ function Assert-KmcChunk7ThirdHorseSetupEvidence($Request,$Observations){
     Assert-KmcChunk7Boolean $Observations.cleanup.inheritedPetsPreserved $true
     Assert-KmcChunk7Boolean $Observations.cleanup.pairResidueAbsent $true
     Assert-KmcChunk7Boolean $Observations.cleanup.nativeProgressionRequiresExternalWorkingRestoration $false
+}
+function Assert-KmcChunk7ThirdHorseManualEvidence($Request,$Observations){
+    Assert-KmcChunk7ThirdHorseSetupEvidence $Request $Observations
+    $o=$Observations;$s=$o.thirdHorseSetup;$m=$o.thirdHorseManual;$w=$o.nativeWrite;$q=$o.saveRequested
+    Assert-KmcExactProperties $m @('contract','disclosedAssistance','acquisitionProof','setupCompletedBeforeSave','boundary','arrangementAfterSave','headerStarting','headerStaged','workerObservedRunning','completionSequence','fieldActorIds') 'third-Horse Manual receipt'
+    Assert-KmcBootstrapInventoryString $m.contract 'small-third-horse-manual-producer-v1'
+    foreach($key in @('disclosedAssistance','setupCompletedBeforeSave')){Assert-KmcChunk7Boolean $m.$key $true}
+    Assert-KmcChunk7Boolean $m.acquisitionProof $false
+    if($m.workerObservedRunning-isnot[bool]){throw 'Third-Horse native worker observation is missing.'}
+    Assert-KmcOrdinaryInteger $m.completionSequence 1 1
+    Assert-KmcChunk7Boolean $o.cleanup.nativeSaveWritten $true
+    Assert-KmcExactProperties $q @('nativeType','nativeName','frame','gameTicks','snapshotCount','nativeSaveAllowed','newSlot','levelUpSave','api') 'third-Horse native Manual request'
+    Assert-KmcBootstrapInventoryString $q.nativeType 'Manual';Assert-KmcBootstrapInventoryString $q.nativeName 'KMC_C7_SMALL_WORLD'
+    Assert-KmcBootstrapInventoryString $q.api 'Game.SaveGame(SaveManager.CreateNewSave(name))'
+    Assert-KmcOrdinaryInteger $q.snapshotCount 0 0
+    foreach($key in @('nativeSaveAllowed','newSlot')){Assert-KmcChunk7Boolean $q.$key $true};Assert-KmcChunk7Boolean $q.levelUpSave $false
+    Assert-KmcChunk7OwnedOutputEvidence $Request $o
+    $leaf=Get-KmcChunk7OwnedOutputLeaf $Request $o
+    Assert-KmcExactProperties $w @('path','sha256','length','lastWriteTimeUtcTicks','fileName','nativeType','nativeName','gameId','gameName','area','nativeCallback','operation','snapshotCount','readKind','sourceSchema','archive') 'third-Horse native Manual write'
+    if($w.sha256-isnot[string]-or$w.sha256-cnotmatch'^[a-f0-9]{64}$'-or$w.sha256-ceq$Request.persistenceLoad.sha256){throw 'Third-Horse native Manual hash is missing or aliases the source.'}
+    Assert-KmcOrdinaryInteger $w.length 1 268435456;Assert-KmcOrdinaryInteger $w.lastWriteTimeUtcTicks 1 ([DateTime]::MaxValue.Ticks)
+    foreach($pair in @(@('fileName',$leaf),@('nativeType','Manual'),@('nativeName','KMC_C7_SMALL_WORLD'),@('gameId',$Request.persistenceLoad.gameId),@('gameName',$Request.persistenceLoad.gameName),@('area',$Request.persistenceLoad.area),@('operation','None'),@('readKind','Current'))){Assert-KmcBootstrapInventoryString $w.($pair[0]) $pair[1]}
+    Assert-KmcChunk7Boolean $w.nativeCallback $true;Assert-KmcOrdinaryInteger $w.snapshotCount 1 1;Assert-KmcOrdinaryInteger $w.sourceSchema 3 3
+    $a=$w.archive
+    Assert-KmcOrdinaryInteger $a.SchemaVersion 3 3
+    Assert-KmcBootstrapInventoryString $a.CampaignId $Request.persistenceLoad.gameId;Assert-KmcBootstrapInventoryString $a.AreaId $Request.persistenceLoad.area
+    foreach($key in @('Pairs','Participations','Slots')){if($a.$key-isnot[Array]-or$a.$key.Count-ne0){throw ('Third-Horse unmounted save carries unexpected '+$key+'.')}}
+    if($null-ne$a.Combat){throw 'Third-Horse unmounted save carries combat ownership.'}
+    if((ConvertTo-KmcChunk7Canonical $m.boundary)-cne(ConvertTo-KmcChunk7Canonical $m.arrangementAfterSave)){throw 'Native Manual changed the third-Horse field arrangement.'}
+    if($m.boundary.actors-isnot[Array]-or$m.boundary.actors.Count-ne8){throw 'Third-Horse save boundary lacks its eight field actors.'}
+    $ids=@(@($Request.ownedPairs.partyIds)+@($s.horseId)|Sort-Object -CaseSensitive)
+    if((ConvertTo-KmcChunk7Canonical @($m.boundary.actors.actorId|Sort-Object -CaseSensitive))-cne(ConvertTo-KmcChunk7Canonical $ids)-or
+       (ConvertTo-KmcChunk7Canonical @($m.fieldActorIds|Sort-Object -CaseSensitive))-cne(ConvertTo-KmcChunk7Canonical $ids)){throw 'Third-Horse Manual field does not retain the exact source seven and native third Horse.'}
+    $sourceRows=@($m.boundary.actors|Where-Object{$_.actorId-cin$Request.ownedPairs.partyIds}|Sort-Object actorId -CaseSensitive)
+    if((ConvertTo-KmcChunk7Canonical $sourceRows)-cne(ConvertTo-KmcChunk7Canonical @($s.after.actors|Sort-Object actorId -CaseSensitive))){throw 'Third-Horse Manual changed source actor progression before its native save boundary.'}
+    $newHorse=@($m.boundary.actors|Where-Object actorId -CEQ $s.horseId)
+    if($newHorse.Count-ne1-or$newHorse[0].blueprint-cne$s.nativeHorse.blueprint){throw 'Third-Horse Manual lost the exact new native Horse blueprint.'}
+    $r=@($m.boundary.actors|Where-Object actorId -CEQ $s.targetRiderId)
+    if($r.Count-ne1-or$r[0].characterLevel-ne8-or$r[0].experience-ne51000){throw 'Third-Horse save boundary lost the native Ranger progression.'}
+    foreach($h in @(@($m.headerStarting,'native-header-starting',0),@($m.headerStaged,'native-header-staged',1))){
+        $v=$h[0];Assert-KmcExactProperties $v @('label','frame','requestedIsSelectedDescriptor','preparedIsCopy','preparedLeaf','preparedName','preparedType','preparedPath','snapshots','activeOwners','nativeWrites','serializationBusy') 'third-Horse native header'
+        Assert-KmcBootstrapInventoryString $v.label $h[1];Assert-KmcBootstrapInventoryString $v.preparedLeaf $leaf
+        Assert-KmcBootstrapInventoryString $v.preparedName 'KMC_C7_SMALL_WORLD';Assert-KmcBootstrapInventoryString $v.preparedType 'Manual'
+        Assert-KmcBootstrapInventoryString $v.preparedPath $w.path;Assert-KmcOrdinaryInteger $v.snapshots $h[2] $h[2]
+        Assert-KmcOrdinaryInteger $v.activeOwners 0 0;Assert-KmcOrdinaryInteger $v.nativeWrites 0 1
+        foreach($key in @('requestedIsSelectedDescriptor','preparedIsCopy')){Assert-KmcChunk7Boolean $v.$key $true}
+        if($v.serializationBusy-isnot[bool]){throw 'Third-Horse header lacks native serialization state.'}
+    }
+    if($m.headerStarting.frame-lt$q.frame-or$m.headerStaged.frame-lt$m.headerStarting.frame){throw 'Third-Horse native save headers precede the request.'}
 }
 function Assert-KmcChunk7ArtifactEnvelope($Request,$Artifact,[string]$Kind) {
     Assert-KmcExactProperties $Artifact @('schemaVersion','evidenceKind','runId','scenario','branch','commit','productVersion','dllSha256','dllMvid','createdAtUtc','status','observations','errors') 'Chunk 7 artifact'
@@ -304,6 +353,9 @@ function Assert-KmcChunk7WorldEvidence($Request,$Artifact,[string]$Status) {
     if((Get-KmcChunk7SelectedScenario $Request)-cne'chunk7-two-pair-exploration'){throw 'Chunk 7 world evidence under another scenario.'}
     if($Status-ceq'PASS'-and$Artifact.status-cne'PASS'){throw 'PASS world result requires PASS artifact.'}
     if($Artifact.status-cne'PASS'){return}
+    if((Test-KmcChunk7OwnedPairsScenario $Request.scenario)-and(Test-KmcChunk7OwnedPairsSmallThirdHorseSave $Request)){
+        Assert-KmcChunk7ThirdHorseManualEvidence $Request $Artifact.observations;return
+    }
     if((Test-KmcChunk7OwnedPairsScenario $Request.scenario)-and(Test-KmcChunk7OwnedPairsSmallThirdHorse $Request)){
         Assert-KmcChunk7ThirdHorseSetupEvidence $Request $Artifact.observations;return
     }
@@ -476,7 +528,7 @@ function Assert-KmcChunk7WorldArtifact($Request,$Manifest,[string]$Status) {
     Assert-KmcChunk7WorldEvidence $Request $artifact $Status
     if($artifact.status-ceq'PASS') {
         $shots=@($Manifest.artifacts|Where-Object{$_.relativePath-ceq'movement-visuals/chunk7-two-pair-mounted.png'-and$_.kind-ceq'screenshot'})
-        if((Test-KmcChunk7OwnedPairsSmallThirdHorse $Request)){if($shots.Count-ne0){throw 'Third-Horse setup cannot claim a two-pair mounted screenshot.'}}
+        if((Test-KmcChunk7OwnedPairsSmallThirdHorse $Request)-or(Test-KmcChunk7OwnedPairsSmallThirdHorseSave $Request)){if($shots.Count-ne0){throw 'Third-Horse setup cannot claim a two-pair mounted screenshot.'}}
         elseif($shots.Count-ne1){throw 'Two-pair screenshot is not immutably manifested.'}
     }
 }

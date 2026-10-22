@@ -442,7 +442,8 @@ function Get-KmcChunk7OwnedPairsSmallSource($Selection,[string]$PersistenceCase,
  if((ConvertTo-KmcChunk7Canonical @($o.fieldWorld.party.id|Sort-Object -CaseSensitive))-cne
     (ConvertTo-KmcChunk7Canonical @($Selection.partyIds|Sort-Object -CaseSensitive))){throw 'Small persistence source substituted its seven-actor native roster.'}
  if((Test-KmcChunk7OwnedPairsSmallSave ([pscustomobject]@{ownedPairs=$Selection}))-or
-    (Test-KmcChunk7OwnedPairsSmallThirdHorse ([pscustomobject]@{ownedPairs=$Selection}))){
+    (Test-KmcChunk7OwnedPairsSmallThirdHorse ([pscustomobject]@{ownedPairs=$Selection}))-or
+    (Test-KmcChunk7OwnedPairsSmallThirdHorseSave ([pscustomobject]@{ownedPairs=$Selection}))){
   Assert-KmcChunk7OwnedPairsDescriptor ([pscustomobject]@{scenario='chunk7-owned-two-pair-campaign';runId=$run;ownedPairs=$Selection;persistenceCase=$PersistenceCase;persistenceLoad=$source.descriptor;fixture=$Fixture})
   return [pscustomobject]@{path=$source.path;descriptor=$source.descriptor;artifactPath=$source.artifactPath;
    artifactSha256=$source.artifactSha256;artifactLength=$source.artifactLength;sourceRunId=$source.sourceRunId;
@@ -545,7 +546,7 @@ function Get-KmcChunk7OwnedPairsMediumSource($Selection,[string]$PersistenceCase
   fixtureSetupOnly=$true;nativeAuthorityGranted=$false}
 }
 function Get-KmcChunk7OwnedPairsSource($Selection,[AllowNull()][string]$PersistenceCase,$Fixture,$Candidate,$AreaTarget=$null){
- if($null-ne$Selection-and$Selection.case-cin@('small-fixture-persistence-save','small-fixture-persistence-load','small-fixture-third-horse-setup')){
+ if($null-ne$Selection-and$Selection.case-cin@('small-fixture-persistence-save','small-fixture-persistence-load','small-fixture-third-horse-setup','small-fixture-third-horse-persistence-save')){
   return Get-KmcChunk7OwnedPairsSmallSource $Selection $PersistenceCase $Fixture $Candidate $AreaTarget
  }
  if($null-ne$Selection-and$Selection.case-cin@('medium-fixture-persistence-save','medium-fixture-persistence-load')){

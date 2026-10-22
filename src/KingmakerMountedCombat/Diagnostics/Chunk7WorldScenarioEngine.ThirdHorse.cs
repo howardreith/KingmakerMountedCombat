@@ -23,12 +23,14 @@ namespace KingmakerMountedCombat.Diagnostics
         private JObject thirdBefore;
         private JArray thirdEvents;
         private bool thirdSourceReleased, thirdSetupCompleted;
-        private bool ThirdHorseSetup => request.OwnedPairs?.IsSmallThirdHorse == true;
+        private bool ThirdHorseSetup => request.OwnedPairs?.SmallThirdHorseSetup == true;
+        private bool ThirdHorseManual => request.OwnedPairs?.IsSmallThirdHorseSave == true;
 
         private void BeginThirdHorseSetup()
         {
             Require(ThirdHorseSetup && inherited != null && !thirdSourceReleased && thirdDriver == null &&
-                request.PersistenceCase == null && fixtureAuthority.MatchesOwnedPairsPlan(true, false) &&
+                request.PersistenceCase == (ThirdHorseManual ? Chunk7OwnedPairsSelection.OwnerSeedCheckpoint : null) &&
+                fixtureAuthority.MatchesOwnedPairsPlan(true, false) &&
                 fixtureAuthority.AdmittedNativeLoadRequests == 1 && fixtureAuthority.AdmittedNativeWriteRequests == 0 &&
                 fixtureAuthorization.AuthorizedLoadCount == 1 && fixtureAuthorization.AuthorizedWriteCount == 0 &&
                 persistence.CompletedSaveCount == 0, "Third-Horse setup lacks exact one-load, zero-write inherited authority.");
@@ -92,7 +94,7 @@ namespace KingmakerMountedCombat.Diagnostics
             Require(ThirdHorseSetup && thirdSourceReleased && thirdDriver != null &&
                 clock.Elapsed.TotalSeconds <= 600 && clock.Elapsed.TotalSeconds - stepStarted <= 240,
                 "Third-Horse native setup exceeded its bounded window.");
-            RequireThirdHorseSetupWindow();
+            if (step <= 81) RequireThirdHorseSetupWindow();
             if (step == 80)
             {
                 if (thirdDriver.Tick() != Chunk7OrdinaryBuildStep.Complete) return;
@@ -111,6 +113,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 ((JObject)evidence["thirdHorseSetup"])["autoLevelupOverrideCount"] = thirdDriver.AutoLevelupOverrideCount;
                 Next(81); return;
             }
+            if (step >= 82) { UpdateThirdHorseManual(); return; }
             Require(step == 81, "Unknown third-Horse setup stage.");
             if (!thirdMount.IsInState || thirdMount.View?.AgentASP == null || !Idle(thirdMount)) return;
             RequireThirdHorseSetupPreserved();
@@ -132,7 +135,9 @@ namespace KingmakerMountedCombat.Diagnostics
             };
             ((JObject)evidence["thirdHorseSetup"])["fieldActorIds"] = new JArray(
                 Chunk7NativeFieldRoster.Capture(Game.Instance.Player).Select(actor => actor.UniqueId));
-            Pass("C7-small-third-horse-native-setup"); BeginCleanup();
+            Pass("C7-small-third-horse-native-setup");
+            if (ThirdHorseManual) Next(82);
+            else BeginCleanup();
         }
 
         private void RequireThirdHorseSetupWindow()

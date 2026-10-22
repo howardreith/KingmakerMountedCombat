@@ -1,5 +1,11 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## Active October 21 after reviewed F09 three-Horse Manual producer preparation
+
+The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active. A separate [one-Manual producer](docs/CHUNK7-F09-THIRD-HORSE-MANUAL-PRODUCER-2026-10-21.md) now takes the exact batch53 Small source through the already observed native third-Horse setup and one guarded genuine Manual. It keeps batch169's zero-write diagnostic and original failures intact. Independent source/safety review found no remaining confirmed prelaunch blocker after exact outer artifact routing and seven-actor reader binding. Fast 3/0, Small source/reader 21/0, Candidate 7/0 passed. No native run or new output archive has yet been made on this change.
+
+Next: commit and guarded-push this reviewed source, freeze one exact package and append-only current-state suite, then WhatIf and run one declared Manual producer on the immutable batch53 source under the approved Howie context. Record original game/outer outcomes and per-surface restoration. A producer PASS still requires a separate-process cold consumer before third-Horse persistence is qualified. Continue other story Horses, sixth rider and conditional six-pair work, F11 normal-player, doors, 7C/7D and selected private 7E. No merge, release, permanent installation or HUMAN PLAY acceptance.
+
 ## Active October 21 after batch169 third-Horse native game PASS
 
 The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active; engineering completion is not reached. [Batch169](docs/CHUNK7-BATCH169-F09-THIRD-HORSE-2026-10-21.md) used corrected reviewed source `38547c14`, exact package SHA-256 `95a33cae9603970ed3a8931ad11b2fd6e58c4786d02e7db5720f6d60c1155ebb`, and one guarded base-only native scenario. Its original game **PASS 4/0** produced a sourced reciprocal third Horse after four Ranger commits, while preserving both original Horses and making zero save requests. Original outer **FAIL** demanded a matched-pool artifact absent by design; reviewed reader commit `ef1011de` separately passed immutable manifest evaluation. Batch168 original game/outer FAIL and both runs' distinct restoration stay preserved. Batch169 run/save/Mods restored, with 26 accepted profile-cache changes rather than exact profile bytes.

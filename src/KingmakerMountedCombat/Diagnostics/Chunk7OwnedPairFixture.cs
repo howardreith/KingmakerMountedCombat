@@ -200,7 +200,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 party != null && party.Count == 7 &&
                 (int?)field["owners"] == 0 && observations["savedWorld"]?["owners"]?.Value<int>() == 0 &&
                 owners != null && owners.Count == 2 && before != null && after != null && JToken.DeepEquals(before, after) &&
-                (selection.IsSmallFixtureSave || selection.IsSmallThirdHorse || selection.IsMediumFixtureSave ? input.Sha256 == selection.SourceArchiveSha256 :
+                (selection.IsSmallFixtureSave || selection.SmallThirdHorseSetup || selection.IsMediumFixtureSave ? input.Sha256 == selection.SourceArchiveSha256 :
                     input.Sha256 != selection.SourceArchiveSha256),
                 "Paid fixture source lacks its exact successful seven-actor zero-pair Manual provenance.");
             var roles = new[] { selection.RiderAId, selection.RiderBId };
@@ -509,7 +509,7 @@ namespace KingmakerMountedCombat.Diagnostics
         // exact seven-actor arrangement is no longer a valid invariant.
         internal void RequireReleasedThirdHorseSourceCustody()
         {
-            Require(bound && released && selection.IsSmallThirdHorse, "Third-Horse source custody is not released.");
+            Require(bound && released && selection.SmallThirdHorseSetup, "Third-Horse source custody is not released.");
             RequireRequest(); RequireAuthority(); Scope.RequireCurrent();
             var current = Chunk7NativeFieldRoster.Capture(game.Player);
             Require(Party.All(actor => current.Count(value => ReferenceEquals(value, actor)) == 1) &&
