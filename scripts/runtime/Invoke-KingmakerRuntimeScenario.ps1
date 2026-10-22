@@ -1317,8 +1317,8 @@ try{
                (Get-KmcSha256 (Join-Path $isolatedSaves $request.persistenceLoad.fileName))-cne$(if(Test-KmcChunk7OwnerSeedSelection $request.assistedColdInventory){$request.assistedColdInventory.seedSha256}else{$request.assistedColdInventory.sourceArchiveSha256})){throw 'Read-only assisted source changed during the cold process.'}
             $sourceArtifact=Read-KmcAssistedColdSourceArtifact $request
             $coldArtifact=Read-KmcJson (Join-Path $evidenceRoot 'chunk7-assisted-cold-inventory-evidence.json')
-            # An owner seed has no producer process to compare; its record is checked by the evidence reader.
-            if(-not(Test-KmcChunk7OwnerSeedSelection $request.assistedColdInventory)-and$sourceArtifact.observations.processId-eq$coldArtifact.observations.processId){throw 'Assisted cold inventory reused the preparation process.'}
+            # World producers place their PID in the pinned game result, not the world artifact.
+            Assert-KmcAssistedColdSeparateProcess $request.assistedColdInventory $sourceArtifact $coldArtifact $verifiedAssistedColdSource
             Assert-KmcChunk7AssistedColdInventoryEvidence $request $coldArtifact $sourceArtifact 'PASS'
         }
         if($gamePassed-and(Test-KmcChunk7BootstrapInventoryScenario $Scenario)){
