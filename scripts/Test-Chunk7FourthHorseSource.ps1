@@ -44,14 +44,32 @@ if($source.nativeAuthorityGranted-ne$false-or$source.fixtureSetupOnly-ne$true-or
  $source.coldReaderReceiptSha256-cne$selection.coldReceiptSha256-or
  (Get-KmcSha256 $source.path)-cne$selection.sourceArchiveSha256){throw 'Fourth-Horse source gate lost its read-only three-Horse input.'}
 Write-Host 'PASS accepted eight-actor producer and independent cold ancestry; no native authority'
+$selection.case='third-horse-fixture-fourth-horse-persistence-save'
+$selection.expectedNativeWriteCount=1
+$request.persistenceCase='multi-exploration-manual'
+Assert-KmcChunk7OwnedPairsSelection $request
+$manualSource=Get-KmcChunk7OwnedPairsSource $selection $request.persistenceCase $retained.fixture $null
+$request.persistenceLoad=$manualSource.descriptor
+Assert-KmcChunk7OwnedPairsDescriptor $request
+if($manualSource.nativeAuthorityGranted-ne$false-or$manualSource.fixtureSetupOnly-ne$true-or
+ $manualSource.descriptor.sha256-cne$source.descriptor.sha256-or
+ $manualSource.coldReaderReceiptSha256-cne$selection.coldReceiptSha256-or
+ (Get-KmcChunk7OwnedWriteCount $request)-ne1){throw 'Fourth-Horse Manual source or one-write request differs.'}
+Write-Host 'PASS fourth-Horse Manual uses the same immutable source and distinct one-write selection'
+$selection.expectedNativeWriteCount=0
+$refused=$false
+try{Assert-KmcChunk7OwnedPairsSelection $request}catch{$refused=$true}
+if(-not$refused){throw 'Fourth-Horse Manual accepted zero-write authority.'}
+$selection.expectedNativeWriteCount=1
+Write-Host 'PASS fourth-Horse Manual refuses a changed write quota'
 $selection.coldReceiptSha256='0'*64
 $refused=$false
-try{[void](Get-KmcChunk7OwnedPairsSource $selection $null $retained.fixture $null)}catch{$refused=$true}
+try{[void](Get-KmcChunk7OwnedPairsSource $selection $request.persistenceCase $retained.fixture $null)}catch{$refused=$true}
 if(-not$refused){throw 'Changed cold receipt was accepted.'}
 Write-Host 'PASS changed cold receipt refused before native launch'
 $selection.coldReceiptSha256='4439fbea3608dad76634174b555f9d4ea243f2b4d0480029b03b7de66f9c8766'
 $selection.partyIds=@($selection.partyIds|Select-Object -First 7)
 $refused=$false
-try{[void](Get-KmcChunk7OwnedPairsSource $selection $null $retained.fixture $null)}catch{$refused=$true}
+try{[void](Get-KmcChunk7OwnedPairsSource $selection $request.persistenceCase $retained.fixture $null)}catch{$refused=$true}
 if(-not$refused){throw 'Seven-actor roster was accepted.'}
 Write-Host 'PASS seven-actor roster refused before native launch'

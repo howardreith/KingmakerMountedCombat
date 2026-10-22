@@ -25,7 +25,8 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool thirdSourceReleased, thirdSetupCompleted;
         private bool FourthHorseSetup => request.OwnedPairs?.IsFourthHorse == true;
         private bool ThirdHorseSetup => request.OwnedPairs?.SmallThirdHorseSetup == true || FourthHorseSetup;
-        private bool ThirdHorseManual => request.OwnedPairs?.IsSmallThirdHorseSave == true;
+        private bool ThirdHorseManual => request.OwnedPairs?.IsSmallThirdHorseSave == true ||
+            request.OwnedPairs?.IsFourthHorseSave == true;
 
         private void BeginThirdHorseSetup()
         {

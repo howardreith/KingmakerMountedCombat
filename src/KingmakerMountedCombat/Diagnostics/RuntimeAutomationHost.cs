@@ -646,7 +646,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 else if (Chunk7OrdinaryAcquisitionScenario.SupportsScenario(request.Scenario)) hostDeadline = 780.0;
                 else if (Chunk7CombatScenario.SupportsRequest(request)) hostDeadline = 480.0;
                 else if (Chunk7PersistenceScenario.SupportsRequest(request) || Chunk7WorldScenarioEngine.SupportsRequest(request))
-                    hostDeadline = request.OwnedPairs?.OwnerSeedSetup == true || request.OwnedPairs?.SmallThirdHorseSetup == true ? 780.0 : 420.0; // Native fixture setup adds bounded ordinary level-up choices.
+                    hostDeadline = request.OwnedPairs?.OwnerSeedSetup == true || request.OwnedPairs?.SmallThirdHorseSetup == true ||
+                        request.OwnedPairs?.IsFourthHorse == true ? 780.0 : 420.0; // Native fixture setup adds bounded ordinary level-up choices.
                 if (!IsManualReview && elapsedSeconds > hostDeadline)
                 {
                     if (IsLoadingProcessActive())

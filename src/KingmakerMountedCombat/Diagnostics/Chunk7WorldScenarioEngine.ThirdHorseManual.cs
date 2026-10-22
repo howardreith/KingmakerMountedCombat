@@ -33,7 +33,8 @@ namespace KingmakerMountedCombat.Diagnostics
             if (manualCallbacks == 0 || persistence.HasActiveSaveScope || persistence.HasSaveAdmissionFence ||
                 NativePersistenceIsolation.HasPendingWrites) return;
             ObserveThirdHorseManual();
-            Pass("C7-small-third-horse-native-manual"); BeginCleanup();
+            Pass(FourthHorseSetup ? "C7-f09-fourth-horse-native-manual" :
+                "C7-small-third-horse-native-manual"); BeginCleanup();
         }
 
         private void RequestThirdHorseManual()
@@ -162,7 +163,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["snapshotCount"] = persistence.SnapshotCount, ["readKind"] = read.Kind.ToString(),
                 ["sourceSchema"] = read.SourceSchema,
                 ["archive"] = JObject.FromObject(saved, MountedSaveCodec.CreateSerializer()) };
-            evidence["thirdHorseManual"] = new JObject { ["contract"] = "small-third-horse-manual-producer-v1",
+            evidence["thirdHorseManual"] = new JObject { ["contract"] = FourthHorseSetup ?
+                    "three-horse-source-fourth-native-horse-manual-v1" : "small-third-horse-manual-producer-v1",
                 ["disclosedAssistance"] = true, ["acquisitionProof"] = false,
                 ["setupCompletedBeforeSave"] = thirdSetupCompleted,
                 ["boundary"] = thirdManualBoundary, ["arrangementAfterSave"] = arrangementAfter,

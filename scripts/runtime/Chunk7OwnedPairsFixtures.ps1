@@ -546,11 +546,15 @@ function Get-KmcChunk7OwnedPairsMediumSource($Selection,[string]$PersistenceCase
   fixtureSetupOnly=$true;nativeAuthorityGranted=$false}
 }
 function Get-KmcChunk7OwnedPairsSource($Selection,[AllowNull()][string]$PersistenceCase,$Fixture,$Candidate,$AreaTarget=$null){
- if($null-ne$Selection-and$Selection.case-ceq'third-horse-fixture-fourth-horse-setup'){
-  if(-not[string]::IsNullOrEmpty($PersistenceCase) -or $null -ne $AreaTarget){throw 'Fourth-Horse setup admits no checkpoint or area route.'}
-  Assert-KmcChunk7OwnedPairsSelection ([pscustomobject]@{scenario='chunk7-owned-two-pair-campaign';runId='unassigned-fourth-horse';ownedPairs=$Selection;persistenceCase=$null})
+ if($null-ne$Selection-and$Selection.case-cin@('third-horse-fixture-fourth-horse-setup','third-horse-fixture-fourth-horse-persistence-save')){
+  $save=$Selection.case-ceq'third-horse-fixture-fourth-horse-persistence-save'
+  if ($save) {
+   if ($PersistenceCase -cne 'multi-exploration-manual') { throw 'Fourth-Horse Manual requires its exact checkpoint.' }
+  } elseif (-not [string]::IsNullOrEmpty($PersistenceCase)) { throw 'Fourth-Horse setup requires no checkpoint.' }
+  if ($null -ne $AreaTarget) { throw 'Fourth-Horse setup/Manual admits no area route.' }
+  Assert-KmcChunk7OwnedPairsSelection ([pscustomobject]@{scenario='chunk7-owned-two-pair-campaign';runId='unassigned-fourth-horse';ownedPairs=$Selection;persistenceCase=$PersistenceCase})
   $source=Get-KmcChunk7F09EightActorSource $Fixture
-  $request=[pscustomobject]@{scenario='chunk7-owned-two-pair-campaign';runId='unassigned-fourth-horse';ownedPairs=$Selection;persistenceCase=$null;persistenceLoad=$source.descriptor;fixture=$Fixture}
+  $request=[pscustomobject]@{scenario='chunk7-owned-two-pair-campaign';runId='unassigned-fourth-horse';ownedPairs=$Selection;persistenceCase=$PersistenceCase;persistenceLoad=$source.descriptor;fixture=$Fixture}
   Assert-KmcChunk7OwnedPairsDescriptor $request
   if($source.producerRunId-cne$Selection.sourceRunId-or$source.producerArtifactSha256-cne$Selection.sourceArtifactSha256-or
      $source.coldArtifactSha256-cne$Selection.coldReceiptSha256-or$source.descriptor.sha256-cne$Selection.sourceArchiveSha256-or
