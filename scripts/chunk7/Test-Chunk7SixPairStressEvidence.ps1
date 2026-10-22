@@ -99,7 +99,7 @@ for($i=0;$i-lt15;$i++){
 $stress=[pscustomobject]@{contract='cold-qualified-six-pair-lifecycle-v1';archiveProducerRunId='20261022-c7b-world184-b184s1-sixthhorse-manual';coldQualificationRunId=$selection.sourceRunId;
  fixtureSetupWrites=0;nativeSaveRequests=0;nativeLoadRequests=1;requiredCycles=3;requiredGroundInputs=6;requiredAbilityInputs=36;requiredWindows=15;windowsPerState=3;
  performanceAccepted=$false;requestFreeControlsProven=$false;identityScopeReleased=$true;cycles=@(for($i=1;$i-le3;$i++){World ('six-cycle-'+$i+'-settled') 0 (100*$i)});samples=$samples;
- nativeCastRequests=36;nativeRefusals=0;saveSnapshots=0;semanticRestores=0;presentationRestores=0}
+ nativeCastRequests=36;nativeRefusals=0;saveSnapshots=0;semanticRestores=0;presentationRestores=0;riderParents=1;riderParentChildren=16;siblingOrderVerifiedCycles=3}
 $o=[pscustomobject]@{inheritedFixture=(Inherited 'admitted');inheritedCleanup=(Inherited 'cleanup');sixPairStress=$stress;
  capability=[pscustomobject]@{archiveNativeEnabled=$true;nativeWriterSchema=3;nativePairCapacity=6;workingSha256=$null;inheritedManualSha256=$selection.sourceArchiveSha256};
  inputs=$inputs;cycleInputs=@();cycles=@();measurements=@();snapshots=@((World 'six-first-native-mounts' 6));movements=$moves;groundInputs=$ground;
@@ -118,7 +118,8 @@ foreach($fault in @('missing-sixth-owner','duplicate-mounted-role','wrong-sixth-
  'load2','write1','missing-input','duplicated-shell','foreign-caster','wrong-selected-neighbor','debt-refund','prepared-change','missing-move','neighbor-command','wrong-ground-call',
  'raw-missing-twelfth','raw-missing-command','raw-neighbor-command','raw-truncated','raw-read-failure',
  'missing-window','wrong-resident-count','wrong-active-count','replayed-frame','changed-pin','aliased-pin','missing-twelfth-resource','lost-neighbor-owner','increased-subscriptions',
- 'wrong-summary','native-log','fake-allocation-rate','false-performance-PASS','unreleased-pins','cleanup-owner','extra-save-proof')){
+ 'wrong-summary','native-log','fake-allocation-rate','false-performance-PASS','unreleased-pins','cleanup-owner','extra-save-proof',
+ 'unverified-sibling-order','missing-sibling-order','unparented-riders')){
  $v=Clone $artifact;$b=$v.observations
  switch($fault){
   'missing-sixth-owner'{$b.snapshots[0].owners=@($b.snapshots[0].owners|Select-Object -Skip 1)}
@@ -148,6 +149,8 @@ foreach($fault in @('missing-sixth-owner','duplicate-mounted-role','wrong-sixth-
   'fake-allocation-rate'{$b.sixPairStress.samples[9].sample|Add-Member nativeAllocation ([pscustomobject]@{fake=$true})}
   'false-performance-PASS'{$b.sixPairStress.performanceAccepted=$true};'unreleased-pins'{$b.sixPairStress.identityScopeReleased=$false}
   'cleanup-owner'{$b.cleanup.world.owners=@($b.snapshots[0].owners[0])};'extra-save-proof'{$b|Add-Member nativeWrite ([pscustomobject]@{fake=$true})}
+  'unverified-sibling-order'{$b.sixPairStress.siblingOrderVerifiedCycles=2};'missing-sibling-order'{$b.sixPairStress.PSObject.Properties.Remove('siblingOrderVerifiedCycles')}
+  'unparented-riders'{$b.sixPairStress.riderParents=0}
  }
  Check ('strict six-pair reader refuses '+$fault) {Assert-KmcChunk7WorldEvidence $request $v 'PASS'} $true
 }

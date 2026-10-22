@@ -1,4 +1,4 @@
-using System;using System.Collections.Generic;using System.Linq;using KingmakerMountedCombat.Diagnostics;
+using System;using System.Collections.Generic;using System.IO;using System.Linq;using KingmakerMountedCombat.Diagnostics;
 using UnitEntityData=Kingmaker.EntitySystem.Entities.UnitEntityData;using Actor=Kingmaker.EntitySystem.Entities.UnitEntityData;using MountedPairServices=Pair;
 enum RelationshipState{Unmounted,Mounted}enum CleanupTrigger{Exception}
 class JObject:Dictionary<string,object>{public new object this[string key]{get{object value;return TryGetValue(key,out value)?value:null;}set{base[key]=value;}}public static JObject FromObject(object x){return new JObject();}}
@@ -31,9 +31,10 @@ class Chunk7NativeBuilderCancellation{public Chunk7NativeBuilderCancellation(obj
 class TimeController{public TimeSpan GameTime=TimeSpan.Zero;}class LoadingProcess{public static LoadingProcess Instance=new LoadingProcess();public bool IsLoadingInProcess;public string[] QueuedNames=new string[0];}static class NativePersistenceIsolation{public static bool HasPendingWrites;}static class Time{public static int frameCount;}
 class Destroyer{public void Tick(){}}class State{public NativeAreaState LoadedAreaState=new NativeAreaState();public List<Actor> Units=new List<Actor>();}class Player{public string GameId="campaign";public Reference MainCharacter=new Reference{Value=new Actor()};public List<Actor> ControllableCharacters=new List<Actor>();}
 class SelectionManager{public static SelectionManager Instance=new SelectionManager();public Actor[] SelectedUnits=new Actor[0];public void MultiSelect(IEnumerable<View> v,bool x){SelectedUnits=v.Select(y=>y.Actor).ToArray();}}
-static class RuntimeLoaderInventory{public static int Writes;public static void WriteArtifact(object r,string f,string k,string s,object e,object x){Writes++;}}
+// Mirrors the actual atomic writer: one real file per name, never overwritten.
+static class RuntimeLoaderInventory{public static int Writes,FailWrites;public static void WriteArtifact(object r,string f,string k,string s,object e,object x){if(FailWrites>0){FailWrites--;throw new IOException("artifact write pending");}var root=((RuntimeRequest)r).EvidenceRoot;Directory.CreateDirectory(root);var path=Path.Combine(root,f);if(File.Exists(path))throw new InvalidOperationException("Native artifact already exists: "+f);File.WriteAllText(path,k+"|"+s+"|"+Writes);Writes++;}}
 
-class RuntimeRequest{public Fixture Fixture=new Fixture();public Working SelectedChunk7Fixture=>Fixture.Working;public object OwnedPairs;public List<string> Validate(){throw new Exception("unexpected owned DTO in external world stub");}}class Fixture{public Working Working=new Working();}class Working{public string GameId="campaign",GameName="fixture",Area="area";}
+class RuntimeRequest{public string EvidenceRoot=Path.Combine(AppDomain.CurrentDomain.BaseDirectory,"evidence-"+Guid.NewGuid().ToString("N"));public Fixture Fixture=new Fixture();public Working SelectedChunk7Fixture=>Fixture.Working;public object OwnedPairs;public List<string> Validate(){throw new Exception("unexpected owned DTO in external world stub");}}class Fixture{public Working Working=new Working();}class Working{public string GameId="campaign",GameName="fixture",Area="area";}
 class NativeArea{public string AssetGuidThreadSafe="area";}class NativeAreaState{public object MainState=new object();}
 namespace Kingmaker{class Game:global::Game{}}
 class DoorProbe{public Command[] IssuedCommands=new Command[0];public bool Ready,Fail;public int Drains;public bool Drain(){Drains++;if(Fail)throw new Exception("door pending");return Ready;}}
@@ -46,7 +47,9 @@ class WorldAdapter{
  ThirdDriver thirdDriver;Chunk7NativeBuilderCancellation thirdCancellation;
  void RequireThirdHorseOriginals(){throw new Exception("third-Horse case not selected");}
  void RequireThirdHorseSetupPreserved(){throw new Exception("third-Horse case not selected");}
- bool SixPairStress;JArray sixSamples=new JArray(null);JObject sixObservation;
+ bool SixPairStress;JArray sixSamples=new JArray(null);JObject sixObservation;IDisposable sixAttachmentObservation;
+ const string CleanupPendingFileName="chunk7-world-cleanup-pending.json";string RetainedFailureArtifactSha256;bool cleanupPendingWritten;double cleanupPendingAttemptedAt=double.NegativeInfinity;
+ class RowResult{public string Name,Status;}List<RowResult> results=new List<RowResult>();
  Lease sixIdentities;object[] sixPins;
  __SIX_RELEASE__
  InheritedFixtureBoundary inherited;
@@ -69,10 +72,10 @@ class WorldAdapter{
  Lease quietWindow;
  Chunk7NativeWorldScope nativeScope;
  bool cleanupStarted,captured=true,completed,disposed,cleanupProven,cleanupPendingReported,originalPaired,originalMovement,originalPause;double stepStarted;Clock clock=new Clock();Lease measurement,mode=new Lease(),ummLease=new Lease(),screenshots;
- List<Command> issuedCommands=new List<Command>{new UnitUseAbility()};World world=new World();Controls controls=new Controls();Actor secondRider=new Actor(),secondMount=new Actor(),firstRider=new Actor(),firstMount=new Actor();Actor[] originalSelection=new Actor[0];object horseFeature=new object(),rankFeature=new object(),request;
+ List<Command> issuedCommands=new List<Command>{new UnitUseAbility()};World world=new World();Controls controls=new Controls();Actor secondRider=new Actor(),secondMount=new Actor(),firstRider=new Actor(),firstMount=new Actor();Actor[] originalSelection=new Actor[0];object horseFeature=new object(),rankFeature=new object();RuntimeRequest request=new RuntimeRequest();
  Settings settings=new Settings();JObject evidence=new JObject();List<string> errors=new List<string>();Dictionary<string,int> cleanupAttempts=new Dictionary<string,int>();const string EvidenceFileName="fixture",EvidenceKind="fixture";
  public WorldAdapter(){secondRider.Descriptor.Pet=secondMount;Game.Instance.State.Units.Add(secondMount);firstRider.Descriptor.Pet=firstMount;firstMount.Descriptor.Master.Value=firstRider;var horse=horseFeature;secondRider.Descriptor.Progression.Features.OnRemove=f=>{if(ReferenceEquals(f,horse)){secondMount.IsInState=false;Game.Instance.State.Units.Remove(secondMount);secondRider.Descriptor.Pet=null;}};foreach(var actor in new[]{firstRider,firstMount,secondRider,secondMount})if(!Game.Instance.State.Units.Contains(actor))Game.Instance.State.Units.Add(actor);nativeScope=new Chunk7NativeWorldScope(new RuntimeRequest(),new[]{firstRider,firstMount,secondRider,secondMount});}
- static int Id(object x){return System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(x);}static void Require(bool c,string e){if(!c)throw new Exception(e);}void Fail(string n,string e){errors.Add(e);}void Pass(string n){}object CaptureWorld(string x){return null;}IEnumerable<Actor> PartyActors(){return new Actor[0];}object CaptureRig(Actor a){return null;}
+ static int Id(object x){return System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(x);}static void Require(bool c,string e){if(!c)throw new Exception(e);}void Fail(string n,string e){if(errors.Contains(e))return;errors.Add(e);results.Add(new RowResult{Name=n,Status="FAIL"});}void Pass(string n){}object CaptureWorld(string x){return null;}IEnumerable<Actor> PartyActors(){return new Actor[0];}object CaptureRig(Actor a){return null;}
  static void VerifyInterruptedLabel(){Game.Instance=new Game();LoadingProcess.Instance=new LoadingProcess();NativePersistenceIsolation.HasPendingWrites=false;var e=new WorldAdapter();((UnitUseAbility)e.issuedCommands[0]).ExecutionProcess.IsEnded=true;e.DrainForHost();Check(e.setupFailureMarks==1,"host interrupt before the terminal result asks the owner-seed partial to label its phase");}
  static void VerifyOwnerSeedCleanup(){
   Game.Instance=new Game();LoadingProcess.Instance=new LoadingProcess();NativePersistenceIsolation.HasPendingWrites=false;var e=new WorldAdapter();((UnitUseAbility)e.issuedCommands[0]).ExecutionProcess.IsEnded=true;var guard=new OwnerSeedGuard();e.ownerSeed=guard;
@@ -187,7 +190,28 @@ __METHODS__
  Check(e.DrainForHost()&&e.completed&&e.world.Pairs.All(p=>p.Relationship.PairOwner==null)&&e.matchedWrites==0&&e.errors.Count>0,
  "six-pair settlement preserves original failure and publishes no legacy two-pair sidecar");
  }
- static int passed;static void Check(bool condition,string name){if(!condition)throw new Exception(name);passed++;Console.WriteLine("PASS "+name);}
+ static string Sha(string path){using(var h=System.Security.Cryptography.SHA256.Create())using(var s=File.OpenRead(path))return BitConverter.ToString(h.ComputeHash(s)).Replace("-","").ToLowerInvariant();}
+ static WorldAdapter RetainedSix(){Game.Instance=new Game();LoadingProcess.Instance=new LoadingProcess();NativePersistenceIsolation.HasPendingWrites=false;var e=new WorldAdapter();e.SixPairStress=true;e.inherited=new InheritedFixtureBoundary{Party=new[]{e.firstRider,e.firstMount,e.secondRider,e.secondMount}};e.world.Pairs=Enumerable.Range(0,6).Select(_=>new Pair()).ToArray();e.sixSamples=new JArray(new int[15]);e.sixObservation=new JObject{["identityScopeReleased"]=false};e.world.Pairs[5].Relationship.Reject=true;e.BeginCleanup();e.clock.Elapsed=TimeSpan.FromSeconds(16);return e;}
+ static bool ScopeAdmits(WorldAdapter e){try{e.RequireRetainedSixFailureScope();return true;}catch{return false;}}
+ static void VerifyRetainedFailurePublication(){
+ var e=RetainedSix();var pending=Path.Combine(e.request.EvidenceRoot,CleanupPendingFileName);var writes=RuntimeLoaderInventory.Writes;RuntimeLoaderInventory.FailWrites=1;
+ bool threw=false;try{e.DrainForHost();}catch(IOException){threw=true;}
+ Check(threw&&!e.cleanupPendingReported&&!e.cleanupPendingWritten&&!File.Exists(pending)&&e.RetainedFailureArtifactSha256==null&&e.errors.Count(x=>x.Contains("Fifteen-second cleanup budget expired"))==1&&!ScopeAdmits(e),"retained FAIL writer failure leaves no latch, artifact or exit scope and records its cause once");
+ e.clock.Elapsed+=TimeSpan.FromSeconds(0.5);Check(!e.DrainForHost()&&!e.cleanupPendingReported&&!File.Exists(pending)&&RuntimeLoaderInventory.Writes==writes,"retained FAIL writer retry waits at least one second instead of every frame");e.clock.Elapsed+=TimeSpan.FromSeconds(0.6);
+ Check(!e.DrainForHost()&&e.cleanupPendingReported&&File.Exists(pending)&&RuntimeLoaderInventory.Writes==writes+1&&e.RetainedFailureArtifactSha256==Sha(pending)&&e.errors.Count(x=>x.Contains("Fifteen-second cleanup budget expired"))==1,"retained FAIL writer retry publishes once and latches the exact artifact hash");
+ var hash=e.RetainedFailureArtifactSha256;Check(!e.DrainForHost()&&RuntimeLoaderInventory.Writes==writes+1&&e.RetainedFailureArtifactSha256==hash&&Sha(pending)==hash,"latched retained FAIL artifact is immutable across later polls");
+ Check(ScopeAdmits(e),"committed hashed retained six-pair FAIL in its unchanged world admits the exit scope");
+ // Only the hash fails: the atomic artifact already exists and an exclusive reader blocks it.
+ var g=RetainedSix();var gp=Path.Combine(g.request.EvidenceRoot,CleanupPendingFileName);var gw=RuntimeLoaderInventory.Writes;Directory.CreateDirectory(g.request.EvidenceRoot);
+ File.WriteAllText(gp,"placed-by-writer");g.cleanupPendingWritten=true;
+ using(var locked=new FileStream(gp,FileMode.Open,FileAccess.ReadWrite,FileShare.None)){bool failed=false;try{g.DrainForHost();}catch(IOException){failed=true;}
+  Check(failed&&!g.cleanupPendingReported&&g.RetainedFailureArtifactSha256==null&&RuntimeLoaderInventory.Writes==gw&&!ScopeAdmits(g),"retained FAIL hash failure after the atomic write keeps the latch open without rewriting");}
+ g.clock.Elapsed+=TimeSpan.FromSeconds(1.1);
+ Check(!g.DrainForHost()&&g.cleanupPendingReported&&g.RetainedFailureArtifactSha256==Sha(gp)&&RuntimeLoaderInventory.Writes==gw&&File.ReadAllText(gp)=="placed-by-writer","retained FAIL hash retry latches the existing artifact without a second write");
+ var n=RetainedSix();n.SixPairStress=false;n.DrainForHost();Check(n.cleanupPendingReported&&!ScopeAdmits(n),"exit scope refuses a retained failure outside the six-pair lifecycle");
+ var p=RetainedSix();p.DrainForHost();p.cleanupProven=true;Check(!ScopeAdmits(p),"exit scope refuses proven cleanup");
+ var w=RetainedSix();w.DrainForHost();Game.Instance=new Game();Check(!ScopeAdmits(w),"exit scope refuses a changed native world");
+ } static int passed;static void Check(bool condition,string name){if(!condition)throw new Exception(name);passed++;Console.WriteLine("PASS "+name);}
  public static void Verify(){var e=new WorldAdapter();var features=e.secondRider.Descriptor.Progression.Features;var command=(UnitUseAbility)e.issuedCommands[0];
  Game.Instance.IsPaused=true;e.BeginCleanup();Check(features.Removed.Count==0&&command.Interruptions==0&&Game.Instance.IsPaused,"BeginCleanup preserves pause, facts, and live commands");
  e.world.SerializationBusy=true;Check(!e.DrainForHost()&&command.Interruptions==0&&features.Removed.Count==0&&Game.Instance.IsPaused,"native serialization worker fences unpause and command/fact cleanup");e.world.SerializationBusy=false;
@@ -209,6 +233,7 @@ __METHODS__
  VerifyMatchedCustody();
  VerifyGroundInputCustody();
  VerifySixCleanup();
+ VerifyRetainedFailurePublication();
  Console.WriteLine("CHUNK7 WORLD CLEANUP ADAPTER PASS="+passed+" FAIL=0; actual source methods with external native boundary stubs only");}
 }
 static class Program{static int Main(){try{WorldAdapter.Verify();return 0;}catch(Exception e){Console.Error.WriteLine(e);return 1;}}}

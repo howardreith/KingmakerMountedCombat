@@ -37,6 +37,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["performanceAccepted"] = false, ["requestFreeControlsProven"] = false,
                 ["identityScopeReleased"] = false, ["cycles"] = sixCycles, ["samples"] = sixSamples };
             evidence["sixPairStress"] = sixObservation;
+            CaptureSixSiblingOrder();
             sixAttachmentObservation = new SixPairAttachmentObservation(Enumerable.Range(0, 6).Select(i => SixRider(i).UniqueId), logger);
             sixCycle = 1; sixIndex = 0; Next(1000);
         }
@@ -110,6 +111,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     Require(world.BoundaryCount == 6 && world.UnifiedTurn.SnapshotParticipants.Length == 6 &&
                         world.Pairs.All(pair => pair.Relationship.Runtime.NoPreparedPairResidue && PairCommandsSettled(pair)),
                         "Six-pair settled cycle lost its resident services or retained movement/command custody.");
+                    RequireSixSiblingOrder();
                     sixCycles.Add(CaptureWorld("six-cycle-" + sixCycle + "-settled"));
                     if (sixCycle == 1) { sixCycle = 2; sixIndex = 0; Next(1001); break; }
                     if (sixCycle == 2) { BeginSixSample(0); break; }

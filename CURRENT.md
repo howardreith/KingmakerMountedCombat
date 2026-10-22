@@ -1,5 +1,17 @@
 # Chunk 7B–7D — IN PROGRESS
 
+Claude batch188 preparation: the [sibling-slot correction and unattended six-pair FAIL exit](docs/CHUNK7-B188-SIBLING-SLOT-AND-UNATTENDED-EXIT-2026-10-22.md)
+implements the batch187 cause. Each attachment lease owns an inert reservation in its
+rider's exact slot, so restores are exact in any dismount order. The pose component is released only after
+the attachment verifies. A disposable zero-write six-pair run whose cleanup cannot settle
+now publishes an honest FAIL and quits normally once, so restoration needs no owner.
+Offline: Fast 3/0 (869 components, 147 source), harness 281/0, focused actual-method
+and reader checks all PASS; independent review and focused re-review CLEAR. No new
+native run yet. Next: one frozen candidate and one zero-write six-pair lifecycle native
+scenario, then the six-mounted Manual/cold route. Standing mission remains IN PROGRESS.
+
+Historical pre-batch188 checkpoint:
+
 Owner requested transfer to Claude. The [batch187 handoff](docs/CLAUDE-HANDOFF-CHUNK7-BATCH187-2026-10-22.md)
 records the decisive shared-parent sibling-index failure, unchanged original
 native/outer FAILs, exact restoration and next implementation steps. No game

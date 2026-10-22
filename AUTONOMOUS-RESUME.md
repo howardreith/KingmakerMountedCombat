@@ -1,6 +1,35 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
-## Active October 22 — owner-requested Claude transfer after batch187
+## Active October 22 — Claude batch188: sibling-slot correction, unattended FAIL exit
+
+Read the [batch188 preparation record](docs/CHUNK7-B188-SIBLING-SLOT-AND-UNATTENDED-EXIT-2026-10-22.md),
+the [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) and the
+[batch187 handoff](docs/CLAUDE-HANDOFF-CHUNK7-BATCH187-2026-10-22.md).
+
+Work so far:
+- Implemented and tested the causal sibling-slot correction, the pose-retry ordering, the
+  six-pair exact parent-order observation, and the owner-required unattended terminal FAIL
+  exit.
+- Independent review is CLEAR. Its SHOULD-FIX 1, 2 and 4 are corrected with failing-first
+  tests, and a focused re-review is also CLEAR.
+- SHOULD-FIX 3 (feed the exit's real result through the full game-result reader) must close
+  before an exit-produced result counts toward qualification. Restoration never depends on it.
+
+Next uncompleted action:
+1. Commit and guarded-push this coherent change.
+2. Build one package with qualifier `c7b-world188-slot`, then Candidate with -SkipBuild.
+3. Freeze the suite and run the scoped WhatIf.
+4. Run ONE declared zero-write native scenario:
+   - six-horse-cold-fixture-lifecycle-stress with the unchanged batch187 selection bytes;
+   - one load, zero saves; launched orphaned via WMI with a receipt wrapper.
+5. Keep HEAD and every execution input frozen until settlement and read-only restoration
+   verification.
+
+Then: the six-mounted Manual/cold route, remaining F10/F11/doors and private 7E. No merge,
+release, permanent installation or HUMAN PLAY acceptance. Private execution note:
+analysis-cache/chunk7-continuation/b188-claude-current-execution.md.
+
+## Historical October 22 — owner-requested Claude transfer after batch187
 
 Read [the Claude handoff](docs/CLAUDE-HANDOFF-CHUNK7-BATCH187-2026-10-22.md)
 and the [standing mission](planning/CHUNK7-COMPLETION-MISSION.md). The existing

@@ -127,11 +127,14 @@ function Assert-KmcChunk7SixPairStressEvidence($Request,$O){
  $roles=@(Get-KmcChunk7SixPairRoles);$s=$O.sixPairStress
  Assert-KmcExactProperties $s @('contract','archiveProducerRunId','coldQualificationRunId','fixtureSetupWrites','nativeSaveRequests','nativeLoadRequests',
   'requiredCycles','requiredGroundInputs','requiredAbilityInputs','requiredWindows','windowsPerState','performanceAccepted','requestFreeControlsProven',
-  'identityScopeReleased','cycles','samples','nativeCastRequests','nativeRefusals','saveSnapshots','semanticRestores','presentationRestores') 'six-pair native lifecycle observation'
+  'identityScopeReleased','cycles','samples','nativeCastRequests','nativeRefusals','saveSnapshots','semanticRestores','presentationRestores',
+  'riderParents','riderParentChildren','siblingOrderVerifiedCycles') 'six-pair native lifecycle observation'
  foreach($pair in @(@('contract','cold-qualified-six-pair-lifecycle-v1'),@('archiveProducerRunId','20261022-c7b-world184-b184s1-sixthhorse-manual'),@('coldQualificationRunId',$Request.ownedPairs.sourceRunId))){Assert-KmcBootstrapInventoryString $s.($pair[0]) $pair[1]}
  foreach($key in @('fixtureSetupWrites','nativeSaveRequests','nativeRefusals','saveSnapshots','semanticRestores','presentationRestores')){Assert-KmcOrdinaryInteger $s.$key 0 0}
  foreach($pair in @(@('nativeLoadRequests',1),@('requiredCycles',3),@('requiredGroundInputs',6),@('requiredAbilityInputs',36),@('requiredWindows',15),@('windowsPerState',3),@('nativeCastRequests',36))){Assert-KmcOrdinaryInteger $s.($pair[0]) $pair[1] $pair[1]}
  foreach($key in @('performanceAccepted','requestFreeControlsProven')){Assert-KmcChunk7Boolean $s.$key $false};Assert-KmcChunk7Boolean $s.identityScopeReleased $true
+ # Each settled cycle reproduced every native rider parent's exact child order.
+ Assert-KmcOrdinaryInteger $s.riderParents 1 6;Assert-KmcOrdinaryInteger $s.riderParentChildren 6 ([int]::MaxValue);Assert-KmcOrdinaryInteger $s.siblingOrderVerifiedCycles 3 3
  Assert-KmcChunk7Boolean $O.capability.archiveNativeEnabled $true;Assert-KmcOrdinaryInteger $O.capability.nativeWriterSchema 3 3;Assert-KmcOrdinaryInteger $O.capability.nativePairCapacity 6 6
  Assert-KmcBootstrapInventoryString $O.capability.inheritedManualSha256 $Request.ownedPairs.sourceArchiveSha256
  if($null-ne$O.capability.workingSha256){throw 'Six-pair fixture cannot claim legacy Working ancestry.'}

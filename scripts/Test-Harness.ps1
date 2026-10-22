@@ -10160,13 +10160,14 @@ try {
             $lifecycleSource.Contains('CleanupTrigger.ViewReplaced') -and
             $runtimeSource.Contains('ReleaseReplacementRiderViewFromOwnedAnchor') -and
             $attachmentSource.Contains('public bool ReleaseInheritedReplacement(') -and
-            $attachmentSource.Contains('setParent(replacement, originalParent, true);')) `
+            $attachmentSource.Contains('moveToContainer(replacement, originalContainer);')) `
             'polymorph/view replacement does not release the stock replacement before KMC anchor cleanup'
         $replacementRelease = $runtimeSource.IndexOf('ReleaseReplacementRiderViewFromOwnedAnchor', [StringComparison]::Ordinal)
         $poseRestore = $runtimeSource.IndexOf('poseAdapter.Deconfigure();', $replacementRelease, [StringComparison]::Ordinal)
         $attachmentRestore = $runtimeSource.IndexOf('riderAttachmentLease.Restore();', $poseRestore, [StringComparison]::Ordinal)
-        Assert-Test ($replacementRelease -ge 0 -and $poseRestore -gt $replacementRelease -and $attachmentRestore -gt $poseRestore) `
-            'stock replacement release is not ordered before old-view pose and attachment restoration'
+        $poseRelease = $runtimeSource.IndexOf('UnityEngine.Object.Destroy(poseAdapter);', $attachmentRestore, [StringComparison]::Ordinal)
+        Assert-Test ($replacementRelease -ge 0 -and $poseRestore -gt $replacementRelease -and $attachmentRestore -gt $poseRestore -and $poseRelease -gt $attachmentRestore) `
+            'stock replacement release, pose baseline restoration, attachment restoration and pose component release are out of order'
         Assert-Test ($patchSource.Contains('PatchExact(typeof(ClickGroundHandler), "RunCommand", 0x060093DC') -and
             $patchSource.Contains('nameof(PatchMethods.GroundCommandPrefix), nameof(PatchMethods.GroundCommandPostfix)') -and
             $patchSource.Contains('TryAdmitGroundCommand(unit)') -and

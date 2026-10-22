@@ -1104,22 +1104,23 @@ namespace KingmakerMountedCombat.Tests
 
         private static void ViewAttachmentLeaseRestoresExactState()
         {
-            var originalParent = new FakeTransformNode("original-parent");
-            var attachmentParent = new FakeTransformNode("attachment-parent");
-            var rider = new FakeTransformNode("rider")
+            var hierarchy = new FakeSiblingHierarchy();
+            var originalParent = hierarchy.Root("original-parent");
+            for (var index = 0; index < 3; index++)
             {
-                Parent = originalParent,
-                SiblingIndex = 3,
-                WorldPosition = "position-before",
-                WorldRotation = "rotation-before",
-                LocalScale = "scale-before"
-            };
-            var lease = CreateFakeAttachmentLease();
+                hierarchy.Child("sibling-" + index, originalParent);
+            }
+            var rider = hierarchy.Child("rider", originalParent);
+            hierarchy.Child("sibling-after", originalParent);
+            rider.WorldPosition = "position-before";
+            rider.WorldRotation = "rotation-before";
+            rider.LocalScale = "scale-before";
+            var attachmentParent = hierarchy.Root("attachment-parent");
+            var lease = hierarchy.CreateLease();
 
             lease.Acquire(rider, attachmentParent);
             TestRunner.True(lease.IsAcquired, "Attachment lease was not acquired.");
             TestRunner.Equal(attachmentParent, rider.Parent, "Rider was not parented to the attachment anchor.");
-            rider.SiblingIndex = 0;
             rider.WorldPosition = "position-mounted";
             rider.WorldRotation = "rotation-mounted";
             rider.LocalScale = "scale-mounted";
@@ -1132,37 +1133,36 @@ namespace KingmakerMountedCombat.Tests
             TestRunner.Equal("position-before", rider.WorldPosition, "Original world position was not restored.");
             TestRunner.Equal("rotation-before", rider.WorldRotation, "Original world rotation was not restored.");
             TestRunner.Equal("scale-before", rider.LocalScale, "Original local scale was not restored.");
+            hierarchy.EndFrame();
+            TestRunner.Equal(0, hierarchy.LiveReservations, "Successful restore left a sibling slot reservation.");
         }
 
         private static void ViewAttachmentLeaseCleanupIsIdempotent()
         {
-            var rider = new FakeTransformNode("rider")
-            {
-                Parent = new FakeTransformNode("original-parent"),
-                WorldPosition = "position",
-                WorldRotation = "rotation",
-                LocalScale = "scale"
-            };
-            var lease = CreateFakeAttachmentLease();
-            lease.Acquire(rider, new FakeTransformNode("attachment-parent"));
+            var hierarchy = new FakeSiblingHierarchy();
+            var rider = hierarchy.Child("rider", hierarchy.Root("original-parent"));
+            var lease = hierarchy.CreateLease();
+            lease.Acquire(rider, hierarchy.Root("attachment-parent"));
             lease.Restore();
             lease.Restore();
-            TestRunner.True(!lease.IsAcquired && lease.LastRestoreVerified, "Repeated restore changed successful cleanup state.");
+            TestRunner.True(!lease.IsAcquired && lease.LastRestoreVerified && !lease.HoldsSiblingReservation,
+                "Repeated restore changed successful cleanup state.");
         }
 
         private static void ViewAttachmentLeaseRetainsSnapshotForRetry()
         {
-            var rider = new FakeTransformNode("rider")
-            {
-                Parent = new FakeTransformNode("original-parent"),
-                SiblingIndex = 2,
-                WorldPosition = "position-before",
-                WorldRotation = "rotation-before",
-                LocalScale = "scale-before",
-                FailNextRotationWrite = true
-            };
-            var lease = CreateFakeAttachmentLease();
-            lease.Acquire(rider, new FakeTransformNode("attachment-parent"));
+            var hierarchy = new FakeSiblingHierarchy();
+            var originalParent = hierarchy.Root("original-parent");
+            hierarchy.Child("sibling-0", originalParent);
+            hierarchy.Child("sibling-1", originalParent);
+            var rider = hierarchy.Child("rider", originalParent);
+            rider.WorldPosition = "position-before";
+            rider.WorldRotation = "rotation-before";
+            rider.LocalScale = "scale-before";
+            rider.FailNextRotationWrite = true;
+            var lease = hierarchy.CreateLease();
+            lease.Acquire(rider, hierarchy.Root("attachment-parent"));
+            rider.WorldRotation = "rotation-mounted";
             var failed = false;
             try
             {
@@ -1173,32 +1173,35 @@ namespace KingmakerMountedCombat.Tests
                 failed = true;
             }
             TestRunner.True(failed, "Injected transform restore failure was not reported.");
-            TestRunner.True(lease.IsAcquired && !lease.LastRestoreVerified, "Failed restore discarded the retryable snapshot.");
+            TestRunner.True(lease.IsAcquired && !lease.LastRestoreVerified && lease.HoldsSiblingReservation,
+                "Failed restore discarded the retryable snapshot or its sibling slot reservation.");
 
             lease.Restore();
             TestRunner.True(!lease.IsAcquired && lease.LastRestoreVerified, "Cleanup retry did not verify exact restoration.");
             TestRunner.Equal("rotation-before", rider.WorldRotation, "Cleanup retry did not restore world rotation.");
+            TestRunner.Equal(2, rider.SiblingIndex, "Cleanup retry did not restore the exact sibling slot.");
         }
 
         private static void ViewAttachmentLeaseUsesInjectedBoundedComparers()
         {
-            var rider = new FakeTransformNode("rider")
-            {
-                Parent = new FakeTransformNode("original-parent"),
-                WorldPosition = "1.0000",
-                WorldRotation = "20.000",
-                LocalScale = "1.0000",
-                PositionWriteBias = 0.00005d,
-                RotationWriteBias = 0.005d,
-                ScaleWriteBias = 0.00005d
-            };
-            var lease = CreateNumericFakeAttachmentLease();
-            lease.Acquire(rider, new FakeTransformNode("attachment-parent"));
+            var hierarchy = new FakeSiblingHierarchy();
+            var rider = hierarchy.Child("rider", hierarchy.Root("original-parent"));
+            rider.WorldPosition = "1.0000";
+            rider.WorldRotation = "20.000";
+            rider.LocalScale = "1.0000";
+            rider.PositionWriteBias = 0.00005d;
+            rider.RotationWriteBias = 0.005d;
+            rider.ScaleWriteBias = 0.00005d;
+            var lease = hierarchy.CreateNumericLease(
+                new BoundedDoubleComparer(0.0001d),
+                new BoundedDoubleComparer(0.01d),
+                new BoundedDoubleComparer(0.0001d));
+            lease.Acquire(rider, hierarchy.Root("attachment-parent"));
             lease.Restore();
             TestRunner.True(!lease.IsAcquired && lease.LastRestoreVerified, "Bounded float restoration drift caused a false residue failure.");
 
             rider.PositionWriteBias = 0.01d;
-            lease.Acquire(rider, new FakeTransformNode("attachment-parent"));
+            lease.Acquire(rider, hierarchy.Root("attachment-parent"));
             var failed = false;
             try { lease.Restore(); }
             catch (AggregateException) { failed = true; }
@@ -1212,79 +1215,38 @@ namespace KingmakerMountedCombat.Tests
 
         private static void ViewAttachmentLeaseReleasesInheritedReplacement()
         {
-            var originalParent = new FakeTransformNode("stock-parent");
-            var anchor = new FakeTransformNode("owned-anchor");
-            var rider = new FakeTransformNode("old-rider")
+            var hierarchy = new FakeSiblingHierarchy();
+            var originalParent = hierarchy.Root("stock-parent");
+            for (var index = 0; index < 4; index++)
             {
-                Parent = originalParent,
-                SiblingIndex = 4,
-                WorldPosition = "old-position",
-                WorldRotation = "old-rotation",
-                LocalScale = "old-scale"
-            };
-            var replacement = new FakeTransformNode("stock-polymorph-replacement")
-            {
-                Parent = anchor,
-                SiblingIndex = 0,
-                WorldPosition = "replacement-position",
-                WorldRotation = "replacement-rotation",
-                LocalScale = "replacement-scale"
-            };
-            var lease = CreateFakeAttachmentLease();
+                hierarchy.Child("stock-sibling-" + index, originalParent);
+            }
+            var rider = hierarchy.Child("old-rider", originalParent);
+            hierarchy.Child("stock-sibling-after", originalParent);
+            rider.WorldPosition = "old-position";
+            rider.WorldRotation = "old-rotation";
+            rider.LocalScale = "old-scale";
+            var anchor = hierarchy.Root("owned-anchor");
+            var lease = hierarchy.CreateLease();
             lease.Acquire(rider, anchor);
+            var replacement = hierarchy.Child("stock-polymorph-replacement", anchor);
+            replacement.WorldPosition = "replacement-position";
+            replacement.WorldRotation = "replacement-rotation";
+            replacement.LocalScale = "replacement-scale";
 
             TestRunner.True(lease.ReleaseInheritedReplacement(replacement), "Inherited replacement was not released.");
             TestRunner.Equal(originalParent, replacement.Parent, "Replacement did not return to the captured stock parent.");
-            TestRunner.Equal(4, replacement.SiblingIndex, "Replacement did not inherit the captured stock sibling position.");
+            TestRunner.Equal(originalParent.Children.Count - 1, replacement.SiblingIndex,
+                "Replacement did not take the native Polymorph last-sibling placement.");
+            TestRunner.Equal(4, hierarchy.Reservations[0].SiblingIndex, "Replacement moved the old view's reserved sibling slot.");
             TestRunner.Equal("replacement-position", replacement.WorldPosition, "Replacement world position changed.");
             TestRunner.Equal("replacement-rotation", replacement.WorldRotation, "Replacement world rotation changed.");
             TestRunner.True(lease.IsAcquired, "Releasing the replacement discarded the old rider lease.");
 
-            var foreign = new FakeTransformNode("foreign") { Parent = originalParent };
+            var foreign = hierarchy.Child("foreign", originalParent);
             TestRunner.True(!lease.ReleaseInheritedReplacement(foreign), "A view outside the owned anchor was reparented.");
             lease.Restore();
-        }
-
-        private static ScopedTransformAttachmentLease<FakeTransformNode, string, string, string> CreateFakeAttachmentLease()
-        {
-            return new ScopedTransformAttachmentLease<FakeTransformNode, string, string, string>(
-                node => node.Parent,
-                node => node.SiblingIndex,
-                node => node.WorldPosition,
-                node => node.WorldRotation,
-                node => node.LocalScale,
-                (node, parent, worldPositionStays) => node.Parent = parent,
-                (node, siblingIndex) => node.SiblingIndex = siblingIndex,
-                (node, position) => node.WorldPosition = position,
-                (node, rotation) =>
-                {
-                    if (node.FailNextRotationWrite)
-                    {
-                        node.FailNextRotationWrite = false;
-                        throw new InvalidOperationException("injected rotation failure");
-                    }
-                    node.WorldRotation = rotation;
-                },
-                (node, scale) => node.LocalScale = scale);
-        }
-
-        private static ScopedTransformAttachmentLease<FakeTransformNode, double, double, double> CreateNumericFakeAttachmentLease()
-        {
-            return new ScopedTransformAttachmentLease<FakeTransformNode, double, double, double>(
-                node => node.Parent,
-                node => node.SiblingIndex,
-                node => double.Parse(node.WorldPosition, System.Globalization.CultureInfo.InvariantCulture),
-                node => double.Parse(node.WorldRotation, System.Globalization.CultureInfo.InvariantCulture),
-                node => double.Parse(node.LocalScale, System.Globalization.CultureInfo.InvariantCulture),
-                (node, parent, worldPositionStays) => node.Parent = parent,
-                (node, siblingIndex) => node.SiblingIndex = siblingIndex,
-                (node, position) => node.WorldPosition = (position + node.PositionWriteBias).ToString("R", System.Globalization.CultureInfo.InvariantCulture),
-                (node, rotation) => node.WorldRotation = (rotation + node.RotationWriteBias).ToString("R", System.Globalization.CultureInfo.InvariantCulture),
-                (node, scale) => node.LocalScale = (scale + node.ScaleWriteBias).ToString("R", System.Globalization.CultureInfo.InvariantCulture),
-                null,
-                new BoundedDoubleComparer(0.0001d),
-                new BoundedDoubleComparer(0.01d),
-                new BoundedDoubleComparer(0.0001d));
+            TestRunner.Equal(4, rider.SiblingIndex, "The old view did not return to its exact slot after the replacement release.");
         }
 
         private sealed class BoundedDoubleComparer : System.Collections.Generic.IEqualityComparer<double>
@@ -1305,25 +1267,6 @@ namespace KingmakerMountedCombat.Tests
             {
                 return 0;
             }
-        }
-
-        private sealed class FakeTransformNode
-        {
-            public FakeTransformNode(string name)
-            {
-                Name = name;
-            }
-
-            public string Name { get; }
-            public FakeTransformNode Parent { get; set; }
-            public int SiblingIndex { get; set; }
-            public string WorldPosition { get; set; }
-            public string WorldRotation { get; set; }
-            public string LocalScale { get; set; }
-            public bool FailNextRotationWrite { get; set; }
-            public double PositionWriteBias { get; set; }
-            public double RotationWriteBias { get; set; }
-            public double ScaleWriteBias { get; set; }
         }
 
         private static void AssertRejected(MountedPairCandidate candidate)

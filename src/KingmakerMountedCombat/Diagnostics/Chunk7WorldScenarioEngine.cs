@@ -63,10 +63,11 @@ namespace KingmakerMountedCombat.Diagnostics
         private readonly WorkingFixtureLoader fixtureLoader;
         private Chunk7OwnedPairFixture inherited;
         private bool started, completed, disposed, captured, originalPause, originalPaired, originalMovement;
-        private bool cleanupStarted, cleanupProven, cleanupPendingReported, screenshotReady;
+        private bool cleanupStarted, cleanupProven, cleanupPendingReported, cleanupPendingWritten, screenshotReady;
         private readonly Dictionary<string, int> cleanupAttempts = new Dictionary<string, int>();
         private int step;
         private double stepStarted;
+        private double cleanupPendingAttemptedAt = double.NegativeInfinity;
         private MovementCaptureOverlayLease ummLease;
         private NativeModeTransitionProbe mode;
         private MovementScreenshotCaptureCoordinator screenshots;
@@ -103,9 +104,11 @@ namespace KingmakerMountedCombat.Diagnostics
         }
         internal static bool SupportsScenario(string scenario) => scenario == ScenarioName;
         internal static bool SupportsRequest(RuntimeRequest request) => SupportsScenario(request?.SelectedChunk7Scenario);
+        internal const string CleanupPendingFileName = "chunk7-world-cleanup-pending.json";
         internal bool IsCompleted => completed;
         internal IReadOnlyList<RuntimeSubscenarioResult> Results => results;
         internal IReadOnlyList<string> Errors => errors;
+        internal string RetainedFailureArtifactSha256 { get; private set; }
         internal void Start()
         {
             if (started || disposed || !SupportsRequest(request)) throw new InvalidOperationException("Chunk 7 scenario admission differs.");
@@ -798,13 +801,38 @@ namespace KingmakerMountedCombat.Diagnostics
             !pair.Combat.HasActiveGroundMovement && !pair.Combat.HasChargeOwnership && !controls.HasUnsettledShellFor(pair.Relationship);
         private void RetainCleanup(string reason)
         {
-            if (clock.Elapsed.TotalSeconds - stepStarted < 15 || cleanupPendingReported) return;
-            cleanupPendingReported = true;
+            var now = clock.Elapsed.TotalSeconds;
+            if (now - stepStarted < 15 || cleanupPendingReported || now - cleanupPendingAttemptedAt < 1) return;
+            // A failed write or hash retries at most once per second, never every frame.
+            cleanupPendingAttemptedAt = now;
             Fail("C7-world-cleanup", reason + " Fifteen-second cleanup budget expired; custody remains retained for host polling.");
             evidence["cleanupPendingAtHostBoundary"] = true;
             evidence["pendingCleanupReason"] = reason;
             evidence["combatOrPersistenceProof"] = false;
-            RuntimeLoaderInventory.WriteArtifact(request, "chunk7-world-cleanup-pending.json", "chunk7-world-cleanup-pending", "FAIL", evidence, errors);
+            // Latch only after the durable artifact and its hash exist. A failed write
+            // or hash is retried by the next poll instead of silently disappearing;
+            // the atomic artifact itself is written at most once.
+            if (!cleanupPendingWritten)
+            {
+                RuntimeLoaderInventory.WriteArtifact(request, CleanupPendingFileName, "chunk7-world-cleanup-pending", "FAIL", evidence, errors);
+                cleanupPendingWritten = true;
+            }
+            using (var hash = System.Security.Cryptography.SHA256.Create())
+            using (var stream = File.OpenRead(Path.Combine(request.EvidenceRoot, CleanupPendingFileName)))
+                RetainedFailureArtifactSha256 = BitConverter.ToString(hash.ComputeHash(stream)).Replace("-", "").ToLowerInvariant();
+            cleanupPendingReported = true;
+        }
+
+        // The host's unattended terminal FAIL admits only this engine's own
+        // committed, hashed retained-cleanup failure in its unchanged native world.
+        internal void RequireRetainedSixFailureScope()
+        {
+            Require(SixPairStress && captured && cleanupStarted && !cleanupProven && !completed && !disposed &&
+                cleanupPendingReported && !string.IsNullOrEmpty(RetainedFailureArtifactSha256) &&
+                errors.Count != 0 && results.Any(row => row.Status == "FAIL"),
+                "No committed retained six-pair failure owns this world.");
+            Require(nativeScope != null, "Captured native world authority is absent.");
+            nativeScope.RequireCurrent();
         }
         private void PollCleanup()
         {
