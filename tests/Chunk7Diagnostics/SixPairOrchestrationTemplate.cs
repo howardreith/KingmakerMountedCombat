@@ -12,6 +12,7 @@ namespace TurnBased.Controllers { static class CombatController { public static 
 namespace KingmakerMountedCombat.Integration { static class GameMountedRelationshipService { public static int NativePairCapacity=6; } static class NativePersistenceIsolation { public static bool HasPendingWrites; } }
 namespace KingmakerMountedCombat.Diagnostics {
  using Actor=Kingmaker.EntitySystem.Entities.UnitEntityData;using UnityEngine;
+ class SixPairAttachmentObservation:IDisposable { public SixPairAttachmentObservation(IEnumerable<string> ids, object logger){} public void Dispose(){} }
  class Request { public Selection OwnedPairs=new Selection(); } class Selection { public bool IsSixPairStress=true; }
  static class Chunk7OwnedPairsSelection { public const string SixPairSourceRun="qualified-six-source"; }
  class Owner { public Guid Id=Guid.NewGuid();public Actor Rider,Mount; }
@@ -27,6 +28,7 @@ namespace KingmakerMountedCombat.Diagnostics {
  internal sealed partial class Chunk7WorldScenarioEngine {
   readonly Request request=new Request();readonly Inherited inherited=new Inherited();readonly World world=new World();readonly Controls controls=new Controls();readonly Persistence persistence=new Persistence();readonly Clock clock=new Clock();
   readonly JObject evidence=new JObject();readonly JArray inputs=new JArray(),groundInputs=new JArray(),snapshots=new JArray();readonly List<string> passed=new List<string>();
+  readonly object logger=new object();
   MountedRuntimeMeasurement measurement;object quietWindow;int step;double stepStarted;Shell shell;bool observedExactProcess,cleanup;int pendingFrames,movementFrames;Actor pendingRider,pendingMount;bool pendingMounting,holdInput,holdRetirement,holdMovement;int finishedInputs,moves;
   Actor[] Actors()=>inherited.Actors;
   static void Require(bool condition,string error){if(!condition)throw new InvalidOperationException(error);}

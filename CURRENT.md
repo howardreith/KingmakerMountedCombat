@@ -1,6 +1,14 @@
 # Chunk 7B–7D — IN PROGRESS
 
-The reviewed [six-pair observer](docs/CHUNK7-SIX-PAIR-OBSERVER-2026-10-22.md)
+[Batch186](docs/CHUNK7-BATCH186-SIX-PAIR-RESTORATION-FAILURE-2026-10-22.md)
+failed on native sibling-index restoration during the third six-pair lifecycle
+cycle. Its original FAIL remains; owner normal exit followed by guarded combined
+and independently reviewed profile recovery restored all surfaces exactly,
+zero cache exceptions. No game/lock remains. A bounded read-only lease observer
+now passes 15/0 plus orchestration18/0; next is one distinguishing native run on
+a new frozen candidate. The standing completion mission remains IN PROGRESS.
+
+Historical pre-batch186 checkpoint: the reviewed [six-pair observer](docs/CHUNK7-SIX-PAIR-OBSERVER-2026-10-22.md)
 now has focused source/custody/orchestration/reader/cleanup checks and independent
 safety review. No six-pair native action has run yet. Next is one clean frozen
 candidate and a declared one-load/zero-save native lifecycle/routing/sampling

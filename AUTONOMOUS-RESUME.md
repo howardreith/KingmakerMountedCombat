@@ -1,6 +1,28 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
-## Active October 22 — reviewed six-pair observer; freeze candidate next
+## Active October 22 — batch186 recovered; distinguish sibling failure next
+
+The [standing completion mission](planning/CHUNK7-COMPLETION-MISSION.md) remains
+active through private7E. [Batch186](docs/CHUNK7-BATCH186-SIX-PAIR-RESTORATION-FAILURE-2026-10-22.md)
+is FAIL on third-cycle Dismount sibling-index restoration. Original outer FAIL
+and bounded native log remain immutable. Owner normal exit enabled exact
+combined Mods/save and independently reviewed profile recovery; no game/lock,
+zero cache exceptions. Never rerun that completed one-off recovery.
+
+Next: commit/guarded-push the reviewed bounded six-rider lease observer, build
+one c7b-world187-attachment candidate, Candidate SkipBuild, current-state suite
+and scoped WhatIf. Declare one batch187 six-horse lifecycle scenario using the
+unchanged b185-qualified Manual308. Capture KMC_SIX_ATTACHMENT log lines at
+Acquire/Restore to distinguish actual parent replacement/reordering from an
+unrepresentable sibling index. Native semantics/verification remain unchanged.
+If cleanup blocks, preserve a bounded hashed log slice and safely settle this
+new transaction; no historical recovery target, forced quit or false PASS.
+Private execution record: analysis-cache/chunk7-continuation/b187-attachment-current-execution.md.
+Then make/review the causal correction, verify affected neighbors and continue
+six-pair mounted Manual/cold, F10/F11/doors and final private7E. A passing check
+or recovered run is not the engineering endpoint.
+
+## Historical October 22 — reviewed six-pair observer; freeze candidate next
 
 The [standing completion mission](planning/CHUNK7-COMPLETION-MISSION.md) remains
 active through private 7E. The [six-pair observer](docs/CHUNK7-SIX-PAIR-OBSERVER-2026-10-22.md)
