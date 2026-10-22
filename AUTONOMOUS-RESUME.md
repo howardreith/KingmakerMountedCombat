@@ -1,5 +1,31 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## Active October 22 after batch181 fifth paid Horse Manual PASS
+
+The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active
+through selected private 7E. [Batch181](docs/CHUNK7-BATCH181-FIFTH-HORSE-MANUAL-2026-10-22.md)
+passed one guarded paid Small/Horse Manual producer on reviewed source
+`cda0a5fb`, exact preview.94 package ZIP `5b2dcd55`, DLL `534494ee`,
+suite `c9908c6d`: native game and original outer **7/0**. The genuine new
+Manual_307 SHA-256 is `afbeaa5b`; five character/four Horse input became six
+character/five Horse output with eleven field actors. Four prior native Horse
+references were preserved, but no separate cold consumer has run. One load,
+one native save; run, save, Mods and profile bytes restored exactly, zero
+accepted cache changes, no game or live lock. Batch178's original outer FAIL
+and its reader-only recovery remain separate.
+
+Next: implement/review the narrow read-only fifth-Horse cold consumer from
+the exact batch181 producer. The existing assisted cold family admits only up
+to the four-Horse Manual, so add a provenance-correct 11-actor/five-Horse
+case, focused reader/protocol tests and independent review before a new
+candidate or native run. Start at
+`src/KingmakerMountedCombat/Diagnostics/Chunk7AssistedColdInventoryScenario.ThirdHorse.cs`
+and `scripts/runtime/Chunk7AssistedColdInventoryEvidence.ps1`. After cold,
+perform the ordinary Linzi selector transition and a distinct sixth paid
+hire with their Manual/cold proofs before conditional six-pair stress.
+Continue F10/F11, doors, broader 7C/7D and readiness-gated private 7E;
+no engineering-complete claim or merge/release/permanent install/HUMAN PLAY.
+
 ## Active October 22 after batch180 Linzi selector PASS
 
 The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active
