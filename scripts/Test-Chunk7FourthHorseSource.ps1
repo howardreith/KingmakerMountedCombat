@@ -58,6 +58,15 @@ if($manualSource.nativeAuthorityGranted-ne$false-or$manualSource.fixtureSetupOnl
  (Get-KmcChunk7OwnedManualOutputName $request)-cne'KMC_C7_FOUR_HORSE_WORLD'-or
  (Get-KmcChunk7OwnedManualOutputName $request)-ceq$manualSource.descriptor.internalName){throw 'Fourth-Horse Manual source, distinct native name or one-write request differs.'}
 Write-Host 'PASS fourth-Horse Manual uses the same immutable source and distinct one-write selection'
+$numbered=[pscustomobject]@{ownedOutputAdmission=[pscustomobject]@{number=306;leaf='Manual_306_KMC_C7_FOUR_HORSE_WORLD.zks'}}
+if((Get-KmcChunk7OwnedOutputLeaf $request $numbered)-cne'Manual_306_KMC_C7_FOUR_HORSE_WORLD.zks'){
+ throw 'Fourth-Horse source Manual_305 did not reserve its exact distinct Manual_306 leaf.'
+}
+$numbered.ownedOutputAdmission.number=307
+$refused=$false
+try{[void](Get-KmcChunk7OwnedOutputLeaf $request $numbered)}catch{$refused=$true}
+if(-not$refused){throw 'Fourth-Horse output reader accepted a non-successor Manual number.'}
+Write-Host 'PASS exact fourth-Horse source and next native Manual number; changed number refused'
 $selection.expectedNativeWriteCount=0
 $refused=$false
 try{Assert-KmcChunk7OwnedPairsSelection $request}catch{$refused=$true}
