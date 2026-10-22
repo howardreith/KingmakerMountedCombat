@@ -1,10 +1,26 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
-## Active October 22 — Claude batch188: sibling-slot correction, unattended FAIL exit
+## Active October 22 — Claude after batch188: six-mounted Manual and cold consumer
 
-Read the [batch188 preparation record](docs/CHUNK7-B188-SIBLING-SLOT-AND-UNATTENDED-EXIT-2026-10-22.md),
-the [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) and the
-[batch187 handoff](docs/CLAUDE-HANDOFF-CHUNK7-BATCH187-2026-10-22.md).
+Read the [batch188 PASS record](docs/CHUNK7-BATCH188-SIX-PAIR-LIFECYCLE-PASS-2026-10-22.md),
+the [batch188 preparation record](docs/CHUNK7-B188-SIBLING-SLOT-AND-UNATTENDED-EXIT-2026-10-22.md)
+and the [standing mission](planning/CHUNK7-COMPLETION-MISSION.md).
+
+Batch188 settled with a native game 6/0 and outer PASS on frozen candidate
+`c7b-world188-slot` (`64a8206e`), with exact restoration and zero cache changes. No
+Kingmaker process, lock or pending recovery remains, and HEAD is no longer frozen.
+
+Next uncompleted action:
+1. Commit and guarded-push the batch188 record.
+2. Implement a six-mounted genuine native Manual producer and a separate cold consumer
+   (six pairs, twelve semantic slots, presentation restores, no native Prepare). Add
+   focused readers and tests, get independent review, then run on one frozen candidate.
+3. Then the remaining F10/F11/doors work, SHOULD-FIX 3, and private 7E.
+
+No merge, release, permanent installation or HUMAN PLAY acceptance. Private execution
+note: analysis-cache/chunk7-continuation/b188-claude-current-execution.md.
+
+## Historical October 22 — Claude batch188 preparation: sibling-slot correction, unattended FAIL exit
 
 Work so far:
 - Implemented and tested the causal sibling-slot correction, the pose-retry ordering, the
@@ -15,7 +31,7 @@ Work so far:
 - SHOULD-FIX 3 (feed the exit's real result through the full game-result reader) must close
   before an exit-produced result counts toward qualification. Restoration never depends on it.
 
-Next uncompleted action:
+Its then-next actions (all completed by the batch188 run above):
 1. Commit and guarded-push this coherent change.
 2. Build one package with qualifier `c7b-world188-slot`, then Candidate with -SkipBuild.
 3. Freeze the suite and run the scoped WhatIf.

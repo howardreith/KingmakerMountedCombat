@@ -1,6 +1,17 @@
 # Chunk 7B–7D — IN PROGRESS
 
-Claude batch188 preparation: the [sibling-slot correction and unattended six-pair FAIL exit](docs/CHUNK7-B188-SIBLING-SLOT-AND-UNATTENDED-EXIT-2026-10-22.md)
+Claude [batch188](docs/CHUNK7-BATCH188-SIX-PAIR-LIFECYCLE-PASS-2026-10-22.md) passed one
+declared zero-write six-pair lifecycle scenario on the frozen `c7b-world188-slot`
+candidate (`64a8206e`): game 6/0 and outer PASS. The shared native rider parent (16
+children) kept its exact child order after all three cycles, where batch187 failed.
+36 native Mount/Dismount casts, 0 refusals. Mods, saves and profile were restored
+exactly with zero cache changes; no game or lock remains. The unattended FAIL exit was
+not exercised. The ~5 ms KMC Update in every state includes this observer's per-frame
+verification (pair phase 0.19 ms at six pairs), so it is not a performance measurement.
+Next: the six-mounted genuine Manual and an independent cold consumer. Standing
+mission remains IN PROGRESS.
+
+Historical batch188 preparation checkpoint: the [sibling-slot correction and unattended six-pair FAIL exit](docs/CHUNK7-B188-SIBLING-SLOT-AND-UNATTENDED-EXIT-2026-10-22.md)
 implements the batch187 cause. Each attachment lease owns an inert reservation in its
 rider's exact slot, so restores are exact in any dismount order. The pose component is released only after
 the attachment verifies. A disposable zero-write six-pair run whose cleanup cannot settle
