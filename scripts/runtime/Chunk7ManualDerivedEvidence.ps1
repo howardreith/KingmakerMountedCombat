@@ -404,7 +404,7 @@ function Assert-KmcNativeAcquisitionProof($Request,$Artifact,$SourceArtifact,$Se
   # PostLoad callbacks, then the exact archive GameId in the settled world.
   # A populated callback ID must still match the loaded archive.
   if($null-ne$e.gameId){Assert-KmcBootstrapInventoryString $e.gameId $Request.persistenceLoad.gameId}
-  elseif(-not$ownerSeed-and$null-eq$AssistedProjection){throw 'Bootstrap Manual PostLoad lost its required GameId.'}
+  elseif(-not$ownerSeed-and$null-eq$AssistedProjection-and-not($Cumulative-and(Test-KmcOwnerSeedCumulativeMode $s))){throw 'Bootstrap Manual PostLoad lost its required GameId.'}
   if($i-eq1){Assert-KmcBootstrapInventoryString $e.mainActorId $w.mainActorId}else{if($null-ne$e.mainActorId){Assert-KmcBootstrapInventoryString $e.mainActorId $w.mainActorId}}
  }
  if($load.events[0].frame-ne$load.events[1].frame){throw 'Native PostLoad did not return in its exact synchronous callback.'}
