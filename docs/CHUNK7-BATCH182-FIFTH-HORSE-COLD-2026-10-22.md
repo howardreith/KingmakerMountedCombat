@@ -51,14 +51,14 @@ restored exactly with zero accepted cache changes. The one expected staged
 UMM DLL cache addition was classified before exact Mods restoration. No
 Kingmaker process or live transaction remains.
 
-The older detached `Test-Chunk7AssistedColdScenario.ps1` failed to compile its
-facade because it omits `Chunk7NativePartyOptionalityProbe`. That probe is
-already present in the pushed baseline scenario while the test script lacks it;
-the failure is a test-harness limitation, not a native cold verdict. Its failed
-invocation is retained and was not relabelled PASS. Focused protocol, authority,
-source, projection and wiring checks cover the changed boundaries. Repairing
-this detached test facade remains independent test-infrastructure work before
-the selected private FULL gate.
+The older detached `Test-Chunk7AssistedColdScenario.ps1` initially failed to
+compile its facade because it omitted `Chunk7NativePartyOptionalityProbe`.
+That probe was already present in the pushed baseline scenario; this was a
+test-harness limitation, not a native cold verdict. The original failed
+invocation remains separate. A follow-on test-only, independently reviewed
+facade repair added a fail-fast selector stub and the current Manual-derived
+identity constants; the detached scenario test then passed **92/0**. It did
+not change the product DLL, candidate or native authority.
 
 Next: use the observed Linzi optional selector status to perform an ordinary
 roster transition from the now cold-qualified five-Horse Manual, then a
