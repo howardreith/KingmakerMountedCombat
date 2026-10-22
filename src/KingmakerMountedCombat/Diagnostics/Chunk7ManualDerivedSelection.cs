@@ -22,6 +22,9 @@ namespace KingmakerMountedCombat.Diagnostics
         public const string CumulativeAssistedOutputLeaf = "Manual_301_KMC_C7_MANUAL_DERIVED_FIELD.zks";
         // A registered owner seed is Manual_303; its first genuine new Manual is 304.
         public const string OwnerSeedOutputLeaf = "Manual_304_KMC_C7_MANUAL_DERIVED_FIELD.zks";
+        // Separate four-Horse Manual 306 derivative: one ordinary paid Small
+        // custom companion/Horse in the native sixth character slot.
+        public const string F09FifthOutputLeaf = "Manual_307_KMC_C7_MANUAL_DERIVED_FIELD.zks";
         public const string OwnerSeedInputLeaf = "Manual_303_KMC_C7_NO_MODS_OWNER_SEED.zks";
         public const string OwnerSeedInputName = "KMC C7 NO MODS OWNER SEED";
         // Historical level-up Auto output. Native level-up never requests this.
@@ -49,6 +52,7 @@ namespace KingmakerMountedCombat.Diagnostics
         public bool ShouldSerializeMediumBody() => MediumBody != null;
         internal bool PaidHire => Case == PaidSmallCase || Case == PaidMediumCase;
         internal bool UsesOwnerSeedCold => NativeWriteLeaf == OwnerSeedOutputLeaf;
+        internal bool UsesF09FourHorseCold => NativeWriteLeaf == F09FifthOutputLeaf;
 
         public IReadOnlyList<string> Validate(string scenario, string runId, bool cumulativeAuto = false, bool cumulativeManual = false)
         {
@@ -62,8 +66,14 @@ namespace KingmakerMountedCombat.Diagnostics
             if (!BaseGameOnly || ExpectedNativeLoadCount != 1 || ExpectedNativeWriteCount != 1 ||
                 (cumulativeAuto ? !cumulativeManual || NativeWriteLeaf != CumulativeAssistedOutputLeaf &&
                     NativeWriteLeaf != CumulativeLegacyOutputLeaf && NativeWriteLeaf != CumulativeOwnerSeedOutputLeaf :
-                    NativeWriteLeaf != ManualOutputLeaf && NativeWriteLeaf != OwnerSeedOutputLeaf))
+                    NativeWriteLeaf != ManualOutputLeaf && NativeWriteLeaf != OwnerSeedOutputLeaf &&
+                    NativeWriteLeaf != F09FifthOutputLeaf))
                 errors.Add("Acquisition requires its exact base-only one-load, one-write native output.");
+            if (UsesF09FourHorseCold && (Case != PaidSmallCase ||
+                SourceRunId != "20261022-c7b-world180-b180s1-fourthhorse-selector" ||
+                SourceArtifactSha256 != "985101587995147c4a548b6f81ed6c88837cc54ac39f3ca22b8352a32afb2e96" ||
+                SourceArchiveSha256 != "e82f7bb0775535ac2d9b782c6e53fa92a0893ab71bdf375a1e7cc06d50188759"))
+                errors.Add("F09 fifth paid Horse requires its exact accepted four-Horse Manual and selector receipt.");
             if (Readiness == null) errors.Add("Observed source readiness pins are required.");
             else errors.AddRange(Readiness.Validate());
             if (Case == ExistingCase)

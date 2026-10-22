@@ -77,6 +77,87 @@ namespace KingmakerMountedCombat.Diagnostics
             };
         }
 
+        private void ReadF09FourHorseColdSource(JObject artifact)
+        {
+            var observations = sourceObservations;
+            var selector = observations?["selectorProbe"];
+            var source = observations?["source"];
+            var facts = observations?["fourthHorseFacts"] as JArray;
+            sourceWorld = observations?["loadedWorld"] as JObject;
+            var party = sourceWorld?["party"] as JArray;
+            Require((string)artifact["runId"] == selection.SourceRunId &&
+                (string)artifact["scenario"] == Chunk7AssistedColdInventorySelection.Scenario &&
+                (string)artifact["evidenceKind"] == Chunk7AssistedColdInventoryScenario.EvidenceKind &&
+                (string)artifact["status"] == "PASS" && artifact["errors"] is JArray errors && errors.Count == 0 &&
+                (string)artifact["commit"] == "1ff7995964de6df54f856e1f370c5a36a209100e" &&
+                (string)artifact["dllSha256"] == "590bde8ef5f6411a9260236aeb73d29fbb8eef1ac10d239ce74ff509e3d97562" &&
+                (string)artifact["dllMvid"] == "41a392bf-15eb-40a1-acaf-9f6c5f2f236b" &&
+                (string)observations?["selection"]?["case"] == Chunk7AssistedColdInventorySelection.FourthHorseSelectorCaseName &&
+                (string)source?["runId"] == "20261022-c7b-world178-b178s1-fourthhorse-manual" &&
+                (string)source?["archiveSha256"] == selection.SourceArchiveSha256 &&
+                (string)source?["archiveLeaf"] == request.PersistenceLoad.FileName &&
+                source?["sameCandidate"]?.Value<bool>() == false &&
+                (string)selector?["contract"] == "installed-native-open-selector-optionality-v1" &&
+                (string)selector?["actorId"] == "8265f8cf-0969-4ec7-a266-2448de91c8c4" &&
+                selector?["mustBeInParty"]?.Value<bool>() == false &&
+                selector?["eligibleForNativeRemoval"]?.Value<bool>() == true &&
+                selector?["closed"]?.Value<bool>() == true &&
+                selector?["switchCount"]?.Value<int>() == 0 && selector?["goCount"]?.Value<int>() == 0 &&
+                facts != null && facts.Count == 4 &&
+                sourceWorld != null && party != null && party.Count == 9 &&
+                (string)sourceWorld["gameId"] == request.PersistenceLoad.GameId &&
+                (string)sourceWorld["gameName"] == request.PersistenceLoad.GameName &&
+                (string)sourceWorld["area"] == request.PersistenceLoad.Area &&
+                observations?["loadedWorld"]?["partyCharacterIds"] is JArray characters && characters.Count == 5 &&
+                (string)observations?["fixtureReadiness"]?["captureStatus"] == "PASS" &&
+                (string)observations?["nativeProfileInventory"]?["captureStatus"] == "PASS" &&
+                observations?["cleanup"]?["custodySettled"]?.Value<bool>() == true &&
+                observations?["cleanup"]?["sourceUnchanged"]?.Value<bool>() == true &&
+                observations?["cleanup"]?["observersReleased"]?.Value<bool>() == true,
+                "F09 paid derivative requires the exact accepted optionality observation and four-Horse native world.");
+            expectedMainId = (string)sourceWorld["mainActorId"];
+            Require(Chunk7ManualDerivedSelection.NativeId(expectedMainId) &&
+                party.Count(row => (string)row["id"] == expectedMainId) == 1 &&
+                party.Select(row => (string)row["id"]).Distinct(StringComparer.Ordinal).Count() == 9 &&
+                facts.Select(row => (string)row["riderId"]).Distinct(StringComparer.Ordinal).Count() == 4 &&
+                facts.Select(row => (string)row["mountId"]).Distinct(StringComparer.Ordinal).Count() == 4 &&
+                facts.All(row => {
+                    var rider = party.SingleOrDefault(actor => (string)actor["id"] == (string)row["riderId"]);
+                    var mount = party.SingleOrDefault(actor => (string)actor["id"] == (string)row["mountId"]);
+                    return rider != null && mount != null &&
+                        (string)rider["petId"] == (string)row["mountId"] &&
+                        (string)mount["masterId"] == (string)row["riderId"] &&
+                        (string)mount["blueprint"] == (string)row["blueprint"] &&
+                        row["reciprocal"]?.Value<bool>() == true && row["rank"]?.Value<int>() == 1 &&
+                        Chunk7ManualDerivedSelection.BlueprintId((string)row["featureGuid"]) &&
+                        Chunk7ManualDerivedSelection.BlueprintId((string)row["sourceGuid"]);
+                }) &&
+                party.Count(row => row["petId"]?.Type == JTokenType.String) == 4 &&
+                party.Count(row => row["masterId"]?.Type == JTokenType.String) == 4 &&
+                (int?)observations?["archive"]?["pairs"] == 0 &&
+                (int?)observations?["archive"]?["participations"] == 0 &&
+                (int?)observations?["archive"]?["slots"] == 0 &&
+                observations?["archive"]?["combatPresent"]?.Value<bool>() == false,
+                "F09 source actor or Horse identity is missing or duplicated.");
+            assistedSourceProjection = new JObject {
+                ["fixtureReadiness"] = observations["fixtureReadiness"].DeepClone(),
+                ["nativeProfileInventory"] = observations["nativeProfileInventory"].DeepClone(),
+                ["afterSaveArrangement"] = new JObject {
+                    ["money"] = sourceWorld["nativeMoney"].DeepClone(),
+                    ["experienceRatePercent"] = observations["fixtureReadiness"]["experienceRatePercent"].DeepClone(),
+                    ["actors"] = new JArray(party.OrderBy(row => (string)row["id"], StringComparer.Ordinal)
+                        .Select(row => new JObject {
+                            ["actorId"] = row["id"].DeepClone(), ["blueprint"] = row["blueprint"].DeepClone(),
+                            ["experience"] = row["experience"].DeepClone(),
+                            ["characterLevel"] = row["characterLevel"].DeepClone(),
+                            ["classes"] = new JArray(((JArray)row["classes"])
+                                .OrderBy(value => (string)value["guid"], StringComparer.Ordinal)
+                                .Select(value => new JObject { ["classGuid"] = value["guid"].DeepClone(),
+                                    ["level"] = value["level"].DeepClone() })) }))
+                }
+            };
+        }
+
         private void ReadAssistedCumulativeSource()
         {
             sourcePath = Path.Combine(Path.GetDirectoryName(root), Chunk7CumulativeAcquisitionSelection.SourceLeaf);

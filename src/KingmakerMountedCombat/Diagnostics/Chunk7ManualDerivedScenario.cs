@@ -96,7 +96,7 @@ namespace KingmakerMountedCombat.Diagnostics
             evidence["selection"] = Chunk7EvidenceDto.Request(cumulative == null ? (object)selection : cumulative);
             evidence["source"] = new JObject { ["runId"] = selection.SourceRunId, ["artifactSha256"] = selection.SourceArtifactSha256,
                 ["archiveSha256"] = selection.SourceArchiveSha256, ["archiveLeaf"] = request.PersistenceLoad.FileName,
-                ["sameCandidate"] = true, ["diagnosticArchiveContentRead"] = false };
+                ["sameCandidate"] = !selection.UsesF09FourHorseCold, ["diagnosticArchiveContentRead"] = false };
             evidence["sourceNativeWorld"] = sourceWorld.DeepClone();
             evidence["sourceManualObservations"] = sourceObservations.DeepClone();
             CaptureAssistedCumulativeSource();
@@ -226,7 +226,8 @@ namespace KingmakerMountedCombat.Diagnostics
                     ["actorId"] = value.UniqueId, ["blueprintGuid"] = value.Blueprint.AssetGuid, ["isMain"] = ReferenceEquals(value, main),
                     ["lockedCompanionComponent"] = value.Blueprint.GetComponent<Kingmaker.Blueprints.LockedCompanionComponent>() != null })) };
 
-            if (cumulative != null || selection.UsesOwnerSeedCold) result["staticPartyFacts"]["observationScope"] = "static-getters-only";
+            if (cumulative != null || selection.UsesOwnerSeedCold || selection.UsesF09FourHorseCold)
+                result["staticPartyFacts"]["observationScope"] = "static-getters-only";
 
             var saves = manager.Take(33).ToArray();
             Require(saves.Length <= 32 && saves.All(value => value != null), "Isolated native descriptor inventory is null or exceeds its bound.");
@@ -261,6 +262,7 @@ namespace KingmakerMountedCombat.Diagnostics
             sourceLength = source.Length; sourceTicks = source.LastWriteTimeUtc.Ticks; archiveLength = archive.Length; archiveTicks = archive.LastWriteTimeUtc.Ticks; sourcePinned = true;
             var artifact = JObject.Parse(File.ReadAllText(sourcePath)); sourceObservations = artifact["observations"] as JObject;
             if (selection.UsesOwnerSeedCold) { ReadOwnerSeedColdSource(artifact); return; }
+            if (selection.UsesF09FourHorseCold) { ReadF09FourHorseColdSource(artifact); return; }
             Require((string)artifact["runId"] == selection.SourceRunId && (string)artifact["scenario"] == Chunk7ManualSeedSelection.Scenario &&
                 (string)artifact["evidenceKind"] == Chunk7ManualSeedScenario.EvidenceKind && (string)artifact["status"] == "PASS" &&
                 artifact["errors"] is JArray sourceErrors && sourceErrors.Count == 0 &&

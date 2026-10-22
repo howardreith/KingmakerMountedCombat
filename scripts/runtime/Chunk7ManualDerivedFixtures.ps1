@@ -53,6 +53,26 @@ function Read-KmcChunk7ManualDerivedSelectionFile([string]$Path,[string]$RunId){
 function Get-KmcChunk7ManualDerivedSource($Selection,$Fixture,$Candidate){
  Assert-KmcChunk7ManualDerivedSelection ([pscustomobject]@{scenario='chunk7-manual-derived-acquisition';runId='unassigned-manual-derived';manualDerived=$Selection})
  if($Selection.nativeWriteLeaf-ceq'Manual_304_KMC_C7_MANUAL_DERIVED_FIELD.zks'){return Get-KmcChunk7ManualDerivedOwnerSeedSource $Selection $Fixture $Candidate}
+ if($Selection.nativeWriteLeaf-ceq'Manual_307_KMC_C7_MANUAL_DERIVED_FIELD.zks'){
+  $gate=Get-KmcChunk7F09SelectorOptionalitySource $Fixture;$source=$gate.nineActorSource
+  if($Selection.case-cne'paid-small-ranger-horse'-or$Selection.sourceRunId-cne$gate.selectorRunId-or
+   $Selection.sourceArtifactSha256-cne$gate.selectorArtifactSha256-or
+   $Selection.sourceArchiveSha256-cne$source.descriptor.sha256-or
+   $gate.nativeAuthorityGranted-ne$false-or$gate.nativeRosterTransitionProven-ne$false){
+   throw 'F09 fifth-Horse request does not match its read-only four-Horse/selector receipts.'
+  }
+  Assert-KmcChunk7ManualDerivedDescriptor ([pscustomobject]@{scenario='chunk7-manual-derived-acquisition';runId='unassigned-manual-derived';manualDerived=$Selection;persistenceLoad=$source.descriptor;fixture=$Fixture})
+  $path=Join-Path (Join-Path (Get-KmcLabRoot) ('runtime-evidence/'+$gate.selectorRunId)) 'chunk7-assisted-cold-inventory-evidence.json'
+  Assert-KmcNotReparsePoint $path 'F09 selector source';Assert-KmcNotHardLink $path 'F09 selector source'
+  $file=Get-Item -LiteralPath $path
+  if($file.Length-le0-or$file.Length-gt16MB-or(Get-KmcSha256 $path)-cne$gate.selectorArtifactSha256){throw 'F09 selector artifact changed.'}
+  $artifact=Read-KmcJson $path;$projection=Get-KmcChunk7OwnerSeedAcquisitionProjection $artifact.observations
+  Assert-KmcManualDerivedSourcePins $Selection $projection
+  if((Get-KmcSha256 $source.path)-cne$source.descriptor.sha256-or(Get-KmcSha256 $path)-cne$gate.selectorArtifactSha256){throw 'F09 immutable source changed during admission.'}
+  return [pscustomobject]@{path=$source.path;descriptor=$source.descriptor;artifactPath=$path
+   artifactSha256=$gate.selectorArtifactSha256;artifactLength=[long]$file.Length;sourceRunId=$gate.selectorRunId
+   fixtureSetupOnly=$true;ordinaryAcquisitionProven=$false;nativeAuthorityGranted=$false}
+ }
  $lab=Get-KmcLabRoot;$profile=Assert-KmcChildPath (Join-Path $lab ('runtime-staging/persistence-'+$Selection.sourceRunId)) (Join-Path $lab 'runtime-staging') 'qualified Manual profile'
  Assert-KmcDirectoryTreeCloneable $profile 'qualified Manual profile'
  $root=Assert-KmcChildPath (Join-Path $lab ('runtime-evidence/'+$Selection.sourceRunId)) (Join-Path $lab 'runtime-evidence') 'qualified Manual evidence';Assert-KmcNotReparsePoint $root 'qualified Manual evidence';$files=@{}

@@ -43,6 +43,43 @@ namespace KingmakerMountedCombat.Diagnostics
         private int buildStage;
         private double buildStageStart;
         private readonly JArray choices = new JArray();
+        private JArray f09PriorHorses;
+
+        private void RequireF09PriorHorses()
+        {
+            if (!selection.UsesF09FourHorseCold) return;
+            var facts = sourceObservations?["fourthHorseFacts"] as JArray;
+            Require(facts != null && facts.Count == 4, "F09 source lost its four native Horse relationships.");
+            var rows = new JArray();
+            foreach (var item in facts)
+            {
+                var rider = actors.SingleOrDefault(actor => actor.UniqueId == (string)item["riderId"]);
+                var mount = actors.SingleOrDefault(actor => actor.UniqueId == (string)item["mountId"]);
+                var feature = rider?.Descriptor.GetFact(horses.HorseFeature) as Feature;
+                Require(rider != null && mount != null &&
+                    rider.Blueprint?.AssetGuid == (string)((JArray)sourceWorld["party"]).Single(actor => (string)actor["id"] == rider.UniqueId)["blueprint"] &&
+                    mount.Blueprint == horses.HorseUnit && mount.Blueprint.AssetGuid == (string)item["blueprint"] &&
+                    ReferenceEquals(rider.Descriptor.Pet, mount) && ReferenceEquals(mount.Descriptor.Master.Value, rider) &&
+                    feature != null && feature.Source != null &&
+                    horses.HorseFeature.AssetGuid == (string)item["featureGuid"] &&
+                    feature.Source.AssetGuid == (string)item["sourceGuid"] &&
+                    rider.Descriptor.GetFact(horses.LevelRank)?.GetRank() == (int)item["rank"] &&
+                    rider.IsInState && rider.IsInGame && mount.IsInState && mount.IsInGame &&
+                    rider.View?.AgentASP != null && mount.View?.AgentASP != null &&
+                    rider.Commands.Empty && mount.Commands.Empty,
+                    "A retained native F09 owner/Horse identity, feature, rank or field relationship changed.");
+                rows.Add(new JObject { ["riderId"] = rider.UniqueId, ["mountId"] = mount.UniqueId,
+                    ["riderObject"] = probe.Identity(rider), ["mountObject"] = probe.Identity(mount),
+                    ["riderDescriptor"] = probe.Identity(rider.Descriptor), ["mountDescriptor"] = probe.Identity(mount.Descriptor),
+                    ["riderView"] = probe.Identity(rider.View), ["mountView"] = probe.Identity(mount.View),
+                    ["featureObject"] = probe.Identity(feature), ["sourceObject"] = probe.Identity(feature.Source),
+                    ["rankObject"] = probe.Identity(rider.Descriptor.GetFact(horses.LevelRank)),
+                    ["featureGuid"] = horses.HorseFeature.AssetGuid, ["sourceGuid"] = feature.Source.AssetGuid,
+                    ["rank"] = rider.Descriptor.GetFact(horses.LevelRank).GetRank(), ["reciprocal"] = true });
+            }
+            if (f09PriorHorses == null) { f09PriorHorses = rows; evidence["f09PriorHorsesBefore"] = rows.DeepClone(); }
+            else Require(JToken.DeepEquals(f09PriorHorses, rows), "F09 native Horse references changed during paid acquisition.");
+        }
 
         private void RequireManualReadiness()
         {
@@ -56,6 +93,7 @@ namespace KingmakerMountedCombat.Diagnostics
             Require(actual["saveSettings"]?["onlyOneSave"]?.Type == JTokenType.Boolean && !(bool)actual["saveSettings"]["onlyOneSave"] &&
                 !NativePersistenceIsolation.NativeSlotRotationEnabled, "Manual acquisition refuses one-save mode or a pre-existing slot projection.");
             RequireLiveEligibility();
+            RequireF09PriorHorses();
         }
         private void RequireLiveEligibility()
         {
@@ -176,6 +214,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private void AssertChoiceAuthority()
         {
             RequireAuthority(false); RequireNoOwners(); RequireNoEffects();
+            RequireF09PriorHorses();
             Require(!cleanup && !Busy() && !game.Player.IsInCombat && !game.CutsceneLock && !game.IsModeActive(GameModeType.Dialog) &&
                 (DialogMessageBox.Instance == null || !DialogMessageBox.Instance.IsShown) &&
                 !NativePersistenceIsolation.NativeSlotRotationEnabled,
@@ -232,6 +271,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private void BeginManualDerivedSave()
         {
             RequireAuthority(false); RequireWorld(); RequireNoOwners(); RequireNoEffects(); VerifySourceBytes();
+            RequireF09PriorHorses();
             Require(manualSaveProbe == null && requestedManual == null && !Busy() && manager.IsSaveAllowed() &&
                 authority.AdmittedNativeWriteRequests == 0 && authorization.AuthorizedWriteCount == 0 &&
                 !NativePersistenceIsolation.NativeSlotRotationEnabled &&
@@ -247,7 +287,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var number = manager.FindUnusedSaveNumber(SaveInfo.SaveType.Manual);
             var leaf = "Manual_" + number.ToString(System.Globalization.CultureInfo.InvariantCulture) + "_" +
                 Chunk7ManualDerivedSelection.ManualOutputName + ".zks";
-            Require(number == (cumulative?.UsesAssistedCold == true ? 301 : cumulative?.UsesOwnerSeedOneOwner == true ? 306 : cumulative != null ? 303 : selection.UsesOwnerSeedCold ? 304 : 2) &&
+            Require(number == (cumulative?.UsesAssistedCold == true ? 301 : cumulative?.UsesOwnerSeedOneOwner == true ? 306 : cumulative != null ? 303 : selection.UsesF09FourHorseCold ? 307 : selection.UsesOwnerSeedCold ? 304 : 2) &&
                 leaf == selection.NativeWriteLeaf &&
                 !File.Exists(Path.Combine(root, leaf)), "Native Manual numbering or output absence differs.");
             evidence["nativeNumbering"] = new JObject { ["method"] = "FindUnusedSaveNumber",
@@ -277,6 +317,8 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             if (!manualSaveCallback || Busy()) return false;
             RequireAuthority(false); RequireWorld(); RequireNoOwners(); RequireNoEffects(); VerifySourceBytes();
+            RequireF09PriorHorses();
+            if (selection.UsesF09FourHorseCold) evidence["f09PriorHorsesAfter"] = f09PriorHorses.DeepClone();
             var completion = persistence.LastCompletedSave;
             Require(manualCallbackCount == 1 && manualSaveProbe != null && manualSaveProbe.Complete &&
                 persistence.CompletedSaveCount == 1 && persistence.SnapshotCount == 1 &&
