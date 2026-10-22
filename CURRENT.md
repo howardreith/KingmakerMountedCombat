@@ -5,7 +5,8 @@ sixth paid-Horse Manual scenario: game/artifact PASS 7/0, one load/one genuine
 Manual_308, twelve field actors/six characters and exactly remote Linzi. Its
 original outer FAIL remains recorded for a missed external-reader price check.
 The reviewed reader-only correction passed raw-artifact 9/0 and neighboring
-reader 118/0; full immutable re-evaluation is pending. All transactions and
+reader 118/0; separate full immutable game/archive and base-only inventory
+re-evaluations PASS with original verdicts/flags unchanged. All transactions and
 profile bytes restored exactly, zero cache exceptions, no game/lock. Sixth
 cold continuity, mounted breadth, conditional stress and the wider mission
 remain IN PROGRESS.

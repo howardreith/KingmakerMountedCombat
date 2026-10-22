@@ -15,11 +15,14 @@ regression 9/0 and neighboring reader 118/0 passed. No DLL changed.
 All transactions restored with zero errors; Mods/save digests match their
 current-state snapshots, profile exact, zero cache exceptions, no game/lock.
 The wrapper exited 1; do not relaunch it. Original ten-file evidence pins
-remained unchanged after exit. Next exact actions: run the prepared private
-`analysis-cache/chunk7-continuation/b184-reader-only-reevaluation.ps1` and
-`b184-base-only-reader-reevaluation.ps1` from this committed clean reader,
-retain both new receipts separately from original FAILs/flags, then implement
-the distinct sixth-Horse cold consumer of an independent Manual308 copy.
+remained unchanged after exit. The separate full immutable game/archive
+re-evaluation PASS is `6a625108`; base-only inventory re-evaluation PASS is
+`ed4ac770`. Both have `nativeInvoked=false` and preserve original FAILs/flags.
+The v1 full-re-evaluation helper's nested-array failure remains recorded;
+`b184-reader-only-reevaluation-v2.ps1` completed successfully. Do not rerun
+either completed check or the native acquisition. Next: implement the distinct
+sixth-Horse cold consumer of an independent Manual308 copy, including exact
+remote Linzi identity/progression, then independent review and affected checks.
 Private current execution note is `b184-current-execution.md`; next-source
 design is `b185-sixth-cold-and-capacity-next.md` in that same directory.
 Mounted capacity is still two; six unmounted Horses are fixture evidence,
