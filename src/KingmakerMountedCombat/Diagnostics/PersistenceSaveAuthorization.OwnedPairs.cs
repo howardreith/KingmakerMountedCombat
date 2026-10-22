@@ -44,10 +44,11 @@ namespace KingmakerMountedCombat.Diagnostics
                 string.Join(";", value.PersistenceReplayTargets.Select(target => target == null ? null :
                     string.Join(",", target.EnterPoint, target.Area, target.AutoSaveMode))))
                 // Owner-seed pins extend the captured key only for the seed-pinned kinds; historical keys are unchanged.
-                + (selected?.OwnerSeedSetup == true || selected?.OwnerSeedDerivedLineage == true || selected?.PaidFixtureLineage == true ? "\n" + string.Join("\n", selected.SeedId, selected.SeedSha256,
+                + (selected?.OwnerSeedSetup == true || selected?.OwnerSeedDerivedLineage == true || selected?.PaidFixtureLineage == true || selected?.IsFourthHorse == true ? "\n" + string.Join("\n", selected.SeedId, selected.SeedSha256,
                     selected.XpAssistance?.UnitId, selected.XpAssistance?.TargetCharacterLevel.ToString()) : "")
                 + (selected?.SmallFixtureLineage == true ? "\nsmall-fixture-cold:" + selected.ColdReceiptSha256 : "")
                 + (selected?.MediumFixtureLineage == true ? "\nmedium-fixture-cold:" + selected.ColdReceiptSha256 : "")
+                + (selected?.IsFourthHorse == true ? "\nfourth-horse-cold:" + selected.ColdReceiptSha256 : "")
                 + (selected?.IsOwnerSeedDerivedCombat == true ? "\ncompanion:" + selected.CompanionId : "")
                 + (selected?.IsOwnerSeedLoadRefusal == true ? "\nrefusal:" + string.Join("\n", value.LoadRefusalDerivationSha256,
                     value.PersistenceAlternate?.FileName, value.PersistenceAlternate?.InternalName, value.PersistenceAlternate?.GameId,

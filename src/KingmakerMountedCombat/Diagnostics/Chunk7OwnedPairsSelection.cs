@@ -57,6 +57,18 @@ namespace KingmakerMountedCombat.Diagnostics
         // The zero-write diagnostic above retains its original authority and evidence.
         public const string SmallThirdHorseSaveCase = "small-fixture-third-horse-persistence-save";
         public const string SmallFixtureManualName = "KMC_C7_SMALL_WORLD";
+        // The accepted three-Horse Manual is a distinct eight-actor source.
+        // This zero-write derivative advances Valerie by native XP/ordinary
+        // Ranger commitments; it is neither the seven-actor Small source nor
+        // permission for a four-pair archive or ordinary higher capacity.
+        public const string FourthHorseCase = "third-horse-fixture-fourth-horse-setup";
+        public const string FourthHorseSourceRun = "20261021-c7b-world171-b171s1-thirdhorse-manual";
+        public const string FourthHorseSourceArtifact = "57ab380ae5c4c95fbed1647446b3ca264f7e140c91a3b7ea4bb41037085450b1";
+        public const string FourthHorseSourceArchive = "f70a54865c86a599c3b25f6f2574abde2f663cd07b82472eac4bcbe245ea8c84";
+        public const string FourthHorseColdArtifact = "4439fbea3608dad76634174b555f9d4ea243f2b4d0480029b03b7de66f9c8766";
+        public const string FourthHorsePriorRider = "fd213210-71cd-41b0-b35b-68e1b18e9b43";
+        public const string FourthHorsePriorMount = "da28f0a7-6eb0-4392-b2e0-f401a889b3aa";
+        public const string FourthHorseTargetRider = "5dd7bd1d-ae4c-4df7-9687-50fceb027344";
         // Distinct paid Medium Human/Horse fixture, with its own completed
         // native Manual and separate-process cold ancestry (batch114).
         public const string MediumFixtureSaveCase = "medium-fixture-persistence-save";
@@ -183,6 +195,7 @@ namespace KingmakerMountedCombat.Diagnostics
         internal bool IsSmallThirdHorseSave => Case == SmallThirdHorseSaveCase;
         internal bool SmallThirdHorseSetup => IsSmallThirdHorse || IsSmallThirdHorseSave;
         internal bool SmallFixtureLineage => IsSmallFixtureSave || IsSmallFixtureLoad || SmallThirdHorseSetup;
+        internal bool IsFourthHorse => Case == FourthHorseCase;
         internal bool IsMediumFixtureSave => Case == MediumFixtureSaveCase;
         internal bool IsMediumFixtureLoad => Case == MediumFixtureLoadCase;
         internal bool MediumFixtureLineage => IsMediumFixtureSave || IsMediumFixtureLoad;
@@ -219,6 +232,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     case SmallFixtureLoadCase: return "chunk7-persistence-load";
                     case SmallThirdHorseCase: return "chunk7-two-pair-exploration";
                     case SmallThirdHorseSaveCase: return "chunk7-two-pair-exploration";
+                    case FourthHorseCase: return "chunk7-two-pair-exploration";
                     case MediumFixtureSaveCase: return "chunk7-persistence-save";
                     case MediumFixtureLoadCase: return "chunk7-persistence-load";
                     case "combat-rider-first": return "chunk7-two-pair-combat-rider-first";
@@ -285,6 +299,7 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             if (IsOwnerSeedDerivedCombat) return ValidateOwnerSeedDerivedCombat(scenario, runId, checkpoint);
             if (IsOwnerSeedCheckpointSave || IsOwnerSeedCheckpointLoad) return ValidateOwnerSeedCheckpoint(scenario, runId, checkpoint);
+            if (IsFourthHorse) return ValidateFourthHorse(scenario, runId, checkpoint);
             if (SmallFixtureLineage) return ValidateSmallFixture(scenario, runId, checkpoint);
             if (MediumFixtureLineage) return ValidateMediumFixture(scenario, runId, checkpoint);
             var errors = new List<string>();
@@ -309,6 +324,32 @@ namespace KingmakerMountedCombat.Diagnostics
                 errors.Add("Only cold persistence consumes an exact separate successful owned-pair source checkpoint.");
             if (!BaseGameOnly || ExpectedNativeLoadCount != LoadCount(checkpoint) || ExpectedNativeWriteCount != WriteCount(checkpoint))
                 errors.Add("Owned pairs require base-only staging and the exact selected native load/write quotas.");
+            return errors;
+        }
+        private IReadOnlyList<string> ValidateFourthHorse(string scenario, string runId, string checkpoint)
+        {
+            var errors = new List<string>();
+            if (scenario != Scenario || checkpoint != null)
+                errors.Add("Fourth-Horse setup is a distinct zero-write exploration case.");
+            if (SourceRunId != FourthHorseSourceRun || SourceArtifactSha256 != FourthHorseSourceArtifact ||
+                SourceArchiveSha256 != FourthHorseSourceArchive || ColdReceiptSha256 != FourthHorseColdArtifact ||
+                SeedId != Chunk7SmallFixtureSelection.SeedIdentity || SeedSha256 != Chunk7SmallFixtureSelection.SeedHash ||
+                runId == SourceRunId || runId == SeedId)
+                errors.Add("Fourth-Horse setup requires the accepted eight-actor producer and original-PASS cold lineage.");
+            if (RiderAId != Chunk7SmallFixtureSelection.MainActorId || MountAId != SmallFixtureMainHorse ||
+                RiderBId != SmallFixtureRider || MountBId != SmallFixtureHorse ||
+                PartyIds == null || PartyIds.Length != 8 ||
+                !PartyIds.All(Chunk7ManualDerivedSelection.NativeId) ||
+                PartyIds.Distinct(StringComparer.Ordinal).Count() != 8 ||
+                !new[] { RiderAId, MountAId, RiderBId, MountBId, FourthHorsePriorRider,
+                    FourthHorsePriorMount, FourthHorseTargetRider, "8265f8cf-0969-4ec7-a266-2448de91c8c4" }
+                    .OrderBy(id => id, StringComparer.Ordinal)
+                    .SequenceEqual(PartyIds.OrderBy(id => id, StringComparer.Ordinal)))
+                errors.Add("Fourth-Horse setup requires all eight exact native field actors, including three inherited Horses.");
+            if (!BaseGameOnly || ExpectedNativeLoadCount != 1 || ExpectedNativeWriteCount != 0 ||
+                CheckpointSourceRunId != null || CheckpointSourceArtifactSha256 != null ||
+                SourceArea != null || AreaRoute != null || CompanionId != null || XpAssistance != null)
+                errors.Add("Fourth-Horse setup permits one base-only native load, zero writes and no alternate target or checkpoint.");
             return errors;
         }
         private IReadOnlyList<string> ValidateSmallFixture(string scenario, string runId, string checkpoint)

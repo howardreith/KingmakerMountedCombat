@@ -33,6 +33,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private readonly RetainedObjectIdentity identities = new RetainedObjectIdentity(128);
         private JObject observations, sourceWorld, sourceArrangement;
         private JObject[] ownerRows;
+        private int InheritedPairCount => selection.IsFourthHorse ? 3 : 2;
         private object[] descriptors, views, facts, ranks;
         private UnitEntityData[] partyCharacters;
         private string sourcePath;
@@ -90,13 +91,16 @@ namespace KingmakerMountedCombat.Diagnostics
             Require(party.All(actor => actor.IsInState && actor.IsInGame && actor.View?.AgentASP != null && actor.Commands != null &&
                 (combatCold || !actor.IsInCombat && actor.Commands.Empty)), "An inherited field actor is not ready in its exact native world.");
             Require(game.Player.MainCharacter.Value.UniqueId == (string)sourceWorld["mainActorId"], "Inherited fixture main actor changed.");
-            Party = party; Actors = selection.PairIds.Select(id => party.Single(actor => actor.UniqueId == id)).ToArray();
+            Party = party; Actors = (selection.IsFourthHorse
+                ? selection.PairIds.Concat(new[] { Chunk7OwnedPairsSelection.FourthHorsePriorRider,
+                    Chunk7OwnedPairsSelection.FourthHorsePriorMount }) : selection.PairIds)
+                .Select(id => party.Single(actor => actor.UniqueId == id)).ToArray();
             partyCharacters = game.Player.PartyCharacters.Select(value => value.Value).ToArray();
             Require(partyCharacters.All(actor => actor != null && partyCharacters.Count(value => ReferenceEquals(value, actor)) == 1),
                 "Inherited native character roster is null or duplicated.");
             descriptors = Actors.Select(actor => (object)actor.Descriptor).ToArray(); views = Actors.Select(actor => (object)actor.View).ToArray();
-            facts = new object[2]; ranks = new object[2];
-            for (var index = 0; index < 2; index++)
+            facts = new object[InheritedPairCount]; ranks = new object[InheritedPairCount];
+            for (var index = 0; index < InheritedPairCount; index++)
             {
                 var rider = Actors[index * 2]; var mount = Actors[index * 2 + 1]; var row = ownerRows[index];
                 Require(rider.IsDirectlyControllable && !rider.Descriptor.IsPet && mount.Blueprint == horses.HorseUnit &&
@@ -140,6 +144,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 Hash(sourcePath) == selection.SourceArtifactSha256, "Exact staged two-owner Manual receipt is absent or changed.");
             sourceLength = file.Length; sourceTicks = file.LastWriteTimeUtc.Ticks;
             var artifact = JObject.Parse(File.ReadAllText(sourcePath)); observations = artifact["observations"] as JObject;
+            if (selection.IsFourthHorse) { ReadFourthHorseSource(artifact); return; }
             if (selection.PaidFixtureLineage) { ReadPaidFixtureSource(artifact); return; }
             if (Chunk7OwnedPairsSelection.IsManticoreManualCold(request.PersistenceCase) || selection.IsManticoreReturnArea)
             { ReadManticoreManualSource(artifact); return; }
@@ -169,6 +174,69 @@ namespace KingmakerMountedCombat.Diagnostics
             sourceArrangement = observations["beforeSaveArrangement"] as JObject;
             Require(sourceArrangement != null && JToken.DeepEquals(sourceArrangement, observations["afterSaveArrangement"]),
                 "Source Manual lacks unchanged native class/XP/funds evidence.");
+        }
+        private void ReadFourthHorseSource(JObject artifact)
+        {
+            var input = request.PersistenceLoad;
+            var setup = observations?["thirdHorseSetup"] as JObject;
+            var manual = observations?["thirdHorseManual"] as JObject;
+            var write = observations?["nativeWrite"] as JObject;
+            var inheritedSource = observations?["inheritedFixture"] as JObject;
+            var priorPairs = inheritedSource?["pairs"] as JArray;
+            var priorHorse = setup?["nativeHorse"] as JObject;
+            var saved = manual?["boundary"] as JObject;
+            var savedActors = saved?["actors"] as JArray;
+            var field = observations?["cleanup"]?["partyAfter"] as JArray;
+            Require((string)artifact["scenario"] == Chunk7OwnedPairsSelection.Scenario &&
+                (string)artifact["evidenceKind"] == Chunk7WorldScenarioEngine.EvidenceKind &&
+                (string)artifact["runId"] == Chunk7OwnedPairsSelection.FourthHorseSourceRun &&
+                (string)artifact["status"] == "PASS" && artifact["errors"] is JArray failures && failures.Count == 0 &&
+                (string)setup?["contract"] == "small-source-third-native-horse-setup-v1" &&
+                (string)write?["sha256"] == input.Sha256 && (string)write?["fileName"] == input.FileName &&
+                (string)write?["gameId"] == input.GameId && (string)write?["gameName"] == input.GameName &&
+                (string)write?["area"] == input.Area && (int?)write?["archive"]?["SchemaVersion"] == 3 &&
+                (string)manual?["contract"] == "small-third-horse-manual-producer-v1" &&
+                manual?["setupCompletedBeforeSave"]?.Value<bool>() == true &&
+                setup?["fixtureSetupOnly"]?.Value<bool>() == true &&
+                setup?["sixPairQualified"]?.Value<bool>() == false &&
+                (string)setup?["targetRiderId"] == Chunk7OwnedPairsSelection.FourthHorsePriorRider &&
+                setup?["nativeCommitCount"]?.Value<int>() == 4 &&
+                observations?["cleanup"]?["cleanupCustodySettled"]?.Value<bool>() == true &&
+                field != null && field.Count == 8 && savedActors != null && savedActors.Count == 8 &&
+                priorPairs != null && priorPairs.Count == 2 && priorHorse != null,
+                "Three-Horse source lacks its exact accepted producer, saved boundary or cleanup custody.");
+            var expected = selection.PartyIds.OrderBy(id => id, StringComparer.Ordinal);
+            Require(field.All(row => row["id"] != null && row["blueprint"] != null) &&
+                field.Select(row => (string)row["id"]).OrderBy(id => id, StringComparer.Ordinal).SequenceEqual(expected) &&
+                savedActors.Select(row => (string)row["actorId"]).OrderBy(id => id, StringComparer.Ordinal).SequenceEqual(expected) &&
+                (string)priorHorse["mountId"] == Chunk7OwnedPairsSelection.FourthHorsePriorMount &&
+                (string)priorHorse["mountMasterId"] == Chunk7OwnedPairsSelection.FourthHorsePriorRider &&
+                (string)priorHorse["riderPetId"] == Chunk7OwnedPairsSelection.FourthHorsePriorMount &&
+                (string)priorHorse["blueprint"] == HorseCompanionBlueprintService.UnitGuid &&
+                (string)priorHorse["featureGuid"] == HorseCompanionBlueprintService.FeatureGuid &&
+                priorHorse["rank"]?.Value<int>() > 0,
+                "Three-Horse source changed its eight actors or third native reciprocal Horse.");
+            ownerRows = new JObject[3];
+            for (var index = 0; index < 2; index++)
+            {
+                var row = priorPairs[index];
+                Require((string)row?["riderId"] == selection.PairIds[index * 2] &&
+                    (string)row?["mountId"] == selection.PairIds[index * 2 + 1] &&
+                    (string)row?["sourceGuid"] == (string)priorHorse["sourceGuid"] &&
+                    row?["rank"]?.Value<int>() > 0,
+                    "Three-Horse source changed one of its two prior Horse roles.");
+                ownerRows[index] = new JObject { ["sourceGuid"] = row["sourceGuid"].DeepClone(),
+                    ["featureGuid"] = HorseCompanionBlueprintService.FeatureGuid, ["rank"] = row["rank"].DeepClone() };
+            }
+            ownerRows[2] = new JObject { ["sourceGuid"] = priorHorse["sourceGuid"].DeepClone(),
+                ["featureGuid"] = priorHorse["featureGuid"].DeepClone(), ["rank"] = priorHorse["rank"].DeepClone() };
+            sourceWorld = new JObject { ["gameId"] = input.GameId, ["area"] = input.Area,
+                ["mainActorId"] = selection.RiderAId,
+                ["party"] = new JArray(field.Select(row => new JObject {
+                    ["id"] = row["id"].DeepClone(), ["blueprint"] = row["blueprint"].DeepClone() })) };
+            sourceArrangement = saved;
+            Require(JToken.DeepEquals(saved, manual["arrangementAfterSave"]),
+                "Three-Horse Manual changed its native arrangement while saving.");
         }
         private void ReadPaidFixtureSource(JObject artifact)
         {
@@ -206,7 +274,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var roles = new[] { selection.RiderAId, selection.RiderBId };
             var pets = new[] { selection.MountAId, selection.MountBId };
             ownerRows = new JObject[2];
-            for (var index = 0; index < 2; index++)
+            for (var index = 0; index < InheritedPairCount; index++)
             {
                 var row = owners[index] as JObject;
                 Require(row != null && (string)row["riderId"] == roles[index] && (string)row["horseId"] == pets[index] &&
@@ -443,7 +511,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 currentCharacters.Length == partyCharacters.Length && partyCharacters.All(actor => currentCharacters.Count(value => ReferenceEquals(value, actor)) == 1) &&
                 !game.Player.RemoteCompanions.Any(value => Party.Any(actor => ReferenceEquals(value.Value, actor))),
                 "Inherited complete native field roster changed; captured actors cannot be silently removed, replaced or moved remote.");
-            for (var index = 0; index < 2; index++)
+            for (var index = 0; index < InheritedPairCount; index++)
             {
                 var rider = Actors[index * 2]; var mount = Actors[index * 2 + 1]; var row = ownerRows[index];
                 Require(ReferenceEquals(rider.Descriptor, descriptors[index * 2]) && ReferenceEquals(mount.Descriptor, descriptors[index * 2 + 1]) &&
@@ -472,13 +540,15 @@ namespace KingmakerMountedCombat.Diagnostics
             RequirePreserved();
             // Owner-seed-derived custody keeps its own labels; it is never relabelled acquired ancestry.
             var derived = selection.OwnerSeedDerivedLineage;
-            return new JObject { ["contract"] = selection.SmallFixtureLineage ? "owner-seed-small-fixture-two-horse-native-field-v1" :
+            return new JObject { ["contract"] = selection.IsFourthHorse ? "small-fixture-three-horse-native-field-v1" :
+                    selection.SmallFixtureLineage ? "owner-seed-small-fixture-two-horse-native-field-v1" :
                     selection.MediumFixtureLineage ? "owner-seed-medium-fixture-two-horse-native-field-v1" :
                     derived ? "owner-seed-derived-two-horse-native-field-v1" : "inherited-two-horse-native-field-v1", ["phase"] = phase,
                 ["sourceRunId"] = selection.SourceRunId, ["sourceArtifactSha256"] = selection.SourceArtifactSha256,
                 ["sourceArchiveSha256"] = selection.SourceArchiveSha256, ["sourceCase"] =
                     (Chunk7OwnedPairsSelection.IsManticoreManualCold(request.PersistenceCase) || selection.IsManticoreReturnArea) ?
                         Chunk7OwnedPairsSelection.ManticoreFixtureCheckpoint :
+                    selection.IsFourthHorse ? Chunk7OwnedPairsSelection.SmallThirdHorseSaveCase :
                     selection.SmallFixtureLineage ? Chunk7SmallFixtureSelection.CaseName :
                     selection.MediumFixtureLineage ? Chunk7SmallFixtureSelection.MediumCaseName :
                     derived ? Chunk7OwnedPairsSelection.OwnerSeedManualCase : Chunk7OwnedPairsSelection.SourceCase,
@@ -489,7 +559,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["currentCharacterIds"] = new JArray(game.Player.PartyCharacters.Select(value => value.Value.UniqueId).OrderBy(id => id, StringComparer.Ordinal)),
                 ["remoteCapturedIds"] = new JArray(game.Player.RemoteCompanions.Where(value => Party.Any(actor => ReferenceEquals(value.Value, actor)))
                     .Select(value => value.Value.UniqueId).OrderBy(id => id, StringComparer.Ordinal)), ["arrangement"] = Arrangement(),
-                ["pairs"] = new JArray(Enumerable.Range(0, 2).Select(index => new JObject {
+                ["pairs"] = new JArray(Enumerable.Range(0, InheritedPairCount).Select(index => new JObject {
                     ["riderId"] = Actors[index * 2].UniqueId, ["mountId"] = Actors[index * 2 + 1].UniqueId,
                     ["rider"] = identities.Get(Actors[index * 2]), ["mount"] = identities.Get(Actors[index * 2 + 1]),
                     ["feature"] = identities.Get(facts[index]), ["rankFact"] = identities.Get(ranks[index]),
@@ -509,13 +579,13 @@ namespace KingmakerMountedCombat.Diagnostics
         // exact seven-actor arrangement is no longer a valid invariant.
         internal void RequireReleasedThirdHorseSourceCustody()
         {
-            Require(bound && released && selection.SmallThirdHorseSetup, "Third-Horse source custody is not released.");
+            Require(bound && released && (selection.SmallThirdHorseSetup || selection.IsFourthHorse), "Horse-setup source custody is not released.");
             RequireRequest(); RequireAuthority(); Scope.RequireCurrent();
             var current = Chunk7NativeFieldRoster.Capture(game.Player);
             Require(Party.All(actor => current.Count(value => ReferenceEquals(value, actor)) == 1) &&
                 partyCharacters.All(actor => game.Player.PartyCharacters.Count(value => ReferenceEquals(value.Value, actor)) == 1),
                 "An inherited field actor or character was replaced during third-Horse setup.");
-            for (var index = 0; index < 2; index++)
+            for (var index = 0; index < InheritedPairCount; index++)
             {
                 var rider = Actors[index * 2]; var mount = Actors[index * 2 + 1]; var row = ownerRows[index];
                 Require(ReferenceEquals(rider.Descriptor, descriptors[index * 2]) && ReferenceEquals(mount.Descriptor, descriptors[index * 2 + 1]) &&

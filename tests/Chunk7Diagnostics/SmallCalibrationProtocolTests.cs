@@ -29,6 +29,20 @@ internal static class SmallCalibrationProtocolTests {
    var r=SmallThirdHorseRequest();TestRunner.Equal(0,r.Validate().Count,"Exact third-Horse setup request refused.");
    TestRunner.Equal("chunk7-two-pair-exploration",r.SelectedChunk7Scenario,"Third-Horse setup routed through another native host.");
   });
+  tests.Run("fourth-Horse request admits only the distinct accepted eight-actor Manual",()=>{
+   var r=FourthHorseRequest();TestRunner.Equal(0,r.Validate().Count,string.Join(" | ",r.Validate()));
+   TestRunner.Equal("chunk7-two-pair-exploration",r.SelectedChunk7Scenario,"Fourth-Horse setup routed through another native host.");
+   TestRunner.Equal(0,r.OwnedPairs.WriteCount(r.PersistenceCase),"Fourth-Horse setup gained a native write.");
+  });
+  foreach(var bad in new[]{"seven-actor roster","different cold receipt","different Manual","write","checkpoint","foreign case"})
+   tests.Run("fourth-Horse request refuses "+bad,()=>{var r=FourthHorseRequest();switch(bad){
+    case "seven-actor roster":r.OwnedPairs.PartyIds=r.OwnedPairs.PartyIds.Take(7).ToArray();break;
+    case "different cold receipt":r.OwnedPairs.ColdReceiptSha256=new string('7',64);break;
+    case "different Manual":r.PersistenceLoad.FileName="Manual_306_KMC_C7_SMALL_WORLD.zks";break;
+    case "write":r.OwnedPairs.ExpectedNativeWriteCount=1;break;
+    case "checkpoint":r.PersistenceCase="multi-exploration-manual";break;
+    case "foreign case":r.OwnedPairs.Case="exploration";break;
+   }TestRunner.True(r.Validate().Count>0,"Changed fourth-Horse custody or authority was accepted.");});
   tests.Run("third-Horse native Manual admits exact source and one reserved write",()=>{
    var r=SmallThirdHorseManualRequest();TestRunner.Equal(0,r.Validate().Count,"Exact third-Horse Manual request refused.");
    TestRunner.Equal("chunk7-two-pair-exploration",r.SelectedChunk7Scenario,"Third-Horse Manual routed through another native host.");
@@ -53,7 +67,7 @@ internal static class SmallCalibrationProtocolTests {
    }TestRunner.True(r.Validate().Count>0,"Third-Horse setup accepted altered source or authority.");});
   tests.Run("Small mounted request refuses out-of-range source Manual",()=>{var r=SmallMountedRequest(false);r.PersistenceLoad.FileName="Manual_2147483648_KMC_C7_SMALL_FIXTURE.zks";TestRunner.True(r.Validate().Count>0,"Out-of-range source Manual admitted.");});
   tests.Run("Small mounted request refuses out-of-range cold Manual",()=>{var r=SmallMountedRequest(true);r.PersistenceLoad.FileName="Manual_2147483648_KMC_C7_SMALL_WORLD.zks";TestRunner.True(r.Validate().Count>0,"Out-of-range cold Manual admitted.");});
-  tests.Run("Non-Small owned request refuses F09 cold receipt",()=>{var r=SmallMountedRequest(false);r.OwnedPairs.Case="persistence-save";TestRunner.True(r.Validate().Any(e=>e=="Only paid fixture persistence carries an accepted cold receipt."),"Historical family accepted Small-only receipt.");});
+  tests.Run("Non-Small owned request refuses F09 cold receipt",()=>{var r=SmallMountedRequest(false);r.OwnedPairs.Case="persistence-save";TestRunner.True(r.Validate().Any(e=>e=="Only paid fixture persistence or the exact fourth-Horse source carries an accepted cold receipt."),"Historical family accepted Small-only receipt.");});
   tests.Run("Medium mounted save request accepts the paid Human/Horse Manual",()=>TestRunner.Equal(0,MediumMountedRequest(false).Validate().Count,"Paid Medium source refused."));
   tests.Run("Medium mounted cold request accepts a distinct mounted Manual",()=>TestRunner.Equal(0,MediumMountedRequest(true).Validate().Count,"Paid Medium cold source refused."));
   tests.Run("Medium mounted cold refuses the unmounted source archive",()=>{var r=MediumMountedRequest(true);r.PersistenceLoad.Sha256=Chunk7OwnedPairsSelection.MediumFixtureProducerArchive;TestRunner.True(r.Validate().Count>0,"Unchanged paid source impersonated mounted checkpoint.");});
@@ -90,6 +104,22 @@ internal static class SmallCalibrationProtocolTests {
  private static RuntimeRequest SmallThirdHorseManualRequest(){var r=SmallMountedRequest(false);
   r.RunId="small-third-horse-manual-run";
   r.OwnedPairs.Case=Chunk7OwnedPairsSelection.SmallThirdHorseSaveCase;return r;}
+ private static RuntimeRequest FourthHorseRequest(){var r=SmallThirdHorseRequest();
+  r.RunId="fourth-horse-run";
+  r.OwnedPairs.Case=Chunk7OwnedPairsSelection.FourthHorseCase;
+  r.OwnedPairs.SourceRunId=Chunk7OwnedPairsSelection.FourthHorseSourceRun;
+  r.OwnedPairs.SourceArtifactSha256=Chunk7OwnedPairsSelection.FourthHorseSourceArtifact;
+  r.OwnedPairs.SourceArchiveSha256=Chunk7OwnedPairsSelection.FourthHorseSourceArchive;
+  r.OwnedPairs.ColdReceiptSha256=Chunk7OwnedPairsSelection.FourthHorseColdArtifact;
+  r.OwnedPairs.PartyIds=new[]{Chunk7SmallFixtureSelection.MainActorId,Chunk7OwnedPairsSelection.SmallFixtureMainHorse,
+   Chunk7OwnedPairsSelection.SmallFixtureRider,Chunk7OwnedPairsSelection.SmallFixtureHorse,
+   Chunk7OwnedPairsSelection.FourthHorsePriorRider,Chunk7OwnedPairsSelection.FourthHorsePriorMount,
+   Chunk7OwnedPairsSelection.FourthHorseTargetRider,"8265f8cf-0969-4ec7-a266-2448de91c8c4"};
+  r.PersistenceLoad=Descriptor(Chunk7OwnedPairsSelection.SmallFixtureManualName,
+   "Manual_305_KMC_C7_SMALL_WORLD.zks",Chunk7OwnedPairsSelection.FourthHorseSourceArchive);
+  r.PersistenceLoad.GameId=Chunk7SmallFixtureSelection.CampaignId;
+  r.PersistenceLoad.GameName=Chunk7SmallFixtureSelection.CampaignName;
+  r.PersistenceLoad.Area=Chunk7SmallFixtureSelection.AreaId;return r;}
  private static RuntimeRequest MediumMountedRequest(bool cold){var r=FieldRequest();r.RunId=cold?"medium-cold-run":"medium-save-run";
   r.Scenario=Chunk7OwnedPairsSelection.Scenario;r.OrdinaryField=null;r.PersistenceCase="multi-exploration-manual";
   r.OwnedPairs=new Chunk7OwnedPairsSelection{Case=cold?Chunk7OwnedPairsSelection.MediumFixtureLoadCase:Chunk7OwnedPairsSelection.MediumFixtureSaveCase,
