@@ -20,8 +20,9 @@ The original BOM selection/preflight FAIL and corrected no-BOM v2 input are
 separate; only the v2 helper launched a game. Earlier source-test and test-
 isolation failures remain recorded in the batch doc.
 
-Next: commit/guarded-push this reviewed reader-only result and update draft
-PR #5. Then implement the distinct sixth paid Halfling/Horse acquisition on
+The reviewed reader-only result is committed and guarded-pushed at
+`e3666daf4fe175776123d4017decf89943710d54`; draft PR #5 is updated.
+Next: implement the distinct sixth paid Halfling/Horse acquisition on
 a fresh unchanged Manual_307 copy, reusing the proved native departure as
 disclosed setup before native choices. Bind batch183's original game PASS,
 original outer FAIL and separate reader-only PASSes honestly. Use a new
@@ -29,6 +30,10 @@ internal output name (for example KMC_C7_SIX_HORSE_WORLD) and native Manual_308
 to avoid the previously observed CreateNewSave name collision; then qualify
 an independent cold copy with twelve field actors/six native Horses and
 remote Linzi. Working notes: analysis-cache/chunk7-continuation/b184-sixth-hire-design.md.
+The [read-only sixth-hire source gate](docs/CHUNK7-F09-SIXTH-HIRE-SOURCE-2026-10-22.md)
+has independent review and final focused PASS 13/0, including the 28-receipt
+closure. It grants no native acquisition or write authority. Runtime wiring
+is in progress; no batch184 native scenario has been launched.
 Continue mounted breadth/conditional stress, remaining 7C/7D and selected
 private 7E. No merge/release/permanent installation or HUMAN PLAY acceptance.
 
