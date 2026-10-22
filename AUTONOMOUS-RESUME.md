@@ -1,5 +1,29 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## Active October 22 after batch175 fourth-Horse setup PASS
+
+The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active
+through readiness-gated private 7E. [Batch175](docs/CHUNK7-BATCH175-FOURTH-HORSE-NATIVE-SETUP-2026-10-22.md)
+passed one guarded native fourth-Horse setup **game/original outer 4/0** from
+the exact b171 Manual and b174 independent cold receipt. Reviewed/pushed source
+`99022f0756e9e0ccb4fe02c492eed43800688881`, package ZIP
+`dfa636770da7a7be9f6d84925a7c36b98fb06b185f7aadf79fe7b9962f21e2db`,
+DLL `b516913cbd8dda0e1526ff885ea1f56097ba4aa236255145c23589d8e175e313`,
+suite `a8c9cbc1995040a1fb62cc1ae301ec7355fc3532a5ecbfa76ada201cf75fe2fe`
+are the exact identities. Valerie received disclosed native XP and four
+ordinary Ranger commits; nine actors and four reciprocal sourced Horses
+settled with one load, zero saves. Run/save/Mods/profile bytes restored
+exactly; no game process or active lock remains. Historical FAILs remain
+separate. The zero-write result does not qualify four-Horse persistence or
+six-pair stress.
+
+Next: implement and independently review a distinct one-Manual fourth-Horse
+producer from the same immutable eight-actor source, then run one guarded
+producer and separate cold consumer on its exact archive. Do not reuse b175's
+unsaved in-process pet as source. Continue the standing F09/F10/F11 and
+readiness-gated private 7E scope; no merge, release, permanent installation
+or HUMAN PLAY acceptance.
+
 ## Active October 22 after batch174 source-route review
 
 The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active
