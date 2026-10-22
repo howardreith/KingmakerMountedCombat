@@ -1,5 +1,29 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## Active October 22 after reviewed nine-actor F09 source gate
+
+The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active
+through selected private 7E. Pushed predecessor HEAD `09f82a34` contains
+batch179's original fourth-Horse cold PASS and exact restoration. The new
+[F09 nine-actor route](docs/CHUNK7-F09-B179-NINE-ACTOR-ROSTER-ROUTE-2026-10-22.md)
+has a read-only b178/b179 receipt-pinned source gate and actual-receipt plus
+changed-anchor checks PASS 2/0. Independent review found no blocker. No new
+candidate or native run was required for the gate. It grants no fifth/sixth-pair
+native authority. The exact installed selector permits removal only when
+`MustBeInParty` is false; Linzi's status in the selected world is not yet
+observed. The fifth paid rider has one open slot; the sixth needs a bounded
+Linzi selector observation and ordinary roster transition.
+
+Next: commit/guarded-push this reviewed gate and record, then implement the
+distinct fifth paid-Horse derivative from b178 Manual/b179 cold source. Require
+actual paid build, inherited four-Horse preservation, native field admission,
+one genuine Manual and separate cold qualification. Check Linzi's selector
+requirement before the sixth supported-rider route. Continue independent 7C/7D
+and readiness-gated 7E; do not report engineering completion yet. No
+merge/release/permanent installation/HUMAN PLAY acceptance.
+The next source command after this checkpoint is
+`rg -n 'Chunk7OrdinaryBuildDriver|Chunk7NativePartyFieldAdmission|Chunk7ManualDerivedScenario' src/KingmakerMountedCombat/Diagnostics`.
+
 ## Active October 22 after batch179 fourth-Horse cold original PASS
 
 The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active
