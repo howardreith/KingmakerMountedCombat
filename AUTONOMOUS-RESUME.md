@@ -1,5 +1,11 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## Active October 21 after batch171 native three-Horse Manual PASS
+
+The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active. [Batch171](docs/CHUNK7-BATCH171-F09-THIRD-HORSE-MANUAL-PASS-2026-10-21.md) on reviewed/pushed `4bb63b4f2fafa0f47da6e3cf35f12ca8ff6b25e1` passed Candidate 7/0, then one guarded native producer **game PASS 5/0 / outer PASS**. The one genuine Manual `Manual_305_KMC_C7_SMALL_WORLD.zks` is retained in the isolated b171 run root, SHA-256 `f70a54865c86a599c3b25f6f2574abde2f663cd07b82472eac4bcbe245ea8c84`, with eight native field actors and empty unmounted KMC metadata. Run/save/Mods transactions restored; 402 accepted native cache changes mean profile bytes were not exact. Batch170 original FAIL remains recorded. No independent cold consumer exists yet, so F09 persistence is **IN PROGRESS**.
+
+Next: design and independently review a narrow zero-write, separate-process cold consumer bound to the exact b171 producer receipt and archive, verifying the third native Horse, original two Horses, eight-actor roster and progression after native load. Use a new candidate/suite only after the coherent source and reader correction is reviewed; do not repeat the already-passing producer. Continue the selected F09, F11, doors, 7C/7D and private 7E gates. No merge, release, permanent installation or HUMAN PLAY acceptance.
+
 ## Active October 21 after batch170 native Manual reservation FAIL
 
 The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active. [Batch170](docs/CHUNK7-BATCH170-F09-THIRD-HORSE-MANUAL-FAIL-2026-10-21.md) is original game/outer **FAIL** before world load: the new third-Horse producer's native output reservation chose generic `KMC_C7_WORLD`, conflicting with selected `KMC_C7_SMALL_WORLD`. Run/save/Mods transactions restored; 552 accepted native profile-cache changes mean profile bytes were not exact. A narrow reviewed correction in `Chunk7PersistenceScenario.NativeName` aligns both overloads with the closed case, with Fast 3/0 and a regression for the exact bootstrap call. No corrected native outcome, new Manual or cold consumer exists yet.
