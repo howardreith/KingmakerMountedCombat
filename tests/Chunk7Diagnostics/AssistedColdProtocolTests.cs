@@ -23,6 +23,9 @@ internal static class AssistedColdFixture{
   r.PersistenceLoad.InternalName=Chunk7OwnedPairsSelection.FourthHorseManualName;
   r.PersistenceLoad.FileName="Manual_306_KMC_C7_FOUR_HORSE_WORLD.zks";return r;}
  internal static RuntimeRequest FourthHorseSelectorRequest(){var r=FourthHorseRequest();r.AssistedColdInventory.Case=Chunk7AssistedColdInventorySelection.FourthHorseSelectorCaseName;return r;}
+ internal static RuntimeRequest FifthHorseRequest(){var r=SmallRequest();r.AssistedColdInventory.Case=Chunk7AssistedColdInventorySelection.FifthHorseCaseName;
+  r.PersistenceLoad.InternalName=Chunk7ManualDerivedSelection.ManualOutputName;
+  r.PersistenceLoad.FileName=Chunk7ManualDerivedSelection.F09FifthOutputLeaf;return r;}
 }
 internal static class AssistedColdProtocolTests{
  static int Main(){var t=new TestRunner();
@@ -32,6 +35,18 @@ internal static class AssistedColdProtocolTests{
  t.Run("paid Medium Manual has its own read-only cold case",()=>{var r=AssistedColdFixture.MediumRequest();TestRunner.Equal(0,r.Validate().Count,string.Join(" | ",r.Validate()));});
  t.Run("third-Horse Manual has its own zero-write cold case",()=>{var r=AssistedColdFixture.ThirdHorseRequest();TestRunner.Equal(0,r.Validate().Count,string.Join(" | ",r.Validate()));});
  t.Run("fourth-Horse Manual has its own zero-write cold case",()=>{var r=AssistedColdFixture.FourthHorseRequest();TestRunner.Equal(0,r.Validate().Count,string.Join(" | ",r.Validate()));});
+ t.Run("paid fifth-Horse Manual has its own zero-write cold case",()=>{var r=AssistedColdFixture.FifthHorseRequest();TestRunner.Equal(0,r.Validate().Count,string.Join(" | ",r.Validate()));});
+ foreach(var kind in new[]{"fourth leaf","wrong number","wrong name","foreign campaign","foreign area","wrong hash","write","second load"})
+  t.Run("fifth-Horse cold refuses "+kind,()=>{var r=AssistedColdFixture.FifthHorseRequest();switch(kind){
+   case "fourth leaf":r.PersistenceLoad.FileName="Manual_306_KMC_C7_FOUR_HORSE_WORLD.zks";break;
+   case "wrong number":r.PersistenceLoad.FileName="Manual_308_KMC_C7_MANUAL_DERIVED_FIELD.zks";break;
+   case "wrong name":r.PersistenceLoad.InternalName=Chunk7OwnedPairsSelection.FourthHorseManualName;break;
+   case "foreign campaign":r.PersistenceLoad.GameId=AssistedColdFixture.Minted;break;
+   case "foreign area":r.PersistenceLoad.Area=AssistedColdFixture.Area;break;
+   case "wrong hash":r.AssistedColdInventory.SourceArchiveSha256=new string('e',64);break;
+   case "write":r.AssistedColdInventory.ExpectedNativeWriteCount=1;break;
+   case "second load":r.AssistedColdInventory.ExpectedNativeLoadCount=2;break;}
+   TestRunner.True(r.Validate().Count>0,"Foreign fifth-Horse cold shape admitted.");});
  t.Run("opened selector observation accepts only the exact fourth-Horse Manual under zero-write authority",()=>{
   var r=AssistedColdFixture.FourthHorseSelectorRequest();TestRunner.Equal(0,r.Validate().Count,string.Join(" | ",r.Validate()));
   r.PersistenceLoad.FileName="Manual_305_KMC_C7_SMALL_WORLD.zks";TestRunner.True(r.Validate().Count>0,"Selector admitted the third-Horse leaf.");

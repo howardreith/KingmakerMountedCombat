@@ -1,6 +1,7 @@
 Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot 'Chunk7ThirdHorseColdSource.ps1')
 . (Join-Path $PSScriptRoot 'Chunk7FourthHorseColdSource.ps1')
+. (Join-Path $PSScriptRoot 'Chunk7FifthHorseColdSource.ps1')
 function Read-KmcChunk7AssistedColdInventorySelectionFile([string]$Path,[string]$RunId){
  $path=Assert-KmcChildPath $Path (Get-KmcLabRoot) 'assisted cold selection'
  Assert-KmcNotReparsePoint $path 'assisted cold selection';Assert-KmcNotHardLink $path 'assisted cold selection'
@@ -79,6 +80,7 @@ function Get-KmcChunk7AssistedColdInventorySource($Selection,$Fixture,$Candidate
  if(Test-KmcChunk7OwnerSeedSelection $Selection){return Get-KmcChunk7OwnerSeedSource $Selection $Fixture $Candidate}
  if(Test-KmcChunk7ThirdHorseColdSelection $Selection){return Get-KmcChunk7ThirdHorseColdSource $Selection $Fixture $Candidate}
  if(Test-KmcChunk7FourthHorseSourceSelection $Selection){return Get-KmcChunk7FourthHorseColdSource $Selection $Fixture $Candidate}
+ if(Test-KmcChunk7FifthHorseColdSelection $Selection){return Get-KmcChunk7FifthHorseColdSource $Selection $Fixture $Candidate}
  if(Test-KmcChunk7PaidFixtureColdSelection $Selection){
   $producerCase=if(Test-KmcChunk7MediumFixtureColdSelection $Selection){'owner-seed-default-human-horse-manual'}else{'owner-seed-default-halfling-horse-manual'}
   return Get-KmcChunk7SmallFixtureColdSource $Selection.sourceRunId $Selection.sourceArtifactSha256 $Selection.sourceArchiveSha256 $Fixture $Candidate $producerCase
@@ -162,7 +164,7 @@ function Read-KmcAssistedColdSourceArtifact($Request){
  $base=Join-Path (Get-KmcLabRoot) 'runtime-evidence'
  $evidenceRoot=Assert-KmcChildPath $Request.evidenceRoot $base 'assisted cold evidence root'
  Assert-KmcBootstrapInventoryString $evidenceRoot (Join-Path $base $Request.runId)
- $leaf=if(Test-KmcChunk7HorseWorldColdSelection $Request.assistedColdInventory){'chunk7-world-evidence.json'}elseif(Test-KmcChunk7PaidFixtureColdSelection $Request.assistedColdInventory){'chunk7-small-fixture-evidence.json'}else{'chunk7-assisted-fixture-evidence.json'}
+ $leaf=if(Test-KmcChunk7FifthHorseColdSelection $Request.assistedColdInventory){'chunk7-manual-derived-evidence.json'}elseif(Test-KmcChunk7HorseWorldColdSelection $Request.assistedColdInventory){'chunk7-world-evidence.json'}elseif(Test-KmcChunk7PaidFixtureColdSelection $Request.assistedColdInventory){'chunk7-small-fixture-evidence.json'}else{'chunk7-assisted-fixture-evidence.json'}
  $path=Join-Path (Join-Path $base $Request.assistedColdInventory.sourceRunId) $leaf
  $path=Assert-KmcChildPath $path $base 'assisted cold producer artifact'
  Assert-KmcNotReparsePoint $path 'assisted cold producer artifact';Assert-KmcNotHardLink $path 'assisted cold producer artifact'

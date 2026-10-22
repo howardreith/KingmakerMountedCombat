@@ -35,7 +35,12 @@ namespace KingmakerMountedCombat.Diagnostics
         public const string FourthHorseSelectorCaseName = "fourth-horse-open-selector-inventory";
         internal bool IsFourthHorseSelector => Case == FourthHorseSelectorCaseName;
         internal bool IsFourthHorseSource => IsFourthHorse || IsFourthHorseSelector;
-        internal bool IsHorseWorld => IsThirdHorse || IsFourthHorseSource;
+        // The ordinary paid fifth Horse is a different 11-actor Manual lineage.
+        public const string FifthHorseCaseName = "fifth-horse-manual-readonly-inventory";
+        internal bool IsFifthHorse => Case == FifthHorseCaseName;
+        internal bool IsHorseWorld => IsThirdHorse || IsFourthHorseSource || IsFifthHorse;
+        internal int HorseWorldActorCount => IsFifthHorse ? 11 : IsFourthHorseSource ? 9 : 8;
+        internal int HorseWorldHorseCount => IsFifthHorse ? 5 : IsFourthHorseSource ? 4 : 3;
         // Kingmaker save names legitimately contain spaces (the engine writes them as
         // underscores only in the file name). Single interior spaces only: no leading,
         // trailing or repeated space, no tab, newline or other whitespace, at most 64
