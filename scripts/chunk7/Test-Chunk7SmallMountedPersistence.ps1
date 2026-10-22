@@ -32,6 +32,14 @@ function Check([string]$Name,[bool]$Expected,[scriptblock]$Body){
  else{$script:fail++;Write-Host ('FAIL '+$Name+': '+$detail)}
 }
 function Copy-Selection($Value){$Value|ConvertTo-Json -Depth 20|ConvertFrom-Json}
+$thirdSelection=Copy-Selection $selection;$thirdSelection.case='small-fixture-third-horse-setup';$thirdSelection.expectedNativeWriteCount=0
+$thirdRequest=[pscustomobject]@{scenario=$request.scenario;runId='test-small-third-horse';ownedPairs=$thirdSelection;persistenceCase=$null;fixture=$request.fixture}
+Check 'third-Horse setup accepts no matched-pool artifact' $true {
+ Assert-KmcMatchedPoolArtifact $thirdRequest ([pscustomobject]@{artifacts=@()}) 'PASS'
+}
+Check 'third-Horse setup refuses forged matched-pool artifact' $false {
+ Assert-KmcMatchedPoolArtifact $thirdRequest ([pscustomobject]@{artifacts=@([pscustomobject]@{relativePath='chunk7-matched-pool-measurements.json';kind='chunk7-matched-pool-measurements'})}) 'PASS'
+}
 Check 'qualified b53 source and accepted cold receipt' $true {
  $source=Get-KmcChunk7OwnedPairsSmallSource $selection 'multi-exploration-manual' $consumer.fixture $consumer
  Assert-KmcBootstrapInventoryString $source.descriptor.sha256 $selection.sourceArchiveSha256
