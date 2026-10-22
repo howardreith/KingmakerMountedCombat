@@ -1,6 +1,29 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
-## Active October 22 after batch182 fifth-Horse cold PASS
+## Active October 22 — batch183 native departure implementation
+
+The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
+The reviewed [batch183 departure case](docs/CHUNK7-BATCH183-LINZI-NATIVE-DEPARTURE-2026-10-22.md)
+is implemented on the successor after pushed `f425432f`. It owns one ordinary
+native Linzi selector removal on the unchanged cold-qualified batch181 Manual,
+with one load and zero saves, while retaining all five Horse owners. No
+batch183 game run has occurred. Fast/build 3/0, protocol 111/0, authority
+156/0, helper 28/0, neighboring selector 20/0, reader 16/0, detached scenario
+92/0, wiring 114/0 and actual source/receipt-boundary 11/0 passed. Independent
+source/safety review is clear. The remaining four Candidate checks passed
+separately: harness 281/0, paired contracts, manifest and Kingmaker assembly.
+
+The first source test's own 15-receipt expectation and the second invocation
+against the old nine-receipt copy guard failed and are retained separately.
+The reviewed explicit departure-only 16-receipt mode now passes. Commit the
+coherent change, freeze/package once and declare
+only `20261022-c7b-world183-b183s1-linzi-departure` in the guarded approved
+Howie context. Run WhatIf before live use and verify every restoration surface.
+Then implement the sixth ordinary paid rider/Horse and genuine Manual/cold
+continuation, mounted breadth, conditional six-pair stress and remaining
+7C/7D/readiness-gated private 7E. No completion or owner acceptance claim.
+
+## Historical October 22 after batch182 fifth-Horse cold PASS
 
 The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active
 through selected private 7E. [Batch182](docs/CHUNK7-BATCH182-FIFTH-HORSE-COLD-2026-10-22.md)

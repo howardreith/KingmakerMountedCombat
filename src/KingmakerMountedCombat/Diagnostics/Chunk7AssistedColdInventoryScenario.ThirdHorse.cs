@@ -12,7 +12,7 @@ namespace KingmakerMountedCombat.Diagnostics
     {
         private void ReadThirdHorseSource()
         {
-            if (selection.IsFifthHorse) { ReadFifthHorseSource(); return; }
+            if (selection.IsFifthHorseSource) { ReadFifthHorseSource(); return; }
             var fourth = selection.IsFourthHorseSource;
             var count = fourth ? 9 : 8;
             var horseCount = fourth ? 4 : 3;

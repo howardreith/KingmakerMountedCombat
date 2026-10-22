@@ -283,6 +283,7 @@
     <Compile Include="Diagnostics\Chunk7OrdinaryAcquisitionScenario.cs" />
     <Compile Include="Diagnostics\Chunk7OrdinaryFieldSelection.cs" />
     <Compile Include="Diagnostics\Chunk7NativePartyFieldAdmission.cs" />
+    <Compile Include="Diagnostics\Chunk7NativePartyFieldDeparture.cs" />
     <Compile Include="Diagnostics\Chunk7NativePartyOptionalityProbe.cs" />
     <Compile Include="Diagnostics\Chunk7OrdinaryFieldScenario.cs" />
     <Compile Include="Diagnostics\Chunk7EvidenceDto.cs" />
@@ -290,6 +291,7 @@
     <Compile Include="Diagnostics\Chunk7AssistedColdInventorySelection.cs" />
     <Compile Include="Diagnostics\Chunk7AssistedColdInventoryScenario.cs" />
     <Compile Include="Diagnostics\Chunk7AssistedColdInventoryScenario.ThirdHorse.cs" />
+    <Compile Include="Diagnostics\Chunk7AssistedColdInventoryScenario.Departure.cs" />
     <Compile Include="Diagnostics\Chunk7OwnerSeedObservation.cs" />
     <Compile Include="Diagnostics\PersistenceSaveAuthorization.AssistedColdInventory.cs" />
     <Compile Include="Diagnostics\Chunk7BootstrapInventorySelection.cs" />

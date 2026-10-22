@@ -38,9 +38,14 @@ namespace KingmakerMountedCombat.Diagnostics
         // The ordinary paid fifth Horse is a different 11-actor Manual lineage.
         public const string FifthHorseCaseName = "fifth-horse-manual-readonly-inventory";
         internal bool IsFifthHorse => Case == FifthHorseCaseName;
-        internal bool IsHorseWorld => IsThirdHorse || IsFourthHorseSource || IsFifthHorse;
-        internal int HorseWorldActorCount => IsFifthHorse ? 11 : IsFourthHorseSource ? 9 : 8;
-        internal int HorseWorldHorseCount => IsFifthHorse ? 5 : IsFourthHorseSource ? 4 : 3;
+        // Explicit zero-save native roster transition, distinct from the
+        // read-only fifth-Horse cold case and its preservation verdict.
+        public const string FifthHorseDepartureCaseName = "fifth-horse-native-field-departure";
+        internal bool IsFifthHorseDeparture => Case == FifthHorseDepartureCaseName;
+        internal bool IsFifthHorseSource => IsFifthHorse || IsFifthHorseDeparture;
+        internal bool IsHorseWorld => IsThirdHorse || IsFourthHorseSource || IsFifthHorseSource;
+        internal int HorseWorldActorCount => IsFifthHorseSource ? 11 : IsFourthHorseSource ? 9 : 8;
+        internal int HorseWorldHorseCount => IsFifthHorseSource ? 5 : IsFourthHorseSource ? 4 : 3;
         // Kingmaker save names legitimately contain spaces (the engine writes them as
         // underscores only in the file name). Single interior spaces only: no leading,
         // trailing or repeated space, no tab, newline or other whitespace, at most 64
@@ -88,6 +93,10 @@ namespace KingmakerMountedCombat.Diagnostics
             if (!BaseGameOnly || ExpectedNativeLoadCount != 1 || ExpectedNativeWriteCount != 0)
                 errors.Add("Assisted cold inventory requires base-only staging, one native load and zero writes.");
             if (SeedId != null || SeedSha256 != null) errors.Add("A producer cold selection cannot carry owner-seed pins.");
+            if (IsFifthHorseDeparture && (SourceRunId != "20261022-c7b-world181-b181s1-fifthhorse-manual" ||
+                SourceArtifactSha256 != "e05fdd3cfb16c344dcb821a57476cefdfb91978aa8a39aca9322e5b4fc24a47b" ||
+                SourceArchiveSha256 != "afbeaa5bc749d91bd969581977f396ff4b0c2716691625a9648b2bb827c2318e"))
+                errors.Add("Native departure requires the exact cold-qualified batch181 fifth-Horse Manual.");
             return errors;
         }
         private IReadOnlyList<string> ValidateOwnerSeed(string scenario, string runId)

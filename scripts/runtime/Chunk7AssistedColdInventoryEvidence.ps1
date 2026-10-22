@@ -40,8 +40,16 @@ function Test-KmcChunk7FifthHorseColdSelection($Selection){
   $null-ne$Selection.PSObject.Properties['case']-and$Selection.case-is[string]-and
   $Selection.case-ceq'fifth-horse-manual-readonly-inventory'
 }
+function Test-KmcChunk7FifthHorseDepartureSelection($Selection){
+ $null-ne$Selection-and$Selection.GetType().FullName-ceq'System.Management.Automation.PSCustomObject'-and
+  $null-ne$Selection.PSObject.Properties['case']-and$Selection.case-is[string]-and
+  $Selection.case-ceq'fifth-horse-native-field-departure'
+}
+function Test-KmcChunk7FifthHorseSourceSelection($Selection){
+ (Test-KmcChunk7FifthHorseColdSelection $Selection)-or(Test-KmcChunk7FifthHorseDepartureSelection $Selection)
+}
 function Test-KmcChunk7HorseWorldColdSelection($Selection){
- (Test-KmcChunk7ThirdHorseColdSelection $Selection)-or(Test-KmcChunk7FourthHorseSourceSelection $Selection)-or(Test-KmcChunk7FifthHorseColdSelection $Selection)
+ (Test-KmcChunk7ThirdHorseColdSelection $Selection)-or(Test-KmcChunk7FourthHorseSourceSelection $Selection)-or(Test-KmcChunk7FifthHorseSourceSelection $Selection)
 }
 function Assert-KmcAssistedColdSeparateProcess($Selection,$SourceArtifact,$ColdArtifact,$VerifiedSource){
  if(Test-KmcChunk7OwnerSeedSelection $Selection){return}
@@ -127,12 +135,15 @@ function Assert-KmcChunk7AssistedColdInventorySelection($Request){
   return
  }
  Assert-KmcAssistedObjectValue $s @('case','sourceRunId','sourceArtifactSha256','sourceArchiveSha256','baseGameOnly','expectedNativeLoadCount','expectedNativeWriteCount') 'assisted cold selection'
- if($s.case-isnot[string]-or$s.case-cnotin@('assisted-manual-readonly-inventory','small-fixture-manual-readonly-inventory','medium-fixture-manual-readonly-inventory','third-horse-manual-readonly-inventory','fourth-horse-manual-readonly-inventory','fourth-horse-open-selector-inventory','fifth-horse-manual-readonly-inventory')){throw 'Unknown producer cold selection case.'}
+ if($s.case-isnot[string]-or$s.case-cnotin@('assisted-manual-readonly-inventory','small-fixture-manual-readonly-inventory','medium-fixture-manual-readonly-inventory','third-horse-manual-readonly-inventory','fourth-horse-manual-readonly-inventory','fourth-horse-open-selector-inventory','fifth-horse-manual-readonly-inventory','fifth-horse-native-field-departure')){throw 'Unknown producer cold selection case.'}
  if($Request.runId-isnot[string]-or$Request.runId-cnotmatch'^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$'){throw 'Assisted cold consumer run identity is malformed.'}
  if($s.sourceRunId-isnot[string]-or$s.sourceRunId-cnotmatch'^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$'-or$s.sourceRunId-ceq$Request.runId){throw 'Assisted cold inventory requires a distinct completed source run.'}
  foreach($key in @('sourceArtifactSha256','sourceArchiveSha256')){if($s.$key-isnot[string]-or$s.$key-cnotmatch'^[a-f0-9]{64}$'){throw 'Assisted cold immutable source hashes are required.'}}
  Assert-KmcChunk7Boolean $s.baseGameOnly $true
  Assert-KmcOrdinaryInteger $s.expectedNativeLoadCount 1 1;Assert-KmcOrdinaryInteger $s.expectedNativeWriteCount 0 0
+ if((Test-KmcChunk7FifthHorseDepartureSelection $s)-and($s.sourceRunId-cne'20261022-c7b-world181-b181s1-fifthhorse-manual'-or
+  $s.sourceArtifactSha256-cne'e05fdd3cfb16c344dcb821a57476cefdfb91978aa8a39aca9322e5b4fc24a47b'-or
+  $s.sourceArchiveSha256-cne'afbeaa5bc749d91bd969581977f396ff4b0c2716691625a9648b2bb827c2318e')){throw 'Native departure source differs from its exact cold-qualified fifth-Horse Manual.'}
 }
 function Assert-KmcChunk7AssistedColdInventoryDescriptor($Request){
  Assert-KmcChunk7AssistedColdInventorySelection $Request
@@ -147,7 +158,7 @@ function Assert-KmcChunk7AssistedColdInventoryDescriptor($Request){
  }else{
  $isThird=Test-KmcChunk7ThirdHorseColdSelection $Request.assistedColdInventory
  $isFourth=Test-KmcChunk7FourthHorseSourceSelection $Request.assistedColdInventory
- $isFifth=Test-KmcChunk7FifthHorseColdSelection $Request.assistedColdInventory
+ $isFifth=Test-KmcChunk7FifthHorseSourceSelection $Request.assistedColdInventory
  $isPaid=Test-KmcChunk7PaidFixtureColdSelection $Request.assistedColdInventory
  $isMedium=Test-KmcChunk7MediumFixtureColdSelection $Request.assistedColdInventory
  $name=if($isFifth){'KMC_C7_MANUAL_DERIVED_FIELD'}elseif($isFourth){'KMC_C7_FOUR_HORSE_WORLD'}elseif($isThird){'KMC_C7_SMALL_WORLD'}elseif($isMedium){'KMC_C7_MEDIUM_FIXTURE'}elseif($isPaid){'KMC_C7_SMALL_FIXTURE'}else{'KMC_C7_ASSISTED_FIXTURE'}

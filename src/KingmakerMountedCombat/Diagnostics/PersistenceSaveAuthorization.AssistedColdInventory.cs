@@ -43,7 +43,7 @@ namespace KingmakerMountedCombat.Diagnostics
                         ? source?.FileName == "Manual_305_KMC_C7_SMALL_WORLD.zks" && source.InternalName == Chunk7OwnedPairsSelection.SmallFixtureManualName
                     : selected?.IsFourthHorseSource == true
                         ? source?.FileName == "Manual_306_KMC_C7_FOUR_HORSE_WORLD.zks" && source.InternalName == Chunk7OwnedPairsSelection.FourthHorseManualName
-                    : selected?.IsFifthHorse == true
+                    : selected?.IsFifthHorseSource == true
                         ? source?.FileName == Chunk7ManualDerivedSelection.F09FifthOutputLeaf && source.InternalName == Chunk7ManualDerivedSelection.ManualOutputName
                     : selected?.IsMediumFixture == true
                         ? Chunk7SmallFixtureSelection.IsMediumManualLeaf(source?.FileName) && source.InternalName == Chunk7SmallFixtureSelection.MediumOutputName

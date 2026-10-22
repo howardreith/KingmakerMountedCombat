@@ -53,3 +53,29 @@ function Get-KmcChunk7FifthHorseColdSource($Selection,$Fixture,$Candidate){
   artifactLength=[long](Get-Item -LiteralPath $artifactPath).Length;sourceRunId=$producer;
   sourceProcessId=[int]$set.game.processId;receiptPins=$pins;fixtureSetupOnly=$true;nativeAuthorityGranted=$false}
 }
+
+# This distinct scenario also requires the completed separate cold consumer.
+# It owns only a declared zero-save roster transition in a disposable world.
+function Get-KmcChunk7FifthHorseDepartureSource($Selection,$Fixture,$Candidate){
+ if(-not(Test-KmcChunk7FifthHorseDepartureSelection $Selection)){throw 'Native departure requires its exact distinct case.'}
+ $coldSelection=$Selection|ConvertTo-Json -Depth 8|ConvertFrom-Json
+ $coldSelection.case='fifth-horse-manual-readonly-inventory'
+ $source=Get-KmcChunk7FifthHorseColdSource $coldSelection $Fixture $Candidate
+ $run='20261022-c7b-world182-b182s1-fifthhorse-cold'
+ $set=Get-KmcChunk7OwnedReceiptSet $run 'chunk7-assisted-cold-inventory-evidence.json';$r=$set.request
+ Assert-KmcChunk7AssistedColdInventoryDescriptor $r
+ Assert-KmcAssistedSame $r.assistedColdInventory $coldSelection 'native-departure qualified fifth-Horse cold input'
+ Assert-KmcAssistedSame $r.persistenceLoad $source.descriptor 'native-departure qualified native Manual'
+ Assert-KmcChunk7OwnedSourceCompletion $set $run 'chunk7-assisted-cold-inventory' $Fixture (Get-KmcChunk7RecordedCandidate $r) $source.descriptor.sha256 0
+ foreach($pair in @(@('runtime-result.json','31ec8358acc07fa518693dddf10960fd8323c546d86d85a90700240d94178404'),
+  @('runtime-game-result.json','7649be605a9444ce5d49454a1d2a29d3d94821ac7e357b85c485d5a8da97b9ce'),
+  @('chunk7-assisted-cold-inventory-evidence.json','c21e11e1de2b4182252d592072b526abd10c4a373fbc2cacdfc0a4a835d1885d'))){
+  Assert-KmcBootstrapInventoryString $set.pins[(Join-Path $set.root $pair[0])] $pair[1]
+ }
+ Assert-KmcChunk7AssistedColdInventoryArtifact $r $set.manifest 'PASS'
+ Assert-KmcChunk7OwnedReceiptPins $set
+ foreach($receipt in $set.pins.Keys){$file=Get-Item -LiteralPath $receipt
+  $source.receiptPins+=,[pscustomobject]@{path=$receipt;sha256=$set.pins[$receipt];length=[long]$file.Length;lastWriteTimeUtcTicks=[long]$file.LastWriteTimeUtc.Ticks}
+ }
+ return $source
+}
