@@ -1,5 +1,15 @@
 # Chunk 7B–7D — IN PROGRESS
 
+[Batches177–178](docs/CHUNK7-BATCH177-178-FOURTH-HORSE-MANUAL-2026-10-22.md)
+used one corrected fourth-Horse Manual candidate. Batch177 is an original outer
+FAIL at Steamworks startup, before a native result. Batch178 passed native game
+5/0 and wrote a genuine nine-actor `Manual_306_KMC_C7_FOUR_HORSE_WORLD.zks`;
+its original outer result is FAIL on a closed output-number reader omission.
+The corrected external reader passed separately on immutable b178 evidence,
+and the isolated source/output archives match their pinned hashes. All run,
+save, Mods and profile bytes restored exactly. A distinct cold load remains
+required before four-Horse persistence or further source ancestry is accepted.
+
 [Batch176](docs/CHUNK7-BATCH176-FOURTH-HORSE-MANUAL-NAME-FAIL-2026-10-22.md)
 is an original guarded game/outer **FAIL 4/1**. The fourth native Horse setup
 passed again, but the new Manual was refused before `Game.SaveGame` because its
