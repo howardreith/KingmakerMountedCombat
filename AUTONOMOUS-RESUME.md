@@ -1,16 +1,37 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
-## Active October 22 — Claude batch189: six-mounted Manual and cold consumer
+## Active October 22 — Claude after batch189
 
-Read the [batch189 preparation record](docs/CHUNK7-B189-SIX-MOUNTED-MANUAL-AND-COLD-2026-10-22.md),
+Read the [batch189 PASS record](docs/CHUNK7-BATCH189-SIX-MOUNTED-MANUAL-COLD-PASS-2026-10-22.md),
 the [batch188 PASS record](docs/CHUNK7-BATCH188-SIX-PAIR-LIFECYCLE-PASS-2026-10-22.md)
 and the [standing mission](planning/CHUNK7-COMPLETION-MISSION.md).
 
-The six-mounted producer and cold consumer are implemented and tested offline, and the
-independent review is CLEAR. Both SHOULD-FIX items are handled: a wiring check now covers
-the shared-engine hooks, and the failed-write residual is documented.
+Both batch189 native scenarios (six-mounted Manual producer and separate cold consumer)
+passed on frozen candidate `c7b-world189-sixpersist` (`a2ef0e95`), with exact restoration.
+No Kingmaker process, lock or pending recovery remains, and HEAD is no longer frozen.
 
 Next uncompleted action:
+1. Commit and guarded-push the batch189 record.
+2. F11 six-pair performance measurement. The six-pair observer calls
+   `inherited.RequirePreserved()` every frame, which hashes the 183 KB staged receipt and
+   rebuilds roster and progression JSON. It runs inside the timed KMC Update, so custody
+   should be verified only at window boundaries during measurement windows, and/or the
+   automation update timed as its own phase. Then one frozen candidate and one zero-write
+   six-pair sampling run.
+3. SHOULD-FIX 3: feed the unattended exit's real FAIL result through the full
+   `Test-RuntimeGameResult.ps1` offline.
+4. Remaining F10/F11/doors work, then private 7E.
+
+No merge, release, permanent installation or HUMAN PLAY acceptance. Private execution
+note: analysis-cache/chunk7-continuation/b188-claude-current-execution.md.
+
+## Historical October 22 — Claude batch189 preparation: six-mounted Manual and cold consumer
+
+The six-mounted producer and cold consumer were implemented and tested offline, and the
+independent review was CLEAR. Both SHOULD-FIX items were handled: a wiring check now covers
+the shared-engine hooks, and the failed-write residual is documented.
+
+Its then-next actions (all completed by the batch189 runs):
 1. Commit and guarded-push this coherent change.
 2. Build one package with qualifier `c7b-world189-sixpersist`, then Candidate with -SkipBuild.
 3. Freeze the suite and run the scoped WhatIf for the producer

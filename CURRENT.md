@@ -1,6 +1,18 @@
 # Chunk 7B–7D — IN PROGRESS
 
-Claude batch189 preparation: the [six-mounted native Manual and cold consumer](docs/CHUNK7-B189-SIX-MOUNTED-MANUAL-AND-COLD-2026-10-22.md)
+Claude [batch189](docs/CHUNK7-BATCH189-SIX-MOUNTED-MANUAL-COLD-PASS-2026-10-22.md) passed both
+declared native scenarios on frozen candidate `c7b-world189-sixpersist` (`a2ef0e95`). The
+producer mounted all six roles natively (0 refusals) and bound twelve slots. It wrote
+`Manual_309_KMC_C7_SIX_MOUNTED_WORLD.zks`, whose read-back holds 6 pairs and 12 slots, and moved
+every pair: game 6/0, outer PASS. A separate process then cold-loaded that Manual. It restored
+all six pairs with 12 semantic restores, 6 presentations, 0 Prepare and 0 Mount replay, and
+moved every pair: game 3/0, outer PASS. The separate-process proof shows archive, owners,
+generations and slots equal to the producer's read-back. Both runs restored exactly with zero
+cache changes; no game or lock remains. Next: a representative six-pair performance
+measurement (F11), SHOULD-FIX 3, then the remaining F10/F11/door work and private 7E. Standing
+mission remains IN PROGRESS.
+
+Historical batch189 preparation checkpoint: the [six-mounted native Manual and cold consumer](docs/CHUNK7-B189-SIX-MOUNTED-MANUAL-AND-COLD-2026-10-22.md)
 adds two closed owned-pairs cases on the batch185 six-Horse fixture. The producer mounts
 all six roles natively, binds twelve slots and writes one Manual309; a separate process
 cold-loads it and restores all six pairs with no Prepare or Mount replay. The unattended
