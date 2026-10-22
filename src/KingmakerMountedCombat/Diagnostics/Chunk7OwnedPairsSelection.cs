@@ -70,6 +70,15 @@ namespace KingmakerMountedCombat.Diagnostics
         public const string FourthHorseSourceArtifact = "57ab380ae5c4c95fbed1647446b3ca264f7e140c91a3b7ea4bb41037085450b1";
         public const string FourthHorseSourceArchive = "f70a54865c86a599c3b25f6f2574abde2f663cd07b82472eac4bcbe245ea8c84";
         public const string SixPairStressCase = "six-horse-cold-fixture-lifecycle-stress";
+        // The genuine six-mounted native Manual of the same cold-qualified fixture,
+        // and its separate-process cold consumer. Source* stays the batch185 cold
+        // qualification of the unmounted Manual308; the consumer's Checkpoint* pins
+        // the mounted producer run and its persistence evidence.
+        public const string SixPairSaveCase = "six-horse-mounted-persistence-save";
+        public const string SixPairLoadCase = "six-horse-mounted-persistence-load";
+        public const string SixPairManualName = "KMC_C7_SIX_MOUNTED_WORLD";
+        // The producer's reservation is the source Manual308's number plus one.
+        public const string SixPairManualLeaf = "Manual_309_" + SixPairManualName + ".zks";
         public const string SixPairSourceRun = "20261022-c7b-world185-b185s1-sixthhorse-cold";
         public const string SixPairSourceArtifact = "012d1caff175d34614fcd255f0b6ad897e0ef1a9650791cb3c0d55ce13b47241";
         public const string SixPairSourceArchive = "b1e817a60c8bbe35b5947b4eab3b3f35060493ca20873d5de5fdf8a81efbc291";
@@ -155,7 +164,7 @@ namespace KingmakerMountedCombat.Diagnostics
             checkpoint == "multi-rt-debt-manual" || checkpoint == "multi-tb-debt-manual" || checkpoint == "zero-mounted-tb-retained-manual" ||
             checkpoint == "legacy-mounted-pending-tb-manual";
         // The native Manual name a writing owned selection reserves; a non-Manual selection writes its slot name.
-        internal string OwnedManualOutputName(string checkpoint) => IsFourthHorseSave ? FourthHorseManualName : IsSmallFixtureSave || IsSmallThirdHorseSave ? SmallFixtureManualName : IsMediumFixtureSave ? MediumFixtureManualName : IsOwnerSeedManual ? OwnerSeedManualName :
+        internal string OwnedManualOutputName(string checkpoint) => IsSixPairSave ? SixPairManualName : IsFourthHorseSave ? FourthHorseManualName : IsSmallFixtureSave || IsSmallThirdHorseSave ? SmallFixtureManualName : IsMediumFixtureSave ? MediumFixtureManualName : IsOwnerSeedManual ? OwnerSeedManualName :
             IsOwnerSeedCheckpointSave ? (checkpoint == ManticoreFixtureCheckpoint ? ManticoreFixtureManualName : checkpoint == TombFixtureCheckpoint ? TombFixtureManualName : checkpoint == ThornRiverFixtureCheckpoint ? ThornRiverFixtureManualName : OwnerSeedCheckpointManualName) : Cold ? (OwnedSchema1Cold(checkpoint) ? "KMC_C7_SCHEMA1" : "KMC_C7_SCHEMA2") : "KMC_C7_WORLD";
         public string Case { get; set; }
         public string SourceRunId { get; set; }
@@ -213,6 +222,11 @@ namespace KingmakerMountedCombat.Diagnostics
         internal bool SmallFixtureLineage => IsSmallFixtureSave || IsSmallFixtureLoad || SmallThirdHorseSetup;
         internal bool IsFourthHorseSave => Case == FourthHorseSaveCase;
         internal bool IsSixPairStress => Case == SixPairStressCase;
+        internal bool IsSixPairSave => Case == SixPairSaveCase;
+        internal bool IsSixPairLoad => Case == SixPairLoadCase;
+        internal bool SixPairPersistence => IsSixPairSave || IsSixPairLoad;
+        // Every kind whose fixture is the twelve-actor cold-qualified six-Horse field.
+        internal bool SixPairLineage => IsSixPairStress || SixPairPersistence;
         internal bool IsFourthHorse => Case == FourthHorseCase || IsFourthHorseSave;
         internal bool IsMediumFixtureSave => Case == MediumFixtureSaveCase;
         internal bool IsMediumFixtureLoad => Case == MediumFixtureLoadCase;
@@ -228,7 +242,7 @@ namespace KingmakerMountedCombat.Diagnostics
         internal bool CrossCandidateAllowedFor(string checkpoint) => CrossCandidateAllowed || IsOwnerSeedDerivedLoad &&
             (checkpoint == "multi-exploration-three-loads-manual" || IsManticoreManualCold(checkpoint));
         internal const int MaximumSetupLevelupWrites = 2;
-        internal string[] PairIds => IsSixPairStress ? SixPairRoles : new[] { RiderAId, MountAId, RiderBId, MountBId };
+        internal string[] PairIds => SixPairLineage ? SixPairRoles : new[] { RiderAId, MountAId, RiderBId, MountBId };
         internal string RuntimeScenario
         {
             get
@@ -253,6 +267,8 @@ namespace KingmakerMountedCombat.Diagnostics
                     case FourthHorseCase: return "chunk7-two-pair-exploration";
                     case FourthHorseSaveCase: return "chunk7-two-pair-exploration";
                     case SixPairStressCase: return "chunk7-two-pair-exploration";
+                    case SixPairSaveCase: return "chunk7-persistence-save";
+                    case SixPairLoadCase: return "chunk7-persistence-load";
                     case MediumFixtureSaveCase: return "chunk7-persistence-save";
                     case MediumFixtureLoadCase: return "chunk7-persistence-load";
                     case "combat-rider-first": return "chunk7-two-pair-combat-rider-first";
@@ -268,8 +284,10 @@ namespace KingmakerMountedCombat.Diagnostics
             }
         }
         internal bool Persistence => Case == "persistence-save" || Case == "persistence-load" || IsOwnerSeedManual || IsOwnerSeedDerivedLoad ||
-            IsOwnerSeedCheckpointSave || IsOwnerSeedCheckpointLoad || IsOwnerSeedLoadRefusal || IsSmallFixtureSave || IsSmallFixtureLoad || IsSmallThirdHorseSave || IsFourthHorseSave || MediumFixtureLineage;
-        internal bool Cold => Case == "persistence-load" || IsOwnerSeedDerivedLoad || IsOwnerSeedCheckpointLoad || IsOwnerSeedLoadRefusal || IsSmallFixtureLoad || IsMediumFixtureLoad;
+            IsOwnerSeedCheckpointSave || IsOwnerSeedCheckpointLoad || IsOwnerSeedLoadRefusal || IsSmallFixtureSave || IsSmallFixtureLoad || IsSmallThirdHorseSave || IsFourthHorseSave || MediumFixtureLineage ||
+            SixPairPersistence;
+        internal bool Cold => Case == "persistence-load" || IsOwnerSeedDerivedLoad || IsOwnerSeedCheckpointLoad || IsOwnerSeedLoadRefusal || IsSmallFixtureLoad || IsMediumFixtureLoad ||
+            IsSixPairLoad;
         internal static bool SupportedCheckpoint(string value) => Array.IndexOf(new[] {
             "multi-exploration-manual", "multi-exploration-quick", "multi-exploration-auto",
             "multi-rt-debt-manual", "multi-tb-debt-manual", "zero-mounted-tb-retained-manual",
@@ -295,7 +313,7 @@ namespace KingmakerMountedCombat.Diagnostics
         internal int LoadCount(string checkpoint) => Cold && checkpoint == "multi-exploration-three-loads-manual" ? 3 : 1;
         // Owner seed: exactly the native setup level-up Autos its selection declares (bound at admission).
         // Owner-seed Manual producer: exactly its one measured Manual (no setup write exists).
-        internal int WriteCount(string checkpoint) => IsOwnerSeed ? ExpectedNativeWriteCount : IsOwnerSeedManual || IsSmallFixtureSave || IsSmallThirdHorseSave || IsFourthHorseSave || IsMediumFixtureSave ? 1 :
+        internal int WriteCount(string checkpoint) => IsOwnerSeed ? ExpectedNativeWriteCount : IsOwnerSeedManual || IsSmallFixtureSave || IsSmallThirdHorseSave || IsFourthHorseSave || IsMediumFixtureSave || IsSixPairSave ? 1 :
             IsOwnerSeedCheckpointSave ? (checkpoint == "multi-owned-worker-cancel-manual" ? 2 : 1) :
             IsOwnerSeedCheckpointLoad ? (checkpoint == "legacy-mounted-pending-tb-manual" || OwnedSchema1Cold(checkpoint) ? 1 : 0) :
             Case == "persistence-save" && checkpoint == "multi-owned-worker-cancel-manual" ? 2 : Case == "persistence-save" ||
@@ -321,6 +339,7 @@ namespace KingmakerMountedCombat.Diagnostics
             if (IsOwnerSeedCheckpointSave || IsOwnerSeedCheckpointLoad) return ValidateOwnerSeedCheckpoint(scenario, runId, checkpoint);
             if (IsFourthHorse) return ValidateFourthHorse(scenario, runId, checkpoint);
             if (IsSixPairStress) return ValidateSixPairStress(scenario, runId, checkpoint);
+            if (SixPairPersistence) return ValidateSixPairPersistence(scenario, runId, checkpoint);
             if (SmallFixtureLineage) return ValidateSmallFixture(scenario, runId, checkpoint);
             if (MediumFixtureLineage) return ValidateMediumFixture(scenario, runId, checkpoint);
             var errors = new List<string>();
@@ -386,6 +405,30 @@ namespace KingmakerMountedCombat.Diagnostics
                 CheckpointSourceRunId != null || CheckpointSourceArtifactSha256 != null || ColdReceiptSha256 != null ||
                 SeedId != null || SeedSha256 != null || XpAssistance != null || SourceArea != null || AreaRoute != null || CompanionId != null)
                 errors.Add("Six-pair stress admits one base-only load, zero saves and no fixture/progression assistance.");
+            return errors;
+        }
+        // The producer and its cold consumer keep the batch185 cold qualification as
+        // fixture provenance. Only the consumer pins a mounted producer, which must be
+        // distinct from itself, the fixture run and both fixture hashes.
+        private IReadOnlyList<string> ValidateSixPairPersistence(string scenario, string runId, string checkpoint)
+        {
+            var errors = new List<string>(); var roles = SixPairRoles;
+            if (scenario != Scenario || checkpoint != OwnerSeedCheckpoint || !Run(runId) || runId == SixPairSourceRun ||
+                SourceRunId != SixPairSourceRun || SourceArtifactSha256 != SixPairSourceArtifact || SourceArchiveSha256 != SixPairSourceArchive)
+                errors.Add("Six-pair persistence requires the exact accepted batch185 cold checkpoint, its exploration Manual checkpoint and a distinct run.");
+            if (RiderAId != roles[0] || MountAId != roles[1] || RiderBId != roles[2] || MountBId != roles[3] ||
+                PartyIds == null || PartyIds.Length != 12 ||
+                !PartyIds.OrderBy(id => id, StringComparer.Ordinal).SequenceEqual(roles.OrderBy(id => id, StringComparer.Ordinal)))
+                errors.Add("Six-pair persistence requires all twelve exact sourced native roles once.");
+            if (!BaseGameOnly || ExpectedNativeLoadCount != 1 || ExpectedNativeWriteCount != (IsSixPairSave ? 1 : 0) ||
+                ColdReceiptSha256 != null || SeedId != null || SeedSha256 != null || XpAssistance != null ||
+                SourceArea != null || AreaRoute != null || CompanionId != null)
+                errors.Add("Six-pair persistence admits one base-only load, one producer Manual or zero cold writes, and no fixture/progression assistance.");
+            if (IsSixPairSave ? CheckpointSourceRunId != null || CheckpointSourceArtifactSha256 != null :
+                !Run(CheckpointSourceRunId) || CheckpointSourceRunId == runId || CheckpointSourceRunId == SourceRunId ||
+                !Hash(CheckpointSourceArtifactSha256) || CheckpointSourceArtifactSha256 == SourceArtifactSha256 ||
+                CheckpointSourceArtifactSha256 == SourceArchiveSha256)
+                errors.Add("Only the six-pair cold consumer carries a distinct completed six-mounted producer pin.");
             return errors;
         }
         private IReadOnlyList<string> ValidateSmallFixture(string scenario, string runId, string checkpoint)

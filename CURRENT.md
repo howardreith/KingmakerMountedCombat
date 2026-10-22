@@ -1,6 +1,16 @@
 # Chunk 7B–7D — IN PROGRESS
 
-Claude [batch188](docs/CHUNK7-BATCH188-SIX-PAIR-LIFECYCLE-PASS-2026-10-22.md) passed one
+Claude batch189 preparation: the [six-mounted native Manual and cold consumer](docs/CHUNK7-B189-SIX-MOUNTED-MANUAL-AND-COLD-2026-10-22.md)
+adds two closed owned-pairs cases on the batch185 six-Horse fixture. The producer mounts
+all six roles natively, binds twelve slots and writes one Manual309; a separate process
+cold-loads it and restores all six pairs with no Prepare or Mount replay. The unattended
+FAIL exit now covers both, once every requested native write has completed. Offline:
+Fast 3/0, harness 281/0, new focused checks all PASS, 37 of 38 mutations caught;
+independent review CLEAR, both SHOULD-FIX items handled. No native run yet. Next: one
+frozen candidate, the producer run, then the cold run with its producer pins. Standing
+mission remains IN PROGRESS.
+
+Historical batch188 checkpoint: Claude [batch188](docs/CHUNK7-BATCH188-SIX-PAIR-LIFECYCLE-PASS-2026-10-22.md) passed one
 declared zero-write six-pair lifecycle scenario on the frozen `c7b-world188-slot`
 candidate (`64a8206e`): game 6/0 and outer PASS. The shared native rider parent (16
 children) kept its exact child order after all three cycles, where batch187 failed.

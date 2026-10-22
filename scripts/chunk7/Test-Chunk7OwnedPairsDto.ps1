@@ -54,6 +54,27 @@ foreach($fault in @('producer','artifact','write','load','duplicate','missing ac
  $reader=$false;try{Assert-KmcChunk7OwnedPairsDescriptor $v}catch{$reader=$true}
  if(-not$typed-or-not$reader){throw ('Six-pair DTO/reader admitted '+$fault)};$pass++
 }
+# The six-mounted Manual producer and its cold consumer keep the same fixture pins.
+foreach($cold in @($false,$true)){
+ $v=$six|ConvertTo-Json -Depth 40|ConvertFrom-Json;$v.persistenceCase='multi-exploration-manual'
+ $v.ownedPairs.case=if($cold){'six-horse-mounted-persistence-load'}else{'six-horse-mounted-persistence-save'};$v.ownedPairs.expectedNativeWriteCount=if($cold){0}else{1}
+ if($cold){$v.ownedPairs.checkpointSourceRunId='generated-six-mounted-producer';$v.ownedPairs.checkpointSourceArtifactSha256='9'*64
+  $v.persistenceLoad.internalName='KMC_C7_SIX_MOUNTED_WORLD';$v.persistenceLoad.fileName='Manual_309_KMC_C7_SIX_MOUNTED_WORLD.zks';$v.persistenceLoad.sha256='8'*64}
+ $projection=[KingmakerMountedCombat.Tests.OwnedPairsDtoTests]::Project(($v|ConvertTo-Json -Depth 40))|ConvertFrom-Json
+ Assert-KmcAssistedSame $projection.selection $v.ownedPairs 'six-pair persistence typed DTO exact keys/nulls/types';$pass++
+ if($projection.scenario-cne(Get-KmcChunk7SelectedScenario $v)-or$projection.expectedLoadType-cne'Manual'-or$projection.expectedWriteCount-ne(Get-KmcChunk7OwnedWriteCount $v)-or
+    $projection.requiresCombatColdBind-ne$false-or$projection.fixtureArea-cne$v.persistenceLoad.area){throw 'Six-pair persistence typed DTO and reader differ.'};$pass++
+ Assert-KmcChunk7OwnedPairsDescriptor $v;$pass++
+ foreach($fault in @('producer','write','load','checkpoint','producer-pin')){
+  $f=$v|ConvertTo-Json -Depth 40|ConvertFrom-Json
+  switch($fault){'producer'{$f.ownedPairs.sourceRunId='20261022-c7b-world184-b184s1-sixthhorse-manual'};'write'{$f.ownedPairs.expectedNativeWriteCount=$(if($cold){1}else{0})}
+   'load'{$f.ownedPairs.expectedNativeLoadCount=2};'checkpoint'{$f.persistenceCase=$null}
+   'producer-pin'{if($cold){$f.ownedPairs.checkpointSourceRunId=$f.ownedPairs.sourceRunId}else{$f.ownedPairs.checkpointSourceRunId='generated-six-mounted-producer';$f.ownedPairs.checkpointSourceArtifactSha256='9'*64}}}
+  $typed=$false;try{[void][KingmakerMountedCombat.Tests.OwnedPairsDtoTests]::Project(($f|ConvertTo-Json -Depth 40))}catch{$typed=$true}
+  $reader=$false;try{Assert-KmcChunk7OwnedPairsDescriptor $f}catch{$reader=$true}
+  if(-not$typed-or-not$reader){throw ('Six-pair persistence DTO/reader admitted '+$fault)};$pass++
+ }
+}
 foreach($f in $fixtures){
  $raw=[KingmakerMountedCombat.Tests.OwnedPairsDtoTests]::Project(($f.request|ConvertTo-Json -Depth 90));$actual=$raw|ConvertFrom-Json
  if((ConvertTo-KmcChunk7Canonical $actual.selection)-cne(ConvertTo-KmcChunk7Canonical $f.request.ownedPairs)){throw ('Actual DTO casing/types/null keys differ: '+$f.name)};$pass++

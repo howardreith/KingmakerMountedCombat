@@ -557,6 +557,9 @@ function Get-KmcChunk7OwnedPairsSource($Selection,[AllowNull()][string]$Persiste
   $source|Add-Member sixPairCheckpoint $true;$source|Add-Member sourceRunId $source.qualificationRunId
   return $source
  }
+ if($null-ne$Selection-and$Selection.case-cin@('six-horse-mounted-persistence-save','six-horse-mounted-persistence-load')){
+  return Get-KmcChunk7SixPairMountedSource $Selection $PersistenceCase $Fixture $Candidate $AreaTarget
+ }
  if($null-ne$Selection-and$Selection.case-cin@('third-horse-fixture-fourth-horse-setup','third-horse-fixture-fourth-horse-persistence-save')){
   $save=$Selection.case-ceq'third-horse-fixture-fourth-horse-persistence-save'
   if ($save) {

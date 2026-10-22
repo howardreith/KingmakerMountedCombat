@@ -7,6 +7,8 @@ function Get-KmcChunk7SelectedScenario($Request){
  switch -CaseSensitive ($Request.ownedPairs.case){
   'exploration'{'chunk7-two-pair-exploration'}
   'six-horse-cold-fixture-lifecycle-stress'{'chunk7-two-pair-exploration'}
+  'six-horse-mounted-persistence-save'{'chunk7-persistence-save'}
+  'six-horse-mounted-persistence-load'{'chunk7-persistence-load'}
   'owner-seed-exploration'{'chunk7-two-pair-exploration'}
   'owner-seed-persistence-save'{'chunk7-two-pair-exploration'}
   'owner-seed-persistence-load'{'chunk7-persistence-load'}
@@ -40,7 +42,7 @@ function Get-KmcChunk7OwnedWriteCount($Request){
  if(Test-KmcChunk7OwnedPairsOwnerSeed $Request){return 0}
  # Owner-seed-derived Manual producer: exactly its one measured Manual; its cold consumer: none.
  if(Test-KmcChunk7OwnedPairsSeedManual $Request){return 1}
- if((Test-KmcChunk7OwnedPairsSmallSave $Request)-or(Test-KmcChunk7OwnedPairsSmallThirdHorseSave $Request)-or(Test-KmcChunk7OwnedPairsFourthSave $Request)-or(Test-KmcChunk7OwnedPairsMediumSave $Request)){return 1}
+ if((Test-KmcChunk7OwnedPairsSmallSave $Request)-or(Test-KmcChunk7OwnedPairsSmallThirdHorseSave $Request)-or(Test-KmcChunk7OwnedPairsFourthSave $Request)-or(Test-KmcChunk7OwnedPairsMediumSave $Request)-or(Test-KmcChunk7SixPairSave $Request)){return 1}
  # The worker writes a seed and its cancelled replacement to one landed archive.
  if(Test-KmcChunk7OwnedPairsSeedCheckpointSave $Request){if($Request.persistenceCase-ceq'multi-owned-worker-cancel-manual'){return 2};return 1}
  if(Test-KmcChunk7OwnedPairsSeedCheckpointLoad $Request){if($Request.persistenceCase-cin@('legacy-mounted-pending-tb-manual','owned-schema1-resave-manual')){return 1};return 0}
@@ -56,7 +58,7 @@ function Get-KmcChunk7OwnedLoadCount($Request){
  if($Request.ownedPairs.case-cin@('persistence-load','owner-seed-persistence-load')-and$Request.persistenceCase-ceq'multi-exploration-three-loads-manual'){return 3};return 1
 }
 function Get-KmcChunk7OwnedPairIds($Request){
- if(Test-KmcChunk7SixPairStress $Request){return Get-KmcChunk7SixPairRoles}
+ if(Test-KmcChunk7SixPairLineage $Request){return Get-KmcChunk7SixPairRoles}
  @($Request.ownedPairs.riderAId,$Request.ownedPairs.mountAId,$Request.ownedPairs.riderBId,$Request.ownedPairs.mountBId)
 }
 function Get-KmcChunk7InheritedPairIds($Request){
@@ -251,6 +253,7 @@ function Assert-KmcChunk7OwnedPairsSelection($Request){
  if((Test-KmcChunk7OwnedPairsSeedCheckpointSave $Request)-or(Test-KmcChunk7OwnedPairsSeedCheckpointLoad $Request)){Assert-KmcChunk7OwnerSeedCheckpointSelection $Request $s $checkpoint;return}
  if(Test-KmcChunk7OwnedPairsFourthHorse $Request){Assert-KmcChunk7OwnedPairsFourthSelection $Request $s $checkpoint;return}
  if(Test-KmcChunk7SixPairStress $Request){Assert-KmcChunk7SixPairStressSelection $Request $s $checkpoint;return}
+ if(Test-KmcChunk7SixPairPersistence $Request){Assert-KmcChunk7SixPairPersistenceSelection $Request $s $checkpoint;return}
  if(Test-KmcChunk7OwnedPairsSmall $Request){Assert-KmcChunk7OwnedPairsSmallSelection $Request $s $checkpoint;return}
  if(Test-KmcChunk7OwnedPairsMedium $Request){Assert-KmcChunk7OwnedPairsMediumSelection $Request $s $checkpoint;return}
  $area=$checkpoint-is[string]-and$checkpoint-ceq'multi-area-autosave'
@@ -292,6 +295,7 @@ function Assert-KmcChunk7OwnedPairsDescriptor($Request){
   Assert-KmcOrdinaryInteger $d.length 1 268435456;Assert-KmcOrdinaryInteger $d.lastWriteTimeUtcTicks 1 ([DateTime]::MaxValue.Ticks);return
  }
  if(Test-KmcChunk7SixPairStress $Request){Assert-KmcChunk7SixPairStressDescriptor $Request;return}
+ if(Test-KmcChunk7SixPairPersistence $Request){Assert-KmcChunk7SixPairPersistenceDescriptor $Request;return}
  if(Test-KmcChunk7OwnedPairsFourthHorse $Request){
   Assert-KmcBootstrapInventoryString $d.internalName 'KMC_C7_SMALL_WORLD';Assert-KmcBootstrapInventoryString $d.fileName 'Manual_305_KMC_C7_SMALL_WORLD.zks'
   Assert-KmcBootstrapInventoryString $d.sha256 $Request.ownedPairs.sourceArchiveSha256
@@ -352,7 +356,7 @@ function Assert-KmcChunk7OwnedPairsDescriptor($Request){
  Assert-KmcOrdinaryInteger $d.length 1 268435456;Assert-KmcOrdinaryInteger $d.lastWriteTimeUtcTicks 1 ([DateTime]::MaxValue.Ticks)
 }
 function Assert-KmcChunk7InheritedSnapshot($Request,$Snapshot,[string]$Phase){
- if(Test-KmcChunk7SixPairStress $Request){Assert-KmcChunk7SixPairInheritedSnapshot $Request $Snapshot $Phase;return}
+ if(Test-KmcChunk7SixPairLineage $Request){Assert-KmcChunk7SixPairInheritedSnapshot $Request $Snapshot $Phase;return}
  Assert-KmcExactProperties $Snapshot @('contract','phase','sourceRunId','sourceArtifactSha256','sourceArchiveSha256','sourceCase','nativeLoadVerifiedByHost','decodedReceiptAuthorizesRestoration','inheritedPetsPreserved','ownedFactRemovalCount','partyIds','currentPartyIds','currentCharacterIds','remoteCapturedIds','arrangement','pairs','identities') 'inherited native custody'
  # Owner-seed-derived custody keeps its own labels; it is never relabelled acquired ancestry.
  $derived=Test-KmcChunk7OwnedPairsSeedDerivedLineage $Request;$small=Test-KmcChunk7OwnedPairsSmall $Request;$medium=Test-KmcChunk7OwnedPairsMedium $Request;$fourth=Test-KmcChunk7OwnedPairsFourthHorse $Request
@@ -457,6 +461,7 @@ function Assert-KmcChunk7SmallMountedColdSource($Request,$ProducerArtifact,$Cold
 }
 # The native Manual name a writing owned selection reserves (C# Chunk7OwnedPairsSelection.OwnedManualOutputName).
 function Get-KmcChunk7OwnedManualOutputName($Request){
+ if(Test-KmcChunk7SixPairSave $Request){return Get-KmcChunk7SixPairManualName}
  if(Test-KmcChunk7OwnedPairsFourthSave $Request){return 'KMC_C7_FOUR_HORSE_WORLD'}
  if((Test-KmcChunk7OwnedPairsSmallSave $Request)-or(Test-KmcChunk7OwnedPairsSmallThirdHorseSave $Request)){return 'KMC_C7_SMALL_WORLD'}
  if(Test-KmcChunk7OwnedPairsMediumSave $Request){return 'KMC_C7_MEDIUM_WORLD'}
@@ -477,7 +482,7 @@ function Get-KmcChunk7OwnedOutputLeaf($Request,$Observations){
  if($type-ceq'Manual'){
   # The owner-seed producer numbers its Manual after the owner's registered seed leaf; the owner-seed
   # checkpoint producer after the derived Manual it loaded.
-  $sourcePattern=if((Test-KmcChunk7OwnedPairsSmallSave $Request)-or(Test-KmcChunk7OwnedPairsSmallThirdHorseSave $Request)){'^Manual_([1-9][0-9]*)_KMC_C7_SMALL_FIXTURE[.]zks$'}elseif(Test-KmcChunk7OwnedPairsFourthSave $Request){'^Manual_([1-9][0-9]*)_KMC_C7_SMALL_WORLD[.]zks$'}elseif(Test-KmcChunk7OwnedPairsMediumSave $Request){'^Manual_([1-9][0-9]*)_KMC_C7_MEDIUM_FIXTURE[.]zks$'}elseif($seedManual){'^Manual_([1-9][0-9]*)_[A-Za-z0-9_.-]+[.]zks$'}elseif(Test-KmcChunk7OwnedPairsSeedCheckpointSave $Request){'^Manual_([1-9][0-9]*)_'+(Get-KmcChunk7OwnerSeedManualName)+'[.]zks$'}elseif(Test-KmcChunk7OwnedPairsSeedCheckpointLoad $Request){'^Manual_([1-9][0-9]*)_'+(Get-KmcChunk7OwnerSeedCheckpointManualName)+'[.]zks$'}else{'^Manual_([1-9][0-9]*)_KMC_C7_(ACQUIRED_FIELD|WORLD)[.]zks$'}
+  $sourcePattern=if(Test-KmcChunk7SixPairSave $Request){'^Manual_([1-9][0-9]*)_KMC_C7_SIX_HORSE_WORLD[.]zks$'}elseif((Test-KmcChunk7OwnedPairsSmallSave $Request)-or(Test-KmcChunk7OwnedPairsSmallThirdHorseSave $Request)){'^Manual_([1-9][0-9]*)_KMC_C7_SMALL_FIXTURE[.]zks$'}elseif(Test-KmcChunk7OwnedPairsFourthSave $Request){'^Manual_([1-9][0-9]*)_KMC_C7_SMALL_WORLD[.]zks$'}elseif(Test-KmcChunk7OwnedPairsMediumSave $Request){'^Manual_([1-9][0-9]*)_KMC_C7_MEDIUM_FIXTURE[.]zks$'}elseif($seedManual){'^Manual_([1-9][0-9]*)_[A-Za-z0-9_.-]+[.]zks$'}elseif(Test-KmcChunk7OwnedPairsSeedCheckpointSave $Request){'^Manual_([1-9][0-9]*)_'+(Get-KmcChunk7OwnerSeedManualName)+'[.]zks$'}elseif(Test-KmcChunk7OwnedPairsSeedCheckpointLoad $Request){'^Manual_([1-9][0-9]*)_'+(Get-KmcChunk7OwnerSeedCheckpointManualName)+'[.]zks$'}else{'^Manual_([1-9][0-9]*)_KMC_C7_(ACQUIRED_FIELD|WORLD)[.]zks$'}
   if($Request.persistenceLoad.fileName-cnotmatch$sourcePattern){throw 'Inherited Manual source numbering is not canonical.'}
   $sourceNumber=0;if(-not[int]::TryParse($Matches[1],[ref]$sourceNumber)-or$sourceNumber-eq[int]::MaxValue-or$a.number-ne$sourceNumber+1){throw 'Reserved output is not the exact native next Manual number.'}
   $leaf='Manual_'+([int]$a.number).ToString([Globalization.CultureInfo]::InvariantCulture)+'_'+$name+'.zks'

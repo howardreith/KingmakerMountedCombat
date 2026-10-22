@@ -30,6 +30,63 @@ namespace KingmakerMountedCombat.Tests
     }
     TestRunner.True(f.Request.Validate().Count>0,"Six-pair invalid request was accepted.");Refuses(()=>f.Scope());
    });
+   t.Run("six-mounted Manual producer reserves exactly Manual309 after its sole Manual308 load",()=>{
+    var f=SixPairSave();Valid(f.Request);var a=f.Scope();
+    TestRunner.True(f.Request.SelectedChunk7Scenario=="chunk7-persistence-save"&&f.Request.OwnedPairs.WriteCount(f.Request.PersistenceCase)==1&&
+     f.Request.OwnedPairs.PairIds.Length==12&&f.Number==309&&f.Name==Chunk7OwnedPairsSelection.SixPairManualName&&
+     f.Request.OwnedPairs.OwnedManualOutputName(f.Request.PersistenceCase)==Chunk7OwnedPairsSelection.SixPairManualName,
+     "Six-mounted producer lost its exact persistence route or output name.");
+    TestRunner.True(a.AuthorizeNativeRequest(RuntimeSaveOperation.Write,f.Write(f.Number),f.Root)!=null,"Early six-mounted output admitted.");Unspent(a);
+    f.Reserve(a);TestRunner.Equal(Chunk7OwnedPairsSelection.SixPairManualLeaf,a.OwnedPairsOutputLeaf,"Six-mounted output leaf differs.");
+    TestRunner.True(a.AuthorizeNativeRequest(RuntimeSaveOperation.Write,f.Write(f.Number),f.Root)!=null,"Six-mounted output admitted before the sole load.");
+    TestRunner.True(a.AuthorizeNativeRequest(RuntimeSaveOperation.Load,f.Load,f.Root)==null,"Six-mounted sole load refused.");
+    TestRunner.True(a.AuthorizeNativeRequest(RuntimeSaveOperation.Write,f.Write(f.Number),f.Root)==null,"Six-mounted reserved write refused.");
+    using(var lease=a.BeginWrite(f.Write(f.Number),f.Root)){BootstrapVirtualFile.OutputExists=true;lease.Complete();}
+    TestRunner.True(a.MatchesOwnedPairsPlan(true,false),"Settled six-mounted two-entry plan lost.");
+    TestRunner.True(a.AuthorizeNativeRequest(RuntimeSaveOperation.Write,f.Write(f.Number),f.Root)!=null,"Second six-mounted write admitted.");Reset();
+   });
+   t.Run("six-mounted producer refuses another reserved name or number",()=>{
+    var f=SixPairSave();var a=f.Scope();
+    Refuses(()=>a.ReserveOwnedPairsOutput(f.Request,f.Game,f.Manager,f.Descriptor,f.Load,f.Number,f.Type,Chunk7OwnedPairsSelection.FourthHorseManualName));
+    Refuses(()=>a.ReserveOwnedPairsOutput(f.Request,f.Game,f.Manager,f.Descriptor,f.Load,f.Number+1,f.Type,f.Name));Unspent(a);Reset();
+   });
+   t.Run("six-pair cold consumer has one exact Manual309 load and no write or reservation",()=>{
+    var f=SixPairLoad();Valid(f.Request);var a=f.Scope();
+    TestRunner.True(f.Request.SelectedChunk7Scenario=="chunk7-persistence-load"&&f.Request.OwnedPairs.WriteCount(f.Request.PersistenceCase)==0&&
+     f.Request.ExpectedNativeLoadType=="Manual"&&!f.Request.OwnedPairs.RequiresCombatColdBind(f.Request.PersistenceCase)&&f.Request.OwnedPairs.PairIds.Length==12,
+     "Six-pair cold consumer lost its exact persistence route.");
+    TestRunner.True(a.AuthorizeNativeRequest(RuntimeSaveOperation.Load,f.Load,f.Root)==null,"Six-pair cold load refused.");
+    TestRunner.True(a.AuthorizeNativeRequest(RuntimeSaveOperation.Load,f.Load,f.Root)!=null,"Second six-pair cold load admitted.");
+    TestRunner.True(a.AuthorizeNativeRequest(RuntimeSaveOperation.Write,f.Load,f.Root)!=null,"Six-pair cold consumer gained a write.");
+    TestRunner.Equal(0,a.AdmittedNativeWriteRequests,"Six-pair cold refusal spent a write.");TestRunner.Equal(0,a.OwnedPairsReservationCount,"Six-pair cold consumer reserved an output.");Reset();
+   });
+   foreach(var mutation in new[]{"no-checkpoint","quick","zero-writes","two-writes","producer-pin","substituted-input","source-artifact","eleven","role","progression","cold-receipt"})t.Run("six-mounted producer request refuses "+mutation,()=>{
+    var f=SixPairSave();var s=f.Request.OwnedPairs;
+    switch(mutation){
+     case "no-checkpoint":f.Request.PersistenceCase=null;break;case "quick":f.Request.PersistenceCase="multi-exploration-quick";break;
+     case "zero-writes":s.ExpectedNativeWriteCount=0;break;case "two-writes":s.ExpectedNativeWriteCount=2;break;
+     case "producer-pin":s.CheckpointSourceRunId="completed-six-mounted-producer";s.CheckpointSourceArtifactSha256=new string('9',64);break;
+     case "substituted-input":f.Request.PersistenceLoad.Sha256=new string('e',64);break;case "source-artifact":s.SourceArtifactSha256=new string('f',64);break;
+     case "eleven":s.PartyIds=s.PartyIds.Take(11).ToArray();break;case "role":s.RiderBId=s.RiderAId;break;
+     case "progression":s.XpAssistance=new Chunk7OwnerSeedXpAssistance{UnitId=s.RiderBId,TargetCharacterLevel=8};break;
+     case "cold-receipt":s.ColdReceiptSha256=new string('7',64);break;
+    }
+    TestRunner.True(f.Request.Validate().Count>0,"Six-mounted invalid producer request was accepted.");Refuses(()=>f.Scope());
+   });
+   foreach(var mutation in new[]{"no-producer","producer-is-self","producer-is-fixture","producer-artifact-alias","producer-archive-alias","write","manual308-input","wrong-number","wrong-name","input-is-producer-receipt","other-campaign","other-area"})t.Run("six-pair cold consumer request refuses "+mutation,()=>{
+    var f=SixPairLoad();var s=f.Request.OwnedPairs;var d=f.Request.PersistenceLoad;
+    switch(mutation){
+     case "no-producer":s.CheckpointSourceRunId=null;s.CheckpointSourceArtifactSha256=null;break;
+     case "producer-is-self":s.CheckpointSourceRunId=f.Request.RunId;break;case "producer-is-fixture":s.CheckpointSourceRunId=s.SourceRunId;break;
+     case "producer-artifact-alias":s.CheckpointSourceArtifactSha256=s.SourceArtifactSha256;break;case "producer-archive-alias":s.CheckpointSourceArtifactSha256=s.SourceArchiveSha256;break;
+     case "write":s.ExpectedNativeWriteCount=1;break;
+     case "manual308-input":d.Sha256=s.SourceArchiveSha256;break;case "wrong-number":d.FileName="Manual_310_"+Chunk7OwnedPairsSelection.SixPairManualName+".zks";break;
+     case "wrong-name":d.InternalName="KMC_C7_SIX_HORSE_WORLD";d.FileName="Manual_309_KMC_C7_SIX_HORSE_WORLD.zks";break;
+     case "input-is-producer-receipt":d.Sha256=s.CheckpointSourceArtifactSha256;break;
+     case "other-campaign":d.GameId="44444444-1111-4111-8111-111111111111";break;case "other-area":d.Area=OtherArea;break;
+    }
+    TestRunner.True(f.Request.Validate().Count>0,"Six-pair invalid cold request was accepted.");Refuses(()=>f.Scope());
+   });
    t.Run("six-pair captured scope refuses a later native role substitution",()=>{var f=SixPair();var a=f.Scope();f.Request.OwnedPairs.PartyIds[10]=Guid.NewGuid().ToString("D");TestRunner.True(a.AuthorizeNativeRequest(RuntimeSaveOperation.Load,f.Load,f.Root)!=null,"Captured six-pair role mutation gained a load.");TestRunner.Equal(0,a.AdmittedNativeLoadRequests,"Refusal spent native load authority.");});
    foreach(var selectedCase in new[]{"exploration","combat-rider-first","combat-mount-first","realtime-core","realtime-casting","realtime-charge","native-life-cleanup"}) t.Run("closed inherited native read-only case "+selectedCase,()=>{var f=new Fixture();f.Request.OwnedPairs.Case=selectedCase;f.Request.PersistenceCase=null;f.Request.OwnedPairs.ExpectedNativeWriteCount=0;Valid(f.Request);var a=f.Scope();TestRunner.True(a.MatchesOwnedPairsPlan(true,true),"Exact read-only plan missing.");TestRunner.True(a.AuthorizeNativeRequest(RuntimeSaveOperation.Load,f.Load,f.Root)==null,"Sole inherited native load refused.");TestRunner.True(a.AuthorizeNativeRequest(RuntimeSaveOperation.Write,f.Write(9),f.Root)!=null,"Read-only native campaign gained a write.");TestRunner.Equal(0,a.OwnedPairsReservationCount,"Read-only plan gained a reservation.");TestRunner.Equal(0,a.AdmittedNativeWriteRequests,"Refused write spent authority.");});
    foreach(var checkpoint in new[]{"multi-exploration-manual","multi-exploration-quick","multi-exploration-auto","multi-rt-debt-manual","multi-tb-debt-manual","zero-mounted-tb-retained-manual","legacy-mounted-pending-tb-manual","owned-schema1-manual"})t.Run("source checkpoint exact category and reservation "+checkpoint,()=>{var f=new Fixture();f.Request.PersistenceCase=checkpoint;Valid(f.Request);var a=f.Scope();TestRunner.True(a.ValidateArchiveIdentity(f.Load,f.Root)==null,"Native header enumeration refused.");TestRunner.True(a.AuthorizeNativeRequest(RuntimeSaveOperation.Load,f.Load,f.Root)!=null,"Unreserved load admitted.");TestRunner.True(a.AuthorizeNativeRequest(RuntimeSaveOperation.Write,f.Write(f.Number),f.Root)!=null,"Early output admitted.");Unspent(a);f.Reserve(a);TestRunner.True(a.MatchesOwnedPairsPlan(true,true),"Atomic two-entry plan missing.");TestRunner.Equal(f.Number,a.OwnedPairsOutputNumber,"Observed native number replaced.");TestRunner.True(ReferenceEquals(f.Descriptor,a.OwnedPairsSourceDescriptor),"Native source reference replaced.");TestRunner.True(a.AuthorizeNativeRequest(RuntimeSaveOperation.Write,f.Write(f.Number),f.Root)!=null,"Reserved output admitted before the sole load.");TestRunner.True(a.AuthorizeNativeRequest(RuntimeSaveOperation.Load,f.Load,f.Root)==null,"Reserved native load refused.");TestRunner.True(a.AuthorizeNativeRequest(RuntimeSaveOperation.Write,f.Write(f.Number),f.Root)==null,"Reserved native write refused.");using(var lease=a.BeginWrite(f.Write(f.Number),f.Root)){BootstrapVirtualFile.OutputExists=true;lease.Complete();}TestRunner.True(a.MatchesOwnedPairsPlan(true,false),"Settled two-entry plan lost.");TestRunner.True(a.AuthorizeNativeRequest(RuntimeSaveOperation.Load,f.Load,f.Root)!=null,"Second native load admitted.");TestRunner.True(a.AuthorizeNativeRequest(RuntimeSaveOperation.Write,f.Write(f.Number),f.Root)!=null,"Second native write admitted.");Reset();});
@@ -265,6 +322,16 @@ namespace KingmakerMountedCombat.Tests
     Length=1332308,LastWriteTimeUtcTicks=639282712706531806L,GameId=Chunk7SmallFixtureSelection.CampaignId,GameName=Chunk7SmallFixtureSelection.CampaignName,Area=Chunk7SmallFixtureSelection.AreaId};
    return f;
   }
+  // The six-mounted Manual producer loads the same Manual308; its cold consumer loads
+  // only the producer's reserved Manual309 and pins that producer separately.
+  static Fixture SixPairSave(){var f=SixPair();var s=f.Request.OwnedPairs;s.Case=Chunk7OwnedPairsSelection.SixPairSaveCase;s.ExpectedNativeWriteCount=1;f.Request.PersistenceCase="multi-exploration-manual";return f;}
+  static Fixture SixPairLoad(){
+   var f=SixPairSave();var s=f.Request.OwnedPairs;s.Case=Chunk7OwnedPairsSelection.SixPairLoadCase;s.ExpectedNativeWriteCount=0;
+   s.CheckpointSourceRunId="completed-six-mounted-producer";s.CheckpointSourceArtifactSha256=new string('9',64);
+   f.Request.PersistenceLoad=new RuntimeSaveDescriptor{InternalName=Chunk7OwnedPairsSelection.SixPairManualName,FileName=Chunk7OwnedPairsSelection.SixPairManualLeaf,Sha256=new string('8',64),
+    Length=1400000,LastWriteTimeUtcTicks=639283000000000000L,GameId=Chunk7SmallFixtureSelection.CampaignId,GameName=Chunk7SmallFixtureSelection.CampaignName,Area=Chunk7SmallFixtureSelection.AreaId};
+   return f;
+  }
   static Fixture SeedManual(){var f=OwnerSeed();f.Request.OwnedPairs.Case="owner-seed-persistence-save";f.Request.PersistenceCase="multi-exploration-manual";f.Request.OwnedPairs.ExpectedNativeWriteCount=1;return f;}
   static Fixture SeedDerived(){var f=new Fixture();var p=f.Request.OwnedPairs;f.Request.OwnedPairs=new Chunk7OwnedPairsSelection{Case="owner-seed-persistence-load",SourceRunId="completed-owner-seed-manual",SourceArtifactSha256=new string('c',64),SourceArchiveSha256=new string('d',64),SeedId="KMC_C7_OWNER_SEED",SeedSha256=new string('e',64),RiderAId=p.RiderAId,MountAId=p.MountAId,RiderBId=p.RiderBId,MountBId=p.MountBId,PartyIds=p.PartyIds,BaseGameOnly=true,ExpectedNativeLoadCount=1,ExpectedNativeWriteCount=0};f.Request.PersistenceCase="multi-exploration-manual";f.Request.PersistenceLoad.InternalName="KMC_C7_SEED_WORLD";f.Request.PersistenceLoad.FileName="Manual_303_KMC_C7_SEED_WORLD.zks";return f;}
   const string Companion="88888888-1111-4111-8111-111111111111";
@@ -295,14 +362,14 @@ namespace KingmakerMountedCombat.Tests
    internal const string RunRoot=@"C:\KmcBootstrapVirtual\run";internal readonly string Root=RunRoot+@"\Saved Games";
    internal readonly object Game=new object(),Manager=new object(),Descriptor=new object();
    internal readonly RuntimeRequest Request=new RuntimeRequest{SchemaVersion=2,RunId="acquired-test",Scenario=Chunk7OwnedPairsSelection.Scenario,PersistenceCase="multi-exploration-manual",OwnedPairs=new Chunk7OwnedPairsSelection{Case="persistence-save",SourceRunId="completed-two-owner-manual",SourceArtifactSha256=new string('c',64),SourceArchiveSha256=new string('d',64),RiderAId="44444444-1111-4111-8111-111111111111",MountAId="55555555-1111-4111-8111-111111111111",RiderBId="66666666-1111-4111-8111-111111111111",MountBId="77777777-1111-4111-8111-111111111111",PartyIds=new[]{"44444444-1111-4111-8111-111111111111","55555555-1111-4111-8111-111111111111","66666666-1111-4111-8111-111111111111","77777777-1111-4111-8111-111111111111","88888888-1111-4111-8111-111111111111"},BaseGameOnly=true,ExpectedNativeLoadCount=1,ExpectedNativeWriteCount=1},PersistenceLoad=new RuntimeSaveDescriptor{FileName="Manual_8_KMC_C7_ACQUIRED_FIELD.zks",InternalName="KMC_C7_ACQUIRED_FIELD",Sha256=new string('d',64),Length=10,LastWriteTimeUtcTicks=638907120000000000L,GameId=Campaign,GameName="Native",Area=Area},Branch="codex/mounted-combat-chunk7-foundation",Commit=new string('1',40),ProductVersion=BuildIdentity.ProductVersion,DllSha256=new string('2',64),DllMvid=Anchor,TransactionToken=new string('3',64),EvidenceRoot=@"C:\KmcBootstrapVirtual\evidence",Fixture=new RuntimeFixtureIdentity{Baseline=OwnedPairsAuthorityTests.Descriptor("KMC_AUTOMATION_BASELINE","Manual_298_KMC_AUTOMATION_BASELINE.zks",new string('a',64)),Working=OwnedPairsAuthorityTests.Descriptor("KMC_AUTOMATION_WORKING","Manual_299_KMC_AUTOMATION_WORKING.zks",new string('b',64)),WriteAuthorization=new RuntimeSaveWriteAuthorization{Mode="working-only",AllowedInternalName="KMC_AUTOMATION_WORKING",AllowedFileName="Manual_299_KMC_AUTOMATION_WORKING.zks",BaselineImmutable=true}},QualificationSuite=new RuntimeQualificationSuiteIdentity{SuiteId="bootstrap-suite",SnapshotSha256=new string('4',64)}};
-   private string ActualCampaign=>Request.OwnedPairs.IsSixPairStress?Request.PersistenceLoad.GameId:Campaign;
-   private string ActualName=>Request.OwnedPairs.IsSixPairStress?Request.PersistenceLoad.GameName:"Native";
+   private string ActualCampaign=>Request.OwnedPairs.SixPairLineage?Request.PersistenceLoad.GameId:Campaign;
+   private string ActualName=>Request.OwnedPairs.SixPairLineage?Request.PersistenceLoad.GameName:"Native";
    internal RuntimeSaveTarget Load=>new RuntimeSaveTarget{InternalName=Request.PersistenceLoad.InternalName,FileName=Request.PersistenceLoad.FileName,FullPath=Root+"\\"+Request.PersistenceLoad.FileName,SaveType=Request.ExpectedNativeLoadType,GameId=ActualCampaign,GameName=ActualName,Area=Request.PersistenceLoad.Area};
    internal string Type=>Request.OwnedPairs.Cold?"Manual":Request.PersistenceCase=="multi-exploration-quick"?"Quick":(Request.PersistenceCase=="multi-exploration-auto"||Request.PersistenceCase=="multi-area-autosave")?"Auto":"Manual";
-   internal string Name=>Request.OwnedPairs.Cold?(Request.PersistenceCase=="owned-schema1-resave-manual"?"KMC_C7_SCHEMA1":"KMC_C7_SCHEMA2"):Type=="Manual"?(Request.OwnedPairs.Case=="owner-seed-checkpoint-save"?"KMC_C7_SEED_CHECKPOINT":"KMC_C7_WORLD"):Type=="Quick"?"Quicksave":"Autosave";
+   internal string Name=>Request.OwnedPairs.IsSixPairSave?Chunk7OwnedPairsSelection.SixPairManualName:Request.OwnedPairs.Cold?(Request.PersistenceCase=="owned-schema1-resave-manual"?"KMC_C7_SCHEMA1":"KMC_C7_SCHEMA2"):Type=="Manual"?(Request.OwnedPairs.Case=="owner-seed-checkpoint-save"?"KMC_C7_SEED_CHECKPOINT":"KMC_C7_WORLD"):Type=="Quick"?"Quicksave":"Autosave";
    // Native Manual numbering is the sole source number plus one (Manual_8 -> 9, Manual_303 -> 304).
    internal int Number=>Type=="Manual"&&System.Text.RegularExpressions.Regex.IsMatch(Request.PersistenceLoad.FileName,"^Manual_[0-9]+_")?int.Parse(System.Text.RegularExpressions.Regex.Match(Request.PersistenceLoad.FileName,"^Manual_([0-9]+)_").Groups[1].Value)+1:1;
-   internal RuntimeSaveTarget Write(int n)=>new RuntimeSaveTarget{InternalName=Name,FileName=Type+"_"+n+(Type=="Manual"?"_"+Name:"")+".zks",FullPath=Root+"\\"+Type+"_"+n+(Type=="Manual"?"_"+Name:"")+".zks",SaveType=Type,GameId=Campaign,GameName="Native",Area=Request.ExpectedChunk7ArchiveArea};
+   internal RuntimeSaveTarget Write(int n)=>new RuntimeSaveTarget{InternalName=Name,FileName=Type+"_"+n+(Type=="Manual"?"_"+Name:"")+".zks",FullPath=Root+"\\"+Type+"_"+n+(Type=="Manual"?"_"+Name:"")+".zks",SaveType=Type,GameId=ActualCampaign,GameName=ActualName,Area=Request.ExpectedChunk7ArchiveArea};
    internal PersistenceSaveEntry[] Entries()=>new[]{new PersistenceSaveEntry{FileName=Request.PersistenceLoad.FileName,InternalName=Request.PersistenceLoad.InternalName,SaveType=Request.ExpectedNativeLoadType,Area=Request.PersistenceLoad.Area,InitialSha256=Request.PersistenceLoad.Sha256}};
    internal PersistenceSaveAuthorization Scope(bool selected=true){Reset();BootstrapVirtualStorage.InputLeaf=Request.PersistenceLoad.FileName;BootstrapVirtualStorage.InputHash=Request.PersistenceLoad.Sha256;return new PersistenceSaveAuthorization(RunRoot,ActualCampaign,ActualName,new string('a',64),Entries(),null,null,selected?(int?)Request.OwnedPairs.ExpectedNativeWriteCount:1,selected?(int?)Request.OwnedPairs.ExpectedNativeLoadCount:1,null,null,null,selected?Request:null,selected?Game:null,selected?Manager:null,selected&&Request.OwnedPairs.ExpectedNativeWriteCount==1?Name:null);}
    internal void Reserve(PersistenceSaveAuthorization scope)=>scope.ReserveOwnedPairsOutput(Request,Game,Manager,Descriptor,Load,Number,Type,Name);
