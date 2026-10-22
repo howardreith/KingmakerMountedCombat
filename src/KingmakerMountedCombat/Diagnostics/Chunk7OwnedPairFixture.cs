@@ -33,7 +33,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private readonly RetainedObjectIdentity identities = new RetainedObjectIdentity(128);
         private JObject observations, sourceWorld, sourceArrangement;
         private JObject[] ownerRows;
-        private int InheritedPairCount => selection.IsSixPairStress ? 6 : selection.IsFourthHorse ? 3 : 2;
+        private int InheritedPairCount => selection.SixPairLineage ? 6 : selection.IsFourthHorse ? 3 : 2;
         private UnitEntityData sixRemote;
         private object sixRemoteDescriptor;
         private JObject sixRemoteArrangement;
@@ -148,7 +148,7 @@ namespace KingmakerMountedCombat.Diagnostics
             sourceLength = file.Length; sourceTicks = file.LastWriteTimeUtc.Ticks;
             var artifact = JObject.Parse(File.ReadAllText(sourcePath)); observations = artifact["observations"] as JObject;
             if (selection.IsFourthHorse) { ReadFourthHorseSource(artifact); return; }
-            if (selection.IsSixPairStress) { ReadSixPairSource(artifact); return; }
+            if (selection.SixPairLineage) { ReadSixPairSource(artifact); return; }
             if (selection.PaidFixtureLineage) { ReadPaidFixtureSource(artifact); return; }
             if (Chunk7OwnedPairsSelection.IsManticoreManualCold(request.PersistenceCase) || selection.IsManticoreReturnArea)
             { ReadManticoreManualSource(artifact); return; }
@@ -196,6 +196,11 @@ namespace KingmakerMountedCombat.Diagnostics
                 (int?)observations["archive"]?["pairs"] == 0 && (int?)observations["archive"]?["participations"] == 0 &&
                 (int?)observations["archive"]?["slots"] == 0 && (bool?)observations["archive"]?["combatPresent"] == false,
                 "Six-pair checkpoint lost its twelve native actors, six sourced Horses or empty mounted metadata.");
+            // The stress and the Manual producer load Manual308 itself; the cold consumer
+            // loads the producer's distinct mounted Manual, pinned separately by the runner.
+            Require(selection.Cold ? request.PersistenceLoad.Sha256 != selection.SourceArchiveSha256 :
+                    request.PersistenceLoad.Sha256 == selection.SourceArchiveSha256,
+                "Six-pair source intake did not load its exact declared native Manual.");
             ownerRows = rows.Cast<JObject>().ToArray(); var roles = selection.PairIds;
             var riders = Enumerable.Range(0, 6).Select(i => roles[i * 2]).OrderBy(id => id, StringComparer.Ordinal).ToArray();
             var sourceCharacters = sourceWorld["partyCharacterIds"] as JArray;
@@ -223,7 +228,7 @@ namespace KingmakerMountedCombat.Diagnostics
         }
         private void RequireSixPairRemote()
         {
-            if (!selection.IsSixPairStress) return;
+            if (!selection.SixPairLineage) return;
             Require(sixRemote != null && game.Player.RemoteCompanions.Count == 1 &&
                 ReferenceEquals(game.Player.RemoteCompanions[0].Value, sixRemote) && ReferenceEquals(sixRemote.Descriptor, sixRemoteDescriptor) &&
                 sixRemote.Blueprint.AssetGuid == "77c11edb92ce0fd408ad96b40fd27121" && sixRemote.Descriptor.Pet == null &&
@@ -236,7 +241,7 @@ namespace KingmakerMountedCombat.Diagnostics
         }
         internal JObject CaptureSixPairRemote()
         {
-            Require(selection.IsSixPairStress, "Remote Linzi observation belongs only to the six-pair fixture.");
+            Require(selection.SixPairLineage, "Remote Linzi observation belongs only to the six-pair fixture.");
             RequireSixPairRemote();
             return new JObject { ["actorId"] = sixRemote.UniqueId, ["object"] = identities.Get(sixRemote),
                 ["descriptor"] = identities.Get(sixRemote.Descriptor), ["petId"] = JValue.CreateNull(), ["masterId"] = JValue.CreateNull(),
@@ -608,7 +613,7 @@ namespace KingmakerMountedCombat.Diagnostics
             RequirePreserved();
             // Owner-seed-derived custody keeps its own labels; it is never relabelled acquired ancestry.
             var derived = selection.OwnerSeedDerivedLineage;
-            var captured = new JObject { ["contract"] = selection.IsSixPairStress ? "cold-qualified-six-horse-native-field-v1" :
+            var captured = new JObject { ["contract"] = selection.SixPairLineage ? "cold-qualified-six-horse-native-field-v1" :
                     selection.IsFourthHorse ? "small-fixture-three-horse-native-field-v1" :
                     selection.SmallFixtureLineage ? "owner-seed-small-fixture-two-horse-native-field-v1" :
                     selection.MediumFixtureLineage ? "owner-seed-medium-fixture-two-horse-native-field-v1" :
@@ -617,7 +622,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["sourceArchiveSha256"] = selection.SourceArchiveSha256, ["sourceCase"] =
                     (Chunk7OwnedPairsSelection.IsManticoreManualCold(request.PersistenceCase) || selection.IsManticoreReturnArea) ?
                         Chunk7OwnedPairsSelection.ManticoreFixtureCheckpoint :
-                    selection.IsSixPairStress ? Chunk7AssistedColdInventorySelection.SixthHorseCaseName :
+                    selection.SixPairLineage ? Chunk7AssistedColdInventorySelection.SixthHorseCaseName :
                     selection.IsFourthHorse ? Chunk7OwnedPairsSelection.SmallThirdHorseSaveCase :
                     selection.SmallFixtureLineage ? Chunk7SmallFixtureSelection.CaseName :
                     selection.MediumFixtureLineage ? Chunk7SmallFixtureSelection.MediumCaseName :
@@ -636,7 +641,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     ["sourceGuid"] = ((Feature)facts[index]).Source.AssetGuid, ["rank"] = Actors[index * 2].Descriptor.GetFact(horses.LevelRank).GetRank(),
                     ["profileId"] = SupportedMountedProfiles.Resolve(Actors[index * 2], Actors[index * 2 + 1])?.Id })),
                 ["identities"] = new JObject { ["capacity"] = identities.Capacity, ["ids"] = new JArray(identities.Ids), ["faults"] = identities.FaultCount } };
-            if (selection.IsSixPairStress)
+            if (selection.SixPairLineage)
             {
                 captured["remote"] = CaptureSixPairRemote();
                 ((JObject)captured["identities"])["ids"] = new JArray(identities.Ids);

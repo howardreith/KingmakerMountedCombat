@@ -25,14 +25,19 @@ namespace KingmakerMountedCombat.Diagnostics
     {
         /*ACTUAL_CONSTANTS*/
         /*ACTUAL_ROLES*/
-        internal bool IsSixPairStress = true;
+        internal bool IsSixPairStress = true, SixPairLineage = true, Cold;
         internal string SourceArchiveSha256 = SixPairSourceArchive;
         internal string[] PairIds => SixPairRoles;
     }
+    internal sealed class RuntimeSaveDescriptor { internal string Sha256; }
+    internal sealed class RuntimeRequest { internal RuntimeSaveDescriptor PersistenceLoad = new RuntimeSaveDescriptor { Sha256 = Chunk7OwnedPairsSelection.SixPairSourceArchive }; }
     internal static class Chunk7AssistedColdInventorySelection { /*ACTUAL_COLD_SCENARIO*/ }
     internal sealed class Fixture
     {
         private readonly Chunk7OwnedPairsSelection selection = new Chunk7OwnedPairsSelection();
+        private readonly RuntimeRequest request = new RuntimeRequest();
+        internal Chunk7OwnedPairsSelection Selection => selection;
+        internal RuntimeRequest Request => request;
         internal readonly Kingmaker.Game game = Kingmaker.Game.Instance = new Kingmaker.Game();
         private JObject observations, sourceWorld, sourceArrangement, sixRemoteArrangement;
         private JObject[] ownerRows; private UnitEntityData sixRemote; private object sixRemoteDescriptor;
@@ -131,6 +136,14 @@ internal static class Program
             }
             Refuse(() => f.Read(v), "actual source admission refuses " + fault);
         }
+        // The stress and the mounted Manual producer load Manual308 itself; the cold
+        // consumer loads only the producer's distinct mounted Manual.
+        f = new KingmakerMountedCombat.Diagnostics.Fixture(); f.Request.PersistenceLoad.Sha256 = new string('e', 64);
+        Refuse(() => f.Read(source), "actual six-pair source intake refuses a substituted Manual308 for the stress or producer");
+        f = new KingmakerMountedCombat.Diagnostics.Fixture(); f.Selection.Cold = true;
+        Refuse(() => f.Read(source), "actual six-pair cold consumer refuses the unmounted Manual308 as its mounted input");
+        f = new KingmakerMountedCombat.Diagnostics.Fixture(); f.Selection.Cold = true; f.Request.PersistenceLoad.Sha256 = new string('e', 64); f.Read(source);
+        Check(f.Owners == 6 && ((JArray)f.Arrangement["actors"]).Count == 12, "actual six-pair cold consumer admits its distinct mounted input with the same fixture provenance");
         Console.WriteLine("SIX-PAIR FIXTURE SOURCE/REMOTE PASS=" + count + " FAIL=0; actual methods on pinned b185 observation, external native objects only");
     }
 }

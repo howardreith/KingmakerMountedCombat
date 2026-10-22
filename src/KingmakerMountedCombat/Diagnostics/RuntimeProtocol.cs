@@ -651,7 +651,7 @@ namespace KingmakerMountedCombat.Diagnostics
                         PersistenceLoad.Sha256 == Fixture.Baseline?.Sha256 || PersistenceLoad.Sha256 != OwnedPairs.SeedSha256)
                         errors.Add("Owner seed lacks its exact registered non-aliasing identity.");
                 }
-                else if (OwnedPairs.IsSixPairStress)
+                else if (OwnedPairs.IsSixPairStress || OwnedPairs.IsSixPairSave)
                 {
                     errors.AddRange(PersistenceLoad.Validate("persistenceLoad", "KMC_C7_SIX_HORSE_WORLD", "^Manual_308_KMC_C7_SIX_HORSE_WORLD\\.zks$"));
                     if (PersistenceLoad.Sha256 != Chunk7OwnedPairsSelection.SixPairSourceArchive ||
@@ -661,7 +661,24 @@ namespace KingmakerMountedCombat.Diagnostics
                         PersistenceLoad.Area != Chunk7SmallFixtureSelection.AreaId ||
                         Fixture?.Working == null || PersistenceLoad.Sha256 == Fixture.Working.Sha256 ||
                         PersistenceLoad.Sha256 == Fixture.Baseline?.Sha256)
-                        errors.Add("Six-pair stress requires the exact separately cold-qualified native Manual308.");
+                        errors.Add("Six-pair stress and its mounted Manual producer require the exact separately cold-qualified native Manual308.");
+                }
+                else if (OwnedPairs.IsSixPairLoad)
+                {
+                    // Exactly the producer's reserved mounted Manual in the same native campaign;
+                    // its bytes are pinned by the runner to the producer's recorded write.
+                    errors.AddRange(PersistenceLoad.Validate("persistenceLoad", Chunk7OwnedPairsSelection.SixPairManualName,
+                        "^Manual_309_" + Chunk7OwnedPairsSelection.SixPairManualName + "\\.zks$"));
+                    if (PersistenceLoad.FileName != Chunk7OwnedPairsSelection.SixPairManualLeaf ||
+                        PersistenceLoad.Sha256 == Chunk7OwnedPairsSelection.SixPairSourceArchive ||
+                        PersistenceLoad.Sha256 == OwnedPairs.SourceArtifactSha256 ||
+                        PersistenceLoad.Sha256 == OwnedPairs.CheckpointSourceArtifactSha256 ||
+                        PersistenceLoad.GameId != Chunk7SmallFixtureSelection.CampaignId ||
+                        PersistenceLoad.GameName != Chunk7SmallFixtureSelection.CampaignName ||
+                        PersistenceLoad.Area != Chunk7SmallFixtureSelection.AreaId ||
+                        Fixture?.Working == null || PersistenceLoad.Sha256 == Fixture.Working.Sha256 ||
+                        PersistenceLoad.Sha256 == Fixture.Baseline?.Sha256)
+                        errors.Add("Six-pair cold input must be the producer's distinct mounted Manual309 in the same native campaign.");
                 }
                 else if (OwnedPairs.IsFourthHorse)
                 {
@@ -1428,6 +1445,7 @@ namespace KingmakerMountedCombat.Diagnostics
             "C7-persistence-three-native-loads", "C7-persistence-three-native-area-transfers",
             "C7-persistence-nonselected-mount-save-deferral", "C7-persistence-owned-worker-cancel-drain",
             "C7-persistence-native-continuation", "C7-persistence-all-pair-area-before-autosave", "C7-persistence-native-combat-continuation", "C7-persistence-cleanup", "C7-persistence-runtime", "C7-persistence-interrupted",
+            "C7-persistence-six-native-mounts", "C7-persistence-six-mounted-archive", "C7-persistence-six-native-continuation",
             "chunk7-two-pair-exploration", "C7-world-fixture", "C7-world-native-acquisition", "C7-world-owner-seed-setup", "C7-world-two-native-mounts",
             "C7-world-selection-routing", "C7-world-independent-dismount", "C7-world-cycles", "C7-world-sampling", "C7-world-cleanup", "C7-world-runtime", "C7-world-visual", "C7-world-interrupted",
             "C7-world-owner-seed-manual", "C7-small-third-horse-native-setup", "C7-small-third-horse-native-manual", "C7-f09-fourth-horse-native-setup", "C7-f09-fourth-horse-native-manual",

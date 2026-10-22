@@ -34,9 +34,10 @@ namespace KingmakerMountedCombat.Diagnostics
     }
     class Selection
     {
-        public bool IsSixPairStress = true; public int ExpectedNativeLoadCount = 1, ExpectedNativeWriteCount; public List<string> Errors = new List<string>();
+        public bool IsSixPairStress = true, IsSixPairSave, IsSixPairLoad; public bool SixPairLineage => IsSixPairStress || IsSixPairSave || IsSixPairLoad;
+        public int ExpectedNativeLoadCount = 1, ExpectedNativeWriteCount; public string Checkpoint; public List<string> Errors = new List<string>();
         public IReadOnlyList<string> Validate(string scenario, string runId, string checkpoint) =>
-            scenario == "chunk7-owned-two-pair-campaign" && runId == "b188-exit" && checkpoint == null ? Errors : new List<string> { "selection" };
+            scenario == "chunk7-owned-two-pair-campaign" && runId == "b188-exit" && checkpoint == Checkpoint ? Errors : new List<string> { "selection" };
     }
     class RuntimeRequest
     {
@@ -44,7 +45,7 @@ namespace KingmakerMountedCombat.Diagnostics
         public string Scenario = "chunk7-owned-two-pair-campaign", RunId = "b188-exit", PersistenceCase, EvidenceRoot, TransactionToken;
     }
     class SaveAuthorization { public int BaselineLoadRequestCount, AuthorizedLoadCount = 1, UnauthorizedLoadCount, AuthorizedWriteCount, UnauthorizedWriteCount, SuppressedWorkingWriteCount; }
-    class Persistence { public bool HasActiveSaveScope, SaveDraining, ActiveSaveWorkerRunning, ActiveSaveWorkerCached, HasSaveAdmissionFence, SaveSuspended, AreaTransitionPending, LoadInFlight; public int SnapshotCount; }
+    class Persistence { public bool HasActiveSaveScope, SaveDraining, ActiveSaveWorkerRunning, ActiveSaveWorkerCached, HasSaveAdmissionFence, SaveSuspended, AreaTransitionPending, LoadInFlight; public int SnapshotCount, CompletedSaveCount; }
     class World { public bool SerializationBusy; }
     class Relationship { public World World = new World(); }
     class Chunk7WorldScenarioEngine
@@ -58,6 +59,18 @@ namespace KingmakerMountedCombat.Diagnostics
         internal IReadOnlyList<RuntimeSubscenarioResult> Results => Rows;
         internal string RetainedFailureArtifactSha256;
         internal void RequireRetainedSixFailureScope() { if (RefuseScope) throw new InvalidOperationException("No committed retained six-pair failure owns this world."); }
+    }
+    class Chunk7PersistenceScenario
+    {
+        internal const string CleanupPendingFileName = "chunk7-persistence-cleanup-pending.json";
+        public bool RefuseScope; public List<string> ErrorList = new List<string> { "C7 causal retained persistence cleanup failure" };
+        public List<RuntimeSubscenarioResult> Rows = new List<RuntimeSubscenarioResult> {
+            new RuntimeSubscenarioResult { Name = "C7-persistence-six-native-mounts", Status = "PASS", AssertionPassCount = 1, Errors = new string[0] },
+            new RuntimeSubscenarioResult { Name = "C7-persistence-cleanup", Status = "FAIL", AssertionFailCount = 1, Errors = new[] { "C7 causal retained persistence cleanup failure" } } };
+        internal IReadOnlyList<string> Errors => ErrorList;
+        internal IReadOnlyList<RuntimeSubscenarioResult> Results => Rows;
+        internal string RetainedFailureArtifactSha256;
+        internal void RequireRetainedSixFailureScope() { if (RefuseScope) throw new InvalidOperationException("No committed retained six-pair persistence failure owns this world."); }
     }
     class Log { public int Exceptions; public List<string> Warnings = new List<string>(); public void Exception(string text, Exception error) { Exceptions++; Console.WriteLine("LOG " + text + ": " + error.GetType().Name + ": " + error.Message); } public void Warning(string text) { Warnings.Add(text); } }
     class Trace { public object Capture() => "startup-trace"; }
@@ -82,6 +95,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private IReadOnlyList<string> chunk7CompletionErrors = new[] { "Chunk 7 owned-pair fixture reported FAIL." };
         private readonly List<string> scenarioEngineErrors = new List<string>();
         internal Chunk7WorldScenarioEngine worldEngine = new Chunk7WorldScenarioEngine();
+        internal Chunk7PersistenceScenario worldPersistenceEngine;
         internal bool fixtureIdentityVerified = true;
         internal int saveRequestCount, loadRequestCount = 1;
         internal readonly SaveAuthorization saveAuthorization = new SaveAuthorization();
@@ -159,6 +173,45 @@ internal static class Program
     private static void Refuses(string name, Action<KingmakerMountedCombat.Diagnostics.RuntimeAutomationHost> mutate)
     {
         Check("retained exit refuses " + name, () => { var host = Fresh(); mutate(host); host.At(46); host.Drain(); return Untouched(host); });
+    }
+
+    // The six-mounted Manual producer (one completed write) or its zero-write cold
+    // consumer, both owned by the persistence engine instead of the world engine.
+    private static KingmakerMountedCombat.Diagnostics.RuntimeAutomationHost FreshPersistence(bool save)
+    {
+        var host = Fresh();
+        var path = Path.Combine(root, KingmakerMountedCombat.Diagnostics.Chunk7PersistenceScenario.CleanupPendingFileName);
+        File.WriteAllText(path, "{\"status\":\"FAIL\",\"engine\":\"persistence\"}");
+        host.worldEngine = null;
+        host.worldPersistenceEngine = new KingmakerMountedCombat.Diagnostics.Chunk7PersistenceScenario {
+            RetainedFailureArtifactSha256 = KingmakerMountedCombat.Diagnostics.RuntimeAutomationHost.Sha(path) };
+        var selection = host.request.OwnedPairs;
+        selection.IsSixPairStress = false; selection.IsSixPairSave = save; selection.IsSixPairLoad = !save;
+        selection.ExpectedNativeWriteCount = save ? 1 : 0; selection.Checkpoint = "multi-exploration-manual";
+        host.request.PersistenceCase = "multi-exploration-manual";
+        if (save) { host.saveRequestCount = 1; host.saveAuthorization.AuthorizedWriteCount = 1; host.persistence.SnapshotCount = 1; host.persistence.CompletedSaveCount = 1; }
+        return host;
+    }
+
+    private static void RefusesPersistence(string name, bool save, Action<KingmakerMountedCombat.Diagnostics.RuntimeAutomationHost> mutate)
+    {
+        Check("retained persistence exit refuses " + name, () => { var host = FreshPersistence(save); mutate(host); host.At(46); host.Drain(); return Untouched(host); });
+    }
+
+    private static bool PublishedPersistenceFailure(KingmakerMountedCombat.Diagnostics.RuntimeAutomationHost host, int writes)
+    {
+        host.At(46); host.Drain();
+        if (!File.Exists(host.ResultPath) || UnityEngine.Application.Quits != 1 || !host.completed || !host.completionStarted || host.OrdinaryCompletions != 0) return false;
+        var json = JObject.Parse(File.ReadAllText(host.ResultPath));
+        var errors = json["Errors"].Select(item => (string)item).ToArray();
+        var rows = json["SubscenarioResults"].Select(item => (string)item["Name"]).ToArray();
+        host.At(60); host.Drain();
+        return (string)json["Status"] == "FAIL" && (int)json["SubscenarioFailCount"] == 1 && (int)json["SubscenarioPassCount"] == 1 &&
+            rows.SequenceEqual(new[] { "C7-persistence-six-native-mounts", "C7-persistence-cleanup" }) &&
+            (int)json["SaveRequestCount"] == writes && (int)json["WorkingSaveRequestCount"] == writes && (int)json["LoadRequestCount"] == 1 &&
+            errors[0] == "C7 causal retained persistence cleanup failure" &&
+            errors.Last().StartsWith("Disposable six-pair run failed with retained volatile cleanup custody", StringComparison.Ordinal) &&
+            host.ManifestPublications == 1 && UnityEngine.Application.Quits == 1;
     }
 
     private static int Main()
@@ -285,6 +338,44 @@ internal static class Program
             var host = Fresh(); File.WriteAllText(host.ResultPath, "prior"); host.At(46); host.Drain();
             return File.ReadAllText(host.ResultPath) == "prior" && UnityEngine.Application.Quits == 0 && !host.completed;
         });
+
+        Check("exact retained six-mounted Manual producer FAIL publishes after its completed write", () => PublishedPersistenceFailure(FreshPersistence(true), 1));
+        Check("exact retained six-pair cold consumer FAIL publishes with zero writes", () => PublishedPersistenceFailure(FreshPersistence(false), 0));
+        Check("a producer that failed before its declared write still exits", () =>
+        {
+            var host = FreshPersistence(true); host.saveRequestCount = 0; host.saveAuthorization.AuthorizedWriteCount = 0;
+            host.persistence.SnapshotCount = 0; host.persistence.CompletedSaveCount = 0;
+            return PublishedPersistenceFailure(host, 0);
+        });
+        RefusesPersistence("an in-flight producer write", true, host => host.persistence.CompletedSaveCount = 0);
+        RefusesPersistence("a staged snapshot without its completion", true, host => { host.persistence.SnapshotCount = 1; host.persistence.CompletedSaveCount = 0; });
+        RefusesPersistence("a write beyond the declared quota", true, host =>
+        { host.saveRequestCount = 2; host.saveAuthorization.AuthorizedWriteCount = 2; host.persistence.SnapshotCount = 2; host.persistence.CompletedSaveCount = 2; });
+        RefusesPersistence("an authorized write without its request", true, host => host.saveRequestCount = 0);
+        RefusesPersistence("a request without its authorized write", true, host => host.saveAuthorization.AuthorizedWriteCount = 0);
+        RefusesPersistence("a snapshot count beyond its requests", true, host => host.persistence.SnapshotCount = 2);
+        RefusesPersistence("a completion count beyond its requests", true, host => host.persistence.CompletedSaveCount = 2);
+        RefusesPersistence("a cold consumer write", false, host =>
+        { host.saveRequestCount = 1; host.saveAuthorization.AuthorizedWriteCount = 1; host.persistence.SnapshotCount = 1; host.persistence.CompletedSaveCount = 1; });
+        RefusesPersistence("a producer declaring no write", true, host => host.request.OwnedPairs.ExpectedNativeWriteCount = 0);
+        RefusesPersistence("a cold consumer declaring a write", false, host => host.request.OwnedPairs.ExpectedNativeWriteCount = 1);
+        RefusesPersistence("a second declared load", false, host => host.request.OwnedPairs.ExpectedNativeLoadCount = 2);
+        RefusesPersistence("an absent persistence engine", true, host => host.worldPersistenceEngine = null);
+        RefusesPersistence("a non-six persistence case", false, host => host.request.OwnedPairs.IsSixPairLoad = false);
+        RefusesPersistence("a persistence case also owning a world engine", false, host => host.worldEngine = new KingmakerMountedCombat.Diagnostics.Chunk7WorldScenarioEngine {
+            RetainedFailureArtifactSha256 = KingmakerMountedCombat.Diagnostics.RuntimeAutomationHost.Sha(pending) });
+        RefusesPersistence("a stress selection owned by the persistence engine", false, host =>
+        { host.request.OwnedPairs.IsSixPairLoad = false; host.request.OwnedPairs.IsSixPairStress = true; host.request.OwnedPairs.Checkpoint = null; host.request.PersistenceCase = null; });
+        RefusesPersistence("an unadmitted persistence scope", true, host => host.worldPersistenceEngine.RefuseScope = true);
+        RefusesPersistence("a missing persistence artifact", true, host => File.Delete(Path.Combine(root, KingmakerMountedCombat.Diagnostics.Chunk7PersistenceScenario.CleanupPendingFileName)));
+        RefusesPersistence("a changed persistence artifact", false, host => File.AppendAllText(Path.Combine(root, KingmakerMountedCombat.Diagnostics.Chunk7PersistenceScenario.CleanupPendingFileName), " "));
+        RefusesPersistence("an unhashed persistence artifact", true, host => host.worldPersistenceEngine.RetainedFailureArtifactSha256 = null);
+        RefusesPersistence("the world engine's artifact hash", false, host => host.worldPersistenceEngine.RetainedFailureArtifactSha256 = KingmakerMountedCombat.Diagnostics.RuntimeAutomationHost.Sha(pending));
+        RefusesPersistence("another persistence checkpoint", true, host => host.request.PersistenceCase = "multi-exploration-quick");
+        RefusesPersistence("pending native writes after the producer write", true, host => KingmakerMountedCombat.Integration.NativePersistenceIsolation.HasPendingWrites = true);
+        RefusesPersistence("an active save scope after the producer write", true, host => host.persistence.HasActiveSaveScope = true);
+        Check("a persistence result without its causal failed row is refused", () =>
+        { var host = FreshPersistence(true); host.worldPersistenceEngine.Rows.RemoveAt(1); host.At(46); host.Drain(); return Untouched(host) && host.logger.Exceptions == 1; });
 
         Console.WriteLine("SIX-PAIR FAILURE EXIT PASS=" + pass + " FAIL=" + fail);
         return fail == 0 ? 0 : 1;

@@ -87,12 +87,13 @@ namespace KingmakerMountedCombat.Diagnostics
         internal static string NativeName(SaveInfo.SaveType type) => type == SaveInfo.SaveType.Manual ? ManualName : RuntimePersistenceScenario.SlotName(type);
         // The owner-seed checkpoint producer writes its Manual under its own distinct name; every other selection keeps NativeName.
         internal static string NativeName(SaveInfo.SaveType type, Chunk7OwnedPairsSelection owned) =>
+            type == SaveInfo.SaveType.Manual && owned?.IsSixPairSave == true ? Chunk7OwnedPairsSelection.SixPairManualName :
             type == SaveInfo.SaveType.Manual && owned?.IsFourthHorseSave == true ? Chunk7OwnedPairsSelection.FourthHorseManualName :
             type == SaveInfo.SaveType.Manual && (owned?.IsSmallFixtureSave == true || owned?.IsSmallThirdHorseSave == true) ? Chunk7OwnedPairsSelection.SmallFixtureManualName :
             type == SaveInfo.SaveType.Manual && owned?.IsMediumFixtureSave == true ? Chunk7OwnedPairsSelection.MediumFixtureManualName :
             type == SaveInfo.SaveType.Manual && owned?.IsOwnerSeedCheckpointSave == true ? Chunk7OwnedPairsSelection.OwnerSeedCheckpointManualName : NativeName(type);
         internal static string NativeName(SaveInfo.SaveType type, Chunk7OwnedPairsSelection owned, string checkpoint) =>
-            type == SaveInfo.SaveType.Manual && (owned?.IsOwnerSeedCheckpointSave == true || owned?.IsSmallFixtureSave == true || owned?.IsSmallThirdHorseSave == true || owned?.IsFourthHorseSave == true || owned?.IsMediumFixtureSave == true) ?
+            type == SaveInfo.SaveType.Manual && (owned?.IsOwnerSeedCheckpointSave == true || owned?.IsSmallFixtureSave == true || owned?.IsSmallThirdHorseSave == true || owned?.IsFourthHorseSave == true || owned?.IsMediumFixtureSave == true || owned?.IsSixPairSave == true) ?
                 owned.OwnedManualOutputName(checkpoint) : NativeName(type, owned);
         internal static string NativeLeaf(SaveInfo.SaveType type) => type == SaveInfo.SaveType.Manual ? "Manual_300_" + ManualName + ".zks" : type + "_1.zks";
 
@@ -157,12 +158,13 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 if (!started) Start();
                 if (cleanup) { PollCleanup(); return; }
-                var withinDeadline = clock.Elapsed.TotalSeconds <= (RepeatedWorldCase ? 600 : CombatCase || AreaAutosaveCase || ManticoreFixtureCase ? 300 : 180) && clock.Elapsed.TotalSeconds - stageStarted <=
+                var withinDeadline = clock.Elapsed.TotalSeconds <= (RepeatedWorldCase ? 600 : CombatCase || AreaAutosaveCase || ManticoreFixtureCase || SixPairCase ? 300 : 180) && clock.Elapsed.TotalSeconds - stageStarted <=
                     (RepeatedWorldCase && stage == 70 ? 450 : CombatCase && (stage == 5 || stage == 20) || AreaAutosaveCase && stage == 30 || ManticoreFixtureCase && stage == 92 ? 150 : 35);
                 // The first ordinary Small cold load reached all four native PostLoads
                 // but not presentation. On a recurrence, retain the exact read-only
                 // boundary that withheld stage 0 before cleanup disposes the world.
-                if (!withinDeadline && Cold && stage == 0 && request.OwnedPairs?.PaidFixtureLineage == true)
+                // The six-pair cold consumer records the same forensic boundary.
+                if (!withinDeadline && Cold && stage == 0 && (request.OwnedPairs?.PaidFixtureLineage == true || SixPairCase))
                 {
                     var game = Game.Instance;
                     var feedback = persistence.Feedback;
@@ -204,12 +206,17 @@ namespace KingmakerMountedCombat.Diagnostics
                             {
                                 RequestSave(); Next(41); break;
                             }
-                            if (CombatCase) { BeginCombatContinuation(); Next(20); } else Next(10);
+                            if (CombatCase) { BeginCombatContinuation(); Next(20); } else if (SixPairCase) BeginSixPairContinuation(); else Next(10);
                             break;
                         }
                         if (CombatController.IsInTurnBasedCombat()) return;
                         if (OwnerSeedCheckpointSave) { if (!OwnerSeedRestoredStartReady()) return; AdmitOwnerSeedRestoredStart(); break; }
-                        if (inherited != null) { inherited.RequirePreserved(); Pass("C7-owned-pairs-inherited-custody"); Next(1); break; }
+                        if (inherited != null)
+                        {
+                            inherited.RequirePreserved(); Pass("C7-owned-pairs-inherited-custody");
+                            if (SixPairCase) BeginSixPairMounts(); else Next(1);
+                            break;
+                        }
                         var acquisition = new JObject(); evidence["acquisition"] = acquisition;
                         bool acquired;
                         try { acquired = NativeHorseFixtureAcquisition.Create(secondRider, horses, logger, acquisition); }
@@ -244,8 +251,10 @@ namespace KingmakerMountedCombat.Diagnostics
                         if (!callback || NativePersistenceIsolation.HasPendingWrites || persistence.HasActiveSaveScope || persistence.HasSaveAdmissionFence) return;
                         ObserveSaved();
                         if (OwnedSchema1SourceCase) { BeginCleanup(); break; }
-                        if (CombatCase) { BeginCombatContinuation(); Next(20); } else Next(10);
+                        if (CombatCase) { BeginCombatContinuation(); Next(20); } else if (SixPairCase) BeginSixPairContinuation(); else Next(10);
                         break;
+                    case 300: case 301: case 310: case 311:
+                        UpdateSixPairPersistence(); break;
                     case 41:
                         if (!callback || NativePersistenceIsolation.HasPendingWrites || persistence.HasActiveSaveScope || persistence.HasSaveAdmissionFence) return;
                         ObserveSaved(); BeginCombatContinuation(); Next(20); break;
@@ -348,6 +357,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private void ObserveCold()
         {
             if (CombatCase) { ObserveCombatCold(); return; }
+            if (SixPairCase) { ObserveSixPairCold(); return; }
             saved = persistence.LoadedArchive;
             Require(saved != null && saved.SchemaVersion == 3 && saved.Pairs.Length == 2 && saved.Participations.Length == 0 &&
                 saved.Combat == null && saved.AreaId == ExpectedArchiveArea && persistence.ArchiveRestorePhase == "all-pair-presentation-restored",
@@ -416,6 +426,7 @@ namespace KingmakerMountedCombat.Diagnostics
             if (OwnedSchema1CurrentCase) { AssertOwnedSchema1Owner(); return; }
             if (OwnedSchema1SourceCase) { AssertOwnedSchema1Owner(); return; }
             if (CombatCase) { AssertCombatOwners(); return; }
+            if (SixPairCase) { AssertSixPairOwners(); return; }
             Require(Mounted(firstRider, firstMount) && Mounted(secondRider, secondMount) && world.Registry.ActiveCount == 2 &&
                 world.Registry.Owners.Length == 2 && world.Registry.Owners.All(o => expectedOwners.TryGetValue(o.Id, out var generation) && generation == o.Generation),
                 "All-pair owner identity, generation or exact actor routing changed.");
@@ -487,7 +498,7 @@ namespace KingmakerMountedCombat.Diagnostics
             ObserveOwnedSaveCompletion();
             var read = NativeMountedSaveStorage.ReadArchive(savedDescriptor.Saver); saved = read.Data;
             if (CombatCase) { ObserveCombatSaved(read); return; }
-            Require(read.Kind == MountedSaveReadKind.Current && read.SourceSchema == 3 && saved?.Pairs.Length == (OwnedSchema1SourceCase ? 1 : 2) &&
+            Require(read.Kind == MountedSaveReadKind.Current && read.SourceSchema == 3 && saved?.Pairs.Length == (SixPairCase ? 6 : OwnedSchema1SourceCase ? 1 : 2) &&
                 saved.Participations.Length == 0 && saved.Combat == null && saved.CampaignId == request.SelectedChunk7Fixture.GameId &&
                 saved.AreaId == ExpectedArchiveArea, "Native archive readback did not retain the entire exploration world.");
             AssertOwners(); AssertSlots(); AssertDebt(saved);
@@ -505,6 +516,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["operation"] = savedDescriptor.OperationState.ToString(), ["snapshotCount"] = persistence.SnapshotCount,
                 ["archive"] = JObject.FromObject(saved, MountedSaveCodec.CreateSerializer()) };
             snapshots.Add(Capture("native-write-complete"));
+            if (SixPairCase) RecordSixPairSaved();
             if (OwnedSchema1SourceCase)
             {
                 ValidateOwnedSchema1Archive(saved, request.PersistenceLoad.GameId, request.PersistenceLoad.Area, firstRider.UniqueId, firstMount.UniqueId, false);
@@ -577,20 +589,35 @@ namespace KingmakerMountedCombat.Diagnostics
                 return false;
             }
         }
-        private bool cleanupPendingArtifactWritten;
+        internal const string CleanupPendingFileName = "chunk7-persistence-cleanup-pending.json";
+        private bool cleanupPendingArtifactWritten, cleanupPendingReported;
+        private double cleanupPendingAttemptedAt = double.NegativeInfinity;
+        internal string RetainedFailureArtifactSha256 { get; private set; }
         private void RetainCleanup(string message, double deadline)
         {
             if (clock.Elapsed.TotalSeconds - stageStarted < deadline) return;
             var newFailure = cleanupFaults.Add(message);
             if (newFailure) Fail("C7-persistence-cleanup", message);
             pendingHostCustody = true; evidence["cleanupPendingAtHostBoundary"] = true;
-            if (!cleanupPendingArtifactWritten)
+            if (!cleanupPendingReported)
             {
-                if (AreaAutosaveCase) TryCleanup("area interruption observation", CaptureAreaInterruption);
-                if (checkpoint != null) evidence["checkpointCleanup"] = checkpoint.Capture();
-                RuntimeLoaderInventory.WriteArtifact(request, "chunk7-persistence-cleanup-pending.json",
-                    "chunk7-persistence-cleanup-pending", "FAIL", evidence, errors);
-                cleanupPendingArtifactWritten = true;
+                // Latch only after the durable artifact and its hash exist. A failed write
+                // or hash retries at most once per second; the atomic artifact is written once.
+                var now = clock.Elapsed.TotalSeconds;
+                if (now - cleanupPendingAttemptedAt < 1) return;
+                cleanupPendingAttemptedAt = now;
+                if (!cleanupPendingArtifactWritten)
+                {
+                    if (AreaAutosaveCase) TryCleanup("area interruption observation", CaptureAreaInterruption);
+                    if (checkpoint != null) evidence["checkpointCleanup"] = checkpoint.Capture();
+                    RuntimeLoaderInventory.WriteArtifact(request, CleanupPendingFileName,
+                        "chunk7-persistence-cleanup-pending", "FAIL", evidence, errors);
+                    cleanupPendingArtifactWritten = true;
+                }
+                using (var hash = SHA256.Create())
+                using (var stream = File.OpenRead(Path.Combine(request.EvidenceRoot, CleanupPendingFileName)))
+                    RetainedFailureArtifactSha256 = BitConverter.ToString(hash.ComputeHash(stream)).Replace("-", "").ToLowerInvariant();
+                cleanupPendingReported = true;
             }
             completed = true;
         }

@@ -23,7 +23,9 @@ failure exit. They are tested offline, with independent review and focused re-re
 CLEAR. [Batch188](../docs/CHUNK7-BATCH188-SIX-PAIR-LIFECYCLE-PASS-2026-10-22.md) then
 passed one zero-write six-pair lifecycle on that frozen candidate (game 6/0, outer PASS,
 exact restoration). The shared rider parent kept its exact child order through all
-three cycles. Next is the six-mounted genuine Manual and an independent cold consumer.
+three cycles. The [batch189 preparation](../docs/CHUNK7-B189-SIX-MOUNTED-MANUAL-AND-COLD-2026-10-22.md)
+implements the six-mounted genuine Manual and its independent cold consumer, offline only
+(independent review CLEAR). Next is one frozen candidate's producer run, then the cold run.
 [Batch185](../docs/CHUNK7-BATCH185-SIXTH-HORSE-COLD-2026-10-22.md)
 passed original game/outer 4/0 on one separate-process load of batch184's
 genuine sixth-Horse Manual308: twelve field actors, six sourced Horses and
