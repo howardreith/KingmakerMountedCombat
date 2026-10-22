@@ -43,9 +43,12 @@ namespace KingmakerMountedCombat.Diagnostics
         public const string FifthHorseDepartureCaseName = "fifth-horse-native-field-departure";
         internal bool IsFifthHorseDeparture => Case == FifthHorseDepartureCaseName;
         internal bool IsFifthHorseSource => IsFifthHorse || IsFifthHorseDeparture;
-        internal bool IsHorseWorld => IsThirdHorse || IsFourthHorseSource || IsFifthHorseSource;
-        internal int HorseWorldActorCount => IsFifthHorseSource ? 11 : IsFourthHorseSource ? 9 : 8;
-        internal int HorseWorldHorseCount => IsFifthHorseSource ? 5 : IsFourthHorseSource ? 4 : 3;
+        public const string SixthHorseCaseName = "sixth-horse-manual-readonly-inventory";
+        internal bool IsSixthHorse => Case == SixthHorseCaseName;
+        internal bool IsPaidHorseWorld => IsFifthHorseSource || IsSixthHorse;
+        internal bool IsHorseWorld => IsThirdHorse || IsFourthHorseSource || IsPaidHorseWorld;
+        internal int HorseWorldActorCount => IsSixthHorse ? 12 : IsFifthHorseSource ? 11 : IsFourthHorseSource ? 9 : 8;
+        internal int HorseWorldHorseCount => IsSixthHorse ? 6 : IsFifthHorseSource ? 5 : IsFourthHorseSource ? 4 : 3;
         // Kingmaker save names legitimately contain spaces (the engine writes them as
         // underscores only in the file name). Single interior spaces only: no leading,
         // trailing or repeated space, no tab, newline or other whitespace, at most 64
@@ -97,6 +100,10 @@ namespace KingmakerMountedCombat.Diagnostics
                 SourceArtifactSha256 != "e05fdd3cfb16c344dcb821a57476cefdfb91978aa8a39aca9322e5b4fc24a47b" ||
                 SourceArchiveSha256 != "afbeaa5bc749d91bd969581977f396ff4b0c2716691625a9648b2bb827c2318e"))
                 errors.Add("Native departure requires the exact cold-qualified batch181 fifth-Horse Manual.");
+            if (IsSixthHorse && (SourceRunId != "20261022-c7b-world184-b184s1-sixthhorse-manual" ||
+                SourceArtifactSha256 != "0f6aabe42d0aeaf63f60c6912c1a029c0175ebe87806768f1191df23a913fa13" ||
+                SourceArchiveSha256 != "b1e817a60c8bbe35b5947b4eab3b3f35060493ca20873d5de5fdf8a81efbc291"))
+                errors.Add("Sixth-Horse cold inventory requires the exact batch184 native Manual.");
             return errors;
         }
         private IReadOnlyList<string> ValidateOwnerSeed(string scenario, string runId)

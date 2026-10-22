@@ -1,5 +1,5 @@
 [CmdletBinding()]
-param([string]$RepositoryRoot,[string]$SourceOverlayRoot,[string]$OutputDirectory)
+param([string]$RepositoryRoot,[string]$SourceOverlayRoot,[string]$OutputDirectory,[string]$SixthProducerArtifact,[string]$SixthArchive)
 $ErrorActionPreference='Stop';Set-StrictMode -Version Latest
 if(-not$PSBoundParameters.ContainsKey('RepositoryRoot')){$RepositoryRoot=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))}
 if(-not$PSBoundParameters.ContainsKey('OutputDirectory')){$OutputDirectory=Join-Path ([IO.Path]::GetFullPath((Join-Path $RepositoryRoot '../..'))) ('analysis-cache/chunk7-assisted-'+[Guid]::NewGuid().ToString('N'))}
@@ -41,10 +41,14 @@ $loaderExit=0;$testExit=$null;$testSeconds=0.0;$passed=0;$failed=0;$shape=$false
 if($compileExit-eq0){
  $runExe=$exe;$runArguments=@()
  if($managedJson){
-  $loader='using System;using System.Reflection;static class Loader{static int Main(string[] args){var j=Assembly.LoadFrom(@"'+$json+'");AppDomain.CurrentDomain.AssemblyResolve+=(s,e)=>e.Name==j.FullName?j:null;var a=Assembly.LoadFrom(args[0]);return (int)a.EntryPoint.Invoke(null,a.EntryPoint.GetParameters().Length==0?null:new object[]{new[]{args[1],args[2]}});}}'
+  $loader='using System;using System.Reflection;static class Loader{static int Main(string[] args){var j=Assembly.LoadFrom(@"'+$json+'");AppDomain.CurrentDomain.AssemblyResolve+=(s,e)=>e.Name==j.FullName?j:null;var a=Assembly.LoadFrom(args[0]);var forwarded=new string[args.Length-1];Array.Copy(args,1,forwarded,0,forwarded.Length);return (int)a.EntryPoint.Invoke(null,a.EntryPoint.GetParameters().Length==0?null:new object[]{forwarded});}}'
   $loaderSource=Write-AssistedColdTestFile 'Loader.cs' $loader;$runExe=Join-Path $OutputDirectory 'Loader.exe';$global:LASTEXITCODE=0
   $loaderOutput=@(& $compiler /noconfig /nologo /target:exe ('/out:'+$runExe) $loaderSource 2>&1);$loaderExit=$global:LASTEXITCODE
   [void](Write-AssistedColdTestFile 'loader-compile.log' (($loaderOutput|ForEach-Object{$_.ToString()})-join[Environment]::NewLine));$runArguments=@($exe,$semanticFixture,(Join-Path $OutputDirectory 'emitted'))
+  if($SixthProducerArtifact-or$SixthArchive){
+   if(-not$SixthProducerArtifact-or-not$SixthArchive){throw 'Selected sixth-Horse decoder checks require both immutable producer and archive.'}
+   $runArguments+=@((Pin $SixthProducerArtifact),(Pin $SixthArchive))
+  }
  }
  if($loaderExit-eq0){
   $clock.Restart();$global:LASTEXITCODE=0;$runOutput=@(& $runExe @runArguments 2>&1);$testExit=$global:LASTEXITCODE;$testSeconds=$clock.Elapsed.TotalSeconds

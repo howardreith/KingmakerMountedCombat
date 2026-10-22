@@ -1,6 +1,22 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
-## Active October 22 — batch184 restored, external reader correction
+## Active October 22 — reviewed sixth-Horse cold consumer
+
+The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
+[Batch185](docs/CHUNK7-BATCH185-SIXTH-HORSE-COLD-2026-10-22.md) adds the exact
+Manual308 zero-write cold consumer and separate remote Linzi preservation.
+Actual C# scenario 106/0, protocol 121/0, authority 163/0, routed source 12/0
+and projection/remote 17/0 passed; independent review is clear. Original
+batch184 outer FAIL and separate reader PASSes remain unchanged. No native
+batch185 run has launched. Next: commit/guarded-push, clean package once with
+qualifier `c7b-world185-sixthcold`, Candidate `-SkipBuild -AssemblyTarget
+Kingmaker` against those fresh compiled outputs, current-state suite and
+scoped WhatIf, then only `20261022-c7b-world185-b185s1-sixthhorse-cold`.
+Preserve exact restoration and all original failures. After cold, continue
+reviewed mounted breadth/conditional six-pair stress, F10/F11, ordinary door
+and private 7E. No merge, release, permanent installation or HUMAN PLAY.
+
+## Historical October 22 — batch184 restored, external reader correction
 
 The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active.
 [Batch184](docs/CHUNK7-BATCH184-SIXTH-HORSE-MANUAL-2026-10-22.md) ran once on

@@ -30,9 +30,28 @@ internal static class AssistedColdFixture{
   s.Case=Chunk7AssistedColdInventorySelection.FifthHorseDepartureCaseName;s.SourceRunId="20261022-c7b-world181-b181s1-fifthhorse-manual";
   s.SourceArtifactSha256="e05fdd3cfb16c344dcb821a57476cefdfb91978aa8a39aca9322e5b4fc24a47b";
   s.SourceArchiveSha256=r.PersistenceLoad.Sha256="afbeaa5bc749d91bd969581977f396ff4b0c2716691625a9648b2bb827c2318e";return r;}
+ internal static RuntimeRequest SixthHorseRequest(){var r=SmallRequest();var s=r.AssistedColdInventory;
+  s.Case=Chunk7AssistedColdInventorySelection.SixthHorseCaseName;s.SourceRunId="20261022-c7b-world184-b184s1-sixthhorse-manual";
+  s.SourceArtifactSha256="0f6aabe42d0aeaf63f60c6912c1a029c0175ebe87806768f1191df23a913fa13";
+  s.SourceArchiveSha256=r.PersistenceLoad.Sha256="b1e817a60c8bbe35b5947b4eab3b3f35060493ca20873d5de5fdf8a81efbc291";
+  r.PersistenceLoad.InternalName=Chunk7ManualDerivedSelection.F09SixthOutputName;
+  r.PersistenceLoad.FileName=Chunk7ManualDerivedSelection.F09SixthOutputLeaf;return r;}
 }
 internal static class AssistedColdProtocolTests{
  static int Main(){var t=new TestRunner();
+ t.Run("exact sixth-Horse Manual is one read-only native load",()=>{var r=AssistedColdFixture.SixthHorseRequest();TestRunner.Equal(0,r.Validate().Count,string.Join(" | ",r.Validate()));});
+ foreach(var kind in new[]{"producer","artifact","archive","write","second load","fifth leaf","old name","foreign campaign","foreign area"})t.Run("sixth-Horse cold refuses "+kind,()=>{
+  var r=AssistedColdFixture.SixthHorseRequest();switch(kind){
+   case "producer":r.AssistedColdInventory.SourceRunId="foreign-producer";break;
+   case "artifact":r.AssistedColdInventory.SourceArtifactSha256=new string('f',64);break;
+   case "archive":r.AssistedColdInventory.SourceArchiveSha256=r.PersistenceLoad.Sha256=new string('f',64);break;
+   case "write":r.AssistedColdInventory.ExpectedNativeWriteCount=1;break;
+   case "second load":r.AssistedColdInventory.ExpectedNativeLoadCount=2;break;
+   case "fifth leaf":r.PersistenceLoad.FileName=Chunk7ManualDerivedSelection.F09FifthOutputLeaf;break;
+   case "old name":r.PersistenceLoad.InternalName=Chunk7ManualDerivedSelection.ManualOutputName;break;
+   case "foreign campaign":r.PersistenceLoad.GameId=AssistedColdFixture.Minted;break;
+   case "foreign area":r.PersistenceLoad.Area=AssistedColdFixture.Area;break;
+  }TestRunner.True(r.Validate().Count>0,"Unqualified sixth-Horse cold input admitted.");});
  t.Run("exact fifth-Horse native departure remains one load and zero saves",()=>{var r=AssistedColdFixture.FifthHorseDepartureRequest();TestRunner.Equal(0,r.Validate().Count,string.Join(" | ",r.Validate()));});
  foreach(var kind in new[]{"producer","artifact","archive","write","second load","other Manual"})t.Run("native departure refuses "+kind,()=>{
   var r=AssistedColdFixture.FifthHorseDepartureRequest();switch(kind){
