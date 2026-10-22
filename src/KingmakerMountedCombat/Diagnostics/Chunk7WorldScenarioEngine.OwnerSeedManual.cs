@@ -184,7 +184,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 persistence.ObserveActiveSaveHeader(out var operation, out var requested, out var prepared);
                 Require(ReferenceEquals(requested, manualRequested) && prepared != null && !ReferenceEquals(prepared, requested) &&
                     !ReferenceEquals(prepared, fixtureAuthority.OwnedPairsSourceDescriptor) && prepared.Type == SaveInfo.SaveType.Manual &&
-                    prepared.Name == (ThirdHorseManual ? Chunk7OwnedPairsSelection.SmallFixtureManualName : Chunk7OwnedPairsSelection.OwnerSeedManualName) && prepared.FileName == fixtureAuthority.OwnedPairsOutputLeaf &&
+                    prepared.Name == (FourthHorseSetup ? Chunk7OwnedPairsSelection.FourthHorseManualName :
+                        ThirdHorseManual ? Chunk7OwnedPairsSelection.SmallFixtureManualName : Chunk7OwnedPairsSelection.OwnerSeedManualName) &&
+                    prepared.FileName == fixtureAuthority.OwnedPairsOutputLeaf &&
                     !prepared.IsAutoLevelupSave && prepared.FolderName == Path.Combine(fixtureAuthority.Root, fixtureAuthority.OwnedPairsOutputLeaf),
                     "Owner-seed native Manual changed its requested descriptor, prepared copy, category, destination or path.");
                 manualHeaderOperation = operation; manualHeaderRequested = requested; manualHeaderPrepared = prepared;

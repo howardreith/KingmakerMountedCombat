@@ -87,7 +87,8 @@ namespace KingmakerMountedCombat.Diagnostics
         internal static string NativeName(SaveInfo.SaveType type) => type == SaveInfo.SaveType.Manual ? ManualName : RuntimePersistenceScenario.SlotName(type);
         // The owner-seed checkpoint producer writes its Manual under its own distinct name; every other selection keeps NativeName.
         internal static string NativeName(SaveInfo.SaveType type, Chunk7OwnedPairsSelection owned) =>
-            type == SaveInfo.SaveType.Manual && (owned?.IsSmallFixtureSave == true || owned?.IsSmallThirdHorseSave == true || owned?.IsFourthHorseSave == true) ? Chunk7OwnedPairsSelection.SmallFixtureManualName :
+            type == SaveInfo.SaveType.Manual && owned?.IsFourthHorseSave == true ? Chunk7OwnedPairsSelection.FourthHorseManualName :
+            type == SaveInfo.SaveType.Manual && (owned?.IsSmallFixtureSave == true || owned?.IsSmallThirdHorseSave == true) ? Chunk7OwnedPairsSelection.SmallFixtureManualName :
             type == SaveInfo.SaveType.Manual && owned?.IsMediumFixtureSave == true ? Chunk7OwnedPairsSelection.MediumFixtureManualName :
             type == SaveInfo.SaveType.Manual && owned?.IsOwnerSeedCheckpointSave == true ? Chunk7OwnedPairsSelection.OwnerSeedCheckpointManualName : NativeName(type);
         internal static string NativeName(SaveInfo.SaveType type, Chunk7OwnedPairsSelection owned, string checkpoint) =>

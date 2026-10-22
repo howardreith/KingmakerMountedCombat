@@ -1,5 +1,11 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## Active October 22 after batch176 fourth-Horse Manual name FAIL
+
+The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active through readiness-gated private 7E. [Batch176](docs/CHUNK7-BATCH176-FOURTH-HORSE-MANUAL-NAME-FAIL-2026-10-22.md) used reviewed/pushed `7fdcaa07`, ZIP `ca617369fc97b8fccd81f6cb2d4c563b6653b2e41a3afdbe88790b6435ef5a5d` and suite `440b8d8c9e6639942d3409e1b03dbe782005b8d0cd1f663fd3b660e56184f018`. The original game and outer verdicts are **FAIL 4/1**: fourth-Horse setup passed, but native `CreateNewSave` made the repeated `KMC_C7_SMALL_WORLD` source name unique, so the requested Manual descriptor was refused before `Game.SaveGame`. One load, zero save requests and zero writes. Run/save/Mods/profile bytes restored exactly; no game process or lock remained. Batch175 PASS is separate.
+
+Independent review cleared the distinct `KMC_C7_FOUR_HORSE_WORLD` output-name correction; focused Small protocol 59/0, source positive/refusals, world reader 195/0 and Candidate 9/0 passed. Preserve the b176 original FAIL. Next: commit and guarded-push the reviewed correction, freeze one new candidate/suite, run scoped WhatIf and one new Manual producer from the exact b171 source. A producer PASS still needs an independent cold consumer. Continue remaining F09/F10/F11, ordinary doors, 7C/7D and private 7E; no merge/release/permanent installation/HUMAN PLAY acceptance.
+
 ## Active October 22 after batch175 fourth-Horse setup PASS
 
 The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active

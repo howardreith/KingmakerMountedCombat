@@ -41,7 +41,8 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             var manager = Game.Instance.SaveManager;
             var input = request.PersistenceLoad;
-            var name = Chunk7OwnedPairsSelection.SmallFixtureManualName;
+            var name = FourthHorseSetup ? Chunk7OwnedPairsSelection.FourthHorseManualName :
+                Chunk7OwnedPairsSelection.SmallFixtureManualName;
             Require(!LoadingProcess.Instance.IsLoadingInProcess && !LoadingProcess.Instance.QueuedNames.Any() &&
                 !NativePersistenceIsolation.HasPendingWrites && !world.SerializationBusy &&
                 manualRequested == null && persistence.CompletedSaveCount == 0 &&
@@ -118,7 +119,8 @@ namespace KingmakerMountedCombat.Diagnostics
             Require(descriptors.Length == 2 && descriptors.Count(value => ReferenceEquals(value, fixtureAuthority.OwnedPairsSourceDescriptor)) == 1 &&
                 descriptors.Count(value => ReferenceEquals(value, manualSaved)) == 1 &&
                 manualSaved.FileName == fixtureAuthority.OwnedPairsOutputLeaf &&
-                manualSaved.Name == Chunk7OwnedPairsSelection.SmallFixtureManualName &&
+                manualSaved.Name == (FourthHorseSetup ? Chunk7OwnedPairsSelection.FourthHorseManualName :
+                    Chunk7OwnedPairsSelection.SmallFixtureManualName) &&
                 manualSaved.Type == SaveInfo.SaveType.Manual && manualSaved.GameId == request.PersistenceLoad.GameId &&
                 manualSaved.GameName == request.PersistenceLoad.GameName &&
                 manualSaved.Area?.AssetGuidThreadSafe == request.PersistenceLoad.Area &&

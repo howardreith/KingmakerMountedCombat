@@ -54,7 +54,9 @@ Assert-KmcChunk7OwnedPairsDescriptor $request
 if($manualSource.nativeAuthorityGranted-ne$false-or$manualSource.fixtureSetupOnly-ne$true-or
  $manualSource.descriptor.sha256-cne$source.descriptor.sha256-or
  $manualSource.coldReaderReceiptSha256-cne$selection.coldReceiptSha256-or
- (Get-KmcChunk7OwnedWriteCount $request)-ne1){throw 'Fourth-Horse Manual source or one-write request differs.'}
+ (Get-KmcChunk7OwnedWriteCount $request)-ne1-or
+ (Get-KmcChunk7OwnedManualOutputName $request)-cne'KMC_C7_FOUR_HORSE_WORLD'-or
+ (Get-KmcChunk7OwnedManualOutputName $request)-ceq$manualSource.descriptor.internalName){throw 'Fourth-Horse Manual source, distinct native name or one-write request differs.'}
 Write-Host 'PASS fourth-Horse Manual uses the same immutable source and distinct one-write selection'
 $selection.expectedNativeWriteCount=0
 $refused=$false

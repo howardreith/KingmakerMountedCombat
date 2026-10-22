@@ -63,6 +63,9 @@ namespace KingmakerMountedCombat.Diagnostics
         // permission for a four-pair archive or ordinary higher capacity.
         public const string FourthHorseCase = "third-horse-fixture-fourth-horse-setup";
         public const string FourthHorseSaveCase = "third-horse-fixture-fourth-horse-persistence-save";
+        // CreateNewSave makes a repeated name unique in the native inventory.
+        // The source Manual already owns SmallFixtureManualName.
+        public const string FourthHorseManualName = "KMC_C7_FOUR_HORSE_WORLD";
         public const string FourthHorseSourceRun = "20261021-c7b-world171-b171s1-thirdhorse-manual";
         public const string FourthHorseSourceArtifact = "57ab380ae5c4c95fbed1647446b3ca264f7e140c91a3b7ea4bb41037085450b1";
         public const string FourthHorseSourceArchive = "f70a54865c86a599c3b25f6f2574abde2f663cd07b82472eac4bcbe245ea8c84";
@@ -140,7 +143,7 @@ namespace KingmakerMountedCombat.Diagnostics
             checkpoint == "multi-rt-debt-manual" || checkpoint == "multi-tb-debt-manual" || checkpoint == "zero-mounted-tb-retained-manual" ||
             checkpoint == "legacy-mounted-pending-tb-manual";
         // The native Manual name a writing owned selection reserves; a non-Manual selection writes its slot name.
-        internal string OwnedManualOutputName(string checkpoint) => IsSmallFixtureSave || IsSmallThirdHorseSave || IsFourthHorseSave ? SmallFixtureManualName : IsMediumFixtureSave ? MediumFixtureManualName : IsOwnerSeedManual ? OwnerSeedManualName :
+        internal string OwnedManualOutputName(string checkpoint) => IsFourthHorseSave ? FourthHorseManualName : IsSmallFixtureSave || IsSmallThirdHorseSave ? SmallFixtureManualName : IsMediumFixtureSave ? MediumFixtureManualName : IsOwnerSeedManual ? OwnerSeedManualName :
             IsOwnerSeedCheckpointSave ? (checkpoint == ManticoreFixtureCheckpoint ? ManticoreFixtureManualName : checkpoint == TombFixtureCheckpoint ? TombFixtureManualName : checkpoint == ThornRiverFixtureCheckpoint ? ThornRiverFixtureManualName : OwnerSeedCheckpointManualName) : Cold ? (OwnedSchema1Cold(checkpoint) ? "KMC_C7_SCHEMA1" : "KMC_C7_SCHEMA2") : "KMC_C7_WORLD";
         public string Case { get; set; }
         public string SourceRunId { get; set; }

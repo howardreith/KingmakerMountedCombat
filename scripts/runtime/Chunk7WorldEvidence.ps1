@@ -90,6 +90,7 @@ function Assert-KmcChunk7ThirdHorseManualEvidence($Request,$Observations){
     $o=$Observations;$s=$o.thirdHorseSetup;$m=$o.thirdHorseManual;$w=$o.nativeWrite;$q=$o.saveRequested
     Assert-KmcExactProperties $m @('contract','disclosedAssistance','acquisitionProof','setupCompletedBeforeSave','boundary','arrangementAfterSave','headerStarting','headerStaged','workerObservedRunning','completionSequence','fieldActorIds') 'third-Horse Manual receipt'
     $fourth=Test-KmcChunk7OwnedPairsFourthSave $Request
+    $name=Get-KmcChunk7OwnedManualOutputName $Request
     Assert-KmcBootstrapInventoryString $m.contract $(if($fourth){'three-horse-source-fourth-native-horse-manual-v1'}else{'small-third-horse-manual-producer-v1'})
     foreach($key in @('disclosedAssistance','setupCompletedBeforeSave')){Assert-KmcChunk7Boolean $m.$key $true}
     Assert-KmcChunk7Boolean $m.acquisitionProof $false
@@ -97,7 +98,7 @@ function Assert-KmcChunk7ThirdHorseManualEvidence($Request,$Observations){
     Assert-KmcOrdinaryInteger $m.completionSequence 1 1
     Assert-KmcChunk7Boolean $o.cleanup.nativeSaveWritten $true
     Assert-KmcExactProperties $q @('nativeType','nativeName','frame','gameTicks','snapshotCount','nativeSaveAllowed','newSlot','levelUpSave','api') 'third-Horse native Manual request'
-    Assert-KmcBootstrapInventoryString $q.nativeType 'Manual';Assert-KmcBootstrapInventoryString $q.nativeName 'KMC_C7_SMALL_WORLD'
+    Assert-KmcBootstrapInventoryString $q.nativeType 'Manual';Assert-KmcBootstrapInventoryString $q.nativeName $name
     Assert-KmcBootstrapInventoryString $q.api 'Game.SaveGame(SaveManager.CreateNewSave(name))'
     Assert-KmcOrdinaryInteger $q.snapshotCount 0 0
     foreach($key in @('nativeSaveAllowed','newSlot')){Assert-KmcChunk7Boolean $q.$key $true};Assert-KmcChunk7Boolean $q.levelUpSave $false
@@ -106,7 +107,7 @@ function Assert-KmcChunk7ThirdHorseManualEvidence($Request,$Observations){
     Assert-KmcExactProperties $w @('path','sha256','length','lastWriteTimeUtcTicks','fileName','nativeType','nativeName','gameId','gameName','area','nativeCallback','operation','snapshotCount','readKind','sourceSchema','archive') 'third-Horse native Manual write'
     if($w.sha256-isnot[string]-or$w.sha256-cnotmatch'^[a-f0-9]{64}$'-or$w.sha256-ceq$Request.persistenceLoad.sha256){throw 'Third-Horse native Manual hash is missing or aliases the source.'}
     Assert-KmcOrdinaryInteger $w.length 1 268435456;Assert-KmcOrdinaryInteger $w.lastWriteTimeUtcTicks 1 ([DateTime]::MaxValue.Ticks)
-    foreach($pair in @(@('fileName',$leaf),@('nativeType','Manual'),@('nativeName','KMC_C7_SMALL_WORLD'),@('gameId',$Request.persistenceLoad.gameId),@('gameName',$Request.persistenceLoad.gameName),@('area',$Request.persistenceLoad.area),@('operation','None'),@('readKind','Current'))){Assert-KmcBootstrapInventoryString $w.($pair[0]) $pair[1]}
+    foreach($pair in @(@('fileName',$leaf),@('nativeType','Manual'),@('nativeName',$name),@('gameId',$Request.persistenceLoad.gameId),@('gameName',$Request.persistenceLoad.gameName),@('area',$Request.persistenceLoad.area),@('operation','None'),@('readKind','Current'))){Assert-KmcBootstrapInventoryString $w.($pair[0]) $pair[1]}
     Assert-KmcChunk7Boolean $w.nativeCallback $true;Assert-KmcOrdinaryInteger $w.snapshotCount 1 1;Assert-KmcOrdinaryInteger $w.sourceSchema 3 3
     $a=$w.archive
     Assert-KmcOrdinaryInteger $a.SchemaVersion 3 3
@@ -127,7 +128,7 @@ function Assert-KmcChunk7ThirdHorseManualEvidence($Request,$Observations){
     foreach($h in @(@($m.headerStarting,'native-header-starting',0),@($m.headerStaged,'native-header-staged',1))){
         $v=$h[0];Assert-KmcExactProperties $v @('label','frame','requestedIsSelectedDescriptor','preparedIsCopy','preparedLeaf','preparedName','preparedType','preparedPath','snapshots','activeOwners','nativeWrites','serializationBusy') 'third-Horse native header'
         Assert-KmcBootstrapInventoryString $v.label $h[1];Assert-KmcBootstrapInventoryString $v.preparedLeaf $leaf
-        Assert-KmcBootstrapInventoryString $v.preparedName 'KMC_C7_SMALL_WORLD';Assert-KmcBootstrapInventoryString $v.preparedType 'Manual'
+        Assert-KmcBootstrapInventoryString $v.preparedName $name;Assert-KmcBootstrapInventoryString $v.preparedType 'Manual'
         Assert-KmcBootstrapInventoryString $v.preparedPath $w.path;Assert-KmcOrdinaryInteger $v.snapshots $h[2] $h[2]
         Assert-KmcOrdinaryInteger $v.activeOwners 0 0;Assert-KmcOrdinaryInteger $v.nativeWrites 0 1
         foreach($key in @('requestedIsSelectedDescriptor','preparedIsCopy')){Assert-KmcChunk7Boolean $v.$key $true}
