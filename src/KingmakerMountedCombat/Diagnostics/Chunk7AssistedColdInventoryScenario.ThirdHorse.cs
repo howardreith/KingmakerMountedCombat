@@ -12,6 +12,9 @@ namespace KingmakerMountedCombat.Diagnostics
     {
         private void ReadThirdHorseSource()
         {
+            var fourth = selection.IsFourthHorse;
+            var count = fourth ? 9 : 8;
+            var horseCount = fourth ? 4 : 3;
             sourcePath = Path.Combine(Path.GetDirectoryName(root), Chunk7AssistedColdInventorySelection.SourceLeaf);
             archivePath = Path.Combine(root, request.PersistenceLoad.FileName);
             var source = new FileInfo(sourcePath); var archive = new FileInfo(archivePath);
@@ -22,7 +25,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 archive.LastWriteTimeUtc.Ticks == saved.LastWriteTimeUtcTicks &&
                 (archive.Attributes & FileAttributes.ReparsePoint) == 0 &&
                 Hash(sourcePath) == selection.SourceArtifactSha256 && Hash(archivePath) == selection.SourceArchiveSha256,
-                "Exact staged third-Horse producer receipt or Manual differs.");
+                "Exact staged Horse-world producer receipt or Manual differs.");
             sourceLength = source.Length; sourceTicks = source.LastWriteTimeUtc.Ticks;
             archiveLength = archive.Length; archiveTicks = archive.LastWriteTimeUtc.Ticks; sourcePinned = true;
             var artifact = JObject.Parse(File.ReadAllText(sourcePath));
@@ -39,31 +42,31 @@ namespace KingmakerMountedCombat.Diagnostics
                 (string)artifact["scenario"] == Chunk7OwnedPairsSelection.Scenario &&
                 (string)artifact["evidenceKind"] == Chunk7WorldScenarioEngine.EvidenceKind &&
                 (string)artifact["status"] == "PASS" && artifact["errors"] is JArray errors && errors.Count == 0 &&
-                (string)setup?["contract"] == "small-source-third-native-horse-setup-v1" &&
+                (string)setup?["contract"] == (fourth ? "three-horse-source-fourth-native-horse-setup-v1" : "small-source-third-native-horse-setup-v1") &&
                 (string)write?["sha256"] == selection.SourceArchiveSha256 &&
                 (string)write?["path"] != null && (string)write["fileName"] == saved.FileName &&
                 (string)write["nativeName"] == saved.InternalName && (string)write["gameId"] == saved.GameId &&
                 (string)write["gameName"] == saved.GameName && (string)write["area"] == saved.Area &&
                 (long?)write["length"] == saved.Length && (long?)write["lastWriteTimeUtcTicks"] == saved.LastWriteTimeUtcTicks &&
-                (string)manual?["contract"] == "small-third-horse-manual-producer-v1" &&
+                (string)manual?["contract"] == (fourth ? "three-horse-source-fourth-native-horse-manual-v1" : "small-third-horse-manual-producer-v1") &&
                 manual["disclosedAssistance"]?.Value<bool>() == true && manual["acquisitionProof"]?.Value<bool>() == false &&
                 manual["setupCompletedBeforeSave"]?.Value<bool>() == true &&
-                boundary != null && field != null && field.Count == 8 && progress != null && progress.Count == 8 &&
+                boundary != null && field != null && field.Count == count && progress != null && progress.Count == count &&
                 JToken.DeepEquals(boundary, manual["arrangementAfterSave"]) &&
-                nativeHorse != null && inherited != null && inherited.Count == 2 &&
+                nativeHorse != null && inherited != null && inherited.Count == horseCount - 1 &&
                 write["archive"]?["Pairs"] is JArray pairs && pairs.Count == 0 &&
                 write["archive"]?["Participations"] is JArray participations && participations.Count == 0 &&
                 write["archive"]?["Slots"] is JArray slots && slots.Count == 0 &&
                 write["archive"]?["Combat"]?.Type == JTokenType.Null,
-                "Staged third-Horse source lacks the completed eight-actor Manual and empty mounted graph.");
-            Require(field.Select(row => (string)row["id"]).Distinct(StringComparer.Ordinal).Count() == 8 &&
-                progress.Select(row => (string)row["actorId"]).Distinct(StringComparer.Ordinal).Count() == 8 &&
+                "Staged Horse-world source lacks the completed Manual and empty mounted graph.");
+            Require(field.Select(row => (string)row["id"]).Distinct(StringComparer.Ordinal).Count() == count &&
+                progress.Select(row => (string)row["actorId"]).Distinct(StringComparer.Ordinal).Count() == count &&
                 field.All(row => progress.Count(actor => (string)actor["actorId"] == (string)row["id"] &&
                     (string)actor["blueprint"] == (string)row["blueprint"]) == 1) &&
-                manual["fieldActorIds"] is JArray fieldIds && fieldIds.Count == 8 &&
+                manual["fieldActorIds"] is JArray fieldIds && fieldIds.Count == count &&
                 fieldIds.Select(value => (string)value).OrderBy(id => id, StringComparer.Ordinal)
                     .SequenceEqual(field.Select(row => (string)row["id"]).OrderBy(id => id, StringComparer.Ordinal)),
-                "Third-Horse producer saved roster and native progression disagree.");
+                "Horse-world producer saved roster and native progression disagree.");
             var party = new JArray();
             foreach (var row in field)
             {
@@ -81,7 +84,7 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             expectedMainId = Chunk7SmallFixtureSelection.MainActorId;
             Require(party.Count(row => (string)row["id"] == expectedMainId) == 1 &&
-                (string)nativeHorse["mountId"] == "da28f0a7-6eb0-4392-b2e0-f401a889b3aa" &&
+                (string)nativeHorse["mountId"] == (fourth ? "e486e6e9-aa36-423e-9d9e-9dfbe4a94a07" : "da28f0a7-6eb0-4392-b2e0-f401a889b3aa") &&
                 (string)nativeHorse["mountMasterId"] == (string)setup["targetRiderId"] &&
                 (string)nativeHorse["blueprint"] == HorseCompanionBlueprintService.UnitGuid,
                 "Third-Horse saved main, rider or native mount identity differs.");
@@ -95,22 +98,22 @@ namespace KingmakerMountedCombat.Diagnostics
             thirdHorseOwners.Add(new JObject { ["riderId"] = nativeHorse["mountMasterId"].DeepClone(),
                 ["mountId"] = nativeHorse["mountId"].DeepClone(), ["sourceGuid"] = nativeHorse["sourceGuid"].DeepClone(),
                 ["rank"] = nativeHorse["rank"].DeepClone() });
-            Require(thirdHorseOwners.Count == 3 &&
-                thirdHorseOwners.Select(row => (string)row["riderId"]).Distinct(StringComparer.Ordinal).Count() == 3 &&
-                thirdHorseOwners.Select(row => (string)row["mountId"]).Distinct(StringComparer.Ordinal).Count() == 3 &&
+            Require(thirdHorseOwners.Count == horseCount &&
+                thirdHorseOwners.Select(row => (string)row["riderId"]).Distinct(StringComparer.Ordinal).Count() == horseCount &&
+                thirdHorseOwners.Select(row => (string)row["mountId"]).Distinct(StringComparer.Ordinal).Count() == horseCount &&
                 thirdHorseOwners.All(row =>
                 party.Count(actor => (string)actor["id"] == (string)row["riderId"] &&
                     (string)actor["petId"] == (string)row["mountId"]) == 1 &&
                 party.Count(actor => (string)actor["id"] == (string)row["mountId"] &&
                     (string)actor["masterId"] == (string)row["riderId"] &&
                     (string)actor["blueprint"] == HorseCompanionBlueprintService.UnitGuid) == 1),
-                "The three producer Horses lack distinct reciprocal saved roles.");
+                "The producer Horses lack distinct reciprocal saved roles.");
             VerifySourceBytes();
         }
 
         private void RequireThirdHorseSourceRoster()
         {
-            Require(actors.Length == 8 && game.Player.Money == expectedNativeMoney &&
+            Require(actors.Length == (selection.IsFourthHorse ? 9 : 8) && game.Player.Money == expectedNativeMoney &&
                 JToken.DeepEquals(sourceReadiness, Chunk7OwnedPairFixture.ArrangementOf(actors)),
                 "Cold third-Horse native roster, money or progression differs from the saved Manual.");
             foreach (var actor in actors)
@@ -129,7 +132,7 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private JArray CaptureThirdHorseFacts()
         {
-            Require(thirdHorseOwners != null && thirdHorseOwners.Count == 3 &&
+            Require(thirdHorseOwners != null && thirdHorseOwners.Count == (selection.IsFourthHorse ? 4 : 3) &&
                 horses.HorseFeature != null && horses.LevelRank != null && horses.HorseUnit != null,
                 "Cold three-Horse feature catalogue is unavailable.");
             var result = new JArray();

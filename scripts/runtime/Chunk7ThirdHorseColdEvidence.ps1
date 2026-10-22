@@ -1,9 +1,10 @@
 Set-StrictMode -Version Latest
 
-function Get-KmcChunk7ThirdHorseColdExpected($Producer){
+function Get-KmcChunk7ThirdHorseColdExpected($Producer,[bool]$Fourth=$false){
  $o=$Producer.observations;$manual=$o.thirdHorseManual;$boundary=$manual.boundary;$field=$o.cleanup.partyAfter
- Assert-KmcAssistedArray $field 8 8 'third-Horse saved field'
- Assert-KmcAssistedArray $boundary.actors 8 8 'third-Horse saved progression'
+ $actorCount=if($Fourth){9}else{8};$horseCount=if($Fourth){4}else{3}
+ Assert-KmcAssistedArray $field $actorCount $actorCount 'Horse-world saved field'
+ Assert-KmcAssistedArray $boundary.actors $actorCount $actorCount 'Horse-world saved progression'
  Assert-KmcAssistedSame $boundary $manual.arrangementAfterSave 'third-Horse native Manual boundary'
  $rows=@(foreach($actor in $field){
   $progress=@($boundary.actors|Where-Object actorId -CEQ $actor.id)
@@ -12,18 +13,18 @@ function Get-KmcChunk7ThirdHorseColdExpected($Producer){
    characterLevel=$progress[0].characterLevel;experience=$progress[0].experience;
    classes=@($progress[0].classes|ForEach-Object{[pscustomobject]@{guid=$_.classGuid;level=$_.level}})}
  })
- if(@($rows.id|Select-Object -Unique).Count-ne8){throw 'Third-Horse producer roster repeats an actor.'}
+ if(@($rows.id|Select-Object -Unique).Count-ne$actorCount){throw 'Horse-world producer roster repeats an actor.'}
  $main='73681ef2-b281-4bc6-bc05-2de68c1616cb'
  $characters=@($rows|Where-Object{$null-eq$_.masterId})
- if($characters.Count-ne5-or@($characters|Where-Object id -CEQ $main).Count-ne1){throw 'Third-Horse source does not retain five native characters and its main.'}
+ if($characters.Count-ne5-or@($characters|Where-Object id -CEQ $main).Count-ne1){throw 'Horse-world source does not retain five native characters and its main.'}
  $sourceOwners=@($o.inheritedFixture.pairs|ForEach-Object{[pscustomobject]@{riderId=$_.riderId;mountId=$_.mountId;
    featureGuid='7db7c50677e39f09feef56f3831fc723';blueprint='4016c7db400ab721ff125aef9e65e202';
    sourceGuid=$_.sourceGuid;rank=$_.rank;reciprocal=$true}})
  $horse=$o.thirdHorseSetup.nativeHorse
  $sourceOwners+=,[pscustomobject]@{riderId=$horse.mountMasterId;mountId=$horse.mountId;featureGuid=$horse.featureGuid;
   blueprint=$horse.blueprint;sourceGuid=$horse.sourceGuid;rank=$horse.rank;reciprocal=$true}
- if($sourceOwners.Count-ne3-or@($sourceOwners.riderId|Select-Object -Unique).Count-ne3-or
-  @($sourceOwners.mountId|Select-Object -Unique).Count-ne3){throw 'Third-Horse producer did not record three distinct sourced Horses.'}
+ if($sourceOwners.Count-ne$horseCount-or@($sourceOwners.riderId|Select-Object -Unique).Count-ne$horseCount-or
+  @($sourceOwners.mountId|Select-Object -Unique).Count-ne$horseCount){throw 'Horse-world producer did not record distinct sourced Horses.'}
  foreach($owner in $sourceOwners){
   $r=@($rows|Where-Object id -CEQ $owner.riderId);$m=@($rows|Where-Object id -CEQ $owner.mountId)
   if($r.Count-ne1-or$m.Count-ne1-or$r[0].petId-cne$owner.mountId-or$m[0].masterId-cne$owner.riderId-or
@@ -37,14 +38,17 @@ function Get-KmcChunk7ThirdHorseColdExpected($Producer){
 
 function Assert-KmcChunk7ThirdHorseColdEvidence($Request,$Artifact,$SourceArtifact){
  $s=$Request.assistedColdInventory;$o=$Artifact.observations
- $qualified=Get-KmcChunk7ThirdHorseColdSource $s $Request.fixture $Request
+ $fourth=Test-KmcChunk7FourthHorseColdSelection $s
+ $qualified=if($fourth){Get-KmcChunk7FourthHorseColdSource $s $Request.fixture $Request}else{Get-KmcChunk7ThirdHorseColdSource $s $Request.fixture $Request}
  Assert-KmcAssistedSame $SourceArtifact (Read-KmcJson $qualified.artifactPath) 'third-Horse immutable producer artifact'
- $expected=Get-KmcChunk7ThirdHorseColdExpected $SourceArtifact
+ $expected=Get-KmcChunk7ThirdHorseColdExpected $SourceArtifact $fourth
+ $factKey=if($fourth){'fourthHorseFacts'}else{'thirdHorseFacts'}
+ $sourceKind=if($fourth){'reader-reevaluated-assisted-fourth-horse-manual'}else{'qualified-assisted-third-horse-manual'}
  Assert-KmcAssistedObjectValue $o @('processId','selection','source','sourceNativeWorld','sourceNativeMoney','beforeLoad',
   'resourceWrites','xpWrites','moneyWrites','profileAdmissionChanged','ordinaryAcquisitionProven',
   'sixPairFixtureQualified','mountRequests','choiceRequests','ordinaryProgressionProven','loadedWorld','loader',
   'nativeProfileInventory','fixtureReadiness','archive','settledWorld','settledLoader','nativeLoad',
-  'noPreparation','thirdHorseFacts','cleanup') 'third-Horse separate cold observations'
+  'noPreparation',$factKey,'cleanup') 'Horse-world separate cold observations'
  Assert-KmcAssistedSame $o.selection $s 'third-Horse exact cold selection'
  Assert-KmcAssistedSame $o.sourceNativeWorld ([pscustomobject]@{gameId=$Request.persistenceLoad.gameId;
   gameName=$Request.persistenceLoad.gameName;area=$Request.persistenceLoad.area;
@@ -59,7 +63,7 @@ function Assert-KmcChunk7ThirdHorseColdEvidence($Request,$Artifact,$SourceArtifa
  foreach($pair in @(@('runId',$s.sourceRunId),@('artifactSha256',$s.sourceArtifactSha256),
   @('archiveSha256',$s.sourceArchiveSha256),@('archiveLeaf',$Request.persistenceLoad.fileName),
   @('copiedArtifactPath',(Join-Path (Split-Path $root -Parent) 'assisted-cold-source.json')),
-  @('kind','qualified-assisted-third-horse-manual'))){Assert-KmcBootstrapInventoryString $o.source.($pair[0]) $pair[1]}
+  @('kind',$sourceKind))){Assert-KmcBootstrapInventoryString $o.source.($pair[0]) $pair[1]}
  Assert-KmcChunk7Boolean $o.source.sameCandidate $false
  Assert-KmcChunk7Boolean $o.source.assistedSetupOnly $true
  Assert-KmcChunk7Boolean $o.source.diagnosticArchiveContentRead $false
@@ -101,7 +105,7 @@ function Assert-KmcChunk7ThirdHorseColdEvidence($Request,$Artifact,$SourceArtifa
  Assert-KmcAssistedColdProfile $o.nativeProfileInventory $w
  Assert-KmcOrdinaryInteger $o.nativeProfileInventory.ordinaryAcquisitionPrerequisites.nativeMoney $expected.money $expected.money
  Assert-KmcAssistedColdFixtureReadiness $o.fixtureReadiness $Request $w $f $o.nativeProfileInventory $root
- Assert-KmcAssistedSame $o.thirdHorseFacts $expected.owners 'three sourced native Horse facts/ranks survived cold load'
+ Assert-KmcAssistedSame $o.$factKey $expected.owners 'sourced native Horse facts/ranks survived cold load'
  Assert-KmcAssistedObjectValue $o.cleanup @('custodySettled','nativeWorkerSettled','observersReleased','worldAdmitted','sourcePinned','sourceUnchanged','authority') 'third-Horse cold cleanup'
  foreach($key in @('custodySettled','nativeWorkerSettled','observersReleased','worldAdmitted','sourcePinned','sourceUnchanged')){Assert-KmcChunk7Boolean $o.cleanup.$key $true}
  Assert-KmcAssistedColdAuthority $o.cleanup.authority $root $b.authority.generation 1
