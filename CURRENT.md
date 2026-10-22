@@ -1,11 +1,12 @@
 # Chunk 7B–7D — IN PROGRESS
 
 The reviewed [batch185 sixth-Horse cold consumer](docs/CHUNK7-BATCH185-SIXTH-HORSE-COLD-2026-10-22.md)
-passed focused actual scenario 106/0, protocol 121/0, authority 163/0,
-source 12/0 and projection/remote reader 17/0. It admits only the genuine
-batch184 Manual308, with twelve field actors/six Horses and separately
-preserved remote Linzi. Native execution is pending; mounted breadth,
-conditional stress and the wider standing mission remain IN PROGRESS.
+passed one separate-process native load, original game/outer 4/0. It preserved
+the genuine batch184 Manual308's twelve field actors/six sourced Horses and
+exact remote Linzi progression, with zero saves or resource writes. Mods,
+protected saves and profile restored exactly, zero cache exceptions; wrapper
+exited0 and no game/lock remains. Six mounted owners, conditional lifecycle/
+performance stress and the wider standing mission remain IN PROGRESS.
 
 [Batch184](docs/CHUNK7-BATCH184-SIXTH-HORSE-MANUAL-2026-10-22.md) ran one native
 sixth paid-Horse Manual scenario: game/artifact PASS 7/0, one load/one genuine
