@@ -814,10 +814,11 @@ namespace KingmakerMountedCombat.Diagnostics
                 else if (AssistedColdInventory?.IsHorseWorld == true)
                 {
                     var fourth = AssistedColdInventory.IsFourthHorseSource;
-                    var name = fourth ? Chunk7OwnedPairsSelection.FourthHorseManualName : Chunk7OwnedPairsSelection.SmallFixtureManualName;
-                    var leaf = fourth ? "Manual_306_KMC_C7_FOUR_HORSE_WORLD.zks" : "Manual_305_KMC_C7_SMALL_WORLD.zks";
+                    var fifth = AssistedColdInventory.IsFifthHorse;
+                    var name = fifth ? Chunk7ManualDerivedSelection.ManualOutputName : fourth ? Chunk7OwnedPairsSelection.FourthHorseManualName : Chunk7OwnedPairsSelection.SmallFixtureManualName;
+                    var leaf = fifth ? Chunk7ManualDerivedSelection.F09FifthOutputLeaf : fourth ? "Manual_306_KMC_C7_FOUR_HORSE_WORLD.zks" : "Manual_305_KMC_C7_SMALL_WORLD.zks";
                     errors.AddRange(PersistenceLoad.Validate("persistenceLoad", name,
-                        fourth ? "^Manual_306_KMC_C7_FOUR_HORSE_WORLD\\.zks$" : "^Manual_305_KMC_C7_SMALL_WORLD\\.zks$"));
+                        fifth ? "^Manual_307_KMC_C7_MANUAL_DERIVED_FIELD\\.zks$" : fourth ? "^Manual_306_KMC_C7_FOUR_HORSE_WORLD\\.zks$" : "^Manual_305_KMC_C7_SMALL_WORLD\\.zks$"));
                     if (PersistenceLoad.FileName != leaf ||
                         Fixture?.Working == null || PersistenceLoad.GameId == Fixture.Working.GameId ||
                         PersistenceLoad.GameId == Fixture.Baseline?.GameId ||

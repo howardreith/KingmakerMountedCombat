@@ -35,8 +35,13 @@ function Test-KmcChunk7FourthHorseSelectorSelection($Selection){
 function Test-KmcChunk7FourthHorseSourceSelection($Selection){
  (Test-KmcChunk7FourthHorseColdSelection $Selection)-or(Test-KmcChunk7FourthHorseSelectorSelection $Selection)
 }
+function Test-KmcChunk7FifthHorseColdSelection($Selection){
+ $null-ne$Selection-and$Selection.GetType().FullName-ceq'System.Management.Automation.PSCustomObject'-and
+  $null-ne$Selection.PSObject.Properties['case']-and$Selection.case-is[string]-and
+  $Selection.case-ceq'fifth-horse-manual-readonly-inventory'
+}
 function Test-KmcChunk7HorseWorldColdSelection($Selection){
- (Test-KmcChunk7ThirdHorseColdSelection $Selection)-or(Test-KmcChunk7FourthHorseSourceSelection $Selection)
+ (Test-KmcChunk7ThirdHorseColdSelection $Selection)-or(Test-KmcChunk7FourthHorseSourceSelection $Selection)-or(Test-KmcChunk7FifthHorseColdSelection $Selection)
 }
 function Assert-KmcAssistedColdSeparateProcess($Selection,$SourceArtifact,$ColdArtifact,$VerifiedSource){
  if(Test-KmcChunk7OwnerSeedSelection $Selection){return}
@@ -122,7 +127,7 @@ function Assert-KmcChunk7AssistedColdInventorySelection($Request){
   return
  }
  Assert-KmcAssistedObjectValue $s @('case','sourceRunId','sourceArtifactSha256','sourceArchiveSha256','baseGameOnly','expectedNativeLoadCount','expectedNativeWriteCount') 'assisted cold selection'
- if($s.case-isnot[string]-or$s.case-cnotin@('assisted-manual-readonly-inventory','small-fixture-manual-readonly-inventory','medium-fixture-manual-readonly-inventory','third-horse-manual-readonly-inventory','fourth-horse-manual-readonly-inventory','fourth-horse-open-selector-inventory')){throw 'Unknown producer cold selection case.'}
+ if($s.case-isnot[string]-or$s.case-cnotin@('assisted-manual-readonly-inventory','small-fixture-manual-readonly-inventory','medium-fixture-manual-readonly-inventory','third-horse-manual-readonly-inventory','fourth-horse-manual-readonly-inventory','fourth-horse-open-selector-inventory','fifth-horse-manual-readonly-inventory')){throw 'Unknown producer cold selection case.'}
  if($Request.runId-isnot[string]-or$Request.runId-cnotmatch'^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$'){throw 'Assisted cold consumer run identity is malformed.'}
  if($s.sourceRunId-isnot[string]-or$s.sourceRunId-cnotmatch'^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$'-or$s.sourceRunId-ceq$Request.runId){throw 'Assisted cold inventory requires a distinct completed source run.'}
  foreach($key in @('sourceArtifactSha256','sourceArchiveSha256')){if($s.$key-isnot[string]-or$s.$key-cnotmatch'^[a-f0-9]{64}$'){throw 'Assisted cold immutable source hashes are required.'}}
@@ -142,17 +147,19 @@ function Assert-KmcChunk7AssistedColdInventoryDescriptor($Request){
  }else{
  $isThird=Test-KmcChunk7ThirdHorseColdSelection $Request.assistedColdInventory
  $isFourth=Test-KmcChunk7FourthHorseSourceSelection $Request.assistedColdInventory
+ $isFifth=Test-KmcChunk7FifthHorseColdSelection $Request.assistedColdInventory
  $isPaid=Test-KmcChunk7PaidFixtureColdSelection $Request.assistedColdInventory
  $isMedium=Test-KmcChunk7MediumFixtureColdSelection $Request.assistedColdInventory
- $name=if($isFourth){'KMC_C7_FOUR_HORSE_WORLD'}elseif($isThird){'KMC_C7_SMALL_WORLD'}elseif($isMedium){'KMC_C7_MEDIUM_FIXTURE'}elseif($isPaid){'KMC_C7_SMALL_FIXTURE'}else{'KMC_C7_ASSISTED_FIXTURE'}
+ $name=if($isFifth){'KMC_C7_MANUAL_DERIVED_FIELD'}elseif($isFourth){'KMC_C7_FOUR_HORSE_WORLD'}elseif($isThird){'KMC_C7_SMALL_WORLD'}elseif($isMedium){'KMC_C7_MEDIUM_FIXTURE'}elseif($isPaid){'KMC_C7_SMALL_FIXTURE'}else{'KMC_C7_ASSISTED_FIXTURE'}
  Assert-KmcBootstrapInventoryString $d.internalName $name
  if($d.fileName-isnot[string]-or$d.fileName-cnotmatch('^Manual_([1-9][0-9]*)_'+$name+'\.zks$')){throw 'Producer cold source must retain its observed native Manual leaf.'}
  $number=0;$leafMatch=[regex]::Match($d.fileName,'^Manual_([1-9][0-9]*)_'+$name+'\.zks$');if(-not[int]::TryParse($leafMatch.Groups[1].Value,[ref]$number)-or$number-le0-or$d.fileName-cne('Manual_'+$number+'_'+$name+'.zks')){throw 'Producer cold Manual number is noncanonical or outside native Int32.'}
  if(($isPaid-or$isThird-or$isFourth)-and$number-eq[int]::MaxValue){throw 'F09 Manual number is the reserved native upper boundary.'}
  if($isThird-and$number-ne305){throw 'Third-Horse cold input is not the produced Manual 305.'}
  if($isFourth-and$number-ne306){throw 'Fourth-Horse cold input is not the produced Manual 306.'}
+ if($isFifth-and$number-ne307){throw 'Fifth-Horse cold input is not the produced Manual 307.'}
  Assert-KmcBootstrapInventoryString $d.sha256 $Request.assistedColdInventory.sourceArchiveSha256
- if($isPaid-or$isThird-or$isFourth){
+ if($isPaid-or$isThird-or$isFourth-or$isFifth){
   foreach($pair in @(@('gameId','3f7381f7-aba6-43bf-bae6-39c6a66a7180'),@('gameName','Testy the Modless'),@('area','b10e86516b6437d45a629931c30936fe'))){Assert-KmcBootstrapInventoryString $d.($pair[0]) $pair[1]}
  }
  }

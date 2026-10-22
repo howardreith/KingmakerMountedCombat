@@ -122,6 +122,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     ? "qualified-owner-seed-derived-medium-fixture-manual" : "qualified-owner-seed-derived-small-fixture-manual";
                 if (selection.IsThirdHorse) evidence["source"]["kind"] = "qualified-assisted-third-horse-manual";
                 if (selection.IsFourthHorseSource) evidence["source"]["kind"] = "reader-reevaluated-assisted-fourth-horse-manual";
+                if (selection.IsFifthHorse) evidence["source"]["kind"] = "qualified-paid-fifth-horse-manual";
             }
             evidence["beforeLoad"] = new JObject { ["frame"] = UnityEngine.Time.frameCount, ["game"] = probe.Identity(game),
                 ["saveManager"] = probe.Identity(manager), ["menuPlayer"] = probe.Identity(menuPlayer),
@@ -209,7 +210,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 loadedSemantics = CaptureSemantics();
                 if (selection.IsHorseWorld) {
                     thirdHorseFactsAtLoad = CaptureThirdHorseFacts();
-                    evidence[selection.IsFourthHorseSource ? "fourthHorseFacts" : "thirdHorseFacts"] = thirdHorseFactsAtLoad.DeepClone();
+                    evidence[selection.IsFifthHorse ? "fifthHorseFacts" : selection.IsFourthHorseSource ? "fourthHorseFacts" : "thirdHorseFacts"] = thirdHorseFactsAtLoad.DeepClone();
                 }
                 loadDescriptor = loader.Descriptor; admitted = true; RequireWorld(); VerifySourceBytes();
                 evidence["loadedWorld"] = Snapshot();

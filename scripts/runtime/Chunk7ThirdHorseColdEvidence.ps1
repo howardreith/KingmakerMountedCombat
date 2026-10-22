@@ -36,14 +36,53 @@ function Get-KmcChunk7ThirdHorseColdExpected($Producer,[bool]$Fourth=$false){
   money=[long]$boundary.money;owners=$sourceOwners}
 }
 
+function Get-KmcChunk7FifthHorseColdExpected($Producer){
+ $o=$Producer.observations;$prior=@($o.sourceNativeWorld.party);$saved=@($o.savedFieldWorld.party)
+ $progress=@($o.afterSaveArrangement.actors)+@($o.afterSaveArrangement.acquired)
+ $added=@($o.field.profileInventory.party);$facts=@($o.sourceManualObservations.fourthHorseFacts)
+ Assert-KmcAssistedArray $prior 9 9 'fifth-Horse prior native roster'
+ Assert-KmcAssistedArray $saved 11 11 'fifth-Horse saved native roster'
+ Assert-KmcAssistedArray $progress 11 11 'fifth-Horse saved progression'
+ Assert-KmcAssistedArray $added 2 2 'fifth-Horse paid native rider and pet'
+ Assert-KmcAssistedArray $facts 4 4 'fifth-Horse prior sourced Horse facts'
+ Assert-KmcAssistedSame $o.f09PriorHorsesBefore $o.f09PriorHorsesAfter 'fifth-Horse prior four native Horse identities'
+ $rows=@(foreach($actor in $saved){
+  $p=@($progress|Where-Object actorId -CEQ $actor.id)
+  $old=@($prior|Where-Object id -CEQ $actor.id);$new=@($added|Where-Object id -CEQ $actor.id)
+  if($p.Count-ne1-or$p[0].blueprint-cne$actor.blueprint-or($old.Count+$new.Count)-ne1){throw 'Fifth-Horse saved field and native progression disagree.'}
+  $link=if($old.Count-eq1){$old[0]}else{$new[0]}
+  if(($old.Count-eq1-and$link.blueprint-cne$actor.blueprint)-or($new.Count-eq1-and$link.blueprintGuid-cne$actor.blueprint)){throw 'Fifth-Horse saved blueprint differs from its source.'}
+  [pscustomobject]@{id=$actor.id;blueprint=$actor.blueprint;petId=$link.petId;masterId=$link.masterId;
+   characterLevel=$p[0].characterLevel;experience=$p[0].experience;
+   classes=@($p[0].classes|ForEach-Object{[pscustomobject]@{guid=$_.classGuid;level=$_.level}})}
+ })
+ if(@($rows.id|Select-Object -Unique).Count-ne11){throw 'Fifth-Horse saved roster repeats an actor.'}
+ $main='73681ef2-b281-4bc6-bc05-2de68c1616cb'
+ $characters=@($rows|Where-Object{$null-eq$_.masterId})
+ if($characters.Count-ne6-or@($characters|Where-Object id -CEQ $main).Count-ne1){throw 'Fifth-Horse saved field does not contain six native characters and its main.'}
+ $owners=@($facts|ForEach-Object{[pscustomobject]@{riderId=$_.riderId;mountId=$_.mountId;
+  featureGuid=$_.featureGuid;blueprint=$_.blueprint;sourceGuid=$_.sourceGuid;rank=$_.rank;reciprocal=$true}})
+ $f=$o.field
+ $owners+=,[pscustomobject]@{riderId=$f.actorId;mountId=$f.petId;featureGuid=$f.featureBlueprint;
+  blueprint=$f.horseBlueprint;sourceGuid=$f.featureSourceGuid;rank=$f.rank;reciprocal=$true}
+ if($owners.Count-ne5-or@($owners.riderId|Select-Object -Unique).Count-ne5-or@($owners.mountId|Select-Object -Unique).Count-ne5){throw 'Fifth-Horse source lacks five distinct sourced Horses.'}
+ foreach($owner in $owners){$r=@($rows|Where-Object id -CEQ $owner.riderId);$m=@($rows|Where-Object id -CEQ $owner.mountId)
+  if($r.Count-ne1-or$m.Count-ne1-or$r[0].petId-cne$owner.mountId-or$m[0].masterId-cne$owner.riderId-or$m[0].blueprint-cne$owner.blueprint){throw 'Fifth-Horse saved pet links are not reciprocal.'}}
+ [pscustomobject]@{world=[pscustomobject]@{mainActorId=$main;party=$rows};
+  readiness=[pscustomobject]@{staticPartyFacts=[pscustomobject]@{characters=@($characters|ForEach-Object{[pscustomobject]@{actorId=$_.id}})};
+   mainProgression=[pscustomobject]@{experience=@($rows|Where-Object id -CEQ $main)[0].experience}};
+  money=[long]$o.afterSaveArrangement.money;owners=$owners}
+}
+
 function Assert-KmcChunk7ThirdHorseColdEvidence($Request,$Artifact,$SourceArtifact){
  $s=$Request.assistedColdInventory;$o=$Artifact.observations
  $fourth=Test-KmcChunk7FourthHorseSourceSelection $s
- $qualified=if($fourth){Get-KmcChunk7FourthHorseColdSource $s $Request.fixture $Request}else{Get-KmcChunk7ThirdHorseColdSource $s $Request.fixture $Request}
+ $fifth=Test-KmcChunk7FifthHorseColdSelection $s
+ $qualified=if($fifth){Get-KmcChunk7FifthHorseColdSource $s $Request.fixture $Request}elseif($fourth){Get-KmcChunk7FourthHorseColdSource $s $Request.fixture $Request}else{Get-KmcChunk7ThirdHorseColdSource $s $Request.fixture $Request}
  Assert-KmcAssistedSame $SourceArtifact (Read-KmcJson $qualified.artifactPath) 'third-Horse immutable producer artifact'
- $expected=Get-KmcChunk7ThirdHorseColdExpected $SourceArtifact $fourth
- $factKey=if($fourth){'fourthHorseFacts'}else{'thirdHorseFacts'}
- $sourceKind=if($fourth){'reader-reevaluated-assisted-fourth-horse-manual'}else{'qualified-assisted-third-horse-manual'}
+ $expected=if($fifth){Get-KmcChunk7FifthHorseColdExpected $SourceArtifact}else{Get-KmcChunk7ThirdHorseColdExpected $SourceArtifact $fourth}
+ $factKey=if($fifth){'fifthHorseFacts'}elseif($fourth){'fourthHorseFacts'}else{'thirdHorseFacts'}
+ $sourceKind=if($fifth){'qualified-paid-fifth-horse-manual'}elseif($fourth){'reader-reevaluated-assisted-fourth-horse-manual'}else{'qualified-assisted-third-horse-manual'}
  $keys=@('processId','selection','source','sourceNativeWorld','sourceNativeMoney','beforeLoad',
   'resourceWrites','xpWrites','moneyWrites','profileAdmissionChanged','ordinaryAcquisitionProven',
   'sixPairFixtureQualified','mountRequests','choiceRequests','ordinaryProgressionProven','loadedWorld','loader',
