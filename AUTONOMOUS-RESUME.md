@@ -1,5 +1,28 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## Active October 22 after batch180 Linzi selector PASS
+
+The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active
+through selected private 7E. [Batch180](docs/CHUNK7-BATCH180-FOURTH-HORSE-SELECTOR-2026-10-22.md)
+passed one guarded native selector observation, **game/original outer 5/0**,
+on reviewed product source `1ff79959`, package ZIP `0bf3291f`, DLL `590bde8e`
+and suite `bd0de844`. Linzi was selected in the ready native selector and
+`MustBeInParty=false`, with zero roster switches/Go and zero saves. Run/save/
+Mods/profile bytes restored exactly; no game process or active lock remains.
+This is eligibility, not a completed fifth/sixth build or six-pair stress.
+
+Next: implement and review the distinct fifth paid Horse derivative of the
+immutable b178 Manual/b179 cold source, using the one open character slot.
+Require actual native payment/build, four inherited Horse facts, native field
+admission, one genuine Manual and separate cold. Then use the observed Linzi
+optionality for a separate ordinary selector transition and sixth supported
+paid hire, with equivalent persistence before conditional six-pair stress.
+Do not edit archive membership or promote Linzi's special body to the declared
+Small profile. Continue F10/F11, ordinary doors and readiness-gated private
+7E. Next source command:
+`rg -n 'fourth-horse|paid-hire|ShowPartySelection|NativePartyOptionality' src/KingmakerMountedCombat/Diagnostics scripts/runtime`.
+No merge/release/permanent installation/HUMAN PLAY acceptance.
+
 ## Active October 22 after reviewed nine-actor F09 source gate
 
 The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active
