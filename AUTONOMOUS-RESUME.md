@@ -1,5 +1,11 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
+## Active October 21 after batch170 native Manual reservation FAIL
+
+The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active. [Batch170](docs/CHUNK7-BATCH170-F09-THIRD-HORSE-MANUAL-FAIL-2026-10-21.md) is original game/outer **FAIL** before world load: the new third-Horse producer's native output reservation chose generic `KMC_C7_WORLD`, conflicting with selected `KMC_C7_SMALL_WORLD`. Run/save/Mods transactions restored; 552 accepted native profile-cache changes mean profile bytes were not exact. A narrow reviewed correction in `Chunk7PersistenceScenario.NativeName` aligns both overloads with the closed case, with Fast 3/0 and a regression for the exact bootstrap call. No corrected native outcome, new Manual or cold consumer exists yet.
+
+Next: commit and guarded-push the reviewed name correction and failure record, build one new candidate and append-only current-state suite, then guarded WhatIf and one fresh native third-Horse Manual producer from the immutable batch53 Small source. Preserve batch170 original FAIL and separate restoration. Only a later independent cold consumer may prove the native third Horse persisted. Continue F09 conditional six-pair, F11 normal-player, doors, 7C/7D and selected private 7E. No merge, release, permanent installation or HUMAN PLAY acceptance.
+
 ## Active October 21 after reviewed F09 three-Horse Manual producer preparation
 
 The [standing mission](planning/CHUNK7-COMPLETION-MISSION.md) remains active. A separate [one-Manual producer](docs/CHUNK7-F09-THIRD-HORSE-MANUAL-PRODUCER-2026-10-21.md) now takes the exact batch53 Small source through the already observed native third-Horse setup and one guarded genuine Manual. It keeps batch169's zero-write diagnostic and original failures intact. Independent source/safety review found no remaining confirmed prelaunch blocker after exact outer artifact routing and seven-actor reader binding. Fast 3/0, Small source/reader 21/0, Candidate 7/0 passed. No native run or new output archive has yet been made on this change.

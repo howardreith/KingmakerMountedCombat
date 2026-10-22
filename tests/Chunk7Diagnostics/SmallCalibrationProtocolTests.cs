@@ -33,6 +33,9 @@ internal static class SmallCalibrationProtocolTests {
    var r=SmallThirdHorseManualRequest();TestRunner.Equal(0,r.Validate().Count,"Exact third-Horse Manual request refused.");
    TestRunner.Equal("chunk7-two-pair-exploration",r.SelectedChunk7Scenario,"Third-Horse Manual routed through another native host.");
    TestRunner.Equal(1,r.OwnedPairs.WriteCount(r.PersistenceCase),"Third-Horse Manual lost its exact write quota.");
+   TestRunner.Equal(Chunk7OwnedPairsSelection.SmallFixtureManualName,
+    Chunk7PersistenceScenario.NativeName(Kingmaker.EntitySystem.Persistence.SaveInfo.SaveType.Manual,r.OwnedPairs,r.PersistenceCase),
+    "Native bootstrap chose a different Manual name from the guarded output reservation.");
   });
   foreach(var bad in new[]{"missing checkpoint","zero write","foreign source","borrowed cold parent"})
    tests.Run("third-Horse native Manual refuses "+bad,()=>{var r=SmallThirdHorseManualRequest();switch(bad){
