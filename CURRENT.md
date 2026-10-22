@@ -1,5 +1,17 @@
 # Chunk 7B–7D — IN PROGRESS
 
+The accepted [batch174](docs/CHUNK7-BATCH174-THIRD-HORSE-COLD-ORIGINAL-PASS-2026-10-22.md)
+three-Horse Manual/cold lineage now has an explicit
+[F09 eight-actor derivative route](docs/CHUNK7-F09-B174-SIX-PAIR-FIXTURE-ROUTE-2026-10-22.md).
+Its implemented read-only source gate passed against the retained original
+producer/cold receipts, rejected an altered fixture hash and grants no native
+authority. The source inventory identifies a Medium Valerie and a special-body
+Small Linzi as the two remaining petless stock companions, with one free
+character slot. Linzi's genuine native pet, if acquired, would not by itself
+match the shipped default male Halfling mounted profile. The next distinct
+eight-actor native derivative has not run; conditional
+six-pair stress, ordinary doors, F11 and private 7E remain IN PROGRESS.
+
 [Batch174](docs/CHUNK7-BATCH174-THIRD-HORSE-COLD-ORIGINAL-PASS-2026-10-22.md) passed a fresh third-Horse separate-process native cold load **game 4/0 and original outer PASS 4/0** on unchanged frozen preview.94 product with a corrected clean external reader. Eight actors and three distinct sourced native Horses survived; one load, zero writes, no preparation and exact run/save/Mods/profile restoration were observed. Batch172/173 original FAILs remain separate. The other F09 breadth, F11, doors, progression and selected private 7E remain **IN PROGRESS**.
 
 [Batch173](docs/CHUNK7-BATCH173-THIRD-HORSE-COLD-2026-10-21.md) passed a genuine separate-process third-Horse native cold load **game 4/0**, preserving eight actors and three distinct Horses with one load, zero writes and exact transaction/profile restoration. Its original outer PID-reader result is **FAIL**; a reviewed external-reader correction and immutable-artifact reader-only PASS remain separate. Batch172's pre-load authority FAIL and b171's Manual producer PASS are unchanged.
