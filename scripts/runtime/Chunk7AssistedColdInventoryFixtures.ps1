@@ -80,6 +80,7 @@ function Get-KmcChunk7AssistedColdInventorySource($Selection,$Fixture,$Candidate
  if(Test-KmcChunk7OwnerSeedSelection $Selection){return Get-KmcChunk7OwnerSeedSource $Selection $Fixture $Candidate}
  if(Test-KmcChunk7ThirdHorseColdSelection $Selection){return Get-KmcChunk7ThirdHorseColdSource $Selection $Fixture $Candidate}
  if(Test-KmcChunk7FourthHorseSourceSelection $Selection){return Get-KmcChunk7FourthHorseColdSource $Selection $Fixture $Candidate}
+ if(Test-KmcChunk7FifthHorseDepartureSelection $Selection){return Get-KmcChunk7FifthHorseDepartureSource $Selection $Fixture $Candidate}
  if(Test-KmcChunk7FifthHorseColdSelection $Selection){return Get-KmcChunk7FifthHorseColdSource $Selection $Fixture $Candidate}
  if(Test-KmcChunk7PaidFixtureColdSelection $Selection){
   $producerCase=if(Test-KmcChunk7MediumFixtureColdSelection $Selection){'owner-seed-default-human-horse-manual'}else{'owner-seed-default-halfling-horse-manual'}
@@ -98,8 +99,9 @@ function Get-KmcChunk7AssistedColdInventorySource($Selection,$Fixture,$Candidate
  # Return the actual gate's descriptor and pins without granting runtime identity.
  $source
 }
-function Assert-KmcAssistedColdSourcePins($Source,[bool]$SmallFixture=$false,[bool]$FourthHorse=$false){
- if($Source.receiptPins-isnot[Array]-or$Source.receiptPins.Count-ne$(if($FourthHorse){10}elseif($SmallFixture){9}else{8})){throw 'Producer cold source lost its complete receipt pins.'}
+function Assert-KmcAssistedColdSourcePins($Source,[bool]$SmallFixture=$false,[bool]$FourthHorse=$false,[bool]$FifthDeparture=$false){
+ if($FifthDeparture-and(-not$SmallFixture-or$FourthHorse)){throw 'Native departure receipt shape cannot be borrowed by another source mode.'}
+ if($Source.receiptPins-isnot[Array]-or$Source.receiptPins.Count-ne$(if($FifthDeparture){16}elseif($FourthHorse){10}elseif($SmallFixture){9}else{8})){throw 'Producer cold source lost its complete receipt pins.'}
  $seen=[Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
  foreach($pin in $Source.receiptPins){
   if($pin.path-isnot[string]-or-not$seen.Add([IO.Path]::GetFullPath($pin.path))){throw 'Assisted cold receipt path is malformed or duplicated.'}
@@ -117,6 +119,7 @@ function Copy-KmcChunk7AssistedColdInventorySourceArtifact($Source,[string]$Prof
  $fresh=Get-KmcChunk7AssistedColdInventorySource $Selection $Fixture $Candidate
  $isSeed=Test-KmcChunk7OwnerSeedSelection $Selection
  $isFourth=Test-KmcChunk7FourthHorseSourceSelection $Selection
+ $isDeparture=Test-KmcChunk7FifthHorseDepartureSelection $Selection
  $isSmall=(Test-KmcChunk7PaidFixtureColdSelection $Selection)-or(Test-KmcChunk7HorseWorldColdSelection $Selection)
  $keys=if($isSeed){@('path','descriptor','seedId','registrySha256','registryEntry','intakePath','intakeSha256')}
   elseif($isSmall){@('path','artifactPath','artifactSha256','artifactLength','sourceRunId','sourceProcessId','descriptor','receiptPins')}
@@ -135,7 +138,7 @@ function Copy-KmcChunk7AssistedColdInventorySourceArtifact($Source,[string]$Prof
  $destination=Join-Path $run 'assisted-cold-source.json'
  if(Test-Path -LiteralPath $destination){throw 'Assisted cold source destination already exists.'}
  if($isSeed){return Write-KmcChunk7OwnerSeedSourceRecord $fresh $destination $ownerPath $ownerHash $Lock}
- Assert-KmcAssistedColdSourcePins $fresh $isSmall $isFourth
+ Assert-KmcAssistedColdSourcePins $fresh $isSmall $isFourth $isDeparture
  $inputStream=$null;$outputStream=$null;$algorithm=$null
  try{
   $inputStream=[IO.FileStream]::new($fresh.artifactPath,[IO.FileMode]::Open,[IO.FileAccess]::Read,[IO.FileShare]::Read)
@@ -149,7 +152,7 @@ function Copy-KmcChunk7AssistedColdInventorySourceArtifact($Source,[string]$Prof
   if($copiedHash-cne$fresh.artifactSha256-or$outputStream.Length-ne$fresh.artifactLength){throw 'Assisted cold copied bytes differ.'}
   # The retained source handle denies concurrent writing/deletion of its file;
   # producer/Manual/owner pins and the transaction owner are checked again.
-  Assert-KmcAssistedColdSourcePins $fresh $isSmall $isFourth
+  Assert-KmcAssistedColdSourcePins $fresh $isSmall $isFourth $isDeparture
   if((Get-KmcSha256 $ownerPath)-cne$ownerHash){throw 'Assisted cold profile owner changed during copy.'}
   [void](Assert-KmcRuntimeLockOwner $Lock)
  }finally{
@@ -164,7 +167,7 @@ function Read-KmcAssistedColdSourceArtifact($Request){
  $base=Join-Path (Get-KmcLabRoot) 'runtime-evidence'
  $evidenceRoot=Assert-KmcChildPath $Request.evidenceRoot $base 'assisted cold evidence root'
  Assert-KmcBootstrapInventoryString $evidenceRoot (Join-Path $base $Request.runId)
- $leaf=if(Test-KmcChunk7FifthHorseColdSelection $Request.assistedColdInventory){'chunk7-manual-derived-evidence.json'}elseif(Test-KmcChunk7HorseWorldColdSelection $Request.assistedColdInventory){'chunk7-world-evidence.json'}elseif(Test-KmcChunk7PaidFixtureColdSelection $Request.assistedColdInventory){'chunk7-small-fixture-evidence.json'}else{'chunk7-assisted-fixture-evidence.json'}
+ $leaf=if(Test-KmcChunk7FifthHorseSourceSelection $Request.assistedColdInventory){'chunk7-manual-derived-evidence.json'}elseif(Test-KmcChunk7HorseWorldColdSelection $Request.assistedColdInventory){'chunk7-world-evidence.json'}elseif(Test-KmcChunk7PaidFixtureColdSelection $Request.assistedColdInventory){'chunk7-small-fixture-evidence.json'}else{'chunk7-assisted-fixture-evidence.json'}
  $path=Join-Path (Join-Path $base $Request.assistedColdInventory.sourceRunId) $leaf
  $path=Assert-KmcChildPath $path $base 'assisted cold producer artifact'
  Assert-KmcNotReparsePoint $path 'assisted cold producer artifact';Assert-KmcNotHardLink $path 'assisted cold producer artifact'

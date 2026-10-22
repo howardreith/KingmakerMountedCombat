@@ -1,5 +1,12 @@
 # Chunk 7B–7D — IN PROGRESS
 
+The reviewed [batch183 native departure implementation](docs/CHUNK7-BATCH183-LINZI-NATIVE-DEPARTURE-2026-10-22.md)
+adds a distinct one-load/zero-save native selector route for petless Linzi on
+the cold-qualified fifth-Horse Manual. Offline checks and the explicit
+producer/cold receipt boundary passed; its one declared native scenario
+awaits candidate freeze. It has no game verdict yet; sixth acquisition and the wider
+standing mission remain IN PROGRESS.
+
 The reviewed [batch182 fifth-Horse cold consumer](docs/CHUNK7-BATCH182-FIFTH-HORSE-COLD-2026-10-22.md)
 passed one guarded separate-process base-only Manual load: native game and
 original outer 4/0, eleven field actors, six characters and five distinct

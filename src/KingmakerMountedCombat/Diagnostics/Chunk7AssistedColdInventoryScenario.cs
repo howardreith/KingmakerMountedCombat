@@ -122,7 +122,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     ? "qualified-owner-seed-derived-medium-fixture-manual" : "qualified-owner-seed-derived-small-fixture-manual";
                 if (selection.IsThirdHorse) evidence["source"]["kind"] = "qualified-assisted-third-horse-manual";
                 if (selection.IsFourthHorseSource) evidence["source"]["kind"] = "reader-reevaluated-assisted-fourth-horse-manual";
-                if (selection.IsFifthHorse) evidence["source"]["kind"] = "qualified-paid-fifth-horse-manual";
+                if (selection.IsFifthHorseSource) evidence["source"]["kind"] = "qualified-paid-fifth-horse-manual";
             }
             evidence["beforeLoad"] = new JObject { ["frame"] = UnityEngine.Time.frameCount, ["game"] = probe.Identity(game),
                 ["saveManager"] = probe.Identity(manager), ["menuPlayer"] = probe.Identity(menuPlayer),
@@ -144,6 +144,12 @@ namespace KingmakerMountedCombat.Diagnostics
                     "Unexpected native dialog; cold inventory issues no input.");
                 Require(clock.Elapsed.TotalSeconds <= 180, "Cold inventory exceeded its bounded native load/readiness window.");
                 if (Busy()) return;
+                if (departure != null)
+                {
+                    if (!departure.Tick()) return;
+                    CompleteNativeDeparture();
+                    Pass("C7-assisted-cold-native-departure"); BeginCleanup(); return;
+                }
                 if (optionality != null)
                 {
                     if (!optionality.Tick()) return;
@@ -210,7 +216,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 loadedSemantics = CaptureSemantics();
                 if (selection.IsHorseWorld) {
                     thirdHorseFactsAtLoad = CaptureThirdHorseFacts();
-                    evidence[selection.IsFifthHorse ? "fifthHorseFacts" : selection.IsFourthHorseSource ? "fourthHorseFacts" : "thirdHorseFacts"] = thirdHorseFactsAtLoad.DeepClone();
+                    evidence[selection.IsFifthHorseSource ? "fifthHorseFacts" : selection.IsFourthHorseSource ? "fourthHorseFacts" : "thirdHorseFacts"] = thirdHorseFactsAtLoad.DeepClone();
                 }
                 loadDescriptor = loader.Descriptor; admitted = true; RequireWorld(); VerifySourceBytes();
                 evidence["loadedWorld"] = Snapshot();
@@ -233,7 +239,8 @@ namespace KingmakerMountedCombat.Diagnostics
                     ["pairs"] = data.Pairs.Length, ["participations"] = data.Participations.Length, ["slots"] = data.Slots.Length,
                     ["combatPresent"] = data.Combat != null, ["nativeRestorationGrantedByDiagnostic"] = false };
                 Pass("C7-assisted-cold-native-load"); Pass("C7-assisted-cold-readonly");
-                if (selection.IsFourthHorseSelector)
+                if (selection.IsFifthHorseDeparture) StartNativeDeparture();
+                else if (selection.IsFourthHorseSelector)
                 {
                     var linzi = actors.Single(actor => actor.UniqueId == "8265f8cf-0969-4ec7-a266-2448de91c8c4");
                     Require(linzi.Descriptor.Pet == null && characters.Length == 5 && remote.Length == 0 &&
@@ -621,15 +628,24 @@ namespace KingmakerMountedCombat.Diagnostics
             if (!cleanupOnly) Require(authorization.UnauthorizedLoadCount == 0 && authorization.UnauthorizedWriteCount == 0 &&
                 authorization.FatalViolationCount == 0 && authorization.SuppressedWorkingWriteCount == 0 && authorization.BaselineLoadRequestCount == 0,
                 "Cold inventory encountered a refused native boundary.");
-            if (admitted) RequireWorld();
+            if (admitted)
+            {
+                if (cleanupOnly && departure != null) RequireWorldReferences();
+                else RequireWorld();
+            }
         }
-        private void RequireWorld()
+        private void RequireWorldReferences()
         {
             Require(ReferenceEquals(nativePlayer, game.Player) && ReferenceEquals(state, game.State) &&
                 ReferenceEquals(areaState, game.State?.LoadedAreaState) && ReferenceEquals(mainState, game.State?.LoadedAreaState?.MainState) &&
                 ReferenceEquals(area, game.CurrentlyLoadedArea) && ReferenceEquals(mainActor, game.Player?.MainCharacter.Value) &&
                 game.Player.GameId == request.PersistenceLoad.GameId && game.Player.MainCharacter.Value.CharacterName == request.PersistenceLoad.GameName &&
                 game.Player.MainCharacter.Value.UniqueId == expectedMainId, "Admitted cold native world or main actor was replaced.");
+        }
+        private void RequireWorld()
+        {
+            RequireWorldReferences();
+            if (departure != null) { RequireDepartureWorld(); return; }
             var current = Chunk7NativeFieldRoster.Capture(game.Player);
             Require(game.Player.PartyCharacters.Select(value => value.Value).SequenceEqual(characters) &&
                 game.Player.RemoteCompanions.Select(value => value.Value).SequenceEqual(remote), "Admitted raw native character/remote membership changed.");
@@ -674,14 +690,14 @@ namespace KingmakerMountedCombat.Diagnostics
             ["mainActorId"] = game.Player.MainCharacter.Value.UniqueId, ["area"] = game.CurrentlyLoadedArea.AssetGuidThreadSafe,
             ["mode"] = game.CurrentMode.ToString(), ["cutscene"] = game.CutsceneLock, ["inCombat"] = game.Player.IsInCombat,
             ["nativeLoading"] = Busy(), ["authority"] = AuthoritySnapshot(), ["loadedDescriptor"] = probe.Identity(loader.Descriptor),
-            ["party"] = new JArray(actors.Select(actor => new JObject { ["id"] = actor.UniqueId, ["blueprint"] = actor.Blueprint.AssetGuid,
+            ["party"] = new JArray((selection.IsFifthHorseDeparture ? Chunk7NativeFieldRoster.Capture(game.Player) : actors).Select(actor => new JObject { ["id"] = actor.UniqueId, ["blueprint"] = actor.Blueprint.AssetGuid,
                 ["object"] = probe.Identity(actor), ["descriptor"] = probe.Identity(actor.Descriptor), ["view"] = probe.Identity(actor.View),
                 ["isInGame"] = actor.IsInGame, ["isInState"] = actor.IsInState, ["commandsEmpty"] = actor.Commands.Empty,
                 ["queuedCommands"] = actor.Commands.Queue.Count, ["conscious"] = actor.Descriptor.State.IsConscious, ["dead"] = actor.Descriptor.State.IsDead,
                 ["inCombat"] = actor.IsInCombat, ["petId"] = actor.Descriptor.Pet?.UniqueId, ["masterId"] = actor.Descriptor.Master.Value?.UniqueId,
                 ["characterLevel"] = actor.Descriptor.Progression.CharacterLevel, ["experience"] = actor.Descriptor.Progression.Experience, ["classes"] = CaptureClasses(actor) })),
-            ["partyCharacterIds"] = new JArray(characters.Select(value => value.UniqueId)),
-            ["remoteCompanionIds"] = new JArray(remote.Select(value => value.UniqueId)), ["nativeMoney"] = game.Player.Money, ["dialogScheduled"] = game.Player.Dialog?.Scheduled != null,
+            ["partyCharacterIds"] = new JArray((selection.IsFifthHorseDeparture ? game.Player.PartyCharacters.Select(value => value.Value) : characters).Select(value => value.UniqueId)),
+            ["remoteCompanionIds"] = new JArray((selection.IsFifthHorseDeparture ? game.Player.RemoteCompanions.Select(value => value.Value) : remote).Select(value => value.UniqueId)), ["nativeMoney"] = game.Player.Money, ["dialogScheduled"] = game.Player.Dialog?.Scheduled != null,
             ["owners"] = world.Registry.Owners.Length, ["slots"] = controls.CapturePersistentSlots().Length,
             ["casts"] = controls.NativeCastRequestCount, ["snapshots"] = persistence.SnapshotCount, ["completedSaves"] = persistence.CompletedSaveCount,
             ["semanticRestores"] = persistence.SemanticRestoreCount, ["presentationRestores"] = persistence.PresentationRestoreCount };
@@ -692,6 +708,13 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 if (completed) return;
                 RequireAuthority(true);
+                if (departure != null)
+                {
+                    if (!departure.TryDrain()) { Retain("Owned native departure selector has not closed."); return; }
+                    evidence["nativeDeparture"] = departure.Capture();
+                    if (errors.Count == 0) Require(departure.Completed && evidence["departureRetention"] != null,
+                        "Native departure cannot PASS before its exact committed roster and retained Horse proof.");
+                }
                 if (optionality != null)
                 {
                     if (!optionality.TryDrain()) { Retain("Owned native selector has not closed."); return; }

@@ -26,9 +26,23 @@ internal static class AssistedColdFixture{
  internal static RuntimeRequest FifthHorseRequest(){var r=SmallRequest();r.AssistedColdInventory.Case=Chunk7AssistedColdInventorySelection.FifthHorseCaseName;
   r.PersistenceLoad.InternalName=Chunk7ManualDerivedSelection.ManualOutputName;
   r.PersistenceLoad.FileName=Chunk7ManualDerivedSelection.F09FifthOutputLeaf;return r;}
+ internal static RuntimeRequest FifthHorseDepartureRequest(){var r=FifthHorseRequest();var s=r.AssistedColdInventory;
+  s.Case=Chunk7AssistedColdInventorySelection.FifthHorseDepartureCaseName;s.SourceRunId="20261022-c7b-world181-b181s1-fifthhorse-manual";
+  s.SourceArtifactSha256="e05fdd3cfb16c344dcb821a57476cefdfb91978aa8a39aca9322e5b4fc24a47b";
+  s.SourceArchiveSha256=r.PersistenceLoad.Sha256="afbeaa5bc749d91bd969581977f396ff4b0c2716691625a9648b2bb827c2318e";return r;}
 }
 internal static class AssistedColdProtocolTests{
  static int Main(){var t=new TestRunner();
+ t.Run("exact fifth-Horse native departure remains one load and zero saves",()=>{var r=AssistedColdFixture.FifthHorseDepartureRequest();TestRunner.Equal(0,r.Validate().Count,string.Join(" | ",r.Validate()));});
+ foreach(var kind in new[]{"producer","artifact","archive","write","second load","other Manual"})t.Run("native departure refuses "+kind,()=>{
+  var r=AssistedColdFixture.FifthHorseDepartureRequest();switch(kind){
+   case "producer":r.AssistedColdInventory.SourceRunId="foreign-producer";break;
+   case "artifact":r.AssistedColdInventory.SourceArtifactSha256=new string('f',64);break;
+   case "archive":r.AssistedColdInventory.SourceArchiveSha256=r.PersistenceLoad.Sha256=new string('f',64);break;
+   case "write":r.AssistedColdInventory.ExpectedNativeWriteCount=1;break;
+   case "second load":r.AssistedColdInventory.ExpectedNativeLoadCount=2;break;
+   case "other Manual":r.PersistenceLoad.FileName="Manual_308_KMC_C7_MANUAL_DERIVED_FIELD.zks";break;
+  }TestRunner.True(r.Validate().Count>0,"Unqualified native departure input admitted.");});
  t.Run("exact qualified Manual cold request validates",()=>{var r=AssistedColdFixture.Request();TestRunner.Equal(0,r.Validate().Count,string.Join(" | ",r.Validate()));});
  t.Run("owner seed request validates without producer pins",()=>{var r=AssistedColdFixture.SeedRequest();TestRunner.Equal(0,r.Validate().Count,string.Join(" | ",r.Validate()));});
  t.Run("F09 native Manual has a distinct read-only cold case",()=>{var r=AssistedColdFixture.SmallRequest();TestRunner.Equal(0,r.Validate().Count,string.Join(" | ",r.Validate()));});

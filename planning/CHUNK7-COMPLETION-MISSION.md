@@ -13,6 +13,13 @@
 > and [implementation chronology](CHUNK7-IMPLEMENTATION-PLAN.md) remain
 > historical where they say 7E is unselected or give stale native caps.
 
+[Batch183](../docs/CHUNK7-BATCH183-LINZI-NATIVE-DEPARTURE-2026-10-22.md)
+implements and independently reviews the exact native Linzi departure from
+the cold-qualified fifth-Horse field. Offline source/receipt checks 11/0,
+focused selector/custody/reader tests and the selected Candidate checks passed.
+One native departure scenario awaits candidate freeze; no game outcome or
+sixth-pair completion follows from these offline checks.
+
 [Batch182](../docs/CHUNK7-BATCH182-FIFTH-HORSE-COLD-2026-10-22.md) passed
 the separate-process, zero-write cold consumer of batch181's genuine fifth
 paid Horse Manual: original game/outer 4/0, eleven actors, six characters,
