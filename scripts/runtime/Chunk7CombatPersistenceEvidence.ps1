@@ -425,12 +425,12 @@ function Assert-KmcChunk7CombatPersistenceObservation($Request,$Artifact) {
     if(-not$seedCheckpointSave-and($null-ne$o.PSObject.Properties['mountedStart']-or$null-ne$o.PSObject.Properties['ownerSeedCheckpointSource']-or$null-ne$o.PSObject.Properties['ownerSeedCheckpointPreparation'])){throw 'Only the owner-seed checkpoint producer may carry a restored mounted start or native preparation.'}
     if($owned){
         Assert-KmcChunk7InheritedEvidence $Request $o
-        if($Artifact.status-cne'PASS'-or-not(Test-KmcChunk7CombatPersistenceCase $Request.persistenceCase)-or$o.checkpoint-isnot[string]-or$o.checkpoint-cne$Request.persistenceCase-or$null-ne$o.sourceWorkingSha256-or$o.nativeSchema-ne3-or$o.nativeCapacity-ne2-or-not(Test-KmcExactJsonInteger $o.processId)-or$o.processId-le0){throw 'Inherited combat persistence case/capability differs.'}
+        if($Artifact.status-cne'PASS'-or-not(Test-KmcChunk7CombatPersistenceCase $Request.persistenceCase)-or$o.checkpoint-isnot[string]-or$o.checkpoint-cne$Request.persistenceCase-or$null-ne$o.sourceWorkingSha256-or$o.nativeSchema-ne3-or-not(Test-KmcChunk7NativePairCapacity $o.nativeCapacity)-or-not(Test-KmcExactJsonInteger $o.processId)-or$o.processId-le0){throw 'Inherited combat persistence case/capability differs.'}
         Assert-KmcBootstrapInventoryString $o.inheritedManualSha256 $Request.ownedPairs.sourceArchiveSha256
     }else{
     if($Artifact.status-cne'PASS'-or-not(Test-KmcChunk7CombatPersistenceCase $Request.persistenceCase)-or$o.checkpoint-cne$Request.persistenceCase-or
        $o.sourceWorkingSha256-cne$Request.fixture.working.sha256-or$o.sourceWorkingSha256-cne'5eb4e0b4cbd8d60dc879a02ff71aadfde3f517304754857f0cc68d0f9a93f1c6'-or
-       $o.nativeSchema-ne3-or$o.nativeCapacity-ne2-or-not(Test-KmcExactJsonInteger $o.processId)-or$o.processId-le0){throw 'Native combat persistence family, fixture or capability identity differs.'}
+       $o.nativeSchema-ne3-or-not(Test-KmcChunk7NativePairCapacity $o.nativeCapacity)-or-not(Test-KmcExactJsonInteger $o.processId)-or$o.processId-le0){throw 'Native combat persistence family, fixture or capability identity differs.'}
     }
     Assert-KmcChunk7Boolean $o.cold $cold;Assert-KmcChunk7Boolean $o.combatDebtProof $true
     Assert-KmcChunk7Boolean $o.nativeProgressionRequiresExternalWorkingRestoration (-not$owned);Assert-KmcChunk7Boolean $o.ordinaryRespecProven $false

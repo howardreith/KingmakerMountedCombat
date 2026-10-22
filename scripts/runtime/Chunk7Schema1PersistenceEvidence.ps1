@@ -108,7 +108,7 @@ function Assert-KmcChunk7Schema1Observation($Request,$Artifact) {
     if($Artifact.status-cne'PASS'-or$o.checkpoint-cne$Request.persistenceCase-or$o.sourceWorkingSha256-cne$Request.fixture.working.sha256-or
        $o.sourceWorkingSha256-cne'5eb4e0b4cbd8d60dc879a02ff71aadfde3f517304754857f0cc68d0f9a93f1c6'){throw 'Schema-1 native case/fixture identity differs.'}
     Assert-KmcChunk7NativeCounters $o @('nativeSchema','nativeCapacity','processId')
-    if($o.nativeSchema-ne3-or$o.nativeCapacity-ne2-or$o.processId-le0){throw 'Schema-1 deliberate native migration capability differs.'}
+    if($o.nativeSchema-ne3-or-not(Test-KmcChunk7NativePairCapacity $o.nativeCapacity)-or$o.processId-le0){throw 'Schema-1 deliberate native migration capability differs.'}
     foreach($field in @('cold','nativeProgressionRequiresExternalWorkingRestoration')){Assert-KmcChunk7Boolean $o.$field $true}
     foreach($field in @('combatDebtProof','ordinaryRespecProven')){Assert-KmcChunk7Boolean $o.$field $false}
     Assert-KmcExactProperties $old @('SchemaVersion','CampaignId','AreaId','GameTimeTicks','Policy','RulesId','Mounted','ProfileId','Rider','Mount','Slots') 'raw native schema-1 metadata'

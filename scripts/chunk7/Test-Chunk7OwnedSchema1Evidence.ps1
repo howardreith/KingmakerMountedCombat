@@ -21,6 +21,7 @@ function Check([string]$Name,[scriptblock]$Body,[bool]$Reject=$false,[string]$Pa
 function Require([bool]$Value,[string]$Message){if(-not$Value){throw $Message}}
 $fixtures=(Read-KmcJson $FixturePath).fixtures;$source=$fixtures[0];$cold=$fixtures[1]
 foreach($f in $fixtures){Check ('complete generated reader '+$f.name) {Assert-KmcChunk7PersistenceObservation $f.request $f.artifact 'PASS'}}
+foreach($f in $fixtures){Check ('six-capacity preserves generated historical reader '+$f.name) {$v=Copy-Case $f.artifact;$v.observations.nativeCapacity=6;Assert-KmcChunk7PersistenceObservation $f.request $v 'PASS'}}
 function Mutate([string]$Name,[int]$Index,[scriptblock]$Change,[string]$Pattern=''){$v=Copy-Case $fixtures[$Index];&$Change $v;Check $Name {Assert-KmcChunk7PersistenceObservation $v.request $v.artifact 'PASS'} $true $Pattern}
 Mutate 'source second mount is not historical one-owner proof' 0 {$args[0].artifact.observations.inputs+=@($args[0].artifact.observations.inputs[0])} 'exactly one'
 Mutate 'source cannot discard second current owner' 0 {$args[0].artifact.observations.nativeWrite.archive.Pairs+=@($args[0].artifact.observations.nativeWrite.archive.Pairs[0])} 'another owner'

@@ -9,7 +9,8 @@ function Assert-KmcChunk7CurrentMigrationObservation($Request,$Artifact){
  Assert-KmcBootstrapInventoryString $o.checkpoint $Request.persistenceCase
  Assert-KmcBootstrapInventoryString $o.inheritedManualSha256 $s.sourceArchiveSha256
  if($null-ne$o.sourceWorkingSha256){throw 'Current-format inherited input cannot claim Working identity.'}
- foreach($spec in @(@('nativeSchema',3),@('nativeCapacity',2))){Assert-KmcOrdinaryInteger $o.($spec[0]) $spec[1] $spec[1]}
+ Assert-KmcOrdinaryInteger $o.nativeSchema 3 3
+ if(-not(Test-KmcChunk7NativePairCapacity $o.nativeCapacity)){throw 'Native capacity must be the historical two or selected six.'}
  Assert-KmcOrdinaryInteger $o.loadedSourceSchema 3 3
  Assert-KmcOrdinaryInteger $o.processId 1 ([int]::MaxValue);Assert-KmcChunk7Boolean $o.cold $true
  foreach($field in @('ordinaryRespecProven','nativeProgressionRequiresExternalWorkingRestoration')){Assert-KmcChunk7Boolean $o.$field $false}

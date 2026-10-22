@@ -1,5 +1,11 @@
 # Distinct schema-3 native evidence family. Historical one-pair readers are unchanged.
 Set-StrictMode -Version Latest
+# Historical receipts used capacity two; the selected all-pair candidate uses
+# six. This is a capability field, not the number of pairs exercised by a case.
+# Existing case-specific graph, budget and input assertions remain unchanged.
+function Test-KmcChunk7NativePairCapacity($Value){
+    (Test-KmcExactJsonInteger $Value)-and($Value-eq2-or$Value-eq6)
+}
 # JSON value comparison for Chunk 7 evidence only. PowerShell may report wrapped
 # JSON strings/arrays as PSCustomObject, so inspect scalar/array values first.
 function ConvertTo-KmcChunk7Canonical($Value,[int]$Depth=0) {
@@ -185,13 +191,13 @@ function Assert-KmcChunk7PersistenceObservation($Request,$Artifact,[string]$Stat
     $owned=Test-KmcChunk7OwnedPairsScenario $Request.scenario
     if($owned){
         Assert-KmcChunk7InheritedEvidence $Request $o
-        if(-not(Test-KmcChunk7PersistenceScenario (Get-KmcChunk7SelectedScenario $Request))-or$o.checkpoint-isnot[string]-or$o.checkpoint-cne$Request.persistenceCase-or$null-ne$o.sourceWorkingSha256-or$o.nativeSchema-ne3-or$o.nativeCapacity-ne2-or-not(Test-KmcExactJsonInteger $o.processId)-or$o.processId-le0){throw 'Inherited native persistence case or capability differs.'}
+        if(-not(Test-KmcChunk7PersistenceScenario (Get-KmcChunk7SelectedScenario $Request))-or$o.checkpoint-isnot[string]-or$o.checkpoint-cne$Request.persistenceCase-or$null-ne$o.sourceWorkingSha256-or$o.nativeSchema-ne3-or-not(Test-KmcChunk7NativePairCapacity $o.nativeCapacity)-or-not(Test-KmcExactJsonInteger $o.processId)-or$o.processId-le0){throw 'Inherited native persistence case or capability differs.'}
         Assert-KmcBootstrapInventoryString $o.inheritedManualSha256 $Request.ownedPairs.sourceArchiveSha256
     }else{
     if(-not(Test-KmcChunk7PersistenceScenario (Get-KmcChunk7SelectedScenario $Request))-or$Request.persistenceCase-cnotin(Get-KmcChunk7PersistenceCases)-or
        $o.checkpoint-cne$Request.persistenceCase-or$o.sourceWorkingSha256-cne$Request.fixture.working.sha256-or
        $o.sourceWorkingSha256-cne'5eb4e0b4cbd8d60dc879a02ff71aadfde3f517304754857f0cc68d0f9a93f1c6'-or
-       $o.nativeSchema-ne3-or$o.nativeCapacity-ne2-or-not(Test-KmcExactJsonInteger $o.processId)-or$o.processId-le0){throw 'Native persistence family/fixture/capability identity differs.'}
+       $o.nativeSchema-ne3-or-not(Test-KmcChunk7NativePairCapacity $o.nativeCapacity)-or-not(Test-KmcExactJsonInteger $o.processId)-or$o.processId-le0){throw 'Native persistence family/fixture/capability identity differs.'}
     }
     Assert-KmcChunk7Boolean $o.cold $cold
     Assert-KmcChunk7Boolean $o.nativeProgressionRequiresExternalWorkingRestoration (-not$owned)
