@@ -794,7 +794,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (Chunk7AssistedColdInventoryScenario.SupportsScenario(request.Scenario))
                 {
                     assistedColdInventoryEngine = new Chunk7AssistedColdInventoryScenario(request, saveAuthorization, persistenceBootstrap.Authority,
-                        relationship, nativeControls, persistence, fixtureLoader);
+                        relationship, nativeControls, persistence, fixtureLoader, horseCompanion);
                     assistedColdInventoryEngine.BeginBeforeLoad();
                 }
                 if (Chunk7BootstrapInventoryScenario.SupportsScenario(request.Scenario))
