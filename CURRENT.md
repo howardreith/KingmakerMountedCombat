@@ -1,5 +1,14 @@
 # Chunk 7B–7D — IN PROGRESS
 
+The reviewed [batch180 native selector observation](docs/CHUNK7-BATCH180-FOURTH-HORSE-SELECTOR-2026-10-22.md)
+passed game and original outer 5/0 on a separate disposable load of the genuine
+fourth-Horse Manual. Linzi is optional in the opened native selector
+(`MustBeInParty=false`), which establishes a feasible sixth-rider roster route
+but does not perform removal. One load, zero saves, zero roster switches/Go;
+run, save, Mods and profile bytes restored exactly. The fifth paid Horse in
+the open slot, actual sixth selector transition/paid hire, their Manual/cold
+preservation and conditional six-pair stress remain **IN PROGRESS**.
+
 The reviewed [F09 nine-actor source gate](docs/CHUNK7-F09-B179-NINE-ACTOR-ROSTER-ROUTE-2026-10-22.md)
 pins the genuine b178 Manual and b179 original cold PASS without granting
 native fixture authority. Actual-receipt and changed-anchor checks passed 2/0.
