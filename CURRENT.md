@@ -1,12 +1,14 @@
 # Chunk 7B–7D — IN PROGRESS
 
-The [batch184 sixth paid Horse route](docs/CHUNK7-BATCH184-SIXTH-HORSE-MANUAL-2026-10-22.md)
-is implemented and independently reviewed, with focused offline PASS. It
-requires the real Linzi departure before ordinary paid choices on a fresh
-unchanged Manual_307 and writes a distinct Manual_308. Candidate/freeze and
-native Manual/cold qualification remain pending; no batch184 game has launched.
-The final reviewed price correction preserves source readiness and binds
-the hire to the native price observed after the real roster change.
+[Batch184](docs/CHUNK7-BATCH184-SIXTH-HORSE-MANUAL-2026-10-22.md) ran one native
+sixth paid-Horse Manual scenario: game/artifact PASS 7/0, one load/one genuine
+Manual_308, twelve field actors/six characters and exactly remote Linzi. Its
+original outer FAIL remains recorded for a missed external-reader price check.
+The reviewed reader-only correction passed raw-artifact 9/0 and neighboring
+reader 118/0; full immutable re-evaluation is pending. All transactions and
+profile bytes restored exactly, zero cache exceptions, no game/lock. Sixth
+cold continuity, mounted breadth, conditional stress and the wider mission
+remain IN PROGRESS.
 
 [Batch183](docs/CHUNK7-BATCH183-LINZI-NATIVE-DEPARTURE-2026-10-22.md)
 passed the real native Linzi field departure, game 5/0, on the frozen

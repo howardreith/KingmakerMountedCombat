@@ -206,6 +206,7 @@ function Assert-KmcManualDerivedSnapshot($Row,$Identity,[long]$Xp,[long]$Level,[
 }
 function Assert-KmcManualDerivedNativeChoices($Request,$O,$Selection=$null){
  if($null-eq$Selection){$Selection=$Request.manualDerived};$s=$Selection;$paid=Test-KmcManualDerivedPaidCase $s.case;$body=if($paid){Get-KmcManualDerivedPaidBody $s}else{$null};$original=@($O.loadedWorld.party.id)
+ $admittedHireCost=$s.readiness.nativeHireCost;if(Test-KmcManualDerivedSixthHire $s){$admittedHireCost=$O.departureReadiness.nativeHireCost}
     if($o.choices-isnot[Array]-or$o.choices.Count-lt4-or$o.choices.Count-gt1400){throw 'Bounded native ordinary events are missing.'}
     $rows=@($o.choices);$admission=$rows[0]
     foreach($row in $rows){Assert-KmcBootstrapInventoryString $row.runId $Request.runId;if($row.event-isnot[string]){throw 'Native choice event must be a scalar token.'}}
@@ -324,7 +325,7 @@ function Assert-KmcManualDerivedNativeChoices($Request,$O,$Selection=$null){
     if($accepted-lt2-or$accepted-gt512-or$commits-gt20){throw 'Ordinary native choice bounds differ.'}
     if($Request.scenario-ceq'chunk7-manual-derived-acquisition'-or$Request.scenario-ceq'chunk7-cumulative-acquisition'){
      if($null-ne$o.PSObject.Properties['nativeAcquisition']){throw 'Manual acquisition cannot claim an unregistered level-up Auto observer.'}
-     if($paid){Assert-KmcOrdinaryInteger $admission.moneyBefore $s.readiness.money $s.readiness.money;Assert-KmcOrdinaryInteger $admission.nativeCost $s.readiness.nativeHireCost $s.readiness.nativeHireCost;Assert-KmcOrdinaryInteger $xp $s.readiness.defaultHireExperience $s.readiness.defaultHireExperience}
+     if($paid){Assert-KmcOrdinaryInteger $admission.moneyBefore $s.readiness.money $s.readiness.money;Assert-KmcOrdinaryInteger $admission.nativeCost $admittedHireCost $admittedHireCost;Assert-KmcOrdinaryInteger $xp $s.readiness.defaultHireExperience $s.readiness.defaultHireExperience}
      else{Assert-KmcOrdinaryInteger $identity.level $s.existingLevel $s.existingLevel;Assert-KmcOrdinaryInteger $xp $s.existingExperience $s.existingExperience;Assert-KmcOrdinaryInteger $identity.rangerLevel $s.existingRangerLevel $s.existingRangerLevel;Assert-KmcOrdinaryInteger $expectedMoney $s.readiness.money $s.readiness.money}
      return [pscustomobject]@{actorId=$identity.actorId;actorObject=$identity.actorObject;descriptorObject=$identity.descriptorObject;petId=$O.builderComplete.petId;level=$level;xp=$xp;money=$expectedMoney;commits=$commits}
     }
@@ -374,7 +375,7 @@ function Assert-KmcManualDerivedNativeChoices($Request,$O,$Selection=$null){
  Assert-KmcOrdinarySaveDescriptorBinding $probe $o.nativeWrite
  Assert-KmcOrdinaryInteger $o.nativeWrite.completedWritesBefore 0 0
  Assert-KmcOrdinaryInteger $o.nativeWrite.completionSequence 1 1
- if($paid){$cost=$s.readiness.nativeHireCost;if(Test-KmcManualDerivedSixthHire $s){$cost=$O.departureReadiness.nativeHireCost};Assert-KmcOrdinaryInteger $admission.moneyBefore $s.readiness.money $s.readiness.money;Assert-KmcOrdinaryInteger $admission.nativeCost $cost $cost;Assert-KmcOrdinaryInteger $xp $s.readiness.defaultHireExperience $s.readiness.defaultHireExperience}
+ if($paid){Assert-KmcOrdinaryInteger $admission.moneyBefore $s.readiness.money $s.readiness.money;Assert-KmcOrdinaryInteger $admission.nativeCost $admittedHireCost $admittedHireCost;Assert-KmcOrdinaryInteger $xp $s.readiness.defaultHireExperience $s.readiness.defaultHireExperience}
  else{Assert-KmcOrdinaryInteger $identity.level $s.existingLevel $s.existingLevel;Assert-KmcOrdinaryInteger $xp $s.existingExperience $s.existingExperience;Assert-KmcOrdinaryInteger $identity.rangerLevel $s.existingRangerLevel $s.existingRangerLevel;Assert-KmcOrdinaryInteger $expectedMoney $s.readiness.money $s.readiness.money}
  [pscustomobject]@{actorId=$identity.actorId;actorObject=$identity.actorObject;descriptorObject=$identity.descriptorObject;petId=$O.builderComplete.petId;level=$level;xp=$xp;money=$expectedMoney;commits=$commits}
 }

@@ -1,5 +1,60 @@
 # Batch184 — sixth paid Horse Manual — IN PROGRESS
 
+One declared native run completed on source `b6d3b965`, game and artifact
+**PASS 7/0**, one load/one genuine Manual write. It observed the post-departure
+native price 18,000 and once-only paid spend; money changed from 374,879 to
+357,290 including the native 411 starting gold. Rider
+`d8c2f840-9d59-4b5e-9250-c628a36c5589` and Horse
+`130fd1b5-c9f4-4b9f-80de-6980e0d21556` joined the five retained native Horse
+pairs. The final field has twelve actors/six characters; Linzi is exactly
+remote. The native engine wrote `Manual_308_KMC_C7_SIX_HORSE_WORLD.zks`,
+1,332,308 bytes, SHA-256
+`b1e817a60c8bbe35b5947b4eab3b3f35060493ca20873d5de5fdf8a81efbc291`.
+
+The original outer result remains **FAIL**
+`e399ea8aa1533f14a9066f622bda69e1413eb2ac70b6fbed242731d0c36f26a9`.
+Its generic integer-range error came from the Manual branch of the external
+choice reader, which still required the initial 12,500 price. The prelaunch
+reader correction had updated a separate fallback branch but missed that
+early return. A read-only reproduction pinpointed it; the reviewed correction
+now binds one admitted cost for both branches. The full raw-artifact regression
+passed 9/0, including eight negative mutations, and the neighboring reader
+passed 118/0. Full immutable game-result/archive and separate native-loader
+re-evaluations are pending; no original verdict or isolation flag is promoted.
+No new DLL or second game is required for this external-reader correction.
+
+Raw evidence under `runtime-evidence/20261022-c7b-world184-b184s1-sixthhorse-manual`:
+request `de86a7d0f6ab9ec5bb95ae20180958e7fb737e3156e93e8426475f58d8a94f94`,
+game `3a09491d7ed6a770917d991e9655780c3bbb6985017c1bd7f735f6e45bbded03`,
+artifact `0f6aabe42d0aeaf63f60c6912c1a029c0175ebe87806768f1191df23a913fa13`,
+manifest `d41d700d3f3485dc789275a5db3d1bba4e0e4ab8f908b0489ab6935e30c7736f`.
+The ten-file original pin set stayed unchanged through runner exit; its
+private receipt SHA-256 is
+`5a223083cfdb5c96ac04e9d7269b040bbb181c71ae1242b4534465c155ecbf4b`.
+
+All combined, Mods and save transactions report restored, with no restoration
+errors. Current-state Mods digest before/after is
+`b592f4009833072b60604852ad00660a6d236957712b63ae40f28ed1b7f67cda`;
+save inventory before/after is
+`df434471b6f2bb3ade60ecccaa524aa7537e17f63db3d0bcce6d5a7eb70561ab`.
+Working, Baseline protection and write allowlist passed. Profile bytes restored
+exactly with zero accepted cache changes. The wrapper exited 1 on the reader
+failure; no game or active lock remains. No recovery script ran.
+
+Executed frozen preview.94 package: ZIP
+`fa1431afc6cb9c3f8b92d78907e938bb28d8ffb62eb103826093bdddcbad1a38`,
+DLL `64175c597c938decb095677cad170a78e680231c0ae7eb55c36d2216753a64be`,
+MVID `93a12a80-8ea4-43c3-bb38-3983c609d1a2`, manifest
+`7d569b21760bddb12319025fe3b676366d1967e12414d343425c9cd9bde0eb79`.
+Suite `chunk7b-completion-b184-sixthhorse-20261022`, SHA-256
+`8d1972a5804c27d83eb095c068f09bbc0c551dc8e487119eb1cc07f0f7e788b9`,
+was frozen from actual current state after WhatIf; scoped runner WhatIf passed.
+The clean package build compiled the final price correction and passed source
+147/0 and package manifest 11/0. Earlier Candidate 7/0 is pre-correction
+development evidence, as recorded below.
+
+## Prelaunch implementation and checks (history)
+
 The separate sixth-hire route is implemented for the unchanged, cold-qualified
 batch181 Manual_307. It requalifies batch183's native departure evidence while
 retaining that run's original outer FAIL and separate reader-only PASSes. A
@@ -59,8 +114,8 @@ Logs are append-only private evidence under
 `analysis-cache/chunk7-continuation/b184-*.log`. The first installed-contract
 development build passed; pre-price-correction Candidate passed 7/0 in
 4.26 minutes. The price correction has independent review and affected focused
-PASS; its compilation is pending in the clean frozen package build. No
-batch184 native scenario has launched. Before live use: finish Candidate,
+PASS; its compilation was pending in the clean frozen package build. At this
+prelaunch checkpoint no batch184 native scenario had launched. The then-next steps were:
 commit/guarded-push, build one frozen package, freeze a current-state suite,
 and pass the dependency-scoped runner WhatIf. Declare only the sixth paid
 Manual scenario. Preserve and verify every restoration surface afterwards.
