@@ -13,6 +13,28 @@
 > and [implementation chronology](CHUNK7-IMPLEMENTATION-PLAN.md) remain
 > historical where they say 7E is unselected or give stale native caps.
 
+## Current requirement-to-evidence table (October 23; authoritative)
+
+Development evidence ran on identified preview candidates. **Final-candidate
+qualification is a separate status for every row and is not yet run (7E).** Detailed
+history follows below and in the linked records.
+
+| Requirement | Development evidence | Status | Open gap / next |
+| --- | --- | --- | --- |
+| Inherited core, F01–F08 | Candidate-specific native PASSes retained in `CURRENT.md` | Development evidence | 7E matrix on the delivered package |
+| 7B pending-only restoration, schema-2 migration | Batches 41–42, preview.60 (original outer FAIL and reader-only PASS kept separate) | Development PASS | 7E reuse decision |
+| 7B positive cleanup, genuine DLL-absent load | Batch65; batches 66–67 | Development PASS | 7E removal rehearsal |
+| 7B area Auto and cold | Batches 60–61 | Development PASS | 7E reuse decision |
+| 7B ordinary door | No eligible ordinary door in any admitted save (census of every project save; Tomb door is secret) | **OPEN** | [Owner recipe](../docs/CHUNK7-DOOR-OWNER-RECIPE-2026-10-23.md) pending, then probe on that seed |
+| F09 two-pair, profiles | Two-pair combat; Small Halfling/Horse and Medium Horse/Mammoth behavior, Manual and cold | Development PASS | 7E matrix |
+| F09 six-pair | Lifecycle (batches 188, 190); six-mounted Manual and separate cold (batch189) | Development PASS | 7E matrix |
+| F10 progression | [Reconciliation](../docs/CHUNK7-F10-RECONCILIATION-2026-10-23.md): new-character paid CharGen chain, existing campaign, leveling, dismissal, replacement, retraining, cleanup | Development PASS (selected paths) | 7E representative set |
+| F11 measurement, controls | Batches 156–157, 190 timings; [batch191](../docs/CHUNK7-BATCH191-REQUEST-FREE-CONTROLS-2026-10-23.md) request-free controls; [protocol](../docs/CHUNK7-F11-ACCEPTANCE-PROTOCOL-2026-10-23.md) predeclared | Development PASS; acceptance not judged | Final measurement under the protocol in 7E |
+| Unattended six-pair exit | Actual-method tests; [offline full-reader check](../docs/CHUNK7-SIX-PAIR-EXIT-READER-2026-10-22.md) (modeled FAIL artifacts) | Closed at offline scope | No native exit claimed |
+| F12 private 7E | — | TODO | Matrix, final candidate, FULL tier, install/upgrade/rollback/removal, RT/TB sessions, docs |
+
+Explicit exclusions are kept: TB Charge cost-free refusal, RT Charge default-off, the
+deferred defensive feat and class grants (Paladin Divine Steed). HUMAN PLAY stays owner-only.
 The owner requested transfer to Claude after batch187. The
 [current handoff](../docs/CLAUDE-HANDOFF-CHUNK7-BATCH187-2026-10-22.md) records
 a decisive six-pair hierarchy failure, exact restoration and the next repairs.
@@ -292,6 +314,8 @@ and its genuine field Manual/acquired cold chain remain F10 work.
 The [October 21 cumulative Manual checkpoint](../docs/CHUNK7-F10-CUMULATIVE-MANUAL-PREPARATION-2026-10-21.md) repairs the legacy producer source/reader path offline using exact acquired Manual 302 and requested native Manual 303 output. The subsequent [two-owner consumer checkpoint](../docs/CHUNK7-F10-TWO-OWNER-MANUAL303-CONSUMER-2026-10-21.md) closes Manual 303 downstream intake offline. The prelaunch guard, genuine same-candidate producer, full consumer reader/native result and cold continuation remain open under the F10 row. Neither checkpoint alters the original stale Auto failure or current F10 verdict.
 
 [Batch158](../docs/CHUNK7-BATCH158-F10-SOURCE-LINEAGE-2026-10-21.md) adds four actual same-package PASSes for the assisted producer, separate cold, paid Small two-owner Manual 301 and two-owner acquired Manual 302. This **does not** supply the legacy cumulative one-owner Manual 302 source. The already-qualified owner-seed one-owner lineage instead yields acquired Manual 305. The strict 302/303 legacy numbering needs an explicit compatible one-owner route or a genuinely eligible 302 source before the native cumulative and downstream consumer can run. The prelaunch guard stays in force; this updates the F10 dependency without promoting its verdict.
+
+Historical detailed status (superseded by the current table above; kept for its links):
 
 | Requirement | Engineering status and exact evidence/dependency | Next action |
 | --- | --- | --- |
