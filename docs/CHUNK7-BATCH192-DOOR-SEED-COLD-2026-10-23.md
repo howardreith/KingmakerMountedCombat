@@ -1,8 +1,8 @@
-# Chunk 7 batch192: Old Sycamore door seed (cold PASS; door not applicable)
+# Chunk 7 batch192: Old Sycamore door seed (cold PASS; static-cut door click PASS in 192d)
 
-Status: **seed qualified by an isolated cold load; owner-seed exploration PASS with the door
-recorded NOT APPLICABLE.** No door click ran. The 7B ordinary-door row stays **OPEN**. The
-earlier s1 FAIL is preserved below.
+Status: **seed qualified by an isolated cold load (s1r); static-cut door click PASS in batch192d.**
+The 7B ordinary-door row is a development PASS; exact-package qualification is 7E. Preserved below:
+the s1 FAIL, s2's superseded NOT APPLICABLE and batch192c's outer FAIL.
 
 ## Seed
 
@@ -129,8 +129,47 @@ What the record does show:
 explicitly; a source test refuses any bare `JObject.FromObject` in the probe and requires each
 member. `Test-Chunk7WorldEvidence` 252/0, `Test-Chunk7DoorCleanupAdapter` 35/0, Fast 3/0, Release
 build clean.
+## Batch192d: static-cut door click PASS
+
+Candidate `20c4ff91` (explicit outcome serialization, review CLEAR): frozen worktree
+`worktrees/chunk7b-b192d-source-20c4ff91`; package `â€¦c7b-world192d-doorstatic-diagnostic.zip`
+`a6d4678fâ€¦`, 3,670,210 bytes (`Info.json` 329 + DLL 7,932,416 only); manifest `3253d1daâ€¦`; DLL
+`b2acbdebâ€¦`, MVID `b91b23f4-fdcd-461d-8674-fef260161042`; Candidate tier 6/0 (217 s); suite
+`chunk7b-completion-b192d-doorstatic-20261023` `c7f77a4eâ€¦` (save and Mods digests unchanged). The root
+`bin\Release` DLL was `b2acbdebâ€¦` before and after packaging, equal to the package DLL.
+
+**d1 `20261023-c7b-world192d-b192d1-doorstatic-explore`: PASS.** WhatIf PASS, then live (about 2.6
+min). Outer PASS, assertions 9/0; external `Test-RuntimeResult` (current reader) PASS. Result
+`29ede123â€¦`, world evidence `28d4c2b7â€¦`. Mods, save protection, Working and Baseline restored; no
+Kingmaker process and no transaction lock afterwards.
+
+| Item | Pair 0 | Pair 1 |
+| --- | --- | --- |
+| Rider / mount | `73681ef2â€¦` / `a6c7a463â€¦` | `fd213210â€¦` / `75f28eb9â€¦` |
+| Click command / executor | `-121411968` / rider `73681ef2â€¦` | `557385216` / rider `fd213210â€¦` |
+| Distance before / moved | 6.53 m / 4.55 m (radius 2 m) | 9.34 m / 7.38 m |
+| Selection after input | rider B `fd213210â€¦` | rider A `73681ef2â€¦` |
+| Outcome | Success; 1 interaction; 1 delegated move start, 0 delegated ticks; door state changed; rider path suppressed; mount Move slot restored; no terminal reason | the same |
+
+Door `TavernDoor`, `cutMode` static, captured open, enabled, cut enabled, already unlocked; two
+setup closes; the first pair returned through its own mount's command (0.05 m, Success). The cut
+was enabled at all six boundaries (captured open, input-ready-0 closed, after-click-0 open,
+input-ready-1 closed, after-click-1 open, restored open). Restoration exact: open, enabled, cut
+enabled, unlock flag true (observed true before restore).
+
+This is development evidence for the 7B ordinary-door row on a diagnostic candidate: a real
+mounted click on an ordinary door by each pair, with a selection change and exact restoration.
+Exact-package qualification belongs to 7E.
+
+**Known items from the 20c4ff91 review (recorded, not fixed now):**
+- `Chunk7CombatCleanup.cs:40` uses a bare `JObject.FromObject` on a Dictionary.
+- `Chunk7OwnedPairFixture.cs:704` `Key(RuntimeRequest)` uses a bare `FromObject`; `RuntimeRequest`
+  is public, so probably fine, but unverified natively.
+- The empty-shell behaviour was observed for an internal type; the wording elsewhere states it as
+  general.
+- The new source test's regex is narrow (it matches only a single-argument call without nested
+  parentheses).
 ## Next
 
-Decided: static-cut doors qualify (`b113418a`, review CLEAR). Batch192c clicked the door in game
-(game PASS) but its outcome evidence serialized empty. Next: review of the outcome serialization fix,
-a new candidate, and an exploration rerun. The row stays OPEN until a door proof passes the reader.
+Batch192d passed the door proof on the current reader. The 7B ordinary-door row is a development PASS;
+exact-package qualification is part of 7E.
