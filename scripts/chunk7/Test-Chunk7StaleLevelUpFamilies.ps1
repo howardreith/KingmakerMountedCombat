@@ -35,7 +35,7 @@ function Expected([string]$Name,[string]$Site){'Scenario family '+$Name+' is not
 $blocked=[ordered]@{
     'chunk7-ordinary-acquisition'='src/KingmakerMountedCombat/Diagnostics/Chunk7OrdinaryAcquisitionScenario.cs:112 (ObserveCompletedAutosave, :266)'
 }
-$manualReason='Scenario family chunk7-cumulative-acquisition/legacy-manual is not ready: the new Manual_303 completion is awaiting same-candidate native qualification from exact Manual_302 source; preserve the prelaunch guard until that source and review gates are settled.'
+$manualReason='Scenario family chunk7-cumulative-acquisition/legacy-manual is retired and not selected: a one-owner Manual_302 source cannot be produced from the selected paths (batch158); the owner-seed one-owner route Manual_305 to Manual_308 (batches 163-166) replaces it.'
 $progressionSite='src/KingmakerMountedCombat/Diagnostics/Chunk7NativeProgressionSession.cs (legacy ObserveTerminalAutosave)'
 $blockedCases=@('horse-native-level','horse-native-retrain-horse','horse-native-retrain-mammoth')
 $admittedCases=@('horse-native-dismiss','owned-horse-native-dismiss','owned-horse-native-level','owned-horse-native-retrain-horse','owned-horse-native-retrain-mammoth','small-horse-native-dismiss','small-horse-native-retrain-horse','small-horse-native-level','medium-horse-native-retrain-mammoth')

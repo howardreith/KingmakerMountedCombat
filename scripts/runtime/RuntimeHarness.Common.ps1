@@ -66,7 +66,7 @@ Set-StrictMode -Version Latest
 # Native fact: the installed game (2.1.7b) never registers LevelUpAutoSaveController -
 # GameModesFactory builds its controllers explicitly without it - so an ordinary level-up
 # never requests an Auto save and these waits can never complete. None is selected for the
-# current batch; each is NOT READY until its completion contract is repaired (see
+# current batch; each is RETIRED and not selected, replaced by the native-choice Manual routes (see
 # docs/CHUNK7-STALE-LEVELUP-AUTOSAVE-FAMILIES.md). The runner refuses them before any lock,
 # transaction, Mods swap or launch. A null case list means every case of the scenario waits;
 # chunk7-native-progression waits only in the cases that write its terminal autosave.
@@ -81,7 +81,7 @@ function Get-KmcChunk7StaleLevelUpAutosaveFamilies {
 # its closed selection is read) it is not refused here, and the runner asks again with the case.
 function Get-KmcChunk7FamilyNotReadyReason([string]$Scenario,[AllowNull()][string]$ProgressionCase) {
     if($Scenario-ceq'chunk7-cumulative-acquisition'-and$ProgressionCase-ceq'legacy-manual'){
-        return 'Scenario family chunk7-cumulative-acquisition/legacy-manual is not ready: the new Manual_303 completion is awaiting same-candidate native qualification from exact Manual_302 source; preserve the prelaunch guard until that source and review gates are settled.'
+        return 'Scenario family chunk7-cumulative-acquisition/legacy-manual is retired and not selected: a one-owner Manual_302 source cannot be produced from the selected paths (batch158); the owner-seed one-owner route Manual_305 to Manual_308 (batches 163-166) replaces it.'
     }
     foreach($family in @(Get-KmcChunk7StaleLevelUpAutosaveFamilies)){
         if($family.scenario-cne$Scenario){continue}
