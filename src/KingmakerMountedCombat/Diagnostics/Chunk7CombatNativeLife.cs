@@ -186,12 +186,15 @@ namespace KingmakerMountedCombat.Diagnostics
                 "Native damage failed its bounded living window or altered native action expenditure.");
             Pass("C7-life-safe-native-damage");
         }
+        // Owner records keep the registry's "N"-form actor key; actors keep the hyphenated UniqueId.
         private bool HealthyOwnerUnchanged(JObject before, JObject after)
         {
-            var left = ((JArray)before["owners"]).Single(x => (string)x["riderId"] == ar.UniqueId);
-            var right = ((JArray)after["owners"]).Single(x => (string)x["riderId"] == ar.UniqueId);
+            var left = ((JArray)before["owners"]).Single(x => OwnerActorMatch((string)x["riderId"], ar));
+            var right = ((JArray)after["owners"]).Single(x => OwnerActorMatch((string)x["riderId"], ar));
             return (string)left["state"] == "Active" && (string)right["state"] == "Active" && JToken.DeepEquals(left, right);
         }
+        private static bool OwnerActorMatch(string ownerValue, UnitEntityData actor) =>
+            Guid.TryParse(ownerValue, out var owner) && Guid.TryParse(actor.UniqueId, out var id) ? owner == id : ownerValue == actor.UniqueId;
         private JObject LifeState(string label) => new JObject { ["world"] = WorldSnapshot(label), ["rider"] = LifeActor(br),
             ["mount"] = LifeActor(bm), ["healthyRider"] = LifeActor(ar), ["healthyMount"] = LifeActor(am),
             ["pairState"] = b.Relationship.State.ToString(), ["splitReleaseRound"] = SplitReleaseRound(b),
