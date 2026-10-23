@@ -708,27 +708,33 @@ function Assert-KmcChunk7OwnerSeedWorldSetup($Request,$Observations){
  for($i=0;$i-lt2;$i++){$rider=@($o.partyWithHorse|Where-Object id -CEQ $roles[$i*2]);$horse=@($o.partyWithHorse|Where-Object id -CEQ $roles[$i*2+1]);if($rider.Count-ne1-or$horse.Count-ne1-or$rider[0].petId-cne$horse[0].id-or$horse[0].masterId-cne$rider[0].id-or$horse[0].blueprint-cne'4016c7db400ab721ff125aef9e65e202'){throw 'Owner-seed setup Horse reciprocity differs.'}}
  return ,@($roles)
 }
-function Assert-KmcChunk7DoorNotApplicable($Door){
- # The legacy four-field shape predates the scan rows and stays readable for older artifacts;
- # the current shape carries the deciding rows, so a door too close is not read as no door.
+function Assert-KmcChunk7DoorNotApplicable($Door,$Owners,$Movements){
+ # The legacy four-field shape predates the scan rows. It is admitted only for an empty scan
+ # (every retained not-applicable artifact scanned zero doors); any observed door requires
+ # the deciding rows, so a door too close is never read as no door.
  $legacy=$null-eq$Door.PSObject.Properties['rows']
  Assert-KmcExactProperties $Door $(if($legacy){@('applicable','reason','candidatesScanned','radius')}else{@('applicable','reason','candidatesScanned','radius','mounts','truncated','rows')}) 'not-applicable native door'
  Assert-KmcChunk7Boolean $Door.applicable $false
  if($Door.reason-isnot[string]-or[string]::IsNullOrWhiteSpace($Door.reason)-or$Door.reason.Length-gt512){throw 'Not-applicable door lacks its observed reason.'}
  Assert-KmcOrdinaryInteger $Door.candidatesScanned 0 100000
  if(-not(Test-KmcChunk7FiniteNumber $Door.radius)-or[double]$Door.radius-ne28.0){throw 'Not-applicable door scan radius differs from the exact probe radius.'}
- if($legacy){return}
+ if($legacy){if($Door.candidatesScanned-ne0){throw 'A not-applicable door with scanned candidates requires its scan rows.'};return}
  Assert-KmcChunk7Boolean $Door.truncated ($Door.candidatesScanned-gt32)
- if($Door.mounts-isnot[Array]-or$Door.mounts.Count-ne2){throw 'Not-applicable door scan lacks both mounted actor positions.'}
+ # The scan is taken at movement-complete: each mount is its own pair's owner mount, standing
+ # where its own native movement ended.
+ if($Door.mounts-isnot[Array]-or$Door.mounts.Count-ne2-or@($Owners).Count-ne2-or@($Movements).Count-lt2){throw 'Not-applicable door scan lacks both mounted actor positions.'}
  for($i=0;$i-lt2;$i++){
-  Assert-KmcExactProperties $Door.mounts[$i] @('id','position') 'not-applicable door mount'
-  Assert-KmcOrdinaryGuid $Door.mounts[$i].id
-  foreach($axis in @('x','y','z')){if(-not(Test-KmcChunk7FiniteNumber $Door.mounts[$i].position.$axis)){throw 'Not-applicable door mount position is nonfinite.'}}
+  $mount=$Door.mounts[$i];$move=$Movements[$i]
+  Assert-KmcExactProperties $mount @('id','position') 'not-applicable door mount'
+  Assert-KmcOrdinaryGuid $mount.id
+  if($mount.id-cne$move.executorId-or@($Owners|Where-Object{Test-KmcChunk7OwnerActorMatch $_.mountId $mount.id}).Count-ne1){throw 'Not-applicable door scan names another mount.'}
+  foreach($axis in @('x','y','z')){if(-not(Test-KmcChunk7FiniteNumber $mount.position.$axis)){throw 'Not-applicable door mount position is nonfinite.'}}
+  $drift=[Math]::Sqrt([Math]::Pow([double]$mount.position.x-[double]$move.end.x,2)+[Math]::Pow([double]$mount.position.z-[double]$move.end.z,2))
+  if($drift-gt0.5){throw 'Not-applicable door scan was not taken where the pair movement ended.'}
  }
  Assert-KmcChunk7NativeDoorRows $Door.rows $Door.mounts ([int]$Door.candidatesScanned) 'not-applicable door scan' -CurrentOnly
  if(@($Door.rows|Where-Object{$_.eligible}).Count-ne0){throw 'A not-applicable door scan contains a qualifying door.'}
-}
-function Assert-KmcChunk7OwnerSeedCleanup($Cleanup,[bool]$Manual=$false){
+}function Assert-KmcChunk7OwnerSeedCleanup($Cleanup,[bool]$Manual=$false){
  foreach($field in @('pairResidueAbsent','controlsSettled','settingsAndSelectionRestored','nativeProcessesSettled','cleanupCustodySettled','setupCompleted','ownerSeedSetupPetsPreserved','setupStateUnchangedAfterBoundary','setupRetainedInMemoryOnly')){Assert-KmcChunk7Boolean $Cleanup.$field $true}
  foreach($field in @('horseRemoved','inheritedPetsPreserved','nativeProgressionRequiresExternalWorkingRestoration','ordinaryRespecProven')){Assert-KmcChunk7Boolean $Cleanup.$field $false}
  Assert-KmcChunk7Boolean $Cleanup.nativeSaveWritten $Manual

@@ -143,12 +143,13 @@ foreach($mutation in $doorMutations){$copy=Copy-TestValue $good;& $mutation[1] $
 # restoration returns it closed with its active cut and captured unlock flag. The
 # current fixture shape records why ordinary player input could open it.
 function Set-CurrentDoorShape($v){$d=$v.observations.door
- foreach($pair in @(@('interactable',$true),@('availableInteractions',$true),@('revealed',$true),@('hasVisibleTrap',$false),@('trapActive',$false),@('originalAlreadyUnlocked',$false),@('restrictionCount',0),@('hasDialog',$false))){$d.fixture|Add-Member $pair[0] $pair[1] -Force}
+ foreach($pair in @(@('interactable',$true),@('availableInteractions',$true),@('revealed',$true),@('hasVisibleTrap',$false),@('trapActive',$false),@('originalAlreadyUnlocked',$false),@('restrictionCount',0),@('hasDialog',$false),@('dataPresent',$true),@('viewTriggerCount',0),@('viewTriggerActions',$false))){$d.fixture|Add-Member $pair[0] $pair[1] -Force}
  $d.restoration|Add-Member alreadyUnlocked $false -Force}
-function Set-ClosedDoorStart($v){Set-CurrentDoorShape $v;$d=$v.observations.door;$d.setupInteractions=1;$d.fixture.originalOpen=$false;$d.fixture.originalCut=$true;$d.restoration.open=$false;$d.restoration.cutEnabled=$true}
+function Set-ClosedDoorStart($v){Set-CurrentDoorShape $v;$d=$v.observations.door;$d.setupInteractions=1;$d.fixture.originalOpen=$false;$d.fixture.originalCut=$true;$d.fixture.originalEnabled=$true;$d.restoration.open=$false;$d.restoration.cutEnabled=$true;$d.restoration.enabled=$true}
 Check 'door captured closed with one setup close and closed restoration' {$copy=Copy-TestValue $good;Set-ClosedDoorStart $copy;Assert-KmcChunk7WorldEvidence $request $copy 'PASS'}
 Check 'current-shape open door with recorded clickability flags' {$copy=Copy-TestValue $good;Set-CurrentDoorShape $copy;Assert-KmcChunk7WorldEvidence $request $copy 'PASS'}
-Check 'closed door already unlocked behind a restriction' {$copy=Copy-TestValue $good;Set-ClosedDoorStart $copy;$f=$copy.observations.door.fixture;$f.restrictionCount=1;$f.originalAlreadyUnlocked=$true;$copy.observations.door.restoration.alreadyUnlocked=$true;Assert-KmcChunk7WorldEvidence $request $copy 'PASS'}
+Check 'closed door already unlocked without a restriction' {$copy=Copy-TestValue $good;Set-ClosedDoorStart $copy;$copy.observations.door.fixture.originalAlreadyUnlocked=$true;$copy.observations.door.restoration.alreadyUnlocked=$true;Assert-KmcChunk7WorldEvidence $request $copy 'PASS'}
+Check 'closed door with an inert door-view trigger' {$copy=Copy-TestValue $good;Set-ClosedDoorStart $copy;$copy.observations.door.fixture.viewTriggerCount=1;Assert-KmcChunk7WorldEvidence $request $copy 'PASS'}
 $closedDoorMutations=@(
  @('closed door claims two setup closes',{param($v)$v.observations.door.setupInteractions=2}),
  @('closed door claims no setup close',{param($v)$v.observations.door.setupInteractions=0}),
@@ -163,14 +164,43 @@ $closedDoorMutations=@(
  @('closed door with a visible trap',{param($v)$v.observations.door.fixture.hasVisibleTrap=$true}),
  @('closed door with an active trap',{param($v)$v.observations.door.fixture.trapActive=$true}),
  @('closed locked door behind a restriction',{param($v)$v.observations.door.fixture.restrictionCount=1}),
+ @('closed door unlocked behind a restriction',{param($v)$f=$v.observations.door.fixture;$f.restrictionCount=1;$f.originalAlreadyUnlocked=$true;$v.observations.door.restoration.alreadyUnlocked=$true}),
+ @('closed door with door-view trigger actions',{param($v)$v.observations.door.fixture.viewTriggerCount=1;$v.observations.door.fixture.viewTriggerActions=$true}),
+ @('closed door without persistent data',{param($v)$v.observations.door.fixture.dataPresent=$false}),
+ @('closed door start not natively enabled',{param($v)$v.observations.door.fixture.originalEnabled=$false;$v.observations.door.restoration.enabled=$false}),
+ @('closed door without trigger flags',{param($v)$v.observations.door.fixture.PSObject.Properties.Remove('viewTriggerActions')}),
+ @('closed door trigger count as text',{param($v)$v.observations.door.fixture.viewTriggerCount='0'}),
  @('closed dialog door',{param($v)$v.observations.door.fixture.hasDialog=$true}),
  @('closed door flag as text',{param($v)$v.observations.door.fixture.revealed='true'}),
  @('closed door restoration lost the captured unlock flag',{param($v)$v.observations.door.restoration.alreadyUnlocked=$true}),
  @('closed door restoration without the unlock flag',{param($v)$v.observations.door.restoration.PSObject.Properties.Remove('alreadyUnlocked')})
 )
 foreach($mutation in $closedDoorMutations){$copy=Copy-TestValue $good;Set-ClosedDoorStart $copy;& $mutation[1] $copy;Reject $mutation[0] {Assert-KmcChunk7WorldEvidence $request $copy 'PASS'}}
+# The reader's door predicate is the probe's: tie the term lists to DoorFacts by source text.
+function Get-DoorFactsTerms([string]$Property){
+ $source=[IO.File]::ReadAllText((Join-Path $PSScriptRoot '../src/KingmakerMountedCombat/Diagnostics/Chunk7NativeDoorProbe.cs'))
+ $m=[regex]::Match($source,'internal bool '+$Property+' =>([^;]+);')
+ if(-not$m.Success){throw ('DoorFacts.'+$Property+' is missing.')}
+ @(($m.Groups[1].Value-replace'MountDistances\.All\(distance => distance > Radius \+ 0\.5f && distance <= ScanRadius\)','')-split'&&'|ForEach-Object{($_-replace'\s','')}|Where-Object{$_-and$_-notmatch'^\(Open\|\|ClosedClickable\)$'-and$_-notmatch'^MountDistances\.All'}|ForEach-Object{
+  $neg=$_.StartsWith('!');$t=$_.TrimStart('!');$t=$t.Substring(0,1).ToLowerInvariant()+$t.Substring(1);$(if($neg){'!'}else{''})+$t})
+}
+Check 'reader closed-clickable terms equal DoorFacts.ClosedClickable' {
+ $a=@(Get-DoorFactsTerms 'ClosedClickable'|Sort-Object);$b=@(Get-KmcChunk7DoorClosedClickableTerms|Sort-Object)
+ if(($a-join'|')-cne($b-join'|')){throw ('ClosedClickable drifted: '+($a-join','))}}
+Check 'reader gate terms equal DoorFacts.Eligible outside open/clickable and distance' {
+ $source=[IO.File]::ReadAllText((Join-Path $PSScriptRoot '../src/KingmakerMountedCombat/Diagnostics/Chunk7NativeDoorProbe.cs'))
+ if($source-notmatch'\(Open \|\| ClosedClickable\)'-or$source-notmatch'MountDistances\.All\(distance => distance > Radius \+ 0\.5f && distance <= ScanRadius\)'){throw 'Eligible open/clickable or distance clause drifted.'}
+ $a=@(Get-DoorFactsTerms 'Eligible'|Sort-Object);$b=@(Get-KmcChunk7DoorGateTerms|Sort-Object)
+ if(($a-join'|')-cne($b-join'|')){throw ('Eligible drifted: '+($a-join','))}}
+Check 'probe rows and fixture record every reader click field' {
+ $source=[IO.File]::ReadAllText((Join-Path $PSScriptRoot '../src/KingmakerMountedCombat/Diagnostics/Chunk7NativeDoorProbe.cs'))
+ foreach($field in Get-KmcChunk7DoorClickFields){$fixtureField=if($field-ceq'alreadyUnlocked'){'originalAlreadyUnlocked'}else{$field}
+  if($source-notmatch('\["'+$field+'"\] = ')-or$source-notmatch('\["'+$fixtureField+'"\] = ')){throw ('Probe does not record '+$field)}}}
 Reject 'open door with only one setup close' {$copy=Copy-TestValue $good;$copy.observations.door.setupInteractions=1;Assert-KmcChunk7WorldEvidence $request $copy 'PASS'}
-Reject 'current-shape open door restoration lost the unlock flag' {$copy=Copy-TestValue $good;Set-CurrentDoorShape $copy;$copy.observations.door.restoration.alreadyUnlocked=$true;Assert-KmcChunk7WorldEvidence $request $copy 'PASS'}Reject 'open door with an active cut' {$copy=Copy-TestValue $good;$copy.observations.door.fixture.originalCut=$true;$copy.observations.door.restoration.cutEnabled=$true;Assert-KmcChunk7WorldEvidence $request $copy 'PASS'}
+Reject 'current-shape open door behind a restriction' {$copy=Copy-TestValue $good;Set-CurrentDoorShape $copy;$copy.observations.door.fixture.restrictionCount=1;Assert-KmcChunk7WorldEvidence $request $copy 'PASS'}
+Reject 'current-shape open door with door-view trigger actions' {$copy=Copy-TestValue $good;Set-CurrentDoorShape $copy;$copy.observations.door.fixture.viewTriggerActions=$true;Assert-KmcChunk7WorldEvidence $request $copy 'PASS'}
+Reject 'current-shape open door restoration lost the unlock flag' {$copy=Copy-TestValue $good;Set-CurrentDoorShape $copy;$copy.observations.door.restoration.alreadyUnlocked=$true;Assert-KmcChunk7WorldEvidence $request $copy 'PASS'}
+Reject 'open door with an active cut' {$copy=Copy-TestValue $good;$copy.observations.door.fixture.originalCut=$true;$copy.observations.door.restoration.cutEnabled=$true;Assert-KmcChunk7WorldEvidence $request $copy 'PASS'}
 
 $mutations=@(
     @('artifact schema string',{param($v)$v.schemaVersion='1'}),

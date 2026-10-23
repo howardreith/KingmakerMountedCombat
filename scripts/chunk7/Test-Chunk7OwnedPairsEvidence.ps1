@@ -117,7 +117,7 @@ function New-KmcOwnerSeedWorldFixture([bool]$DoorApplicable=$true,[bool]$Autosav
   $doorIds=@(@($o.door.interactions|ForEach-Object{[long]$_.commandObject})+@([long]$o.door.firstPairReturn.command))
   $o.factRemovalAdmission.commands=@($o.factRemovalAdmission.commands|Where-Object{[long]$_.commandObject-notin$doorIds})
   $o.snapshots=@($o.snapshots|Where-Object label -CNE 'door-complete')
-  $o.door=[pscustomobject][ordered]@{applicable=$false;reason='No open StandardDoor with an active-when-closed navmesh cut lies outside both pair interaction radii within the bounded scan radius.';candidatesScanned=3;radius=28.0}
+  $o.door=[pscustomobject][ordered]@{applicable=$false;reason='No open StandardDoor with an active-when-closed navmesh cut lies outside both pair interaction radii within the bounded scan radius.';candidatesScanned=0;radius=28.0}
  }
  $v.name='exploration';Set-KmcOwnerSeedAutosaves $v $Autosave
 }
@@ -203,29 +203,36 @@ Check-OwnerSeed 'owner-seed not-applicable door with a completion window refused
 Check-OwnerSeed 'owner-seed not-applicable door radius must be exact' {$args[0].artifact.observations.door.radius=30.0} $false
 Check-OwnerSeed 'owner-seed not-applicable door cannot claim it was tested' {$args[0].artifact.observations.door.applicable=$true} $false
 Check-OwnerSeed 'owner-seed door with neither proof nor scan refused' {$args[0].artifact.observations.door=$null}
-# Current not-applicable shape: the deciding rows. Two doors: a clickable closed door too close
-# to both mounts, and a far door that is locked behind a restriction.
+# Current not-applicable shape: the deciding rows, taken where each pair's movement ended. Two
+# doors: a clickable closed door too close to both mounts, and a far door behind a restriction.
 function Set-ScannedNotApplicable($v){
- $mounts=@([pscustomobject][ordered]@{id='0f1e2d3c-4b5a-4968-8776-655443322110';position=[pscustomobject]@{x=0.0;y=0.0;z=0.0}},[pscustomobject][ordered]@{id='1f1e2d3c-4b5a-4968-8776-655443322110';position=[pscustomobject]@{x=2.0;y=0.0;z=0.0}})
- function DoorRow($name,$x,$open,$unlocked,$restrictions){
-  $d=@([Math]::Abs($x),[Math]::Abs($x-2.0))
-  $clickable=Test-KmcChunk7DoorClosedClickable $true $true $true $false $false $unlocked $restrictions $false
-  $eligible=($open-or$clickable)-and@($d|Where-Object{$_-le4.5-or$_-gt28.0}).Count-eq0
-  [pscustomobject][ordered]@{name=$name;position=[pscustomobject]@{x=[double]$x;y=0.0;z=0.0};active=$true;open=$open;disableCutWhenOpen=$true;cutPresent=$true;proximityRadius=4.0;mountDistances=@([double]$d[0],[double]$d[1]);
-   interactable=$true;availableInteractions=$true;revealed=$true;hasVisibleTrap=$false;trapActive=$false;alreadyUnlocked=$unlocked;restrictionCount=$restrictions;hasDialog=$false;eligible=$eligible}
+ $o=$v.artifact.observations
+ $mounts=@(for($i=0;$i-lt2;$i++){[pscustomobject][ordered]@{id=$o.movements[$i].executorId;position=[pscustomobject]@{x=[double]$o.movements[$i].end.x;y=[double]$o.movements[$i].end.y;z=[double]$o.movements[$i].end.z}}})
+ function DoorRow($name,$dx,$open,$restrictions){
+  $p=[pscustomobject]@{x=[double]$mounts[0].position.x+$dx;y=0.0;z=[double]$mounts[0].position.z}
+  $d=@($mounts|ForEach-Object{[Math]::Sqrt([Math]::Pow([double]$_.position.x-$p.x,2)+[Math]::Pow([double]$_.position.z-$p.z,2))})
+  $row=[pscustomobject][ordered]@{name=$name;position=$p;active=$true;open=$open;disableCutWhenOpen=$true;cutPresent=$true;proximityRadius=4.0;mountDistances=@([double]$d[0],[double]$d[1]);
+   interactable=$true;availableInteractions=$true;revealed=$true;hasVisibleTrap=$false;trapActive=$false;alreadyUnlocked=$false;restrictionCount=$restrictions;hasDialog=$false;
+   dataPresent=$true;viewTriggerCount=0;viewTriggerActions=$false;eligible=$false}
+  $row.eligible=(Test-KmcChunk7DoorGate $row)-and($open-or(Test-KmcChunk7DoorClosedClickable $row))-and@($d|Where-Object{$_-le4.5-or$_-gt28.0}).Count-eq0
+  $row
  }
- $v.artifact.observations.door=[pscustomobject][ordered]@{applicable=$false;reason='No open or player-clickable closed StandardDoor lies within bounds.';candidatesScanned=2;radius=28.0;mounts=$mounts;truncated=$false;
-  rows=@((DoorRow 'close door' 3.0 $false $true 0),(DoorRow 'locked door' 12.0 $false $false 1))}
+ $rows=@((DoorRow 'close door' 1.0 $false 0),(DoorRow 'restricted door' 30.0 $false 1))
+ $rows=@($rows|Sort-Object {[double]$_.mountDistances[0]+[double]$_.mountDistances[1]})
+ $o.door=[pscustomobject][ordered]@{applicable=$false;reason='No open or player-clickable closed StandardDoor lies within bounds.';candidatesScanned=2;radius=28.0;mounts=$mounts;truncated=$false;rows=$rows}
 }
 Check 'owner-seed not-applicable scan distinguishes a too-close door from no door' {$v=New-KmcOwnerSeedWorldFixture $false;Set-ScannedNotApplicable $v;Assert-KmcChunk7WorldEvidence $v.request $v.artifact 'PASS'}
-Check-OwnerSeed 'not-applicable scan with a qualifying unlocked far door refused' {Set-ScannedNotApplicable $args[0];$r=$args[0].artifact.observations.door.rows[1];$r.alreadyUnlocked=$true;$r.eligible=$true} $false 'qualifying door'
-Check-OwnerSeed 'not-applicable scan hiding eligibility refused' {Set-ScannedNotApplicable $args[0];$args[0].artifact.observations.door.rows[1].alreadyUnlocked=$true} $false
+Check-OwnerSeed 'not-applicable scan with a qualifying door refused' {Set-ScannedNotApplicable $args[0];$r=@($args[0].artifact.observations.door.rows|Where-Object name -CEQ 'restricted door')[0];$r.restrictionCount=0;$r.position.x=[double]$args[0].artifact.observations.door.mounts[0].position.x+12.0;$m=$args[0].artifact.observations.door.mounts;$r.mountDistances=@(@($m|ForEach-Object{[Math]::Sqrt([Math]::Pow([double]$_.position.x-$r.position.x,2)+[Math]::Pow([double]$_.position.z-$r.position.z,2))}));$r.eligible=$true;$args[0].artifact.observations.door.rows=@($args[0].artifact.observations.door.rows|Sort-Object {[double]$_.mountDistances[0]+[double]$_.mountDistances[1]})} $false 'qualifying door'
+Check-OwnerSeed 'not-applicable scan hiding a restriction gate result refused' {Set-ScannedNotApplicable $args[0];@($args[0].artifact.observations.door.rows|Where-Object name -CEQ 'close door')[0].eligible=$true} $false
 Check-OwnerSeed 'not-applicable scan row without clickability flags refused' {Set-ScannedNotApplicable $args[0];$args[0].artifact.observations.door.rows[0].PSObject.Properties.Remove('revealed')} $false
+Check-OwnerSeed 'not-applicable scan row without trigger flags refused' {Set-ScannedNotApplicable $args[0];$args[0].artifact.observations.door.rows[0].PSObject.Properties.Remove('viewTriggerActions')} $false
 Check-OwnerSeed 'not-applicable scan missing a row refused' {Set-ScannedNotApplicable $args[0];$args[0].artifact.observations.door.rows=@($args[0].artifact.observations.door.rows[0])} $false
-Check-OwnerSeed 'not-applicable scan distances off mount geometry refused' {Set-ScannedNotApplicable $args[0];$args[0].artifact.observations.door.mounts[0].position.x=1.0} $false
+Check-OwnerSeed 'not-applicable scan distances off mount geometry refused' {Set-ScannedNotApplicable $args[0];$args[0].artifact.observations.door.rows[0].mountDistances[0]+=1.0} $false
+Check-OwnerSeed 'not-applicable scan away from the movement end refused' {Set-ScannedNotApplicable $args[0];$d=$args[0].artifact.observations.door;foreach($r in $d.rows){$r.position.x+=2.0};$d.mounts[0].position.x+=2.0;$d.mounts[1].position.x+=2.0} $false 'movement ended'
+Check-OwnerSeed 'not-applicable scan naming another mount refused' {Set-ScannedNotApplicable $args[0];$d=$args[0].artifact.observations.door;$t=$d.mounts[0].id;$d.mounts[0].id=$d.mounts[1].id;$d.mounts[1].id=$t} $false 'another mount'
 Check-OwnerSeed 'not-applicable scan without mounts refused' {Set-ScannedNotApplicable $args[0];$args[0].artifact.observations.door.PSObject.Properties.Remove('mounts')} $false
 Check-OwnerSeed 'not-applicable scan truncation flag inconsistent refused' {Set-ScannedNotApplicable $args[0];$args[0].artifact.observations.door.truncated=$true} $false
-Check 'not-applicable door refused for the producer exploration kind' {$v=Copy-Value @($fixtures|Where-Object name -CEQ 'exploration')[0];$v.artifact.observations.door=[pscustomobject][ordered]@{applicable=$false;reason='none';candidatesScanned=0;radius=28.0};Invoke-OwnedReader $v} $true 'only for owner-seed'
+Check-OwnerSeed 'legacy not-applicable shape with scanned candidates refused' {$args[0].artifact.observations.door.candidatesScanned=3} $false 'requires its scan rows'Check 'not-applicable door refused for the producer exploration kind' {$v=Copy-Value @($fixtures|Where-Object name -CEQ 'exploration')[0];$v.artifact.observations.door=[pscustomobject][ordered]@{applicable=$false;reason='none';candidatesScanned=0;radius=28.0};Invoke-OwnedReader $v} $true 'only for owner-seed'
 # Owner-seed-derived persistence. Producer: the unchanged disclosed setup and two native Mounts,
 # then one native Manual whose read-back graph matches the live runtime at its save boundary.
 # The producer disclosure, pinned here independently of the reader under test.
