@@ -5,6 +5,8 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using Kingmaker;
 using Kingmaker.Controllers.Clicks.Handlers;
+using Kingmaker.Designers.EventConditionActionSystem.Events;
+using Kingmaker.ElementsSystem;
 using Kingmaker.EntitySystem.Entities;
 using Kingmaker.EntitySystem.Persistence;
 using Kingmaker.UI.Selection;
@@ -37,6 +39,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private NavmeshCut cut;
         private object doorObject, doorTransform;
         private bool captured, originalEnabled, originalOpen, originalCut, originalAlreadyUnlocked, restored;
+        private int originalRestrictionCount = -1;
         private int stage, pairIndex, settledFrame = -1;
         private double stageStarted;
         private Vector3 firstStart, interactionStart;
@@ -71,10 +74,12 @@ namespace KingmakerMountedCombat.Diagnostics
             doorObject = door.gameObject; doorTransform = door.transform;
             var facts = DoorFacts.Capture(door, mounts);
             originalEnabled = door.Enabled; originalOpen = door.GetState(); originalCut = cut.enabled;
-            originalAlreadyUnlocked = facts.AlreadyUnlocked; captured = true;
+            originalAlreadyUnlocked = facts.AlreadyUnlocked; originalRestrictionCount = facts.RestrictionCount; captured = true;
             // An open door has its cut disabled; a closed door keeps it active.
             Require(originalCut != originalOpen, "Door navmesh cut does not match its native open state.");
             Require(facts.Eligible, "Captured door no longer satisfies the qualifying-door predicate.");
+            // CanInteract reads Enabled: a closed start is clickable only while natively enabled.
+            Require(originalOpen || originalEnabled, "A closed door start must be natively enabled.");
             evidence["fixture"] = new JObject { ["name"] = door.name, ["object"] = Id(door),
                 ["position"] = Point(door.transform.position), ["originalOpen"] = originalOpen,
                 ["originalEnabled"] = originalEnabled, ["originalCut"] = originalCut,
@@ -82,7 +87,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["interactable"] = facts.Interactable, ["availableInteractions"] = facts.AvailableInteractions,
                 ["revealed"] = facts.Revealed, ["hasVisibleTrap"] = facts.HasVisibleTrap, ["trapActive"] = facts.TrapActive,
                 ["originalAlreadyUnlocked"] = facts.AlreadyUnlocked, ["restrictionCount"] = facts.RestrictionCount,
-                ["hasDialog"] = facts.HasDialog };
+                ["hasDialog"] = facts.HasDialog, ["dataPresent"] = facts.DataPresent,
+                ["viewTriggerCount"] = facts.ViewTriggerCount, ["viewTriggerActions"] = facts.ViewTriggerActions };
             firstStart = mounts[0].Position;
             // A closed door is already in its input state; only an open one is closed as setup.
             if (originalOpen) CloseForInput();
@@ -91,7 +97,8 @@ namespace KingmakerMountedCombat.Diagnostics
 
         // The exact qualifying-door query Begin uses, as a read-only bounded scan: no
         // door is acquired, closed or changed. Applicability is decided only from it.
-        // An open door is preferred; a closed door must be one a player could click.
+        // An open door is preferred; a closed door must be one a player could click. Every door
+        // must be unrestricted and carry no door-view trigger actions (see DoorFacts).
         internal const float ScanRadius = 28f;
         internal static StandardDoor FindQualifyingDoor(UnitEntityData[] mounts, out int candidatesScanned)
         {
@@ -108,20 +115,31 @@ namespace KingmakerMountedCombat.Diagnostics
         private sealed class DoorFacts
         {
             internal bool Active, Open, DisableCutWhenOpen, CutPresent, Interactable, AvailableInteractions,
-                Revealed, HasVisibleTrap, TrapActive, AlreadyUnlocked, HasDialog;
-            internal int RestrictionCount;
+                Revealed, HasVisibleTrap, TrapActive, AlreadyUnlocked, HasDialog, DataPresent, ViewTriggerActions;
+            internal int RestrictionCount, ViewTriggerCount;
             internal float Radius;
             internal float[] MountDistances;
             // A closed door must be one ordinary player input could open: clickable, revealed,
-            // untrapped, unrestricted (or already unlocked) and not a dialog object.
+            // untrapped and not a dialog object.
             internal bool ClosedClickable => Interactable && AvailableInteractions && Revealed && !HasVisibleTrap &&
-                !TrapActive && (AlreadyUnlocked || RestrictionCount == 0) && !HasDialog;
-            internal bool Eligible => Active && DisableCutWhenOpen && CutPresent && (Open || ClosedClickable) &&
+                !TrapActive && !HasDialog;
+            // Every door, open or closed, must carry no InteractionRestriction (so restoring the
+            // AlreadyUnlocked flag that native interaction sets has no behavioural effect) and no
+            // DoorInteractionViewTrigger open/close/restricted actions (the probe must not run
+            // designer actions). Blueprint-level Generic/Device interaction triggers and the
+            // private after-interaction callback are not publicly readable; that residual risk
+            // is recorded in the door documentation.
+            internal bool Eligible => Active && DataPresent && DisableCutWhenOpen && CutPresent && RestrictionCount == 0 &&
+                !ViewTriggerActions && (Open || ClosedClickable) &&
                 MountDistances.All(distance => distance > Radius + 0.5f && distance <= ScanRadius);
 
             internal static DoorFacts Capture(StandardDoor door, UnitEntityData[] mounts)
             {
                 var view = door.MapObject; var trap = door.Trap; var data = ((InteractionComponent)door).Data;
+                // The door and its whole map object, so a restriction or trigger on a sibling counts.
+                var roots = view != null && view.gameObject != door.gameObject ? new[] { door.gameObject, view.gameObject } : new[] { door.gameObject };
+                var restrictions = roots.SelectMany(r => r.GetComponentsInChildren<InteractionRestriction>(true)).Distinct().Count();
+                var triggers = roots.SelectMany(r => r.GetComponentsInChildren<DoorInteractionViewTrigger>(true)).Distinct().ToArray();
                 return new DoorFacts
                 {
                     Active = door.isActiveAndEnabled && door.gameObject.activeInHierarchy, Open = door.GetState(),
@@ -129,12 +147,15 @@ namespace KingmakerMountedCombat.Diagnostics
                     Interactable = door.CanInteract(), AvailableInteractions = ClickMapObjectHandler.HasAvailableInteractions(door.gameObject),
                     Revealed = view != null && view.Data != null && view.Data.IsRevealed,
                     HasVisibleTrap = door.HasVisibleTrap(), TrapActive = trap != null && trap.TrapActive,
-                    AlreadyUnlocked = data != null && data.AlreadyUnlocked,
-                    RestrictionCount = door.GetComponentsInChildren<InteractionRestriction>(true).Length,
+                    DataPresent = data != null, AlreadyUnlocked = data != null && data.AlreadyUnlocked,
+                    RestrictionCount = restrictions, ViewTriggerCount = triggers.Length,
+                    ViewTriggerActions = triggers.Any(t => HasActions(t.OpenActions) || HasActions(t.CloseActions) || HasActions(t.RestrictedActions)),
                     HasDialog = door.Dialog != null, Radius = Chunk7NativeDoorProbe.Radius(door),
                     MountDistances = mounts.Select(m => Distance(m.Position, door.transform.position)).ToArray()
                 };
             }
+
+            private static bool HasActions(ActionsHolder holder) => holder != null && holder.Actions != null && holder.Actions.HasActions;
 
             internal JObject Row(StandardDoor door) => new JObject { ["name"] = door.name, ["position"] = Point(door.transform.position),
                 ["active"] = Active, ["open"] = Open, ["disableCutWhenOpen"] = DisableCutWhenOpen,
@@ -142,7 +163,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["mountDistances"] = new JArray(MountDistances[0], MountDistances[1]),
                 ["interactable"] = Interactable, ["availableInteractions"] = AvailableInteractions, ["revealed"] = Revealed,
                 ["hasVisibleTrap"] = HasVisibleTrap, ["trapActive"] = TrapActive, ["alreadyUnlocked"] = AlreadyUnlocked,
-                ["restrictionCount"] = RestrictionCount, ["hasDialog"] = HasDialog, ["eligible"] = Eligible };
+                ["restrictionCount"] = RestrictionCount, ["hasDialog"] = HasDialog, ["dataPresent"] = DataPresent,
+                ["viewTriggerCount"] = ViewTriggerCount, ["viewTriggerActions"] = ViewTriggerActions, ["eligible"] = Eligible };
         }
 
         // Nearest-first bounded rows of every present door, by the same predicate.
@@ -303,9 +325,11 @@ namespace KingmakerMountedCombat.Diagnostics
             if (door.GetState() != originalOpen) { door.Open(); settledFrame = -1; }
             if (!Settled(originalOpen)) return false;
             door.Enabled = originalEnabled;
-            // Native interaction marks an unrestricted door AlreadyUnlocked; return the captured value.
+            // Native interaction marks an unrestricted door AlreadyUnlocked (CheckRestrictions). The
+            // flag is read only behind a restriction, so it is written back only for a door captured
+            // with none; any other door was never admitted.
             var data = door.Data;
-            Require(data != null, "Native door persistent data is unavailable for restoration.");
+            Require(data != null && originalRestrictionCount == 0, "Native door unlock state is not restorable without a behavioural effect.");
             data.AlreadyUnlocked = originalAlreadyUnlocked;
             Require(door.GetState() == originalOpen && door.Enabled == originalEnabled && cut.enabled == originalCut &&
                 data.AlreadyUnlocked == originalAlreadyUnlocked,

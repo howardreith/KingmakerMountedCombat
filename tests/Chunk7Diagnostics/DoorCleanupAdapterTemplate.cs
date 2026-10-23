@@ -13,7 +13,7 @@ internal sealed class DoorData {public bool AlreadyUnlocked;}
 internal sealed class Door {public bool open,Enabled,throwOnOpen,refuseOpen,dataMissing;public int opens;public DoorData data=new DoorData();public DoorData Data=>dataMissing?null:data;public bool GetState()=>open;public void Open(){opens++;if(throwOnOpen)throw new InvalidOperationException("open");if(!refuseOpen)open=!open;}}
 internal sealed class Cut {public bool enabled;}
 internal sealed class Adapter {
- public Scope scope=new Scope();public World world=new World();public List<Command> commands=new List<Command>();public bool captured=true,restored,originalOpen=true,originalEnabled=false,originalCut=false,originalAlreadyUnlocked=false,doorValid=true,settled=true;
+ public Scope scope=new Scope();public World world=new World();public List<Command> commands=new List<Command>();public bool captured=true,restored,originalOpen=true,originalEnabled=false,originalCut=false,originalAlreadyUnlocked=false,doorValid=true,settled=true;public int originalRestrictionCount=0;
  public int settledFrame,doorChecks;public Door door=new Door{open=true,Enabled=true};public Cut cut=new Cut();public JObject evidence=new JObject();
  private void RequireDoor(){doorChecks++;if(!doorValid)throw new InvalidOperationException("foreign-door");}
  private bool Settled(bool open)=>settled&&door.open==open&&cut.enabled!=open;
@@ -55,6 +55,7 @@ internal static class Program {
  a=New();a.originalOpen=false;a.originalCut=true;a.door.open=true;a.door.refuseOpen=true;Check(!a.Drain()&&!a.Drain()&&a.door.open&&!a.restored&&a.evidence["restoration"]==null,"refused native toggle never claims restoration");
  a=New();a.originalAlreadyUnlocked=false;a.door.data.AlreadyUnlocked=true;Check(a.Drain()&&a.restored&&!a.door.data.AlreadyUnlocked,"interaction unlock residue returns to its captured value");
  a=New();a.originalAlreadyUnlocked=true;a.door.data.AlreadyUnlocked=true;Check(a.Drain()&&a.door.data.AlreadyUnlocked,"captured unlocked door stays unlocked");
+ a=New();a.originalRestrictionCount=1;a.door.data.AlreadyUnlocked=true;Check(Throws(()=>a.Drain())&&a.door.data.AlreadyUnlocked&&!a.restored&&a.evidence["restoration"]==null,"restricted door unlock flag is never written");
  a=New();a.door.dataMissing=true;Check(Throws(()=>a.Drain())&&!a.restored&&a.evidence["restoration"]==null,"missing persistent data refuses an unchecked restoration claim");
  Console.WriteLine("TOTAL PASS="+passed+" FAIL=0");return 0;
  }catch(Exception e){Console.Error.WriteLine(e);return 1;}}

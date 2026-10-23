@@ -131,40 +131,63 @@ An isolated native cold load is still required.
 
 **Closed-door start (product change, needs review and a new candidate).** `Chunk7NativeDoorProbe`
 now also qualifies a closed door, preferring an open door when both exist. One predicate decides
-the probe, the area inventory and the not-applicable scan. A closed door must be one an ordinary
-player click could open:
+the probe, the area inventory and the not-applicable scan.
+
+Every door, open or closed, must meet all of these (decision of the 2b69eea4 re-review):
+- persistent data present;
+- no `InteractionRestriction` on the door or anywhere in its map object, children included;
+- no `DoorInteractionViewTrigger` with non-empty `OpenActions`, `CloseActions` or
+  `RestrictedActions`. These are public `ActionsHolder` fields; the check uses
+  `Actions.HasActions`.
+
+A closed door must also be one an ordinary player click could open:
 - `CanInteract()` and `ClickMapObjectHandler.HasAvailableInteractions`;
 - revealed (`MapObject.Data.IsRevealed`);
 - no visible or active trap;
-- already unlocked, or no `InteractionRestriction` component;
-- no dialog.
+- no dialog;
+- natively enabled (`originalEnabled = true`).
 
-Each member was confirmed by single-type metadata on the installed 2.1.7b assemblies. The fixture
-records `interactable`, `availableInteractions`, `revealed`, `hasVisibleTrap`, `trapActive`,
-`originalAlreadyUnlocked`, `restrictionCount` and `hasDialog`, and the reader requires a clickable
-closed start.
+Each member was confirmed by a single-type member listing of the installed 2.1.7b assemblies.
+The fixture and every scan row record these flags, and the readers require them:
+`interactable`, `availableInteractions`, `revealed`, `hasVisibleTrap`, `trapActive`,
+`(original)AlreadyUnlocked`, `restrictionCount`, `hasDialog`, `dataPresent`, `viewTriggerCount`,
+`viewTriggerActions`. A source-text test ties the reader's term lists to
+`DoorFacts.ClosedClickable` and `DoorFacts.Eligible`.
+
+**Residual risk (not publicly readable).** Two kinds of interaction hook cannot be ruled out:
+- `GenericInteractionTrigger` and `DeviceInteractionTrigger` are blueprint
+  `GameLogicComponent`s that react to any interaction with a referenced map object, and they are
+  not attached to the door;
+- `InteractionComponent.m_AfterInteractionCallback` is private, with no public accessor.
+
+A door with such a hook would run designer actions when clicked. The native run's own logs and
+world evidence are the check for this.
 
 A door captured closed:
 - needs no setup close before the first input;
 - is closed again by setup only before the second input (`setupInteractions = 1`);
 - has an active cut while closed (`originalCut = !originalOpen`);
-- is restored through `StandardDoor.Open`, which toggles the native state.
+- is restored through `StandardDoor.Open`, which toggles the native state. `Open` is what
+  `OnInteract` calls; it needs no rider, no restriction check and no out-of-combat state.
 
-`Open` is what `OnInteract` calls. It needs no rider, no restriction check and no
-out-of-combat state.
+Native interaction marks the door `AlreadyUnlocked` (`CheckRestrictions`). The flag is read
+only behind a restriction. Restoration writes back the captured value only for a door captured
+with no restriction, which is the only kind admitted, so the write has no behavioural effect.
+The restoration evidence records the flag.
 
-Native interaction marks an unrestricted door `AlreadyUnlocked` (`CheckRestrictions`).
-Restoration returns that flag to its captured value and records it.
+The not-applicable record carries the two mounts and the nearest 32 scan rows:
+- each mount is tied to its owner's mount ID and to its own movement end, within 0.5 m;
+- the rows distinguish a door too close to the pairs from no door at all;
+- the legacy four-field record is admitted only when it scanned zero doors, which is true of
+  all ten retained not-applicable artifacts (including `20261017-c7b-world22-ownerseed-b2s4-twopair`).
 
-The not-applicable record now carries the mount positions and the nearest 32 scan rows, so a
-door too close to the pairs is distinguishable from no door. Older artifacts keep their earlier
-shapes, which are admitted only for an open start.
+The legacy fixture shape is admitted only for an open start.
 **Open risks the native run decides.**
 - *Distance.* The party was saved right in front of the door. Both mounts must start more
   than the interaction radius + 0.5 m and at most 28 m from the door. If they are too close,
   the scan rows show it, and the owner is asked to re-save with the party 8–20 m from the door.
   No walk-back move is added.
-- *Locks.* Door `c40b33b4…` has never been unlocked. It qualifies only if it has no
-  restriction component; a locked door is excluded rather than tried.
+- *Locks.* Door `c40b33b4…` has never been unlocked. No door with any restriction
+  component qualifies, so a locked door is excluded rather than tried.
 - *Suite.* The owner's save folder gained new saves, so the qualification suite snapshot must
   be refreshed together with the new candidate.
