@@ -43,6 +43,25 @@ ordinary manual save (any name starting `KMC_C7_DOOR_`) without opening anything
 arranging the party. A zero-launch read of each save tells which location has an
 ordinary `StandardDoor`, and only that location then needs the steps below.
 
+## Attempt 2 (2026-10-23): census PASS, native qualification pending
+
+The owner re-saved `Manual_305_KMC_C7_DOOR_SEED.zks` (SHA-256 `2f55b3e4…bd7210`, 4,067,560
+bytes) in the Old Sycamore (area `fb4cffc2…`), in front of the door by Chief Sootscale's
+lair, with the nearby enemies dead. A zero-launch read finds:
+
+| Door | Open | Enabled | Revealed | Lock |
+| --- | --- | --- | --- | --- |
+| `3d9a8eff…` | no | yes | yes | already unlocked |
+| `c40b33b4…` | no | yes | yes | not unlocked |
+| `2e0b98fa…` | no | **no** | no | — (disabled, not a candidate) |
+
+Two ordinary, revealed, enabled `StandardDoor` records exist, and the archive has zero
+KMC or observer references. Both doors are **closed**, so the probe needs the closed-door
+start (open by the mounted click, restore closed). Door-to-pair distances are not stored
+in the save; the probe's read-only native inventory decides them. A read-only master copy
+is frozen at `fixtures/owner-supplied/KMC_C7_DOOR_SEED_OLD_SYCAMORE.master.zks` (same hash).
+The owner's save is not written. The row stays OPEN until the native probe passes.
+
 ## Recipe (about 15–30 minutes of ordinary play)
 
 **Preparation**
