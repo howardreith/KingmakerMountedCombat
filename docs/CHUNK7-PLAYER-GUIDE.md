@@ -4,7 +4,9 @@ Status: IN PROGRESS. Use the exact candidate and qualified behavior table in the
 final engineering handoff; native breadth and owner play acceptance are pending.
 This guide does not authorize installation into a human campaign.
 
-The current private implementation admits at most two mounted pairs. Its declared
+The current private implementation admits up to six mounted pairs. Ordinary two-pair
+combat is the qualified play breadth; six pairs are qualified for exploration lifecycle,
+Manual save and cold restore, not for six-pair combat. Its declared
 profiles are eligible Medium riders on the KMC Horse or supported native Mammoth,
 plus one exact Small profile: the stock default **male Halfling on the KMC Horse**
 (`small-default-halfling-horse-v1`). The Small rider must retain the measured
@@ -52,6 +54,13 @@ all admitted pair and actor obligations; valid historical schema-1/2 data uses t
 explicit migration adapter. Unknown or invalid data remains non-restoring and is
 preserved when safe. Keep pre-migration saves and the earlier package for rollback;
 old binaries are not certified to resume new-format gameplay.
+
+Progression and the mounted pair:
+- Leveling keeps a mounted pair.
+- Dismissing the companion, retraining the Horse or replacing it (for example a Mammoth at
+  companion rank 7) retires that pair; mount the new companion again.
+- KMC's Mount and Dismount abilities are not placed on the action bar automatically. Find
+  them in the character's ability list and place them where you want them.
 
 Before removing KMC, use its clean-save preparation flow. A campaign containing a
 KMC Horse still requires the mod. Permanent installation, release rehearsal and

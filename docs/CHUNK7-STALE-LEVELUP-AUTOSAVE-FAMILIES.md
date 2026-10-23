@@ -1,5 +1,11 @@
 # Chunk 7 stale level-up autosave families
 
+> **October 23 disposition:** every family and case below is **RETIRED and not selected**, and
+> its prelaunch refusal remains. The selected F10 behaviors are covered by native-choice Manual
+> routes; see the [F10 reconciliation](CHUNK7-F10-RECONCILIATION-2026-10-23.md). The legacy
+> cumulative 302→303 mode is replaced by the owner-seed one-owner route 305→308 (b163–166).
+> The status text below is the earlier "not ready" record.
+
 Status: the families and cases in the blocked table are **NOT READY**. The
 assisted new-campaign fixture and the cumulative legacy source mode now have
 native Manual completion paths. The cumulative legacy source mode is separately
