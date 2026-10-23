@@ -1,6 +1,21 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
-## Active October 22 — Claude after SHOULD-FIX 3
+## Active October 23 — Claude after batch191
+
+Read the [batch191 record](docs/CHUNK7-BATCH191-REQUEST-FREE-CONTROLS-2026-10-23.md). The request-free
+normal-player control passed natively (s2) with exact restoration; s1 is a preserved FAIL whose
+Params were restored by the guarded profile recovery. No Kingmaker process, lock or pending
+recovery remains.
+
+Next uncompleted action:
+1. Reconcile one concise requirement-to-evidence table (correct stale entries).
+2. F10: define the missing representative behaviour gaps and close them.
+3. Doors: one ordinary-door destination route (bounded native preparation, or one exact owner recipe).
+4. F11 acceptance protocol on the final candidate, then private 7E.
+
+No merge, release, permanent installation or HUMAN PLAY acceptance.
+
+## Historical October 22 — Claude after SHOULD-FIX 3
 
 Read the [six-pair exit reader record](docs/CHUNK7-SIX-PAIR-EXIT-READER-2026-10-22.md) and
 the [batch190 PASS record](docs/CHUNK7-BATCH190-SIX-PAIR-MEASUREMENT-PASS-2026-10-22.md).
