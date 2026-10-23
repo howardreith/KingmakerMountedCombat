@@ -206,6 +206,91 @@ foreach($case in @(@('runId','other-run'),@('token',('0'*64)),@('phase','staged'
     Reject ('settings restoration refuses mismatched '+$case[0]) {Assert-KmcBaseGameSettingsAuthority $badState $settledBase.runId $settledBase.token $f.game}
 }
 Reject 'settings restoration refuses another installation' {Assert-KmcBaseGameSettingsAuthority $settledBase $settledBase.runId $settledBase.token (Join-Path $f.home 'another-game')}
+
+# Request-free normal-player control: the isolated tree holds exactly KMC and the
+# external observer. Every other mode stays closed to the second package.
+$observerAppended="`n    <Mod Id=`"KmcRemovalObserver`" Enabled=`"true`">`n      <Hotkey>`n        <keyCode>None</keyCode>`n        <modifiers>0</modifiers>`n      </Hotkey>`n    </Mod>`n  "
+Check 'co-staged UMM admits KMC then observer default appends' {Assert-KmcNativeUmmStartupDelta $ownerParams (New-OwnerParams ($kmcAppended+$observerAppended)) -BaseGameOnly -WithObserver}
+Check 'co-staged UMM admits observer then KMC default appends' {Assert-KmcNativeUmmStartupDelta $ownerParams (New-OwnerParams ($observerAppended+$kmcAppended)) -BaseGameOnly -WithObserver}
+Check 'co-staged UMM admits an observer append beside an existing KMC entry' {Assert-KmcNativeUmmStartupDelta $f.parameters ($reduced.Replace('</ModParams>','<Mod Id="KmcRemovalObserver" Enabled="true"><Hotkey><keyCode>None</keyCode><modifiers>0</modifiers></Hotkey></Mod></ModParams>')) -BaseGameOnly -WithObserver}
+Reject 'KMC-only base mode refuses an observer append' {Assert-KmcNativeUmmStartupDelta $ownerParams (New-OwnerParams ($kmcAppended+$observerAppended)) -BaseGameOnly}
+Reject 'co-staged UMM refuses a third appended entry' {Assert-KmcNativeUmmStartupDelta $ownerParams (New-OwnerParams ($kmcAppended+$observerAppended+'<Mod Id="New" Enabled="true"/>')) -BaseGameOnly -WithObserver}
+Reject 'co-staged UMM refuses a disabled observer append' {Assert-KmcNativeUmmStartupDelta $ownerParams (New-OwnerParams ($kmcAppended+$observerAppended.Replace('Enabled="true"','Enabled="false"'))) -BaseGameOnly -WithObserver}
+Reject 'co-staged authority cannot be used outside base-only mode' {Assert-KmcNativeUmmStartupDelta $ownerParams (New-OwnerParams $kmcAppended) -WithObserver}
+$observerSource=Join-Path $f.home 'observer-source/KmcRemovalObserver';[void][IO.Directory]::CreateDirectory($observerSource)
+[IO.File]::WriteAllText((Join-Path $observerSource 'Info.json'),'{"Id":"KmcRemovalObserver"}')
+[IO.File]::WriteAllText((Join-Path $observerSource 'KmcRemovalObserver.dll'),'test-only observer')
+$observerPackage=Join-Path $f.home 'observer.zip';Compress-Archive -LiteralPath $observerSource -DestinationPath $observerPackage
+$foreignObserverSource=Join-Path $f.home 'observer-foreign/KmcRemovalObserver';[void](Copy-KmcDirectoryTreeExact $observerSource $foreignObserverSource)
+[IO.File]::WriteAllText((Join-Path $foreignObserverSource 'Extra.dll'),'foreign')
+$foreignObserverPackage=Join-Path $f.home 'observer-foreign.zip';Compress-Archive -LiteralPath $foreignObserverSource -DestinationPath $foreignObserverPackage
+$lock=Open-KmcRuntimeLock $state 'co-staged-refusals'
+try{
+    Reject 'base-only KMC mode refuses a second observer package' {Enter-KmcModsTransaction -Lock $lock -LiveModsRoot $f.mods -PackagePath $package -StateRoot $state -BackupRoot $backups -StagingRoot $stage -StagingMode base-game-only-kmc -BaseGameDependencies $receipt -ObserverPackagePath $observerPackage|Out-Null}
+    Reject 'co-staging mode refuses a missing observer package' {Enter-KmcModsTransaction -Lock $lock -LiveModsRoot $f.mods -PackagePath $package -StateRoot $state -BackupRoot $backups -StagingRoot $stage -StagingMode base-game-only-kmc-observer -BaseGameDependencies $receipt|Out-Null}
+    Reject 'removal-observer mode refuses co-staging' {Enter-KmcModsTransaction -Lock $lock -LiveModsRoot $f.mods -PackagePath $observerPackage -StateRoot $state -BackupRoot $backups -StagingRoot $stage -StagingMode live-clone-minus-kmc-plus-observer -ObserverPackagePath $observerPackage|Out-Null}
+    Check 'contract refusals left the original tree exact and no transaction state' {
+        Assert-KmcDirectoryManifestsEqual $before (Get-KmcDirectoryManifest $f.mods) 'refused co-staging original'
+        Need (-not(Test-Path -LiteralPath (Get-KmcTransactionStatePath $state $lock.RunId))) 'refusal left state'
+    }
+}finally{Close-KmcRuntimeLock $lock}
+$lock=Open-KmcRuntimeLock $state 'co-staged-partial-failure'
+try{
+    Reject 'foreign observer payload refuses co-staging before activation' {Enter-KmcModsTransaction -Lock $lock -LiveModsRoot $f.mods -PackagePath $package -StateRoot $state -BackupRoot $backups -StagingRoot $stage -StagingMode base-game-only-kmc-observer -BaseGameDependencies $receipt -ObserverPackagePath $foreignObserverPackage|Out-Null}
+    Check 'partial co-staging failure leaves the live tree exactly original' {
+        Assert-KmcDirectoryManifestsEqual $before (Get-KmcDirectoryManifest $f.mods) 'partial co-staging original'
+        Need ($null-eq(Read-KmcLiveSentinel $f.mods)) 'live sentinel after refused co-staging'
+    }
+}finally{Close-KmcRuntimeLock $lock}
+$lock=Open-KmcRuntimeLock $state 'co-staged-positive'
+try{
+    $transaction=Enter-KmcModsTransaction -Lock $lock -LiveModsRoot $f.mods -PackagePath $package -StateRoot $state -BackupRoot $backups -StagingRoot $stage -StagingMode base-game-only-kmc-observer -BaseGameDependencies $receipt -ObserverPackagePath $observerPackage
+    $record=Read-KmcJson $transaction
+    Check 'co-staged mode records schema 4, its frozen observer package and the complete live clone' {
+        Need ($record.schemaVersion-eq4-and$record.stagingMode-ceq'base-game-only-kmc-observer') 'co-staged receipt identity'
+        Need ($record.observerPackageSha256-ceq(Get-KmcSha256 $observerPackage)-and(Get-KmcSha256 $record.frozenObserverPackage)-ceq$record.observerPackageSha256) 'frozen observer identity'
+        Assert-KmcDirectoryManifestsEqual $before (Get-KmcDirectoryManifest $record.preservedClone) 'co-staged preserved clone'
+    }
+    Check 'co-staged Mods contains exactly KMC, the observer and the sentinel' {
+        $actual=@((Get-KmcDirectoryManifest $f.mods).entries|ForEach-Object {'{0}|{1}'-f$_.kind,$_.path}|Sort-Object)
+        $expected=@('directory|KingmakerMountedCombat','directory|KmcRemovalObserver','file|.kmc-runtime-sentinel.json','file|KingmakerMountedCombat/Info.json',
+            'file|KingmakerMountedCombat/KingmakerMountedCombat.dll','file|KmcRemovalObserver/Info.json','file|KmcRemovalObserver/KmcRemovalObserver.dll')|Sort-Object
+        Need (($actual-join ';')-ceq($expected-join ';')) ('co-staged tree differs: '+($actual-join ';'))
+    }
+    $originalRecord=[IO.File]::ReadAllBytes($transaction)
+    try{
+        $record=Read-KmcJson $transaction;$record.PSObject.Properties.Remove('observerPackageSha256');Write-KmcJsonAtomic $transaction $record
+        Reject 'co-staged state without its observer identity cannot restore' {Restore-KmcModsTransaction -Lock $lock -StatePath $transaction -LiveModsRoot $f.mods -BackupRoot $backups -StagingRoot $stage|Out-Null}
+    }finally{[IO.File]::WriteAllBytes($transaction,$originalRecord)}
+    try{
+        $record=Read-KmcJson $transaction;$record.frozenObserverPackage=(Join-Path $f.home 'elsewhere.zip');Write-KmcJsonAtomic $transaction $record
+        Reject 'co-staged state naming a foreign frozen observer cannot restore' {Restore-KmcModsTransaction -Lock $lock -StatePath $transaction -LiveModsRoot $f.mods -BackupRoot $backups -StagingRoot $stage|Out-Null}
+    }finally{[IO.File]::WriteAllBytes($transaction,$originalRecord)}
+    [IO.File]::WriteAllText((Join-Path $f.mods 'KmcRemovalObserver/runtime.log'),'observer output')
+    [void](Restore-KmcModsTransaction -Lock $lock -StatePath $transaction -LiveModsRoot $f.mods -BackupRoot $backups -StagingRoot $stage)
+    Check 'co-staged runtime output quarantined and the original restored exactly' {
+        Assert-KmcDirectoryManifestsEqual $before (Get-KmcDirectoryManifest $f.mods) 'co-staged restored original'
+        $settled=Read-KmcJson $transaction
+        Need ($settled.phase-ceq'restored'-and(Test-Path -LiteralPath (Join-Path $settled.stagedAfter 'KmcRemovalObserver/runtime.log'))) 'co-staged settlement'
+    }
+    $coSettled=Read-KmcJson $transaction
+    Check 'settings authority accepts the settled co-staged receipt' {Assert-KmcBaseGameSettingsAuthority $coSettled $coSettled.runId $coSettled.token $f.game}
+}finally{
+    if(Test-Path -LiteralPath (Get-KmcTransactionStatePath $state $lock.RunId)){[void](Restore-KmcModsTransaction -Lock $lock -StatePath (Get-KmcTransactionStatePath $state $lock.RunId) -LiveModsRoot $f.mods -BackupRoot $backups -StagingRoot $stage)}
+    Close-KmcRuntimeLock $lock
+}
+$lock=Open-KmcRuntimeLock $state 'co-staged-crash-window'
+try{
+    $transaction=Enter-KmcModsTransaction -Lock $lock -LiveModsRoot $f.mods -PackagePath $package -StateRoot $state -BackupRoot $backups -StagingRoot $stage -StagingMode base-game-only-kmc-observer -BaseGameDependencies $receipt -ObserverPackagePath $observerPackage
+    $record=Read-KmcJson $transaction
+    Move-Item -LiteralPath (Assert-KmcChildPath $f.mods $f.home 'co-staged crash Mods') -Destination (Assert-KmcChildPath $record.stagedReady (Join-Path $stage $lock.RunId) 'co-staged crash ready')
+    $record.phase='original-moved';Write-KmcJsonAtomic $transaction $record
+    [void](Restore-KmcModsTransaction -Lock $lock -StatePath $transaction -LiveModsRoot $f.mods -BackupRoot $backups -StagingRoot $stage)
+    Check 'co-staged original-moved crash window restores the exact original' {Assert-KmcDirectoryManifestsEqual $before (Get-KmcDirectoryManifest $f.mods) 'co-staged crash restored'}
+}finally{
+    if(Test-Path -LiteralPath (Get-KmcTransactionStatePath $state $lock.RunId)){[void](Restore-KmcModsTransaction -Lock $lock -StatePath (Get-KmcTransactionStatePath $state $lock.RunId) -LiveModsRoot $f.mods -BackupRoot $backups -StagingRoot $stage)}
+    Close-KmcRuntimeLock $lock
+}
 Check 'changed runtime scripts parse without executing a launcher' {
     foreach($script in @('runtime/BaseGameIsolation.ps1','runtime/RuntimeHarness.Common.ps1','runtime/Invoke-KingmakerRuntimeScenario.ps1','runtime/PersistenceProfileProtection.ps1','runtime/Recover-KingmakerRuntimeTransaction.ps1','runtime/Recover-KmcPersistenceProfile.ps1')){
         $tokens=$null;$parseErrors=$null

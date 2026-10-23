@@ -139,7 +139,9 @@ function New-KmcBaseGameReadyTree {
     [CmdletBinding(SupportsShouldProcess=$true,ConfirmImpact='High')]
     param([Parameter(Mandatory=$true)][string]$StagingRun,[Parameter(Mandatory=$true)][string]$CloneRoot,
         [Parameter(Mandatory=$true)][string]$ReadyRoot,[Parameter(Mandatory=$true)][string]$PackageModRoot,
-        [Parameter(Mandatory=$true)]$Before)
+        [Parameter(Mandatory=$true)]$Before,
+        # Only the explicit normal-player observer mode adds a second exact package.
+        [string]$ObserverModRoot)
     $clone=Assert-KmcChildPath $CloneRoot $StagingRun 'preserved base-game clone'
     $ready=Assert-KmcChildPath $ReadyRoot $StagingRun 'base-game ready tree'
     $package=Assert-KmcChildPath $PackageModRoot $StagingRun 'base-game package root'
@@ -150,16 +152,30 @@ function New-KmcBaseGameReadyTree {
     Assert-KmcDirectoryTreeCloneable $package 'base-game package root'
     $members=@((Get-KmcDirectoryManifest $package).entries|ForEach-Object {'{0}|{1}'-f$_.kind,$_.path}|Sort-Object)
     if(($members-join '|')-cne'file|Info.json|file|KingmakerMountedCombat.dll'){throw 'Base-game package root contains foreign payload.'}
+    $observer=$null
+    if(-not[string]::IsNullOrEmpty($ObserverModRoot)){
+        $observer=Assert-KmcChildPath $ObserverModRoot $StagingRun 'base-game observer package root'
+        if($observer-cne(Join-Path $StagingRun 'observer-overlay/KmcRemovalObserver')){throw 'Base-game observer path differs from the exact transaction layout.'}
+        Assert-KmcDirectoryTreeCloneable $observer 'base-game observer package root'
+        $observerMembers=@((Get-KmcDirectoryManifest $observer).entries|ForEach-Object {'{0}|{1}'-f$_.kind,$_.path}|Sort-Object)
+        if(($observerMembers-join '|')-cne'file|Info.json|file|KmcRemovalObserver.dll'){throw 'Base-game observer package root contains foreign payload.'}
+    }
     Assert-KmcNotReparsePoint $ready 'base-game ready tree'
     if(Test-Path -LiteralPath $ready){throw 'Base-game ready tree already exists.'}
-    if(-not$PSCmdlet.ShouldProcess($ready,'create the private KMC-only ready tree; preserve the exact complete live clone')){return}
+    if(-not$PSCmdlet.ShouldProcess($ready,'create the private ready tree of exactly the selected packages; preserve the exact complete live clone')){return}
     [void][IO.Directory]::CreateDirectory($ready)
     [void](Copy-KmcDirectoryTreeExact -SourceRoot $package -DestinationRoot (Join-Path $ready 'KingmakerMountedCombat'))
+    if($null-ne$observer){[void](Copy-KmcDirectoryTreeExact -SourceRoot $observer -DestinationRoot (Join-Path $ready 'KmcRemovalObserver'))}
+    $readyTop=@(Get-ChildItem -LiteralPath $ready -Force|ForEach-Object Name|Sort-Object)
+    $expectedTop=@(@('KingmakerMountedCombat')+@(if($null-ne$observer){'KmcRemovalObserver'})|Sort-Object)
+    if(($readyTop-join '|')-cne($expectedTop-join '|')){throw 'Base-game ready tree holds other than exactly the selected packages.'}
     Assert-KmcDirectoryManifestsEqual $Before (Get-KmcDirectoryManifest $clone) 'Preserved base-game clone after ready-tree construction'
 }
 
 function Assert-KmcBaseGameUmmStartupDelta {
-    param([Parameter(Mandatory=$true)][string]$Before,[Parameter(Mandatory=$true)][string]$After)
+    param([Parameter(Mandatory=$true)][string]$Before,[Parameter(Mandatory=$true)][string]$After,
+        # The normal-player observer mode found exactly KMC and the observer.
+        [switch]$WithObserver)
     $original=Assert-KmcBaseGameParameters $Before
     $current=Assert-KmcBaseGameParameters $After
     # UMM 0.33.2.0 writes Params.xml only on a normal exit (UI.OnDestroy) or its Save
@@ -181,22 +197,31 @@ function Assert-KmcBaseGameUmmStartupDelta {
         $afterChecks[0].FirstChild.Value=$beforeChecks[0].FirstChild.Value
     }
     $actual=Get-KmcBaseGameXmlShapeText $current
+    $found=@('KingmakerMountedCombat')+@(if($WithObserver){'KmcRemovalObserver'})
     $reduced=$original.Clone()
     foreach($mod in @($reduced.SelectNodes('/Param/ModParams/Mod'))){
-        if([string]$mod.GetAttribute('Id')-cne'KingmakerMountedCombat'){[void]$mod.ParentNode.RemoveChild($mod)}
+        if([string]$mod.GetAttribute('Id')-cnotin$found){[void]$mod.ParentNode.RemoveChild($mod)}
     }
     $allowed=New-Object 'Collections.Generic.List[string]'
     $allowed.Add((Get-KmcBaseGameXmlShapeText $original))
     $allowed.Add((Get-KmcBaseGameXmlShapeText $reduced))
-    if(@($reduced.SelectNodes('/Param/ModParams/Mod')).Count-eq0){
+    # A found mod without an entry gains one default entry; with two found mods
+    # either append order is the native rebuild of the same exact set.
+    $missing=@($found|Where-Object{$id=$_;@($reduced.SelectNodes('/Param/ModParams/Mod')|Where-Object{[string]$_.GetAttribute('Id')-ceq$id}).Count-eq0})
+    $orders=New-Object 'Collections.Generic.List[string[]]'
+    if($missing.Count-eq2){$orders.Add([string[]]@($missing[0],$missing[1]));$orders.Add([string[]]@($missing[1],$missing[0]))}
+    elseif($missing.Count-eq1){$orders.Add([string[]]@($missing[0]))}
+    foreach($order in $orders){
         $appended=$reduced.Clone();$container=$appended.SelectSingleNode('/Param/ModParams')
-        $entry=$appended.CreateElement('Mod');$entry.SetAttribute('Id','KingmakerMountedCombat');$entry.SetAttribute('Enabled','true')
-        $hotkey=$appended.CreateElement('Hotkey');$keyCode=$appended.CreateElement('keyCode');$modifiers=$appended.CreateElement('modifiers')
-        [void]$keyCode.AppendChild($appended.CreateTextNode('None'));[void]$modifiers.AppendChild($appended.CreateTextNode('0'))
-        [void]$hotkey.AppendChild($keyCode);[void]$hotkey.AppendChild($modifiers);[void]$entry.AppendChild($hotkey);[void]$container.AppendChild($entry)
+        foreach($id in $order){
+            $entry=$appended.CreateElement('Mod');$entry.SetAttribute('Id',$id);$entry.SetAttribute('Enabled','true')
+            $hotkey=$appended.CreateElement('Hotkey');$keyCode=$appended.CreateElement('keyCode');$modifiers=$appended.CreateElement('modifiers')
+            [void]$keyCode.AppendChild($appended.CreateTextNode('None'));[void]$modifiers.AppendChild($appended.CreateTextNode('0'))
+            [void]$hotkey.AppendChild($keyCode);[void]$hotkey.AppendChild($modifiers);[void]$entry.AppendChild($hotkey);[void]$container.AppendChild($entry)
+        }
         $allowed.Add((Get-KmcBaseGameXmlShapeText $appended))
     }
-    if(-not$allowed.Contains($actual)){throw 'Base-game UMM parameters changed beyond the native KMC-only rewrite and a forward LastUpdateCheck.'}
+    if(-not$allowed.Contains($actual)){throw 'Base-game UMM parameters changed beyond the native rewrite of the selected packages and a forward LastUpdateCheck.'}
 }
 
 # Parameter restoration may use the base-only reduction solely after the exact
@@ -205,7 +230,7 @@ function Assert-KmcBaseGameUmmStartupDelta {
 function Assert-KmcBaseGameSettingsAuthority {
     param([Parameter(Mandatory=$true)]$State,[Parameter(Mandatory=$true)][string]$RunId,
         [Parameter(Mandatory=$true)][string]$Token,[Parameter(Mandatory=$true)][string]$GameRoot)
-    if($State.schemaVersion-ne4-or[string]$State.stagingMode-cne'base-game-only-kmc'-or
+    if($State.schemaVersion-ne4-or[string]$State.stagingMode-cnotin@('base-game-only-kmc','base-game-only-kmc-observer')-or
         [string]$State.runId-cne$RunId-or[string]$State.token-cne$Token-or[string]$State.phase-cne'restored'-or
         [string]$State.baseGameDependencies.gameRoot-cne$GameRoot-or[string]$State.liveModsRoot-cne[string]$State.baseGameDependencies.modsRoot){
         throw 'Base-game settings restoration requires its settled exact owned Mods transaction.'

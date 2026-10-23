@@ -76,6 +76,7 @@ function Assert-SubscenarioResults {
         'mounted-rider-melee-cleanup', 'non-mounted-melee-control'
     )
     $missionScenarios += @(Get-KmcPhase3dHorseRuntimeRows)
+    $missionScenarios += @(Get-KmcChunk7NormalPlayerRows)
     $missionScenarios += @(Get-KmcChunk7NativeBootstrapRows)
     $missionScenarios += @(Get-KmcChunk7AssistedColdInventoryRows)
     $missionScenarios += @(Get-KmcChunk7AssistedFixtureRows)

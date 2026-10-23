@@ -26,7 +26,14 @@ namespace KmcRemovalObserver
     // load the prepared cleanup archive through its own main-menu path, watches
     // the load, orders ordinary movement of the main character, records what
     // it saw, and quits. It never writes a save and never touches human roots.
-    internal sealed class RemovalObserverSession
+    internal interface IObserverSession
+    {
+        string RunId { get; }
+        void Update();
+        void Fail(string reason);
+    }
+
+    internal sealed class RemovalObserverSession : IObserverSession
     {
         private const string RequestArgument = "-kmcObserverRequest";
         private const string TokenArgument = "-kmcObserverToken";
@@ -60,9 +67,9 @@ namespace KmcRemovalObserver
             this.modEntry = modEntry; this.request = request; this.requestSha256 = requestSha256; this.evidenceRoot = evidenceRoot;
         }
 
-        internal string RunId => request.RunId;
+        public string RunId => request.RunId;
 
-        internal static RemovalObserverSession CreateFromCommandLine(UnityModManager.ModEntry modEntry)
+        internal static IObserverSession CreateFromCommandLine(UnityModManager.ModEntry modEntry)
         {
             var arguments = Environment.GetCommandLineArgs();
             var requestPath = FindSingleArgument(arguments, RequestArgument);
@@ -87,6 +94,7 @@ namespace KmcRemovalObserver
                 throw new InvalidOperationException("Observer request evidenceRoot does not match its own directory.");
             if (File.Exists(Path.Combine(evidenceRoot, ResultFileName)))
                 throw new InvalidOperationException("Observer result already exists for this run.");
+            if (request.IsNormalPlayer) return NormalPlayerSession.Arm(modEntry, request, sha, evidenceRoot);
             var session = new RemovalObserverSession(modEntry, request, sha, evidenceRoot);
             session.Arm();
             return session;
@@ -133,7 +141,7 @@ namespace KmcRemovalObserver
                 ["observerVersion"] = ObserverIdentity.ProductVersion });
         }
 
-        internal void Update()
+        public void Update()
         {
             if (completed) return;
             if (clock.Elapsed.TotalSeconds > request.TimeoutSeconds) { Fail("Observer timed out at stage " + stage + " after " + frames + " frames."); return; }
@@ -274,7 +282,7 @@ namespace KmcRemovalObserver
             Complete(errors.Count == 0 ? "PASS" : "FAIL");
         }
 
-        internal void Fail(string reason)
+        public void Fail(string reason)
         {
             if (completed) return;
             errors.Add(reason);
@@ -335,7 +343,7 @@ namespace KmcRemovalObserver
             catch (Exception exception) { modEntry.Logger.LogException("Observation write", exception); }
         }
 
-        private static Vector3 FindWalkableNear(Vector3 origin, float distance)
+        internal static Vector3 FindWalkableNear(Vector3 origin, float distance)
         {
             for (var i = 0; i < 16; i++)
             {
@@ -346,7 +354,7 @@ namespace KmcRemovalObserver
             throw new InvalidOperationException("No native walkable destination exists near the main character.");
         }
 
-        private static string FindSingleArgument(string[] arguments, string name)
+        internal static string FindSingleArgument(string[] arguments, string name)
         {
             string found = null;
             for (var index = 0; index < arguments.Length; index++)
@@ -359,7 +367,7 @@ namespace KmcRemovalObserver
             return found;
         }
 
-        private static void WriteJsonCreateNew(string path, JObject value)
+        internal static void WriteJsonCreateNew(string path, JObject value)
         {
             var temporary = path + ".partial";
             if (File.Exists(temporary)) File.Delete(temporary);
@@ -372,7 +380,7 @@ namespace KmcRemovalObserver
             using (var sha = SHA256.Create()) return BitConverter.ToString(sha.ComputeHash(bytes)).Replace("-", string.Empty).ToLowerInvariant();
         }
 
-        private static string Sha256File(string path)
+        internal static string Sha256File(string path)
         {
             using (var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read))
             using (var sha = SHA256.Create()) return BitConverter.ToString(sha.ComputeHash(stream)).Replace("-", string.Empty).ToLowerInvariant();

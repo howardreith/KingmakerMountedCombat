@@ -36,17 +36,17 @@ $original=Join-Path $backups ('profile-'+$RunId+'/Params.xml')
 # A removal-observer run (the genuine no-DLL load) is named by its own request.
 $requestPath=Join-Path $lab ('runtime-evidence/'+$RunId+'/runtime-request.json')
 $removalObserver=(Test-Path -LiteralPath $requestPath -PathType Leaf)-and[string](Read-KmcJson $requestPath).scenario-ceq'persistence-p07-load'-and[string](Read-KmcJson $requestPath).persistenceCase-ceq'removal-no-dll'
-$baseGameOnly=$false
+$baseGameOnly=$false;$withObserver=$false
 $modsStatePath=Get-KmcTransactionStatePath $stateRoot $RunId
 if(Test-Path -LiteralPath $modsStatePath -PathType Leaf){
     $modsState=Read-KmcJson $modsStatePath
     if([int]$modsState.schemaVersion-eq4){
         $intake=Read-KmcJson (Join-Path $lab 'environment-intake.json')
         Assert-KmcBaseGameSettingsAuthority -State $modsState -RunId $RunId -Token ([string]$raw.token) -GameRoot ([string]$intake.requestedLayout.kingmakerInstallDir)
-        $baseGameOnly=$true
+        $baseGameOnly=$true;$withObserver=[string]$modsState.stagingMode-ceq'base-game-only-kmc-observer'
     }
 }
-Assert-KmcNativeUmmStartupDelta -Before ([IO.File]::ReadAllText($original)) -After ([IO.File]::ReadAllText($snapshot.paramsPath)) -RemovalObserver:$removalObserver -BaseGameOnly:$baseGameOnly
+Assert-KmcNativeUmmStartupDelta -Before ([IO.File]::ReadAllText($original)) -After ([IO.File]::ReadAllText($snapshot.paramsPath)) -RemovalObserver:$removalObserver -BaseGameOnly:$baseGameOnly -WithObserver:$withObserver
 if(-not$PSCmdlet.ShouldProcess($RunId,'restore exact observed startup settings drift and release otherwise-restored runtime lock')){
     Write-Host 'PROFILE RECOVERY WHATIF PASS; no file, registry or lock mutation.'
     return

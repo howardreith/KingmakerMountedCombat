@@ -69,6 +69,7 @@ function Assert-SubscenarioResults {
         'mounted-rider-melee-cleanup', 'non-mounted-melee-control'
     )
     $missionScenarios += @(Get-KmcPhase3dHorseRuntimeRows)
+    $missionScenarios += @(Get-KmcChunk7NormalPlayerRows)
     $missionScenarios += @(Get-KmcChunk7NativeBootstrapRows)
     $missionScenarios += @(Get-KmcChunk7BootstrapInventoryRows)
     $missionScenarios += @(Get-KmcChunk7AssistedColdInventoryRows)
@@ -177,6 +178,7 @@ if ($result.baselineImmutable -ne $true -or $result.workingRestored -ne $true -o
 if ($result.saveProtectionPassed -ne ($result.baselineImmutable -and $result.workingRestored -and $result.saveWriteAllowlistPassed)) { throw 'Runtime result saveProtectionPassed does not equal its three fixture safety proofs.' }
 if ([string]$result.restoredSaveInventoryDigest -cnotmatch '^[0-9a-f]{64}$') { throw 'Runtime result lacks the restored save inventory digest.' }
 Assert-SubscenarioResults $result
+Assert-KmcChunk7NormalPlayerRuntimeBinding $request $gameEvidence ([string]$result.status)
 $validatedArtifactManifest = Read-KmcJson (Join-Path ([IO.Path]::GetFullPath([string]$request.evidenceRoot)) 'runtime-artifacts.json')
 Assert-KmcLifecycleScenarioEvidence -Request $request -Manifest $validatedArtifactManifest -Status ([string]$result.status) -SubscenarioResults $result.subscenarioResults
 Assert-KmcMovementScenarioEvidence -Request $request -Manifest $validatedArtifactManifest -Status ([string]$result.status) -SubscenarioResults $result.subscenarioResults

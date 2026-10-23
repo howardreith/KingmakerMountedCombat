@@ -271,9 +271,10 @@ function Get-KmcPersistencePreferenceChanges {
 }
 
 function Assert-KmcNativeUmmStartupDelta {
-    param([string]$Before,[string]$After,[switch]$RemovalObserver,[switch]$BaseGameOnly)
+    param([string]$Before,[string]$After,[switch]$RemovalObserver,[switch]$BaseGameOnly,[switch]$WithObserver)
     if($BaseGameOnly-and$RemovalObserver){throw 'Base-game and removal-observer settings authorities cannot be combined.'}
-    if($BaseGameOnly){Assert-KmcBaseGameUmmStartupDelta -Before $Before -After $After;return}
+    if($WithObserver-and-not$BaseGameOnly){throw 'The co-staged observer authority exists only in the isolated base-game mode.'}
+    if($BaseGameOnly){Assert-KmcBaseGameUmmStartupDelta -Before $Before -After $After -WithObserver:$WithObserver;return}
     [xml]$original=$Before;[xml]$current=$After
     # Unchanged parameters are the ordinary case now and the safest possible
     # outcome, so they pass on their own. This assertion was written when UMM
@@ -325,11 +326,14 @@ function Restore-KmcPersistenceStartupSettings {
     [void](Assert-KmcRuntimeLockOwner $Lock);Assert-KmcNoGameProcesses
     if($Lock.RunId-cne$Snapshot.runId-or$Lock.Token-cne$Snapshot.token){throw 'Profile restoration has no matching owned transaction.'}
     $intake=Read-KmcJson (Join-Path (Get-KmcLabRoot) 'environment-intake.json')
+    $withObserver=$false
     if($BaseGameOnly){
         if($RemovalObserver){throw 'Base-game and removal-observer settings authorities cannot be combined.'}
         $baseStatePath=Get-KmcTransactionStatePath (Join-Path (Get-KmcLabRoot) 'runtime-state') ([string]$Lock.RunId)
         $baseState=Read-KmcJson $baseStatePath
         Assert-KmcBaseGameSettingsAuthority -State $baseState -RunId ([string]$Lock.RunId) -Token ([string]$Lock.Token) -GameRoot ([string]$intake.requestedLayout.kingmakerInstallDir)
+        # The co-staged entry set comes from durable owned state, never a caller switch.
+        $withObserver=[string]$baseState.stagingMode-ceq'base-game-only-kmc-observer'
     }
     $expectedParams=[IO.Path]::GetFullPath((Join-Path $intake.requestedLayout.kingmakerInstallDir 'Kingmaker_Data/Managed/UnityModManager/Params.xml'))
     if([IO.Path]::GetFullPath($Snapshot.paramsPath)-cne$expectedParams-or
@@ -351,7 +355,7 @@ function Restore-KmcPersistenceStartupSettings {
     $changes=@(Get-KmcPersistencePreferenceChanges -BeforeJson $Snapshot.playerPrefsJson -AfterJson $prefs -ObservedResetRunId $Snapshot.runId)
     $restoreParams=$paramsHash-cne$Snapshot.paramsSha256
     if($restoreParams){
-        Assert-KmcNativeUmmStartupDelta -Before ([IO.File]::ReadAllText($saved)) -After ([IO.File]::ReadAllText($expectedParams)) -RemovalObserver:$RemovalObserver -BaseGameOnly:$BaseGameOnly
+        Assert-KmcNativeUmmStartupDelta -Before ([IO.File]::ReadAllText($saved)) -After ([IO.File]::ReadAllText($expectedParams)) -RemovalObserver:$RemovalObserver -BaseGameOnly:$BaseGameOnly -WithObserver:$withObserver
     }
     if(-not$PSCmdlet.ShouldProcess('exact Kingmaker UMM parameters and attributed native preference deltas',
         'restore verified actual intake after the attributed process exit')){return}
