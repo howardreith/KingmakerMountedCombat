@@ -231,8 +231,11 @@ function Assert-KmcChunk7NormalPlayerRuntimeBinding($Request,$GameEvidence,[stri
  $resultPath=Join-Path $root 'observer-result.json'
  $declared=if($null-ne$Request.normalPlayer.PSObject.Properties['upgradeRehearsal']){$Request.normalPlayer.upgradeRehearsal}else{$null}
  $recorded=if($null-ne$GameEvidence-and$null-ne$GameEvidence.PSObject.Properties['upgradeRehearsal']){$GameEvidence.upgradeRehearsal}else{$null}
+ # A PASS must show the observed loaded assembly equal to the declared staged package; a
+ # FAIL may have recorded no loaded presence at all, but never a different one.
+ $loadedMismatch=$null-ne$declared-and$null-ne$recorded-and($(if($null-eq$recorded.loadedKmc){$Status-ceq'PASS'}else{[string]$recorded.loadedKmc.dllSha256-cne[string]$declared.stagedKmc.dllSha256-or[string]$recorded.loadedKmc.dllMvid-cne[string]$declared.stagedKmc.dllMvid}))
  if(($null-eq$declared)-ne($null-eq$recorded)-or($null-ne$declared-and([string]$recorded.step-cne[string]$declared.step-or[string]$recorded.rehearsalId-cne[string]$declared.rehearsalId-or
-  [string]$recorded.loadedKmc.dllSha256-cne[string]$declared.stagedKmc.dllSha256-or[string]$recorded.loadedKmc.packageSha256-cne[string]$declared.stagedKmc.packageSha256))){
+  [string]$recorded.stagedKmc.packageSha256-cne[string]$declared.stagedKmc.packageSha256-or[string]$recorded.stagedKmc.dllSha256-cne[string]$declared.stagedKmc.dllSha256-or$loadedMismatch))){
   throw 'Normal-player run result does not record the rehearsal step and loaded KMC package its request declared.'
  }
  if($null-eq$GameEvidence-or[string]$GameEvidence.evidenceKind-cne'kmc-normal-player-observer'-or-not(Test-Path -LiteralPath $resultPath -PathType Leaf)-or

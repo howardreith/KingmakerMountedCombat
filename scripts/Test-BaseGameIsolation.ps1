@@ -286,6 +286,47 @@ try{
     if(Test-Path -LiteralPath (Get-KmcTransactionStatePath $state $lock.RunId)){[void](Restore-KmcModsTransaction -Lock $lock -StatePath (Get-KmcTransactionStatePath $state $lock.RunId) -LiveModsRoot $f.mods -BackupRoot $backups -StagingRoot $stage)}
     Close-KmcRuntimeLock $lock
 }
+# F12 carry (7E X5): Enter declares the carried previous-install cache in the state and
+# stages it; Restore validates that declaration and passes it to the classifier, which names
+# UMM's removal of exactly that cache and admits the candidate's new cache.
+$lock=Open-KmcRuntimeLock $state 'co-staged-carry'
+$labRootBeforeCarry=${function:Get-KmcLabRoot}
+try{
+    Set-Item function:Get-KmcLabRoot ([scriptblock]::Create("'"+$f.home+"'"))
+    $carryDir=Join-Path $f.home 'runtime-staging/u1-carry/Mods-staged-after/KingmakerMountedCombat';[void][IO.Directory]::CreateDirectory($carryDir)
+    $carryFile=Join-Path $carryDir 'KingmakerMountedCombat.dll.4242.cache';[IO.File]::WriteAllText($carryFile,'previous package dll bytes')
+    $carried=@([pscustomobject][ordered]@{name='KingmakerMountedCombat.dll.4242.cache';sourcePath=$carryFile;length=[long](Get-Item -LiteralPath $carryFile).Length;sha256=(Get-KmcSha256 $carryFile)})
+    $transaction=Enter-KmcModsTransaction -Lock $lock -LiveModsRoot $f.mods -PackagePath $package -StateRoot $state -BackupRoot $backups -StagingRoot $stage -StagingMode base-game-only-kmc-observer -BaseGameDependencies $receipt -ObserverPackagePath $observerPackage -KmcCarryFiles $carried
+    $record=Read-KmcJson $transaction
+    Check 'carry: Enter declares exactly the carried cache in the state and stages it beside the package' {
+        $declared=@($record.kmcCarriedFiles)
+        Need ($declared.Count-eq1-and[string]$declared[0].name-ceq$carried[0].name-and[string]$declared[0].sha256-ceq$carried[0].sha256-and[long]$declared[0].length-eq$carried[0].length) 'declared carry differs'
+        Need ((Get-KmcSha256 (Join-Path $f.mods 'KingmakerMountedCombat/KingmakerMountedCombat.dll.4242.cache'))-ceq$carried[0].sha256) 'carried cache not staged'
+    }
+    $originalRecord=[IO.File]::ReadAllBytes($transaction)
+    foreach($bad in @(@('a declared file outside the cache shape',{param($r)$r.kmcCarriedFiles[0].name='Settings.xml'}),@('an unbounded declaration',{param($r)$r.kmcCarriedFiles=@($r.kmcCarriedFiles[0])*5}),
+        @('an empty declaration',{param($r)$r.kmcCarriedFiles=@()}),@('a declaration with an extra member',{param($r)$r.kmcCarriedFiles[0]|Add-Member extra 1}))){
+        try{
+            $r=Read-KmcJson $transaction;&$bad[1] $r;Write-KmcJsonAtomic $transaction $r
+            Reject ('carry: Restore refuses '+$bad[0]) {Restore-KmcModsTransaction -Lock $lock -StatePath $transaction -LiveModsRoot $f.mods -BackupRoot $backups -StagingRoot $stage|Out-Null}
+        }finally{[IO.File]::WriteAllBytes($transaction,$originalRecord)}
+    }
+    # UMM's own cache miss: it deletes every '*.cache*' in the mod folder, then copies the DLL.
+    Remove-Item -LiteralPath (Join-Path $f.mods 'KingmakerMountedCombat/KingmakerMountedCombat.dll.4242.cache')
+    Copy-Item -LiteralPath (Join-Path $f.mods 'KingmakerMountedCombat/KingmakerMountedCombat.dll') -Destination (Join-Path $f.mods 'KingmakerMountedCombat/KingmakerMountedCombat.dll.777.cache')
+    [void](Restore-KmcModsTransaction -Lock $lock -StatePath $transaction -LiveModsRoot $f.mods -BackupRoot $backups -StagingRoot $stage)
+    Check 'carry: Restore names the removal of the declared cache and admits the new candidate cache, then restores exactly' {
+        $settled=Read-KmcJson $transaction
+        Need ($settled.phase-ceq'restored'-and@($settled.runtimeUnexpectedWrites).Count-eq0) ('unexpected writes: '+(@($settled.runtimeUnexpectedWrites)|ConvertTo-Json -Compress -Depth 4))
+        $changes=@(@($settled.runtimeExpectedWrites)|ForEach-Object{[string]$_.change+':'+[string]$_.path}|Sort-Object)
+        Need (($changes-join'|')-ceq'added:KingmakerMountedCombat/KingmakerMountedCombat.dll.777.cache|removed-carried-cache:KingmakerMountedCombat/KingmakerMountedCombat.dll.4242.cache') ('expected writes: '+($changes-join'|'))
+        Assert-KmcDirectoryManifestsEqual $before (Get-KmcDirectoryManifest $f.mods) 'carry restored original'
+    }
+}finally{
+    Set-Item function:Get-KmcLabRoot $labRootBeforeCarry
+    if(Test-Path -LiteralPath (Get-KmcTransactionStatePath $state $lock.RunId)){$s=Read-KmcJson (Get-KmcTransactionStatePath $state $lock.RunId);if([string]$s.phase-cne'restored'){[void](Restore-KmcModsTransaction -Lock $lock -StatePath (Get-KmcTransactionStatePath $state $lock.RunId) -LiveModsRoot $f.mods -BackupRoot $backups -StagingRoot $stage)}}
+    Close-KmcRuntimeLock $lock
+}
 $lock=Open-KmcRuntimeLock $state 'co-staged-crash-window'
 try{
     $transaction=Enter-KmcModsTransaction -Lock $lock -LiveModsRoot $f.mods -PackagePath $package -StateRoot $state -BackupRoot $backups -StagingRoot $stage -StagingMode base-game-only-kmc-observer -BaseGameDependencies $receipt -ObserverPackagePath $observerPackage
