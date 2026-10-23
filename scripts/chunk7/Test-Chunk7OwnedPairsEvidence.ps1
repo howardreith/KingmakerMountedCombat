@@ -456,7 +456,8 @@ function New-KmcOwnerSeedDerivedCombatFixture([string]$Base){
   if($rt){$c.partyIds=@($c.partyIds)+@($script:seedCompanion);$c.currentPartyIds=@($c.currentPartyIds)+@($script:seedCompanion);$c.currentCharacterIds=@($c.currentCharacterIds)+@($script:seedCompanion);$row=Copy-Value $c.arrangement.actors[0];$row.actorId=$script:seedCompanion;$c.arrangement.actors=@($c.arrangement.actors)+@($row)}}
  $baseMountA=@($o.inputs|Where-Object label -CEQ 'mount-a')|Select-Object -First 1
  $o.inputs=@($o.inputs|Where-Object{$_.label-cnotin@('mount-a','mount-b')})
- if(-not$rt){Add-KmcSeedFirstActionMount $v $baseMountA ($Base-ceq'combat-mount-first')}
+ # Native life (7E X1) has no R1 Dismount, so no first-action Mount either.
+ if(-not$rt-and$Base-cne'native-life-cleanup'){Add-KmcSeedFirstActionMount $v $baseMountA ($Base-ceq'combat-mount-first')}
  $roles=@($p.riderAId,$p.mountAId,$p.riderBId,$p.mountBId);$world=Copy-Value $o.snapshots[0];$world.label='mounted-start'
  $owners=@(for($i=0;$i-lt2;$i++){$w=$world.owners[$i];[pscustomobject][ordered]@{ownerId=(ConvertTo-KmcChunk7PairIdN $w.id);generation=$w.generation;riderId=$roles[$i*2];mountId=$roles[$i*2+1]}})
  $o|Add-Member mountedStart ([pscustomobject][ordered]@{contract='owner-seed-derived-mounted-start-v1';restoredFromColdLoad=$true;nativeMountInputs=0;archivePhase='all-pair-presentation-restored';schemaVersion=3;semanticRestores=4;presentationRestores=2;nativePostLoads=4;nativeCastRequests=0;snapshots=0
@@ -508,6 +509,14 @@ foreach($base in @('combat-rider-first','combat-mount-first','realtime-core')){
  Check-SeedCombat ('owner-seed-derived combat refuses an unvalidated placement '+$base) $base {$args[0].artifact.observations.targetAuthorization.placementValidated=$false}
  Check-SeedCombat ('owner-seed-derived combat refuses a non-derived copy '+$base) $base {$r=$args[0].request;$r.persistenceLoad.internalName='KMC_C7_WORLD';$r.persistenceLoad.fileName='Manual_303_KMC_C7_WORLD.zks'}
 }
+# 7E X1: the existing native life case on the same restored mounted start.
+Check 'owner-seed-derived native life evidence accepted' {Invoke-OwnedReader (New-KmcOwnerSeedDerivedCombatFixture 'native-life-cleanup')}
+Check-SeedCombat 'owner-seed-derived native life refuses a native Mount input' 'native-life-cleanup' {$o=$args[0].artifact.observations;$o.inputs=@($o.inputs)+@((Copy-Value @($fixtures|Where-Object name -CEQ 'native-life-cleanup')[0]).artifact.observations.inputs|Where-Object label -CEQ 'mount-a')} 'native Mount input is not admitted'
+Check-SeedCombat 'owner-seed-derived native life refuses a missing mounted start' 'native-life-cleanup' {$args[0].artifact.observations.PSObject.Properties.Remove('mountedStart')} 'mounted-start admission'
+Check-SeedCombat 'owner-seed-derived native life refuses a first-action Mount record' 'native-life-cleanup' {$args[0].artifact.observations|Add-Member firstActionMount ([pscustomobject]@{}) -Force} 'admits no relationship input'
+Check-SeedCombat 'owner-seed-derived native life refuses a regranted restored debt' 'native-life-cleanup' {$args[0].artifact.observations.mountedStart.debt[0].restored.Standard=0.0} 'lost or regranted'
+Check-SeedCombat 'owner-seed-derived native life refuses a non-derived copy' 'native-life-cleanup' {$r=$args[0].request;$r.persistenceLoad.internalName='KMC_C7_WORLD';$r.persistenceLoad.fileName='Manual_303_KMC_C7_WORLD.zks'}
+Mutate 'acquired native life refuses a restored mounted-start claim' 'native-life-cleanup' {$args[0].artifact.observations|Add-Member mountedStart ([pscustomobject]@{contract='owner-seed-derived-mounted-start-v1'}) -Force} 'Only the owner-seed-derived life case'
 Check-SeedCombat 'owner-seed-derived RT refuses a missing companion action' 'realtime-core' {$args[0].artifact.observations.PSObject.Properties.Remove('companionAction')} 'unrelated companion action'
 Check-SeedCombat 'owner-seed-derived RT refuses a reassigned pair command' 'realtime-core' {$args[0].artifact.observations.companionAction.after.pairCommands.b=@([pscustomobject]@{identity=8888;actorId=$args[0].request.ownedPairs.riderBId;type='Kingmaker.UnitLogic.Commands.UnitAttack';finished=$false})} 'reassigned or cancelled'
 Check-SeedCombat 'owner-seed-derived RT refuses a pair spending during the action' 'realtime-core' {$args[0].artifact.observations.companionAction.after.actors[2].standard=6} 'spent native resources'

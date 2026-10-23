@@ -3,7 +3,7 @@ Set-StrictMode -Version Latest
 function Test-KmcChunk7NativeLifeScenario([string]$Scenario){$Scenario-ceq'chunk7-two-pair-native-life-cleanup'}
 function Get-KmcChunk7NativeLifeRows([string]$Scenario){
  if(-not(Test-KmcChunk7NativeLifeScenario $Scenario)){throw 'Unknown native life case.'}
- @($Scenario,'C7-combat-fixture','C7-combat-native-mounts','C7-combat-native-orders','C7-life-safe-native-damage','C7-life-native-callback','C7-life-healthy-neighbour','C7-life-independent-survivor','C7-combat-cleanup','C7-combat-runtime','C7-combat-interrupted')
+ @($Scenario,'C7-combat-fixture','C7-combat-native-mounts','C7-combat-restored-mounts','C7-combat-native-orders','C7-life-safe-native-damage','C7-life-native-callback','C7-life-healthy-neighbour','C7-life-independent-survivor','C7-combat-cleanup','C7-combat-runtime','C7-combat-interrupted')
 }
 function Get-KmcChunk7NativeLifeRuntimeRows{Get-KmcChunk7NativeLifeRows 'chunk7-two-pair-native-life-cleanup'}
 function Assert-KmcChunk7NativeLifeArtifact($Request,$Manifest,[string]$Status='PASS'){
@@ -52,8 +52,16 @@ function Assert-KmcChunk7NativeLifeEvidence($Request,$Artifact,[string]$Status){
  foreach($round in @($life.damageRound,($life.damageRound+1))){if(@($o.nativeRounds.events|Where-Object round -EQ $round).Count-ne1){throw 'Life continuation lacks an exact native round boundary.'}}
  $order=@($o.nativeInitialOrder);if(@($order|Select-Object -Unique).Count-ne$order.Count-or$o.targetId-cnotin$order){throw 'Life case has no exact unrelated native roster actor.'}
  foreach($i in @(0,2)){if([Array]::IndexOf($order,$ids[$i])-lt0-or[Array]::IndexOf($order,$ids[$i+1])-le[Array]::IndexOf($order,$ids[$i])){throw 'Life fixture is not actual rider-first order.'}}
+ # 7E X1: the owner-seed-derived case starts from both pairs restored mounted by the cold load,
+ # so it carries the exact mounted-start admission and no relationship input; the others mount natively.
+ $derived=$owned-and(Test-KmcChunk7OwnedPairsSeedDerivedCombat $Request)
+ if($derived){Assert-KmcChunk7OwnerSeedDerivedCombatStart $Request $o
+  if(@($o.inputs|Where-Object{$_.label-cin@('mount-a','mount-b','r1-native-dismount-a','first-action-mount-a')}).Count-ne0-or$null-ne$o.PSObject.Properties['firstActionMount']){throw 'Owner-seed-derived native life admits no relationship input.'}
+ }else{
+ if($null-ne$o.PSObject.Properties['mountedStart']-or$null-ne$o.PSObject.Properties['ownerSeedDerivedSource']){throw 'Only the owner-seed-derived life case records a restored mounted start.'}
  $mounts=@($o.inputs|Where-Object{$_.label-cin@('mount-a','mount-b')});if($mounts.Count-ne2){throw 'Native life fixture lacks two native Mount inputs.'}
  for($i=0;$i-lt2;$i++){$m=$mounts[$i];if($m.casterId-cne$ids[2*$i]-or$m.targetId-cne$ids[2*$i+1]-or$m.abilityGuid-cne'f053faad986631688defa003cd7bda0e'-or$m.nativeCastDelta-ne1-or$m.nativeRefusalDelta-ne0-or$m.generationAtInit-lt0){throw 'Life native mount command binding differs.'};foreach($f in @('clicked','terminal','processTerminal')){Assert-KmcChunk7Boolean $m.$f $true}}
+ }
  $commands=[Collections.Generic.HashSet[long]]::new()
  foreach($row in @(@($life.healthyAttackBefore,$ids[0],$ids[0]),@($life.affectedAttackBefore,$ids[3],$ids[2]),@($life.healthyAttackAfter,$ids[0],$ids[0]))){
   $cost=Assert-KmcChunk7CombatAttack $row[0] $o.allocationTrace $row[1] $row[2] $o.targetId $ids
