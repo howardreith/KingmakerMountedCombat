@@ -336,8 +336,10 @@ if($isObserver-and[string]::IsNullOrWhiteSpace($ObserverPackagePath)){throw 'The
 $isNormalPlayer=Test-KmcChunk7NormalPlayerScenario $Scenario
 if(-not$isObserver-and-not$isNormalPlayer-and-not[string]::IsNullOrWhiteSpace($ObserverPackagePath)){throw 'Only the no-DLL removal case and the normal-player control take an observer package.'}
 if($isNormalPlayer-and(-not$BaseGameOnly-or-not$SaveAccessAllowed-or[string]::IsNullOrWhiteSpace($ObserverPackagePath)-or-not[string]::IsNullOrEmpty($PersistenceCase)-or
-    -not[string]::IsNullOrEmpty($OwnedPairsSelectionPath)-or$F11NativeAllocationProbe-or$ObserveWorkingDeserialization)){
-    throw 'The request-free normal-player control requires isolated base-game staging, save access and its observer package, and selects nothing else.'
+    -not[string]::IsNullOrEmpty($OwnedPairsSelectionPath)-or$F11NativeAllocationProbe-or$ObserveWorkingDeserialization-or$TimeoutSeconds-ne900)){
+    # 900 s outlasts the observer's own 600 s timeout plus boot and load, so a stalled
+    # observer always writes its FAIL and quits before the runner deadline.
+    throw 'The request-free normal-player control requires isolated base-game staging, save access, its observer package and a 900 s budget, and selects nothing else.'
 }
 $KmcFrozenProductContext=$null
 $frozenParameters=@('FrozenSourceRoot','FrozenSourceFreezePath','ExpectedFrozenSourceFreezeSha256')
@@ -999,6 +1001,12 @@ try{
     # Exactly two packages: KMC and the external normal-player observer.
     if($isNormalPlayer){$stageArguments['ObserverPackagePath']=$ObserverPackagePath}
     $modsTransactionStatePath=Enter-KmcModsTransaction -Lock $lock -LiveModsRoot $liveMods -PackagePath $(if($isObserver){$ObserverPackagePath}else{$PackagePath}) -StateRoot $runtimeState -BackupRoot $runtimeBackups -StagingRoot $runtimeStaging -StagingMode $(if($isNormalPlayer){'base-game-only-kmc-observer'}elseif($BaseGameOnly){'base-game-only-kmc'}elseif($isObserver){'live-clone-minus-kmc-plus-observer'}else{'live-clone-plus-kmc-overlay'}) @stageArguments
+    if($isNormalPlayer){
+        $coStagedState=Read-KmcJson $modsTransactionStatePath
+        if([string]$coStagedState.observerPackageSha256-cne[string]$request.normalPlayer.observer.packageSha256-or[string]$coStagedState.observerPackageSha256-cne[string]$observerManifest.packageSha256){
+            throw 'The staged observer package is not the declared observer package.'
+        }
+    }
     if($F11NativeAllocationProbe){
         $f11RunRoot=Assert-KmcChildPath (Join-Path (Join-Path $runtimeStaging $actualRunId) 'f11-native-probe') $runtimeStaging 'F11 run-owned staging'
         if(Test-Path -LiteralPath $f11RunRoot){throw 'F11 run-owned staging already exists.'}
@@ -1186,10 +1194,11 @@ try{
         $validatedGameResult=Read-KmcJson $gameResultPath
         $gamePassed=[string]$validatedGameResult.status -ceq 'PASS'
         if($isNormalPlayer){
-            # KMC writes no loader inventory without a request. The observer's closed
-            # presence checks (exact two UMM entries, candidate assembly) are the inventory.
-            $baseGameNativeInventoryObserved=$gamePassed
-            $baseGameNativeInventorySha256=Get-KmcSha256 $observerResultPath
+            # KMC writes no loader inventory without a request. The observer proves exactly
+            # two active UMM entries and both assembly identities, not the complete loaded-
+            # assembly inventory, so no native inventory is claimed for this mode.
+            $baseGameNativeInventoryObserved=$false
+            $baseGameNativeInventorySha256=$null
         }elseif($BaseGameOnly){
             $inventoryManifestPath=Join-Path $evidenceRoot 'runtime-artifacts.json'
             if($isSaveBacked-and(Get-KmcSha256 $inventoryManifestPath)-cne$validatedGameResult.evidenceManifestSha256){throw 'Base-game inventory manifest is not the native result manifest.'}
@@ -1507,6 +1516,14 @@ finally{
         try{Assert-KmcBaseGameDependencyReceipt $baseGameDependencies -VerifyFiles;$baseGameDependenciesUnchanged=$true}
         catch{$errors.Add('Base-game loader dependency verification failed: '+$_.Exception.Message)}
     }
+    if($isNormalPlayer-and$processExited){
+        # KMC's own one-session UMM log: ordinary load, quiet overlay, no accepted request, no error.
+        try{
+            $ummLog=Get-KmcChunk7NormalPlayerUmmLogSummary ([string]$intake.requestedLayout.kingmakerInstallDir) $startedAt ([string]$manifest.version)
+            Write-KmcJsonAtomic (Join-Path $evidenceRoot 'normal-player-umm-log.json') $ummLog
+            if(-not$ummLog.passed){$errors.Add('KMC UMM session log is not an ordinary quiet no-request start: '+(($ummLog|ConvertTo-Json -Depth 3 -Compress)))}
+        }catch{$errors.Add('KMC UMM session log check failed: '+$_.Exception.Message)}
+    }
     if($null-ne$lock){
         try{
             if($modsRestored-and$saveProtection-and$processExited){Close-KmcRuntimeLock $lock}else{Abandon-KmcRuntimeLock $lock}
@@ -1520,7 +1537,7 @@ finally{
             transactionStatePath=$modsTransactionStatePath;transactionStateSha256=$(if($null-ne$modsTransactionStatePath-and(Test-Path -LiteralPath $modsTransactionStatePath)){Get-KmcSha256 $modsTransactionStatePath}else{$null});
             nativeInventoryObserved=$baseGameNativeInventoryObserved;runtimeLoaderInventorySha256=$baseGameNativeInventorySha256;
             nativeCompatibilityQualified=($gamePassed-and$baseGameNativeInventoryObserved-and$baseGameDependenciesUnchanged-and$modsRestored-and$saveProtection-and$processExited-and$errors.Count-eq0);
-            limitation='Qualification is limited to this exact selected scenario and candidate. Loaded UMM entries and assembly identities are observed; broader gameplay is not inferred.'})}
+            limitation=$(if($isNormalPlayer){'Request-free control under an external observer: exactly two active UMM entries (KMC and the observer) and both assembly identities are observed in-process; installed loader files are verified on disk; the complete loaded-assembly inventory is not observed.'}else{'Qualification is limited to this exact selected scenario and candidate. Loaded UMM entries and assembly identities are observed; broader gameplay is not inferred.'})})}
         catch{$errors.Add('Base-game isolation receipt failed: '+$_.Exception.Message)}
     }
     $errorArray=@($errors|ForEach-Object{[string]$_})

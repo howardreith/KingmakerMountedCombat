@@ -202,7 +202,9 @@ namespace KmcRemovalObserver
             if (attached) Check(FindAbility(rider, roles.DismountAbilityGuid) != null, "ordinary-Dismount-control-is-available-while-mounted");
             Write(label + "-settled", row);
             shell = null; frames = 0;
-            return errors.Count == 0;
+            // A settled but wrong terminal state is a FAIL now, never a retry loop.
+            if (errors.Count != 0) { Complete("FAIL"); return false; }
+            return true;
         }
 
         private void IssueGroundClick(string label)
@@ -237,7 +239,8 @@ namespace KmcRemovalObserver
             Check(NeighborUnchanged(), "the-neighboring-pair-is-untouched-after-" + label);
             Write(label + "-settled", row);
             frames = 0;
-            return errors.Count == 0;
+            if (errors.Count != 0) { Complete("FAIL"); return false; }
+            return true;
         }
 
         private void Finish(Game game)
@@ -278,8 +281,11 @@ namespace KmcRemovalObserver
             if (settings != null)
                 foreach (var property in settings.GetType().GetProperties(BindingFlags.Public | BindingFlags.Instance).Where(p => p.PropertyType == typeof(bool)).OrderBy(p => p.Name, StringComparer.Ordinal))
                     settingValues[property.Name] = (bool)property.GetValue(settings, null);
+            var self = typeof(NormalPlayerSession).Assembly;
+            var selfSha = !string.IsNullOrEmpty(self.Location) && File.Exists(self.Location) ? RemovalObserverSession.Sha256File(self.Location) : null;
             var presence = new JObject {
                 ["label"] = label, ["kmcRuntimeArguments"] = new JArray(runtimeArguments),
+                ["observerDllSha256"] = selfSha, ["observerMvid"] = self.ManifestModule.ModuleVersionId.ToString(),
                 ["modEntries"] = new JArray(entries.Select(e => e.Info.Id + (e.Active ? ":active" : ":inactive"))),
                 ["kmcAssemblies"] = assemblies.Length, ["kmcLocation"] = location, ["kmcDllSha256"] = sha, ["kmcMvid"] = mvid,
                 ["kmcHarmonyOwners"] = new JArray(kmcOwners), ["rootPresent"] = root != null,
@@ -293,6 +299,7 @@ namespace KmcRemovalObserver
             Check(entries.Length == 2 && kmcEntry != null && kmcEntry.Active && observerEntry != null && observerEntry.Active,
                 prefix + "UMM-runs-exactly-KMC-and-the-observer-both-active");
             Check(kmc != null && sha == request.Candidate.DllSha256 && mvid == request.Candidate.DllMvid, prefix + "the-loaded-KMC-assembly-is-the-candidate");
+            Check(selfSha == request.Observer.DllSha256 && (string)presence["observerMvid"] == request.Observer.DllMvid, prefix + "the-running-observer-is-the-declared-package");
             Check(kmcOwners.Length != 0 && root != null, prefix + "KMC-integration-is-active");
             Check(root != null && Field(root, "runtimeAutomation") == null && (string)presence["staticAutomationHost"] == "null" &&
                 (string)presence["measurementSession"] == "null" && Field(root, "movementTelemetry") == null, prefix + "no-automation-host-measurement-or-telemetry");

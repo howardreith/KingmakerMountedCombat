@@ -11,7 +11,7 @@ function Get-KmcChunk7NormalPlayerRoles {
  [pscustomobject][ordered]@{riderId=$roles[0];mountId=$roles[1];neighborRiderId=$roles[2];neighborMountId=$roles[3]}
 }
 function Get-KmcChunk7NormalPlayerChecks {
- $at=@('no-KMC-automation-argument-reached-the-process','UMM-runs-exactly-KMC-and-the-observer-both-active','the-loaded-KMC-assembly-is-the-candidate',
+ $at=@('no-KMC-automation-argument-reached-the-process','UMM-runs-exactly-KMC-and-the-observer-both-active','the-loaded-KMC-assembly-is-the-candidate','the-running-observer-is-the-declared-package',
   'KMC-integration-is-active','no-automation-host-measurement-or-telemetry','no-diagnostic-overlay-in-the-shipped-configuration')
  @(foreach($label in @('menu','loaded','after')){foreach($name in $at){'at-'+$label+'-'+$name}}) + @(
   'native-save-and-stash-paths-resolve-inside-the-owned-profile','fixture-archive-bytes-are-exactly-the-declared-copy','engine-reads-the-fixture-header-as-declared',
@@ -63,6 +63,7 @@ function Assert-KmcChunk7NormalPlayerDescriptor($Request){
  Assert-KmcExactProperties $n @('contract','sourceRunId','archiveProducerRunId','riderId','mountId','neighborRiderId','neighborMountId','kmcAutomationRequest','observer') 'normal-player section'
  Assert-KmcExactProperties $n.observer @('version','commit','packageSha256','manifestSha256','dllSha256','dllMvid') 'normal-player observer identity'
  $load=$Request.persistenceLoad
+ Assert-KmcExactProperties $load @('internalName','fileName','sha256','length','lastWriteTimeUtcTicks','gameId','gameName','area') 'normal-player fixture descriptor'
  if([string]$n.contract-cne'request-free-normal-player-control-v1'-or$n.kmcAutomationRequest-isnot[bool]-or$n.kmcAutomationRequest-or
   [string]$n.sourceRunId-cne'20261022-c7b-world185-b185s1-sixthhorse-cold'-or[string]$n.archiveProducerRunId-cne'20261022-c7b-world184-b184s1-sixthhorse-manual'-or
   [string]$n.riderId-cne$roles.riderId-or[string]$n.mountId-cne$roles.mountId-or[string]$n.neighborRiderId-cne$roles.neighborRiderId-or[string]$n.neighborMountId-cne$roles.neighborMountId-or
@@ -71,7 +72,7 @@ function Assert-KmcChunk7NormalPlayerDescriptor($Request){
   [string]$n.observer.dllSha256-cnotmatch'^[0-9a-f]{64}$'-or[string]$n.observer.dllMvid-cnotmatch'^[0-9a-fA-F-]{36}$'-or
   [string]$load.internalName-cne'KMC_C7_SIX_HORSE_WORLD'-or[string]$load.fileName-cne'Manual_308_KMC_C7_SIX_HORSE_WORLD.zks'-or
   [string]$load.sha256-cne'b1e817a60c8bbe35b5947b4eab3b3f35060493ca20873d5de5fdf8a81efbc291'-or[long]$load.length-ne1332308-or
-  [string]$load.gameId-cne'3f7381f7-aba6-43bf-bae6-39c6a66a7180'-or[string]$load.area-cne'b10e86516b6437d45a629931c30936fe'){
+  [string]$load.gameId-cne'3f7381f7-aba6-43bf-bae6-39c6a66a7180'-or[string]$load.gameName-cne'Testy the Modless'-or[long]$load.lastWriteTimeUtcTicks-ne639282712706531806-or[string]$load.area-cne'b10e86516b6437d45a629931c30936fe'){
   throw 'Normal-player request differs from the closed request-free control on the qualified six-Horse fixture.'
  }
 }
@@ -103,7 +104,7 @@ function Assert-KmcChunk7NormalPlayerObserverResult($Request,$ObserverRequest,$R
   -not[DateTimeOffset]::TryParse([string]$Result.startedAtUtc,[ref]$started)-or-not[DateTimeOffset]::TryParse([string]$Result.completedAtUtc,[ref]$completed)-or
   $started-lt$NotBeforeUtc.AddSeconds(-5)-or$completed-lt$started-or[string]$Result.observerAssembly-cne'KmcRemovalObserver'-or
   [string]$Result.observerVersion-cne[string]$ObserverRequest.observer.version-or[string]$Result.requestSha256-cne$ObserverRequestSha256-or
-  [string]$Result.status-cnotin@('PASS','FAIL')){throw 'Normal-player observer result does not bind this run, process, token and observer request.'}
+  [string]$Result.status-cnotin@('PASS','FAIL')){throw ('Normal-player observer result does not bind this run, process, token and observer request; its first error: '+[string](@($Result.errors)+@('<none>'))[0])}
  $rows=@($Result.checks);foreach($row in $rows){Assert-KmcExactProperties $row @('name','passed') 'normal-player check';if($row.passed-isnot[bool]){throw 'Normal-player check verdict is not boolean.'}}
  $passed=@($rows|Where-Object{$_.passed});$failed=@($rows|Where-Object{-not$_.passed})
  if([int]$Result.checkPassCount-ne$passed.Count-or[int]$Result.checkFailCount-ne$failed.Count-or
@@ -119,6 +120,7 @@ function Assert-KmcChunk7NormalPlayerObserverResult($Request,$ObserverRequest,$R
   if(@($p.kmcRuntimeArguments).Count-ne0-or((@($p.modEntries)|Sort-Object)-join'|')-cne'KingmakerMountedCombat:active|KmcRemovalObserver:active'-or
    [int]$p.kmcAssemblies-ne1-or[string]$p.kmcDllSha256-cne[string]$Request.dllSha256-or[string]$p.kmcMvid-cne[string]$Request.dllMvid-or
    @($p.kmcHarmonyOwners).Count-eq0-or$p.rootPresent-ne$true-or[string]$p.automationHostField-cne'null'-or[string]$p.staticAutomationHost-cne'null'-or
+   [string]$p.observerDllSha256-cne[string]$n.observer.dllSha256-or[string]$p.observerMvid-cne[string]$n.observer.dllMvid-or
    [string]$p.measurementSession-cne'null'-or[string]$p.movementTelemetry-cne'null'-or[int]$p.overlayObjects-ne0-or$p.effectiveSettings.EnableDiagnosticOverlay-ne$false){
    throw 'KMC was not present on its ordinary no-request path with the shipped quiet configuration.'
   }
@@ -137,6 +139,28 @@ function Assert-KmcChunk7NormalPlayerObserverResult($Request,$ObserverRequest,$R
  if($o.archive.changedOnDisk-ne$false-or[string]$o.archive.sha256Before-cne[string]$Request.persistenceLoad.sha256-or[int]$o.log.kmcErrors-ne0){throw 'The fixture changed or KMC logged an error.'}
 }
 
+# KMC logs through UMM's own logger, which never reaches Unity's log. After the
+# attributed process exits, its one-session UMM log is KMC's own record of how it
+# started: the ordinary load line, the quiet overlay, no accepted automation
+# request and no error or exception line.
+function Get-KmcChunk7NormalPlayerUmmLogSummary([string]$GameRoot,[DateTimeOffset]$NotBeforeUtc,[string]$ProductVersion){
+ $path=Join-Path $GameRoot 'Kingmaker_Data/Managed/UnityModManager/Log.txt'
+ Assert-KmcNotReparsePoint $path 'UMM session log'
+ $item=Get-Item -LiteralPath $path
+ if($item.LastWriteTimeUtc-lt$NotBeforeUtc.UtcDateTime){throw 'The UMM log was not written by this run''s session.'}
+ $stream=[IO.File]::Open($path,[IO.FileMode]::Open,[IO.FileAccess]::Read,[IO.FileShare]::ReadWrite)
+ try{$reader=New-Object IO.StreamReader($stream,[Text.UTF8Encoding]::new($false));$lines=@($reader.ReadToEnd()-split"\r?\n")}finally{$stream.Dispose()}
+ $kmc=@($lines|Where-Object{$_.StartsWith('[KingmakerMountedCombat] ',[StringComparison]::Ordinal)})
+ $summary=[ordered]@{schemaVersion=1;path=$path;sha256=(Get-KmcSha256 $path);sessionHeaders=@($lines|Where-Object{$_.StartsWith('[Manager] Version: ',[StringComparison]::Ordinal)}).Count
+  kmcLines=$kmc.Count;loadedLine=@($kmc|Where-Object{$_.Contains('Kingmaker Mounted Combat '+$ProductVersion+' loaded')}).Count
+  quietOverlayLine=@($kmc|Where-Object{$_.Contains('diagnostic overlay=False')}).Count
+  automationAccepted=@($kmc|Where-Object{$_.Contains('Runtime automation request accepted')}).Count
+  errorLines=@($kmc|Where-Object{$_.StartsWith('[KingmakerMountedCombat] [Error]',[StringComparison]::Ordinal)-or$_.StartsWith('[KingmakerMountedCombat] [Exception]',[StringComparison]::Ordinal)-or$_.Contains('Exception:')}).Count
+  firstKmcLines=@($kmc|Select-Object -First 12)}
+ $summary['passed']=($summary.sessionHeaders-eq1-and$summary.loadedLine-eq1-and$summary.quietOverlayLine-ge1-and$summary.automationAccepted-eq0-and$summary.errorLines-eq0)
+ [pscustomobject]$summary
+}
+
 # Outer binding: the composed game record names exactly this observer result.
 function Assert-KmcChunk7NormalPlayerRuntimeBinding($Request,$GameEvidence,[string]$Status){
  if(-not(Test-KmcChunk7NormalPlayerScenario $Request.scenario)){return}
@@ -144,6 +168,6 @@ function Assert-KmcChunk7NormalPlayerRuntimeBinding($Request,$GameEvidence,[stri
  $resultPath=Join-Path $root 'observer-result.json'
  if($null-eq$GameEvidence-or[string]$GameEvidence.evidenceKind-cne'kmc-normal-player-observer'-or-not(Test-Path -LiteralPath $resultPath -PathType Leaf)-or
   (Get-KmcSha256 $resultPath)-cne[string]$GameEvidence.observerResultSha256-or[string]$GameEvidence.status-cne$Status-or$GameEvidence.kmcAutomationRequest-ne$false){
-  throw 'Normal-player run result does not bind its exact observer result.'
+  throw ('Normal-player run result does not bind its exact observer result (observer result present='+(Test-Path -LiteralPath $resultPath -PathType Leaf)+').')
  }
 }
