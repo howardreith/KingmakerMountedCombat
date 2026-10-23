@@ -76,6 +76,8 @@ param(
     # (planning/CHUNK7-7E-QUALIFICATION-MATRIX.md, X5). u2/u3 name the passed u1 run.
     [ValidateSet('u1-previous-install','u2-upgrade','u3-rollback')][string]$UpgradeRehearsalStep,
     [ValidatePattern('^[A-Za-z0-9][A-Za-z0-9._-]{0,119}$')][string]$UpgradeCarrySourceRunId,
+    # Shared by the three steps of one rehearsal; u2 and u3 require a passed u1 of the same id.
+    [ValidatePattern('^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$')][string]$UpgradeRehearsalId,
     [ValidateSet('multi-exploration-manual','multi-exploration-quick','multi-exploration-auto','multi-rt-debt-manual','multi-tb-debt-manual','zero-mounted-tb-retained-manual','legacy-mounted-pending-tb-manual','pending-schema3-control-manual','multi-area-autosave','legacy-schema1-resave-manual','multi-exploration-three-loads-manual','multi-exploration-three-area-transfers-manual','multi-nonselected-mount-unsettled-manual','multi-owned-worker-cancel-manual','owned-schema1-manual','owned-schema1-resave-manual','owned-schema1-current-manual','owned-schema2-pending-current-manual','multi-malformed-refusal-manual','multi-future-refusal-manual','owner-seed-manticore-fixture-manual','owner-seed-tomb-door-fixture-manual','owner-seed-thorn-river-door-fixture-manual','manticore-fixture-cold-manual','partial-movement','rider-spent','between-partner-orders','exhausted','explicit-end','combat-mount-tb','casting-items','step','conversion','round-effect','reaction','condition','condition-preparing','suspended','manual','quick','auto','manual-renamed','alternating','queued','unmounted-spent','mounted-spent','unmounted-attack','mounted-attack','unmounted-projectile','mounted-projectile','unmounted-approach','mounted-approach','unmounted-casting','mounted-casting','mounted-casting-items','combat-mount-rt','combat-dismount-rt','mounted-charge-pending','mounted-charge-settled','mounted-charge-cancelled','mounted-charge-failed','mounted-charge-drained','legacy','schema1','future','malformed','profile','campaign','missing-rider','missing-mount','mismatched-profile','policy','combat-missing','combat-ai','timeout','cancel-wait','locked-replace','serialization-cancel','serialization-cancel-output','disable-reenable','campaign-b','prepare-removal','disable-during-load','mounted-charge-area','mounted-charge-session','mounted-charge-disable','mounted-charge-removal','absent-kmc','removal-no-dll','mounted-charge-removal-no-dll','rider-death','mount-death','rider-size-change','area-reload','area-cross-entry','area-cross-exit','area-cross-entry-auto','area-cross-exit-auto','failed-area-load','foreign-header-campaign','combat-mount-routes','combat-mount-unsettled-save','combat-mount-area-reload','pending-mount-area')][string]$PersistenceCase,
     [ValidatePattern('^[0-9a-f]{32}$')][string]$PersistenceAreaEnterPoint,
     [ValidatePattern('^[0-9a-f]{32}$')][string]$PersistenceAreaTargetArea,
@@ -153,11 +155,12 @@ Assert-KmcChunk7FamilyReady $Scenario $null
 Assert-KmcChunk7PersistenceCaseSelected $PersistenceCase
 # The F12 upgrade rehearsal (7E X5) is admitted only as a step of the normal-player control,
 # and refused here, before any selection intake, approval, lock, transaction or launch.
-if(-not[string]::IsNullOrEmpty($UpgradeRehearsalStep)-or-not[string]::IsNullOrEmpty($UpgradeCarrySourceRunId)){
+if(-not[string]::IsNullOrEmpty($UpgradeRehearsalStep)-or-not[string]::IsNullOrEmpty($UpgradeCarrySourceRunId)-or-not[string]::IsNullOrEmpty($UpgradeRehearsalId)){
     if(-not(Test-KmcChunk7NormalPlayerScenario $Scenario)){throw 'The F12 upgrade rehearsal is a step of the request-free normal-player control only.'}
     if([string]::IsNullOrEmpty($UpgradeRehearsalStep)-or(($UpgradeRehearsalStep-ceq'u1-previous-install')-ne[string]::IsNullOrEmpty($UpgradeCarrySourceRunId))){
         throw 'The first install takes no carry source; the upgrade and rollback steps require the passed first-install run.'
     }
+    if([string]::IsNullOrEmpty($UpgradeRehearsalId)){throw 'Every upgrade rehearsal step names its shared rehearsal id.'}
 }
 if(Test-KmcChunk7NativeBootstrapScenario $Scenario){
     if(-not$BaseGameOnly-or-not$PSBoundParameters.ContainsKey('NativeBootstrapCase')-or$NativeBootstrapCase-cne'authored-main-campaign'){
@@ -497,8 +500,8 @@ $ownedAreaTarget=if((Test-KmcChunk7OwnedPairsScenario $Scenario)-and$Persistence
 $upgradePrevious=$null;$upgradeCarry=@();$upgradeSection=$null
 if(-not[string]::IsNullOrEmpty($UpgradeRehearsalStep)){
     $upgradePrevious=Get-KmcChunk7PreviousPackage
-    if($UpgradeRehearsalStep-cne'u1-previous-install'){$upgradeCarry=@(Get-KmcChunk7UpgradeCarry $UpgradeCarrySourceRunId)}
-    $upgradeSection=New-KmcChunk7UpgradeRehearsalSection $UpgradeRehearsalStep $upgradePrevious $manifest $UpgradeCarrySourceRunId $upgradeCarry
+    if($UpgradeRehearsalStep-cne'u1-previous-install'){$upgradeCarry=Get-KmcChunk7UpgradeCarry $UpgradeCarrySourceRunId $UpgradeRehearsalId}
+    $upgradeSection=New-KmcChunk7UpgradeRehearsalSection $UpgradeRehearsalStep $UpgradeRehearsalId $upgradePrevious $manifest $UpgradeCarrySourceRunId $upgradeCarry
 }
 $upgradeLoad=$null-ne$upgradeSection-and(Test-KmcChunk7UpgradePreviousStep $UpgradeRehearsalStep)
 function Get-KmcRunNormalPlayerSource{if($upgradeLoad){Get-KmcChunk7UpgradeSeedSource $fixturePayload}else{Get-KmcChunk7SixPairCheckpointSource $fixturePayload}}
