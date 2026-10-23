@@ -6,8 +6,10 @@ Sycamore seed: its isolated cold load passed (s1r) after a reviewed fix for a Sp
 The owner's open `TavernDoor` is 8.45/7.92 m from the mounts and otherwise clean, but its
 navmesh cut stays active when open (`DisableNavmeshCutWhenOpen = false`). Static-cut doors are now
 admitted (`b113418a`, review CLEAR: the requirement is the mounted click, selection change and
-exact restoration, not the cut toggle), so that NOT APPLICABLE is superseded. Next: an exploration
-rerun on a new candidate. The 7B door row stays OPEN. Standing mission remains IN PROGRESS.
+exact restoration, not the cut toggle), so that NOT APPLICABLE is superseded. Batch192c then clicked `TavernDoor` with both pairs
+(game PASS, static cut unchanged, restoration exact), but the door outcome serialized as an empty
+`{"$id"}` shell, so the outer result is FAIL. A fix awaits review and a new candidate. The 7B door
+row stays OPEN. Standing mission remains IN PROGRESS.
 
 Historical: Claude [batch191](docs/CHUNK7-BATCH191-REQUEST-FREE-CONTROLS-2026-10-23.md) passed the F11 request-free
 KMC ordinary controls under an external observer (attempt s2; s1 is a preserved FAIL whose

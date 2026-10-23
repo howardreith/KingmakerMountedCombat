@@ -106,6 +106,10 @@ rows alike, and the source tie still matches `DoorFacts.Eligible`. The door proo
 only when inactive, without a cut, or outside the distance bounds; all four retained inventories
 still pass. The batch192 s2 not-applicable record (old reader PASS) is refused by the new reader,
 correctly: under the new rule its `TavernDoor` qualifies.
+**Batch192c.** The first static-cut run clicked `TavernDoor` with both pairs (game PASS); its outcome
+evidence serialized empty, so the outer result is FAIL. See
+[batch192](CHUNK7-BATCH192-DOOR-SEED-COLD-2026-10-23.md).
+
 ## Recipe (about 15–30 minutes of ordinary play)
 
 **Preparation**

@@ -90,9 +90,47 @@ qualified behaviour is a mounted path through a doorway whose cut the door toggl
 door whose cut stays active when open should qualify is a design question, not decided here; the
 predicate was not changed. No click, selection change or door restoration occurred.
 
+## Batch192c: static-cut door click (game PASS, outer FAIL on evidence serialization)
+
+Candidate `06653762` (static-cut admission `b113418a`, review CLEAR, plus a comment-only edit):
+frozen worktree `worktrees/chunk7b-b192c-source-06653762`; package
+`…c7b-world192c-doorstatic-diagnostic.zip` `a010b6b7…`, 3,670,149 bytes (`Info.json` 329 + DLL
+7,931,904 only); manifest `9fca79a1…`; DLL `6b310af0…`, MVID `0b5e2f26-c0b3-4507-b8e9-0642e74e787f`;
+Candidate tier 6/0 (225 s); suite `chunk7b-completion-b192c-doorstatic-20261023` `40330450…`. The
+root `bin\Release` DLL was `6b310af0…` before and after packaging (the Fast tier had already
+built the same source), equal to the package DLL.
+
+No same-candidate cold load was run: the exploration selection's exact property set binds only the
+registry seed (ID and SHA-256), and since s1r's `e32c1226` the only product change is the door probe.
+
+**c1 `20261023-c7b-world192c-b192c1-doorstatic-explore`.** WhatIf PASS, then live (about 2.7 min).
+Game result **PASS**; outer result **FAIL** (0/1): "native door terminal outcome property set is not
+exact. Actual: $id". The probe wrote each door outcome with bare `JObject.FromObject`, which in the
+game uses the global `JsonConvert.DefaultSettings` and produced an empty `{"$id":"1"}` shell (a known
+serialization fact). The probe had already required every outcome value in game before writing it
+(Success, one interaction, one delegated approach, door state changed, rider path suppressed, mount
+Move slot restored), but the record cannot show them, so this is not a door PASS. External
+`Test-RuntimeResult` (current reader) refuses it for the same reason. Result `bf8dbd30…`, world
+evidence `a9f3c68a…`. Mods, save protection, Working and Baseline restored; no process or lock
+afterwards.
+
+What the record does show:
+
+| Item | Observed |
+| --- | --- |
+| Door | `TavernDoor`, `cutMode` static, captured open, enabled, cut enabled, already unlocked, radius 2 m |
+| Pair 0 | rider `73681ef2…` executed command `-1466112384` from 7.12 m, moved 5.12 m; selection afterwards rider B `fd213210…` |
+| Pair 1 | rider `fd213210…` executed command `-787315200` from 11.80 m, moved 9.86 m; selection afterwards rider A |
+| Setup closes | 2 (open start); first pair returned to its start (0.04 m, Success) |
+| Cut observations | enabled at all six boundaries: captured (open), input-ready-0 (closed), after-click-0 (open), input-ready-1 (closed), after-click-1 (open), restored (open) |
+| Restoration | exact: open, enabled, cut enabled, unlock flag true (observed true before restore) |
+
+**Fix (offline, needs review and a new candidate).** The probe now writes the ten outcome members
+explicitly; a source test refuses any bare `JObject.FromObject` in the probe and requires each
+member. `Test-Chunk7WorldEvidence` 252/0, `Test-Chunk7DoorCleanupAdapter` 35/0, Fast 3/0, Release
+build clean.
 ## Next
 
-Decided: static-cut doors qualify (`b113418a`, review CLEAR). The requirement is a real mounted
-click with a selection change and exact restoration; the cut toggle was only the settle observable.
-Next is a new candidate from that source and an owner-seed exploration rerun on it. The row stays
-OPEN until that run's door proof passes.
+Decided: static-cut doors qualify (`b113418a`, review CLEAR). Batch192c clicked the door in game
+(game PASS) but its outcome evidence serialized empty. Next: review of the outcome serialization fix,
+a new candidate, and an exploration rerun. The row stays OPEN until a door proof passes the reader.
