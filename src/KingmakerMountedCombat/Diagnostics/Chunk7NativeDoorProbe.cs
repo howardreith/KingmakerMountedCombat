@@ -327,16 +327,19 @@ namespace KingmakerMountedCombat.Diagnostics
             door.Enabled = originalEnabled;
             // Native interaction marks an unrestricted door AlreadyUnlocked (CheckRestrictions). The
             // flag is read only behind a restriction, so it is written back only for a door captured
-            // with none; any other door was never admitted.
-            var data = door.Data;
-            Require(data != null && originalRestrictionCount == 0, "Native door unlock state is not restorable without a behavioural effect.");
-            data.AlreadyUnlocked = originalAlreadyUnlocked;
-            Require(door.GetState() == originalOpen && door.Enabled == originalEnabled && cut.enabled == originalCut &&
-                data.AlreadyUnlocked == originalAlreadyUnlocked,
+            // with none (any other door was never admitted), and only when it actually changed.
+            var before = door.Data;
+            Require(before != null && originalRestrictionCount == 0, "Native door unlock state is not restorable without a behavioural effect.");
+            var observedBefore = before.AlreadyUnlocked;
+            if (observedBefore != originalAlreadyUnlocked) before.AlreadyUnlocked = originalAlreadyUnlocked;
+            // A fresh native read after the write, not the reference just written through.
+            var after = door.Data;
+            Require(after != null && door.GetState() == originalOpen && door.Enabled == originalEnabled && cut.enabled == originalCut &&
+                after.AlreadyUnlocked == originalAlreadyUnlocked,
                 "Native door lease has not restored its original open/enabled/cut/unlock state.");
             restored = true; evidence["restoration"] = new JObject { ["exact"] = true, ["commandsSettled"] = true,
                 ["open"] = door.GetState(), ["enabled"] = door.Enabled, ["cutEnabled"] = cut.enabled,
-                ["alreadyUnlocked"] = data.AlreadyUnlocked };
+                ["observedAlreadyUnlockedBeforeRestore"] = observedBefore, ["alreadyUnlocked"] = after.AlreadyUnlocked };
             return true;
         }
 

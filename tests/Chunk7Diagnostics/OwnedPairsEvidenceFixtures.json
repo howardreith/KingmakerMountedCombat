@@ -12652,7 +12652,18 @@
               "originalEnabled": false,
               "originalCut": false,
               "disableOnOpen": true,
-              "radius": 2
+              "radius": 2,
+              "interactable": true,
+              "availableInteractions": true,
+              "revealed": true,
+              "hasVisibleTrap": false,
+              "trapActive": false,
+              "originalAlreadyUnlocked": false,
+              "restrictionCount": 0,
+              "hasDialog": false,
+              "dataPresent": true,
+              "viewTriggerCount": 0,
+              "viewTriggerActions": false
             },
             "firstPairReturn": {
               "command": 1802,
@@ -12666,7 +12677,9 @@
               "commandsSettled": true,
               "open": true,
               "enabled": false,
-              "cutEnabled": false
+              "cutEnabled": false,
+              "observedAlreadyUnlockedBeforeRestore": true,
+              "alreadyUnlocked": false
             }
           },
           "inheritedFixture": {
