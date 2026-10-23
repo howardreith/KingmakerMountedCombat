@@ -62,6 +62,13 @@ in the save; the probe's read-only native inventory decides them. A read-only ma
 is frozen at `fixtures/owner-supplied/KMC_C7_DOOR_SEED_OLD_SYCAMORE.master.zks` (same hash).
 The owner's save is not written. The row stays OPEN until the native probe passes.
 
+## Attempt 3 (2026-10-23): open door, party back; native cold load pending a fix
+
+The owner re-saved with door `3d9a8eff…` open and the party 8–20 m back (SHA-256 `90789101…`),
+registered as `KMC_C7_DOOR_SEED_OLD_SYCAMORE_OPEN`. Its cold load (batch192 s1) failed on a
+product pin of the Spider Cave area; see
+[batch192](CHUNK7-BATCH192-DOOR-SEED-COLD-2026-10-23.md). The row stays OPEN.
+
 ## Recipe (about 15–30 minutes of ordinary play)
 
 **Preparation**
