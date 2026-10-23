@@ -92,7 +92,7 @@ $good=[pscustomobject][ordered]@{schemaVersion=1;evidenceKind='kmc-normal-player
    [pscustomobject]@{label='dismount';casterId=$n.riderId;targetId=$n.riderId;clicked=$true;commandCreated=$true;result='Success';attachedTo=$null;neighborUnchanged=$true},
    [pscustomobject]@{label='unmounted-move';moverId=$n.riderId;riderDisplacement=3.8;mountDisplacement=1.0;attachedTo=$null;neighborUnchanged=$true})
   controlsAfter=[pscustomobject]@{label='after'};presenceAfter=(Presence 'after')
-  archive=[pscustomobject]@{sha256Before=[string]$load.sha256;sha256After=[string]$load.sha256;changedOnDisk=$false};profileAfter=[pscustomobject]@{saves=@()}
+  archive=[pscustomobject]@{path=(Join-Path (Join-Path $profile 'Saved Games') ([string]$load.fileName));sha256Before=[string]$load.sha256;sha256After=('7'*64);changedOnDisk=$true};profileAfter=[pscustomobject]@{saves=@()}
   log=[pscustomobject]@{kmcErrors=0;kmcLines=1}}}
 $obsReq=Clone $observerRequest;$obsReq.profileRoot=$profile
 function Read-Result($Value){Assert-KmcChunk7NormalPlayerObserverResult $request $obsReq $Value $observerRequestHash $process $notBefore}
@@ -111,7 +111,8 @@ foreach($m in @(
  @('a third loaded mod',{param($r)$r.observations.presenceAtMenu.modEntries=@('KingmakerMountedCombat:active','KmcRemovalObserver:active','Other:active')},'ordinary no-request path'),
  @('a substituted observer assembly',{param($r)$r.observations.presenceLoaded.observerDllSha256=('0'*64)},'ordinary no-request path'),
  @('a non-candidate KMC assembly',{param($r)$r.observations.presenceLoaded.kmcDllSha256=('0'*64)},'ordinary no-request path'),
- @('a changed fixture archive',{param($r)$r.observations.archive.changedOnDisk=$true},'fixture changed or KMC logged'),
+ @('another starting archive',{param($r)$r.observations.archive.sha256Before=('0'*64)},'fixture changed or KMC logged'),
+ @('an archive outside the owned copy',{param($r)$r.observations.archive.path='C:\Users\Someone\Saved Games\x.zks'},'not the owned fixture copy'),
  @('a KMC error',{param($r)$r.observations.log.kmcErrors=1},'fixture changed or KMC logged'),
  @('reordered inputs',{param($r)$r.observations.inputs=@($r.observations.inputs[1],$r.observations.inputs[0],$r.observations.inputs[2],$r.observations.inputs[3])},'exact ordered native sequence'),
  @('a missing check',{param($r)$r.checks=@($r.checks|Select-Object -Skip 1);$r.checkPassCount--},'differs from its exact declared set'),
@@ -128,7 +129,15 @@ Check 'the guarded runner Scenario parameter admits the normal-player control' {
  $set=@($param[0].Attributes|Where-Object{$_.TypeName.Name-ceq'ValidateSet'})
  if($set.Count-ne1-or@($set[0].PositionalArguments|Where-Object{$_.Value-ceq'chunk7-normal-player-control'}).Count-ne1){throw 'Runner Scenario ValidateSet lacks the normal-player control.'}
  if(@(Get-KmcSaveBackedRuntimeScenarios)-cnotcontains'chunk7-normal-player-control'){throw 'Save-backed allowlist lacks the normal-player control.'}
-}# --- KMC's own one-session UMM log ----------------------------------------
+}# --- Archive members: the real batch191 load rewrote only the native header ---
+. (Join-Path $repo 'scripts/runtime/PersistenceValidationFixtures.ps1')
+$b191Copy='C:\Dev\KingmakerMountedCombatLab\runtime-staging\persistence-20261023-c7b-world191-b191s1-normalplayer\Saved Games\Manual_308_KMC_C7_SIX_HORSE_WORLD.zks'
+$sourcePath=(Get-KmcChunk7SixPairCheckpointSource $request.fixture).path
+Check 'the real batch191 native load changed only the fixture header member' {
+ if((Get-KmcSha256 $b191Copy)-cne'7de070b0ad379ab4a04c96a901812d2aa1976c55faf1220372095de76c41fc24'){throw 'batch191 copy changed'}
+ $m=Assert-KmcChunk7NormalPlayerArchiveMembers $sourcePath $b191Copy;if((@($m.changed)-join',')-cne'header.json'){throw ('unexpected '+(@($m.changed)-join','))}
+}
+Check 'an unchanged source compared with itself passes the member check' {[void](Assert-KmcChunk7NormalPlayerArchiveMembers $sourcePath $sourcePath)}# --- KMC's own one-session UMM log ----------------------------------------
 $fakeGame=Join-Path $OutputDirectory 'game';$logDir=Join-Path $fakeGame 'Kingmaker_Data/Managed/UnityModManager';[void][IO.Directory]::CreateDirectory($logDir)
 $quiet=@('[Manager] Initialize.','[Manager] Version: 0.33.2.0.','[KingmakerMountedCombat] Version ''0.1.0-chunk7b-preview.94''. Loading.',
  '[KingmakerMountedCombat] Kingmaker Mounted Combat 0.1.0-chunk7b-preview.94 loaded with transient private-alpha mounted melee services.',

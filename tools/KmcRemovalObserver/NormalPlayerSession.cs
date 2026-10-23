@@ -252,8 +252,11 @@ namespace KmcRemovalObserver
             observations["archive"] = new JObject { ["path"] = archivePath, ["sha256Before"] = archiveSha256Before, ["sha256After"] = after,
                 ["changedOnDisk"] = !string.Equals(after, archiveSha256Before, StringComparison.Ordinal) };
             observations["profileAfter"] = ProfileListing();
-            Check(string.Equals(after, archiveSha256Before, StringComparison.Ordinal), "the-fixture-archive-is-unchanged");
-            Check(JToken.DeepEquals(observations["profileBefore"]["saves"], observations["profileAfter"]["saves"]), "no-save-file-was-written-or-changed");
+            // Loading an archive natively rewrites only its own header member; the
+            // harness reader verifies that member by member. No save may be added.
+            var namesBefore = string.Join("|", ((JArray)observations["profileBefore"]["saves"]).Select(s => (string)s["name"]));
+            var namesAfter = string.Join("|", ((JArray)observations["profileAfter"]["saves"]).Select(s => (string)s["name"]));
+            Check(namesBefore == namesAfter && namesAfter == request.Archive.FileName, "no-save-file-was-added-or-removed");
             Check(kmcLogErrors == 0, "KMC-logged-no-error-or-exception-in-ordinary-play");
             Complete(errors.Count == 0 ? "PASS" : "FAIL");
         }
