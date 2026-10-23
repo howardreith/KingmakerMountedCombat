@@ -170,10 +170,16 @@ A door captured closed:
 - is restored through `StandardDoor.Open`, which toggles the native state. `Open` is what
   `OnInteract` calls; it needs no rider, no restriction check and no out-of-combat state.
 
-Native interaction marks the door `AlreadyUnlocked` (`CheckRestrictions`). The flag is read
-only behind a restriction. Restoration writes back the captured value only for a door captured
-with no restriction, which is the only kind admitted, so the write has no behavioural effect.
-The restoration evidence records the flag.
+Native interaction marks the door `AlreadyUnlocked` (`CheckRestrictions`). The flag is read only
+behind a restriction. Restoration works in four steps:
+- it reads the flag first and records it as `observedAlreadyUnlockedBeforeRestore`;
+- it writes the captured value back only when the flag differs and the door was captured with no
+  restriction, which is the only kind admitted;
+- it then re-reads the flag through a fresh `door.Data` access;
+- it records that value as `alreadyUnlocked`.
+
+The reader accepts the observed value only when it is unchanged, or when it was set by
+interaction on an unrestricted door captured not unlocked.
 
 The not-applicable record carries the two mounts and the nearest 32 scan rows:
 - each mount is tied to its owner's mount ID and to its own movement end, within 0.5 m;
@@ -181,7 +187,14 @@ The not-applicable record carries the two mounts and the nearest 32 scan rows:
 - the legacy four-field record is admitted only when it scanned zero doors, which is true of
   all ten retained not-applicable artifacts (including `20261017-c7b-world22-ownerseed-b2s4-twopair`).
 
-The legacy fixture shape is admitted only for an open start.
+Only the current fixture shape is admitted: a census of `runtime-evidence` found no retained
+native door proof.
+
+Inventories are all-legacy or all-current. A legacy row is admitted only when it is ineligible
+whatever its click flags would say (inactive, no cut, no cut-on-open, or out of the distance
+bounds), so it cannot hide a qualifying closed door. All four retained inventories pass this
+rule: three are empty, and the preview.88 tomb row is the secret door, with no cut-on-open and
+29–31 m away. All ten retained not-applicable records pass too.
 **Open risks the native run decides.**
 - *Distance.* The party was saved right in front of the door. Both mounts must start more
   than the interaction radius + 0.5 m and at most 28 m from the door. If they are too close,

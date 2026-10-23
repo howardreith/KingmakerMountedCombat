@@ -101,7 +101,9 @@ $doorObservation|Add-Member NoteProperty areaDoorInventory ([pscustomobject]@{
         [pscustomobject]@{id=$moves[0].executorId;position=[pscustomobject]@{x=0.0;y=0.0;z=0.0}},
         [pscustomobject]@{id=$moves[1].executorId;position=[pscustomobject]@{x=0.0;y=0.0;z=0.0}});
     truncated=$false;interactionTested=$false;rows=@([pscustomobject]@{name='NativeDoor';position=[pscustomobject]@{x=2.0;y=0.0;z=0.0};
-        active=$true;open=$true;disableCutWhenOpen=$true;cutPresent=$true;proximityRadius=1.0;mountDistances=@(2.0,2.0);eligible=$true})})
+        active=$true;open=$true;disableCutWhenOpen=$true;cutPresent=$true;proximityRadius=1.0;mountDistances=@(2.0,2.0);
+        interactable=$true;availableInteractions=$true;revealed=$true;hasVisibleTrap=$false;trapActive=$false;alreadyUnlocked=$false;restrictionCount=0;hasDialog=$false;
+        dataPresent=$true;viewTriggerCount=0;viewTriggerActions=$false;eligible=$true})})
 Check 'bounded read-only area door inventory' {Assert-KmcChunk7AreaAutosave $areaRequest $doorObservation $areaArchive}
 foreach($bad in @('distance','eligibility','tested','count','position','mount-id','boundary')){
     Reject ('area door inventory '+$bad) {$a=Copy-Test $doorObservation;switch($bad){
@@ -115,9 +117,14 @@ foreach($bad in @('distance','eligibility','tested','count','position','mount-id
     };Assert-KmcChunk7AreaAutosave $areaRequest $a $areaArchive}
 }
 # Current rows carry the probe's clickability flags: a closed clickable door is eligible.
-$currentDoor=Copy-Test $doorObservation;$row=$currentDoor.areaDoorInventory.rows[0];$row.PSObject.Properties.Remove('eligible')
-foreach($pair in @(@('interactable',$true),@('availableInteractions',$true),@('revealed',$true),@('hasVisibleTrap',$false),@('trapActive',$false),@('alreadyUnlocked',$false),@('restrictionCount',0),@('hasDialog',$false),@('dataPresent',$true),@('viewTriggerCount',0),@('viewTriggerActions',$false),@('eligible',$true))){$row|Add-Member NoteProperty $pair[0] $pair[1]}
-$row.open=$false
+$currentDoor=Copy-Test $doorObservation;$currentDoor.areaDoorInventory.rows[0].open=$false
+# Legacy rows (no clickability flags): admitted only as a whole inventory and only where each
+# row is ineligible whatever its flags, like the retained preview.88 tomb secret door.
+function Set-LegacyRow($r){foreach($k in @('interactable','availableInteractions','revealed','hasVisibleTrap','trapActive','alreadyUnlocked','restrictionCount','hasDialog','dataPresent','viewTriggerCount','viewTriggerActions')){$r.PSObject.Properties.Remove($k)}}
+Check 'legacy inventory row ineligible whatever its flags' {$a=Copy-Test $doorObservation;$r=$a.areaDoorInventory.rows[0];Set-LegacyRow $r;$r.open=$false;$r.disableCutWhenOpen=$false;$r.eligible=$false;Assert-KmcChunk7AreaAutosave $areaRequest $a $areaArchive}
+Reject 'legacy inventory row that could hide a closed qualifying door' {$a=Copy-Test $doorObservation;$r=$a.areaDoorInventory.rows[0];Set-LegacyRow $r;$r.open=$false;$r.eligible=$false;Assert-KmcChunk7AreaAutosave $areaRequest $a $areaArchive}
+Reject 'legacy inventory row claiming an open qualifying door' {$a=Copy-Test $doorObservation;Set-LegacyRow $a.areaDoorInventory.rows[0];Assert-KmcChunk7AreaAutosave $areaRequest $a $areaArchive}
+Reject 'inventory mixing legacy and current rows' {$a=Copy-Test $doorObservation;$a.areaDoorInventory.candidateCount=2;$second=Copy-Test $a.areaDoorInventory.rows[0];$second.name='OtherDoor';$r=$a.areaDoorInventory.rows[0];Set-LegacyRow $r;$r.disableCutWhenOpen=$false;$r.eligible=$false;$a.areaDoorInventory.rows=@($r,$second);Assert-KmcChunk7AreaAutosave $areaRequest $a $areaArchive}
 Check 'current area door row admits a closed player-clickable door' {Assert-KmcChunk7AreaAutosave $areaRequest $currentDoor $areaArchive}
 foreach($bad in @('secret','trap','restricted','restricted-open','unlocked-restricted','trigger-actions','no-data','dialog','legacy-closed','flag-text','no-trigger-flags')){
     Reject ('current area door row '+$bad) {$a=Copy-Test $currentDoor;$r=$a.areaDoorInventory.rows[0];switch($bad){

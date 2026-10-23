@@ -8,7 +8,8 @@ internal static class LoadingProcess {public static Loader Instance=new Loader()
 internal static class NativePersistenceIsolation {public static bool HasPendingWrites;}
 internal sealed class World {public bool SerializationBusy;}
 internal sealed class Command {public bool IsFinished;public int interrupts;public bool throwOnInterrupt,remainPending;public void Interrupt(){interrupts++;if(throwOnInterrupt)throw new InvalidOperationException("interrupt");if(!remainPending)IsFinished=true;}}
-internal sealed class DoorData {public bool AlreadyUnlocked;}
+// A fresh native read; dropWrites models a write that does not reach native state.
+internal sealed class DoorData {private bool unlocked;public bool dropWrites;public int writes;public bool AlreadyUnlocked{get{return unlocked;}set{writes++;if(!dropWrites)unlocked=value;}}public void Seed(bool value){unlocked=value;}}
 // StandardDoor.Open toggles State; refuse models a native toggle that leaves State unchanged.
 internal sealed class Door {public bool open,Enabled,throwOnOpen,refuseOpen,dataMissing;public int opens;public DoorData data=new DoorData();public DoorData Data=>dataMissing?null:data;public bool GetState()=>open;public void Open(){opens++;if(throwOnOpen)throw new InvalidOperationException("open");if(!refuseOpen)open=!open;}}
 internal sealed class Cut {public bool enabled;}
@@ -53,9 +54,11 @@ internal static class Program {
  a=New();a.originalOpen=false;a.originalCut=true;a.door.open=true;a.door.throwOnOpen=true;Check(Throws(()=>a.Drain())&&a.door.open&&!a.restored&&a.evidence["restoration"]==null,"throwing native toggle retains custody without claiming restoration");
  a.door.throwOnOpen=false;a.cut.enabled=true;Check(a.Drain()&&a.restored&&!a.door.open,"closed restoration retries after a throwing toggle");
  a=New();a.originalOpen=false;a.originalCut=true;a.door.open=true;a.door.refuseOpen=true;Check(!a.Drain()&&!a.Drain()&&a.door.open&&!a.restored&&a.evidence["restoration"]==null,"refused native toggle never claims restoration");
- a=New();a.originalAlreadyUnlocked=false;a.door.data.AlreadyUnlocked=true;Check(a.Drain()&&a.restored&&!a.door.data.AlreadyUnlocked,"interaction unlock residue returns to its captured value");
- a=New();a.originalAlreadyUnlocked=true;a.door.data.AlreadyUnlocked=true;Check(a.Drain()&&a.door.data.AlreadyUnlocked,"captured unlocked door stays unlocked");
- a=New();a.originalRestrictionCount=1;a.door.data.AlreadyUnlocked=true;Check(Throws(()=>a.Drain())&&a.door.data.AlreadyUnlocked&&!a.restored&&a.evidence["restoration"]==null,"restricted door unlock flag is never written");
+ a=New();a.originalAlreadyUnlocked=false;a.door.data.Seed(true);Check(a.Drain()&&a.restored&&!a.door.data.AlreadyUnlocked&&a.door.data.writes==1&&(bool)((JObject)a.evidence["restoration"])["observedAlreadyUnlockedBeforeRestore"],"interaction unlock residue is observed, then returned to its captured value");
+ a=New();a.originalAlreadyUnlocked=false;Check(a.Drain()&&a.restored&&a.door.data.writes==0&&!(bool)((JObject)a.evidence["restoration"])["observedAlreadyUnlockedBeforeRestore"],"unchanged unlock flag is not written");
+ a=New();a.originalAlreadyUnlocked=false;a.door.data.Seed(true);a.door.data.dropWrites=true;Check(Throws(()=>a.Drain())&&!a.restored&&a.evidence["restoration"]==null,"a write that does not reach the fresh native read refuses restoration");
+ a=New();a.originalAlreadyUnlocked=true;a.door.data.Seed(true);Check(a.Drain()&&a.door.data.AlreadyUnlocked&&a.door.data.writes==0,"captured unlocked door stays unlocked without a write");
+ a=New();a.originalRestrictionCount=1;a.door.data.Seed(true);Check(Throws(()=>a.Drain())&&a.door.data.AlreadyUnlocked&&a.door.data.writes==0&&!a.restored&&a.evidence["restoration"]==null,"restricted door unlock flag is never written");
  a=New();a.door.dataMissing=true;Check(Throws(()=>a.Drain())&&!a.restored&&a.evidence["restoration"]==null,"missing persistent data refuses an unchecked restoration claim");
  Console.WriteLine("TOTAL PASS="+passed+" FAIL=0");return 0;
  }catch(Exception e){Console.Error.WriteLine(e);return 1;}}
