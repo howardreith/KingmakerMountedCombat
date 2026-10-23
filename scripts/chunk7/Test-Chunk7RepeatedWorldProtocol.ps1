@@ -24,4 +24,9 @@ foreach($case in @('multi-exploration-three-loads-manual','multi-exploration-thr
     $expected=if($case-ceq'multi-exploration-three-loads-manual'){3}else{1}
     if($expectedWorkingLoads-ne$expected){throw 'Runtime completion native load count differs.'}
 }
-Write-Host 'REPEATED WORLD RUNNER/COMPLETION PASS=7 FAIL=0; no native actions invoked.'
+# b194 x4c: the Horse subscriber expectation counts every pair that mounts the KMC Horse
+# blueprint (the Small Halfling Horse profile included), never only the Medium Horse profile id.
+$replay=[IO.File]::ReadAllText((Join-Path $repo 'src/KingmakerMountedCombat/Diagnostics/Chunk7PersistenceScenario.Replay.cs'))
+if($replay-match'var expectedHorses = \(\(JArray\)replayArchive\["Pairs"\]\)\.Count\(p => \(string\)p\["ProfileId"\] == SupportedMountedProfiles\.Horse\.Id\)'){throw 'Repeated-world Horse subscriber expectation counts only the Medium Horse profile.'}
+if($replay-notmatch'ResolveProfileId\(\(string\)p\["ProfileId"\]\)\?\.BlueprintGuid == SupportedMountedProfiles\.HorseBlueprintGuid'){throw 'Repeated-world Horse subscriber expectation is not keyed to the KMC Horse blueprint.'}
+Write-Host 'REPEATED WORLD RUNNER/COMPLETION PASS=8 FAIL=0; no native actions invoked.'

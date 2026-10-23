@@ -1,6 +1,17 @@
 # Chunk 7B–7D — IN PROGRESS
 
-Claude [batch193](docs/CHUNK7-BATCH193-7E-PILOTS-2026-10-23.md) started the 7E development pilots on
+Claude [batch194](docs/CHUNK7-BATCH194-7E-PILOTS-2026-10-23.md) ran the second 7E pilot pass on
+candidate `1eecc9bb` (DLL `c7e0258f…`): eleven native runs, all with exact restoration. The acquired
+chain (owner-seed cold → Ranger 4 Horse → acquired cold → paid Small Ranger → two-owner Manual)
+passed on one candidate, as did the X4 Manual producer (one Steamworks startup failure retried).
+Row 57 and the two-pair native life now pass the life callback and healthy neighbour, then fail
+because the native turn controller prepares the unconscious rider's own next turn; a correction was
+drafted but blocked as assertion weakening, so that is a decision for review. RT Charge is a fixture
+limit (KMC correctly refuses: the rider has no melee weapon). The three-area cold failed on a Horse
+subscriber expectation that missed the Small Horse profile; the fix awaits review. Standing mission
+remains IN PROGRESS.
+
+Historical: Claude [batch193](docs/CHUNK7-BATCH193-7E-PILOTS-2026-10-23.md) started the 7E development pilots on
 a frozen pilot candidate (`503d2fd9`, DLL `d5cbae3c…`). The row-57 owner-seed incapacitation pilot
 FAILed in game on a diagnostic defect: the healthy-owner lookup compared the registry's
 "N"-form owner key with the hyphenated `UniqueId`, so native life could never complete (it had
