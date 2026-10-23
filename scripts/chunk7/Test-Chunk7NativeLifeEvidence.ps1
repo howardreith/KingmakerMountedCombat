@@ -70,7 +70,7 @@ $cases=@(
  @('cleanup not settled',{$args[0].observations.cleanup.controlsSettled=$false})
 )
 foreach($case in $cases){$bad=Copy-Value $lifeGood;& $case[1] $bad;Reject $case[0] {Assert-KmcChunk7NativeLifeEvidence $request $bad 'PASS'}}
-Check 'native life closed rows' {if(@(Get-KmcChunk7NativeLifeRuntimeRows).Count-ne11){throw 'Wrong life row count.'}}
+Check 'native life closed rows' {if(@(Get-KmcChunk7NativeLifeRuntimeRows).Count-ne12){throw 'Wrong life row count.'}}
 Reject 'unknown life scenario' {Get-KmcChunk7NativeLifeRows 'chunk7-two-pair-life-anything'}
 Check 'native life partial FAIL preserved' {$bad=Copy-Value $lifeGood;$bad.status='FAIL';$bad.errors=@('fixture native life policy unavailable');$bad.observations=[pscustomobject]@{};Assert-KmcChunk7NativeLifeEvidence $request $bad 'FAIL'}
 Reject 'native life FAIL cannot fulfill PASS' {$bad=Copy-Value $lifeGood;$bad.status='FAIL';$bad.errors=@('fixture unavailable');Assert-KmcChunk7NativeLifeEvidence $request $bad 'PASS'}

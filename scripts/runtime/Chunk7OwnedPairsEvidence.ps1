@@ -16,6 +16,7 @@ function Get-KmcChunk7SelectedScenario($Request){
   'owner-seed-combat-rider-first'{'chunk7-two-pair-combat-rider-first'}
   'owner-seed-combat-mount-first'{'chunk7-two-pair-combat-mount-first'}
   'owner-seed-combat-disable'{'chunk7-two-pair-combat-rider-first'}
+  'owner-seed-native-life-cleanup'{'chunk7-two-pair-native-life-cleanup'}
   'owner-seed-checkpoint-save'{'chunk7-persistence-save'}
   'owner-seed-checkpoint-load'{'chunk7-persistence-load'}
   'small-fixture-persistence-save'{'chunk7-persistence-save'}
@@ -165,7 +166,7 @@ function Assert-KmcChunk7OwnedPairsMediumSelection($Request,$Selection,$Checkpoi
 }
 function Test-KmcChunk7OwnedPairsSeedDerivedLoad($Request){(Get-KmcChunk7OwnedPairsCase $Request)-ceq'owner-seed-persistence-load'}
 # Owner-seed-derived combat (scenarios 3-5): a disposable copy of the derived Manual, restored mounted.
-function Test-KmcChunk7OwnedPairsSeedDerivedCombat($Request){(Get-KmcChunk7OwnedPairsCase $Request)-cin@('owner-seed-realtime-core','owner-seed-combat-rider-first','owner-seed-combat-mount-first','owner-seed-combat-disable')}
+function Test-KmcChunk7OwnedPairsSeedDerivedCombat($Request){(Get-KmcChunk7OwnedPairsCase $Request)-cin@('owner-seed-realtime-core','owner-seed-combat-rider-first','owner-seed-combat-mount-first','owner-seed-combat-disable','owner-seed-native-life-cleanup')}
 function Test-KmcChunk7OwnedPairsRegisteredDisable($Request){(Get-KmcChunk7OwnedPairsCase $Request)-ceq'owner-seed-combat-disable'}
 # Owner-seed checkpoint pair: the producer cold-loads a disposable copy of the same derived Manual,
 # restored mounted, and writes one genuine native checkpoint; its consumer cold-loads that checkpoint.

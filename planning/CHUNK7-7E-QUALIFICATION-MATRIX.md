@@ -95,6 +95,7 @@ Writes are the expected native save writes.
 | 53–54 | F10 Horse-to-Mammoth replacement, then cold | `medium-horse-native-retrain-mammoth`, `medium-horse-native-retrain-cold` | Medium fixture | same | 1 / 0 |
 | 55 | F12 upgrade: preview.211 package, then F on the same save | **gap**, see F12 below | owner seed + preview.211 package | new | 1 |
 | 56 | F12 rollback: F, then preview.211 on the pre-migration copy | **gap**, see F12 below | #55 pre-migration copy | new | 0 |
+| 57 | F08/F03 incapacitation in a mounted pair; healthy neighbour continues; surviving mount gets one independent turn (X1) | `owner-seed-native-life-cleanup` | #1 output, restored mounted (same chain as rows 7–8) | `Chunk7NativeLifeEvidence` (derived mounted-start branch) | 0 |
 
 Rows not yet runnable are listed under Blockers.
 
@@ -115,13 +116,34 @@ Rows not yet runnable are listed under Blockers.
 
 | ID | Rows affected | Blocker | Smallest route |
 | --- | --- | --- | --- |
-| X1 | C03 attack modes, C11 reactions, F04 staged moving actions, and single-pair F03/F08 death and incapacitation | Their only native scenarios (`chunk6*`, `chunk4*`) load the legacy **Working** fixture. Its base-game-only load fails natively (batch34, `Player.PostLoad`), and absent foreign mods may not be reinstalled. | Add owner-seed cases for a reaction, staged and attack-mode representative, on the existing two-pair engine. Alternatively, the owner decides explicitly whether the preview.211 Chunk 6 campaign stands as inherited evidence. That decision is not taken here. |
+| X1 | C03 attack modes, C11 reactions, F04 staged moving actions, and single-pair F03/F08 death and incapacitation | Their only native scenarios (`chunk6*`, `chunk4*`) load the legacy **Working** fixture, whose base-game-only load fails (batch34). Decision: the preview.211 Chunk 6 evidence is **not** reused. | Partly resolved. Incapacitation is implemented as row 57 (`owner-seed-native-life-cleanup`) and needs one development pilot. C03, C11, F04 and death proper are designed below and not implemented; see [X1 design](#x1-owner-seed-combat-representatives). |
 | X2 | F02 enabled RT Charge, F03 spells and items, F08 native life (two-pair) | Cases `realtime-charge`, `realtime-casting` and `native-life-cleanup` exist in the selection and readers, but **have never run natively**. They take an acquired-field Manual source (the b165/b166 lineage); caster and charge eligibility of that field is unverified. | Author their selections against the acquired mounted Manual. Run one development pilot of each before freezing F, then add each as a matrix row. |
 | X3 | F07 `pending-schema3-control-manual` | **Resolved: retired** ([record](../docs/CHUNK7-RETIRED-SCHEMA3-CONTROL-2026-10-23.md)). It was the batch35 matched diagnostic control; rows 17–19 cover its claims. Prelaunch refusal kept. | — |
 | X4 | F06 three area transfers | `multi-exploration-three-area-transfers-manual` has never run natively. | Run a pilot before freezing, or justify it as covered by rows 27–29. |
 | X5 | Rows 55–56 | **Designed and implemented; pending independent review and a native pilot.** Owner chose Option A. `-UpgradeRehearsalStep u1-previous-install|u2-upgrade|u3-rollback` on `chunk7-normal-player-control`. Exact single-package allowlist (preview.211 `-b`), identity in the request and checked against the staged transaction, u1 folder state carried into u2/u3, observer.6 previous-package load. `Test-Chunk7UpgradeRehearsal.ps1` 57/0. | Independent review; rebuild and package observer.6; pilot u1→u2→u3. |
 | X6 | FULL tier | **Inventoried; facades fixed; remainder classified** ([record](../docs/CHUNK7-7E-X6-OFFLINE-INVENTORY-2026-10-23.md)). 19 stale checks fixed. Remaining: six Chunk 6A historical-ledger checks (fail at the preview.211 tag too), two Small Manual checks needing a fixture projection (`ed40ef95`), two combat facades deferred until X1 lands. `scripts/Test.ps1` omits the Chunk 7 umbrella; run both. | Repair the four deferred Chunk 7 checks before the freeze. Report the six historical checks as classified unless the owner selects a 6A ledger re-qualification. |
 | X7 | Rows 42 and 33–38 | Their source selections pin earlier source run IDs and SHAs. Rows 2–29 consume F's own row-1 output, so their selections need mechanical re-pinning to F's run IDs. | Done by an unchanged reviewed generator per batch. |
+
+## X1: owner-seed combat representatives
+
+All four use the existing two-pair TB engine (`Chunk7CombatScenario`) on the owner-seed-derived
+mounted start (row 1 output, cold-restored mounted, as rows 7–8). The **enemy is the existing
+owner-approved diagnostic target** (`DiagnosticCombatTargetService`, spawned per run at a validated
+placement), so no seed monsters are needed. The Old Sycamore seed's live dungeon monsters are not
+used: fighting them would need AI-driven encounters the harness cannot bound. Every case loads
+base-game-only, writes nothing, and is read by the shared owned-pairs, cleanup and family readers.
+
+| Behavior | Status | Case | Native stimulus | Assertions (external reader) |
+| --- | --- | --- | --- | --- |
+| F08/F03 incapacitation | **Implemented** (offline), pilot due | `owner-seed-native-life-cleanup` → `chunk7-two-pair-native-life-cleanup` | One labelled native `RuleDealDamage` from the target, bounded to the HP+1 to HP+Con living window; stock `UnitLifeController` tick | Restored mounted start (no Mount input); one `UnitIncapacitated` delivery through the stock Tick/SetLifeState chain; pair B unmounted with its original split round; no granted preparation; healthy pair A acts before and after; surviving mount gets exactly one fresh independent turn in N+1; budgets of unrelated actors unchanged. Reader: `Assert-KmcChunk7NativeLifeEvidence` plus `Assert-KmcChunk7OwnerSeedDerivedCombatStart`. |
+| F08 death proper | Designed | variant of the above with damage past HP+Con | Same single labelled `RuleDealDamage`, sized to cross the death threshold | `IsDead`; one `UnitDied`/death delivery, mount survives unmounted with one independent turn; zero writes. Needs a death-trigger reader branch. **Risk:** rider B (`fd213210`) is a story companion; death may be blocked by `Immortality`/essential policy, which must be refused, not bypassed. |
+| C11 reactions | Designed | `owner-seed-combat-reaction` (new TB kind) | Pair A, adjacent to the target, receives an ordinary native ground-move command out of the target's threatened area | Exactly one native attack of opportunity by the target against the moving actor, recorded by the rule observer; the target's `AttackOfOpportunityCount` drops by one; the pair's move is spent once on the mount and never refunded; any interruption leaves no stale pair command or budget; pair B and unrelated actors unchanged. A second row uses the documented prone stand-up provocation (target stands from native prone) for the pair's own reaction, if a native, non-fabricated prone source exists in the fixture; otherwise that half is recorded as uncovered. |
+| C03 attack modes | Designed; fixture-dependent | `owner-seed-attack-modes` | Rider A full attack on the target with the native Rapid Shot activatable off, then on (two turns), plus an unmounted control | Native full-attack plan size and attack bonuses equal the unmounted control under the same toggle; one native cost per plan; no extra mount action. **Precondition:** rider A must carry a ranged weapon and the Rapid Shot fact. Their presence in the row-1 field is unverified; check with a zero-launch read of the row-1 Manual first. BAB and haste variation need a native source (scroll stack or level); synthetic stat edits are not accepted. |
+| F04 staged moving actions | Designed | `owner-seed-staged` | TB: pair ranged attack from beyond range (mount approach, then rider shot), and move then cast a Standard scroll then move | Shot origin equals the rider position after the mount's approach; approach charged once to the mount's move; the cast is stationary at its real location; defensive or motion checks run natively where the rules require; no check is skipped after the fact; movement exhaustion refuses further moves. Seams to reuse: `RiderRanged` pair command, `Chunk6StagedScenario` plans (`C6D-move-cast-move`, `C6D-double-move-ranged`), native scroll stacks (two or more units per measured spend). |
+
+The four designed rows are not admitted to the matrix until each is implemented, reviewed and
+piloted. If any has no honest route on this fixture (for example, no ranged weapon or Rapid Shot),
+it is recorded as an uncovered behavior, not waived.
 
 ## Native batches (at most 5 runs each; producers before consumers)
 
@@ -145,7 +167,7 @@ minutes for six-pair stress, and about 3 minutes for F11.
 | B12 | 55, 56 (after X5) | 30 |
 | **Total** | **56 runs, 12 batches** | **about 11 h** |
 
-The X1, X2 and X4 pilots add their own development batches, and those cases are then added as
+Row 57 (X1) joins batch B12 (B2 is full) after its pilot, making 57 runs. The X1, X2 and X4 pilots add their own development batches, and those cases are then added as
 rows. A failure follows mission §8: retain it, fix it, review it, freeze a successor, then rerun
 the affected rows plus their dependent consumers.
 
