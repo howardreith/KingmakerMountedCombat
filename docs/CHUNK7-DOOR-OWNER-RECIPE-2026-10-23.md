@@ -107,8 +107,11 @@ only when inactive, without a cut, or outside the distance bounds; all four reta
 still pass. The batch192 s2 not-applicable record (old reader PASS) is refused by the new reader,
 correctly: under the new rule its `TavernDoor` qualifies.
 **Batch192c.** The first static-cut run clicked `TavernDoor` with both pairs (game PASS); its outcome
-evidence serialized empty, so the outer result is FAIL. See
-[batch192](CHUNK7-BATCH192-DOOR-SEED-COLD-2026-10-23.md).
+evidence serialized empty, so the outer result is FAIL.
+
+**Batch192d: PASS.** After the explicit-serialization fix, both pairs' mounted clicks succeeded with a
+selection change, the static cut stayed unchanged and restoration was exact. The ordinary-door row is
+a development PASS; see [batch192](CHUNK7-BATCH192-DOOR-SEED-COLD-2026-10-23.md).
 
 ## Recipe (about 15–30 minutes of ordinary play)
 
