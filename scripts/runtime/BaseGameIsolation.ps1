@@ -211,6 +211,7 @@ function Assert-KmcBaseGameUmmStartupDelta {
     $orders=New-Object 'Collections.Generic.List[string[]]'
     if($missing.Count-eq2){$orders.Add([string[]]@($missing[0],$missing[1]));$orders.Add([string[]]@($missing[1],$missing[0]))}
     elseif($missing.Count-eq1){$orders.Add([string[]]@($missing[0]))}
+    $rewrites=New-Object 'Collections.Generic.List[Xml.XmlDocument]';$rewrites.Add($reduced)
     foreach($order in $orders){
         $appended=$reduced.Clone();$container=$appended.SelectSingleNode('/Param/ModParams')
         foreach($id in $order){
@@ -219,7 +220,19 @@ function Assert-KmcBaseGameUmmStartupDelta {
             [void]$keyCode.AppendChild($appended.CreateTextNode('None'));[void]$modifiers.AppendChild($appended.CreateTextNode('0'))
             [void]$hotkey.AppendChild($keyCode);[void]$hotkey.AppendChild($modifiers);[void]$entry.AppendChild($hotkey);[void]$container.AppendChild($entry)
         }
-        $allowed.Add((Get-KmcBaseGameXmlShapeText $appended))
+        $allowed.Add((Get-KmcBaseGameXmlShapeText $appended));$rewrites.Add($appended)
+    }
+    # UMM rebuilds ModParams in its own load order, so with two found mods a kept
+    # entry and an appended default may be written in either order. The exact
+    # entry content is unchanged; only the order of exactly two entries varies.
+    if($WithObserver){
+        foreach($rewrite in @($rewrites)){
+            $mods=@($rewrite.SelectNodes('/Param/ModParams/Mod'))
+            if($mods.Count-ne2){continue}
+            $swapped=$rewrite.Clone();$container=$swapped.SelectSingleNode('/Param/ModParams');$first=@($swapped.SelectNodes('/Param/ModParams/Mod'))[0]
+            [void]$container.RemoveChild($first);[void]$container.AppendChild($first)
+            $allowed.Add((Get-KmcBaseGameXmlShapeText $swapped))
+        }
     }
     if(-not$allowed.Contains($actual)){throw 'Base-game UMM parameters changed beyond the native rewrite of the selected packages and a forward LastUpdateCheck.'}
 }

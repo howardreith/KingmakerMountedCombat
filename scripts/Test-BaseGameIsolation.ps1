@@ -213,6 +213,13 @@ $observerAppended="`n    <Mod Id=`"KmcRemovalObserver`" Enabled=`"true`">`n     
 Check 'co-staged UMM admits KMC then observer default appends' {Assert-KmcNativeUmmStartupDelta $ownerParams (New-OwnerParams ($kmcAppended+$observerAppended)) -BaseGameOnly -WithObserver}
 Check 'co-staged UMM admits observer then KMC default appends' {Assert-KmcNativeUmmStartupDelta $ownerParams (New-OwnerParams ($observerAppended+$kmcAppended)) -BaseGameOnly -WithObserver}
 Check 'co-staged UMM admits an observer append beside an existing KMC entry' {Assert-KmcNativeUmmStartupDelta $f.parameters ($reduced.Replace('</ModParams>','<Mod Id="KmcRemovalObserver" Enabled="true"><Hotkey><keyCode>None</keyCode><modifiers>0</modifiers></Hotkey></Mod></ModParams>')) -BaseGameOnly -WithObserver}
+# Batch191 native shape: the owner's settled parameters already held an observer entry;
+# UMM rewrote the found pair in its own load order, KMC before the observer.
+$ownerWithObserver=New-OwnerParams ($foreignMods+$observerAppended)
+Check 'co-staged UMM admits the native load-order rewrite of a kept observer and appended KMC' {Assert-KmcNativeUmmStartupDelta $ownerWithObserver (New-OwnerParams ($kmcAppended+$observerAppended) '2026-10-23T00:13:25.335868-04:00') -BaseGameOnly -WithObserver}
+Check 'co-staged UMM admits the same pair in kept-then-appended order' {Assert-KmcNativeUmmStartupDelta $ownerWithObserver (New-OwnerParams ($observerAppended+$kmcAppended)) -BaseGameOnly -WithObserver}
+Reject 'co-staged UMM refuses the reordered pair with a changed observer entry' {Assert-KmcNativeUmmStartupDelta $ownerWithObserver (New-OwnerParams ($kmcAppended+$observerAppended.Replace('<keyCode>None','<keyCode>F9'))) -BaseGameOnly -WithObserver}
+Reject 'KMC-only base mode still refuses the reordered pair' {Assert-KmcNativeUmmStartupDelta $ownerWithObserver (New-OwnerParams ($kmcAppended+$observerAppended)) -BaseGameOnly}
 Reject 'KMC-only base mode refuses an observer append' {Assert-KmcNativeUmmStartupDelta $ownerParams (New-OwnerParams ($kmcAppended+$observerAppended)) -BaseGameOnly}
 Reject 'co-staged UMM refuses a third appended entry' {Assert-KmcNativeUmmStartupDelta $ownerParams (New-OwnerParams ($kmcAppended+$observerAppended+'<Mod Id="New" Enabled="true"/>')) -BaseGameOnly -WithObserver}
 Reject 'co-staged UMM refuses a disabled observer append' {Assert-KmcNativeUmmStartupDelta $ownerParams (New-OwnerParams ($kmcAppended+$observerAppended.Replace('Enabled="true"','Enabled="false"'))) -BaseGameOnly -WithObserver}
