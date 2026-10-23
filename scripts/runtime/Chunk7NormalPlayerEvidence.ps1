@@ -21,7 +21,7 @@ function Get-KmcChunk7NormalPlayerChecks {
   'the-ground-click-moved-the-mounted-pair-together','the-neighboring-pair-is-untouched-after-mounted-move',
   'native-dismount-command-completed-successfully','the-rider-is-detached-after-Dismount','the-neighboring-pair-is-untouched-after-dismount',
   'the-unmounted-rider-moves-under-ordinary-authority','the-neighboring-pair-is-untouched-after-unmounted-move',
-  'the-fixture-archive-is-unchanged','no-save-file-was-written-or-changed','KMC-logged-no-error-or-exception-in-ordinary-play')
+  'no-save-file-was-added-or-removed','KMC-logged-no-error-or-exception-in-ordinary-play')
 }
 
 # The observer is harness tooling: bound to the clean execution HEAD that built it,
@@ -136,7 +136,9 @@ function Assert-KmcChunk7NormalPlayerObserverResult($Request,$ObserverRequest,$R
   [string]$inputs[1].attachedTo-cne[string]$n.mountId-or$inputs[1].neighborUnchanged-ne$true){throw 'The mounted ground click did not move the exact pair together.'}
  if([string]$inputs[3].moverId-cne[string]$n.riderId-or[double]$inputs[3].riderDisplacement-lt1.5-or$null-ne$inputs[3].attachedTo-or$inputs[3].neighborUnchanged-ne$true){throw 'Unmounted movement authority was not restored.'}
  if(@($o.frameWindows).Count-ne2-or((@($o.frameWindows)|ForEach-Object{[string]$_.label})-join'|')-cne'idle-unmounted|idle-mounted'){throw 'Idle frame windows are incomplete.'}
- if($o.archive.changedOnDisk-ne$false-or[string]$o.archive.sha256Before-cne[string]$Request.persistenceLoad.sha256-or[int]$o.log.kmcErrors-ne0){throw 'The fixture changed or KMC logged an error.'}
+ if([string]$o.archive.sha256Before-cne[string]$Request.persistenceLoad.sha256-or[int]$o.log.kmcErrors-ne0){throw 'The fixture changed or KMC logged an error.'}
+ $copy=Join-Path ([string]$o.routing.observedSavePath) ([string]$Request.persistenceLoad.fileName)
+ if([string]$o.archive.path-cne$copy){throw 'The observed archive is not the owned fixture copy.'}
 }
 
 # KMC logs through UMM's own logger, which never reaches Unity's log. After the
@@ -159,6 +161,18 @@ function Get-KmcChunk7NormalPlayerUmmLogSummary([string]$GameRoot,[DateTimeOffse
   firstKmcLines=@($kmc|Select-Object -First 12)}
  $summary['passed']=($summary.sessionHeaders-eq1-and$summary.loadedLine-eq1-and$summary.quietOverlayLine-ge1-and$summary.automationAccepted-eq0-and$summary.errorLines-eq0)
  [pscustomobject]$summary
+}
+
+# The engine's own load rewrites only the archive's header member. Every other
+# native member of the owned copy must equal the qualified source byte for byte.
+function Assert-KmcChunk7NormalPlayerArchiveMembers([string]$SourcePath,[string]$CopyPath){
+ $before=Get-KmcValidationMemberHashes $SourcePath;$after=Get-KmcValidationMemberHashes $CopyPath
+ $changed=@($before.Keys|Where-Object{$after.ContainsKey($_)-and$after[$_]-cne$before[$_]})
+ $missing=@($before.Keys|Where-Object{-not$after.ContainsKey($_)});$added=@($after.Keys|Where-Object{-not$before.ContainsKey($_)})
+ if($missing.Count-ne0-or$added.Count-ne0-or@($changed|Where-Object{$_-cne'header.json'}).Count-ne0){
+  throw ('The normal-player load changed a native fixture member: changed='+($changed-join',')+' missing='+($missing-join',')+' added='+($added-join','))
+ }
+ [pscustomobject][ordered]@{changed=@($changed);missing=@();added=@()}
 }
 
 # Outer binding: the composed game record names exactly this observer result.

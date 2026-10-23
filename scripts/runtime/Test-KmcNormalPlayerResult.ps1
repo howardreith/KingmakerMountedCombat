@@ -15,6 +15,7 @@ param(
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot 'RuntimeHarness.Common.ps1')
+. (Join-Path $PSScriptRoot 'PersistenceValidationFixtures.ps1')
 
 Assert-KmcManifestJsonMembersUnique $ObserverResultPath 'normal-player observer result'
 $result = Read-KmcJson $ObserverResultPath
@@ -24,6 +25,12 @@ Assert-KmcChunk7NormalPlayerDescriptor $request
 if ([int]$observerRequest.schemaVersion -ne 3 -or [string]$observerRequest.runId -cne [string]$request.runId -or
     [string]$observerRequest.transactionToken -cne [string]$request.transactionToken) { throw 'Observer request is not this run''s normal-player request.' }
 Assert-KmcChunk7NormalPlayerObserverResult $request $observerRequest $result (Get-KmcSha256 $ObserverRequestPath) $ExpectedProcessId $NotBeforeUtc
+$archiveMembers = $null
+if ([string]$result.status -ceq 'PASS') {
+    $source = Get-KmcChunk7SixPairCheckpointSource $request.fixture
+    if ((Get-KmcSha256 $source.path) -cne [string]$request.persistenceLoad.sha256) { throw 'The qualified fixture source changed since it was copied.' }
+    $archiveMembers = Assert-KmcChunk7NormalPlayerArchiveMembers $source.path ([string]$result.observations.archive.path)
+}
 $evidenceManifestSha256 = Get-KmcValidatedOrchestrationArtifactManifestHash -Request $request -AllowIncompleteScenarioEvidence
 $errors = @($result.errors | ForEach-Object { [string]$_ })
 # A failure before any check still records one failed assertion, never an empty row.
@@ -35,7 +42,7 @@ $game = [ordered]@{
     observer = $request.normalPlayer.observer; transactionToken = [string]$request.transactionToken; processId = [int]$result.processId
     startedAtUtc = [string]$result.startedAtUtc; completedAtUtc = [string]$result.completedAtUtc; fixture = $request.fixture
     observerResultSha256 = (Get-KmcSha256 $ObserverResultPath); observerRequestSha256 = (Get-KmcSha256 $ObserverRequestPath)
-    evidenceManifestSha256 = $evidenceManifestSha256
+    evidenceManifestSha256 = $evidenceManifestSha256; archiveMembers = $archiveMembers
     checkPassCount = [int]$result.checkPassCount; checkFailCount = [int]$result.checkFailCount; errors = $errors
     observations = $result.observations; checks = @($result.checks)
     subscenarioResults = @([ordered]@{ name = [string]$request.scenario; status = [string]$result.status
