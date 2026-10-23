@@ -263,9 +263,10 @@ in U3.
   the player had it.
 - **Binding:** all three steps share `-UpgradeRehearsalId`, and u2 and u3 require a passed u1 of the
   same id. "Passed" is proved from u1's own records, each hash-bound to the next: runtime result, then
-  game record (its step, id and the observed loaded preview.211), then observer result. The four
-  record hashes and the state hash are pinned into the u2/u3 request and re-checked offline wherever
-  that request is read. Carried caches must be byte copies of the previous DLL, under the lab staging
+  game record (its step, id and the observed loaded preview.211), then observer result. Four hashes
+  (result, game record, observer result and state) are pinned into the u2/u3 request. Wherever that
+  request is read, the whole proof is re-derived from those records, the pins are compared, and the
+  carried files are compared with the files that u1's classified writes yield. Carried caches must be byte copies of the previous DLL, under the lab staging
   root and not hard links. The game record names the step, the declared staged package and the KMC
   assembly the observer actually saw loaded.
 - **Unenforced obligations for future consumers (not yet wired; no consumer exists):**
