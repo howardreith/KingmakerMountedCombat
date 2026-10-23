@@ -140,19 +140,37 @@ $doorMutations=@(
 )
 foreach($mutation in $doorMutations){$copy=Copy-TestValue $good;& $mutation[1] $copy;Reject $mutation[0] {Assert-KmcChunk7WorldEvidence $request $copy 'PASS'}}
 # A door captured closed: only the second input is preceded by a setup close, and
-# restoration returns it closed with its active cut.
-function Set-ClosedDoorStart($v){$d=$v.observations.door;$d.setupInteractions=1;$d.fixture.originalOpen=$false;$d.fixture.originalCut=$true;$d.restoration.open=$false;$d.restoration.cutEnabled=$true}
+# restoration returns it closed with its active cut and captured unlock flag. The
+# current fixture shape records why ordinary player input could open it.
+function Set-CurrentDoorShape($v){$d=$v.observations.door
+ foreach($pair in @(@('interactable',$true),@('availableInteractions',$true),@('revealed',$true),@('hasVisibleTrap',$false),@('trapActive',$false),@('originalAlreadyUnlocked',$false),@('restrictionCount',0),@('hasDialog',$false))){$d.fixture|Add-Member $pair[0] $pair[1] -Force}
+ $d.restoration|Add-Member alreadyUnlocked $false -Force}
+function Set-ClosedDoorStart($v){Set-CurrentDoorShape $v;$d=$v.observations.door;$d.setupInteractions=1;$d.fixture.originalOpen=$false;$d.fixture.originalCut=$true;$d.restoration.open=$false;$d.restoration.cutEnabled=$true}
 Check 'door captured closed with one setup close and closed restoration' {$copy=Copy-TestValue $good;Set-ClosedDoorStart $copy;Assert-KmcChunk7WorldEvidence $request $copy 'PASS'}
+Check 'current-shape open door with recorded clickability flags' {$copy=Copy-TestValue $good;Set-CurrentDoorShape $copy;Assert-KmcChunk7WorldEvidence $request $copy 'PASS'}
+Check 'closed door already unlocked behind a restriction' {$copy=Copy-TestValue $good;Set-ClosedDoorStart $copy;$f=$copy.observations.door.fixture;$f.restrictionCount=1;$f.originalAlreadyUnlocked=$true;$copy.observations.door.restoration.alreadyUnlocked=$true;Assert-KmcChunk7WorldEvidence $request $copy 'PASS'}
 $closedDoorMutations=@(
  @('closed door claims two setup closes',{param($v)$v.observations.door.setupInteractions=2}),
+ @('closed door claims no setup close',{param($v)$v.observations.door.setupInteractions=0}),
  @('closed door without its active cut',{param($v)$v.observations.door.fixture.originalCut=$false;$v.observations.door.restoration.cutEnabled=$false}),
  @('closed door restored open',{param($v)$v.observations.door.restoration.open=$true}),
  @('closed door restored without its cut',{param($v)$v.observations.door.restoration.cutEnabled=$false}),
- @('door open state as text',{param($v)$v.observations.door.fixture.originalOpen='false'})
+ @('door open state as text',{param($v)$v.observations.door.fixture.originalOpen='false'}),
+ @('closed door in the legacy fixture shape',{param($v)foreach($k in @('interactable','availableInteractions','revealed','hasVisibleTrap','trapActive','originalAlreadyUnlocked','restrictionCount','hasDialog')){$v.observations.door.fixture.PSObject.Properties.Remove($k)};$v.observations.door.restoration.PSObject.Properties.Remove('alreadyUnlocked')}),
+ @('closed door not interactable',{param($v)$v.observations.door.fixture.interactable=$false}),
+ @('closed door without available interactions',{param($v)$v.observations.door.fixture.availableInteractions=$false}),
+ @('closed unrevealed secret door',{param($v)$v.observations.door.fixture.revealed=$false}),
+ @('closed door with a visible trap',{param($v)$v.observations.door.fixture.hasVisibleTrap=$true}),
+ @('closed door with an active trap',{param($v)$v.observations.door.fixture.trapActive=$true}),
+ @('closed locked door behind a restriction',{param($v)$v.observations.door.fixture.restrictionCount=1}),
+ @('closed dialog door',{param($v)$v.observations.door.fixture.hasDialog=$true}),
+ @('closed door flag as text',{param($v)$v.observations.door.fixture.revealed='true'}),
+ @('closed door restoration lost the captured unlock flag',{param($v)$v.observations.door.restoration.alreadyUnlocked=$true}),
+ @('closed door restoration without the unlock flag',{param($v)$v.observations.door.restoration.PSObject.Properties.Remove('alreadyUnlocked')})
 )
 foreach($mutation in $closedDoorMutations){$copy=Copy-TestValue $good;Set-ClosedDoorStart $copy;& $mutation[1] $copy;Reject $mutation[0] {Assert-KmcChunk7WorldEvidence $request $copy 'PASS'}}
 Reject 'open door with only one setup close' {$copy=Copy-TestValue $good;$copy.observations.door.setupInteractions=1;Assert-KmcChunk7WorldEvidence $request $copy 'PASS'}
-Reject 'open door with an active cut' {$copy=Copy-TestValue $good;$copy.observations.door.fixture.originalCut=$true;$copy.observations.door.restoration.cutEnabled=$true;Assert-KmcChunk7WorldEvidence $request $copy 'PASS'}
+Reject 'current-shape open door restoration lost the unlock flag' {$copy=Copy-TestValue $good;Set-CurrentDoorShape $copy;$copy.observations.door.restoration.alreadyUnlocked=$true;Assert-KmcChunk7WorldEvidence $request $copy 'PASS'}Reject 'open door with an active cut' {$copy=Copy-TestValue $good;$copy.observations.door.fixture.originalCut=$true;$copy.observations.door.restoration.cutEnabled=$true;Assert-KmcChunk7WorldEvidence $request $copy 'PASS'}
 
 $mutations=@(
     @('artifact schema string',{param($v)$v.schemaVersion='1'}),

@@ -129,26 +129,8 @@ function Assert-KmcChunk7AreaDoorInventory($Observation){
         foreach($mount in $inventory.mounts){if(-not(Test-KmcChunk7FiniteNumber $mount.position.$axis)){throw 'Area door mount position is nonfinite.'}}
         if([Math]::Abs([double]$inventory.mounts[0].position.$axis-[double]$first[0].start.$axis)-gt0.001){throw 'Door scan was not taken at the first mounted continuation boundary.'}
     }
-    $prior=-1.0
-    foreach($row in $inventory.rows){
-        Assert-KmcExactProperties $row @('name','position','active','open','disableCutWhenOpen','cutPresent','proximityRadius','mountDistances','eligible') 'native area door'
-        if($row.name-isnot[string]-or[string]::IsNullOrWhiteSpace($row.name)-or$row.name.Length-gt256-or
-           $row.mountDistances-isnot[Array]-or$row.mountDistances.Count-ne2-or
-           -not(Test-KmcChunk7FiniteNumber $row.proximityRadius)-or[double]$row.proximityRadius-le0){throw 'Native area door identity or radius is malformed.'}
-        foreach($axis in @('x','y','z')){if(-not(Test-KmcChunk7FiniteNumber $row.position.$axis)){throw 'Native area door position is nonfinite.'}}
-        for($i=0;$i-lt2;$i++){
-            $start=$inventory.mounts[$i].position
-            $distance=[Math]::Sqrt([Math]::Pow([double]$start.x-[double]$row.position.x,2)+[Math]::Pow([double]$start.z-[double]$row.position.z,2))
-            if(-not(Test-KmcChunk7FiniteNumber $row.mountDistances[$i])-or
-               [Math]::Abs($distance-[double]$row.mountDistances[$i])-gt0.001){throw 'Area door distance differs from mounted actor geometry.'}
-        }
-        $sum=[double]$row.mountDistances[0]+[double]$row.mountDistances[1]
-        if($sum+0.001-lt$prior){throw 'Native door inventory is not nearest-first.'};$prior=$sum
-        foreach($key in @('active','open','disableCutWhenOpen','cutPresent','eligible')){if($row.$key-isnot[bool]){throw 'Native door state is not Boolean.'}}
-        $eligible=$row.active-and$row.open-and$row.disableCutWhenOpen-and$row.cutPresent-and
-            @($row.mountDistances|Where-Object{[double]$_-le[double]$row.proximityRadius+0.5-or[double]$_-gt28.0}).Count-eq0
-        Assert-KmcChunk7Boolean $row.eligible $eligible
-    }
+    # Eligibility is the probe's shared door predicate (legacy rows keep open-only eligibility).
+    Assert-KmcChunk7NativeDoorRows $inventory.rows $inventory.mounts ([int]$inventory.candidateCount) 'native area door'
 }
 
 function Assert-KmcChunk7AreaContinuationPlans($Observation) {

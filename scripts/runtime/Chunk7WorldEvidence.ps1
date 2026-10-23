@@ -286,12 +286,24 @@ function Assert-KmcChunk7DoorEvidence($Door,$Owners,[string[]]$DeclaredRiders=@(
     Assert-KmcChunk7Boolean $Door.completed $true
     Assert-KmcChunk7WorldCounters $Door @('setupInteractions')
     $f=$Door.fixture
-    Assert-KmcExactProperties $f @('name','object','position','originalOpen','originalEnabled','originalCut','disableOnOpen','radius') 'captured door fixture'
+    # The legacy fixture shape predates the closed start and the unlock restoration; it is
+    # admitted only for an open start. The current shape records the clickability flags.
+    $legacy=$null-eq$f.PSObject.Properties['revealed']
+    $base=@('name','object','position','originalOpen','originalEnabled','originalCut','disableOnOpen','radius')
+    if($legacy){Assert-KmcExactProperties $f $base 'captured door fixture'}
+    else{Assert-KmcExactProperties $f ($base+(Get-KmcChunk7DoorClickFields|ForEach-Object{if($_-ceq'alreadyUnlocked'){'originalAlreadyUnlocked'}else{$_}})) 'captured door fixture'}
     Assert-KmcChunk7WorldInt32 $f.object
     if($f.object-eq0-or$f.name-isnot[string]-or[string]::IsNullOrWhiteSpace($f.name)-or$f.name.Length-gt512){throw 'Native door identity is missing.'}
     # An open door is closed as setup before each input; a door captured closed only before the second.
     if($f.originalOpen-isnot[bool]){throw 'Door fixture flags must be native booleans.'}
+    if($legacy-and-not$f.originalOpen){throw 'A closed door start requires the current fixture shape with its clickability flags.'}
     Assert-KmcChunk7Boolean $f.originalCut (-not$f.originalOpen)
+    if(-not$legacy){
+        foreach($key in @('interactable','availableInteractions','revealed','hasVisibleTrap','trapActive','originalAlreadyUnlocked','hasDialog')){if($f.$key-isnot[bool]){throw 'Door clickability flags must be native booleans.'}}
+        Assert-KmcOrdinaryInteger $f.restrictionCount 0 64
+        if(-not$f.originalOpen-and-not(Test-KmcChunk7DoorClosedClickable $f.interactable $f.availableInteractions $f.revealed $f.hasVisibleTrap $f.trapActive $f.originalAlreadyUnlocked $f.restrictionCount $f.hasDialog)){
+            throw 'A closed door start must be one ordinary player input could open.'}
+    }
     if($Door.setupInteractions-ne$(if($f.originalOpen){2}else{1})){throw 'Fixture preparation must be distinct from the two native player inputs.'}
     foreach($v in @($f.originalEnabled,$f.disableOnOpen)){if($v-isnot[bool]){throw 'Door fixture flags must be native booleans.'}}
     foreach($axis in @('x','y','z')){if(-not(Test-KmcChunk7FiniteNumber $f.position.$axis)){throw 'Door position is not finite.'}}
@@ -321,9 +333,50 @@ function Assert-KmcChunk7DoorEvidence($Door,$Owners,[string[]]$DeclaredRiders=@(
     if($r.command-eq0-or-not$commands.Add([long]$r.command)-or-not(Test-KmcChunk7OwnerActorMatch $first.mountId $r.executorId)-or$r.result-cne'Success'-or
         -not(Test-KmcChunk7FiniteNumber $r.distanceToStart)-or$r.distanceToStart-lt0-or$r.distanceToStart-gt1.25){throw 'First pair did not return through its own native mount command.'}
     $s=$Door.restoration
-    Assert-KmcExactProperties $s @('exact','commandsSettled','open','enabled','cutEnabled') 'native door restoration'
+    Assert-KmcExactProperties $s $(if($legacy){@('exact','commandsSettled','open','enabled','cutEnabled')}else{@('exact','commandsSettled','open','enabled','cutEnabled','alreadyUnlocked')}) 'native door restoration'
     foreach($flag in @('exact','commandsSettled')){Assert-KmcChunk7Boolean $s.$flag $true}
     Assert-KmcChunk7Boolean $s.open $f.originalOpen;Assert-KmcChunk7Boolean $s.enabled $f.originalEnabled;Assert-KmcChunk7Boolean $s.cutEnabled $f.originalCut
+    if(-not$legacy){Assert-KmcChunk7Boolean $s.alreadyUnlocked $f.originalAlreadyUnlocked}
+}
+
+# The probe's one door predicate (Chunk7NativeDoorProbe.DoorFacts), mirrored for readers.
+function Get-KmcChunk7DoorClickFields {@('interactable','availableInteractions','revealed','hasVisibleTrap','trapActive','alreadyUnlocked','restrictionCount','hasDialog')}
+function Test-KmcChunk7DoorClosedClickable($Interactable,$Available,$Revealed,$VisibleTrap,$TrapActive,$Unlocked,$Restrictions,$Dialog){
+    $Interactable-and$Available-and$Revealed-and-not$VisibleTrap-and-not$TrapActive-and($Unlocked-or$Restrictions-eq0)-and-not$Dialog
+}
+# Bounded nearest-first native door rows. A legacy row (before the closed-door predicate)
+# keeps its open-only eligibility; a current row carries the clickability flags.
+function Assert-KmcChunk7NativeDoorRows($Rows,$Mounts,[int]$CandidateCount,[string]$Label,[switch]$CurrentOnly){
+    if($Rows-isnot[Array]-or$Rows.Count-ne[Math]::Min(32,$CandidateCount)){throw ($Label+' rows do not match the bounded native candidate count.')}
+    $base=@('name','position','active','open','disableCutWhenOpen','cutPresent','proximityRadius','mountDistances')
+    $prior=-1.0
+    foreach($row in $Rows){
+        $legacy=$null-eq$row.PSObject.Properties['revealed']
+        if($legacy-and$CurrentOnly){throw ($Label+' row lacks its clickability flags.')}
+        Assert-KmcExactProperties $row $(if($legacy){$base+@('eligible')}else{$base+(Get-KmcChunk7DoorClickFields)+@('eligible')}) $Label
+        if($row.name-isnot[string]-or[string]::IsNullOrWhiteSpace($row.name)-or$row.name.Length-gt256-or
+           $row.mountDistances-isnot[Array]-or$row.mountDistances.Count-ne2-or
+           -not(Test-KmcChunk7FiniteNumber $row.proximityRadius)-or[double]$row.proximityRadius-le0){throw ($Label+' identity or radius is malformed.')}
+        foreach($axis in @('x','y','z')){if(-not(Test-KmcChunk7FiniteNumber $row.position.$axis)){throw ($Label+' position is nonfinite.')}}
+        for($i=0;$i-lt2;$i++){
+            $start=$Mounts[$i].position
+            $distance=[Math]::Sqrt([Math]::Pow([double]$start.x-[double]$row.position.x,2)+[Math]::Pow([double]$start.z-[double]$row.position.z,2))
+            if(-not(Test-KmcChunk7FiniteNumber $row.mountDistances[$i])-or
+               [Math]::Abs($distance-[double]$row.mountDistances[$i])-gt0.001){throw ($Label+' distance differs from mounted actor geometry.')}
+        }
+        $sum=[double]$row.mountDistances[0]+[double]$row.mountDistances[1]
+        if($sum+0.001-lt$prior){throw ($Label+' inventory is not nearest-first.')};$prior=$sum
+        foreach($key in @('active','open','disableCutWhenOpen','cutPresent','eligible')){if($row.$key-isnot[bool]){throw ($Label+' state is not Boolean.')}}
+        $clickable=$false
+        if(-not$legacy){
+            foreach($key in @('interactable','availableInteractions','revealed','hasVisibleTrap','trapActive','alreadyUnlocked','hasDialog')){if($row.$key-isnot[bool]){throw ($Label+' clickability flag is not Boolean.')}}
+            Assert-KmcOrdinaryInteger $row.restrictionCount 0 64
+            $clickable=Test-KmcChunk7DoorClosedClickable $row.interactable $row.availableInteractions $row.revealed $row.hasVisibleTrap $row.trapActive $row.alreadyUnlocked $row.restrictionCount $row.hasDialog
+        }
+        $eligible=$row.active-and($row.open-or$clickable)-and$row.disableCutWhenOpen-and$row.cutPresent-and
+            @($row.mountDistances|Where-Object{[double]$_-le[double]$row.proximityRadius+0.5-or[double]$_-gt28.0}).Count-eq0
+        Assert-KmcChunk7Boolean $row.eligible $eligible
+    }
 }
 
 function Assert-KmcChunk7QuietWindow($Window,$Move,$ExpectedOwners,[string[]]$ActorIds,[ValidateSet(2,6)][int]$Residents=2) {

@@ -130,22 +130,41 @@ The real owner-seed source gate (`Get-KmcChunk7OwnedPairsSource`) admits the sel
 An isolated native cold load is still required.
 
 **Closed-door start (product change, needs review and a new candidate).** `Chunk7NativeDoorProbe`
-now also qualifies a closed door that is natively interactable, preferring an open door when
-both exist. A door captured closed:
+now also qualifies a closed door, preferring an open door when both exist. One predicate decides
+the probe, the area inventory and the not-applicable scan. A closed door must be one an ordinary
+player click could open:
+- `CanInteract()` and `ClickMapObjectHandler.HasAvailableInteractions`;
+- revealed (`MapObject.Data.IsRevealed`);
+- no visible or active trap;
+- already unlocked, or no `InteractionRestriction` component;
+- no dialog.
+
+Each member was confirmed by single-type metadata on the installed 2.1.7b assemblies. The fixture
+records `interactable`, `availableInteractions`, `revealed`, `hasVisibleTrap`, `trapActive`,
+`originalAlreadyUnlocked`, `restrictionCount` and `hasDialog`, and the reader requires a clickable
+closed start.
+
+A door captured closed:
 - needs no setup close before the first input;
 - is closed again by setup only before the second input (`setupInteractions = 1`);
 - has an active cut while closed (`originalCut = !originalOpen`);
-- is restored closed through the same native interaction toggle, since `StandardDoor` has no
-  public Close.
+- is restored through `StandardDoor.Open`, which toggles the native state.
 
-The reader admits exactly these two shapes.
+`Open` is what `OnInteract` calls. It needs no rider, no restriction check and no
+out-of-combat state.
 
+Native interaction marks an unrestricted door `AlreadyUnlocked` (`CheckRestrictions`).
+Restoration returns that flag to its captured value and records it.
+
+The not-applicable record now carries the mount positions and the nearest 32 scan rows, so a
+door too close to the pairs is distinguishable from no door. Older artifacts keep their earlier
+shapes, which are admitted only for an open start.
 **Open risks the native run decides.**
 - *Distance.* The party was saved right in front of the door. Both mounts must start more
   than the interaction radius + 0.5 m and at most 28 m from the door. If they are too close,
-  the run records the door as not applicable. In that case a bounded approach or retreat is a
-  further product change.
-- *Locks.* Door `c40b33b4…` has never been unlocked. A locked door selected first would fail
-  natively, not pass.
+  the scan rows show it, and the owner is asked to re-save with the party 8–20 m from the door.
+  No walk-back move is added.
+- *Locks.* Door `c40b33b4…` has never been unlocked. It qualifies only if it has no
+  restriction component; a locked door is excluded rather than tried.
 - *Suite.* The owner's save folder gained new saves, so the qualification suite snapshot must
   be refreshed together with the new candidate.
