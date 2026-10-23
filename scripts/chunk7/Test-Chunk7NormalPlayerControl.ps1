@@ -37,6 +37,8 @@ foreach($m in @(
  Check ('closed descriptor refuses '+$m[0]) {$r=Clone $request;&$m[1] $r;Assert-KmcChunk7NormalPlayerDescriptor $r} $true $descriptorRefusal
 }
 Check 'closed descriptor refuses an extra selection' {$r=Clone $request;$r|Add-Member ownedPairs $null;Assert-KmcChunk7NormalPlayerDescriptor $r} $true 'normal-player request'
+Check 'closed descriptor refuses an unclosed fixture descriptor' {$r=Clone $request;$r.persistenceLoad|Add-Member extra 1;Assert-KmcChunk7NormalPlayerDescriptor $r} $true 'normal-player fixture descriptor'
+Check 'closed descriptor refuses another fixture campaign name' {$r=Clone $request;$r.persistenceLoad.gameName='Other';Assert-KmcChunk7NormalPlayerDescriptor $r} $true $descriptorRefusal
 Check 'closed descriptor refuses another scenario' {$r=Clone $request;$r.scenario='chunk7-owned-two-pair-campaign';Assert-KmcChunk7NormalPlayerDescriptor $r} $true 'belongs only to its own scenario'
 
 # --- Observer request through the observer's actual C# request type ----------
@@ -71,7 +73,7 @@ Check 'the observer refuses an unknown request member' {if((Verdict 'unknown-mem
 # --- Observer result reader --------------------------------------------------
 $n=$request.normalPlayer;$profile=Join-Path $OutputDirectory 'profile'
 $observerRequestHash='9'*64;$process=4242;$notBefore=[DateTimeOffset]::Parse('2026-10-22T20:00:00Z')
-function Presence([string]$Label){[pscustomobject][ordered]@{label=$Label;kmcRuntimeArguments=@();modEntries=@('KingmakerMountedCombat:active','KmcRemovalObserver:active');kmcAssemblies=1
+function Presence([string]$Label){[pscustomobject][ordered]@{label=$Label;kmcRuntimeArguments=@();observerDllSha256=[string]$n.observer.dllSha256;observerMvid=[string]$n.observer.dllMvid;modEntries=@('KingmakerMountedCombat:active','KmcRemovalObserver:active');kmcAssemblies=1
  kmcLocation='C:\Game\Mods\KingmakerMountedCombat\KingmakerMountedCombat.dll';kmcDllSha256=[string]$request.dllSha256;kmcMvid=[string]$request.dllMvid;kmcHarmonyOwners=@('KingmakerMountedCombat.Feasibility')
  rootPresent=$true;automationHostField='null';staticAutomationHost='null';measurementSession='null';movementTelemetry='null';overlayObjects=0
  effectiveSettings=[pscustomobject]@{EnableDiagnosticOverlay=$false;EnableMountedCharge=$false;EnablePairedActivation=$true}}}
@@ -107,6 +109,7 @@ foreach($m in @(
  @('a KMC automation argument',{param($r)$r.observations.presenceAtMenu.kmcRuntimeArguments=@('-kmcRuntimeRequest')},'ordinary no-request path'),
  @('a diagnostic overlay',{param($r)$r.observations.presenceAfter.overlayObjects=1},'ordinary no-request path'),
  @('a third loaded mod',{param($r)$r.observations.presenceAtMenu.modEntries=@('KingmakerMountedCombat:active','KmcRemovalObserver:active','Other:active')},'ordinary no-request path'),
+ @('a substituted observer assembly',{param($r)$r.observations.presenceLoaded.observerDllSha256=('0'*64)},'ordinary no-request path'),
  @('a non-candidate KMC assembly',{param($r)$r.observations.presenceLoaded.kmcDllSha256=('0'*64)},'ordinary no-request path'),
  @('a changed fixture archive',{param($r)$r.observations.archive.changedOnDisk=$true},'fixture changed or KMC logged'),
  @('a KMC error',{param($r)$r.observations.log.kmcErrors=1},'fixture changed or KMC logged'),
@@ -118,6 +121,20 @@ foreach($m in @(
  @('routing outside the owned profile',{param($r)$r.observations.routing.observedSavePath='C:\Users\Someone\Saved Games'},'inside the owned profile'))){
  Check ('closed reader refuses '+$m[0]) {$r=Clone $good;&$m[1] $r;Read-Result $r} $true $m[2]
 }
+# --- KMC's own one-session UMM log ----------------------------------------
+$fakeGame=Join-Path $OutputDirectory 'game';$logDir=Join-Path $fakeGame 'Kingmaker_Data/Managed/UnityModManager';[void][IO.Directory]::CreateDirectory($logDir)
+$quiet=@('[Manager] Initialize.','[Manager] Version: 0.33.2.0.','[KingmakerMountedCombat] Version ''0.1.0-chunk7b-preview.94''. Loading.',
+ '[KingmakerMountedCombat] Kingmaker Mounted Combat 0.1.0-chunk7b-preview.94 loaded with transient private-alpha mounted melee services.',
+ '[KingmakerMountedCombat] Private-alpha services and native mounted abilities enabled; diagnostic overlay=False.','[KingmakerMountedCombat] Active.')
+function Log-Summary([string[]]$Lines){[IO.File]::WriteAllText((Join-Path $logDir 'Log.txt'),($Lines-join"`r`n"),[Text.UTF8Encoding]::new($false));Get-KmcChunk7NormalPlayerUmmLogSummary $fakeGame ([DateTimeOffset]::UtcNow.AddMinutes(-5)) '0.1.0-chunk7b-preview.94'}
+Check 'an ordinary quiet no-request UMM session passes' {if(-not(Log-Summary $quiet).passed){throw 'quiet log refused'}}
+foreach($m in @(@('an accepted automation request',@($quiet+'[KingmakerMountedCombat] Runtime automation request accepted: x / y')),
+ @('a KMC error line',@($quiet+'[KingmakerMountedCombat] [Error] something failed')),@('a KMC exception line',@($quiet+'[KingmakerMountedCombat] [Exception] System.NullReferenceException: x')),
+ @('a second session',@($quiet+'[Manager] Version: 0.33.2.0.')),@('a missing ordinary load line',@($quiet|Where-Object{$_-notmatch' loaded with '})),
+ @('another product version',@($quiet|ForEach-Object{$_.Replace('preview.94 loaded','preview.93 loaded')})),@('a visible overlay',@($quiet|ForEach-Object{$_.Replace('overlay=False','overlay=True')})))){
+ Check ('the UMM session check refuses '+$m[0]) {if((Log-Summary $m[1]).passed){throw 'accepted'}}
+}
+Check 'the UMM session check refuses a log older than the run' {[IO.File]::WriteAllText((Join-Path $logDir 'Log.txt'),($quiet-join"`r`n"));(Get-Item (Join-Path $logDir 'Log.txt')).LastWriteTimeUtc=[DateTime]::UtcNow.AddHours(-2);Get-KmcChunk7NormalPlayerUmmLogSummary $fakeGame ([DateTimeOffset]::UtcNow.AddMinutes(-5)) '0.1.0-chunk7b-preview.94'} $true 'not written by this run'
 $failures=@($results|Where-Object{-not$_.pass}).Count
 [ordered]@{nativeInvoked=$false;checks=$results.Count;failures=$failures;results=$results}|ConvertTo-Json -Depth 6|Set-Content -LiteralPath (Join-Path $OutputDirectory 'receipt.json') -Encoding UTF8
 Write-Output ('NORMAL-PLAYER CONTROL PASS='+($results.Count-$failures)+' FAIL='+$failures)
