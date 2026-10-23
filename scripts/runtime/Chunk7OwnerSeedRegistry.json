@@ -36,6 +36,23 @@
       "masterPath": "fixtures/owner-supplied/KMC_C7_NO_MODS_OWNER_SEED.master.zks",
       "intakePath": "fixtures/owner-supplied/KMC_C7_NO_MODS_OWNER_SEED.intake01.json",
       "intakeSha256": "0a8ab36d9b156ad1e71fe01e0d32f30e1301a30986ca39cf54ef419ff42bbeb1"
+    },
+    {
+      "seedId": "KMC_C7_DOOR_SEED_OLD_SYCAMORE",
+      "sha256": "2f55b3e455510a2165d0c4bd47547fea91718589d4f48cb9d01b03ad1bbd7210",
+      "length": 4067560,
+      "internalName": "KMC_C7_DOOR_SEED",
+      "fileName": "Manual_305_KMC_C7_DOOR_SEED.zks",
+      "type": "Manual",
+      "compatibilityVersion": 1,
+      "gameId": "3f7381f7-aba6-43bf-bae6-39c6a66a7180",
+      "gameName": "Testy the Modless",
+      "area": "fb4cffc2c4279e141a1c877785bce7ac",
+      "campaignDlc": "None",
+      "dlc": ["Tieflings", "Varnhold", "Endless", "Arcane"],
+      "masterPath": "fixtures/owner-supplied/KMC_C7_DOOR_SEED_OLD_SYCAMORE.master.zks",
+      "intakePath": "fixtures/owner-supplied/KMC_C7_DOOR_SEED_OLD_SYCAMORE.intake01.json",
+      "intakeSha256": "8919ad8739d429d66c9b53b0877e8722527ae51454f8fc46d751b7cd32339040"
     }
   ]
 }

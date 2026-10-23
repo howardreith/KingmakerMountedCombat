@@ -13,6 +13,7 @@ internal sealed class Cut {public bool enabled;}
 internal sealed class Adapter {
  public Scope scope=new Scope();public World world=new World();public List<Command> commands=new List<Command>();public bool captured=true,restored,originalOpen=true,originalEnabled=false,originalCut=false,doorValid=true,settled=true;
  public int settledFrame,doorChecks;public Door door=new Door{open=true,Enabled=true};public Cut cut=new Cut();public JObject evidence=new JObject();
+ public int closes;private void RestoreClosed(){closes++;door.open=false;}
  private void RequireDoor(){doorChecks++;if(!doorValid)throw new InvalidOperationException("foreign-door");}
  private bool Settled(bool open)=>settled&&door.open==open&&cut.enabled!=open;
  private static void Require(bool condition,string message){if(!condition)throw new InvalidOperationException(message);}
@@ -41,6 +42,13 @@ internal static class Program {
  a=New();a.captured=false;c=new Command();a.commands.Add(c);Check(a.Drain()&&c.IsFinished&&a.doorChecks==0&&!a.restored,"partial admission drains published command without inventing door lease");
  a=New();a.cut.enabled=true;Check(!a.Drain()&&!a.restored,"unsettled native cut retains lease");
  a=New();a.commands.Add(new Command{IsFinished=true});Check(a.Drain()&&a.commands[0].interrupts==0,"finished command is not replayed");
+ a=New();a.originalOpen=false;a.originalCut=true;a.originalEnabled=true;a.door.open=true;a.cut.enabled=false;a.settled=false;
+ Check(!a.Drain()&&a.closes==1&&a.door.opens==0&&!a.restored,"door captured closed is closed natively, never opened");
+ Check(!a.Drain()&&a.closes==1,"repeated cleanup does not toggle the closing door again");
+ a.cut.enabled=true;a.settled=true;Check(a.Drain()&&a.restored&&!a.door.open&&a.door.Enabled&&a.closes==1,"settled closing restores the captured closed state");
+ Check(a.Drain()&&a.closes==1,"completed closed restoration is idempotent");
+ a=New();a.originalOpen=false;a.originalCut=true;a.door.open=false;a.cut.enabled=true;Check(a.Drain()&&a.closes==0&&a.door.opens==0&&a.restored,"door still closed needs no toggle");
+ a=New();a.originalOpen=false;a.originalCut=true;a.door.open=true;a.doorValid=false;Check(Throws(()=>a.Drain())&&a.closes==0&&!a.restored,"replaced door refuses closed restoration");
  Console.WriteLine("TOTAL PASS="+passed+" FAIL=0");return 0;
  }catch(Exception e){Console.Error.WriteLine(e);return 1;}}
 }
