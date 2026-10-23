@@ -709,11 +709,24 @@ function Assert-KmcChunk7OwnerSeedWorldSetup($Request,$Observations){
  return ,@($roles)
 }
 function Assert-KmcChunk7DoorNotApplicable($Door){
- Assert-KmcExactProperties $Door @('applicable','reason','candidatesScanned','radius') 'not-applicable native door'
+ # The legacy four-field shape predates the scan rows and stays readable for older artifacts;
+ # the current shape carries the deciding rows, so a door too close is not read as no door.
+ $legacy=$null-eq$Door.PSObject.Properties['rows']
+ Assert-KmcExactProperties $Door $(if($legacy){@('applicable','reason','candidatesScanned','radius')}else{@('applicable','reason','candidatesScanned','radius','mounts','truncated','rows')}) 'not-applicable native door'
  Assert-KmcChunk7Boolean $Door.applicable $false
  if($Door.reason-isnot[string]-or[string]::IsNullOrWhiteSpace($Door.reason)-or$Door.reason.Length-gt512){throw 'Not-applicable door lacks its observed reason.'}
  Assert-KmcOrdinaryInteger $Door.candidatesScanned 0 100000
  if(-not(Test-KmcChunk7FiniteNumber $Door.radius)-or[double]$Door.radius-ne28.0){throw 'Not-applicable door scan radius differs from the exact probe radius.'}
+ if($legacy){return}
+ Assert-KmcChunk7Boolean $Door.truncated ($Door.candidatesScanned-gt32)
+ if($Door.mounts-isnot[Array]-or$Door.mounts.Count-ne2){throw 'Not-applicable door scan lacks both mounted actor positions.'}
+ for($i=0;$i-lt2;$i++){
+  Assert-KmcExactProperties $Door.mounts[$i] @('id','position') 'not-applicable door mount'
+  Assert-KmcOrdinaryGuid $Door.mounts[$i].id
+  foreach($axis in @('x','y','z')){if(-not(Test-KmcChunk7FiniteNumber $Door.mounts[$i].position.$axis)){throw 'Not-applicable door mount position is nonfinite.'}}
+ }
+ Assert-KmcChunk7NativeDoorRows $Door.rows $Door.mounts ([int]$Door.candidatesScanned) 'not-applicable door scan' -CurrentOnly
+ if(@($Door.rows|Where-Object{$_.eligible}).Count-ne0){throw 'A not-applicable door scan contains a qualifying door.'}
 }
 function Assert-KmcChunk7OwnerSeedCleanup($Cleanup,[bool]$Manual=$false){
  foreach($field in @('pairResidueAbsent','controlsSettled','settingsAndSelectionRestored','nativeProcessesSettled','cleanupCustodySettled','setupCompleted','ownerSeedSetupPetsPreserved','setupStateUnchangedAfterBoundary','setupRetainedInMemoryOnly')){Assert-KmcChunk7Boolean $Cleanup.$field $true}

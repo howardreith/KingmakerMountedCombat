@@ -114,4 +114,19 @@ foreach($bad in @('distance','eligibility','tested','count','position','mount-id
         'boundary' {$a.areaDoorInventory.boundary='after-first-continuation'}
     };Assert-KmcChunk7AreaAutosave $areaRequest $a $areaArchive}
 }
+# Current rows carry the probe's clickability flags: a closed clickable door is eligible.
+$currentDoor=Copy-Test $doorObservation;$row=$currentDoor.areaDoorInventory.rows[0];$row.PSObject.Properties.Remove('eligible')
+foreach($pair in @(@('interactable',$true),@('availableInteractions',$true),@('revealed',$true),@('hasVisibleTrap',$false),@('trapActive',$false),@('alreadyUnlocked',$false),@('restrictionCount',0),@('hasDialog',$false),@('eligible',$true))){$row|Add-Member NoteProperty $pair[0] $pair[1]}
+$row.open=$false
+Check 'current area door row admits a closed player-clickable door' {Assert-KmcChunk7AreaAutosave $areaRequest $currentDoor $areaArchive}
+foreach($bad in @('secret','trap','restricted','dialog','legacy-closed','flag-text')){
+    Reject ('current area door row '+$bad) {$a=Copy-Test $currentDoor;$r=$a.areaDoorInventory.rows[0];switch($bad){
+        'secret' {$r.revealed=$false}
+        'trap' {$r.trapActive=$true}
+        'restricted' {$r.restrictionCount=1}
+        'dialog' {$r.hasDialog=$true}
+        'legacy-closed' {foreach($k in @('interactable','availableInteractions','revealed','hasVisibleTrap','trapActive','alreadyUnlocked','restrictionCount','hasDialog')){$r.PSObject.Properties.Remove($k)}}
+        'flag-text' {$r.revealed='true'}
+    };Assert-KmcChunk7AreaAutosave $areaRequest $a $areaArchive}
+}
 Write-Host ('CHUNK7 AREA READER PASS='+$passed+' FAIL=0; affected persistence neighbors='+$neighborPass+'; synthetic evidence only.')

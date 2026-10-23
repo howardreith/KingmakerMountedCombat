@@ -8,12 +8,13 @@ internal static class LoadingProcess {public static Loader Instance=new Loader()
 internal static class NativePersistenceIsolation {public static bool HasPendingWrites;}
 internal sealed class World {public bool SerializationBusy;}
 internal sealed class Command {public bool IsFinished;public int interrupts;public bool throwOnInterrupt,remainPending;public void Interrupt(){interrupts++;if(throwOnInterrupt)throw new InvalidOperationException("interrupt");if(!remainPending)IsFinished=true;}}
-internal sealed class Door {public bool open,Enabled;public int opens;public bool GetState()=>open;public void Open(){opens++;open=true;}}
+internal sealed class DoorData {public bool AlreadyUnlocked;}
+// StandardDoor.Open toggles State; refuse models a native toggle that leaves State unchanged.
+internal sealed class Door {public bool open,Enabled,throwOnOpen,refuseOpen,dataMissing;public int opens;public DoorData data=new DoorData();public DoorData Data=>dataMissing?null:data;public bool GetState()=>open;public void Open(){opens++;if(throwOnOpen)throw new InvalidOperationException("open");if(!refuseOpen)open=!open;}}
 internal sealed class Cut {public bool enabled;}
 internal sealed class Adapter {
- public Scope scope=new Scope();public World world=new World();public List<Command> commands=new List<Command>();public bool captured=true,restored,originalOpen=true,originalEnabled=false,originalCut=false,doorValid=true,settled=true;
+ public Scope scope=new Scope();public World world=new World();public List<Command> commands=new List<Command>();public bool captured=true,restored,originalOpen=true,originalEnabled=false,originalCut=false,originalAlreadyUnlocked=false,doorValid=true,settled=true;
  public int settledFrame,doorChecks;public Door door=new Door{open=true,Enabled=true};public Cut cut=new Cut();public JObject evidence=new JObject();
- public int closes;private void RestoreClosed(){closes++;door.open=false;}
  private void RequireDoor(){doorChecks++;if(!doorValid)throw new InvalidOperationException("foreign-door");}
  private bool Settled(bool open)=>settled&&door.open==open&&cut.enabled!=open;
  private static void Require(bool condition,string message){if(!condition)throw new InvalidOperationException(message);}
@@ -43,12 +44,18 @@ internal static class Program {
  a=New();a.cut.enabled=true;Check(!a.Drain()&&!a.restored,"unsettled native cut retains lease");
  a=New();a.commands.Add(new Command{IsFinished=true});Check(a.Drain()&&a.commands[0].interrupts==0,"finished command is not replayed");
  a=New();a.originalOpen=false;a.originalCut=true;a.originalEnabled=true;a.door.open=true;a.cut.enabled=false;a.settled=false;
- Check(!a.Drain()&&a.closes==1&&a.door.opens==0&&!a.restored,"door captured closed is closed natively, never opened");
- Check(!a.Drain()&&a.closes==1,"repeated cleanup does not toggle the closing door again");
- a.cut.enabled=true;a.settled=true;Check(a.Drain()&&a.restored&&!a.door.open&&a.door.Enabled&&a.closes==1,"settled closing restores the captured closed state");
- Check(a.Drain()&&a.closes==1,"completed closed restoration is idempotent");
- a=New();a.originalOpen=false;a.originalCut=true;a.door.open=false;a.cut.enabled=true;Check(a.Drain()&&a.closes==0&&a.door.opens==0&&a.restored,"door still closed needs no toggle");
- a=New();a.originalOpen=false;a.originalCut=true;a.door.open=true;a.doorValid=false;Check(Throws(()=>a.Drain())&&a.closes==0&&!a.restored,"replaced door refuses closed restoration");
+ Check(!a.Drain()&&a.door.opens==1&&!a.door.open&&!a.restored,"door captured closed is closed by the native Open toggle");
+ Check(!a.Drain()&&a.door.opens==1,"repeated cleanup does not toggle the closing door again");
+ a.cut.enabled=true;a.settled=true;Check(a.Drain()&&a.restored&&!a.door.open&&a.door.Enabled&&a.door.opens==1,"settled closing restores the captured closed state");
+ Check(a.Drain()&&a.door.opens==1,"completed closed restoration is idempotent");
+ a=New();a.originalOpen=false;a.originalCut=true;a.door.open=false;a.cut.enabled=true;Check(a.Drain()&&a.door.opens==0&&a.restored,"door still closed needs no toggle");
+ a=New();a.originalOpen=false;a.originalCut=true;a.door.open=true;a.doorValid=false;Check(Throws(()=>a.Drain())&&a.door.opens==0&&!a.restored,"replaced door refuses closed restoration");
+ a=New();a.originalOpen=false;a.originalCut=true;a.door.open=true;a.door.throwOnOpen=true;Check(Throws(()=>a.Drain())&&a.door.open&&!a.restored&&a.evidence["restoration"]==null,"throwing native toggle retains custody without claiming restoration");
+ a.door.throwOnOpen=false;a.cut.enabled=true;Check(a.Drain()&&a.restored&&!a.door.open,"closed restoration retries after a throwing toggle");
+ a=New();a.originalOpen=false;a.originalCut=true;a.door.open=true;a.door.refuseOpen=true;Check(!a.Drain()&&!a.Drain()&&a.door.open&&!a.restored&&a.evidence["restoration"]==null,"refused native toggle never claims restoration");
+ a=New();a.originalAlreadyUnlocked=false;a.door.data.AlreadyUnlocked=true;Check(a.Drain()&&a.restored&&!a.door.data.AlreadyUnlocked,"interaction unlock residue returns to its captured value");
+ a=New();a.originalAlreadyUnlocked=true;a.door.data.AlreadyUnlocked=true;Check(a.Drain()&&a.door.data.AlreadyUnlocked,"captured unlocked door stays unlocked");
+ a=New();a.door.dataMissing=true;Check(Throws(()=>a.Drain())&&!a.restored&&a.evidence["restoration"]==null,"missing persistent data refuses an unchecked restoration claim");
  Console.WriteLine("TOTAL PASS="+passed+" FAIL=0");return 0;
  }catch(Exception e){Console.Error.WriteLine(e);return 1;}}
 }

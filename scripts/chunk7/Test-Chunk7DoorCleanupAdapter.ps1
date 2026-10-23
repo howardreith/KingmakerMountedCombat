@@ -6,6 +6,8 @@ $text=[IO.File]::ReadAllText($source)
 $start=$text.IndexOf('        internal bool Drain()');$end=$text.IndexOf('        private void RequirePairs()',$start)
 if($start-lt0-or$end-le$start){throw 'Actual native door cleanup extraction failed.'}
 $method=$text.Substring($start,$end-$start)
+# Restoration must not depend on a rider, a restriction-checked interaction or combat state.
+foreach($forbidden in @('riders','Interact(','IsInCombat','CanInteract')){if($method.Contains($forbidden)){throw ('Native door cleanup depends on '+$forbidden)}}
 $probe=Join-Path $chunk7AnalysisRoot ('door-cleanup-'+[Guid]::NewGuid().ToString('N'))
 [void][IO.Directory]::CreateDirectory($probe)
 $template=[IO.File]::ReadAllText((Join-Path $chunk7TestSource 'DoorCleanupAdapterTemplate.cs'))

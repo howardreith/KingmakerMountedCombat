@@ -133,25 +133,7 @@ function Assert-KmcChunk7TombDoorInventory($Inventory,$Remounted,$Roles){
   if(@($Remounted.native.actors|Where-Object{$_.native.Id-ceq$mount.id}).Count-ne1){throw 'Tomb door mount is absent from the remounted native pair.'}
   foreach($axis in @('x','y','z')){if(-not(Test-KmcChunk7FiniteNumber $mount.position.$axis)){throw 'Tomb mount position is nonfinite.'}}
  }
- $prior=-1.0
- foreach($row in $Inventory.rows){
-  Assert-KmcExactProperties $row @('name','position','active','open','disableCutWhenOpen','cutPresent','proximityRadius','mountDistances','eligible') 'Tomb native door'
-  if($row.name-isnot[string]-or[string]::IsNullOrWhiteSpace($row.name)-or$row.name.Length-gt256-or
-     $row.mountDistances-isnot[Array]-or$row.mountDistances.Count-ne2-or
-     -not(Test-KmcChunk7FiniteNumber $row.proximityRadius)-or[double]$row.proximityRadius-le0){throw 'Tomb door identity or radius is malformed.'}
-  foreach($axis in @('x','y','z')){if(-not(Test-KmcChunk7FiniteNumber $row.position.$axis)){throw 'Tomb door position is nonfinite.'}}
-  for($i=0;$i-lt2;$i++){
-   $start=$Inventory.mounts[$i].position
-   $distance=[Math]::Sqrt([Math]::Pow([double]$start.x-[double]$row.position.x,2)+[Math]::Pow([double]$start.z-[double]$row.position.z,2))
-   if(-not(Test-KmcChunk7FiniteNumber $row.mountDistances[$i])-or[Math]::Abs($distance-[double]$row.mountDistances[$i])-gt0.001){throw 'Tomb door distance differs from mounted actor geometry.'}
-  }
-  $sum=[double]$row.mountDistances[0]+[double]$row.mountDistances[1]
-  if($sum+0.001-lt$prior){throw 'Tomb door inventory is not nearest-first.'};$prior=$sum
-  foreach($key in @('active','open','disableCutWhenOpen','cutPresent','eligible')){if($row.$key-isnot[bool]){throw 'Tomb door state is not Boolean.'}}
-  $eligible=$row.active-and$row.open-and$row.disableCutWhenOpen-and$row.cutPresent-and
-   @($row.mountDistances|Where-Object{[double]$_-le[double]$row.proximityRadius+0.5-or[double]$_-gt28.0}).Count-eq0
-  Assert-KmcChunk7Boolean $row.eligible $eligible
- }
+ Assert-KmcChunk7NativeDoorRows $Inventory.rows $Inventory.mounts ([int]$Inventory.candidateCount) 'Tomb native door'
 }
 function Assert-KmcChunk7ManticoreFixtureObservation($Request,$Observations,$Archive){
  $tomb=Test-KmcChunk7TombFixture $Request;$thorn=Test-KmcChunk7ThornRiverFixture $Request
