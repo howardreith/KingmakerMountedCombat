@@ -72,6 +72,10 @@ param(
     # The genuine no-DLL cleanup-save observation: the removal observer package
     # (a separate minimal UMM mod) is staged in place of KMC for that one run.
     [string]$ObserverPackagePath,
+    # F12 upgrade/rollback rehearsal: a step of the request-free normal-player control
+    # (planning/CHUNK7-7E-QUALIFICATION-MATRIX.md, X5). u2/u3 name the passed u1 run.
+    [ValidateSet('u1-previous-install','u2-upgrade','u3-rollback')][string]$UpgradeRehearsalStep,
+    [ValidatePattern('^[A-Za-z0-9][A-Za-z0-9._-]{0,119}$')][string]$UpgradeCarrySourceRunId,
     [ValidateSet('multi-exploration-manual','multi-exploration-quick','multi-exploration-auto','multi-rt-debt-manual','multi-tb-debt-manual','zero-mounted-tb-retained-manual','legacy-mounted-pending-tb-manual','pending-schema3-control-manual','multi-area-autosave','legacy-schema1-resave-manual','multi-exploration-three-loads-manual','multi-exploration-three-area-transfers-manual','multi-nonselected-mount-unsettled-manual','multi-owned-worker-cancel-manual','owned-schema1-manual','owned-schema1-resave-manual','owned-schema1-current-manual','owned-schema2-pending-current-manual','multi-malformed-refusal-manual','multi-future-refusal-manual','owner-seed-manticore-fixture-manual','owner-seed-tomb-door-fixture-manual','owner-seed-thorn-river-door-fixture-manual','manticore-fixture-cold-manual','partial-movement','rider-spent','between-partner-orders','exhausted','explicit-end','combat-mount-tb','casting-items','step','conversion','round-effect','reaction','condition','condition-preparing','suspended','manual','quick','auto','manual-renamed','alternating','queued','unmounted-spent','mounted-spent','unmounted-attack','mounted-attack','unmounted-projectile','mounted-projectile','unmounted-approach','mounted-approach','unmounted-casting','mounted-casting','mounted-casting-items','combat-mount-rt','combat-dismount-rt','mounted-charge-pending','mounted-charge-settled','mounted-charge-cancelled','mounted-charge-failed','mounted-charge-drained','legacy','schema1','future','malformed','profile','campaign','missing-rider','missing-mount','mismatched-profile','policy','combat-missing','combat-ai','timeout','cancel-wait','locked-replace','serialization-cancel','serialization-cancel-output','disable-reenable','campaign-b','prepare-removal','disable-during-load','mounted-charge-area','mounted-charge-session','mounted-charge-disable','mounted-charge-removal','absent-kmc','removal-no-dll','mounted-charge-removal-no-dll','rider-death','mount-death','rider-size-change','area-reload','area-cross-entry','area-cross-exit','area-cross-entry-auto','area-cross-exit-auto','failed-area-load','foreign-header-campaign','combat-mount-routes','combat-mount-unsettled-save','combat-mount-area-reload','pending-mount-area')][string]$PersistenceCase,
     [ValidatePattern('^[0-9a-f]{32}$')][string]$PersistenceAreaEnterPoint,
     [ValidatePattern('^[0-9a-f]{32}$')][string]$PersistenceAreaTargetArea,
@@ -147,6 +151,14 @@ if($F11NativeAllocationProbe -and ($Scenario -cne 'chunk7-owned-two-pair-campaig
 Assert-KmcChunk7FamilyReady $Scenario $null
 # Retired persistence cases are refused at the same point (docs/CHUNK7-RETIRED-SCHEMA3-CONTROL-2026-10-23.md).
 Assert-KmcChunk7PersistenceCaseSelected $PersistenceCase
+# The F12 upgrade rehearsal (7E X5) is admitted only as a step of the normal-player control,
+# and refused here, before any selection intake, approval, lock, transaction or launch.
+if(-not[string]::IsNullOrEmpty($UpgradeRehearsalStep)-or-not[string]::IsNullOrEmpty($UpgradeCarrySourceRunId)){
+    if(-not(Test-KmcChunk7NormalPlayerScenario $Scenario)){throw 'The F12 upgrade rehearsal is a step of the request-free normal-player control only.'}
+    if([string]::IsNullOrEmpty($UpgradeRehearsalStep)-or(($UpgradeRehearsalStep-ceq'u1-previous-install')-ne[string]::IsNullOrEmpty($UpgradeCarrySourceRunId))){
+        throw 'The first install takes no carry source; the upgrade and rollback steps require the passed first-install run.'
+    }
+}
 if(Test-KmcChunk7NativeBootstrapScenario $Scenario){
     if(-not$BaseGameOnly-or-not$PSBoundParameters.ContainsKey('NativeBootstrapCase')-or$NativeBootstrapCase-cne'authored-main-campaign'){
         throw 'Native main bootstrap requires explicit authored-main-campaign selection and base-only staging.'
@@ -480,7 +492,17 @@ if(Test-KmcChunk7SmallScenario $Scenario){$smallSource=if(Test-KmcChunk7SmallF09
 if(Test-KmcChunk7ProgressionScenario $Scenario){$progressionSource=Get-KmcChunk7ProgressionSource $progressionSelectionInput.selection $fixturePayload $manifest}
 if(Test-KmcChunk7FieldScenario $Scenario){$fieldSource=Get-KmcChunk7FieldSource $fieldSelectionInput.selection $fixturePayload $manifest}
 $ownedAreaTarget=if((Test-KmcChunk7OwnedPairsScenario $Scenario)-and$PersistenceCase-ceq'multi-area-autosave'){[pscustomobject]@{enterPoint=$PersistenceAreaEnterPoint;area=$PersistenceAreaTargetArea;autoSaveMode='AfterEntry'}}else{$null}
-$normalPlayerSource=if($isNormalPlayer){Get-KmcChunk7SixPairCheckpointSource $fixturePayload}else{$null}
+# F12 upgrade rehearsal: the exact previous package, the carried first-install folder
+# state, and the reference-free seed for the previous-package loads.
+$upgradePrevious=$null;$upgradeCarry=@();$upgradeSection=$null
+if(-not[string]::IsNullOrEmpty($UpgradeRehearsalStep)){
+    $upgradePrevious=Get-KmcChunk7PreviousPackage
+    if($UpgradeRehearsalStep-cne'u1-previous-install'){$upgradeCarry=@(Get-KmcChunk7UpgradeCarry $UpgradeCarrySourceRunId)}
+    $upgradeSection=New-KmcChunk7UpgradeRehearsalSection $UpgradeRehearsalStep $upgradePrevious $manifest $UpgradeCarrySourceRunId $upgradeCarry
+}
+$upgradeLoad=$null-ne$upgradeSection-and(Test-KmcChunk7UpgradePreviousStep $UpgradeRehearsalStep)
+function Get-KmcRunNormalPlayerSource{if($upgradeLoad){Get-KmcChunk7UpgradeSeedSource $fixturePayload}else{Get-KmcChunk7SixPairCheckpointSource $fixturePayload}}
+$normalPlayerSource=if($isNormalPlayer){Get-KmcRunNormalPlayerSource}else{$null}
 if(Test-KmcChunk7OwnedPairsScenario $Scenario){$ownedPairsSource=Get-KmcChunk7OwnedPairsSource $ownedPairsInput.selection $PersistenceCase $fixturePayload $manifest $ownedAreaTarget}
 if(Test-KmcChunk7SmallFixtureScenario $Scenario){$smallFixtureSource=Get-KmcChunk7SmallFixtureSource $smallFixtureInput.selection $fixturePayload $manifest}
 if(Test-KmcChunk7StockMammothFixtureScenario $Scenario){$stockMammothFixtureSource=Get-KmcChunk7StockMammothFixtureSource $stockMammothFixtureInput.selection $fixturePayload $manifest}
@@ -631,7 +653,7 @@ try{
     if(Test-KmcChunk7StockMammothFixtureScenario $Scenario){$request['stockMammothFixture']=$stockMammothFixtureInput.selection}
     if(Test-KmcChunk7FieldScenario $Scenario){$request['ordinaryField']=$fieldSelectionInput.selection}
     if(Test-KmcChunk7OwnedPairsScenario $Scenario){$request['ownedPairs']=$ownedPairsInput.selection}
-    if($isNormalPlayer){$request['normalPlayer']=New-KmcChunk7NormalPlayerSection $normalPlayerSource $ObserverPackagePath $observerManifest}
+    if($isNormalPlayer){$request['normalPlayer']=New-KmcChunk7NormalPlayerSection $normalPlayerSource $ObserverPackagePath $observerManifest $upgradeSection}
     if(Test-KmcChunk7AssistedFixtureScenario $Scenario){$request['assistedFixture']=$assistedFixtureInput.selection}
     if(Test-KmcChunk7AcquiredManualScenario $Scenario){$request['acquiredManual']=$acquiredManualInput.selection}
     if(Test-KmcChunk7ManualDerivedScenario $Scenario){$request['manualDerived']=$manualDerivedInput.selection}
@@ -817,7 +839,7 @@ try{
                 $copySource=$currentStockRemovalSource.path;$copyDescriptor=$currentStockRemovalSource.descriptor
                 $request['persistenceLoad']=$copyDescriptor
             }elseif($isNormalPlayer){
-                $currentNormalPlayerSource=Get-KmcChunk7SixPairCheckpointSource $fixturePayload
+                $currentNormalPlayerSource=Get-KmcRunNormalPlayerSource
                 if((ConvertTo-KmcChunk7Canonical $currentNormalPlayerSource)-cne(ConvertTo-KmcChunk7Canonical $normalPlayerSource)){throw 'Normal-player fixture source changed before locked staging.'}
                 $copySource=$currentNormalPlayerSource.path;$copyDescriptor=$currentNormalPlayerSource.descriptor
                 $request['persistenceLoad']=$copyDescriptor
@@ -1002,12 +1024,15 @@ try{
     }
     # Exactly two packages: KMC and the external normal-player observer.
     if($isNormalPlayer){$stageArguments['ObserverPackagePath']=$ObserverPackagePath}
-    $modsTransactionStatePath=Enter-KmcModsTransaction -Lock $lock -LiveModsRoot $liveMods -PackagePath $(if($isObserver){$ObserverPackagePath}else{$PackagePath}) -StateRoot $runtimeState -BackupRoot $runtimeBackups -StagingRoot $runtimeStaging -StagingMode $(if($isNormalPlayer){'base-game-only-kmc-observer'}elseif($BaseGameOnly){'base-game-only-kmc'}elseif($isObserver){'live-clone-minus-kmc-plus-observer'}else{'live-clone-plus-kmc-overlay'}) @stageArguments
+    # u2/u3 lay the first install's exact KMC-folder runtime files under the staged package.
+    if($upgradeCarry.Count-ne0){$stageArguments['KmcCarryFiles']=$upgradeCarry}
+    $modsTransactionStatePath=Enter-KmcModsTransaction -Lock $lock -LiveModsRoot $liveMods -PackagePath $(if($isObserver){$ObserverPackagePath}elseif($upgradeLoad){$upgradePrevious.path}else{$PackagePath}) -StateRoot $runtimeState -BackupRoot $runtimeBackups -StagingRoot $runtimeStaging -StagingMode $(if($isNormalPlayer){'base-game-only-kmc-observer'}elseif($BaseGameOnly){'base-game-only-kmc'}elseif($isObserver){'live-clone-minus-kmc-plus-observer'}else{'live-clone-plus-kmc-overlay'}) @stageArguments
     if($isNormalPlayer){
         $coStagedState=Read-KmcJson $modsTransactionStatePath
         if([string]$coStagedState.observerPackageSha256-cne[string]$request.normalPlayer.observer.packageSha256-or[string]$coStagedState.observerPackageSha256-cne[string]$observerManifest.packageSha256){
             throw 'The staged observer package is not the declared observer package.'
         }
+        if($null-ne$upgradeSection-and[string]$coStagedState.packageSha256-cne[string]$upgradeSection.stagedKmc.packageSha256){throw 'The staged KMC package is not the rehearsal step''s declared package.'}
     }
     if($F11NativeAllocationProbe){
         $f11RunRoot=Assert-KmcChildPath (Join-Path (Join-Path $runtimeStaging $actualRunId) 'f11-native-probe') $runtimeStaging 'F11 run-owned staging'
@@ -1521,7 +1546,7 @@ finally{
     if($isNormalPlayer-and$processExited){
         # KMC's own one-session UMM log: ordinary load, quiet overlay, no accepted request, no error.
         try{
-            $ummLog=Get-KmcChunk7NormalPlayerUmmLogSummary ([string]$intake.requestedLayout.kingmakerInstallDir) $startedAt ([string]$manifest.version)
+            $ummLog=Get-KmcChunk7NormalPlayerUmmLogSummary ([string]$intake.requestedLayout.kingmakerInstallDir) $startedAt $(if($upgradeLoad){[string]$upgradePrevious.version}else{[string]$manifest.version})
             Write-KmcJsonAtomic (Join-Path $evidenceRoot 'normal-player-umm-log.json') $ummLog
             if(-not$ummLog.passed){$errors.Add('KMC UMM session log is not an ordinary quiet no-request start: '+(($ummLog|ConvertTo-Json -Depth 3 -Compress)))}
         }catch{$errors.Add('KMC UMM session log check failed: '+$_.Exception.Message)}
