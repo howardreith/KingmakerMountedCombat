@@ -262,7 +262,7 @@ namespace KingmakerMountedCombat.Diagnostics
                             // Owner-seed kind only: an observed absence of a qualifying door is
                             // recorded as not applicable; door behaviour is never claimed as tested.
                             evidence["door"] = new JObject { ["applicable"] = false,
-                                ["reason"] = "No open StandardDoor with an active-when-closed navmesh cut lies outside both pair interaction radii within the bounded scan radius.",
+                                ["reason"] = "No open or interactable closed StandardDoor with an active-when-closed navmesh cut lies outside both pair interaction radii within the bounded scan radius.",
                                 ["candidatesScanned"] = doorCandidates, ["radius"] = Chunk7NativeDoorProbe.ScanRadius };
                             Input(firstRider, firstRider, controls.DismountAbility, "dismount-mammoth", secondRider); Next(8); break;
                         }

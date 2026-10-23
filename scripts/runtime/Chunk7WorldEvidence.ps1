@@ -285,12 +285,14 @@ function Assert-KmcChunk7DoorEvidence($Door,$Owners,[string[]]$DeclaredRiders=@(
     if($Door.contract-cne'two-pair-native-door-click-selection-change'-or$Door.interactions-isnot[Array]-or$Door.interactions.Count-ne2){throw 'Exactly two captured native door interactions required.'}
     Assert-KmcChunk7Boolean $Door.completed $true
     Assert-KmcChunk7WorldCounters $Door @('setupInteractions')
-    if($Door.setupInteractions-ne2){throw 'Fixture preparation must be distinct from the two native player inputs.'}
     $f=$Door.fixture
     Assert-KmcExactProperties $f @('name','object','position','originalOpen','originalEnabled','originalCut','disableOnOpen','radius') 'captured door fixture'
     Assert-KmcChunk7WorldInt32 $f.object
     if($f.object-eq0-or$f.name-isnot[string]-or[string]::IsNullOrWhiteSpace($f.name)-or$f.name.Length-gt512){throw 'Native door identity is missing.'}
-    Assert-KmcChunk7Boolean $f.originalOpen $true;Assert-KmcChunk7Boolean $f.originalCut $false
+    # An open door is closed as setup before each input; a door captured closed only before the second.
+    if($f.originalOpen-isnot[bool]){throw 'Door fixture flags must be native booleans.'}
+    Assert-KmcChunk7Boolean $f.originalCut (-not$f.originalOpen)
+    if($Door.setupInteractions-ne$(if($f.originalOpen){2}else{1})){throw 'Fixture preparation must be distinct from the two native player inputs.'}
     foreach($v in @($f.originalEnabled,$f.disableOnOpen)){if($v-isnot[bool]){throw 'Door fixture flags must be native booleans.'}}
     foreach($axis in @('x','y','z')){if(-not(Test-KmcChunk7FiniteNumber $f.position.$axis)){throw 'Door position is not finite.'}}
     if(-not(Test-KmcChunk7FiniteNumber $f.radius)-or$f.radius-le0){throw 'Native interaction radius is invalid.'}

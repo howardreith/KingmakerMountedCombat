@@ -112,3 +112,40 @@ The owner's save is not written. The row stays OPEN until the native probe passe
 
 Your master saves are never written. If no reachable location has a usable door, say so; that
 result is recorded as a fixture limitation, not as a waived requirement.
+
+## Native route for the Old Sycamore seed (offline-prepared, not yet run)
+
+**Route.** The registered seed is consumed by the existing `owner-seed-exploration` case of
+`chunk7-owned-two-pair-campaign`; no new setup chain is needed. That case loads the seed, builds
+the main (Ranger 3, 11,052 XP, so exactly Ranger 4 at its ready level) and rider B
+(`fd213210…`, level 4, no Ranger levels; native XP assistance to the exact minimal level 8, as
+before) to Hunter's Bond, mounts both pairs, and at its stage 7 runs the door probe when a
+qualifying door is within bounds; otherwise it records `door.applicable=false`. Selection
+differences from the no-mods seed: `seedId KMC_C7_DOOR_SEED_OLD_SYCAMORE`, its SHA-256, and
+five `partyIds` (`7e5cf212…` joined the party).
+
+**Seed intake.** Registry entry plus intake record
+`fixtures/owner-supplied/KMC_C7_DOOR_SEED_OLD_SYCAMORE.intake01.json` (SHA-256 `8919ad87…`).
+The real owner-seed source gate (`Get-KmcChunk7OwnedPairsSource`) admits the selection offline.
+An isolated native cold load is still required.
+
+**Closed-door start (product change, needs review and a new candidate).** `Chunk7NativeDoorProbe`
+now also qualifies a closed door that is natively interactable, preferring an open door when
+both exist. A door captured closed:
+- needs no setup close before the first input;
+- is closed again by setup only before the second input (`setupInteractions = 1`);
+- has an active cut while closed (`originalCut = !originalOpen`);
+- is restored closed through the same native interaction toggle, since `StandardDoor` has no
+  public Close.
+
+The reader admits exactly these two shapes.
+
+**Open risks the native run decides.**
+- *Distance.* The party was saved right in front of the door. Both mounts must start more
+  than the interaction radius + 0.5 m and at most 28 m from the door. If they are too close,
+  the run records the door as not applicable. In that case a bounded approach or retreat is a
+  further product change.
+- *Locks.* Door `c40b33b4…` has never been unlocked. A locked door selected first would fail
+  natively, not pass.
+- *Suite.* The owner's save folder gained new saves, so the qualification suite snapshot must
+  be refreshed together with the new candidate.

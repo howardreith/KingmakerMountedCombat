@@ -66,32 +66,37 @@ namespace KingmakerMountedCombat.Diagnostics
             Require(stage == 0 && !captured, "Door probe may begin only once.");
             RequirePairs(); Require(actors.All(Chunk7NativeFixture.Idle), "Door probe requires idle native actors.");
             door = FindQualifyingDoor(mounts, out _);
-            Require(door != null, "No bounded open native door outside both pair interaction radii; exact door fixture is required.");
+            Require(door != null, "No bounded open or interactable closed native door outside both pair interaction radii; exact door fixture is required.");
             cut = door.GetComponentInChildren<NavmeshCut>();
             doorObject = door.gameObject; doorTransform = door.transform;
             originalEnabled = door.Enabled; originalOpen = door.GetState(); originalCut = cut.enabled; captured = true;
-            Require(!originalCut, "Open door retained an active navmesh cut.");
+            // An open door has its cut disabled; a closed door keeps it active.
+            Require(originalCut != originalOpen, "Door navmesh cut does not match its native open state.");
             evidence["fixture"] = new JObject { ["name"] = door.name, ["object"] = Id(door),
                 ["position"] = Point(door.transform.position), ["originalOpen"] = originalOpen,
                 ["originalEnabled"] = originalEnabled, ["originalCut"] = originalCut,
                 ["disableOnOpen"] = door.DisableOnOpen, ["radius"] = Radius(door) };
             firstStart = mounts[0].Position;
-            CloseForInput(); Next(1);
+            // A closed door is already in its input state; only an open one is closed as setup.
+            if (originalOpen) CloseForInput();
+            Next(1);
         }
 
         // The exact qualifying-door query Begin uses, as a read-only bounded scan: no
         // door is acquired, closed or changed. Applicability is decided only from it.
+        // An open door is preferred; a closed door must already be natively interactable.
         internal const float ScanRadius = 28f;
         internal static StandardDoor FindQualifyingDoor(UnitEntityData[] mounts, out int candidatesScanned)
         {
             var candidates = UnityEngine.Object.FindObjectsOfType<StandardDoor>() ?? new StandardDoor[0];
             candidatesScanned = candidates.Length;
             return candidates
-                .Where(d => d != null && d.isActiveAndEnabled && d.gameObject.activeInHierarchy && d.GetState() &&
+                .Where(d => d != null && d.isActiveAndEnabled && d.gameObject.activeInHierarchy && (d.GetState() || d.CanInteract()) &&
                     d.DisableNavmeshCutWhenOpen && d.GetComponentInChildren<NavmeshCut>() != null &&
                     mounts.All(m => Distance(m.Position, d.transform.position) > Radius(d) + 0.5f &&
                         Distance(m.Position, d.transform.position) <= ScanRadius))
-                .OrderBy(d => mounts.Sum(m => Distance(m.Position, d.transform.position))).FirstOrDefault();
+                .OrderByDescending(d => d.GetState())
+                .ThenBy(d => mounts.Sum(m => Distance(m.Position, d.transform.position))).FirstOrDefault();
         }
 
         // Read-only area-fixture inventory. This does not acquire, close or click a
@@ -163,12 +168,21 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             RequirePairs(); RequireDoor();
             Require(actors.All(Chunk7NativeFixture.Idle) && door.GetState(), "Door fixture closing requires idle actors and an open door.");
+            FixtureToggle(riders[pairIndex]); // Native fixture preparation, not a player-input assertion.
+            evidence["setupInteractions"] = (int)evidence["setupInteractions"] + 1; settledFrame = -1;
+        }
+
+        // The native door interaction toggles open/closed; StandardDoor has no public Close.
+        private void FixtureToggle(UnitEntityData user)
+        {
             if (!door.CanInteract() && MountedDistanceDoorFixturePolicy.CanTemporarilyEnable(
                 door.CanInteract(), door.Enabled, door.DisableOnOpen, Game.Instance.Player.IsInCombat)) door.Enabled = true;
             Require(door.CanInteract(), "Native door is not interactable for fixture preparation.");
-            door.Interact(riders[pairIndex]); // Native fixture preparation, not a player-input assertion.
-            evidence["setupInteractions"] = (int)evidence["setupInteractions"] + 1; settledFrame = -1;
+            door.Interact(user);
         }
+
+        // Restoration of a door captured closed: the same native toggle, not counted as setup.
+        private void RestoreClosed() => FixtureToggle(riders[0]);
 
         private void BeginInput()
         {
@@ -242,7 +256,11 @@ namespace KingmakerMountedCombat.Diagnostics
             if (commands.Any(x => !x.IsFinished)) return false;
             if (!captured || restored) return true;
             RequireDoor();
-            if (!door.GetState()) { door.Open(); settledFrame = -1; }
+            if (door.GetState() != originalOpen)
+            {
+                if (originalOpen) door.Open(); else RestoreClosed();
+                settledFrame = -1;
+            }
             if (!Settled(originalOpen)) return false;
             door.Enabled = originalEnabled;
             Require(door.GetState() == originalOpen && door.Enabled == originalEnabled && cut.enabled == originalCut,

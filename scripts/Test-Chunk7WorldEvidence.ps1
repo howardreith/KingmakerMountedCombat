@@ -139,6 +139,20 @@ $doorMutations=@(
  @('door capture owner changed',{param($v)@($v.observations.snapshots|Where-Object label -CEQ 'door-complete')[0].owners[0].generation++})
 )
 foreach($mutation in $doorMutations){$copy=Copy-TestValue $good;& $mutation[1] $copy;Reject $mutation[0] {Assert-KmcChunk7WorldEvidence $request $copy 'PASS'}}
+# A door captured closed: only the second input is preceded by a setup close, and
+# restoration returns it closed with its active cut.
+function Set-ClosedDoorStart($v){$d=$v.observations.door;$d.setupInteractions=1;$d.fixture.originalOpen=$false;$d.fixture.originalCut=$true;$d.restoration.open=$false;$d.restoration.cutEnabled=$true}
+Check 'door captured closed with one setup close and closed restoration' {$copy=Copy-TestValue $good;Set-ClosedDoorStart $copy;Assert-KmcChunk7WorldEvidence $request $copy 'PASS'}
+$closedDoorMutations=@(
+ @('closed door claims two setup closes',{param($v)$v.observations.door.setupInteractions=2}),
+ @('closed door without its active cut',{param($v)$v.observations.door.fixture.originalCut=$false;$v.observations.door.restoration.cutEnabled=$false}),
+ @('closed door restored open',{param($v)$v.observations.door.restoration.open=$true}),
+ @('closed door restored without its cut',{param($v)$v.observations.door.restoration.cutEnabled=$false}),
+ @('door open state as text',{param($v)$v.observations.door.fixture.originalOpen='false'})
+)
+foreach($mutation in $closedDoorMutations){$copy=Copy-TestValue $good;Set-ClosedDoorStart $copy;& $mutation[1] $copy;Reject $mutation[0] {Assert-KmcChunk7WorldEvidence $request $copy 'PASS'}}
+Reject 'open door with only one setup close' {$copy=Copy-TestValue $good;$copy.observations.door.setupInteractions=1;Assert-KmcChunk7WorldEvidence $request $copy 'PASS'}
+Reject 'open door with an active cut' {$copy=Copy-TestValue $good;$copy.observations.door.fixture.originalCut=$true;$copy.observations.door.restoration.cutEnabled=$true;Assert-KmcChunk7WorldEvidence $request $copy 'PASS'}
 
 $mutations=@(
     @('artifact schema string',{param($v)$v.schemaVersion='1'}),
