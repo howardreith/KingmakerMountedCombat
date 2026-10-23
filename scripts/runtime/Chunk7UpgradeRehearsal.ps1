@@ -65,32 +65,39 @@ function Get-KmcChunk7UpgradeSeedSource($Fixture){
 
 # A passed u1 is proved from its own records, each hash-bound to the next: the outer
 # runtime result binds the game record, the game record binds the observer result, and
-# the observer saw exactly preview.211 loaded. The four record hashes are pinned into the
-# u2/u3 request and re-checked offline wherever that request is read.
+# the observer saw exactly preview.211 loaded. Four hashes (result, game record, observer
+# result, state) are pinned into the u2/u3 request; reading that request re-derives the
+# whole proof and the carried files, never just the hashes.
 function Get-KmcChunk7UpgradeCarryRecordPaths([string]$SourceRunId){
  $lab=Get-KmcLabRoot;$evidence=Join-Path $lab ('runtime-evidence/'+$SourceRunId)
  [pscustomobject][ordered]@{request=(Join-Path $evidence 'runtime-request.json');result=(Join-Path $evidence 'runtime-result.json');game=(Join-Path $evidence 'runtime-game-result.json')
   observer=(Join-Path $evidence 'observer-result.json');state=(Join-Path $lab ('runtime-state/transactions/'+$SourceRunId+'.json'))}
 }
-function Get-KmcChunk7UpgradeCarrySource([string]$SourceRunId,[string]$RehearsalId){
+# Hashes and parses the same bytes, so a record cannot change between the two.
+function Read-KmcChunk7UpgradeRecord([string]$Path){
+ if(-not(Test-Path -LiteralPath $Path -PathType Leaf)){throw ('Upgrade carry source record is missing: '+$Path)}
+ Assert-KmcNotReparsePoint $Path 'upgrade carry source record';Assert-KmcNotHardLink $Path 'upgrade carry source record'
+ $bytes=[IO.File]::ReadAllBytes($Path)
+ if($bytes.Length-lt2-or$bytes.Length-gt16MB){throw ('Upgrade carry source record is empty or oversized: '+$Path)}
+ $sha=[Security.Cryptography.SHA256]::Create();try{$hash=([BitConverter]::ToString($sha.ComputeHash($bytes))).Replace('-','').ToLowerInvariant()}finally{$sha.Dispose()}
+ $text=[Text.UTF8Encoding]::new($false,$true).GetString($bytes);if($text.Length-gt0-and$text[0]-eq[char]0xFEFF){$text=$text.Substring(1)}
+ [pscustomobject]@{sha256=$hash;value=($text|ConvertFrom-Json)}
+}
+function Read-KmcChunk7UpgradeU1([string]$SourceRunId,[string]$RehearsalId){
  if($SourceRunId-cnotmatch'^[A-Za-z0-9][A-Za-z0-9._-]{0,119}$'){throw 'Upgrade carry source run id is invalid.'}
  if($RehearsalId-cnotmatch'^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$'){throw 'Upgrade rehearsal id is invalid.'}
  $pins=Get-KmcChunk7PreviousPackagePins;$paths=Get-KmcChunk7UpgradeCarryRecordPaths $SourceRunId
- foreach($path in @($paths.request,$paths.result,$paths.game,$paths.observer,$paths.state)){
-  if(-not(Test-Path -LiteralPath $path -PathType Leaf)){throw ('Upgrade carry source record is missing: '+$path)}
-  Assert-KmcNotReparsePoint $path 'upgrade carry source record';Assert-KmcNotHardLink $path 'upgrade carry source record'
- }
- $request=Read-KmcJson $paths.request;$result=Read-KmcJson $paths.result;$game=Read-KmcJson $paths.game;$observer=Read-KmcJson $paths.observer;$state=Read-KmcJson $paths.state
+ $records=[ordered]@{};foreach($name in @('request','result','game','observer','state')){$records[$name]=Read-KmcChunk7UpgradeRecord $paths.$name}
+ $request=$records.request.value;$result=$records.result.value;$game=$records.game.value;$observer=$records.observer.value;$state=$records.state.value
  $u=if($null-ne$request.PSObject.Properties['normalPlayer']-and$null-ne$request.normalPlayer.PSObject.Properties['upgradeRehearsal']){$request.normalPlayer.upgradeRehearsal}else{$null}
  if([string]$request.runId-cne$SourceRunId-or-not(Test-KmcChunk7NormalPlayerScenario $request.scenario)-or$null-eq$u-or[string]$u.step-cne'u1-previous-install'-or[string]$u.rehearsalId-cne$RehearsalId-or
   [string]$u.stagedKmc.packageSha256-cne$pins.packageSha256-or[string]$result.runId-cne$SourceRunId-or[string]$result.status-cne'PASS'){
   throw 'Upgrade carry source is not a passed u1 previous-package install of the released preview.211 package.'
  }
- $gameSha=Get-KmcSha256 $paths.game;$observerSha=Get-KmcSha256 $paths.observer
  $gu=if($null-ne$game.PSObject.Properties['upgradeRehearsal']){$game.upgradeRehearsal}else{$null}
- if([string]$result.gameResultSha256-cne$gameSha-or[string]$game.evidenceKind-cne'kmc-normal-player-observer'-or[string]$game.status-cne'PASS'-or[string]$game.runId-cne$SourceRunId-or
+ if([string]$result.gameResultSha256-cne$records.game.sha256-or[string]$game.evidenceKind-cne'kmc-normal-player-observer'-or[string]$game.status-cne'PASS'-or[string]$game.runId-cne$SourceRunId-or
   $null-eq$gu-or[string]$gu.rehearsalId-cne$RehearsalId-or[string]$gu.step-cne'u1-previous-install'-or$null-eq$gu.loadedKmc-or
-  [string]$gu.loadedKmc.dllSha256-cne$pins.dllSha256-or[string]$gu.loadedKmc.dllMvid-cne$pins.dllMvid-or[string]$game.observerResultSha256-cne$observerSha){
+  [string]$gu.loadedKmc.dllSha256-cne$pins.dllSha256-or[string]$gu.loadedKmc.dllMvid-cne$pins.dllMvid-or[string]$game.observerResultSha256-cne$records.observer.sha256){
   throw 'Upgrade carry source game record does not bind a passed u1 that loaded preview.211.'
  }
  $loaded=if($null-ne$observer.PSObject.Properties['observations']-and$null-ne$observer.observations.PSObject.Properties['presenceLoaded']){$observer.observations.presenceLoaded}else{$null}
@@ -101,18 +108,23 @@ function Get-KmcChunk7UpgradeCarrySource([string]$SourceRunId,[string]$Rehearsal
   [string]$state.packageSha256-cne$pins.packageSha256-or$state.runtimeWritesClassified-ne$true-or@($state.runtimeUnexpectedWrites).Count-ne0){
   throw 'Upgrade carry source transaction is not the restored, fully classified u1 staging of the previous package.'
  }
- [pscustomobject][ordered]@{runId=$SourceRunId;resultSha256=(Get-KmcSha256 $paths.result);gameResultSha256=$gameSha;observerResultSha256=$observerSha;stateSha256=(Get-KmcSha256 $paths.state)}
+ [pscustomobject]@{pins=[pscustomobject][ordered]@{runId=$SourceRunId;resultSha256=$records.result.sha256;gameResultSha256=$records.game.sha256;observerResultSha256=$records.observer.sha256;stateSha256=$records.state.sha256}
+  state=$state}
 }
-# Offline re-check of a pinned u1: every record still hashes to its pin.
-function Assert-KmcChunk7UpgradeCarrySource($Pins){
+function Get-KmcChunk7UpgradeCarrySource([string]$SourceRunId,[string]$RehearsalId){(Read-KmcChunk7UpgradeU1 $SourceRunId $RehearsalId).pins}
+# Offline re-derivation of a pinned u1: the full proof again, the same four hashes, and the
+# same carried files (name, length, bytes) that u1's classified writes yield.
+function Assert-KmcChunk7UpgradeCarrySource($Pins,[string]$RehearsalId,$CarriedFiles){
  Assert-KmcExactProperties $Pins @('runId','resultSha256','gameResultSha256','observerResultSha256','stateSha256') 'upgrade carry source pins'
- if([string]$Pins.runId-cnotmatch'^[A-Za-z0-9][A-Za-z0-9._-]{0,119}$'){throw 'Upgrade carry source run id is invalid.'}
- $paths=Get-KmcChunk7UpgradeCarryRecordPaths ([string]$Pins.runId)
- foreach($pair in @(@($paths.result,'resultSha256'),@($paths.game,'gameResultSha256'),@($paths.observer,'observerResultSha256'),@($paths.state,'stateSha256'))){
-  if([string]$Pins.($pair[1])-cnotmatch'^[0-9a-f]{64}$'-or-not(Test-Path -LiteralPath $pair[0] -PathType Leaf)-or(Get-KmcSha256 $pair[0])-cne[string]$Pins.($pair[1])){
-   throw ('The pinned u1 record no longer matches: '+$pair[1])
-  }
+ $derived=Get-KmcChunk7UpgradeCarrySource ([string]$Pins.runId) $RehearsalId
+ foreach($field in @('runId','resultSha256','gameResultSha256','observerResultSha256','stateSha256')){
+  if([string]$Pins.$field-cne[string]$derived.$field){throw ('The pinned u1 record no longer matches: '+$field)}
  }
+ # Assigned first: the carry function returns its list as one object.
+ $written=Get-KmcChunk7UpgradeCarry ([string]$Pins.runId) $RehearsalId
+ $actual=@($written|ForEach-Object{[string]$_.name+'|'+[long]$_.length+'|'+[string]$_.sha256}|Sort-Object)
+ $declared=@(@($CarriedFiles)|ForEach-Object{[string]$_.name+'|'+[long]$_.length+'|'+[string]$_.sha256}|Sort-Object)
+ if(($actual-join';')-cne($declared-join';')){throw 'The carried files are not exactly the files the pinned u1 wrote.'}
 }
 
 # u2 and u3 carry u1's ordinary KMC folder state: only the files the restored u1
@@ -121,8 +133,9 @@ function Assert-KmcChunk7UpgradeCarrySource($Pins){
 # u1 of the same rehearsal id. u3 deliberately lays u1's folder state (not u2's):
 # rollback restores the previous install as the player had it.
 function Get-KmcChunk7UpgradeCarry([string]$SourceRunId,[string]$RehearsalId){
- [void](Get-KmcChunk7UpgradeCarrySource $SourceRunId $RehearsalId)
- $lab=Get-KmcLabRoot;$pins=Get-KmcChunk7PreviousPackagePins;$state=Read-KmcJson (Get-KmcChunk7UpgradeCarryRecordPaths $SourceRunId).state
+ # The state is the exact parsed bytes of the proved u1 record set.
+ $state=(Read-KmcChunk7UpgradeU1 $SourceRunId $RehearsalId).state
+ $lab=Get-KmcLabRoot;$pins=Get-KmcChunk7PreviousPackagePins
  $stagedAfter=Assert-KmcChildPath ([string]$state.stagedAfter) (Join-Path $lab 'runtime-staging') 'u1 staged-after tree'
  $carry=@()
  foreach($write in @($state.runtimeExpectedWrites)){
@@ -182,6 +195,6 @@ function Assert-KmcChunk7UpgradeRehearsalSection($Request){
   foreach($f in $files){Assert-KmcExactProperties $f @('name','length','sha256') 'carried file'
    if([string]$f.name-cnotmatch'^KingmakerMountedCombat\.dll\.[0-9]{1,9}\.cache$'-or[string]$f.sha256-cne$pins.dllSha256-or[long]$f.length-lt1-or[long]$f.length-gt64MB){throw 'A carried file is outside the closed UMM cache shape.'}}
   if(@($files|ForEach-Object{[string]$_.name}|Sort-Object -Unique).Count-ne$files.Count){throw 'Carried file names repeat.'}
-  Assert-KmcChunk7UpgradeCarrySource $u.carrySource
+  Assert-KmcChunk7UpgradeCarrySource $u.carrySource ([string]$u.rehearsalId) $files
  }
 }

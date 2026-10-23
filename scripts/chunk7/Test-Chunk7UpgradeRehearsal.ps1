@@ -90,6 +90,9 @@ foreach($m in @(
  @('a game record of another step',{param($f)$f.game.upgradeRehearsal.step='u2-upgrade'},'game record does not bind a passed u1'),
  @('a game record that saw the candidate loaded',{param($f)$f.game.upgradeRehearsal.loadedKmc.dllSha256=('d'*64)},'game record does not bind a passed u1'),
  @('a failed game record',{param($f)$f.game.status='FAIL'},'game record does not bind a passed u1'),
+ @('a game record of another rehearsal id',{param($f)$f.game.upgradeRehearsal.rehearsalId='f12-other'},'game record does not bind a passed u1'),
+ @('a game record of another run',{param($f)$f.game.runId='another-run'},'game record does not bind a passed u1'),
+ @('an observer result of another run',{param($f)$f.observer.runId='another-run'},'observer did not see exactly preview.211'),
  @('an observer that saw another assembly',{param($f)$f.observer.observations.presenceLoaded.kmcMvid='00000000-0000-0000-0000-000000000000'},'observer did not see exactly preview.211'),
  @('a failed observer result',{param($f)$f.observer.status='FAIL'},'observer did not see exactly preview.211'),
  @('a u1 of another rehearsal',{param($f)$f.request.normalPlayer.upgradeRehearsal.rehearsalId='f12-other'},'not a passed u1'),
@@ -102,7 +105,7 @@ Check 'carry refuses a missing u1 game record' {Stage-Carry $null {param($ev)Rem
 Check 'carry refuses a staged-after tree outside the lab staging root' {Stage-Carry {param($f)$f.state.stagedAfter='C:\Windows\Temp\elsewhere'};[void](Read-Carry)} $true 'staged-after tree'
 Check 'carry refuses an invalid rehearsal id' {Stage-Carry $null;[void](Read-Carry 'bad id!')} $true 'rehearsal id is invalid'
 Stage-Carry $null;$carry=Read-Carry;$carrySource=Read-CarrySource
-Check 'the carry source pins the four u1 record hashes' {if($carrySource.runId-cne$u1-or@('resultSha256','gameResultSha256','observerResultSha256','stateSha256'|Where-Object{[string]$carrySource.$_-cnotmatch'^[0-9a-f]{64}$'}).Count-ne0){throw 'Carry source pins differ.'}}
+Check 'the carry source pins four hashes: result, game record, observer result and state' {if($carrySource.runId-cne$u1-or@('resultSha256','gameResultSha256','observerResultSha256','stateSha256'|Where-Object{[string]$carrySource.$_-cnotmatch'^[0-9a-f]{64}$'}).Count-ne0){throw 'Carry source pins differ.'}}
 Check 'the section refuses a nested carry list instead of flattening it' {[void](New-KmcChunk7UpgradeRehearsalSection 'u2-upgrade' $rid $previous $manifest $carrySource @(,@($carry)))} $true 'not a flat list'
 
 # --- Request section ------------------------------------------------------------
@@ -111,7 +114,21 @@ $baseRequest=[pscustomobject]@{runId='20261024-c7e-f12-section';commit=$manifest
 function Section-Request([string]$Step){$r=Clone $baseRequest;$s=New-KmcChunk7UpgradeRehearsalSection $Step $rid $previous $manifest $(if($Step-ceq'u1-previous-install'){$null}else{$carrySource}) $(if($Step-ceq'u1-previous-install'){@()}else{$carry})
  $r|Add-Member normalPlayer ([pscustomobject]@{upgradeRehearsal=(Clone ([pscustomobject]$s))});$r}
 foreach($step in @(Get-KmcChunk7UpgradeRehearsalSteps)){Check ('the '+$step+' section is closed and exact') {In-Lab {Assert-KmcChunk7UpgradeRehearsalSection (Section-Request $step)}}}
-Check 'the section refuses a pinned u1 record that changed after pinning' {$r=Section-Request 'u3-rollback';Stage-Carry $null {param($ev)[IO.File]::AppendAllText((Join-Path $ev 'observer-result.json'),' ')};try{In-Lab {Assert-KmcChunk7UpgradeRehearsalSection $r}}finally{Stage-Carry $null}} $true 'no longer matches: observerResultSha256'
+foreach($m in @(
+ @('the outer result',{param($ev)[IO.File]::AppendAllText((Join-Path $ev 'runtime-result.json'),' ')},'no longer matches: resultSha256'),
+ @('the game record',{param($ev)[IO.File]::AppendAllText((Join-Path $ev 'runtime-game-result.json'),' ')},'game record does not bind a passed u1'),
+ @('the observer result',{param($ev)[IO.File]::AppendAllText((Join-Path $ev 'observer-result.json'),' ')},'game record does not bind a passed u1'),
+ @('the transaction state',{param($ev)[IO.File]::AppendAllText((Join-Path (Join-Path $fakeLab 'runtime-state/transactions') ($u1+'.json')),' ')},'no longer matches: stateSha256'))){
+ Check ('the section re-derives the proof and refuses '+$m[0]+' changed after pinning') {$r=Section-Request 'u3-rollback';Stage-Carry $null $m[1];try{In-Lab {Assert-KmcChunk7UpgradeRehearsalSection $r}}finally{Stage-Carry $null}} $true $m[2]
+}
+Check 'the section refuses a hand-pinned FAIL u1 even when every pin matches its files' {
+ Stage-Carry {param($f)$f.result.status='FAIL'}
+ try{$paths=In-Lab {Get-KmcChunk7UpgradeCarryRecordPaths $u1}
+  $r=Section-Request 'u2-upgrade';$c=$r.normalPlayer.upgradeRehearsal.carrySource
+  $c.resultSha256=Get-KmcSha256 $paths.result;$c.gameResultSha256=Get-KmcSha256 $paths.game;$c.observerResultSha256=Get-KmcSha256 $paths.observer;$c.stateSha256=Get-KmcSha256 $paths.state
+  In-Lab {Assert-KmcChunk7UpgradeRehearsalSection $r}}finally{Stage-Carry $null}} $true 'not a passed u1'
+Check 'the section refuses a carried cache name the pinned u1 never wrote' {$r=Section-Request 'u2-upgrade';$r.normalPlayer.upgradeRehearsal.carriedFiles[0].name='KingmakerMountedCombat.dll.999.cache';In-Lab {Assert-KmcChunk7UpgradeRehearsalSection $r}} $true 'not exactly the files the pinned u1 wrote'
+Check 'the section refuses a carried length the pinned u1 did not write' {$r=Section-Request 'u3-rollback';$r.normalPlayer.upgradeRehearsal.carriedFiles[0].length=1;In-Lab {Assert-KmcChunk7UpgradeRehearsalSection $r}} $true 'not exactly the files the pinned u1 wrote'
 Check 'the section refuses a carry source naming another run' {$r=Section-Request 'u2-upgrade';$r.normalPlayer.upgradeRehearsal.carrySource.runId='other-run';In-Lab {Assert-KmcChunk7UpgradeRehearsalSection $r}} $true 'exact bounded u1 folder state'
 Check 'the section refuses a first install with a carry source' {$r=Section-Request 'u1-previous-install';$r.normalPlayer.upgradeRehearsal.carrySource=[pscustomobject]@{runId=$u1};In-Lab {Assert-KmcChunk7UpgradeRehearsalSection $r}} $true 'carries nothing'
 foreach($m in @(
@@ -313,6 +330,7 @@ Check 'the run binding refuses a u1 PASS with another loaded MVID' {$g=Bind-Reco
 Check 'the run binding refuses a u1 PASS with no observed loaded assembly' {$g=Bind-Record;$g.upgradeRehearsal.loadedKmc=$null;Assert-KmcChunk7NormalPlayerRuntimeBinding (Bind-Request) $g 'PASS'} $true 'does not record the rehearsal step'
 Check 'the run binding refuses a record naming another staged package' {$g=Bind-Record;$g.upgradeRehearsal.stagedKmc=[pscustomobject]@{packageSha256=('e'*64);dllSha256=[string]$base.dllSha256};Assert-KmcChunk7NormalPlayerRuntimeBinding (Bind-Request) $g 'PASS'} $true 'does not record the rehearsal step'
 Check 'the run binding fully accepts an exact u1 PASS bound to its observer result' {Assert-KmcChunk7NormalPlayerRuntimeBinding (Bind-Request) (Bind-Record) 'PASS'}
+Check 'the run binding refuses a u1 FAIL that recorded a different loaded assembly' {$g=Bind-Record 'FAIL';$g.upgradeRehearsal.loadedKmc.dllSha256=[string]$base.dllSha256;Assert-KmcChunk7NormalPlayerRuntimeBinding (Bind-Request) $g 'FAIL'} $true 'does not record the rehearsal step'
 Check 'the run binding fully accepts a u1 FAIL that recorded no loaded presence' {$g=Bind-Record 'FAIL';$g.upgradeRehearsal.loadedKmc=$null;Assert-KmcChunk7NormalPlayerRuntimeBinding (Bind-Request) $g 'FAIL'}
 Check 'row 42 refuses a rehearsal step' {Assert-KmcChunk7NormalPlayerControlRow $u2 (& $recordFor $u2)} $true 'cannot stand in for the ordinary request-free control'
 Check 'row 42 refuses a record that claims a rehearsal step' {$plain=Clone $u2;$plain.normalPlayer.PSObject.Properties.Remove('upgradeRehearsal');Assert-KmcChunk7NormalPlayerControlRow $plain (& $recordFor $u2)} $true 'cannot stand in for the ordinary request-free control'

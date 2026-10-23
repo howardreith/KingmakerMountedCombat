@@ -304,11 +304,11 @@ try{
         Need ((Get-KmcSha256 (Join-Path $f.mods 'KingmakerMountedCombat/KingmakerMountedCombat.dll.4242.cache'))-ceq$carried[0].sha256) 'carried cache not staged'
     }
     $originalRecord=[IO.File]::ReadAllBytes($transaction)
-    foreach($bad in @(@('a declared file outside the cache shape',{param($r)$r.kmcCarriedFiles[0].name='Settings.xml'}),@('an unbounded declaration',{param($r)$r.kmcCarriedFiles=@($r.kmcCarriedFiles[0])*5}),
-        @('an empty declaration',{param($r)$r.kmcCarriedFiles=@()}),@('a declaration with an extra member',{param($r)$r.kmcCarriedFiles[0]|Add-Member extra 1}))){
+    foreach($bad in @(@('a declared file outside the cache shape',{param($r)$r.kmcCarriedFiles[0].name='Settings.xml'},'outside the closed UMM cache shape'),@('an unbounded declaration',{param($r)$r.kmcCarriedFiles=@($r.kmcCarriedFiles[0])*5},'Declared carried KMC folder files are unbounded'),
+        @('an empty declaration',{param($r)$r.kmcCarriedFiles=@()},'Declared carried KMC folder files are unbounded'),@('a declaration with an extra member',{param($r)$r.kmcCarriedFiles[0]|Add-Member extra 1},'declared carried KMC file property set is not exact'))){
         try{
             $r=Read-KmcJson $transaction;&$bad[1] $r;Write-KmcJsonAtomic $transaction $r
-            Reject ('carry: Restore refuses '+$bad[0]) {Restore-KmcModsTransaction -Lock $lock -StatePath $transaction -LiveModsRoot $f.mods -BackupRoot $backups -StagingRoot $stage|Out-Null}
+            Check ('carry: Restore refuses '+$bad[0]) {$message=$null;try{Restore-KmcModsTransaction -Lock $lock -StatePath $transaction -LiveModsRoot $f.mods -BackupRoot $backups -StagingRoot $stage|Out-Null}catch{$message=$_.Exception.Message};Need ([string]$message-cmatch[regex]::Escape($bad[2])) ('refusal differs: '+$message)}
         }finally{[IO.File]::WriteAllBytes($transaction,$originalRecord)}
     }
     # UMM's own cache miss: it deletes every '*.cache*' in the mod folder, then copies the DLL.
