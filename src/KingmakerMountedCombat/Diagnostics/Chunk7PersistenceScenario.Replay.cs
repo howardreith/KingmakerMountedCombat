@@ -420,7 +420,10 @@ namespace KingmakerMountedCombat.Diagnostics
             var horses = entries.Where(e => (string)e["type"] == horse).Select(e => (int)e["identity"]).ToArray();
             var lifecycleIds = entries.Where(e => (string)e["type"] == lifecycle).Select(e => (int)e["identity"]).Distinct().ToArray();
             var controlIds = entries.Where(e => (string)e["type"] == controlsType).Select(e => (int)e["identity"]).Distinct().ToArray();
-            var expectedHorses = ((JArray)replayArchive["Pairs"]).Count(p => (string)p["ProfileId"] == SupportedMountedProfiles.Horse.Id);
+            // One native HorseCompanionAddPet subscriber per KMC Horse owner: count pairs whose
+            // profile mounts the KMC Horse blueprint, Small Halfling Horse included (b194 x4c).
+            var expectedHorses = ((JArray)replayArchive["Pairs"]).Count(p =>
+                SupportedMountedProfiles.ResolveProfileId((string)p["ProfileId"])?.BlueprintGuid == SupportedMountedProfiles.HorseBlueprintGuid);
             var persistent = entries.Where(e => (string)e["type"] != horse)
                 .Select(e => (string)e["interface"] + "|" + (string)e["type"] + "|" + (int)e["identity"])
                 .OrderBy(s => s, StringComparer.Ordinal).ToArray();
@@ -435,7 +438,10 @@ namespace KingmakerMountedCombat.Diagnostics
                     (string)e["interface"] == "Kingmaker.PubSubSystem.ISceneHandler") && entries.All(e =>
                     (string)e["type"] == horse || (string)e["type"] == lifecycle || (string)e["type"] == controlsType) &&
                 (replaySubscriptionShape == null || replaySubscriptionShape == shape),
-                "Repeated world accumulated or lost native KMC subscriber roles.");
+                "Repeated world accumulated or lost native KMC subscriber roles: expected Horse owners " + expectedHorses +
+                ", unique " + (int)subscriptions["uniqueOwnedSubscribers"] + ", entries " + entries.Count +
+                ", Horse subscribers " + horses.Length + ", lifecycle " + entries.Count(e => (string)e["type"] == lifecycle) +
+                ", controls " + entries.Count(e => (string)e["type"] == controlsType) + ".");
             if (replayLastWorld != null)
             {
                 var previous = (JArray)replayLastWorld["subscriptions"]["entries"];
