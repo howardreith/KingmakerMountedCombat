@@ -119,7 +119,7 @@ Rows not yet runnable are listed under Blockers.
 | X2 | F02 enabled RT Charge, F03 spells and items, F08 native life (two-pair) | Cases `realtime-charge`, `realtime-casting` and `native-life-cleanup` exist in the selection and readers, but **have never run natively**. They take an acquired-field Manual source (the b165/b166 lineage); caster and charge eligibility of that field is unverified. | Author their selections against the acquired mounted Manual. Run one development pilot of each before freezing F, then add each as a matrix row. |
 | X3 | F07 `pending-schema3-control-manual` | **Resolved: retired** ([record](../docs/CHUNK7-RETIRED-SCHEMA3-CONTROL-2026-10-23.md)). It was the batch35 matched diagnostic control; rows 17–19 cover its claims. Prelaunch refusal kept. | — |
 | X4 | F06 three area transfers | `multi-exploration-three-area-transfers-manual` has never run natively. | Run a pilot before freezing, or justify it as covered by rows 27–29. |
-| X5 | Rows 55–56 | No upgrade or rollback scenario exists, and no admitted fixture lets preview.211 write mounted state. | **Design written, decision needed** (see "X5 design" under F12; decide with X1). Recommended: installation-level rehearsal plus the migration chains. |
+| X5 | Rows 55–56 | **Designed and implemented; pending independent review and a native pilot.** Owner chose Option A. `-UpgradeRehearsalStep u1-previous-install|u2-upgrade|u3-rollback` on `chunk7-normal-player-control`. Exact single-package allowlist (preview.211 `-b`), identity in the request and checked against the staged transaction, u1 folder state carried into u2/u3, observer.6 previous-package load. `Test-Chunk7UpgradeRehearsal.ps1` 57/0. | Independent review; rebuild and package observer.6; pilot u1→u2→u3. |
 | X6 | FULL tier | **Inventoried; facades fixed; remainder classified** ([record](../docs/CHUNK7-7E-X6-OFFLINE-INVENTORY-2026-10-23.md)). 19 stale checks fixed. Remaining: six Chunk 6A historical-ledger checks (fail at the preview.211 tag too), two Small Manual checks needing a fixture projection (`ed40ef95`), two combat facades deferred until X1 lands. `scripts/Test.ps1` omits the Chunk 7 umbrella; run both. | Repair the four deferred Chunk 7 checks before the freeze. Report the six historical checks as classified unless the owner selects a 6A ledger re-qualification. |
 | X7 | Rows 42 and 33–38 | Their source selections pin earlier source run IDs and SHAs. Rows 2–29 consume F's own row-1 output, so their selections need mechanical re-pinning to F's run IDs. | Done by an unchanged reviewed generator per batch. |
 
@@ -210,9 +210,26 @@ archive written by preview.211." Rollback is documented as restoring the pre-upg
 the previous package; a post-upgrade save is not certified under preview.211 and is not loaded
 in U3.
 
-**Decision owner:** this is the same evidence question as X1 (whether inherited or derivative
-evidence stands where no admitted fixture can reproduce the original). Decide X1 and X5 together.
-No X5 code was written.
+**Decision (owner, October 23):** Option A, with the gap stated in the release notes.
+
+**Implementation (pending independent review and a native pilot):**
+- **Runner:** `-UpgradeRehearsalStep` (`u1-previous-install`, `u2-upgrade`, `u3-rollback`) is admitted
+  only with `chunk7-normal-player-control`, before any intake, approval or lock. u2 and u3 require
+  `-UpgradeCarrySourceRunId` naming the passed u1 run; u1 refuses one.
+- **Previous package:** `Get-KmcChunk7PreviousPackage` admits exactly one package: the `-b` leaf,
+  its package, manifest, DLL and Info.json hashes, MVID, version and commit. The staged
+  transaction's package hash must equal the request's `upgradeRehearsal.stagedKmc`.
+- **Carry (u1 to u2/u3):** only the KMC-folder files the restored u1 transaction classified as
+  expected runtime writes. That is the closed UMM assembly-cache shape, re-hashed from u1's retained
+  staged-after tree, 1–4 files. They are laid beside the package files in the ready tree, only in the
+  observer co-staging mode. A settings write in u1 would be an unexpected write, so u1 would fail
+  instead of carrying it.
+- **u1 and u3:** observer `0.1.0-observer.6` `previous-package-load` mode loads the reference-free
+  NO_MODS owner seed through its registry gate. It checks the exact previous assembly, the quiet
+  start, that no save was added and that KMC logged no error. It drives no input.
+- **u2:** the candidate over u1's carried folder state runs the row-42 request-free controls.
+- **Params.xml:** each transaction restores the owner's file, so it is not carried across steps.
+- **Tests:** `scripts/chunk7/Test-Chunk7UpgradeRehearsal.ps1` passes 57/0.
 
 ## Docs deliverables
 

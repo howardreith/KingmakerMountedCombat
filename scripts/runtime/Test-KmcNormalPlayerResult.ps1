@@ -27,7 +27,8 @@ if ([int]$observerRequest.schemaVersion -ne 3 -or [string]$observerRequest.runId
 Assert-KmcChunk7NormalPlayerObserverResult $request $observerRequest $result (Get-KmcSha256 $ObserverRequestPath) $ExpectedProcessId $NotBeforeUtc
 $archiveMembers = $null
 if ([string]$result.status -ceq 'PASS') {
-    $source = Get-KmcChunk7SixPairCheckpointSource $request.fixture
+    # The F12 previous-package load (u1/u3) loads the reference-free owner seed instead.
+    $source = if (Test-KmcChunk7NormalPlayerPreviousLoad $request) { Get-KmcChunk7UpgradeSeedSource $request.fixture } else { Get-KmcChunk7SixPairCheckpointSource $request.fixture }
     if ((Get-KmcSha256 $source.path) -cne [string]$request.persistenceLoad.sha256) { throw 'The qualified fixture source changed since it was copied.' }
     $archiveMembers = Assert-KmcChunk7NormalPlayerArchiveMembers $source.path ([string]$result.observations.archive.path)
 }

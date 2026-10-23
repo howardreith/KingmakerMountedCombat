@@ -141,6 +141,7 @@ $selected = @(
     'Test-Chunk7ProgressionWiring.ps1',
     'Test-Chunk7StaleLevelUpFamilies.ps1',
     'Test-Chunk7RetiredPersistenceCases.ps1',
+    'Test-Chunk7UpgradeRehearsal.ps1',
     'Test-Chunk7ProgressionHeader.ps1',
     'Test-Chunk7ProgressionPreStartScope.ps1',
     'Test-Chunk7ProgressionPetBinding.ps1',

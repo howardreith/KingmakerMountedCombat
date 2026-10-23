@@ -141,7 +141,10 @@ function New-KmcBaseGameReadyTree {
         [Parameter(Mandatory=$true)][string]$ReadyRoot,[Parameter(Mandatory=$true)][string]$PackageModRoot,
         [Parameter(Mandatory=$true)]$Before,
         # Only the explicit normal-player observer mode adds a second exact package.
-        [string]$ObserverModRoot)
+        [string]$ObserverModRoot,
+        # F12 upgrade rehearsal only (with the observer): exact UMM cache files from a
+        # previous install, copied beside the package files and re-hashed in place.
+        $KmcCarryFiles)
     $clone=Assert-KmcChildPath $CloneRoot $StagingRun 'preserved base-game clone'
     $ready=Assert-KmcChildPath $ReadyRoot $StagingRun 'base-game ready tree'
     $package=Assert-KmcChildPath $PackageModRoot $StagingRun 'base-game package root'
@@ -165,6 +168,19 @@ function New-KmcBaseGameReadyTree {
     if(-not$PSCmdlet.ShouldProcess($ready,'create the private ready tree of exactly the selected packages; preserve the exact complete live clone')){return}
     [void][IO.Directory]::CreateDirectory($ready)
     [void](Copy-KmcDirectoryTreeExact -SourceRoot $package -DestinationRoot (Join-Path $ready 'KingmakerMountedCombat'))
+    $carry=@($KmcCarryFiles|Where-Object{$null-ne$_})
+    if($carry.Count-ne0-and$null-eq$observer){throw 'Only the observer co-staged tree may carry previous KMC folder files.'}
+    if($carry.Count-gt4){throw 'Carried KMC folder files are unbounded.'}
+    foreach($file in $carry){
+        $name=[string]$file.name
+        if($name-cnotmatch'^KingmakerMountedCombat\.dll\.[0-9]{1,9}\.cache$'-or[string]$file.sha256-cnotmatch'^[0-9a-f]{64}$'){throw 'A carried KMC folder file is outside the closed UMM cache shape.'}
+        $source=[string]$file.sourcePath;Assert-KmcNotReparsePoint $source 'carried KMC folder file';Assert-KmcNotHardLink $source 'carried KMC folder file'
+        $target=Join-Path (Join-Path $ready 'KingmakerMountedCombat') $name
+        if(Test-Path -LiteralPath $target){throw 'A carried KMC folder file collides with a staged package file.'}
+        if((Get-KmcSha256 $source)-cne[string]$file.sha256){throw 'A carried KMC folder file changed before staging.'}
+        Copy-Item -LiteralPath $source -Destination $target
+        if((Get-KmcSha256 $target)-cne[string]$file.sha256){throw 'A carried KMC folder file changed while staging.'}
+    }
     if($null-ne$observer){[void](Copy-KmcDirectoryTreeExact -SourceRoot $observer -DestinationRoot (Join-Path $ready 'KmcRemovalObserver'))}
     $readyTop=@(Get-ChildItem -LiteralPath $ready -Force|ForEach-Object Name|Sort-Object)
     $expectedTop=@(@('KingmakerMountedCombat')+@(if($null-ne$observer){'KmcRemovalObserver'})|Sort-Object)

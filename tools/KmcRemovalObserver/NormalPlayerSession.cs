@@ -26,7 +26,9 @@ namespace KmcRemovalObserver
     // name) that KMC is active on its ordinary path, loads the declared disposable
     // fixture through the main menu, and drives the player's own native inputs:
     // the Mount ability on the rider's own Horse, one ground click, the Dismount
-    // ability and one unmounted ground click. It never calls KMC code, grants
+    // ability and one unmounted ground click. The F12 previous-package mode only
+    // loads the reference-free owner seed under the released previous package and
+    // observes one quiet idle window. It never calls KMC code, grants
     // facts or resources, writes a save, or changes a setting.
     internal sealed class NormalPlayerSession : IObserverSession
     {
@@ -101,6 +103,8 @@ namespace KmcRemovalObserver
                 case 5: if (AwaitMove("mounted-move", pairMoves: true)) { IssueAbility(game, rider, rider, roles.DismountAbilityGuid, "dismount"); stage = 6; } return;
                 case 6: if (AwaitAbility("dismount", attached: false)) { IssueGroundClick("unmounted-move"); stage = 7; } return;
                 case 7: if (AwaitMove("unmounted-move", pairMoves: false)) Finish(game); return;
+                // Previous-package load: one quiet idle window after the ordinary load, then finish.
+                case 8: if (CollectWindow()) { CloseWindow("idle-loaded"); Finish(game); } return;
             }
         }
 
@@ -140,6 +144,17 @@ namespace KmcRemovalObserver
                 ["party"] = game.Player.Party.Count, ["inCombat"] = game.Player.IsInCombat, ["paused"] = game.IsPaused,
                 ["loadSeconds"] = clock.Elapsed.TotalSeconds };
             Check(game.Player.GameId == request.Archive.GameId && areaGuid == request.Archive.Area && !game.Player.IsInCombat, "the-fixture-opened-its-own-campaign-and-area-out-of-combat");
+            if (roles.PreviousPackageLoad)
+            {
+                // The reference-free seed has no pairs: the previous package must only
+                // start, load and stay quiet. No input, grant or setting is touched.
+                observations["presenceLoaded"] = InspectPresence("loaded");
+                if (errors.Count != 0) { Complete("FAIL"); return; }
+                if (game.IsPaused) game.IsPaused = false;
+                Write("loaded", new JObject { ["world"] = observations["world"].DeepClone() });
+                OpenWindow("idle-loaded"); stage = 8;
+                return;
+            }
             Check(rider != null && mount != null && neighborRider != null && neighborMount != null &&
                 rider.View != null && mount.View != null && neighborRider.View != null && neighborMount.View != null, "all-four-declared-roles-are-loaded-with-views");
             if (errors.Count != 0) { Complete("FAIL"); return; }
@@ -246,7 +261,7 @@ namespace KmcRemovalObserver
         private void Finish(Game game)
         {
             observations["inputs"] = inputs;
-            observations["controlsAfter"] = Controls("after");
+            if (!roles.PreviousPackageLoad) observations["controlsAfter"] = Controls("after");
             observations["presenceAfter"] = InspectPresence("after");
             var after = RemovalObserverSession.Sha256File(archivePath);
             observations["archive"] = new JObject { ["path"] = archivePath, ["sha256Before"] = archiveSha256Before, ["sha256After"] = after,
@@ -301,7 +316,8 @@ namespace KmcRemovalObserver
             Check(runtimeArguments.Length == 0, prefix + "no-KMC-automation-argument-reached-the-process");
             Check(entries.Length == 2 && kmcEntry != null && kmcEntry.Active && observerEntry != null && observerEntry.Active,
                 prefix + "UMM-runs-exactly-KMC-and-the-observer-both-active");
-            Check(kmc != null && sha == request.Candidate.DllSha256 && mvid == request.Candidate.DllMvid, prefix + "the-loaded-KMC-assembly-is-the-candidate");
+            Check(kmc != null && sha == request.Candidate.DllSha256 && mvid == request.Candidate.DllMvid,
+                prefix + (roles.PreviousPackageLoad ? "the-loaded-KMC-assembly-is-the-declared-previous-package" : "the-loaded-KMC-assembly-is-the-candidate"));
             Check(selfSha == request.Observer.DllSha256 && (string)presence["observerMvid"] == request.Observer.DllMvid, prefix + "the-running-observer-is-the-declared-package");
             Check(kmcOwners.Length != 0 && root != null, prefix + "KMC-integration-is-active");
             Check(root != null && Field(root, "runtimeAutomation") == null && (string)presence["staticAutomationHost"] == "null" &&

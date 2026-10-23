@@ -60,6 +60,7 @@ Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot 'Chunk7SixPairStressEvidence.ps1')
 . (Join-Path $PSScriptRoot 'Chunk7SixPairPersistenceEvidence.ps1')
 . (Join-Path $PSScriptRoot 'Chunk7NormalPlayerEvidence.ps1')
+. (Join-Path $PSScriptRoot 'Chunk7UpgradeRehearsal.ps1')
 . (Join-Path $PSScriptRoot 'Chunk7ProgressionFixtures.ps1')
 
 # Scenario families whose live completion contract waits for a native level-up autosave.
@@ -3626,7 +3627,10 @@ function Enter-KmcModsTransaction {
         # with exactly two packages: KMC and the external normal-player observer.
         [ValidateSet('live-clone-plus-kmc-overlay','live-clone-minus-kmc-plus-observer','base-game-only-kmc','base-game-only-kmc-observer')][string]$StagingMode = 'live-clone-plus-kmc-overlay',
         $BaseGameDependencies,
-        [string]$ObserverPackagePath
+        [string]$ObserverPackagePath,
+        # F12 upgrade rehearsal only: a previous install's exact KMC-folder runtime files
+        # (re-hashed, closed UMM cache shape) laid under the staged package files.
+        $KmcCarryFiles
     )
     [void](Assert-KmcRuntimeLockOwner $Lock); Assert-KmcNoGameProcesses
     $observerMode = $StagingMode -ceq 'live-clone-minus-kmc-plus-observer'
@@ -3635,6 +3639,7 @@ function Enter-KmcModsTransaction {
     if($baseGameOnly){Assert-KmcBaseGameDependencyReceipt $BaseGameDependencies -VerifyFiles}
     elseif($null-ne$BaseGameDependencies){throw 'Base-game dependencies require the explicit base-game staging mode.'}
     if($coStaged-ne(-not[string]::IsNullOrEmpty($ObserverPackagePath))){throw 'Only the explicit normal-player co-staging mode takes, and requires, a second observer package.'}
+    if(-not$coStaged-and@($KmcCarryFiles|Where-Object{$null-ne$_}).Count-ne0){throw 'Only the normal-player co-staging mode may carry a previous install''s KMC folder files.'}
     $overlayName = if ($observerMode) { 'KmcRemovalObserver' } else { 'KingmakerMountedCombat' }
     $runId = [string]$Lock.RunId; $fullLive = [IO.Path]::GetFullPath($LiveModsRoot).TrimEnd('\')
     if($baseGameOnly-and$fullLive-cne[string]$BaseGameDependencies.modsRoot){throw 'Base-game Mods root differs from the admitted loader layout.'}
@@ -3708,7 +3713,7 @@ function Enter-KmcModsTransaction {
     Assert-KmcDirectoryManifestsEqual $before (Get-KmcDirectoryManifest $fullLive) 'Live Mods source after cloning'
     $stagedKmcRoot = Join-Path $ready 'KingmakerMountedCombat'
     if($baseGameOnly){
-        New-KmcBaseGameReadyTree -StagingRun $stagingRun -CloneRoot $cloneRoot -ReadyRoot $ready -PackageModRoot $expectedRoot -Before $before -ObserverModRoot $observerModRoot -Confirm:$false
+        New-KmcBaseGameReadyTree -StagingRun $stagingRun -CloneRoot $cloneRoot -ReadyRoot $ready -PackageModRoot $expectedRoot -Before $before -ObserverModRoot $observerModRoot -KmcCarryFiles $KmcCarryFiles -Confirm:$false
     }
     elseif (Test-Path -LiteralPath $stagedKmcRoot) {
         [void](Assert-KmcChildPath $stagedKmcRoot $stagingRun 'staged KMC replacement')
