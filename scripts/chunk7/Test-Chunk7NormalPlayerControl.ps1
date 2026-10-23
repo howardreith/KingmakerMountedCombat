@@ -121,7 +121,14 @@ foreach($m in @(
  @('routing outside the owned profile',{param($r)$r.observations.routing.observedSavePath='C:\Users\Someone\Saved Games'},'inside the owned profile'))){
  Check ('closed reader refuses '+$m[0]) {$r=Clone $good;&$m[1] $r;Read-Result $r} $true $m[2]
 }
-# --- KMC's own one-session UMM log ----------------------------------------
+# --- Runner wiring: the guarded runner's own parameter set admits the scenario ---
+Check 'the guarded runner Scenario parameter admits the normal-player control' {
+ $ast=[Management.Automation.Language.Parser]::ParseFile((Join-Path $repo 'scripts/runtime/Invoke-KingmakerRuntimeScenario.ps1'),[ref]$null,[ref]$null)
+ $param=@($ast.ParamBlock.Parameters|Where-Object{$_.Name.VariablePath.UserPath-ceq'Scenario'})
+ $set=@($param[0].Attributes|Where-Object{$_.TypeName.Name-ceq'ValidateSet'})
+ if($set.Count-ne1-or@($set[0].PositionalArguments|Where-Object{$_.Value-ceq'chunk7-normal-player-control'}).Count-ne1){throw 'Runner Scenario ValidateSet lacks the normal-player control.'}
+ if(@(Get-KmcSaveBackedRuntimeScenarios)-cnotcontains'chunk7-normal-player-control'){throw 'Save-backed allowlist lacks the normal-player control.'}
+}# --- KMC's own one-session UMM log ----------------------------------------
 $fakeGame=Join-Path $OutputDirectory 'game';$logDir=Join-Path $fakeGame 'Kingmaker_Data/Managed/UnityModManager';[void][IO.Directory]::CreateDirectory($logDir)
 $quiet=@('[Manager] Initialize.','[Manager] Version: 0.33.2.0.','[KingmakerMountedCombat] Version ''0.1.0-chunk7b-preview.94''. Loading.',
  '[KingmakerMountedCombat] Kingmaker Mounted Combat 0.1.0-chunk7b-preview.94 loaded with transient private-alpha mounted melee services.',
