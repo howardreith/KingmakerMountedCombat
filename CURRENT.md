@@ -1,6 +1,17 @@
 # Chunk 7B–7D — IN PROGRESS
 
-SHOULD-FIX 3 is closed offline: the [six-pair exit reader check](docs/CHUNK7-SIX-PAIR-EXIT-READER-2026-10-22.md)
+Claude [batch191](docs/CHUNK7-BATCH191-REQUEST-FREE-CONTROLS-2026-10-23.md) passed the F11 request-free
+KMC ordinary controls under an external observer (attempt s2; s1 is a preserved FAIL whose
+Params restoration was recovered exactly). KMC ran from the frozen batch190 package with no
+automation request, in an isolated tree holding exactly KMC and the observer. Native Mount on
+the rider's own Horse, a mounted ground click (pair moved 4.4/4.0 m together), native Dismount
+and an unmounted click all succeeded with the neighbor pair untouched. No automation host,
+measurement, telemetry or overlay ran; KMC's own UMM log shows an ordinary quiet start with no
+error. Restoration exact. Not performance acceptance or human approval; hotbar slots are not
+pre-filled (owner checklist item). Next: F10 behaviour gaps, the door route, the
+requirement-to-evidence table, then private 7E. Standing mission remains IN PROGRESS.
+
+Historical: SHOULD-FIX 3 is closed offline: the [six-pair exit reader check](docs/CHUNK7-SIX-PAIR-EXIT-READER-2026-10-22.md)
 rebuilds each six-pair lineage's real native evidence as the unattended exit leaves it, pins
 every mirrored product statement, and passes the complete unchanged game-result reader and the
 runner's base-game check 25/0 (honest exits accepted, 16 refusals each with the reader's own
