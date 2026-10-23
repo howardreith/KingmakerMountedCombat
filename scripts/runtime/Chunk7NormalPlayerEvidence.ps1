@@ -229,8 +229,24 @@ function Assert-KmcChunk7NormalPlayerRuntimeBinding($Request,$GameEvidence,[stri
  if(-not(Test-KmcChunk7NormalPlayerScenario $Request.scenario)){return}
  $root=[IO.Path]::GetFullPath([string]$Request.evidenceRoot)
  $resultPath=Join-Path $root 'observer-result.json'
+ $declared=if($null-ne$Request.normalPlayer.PSObject.Properties['upgradeRehearsal']){$Request.normalPlayer.upgradeRehearsal}else{$null}
+ $recorded=if($null-ne$GameEvidence-and$null-ne$GameEvidence.PSObject.Properties['upgradeRehearsal']){$GameEvidence.upgradeRehearsal}else{$null}
+ if(($null-eq$declared)-ne($null-eq$recorded)-or($null-ne$declared-and([string]$recorded.step-cne[string]$declared.step-or[string]$recorded.rehearsalId-cne[string]$declared.rehearsalId-or
+  [string]$recorded.loadedKmc.dllSha256-cne[string]$declared.stagedKmc.dllSha256-or[string]$recorded.loadedKmc.packageSha256-cne[string]$declared.stagedKmc.packageSha256))){
+  throw 'Normal-player run result does not record the rehearsal step and loaded KMC package its request declared.'
+ }
  if($null-eq$GameEvidence-or[string]$GameEvidence.evidenceKind-cne'kmc-normal-player-observer'-or-not(Test-Path -LiteralPath $resultPath -PathType Leaf)-or
   (Get-KmcSha256 $resultPath)-cne[string]$GameEvidence.observerResultSha256-or[string]$GameEvidence.status-cne$Status-or$GameEvidence.kmcAutomationRequest-ne$false){
   throw ('Normal-player run result does not bind its exact observer result (observer result present='+(Test-Path -LiteralPath $resultPath -PathType Leaf)+').')
+ }
+}
+
+# Matrix row 42 (F11 request-free controls; F12 fresh install) consumes only an ordinary control
+# run. An F12 rehearsal step is not that evidence: u1/u3 load preview.211 and u2 starts over a
+# carried previous folder state.
+function Assert-KmcChunk7NormalPlayerControlRow($Request,$GameEvidence){
+ if(-not(Test-KmcChunk7NormalPlayerScenario $Request.scenario)){throw 'Row 42 consumes only the request-free normal-player control.'}
+ if($null-ne$Request.normalPlayer.PSObject.Properties['upgradeRehearsal']-or($null-ne$GameEvidence-and$null-ne$GameEvidence.PSObject.Properties['upgradeRehearsal']-and$null-ne$GameEvidence.upgradeRehearsal)){
+  throw 'An F12 upgrade rehearsal step cannot stand in for the ordinary request-free control (row 42).'
  }
 }

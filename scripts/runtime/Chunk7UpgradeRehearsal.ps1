@@ -66,8 +66,11 @@ function Get-KmcChunk7UpgradeSeedSource($Fixture){
 # u2 and u3 carry u1's ordinary KMC folder state: only the files the restored u1
 # transaction classified as expected runtime writes in the KMC folder (UMM's assembly
 # cache), each re-hashed from u1's retained staged-after tree.
-function Get-KmcChunk7UpgradeCarry([string]$SourceRunId){
+# u2 and u3 must name a passed u1 of the same rehearsal id. u3 deliberately lays u1's
+# folder state (not u2's): rollback restores the previous install as the player had it.
+function Get-KmcChunk7UpgradeCarry([string]$SourceRunId,[string]$RehearsalId){
  if($SourceRunId-cnotmatch'^[A-Za-z0-9][A-Za-z0-9._-]{0,119}$'){throw 'Upgrade carry source run id is invalid.'}
+ if($RehearsalId-cnotmatch'^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$'){throw 'Upgrade rehearsal id is invalid.'}
  $lab=Get-KmcLabRoot;$pins=Get-KmcChunk7PreviousPackagePins
  $evidence=Join-Path $lab ('runtime-evidence/'+$SourceRunId);$statePath=Join-Path $lab ('runtime-state/transactions/'+$SourceRunId+'.json')
  foreach($path in @((Join-Path $evidence 'runtime-request.json'),(Join-Path $evidence 'runtime-result.json'),$statePath)){
@@ -75,7 +78,7 @@ function Get-KmcChunk7UpgradeCarry([string]$SourceRunId){
  }
  $request=Read-KmcJson (Join-Path $evidence 'runtime-request.json');$result=Read-KmcJson (Join-Path $evidence 'runtime-result.json');$state=Read-KmcJson $statePath
  $u=if($null-ne$request.PSObject.Properties['normalPlayer']-and$null-ne$request.normalPlayer.PSObject.Properties['upgradeRehearsal']){$request.normalPlayer.upgradeRehearsal}else{$null}
- if([string]$request.runId-cne$SourceRunId-or-not(Test-KmcChunk7NormalPlayerScenario $request.scenario)-or$null-eq$u-or[string]$u.step-cne'u1-previous-install'-or
+ if([string]$request.runId-cne$SourceRunId-or-not(Test-KmcChunk7NormalPlayerScenario $request.scenario)-or$null-eq$u-or[string]$u.step-cne'u1-previous-install'-or[string]$u.rehearsalId-cne$RehearsalId-or
   [string]$u.stagedKmc.packageSha256-cne$pins.packageSha256-or[string]$result.runId-cne$SourceRunId-or[string]$result.status-cne'PASS'){
   throw 'Upgrade carry source is not a passed u1 previous-package install of the released preview.211 package.'
  }
@@ -90,7 +93,9 @@ function Get-KmcChunk7UpgradeCarry([string]$SourceRunId){
   if([string]$write.change-cne'added'-or[string]$write.kind-cne'file'-or[string]$write.path-cnotmatch'^KingmakerMountedCombat/KingmakerMountedCombat\.dll\.[0-9]{1,9}\.cache$'){
    throw ('Upgrade carry source holds a KMC-folder write outside the closed UMM cache shape: '+[string]$write.path)
   }
-  $file=Join-Path $stagedAfter ([string]$write.path)
+  $file=Assert-KmcChildPath (Join-Path $stagedAfter ([string]$write.path)) (Join-Path $lab 'runtime-staging') 'carried u1 file'
+  # UMM's cache is a File.Copy of the loaded DLL: the carried bytes are exactly preview.211's.
+  if([string]$write.runtimeSha256-cne$pins.dllSha256){throw 'A carried u1 cache is not a byte copy of the previous package DLL.'}
   if(-not(Test-Path -LiteralPath $file -PathType Leaf)){throw 'A carried u1 file is missing from its retained staged-after tree.'}
   Assert-KmcNotReparsePoint $file 'carried u1 file';Assert-KmcNotHardLink $file 'carried u1 file'
   $item=Get-Item -LiteralPath $file
@@ -102,19 +107,23 @@ function Get-KmcChunk7UpgradeCarry([string]$SourceRunId){
 }
 
 # The request records which package was staged, why, and what was carried in.
-function New-KmcChunk7UpgradeRehearsalSection([string]$Step,$Previous,$Manifest,[string]$CarrySourceRunId,$Carry){
+function New-KmcChunk7UpgradeRehearsalSection([string]$Step,[string]$RehearsalId,$Previous,$Manifest,[string]$CarrySourceRunId,$Carry){
  if($Step-cnotin@(Get-KmcChunk7UpgradeRehearsalSteps)){throw 'Unknown upgrade rehearsal step.'}
  $staged=if(Test-KmcChunk7UpgradePreviousStep $Step){
   [ordered]@{role='previous';version=$Previous.version;commit=$Previous.commit;packageSha256=$Previous.packageSha256;manifestSha256=$Previous.manifestSha256;dllSha256=$Previous.dllSha256;dllMvid=$Previous.dllMvid}
  }else{
   [ordered]@{role='candidate';version=[string]$Manifest.version;commit=[string]$Manifest.commit;packageSha256=[string]$Manifest.packageSha256;manifestSha256=$null;dllSha256=[string]$Manifest.dllSha256;dllMvid=[string]$Manifest.dllMvid}
  }
- [ordered]@{contract='f12-upgrade-rehearsal-v1';step=$Step;stagedKmc=$staged;carrySourceRunId=$(if($Step-ceq'u1-previous-install'){$null}else{$CarrySourceRunId})
-  carriedFiles=@(@($Carry)|Where-Object{$null-ne$_}|ForEach-Object{[ordered]@{name=[string]$_.name;length=[long]$_.length;sha256=[string]$_.sha256}})}
+ [ordered]@{contract='f12-upgrade-rehearsal-v1';rehearsalId=$RehearsalId;step=$Step;stagedKmc=$staged;carrySourceRunId=$(if($Step-ceq'u1-previous-install'){$null}else{$CarrySourceRunId})
+  carriedFiles=@(foreach($c in @($Carry|Where-Object{$null-ne$_})){
+   # Each element is one carried file record; a nested array is a shape defect, never flattened.
+   if($c-is[Array]-or$null-eq$c.PSObject.Properties['sourcePath']-or$c.name-isnot[string]){throw 'Carried files are not a flat list of file records.'}
+   [ordered]@{name=$c.name;length=[long]$c.length;sha256=[string]$c.sha256}})}
 }
 function Assert-KmcChunk7UpgradeRehearsalSection($Request){
  $u=$Request.normalPlayer.upgradeRehearsal;$pins=Get-KmcChunk7PreviousPackagePins
- Assert-KmcExactProperties $u @('contract','step','stagedKmc','carrySourceRunId','carriedFiles') 'upgrade rehearsal section'
+ Assert-KmcExactProperties $u @('contract','rehearsalId','step','stagedKmc','carrySourceRunId','carriedFiles') 'upgrade rehearsal section'
+ if([string]$u.rehearsalId-cnotmatch'^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$'){throw 'Upgrade rehearsal id is invalid.'}
  Assert-KmcExactProperties $u.stagedKmc @('role','version','commit','packageSha256','manifestSha256','dllSha256','dllMvid') 'upgrade rehearsal staged KMC'
  if([string]$u.contract-cne'f12-upgrade-rehearsal-v1'-or[string]$u.step-cnotin@(Get-KmcChunk7UpgradeRehearsalSteps)){throw 'Upgrade rehearsal contract or step differs.'}
  $previous=Test-KmcChunk7UpgradePreviousStep ([string]$u.step);$s=$u.stagedKmc
@@ -128,7 +137,7 @@ function Assert-KmcChunk7UpgradeRehearsalSection($Request){
  else{
   if([string]$u.carrySourceRunId-cnotmatch'^[A-Za-z0-9][A-Za-z0-9._-]{0,119}$'-or[string]$u.carrySourceRunId-ceq[string]$Request.runId-or$files.Count-lt1-or$files.Count-gt4){throw 'Upgrade and rollback carry an exact bounded u1 folder state.'}
   foreach($f in $files){Assert-KmcExactProperties $f @('name','length','sha256') 'carried file'
-   if([string]$f.name-cnotmatch'^KingmakerMountedCombat\.dll\.[0-9]{1,9}\.cache$'-or[string]$f.sha256-cnotmatch'^[0-9a-f]{64}$'-or[long]$f.length-lt1-or[long]$f.length-gt64MB){throw 'A carried file is outside the closed UMM cache shape.'}}
+   if([string]$f.name-cnotmatch'^KingmakerMountedCombat\.dll\.[0-9]{1,9}\.cache$'-or[string]$f.sha256-cne$pins.dllSha256-or[long]$f.length-lt1-or[long]$f.length-gt64MB){throw 'A carried file is outside the closed UMM cache shape.'}}
   if(@($files|ForEach-Object{[string]$_.name}|Sort-Object -Unique).Count-ne$files.Count){throw 'Carried file names repeat.'}
  }
 }

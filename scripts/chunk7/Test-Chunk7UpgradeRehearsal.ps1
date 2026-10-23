@@ -42,14 +42,20 @@ Check 'the other closeout package cannot stand in for the release' {Stage-Packag
 Check 'a changed previous manifest is refused' {Stage-Package {param($p)[IO.File]::AppendAllText($p+'.manifest.json',' ')};Use-Lab $fakeLab;try{[void](Get-KmcChunk7PreviousPackage)}finally{Restore-Lab}} $true 'not the released preview.211 identity'
 Check 'a missing previous package is refused' {Stage-Package {param($p)Remove-Item -LiteralPath $p -Force};Use-Lab $fakeLab;try{[void](Get-KmcChunk7PreviousPackage)}finally{Restore-Lab}} $true 'previous package is missing'
 
+$previous=Get-KmcChunk7PreviousPackage
+$manifest=[pscustomobject]@{commit=('a'*40);version='0.1.0-chunk7e-final';dllSha256=('d'*64);dllMvid='57fc82b9-f41e-44b4-b228-1315816108a3';packageSha256=('e'*64)}
+
 # --- Carry: the passed u1 run's classified KMC-folder runtime files --------------
-$u1='20261024-c7e-f12-u1-synthetic';$staging=Join-Path $fakeLab ('runtime-staging/'+$u1);$after=Join-Path $staging 'Mods-staged-after/KingmakerMountedCombat'
+# UMM's cache is a File.Copy of the loaded DLL, so a carried u1 cache holds preview.211's DLL bytes.
+Add-Type -AssemblyName System.IO.Compression.FileSystem;$zipFile=[IO.Compression.ZipFile]::OpenRead($realPackage)
+try{$dllEntry=@($zipFile.Entries|Where-Object{$_.FullName.Replace('\','/')-ceq'KingmakerMountedCombat/KingmakerMountedCombat.dll'})[0];$dllBytes=New-Object byte[] $dllEntry.Length;$in=$dllEntry.Open();try{$read=0;while($read-lt$dllBytes.Length){$read+=$in.Read($dllBytes,$read,$dllBytes.Length-$read)}}finally{$in.Dispose()}}finally{$zipFile.Dispose()}
+$rid='f12-a';$u1='20261024-c7e-f12-u1-synthetic';$staging=Join-Path $fakeLab ('runtime-staging/'+$u1);$after=Join-Path $staging 'Mods-staged-after/KingmakerMountedCombat'
 function Stage-Carry([scriptblock]$Mutate){
  foreach($d in @('runtime-evidence','runtime-state','runtime-staging')){$x=Join-Path $fakeLab $d;if(Test-Path -LiteralPath $x){Remove-Item -LiteralPath $x -Recurse -Force}}
  [void][IO.Directory]::CreateDirectory($after);[void][IO.Directory]::CreateDirectory((Join-Path $fakeLab ('runtime-evidence/'+$u1)));[void][IO.Directory]::CreateDirectory((Join-Path $fakeLab 'runtime-state/transactions'))
- $cache=Join-Path $after 'KingmakerMountedCombat.dll.4242.cache';[IO.File]::WriteAllText($cache,'previous assembly cache bytes')
+ $cache=Join-Path $after 'KingmakerMountedCombat.dll.4242.cache';[IO.File]::WriteAllBytes($cache,$dllBytes)
  $f=[pscustomobject]@{
-  request=[pscustomobject]@{runId=$u1;scenario='chunk7-normal-player-control';normalPlayer=[pscustomobject]@{upgradeRehearsal=[pscustomobject]@{step='u1-previous-install';stagedKmc=[pscustomobject]@{packageSha256=$pins.packageSha256}}}}
+  request=[pscustomobject]@{runId=$u1;scenario='chunk7-normal-player-control';normalPlayer=[pscustomobject]@{upgradeRehearsal=[pscustomobject]@{rehearsalId=$rid;step='u1-previous-install';stagedKmc=[pscustomobject]@{packageSha256=$pins.packageSha256}}}}
   result=[pscustomobject]@{runId=$u1;status='PASS'}
   state=[pscustomobject]@{schemaVersion=4;runId=$u1;phase='restored';stagingMode='base-game-only-kmc-observer';packageSha256=$pins.packageSha256;stagedAfter=(Join-Path $staging 'Mods-staged-after')
    runtimeWritesClassified=$true;runtimeUnexpectedWrites=@()
@@ -60,8 +66,9 @@ function Stage-Carry([scriptblock]$Mutate){
  Write-KmcJsonAtomic (Join-Path $fakeLab ('runtime-evidence/'+$u1+'/runtime-result.json')) $f.result
  Write-KmcJsonAtomic (Join-Path $fakeLab ('runtime-state/transactions/'+$u1+'.json')) $f.state
 }
-function Read-Carry{Use-Lab $fakeLab;try{,@(Get-KmcChunk7UpgradeCarry $u1)}finally{Restore-Lab}}
-Check 'the passed u1 run carries exactly its classified UMM cache' {Stage-Carry $null;$c=Read-Carry;if($c.Count-ne1-or$c[0].name-cne'KingmakerMountedCombat.dll.4242.cache'-or$c[0].sha256-cne(Get-KmcSha256 (Join-Path $after 'KingmakerMountedCombat.dll.4242.cache'))){throw 'Carry differs.'}}
+function Read-Carry([string]$Id=$rid){Use-Lab $fakeLab;try{Get-KmcChunk7UpgradeCarry $u1 $Id}finally{Restore-Lab}}
+Check 'the passed u1 run carries exactly its classified UMM cache, flat and with its real length' {Stage-Carry $null;$c=Read-Carry
+ if($c-isnot[Array]-or$c.Count-ne1-or$c[0]-is[Array]-or$c[0].name-cne'KingmakerMountedCombat.dll.4242.cache'-or$c[0].sha256-cne$pins.dllSha256-or[long]$c[0].length-ne$dllBytes.Length){throw 'Carry differs.'}}
 foreach($m in @(
  @('a failed u1 run',{param($f)$f.result.status='FAIL'},'not a passed u1'),
  @('a non-u1 source step',{param($f)$f.request.normalPlayer.upgradeRehearsal.step='u2-upgrade'},'not a passed u1'),
@@ -69,18 +76,21 @@ foreach($m in @(
  @('an unrestored transaction',{param($f)$f.state.phase='staged'},'not the restored'),
  @('an unexpected runtime write',{param($f)$f.state.runtimeUnexpectedWrites=@([pscustomobject]@{path='x'})},'not the restored'),
  @('a KMC settings write outside the cache shape',{param($f)$f.state.runtimeExpectedWrites+=[pscustomobject]@{change='added';kind='file';path='KingmakerMountedCombat/Settings.xml';runtimeSha256=('2'*64)}},'outside the closed UMM cache shape'),
- @('a carried file that changed',{param($f)$f.state.runtimeExpectedWrites[0].runtimeSha256=('3'*64)},'differs from its classified runtime write'),
+ @('a carried cache that is not the previous DLL',{param($f)$f.state.runtimeExpectedWrites[0].runtimeSha256=('3'*64)},'not a byte copy of the previous package DLL'),
+ @('carried bytes that changed after classification',{param($f)[IO.File]::WriteAllText((Join-Path $after 'KingmakerMountedCombat.dll.4242.cache'),'changed')},'differs from its classified runtime write'),
+ @('a u1 of another rehearsal',{param($f)$f.request.normalPlayer.upgradeRehearsal.rehearsalId='f12-other'},'not a passed u1'),
  @('no carried KMC file',{param($f)$f.state.runtimeExpectedWrites=@($f.state.runtimeExpectedWrites[1])},'holds no, or an unbounded set'))){
  Check ('carry refuses '+$m[0]) {Stage-Carry $m[1];[void](Read-Carry)} $true $m[2]
 }
 Check 'carry refuses a staged-after tree outside the lab staging root' {Stage-Carry {param($f)$f.state.stagedAfter='C:\Windows\Temp\elsewhere'};[void](Read-Carry)} $true 'staged-after tree'
+Check 'carry refuses an invalid rehearsal id' {Stage-Carry $null;[void](Read-Carry 'bad id!')} $true 'rehearsal id is invalid'
 Stage-Carry $null;$carry=Read-Carry
+Check 'the section refuses a nested carry list instead of flattening it' {[void](New-KmcChunk7UpgradeRehearsalSection 'u2-upgrade' $rid $previous $manifest $u1 @(,@($carry)))} $true 'not a flat list'
 
 # --- Request section ------------------------------------------------------------
-$previous=Get-KmcChunk7PreviousPackage
-$manifest=[pscustomobject]@{commit=('a'*40);version='0.1.0-chunk7e-final';dllSha256=('d'*64);dllMvid='57fc82b9-f41e-44b4-b228-1315816108a3';packageSha256=('e'*64)}
+
 $baseRequest=[pscustomobject]@{runId='20261024-c7e-f12-section';commit=$manifest.commit;productVersion=$manifest.version;dllSha256=$manifest.dllSha256;dllMvid=$manifest.dllMvid}
-function Section-Request([string]$Step){$r=Clone $baseRequest;$s=New-KmcChunk7UpgradeRehearsalSection $Step $previous $manifest $(if($Step-ceq'u1-previous-install'){$null}else{$u1}) $(if($Step-ceq'u1-previous-install'){@()}else{$carry})
+function Section-Request([string]$Step){$r=Clone $baseRequest;$s=New-KmcChunk7UpgradeRehearsalSection $Step $rid $previous $manifest $(if($Step-ceq'u1-previous-install'){$null}else{$u1}) $(if($Step-ceq'u1-previous-install'){@()}else{$carry})
  $r|Add-Member normalPlayer ([pscustomobject]@{upgradeRehearsal=(Clone ([pscustomobject]$s))});$r}
 foreach($step in @(Get-KmcChunk7UpgradeRehearsalSteps)){Check ('the '+$step+' section is closed and exact') {Assert-KmcChunk7UpgradeRehearsalSection (Section-Request $step)}}
 foreach($m in @(
@@ -91,6 +101,8 @@ foreach($m in @(
  @('a carried settings file',{$r=Section-Request 'u2-upgrade';$r.normalPlayer.upgradeRehearsal.carriedFiles[0].name='Settings.xml';$r},'closed UMM cache shape'),
  @('a self-referencing carry source',{$r=Section-Request 'u3-rollback';$r.normalPlayer.upgradeRehearsal.carrySourceRunId=$r.runId;$r},'exact bounded u1 folder state'),
  @('an unknown step',{$r=Section-Request 'u2-upgrade';$r.normalPlayer.upgradeRehearsal.step='u4-other';$r},'contract or step differs'),
+ @('a carried cache that is not preview.211',{$r=Section-Request 'u2-upgrade';$r.normalPlayer.upgradeRehearsal.carriedFiles[0].sha256=('7'*64);$r},'closed UMM cache shape'),
+ @('an invalid rehearsal id',{$r=Section-Request 'u3-rollback';$r.normalPlayer.upgradeRehearsal.rehearsalId='';$r},'rehearsal id is invalid'),
  @('an extra section member',{$r=Section-Request 'u2-upgrade';$r.normalPlayer.upgradeRehearsal|Add-Member extra 1;$r},'upgrade rehearsal section'))){
  Check ('the section refuses '+$m[0]) {Assert-KmcChunk7UpgradeRehearsalSection (&$m[1])} $true $m[2]
 }
@@ -105,7 +117,17 @@ function New-StageRun([string]$Name){
 }
 $i=0
 function Build([object[]]$Files,[bool]$WithObserver=$true){$script:i++;$s=New-StageRun ('r'+$script:i)
- New-KmcBaseGameReadyTree -StagingRun $s.run -CloneRoot $s.clone -ReadyRoot $s.ready -PackageModRoot $s.package -Before $s.before -ObserverModRoot $(if($WithObserver){$s.observer}else{$null}) -KmcCarryFiles $Files -Confirm:$false;$s}
+ Use-Lab $fakeLab
+ try{New-KmcBaseGameReadyTree -StagingRun $s.run -CloneRoot $s.clone -ReadyRoot $s.ready -PackageModRoot $s.package -Before $s.before -ObserverModRoot $(if($WithObserver){$s.observer}else{$null}) -KmcCarryFiles $Files -Confirm:$false}finally{Restore-Lab};$s}
+Check 'two carried caches pass through the runner''s assignment shape, the section and the ready tree with their real lengths' {
+ Stage-Carry {param($f)[IO.File]::WriteAllBytes((Join-Path $after 'KingmakerMountedCombat.dll.17.cache'),$dllBytes);$f.state.runtimeExpectedWrites+=[pscustomobject]@{change='added';kind='file';path='KingmakerMountedCombat/KingmakerMountedCombat.dll.17.cache';runtimeSha256=$pins.dllSha256}}
+ Use-Lab $fakeLab;try{$two=Get-KmcChunk7UpgradeCarry $u1 $rid}finally{Restore-Lab}
+ $files=@((New-KmcChunk7UpgradeRehearsalSection 'u2-upgrade' $rid $previous $manifest $u1 $two).carriedFiles)
+ if($two.Count-ne2-or$files.Count-ne2-or@($files|Where-Object{[long]$_.length-ne$dllBytes.Length}).Count-ne0){throw ('Two-file carry shape differs: '+$two.Count+'/'+$files.Count)}
+ $s2=Build $two
+ if(@(Get-ChildItem -LiteralPath (Join-Path $s2.ready 'KingmakerMountedCombat') -Filter '*.cache').Count-ne2){throw 'Ready tree did not receive both carried caches.'}
+ Stage-Carry $null}
+Check 'the ready tree refuses a carry source outside the lab staging root' {$x=Clone $carry[0];$out=Join-Path $OutputDirectory 'loose.cache';[IO.File]::WriteAllBytes($out,$dllBytes);$x.sourcePath=$out;[void](Build @($x))} $true 'carried KMC folder file'
 Check 'the ready tree lays the carried cache beside the exact package files' {$s=Build $carry
  $names=@(Get-ChildItem -LiteralPath (Join-Path $s.ready 'KingmakerMountedCombat')|ForEach-Object Name|Sort-Object)
  if(($names-join'|')-cne'Info.json|KingmakerMountedCombat.dll|KingmakerMountedCombat.dll.4242.cache'-or(Get-KmcSha256 (Join-Path $s.ready 'KingmakerMountedCombat/KingmakerMountedCombat.dll.4242.cache'))-cne$carry[0].sha256){throw ('Ready KMC folder differs: '+($names-join','))}}
@@ -113,20 +135,50 @@ Check 'the ready tree without carry is unchanged' {$s=Build @();if(@(Get-ChildIt
 Check 'the ready tree refuses carried files without the observer co-staging' {[void](Build $carry $false)} $true 'Only the observer co-staged tree'
 Check 'the ready tree refuses a carried file outside the cache shape' {$x=Clone $carry[0];$x.name='Settings.xml';[void](Build @($x))} $true 'closed UMM cache shape'
 Check 'the ready tree refuses a carried file that changed' {$x=Clone $carry[0];$x.sha256=('6'*64);[void](Build @($x))} $true 'changed before staging'
+Check 'the ready tree refuses a declared length that is not the real length' {$x=Clone $carry[0];$x.length=1;[void](Build @($x))} $true 'changed while staging'
 Check 'the ready tree refuses a repeated carried file' {[void](Build @($carry[0],$carry[0]))} $true 'collides'
 Check 'the ready tree refuses an unbounded carry' {[void](Build @($carry[0],$carry[0],$carry[0],$carry[0],$carry[0]))} $true 'unbounded'
-# The transaction needs a real lock to run; its guard is checked by position: it refuses
-# carry in every other mode before any clone, staging or move.
-Check 'the Mods transaction refuses carry outside the co-staging mode before staging' {$body=${function:Enter-KmcModsTransaction}.ToString();$guard=$body.IndexOf('Only the normal-player co-staging mode may carry');$first=$body.IndexOf('Copy-KmcDirectoryTreeExact')
- if($guard-lt0-or$first-lt0-or$guard-gt$first-or$body.IndexOf('-KmcCarryFiles $KmcCarryFiles')-lt0){throw 'Transaction carry guard is missing or late.'}}
-
+# Behavioral: with the lock and process guards stubbed, the transaction refuses carry in
+# every mode but the co-staging one before it creates any state, backup or staging path.
+Check 'the Mods transaction refuses carry outside the co-staging mode before creating anything' {
+ $roots=Join-Path $OutputDirectory 'tx';[void][IO.Directory]::CreateDirectory($roots)
+ $lockGuard=${function:Assert-KmcRuntimeLockOwner};$processGuard=${function:Assert-KmcNoGameProcesses}
+ Set-Item function:Assert-KmcRuntimeLockOwner {param($Lock)};Set-Item function:Assert-KmcNoGameProcesses {}
+ try{
+  $refused=$null
+  try{[void](Enter-KmcModsTransaction -Lock ([pscustomobject]@{RunId='tx-run';Token=('a'*64)}) -LiveModsRoot (Join-Path $roots 'live') -PackagePath (Join-Path $roots 'p.zip') -StateRoot $roots -BackupRoot $roots -StagingRoot $roots -KmcCarryFiles $carry)}catch{$refused=$_.Exception.Message}
+  if($refused-notmatch'Only the normal-player co-staging mode may carry'){throw ('Carry was not refused first: '+$refused)}
+  if(@(Get-ChildItem -LiteralPath $roots -Force).Count-ne0){throw 'The refused transaction created state, backup or staging paths.'}
+ }finally{Set-Item function:Assert-KmcRuntimeLockOwner $lockGuard;Set-Item function:Assert-KmcNoGameProcesses $processGuard}
+}
+$cacheName='KingmakerMountedCombat/'+$carry[0].name
+$stagedRows=@([pscustomobject]@{kind='file';path='KingmakerMountedCombat/Info.json';length=10;sha256=('1'*64)},[pscustomobject]@{kind='file';path='KingmakerMountedCombat/KingmakerMountedCombat.dll';length=20;sha256=('2'*64)},
+ [pscustomobject]@{kind='file';path=$cacheName;length=[long]$carry[0].length;sha256=[string]$carry[0].sha256})
+function Runtime([object[]]$Rows){[pscustomobject]@{entries=$Rows}}
+$newCache=[pscustomobject]@{kind='file';path='KingmakerMountedCombat/KingmakerMountedCombat.dll.999.cache';length=20;sha256=('2'*64)}
+Check 'restoration names UMM''s removal of exactly the declared carried cache and admits the new candidate cache' {
+ $c=Get-KmcModsRuntimeWriteClassification -StagedEntries $stagedRows -RuntimeManifest (Runtime @($stagedRows[0],$stagedRows[1],$newCache)) -CarriedFiles $carry
+ if(@($c.unexpected).Count-ne0-or((@($c.expected)|ForEach-Object{$_.change+':'+$_.path}|Sort-Object)-join'|')-cne('added:KingmakerMountedCombat/KingmakerMountedCombat.dll.999.cache|removed-carried-cache:'+$cacheName)){throw ($c|ConvertTo-Json -Depth 4 -Compress)}}
+Check 'restoration keeps an undeclared removal of the carried cache unexpected' {
+ $c=Get-KmcModsRuntimeWriteClassification -StagedEntries $stagedRows -RuntimeManifest (Runtime @($stagedRows[0],$stagedRows[1],$newCache))
+ if(@($c.unexpected|Where-Object{$_.change-ceq'removed'-and$_.path-ceq$cacheName}).Count-ne1){throw 'Undeclared removal was admitted.'}}
+Check 'restoration keeps a declared name with other bytes unexpected' {
+ $x=Clone $carry[0];$x.sha256=('9'*64)
+ $c=Get-KmcModsRuntimeWriteClassification -StagedEntries $stagedRows -RuntimeManifest (Runtime @($stagedRows[0],$stagedRows[1])) -CarriedFiles @($x)
+ if(@($c.unexpected|Where-Object{$_.change-ceq'removed'}).Count-ne1){throw 'Mismatched declared removal was admitted.'}}
+Check 'restoration never admits removal of a package file even when carry is declared' {
+ $c=Get-KmcModsRuntimeWriteClassification -StagedEntries $stagedRows -RuntimeManifest (Runtime @($stagedRows[1],$stagedRows[2])) -CarriedFiles $carry
+ if(@($c.unexpected|Where-Object{$_.change-ceq'removed'-and$_.path-ceq'KingmakerMountedCombat/Info.json'}).Count-ne1){throw 'A package removal was admitted.'}}
+Check 'restoration still refuses a changed carried cache' {
+ $c=Get-KmcModsRuntimeWriteClassification -StagedEntries $stagedRows -RuntimeManifest (Runtime @($stagedRows[0],$stagedRows[1],[pscustomobject]@{kind='file';path=$cacheName;length=5;sha256=('8'*64)})) -CarriedFiles $carry
+ if(@($c.unexpected|Where-Object{$_.change-ceq'changed'}).Count-ne1){throw 'A changed carried cache was admitted.'}}
 # --- Previous-package load request, observer request and result ------------------
 $base=Read-KmcJson (Join-Path $realLab 'runtime-evidence/20261022-c7b-world190-b190s1-sixmeasure/runtime-request.json')
 $seed=Get-KmcChunk7UpgradeSeedSource $base.fixture
 $fakeObserver=Join-Path $OutputDirectory 'observer.zip';[IO.File]::WriteAllText($fakeObserver,'observer bytes');[IO.File]::WriteAllText($fakeObserver+'.manifest.json','{}')
 $observerManifest=[pscustomobject]@{version='0.1.0-observer.6';commit=('b'*40);dllSha256=('c'*64);dllMvid='11111111-2222-3333-4444-555555555555'}
 $candidateManifest=[pscustomobject]@{commit=[string]$base.commit;version=[string]$base.productVersion;dllSha256=[string]$base.dllSha256;dllMvid=[string]$base.dllMvid;packageSha256=('e'*64)}
-$u1Section=New-KmcChunk7UpgradeRehearsalSection 'u1-previous-install' $previous $candidateManifest $null @()
+$u1Section=New-KmcChunk7UpgradeRehearsalSection 'u1-previous-install' $rid $previous $candidateManifest $null @()
 $request=Clone $base;$request.scenario='chunk7-normal-player-control';$request.PSObject.Properties.Remove('ownedPairs');$request.persistenceLoad=Clone $seed.descriptor
 $request|Add-Member normalPlayer ([pscustomobject](New-KmcChunk7NormalPlayerSection $null $fakeObserver $observerManifest $u1Section|ConvertTo-Json -Depth 8|ConvertFrom-Json))
 Check 'the previous-package load descriptor is closed on the reference-free seed' {Assert-KmcChunk7NormalPlayerDescriptor $request}
@@ -193,6 +245,55 @@ foreach($m in @(
 }
 Check 'the closed reader refuses an observer request in the controls mode' {$o=Clone $obsReq;$o.normalPlayer.mode='controls';Read-Result $good $o} $true 'staged KMC package and mode'
 
+# --- u2: the candidate over u1's folder state drives the ordinary controls --------
+$u2Section=New-KmcChunk7UpgradeRehearsalSection 'u2-upgrade' $rid $previous $candidateManifest $u1 $carry
+$load308=(Read-KmcJson (Join-Path $realLab 'runtime-evidence/20261022-c7b-world185-b185s1-sixthhorse-cold/runtime-request.json')).persistenceLoad
+$six=[pscustomobject]@{qualificationRunId='20261022-c7b-world185-b185s1-sixthhorse-cold';archiveProducerRunId='20261022-c7b-world184-b184s1-sixthhorse-manual'}
+$u2=Clone $base;$u2.scenario='chunk7-normal-player-control';$u2.PSObject.Properties.Remove('ownedPairs');$u2.persistenceLoad=Clone $load308
+$u2|Add-Member normalPlayer ([pscustomobject](New-KmcChunk7NormalPlayerSection $six $fakeObserver $observerManifest $u2Section|ConvertTo-Json -Depth 8|ConvertFrom-Json))
+Check 'the u2 descriptor is the six-Horse control with its rehearsal section' {Assert-KmcChunk7NormalPlayerDescriptor $u2}
+$u2Obs=New-KmcChunk7NormalPlayerObserverRequest $u2 ('f'*64) $OutputDirectory $profile 'C:\Game\Mods' $candidateManifest
+Check 'the u2 observer request drives the controls against the candidate package' {
+ if($u2Obs.normalPlayer.mode-cne'controls'-or$u2Obs.candidate.dllSha256-cne[string]$base.dllSha256-or$u2Obs.normalPlayer.kmcPackageSha256-cne$candidateManifest.packageSha256-or[string]::IsNullOrEmpty([string]$u2Obs.normalPlayer.riderId)){throw 'u2 observer binding differs.'}}
+$un=$u2.normalPlayer
+function U2Presence([string]$Label){$x=Presence $Label;$x.kmcDllSha256=[string]$base.dllSha256;$x.kmcMvid=[string]$base.dllMvid;$x.observerDllSha256=[string]$un.observer.dllSha256;$x.observerMvid=[string]$un.observer.dllMvid;$x}
+$controlChecks=@(Get-KmcChunk7NormalPlayerChecks)
+$u2Good=[pscustomobject][ordered]@{schemaVersion=1;evidenceKind='kmc-normal-player-observer';runId=[string]$u2.runId;transactionToken=[string]$u2.transactionToken
+ processId=$process;startedAtUtc='2026-10-24T10:00:10Z';completedAtUtc='2026-10-24T10:03:00Z';status='PASS';observerVersion=[string]$u2Obs.observer.version
+ observerAssembly='KmcRemovalObserver';requestSha256=$hash;stage=7
+ checks=@($controlChecks|ForEach-Object{[pscustomobject]@{name=$_;passed=$true}});checkPassCount=$controlChecks.Count;checkFailCount=0;errors=@()
+ observations=[pscustomobject][ordered]@{
+  routing=[pscustomobject]@{savePath=(Join-Path $profile 'Saved Games');stashFolder=(Join-Path $profile 'Areas');observedSavePath=(Join-Path $profile 'Saved Games');observedStashFolder=(Join-Path $profile 'Areas')}
+  presenceAtMenu=(U2Presence 'menu');profileBefore=[pscustomobject]@{saves=@()};world=[pscustomobject]@{gameId=[string]$load308.gameId;area=[string]$load308.area}
+  controlsBefore=[pscustomobject]@{label='before'};presenceLoaded=(U2Presence 'loaded')
+  frameWindows=@([pscustomobject]@{label='idle-unmounted';meanMs=11.0},[pscustomobject]@{label='idle-mounted';meanMs=11.1})
+  inputs=@(
+   [pscustomobject]@{label='mount';casterId=$un.riderId;targetId=$un.mountId;clicked=$true;commandCreated=$true;result='Success';attachedTo=$un.mountId;riderMountDistance=0.1;neighborUnchanged=$true},
+   [pscustomobject]@{label='mounted-move';moverId=$un.riderId;riderDisplacement=3.9;mountDisplacement=3.9;attachedTo=$un.mountId;neighborUnchanged=$true},
+   [pscustomobject]@{label='dismount';casterId=$un.riderId;targetId=$un.riderId;clicked=$true;commandCreated=$true;result='Success';attachedTo=$null;neighborUnchanged=$true},
+   [pscustomobject]@{label='unmounted-move';moverId=$un.riderId;riderDisplacement=3.8;mountDisplacement=1.0;attachedTo=$null;neighborUnchanged=$true})
+  controlsAfter=[pscustomobject]@{label='after'};presenceAfter=(U2Presence 'after')
+  archive=[pscustomobject]@{path=(Join-Path (Join-Path $profile 'Saved Games') ([string]$load308.fileName));sha256Before=[string]$load308.sha256;sha256After=('7'*64);changedOnDisk=$true};profileAfter=[pscustomobject]@{saves=@()}
+  log=[pscustomobject]@{kmcErrors=0;kmcLines=1}}}
+$u2ObsRead=Clone $u2Obs;$u2ObsRead.profileRoot=$profile
+Check 'the closed reader accepts an exact u2 controls PASS on the candidate' {Assert-KmcChunk7NormalPlayerObserverResult $u2 $u2ObsRead $u2Good $hash $process $notBefore}
+Check 'the u2 reader refuses preview.211 loaded in the upgrade step' {$r=Clone $u2Good;$r.observations.presenceLoaded.kmcDllSha256=$pins.dllSha256;Assert-KmcChunk7NormalPlayerObserverResult $u2 $u2ObsRead $r $hash $process $notBefore} $true 'ordinary no-request path'
+Check 'the u2 reader refuses an observer request in the load-only mode' {$o=Clone $u2ObsRead;$o.normalPlayer.mode='previous-package-load';Assert-KmcChunk7NormalPlayerObserverResult $u2 $o $u2Good $hash $process $notBefore} $true 'staged KMC package and mode'
+# Game record binding (checked before any file read) and the row-42 refusal.
+$recordFor={param($Req)[pscustomobject]@{evidenceKind='kmc-normal-player-observer';upgradeRehearsal=[pscustomobject]@{rehearsalId=[string]$Req.normalPlayer.upgradeRehearsal.rehearsalId;step=[string]$Req.normalPlayer.upgradeRehearsal.step;loadedKmc=$Req.normalPlayer.upgradeRehearsal.stagedKmc}}}
+Check 'the run binding refuses a rehearsal record without its step' {Assert-KmcChunk7NormalPlayerRuntimeBinding $request ([pscustomobject]@{evidenceKind='kmc-normal-player-observer';upgradeRehearsal=$null}) 'PASS'} $true 'does not record the rehearsal step'
+Check 'the run binding refuses a u1 record naming the candidate as loaded' {$g=& $recordFor $request;$g.upgradeRehearsal.loadedKmc=[pscustomobject]@{dllSha256=[string]$base.dllSha256;packageSha256=('e'*64)};Assert-KmcChunk7NormalPlayerRuntimeBinding $request $g 'PASS'} $true 'does not record the rehearsal step'
+Check 'the run binding passes the rehearsal check for an exact u1 record' {$g=& $recordFor $request;try{Assert-KmcChunk7NormalPlayerRuntimeBinding $request $g 'PASS'}catch{if($_.Exception.Message-match'does not record the rehearsal step'){throw}}}
+Check 'row 42 refuses a rehearsal step' {Assert-KmcChunk7NormalPlayerControlRow $u2 (& $recordFor $u2)} $true 'cannot stand in for the ordinary request-free control'
+Check 'row 42 refuses a record that claims a rehearsal step' {$plain=Clone $u2;$plain.normalPlayer.PSObject.Properties.Remove('upgradeRehearsal');Assert-KmcChunk7NormalPlayerControlRow $plain (& $recordFor $u2)} $true 'cannot stand in for the ordinary request-free control'
+Check 'row 42 admits an ordinary control record' {$plain=Clone $u2;$plain.normalPlayer.PSObject.Properties.Remove('upgradeRehearsal');Assert-KmcChunk7NormalPlayerControlRow $plain ([pscustomobject]@{evidenceKind='kmc-normal-player-observer';upgradeRehearsal=$null})}
+# The runner's own post-stage check, executed from its source with stub state.
+$runnerAst=[Management.Automation.Language.Parser]::ParseFile((Join-Path $repo 'scripts/runtime/Invoke-KingmakerRuntimeScenario.ps1'),[ref]$null,[ref]$null)
+$stageCheck=@($runnerAst.FindAll({param($n)$n-is[Management.Automation.Language.IfStatementAst]-and$n.Extent.Text.StartsWith('if($null-ne$upgradeSection-and')-and$n.Extent.Text.Contains('$coStagedState.packageSha256')},$true))
+Check 'the runner refuses a staged package other than the step''s declared package' {if($stageCheck.Count-ne1){throw 'Post-stage check not found.'}
+ $upgradeSection=$u2Section;$coStagedState=[pscustomobject]@{packageSha256=$pins.packageSha256};& ([scriptblock]::Create($stageCheck[0].Extent.Text))} $true 'declared package'
+Check 'the runner admits the step''s exact declared package' {$upgradeSection=$u1Section;$coStagedState=[pscustomobject]@{packageSha256=$pins.packageSha256};& ([scriptblock]::Create($stageCheck[0].Extent.Text))}
+
 # --- Runner admission: refused before intake, approval, lock or launch ----------
 $runner=Join-Path $repo 'scripts/runtime/Invoke-KingmakerRuntimeScenario.ps1'
 $lockSentinel=Join-Path $realLab 'runtime-state/active-transaction.lock'
@@ -205,7 +306,8 @@ function Invoke-Runner([string[]]$Arguments){
 $np=@('-Scenario','chunk7-normal-player-control','-BaseGameOnly','-SaveAccessAllowed','-ObserverPackagePath',$fakeObserver,'-TimeoutSeconds','900','-WhatIf')
 foreach($m in @(
  @('a rehearsal step outside the normal-player control',@('-Scenario','chunk7-owned-two-pair-campaign','-UpgradeRehearsalStep','u1-previous-install','-WhatIf'),'step of the request-free normal-player control only'),
- @('a first install with a carry source',($np+@('-UpgradeRehearsalStep','u1-previous-install','-UpgradeCarrySourceRunId',$u1)),'first install takes no carry source'),
+ @('a step without its rehearsal id',($np+@('-UpgradeRehearsalStep','u1-previous-install')),'names its shared rehearsal id'),
+ @('a first install with a carry source',($np+@('-UpgradeRehearsalStep','u1-previous-install','-UpgradeRehearsalId',$rid,'-UpgradeCarrySourceRunId',$u1)),'first install takes no carry source'),
  @('an upgrade without its first-install run',($np+@('-UpgradeRehearsalStep','u2-upgrade')),'first install takes no carry source'),
  @('a carry source without a step',($np+@('-UpgradeCarrySourceRunId',$u1)),'first install takes no carry source'))){
  Check ('the runner refuses '+$m[0]) {$r=Invoke-Runner $m[1];if($r.code-eq0){throw 'Runner accepted.'};throw $r.text} $true $m[2]

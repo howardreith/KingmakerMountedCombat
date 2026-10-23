@@ -43,6 +43,10 @@ $game = [ordered]@{
     observer = $request.normalPlayer.observer; transactionToken = [string]$request.transactionToken; processId = [int]$result.processId
     startedAtUtc = [string]$result.startedAtUtc; completedAtUtc = [string]$result.completedAtUtc; fixture = $request.fixture
     observerResultSha256 = (Get-KmcSha256 $ObserverResultPath); observerRequestSha256 = (Get-KmcSha256 $ObserverRequestPath)
+    # The identity fields above are the run candidate's; an F12 rehearsal step records the
+    # package actually staged and loaded (preview.211 in u1/u3) and its step here.
+    upgradeRehearsal = $(if ($null -ne $request.normalPlayer.PSObject.Properties['upgradeRehearsal']) { [ordered]@{ rehearsalId = [string]$request.normalPlayer.upgradeRehearsal.rehearsalId
+        step = [string]$request.normalPlayer.upgradeRehearsal.step; loadedKmc = $request.normalPlayer.upgradeRehearsal.stagedKmc } } else { $null })
     evidenceManifestSha256 = $evidenceManifestSha256; archiveMembers = $archiveMembers
     checkPassCount = [int]$result.checkPassCount; checkFailCount = [int]$result.checkFailCount; errors = $errors
     observations = $result.observations; checks = @($result.checks)

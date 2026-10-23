@@ -3761,6 +3761,10 @@ function Enter-KmcModsTransaction {
         $state['baseGameDependencies']=$BaseGameDependencies
         $state['preservedClone']=$cloneRoot
         if($coStaged){$state['frozenObserverPackage']=$frozenObserverPackage;$state['observerPackageSha256']=$observerPackageHash}
+        # Carried previous-install cache files are declared here so restoration can name
+        # UMM's own removal of exactly these files (it deletes every '*.cache*' on a cache miss).
+        $carried=@($KmcCarryFiles|Where-Object{$null-ne$_})
+        if($carried.Count-ne0){$state['kmcCarriedFiles']=@($carried|ForEach-Object{[ordered]@{name=[string]$_.name;length=[long]$_.length;sha256=[string]$_.sha256}})}
     }
     Write-KmcJsonAtomic $statePath $state
     try {
@@ -3802,7 +3806,7 @@ function Restore-KmcModsTransaction {
         if($schemaVersion-eq4-and[string]$state.stagingMode-ceq'base-game-only-kmc-observer'){$requiredState=@($requiredState+@('frozenObserverPackage','observerPackageSha256'))}
     }
     elseif ($schemaVersion -ne 2) { throw 'Transaction state schema is outside the historical and explicit base-game contracts.' }
-    $allowedState = @($requiredState + @('stagedAtUtc','stagedAfterDigest','stagedAfterFileCount','stagedAfterDirectoryCount','stagedAfterTotalBytes','stagedTreeChangedAtRuntime','restoredAtUtc','restoredDigest','stagedManifestSidecar','runtimeWritesClassified','runtimeExpectedWrites','runtimeUnexpectedWrites'))
+    $allowedState = @($requiredState + @('stagedAtUtc','stagedAfterDigest','stagedAfterFileCount','stagedAfterDirectoryCount','stagedAfterTotalBytes','stagedTreeChangedAtRuntime','restoredAtUtc','restoredDigest','stagedManifestSidecar','runtimeWritesClassified','runtimeExpectedWrites','runtimeUnexpectedWrites','kmcCarriedFiles'))
     $actualState = @($state.PSObject.Properties.Name)
     if (@($requiredState | Where-Object { $_ -cnotin $actualState }).Count -ne 0 -or @($actualState | Where-Object { $_ -cnotin $allowedState }).Count -ne 0) {
         throw 'Transaction state property set is missing required fields or contains unknown fields.'
@@ -3812,6 +3816,14 @@ function Restore-KmcModsTransaction {
     if($schemaVersion-eq4-and[string]$state.stagingMode-ceq'base-game-only-kmc-observer'-and
         ([string]$state.observerPackageSha256-cnotmatch'^[0-9a-f]{64}$'-or[string]$state.frozenObserverPackage-cne(Join-Path (Join-Path ([IO.Path]::GetFullPath($StagingRoot)) ([string]$Lock.RunId)) 'observer-package.zip'))){
         throw 'Co-staged transaction state does not record its exact frozen observer package.'
+    }
+    $declaredCarry=@()
+    if($null-ne$state.PSObject.Properties['kmcCarriedFiles']){
+        if($schemaVersion-ne4-or[string]$state.stagingMode-cne'base-game-only-kmc-observer'){throw 'Only the co-staged base-game state may declare carried KMC folder files.'}
+        $declaredCarry=@($state.kmcCarriedFiles)
+        if($declaredCarry.Count-lt1-or$declaredCarry.Count-gt4){throw 'Declared carried KMC folder files are unbounded.'}
+        foreach($c in $declaredCarry){Assert-KmcExactProperties $c @('name','length','sha256') 'declared carried KMC file'
+            if([string]$c.name-cnotmatch'^KingmakerMountedCombat\.dll\.[0-9]{1,9}\.cache$'-or[string]$c.sha256-cnotmatch'^[0-9a-f]{64}$'){throw 'A declared carried KMC file is outside the closed UMM cache shape.'}}
     }
     if ($schemaVersion -in @(3,4) -and ([string]$state.stagingMode -cnotin $allowedModes -or
         [string]$state.cloneBaseDigest -cne [string]$state.beforeDigest -or
@@ -3861,7 +3873,7 @@ function Restore-KmcModsTransaction {
             $classification = $null
             try {
                 $stagedEntries = Read-KmcModsStagedManifestSidecar $state $StagingRoot ([string]$Lock.RunId)
-                $classification = Get-KmcModsRuntimeWriteClassification -StagedEntries $stagedEntries -RuntimeManifest $runtimeStaged
+                $classification = Get-KmcModsRuntimeWriteClassification -StagedEntries $stagedEntries -RuntimeManifest $runtimeStaged -CarriedFiles $declaredCarry
             }
             catch {
                 $classification = [pscustomobject]@{ expected=@(); unexpected=@([pscustomobject]@{ change='sidecar-invalid'; kind='file'; path=[string]$state.stagedManifestSidecar; detail=$_.Exception.Message }) }
@@ -3913,16 +3925,29 @@ function Read-KmcModsStagedManifestSidecar {
 
 # Classifies the live tree at restoration against the exact staged entries. The
 # only expected runtime write is UMM's new '<name>.dll.<digits>.cache' that is a
-# byte-exact copy of '<name>.dll' in both the runtime and the staged tree.
+# byte-exact copy of '<name>.dll' in both the runtime and the staged tree. One named
+# exception: UMM 0.33.2.0 ModEntry.Load deletes every '*.cache*' in the mod folder when
+# its own cache name is missing, so the removal of exactly a transaction-declared carried
+# KMC cache (same path and staged bytes) is the expected change 'removed-carried-cache'.
 function Get-KmcModsRuntimeWriteClassification {
-    param([Parameter(Mandatory = $true)][AllowEmptyCollection()][object[]]$StagedEntries,[Parameter(Mandatory = $true)]$RuntimeManifest)
+    param([Parameter(Mandatory = $true)][AllowEmptyCollection()][object[]]$StagedEntries,[Parameter(Mandatory = $true)]$RuntimeManifest,
+        [AllowEmptyCollection()][object[]]$CarriedFiles = @())
+    $carriedByPath = @{}
+    foreach ($c in @($CarriedFiles | Where-Object { $null -ne $_ })) { $carriedByPath[('file|KingmakerMountedCombat/' + [string]$c.name)] = $c }
     $staged = @{}; $runtime = @{}
     foreach ($entry in $StagedEntries) { $staged[('{0}|{1}' -f $entry.kind, $entry.path)] = $entry }
     foreach ($entry in @($RuntimeManifest.entries)) { $runtime[('{0}|{1}' -f $entry.kind, $entry.path)] = $entry }
     $expected = New-Object 'System.Collections.Generic.List[object]'; $unexpected = New-Object 'System.Collections.Generic.List[object]'
     foreach ($key in @($staged.Keys | Sort-Object)) {
         $before = $staged[$key]
-        if (-not $runtime.ContainsKey($key)) { $unexpected.Add([pscustomobject]@{ change='removed'; kind=[string]$before.kind; path=[string]$before.path }); continue }
+        if (-not $runtime.ContainsKey($key)) {
+            $declared = $carriedByPath[$key]
+            if ($null -ne $declared -and [string]$before.sha256 -ceq [string]$declared.sha256 -and [long]$before.length -eq [long]$declared.length) {
+                $expected.Add([pscustomobject]@{ change='removed-carried-cache'; kind=[string]$before.kind; path=[string]$before.path; stagedSha256=[string]$before.sha256 })
+            }
+            else { $unexpected.Add([pscustomobject]@{ change='removed'; kind=[string]$before.kind; path=[string]$before.path }) }
+            continue
+        }
         $after = $runtime[$key]
         if ([long]$after.length -ne [long]$before.length -or [string]$after.sha256 -cne [string]$before.sha256) {
             $unexpected.Add([pscustomobject]@{ change='changed'; kind=[string]$before.kind; path=[string]$before.path; stagedSha256=[string]$before.sha256; runtimeSha256=[string]$after.sha256 })

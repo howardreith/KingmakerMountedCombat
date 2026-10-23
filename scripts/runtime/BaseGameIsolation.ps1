@@ -174,12 +174,15 @@ function New-KmcBaseGameReadyTree {
     foreach($file in $carry){
         $name=[string]$file.name
         if($name-cnotmatch'^KingmakerMountedCombat\.dll\.[0-9]{1,9}\.cache$'-or[string]$file.sha256-cnotmatch'^[0-9a-f]{64}$'){throw 'A carried KMC folder file is outside the closed UMM cache shape.'}
-        $source=[string]$file.sourcePath;Assert-KmcNotReparsePoint $source 'carried KMC folder file';Assert-KmcNotHardLink $source 'carried KMC folder file'
+        # Only a retained first-install staged-after tree under the lab staging root may supply them.
+        $source=Assert-KmcChildPath ([string]$file.sourcePath) (Join-Path (Get-KmcLabRoot) 'runtime-staging') 'carried KMC folder file'
+        Assert-KmcNotReparsePoint $source 'carried KMC folder file';Assert-KmcNotHardLink $source 'carried KMC folder file'
         $target=Join-Path (Join-Path $ready 'KingmakerMountedCombat') $name
         if(Test-Path -LiteralPath $target){throw 'A carried KMC folder file collides with a staged package file.'}
         if((Get-KmcSha256 $source)-cne[string]$file.sha256){throw 'A carried KMC folder file changed before staging.'}
         Copy-Item -LiteralPath $source -Destination $target
-        if((Get-KmcSha256 $target)-cne[string]$file.sha256){throw 'A carried KMC folder file changed while staging.'}
+        if((Get-KmcSha256 $target)-cne[string]$file.sha256-or(Get-Item -LiteralPath $target).Length-ne[long]$file.length){throw 'A carried KMC folder file changed while staging.'}
+        Assert-KmcNotHardLink $target 'staged carried KMC folder file'
     }
     if($null-ne$observer){[void](Copy-KmcDirectoryTreeExact -SourceRoot $observer -DestinationRoot (Join-Path $ready 'KmcRemovalObserver'))}
     $readyTop=@(Get-ChildItem -LiteralPath $ready -Force|ForEach-Object Name|Sort-Object)
