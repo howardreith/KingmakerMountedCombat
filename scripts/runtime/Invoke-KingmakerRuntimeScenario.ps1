@@ -497,11 +497,11 @@ if(Test-KmcChunk7FieldScenario $Scenario){$fieldSource=Get-KmcChunk7FieldSource 
 $ownedAreaTarget=if((Test-KmcChunk7OwnedPairsScenario $Scenario)-and$PersistenceCase-ceq'multi-area-autosave'){[pscustomobject]@{enterPoint=$PersistenceAreaEnterPoint;area=$PersistenceAreaTargetArea;autoSaveMode='AfterEntry'}}else{$null}
 # F12 upgrade rehearsal: the exact previous package, the carried first-install folder
 # state, and the reference-free seed for the previous-package loads.
-$upgradePrevious=$null;$upgradeCarry=@();$upgradeSection=$null
+$upgradePrevious=$null;$upgradeCarry=@();$upgradeCarrySource=$null;$upgradeSection=$null
 if(-not[string]::IsNullOrEmpty($UpgradeRehearsalStep)){
     $upgradePrevious=Get-KmcChunk7PreviousPackage
-    if($UpgradeRehearsalStep-cne'u1-previous-install'){$upgradeCarry=Get-KmcChunk7UpgradeCarry $UpgradeCarrySourceRunId $UpgradeRehearsalId}
-    $upgradeSection=New-KmcChunk7UpgradeRehearsalSection $UpgradeRehearsalStep $UpgradeRehearsalId $upgradePrevious $manifest $UpgradeCarrySourceRunId $upgradeCarry
+    if($UpgradeRehearsalStep-cne'u1-previous-install'){$upgradeCarrySource=Get-KmcChunk7UpgradeCarrySource $UpgradeCarrySourceRunId $UpgradeRehearsalId;$upgradeCarry=Get-KmcChunk7UpgradeCarry $UpgradeCarrySourceRunId $UpgradeRehearsalId}
+    $upgradeSection=New-KmcChunk7UpgradeRehearsalSection $UpgradeRehearsalStep $UpgradeRehearsalId $upgradePrevious $manifest $upgradeCarrySource $upgradeCarry
 }
 $upgradeLoad=$null-ne$upgradeSection-and(Test-KmcChunk7UpgradePreviousStep $UpgradeRehearsalStep)
 function Get-KmcRunNormalPlayerSource{if($upgradeLoad){Get-KmcChunk7UpgradeSeedSource $fixturePayload}else{Get-KmcChunk7SixPairCheckpointSource $fixturePayload}}

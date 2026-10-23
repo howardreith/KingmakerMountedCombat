@@ -119,8 +119,13 @@ Rows not yet runnable are listed under Blockers.
 | X1 | C03 attack modes, C11 reactions, F04 staged moving actions, and single-pair F03/F08 death and incapacitation | Their only native scenarios (`chunk6*`, `chunk4*`) load the legacy **Working** fixture, whose base-game-only load fails (batch34). Decision: the preview.211 Chunk 6 evidence is **not** reused. | Partly resolved. Incapacitation is implemented as row 57 (`owner-seed-native-life-cleanup`). Its [batch193](../docs/CHUNK7-BATCH193-7E-PILOTS-2026-10-23.md) pilot FAILed on a diagnostic defect (fixed, review CLEAR). The [batch194](../docs/CHUNK7-BATCH194-7E-PILOTS-2026-10-23.md) re-pilot passed the life callback and healthy neighbour, then FAILed because the native turn controller prepares the unconscious rider's own N+1 turn (native, unpaired); **decision needed** on that assertion. C03, C11, F04 and death proper are designed below and not implemented; see [X1 design](#x1-owner-seed-combat-representatives). |
 | X2 | F02 enabled RT Charge, F03 spells and items, F08 native life (two-pair) | Cases `realtime-charge`, `realtime-casting` and `native-life-cleanup` exist in the selection and readers, but **have never run natively**. They take an acquired-field Manual source (the b165/b166 lineage); caster and charge eligibility of that field is unverified. | [Batch193](../docs/CHUNK7-BATCH193-7E-PILOTS-2026-10-23.md), zero-launch: `realtime-casting` is **uncovered on the b164 source** (no rider holds the prepared healing slot; memorizing needs a native rest no fixture step performs). Two-pair native life shares row 57's scenario and defect. [Batch194](../docs/CHUNK7-BATCH194-7E-PILOTS-2026-10-23.md) ran the chain on one candidate (c1r–c5 PASS). `realtime-charge` FAILed on a fixture limit: KMC correctly refused ("Mounted Charge requires a melee weapon"; the main Ranger wields none). Two-pair native life FAILed on the same native-turn assertion as row 57. Items: the existing Small presentation case (native scroll and potion while mounted, b136) is the honest F03 item route; pilot pending. Prepared-spell casting stays uncovered on these sources. |
 | X3 | F07 `pending-schema3-control-manual` | **Resolved: retired** ([record](../docs/CHUNK7-RETIRED-SCHEMA3-CONTROL-2026-10-23.md)). It was the batch35 matched diagnostic control. Prelaunch refusal kept. **Residual gap:** it was the only cold load of a pending-only archive written by the live producer with genuine PairId and generation. Row 19 loads row 18's resave through the schema-2 adapter at generation 1. Rows 13–14 cover the live-producer cold load only in the non-pending-only TB-debt shape. | — |
+<<<<<<< HEAD
 | X4 | F06 three area transfers | `multi-exploration-three-area-transfers-manual` has never run natively. | [Batch194](../docs/CHUNK7-BATCH194-7E-PILOTS-2026-10-23.md): producer x4s PASS; the cold pilot FAILed at its first repeated-world record because the Horse subscriber expectation counted only the Medium Horse profile (the Small Ranger's Horse also subscribes). Fix committed, pending review and a re-pilot that needs the same-candidate chain re-run. Route pins chosen from admitted Chunk 7 pins: Spider Cave → Oleg's (`fd225a93…`) → Spider Cave (`00becd53…`) → Oleg's. |
 | X5 | Rows 55–56 | **Designed and implemented; pending independent review and a native pilot.** Owner chose Option A. `-UpgradeRehearsalStep u1-previous-install|u2-upgrade|u3-rollback` on `chunk7-normal-player-control`. Exact single-package allowlist (preview.211 `-b`), identity in the request and checked against the staged transaction, u1 folder state carried into u2/u3, observer.6 previous-package load. `Test-Chunk7UpgradeRehearsal.ps1` 85/0; first review's blockers fixed. | Re-review; rebuild and package observer.6; pilot u1→u2→u3. |
+=======
+| X4 | F06 three area transfers | `multi-exploration-three-area-transfers-manual` has never run natively. | Run a pilot before freezing, or justify it as covered by rows 27–29. |
+| X5 | Rows 55–56 | **Designed and implemented; pending independent review and a native pilot.** Owner chose Option A. `-UpgradeRehearsalStep u1-previous-install|u2-upgrade|u3-rollback` on `chunk7-normal-player-control`. Exact single-package allowlist (preview.211 `-b`), identity in the request and checked against the staged transaction, u1 folder state carried into u2/u3, observer.6 previous-package load. `Test-Chunk7UpgradeRehearsal.ps1` 101/0; second review's blockers fixed. | Re-review; rebuild and package observer.6; pilot u1→u2→u3. |
+>>>>>>> d4af83ae (Bind u2/u3 to a hash-proved u1, record the observed loaded KMC, and test the Enter-to-Restore carry path (X5 re-review))
 | X6 | FULL tier | **Inventoried; facades fixed; remainder classified** ([record](../docs/CHUNK7-7E-X6-OFFLINE-INVENTORY-2026-10-23.md)). 19 stale checks fixed. Remaining: six Chunk 6A historical-ledger checks (fail at the preview.211 tag too), two Small Manual checks needing a fixture projection (`ed40ef95`), two combat facades deferred until X1 lands. `scripts/Test.ps1` omits the Chunk 7 umbrella; run both. | Repair the four deferred Chunk 7 checks before the freeze. Report the six historical checks as classified unless the owner selects a 6A ledger re-qualification. |
 | X7 | Rows 42 and 33–38 | Their source selections pin earlier source run IDs and SHAs. Rows 2–29 consume F's own row-1 output, so their selections need mechanical re-pinning to F's run IDs. | Done by an unchanged reviewed generator per batch. |
 
@@ -257,11 +262,21 @@ in U3.
 - **u3:** deliberately lays u1's folder state, not u2's: rollback restores the previous install as
   the player had it.
 - **Binding:** all three steps share `-UpgradeRehearsalId`, and u2 and u3 require a passed u1 of the
-  same id. Carried caches must be byte copies of the previous DLL, under the lab staging root and not
-  hard links. The game record names the loaded package and step. Row 42 refuses any rehearsal step
-  (`Assert-KmcChunk7NormalPlayerControlRow`).
+  same id. "Passed" is proved from u1's own records, each hash-bound to the next: runtime result, then
+  game record (its step, id and the observed loaded preview.211), then observer result. The four
+  record hashes and the state hash are pinned into the u2/u3 request and re-checked offline wherever
+  that request is read. Carried caches must be byte copies of the previous DLL, under the lab staging
+  root and not hard links. The game record names the step, the declared staged package and the KMC
+  assembly the observer actually saw loaded.
+- **Unenforced obligations for future consumers (not yet wired; no consumer exists):**
+  - The row-42 binder must call `Assert-KmcChunk7NormalPlayerControlRow`, which refuses any rehearsal
+    step. Until that binder exists, nothing enforces it.
+  - The rows 55–56 consumer must enforce rehearsal completeness: one id, a passed u1, then u2, then
+    u3, each binding the same u1. Each run only checks its own predecessor u1, so nothing yet proves
+    that all three steps ran.
+- **u3 folder state:** u3 lays u1's folder state by design, not u2's.
 - **Params.xml:** each transaction restores the owner's file, so it is not carried across steps.
-- **Tests:** `scripts/chunk7/Test-Chunk7UpgradeRehearsal.ps1` passes 85/0 after the first review's fixes.
+- **Tests:** `scripts/chunk7/Test-Chunk7UpgradeRehearsal.ps1` passes 101/0 after the second review's fixes; the Enter-to-Restore carry path is covered in `scripts/Test-BaseGameIsolation.ps1` (98/0).
 
 ## Docs deliverables
 
