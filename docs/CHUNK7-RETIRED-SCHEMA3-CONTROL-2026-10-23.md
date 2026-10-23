@@ -23,8 +23,13 @@ conversion fault. Its reader expects two debt snapshots and the scope
 | Migration of the same state | Row 18, the schema-2 derivative native resave |
 
 Row 19 loads a schema-3 archive produced by the native resave rather than the original producer
-archive. Both are current-format pending-only Manuals of the same owners, so the control adds no
-behavior claim the selected chain lacks. It was a discriminator, not a requirement.
+archive, and the two are not equivalent. **Residual gap:** the control was the only cold load of a
+pending-only archive written by the live producer with genuine PairId and generation. Row 19 loads
+row 18's resave, which went through the schema-2 adapter, so its owners restore at generation 1.
+Rows 13–14 (TB debt, save then cold) cover a cold load of a live-producer archive, but only in the
+non-pending-only TB-debt shape. The retirement stands because the control was a discriminator, not
+a requirement, and its diagnosis is closed; this residual gap is recorded rather than claimed as
+covered.
 
 ## Mechanism
 
