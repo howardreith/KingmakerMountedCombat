@@ -31,7 +31,7 @@ history follows below and in the linked records.
 | F10 progression | [Reconciliation](../docs/CHUNK7-F10-RECONCILIATION-2026-10-23.md): new-character paid CharGen chain, existing campaign, leveling, dismissal, replacement, retraining, cleanup | Development PASS (selected paths) | 7E representative set |
 | F11 measurement, controls | Batches 156–157, 190 timings; [batch191](../docs/CHUNK7-BATCH191-REQUEST-FREE-CONTROLS-2026-10-23.md) request-free controls; [protocol](../docs/CHUNK7-F11-ACCEPTANCE-PROTOCOL-2026-10-23.md) predeclared | Development PASS; acceptance not judged | Final measurement under the protocol in 7E |
 | Unattended six-pair exit | Actual-method tests; [offline full-reader check](../docs/CHUNK7-SIX-PAIR-EXIT-READER-2026-10-22.md) (modeled FAIL artifacts) | Closed at offline scope | No native exit claimed |
-| F12 private 7E | — | TODO | Matrix, final candidate, FULL tier, install/upgrade/rollback/removal, RT/TB sessions, docs |
+| F12 private 7E | [7E matrix](CHUNK7-7E-QUALIFICATION-MATRIX.md) declared (56 runs, 12 batches, about 11 h; offline only) | TODO | Resolve matrix blockers X1–X7 (Working-only inherited scenarios, never-run casting/charge/native-life cases, upgrade/rollback staging gap, FULL facade debt), then freeze F and run |
 
 Explicit exclusions are kept: TB Charge cost-free refusal, RT Charge default-off, the
 deferred defensive feat and class grants (Paladin Divine Steed). HUMAN PLAY stays owner-only.
