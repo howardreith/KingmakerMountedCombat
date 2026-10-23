@@ -119,7 +119,7 @@ Rows not yet runnable are listed under Blockers.
 | X2 | F02 enabled RT Charge, F03 spells and items, F08 native life (two-pair) | Cases `realtime-charge`, `realtime-casting` and `native-life-cleanup` exist in the selection and readers, but **have never run natively**. They take an acquired-field Manual source (the b165/b166 lineage); caster and charge eligibility of that field is unverified. | Author their selections against the acquired mounted Manual. Run one development pilot of each before freezing F, then add each as a matrix row. |
 | X3 | F07 `pending-schema3-control-manual` | **Resolved: retired** ([record](../docs/CHUNK7-RETIRED-SCHEMA3-CONTROL-2026-10-23.md)). It was the batch35 matched diagnostic control; rows 17–19 cover its claims. Prelaunch refusal kept. | — |
 | X4 | F06 three area transfers | `multi-exploration-three-area-transfers-manual` has never run natively. | Run a pilot before freezing, or justify it as covered by rows 27–29. |
-| X5 | Rows 55–56 | No upgrade or rollback scenario exists. | See F12. |
+| X5 | Rows 55–56 | No upgrade or rollback scenario exists, and no admitted fixture lets preview.211 write mounted state. | **Design written, decision needed** (see "X5 design" under F12; decide with X1). Recommended: installation-level rehearsal plus the migration chains. |
 | X6 | FULL tier | The Chunk 7 umbrella has known pre-existing failures (stale facade and compile lists, quota lines), reproduced at root. | Fix the facades before freezing, and classify each remaining failure by root reproduction. Never convert a failure to PASS. |
 | X7 | Rows 42 and 33–38 | Their source selections pin earlier source run IDs and SHAs. Rows 2–29 consume F's own row-1 output, so their selections need mechanical re-pinning to F's run IDs. | Done by an unchanged reviewed generator per batch. |
 
@@ -177,6 +177,42 @@ leaves KMC installed and **no permanent human installation is performed.**
 | Rollback | Stage preview.211 against the **pre-migration** copy from the upgrade step. Expect a clean load. Confirm that a post-migration save is refused or degraded safely. | Same | Same gap. Expectations are documented in the player guide. |
 | Removal | Clean-save preparation, then a genuine DLL-absent cold load (rows 31–32) | `persistence-p07-*`, `CurrentRemovalEvidence.ps1` | none |
 | RT and TB sessions | Rows 7–9 on F | Existing | none |
+
+### X5 design: upgrade and rollback (decision needed; not implemented)
+
+**Previous version identity.** The released preview.211 package is
+`KingmakerMountedCombat-0.1.0-chunk6d-preview.211-chunk6-closeout211-b-diagnostic.zip`
+(package `e89f431a…`, manifest `ca54c37c…`, DLL `11e99309…`, tag `v0.1.0-chunk6-preview.211`,
+source `7fa667b2`). The `-a` package beside it is not the release and must not be admitted.
+
+**The constraint that forces a decision.** A genuine upgrade proof needs a save that preview.211
+itself wrote with mounted KMC state. No admitted fixture can produce one:
+
+- preview.211's automation has no owner-seed setup (Ranger 4, native Horse choice, Mount). That
+  code is Chunk 7. Its own save scenarios (`persistence-p01…p07`) run on the legacy Working
+  fixture, whose base-game-only load fails (batch34), the same root cause as X1.
+- Retained preview.211 campaign archives are Working lineage, so they hit the same failure.
+  Absent foreign mods may not be reinstalled and archive references may not be stripped.
+- Driving preview.211 with the current request protocol is unverified. Its `RuntimeProtocol`
+  admits a different scenario set and its validator may refuse current request members.
+
+**Options**
+
+| Option | What it proves | Cost / risk |
+| --- | --- | --- |
+| **A. Installation-level rehearsal plus format chains (recommended)** | U1: stage preview.211 (pinned to the three hashes above) in an isolated base-game-only tree and cold-load a fresh NO_MODS seed copy (no KMC data, valid for any version): the old mod loads, its log is quiet and its UMM settings are created. U2 (upgrade): replace only the KMC folder's package files with F's, **keeping** the settings written in U1, as a player would; load the same seed and run the row-42 request-free controls (Mount, move, Dismount). U3 (rollback): restore the U1 Mods state and the pre-upgrade save copy; preview.211 loads it cleanly. Save-format upgrade is carried by the schema-1/2 to schema-3 migration chains (rows 17–22). | One narrow "previous-package" staging mode: an exact allowlist of one manifest, never a general second package, with identity bound in the receipt; a settings carry-over step; three short native runs. No new fixture. Does **not** prove that a preview.211-written mounted archive migrates; rows 17–22 use derivatives made from schema-3 archives. |
+| B. Genuine preview.211 mounted archive | A real old-binary write migrated by F, then rollback with the pre-migration copy | Needs a working preview.211 save producer: either the Working fixture repaired (blocked by X1 and the foreign-mod rule) or Chunk 7 owner-seed setup back-ported into preview.211 (a new old-version binary, no longer the release). Not recommended. |
+| C. Defer F12 upgrade/rollback to owner play | Owner installs preview.211, plays, upgrades, rolls back by hand | Manual intervention, which the owner asked to avoid; no structured evidence. |
+
+**Recommendation:** Option A, with the gap stated in the release notes: "upgrade of mounted
+state is qualified on migrated derivatives of every supported historical schema, not on an
+archive written by preview.211." Rollback is documented as restoring the pre-upgrade save with
+the previous package; a post-upgrade save is not certified under preview.211 and is not loaded
+in U3.
+
+**Decision owner:** this is the same evidence question as X1 (whether inherited or derivative
+evidence stands where no admitted fixture can reproduce the original). Decide X1 and X5 together.
+No X5 code was written.
 
 ## Docs deliverables
 
