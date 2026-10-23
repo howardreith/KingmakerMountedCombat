@@ -31,12 +31,17 @@ $publisher=(@('private static string PublishRuntimeArtifactManifest(RuntimeReque
 $settings=(Member $hostText 'private static readonly JsonSerializerSettings JsonSettings')+';'
 $writer=(Member $loaderText 'internal static void WriteArtifact(')+[Environment]::NewLine+(Member $loaderText 'private static string Hash(string path)')
 $classNames=@('Chunk7AssistedFixtureScenario','Chunk7AssistedColdInventoryScenario','WorkingLoadDiagnosticSession','Chunk7AcquiredManualScenario','Chunk7ManualDerivedScenario','Chunk7ManualSeedScenario','Chunk7NativeBootstrapScenario','Chunk7BootstrapInventoryScenario','Chunk7SmallCalibrationScenario','Chunk7ProgressionScenario','Chunk7OrdinaryFieldScenario','Chunk7OrdinaryAcquisitionScenario','Chunk7WorldScenarioEngine','Chunk7MatchedPoolCollector','Chunk7PersistenceScenario','Chunk7CombatScenario','BoundaryScenarioEvidenceContract','HorseNativeAssetAuditService','HorseCompanionBlueprintRegistrationAuditService','HorseCompanionUnmountedScenarioEngine','Phase3dHorseScenarioTranche','Chunk6aMammothScenarioEngine')
+# The manifest publisher also names the Small and stock Mammoth fixture scenarios' evidence leaves.
+$classNames+=@('Chunk7SmallFixtureScenario','Chunk7StockMammothFixtureScenario')
 $classNames+=@('Chunk7AssistedFixtureSelection','Chunk7AcquiredManualSelection','Chunk7ManualDerivedSelection','Chunk7ManualSeedSelection','Chunk7BootstrapInventorySelection','Chunk7SmallCalibrationSelection','Chunk7ProgressionSelection','Chunk7OrdinaryFieldSelection','Chunk7OrdinaryAcquisitionSelection')
 $classes=''
 foreach($name in $classNames){
     $sourceText=[IO.File]::ReadAllText((Source ('src/KingmakerMountedCombat/Diagnostics/'+$name+'.cs')))
     if($name-ceq'Chunk7ManualDerivedScenario'){$sourceText+=[Environment]::NewLine+[IO.File]::ReadAllText((Source 'src/KingmakerMountedCombat/Diagnostics/Chunk7ManualDerivedScenario.Cumulative.cs'))}
-    $constants=@([regex]::Matches($sourceText,'(?:internal|public|private) const string \w+\s*=\s*"[^"]*";')|ForEach-Object{$_.Value -replace '^private ','internal '})
+    # Only the named class's own literals when the file declares it (partial-class files keep all): a file may also declare sibling or nested selection
+    # classes whose constants share names (Chunk7SmallCalibrationSelection.cs declares two SourceLeaf).
+    $foreign=@();if([regex]::IsMatch($sourceText,'\bclass\s+'+$name+'\b')){foreach($c in [regex]::Matches($sourceText,'(?m)^[ \t]*(?:(?:public|internal|private|protected|sealed|static|partial|abstract)\s+)*class\s+(\w+)')){if($c.Groups[1].Value-ceq$name){continue};$open=$sourceText.IndexOf('{',$c.Index);$depth=0;for($i=$open;$i-lt$sourceText.Length;$i++){if($sourceText[$i]-eq'{'){$depth++}elseif($sourceText[$i]-eq'}'){$depth--;if($depth-eq0){$foreign+=,@($c.Index,$i);break}}}}}
+    $constants=@([regex]::Matches($sourceText,'(?:internal|public|private) const string \w+\s*=\s*"[^"]*";')|Where-Object{$at=$_.Index;@($foreign|Where-Object{$at-gt$_[0]-and$at-lt$_[1]}).Count-eq0}|ForEach-Object{$_.Value -replace '^private ','internal '})
     if($constants.Count-eq0){throw ('No literal constants for '+$name)}
     $classes+='internal static class '+$name+' {'+[Environment]::NewLine+($constants-join[Environment]::NewLine)+[Environment]::NewLine+'}'+[Environment]::NewLine
 }

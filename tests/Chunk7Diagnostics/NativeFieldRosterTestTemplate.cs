@@ -17,6 +17,8 @@ namespace KingmakerMountedCombat.Tests
  internal sealed class FieldSubject
  {
   internal Game game; internal UnitEntityData acquiredActor; internal string[] originalCharacters; internal bool sourcePaid; internal UnitEntityData[] owned;
+  // The actual predicate distinguishes the two-owner case and the post-field Manual source (Chunk7AcquiredManualScenario.TwoOwners.cs).
+  internal bool TwoOwners=true, PostFieldManual;
   private UnitEntityData[] OwnedActors()=>owned;
   private void RequireAcquiredOwner(){} // External owner/fact binding is exercised by existing adapter tests.
   private static void Require(bool valid,string reason){if(!valid)throw new InvalidOperationException(reason);}
@@ -41,6 +43,9 @@ __ACTUAL_FIELD_PREDICATE__
   {
    Check("actual existing acquired field accepts character Party with separate pet",()=>Fixture(1,false).Check());
    Check("actual paid cumulative field accepts two character owners and separate pets",()=>Fixture(2,true).Check());
+   Check("actual post-field Manual source already counts the paid owner among original characters",()=>{var f=Fixture(2,true);f.PostFieldManual=true;f.originalCharacters=f.game.Player.Party.Select(value=>value.UniqueId).ToArray();f.Check();});
+   Check("actual post-field Manual source refuses a newly added paid owner",()=>{var f=Fixture(2,true);f.PostFieldManual=true;f.Check();},true);
+   Check("actual one-owner paid source refuses the two-owner membership increment",()=>{var f=Fixture(2,true);f.TwoOwners=false;f.Check();},true);
    Check("actual field refuses unrelated raw character",()=>{var f=Fixture(2,true);f.game.Player.Party=f.game.Player.Party.Concat(new[]{Actor(9)}).ToArray();f.Check();},true);
    Check("actual field refuses pet contaminating raw Party",()=>{var f=Fixture(2,true);f.game.Player.Party=f.owned;f.Check();},true);
    Check("actual field keeps acquired owner out of remote roster",()=>{var f=Fixture(2,true);f.game.Player.RemoteCompanions.Add(new UnitReference{Value=f.acquiredActor});f.Check();},true);

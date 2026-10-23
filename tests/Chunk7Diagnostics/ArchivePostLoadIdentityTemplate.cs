@@ -71,6 +71,8 @@ namespace KingmakerMountedCombat.Integration
         internal string ArchiveRestorePhase = "not-selected";
         internal int SemanticRestoreCount;
         internal string combatRestoreFailure;
+        // The retained pending re-entry guard is released with the rest of the archive custody.
+        internal object retainedPendingReentry;
         internal LoadScope restoreLoad;
         internal int loadSequence;
         internal int Observed => archivePostLoadObserved.Count;
@@ -196,7 +198,7 @@ namespace KingmakerMountedCombat.Integration
             Run("archive reset clears retained PostLoad and graph custody", () => {
                 var f = new Fixture(); f.Publish(f.Actors); f.Observe(0);
                 Assert(f.Service.Observed == 1 && f.Service.Resolved == 2, "setup did not retain exact pending state");
-                f.Service.Clear(); Assert(f.Service.Observed == 0 && f.Service.Resolved == 0 && f.Service.ArchiveRestorePhase == "not-selected", "clear retained callback custody");
+                f.Service.retainedPendingReentry = new object(); f.Service.Clear(); Assert(f.Service.Observed == 0 && f.Service.Resolved == 0 && f.Service.ArchiveRestorePhase == "not-selected" && f.Service.retainedPendingReentry == null, "clear retained callback custody");
             });
             Run("duplicate graph actor IDs are refused before restoration", () => {
                 var f = new Fixture(); var duplicate = new UnitEntityData(f.Actors[0].UniqueId); f.Publish(f.Actors); f.Publish(duplicate); f.Observe(0);

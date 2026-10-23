@@ -121,7 +121,9 @@ namespace KingmakerMountedCombat.Tests
                 var f=new Files(1);using(f.Activate())TestRunner.True(f.Authorization.Authorize(RuntimeSaveOperation.Load,f.Working,f.Root).Allowed,"First entry refused.");
                 using(f.Activate())TestRunner.True(f.Authorization.ValidateLoadBeforeWorldReplacement(f.Working,f.Root)!=null&&!f.Authorization.Authorize(RuntimeSaveOperation.Load,f.Working,f.Root).Allowed,"Scope reactivation reset selected allowance.");
             });
-            foreach(var cap in new[]{0,-1,129})runner.Run("native load count refuses invalid bound "+cap,()=>{
+            // Zero is a valid selected load count since cba8262a (the native bootstrap makes no load).
+            runner.Run("native load count admits an explicit zero-load selection",()=>{new Files(0);});
+            foreach(var cap in new[]{-1,129})runner.Run("native load count refuses invalid bound "+cap,()=>{
                 var refused=false;try{new Files(cap);}catch(ArgumentException){refused=true;}TestRunner.True(refused,"Invalid selected count accepted.");
             });
             return runner.Complete();

@@ -44,6 +44,8 @@ public class ActualSmallCleanup {
  string sourcePath="source",archivePath="archive"; JObject evidence=new JObject();List<string> errors=new List<string>();
  string SourceArtifactHash=>selection.SourceArtifactSha256; string SourceArchiveHash=>selection.SourceArchiveSha256;
  bool ReleaseManualLoadObservation()=>true; // Legacy fixture has no cold Manual observer.
+ // Native item presentation fixture and private Small calibration admission (released after pair cleanup).
+ object presentationTrace;bool presentationReleased=true;int presentationReleases;bool ReleasePresentationFixture(){presentationReleases++;return presentationReleased;}Lease privateSmallCalibrationLease;
  Unit[] ControlledActors=>new[]{actor,pet};
  ActualSmallCleanup(){Counters.Reset();Game.Instance=new Game();SelectionManager.Instance=new SelectionManager();}
  bool Busy()=>busy;void AssertAuthority(){if(refuseGuard)throw new Exception("world changed");}void AssertUnchangedProgression(){}JObject AuthoritySnapshot()=>new JObject();static string Hash(string p)=>p;
@@ -57,6 +59,9 @@ public class ActualSmallCleanup {
  static void Check(string name,Func<ActualSmallCleanup,bool> test){var a=new ActualSmallCleanup();bool ok=false;Exception ex=null;try{ok=test(a);}catch(Exception e){ex=e;}if(ok){passes++;Console.WriteLine("PASS "+name);}else{failures++;Console.WriteLine("FAIL "+name+" "+ex);}}
  static bool NoActorMutation()=>Counters.Target==0&&Counters.Leave==0&&Counters.Entity==0&&Counters.Dismount==0&&Counters.Ai==0&&Counters.Selection==0;
  public static int Verify(){
+ Check("pending native item presentation retains the private calibration admission",a=>{a.presentationTrace=new object();a.presentationReleased=false;var l=new Lease();a.privateSmallCalibrationLease=l;a.PollCleanup();return !a.completed&&!a.settled&&a.presentationReleases==1&&l.Attempts==0;});
+ Check("released presentation then closes the private calibration admission once",a=>{a.presentationTrace=new object();var l=new Lease();a.privateSmallCalibrationLease=l;a.PollCleanup();return a.completed&&a.presentationReleases==1&&l.Attempts==1&&a.privateSmallCalibrationLease==null;});
+ Check("refused private calibration close retains cleanup",a=>{var l=new Lease{Throw=true};a.privateSmallCalibrationLease=l;a.PollCleanup();return !a.completed&&!a.settled&&l.Attempts==1;});
  Check("settled native ownership completes",a=>{a.PollCleanup();return a.completed&&a.settled&&Counters.Artifacts.SequenceEqual(new[]{"final:PASS"});});
  Check("busy worker precedes pause UI and actors",a=>{a.busy=true;a.PollCleanup();return !a.completed&&Counters.Pause==0&&Counters.Field==0&&NoActorMutation();});
  Check("refused worker teardown retains custody",a=>{a.persistence.Verdict=OwnedWorkerTeardownVerdict.Refused;a.PollCleanup();return !a.completed&&Counters.Pause==0&&Counters.Field==0&&NoActorMutation();});

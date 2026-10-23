@@ -71,6 +71,10 @@ public static class ChargeFixtureProbe {
   var observe=traceType.GetMethod("ObjectIdentity",F);var internalId=traceType.GetMethod("Id",F);
   var traceCapture=traceType.GetMethod("Capture",F);var complete=traceType.GetProperty("Complete",F);
   var exact=new object();
+  // Complete requires actual hook installation since 474f0d85; installation needs Unity, so the
+  // uninstalled trace must stay incomplete and the boundary replacement marks it installed.
+  Check(!(bool)complete.GetValue(trace,null),"compiled native trace is never complete before its hooks are installed");
+  Set(trace,"installed",true);
   Check((int)observe.Invoke(trace,new[]{exact})==41 && (int)internalId.Invoke(trace,new[]{exact})==41 &&
         (int)observe.Invoke(trace,new object[]{null})==0 && (bool)complete.GetValue(trace,null),
         "compiled native trace shares exact identities between rule and command observations");
