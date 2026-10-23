@@ -382,7 +382,7 @@ namespace KingmakerMountedCombat.Diagnostics
             // The door never writes a static cut, so a change during the lease is a fault, not a wait.
             if (!cutToggles) Require(cut.enabled == originalCut, "Static door navmesh cut changed during the lease.");
             var cutSettled = cutToggles ? cut.enabled != open : cut.enabled == originalCut;
-            // RequiresUpdate (wasEnabled != enabled, or an enabled cut moved/rotated) stays meaningful for both modes.
+            // RequiresUpdate (wasEnabled != enabled, or an enabled cut moved, or rotated when useRotation) stays meaningful for both modes.
             if (door.GetState() != open || !cutSettled || !animationDone || cut.RequiresUpdate() ||
                 AstarPath.active.IsAnyGraphUpdatesQueued || Time.frameCount <= Pathfinding.Util.TileHandler.LastUpdateFrame)
             { settledFrame = -1; return false; }

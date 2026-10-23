@@ -64,7 +64,12 @@ then live (about 2 minutes). Outer PASS, assertions 4/0; owner-seed qualificatio
 External `Test-RuntimeResult` exit 0. Mods, save protection, Working and Baseline restored; no
 process or lock afterwards. This is the seed's isolated native cold load.
 
-## s2 `20261023-c7b-world192b-b192s2-doorseed-explore`: PASS, door NOT APPLICABLE
+## s2 `20261023-c7b-world192b-b192s2-doorseed-explore`: PASS, door NOT APPLICABLE (superseded)
+
+**Superseded by `b113418a`.** The NOT APPLICABLE verdict stands only under the reader of its own
+candidate (`e32c1226`), where that run's outer PASS and external `Test-RuntimeResult` PASS are kept.
+The current reader refuses this record: static-cut doors are now admitted, so `TavernDoor`
+qualifies and its recorded `eligible=false` no longer holds. The run proves no door click.
 
 `chunk7-owned-two-pair-campaign`, `owner-seed-exploration`, base-game only, the declared
 900-second budget (the runner refused 1200). WhatIf PASS, then live (about 2.5 minutes). Outer
@@ -87,5 +92,7 @@ predicate was not changed. No click, selection change or door restoration occurr
 
 ## Next
 
-Decide whether a `DisableNavmeshCutWhenOpen = false` door can honestly qualify the mounted door
-row (and how its traversal is then proven), or find a door whose cut toggles. The row stays OPEN.
+Decided: static-cut doors qualify (`b113418a`, review CLEAR). The requirement is a real mounted
+click with a selection change and exact restoration; the cut toggle was only the settle observable.
+Next is a new candidate from that source and an owner-seed exploration rerun on it. The row stays
+OPEN until that run's door proof passes.
