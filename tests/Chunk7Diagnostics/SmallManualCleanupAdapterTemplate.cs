@@ -33,8 +33,9 @@ class Coordinator { public bool HasUnsettledPreparation; }
 class World { public Pair[] Pairs={new Pair(),new Pair()};public Registry Registry=new Registry();public Coordinator UnifiedTurn=new Coordinator(); }
 class Controls { public bool HasUnsettledRelationshipTransition,Shell; public bool HasUnsettledShellFor(Relationship r)=>Shell; }
 class Request { public object PersistenceLoad=new object(); }
-class Calibration { public bool UsesManualField=true; }
-class Authority { public int AdmittedNativeLoadRequests,AdmittedNativeWriteRequests; public bool Exact=true; public bool MatchesReadOnlySmallManualPlan(object o)=>Exact; }
+// A cold Manual case observes one load; the owner-seed fixture Manual is checked against its own read-only plan.
+class Calibration { public bool UsesManualField=true,UsesColdManualField=true,UsesFixtureManualField; }
+class Authority { public int AdmittedNativeLoadRequests,AdmittedNativeWriteRequests; public bool Exact=true; public bool MatchesReadOnlySmallManualPlan(object o)=>Exact; public bool FixtureExact=true; public bool MatchesReadOnlySmallFixturePlan(object o)=>FixtureExact; }
 class Authorization { public bool IsActive=true,Exact=true; public long AuthorityGeneration=1; public int AuthorizedLoadCount,AuthorizedWriteCount; public bool IsExactPersistenceScope(Authority a)=>Exact; }
 static class NativePersistenceIsolation { public static bool Exact=true;public static bool IsExactAuthority(Authority a)=>Exact; }
 namespace UnityEngine { static class Time { public static int frameCount=1; } }
@@ -52,6 +53,8 @@ public class ActualSmallCleanup {
  string SourceArtifactHash=>selection.SourceArtifactSha256; string SourceArchiveHash=>selection.SourceArchiveSha256;
 /*MANUAL_RELEASE*/
 /*MANUAL_BEGIN*/
+ // Native item presentation fixture and private Small calibration admission (released after pair cleanup).
+ object presentationTrace;bool ReleasePresentationFixture()=>true;Lease privateSmallCalibrationLease;
  Calibration calibration=new Calibration(); Authority authority=new Authority(); Authorization authorization=new Authorization(); long generation=1; string root="isolated"; bool manualObservationBegun,sourceReadThrows; Game manualGame; SaveManager manualManager; NativeArchiveRestorationProbe manualRestoration;
  void ReadManualSource(){if(sourceReadThrows)throw new Exception("source");}
  Unit[] ControlledActors=>new[]{actor,pet};
@@ -100,6 +103,9 @@ public class ActualSmallCleanup {
  Check("foreign root retains cold observer",a=>{a.captured=false;a.BeginBeforeLoad();var observer=a.manualRestoration;Game.Instance.SaveManager.SavePath="foreign";a.PollCleanup();return !a.completed&&observer.Attempts==0&&NoActorMutation();});
  Check("repeated before-load admission never installs twice",a=>{a.captured=false;a.BeginBeforeLoad();var observer=a.manualRestoration;bool refused=false;try{a.BeginBeforeLoad();}catch{refused=true;}return refused&&ReferenceEquals(observer,a.manualRestoration)&&observer.Installed==1;});
  Check("existing native world refuses observer acquisition",a=>{Game.Instance.CurrentlyLoadedArea=new object();bool refused=false;try{a.BeginBeforeLoad();}catch{refused=true;}return refused&&a.manualRestoration==null&&!a.manualObservationBegun;});
+ Check("fixture Manual admission uses its own read-only fixture plan",a=>{a.calibration.UsesFixtureManualField=true;a.authority.Exact=false;a.BeginBeforeLoad();return a.manualRestoration!=null&&a.manualObservationBegun;});
+ Check("fixture Manual admission refuses a foreign fixture plan",a=>{a.calibration.UsesFixtureManualField=true;a.authority.FixtureExact=false;bool refused=false;try{a.BeginBeforeLoad();}catch{refused=true;}return refused&&a.manualRestoration==null;});
+ Check("non-cold calibration never observes a load",a=>{a.calibration.UsesColdManualField=false;bool refused=false;try{a.BeginBeforeLoad();}catch{refused=true;}return refused&&a.manualRestoration==null&&!a.manualObservationBegun;});
  Check("spent load refuses observer acquisition",a=>{a.authority.AdmittedNativeLoadRequests=1;bool refused=false;try{a.BeginBeforeLoad();}catch{refused=true;}return refused&&a.manualRestoration==null;});
  Console.WriteLine("ACTUAL SMALL CLEANUP PASS "+passes+" FAIL "+failures);return failures;
  }

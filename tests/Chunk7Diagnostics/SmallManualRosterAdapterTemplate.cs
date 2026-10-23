@@ -10,7 +10,7 @@ namespace Kingmaker.EntitySystem.Entities { public enum Size {Small,Medium} publ
 public sealed class BlueprintRoot {public static BlueprintRoot Instance=new BlueprintRoot();public Blueprint CustomCompanion=new Blueprint{AssetGuid="custom"};}
 public sealed class Horses {public Blueprint HorseUnit=new Blueprint{AssetGuid="horse"};public Blueprint HorseFeature=new Blueprint{AssetGuid="feature"};public Blueprint LevelRank=new Blueprint{AssetGuid="rank"};}
 public sealed class Plan {public string ActorId="owner",PetId="pet";}
-public sealed class Calibration {public Plan ManualSource=new Plan();public bool UsesAssistedManualField => false;}
+public sealed class Calibration {public Plan ManualSource=new Plan(),FixtureSource=new Plan{ActorId="fixtureowner",PetId="fixturepet"};public bool UsesAssistedManualField => false;public bool UsesFixtureManualField;}
 public sealed class ActualSmallRoster {
  Calibration calibration=new Calibration();Horses horses=new Horses();JObject manualSource,manualArrangement;UnitEntityData actor,pet,main;UnitEntityData[] manualActors,manualCharacters,originalActors;object manualFeature,manualRank,manualFeatureSource;
  static void Require(bool value,string message){if(!value)throw new InvalidOperationException(message);}
@@ -19,6 +19,8 @@ public sealed class ActualSmallRoster {
  // Assisted custody is exercised by the separate actual prior-pair matrix; this old route must never enter it.
  UnitEntityData manualPriorOwner=null,manualPriorPet=null;
  void RequireAssistedManualPriorPair(){throw new InvalidOperationException("Unexpected assisted route in legacy fixture.");}
+ // The owner-seed fixture Manual has its own identity contract (Chunk7SmallCalibrationScenario.FixtureManual.cs).
+ int fixtureIdentityChecks;void RequireFixtureManualIdentity(){fixtureIdentityChecks++;}
  /*IDENTITY*/
  JObject CaptureManualArrangement(){return new JObject();}
  ActualSmallRoster(){Game.Instance=new Game();main=new UnitEntityData{UniqueId="main",Blueprint=new Blueprint{AssetGuid="mainbp"}};actor=new UnitEntityData{UniqueId="owner",Blueprint=BlueprintRoot.Instance.CustomCompanion};pet=new UnitEntityData{UniqueId="pet",Blueprint=horses.HorseUnit};actor.Descriptor.Pet=pet;pet.Descriptor.Master.Value=actor;Game.Instance.Player.Party.AddRange(new[]{main,actor});Game.Instance.Player.PartyCharacters.AddRange(new[]{new Ref{Value=main},new Ref{Value=actor}});Game.Instance.Player.MainCharacter.Value=main;Game.Instance.State.Units.AddRange(new[]{main,actor,pet});manualSource=new JObject{["savedWorld"]=new JObject{["mainActorId"]="main",["party"]=new JArray(new[]{main,actor,pet}.Select(x=>new JObject{["id"]=x.UniqueId,["blueprint"]=x.Blueprint.AssetGuid}))},["savedOwner"]=new JObject{["sourceGuid"]="source",["featureGuid"]="feature",["rank"]=4}};manualFeature=new Feature{Source=new Blueprint{AssetGuid="source"}};manualRank=new Rank();manualFeatureSource=((Feature)manualFeature).Source;actor.Descriptor.Feature=(Feature)manualFeature;actor.Descriptor.Rank=(Rank)manualRank;actor.Descriptor.FeatureKey=horses.HorseFeature;actor.Descriptor.RankKey=horses.LevelRank;manualActors=new[]{main,actor,pet};manualCharacters=new[]{main,actor};originalActors=new[]{main};manualArrangement=new JObject();}
@@ -38,6 +40,8 @@ public sealed class ActualSmallRoster {
  Check("wrong pet blueprint refuses",x=>{x.pet.Blueprint=new Blueprint{AssetGuid="horse"};x.CaptureManualFieldRoster();},true);
  Check("wrong main ID refuses",x=>{x.manualSource["savedWorld"]["mainActorId"]="owner";x.CaptureManualFieldRoster();},true);
  Check("native character and explicit pet identities remain valid",x=>x.RequireManualFieldIdentity());
+ Check("fixture Manual field dispatches only to its own identity contract",x=>{x.calibration.UsesFixtureManualField=true;Game.Instance.Player.Party.Remove(x.actor);x.RequireManualFieldIdentity();Require(x.fixtureIdentityChecks==1,"fixture identity not dispatched");});
+ Check("fixture Manual roster binds the fixture plan actor, not the legacy Manual actor",x=>{x.calibration.UsesFixtureManualField=true;x.CaptureManualFieldRoster();},true);
  Check("changed raw character membership refuses before mutation",x=>{Game.Instance.Player.Party.Remove(x.actor);Game.Instance.Player.PartyCharacters.RemoveAt(1);x.RequireManualFieldIdentity();},true);
  Check("replacement native character object refuses",x=>{var n=new UnitEntityData{UniqueId="main",Blueprint=x.main.Blueprint};Game.Instance.Player.Party[0]=n;Game.Instance.Player.PartyCharacters[0].Value=n;x.RequireManualFieldIdentity();},true);
  Check("replacement pet reference refuses",x=>{var n=new UnitEntityData{UniqueId="pet",Blueprint=x.pet.Blueprint};n.Descriptor.Master.Value=x.actor;x.actor.Descriptor.Pet=n;x.RequireManualFieldIdentity();},true);

@@ -19,7 +19,9 @@ $compilerArgs+=@('mscorlib.dll','System.dll','System.Core.dll')|ForEach-Object{'
 [IO.File]::WriteAllLines($rsp,@(($compilerArgs+$sources)|ForEach-Object{'"'+$_+'"'}),[Text.UTF8Encoding]::new($false))
 &$compiler ('@'+$rsp);if($LASTEXITCODE-ne0){throw 'Actual Medium DTO/source compilation failed.'}
 [void][Reflection.Assembly]::LoadFrom($newtonsoft);[void][Reflection.Assembly]::LoadFrom($dll)
-$mediumPath=Join-Path $TestDirectory 'ManualDerivedMediumFixture.json';$raw=[IO.File]::ReadAllText($mediumPath)
+# The frozen fixture predates the reader correction that records the round hook by its actual native
+# name and type (UnitCombatState.OnNewRound in Kingmaker.Controllers.Combat), as in retained evidence.
+$mediumPath=Join-Path $TestDirectory 'ManualDerivedMediumFixture.json';$raw=[IO.File]::ReadAllText($mediumPath) -replace '("method":\s*)"NewRound"','$1"OnNewRound"' -replace '("declaringType":\s*)"Kingmaker\.UnitLogic\.UnitCombatState"','$1"Kingmaker.Controllers.Combat.UnitCombatState"'
 $small=[IO.File]::ReadAllText((Join-Path $RepositoryRoot 'tests/Chunk7Diagnostics/ManualDerivedPaidFixture.json'));$existing=[IO.File]::ReadAllText((Join-Path $RepositoryRoot 'tests/Chunk7Diagnostics/ManualDerivedExistingFixture.json'))
 $compiled=[KingmakerMountedCombat.Tests.MediumAcquisitionTests]::Run($raw,$small,$existing)
 . (Join-Path $RepositoryRoot 'scripts/chunk7/Test-Chunk7ManualDerivedEvidence.ps1') -RepositoryRoot $RepositoryRoot -ReaderDirectory $ReaderDirectory -FixtureDirectory (Join-Path $RepositoryRoot 'tests/Chunk7Diagnostics') -OutputDirectory $OutputDirectory -FixturesOnly

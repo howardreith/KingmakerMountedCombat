@@ -16,7 +16,10 @@ if($actual-ceq$probe){throw 'Exact metadata substitution absent'}
 $template=[IO.File]::ReadAllText($templatePath)
 function Prefix([string]$Text,[string]$Signature,[string]$Name){$s=$Text.IndexOf($Signature,[StringComparison]::Ordinal);$e=$Text.IndexOf('            NativePersistenceIsolation.RequireOwnedWrite(save);',$s,[StringComparison]::Ordinal);if($s-lt0-or$e-le$s){throw 'Actual predicate prefix missing'};return ($Text.Substring($s,$e-$s).Replace($Signature,('        internal bool '+$Name+'()'))+'            return true;'+[Environment]::NewLine+'        }')}
 $template=$template.Replace('/*ACTUAL_ORDINARY*/',(Prefix ([IO.File]::ReadAllText($paths[1])) '        private bool ObserveCompletedAutosave()' 'Ordinary'))
-$template=$template.Replace('/*ACTUAL_MANUAL*/',(Prefix ([IO.File]::ReadAllText($paths[2])) '        private bool ObserveTerminalAutosave()' 'Manual'))
+# The Manual-derived family no longer has a level-up Auto completion: it completes with its guarded
+# native Manual (ObserveManualDerivedSave), covered by the Manual-derived checks. Only the two retained
+# Auto observers (ordinary acquisition and legacy progression, both refused before launch) remain here.
+$template=$template.Replace('/*ACTUAL_MANUAL*/','')
 $template=$template.Replace('/*ACTUAL_PROGRESSION*/',(Prefix ([IO.File]::ReadAllText($paths[3])) '        private bool ObserveTerminalAutosave()' 'Progression'))
 $receiptText=[IO.File]::ReadAllText($receiptSource);$start=$receiptText.IndexOf('    internal sealed class NativeSaveCompletion',[StringComparison]::Ordinal);$body=$receiptText.Substring($start);$body=$body.Substring(0,$body.LastIndexOf('}'));$template=$template.Replace('/*ACTUAL_RECEIPT*/',$body)
 $a=Join-Path $OutputDirectory 'ActualProbe.cs';$b=Join-Path $OutputDirectory 'ActualCompletionTests.cs';[IO.File]::WriteAllText($a,$actual,[Text.UTF8Encoding]::new($false));[IO.File]::WriteAllText($b,$template,[Text.UTF8Encoding]::new($false))
