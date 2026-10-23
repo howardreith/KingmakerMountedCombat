@@ -83,8 +83,9 @@ observable, so a door whose cut never toggles now qualifies.
   `cut.enabled = !State` inside that guard; `Validate` only requires a cut to exist. With the
   flag false the door never writes the cut; it keeps whatever state it has.
 - `NavmeshCut.RequiresUpdate()` is `wasEnabled != enabled || (wasEnabled && (moved beyond
-  updateDistance || rotated beyond updateRotationDistance))`. It stays meaningful for a static
-  cut: an enabled cut on a moving door leaf reports a pending tile update.
+  updateDistance || (useRotation && rotated beyond updateRotationDistance)))`; the rotation term
+  applies only when `useRotation` is set. It stays meaningful for a static cut: an enabled cut on a
+  moving door leaf reports a pending tile update.
 
 **Probe.**
 - Eligibility no longer requires `DisableNavmeshCutWhenOpen`; a cut must still be present. A door
