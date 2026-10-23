@@ -1,6 +1,25 @@
 # Chunk 7B–7D resume — IN PROGRESS
 
-## Active October 22 — Claude after batch190
+## Active October 22 — Claude after SHOULD-FIX 3
+
+Read the [six-pair exit reader record](docs/CHUNK7-SIX-PAIR-EXIT-READER-2026-10-22.md) and
+the [batch190 PASS record](docs/CHUNK7-BATCH190-SIX-PAIR-MEASUREMENT-PASS-2026-10-22.md).
+SHOULD-FIX 3 is closed offline (25/0, review CLEAR). No Kingmaker process or lock remains.
+
+Next uncompleted action:
+1. F11 request-free normal-player control. No scenario yet stages KMC with an observer or
+   launches KMC without `-kmcRuntimeRequest`. Needed: a normal-player observer mode (Working
+   descriptor instead of the `KMC_CLEANUP` gate, KMC-presence checks, native Mount/ground
+   click/Dismount drives, its own log/subscription evidence), a fourth Mods staging mode for
+   KMC plus observer (enter/restore/recover), a UMM Params delta allowing both entries, a
+   scenario selection and a result reader. KMC's no-request path needs no change.
+2. Doors (needs a newly revealed destination; every revealed one is inventoried), F10
+   breadth, then private 7E.
+
+No merge, release, permanent installation or HUMAN PLAY acceptance. Private execution
+note: analysis-cache/chunk7-continuation/b188-claude-current-execution.md.
+
+## Historical October 22 — Claude after batch190
 
 Read the [batch190 PASS record](docs/CHUNK7-BATCH190-SIX-PAIR-MEASUREMENT-PASS-2026-10-22.md),
 the [batch189 PASS record](docs/CHUNK7-BATCH189-SIX-MOUNTED-MANUAL-COLD-PASS-2026-10-22.md)

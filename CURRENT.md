@@ -1,6 +1,13 @@
 # Chunk 7B–7D — IN PROGRESS
 
-Claude [batch190](docs/CHUNK7-BATCH190-SIX-PAIR-MEASUREMENT-PASS-2026-10-22.md) passed one
+SHOULD-FIX 3 is closed offline: the [six-pair exit reader check](docs/CHUNK7-SIX-PAIR-EXIT-READER-2026-10-22.md)
+rebuilds each six-pair lineage's real native evidence as the unattended exit leaves it, pins
+every mirrored product statement, and passes the complete unchanged game-result reader and the
+runner's base-game check 25/0 (honest exits accepted, 16 refusals each with the reader's own
+message); independent review CLEAR. No native exit was exercised. Next: the F11 request-free
+normal-player control (a KMC-plus-observer staging mode), then doors, F10 breadth and private 7E.
+
+Historical batch190 checkpoint: Claude [batch190](docs/CHUNK7-BATCH190-SIX-PAIR-MEASUREMENT-PASS-2026-10-22.md) passed one
 declared zero-write six-pair lifecycle on frozen candidate `c7b-world190-sixmeasure`
 (`62a68e64`): game 6/0, outer PASS, 36 native casts and 0 refusals, sibling order verified after
 all three cycles. With full custody moved to window boundaries, the per-state KMC Update medians
