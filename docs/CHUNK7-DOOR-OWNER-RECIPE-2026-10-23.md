@@ -24,6 +24,25 @@ The admitted owner seed reveals no other enterable location. Reaching a new one 
 would mean automating global-map travel and story progress, which is out of scope. The
 capital route is not retried, and no visited flag or blueprint is fabricated.
 
+## Attempt 1 (2026-10-23): not eligible
+
+The owner saved `Manual_305_KMC_C7_DOOR_SEED.zks` in the Old Cyclops Tomb
+(area `81b13ce8…`) next to a wall switch. A zero-launch read of the archive finds:
+
+- one `StandardButton`, revealed (perception DC 12, passed) and enabled: the switch;
+- one `StandardDoor` (`077d4200…`) that is closed (`State=false`), unrevealed, with
+  perception DC 200: the secret door the census already listed.
+
+The door is opened by the switch, not by clicking the door, so it is not an ordinary
+one-click door. The probe's mounted click targets the door itself, and the closed-door
+extension would not change that. The save stays in the owner's folder untouched and
+is not admitted. The row stays OPEN.
+
+**Easier route for the next attempt:** on arrival in each candidate location, make one
+ordinary manual save (any name starting `KMC_C7_DOOR_`) without opening anything or
+arranging the party. A zero-launch read of each save tells which location has an
+ordinary `StandardDoor`, and only that location then needs the steps below.
+
 ## Recipe (about 15–30 minutes of ordinary play)
 
 **Preparation**
