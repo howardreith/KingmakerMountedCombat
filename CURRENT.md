@@ -1,6 +1,14 @@
 # Chunk 7B–7D — IN PROGRESS
 
-Claude [batch191](docs/CHUNK7-BATCH191-REQUEST-FREE-CONTROLS-2026-10-23.md) passed the F11 request-free
+Claude [batch192](docs/CHUNK7-BATCH192-DOOR-SEED-COLD-2026-10-23.md) admitted the owner's open-door Old
+Sycamore seed: its isolated cold load passed (s1r) after a reviewed fix for a Spider Cave area pin
+(s1 FAIL preserved), and owner-seed exploration passed with the door recorded NOT APPLICABLE.
+The owner's open `TavernDoor` is 8.45/7.92 m from the mounts and otherwise clean, but its
+navmesh cut stays active when open (`DisableNavmeshCutWhenOpen = false`), which the probe's
+predicate requires. No door click ran; restoration exact. The 7B door row stays OPEN pending a
+decision on such doors. Standing mission remains IN PROGRESS.
+
+Historical: Claude [batch191](docs/CHUNK7-BATCH191-REQUEST-FREE-CONTROLS-2026-10-23.md) passed the F11 request-free
 KMC ordinary controls under an external observer (attempt s2; s1 is a preserved FAIL whose
 Params restoration was recovered exactly). KMC ran from the frozen batch190 package with no
 automation request, in an isolated tree holding exactly KMC and the observer. Native Mount on
