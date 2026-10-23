@@ -71,6 +71,40 @@ owner-seed exploration passed with the door NOT APPLICABLE: the open `TavernDoor
 from the mounts but keeps its navmesh cut active when open (`DisableNavmeshCutWhenOpen = false`).
 See [batch192](CHUNK7-BATCH192-DOOR-SEED-COLD-2026-10-23.md). The row stays OPEN.
 
+## Static-cut doors admitted (2026-10-23, offline; needs review and a new candidate)
+
+Coordinator decision: the requirement is a real mounted click on an ordinary door, made with a
+selection change and followed by exact restoration. The cut toggle was only the settle
+observable, so a door whose cut never toggles now qualifies.
+
+**Native contract (single-type member/IL-reference listing, 2.1.7b).**
+- `StandardDoor` writes its `NavmeshCut` only behind `DisableNavmeshCutWhenOpen`: its state
+  application (the path that also applies `HideWhenOpen`) and `Open()` both set
+  `cut.enabled = !State` inside that guard; `Validate` only requires a cut to exist. With the
+  flag false the door never writes the cut; it keeps whatever state it has.
+- `NavmeshCut.RequiresUpdate()` is `wasEnabled != enabled || (wasEnabled && (moved beyond
+  updateDistance || rotated beyond updateRotationDistance))`. It stays meaningful for a static
+  cut: an enabled cut on a moving door leaf reports a pending tile update.
+
+**Probe.**
+- Eligibility no longer requires `DisableNavmeshCutWhenOpen`; a cut must still be present. A door
+  whose cut toggles is preferred, then an open door, then the nearest.
+- The fixture records `cutMode` (`toggles` or `static`). A toggling door still requires
+  `originalCut = !originalOpen`. For a static door the invariant is "cut enabled state unchanged
+  for the whole lease": `Settled` refuses any change as a fault, not a wait.
+- `Settled` waits on door state, finished animation, the mode's cut condition, `RequiresUpdate`,
+  no queued graph updates and a tile-update frame boundary, as before.
+- `cutObservations` records the settled state at six boundaries: `captured`, `input-ready-0`,
+  `after-click-0`, `input-ready-1`, `after-click-1`, `restored`.
+- The click, selection change, restoration of open/enabled/cut/unlock state, and the
+  restriction, trigger and clickability gates are unchanged.
+
+**Readers.** The shared gate drops `disableCutWhenOpen`, in the door proof, inventory and scan
+rows alike, and the source tie still matches `DoorFacts.Eligible`. The door proof requires
+`cutMode` and the six observations in order with the mode's invariant. A legacy row is admitted
+only when inactive, without a cut, or outside the distance bounds; all four retained inventories
+still pass. The batch192 s2 not-applicable record (old reader PASS) is refused by the new reader,
+correctly: under the new rule its `TavernDoor` qualifies.
 ## Recipe (about 15–30 minutes of ordinary play)
 
 **Preparation**

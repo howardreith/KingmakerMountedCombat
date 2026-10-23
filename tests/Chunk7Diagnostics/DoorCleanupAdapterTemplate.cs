@@ -19,6 +19,8 @@ internal sealed class Adapter {
  private void RequireDoor(){doorChecks++;if(!doorValid)throw new InvalidOperationException("foreign-door");}
  private bool Settled(bool open)=>settled&&door.open==open&&cut.enabled!=open;
  private static void Require(bool condition,string message){if(!condition)throw new InvalidOperationException(message);}
+ // The probe records the settled cut state at each lease boundary; restoration adds "restored".
+ public List<string> observed=new List<string>();private void ObserveCut(string boundary){observed.Add(boundary+":"+door.open+":"+cut.enabled);}
 __METHOD__
 }
 internal static class Program {
@@ -50,6 +52,8 @@ internal static class Program {
  a.cut.enabled=true;a.settled=true;Check(a.Drain()&&a.restored&&!a.door.open&&a.door.Enabled&&a.door.opens==1,"settled closing restores the captured closed state");
  Check(a.Drain()&&a.door.opens==1,"completed closed restoration is idempotent");
  a=New();a.originalOpen=false;a.originalCut=true;a.door.open=false;a.cut.enabled=true;Check(a.Drain()&&a.door.opens==0&&a.restored,"door still closed needs no toggle");
+ a=New();Check(a.Drain()&&a.restored&&a.observed.Count==1&&a.observed[0]=="restored:True:False","restoration records its settled cut boundary once");
+ a=New();a.cut.enabled=true;Check(!a.Drain()&&!a.restored&&a.observed.Count==0,"unsettled restoration records no cut boundary");
  a=New();a.originalOpen=false;a.originalCut=true;a.door.open=true;a.doorValid=false;Check(Throws(()=>a.Drain())&&a.door.opens==0&&!a.restored,"replaced door refuses closed restoration");
  a=New();a.originalOpen=false;a.originalCut=true;a.door.open=true;a.door.throwOnOpen=true;Check(Throws(()=>a.Drain())&&a.door.open&&!a.restored&&a.evidence["restoration"]==null,"throwing native toggle retains custody without claiming restoration");
  a.door.throwOnOpen=false;a.cut.enabled=true;Check(a.Drain()&&a.restored&&!a.door.open,"closed restoration retries after a throwing toggle");

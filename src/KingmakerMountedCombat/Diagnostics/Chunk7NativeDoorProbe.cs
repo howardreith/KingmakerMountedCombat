@@ -35,10 +35,11 @@ namespace KingmakerMountedCombat.Diagnostics
         private readonly long[] generations;
         private readonly List<UnitCommand> commands = new List<UnitCommand>();
         private readonly JArray interactions = new JArray();
+        private readonly JArray cutObservations = new JArray();
         private StandardDoor door;
         private NavmeshCut cut;
         private object doorObject, doorTransform;
-        private bool captured, originalEnabled, originalOpen, originalCut, originalAlreadyUnlocked, restored;
+        private bool captured, originalEnabled, originalOpen, originalCut, originalAlreadyUnlocked, restored, cutToggles;
         private int originalRestrictionCount = -1;
         private int stage, pairIndex, settledFrame = -1;
         private double stageStarted;
@@ -62,6 +63,7 @@ namespace KingmakerMountedCombat.Diagnostics
             evidence["contract"] = "two-pair-native-door-click-selection-change";
             evidence["interactions"] = interactions;
             evidence["setupInteractions"] = 0;
+            evidence["cutObservations"] = cutObservations;
         }
 
         internal void Begin()
@@ -69,27 +71,30 @@ namespace KingmakerMountedCombat.Diagnostics
             Require(stage == 0 && !captured, "Door probe may begin only once.");
             RequirePairs(); Require(actors.All(Chunk7NativeFixture.Idle), "Door probe requires idle native actors.");
             door = FindQualifyingDoor(mounts, out _);
-            Require(door != null, "No bounded open or interactable closed native door outside both pair interaction radii; exact door fixture is required.");
+            Require(door != null, "No bounded open or player-clickable closed native door with a navmesh cut outside both pair interaction radii; exact door fixture is required.");
             cut = door.GetComponentInChildren<NavmeshCut>();
             doorObject = door.gameObject; doorTransform = door.transform;
             var facts = DoorFacts.Capture(door, mounts);
             originalEnabled = door.Enabled; originalOpen = door.GetState(); originalCut = cut.enabled;
+            cutToggles = door.DisableNavmeshCutWhenOpen;
             originalAlreadyUnlocked = facts.AlreadyUnlocked; originalRestrictionCount = facts.RestrictionCount; captured = true;
-            // An open door has its cut disabled; a closed door keeps it active.
-            Require(originalCut != originalOpen, "Door navmesh cut does not match its native open state.");
+            // StandardDoor writes its cut only when DisableNavmeshCutWhenOpen is set (its state application
+            // and Open both guard on it): a toggling door has its cut off while open and on while closed;
+            // the door never writes a static door's cut, so that cut must stay unchanged for the lease.
+            if (cutToggles) Require(originalCut != originalOpen, "Door navmesh cut does not match its native open state.");
             Require(facts.Eligible, "Captured door no longer satisfies the qualifying-door predicate.");
             // CanInteract reads Enabled: a closed start is clickable only while natively enabled.
             Require(originalOpen || originalEnabled, "A closed door start must be natively enabled.");
             evidence["fixture"] = new JObject { ["name"] = door.name, ["object"] = Id(door),
                 ["position"] = Point(door.transform.position), ["originalOpen"] = originalOpen,
-                ["originalEnabled"] = originalEnabled, ["originalCut"] = originalCut,
+                ["originalEnabled"] = originalEnabled, ["originalCut"] = originalCut, ["cutMode"] = cutToggles ? "toggles" : "static",
                 ["disableOnOpen"] = door.DisableOnOpen, ["radius"] = Radius(door),
                 ["interactable"] = facts.Interactable, ["availableInteractions"] = facts.AvailableInteractions,
                 ["revealed"] = facts.Revealed, ["hasVisibleTrap"] = facts.HasVisibleTrap, ["trapActive"] = facts.TrapActive,
                 ["originalAlreadyUnlocked"] = facts.AlreadyUnlocked, ["restrictionCount"] = facts.RestrictionCount,
                 ["hasDialog"] = facts.HasDialog, ["dataPresent"] = facts.DataPresent,
                 ["viewTriggerCount"] = facts.ViewTriggerCount, ["viewTriggerActions"] = facts.ViewTriggerActions };
-            firstStart = mounts[0].Position;
+            firstStart = mounts[0].Position; ObserveCut("captured");
             // A closed door is already in its input state; only an open one is closed as setup.
             if (originalOpen) CloseForInput();
             Next(1);
@@ -97,7 +102,8 @@ namespace KingmakerMountedCombat.Diagnostics
 
         // The exact qualifying-door query Begin uses, as a read-only bounded scan: no
         // door is acquired, closed or changed. Applicability is decided only from it.
-        // An open door is preferred; a closed door must be one a player could click. Every door
+        // A door whose cut toggles is preferred, then an open door; a closed door must be one a player
+        // could click. A door whose cut the door never writes (static) qualifies too. Every door
         // must be unrestricted and carry no door-view trigger actions (see DoorFacts).
         internal const float ScanRadius = 28f;
         internal static StandardDoor FindQualifyingDoor(UnitEntityData[] mounts, out int candidatesScanned)
@@ -106,7 +112,7 @@ namespace KingmakerMountedCombat.Diagnostics
             candidatesScanned = candidates.Length;
             return candidates
                 .Where(d => d != null && DoorFacts.Capture(d, mounts).Eligible)
-                .OrderByDescending(d => d.GetState())
+                .OrderByDescending(d => d.DisableNavmeshCutWhenOpen).ThenByDescending(d => d.GetState())
                 .ThenBy(d => mounts.Sum(m => Distance(m.Position, d.transform.position))).FirstOrDefault();
         }
 
@@ -129,7 +135,7 @@ namespace KingmakerMountedCombat.Diagnostics
             // designer actions). Blueprint-level Generic/Device interaction triggers and the
             // private after-interaction callback are not publicly readable; that residual risk
             // is recorded in the door documentation.
-            internal bool Eligible => Active && DataPresent && DisableCutWhenOpen && CutPresent && RestrictionCount == 0 &&
+            internal bool Eligible => Active && DataPresent && CutPresent && RestrictionCount == 0 &&
                 !ViewTriggerActions && (Open || ClosedClickable) &&
                 MountDistances.All(distance => distance > Radius + 0.5f && distance <= ScanRadius);
 
@@ -182,7 +188,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var rows = ScanRows(mounts, present);
             Require(rows.All(r => !(bool)r["eligible"]), "A qualifying door exists; the door step is applicable.");
             return new JObject { ["applicable"] = false,
-                ["reason"] = "No open or player-clickable closed StandardDoor with an active-when-closed navmesh cut lies outside both pair interaction radii within the bounded scan radius.",
+                ["reason"] = "No open or player-clickable closed unrestricted StandardDoor with a navmesh cut lies outside both pair interaction radii within the bounded scan radius.",
                 ["candidatesScanned"] = present.Length, ["radius"] = ScanRadius,
                 ["mounts"] = new JArray(mounts.Select(m => new JObject { ["id"] = m.UniqueId, ["position"] = Point(m.Position) })),
                 ["truncated"] = present.Length > 32, ["rows"] = rows };
@@ -216,10 +222,11 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 case 1:
                     if (!Settled(false)) return false;
-                    BeginInput(); Next(2); break;
+                    ObserveCut("input-ready-" + pairIndex); BeginInput(); Next(2); break;
                 case 2:
                     if (!FinishInput()) return false;
                     if (!Settled(true) || !actors.All(Chunk7NativeFixture.Idle)) return false;
+                    ObserveCut("after-click-" + pairIndex);
                     if (pairIndex == 0) { BeginReturn(); Next(3); }
                     else { Next(4); }
                     break;
@@ -339,6 +346,7 @@ namespace KingmakerMountedCombat.Diagnostics
             Require(after != null && door.GetState() == originalOpen && door.Enabled == originalEnabled && cut.enabled == originalCut &&
                 after.AlreadyUnlocked == originalAlreadyUnlocked,
                 "Native door lease has not restored its original open/enabled/cut/unlock state.");
+            ObserveCut("restored");
             restored = true; evidence["restoration"] = new JObject { ["exact"] = true, ["commandsSettled"] = true,
                 ["open"] = door.GetState(), ["enabled"] = door.Enabled, ["cutEnabled"] = cut.enabled,
                 ["observedAlreadyUnlockedBeforeRestore"] = observedBefore, ["alreadyUnlocked"] = after.AlreadyUnlocked };
@@ -371,12 +379,19 @@ namespace KingmakerMountedCombat.Diagnostics
             Require(playable.IsValid() && graph.IsValid() && door.ObstacleAnimation != null && AstarPath.active != null,
                 "Door animation/navmesh observation is unavailable.");
             var animationDone = open ? playable.GetTime() >= door.ObstacleAnimation.length : playable.GetTime() <= 0;
-            if (door.GetState() != open || cut.enabled == open || !animationDone || cut.RequiresUpdate() ||
+            // The door never writes a static cut, so a change during the lease is a fault, not a wait.
+            if (!cutToggles) Require(cut.enabled == originalCut, "Static door navmesh cut changed during the lease.");
+            var cutSettled = cutToggles ? cut.enabled != open : cut.enabled == originalCut;
+            // RequiresUpdate (wasEnabled != enabled, or an enabled cut moved/rotated) stays meaningful for both modes.
+            if (door.GetState() != open || !cutSettled || !animationDone || cut.RequiresUpdate() ||
                 AstarPath.active.IsAnyGraphUpdatesQueued || Time.frameCount <= Pathfinding.Util.TileHandler.LastUpdateFrame)
             { settledFrame = -1; return false; }
             if (settledFrame < 0) { settledFrame = Time.frameCount; return false; }
             return Time.frameCount > settledFrame;
         }
+        // The cut state at each settled lease boundary, in order; the reader checks it against cutMode.
+        private void ObserveCut(string boundary) => cutObservations.Add(new JObject { ["boundary"] = boundary,
+            ["open"] = door.GetState(), ["cutEnabled"] = cut.enabled });
         private void Next(int value) { stage = value; stageStarted = Time.realtimeSinceStartup; settledFrame = -1; }
         private static float Radius(StandardDoor value) => value.ProximityRadius > 0f ? value.ProximityRadius : 4f;
         private static float Distance(Vector3 a, Vector3 b) { a.y = b.y = 0; return Vector3.Distance(a, b); }

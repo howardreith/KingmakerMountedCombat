@@ -281,7 +281,7 @@ function Assert-KmcChunk7Measurements($Rows) {
     # Timing values are observations, not an invented universal performance threshold.
 }
 function Assert-KmcChunk7DoorEvidence($Door,$Owners,[string[]]$DeclaredRiders=@('b6628a77-4962-47a4-a17c-88d9836fc9d5','d17c8fd0-6627-40c4-bf9a-024cf001c1f7')) {
-    Assert-KmcExactProperties $Door @('contract','interactions','setupInteractions','fixture','firstPairReturn','restoration','completed') 'Chunk 7 native door proof'
+    Assert-KmcExactProperties $Door @('contract','interactions','setupInteractions','cutObservations','fixture','firstPairReturn','restoration','completed') 'Chunk 7 native door proof'
     if($Door.contract-cne'two-pair-native-door-click-selection-change'-or$Door.interactions-isnot[Array]-or$Door.interactions.Count-ne2){throw 'Exactly two captured native door interactions required.'}
     Assert-KmcChunk7Boolean $Door.completed $true
     Assert-KmcChunk7WorldCounters $Door @('setupInteractions')
@@ -289,13 +289,17 @@ function Assert-KmcChunk7DoorEvidence($Door,$Owners,[string[]]$DeclaredRiders=@(
     # Only the current fixture shape, with its clickability, restriction, trigger and unlock
     # records, is admitted: no retained artifact carries a native door proof in the earlier
     # shape, so none needs it (census of runtime-evidence, 2026-10-23).
-    $base=@('name','object','position','originalOpen','originalEnabled','originalCut','disableOnOpen','radius')
+    $base=@('name','object','position','originalOpen','originalEnabled','originalCut','cutMode','disableOnOpen','radius')
     Assert-KmcExactProperties $f ($base+(Get-KmcChunk7DoorClickFields|ForEach-Object{if($_-ceq'alreadyUnlocked'){'originalAlreadyUnlocked'}else{$_}})) 'captured door fixture'
     Assert-KmcChunk7WorldInt32 $f.object
     if($f.object-eq0-or$f.name-isnot[string]-or[string]::IsNullOrWhiteSpace($f.name)-or$f.name.Length-gt512){throw 'Native door identity is missing.'}
     # An open door is closed as setup before each input; a door captured closed only before the second.
     if($f.originalOpen-isnot[bool]){throw 'Door fixture flags must be native booleans.'}
-    Assert-KmcChunk7Boolean $f.originalCut (-not$f.originalOpen)
+    # StandardDoor writes its cut only when DisableNavmeshCutWhenOpen is set: a toggling cut is off while
+    # open and on while closed; the door never writes a static cut, which must stay unchanged.
+    if($f.originalCut-isnot[bool]-or$f.cutMode-isnot[string]-or$f.cutMode-cnotin@('toggles','static')){throw 'Door fixture cut mode is malformed.'}
+    if($f.cutMode-ceq'toggles'){Assert-KmcChunk7Boolean $f.originalCut (-not$f.originalOpen)}
+    Assert-KmcChunk7DoorCutObservations $Door.cutObservations $f
     foreach($key in @('interactable','availableInteractions','revealed','hasVisibleTrap','trapActive','originalAlreadyUnlocked','hasDialog','dataPresent','viewTriggerActions')){if($f.$key-isnot[bool]){throw 'Door clickability flags must be native booleans.'}}
     Assert-KmcOrdinaryInteger $f.restrictionCount 0 64;Assert-KmcOrdinaryInteger $f.viewTriggerCount 0 64
     # Every captured door: unrestricted, no door-view trigger actions, persistent data present.
@@ -344,11 +348,23 @@ function Assert-KmcChunk7DoorEvidence($Door,$Owners,[string[]]$DeclaredRiders=@(
             ($s.observedAlreadyUnlockedBeforeRestore-and$f.restrictionCount-eq0-and-not$f.originalAlreadyUnlocked))){throw 'Observed unlock state before restoration is inconsistent with native interaction.'}
 }
 
+# The settled cut state at each lease boundary, in order, consistent with the fixture's cut mode.
+function Assert-KmcChunk7DoorCutObservations($Observations,$Fixture){
+    $expected=@(@('captured',$Fixture.originalOpen),@('input-ready-0',$false),@('after-click-0',$true),@('input-ready-1',$false),@('after-click-1',$true),@('restored',$Fixture.originalOpen))
+    if($Observations-isnot[Array]-or$Observations.Count-ne$expected.Count){throw 'Door cut observations must cover each lease boundary exactly once.'}
+    for($i=0;$i-lt$expected.Count;$i++){
+        $o=$Observations[$i];Assert-KmcExactProperties $o @('boundary','open','cutEnabled') 'door cut observation'
+        if($o.boundary-isnot[string]-or$o.boundary-cne$expected[$i][0]-or$o.open-isnot[bool]-or$o.cutEnabled-isnot[bool]){throw 'Door cut observation boundary or state is malformed.'}
+        Assert-KmcChunk7Boolean $o.open ([bool]$expected[$i][1])
+        if($Fixture.cutMode-ceq'toggles'){if($o.cutEnabled-eq$o.open){throw 'A toggling door cut did not follow its native open state.'}}
+        elseif($o.cutEnabled-ne$Fixture.originalCut){throw 'A static door cut changed during the lease.'}
+    }
+}
 # The probe's one door predicate (Chunk7NativeDoorProbe.DoorFacts), mirrored for readers.
 # The term lists are tied to DoorFacts.ClosedClickable and DoorFacts.Eligible by a source test.
 function Get-KmcChunk7DoorClickFields {@('interactable','availableInteractions','revealed','hasVisibleTrap','trapActive','alreadyUnlocked','restrictionCount','hasDialog','dataPresent','viewTriggerCount','viewTriggerActions')}
 function Get-KmcChunk7DoorClosedClickableTerms {@('interactable','availableInteractions','revealed','!hasVisibleTrap','!trapActive','!hasDialog')}
-function Get-KmcChunk7DoorGateTerms {@('active','dataPresent','disableCutWhenOpen','cutPresent','restrictionCount==0','!viewTriggerActions')}
+function Get-KmcChunk7DoorGateTerms {@('active','dataPresent','cutPresent','restrictionCount==0','!viewTriggerActions')}
 function Test-KmcChunk7DoorTerms($Value,[string[]]$Terms){
     foreach($term in $Terms){
         if($term.EndsWith('==0',[StringComparison]::Ordinal)){if($Value.($term.Substring(0,$term.Length-3))-ne0){return $false};continue}
@@ -360,7 +376,7 @@ function Test-KmcChunk7DoorTerms($Value,[string[]]$Terms){
 function Test-KmcChunk7DoorClosedClickable($Value){Test-KmcChunk7DoorTerms $Value (Get-KmcChunk7DoorClosedClickableTerms)}
 # A captured fixture records no active/cut flags (the probe requires them before capture); rows do.
 function Test-KmcChunk7DoorGate($Value,[switch]$Fixture){
-    $terms=@(Get-KmcChunk7DoorGateTerms);if($Fixture){$terms=@($terms|Where-Object{$_-cnotin@('active','disableCutWhenOpen','cutPresent')})}
+    $terms=@(Get-KmcChunk7DoorGateTerms);if($Fixture){$terms=@($terms|Where-Object{$_-cnotin@('active','cutPresent')})}
     Test-KmcChunk7DoorTerms $Value $terms
 }
 # Bounded nearest-first native door rows. A legacy row (before the closed-door predicate)
@@ -392,7 +408,9 @@ function Assert-KmcChunk7NativeDoorRows($Rows,$Mounts,[int]$CandidateCount,[stri
         foreach($key in @('active','open','disableCutWhenOpen','cutPresent','eligible')){if($row.$key-isnot[bool]){throw ($Label+' state is not Boolean.')}}
         $distancesOk=@($row.mountDistances|Where-Object{[double]$_-le[double]$row.proximityRadius+0.5-or[double]$_-gt28.0}).Count-eq0
         if($legacy){
-            if($row.active-and$row.disableCutWhenOpen-and$row.cutPresent-and$distancesOk){throw ($Label+' legacy row could hide a qualifying door; its clickability flags are required.')}
+            # A static (non-toggling) cut no longer makes a door ineligible, so only inactivity, a missing
+            # cut or the distance bounds keep a legacy row from hiding a qualifying door.
+            if($row.active-and$row.cutPresent-and$distancesOk){throw ($Label+' legacy row could hide a qualifying door; its clickability flags are required.')}
             $eligible=$false
         }
         else{
