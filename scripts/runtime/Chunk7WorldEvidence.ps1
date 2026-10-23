@@ -364,7 +364,7 @@ function Test-KmcChunk7DoorGate($Value,[switch]$Fixture){
     Test-KmcChunk7DoorTerms $Value $terms
 }
 # Bounded nearest-first native door rows. A legacy row (before the closed-door predicate)
-# keeps its open-only eligibility; a current row carries the clickability flags.
+# is admitted only when it could not qualify open or closed; a current row carries the clickability flags.
 function Assert-KmcChunk7NativeDoorRows($Rows,$Mounts,[int]$CandidateCount,[string]$Label,[switch]$CurrentOnly){
     if($Rows-isnot[Array]-or$Rows.Count-ne[Math]::Min(32,$CandidateCount)){throw ($Label+' rows do not match the bounded native candidate count.')}
     $base=@('name','position','active','open','disableCutWhenOpen','cutPresent','proximityRadius','mountDistances')

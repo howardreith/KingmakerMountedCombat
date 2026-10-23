@@ -734,7 +734,8 @@ function Assert-KmcChunk7DoorNotApplicable($Door,$Owners,$Movements){
  }
  Assert-KmcChunk7NativeDoorRows $Door.rows $Door.mounts ([int]$Door.candidatesScanned) 'not-applicable door scan' -CurrentOnly
  if(@($Door.rows|Where-Object{$_.eligible}).Count-ne0){throw 'A not-applicable door scan contains a qualifying door.'}
-}function Assert-KmcChunk7OwnerSeedCleanup($Cleanup,[bool]$Manual=$false){
+}
+function Assert-KmcChunk7OwnerSeedCleanup($Cleanup,[bool]$Manual=$false){
  foreach($field in @('pairResidueAbsent','controlsSettled','settingsAndSelectionRestored','nativeProcessesSettled','cleanupCustodySettled','setupCompleted','ownerSeedSetupPetsPreserved','setupStateUnchangedAfterBoundary','setupRetainedInMemoryOnly')){Assert-KmcChunk7Boolean $Cleanup.$field $true}
  foreach($field in @('horseRemoved','inheritedPetsPreserved','nativeProgressionRequiresExternalWorkingRestoration','ordinaryRespecProven')){Assert-KmcChunk7Boolean $Cleanup.$field $false}
  Assert-KmcChunk7Boolean $Cleanup.nativeSaveWritten $Manual

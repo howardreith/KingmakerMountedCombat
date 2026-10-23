@@ -129,7 +129,7 @@ function Assert-KmcChunk7AreaDoorInventory($Observation){
         foreach($mount in $inventory.mounts){if(-not(Test-KmcChunk7FiniteNumber $mount.position.$axis)){throw 'Area door mount position is nonfinite.'}}
         if([Math]::Abs([double]$inventory.mounts[0].position.$axis-[double]$first[0].start.$axis)-gt0.001){throw 'Door scan was not taken at the first mounted continuation boundary.'}
     }
-    # Eligibility is the probe's shared door predicate (legacy rows keep open-only eligibility).
+    # Eligibility is the probe's shared door predicate (a legacy row is admitted only when it could not qualify open or closed).
     Assert-KmcChunk7NativeDoorRows $inventory.rows $inventory.mounts ([int]$inventory.candidateCount) 'native area door'
 }
 
