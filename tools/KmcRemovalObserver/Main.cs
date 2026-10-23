@@ -9,7 +9,7 @@ namespace KmcRemovalObserver
     // genuinely absent, writes its result, and quits.
     public static class Main
     {
-        private static RemovalObserverSession session;
+        private static IObserverSession session;
 
         public static bool Load(UnityModManager.ModEntry modEntry)
         {

@@ -59,6 +59,7 @@ Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot 'Chunk7SixPairCheckpointSource.ps1')
 . (Join-Path $PSScriptRoot 'Chunk7SixPairStressEvidence.ps1')
 . (Join-Path $PSScriptRoot 'Chunk7SixPairPersistenceEvidence.ps1')
+. (Join-Path $PSScriptRoot 'Chunk7NormalPlayerEvidence.ps1')
 . (Join-Path $PSScriptRoot 'Chunk7ProgressionFixtures.ps1')
 
 # Scenario families whose live completion contract waits for a native level-up autosave.
@@ -3609,14 +3610,19 @@ function Enter-KmcModsTransaction {
         [Parameter(Mandatory = $true)][string]$StagingRoot,
         # The genuine no-DLL observation stages the live clone WITHOUT any KMC entry
         # and with the removal observer's own directory instead of the KMC overlay.
-        [ValidateSet('live-clone-plus-kmc-overlay','live-clone-minus-kmc-plus-observer','base-game-only-kmc')][string]$StagingMode = 'live-clone-plus-kmc-overlay',
-        $BaseGameDependencies
+        # The request-free normal-player control stages the isolated base-game tree
+        # with exactly two packages: KMC and the external normal-player observer.
+        [ValidateSet('live-clone-plus-kmc-overlay','live-clone-minus-kmc-plus-observer','base-game-only-kmc','base-game-only-kmc-observer')][string]$StagingMode = 'live-clone-plus-kmc-overlay',
+        $BaseGameDependencies,
+        [string]$ObserverPackagePath
     )
     [void](Assert-KmcRuntimeLockOwner $Lock); Assert-KmcNoGameProcesses
     $observerMode = $StagingMode -ceq 'live-clone-minus-kmc-plus-observer'
-    $baseGameOnly = $StagingMode -ceq 'base-game-only-kmc'
+    $coStaged = $StagingMode -ceq 'base-game-only-kmc-observer'
+    $baseGameOnly = $StagingMode -cin @('base-game-only-kmc','base-game-only-kmc-observer')
     if($baseGameOnly){Assert-KmcBaseGameDependencyReceipt $BaseGameDependencies -VerifyFiles}
     elseif($null-ne$BaseGameDependencies){throw 'Base-game dependencies require the explicit base-game staging mode.'}
+    if($coStaged-ne(-not[string]::IsNullOrEmpty($ObserverPackagePath))){throw 'Only the explicit normal-player co-staging mode takes, and requires, a second observer package.'}
     $overlayName = if ($observerMode) { 'KmcRemovalObserver' } else { 'KingmakerMountedCombat' }
     $runId = [string]$Lock.RunId; $fullLive = [IO.Path]::GetFullPath($LiveModsRoot).TrimEnd('\')
     if($baseGameOnly-and$fullLive-cne[string]$BaseGameDependencies.modsRoot){throw 'Base-game Mods root differs from the admitted loader layout.'}
@@ -3667,6 +3673,22 @@ function Enter-KmcModsTransaction {
     if (-not (Test-Path -LiteralPath (Join-Path $expectedRoot 'Info.json')) -or -not (Test-Path -LiteralPath (Join-Path $expectedRoot ($overlayName + '.dll')))) {
         throw 'Pre-staged package does not contain the exact mod root.'
     }
+    $observerModRoot=$null;$observerPackageHash=$null;$frozenObserverPackage=$null
+    if($coStaged){
+        $frozenObserverPackage = Join-Path $stagingRun 'observer-package.zip'
+        $observerOverlay = Join-Path $stagingRun 'observer-overlay'
+        $observerPackageHash = Get-KmcSha256 $ObserverPackagePath
+        Copy-Item -LiteralPath $ObserverPackagePath -Destination $frozenObserverPackage
+        if ((Get-KmcSha256 $frozenObserverPackage) -cne $observerPackageHash -or (Get-KmcSha256 $ObserverPackagePath) -cne $observerPackageHash) {
+            throw 'Frozen observer package hash differs from the qualified package or the package changed while freezing.'
+        }
+        Expand-Archive -LiteralPath $frozenObserverPackage -DestinationPath $observerOverlay
+        Assert-KmcDirectoryTreeCloneable $observerOverlay 'frozen observer overlay'
+        $observerEntries = @((Get-KmcDirectoryManifest $observerOverlay).entries | ForEach-Object { '{0}|{1}' -f $_.kind, $_.path } | Sort-Object)
+        $expectedObserverEntries = @('directory|KmcRemovalObserver','file|KmcRemovalObserver/Info.json','file|KmcRemovalObserver/KmcRemovalObserver.dll') | Sort-Object
+        if (($observerEntries -join "`n") -cne ($expectedObserverEntries -join "`n")) { throw "Frozen observer overlay entry set is not exact: $($observerEntries -join ', ')" }
+        $observerModRoot = Join-Path $observerOverlay 'KmcRemovalObserver'
+    }
     $cloneRoot = if($baseGameOnly){Join-Path $stagingRun 'Mods-live-clone'}else{$ready}
     $cloneBase = Copy-KmcDirectoryTreeExact -SourceRoot $fullLive -DestinationRoot $cloneRoot
     Assert-KmcDirectoryManifestsEqual $before $cloneBase 'Pre-overlay live Mods clone'
@@ -3674,7 +3696,7 @@ function Enter-KmcModsTransaction {
     Assert-KmcDirectoryManifestsEqual $before (Get-KmcDirectoryManifest $fullLive) 'Live Mods source after cloning'
     $stagedKmcRoot = Join-Path $ready 'KingmakerMountedCombat'
     if($baseGameOnly){
-        New-KmcBaseGameReadyTree -StagingRun $stagingRun -CloneRoot $cloneRoot -ReadyRoot $ready -PackageModRoot $expectedRoot -Before $before -Confirm:$false
+        New-KmcBaseGameReadyTree -StagingRun $stagingRun -CloneRoot $cloneRoot -ReadyRoot $ready -PackageModRoot $expectedRoot -Before $before -ObserverModRoot $observerModRoot -Confirm:$false
     }
     elseif (Test-Path -LiteralPath $stagedKmcRoot) {
         [void](Assert-KmcChildPath $stagedKmcRoot $stagingRun 'staged KMC replacement')
@@ -3721,6 +3743,7 @@ function Enter-KmcModsTransaction {
         $state.schemaVersion=4
         $state['baseGameDependencies']=$BaseGameDependencies
         $state['preservedClone']=$cloneRoot
+        if($coStaged){$state['frozenObserverPackage']=$frozenObserverPackage;$state['observerPackageSha256']=$observerPackageHash}
     }
     Write-KmcJsonAtomic $statePath $state
     try {
@@ -3759,6 +3782,7 @@ function Restore-KmcModsTransaction {
     if ($schemaVersion -in @(3,4)) {
         $requiredState = @($requiredState + @('stagingMode','cloneBaseDigest','cloneBaseFileCount','cloneBaseDirectoryCount','cloneBaseTotalBytes'))
         if($schemaVersion-eq4){$requiredState=@($requiredState+@('baseGameDependencies','preservedClone'))}
+        if($schemaVersion-eq4-and[string]$state.stagingMode-ceq'base-game-only-kmc-observer'){$requiredState=@($requiredState+@('frozenObserverPackage','observerPackageSha256'))}
     }
     elseif ($schemaVersion -ne 2) { throw 'Transaction state schema is outside the historical and explicit base-game contracts.' }
     $allowedState = @($requiredState + @('stagedAtUtc','stagedAfterDigest','stagedAfterFileCount','stagedAfterDirectoryCount','stagedAfterTotalBytes','stagedTreeChangedAtRuntime','restoredAtUtc','restoredDigest','stagedManifestSidecar','runtimeWritesClassified','runtimeExpectedWrites','runtimeUnexpectedWrites'))
@@ -3767,7 +3791,11 @@ function Restore-KmcModsTransaction {
         throw 'Transaction state property set is missing required fields or contains unknown fields.'
     }
     if ([string]$state.runId -cne [string]$Lock.RunId -or [string]$state.token -cne [string]$Lock.Token) { throw 'Transaction state ownership does not match the open lock.' }
-    $allowedModes=if($schemaVersion-eq4){@('base-game-only-kmc')}else{@('live-clone-plus-kmc-overlay','live-clone-minus-kmc-plus-observer')}
+    $allowedModes=if($schemaVersion-eq4){@('base-game-only-kmc','base-game-only-kmc-observer')}else{@('live-clone-plus-kmc-overlay','live-clone-minus-kmc-plus-observer')}
+    if($schemaVersion-eq4-and[string]$state.stagingMode-ceq'base-game-only-kmc-observer'-and
+        ([string]$state.observerPackageSha256-cnotmatch'^[0-9a-f]{64}$'-or[string]$state.frozenObserverPackage-cne(Join-Path (Join-Path ([IO.Path]::GetFullPath($StagingRoot)) ([string]$Lock.RunId)) 'observer-package.zip'))){
+        throw 'Co-staged transaction state does not record its exact frozen observer package.'
+    }
     if ($schemaVersion -in @(3,4) -and ([string]$state.stagingMode -cnotin $allowedModes -or
         [string]$state.cloneBaseDigest -cne [string]$state.beforeDigest -or
         [int]$state.cloneBaseFileCount -ne [int]$state.beforeFileCount -or
@@ -3982,7 +4010,7 @@ function Add-KmcModsRuntimeWriteFindings {
 
 function Get-KmcSaveBackedRuntimeScenarios {
     return @(
-        'chunk7-stock-mammoth-fixture-preparation','chunk7-small-fixture-preparation','chunk7-assisted-cold-inventory','chunk7-assisted-fixture-preparation','chunk7-owned-two-pair-campaign','chunk7-cumulative-acquisition','chunk7-acquired-manual-derivative','chunk7-manual-derived-acquisition','chunk7-bootstrap-manual-seed','chunk7-bootstrap-cold-inventory','chunk7-native-main-bootstrap','chunk7-native-progression','chunk7-small-profile-calibration','chunk7-ordinary-field-admission','chunk7-ordinary-acquisition','chunk7-two-pair-exploration','chunk7-persistence-save','chunk7-persistence-load','chunk7-two-pair-combat-rider-first','chunk7-two-pair-combat-mount-first','chunk7-two-pair-realtime-core','chunk7-two-pair-realtime-casting','chunk7-two-pair-realtime-charge','chunk7-two-pair-native-life-cleanup',
+        'chunk7-normal-player-control','chunk7-stock-mammoth-fixture-preparation','chunk7-small-fixture-preparation','chunk7-assisted-cold-inventory','chunk7-assisted-fixture-preparation','chunk7-owned-two-pair-campaign','chunk7-cumulative-acquisition','chunk7-acquired-manual-derivative','chunk7-manual-derived-acquisition','chunk7-bootstrap-manual-seed','chunk7-bootstrap-cold-inventory','chunk7-native-main-bootstrap','chunk7-native-progression','chunk7-small-profile-calibration','chunk7-ordinary-field-admission','chunk7-ordinary-acquisition','chunk7-two-pair-exploration','chunk7-persistence-save','chunk7-persistence-load','chunk7-two-pair-combat-rider-first','chunk7-two-pair-combat-mount-first','chunk7-two-pair-realtime-core','chunk7-two-pair-realtime-casting','chunk7-two-pair-realtime-charge','chunk7-two-pair-native-life-cleanup',
         'chunk6c-casting-rt','chunk6c-casting-tb','chunk6c-casting-unmounted-rt','chunk6c-casting-unmounted-tb',
         'chunk6d-staged-rt','chunk6d-staged-tb','chunk6e-reaction-rt','chunk6e-reaction-tb',
         'chunk6b-charge-rt','chunk6b-charge-core-rt','chunk6b-charge-interruption-rt','chunk6b-charge-lifecycle-rt', 'chunk6b-charge-tb', 'chunk6b-charge-path-rt', 'chunk6b-charge-path-tb', 'chunk6a-combat-mount-rt', 'chunk6a-combat-mount-tb', 'chunk6a-mount-preamble', 'chunk6a-mammoth-mount-rt','chunk6a-mammoth-mount-tb','chunk6a-paused-queue','chunk6a-refused-policy-disabled','chunk6a-refused-foreign-companion','chunk6a-refused-wrong-creature-target','chunk6a-refused-mount-selected','chunk6a-refused-multiple-selection','chunk6a-refused-foreign-selection','chunk6a-mount-approach','chunk6a-geometry-change','chunk6a-obstruction','chunk6a-stop-approach','chunk6a-combat-end-approach','chunk6a-disable-approach','chunk6a-command-replacement','chunk6a-repeated-mount-request','chunk6a-ownership-change','chunk6a-size-form-change','chunk6a-lost-direct-control','chunk6a-rider-incapacitated','chunk6a-mount-incapacitated','chunk6a-hotbar-approach','chunk6a-allocation-rider-first-tb','chunk6a-allocation-mount-first-tb','chunk6a-dismount-feature-disabled-rt','chunk6a-dismount-policy-disabled-rt','chunk6a-auto-use-mount-rt','chunk6a-auto-use-dismount-rt', 'chunk6a-adoption-compensation-rt', 'chunk6a-adoption-compensation-tb', 'chunk6a-left-area', 'chunk6a-view-agent-lost', 'chunk6a-loading-cutscene', 'chunk6a-generation-change', 'chunk6a-injected-exception', 'chunk6a-rider-death-approach', 'chunk6a-mount-death-approach', 'chunk6a-turn-end-approach-tb', 'chunk6a-mode-exit-tb', 'chunk6a-mount-spent-move-tb', 'chunk6a-mount-spent-standard-tb', 'chunk6a-mount-spent-all-tb', 'chunk6a-rider-without-move-tb', 'chunk6a-rider-other-action-tb', 'chunk6a-unrelated-candidate-between-tb', 'chunk6a-dismount-after-rider-expenditure-tb', 'chunk6a-dismount-after-mount-expenditure-tb', 'chunk6a-dismount-immediately-after-mount-tb',

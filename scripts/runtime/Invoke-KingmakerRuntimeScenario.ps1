@@ -333,7 +333,12 @@ if($Scenario-ceq'persistence-p06-load'){
 }elseif($PersistenceCase-cin @('legacy','schema1','future','malformed','profile','campaign','missing-rider','missing-mount','mismatched-profile','policy','combat-missing','combat-ai','failed-area-load','foreign-header-campaign')){throw 'Validation variants require the exact P06 scenario.'}
 $isObserver=$Scenario-ceq'persistence-p07-load'-and$PersistenceCase-cin @('removal-no-dll','mounted-charge-removal-no-dll')
 if($isObserver-and[string]::IsNullOrWhiteSpace($ObserverPackagePath)){throw 'The no-DLL removal case requires the removal-observer package.'}
-if(-not$isObserver-and-not[string]::IsNullOrWhiteSpace($ObserverPackagePath)){throw 'Only the no-DLL removal case takes the removal-observer package.'}
+$isNormalPlayer=Test-KmcChunk7NormalPlayerScenario $Scenario
+if(-not$isObserver-and-not$isNormalPlayer-and-not[string]::IsNullOrWhiteSpace($ObserverPackagePath)){throw 'Only the no-DLL removal case and the normal-player control take an observer package.'}
+if($isNormalPlayer-and(-not$BaseGameOnly-or-not$SaveAccessAllowed-or[string]::IsNullOrWhiteSpace($ObserverPackagePath)-or-not[string]::IsNullOrEmpty($PersistenceCase)-or
+    -not[string]::IsNullOrEmpty($OwnedPairsSelectionPath)-or$F11NativeAllocationProbe-or$ObserveWorkingDeserialization)){
+    throw 'The request-free normal-player control requires isolated base-game staging, save access and its observer package, and selects nothing else.'
+}
 $KmcFrozenProductContext=$null
 $frozenParameters=@('FrozenSourceRoot','FrozenSourceFreezePath','ExpectedFrozenSourceFreezeSha256')
 $boundFrozen=@($frozenParameters | Where-Object {$PSBoundParameters.ContainsKey($_)})
@@ -425,6 +430,11 @@ $packageManifestPath=$PackagePath+'.manifest.json'
 & (Join-Path $repoRoot 'scripts\Validate-Package.ps1') -PackagePath $PackagePath
 $manifest=Assert-KmcPackageManifest $PackagePath $packageManifestPath
 $observerManifest=$null
+if($isNormalPlayer){
+    $ObserverPackagePath=[IO.Path]::GetFullPath($ObserverPackagePath)
+    & (Join-Path $repoRoot 'scripts\Validate-ObserverPackage.ps1') -PackagePath $ObserverPackagePath
+    $observerManifest=Assert-KmcNormalPlayerObserverManifest $ObserverPackagePath
+}
 if($isObserver){
     # The observer is built from the exact candidate commit; the candidate DLL
     # itself is what this run keeps out of the process.
@@ -466,6 +476,7 @@ if(Test-KmcChunk7SmallScenario $Scenario){$smallSource=if(Test-KmcChunk7SmallF09
 if(Test-KmcChunk7ProgressionScenario $Scenario){$progressionSource=Get-KmcChunk7ProgressionSource $progressionSelectionInput.selection $fixturePayload $manifest}
 if(Test-KmcChunk7FieldScenario $Scenario){$fieldSource=Get-KmcChunk7FieldSource $fieldSelectionInput.selection $fixturePayload $manifest}
 $ownedAreaTarget=if((Test-KmcChunk7OwnedPairsScenario $Scenario)-and$PersistenceCase-ceq'multi-area-autosave'){[pscustomobject]@{enterPoint=$PersistenceAreaEnterPoint;area=$PersistenceAreaTargetArea;autoSaveMode='AfterEntry'}}else{$null}
+$normalPlayerSource=if($isNormalPlayer){Get-KmcChunk7SixPairCheckpointSource $fixturePayload}else{$null}
 if(Test-KmcChunk7OwnedPairsScenario $Scenario){$ownedPairsSource=Get-KmcChunk7OwnedPairsSource $ownedPairsInput.selection $PersistenceCase $fixturePayload $manifest $ownedAreaTarget}
 if(Test-KmcChunk7SmallFixtureScenario $Scenario){$smallFixtureSource=Get-KmcChunk7SmallFixtureSource $smallFixtureInput.selection $fixturePayload $manifest}
 if(Test-KmcChunk7StockMammothFixtureScenario $Scenario){$stockMammothFixtureSource=Get-KmcChunk7StockMammothFixtureSource $stockMammothFixtureInput.selection $fixturePayload $manifest}
@@ -616,6 +627,7 @@ try{
     if(Test-KmcChunk7StockMammothFixtureScenario $Scenario){$request['stockMammothFixture']=$stockMammothFixtureInput.selection}
     if(Test-KmcChunk7FieldScenario $Scenario){$request['ordinaryField']=$fieldSelectionInput.selection}
     if(Test-KmcChunk7OwnedPairsScenario $Scenario){$request['ownedPairs']=$ownedPairsInput.selection}
+    if($isNormalPlayer){$request['normalPlayer']=New-KmcChunk7NormalPlayerSection $normalPlayerSource $ObserverPackagePath $observerManifest}
     if(Test-KmcChunk7AssistedFixtureScenario $Scenario){$request['assistedFixture']=$assistedFixtureInput.selection}
     if(Test-KmcChunk7AcquiredManualScenario $Scenario){$request['acquiredManual']=$acquiredManualInput.selection}
     if(Test-KmcChunk7ManualDerivedScenario $Scenario){$request['manualDerived']=$manualDerivedInput.selection}
@@ -786,7 +798,7 @@ try{
             -After (Get-KmcSaveMetadataInventory $saveRoot) `
             -Description 'runtime immediate pre-save-transaction metadata'
         [void](Enter-KmcWorkingSaveTransaction -Lock $lock -Pair $lockedPair -SaveRoot $saveRoot -StateRoot $runtimeState -BackupRoot $runtimeBackups -StagingRoot $runtimeStaging -Scenario $Scenario)
-        if($Scenario -cin @('chunk7-stock-mammoth-fixture-preparation','chunk7-small-fixture-preparation','chunk7-assisted-cold-inventory','chunk7-assisted-fixture-preparation','chunk7-owned-two-pair-campaign','chunk7-cumulative-acquisition','chunk7-acquired-manual-derivative','chunk7-manual-derived-acquisition','chunk7-bootstrap-manual-seed','chunk7-bootstrap-cold-inventory','chunk7-native-main-bootstrap','chunk7-native-progression','chunk7-small-profile-calibration','chunk7-ordinary-field-admission','chunk7-ordinary-acquisition','chunk7-persistence-save','chunk7-persistence-load','persistence-isolation','persistence-p07-save','persistence-p07-load','persistence-p01-save','persistence-p01-load','persistence-p02-save','persistence-p02-load','persistence-p03-save','persistence-p03-load','persistence-p04-save','persistence-p04-load','persistence-p05-save','persistence-p05-load','persistence-p06-load')){
+        if($isNormalPlayer-or$Scenario -cin @('chunk7-stock-mammoth-fixture-preparation','chunk7-small-fixture-preparation','chunk7-assisted-cold-inventory','chunk7-assisted-fixture-preparation','chunk7-owned-two-pair-campaign','chunk7-cumulative-acquisition','chunk7-acquired-manual-derivative','chunk7-manual-derived-acquisition','chunk7-bootstrap-manual-seed','chunk7-bootstrap-cold-inventory','chunk7-native-main-bootstrap','chunk7-native-progression','chunk7-small-profile-calibration','chunk7-ordinary-field-admission','chunk7-ordinary-acquisition','chunk7-persistence-save','chunk7-persistence-load','persistence-isolation','persistence-p07-save','persistence-p07-load','persistence-p01-save','persistence-p01-load','persistence-p02-save','persistence-p02-load','persistence-p03-save','persistence-p03-load','persistence-p04-save','persistence-p04-load','persistence-p05-save','persistence-p05-load','persistence-p06-load')){
             $profileRoot=Assert-KmcChildPath (Join-Path $runtimeStaging ('persistence-'+$actualRunId)) $runtimeStaging 'owned persistence profile'
             if(Test-Path -LiteralPath $profileRoot){throw 'Persistence profile already exists; refusing ambiguous ownership.'}
             [void][IO.Directory]::CreateDirectory($profileRoot)
@@ -799,6 +811,11 @@ try{
                 $currentStockRemovalSource=Get-KmcOwnerStockRemovalSource $fixturePayload
                 if((ConvertTo-KmcChunk7Canonical $currentStockRemovalSource)-cne(ConvertTo-KmcChunk7Canonical $ownerStockRemovalSource)){throw 'Stock Mammoth producer changed before locked staging.'}
                 $copySource=$currentStockRemovalSource.path;$copyDescriptor=$currentStockRemovalSource.descriptor
+                $request['persistenceLoad']=$copyDescriptor
+            }elseif($isNormalPlayer){
+                $currentNormalPlayerSource=Get-KmcChunk7SixPairCheckpointSource $fixturePayload
+                if((ConvertTo-KmcChunk7Canonical $currentNormalPlayerSource)-cne(ConvertTo-KmcChunk7Canonical $normalPlayerSource)){throw 'Normal-player fixture source changed before locked staging.'}
+                $copySource=$currentNormalPlayerSource.path;$copyDescriptor=$currentNormalPlayerSource.descriptor
                 $request['persistenceLoad']=$copyDescriptor
             }elseif(Test-KmcChunk7OwnedPairsScenario $Scenario){
                 $copySource=$ownedPairsSource.path;$copyDescriptor=$ownedPairsSource.descriptor
@@ -979,7 +996,9 @@ try{
         Assert-KmcBaseGameDependencyReceipt $baseGameDependencies -VerifyFiles
         $stageArguments['BaseGameDependencies']=$baseGameDependencies
     }
-    $modsTransactionStatePath=Enter-KmcModsTransaction -Lock $lock -LiveModsRoot $liveMods -PackagePath $(if($isObserver){$ObserverPackagePath}else{$PackagePath}) -StateRoot $runtimeState -BackupRoot $runtimeBackups -StagingRoot $runtimeStaging -StagingMode $(if($BaseGameOnly){'base-game-only-kmc'}elseif($isObserver){'live-clone-minus-kmc-plus-observer'}else{'live-clone-plus-kmc-overlay'}) @stageArguments
+    # Exactly two packages: KMC and the external normal-player observer.
+    if($isNormalPlayer){$stageArguments['ObserverPackagePath']=$ObserverPackagePath}
+    $modsTransactionStatePath=Enter-KmcModsTransaction -Lock $lock -LiveModsRoot $liveMods -PackagePath $(if($isObserver){$ObserverPackagePath}else{$PackagePath}) -StateRoot $runtimeState -BackupRoot $runtimeBackups -StagingRoot $runtimeStaging -StagingMode $(if($isNormalPlayer){'base-game-only-kmc-observer'}elseif($BaseGameOnly){'base-game-only-kmc'}elseif($isObserver){'live-clone-minus-kmc-plus-observer'}else{'live-clone-plus-kmc-overlay'}) @stageArguments
     if($F11NativeAllocationProbe){
         $f11RunRoot=Assert-KmcChildPath (Join-Path (Join-Path $runtimeStaging $actualRunId) 'f11-native-probe') $runtimeStaging 'F11 run-owned staging'
         if(Test-Path -LiteralPath $f11RunRoot){throw 'F11 run-owned staging already exists.'}
@@ -994,7 +1013,7 @@ try{
     if($BaseGameOnly){
         $baseGameStaged=$true
         Write-KmcJsonAtomic (Join-Path $evidenceRoot 'base-game-isolation-admission.json') ([ordered]@{schemaVersion=1;runId=$actualRunId;
-            transactionToken=[string]$lock.Token;stagingMode='base-game-only-kmc';dependencies=$baseGameDependencies;
+            transactionToken=[string]$lock.Token;stagingMode=$(if($isNormalPlayer){'base-game-only-kmc-observer'}else{'base-game-only-kmc'});dependencies=$baseGameDependencies;
             transactionStatePath=$modsTransactionStatePath;stagedStateSha256=(Get-KmcSha256 $modsTransactionStatePath);
             nativeInventoryObserved=$false;nativeCompatibilityQualified=$false})
     }
@@ -1003,6 +1022,10 @@ try{
     # The serialized file is the validated request shape; re-read it so every later reader receives the
     # same object tree the validators checked instead of the ordered dictionary used to build it.
     $request=Read-KmcJson $requestPath
+    if($isNormalPlayer){
+        # KMC receives no request at all; only the external observer is bound.
+        Write-KmcJsonAtomic $observerRequestPath (New-KmcChunk7NormalPlayerObserverRequest $request ([string]$lock.Token) $evidenceRoot $profileRoot $liveMods $manifest)
+    }
     if($isObserver){
         # What the observer process is bound to: the owned profile, the live Mods
         # root to prove empty of KMC, the prepared cleanup archive, and KMC's own
@@ -1032,7 +1055,7 @@ try{
     Write-KmcJsonAtomic $orchestrationPath $orchestration
     Assert-KmcNoGameProcesses
     $requestHash=Get-KmcSha256 $requestPath
-    $arguments=if($isObserver){
+    $arguments=if($isObserver-or$isNormalPlayer){
         # No KMC arguments at all: even a stray KMC assembly would stay inert.
         @('-applaunch','640820','-kmcObserverRequest',('"'+$observerRequestPath+'"'),'-kmcObserverToken',[string]$lock.Token,'-kmcObserverRequestSha256',(Get-KmcSha256 $observerRequestPath))
     }else{@('-applaunch','640820','-kmcRuntimeRequest',('"'+$requestPath+'"'),'-kmcRuntimeToken',[string]$lock.Token,'-kmcRuntimeRequestSha256',$requestHash)}
@@ -1136,7 +1159,7 @@ try{
         }
     }
     else{
-        $awaitedResultPath=if($isObserver){$observerResultPath}else{$gameResultPath}
+        $awaitedResultPath=if($isObserver-or$isNormalPlayer){$observerResultPath}else{$gameResultPath}
         while(-not(Test-Path -LiteralPath $awaitedResultPath -PathType Leaf)){
             $process.Refresh()
             if($process.HasExited){$processExited=$true;throw 'Kingmaker exited before committing its atomic game result.'}
@@ -1146,7 +1169,10 @@ try{
             if([DateTimeOffset]::UtcNow-ge$deadline){throw 'Runtime game result timed out; Kingmaker is intentionally left running and restoration is blocked.'}
             Start-Sleep -Milliseconds 250
         }
-        if($isObserver){
+        if($isNormalPlayer){
+            & (Join-Path $repoRoot 'scripts\runtime\Test-KmcNormalPlayerResult.ps1') -ObserverResultPath $observerResultPath -RequestPath $requestPath -ObserverRequestPath $observerRequestPath -GameResultPath $gameResultPath -ExpectedProcessId $process.Id -NotBeforeUtc $startedAt
+            $gameResultHash=Get-KmcSha256 $gameResultPath
+        }elseif($isObserver){
             # The observer's own result is validated against the request, the
             # observer binding and the archive bytes on disk, then composed into
             # the run's game-result record; KMC wrote nothing in this process.
@@ -1159,7 +1185,12 @@ try{
         }
         $validatedGameResult=Read-KmcJson $gameResultPath
         $gamePassed=[string]$validatedGameResult.status -ceq 'PASS'
-        if($BaseGameOnly){
+        if($isNormalPlayer){
+            # KMC writes no loader inventory without a request. The observer's closed
+            # presence checks (exact two UMM entries, candidate assembly) are the inventory.
+            $baseGameNativeInventoryObserved=$gamePassed
+            $baseGameNativeInventorySha256=Get-KmcSha256 $observerResultPath
+        }elseif($BaseGameOnly){
             $inventoryManifestPath=Join-Path $evidenceRoot 'runtime-artifacts.json'
             if($isSaveBacked-and(Get-KmcSha256 $inventoryManifestPath)-cne$validatedGameResult.evidenceManifestSha256){throw 'Base-game inventory manifest is not the native result manifest.'}
             $inventoryManifest=Read-KmcJson $inventoryManifestPath
@@ -1483,7 +1514,7 @@ finally{
     }
     if($BaseGameOnly){
         try{Write-KmcJsonAtomic (Join-Path $evidenceRoot 'base-game-isolation-result.json') ([ordered]@{
-            schemaVersion=1;runId=$actualRunId;stagingMode='base-game-only-kmc';dependencyDigest=[string]$baseGameDependencies.dependencyDigest;
+            schemaVersion=1;runId=$actualRunId;stagingMode=$(if($isNormalPlayer){'base-game-only-kmc-observer'}else{'base-game-only-kmc'});dependencyDigest=[string]$baseGameDependencies.dependencyDigest;
             stageVerified=$baseGameStaged;dependenciesUnchanged=$baseGameDependenciesUnchanged;processExited=$processExited;
             modsRestored=$modsRestored;saveProtectionPassed=$saveProtection;gameReportedPass=$gamePassed;
             transactionStatePath=$modsTransactionStatePath;transactionStateSha256=$(if($null-ne$modsTransactionStatePath-and(Test-Path -LiteralPath $modsTransactionStatePath)){Get-KmcSha256 $modsTransactionStatePath}else{$null});

@@ -66,7 +66,7 @@ else{
         throw 'Missing live Mods root is not the exact owned original-moved recovery state.'
     }
     if([int]$modsState.schemaVersion-eq4){
-        if([string]$modsState.stagingMode-cne'base-game-only-kmc'){throw 'New receipt schema cannot authorize a historical or unknown staging mode.'}
+        if([string]$modsState.stagingMode-cnotin@('base-game-only-kmc','base-game-only-kmc-observer')){throw 'New receipt schema cannot authorize a historical or unknown staging mode.'}
         Assert-KmcBaseGameDependencyReceipt $modsState.baseGameDependencies
         if([string]$modsState.baseGameDependencies.modsRoot-cne$liveMods){throw 'Base-game dependency layout differs from the exact recovery target.'}
     }
