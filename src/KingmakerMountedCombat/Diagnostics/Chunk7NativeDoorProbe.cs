@@ -142,7 +142,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 var triggers = roots.SelectMany(r => r.GetComponentsInChildren<DoorInteractionViewTrigger>(true)).Distinct().ToArray();
                 return new DoorFacts
                 {
-                    Active = door.isActiveAndEnabled && door.gameObject.activeInHierarchy, Open = door.GetState(),
+                    Active = door.isActiveAndEnabled && door.gameObject.activeInHierarchy, Open = data != null && door.GetState(),
                     DisableCutWhenOpen = door.DisableNavmeshCutWhenOpen, CutPresent = door.GetComponentInChildren<NavmeshCut>() != null,
                     Interactable = door.CanInteract(), AvailableInteractions = ClickMapObjectHandler.HasAvailableInteractions(door.gameObject),
                     Revealed = view != null && view.Data != null && view.Data.IsRevealed,
@@ -332,7 +332,8 @@ namespace KingmakerMountedCombat.Diagnostics
             Require(before != null && originalRestrictionCount == 0, "Native door unlock state is not restorable without a behavioural effect.");
             var observedBefore = before.AlreadyUnlocked;
             if (observedBefore != originalAlreadyUnlocked) before.AlreadyUnlocked = originalAlreadyUnlocked;
-            // A fresh native read after the write, not the reference just written through.
+            // Re-read through the native accessor; it returns the same data object, so this confirms
+            // the write landed together with the open/enabled/cut state, not an independent store.
             var after = door.Data;
             Require(after != null && door.GetState() == originalOpen && door.Enabled == originalEnabled && cut.enabled == originalCut &&
                 after.AlreadyUnlocked == originalAlreadyUnlocked,

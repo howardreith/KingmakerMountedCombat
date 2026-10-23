@@ -232,7 +232,8 @@ Check-OwnerSeed 'not-applicable scan away from the movement end refused' {Set-Sc
 Check-OwnerSeed 'not-applicable scan naming another mount refused' {Set-ScannedNotApplicable $args[0];$d=$args[0].artifact.observations.door;$t=$d.mounts[0].id;$d.mounts[0].id=$d.mounts[1].id;$d.mounts[1].id=$t} $false 'another mount'
 Check-OwnerSeed 'not-applicable scan without mounts refused' {Set-ScannedNotApplicable $args[0];$args[0].artifact.observations.door.PSObject.Properties.Remove('mounts')} $false
 Check-OwnerSeed 'not-applicable scan truncation flag inconsistent refused' {Set-ScannedNotApplicable $args[0];$args[0].artifact.observations.door.truncated=$true} $false
-Check-OwnerSeed 'legacy not-applicable shape with scanned candidates refused' {$args[0].artifact.observations.door.candidatesScanned=3} $false 'requires its scan rows'Check 'not-applicable door refused for the producer exploration kind' {$v=Copy-Value @($fixtures|Where-Object name -CEQ 'exploration')[0];$v.artifact.observations.door=[pscustomobject][ordered]@{applicable=$false;reason='none';candidatesScanned=0;radius=28.0};Invoke-OwnedReader $v} $true 'only for owner-seed'
+Check-OwnerSeed 'legacy not-applicable shape with scanned candidates refused' {$args[0].artifact.observations.door.candidatesScanned=3} $false 'requires its scan rows'
+Check 'not-applicable door refused for the producer exploration kind' {$v=Copy-Value @($fixtures|Where-Object name -CEQ 'exploration')[0];$v.artifact.observations.door=[pscustomobject][ordered]@{applicable=$false;reason='none';candidatesScanned=0;radius=28.0};Invoke-OwnedReader $v} $true 'only for owner-seed'
 # Owner-seed-derived persistence. Producer: the unchanged disclosed setup and two native Mounts,
 # then one native Manual whose read-back graph matches the live runtime at its save boundary.
 # The producer disclosure, pinned here independently of the reader under test.

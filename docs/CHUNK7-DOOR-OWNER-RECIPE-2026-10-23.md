@@ -175,7 +175,8 @@ behind a restriction. Restoration works in four steps:
 - it reads the flag first and records it as `observedAlreadyUnlockedBeforeRestore`;
 - it writes the captured value back only when the flag differs and the door was captured with no
   restriction, which is the only kind admitted;
-- it then re-reads the flag through a fresh `door.Data` access;
+- it then re-reads the flag through `door.Data`, which returns the same data object, so this
+  confirms the write together with the open, enabled and cut state rather than an independent store;
 - it records that value as `alreadyUnlocked`.
 
 The reader accepts the observed value only when it is unchanged, or when it was set by
