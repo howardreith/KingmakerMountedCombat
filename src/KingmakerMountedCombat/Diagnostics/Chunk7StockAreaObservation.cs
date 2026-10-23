@@ -23,6 +23,8 @@ namespace KingmakerMountedCombat.Diagnostics
             "00becd5302e6d1d4a8ad93b6c612b927"
         };
 
+        internal static bool AppliesTo(Game game) => game?.CurrentlyLoadedArea?.AssetGuidThreadSafe == SeedArea;
+
         internal static JObject Capture(Game game)
         {
             if (game?.CurrentlyLoadedArea?.AssetGuidThreadSafe != SeedArea)
