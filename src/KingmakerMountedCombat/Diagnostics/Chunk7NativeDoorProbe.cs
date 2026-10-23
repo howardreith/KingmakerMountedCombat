@@ -144,9 +144,10 @@ namespace KingmakerMountedCombat.Diagnostics
                 {
                     Active = door.isActiveAndEnabled && door.gameObject.activeInHierarchy, Open = data != null && door.GetState(),
                     DisableCutWhenOpen = door.DisableNavmeshCutWhenOpen, CutPresent = door.GetComponentInChildren<NavmeshCut>() != null,
-                    Interactable = door.CanInteract(), AvailableInteractions = ClickMapObjectHandler.HasAvailableInteractions(door.gameObject),
+                    Interactable = door.CanInteract(),
+                    AvailableInteractions = view != null && view.Data != null && ClickMapObjectHandler.HasAvailableInteractions(door.gameObject),
                     Revealed = view != null && view.Data != null && view.Data.IsRevealed,
-                    HasVisibleTrap = door.HasVisibleTrap(), TrapActive = trap != null && trap.TrapActive,
+                    HasVisibleTrap = door.HasVisibleTrap(), TrapActive = trap != null && trap.Data != null && trap.TrapActive,
                     DataPresent = data != null, AlreadyUnlocked = data != null && data.AlreadyUnlocked,
                     RestrictionCount = restrictions, ViewTriggerCount = triggers.Length,
                     ViewTriggerActions = triggers.Any(t => HasActions(t.OpenActions) || HasActions(t.CloseActions) || HasActions(t.RestrictedActions)),
