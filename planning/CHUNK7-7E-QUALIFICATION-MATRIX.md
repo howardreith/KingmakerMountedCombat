@@ -1,0 +1,205 @@
+# Chunk 7 — 7E final private qualification matrix
+
+Status: **DECLARED, NOT RUN.** This is the finite matrix for the final private candidate.
+It was written offline on October 23, 2026 at HEAD `174f5b2b`. No final candidate exists yet,
+and nothing here is a PASS. Sources:
+- the [requirement table](CHUNK7-COMPLETION-MISSION.md) and its §8–9;
+- the [original matrices](CHUNK7-ORIGINAL-SCOPE-AND-MATRICES.md);
+- [VALIDATION-POLICY](../docs/VALIDATION-POLICY.md);
+- the [F10 reconciliation](../docs/CHUNK7-F10-RECONCILIATION-2026-10-23.md);
+- the [F11 protocol](../docs/CHUNK7-F11-ACCEPTANCE-PROTOCOL-2026-10-23.md);
+- the [batch192 record](../docs/CHUNK7-BATCH192-DOOR-SEED-COLD-2026-10-23.md);
+- the runner's scenario and case registry.
+
+## Reuse rule and its result
+
+Mission §8 says: *"Existing results may be reused only when their executed bytes and relevant
+conditions already match."* The validation policy forbids transferring an old PASS to changed
+bytes. Every row therefore defaults to **re-run on the final package (F)**.
+
+`git diff --shortstat <evidence commit> HEAD -- src/` on October 23:
+
+| Evidence commit (used by) | Product source drift to HEAD |
+| --- | --- |
+| `bba4edde` (two-pair TB/RT combat, batches 6–7) | 143 files, +13,803/−755 |
+| `20e23743` (owner-seed Manual/cold, batches 3–4) | 152 files, +14,026/−825 |
+| `f5fe6fcd` (disable, zero-save, refusals, batches 27–31) | 121 files, +10,986/−620 |
+| `77f506a6` (F10 owner cumulative, batches 159–166) | 43 files, +3,458/−201 |
+| `62a68e64` (six-pair measure, batch190) | 4 files, +159/−41 |
+| `e32c1226` (seed cold s1r, batch192b) | 1 file, +35/−13 |
+| `20c4ff91` (door, batch192d) | **empty** |
+
+**One conditional reuse row:** the door row (batch192d). Its source is identical to HEAD. It is
+reused only if F's DLL is byte-identical to batch192d's DLL (`b2acbdeb…`, package `a6d4678f…`).
+That is true only if F is that very package, or a rebuild that reproduces the same bytes. If F
+carries any product change, the door row re-runs; it is already listed in batch B6. Every other
+row is a re-run.
+
+Fixtures are inputs, not behavior claims. A seed, or a fixture Manual produced on an earlier
+candidate (Small, Medium, six-Horse, Manticore, stock Mammoth), may feed a final-package run
+unchanged, keeping its recorded provenance. Every behavior claim comes from the run on F.
+
+## Requirement-to-scenario matrix
+
+Common to every row:
+- **Scenario:** `chunk7-owned-two-pair-campaign`, unless the row names another.
+- **Selection:** `ownedPairs.case`, plus `PersistenceCase` where the row gives one.
+- **Readers:** the runner's outer `Test-RuntimeResult`, plus the family reader shown.
+- **Settlement:** every run requires exact restoration.
+- **Kind:** re-run on F (**R**), unless the row says otherwise.
+
+Writes are the expected native save writes.
+
+| # | Requirement (original IDs) | Scenario / case / PersistenceCase | Source fixture | Family reader | Writes |
+| --- | --- | --- | --- | --- | --- |
+| 1 | F06 Manual producer, C07 merge/split (exploration) | `owner-seed-persistence-save` / `multi-exploration-manual` | NO_MODS seed `3405d7c8…` | `Chunk7OwnedPairsEvidence` | 1 |
+| 2 | F06 separate-process cold load | `owner-seed-persistence-load` / `multi-exploration-manual` | #1 output | same | 0 |
+| 3 | F06 Quick save | `owner-seed-checkpoint-save` / `multi-exploration-quick` | #1 output | same | 1 |
+| 4 | F06 Quick cold | `owner-seed-checkpoint-load` / `multi-exploration-quick` | #3 | same | 0 |
+| 5 | F06 explicit Auto save | `owner-seed-checkpoint-save` / `multi-exploration-auto` | #1 | same | 1 |
+| 6 | F06 Auto cold | `owner-seed-checkpoint-load` / `multi-exploration-auto` | #5 | same | 0 |
+| 7 | C01, C04–C06, C08, F01 (TB rider-first); TB Charge cost-free refusal; native rider-removal forfeit | `owner-seed-combat-rider-first` | #1 | `Chunk7OwnedPairsEvidence` + cleanup reader | 0 |
+| 8 | Same, mount-first initiative (C05 both orders) | `owner-seed-combat-mount-first` | #1 | same | 0 |
+| 9 | C02, C09, C10 (RT); concurrent primaries; Stop; unmounted control; RT Charge default-off | `owner-seed-realtime-core` | #1 | `Chunk7RealtimeEvidence` | 0 |
+| 10 | F08 disable/re-enable, failed-obligation retry, permanent Horse removal refusal | `owner-seed-combat-disable` | #1 | owned + cleanup readers | 0 |
+| 11–12 | F06/C07 RT action debt, save then cold | `owner-seed-checkpoint-save`/`-load` / `multi-rt-debt-manual` | #1 | owned reader | 1 / 0 |
+| 13–14 | F06/C07 TB action debt, save then cold | same / `multi-tb-debt-manual` | #1 | same | 1 / 0 |
+| 15–16 | F06 zero-mounted TB retained owners, save then cold | same / `zero-mounted-tb-retained-manual` | #1 | same | 1 / 0 |
+| 17 | 7B pending-only schema-3 producer | `owner-seed-checkpoint-save` / `legacy-mounted-pending-tb-manual` | #1 | same | 1 |
+| 18 | 7B schema-2 derivative native resave | `owner-seed-checkpoint-load` / `legacy-mounted-pending-tb-manual` | #17 derivative | same | 1 |
+| 19 | 7B schema-2 to current cold (third process) | `owner-seed-checkpoint-load` / `owned-schema2-pending-current-manual` | #18 | same (corrected reader) | 0 |
+| 20–22 | F07 schema-1: source, then resave, then current cold | save / `owned-schema1-manual`; load / `owned-schema1-resave-manual`; load / `owned-schema1-current-manual` | #1 | owned + schema-1 reader | 1 / 1 / 0 |
+| 23–24 | F07 malformed and future metadata refusal (no overwrite) | `owner-seed-load-refusal` / `multi-malformed-refusal-manual`, `multi-future-refusal-manual` | #1 derivatives | owned reader (b31 corrected bound) | 0 |
+| 25 | F06 worker cancel and drain | `owner-seed-checkpoint-save` / `multi-owned-worker-cancel-manual` | #1 | owned reader | 2 |
+| 26 | F06 non-selected-owner global save barrier | `owner-seed-checkpoint-save` / `multi-nonselected-mount-unsettled-manual` | #1 | same | 1 |
+| 27 | F06/F08 repeated load lifecycle | `owner-seed-persistence-load` / `multi-exploration-three-loads-manual` | #1 | same | 0 |
+| 28–29 | 7B area-triggered Auto, then separate cold | `owner-seed-checkpoint-save`/`-load` / `multi-area-autosave` | Manticore fixture Manual (b55–56 lineage) | owned + area reader | 1 / 0 |
+| 30 | 7B ordinary door; exploration movement and selection | `owner-seed-exploration` | Old Sycamore seed `90789101…` | `Chunk7WorldEvidence` | 0 |
+| 31 | 7B positive cleanup Manual | `persistence-p07-save` / `prepare-removal` | stock Mammoth fixture (b64) | `CurrentRemovalEvidence` | 1 |
+| 32 | 7B genuine DLL-absent cold load | `persistence-p07-load` / `removal-no-dll` | #31 | same (b67 reader) | 0 |
+| 33–34 | F09 Small Halfling/Horse, mounted Manual then cold | `small-fixture-persistence-save`/`-load` / `multi-exploration-manual` | Small fixture Manual | owned + Small reader | 1 / 0 |
+| 35–36 | F09 Medium Horse/Mammoth, Manual then cold | `medium-fixture-persistence-save`/`-load` / `multi-exploration-manual` | Medium fixture Manual | owned + Medium reader | 1 / 0 |
+| 37–38 | F09 six mounted pairs, Manual then cold | `six-horse-mounted-persistence-save`/`-load` / `multi-exploration-manual` | sixth-Horse Manual (b184–185) | six-pair reader | 1 / 0 |
+| 39 | F09 six-pair lifecycle stress; F11 six-pair measurement | `six-horse-cold-fixture-lifecycle-stress` (batch190 custody) | same | six-pair + F11 readers | 0 |
+| 40 | F11 matched two-pair pool, 0/1/2/0 | `owner-seed-exploration`, matched-pool windows (b157 mode) | NO_MODS seed | `Chunk7WorldEvidence` + F11 reader | 0 |
+| 41 | F11 allocation events | `owner-seed-exploration` + `f11AllocationProbe` (b156 observer) | NO_MODS seed | F11 allocation reader | 0 |
+| 42 | F11 request-free controls, quiet log; F12 fresh KMC install | `chunk7-normal-player-control` | sixth-Horse Manual 308 `b1e817a6…` (b191 source gate) | `Test-KmcNormalPlayerResult` | 0 |
+| 43 | F10 assisted new-campaign producer | `chunk7-assisted-fixture-preparation` / `authored-main-ranger4-manual` | assisted fixture | assisted reader | 1 |
+| 44 | F10 producer cold | `chunk7-assisted-cold-inventory` / `assisted-manual-readonly-inventory` | #43 | same | 0 |
+| 45 | F10 paid CharGen acquisition (new character) | `chunk7-cumulative-acquisition` / `paid-small-ranger-horse` | #43 | cumulative reader | 1 |
+| 46 | F10 existing-campaign Ranger 4 Horse choice | `chunk7-manual-derived-acquisition` / `existing-ranger-horse` | NO_MODS seed | manual-derived reader | 1 |
+| 47 | F10 acquired-field cold | `chunk7-acquired-manual-derivative` / `preserve-acquired-field` | #46 | acquired reader | 1 |
+| 48–49 | F10 mounted leveling, then cold | `chunk7-native-progression` / `small-horse-native-level`, `small-horse-native-level-cold` | Small fixture | progression reader | 1 / 0 |
+| 50 | F10 dismissal | `chunk7-native-progression` / `small-horse-native-dismiss` | Small fixture | same | 0 |
+| 51–52 | F10 retraining, then cold | `small-horse-native-retrain-horse`, `small-horse-native-retrain-cold` | Small fixture | same | 1 / 0 |
+| 53–54 | F10 Horse-to-Mammoth replacement, then cold | `medium-horse-native-retrain-mammoth`, `medium-horse-native-retrain-cold` | Medium fixture | same | 1 / 0 |
+| 55 | F12 upgrade: preview.211 package, then F on the same save | **gap**, see F12 below | owner seed + preview.211 package | new | 1 |
+| 56 | F12 rollback: F, then preview.211 on the pre-migration copy | **gap**, see F12 below | #55 pre-migration copy | new | 0 |
+
+Rows not yet runnable are listed under Blockers.
+
+## Explicit exclusions (agreed; not hidden failures)
+
+| Item | Disposition |
+| --- | --- |
+| TB Charge delivery | Deferred. Its **cost-free refusal is tested** in rows 7–8. |
+| RT Charge | Default-off is **tested** in row 9. Enabled RT Charge delivery is its existing supported contract; see blocker X2. |
+| Defensive Mounted Combat feat (F05) | Not implemented. Deferred by owner scope. F05 has no row. |
+| Paladin Divine Steed and other class grants | Outside this release (original scope). |
+| Main-menu CharGen for the player's own main | Not selected. A level-1 main never reaches the Ranger seam, so it is covered by rows 45–46 ([F10 reconciliation](../docs/CHUNK7-F10-RECONCILIATION-2026-10-23.md)). |
+| Retired stale level-up Auto families; legacy Manual 302→303 | Retired. Their prelaunch refusals are tested offline (`Test-Chunk7StaleLevelUpFamilies.ps1`). |
+| Optional extra mod combination | Not selected by the mission. |
+| C12 and HUMAN PLAY (visuals, physical input, feel) | Owner-only. Automation does not generate it. See the owner checklist below. |
+
+## Blockers before the matrix is complete
+
+| ID | Rows affected | Blocker | Smallest route |
+| --- | --- | --- | --- |
+| X1 | C03 attack modes, C11 reactions, F04 staged moving actions, and single-pair F03/F08 death and incapacitation | Their only native scenarios (`chunk6*`, `chunk4*`) load the legacy **Working** fixture. Its base-game-only load fails natively (batch34, `Player.PostLoad`), and absent foreign mods may not be reinstalled. | Add owner-seed cases for a reaction, staged and attack-mode representative, on the existing two-pair engine. Alternatively, the owner decides explicitly whether the preview.211 Chunk 6 campaign stands as inherited evidence. That decision is not taken here. |
+| X2 | F02 enabled RT Charge, F03 spells and items, F08 native life (two-pair) | Cases `realtime-charge`, `realtime-casting` and `native-life-cleanup` exist in the selection and readers, but **have never run natively**. They take an acquired-field Manual source (the b165/b166 lineage); caster and charge eligibility of that field is unverified. | Author their selections against the acquired mounted Manual. Run one development pilot of each before freezing F, then add each as a matrix row. |
+| X3 | F07 `pending-schema3-control-manual` | Only FAILs exist (b35–b37). Rows 17–19 cover the selected migration chain. | Confirm with the reader that the control is superseded by rows 17–19, or repair it before freezing. |
+| X4 | F06 three area transfers | `multi-exploration-three-area-transfers-manual` has never run natively. | Run a pilot before freezing, or justify it as covered by rows 27–29. |
+| X5 | Rows 55–56 | No upgrade or rollback scenario exists. | See F12. |
+| X6 | FULL tier | The Chunk 7 umbrella has known pre-existing failures (stale facade and compile lists, quota lines), reproduced at root. | Fix the facades before freezing, and classify each remaining failure by root reproduction. Never convert a failure to PASS. |
+| X7 | Rows 42 and 33–38 | Their source selections pin earlier source run IDs and SHAs. Rows 2–29 consume F's own row-1 output, so their selections need mechanical re-pinning to F's run IDs. | Done by an unchanged reviewed generator per batch. |
+
+## Native batches (at most 5 runs each; producers before consumers)
+
+The minute figures are estimates of wall-clock time: WhatIf, staging, game and restoration.
+The game portion measured from evidence write spans is 1.3–3 minutes for most runs, 10–40
+minutes for six-pair stress, and about 3 minutes for F11.
+
+| Batch | Runs (rows) | Est. min |
+| --- | --- | --- |
+| B1 | 1, 2, 3, 4, 5 | 50 |
+| B2 | 6, 7, 8, 9, 10 | 55 |
+| B3 | 11, 12, 13, 14, 15 | 50 |
+| B4 | 16, 17, 18, 19, 20 | 50 |
+| B5 | 21, 22, 23, 24, 25 | 50 |
+| B6 | 26, 27, 28, 29, 30 | 50 |
+| B7 | 31, 32, 33, 34, 35 | 50 |
+| B8 | 36, 37, 38, 39 | 80 |
+| B9 | 40, 41, 42, 43, 44 | 55 |
+| B10 | 45, 46, 47, 48, 49 | 50 |
+| B11 | 50, 51, 52, 53, 54 | 50 |
+| B12 | 55, 56 (after X5) | 30 |
+| **Total** | **56 runs, 12 batches** | **about 11 h** |
+
+The X1, X2 and X4 pilots add their own development batches, and those cases are then added as
+rows. A failure follows mission §8: retain it, fix it, review it, freeze a successor, then rerun
+the affected rows plus their dependent consumers.
+
+## Offline tiers (order)
+
+1. **Freeze:** `scripts\Test-Tiers.ps1 -Tier Candidate -AssemblyTarget Kingmaker`. It runs once,
+   with the package build, and includes Fast. Do not run Fast separately.
+2. **FULL:** `scripts\Test-Tiers.ps1 -Tier Full -AssemblyTarget Kingmaker -SkipBuild`, on F's
+   frozen worktree after X6.
+3. **Readers:** external readers run per row as each batch settles.
+
+## F11 final measurement (per the predeclared protocol)
+
+Rows 39, 40, 41 and 42 above. They run on F with the protocol's windows, warmups and acceptance
+criteria, which are fixed and not moved. The thresholds are 0.5 ms at two pairs and 1.0 ms at
+six pairs, plus stability, quiet logging, scaling against the 0-pair noise band, and the
+allocation trend. They are reported with their instrumentation limits.
+
+## F12 install, upgrade, rollback, removal (temporary guarded installs only)
+
+Every step uses the existing guarded transaction. That transaction snapshots the whole `Mods`
+tree, UMM `Params.xml`, the profile and the saves, then stages and restores exactly. No step
+leaves KMC installed and **no permanent human installation is performed.**
+
+| Step | Route | Existing support | Gap |
+| --- | --- | --- | --- |
+| Fresh install | KMC staged into a base-game-only isolated tree with no prior KMC settings; ordinary start, Mount, move, Dismount (row 42); plus `mod-load-smoke` | Runner, `BaseGameIsolation.ps1`, Mods transaction | none |
+| Upgrade | Stage preview.211 (`artifacts\KingmakerMountedCombat-0.1.0-chunk6d-preview.211-chunk6-closeout211-*-diagnostic.zip`), make a Manual on a seed copy, then stage F on the same copy and load (schema migration, settings carry-over) | Transaction, migration rows 17–22 | No runner mode stages a **historical** package. The suite and package pins admit only F. A narrow, reviewed "previous-package" staging mode pinned to the preview.211 manifest is needed. |
+| Rollback | Stage preview.211 against the **pre-migration** copy from the upgrade step. Expect a clean load. Confirm that a post-migration save is refused or degraded safely. | Same | Same gap. Expectations are documented in the player guide. |
+| Removal | Clean-save preparation, then a genuine DLL-absent cold load (rows 31–32) | `persistence-p07-*`, `CurrentRemovalEvidence.ps1` | none |
+| RT and TB sessions | Rows 7–9 on F | Existing | none |
+
+## Docs deliverables
+
+| Deliverable | Path (to write) | Contents |
+| --- | --- | --- |
+| Changelog | `docs/CHUNK7-CHANGELOG.md` | One concise list from preview.211 to F |
+| Support and configuration guide | extend `docs/CHUNK7-PLAYER-GUIDE.md` | Supported profiles, up to six pairs, settings, Charge default-off, diagnostics opt-in and inert, refusals |
+| Migration, rollback and removal | `docs/CHUNK7-MIGRATION-ROLLBACK-REMOVAL.md` | Keep pre-migration saves; older binaries are not certified for new-format saves; clean-save preparation; a KMC Horse campaign needs the mod |
+| Owner play checklist | `docs/CHUNK7-OWNER-PLAY-CHECKLIST.md` | Exact package and save copy; **place Mount Companion and Dismount on the action bar by hand (KMC does not pre-fill slots)**; pointer feel, portraits, seat and contact, weapons, camera; one RT and one TB session; how to report |
+| Engineering closeout | `docs/CHUNK7-ENGINEERING-CLOSEOUT-<date>.md` | Artifacts by verified path and identity, row dispositions, limitations |
+
+## Final candidate freeze
+
+1. **Commit.** Commit only after X1–X6 are resolved and reviewed, and the docs are written.
+   Freeze from a clean, pushed commit on `codex/mounted-combat-chunk7-successor`.
+2. **Worktree.** Create a detached frozen worktree `worktrees\chunk7-final-<sha8>`.
+3. **Package.** Package once with `scripts\Package.ps1 -ArtifactQualifier c7-final-<sha8>`.
+   Record the package, manifest, DLL SHA-256, MVID and source tree, and the root `bin\Release`
+   DLL hash before and after packaging.
+4. **Inspect the payload.** The package contains only `Info.json` and
+   `KingmakerMountedCombat.dll`. It contains no game or Wrath assemblies, decompiled output,
+   saves, logs, credentials or lab material. The preview.211 package stays unchanged.
+5. **Candidate tier.** Run it once. Then freeze a new qualification suite with a new SuiteId,
+   which pins the package, DLL, MVID and commit.
+6. **No changes after freezing.** Make no product or observer change after the freeze. A
+   doc-only change uses the frozen worktree and does not rebuild.
