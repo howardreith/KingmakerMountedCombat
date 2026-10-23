@@ -220,6 +220,10 @@ Check 'reader gate terms equal DoorFacts.Eligible outside open/clickable and dis
  if($source-notmatch'\(Open \|\| ClosedClickable\)'-or$source-notmatch'MountDistances\.All\(distance => distance > Radius \+ 0\.5f && distance <= ScanRadius\)'){throw 'Eligible open/clickable or distance clause drifted.'}
  $a=@(Get-DoorFactsTerms 'Eligible'|Sort-Object);$b=@(Get-KmcChunk7DoorGateTerms|Sort-Object)
  if(($a-join'|')-cne($b-join'|')){throw ('Eligible drifted: '+($a-join','))}}
+Check 'door probe serializes no evidence through bare JObject.FromObject' {
+ $source=[IO.File]::ReadAllText((Join-Path $PSScriptRoot '../src/KingmakerMountedCombat/Diagnostics/Chunk7NativeDoorProbe.cs'))
+ if($source-match'JObject\.FromObject\([^,()]*\)'){throw 'Bare JObject.FromObject uses the game''s global settings and can emit an empty {"$id"} shell.'}
+ foreach($member in @('Result','RiderId','MountId','InteractionCount','DelegatedMoveStartCount','DelegatedMoveTickCount','DoorStateChanged','RiderPathSuppressed','MountMoveSlotRestored','TerminalReason')){if($source-notmatch('\["'+$member+'"\] = outcome\.'+$member)){throw ('Door outcome does not record '+$member)}}}
 Check 'probe rows and fixture record every reader click field' {
  $source=[IO.File]::ReadAllText((Join-Path $PSScriptRoot '../src/KingmakerMountedCombat/Diagnostics/Chunk7NativeDoorProbe.cs'))
  foreach($field in Get-KmcChunk7DoorClickFields){$fixtureField=if($field-ceq'alreadyUnlocked'){'originalAlreadyUnlocked'}else{$field}

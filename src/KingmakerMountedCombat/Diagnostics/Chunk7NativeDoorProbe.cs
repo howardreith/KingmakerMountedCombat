@@ -298,7 +298,14 @@ namespace KingmakerMountedCombat.Diagnostics
                 outcome.DoorStateChanged && outcome.RiderPathSuppressed && outcome.MountMoveSlotRestored && door.GetState() &&
                 Distance(interactionStart, mounts[pairIndex].Position) >= 0.5f,
                 "Captured native door input did not prove one approach, one interaction and restored mount movement.");
-            row["outcome"] = JObject.FromObject(outcome); row["terminal"] = command.IsFinished;
+            // Explicit members: bare JObject.FromObject in the game uses the global JsonConvert.DefaultSettings
+            // and serialized this outcome as an empty {"$id":"1"} shell (batch192c).
+            row["outcome"] = new JObject { ["Result"] = outcome.Result, ["RiderId"] = outcome.RiderId, ["MountId"] = outcome.MountId,
+                ["InteractionCount"] = outcome.InteractionCount, ["DelegatedMoveStartCount"] = outcome.DelegatedMoveStartCount,
+                ["DelegatedMoveTickCount"] = outcome.DelegatedMoveTickCount, ["DoorStateChanged"] = outcome.DoorStateChanged,
+                ["RiderPathSuppressed"] = outcome.RiderPathSuppressed, ["MountMoveSlotRestored"] = outcome.MountMoveSlotRestored,
+                ["TerminalReason"] = outcome.TerminalReason };
+            row["terminal"] = command.IsFinished;
             row["ownerContinuity"] = true; row["unrelatedIdleAtCompletion"] = true;
             row["distanceMoved"] = Distance(interactionStart, mounts[pairIndex].Position);
             return true;
