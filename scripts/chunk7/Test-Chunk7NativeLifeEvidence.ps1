@@ -82,4 +82,12 @@ Reject 'native life artifact hash drift' {$m=Copy-Value $lifeManifest;$m.artifac
 Reject 'foreign life artifact presence' {$r=Copy-Value $request;$r.scenario='chunk7-two-pair-combat-rider-first';Assert-KmcChunk7NativeLifeArtifact $r $lifeManifest}
 Reject 'missing mandatory life artifact' {Assert-KmcChunk7NativeLifeArtifact $request ([pscustomobject]@{artifacts=@()})}
 Check 'interrupted life artifact may be absent' {Assert-KmcChunk7NativeLifeArtifact $request ([pscustomobject]@{artifacts=@()}) 'FAIL'}
+# b193 x1s1: owner rows carry the registry's "N"-form rider key, so the producer's healthy-owner
+# lookup must match by GUID, never by raw string equality with the hyphenated UniqueId.
+Check 'producer healthy-owner lookup matches the N-form owner key' {
+ $src=[IO.File]::ReadAllText((Join-Path $repo 'src/KingmakerMountedCombat/Diagnostics/Chunk7CombatNativeLife.cs'))
+ if($src-match'\(string\)x\["riderId"\]\s*==\s*ar\.UniqueId'){throw 'Healthy-owner lookup compares the N-form owner key with the hyphenated UniqueId.'}
+ if(([regex]::Matches($src,'OwnerActorMatch\(\(string\)x\["riderId"\], ar\)')).Count-ne2){throw 'Healthy-owner lookup does not use the GUID match on both snapshots.'}
+ if($src-notmatch'Guid\.TryParse\(ownerValue, out var owner\) && Guid\.TryParse\(actor\.UniqueId, out var id\) \? owner == id'){throw 'Owner actor match is not a GUID comparison.'}
+}
 Write-Host ('RESULT '+$passed+' passed; 0 failed (synthetic native life reader checks only)')

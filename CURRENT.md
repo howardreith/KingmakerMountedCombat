@@ -1,6 +1,15 @@
 # Chunk 7B–7D — IN PROGRESS
 
-Claude [batch192](docs/CHUNK7-BATCH192-DOOR-SEED-COLD-2026-10-23.md) admitted the owner's open-door Old
+Claude [batch193](docs/CHUNK7-BATCH193-7E-PILOTS-2026-10-23.md) started the 7E development pilots on
+a frozen pilot candidate (`503d2fd9`, DLL `d5cbae3c…`). The row-57 owner-seed incapacitation pilot
+FAILed in game on a diagnostic defect: the healthy-owner lookup compared the registry's
+"N"-form owner key with the hyphenated `UniqueId`, so native life could never complete (it had
+never run natively). The subject precondition and the native damage passed first; restoration was
+exact. A focused fix awaits independent review. Zero-launch: `realtime-casting` is uncovered on the
+b164 source (no prepared healing slot); `realtime-charge` and the three-area cold need the acquired
+chain re-run on the same candidate. Standing mission remains IN PROGRESS.
+
+Historical: Claude [batch192](docs/CHUNK7-BATCH192-DOOR-SEED-COLD-2026-10-23.md) admitted the owner's open-door Old
 Sycamore seed: its isolated cold load passed (s1r) after a reviewed fix for a Spider Cave area pin
 (s1 FAIL preserved), and owner-seed exploration passed with the door recorded NOT APPLICABLE.
 The owner's open `TavernDoor` is 8.45/7.92 m from the mounts and otherwise clean, but its
