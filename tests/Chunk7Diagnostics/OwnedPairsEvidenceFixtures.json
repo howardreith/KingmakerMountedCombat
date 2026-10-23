@@ -12576,6 +12576,38 @@
           },
           "door": {
             "contract": "two-pair-native-door-click-selection-change",
+            "cutObservations": [
+              {
+                "boundary": "captured",
+                "open": true,
+                "cutEnabled": false
+              },
+              {
+                "boundary": "input-ready-0",
+                "open": false,
+                "cutEnabled": true
+              },
+              {
+                "boundary": "after-click-0",
+                "open": true,
+                "cutEnabled": false
+              },
+              {
+                "boundary": "input-ready-1",
+                "open": false,
+                "cutEnabled": true
+              },
+              {
+                "boundary": "after-click-1",
+                "open": true,
+                "cutEnabled": false
+              },
+              {
+                "boundary": "restored",
+                "open": true,
+                "cutEnabled": false
+              }
+            ],
             "interactions": [
               {
                 "pair": 0,
@@ -12651,6 +12683,7 @@
               "originalOpen": true,
               "originalEnabled": false,
               "originalCut": false,
+              "cutMode": "toggles",
               "disableOnOpen": true,
               "radius": 2,
               "interactable": true,

@@ -61,9 +61,15 @@ $observation|Add-Member cycleInputs $cycleRows
 $observation|Add-Member cycles $cycleSnapshots
 $removalCommands=@(@($inputRows)+@($cycleRows)+@($moveRows)|ForEach-Object{[pscustomobject]@{commandObject=$_.commandObject;finished=$true;hasExecutionProcess=$true;processEnded=$true}})
 $observation|Add-Member factRemovalAdmission ([pscustomobject]@{frame=123;gameTicks=10000000L;owners=0;activePairs=0;preparationPending=$false;serializationBusy=$false;pendingNativeWrites=$false;commands=$removalCommands})
+# Settled cut state at the six lease boundaries: a toggling cut is the inverse of the open state;
+# a static cut keeps its captured value throughout.
+function New-DoorCutObservations([bool]$StartOpen,[bool]$Toggles,[bool]$StaticCut){
+ @(@('captured',$StartOpen),@('input-ready-0',$false),@('after-click-0',$true),@('input-ready-1',$false),@('after-click-1',$true),@('restored',$StartOpen))|ForEach-Object{
+  [pscustomobject]@{boundary=$_[0];open=[bool]$_[1];cutEnabled=$(if($Toggles){-not[bool]$_[1]}else{$StaticCut})}}
+}
 $doorRiders=@($first,$second);$doorMounts=@($mammoth,$horse)
 $doorInputs=@();for($i=0;$i-lt2;$i++){$own=$owners[$i];$doorInputs+=[pscustomobject]@{pair=$i;riderId=$doorRiders[$i];mountId=$doorMounts[$i];ownerId=$own.ownerId;generation=$own.generation;commandObject=1800+$i;executorId=$doorRiders[$i];distanceBefore=8.0;radius=2.0;selectionAfterInput=$doorRiders[1-$i];accepted=$true;unrelatedIdleAtInput=$true;terminal=$true;ownerContinuity=$true;unrelatedIdleAtCompletion=$true;distanceMoved=6.0;outcome=[pscustomobject]@{Result='Success';RiderId=$doorRiders[$i];MountId=$doorMounts[$i];InteractionCount=1;DelegatedMoveStartCount=1;DelegatedMoveTickCount=0;DoorStateChanged=$true;RiderPathSuppressed=$true;MountMoveSlotRestored=$true;TerminalReason=$null}}}
-$door=[pscustomobject]@{contract='two-pair-native-door-click-selection-change';interactions=$doorInputs;setupInteractions=2;completed=$true;fixture=[pscustomobject]@{name='native fixture door';object=-100;position=[pscustomobject]@{x=10.0;y=0.0;z=0.0};originalOpen=$true;originalEnabled=$false;originalCut=$false;disableOnOpen=$true;radius=2.0;interactable=$true;availableInteractions=$true;revealed=$true;hasVisibleTrap=$false;trapActive=$false;originalAlreadyUnlocked=$false;restrictionCount=0;hasDialog=$false;dataPresent=$true;viewTriggerCount=0;viewTriggerActions=$false};firstPairReturn=[pscustomobject]@{command=1802;executorId=$mammoth;terminal=$true;result='Success';distanceToStart=0.5};restoration=[pscustomobject]@{exact=$true;commandsSettled=$true;open=$true;enabled=$false;cutEnabled=$false;observedAlreadyUnlockedBeforeRestore=$true;alreadyUnlocked=$false}}
+$door=[pscustomobject]@{contract='two-pair-native-door-click-selection-change';interactions=$doorInputs;setupInteractions=2;cutObservations=@(New-DoorCutObservations $true $true $false);completed=$true;fixture=[pscustomobject]@{name='native fixture door';object=-100;position=[pscustomobject]@{x=10.0;y=0.0;z=0.0};originalOpen=$true;originalEnabled=$false;originalCut=$false;cutMode='toggles';disableOnOpen=$true;radius=2.0;interactable=$true;availableInteractions=$true;revealed=$true;hasVisibleTrap=$false;trapActive=$false;originalAlreadyUnlocked=$false;restrictionCount=0;hasDialog=$false;dataPresent=$true;viewTriggerCount=0;viewTriggerActions=$false};firstPairReturn=[pscustomobject]@{command=1802;executorId=$mammoth;terminal=$true;result='Success';distanceToStart=0.5};restoration=[pscustomobject]@{exact=$true;commandsSettled=$true;open=$true;enabled=$false;cutEnabled=$false;observedAlreadyUnlockedBeforeRestore=$true;alreadyUnlocked=$false}}
 $observation|Add-Member door $door
 $observation.snapshots+= [pscustomobject]@{label='door-complete';owners=(Copy-TestValue $owners)}
 $observation.factRemovalAdmission.commands+=@((1800..1802)|ForEach-Object{[pscustomobject]@{commandObject=$_;finished=$true;hasExecutionProcess=$false;processEnded=$true}})
@@ -145,7 +151,7 @@ foreach($mutation in $doorMutations){$copy=Copy-TestValue $good;& $mutation[1] $
 function Set-CurrentDoorShape($v){$d=$v.observations.door
  foreach($pair in @(@('interactable',$true),@('availableInteractions',$true),@('revealed',$true),@('hasVisibleTrap',$false),@('trapActive',$false),@('originalAlreadyUnlocked',$false),@('restrictionCount',0),@('hasDialog',$false),@('dataPresent',$true),@('viewTriggerCount',0),@('viewTriggerActions',$false))){$d.fixture|Add-Member $pair[0] $pair[1] -Force}
  $d.restoration|Add-Member alreadyUnlocked $false -Force}
-function Set-ClosedDoorStart($v){Set-CurrentDoorShape $v;$d=$v.observations.door;$d.setupInteractions=1;$d.fixture.originalOpen=$false;$d.fixture.originalCut=$true;$d.fixture.originalEnabled=$true;$d.restoration.open=$false;$d.restoration.cutEnabled=$true;$d.restoration.enabled=$true}
+function Set-ClosedDoorStart($v){Set-CurrentDoorShape $v;$d=$v.observations.door;$d.setupInteractions=1;$d.fixture.originalOpen=$false;$d.fixture.originalCut=$true;$d.fixture.originalEnabled=$true;$d.restoration.open=$false;$d.restoration.cutEnabled=$true;$d.restoration.enabled=$true;$d.cutObservations=@(New-DoorCutObservations $false $true $false)}
 Check 'door captured closed with one setup close and closed restoration' {$copy=Copy-TestValue $good;Set-ClosedDoorStart $copy;Assert-KmcChunk7WorldEvidence $request $copy 'PASS'}
 Check 'current-shape open door with recorded clickability flags' {$copy=Copy-TestValue $good;Set-CurrentDoorShape $copy;Assert-KmcChunk7WorldEvidence $request $copy 'PASS'}
 Check 'closed door already unlocked without a restriction' {$copy=Copy-TestValue $good;Set-ClosedDoorStart $copy;$copy.observations.door.fixture.originalAlreadyUnlocked=$true;$copy.observations.door.restoration.alreadyUnlocked=$true;Assert-KmcChunk7WorldEvidence $request $copy 'PASS'}
@@ -176,6 +182,28 @@ $closedDoorMutations=@(
  @('closed door restoration without the unlock flag',{param($v)$v.observations.door.restoration.PSObject.Properties.Remove('alreadyUnlocked')})
 )
 foreach($mutation in $closedDoorMutations){$copy=Copy-TestValue $good;Set-ClosedDoorStart $copy;& $mutation[1] $copy;Reject $mutation[0] {Assert-KmcChunk7WorldEvidence $request $copy 'PASS'}}
+# A door whose cut the door never writes (DisableNavmeshCutWhenOpen=false): the cut keeps its
+# captured state for the whole lease and at restoration.
+function Set-StaticDoorCut($v,[bool]$Cut=$true){$d=$v.observations.door;$d.fixture.cutMode='static';$d.fixture.originalCut=$Cut;$d.restoration.cutEnabled=$Cut;$d.cutObservations=@(New-DoorCutObservations $d.fixture.originalOpen $false $Cut)}
+Check 'static-cut open door with its cut unchanged' {$copy=Copy-TestValue $good;Set-CurrentDoorShape $copy;Set-StaticDoorCut $copy;Assert-KmcChunk7WorldEvidence $request $copy 'PASS'}
+Check 'static-cut open door whose cut is disabled throughout' {$copy=Copy-TestValue $good;Set-CurrentDoorShape $copy;Set-StaticDoorCut $copy $false;Assert-KmcChunk7WorldEvidence $request $copy 'PASS'}
+Check 'static-cut closed door with its cut unchanged' {$copy=Copy-TestValue $good;Set-ClosedDoorStart $copy;Set-StaticDoorCut $copy;Assert-KmcChunk7WorldEvidence $request $copy 'PASS'}
+$staticCutMutations=@(
+ @('static cut toggled during the lease',{param($v)$v.observations.door.cutObservations[2].cutEnabled=$false}),
+ @('static cut not restored',{param($v)$v.observations.door.restoration.cutEnabled=$false;$v.observations.door.cutObservations[5].cutEnabled=$false}),
+ @('static restoration record without its cut',{param($v)$v.observations.door.restoration.cutEnabled=$false}),
+ @('cut mode missing',{param($v)$v.observations.door.fixture.PSObject.Properties.Remove('cutMode')}),
+ @('toggling mode claimed for a static door',{param($v)$v.observations.door.fixture.cutMode='toggles'}),
+ @('unknown cut mode',{param($v)$v.observations.door.fixture.cutMode='none'}),
+ @('cut observations missing',{param($v)$v.observations.door.PSObject.Properties.Remove('cutObservations')}),
+ @('cut observation boundary missing',{param($v)$v.observations.door.cutObservations=@($v.observations.door.cutObservations|Select-Object -First 5)}),
+ @('cut observations out of order',{param($v)$o=$v.observations.door.cutObservations;$v.observations.door.cutObservations=@($o[0],$o[2],$o[1],$o[3],$o[4],$o[5])}),
+ @('cut observation open state wrong',{param($v)$v.observations.door.cutObservations[1].open=$true}),
+ @('cut observation state as text',{param($v)$v.observations.door.cutObservations[0].cutEnabled='true'})
+)
+foreach($mutation in $staticCutMutations){$copy=Copy-TestValue $good;Set-CurrentDoorShape $copy;Set-StaticDoorCut $copy;& $mutation[1] $copy;Reject $mutation[0] {Assert-KmcChunk7WorldEvidence $request $copy 'PASS'}}
+Reject 'toggling door whose cut stayed static' {$copy=Copy-TestValue $good;foreach($o in $copy.observations.door.cutObservations){$o.cutEnabled=$false};Assert-KmcChunk7WorldEvidence $request $copy 'PASS'}
+Reject 'static mode claimed for a toggling door' {$copy=Copy-TestValue $good;$copy.observations.door.fixture.cutMode='static';Assert-KmcChunk7WorldEvidence $request $copy 'PASS'}
 # The reader's door predicate is the probe's: tie the term lists to DoorFacts by source text.
 function Get-DoorFactsTerms([string]$Property){
  $source=[IO.File]::ReadAllText((Join-Path $PSScriptRoot '../src/KingmakerMountedCombat/Diagnostics/Chunk7NativeDoorProbe.cs'))
