@@ -145,6 +145,8 @@ if($F11NativeAllocationProbe -and ($Scenario -cne 'chunk7-owned-two-pair-campaig
 # Stale level-up autosave families are refused here, before any selection intake, lock,
 # transaction, Mods swap or launch (docs/CHUNK7-STALE-LEVELUP-AUTOSAVE-FAMILIES.md).
 Assert-KmcChunk7FamilyReady $Scenario $null
+# Retired persistence cases are refused at the same point (docs/CHUNK7-RETIRED-SCHEMA3-CONTROL-2026-10-23.md).
+Assert-KmcChunk7PersistenceCaseSelected $PersistenceCase
 if(Test-KmcChunk7NativeBootstrapScenario $Scenario){
     if(-not$BaseGameOnly-or-not$PSBoundParameters.ContainsKey('NativeBootstrapCase')-or$NativeBootstrapCase-cne'authored-main-campaign'){
         throw 'Native main bootstrap requires explicit authored-main-campaign selection and base-only staging.'

@@ -94,6 +94,18 @@ function Get-KmcChunk7FamilyNotReadyReason([string]$Scenario,[AllowNull()][strin
     }
     return $null
 }
+# Retired persistence cases stay in the closed sets so their historical artifacts remain
+# readable, but they are refused before any selection intake, approval, lock, transaction or launch.
+function Get-KmcChunk7RetiredPersistenceCaseReason([AllowNull()][string]$PersistenceCase) {
+    if($PersistenceCase-ceq'pending-schema3-control-manual'){
+        return 'Persistence case pending-schema3-control-manual is retired and not selected: it was the batch35-37 matched diagnostic control that separated native re-entry preparation from schema-2 conversion, and that diagnosis is closed; the selected pending-only chain (legacy-mounted-pending-tb-manual save and schema-2 derivative resave, then owned-schema2-pending-current-manual third-process cold) covers its schema-3 pending cold claim; see docs/CHUNK7-RETIRED-SCHEMA3-CONTROL-2026-10-23.md.'
+    }
+    return $null
+}
+function Assert-KmcChunk7PersistenceCaseSelected([AllowNull()][string]$PersistenceCase) {
+    $reason=Get-KmcChunk7RetiredPersistenceCaseReason $PersistenceCase
+    if($null-ne$reason){throw $reason}
+}
 function Assert-KmcChunk7FamilyReady([string]$Scenario,[AllowNull()][string]$ProgressionCase) {
     $reason=Get-KmcChunk7FamilyNotReadyReason $Scenario $ProgressionCase
     if($null-ne$reason){throw $reason}
