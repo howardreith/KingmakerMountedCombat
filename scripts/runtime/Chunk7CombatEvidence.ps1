@@ -264,19 +264,24 @@ function Assert-KmcChunk7ReactionTargetState($State,[string]$TargetId){
 }
 function Assert-KmcChunk7ReactionLeg($Leg,[string]$Label,[long]$Round,$o,$roles){
  if($null-eq$Leg-or$Leg.label-cne$Label-or$Leg.round-ne$Round){throw ('Reaction '+$Label+' leg is missing or outside its native round.')}
- Assert-KmcChunk7Boolean $Leg.clicked $true;Assert-KmcChunk7Boolean $Leg.fiveFootStep $false
- if($Leg.result-cnotin@('Success','Interrupt')-or-not(Test-KmcExactJsonInteger $Leg.command)-or$Leg.command-le0-or-not(Test-KmcChunk7FiniteNumber $Leg.distance)-or$Leg.distance-le0.5){throw ('Reaction '+$Label+' is not one completed native ground move of mount A.')}
+ Assert-KmcChunk7Boolean $Leg.clicked $true;Assert-KmcChunk7Boolean $Leg.fiveFootStep $false;Assert-KmcChunk7Boolean $Leg.singleActionMove $false
+ if($Leg.result-cnotin@('Success','Interrupt')-or-not(Test-KmcExactJsonInteger $Leg.command)-or$Leg.command-eq0-or-not(Test-KmcChunk7FiniteNumber $Leg.distance)-or$Leg.distance-le0.5){throw ('Reaction '+$Label+' is not one completed native ground move of mount A.')}
  if($Leg.turnActor-cne$roles[0]){throw ('Reaction '+$Label+' left rider A''s native turn.')}
  Assert-KmcChunk7ReactionTargetState $Leg.targetBefore $o.targetId;Assert-KmcChunk7ReactionTargetState $Leg.targetAfter $o.targetId
  $rb=Get-KmcChunk7CombatActor $Leg.before $roles[0];$ra=Get-KmcChunk7CombatActor $Leg.after $roles[0];$mb=Get-KmcChunk7CombatActor $Leg.before $roles[1];$ma=Get-KmcChunk7CombatActor $Leg.after $roles[1]
  foreach($f in @('standard','move','swift')){if($ra.$f-ne$rb.$f){throw 'Rider A spent its own action on the pair''s ground move.'}}
  if($ma.standard-ne$mb.standard-or$ma.swift-ne$mb.swift){throw 'Mount A spent a non-movement action on its ground move.'}
  if($ma.move-le$mb.move){throw 'The pair''s ground move was not charged to mount A''s native move, or was refunded.'}
- Assert-KmcChunk7SameCombatBudget $Leg.before $Leg.after @($roles[2],$roles[3])
+ # Pair B never spends inside the window; a finished turn's cooldowns may only decay natively.
+ foreach($id in @($roles[2],$roles[3])){$b=Get-KmcChunk7CombatActor $Leg.before $id;$a=Get-KmcChunk7CombatActor $Leg.after $id
+  foreach($f in @('standard','move','swift')){if([double]$a.$f-gt[double]$b.$f+0.001){throw 'Unrelated native actor expenditure changed.'}}
+  if($a.reactions-ne$b.reactions){throw 'Unrelated native actor expenditure changed.'}}
  # Native TB cooldowns of every unit only decay while another actor's command runs: the target never spends.
  foreach($f in @('standard','move','swift')){if([double]$Leg.targetAfter.$f-gt[double]$Leg.targetBefore.$f+0.001){throw 'The diagnostic target spent an action inside the pair''s move.'}}
  $res=$Leg.residue;foreach($f in @('activeCommand','groundMovement')){Assert-KmcChunk7Boolean $res.$f $false}
  foreach($f in @('riderCommandsEmpty','mountCommandsEmpty','riderConscious','mountConscious')){Assert-KmcChunk7Boolean $res.$f $true}
+ foreach($f in @('riderProne','mountProne')){Assert-KmcChunk7Boolean $res.$f $false}
+ foreach($f in @('riderDamage','riderMaxHp','mountDamage','mountMaxHp')){if(-not(Test-KmcExactJsonInteger $res.$f)-or$res.$f-lt0){throw 'Reaction victim hit points are not recorded.'}}
  if($res.state-cne'Mounted'){throw 'Pair A did not stay mounted through the reaction.'}
  foreach($f in @('ruleCountBefore','traceSequenceBefore','traceSequenceAfter')){if(-not(Test-KmcExactJsonInteger $Leg.$f)-or$Leg.$f-lt0){throw 'Reaction window bounds are invalid.'}}
  if($Leg.traceSequenceAfter-lt$Leg.traceSequenceBefore){throw 'Reaction trace window runs backwards.'}
@@ -298,6 +303,10 @@ function Assert-KmcChunk7ReactionCombat($Request,$Observations){
  if(-not(Test-KmcExactJsonInteger $x.firstRound)){throw 'Reaction lacks its first native round.'};$n=[long]$x.firstRound
  $p=$x.precondition;Assert-KmcChunk7ReactionTargetState $p $o.targetId
  if($p.round-ne$n-or$p.reactions-ne1-or$p.reactionsPerRound-ne1-or$p.canAttackOfOpportunity-ne$true){throw 'The diagnostic target did not hold exactly one available native attack of opportunity at the stimulus.'}
+ # The native AttackOfOpportunity gates beyond the counter, at the stimulus and at the disengagement.
+ foreach($g in @($p,$x.disengage.targetBefore)){
+  if($null-eq$g-or$g.canActInCombat-ne$true-or$g.waitingInitiative-ne$false-or$g.surprised-ne$false-or$g.canAct-ne$true-or$g.threatHand-ne$true-or$g.riderRemembersTarget-ne$true-or$g.mountRemembersTarget-ne$true){throw 'The diagnostic target could not natively make its attack of opportunity (initiative, surprise, action, threat hand or memory).'}}
+
  $approached=$null-ne$x.PSObject.Properties['approach'];$approachRules=@()
  if($approached){
   if($p.engagesRider-or$p.engagesMount){throw 'A native approach ran although pair A was already threatened.'}
@@ -312,8 +321,9 @@ function Assert-KmcChunk7ReactionCombat($Request,$Observations){
  if($d.targetAfter.reactions-ne$d.targetBefore.reactions-1){throw 'The target''s native attack-of-opportunity count did not drop by exactly one.'}
  if($dr.Count-ne1){throw 'Native disengagement drew other than exactly one attack.'};$aoo=$dr[0]
  if($aoo.kind-cne'attack'-or$aoo.actor-cne$o.targetId-or$aoo.opportunity-ne$true-or$aoo.target-cnotin@($roles[0],$roles[1])-or$aoo.ranged-ne$false-or$aoo.round-ne$n){throw 'The single attack is not the target''s native attack of opportunity against pair A.'}
- if(@($x.rules.events).Count-ne$approachRules.Count+$dr.Count){throw 'The rule observer recorded attacks outside the reaction windows.'}
- if(-not(Test-KmcChunk7FiniteNumber $d.clearDistance)-or$d.targetAfter.mountDistance-lt$d.clearDistance-0.6){throw 'The disengagement did not reach its declared clear distance.'}
+ if((ConvertTo-Json -InputObject @($x.rules.events) -Depth 10 -Compress)-cne(ConvertTo-Json -InputObject @(@($approachRules)+@($dr)) -Depth 10 -Compress)){throw 'The rule observer recorded attacks outside the reaction windows.'}
+ # An interrupted move must still have left the threatened area (checked above); a completed one reaches its clear distance.
+ if(-not(Test-KmcChunk7FiniteNumber $d.clearDistance)-or($d.result-ceq'Success'-and$d.targetAfter.mountDistance-lt$d.clearDistance-0.6)){throw 'The disengagement did not reach its declared clear distance.'}
  $prone=$x.proneStandUp
  if($null-eq$prone-or$prone.covered-ne$false-or$prone.reason-isnot[string]-or-not$prone.reason.StartsWith('No deterministic native prone source',[StringComparison]::Ordinal)){throw 'The prone stand-up half must be recorded as uncovered with its reason.'}
  foreach($field in @('pairResidueAbsent','nativeCombatEnded','initiativeInputsRestored','firstPairAiRestored','controlsSettled','inheritedPetsPreserved')){Assert-KmcChunk7Boolean $o.cleanup.$field $true}
