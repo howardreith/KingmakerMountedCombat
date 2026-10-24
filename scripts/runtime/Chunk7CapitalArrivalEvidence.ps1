@@ -70,6 +70,23 @@ function Assert-KmcChunk7CapitalRestorationProbe($Probe,$Request,[string[]]$Rest
     if($prepare.Count-ne1-or$round.Count-ne1){throw 'Capital restoration hooks differ from the installed native contract.'}
     foreach($method in @('RestoreActor','RestoreDebt')){if(@($Probe.hooks|Where-Object{$_.declaringType-ceq'KingmakerMountedCombat.Integration.NativeCombatActorPersistence'-and$_.method-ceq$method-and$_.moduleMvid-ceq$Request.dllMvid}).Count-ne1){throw 'Capital restore observer is not bound to the exact candidate method.'}}
 }
+# Per-actor native debt at a capital snapshot: every archive actor exactly once, never above its saved
+# debt and recovered by no more than the observed native clock (the generic exploration bound).
+function Assert-KmcChunk7CapitalSnapshotDebt($Snapshot,$Archive) {
+    if($Snapshot.actors-isnot[Array]){throw 'Capital snapshot actors are missing.'}
+    if(-not(Test-KmcExactJsonInteger $Snapshot.gameTicks)-or$Snapshot.gameTicks-lt$Archive.GameTimeTicks){throw 'Capital snapshot clock precedes its archive.'}
+    $elapsed=([double]$Snapshot.gameTicks-[double]$Archive.GameTimeTicks)/10000000.0
+    if($elapsed-gt30){throw 'Capital debt comparison escaped its bounded observation window.'}
+    foreach($a in @($Archive.Pairs|ForEach-Object{$_.Rider;$_.Mount})){
+        $row=@($Snapshot.actors|Where-Object{$_.native.Id-ceq$a.Id})
+        if($row.Count-ne1){throw 'Capital snapshot omitted or duplicated an archive actor.'}
+        $b=$row[0].native;Assert-KmcChunk7PersistenceNativeActor $b;Assert-KmcChunk7Boolean $row[0].inCombat $false
+        foreach($field in @('Standard','Move','Swift','Initiative','Reaction')){
+            if([double]$b.$field-gt[double]$a.$field+0.001-or[double]$b.$field+$elapsed+0.001+($elapsed*0.1)-lt[double]$a.$field){throw 'Capital native debt changed beyond elapsed native clock progress.'}
+        }
+        if($a.ReactionsRemaining-ne$b.ReactionsRemaining-or$a.LastSurpriseTicks-ne$b.LastSurpriseTicks){throw 'Capital native reaction or surprise history changed.'}
+    }
+}
 # Exactly one mounted owner, the main pair, at a capital snapshot.
 function Assert-KmcChunk7CapitalOneOwner($Snapshot,$MainPair) {
     if($Snapshot.owners-isnot[Array]-or$Snapshot.owners.Count-ne1){throw 'Capital snapshot does not hold exactly one mounted owner.'}
@@ -113,9 +130,9 @@ function Assert-KmcChunk7CapitalArrivalObservation($Request,$Artifact) {
     if(@($o.inputs).Count-ne0-or@($o.movements).Count-ne0){throw 'Capital arrival issued a Mount, Dismount or movement input.'}
     # The cold two-pair start, exactly as the x4s Manual's ordinary cold consumer would read it.
     $sourceRequest=Get-KmcChunk7CapitalInputRequest $Request;$loaded=$o.loadedArchive
+    if($null-eq$loaded-or$null-eq$loaded.PSObject.Properties['AreaId']-or$loaded.AreaId-ceq(Get-KmcChunk7CapitalArrivalArea)){throw 'Capital arrival input was already in the capital.'}
     Assert-KmcChunk7PersistenceArchive $loaded $sourceRequest
     if((ConvertTo-KmcChunk7Canonical $o.loadedDescriptor)-cne(ConvertTo-KmcChunk7Canonical $Request.persistenceLoad)){throw 'Capital arrival loaded another Manual.'}
-    if($loaded.AreaId-ceq(Get-KmcChunk7CapitalArrivalArea)){throw 'Capital arrival input was already in the capital.'}
     $cold=Get-KmcChunk7CapitalSnapshot $o 'cold-restored-before-input';Assert-KmcChunk7PersistenceSnapshot $cold $loaded 'cold-restored-before-input'
     if($cold.semanticRestores-ne4-or$cold.presentationRestores-ne2-or$cold.nativePostLoads-ne4-or$cold.snapshots-ne0-or$cold.nativeCastRequests-ne0-or$cold.archivePhase-cne'all-pair-presentation-restored'){throw 'Capital arrival cold start replayed input or restored inexactly.'}
     $roles=Get-KmcChunk7OwnedPairIds $Request;$all=@($roles)
@@ -153,6 +170,8 @@ function Assert-KmcChunk7CapitalArrivalObservation($Request,$Artifact) {
     $mainRider=@($before.views|Where-Object id -CEQ $roles[0])[0];$mainRiderAfter=@($after.views|Where-Object id -CEQ $roles[0])[0]
     if($mainRiderAfter.agentOverride-eq$mainRider.agentOverride){throw 'Capital arrival reused the prior movement authority.'}
     $settled=Get-KmcChunk7CapitalSnapshot $o 'capital-arrival-settled';Assert-KmcChunk7CapitalOneOwner $settled $main
+    # Every actor's native debt across the transfer, against the cold-loaded archive.
+    Assert-KmcChunk7CapitalSnapshotDebt $settled $loaded
     if($settled.semanticRestores-ne4-or$settled.presentationRestores-ne2-or$settled.nativePostLoads-ne4-or$settled.snapshots-ne0-or$settled.nativeCastRequests-ne0){throw 'Capital arrival replayed restoration, a snapshot or native input.'}
     # The genuine native Manual written in the capital, read back with exactly one mounted pair.
     $w=$o.nativeWrite
@@ -168,6 +187,7 @@ function Assert-KmcChunk7CapitalArrivalObservation($Request,$Artifact) {
     Assert-KmcChunk7Boolean $save.nativeSaveAllowed $true;Assert-KmcChunk7Boolean $save.newSlot $true
     Assert-KmcChunk7OwnedOutputEvidence $Request $o
     $written=Get-KmcChunk7CapitalSnapshot $o 'native-write-complete';Assert-KmcChunk7CapitalOneOwner $written $main
+    Assert-KmcChunk7CapitalSnapshotDebt $written $w.archive
     if($written.snapshots-ne1-or$written.nativeCastRequests-ne0){throw 'Capital Manual replayed native input or saved at another boundary.'}
     foreach($field in @('pairsClear','controlsSettled','saveCustodyClear','selectionRestored','inheritedPetsPreserved')){Assert-KmcChunk7Boolean $o.cleanup.$field $true}
     Assert-KmcChunk7Boolean $o.cleanup.sourceHorseRemoved $false;Assert-KmcChunk7Boolean $o.cleanup.ordinaryRespecProven $false
@@ -179,7 +199,7 @@ function Assert-KmcChunk7CapitalColdObservation($Request,$Artifact) {
     if(-not(Test-KmcChunk7OwnedPairsScenario $Request.scenario)-or$Request.ownedPairs.case-cne'persistence-load'-or-not(Test-KmcChunk7CapitalColdCase $Request.persistenceCase)){throw 'Capital cold reader belongs only to its owned cold consumer.'}
     Assert-KmcChunk7OwnedPairsDescriptor $Request
     $o=$Artifact.observations
-    $required=@('checkpoint','cold','sourceWorkingSha256','inheritedManualSha256','processId','snapshots','inputs','movements','nativeProgressionRequiresExternalWorkingRestoration','ordinaryRespecProven','combatDebtProof','nativeSchema','nativeCapacity','inheritedFixture','coldRestoration','loadedArchive','loadedDescriptor','capitalCold','inheritedCleanup','cleanup','elapsedSeconds','nativeShellLifecycle')
+    $required=@('checkpoint','cold','sourceWorkingSha256','inheritedManualSha256','processId','snapshots','inputs','movements','nativeProgressionRequiresExternalWorkingRestoration','ordinaryRespecProven','combatDebtProof','nativeSchema','nativeCapacity','inheritedFixture','coldRestoration','loadedArchive','loadedDescriptor','capitalColdBoundary','capitalCold','inheritedCleanup','cleanup','elapsedSeconds','nativeShellLifecycle')
     Assert-KmcExactProperties $o $required 'capital cold observations'
     Assert-KmcChunk7InheritedEvidence $Request $o
     Assert-KmcBootstrapInventoryString $o.checkpoint $Request.persistenceCase;Assert-KmcChunk7Boolean $o.cold $true
@@ -192,16 +212,27 @@ function Assert-KmcChunk7CapitalColdObservation($Request,$Artifact) {
     if($loaded.Pairs-isnot[Array]-or$loaded.Pairs.Count-ne1){throw 'Capital cold archive does not hold exactly one mounted pair.'}
     $main=$loaded.Pairs[0]
     if($main.Rider.Id-cne$roles[0]-or$main.Mount.Id-cne$roles[1]){throw 'Capital cold archive pair is not the main character and its pet.'}
-    $mainSlots=@($loaded.Slots|Where-Object ActorId -CEQ $roles[0])
-    if($mainSlots.Count-ne2-or(@($mainSlots|ForEach-Object Kind|Sort-Object)-join',')-cne'2,3'){throw 'Capital cold archive lacks the main pair exact controls.'}
-    Assert-KmcChunk7CapitalArchive $loaded $Request $main $mainSlots $loaded
-    $row=@($o.inheritedFixture.pairs|Where-Object riderId -CEQ $main.Rider.Id)
-    if($row.Count-ne1){throw 'Capital cold archive rider is outside inherited ownership.'};Assert-KmcBootstrapInventoryString $main.ProfileId $row[0].profileId
+    $snapshot=Get-KmcChunk7CapitalSnapshot $o 'cold-restored-before-input';$c=$o.capitalCold
+    if($snapshot.owners-isnot[Array]-or$snapshot.owners.Count-ne1){throw 'Capital snapshot does not hold exactly one mounted owner.'}
+    $live=$snapshot.owners[0]
+    if($live.riderId-cne$roles[0]-or$live.mountId-cne$roles[1]-or$live.state-cne'Active'-or([Guid]$live.ownerId)-ne([Guid]$main.PairId)-or$live.generation-ne$main.Generation){throw 'Capital cold archive pair differs from the live restored owner.'}
+    $row=@($o.inheritedFixture.pairs|Where-Object riderId -CEQ $roles[0])
+    if($row.Count-ne1-or$row[0].mountId-cne$roles[1]){throw 'Capital cold archive rider is outside inherited ownership.'}
+    $liveSlots=@($c.world.slots)
+    if($liveSlots.Count-ne2-or@($liveSlots|Where-Object ActorId -CNE $roles[0]).Count-ne0-or(@($liveSlots|ForEach-Object Kind|Sort-Object)-join',')-cne'2,3'){throw 'Capital cold live controls are not exactly the main pair bindings.'}
+    # Independent references: the live owner (identity, generation), the inherited profile, the live
+    # controls and the fixed archive policy. The archive is never its own reference.
+    $reference=[pscustomobject]@{PairId=$main.PairId;Generation=$live.generation;ProfileId=$row[0].profileId;Rider=[pscustomobject]@{Id=$roles[0]};Mount=[pscustomobject]@{Id=$roles[1]}}
+    Assert-KmcChunk7CapitalArchive $loaded $Request $reference $liveSlots ([pscustomobject]@{Policy='rider-principal-distinct-native-v1';RulesId='crpg-transport-v1'})
+    Assert-KmcChunk7CapitalSnapshotDebt $snapshot $loaded
     Assert-KmcChunk7CapitalRestorationProbe $o.coldRestoration $Request @($roles[0],$roles[1]) @($roles)
-    $snapshot=Get-KmcChunk7CapitalSnapshot $o 'cold-restored-before-input';Assert-KmcChunk7CapitalOneOwner $snapshot $main
+    foreach($event in @($o.coldRestoration.events|Where-Object kind -CEQ 'restore-debt-after')){
+        $saved=@($loaded.Pairs|ForEach-Object{$_.Rider;$_.Mount}|Where-Object Id -CEQ $event.actorId)
+        if($saved.Count-ne1-or$event.restorePhase-cne'validated-before-native-mutation'-or(ConvertTo-KmcChunk7Canonical $event.debt)-cne(ConvertTo-KmcChunk7Canonical $saved[0])){throw 'Capital cold post-restore debt differs from the validated archive.'}
+    }
+    $mainSlots=@($loaded.Slots)
     if($snapshot.semanticRestores-ne2-or$snapshot.presentationRestores-ne1-or$snapshot.nativePostLoads-ne2-or$snapshot.snapshots-ne0-or$snapshot.nativeCastRequests-ne0-or
        $snapshot.archivePhase-cne'all-pair-presentation-restored'-or$snapshot.controls.DuplicateFactCount-ne0-or$snapshot.controls.ManagedHotbarSlotCount-ne2){throw 'Capital cold restore replayed input or restored another actor.'}
-    $c=$o.capitalCold
     Assert-KmcExactProperties $c @('contract','producerRunId','producerArtifactSha256','mainPairId','mainGeneration','unmountedRiderId','unmountedMountId','registryOwners','activeOwners','world') 'capital cold row'
     foreach($pair in @(@('contract','chunk7-capital-arrival-cold-v1'),@('producerRunId',$Request.ownedPairs.checkpointSourceRunId),@('producerArtifactSha256',$Request.ownedPairs.checkpointSourceArtifactSha256),@('mainPairId',$main.PairId),@('unmountedRiderId',$roles[2]),@('unmountedMountId',$roles[3]))){Assert-KmcBootstrapInventoryString $c.($pair[0]) $pair[1]}
     if($c.mainGeneration-ne$main.Generation){throw 'Capital cold owner generation differs.'}

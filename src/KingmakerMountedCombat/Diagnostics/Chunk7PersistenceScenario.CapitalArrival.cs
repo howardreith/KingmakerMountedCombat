@@ -137,6 +137,17 @@ namespace KingmakerMountedCombat.Diagnostics
             Require(CapitalArrivalCase && stage == 50 && capitalDispatched && !capitalAdopted && capitalDestination != null &&
                 !LoadingProcess.Instance.IsLoadingInProcess && !LoadingProcess.Instance.QueuedNames.Any(),
                 "Capital destination custody cannot be adopted before its sole completed native entry.");
+            // Forensics first: a native FAIL must carry the arrived world, summary and observer it was judged on.
+            // These read-only captures grant no destination scope.
+            // A refused adoption is retried from cleanup; the first arrival record is kept, never duplicated.
+            if (capitalRow["after"] == null)
+            {
+                capitalRow["umm"] = persistence.Feedback;
+                capitalRow["after"] = CaptureCapitalWorld("after-native-transfer");
+                capitalRow["restoration"] = restoration?.Capture();
+                capitalRow["loadingTicks"] = capitalLoadingTicks; capitalRow["suspensionObserved"] = capitalSuspensionObserved;
+                snapshots.Add(Capture("capital-arrival-settled"));
+            }
             Require(persistence.FailedAreaPairCount == 0, "Capital arrival restoration failed: " + persistence.Feedback);
             Require(capitalLoadingTicks > 0 && capitalSuspensionObserved, "Capital arrival missed its native loading or all-owner suspension boundary.");
             Require(persistence.AreaSuspensionCount == 1 && persistence.AreaResumeCount == 1 && persistence.AreaRetiredPairCount == 1 &&
@@ -162,11 +173,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 restoration.Count("round-before", ids) == 0 && restoration.Count("restore-actor-before", ids) == 0 &&
                 restoration.Count("restore-debt-before", ids) == 4 && restoration.Count("restore-debt-after", ids) == 4,
                 "Capital arrival invented native preparation, a round or a debt restore.");
-            capitalRow["restoration"] = restoration.Capture(); restoration.Dispose(); restoration = null;
-            capitalRow["umm"] = persistence.Feedback;
-            capitalRow["after"] = CaptureCapitalWorld("after-native-transfer");
-            capitalRow["loadingTicks"] = capitalLoadingTicks; capitalRow["suspensionObserved"] = capitalSuspensionObserved;
-            snapshots.Add(Capture("capital-arrival-settled"));
+            restoration.Dispose(); restoration = null;
             Pass("C7-persistence-capital-arrival-retirement");
         }
 
@@ -177,6 +184,19 @@ namespace KingmakerMountedCombat.Diagnostics
             if (CapitalArrivalCase && capitalDispatched && !capitalAdopted && stage == 50 && !LoadingProcess.Instance.IsLoadingInProcess &&
                 !LoadingProcess.Instance.QueuedNames.Any() && ReferenceEquals(Game.Instance?.CurrentlyLoadedArea, capitalDestination))
                 AdoptCapitalArrival();
+        }
+
+        // Cleanup selection in the adopted capital: exactly the original selection's main character and the
+        // main character's pet, by identity. Non-empty whenever the original selection held the main character,
+        // and natively selectable (directly controllable) there.
+        private UnitEntityData[] CapitalRestoredSelection()
+        {
+            var main = Game.Instance.Player.MainCharacter.Value;
+            var expected = originalSelection.Where(actor => ReferenceEquals(actor, main) || ReferenceEquals(actor.Descriptor.Master.Value, main)).ToArray();
+            Require(main != null && (expected.Length != 0 || !originalSelection.Any(actor => ReferenceEquals(actor, main))) &&
+                expected.All(actor => actor.IsDirectlyControllable),
+                "Capital cleanup selection is not exactly the original main character and its pet.");
+            return expected;
         }
 
         internal static string ExpectedCapitalFeedback(string rider, string mount, int restored, int total) =>
@@ -239,8 +259,15 @@ namespace KingmakerMountedCombat.Diagnostics
             savedDescriptor = Game.Instance.SaveManager.SingleOrDefault(s => s.Name == NativeName(type, request.OwnedPairs, request.PersistenceCase) && s.Type == type);
             Require(savedDescriptor != null && savedDescriptor.OperationState == SaveInfo.StateType.None && savedDescriptor.HasFileOnDisk &&
                 savedDescriptor.FileName == SelectedOutputLeaf(type), "Capital Manual did not complete at its exact reserved leaf.");
-            ObserveOwnedSaveCompletion();
             var read = NativeMountedSaveStorage.ReadArchive(savedDescriptor.Saver); var written = read.Data;
+            var file = new FileInfo(savedDescriptor.FolderName);
+            evidence["nativeWrite"] = new JObject { ["path"] = file.FullName, ["sha256"] = Hash(file.FullName), ["length"] = file.Length,
+                ["nativeType"] = type.ToString(), ["nativeName"] = savedDescriptor.Name, ["nativeCallback"] = callback,
+                ["operation"] = savedDescriptor.OperationState.ToString(), ["snapshotCount"] = persistence.SnapshotCount,
+                ["area"] = savedDescriptor.Area?.AssetGuidThreadSafe, ["saveAllowedAfterWrite"] = Game.Instance.SaveManager.IsSaveAllowed(),
+                ["archive"] = written == null ? null : JObject.FromObject(written, MountedSaveCodec.CreateSerializer()) };
+            snapshots.Add(Capture("native-write-complete"));
+            ObserveOwnedSaveCompletion();
             Require(read.Kind == MountedSaveReadKind.Current && read.SourceSchema == 3 && written != null && written.SchemaVersion == 3 &&
                 written.Pairs.Length == 1 && written.Participations.Length == 0 && written.Combat == null &&
                 written.CampaignId == request.PersistenceLoad.GameId && written.AreaId == Chunk7OwnedPairsSelection.CapitalArrivalArea,
@@ -257,13 +284,6 @@ namespace KingmakerMountedCombat.Diagnostics
                 persistence.AreaRetiredPairCount == 1 && persistence.FailedAreaPairCount == 0 && Game.Instance.SaveManager.IsSaveAllowed(),
                 "Capital Manual replayed input, retained a serialization lease or blocked later saving.");
             saved = written;
-            var file = new FileInfo(savedDescriptor.FolderName);
-            evidence["nativeWrite"] = new JObject { ["path"] = file.FullName, ["sha256"] = Hash(file.FullName), ["length"] = file.Length,
-                ["nativeType"] = type.ToString(), ["nativeName"] = savedDescriptor.Name, ["nativeCallback"] = callback,
-                ["operation"] = savedDescriptor.OperationState.ToString(), ["snapshotCount"] = persistence.SnapshotCount,
-                ["area"] = savedDescriptor.Area?.AssetGuidThreadSafe, ["saveAllowedAfterWrite"] = true,
-                ["archive"] = JObject.FromObject(written, MountedSaveCodec.CreateSerializer()) };
-            snapshots.Add(Capture("native-write-complete"));
             Pass("C7-persistence-capital-arrival-native-manual");
         }
 
@@ -276,6 +296,14 @@ namespace KingmakerMountedCombat.Diagnostics
             Require(CapitalColdCase && stage == 0 && inherited == null && restoration != null, "Capital cold proof runs once at its first restored frame.");
             saved = persistence.LoadedArchive;
             var game = Game.Instance;
+            // Forensics first: the archive, descriptor, observer and arrival boundary precede every assertion.
+            evidence["loadedArchive"] = saved == null ? null : JObject.FromObject(saved, MountedSaveCodec.CreateSerializer());
+            var descriptor = request.PersistenceLoad;
+            evidence["loadedDescriptor"] = new JObject { ["internalName"] = descriptor.InternalName, ["fileName"] = descriptor.FileName,
+                ["sha256"] = descriptor.Sha256, ["length"] = descriptor.Length, ["lastWriteTimeUtcTicks"] = descriptor.LastWriteTimeUtcTicks,
+                ["gameId"] = descriptor.GameId, ["gameName"] = descriptor.GameName, ["area"] = descriptor.Area };
+            evidence["coldRestoration"] = restoration.Capture();
+            evidence["capitalColdBoundary"] = CaptureCapitalBoundary();
             Require(saved != null && saved.SchemaVersion == 3 && saved.Pairs.Length == 1 && saved.Participations.Length == 0 && saved.Combat == null &&
                 saved.Slots.Length == 2 && saved.CampaignId == request.PersistenceLoad.GameId && saved.AreaId == Chunk7OwnedPairsSelection.CapitalArrivalArea &&
                 persistence.ArchiveRestorePhase == "all-pair-presentation-restored" && game.CurrentlyLoadedArea.IsCapital &&
@@ -283,6 +311,12 @@ namespace KingmakerMountedCombat.Diagnostics
                 "Capital Manual did not restore exactly its one mounted pair in the capital: " + persistence.Feedback);
             BindOwnedFixture(false);
             var main = game.Player.MainCharacter.Value; var pair = saved.Pairs[0];
+            evidence["capitalCold"] = new JObject { ["contract"] = "chunk7-capital-arrival-cold-v1",
+                ["producerRunId"] = request.OwnedPairs.CheckpointSourceRunId, ["producerArtifactSha256"] = request.OwnedPairs.CheckpointSourceArtifactSha256,
+                ["mainPairId"] = pair.PairId, ["mainGeneration"] = pair.Generation, ["unmountedRiderId"] = secondRider.UniqueId,
+                ["unmountedMountId"] = secondMount.UniqueId, ["registryOwners"] = world.Registry.Owners.Length,
+                ["activeOwners"] = world.Registry.ActiveCount, ["world"] = CaptureCapitalWorld("cold-restored-in-capital") };
+            snapshots.Add(Capture("cold-restored-before-input"));
             Require(ReferenceEquals(firstRider, main) && ReferenceEquals(firstMount.Descriptor.Master.Value, main) &&
                 !ReferenceEquals(secondRider, main) && ReferenceEquals(secondMount.Descriptor.Master.Value, secondRider) &&
                 pair.Rider.Id == firstRider.UniqueId && pair.Mount.Id == firstMount.UniqueId &&
@@ -305,20 +339,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 restoration.Count("restore-debt-after", mainIds) == 2 && restoration.Count("restore-debt-before", otherIds) == 0 &&
                 restoration.Count("restore-debt-after", otherIds) == 0,
                 "Capital cold restoration invented preparation or restored the unmounted pair.");
-            AssertDebt(saved); evidence["coldRestoration"] = restoration.Capture();
+            AssertDebt(saved);
             restoration.Dispose(); restoration = null;
-            evidence["loadedArchive"] = JObject.FromObject(saved, MountedSaveCodec.CreateSerializer());
-            var descriptor = request.PersistenceLoad;
-            evidence["loadedDescriptor"] = new JObject { ["internalName"] = descriptor.InternalName, ["fileName"] = descriptor.FileName,
-                ["sha256"] = descriptor.Sha256, ["length"] = descriptor.Length, ["lastWriteTimeUtcTicks"] = descriptor.LastWriteTimeUtcTicks,
-                ["gameId"] = descriptor.GameId, ["gameName"] = descriptor.GameName, ["area"] = descriptor.Area };
-            var cold = CaptureCapitalWorld("cold-restored-in-capital");
-            evidence["capitalCold"] = new JObject { ["contract"] = "chunk7-capital-arrival-cold-v1",
-                ["producerRunId"] = request.OwnedPairs.CheckpointSourceRunId, ["producerArtifactSha256"] = request.OwnedPairs.CheckpointSourceArtifactSha256,
-                ["mainPairId"] = pair.PairId, ["mainGeneration"] = pair.Generation, ["unmountedRiderId"] = secondRider.UniqueId,
-                ["unmountedMountId"] = secondMount.UniqueId, ["registryOwners"] = world.Registry.Owners.Length,
-                ["activeOwners"] = world.Registry.ActiveCount, ["world"] = cold };
-            snapshots.Add(Capture("cold-restored-before-input")); Pass("C7-persistence-capital-arrival-cold");
+            Pass("C7-persistence-capital-arrival-cold");
         }
 
         private JObject CaptureCapitalWorld(string label)
