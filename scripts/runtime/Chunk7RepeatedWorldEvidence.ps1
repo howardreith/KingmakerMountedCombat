@@ -2,6 +2,16 @@
 Set-StrictMode -Version Latest
 function Test-KmcChunk7RepeatedWorldCase([string]$Case) { $Case-cin@('multi-exploration-three-loads-manual','multi-exploration-three-area-transfers-manual') }
 function Get-KmcChunk7PersistenceSourceCase([string]$Case) { if($Case-ceq'owned-schema1-resave-manual'){return 'owned-schema1-manual'};if($Case-ceq'pending-schema3-control-manual'){return 'legacy-mounted-pending-tb-manual'};if(Test-KmcChunk7RepeatedWorldCase $Case){return 'multi-exploration-manual'};return $Case }
+# Reviewed capital destinations, from native evidence: run 20261019-c7b-world48-ownerseed-b23s3-areaauto
+# observed Oleg's Trading Post (area ead426a6..., entry fd225a93...) with destinationIsCapital=true. In a
+# capital native IsDirectlyControllable admits only the main character and its pet (b195 x4c), so an
+# ordinary repeated-area route must never enter one.
+function Get-KmcChunk7KnownCapitalAreaPins { @([pscustomobject]@{area='ead426a6c23d39548a670ee515d77df4';enterPoint='fd225a93828d26449803a4847947f8c1';evidenceRunId='20261019-c7b-world48-ownerseed-b23s3-areaauto'}) }
+function Assert-KmcChunk7RouteAvoidsKnownCapitals($EnterPoints,$Areas) {
+    $capitals=@(Get-KmcChunk7KnownCapitalAreaPins)
+    foreach($value in @($EnterPoints)){if($value-cin@($capitals.enterPoint)){throw 'Repeated area route names a known capital entry point; native control there excludes non-main pairs.'}}
+    foreach($value in @($Areas)){if($value-cin@($capitals.area)){throw 'Repeated area route names a known capital area; native control there excludes non-main pairs.'}}
+}
 function Assert-KmcChunk7RepeatedWorldRequest($Request) {
     if($Request-is[Collections.IDictionary]){$Request=[pscustomobject]$Request}
     $selectedCase=if($null-ne$Request.PSObject.Properties['persistenceCase']){$Request.persistenceCase}else{$null}
@@ -21,6 +31,7 @@ function Assert-KmcChunk7RepeatedWorldRequest($Request) {
         if($target.area-ceq$prior-or$target.enterPoint-ceq$target.area-or$target.autoSaveMode-isnot[string]-or$target.autoSaveMode-cne'None'){throw 'Repeated areas forbid same-area teleport and unselected autosave.'}
         $prior=$target.area
     }
+    Assert-KmcChunk7RouteAvoidsKnownCapitals @($Request.persistenceReplayTargets|ForEach-Object{$_.enterPoint}) @($Request.persistenceReplayTargets|ForEach-Object{$_.area})
 }
 function Assert-KmcChunk7ReplayObject($Value,[bool]$AllowZero=$false) {
     if(-not(Test-KmcExactJsonInteger $Value)-or$Value-lt[int]::MinValue-or$Value-gt[int]::MaxValue-or(-not$AllowZero-and$Value-eq0)){throw 'Native object identity must be an exact nonzero signed integer.'}

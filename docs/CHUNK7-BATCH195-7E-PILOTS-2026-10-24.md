@@ -79,11 +79,13 @@ then `Recover-KingmakerRuntimeTransaction.ps1` (WhatIf, then real), then verify 
 
 ## Diagnosis
 
-**Which actor and why.** Native `UnitEntityData.IsDirectlyControllable` (2.1.7b, member listing only)
-returns, when `Game.CurrentlyLoadedArea.IsCapital`, true only for the main character and units whose
-`Master` is the main character. Oleg's Trading Post (`ead426a6…`) is the chapter-1 capital. On arrival
-pair A (main Ranger and its Horse) stays controllable, but pair B (Small Ranger `7aac72b4…` and Horse
-`fbba2294…`) is not, so the all-pair admission refused. The project already avoids the capital for
+**Which actor and why.** A single-method IL member-reference listing of the native 2.1.7b getter
+`UnitEntityData.get_IsDirectlyControllable` shows that, when `Game.CurrentlyLoadedArea.IsCapital`, it
+returns true only for the main character and units whose `Master` is the main character. Native
+evidence (run `20261019-c7b-world48-ownerseed-b23s3-areaauto`) observed Oleg's Trading Post
+(`ead426a6…`, entry `fd225a93…`) with `destinationIsCapital: true`. **Inferred from that rule, not
+observed per unit:** pair A (main Ranger and its Horse) stays controllable and pair B (Small Ranger
+`7aac72b4…` and Horse `fbba2294…`) does not, which explains the all-pair refusal; the log names no unit. The project already avoids the capital for
 fixtures (batch23 capital refusal; Manticore and Tomb routes require `!IsCapital`).
 
 **The X4 route was invalid.** I chose Oleg's from earlier Chunk 7 area pins without checking
@@ -129,10 +131,14 @@ world relationship still holding either unit or owned residue, distinct live vie
 parented under the other, finite positions and no installed agent override. A residue throws
 ("Capital-arrival retirement was not clean") and fails closed. Nothing is granted or fabricated:
 suspension had already separated the pair through the normal `AreaSuspension` cleanup, and
-retirement only declines to re-attach it. Saving stays allowed. UMM reports one line per pair:
-"Mounted pair <rider> and <mount> was dismounted on arrival: the companion is not directly
-controllable in this area. Mount again after leaving." `AreaRetiredPairCount` counts them. The player
-guide has one line on it. Unit tests: eight new cases (877/0 in the Fast components run).
+retirement only declines to re-attach it. Saving stays allowed. `Report` keeps a single feedback line,
+so the review follow-up names the dismounted pairs in the summary UMM shows: "Dismounted on arrival
+because the companion is not directly controllable in this area: <rider> and <mount>[, …]. Mount again
+after leaving. <n> of <m> mounted relationships restored without Mount or preparation."
+`AreaRetiredPairCount` counts them. The player guide has one line on it. Unit tests: eight new cases.
+The Fast components run reported 877/0 in the repository; in a fresh archive copy the reviewer saw
+876/1, the one failure being "queued native requests… Missing or oversized save identity", which is
+pre-existing at the parent commit and depends on the path length.
 
 **Native test design (matrix rows 58–59, not implemented):** the old Oleg's route is the stimulus. A
 new owned persistence case cold-loads a two-owner mounted Manual (x4s shape), makes one native
@@ -148,8 +154,33 @@ records "exceeded its bounded drain" after 45 s and keeps the quit fenced by des
 terminal result never abandons custody). The bounded unattended exit added in batch188
 (`RuntimeAutomationHost.TryQuitRetainedSixPairFailure`) applies only to six-pair lineage selections
 (`RetainedSixPairFailureExitReady` requires `selection.SixPairLineage`), so this two-pair persistence
-run waited for the runner's 900 s deadline and ended restoration-blocked. Extending the retained-failure
-exit to two-pair persistence runs is possible with the same contract; it is not done here.
+run waited for the runner's 900 s deadline and ended restoration-blocked.
+
+**Follow-up (`d0f842a0` plus its review fix):** the retained-failure exit now also covers an owned
+persistence selection that is not six-pair lineage, bound to its own declared load (1–3) and write (0–2)
+quotas and a committed retained-failure artifact, with its own reason ("Disposable owned-pair
+persistence run failed…"). The review found that the scope check ended in `RequireCurrent`, which
+throws once a refused area restore has changed the world, so x4c itself would still have hung. The fix
+(option a): when the persistence service records a refused area restore and the current area is the
+engine's declared replay destination, the scope is verified through the existing
+`RequireDeclaredAreaDestination` check (same game, player, state, campaign and main character, the
+declared area blueprint and scene state, every tracked actor unreplaced); otherwise `RequireCurrent`
+applies unchanged. Each distinct reason the exit declines is logged once after the drain deadline.
+
+Checks run for these commits (all from the repository root):
+- `scripts\chunk7\Test-Chunk7SixPairFailureExit.ps1`: 94/0 (16 two-pair cases).
+- `scripts\chunk7\Test-Chunk7TwoPairRetainedScope.ps1` (new, runs the real `RequireRetainedFailureScope`
+  against stand-ins): 11/0.
+- `scripts\chunk7\Test-Chunk7SixPairExitReader.ps1`: 25/0.
+- `scripts\chunk7\Test-Chunk7RepeatedWorldEvidence.ps1`: 133/0 (capital pin refusals added).
+- `scripts\chunk7\Test-Chunk7RepeatedWorldProtocol.ps1`: 27/0, 8/0, 9/0.
+- `scripts\Test-Tiers.ps1` (Fast): 3/0.
+
+**Route guard (`d40b3719` plus review fix):** besides the in-game refusal, the runner now refuses the
+reviewed capital pins before intake (`Assert-KmcChunk7RouteAvoidsKnownCapitals`, list derived from the
+b23s3 native observation above), and the request reader refuses them too. The replacement Manticore
+route passes the request reader; its draft plan is `analysis-cache/chunk7-continuation/b196-x4c-route-draft.json`
+(`4c33e242…`), and the old Oleg's route is refused by it.
 
 ## Native-life control damage: recorded assumption
 

@@ -220,7 +220,7 @@ internal static class Program
         return (string)json["Status"] == "FAIL" && (int)json["SubscenarioFailCount"] == 1 &&
             (int)json["SaveRequestCount"] == writes && (int)json["LoadRequestCount"] == loads &&
             errors[0] == "C7 causal retained persistence cleanup failure" &&
-            errors.Last().StartsWith("Disposable two-pair persistence run failed with retained volatile cleanup custody", StringComparison.Ordinal) &&
+            errors.Last().StartsWith("Disposable owned-pair persistence run failed with retained volatile cleanup custody", StringComparison.Ordinal) &&
             host.ManifestPublications == 1 && UnityEngine.Application.Quits == 1;
     }
 
@@ -412,6 +412,15 @@ internal static class Program
         Check("exact retained two-pair cold consumer FAIL publishes with zero writes", () => PublishedTwoPairFailure(FreshTwoPair(false), 0, 1));
         Check("a two-pair repeated cold consumer that failed after its first of three loads still exits", () => PublishedTwoPairFailure(FreshTwoPair(false, 3, 1), 0, 1));
         RefusesTwoPair("a selection that is not a persistence case", false, host => host.request.OwnedPairs.Persistence = false);
+        Check("a declined exit names each distinct reason once after the drain deadline", () =>
+        {
+            var host = FreshTwoPair(false); host.request.OwnedPairs.Persistence = false;
+            host.At(46); host.Drain(); host.At(48); host.Drain(); host.At(50); host.Drain();
+            return Untouched(host) && host.logger.Warnings.Count(w => w == "Retained terminal FAIL exit declined: the selection is neither six-pair lineage nor an owned persistence run.") == 1 &&
+                host.logger.Warnings.Count(w => w.StartsWith("Retained terminal FAIL exit declined:", StringComparison.Ordinal)) == 1;
+        });
+        Check("no decline is named before the drain deadline", () =>
+        { var host = FreshTwoPair(false); host.request.OwnedPairs.Persistence = false; host.At(30); host.Drain(); return Untouched(host) && host.logger.Warnings.Count == 0; });
         RefusesTwoPair("a run also owning a world engine", false, host => host.worldEngine = new KingmakerMountedCombat.Diagnostics.Chunk7WorldScenarioEngine {
             RetainedFailureArtifactSha256 = KingmakerMountedCombat.Diagnostics.RuntimeAutomationHost.Sha(pending) });
         RefusesTwoPair("loads beyond the declared quota", false, host => { host.loadRequestCount = 2; host.saveAuthorization.AuthorizedLoadCount = 2; });
