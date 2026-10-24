@@ -719,29 +719,31 @@ Check-SeedAttackModes 'an on click outside the first measured round' {$args[0].a
 Check-SeedAttackModes 'a Dismount outside its round' {$args[0].artifact.observations.attackModes.dismountAfter.round=13} 'outside its native round'
 # Pair B (and mount A once unmounted) never spends; finished turns' cooldowns decay natively for every unit.
 function AMActor($v,[int]$i,[string]$when,[string]$role){@((AM $v $i).$when.actors|Where-Object id -CEQ $v.request.ownedPairs.$role)[0]}
-Check 'owner-seed attack modes accept pair B cooldowns that only decayed natively (N+1 and N+3)' {$v=New-KmcSeedAttackModesFixture;foreach($i in 1,2){foreach($role in 'riderBId','mountBId'){(AMActor $v $i 'before' $role).standard=6.0;(AMActor $v $i 'after' $role).standard=4.5;(AMActor $v $i 'before' $role).reactionCooldown=6.0;(AMActor $v $i 'after' $role).reactionCooldown=4.5}};Invoke-OwnedReader $v}
-Check 'owner-seed attack modes accept mount A cooldowns that only decayed natively in the unmounted control' {$v=New-KmcSeedAttackModesFixture;(AMActor $v 2 'before' 'mountAId').move=6.0;(AMActor $v 2 'after' 'mountAId').move=3.0;Invoke-OwnedReader $v}
+Check 'owner-seed attack modes accept pair B cooldowns that only decayed natively (N+1 and N+3)' {$v=New-KmcSeedAttackModesFixture;foreach($i in 1,2){foreach($role in 'riderBId','mountBId'){(AMActor $v $i 'before' $role).standard=6.0;(AMActor $v $i 'after' $role).standard=4.5;(AMActor $v $i 'before' $role).reactionCooldown=6.0;(AMActor $v $i 'after' $role).reactionCooldown=4.5}};foreach($i in 1,2){(AM $v $i).after.gameTicks=[long](AM $v $i).before.gameTicks+20000000};Invoke-OwnedReader $v}
+Check 'owner-seed attack modes accept mount A cooldowns that only decayed natively in the unmounted control' {$v=New-KmcSeedAttackModesFixture;(AMActor $v 2 'before' 'mountAId').move=6.0;(AMActor $v 2 'after' 'mountAId').move=3.0;(AM $v 2).after.gameTicks=[long](AM $v 2).before.gameTicks+30000000;Invoke-OwnedReader $v}
 Check-SeedAttackModes 'pair B spending its move inside the mounted-on window' {(AMActor $args[0] 1 'after' 'mountBId').move=3.0} 'Unrelated native actor expenditure changed'
 Check-SeedAttackModes 'pair B spending inside the unmounted control' {(AMActor $args[0] 2 'after' 'riderBId').standard=6.0} 'Unrelated native actor expenditure changed'
 Check-SeedAttackModes 'pair B spending a reaction inside the control' {(AMActor $args[0] 2 'after' 'riderBId').reactions=0} 'Unrelated native actor expenditure changed'
 Check-SeedAttackModes 'a pair B reaction cooldown that grew' {(AMActor $args[0] 0 'after' 'mountBId').reactionCooldown=6.0} 'Unrelated native actor expenditure changed'
 Check-SeedAttackModes 'mount A cooldowns that changed while it carries rider A' {$v=$args[0];(AMActor $v 1 'before' 'mountAId').move=6.0;(AMActor $v 1 'after' 'mountAId').move=3.0} 'Unrelated native actor expenditure changed'
-Check-SeedAttackModes 'mount A spending inside the unmounted control' {(AMActor $args[0] 2 'after' 'mountAId').move=3.0} 'Unrelated native actor expenditure changed'
+Check-SeedAttackModes 'mount A spending inside the unmounted control' {(AMActor $args[0] 2 'after' 'mountAId').move=3.0} 'Unrelated native actor expenditure changed'Check-SeedAttackModes 'a pair B cooldown refunded faster than native time' {$v=$args[0];(AMActor $v 1 'before' 'riderBId').standard=6.0;(AMActor $v 1 'after' 'riderBId').standard=0.0;(AM $v 1).after.gameTicks=[long](AM $v 1).before.gameTicks+5000000} 'faster than native time'
+Check-SeedAttackModes 'a negative pair B cooldown' {(AMActor $args[0] 1 'after' 'mountBId').move=-1.0} 'resource observation is invalid'
+Check-SeedAttackModes 'a pair B native cost boundary inside the control window' {$v=$args[0];$m=AM $v 2;$t=$v.artifact.observations.allocationTrace;$m.traceSequenceAfter++;$t.events=@($t.events)+@([pscustomobject]@{sequence=$m.traceSequenceAfter;boundary='cost-before';frame=1;round=13;state=[pscustomobject]@{actor=$v.request.ownedPairs.riderBId}})} 'must not spend'
 # 7E X1 C11 reactions: pair A leaves the diagnostic target's threatened area by one ordinary native
 # ground move on rider A's first prepared turn; the target's single native attack of opportunity
 # hits pair A. Synthetic shapes: the pair starts threatened (no approach) in round 10.
 function New-KmcSeedReactionFixture([bool]$Approach=$false){
  $v=New-KmcOwnerSeedDerivedCombatFixture 'combat-rider-first';$r=$v.request;$o=$v.artifact.observations;$roles=@(Get-KmcChunk7OwnedPairIds $r)
- $r.ownedPairs.case='owner-seed-combat-reaction'
+ $r.ownedPairs.case='owner-seed-combat-reaction';$script:rxTraceBase=[long](@($o.allocationTrace.events)|Measure-Object -Property sequence -Maximum).Maximum
  foreach($key in @('r1','firstActionMount','localFailure','registeredDisable','removalRefusal','pendingSurvivor')){if($null-ne$o.PSObject.Properties[$key]){$o.PSObject.Properties.Remove($key)}}
  $o.activations=@();$o.inputs=@()
  $snap={param([string]$label,[double]$mountMove)$x=Copy-Value $o.snapshots[0];$x.label=$label;$x.round=10;foreach($a in $x.actors){$a.standard=0.0;$a.move=0.0;$a.swift=0.0;if($a.id-ceq$roles[1]){$a.move=$mountMove}};$x}
  $state={param([string]$label,[long]$reactions,[bool]$engaged,[double]$distance)[pscustomobject][ordered]@{label=$label;id=$o.targetId;round=10;frame=100;reactions=$reactions;reactionsPerRound=1;canAttackOfOpportunity=$true;canActInCombat=$true;waitingInitiative=$false;initiativeCooldown=0.0;surprised=$false;canAct=$true;threatHand=$true;riderRemembersTarget=$true;mountRemembersTarget=$true;standard=0.0;move=0.0;swift=0.0;prone=$false;proneRequested=$false;conscious=$true;commandsEmpty=$true;engagesRider=$engaged;engagesMount=$engaged;engagedUnits=@($(if($engaged){$roles[0];$roles[1]}));position=@(0.0,0.0,3.5);mountDistance=$distance;corpulence=1.5;mountCorpulence=0.9}}
  $residue=[pscustomobject][ordered]@{activeCommand=$false;groundMovement=$false;riderCommandsEmpty=$true;mountCommandsEmpty=$true;state='Mounted';riderConscious=$true;mountConscious=$true;riderProne=$false;mountProne=$false;riderDamage=4;riderMaxHp=38;mountDamage=0;mountMaxHp=30}
  $leg={param([string]$label,[double]$moveBefore,[double]$moveAfter,[long]$rulesBefore,$rules,[bool]$engagedBefore,[bool]$engagedAfter,[long]$reactionsAfter,[double]$distanceBefore,[double]$distanceAfter,[long]$traceBefore)
-  [pscustomobject][ordered]@{label=$label;round=10;destination=@(0.0,0.0,-4.5);requestedDistance=4.5;before=(&$snap ($label+'-before') $moveBefore);targetBefore=(&$state ($label+'-before') 1 $engagedBefore $distanceBefore);ruleCountBefore=$rulesBefore;traceSequenceBefore=$traceBefore
-   fiveFootStep=$false;singleActionMove=$false;clicked=$true;command=(700+$rulesBefore);proposals=@();after=(&$snap ($label+'-after') $moveAfter);targetAfter=(&$state ($label+'-after') $reactionsAfter $engagedAfter $distanceAfter);rules=@($rules);traceSequenceAfter=($traceBefore+5)
-   distance=4.5;result='Success';residue=(Copy-Value $residue);turnActor=$roles[0]}}
+  [pscustomobject][ordered]@{label=$label;round=10;destination=@(0.0,0.0,-4.5);requestedDistance=4.5;before=(&$snap ($label+'-before') $moveBefore);targetBefore=(&$state ($label+'-before') 1 $engagedBefore $distanceBefore);ruleCountBefore=$rulesBefore;traceSequenceBefore=($script:rxTraceBase+$traceBefore)
+   fiveFootStep=$false;singleActionMove=$false;clicked=$true;command=(700+$rulesBefore);proposals=@();after=(&$snap ($label+'-after') $moveAfter);targetAfter=(&$state ($label+'-after') $reactionsAfter $engagedAfter $distanceAfter);rules=@($rules);traceSequenceAfter=($script:rxTraceBase+$traceBefore+5)
+   distance=4.5;result='Success';residue=(Copy-Value $residue);pairBefore=(Copy-Value $residue);turnActor=$roles[0]}}
  $victim=$roles[1];$aoo=[pscustomobject][ordered]@{sequence=1;kind='attack';identity=4242;frame=101;round=10;actor=$o.targetId;target=$victim;opportunity=$true;fullAttack=$false;weapon='35dfad6517f401145af54111be04d6cf';ranged=$false;natural=$true;actorPosition=@(0.0,0.0,3.5);targetPosition=@(0.0,0.0,-1.0)}
  $x=[ordered]@{contract='owner-seed-combat-reaction-v1';riderId=$roles[0];mountId=$roles[1];targetId=$o.targetId;proneStandUp=[pscustomobject][ordered]@{covered=$false;reason='No deterministic native prone source exists for the diagnostic target on the owner-seed fixture.'};stage=3;firstRound=10}
  if($Approach){
@@ -752,7 +754,7 @@ function New-KmcSeedReactionFixture([bool]$Approach=$false){
   $x.precondition=&$state 'precondition' 1 $true 3.5
   $d=&$leg 'disengage' 0.0 1.5 0 @($aoo) $true $false 0 3.5 8.5 10
  }
- $d|Add-Member clearDistance 8.0;$x.disengage=$d
+ $d|Add-Member clearDistance 8.0;$x.disengageGates=&$state 'disengage-gates' 1 $true 3.5;$x.disengage=$d
  $x.rules=[pscustomobject][ordered]@{dropped=0;errors=@();events=@($aoo)};$x.complete=$true
  $o|Add-Member reaction ([pscustomobject]$x) -Force
  $v.name='combat-reaction';$v
@@ -901,7 +903,8 @@ Check-SeedStaged 'a leg that did not move' {$l=(Get-StStep $args[0] 3).legs[1];$
 Check-SeedStaged 'a leg carried by the rider' {$l=(Get-StStep $args[0] 0).legs[0];$l.carrier.executor=$args[0].request.ownedPairs.riderAId} 'exact mount carrier'
 Check-SeedStaged 'a five-foot step leg' {(Get-StStep $args[0] 0).legs[0].fiveFootStep=$true} 'Native evidence boolean'
 Check-SeedStaged 'a mount Standard spent on movement' {$l=(Get-StStep $args[0] 5).legs[0];(Get-StActor $l.after $args[0].request.ownedPairs.mountAId).standard=6.0} 'non-movement action'
-Check-SeedStaged 'pair B spending inside a step' {$s=Get-StStep $args[0] 4;(Get-StActor $s.after $args[0].request.ownedPairs.riderBId).standard=6.0} 'Unrelated native actor expenditure'
+Check-SeedStaged 'pair B spending inside a step' {$s=Get-StStep $args[0] 4;(Get-StActor $s.after $args[0].request.ownedPairs.riderBId).standard=6.0} 'Unrelated native actor expenditure'Check-SeedStaged 'a pair B cooldown refunded faster than native time' {$s=Get-StStep $args[0] 4;(Get-StActor $s.before $args[0].request.ownedPairs.riderBId).standard=6.0;$s.after.gameTicks=[long]$s.before.gameTicks+5000000} 'faster than native time'
+Check-SeedStaged 'a pair B native cost boundary inside the last activation' {$v=$args[0];$s=@($v.artifact.observations.staged.steps)[-1];$t=$v.artifact.observations.allocationTrace;$e=Copy-Value @($t.events)[-1];$e.sequence=[long]$e.sequence+1;$e.boundary='cost-after';$e.command=987654;$e.state.actor=$v.request.ownedPairs.mountBId;$t.events=@($t.events)+@($e);$s.traceSequenceAfter=$e.sequence} 'must not spend'
 Check-SeedStaged 'two short legs beyond one Move' {$l=(Get-StStep $args[0] 2).legs[0];(Get-StActor $l.after $args[0].request.ownedPairs.mountAId).move=3.5;(Get-StActor (Get-StStep $args[0] 2).after $args[0].request.ownedPairs.mountAId).move=3.5} 'exceeded one native Move'
 Check-SeedStaged 'a second leg that did not continue the allocation' {$l=(Get-StStep $args[0] 2).legs[0];(Get-StActor $l.before $args[0].request.ownedPairs.mountAId).move=0.0} 'same native Move allocation'
 Check-SeedStaged 'a cast without its native commitment' {$e=Get-StEvent $args[0] -801 'cost-after';$e.command=1} 'committed exactly once'
@@ -935,7 +938,7 @@ Check-SeedStaged 'an approach not charged to the mount' {$s=Get-StStep $args[0] 
 Check-SeedStaged 'a shot fired before the approach' {(Get-StStep $args[0] 9).rules[0].actorPosition=@(20.64,0.0,0.0)} 'shot origin'
 Check-SeedStaged 'an approach that stopped out of range' {(Get-StStep $args[0] 9).endDistance=18.5} 'outside weapon range'
 Check-SeedStaged 'two rider costs in one activation' {$v=$args[0];$s=Get-StStep $v 2;$l=$s.legs[0];$script:stSeq=[long](@($v.artifact.observations.allocationTrace.events)|Measure-Object -Property sequence -Maximum).Maximum;$t=$v.artifact.observations.allocationTrace;$t.events=@($t.events)+@([pscustomobject][ordered]@{sequence=$script:stSeq+1;boundary='cost-after';frame=1;round=10;command=5;commandActor=$null;commandType=$null;state=[pscustomobject]@{actor=$v.request.ownedPairs.riderAId;standard=6.0}});foreach($i in 0..9){(Get-StStep $v $i).traceSequenceBefore+=0};$s.traceSequenceAfter=$script:stSeq+1;$l.traceSequenceAfter=$script:stSeq+1} 'rider A was charged|exactly one rider cost'
-Check-SeedStaged 'a turn transition inside an activation' {$v=$args[0];$e=Get-StEvent $v 602 'admission-after';$e.boundary='prepare-after'} 'turn transition|exact mount carrier'
+Check-SeedStaged 'a turn transition inside an activation' {$v=$args[0];$e=Get-StEvent $v 602 'admission-after';$e.boundary='prepare-after'} 'turn transition'
 Check-SeedStaged 'a stack built off the equipped entity' {$args[0].artifact.observations.staged.scroll.stacked.item=1} 'built on its equipped entity'
 Check-SeedStaged 'a stack that does not conserve its spends' {$args[0].artifact.observations.staged.scroll.beforeCleanup.count=3} 'conserve its two observed native spends'
 Check-SeedStaged 'a retained disposable item' {$args[0].artifact.observations.staged.scroll.noOwnedItemResident=$false} 'Native evidence boolean'
@@ -944,7 +947,7 @@ Check-SeedStaged 'a dropped rule observation' {$args[0].artifact.observations.st
 Check-SeedStaged 'an incomplete run' {$args[0].artifact.observations.staged.complete=$false} 'Native evidence boolean'
 Check-SeedStaged 'a carried reaction record' {$args[0].artifact.observations|Add-Member reaction ([pscustomobject]@{}) -Force} 'cannot carry another combat case'
 Check-SeedStaged 'a relationship input' {$args[0].artifact.observations.inputs=@([pscustomobject]@{label='stray'})} 'no relationship input'
-Check-SeedStaged 'a turn end inside an activation' {$v=$args[0];$e=Get-StEvent $v 602 'admission-after';$e.boundary='turn-end-before'} 'turn transition|exact mount carrier'
+Check-SeedStaged 'a turn end inside an activation' {$v=$args[0];$e=Get-StEvent $v 602 'admission-after';$e.boundary='turn-end-before'} 'turn transition'
 Check-SeedStaged 'a cost boundary of another native turn' {$e=Get-StEvent $args[0] 802 'cost-before';$e.turn=999} 'outside rider A''s own native activation'
 Check-SeedStaged 'a cost boundary after the turn ended' {$e=Get-StEvent $args[0] -801 'cost-after';$e.turnStatus='Ended'} 'outside rider A''s own native activation'
 Check-SeedStaged 'one native turn identity across two rounds' {$v=$args[0];foreach($i in 3,4){$s=Get-StStep $v $i;$s.before.turn=501;$s.after.turn=501;if($null-ne$s.PSObject.Properties["legs"]){foreach($l in @($s.legs)){$l.before.turn=501;$l.after.turn=501}}};foreach($e in @($v.artifact.observations.allocationTrace.events|Where-Object{$_.PSObject.Properties['turn']-and$_.turn-eq502})){$e.turn=501}} 'reuse one native turn identity'
@@ -958,8 +961,15 @@ Check-SeedStaged 'a single-action move leg' {(Get-StStep $args[0] 0).legs[0].sin
 Check-SeedStaged 'an absent cast shell identity' {$s=Get-StStep $args[0] 8;$s.costShell=0;$s.terminal.identity=0} 'committed exactly once'
 Check 'owner-seed combat reaction accepts a negative native command identity' {$v=New-KmcSeedReactionFixture;(Get-RxLeg $v).command=-1234567;Invoke-OwnedReader $v}
 Check 'owner-seed combat reaction accepts an interrupted move that left the threatened area short of its clear distance' {$v=New-KmcSeedReactionFixture;$d=Get-RxLeg $v;$d.result='Interrupt';$d.targetAfter.mountDistance=6.0;Invoke-OwnedReader $v}
-Check 'owner-seed combat reaction accepts pair B cooldowns that only decayed natively' {$v=New-KmcSeedReactionFixture;$d=Get-RxLeg $v;(RActor $d.before $v.request.ownedPairs.riderBId).standard=6.0;(RActor $d.after $v.request.ownedPairs.riderBId).standard=5.5;Invoke-OwnedReader $v}
-Check-SeedReaction 'pair B spending its move inside the window' {$d=Get-RxLeg $args[0];(RActor $d.after $args[0].request.ownedPairs.mountBId).move=3.0} 'Unrelated native actor expenditure changed'
+Check 'owner-seed combat reaction accepts pair B cooldowns that only decayed natively' {$v=New-KmcSeedReactionFixture;$d=Get-RxLeg $v;(RActor $d.before $v.request.ownedPairs.riderBId).standard=6.0;(RActor $d.after $v.request.ownedPairs.riderBId).standard=5.5;$d.after.gameTicks=[long]$d.before.gameTicks+10000000;Invoke-OwnedReader $v}
+Check-SeedReaction 'pair B spending its move inside the window' {$d=Get-RxLeg $args[0];(RActor $d.after $args[0].request.ownedPairs.mountBId).move=3.0} 'Unrelated native actor expenditure changed'Check-SeedReaction 'a pair B cooldown refunded faster than native time' {$d=Get-RxLeg $args[0];(RActor $d.before $args[0].request.ownedPairs.riderBId).standard=6.0;$d.after.gameTicks=[long]$d.before.gameTicks+5000000} 'faster than native time'
+Check-SeedReaction 'a pair B native cost boundary inside the disengagement' {$v=$args[0];$d=Get-RxLeg $v;$t=$v.artifact.observations.allocationTrace;$e=Copy-Value @($t.events|Where-Object boundary -CEQ 'cost-after')[-1];$e.sequence=[long]$script:rxTraceBase+1;$d.traceSequenceBefore=$script:rxTraceBase;$e.state.actor=$v.request.ownedPairs.mountBId;$t.events=@($t.events)+@($e)} 'must not spend'
+Check-SeedReaction 'a rider A native cost boundary inside the disengagement' {$v=$args[0];$d=Get-RxLeg $v;$t=$v.artifact.observations.allocationTrace;$e=Copy-Value @($t.events|Where-Object boundary -CEQ 'cost-before')[-1];$e.sequence=[long]$script:rxTraceBase+1;$d.traceSequenceBefore=$script:rxTraceBase;$e.state.actor=$v.request.ownedPairs.riderAId;$t.events=@($t.events)+@($e)} 'must not spend'
+Check-SeedReaction 'missing disengagement gates' {$args[0].artifact.observations.reaction.PSObject.Properties.Remove('disengageGates')} 'could not natively make its attack of opportunity'
+Check-SeedReaction 'gates lost before the disengagement' {$args[0].artifact.observations.reaction.disengageGates.threatHand=$false} 'could not natively make its attack of opportunity'
+Check-SeedReaction 'a victim healed by the attack' {(Get-RxLeg $args[0]).pairBefore.mountDamage=5} 'healed its victim'
+Check-SeedReaction 'the other pair actor damaged' {(Get-RxLeg $args[0]).residue.riderDamage=9} 'damaged the other pair actor'
+Check-SeedReaction 'an unrecorded pair state before the leg' {(Get-RxLeg $args[0]).PSObject.Properties.Remove('pairBefore')} 'pair state before the leg'
 Check-SeedReaction 'a completed move short of its clear distance' {(Get-RxLeg $args[0]).targetAfter.mountDistance=6.0} 'clear distance'
 Check-SeedReaction 'an absent command identity' {(Get-RxLeg $args[0]).command=0} 'completed native ground move'
 Check-SeedReaction 'a single-action move mode' {(Get-RxLeg $args[0]).singleActionMove=$true} 'Native evidence boolean'

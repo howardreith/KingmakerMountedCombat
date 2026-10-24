@@ -128,6 +128,7 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 if (stagedIndex == 0)
                 {
+                    if (EndSurprisedRiderTurn(turn, staged)) return;
                     if (!ReadyPrincipal(a)) { if (turn?.Unit != target && turn?.Unit != ar) EndNative(turn); return; }
                     stagedRound = controller.RoundNumber; staged["firstRound"] = stagedRound; actingPair = a; actingIndex = 0; actingTurn = turn;
                 }
@@ -306,9 +307,7 @@ namespace KingmakerMountedCombat.Diagnostics
             stagedStep["endDistance"] = Flat(am.Position, target.Position);
             var before = (JObject)stagedStep["before"]; var after = (JObject)stagedStep["after"];
             // Pair B never spends inside the window (a finished turn's cooldowns may only decay natively).
-            Require((string)after["relationship"] == "Mounted" && new[] { br, bm }.All(actor =>
-                new[] { "standard", "move", "swift" }.All(f => (float)Actor(after, actor)[f] <= (float)Actor(before, actor)[f] + .001f) &&
-                (int)Actor(after, actor)["reactions"] == (int)Actor(before, actor)["reactions"]),
+            Require((string)after["relationship"] == "Mounted" && new[] { br, bm }.All(actor => NeverSpentNatively(before, after, actor)),
                 "Staged step " + spec.Kind + " dismounted pair A or changed pair B's native budget.");
         }
         private void FinishStaged()

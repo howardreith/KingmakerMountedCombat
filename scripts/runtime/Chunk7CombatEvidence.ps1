@@ -30,12 +30,21 @@ function Assert-KmcChunk7SameCombatBudget($Before,$After,[string[]]$Ids) {
     foreach($id in $Ids){$a=Get-KmcChunk7CombatActor $Before $id;$b=Get-KmcChunk7CombatActor $After $id
         foreach($field in @('standard','move','swift','reactions','reactionCooldown')){if($a.$field-ne$b.$field){throw 'Unrelated native actor expenditure changed.'}}}
 }
-# An actor that never spends inside a window: no cooldown grows and the reaction count is unchanged. Native
-# TB cooldowns of every unit decay while another actor's command runs, so a decrease is native, not a refund.
+# An actor that never spends inside a window: no cooldown grows, the reaction count is unchanged, and any
+# decrease is bounded by the native game time between the two snapshots (TB cooldowns of every unit decay with
+# time while another actor's command runs). A larger drop is a refund or a clear, not native decay.
 function Assert-KmcChunk7NeverSpentCombatBudget($Before,$After,[string[]]$Ids) {
+    foreach($w in @($Before,$After)){if(-not(Test-KmcExactJsonInteger $w.gameTicks)-or$w.gameTicks-lt0){throw 'Native window game time is missing.'}}
+    $elapsed=([double]$After.gameTicks-[double]$Before.gameTicks)/10000000.0;if($elapsed-lt0){throw 'Native window game time runs backwards.'}
     foreach($id in $Ids){$a=Get-KmcChunk7CombatActor $Before $id;$b=Get-KmcChunk7CombatActor $After $id
-        foreach($field in @('standard','move','swift','reactionCooldown')){if([double]$b.$field-gt[double]$a.$field+0.001){throw 'Unrelated native actor expenditure changed.'}}
+        foreach($field in @('standard','move','swift','reactionCooldown')){if([double]$b.$field-gt[double]$a.$field+0.001){throw 'Unrelated native actor expenditure changed.'}
+            if([double]$a.$field-[double]$b.$field-gt$elapsed*1.1+0.001){throw 'Unrelated native actor cooldown fell faster than native time (refunded).'}}
         if($b.reactions-ne$a.reactions){throw 'Unrelated native actor expenditure changed.'}}
+}
+# No native cost boundary of the given actors inside a trace window (sequence after Before, up to After).
+function Assert-KmcChunk7NoCostBoundary($Trace,[long]$Before,[long]$After,[string[]]$Ids,[string]$Why){
+    $hits=@($Trace.events|Where-Object{$_.sequence-gt$Before-and$_.sequence-le$After-and$_.boundary-cin@('cost-before','cost-after','actor-cost-before','actor-cost-after')-and$null-ne$_.state-and$_.state.actor-cin$Ids})
+    if($hits.Count-ne0){throw ($Why+' has a native cost boundary of an actor that must not spend.')}
 }
 function Assert-KmcChunk7CombatAttack($Attack,$Trace,[string]$Actor,[string]$Caster,[string]$Target,[string[]]$Ids) {
     if($Attack.casterId-cne$Caster-or$Attack.executorId-cne$Caster-or$Attack.selectionAfterInput-ceq$Caster-or$Attack.selectionAfterInput-cnotin$Ids-or
@@ -221,6 +230,7 @@ function Assert-KmcChunk7AttackModeMeasurement($m,[string]$Label,[bool]$Mounted,
  foreach($f in @('traceSequenceBefore','traceSequenceAfter','ruleCountBefore')){if(-not(Test-KmcExactJsonInteger $m.$f)-or$m.$f-lt0){throw 'Attack mode window bounds are invalid.'}}
  if($m.traceSequenceAfter-lt$m.traceSequenceBefore){throw 'Attack mode trace window runs backwards.'}
  $window=@($o.allocationTrace.events|Where-Object{$_.sequence-gt$m.traceSequenceBefore-and$_.sequence-le$m.traceSequenceAfter-and$_.boundary-ceq'cost-after'-and$null-ne$_.state})
+ Assert-KmcChunk7NoCostBoundary $o.allocationTrace $m.traceSequenceBefore $m.traceSequenceAfter @($roles[2],$roles[3]) ('Attack mode '+$Label)
  $riderCosts=@($window|Where-Object{$_.state.actor-ceq$roles[0]}).Count;$mountCosts=@($window|Where-Object{$_.state.actor-ceq$roles[1]}).Count
  if($riderCosts-lt1-or$mountCosts-ne0){throw ('Attack mode '+$Label+' has no native cost on rider A or spent the mount.')}
  [pscustomobject]@{rangedCount=$rangedCount;inner=@(Get-KmcChunk7AttackModeInner $m);rapid=(Get-KmcChunk7AttackModeRapidBonus $m);riderCosts=$riderCosts}
@@ -286,10 +296,8 @@ function Assert-KmcChunk7ReactionLeg($Leg,[string]$Label,[long]$Round,$o,$roles)
  foreach($f in @('standard','move','swift')){if($ra.$f-ne$rb.$f){throw 'Rider A spent its own action on the pair''s ground move.'}}
  if($ma.standard-ne$mb.standard-or$ma.swift-ne$mb.swift){throw 'Mount A spent a non-movement action on its ground move.'}
  if($ma.move-le$mb.move){throw 'The pair''s ground move was not charged to mount A''s native move, or was refunded.'}
- # Pair B never spends inside the window; a finished turn's cooldowns may only decay natively.
- foreach($id in @($roles[2],$roles[3])){$b=Get-KmcChunk7CombatActor $Leg.before $id;$a=Get-KmcChunk7CombatActor $Leg.after $id
-  foreach($f in @('standard','move','swift')){if([double]$a.$f-gt[double]$b.$f+0.001){throw 'Unrelated native actor expenditure changed.'}}
-  if($a.reactions-ne$b.reactions){throw 'Unrelated native actor expenditure changed.'}}
+ # Pair B never spends inside the window; a finished turn's cooldowns may only decay natively, bounded by native time.
+ Assert-KmcChunk7NeverSpentCombatBudget $Leg.before $Leg.after @($roles[2],$roles[3])
  # Native TB cooldowns of every unit only decay while another actor's command runs: the target never spends.
  foreach($f in @('standard','move','swift')){if([double]$Leg.targetAfter.$f-gt[double]$Leg.targetBefore.$f+0.001){throw 'The diagnostic target spent an action inside the pair''s move.'}}
  $res=$Leg.residue;foreach($f in @('activeCommand','groundMovement')){Assert-KmcChunk7Boolean $res.$f $false}
@@ -299,6 +307,10 @@ function Assert-KmcChunk7ReactionLeg($Leg,[string]$Label,[long]$Round,$o,$roles)
  if($res.state-cne'Mounted'){throw 'Pair A did not stay mounted through the reaction.'}
  foreach($f in @('ruleCountBefore','traceSequenceBefore','traceSequenceAfter')){if(-not(Test-KmcExactJsonInteger $Leg.$f)-or$Leg.$f-lt0){throw 'Reaction window bounds are invalid.'}}
  if($Leg.traceSequenceAfter-lt$Leg.traceSequenceBefore){throw 'Reaction trace window runs backwards.'}
+ # Only mount A's own move is charged: no native cost boundary of rider A or pair B inside the leg.
+ Assert-KmcChunk7NoCostBoundary $o.allocationTrace $Leg.traceSequenceBefore $Leg.traceSequenceAfter @($roles[0],$roles[2],$roles[3]) ('Reaction '+$Label)
+ $pb=if($null-ne$Leg.PSObject.Properties['pairBefore']){$Leg.pairBefore}else{$null};if($null-eq$pb){throw 'Reaction pair state before the leg is not recorded.'}
+ foreach($f in @('riderDamage','mountDamage')){if(-not(Test-KmcExactJsonInteger $pb.$f)-or$pb.$f-lt0){throw 'Reaction victim hit points are not recorded.'}}
  $seq=[long]$Leg.ruleCountBefore;foreach($e in @($Leg.rules)){$seq++;if($e.sequence-ne$seq){throw 'Reaction rule window is not the observer''s consecutive record.'}}
  return @($Leg.rules)
 }
@@ -318,7 +330,8 @@ function Assert-KmcChunk7ReactionCombat($Request,$Observations){
  $p=$x.precondition;Assert-KmcChunk7ReactionTargetState $p $o.targetId
  if($p.round-ne$n-or$p.reactions-ne1-or$p.reactionsPerRound-ne1-or$p.canAttackOfOpportunity-ne$true){throw 'The diagnostic target did not hold exactly one available native attack of opportunity at the stimulus.'}
  # The native AttackOfOpportunity gates beyond the counter, at the stimulus and at the disengagement.
- foreach($g in @($p,$x.disengage.targetBefore)){
+ $gates=if($null-ne$x.PSObject.Properties['disengageGates']){$x.disengageGates}else{$null}
+ foreach($g in @($p,$gates,$x.disengage.targetBefore)){
   if($null-eq$g-or$g.canActInCombat-ne$true-or$g.waitingInitiative-ne$false-or$g.surprised-ne$false-or$g.canAct-ne$true-or$g.threatHand-ne$true-or$g.riderRemembersTarget-ne$true-or$g.mountRemembersTarget-ne$true){throw 'The diagnostic target could not natively make its attack of opportunity (initiative, surprise, action, threat hand or memory).'}}
 
  $approached=$null-ne$x.PSObject.Properties['approach'];$approachRules=@()
@@ -334,6 +347,9 @@ function Assert-KmcChunk7ReactionCombat($Request,$Observations){
  if($d.targetAfter.engagesRider-or$d.targetAfter.engagesMount){throw 'Pair A did not leave the target''s threatened area.'}
  if($d.targetAfter.reactions-ne$d.targetBefore.reactions-1){throw 'The target''s native attack-of-opportunity count did not drop by exactly one.'}
  if($dr.Count-ne1){throw 'Native disengagement drew other than exactly one attack.'};$aoo=$dr[0]
+ # The attack may miss: its victim's damage never falls, and the other pair actor's damage is unchanged.
+ $victim=if($aoo.target-ceq$roles[0]){'riderDamage'}else{'mountDamage'};$other=if($victim-ceq'riderDamage'){'mountDamage'}else{'riderDamage'}
+ if($d.residue.$victim-lt$d.pairBefore.$victim-or$d.residue.$other-ne$d.pairBefore.$other){throw 'The attack of opportunity healed its victim or damaged the other pair actor.'}
  if($aoo.kind-cne'attack'-or$aoo.actor-cne$o.targetId-or$aoo.opportunity-ne$true-or$aoo.target-cnotin@($roles[0],$roles[1])-or$aoo.ranged-ne$false-or$aoo.round-ne$n){throw 'The single attack is not the target''s native attack of opportunity against pair A.'}
  if((ConvertTo-Json -InputObject @($x.rules.events) -Depth 10 -Compress)-cne(ConvertTo-Json -InputObject @(@($approachRules)+@($dr)) -Depth 10 -Compress)){throw 'The rule observer recorded attacks outside the reaction windows.'}
  # An interrupted move must still have left the threatened area (checked above); a completed one reaches its clear distance.
@@ -374,11 +390,7 @@ function Assert-KmcChunk7StagedSettled($State,[string]$Why){
  if($State.riderCommandsEmpty-ne$true-or$State.mountCommandsEmpty-ne$true-or$State.processesSettled-ne$true-or$State.nativeAbilitiesPending-ne$false-or$State.projectilesPending-ne$false-or$State.activePairCommand-ne$false-or$State.pairMovement-ne$false){throw ($Why+': command, process or pair residue remains.')}
 }
 # Pair B never spends inside a staged window; its finished turns' cooldowns may only decay natively.
-function Assert-KmcChunk7StagedPairBIdle($Before,$After,$roles){
- foreach($id in @($roles[2],$roles[3])){$b=Get-KmcChunk7CombatActor $Before $id;$a=Get-KmcChunk7CombatActor $After $id
-  foreach($f in @('standard','move','swift')){if([double]$a.$f-gt[double]$b.$f+0.001){throw 'Unrelated native actor expenditure changed.'}}
-  if($a.reactions-ne$b.reactions){throw 'Unrelated native actor expenditure changed.'}}
-}
+function Assert-KmcChunk7StagedPairBIdle($Before,$After,$roles){Assert-KmcChunk7NeverSpentCombatBudget $Before $After @($roles[2],$roles[3])}
 function Get-KmcChunk7StagedCosts($Events,[string]$Actor){@($Events|Where-Object{$_.boundary-cin@('cost-before','cost-after','actor-cost-before','actor-cost-after')-and$_.state.actor-ceq$Actor})}
 function Assert-KmcChunk7StagedLeg($Leg,$o,$roles,[string]$Why){
  Assert-KmcChunk7Boolean $Leg.clicked $true;Assert-KmcChunk7Boolean $Leg.fiveFootStep $false;Assert-KmcChunk7Boolean $Leg.singleActionMove $false
@@ -528,6 +540,7 @@ function Assert-KmcChunk7StagedCombat($Request,$Observations){
   $window=@(Get-KmcChunk7StagedTrace $o $group[0].traceSequenceBefore $group[-1].traceSequenceAfter)
   if(@($window|Where-Object{[string]$_.boundary-cin$transitions}).Count-ne0){throw ('Staged round N+'+$round+' holds a native turn transition inside its activation.')}
   if(@($window|Where-Object{$_.boundary-ceq'cost-after'-and$_.state.actor-ceq$roles[0]}).Count-ne1){throw ('Staged round N+'+$round+' does not carry exactly one rider cost commitment.')}
+  Assert-KmcChunk7NoCostBoundary $o.allocationTrace $group[0].traceSequenceBefore $group[-1].traceSequenceAfter @($roles[2],$roles[3]) ('Staged round N+'+$round)
   # Every pair cost boundary of the activation is stamped by the same rider turn, round and Preparing/Acting window.
   $stamps=@($window|Where-Object{$_.boundary-cin@('cost-before','cost-after','actor-cost-before','actor-cost-after')-and$_.state.actor-cin@($roles[0],$roles[1])})
   if(@($stamps|Where-Object{[string]$_.turn-cne[string]$group[0].before.turn-or$_.round-ne$n+$round-or$_.currentActor-cne$roles[0]-or[string]$_.turnStatus-cnotin@('Preparing','Acting')}).Count-ne0){throw ('Staged round N+'+$round+' has a cost boundary outside rider A''s own native activation.')}

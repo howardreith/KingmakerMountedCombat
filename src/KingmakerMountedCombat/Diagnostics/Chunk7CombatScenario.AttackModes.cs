@@ -131,16 +131,19 @@ namespace KingmakerMountedCombat.Diagnostics
                 (float)Actor(after, ar)["standard"] > (float)Actor(before, ar)["standard"] &&
                 // Mount A is exact while it carries rider A; unmounted (control) it is an independent unit whose finished
                 // paired turn may still decay. Pair B never spends: a finished turn's cooldowns may only decay natively.
-                ((bool)observation["mounted"] ? SameActorBudget(Actor(before, am), Actor(after, am)) : NeverSpentBudget(Actor(before, am), Actor(after, am))) &&
-                new[] { br, bm }.All(actor => NeverSpentBudget(Actor(before, actor), Actor(after, actor))),
+                ((bool)observation["mounted"] ? SameActorBudget(Actor(before, am), Actor(after, am)) : NeverSpentNatively(before, after, am)) &&
+                new[] { br, bm }.All(actor => NeverSpentNatively(before, after, actor)),
                 "Native full attack escaped its exact plan, rolls or actor allocation: " + observation["command"].ToString(Newtonsoft.Json.Formatting.None));
             return true;
         }
-        // No cooldown grows and the reaction count is unchanged (native TB cooldowns of every unit decay while
-        // another actor's command runs, so a decrease is native, not a refund).
-        private static bool NeverSpentBudget(JObject before, JObject after) =>
-            new[] { "standard", "move", "swift", "reactionCooldown" }.All(f => (float)after[f] <= (float)before[f] + .001f) &&
-            (int)after["reactions"] == (int)before["reactions"];
+        // A surprised rider A turn cannot carry a measured input: it is ended natively, as the full activations do,
+        // and recorded in the case record. Native surprise belongs to the first round only.
+        private bool EndSurprisedRiderTurn(TurnController turn, JObject record)
+        {
+            if (turn?.Unit != ar || !Game.Instance.TurnBasedCombatController.IsSurprised(ar)) return false;
+            record["surprisedRiderTurnEnded"] = Game.Instance.TurnBasedCombatController.RoundNumber;
+            EndNative(turn); return true;
+        }
         private static int[] InnerBonuses(JObject observation) => ((JArray)observation["rules"]).OfType<JObject>()
             .Where(e => (string)e["kind"] == "roll" && !(bool)e["opportunity"]).Select(e => (int)e["nativeCalculation"]["innerResult"]).ToArray();
         private static int RapidBonus(JObject observation)
@@ -157,7 +160,9 @@ namespace KingmakerMountedCombat.Diagnostics
             attackModes["stage"] = attackModesStage;
             if (attackModesStage == 0)
             {
-                if (!ReadyPrincipal(a)) { if (turn?.Unit != target) EndNative(turn); return; }
+                if (EndSurprisedRiderTurn(turn, attackModes)) return;
+                // Rider A's own turn is never ended here; its partner context may still be binding.
+                if (!ReadyPrincipal(a)) { if (turn?.Unit != target && turn?.Unit != ar) EndNative(turn); return; }
                 attackModesRound = controller.RoundNumber; attackModes["firstRound"] = attackModesRound;
                 actingPair = a; actingIndex = 0; actingTurn = turn;
                 Require(!attackModesRapid.IsOn, "Rapid Shot must be off for the first mounted full attack.");
@@ -176,7 +181,8 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 if (ReferenceEquals(turn, actingTurn)) { EndNative(turn); return; }
                 Require(controller.RoundNumber <= attackModesRound + 1, "Attack modes missed the next native round.");
-                if (controller.RoundNumber != attackModesRound + 1 || !ReadyPrincipal(a)) { if (turn?.Unit != target) EndNative(turn); return; }
+                var due = controller.RoundNumber == attackModesRound + 1;
+                if (!due || !ReadyPrincipal(a)) { if (turn?.Unit != target && (turn?.Unit != ar || !due)) EndNative(turn); return; }
                 actingTurn = turn; BeginFullAttack("mounted-on"); AttackModesStage(3); return;
             }
             if (attackModesStage == 3)
@@ -195,7 +201,8 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 if (ReferenceEquals(turn, actingTurn)) { EndNative(turn); return; }
                 Require(controller.RoundNumber <= attackModesRound + 2, "Attack modes missed the dismount round.");
-                if (controller.RoundNumber != attackModesRound + 2 || !ReadyPrincipal(a)) { if (turn?.Unit != target) EndNative(turn); return; }
+                var due = controller.RoundNumber == attackModesRound + 2;
+                if (!due || !ReadyPrincipal(a)) { if (turn?.Unit != target && (turn?.Unit != ar || !due)) EndNative(turn); return; }
                 attackModesDismountTurn = turn; attackModes["dismountBefore"] = WorldSnapshot("attack-modes-dismount-before");
                 BeginRelationship(ar, ar, controls.DismountAbility, br, "attack-modes-native-dismount-a"); AttackModesStage(5); return;
             }
