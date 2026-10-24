@@ -277,7 +277,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["sequence"] = new JArray(window.Select(e => (string)e["boundary"]).Where(b => !b.StartsWith("ready-handler-", StringComparison.Ordinal) &&
                     !b.StartsWith("completion-", StringComparison.Ordinal))),
                 ["grantIdentities"] = new JArray(window.Skip(1).Select(e => e["state"]?["retained"] is JObject retained ? (string)retained["GrantIdentity"] : null).Distinct()),
-                ["pairedIdentities"] = window.Count(e => e["state"]?["pairedGrantIdentity"] != null && e["state"]["pairedGrantIdentity"].Type != JTokenType.Null),
+                // A null string is serialized as a String-typed JValue holding null, so test the value.
+                ["pairedIdentities"] = window.Count(e => (string)e["state"]?["pairedGrantIdentity"] != null),
                 ["prepareSequence"] = (int?)window.FirstOrDefault()?["sequence"],
                 ["statusAfterPrepare"] = (string)prepared?["turnStatus"], ["standardBefore"] = (float?)prepared?["state"]?["standard"],
                 ["standardAfterEnd"] = (float?)ended?["state"]?["standard"], ["conscious"] = unit.Descriptor.State.IsConscious,
