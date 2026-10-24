@@ -70,10 +70,11 @@ This list compares product source with `7fa667b2` and cites the Chunk 7 commits 
 - "Prepare to disable / remove KMC" covers every pair (`947b8a2d`).
 - Progression (tested behaviour, not a new feature): leveling keeps a pair; dismissing, retraining or
   replacing the companion retires that pair. This was observed in development runs (batches 89, 99–100,
-  108 and 116–120; 7E rows 48–54 re-run it on the final candidate). No Chunk 7 commit is specific to
-  progression: retirement goes through the existing native lifecycle cleanup (a removed or invalidated
-  companion dismounts its pair, code from before preview.211) and the per-pair registry's retirement of
-  settled owners (`58abe1a9`). The dismissal inventory fix above is `7c6ba455`.
+  108 and 116–120; 7E rows 48–54 re-run it on the final candidate). No Chunk 7 product commit is specific to
+  leveling, retraining or replacement. Retirement goes through the native lifecycle cleanup: a removed
+  or invalidated companion dismounts its pair (the handler predates preview.211; `58abe1a9` made it clean
+  up only the affected pair instead of all pairs) and the per-pair registry then retires the settled
+  owner (`58abe1a9`). Dismissal also has its own product fix, `7c6ba455` (no inventory merge, above).
 
 ### Settings
 - The UMM page has one setting: **Enable optional real-time Mounted Charge**, off by default. You can

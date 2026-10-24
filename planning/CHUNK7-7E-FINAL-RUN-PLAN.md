@@ -6,7 +6,7 @@ exists. Nothing here is a PASS. Rows refer to the [7E matrix](CHUNK7-7E-QUALIFIC
 [VALIDATION-POLICY](../docs/VALIDATION-POLICY.md), the [F11 protocol](../docs/CHUNK7-F11-ACCEPTANCE-PROTOCOL-2026-10-23.md)
 and the [X6 inventory](../docs/CHUNK7-7E-X6-OFFLINE-INVENTORY-2026-10-23.md).
 
-**Totals:** 75 native launches in 15 batches (B1–B15, five each), about 2.3 h offline tiers plus about
+**Totals:** 75 native launches in 15 batches (B1–B15, five each), about 2.2 h offline tiers plus about
 8.7 h native plus about 0.75 h ledger and closeout: **about 12 hours**, excluding failure handling.
 
 ## 0. Pre-freeze gates (all must hold before step 1)
@@ -18,6 +18,7 @@ and the [X6 inventory](../docs/CHUNK7-7E-X6-OFFLINE-INVENTORY-2026-10-23.md).
 | G3 | `Test-ScenarioDispatchEvidence.ps1` is either fixed (harness-only: add the four Chunk 7 fixture/cold families to its reviewed list with their readers) before the freeze, or carried as classified (X6 inventory). It is outside FULL and the Chunk 7 umbrella either way. |
 | G4 | Branch `codex/mounted-combat-chunk7-successor` clean and pushed; the freeze commit is that pushed HEAD. **No commit lands on the root branch from step 1 until the closeout** (the package manifest binds the harness HEAD; b196 refused when root advanced). Batch notes go to `analysis-cache/chunk7-continuation/final-*` receipts, committed only at closeout. |
 | G5 | Preview.211 package `KingmakerMountedCombat-0.1.0-chunk6d-preview.211-chunk6-closeout211-b-diagnostic.zip` (`e89f431a…`, manifest `ca54c37c…`, DLL `11e99309…`) and the observer.6 source present and unchanged; owner seeds `KMC_C7_NO_MODS_OWNER_SEED` `3405d7c8…`, `KMC_C7_CHARGE_SEED` `1ec2f321…`, `KMC_C7_DOOR_SEED_OLD_SYCAMORE_OPEN` `90789101…` and every fixture source named below hash-verified. |
+| G6 | The selection deriver `final-derive.ps1` (§5) does not exist yet. It is a new generator spanning the owned, progression, assisted, Small, X4/capital and charge families, so it needs one independent review, and offline it must reproduce every named template selection byte for byte from the template's own receipts before the freeze. It must also show, offline, that one same-candidate Small mounted save/cold pair (r33/r34) is admitted as the source of rows 48, 50 and 51 together (the pilots each made their own); if not, the plan adds one `small-fixture-persistence-save`/`-load` pair per progression case before that case, in new batches. |
 
 ## 1. Freeze and package (once)
 
@@ -98,14 +99,23 @@ the package, DLL, MVID and commit; a new product candidate needs a new SuiteId.
   not restored is **not passed**; follow profile recovery before transaction recovery.
 - **Verdict:** the frozen external `scripts\runtime\Test-RuntimeResult.ps1 -ResultPath … -RequestPath …`
   on the run folder (it dispatches the family reader named per row), plus the row binders in §7. Game
-  PASS alone is never a row PASS. An "uncovered" pre-input refusal (rows 57, 67, 70) is recorded by hand
-  as uncovered, never PASS.
+  PASS alone is never a row PASS. **One rule for a pre-input "uncovered" refusal** (rows 57, 67, 69, 70):
+  it is recorded by hand as uncovered, never PASS, and it is **not** completion. Every one of these cases
+  passed on its fixture in b205, so such a refusal on F is a new observation: stop and diagnose before
+  any further run of that row.
 - **Selections:** derived per batch by one unchanged helper `final-derive.ps1` from the named template
   request's selection, changing only lineage pins (source/checkpoint run id, artifact and archive SHA-256,
   minted actor ids, `sourceArea`). Before use it must reproduce the template's own selection byte for
   byte from the template's receipts (the b196–b199 check). Rows sourcing a same-batch output are derived
-  after that run settles. Every combat or checkpoint row must record `candidates.sameCandidate=true`
-  (source and checkpoint produced on F); fixture inputs keep their recorded provenance.
+  after that run settles. Every owner-seed-derived combat or checkpoint row sourced from r01/r02 or k2/k3 must record
+  `candidates.sameCandidate=true` (source and checkpoint produced on F), and the progression rows 48–54
+  must record `source.sameCandidate=true` (r33–r36). **Explicit fixture-input exceptions** (an earlier
+  candidate's output used unchanged as an input, provenance kept, never as behaviour evidence): row 28
+  (Manticore producer `20261020-c7b-world71-b54s1-manticore` with accepted cold
+  `…world73-b56s1-manticore-cold`, itself derived from the world26 row-1 lineage; its
+  `Get-KmcChunk7ManticoreReturnSource` path records no `candidates` field), rows 33, 35 and 66 (Small and
+  Medium fixture Manuals), rows 37, 39 and 42 (sixth-Horse Manual), row 31 (stock Mammoth fixture), row 30
+  and rows 55–56 (owner seeds and the preview.211 package).
 - **Expected pins in every run:** package `<F.pkg>`, manifest `<F.manifest>`, DLL `<F.dll>`, MVID
   `<F.mvid>`, commit `<F.sha>`, suite `chunk7e-final-<sha8>-<date>` `<F.suite>`, `BaseGameOnly`,
   `SaveAccessAllowed`, the plan's selection SHA-256.
@@ -165,8 +175,8 @@ Reader: owned family (schema-2 adapter terms for 18–19).
 | r20 | 20 | `owner-seed-checkpoint-save` (`owned-schema1-manual`) | r01 / r02 | `…world45-ownerseed-b19s4-schema1save` |
 | r21 | 21 | `owner-seed-checkpoint-load` (`owned-schema1-resave-manual`) | r20 | `…b19s5-schema1cold` |
 | r22 | 22 | `owner-seed-checkpoint-load` (`owned-schema1-current-manual`) | r21 | `…b20s1-schema1current` |
-| r23 | 23 | `owner-seed-load-refusal` (`multi-malformed-refusal-manual`) | r01 derivative | `…world52-ownerseed-b31s1-malformed` (b31 corrected bound) |
-| r24 | 24 | `owner-seed-load-refusal` (`multi-future-refusal-manual`) | r01 derivative | `…b31s2-future` |
+| r23 | 23 | `owner-seed-load-refusal` (`multi-malformed-refusal-manual`) | r01 derivative / r02 | `…world52-ownerseed-b31s1-malformed` (b31 corrected bound) |
+| r24 | 24 | `owner-seed-load-refusal` (`multi-future-refusal-manual`) | r01 derivative / r02 | `…b31s2-future` |
 
 Reader: owned + schema-1 family; 23–24 must refuse without overwrite.
 
@@ -177,7 +187,7 @@ Reader: owned + schema-1 family; 23–24 must refuse without overwrite.
 | r25 | 25 | `owner-seed-checkpoint-save` (`multi-owned-worker-cancel-manual`) | r01 / r02 | `…world43-ownerseed-b14s1-worker` |
 | r26 | 26 | `owner-seed-checkpoint-save` (`multi-nonselected-mount-unsettled-manual`) | r01 / r02 | `…b14s2-barrier` |
 | r27 | 27 | `owner-seed-persistence-load` (`multi-exploration-three-loads-manual`) | r01 | `…world48-ownerseed-b23s2-threeloads` |
-| r28 | 28 | `owner-seed-checkpoint-save` (`multi-area-autosave`) | Manticore fixture Manual (b55–56 lineage, fixture input) | `20261020-c7b-world77-b60s1-manticore-spider-auto` |
+| r28 | 28 | `owner-seed-checkpoint-save` (`multi-area-autosave`) | Manticore fixture (producer `…world71-b54s1-manticore`, cold `…world73-b56s1-manticore-cold`; fixture-input exception) | `20261020-c7b-world77-b60s1-manticore-spider-auto` |
 | r29 | 29 | `owner-seed-checkpoint-load` (`multi-area-autosave`) | r28 | `…world77-b61s1-manticore-spider-auto-cold` |
 
 Reader: owned + area family.
@@ -207,15 +217,15 @@ Reader: owned + area family.
 | Tag | Row | Case | Source / checkpoint | T: | Reader |
 | --- | --- | --- | --- | --- | --- |
 | p2 | 65 | `native-life-cleanup` | B1 c5 | b197-p2 | `Assert-KmcChunk7NativeLifeEvidence` |
-| d1 | 67 | `owner-seed-native-death-cleanup` | r01 / r02 | b205-d1 | death branch (`Assert-KmcChunk7NativeDeathChain`, `Assert-KmcChunk7DeathCleanup`) |
+| d1 | 67 | `owner-seed-native-death-cleanup` | r01 / r02 | b205-d1 | death branch (`Assert-KmcChunk7NativeDeathChain`, `Assert-KmcChunk7DeathCleanup`) + `Assert-KmcChunk7OwnerSeedDerivedCombatStart` |
 | am | 68 | `owner-seed-attack-modes` | r01 / r02 | b205-am | `Assert-KmcChunk7AttackModesCombat` |
 | cr | 69 | `owner-seed-combat-reaction` | r01 / r02 | b205-cr | `Assert-KmcChunk7ReactionCombat` |
 | st | 70 | `owner-seed-staged` | r01 / r02 | b205-st | `Assert-KmcChunk7StagedCombat` |
 
 The pilots used the earlier world26 row-1 lineage as a fixture input; here the start is F's own r01/r02.
 A different start can change the recorded geometry or preconditions (Rapid Shot toggle, placement
-plans). A resulting pre-input "uncovered" refusal is a new observation: stop and diagnose; do not fall
-back to the older lineage silently.
+plans). A resulting pre-input "uncovered" refusal follows the single rule in §5 (recorded, not completion,
+stop and diagnose); never fall back to the older lineage silently.
 
 ### B10 — RT Charge lineage and Small items (~30 min)
 
@@ -229,46 +239,49 @@ back to the older lineage silently.
 
 k4 must not reuse the b201 k1–k3 lineage (that would make `sameCandidate` false).
 
-### B11 — F10 assisted and leveling (~35 min)
-
-| Tag | Row | Scenario / case | Source | T: | Reader |
-| --- | --- | --- | --- | --- | --- |
-| r43 | 43 | `chunk7-assisted-fixture-preparation` / `authored-main-ranger4-manual` | assisted fixture | `20261021-c7b-world99-b142s1-assisted-dialog` | assisted |
-| r44 | 44 | `chunk7-assisted-cold-inventory` / `assisted-manual-readonly-inventory` | r43 | `…world158-b158s2-assisted-cold` | `Assert-KmcChunk7AssistedColdInventoryEvidence` |
-| r45 | 45 | `chunk7-cumulative-acquisition` / `paid-small-ranger-horse` (`assisted-producer-and-cold`) | r43 / r44 | `…world158-b158s3-paid-small` | `Assert-KmcChunk7CumulativeEvidence` |
-| r48 | 48 | `chunk7-native-progression` / `small-horse-native-level` | Small fixture | `…world115-b108s3-small-native-level` | `Assert-KmcChunk7ProgressionEvidence` |
-| r49 | 49 | `chunk7-native-progression` / `small-horse-native-level-cold` | r48 | `…b108s4-small-level-cold` | `Assert-KmcChunk7ProgressionColdEvidence` |
-
-### B12 — F10 dismissal, retraining, replacement (~35 min)
-
-| Tag | Row | Case | Source | T: |
-| --- | --- | --- | --- | --- |
-| r50 | 50 | `small-horse-native-dismiss` | Small fixture | `…world102-b89s3-small-native-dismiss` |
-| r51 | 51 | `small-horse-native-retrain-horse` | Small fixture | `…world112-b100s3-small-native-retrain` |
-| r52 | 52 | `small-horse-native-retrain-cold` | r51 | `…b100s4-small-retrain-cold` |
-| r53 | 53 | `medium-horse-native-retrain-mammoth` | Medium fixture | `…world124-b120s3-medium-mammoth-retrain` |
-| r54 | 54 | `medium-horse-native-retrain-cold` | r53 | `…world122-b118s4-medium-mammoth-cold` |
-
-Scenario `chunk7-native-progression`; reader `Assert-KmcChunk7ProgressionEvidence` / `…ColdEvidence`.
-
-### B13 — fixture persistence (~35 min)
+### B11 — fixture persistence (~35 min; feeds B12–B13)
 
 | Tag | Row | Case (PersistenceCase) | Source | T: |
 | --- | --- | --- | --- | --- |
-| r33 | 33 | `small-fixture-persistence-save` (`multi-exploration-manual`) | Small fixture Manual (preview.71 `…world71-b53s1-small`) | `…world116-b110s1-small-admission` |
+| r33 | 33 | `small-fixture-persistence-save` (`multi-exploration-manual`) | Small fixture Manual (preview.71 `…world71-b53s1-small`, fixture input) | `…world116-b110s1-small-admission` |
 | r34 | 34 | `small-fixture-persistence-load` (`multi-exploration-manual`) | r33 | `…world115-b108s2-small-mounted-cold` |
-| r35 | 35 | `medium-fixture-persistence-save` (`multi-exploration-manual`) | Medium fixture Manual | `…world124-b120s1-medium-mounted` |
+| r35 | 35 | `medium-fixture-persistence-save` (`multi-exploration-manual`) | Medium fixture Manual (`…world118-b114s1-medium-paid`, fixture input) | `…world124-b120s1-medium-mounted` |
 | r36 | 36 | `medium-fixture-persistence-load` (`multi-exploration-manual`) | r35 | `…b120s2-medium-mounted-cold` |
-| r37 | 37 | `six-horse-mounted-persistence-save` (`multi-exploration-manual`) | sixth-Horse Manual (b184–185) | `…world189-b189s1-sixsave` |
+| r37 | 37 | `six-horse-mounted-persistence-save` (`multi-exploration-manual`) | sixth-Horse Manual (b184–185, fixture input) | `…world189-b189s1-sixsave` |
 
 Reader: owned + Small / Medium / six-pair families (`Assert-KmcChunk7SixPairPersistenceObservation`).
+
+### B12 — F10 assisted and leveling (~35 min)
+
+| Tag | Row | Scenario / case | Source | T: | Reader |
+| --- | --- | --- | --- | --- | --- |
+| r43 | 43 | `chunk7-assisted-fixture-preparation` / `authored-main-ranger4-manual` | assisted fixture | `20261021-c7b-world158-b158s1-assisted-producer` (the b158 lineage the r44/r45 templates source) | assisted |
+| r44 | 44 | `chunk7-assisted-cold-inventory` / `assisted-manual-readonly-inventory` | r43 | `…world158-b158s2-assisted-cold` | `Assert-KmcChunk7AssistedColdInventoryEvidence` |
+| r45 | 45 | `chunk7-cumulative-acquisition` / `paid-small-ranger-horse` (`assisted-producer-and-cold`) | r43 / r44 | `…world158-b158s3-paid-small` | `Assert-KmcChunk7CumulativeEvidence` |
+| r48 | 48 | `chunk7-native-progression` / `small-horse-native-level` | source r33, inventory r34 | `…world115-b108s3-small-native-level` | `Assert-KmcChunk7ProgressionEvidence` |
+| r49 | 49 | `chunk7-native-progression` / `small-horse-native-level-cold` | r48, inventory r34 | `…b108s4-small-level-cold` | `Assert-KmcChunk7ProgressionColdEvidence` |
+
+### B13 — F10 dismissal, retraining, replacement (~35 min)
+
+| Tag | Row | Case | Source | T: |
+| --- | --- | --- | --- | --- |
+| r50 | 50 | `small-horse-native-dismiss` | source r33, inventory r34 | `…world102-b89s3-small-native-dismiss` |
+| r51 | 51 | `small-horse-native-retrain-horse` | source r33, inventory r34 | `…world112-b100s3-small-native-retrain` |
+| r52 | 52 | `small-horse-native-retrain-cold` | r51, inventory r34 | `…b100s4-small-retrain-cold` |
+| r53 | 53 | `medium-horse-native-retrain-mammoth` | source r35, inventory r36 | `…world124-b120s3-medium-mammoth-retrain` |
+| r54 | 54 | `medium-horse-native-retrain-cold` | r53, inventory r36 | `…world122-b118s4-medium-mammoth-cold` |
+
+Scenario `chunk7-native-progression`; reader `Assert-KmcChunk7ProgressionEvidence` / `…ColdEvidence`.
+The progression readers require `source.sameCandidate=true` (`Chunk7ProgressionFixtures.ps1`,
+`Chunk7ProgressionEvidence.ps1`), so B12–B13 can only follow B11 on F. Gate G6 decides whether one
+r33/r34 pair may feed rows 48, 50 and 51 together.
 
 ### B14 — X5 upgrade and rollback, removal (~30 min)
 
 | Tag | Row | Run | Source | Reader / binder |
 | --- | --- | --- | --- | --- |
 | u1 | 55 | `chunk7-normal-player-control -UpgradeRehearsalStep u1-previous-install -UpgradeRehearsalId x5-final-<sha8>` (preview.211 `-b` staged, observer.6, `TimeoutSeconds` 900) | NO_MODS seed | `Test-RuntimeResult` (`Test-KmcNormalPlayerResult`) |
-| u2 | 55 | same id, `u2-upgrade -UpgradeCarrySourceRunId <u1>` (F) | u1 | same |
+| u2 | 55 | same id, `u2-upgrade -UpgradeCarrySourceRunId <u1>` (F) | u1; sixth-Horse Manual 308 (`…world185-b185s1-sixthhorse-cold` lineage) | same |
 | u3 | 56 | same id, `u3-rollback -UpgradeCarrySourceRunId <u1>` | u1 | same; then §7 binder |
 | r31 | 31 | `persistence-p07-save` (`prepare-removal`) | stock Mammoth fixture (b64) | `Assert-KmcCurrentRemovalEvidence` |
 | r32 | 32 | `persistence-p07-load` (`removal-no-dll`) | r31 | `Assert-KmcCurrentRemovalEvidence` (b67 reader) |
@@ -316,12 +329,12 @@ After B15, with every run restored and read:
    it requires one id, one candidate F, run order, request binding and u2/u3 bound to the same u1.
 4. Rows 58–59: the capital observation and cold-source asserts above (inside the reader) plus the
    recorded `sourceArea` lineage.
-5. Lineage check: every combat/checkpoint row records `sameCandidate=true`; every row's source run id is a
-   run of this campaign or a named fixture input.
+5. Lineage check: every row named in §5 records its same-candidate flag; every row's source run id is a
+   run of this campaign or one of the named fixture-input exceptions.
 6. Ledger: one `final-ledger.json` in `analysis-cache/chunk7-continuation` listing per row: row, run id(s),
    result SHA-256, reader and binder verdicts, uncovered halves, restoration digest. Completion means all
-   74 rows PASS (or the predeclared uncovered refusal); any NOT RUN, BLOCKED or FAIL row means no
-   completion claim.
+   74 rows PASS; any NOT RUN, BLOCKED, FAIL or newly uncovered row means no completion claim (the
+   uncovered halves already in the matrix exclusions are recorded inside passing rows).
 
 ## 8. Failure handling
 

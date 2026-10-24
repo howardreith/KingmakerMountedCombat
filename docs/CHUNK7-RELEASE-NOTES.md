@@ -66,15 +66,15 @@ Exact-package 7E qualification re-runs each of them on the final candidate.
 **Uncovered (final known set).** These are recorded, not waived, and are not tested by automation:
 
 - C11: the prone stand-up attack of opportunity. No deterministic native prone source exists on the
-  test saves, and a scripted prone condition would be fabricated. Disengagement is tested.
+  test saves, and a scripted prone condition would be fabricated. Disengagement has development evidence.
 - F04: the defensive casting check. No cast runs while threatened past the native one-second window on
-  the test geometry. Staged moving actions are tested.
+  the test geometry. Staged moving actions have development evidence.
 - C03: base attack bonus and haste variation, and a mounted full attack with Rapid Shot off (the test
   Ranger has BAB 4, so the game offers it a single attack only; a full attack needs BAB 6). No native
-  source exists, and synthetic stat edits are not accepted. Rapid Shot is tested.
+  source exists, and synthetic stat edits are not accepted. Rapid Shot has development evidence.
 - Prepared-spell casting while mounted. The leveled Ranger's level-1 slot is empty. Filling it needs a
   spellbook choice and the game's camp rest. That rest rolls a random encounter the harness cannot
-  bound, spends rations and runs skill checks. Items (scroll and potion) while mounted are tested.
+  bound, spends rations and runs skill checks. Items (scroll and potion) while mounted have development evidence.
 - Saves: the X3 residual (above) and the upgrade of a mounted save written by preview.211 (above).
 - The full Small rider calibration on a save made by the same build: the two cases that did it were
   retired; the Small profile is covered by its own calibration and by mounted save and load.
