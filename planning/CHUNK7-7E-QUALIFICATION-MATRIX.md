@@ -294,15 +294,22 @@ in U3.
   carried files are compared with the files that u1's classified writes yield. Carried caches must be byte copies of the previous DLL, under the lab staging
   root and not hard links. The game record names the step, the declared staged package and the KMC
   assembly the observer actually saw loaded.
-- **Unenforced obligations for future consumers (not yet wired; no consumer exists):**
-  - The row-42 binder must call `Assert-KmcChunk7NormalPlayerControlRow`, which refuses any rehearsal
-    step. Until that binder exists, nothing enforces it.
-  - The rows 55–56 consumer must enforce rehearsal completeness: one id, a passed u1, then u2, then
-    u3, each binding the same u1. Each run only checks its own predecessor u1, so nothing yet proves
-    that all three steps ran.
+- **Row consumers (implemented offline, development checkpoint; no 7E ledger calls them yet):**
+  - Row 42: `Assert-KmcChunk7NormalPlayerRow42Binding <runId> <resultSha256>` reads one retained run
+    hash-bound result → game record → observer result (and the recorded UMM receipt hash), calls
+    `Assert-KmcChunk7NormalPlayerControlRow` (refuses any rehearsal step), requires PASS and re-runs
+    the full external `Test-RuntimeResult` on the run's own folder.
+  - Rows 55–56: `Assert-KmcChunk7UpgradeRehearsalComplete <rehearsalId> <[step, runId, resultSha256] × 3>`
+    enforces completeness: exactly u1, u2, u3 in that order, three distinct runs of one rehearsal id,
+    each pinned by its result SHA-256 and passed (game and observer PASS, receipt hash recorded and
+    re-judged), one candidate (commit, version, DLL, MVID), run in time order, and u2 and u3 each binding
+    the same u1 on all five pins re-derived from u1's own records; then each step's section (carried
+    files included) and the full external reader. It binds the real b200 rehearsal `x5-b200-20261024`
+    and refuses missing, extra, reordered, relabelled or repeated steps, another id, tampered pins,
+    records, receipts or u1 state, a failed step, another candidate and a broken u1 binding.
 - **u3 folder state:** u3 lays u1's folder state by design, not u2's.
 - **Params.xml:** each transaction restores the owner's file, so it is not carried across steps.
-- **Tests:** `scripts/chunk7/Test-Chunk7UpgradeRehearsal.ps1` passes 111/0 after the third review's follow-up and 159/0 with the u1 known-defect admission and review follow-up, and 189/0 with the u3 admission, the receipt hash binding and its review follow-up (`Test-Chunk7NormalPlayerControl.ps1` 52/0); the Enter-to-Restore carry path is covered in `scripts/Test-BaseGameIsolation.ps1` (98/0).
+- **Tests:** `scripts/chunk7/Test-Chunk7UpgradeRehearsal.ps1` passes 111/0 after the third review's follow-up and 159/0 with the u1 known-defect admission and review follow-up, 189/0 with the u3 admission, the receipt hash binding and its review follow-up, and 220/0 with the row-42 binder and the rows 55–56 completeness consumer (`Test-Chunk7NormalPlayerControl.ps1` 52/0); the Enter-to-Restore carry path is covered in `scripts/Test-BaseGameIsolation.ps1` (98/0).
 
 ## Docs deliverables
 

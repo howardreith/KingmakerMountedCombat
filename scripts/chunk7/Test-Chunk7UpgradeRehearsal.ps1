@@ -482,6 +482,81 @@ Check 'the reader accepts a u1 FAIL whose recorded receipt hash matches' {Write-
 Check 'row 42 refuses a rehearsal step' {Assert-KmcChunk7NormalPlayerControlRow $u2 (& $recordFor $u2)} $true 'cannot stand in for the ordinary request-free control'
 Check 'row 42 refuses a record that claims a rehearsal step' {$plain=Clone $u2;$plain.normalPlayer.PSObject.Properties.Remove('upgradeRehearsal');Assert-KmcChunk7NormalPlayerControlRow $plain (& $recordFor $u2)} $true 'cannot stand in for the ordinary request-free control'
 Check 'row 42 admits an ordinary control record' {$plain=Clone $u2;$plain.normalPlayer.PSObject.Properties.Remove('upgradeRehearsal');Assert-KmcChunk7NormalPlayerControlRow $plain ([pscustomobject]@{evidenceKind='kmc-normal-player-observer';upgradeRehearsal=$null})}
+# --- Row consumers on the real retained b200 rehearsal and b191 controls (read-only) ----
+# Rows 55-56 consume one complete rehearsal; row 42 one ordinary control. The real records
+# are only read; every mutation runs on a copy in a separate fake lab.
+$x5Rid='x5-b200-20261024';$x5Ids=@('20261024-c7e-b200-x5-u1-previous','20261024-c7e-b200-x5-u2-upgrade','20261024-c7e-b200-x5-u3-rollback')
+$x5Order=@(Get-KmcChunk7UpgradeRehearsalSteps)
+function Get-ResultPin([string]$RunId){Get-KmcSha256 (Join-Path (Get-KmcLabRoot) ('runtime-evidence/'+$RunId+'/runtime-result.json'))}
+function New-X5Pins([string[]]$Labels=$x5Order,[string[]]$Ids=$x5Ids){@(for($i=0;$i-lt$Ids.Count;$i++){[pscustomobject][ordered]@{step=$Labels[$i];runId=$Ids[$i];resultSha256=(Get-ResultPin $Ids[$i])}})}
+$noReader={param($r,$q)}
+Check 'rows 55-56 bind the real b200 rehearsal (full external reader on each step)' {
+ $b=Assert-KmcChunk7UpgradeRehearsalComplete $x5Rid (New-X5Pins)
+ if($b.rehearsalId-cne$x5Rid-or(@($b.steps|ForEach-Object{$_.step})-join',')-cne($x5Order-join',')-or(@($b.steps|ForEach-Object{$_.stagedRole})-join',')-cne'previous,candidate,previous'-or
+  [string]$b.candidate.dllSha256-cne'ec20ee8f4e6824fb5530f386354fa1117da0920aff6c1a159c22b34a406ecc13'-or@($b.steps|Where-Object{[string]$_.ummReceiptSha256-cnotmatch'^[0-9a-f]{64}$'}).Count-ne0){throw 'Binding differs.'}
+}
+Check 'rows 55-56 run the external reader once per step, in order' {$seen=[Collections.Generic.List[string]]::new()
+ [void](Assert-KmcChunk7UpgradeRehearsalComplete $x5Rid (New-X5Pins) {param($r,$q)$seen.Add((Split-Path -Leaf (Split-Path -Parent $r)))})
+ if(($seen-join',')-cne($x5Ids-join',')){throw ('Reader calls: '+($seen-join','))}
+}
+Check 'rows 55-56 propagate a reader refusal' {Assert-KmcChunk7UpgradeRehearsalComplete $x5Rid (New-X5Pins) {param($r,$q)throw 'reader refused'}} $true 'reader refused'
+foreach($m in @(
+ @('a missing u3',{New-X5Pins $x5Order[0..1] $x5Ids[0..1]},'exactly u1, u2 and u3'),
+ @('a missing u1',{New-X5Pins $x5Order[1..2] $x5Ids[1..2]},'exactly u1, u2 and u3'),
+ @('a fourth step',{@(New-X5Pins)+@((New-X5Pins)[2])},'exactly u1, u2 and u3'),
+ @('steps out of order',{New-X5Pins @($x5Order[0],$x5Order[2],$x5Order[1]) @($x5Ids[0],$x5Ids[2],$x5Ids[1])},'in that order'),
+ @('a run labelled as another step',{New-X5Pins $x5Order @($x5Ids[0],$x5Ids[2],$x5Ids[1])},'mixes steps or rehearsal ids'),
+ @('one run used twice',{New-X5Pins $x5Order @($x5Ids[0],$x5Ids[1],$x5Ids[1])},'three distinct runs'),
+ @('the b199 u1 of another rehearsal id',{New-X5Pins $x5Order @('20261024-c7e-b199-x5-u1-previous',$x5Ids[1],$x5Ids[2])},'mixes steps or rehearsal ids|did not pass'),
+ @('a tampered result pin',{$p=New-X5Pins;$p[1].resultSha256=('0'*64);$p},'does not match the SHA-256 its pin records'),
+ @('a pin with an extra member',{$p=New-X5Pins;$p[0]|Add-Member -NotePropertyName extra -NotePropertyValue 1;$p},'upgrade rehearsal step pin'))){
+ Check ('rows 55-56 refuse '+$m[0]) {Assert-KmcChunk7UpgradeRehearsalComplete $x5Rid (&$m[1]) $noReader} $true $m[2]
+}
+Check 'rows 55-56 refuse another rehearsal id than the runs record' {Assert-KmcChunk7UpgradeRehearsalComplete 'x5-b199-20261024' (New-X5Pins) $noReader} $true 'mixes steps or rehearsal ids'
+# Copies of the three runs (and u1's transaction state) in a separate fake lab.
+$x5Lab=Join-Path $OutputDirectory 'x5lab'
+function Stage-X5([scriptblock]$Mutate){
+ if(Test-Path -LiteralPath $x5Lab){Remove-Item -LiteralPath $x5Lab -Recurse -Force}
+ [void][IO.Directory]::CreateDirectory((Join-Path $x5Lab 'runtime-evidence'));[void][IO.Directory]::CreateDirectory((Join-Path $x5Lab 'runtime-state/transactions'))
+ foreach($id in $x5Ids){Copy-Item -LiteralPath (Join-Path $realLab ('runtime-evidence/'+$id)) -Destination (Join-Path $x5Lab 'runtime-evidence') -Recurse
+  Copy-Item -LiteralPath (Join-Path $realLab ('runtime-state/transactions/'+$id+'.json')) -Destination (Join-Path $x5Lab 'runtime-state/transactions')}
+ if($Mutate){&$Mutate}
+}
+function Edit-X5Json([string]$RunId,[string]$Leaf,[scriptblock]$Edit){
+ $p=if($Leaf-ceq'state'){Join-Path $x5Lab ('runtime-state/transactions/'+$RunId+'.json')}else{Join-Path $x5Lab ('runtime-evidence/'+$RunId+'/'+$Leaf)}
+ $v=Read-KmcJson $p;&$Edit $v;[IO.File]::WriteAllText($p,($v|ConvertTo-Json -Depth 60),[Text.UTF8Encoding]::new($false))
+}
+function Invoke-X5Fake([scriptblock]$Mutate){Stage-X5 $Mutate;Use-Lab $x5Lab;try{Assert-KmcChunk7UpgradeRehearsalComplete $x5Rid (New-X5Pins) $noReader}finally{Restore-Lab}}
+# An unchanged copy passes every cross-run check and stops only where the carried files are
+# re-derived from u1's staged-after tree, which the copy does not hold: so each mutation below
+# is refused by its own check, not by the copy.
+Check 'an unchanged fake-lab copy reaches the carried-file re-derivation' {Invoke-X5Fake $null} $true 'u1 staged-after tree'
+foreach($m in @(
+ @('a tampered u2 game record',{[IO.File]::AppendAllText((Join-Path $x5Lab ('runtime-evidence/'+$x5Ids[1]+'/runtime-game-result.json')),' ')},'not hash-bound result to game record'),
+ @('a tampered u3 observer result',{[IO.File]::AppendAllText((Join-Path $x5Lab ('runtime-evidence/'+$x5Ids[2]+'/observer-result.json')),' ')},'not hash-bound result to game record'),
+ @('a tampered u1 UMM receipt',{[IO.File]::AppendAllText((Join-Path $x5Lab ('runtime-evidence/'+$x5Ids[0]+'/normal-player-umm-log.json')),' ')},'does not match the SHA-256 its outer result records'),
+ @('a u3 request of another rehearsal id',{Edit-X5Json $x5Ids[2] 'runtime-request.json' {param($v)$v.normalPlayer.upgradeRehearsal.rehearsalId='x5-other'}},'mixes steps or rehearsal ids'),
+ @('a u2 whose outer result failed',{Edit-X5Json $x5Ids[1] 'runtime-result.json' {param($v)$v.status='FAIL'}},'step did not pass: u2-upgrade'),
+ @('a u2 PASS over a failed observer result (hash chain re-bound)',{$d=Join-Path $x5Lab ('runtime-evidence/'+$x5Ids[1])
+  Edit-X5Json $x5Ids[1] 'observer-result.json' {param($v)$v.status='FAIL'}
+  Edit-X5Json $x5Ids[1] 'runtime-game-result.json' {param($v)$v.observerResultSha256=(Get-KmcSha256 (Join-Path $d 'observer-result.json'))}
+  Edit-X5Json $x5Ids[1] 'runtime-result.json' {param($v)$v.gameResultSha256=(Get-KmcSha256 (Join-Path $d 'runtime-game-result.json'))}},'disagree on the verdict: '),
+ @('a u3 started before u2 completed',{Edit-X5Json $x5Ids[2] 'runtime-result.json' {param($v)$v.startedAtUtc='2026-10-24T10:46:30.0000000+00:00'}},'run in that order'),
+ @('a u3 on another candidate',{Edit-X5Json $x5Ids[2] 'runtime-result.json' {param($v)$v.commit=('a'*40)}},'more than one candidate'),
+ @('a u2 whose carry source pins another u1 game record',{Edit-X5Json $x5Ids[1] 'runtime-request.json' {param($v)$v.normalPlayer.upgradeRehearsal.carrySource.gameResultSha256=('0'*64)}},'does not bind the same u1'),
+ @('a u3 whose carry source names another run',{Edit-X5Json $x5Ids[2] 'runtime-request.json' {param($v)$v.normalPlayer.upgradeRehearsal.carrySourceRunId=$x5Ids[1]}},'does not bind the same u1'),
+ @('a u1 transaction state changed after u2 and u3 pinned it',{[IO.File]::AppendAllText((Join-Path $x5Lab ('runtime-state/transactions/'+$x5Ids[0]+'.json')),' ')},'does not bind the same u1: \S+ stateSha256'))){
+ Check ('rows 55-56 refuse '+$m[0]) {Invoke-X5Fake $m[1]} $true $m[2]
+}
+$r42Pass='20261023-c7b-world191-b191s2-normalplayer';$r42Fail='20261023-c7b-world191-b191s1-normalplayer'
+Check 'the row-42 binder binds the real b191 ordinary control (full external reader)' {$b=Assert-KmcChunk7NormalPlayerRow42Binding $r42Pass (Get-ResultPin $r42Pass);if($b.row-ne42-or$b.runId-cne$r42Pass){throw 'Binding differs.'}}
+Check 'the row-42 binder refuses the real b200 u2 rehearsal step' {[void](Assert-KmcChunk7NormalPlayerRow42Binding $x5Ids[1] (Get-ResultPin $x5Ids[1]) $noReader)} $true 'cannot stand in for the ordinary request-free control'
+Check 'the row-42 binder refuses the real b200 u1 rehearsal step' {[void](Assert-KmcChunk7NormalPlayerRow42Binding $x5Ids[0] (Get-ResultPin $x5Ids[0]) $noReader)} $true 'cannot stand in for the ordinary request-free control'
+Check 'the row-42 binder refuses the real failed b191 control' {[void](Assert-KmcChunk7NormalPlayerRow42Binding $r42Fail (Get-ResultPin $r42Fail) $noReader)} $true 'binds only a passed'
+Check 'the row-42 binder refuses a tampered result pin' {[void](Assert-KmcChunk7NormalPlayerRow42Binding $r42Pass ('0'*64) $noReader)} $true 'does not match the SHA-256 its pin records'
+Check 'the row-42 binder refuses a copy whose request names another evidence folder' {
+ Stage-X5 {Copy-Item -LiteralPath (Join-Path $realLab ('runtime-evidence/'+$r42Pass)) -Destination (Join-Path $x5Lab 'runtime-evidence') -Recurse};Use-Lab $x5Lab
+ try{[void](Assert-KmcChunk7NormalPlayerRow42Binding $r42Pass (Get-ResultPin $r42Pass) $noReader)}finally{Restore-Lab}} $true 'does not name the evidence folder'
 # The runner's own post-stage check, executed from its source with stub state.
 $runnerAst=[Management.Automation.Language.Parser]::ParseFile((Join-Path $repo 'scripts/runtime/Invoke-KingmakerRuntimeScenario.ps1'),[ref]$null,[ref]$null)
 $stageCheck=@($runnerAst.FindAll({param($n)$n-is[Management.Automation.Language.IfStatementAst]-and$n.Extent.Text.StartsWith('if($null-ne$upgradeSection-and')-and$n.Extent.Text.Contains('$coStagedState.packageSha256')},$true))
