@@ -150,6 +150,22 @@ both owned `persistence-load` selections; the capital admission is scoped to the
 (`Assert-KmcChunk7CapitalArrivalRoute`), the request reader and the in-game route, and every other route still refuses
 capitals. Row 58's lineage is same-candidate: it consumes an x4s-shaped Manual produced on the same candidate.
 
+Native assumptions the first pilot tests. Each one is asserted exactly and fails closed; the arrival world,
+summary and observer are recorded before any assertion runs:
+1. Arriving in Oleg's keeps the full field roster in `Player.Party`/`PartyCharacters`, with the companions in
+   game and their views unreplaced (inherited `RequirePreserved`; row 59's bind).
+2. In the adopted capital the native selection admits only the main character and its pet. Cleanup restores
+   exactly the original selection's main character and pet, by identity.
+3. After arrival exactly two KMC slots remain, both the main rider's. The companion's Dismount and
+   RiderPrimary slots are cleared and not re-bound.
+4. The UMM summary is still the current `Feedback` when the arrival is adopted. Adoption waits within the
+   150 s stage for native Default mode, so an arrival dialog or cutscene shows up as a deadline failure.
+5. In row 59 the companion rider is natively *not* directly controllable in the capital, and the main rider is.
+6. The main pair's restored movement authority has the area-autosave shape: a fresh rider agent, rider stock
+   agent disabled, mount stock agent enabled with no override.
+7. The product's `IsCapitalControlRetirement` re-validation, with control assumed, refuses nothing else for
+   the companion pair in Oleg's.
+
 **Native test design (matrix rows 58–59, original record):** the old Oleg's route is the stimulus. A
 new owned persistence case cold-loads a two-owner mounted Manual (x4s shape), makes one native
 transfer to Oleg's (`fd225a93…`) and writes one genuine Manual there. Its reader requires one

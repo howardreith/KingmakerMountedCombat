@@ -733,8 +733,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 });
                 leasesRestored &= TryCleanup("selection", () =>
                 {
-                    // In the adopted capital only directly controllable actors are selectable natively (row 58).
-                    var restoredSelection = capitalAdopted ? originalSelection.Where(a => a.IsDirectlyControllable).ToArray() : originalSelection;
+                    // In the adopted capital only the main character and its pet are selectable natively (row 58).
+                    var restoredSelection = capitalAdopted ? CapitalRestoredSelection() : originalSelection;
                     SelectionManager.Instance.MultiSelect(restoredSelection.Where(a => a.IsInState && a.View != null).Select(a => a.View), false);
                     Require(SelectionManager.Instance.SelectedUnits.SequenceEqual(restoredSelection), "Original selected native actors were not restored.");
                 });

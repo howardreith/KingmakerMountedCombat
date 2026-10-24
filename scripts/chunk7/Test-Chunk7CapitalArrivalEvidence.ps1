@@ -34,7 +34,7 @@ function New-Producer{
  $s=$base.artifact.observations;$a=Copy-Value $base.artifact
  $cold=Copy-Value @($s.snapshots|Where-Object label -CEQ 'cold-restored-before-input')[0]
  $settled=Copy-Value $cold;$settled.label='capital-arrival-settled';$settled.owners=@(OwnerRow $mainPair);$settled.controls.ManagedHotbarSlotCount=2
- $written=Copy-Value $settled;$written.label='native-write-complete';$written.snapshots=1
+ $written=Copy-Value $settled;$written.label='native-write-complete';$written.snapshots=1;$written.gameTicks=$loaded.GameTimeTicks+20000000
  $before=WorldRow 'before-native-transfer' $q.persistenceLoad.area $false @(0,0,0,2) @((OwnerRow $mainPair),(OwnerRow $retiredPair)) $loaded.Slots @((ViewRow $roles[0] 11 $true 101 1),(ViewRow $roles[1] 12 $true 0 0),(ViewRow $roles[2] 13 $true 201 1),(ViewRow $roles[3] 14 $true 0 0)) 'Saved mounted world restored all 2 attachments.'
  $after=WorldRow 'after-native-transfer' $capital $true @(1,1,1,1) @(OwnerRow $mainPair) $mainSlots @((ViewRow $roles[0] 11 $true 102 1),(ViewRow $roles[1] 12 $true 0 0),(ViewRow $roles[2] 13 $false 0 0),(ViewRow $roles[3] 14 $false 0 0)) $umm
  $n=[int]([regex]::Match($q.persistenceLoad.fileName,'^Manual_([0-9]+)_').Groups[1].Value)+1;$leaf='Manual_'+$n+'_KMC_C7_CAPITAL.zks'
@@ -62,12 +62,12 @@ function New-Consumer($Producer){
  $a=Copy-Value $base.artifact;$s=$base.artifact.observations
  $probe=Copy-Value $s.coldRestoration;$probe.events=@($probe.events|Where-Object{$_.actorId-cin@($roles[0],$roles[1])})
  $snapshot=Copy-Value @($s.snapshots|Where-Object label -CEQ 'cold-restored-before-input')[0];$snapshot.owners=@(OwnerRow $mainPair);$snapshot.semanticRestores=2;$snapshot.presentationRestores=1;$snapshot.nativePostLoads=2;$snapshot.controls.ManagedHotbarSlotCount=2
- $snapshot.actors=@($snapshot.actors|Where-Object{$_.native.Id-cin@($roles[0],$roles[1])})
+ $snapshot.actors=@($snapshot.actors|Where-Object{$_.native.Id-cin@($roles[0],$roles[1])});$snapshot.gameTicks=$w.archive.GameTimeTicks
  $world=WorldRow 'cold-restored-in-capital' $capital $true @(0,0,0,1) @(OwnerRow $mainPair) $mainSlots @((ViewRow $roles[0] 21 $true 301 1),(ViewRow $roles[1] 22 $true 0 0),(ViewRow $roles[2] 23 $false 0 0),(ViewRow $roles[3] 24 $false 0 0)) 'Saved mounted world restored all 1 attachments.'
  foreach($v in $world.views){$v.baselineViewId=0}
  $c=[pscustomobject][ordered]@{contract='chunk7-capital-arrival-cold-v1';producerRunId=$r.ownedPairs.checkpointSourceRunId;producerArtifactSha256=$r.ownedPairs.checkpointSourceArtifactSha256;mainPairId=$mainPair.PairId;mainGeneration=$mainPair.Generation;unmountedRiderId=$roles[2];unmountedMountId=$roles[3];registryOwners=1;activeOwners=1;world=$world}
  $o=[ordered]@{checkpoint=$r.persistenceCase;cold=$true;sourceWorkingSha256=$null;inheritedManualSha256=$s.inheritedManualSha256;processId=2222;snapshots=@($snapshot);inputs=@();movements=@();nativeProgressionRequiresExternalWorkingRestoration=$false;ordinaryRespecProven=$false;combatDebtProof=$false;nativeSchema=$s.nativeSchema;nativeCapacity=$s.nativeCapacity
-  inheritedFixture=$s.inheritedFixture;coldRestoration=$probe;loadedArchive=(Copy-Value $w.archive);loadedDescriptor=(Copy-Value $r.persistenceLoad);capitalCold=$c;inheritedCleanup=$s.inheritedCleanup;cleanup=$s.cleanup;elapsedSeconds=21.5;nativeShellLifecycle=[pscustomobject]@{settled=$true}}
+  inheritedFixture=$s.inheritedFixture;coldRestoration=$probe;loadedArchive=(Copy-Value $w.archive);loadedDescriptor=(Copy-Value $r.persistenceLoad);capitalColdBoundary=[pscustomobject]@{frame=31};capitalCold=$c;inheritedCleanup=$s.inheritedCleanup;cleanup=$s.cleanup;elapsedSeconds=21.5;nativeShellLifecycle=[pscustomobject]@{settled=$true}}
  $a.observations=Copy-Value ([pscustomobject]$o)
  [pscustomobject]@{request=$r;artifact=$a}
 }
@@ -180,6 +180,65 @@ $crossMutations=[ordered]@{
 }
 foreach($m in $crossMutations.GetEnumerator()){Check ('capital cross-process proof refuses '+$m.Key) {$p=New-Producer;$c=New-Consumer $p;$a=Producer-Artifact $p;&$m.Value $a $c;Assert-KmcChunk7CapitalColdSource $c.request $a $c.artifact} $true}
 
+# Review N3/N4: the capital-specific input check is reachable, and both readers check per-actor debt
+# and compare the archive only with independent references.
+Check 'capital producer refuses a loaded archive already in the capital' {$p=New-Producer;$p.artifact.observations.loadedArchive.AreaId=$capital;Assert-KmcChunk7CapitalArrivalObservation $p.request $p.artifact} $true 'already in the capital'
+Check 'capital producer refuses a declared input already in the capital' {$p=New-Producer;$p.request.persistenceLoad.area=$capital;$p.artifact.observations.loadedDescriptor.area=$capital;$p.artifact.observations.loadedArchive.AreaId=$capital;Assert-KmcChunk7CapitalArrivalObservation $p.request $p.artifact} $true 'must start outside the capital'
+$debtMutations=[ordered]@{
+ 'producer settled debt above the archive'=@({param($o)$o.snapshots[1].actors[0].native.Standard=[double]$o.snapshots[1].actors[0].native.Standard+5},'beyond elapsed')
+ 'producer settled actor missing'=@({param($o)$o.snapshots[1].actors=@($o.snapshots[1].actors|Select-Object -Skip 1)},'omitted or duplicated')
+ 'producer settled reaction history'=@({param($o)$o.snapshots[1].actors[2].native.ReactionsRemaining=0},'reaction or surprise')
+ 'producer settled clock before archive'=@({param($o)$o.snapshots[1].gameTicks=[long]$o.loadedArchive.GameTimeTicks-1},'precedes')
+ 'producer written debt above the Manual'=@({param($o)$o.snapshots[2].actors[1].native.Move=[double]$o.snapshots[2].actors[1].native.Move+5},'beyond elapsed')
+}
+foreach($m in $debtMutations.GetEnumerator()){Check ('capital producer refuses '+$m.Key) {$p=New-Producer;&$m.Value[0] $p.artifact.observations;Assert-KmcChunk7CapitalArrivalObservation $p.request $p.artifact} $true $m.Value[1]}
+$independentMutations=[ordered]@{
+ 'archive owner differs from the live owner'=@({param($o)$o.snapshots[0].owners[0].ownerId='99999999999949998999999999999999'},'live restored owner')
+ 'archive generation differs from the live owner'=@({param($o)$o.loadedArchive.Pairs[0].Generation=7},'live restored owner')
+ 'archive profile differs from inherited ownership'=@({param($o)$o.loadedArchive.Pairs[0].ProfileId='small-default-halfling-horse-v1'},'scalar identity')
+ 'archive control index differs from the live controls'=@({param($o)$o.loadedArchive.Slots[0].Index=40},'controls differ')
+ 'archive policy differs'=@({param($o)$o.loadedArchive.Policy='other-policy-v1'},'exactly one mounted')
+ 'live controls include another actor'=@({param($o)$o.capitalCold.world.slots[1].ActorId=$roles[2]},'live controls')
+ 'snapshot debt above the archive'=@({param($o)$o.snapshots[0].actors[1].native.Swift=[double]$o.snapshots[0].actors[1].native.Swift+5},'beyond elapsed')
+ 'snapshot omits the main mount'=@({param($o)$o.snapshots[0].actors=@($o.snapshots[0].actors|Where-Object{$_.native.Id-cne$roles[1]})},'omitted or duplicated')
+ 'post-restore debt differs from the archive'=@({param($o)@($o.coldRestoration.events|Where-Object kind -CEQ 'restore-debt-after')[0].debt.Standard=9},'post-restore debt')
+}
+foreach($m in $independentMutations.GetEnumerator()){Check ('capital consumer refuses '+$m.Key) {$c=New-Consumer (New-Producer);&$m.Value[0] $c.artifact.observations;Assert-KmcChunk7CapitalColdObservation $c.request $c.artifact} $true $m.Value[1]}
+
+# Review N2: the actual cleanup selection rule, extracted from the engine and run against stand-ins.
+Check 'capital cleanup selection is exactly the original main character and its pet' {
+ $engine=[IO.File]::ReadAllText((Join-Path $repo 'src/KingmakerMountedCombat/Diagnostics/Chunk7PersistenceScenario.CapitalArrival.cs'))
+ $start=$engine.IndexOf('private UnitEntityData[] CapitalRestoredSelection()',[StringComparison]::Ordinal);if($start-lt0){throw 'Actual capital selection rule is absent.'}
+ $open=$engine.IndexOf('{',$start);$depth=1;$end=$open+1;while($depth-gt0){if($engine[$end]-ceq'{'){$depth++}elseif($engine[$end]-ceq'}'){$depth--};$end++}
+ $method=$engine.Substring($start,$end-$start)
+ $source=@'
+using System;using System.Linq;
+namespace Kingmaker{class Ref{public UnitEntityData Value;}class Descriptor{public Ref Master=new Ref();}class UnitEntityData{public Descriptor Descriptor=new Descriptor();public bool IsDirectlyControllable=true;}class Player{public Ref MainCharacter=new Ref();}class Game{public static Game Instance=new Game();public Player Player=new Player();}}
+namespace KingmakerMountedCombat.Diagnostics{using Kingmaker;
+class Engine{public UnitEntityData[] originalSelection;static void Require(bool c,string m){if(!c)throw new InvalidOperationException(m);}
+/* METHOD */
+public UnitEntityData[] Run(){return CapitalRestoredSelection();}}
+static class Program{static int Main(){
+ var main=new UnitEntityData();var pet=new UnitEntityData();pet.Descriptor.Master.Value=main;var rider=new UnitEntityData{IsDirectlyControllable=false};var horse=new UnitEntityData{IsDirectlyControllable=false};horse.Descriptor.Master.Value=rider;var other=new UnitEntityData{IsDirectlyControllable=false};
+ Game.Instance.Player.MainCharacter.Value=main;int fail=0;
+ Func<UnitEntityData[],UnitEntityData[]> run=s=>new Engine{originalSelection=s}.Run();
+ Func<Action,bool> refused=a=>{try{a();return false;}catch(InvalidOperationException){return true;}};
+ if(!run(new[]{rider,main,horse,pet,other}).SequenceEqual(new[]{main,pet}))fail++;
+ if(!run(new[]{main}).SequenceEqual(new[]{main}))fail++;
+ if(run(new[]{rider,horse}).Length!=0)fail++;
+ var lookalike=new UnitEntityData();if(!run(new[]{main,lookalike}).SequenceEqual(new[]{main}))fail++;
+ main.IsDirectlyControllable=false;if(!refused(()=>run(new[]{main,pet})))fail++;main.IsDirectlyControllable=true;
+ pet.IsDirectlyControllable=false;if(!refused(()=>run(new[]{main,pet})))fail++;pet.IsDirectlyControllable=true;
+ Game.Instance.Player.MainCharacter.Value=null;if(!refused(()=>run(new[]{rider})))fail++;
+ Console.WriteLine("SELECTION FAIL="+fail);return fail;}}}
+'@
+ $file=Join-Path $OutputDirectory 'CapitalSelection.cs';[IO.File]::WriteAllText($file,$source.Replace('/* METHOD */',$method),[Text.UTF8Encoding]::new($false))
+ $vs=Join-Path ([Environment]::GetFolderPath('ProgramFilesX86')) 'Microsoft Visual Studio/Installer/vswhere.exe'
+ $compiler=@(& $vs -latest -products * -requires Microsoft.Component.MSBuild -find 'MSBuild/**/Bin/Roslyn/csc.exe')|Select-Object -First 1
+ $exe=Join-Path $OutputDirectory 'CapitalSelection.exe';& $compiler /nologo /target:exe /langversion:7.3 "/out:$exe" $file|Out-Null
+ if($LASTEXITCODE-ne0){throw 'Actual capital selection rule did not compile.'}
+ $output=@(& $exe);if($LASTEXITCODE-ne0-or($output-join'')-cne'SELECTION FAIL=0'){throw ('Capital selection rule regressed: '+($output-join' '))}
+}
 # The UMM summary contract: the product line, the in-game diagnostic expectation and the reader agree.
 Check 'UMM capital summary text agrees across product, engine and reader' {
  $product=[IO.File]::ReadAllText((Join-Path $repo 'src/KingmakerMountedCombat/Integration/MountedAreaPersistence.cs'))
