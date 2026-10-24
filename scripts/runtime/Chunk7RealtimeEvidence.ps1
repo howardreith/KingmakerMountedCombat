@@ -144,6 +144,8 @@ function Assert-KmcChunk7RealtimeCasting($o,[string[]]$ids,$trace){
 # active hand set and its primary weapon blueprint.
 function Assert-KmcChunk7ChargeWeapon($Request,$o){
     if($null-eq$o.PSObject.Properties['chargeWeapon']){throw 'RT Charge lacks rider A''s observed equipped weapon.'};$w=$o.chargeWeapon
+    Assert-KmcExactProperties $w @('before','after') 'charge weapon observation'
+    foreach($k in @('before','after')){if($null-ne$w.$k){Assert-KmcExactProperties $w.$k @('handSet','primaryItem','primaryBlueprint','category','melee','ranged','firstWeaponIsPrimary') 'charge weapon state'}}
     foreach($k in @('before','after')){if($null-eq$w.PSObject.Properties[$k]){throw 'Charge weapon observation is incomplete.'};$s=$w.$k
         if($null-eq$s-or-not(Test-KmcExactJsonInteger $s.handSet)-or$s.handSet-lt0-or$s.handSet-gt3-or$s.primaryBlueprint-isnot[string]-or$s.primaryBlueprint-cnotmatch'^[0-9a-f]{32}$'-or
            -not(Test-KmcExactJsonInteger $s.primaryItem)-or$s.primaryItem-eq0-or$s.category-isnot[string]){throw 'Charge weapon observation is incomplete.'}
