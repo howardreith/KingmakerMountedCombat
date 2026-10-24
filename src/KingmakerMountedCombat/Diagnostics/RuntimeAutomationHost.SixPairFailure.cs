@@ -17,7 +17,9 @@ namespace KingmakerMountedCombat.Diagnostics
         // asked to quit normally once. Every native write the run requested must have
         // completed within its declared quota first. Retained volatile custody stays
         // FAILED: nothing is marked settled, cleaned up, disposed or written, and the
-        // outer runner still restores every surface.
+        // outer runner still restores every surface. The same exit also covers a
+        // two-pair owned persistence run (b195 x4c: a refused area restore held custody
+        // until the runner's 900-second deadline), bound to its own declared quotas.
         private const double RetainedSixPairExitRetrySeconds = 1.0;
         private double retainedSixPairExitAttemptedAt = double.NegativeInfinity;
 
@@ -46,17 +48,22 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool RetainedSixPairFailureExitReady()
         {
             var selection = request.OwnedPairs;
-            if (selection == null || !selection.SixPairLineage) return false;
-            var stress = selection.IsSixPairStress;
-            var declaredWrites = selection.IsSixPairSave ? 1 : 0;
+            if (selection == null) return false;
+            var sixPair = selection.SixPairLineage;
+            var twoPairPersistence = !sixPair && selection.Persistence && worldPersistenceEngine != null && worldEngine == null;
+            if (!sixPair && !twoPairPersistence) return false;
+            var stress = sixPair && selection.IsSixPairStress;
+            var declaredWrites = sixPair ? (selection.IsSixPairSave ? 1 : 0) : selection.ExpectedNativeWriteCount;
+            var declaredLoads = sixPair ? 1 : selection.ExpectedNativeLoadCount;
             if (!ReferenceEquals(active, this) || disposed || request.SchemaVersion != RuntimeRequest.SaveBackedSchemaVersion ||
-                selection.ExpectedNativeLoadCount != 1 || selection.ExpectedNativeWriteCount != declaredWrites ||
+                declaredLoads < 1 || declaredLoads > 3 || declaredWrites < 0 || declaredWrites > 2 ||
+                selection.ExpectedNativeLoadCount != declaredLoads || selection.ExpectedNativeWriteCount != declaredWrites ||
                 selection.Validate(request.Scenario, request.RunId, request.PersistenceCase).Count != 0 ||
                 !chunk7Completion.Pending || !chunk7Completion.DeadlineExceeded || chunk7Completion.Settled ||
                 chunk7CompletionStatus != "FAIL" || !fixtureIdentityVerified ||
                 (stress ? worldEngine == null || worldPersistenceEngine != null : worldPersistenceEngine == null || worldEngine != null) ||
-                saveRequestCount > declaredWrites || loadRequestCount != 1 ||
-                saveAuthorization.BaselineLoadRequestCount != 0 || saveAuthorization.AuthorizedLoadCount != 1 ||
+                saveRequestCount > declaredWrites || loadRequestCount < 1 || loadRequestCount > declaredLoads ||
+                saveAuthorization.BaselineLoadRequestCount != 0 || saveAuthorization.AuthorizedLoadCount != loadRequestCount ||
                 saveAuthorization.UnauthorizedLoadCount != 0 || saveAuthorization.AuthorizedWriteCount != saveRequestCount ||
                 saveAuthorization.UnauthorizedWriteCount != 0 || saveAuthorization.SuppressedWorkingWriteCount != 0 ||
                 persistence == null || persistence.HasActiveSaveScope ||
@@ -73,7 +80,8 @@ namespace KingmakerMountedCombat.Diagnostics
             try
             {
                 if (stress) worldEngine.RequireRetainedSixFailureScope();
-                else worldPersistenceEngine.RequireRetainedSixFailureScope();
+                else if (sixPair) worldPersistenceEngine.RequireRetainedSixFailureScope();
+                else worldPersistenceEngine.RequireRetainedFailureScope();
                 // Act only for the exact launched request, token and request bytes.
                 var arguments = Environment.GetCommandLineArgs();
                 var requestFile = Path.GetFullPath(FindSingleArgument(arguments, RequestArgument));
@@ -99,14 +107,18 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             const string reason = "Disposable six-pair run failed with retained volatile cleanup custody after its bounded drain. " +
                 "No save, load or serialization work remains; a normal process exit is requested without claiming cleanup or qualification.";
-            var stress = request.OwnedPairs.IsSixPairStress;
+            const string twoPairReason = "Disposable two-pair persistence run failed with retained volatile cleanup custody after its bounded drain. " +
+                "No save, load or serialization work remains; a normal process exit is requested without claiming cleanup or qualification.";
+            var sixPair = request.OwnedPairs.SixPairLineage;
+            var exitReason = sixPair ? reason : twoPairReason;
+            var stress = sixPair && request.OwnedPairs.IsSixPairStress;
             var engineErrors = stress ? worldEngine.Errors : worldPersistenceEngine.Errors;
             var engineResults = stress ? worldEngine.Results : worldPersistenceEngine.Results;
             var modAssembly = typeof(Main).Assembly;
             var umm = typeof(UnityModManager).Assembly;
             var harmony = Path.Combine(Path.GetDirectoryName(umm.Location), "0Harmony12.dll");
             var result = CreateBootstrapFailureV2(request, loadedModId, modAssembly, typeof(Kingmaker.Game).Assembly, umm,
-                harmony, DateTimeOffset.UtcNow, stress ? "C7-world-cleanup" : "C7-persistence-cleanup", reason);
+                harmony, DateTimeOffset.UtcNow, stress ? "C7-world-cleanup" : "C7-persistence-cleanup", exitReason);
             result.StartupTrace = startupTrace.Capture();
             result.StartedAtUtc = startedAt.ToString("o");
             result.FrameCount = frameCount;
@@ -125,7 +137,7 @@ namespace KingmakerMountedCombat.Diagnostics
             // The engine's own rows carry the causal failure; the host's requested
             // completion errors and recorded drain failures follow, then this exit.
             result.Errors = engineErrors.Concat(chunk7CompletionErrors ?? new string[0]).Concat(scenarioEngineErrors)
-                .Distinct(StringComparer.Ordinal).Concat(new[] { reason }).ToArray();
+                .Distinct(StringComparer.Ordinal).Concat(new[] { exitReason }).ToArray();
             result.SubscenarioResults = engineResults.ToArray();
             result.SubscenarioTotal = result.SubscenarioResults.Count;
             result.SubscenarioPassCount = result.SubscenarioResults.Count(row => row.Status == "PASS");

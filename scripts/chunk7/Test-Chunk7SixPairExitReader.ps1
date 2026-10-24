@@ -40,12 +40,13 @@ $retainWorld=Region $text.world 'private void RetainCleanup(string reason)' 'int
 $retainPersistence=Region $text.persistence 'private void RetainCleanup(string message, double deadline)' 'private bool PerformCleanup()'
 $publisher=Region $text.host 'private static string PublishRuntimeArtifactManifest(RuntimeRequest request)' 'private static void AddRuntimeArtifactIfPresent('
 $pins=@(
- @('exit','harmony, DateTimeOffset.UtcNow, stress ? "C7-world-cleanup" : "C7-persistence-cleanup", reason);'),
+ @('exit','harmony, DateTimeOffset.UtcNow, stress ? "C7-world-cleanup" : "C7-persistence-cleanup", exitReason);'),
  @('exit','result.StartupTrace = startupTrace.Capture();'),@('exit','result.StartedAtUtc = startedAt.ToString("o");'),
  @('exit','result.SaveRequestCount = saveRequestCount;'),@('exit','result.LoadRequestCount = loadRequestCount;'),
  @('exit','try { result.RelationshipState = relationshipStateProvider() ?? "Unavailable"; } catch { result.RelationshipState = "Unavailable"; }'),
  @('exit','result.Errors = engineErrors.Concat(chunk7CompletionErrors ?? new string[0]).Concat(scenarioEngineErrors)'),
- @('exit','.Distinct(StringComparer.Ordinal).Concat(new[] { reason }).ToArray();'),
+ @('exit','.Distinct(StringComparer.Ordinal).Concat(new[] { exitReason }).ToArray();'),
+ @('exit','var exitReason = sixPair ? reason : twoPairReason;'),
  @('exit','result.SubscenarioResults = engineResults.ToArray();'),
  @('exit','result.SubscenarioPassCount = result.SubscenarioResults.Count(row => row.Status == "PASS");'),
  @('exit','result.AssertionFailCount = result.SubscenarioResults.Sum(row => row.AssertionFailCount);'),

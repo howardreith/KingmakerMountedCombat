@@ -36,6 +36,7 @@ namespace KingmakerMountedCombat.Diagnostics
     {
         public bool IsSixPairStress = true, IsSixPairSave, IsSixPairLoad; public bool SixPairLineage => IsSixPairStress || IsSixPairSave || IsSixPairLoad;
         public int ExpectedNativeLoadCount = 1, ExpectedNativeWriteCount; public string Checkpoint; public List<string> Errors = new List<string>();
+        public bool Persistence;
         public IReadOnlyList<string> Validate(string scenario, string runId, string checkpoint) =>
             scenario == "chunk7-owned-two-pair-campaign" && runId == "b188-exit" && checkpoint == Checkpoint ? Errors : new List<string> { "selection" };
     }
@@ -71,6 +72,8 @@ namespace KingmakerMountedCombat.Diagnostics
         internal IReadOnlyList<RuntimeSubscenarioResult> Results => Rows;
         internal string RetainedFailureArtifactSha256;
         internal void RequireRetainedSixFailureScope() { if (RefuseScope) throw new InvalidOperationException("No committed retained six-pair persistence failure owns this world."); }
+        public bool RefuseTwoPairScope;
+        internal void RequireRetainedFailureScope() { if (RefuseTwoPairScope) throw new InvalidOperationException("No committed retained two-pair persistence failure owns this world."); }
     }
     class Log { public int Exceptions; public List<string> Warnings = new List<string>(); public void Exception(string text, Exception error) { Exceptions++; Console.WriteLine("LOG " + text + ": " + error.GetType().Name + ": " + error.Message); } public void Warning(string text) { Warnings.Add(text); } }
     class Trace { public object Capture() => "startup-trace"; }
@@ -191,6 +194,34 @@ internal static class Program
         host.request.PersistenceCase = "multi-exploration-manual";
         if (save) { host.saveRequestCount = 1; host.saveAuthorization.AuthorizedWriteCount = 1; host.persistence.SnapshotCount = 1; host.persistence.CompletedSaveCount = 1; }
         return host;
+    }
+
+    // b195 x4c: the same exit for a two-pair owned persistence run, bound to its declared quotas.
+    private static KingmakerMountedCombat.Diagnostics.RuntimeAutomationHost FreshTwoPair(bool save, int declaredLoads = 1, int loads = 1)
+    {
+        var host = FreshPersistence(save); var selection = host.request.OwnedPairs;
+        selection.IsSixPairSave = false; selection.IsSixPairLoad = false; selection.Persistence = true;
+        selection.ExpectedNativeLoadCount = declaredLoads; host.loadRequestCount = loads; host.saveAuthorization.AuthorizedLoadCount = loads;
+        return host;
+    }
+
+    private static void RefusesTwoPair(string name, bool save, Action<KingmakerMountedCombat.Diagnostics.RuntimeAutomationHost> mutate)
+    {
+        Check("retained two-pair exit refuses " + name, () => { var host = FreshTwoPair(save); mutate(host); host.At(46); host.Drain(); return Untouched(host); });
+    }
+
+    private static bool PublishedTwoPairFailure(KingmakerMountedCombat.Diagnostics.RuntimeAutomationHost host, int writes, int loads)
+    {
+        host.At(46); host.Drain();
+        if (!File.Exists(host.ResultPath) || UnityEngine.Application.Quits != 1 || !host.completed || !host.completionStarted || host.OrdinaryCompletions != 0) return false;
+        var json = JObject.Parse(File.ReadAllText(host.ResultPath));
+        var errors = json["Errors"].Select(item => (string)item).ToArray();
+        host.At(60); host.Drain();
+        return (string)json["Status"] == "FAIL" && (int)json["SubscenarioFailCount"] == 1 &&
+            (int)json["SaveRequestCount"] == writes && (int)json["LoadRequestCount"] == loads &&
+            errors[0] == "C7 causal retained persistence cleanup failure" &&
+            errors.Last().StartsWith("Disposable two-pair persistence run failed with retained volatile cleanup custody", StringComparison.Ordinal) &&
+            host.ManifestPublications == 1 && UnityEngine.Application.Quits == 1;
     }
 
     private static void RefusesPersistence(string name, bool save, Action<KingmakerMountedCombat.Diagnostics.RuntimeAutomationHost> mutate)
@@ -377,6 +408,22 @@ internal static class Program
         Check("a persistence result without its causal failed row is refused", () =>
         { var host = FreshPersistence(true); host.worldPersistenceEngine.Rows.RemoveAt(1); host.At(46); host.Drain(); return Untouched(host) && host.logger.Exceptions == 1; });
 
+        Check("exact retained two-pair persistence producer FAIL publishes after its completed write", () => PublishedTwoPairFailure(FreshTwoPair(true), 1, 1));
+        Check("exact retained two-pair cold consumer FAIL publishes with zero writes", () => PublishedTwoPairFailure(FreshTwoPair(false), 0, 1));
+        Check("a two-pair repeated cold consumer that failed after its first of three loads still exits", () => PublishedTwoPairFailure(FreshTwoPair(false, 3, 1), 0, 1));
+        RefusesTwoPair("a selection that is not a persistence case", false, host => host.request.OwnedPairs.Persistence = false);
+        RefusesTwoPair("a run also owning a world engine", false, host => host.worldEngine = new KingmakerMountedCombat.Diagnostics.Chunk7WorldScenarioEngine {
+            RetainedFailureArtifactSha256 = KingmakerMountedCombat.Diagnostics.RuntimeAutomationHost.Sha(pending) });
+        RefusesTwoPair("loads beyond the declared quota", false, host => { host.loadRequestCount = 2; host.saveAuthorization.AuthorizedLoadCount = 2; });
+        RefusesTwoPair("a load without its authorization", false, host => host.saveAuthorization.AuthorizedLoadCount = 0);
+        RefusesTwoPair("no native load", false, host => { host.loadRequestCount = 0; host.saveAuthorization.AuthorizedLoadCount = 0; });
+        RefusesTwoPair("a declared load count beyond three", false, host => host.request.OwnedPairs.ExpectedNativeLoadCount = 4);
+        RefusesTwoPair("a declared write count beyond two", true, host => host.request.OwnedPairs.ExpectedNativeWriteCount = 3);
+        RefusesTwoPair("a write beyond the declared quota", false, host =>
+        { host.saveRequestCount = 1; host.saveAuthorization.AuthorizedWriteCount = 1; host.persistence.SnapshotCount = 1; host.persistence.CompletedSaveCount = 1; });
+        RefusesTwoPair("an unadmitted two-pair persistence scope", true, host => host.worldPersistenceEngine.RefuseTwoPairScope = true);
+        RefusesTwoPair("a pending area transition", false, host => host.persistence.AreaTransitionPending = true);
+        RefusesTwoPair("a changed persistence artifact", false, host => File.AppendAllText(Path.Combine(root, KingmakerMountedCombat.Diagnostics.Chunk7PersistenceScenario.CleanupPendingFileName), " "));
         Console.WriteLine("SIX-PAIR FAILURE EXIT PASS=" + pass + " FAIL=" + fail);
         return fail == 0 ? 0 : 1;
     }
