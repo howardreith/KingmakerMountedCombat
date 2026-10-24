@@ -337,7 +337,7 @@ namespace KingmakerMountedCombat.Diagnostics
             if (command == null || !ReferenceEquals(command, watchedCommand)) throw new InvalidOperationException("The native command interrupt watch names another command.");
             var rows = watchedInterrupts; watchedCommand = null; watchedInterrupts = null; return rows;
         }
-        private void RecordWatchedInterrupt(UnitCommand command, string callers)
+        private void RecordWatchedInterrupt(UnitCommand command, string callers, bool callersTruncated)
         {
             try
             {
@@ -348,7 +348,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     ["interruptAsSoonAsPossible"] = command.InterruptAsSoonAsPossible, ["timeSinceStart"] = command.TimeSinceStart,
                     ["attackIndex"] = (command as UnitAttack)?.GetAttackIndex(), ["plannedAttacks"] = (command as UnitAttack)?.AllAttacks.Count,
                     ["executorCanAct"] = executor?.Descriptor.State.CanAct, ["targetInState"] = target?.IsInState,
-                    ["targetDead"] = target?.Descriptor.State.IsDead, ["callers"] = callers });
+                    ["targetDead"] = target?.Descriptor.State.IsDead, ["callers"] = callers, ["callersTruncated"] = callersTruncated });
             }
             catch (Exception) { observationErrors++; }
         }
@@ -458,7 +458,7 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 var p = active;
                 if (p == null || __instance == null) return;
-                if (ReferenceEquals(__instance, p.watchedCommand)) p.RecordWatchedInterrupt(__instance, InterruptCallers());
+                if (ReferenceEquals(__instance, p.watchedCommand)) { bool truncated; var chain = InterruptCallers(256, out truncated); p.RecordWatchedInterrupt(__instance, chain, truncated); }
                 var actor = __instance.Executor;
                 if (!p.ObservesCommandActor(actor)) return;
                 p.Record("command-interrupt-before", actor, __instance, detail: InterruptCallers());
@@ -473,24 +473,29 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             // The managed frames above the interrupt hook, outermost last. Harmony wrapper frames and
             // this trace are skipped; the summary is observation only and never changes the call.
-            private static string InterruptCallers()
+            private static string InterruptCallers() { bool truncated; return InterruptCallers(14, out truncated); }
+            // The watched command keeps its whole chain (up to 256 named frames) and says whether any was cut,
+            // so a missing KingmakerMountedCombat frame is never inferred from a truncated chain.
+            private static string InterruptCallers(int maximum, out bool truncated)
             {
+                truncated = true;
                 try
                 {
-                    var stack = new System.Diagnostics.StackTrace(1, false);
-                    var names = new List<string>();
-                    for (var index = 0; index < stack.FrameCount && names.Count < 14; index++)
+                    var stack = new System.Diagnostics.StackTrace(2, false);
+                    var names = new List<string>(); truncated = false;
+                    for (var index = 0; index < stack.FrameCount; index++)
                     {
                         var method = stack.GetFrame(index)?.GetMethod();
                         if (method == null) continue;
                         var name = (method.DeclaringType == null ? "" : method.DeclaringType.FullName + ".") + method.Name;
                         if (name.StartsWith("Harmony", StringComparison.Ordinal) ||
                             name.StartsWith("KingmakerMountedCombat.Diagnostics.NativeActorAllocationTrace", StringComparison.Ordinal)) continue;
+                        if (names.Count == maximum) { truncated = true; break; }
                         names.Add(name);
                     }
                     return "callers=" + string.Join(" < ", names.ToArray());
                 }
-                catch (Exception exception) { return "callers=unavailable:" + exception.GetType().Name; }
+                catch (Exception exception) { truncated = true; return "callers=unavailable:" + exception.GetType().Name; }
             }
             internal static void TurnEndBefore(TurnController __instance) { active?.Record("turn-end-before", __instance.Unit); }
             internal static void TurnEndAfter(TurnController __instance) { active?.Record("turn-end-after", __instance.Unit); }
