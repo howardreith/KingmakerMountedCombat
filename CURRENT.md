@@ -1,6 +1,16 @@
 # Chunk 7B–7D — IN PROGRESS
 
-Claude [batch197](docs/CHUNK7-BATCH197-7E-PILOTS-2026-10-24.md) froze pilot candidate `c68fabd9`
+Claude [batch198](docs/CHUNK7-BATCH198-7E-PILOTS-2026-10-24.md) froze pilot candidate `767feaea`
+(DLL `870b6437…`, suite `chunk7e-b198-pilots-20261024`). Eight native launches, all with exact
+restoration. The acquired chain (c1–c5) and the X4 producer passed again. **Row 58 passed for the first
+time** (development pilot): native Oleg's again sent the three story companions and pair B to remote, the
+capital admission recorded them, and Manual 309 `KMC_C7_CAPITAL` was written. Row 59 failed closed on a
+diagnostic defect in `ReadSource`: it compares the lineage Manual's write area (Spider Cave) with the load
+area (the capital). The fix awaits review; Bind's remote-companion readiness check was not reached. The X5
+upgrade rehearsal did not run: observer.6 cannot be packaged because the observer `Info.json` still says
+observer.5. Standing mission remains IN PROGRESS.
+
+Historical: Claude [batch197](docs/CHUNK7-BATCH197-7E-PILOTS-2026-10-24.md) froze pilot candidate `c68fabd9`
 (DLL `c0fa0ebe…`, suite `chunk7e-b197-pilots-20261024`). Eleven native launches (one Steamworks
 startup failure retried once), all with exact restoration. **Row 57, the two-pair native life and the
 Small scroll/potion item pilot passed** for the first time; the unmounted unconscious control was
