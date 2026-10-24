@@ -507,8 +507,9 @@ foreach($m in @(
  @('steps out of order',{New-X5Pins @($x5Order[0],$x5Order[2],$x5Order[1]) @($x5Ids[0],$x5Ids[2],$x5Ids[1])},'in that order'),
  @('a run labelled as another step',{New-X5Pins $x5Order @($x5Ids[0],$x5Ids[2],$x5Ids[1])},'mixes steps or rehearsal ids'),
  @('one run used twice',{New-X5Pins $x5Order @($x5Ids[0],$x5Ids[1],$x5Ids[1])},'three distinct runs'),
- @('the b199 u1 of another rehearsal id',{New-X5Pins $x5Order @('20261024-c7e-b199-x5-u1-previous',$x5Ids[1],$x5Ids[2])},'mixes steps or rehearsal ids|did not pass'),
+ @('the b199 u1 of another rehearsal id',{New-X5Pins $x5Order @('20261024-c7e-b199-x5-u1-previous',$x5Ids[1],$x5Ids[2])},'mixes steps or rehearsal ids'),
  @('a tampered result pin',{$p=New-X5Pins;$p[1].resultSha256=('0'*64);$p},'does not match the SHA-256 its pin records'),
+ @('a null pin among three',{@($null)+@(New-X5Pins)},'step pin is null'),
  @('a pin with an extra member',{$p=New-X5Pins;$p[0]|Add-Member -NotePropertyName extra -NotePropertyValue 1;$p},'upgrade rehearsal step pin'))){
  Check ('rows 55-56 refuse '+$m[0]) {Assert-KmcChunk7UpgradeRehearsalComplete $x5Rid (&$m[1]) $noReader} $true $m[2]
 }
@@ -543,6 +544,7 @@ foreach($m in @(
   Edit-X5Json $x5Ids[1] 'runtime-result.json' {param($v)$v.gameResultSha256=(Get-KmcSha256 (Join-Path $d 'runtime-game-result.json'))}},'disagree on the verdict: '),
  @('a u3 started before u2 completed',{Edit-X5Json $x5Ids[2] 'runtime-result.json' {param($v)$v.startedAtUtc='2026-10-24T10:46:30.0000000+00:00'}},'run in that order'),
  @('a u3 on another candidate',{Edit-X5Json $x5Ids[2] 'runtime-result.json' {param($v)$v.commit=('a'*40)}},'more than one candidate'),
+ @('a u3 whose product version differs only in case',{Edit-X5Json $x5Ids[2] 'runtime-result.json' {param($v)$v.productVersion=([string]$v.productVersion).ToUpperInvariant()}},'more than one candidate: productVersion'),
  @('a u2 whose carry source pins another u1 game record',{Edit-X5Json $x5Ids[1] 'runtime-request.json' {param($v)$v.normalPlayer.upgradeRehearsal.carrySource.gameResultSha256=('0'*64)}},'does not bind the same u1'),
  @('a u3 whose carry source names another run',{Edit-X5Json $x5Ids[2] 'runtime-request.json' {param($v)$v.normalPlayer.upgradeRehearsal.carrySourceRunId=$x5Ids[1]}},'does not bind the same u1'),
  @('a u1 transaction state changed after u2 and u3 pinned it',{[IO.File]::AppendAllText((Join-Path $x5Lab ('runtime-state/transactions/'+$x5Ids[0]+'.json')),' ')},'does not bind the same u1: \S+ stateSha256'))){

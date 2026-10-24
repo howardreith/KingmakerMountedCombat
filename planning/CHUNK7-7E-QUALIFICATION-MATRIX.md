@@ -307,9 +307,14 @@ in U3.
     files included) and the full external reader. It binds the real b200 rehearsal `x5-b200-20261024`
     and refuses missing, extra, reordered, relabelled or repeated steps, another id, tampered pins,
     records, receipts or u1 state, a failed step, another candidate and a broken u1 binding.
+    Residual (review of `165bc1f7`): the carry source and carried files live only in each run's
+    `runtime-request.json`, which no hash-bound record pins. The u1 side is re-derived from u1's own
+    pinned records, but a u2/u3 request edited after its run to name another passed u1 of the same id
+    would still be accepted. Closing it needs the runner to record the request (or carry-source) hash
+    in the hash-bound outer result, a runner change for later runs.
 - **u3 folder state:** u3 lays u1's folder state by design, not u2's.
 - **Params.xml:** each transaction restores the owner's file, so it is not carried across steps.
-- **Tests:** `scripts/chunk7/Test-Chunk7UpgradeRehearsal.ps1` passes 111/0 after the third review's follow-up and 159/0 with the u1 known-defect admission and review follow-up, 189/0 with the u3 admission, the receipt hash binding and its review follow-up, and 220/0 with the row-42 binder and the rows 55–56 completeness consumer (`Test-Chunk7NormalPlayerControl.ps1` 52/0); the Enter-to-Restore carry path is covered in `scripts/Test-BaseGameIsolation.ps1` (98/0).
+- **Tests:** `scripts/chunk7/Test-Chunk7UpgradeRehearsal.ps1` passes 111/0 after the third review's follow-up and 159/0 with the u1 known-defect admission and review follow-up, 189/0 with the u3 admission, the receipt hash binding and its review follow-up, and 222/0 with the row-42 binder and the rows 55–56 completeness consumer (`Test-Chunk7NormalPlayerControl.ps1` 52/0); the Enter-to-Restore carry path is covered in `scripts/Test-BaseGameIsolation.ps1` (98/0).
 
 ## Docs deliverables
 
