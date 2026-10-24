@@ -981,9 +981,22 @@ function New-KmcSeedStagedFixture{
  $castStep={param([int]$index,[string]$row,[long]$round,[long]$turn,[double]$mMove,[double[]]$pos,[bool]$used2,[long]$count,[long]$shell)
   $b=$script:stSeq;&$ev 'cost-before' $roles[0] $shell 0.0;&$ev 'cost-after' $roles[0] $shell 6.0
   $ability=[pscustomobject][ordered]@{identity=900+$shell;blueprint=$clw;caster=$roles[0];sourceItem=$scrollItem;sourceItemBlueprint=$scrollBp;runtimeActionType='Standard';available=$true;availableForCast=$true}
-  $casts=@([pscustomobject][ordered]@{kind='action-before';actor=$roles[0];identity=$shell;shell=[pscustomobject]@{timeSinceStart=0.55}},[pscustomobject][ordered]@{kind='cast-after';actor=$roles[0];identity=1;ability=[pscustomobject]@{blueprint=$clw};process=77;spellFailed=$false;arcaneFailed=$false},
-   [pscustomobject][ordered]@{kind='item-spend-after';actor=$roles[0];identity=$scrollItem;blueprint=$scrollBp;count=($count-1);charges=1;result=$true})
-  $steps.Add([pscustomobject][ordered]@{index=$index;row=$row;kind='cast-standard-scroll';round=$round;before=(&$st 'cast-before' $round $turn 0.0 $mMove $pos $used2 $count);traceSequenceBefore=$b;castEventsBefore=0;ruleCountBefore=0
+  # The native self-targeted scroll shape (b204): the sourced scroll cast and its spends, then the sticky-touch
+  # RuleCastSpell of the sourceless Cure Light Wounds touch ability on rider A and its heal (0 at full health).
+  $inner=[pscustomobject][ordered]@{identity=950+$shell;blueprint='47808d23c67033d4bbab86a1070fd62f';caster=$roles[0];sourceItem=0;sourceItemBlueprint=$null;runtimeActionType='Standard';available=$true;availableForCast=$true}
+  $casts=@([pscustomobject][ordered]@{kind='action-before';actor=$roles[0];identity=$shell;shell=[pscustomobject]@{timeSinceStart=0.55}},
+   [pscustomobject][ordered]@{kind='cast-before';actor=$roles[0];identity=2;ability=$ability;target=$roles[0]},
+   [pscustomobject][ordered]@{kind='cast-after';actor=$roles[0];identity=2;ability=$ability;target=$roles[0];process=77;spellFailed=$false;arcaneFailed=$false},
+   [pscustomobject][ordered]@{kind='spell-spend-before';actor=$roles[0];identity=$ability.identity;ability=$ability},
+   [pscustomobject][ordered]@{kind='item-spend-before';actor=$roles[0];identity=$scrollItem;blueprint=$scrollBp;count=$count;charges=1;result=$null},
+   [pscustomobject][ordered]@{kind='item-spend-after';actor=$roles[0];identity=$scrollItem;blueprint=$scrollBp;count=($count-1);charges=1;result=$true},
+   [pscustomobject][ordered]@{kind='spell-spend-after';actor=$roles[0];identity=$ability.identity;ability=$ability},
+   [pscustomobject][ordered]@{kind='cast-before';actor=$roles[0];identity=3;ability=$inner;target=$roles[0]},
+   [pscustomobject][ordered]@{kind='cast-after';actor=$roles[0];identity=3;ability=$inner;target=$roles[0];process=78;spellFailed=$false;arcaneFailed=$false},
+   [pscustomobject][ordered]@{kind='heal';actor=$roles[0];identity=4;target=$roles[0];value=0})
+  $castBefore=&$st 'cast-before' $round $turn 0.0 $mMove $pos $used2 $count;$riderBefore=@($castBefore.actors|Where-Object id -CEQ $roles[0])[0]
+  if($null-ne$riderBefore.PSObject.Properties['native']-and$null-ne$riderBefore.native){$riderBefore.native|Add-Member damage 0 -Force}else{$riderBefore|Add-Member native ([pscustomobject]@{damage=0}) -Force}
+  $steps.Add([pscustomobject][ordered]@{index=$index;row=$row;kind='cast-standard-scroll';round=$round;before=$castBefore;traceSequenceBefore=$b;castEventsBefore=0;ruleCountBefore=0
    ability=$ability;target=$roles[0];selected=$true;canTarget=$true;clicked=$true;admittedShellCount=1;shell=[pscustomobject]@{identity=1};costShell=$shell;afterInput=(&$st 'cast-after-input' $round $turn 0.0 $mMove $pos $used2 $count)
    after=(&$st 'cast-after' $round $turn 6.0 $mMove $pos $used2 ($count-1));traceSequenceAfter=$script:stSeq;castEvents=$casts;rules=@();terminal=[pscustomobject][ordered]@{identity=$shell;type='UnitUseAbility';executor=$roles[0];createdByPlayer=$true;started=$true;acted=$true;finished=$true;result='Success';commandType='Standard';timeSinceStart=0.6};endDistance=8.0})}
  $shotStep={param([int]$index,[string]$row,[string]$kind,[long]$round,[long]$turn,[double]$moveFrom,[double]$moveTo,[double[]]$from,[double[]]$to,[bool]$used2,[long]$count,[long]$id)
@@ -1068,6 +1081,47 @@ Check-SeedStaged 'a mount charged for the rider cast' {$v=$args[0];$s=Get-StStep
 Check-SeedStaged 'a cast that moved the pair' {$s=Get-StStep $args[0] 1;$s.after.mountPosition=@(8.0,0.0,2.5)} 'not stationary'
 Check-SeedStaged 'a cast from another item' {(Get-StStep $args[0] 1).ability.sourceItem=1} 'exact equipped disposable scroll'
 Check-SeedStaged 'a failed native cast' {@((Get-StStep $args[0] 1).castEvents|Where-Object kind -CEQ 'cast-after')[0].spellFailed=$true} 'failed or duplicated'
+Check-SeedStaged 'a cast window charging rider A for another command' {$v=$args[0];$c=Get-StEvent $v -801 'cost-after';$k=[long]$c.sequence;$e=Copy-Value $c;$e.boundary='actor-cost-after';$e.command=4242;$t=$v.artifact.observations.allocationTrace
+ foreach($x in @($t.events)){if([long]$x.sequence-gt$k){$x.sequence=[long]$x.sequence+1}};$e.sequence=$k+1;$t.events=@(@($t.events|Where-Object{[long]$_.sequence-le$k})+@($e)+@($t.events|Where-Object{[long]$_.sequence-gt$k+1}))
+ foreach($s in @($v.artifact.observations.staged.steps)){foreach($w in @($s)+@(if($null-ne$s.PSObject.Properties['legs']){@($s.legs)})){foreach($n in 'traceSequenceBefore','traceSequenceAfter'){if([long]$w.$n-ge$k){$w.$n=[long]$w.$n+1}}}}} 'another command'
+# b204 exact native scroll windows (tests/Chunk7Diagnostics/StagedB204NativeShapes.json, copied from the immutable b204 evidence):
+# a self-targeted scroll triggers the pinned sticky-touch RuleCastSpell of the sourceless Cure Light Wounds touch ability.
+$b204=Get-Content -LiteralPath (Join-Path $repo 'tests/Chunk7Diagnostics/StagedB204NativeShapes.json') -Raw|ConvertFrom-Json
+function Invoke-B204Cast($c){Assert-KmcChunk7StagedScrollDelivery $c @($b204.riderId,$b204.mountId) 'b204 scroll window'}
+function Get-B204Events($c,[string]$Kind,[string]$Blueprint){@($c.castEvents|Where-Object{$_.kind-ceq$Kind-and(-not$Blueprint-or($null-ne$_.PSObject.Properties['ability']-and$_.ability.blueprint-ceq$Blueprint))})}
+function Check-B204Cast([string]$Name,[int]$Index,[scriptblock]$Mutation,[string]$Pattern=''){$c=Copy-Value $b204.casts[$Index];&$Mutation $c;Check ('b204 scroll window '+$Name) {Invoke-B204Cast $c} ([bool]$Pattern) $Pattern}
+$b204Inner='47808d23c67033d4bbab86a1070fd62f';$b204Scroll='5590652e1c2225c4ca30c4a699ab3649'
+Check 'b204 step 1 native scroll window accepted' {Invoke-B204Cast (Copy-Value $b204.casts[0])}
+Check 'b204 step 8 native scroll window accepted' {Invoke-B204Cast (Copy-Value $b204.casts[1])}
+Check-B204Cast 'without the touch delivery and its heal is accepted' 0 {$c=$args[0];$c.castEvents=@($c.castEvents|Where-Object{-not(($_.kind-cin@('cast-before','cast-after')-and$_.ability.blueprint-ceq$b204Inner)-or$_.kind-ceq'heal')})}
+Check-B204Cast 'with a bounded heal of a damaged rider is accepted' 1 {$c=$args[0];$c.before.actors[0].native.damage=6;(Get-B204Events $c 'heal')[0].value=5}
+Check-B204Cast 'refuses a delivery whose heal is missing' 0 {$c=$args[0];$c.castEvents=@($c.castEvents|Where-Object kind -CNE 'heal')} 'heals do not match'
+Check-B204Cast 'refuses a heal without the delivery' 0 {$c=$args[0];$c.castEvents=@($c.castEvents|Where-Object{-not($_.kind-cin@('cast-before','cast-after')-and$_.ability.blueprint-ceq$b204Inner)})} 'heals do not match'
+Check-B204Cast 'refuses a second heal' 0 {$c=$args[0];$c.castEvents=@($c.castEvents)+@(Copy-Value (Get-B204Events $c 'heal')[0])} 'heals do not match'
+Check-B204Cast 'refuses a heal beyond the native damage' 0 {(Get-B204Events $args[0] 'heal')[0].value=5} 'bounded native heal'
+Check-B204Cast 'refuses a heal of the mount' 1 {(Get-B204Events $args[0] 'heal')[0].target=$b204.mountId} 'bounded native heal'
+Check-B204Cast 'refuses a heal before the delivery' 0 {$c=$args[0];$h=(Get-B204Events $c 'heal')[0];$rest=@($c.castEvents|Where-Object kind -CNE 'heal');$c.castEvents=@($rest[0..11])+@($h)+@($rest[12..($rest.Count-1)])} 'bounded native heal'
+Check-B204Cast 'refuses a second touch delivery' 0 {$c=$args[0];$b=Copy-Value (Get-B204Events $c 'cast-before' $b204Inner)[0];$a=Copy-Value (Get-B204Events $c 'cast-after' $b204Inner)[0];$h=Copy-Value (Get-B204Events $c 'heal')[0];$b.identity=1;$a.identity=1;$b.ability.identity=2;$a.ability.identity=2;$c.castEvents=@($c.castEvents)+@($b,$a,$h)} 'failed or duplicated'
+Check-B204Cast 'refuses a second sourced scroll cast' 1 {$c=$args[0];$b=Copy-Value (Get-B204Events $c 'cast-before' $b204Scroll)[0];$a=Copy-Value (Get-B204Events $c 'cast-after' $b204Scroll)[0];$b.identity=1;$a.identity=1;$c.castEvents=@($c.castEvents)+@($b,$a)} 'failed or duplicated'
+Check-B204Cast 'refuses a touch delivery without the scroll cast' 0 {$c=$args[0];$c.castEvents=@($c.castEvents|Where-Object{-not($_.kind-cin@('cast-before','cast-after')-and$_.ability.blueprint-ceq$b204Scroll)})} 'failed or duplicated'
+Check-B204Cast 'refuses a second cast of an unknown blueprint' 0 {$c=$args[0];foreach($e in @(Get-B204Events $c 'cast-before' $b204Inner)+@(Get-B204Events $c 'cast-after' $b204Inner)){$e.ability.blueprint='0'*32}} 'failed or duplicated'
+Check-B204Cast 'refuses a sourced touch delivery' 1 {$c=$args[0];foreach($e in @(Get-B204Events $c 'cast-after' $b204Inner)){$e.ability.sourceItem=$c.ability.sourceItem}} 'exact self touch delivery'
+Check-B204Cast 'refuses a touch delivery on another target' 0 {(Get-B204Events $args[0] 'cast-after' $b204Inner)[0].target=$b204.mountId} 'exact self touch delivery'
+Check-B204Cast 'refuses a failed touch delivery' 0 {(Get-B204Events $args[0] 'cast-after' $b204Inner)[0].spellFailed=$true} 'exact self touch delivery'
+Check-B204Cast 'refuses a touch delivery that reuses the scroll spell' 1 {$c=$args[0];foreach($e in @(Get-B204Events $c 'cast-before' $b204Inner)+@(Get-B204Events $c 'cast-after' $b204Inner)){$e.ability.identity=$c.ability.identity}} 'exact self touch delivery'
+Check-B204Cast 'refuses a touch delivery before the spend' 0 {$c=$args[0];$d=@($c.castEvents|Where-Object{$_.kind-cin@('cast-before','cast-after')-and$_.ability.blueprint-ceq$b204Inner});$rest=@($c.castEvents|Where-Object{$d-notcontains$_});$c.castEvents=@($rest[0..6])+$d+@($rest[7..($rest.Count-1)])} 'after its spend'
+Check-B204Cast 'refuses a second item spend' 0 {$c=$args[0];$c.castEvents=@($c.castEvents)+@(Copy-Value (Get-B204Events $c 'item-spend-before')[0])+@(Copy-Value (Get-B204Events $c 'item-spend-after')[0])} 'spent exactly once'
+Check-B204Cast 'refuses a second spell spend' 1 {$c=$args[0];$c.castEvents=@($c.castEvents)+@(Copy-Value (Get-B204Events $c 'spell-spend-before')[0])+@(Copy-Value (Get-B204Events $c 'spell-spend-after')[0])} 'spent exactly once'
+Check-B204Cast 'refuses a spend of the delivery spell' 0 {$c=$args[0];foreach($e in @(Get-B204Events $c 'spell-spend-before')+@(Get-B204Events $c 'spell-spend-after')){$e.ability=Copy-Value (Get-B204Events $c 'cast-after' $b204Inner)[0].ability}} 'spent exactly once'
+Check-B204Cast 'refuses a child touch command' 0 {$c=$args[0];$s=Copy-Value @($c.castEvents|Where-Object kind -CEQ 'start-before')[0];$s.identity=1234;$c.castEvents=@($c.castEvents)+@($s)} 'another native command'
+Check-B204Cast 'refuses a cast by the mount' 1 {$c=$args[0];$e=Copy-Value (Get-B204Events $c 'cast-after' $b204Inner)[0];$e.actor=$b204.mountId;$c.castEvents=@($c.castEvents)+@($e)} 'failed or duplicated'
+Check-B204Cast 'refuses a scroll ability without a pinned delivery' 0 {$args[0].ability.blueprint='0'*32} 'no pinned native touch delivery'
+# b204 step 4: MountedPairAttackCommand turns the stationary mount to the target; the saddle point only rotates.
+function Set-StSeatShot($v,[double[]]$RiderBefore,[double[]]$RiderAfter){$s=Get-StStep $v 4;$m=@($s.before.mountPosition);$s.before.riderPosition=@(([double]$m[0]+$RiderBefore[0]),([double]$m[1]+$RiderBefore[1]),([double]$m[2]+$RiderBefore[2]));$p=@(([double]$m[0]+$RiderAfter[0]),([double]$m[1]+$RiderAfter[1]),([double]$m[2]+$RiderAfter[2]));$s.after.riderPosition=$p;$s.rules[0].actorPosition=$p}
+$b204SeatBefore=@(0..2|ForEach-Object{[double]$b204.shot.before.riderPosition[$_]-[double]$b204.shot.before.mountPosition[$_]});$b204SeatAfter=@(0..2|ForEach-Object{[double]$b204.shot.after.riderPosition[$_]-[double]$b204.shot.after.mountPosition[$_]})
+Check 'owner-seed staged accepts the b204 in-range seat rotation about the stationary mount' {$v=New-KmcSeedStagedFixture;Set-StSeatShot $v $b204SeatBefore $b204SeatAfter;Invoke-OwnedReader $v}
+Check-SeedStaged 'an in-range rider displaced off its seat radius' {Set-StSeatShot $args[0] $b204SeatBefore @(($b204SeatAfter[0]*2.0),$b204SeatAfter[1],($b204SeatAfter[2]*2.0))} 'in-range shot origin moved'
+Check-SeedStaged 'an in-range rider raised off its seat' {Set-StSeatShot $args[0] $b204SeatBefore @($b204SeatAfter[0],($b204SeatAfter[1]+0.3),$b204SeatAfter[2])} 'in-range shot origin moved'
 Check-SeedStaged 'a stack that did not decrement' {$s=Get-StStep $args[0] 1;$s.after.items[0].count=4} 'decrement in place'
 Check-SeedStaged 'a measured spend from the last unit' {$s=Get-StStep $args[0] 8;$s.before.items[0].count=1;$s.after.items[0].count=0} 'decrement in place'
 Check-SeedStaged 'damage inside a cast without its concentration check' {$s=Get-StStep $args[0] 1;$s.castEvents=@($s.castEvents)+@([pscustomobject]@{kind='damage';actor=$args[0].artifact.observations.targetId;target=$args[0].request.ownedPairs.riderAId;damage=3})} 'concentration checks'
@@ -1113,7 +1167,7 @@ Check-SeedStaged 'a second leg before any Move was used' {(Get-StStep $args[0] 2
 Check-SeedStaged 'a second leg that consumed no native movement time' {$l=(Get-StStep $args[0] 2).legs[0];(Get-StActor $l.after $args[0].request.ownedPairs.mountAId).native.remainingNativeTime=5.5} 'retained native movement time'
 Check-SeedStaged 'a full attack as the shot' {(Get-StStep $args[0] 4).rules[0].fullAttack=$true;$args[0].artifact.observations.staged.rules.events=@((Get-StStep $args[0] 4).rules[0],(Get-StStep $args[0] 9).rules[0])} 'one native ranged shot'
 Check-SeedStaged 'a single-action move leg' {(Get-StStep $args[0] 0).legs[0].singleActionMove=$true} 'Native evidence boolean'
-Check-SeedStaged 'an absent cast shell identity' {$s=Get-StStep $args[0] 8;$s.costShell=0;$s.terminal.identity=0} 'committed exactly once'
+Check-SeedStaged 'an absent cast shell identity' {$s=Get-StStep $args[0] 8;$s.costShell=0;$s.terminal.identity=0} 'committed exactly once|another native command'
 Check 'owner-seed combat reaction accepts a negative native command identity' {$v=New-KmcSeedReactionFixture;(Get-RxLeg $v).command=-1234567;Invoke-OwnedReader $v}
 Check 'owner-seed combat reaction accepts an interrupted move that left the threatened area short of its clear distance' {$v=New-KmcSeedReactionFixture;$d=Get-RxLeg $v;$d.result='Interrupt';$d.targetAfter.mountDistance=6.0;Invoke-OwnedReader $v}
 Check 'owner-seed combat reaction accepts pair B cooldowns that only decayed natively' {$v=New-KmcSeedReactionFixture;$d=Get-RxLeg $v;(RActor $d.before $v.request.ownedPairs.riderBId).standard=6.0;(RActor $d.after $v.request.ownedPairs.riderBId).standard=5.5;$d.after.gameTicks=[long]$d.before.gameTicks+10000000;Invoke-OwnedReader $v}

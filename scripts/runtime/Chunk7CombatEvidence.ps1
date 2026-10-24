@@ -474,17 +474,52 @@ function Assert-KmcChunk7StagedLeg($Leg,$o,$roles,[string]$Why){
  }
  return $moved
 }
+# The scroll's ability (CureLightWoundsCast) carries AbilityEffectStickyTouch whose TouchDeliveryAbility is
+# CureLightWounds. The pinned AbilityEffectStickyTouch.Apply initializes UnitPartTouch and, when the caster is the
+# target, triggers RuleCastSpell on the touch ability's data at once (no child command, no spend); otherwise it queues
+# a touch-delivery UnitUseAbility. The installed relation was recorded natively by b136 (F09 presentation:
+# nativeFollowupAbilityGuid read from the scroll ability's TouchDeliveryAbility) and in every 6D staged scroll window.
+$script:KmcStagedScrollTouchDelivery=@{'5590652e1c2225c4ca30c4a699ab3649'='47808d23c67033d4bbab86a1070fd62f'}
+function Get-KmcChunk7StagedField($Event,[string]$Name){if($null-eq$Event){return $null};$p=$Event.PSObject.Properties[$Name];if($null-eq$p){$null}else{$p.Value}}
+# One self-targeted scroll use in its cast window: exactly one sourced cast of the scroll ability from the equipped
+# stack, its one spell spend and one item spend, then at most one sourceless cast of the exact pinned touch-delivery
+# ability by and on rider A after both spends, with exactly as many heals (by and on rider A, after it, no larger
+# than rider A's native damage before the step). Every other rider cast, spend, heal or child command refuses.
+function Assert-KmcChunk7StagedScrollDelivery($Step,$roles,[string]$Why){
+ $a=$Step.ability;$rider=$roles[0];$events=@($Step.castEvents);$delivery=$script:KmcStagedScrollTouchDelivery[[string]$a.blueprint]
+ if($null-eq$delivery){throw ($Why+': the scroll ability has no pinned native touch delivery.')}
+ $at={param($e)[array]::IndexOf($events,$e)}
+ $castAfters=@($events|Where-Object{$_.kind-ceq'cast-after'-and$_.actor-ceq$rider})
+ $scroll=@($castAfters|Where-Object{$_.ability.blueprint-ceq$a.blueprint-and$_.ability.sourceItem-eq$a.sourceItem-and$_.ability.identity-eq$a.identity})
+ $inner=@($castAfters|Where-Object{$_.ability.blueprint-ceq$delivery})
+ if($scroll.Count-ne1-or$scroll[0].process-eq0-or$scroll[0].spellFailed-ne$false-or$scroll[0].arcaneFailed-ne$false-or$scroll[0].target-cne$Step.target){throw ($Why+': the native cast failed or duplicated.')}
+ if($castAfters.Count-ne$scroll.Count+$inner.Count-or$inner.Count-gt1){throw ($Why+': the native cast failed or duplicated.')}
+ if(@($events|Where-Object{$_.kind-ceq'cast-before'}).Count-ne$castAfters.Count-or@($events|Where-Object{$_.kind-clike'cast-*'-and$_.actor-cne$rider}).Count-ne0){throw ($Why+': the native cast failed or duplicated.')}
+ $spellSpends=@($events|Where-Object{$_.kind-ceq'spell-spend-after'});$itemSpends=@($events|Where-Object{$_.kind-ceq'item-spend-after'})
+ if($spellSpends.Count-ne1-or@($events|Where-Object{$_.kind-ceq'spell-spend-before'}).Count-ne1-or$spellSpends[0].ability.identity-ne$a.identity-or$itemSpends.Count-ne1-or@($events|Where-Object{$_.kind-ceq'item-spend-before'}).Count-ne1-or$itemSpends[0].identity-ne$a.sourceItem-or
+    (&$at $scroll[0])-ge(&$at $spellSpends[0])){throw ($Why+': the scroll was not spent exactly once after its cast.')}
+ if(@($events|Where-Object{$_.kind-cin@('start-before','start-after','action-before','action-after')-and$_.identity-ne$Step.costShell}).Count-ne0){throw ($Why+': the cast window holds another native command.')}
+ $heals=@($events|Where-Object{$_.kind-ceq'heal'})
+ if($heals.Count-ne$inner.Count){throw ($Why+': the heals do not match the native touch delivery.')}
+ if($inner.Count-eq1){$i=$inner[0];$ib=@($events|Where-Object{$_.kind-ceq'cast-before'-and$_.identity-eq$i.identity})
+  if($i.ability.caster-cne$rider-or$i.target-cne$rider-or$Step.target-cne$rider-or$i.ability.sourceItem-ne0-or$null-ne(Get-KmcChunk7StagedField $i.ability 'sourceItemBlueprint')-or$i.ability.identity-eq$a.identity-or
+     $i.process-eq0-or$i.spellFailed-ne$false-or$i.arcaneFailed-ne$false-or$ib.Count-ne1-or$ib[0].ability.identity-ne$i.ability.identity-or
+     (&$at $ib[0])-le(&$at $spellSpends[0])-or(&$at $ib[0])-le(&$at $itemSpends[0])-or(&$at $ib[0])-ge(&$at $i)){throw ($Why+': the second cast is not the scroll''s exact self touch delivery after its spend.')}
+  $h=$heals[0];$damage=Get-KmcChunk7StagedField (Get-KmcChunk7StagedField (Get-KmcChunk7CombatActor $Step.before $rider) 'native') 'damage'
+  if($h.actor-cne$rider-or$h.target-cne$rider-or-not(Test-KmcExactJsonInteger $h.value)-or$h.value-lt0-or(&$at $h)-le(&$at $i)-or-not(Test-KmcExactJsonInteger $damage)-or$h.value-gt$damage){throw ($Why+': the touch delivery heal is not rider A''s one bounded native heal.')}
+ }
+}
 function Assert-KmcChunk7StagedCast($Step,$o,$s,$roles,[string]$Why){
  $a=$Step.ability;$scrollItem=$s.scroll.equipped.item
  if($a.caster-cne$roles[0]-or$a.blueprint-cne'5590652e1c2225c4ca30c4a699ab3649'-or$a.runtimeActionType-cne'Standard'-or$a.available-ne$true-or$a.sourceItem-ne$scrollItem-or$a.sourceItemBlueprint-cne'cd635d5720937b044a354dba17abad8d'){throw ($Why+': the cast did not source the exact equipped disposable scroll stack.')}
  if($Step.target-cne$roles[0]-or$Step.selected-ne$true-or$Step.canTarget-ne$true-or$Step.clicked-ne$true-or$Step.admittedShellCount-ne1-or$null-eq$Step.shell){throw ($Why+': the normal cast input was not admitted exactly once.')}
  if($null-eq$Step.terminal-or$Step.terminal.finished-ne$true-or$Step.terminal.executor-cne$roles[0]-or$Step.terminal.type-cne'UnitUseAbility'-or$Step.terminal.identity-ne$Step.costShell){throw ($Why+': the cast shell did not finish on rider A.')}
- $casts=@($Step.castEvents|Where-Object{$_.kind-ceq'cast-after'-and$_.actor-ceq$roles[0]})
- if($casts.Count-ne1-or$casts[0].ability.blueprint-cne$a.blueprint-or$casts[0].process-eq0-or$casts[0].spellFailed-ne$false-or$casts[0].arcaneFailed-ne$false){throw ($Why+': the native cast failed or duplicated.')}
+ Assert-KmcChunk7StagedScrollDelivery $Step $roles $Why
  if(@($Step.castEvents|Where-Object{$_.actor-ceq$roles[1]}).Count-ne0){throw ($Why+': the mount cast or spent something.')}
  $events=@(Get-KmcChunk7StagedTrace $o $Step.traceSequenceBefore $Step.traceSequenceAfter)
  $before=@($events|Where-Object{$_.boundary-ceq'cost-before'-and$_.state.actor-ceq$roles[0]-and$_.command-eq$Step.costShell});$after=@($events|Where-Object{$_.boundary-ceq'cost-after'-and$_.state.actor-ceq$roles[0]-and$_.command-eq$Step.costShell})
  if($before.Count-ne1-or$after.Count-ne1-or$Step.costShell-eq0){throw ($Why+': rider A''s Standard was not committed exactly once.')}
+ if(@(Get-KmcChunk7StagedCosts $events $roles[0]|Where-Object{$_.command-ne$Step.costShell}).Count-ne0){throw ($Why+': the cast window charged rider A for another command.')}
  if(-not(Test-KmcChunk7StagedClose ([double]$after[0].state.standard-[double]$before[0].state.standard) 6.0)){throw ($Why+': the native additive Standard debt differs.')}
  if(@(Get-KmcChunk7StagedCosts $events $roles[1]).Count-ne0){throw ($Why+': the mount was charged for the rider cast.')}
  $rb=Get-KmcChunk7CombatActor $Step.before $roles[0];$ra=Get-KmcChunk7CombatActor $Step.after $roles[0];$mb=Get-KmcChunk7CombatActor $Step.before $roles[1];$ma=Get-KmcChunk7CombatActor $Step.after $roles[1]
@@ -539,7 +574,12 @@ function Assert-KmcChunk7StagedRanged($Step,$o,$s,$roles,[bool]$Approach,[string
  }else{
   if([double]$Step.startDistance-gt[double]$s.envelope){throw ($Why+': the stationary shot started beyond weapon range.')}
   if($moved-gt0.05-or$mountMoves.Count-ne0-or-not(Test-KmcChunk7StagedClose $ma.move $mb.move)){throw ($Why+': the in-range shot moved or charged the mount.')}
-  if((Get-KmcChunk7StagedFlat $origin $Step.before.riderPosition)-gt0.15){throw ($Why+': the in-range shot origin moved.')}
+  # MountedPairAttackCommand.StartChildAttack turns the stationary mount to face the target (ForceLookAt), so the
+  # rider's saddle point may only rotate about the unmoved mount: same horizontal radius, same height (b204 step 4).
+  $pb=Get-KmcChunk7StagedVector $Step.before.riderPosition $Why;$pa=Get-KmcChunk7StagedVector $Step.after.riderPosition $Why
+  $mpb=Get-KmcChunk7StagedVector $Step.before.mountPosition $Why;$mpa=Get-KmcChunk7StagedVector $Step.after.mountPosition $Why
+  $seatBefore=Get-KmcChunk7StagedFlat $pb $mpb;$seatAfter=Get-KmcChunk7StagedFlat $pa $mpa
+  if([Math]::Abs($seatBefore-$seatAfter)-gt0.05-or$seatAfter-gt1.5-or[Math]::Abs(($pb[1]-$mpb[1])-($pa[1]-$mpa[1]))-gt0.05){throw ($Why+': the in-range shot origin moved.')}
  }
  Assert-KmcChunk7StagedSettled $Step.after ($Why+' after')
 }
