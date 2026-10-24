@@ -11,7 +11,7 @@ using Newtonsoft.Json.Linq;
 
 namespace Kingmaker.GameModes { enum GameModeType { Default, GlobalMap, Cutscene } }
 namespace Kingmaker.Blueprints.Area {
- class BlueprintArea { public string AssetGuidThreadSafe, name; }
+ class BlueprintArea { public string AssetGuidThreadSafe, name; public bool IsCapital; }
  class BlueprintAreaEnterPoint { public string AssetGuidThreadSafe, name; public BlueprintArea Area; }
 }
 namespace Kingmaker.Globalmap.Blueprints { class BlueprintLocation { public string AssetGuidThreadSafe, name; public BlueprintAreaEnterPoint AreaEntrance; } }

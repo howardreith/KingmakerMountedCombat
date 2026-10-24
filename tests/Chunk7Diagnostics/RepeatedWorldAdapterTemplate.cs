@@ -5,7 +5,7 @@ class WorldState{internal AreaState LoadedAreaState=new AreaState();}class AreaS
 class Game{internal static Game Instance=new Game();internal SaveManager SaveManager=new SaveManager();internal object Player=new object();internal WorldState State=new WorldState();internal BlueprintArea CurrentlyLoadedArea;internal int Loads,MainMenuLoads,Areas;internal bool ThrowLoad;internal void LoadGame(SaveInfo s){Loads++;if(ThrowLoad)throw new Exception("native dispatch failed after entry");}internal void LoadGameFromMainMenu(SaveInfo s){MainMenuLoads++;Player=new object();State.LoadedAreaState=new AreaState();LoadGame(s);}internal void LoadArea(Entry e,AutoSaveMode m){Areas++;}}
 class SaveManager{internal string SavePath="exact-root";internal List<Action> Callbacks=new List<Action>();internal void AddCallbackAfterLoad(Action a){Callbacks.Add(a);}}
 class SaveInfo{internal string FileName="immutable.zks";}
-class BlueprintArea{internal string AssetGuidThreadSafe;}
+class BlueprintArea{internal string AssetGuidThreadSafe;internal bool IsCapital;}
 class Entry{internal string AssetGuidThreadSafe;internal BlueprintArea Area;}
 static class ResourcesLibrary{internal static Entry Entry;internal static T TryGetBlueprint<T>(string id)where T:class{return Entry as T;}}
 class BlueprintAreaEnterPoint:Entry{}

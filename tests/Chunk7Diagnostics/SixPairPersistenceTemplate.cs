@@ -50,7 +50,7 @@ namespace KingmakerMountedCombat.Diagnostics {
  class Area { public string AssetGuidThreadSafe="area"; }
  class Row { public string Status; }
  internal sealed partial class Chunk7PersistenceScenario {
-  readonly Request request=new Request();bool Cold;Area replayDestination;Inherited inherited=new Inherited();Actor[] actors;readonly World world=new World();readonly Dictionary<Guid,long> expectedOwners=new Dictionary<Guid,long>();
+  readonly Request request=new Request();bool Cold;Area replayDestination;bool CapitalArrivalCase,capitalDispatched,capitalAdopted;Area capitalDestination;Inherited inherited=new Inherited();Actor[] actors;readonly World world=new World();readonly Dictionary<Guid,long> expectedOwners=new Dictionary<Guid,long>();
   readonly JArray inputs=new JArray(),movementRows=new JArray(),snapshots=new JArray();readonly Controls controls=new Controls();readonly Persistence persistence=new Persistence();readonly JObject evidence=new JObject();
   int stage;SavedMountedSlot[] slots;MountedArchiveData saved;Probe restoration;string ExpectedArchiveArea="area";
   bool captured=true,cleanup,cleanupProven,pendingHostCustody,disposed,cleanupPendingReported;string RetainedFailureArtifactSha256;readonly List<string> errors=new List<string>();readonly List<Row> results=new List<Row>();Scope nativeScope=new Scope();
