@@ -100,3 +100,66 @@ An owner decision is needed. Either the Small Manual product scenario and reader
 field source contract (`saveAfterFieldSelection`, type `Manual`, the current inventory shape),
 after which the fixture can be regenerated from `AcquiredManualPaidFixture`; or the Small Manual
 family is retired like the other stale level-up Auto families.
+
+### Small Manual equivalence analysis (2026-10-24, offline and read-only)
+
+**Correction: rows 33–34 do not depend on the broken cases.** Three things are separate here:
+
+- **The broken cases.** Only two Small calibration cases are broken:
+  `compiled-manual-derived-small-horse-rt` (call it A1) and
+  `compiled-assisted-two-owner-small-horse-rt` (A2). Both require the retired
+  `saveBeforeFieldSelection` source (`Chunk7SmallCalibrationScenario.Manual.cs:109` and `:221-245`;
+  reader `Chunk7SmallCalibrationEvidence.ps1:528` and `:616`).
+  - Neither case is a matrix row, and no native run of either is recorded.
+  - A2 is unsatisfiable only by inference: the sole emitter of `saveBeforeFieldSelection` is the
+    retired ordinary acquisition (`Chunk7OrdinaryAcquisitionScenario.cs:291`). A2 has not been
+    run against an assisted chain.
+- **Rows 33–34 (`small-fixture-persistence-save`/`-load`).** These are owned-pairs cases. They
+  read the preview.71 F09 producer `KMC_C7_SMALL_FIXTURE`, run `…world71-b53s1-small`
+  (`Chunk7OwnedPairsSelection.cs:50-54`, `:131-137`; `Chunk7OwnedPairFixture.cs:316-365`), which
+  is unaffected.
+- **The F09 calibration cases.** `compiled-owner-seed-fixture-small-horse-rt` and its
+  presentation case read the same producer and are also unaffected. That case passed natively 9/9
+  on game and reader in [batch72](CHUNK7-BATCH72-SMALL-ORDINARY-NATIVE-2026-10-20.md).
+
+**What each source proves.** In the table:
+- **A1** is the broken single-owner case.
+- **F09 cal** is the F09 calibration.
+- **33–34** are matrix rows 33–34.
+- **Owner-seed** is c4 → c5 → x4s → x4c and rows 58/59.
+
+| Proof | A1 | F09 cal | 33–34 | Owner-seed |
+| --- | --- | --- | --- | --- |
+| Full declared body (`DeclaredSmallRiderBody.Refusal`: preset, MaleHalfling, left-handed false, mirror, scale, Doll set, 12 ordered `CurrentEquipmentSlots`, visual set, Horse `4016c7db…` size 5) | each tick (`Chunk7SmallCalibrationActions.cs:37-45`) | same | through `Resolve` at bind (`Chunk7OwnedPairFixture.cs:119-121`) and in the product's restore and invariant | through `Resolve` at x4s bind, x4c cold bind and rows 58/59. c4/c5 check only race, preset, skeleton, gender, handedness and size 3 |
+| Cold body equals the saved source body | A1 source body | all 20 fields (`FixtureManual.cs:93-105`) | not checked | x4c `ProfileId == Resolve` (`Replay.cs:197-201`) |
+| Literal `small-default-halfling-horse-v1` in the archive | — | declaration only | yes (`Chunk7OwnedPairsEvidence.ps1:390`, `:424`) | no; checked by regex and self-consistency only |
+| Native Mount, mounted Manual write | **no**: zero writes, unmounted source (`Chunk7SmallCalibrationScenario.cs:195-198`, `Manual.cs:133-139`) | **no** | yes | yes, x4s (`Chunk7PersistenceScenario.cs:249`, `:497-533`) |
+| Separate cold load of a *mounted* Manual | **no** | **no** | yes, with archive canonical equality (`Chunk7OwnedPairsEvidence.ps1:438-465`) | yes in code (x4c, rows 58/59). Natively it reached restore only; b195 x4c FAILed at the capital transfer; rows 58/59 not run |
+| No preparation and no resource change on cold load | yes | yes | owned reader | yes (`Replay.cs:149-157`) |
+| Mounted actions (move, two primaries, Dismount) and 7 pose phases (configured, healthy, 7 bones, no foot clamps) | yes | yes | no | no; `ValidateMountedInvariants` view parenting and pose health ran only at area admission, never natively |
+| Presentation (scroll and potion while mounted) | no | presentation case only (not run in b194/b195) | no | no |
+| Numeric seat, offset or scale threshold | no | no | no | no |
+| Same-candidate paid Small lineage | yes (same commit, DLL and MVID) | no; cross-candidate preview.71 | no; preview.71 | yes |
+
+**Recommendation: (a), scoped to A1 and A2.**
+- Retire the two cases the way the stale families were retired: a prelaunch refusal in the stale
+  registry, and the two offline tests become refusal tests.
+- **Named replacement:** the F09 calibration for body, pose and action calibration; rows 33–34
+  for the mounted Manual and the separate cold load; owner-seed x4s and x4c for current-candidate
+  paid Small lineage.
+- **Rows 33–34 need no re-pointing.**
+- **What is lost:** only A1's pairing of the full calibration (actions, pose phases, and body,
+  progression and resource equality) with a *same-candidate* paid Manual-derived source. F09
+  calibration proves the same calibration on a cross-candidate unmounted source. Owner-seed proves
+  same-candidate lineage only through `Resolve`, with no pose or action checks.
+- No row loses a check, because A1 and A2 never fed one.
+
+**Option (b), for comparison: migrate A1 and A2.** This needs:
+- product changes to both calibration gates (`Manual.cs:109`, `:221-245`);
+- reader changes (`:528`, `:616`, and the `masterId` shape in `Assert-KmcCumulativePriorSource`);
+- a fixture regenerated from `AcquiredManualPaidFixture`;
+- native runs of a same-candidate single-owner chain (Manual-derived, then acquired derivative,
+  then calibration) and of an assisted chain.
+
+Because it changes the product, it needs a new candidate, which costs a fresh campaign plus the
+matrix. The only gain is the same-candidate calibration noted above.
