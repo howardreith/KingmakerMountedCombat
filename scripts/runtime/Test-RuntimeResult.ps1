@@ -147,6 +147,7 @@ foreach ($name in @('runId','scenario','branch','commit','productVersion','dllSh
 }
 if ([string]$result.status -cnotin @('PASS','FAIL')) { throw 'Runtime result status must be PASS or FAIL.' }
 if ($null -ne $result.PSObject.Properties['normalPlayerRequestSha256'] -and
+    -not ($null -eq $result.normalPlayerRequestSha256 -and [string]$result.status -ceq 'FAIL') -and
     ([string]$result.normalPlayerRequestSha256 -cnotmatch '^[0-9a-f]{64}$' -or (Get-KmcSha256 $RequestPath) -cne [string]$result.normalPlayerRequestSha256)) {
     throw 'Runtime result normalPlayerRequestSha256 does not match its request bytes.'
 }

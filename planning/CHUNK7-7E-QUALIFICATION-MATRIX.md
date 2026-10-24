@@ -318,10 +318,10 @@ in U3.
     each names the u1 result `9b0fc26c…` that the batch200 report records. Remaining residual: that
     pin is a source observation made offline on October 24, not a run-time record, so an edit between
     the b200 runs and the pin cannot be excluded. A plain row-42 control may still lack the field
-    (`unbound`), as before. `Test-Chunk7UpgradeRehearsal.ps1` 234/0 (12 request-binding checks).
+    (`unbound`), as before. `Test-Chunk7UpgradeRehearsal.ps1` 240/0 (18 request-binding checks, including the runner's own request-hash block executed from its source; a FAIL whose request could not be hashed records null and stays readable; the row-42 binder reports its `requestBinding`).
 - **u3 folder state:** u3 lays u1's folder state by design, not u2's.
 - **Params.xml:** each transaction restores the owner's file, so it is not carried across steps.
-- **Tests:** `scripts/chunk7/Test-Chunk7UpgradeRehearsal.ps1` passes 111/0 after the third review's follow-up and 159/0 with the u1 known-defect admission and review follow-up, 189/0 with the u3 admission, the receipt hash binding and its review follow-up, and 222/0 with the row-42 binder and the rows 55–56 completeness consumer (`Test-Chunk7NormalPlayerControl.ps1` 52/0); the Enter-to-Restore carry path is covered in `scripts/Test-BaseGameIsolation.ps1` (98/0).
+- **Tests:** `scripts/chunk7/Test-Chunk7UpgradeRehearsal.ps1` passes 111/0 after the third review's follow-up and 159/0 with the u1 known-defect admission and review follow-up, 189/0 with the u3 admission, the receipt hash binding and its review follow-up, 222/0 with the row-42 binder and the rows 55–56 completeness consumer, and 240/0 with the request binding (`Test-Chunk7NormalPlayerControl.ps1` 52/0); the Enter-to-Restore carry path is covered in `scripts/Test-BaseGameIsolation.ps1` (98/0).
 
 ## Docs deliverables
 
