@@ -95,6 +95,29 @@ SHA-256 `37fe9214…`), artifacts unchanged:
 
 Both original FAILs remain. A PASS needs a new native run on a reviewed candidate.
 
+**Review of `ab20145e` (blockers fixed in the follow-up commit):**
+- The turn window and End are now defined on the trace's own hooks for every unit: native Prepare
+  entry to the first `turn-end-after`. The paired-only completion probe (`completion-end-*`) never
+  fires for an unpaired unit, so it is excluded and the rider and the control compare on identical
+  boundaries. The trace now also hooks `TurnController.ForceToEnd` (`0x06000C47`) for every traced
+  unit, kept as a separate diagnostic `forceToEnd` list so existing event sequences are unchanged; a
+  forced end of either unit is refused.
+- The ledger rule is "`native:` on every event after `prepare-before`" (a1: native from clear-before
+  at seq 922).
+- The control is **required by default**: the reader refuses `available=false` unless the request
+  carries `nativeLifeControlRequired=false` (a boolean). No runner path emits that field, so every
+  current request requires the control.
+- The reader checks that candidate rows are in native slot order, that the control's N+1 Prepare
+  precedes the surviving mount's, that `nativeDamage` equals the recorded damage delta, and that
+  `grantAfter - grantBefore` equals the control's observed native preparations after its damage.
+- The synthetic fixtures now mirror the real a1 shapes: rider B's 42 own events (seq 921–974,
+  previous activation at prepare-before, `native:` after, completion probe around the native End),
+  and an unpaired control with no completion events (a1 companion 8265's own round-2 hooks, seq
+  757–810, without its harness end input because native Tick ends an unconscious turn).
+- Re-judgment repeated with the revised rule (`b194-life-rejudgment-02.json`, `e12efa19…`): same
+  result. Both runs stay FAIL; the retained traces match the derivation (their traces predate the
+  ForceToEnd hook, so the End is read from `turn-end-*`).
+
 ### X4: Horse subscriber expectation misses the Small Horse profile (fix committed, needs review)
 
 `RecordRepeatedWorld` expects one `HorseCompanionAddPet` subscriber per pair whose profile id is the

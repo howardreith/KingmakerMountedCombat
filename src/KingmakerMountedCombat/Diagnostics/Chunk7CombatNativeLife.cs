@@ -240,23 +240,27 @@ namespace KingmakerMountedCombat.Diagnostics
                 "Unmounted control damage scale leaves no safe HP+1 to HP+Constitution window.");
             lifeControl = chosen;
             control["actorId"] = chosen.UniqueId; control["slot"] = Array.IndexOf(order, chosen);
-            control["grantBefore"] = trace.GrantCount(chosen); control["before"] = LifeActor(chosen); control["requestedDamage"] = requested;
+            control["grantBefore"] = trace.GrantCount(chosen); control["traceSequenceAtDamage"] = trace.EventCount;
+            control["before"] = LifeActor(chosen); control["requestedDamage"] = requested;
             var damage = Rulebook.Trigger(new RuleDealDamage(target, chosen,
                 new DamageBundle(new DirectDamage(new DiceFormula(0, DiceType.Zero), requested))));
             control["nativeDamage"] = damage.Damage; control["afterDamage"] = LifeActor(chosen);
             Require(damage.DamageBeforeDifficulty == requested && chosen.Damage >= hp + 1 && chosen.Damage < deathThreshold,
                 "Unmounted control damage failed its bounded living window.");
         }
-        // One unit's N+1 trace: its own turn window (prepare-before to completion-end-after,
-        // UI ready handlers excluded) and every forbidden admission, cost, command or force-end.
-        // The ledger identity is read from prepare-after on: before native Prepare completes it
-        // still names the previous round's activation (b194 a1/p2).
+        // One unit's N+1 trace, defined on the trace's own hooks for every unit: the window runs
+        // from native Prepare entry to the first turn-end-after (the End hook). Paired-only
+        // completion probes are excluded so rider B and an unpaired control compare on identical
+        // boundaries, as are UI ready handlers. ForceToEnd is the trace's separate diagnostic list.
+        // The ledger identity counts after prepare-before: at its entry it still names the
+        // previous round's activation (b194 a1 seq 921; native from clear-before at 922).
         private JObject UnconsciousNativeTurn(UnitEntityData unit, int round)
         {
-            var events = ((JArray)trace.Capture()["events"]).OfType<JObject>()
+            var capture = trace.Capture();
+            var events = ((JArray)capture["events"]).OfType<JObject>()
                 .Where(e => (int?)e["round"] == round && (string)e["state"]?["actor"] == unit.UniqueId).ToArray();
             var start = Array.FindIndex(events, e => (string)e["boundary"] == "prepare-before");
-            var stop = start < 0 ? -1 : Array.FindIndex(events, start, e => (string)e["boundary"] == "completion-end-after");
+            var stop = start < 0 ? -1 : Array.FindIndex(events, start, e => (string)e["boundary"] == "turn-end-after");
             var window = stop < 0 ? new JObject[0] : events.Skip(start).Take(stop - start + 1).ToArray();
             var prepared = window.FirstOrDefault(e => (string)e["boundary"] == "prepare-after");
             var ended = window.LastOrDefault();
@@ -264,12 +268,14 @@ namespace KingmakerMountedCombat.Diagnostics
             return new JObject { ["actorId"] = unit.UniqueId, ["round"] = round,
                 ["prepareBefore"] = events.Count(e => (string)e["boundary"] == "prepare-before"),
                 ["prepareAfter"] = events.Count(e => (string)e["boundary"] == "prepare-after"),
-                ["ends"] = events.Count(e => (string)e["boundary"] == "completion-end-before"),
+                ["ends"] = events.Count(e => (string)e["boundary"] == "turn-end-before"),
+                ["forcedEnds"] = ((JArray)capture["forceToEnd"]).Count(f => (string)f["actor"] == unit.UniqueId && (int?)f["round"] == round),
                 ["forbidden"] = events.Count(e => forbidden.Any(prefix => ((string)e["boundary"] ?? "").StartsWith(prefix, StringComparison.Ordinal))),
-                ["sequence"] = new JArray(window.Select(e => (string)e["boundary"]).Where(b => !b.StartsWith("ready-handler-", StringComparison.Ordinal))),
-                ["grantIdentities"] = new JArray(window.SkipWhile(e => (string)e["boundary"] != "prepare-after")
-                    .Select(e => e["state"]?["retained"] is JObject retained ? (string)retained["GrantIdentity"] : null).Distinct()),
+                ["sequence"] = new JArray(window.Select(e => (string)e["boundary"]).Where(b => !b.StartsWith("ready-handler-", StringComparison.Ordinal) &&
+                    !b.StartsWith("completion-", StringComparison.Ordinal))),
+                ["grantIdentities"] = new JArray(window.Skip(1).Select(e => e["state"]?["retained"] is JObject retained ? (string)retained["GrantIdentity"] : null).Distinct()),
                 ["pairedIdentities"] = window.Count(e => e["state"]?["pairedGrantIdentity"] != null && e["state"]["pairedGrantIdentity"].Type != JTokenType.Null),
+                ["prepareSequence"] = (int?)window.FirstOrDefault()?["sequence"],
                 ["statusAfterPrepare"] = (string)prepared?["turnStatus"], ["standardBefore"] = (float?)prepared?["state"]?["standard"],
                 ["standardAfterEnd"] = (float?)ended?["state"]?["standard"], ["conscious"] = unit.Descriptor.State.IsConscious,
                 ["dead"] = unit.Descriptor.State.IsDead };
@@ -277,8 +283,8 @@ namespace KingmakerMountedCombat.Diagnostics
         private static bool ExactUnconsciousNativeTurn(JObject turn, bool nativeLedger)
         {
             var identities = ((JArray)turn["grantIdentities"]).Select(x => (string)x).ToArray();
-            return (int)turn["prepareBefore"] == 1 && (int)turn["prepareAfter"] == 1 && (int)turn["ends"] == 1 && (int)turn["forbidden"] == 0 &&
-                (int)turn["pairedIdentities"] == 0 && (string)turn["statusAfterPrepare"] == "Preparing" &&
+            return (int)turn["prepareBefore"] == 1 && (int)turn["prepareAfter"] == 1 && (int)turn["ends"] == 1 && (int)turn["forcedEnds"] == 0 &&
+                (int)turn["forbidden"] == 0 && (int)turn["pairedIdentities"] == 0 && (string)turn["statusAfterPrepare"] == "Preparing" &&
                 (float?)turn["standardAfterEnd"] == 6f && !(bool)turn["conscious"] && !(bool)turn["dead"] &&
                 (nativeLedger ? identities.Length == 1 && identities[0] != null && identities[0].StartsWith("native:", StringComparison.Ordinal)
                     : identities.All(x => x == null || x.StartsWith("native:", StringComparison.Ordinal)));
@@ -287,15 +293,18 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             var rider = UnconsciousNativeTurn(br, round); nativeLife["incapacitatedRiderTurn"] = rider;
             var slots = lifeRiderSlotsBeforeRenewal + lifeExpectedRiderSlots;
-            Require(slots == 0 ? (int)rider["prepareBefore"] == 0 && (int)rider["prepareAfter"] == 0 && (int)rider["forbidden"] == 0
-                : slots == 1 && ExactUnconsciousNativeTurn(rider, true) && b.Participant.PartnerContext == null,
+            Require(slots == 1 && ExactUnconsciousNativeTurn(rider, true) && b.Participant.PartnerContext == null,
                 "Incapacitated rider's native next-round turn differs from its derived empty native slot: " + rider.ToString(Newtonsoft.Json.Formatting.None));
             var control = (JObject)nativeLife["unconsciousControl"];
             if (!(bool)control["available"]) return;
             var observed = UnconsciousNativeTurn(lifeControl, round); control["turn"] = observed;
+            control["grantAfter"] = trace.GrantCount(lifeControl);
+            var survivor = ((JArray)trace.Capture()["events"]).OfType<JObject>().FirstOrDefault(e => (int?)e["round"] == round &&
+                (string)e["boundary"] == "prepare-before" && (string)e["state"]?["actor"] == bm.UniqueId);
             Require(ExactUnconsciousNativeTurn(observed, false) &&
                 JToken.DeepEquals(observed["sequence"], rider["sequence"]) &&
-                (float?)observed["standardBefore"] == (float?)rider["standardBefore"] && (float?)observed["standardAfterEnd"] == (float?)rider["standardAfterEnd"],
+                (float?)observed["standardBefore"] == (float?)rider["standardBefore"] && (float?)observed["standardAfterEnd"] == (float?)rider["standardAfterEnd"] &&
+                survivor != null && (int?)observed["prepareSequence"] < (int)survivor["sequence"],
                 "Unmounted unconscious control's native next-round turn differs from the incapacitated rider's: " + observed.ToString(Newtonsoft.Json.Formatting.None));
         }
         // Owner records keep the registry's "N"-form actor key; actors keep the hyphenated UniqueId.

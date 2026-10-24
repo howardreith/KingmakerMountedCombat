@@ -39,6 +39,9 @@ namespace KingmakerMountedCombat.Diagnostics
         private readonly MountedWorldService world;
         private readonly JArray events = new JArray();
         private readonly JArray installedHooks = new JArray();
+        // Diagnostic-only ForceToEnd observations for every traced unit, kept beside the event
+        // stream so existing boundary sequences are unchanged.
+        private readonly JArray forceToEnd = new JArray();
         private readonly RetainedObjectIdentity identities = new RetainedObjectIdentity(16000);
         internal JArray ObserverHooks => (JArray)installedHooks.DeepClone();
         private readonly Dictionary<UnitEntityData, int> grants = new Dictionary<UnitEntityData, int>();
@@ -102,6 +105,7 @@ namespace KingmakerMountedCombat.Diagnostics
             Patch(typeof(UnitEntityData), 0x0600838F, "ActorCostBefore", "ActorCostAfter");
             Patch(typeof(TurnController), 0x06000C5E, "CommandEndBefore", "CommandEndAfter");
             Patch(typeof(TurnController), 0x06000C46, "TurnEndBefore", "TurnEndAfter");
+            Patch(typeof(TurnController), 0x06000C47, "ForceToEndBefore", "ForceToEndAfter");
             // UnitCommand.Interrupt(bool): the pinned token the production interrupt bridge also uses.
             // Recorded with the managed caller chain so an unexplained Interrupt names its source.
             Patch(typeof(UnitCommand), 0x060027AC, "InterruptBefore", "InterruptAfter");
@@ -116,7 +120,7 @@ namespace KingmakerMountedCombat.Diagnostics
         }
 
         internal void BeginEncounter(string id) { encounter = id; Record("encounter-setup", rider); }
-        internal JObject Capture() => new JObject { ["events"] = events.DeepClone(), ["dropped"] = dropped, ["observationErrors"] = observationErrors + (installed ? 0 : 1), ["observerHooks"] = installedHooks.DeepClone(),
+        internal JObject Capture() => new JObject { ["events"] = events.DeepClone(), ["forceToEnd"] = forceToEnd.DeepClone(), ["dropped"] = dropped, ["observationErrors"] = observationErrors + (installed ? 0 : 1), ["observerHooks"] = installedHooks.DeepClone(),
             ["identityRegistry"] = new JObject { ["contract"] = "retained-native-object-identity-v1", ["capacity"] = identities.Capacity,
                 ["ids"] = new JArray(identities.Ids), ["retainedCount"] = identities.RetainedCount,
                 ["released"] = identities.Released, ["faults"] = identities.FaultCount } };
@@ -203,6 +207,16 @@ namespace KingmakerMountedCombat.Diagnostics
             return result;
         }
 
+        private void RecordForceToEnd(UnitEntityData actor)
+        {
+            if (actor == null || forceToEnd.Count >= 4096) return;
+            try
+            {
+                forceToEnd.Add(new JObject { ["eventSequence"] = events.Count, ["actor"] = actor.UniqueId, ["frame"] = Time.frameCount,
+                    ["round"] = Game.Instance.TurnBasedCombatController.RoundNumber });
+            }
+            catch (Exception) { observationErrors++; }
+        }
         internal void Record(string boundary, UnitEntityData actor, UnitCommand command = null, string detail = null, object callback = null,
             UnitEntityData reactionTarget = null)
         {
@@ -446,6 +460,8 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             internal static void TurnEndBefore(TurnController __instance) { active?.Record("turn-end-before", __instance.Unit); }
             internal static void TurnEndAfter(TurnController __instance) { active?.Record("turn-end-after", __instance.Unit); }
+            internal static void ForceToEndBefore(TurnController __instance) { active?.RecordForceToEnd(__instance.Unit); }
+            internal static void ForceToEndAfter() { }
             internal static void RemoveUnitBefore(UnitEntityData unit) { active?.Record("remove-unit-before", unit); }
             internal static void ConfusionBefore(UnitEntityData unit)
             { if (active?.preparing != null) active.Record("native-confusion-before", unit); }
