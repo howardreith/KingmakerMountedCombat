@@ -712,7 +712,7 @@ function New-KmcSeedAttackModesFixture{
   $tb=$base;$base++;$trace.events=@($trace.events)+@([pscustomobject]@{sequence=$base;boundary='cost-after';frame=1;round=$round;state=[pscustomobject]@{actor=$roles[0]}});$ta=$base
   $ms+=[pscustomobject][ordered]@{label=$spec[0];mounted=$spec[1];round=$round;rapid=(&$rapid $spec[2] $round $true);before=(&$snap ($spec[0]+'-before') 0.0 $round);ruleCountBefore=$ruleCount;traceSequenceBefore=$tb;pairState=$(if($spec[1]){'Mounted'}else{'Unmounted'})
    clicked=$true;after=(&$snap ($spec[0]+'-after') 6.0 $round);nativeEstimate=[long]$inner.Count;expectedFull=($inner.Count-gt1);currentTurnEnabledFullAttack=($inner.Count-gt1);command=[pscustomobject][ordered]@{identity=9000+$ruleCount;executor=$roles[0];target=$o.targetId;fullAttack=($inner.Count-gt1);singleAttack=$false;result='Success';completedAttacks=$inner.Count;plan=$plan
-    interruptWatch=[pscustomobject][ordered]@{watchedFromClick=$true;interrupts=@();interruptAsSoonAsPossible=$false;executorCanAct=$true;targetInState=$true;targetDead=$false}}
+    interruptWatch=[pscustomobject][ordered]@{watched=$true;watchStart=[pscustomobject][ordered]@{atClick=$true;frame=1;finished=$false;result='None';acted=$false};interrupts=@();interruptAsSoonAsPossible=$false;executorCanAct=$true;targetInState=$true;targetDead=$false}}
    rules=$events;traceSequenceAfter=$ta;rapidAfter=(&$rapid $spec[2] $round $true)}
   $ruleCount=$seq
  }
@@ -736,10 +736,14 @@ Check 'owner-seed attack modes accept an inert interrupt after the command finis
 Check-SeedAttackModes 'a v1 plan-complete interrupt (b202 evidence shape)' {$m=$args[0].artifact.observations.attackModes;$m.contract='owner-seed-attack-modes-v1';foreach($x in @($m.measurements)){$x.command.PSObject.Properties.Remove('interruptWatch')};$m.measurements[2].command.result='Interrupt'} 'completed plan without its recorded native cause'
 Check-SeedAttackModes 'a v1 measurement carrying an interrupt watch' {$args[0].artifact.observations.attackModes.contract='owner-seed-attack-modes-v1'} 'interrupt observation differs from its contract'
 Check-SeedAttackModes 'a v2 measurement without its interrupt watch' {(AM $args[0] 0).command.PSObject.Properties.Remove('interruptWatch')} 'interrupt observation differs from its contract'
-Check-SeedAttackModes 'a watch opened after the click' {$c=Set-KmcAttackModeOverwrite $args[0];$c.interruptWatch.watchedFromClick=$false} 'Native evidence boolean'
+Check-SeedAttackModes 'an unwatched command' {$c=Set-KmcAttackModeOverwrite $args[0];$c.interruptWatch.watched=$false} 'Native evidence boolean'
+Check-SeedAttackModes 'a watch opened on an already finished command' {$c=Set-KmcAttackModeOverwrite $args[0];$c.interruptWatch.watchStart.finished=$true} 'Native evidence boolean'
+Check-SeedAttackModes 'a watch without its start' {$c=Set-KmcAttackModeOverwrite $args[0];$c.interruptWatch.watchStart=$null} 'lacks its start'
+Check-SeedAttackModes 'an interrupt recorded before its watch opened' {$c=Set-KmcAttackModeOverwrite $args[0];$c.interruptWatch.watchStart.frame=3} 'not the measured native command'
+Check 'owner-seed attack modes accept a watch opened when the command was first observed after the click' {$v=New-KmcSeedAttackModesFixture;$c=Set-KmcAttackModeOverwrite $v;$c.interruptWatch.watchStart.atClick=$false;Invoke-OwnedReader $v}
 Check-SeedAttackModes 'a plan-complete interrupt from a KingmakerMountedCombat frame' {$c=Set-KmcAttackModeOverwrite $args[0];$c.interruptWatch.interrupts[0].callers='callers=Kingmaker.UnitLogic.Commands.Base.UnitCommand.Interrupt < KingmakerMountedCombat.Integration.MountedCombatController.Cancel'} 'interrupt claims a completed plan'
 Check-SeedAttackModes 'a plan-complete interrupt before the last attack acted' {$c=Set-KmcAttackModeOverwrite $args[0];$c.interruptWatch.interrupts[0].resultBefore='None';$c.interruptWatch.interrupts[0].actedBefore=$false} 'interrupt claims a completed plan'
-Check-SeedAttackModes 'a plan-complete interrupt before the last attack frame' {$c=Set-KmcAttackModeOverwrite $args[0];$c.interruptWatch.interrupts[0].frame=0} 'interrupt claims a completed plan'
+Check-SeedAttackModes 'a plan-complete interrupt before the last attack frame' {$c=Set-KmcAttackModeOverwrite $args[0];$c.interruptWatch.watchStart.frame=0;$c.interruptWatch.interrupts[0].frame=0} 'interrupt claims a completed plan'
 Check-SeedAttackModes 'a plan-complete interrupt at another attack index' {$c=Set-KmcAttackModeOverwrite $args[0];$c.interruptWatch.interrupts[0].attackIndex=1} 'interrupt claims a completed plan'
 Check-SeedAttackModes 'two effective interrupts' {$c=Set-KmcAttackModeOverwrite $args[0];$c.interruptWatch.interrupts=@($c.interruptWatch.interrupts[0],(Copy-Value $c.interruptWatch.interrupts[0]))} 'lacks its one recorded native cause'
 Check-SeedAttackModes 'an interrupt record of another command' {$c=Set-KmcAttackModeOverwrite $args[0];$c.interruptWatch.interrupts[0].command=1} 'not the measured native command'

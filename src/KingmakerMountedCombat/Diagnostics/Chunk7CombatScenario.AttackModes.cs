@@ -31,7 +31,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool AttackModesCase => request.OwnedPairs?.Case == Chunk7OwnedPairsSelection.OwnerSeedAttackModesCase;
         private Chunk7AttackModesRuleObserver attackModesRules;
         private ActivatableAbility attackModesRapid;
-        private JObject attackModes, attackModeObservation;
+        private JObject attackModes, attackModeObservation, attackModeWatchStart;
         private UnitAttack attackModeCommand, attackModeWatched;
         private int attackModesStage, attackModesRound;
         private TurnController attackModesDismountTurn;
@@ -112,9 +112,7 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             observation["clicked"] = clicked;
             attackModeCommand = ar.Commands.Raw.OfType<UnitAttack>().FirstOrDefault(command => ReferenceEquals(command.Target, target));
-            // Contract v2: every native Interrupt(bool) of the measured command is recorded with its prior
-            // terminal state and caller chain (b202 am: an unpaired rider's command is otherwise unobserved).
-            if (attackModeCommand != null) { trace.WatchCommandInterrupts(attackModeCommand); attackModeWatched = attackModeCommand; }
+            if (attackModeCommand != null) WatchAttackModeCommand(attackModeCommand, true);
             Game.Instance.IsPaused = false;
             Require(clicked, "Native ordinary attack click on the target was refused.");
         }
@@ -122,10 +120,23 @@ namespace KingmakerMountedCombat.Diagnostics
             ["weapon"] = info.Weapon?.Blueprint.AssetGuid, ["ranged"] = info.Weapon?.Blueprint.IsRanged == true,
             ["natural"] = info.Weapon?.Blueprint.IsNatural == true, ["owner"] = info.Hand?.Owner?.Unit?.UniqueId,
             ["iterativePenalty"] = info.AttackBonusPenalty };
+        // Contract v2: every native Interrupt(bool) of the measured command is recorded with its prior terminal
+        // state and caller chain (b202 am: an unpaired rider's command is otherwise unobserved). The watch opens
+        // at the click or, if the command is admitted later, the first frame it is observed; an effective native
+        // interrupt always finishes the command, so an unfinished command at the watch start proves none was missed.
+        private void WatchAttackModeCommand(UnitAttack command, bool atClick)
+        {
+            trace.WatchCommandInterrupts(command); attackModeWatched = command;
+            attackModeWatchStart = new JObject { ["atClick"] = atClick, ["frame"] = UnityEngine.Time.frameCount, ["finished"] = command.IsFinished,
+                ["result"] = command.Result.ToString(), ["acted"] = command.IsActed };
+        }
         private bool FinishFullAttack()
         {
             if (attackModeCommand == null)
+            {
                 attackModeCommand = ar.Commands.Raw.OfType<UnitAttack>().FirstOrDefault(started => ReferenceEquals(started.Target, target));
+                if (attackModeCommand != null) WatchAttackModeCommand(attackModeCommand, false);
+            }
             if (attackModeCommand == null || !attackModeCommand.IsFinished || a.Combat.HasActiveCommand || a.Combat.HasActiveGroundMovement ||
                 !ar.Commands.Empty || !am.Commands.Empty || ar.AreHandsBusyWithAnimation || am.AreHandsBusyWithAnimation) return false;
             var observation = attackModeObservation; var command = attackModeCommand; attackModeCommand = null;
@@ -133,12 +144,12 @@ namespace KingmakerMountedCombat.Diagnostics
             var plan = command.AllAttacks.Select(PlanEntry).ToArray();
             var watched = ReferenceEquals(attackModeWatched, command);
             var interrupts = attackModeWatched == null ? new JArray() : trace.TakeWatchedInterrupts(attackModeWatched);
-            if (!watched) interrupts = new JArray(); attackModeWatched = null;
+            if (!watched) interrupts = new JArray(); attackModeWatched = null; var watchStart = attackModeWatchStart; attackModeWatchStart = null;
             var targetUnit = command.TargetUnit;
             observation["command"] = new JObject { ["identity"] = trace.ObjectIdentity(command), ["executor"] = command.Executor?.UniqueId,
                 ["target"] = command.Target?.UniqueId, ["fullAttack"] = command.IsFullAttack, ["singleAttack"] = command.IsSingleAttack,
                 ["result"] = command.Result.ToString(), ["completedAttacks"] = command.GetAttackIndex(), ["plan"] = new JArray(plan),
-                ["interruptWatch"] = new JObject { ["watchedFromClick"] = watched, ["interrupts"] = interrupts,
+                ["interruptWatch"] = new JObject { ["watched"] = watched, ["watchStart"] = watched ? watchStart : null, ["interrupts"] = interrupts,
                     ["interruptAsSoonAsPossible"] = command.InterruptAsSoonAsPossible, ["executorCanAct"] = ar.Descriptor.State.CanAct,
                     ["targetInState"] = targetUnit?.IsInState, ["targetDead"] = targetUnit?.Descriptor.State.IsDead } };
             // Native UnitAttack.OnAction returns Success with the last planned attack; UnitCommand.Interrupt(bool)
@@ -146,7 +157,7 @@ namespace KingmakerMountedCombat.Diagnostics
             // only as exactly one such native overwrite (no KingmakerMountedCombat frame in its caller chain).
             var effective = interrupts.OfType<JObject>().Where(row => !(bool)row["finishedBefore"] && (string)row["resultBefore"] != "Interrupt").ToArray();
             var planComplete = command.GetAttackIndex() >= plan.Length;
-            Require(command.Result != UnitCommand.ResultType.Interrupt || (watched && effective.Length == 1 &&
+            Require(command.Result != UnitCommand.ResultType.Interrupt || (watched && !(bool)watchStart["finished"] && effective.Length == 1 &&
                 (!planComplete || (string)effective[0]["resultBefore"] == "Success" && (bool)effective[0]["actedBefore"] &&
                     !((string)effective[0]["callers"] ?? "KingmakerMountedCombat").Contains("KingmakerMountedCombat"))) &&
                 (command.Result != UnitCommand.ResultType.Success || effective.Length == 0),

@@ -213,13 +213,18 @@ function Assert-KmcChunk7AttackModeInterrupt($c,$plan,$attacks,[string]$Label,$m
  $planComplete=$c.completedAttacks-ge@($plan).Count;$recorded=$modes.contract-ceq'owner-seed-attack-modes-v2';$watch=$c.PSObject.Properties['interruptWatch']
  if($recorded-ne($null-ne$watch)){throw ('Attack mode '+$Label+' interrupt observation differs from its contract.')}
  if(-not$recorded){if($c.result-ceq'Interrupt'-and$planComplete){throw 'Attack mode interrupt claims a completed plan without its recorded native cause.'};return}
- $w=$watch.Value;Assert-KmcExactProperties $w @('watchedFromClick','interrupts','interruptAsSoonAsPossible','executorCanAct','targetInState','targetDead') 'attack mode interrupt watch'
- Assert-KmcChunk7Boolean $w.watchedFromClick $true
+ $w=$watch.Value;Assert-KmcExactProperties $w @('watched','watchStart','interrupts','interruptAsSoonAsPossible','executorCanAct','targetInState','targetDead') 'attack mode interrupt watch'
+ Assert-KmcChunk7Boolean $w.watched $true
+ # The watch opens at the click or the first frame the command is observed; an effective native interrupt always
+ # finishes the command, so an unfinished command at the watch start proves no interrupt preceded it.
+ $start=$w.watchStart;if($null-eq$start){throw 'Attack mode interrupt watch lacks its start.'};Assert-KmcExactProperties $start @('atClick','frame','finished','result','acted') 'attack mode interrupt watch start'
+ if($start.atClick-isnot[bool]-or-not(Test-KmcExactJsonInteger $start.frame)-or$start.acted-isnot[bool]-or$start.result-cnotin@('None','Fail','Interrupt','Success')){throw 'Attack mode interrupt watch start is missing or mistyped.'}
+ Assert-KmcChunk7Boolean $start.finished $false
  foreach($f in @('interruptAsSoonAsPossible','executorCanAct','targetInState','targetDead')){if($w.$f-isnot[bool]){throw 'Attack mode interrupt watch state is missing or mistyped.'}}
  if($w.interrupts-isnot[Array]){throw 'Attack mode interrupt watch lacks its interrupt list.'}
  $rows=@($w.interrupts)
  foreach($row in $rows){Assert-KmcExactProperties $row @('frame','round','command','resultBefore','actedBefore','finishedBefore','interruptAsSoonAsPossible','timeSinceStart','attackIndex','plannedAttacks','executorCanAct','targetInState','targetDead','callers') 'attack mode interrupt'
-  if(-not(Test-KmcExactJsonInteger $row.frame)-or$row.command-ne$c.identity-or$row.resultBefore-cnotin@('None','Fail','Interrupt','Success')-or$row.actedBefore-isnot[bool]-or$row.finishedBefore-isnot[bool]-or
+  if(-not(Test-KmcExactJsonInteger $row.frame)-or$row.frame-lt$start.frame-or$row.command-ne$c.identity-or$row.resultBefore-cnotin@('None','Fail','Interrupt','Success')-or$row.actedBefore-isnot[bool]-or$row.finishedBefore-isnot[bool]-or
      -not(Test-KmcExactJsonInteger $row.attackIndex)-or$row.plannedAttacks-ne@($plan).Count-or$row.callers-isnot[string]-or-not$row.callers.StartsWith('callers=')){throw 'Attack mode interrupt record is not the measured native command.'}}
  $effective=@($rows|Where-Object{-not$_.finishedBefore-and$_.resultBefore-cne'Interrupt'})
  if($c.result-ceq'Success'){if($effective.Count-ne0){throw ('Attack mode '+$Label+' Success hides an effective native interrupt.')};return}
