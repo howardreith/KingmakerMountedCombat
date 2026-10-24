@@ -1,5 +1,12 @@
 # Chunk 7B–7D — IN PROGRESS
 
+Offline (product diagnostics changed; no launch): X1 C03 attack modes are implemented as the owner-seed
+case `owner-seed-attack-modes` on the TB rider-first engine. A zero-launch read of Manual 304 confirmed
+rider A's native Rapid Shot feat and toggle and an equipped ranged weapon. The case runs native full
+attacks with Rapid Shot off and on (mounted), then an unmounted control after a native Dismount, all
+switched through the native slot. BAB and haste variation stay uncovered. The native pilot is pending;
+see [the X1 row](planning/CHUNK7-7E-QUALIFICATION-MATRIX.md).
+
 Offline (product diagnostics changed; no launch): X1 death proper is implemented as the owner-seed case
 `owner-seed-native-death-cleanup` on the native life engine. One labelled native damage reaches HP+Con+1,
 and the stock tick kills. The reader requires one `UnitDeath` cleanup inside the death callback, no N+1
