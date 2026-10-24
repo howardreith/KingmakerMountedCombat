@@ -22,13 +22,13 @@ namespace Kingmaker.EntitySystem.Entities {
  internal sealed class UnitEntityData { internal string UniqueId; internal bool IsInCombat; internal SavedNativeActor Native; internal readonly Kingmaker.Controllers.Combat.UnitCombatState CombatState=new Kingmaker.Controllers.Combat.UnitCombatState(); }
 }
 namespace Kingmaker {
- internal sealed class Game { internal static Game Instance; internal object CurrentlyLoadedArea; internal readonly FakeState State=new FakeState(); internal readonly FakePlayer Player=new FakePlayer(); internal readonly FakeClock TimeController=new FakeClock(); internal bool IsPaused=true; }
+ internal sealed class Game { internal static Game Instance; internal object CurrentlyLoadedArea; internal readonly FakeState State=new FakeState(); internal readonly FakePlayer Player=new FakePlayer(); internal readonly FakeClock TimeController=new FakeClock(); internal bool IsPaused=true; internal readonly TurnBased.Controllers.TurnBasedCombatController TurnBasedCombatController=new TurnBased.Controllers.TurnBasedCombatController(); }
  internal sealed class FakeState {internal readonly List<UnitEntityData> Units=new List<UnitEntityData>();}
  internal sealed class FakePlayer {internal readonly List<UnitEntityData> AllCharacters=new List<UnitEntityData>();}
  internal sealed class FakeClock {internal TimeSpan GameTime;}
 }
 namespace UnityEngine {internal static class Time {internal static int frameCount=923;}}
-namespace TurnBased.Controllers {internal sealed class TurnController {internal UnitEntityData Unit;}internal static class CombatController {internal static bool IsPassing()=>true;}}
+namespace TurnBased.Controllers {internal sealed class TurnController {internal UnitEntityData Unit;}internal static class CombatController {internal static bool IsPassing()=>true;}internal sealed class TurnBasedCombatController {internal int RoundNumber;internal TurnController CurrentTurn;}}
 namespace KingmakerMountedCombat.Integration {
  internal sealed class MountedWorldService { }
  internal sealed class MountedPersistenceService {internal string ArchiveRestorePhase="all-pair-presentation-restored";internal bool CombatRestorationPending;internal MountedArchiveData LoadedArchive;internal static int Captures;internal static SavedNativeActor CaptureActor(UnitEntityData actor){Captures++;return actor.Native;}}
