@@ -151,6 +151,8 @@ foreach($m in @(@('an accepted automation request',@($quiet+'[KingmakerMountedCo
  @('another product version',@($quiet|ForEach-Object{$_.Replace('preview.94 loaded','preview.93 loaded')})),@('a visible overlay',@($quiet|ForEach-Object{$_.Replace('overlay=False','overlay=True')})))){
  Check ('the UMM session check refuses '+$m[0]) {if((Log-Summary $m[1]).passed){throw 'accepted'}}
 }
+Check 'the UMM session check refuses and counts the released preview.211 defect line in an ordinary control' {$s=Log-Summary @($quiet+[string](Get-KmcChunk7PreviousPackageKnownDefects)[0].line)
+ if($s.passed-or[int]$s.knownOldVersionDefectLines-ne1-or@($s.admittedOldVersionKnownDefects).Count-ne0){throw 'accepted or uncounted'}}
 Check 'the UMM session check refuses a log older than the run' {[IO.File]::WriteAllText((Join-Path $logDir 'Log.txt'),($quiet-join"`r`n"));(Get-Item (Join-Path $logDir 'Log.txt')).LastWriteTimeUtc=[DateTime]::UtcNow.AddHours(-2);Get-KmcChunk7NormalPlayerUmmLogSummary $fakeGame ([DateTimeOffset]::UtcNow.AddMinutes(-5)) '0.1.0-chunk7b-preview.94'} $true 'not written by this run'
 $failures=@($results|Where-Object{-not$_.pass}).Count
 [ordered]@{nativeInvoked=$false;checks=$results.Count;failures=$failures;results=$results}|ConvertTo-Json -Depth 6|Set-Content -LiteralPath (Join-Path $OutputDirectory 'receipt.json') -Encoding UTF8

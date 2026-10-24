@@ -1,5 +1,12 @@
 # Chunk 7B–7D — IN PROGRESS
 
+X5 follow-up (offline, harness only; product DLL unchanged): by lead decision, u1 now admits exactly
+preview.211's one known base-game Horse registration exception line, once, only for the exact pinned
+preview.211 package, recorded as `admittedOldVersionKnownDefects` (fix `81c191af`); u2 and u3 keep the
+strict quiet start and the external reader re-judges the UMM receipt on every PASS. u3 also stages
+preview.211 and needs its own decision. A fresh native u1 is next; see
+[the X5 row](planning/CHUNK7-7E-QUALIFICATION-MATRIX.md).
+
 Claude [batch199](docs/CHUNK7-BATCH199-7E-PILOTS-2026-10-24.md) froze pilot candidate `3842ad94`
 (DLL `ec20ee8f…`, suite `chunk7e-b199-pilots-20261024`). Nine native launches, all with exact
 restoration. The acquired chain (c1–c5), the X4 producer and row 58 passed again. **Row 59 passed for

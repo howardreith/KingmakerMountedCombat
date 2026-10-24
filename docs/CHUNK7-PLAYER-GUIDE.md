@@ -55,6 +55,12 @@ explicit migration adapter. Unknown or invalid data remains non-restoring and is
 preserved when safe. Keep pre-migration saves and the earlier package for rollback;
 old binaries are not certified to resume new-format gameplay.
 
+Known issue in the released preview.211: on an installation without Call of the Wild
+it logs "[Exception] Horse companion blueprint registration: InvalidOperationException -
+The exact Ranger companion AllFeatures surface no longer has seven stock options." in the
+UMM log at start, because it recognized only the Call of the Wild Ranger companion list.
+Upgrading to the Chunk 7 build fixes it. Rolling back to preview.211 brings the message back.
+
 Progression and the mounted pair:
 - Leveling keeps a mounted pair.
 - Dismissing the companion, retraining the Horse or replacing it (for example a Mammoth at
