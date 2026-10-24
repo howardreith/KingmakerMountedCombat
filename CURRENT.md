@@ -1,6 +1,17 @@
 # Chunk 7B–7D — IN PROGRESS
 
-Claude [batch195](docs/CHUNK7-BATCH195-7E-PILOTS-2026-10-24.md) froze pilot candidate `6b80d9a6` and
+Claude [batch196](docs/CHUNK7-BATCH196-7E-PILOTS-2026-10-24.md) froze pilot candidate `241bbd8b`
+(DLL `5a34f1c3…`, suite `chunk7e-b196-pilots-20261024`; executed from its frozen worktree on a local
+branch because the root branch moved to a doc-only commit during the freeze). Nine native runs, all
+with exact restoration. The acquired chain (c1–c5), the X4 producer and the **X4 three-area cold
+pilot on the Manticore route passed**. Row 58 failed closed: the product dismounted the companion pair
+in Oleg's exactly as designed, but native Oleg's took the hired companion pair out of the scene, which
+falsified the fixture's roster assumption. Row 57 failed on a diagnostic defect: a null paired grant
+identity written from a `string` counts as present. The batch stopped there; row 59, the two-pair
+native life and the Small item pilot did not run. Both fixes await review. Standing mission remains
+IN PROGRESS.
+
+Historical: Claude [batch195](docs/CHUNK7-BATCH195-7E-PILOTS-2026-10-24.md) froze pilot candidate `6b80d9a6` and
 passed the acquired chain (c1–c5) and the X4 Manual producer. The three-area cold pilot then hung:
 after the first transfer (Spider Cave → Oleg's) KMC refused all-pair area restoration because a unit
 was not directly controllable, cleanup fenced the quit, and the run ended restoration-blocked with
