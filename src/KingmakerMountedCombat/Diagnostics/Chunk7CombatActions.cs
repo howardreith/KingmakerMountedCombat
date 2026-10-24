@@ -234,6 +234,20 @@ namespace KingmakerMountedCombat.Diagnostics
         private static JObject Actor(JObject state, UnitEntityData actor) => (JObject)((JArray)state["actors"]).Single(x => (string)x["id"] == actor.UniqueId);
         private static bool SameActorBudget(JObject left, JObject right) => new[] { "standard", "move", "swift", "reactions", "reactionCooldown" }
             .All(field => JToken.DeepEquals(left[field], right[field]));
+        // An actor that never spends inside a window: no cooldown grows, none is negative, the reaction count is
+        // unchanged, and any decrease is bounded by the native game time between the two snapshots (TB cooldowns of
+        // every unit decay with time while another actor's command runs). A larger drop is a refund, not decay.
+        private static bool NeverSpentNatively(JObject beforeWorld, JObject afterWorld, UnitEntityData actor)
+        {
+            var before = Actor(beforeWorld, actor); var after = Actor(afterWorld, actor);
+            var elapsed = ((long)afterWorld["gameTicks"] - (long)beforeWorld["gameTicks"]) / 10000000.0;
+            return elapsed >= 0 && (int)after["reactions"] == (int)before["reactions"] &&
+                new[] { "standard", "move", "swift", "reactionCooldown" }.All(field =>
+                {
+                    var was = (float)before[field]; var now = (float)after[field];
+                    return now >= 0 && now <= was + .001f && was - now <= elapsed * 1.1 + .001;
+                });
+        }
         private static bool SameBudgets(JObject before, JObject after) => ((JArray)before["actors"]).Cast<JObject>()
             .All(row => SameActorBudget(row, (JObject)((JArray)after["actors"]).Single(other => (string)other["id"] == (string)row["id"])));
         private bool NeighbourBudgetsUnchanged(JObject before, JObject after) =>

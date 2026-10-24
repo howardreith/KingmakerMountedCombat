@@ -133,6 +133,7 @@ namespace KingmakerMountedCombat.Diagnostics
             reaction["stage"] = reactionStage;
             if (reactionStage == 0)
             {
+                if (EndSurprisedRiderTurn(turn, reaction)) return;
                 // Rider A's own turn is never ended here; its partner context may still be binding.
                 if (!ReadyPrincipal(a)) { if (turn?.Unit != target && turn?.Unit != ar) EndNative(turn); return; }
                 reactionRound = controller.RoundNumber; reaction["firstRound"] = reactionRound; actingPair = a; actingIndex = 0; actingTurn = turn;
@@ -165,6 +166,13 @@ namespace KingmakerMountedCombat.Diagnostics
             if (reactionStage == 2)
             {
                 Require(ReferenceEquals(turn, actingTurn) && ReadyPrincipal(a), "Pair A lost its native turn before the disengagement.");
+                // The native gates are read again at the disengagement itself (after any approach): a change is uncovered, not a FAIL.
+                var gates = TargetReactionState("disengage-gates"); reaction["disengageGates"] = gates;
+                Require(target.CombatState.CanAttackOfOpportunity && target.CombatState.AttackOfOpportunityCount == 1 &&
+                    (bool)gates["canActInCombat"] && !(bool)gates["waitingInitiative"] && !(bool)gates["surprised"] && (bool)gates["canAct"] &&
+                    (bool)gates["threatHand"] && (bool)gates["riderRemembersTarget"] && (bool)gates["mountRemembersTarget"],
+                    "The diagnostic target lost its single available native attack of opportunity before the disengagement; C11 disengagement is uncovered on this fixture: " +
+                    gates.ToString(Newtonsoft.Json.Formatting.None));
                 var away = am.Position - target.Position;
                 var clear = Math.Max(Flat(am.Position, target.Position) + 4.5f, am.View.Corpulence + target.View.Corpulence + 6f);
                 var proposals = new JArray();
@@ -188,13 +196,17 @@ namespace KingmakerMountedCombat.Diagnostics
                     !(bool)targetAfter["engagesRider"] && !(bool)targetAfter["engagesMount"],
                     "Native disengagement did not draw exactly one attack of opportunity from the target's single reaction: " +
                     new JArray(rules).ToString(Newtonsoft.Json.Formatting.None));
-                var residue = (JObject)leg["residue"];
+                var residue = (JObject)leg["residue"]; var pairBefore = (JObject)leg["pairBefore"];
+                // The attack of opportunity may miss: the victim's damage never falls and the other pair actor's is unchanged.
+                var victimRider = (string)opportunity[0]["target"] == ar.UniqueId;
+                Require((int)residue[victimRider ? "riderDamage" : "mountDamage"] >= (int)pairBefore[victimRider ? "riderDamage" : "mountDamage"] &&
+                    (int)residue[victimRider ? "mountDamage" : "riderDamage"] == (int)pairBefore[victimRider ? "mountDamage" : "riderDamage"],
+                    "The attack of opportunity changed the other pair actor's damage or healed its victim.");
                 Require((float)leg["distance"] > .5f && (float)Actor(after, am)["move"] > (float)Actor(before, am)["move"] &&
                     new[] { "standard", "move", "swift" }.All(f => (float)Actor(after, ar)[f] == (float)Actor(before, ar)[f]) &&
                     (float)Actor(after, am)["standard"] == (float)Actor(before, am)["standard"] &&
                     // Pair B never spends inside the window (a finished turn's cooldowns may only decay natively).
-                    new[] { br, bm }.All(actor => new[] { "standard", "move", "swift" }.All(f => (float)Actor(after, actor)[f] <= (float)Actor(before, actor)[f] + .001f) &&
-                        (int)Actor(after, actor)["reactions"] == (int)Actor(before, actor)["reactions"]) &&
+                    new[] { br, bm }.All(actor => NeverSpentNatively(before, after, actor)) &&
                     new[] { "standard", "move", "swift" }.All(f => (float)targetAfter[f] <= (float)targetBefore[f] + .001f) &&
                     !(bool)residue["activeCommand"] && !(bool)residue["groundMovement"] && (string)residue["state"] == "Mounted" &&
                     (bool)residue["riderConscious"] && (bool)residue["mountConscious"] && !(bool)residue["riderProne"] && !(bool)residue["mountProne"] &&
