@@ -1,5 +1,15 @@
 # Chunk 7B–7D — IN PROGRESS
 
+Claude [batch205](docs/CHUNK7-BATCH205-7E-COMBAT-PILOTS-2026-10-24.md) froze pilot candidate `704904fe` (package `6dac3bf9…`, suite `chunk7e-b205-pilots-20261024` `60224882…`; Candidate tier 6/0). The DLL `feca06e9…` and MVID `ac3d08b6-…` are byte-identical to b204's. A new package was needed only because the manifest must bind the harness HEAD that holds the corrected reader. Five native launches, no startup retry; every run restored, and the profile check admitted 0 changes on each. These are development pilots, not 7E qualification. **All five combat cases PASSed in game and in the external reader (33/0, 29/0):**
+- **Staged** 8/0, the first run read by the corrected reader. Candidate 11 of 12 (8 m at 135°) was selected again, and all ten steps executed with no `planAbandoned`: beyond range 20.30 m, exhaustion 21.70 m, approach 21.70 → 16.87 m. Both scroll windows hold the admitted native shape: one sourced scroll cast, the spends, one sourceless touch delivery and a 0 heal. At the in-range shot the mount did not move, and the 0.467 m seat rotated (the rider moved 0.63 m).
+- **Death proper** 9/0: all eight detach conditions true, `survivorSlot` 4.
+- **Attack modes** 8/0: off a single attack (AB 12), on a full attack (10/10) mounted and unmounted, and the admitted native `OnTick` interrupt at 2 of 2.
+- **C11** 6/0: paired Delay, exactly one native AoO, reactions 1 → 0. The prone half stays uncovered.
+- **RT Charge** (k4, b201 k1–k3 lineage) 7/0: 67.5° 8 m placement, Standard 5.96, longsword unchanged.
+
+Standing mission remains IN PROGRESS. Next: the remaining 7E work (F10 breadth, doors, the F11 protocol, then private 7E qualification).
+
+
 Offline (batch204 diagnosis; reader-only, `fa68c97d` and review fixes `bc3a2b27`; no launch; **product DLL unchanged** `feca06e9…`): both b204 staged reader failures are native shapes the reader misjudged. No product defect was found.
 - **Step 1 cast (and step 8).** The second rider-A `cast-after` is native. The scroll ability `5590652e…` (CureLightWoundsCast) carries `AbilityEffectStickyTouch`, whose `TouchDeliveryAbility` is Cure Light Wounds `47808d23…`. The relation was recorded natively in b136, where the F09 producer read it from the installed blueprint. The pinned `Apply` triggers `RuleCastSpell` on the touch ability's data at once when the caster is the target: no child command and no spend. Otherwise it queues a touch-delivery command. Rider A's native damage was 0, so the heal is 0. KMC only clicks the native ability (`IssueStagedCast`). Every preview.211 6D staged scroll window holds the same pair. The 6D reader filtered `cast-after` by the scroll blueprint, so it never counted the delivery. The reader now requires:
   - exactly one sourced scroll cast from the equipped stack (its `cast-before` matched);
