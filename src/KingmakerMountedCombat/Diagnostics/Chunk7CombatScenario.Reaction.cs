@@ -56,24 +56,31 @@ namespace KingmakerMountedCombat.Diagnostics
             ["riderConscious"] = ar.Descriptor.State.IsConscious, ["mountConscious"] = am.Descriptor.State.IsConscious,
             ["riderProne"] = ar.Descriptor.State.Prone.Active, ["mountProne"] = am.Descriptor.State.Prone.Active,
             ["riderDamage"] = ar.Damage, ["riderMaxHp"] = ar.MaxHP, ["mountDamage"] = am.Damage, ["mountMaxHp"] = am.MaxHP };
-        // A walkable native destination whose navmesh trace from the start reaches it (bounded fan of directions).
-        private Vector3 NavmeshDestination(Vector3 start, Vector3 direction, float length, Func<Vector3, bool> accepts, JArray proposals)
+        private static readonly float[] ForwardFan = { 0f, 22.5f, -22.5f, 45f, -45f, 67.5f, -67.5f };
+        // The forward fan first, then the rest of the circle (including back toward the start).
+        internal static readonly float[] FullCircleFan = ForwardFan.Concat(new[] { 90f, -90f, 112.5f, -112.5f, 135f, -135f, 157.5f, -157.5f, 180f }).ToArray();
+        // A walkable native destination whose navmesh trace from the start reaches it (bounded fan of
+        // directions, longest requested length first). Every proposal is recorded, including on refusal.
+        private Vector3 NavmeshDestination(Vector3 start, Vector3 direction, float length, Func<Vector3, bool> accepts, JArray proposals,
+            float[] angles = null, float[] shorterLengths = null)
         {
             Require(AstarPath.active != null, "Active native navigation graph is unavailable.");
             direction.y = 0f; Require(direction.sqrMagnitude > .0001f, "Native destination direction is unavailable.");
-            foreach (var angle in new[] { 0f, 22.5f, -22.5f, 45f, -45f, 67.5f, -67.5f })
-            {
-                var requested = start + Quaternion.Euler(0f, angle, 0f) * direction.normalized * length;
-                var nearest = AstarPath.active.GetNearest(requested);
-                var walkable = nearest.node != null && nearest.node.Walkable;
-                var goal = nearest.clampedPosition;
-                var traced = walkable ? Kingmaker.View.ObstacleAnalyzer.TraceAlongNavmesh(start, goal) : start;
-                var eligible = walkable && Flat(traced, goal) <= .3f && Flat(start, goal) > .5f && accepts(goal);
-                proposals?.Add(new JObject { ["angle"] = angle, ["requested"] = Point(requested), ["goal"] = Point(goal),
-                    ["walkable"] = walkable, ["traceResidual"] = Flat(traced, goal), ["eligible"] = eligible });
-                if (eligible) return goal;
-            }
-            throw new InvalidOperationException("No walkable native destination satisfied the declared geometry.");
+            foreach (var requestedLength in new[] { length }.Concat(shorterLengths ?? new float[0]))
+                foreach (var angle in angles ?? ForwardFan)
+                {
+                    var requested = start + Quaternion.Euler(0f, angle, 0f) * direction.normalized * requestedLength;
+                    var nearest = AstarPath.active.GetNearest(requested);
+                    var walkable = nearest.node != null && nearest.node.Walkable;
+                    var goal = nearest.clampedPosition;
+                    var traced = walkable ? Kingmaker.View.ObstacleAnalyzer.TraceAlongNavmesh(start, goal) : start;
+                    var accepted = walkable && accepts(goal);
+                    var eligible = walkable && Flat(traced, goal) <= .3f && Flat(start, goal) > .5f && accepted;
+                    proposals?.Add(new JObject { ["angle"] = angle, ["length"] = requestedLength, ["requested"] = Point(requested), ["goal"] = Point(goal),
+                        ["walkable"] = walkable, ["traceResidual"] = Flat(traced, goal), ["geometryAccepted"] = accepted, ["eligible"] = eligible });
+                    if (eligible) return goal;
+                }
+            throw new InvalidOperationException("No walkable native destination satisfied the declared geometry (" + (proposals?.Count ?? 0) + " proposals recorded).");
         }
         private void ReactionStage(int value) { reactionStage = value; reactionSettledFrames = 0; stepStarted = clock.Elapsed.TotalSeconds; }
         private void BeginReaction()
