@@ -14,7 +14,10 @@ namespace KingmakerMountedCombat.Diagnostics
     // 7E X1 C03 attack modes (owner-seed-attack-modes, on the TB rider-first engine). Rider A's own
     // native Rapid Shot (feat and toggle granted natively in the owner's save; nothing is granted
     // here) is switched only through the native action-bar slot click. Rider A makes three native
-    // ordinary full attacks on the diagnostic target from where it stands:
+    // ordinary attacks (the product routes a mounted click as an ordinary-intent RiderRanged command,
+    // so native UnitAttack.InitAttacks chooses full or single from the TB cursor) on the diagnostic
+    // target from where it stands. Each leg's expected mode is the native estimate at the click: a
+    // one-attack routine is natively single; with Rapid Shot on it is always a full attack:
     //   round N    mounted, Rapid Shot off;
     //   round N+1  mounted, Rapid Shot on;
     //   round N+2  native Dismount (the pair's own first action), turn ended natively;
@@ -94,7 +97,19 @@ namespace KingmakerMountedCombat.Diagnostics
             Require(targetService.BeginExpectedAttackDispatch(target), "Exact diagnostic target attack authorization refused.");
             Game.Instance.IsPaused = true; Chunk7NativeFixture.Select(ar);
             bool clicked;
-            using (var input = new NativeOrdinaryAttackInput(target)) { input.Predict(); clicked = input.Click(); }
+            using (var input = new NativeOrdinaryAttackInput(target))
+            {
+                input.Predict();
+                // Native TB offers its FullAttack cursor only when UnitAttack.EstimateFullAttacks > 1
+                // (TurnController.UpdateSmartCursorVariants), so a one-attack routine (BAB < 6 without
+                // Rapid Shot, b201 am: bab 4) is natively a single attack, mounted or not. The expected
+                // shape is derived from that native estimate at the click; Rapid Shot always adds one.
+                var estimate = UnitAttack.EstimateFullAttacks(ar); var current = Game.Instance.TurnBasedCombatController.CurrentTurn;
+                observation["nativeEstimate"] = estimate; observation["expectedFull"] = estimate > 1;
+                observation["currentTurnEnabledFullAttack"] = current?.Unit == ar ? (JToken)current.EnabledFullAttack : JValue.CreateNull();
+                Require(!attackModesRapid.IsOn || estimate > 1, "Native Rapid Shot on left rider A no native full attack estimate above one.");
+                clicked = input.Click();
+            }
             observation["clicked"] = clicked;
             attackModeCommand = ar.Commands.Raw.OfType<UnitAttack>().FirstOrDefault(command => ReferenceEquals(command.Target, target));
             Game.Instance.IsPaused = false;
@@ -124,7 +139,10 @@ namespace KingmakerMountedCombat.Diagnostics
             var riderRolls = rolls.Where(e => (string)e["actor"] == ar.UniqueId && !(bool)e["opportunity"]).ToArray();
             var rangedPlan = plan.Count(e => (bool)e["ranged"] && (string)e["owner"] == ar.UniqueId);
             var before = (JObject)observation["before"];
-            Require(command.Executor == ar && command.IsFullAttack && rangedPlan >= 1 && riderRolls.Length == rangedPlan &&
+            var expectedFull = (bool)observation["expectedFull"];
+            Require(command.Executor == ar && command.IsFullAttack == expectedFull && !command.IsSingleAttack &&
+                (expectedFull ? plan.Length == (int)observation["nativeEstimate"] : plan.Length == 1 && rangedPlan == 1) &&
+                rangedPlan >= 1 && riderRolls.Length == rangedPlan &&
                 riderRolls.All(e => (bool)e["ranged"]) && rolls.All(e => (string)e["actor"] == ar.UniqueId) &&
                 (command.Result == UnitCommand.ResultType.Success || command.Result == UnitCommand.ResultType.Interrupt) &&
                 plan.Skip(rangedPlan).All(e => !(bool)e["ranged"]) &&
@@ -133,7 +151,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 // paired turn may still decay. Pair B never spends: a finished turn's cooldowns may only decay natively.
                 ((bool)observation["mounted"] ? SameActorBudget(Actor(before, am), Actor(after, am)) : NeverSpentNatively(before, after, am)) &&
                 new[] { br, bm }.All(actor => NeverSpentNatively(before, after, actor)),
-                "Native full attack escaped its exact plan, rolls or actor allocation: " + observation["command"].ToString(Newtonsoft.Json.Formatting.None));
+                "Native " + (expectedFull ? "full" : "single") + " attack (native estimate " + (int)observation["nativeEstimate"] +
+                ") escaped its exact plan, rolls or actor allocation: " + observation["command"].ToString(Newtonsoft.Json.Formatting.None));
             return true;
         }
         // A surprised rider A turn cannot carry a measured input: it is ended natively, as the full activations do,
