@@ -235,6 +235,7 @@ function Assert-KmcChunk7DeathDetach($d,$life,$ids,$before,$trace){
  foreach($n in $names){if($d.conditions.$n-isnot[bool]){throw "Native death detach condition $n is missing or mistyped."};if(-not$d.conditions.$n){throw "Native death detach condition $n failed."}}
  if($d.contract-cne'native-death-actor-removal-detach-v1'-or-not(Test-KmcExactJsonInteger $d.observedRound)-or$d.observedRound-ne$life.damageRound-or$d.damageRound-ne$life.damageRound){throw 'Native death detach was not observed in the damage round.'}
  foreach($f in @('activationSplit','participationRecorded','participationActivation','noPreparedPairResidue')){if($d.$f-isnot[bool]){throw "Native death detach $f is missing or mistyped."}}
+ foreach($f in @('damageRound','splitReleaseRound','pendingSplitRound')){if(-not(Test-KmcExactJsonInteger $d.$f)){throw "Native death detach $f is missing or mistyped."}}
  if($d.pairState-cne'Unmounted'-or$null-ne$d.activationIdentity-or$d.activationSplit-or$d.splitReleaseRound-ne-1-or-not$d.participationRecorded-or$null-ne$d.participationRiderId-or
     $null-ne$d.participationMountId-or$d.participationActivation-or$d.pendingSplitMountId-cne$ids[3]-or$d.pendingSplitRound-ne$life.damageRound-or$null-ne$d.partnerContextActor-or-not$d.noPreparedPairResidue){throw 'Native death detach is not the native actor-removal shape (retired activation, pending survivor for the damage round, no split release).'}
  $g0=@($d.grantsBefore);$g1=@($d.grantsAfter)

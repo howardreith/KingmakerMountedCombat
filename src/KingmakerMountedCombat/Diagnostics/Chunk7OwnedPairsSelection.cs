@@ -38,7 +38,8 @@ namespace KingmakerMountedCombat.Diagnostics
         public const string OwnerSeedNativeLifeCase = "owner-seed-native-life-cleanup";
         // 7E X1 death proper: the same native life engine with one labelled native damage past HP+Constitution.
         public const string OwnerSeedNativeDeathCase = "owner-seed-native-death-cleanup";
-        // 7E X1 C03: rider A's native Rapid Shot off/on full attacks and an unmounted control on the TB rider-first engine.
+        // 7E X1 C03: rider A's native ordinary attacks with Rapid Shot off (a native single attack when its routine has one
+        // attack) and on (a native full attack), mounted, and an unmounted control, on the TB rider-first engine.
         public const string OwnerSeedAttackModesCase = "owner-seed-attack-modes";
         // 7E X1 C11: pair A disengages natively from the diagnostic target (one native attack of opportunity) on the TB rider-first engine.
         public const string OwnerSeedCombatReactionCase = "owner-seed-combat-reaction";
