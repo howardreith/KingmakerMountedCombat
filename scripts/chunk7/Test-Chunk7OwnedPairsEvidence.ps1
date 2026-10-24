@@ -717,6 +717,16 @@ Check-SeedAttackModes 'a plan weapon other than the equipped ranged weapon' {$p=
 Check-SeedAttackModes 'an interrupt that claims a completed plan' {(AM $args[0] 1).command.result='Interrupt'} 'interrupt claims a completed plan'
 Check-SeedAttackModes 'an on click outside the first measured round' {$args[0].artifact.observations.attackModes.toggleClicks[1].before.round=11} 'first measured round'
 Check-SeedAttackModes 'a Dismount outside its round' {$args[0].artifact.observations.attackModes.dismountAfter.round=13} 'outside its native round'
+# Pair B (and mount A once unmounted) never spends; finished turns' cooldowns decay natively for every unit.
+function AMActor($v,[int]$i,[string]$when,[string]$role){@((AM $v $i).$when.actors|Where-Object id -CEQ $v.request.ownedPairs.$role)[0]}
+Check 'owner-seed attack modes accept pair B cooldowns that only decayed natively (N+1 and N+3)' {$v=New-KmcSeedAttackModesFixture;foreach($i in 1,2){foreach($role in 'riderBId','mountBId'){(AMActor $v $i 'before' $role).standard=6.0;(AMActor $v $i 'after' $role).standard=4.5;(AMActor $v $i 'before' $role).reactionCooldown=6.0;(AMActor $v $i 'after' $role).reactionCooldown=4.5}};Invoke-OwnedReader $v}
+Check 'owner-seed attack modes accept mount A cooldowns that only decayed natively in the unmounted control' {$v=New-KmcSeedAttackModesFixture;(AMActor $v 2 'before' 'mountAId').move=6.0;(AMActor $v 2 'after' 'mountAId').move=3.0;Invoke-OwnedReader $v}
+Check-SeedAttackModes 'pair B spending its move inside the mounted-on window' {(AMActor $args[0] 1 'after' 'mountBId').move=3.0} 'Unrelated native actor expenditure changed'
+Check-SeedAttackModes 'pair B spending inside the unmounted control' {(AMActor $args[0] 2 'after' 'riderBId').standard=6.0} 'Unrelated native actor expenditure changed'
+Check-SeedAttackModes 'pair B spending a reaction inside the control' {(AMActor $args[0] 2 'after' 'riderBId').reactions=0} 'Unrelated native actor expenditure changed'
+Check-SeedAttackModes 'a pair B reaction cooldown that grew' {(AMActor $args[0] 0 'after' 'mountBId').reactionCooldown=6.0} 'Unrelated native actor expenditure changed'
+Check-SeedAttackModes 'mount A cooldowns that changed while it carries rider A' {$v=$args[0];(AMActor $v 1 'before' 'mountAId').move=6.0;(AMActor $v 1 'after' 'mountAId').move=3.0} 'Unrelated native actor expenditure changed'
+Check-SeedAttackModes 'mount A spending inside the unmounted control' {(AMActor $args[0] 2 'after' 'mountAId').move=3.0} 'Unrelated native actor expenditure changed'
 # 7E X1 C11 reactions: pair A leaves the diagnostic target's threatened area by one ordinary native
 # ground move on rider A's first prepared turn; the target's single native attack of opportunity
 # hits pair A. Synthetic shapes: the pair starts threatened (no approach) in round 10.

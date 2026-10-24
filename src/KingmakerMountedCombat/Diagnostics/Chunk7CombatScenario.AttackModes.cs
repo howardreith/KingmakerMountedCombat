@@ -129,10 +129,18 @@ namespace KingmakerMountedCombat.Diagnostics
                 (command.Result == UnitCommand.ResultType.Success || command.Result == UnitCommand.ResultType.Interrupt) &&
                 plan.Skip(rangedPlan).All(e => !(bool)e["ranged"]) &&
                 (float)Actor(after, ar)["standard"] > (float)Actor(before, ar)["standard"] &&
-                SameActorBudget(Actor(before, am), Actor(after, am)) && new[] { br, bm }.All(actor => SameActorBudget(Actor(before, actor), Actor(after, actor))),
+                // Mount A is exact while it carries rider A; unmounted (control) it is an independent unit whose finished
+                // paired turn may still decay. Pair B never spends: a finished turn's cooldowns may only decay natively.
+                ((bool)observation["mounted"] ? SameActorBudget(Actor(before, am), Actor(after, am)) : NeverSpentBudget(Actor(before, am), Actor(after, am))) &&
+                new[] { br, bm }.All(actor => NeverSpentBudget(Actor(before, actor), Actor(after, actor))),
                 "Native full attack escaped its exact plan, rolls or actor allocation: " + observation["command"].ToString(Newtonsoft.Json.Formatting.None));
             return true;
         }
+        // No cooldown grows and the reaction count is unchanged (native TB cooldowns of every unit decay while
+        // another actor's command runs, so a decrease is native, not a refund).
+        private static bool NeverSpentBudget(JObject before, JObject after) =>
+            new[] { "standard", "move", "swift", "reactionCooldown" }.All(f => (float)after[f] <= (float)before[f] + .001f) &&
+            (int)after["reactions"] == (int)before["reactions"];
         private static int[] InnerBonuses(JObject observation) => ((JArray)observation["rules"]).OfType<JObject>()
             .Where(e => (string)e["kind"] == "roll" && !(bool)e["opportunity"]).Select(e => (int)e["nativeCalculation"]["innerResult"]).ToArray();
         private static int RapidBonus(JObject observation)
