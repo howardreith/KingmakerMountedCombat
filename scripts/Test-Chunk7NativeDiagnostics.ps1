@@ -198,6 +198,7 @@ $selected = @(
     'Test-WorkingLoadObservation.ps1',
     'Test-Chunk7PersistenceWiring.ps1',
     'Test-Chunk7RealtimeEvidence.ps1',
+    'Test-Chunk7StagedGeometry.ps1',
     'Test-Chunk7RepeatedLoadAuthority.ps1',
     'Test-Chunk7RepeatedWorldAdapter.ps1',
     'Test-Chunk7RepeatedWorldProtocol.ps1',

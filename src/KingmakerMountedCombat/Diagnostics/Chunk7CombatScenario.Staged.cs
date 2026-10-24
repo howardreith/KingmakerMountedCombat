@@ -27,7 +27,7 @@ namespace KingmakerMountedCombat.Diagnostics
     {
         internal const string StagedClwGuid = "5590652e1c2225c4ca30c4a699ab3649";
         private const int StagedScrollUnits = 4, StagedMaxLegs = 8;
-        private const float StagedShortLeg = 2f, StagedLongLeg = 7f, StagedExhaustedMove = 5.95f, StagedBeyondMargin = 3f, StagedExhaustShortLeg = 3.5f;
+        private const float StagedShortLeg = 2f, StagedLongLeg = 7f, StagedExhaustedMove = 5.95f, StagedBeyondMargin = Chunk7StagedGeometry.BeyondMargin, StagedExhaustShortLeg = 3.5f;
         private sealed class StagedStepSpec { internal string Row, Kind; internal int Round; }
         private static StagedStepSpec Spec(string row, string kind, int round) => new StagedStepSpec { Row = row, Kind = kind, Round = round };
         // Ordered native inputs; Round is the offset from rider A's first prepared round N.
@@ -185,19 +185,32 @@ namespace KingmakerMountedCombat.Diagnostics
             switch (spec.Kind)
             {
                 case "move-beyond-range":
-                    var wanted = stagedEnvelope + StagedBeyondMargin;
-                    destination = NavmeshDestination(start, radial, Math.Max(.6f, wanted - current),
-                        p => Flat(p, target.Position) >= wanted - .5f && Flat(p, target.Position) <= wanted + 1.5f, proposals); break;
+                    // b202 st: this leg ended at the walkable edge 19.24 m from the target (its goal accepted from
+                    // envelope + 2.5 m, and the mover stopped 0.27 m short). Every walkable exact-trace point within
+                    // 7 m of there lay inward, at most 18.19 m from the target, below the exhaustion band's floor
+                    // (envelope + 2 m = 18.84 m): the band was unreachable from that placement. Both bands are kept;
+                    // the goal is accepted from the aim upward, and only where at least one exhaustion leg in its
+                    // band stays eligible from it. Longer legs widen the forward search across the same band.
+                    var wanted = stagedEnvelope + StagedBeyondMargin; var beyondLength = Math.Max(.6f, wanted - current);
+                    destination = NavmeshDestinationRefusing(start, radial, beyondLength,
+                        p => Chunk7StagedGeometry.BeyondBand(Flat(p, target.Position), stagedEnvelope) ?? StagedExhaustContinuation(p),
+                        proposals, null, new[] { beyondLength + 2f, beyondLength + 4f }); break;
                 case "move-probe":
                     // The exhausted mount's own native refusal is the observation; any traced walkable point serves.
                     destination = NavmeshDestination(start, tangent, StagedShortLeg, p => true, proposals, FullCircleFan); break;
                 case "move-exhaust":
                     // b201 st: after the beyond-range leg the forward tangential fan at 7 m held no traced point in the
                     // declared band. The band is unchanged; the search covers the whole circle (back toward the start
-                    // included) and shorter legs, so exhaustion may take more (bounded) legs.
-                    destination = NavmeshDestination(start, tangent, StagedLongLeg,
-                        p => Flat(p, target.Position) >= stagedEnvelope + 2f && Flat(p, target.Position) <= stagedEnvelope + 6f, proposals,
-                        FullCircleFan, new[] { 5f, StagedExhaustShortLeg }); break;
+                    // included) and shorter legs, so exhaustion may take more (bounded) legs. A point from which a
+                    // further leg stays in the band is preferred; only when none exists is the band alone searched
+                    // again (recorded apart as fallbackProposals), since the leg may be the one that exhausts the move.
+                    if (!TryNavmeshDestination(start, tangent, StagedLongLeg, p => StagedExhaustBand(p) ?? StagedExhaustContinuation(p),
+                        proposals, FullCircleFan, StagedExhaustShorter, out destination))
+                    {
+                        var fallback = new JArray(); leg["fallbackProposals"] = fallback;
+                        destination = NavmeshDestinationRefusing(start, tangent, StagedLongLeg, StagedExhaustBand, fallback, FullCircleFan, StagedExhaustShorter);
+                    }
+                    break;
                 default:
                     // Inside weapon range and outside the target's reach: tangential legs around it.
                     destination = NavmeshDestination(start, tangent, spec.Kind == "move-short" ? StagedShortLeg : StagedLongLeg,
@@ -241,6 +254,11 @@ namespace KingmakerMountedCombat.Diagnostics
             stagedLeg["displacement"] = Flat(Vec((JArray)stagedLeg["before"]["mountPosition"]), am.Position);
             stagedCommand = null;
         }
+        private static readonly float[] StagedExhaustShorter = { 5f, StagedExhaustShortLeg };
+        private static readonly float[] StagedExhaustLengths = { StagedLongLeg, 5f, StagedExhaustShortLeg };
+        private string StagedExhaustBand(Vector3 p) => Chunk7StagedGeometry.ExhaustBand(Flat(p, target.Position), stagedEnvelope);
+        private string StagedExhaustContinuation(Vector3 p) =>
+            NavmeshContinuation(p, StagedExhaustLengths, StagedExhaustBand) ? null : Chunk7StagedGeometry.NoExhaustContinuation;
         private static Vector3 Vec(JArray p) => new Vector3((float)p[0], (float)p[1], (float)p[2]);
         // TB budget legs: legs repeat (bounded) until the mount itself reports its second Move or its
         // exhausted native movement budget; exhaustion is measured on the cooldown (frozen 203 TB).
