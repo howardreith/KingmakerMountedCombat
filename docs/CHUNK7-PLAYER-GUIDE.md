@@ -42,12 +42,26 @@ its documented native eligibility. Turn-based Charge remains unavailable and
 refuses without spending actions. The defensive Mounted Combat feat is not
 implemented.
 
+Settings: the Kingmaker Mounted Combat page in UMM (Ctrl+F10) has one setting, **Enable optional
+real-time Mounted Charge**. It is off by default and can be changed only outside combat with every pair
+dismounted. KMC writes no settings file, so it resets to off on every game launch. Every other
+configuration value is fixed for the supported preset. Diagnostics, telemetry and the overlay are off
+and inert unless a lab automation request starts them. Supported profiles, logs, messages and how to
+report a problem are in [the support and configuration guide](CHUNK7-SUPPORT-CONFIG.md).
+
 Read the native ability's refusal text when an action is unavailable. Open
 Kingmaker Mounted Combat's page in Unity Mod Manager (UMM) for selected-pair
 feedback and save/removal status. Unsupported ownership, size, form or rig,
 occupied actors and unfinished cleanup can refuse Mount Companion. Resolve the
 stated cause before another attempt; a selection change or repeated click cannot
 grant actions or transfer old command ownership.
+
+Logs: KMC writes to the UMM log at `<Kingmaker install>\Kingmaker_Data\Managed\UnityModManager\Log.txt`,
+with every line prefixed `[KingmakerMountedCombat]`. Its errors and exceptions appear there, not in the
+Unity log. The UMM page shows the same save/load and removal summaries. The meaning of each summary is
+in [the support guide](CHUNK7-SUPPORT-CONFIG.md). To report a problem, copy the UMM log before the next
+launch, keep the save, and record the version line, the mode (turn-based or real-time), the pair, the
+actor and the steps.
 
 Saving waits for unsettled work across every pair. Schema-3 native archives retain
 all admitted pair and actor obligations; valid historical schema-1/2 data uses the
@@ -68,8 +82,16 @@ Progression and the mounted pair:
 - In an area where the game does not let you control a companion directly (the capital, where only
   your main character and its own companion are controllable), KMC dismounts that pair on arrival and
   says so on its UMM page; mount again after leaving.
+  The page reads: "Dismounted on arrival because the companion is not directly controllable in this
+  area: <rider> and <mount>. Mount again after leaving. <N> of <M> mounted relationships restored without
+  Mount or preparation." Your main character's own pair stays mounted, and saving stays allowed.
 - KMC's Mount and Dismount abilities are not placed on the action bar automatically. Find
   them in the character's ability list and place them where you want them.
+
+Upgrade, rollback and removal steps, and what was and was not rehearsed, are in
+[CHUNK7-MIGRATION-ROLLBACK-REMOVAL.md](CHUNK7-MIGRATION-ROLLBACK-REMOVAL.md). In short: keep
+pre-upgrade saves and the preview.211 package; rollback means preview.211 with a pre-upgrade save; do not
+load a save that has a KMC Horse or a mounted pair without KMC.
 
 Before removing KMC, use its clean-save preparation flow. A campaign containing a
 KMC Horse still requires the mod. Permanent installation, release rehearsal and
@@ -80,3 +102,7 @@ feel, target feedback, action bar/portrait selection, leg and saddle contact,
 weapons, camera and overall play behavior. Automated observations do not grant
 human visual acceptance. Record reproduction steps and the affected pair/actor
 when a command, view or resource behaves unexpectedly.
+
+The owner's step-by-step play checklist is [CHUNK7-OWNER-PLAY-CHECKLIST.md](CHUNK7-OWNER-PLAY-CHECKLIST.md).
+Release notes: [CHUNK7-RELEASE-NOTES.md](CHUNK7-RELEASE-NOTES.md); changelog:
+[CHUNK7-CHANGELOG.md](CHUNK7-CHANGELOG.md).
