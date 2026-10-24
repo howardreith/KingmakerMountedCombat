@@ -59,6 +59,9 @@ Progression and the mounted pair:
 - Leveling keeps a mounted pair.
 - Dismissing the companion, retraining the Horse or replacing it (for example a Mammoth at
   companion rank 7) retires that pair; mount the new companion again.
+- In an area where the game does not let you control a companion directly (the capital, where only
+  your main character and its own companion are controllable), KMC dismounts that pair on arrival and
+  says so on its UMM page; mount again after leaving.
 - KMC's Mount and Dismount abilities are not placed on the action bar automatically. Find
   them in the character's ability list and place them where you want them.
 
