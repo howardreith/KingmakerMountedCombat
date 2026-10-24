@@ -5,8 +5,9 @@ candidate `1eecc9bb` (DLL `c7e0258f…`): eleven native runs, all with exact res
 chain (owner-seed cold → Ranger 4 Horse → acquired cold → paid Small Ranger → two-owner Manual)
 passed on one candidate, as did the X4 Manual producer (one Steamworks startup failure retried).
 Row 57 and the two-pair native life now pass the life callback and healthy neighbour, then fail
-because the native turn controller prepares the unconscious rider's own next turn; a correction was
-drafted but blocked as assertion weakening, so that is a decision for review. RT Charge is a fixture
+because the native turn controller prepares the unconscious rider's own next turn. That was decided
+as native behavior the test misjudged; an exact order-derived expectation and an unmounted unconscious
+control are implemented offline and await review. RT Charge is a fixture
 limit (KMC correctly refuses: the rider has no melee weapon). The three-area cold failed on a Horse
 subscriber expectation that missed the Small Horse profile; the fix awaits review. Standing mission
 remains IN PROGRESS.
