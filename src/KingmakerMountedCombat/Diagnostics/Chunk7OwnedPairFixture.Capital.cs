@@ -8,6 +8,8 @@ namespace KingmakerMountedCombat.Diagnostics
         // facts, views and source receipt stay exactly preserved; only the world scope is re-pinned, after
         // the product's restore attempt has completed with exactly one restored and one retired pair.
         private bool capitalPending, capitalAdopted;
+        // The companion pair native capital mode took out of the scene (see Chunk7OwnedPairFixture.CapitalRoster.cs).
+        private Kingmaker.EntitySystem.Entities.UnitEntityData[] capitalOutOfScene;
         private BlueprintArea capitalDestination;
         internal bool CapitalPending => capitalPending;
         internal void BeginCapitalArrival(BlueprintArea destination)
@@ -36,10 +38,11 @@ namespace KingmakerMountedCombat.Diagnostics
             Scope.RequireDeclaredAreaDestination(destination.AssetGuidThreadSafe, destination);
             var prior = Scope;
             var candidate = new Chunk7NativeWorldScope(request, Party, destination.AssetGuidThreadSafe);
-            // Read-only validation interval: the complete unchanged roster, pets, facts and views must hold.
-            Scope = candidate;
+            // Read-only validation interval: the roster, pets, facts and views must hold, except that native
+            // capital mode may take exactly the retired companion pair (inherited pair B) out of the scene.
+            Scope = candidate; capitalOutOfScene = new[] { Actors[2], Actors[3] };
             try { RequirePreserved(); }
-            catch { Scope = prior; throw; }
+            catch { Scope = prior; capitalOutOfScene = null; throw; }
             capitalPending = false; capitalAdopted = true; capitalDestination = null;
         }
     }

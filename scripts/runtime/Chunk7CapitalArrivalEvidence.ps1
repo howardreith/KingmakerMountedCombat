@@ -114,6 +114,99 @@ function Assert-KmcChunk7CapitalWorldRow($Row,[string]$Label,[bool]$Capital) {
     Assert-KmcChunk7Boolean $Row.capital $Capital;Assert-KmcBootstrapInventoryString $Row.mode 'Default'
     if($Row.views-isnot[Array]-or$Row.views.Count-ne4){throw 'Capital world row must name the four pair actors.'}
 }
+# The arrival portion of row 58 exactly as observed natively (batch196 r58): counters, UMM line, observer,
+# main-pair authority, main-only controls, and the companion pair natively out of the scene (inGame false)
+# with its original views and no authority. Shared by the full reader and the r58 evidence check.
+function Assert-KmcChunk7CapitalArrivalShape($Request,$c,$loaded,$ColdEvents) {
+    $roles=@(Get-KmcChunk7OwnedPairIds $Request);$all=@($roles)
+    $main=@($loaded.Pairs|Where-Object{$_.Rider.Id-ceq$roles[0]})[0];$retired=@($loaded.Pairs|Where-Object{$_.Rider.Id-ceq$roles[2]})[0]
+    $pin=Get-KmcChunk7CapitalArrivalPin
+    foreach($pair in @(@('contract','chunk7-capital-arrival-v1'),@('enterPoint',$pin.enterPoint),@('destinationArea',$pin.area),@('sourceArea',$Request.persistenceLoad.area),@('autoSaveMode','None'),@('mainPairId',$main.PairId),@('retiredPairId',$retired.PairId))){Assert-KmcBootstrapInventoryString $c.($pair[0]) $pair[1]}
+    foreach($key in @('destinationIsCapital','dispatchReturned','suspensionObserved')){Assert-KmcChunk7Boolean $c.$key $true};Assert-KmcChunk7Boolean $c.nativeAutosaveRequested $false
+    Assert-KmcOrdinaryInteger $c.transferRequests 1 1;Assert-KmcOrdinaryInteger $c.loadingTicks 1 ([int]::MaxValue)
+    foreach($key in @('retiredRiderName','retiredMountName')){if($c.$key-isnot[string]-or[string]::IsNullOrWhiteSpace($c.$key)-or$c.$key.Length-gt256-or$c.$key-match'[\x00-\x1f\x7f]'){throw 'Retired pair names must be exact bounded scalars.'}}
+    # The UMM summary names the dismounted pair and the exact restored count.
+    Assert-KmcBootstrapInventoryString $c.umm (Get-KmcChunk7CapitalFeedback $c.retiredRiderName $c.retiredMountName 1 2)
+    # The arrival observer saw no new native preparation, round or debt restore after the cold start.
+    Assert-KmcChunk7CapitalRestorationProbe $c.restoration $Request $all $all
+    if((ConvertTo-KmcChunk7Canonical $c.restoration.events)-cne(ConvertTo-KmcChunk7Canonical $ColdEvents)){throw 'Capital arrival recorded native restoration events beyond the cold start.'}
+    $before=$c.before;Assert-KmcChunk7CapitalWorldRow $before 'before-native-transfer' $false;Assert-KmcBootstrapInventoryString $before.area $Request.persistenceLoad.area
+    foreach($key in @('suspensions','resumes','retired','failedPairs','refusedTransfers')){Assert-KmcOrdinaryInteger $before.$key 0 0};Assert-KmcOrdinaryInteger $before.activeOwners 2 2
+    foreach($view in $before.views){Assert-KmcChunk7Boolean $view.inGame $true;Assert-KmcChunk7Boolean $view.directlyControllable $true}
+    $after=$c.after;Assert-KmcChunk7CapitalWorldRow $after 'after-native-transfer' $true
+    foreach($pair in @(@('suspensions',1),@('resumes',1),@('retired',1),@('failedPairs',0),@('refusedTransfers',0),@('activeOwners',1))){Assert-KmcOrdinaryInteger $after.($pair[0]) $pair[1] $pair[1]}
+    Assert-KmcChunk7Boolean $after.saveAllowed $true;Assert-KmcBootstrapInventoryString $after.feedback $c.umm
+    Assert-KmcChunk7CapitalOneOwner $after $main
+    $mainSlots=@($loaded.Slots|Where-Object ActorId -CEQ $roles[0])
+    if((ConvertTo-KmcChunk7Canonical @($after.slots|Sort-Object Index))-cne(ConvertTo-KmcChunk7Canonical @($mainSlots|Sort-Object Index))){throw 'Capital arrival controls are not exactly the main pair bindings.'}
+    foreach($view in $after.views){
+        $baseline=@($before.views|Where-Object id -CEQ $view.id)
+        if($baseline.Count-ne1-or$view.viewId-ne$baseline[0].viewId-or$view.viewId-ne$view.baselineViewId-or$view.viewId-eq0){throw 'Capital arrival replaced an original native view.'}
+        $isMain=$view.id-cin@($roles[0],$roles[1])
+        # Observed natively: the main pair stays in the scene; the companion pair is out of it.
+        Assert-KmcChunk7Boolean $view.directlyControllable $isMain;Assert-KmcChunk7Boolean $view.inGame $isMain
+        if($view.id-ceq$roles[0]){if($view.riderAgents-ne1-or$view.agentOverride-eq0){throw 'Main rider lacks its exact restored movement authority.'}}
+        elseif($view.riderAgents-ne0-or$view.agentOverride-ne0){throw 'A non-rider or retired actor retains movement authority.'}
+    }
+    $mainRider=@($before.views|Where-Object id -CEQ $roles[0])[0];$mainRiderAfter=@($after.views|Where-Object id -CEQ $roles[0])[0]
+    if($mainRiderAfter.agentOverride-eq$mainRider.agentOverride){throw 'Capital arrival reused the prior movement authority.'}
+}
+# The recorded out-of-scene custody of the companion pair, in one closed membership shape.
+function Assert-KmcChunk7CapitalOutOfSceneRecord($Record,$Request,[bool]$ViewsRequired) {
+    $roles=@(Get-KmcChunk7OwnedPairIds $Request)
+    Assert-KmcExactProperties $Record @('ids','shape','actors') 'capital out-of-scene record'
+    if($Record.ids-isnot[Array]-or($Record.ids-join'|')-cne($roles[2]+'|'+$roles[3])){throw 'Capital out-of-scene record is not exactly the companion pair.'}
+    if($Record.shape-isnot[string]-or$Record.shape-cnotin@('field','remote','absent')){throw 'Capital out-of-scene membership shape is not closed.'}
+    if($Record.actors-isnot[Array]-or$Record.actors.Count-ne2){throw 'Capital out-of-scene record must describe both units.'}
+    for($i=0;$i-lt2;$i++){$a=$Record.actors[$i]
+        Assert-KmcExactProperties $a @('id','inGame','inState','directlyControllable','viewPresent','liveRigValidated') 'capital out-of-scene actor'
+        Assert-KmcBootstrapInventoryString $a.id $roles[2+$i];Assert-KmcChunk7Boolean $a.inGame $false;Assert-KmcChunk7Boolean $a.directlyControllable $false;Assert-KmcChunk7Boolean $a.liveRigValidated $false
+        if($a.inState-isnot[bool]-or$a.viewPresent-isnot[bool]){throw 'Capital out-of-scene actor state must be recorded booleans.'}
+        if($ViewsRequired){Assert-KmcChunk7Boolean $a.viewPresent $true}
+    }
+}
+# Native roster membership of every captured field actor at a capital world row, consistent with the record.
+function Assert-KmcChunk7CapitalRoster($Row,$Request,[AllowNull()][string]$Shape) {
+    $roles=@(Get-KmcChunk7OwnedPairIds $Request);$ids=@($Request.ownedPairs.partyIds)
+    if($Row.roster-isnot[Array]-or$Row.roster.Count-ne$ids.Count){throw 'Capital world roster is missing or incomplete.'}
+    foreach($id in $ids){
+        $r=@($Row.roster|Where-Object id -CEQ $id);if($r.Count-ne1){throw 'Capital world roster omits or repeats an actor.'};$r=$r[0]
+        Assert-KmcExactProperties $r @('id','inParty','character','remote','inGame','inState','directlyControllable','viewPresent') 'capital roster actor'
+        if($id-cin@($roles[2],$roles[3])-and$null-ne$Shape){
+            Assert-KmcChunk7Boolean $r.inGame $false;Assert-KmcChunk7Boolean $r.directlyControllable $false
+            Assert-KmcChunk7Boolean $r.inParty ($Shape-ceq'field');Assert-KmcChunk7Boolean $r.character ($Shape-ceq'field'-and$id-ceq$roles[2]);Assert-KmcChunk7Boolean $r.remote ($Shape-ceq'remote'-and$id-ceq$roles[2])
+        }else{
+            # Every other captured actor keeps the fixture's exact roster contract (in the field, not remote).
+            Assert-KmcChunk7Boolean $r.inParty $true;Assert-KmcChunk7Boolean $r.remote $false
+            if($id-cin@($roles[0],$roles[1])-or$null-eq$Shape){Assert-KmcChunk7Boolean $r.inGame $true}
+        }
+    }
+}
+# Inherited custody normalized from the capital's out-of-scene membership back to the full field contract.
+function ConvertFrom-KmcChunk7CapitalInheritedSnapshot($Request,$Snapshot) {
+    $s=$Snapshot|ConvertTo-Json -Depth 40|ConvertFrom-Json
+    if($null-eq$s.PSObject.Properties['capitalOutOfScene']){return $s}
+    $roles=@(Get-KmcChunk7OwnedPairIds $Request);$record=$s.capitalOutOfScene
+    Assert-KmcChunk7CapitalOutOfSceneRecord $record $Request $false
+    $out=@($roles[2],$roles[3]);$field=$record.shape-ceq'field'
+    $expected=@($s.partyIds|Where-Object{$field-or$_-cnotin$out}|Sort-Object -CaseSensitive)
+    if((ConvertTo-KmcChunk7Canonical @($s.currentPartyIds))-cne(ConvertTo-KmcChunk7Canonical $expected)){throw 'Capital inherited field roster differs beyond the out-of-scene pair.'}
+    if((@($s.currentCharacterIds)-ccontains$roles[2])-ne$field){throw 'Capital inherited character roster differs from its out-of-scene shape.'}
+    if((ConvertTo-KmcChunk7Canonical @($s.remoteCapturedIds))-cne(ConvertTo-KmcChunk7Canonical @($(if($record.shape-ceq'remote'){$roles[2]})))){throw 'Capital remote companions differ from the out-of-scene shape.'}
+    $s.currentPartyIds=@($s.partyIds|Sort-Object -CaseSensitive)
+    $s.currentCharacterIds=@(@($s.currentCharacterIds)+@($(if(-not$field){$roles[2]}))|Sort-Object -CaseSensitive)
+    $s.remoteCapturedIds=@();$s.PSObject.Properties.Remove('capitalOutOfScene');$s
+}
+function Assert-KmcChunk7CapitalInheritedEvidence($Request,$Observations,[bool]$AdmittedInCapital) {
+    Assert-KmcChunk7OwnedPairsDescriptor $Request
+    $admitted=$Observations.inheritedFixture;$cleanup=$Observations.inheritedCleanup
+    if(($null-ne$admitted.PSObject.Properties['capitalOutOfScene'])-ne$AdmittedInCapital-or$null-eq$cleanup.PSObject.Properties['capitalOutOfScene']){throw 'Capital inherited custody lacks or invents its out-of-scene record.'}
+    $a=ConvertFrom-KmcChunk7CapitalInheritedSnapshot $Request $admitted;$b=ConvertFrom-KmcChunk7CapitalInheritedSnapshot $Request $cleanup
+    Assert-KmcChunk7InheritedSnapshot $Request $a 'admitted';Assert-KmcChunk7InheritedSnapshot $Request $b 'cleanup'
+    foreach($key in @('partyIds','currentPartyIds','currentCharacterIds','remoteCapturedIds','arrangement','pairs','identities')){if((ConvertTo-KmcChunk7Canonical $a.$key)-cne(ConvertTo-KmcChunk7Canonical $b.$key)){throw 'Inherited native roster/facts/progression changed across execution and cleanup.'}}
+    if($AdmittedInCapital-and(ConvertTo-KmcChunk7Canonical $admitted.capitalOutOfScene)-cne(ConvertTo-KmcChunk7Canonical $cleanup.capitalOutOfScene)){throw 'Capital out-of-scene custody changed across execution and cleanup.'}
+    Assert-KmcChunk7Boolean $Observations.cleanup.inheritedPetsPreserved $true;Assert-KmcChunk7Boolean $Observations.cleanup.nativeProgressionRequiresExternalWorkingRestoration $false
+}
 # Row 58: cold two-pair load, one declared transfer into the reviewed capital, one Manual written there.
 function Assert-KmcChunk7CapitalArrivalObservation($Request,$Artifact) {
     if($Artifact.status-cne'PASS'){throw 'Capital arrival artifact failed.'}
@@ -122,7 +215,7 @@ function Assert-KmcChunk7CapitalArrivalObservation($Request,$Artifact) {
     $o=$Artifact.observations
     $required=@('checkpoint','cold','sourceWorkingSha256','inheritedManualSha256','processId','snapshots','inputs','movements','nativeProgressionRequiresExternalWorkingRestoration','ordinaryRespecProven','combatDebtProof','nativeSchema','nativeCapacity','inheritedFixture','coldRestoration','loadedArchive','loadedDescriptor','capitalArrival','ownedOutputAdmission','saveRequested','ownedOutputCompletion','nativeWrite','inheritedCleanup','cleanup','elapsedSeconds','nativeShellLifecycle')
     Assert-KmcExactProperties $o $required 'capital arrival observations'
-    Assert-KmcChunk7InheritedEvidence $Request $o
+    Assert-KmcChunk7CapitalInheritedEvidence $Request $o $false
     Assert-KmcBootstrapInventoryString $o.checkpoint $Request.persistenceCase;Assert-KmcChunk7Boolean $o.cold $true
     if($null-ne$o.sourceWorkingSha256-or$o.nativeSchema-ne3-or-not(Test-KmcChunk7NativePairCapacity $o.nativeCapacity)-or-not(Test-KmcExactJsonInteger $o.processId)-or$o.processId-le0){throw 'Capital arrival capability or process identity differs.'}
     Assert-KmcBootstrapInventoryString $o.inheritedManualSha256 $Request.ownedPairs.sourceArchiveSha256
@@ -138,37 +231,16 @@ function Assert-KmcChunk7CapitalArrivalObservation($Request,$Artifact) {
     $roles=Get-KmcChunk7OwnedPairIds $Request;$all=@($roles)
     $main=@($loaded.Pairs|Where-Object{$_.Rider.Id-ceq$roles[0]})[0];$retired=@($loaded.Pairs|Where-Object{$_.Rider.Id-ceq$roles[2]})[0]
     Assert-KmcChunk7CapitalRestorationProbe $o.coldRestoration $Request $all $all
-    $c=$o.capitalArrival;$pin=Get-KmcChunk7CapitalArrivalPin
-    $fields=@('contract','enterPoint','sourceArea','destinationArea','autoSaveMode','destinationIsCapital','mainPairId','retiredPairId','retiredRiderName','retiredMountName','transferRequests','nativeAutosaveRequested','before','dispatchReturned','arrival','restoration','umm','after','loadingTicks','suspensionObserved')
+    $c=$o.capitalArrival
+    $fields=@('contract','enterPoint','sourceArea','destinationArea','autoSaveMode','destinationIsCapital','mainPairId','retiredPairId','retiredRiderName','retiredMountName','transferRequests','nativeAutosaveRequested','before','dispatchReturned','arrival','restoration','umm','after','loadingTicks','suspensionObserved','retiredOutOfScene')
     if($null-ne$c.PSObject.Properties['awaitingNativeReady']){$fields+='awaitingNativeReady'}
     Assert-KmcExactProperties $c $fields 'capital arrival row'
-    foreach($pair in @(@('contract','chunk7-capital-arrival-v1'),@('enterPoint',$pin.enterPoint),@('destinationArea',$pin.area),@('sourceArea',$Request.persistenceLoad.area),@('autoSaveMode','None'),@('mainPairId',$main.PairId),@('retiredPairId',$retired.PairId))){Assert-KmcBootstrapInventoryString $c.($pair[0]) $pair[1]}
-    foreach($key in @('destinationIsCapital','dispatchReturned','suspensionObserved')){Assert-KmcChunk7Boolean $c.$key $true};Assert-KmcChunk7Boolean $c.nativeAutosaveRequested $false
-    Assert-KmcOrdinaryInteger $c.transferRequests 1 1;Assert-KmcOrdinaryInteger $c.loadingTicks 1 ([int]::MaxValue)
-    foreach($key in @('retiredRiderName','retiredMountName')){if($c.$key-isnot[string]-or[string]::IsNullOrWhiteSpace($c.$key)-or$c.$key.Length-gt256-or$c.$key-match'[\x00-\x1f\x7f]'){throw 'Retired pair names must be exact bounded scalars.'}}
-    # The UMM summary names the dismounted pair and the exact restored count.
-    Assert-KmcBootstrapInventoryString $c.umm (Get-KmcChunk7CapitalFeedback $c.retiredRiderName $c.retiredMountName 1 2)
-    # The arrival observer saw no new native preparation, round or debt restore after the cold start.
-    Assert-KmcChunk7CapitalRestorationProbe $c.restoration $Request $all $all
-    if((ConvertTo-KmcChunk7Canonical $c.restoration.events)-cne(ConvertTo-KmcChunk7Canonical $o.coldRestoration.events)){throw 'Capital arrival recorded native restoration events beyond the cold start.'}
-    $before=$c.before;Assert-KmcChunk7CapitalWorldRow $before 'before-native-transfer' $false;Assert-KmcBootstrapInventoryString $before.area $Request.persistenceLoad.area
-    foreach($key in @('suspensions','resumes','retired','failedPairs','refusedTransfers')){Assert-KmcOrdinaryInteger $before.$key 0 0};Assert-KmcOrdinaryInteger $before.activeOwners 2 2
-    $after=$c.after;Assert-KmcChunk7CapitalWorldRow $after 'after-native-transfer' $true
-    foreach($pair in @(@('suspensions',1),@('resumes',1),@('retired',1),@('failedPairs',0),@('refusedTransfers',0),@('activeOwners',1))){Assert-KmcOrdinaryInteger $after.($pair[0]) $pair[1] $pair[1]}
-    Assert-KmcChunk7Boolean $after.saveAllowed $true;Assert-KmcBootstrapInventoryString $after.feedback $c.umm
-    Assert-KmcChunk7CapitalOneOwner $after $main
+    Assert-KmcChunk7CapitalArrivalShape $Request $c $loaded $o.coldRestoration.events
+    # Forensic records added after batch196 r58: the exact out-of-scene custody and every actor's roster membership.
+    Assert-KmcChunk7CapitalOutOfSceneRecord $c.retiredOutOfScene $Request $true
+    Assert-KmcChunk7CapitalRoster $c.before $Request $null;Assert-KmcChunk7CapitalRoster $c.after $Request $c.retiredOutOfScene.shape
+    if((ConvertTo-KmcChunk7Canonical $o.inheritedCleanup.capitalOutOfScene)-cne(ConvertTo-KmcChunk7Canonical $c.retiredOutOfScene)){throw 'Capital out-of-scene custody changed between arrival and cleanup.'}
     $mainSlots=@($loaded.Slots|Where-Object ActorId -CEQ $roles[0])
-    if((ConvertTo-KmcChunk7Canonical @($after.slots|Sort-Object Index))-cne(ConvertTo-KmcChunk7Canonical @($mainSlots|Sort-Object Index))){throw 'Capital arrival controls are not exactly the main pair bindings.'}
-    foreach($view in $after.views){
-        $baseline=@($before.views|Where-Object id -CEQ $view.id)
-        if($baseline.Count-ne1-or$view.viewId-ne$baseline[0].viewId-or$view.viewId-ne$view.baselineViewId-or$view.viewId-eq0){throw 'Capital arrival replaced an original native view.'}
-        $isMain=$view.id-cin@($roles[0],$roles[1])
-        Assert-KmcChunk7Boolean $view.directlyControllable $isMain
-        if($view.id-ceq$roles[0]){if($view.riderAgents-ne1-or$view.agentOverride-eq0){throw 'Main rider lacks its exact restored movement authority.'}}
-        elseif($view.riderAgents-ne0-or$view.agentOverride-ne0){throw 'A non-rider or retired actor retains movement authority.'}
-    }
-    $mainRider=@($before.views|Where-Object id -CEQ $roles[0])[0];$mainRiderAfter=@($after.views|Where-Object id -CEQ $roles[0])[0]
-    if($mainRiderAfter.agentOverride-eq$mainRider.agentOverride){throw 'Capital arrival reused the prior movement authority.'}
     $settled=Get-KmcChunk7CapitalSnapshot $o 'capital-arrival-settled';Assert-KmcChunk7CapitalOneOwner $settled $main
     # Every actor's native debt across the transfer, against the cold-loaded archive.
     Assert-KmcChunk7CapitalSnapshotDebt $settled $loaded
@@ -201,7 +273,7 @@ function Assert-KmcChunk7CapitalColdObservation($Request,$Artifact) {
     $o=$Artifact.observations
     $required=@('checkpoint','cold','sourceWorkingSha256','inheritedManualSha256','processId','snapshots','inputs','movements','nativeProgressionRequiresExternalWorkingRestoration','ordinaryRespecProven','combatDebtProof','nativeSchema','nativeCapacity','inheritedFixture','coldRestoration','loadedArchive','loadedDescriptor','capitalColdBoundary','capitalCold','inheritedCleanup','cleanup','elapsedSeconds','nativeShellLifecycle')
     Assert-KmcExactProperties $o $required 'capital cold observations'
-    Assert-KmcChunk7InheritedEvidence $Request $o
+    Assert-KmcChunk7CapitalInheritedEvidence $Request $o $true
     Assert-KmcBootstrapInventoryString $o.checkpoint $Request.persistenceCase;Assert-KmcChunk7Boolean $o.cold $true
     if($null-ne$o.sourceWorkingSha256-or$o.nativeSchema-ne3-or-not(Test-KmcChunk7NativePairCapacity $o.nativeCapacity)-or-not(Test-KmcExactJsonInteger $o.processId)-or$o.processId-le0){throw 'Capital cold capability or process identity differs.'}
     Assert-KmcBootstrapInventoryString $o.inheritedManualSha256 $Request.ownedPairs.sourceArchiveSha256
@@ -233,7 +305,10 @@ function Assert-KmcChunk7CapitalColdObservation($Request,$Artifact) {
     $mainSlots=@($loaded.Slots)
     if($snapshot.semanticRestores-ne2-or$snapshot.presentationRestores-ne1-or$snapshot.nativePostLoads-ne2-or$snapshot.snapshots-ne0-or$snapshot.nativeCastRequests-ne0-or
        $snapshot.archivePhase-cne'all-pair-presentation-restored'-or$snapshot.controls.DuplicateFactCount-ne0-or$snapshot.controls.ManagedHotbarSlotCount-ne2){throw 'Capital cold restore replayed input or restored another actor.'}
-    Assert-KmcExactProperties $c @('contract','producerRunId','producerArtifactSha256','mainPairId','mainGeneration','unmountedRiderId','unmountedMountId','registryOwners','activeOwners','world') 'capital cold row'
+    Assert-KmcExactProperties $c @('contract','producerRunId','producerArtifactSha256','mainPairId','mainGeneration','unmountedRiderId','unmountedMountId','registryOwners','activeOwners','outOfScene','world') 'capital cold row'
+    Assert-KmcChunk7CapitalOutOfSceneRecord $c.outOfScene $Request $false
+    if((ConvertTo-KmcChunk7Canonical $o.inheritedFixture.capitalOutOfScene)-cne(ConvertTo-KmcChunk7Canonical $c.outOfScene)){throw 'Capital cold out-of-scene custody differs from its bind.'}
+    Assert-KmcChunk7CapitalRoster $c.world $Request $c.outOfScene.shape
     foreach($pair in @(@('contract','chunk7-capital-arrival-cold-v1'),@('producerRunId',$Request.ownedPairs.checkpointSourceRunId),@('producerArtifactSha256',$Request.ownedPairs.checkpointSourceArtifactSha256),@('mainPairId',$main.PairId),@('unmountedRiderId',$roles[2]),@('unmountedMountId',$roles[3]))){Assert-KmcBootstrapInventoryString $c.($pair[0]) $pair[1]}
     if($c.mainGeneration-ne$main.Generation){throw 'Capital cold owner generation differs.'}
     Assert-KmcOrdinaryInteger $c.registryOwners 1 1;Assert-KmcOrdinaryInteger $c.activeOwners 1 1
@@ -242,8 +317,10 @@ function Assert-KmcChunk7CapitalColdObservation($Request,$Artifact) {
     Assert-KmcChunk7Boolean $w.saveAllowed $true;Assert-KmcChunk7CapitalOneOwner $w $main
     if((ConvertTo-KmcChunk7Canonical @($w.slots|Sort-Object Index))-cne(ConvertTo-KmcChunk7Canonical @($mainSlots|Sort-Object Index))){throw 'Capital cold controls are not exactly the main pair bindings.'}
     foreach($view in $w.views){
-        if($view.viewId-eq0){throw 'Capital cold actor has no live view.'}
-        Assert-KmcChunk7Boolean $view.directlyControllable ($view.id-cin@($roles[0],$roles[1]))
+        $isMain=$view.id-cin@($roles[0],$roles[1]);Assert-KmcChunk7Boolean $view.directlyControllable $isMain;Assert-KmcChunk7Boolean $view.inGame $isMain
+        # An out-of-scene unit may have no spawned view; its recorded presence must agree with the custody record.
+        $present=if($isMain){$true}else{[bool]@($c.outOfScene.actors|Where-Object id -CEQ $view.id)[0].viewPresent}
+        if(($view.viewId-ne0)-ne$present){throw 'Capital cold actor view presence differs from its recorded custody.'}
         if($view.id-ceq$roles[0]){if($view.riderAgents-ne1-or$view.agentOverride-eq0){throw 'Main rider lacks restored movement authority.'}}
         elseif($view.riderAgents-ne0-or$view.agentOverride-ne0){throw 'The unmounted pair or the main mount retains movement authority.'}
     }

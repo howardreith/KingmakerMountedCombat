@@ -85,13 +85,15 @@ namespace KingmakerMountedCombat.Diagnostics
                 "Exact registered ordinary Horse contracts are unavailable.");
             ReadSource();
             var party = Chunk7NativeFieldRoster.Capture(game.Player);
+            // Row 59 loads in the capital: add back the companion pair native capital mode keeps out of the scene.
+            if (selection.IsCapitalArrivalCold(request.PersistenceCase) && game.CurrentlyLoadedArea.IsCapital) party = BindCapitalOutOfScene(party);
             var rows = sourceWorld["party"] as JArray;
             Require(rows != null && rows.Count == selection.PartyIds.Length && party.Length == rows.Count &&
                 party.All(actor => actor != null) && party.Select(actor => actor.UniqueId).Distinct(StringComparer.Ordinal).Count() == party.Length &&
                 party.Select(actor => actor.UniqueId).OrderBy(id => id, StringComparer.Ordinal).SequenceEqual(selection.PartyIds.OrderBy(id => id, StringComparer.Ordinal)) &&
                 party.All(actor => rows.Count(row => (string)row["id"] == actor.UniqueId && (string)row["blueprint"] == actor.Blueprint?.AssetGuid) == 1),
                 "Native field roster differs from the complete qualified cumulative Manual roster.");
-            Require(party.All(actor => actor.IsInState && actor.IsInGame && actor.View?.AgentASP != null && actor.Commands != null &&
+            Require(party.All(actor => IsCapitalOutOfScene(actor) || actor.IsInState && actor.IsInGame && actor.View?.AgentASP != null && actor.Commands != null &&
                 (combatCold || !actor.IsInCombat && actor.Commands.Empty)), "An inherited field actor is not ready in its exact native world.");
             Require(game.Player.MainCharacter.Value.UniqueId == (string)sourceWorld["mainActorId"], "Inherited fixture main actor changed.");
             Party = party; Actors = (selection.IsFourthHorse
@@ -110,14 +112,16 @@ namespace KingmakerMountedCombat.Diagnostics
                     rider.IsDirectlyControllable == ReferenceEquals(rider, game.Player.MainCharacter.Value) : rider.IsDirectlyControllable) &&
                     !rider.Descriptor.IsPet && mount.Blueprint == horses.HorseUnit &&
                     ReferenceEquals(rider.Descriptor.Pet, mount) && ReferenceEquals(mount.Descriptor.Master.Value, rider) &&
-                    game.Player.PartyCharacters.Count(value => ReferenceEquals(value.Value, rider)) == 1 &&
-                    !game.Player.RemoteCompanions.Any(value => ReferenceEquals(value.Value, rider)), "An inherited Horse is not the exact reciprocal field companion.");
+                    (IsCapitalOutOfScene(rider) || game.Player.PartyCharacters.Count(value => ReferenceEquals(value.Value, rider)) == 1 &&
+                    !game.Player.RemoteCompanions.Any(value => ReferenceEquals(value.Value, rider))), "An inherited Horse is not the exact reciprocal field companion.");
                 var fact = rider.Descriptor.GetFact(horses.HorseFeature) as Feature; var rank = rider.Descriptor.GetFact(horses.LevelRank);
                 Require(fact != null && rank != null && fact.Source != null && fact.Source.AssetGuid == (string)row["sourceGuid"] &&
                     horses.HorseFeature.AssetGuid == (string)row["featureGuid"] && rank.GetRank() == (int)row["rank"],
                     "Inherited Horse feature/source/rank differs from the completed native acquisition.");
                 var profile = SupportedMountedProfiles.Resolve(rider, mount);
-                Require(profile != null && MountedRiderPoseAdapter.TryValidateSupportedSurface(rider.View, profile.RiderPoseProfile, out var poseError),
+                // An out-of-scene rider has no live rig to validate; its profile still resolves and the
+                // skip is recorded in the out-of-scene custody record, never silent.
+                Require(profile != null && (IsCapitalOutOfScene(rider) || MountedRiderPoseAdapter.TryValidateSupportedSurface(rider.View, profile.RiderPoseProfile, out var poseError)),
                     "Inherited rider body has no currently declared production profile or supported live rig.");
                 facts[index] = fact; ranks[index] = rank;
             }
@@ -582,7 +586,8 @@ namespace KingmakerMountedCombat.Diagnostics
             RequireSixPairRemote();
             var currentParty = Chunk7NativeFieldRoster.Capture(game.Player);
             var currentCharacters = game.Player.PartyCharacters.Select(value => value.Value).ToArray();
-            Require(currentParty.Length == Party.Length && Party.All(actor => currentParty.Count(value => ReferenceEquals(value, actor)) == 1) &&
+            if (CapitalOutOfSceneActive) RequireCapitalRoster(currentParty, currentCharacters);
+            else Require(currentParty.Length == Party.Length && Party.All(actor => currentParty.Count(value => ReferenceEquals(value, actor)) == 1) &&
                 currentCharacters.Length == partyCharacters.Length && partyCharacters.All(actor => currentCharacters.Count(value => ReferenceEquals(value, actor)) == 1) &&
                 !game.Player.RemoteCompanions.Any(value => Party.Any(actor => ReferenceEquals(value.Value, actor))),
                 "Inherited complete native field roster changed; captured actors cannot be silently removed, replaced or moved remote.");
@@ -643,6 +648,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     ["sourceGuid"] = ((Feature)facts[index]).Source.AssetGuid, ["rank"] = Actors[index * 2].Descriptor.GetFact(horses.LevelRank).GetRank(),
                     ["profileId"] = SupportedMountedProfiles.Resolve(Actors[index * 2], Actors[index * 2 + 1])?.Id })),
                 ["identities"] = new JObject { ["capacity"] = identities.Capacity, ["ids"] = new JArray(identities.Ids), ["faults"] = identities.FaultCount } };
+            if (CapitalOutOfSceneActive) captured["capitalOutOfScene"] = CaptureCapitalOutOfScene();
             if (selection.SixPairLineage)
             {
                 captured["remote"] = CaptureSixPairRemote();

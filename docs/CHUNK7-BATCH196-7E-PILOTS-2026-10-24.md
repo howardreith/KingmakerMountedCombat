@@ -93,6 +93,36 @@ Open for review (not changed here): whether the capital arrival may admit a hire
 Oleg's takes out of game (an exact "moved remote by the capital" classification) and how row 59 then
 treats it. Assumptions 2–7 were not reached.
 
+#### Offline follow-up: the out-of-scene rule (not natively run)
+
+The fixture now admits exactly the retired pair (inherited pair B, the companion and its reciprocal pet)
+as out of the scene, only while the loaded area is a capital, and records it
+(`Chunk7OwnedPairFixture.CapitalRoster.cs`). Both units must be `IsInGame` false and not directly
+controllable; the main character stays `Actors[0]`. The pair's native roster membership was not recorded by
+b196, so the rule accepts one closed, recorded shape: **field** (still in Party/PartyCharacters, not remote),
+**remote** (out of the roster, the rider is a remote companion) or **absent** (out of the roster, not
+remote); a pair both in the field and remote, or split, is refused. Every other captured actor keeps the
+exact roster contract, and inherited fact, rank, progression, money and receipt custody are unchanged.
+
+- Row 58 records `capitalArrival.retiredOutOfScene` (ids, shape, per-actor inGame/inState/control/view,
+  `liveRigValidated: false`) and a per-actor `roster` row on every capital world row. Retirement keeps
+  every observable check: not controllable, reciprocal, finite positions, original views (row 58 arrives
+  with them), no parenting, no override, no rider agent. The main pair must be in the scene.
+- Row 59 binds the companion pair by its selected ids from native state, requires it out of the scene,
+  records `capitalCold.outOfScene` and skips readiness, PartyCharacters/remote and pose checks only for those
+  two units (explicit in the bind). A view that a capital cold load never spawned is recorded
+  (`viewPresent: false`) and only its view checks are not applied.
+- The readers require the exact observed shape: B `inGame: false`, A `inGame: true`, everything in game before the
+  transfer, the record equal across arrival/bind and cleanup, view presence equal to the record, and roster
+  rows consistent with the shape. `Assert-KmcChunk7CapitalArrivalShape` passes the b196 r58 arrival evidence.
+
+Assumption re-examination against b196 r58: 1 falsified (now the out-of-scene rule); 3 (exactly the main
+rider's two slots), 4 (exact UMM line, Default mode at adoption), 6 (main-pair movement authority shape) and
+7 (retirement re-validation) confirmed; 2 (cleanup selection) and 5 (row 59 control rule) unobserved.
+Open: the pair's roster shape (the next pilot records it), whether other story companions also leave the
+scene in a capital (they stay under the exact roster rule; the roster rows will show it), and whether a
+capital cold load spawns the out-of-scene views.
+
 ### Row 57: null paired identities are counted as present (diagnostic defect)
 
 The pilot reached the new order-derived check. Native next-round order put the healthy rider first and

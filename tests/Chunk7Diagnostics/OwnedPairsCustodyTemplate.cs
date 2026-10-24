@@ -53,6 +53,10 @@ namespace OwnedPairsCustodyCheck {
    Test("third inherited Horse replacement refuses",()=>{var f=new Fixture(true);f.Actors[4].Descriptor.Pet=Fixture.Actor("replacement");Refuses(f.Verify);});
    Test("third inherited Horse rank drift refuses",()=>{var f=new Fixture(true);f.Actors[4].Descriptor.GetFact(f.horses.LevelRank).Rank++;Refuses(f.Verify);});
    Test("second unrelated eight-actor progression drift refuses",()=>{var f=new Fixture(true);f.Party[7].Descriptor.Progression.Experience++;Refuses(f.Verify);});
+   Test("inactive capital rule keeps the exact roster refusal",()=>{var f=new Fixture();f.game.Player.Party.RemoveAt(1);Refuses(f.Verify);Assert(f.CapitalRosterCalls==0);});
+   Test("active capital rule replaces only the exact roster predicate",()=>{var f=new Fixture();f.CapitalActive=true;f.game.Player.Party.RemoveAt(1);f.game.Player.PartyCharacters.RemoveAt(1);f.Verify();Assert(f.CapitalRosterCalls==1);});
+   Test("active capital rule refusal propagates",()=>{var f=new Fixture();f.CapitalActive=true;f.CapitalRefuse=true;Refuses(f.Verify);Assert(f.CapitalRosterCalls==1);});
+   Test("active capital rule keeps inherited fact custody",()=>{var f=new Fixture();f.CapitalActive=true;f.Actors[2].Descriptor.GetFact(f.horses.LevelRank).Rank++;Refuses(f.Verify);Assert(f.CapitalRosterCalls==1);});
    Console.WriteLine("RESULT: "+pass+" PASS / "+fail+" FAIL"); return fail==0?0:1;
   }
  }
@@ -82,6 +86,11 @@ namespace OwnedPairsCustodyCheck {
   // This legacy facade selects only two/three inherited pairs. The six-case
   // actual decoder/remote method has its separate pinned-input regression.
   private void RequireSixPairRemote() { }
+  // Rows 58-59 capital out-of-scene rule: this facade records only the dispatch. The actual capital roster
+  // contract is compiled by the product build and its outputs are pinned by the capital evidence readers.
+  internal bool CapitalActive; internal int CapitalRosterCalls; internal bool CapitalRefuse;
+  private bool CapitalOutOfSceneActive => CapitalActive;
+  private void RequireCapitalRoster(Unit[] currentParty, Unit[] currentCharacters) { CapitalRosterCalls++; Require(!CapitalRefuse && currentParty!=null && currentCharacters!=null, "capital roster changed"); }
   private Selection selection=new Selection(); private int InheritedPairCount=>selection.IsFourthHorse?3:2; internal string CurrentHash="exact";
   internal Fixture(bool fourth=false) {
    game=new Game(); Game.Instance=game;
