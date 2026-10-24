@@ -181,6 +181,12 @@ namespace KingmakerMountedCombat.Diagnostics
         // Only the generic acquired-ancestry cold consumer admits the capital pair of checkpoints.
         internal bool IsCapitalArrivalProducer(string checkpoint) => Case == "persistence-load" && checkpoint == CapitalArrivalCheckpoint;
         internal bool IsCapitalArrivalCold(string checkpoint) => Case == "persistence-load" && checkpoint == CapitalArrivalColdCheckpoint;
+        // The exact area the staged generic two-owner acquired Manual must record as written in. Every case
+        // loads in that area except the owned area autosave pair (its original Manual area) and row 59, which
+        // loads row 58's Manual in the capital: its lineage area is the selection's SourceArea, which the
+        // runner binds to row 58's recorded capital-arrival source area and the receipt's own write area.
+        internal string AcquiredLineageArea(string checkpoint, string loadArea) =>
+            checkpoint == "multi-area-autosave" || IsCapitalArrivalCold(checkpoint) ? SourceArea : loadArea;
         public string Case { get; set; }
         public string SourceRunId { get; set; }
         public string SourceArtifactSha256 { get; set; }
@@ -375,8 +381,12 @@ namespace KingmakerMountedCombat.Diagnostics
                 !IsCapitalArrivalProducer(checkpoint) && !IsCapitalArrivalCold(checkpoint) && (Cold || !SupportedSaveBoundary(checkpoint) && !OwnedSchema1Source(checkpoint)) : checkpoint != null)
                 errors.Add("Owned-pair cold persistence requires a core checkpoint; the two save boundaries are source-only.");
             var area = checkpoint == "multi-area-autosave";
-            if (area ? !Regex.IsMatch(SourceArea ?? "", "^[a-f0-9]{32}$") || SourceArea == new string('0', 32) : SourceArea != null)
+            if (area ? !Regex.IsMatch(SourceArea ?? "", "^[a-f0-9]{32}$") || SourceArea == new string('0', 32) : SourceArea != null && !IsCapitalArrivalCold(checkpoint))
                 errors.Add("Only the owned area checkpoint requires its exact original acquired Manual area.");
+            // Row 59 loads in the capital; its acquired lineage Manual was written outside it, in exactly SourceArea.
+            if (IsCapitalArrivalCold(checkpoint) && (!Regex.IsMatch(SourceArea ?? "", "^[a-f0-9]{32}$") || SourceArea == new string('0', 32) ||
+                SourceArea == CapitalArrivalArea))
+                errors.Add("The capital cold consumer requires its exact non-capital acquired lineage Manual area.");
             if (Cold ? !Run(CheckpointSourceRunId) || CheckpointSourceRunId == runId || CheckpointSourceRunId == SourceRunId ||
                 !Hash(CheckpointSourceArtifactSha256) : CheckpointSourceRunId != null || CheckpointSourceArtifactSha256 != null)
                 errors.Add("Only cold persistence consumes an exact separate successful owned-pair source checkpoint.");

@@ -146,11 +146,13 @@ function New-CapitalSource([bool]$ColdConsumer){
  $r58=[ordered]@{scenario='chunk7-owned-two-pair-campaign';runId='synthetic-capital-arrival';evidenceRoot='';fixture=$c.fixture;ownedPairs=(Clone-AreaSource $c.selection);persistenceCase=$c.persistenceCase;persistenceLoad=$v58.descriptor;persistenceAreaTarget=(Clone-AreaSource $c.target)}
  foreach($key in @('branch','commit','productVersion','dllSha256','dllMvid','transactionToken')){$r58[$key]=$c.candidate.$key};$r58=[pscustomobject]$r58
  $n=[int]([regex]::Match($v58.descriptor.fileName,'^Manual_([0-9]+)_').Groups[1].Value)+1;$leaf='Manual_'+$n+'_KMC_C7_CAPITAL.zks'
- $a58=[pscustomobject]@{observations=[pscustomobject]@{ownedOutputAdmission=[pscustomobject]@{number=$n;leaf=$leaf};nativeWrite=[pscustomobject]@{path='';nativeName='KMC_C7_CAPITAL';nativeType='Manual';sha256=('7'*64);length=2345;archive=[pscustomobject]@{AreaId=$capitalPin.area}}}}
+ $a58=[pscustomobject]@{observations=[pscustomobject]@{ownedOutputAdmission=[pscustomobject]@{number=$n;leaf=$leaf};capitalArrival=[pscustomobject]@{sourceArea=$v58.descriptor.area};nativeWrite=[pscustomobject]@{path='';nativeName='KMC_C7_CAPITAL';nativeType='Manual';sha256=('7'*64);length=2345;archive=[pscustomobject]@{AreaId=$capitalPin.area}}}}
  $set58=Add-Set $r58 $a58 'chunk7-persistence-evidence.json' ('3'*64) $v58.descriptor.sha256 $c.persistenceCase
  $a58.observations.nativeWrite.path=Join-Path (Join-Path $set58.profile 'Saved Games') $leaf;$script:hashes[$a58.observations.nativeWrite.path]='7'*64
  [void](Add-AreaProfile $set58)
  $s59=Clone-AreaSource $c.selection;$s59.checkpointSourceRunId=$r58.runId;$s59.checkpointSourceArtifactSha256='3'*64;$s59.expectedNativeWriteCount=0
+ # Batch198 r59: the lineage Manual area is pinned as the area row 58 departed from.
+ $s59|Add-Member sourceArea $v58.descriptor.area
  $c|Add-Member capital ([pscustomobject]@{set=$set58;selection=$s59;leaf=$leaf});return $c
 }
 function Qualify-Capital($C){Get-KmcChunk7OwnedPairsSource $C.capital.selection 'multi-exploration-capital-arrival-cold-manual' $C.fixture $C.candidate}
@@ -177,6 +179,17 @@ $capitalColdMutations=[ordered]@{
  'consumer write'={param($c)$c.capital.selection.expectedNativeWriteCount=1}
 }
 foreach($m in $capitalColdMutations.GetEnumerator()){Check ('capital cold source refuses '+$m.Key){$c=New-CapitalSource $true;&$m.Value $c;$t=if($null-ne$c.PSObject.Properties['coldTarget']){$c.coldTarget}else{$null};[void](Get-KmcChunk7OwnedPairsSource $c.capital.selection 'multi-exploration-capital-arrival-cold-manual' $c.fixture $c.candidate $t)} $true}
+# Batch198 r59: the consumer's lineage area pin is bound to row 58's departure and the staged receipt's own areas.
+$capitalLineageMutations=[ordered]@{
+ 'consumer without lineage area'=@({param($c)$c.capital.selection.PSObject.Properties.Remove('sourceArea')},'inherited native pair selection')
+ 'consumer capital lineage area'=@({param($c)$c.capital.selection.sourceArea=$capitalPin.area},'non-capital acquired lineage')
+ 'consumer other lineage area'=@({param($c)$c.capital.selection.sourceArea='a'*32},'not exactly the producer departure area')
+ 'producer recorded another departure area'=@({param($c)$c.capital.set.artifact.observations.capitalArrival.sourceArea='a'*32},'not exactly the producer departure area')
+ 'producer omits its departure area'=@({param($c)$c.capital.set.artifact.observations.PSObject.Properties.Remove('capitalArrival')},'not exactly the producer departure area')
+ 'lineage receipt field in another area'=@({param($c)$c.parent.artifact.observations.fieldWorld.area='a'*32},'not written in its pinned area')
+ 'lineage receipt changed after the producer route'=@({param($c)$script:hashes[(Join-Path $c.parent.root 'chunk7-acquired-manual-evidence.json')]='0'*64},'')
+}
+foreach($m in $capitalLineageMutations.GetEnumerator()){Check ('capital cold source refuses '+$m.Key){$c=New-CapitalSource $true;&$m.Value[0] $c;[void](Qualify-Capital $c)} $true $m.Value[1]}
 foreach($m in $areaBad.GetEnumerator()){Check $m.Key {$c=New-AreaSource $true;&$m.Value $c;[void](Get-KmcChunk7OwnedPairsSource $c.selection $c.persistenceCase $c.fixture $c.candidate $c.areaTarget)} $true}
 # Owner-seed kind: the owned qualifier delegates to the established cold owner-seed
 # source (registry/master/intake/header gate, substituted here) with an exact cold

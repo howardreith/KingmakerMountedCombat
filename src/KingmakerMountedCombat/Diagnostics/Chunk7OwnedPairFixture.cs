@@ -161,7 +161,8 @@ namespace KingmakerMountedCombat.Diagnostics
             if (Chunk7OwnedPairsSelection.IsManticoreManualCold(request.PersistenceCase) || selection.IsManticoreReturnArea)
             { ReadManticoreManualSource(artifact); return; }
             if (selection.OwnerSeedDerivedLineage) { ReadOwnerSeedDerivedSource(artifact); return; }
-            var originalArea = request.PersistenceCase == "multi-area-autosave" ? selection.SourceArea : request.PersistenceLoad.Area;
+            // Row 59 loads in the capital; its lineage Manual was written in the pinned non-capital SourceArea.
+            var originalArea = selection.AcquiredLineageArea(request.PersistenceCase, request.PersistenceLoad.Area);
             Require((string)artifact["scenario"] == Chunk7AcquiredManualSelection.Scenario && (string)artifact["evidenceKind"] == Chunk7AcquiredManualScenario.EvidenceKind &&
                 (string)artifact["runId"] == selection.SourceRunId && (string)artifact["status"] == "PASS" && artifact["errors"] is JArray errors && errors.Count == 0 &&
                 (string)artifact["commit"] == request.Commit && (string)artifact["dllSha256"] == request.DllSha256 && (string)artifact["dllMvid"] == request.DllMvid &&

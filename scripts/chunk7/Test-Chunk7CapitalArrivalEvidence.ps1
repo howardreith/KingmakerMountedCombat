@@ -84,6 +84,8 @@ function New-Producer{
 function New-Consumer($Producer){
  $p=$Producer.artifact.observations;$w=$p.nativeWrite
  $r=Copy-Value $base.request;$r.persistenceCase='multi-exploration-capital-arrival-cold-manual';$r.ownedPairs.checkpointSourceRunId='synthetic-capital-arrival';$r.ownedPairs.checkpointSourceArtifactSha256='3'*64
+ # Batch198 r59: the lineage Manual's area is pinned as the area row 58 departed from.
+ $r.ownedPairs|Add-Member sourceArea ([string]$p.capitalArrival.sourceArea)
  $r.persistenceLoad=[pscustomobject][ordered]@{internalName='KMC_C7_CAPITAL';fileName=$p.ownedOutputAdmission.leaf;sha256=$w.sha256;length=$w.length;lastWriteTimeUtcTicks=2;gameId=$base.request.persistenceLoad.gameId;gameName=$base.request.persistenceLoad.gameName;area=$capital}
  $a=Copy-Value $base.artifact;$s=$base.artifact.observations
  $probe=Copy-Value $s.coldRestoration;$probe.events=@($probe.events|Where-Object{$_.actorId-cin@($roles[0],$roles[1])})
@@ -205,6 +207,19 @@ $crossMutations=[ordered]@{
  'producer main pair differs'={param($p,$c)$p.observations.capitalArrival.mainPairId=$retiredPair.PairId}
 }
 foreach($m in $crossMutations.GetEnumerator()){Check ('capital cross-process proof refuses '+$m.Key) {$p=New-Producer;$c=New-Consumer $p;$a=Producer-Artifact $p;&$m.Value $a $c;Assert-KmcChunk7CapitalColdSource $c.request $a $c.artifact} $true}
+# Batch198 r59: the consumer pins its acquired lineage Manual area exactly (never the capital load area).
+Check 'capital consumer pins the producer departure area as its lineage area' {$p=New-Producer;$c=New-Consumer $p;if($c.request.ownedPairs.sourceArea-cne$p.request.persistenceLoad.area-or$c.request.ownedPairs.sourceArea-ceq$c.request.persistenceLoad.area){throw 'Synthetic lineage area is not the producer departure area.'};Assert-KmcChunk7OwnedPairsSelection $c.request}
+$lineageAreaMutations=[ordered]@{
+ 'no lineage area'=@({param($s)$s.PSObject.Properties.Remove('sourceArea')},'')
+ 'capital lineage area'=@({param($s)$s.sourceArea=$capital},'non-capital acquired lineage')
+ 'zero lineage area'=@({param($s)$s.sourceArea='0'*32},'non-capital acquired lineage')
+ 'malformed lineage area'=@({param($s)$s.sourceArea='B10E86516B6437D45A629931C30936FE'},'non-capital acquired lineage')
+ 'non-string lineage area'=@({param($s)$s.sourceArea=@('b10e86516b6437d45a629931c30936fe')},'non-capital acquired lineage')
+}
+foreach($m in $lineageAreaMutations.GetEnumerator()){Check ('capital consumer selection refuses '+$m.Key) {$c=New-Consumer (New-Producer);&$m.Value[0] $c.request.ownedPairs;Assert-KmcChunk7OwnedPairsSelection $c.request} $true $m.Value[1]}
+Check 'capital cross-process proof refuses a lineage area other than the producer departure area' {$p=New-Producer;$c=New-Consumer $p;$c.request.ownedPairs.sourceArea='c'*32;if($c.request.ownedPairs.sourceArea-ceq$p.request.persistenceLoad.area){throw 'Mutation is not distinct.'};Assert-KmcChunk7CapitalColdSource $c.request (Producer-Artifact $p) $c.artifact} $true 'producer departure area'
+Check 'capital producer selection still refuses a lineage area' {$p=New-Producer;$p.request.ownedPairs|Add-Member sourceArea $p.request.persistenceLoad.area;Assert-KmcChunk7OwnedPairsSelection $p.request} $true
+Check 'ordinary cold consumer selection still refuses a lineage area' {$q=Copy-Value $base.request;$q.ownedPairs|Add-Member sourceArea $q.persistenceLoad.area;Assert-KmcChunk7OwnedPairsSelection $q} $true
 
 # Review N3/N4: the capital-specific input check is reachable, and both readers check per-actor debt
 # and compare the archive only with independent references.
@@ -414,6 +429,25 @@ return 0;}}}
   if(-not$got.StartsWith($case.Value[1],[StringComparison]::Ordinal)){throw ('Compiled rule returned '+$got)}
  }}
 }else{Check 'batch197 r58 native evidence is present' {throw 'Batch197 r58 evidence is absent.'}}
+# Batch198 r59 failed closed in ReadSource: the staged c5 receipt records Spider Cave while row 59 loads in the
+# capital. The real shapes: the r59 request with its lineage area pinned from the r58 record passes selection,
+# and that pin, not the capital load area, is exactly the staged receipt's write and field area.
+$b198=Join-Path (Get-KmcLabRoot) 'runtime-evidence'
+$b198c5=Join-Path $b198 '20261024-c7e-b198-c5-acquired-postfield/chunk7-acquired-manual-evidence.json'
+$b198r58=Join-Path $b198 '20261024-c7e-b198-r58-capital-arrival/chunk7-persistence-evidence.json'
+$b198r59=Join-Path $b198 '20261024-c7e-b198-r59-capital-cold/runtime-request.json'
+if((Test-Path -LiteralPath $b198c5)-and(Test-Path -LiteralPath $b198r58)-and(Test-Path -LiteralPath $b198r59)){
+ Check 'batch198 r59 real shapes: the r58-pinned lineage area admits the staged c5 receipt area exactly' {
+  $c5=Read-KmcJson $b198c5;$a58=Read-KmcJson $b198r58;$q59=Read-KmcJson $b198r59
+  if((Get-KmcSha256 $b198c5)-cne$q59.ownedPairs.sourceArtifactSha256){throw 'Batch198 c5 receipt is not the r59 staged lineage.'}
+  $q59.ownedPairs|Add-Member sourceArea ([string]$a58.observations.capitalArrival.sourceArea)
+  Assert-KmcChunk7OwnedPairsSelection $q59
+  if($q59.ownedPairs.sourceArea-cne'b10e86516b6437d45a629931c30936fe'-or$q59.persistenceLoad.area-cne$capital){throw 'Batch198 r59 areas differ from the recorded failure.'}
+  foreach($v in @($c5.observations.nativeWrite.area,$c5.observations.fieldWorld.area)){Assert-KmcBootstrapInventoryString $v $q59.ownedPairs.sourceArea;if($v-ceq$q59.persistenceLoad.area){throw 'Batch198 lineage area equals the capital load area.'}}
+ }
+ Check 'batch198 r59 real request without its lineage area is refused' {$q59=Read-KmcJson $b198r59;Assert-KmcChunk7OwnedPairsSelection $q59} $true
+ Check 'batch198 r59 real request refuses the capital as its lineage area' {$q59=Read-KmcJson $b198r59;$q59.ownedPairs|Add-Member sourceArea $q59.persistenceLoad.area;Assert-KmcChunk7OwnedPairsSelection $q59} $true 'non-capital acquired lineage'
+}else{Check 'batch198 r58/r59 native evidence is present' {throw 'Batch198 r58/r59 evidence is absent.'}}
 # The UMM summary contract: the product line, the in-game diagnostic expectation and the reader agree.
 Check 'UMM capital summary text agrees across product, engine and reader' {
  $product=[IO.File]::ReadAllText((Join-Path $repo 'src/KingmakerMountedCombat/Integration/MountedAreaPersistence.cs'))

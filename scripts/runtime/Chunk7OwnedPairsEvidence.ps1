@@ -260,9 +260,12 @@ function Assert-KmcChunk7OwnedPairsSelection($Request){
  if(Test-KmcChunk7OwnedPairsSmall $Request){Assert-KmcChunk7OwnedPairsSmallSelection $Request $s $checkpoint;return}
  if(Test-KmcChunk7OwnedPairsMedium $Request){Assert-KmcChunk7OwnedPairsMediumSelection $Request $s $checkpoint;return}
  $area=$checkpoint-is[string]-and$checkpoint-ceq'multi-area-autosave'
- $fields=@('case','sourceRunId','sourceArtifactSha256','sourceArchiveSha256','checkpointSourceRunId','checkpointSourceArtifactSha256','riderAId','mountAId','riderBId','mountBId','partyIds','baseGameOnly','expectedNativeLoadCount','expectedNativeWriteCount');if($area){$fields+='sourceArea'}
+ # Row 59 loads in the capital; it names the exact non-capital area its acquired lineage Manual was written in.
+ $capitalCold=$checkpoint-is[string]-and(Test-KmcChunk7CapitalColdCase $checkpoint)
+ $fields=@('case','sourceRunId','sourceArtifactSha256','sourceArchiveSha256','checkpointSourceRunId','checkpointSourceArtifactSha256','riderAId','mountAId','riderBId','mountBId','partyIds','baseGameOnly','expectedNativeLoadCount','expectedNativeWriteCount');if($area-or$capitalCold){$fields+='sourceArea'}
  Assert-KmcExactProperties $s $fields 'inherited native pair selection'
  if($area-and($s.sourceArea-isnot[string]-or$s.sourceArea-cnotmatch'^[a-f0-9]{32}$'-or$s.sourceArea-ceq('0'*32))){throw 'Owned area checkpoint requires the exact original acquired Manual area.'}
+ if($capitalCold-and($s.sourceArea-isnot[string]-or$s.sourceArea-cnotmatch'^[a-f0-9]{32}$'-or$s.sourceArea-ceq('0'*32)-or$s.sourceArea-ceq(Get-KmcChunk7CapitalArrivalArea))){throw 'The capital cold consumer requires its exact non-capital acquired lineage Manual area.'}
  if($s.case-isnot[string]-or$s.case-cnotin@('exploration','combat-rider-first','combat-mount-first','realtime-core','realtime-casting','realtime-charge','native-life-cleanup','persistence-save','persistence-load')){throw 'Inherited pair case is not closed.'}
  if($s.sourceRunId-isnot[string]-or$s.sourceRunId-cnotmatch'^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$'-or$s.sourceRunId-ceq$Request.runId){throw 'Inherited pair source run must be distinct and exact.'}
  foreach($key in @('sourceArtifactSha256','sourceArchiveSha256')){if($s.$key-isnot[string]-or$s.$key-cnotmatch'^[a-f0-9]{64}$'){throw 'Inherited source requires exact SHA256 pins.'}}
