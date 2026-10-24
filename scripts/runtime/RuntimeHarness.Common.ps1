@@ -107,6 +107,20 @@ function Assert-KmcChunk7PersistenceCaseSelected([AllowNull()][string]$Persisten
     $reason=Get-KmcChunk7RetiredPersistenceCaseReason $PersistenceCase
     if($null-ne$reason){throw $reason}
 }
+# Retired Small calibration cases. Both require the retired saveBeforeFieldSelection
+# Auto-derived source, which the selected Manual field acquisition cannot produce. They stay in
+# the closed sets, but are refused as soon as their selection file names them, before the
+# selection is validated or admitted, and before any approval, lock, transaction or launch.
+function Get-KmcChunk7RetiredSmallCalibrationCaseReason([AllowNull()][string]$SmallCase) {
+    if($SmallCase-ceq'compiled-manual-derived-small-horse-rt'-or$SmallCase-ceq'compiled-assisted-two-owner-small-horse-rt'){
+        return ('Small calibration case '+$SmallCase+' is retired and not selected: it requires the retired saveBeforeFieldSelection Auto-derived paid Small source, which the selected Manual field acquisition (saveAfterFieldSelection) cannot produce. Replacements: compiled-owner-seed-fixture-small-horse-rt and its presentation case for body, pose and action calibration; matrix rows 33-34 for the mounted Small Manual and its separate cold load; owner-seed x4s/x4c for same-candidate paid Small lineage. See docs/CHUNK7-RETIRED-SMALL-MANUAL-CALIBRATION-2026-10-24.md.')
+    }
+    return $null
+}
+function Assert-KmcChunk7SmallCalibrationCaseSelected([AllowNull()][string]$SmallCase) {
+    $reason=Get-KmcChunk7RetiredSmallCalibrationCaseReason $SmallCase
+    if($null-ne$reason){throw $reason}
+}
 function Assert-KmcChunk7FamilyReady([string]$Scenario,[AllowNull()][string]$ProgressionCase) {
     $reason=Get-KmcChunk7FamilyNotReadyReason $Scenario $ProgressionCase
     if($null-ne$reason){throw $reason}
