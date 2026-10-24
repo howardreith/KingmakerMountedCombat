@@ -436,16 +436,51 @@ namespace KingmakerMountedCombat.Diagnostics
                     (!x.CleanupAttempted || x.StateBefore == RelationshipState.Unmounted && x.CleanupSucceeded && x.CleanupErrors.Count == 0)) &&
                 transitions.Length == 1 && transitions[0].ActorId == br.UniqueId && transitions[0].PreviousLifeState == "Conscious" && transitions[0].CurrentLifeState == "Dead",
                 "Production native ledger lacks one successful exact actor death cleanup.");
-            Require(b.Relationship.State == RelationshipState.Unmounted && b.Combat.PairedActivationSplit &&
-                SplitReleaseRound(b) == lifeDamageRound && b.Relationship.Runtime.NoPreparedPairResidue &&
-                actors.Select(trace.GrantCount).SequenceEqual(lifeGrants),
-                "Native death cleanup changed the original split round, retained presentation or granted preparation.");
+            RequireNativeDeathDetach();
             nativeLife["afterDelivery"] = LifeState("life-after-delivery");
             nativeLife["deadRiderAfterDelivery"] = DeadActor(br);
             nativeLife["traceSequenceAfterDelivery"] = (int?)trace.Capture()["events"].Last?["sequence"] ?? 0;
             nativeLife["nativeEffects"] = lifeEffects.Capture();
             lifeDelivery.Dispose(); lifeDelivery = null;
             Pass("C7-life-native-callback"); DispatchDeathControl(); LifeStage(8);
+        }
+        // Native SetLifeState(Dead) calls UnitEntityData.LeaveCombat before OnUnitDeath, and the stock
+        // CombatController.RemoveUnit reaches the production removal prefix
+        // (MountedPairTurnParticipant.BeforePairedActorRemoval) first: it force-ends the one paired
+        // allocation, retires the activation and keeps only the surviving mount's pending exclusion for
+        // the damage round. The later OnUnitDeath cleanup then finds no activation to split, so the
+        // incapacitation shape (a split activation released at the damage round) cannot arise on death
+        // (b201 d1: trace 646 remove-unit-before, 659 remove-unit-after with no activation identity).
+        // Each condition is recorded on its own before any is required, so a refusal names its conjunct.
+        private void RequireNativeDeathDetach()
+        {
+            var participation = b.Participant.CaptureParticipation();
+            var grants = actors.Select(trace.GrantCount).ToArray();
+            var detach = new JObject { ["contract"] = "native-death-actor-removal-detach-v1",
+                ["observedRound"] = Game.Instance.TurnBasedCombatController.RoundNumber, ["damageRound"] = lifeDamageRound,
+                ["pairState"] = b.Relationship.State.ToString(), ["activationIdentity"] = b.Combat.PairedActivationIdentity,
+                ["activationSplit"] = b.Combat.PairedActivationSplit, ["splitReleaseRound"] = SplitReleaseRound(b),
+                ["participationRecorded"] = participation != null, ["participationRiderId"] = participation?.RiderId,
+                ["participationMountId"] = participation?.MountId, ["participationActivation"] = participation?.Activation != null,
+                ["pendingSplitMountId"] = participation?.PendingSplitId, ["pendingSplitRound"] = participation?.PendingSplitRound,
+                ["partnerContextActor"] = b.Participant.PartnerContext?.Unit.UniqueId,
+                ["noPreparedPairResidue"] = b.Relationship.Runtime.NoPreparedPairResidue,
+                ["grantsBefore"] = new JArray(lifeGrants), ["grantsAfter"] = new JArray(grants) };
+            var conditions = new JObject {
+                ["observedInDamageRound"] = (int)detach["observedRound"] == lifeDamageRound,
+                ["pairUnmounted"] = b.Relationship.State == RelationshipState.Unmounted,
+                ["activationRetiredByRemoval"] = b.Combat.PairedActivationIdentity == null && !b.Combat.PairedActivationSplit &&
+                    participation != null && participation.Activation == null && participation.RiderId == null && participation.MountId == null,
+                ["noSplitReleaseRound"] = SplitReleaseRound(b) == -1,
+                ["survivorPendingForDamageRound"] = b.Participant.HasExactPendingSplit(bm, lifeDamageRound) &&
+                    participation?.PendingSplitId == bm.UniqueId && participation?.PendingSplitRound == lifeDamageRound,
+                ["partnerContextReleased"] = b.Participant.PartnerContext == null,
+                ["noPreparedPairResidue"] = b.Relationship.Runtime.NoPreparedPairResidue,
+                ["grantsUnchanged"] = grants.SequenceEqual(lifeGrants) };
+            detach["conditions"] = conditions;
+            nativeLife["deathDetach"] = detach;
+            foreach (var condition in conditions.Properties())
+                Require((bool)condition.Value, "Native death detach condition '" + condition.Name + "' failed: " + detach.ToString(Newtonsoft.Json.Formatting.None));
         }
         // Unmounted control: one labelled native RuleDealDamage in round N past HP+Constitution to a
         // non-main, non-essential, mortal party companion outside both pairs whose N+1 slot precedes

@@ -553,6 +553,20 @@ function ConvertTo-KmcSeedNativeDeathFixture($v){
   [pscustomobject][ordered]@{sequence=7;boundary='UnitIncapacitated';source='IUnitLifeStateChanged.HandleUnitLifeStateChanged';stateBefore='Unmounted';stateAfter='Unmounted';trigger='Incapacitated';attempted=$true;succeeded=$true;errors=@()})
  $l.lifeTransitions[0].currentLife='Dead'
  $l.riderSlotsBeforeRenewal=0;$l.expectedRiderSlots=0
+ # Native death detaches through the stock RemoveUnit before OnUnitDeath (b201 d1 trace 646/659): the
+ # activation is retired, the surviving mount keeps a pending exclusion for the damage round, no split.
+ $at=[long]$l.traceSequenceBeforeDamage;$te=@($o.allocationTrace.events);$rm=Copy-Value @($te|Where-Object{$null-ne$_.PSObject.Properties['round']})[0]
+ $rm.boundary='remove-unit-before';$rm.round=$l.damageRound;$rm.state.actor=$ids[2]
+ $o.allocationTrace.events=@(@($te|Where-Object{$_.sequence-le$at})+@($rm)+@($te|Where-Object{$_.sequence-gt$at}))
+ $i=0;foreach($e in $o.allocationTrace.events){$i++;$e.sequence=$i}
+ $l.traceSequenceAfterDelivery=$at+1
+ foreach($t in @($l.incapacitatedRiderTurn,$(if($null-ne$l.unconsciousControl.PSObject.Properties['turn']){$l.unconsciousControl.turn}))){if($null-ne$t-and$null-ne$t.PSObject.Properties['prepareSequence']-and$null-ne$t.prepareSequence){$t.prepareSequence=[long]$t.prepareSequence+1}}
+ $a=$l.afterDelivery;$a.splitReleaseRound=-1;$a.partnerContextActor=$null;$a.activationIdentity=$null;$a.activationSplit=$false
+ $grants=@(foreach($id in $ids){Get-KmcChunk7LifeGrant $l.beforeDamage $id})
+ $l|Add-Member deathDetach ([pscustomobject][ordered]@{contract='native-death-actor-removal-detach-v1';observedRound=$l.damageRound;damageRound=$l.damageRound;pairState='Unmounted'
+  activationIdentity=$null;activationSplit=$false;splitReleaseRound=-1;participationRecorded=$true;participationRiderId=$null;participationMountId=$null;participationActivation=$false
+  pendingSplitMountId=$ids[3];pendingSplitRound=$l.damageRound;partnerContextActor=$null;noPreparedPairResidue=$true;grantsBefore=$grants;grantsAfter=@($grants)
+  conditions=[pscustomobject][ordered]@{observedInDamageRound=$true;pairUnmounted=$true;activationRetiredByRemoval=$true;noSplitReleaseRound=$true;survivorPendingForDamageRound=$true;partnerContextReleased=$true;noPreparedPairResidue=$true;grantsUnchanged=$true}}) -Force
  $c=$l.unconsciousControl;$controlId=$c.actorId;$atDamage=[long]$l.incapacitatedRiderTurn.prepareSequence-1
  $o.allocationTrace.events=@($o.allocationTrace.events|Where-Object{-not($null-ne$_.PSObject.Properties['round']-and$_.round-eq3-and$null-ne$_.state-and$_.state.actor-cin@($ids[2],$controlId))})
  $i=0;foreach($e in $o.allocationTrace.events){$i++;$e.sequence=$i}
@@ -617,6 +631,17 @@ Check 'owner-seed native death accepts a native difficulty that is not exact in 
  $l.requestedDamage=72;$l.nativeDamageBeforeDifficulty=72;foreach($e in @($l.nativeEffects.events)){if($e.kind-ceq'damage-after'){$e.beforeDifficulty=72}};$c=$l.deathControl;$c.requestedDamage=72;Invoke-OwnedReader $v}
 Check-SeedDeath 'a native N+1 preparation of the dead rider' {Add-DeathTraceEvent $args[0] $args[0].artifact.observations.actorIds[2] 'prepare-before'} 'prepare the dead rider'
 Check-SeedDeath 'a dead rider record that hides a trace event before its capture' {$v=$args[0];Add-DeathTraceEvent $v $v.artifact.observations.actorIds[2] 'round-state-before';$v.artifact.observations.nativeLife.deadRiderTurn.traceSequenceAtCapture=@($v.artifact.observations.allocationTrace.events).Count} 'events differs from its trace'
+foreach($n in @('observedInDamageRound','pairUnmounted','activationRetiredByRemoval','noSplitReleaseRound','survivorPendingForDamageRound','partnerContextReleased','noPreparedPairResidue','grantsUnchanged')){
+ Check-SeedDeath ('a failed death detach condition '+$n) ([scriptblock]::Create("`$args[0].artifact.observations.nativeLife.deathDetach.conditions.$n=`$false")) ("condition $n failed")}
+Check-SeedDeath 'missing death detach conditions' {$args[0].artifact.observations.nativeLife.PSObject.Properties.Remove('deathDetach')} 'detach conditions were not recorded'
+Check-SeedDeath 'the incapacitation split shape claimed under death' {$d=$args[0].artifact.observations.nativeLife.deathDetach;$d.activationSplit=$true;$d.splitReleaseRound=2} 'actor-removal shape'
+Check-SeedDeath 'a pending exclusion of the wrong actor' {$v=$args[0];$v.artifact.observations.nativeLife.deathDetach.pendingSplitMountId=$v.artifact.observations.actorIds[1]} 'actor-removal shape'
+Check-SeedDeath 'a pending exclusion of another round' {$args[0].artifact.observations.nativeLife.deathDetach.pendingSplitRound=3} 'actor-removal shape'
+Check-SeedDeath 'a retained partner context' {$v=$args[0];$v.artifact.observations.nativeLife.deathDetach.partnerContextActor=$v.artifact.observations.actorIds[3]} 'actor-removal shape'
+Check-SeedDeath 'a detach observed in a later round' {$args[0].artifact.observations.nativeLife.deathDetach.observedRound=3} 'not observed in the damage round'
+Check-SeedDeath 'a detach grant record that hides a preparation' {$d=$args[0].artifact.observations.nativeLife.deathDetach;$d.grantsAfter=@($d.grantsAfter[0],$d.grantsAfter[1],([long]$d.grantsAfter[2]+1),$d.grantsAfter[3])} 'grant counts'
+Check-SeedDeath 'a death without the native RemoveUnit observation' {$v=$args[0];foreach($e in @($v.artifact.observations.allocationTrace.events|Where-Object boundary -CEQ 'remove-unit-before')){$e.boundary='clear-before'}} 'native RemoveUnit'
+Check-SeedDeath 'a split activation after delivery' {$args[0].artifact.observations.nativeLife.afterDelivery.activationSplit=$true} 'Native evidence boolean'
 Check-SeedDeath 'a native N+1 slot claimed for the dead rider' {$args[0].artifact.observations.nativeLife.riderSlotsBeforeRenewal=1} 'no native next-round slot'
 Check-SeedDeath 'a granted dead rider' {@($args[0].artifact.observations.nativeLife.independentSurvivor.grants|Where-Object actorId -CEQ $args[0].artifact.observations.actorIds[2])[0].count=3} 'grants were duplicated'
 Check-SeedDeath 'a dead rider turn claiming combat' {$args[0].artifact.observations.nativeLife.deadRiderTurn.inCombat=$true} 'Native evidence boolean'

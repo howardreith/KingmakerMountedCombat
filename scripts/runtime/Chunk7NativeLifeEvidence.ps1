@@ -224,6 +224,24 @@ function Assert-KmcChunk7DeadLifeActor($Actor,[string]$Id,[switch]$Extended){
  if($Actor.life-cne'Dead'-or$Actor.damage-lt$Actor.hp+$Actor.constitution){throw 'Native death state label or threshold differs.'}
  if($Extended){foreach($f in @('finallyDead','inCombat','inState')){if($Actor.$f-isnot[bool]){throw 'Native death actor flag is missing or mistyped.'}};Assert-KmcChunk7Boolean $Actor.inCombat $false}
 }
+# Native death detaches through the stock RemoveUnit inside SetLifeState (before OnUnitDeath): the paired
+# allocation is retired, only the surviving mount's pending exclusion for the damage round remains, and no
+# split release round exists. Every condition is recorded separately and recomputed from its own values.
+function Assert-KmcChunk7DeathDetach($d,$life,$ids,$before,$trace){
+ if($null-eq$d){throw 'Native death detach conditions were not recorded.'}
+ Assert-KmcExactProperties $d @('contract','observedRound','damageRound','pairState','activationIdentity','activationSplit','splitReleaseRound','participationRecorded','participationRiderId','participationMountId','participationActivation','pendingSplitMountId','pendingSplitRound','partnerContextActor','noPreparedPairResidue','grantsBefore','grantsAfter','conditions') 'native death detach'
+ $names=@('observedInDamageRound','pairUnmounted','activationRetiredByRemoval','noSplitReleaseRound','survivorPendingForDamageRound','partnerContextReleased','noPreparedPairResidue','grantsUnchanged')
+ Assert-KmcExactProperties $d.conditions $names 'native death detach conditions'
+ foreach($n in $names){if($d.conditions.$n-isnot[bool]){throw "Native death detach condition $n is missing or mistyped."};if(-not$d.conditions.$n){throw "Native death detach condition $n failed."}}
+ if($d.contract-cne'native-death-actor-removal-detach-v1'-or-not(Test-KmcExactJsonInteger $d.observedRound)-or$d.observedRound-ne$life.damageRound-or$d.damageRound-ne$life.damageRound){throw 'Native death detach was not observed in the damage round.'}
+ foreach($f in @('activationSplit','participationRecorded','participationActivation','noPreparedPairResidue')){if($d.$f-isnot[bool]){throw "Native death detach $f is missing or mistyped."}}
+ if($d.pairState-cne'Unmounted'-or$null-ne$d.activationIdentity-or$d.activationSplit-or$d.splitReleaseRound-ne-1-or-not$d.participationRecorded-or$null-ne$d.participationRiderId-or
+    $null-ne$d.participationMountId-or$d.participationActivation-or$d.pendingSplitMountId-cne$ids[3]-or$d.pendingSplitRound-ne$life.damageRound-or$null-ne$d.partnerContextActor-or-not$d.noPreparedPairResidue){throw 'Native death detach is not the native actor-removal shape (retired activation, pending survivor for the damage round, no split release).'}
+ $g0=@($d.grantsBefore);$g1=@($d.grantsAfter)
+ if($g0.Count-ne4-or$g1.Count-ne4){throw 'Native death detach grant observation is incomplete.'}
+ for($i=0;$i-lt4;$i++){if(-not(Test-KmcExactJsonInteger $g0[$i])-or$g0[$i]-ne$g1[$i]-or$g0[$i]-ne(Get-KmcChunk7LifeGrant $before $ids[$i])){throw 'Native death detach changed or misrecorded actor grant counts.'}}
+ if(@($trace.events|Where-Object{$_.sequence-gt$life.traceSequenceBeforeDamage-and$_.sequence-le$life.traceSequenceAfterDelivery-and$_.boundary-ceq'remove-unit-before'-and$null-ne$_.state-and$_.state.actor-ceq$ids[2]-and$_.round-eq$life.damageRound}).Count-lt1){throw 'Native death detach lacks the native RemoveUnit of the dead rider.'}
+}
 # The smallest whole native request whose difficulty-scaled damage reaches HP+Constitution+1.
 # The producer divides by the native float widened to double; the JSON value is that float's shortest form.
 function Get-KmcChunk7DeathRequest($Actor,$Difficulty){[long][Math]::Ceiling(([double]($Actor.hp+$Actor.constitution-$Actor.damage+$Actor.temporaryHp)+1)/[double][single]$Difficulty)}
@@ -309,8 +327,9 @@ function Assert-KmcChunk7NativeDeathChain($Request,$o,$life,$ids){
   if($d.stateBefore-cne$d.stateAfter-or($d.attempted-and($d.stateBefore-cne'Unmounted'-or$d.succeeded-ne$true-or@($d.errors).Count-ne0))){throw 'A repeated native death delivery was not an idempotent success from the unmounted state.'}}
  $changes=@($life.lifeTransitions)
  if($changes.Count-ne1-or$changes[0].sequence-le$life.lifeTransitionOffset-or$changes[0].actorId-cne$ids[2]-or$changes[0].previousLife-cne'Conscious'-or$changes[0].currentLife-cne'Dead'){throw 'Native life transition is not the one exact rider death.'}
- if($delivery.pairState-cne'Unmounted'-or$delivery.splitReleaseRound-ne$life.damageRound-or$delivery.partnerContextActor-cnotin@($null,$ids[3])){throw 'Death detach changed release round or exact native context custody.'}
- Assert-KmcChunk7Boolean $delivery.activationSplit $true;Assert-KmcChunk7Boolean $delivery.presentationResidue $false
+ Assert-KmcChunk7DeathDetach $(if($null-ne$life.PSObject.Properties['deathDetach']){$life.deathDetach}else{$null}) $life $ids $before $o.allocationTrace
+ if($delivery.pairState-cne'Unmounted'-or$delivery.splitReleaseRound-ne-1-or$null-ne$delivery.partnerContextActor-or$null-ne$delivery.activationIdentity){throw 'Death detach changed release round or exact native context custody.'}
+ Assert-KmcChunk7Boolean $delivery.activationSplit $false;Assert-KmcChunk7Boolean $delivery.presentationResidue $false
  Assert-KmcChunk7DeadLifeActor $delivery.rider $ids[2];Assert-KmcChunk7DeadLifeActor $life.deadRiderAfterDelivery $ids[2] -Extended
  if($life.traceSequenceAfterDelivery-lt$life.traceSequenceBeforeDamage-or@($o.allocationTrace.events|Where-Object{$_.sequence-gt$life.traceSequenceBeforeDamage-and$_.sequence-le$life.traceSequenceAfterDelivery-and$_.boundary-ceq'prepare-before'-and$_.state.actor-cin$ids}).Count-ne0){throw 'Death delivery generated an extra native preparation.'}
  foreach($id in $ids){if((Get-KmcChunk7LifeGrant $before $id)-ne(Get-KmcChunk7LifeGrant $delivery $id)){throw 'Native death cleanup changed actor grant counts.'}}
