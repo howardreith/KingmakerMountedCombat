@@ -90,9 +90,9 @@ $mutations=@(
 foreach($mutation in $mutations){$bad=Copy-Value $good;& $mutation[1] $bad;Reject $mutation[0] {Assert-KmcChunk7CombatEvidence $request $bad 'PASS'}}
 Check 'failed native artifact keeps bounded partial evidence' {$v=Copy-Value $good;$v.status='FAIL';$v.errors=@('native fixture unavailable');$v.observations=[pscustomobject]@{};Assert-KmcChunk7CombatEvidence $request $v 'FAIL'}
 Reject 'failed artifact cannot fulfill PASS' {$v=Copy-Value $good;$v.status='FAIL';$v.errors=@('native fixture unavailable');Assert-KmcChunk7CombatEvidence $request $v 'PASS'}
-Check 'closed combat rows remain disjoint' {foreach($scenario in @('chunk7-two-pair-combat-rider-first','chunk7-two-pair-combat-mount-first')){if((Get-KmcChunk7CombatRows $scenario).Count-ne21){throw 'Wrong declared row set.'}}}
+Check 'closed combat rows remain disjoint' {foreach($scenario in @('chunk7-two-pair-combat-rider-first','chunk7-two-pair-combat-mount-first')){if((Get-KmcChunk7CombatRows $scenario).Count-ne22){throw 'Wrong declared row set.'}}}
 Reject 'unknown native case' {Get-KmcChunk7CombatRows 'chunk7-two-pair-combat-anything'}
-Check 'runtime rows contain both exact cases once' {$rows=@(Get-KmcChunk7CombatRuntimeRows);if($rows.Count-ne22-or@($rows|Select-Object -Unique).Count-ne22-or$rows-cnotcontains'chunk7-two-pair-combat-rider-first'-or$rows-cnotcontains'chunk7-two-pair-combat-mount-first'){throw 'Runtime row union differs.'}}
+Check 'runtime rows contain both exact cases once' {$rows=@(Get-KmcChunk7CombatRuntimeRows);if($rows.Count-ne23-or@($rows|Select-Object -Unique).Count-ne23-or$rows-cnotcontains'chunk7-two-pair-combat-rider-first'-or$rows-cnotcontains'chunk7-two-pair-combat-mount-first'){throw 'Runtime row union differs.'}}
 $artifactRoot=Join-Path $chunk7AnalysisRoot ('reader-artifact-fixture-'+[Guid]::NewGuid().ToString('N'));[IO.Directory]::CreateDirectory($artifactRoot)|Out-Null
 $artifactPath=Join-Path $artifactRoot 'chunk7-combat-evidence.json';$request|Add-Member NoteProperty evidenceRoot $artifactRoot
 [IO.File]::WriteAllText($artifactPath,($good|ConvertTo-Json -Depth 90),[Text.UTF8Encoding]::new($false))

@@ -717,6 +717,81 @@ Check-SeedAttackModes 'a plan weapon other than the equipped ranged weapon' {$p=
 Check-SeedAttackModes 'an interrupt that claims a completed plan' {(AM $args[0] 1).command.result='Interrupt'} 'interrupt claims a completed plan'
 Check-SeedAttackModes 'an on click outside the first measured round' {$args[0].artifact.observations.attackModes.toggleClicks[1].before.round=11} 'first measured round'
 Check-SeedAttackModes 'a Dismount outside its round' {$args[0].artifact.observations.attackModes.dismountAfter.round=13} 'outside its native round'
+# 7E X1 C11 reactions: pair A leaves the diagnostic target's threatened area by one ordinary native
+# ground move on rider A's first prepared turn; the target's single native attack of opportunity
+# hits pair A. Synthetic shapes: the pair starts threatened (no approach) in round 10.
+function New-KmcSeedReactionFixture([bool]$Approach=$false){
+ $v=New-KmcOwnerSeedDerivedCombatFixture 'combat-rider-first';$r=$v.request;$o=$v.artifact.observations;$roles=@(Get-KmcChunk7OwnedPairIds $r)
+ $r.ownedPairs.case='owner-seed-combat-reaction'
+ foreach($key in @('r1','firstActionMount','localFailure','registeredDisable','removalRefusal','pendingSurvivor')){if($null-ne$o.PSObject.Properties[$key]){$o.PSObject.Properties.Remove($key)}}
+ $o.activations=@();$o.inputs=@()
+ $snap={param([string]$label,[double]$mountMove)$x=Copy-Value $o.snapshots[0];$x.label=$label;$x.round=10;foreach($a in $x.actors){$a.standard=0.0;$a.move=0.0;$a.swift=0.0;if($a.id-ceq$roles[1]){$a.move=$mountMove}};$x}
+ $state={param([string]$label,[long]$reactions,[bool]$engaged,[double]$distance)[pscustomobject][ordered]@{label=$label;id=$o.targetId;round=10;frame=100;reactions=$reactions;reactionsPerRound=1;canAttackOfOpportunity=$true;standard=0.0;move=0.0;swift=0.0;prone=$false;proneRequested=$false;conscious=$true;commandsEmpty=$true;engagesRider=$engaged;engagesMount=$engaged;engagedUnits=@($(if($engaged){$roles[0];$roles[1]}));position=@(0.0,0.0,3.5);mountDistance=$distance;corpulence=1.5;mountCorpulence=0.9}}
+ $residue=[pscustomobject][ordered]@{activeCommand=$false;groundMovement=$false;riderCommandsEmpty=$true;mountCommandsEmpty=$true;state='Mounted';riderConscious=$true;mountConscious=$true;riderProne=$false;mountProne=$false}
+ $leg={param([string]$label,[double]$moveBefore,[double]$moveAfter,[long]$rulesBefore,$rules,[bool]$engagedBefore,[bool]$engagedAfter,[long]$reactionsAfter,[double]$distanceBefore,[double]$distanceAfter,[long]$traceBefore)
+  [pscustomobject][ordered]@{label=$label;round=10;destination=@(0.0,0.0,-4.5);requestedDistance=4.5;before=(&$snap ($label+'-before') $moveBefore);targetBefore=(&$state ($label+'-before') 1 $engagedBefore $distanceBefore);ruleCountBefore=$rulesBefore;traceSequenceBefore=$traceBefore
+   fiveFootStep=$false;singleActionMove=$false;clicked=$true;command=(700+$rulesBefore);proposals=@();after=(&$snap ($label+'-after') $moveAfter);targetAfter=(&$state ($label+'-after') $reactionsAfter $engagedAfter $distanceAfter);rules=@($rules);traceSequenceAfter=($traceBefore+5)
+   distance=4.5;result='Success';residue=(Copy-Value $residue);turnActor=$roles[0]}}
+ $victim=$roles[1];$aoo=[pscustomobject][ordered]@{sequence=1;kind='attack';identity=4242;frame=101;round=10;actor=$o.targetId;target=$victim;opportunity=$true;fullAttack=$false;weapon='35dfad6517f401145af54111be04d6cf';ranged=$false;natural=$true;actorPosition=@(0.0,0.0,3.5);targetPosition=@(0.0,0.0,-1.0)}
+ $x=[ordered]@{contract='owner-seed-combat-reaction-v1';riderId=$roles[0];mountId=$roles[1];targetId=$o.targetId;proneStandUp=[pscustomobject][ordered]@{covered=$false;reason='No deterministic native prone source exists for the diagnostic target on the owner-seed fixture.'};stage=3;firstRound=10}
+ if($Approach){
+  $x.precondition=&$state 'precondition' 1 $false 9.0
+  $x.approach=&$leg 'approach' 0.0 1.5 0 @() $false $true 1 9.0 3.5 10
+  $aoo.sequence=1;$d=&$leg 'disengage' 1.5 3.0 0 @($aoo) $true $false 0 3.5 8.5 20
+ }else{
+  $x.precondition=&$state 'precondition' 1 $true 3.5
+  $d=&$leg 'disengage' 0.0 1.5 0 @($aoo) $true $false 0 3.5 8.5 10
+ }
+ $d|Add-Member clearDistance 8.0;$x.disengage=$d
+ $x.rules=[pscustomobject][ordered]@{dropped=0;errors=@();events=@($aoo)};$x.complete=$true
+ $o|Add-Member reaction ([pscustomobject]$x) -Force
+ $v.name='combat-reaction';$v
+}
+function Check-SeedReaction([string]$Name,[scriptblock]$Mutation,[string]$Pattern){$v=New-KmcSeedReactionFixture;&$Mutation $v;Check ('owner-seed combat reaction refuses '+$Name) {Invoke-OwnedReader $v} $true $Pattern}
+function Get-RxLeg($v){$v.artifact.observations.reaction.disengage}
+function RActor($w,[string]$id){@($w.actors|Where-Object id -CEQ $id)[0]}
+Check 'owner-seed combat reaction evidence accepted (threatened start, one native attack of opportunity)' {Invoke-OwnedReader (New-KmcSeedReactionFixture)}
+Check 'owner-seed combat reaction accepts a native approach before the disengagement' {Invoke-OwnedReader (New-KmcSeedReactionFixture $true)}
+Check 'owner-seed combat reaction accepts the attack of opportunity on rider A' {$v=New-KmcSeedReactionFixture;$e=(Get-RxLeg $v).rules[0];$e.target=$v.request.ownedPairs.riderAId;$v.artifact.observations.reaction.rules.events[0].target=$e.target;Invoke-OwnedReader $v}
+Check 'combat evidence refuses a reaction record outside its case' {$v=New-KmcOwnerSeedDerivedCombatFixture 'combat-rider-first';$v.artifact.observations|Add-Member reaction ([pscustomobject]@{}) -Force;Invoke-OwnedReader $v} $true 'belongs only to its closed owner-seed selection'
+Check 'attack modes refuse a carried reaction record' {$v=New-KmcSeedAttackModesFixture;$v.artifact.observations|Add-Member reaction ([pscustomobject]@{}) -Force;Invoke-OwnedReader $v} $true 'cannot carry another combat case'
+Check-SeedReaction 'no attack of opportunity' {$d=Get-RxLeg $args[0];$d.rules=@();$args[0].artifact.observations.reaction.rules.events=@()} 'other than exactly one attack'
+Check-SeedReaction 'two attacks of opportunity' {$d=Get-RxLeg $args[0];$e=Copy-Value $d.rules[0];$e.sequence=2;$d.rules=@($d.rules)+@($e);$args[0].artifact.observations.reaction.rules.events=@($d.rules)} 'other than exactly one attack'
+Check-SeedReaction 'an ordinary attack instead of an attack of opportunity' {$d=Get-RxLeg $args[0];$d.rules[0].opportunity=$false} 'not the target''s native attack of opportunity'
+Check-SeedReaction 'an attack of opportunity by the pair' {$d=Get-RxLeg $args[0];$d.rules[0].actor=$args[0].request.ownedPairs.mountAId;$d.rules[0].target=$args[0].artifact.observations.targetId} 'not the target''s native attack of opportunity'
+Check-SeedReaction 'an attack of opportunity on pair B' {$d=Get-RxLeg $args[0];$d.rules[0].target=$args[0].request.ownedPairs.riderBId} 'not the target''s native attack of opportunity'
+Check-SeedReaction 'an attack outside the reaction windows' {$r=$args[0].artifact.observations.reaction.rules;$e=Copy-Value $r.events[0];$e.sequence=2;$r.events=@($r.events)+@($e)} 'outside the reaction windows'
+Check-SeedReaction 'a rule window that is not consecutive' {(Get-RxLeg $args[0]).rules[0].sequence=3} 'consecutive record'
+Check-SeedReaction 'a target counter that did not drop' {(Get-RxLeg $args[0]).targetAfter.reactions=1} 'did not drop by exactly one'
+Check-SeedReaction 'a target with two reactions per round' {$args[0].artifact.observations.reaction.precondition.reactionsPerRound=2} 'exactly one available native attack of opportunity'
+Check-SeedReaction 'a target unable to make attacks of opportunity' {$args[0].artifact.observations.reaction.precondition.canAttackOfOpportunity=$false} 'exactly one available native attack of opportunity'
+Check-SeedReaction 'a start outside the threatened area without an approach' {$p=$args[0].artifact.observations.reaction.precondition;$p.engagesRider=$false;$p.engagesMount=$false} 'no native approach ran'
+Check-SeedReaction 'a leave that never was threatened' {$t=(Get-RxLeg $args[0]).targetBefore;$t.engagesRider=$false;$t.engagesMount=$false} 'from inside the target''s threatened area'
+Check-SeedReaction 'a pair still threatened after its move' {(Get-RxLeg $args[0]).targetAfter.engagesMount=$true} 'did not leave the target''s threatened area'
+Check-SeedReaction 'a move short of its clear distance' {(Get-RxLeg $args[0]).targetAfter.mountDistance=5.0} 'clear distance'
+Check-SeedReaction 'a five-foot step' {(Get-RxLeg $args[0]).fiveFootStep=$true} 'Native evidence boolean'
+Check-SeedReaction 'a move without displacement' {(Get-RxLeg $args[0]).distance=0.2} 'completed native ground move'
+Check-SeedReaction 'a failed move command' {(Get-RxLeg $args[0]).result='Fail'} 'completed native ground move'
+Check-SeedReaction 'a move outside rider A''s turn' {(Get-RxLeg $args[0]).turnActor=$args[0].request.ownedPairs.riderBId} 'left rider A'
+Check-SeedReaction 'a move in another round' {(Get-RxLeg $args[0]).round=11} 'outside its native round'
+Check-SeedReaction 'a move not charged to the mount' {$d=Get-RxLeg $args[0];(RActor $d.after $args[0].request.ownedPairs.mountAId).move=0.0} 'not charged to mount A'
+Check-SeedReaction 'a rider charged for the pair''s move' {$d=Get-RxLeg $args[0];(RActor $d.after $args[0].request.ownedPairs.riderAId).move=1.5} 'Rider A spent its own action'
+Check-SeedReaction 'a mount Standard spent on the move' {$d=Get-RxLeg $args[0];(RActor $d.after $args[0].request.ownedPairs.mountAId).standard=6.0} 'non-movement action'
+Check-SeedReaction 'pair B spending during the reaction' {$d=Get-RxLeg $args[0];(RActor $d.after $args[0].request.ownedPairs.riderBId).reactions=0} 'Unrelated native actor expenditure changed'
+Check-SeedReaction 'a target that spent an action' {(Get-RxLeg $args[0]).targetAfter.standard=6.0} 'spent an action inside'
+Check-SeedReaction 'a stale pair command' {(Get-RxLeg $args[0]).residue.activeCommand=$true} 'Native evidence boolean'
+Check-SeedReaction 'an unconscious victim' {(Get-RxLeg $args[0]).residue.mountConscious=$false} 'Native evidence boolean'
+Check-SeedReaction 'a pair dismounted by the reaction' {(Get-RxLeg $args[0]).residue.state='Unmounted'} 'did not stay mounted'
+Check-SeedReaction 'a prone target in the window' {(Get-RxLeg $args[0]).targetBefore.prone=$true} 'prone or unconscious'
+Check-SeedReaction 'a prone half claimed covered' {$args[0].artifact.observations.reaction.proneStandUp.covered=$true} 'recorded as uncovered'
+Check-SeedReaction 'a prone half without its reason' {$args[0].artifact.observations.reaction.proneStandUp.reason='skipped'} 'recorded as uncovered'
+Check-SeedReaction 'a dropped rule observation' {$args[0].artifact.observations.reaction.rules.dropped=1} 'dropped or failed'
+Check-SeedReaction 'a missing rule observation' {$args[0].artifact.observations.reaction.PSObject.Properties.Remove('rules')} 'dropped or failed'
+Check-SeedReaction 'an incomplete run' {$args[0].artifact.observations.reaction.complete=$false} 'Native evidence boolean'
+Check-SeedReaction 'a relationship input' {$o=$args[0].artifact.observations;$o.inputs=@([pscustomobject]@{label='stray-dismount-a'})} 'no relationship input'
+Check-SeedReaction 'a foreign target' {$args[0].artifact.observations.reaction.targetId=$args[0].request.ownedPairs.riderBId} 'exact pair A and diagnostic target'
+Check-SeedReaction 'an approach that drew an attack' {$v=$args[0];$n=New-KmcSeedReactionFixture $true;$v.artifact.observations.reaction=$n.artifact.observations.reaction;$x=$v.artifact.observations.reaction;$x.approach.rules=@(Copy-Value $x.disengage.rules[0]);$x.disengage.ruleCountBefore=1;$x.disengage.rules[0].sequence=2;$e=Copy-Value $x.disengage.rules[0];$x.rules.events=@($x.approach.rules[0],$e)} 'approach drew an attack'
+Check-SeedReaction 'an approach although already threatened' {$v=$args[0];$n=New-KmcSeedReactionFixture $true;$v.artifact.observations.reaction=$n.artifact.observations.reaction;$v.artifact.observations.reaction.precondition.engagesMount=$true} 'already threatened'
 Check-SeedCombat 'owner-seed-derived RT refuses a missing companion action' 'realtime-core' {$args[0].artifact.observations.PSObject.Properties.Remove('companionAction')} 'unrelated companion action'
 Check-SeedCombat 'owner-seed-derived RT refuses a reassigned pair command' 'realtime-core' {$args[0].artifact.observations.companionAction.after.pairCommands.b=@([pscustomobject]@{identity=8888;actorId=$args[0].request.ownedPairs.riderBId;type='Kingmaker.UnitLogic.Commands.UnitAttack';finished=$false})} 'reassigned or cancelled'
 Check-SeedCombat 'owner-seed-derived RT refuses a pair spending during the action' 'realtime-core' {$args[0].artifact.observations.companionAction.after.actors[2].standard=6} 'spent native resources'

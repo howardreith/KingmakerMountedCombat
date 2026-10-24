@@ -7,7 +7,7 @@ function Get-KmcChunk7CombatRows([string]$Scenario) {
     if(-not(Test-KmcChunk7CombatScenario $Scenario)){throw 'Unknown native combat scenario.'}
     @($Scenario,'C7-combat-fixture','C7-combat-native-mounts','C7-combat-restored-mounts','C7-combat-native-orders','C7-combat-pair-a-full-activation',
       'C7-combat-pair-b-full-activation','C7-combat-tb-charge-refusal','C7-combat-refresh','C7-combat-r1-round-release','C7-combat-first-action-mount',
-      'C7-combat-native-pending-survivor','C7-combat-local-cleanup-failure','C7-combat-permanent-horse-removal-refusal','C7-combat-registered-disable-local-failure','C7-combat-attack-modes-mounted-off','C7-combat-attack-modes-mounted-on','C7-combat-attack-modes-unmounted-control','C7-combat-cleanup','C7-combat-runtime','C7-combat-interrupted')
+      'C7-combat-native-pending-survivor','C7-combat-local-cleanup-failure','C7-combat-permanent-horse-removal-refusal','C7-combat-registered-disable-local-failure','C7-combat-attack-modes-mounted-off','C7-combat-attack-modes-mounted-on','C7-combat-attack-modes-unmounted-control','C7-combat-reaction-disengage-opportunity','C7-combat-cleanup','C7-combat-runtime','C7-combat-interrupted')
 }
 function Get-KmcChunk7CombatRuntimeRows {
     @('chunk7-two-pair-combat-rider-first','chunk7-two-pair-combat-mount-first' | ForEach-Object { Get-KmcChunk7CombatRows $_ } | Select-Object -Unique)
@@ -90,7 +90,9 @@ function Assert-KmcChunk7CombatEvidence($Request,$Artifact,[string]$Status) {
     }
     if($owned-and(Test-KmcChunk7OwnedPairsRegisteredDisable $Request)){Assert-KmcChunk7RegisteredDisableCombat $Request $o;return}
     if($owned-and(Test-KmcChunk7OwnedPairsAttackModes $Request)){Assert-KmcChunk7AttackModesCombat $Request $o;return}
+    if($owned-and(Test-KmcChunk7OwnedPairsCombatReaction $Request)){Assert-KmcChunk7ReactionCombat $Request $o;return}
     if($null-ne$o.PSObject.Properties['attackModes']){throw 'Attack modes evidence belongs only to its closed owner-seed selection.'}
+    if($null-ne$o.PSObject.Properties['reaction']){throw 'Reaction evidence belongs only to its closed owner-seed selection.'}
     foreach($field in @('registeredDisable','removalRefusal')){if($null-ne$o.PSObject.Properties[$field]){throw 'Registered disable/removal evidence belongs only to its closed owner-seed selection.'}}
     $commands=[Collections.Generic.HashSet[long]]::new()
     # Owner-seed-derived combat restored both pairs mounted: only the R1 native Dismount is an input.
@@ -215,7 +217,7 @@ function Assert-KmcChunk7AttackModesCombat($Request,$Observations){
  if((Get-KmcChunk7OwnedLoadCount $Request)-ne1-or(Get-KmcChunk7OwnedWriteCount $Request)-ne0){throw 'Attack modes retain one native load and zero writes.'}
  $o=$Observations;$roles=@(Get-KmcChunk7OwnedPairIds $Request)
  Assert-KmcChunk7OwnerSeedDerivedCombatStart $Request $o
- foreach($key in @('r1','firstActionMount','localFailure','registeredDisable','removalRefusal','pendingSurvivor','nativeLife')){if($null-ne$o.PSObject.Properties[$key]){throw 'Attack modes cannot carry another combat case''s evidence.'}}
+ foreach($key in @('r1','firstActionMount','localFailure','registeredDisable','removalRefusal','pendingSurvivor','nativeLife','reaction')){if($null-ne$o.PSObject.Properties[$key]){throw 'Attack modes cannot carry another combat case''s evidence.'}}
  if(@($o.activations).Count-ne0){throw 'Attack modes record no primary pair activation.'}
  $inputs=@($o.inputs);if($inputs.Count-ne1-or$inputs[0].label-cne'attack-modes-native-dismount-a'){throw 'Attack modes admit exactly the one native Dismount input.'}
  $d=$inputs[0];if($d.casterId-cne$roles[0]-or$d.targetId-cne$roles[0]-or$d.abilityGuid-cne'3af2b81f4d72bbb30501fa730fcdf36e'-or$d.nativeCastDelta-ne1-or$d.nativeRefusalDelta-ne0){throw 'Attack modes Dismount escaped rider A''s own native input.'}
@@ -244,6 +246,76 @@ function Assert-KmcChunk7AttackModesCombat($Request,$Observations){
  if($control.rangedCount-ne$on.rangedCount-or(@($control.inner)-join',')-cne(@($on.inner)-join',')-or$control.rapid-ne$on.rapid){throw 'Mounted native full attack differs from the unmounted control under the same Rapid Shot toggle.'}
  if($off.riderCosts-ne$on.riderCosts-or$on.riderCosts-ne$control.riderCosts){throw 'Native cost shape of the full attack differs between modes.'}
  foreach($w in @($modes.dismountBefore,$modes.dismountAfter)){if($null-eq$w-or$w.round-ne$n+2){throw 'Attack modes Dismount lies outside its native round.'}}
+ foreach($field in @('pairResidueAbsent','nativeCombatEnded','initiativeInputsRestored','firstPairAiRestored','controlsSettled','inheritedPetsPreserved')){Assert-KmcChunk7Boolean $o.cleanup.$field $true}
+ Assert-KmcChunk7Boolean $o.cleanup.ownedHorseRemoved $false;Assert-KmcChunk7Boolean $o.cleanup.nativeSaveWrittenByThisDriver $false;Assert-KmcChunk7Boolean $o.cleanup.delegatedPersistenceCleanup $false
+}
+
+# ---- 7E X1 C11 reactions (owner-seed-combat-reaction) -------------------------------------------
+# Pair A leaves the diagnostic target's threatened area by one ordinary native ground order on rider
+# A's first prepared turn (after one native approach only if it was not threatened). The stock
+# disengagement owns the target's single attack of opportunity; every value is read back from the
+# recorded native rule, counter and allocation observations.
+function Assert-KmcChunk7ReactionTargetState($State,[string]$TargetId){
+ if($null-eq$State-or$State.id-cne$TargetId){throw 'Reaction target state is missing or names another unit.'}
+ foreach($f in @('reactions','reactionsPerRound','round','frame')){if(-not(Test-KmcExactJsonInteger $State.$f)-or$State.$f-lt0){throw 'Reaction target counters are invalid.'}}
+ foreach($f in @('standard','move','swift','mountDistance')){if(-not(Test-KmcChunk7FiniteNumber $State.$f)-or$State.$f-lt0){throw 'Reaction target resources or distance are invalid.'}}
+ foreach($f in @('canAttackOfOpportunity','prone','proneRequested','conscious','commandsEmpty','engagesRider','engagesMount')){if($State.$f-isnot[bool]){throw 'Reaction target state flag is missing or mistyped.'}}
+ if($State.prone-or$State.proneRequested-or-not$State.conscious){throw 'The diagnostic target was prone or unconscious inside the reaction window; a stand-up provocation cannot be told from disengagement.'}
+}
+function Assert-KmcChunk7ReactionLeg($Leg,[string]$Label,[long]$Round,$o,$roles){
+ if($null-eq$Leg-or$Leg.label-cne$Label-or$Leg.round-ne$Round){throw ('Reaction '+$Label+' leg is missing or outside its native round.')}
+ Assert-KmcChunk7Boolean $Leg.clicked $true;Assert-KmcChunk7Boolean $Leg.fiveFootStep $false
+ if($Leg.result-cnotin@('Success','Interrupt')-or-not(Test-KmcExactJsonInteger $Leg.command)-or$Leg.command-le0-or-not(Test-KmcChunk7FiniteNumber $Leg.distance)-or$Leg.distance-le0.5){throw ('Reaction '+$Label+' is not one completed native ground move of mount A.')}
+ if($Leg.turnActor-cne$roles[0]){throw ('Reaction '+$Label+' left rider A''s native turn.')}
+ Assert-KmcChunk7ReactionTargetState $Leg.targetBefore $o.targetId;Assert-KmcChunk7ReactionTargetState $Leg.targetAfter $o.targetId
+ $rb=Get-KmcChunk7CombatActor $Leg.before $roles[0];$ra=Get-KmcChunk7CombatActor $Leg.after $roles[0];$mb=Get-KmcChunk7CombatActor $Leg.before $roles[1];$ma=Get-KmcChunk7CombatActor $Leg.after $roles[1]
+ foreach($f in @('standard','move','swift')){if($ra.$f-ne$rb.$f){throw 'Rider A spent its own action on the pair''s ground move.'}}
+ if($ma.standard-ne$mb.standard-or$ma.swift-ne$mb.swift){throw 'Mount A spent a non-movement action on its ground move.'}
+ if($ma.move-le$mb.move){throw 'The pair''s ground move was not charged to mount A''s native move, or was refunded.'}
+ Assert-KmcChunk7SameCombatBudget $Leg.before $Leg.after @($roles[2],$roles[3])
+ # Native TB cooldowns of every unit only decay while another actor's command runs: the target never spends.
+ foreach($f in @('standard','move','swift')){if([double]$Leg.targetAfter.$f-gt[double]$Leg.targetBefore.$f+0.001){throw 'The diagnostic target spent an action inside the pair''s move.'}}
+ $res=$Leg.residue;foreach($f in @('activeCommand','groundMovement')){Assert-KmcChunk7Boolean $res.$f $false}
+ foreach($f in @('riderCommandsEmpty','mountCommandsEmpty','riderConscious','mountConscious')){Assert-KmcChunk7Boolean $res.$f $true}
+ if($res.state-cne'Mounted'){throw 'Pair A did not stay mounted through the reaction.'}
+ foreach($f in @('ruleCountBefore','traceSequenceBefore','traceSequenceAfter')){if(-not(Test-KmcExactJsonInteger $Leg.$f)-or$Leg.$f-lt0){throw 'Reaction window bounds are invalid.'}}
+ if($Leg.traceSequenceAfter-lt$Leg.traceSequenceBefore){throw 'Reaction trace window runs backwards.'}
+ $seq=[long]$Leg.ruleCountBefore;foreach($e in @($Leg.rules)){$seq++;if($e.sequence-ne$seq){throw 'Reaction rule window is not the observer''s consecutive record.'}}
+ return @($Leg.rules)
+}
+function Assert-KmcChunk7ReactionCombat($Request,$Observations){
+ if(-not(Test-KmcChunk7OwnedPairsCombatReaction $Request)){throw 'Reaction evidence requires its closed owner-seed selection.'}
+ Assert-KmcChunk7OwnedPairsSelection $Request
+ if((Get-KmcChunk7OwnedLoadCount $Request)-ne1-or(Get-KmcChunk7OwnedWriteCount $Request)-ne0){throw 'Reaction retains one native load and zero writes.'}
+ $o=$Observations;$roles=@(Get-KmcChunk7OwnedPairIds $Request)
+ Assert-KmcChunk7OwnerSeedDerivedCombatStart $Request $o
+ foreach($key in @('r1','firstActionMount','localFailure','registeredDisable','removalRefusal','pendingSurvivor','nativeLife','attackModes')){if($null-ne$o.PSObject.Properties[$key]){throw 'Reaction cannot carry another combat case''s evidence.'}}
+ if(@($o.activations).Count-ne0-or@($o.inputs).Count-ne0){throw 'Reaction records no primary activation and no relationship input.'}
+ $x=$o.reaction
+ if($null-eq$x-or$x.contract-cne'owner-seed-combat-reaction-v1'-or$x.riderId-cne$roles[0]-or$x.mountId-cne$roles[1]-or$x.targetId-cne$o.targetId){throw 'Reaction evidence lacks its exact pair A and diagnostic target.'}
+ Assert-KmcChunk7Boolean $x.complete $true
+ if($null-eq$x.PSObject.Properties['rules']-or$null-eq$x.rules-or$x.rules.dropped-ne0-or@($x.rules.errors).Count-ne0){throw 'Reaction rule observation dropped or failed.'}
+ if(-not(Test-KmcExactJsonInteger $x.firstRound)){throw 'Reaction lacks its first native round.'};$n=[long]$x.firstRound
+ $p=$x.precondition;Assert-KmcChunk7ReactionTargetState $p $o.targetId
+ if($p.round-ne$n-or$p.reactions-ne1-or$p.reactionsPerRound-ne1-or$p.canAttackOfOpportunity-ne$true){throw 'The diagnostic target did not hold exactly one available native attack of opportunity at the stimulus.'}
+ $approached=$null-ne$x.PSObject.Properties['approach'];$approachRules=@()
+ if($approached){
+  if($p.engagesRider-or$p.engagesMount){throw 'A native approach ran although pair A was already threatened.'}
+  $approachRules=@(Assert-KmcChunk7ReactionLeg $x.approach 'approach' $n $o $roles)
+  if($approachRules.Count-ne0){throw 'The native approach drew an attack.'}
+  if(-not($x.approach.targetAfter.engagesRider-or$x.approach.targetAfter.engagesMount)){throw 'The native approach did not bring pair A inside the target''s threatened area.'}
+ }elseif(-not($p.engagesRider-or$p.engagesMount)){throw 'Pair A was not inside the target''s threatened area and no native approach ran.'}
+ $d=$x.disengage;$dr=@(Assert-KmcChunk7ReactionLeg $d 'disengage' $n $o $roles)
+ if($approached-and$d.ruleCountBefore-ne$x.approach.ruleCountBefore+$approachRules.Count){throw 'Reaction rule windows are not consecutive.'}
+ if(-not($d.targetBefore.engagesRider-or$d.targetBefore.engagesMount)-or$d.targetBefore.reactions-ne1-or$d.targetBefore.canAttackOfOpportunity-ne$true){throw 'Pair A did not leave from inside the target''s threatened area with its reaction available.'}
+ if($d.targetAfter.engagesRider-or$d.targetAfter.engagesMount){throw 'Pair A did not leave the target''s threatened area.'}
+ if($d.targetAfter.reactions-ne$d.targetBefore.reactions-1){throw 'The target''s native attack-of-opportunity count did not drop by exactly one.'}
+ if($dr.Count-ne1){throw 'Native disengagement drew other than exactly one attack.'};$aoo=$dr[0]
+ if($aoo.kind-cne'attack'-or$aoo.actor-cne$o.targetId-or$aoo.opportunity-ne$true-or$aoo.target-cnotin@($roles[0],$roles[1])-or$aoo.ranged-ne$false-or$aoo.round-ne$n){throw 'The single attack is not the target''s native attack of opportunity against pair A.'}
+ if(@($x.rules.events).Count-ne$approachRules.Count+$dr.Count){throw 'The rule observer recorded attacks outside the reaction windows.'}
+ if(-not(Test-KmcChunk7FiniteNumber $d.clearDistance)-or$d.targetAfter.mountDistance-lt$d.clearDistance-0.6){throw 'The disengagement did not reach its declared clear distance.'}
+ $prone=$x.proneStandUp
+ if($null-eq$prone-or$prone.covered-ne$false-or$prone.reason-isnot[string]-or-not$prone.reason.StartsWith('No deterministic native prone source',[StringComparison]::Ordinal)){throw 'The prone stand-up half must be recorded as uncovered with its reason.'}
  foreach($field in @('pairResidueAbsent','nativeCombatEnded','initiativeInputsRestored','firstPairAiRestored','controlsSettled','inheritedPetsPreserved')){Assert-KmcChunk7Boolean $o.cleanup.$field $true}
  Assert-KmcChunk7Boolean $o.cleanup.ownedHorseRemoved $false;Assert-KmcChunk7Boolean $o.cleanup.nativeSaveWrittenByThisDriver $false;Assert-KmcChunk7Boolean $o.cleanup.delegatedPersistenceCleanup $false
 }
