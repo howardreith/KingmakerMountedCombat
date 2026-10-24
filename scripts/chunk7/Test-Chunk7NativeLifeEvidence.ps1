@@ -179,4 +179,9 @@ Check 'producer healthy-owner lookup matches the N-form owner key' {
  if(([regex]::Matches($src,'OwnerActorMatch\(\(string\)x\["riderId"\], ar\)')).Count-ne2){throw 'Healthy-owner lookup does not use the GUID match on both snapshots.'}
  if($src-notmatch'Guid\.TryParse\(ownerValue, out var owner\) && Guid\.TryParse\(actor\.UniqueId, out var id\) \? owner == id'){throw 'Owner actor match is not a GUID comparison.'}
 }
+Check 'producer counts paired identities by value, not by token type' {
+ $src=[IO.File]::ReadAllText((Join-Path $repo 'src/KingmakerMountedCombat/Diagnostics/Chunk7CombatNativeLife.cs'))
+ if($src-match'pairedGrantIdentity"\]\.Type\s*!=\s*JTokenType\.Null'){throw 'Paired identities are counted by token type; a null string is a String-typed JValue.'}
+ if($src-notmatch'\["pairedIdentities"\] = window\.Count\(e => \(string\)e\["state"\]\?\["pairedGrantIdentity"\] != null\)'){throw 'Paired identities are not counted by value.'}
+}
 Write-Host ('RESULT '+$passed+' passed; 0 failed (synthetic native life reader checks only)')
