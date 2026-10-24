@@ -34,4 +34,6 @@ if($LASTEXITCODE-ne0){throw 'Replay Horse owner checks failed.'}
 $replay=[IO.File]::ReadAllText((Join-Path $repo 'src/KingmakerMountedCombat/Diagnostics/Chunk7PersistenceScenario.Replay.cs'))
 if($replay-match'ProfileId"\]\s*==\s*SupportedMountedProfiles\.Horse\.Id\)'){throw 'Repeated-world Horse subscriber expectation counts only the Medium Horse profile.'}
 if($replay-notmatch'var expectedHorses = Chunk7ReplayHorseOwners\.Count\(\(\(JArray\)replayArchive\["Pairs"\]\)\.Select\(p => \(string\)p\["ProfileId"\]\),\s*id => SupportedMountedProfiles\.ResolveProfileId\(id\)\?\.BlueprintGuid, SupportedMountedProfiles\.HorseBlueprintGuid\);'){throw 'Repeated-world Horse subscriber expectation does not use the product Horse owner helper with the KMC Horse blueprint.'}
-Write-Host 'REPEATED WORLD RUNNER/COMPLETION PASS=8 FAIL=0; no native actions invoked.'
+# b195 x4c: a capital destination admits only the main character's pair natively; the route refuses it.
+if($replay-notmatch'Require\(!enter\.Area\.IsCapital, "Declared area route enters a capital'){throw 'Repeated-area route does not refuse a capital destination.'}
+Write-Host 'REPEATED WORLD RUNNER/COMPLETION PASS=9 FAIL=0; no native actions invoked.'
