@@ -107,6 +107,36 @@ function Read-KmcChunk7UpgradeRecord([string]$Path){
 # One retained normal-player run, read from the lab by run id and bound to a pinned result
 # SHA-256: result -> game record -> observer result, and the UMM receipt hash the result records.
 # Statuses must agree across the three records. Row consumers (42, 55-56) build on this.
+# The outer result of every normal-player run records the SHA-256 of its runtime-request.json
+# (normalPlayerRequestSha256), whose u2/u3 upgrade section names the carry source. The runner
+# hashes the request at its final result and refuses a request changed after launch; the
+# readers verify the file against the recorded hash. The three b200 results (x5-b200-20261024)
+# predate the field: their request bytes are pinned below from an offline read on 2026-10-24
+# (each request names the u1 result 9b0fc26c… that the batch200 report records). Residual:
+# that pin is a later source observation, not a run-time record, so an edit between the b200
+# runs and this pin could not be told apart; every later rehearsal step must carry the field.
+function Get-KmcChunk7LegacyUnboundRequestPins{
+ @([pscustomobject][ordered]@{runId='20261024-c7e-b200-x5-u1-previous';resultSha256='9b0fc26c7768f5d795a37fc761dcbbf6460884207dde195a769c29bc15c6a923';requestSha256='7bc0aac19cd316c8807079aba210ecb81b8053e9f664f162b67d6c7ee8dd3550'},
+   [pscustomobject][ordered]@{runId='20261024-c7e-b200-x5-u2-upgrade';resultSha256='5983067b624f61f6ba392831258f3de11b8e1ede4c10abaebb79e2d13c37b7a8';requestSha256='be95148a55ea9dfbdd288d99946b54141b94f0f414ebad6865ebfa1e159eacb0'},
+   [pscustomobject][ordered]@{runId='20261024-c7e-b200-x5-u3-rollback';resultSha256='98b8b437eca44b50f2eb46925eac01f827caeba68e38d733510a0dfc3c0455cd';requestSha256='01164a50f4d3bcd19105de1987f4ae7e6e3421d72bdb678bb1a1ec1df0ef8dda'})
+}
+# Returns how the run's request is bound: 'runner-bound' (the outer result records its hash),
+# 'legacy-pinned' (an exact pinned b200 result) or 'unbound' (an older result, only where the
+# caller does not require a binding).
+function Get-KmcChunk7NormalPlayerRequestBinding([string]$RunId,$OuterResult,[string]$ResultSha256,[string]$RequestSha256,[bool]$Required){
+ if($null-ne$OuterResult-and$null-ne$OuterResult.PSObject.Properties['normalPlayerRequestSha256']){
+  $recorded=$OuterResult.normalPlayerRequestSha256
+  if($recorded-isnot[string]-or$recorded-cnotmatch'^[0-9a-f]{64}$'-or$recorded-cne$RequestSha256){throw ('Normal-player request does not match the SHA-256 its outer result records: '+$RunId)}
+  return 'runner-bound'
+ }
+ $legacy=@(Get-KmcChunk7LegacyUnboundRequestPins|Where-Object{$_.runId-ceq$RunId-and$_.resultSha256-ceq$ResultSha256})
+ if($legacy.Count-eq1){
+  if($legacy[0].requestSha256-cne$RequestSha256){throw ('Normal-player request does not match the SHA-256 pinned for its legacy result: '+$RunId)}
+  return 'legacy-pinned'
+ }
+ if($Required){throw ('Normal-player result does not record its request SHA-256: '+$RunId)}
+ 'unbound'
+}
 function Read-KmcChunk7NormalPlayerRun([string]$RunId,[string]$ResultSha256){
  if($RunId-cnotmatch'^[A-Za-z0-9][A-Za-z0-9._-]{0,119}$'){throw 'Normal-player run id is invalid.'}
  if($ResultSha256-cnotmatch'^[0-9a-f]{64}$'){throw 'Normal-player run pin lacks a result SHA-256.'}
@@ -130,7 +160,8 @@ function Read-KmcChunk7NormalPlayerRun([string]$RunId,[string]$ResultSha256){
  $gu=if($null-ne$game.PSObject.Properties['upgradeRehearsal']){$game.upgradeRehearsal}else{$null}
  [pscustomobject]@{runId=$RunId;paths=$paths;request=$request;result=$result;game=$game;observer=$observer;rehearsal=$u;gameRehearsal=$gu
   resultSha256=$records.result.sha256;gameResultSha256=$records.game.sha256;observerResultSha256=$records.observer.sha256
-  ummReceiptSha256=(Get-KmcChunk7NormalPlayerRecordedUmmReceiptSha256 $result).value}
+  ummReceiptSha256=(Get-KmcChunk7NormalPlayerRecordedUmmReceiptSha256 $result).value
+  requestSha256=$records.request.sha256;requestBinding=(Get-KmcChunk7NormalPlayerRequestBinding $RunId $result $records.result.sha256 $records.request.sha256 $false)}
 }
 # The full external reader on the run's own retained records, after confirming the request
 # names exactly the evidence folder the records were read from. Tests may inject a reader.
@@ -148,11 +179,9 @@ function Invoke-KmcChunk7NormalPlayerRunReader($Run,[scriptblock]$RunReader=$nul
 # time order, and u2 and u3 each binding the same u1 records (all five pins). Every step's
 # request section is then re-derived (carried files included) and the full external reader
 # re-reads each run.
-# Residual: carrySource, carrySourceRunId and carriedFiles live only in each run's runtime-request.json,
-# which no result, game record or observer hash binds. The u1 side is re-derived from u1's own
-# hash-pinned records, but a u2/u3 request edited after its run to name another passed u1 of the
-# same id (with that u1's carried files) would still be accepted. Binding needs the runner to record
-# the request (or carry-source) hash in the hash-bound outer result; that is a runner change.
+# Each step's request (carrySource, carrySourceRunId and carriedFiles included) is bound by the
+# normalPlayerRequestSha256 its pinned outer result records, or, for the three b200 results that
+# predate the field, by the request SHA-256 pinned in Get-KmcChunk7LegacyUnboundRequestPins.
 function Assert-KmcChunk7UpgradeRehearsalComplete([string]$RehearsalId,$Steps,[scriptblock]$RunReader=$null){
  if($RehearsalId-cnotmatch'^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$'){throw 'Upgrade rehearsal id is invalid.'}
  $order=@(Get-KmcChunk7UpgradeRehearsalSteps);$pins=@($Steps)
@@ -169,6 +198,7 @@ function Assert-KmcChunk7UpgradeRehearsalComplete([string]$RehearsalId,$Steps,[s
    [string]$r.rehearsal.rehearsalId-cne$RehearsalId-or[string]$r.gameRehearsal.rehearsalId-cne$RehearsalId){throw ('An upgrade rehearsal mixes steps or rehearsal ids: '+$r.runId)}
   if([string]$r.result.status-cne'PASS'){throw ('An upgrade rehearsal step did not pass: '+$order[$i])}
   if($null-eq$r.ummReceiptSha256){throw ('An upgrade rehearsal step does not record its UMM receipt SHA-256: '+$order[$i])}
+  if([string]$r.requestBinding-cnotin@('runner-bound','legacy-pinned')){throw ('An upgrade rehearsal step does not hash-bind its request: '+$order[$i])}
  }
  foreach($field in @('commit','productVersion','dllSha256','dllMvid')){
   if(@($runs|Where-Object{[string]$_.result.$field-cne[string]$runs[0].result.$field}).Count-ne0){throw ('An upgrade rehearsal spans more than one candidate: '+$field)}
@@ -194,7 +224,7 @@ function Assert-KmcChunk7UpgradeRehearsalComplete([string]$RehearsalId,$Steps,[s
  [pscustomobject][ordered]@{contract='f12-upgrade-rehearsal-complete-v1';rows=@(55,56);rehearsalId=$RehearsalId
   candidate=[pscustomobject][ordered]@{commit=[string]$runs[0].result.commit;productVersion=[string]$runs[0].result.productVersion;dllSha256=[string]$runs[0].result.dllSha256;dllMvid=[string]$runs[0].result.dllMvid}
   steps=@(foreach($r in $runs){[pscustomobject][ordered]@{step=[string]$r.rehearsal.step;runId=$r.runId;resultSha256=$r.resultSha256;gameResultSha256=$r.gameResultSha256
-   observerResultSha256=$r.observerResultSha256;ummReceiptSha256=$r.ummReceiptSha256;stagedRole=[string]$r.rehearsal.stagedKmc.role}})}
+   observerResultSha256=$r.observerResultSha256;ummReceiptSha256=$r.ummReceiptSha256;requestSha256=$r.requestSha256;requestBinding=[string]$r.requestBinding;stagedRole=[string]$r.rehearsal.stagedKmc.role}})}
 }
 function Read-KmcChunk7UpgradeU1([string]$SourceRunId,[string]$RehearsalId){
  if($SourceRunId-cnotmatch'^[A-Za-z0-9][A-Za-z0-9._-]{0,119}$'){throw 'Upgrade carry source run id is invalid.'}
@@ -209,6 +239,8 @@ function Read-KmcChunk7UpgradeU1([string]$SourceRunId,[string]$RehearsalId){
  }
  # u1's own UMM receipt: its SHA-256 recorded in u1's outer result, and its admission re-judged.
  if($null-eq$result.PSObject.Properties['normalPlayerUmmReceiptSha256']){throw 'Upgrade carry source u1 result does not record its UMM session receipt SHA-256.'}
+ # u1's request is bound by its outer result (or the pinned b200 legacy result) like every rehearsal step.
+ [void](Get-KmcChunk7NormalPlayerRequestBinding $SourceRunId $result $records.result.sha256 $records.request.sha256 $true)
  $receiptRequest=[pscustomobject]@{runId=$SourceRunId;evidenceRoot=(Split-Path -Parent $paths.result);normalPlayer=$request.normalPlayer}
  Assert-KmcChunk7NormalPlayerUmmReceiptHash $receiptRequest $result;Assert-KmcChunk7NormalPlayerUmmReceipt $receiptRequest $result
  $gu=if($null-ne$game.PSObject.Properties['upgradeRehearsal']){$game.upgradeRehearsal}else{$null}

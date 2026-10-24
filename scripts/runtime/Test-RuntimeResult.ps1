@@ -136,6 +136,8 @@ elseif ($schemaVersion -eq 2) {
     $v2Fields = @('fixture','baselineImmutable','workingRestored','saveWriteAllowlistPassed','restoredSaveInventoryDigest','subscenarioTotal','subscenarioPassCount','subscenarioFailCount','assertionPassCount','assertionFailCount','evidenceManifestSha256','subscenarioResults')
     # A normal-player result also records its UMM session receipt hash (absent on historical results).
     if ((Test-KmcChunk7NormalPlayerScenario $request.scenario) -and $null -ne $result.PSObject.Properties['normalPlayerUmmReceiptSha256']) { $v2Fields += 'normalPlayerUmmReceiptSha256' }
+    # And the SHA-256 of its request (absent on results written before the field existed).
+    if ((Test-KmcChunk7NormalPlayerScenario $request.scenario) -and $null -ne $result.PSObject.Properties['normalPlayerRequestSha256']) { $v2Fields += 'normalPlayerRequestSha256' }
     Assert-KmcExactProperties $result @($commonRequired + $v2Fields) 'runtime result v2'
 }
 else { throw 'Runtime result request schema is unsupported.' }
@@ -144,6 +146,10 @@ foreach ($name in @('runId','scenario','branch','commit','productVersion','dllSh
     if ([string]$result.$name -cne [string]$request.$name) { throw "Runtime result identity mismatch: $name" }
 }
 if ([string]$result.status -cnotin @('PASS','FAIL')) { throw 'Runtime result status must be PASS or FAIL.' }
+if ($null -ne $result.PSObject.Properties['normalPlayerRequestSha256'] -and
+    ([string]$result.normalPlayerRequestSha256 -cnotmatch '^[0-9a-f]{64}$' -or (Get-KmcSha256 $RequestPath) -cne [string]$result.normalPlayerRequestSha256)) {
+    throw 'Runtime result normalPlayerRequestSha256 does not match its request bytes.'
+}
 $started = [DateTimeOffset]::MinValue; $completed = [DateTimeOffset]::MinValue
 if (-not [DateTimeOffset]::TryParse([string]$result.startedAtUtc,[ref]$started) -or
     -not [DateTimeOffset]::TryParse([string]$result.completedAtUtc,[ref]$completed) -or $completed -lt $started) { throw 'Runtime result timestamps are invalid or reversed.' }
