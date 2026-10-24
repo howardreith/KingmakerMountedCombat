@@ -584,6 +584,19 @@ $stageCheck=@($runnerAst.FindAll({param($n)$n-is[Management.Automation.Language.
 Check 'the runner refuses a staged package other than the step''s declared package' {if($stageCheck.Count-ne1){throw 'Post-stage check not found.'}
  $upgradeSection=$u2Section;$coStagedState=[pscustomobject]@{packageSha256=$pins.packageSha256};& ([scriptblock]::Create($stageCheck[0].Extent.Text))} $true 'declared package'
 Check 'the runner admits the step''s exact declared package' {$upgradeSection=$u1Section;$coStagedState=[pscustomobject]@{packageSha256=$pins.packageSha256};& ([scriptblock]::Create($stageCheck[0].Extent.Text))}
+# The runner's own request-hash block, executed from its source with stub state.
+$requestBlock=@($runnerAst.FindAll({param($n)$n-is[Management.Automation.Language.IfStatementAst]-and$n.Extent.Text.StartsWith('if($isNormalPlayer-and(Test-Path -LiteralPath $requestPath')},$true))
+$requestStub=Join-Path $OutputDirectory 'runner-request.json';[IO.File]::WriteAllText($requestStub,'{"runId":"stub"}')
+function Invoke-RequestBlock([bool]$Normal,[AllowNull()][string]$LaunchHash){$isNormalPlayer=$Normal;$requestPath=$requestStub;$requestHash=$LaunchHash;$normalPlayerRequestSha256=$null
+ $errors=New-Object 'System.Collections.Generic.List[string]';. ([scriptblock]::Create($requestBlock[0].Extent.Text));[pscustomobject]@{hash=$normalPlayerRequestSha256;errors=@($errors)}}
+Check 'the runner records the unchanged request''s hash without error' {if($requestBlock.Count-ne1){throw 'Request-hash block not found.'};$r=Invoke-RequestBlock $true (Get-KmcSha256 $requestStub)
+ if($r.hash-cne(Get-KmcSha256 $requestStub)-or$r.errors.Count-ne0){throw 'Request hash differs.'}}
+Check 'the runner refuses a request changed after launch' {$r=Invoke-RequestBlock $true ('0'*64);if($r.errors.Count-ne1-or$r.errors[0]-cne'Runtime request changed after launch.'){throw 'Changed request admitted.'}}
+Check 'the runner records no request hash outside a normal-player run' {$r=Invoke-RequestBlock $false (Get-KmcSha256 $requestStub);if($null-ne$r.hash-or$r.errors.Count-ne0){throw 'Hash recorded.'}}
+Check 'the runner writes the request hash into the normal-player outer result' {$final=@($runnerAst.FindAll({param($n)$n-is[Management.Automation.Language.AssignmentStatementAst]-and$n.Left.Extent.Text-ceq"`$final['normalPlayerRequestSha256']"-and$n.Right.Extent.Text-ceq'$normalPlayerRequestSha256'},$true))
+ if($final.Count-ne1){throw 'Outer result field assignment differs.'}}
+Check 'the result validator keeps a FAIL whose request could not be hashed readable' {Stage-X5 {Edit-X5Json $x5Ids[1] 'runtime-result.json' {param($v)$v.status='FAIL';$v|Add-Member -NotePropertyName normalPlayerRequestSha256 -NotePropertyValue $null -Force}};try{Invoke-X5ResultValidator $x5Ids[1]}catch{if($_.Exception.Message-match'normalPlayerRequestSha256'){throw}}}
+Check 'the row-42 binder reports the b191 control''s request as unbound' {$b=Assert-KmcChunk7NormalPlayerRow42Binding $r42Pass (Get-ResultPin $r42Pass) $noReader;if($b.requestBinding-cne'unbound'-or[string]$b.requestSha256-cnotmatch'^[0-9a-f]{64}$'){throw 'Row-42 binding differs.'}}
 
 # --- Runner admission: refused before intake, approval, lock or launch ----------
 $runner=Join-Path $repo 'scripts/runtime/Invoke-KingmakerRuntimeScenario.ps1'

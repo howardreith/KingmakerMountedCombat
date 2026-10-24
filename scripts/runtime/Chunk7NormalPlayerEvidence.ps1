@@ -342,5 +342,5 @@ function Assert-KmcChunk7NormalPlayerRow42Binding([string]$RunId,[string]$Result
  if([string]$run.result.status-cne'PASS'){throw 'Row 42 binds only a passed request-free normal-player control.'}
  Invoke-KmcChunk7NormalPlayerRunReader $run $RunReader
  [pscustomobject][ordered]@{row=42;runId=$run.runId;resultSha256=$run.resultSha256;gameResultSha256=$run.gameResultSha256;observerResultSha256=$run.observerResultSha256
-  ummReceiptSha256=$run.ummReceiptSha256;commit=[string]$run.result.commit;dllSha256=[string]$run.result.dllSha256;dllMvid=[string]$run.result.dllMvid}
+  ummReceiptSha256=$run.ummReceiptSha256;requestSha256=$run.requestSha256;requestBinding=[string]$run.requestBinding;commit=[string]$run.result.commit;dllSha256=[string]$run.result.dllSha256;dllMvid=[string]$run.result.dllMvid}
 }
