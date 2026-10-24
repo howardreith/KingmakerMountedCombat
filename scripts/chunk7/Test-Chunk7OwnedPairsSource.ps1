@@ -187,7 +187,8 @@ $capitalLineageMutations=[ordered]@{
  'producer recorded another departure area'=@({param($c)$c.capital.set.artifact.observations.capitalArrival.sourceArea='a'*32},'not exactly the producer departure area')
  'producer omits its departure area'=@({param($c)$c.capital.set.artifact.observations.PSObject.Properties.Remove('capitalArrival')},'not exactly the producer departure area')
  'lineage receipt field in another area'=@({param($c)$c.parent.artifact.observations.fieldWorld.area='a'*32},'not written in its pinned area')
- 'lineage receipt changed after the producer route'=@({param($c)$script:hashes[(Join-Path $c.parent.root 'chunk7-acquired-manual-evidence.json')]='0'*64},'')
+ # Refused first by the re-derived row 58 lineage pin; the later capital-cold re-hash is defence in depth.
+ 'lineage receipt bytes differ from the pin (earlier lineage refusal)'=@({param($c)$script:hashes[(Join-Path $c.parent.root 'chunk7-acquired-manual-evidence.json')]='0'*64},'Two-owner Manual source receipt differs')
 }
 foreach($m in $capitalLineageMutations.GetEnumerator()){Check ('capital cold source refuses '+$m.Key){$c=New-CapitalSource $true;&$m.Value[0] $c;[void](Qualify-Capital $c)} $true $m.Value[1]}
 foreach($m in $areaBad.GetEnumerator()){Check $m.Key {$c=New-AreaSource $true;&$m.Value $c;[void](Get-KmcChunk7OwnedPairsSource $c.selection $c.persistenceCase $c.fixture $c.candidate $c.areaTarget)} $true}
