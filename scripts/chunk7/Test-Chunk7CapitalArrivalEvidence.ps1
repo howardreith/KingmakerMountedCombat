@@ -445,6 +445,11 @@ if((Test-Path -LiteralPath $b198c5)-and(Test-Path -LiteralPath $b198r58)-and(Tes
   if($q59.ownedPairs.sourceArea-cne'b10e86516b6437d45a629931c30936fe'-or$q59.persistenceLoad.area-cne$capital){throw 'Batch198 r59 areas differ from the recorded failure.'}
   foreach($v in @($c5.observations.nativeWrite.area,$c5.observations.fieldWorld.area)){Assert-KmcBootstrapInventoryString $v $q59.ownedPairs.sourceArea;if($v-ceq$q59.persistenceLoad.area){throw 'Batch198 lineage area equals the capital load area.'}}
  }
+ Check 'ReadSource compares both staged lineage areas with AcquiredLineageArea' {
+  $text=[IO.File]::ReadAllText((Join-Path $repo 'src/KingmakerMountedCombat/Diagnostics/Chunk7OwnedPairFixture.cs'))
+  foreach($fragment in @('var originalArea = selection.AcquiredLineageArea(request.PersistenceCase, request.PersistenceLoad.Area);','(string)observations["nativeWrite"]?["area"] == originalArea','(string)sourceWorld["area"] == originalArea')){if(-not$text.Contains($fragment)){throw ('ReadSource lineage area use differs: '+$fragment)}}
+  if(([regex]::Matches($text,'AcquiredLineageArea\(')).Count-ne1){throw 'ReadSource lineage area derivation is not single.'}
+ }
  Check 'batch198 r59 real request without its lineage area is refused' {$q59=Read-KmcJson $b198r59;Assert-KmcChunk7OwnedPairsSelection $q59} $true
  Check 'batch198 r59 real request refuses the capital as its lineage area' {$q59=Read-KmcJson $b198r59;$q59.ownedPairs|Add-Member sourceArea $q59.persistenceLoad.area;Assert-KmcChunk7OwnedPairsSelection $q59} $true 'non-capital acquired lineage'
 }else{Check 'batch198 r58/r59 native evidence is present' {throw 'Batch198 r58/r59 evidence is absent.'}}
