@@ -92,7 +92,7 @@ function Assert-KmcChunk7RealtimeEvidence($Request,$Artifact,[string]$Status){
     for($i=0;$i-lt2;$i++){$m=$mounts[$i];if($m.casterId-cne$ids[$i*2]-or$m.targetId-cne$ids[$i*2+1]-or$m.abilityGuid-cne'f053faad986631688defa003cd7bda0e'-or$m.nativeCastDelta-ne1-or$m.nativeRefusalDelta-ne0-or$m.generationAtInit-lt0){throw 'Native RT mount binding differs.'};foreach($f in @('clicked','terminal','processTerminal')){Assert-KmcChunk7Boolean $m.$f $true}}}
     if((Get-KmcChunk7SelectedScenario $Request)-ceq'chunk7-two-pair-realtime-core') {Assert-KmcChunk7RealtimeCore $o $ids $trace;if($derived){Assert-KmcChunk7OwnerSeedCompanionAction $Request $o;Assert-KmcChunk7OwnerSeedPlayerClick $Request $o}elseif($null-ne$o.PSObject.Properties['companionAction']-or$null-ne$o.PSObject.Properties['playerClick']){throw 'Only owner-seed-derived RT records an unrelated companion action or player-click window.'}}
     elseif((Get-KmcChunk7SelectedScenario $Request)-ceq'chunk7-two-pair-realtime-casting'){Assert-KmcChunk7RealtimeCasting $o $ids $trace}
-    else{Assert-KmcChunk7RealtimeCharge $o $ids $trace}
+    else{Assert-KmcChunk7RealtimeCharge $o $ids $trace;Assert-KmcChunk7ChargeWeapon $Request $o}
     if($owned){foreach($field in @('pairResidueAbsent','nativeCombatEnded','initiativeInputsRestored','firstPairAiRestored','controlsSettled','inheritedPetsPreserved')){Assert-KmcChunk7Boolean $o.cleanup.$field $true};Assert-KmcChunk7Boolean $o.cleanup.ownedHorseRemoved $false;Assert-KmcChunk7Boolean $o.cleanup.nativeProgressionRequiresExternalWorkingRestoration $false}else{foreach($field in @('pairResidueAbsent','ownedHorseRemoved','nativeCombatEnded','initiativeInputsRestored','firstPairAiRestored','controlsSettled','nativeProgressionRequiresExternalWorkingRestoration')){Assert-KmcChunk7Boolean $o.cleanup.$field $true}}
     Assert-KmcChunk7Boolean $o.cleanup.nativeSaveWrittenByThisDriver $false;Assert-KmcChunk7Boolean $o.cleanup.delegatedPersistenceCleanup $false
 }
@@ -138,6 +138,19 @@ function Assert-KmcChunk7RealtimeCasting($o,[string[]]$ids,$trace){
        @($events|Where-Object{$_.kind-ceq'damage-after'-and$_.actor-ceq$o.targetId-and$_.target-ceq$ids[1]-and$_.damage-gt0}).Count-ne1){throw 'Native damage/heal callbacks are absent or repeated.'}
     $healers=@($o.castingInventory|Where-Object{@($_.preparedSpells|Where-Object blueprint -CEQ $c.blueprint).Count-gt0})
     if($healers.Count-ne1-or$healers[0].actorId-cne$c.casterId-or@($healers[0].preparedSpells|Where-Object{$_.blueprint-ceq$c.blueprint-and$_.available-eq$true}).Count-ne1){throw 'Native prepared slot inventory differs from consumed exact caster.'}
+}
+# Mounted Charge needs a melee weapon: rider A wields one as saved, observed before the first and after the last
+# window, unchanged (the scenario never switches or equips). The owner-seed Charge lineage pins the seed's saved
+# active hand set and its primary weapon blueprint.
+function Assert-KmcChunk7ChargeWeapon($Request,$o){
+    if($null-eq$o.PSObject.Properties['chargeWeapon']){throw 'RT Charge lacks rider A''s observed equipped weapon.'};$w=$o.chargeWeapon
+    foreach($k in @('before','after')){if($null-eq$w.PSObject.Properties[$k]){throw 'Charge weapon observation is incomplete.'};$s=$w.$k
+        if($null-eq$s-or-not(Test-KmcExactJsonInteger $s.handSet)-or$s.handSet-lt0-or$s.handSet-gt3-or$s.primaryBlueprint-isnot[string]-or$s.primaryBlueprint-cnotmatch'^[0-9a-f]{32}$'-or
+           -not(Test-KmcExactJsonInteger $s.primaryItem)-or$s.primaryItem-eq0-or$s.category-isnot[string]){throw 'Charge weapon observation is incomplete.'}
+        Assert-KmcChunk7Boolean $s.melee $true;Assert-KmcChunk7Boolean $s.ranged $false;Assert-KmcChunk7Boolean $s.firstWeaponIsPrimary $true}
+    if((ConvertTo-Json -InputObject $w.before -Compress -Depth 4)-cne(ConvertTo-Json -InputObject $w.after -Compress -Depth 4)){throw 'Rider A''s equipped hand set or weapon changed during the Charge case.'}
+    if((Test-KmcChunk7OwnedPairsScenario $Request.scenario)-and$Request.ownedPairs.case-ceq'owner-seed-realtime-charge'){$c=Get-KmcChunk7ChargeSeed
+        if($w.before.handSet-ne$c.handSet-or$w.before.primaryBlueprint-cne$c.primaryWeapon){throw 'Owner-seed Charge rider A does not wield the seed''s saved hand set and weapon.'}}
 }
 function Assert-KmcChunk7RealtimeCharge($o,[string[]]$ids,$trace){
     $windows=@($o.realtimeWindows);if($windows.Count-ne2-or$windows[0].kind-cne'charge-success'-or$windows[1].kind-cne'charge-cancel'){throw 'Opt-in Charge success and cancellation windows required.'}

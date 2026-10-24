@@ -54,6 +54,7 @@ foreach($i in 0..1){$frame=10+40*$i;$shell=6000+$i;$move=7000+$i;Cost $ids[0] $s
     $chargeWindows+=,$w
 }
 $charge=Base 'chunk7-two-pair-realtime-charge';$charge.observations.realtimeWindows=$chargeWindows;$retreatAfter=RtSnap 40;$retreatAfter.actors[1].position.z=0.5
+$cw={[pscustomobject][ordered]@{handSet=0;primaryItem=4711;primaryBlueprint='35dfad6517f401145af54111be04d6cf';category='Longsword';melee=$true;ranged=$false;firstWeaponIsPrimary=$true}};$charge.observations|Add-Member NoteProperty chargeWeapon ([pscustomobject]@{before=(&$cw);after=(&$cw)})
 $charge.observations|Add-Member NoteProperty chargeRetreat ([pscustomobject]@{movement=(MoveRow 0 30 9000);after=$retreatAfter})
 foreach($case in @($core,$casting,$charge)){Check ('complete synthetic '+$case.scenario) {Assert-KmcChunk7RealtimeEvidence (RequestFor $case) $case 'PASS'}}
 $cases=@(
@@ -78,6 +79,7 @@ $cases=@(
     @('Charge path still outstanding',$charge,{$args[0].observations.realtimeWindows[0].settled.lease.forcedPathOutstanding=$true}),@('Charge buff still outstanding',$charge,{$args[0].observations.realtimeWindows[0].settled.lease.buffOutstanding=$true}),
     @('Charge neighbour paid standard cost',$charge,{$args[0].observations.realtimeWindows[0].after.actors[3].standard=3.0}),@('Charge cancellation already attacked',$charge,{$args[0].observations.realtimeWindows[1].effectsAfter.events=@([pscustomobject]@{kind='attack-before';actor=$ids[0];target=$target;opportunity=$false})}),
     @('Charge cancellation did not move',$charge,{$args[0].observations.realtimeWindows[1].stop.before.actors[1].position.x=0.0}),@('Charge stop not native charging',$charge,{$args[0].observations.realtimeWindows[1].stop.charge.mountCharging=$false}),
+    @('Charge with a ranged weapon',$charge,{$args[0].observations.chargeWeapon.before.ranged=$true}),@('Charge weapon switched',$charge,{$args[0].observations.chargeWeapon.after.handSet=1}),@('Charge weapon unobserved',$charge,{$args[0].observations.PSObject.Properties.Remove('chargeWeapon')}),
     @('RT cleanup incomplete',$charge,{$args[0].observations.cleanup.controlsSettled=$false}),@('RT breadth overclaimed',$core,{$args[0].observations.fullRealtimeCombatProof=$true})
 )
 foreach($case in $cases){$v=Copy-Value $case[1];& $case[2] $v;Reject $case[0] {Assert-KmcChunk7RealtimeEvidence (RequestFor $v) $v 'PASS'}}

@@ -25,6 +25,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 case 0:
                     if (!PairIdle(a) || !PairIdle(b) || !actors.All(NativeActorReady)) return;
                     realtimeChargeOrigin = am.Position;
+                    AdmitChargeWeapon();
                     BeginRealtimeCharge(false); NextRealtime(1); break;
                 case 1:
                     ObserveRealtimeCharge();
@@ -70,9 +71,33 @@ namespace KingmakerMountedCombat.Diagnostics
                     ObserveRealtimeCharge();
                     if (!ChargeTerminal() || !realtimeNeighbourMove.IsFinished || !PairIdle(b)) return;
                     Require(ChargeWindowAttackCount() == 0, "Cancelled Charge delivered or replayed a rider attack.");
-                    FinishRealtimeCharge(); Pass("C7-rt-charge-native-cancel");
+                    FinishRealtimeCharge();
+                    var weapon = (JObject)evidence["chargeWeapon"]; weapon["after"] = ChargeWeaponState();
+                    Require(JToken.DeepEquals(weapon["before"], weapon["after"]), "Rider A's equipped hand set or weapon changed during the Charge case.");
+                    Pass("C7-rt-charge-native-cancel");
                     evidence["selectedRealtimeCaseComplete"] = true; BeginCleanup(); break;
             }
+        }
+        // Rider A's own equipped hand set and primary weapon, observed only; the scenario never switches or equips.
+        private JObject ChargeWeaponState()
+        {
+            var primary = ar.Body.PrimaryHand.MaybeWeapon; var first = ar.GetFirstWeapon();
+            return new JObject { ["handSet"] = ar.Body.CurrentHandEquipmentSetIndex,
+                ["primaryItem"] = primary == null ? 0 : System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(primary),
+                ["primaryBlueprint"] = primary?.Blueprint.AssetGuid, ["category"] = primary?.Blueprint.Category.ToString(),
+                ["melee"] = primary?.Blueprint.IsMelee == true, ["ranged"] = primary?.Blueprint.IsRanged == true,
+                ["firstWeaponIsPrimary"] = primary != null && ReferenceEquals(first, primary) };
+        }
+        // Mounted Charge needs a melee weapon: rider A must wield one as saved. On the owner-seed Charge lineage that is
+        // exactly the seed's saved active hand set and its primary weapon; anything else is refused before input.
+        private void AdmitChargeWeapon()
+        {
+            var before = ChargeWeaponState(); evidence["chargeWeapon"] = new JObject { ["before"] = before };
+            var ownerSeed = request.OwnedPairs?.Case == Chunk7OwnedPairsSelection.OwnerSeedRealtimeChargeCase;
+            Require((bool)before["melee"] && !(bool)before["ranged"] && (bool)before["firstWeaponIsPrimary"] &&
+                (!ownerSeed || (int)before["handSet"] == Chunk7OwnedPairsSelection.ChargeSeedHandSetIndex &&
+                    (string)before["primaryBlueprint"] == Chunk7OwnedPairsSelection.ChargeSeedPrimaryWeapon),
+                "Rider A does not wield its saved melee weapon; RT Charge is uncovered on this source: " + before.ToString(Newtonsoft.Json.Formatting.None));
         }
         private static Vector3 PositionOf(JObject snapshot, Kingmaker.EntitySystem.Entities.UnitEntityData actor)
         {

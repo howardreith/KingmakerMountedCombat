@@ -199,12 +199,15 @@ function Get-KmcChunk7OwnerSeedSource($Selection,$Fixture,$Candidate){
  Boundary 'owner-seed-registry-master-intake-header';$script:coldSelection=$Selection
  [pscustomobject]@{path='C:\virtual\fixtures\owner-supplied\KMC_C7_OWNER_SEED.master.zks';descriptor=$script:seedDescriptor;seedId=$Selection.seedId;registryPath='registry';registrySha256=('a'*64);registryEntry=[pscustomobject]@{intakePath='fixtures/owner-supplied/x.json'};intakePath='C:\virtual\intake.json';intakeSha256=('b'*64);fixtureSetupOnly=$script:seedSetupOnly;nativeAuthorityGranted=$script:seedAuthority}
 }
+$script:useChargeSeed=$false
 function New-OwnerSeedSource{
  $script:calls=[Collections.Generic.List[string]]::new();$script:failure=$null;$script:coldSelection=$null;$script:seedSetupOnly=$true;$script:seedAuthority=$false
  $f=[IO.File]::ReadAllText((Join-Path $testFixtures 'TwoOwnerManualExistingFixture.json'))|ConvertFrom-Json;$r=$f.request
  $script:seedDescriptor=[pscustomobject][ordered]@{internalName='KMC_C7_OWNER_SEED';fileName='Manual_302_KMC_C7_OWNER_SEED.zks';sha256=('9'*64);length=1401014;lastWriteTimeUtcTicks=638960000000000000;gameId='ce9e3801-6f92-4f6b-8738-b990fc5111bf';gameName='Testor The Reliable';area='b10e86516b6437d45a629931c30936fe'}
  $a='10101010-1010-4010-8010-101010101010';$b='30303030-3030-4030-8030-303030303030'
- $s=[pscustomobject][ordered]@{case='owner-seed-exploration';seedId='KMC_C7_OWNER_SEED';seedSha256=('9'*64);riderAId=$a;riderBId=$b;partyIds=@($a,$b);xpAssistance=[pscustomobject]@{unitId=$b;targetCharacterLevel=8};baseGameOnly=$true;expectedNativeLoadCount=1;expectedNativeWriteCount=0}
+ # The owner-seed real-time Charge lineage starts only from the registered charge seed.
+ if($script:useChargeSeed){$c=Get-KmcChunk7ChargeSeed;$script:seedDescriptor.internalName=$c.seedId;$script:seedDescriptor.fileName='Manual_306_KMC_C7_CHARGE_SEED.zks';$script:seedDescriptor.sha256=$c.sha256;$script:seedDescriptor.gameId='3f7381f7-aba6-43bf-bae6-39c6a66a7180';$script:seedDescriptor.gameName='Testy the Modless'}
+ $s=[pscustomobject][ordered]@{case='owner-seed-exploration';seedId=$(if($script:useChargeSeed){'KMC_C7_CHARGE_SEED'}else{'KMC_C7_OWNER_SEED'});seedSha256=$(if($script:useChargeSeed){$script:seedDescriptor.sha256}else{'9'*64});riderAId=$a;riderBId=$b;partyIds=@($a,$b);xpAssistance=[pscustomobject]@{unitId=$b;targetCharacterLevel=8};baseGameOnly=$true;expectedNativeLoadCount=1;expectedNativeWriteCount=0}
  [pscustomobject]@{selection=$s;fixture=$r.fixture;candidate=($r|ConvertTo-Json -Depth 20|ConvertFrom-Json)}
 }
 Check 'owner-seed source delegates to the exact cold owner-seed gate' {$c=New-OwnerSeedSource;$v=Get-KmcChunk7OwnedPairsSource $c.selection $null $c.fixture $c.candidate
@@ -232,10 +235,11 @@ function New-SeedDerivedSource{
  $ps=$o.selection|ConvertTo-Json -Depth 20|ConvertFrom-Json;$ps.case='owner-seed-persistence-save';$ps.expectedNativeWriteCount=1;$ps.partyIds=@($a,$b)
  $pr=[ordered]@{scenario='chunk7-owned-two-pair-campaign';runId='synthetic-owner-seed-manual';evidenceRoot='';fixture=$r.fixture;ownedPairs=$ps;persistenceCase='multi-exploration-manual';persistenceLoad=($script:seedDescriptor|ConvertTo-Json -Depth 5|ConvertFrom-Json)}
  foreach($key in @('branch','commit','productVersion','dllSha256','dllMvid','transactionToken')){$pr[$key]=$r.$key};$pr=[pscustomobject]$pr
- $leaf='Manual_303_KMC_C7_SEED_WORLD.zks'
- $artifact=[pscustomobject]@{observations=[pscustomobject]@{ownedOutputAdmission=[pscustomobject]@{number=303;leaf=$leaf};nativeWrite=[pscustomobject]@{path='';nativeName='KMC_C7_SEED_WORLD';nativeType='Manual';sha256=('5'*64);length=2048}
+ # The native next Manual number after the seed's own (303 after 302; 307 after the charge seed's 306).
+ $number=[int]($script:seedDescriptor.fileName-replace'^Manual_(\d+)_.*$','$1')+1;$leaf='Manual_'+$number+'_KMC_C7_SEED_WORLD.zks'
+ $artifact=[pscustomobject]@{observations=[pscustomobject]@{ownedOutputAdmission=[pscustomobject]@{number=$number;leaf=$leaf};nativeWrite=[pscustomobject]@{path='';nativeName='KMC_C7_SEED_WORLD';nativeType='Manual';sha256=('5'*64);length=2048}
   ownerSeedManual=[pscustomobject]@{twoOwners=@([pscustomobject]@{actorId=$a;petId=$ma},[pscustomobject]@{actorId=$b;petId=$mb});fieldWorld=[pscustomobject]@{party=@($party|ForEach-Object{[pscustomobject]@{id=$_}})}}}}
- $producer=Add-Set $pr $artifact 'chunk7-world-evidence.json' ('6'*64) ('9'*64) 'multi-exploration-manual'
+ $producer=Add-Set $pr $artifact 'chunk7-world-evidence.json' ('6'*64) $o.selection.seedSha256 'multi-exploration-manual'
  $artifact.observations.nativeWrite.path=Join-Path (Join-Path $producer.profile 'Saved Games') $leaf;$script:hashes[$artifact.observations.nativeWrite.path]='5'*64
  $s=[pscustomobject][ordered]@{case='owner-seed-persistence-load';sourceRunId=$pr.runId;sourceArtifactSha256=('6'*64);sourceArchiveSha256=('5'*64);seedId=$o.selection.seedId;seedSha256=$o.selection.seedSha256;riderAId=$a;mountAId=$ma;riderBId=$b;mountBId=$mb;partyIds=$party;baseGameOnly=$true;expectedNativeLoadCount=1;expectedNativeWriteCount=0}
  [pscustomobject]@{selection=$s;fixture=$r.fixture;candidate=$o.candidate;producer=$producer;persistenceCase='multi-exploration-manual'}
@@ -269,7 +273,7 @@ foreach($derivedFault in $derivedFaults.Keys){Check ('owner-seed-derived consume
 function Assert-KmcChunk7OwnerSeedDerivedColdSource($Request,$ProducerArtifact,$ColdArtifact){Boundary 'consumer-cold-proof';if(-not[object]::ReferenceEquals($ProducerArtifact,$script:producerArtifact)-or-not[object]::ReferenceEquals($ColdArtifact,$script:consumerArtifact)){throw 'cold proof bound to the wrong receipts'}}
 $script:companion='c0c0c0c0-c0c0-40c0-80c0-c0c0c0c0c0c0'
 function New-SeedCombatSource([string]$Case='owner-seed-combat-rider-first'){
- $c=New-SeedDerivedSource;$load=$c.selection;$load.partyIds=@($load.partyIds)+@($script:companion)
+ $script:useChargeSeed=$Case-ceq'owner-seed-realtime-charge';try{$c=New-SeedDerivedSource}finally{$script:useChargeSeed=$false};$load=$c.selection;$load.partyIds=@($load.partyIds)+@($script:companion)
  $c.producer.artifact.observations.ownerSeedManual.fieldWorld.party=@($load.partyIds|ForEach-Object{[pscustomobject]@{id=$_}});$script:producerArtifact=$c.producer.artifact
  $descriptor=(Get-KmcChunk7OwnedPairsSource $load $c.persistenceCase $c.fixture $c.candidate).descriptor;$script:readCounts=@{};$script:calls=[Collections.Generic.List[string]]::new()
  $s=[ordered]@{case=$Case;sourceRunId=$load.sourceRunId;sourceArtifactSha256=$load.sourceArtifactSha256;sourceArchiveSha256=$load.sourceArchiveSha256;checkpointSourceRunId='synthetic-owner-seed-cold';checkpointSourceArtifactSha256=('7'*64);seedId=$load.seedId;seedSha256=$load.seedSha256;riderAId=$load.riderAId;mountAId=$load.mountAId;riderBId=$load.riderBId;mountBId=$load.mountBId;partyIds=$load.partyIds}
@@ -282,11 +286,12 @@ function New-SeedCombatSource([string]$Case='owner-seed-combat-rider-first'){
  [pscustomobject]@{selection=$s;fixture=$c.fixture;candidate=$c.candidate;producer=$c.producer;consumer=$consumer;persistenceCase=$null}
 }
 function Qualify-Combat($C){Get-KmcChunk7OwnedPairsSource $C.selection $C.persistenceCase $C.fixture $C.candidate}
-foreach($combatCase in @('owner-seed-realtime-core','owner-seed-combat-rider-first','owner-seed-combat-mount-first','owner-seed-combat-disable','owner-seed-native-life-cleanup','owner-seed-native-death-cleanup','owner-seed-attack-modes','owner-seed-combat-reaction','owner-seed-staged')){
+foreach($combatCase in @('owner-seed-realtime-core','owner-seed-combat-rider-first','owner-seed-combat-mount-first','owner-seed-combat-disable','owner-seed-native-life-cleanup','owner-seed-native-death-cleanup','owner-seed-attack-modes','owner-seed-combat-reaction','owner-seed-staged','owner-seed-realtime-charge')){
  Check ('owner-seed-derived combat qualifies the producer and the accepted consumer '+$combatCase) {$c=New-SeedCombatSource $combatCase;$v=Qualify-Combat $c
   if($v.ownerSeedDerived-ne$true-or$v.descriptor.sha256-cne('5'*64)-or$v.artifactSha256-cne('6'*64)-or$v.consumerRunId-cne'synthetic-owner-seed-cold'-or$v.consumerArtifactSha256-cne('7'*64)-or$v.candidates.sameCandidate-ne$true-or$v.candidates.producer.commit-cne$c.producer.request.commit-or$v.candidates.consumer.dllSha256-cne$c.consumer.request.dllSha256){throw 'Combat source lost the producer/consumer chain or the candidate fact'}
   foreach($gate in @('owner-seed-registry-master-intake-header','strict-producer-world-artifact','strict-checkpoint-artifact','consumer-cold-proof')){if(-not$script:calls.Contains($gate)){throw ('combat source omitted required gate '+$gate)}}}
 }
+Check 'owner-seed real-time Charge refuses a lineage from another seed' {$c=New-SeedCombatSource;$c.selection.case='owner-seed-realtime-charge';[void](Qualify-Combat $c)} $true 'exactly the registered KMC_C7_CHARGE_SEED'
 Check 'owner-seed-derived combat records a later current candidate without relabelling the chain' {$c=New-SeedCombatSource;$c.candidate.commit='f'*40;$c.candidate.dllSha256='f'*64;$c.candidate.dllMvid='ffffffff-ffff-4fff-8fff-ffffffffffff';$v=Qualify-Combat $c
  if($v.candidates.sameCandidate-ne$false-or$v.candidates.current.commit-cne('f'*40)-or$v.candidates.producer.commit-ceq('f'*40)-or$v.candidates.consumer.commit-ceq('f'*40)-or$v.ownerSeedDerived-ne$true){throw 'Cross-candidate fact was not recorded honestly'}}
 $combatFaults=[ordered]@{
