@@ -115,6 +115,10 @@ function Read-KmcChunk7UpgradeU1([string]$SourceRunId,[string]$RehearsalId){
   [string]$u.stagedKmc.packageSha256-cne$pins.packageSha256-or[string]$result.runId-cne$SourceRunId-or[string]$result.status-cne'PASS'){
   throw 'Upgrade carry source is not a passed u1 previous-package install of the released preview.211 package.'
  }
+ # u1's own UMM receipt: its SHA-256 recorded in u1's outer result, and its admission re-judged.
+ if($null-eq$result.PSObject.Properties['normalPlayerUmmReceiptSha256']){throw 'Upgrade carry source u1 result does not record its UMM session receipt SHA-256.'}
+ $receiptRequest=[pscustomobject]@{runId=$SourceRunId;evidenceRoot=(Split-Path -Parent $paths.result);normalPlayer=$request.normalPlayer}
+ Assert-KmcChunk7NormalPlayerUmmReceiptHash $receiptRequest $result;Assert-KmcChunk7NormalPlayerUmmReceipt $receiptRequest $result
  $gu=if($null-ne$game.PSObject.Properties['upgradeRehearsal']){$game.upgradeRehearsal}else{$null}
  if([string]$result.gameResultSha256-cne$records.game.sha256-or[string]$game.evidenceKind-cne'kmc-normal-player-observer'-or[string]$game.status-cne'PASS'-or[string]$game.runId-cne$SourceRunId-or
   $null-eq$gu-or[string]$gu.rehearsalId-cne$RehearsalId-or[string]$gu.step-cne'u1-previous-install'-or$null-eq$gu.loadedKmc-or
