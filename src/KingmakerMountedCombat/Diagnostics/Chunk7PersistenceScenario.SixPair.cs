@@ -197,6 +197,16 @@ namespace KingmakerMountedCombat.Diagnostics
 
         // The host's unattended terminal FAIL admits only this engine's own committed,
         // hashed retained-cleanup failure of a six-pair case in its unchanged native world.
+        // The same committed retained failure for a two-pair owned persistence run.
+        internal void RequireRetainedFailureScope()
+        {
+            Require(!SixPairCase && captured && cleanup && !cleanupProven && pendingHostCustody && !disposed &&
+                cleanupPendingReported && !string.IsNullOrEmpty(RetainedFailureArtifactSha256) &&
+                errors.Count != 0 && results.Any(row => row.Status == "FAIL"),
+                "No committed retained two-pair persistence failure owns this world.");
+            Require(nativeScope != null, "Captured native world authority is absent.");
+            nativeScope.RequireCurrent();
+        }
         internal void RequireRetainedSixFailureScope()
         {
             Require(SixPairCase && captured && cleanup && !cleanupProven && pendingHostCustody && !disposed &&
