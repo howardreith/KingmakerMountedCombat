@@ -14,6 +14,7 @@ namespace Kingmaker.EntitySystem.Entities {
  class Fact { public object Data=new object(); } class Abilities { public Dictionary<object,Fact> Facts=new Dictionary<object,Fact>();public Fact GetAbility(object blueprint)=>blueprint!=null&&Facts.TryGetValue(blueprint,out var f)?f:null; }
  class UISettings { public Kingmaker.UI.UnitSettings.MechanicActionBarSlot[] Slots=new Kingmaker.UI.UnitSettings.MechanicActionBarSlot[128];public void SetSlot(Kingmaker.UI.UnitSettings.MechanicActionBarSlot slot,int index){Slots[index]=slot;} }
 }
+namespace Kingmaker { class Game { public static Game Instance;public object CurrentlyLoadedArea; } }
 namespace KingmakerMountedCombat.Domain { enum NativeMountedControlKind { None, MountCompanion, Dismount, RiderPrimary, MountPrimary, MountedCharge } }
 namespace KingmakerMountedCombat.Integration {
  static class GameMountedRelationshipService { public static int NativePairCapacity=6; }
@@ -41,13 +42,15 @@ namespace KingmakerMountedCombat.Diagnostics {
   // Before binding, the facade counts managed slots from the actual hotbars unless a test pins a value.
   public Func<int> CountManaged;public ControlSnapshot CaptureSnapshot()=>new ControlSnapshot{ManagedHotbarSlotCount=ManagedSlots>=0?ManagedSlots:CountManaged()}; }
  class ControlSnapshot { public int ManagedHotbarSlotCount; }
- class Persistence { public int SnapshotCount,SemanticRestoreCount,PresentationRestoreCount,ArchivePostLoadObservedCount;public MountedArchiveData LoadedArchive;public string ArchiveRestorePhase="not-selected",Feedback="feedback"; }
+ class Persistence { public int SnapshotCount,SemanticRestoreCount,PresentationRestoreCount,ArchivePostLoadObservedCount,FailedAreaPairCount;public MountedArchiveData LoadedArchive;public string ArchiveRestorePhase="not-selected",Feedback="feedback"; }
  class Probe { public bool Complete=true,Disposed;public Dictionary<string,int> Counts=new Dictionary<string,int>{{"restore-debt-before",12},{"restore-debt-after",12}};
   public int Count(string kind,IEnumerable<string> ids)=>Counts.TryGetValue(kind,out var n)?n:0;public JObject Capture()=>new JObject();public void Dispose(){Disposed=true;} }
- class Scope { public bool Reject;public void RequireCurrent(){if(Reject)throw new InvalidOperationException("captured native world changed");} }
+ class Scope { public bool Reject;public void RequireCurrent(){if(Reject)throw new InvalidOperationException("captured native world changed");}
+  public void RequireDeclaredAreaDestination(string area,object blueprint){if(Reject)throw new InvalidOperationException("declared area destination changed");} }
+ class Area { public string AssetGuidThreadSafe="area"; }
  class Row { public string Status; }
  internal sealed partial class Chunk7PersistenceScenario {
-  readonly Request request=new Request();bool Cold;Inherited inherited=new Inherited();Actor[] actors;readonly World world=new World();readonly Dictionary<Guid,long> expectedOwners=new Dictionary<Guid,long>();
+  readonly Request request=new Request();bool Cold;Area replayDestination;Inherited inherited=new Inherited();Actor[] actors;readonly World world=new World();readonly Dictionary<Guid,long> expectedOwners=new Dictionary<Guid,long>();
   readonly JArray inputs=new JArray(),movementRows=new JArray(),snapshots=new JArray();readonly Controls controls=new Controls();readonly Persistence persistence=new Persistence();readonly JObject evidence=new JObject();
   int stage;SavedMountedSlot[] slots;MountedArchiveData saved;Probe restoration;string ExpectedArchiveArea="area";
   bool captured=true,cleanup,cleanupProven,pendingHostCustody,disposed,cleanupPendingReported;string RetainedFailureArtifactSha256;readonly List<string> errors=new List<string>();readonly List<Row> results=new List<Row>();Scope nativeScope=new Scope();
