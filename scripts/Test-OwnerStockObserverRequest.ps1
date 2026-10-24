@@ -19,7 +19,7 @@ $r.Candidate=[KmcRemovalObserver.ObserverCandidate]::new()
 $r.Candidate.Commit='a'*40;$r.Candidate.ProductVersion='preview.82';$r.Candidate.DllSha256='b'*64
 $r.Candidate.DllMvid='141c76d8-bef6-4d87-9062-530ef5c4aff5'
 $r.Observer=[KmcRemovalObserver.ObserverPackage]::new()
-$r.Observer.Version='0.1.0-observer.5';$r.Observer.PackageSha256='c'*64
+$r.Observer.Version='0.1.0-observer.6';$r.Observer.PackageSha256='c'*64
 $r.Observer.DllSha256='d'*64;$r.Observer.DllMvid='141c76d8-bef6-4d87-9062-530ef5c4aff5'
 $r.Archive=[KmcRemovalObserver.ObserverArchive]::new()
 $r.Archive.InternalName='KMC_CLEANUP';$r.Archive.FileName='Manual_306_KMC_CLEANUP.zks'
