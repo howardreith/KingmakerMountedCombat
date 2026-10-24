@@ -57751,6 +57751,9 @@
                 "commandActor": "10101010-1010-4010-8010-101010101010",
                 "commandType": "Kingmaker.UnitLogic.Commands.UnitUseAbility",
                 "actionType": "Standard",
+                "timeSinceStart": 0.04,
+                "acted": true,
+                "ignoreCooldown": false,
                 "state": {
                   "actor": "10101010-1010-4010-8010-101010101010",
                   "standard": 0,
@@ -57768,10 +57771,13 @@
                 "commandActor": "10101010-1010-4010-8010-101010101010",
                 "commandType": "Kingmaker.UnitLogic.Commands.UnitUseAbility",
                 "actionType": "Standard",
+                "timeSinceStart": 0.04,
+                "acted": true,
+                "ignoreCooldown": false,
                 "state": {
                   "actor": "10101010-1010-4010-8010-101010101010",
-                  "standard": 3,
-                  "move": 3,
+                  "standard": 5.96,
+                  "move": 0,
                   "swift": 0,
                   "reactions": 1,
                   "reactionCooldown": 0
@@ -57785,6 +57791,9 @@
                 "commandActor": "10101010-1010-4010-8010-101010101010",
                 "commandType": "Kingmaker.UnitLogic.Commands.UnitUseAbility",
                 "actionType": "Standard",
+                "timeSinceStart": 0.04,
+                "acted": true,
+                "ignoreCooldown": false,
                 "state": {
                   "actor": "10101010-1010-4010-8010-101010101010",
                   "standard": 0,
@@ -57802,10 +57811,13 @@
                 "commandActor": "10101010-1010-4010-8010-101010101010",
                 "commandType": "Kingmaker.UnitLogic.Commands.UnitUseAbility",
                 "actionType": "Standard",
+                "timeSinceStart": 0.04,
+                "acted": true,
+                "ignoreCooldown": false,
                 "state": {
                   "actor": "10101010-1010-4010-8010-101010101010",
-                  "standard": 3,
-                  "move": 3,
+                  "standard": 5.96,
+                  "move": 0,
                   "swift": 0,
                   "reactions": 1,
                   "reactionCooldown": 0

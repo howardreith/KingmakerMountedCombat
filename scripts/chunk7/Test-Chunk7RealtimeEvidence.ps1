@@ -7,7 +7,7 @@ $passed=0
 function RtSnap([int]$Frame){$v=Snap $Frame;$v.currentActor=$null;return $v}
 $rtCosts=@();$rtOrdinal=0
 function Cost([string]$Actor,[long]$Command,[string]$Type,[int]$Frame,[bool]$Full=$false){
-    foreach($kind in @('cost-before','cost-after')){$after=$kind-ceq'cost-after';$script:rtCosts+=[pscustomobject]@{sequence=$script:rtCosts.Count+1;boundary=$kind;frame=$Frame;command=$Command;commandActor=$Actor;commandType=$Type;actionType='Standard';state=[pscustomobject]@{actor=$Actor;standard=$(if($after){3.0}else{0.0});move=$(if($after-and$Full){3.0}else{0.0});swift=0.0;reactions=1;reactionCooldown=0.0}}}
+    foreach($kind in @('cost-before','cost-after')){$after=$kind-ceq'cost-after';$script:rtCosts+=[pscustomobject]@{sequence=$script:rtCosts.Count+1;boundary=$kind;frame=$Frame;command=$Command;commandActor=$Actor;commandType=$Type;actionType='Standard';timeSinceStart=$(if($Full){0.04}else{0.0});acted=$true;ignoreCooldown=$false;state=[pscustomobject]@{actor=$Actor;standard=$(if($after){$(if($Full){5.96}else{3.0})}else{0.0});move=0.0;swift=0.0;reactions=1;reactionCooldown=0.0}}}
 }
 function RtAttack([int]$Pair,[int]$Member,[int]$Frame){
     $script:rtOrdinal++;$actor=$ids[$Pair*2+$Member];$caster=$ids[$Pair*2];$before=RtSnap $Frame;$after=RtSnap ($Frame+4);$after.actors[$Pair*2+$Member].standard=2.5
@@ -78,7 +78,9 @@ $cases=@(
     @('native casting slot refunded',$casting,{$args[0].observations.casting.slotAvailableAfter=$true}),@('native heal omitted',$casting,{$args[0].observations.casting.effectsAfter.events=@($args[0].observations.casting.effectsAfter.events[0])}),
     @('native cast wrong actor',$casting,{$args[0].observations.casting.executorId=$ids[2]}),@('native cast missing prepared inventory',$casting,{$args[0].observations.castingInventory[0].preparedSpells=@()}),
     @('native cast gains other actor entitlement',$casting,{$args[0].observations.casting.neighbour.outcome.resourceOwnerId=$ids[0]}),
-    @('Charge enabled after admission only',$charge,{$args[0].observations.chargeSettingAtAdmission=$false}),@('Charge not full native expenditure',$charge,{$args[0].observations.allocationTrace.events[1].state.move=0.0}),
+    @('Charge enabled after admission only',$charge,{$args[0].observations.chargeSettingAtAdmission=$false}),@('Charge RT cost added a Move the native RT branch never adds',$charge,{$args[0].observations.allocationTrace.events[1].state.move=3.0}),@('Charge RT Standard not 6 - TimeSinceStart',$charge,{$args[0].observations.allocationTrace.events[1].state.standard=5.5}),
+    @('Charge RT cost changed Swift',$charge,{$args[0].observations.allocationTrace.events[1].state.swift=6.0}),@('Charge RT cost elapsed differs between its boundaries',$charge,{$args[0].observations.allocationTrace.events[0].timeSinceStart=0.03}),
+    @('Charge RT cost on an unacted shell',$charge,{$args[0].observations.allocationTrace.events[1].acted=$false}),@('Charge RT cost ignoring cooldown',$charge,{$args[0].observations.allocationTrace.events[1].ignoreCooldown=$true}),
     @('Charge path still outstanding',$charge,{$args[0].observations.realtimeWindows[0].settled.lease.forcedPathOutstanding=$true}),@('Charge buff still outstanding',$charge,{$args[0].observations.realtimeWindows[0].settled.lease.buffOutstanding=$true}),
     @('Charge neighbour paid standard cost',$charge,{$args[0].observations.realtimeWindows[0].after.actors[3].standard=3.0}),@('Charge cancellation already attacked',$charge,{$args[0].observations.realtimeWindows[1].effectsAfter.events=@([pscustomobject]@{kind='attack-before';actor=$ids[0];target=$target;opportunity=$false})}),
     @('Charge cancellation did not move',$charge,{$args[0].observations.realtimeWindows[1].stop.before.actors[1].position.x=0.0}),@('Charge stop not native charging',$charge,{$args[0].observations.realtimeWindows[1].stop.charge.mountCharging=$false}),
@@ -92,6 +94,9 @@ $cases=@(
     @('RT cleanup incomplete',$charge,{$args[0].observations.cleanup.controlsSettled=$false}),@('RT breadth overclaimed',$core,{$args[0].observations.fullRealtimeCombatProof=$true})
 )
 foreach($case in $cases){$v=Copy-Value $case[1];& $case[2] $v;Reject $case[0] {Assert-KmcChunk7RealtimeEvidence (RequestFor $v) $v 'PASS'}}
+# b202 k4r: native RT Charge cost 0 -> 5.96 at TimeSinceStart 0.04, Move 0 -> 0 (RT UpdateCooldowns has no full-round branch).
+Check 'Charge RT full-round cost refusal names the native real-time Standard cooldown' {$v=Copy-Value $charge;$v.observations.allocationTrace.events[1].state.move=3.0;$message=$null;try{Assert-KmcChunk7RealtimeEvidence (RequestFor $v) $v 'PASS'}catch{$message=$_.Exception.Message};if($message-notmatch'native real-time Standard cooldown'){throw ('Unexpected refusal: '+$message)}}
+Check 'Charge RT cost of the b202 k4r shape is the fixture shape' {$e=@($charge.observations.allocationTrace.events|Where-Object{$_.command-eq6000});if($e.Count-ne2-or$e[1].state.standard-ne5.96-or$e[1].state.move-ne0.0-or$e[1].timeSinceStart-ne0.04){throw 'Charge fixture cost shape differs from b202 k4r.'}}
 Check 'RT partial failed evidence remains readable' {$v=Copy-Value $core;$v.status='FAIL';$v.errors=@('prepared native slot unavailable');$v.observations=[pscustomobject]@{};Assert-KmcChunk7RealtimeEvidence (RequestFor $v) $v 'FAIL'}
 Reject 'RT partial FAIL cannot become PASS' {$v=Copy-Value $core;$v.status='FAIL';$v.errors=@('fixture failed');Assert-KmcChunk7RealtimeEvidence (RequestFor $v) $v 'PASS'}
 Check 'RT exact rows and union' {$counts=@(14,9,10);$i=0;foreach($s in @($core.scenario,$casting.scenario,$charge.scenario)){if(@(Get-KmcChunk7RealtimeRows $s).Count-ne$counts[$i++]){throw 'RT case row count differs.'}};if(@(Get-KmcChunk7RealtimeRuntimeRows).Count-ne21){throw 'RT union differs.'}}

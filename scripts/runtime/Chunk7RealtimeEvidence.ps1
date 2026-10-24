@@ -28,13 +28,20 @@ function Assert-KmcChunk7RealtimeDisplacement($Before,$After,[string]$Actor){
     foreach($axis in @('x','y','z')){if(-not(Test-KmcChunk7FiniteNumber $a.position.$axis)-or-not(Test-KmcChunk7FiniteNumber $b.position.$axis)){throw 'RT physical position missing or invalid.'};$distance+=[Math]::Pow([double]$b.position.$axis-[double]$a.position.$axis,2)}
     if([Math]::Sqrt($distance)-le0.02){throw 'Native RT command has no physical displacement.'}
 }
-function Assert-KmcChunk7RealtimeCost($Trace,[string]$Actor,[long]$Command,[string]$Type,[int]$Start,[int]$End,[switch]$FullRound){
+# Native RT cost (UnitActionController.UpdateCooldowns 0x06009120, outside TB combat): a Standard-type command sets
+# only StandardAction = 6 - TimeSinceStart. The full-round Move add exists only in the TB branch
+# (UnitEntityData.UpdateCooldowns 0x0600838F, IsFullRoundAction), so a native RT full-round shell such as the
+# Charge spends exactly that Standard and leaves Move and Swift unchanged (b202 k4r: 0 -> 5.96 at 0.04 s, Move 0 -> 0).
+function Assert-KmcChunk7RealtimeCost($Trace,[string]$Actor,[long]$Command,[string]$Type,[int]$Start,[int]$End,[switch]$RealtimeFullRound){
     $events=@($Trace.events|Where-Object{$_.command-eq$Command-and$_.boundary-cin@('cost-before','cost-after')})
     if($Command-eq0-or$events.Count-ne2){throw 'RT actor cost is missing or repeated for its exact native command.'}
     $before=@($events|Where-Object boundary -CEQ 'cost-before');$after=@($events|Where-Object boundary -CEQ 'cost-after')
     if($before.Count-ne1-or$after.Count-ne1){throw 'RT native cost boundary pair differs.'};$before=$before[0];$after=$after[0]
     foreach($e in $events){if($e.commandActor-cne$Actor-or$e.state.actor-cne$Actor-or$e.commandType-cne$Type-or$e.actionType-cne'Standard'-or$e.frame-lt$Start-or$e.frame-gt$End){throw 'RT cost escaped actor, command, type or native window.'}}
-    if($after.sequence-le$before.sequence-or$after.state.standard-le$before.state.standard-or($FullRound-and$after.state.move-le$before.state.move)){throw 'Native RT expenditure was not applied at its exact callback.'}
+    if($after.sequence-le$before.sequence-or$after.state.standard-le$before.state.standard){throw 'Native RT expenditure was not applied at its exact callback.'}
+    if($RealtimeFullRound){$elapsed=$after.timeSinceStart
+        if(-not(Test-KmcChunk7FiniteNumber $elapsed)-or$elapsed-lt0-or$elapsed-ge6-or$before.timeSinceStart-ne$elapsed-or$before.acted-ne$true-or$after.acted-ne$true-or$after.ignoreCooldown-ne$false-or
+           [Math]::Abs([double]$after.state.standard-(6.0-[double]$elapsed))-gt0.001-or$after.state.move-ne$before.state.move-or$after.state.swift-ne$before.state.swift){throw 'Native RT full-round expenditure differs from the native real-time Standard cooldown.'}}
     foreach($e in $events){foreach($field in @('standard','move','swift','reactions','reactionCooldown')){if(-not(Test-KmcChunk7FiniteNumber $e.state.$field)-or$e.state.$field-lt0){throw 'RT native cost contains invalid resource observation.'}}}
 }
 function Assert-KmcChunk7RealtimePrimary($Attack,$Trace,[string]$Actor,[string]$Caster,[string]$Target,[string[]]$Ids){
@@ -205,7 +212,7 @@ function Assert-KmcChunk7RealtimeCharge($o,[string[]]$ids,$trace){
         if($c.casterId-cne$ids[0]-or$c.targetId-cne$o.targetId-or$c.abilityGuid-cne'd79eaec224a7a832e738eb81baef9d49'-or$c.castDelta-ne1-or$c.refusalDelta-ne0-or$c.selectionAfterInput-cne$ids[2]-or
            $c.command-eq0-or-not$shells.Add([long]$c.shell)){throw 'Charge exact native shell/actor input differs.'}
         Assert-KmcChunk7RealtimeShell $c.admittedShell $c.shell $ids[0] $o.targetId
-        Assert-KmcChunk7RealtimeCost $trace $ids[0] $c.shell 'Kingmaker.UnitLogic.Commands.UnitUseAbility' $c.before.frame $c.after.frame -FullRound
+        Assert-KmcChunk7RealtimeCost $trace $ids[0] $c.shell 'Kingmaker.UnitLogic.Commands.UnitUseAbility' $c.before.frame $c.after.frame -RealtimeFullRound
         if($c.movement.executorId-cne$ids[3]-or$c.movement.casterId-cne$ids[2]-or$c.movement.command-eq0-or
            @($c.admittedNeighbourCommands|Where-Object{$_.identity-eq$c.movement.command-and$_.actorId-ceq$ids[3]-and-not$_.finished}).Count-ne1){throw 'Charge lacks concurrent exact native neighbour movement.'}
         Assert-KmcChunk7Boolean $c.movement.clicked $true;Assert-KmcChunk7RealtimeDisplacement $c.movement.before $c.after $ids[3]
