@@ -1093,10 +1093,12 @@ function Check-B204Cast([string]$Name,[int]$Index,[scriptblock]$Mutation,[string
 $b204Inner='47808d23c67033d4bbab86a1070fd62f';$b204Scroll='5590652e1c2225c4ca30c4a699ab3649'
 Check 'b204 step 1 native scroll window accepted' {Invoke-B204Cast (Copy-Value $b204.casts[0])}
 Check 'b204 step 8 native scroll window accepted' {Invoke-B204Cast (Copy-Value $b204.casts[1])}
-Check-B204Cast 'without the touch delivery and its heal is accepted' 0 {$c=$args[0];$c.castEvents=@($c.castEvents|Where-Object{-not(($_.kind-cin@('cast-before','cast-after')-and$_.ability.blueprint-ceq$b204Inner)-or$_.kind-ceq'heal')})}
+Check-B204Cast 'refuses a self-targeted scroll without its touch delivery and heal' 0 {$c=$args[0];$c.castEvents=@($c.castEvents|Where-Object{-not(($_.kind-cin@('cast-before','cast-after')-and$_.ability.blueprint-ceq$b204Inner)-or$_.kind-ceq'heal')})} 'lacks its native touch delivery'
 Check-B204Cast 'with a bounded heal of a damaged rider is accepted' 1 {$c=$args[0];$c.before.actors[0].native.damage=6;(Get-B204Events $c 'heal')[0].value=5}
 Check-B204Cast 'refuses a delivery whose heal is missing' 0 {$c=$args[0];$c.castEvents=@($c.castEvents|Where-Object kind -CNE 'heal')} 'heals do not match'
-Check-B204Cast 'refuses a heal without the delivery' 0 {$c=$args[0];$c.castEvents=@($c.castEvents|Where-Object{-not($_.kind-cin@('cast-before','cast-after')-and$_.ability.blueprint-ceq$b204Inner)})} 'heals do not match'
+Check-B204Cast 'refuses a heal without the delivery' 0 {$c=$args[0];$c.castEvents=@($c.castEvents|Where-Object{-not($_.kind-cin@('cast-before','cast-after')-and$_.ability.blueprint-ceq$b204Inner)})} 'lacks its native touch delivery'
+Check-B204Cast 'refuses a scroll cast-before of a foreign ability' 0 {(Get-B204Events $args[0] 'cast-before' $b204Scroll)[0].ability.blueprint='0'*32} 'failed or duplicated'
+Check-B204Cast 'refuses a touch delivery cast-before on the mount' 1 {(Get-B204Events $args[0] 'cast-before' $b204Inner)[0].target=$b204.mountId} 'exact self touch delivery'
 Check-B204Cast 'refuses a second heal' 0 {$c=$args[0];$c.castEvents=@($c.castEvents)+@(Copy-Value (Get-B204Events $c 'heal')[0])} 'heals do not match'
 Check-B204Cast 'refuses a heal beyond the native damage' 0 {(Get-B204Events $args[0] 'heal')[0].value=5} 'bounded native heal'
 Check-B204Cast 'refuses a heal of the mount' 1 {(Get-B204Events $args[0] 'heal')[0].target=$b204.mountId} 'bounded native heal'
@@ -1117,11 +1119,18 @@ Check-B204Cast 'refuses a child touch command' 0 {$c=$args[0];$s=Copy-Value @($c
 Check-B204Cast 'refuses a cast by the mount' 1 {$c=$args[0];$e=Copy-Value (Get-B204Events $c 'cast-after' $b204Inner)[0];$e.actor=$b204.mountId;$c.castEvents=@($c.castEvents)+@($e)} 'failed or duplicated'
 Check-B204Cast 'refuses a scroll ability without a pinned delivery' 0 {$args[0].ability.blueprint='0'*32} 'no pinned native touch delivery'
 # b204 step 4: MountedPairAttackCommand turns the stationary mount to the target; the saddle point only rotates.
-function Set-StSeatShot($v,[double[]]$RiderBefore,[double[]]$RiderAfter){$s=Get-StStep $v 4;$m=@($s.before.mountPosition);$s.before.riderPosition=@(([double]$m[0]+$RiderBefore[0]),([double]$m[1]+$RiderBefore[1]),([double]$m[2]+$RiderBefore[2]));$p=@(([double]$m[0]+$RiderAfter[0]),([double]$m[1]+$RiderAfter[1]),([double]$m[2]+$RiderAfter[2]));$s.after.riderPosition=$p;$s.rules[0].actorPosition=$p}
-$b204SeatBefore=@(0..2|ForEach-Object{[double]$b204.shot.before.riderPosition[$_]-[double]$b204.shot.before.mountPosition[$_]});$b204SeatAfter=@(0..2|ForEach-Object{[double]$b204.shot.after.riderPosition[$_]-[double]$b204.shot.after.mountPosition[$_]})
-Check 'owner-seed staged accepts the b204 in-range seat rotation about the stationary mount' {$v=New-KmcSeedStagedFixture;Set-StSeatShot $v $b204SeatBefore $b204SeatAfter;Invoke-OwnedReader $v}
-Check-SeedStaged 'an in-range rider displaced off its seat radius' {Set-StSeatShot $args[0] $b204SeatBefore @(($b204SeatAfter[0]*2.0),$b204SeatAfter[1],($b204SeatAfter[2]*2.0))} 'in-range shot origin moved'
-Check-SeedStaged 'an in-range rider raised off its seat' {Set-StSeatShot $args[0] $b204SeatBefore @($b204SeatAfter[0],($b204SeatAfter[1]+0.3),$b204SeatAfter[2])} 'in-range shot origin moved'
+# Seat geometry from b204 step 4 (radius about the mount pivot and rider height), placed about the fixture's stationary
+# mount: before at the given bearing offset from the mount-to-target direction, after at its own offset (0 faces the target).
+function Set-StSeatShot($v,[double]$Radius,[double]$Height,[double]$BeforeDeg,[double]$AfterDeg){$s=Get-StStep $v 4;$m=@($s.before.mountPosition|ForEach-Object{[double]$_});$t=@($s.rules[0].targetPosition|ForEach-Object{[double]$_})
+ $base=[Math]::Atan2($t[2]-$m[2],$t[0]-$m[0]);$at={param([double]$deg)$r=$base+$deg*[Math]::PI/180.0;@(($m[0]+$Radius*[Math]::Cos($r)),($m[1]+$Height),($m[2]+$Radius*[Math]::Sin($r)))}
+ $s.before.riderPosition=&$at $BeforeDeg;$p=&$at $AfterDeg;$s.after.riderPosition=$p;$s.rules[0].actorPosition=$p}
+$b204SeatRadius=[Math]::Sqrt([Math]::Pow([double]$b204.shot.after.riderPosition[0]-[double]$b204.shot.after.mountPosition[0],2)+[Math]::Pow([double]$b204.shot.after.riderPosition[2]-[double]$b204.shot.after.mountPosition[2],2));$b204SeatHeight=[double]$b204.shot.after.riderPosition[1]-[double]$b204.shot.after.mountPosition[1]
+Check 'owner-seed staged accepts the b204 in-range seat rotation toward the target about the stationary mount' {$v=New-KmcSeedStagedFixture;Set-StSeatShot $v $b204SeatRadius $b204SeatHeight 84.0 0.0;Invoke-OwnedReader $v}
+Check-SeedStaged 'an in-range rider displaced off its seat radius' {$s=Get-StStep $args[0] 4;Set-StSeatShot $args[0] $b204SeatRadius $b204SeatHeight 84.0 0.0;$m=@($s.before.mountPosition);$p=@(([double]$m[0]+2.0*([double]$s.after.riderPosition[0]-[double]$m[0])),[double]$s.after.riderPosition[1],([double]$m[2]+2.0*([double]$s.after.riderPosition[2]-[double]$m[2])));$s.after.riderPosition=$p;$s.rules[0].actorPosition=$p} 'in-range shot origin moved'
+Check-SeedStaged 'an in-range seat rotated half a turn' {Set-StSeatShot $args[0] $b204SeatRadius $b204SeatHeight 0.0 180.0} 'in-range shot origin moved'
+Check-SeedStaged 'an in-range seat rotated away from the target' {Set-StSeatShot $args[0] $b204SeatRadius $b204SeatHeight 0.0 90.0} 'in-range shot origin moved'
+Check-SeedStaged 'an in-range seat beyond the saddle radius cap' {Set-StSeatShot $args[0] 1.2 $b204SeatHeight 84.0 0.0} 'in-range shot origin moved'
+Check-SeedStaged 'an in-range rider raised off its seat' {$s=Get-StStep $args[0] 4;Set-StSeatShot $args[0] $b204SeatRadius $b204SeatHeight 84.0 0.0;$p=@($s.after.riderPosition);$p[1]=[double]$p[1]+0.3;$s.after.riderPosition=$p;$s.rules[0].actorPosition=$p} 'in-range shot origin moved'
 Check-SeedStaged 'a stack that did not decrement' {$s=Get-StStep $args[0] 1;$s.after.items[0].count=4} 'decrement in place'
 Check-SeedStaged 'a measured spend from the last unit' {$s=Get-StStep $args[0] 8;$s.before.items[0].count=1;$s.after.items[0].count=0} 'decrement in place'
 Check-SeedStaged 'damage inside a cast without its concentration check' {$s=Get-StStep $args[0] 1;$s.castEvents=@($s.castEvents)+@([pscustomobject]@{kind='damage';actor=$args[0].artifact.observations.targetId;target=$args[0].request.ownedPairs.riderAId;damage=3})} 'concentration checks'
@@ -1167,7 +1176,7 @@ Check-SeedStaged 'a second leg before any Move was used' {(Get-StStep $args[0] 2
 Check-SeedStaged 'a second leg that consumed no native movement time' {$l=(Get-StStep $args[0] 2).legs[0];(Get-StActor $l.after $args[0].request.ownedPairs.mountAId).native.remainingNativeTime=5.5} 'retained native movement time'
 Check-SeedStaged 'a full attack as the shot' {(Get-StStep $args[0] 4).rules[0].fullAttack=$true;$args[0].artifact.observations.staged.rules.events=@((Get-StStep $args[0] 4).rules[0],(Get-StStep $args[0] 9).rules[0])} 'one native ranged shot'
 Check-SeedStaged 'a single-action move leg' {(Get-StStep $args[0] 0).legs[0].singleActionMove=$true} 'Native evidence boolean'
-Check-SeedStaged 'an absent cast shell identity' {$s=Get-StStep $args[0] 8;$s.costShell=0;$s.terminal.identity=0} 'committed exactly once|another native command'
+Check-SeedStaged 'an absent cast shell identity' {$s=Get-StStep $args[0] 8;$s.costShell=0;$s.terminal.identity=0} 'another native command'
 Check 'owner-seed combat reaction accepts a negative native command identity' {$v=New-KmcSeedReactionFixture;(Get-RxLeg $v).command=-1234567;Invoke-OwnedReader $v}
 Check 'owner-seed combat reaction accepts an interrupted move that left the threatened area short of its clear distance' {$v=New-KmcSeedReactionFixture;$d=Get-RxLeg $v;$d.result='Interrupt';$d.targetAfter.mountDistance=6.0;Invoke-OwnedReader $v}
 Check 'owner-seed combat reaction accepts pair B cooldowns that only decayed natively' {$v=New-KmcSeedReactionFixture;$d=Get-RxLeg $v;(RActor $d.before $v.request.ownedPairs.riderBId).standard=6.0;(RActor $d.after $v.request.ownedPairs.riderBId).standard=5.5;$d.after.gameTicks=[long]$d.before.gameTicks+10000000;Invoke-OwnedReader $v}
