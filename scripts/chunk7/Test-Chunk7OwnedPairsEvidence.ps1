@@ -800,6 +800,19 @@ function RActor($w,[string]$id){@($w.actors|Where-Object id -CEQ $id)[0]}
 Check 'owner-seed combat reaction evidence accepted (threatened start, one native attack of opportunity)' {Invoke-OwnedReader (New-KmcSeedReactionFixture)}
 Check 'owner-seed combat reaction accepts a native approach before the disengagement' {Invoke-OwnedReader (New-KmcSeedReactionFixture $true)}
 Check 'owner-seed combat reaction accepts the attack of opportunity on rider A' {$v=New-KmcSeedReactionFixture;$e=(Get-RxLeg $v).rules[0];$e.target=$v.request.ownedPairs.riderAId;$v.artifact.observations.reaction.rules.events[0].target=$e.target;Invoke-OwnedReader $v}
+function Add-RxDelay($v){$o=$v.artifact.observations;$x=$o.reaction;$roles=@(Get-KmcChunk7OwnedPairIds $v.request)
+ $tb=Copy-Value $x.precondition;$tb.label='delay-before';$tb.canActInCombat=$false;$tb.waitingInitiative=$true;$tb.initiativeCooldown=3.0
+ $b=Copy-Value $x.disengage.before;$b.label='reaction-delay-before';$b|Add-Member currentActor $roles[0] -Force;$rs=Copy-Value $b;$rs.label='reaction-delay-resumed';$rs.gameTicks=[long]$b.gameTicks+30000000
+ $x|Add-Member initiativeDelay ([pscustomobject][ordered]@{round=10;targetBefore=$tb;canDelay=$true;riderSlot=0;targetSlot=3;targetWait=3.0;nextRoundWait=6.0;before=$b;statusAfter='Delayed';suspended=$true;resumed=$rs}) -Force;$v}
+Check 'owner-seed combat reaction accepts one native same-round Delay behind a target resolving its initiative' {Invoke-OwnedReader (Add-RxDelay (New-KmcSeedReactionFixture))}
+Check-SeedReaction 'a Delay although the target had resolved its initiative' {$x=(Add-RxDelay $args[0]).artifact.observations.reaction.initiativeDelay;$x.targetBefore.waitingInitiative=$false;$x.targetBefore.canActInCombat=$true} 'had resolved its native initiative'
+Check-SeedReaction 'a Delay behind an earlier unit' {(Add-RxDelay $args[0]).artifact.observations.reaction.initiativeDelay.targetSlot=0} 'same-round suspension'
+Check-SeedReaction 'a Delay crossing the round' {(Add-RxDelay $args[0]).artifact.observations.reaction.initiativeDelay.targetWait=6.0} 'same-round suspension'
+Check-SeedReaction 'a Delay that did not suspend the turn' {(Add-RxDelay $args[0]).artifact.observations.reaction.initiativeDelay.statusAfter='Acting'} 'same-round suspension'
+Check-SeedReaction 'a resume in another round' {(Add-RxDelay $args[0]).artifact.observations.reaction.initiativeDelay.resumed.round=11} 'did not resume its delayed native turn'
+Check-SeedReaction 'a resume on another actor' {$v=Add-RxDelay $args[0];$v.artifact.observations.reaction.initiativeDelay.resumed.currentActor=$v.request.ownedPairs.riderBId} 'did not resume its delayed native turn'
+Check-SeedReaction 'a Delay that spent mount A' {$v=Add-RxDelay $args[0];@($v.artifact.observations.reaction.initiativeDelay.resumed.actors|Where-Object id -CEQ $v.request.ownedPairs.mountAId)[0].standard=6.0} 'expenditure changed'
+Check-SeedReaction 'an incomplete Delay record' {(Add-RxDelay $args[0]).artifact.observations.reaction.initiativeDelay.PSObject.Properties.Remove('resumed')} 'reaction initiative delay'
 Check 'combat evidence refuses a reaction record outside its case' {$v=New-KmcOwnerSeedDerivedCombatFixture 'combat-rider-first';$v.artifact.observations|Add-Member reaction ([pscustomobject]@{}) -Force;Invoke-OwnedReader $v} $true 'belongs only to its closed owner-seed selection'
 # 7E X2 F02: owner-seed real-time Charge on the owner's KMC_C7_CHARGE_SEED lineage (melee weapon as saved).
 function New-KmcSeedChargeFixture{
