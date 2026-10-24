@@ -358,6 +358,9 @@ namespace KingmakerMountedCombat.Diagnostics
             Require(target.AutoSaveMode == "None" && enter != null && enter.AssetGuidThreadSafe == target.EnterPoint && enter.Area != null &&
                 enter.Area.AssetGuidThreadSafe == target.Area && Game.Instance.CurrentlyLoadedArea != enter.Area &&
                 Game.Instance.CurrentlyLoadedArea.AssetGuidThreadSafe != target.Area, "Declared area route is unresolved or would be a same-area no-op.");
+            // Native IsDirectlyControllable admits only the main character and its pet in a capital
+            // (b195 x4c: Oleg's), so a two-owner route must never enter one.
+            Require(!enter.Area.IsCapital, "Declared area route enters a capital, where native control excludes non-main pairs.");
             var before = ReplaySnapshot();
             inherited?.BeginRepeatedArea(replayCompletedAreas + 1, enter.Area);
             replayDestination = enter.Area; replayOrdinal = replayCompletedAreas + 1; replayPending = true; replayReadyFrames = 0;

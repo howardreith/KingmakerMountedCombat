@@ -1,6 +1,6 @@
 # Chunk 7 batch195: 7E development pilots, third pass
 
-Status: **stopped, restoration blocked.** The acquired chain and the X4 Manual producer passed on one
+Status: **stopped; recovered, diagnosed.** The acquired chain and the X4 Manual producer passed on one
 candidate. The three-area cold pilot hung after its first area transfer: its game is still running
 and the lab transaction lock is held. The process is not ended and nothing is recovered until the
 owner or coordinator decides (see the recovery order below). Row 57, the two-pair native-life pilot
@@ -59,6 +59,69 @@ The game (`pid 48672`, the run's own process) must end first; ending it is the o
 Then, per the recorded order: `Recover-KmcPersistenceProfile.ps1` first (it needs the stale lock),
 then `Recover-KingmakerRuntimeTransaction.ps1` (WhatIf, then real), then verify the profile against
 `runtime-backups/profile-<run>/snapshot.json`.
+
+## Recovery (authorized), 2026-10-24
+
+- **Process:** PID 48672 verified as `Kingmaker.exe` launched by this run (command line names
+  `…b195-x4c-three-area-cold\runtime-request.json` and the lock token `5121848a…`), then stopped by PID.
+- **Order deviation, forced by the tools:** `Recover-KmcPersistenceProfile.ps1` refuses unless the
+  combined run transaction is already `restored` (here it was `prepared`/`staged`), and its `-WhatIf`
+  path cannot hash under WhatIf. So `Recover-KingmakerRuntimeTransaction.ps1` ran first: WhatIf purity
+  PASS, then live PASS (Mods `310c6180…`, saves `95fabf2e…`, baseline immutable, Working restored,
+  allowlist passed). It closed the lock.
+- **Profile:** `Params.xml` equals the run's captured original (`7ff07d21…`; the force-stop avoided
+  UMM's exit rewrite). `KingdomDifficulty` is unchanged. **Residual:** two Unity analytics PlayerPrefs
+  differ from the snapshot, `unity.player_session_count` (2005 → 2006) and `unity.player_sessionid`,
+  both in the reviewed native-startup set. They are not restored yet: the reviewed restore needs the
+  lock, which the transaction recovery closed. Decision pending (restore through a reviewed one-off,
+  as in the b3s2 precedent, or accept).
+- No Kingmaker process and no lock remain.
+
+## Diagnosis
+
+**Which actor and why.** Native `UnitEntityData.IsDirectlyControllable` (2.1.7b, member listing only)
+returns, when `Game.CurrentlyLoadedArea.IsCapital`, true only for the main character and units whose
+`Master` is the main character. Oleg's Trading Post (`ead426a6…`) is the chapter-1 capital. On arrival
+pair A (main Ranger and its Horse) stays controllable, but pair B (Small Ranger `7aac72b4…` and Horse
+`fbba2294…`) is not, so the all-pair admission refused. The project already avoids the capital for
+fixtures (batch23 capital refusal; Manticore and Tomb routes require `!IsCapital`).
+
+**The X4 route was invalid.** I chose Oleg's from earlier Chunk 7 area pins without checking
+`IsCapital`. A replacement route uses areas the owner seed honestly reveals and that are not capitals:
+Spider Cave → Manticore Lair (`dfbc2423…` / `314e8c3b…`, the batch54–56 entry) → Spider Cave
+(`00becd53…`, the accepted Manticore return entry) → Manticore Lair. The repeated-area route now refuses
+a capital destination before transferring (diagnostic guard plus source regression).
+
+**Product question: is it a defect?** Yes, for players. Entering the capital with a non-main pair
+mounted makes KMC refuse restoration and then block saving and new participation until a reload
+("load a valid save to resume"). In the capital that means the player cannot save there, and the
+pair is lost until reload. A minimal fix is **not** small:
+- The transfer object is cancelled after placement, and `areaRestoreFailure` blocks saving and every
+  later area change, so a deferral has to keep a suspended transfer alive across the capital visit
+  and the next transition.
+- Saving while deferred is the real decision: either keep it blocked (honest, but no saving in the
+  capital) or write the suspended pairs into the archive as pending, which is new schema behavior.
+- The trigger is a native rule (capital), not a transient cutscene, so "until controllable" means
+  "until the party leaves the capital".
+
+Proposed design for review (not implemented):
+1. In `RestoreAreaPair`, when the only refusal is native controllability **and** the destination is
+   a capital, keep the transfer suspended as a `DeferredAreaTransfer` (not failed), keep both pairs
+   unmounted with no presentation, and report it.
+2. Retry restoration at the next `AreaEntitiesReady` whose area is not a capital, with the same
+   all-pair admission; any other refusal fails as today.
+3. Save policy while deferred is the owner's call: (a) block with an explicit reason, or (b) admit the
+   save and persist the deferred pairs as schema-3 pending custody, restoring on load in a non-capital
+   area. (b) needs archive, reader and migration work and its own native proof.
+
+**Why cleanup overran and the game could not quit.** After the refusal the pairs stayed in failed
+custody, so the scenario's settlement predicates could not complete. `Chunk7HostCompletionGate`
+records "exceeded its bounded drain" after 45 s and keeps the quit fenced by design (fail-closed: a
+terminal result never abandons custody). The bounded unattended exit added in batch188
+(`RuntimeAutomationHost.TryQuitRetainedSixPairFailure`) applies only to six-pair lineage selections
+(`RetainedSixPairFailureExitReady` requires `selection.SixPairLineage`), so this two-pair persistence
+run waited for the runner's 900 s deadline and ended restoration-blocked. Extending the retained-failure
+exit to two-pair persistence runs is possible with the same contract; it is not done here.
 
 ## Native-life control damage: recorded assumption
 

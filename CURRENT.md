@@ -4,8 +4,10 @@ Claude [batch195](docs/CHUNK7-BATCH195-7E-PILOTS-2026-10-24.md) froze pilot cand
 passed the acquired chain (c1–c5) and the X4 Manual producer. The three-area cold pilot then hung:
 after the first transfer (Spider Cave → Oleg's) KMC refused all-pair area restoration because a unit
 was not directly controllable, cleanup fenced the quit, and the run ended restoration-blocked with
-the game still running and the lab lock held. Ending that process is pending a decision; recovery
-follows the recorded profile-then-transaction order. Standing mission remains IN PROGRESS.
+the game still running. Recovered under authorization (process stopped by verified PID, transaction
+recovered; two Unity session PlayerPrefs remain to restore). Cause: Oleg's is the chapter-1 capital,
+where native control excludes non-main units, so the route was invalid; a capital guard and a
+Manticore route replace it. The capital refusal is a player-facing defect; a deferral design awaits review. Standing mission remains IN PROGRESS.
 
 Historical: Claude [batch194](docs/CHUNK7-BATCH194-7E-PILOTS-2026-10-23.md) ran the second 7E pilot pass on
 candidate `1eecc9bb` (DLL `c7e0258f…`): eleven native runs, all with exact restoration. The acquired
