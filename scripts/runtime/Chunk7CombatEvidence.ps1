@@ -210,7 +210,7 @@ function Assert-KmcChunk7AttackModeMeasurement($m,[string]$Label,[bool]$Mounted,
  # single attack, mounted or not; Rapid Shot always adds one attack, so every Rapid Shot leg is a full attack.
  foreach($p in @('nativeEstimate','expectedFull','currentTurnEnabledFullAttack')){if($null-eq$m.PSObject.Properties[$p]){throw ('Attack mode '+$Label+' native full-attack estimate is missing or inconsistent.')}}
  if(-not(Test-KmcExactJsonInteger $m.nativeEstimate)-or$m.nativeEstimate-lt1-or$m.expectedFull-isnot[bool]-or$m.expectedFull-ne($m.nativeEstimate-gt1)-or($Rapid-and-not$m.expectedFull)){throw ('Attack mode '+$Label+' native full-attack estimate is missing or inconsistent.')}
- if($null-ne$m.currentTurnEnabledFullAttack-and$m.currentTurnEnabledFullAttack-isnot[bool]){throw ('Attack mode '+$Label+' native cursor observation is mistyped.')}
+ if($null-ne$m.currentTurnEnabledFullAttack-and($m.currentTurnEnabledFullAttack-isnot[bool]-or$m.currentTurnEnabledFullAttack-ne($m.nativeEstimate-gt1))){throw ('Attack mode '+$Label+' native cursor observation is mistyped or contradicts its native estimate.')}
  $full=[bool]$m.expectedFull
  $c=$m.command;if($c.executor-cne$roles[0]-or$c.target-cne$o.targetId-or$c.fullAttack-ne$full-or$c.singleAttack-ne$false-or$c.result-cnotin@('Success','Interrupt')-or-not(Test-KmcExactJsonInteger $c.completedAttacks)){throw ('Attack mode '+$Label+' is not one native '+$(if($full){'full'}else{'single'})+' attack by rider A on the target.')}
  $plan=@($c.plan);$ranged=@($plan|Where-Object{$_.ranged-eq$true-and$_.owner-ceq$roles[0]});$rangedCount=$ranged.Count
@@ -338,12 +338,17 @@ function Assert-KmcChunk7ReactionCombat($Request,$Observations){
  # b201 cr: a target still resolving its native initiative cannot make an attack of opportunity. Rider A then
  # used one native same-round Delay behind it and resumed in the same round; its turn was never ended.
  if($null-ne$x.PSObject.Properties['initiativeDelay']){$dl=$x.initiativeDelay
-  Assert-KmcExactProperties $dl @('round','targetBefore','canDelay','riderSlot','targetSlot','targetWait','nextRoundWait','before','statusAfter','suspended','resumed') 'reaction initiative delay'
+  Assert-KmcExactProperties $dl @('round','targetBefore','canDelay','riderSlot','targetSlot','targetWait','nextRoundWait','before','traceSequenceBefore','statusAfter','suspended','resumed','traceSequenceResumed') 'reaction initiative delay'
   Assert-KmcChunk7ReactionTargetState $dl.targetBefore $o.targetId
   if($dl.round-ne$n-or$dl.targetBefore.round-ne$n-or-not($dl.targetBefore.waitingInitiative-eq$true-or$dl.targetBefore.surprised-eq$true)){throw 'Rider A delayed although the target had resolved its native initiative, or outside the measured round.'}
   if($dl.canDelay-ne$true-or$dl.statusAfter-cne'Delayed'-or$dl.suspended-ne$true-or-not(Test-KmcExactJsonInteger $dl.riderSlot)-or-not(Test-KmcExactJsonInteger $dl.targetSlot)-or$dl.targetSlot-le$dl.riderSlot-or
      -not(Test-KmcChunk7FiniteNumber $dl.targetWait)-or-not(Test-KmcChunk7FiniteNumber $dl.nextRoundWait)-or$dl.targetWait-ge$dl.nextRoundWait){throw 'Rider A''s native Delay was not one same-round suspension behind the later diagnostic target.'}
   if($null-eq$dl.before-or$null-eq$dl.resumed-or$dl.before.round-ne$n-or$dl.resumed.round-ne$n-or$dl.resumed.currentActor-cne$roles[0]){throw 'Rider A did not resume its delayed native turn in the same round.'}
+  # The Delay window is bound to the trace and precedes the first leg; pair A issues no command inside it.
+  foreach($f in @('traceSequenceBefore','traceSequenceResumed')){if(-not(Test-KmcExactJsonInteger $dl.$f)-or$dl.$f-lt0){throw 'Rider A''s Delay window bounds are invalid.'}}
+  $firstLeg=if($null-ne$x.PSObject.Properties['approach']){$x.approach}else{$x.disengage}
+  if($dl.traceSequenceResumed-lt$dl.traceSequenceBefore-or$dl.traceSequenceResumed-gt$firstLeg.traceSequenceBefore){throw 'Rider A''s Delay window is not before its first leg.'}
+  Assert-KmcChunk7NoCostBoundary $o.allocationTrace $dl.traceSequenceBefore $dl.traceSequenceResumed @($roles[0],$roles[1]) 'Rider A''s native Delay'
   # Mount A's suspended paired grant is untouched by the Delay; pair B's own turns may end natively meanwhile.
   Assert-KmcChunk7NeverSpentCombatBudget $dl.before $dl.resumed @($roles[1])}
  if($p.round-ne$n-or$p.reactions-ne1-or$p.reactionsPerRound-ne1-or$p.canAttackOfOpportunity-ne$true){throw 'The diagnostic target did not hold exactly one available native attack of opportunity at the stimulus.'}

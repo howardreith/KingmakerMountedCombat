@@ -155,24 +155,42 @@ function Assert-KmcChunk7ChargeWeapon($Request,$o){
         if($w.before.handSet-ne$c.handSet-or$w.before.primaryBlueprint-cne$c.primaryWeapon){throw 'Owner-seed Charge rider A does not wield the seed''s saved hand set and weapon.'}}
 }
 # b201 k4: the RT Charge target point is selected (never the party moved): candidates in the fixed order of
-# distances 8/7/9/6 m and the forward-first full circle, each recorded; the first eligible one is used. Every
-# candidate's eligibility is recomputed from its own recorded values, so none can be hidden or reordered.
+# distances 8/7/9/6 m and the forward-first full circle, each recorded with its points; the first eligible one is
+# used. Every candidate is recomputed from the recorded mount, rider, units and points (requested point, offset,
+# rise, exact native trace, spawn and charge distances, lane blocker), so none can be hidden, reordered or misjudged.
+function Get-KmcChunk7Vec($p,[string]$Why){$a=@($p);if($a.Count-ne3){throw ('Charge target placement '+$Why+' point is invalid.')};foreach($x in $a){if(-not(Test-KmcChunk7FiniteNumber $x)){throw ('Charge target placement '+$Why+' point is invalid.')}};,@([double]$a[0],[double]$a[1],[double]$a[2])}
+function Get-KmcChunk7Flat($p,$q){[Math]::Sqrt(($p[0]-$q[0])*($p[0]-$q[0])+($p[2]-$q[2])*($p[2]-$q[2]))}
+function Test-KmcChunk7ChargeLaneBlocked($from,$to,$unit,[double]$MountCorpulence,[double]$UnitCorpulence){
+    if([Math]::Abs($unit[1]-$from[1])-gt2.0){return $false}
+    $abx=$to[0]-$from[0];$abz=$to[2]-$from[2];$len=[Math]::Sqrt($abx*$abx+$abz*$abz);if($len-lt0.001){return $false}
+    $along=(($unit[0]-$from[0])*$abx+($unit[2]-$from[2])*$abz)/$len;if($along-lt$MountCorpulence+$UnitCorpulence){return $false}
+    $tt=[Math]::Min(1.0,[Math]::Max(0.0,$along/$len));$dx=$from[0]+$abx*$tt-$unit[0];$dz=$from[2]+$abz*$tt-$unit[2]
+    [Math]::Sqrt($dx*$dx+$dz*$dz)-lt($MountCorpulence+$UnitCorpulence)*0.8
+}
 function Assert-KmcChunk7ChargeTargetPlacement($o){
     if($null-eq$o.PSObject.Properties['chargeTargetPlacement']){throw 'RT Charge lacks its recorded target placement.'};$p=$o.chargeTargetPlacement
-    Assert-KmcExactProperties $p @('contract','mountPosition','riderPosition','minimumChargeRange','maximumChargeRange','laneClearanceRequired','candidates','selected','position') 'charge target placement'
-    if($p.contract-cne'chunk7-rt-charge-target-placement-v1'){throw 'Charge target placement contract differs.'}
-    foreach($f in @('minimumChargeRange','maximumChargeRange','laneClearanceRequired')){if(-not(Test-KmcChunk7FiniteNumber $p.$f)-or$p.$f-le0){throw 'Charge target placement bounds are invalid.'}}
+    Assert-KmcExactProperties $p @('contract','mountPosition','riderPosition','mountCorpulence','minimumChargeRange','maximumChargeRange','units','candidates','selected','position') 'charge target placement'
+    if($p.contract-cne'chunk7-rt-charge-target-placement-v2'){throw 'Charge target placement contract differs.'}
+    foreach($f in @('mountCorpulence','minimumChargeRange','maximumChargeRange')){if(-not(Test-KmcChunk7FiniteNumber $p.$f)-or$p.$f-le0){throw 'Charge target placement bounds are invalid.'}}
+    $m=Get-KmcChunk7Vec $p.mountPosition 'mount';$r=Get-KmcChunk7Vec $p.riderPosition 'rider'
+    $units=@(foreach($u in @($p.units)){Assert-KmcExactProperties $u @('id','position','corpulence') 'charge target placement unit';if($u.id-isnot[string]-or-not(Test-KmcChunk7FiniteNumber $u.corpulence)-or$u.corpulence-lt0){throw 'Charge target placement unit is invalid.'};[pscustomobject]@{id=$u.id;pos=(Get-KmcChunk7Vec $u.position 'unit');corpulence=[double]$u.corpulence}})
     $angles=@(0.0,22.5,-22.5,45.0,-45.0,67.5,-67.5,90.0,-90.0,112.5,-112.5,135.0,-135.0,157.5,-157.5,180.0);$order=@(foreach($d in @(8.0,7.0,9.0,6.0)){foreach($a in $angles){,@($d,$a)}})
     $c=@($p.candidates);if($c.Count-lt1-or$c.Count-gt$order.Count-or-not(Test-KmcExactJsonInteger $p.selected)-or$p.selected-ne$c.Count-1){throw 'Charge target placement did not select its first eligible candidate.'}
     for($i=0;$i-lt$c.Count;$i++){$k=$c[$i]
-        Assert-KmcExactProperties $k @('angle','distance','requested','walkable','goal','offset','rise','traceResidual','chargeDistance','riderDistance','laneClearance','eligible') 'charge target candidate'
+        Assert-KmcExactProperties $k @('angle','distance','requested','walkable','goal','traceEnd','traceExact','laneBlocker','eligible') 'charge target candidate'
         if([double]$k.distance-ne$order[$i][0]-or[double]$k.angle-ne$order[$i][1]){throw 'Charge target candidates are not in the declared search order.'}
-        if($k.walkable-isnot[bool]-or$k.eligible-isnot[bool]){throw 'Charge target candidate flags are mistyped.'}
-        foreach($f in @('offset','rise','traceResidual','chargeDistance','riderDistance')){if(-not(Test-KmcChunk7FiniteNumber $k.$f)){throw 'Charge target candidate geometry is invalid.'}}
-        if($null-ne$k.laneClearance-and-not(Test-KmcChunk7FiniteNumber $k.laneClearance)){throw 'Charge target candidate lane clearance is invalid.'}
+        foreach($f in @('walkable','traceExact','eligible')){if($k.$f-isnot[bool]){throw 'Charge target candidate flags are mistyped.'}}
+        $q=Get-KmcChunk7Vec $k.requested 'requested';$g=Get-KmcChunk7Vec $k.goal 'goal';$te=Get-KmcChunk7Vec $k.traceEnd 'trace'
+        $rad=[double]$k.angle*[Math]::PI/180.0;$ex=@(($m[0]+[Math]::Sin($rad)*$k.distance),$m[1],($m[2]+[Math]::Cos($rad)*$k.distance))
+        if([Math]::Abs($q[0]-$ex[0])-gt0.001-or[Math]::Abs($q[1]-$ex[1])-gt0.001-or[Math]::Abs($q[2]-$ex[2])-gt0.001){throw 'Charge target candidate was not requested at its declared angle and distance from mount A.'}
+        $sq=($te[0]-$g[0])*($te[0]-$g[0])+($te[1]-$g[1])*($te[1]-$g[1])+($te[2]-$g[2])*($te[2]-$g[2])
+        if($k.traceExact-ne($k.walkable-and$sq-lt9.99999944E-11)){throw 'Charge target candidate exact-trace flag differs from its recorded trace.'}
+        $blocker=$null;foreach($u in $units){if(Test-KmcChunk7ChargeLaneBlocked $m $g $u.pos ([double]$p.mountCorpulence) $u.corpulence){$blocker=$u.id;break}}
+        if($k.laneBlocker-cne$blocker){throw 'Charge target candidate lane blocker differs from the recorded units.'}
+        $charge=Get-KmcChunk7Flat $m $g;$rider=Get-KmcChunk7Flat $r $g
         # Thresholds are the producer's single-precision constants.
-        $ok=$k.walkable-and$k.offset-le[double][single]0.3-and[Math]::Abs([double]$k.rise)-le1.0-and$k.traceResidual-le[double][single]0.05-and$k.riderDistance-ge3.0-and$k.riderDistance-le20.0-and
-            $k.chargeDistance-ge$p.minimumChargeRange+0.5-and$k.chargeDistance-le$p.maximumChargeRange-0.5-and($null-eq$k.laneClearance-or$k.laneClearance-ge$p.laneClearanceRequired)
+        $ok=$k.walkable-and(Get-KmcChunk7Flat $g $q)-le[double][single]0.3-and[Math]::Abs($g[1]-$m[1])-le1.0-and$k.traceExact-and$rider-ge3.0-and$rider-le20.0-and
+            $charge-ge$p.minimumChargeRange+0.5-and$charge-le$p.maximumChargeRange-0.5-and$null-eq$blocker
         if($k.eligible-ne$ok){throw 'Charge target candidate eligibility differs from its recorded geometry.'}
         if($k.eligible-ne($i-eq$c.Count-1)){throw 'Charge target placement did not select its first eligible candidate.'}}
     $sel=$c[-1];if((ConvertTo-Json -InputObject @($p.position) -Compress)-cne(ConvertTo-Json -InputObject @($sel.goal) -Compress)){throw 'Charge target position differs from its selected candidate.'}

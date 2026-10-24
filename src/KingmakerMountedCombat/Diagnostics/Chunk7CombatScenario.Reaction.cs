@@ -158,7 +158,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     reactionDelay = new JObject { ["round"] = controller.RoundNumber, ["targetBefore"] = TargetReactionState("delay-before"),
                         ["canDelay"] = turn.CanDelay(), ["riderSlot"] = units.IndexOf(ar), ["targetSlot"] = units.IndexOf(target),
                         ["targetWait"] = target.GetTimeToNextTurn(), ["nextRoundWait"] = controller.TimeToNextRound,
-                        ["before"] = WorldSnapshot("reaction-delay-before") };
+                        ["before"] = WorldSnapshot("reaction-delay-before"), ["traceSequenceBefore"] = trace.EventCount };
                     reaction["initiativeDelay"] = reactionDelay;
                     Require(turn.CanDelay() && units.IndexOf(target) > units.IndexOf(ar) && target.GetTimeToNextTurn() < controller.TimeToNextRound,
                         "The diagnostic target is still resolving its native initiative and rider A has no native same-round Delay behind it; " +
@@ -169,7 +169,7 @@ namespace KingmakerMountedCombat.Diagnostics
                         "Native Delay behind the diagnostic target did not suspend rider A's turn.");
                     return;
                 }
-                if (reactionDelay != null) reactionDelay["resumed"] = WorldSnapshot("reaction-delay-resumed");
+                if (reactionDelay != null) { reactionDelay["resumed"] = WorldSnapshot("reaction-delay-resumed"); reactionDelay["traceSequenceResumed"] = trace.EventCount; }
                 reactionRound = controller.RoundNumber; reaction["firstRound"] = reactionRound; actingPair = a; actingIndex = 0; actingTurn = turn;
                 var state = TargetReactionState("precondition"); reaction["precondition"] = state;
                 Require(a.Relationship.State == RelationshipState.Mounted, "Pair A is not mounted at its first prepared turn.");
