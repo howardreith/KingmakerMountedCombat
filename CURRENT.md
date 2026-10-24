@@ -1,6 +1,14 @@
 # Chunk 7B–7D — IN PROGRESS
 
-X5 follow-up (offline, harness only; product DLL unchanged): by lead decision, u1 and u3 (both stage the
+Claude [batch200](docs/CHUNK7-BATCH200-7E-X5-2026-10-24.md) froze candidate `b9ce53d5` (DLL `ec20ee8f…`,
+unchanged product; package `b11021fa…`, suite `chunk7e-b200-x5-20261024`, observer.6 `c85dc7c1…`) and ran
+the **X5 upgrade/rollback rehearsal end to end for the first time** (development pilot, three launches, all
+with exact restoration). u1 (preview.211) PASS 27/0, admitting exactly the one pinned Horse registration
+line. u2 (upgrade over u1's carried cache) PASS 42/0, strict: no error lines and the known line absent.
+u3 (rollback to u1's folder state) PASS 27/0, with the same single admitted line. The reader verified each
+receipt hash. This is not 7E qualification. Standing mission remains IN PROGRESS.
+
+Historical: X5 follow-up (offline, harness only; product DLL unchanged): by lead decision, u1 and u3 (both stage the
 exact preview.211 package) now admit exactly its one known base-game Horse registration exception line,
 once, only for the exact pinned identity, recorded as `admittedOldVersionKnownDefects` (fix `81c191af`).
 u2 keeps the strict quiet start. The outer result records the UMM receipt's SHA-256 and the external
