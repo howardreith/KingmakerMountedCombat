@@ -110,7 +110,7 @@ namespace KingmakerMountedCombat.Diagnostics
         internal const string PlanContract = "owner-seed-staged-geometry-plan-v1";
 
         internal const string NotWalkable = "not-walkable", TraceInexact = "trace-inexact", TooShort = "too-short",
-            BelowBand = "below-band", AboveBand = "above-band", NoExhaustContinuation = "no-exhaust-continuation",
+            BelowBand = "below-band", AboveBand = "above-band", ExhaustTail = "exhaust-tail",
             StopShortPrefix = "stop-short-", NoPlanContinuation = "no-plan-continuation", NoDestination = "no-destination",
             LegLimit = "leg-limit", NoDirection = "no-direction", ShotOutOfRange = "shot-out-of-range",
             ApproachStartInRange = "approach-start-in-range", ApproachOutsideRange = "approach-outside-range",
@@ -172,6 +172,14 @@ namespace KingmakerMountedCombat.Diagnostics
         }
         // Whether the step wants another leg after one (the native rules the scenario reads, simulated on
         // the accumulated movement time): the double move until the second Move, exhaustion until 5.95 s.
+        // An exhaustion leg must not leave a tail: when it ends below 5.95 s the native loop issues one more
+        // leg, which the reader requires to move more than 0.5 m; at most (6 s - time) of movement remains, so a
+        // leg ending with no more than 0.5 m plus the stop-short margin of budget left is refused (review 74fdc951).
+        internal static string ExhaustTailTerm(StagedPlanInputs plan, StagedCursor cursor, StagedPoint goal)
+        {
+            var after = cursor.Time + Flat(cursor.Position, goal) / plan.Speed;
+            return after < ExhaustedMove && (MoveBudget - after) * plan.Speed <= MinimumLegLength + StopShortMargin ? ExhaustTail : null;
+        }
         internal static bool WantsAnotherLeg(string kind, double time) =>
             kind == "move-two-moves" ? time <= OneMove : kind == "move-exhaust" && time < ExhaustedMove;
 
@@ -200,6 +208,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     p.Refusal = Refusal(p.Walkable, Flat(p.Trace, p.Goal), Flat(start, p.Goal), null);
                     p.BaseAccepted = p.Refusal == null;
                     if (p.Refusal == null) p.Refusal = Geometry(kind, start, p.Goal, plan.Target, plan.Envelope);
+                    if (p.Refusal == null && kind == "move-exhaust") p.Refusal = ExhaustTailTerm(plan, cursor, p.Goal);
                     if (p.Refusal == null && continuation != null) { p.Continuation = continuation(cursor, p); if (p.Continuation != null) p.Refusal = NoPlanContinuation; }
                     leg.Proposals.Add(p);
                     if (p.Refusal == null) { leg.Chosen = leg.Proposals.Count - 1; Advance(plan, cursor.Copy(), leg); return leg; }
@@ -331,6 +340,7 @@ namespace KingmakerMountedCombat.Diagnostics
 
         // ---- Record (one serializer, used by the scenario and the offline regression alike) ----
         private static string N(double value) => value.ToString("R", CultureInfo.InvariantCulture);
+        private static string I(int value) => value.ToString(CultureInfo.InvariantCulture);
         private static string S(string value) => value == null ? "null" : "\"" + value + "\"";
         private static void P(StringBuilder b, StagedPoint p) => b.Append('[').Append(N(p.X)).Append(',').Append(N(p.Y)).Append(',').Append(N(p.Z)).Append(']');
         private static void Array(StringBuilder b, double[] values) { b.Append('['); for (var i = 0; i < values.Length; i++) { if (i > 0) b.Append(','); b.Append(N(values[i])); } b.Append(']'); }
@@ -343,7 +353,7 @@ namespace KingmakerMountedCombat.Diagnostics
         }
         internal static void Leg(StringBuilder b, StagedLeg leg)
         {
-            b.Append("{\"step\":").Append(leg.Step).Append(",\"kind\":").Append(S(leg.Kind)).Append(",\"leg\":").Append(leg.Leg).Append(",\"side\":").Append(leg.Side)
+            b.Append("{\"step\":").Append(I(leg.Step)).Append(",\"kind\":").Append(S(leg.Kind)).Append(",\"leg\":").Append(I(leg.Leg)).Append(",\"side\":").Append(I(leg.Side))
                 .Append(",\"time\":").Append(N(leg.Time)).Append(",\"start\":"); P(b, leg.Start);
             b.Append(",\"proposals\":[");
             for (var i = 0; i < leg.Proposals.Count; i++) { if (i > 0) b.Append(','); Proposal(b, leg.Proposals[i]); }
@@ -356,7 +366,7 @@ namespace KingmakerMountedCombat.Diagnostics
             for (var i = 0; i < sim.Legs.Count; i++) { if (i > 0) b.Append(','); Leg(b, sim.Legs[i]); }
             b.Append("],\"refusal\":");
             if (sim.Feasible) b.Append("null");
-            else b.Append("{\"step\":").Append(sim.RefusalStep).Append(",\"kind\":").Append(S(sim.RefusalKind)).Append(",\"leg\":").Append(sim.RefusalLeg)
+            else b.Append("{\"step\":").Append(I(sim.RefusalStep)).Append(",\"kind\":").Append(S(sim.RefusalKind)).Append(",\"leg\":").Append(I(sim.RefusalLeg))
                 .Append(",\"term\":").Append(S(sim.RefusalTerm)).Append('}');
             b.Append('}');
         }
@@ -369,7 +379,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 .Append(",\"plannedTargetCorpulence\":").Append(N(PlannedTargetCorpulence)).Append(",\"envelope\":").Append(N(selection.Envelope))
                 .Append(",\"speed\":").Append(N(selection.Speed)).Append(",\"placementDistances\":"); Array(b, PlacementDistances);
             b.Append(",\"angles\":"); Array(b, Fan);
-            b.Append(",\"stopShortMargin\":").Append(N(StopShortMargin)).Append(",\"maxLegs\":").Append(MaxLegs).Append(",\"candidates\":[");
+            b.Append(",\"stopShortMargin\":").Append(N(StopShortMargin)).Append(",\"maxLegs\":").Append(I(MaxLegs)).Append(",\"candidates\":[");
             for (var i = 0; i < selection.Candidates.Count; i++)
             {
                 var c = selection.Candidates[i]; if (i > 0) b.Append(',');

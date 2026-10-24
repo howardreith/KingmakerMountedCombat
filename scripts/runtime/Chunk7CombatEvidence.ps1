@@ -629,6 +629,8 @@ function Test-KmcChunk7StagedSimulation($Sim,$MountStart,$Target,[double]$Envelo
    $u=Get-KmcChunk7StagedRotation $dx $dz $angle
    $r=Get-KmcChunk7StagedProposalTerm $props[$k] $angle $length @(([double]$pos[0]+$u[0]*$length),[double]$pos[1],([double]$pos[2]+$u[1]*$length)) $pos $lw
    $term=$r[0];if($null-eq$term){$term=Get-KmcChunk7StagedLegGeometry $kind $pos $r[1] $Target $Envelope}
+   # The exhaustion tail term: a leg ending below 5.95 s with at most 0.5 m + the 0.5 m margin of budget left.
+   if($null-eq$term-and$kind-ceq'move-exhaust'){$after=$time+(Get-KmcChunk7StagedFlat $pos $r[1])/$Speed;if($after-lt5.95-and(6.0-$after)*$Speed-le0.5+0.5){$term='exhaust-tail'}}
    if([string]$props[$k][12]-cne[string]$term-or($null-eq$term)-ne($null-eq$props[$k][12])){throw ($lw+': proposal '+$k+' records '+$props[$k][12]+' but recomputes '+$term+'.')}
    $k++;if($null-eq$term){$chosen=$k-1;$goal=$r[1];break search}}}
   if($k-ne$props.Count){throw ($lw+': proposals are recorded past the first eligible one.')}
@@ -682,6 +684,7 @@ function Assert-KmcChunk7StagedGeometryPlan($s,$o,$roles){
  # The authorization records the native float point; the plan the same point widened to double.
  if(-not(Test-KmcChunk7StagedNear (Get-KmcChunk7StagedVector $o.targetAuthorization.position 'Staged target authorization') (Get-KmcChunk7StagedVector $selected.goal 'Staged plan') 1e-4)){throw 'The target authorization did not place the selected staged candidate.'}
  if([Math]::Abs([double]$p.weaponRange-[double]$s.weaponRangeMeters)-gt1e-4-or[Math]::Abs([double]$p.mountCorpulence-[double]$s.mountCorpulence)-gt1e-4-or[Math]::Abs([double]$s.envelope-[double]$p.envelope)-gt0.01){throw 'The spawned target''s envelope differs from the planned one.'}
+ if((Get-KmcChunk7StagedFlat $p.riderStart $o.targetAuthorization.riderPosition)-gt0.05){throw 'The staged plan''s rider start is not the authorized rider position.'}
  $c=$s.geometryConfirmation;if($null-eq$c){throw 'Staged actions lack their in-combat plan confirmation.'}
  $start=Get-KmcChunk7StagedVector $c.mountStart 'Staged confirmation';$target=Get-KmcChunk7StagedVector $c.target 'Staged confirmation';$first=$s.steps[0].before
  $m=Get-KmcChunk7CombatActor $first $roles[1]
