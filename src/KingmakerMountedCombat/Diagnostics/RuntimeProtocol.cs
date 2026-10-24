@@ -1439,7 +1439,7 @@ namespace KingmakerMountedCombat.Diagnostics
             "chunk7-two-pair-native-life-cleanup",
             "C7-combat-fixture", "C7-combat-native-mounts", "C7-combat-restored-mounts", "C7-combat-native-orders", "C7-combat-pair-a-full-activation",
             "C7-combat-pair-b-full-activation", "C7-combat-tb-charge-refusal", "C7-combat-refresh", "C7-combat-r1-round-release",
-            "C7-combat-native-pending-survivor", "C7-combat-local-cleanup-failure", "C7-combat-permanent-horse-removal-refusal", "C7-combat-registered-disable-local-failure", "C7-combat-attack-modes-mounted-off", "C7-combat-attack-modes-mounted-on", "C7-combat-attack-modes-unmounted-control", "C7-combat-cleanup", "C7-combat-runtime", "C7-combat-interrupted",
+            "C7-combat-native-pending-survivor", "C7-combat-local-cleanup-failure", "C7-combat-permanent-horse-removal-refusal", "C7-combat-registered-disable-local-failure", "C7-combat-attack-modes-mounted-off", "C7-combat-attack-modes-mounted-on", "C7-combat-attack-modes-unmounted-control", "C7-combat-reaction-disengage-opportunity", "C7-combat-cleanup", "C7-combat-runtime", "C7-combat-interrupted",
             "C7-life-safe-native-damage", "C7-life-native-callback", "C7-life-healthy-neighbour", "C7-life-independent-survivor",
             "C7-rt-charge-default-off", "C7-rt-concurrent-primary", "C7-rt-companion-native-action", "C7-rt-player-click-integrity", "C7-combat-first-action-mount", "C7-rt-local-cancel", "C7-rt-unmounted-native-control",
             "C7-rt-native-casting", "C7-rt-casting-neighbour", "C7-rt-charge-native-success", "C7-rt-charge-neighbour-movement", "C7-rt-charge-native-cancel",

@@ -178,6 +178,7 @@ namespace KingmakerMountedCombat.Diagnostics
                             if (RegisteredDisableCase) ExercisePermanentHorseRemovalRefusal();
                             // Attack modes wait (bounded, native) for the save's Rapid Shot to stop before the encounter.
                             if (AttackModesCase) { PrepareAttackModes(); Next(79); break; }
+                            if (ReactionCase) { PrepareEncounter(); Next(5); break; }
                             PrepareEncounter(); Next(RealtimeScenario ? 60 : 5); break;
                         }
                         if (!Chunk7NativeFixture.Idle(bm)) return;
@@ -197,6 +198,7 @@ namespace KingmakerMountedCombat.Diagnostics
                         VerifyInitiative(); Pass("C7-combat-native-orders");
                         if (SelectedScenario == NativeLifeCleanup) { BeginNativeLife(); Next(70); }
                         else if (AttackModesCase) { BeginAttackModes(); Next(80); }
+                        else if (ReactionCase) { BeginReaction(); Next(85); }
                         else Next(checkpointOnly && checkpointKind == Chunk7CombatCheckpointKind.MountedPendingOnly ? 40 : 10); break;
                     case 10: TickFullActivations(); break;
                     case 50: TickRealtimeCheckpoint(); break;
@@ -204,6 +206,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     case 70: TickNativeLife(); break;
                     case 79: if (!AttackModesRapidSettled()) return; PrepareEncounter(); Next(5); break;
                     case 80: TickAttackModes(); break;
+                    case 85: TickReaction(); break;
                     case 20: TickRefresh(); break;
                     case 30:
                         if (!ReadyPrincipal(a)) { EndNative(Game.Instance.TurnBasedCombatController.CurrentTurn); return; }

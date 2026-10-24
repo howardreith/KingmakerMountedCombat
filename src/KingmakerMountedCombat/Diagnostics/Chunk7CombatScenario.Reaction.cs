@@ -1,0 +1,196 @@
+using System;
+using System.Linq;
+using Kingmaker;
+using Kingmaker.EntitySystem.Entities;
+using Kingmaker.UnitLogic.Commands;
+using Kingmaker.UnitLogic.Commands.Base;
+using KingmakerMountedCombat.Domain;
+using Newtonsoft.Json.Linq;
+using TurnBased.Controllers;
+using UnityEngine;
+
+namespace KingmakerMountedCombat.Diagnostics
+{
+    // 7E X1 C11 reactions (owner-seed-combat-reaction, on the TB rider-first engine). On rider A's first
+    // prepared turn, mounted pair A stands inside the diagnostic target's native threatened area (an
+    // ordinary native ground approach first only if it is not) and receives one ordinary native ground
+    // order out of it. Stock UnitCombatState.Disengage owns the target's attack of opportunity, its
+    // counter and its rolls; the scenario only clicks and observes. Nothing is granted, refunded or
+    // written. The prone stand-up half has no deterministic native prone source on this fixture and is
+    // recorded as uncovered, never fabricated with a scripted condition.
+    internal sealed partial class Chunk7CombatScenario
+    {
+        private bool ReactionCase => request.OwnedPairs?.Case == Chunk7OwnedPairsSelection.OwnerSeedCombatReactionCase;
+        private Chunk7PairRuleObserver reactionRules;
+        private JObject reaction, reactionLeg;
+        private UnitMoveTo reactionMove;
+        private int reactionStage, reactionRound, reactionSettledFrames;
+        private Vector3 reactionStart;
+        internal const string ProneHalfUncovered = "No deterministic native prone source exists for the diagnostic target on the owner-seed fixture. " +
+            "The only prone stand-up observed (batch 5/6 slot 1, rt-aoo-diagnosis01, fix 4850445b) was an inferred roll-dependent knockdown " +
+            "during concurrent RT primaries; a scripted Prone condition would be fabricated. The pair's own reaction to a native stand-up is uncovered.";
+
+        private static float Flat(Vector3 left, Vector3 right) { var delta = left - right; delta.y = 0f; return delta.magnitude; }
+        private static JArray Point(Vector3 value) => new JArray(value.x, value.y, value.z);
+        private JObject TargetReactionState(string label) => new JObject { ["label"] = label, ["id"] = target.UniqueId,
+            ["round"] = Game.Instance.TurnBasedCombatController.RoundNumber, ["frame"] = Time.frameCount,
+            ["reactions"] = target.CombatState.AttackOfOpportunityCount, ["reactionsPerRound"] = target.CombatState.AttackOfOpportunityPerRound,
+            ["canAttackOfOpportunity"] = target.CombatState.CanAttackOfOpportunity,
+            ["standard"] = target.CombatState.Cooldown.StandardAction, ["move"] = target.CombatState.Cooldown.MoveAction,
+            ["swift"] = target.CombatState.Cooldown.SwiftAction, ["prone"] = target.Descriptor.State.Prone.Active,
+            ["proneRequested"] = target.Descriptor.State.Prone.ShouldBeActive, ["conscious"] = target.Descriptor.State.IsConscious,
+            ["commandsEmpty"] = target.Commands.Empty, ["engagesRider"] = target.CombatState.IsEngage(ar), ["engagesMount"] = target.CombatState.IsEngage(am),
+            ["engagedUnits"] = new JArray(target.CombatState.EngagedUnits.Select(unit => unit.UniqueId)),
+            ["position"] = Point(target.Position), ["mountDistance"] = Flat(target.Position, am.Position),
+            ["corpulence"] = target.View.Corpulence, ["mountCorpulence"] = am.View.Corpulence };
+        private JObject PairResidue() => new JObject { ["activeCommand"] = a.Combat.HasActiveCommand, ["groundMovement"] = a.Combat.HasActiveGroundMovement,
+            ["riderCommandsEmpty"] = ar.Commands.Empty, ["mountCommandsEmpty"] = am.Commands.Empty, ["state"] = a.Relationship.State.ToString(),
+            ["riderConscious"] = ar.Descriptor.State.IsConscious, ["mountConscious"] = am.Descriptor.State.IsConscious,
+            ["riderProne"] = ar.Descriptor.State.Prone.Active, ["mountProne"] = am.Descriptor.State.Prone.Active };
+        // A walkable native destination whose navmesh trace from the start reaches it (bounded fan of directions).
+        private Vector3 NavmeshDestination(Vector3 start, Vector3 direction, float length, Func<Vector3, bool> accepts, JArray proposals)
+        {
+            Require(AstarPath.active != null, "Active native navigation graph is unavailable.");
+            direction.y = 0f; Require(direction.sqrMagnitude > .0001f, "Native destination direction is unavailable.");
+            foreach (var angle in new[] { 0f, 22.5f, -22.5f, 45f, -45f, 67.5f, -67.5f })
+            {
+                var requested = start + Quaternion.Euler(0f, angle, 0f) * direction.normalized * length;
+                var nearest = AstarPath.active.GetNearest(requested);
+                var walkable = nearest.node != null && nearest.node.Walkable;
+                var goal = nearest.clampedPosition;
+                var traced = walkable ? Kingmaker.View.ObstacleAnalyzer.TraceAlongNavmesh(start, goal) : start;
+                var eligible = walkable && Flat(traced, goal) <= .3f && Flat(start, goal) > .5f && accepts(goal);
+                proposals?.Add(new JObject { ["angle"] = angle, ["requested"] = Point(requested), ["goal"] = Point(goal),
+                    ["walkable"] = walkable, ["traceResidual"] = Flat(traced, goal), ["eligible"] = eligible });
+                if (eligible) return goal;
+            }
+            throw new InvalidOperationException("No walkable native destination satisfied the declared geometry.");
+        }
+        private void ReactionStage(int value) { reactionStage = value; reactionSettledFrames = 0; stepStarted = clock.Elapsed.TotalSeconds; }
+        private void BeginReaction()
+        {
+            Require(ReactionCase && OwnerSeedDerived && SelectedScenario == RiderFirst, "Reaction admission differs.");
+            reactionRules = new Chunk7PairRuleObserver(ar, am, br, bm, target);
+            reaction = new JObject { ["contract"] = "owner-seed-combat-reaction-v1", ["riderId"] = ar.UniqueId, ["mountId"] = am.UniqueId,
+                ["targetId"] = target.UniqueId, ["proneStandUp"] = new JObject { ["covered"] = false, ["reason"] = ProneHalfUncovered } };
+            evidence["reaction"] = reaction;
+            ReactionStage(0);
+        }
+        // One ordinary native ground order for pair A (the mount executes); five-foot-step and
+        // single-action modes are switched off by the native right click, as in the full activations.
+        private JObject IssueReactionLeg(string label, Vector3 destination)
+        {
+            var turn = Game.Instance.TurnBasedCombatController.CurrentTurn;
+            Chunk7NativeFixture.Select(ar); Game.Instance.IsPaused = true;
+            reactionStart = am.Position;
+            var leg = new JObject { ["label"] = label, ["round"] = Game.Instance.TurnBasedCombatController.RoundNumber,
+                ["destination"] = Point(destination), ["requestedDistance"] = Flat(reactionStart, destination),
+                ["before"] = WorldSnapshot(label + "-before"), ["targetBefore"] = TargetReactionState(label + "-before"),
+                ["ruleCountBefore"] = reactionRules.EventCount, ["traceSequenceBefore"] = trace.EventCount };
+            bool clicked;
+            using (var input = new NativeOrdinaryAttackInput(destination))
+            {
+                input.Predict(); var attempts = 0;
+                while ((turn.EnabledFiveFootStep || turn.EnabledSingleActionMove) && attempts++ < 4) { input.Click(button: 1); input.Predict(); }
+                leg["fiveFootStep"] = turn.EnabledFiveFootStep; leg["singleActionMove"] = turn.EnabledSingleActionMove;
+                clicked = input.Click();
+            }
+            leg["clicked"] = clicked;
+            reactionMove = am.Commands.Move as UnitMoveTo;
+            Require(clicked && reactionMove?.Executor == am && !turn.EnabledFiveFootStep, "Native paired ground input did not admit the exact ordinary mount move.");
+            issuedCommands.Add(reactionMove); leg["command"] = trace.ObjectIdentity(reactionMove);
+            Chunk7NativeFixture.Select(br); Game.Instance.IsPaused = false;
+            reactionLeg = leg; return leg;
+        }
+        // The move, the pair and the target's own native opportunity command have all ended.
+        private bool ReactionLegSettled()
+        {
+            if (reactionMove == null || !reactionMove.IsFinished || a.Combat.HasActiveCommand || a.Combat.HasActiveGroundMovement ||
+                !ar.Commands.Empty || !am.Commands.Empty || !target.Commands.Empty || ar.AreHandsBusyWithAnimation ||
+                am.AreHandsBusyWithAnimation || target.AreHandsBusyWithAnimation) { reactionSettledFrames = 0; return false; }
+            return ++reactionSettledFrames >= 10;
+        }
+        private void FinishReactionLeg()
+        {
+            var leg = reactionLeg; var label = (string)leg["label"];
+            leg["after"] = WorldSnapshot(label + "-after"); leg["targetAfter"] = TargetReactionState(label + "-after");
+            leg["rules"] = reactionRules.Since((int)leg["ruleCountBefore"]); leg["traceSequenceAfter"] = trace.EventCount;
+            leg["distance"] = Flat(reactionStart, am.Position); leg["result"] = reactionMove.Result.ToString();
+            leg["residue"] = PairResidue(); leg["turnActor"] = Game.Instance.TurnBasedCombatController.CurrentTurn?.Unit?.UniqueId;
+            reactionMove = null;
+        }
+        private void TickReaction()
+        {
+            var controller = Game.Instance.TurnBasedCombatController; var turn = controller.CurrentTurn;
+            reaction["stage"] = reactionStage;
+            if (reactionStage == 0)
+            {
+                if (!ReadyPrincipal(a)) { if (turn?.Unit != target) EndNative(turn); return; }
+                reactionRound = controller.RoundNumber; reaction["firstRound"] = reactionRound; actingPair = a; actingIndex = 0; actingTurn = turn;
+                var state = TargetReactionState("precondition"); reaction["precondition"] = state;
+                Require(a.Relationship.State == RelationshipState.Mounted, "Pair A is not mounted at its first prepared turn.");
+                Require(target.CombatState.CanAttackOfOpportunity && target.CombatState.AttackOfOpportunityPerRound == 1 &&
+                    target.CombatState.AttackOfOpportunityCount == 1 && target.Descriptor.State.IsConscious && !target.Descriptor.State.Prone.Active,
+                    "The diagnostic target has no single available native attack of opportunity; C11 disengagement is uncovered on this fixture: " +
+                    state.ToString(Newtonsoft.Json.Formatting.None));
+                if (target.CombatState.IsEngage(am) || target.CombatState.IsEngage(ar)) { ReactionStage(2); return; }
+                // Not yet threatened: one ordinary native ground approach to the target's edge.
+                var inward = target.Position - am.Position; var reach = am.View.Corpulence + target.View.Corpulence + .4f;
+                var proposals = new JArray();
+                var approach = NavmeshDestination(am.Position, inward, Math.Max(.6f, Flat(target.Position, am.Position) - reach),
+                    point => Flat(point, target.Position) <= reach + .5f, proposals);
+                IssueReactionLeg("approach", approach)["proposals"] = proposals; reaction["approach"] = reactionLeg;
+                ReactionStage(1); return;
+            }
+            if (reactionStage == 1)
+            {
+                if (!ReactionLegSettled()) return;
+                FinishReactionLeg();
+                Require(ReferenceEquals(turn, actingTurn) && (target.CombatState.IsEngage(am) || target.CombatState.IsEngage(ar)) &&
+                    ((JArray)reactionLeg["rules"]).Count == 0,
+                    "The native approach did not bring pair A inside the target's threatened area without an attack.");
+                ReactionStage(2); return;
+            }
+            if (reactionStage == 2)
+            {
+                Require(ReferenceEquals(turn, actingTurn) && ReadyPrincipal(a), "Pair A lost its native turn before the disengagement.");
+                var away = am.Position - target.Position;
+                var clear = Math.Max(Flat(am.Position, target.Position) + 4.5f, am.View.Corpulence + target.View.Corpulence + 6f);
+                var proposals = new JArray();
+                var destination = NavmeshDestination(am.Position, away, clear - Flat(am.Position, target.Position),
+                    point => Flat(point, target.Position) >= clear - .5f, proposals);
+                IssueReactionLeg("disengage", destination)["proposals"] = proposals; reaction["disengage"] = reactionLeg;
+                reactionLeg["clearDistance"] = clear;
+                ReactionStage(3); return;
+            }
+            if (reactionStage == 3)
+            {
+                if (!ReactionLegSettled()) return;
+                FinishReactionLeg();
+                var leg = reactionLeg; var before = (JObject)leg["before"]; var after = (JObject)leg["after"];
+                var targetBefore = (JObject)leg["targetBefore"]; var targetAfter = (JObject)leg["targetAfter"];
+                var rules = ((JArray)leg["rules"]).OfType<JObject>().ToArray();
+                var opportunity = rules.Where(e => (bool)e["opportunity"] && (string)e["actor"] == target.UniqueId).ToArray();
+                var victims = new[] { ar.UniqueId, am.UniqueId };
+                Require(ReferenceEquals(turn, actingTurn) && rules.Length == 1 && opportunity.Length == 1 && victims.Contains((string)opportunity[0]["target"]) &&
+                    (int)targetBefore["reactions"] == 1 && (int)targetAfter["reactions"] == 0 &&
+                    !(bool)targetAfter["engagesRider"] && !(bool)targetAfter["engagesMount"],
+                    "Native disengagement did not draw exactly one attack of opportunity from the target's single reaction: " +
+                    new JArray(rules).ToString(Newtonsoft.Json.Formatting.None));
+                var residue = (JObject)leg["residue"];
+                Require((float)leg["distance"] > .5f && (float)Actor(after, am)["move"] > (float)Actor(before, am)["move"] &&
+                    new[] { "standard", "move", "swift" }.All(f => (float)Actor(after, ar)[f] == (float)Actor(before, ar)[f]) &&
+                    (float)Actor(after, am)["standard"] == (float)Actor(before, am)["standard"] &&
+                    new[] { br, bm }.All(actor => SameActorBudget(Actor(before, actor), Actor(after, actor))) &&
+                    new[] { "standard", "move", "swift" }.All(f => (float)targetAfter[f] <= (float)targetBefore[f] + .001f) &&
+                    !(bool)residue["activeCommand"] && !(bool)residue["groundMovement"] && (string)residue["state"] == "Mounted",
+                    "Disengagement escaped the mount's own native move, refunded it or left pair residue.");
+                var capture = reactionRules.Capture();
+                Require((int)capture["dropped"] == 0 && ((JArray)capture["errors"]).Count == 0, "Reaction rule observation dropped or failed.");
+                reaction["rules"] = capture; reactionRules.Dispose(); reactionRules = null;
+                reaction["complete"] = true; Pass("C7-combat-reaction-disengage-opportunity");
+                BeginCleanup();
+            }
+        }
+    }
+}
