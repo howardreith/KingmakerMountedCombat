@@ -23,15 +23,20 @@ namespace KingmakerMountedCombat.Diagnostics
         private readonly MountedLifecycleSubscriber lifecycle;
         private readonly Func<string, JObject> snapshot;
         private readonly JArray events = new JArray(), errors = new JArray();
-        private readonly MethodInfo callback;
+        private readonly MethodInfo callback, deathCallback;
+        private readonly bool observeDeath;
         private int tickDepth, setDepth, setSequence;
         private bool disposed, delivered, captureCompleted, installed, installationStarted;
-        internal NativeLifeDeliveryProbe(UnitEntityData actor, MountedLifecycleSubscriber lifecycle, Func<string, JObject> snapshot)
+        internal NativeLifeDeliveryProbe(UnitEntityData actor, MountedLifecycleSubscriber lifecycle, Func<string, JObject> snapshot, bool observeDeath = false)
         {
             this.actor = actor ?? throw new ArgumentNullException(nameof(actor));
             this.lifecycle = lifecycle ?? throw new ArgumentNullException(nameof(lifecycle));
             this.snapshot = snapshot ?? throw new ArgumentNullException(nameof(snapshot));
             callback = typeof(MountedLifecycleSubscriber).GetMethod(nameof(MountedLifecycleSubscriber.HandleUnitLifeStateChanged), Flags);
+            // Death variant: native SetLifeState(Dead) calls OnUnitDeath, which raises IUnitHandler.HandleUnitDeath
+            // inside the same SetLifeState before the life-state event; both production callbacks are observed.
+            this.observeDeath = observeDeath;
+            deathCallback = observeDeath ? typeof(MountedLifecycleSubscriber).GetMethod(nameof(MountedLifecycleSubscriber.HandleUnitDeath), Flags) : null;
         }
         internal void Install()
         {
@@ -54,6 +59,7 @@ namespace KingmakerMountedCombat.Diagnostics
             harmony = HarmonyInstance.Create(Id); active = this;
             Patch(tick, nameof(TickBefore), nameof(TickAfter)); Patch(set, nameof(SetBefore), nameof(SetAfter));
             Patch(callback, nameof(DeliveryBefore), nameof(DeliveryAfter));
+            if (observeDeath) Patch(deathCallback, nameof(DeathBefore), nameof(DeathAfter));
             installed = true;
         }
         private void Patch(MethodInfo method, string before, string after) => harmony.Patch(method,
@@ -67,6 +73,10 @@ namespace KingmakerMountedCombat.Diagnostics
         { var p = For(unit); if (p != null && ReferenceEquals(p.lifecycle, __instance)) p.Record("production-callback-before", prevLifeState.ToString()); }
         private static void DeliveryAfter(MountedLifecycleSubscriber __instance, UnitEntityData unit, UnitLifeState prevLifeState)
         { var p = For(unit); if (p != null && ReferenceEquals(p.lifecycle, __instance)) { p.Record("production-callback-after", prevLifeState.ToString()); p.delivered = true; } }
+        private static void DeathBefore(MountedLifecycleSubscriber __instance, UnitEntityData entityData)
+        { var p = For(entityData); if (p != null && p.observeDeath && ReferenceEquals(p.lifecycle, __instance)) p.Record("production-death-callback-before"); }
+        private static void DeathAfter(MountedLifecycleSubscriber __instance, UnitEntityData entityData)
+        { var p = For(entityData); if (p != null && p.observeDeath && ReferenceEquals(p.lifecycle, __instance)) p.Record("production-death-callback-after"); }
         private static NativeLifeDeliveryProbe For(UnitEntityData unit) => active != null && active.installed && !active.disposed && !active.captureCompleted && ReferenceEquals(active.actor, unit) ? active : null;
         private void Record(string boundary, string previous = null)
         {
@@ -86,7 +96,14 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             catch (Exception error) { if (!errors.Any(e => (string)e == error.ToString())) errors.Add(error.ToString()); }
         }
-        internal JObject Capture() => new JObject { ["actorId"] = actor.UniqueId, ["nativeModuleMvid"] = typeof(UnitEntityData).Module.ModuleVersionId.ToString(),
+        internal JObject Capture()
+        {
+            var capture = CaptureLife();
+            if (observeDeath) { capture["deathCallbackToken"] = deathCallback.MetadataToken.ToString("X8"); capture["deathCallbackMvid"] = deathCallback.Module.ModuleVersionId.ToString();
+                capture["deathCallbackType"] = deathCallback.DeclaringType.FullName; capture["deathCallbackName"] = deathCallback.Name; }
+            return capture;
+        }
+        private JObject CaptureLife() => new JObject { ["actorId"] = actor.UniqueId, ["nativeModuleMvid"] = typeof(UnitEntityData).Module.ModuleVersionId.ToString(),
             ["nativeTickToken"] = "06009162", ["nativeSetToken"] = "06009164", ["callbackToken"] = callback.MetadataToken.ToString("X8"),
             ["callbackMvid"] = callback.Module.ModuleVersionId.ToString(), ["callbackType"] = callback.DeclaringType.FullName,
             ["callbackName"] = callback.Name, ["tickDepth"] = tickDepth, ["setDepth"] = setDepth,

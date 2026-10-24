@@ -159,6 +159,11 @@ $cases=@(
  @('cleanup not settled',{$args[0].observations.cleanup.controlsSettled=$false})
 )
 foreach($case in $cases){$bad=Copy-Value $lifeGood;& $case[1] $bad;Reject $case[0] {Assert-KmcChunk7NativeLifeEvidence $request $bad 'PASS'}}
+# 7E X1 death proper is read by its own branch on the owner-seed case only (its full synthetic chain
+# and mutations are in Test-Chunk7OwnedPairsEvidence.ps1); the incapacitation chain cannot claim it.
+Check 'a non-owned native life request is never the death case' {if(Test-KmcChunk7NativeDeathCase $request){throw 'Legacy request selected the death branch.'}}
+RejectLife 'incapacitation evidence claiming a death outcome' 'Native incapacitation evidence claims a death outcome.' {param($x)$x.observations.nativeLife|Add-Member NoteProperty outcome 'death'}
+RejectLife 'incapacitation evidence claiming a natural death stimulus' 'Native incapacitation evidence claims a death outcome.' {param($x)$x.observations|Add-Member NoteProperty naturalDeathStimulusProven $true}
 Check 'native life closed rows' {if(@(Get-KmcChunk7NativeLifeRuntimeRows).Count-ne12){throw 'Wrong life row count.'}}
 Reject 'unknown life scenario' {Get-KmcChunk7NativeLifeRows 'chunk7-two-pair-life-anything'}
 Check 'native life partial FAIL preserved' {$bad=Copy-Value $lifeGood;$bad.status='FAIL';$bad.errors=@('fixture native life policy unavailable');$bad.observations=[pscustomobject]@{};Assert-KmcChunk7NativeLifeEvidence $request $bad 'FAIL'}
