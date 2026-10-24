@@ -22,12 +22,29 @@ $mainSlots=@($loaded.Slots|Where-Object ActorId -CEQ $roles[0])
 function OwnerRow($Pair){[pscustomobject][ordered]@{ownerId=$Pair.PairId;generation=$Pair.Generation;riderId=$Pair.Rider.Id;mountId=$Pair.Mount.Id;state='Active'}}
 # Batch196 r58 observed shape: the uncontrollable companion pair in the capital is out of the scene (inGame false).
 $script:Shape='remote';$script:ColdViews=$true
-function OutRecord([string]$Shape,[bool]$Views){[pscustomobject][ordered]@{ids=@($roles[2],$roles[3]);shape=$Shape;actors=@(foreach($id in @($roles[2],$roles[3])){[pscustomobject][ordered]@{id=$id;inGame=$false;inState=$true;directlyControllable=$false;viewPresent=$Views;liveRigValidated=$false}})}}
-function RosterRows([AllowNull()][string]$Shape){@(foreach($id in $base.request.ownedPairs.partyIds){$out=$null-ne$Shape-and$id-cin@($roles[2],$roles[3]);[pscustomobject][ordered]@{id=$id;inParty=(-not$out-or$Shape-ceq'field');character=($id-cnotin@($roles[1],$roles[3])-and(-not$out-or$Shape-ceq'field'));remote=($out-and$Shape-ceq'remote'-and$id-ceq$roles[2]);inGame=(-not$out);inState=$true;directlyControllable=(-not$out-and($null-eq$Shape-or$id-cin@($roles[0],$roles[1])));viewPresent=$true}})}
-function CapitalInherited($Snapshot,[string]$Shape,[bool]$Views){$v=Copy-Value $Snapshot;$field=$Shape-ceq'field'
- $v.currentPartyIds=@($v.partyIds|Where-Object{$field-or$_-cnotin@($roles[2],$roles[3])}|Sort-Object -CaseSensitive)
- $v.currentCharacterIds=@($v.currentCharacterIds|Where-Object{$field-or$_-cne$roles[2]})
- $v.remoteCapturedIds=@($(if($Shape-ceq'remote'){$roles[2]}))
+# Batch197 r58 observed shape: the unpaired story companions also move to the native remote party (in game, uncontrollable).
+$script:Remote=$false
+# The owned cold fixture holds only the two pairs; the remote mode adds three unpaired story companions to its
+# complete roster (request, inherited custody and progression) exactly as a seven-actor field records them.
+[string[]]$companions=@('70707070-7070-4070-8070-707070707070','50505050-5050-4050-8050-505050505050','60606060-6060-4060-8060-606060606060');[Array]::Sort($companions,[StringComparer]::Ordinal)
+$remoteBase=Copy-Value $base;$remoteBase.request.ownedPairs.partyIds=@(@($remoteBase.request.ownedPairs.partyIds)+$companions)
+foreach($snapshot in @($remoteBase.artifact.observations.inheritedFixture,$remoteBase.artifact.observations.inheritedCleanup)){
+ $snapshot.partyIds=@(@($snapshot.partyIds)+$companions);$snapshot.currentPartyIds=@(@($snapshot.currentPartyIds)+$companions|Sort-Object -CaseSensitive)
+ $snapshot.currentCharacterIds=@(@($snapshot.currentCharacterIds)+$companions|Sort-Object -CaseSensitive)
+ $template=@($snapshot.arrangement.actors|Where-Object actorId -CEQ $roles[0])[0]
+ $snapshot.arrangement.actors=@(@($snapshot.arrangement.actors)+@(foreach($id in $companions){$row=Copy-Value $template;$row.actorId=$id;$row}))
+}
+function With-Remote([scriptblock]$Body){$saved=$script:base;$script:base=$script:remoteBase;$script:Remote=$true;try{&$Body}finally{$script:base=$saved;$script:Remote=$false}}
+function RemoteIds{if($script:Remote){@($companions)}else{@()}}
+function RemoteRecord{,@(foreach($id in (RemoteIds)){[pscustomobject][ordered]@{id=$id;inParty=$false;character=$false;remote=$true;inGame=$true;inState=$true;directlyControllable=$false;viewPresent=$true;mainCharacter=$false;pairMember=$false;skippedChecks=@(Get-KmcChunk7CapitalRemoteSkippedChecks)}})}
+function OutRecord([string]$Shape,[bool]$Views){[pscustomobject][ordered]@{ids=@($roles[2],$roles[3]);shape=$Shape;actors=@(foreach($id in @($roles[2],$roles[3])){[pscustomobject][ordered]@{id=$id;inGame=$false;inState=$true;directlyControllable=$false;viewPresent=$Views;liveRigValidated=$false}});admittedNativeRemoteCompanions=(RemoteRecord)}}
+function RosterRows([AllowNull()][string]$Shape){@(foreach($id in $base.request.ownedPairs.partyIds){$out=-not[string]::IsNullOrEmpty($Shape)-and$id-cin@($roles[2],$roles[3]);$rem=-not[string]::IsNullOrEmpty($Shape)-and$id-cin(RemoteIds)
+ if($rem){[pscustomobject][ordered]@{id=$id;inParty=$false;character=$false;remote=$true;inGame=$true;inState=$true;directlyControllable=$false;viewPresent=$true};continue}
+ [pscustomobject][ordered]@{id=$id;inParty=(-not$out-or$Shape-ceq'field');character=($id-cnotin@($roles[1],$roles[3])-and(-not$out-or$Shape-ceq'field'));remote=($out-and$Shape-ceq'remote'-and$id-ceq$roles[2]);inGame=(-not$out);inState=$true;directlyControllable=(-not$out-and([string]::IsNullOrEmpty($Shape)-or$id-cin@($roles[0],$roles[1])));viewPresent=$true}})}
+function CapitalInherited($Snapshot,[string]$Shape,[bool]$Views){$v=Copy-Value $Snapshot;$field=$Shape-ceq'field';$rem=@(RemoteIds)
+ $v.currentPartyIds=@($v.partyIds|Where-Object{($field-or$_-cnotin@($roles[2],$roles[3]))-and$_-cnotin$rem}|Sort-Object -CaseSensitive)
+ $v.currentCharacterIds=@($v.currentCharacterIds|Where-Object{($field-or$_-cne$roles[2])-and$_-cnotin$rem})
+ [string[]]$remote=@(@($(if($Shape-ceq'remote'){$roles[2]}))+$rem);[Array]::Sort($remote,[StringComparer]::Ordinal);$v.remoteCapturedIds=@($remote)
  $v|Add-Member capitalOutOfScene (OutRecord $Shape $Views);$v}
 function ViewRow([string]$Id,[int]$View,[bool]$Control,[int]$Agent,[int]$Agents){[pscustomobject][ordered]@{id=$Id;viewId=$View;baselineViewId=$View;directlyControllable=$Control;inGame=$Control;masterId=$null;petId=$null;agentOverride=$Agent;riderAgents=$Agents;stockAgentEnabled=$true}}
 function WorldRow([string]$Label,[string]$Area,[bool]$Capital,[int[]]$Counts,$Owners,$Slots,$Views,[string]$Feedback,[AllowNull()][string]$Shape=$null){
@@ -296,6 +313,107 @@ if(Test-Path -LiteralPath (Join-Path $r58 'chunk7-persistence-cleanup-pending.js
  Check 'batch196 r58 native arrival with the companion in the scene is refused' {$v=Copy-Value $native.capitalArrival;$v.after.views[2].inGame=$true;Assert-KmcChunk7CapitalArrivalShape $nativeRequest $v $native.loadedArchive $native.coldRestoration.events} $true 'boolean'
  Check 'batch196 r58 native arrival restored without Mount: debt observer unchanged' {$v=Copy-Value $native.capitalArrival;$v.restoration.events+=@([pscustomobject]@{actorId=$v.after.views[0].id;kind='prepare-before'});Assert-KmcChunk7CapitalArrivalShape $nativeRequest $v $native.loadedArchive $native.coldRestoration.events} $true 'preparation'
 }else{Check 'batch196 r58 native evidence is present' {throw 'Batch196 r58 evidence is absent.'}}
+# Batch197 r58: native capital mode also moves the unpaired story companions to the remote party. Synthetic
+# rows 58-59 pass with that admission recorded; each recorded or observed deviation refuses.
+foreach($shape in @('field','remote','absent')){
+ Check ('capital rows 58-59 pass with native remote story companions and out-of-scene shape '+$shape) {$script:Shape=$shape;try{With-Remote{$p=New-Producer;$c=New-Consumer $p
+  if(@($p.artifact.observations.capitalArrival.retiredOutOfScene.admittedNativeRemoteCompanions).Count-ne$companions.Count-or$companions.Count-lt1){throw 'Synthetic native remote companions are absent.'}
+  Assert-KmcChunk7PersistenceObservation $p.request $p.artifact 'PASS';Assert-KmcChunk7PersistenceObservation $c.request $c.artifact 'PASS';Assert-KmcChunk7CapitalColdSource $c.request (Producer-Artifact $p) $c.artifact}}finally{$script:Shape='remote'}}
+}
+$remoteProducer=[ordered]@{
+ 'record omits an observed remote companion'=@({param($o)$o.capitalArrival.retiredOutOfScene.admittedNativeRemoteCompanions=@($o.capitalArrival.retiredOutOfScene.admittedNativeRemoteCompanions|Select-Object -Skip 1)},'differ from the observed roster')
+ 'record admits a companion still in the field'=@({param($o)$o.capitalArrival.retiredOutOfScene.admittedNativeRemoteCompanions[0].inParty=$true},'boolean')
+ 'record admits the main character'=@({param($o)$o.capitalArrival.retiredOutOfScene.admittedNativeRemoteCompanions[0].id=$roles[0]},'main character')
+ 'record admits a paired actor'=@({param($o)$o.capitalArrival.retiredOutOfScene.admittedNativeRemoteCompanions[0].id=$roles[1]},'paired actor')
+ 'record claims a paired actor'=@({param($o)$o.capitalArrival.retiredOutOfScene.admittedNativeRemoteCompanions[0].pairMember=$true},'boolean')
+ 'record unnamed skip'=@({param($o)$o.capitalArrival.retiredOutOfScene.admittedNativeRemoteCompanions[0].skippedChecks=@('field-party-membership')},'exactly named')
+ 'record without its admission field'=@({param($o)$o.capitalArrival.retiredOutOfScene.PSObject.Properties.Remove('admittedNativeRemoteCompanions')},'property set')
+ 'remote companion out of the game'=@({param($o)@($o.capitalArrival.after.roster|Where-Object id -CEQ $companions[0])[0].inGame=$false},'out of the game')
+ 'remote companion controllable'=@({param($o)@($o.capitalArrival.after.roster|Where-Object id -CEQ $companions[0])[0].directlyControllable=$true},'directly controllable')
+ 'main mount remote'=@({param($o)$r=@($o.capitalArrival.after.roster|Where-Object id -CEQ $roles[1])[0];$r.inParty=$false;$r.remote=$true},'paired actor')
+ 'main character remote'=@({param($o)$r=@($o.capitalArrival.after.roster|Where-Object id -CEQ $roles[0])[0];$r.inParty=$false;$r.character=$false;$r.remote=$true},'main character')
+ 'cleanup keeps a remote companion in the field'=@({param($o)$o.inheritedCleanup.currentPartyIds=@(@($o.inheritedCleanup.currentPartyIds)+$companions[0]|Sort-Object -CaseSensitive)},'admitted native remote companions')
+ 'cleanup remote list omits the companions'=@({param($o)$o.inheritedCleanup.remoteCapturedIds=@($roles[2])},'remote companions differ')
+}
+foreach($m in $remoteProducer.GetEnumerator()){Check ('capital producer with native remote companions refuses '+$m.Key) {With-Remote{$p=New-Producer;&$m.Value[0] $p.artifact.observations;Assert-KmcChunk7CapitalArrivalObservation $p.request $p.artifact}} $true $m.Value[1]}
+Check 'capital cold refuses native remote companions that differ from the producer admission' {With-Remote{$p=New-Producer;$c=New-Consumer $p;$a=Producer-Artifact $p;$a.observations.capitalArrival.retiredOutOfScene.admittedNativeRemoteCompanions=@();Assert-KmcChunk7CapitalColdSource $c.request $a $c.artifact}} $true 'differ from the producer admission'
+Check 'capital consumer refuses a remote companion out of the game' {With-Remote{$c=New-Consumer (New-Producer);@($c.artifact.observations.capitalCold.world.roster|Where-Object id -CEQ $companions[0])[0].inGame=$false;Assert-KmcChunk7CapitalColdObservation $c.request $c.artifact}} $true 'out of the game'
+Check 'product and reader name the same skipped field checks' {
+ $rule=[IO.File]::ReadAllText((Join-Path $repo 'src/KingmakerMountedCombat/Diagnostics/Chunk7CapitalRemoteCompanionRule.cs'))
+ $listed=('SkippedChecks = { '+((Get-KmcChunk7CapitalRemoteSkippedChecks|ForEach-Object{'"'+$_+'"'})-join', ')+' };')
+ if(-not$rule.Contains($listed)-or-not$rule.Contains('RecordField = "admittedNativeRemoteCompanions"')){throw 'Product skipped-check names or record field differ from the reader.'}
+}
+# The real batch197 r58 arrival record (read-only): the roster rule admits exactly the three story companions,
+# and each mutation refuses for its own reason, both in the reader and in the compiled product rule.
+$r58b197=Join-Path (Get-KmcLabRoot) 'runtime-evidence/20261024-c7e-b197-r58-capital-arrival'
+if(Test-Path -LiteralPath (Join-Path $r58b197 'chunk7-persistence-cleanup-pending.json')){
+ $q197=Read-KmcJson (Join-Path $r58b197 'runtime-request.json');$n197=(Read-KmcJson (Join-Path $r58b197 'chunk7-persistence-cleanup-pending.json')).observations
+ $roles197=@(Get-KmcChunk7OwnedPairIds $q197);$after197=$n197.capitalArrival.after;$loaded197=$n197.loadedArchive
+ $story197=@('5dd7bd1d-ae4c-4df7-9687-50fceb027344','8265f8cf-0969-4ec7-a266-2448de91c8c4','fd213210-71cd-41b0-b35b-68e1b18e9b43')
+ Check 'batch197 r58 native arrival passes the observed-shape reader' {Assert-KmcChunk7CapitalArrivalShape $q197 $n197.capitalArrival $loaded197 $n197.coldRestoration.events}
+ Check 'batch197 r58 roster admits exactly the three story companions' {
+  $d=@(Get-KmcChunk7CapitalNativeRemoteCompanions $after197 $q197 $loaded197)
+  if((@($d|ForEach-Object id)-join'|')-cne($story197-join'|')){throw ('Admitted '+(@($d|ForEach-Object id)-join','))}
+  Assert-KmcChunk7CapitalRoster $after197 $q197 'remote' $d $loaded197
+ }
+ Check 'batch197 r58 pre-transfer roster keeps every actor in the field' {Assert-KmcChunk7CapitalRoster $n197.capitalArrival.before $q197 $null}
+ $record197=@(Get-KmcChunk7CapitalNativeRemoteCompanions $after197 $q197 $loaded197)
+ $roster197=[ordered]@{
+  'a paired actor remote'=@({param($r)$m=@($r.roster|Where-Object id -CEQ $roles197[1])[0];$m.inParty=$false;$m.remote=$true;$m.directlyControllable=$false},'paired actor')
+  'a remote companion out of the game'=@({param($r)@($r.roster|Where-Object id -CEQ $story197[0])[0].inGame=$false},'out of the game')
+  'the main character remote'=@({param($r)$m=@($r.roster|Where-Object id -CEQ $roles197[0])[0];$m.inParty=$false;$m.character=$false;$m.remote=$true;$m.directlyControllable=$false},'main character')
+  'an unknown new actor'=@({param($r)$r.roster=@(@($r.roster)+[pscustomobject][ordered]@{id='11111111-2222-4333-8444-555555555555';inParty=$false;character=$false;remote=$true;inGame=$true;inState=$true;directlyControllable=$false;viewPresent=$true})},'missing or incomplete')
+  'the same shape outside a capital'=@({param($r)$r.capital=$false},'outside a capital')
+  'the same shape in another area'=@({param($r)$r.area='0'*32},'outside a capital')
+  'a story companion missing from the field and remote lists'=@({param($r)$m=@($r.roster|Where-Object id -CEQ $story197[1])[0];$m.remote=$false},'boolean')
+ }
+ foreach($m in $roster197.GetEnumerator()){Check ('batch197 r58 roster refuses '+$m.Key) {$v=Copy-Value $after197;&$m.Value[0] $v;Assert-KmcChunk7CapitalRoster $v $q197 'remote' $record197 $loaded197} $true $m.Value[1]}
+ Check 'batch197 r58 roster refuses a record that omits a remote companion' {Assert-KmcChunk7CapitalRoster $after197 $q197 'remote' @($record197|Select-Object -Skip 1) $loaded197} $true 'differ from the observed roster'
+ # The compiled product rule over the same real roster and the same mutations.
+ $pairs197=@(@($roles197)+@($loaded197.Pairs|ForEach-Object{$_.Rider.Id;$_.Mount.Id}))
+ function RuleCase([string]$Name,[bool]$Capital,$Rows,[string[]]$ExtraField=@()){
+  $members=@(foreach($r in @($Rows|Where-Object{$_.id-cnotin@($roles197[2],$roles197[3])})){'M("'+$r.id+'",'+((@($r.inParty,$r.character,$r.remote,$r.inGame,$r.inState,$r.directlyControllable,$r.viewPresent,($r.id-ceq$q197.ownedPairs.riderAId),($r.id-cin$pairs197),($r.id-cin@($roles197[1],$roles197[3])),($r.id-cin@($roles197[0],$roles197[2])))|ForEach-Object{if($_){'true'}else{'false'}})-join',')+')'})
+  $field=@(@($Rows|Where-Object inParty|ForEach-Object id)+$ExtraField|ForEach-Object{'"'+$_+'"'})
+  ' Run("'+$Name+'",'+$(if($Capital){'true'}else{'false'})+',new[]{'+($members-join',')+'},new[]{"'+$roles197[2]+'","'+$roles197[3]+'"},new string[]{'+($field-join',')+'});'
+ }
+ function RuleRows([scriptblock]$Mutate){$v=Copy-Value $after197;if($Mutate){&$Mutate $v};@($v.roster)}
+ $ruleCases=[ordered]@{
+  'real'=@((RuleCase 'real' $true (RuleRows $null)),('ADMIT '+($story197-join',')))
+  'paired-remote'=@((RuleCase 'paired-remote' $true (RuleRows $roster197['a paired actor remote'][0])),'ERROR A KMC paired actor moved to the remote party')
+  'companion-out-of-game'=@((RuleCase 'companion-out-of-game' $true (RuleRows $roster197['a remote companion out of the game'][0])),'ERROR A remote companion is out of the game')
+  'main-remote'=@((RuleCase 'main-remote' $true (RuleRows $roster197['the main character remote'][0])),'ERROR The main character moved to the remote party')
+  'unknown-actor'=@((RuleCase 'unknown-actor' $true (RuleRows $null) @('11111111-2222-4333-8444-555555555555')),'ERROR Capital native field roster gained an actor outside the producer roster')
+  'non-capital'=@((RuleCase 'non-capital' $false (RuleRows $null)),'ERROR Native remote companion outside a capital')
+  'companion-missing'=@((RuleCase 'companion-missing' $true (RuleRows $roster197['a story companion missing from the field and remote lists'][0])),'ERROR Capital native field roster lost an actor that is not a native remote companion')
+  'companion-controllable'=@((RuleCase 'companion-controllable' $true (RuleRows {param($r)@($r.roster|Where-Object id -CEQ $story197[2])[0].directlyControllable=$true})),'ERROR A remote companion is directly controllable')
+  'field-actor-out-of-game'=@((RuleCase 'field-actor-out-of-game' $true (RuleRows {param($r)@($r.roster|Where-Object id -CEQ $roles197[1])[0].inGame=$false})),'ERROR Capital field actor left the scene')
+ }
+ $ruleSource=@'
+using System;using System.Linq;
+namespace KingmakerMountedCombat.Diagnostics{static class Program{
+static Chunk7CapitalRemoteCompanionRule.Member M(string id,bool p,bool c,bool r,bool g,bool s,bool d,bool v,bool main,bool pair,bool pet,bool hasPet){return new Chunk7CapitalRemoteCompanionRule.Member{Id=id,InParty=p,Character=c,Remote=r,InGame=g,InState=s,DirectlyControllable=d,ViewPresent=v,MainCharacter=main,PairMember=pair,Pet=pet,HasPet=hasPet};}
+static void Run(string name,bool capital,Chunk7CapitalRemoteCompanionRule.Member[] roster,string[] pairB,string[] field){
+ try{Console.WriteLine(name+"|ADMIT "+string.Join(",",Chunk7CapitalRemoteCompanionRule.Admit(capital,roster,pairB,field)));}
+ catch(InvalidOperationException error){Console.WriteLine(name+"|ERROR "+error.Message);}}
+static int Main(){
+/* CASES */
+return 0;}}}
+'@
+ $ruleOutput=$null
+ Check 'compiled product rule over the batch197 r58 roster compiles' {
+  $file=Join-Path $OutputDirectory 'CapitalRemoteRule.cs';[IO.File]::WriteAllText($file,$ruleSource.Replace('/* CASES */',(@($ruleCases.Values|ForEach-Object{$_[0]})-join[char]10)),[Text.UTF8Encoding]::new($false))
+  $vs=Join-Path ([Environment]::GetFolderPath('ProgramFilesX86')) 'Microsoft Visual Studio/Installer/vswhere.exe'
+  $compiler=@(& $vs -latest -products * -requires Microsoft.Component.MSBuild -find 'MSBuild/**/Bin/Roslyn/csc.exe')|Select-Object -First 1
+  $exe=Join-Path $OutputDirectory 'CapitalRemoteRule.exe';& $compiler /nologo /target:exe /langversion:7.3 "/out:$exe" $file (Join-Path $repo 'src/KingmakerMountedCombat/Diagnostics/Chunk7CapitalRemoteCompanionRule.cs')|Out-Null
+  if($LASTEXITCODE-ne0){throw 'Actual capital remote companion rule did not compile.'}
+  $script:ruleOutput=@(& $exe);if($LASTEXITCODE-ne0-or$script:ruleOutput.Count-ne$ruleCases.Count){throw 'Compiled capital remote companion rule did not run every case.'}
+ }
+ foreach($case in $ruleCases.GetEnumerator()){Check ('compiled product rule over the batch197 r58 roster: '+$case.Key) {
+  $line=@($script:ruleOutput|Where-Object{$_.StartsWith($case.Key+'|',[StringComparison]::Ordinal)})
+  if($line.Count-ne1){throw 'Compiled rule case is missing.'};$got=$line[0].Substring($case.Key.Length+1)
+  if(-not$got.StartsWith($case.Value[1],[StringComparison]::Ordinal)){throw ('Compiled rule returned '+$got)}
+ }}
+}else{Check 'batch197 r58 native evidence is present' {throw 'Batch197 r58 evidence is absent.'}}
 # The UMM summary contract: the product line, the in-game diagnostic expectation and the reader agree.
 Check 'UMM capital summary text agrees across product, engine and reader' {
  $product=[IO.File]::ReadAllText((Join-Path $repo 'src/KingmakerMountedCombat/Integration/MountedAreaPersistence.cs'))
