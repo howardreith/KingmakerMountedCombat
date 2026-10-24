@@ -26,7 +26,8 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("the adoption plan names the exact change it observed", AdoptionPlanNamesTheChange);
             runner.Run("the adoption plan binds exactly the committed generation", AdoptionPlanBindsCommittedGeneration);
             runner.Run("a compensated combat mount leaves no relationship residue", CompensatedCombatMountLeavesNoResidue);
-            runner.Run("a preparing rider turn refuses the transition with its own reason", PreparingRiderTurnRefusesTheTransition);
+            runner.Run("a prepared rider turn admits the transition; an unprepared one is refused with its reason", PreparedRiderTurnAdmitsTheTransition);
+            runner.Run("a first-action Mount in a prepared turn takes the roster's adoption disposition", FirstActionMountTakesRosterDisposition);
             runner.Run("a dismount delivery rejects every wrong target identity", DismountTargetIdentityRejectsWrongConditions);
             runner.Run("the ledger's in-flight window is exactly admit to settle", LedgerInFlightWindowIsExact);
             runner.Run("combat Mount requires the qualified paired authority", CombatMountRequiresQualifiedAuthority);
@@ -568,17 +569,40 @@ namespace KingmakerMountedCombat.Tests
                 "A compensated relationship refused a later lawful mount.");
         }
 
-        // R3. Turn-based delivery requires the rider's turn to be ACTING. The
-        // Preparing boundary is refused, and with its own reason.
-        private static void PreparingRiderTurnRefusesTheTransition()
+        // Directive 4 R3: Mount as the first action of the rider's prepared (Preparing) turn is eligible,
+        // and the roster alone decides the adoption: a mount slot behind the rider retains the partner's
+        // participation (no preparation); a slot ahead prepares it once. The earlier boundary stays refused.
+        private static void FirstActionMountTakesRosterDisposition()
         {
-            TestRunner.True(CombatMountDismountPolicy.IsTurnEligible(true, true, true),
+            TestRunner.True(CombatMountDismountPolicy.IsTurnEligible(true, true, true, false),
+                "A first-action Mount in the prepared turn was refused.");
+            TestRunner.Equal(MidEncounterAdoption.RetainPartnerParticipation,
+                MidEncounterAdoptionPolicy.Resolve(true, true, 3, 1, false, false, true),
+                "Mount-first roster did not retain the partner's participation.");
+            TestRunner.Equal(MidEncounterAdoption.PreparePartnerThisRound,
+                MidEncounterAdoptionPolicy.Resolve(true, true, 1, 3, false, false, true),
+                "Rider-first roster did not prepare the partner this round.");
+            TestRunner.True(!CombatMountDismountPolicy.IsTurnEligible(true, false, true, false) &&
+                MidEncounterAdoptionPolicy.Resolve(true, false, 1, 3, false, false, true) == MidEncounterAdoption.Unavailable,
+                "A Mount on another actor's turn was admitted or adopted.");
+            TestRunner.Equal(MidEncounterAdoption.Unavailable,
+                MidEncounterAdoptionPolicy.Resolve(true, true, 1, 3, true, false, true),
+                "A surprised partner ahead of the rider was prepared.");
+        }
+
+        // Preparing boundary is admitted (Chunk 6A R3 superseded, owner decision 2026-10-18):
+        // a prepared turn stays Preparing until its first command.
+        private static void PreparedRiderTurnAdmitsTheTransition()
+        {
+            TestRunner.True(CombatMountDismountPolicy.IsTurnEligible(true, true, false, true),
                 "An acting rider turn was refused.");
-            TestRunner.True(!CombatMountDismountPolicy.IsTurnEligible(true, true, false),
-                "A rider turn that is not acting was admitted.");
-            TestRunner.True(!CombatMountDismountPolicy.IsTurnEligible(true, false, true),
-                "Another actor's acting turn was admitted.");
-            TestRunner.True(CombatMountDismountPolicy.IsTurnEligible(false, false, false),
+            TestRunner.True(CombatMountDismountPolicy.IsTurnEligible(true, true, true, false),
+                "A prepared rider turn awaiting its first command was refused.");
+            TestRunner.True(!CombatMountDismountPolicy.IsTurnEligible(true, true, false, false),
+                "A rider turn that is neither prepared nor acting was admitted.");
+            TestRunner.True(!CombatMountDismountPolicy.IsTurnEligible(true, false, true, true),
+                "Another actor's turn was admitted.");
+            TestRunner.True(CombatMountDismountPolicy.IsTurnEligible(false, false, false, false),
                 "Real time was made to depend on a turn slot.");
 
             TestRunner.Equal(null,
@@ -587,31 +611,32 @@ namespace KingmakerMountedCombat.Tests
             TestRunner.Equal(null,
                 CombatMountDismountPolicy.DescribeTurnIneligibility("Mount Companion", false, false, false, false),
                 "Real time produced a turn-based refusal reason.");
-            var preparing = CombatMountDismountPolicy.DescribeTurnIneligibility(
-                "Mount Companion", true, true, true, false);
-            TestRunner.True(preparing != null && preparing.Contains("finished preparing"),
-                "The preparing boundary was not named: " + preparing);
+            TestRunner.Equal(null,
+                CombatMountDismountPolicy.DescribeTurnIneligibility("Mount Companion", true, true, true, false),
+                "A prepared rider turn produced a refusal reason.");
             var wrongActor = CombatMountDismountPolicy.DescribeTurnIneligibility(
                 "Dismount", true, false, false, true);
             TestRunner.True(wrongActor != null && wrongActor.Contains("rider's current turn"),
                 "A foreign current turn was not named: " + wrongActor);
             var idle = CombatMountDismountPolicy.DescribeTurnIneligibility(
                 "Dismount", true, true, false, false);
-            TestRunner.True(idle != null && idle.Contains("acting"),
-                "A rider turn that is neither preparing nor acting was not named: " + idle);
+            TestRunner.True(idle != null && idle.Contains("has been prepared"),
+                "A rider turn that is neither prepared nor acting was not named: " + idle);
 
             // Availability surfaces the exact reason for both actions.
             var mount = EligibleCombatContext();
             mount.CombatTurnEligible = false;
-            mount.CombatTurnIneligibilityReason = preparing;
-            TestRunner.True(Reasons(mount).Contains("finished preparing"),
-                "Mount availability replaced the preparing reason with a generic one.");
+            mount.CombatTurnIneligibilityReason = CombatMountDismountPolicy.DescribeTurnIneligibility(
+                "Mount Companion", true, true, false, false);
+            TestRunner.True(Reasons(mount).Contains("has been prepared"),
+                "Mount availability replaced the unprepared-turn reason with a generic one.");
             var dismount = EligibleCombatContext();
             dismount.RelationshipState = RelationshipState.Mounted;
             dismount.CombatTurnEligible = false;
-            dismount.CombatTurnIneligibilityReason = "Dismount waits until the rider's turn has finished preparing.";
-            TestRunner.True(Reasons(dismount).Contains("finished preparing"),
-                "Dismount availability replaced the preparing reason with a generic one.");
+            dismount.CombatTurnIneligibilityReason = CombatMountDismountPolicy.DescribeTurnIneligibility(
+                "Dismount", true, true, false, false);
+            TestRunner.True(Reasons(dismount).Contains("has been prepared"),
+                "Dismount availability replaced the unprepared-turn reason with a generic one.");
         }
 
         // R4. Each wrong dismount target identity is rejected on its own terms.

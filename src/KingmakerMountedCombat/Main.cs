@@ -112,6 +112,7 @@ namespace KingmakerMountedCombat
         {
             try
             {
+                root?.ObserveStartupCallbackEntry();
                 root?.Update(deltaTime);
             }
             catch (Exception exception)
@@ -125,6 +126,10 @@ namespace KingmakerMountedCombat
                 {
                     modEntry.Logger.LogException("OnUpdate cleanup", cleanupException);
                 }
+            }
+            finally
+            {
+                root?.ObserveStartupCallbackExit();
             }
         }
 

@@ -49,9 +49,11 @@ namespace KingmakerMountedCombat.Diagnostics
 
         public SaveInfo Descriptor => descriptor;
 
+        internal bool LoadCallbackObserved => loadRoutineCompleted;
+
         public string WorkingPath { get; private set; }
 
-        public void Start()
+        public void Start(Action<Game, SaveManager, SaveInfo> afterVerifiedWorking = null)
         {
             if (State != WorkingFixtureLoadState.NotStarted)
             {
@@ -123,6 +125,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     throw new InvalidOperationException("Exact Working fixture changed between descriptor inspection and load authorization.");
                 }
 
+                afterVerifiedWorking?.Invoke(game, game.SaveManager, descriptor);
                 State = WorkingFixtureLoadState.Loading;
                 game.SaveManager.AddCallbackAfterLoad(HandleLoadRoutineCompleted);
                 game.UI.MainMenu.LoadGame(descriptor);

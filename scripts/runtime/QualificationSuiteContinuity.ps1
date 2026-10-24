@@ -91,6 +91,27 @@ function Assert-KmcPhase3fStartingInstallation {
     return $true
 }
 
+# Inert KMC residue: an owner-disabled KMC folder holding ONLY UMM's byte-cache
+# copies of a previously installed DLL (no Info.json, no DLL). UnityModManager
+# cannot load a mod without Info.json, so the residue is not an installation;
+# the base-game ready tree is built only from the package (New-KmcBaseGameReadyTree)
+# and the whole live tree, residue included, is backed up and restored byte-exactly.
+# Only then is the Phase 3F pin assertion skipped; the owner's folder is never
+# modified or deleted. Anything else keeps the unchanged assertion.
+function Test-KmcInertKmcInstallationResidue {
+    param([Parameter(Mandatory=$true)][string]$KmcRoot)
+    $root = Get-Item -LiteralPath $KmcRoot -Force -ErrorAction SilentlyContinue
+    if ($null -eq $root -or -not $root.PSIsContainer -or $root.Name -cne 'KingmakerMountedCombat' -or
+        ($root.Attributes -band [IO.FileAttributes]::ReparsePoint)) { return $false }
+    $entries = @(Get-ChildItem -LiteralPath $root.FullName -Force)
+    if ($entries.Count -lt 1) { return $false }
+    foreach ($entry in $entries) {
+        if ($entry.PSIsContainer -or ($entry.Attributes -band [IO.FileAttributes]::ReparsePoint) -or
+            $entry.Name -cnotmatch '^KingmakerMountedCombat\.dll\.\d+\.cache$') { return $false }
+    }
+    return $true
+}
+
 function Assert-KmcQualificationAdmissionQuiescent {
     param(
         [Parameter(Mandatory = $true)][string]$StateRoot,
@@ -105,7 +126,8 @@ function Assert-KmcQualificationAdmissionQuiescent {
     $fullState=[IO.Path]::GetFullPath($StateRoot).TrimEnd('\')
     if (Test-Path -LiteralPath (Join-Path $fullState 'active-transaction.lock')) { throw 'Qualification admission found an active or stale runtime lock.' }
     if (Test-Path -LiteralPath (Join-Path $ModsRoot '.kmc-runtime-sentinel.json')) { throw 'Qualification admission found a live KMC sentinel.' }
-    if (Test-Path -LiteralPath (Join-Path $ModsRoot 'KingmakerMountedCombat')) {
+    if ((Test-Path -LiteralPath (Join-Path $ModsRoot 'KingmakerMountedCombat')) -and
+        -not (Test-KmcInertKmcInstallationResidue -KmcRoot (Join-Path $ModsRoot 'KingmakerMountedCombat'))) {
         [void](Assert-KmcPhase3fStartingInstallation -KmcRoot (Join-Path $ModsRoot 'KingmakerMountedCombat'))
     }
     foreach ($folder in @('run-transactions','transactions','save-transactions','fixture-recoveries')) {

@@ -27,7 +27,104 @@ Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot 'Chunk6aFoundationEvidence.ps1')
 . (Join-Path $PSScriptRoot 'Chunk6aClosureEvidence.ps1')
 . (Join-Path $PSScriptRoot 'FrozenProductSource.ps1')
+. (Join-Path $PSScriptRoot 'BaseGameIsolation.ps1')
+. (Join-Path $PSScriptRoot 'Chunk7WorldEvidence.ps1')
+. (Join-Path $PSScriptRoot 'Chunk7MatchedPoolEvidence.ps1')
+. (Join-Path $PSScriptRoot 'Chunk7PersistenceEvidence.ps1')
+. (Join-Path $PSScriptRoot 'Chunk7CombatEvidence.ps1')
+. (Join-Path $PSScriptRoot 'Chunk7RealtimeEvidence.ps1')
+. (Join-Path $PSScriptRoot 'Chunk7NativeLifeEvidence.ps1')
+. (Join-Path $PSScriptRoot 'Chunk7CleanupEvidence.ps1')
+. (Join-Path $PSScriptRoot 'Chunk7OrdinaryAcquisitionEvidence.ps1')
+. (Join-Path $PSScriptRoot 'Chunk7OrdinaryFieldEvidence.ps1')
+. (Join-Path $PSScriptRoot 'Chunk7SmallCalibrationEvidence.ps1')
+. (Join-Path $PSScriptRoot 'Chunk7ProgressionEvidence.ps1')
+. (Join-Path $PSScriptRoot 'Chunk7NativeBootstrapEvidence.ps1')
+. (Join-Path $PSScriptRoot 'Chunk7AssistedFixtureEvidence.ps1')
+. (Join-Path $PSScriptRoot 'Chunk7BootstrapInventoryEvidence.ps1')
+. (Join-Path $PSScriptRoot 'Chunk7AssistedColdInventoryEvidence.ps1')
+. (Join-Path $PSScriptRoot 'Chunk7AssistedColdInventoryFixtures.ps1')
+. (Join-Path $PSScriptRoot 'Chunk7ManualSeedEvidence.ps1')
+. (Join-Path $PSScriptRoot 'Chunk7ManualDerivedEvidence.ps1')
+. (Join-Path $PSScriptRoot 'Chunk7AssistedAcquisitionEvidence.ps1')
+. (Join-Path $PSScriptRoot 'Chunk7AssistedAcquisitionFixtures.ps1')
+. (Join-Path $PSScriptRoot 'Chunk7CumulativeAcquisitionEvidence.ps1')
+. (Join-Path $PSScriptRoot 'Chunk7AcquiredManualEvidence.ps1')
+. (Join-Path $PSScriptRoot 'Chunk7SmallFixtureEvidence.ps1')
+. (Join-Path $PSScriptRoot 'Chunk7StockMammothFixtureEvidence.ps1')
+. (Join-Path $PSScriptRoot 'Chunk7OwnedPairsFixtures.ps1')
+. (Join-Path $PSScriptRoot 'Chunk7F09EightActorSource.ps1')
+. (Join-Path $PSScriptRoot 'Chunk7F09NineActorSource.ps1')
+. (Join-Path $PSScriptRoot 'Chunk7F09SixthHireSource.ps1')
+. (Join-Path $PSScriptRoot 'Chunk7SixPairCheckpointSource.ps1')
+. (Join-Path $PSScriptRoot 'Chunk7SixPairStressEvidence.ps1')
+. (Join-Path $PSScriptRoot 'Chunk7SixPairPersistenceEvidence.ps1')
+. (Join-Path $PSScriptRoot 'Chunk7NormalPlayerEvidence.ps1')
+. (Join-Path $PSScriptRoot 'Chunk7UpgradeRehearsal.ps1')
+. (Join-Path $PSScriptRoot 'Chunk7ProgressionFixtures.ps1')
 
+# Scenario families whose live completion contract waits for a native level-up autosave.
+# Native fact: the installed game (2.1.7b) never registers LevelUpAutoSaveController -
+# GameModesFactory builds its controllers explicitly without it - so an ordinary level-up
+# never requests an Auto save and these waits can never complete. None is selected for the
+# current batch; each is RETIRED and not selected, replaced by the native-choice Manual routes (see
+# docs/CHUNK7-STALE-LEVELUP-AUTOSAVE-FAMILIES.md). The runner refuses them before any lock,
+# transaction, Mods swap or launch. A null case list means every case of the scenario waits;
+# chunk7-native-progression waits only in the cases that write its terminal autosave.
+function Get-KmcChunk7StaleLevelUpAutosaveFamilies {
+    @(
+        [pscustomobject]@{scenario='chunk7-ordinary-acquisition';cases=$null;waitSite='src/KingmakerMountedCombat/Diagnostics/Chunk7OrdinaryAcquisitionScenario.cs:112 (ObserveCompletedAutosave, :266)'},
+        [pscustomobject]@{scenario='chunk7-native-progression';cases=@('horse-native-level','horse-native-retrain-horse','horse-native-retrain-mammoth');waitSite='src/KingmakerMountedCombat/Diagnostics/Chunk7NativeProgressionSession.cs (legacy ObserveTerminalAutosave)'}
+    )
+}
+# Returns the exact refusal for a stale family, or $null when the selection is admitted.
+# A chunk7-native-progression request is decided by its selected case; without one (before
+# its closed selection is read) it is not refused here, and the runner asks again with the case.
+function Get-KmcChunk7FamilyNotReadyReason([string]$Scenario,[AllowNull()][string]$ProgressionCase) {
+    if($Scenario-ceq'chunk7-cumulative-acquisition'-and$ProgressionCase-ceq'legacy-manual'){
+        return 'Scenario family chunk7-cumulative-acquisition/legacy-manual is retired and not selected: a one-owner Manual_302 source cannot be produced from the selected paths (batch158); the owner-seed one-owner route Manual_305 to Manual_308 (batches 163-166) replaces it.'
+    }
+    foreach($family in @(Get-KmcChunk7StaleLevelUpAutosaveFamilies)){
+        if($family.scenario-cne$Scenario){continue}
+        $name=$Scenario
+        if($null-ne$family.cases){
+            if([string]::IsNullOrEmpty($ProgressionCase)-or$ProgressionCase-cnotin@($family.cases)){return $null}
+            $name=$Scenario+'/'+$ProgressionCase
+        }
+        return ('Scenario family '+$name+' is not ready: it waits for a native level-up autosave that the installed game never requests (LevelUpAutoSaveController is not registered); repair its completion contract before selection. Wait site: '+$family.waitSite+'; see docs/CHUNK7-STALE-LEVELUP-AUTOSAVE-FAMILIES.md.')
+    }
+    return $null
+}
+# Retired persistence cases stay in the closed sets so their historical artifacts remain
+# readable, but they are refused before any selection intake, approval, lock, transaction or launch.
+function Get-KmcChunk7RetiredPersistenceCaseReason([AllowNull()][string]$PersistenceCase) {
+    if($PersistenceCase-ceq'pending-schema3-control-manual'){
+        return 'Persistence case pending-schema3-control-manual is retired and not selected: it was the batch35-37 matched diagnostic control that separated native re-entry preparation from schema-2 conversion, and that diagnosis is closed; the selected pending-only chain (legacy-mounted-pending-tb-manual save and schema-2 derivative resave, then owned-schema2-pending-current-manual third-process cold) covers its schema-3 pending cold claim; see docs/CHUNK7-RETIRED-SCHEMA3-CONTROL-2026-10-23.md.'
+    }
+    return $null
+}
+function Assert-KmcChunk7PersistenceCaseSelected([AllowNull()][string]$PersistenceCase) {
+    $reason=Get-KmcChunk7RetiredPersistenceCaseReason $PersistenceCase
+    if($null-ne$reason){throw $reason}
+}
+# Retired Small calibration cases. Both require the retired saveBeforeFieldSelection
+# Auto-derived source, which the selected Manual field acquisition cannot produce. They stay in
+# the closed sets, but are refused as soon as their selection file names them, before the
+# selection is validated or admitted, and before any approval, lock, transaction or launch.
+function Get-KmcChunk7RetiredSmallCalibrationCaseReason([AllowNull()][string]$SmallCase) {
+    if($SmallCase-ceq'compiled-manual-derived-small-horse-rt'-or$SmallCase-ceq'compiled-assisted-two-owner-small-horse-rt'){
+        return ('Small calibration case '+$SmallCase+' is retired and not selected: it requires the retired saveBeforeFieldSelection Auto-derived paid Small source, which the selected Manual field acquisition (saveAfterFieldSelection) cannot produce. Replacements: compiled-owner-seed-fixture-small-horse-rt and its presentation case for body, pose and action calibration; matrix rows 33-34 for the mounted Small Manual and its separate cold load; owner-seed x4s/x4c for same-candidate paid Small lineage. See docs/CHUNK7-RETIRED-SMALL-MANUAL-CALIBRATION-2026-10-24.md.')
+    }
+    return $null
+}
+function Assert-KmcChunk7SmallCalibrationCaseSelected([AllowNull()][string]$SmallCase) {
+    $reason=Get-KmcChunk7RetiredSmallCalibrationCaseReason $SmallCase
+    if($null-ne$reason){throw $reason}
+}
+function Assert-KmcChunk7FamilyReady([string]$Scenario,[AllowNull()][string]$ProgressionCase) {
+    $reason=Get-KmcChunk7FamilyNotReadyReason $Scenario $ProgressionCase
+    if($null-ne$reason){throw $reason}
+}
 function Get-KmcRepositoryRoot {
     $root = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))
     $actual = (& git -C $root rev-parse --show-toplevel 2>$null).Trim()
@@ -287,23 +384,33 @@ function Get-KmcDirectoryManifest {
     }
     # Preserve exact enumeration, literal paths, entry ordering and canonical digest.
     # Every byte is read anew; no timestamp/hash cache or historical-root exclusion.
-    $hashes = @([KingmakerMountedCombat.RuntimeTooling.InventoryHasher]::HashFiles(
-        [string[]]@($files | ForEach-Object { $_.FullName })))
+    $paths = New-Object 'string[]' $files.Count
+    for ($fileIndex=0; $fileIndex -lt $files.Count; $fileIndex++) { $paths[$fileIndex] = $files[$fileIndex].FullName }
+    $hashes = @([KingmakerMountedCombat.RuntimeTooling.InventoryHasher]::HashFiles($paths))
     for ($fileIndex=0; $fileIndex -lt $files.Count; $fileIndex++) {
         $file = $files[$fileIndex]
         $records.Add([pscustomobject]@{ kind = 'file'; path = $file.FullName.Substring($fullRoot.Length + 1).Replace('\', '/'); length = [long]$file.Length; sha256 = $hashes[$fileIndex] })
     }
     $ordered = @($records | Sort-Object kind, path)
-    $fileRecords = @($ordered | Where-Object kind -eq 'file')
+    $fileCount = 0
+    $directoryCount = 0
     $totalBytes = [long]0
-    foreach ($fileRecord in $fileRecords) { $totalBytes += [long]$fileRecord.length }
-    $canonical = ($ordered | ForEach-Object { '{0}|{1}|{2}|{3}' -f $_.kind, $_.path, $_.length, $_.sha256 }) -join "`n"
+    $canonical = New-Object KingmakerMountedCombat.RuntimeTooling.ManifestCanonicalHasher
+    try {
+        foreach ($record in $ordered) {
+            if ($record.kind -eq 'file') { $fileCount++; $totalBytes += [long]$record.length }
+            elseif ($record.kind -eq 'directory') { $directoryCount++ }
+            $canonical.Append(('{0}|{1}|{2}|{3}' -f $record.kind, $record.path, $record.length, $record.sha256))
+        }
+        $digest = $canonical.Complete()
+    }
+    finally { $canonical.Dispose() }
     return [pscustomobject]@{
         schemaVersion = 1; root = $fullRoot
-        directoryCount = @($ordered | Where-Object kind -eq 'directory').Count
-        fileCount = $fileRecords.Count
+        directoryCount = $directoryCount
+        fileCount = $fileCount
         totalBytes = $totalBytes
-        digest = Get-KmcTextSha256 $canonical; entries = $ordered
+        digest = $digest; entries = $ordered
     }
 }
 
@@ -3530,12 +3637,26 @@ function Enter-KmcModsTransaction {
         [Parameter(Mandatory = $true)][string]$StagingRoot,
         # The genuine no-DLL observation stages the live clone WITHOUT any KMC entry
         # and with the removal observer's own directory instead of the KMC overlay.
-        [ValidateSet('live-clone-plus-kmc-overlay','live-clone-minus-kmc-plus-observer')][string]$StagingMode = 'live-clone-plus-kmc-overlay'
+        # The request-free normal-player control stages the isolated base-game tree
+        # with exactly two packages: KMC and the external normal-player observer.
+        [ValidateSet('live-clone-plus-kmc-overlay','live-clone-minus-kmc-plus-observer','base-game-only-kmc','base-game-only-kmc-observer')][string]$StagingMode = 'live-clone-plus-kmc-overlay',
+        $BaseGameDependencies,
+        [string]$ObserverPackagePath,
+        # F12 upgrade rehearsal only: a previous install's exact KMC-folder runtime files
+        # (re-hashed, closed UMM cache shape) laid under the staged package files.
+        $KmcCarryFiles
     )
     [void](Assert-KmcRuntimeLockOwner $Lock); Assert-KmcNoGameProcesses
     $observerMode = $StagingMode -ceq 'live-clone-minus-kmc-plus-observer'
+    $coStaged = $StagingMode -ceq 'base-game-only-kmc-observer'
+    $baseGameOnly = $StagingMode -cin @('base-game-only-kmc','base-game-only-kmc-observer')
+    if($baseGameOnly){Assert-KmcBaseGameDependencyReceipt $BaseGameDependencies -VerifyFiles}
+    elseif($null-ne$BaseGameDependencies){throw 'Base-game dependencies require the explicit base-game staging mode.'}
+    if($coStaged-ne(-not[string]::IsNullOrEmpty($ObserverPackagePath))){throw 'Only the explicit normal-player co-staging mode takes, and requires, a second observer package.'}
+    if(-not$coStaged-and@($KmcCarryFiles|Where-Object{$null-ne$_}).Count-ne0){throw 'Only the normal-player co-staging mode may carry a previous install''s KMC folder files.'}
     $overlayName = if ($observerMode) { 'KmcRemovalObserver' } else { 'KingmakerMountedCombat' }
     $runId = [string]$Lock.RunId; $fullLive = [IO.Path]::GetFullPath($LiveModsRoot).TrimEnd('\')
+    if($baseGameOnly-and$fullLive-cne[string]$BaseGameDependencies.modsRoot){throw 'Base-game Mods root differs from the admitted loader layout.'}
     if (-not (Test-Path -LiteralPath $fullLive -PathType Container)) { throw "Live Mods root is missing: $fullLive" }
     Assert-KmcNotReparsePoint $fullLive 'live Mods root'
     if ($null -ne (Read-KmcLiveSentinel $fullLive)) { throw 'Live Mods already contains a KMC transaction sentinel.' }
@@ -3545,7 +3666,10 @@ function Enter-KmcModsTransaction {
     })
     if ($kmcCollisions.Count -gt 1) { throw 'Live Mods contains ambiguous case-insensitive KMC entries.' }
     if ($kmcCollisions.Count -eq 1) {
-        [void](Assert-KmcPhase3fStartingInstallation -KmcRoot $kmcCollisions[0].FullName)
+        # Inert cache-only residue is not an installation (see Test-KmcInertKmcInstallationResidue).
+        if (-not (Test-KmcInertKmcInstallationResidue -KmcRoot $kmcCollisions[0].FullName)) {
+            [void](Assert-KmcPhase3fStartingInstallation -KmcRoot $kmcCollisions[0].FullName)
+        }
     }
     $before = Get-KmcDirectoryManifest $fullLive
     $statePath = Get-KmcTransactionStatePath $StateRoot $runId
@@ -3580,14 +3704,36 @@ function Enter-KmcModsTransaction {
     if (-not (Test-Path -LiteralPath (Join-Path $expectedRoot 'Info.json')) -or -not (Test-Path -LiteralPath (Join-Path $expectedRoot ($overlayName + '.dll')))) {
         throw 'Pre-staged package does not contain the exact mod root.'
     }
-    $cloneBase = Copy-KmcDirectoryTreeExact -SourceRoot $fullLive -DestinationRoot $ready
+    $observerModRoot=$null;$observerPackageHash=$null;$frozenObserverPackage=$null
+    if($coStaged){
+        $frozenObserverPackage = Join-Path $stagingRun 'observer-package.zip'
+        $observerOverlay = Join-Path $stagingRun 'observer-overlay'
+        $observerPackageHash = Get-KmcSha256 $ObserverPackagePath
+        Copy-Item -LiteralPath $ObserverPackagePath -Destination $frozenObserverPackage
+        if ((Get-KmcSha256 $frozenObserverPackage) -cne $observerPackageHash -or (Get-KmcSha256 $ObserverPackagePath) -cne $observerPackageHash) {
+            throw 'Frozen observer package hash differs from the qualified package or the package changed while freezing.'
+        }
+        Expand-Archive -LiteralPath $frozenObserverPackage -DestinationPath $observerOverlay
+        Assert-KmcDirectoryTreeCloneable $observerOverlay 'frozen observer overlay'
+        $observerEntries = @((Get-KmcDirectoryManifest $observerOverlay).entries | ForEach-Object { '{0}|{1}' -f $_.kind, $_.path } | Sort-Object)
+        $expectedObserverEntries = @('directory|KmcRemovalObserver','file|KmcRemovalObserver/Info.json','file|KmcRemovalObserver/KmcRemovalObserver.dll') | Sort-Object
+        if (($observerEntries -join "`n") -cne ($expectedObserverEntries -join "`n")) { throw "Frozen observer overlay entry set is not exact: $($observerEntries -join ', ')" }
+        $observerModRoot = Join-Path $observerOverlay 'KmcRemovalObserver'
+    }
+    $cloneRoot = if($baseGameOnly){Join-Path $stagingRun 'Mods-live-clone'}else{$ready}
+    $cloneBase = Copy-KmcDirectoryTreeExact -SourceRoot $fullLive -DestinationRoot $cloneRoot
     Assert-KmcDirectoryManifestsEqual $before $cloneBase 'Pre-overlay live Mods clone'
     Assert-KmcDirectoryTreeCloneable $fullLive 'live Mods tree after cloning'
     Assert-KmcDirectoryManifestsEqual $before (Get-KmcDirectoryManifest $fullLive) 'Live Mods source after cloning'
     $stagedKmcRoot = Join-Path $ready 'KingmakerMountedCombat'
-    if (Test-Path -LiteralPath $stagedKmcRoot) {
+    if($baseGameOnly){
+        New-KmcBaseGameReadyTree -StagingRun $stagingRun -CloneRoot $cloneRoot -ReadyRoot $ready -PackageModRoot $expectedRoot -Before $before -ObserverModRoot $observerModRoot -KmcCarryFiles $KmcCarryFiles -Confirm:$false
+    }
+    elseif (Test-Path -LiteralPath $stagedKmcRoot) {
         [void](Assert-KmcChildPath $stagedKmcRoot $stagingRun 'staged KMC replacement')
-        [void](Assert-KmcPhase3fStartingInstallation -KmcRoot $stagedKmcRoot)
+        if (-not (Test-KmcInertKmcInstallationResidue -KmcRoot $stagedKmcRoot)) {
+            [void](Assert-KmcPhase3fStartingInstallation -KmcRoot $stagedKmcRoot)
+        }
         # Only the verified staging clone is replaced. The original live tree
         # is moved intact into its transactional backup and restored in finally.
         Remove-Item -LiteralPath $stagedKmcRoot -Recurse -Force
@@ -3602,10 +3748,14 @@ function Enter-KmcModsTransaction {
         $kmcResidue = @(Get-ChildItem -LiteralPath $ready -Recurse -Force | Where-Object { $_.Name -match '(?i)KingmakerMountedCombat' })
         if ($kmcResidue.Count -ne 0) { throw 'The no-DLL staging still carries a KingmakerMountedCombat entry.' }
     }
-    else { Move-Item -LiteralPath $expectedRoot -Destination $stagedKmcRoot }
+    elseif(-not$baseGameOnly) { Move-Item -LiteralPath $expectedRoot -Destination $stagedKmcRoot }
     $sentinel = [ordered]@{ schemaVersion=1; runId=$runId; token=[string]$Lock.Token; packageSha256=$packageHash }
     Write-KmcJsonAtomic (Join-Path $ready '.kmc-runtime-sentinel.json') $sentinel
     $staged = Get-KmcDirectoryManifest $ready
+    # The staged entry list is kept outside the live tree so restoration can
+    # classify every runtime write against the exact activated bytes.
+    $stagedManifestSidecar = Join-Path $stagingRun 'Mods-staged-manifest.json'
+    Write-KmcJsonAtomic $stagedManifestSidecar ([ordered]@{ schemaVersion=1; runId=$runId; digest=$staged.digest; entries=@($staged.entries) })
     Assert-KmcDirectoryTreeCloneable $fullLive 'live Mods tree before activation'
     Assert-KmcDirectoryManifestsEqual $before (Get-KmcDirectoryManifest $fullLive) 'Live Mods source immediately before activation'
     $state = [ordered]@{
@@ -3616,6 +3766,19 @@ function Enter-KmcModsTransaction {
         beforeDigest=$before.digest; beforeFileCount=$before.fileCount; beforeDirectoryCount=$before.directoryCount; beforeTotalBytes=$before.totalBytes
         cloneBaseDigest=$cloneBase.digest; cloneBaseFileCount=$cloneBase.fileCount; cloneBaseDirectoryCount=$cloneBase.directoryCount; cloneBaseTotalBytes=$cloneBase.totalBytes
         stagedDigest=$staged.digest; stagedFileCount=$staged.fileCount; stagedDirectoryCount=$staged.directoryCount; stagedTotalBytes=$staged.totalBytes
+        stagedManifestSidecar=$stagedManifestSidecar
+    }
+    if($baseGameOnly){
+        # New mode has its own receipt schema. Historical schema-3 states retain
+        # their exact two-mode contract and restoration target.
+        $state.schemaVersion=4
+        $state['baseGameDependencies']=$BaseGameDependencies
+        $state['preservedClone']=$cloneRoot
+        if($coStaged){$state['frozenObserverPackage']=$frozenObserverPackage;$state['observerPackageSha256']=$observerPackageHash}
+        # Carried previous-install cache files are declared here so restoration can name
+        # UMM's own removal of exactly these files (it deletes every '*.cache*' on a cache miss).
+        $carried=@($KmcCarryFiles|Where-Object{$null-ne$_})
+        if($carried.Count-ne0){$state['kmcCarriedFiles']=@($carried|ForEach-Object{[ordered]@{name=[string]$_.name;length=[long]$_.length;sha256=[string]$_.sha256}})}
     }
     Write-KmcJsonAtomic $statePath $state
     try {
@@ -3651,36 +3814,60 @@ function Restore-KmcModsTransaction {
     $state = Read-KmcJson $StatePath
     $requiredState = @('schemaVersion','runId','token','phase','preparedAtUtc','liveModsRoot','originalBackup','stagedReady','stagedAfter','frozenPackage','packageSha256','beforeDigest','beforeFileCount','beforeDirectoryCount','beforeTotalBytes','stagedDigest','stagedFileCount','stagedDirectoryCount','stagedTotalBytes')
     $schemaVersion = [int]$state.schemaVersion
-    if ($schemaVersion -eq 3) {
+    if ($schemaVersion -in @(3,4)) {
         $requiredState = @($requiredState + @('stagingMode','cloneBaseDigest','cloneBaseFileCount','cloneBaseDirectoryCount','cloneBaseTotalBytes'))
+        if($schemaVersion-eq4){$requiredState=@($requiredState+@('baseGameDependencies','preservedClone'))}
+        if($schemaVersion-eq4-and[string]$state.stagingMode-ceq'base-game-only-kmc-observer'){$requiredState=@($requiredState+@('frozenObserverPackage','observerPackageSha256'))}
     }
-    elseif ($schemaVersion -ne 2) { throw 'Transaction state schema is neither historical schema 2 nor current schema 3.' }
-    $allowedState = @($requiredState + @('stagedAtUtc','stagedAfterDigest','stagedAfterFileCount','stagedAfterDirectoryCount','stagedAfterTotalBytes','stagedTreeChangedAtRuntime','restoredAtUtc','restoredDigest'))
+    elseif ($schemaVersion -ne 2) { throw 'Transaction state schema is outside the historical and explicit base-game contracts.' }
+    $allowedState = @($requiredState + @('stagedAtUtc','stagedAfterDigest','stagedAfterFileCount','stagedAfterDirectoryCount','stagedAfterTotalBytes','stagedTreeChangedAtRuntime','restoredAtUtc','restoredDigest','stagedManifestSidecar','runtimeWritesClassified','runtimeExpectedWrites','runtimeUnexpectedWrites','kmcCarriedFiles'))
     $actualState = @($state.PSObject.Properties.Name)
     if (@($requiredState | Where-Object { $_ -cnotin $actualState }).Count -ne 0 -or @($actualState | Where-Object { $_ -cnotin $allowedState }).Count -ne 0) {
         throw 'Transaction state property set is missing required fields or contains unknown fields.'
     }
     if ([string]$state.runId -cne [string]$Lock.RunId -or [string]$state.token -cne [string]$Lock.Token) { throw 'Transaction state ownership does not match the open lock.' }
-    if ($schemaVersion -eq 3 -and ([string]$state.stagingMode -cnotin @('live-clone-plus-kmc-overlay','live-clone-minus-kmc-plus-observer') -or
+    $allowedModes=if($schemaVersion-eq4){@('base-game-only-kmc','base-game-only-kmc-observer')}else{@('live-clone-plus-kmc-overlay','live-clone-minus-kmc-plus-observer')}
+    if($schemaVersion-eq4-and[string]$state.stagingMode-ceq'base-game-only-kmc-observer'-and
+        ([string]$state.observerPackageSha256-cnotmatch'^[0-9a-f]{64}$'-or[string]$state.frozenObserverPackage-cne(Join-Path (Join-Path ([IO.Path]::GetFullPath($StagingRoot)) ([string]$Lock.RunId)) 'observer-package.zip'))){
+        throw 'Co-staged transaction state does not record its exact frozen observer package.'
+    }
+    $declaredCarry=@()
+    if($null-ne$state.PSObject.Properties['kmcCarriedFiles']){
+        if($schemaVersion-ne4-or[string]$state.stagingMode-cne'base-game-only-kmc-observer'){throw 'Only the co-staged base-game state may declare carried KMC folder files.'}
+        $declaredCarry=@($state.kmcCarriedFiles)
+        if($declaredCarry.Count-lt1-or$declaredCarry.Count-gt4){throw 'Declared carried KMC folder files are unbounded.'}
+        foreach($c in $declaredCarry){Assert-KmcExactProperties $c @('name','length','sha256') 'declared carried KMC file'
+            if([string]$c.name-cnotmatch'^KingmakerMountedCombat\.dll\.[0-9]{1,9}\.cache$'-or[string]$c.sha256-cnotmatch'^[0-9a-f]{64}$'){throw 'A declared carried KMC file is outside the closed UMM cache shape.'}}
+    }
+    if ($schemaVersion -in @(3,4) -and ([string]$state.stagingMode -cnotin $allowedModes -or
         [string]$state.cloneBaseDigest -cne [string]$state.beforeDigest -or
         [int]$state.cloneBaseFileCount -ne [int]$state.beforeFileCount -or
         [int]$state.cloneBaseDirectoryCount -ne [int]$state.beforeDirectoryCount -or
         [long]$state.cloneBaseTotalBytes -ne [long]$state.beforeTotalBytes)) {
-        throw 'Schema-3 transaction state does not prove an exact pre-overlay clone of live Mods.'
+        throw 'Transaction state does not prove the selected mode and exact pre-overlay clone of live Mods.'
     }
     $fullLive=[IO.Path]::GetFullPath($LiveModsRoot).TrimEnd('\')
+    if($schemaVersion-eq4){
+        # Receipt validation never makes restoring original Mods depend on the
+        # game's current loader bytes; changed external bytes are reported by the
+        # runner separately, after safe transaction settlement.
+        Assert-KmcBaseGameDependencyReceipt $state.baseGameDependencies
+        $expectedClone=Join-Path (Join-Path ([IO.Path]::GetFullPath($StagingRoot)) ([string]$Lock.RunId)) 'Mods-live-clone'
+        if([string]$state.preservedClone-cne$expectedClone-or$fullLive-cne[string]$state.baseGameDependencies.modsRoot){throw 'Base-game receipt paths differ from the owned transaction.'}
+    }
     if (-not $fullLive.Equals([IO.Path]::GetFullPath([string]$state.liveModsRoot).TrimEnd('\'),[StringComparison]::OrdinalIgnoreCase)) { throw 'Transaction live Mods path does not match.' }
     $backup=Assert-KmcChildPath ([string]$state.originalBackup) $BackupRoot 'recorded transaction backup'
     $stagedAfter=Assert-KmcChildPath ([string]$state.stagedAfter) $StagingRoot 'recorded staged quarantine'
     if ([string]$state.phase -ceq 'restored') {
-        $restored=Get-KmcDirectoryManifest $fullLive; Assert-KmcManifestMatchesState $restored $state 'before'; return $restored
+        # A retry re-reads the recorded findings, so it can never launder them.
+        $restored=Get-KmcDirectoryManifest $fullLive; Assert-KmcManifestMatchesState $restored $state 'before'; return (Add-KmcModsRuntimeWriteFindings $restored $state $stagedAfter)
     }
     if (Test-Path -LiteralPath $backup -PathType Container) { Assert-KmcManifestMatchesState (Get-KmcDirectoryManifest $backup) $state 'before' }
     else {
         if (Test-Path -LiteralPath $fullLive -PathType Container) {
             $current=Get-KmcDirectoryManifest $fullLive
             if ($current.digest -ceq [string]$state.beforeDigest) {
-                $state.phase='restored'; $state | Add-Member -NotePropertyName restoredAtUtc -NotePropertyValue ([DateTime]::UtcNow.ToString('o')) -Force; $state | Add-Member -NotePropertyName restoredDigest -NotePropertyValue $current.digest -Force; Write-KmcJsonAtomic $StatePath $state; return $current
+                $state.phase='restored'; $state | Add-Member -NotePropertyName restoredAtUtc -NotePropertyValue ([DateTime]::UtcNow.ToString('o')) -Force; $state | Add-Member -NotePropertyName restoredDigest -NotePropertyValue $current.digest -Force; Write-KmcJsonAtomic $StatePath $state; return (Add-KmcModsRuntimeWriteFindings $current $state $stagedAfter)
             }
         }
         throw 'Original Mods backup is absent and live Mods is not the proven original tree.'
@@ -3695,17 +3882,191 @@ function Restore-KmcModsTransaction {
         $state | Add-Member -NotePropertyName stagedAfterDirectoryCount -NotePropertyValue $runtimeStaged.directoryCount -Force
         $state | Add-Member -NotePropertyName stagedAfterTotalBytes -NotePropertyValue $runtimeStaged.totalBytes -Force
         $state | Add-Member -NotePropertyName stagedTreeChangedAtRuntime -NotePropertyValue ($runtimeStaged.digest -cne [string]$state.stagedDigest) -Force
+        if ($null -ne $state.PSObject.Properties['stagedManifestSidecar']) {
+            # Fail closed: a missing, foreign or tampered sidecar is itself an unexpected write.
+            $classification = $null
+            try {
+                $stagedEntries = Read-KmcModsStagedManifestSidecar $state $StagingRoot ([string]$Lock.RunId)
+                $classification = Get-KmcModsRuntimeWriteClassification -StagedEntries $stagedEntries -RuntimeManifest $runtimeStaged -CarriedFiles $declaredCarry
+            }
+            catch {
+                $classification = [pscustomobject]@{ expected=@(); unexpected=@([pscustomobject]@{ change='sidecar-invalid'; kind='file'; path=[string]$state.stagedManifestSidecar; detail=$_.Exception.Message }) }
+            }
+            $state | Add-Member -NotePropertyName runtimeWritesClassified -NotePropertyValue $true -Force
+            $state | Add-Member -NotePropertyName runtimeExpectedWrites -NotePropertyValue @($classification.expected) -Force
+            $state | Add-Member -NotePropertyName runtimeUnexpectedWrites -NotePropertyValue @($classification.unexpected) -Force
+        }
         Write-KmcJsonAtomic $StatePath $state
         Move-Item -LiteralPath $fullLive -Destination $stagedAfter
     }
     Move-Item -LiteralPath $backup -Destination $fullLive
     $restored=Get-KmcDirectoryManifest $fullLive; Assert-KmcManifestMatchesState $restored $state 'before'
     $state.phase='restored'; $state | Add-Member -NotePropertyName restoredAtUtc -NotePropertyValue ([DateTime]::UtcNow.ToString('o')) -Force; $state | Add-Member -NotePropertyName restoredDigest -NotePropertyValue $restored.digest -Force; Write-KmcJsonAtomic $StatePath $state
-    return $restored
+    return (Add-KmcModsRuntimeWriteFindings $restored $state $stagedAfter)
+}
+
+# Canonical digest of a manifest entry list, computed exactly as
+# Get-KmcDirectoryManifest does (sorted kind,path; kind|path|length|sha256).
+function Get-KmcManifestEntriesDigest {
+    param([Parameter(Mandatory = $true)][AllowEmptyCollection()][object[]]$Entries)
+    if (-not ('KingmakerMountedCombat.RuntimeTooling.InventoryHasher' -as [type])) { Add-Type -Path (Join-Path $PSScriptRoot 'InventoryHasher.cs') }
+    $canonical = New-Object KingmakerMountedCombat.RuntimeTooling.ManifestCanonicalHasher
+    try {
+        foreach ($record in @($Entries | Sort-Object kind, path)) {
+            $canonical.Append(('{0}|{1}|{2}|{3}' -f $record.kind, $record.path, $record.length, $record.sha256))
+        }
+        return $canonical.Complete()
+    }
+    finally { $canonical.Dispose() }
+}
+
+function Read-KmcModsStagedManifestSidecar {
+    param([Parameter(Mandatory = $true)]$State,[Parameter(Mandatory = $true)][string]$StagingRoot,[Parameter(Mandatory = $true)][string]$RunId)
+    $expected = Join-Path (Join-Path ([IO.Path]::GetFullPath($StagingRoot)) $RunId) 'Mods-staged-manifest.json'
+    $path = Assert-KmcChildPath ([string]$State.stagedManifestSidecar) $StagingRoot 'staged Mods manifest sidecar'
+    if ($path -cne $expected) { throw 'Staged Mods manifest sidecar is not this run''s owned path.' }
+    if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { throw 'Staged Mods manifest sidecar is missing.' }
+    Assert-KmcNotReparsePoint $path 'staged Mods manifest sidecar'; Assert-KmcNotHardLink $path 'staged Mods manifest sidecar'
+    $sidecar = Read-KmcJson $path
+    Assert-KmcExactProperties $sidecar @('schemaVersion','runId','digest','entries') 'staged Mods manifest sidecar'
+    if ([int]$sidecar.schemaVersion -ne 1 -or [string]$sidecar.runId -cne $RunId) { throw 'Staged Mods manifest sidecar belongs to another run or schema.' }
+    $entries = @($sidecar.entries)
+    if ([string]$sidecar.digest -cne [string]$State.stagedDigest -or (Get-KmcManifestEntriesDigest -Entries $entries) -cne [string]$State.stagedDigest) {
+        throw 'Staged Mods manifest sidecar digest differs from the recorded staged digest.'
+    }
+    return ,$entries
+}
+
+# Classifies the live tree at restoration against the exact staged entries. The
+# only expected runtime write is UMM's new '<name>.dll.<digits>.cache' that is a
+# byte-exact copy of '<name>.dll' in both the runtime and the staged tree. One named
+# exception: UMM 0.33.2.0 ModEntry.Load deletes every '*.cache*' in the mod folder when
+# its own cache name is missing, so the removal of exactly a transaction-declared carried
+# KMC cache (same path and staged bytes) is the expected change 'removed-carried-cache'.
+function Get-KmcModsRuntimeWriteClassification {
+    param([Parameter(Mandatory = $true)][AllowEmptyCollection()][object[]]$StagedEntries,[Parameter(Mandatory = $true)]$RuntimeManifest,
+        [AllowEmptyCollection()][object[]]$CarriedFiles = @())
+    $carriedByPath = @{}
+    foreach ($c in @($CarriedFiles | Where-Object { $null -ne $_ })) { $carriedByPath[('file|KingmakerMountedCombat/' + [string]$c.name)] = $c }
+    $staged = @{}; $runtime = @{}
+    foreach ($entry in $StagedEntries) { $staged[('{0}|{1}' -f $entry.kind, $entry.path)] = $entry }
+    foreach ($entry in @($RuntimeManifest.entries)) { $runtime[('{0}|{1}' -f $entry.kind, $entry.path)] = $entry }
+    $expected = New-Object 'System.Collections.Generic.List[object]'; $unexpected = New-Object 'System.Collections.Generic.List[object]'
+    foreach ($key in @($staged.Keys | Sort-Object)) {
+        $before = $staged[$key]
+        if (-not $runtime.ContainsKey($key)) {
+            $declared = $carriedByPath[$key]
+            if ($null -ne $declared -and [string]$before.sha256 -ceq [string]$declared.sha256 -and [long]$before.length -eq [long]$declared.length) {
+                $expected.Add([pscustomobject]@{ change='removed-carried-cache'; kind=[string]$before.kind; path=[string]$before.path; stagedSha256=[string]$before.sha256 })
+            }
+            else { $unexpected.Add([pscustomobject]@{ change='removed'; kind=[string]$before.kind; path=[string]$before.path }) }
+            continue
+        }
+        $after = $runtime[$key]
+        if ([long]$after.length -ne [long]$before.length -or [string]$after.sha256 -cne [string]$before.sha256) {
+            $unexpected.Add([pscustomobject]@{ change='changed'; kind=[string]$before.kind; path=[string]$before.path; stagedSha256=[string]$before.sha256; runtimeSha256=[string]$after.sha256 })
+        }
+    }
+    foreach ($key in @($runtime.Keys | Sort-Object)) {
+        if ($staged.ContainsKey($key)) { continue }
+        $entry = $runtime[$key]; $isExpected = $false
+        $match = [regex]::Match([string]$entry.path, '^(.+\.dll)\.\d+\.cache$')
+        if ([string]$entry.kind -ceq 'file' -and $match.Success) {
+            $dllKey = 'file|' + $match.Groups[1].Value
+            $runtimeDll = $runtime[$dllKey]; $stagedDll = $staged[$dllKey]
+            $isExpected = $null -ne $runtimeDll -and $null -ne $stagedDll -and
+                [string]$entry.sha256 -ceq [string]$runtimeDll.sha256 -and [string]$entry.sha256 -ceq [string]$stagedDll.sha256 -and
+                [long]$entry.length -eq [long]$runtimeDll.length -and [long]$entry.length -eq [long]$stagedDll.length
+        }
+        $row = [pscustomobject]@{ change='added'; kind=[string]$entry.kind; path=[string]$entry.path; runtimeSha256=[string]$entry.sha256 }
+        if ($isExpected) { $expected.Add($row) } else { $unexpected.Add($row) }
+    }
+    return [pscustomobject]@{ expected=$expected.ToArray(); unexpected=$unexpected.ToArray() }
+}
+
+# Runtime WhatIf purity comparison: a failure names the tree and the exact
+# entries that differ. Used unchanged by the full and the development-scoped WhatIf.
+function Assert-KmcWhatIfRootsUnchanged {
+    param([Parameter(Mandatory = $true)][object[]]$Before,[Parameter(Mandatory = $true)][object[]]$After)
+    $beforeRoots=$Before; $afterRoots=$After
+    # A purity failure must name the tree and the exact entries that differ. The
+    # comparison itself is unchanged: every byte of every root is still rehashed
+    # and any difference still fails closed.
+    for($index=0;$index-lt$afterRoots.Count;$index++){
+        if($afterRoots[$index].digest-cne$beforeRoots[$index].digest){
+            $purityBefore=$beforeRoots[$index]; $purityAfter=$afterRoots[$index]
+            $purityBeforeEntries=@{}; foreach($entry in $purityBefore.entries){$purityBeforeEntries[($entry.kind+'|'+$entry.path)]=([string]$entry.length+'|'+[string]$entry.sha256)}
+            $purityAfterEntries=@{}; foreach($entry in $purityAfter.entries){$purityAfterEntries[($entry.kind+'|'+$entry.path)]=([string]$entry.length+'|'+[string]$entry.sha256)}
+            $purityDetails=New-Object 'System.Collections.Generic.List[string]'
+            foreach($key in $purityBeforeEntries.Keys){
+                if(-not$purityAfterEntries.ContainsKey($key)){$purityDetails.Add('removed '+$key)}
+                elseif($purityAfterEntries[$key]-cne$purityBeforeEntries[$key]){$purityDetails.Add('changed '+$key+' : '+$purityBeforeEntries[$key]+' -> '+$purityAfterEntries[$key])}
+                if($purityDetails.Count-ge20){break}
+            }
+            foreach($key in $purityAfterEntries.Keys){
+                if(-not$purityBeforeEntries.ContainsKey($key)){$purityDetails.Add('added '+$key)}
+                if($purityDetails.Count-ge40){break}
+            }
+            throw ('WhatIf purity failed: an external tree changed: '+$purityAfter.root+
+                ' (files '+$purityBefore.fileCount+'->'+$purityAfter.fileCount+
+                ', directories '+$purityBefore.directoryCount+'->'+$purityAfter.directoryCount+
+                ', bytes '+$purityBefore.totalBytes+'->'+$purityAfter.totalBytes+')'+
+                $(if($purityDetails.Count-eq0){''}else{[Environment]::NewLine+($purityDetails-join[Environment]::NewLine)}))
+        }
+    }
+}
+
+# Development-scoped WhatIf (opt-in only). The three historical archive roots are
+# not rehashed: the run-owned paths must be absent before and after, and the set
+# of immediate child names of each root must be unchanged. Exposed surfaces keep
+# whole-tree content identity in the caller.
+function Get-KmcWhatIfRunScopedArchiveState {
+    param([Parameter(Mandatory = $true)][string]$BackupRoot,[Parameter(Mandatory = $true)][string]$StagingRoot,
+        [Parameter(Mandatory = $true)][string]$EvidenceRoot,[Parameter(Mandatory = $true)][string]$RunId)
+    if ($RunId -cnotmatch '^[A-Za-z0-9._-]{1,120}$') { throw 'Development-scoped WhatIf requires an exact run ID.' }
+    $owned = @(
+        (Join-Path $BackupRoot $RunId), (Join-Path $StagingRoot $RunId),
+        (Join-Path $StagingRoot ('persistence-' + $RunId)), (Join-Path $EvidenceRoot $RunId))
+    $present = @($owned | Where-Object { Test-Path -LiteralPath $_ })
+    if ($present.Count -ne 0) { throw ('WhatIf purity failed: a run-owned path exists: ' + ($present -join ', ')) }
+    $roots = foreach ($root in @($BackupRoot, $StagingRoot, $EvidenceRoot)) {
+        $full = [IO.Path]::GetFullPath($root).TrimEnd('\')
+        if (-not (Test-Path -LiteralPath $full -PathType Container)) { throw "Archive root is missing: $full" }
+        Assert-KmcNotReparsePoint $full 'historical archive root'
+        [string[]]$names = @(Get-ChildItem -LiteralPath $full -Force | ForEach-Object { $_.Name })
+        [Array]::Sort($names, [StringComparer]::Ordinal)
+        [pscustomobject]@{ root = $full; names = $names }
+    }
+    return [pscustomobject]@{ scope = 'development-run-scoped'; runId = $RunId; ownedPaths = $owned; roots = @($roots) }
+}
+
+function Assert-KmcWhatIfRunScopedArchiveUnchanged {
+    param([Parameter(Mandatory = $true)]$Before,[Parameter(Mandatory = $true)]$After)
+    for ($index = 0; $index -lt $Before.roots.Count; $index++) {
+        $was = [Collections.Generic.HashSet[string]]::new([string[]]@($Before.roots[$index].names), [StringComparer]::Ordinal)
+        $now = [Collections.Generic.HashSet[string]]::new([string[]]@($After.roots[$index].names), [StringComparer]::Ordinal)
+        $added = @($After.roots[$index].names | Where-Object { -not $was.Contains($_) })
+        $removed = @($Before.roots[$index].names | Where-Object { -not $now.Contains($_) })
+        if ($added.Count -ne 0 -or $removed.Count -ne 0 -or $After.roots[$index].root -cne $Before.roots[$index].root) {
+            throw ('WhatIf purity failed: top-level entries changed under ' + $Before.roots[$index].root +
+                ' (added: ' + ($added -join ', ') + '; removed: ' + ($removed -join ', ') + ')')
+        }
+    }
+}
+
+function Add-KmcModsRuntimeWriteFindings {
+    param([Parameter(Mandatory = $true)]$Manifest,[Parameter(Mandatory = $true)]$State,[Parameter(Mandatory = $true)][string]$Quarantine)
+    # Assigned directly (never through an if-expression) so an empty list stays an empty array.
+    $findings = @()
+    if ($null -ne $State.PSObject.Properties['runtimeUnexpectedWrites']) { $findings = @($State.runtimeUnexpectedWrites | Where-Object { $null -ne $_ }) }
+    $Manifest | Add-Member -NotePropertyName unexpectedRuntimeWrites -NotePropertyValue $findings -Force
+    $Manifest | Add-Member -NotePropertyName runtimeQuarantine -NotePropertyValue $Quarantine -Force
+    return $Manifest
 }
 
 function Get-KmcSaveBackedRuntimeScenarios {
     return @(
+        'chunk7-normal-player-control','chunk7-stock-mammoth-fixture-preparation','chunk7-small-fixture-preparation','chunk7-assisted-cold-inventory','chunk7-assisted-fixture-preparation','chunk7-owned-two-pair-campaign','chunk7-cumulative-acquisition','chunk7-acquired-manual-derivative','chunk7-manual-derived-acquisition','chunk7-bootstrap-manual-seed','chunk7-bootstrap-cold-inventory','chunk7-native-main-bootstrap','chunk7-native-progression','chunk7-small-profile-calibration','chunk7-ordinary-field-admission','chunk7-ordinary-acquisition','chunk7-two-pair-exploration','chunk7-persistence-save','chunk7-persistence-load','chunk7-two-pair-combat-rider-first','chunk7-two-pair-combat-mount-first','chunk7-two-pair-realtime-core','chunk7-two-pair-realtime-casting','chunk7-two-pair-realtime-charge','chunk7-two-pair-native-life-cleanup',
         'chunk6c-casting-rt','chunk6c-casting-tb','chunk6c-casting-unmounted-rt','chunk6c-casting-unmounted-tb',
         'chunk6d-staged-rt','chunk6d-staged-tb','chunk6e-reaction-rt','chunk6e-reaction-tb',
         'chunk6b-charge-rt','chunk6b-charge-core-rt','chunk6b-charge-interruption-rt','chunk6b-charge-lifecycle-rt', 'chunk6b-charge-tb', 'chunk6b-charge-path-rt', 'chunk6b-charge-path-tb', 'chunk6a-combat-mount-rt', 'chunk6a-combat-mount-tb', 'chunk6a-mount-preamble', 'chunk6a-mammoth-mount-rt','chunk6a-mammoth-mount-tb','chunk6a-paused-queue','chunk6a-refused-policy-disabled','chunk6a-refused-foreign-companion','chunk6a-refused-wrong-creature-target','chunk6a-refused-mount-selected','chunk6a-refused-multiple-selection','chunk6a-refused-foreign-selection','chunk6a-mount-approach','chunk6a-geometry-change','chunk6a-obstruction','chunk6a-stop-approach','chunk6a-combat-end-approach','chunk6a-disable-approach','chunk6a-command-replacement','chunk6a-repeated-mount-request','chunk6a-ownership-change','chunk6a-size-form-change','chunk6a-lost-direct-control','chunk6a-rider-incapacitated','chunk6a-mount-incapacitated','chunk6a-hotbar-approach','chunk6a-allocation-rider-first-tb','chunk6a-allocation-mount-first-tb','chunk6a-dismount-feature-disabled-rt','chunk6a-dismount-policy-disabled-rt','chunk6a-auto-use-mount-rt','chunk6a-auto-use-dismount-rt', 'chunk6a-adoption-compensation-rt', 'chunk6a-adoption-compensation-tb', 'chunk6a-left-area', 'chunk6a-view-agent-lost', 'chunk6a-loading-cutscene', 'chunk6a-generation-change', 'chunk6a-injected-exception', 'chunk6a-rider-death-approach', 'chunk6a-mount-death-approach', 'chunk6a-turn-end-approach-tb', 'chunk6a-mode-exit-tb', 'chunk6a-mount-spent-move-tb', 'chunk6a-mount-spent-standard-tb', 'chunk6a-mount-spent-all-tb', 'chunk6a-rider-without-move-tb', 'chunk6a-rider-other-action-tb', 'chunk6a-unrelated-candidate-between-tb', 'chunk6a-dismount-after-rider-expenditure-tb', 'chunk6a-dismount-after-mount-expenditure-tb', 'chunk6a-dismount-immediately-after-mount-tb',
@@ -3792,7 +4153,7 @@ function Get-KmcPhase3dHorseRuntimeRows {
         'CM01-native-mammoth-fixture','CM01-native-mammoth-continuity','CM01-native-mammoth-child-cleanup','CM01-native-mammoth-restoration','CM01-native-mammoth-artifact','CM01-native-mammoth-interrupted','CM06-paused-queue','CM06-combat-mount-requires-qualified-paired-policy','CM02-foreign-companion','CM02-wrong-creature-target','CM06-mount-selected','CM06-multiple-selection','CM06-foreign-selection','CM01-exploration-free', 'CM02-approach-arrival',
         'CM02-geometry-change', 'CM02-obstruction', 'CM04-stop-during-approach', 'CM04-combat-end', 'CM04-disable-unload', 'CM04-command-replacement', 'CM06-repeated-request', 'CM02-ownership-change', 'CM02-size-form-change', 'CM02-lost-direct-control', 'CM02-rider-incapacitated', 'CM02-mount-incapacitated', 'CM06-hotbar-path', 'CM03-rider-before-mount-slot','CM03-mount-slot-before-rider','CM03-next-round-activation','CM03-early-end-turn','CM05-dismount-survives-feature-policy-disable','CM06-ai-auto-use',
         'CM01-combat-mount-cancel-costs-nothing', 'CM01-combat-mount-accepted',
-        'CM01-combat-mount-preparing-refused',
+        'CM01-combat-mount-preparing-admitted', 'CM01-combat-mount-foreign-turn-refused',
         'CM02-adoption-plan-invalidated', 'CM02-adoption-compensation-releases',
         'CM02-left-area', 'CM02-view-agent-lost', 'CM02-loading-cutscene', 'CM02-generation-change',
         'CM04-injected-exception', 'CM04-rider-death', 'CM04-mount-death', 'CM04-turn-end', 'CM04-mode-exit',
@@ -4756,7 +5117,7 @@ function Assert-KmcKnownRuntimeArtifactsManifested {
     )
     $manifested = New-Object 'Collections.Generic.HashSet[string]' ([StringComparer]::Ordinal)
     foreach ($artifact in @($Manifest.artifacts)) { [void]$manifested.Add([string]$artifact.relativePath) }
-    foreach ($leaf in @('persistence-observations.jsonl','lifecycle-scenario-evidence.jsonl','movement-telemetry.jsonl','movement-scenario-evidence.jsonl','boundary-scenario-evidence.jsonl','combat-scenario-evidence.jsonl','horse-native-asset-audit.json','horse-companion-blueprint-registration.json','horse-companion-unmounted.json','horse-mounted-alpha.json','horse-native-controls-ux.json','chunk6a-mount-preamble.json','chunk6a-native-mammoth-profile.json','phase3d-horse-scenario-evidence.json')) {
+    foreach ($leaf in @('chunk7-stock-mammoth-fixture-evidence.json','chunk7-stock-mammoth-fixture-cleanup-pending.json','chunk7-small-fixture-evidence.json','chunk7-small-fixture-cleanup-pending.json','chunk7-assisted-cold-inventory-evidence.json','chunk7-assisted-cold-inventory-cleanup-pending.json','chunk7-assisted-fixture-evidence.json','chunk7-assisted-fixture-cleanup-pending.json','working-load-deserialization-evidence.json','working-load-deserialization-pending.json','chunk7-cumulative-acquisition-evidence.json','chunk7-cumulative-acquisition-cleanup-pending.json','chunk7-acquired-manual-evidence.json','chunk7-acquired-manual-cleanup-pending.json','chunk7-manual-derived-evidence.json','chunk7-manual-derived-cleanup-pending.json','chunk7-manual-seed-evidence.json','chunk7-manual-seed-cleanup-pending.json','chunk7-bootstrap-inventory-evidence.json','chunk7-bootstrap-inventory-cleanup-pending.json','chunk7-native-bootstrap-evidence.json','chunk7-native-bootstrap-cleanup-pending.json','chunk7-progression-evidence.json','chunk7-progression-cleanup-pending.json','chunk7-small-calibration-evidence.json','chunk7-small-calibration-cleanup-pending.json','chunk7-ordinary-field-evidence.json','chunk7-ordinary-field-cleanup-pending.json','chunk7-ordinary-acquisition-evidence.json','chunk7-ordinary-cleanup-pending.json','chunk7-world-cleanup-pending.json','chunk7-persistence-cleanup-pending.json','chunk7-combat-cleanup-pending.json','chunk7-native-life-evidence.json','chunk7-realtime-evidence.json','chunk7-combat-evidence.json','chunk7-persistence-evidence.json','chunk7-world-evidence.json','chunk7-matched-pool-measurements.json','runtime-loader-inventory.json','persistence-observations.jsonl','lifecycle-scenario-evidence.jsonl','movement-telemetry.jsonl','movement-scenario-evidence.jsonl','boundary-scenario-evidence.jsonl','combat-scenario-evidence.jsonl','horse-native-asset-audit.json','horse-companion-blueprint-registration.json','horse-companion-unmounted.json','horse-mounted-alpha.json','horse-native-controls-ux.json','chunk6a-mount-preamble.json','chunk6a-native-mammoth-profile.json','phase3d-horse-scenario-evidence.json')) {
         if ((Test-Path -LiteralPath (Join-Path $EvidenceRoot $leaf) -PathType Leaf) -and -not $manifested.Contains($leaf)) {
             throw "Known runtime artifact exists without a manifest record: $leaf"
         }
@@ -6479,7 +6840,7 @@ function Assert-KmcChunk6aCombatMountEvidence {
     }
     if ($pausedOnly) { $required += 'CM06-paused-queue' }
     if ($orderOnly -and $requiresEarlyEndEvidence) { $required += 'CM03-early-end-turn' }
-    if ($turnBased) { $required += 'CM01-combat-mount-preparing-refused' }
+    if ($turnBased) { $required += 'CM01-combat-mount-preparing-admitted' }
     if ($hotbarOnly) { $required += 'CM06-hotbar-path' }
     if ($orderOnly) { $required += @($(if($Request.scenario -ceq 'chunk6a-allocation-rider-first-tb'){'CM03-rider-before-mount-slot'}else{'CM03-mount-slot-before-rider'}),'CM03-next-round-activation') }
     if ($escapeOnly) { $required += 'CM05-dismount-survives-feature-policy-disable' }
@@ -13902,6 +14263,46 @@ function Get-KmcValidatedOrchestrationArtifactManifestHash {
             ($relative -ceq 'horse-native-controls-ux.json' -and $kind -ceq 'horse-native-controls-ux') -or
             ($relative -ceq 'chunk6a-mount-preamble.json' -and $kind -ceq 'chunk6a-mount-preamble') -or
             ($relative -ceq 'chunk6a-native-mammoth-profile.json' -and $kind -ceq 'chunk6a-native-mammoth-profile') -or
+            ($relative -ceq 'chunk7-small-fixture-evidence.json' -and $kind -ceq 'chunk7-small-fixture-evidence') -or
+            ($relative -ceq 'chunk7-small-fixture-cleanup-pending.json' -and $kind -ceq 'chunk7-small-fixture-cleanup-pending') -or
+            ($relative -ceq 'chunk7-stock-mammoth-fixture-evidence.json' -and $kind -ceq 'chunk7-stock-mammoth-fixture-evidence') -or
+            ($relative -ceq 'chunk7-stock-mammoth-fixture-cleanup-pending.json' -and $kind -ceq 'chunk7-stock-mammoth-fixture-cleanup-pending') -or
+            ($relative -ceq 'chunk7-acquired-manual-evidence.json' -and $kind -ceq 'chunk7-acquired-manual-evidence') -or
+            ($relative -ceq 'chunk7-manual-derived-evidence.json' -and $kind -ceq 'chunk7-manual-derived-evidence') -or
+            ($relative -ceq 'chunk7-cumulative-acquisition-evidence.json' -and $kind -ceq 'chunk7-cumulative-acquisition-evidence') -or
+            ($relative -ceq 'chunk7-acquired-manual-cleanup-pending.json' -and $kind -ceq 'chunk7-acquired-manual-cleanup-pending') -or
+            ($relative -ceq 'chunk7-manual-derived-cleanup-pending.json' -and $kind -ceq 'chunk7-manual-derived-cleanup-pending') -or
+            ($relative -ceq 'chunk7-cumulative-acquisition-cleanup-pending.json' -and $kind -ceq 'chunk7-cumulative-acquisition-cleanup-pending') -or
+            ($relative -ceq 'chunk7-manual-seed-evidence.json' -and $kind -ceq 'chunk7-manual-seed-evidence') -or
+            ($relative -ceq 'chunk7-manual-seed-cleanup-pending.json' -and $kind -ceq 'chunk7-manual-seed-cleanup-pending') -or
+            ($relative -ceq 'chunk7-bootstrap-inventory-evidence.json' -and $kind -ceq 'chunk7-bootstrap-inventory-evidence') -or
+            ($relative -ceq 'chunk7-bootstrap-inventory-cleanup-pending.json' -and $kind -ceq 'chunk7-bootstrap-inventory-cleanup-pending') -or
+            ($relative -ceq 'chunk7-assisted-cold-inventory-evidence.json' -and $kind -ceq 'chunk7-assisted-cold-inventory-evidence') -or
+            ($relative -ceq 'chunk7-assisted-cold-inventory-cleanup-pending.json' -and $kind -ceq 'chunk7-assisted-cold-inventory-cleanup-pending') -or
+            ($relative -ceq 'chunk7-assisted-fixture-evidence.json' -and $kind -ceq 'chunk7-assisted-fixture-evidence') -or
+            ($relative -ceq 'chunk7-assisted-fixture-cleanup-pending.json' -and $kind -ceq 'chunk7-assisted-fixture-cleanup-pending') -or
+            ($relative -ceq 'chunk7-native-bootstrap-evidence.json' -and $kind -ceq 'chunk7-native-bootstrap-evidence') -or
+            ($relative -ceq 'chunk7-native-bootstrap-cleanup-pending.json' -and $kind -ceq 'chunk7-native-bootstrap-cleanup-pending') -or
+            ($relative -ceq 'chunk7-small-calibration-evidence.json' -and $kind -ceq 'chunk7-small-calibration-evidence') -or
+            ($relative -ceq 'chunk7-small-calibration-cleanup-pending.json' -and $kind -ceq 'chunk7-small-calibration-cleanup-pending') -or
+            ($relative -ceq 'chunk7-progression-evidence.json' -and $kind -ceq 'chunk7-progression-evidence') -or
+            ($relative -ceq 'chunk7-progression-cleanup-pending.json' -and $kind -ceq 'chunk7-progression-cleanup-pending') -or
+            ($relative -ceq 'chunk7-ordinary-field-evidence.json' -and $kind -ceq 'chunk7-ordinary-field-evidence') -or
+            ($relative -ceq 'chunk7-ordinary-field-cleanup-pending.json' -and $kind -ceq 'chunk7-ordinary-field-cleanup-pending') -or
+            ($relative -ceq 'chunk7-ordinary-acquisition-evidence.json' -and $kind -ceq 'chunk7-ordinary-acquisition-evidence') -or
+            ($relative -ceq 'chunk7-ordinary-cleanup-pending.json' -and $kind -ceq 'chunk7-ordinary-cleanup-pending') -or
+            ($relative -ceq 'chunk7-world-evidence.json' -and $kind -ceq 'chunk7-world-evidence') -or
+            ($relative -ceq 'chunk7-matched-pool-measurements.json' -and $kind -ceq 'chunk7-matched-pool-measurements') -or
+            ($relative -ceq 'chunk7-persistence-evidence.json' -and $kind -ceq 'chunk7-persistence-evidence') -or
+            ($relative -ceq 'chunk7-world-cleanup-pending.json' -and $kind -ceq 'chunk7-world-cleanup-pending') -or
+            ($relative -ceq 'chunk7-persistence-cleanup-pending.json' -and $kind -ceq 'chunk7-persistence-cleanup-pending') -or
+            ($relative -ceq 'chunk7-combat-cleanup-pending.json' -and $kind -ceq 'chunk7-combat-cleanup-pending') -or
+            ($relative -ceq 'chunk7-native-life-evidence.json' -and $kind -ceq 'chunk7-native-life-evidence') -or
+            ($relative -ceq 'chunk7-realtime-evidence.json' -and $kind -ceq 'chunk7-realtime-evidence') -or
+            ($relative -ceq 'chunk7-combat-evidence.json' -and $kind -ceq 'chunk7-combat-evidence') -or
+            ($relative -ceq 'working-load-deserialization-evidence.json' -and $kind -ceq 'working-load-deserialization-evidence') -or
+            ($relative -ceq 'working-load-deserialization-pending.json' -and $kind -ceq 'working-load-deserialization-pending') -or
+            ($relative -ceq 'runtime-loader-inventory.json' -and $kind -ceq 'runtime-loader-inventory') -or
             ($relative -ceq 'phase3d-horse-scenario-evidence.json' -and $kind -ceq 'phase3d-horse-scenario-evidence') -or
             ($relative -cmatch '^movement-visuals/[A-Za-z0-9._-]+\.png$' -and $kind -ceq 'screenshot')
         if (-not $seen.Add($relative) -or -not $allowed -or [long]$artifact.length -le 0 -or
@@ -13928,8 +14329,19 @@ function Get-KmcValidatedOrchestrationArtifactManifestHash {
         Assert-KmcHorseNativeControlsUxEvidence -Request $Request -Manifest $manifestValue
         Assert-KmcMountPreambleEvidence -Request $Request -Manifest $manifestValue
         Assert-KmcNativeMammothArtifact -Request $Request -Manifest $manifestValue
+        Assert-KmcChunk7SmallArtifact -Request $Request -Manifest $manifestValue
+        Assert-KmcChunk7ProgressionArtifact -Request $Request -Manifest $manifestValue
+        Assert-KmcChunk7FieldArtifact -Request $Request -Manifest $manifestValue
+        Assert-KmcChunk7OrdinaryArtifact -Request $Request -Manifest $manifestValue
+        Assert-KmcChunk7WorldArtifact -Request $Request -Manifest $manifestValue
+        Assert-KmcMatchedPoolArtifact -Request $Request -Manifest $manifestValue
+        Assert-KmcChunk7PersistenceArtifact -Request $Request -Manifest $manifestValue
+        Assert-KmcChunk7CombatArtifact -Request $Request -Manifest $manifestValue
+        Assert-KmcChunk7RealtimeArtifact -Request $Request -Manifest $manifestValue
+        Assert-KmcChunk7NativeLifeArtifact -Request $Request -Manifest $manifestValue
         Assert-KmcPhase3dHorseScenarioEvidence -Request $Request -Manifest $manifestValue
     }
+    Assert-KmcChunk7CleanupArtifacts -Request $Request -Manifest $manifestValue -Status $(if ($AllowIncompleteScenarioEvidence) { 'FAIL' } else { 'PASS' })
     $hash = Get-KmcSha256 $manifestPath
     $after = Get-Item -LiteralPath $manifestPath -Force
     if ($after.Length -ne $before.Length -or $after.LastWriteTimeUtc.Ticks -ne $before.LastWriteTimeUtc.Ticks) {
@@ -14116,6 +14528,16 @@ function Restore-KmcRuntimeTransactions {
         $restoredModsDigest = [string]$mods.digest
         $modsRestored = $restoredModsDigest -ceq [string]$state.modsDigestBefore
         if (-not $modsRestored) { throw 'Restored Mods digest differs from the combined preflight digest.' }
+        $unexpectedWrites = @()
+        if ($null -ne $mods.PSObject.Properties['unexpectedRuntimeWrites']) { $unexpectedWrites = @($mods.unexpectedRuntimeWrites | Where-Object { $null -ne $_ }) }
+        if ($unexpectedWrites.Count -ne 0) {
+            # The live tree is back at its pre-run snapshot, but something outside
+            # this run wrote into the shared Mods path during the window.
+            $modsRestored = $false
+            $first = @($unexpectedWrites | Select-Object -First 5 | ForEach-Object { '{0} {1}' -f $_.change, $_.path }) -join '; '
+            throw ("Unexpected runtime writes into the shared Mods tree were preserved byte-exact in quarantine '" + [string]$mods.runtimeQuarantine +
+                "' (" + $unexpectedWrites.Count + ' entries; first: ' + $first + '). The live Mods tree was returned to its pre-run snapshot, so any newer external deployment must be re-applied.')
+        }
     }
     catch { $errors.Add('Mods restoration failed: ' + $_.Exception.Message) }
 

@@ -33,6 +33,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private const double SuiteTimeoutSeconds = 260.0d;
         private const int StableWorldFramesRequired = 10;
         private const string AnchorObjectName = "KMC_RiderPositionAnchor";
+        private const string SiblingReservationObjectName = "KMC_RiderSiblingSlot";
 
         private static readonly JsonSerializerSettings EvidenceJsonSettings = new JsonSerializerSettings
         {
@@ -432,7 +433,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 !snapshot.RiderForbidRotationWasEnabled && !snapshot.MountForbidRotationWasEnabled &&
                 snapshot.RiderMoveCommand == null && snapshot.MountMoveCommand == null &&
                 !relationship.Runtime.PresentationAttachmentLeaseActive &&
-                !relationship.Runtime.HasPresentationAttachmentResidue && CountKmcAnchorObjects() == 0 &&
+                !relationship.Runtime.HasPresentationAttachmentResidue && CountKmcAnchorObjects() == 0 && CountKmcSiblingReservations() == 0 &&
                 CountKmcRiderMovementAgents() == 0;
             assertions.Check(exactBaseline,
                 "Fresh pair began with exact stock movement, rotation, command, component, and attachment state.",
@@ -1004,9 +1005,9 @@ namespace KingmakerMountedCombat.Diagnostics
 
             AssertUnmountedAndRestored(snapshot);
             snapshot.AssertOverrideComponentCount(assertions);
-            assertions.Check(CountKmcAnchorObjects() == 0,
-                "No KMC rider anchor object remained on the post-boundary frame.",
-                "A KMC rider anchor object remained on the post-boundary frame.");
+            assertions.Check(CountKmcAnchorObjects() == 0 && CountKmcSiblingReservations() == 0,
+                "No KMC rider anchor or sibling slot reservation object remained on the post-boundary frame.",
+                "A KMC rider anchor or sibling slot reservation object remained on the post-boundary frame.");
             assertions.Check(CountKmcRiderMovementAgents() == 0,
                 "No KMC RiderMovementAgent component remained anywhere in the live object graph.",
                 "A KMC RiderMovementAgent component remained outside the restored pair.");
@@ -1987,6 +1988,21 @@ namespace KingmakerMountedCombat.Diagnostics
             foreach (var transform in Resources.FindObjectsOfTypeAll<Transform>())
             {
                 if (transform != null && string.Equals(transform.name, AnchorObjectName, StringComparison.Ordinal))
+                {
+                    count++;
+                }
+            }
+            return count;
+        }
+
+        // A released reservation leaves its slot at once and is destroyed at frame
+        // end; any later survivor, root or DontDestroyOnLoad included, is a leak.
+        private static int CountKmcSiblingReservations()
+        {
+            var count = 0;
+            foreach (var transform in Resources.FindObjectsOfTypeAll<Transform>())
+            {
+                if (transform != null && string.Equals(transform.name, SiblingReservationObjectName, StringComparison.Ordinal))
                 {
                     count++;
                 }

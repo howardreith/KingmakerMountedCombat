@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Collections.Generic;
 using System.Reflection;
 using System.Reflection.Emit;
@@ -65,6 +66,9 @@ namespace KingmakerMountedCombat.Integration
                 }
 
                 PatchExact(typeof(ClickGroundHandler), "RunCommand", 0x060093DC, new[] { typeof(UnitEntityData), typeof(UnityEngine.Vector3), typeof(float?), typeof(float), typeof(float), typeof(bool) }, nameof(PatchMethods.GroundCommandPrefix), nameof(PatchMethods.GroundCommandPostfix));
+                PatchExact(typeof(Kingmaker.Player), "DismissCompanion", 0x06000DD7,
+                    new[] { typeof(UnitEntityData) }, null, null,
+                    nameof(PatchMethods.MountedDismissInventoryTranspiler));
                 // The only gameplay caller of LoadingProcess.StopAll. Deferred while an
                 // owned archive worker can still commit, so the save is never
                 // abandoned mid-write on the way to the main menu.
@@ -119,6 +123,15 @@ namespace KingmakerMountedCombat.Integration
                 PatchExact(typeof(SaveManager).Assembly.GetType("Kingmaker.EntitySystem.Persistence.ZipSaver", true),
                     "SaveJson", 0x06008063, new[] { typeof(string), typeof(string) }, nameof(PatchMethods.NativeSaveHeaderPrefix));
                 PatchExact(typeof(UnitEntityData), "PostLoad", 0x0600835E, Type.EmptyTypes, null, nameof(PatchMethods.ActorPostLoadPostfix));
+                PatchExact(typeof(UnitEntityData), "JoinCombat", 0x06008355, Type.EmptyTypes,
+                    nameof(PatchMethods.RetainedNativeJoinPrefix));
+                var join = typeof(UnitEntityData).GetMethod("JoinCombat", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance,
+                    null, Type.EmptyTypes, null);
+                var joinPrefix = typeof(PatchMethods).GetMethod(nameof(PatchMethods.RetainedNativeJoinPrefix), BindingFlags.NonPublic | BindingFlags.Static);
+                var joinPatches = harmony.GetPatchInfo(join);
+                if (joinPrefix?.ReturnType != typeof(bool) || joinPatches == null ||
+                    joinPatches.Prefixes.Count(p => p.owner == HarmonyId && p.patch == joinPrefix) != 1)
+                    throw new InvalidOperationException("Exact retained native JoinCombat bool guard did not install once.");
                 PatchExact(typeof(SaveManager), "IsSaveAllowed", 0x06008028, Type.EmptyTypes, null, null, nameof(PatchMethods.CombatSaveAdmissionTranspiler));
                 PatchExact(typeof(SaveManager), "SerializeAndSaveThread", 0x0600802A,
                     new[] { typeof(SaveInfo), typeof(SaveCreateDTO), typeof(SaveInfo) },
@@ -148,6 +161,8 @@ namespace KingmakerMountedCombat.Integration
                 PatchExact(typeof(UnitCommand), "Interrupt", 0x060027AC, new[] { typeof(bool) }, nameof(PatchMethods.CommandInterruptPrefix));
                 PatchExact(typeof(UnitAnimationManager), "Tick", 0x06001605, Type.EmptyTypes, nameof(PatchMethods.AnimationTickPrefix));
                 PatchExact(typeof(AttackHandInfo), "CreateAnimationHandleForAttack", 0x0600265A, new[] { typeof(IEnumerable<AttackHandInfo>) }, null, nameof(PatchMethods.AttackAnimationPostfix));
+                if (MountedRiderProfileCatalog.Small.Count != 0 || MountedRiderProfileCatalog.PrivateCalibrationSmall.Count != 0)
+                    PatchExact(typeof(Character), "LateUpdate", 0x0600140C, Type.EmptyTypes, null, nameof(PatchMethods.PresentationRigLateUpdatePostfix));
                 PatchExact(typeof(IKController), "SetupIkSystem", 0x0600156C, new[] { typeof(Character) }, nameof(PatchMethods.DollRoomIkSetupPrefix));
                 PatchExact(typeof(IKController), "SetupFbbik", 0x0600156D, Type.EmptyTypes, nameof(PatchMethods.DollRoomFbbikPrefix), nameof(PatchMethods.DollRoomFbbikPostfix));
                 PatchExact(typeof(CombatController), "Tick", 0x06000BD1, Type.EmptyTypes, nameof(PatchMethods.CombatControllerTickPrefix), nameof(PatchMethods.CombatControllerTickPostfix));
@@ -241,7 +256,7 @@ namespace KingmakerMountedCombat.Integration
                     true);
                 PatchExact(trackerType, "UpdateUnits", 0x06004F0E, Type.EmptyTypes, nameof(PatchMethods.TrackerUpdatePrefix), nameof(PatchMethods.TrackerUpdatePostfix));
                 PatchExact(typeof(UnitActionController), "TickCommandTurnBased", 0x0600911D, new[] { typeof(UnitCommand) }, null, nameof(PatchMethods.TickCommandTurnBasedPostfix), nameof(PatchMethods.PairedEligibilityTranspiler));
-                logger.Info("Installed thirty-one exact-token Harmony12 active-pair guards, unified-turn adapters, and bounded probes.");
+                logger.Info("Installed exact-token Harmony12 active-pair guards, unified-turn adapters, and bounded probes.");
             }
             catch
             {
@@ -254,6 +269,7 @@ namespace KingmakerMountedCombat.Integration
                     PatchBridge.Service = null;
                     PatchBridge.PlayerAction = null;
                     PatchBridge.Combat = null;
+                    PatchBridge.ChargeSafety = null;
                     PatchBridge.UnifiedTurn = null;
                     PatchBridge.NativeControls = null;
                     PatchBridge.Persistence = null;
@@ -270,7 +286,7 @@ namespace KingmakerMountedCombat.Integration
         public void Dispose()
         {
             if (disposed) { return; }
-            if (PatchBridge.Service != null && !PatchBridge.Service.GuardBoundary(CleanupTrigger.ModDisabled))
+            if (!PatchMethods.GuardNativeBoundary(NativeLifecycleBoundary.ModDisable, CleanupTrigger.ModDisabled, "patch-disposal"))
             {
                 throw new InvalidOperationException("Harmony guards cannot be removed while mounted cleanup residue remains.");
             }
@@ -350,10 +366,27 @@ namespace KingmakerMountedCombat.Integration
             internal static RuntimeSaveAuthorization SaveAuthorization;
             internal static NativeLifecycleDeliveryLedger LifecycleLedger;
             internal static IModLogger Logger;
+            internal static MountedWorldService World => Service?.World;
+            internal static GameMountedRelationshipService Owner(UnitEntityData actor) =>
+                World != null ? World.ForActor(actor)?.Relationship : Service?.ResolveActorOwner(actor);
+            internal static GameMountedRelationshipService Owner(UnitCommands commands) =>
+                World != null ? World.Pairs.FirstOrDefault(pair => commands != null &&
+                    (ReferenceEquals(pair.Relationship.PairOwner?.Rider?.Commands, commands) ||
+                     ReferenceEquals(pair.Relationship.PairOwner?.Mount?.Commands, commands)))?.Relationship : Service;
+            internal static MountedCombatController CombatFor(UnitEntityData actor) => Owner(actor)?.CombatOwner;
+            internal static MountedCombatController CombatFor(UnitCommands commands) => Owner(commands)?.CombatOwner;
+            internal static MountedPairServices[] Pairs => World?.Pairs;
         }
 
         private static class PatchMethods
         {
+            internal static bool MountedDismissAutoMerge(Kingmaker.Player player, UnitEntityData actor) =>
+                NativeMountedDismissInventorySafety.AutoMerge(PatchBridge.Service, player, actor);
+            internal static IEnumerable<CodeInstruction> MountedDismissInventoryTranspiler(
+                IEnumerable<CodeInstruction> instructions, ILGenerator generator) =>
+                NativeMountedDismissInventorySafety.Rewrite(instructions, generator,
+                    typeof(PatchMethods).GetMethod(nameof(MountedDismissAutoMerge),
+                        BindingFlags.Static | BindingFlags.NonPublic));
             internal static void ChargeBuffCreatedPostfix(BuffCollection __instance, Fact __result)
             {
                 MountedChargeLease.ObserveChargeBuffCreated(__instance, __result as Buff);
@@ -423,7 +456,7 @@ namespace KingmakerMountedCombat.Integration
             internal static bool ChargeAdmissionPrefix(UnitCommands __instance, UnitCommand cmd) =>
                 PatchBridge.Persistence?.CombatRestorationPending != true &&
                 PatchBridge.Persistence?.ActiveSaveWorkerRunning != true &&
-                (PointerController.SimulatingClick || PatchBridge.Combat?.AdmitChargeCommand(__instance, cmd) != false) &&
+                (PointerController.SimulatingClick || PatchBridge.CombatFor(__instance)?.AdmitChargeCommand(__instance, cmd) != false) &&
                 (PatchBridge.ChargeSafety == null || PatchBridge.ChargeSafety.AllowAdmission(cmd));
 
             // Game.ResetToMainMenu, the only gameplay caller of StopAll. Deferred
@@ -458,30 +491,39 @@ namespace KingmakerMountedCombat.Integration
                 NativeDeferredSave.AbandonOwned(__instance, error => PatchBridge.Persistence?.ReportAbandonedSave(error));
 
             internal static bool ChargeExecutionPrefix(UnitCommand __instance) =>
-                (PatchBridge.Combat?.AllowChargeExecution(__instance) != false) &&
+                (PatchBridge.CombatFor(__instance?.Executor)?.AllowChargeExecution(__instance) != false) &&
                 (PatchBridge.ChargeSafety == null || PatchBridge.ChargeSafety.AllowExecution(__instance));
 
-            internal static void NativeMovementUpdatePrefix() => PatchBridge.Service?.BeginNativeMovementUpdate();
+            internal static void NativeMovementUpdatePrefix()
+            {
+                if (PatchBridge.World == null) PatchBridge.Service?.BeginNativeMovementUpdate();
+                else PatchBridge.World.Visit(pair => pair.Relationship.BeginNativeMovementUpdate());
+            }
 
             internal static bool GroundCommandPrefix(ref UnitEntityData unit)
             {
                 if (PointerController.SimulatingClick) { return true; }
-                if (PatchBridge.Combat != null && !PatchBridge.Combat.TryAdmitGroundCommand(unit))
+                var combat = PatchBridge.CombatFor(unit);
+                if (combat != null && !combat.TryAdmitGroundCommand(unit))
                 {
                     return false;
                 }
-                return PatchBridge.Service == null || PatchBridge.Service.RouteGroundCommand(ref unit,
+                var owner = PatchBridge.Owner(unit);
+                return owner == null || owner.RouteGroundCommand(ref unit,
                     PatchBridge.UnifiedTurn?.MaySelectPairedPartner(unit) ?? false);
             }
 
             internal static void GroundCommandPostfix(UnitEntityData unit)
             {
                 if (PointerController.SimulatingClick) { return; }
-                PatchBridge.Combat?.CompleteGroundCommandAdmission(unit);
+                PatchBridge.CombatFor(unit)?.CompleteGroundCommandAdmission(unit);
             }
 
             internal static bool UnitCommandRunPrefix(UnitCommands __instance, ref UnitCommand cmd)
             {
+                // Bind a same-frame native hostile click to the exact command its own Run carries,
+                // before any refusal below, so no later command can borrow or erase that click.
+                PatchBridge.CombatFor(__instance)?.BindObservedStockRequest(__instance, cmd);
                 if (PatchBridge.Persistence?.CombatRestorationPending == true) return false;
                 // While an owned archive worker can still commit, no unit -- owned pair
                 // or not -- may run or queue a command: the worker is serializing the
@@ -491,17 +533,18 @@ namespace KingmakerMountedCombat.Integration
                 // Native TB cursor prediction replaces Unit.Commands temporarily. Its fake orders
                 // must stay entirely native; routing one can cancel a real pair order or move its mount.
                 if (PointerController.SimulatingClick) { return true; }
-                if (PatchBridge.Combat?.AdmitChargeCommand(__instance, cmd) == false) return false;
+                if (PatchBridge.CombatFor(__instance)?.AdmitChargeCommand(__instance, cmd) == false) return false;
                 if (PatchBridge.UnifiedTurn?.AdmitNativePreparationCommand(__instance, cmd) == true) return true;
-                if (PatchBridge.Combat != null && !PatchBridge.Combat.TryRouteMountedDoorInteraction(__instance, ref cmd))
+                var combat = PatchBridge.CombatFor(__instance);
+                if (combat != null && !combat.TryRouteMountedDoorInteraction(__instance, ref cmd))
                 {
                     return false;
                 }
-                if (PatchBridge.Combat != null && !PatchBridge.Combat.TryRouteMountedStockAttack(__instance, cmd))
+                if (combat != null && !combat.TryRouteMountedStockAttack(__instance, cmd))
                 {
                     return false;
                 }
-                return PatchBridge.Combat == null || PatchBridge.Combat.ShouldAllowStockCommand(__instance, cmd);
+                return combat == null || combat.ShouldAllowStockCommand(__instance, cmd);
             }
 
             internal static void NativeAbilityInitPostfix(UnitUseAbility __instance)
@@ -520,7 +563,7 @@ namespace KingmakerMountedCombat.Integration
             }
 
             internal static Action<bool> BeginNativeChargeAction(UnitUseAbility __instance) =>
-                PatchBridge.Combat?.BeginChargeNativeAction(__instance);
+                PatchBridge.CombatFor(__instance?.Executor)?.BeginChargeNativeAction(__instance);
 
             internal static IEnumerable<CodeInstruction> NativeAbilityActionTranspiler(IEnumerable<CodeInstruction> instructions,
                 ILGenerator generator, MethodBase original) => NativeChargeActionBoundary.Wrap(instructions, generator, original,
@@ -530,7 +573,7 @@ namespace KingmakerMountedCombat.Integration
             internal static Kingmaker.RuleSystem.Rules.Abilities.RuleCastSpell TriggerNativeChargeRule(
                 Kingmaker.RuleSystem.Rules.Abilities.RuleCastSpell rule, UnitUseAbility shell)
             {
-                var combat = PatchBridge.Combat;
+                var combat = PatchBridge.CombatFor(shell?.Executor);
                 var owned = combat?.OwnsChargeNativeAction(shell) == true;
                 if (owned) combat.CaptureChargeNativeRule(shell, rule, Kingmaker.Game.Instance?.AbilityExecutor);
                 if (owned) MountedChargeAdmissionFault.FireNativeAction("before-rule");
@@ -557,13 +600,12 @@ namespace KingmakerMountedCombat.Integration
 
             internal static void CommandInterruptPrefix(UnitCommand __instance)
             {
-                PatchBridge.Combat?.ObserveCommandInterrupt(__instance);
+                PatchBridge.CombatFor(__instance?.Executor)?.ObserveCommandInterrupt(__instance);
             }
 
             internal static bool PairedCommandInterruptPrefix(UnitCommands __instance, UnitCommand.CommandType type, bool interruptPaired)
             {
-                return PatchBridge.Combat == null ||
-                    !PatchBridge.Combat.PreservesApproachParent(__instance, type, interruptPaired);
+                return PatchBridge.CombatFor(__instance)?.PreservesApproachParent(__instance, type, interruptPaired) != true;
             }
 
             internal static bool MountedAttackApproachPrefix(UnitCommand __instance)
@@ -601,28 +643,33 @@ namespace KingmakerMountedCombat.Integration
 
             internal static void AnimationTickPrefix(UnitAnimationManager __instance)
             {
-                PatchBridge.Animation?.RestoreExactDelegatedMountLocomotion(__instance);
+                (PatchBridge.World?.ForActor(__instance?.View?.EntityData)?.Animation ??
+                    (PatchBridge.World == null ? PatchBridge.Animation : null))?.RestoreExactDelegatedMountLocomotion(__instance);
             }
 
             internal static void AttackAnimationPostfix(AttackHandInfo __instance)
             {
-                PatchBridge.Animation?.SupplyExactHorsePrimaryAnimation(__instance);
+                if (PatchBridge.World == null) PatchBridge.Animation?.SupplyExactHorsePrimaryAnimation(__instance);
+                else PatchBridge.World.Visit(pair => pair.Animation.SupplyExactHorsePrimaryAnimation(__instance));
             }
 
             internal static void DollRoomIkSetupPrefix(IKController __instance)
             {
-                PatchBridge.DollRoomIk?.BindExactMountedRiderIfRequired(__instance);
+                if (PatchBridge.World == null) PatchBridge.DollRoomIk?.BindExactMountedRiderIfRequired(__instance);
+                else PatchBridge.World.Visit(pair => pair.DollRoomIk.BindExactMountedRiderIfRequired(__instance));
             }
 
-            internal static void DollRoomFbbikPrefix(IKController __instance, out bool __state)
+            internal static void DollRoomFbbikPrefix(IKController __instance, out MountedDollRoomIkAdapter __state)
             {
-                __state = PatchBridge.DollRoomIk != null &&
-                    PatchBridge.DollRoomIk.BeginExactFbbikObservation(__instance);
+                __state = null;
+                var candidates = PatchBridge.Pairs?.Select(pair => pair.DollRoomIk) ?? new[] { PatchBridge.DollRoomIk };
+                foreach (var adapter in candidates)
+                    if (adapter?.BeginExactFbbikObservation(__instance) == true) { __state = adapter; break; }
             }
 
-            internal static void DollRoomFbbikPostfix(bool __state)
+            internal static void DollRoomFbbikPostfix(MountedDollRoomIkAdapter __state)
             {
-                PatchBridge.DollRoomIk?.CompleteExactFbbikObservation(__state);
+                __state?.CompleteExactFbbikObservation(true);
             }
 
             internal static void ChooseNextUnitPostfix(CombatController __instance)
@@ -824,46 +871,59 @@ namespace KingmakerMountedCombat.Integration
 
             internal static bool SelectUnitPrefix(ref UnitEntityView unit, bool single)
             {
-                return PatchBridge.Service == null || PatchBridge.Service.NormalizeSingleSelection(ref unit, single,
+                var owner = PatchBridge.Owner(unit?.EntityData);
+                return owner == null || owner.NormalizeSingleSelection(ref unit, single,
                     PatchBridge.UnifiedTurn?.MaySelectPairedPartner(unit?.EntityData) ?? false);
             }
 
             internal static void MultiSelectPrefix(ref IEnumerable<UnitEntityView> views)
             {
-                PatchBridge.Service?.NormalizeMultiSelection(ref views,
-                    PatchBridge.UnifiedTurn?.MaySelectPairedPartner(PatchBridge.Service?.Mount) ?? false);
+                if (PatchBridge.World == null)
+                    PatchBridge.Service?.NormalizeMultiSelection(ref views,
+                        PatchBridge.UnifiedTurn?.MaySelectPairedPartner(PatchBridge.Service?.Mount) ?? false);
+                else foreach (var pair in PatchBridge.World.Pairs)
+                    pair.Relationship.NormalizeMultiSelection(ref views,
+                        PatchBridge.UnifiedTurn.MaySelectPairedPartner(pair.Relationship.Mount));
             }
 
             internal static void StopOrHoldPrefix()
             {
                 if (PointerController.SimulatingClick) { return; }
-                PatchBridge.Combat?.CancelSelectedInput("stop or hold");
-                PatchBridge.Service?.ForwardStopOrHold();
+                if (PatchBridge.World == null)
+                { PatchBridge.Combat?.CancelSelectedInput("stop or hold"); PatchBridge.Service?.ForwardStopOrHold(); }
+                else PatchBridge.World.Visit(pair =>
+                { pair.Combat.CancelSelectedInput("stop or hold"); pair.Relationship.ForwardStopOrHold(); });
             }
 
             internal static bool ContinuousMovePrefix(ref UnitEntityData executor)
             {
                 if (PointerController.SimulatingClick) { return true; }
-                if (PatchBridge.Service != null && PatchBridge.Service.IsExactActivePairUnit(executor))
-                {
-                    PatchBridge.Combat?.Cancel("continuous movement replaced the active mounted combat intent");
-                }
-                return PatchBridge.Service == null || PatchBridge.Service.RouteContinuousMove(ref executor);
+                var owner = PatchBridge.Owner(executor);
+                if (owner?.IsExactActivePairUnit(executor) == true)
+                    owner.CombatOwner.Cancel("continuous movement replaced the active mounted combat intent");
+                return owner == null || owner.RouteContinuousMove(ref executor);
             }
 
-            internal static void NativeCombatEndPrefix(out UnitEntityData __state)
+            internal static void NativeCombatEndPrefix(out Dictionary<GameMountedRelationshipService, UnitEntityData> __state)
             {
-                __state = PatchBridge.Service?.CaptureNativeCombatEndMount();
+                __state = new Dictionary<GameMountedRelationshipService, UnitEntityData>();
+                var owners = PatchBridge.Pairs?.Select(pair => pair.Relationship) ?? new[] { PatchBridge.Service };
+                foreach (var owner in owners)
+                    if (owner != null) __state.Add(owner, owner.CaptureNativeCombatEndMount());
             }
 
-            internal static void NativeCombatEndPostfix(CombatController __instance, UnitEntityData __state)
+            internal static void NativeCombatEndPostfix(CombatController __instance, Dictionary<GameMountedRelationshipService, UnitEntityData> __state)
             {
-                PatchBridge.Service?.CompleteNativeCombatEndMountLease(__instance, __state);
+                var errors = new List<Exception>();
+                foreach (var pair in __state)
+                    try { pair.Key.CompleteNativeCombatEndMountLease(__instance, pair.Value); }
+                    catch (Exception error) { errors.Add(error); }
+                if (errors.Count != 0) throw new AggregateException("Native combat-end lease restoration failed.", errors);
             }
 
             internal static bool ForcePlaceAboveGroundPrefix(UnitEntityView __instance)
             {
-                return PatchBridge.Service == null || !PatchBridge.Service.TrySuppressRiderGroundPlacement(__instance);
+                return PatchBridge.Owner(__instance?.EntityData)?.TrySuppressRiderGroundPlacement(__instance) != true;
             }
 
             internal static bool UnitClickPrefix(
@@ -872,11 +932,14 @@ namespace KingmakerMountedCombat.Integration
                 bool simulate,
                 ref bool __result)
             {
-                var result = PatchBridge.PlayerAction?.TryHandleMountTargetClick(gameObject, button, simulate) ??
+                var selected = PatchBridge.World?.Selected;
+                var input = PatchBridge.World == null ? PatchBridge.PlayerAction : selected?.PlayerActions;
+                var combat = PatchBridge.World == null ? PatchBridge.Combat : selected?.Combat;
+                var result = input?.TryHandleMountTargetClick(gameObject, button, simulate) ??
                     MountedCombatClickResult.NotHandled;
                 if (result == MountedCombatClickResult.NotHandled)
                 {
-                    result = PatchBridge.Combat?.TryHandleUnitClick(gameObject, button, simulate) ??
+                    result = combat?.TryHandleUnitClick(gameObject, button, simulate) ??
                         MountedCombatClickResult.NotHandled;
                 }
                 if (result == MountedCombatClickResult.NotHandled)
@@ -896,8 +959,9 @@ namespace KingmakerMountedCombat.Integration
                 if (PatchBridge.UnifiedTurn != null &&
                     PatchBridge.UnifiedTurn.TryMoveNativePreparationActor(__instance, ref deltaTime, out result))
                 { __result = result; return false; }
-                if (PatchBridge.Combat != null &&
-                    PatchBridge.Combat.TryOverrideMountTurnMovement(__instance, ref deltaTime, out result))
+                var combat = PatchBridge.CombatFor(__instance?.Unit?.EntityData);
+                if (combat != null &&
+                    combat.TryOverrideMountTurnMovement(__instance, ref deltaTime, out result))
                 {
                     __result = result;
                     return false;
@@ -907,14 +971,12 @@ namespace KingmakerMountedCombat.Integration
 
             internal static bool CompleteMovementPrefix(UnitMovementAgent __instance)
             {
-                return PatchBridge.Combat == null ||
-                    !PatchBridge.Combat.TryCompleteNativeMountTurnMoveAtReachedPathEnd(__instance);
+                return PatchBridge.CombatFor(__instance?.Unit?.EntityData)?.TryCompleteNativeMountTurnMoveAtReachedPathEnd(__instance) != true;
             }
 
             internal static void IsUnitEnoughClosePostfix(UnitCommand __instance, ref bool __result)
             {
-                if (!__result && PatchBridge.Combat != null &&
-                    PatchBridge.Combat.ShouldTreatNativeMountTurnMoveAsEnoughClose(__instance))
+                if (!__result && PatchBridge.CombatFor(__instance?.Executor)?.ShouldTreatNativeMountTurnMoveAsEnoughClose(__instance) == true)
                 {
                     __result = true;
                 }
@@ -940,8 +1002,7 @@ namespace KingmakerMountedCombat.Integration
             {
                 var suppressStep = PatchBridge.UnifiedTurn != null &&
                     PatchBridge.UnifiedTurn.ShouldSuppressStepOpportunity(target);
-                if (!suppressStep && (PatchBridge.Combat == null ||
-                    !PatchBridge.Combat.ShouldSuppressStockOpportunityAttack(__instance?.Unit, target)))
+                if (!suppressStep && PatchBridge.CombatFor(__instance?.Unit)?.ShouldSuppressStockOpportunityAttack(__instance?.Unit, target) != true)
                 {
                     return true;
                 }
@@ -955,23 +1016,50 @@ namespace KingmakerMountedCombat.Integration
                 if (PatchBridge.Persistence?.Enabled == true) NativeSaveEffectBoundary.HitCompleted(__instance);
             }
 
+            internal static void PresentationRigLateUpdatePostfix(Character __instance) =>
+                PatchBridge.Persistence?.ObserveNativePresentationLateUpdate(__instance);
+
             internal static bool CombatPreparePrefix() => PatchBridge.Persistence?.CombatRestorationPending != true;
 
-            internal static bool CombatCooldownPrefix(UnitEntityData unit, out float __state)
+            internal static bool RetainedNativeJoinPrefix(UnitEntityData __instance) =>
+                PatchBridge.Persistence?.AllowNativeJoinCombat(__instance) != false;
+
+            internal readonly struct CombatCooldownObservation
             {
-                __state = unit?.CombatState == null
+                internal readonly RuntimeCombatScenarioEngine Consumer;
+                internal readonly UnitEntityData Unit;
+                internal readonly float Initiative;
+
+                internal CombatCooldownObservation(RuntimeCombatScenarioEngine consumer, UnitEntityData unit, float initiative)
+                {
+                    Consumer = consumer;
+                    Unit = unit;
+                    Initiative = initiative;
+                }
+            }
+
+            internal static bool CombatCooldownPrefix(UnitEntityData unit, out CombatCooldownObservation __state)
+            {
+                var consumer = RuntimeAutomationHost.GetCombatCooldownConsumer(unit);
+                var initiative = consumer == null || unit?.CombatState == null
                     ? float.NaN
                     : unit.CombatState.Cooldown.Initiative;
+                __state = new CombatCooldownObservation(consumer, consumer == null ? null : unit, initiative);
                 return PatchBridge.Persistence?.CombatRestorationPending != true;
             }
 
-            internal static void CombatCooldownPostfix(UnitEntityData unit, float __state)
+            internal static void CombatCooldownPostfix(UnitEntityData unit, CombatCooldownObservation __state)
             {
+                // A native callback may outlive its consumer. Never assign its prefix
+                // sample to a newly created scenario, a different actor, or a disposed row.
+                if (!ReferenceEquals(unit, __state.Unit) ||
+                    !RuntimeAutomationHost.IsCurrentCombatCooldownConsumer(__state.Consumer, unit)) return;
                 var combatState = unit?.CombatState;
                 var game = Kingmaker.Game.Instance;
                 RuntimeAutomationHost.ObserveCombatCooldownTick(
+                    __state.Consumer,
                     unit,
-                    __state,
+                    __state.Initiative,
                     combatState == null ? float.NaN : combatState.Cooldown.Initiative,
                     game?.TimeController == null ? 0f : game.TimeController.GameDeltaTime,
                     combatState != null && combatState.Prepared,
@@ -1043,6 +1131,9 @@ namespace KingmakerMountedCombat.Integration
             internal static void AreaEntitiesReadyPostfix() => PatchBridge.Persistence?.RestoreAreaPair();
 
             internal static bool GameLoadAdmissionPrefix(SaveInfo saveInfo)
+                => GameLoadAdmissionCore(saveInfo, "Game.LoadGame");
+
+            private static bool GameLoadAdmissionCore(SaveInfo saveInfo, string nativeEntry)
             {
                 var authorization = PatchBridge.SaveAuthorization;
                 if (authorization != null && authorization.IsActive)
@@ -1051,7 +1142,7 @@ namespace KingmakerMountedCombat.Integration
                     {
                         var reason = authorization.ValidateLoadBeforeWorldReplacement(
                             saveInfo == null ? null : NativePersistenceIsolation.Project(saveInfo),
-                            Kingmaker.Game.Instance.SaveManager.SavePath);
+                            Kingmaker.Game.Instance.SaveManager.SavePath, nativeEntry);
                         if (reason != null)
                         {
                             authorization.ReportFatalViolation(RuntimeSaveOperation.Load, reason);
@@ -1065,13 +1156,17 @@ namespace KingmakerMountedCombat.Integration
                         return false;
                     }
                 }
-                return PatchBridge.Persistence?.CanLoadBeforeWorldReplacement(saveInfo) != false;
+                var accepted = PatchBridge.Persistence?.CanLoadBeforeWorldReplacement(saveInfo) != false;
+                if (authorization?.HasArmedOwnerSeedLoadRefusal != true) return accepted;
+                return authorization.FenceOwnerSeedLoadRefusalDecision(accepted,
+                    saveInfo == null ? null : NativePersistenceIsolation.Project(saveInfo),
+                    Kingmaker.Game.Instance.SaveManager.SavePath, nativeEntry);
             }
 
             internal static bool GameMainMenuLoadAdmissionPrefix(SaveInfo saveInfo) =>
-                GameLoadAdmissionPrefix(saveInfo) && PatchBridge.Persistence?.PrepareForNativeWorldDisposal() != false;
+                GameLoadAdmissionCore(saveInfo, "Game.LoadGameFromMainMenu") && PatchBridge.Persistence?.PrepareForNativeWorldDisposal() != false;
 
-            internal static bool GameSmokeLoadAdmissionPrefix(SaveInfo save) => GameLoadAdmissionPrefix(save);
+            internal static bool GameSmokeLoadAdmissionPrefix(SaveInfo save) => GameLoadAdmissionCore(save, "Game.LoadGameForSmokeTest");
 
             internal static bool LoadPrefix(SaveManager __instance, SaveInfo saveInfo, bool isSmokeTest, ref IEnumerator<object> __result, out bool __state)
             {
@@ -1112,32 +1207,25 @@ namespace KingmakerMountedCombat.Integration
                 }
             }
 
-            private static bool GuardNativeBoundary(NativeLifecycleBoundary boundary, CleanupTrigger trigger, string source)
+            internal static bool GuardNativeBoundary(NativeLifecycleBoundary boundary, CleanupTrigger trigger, string source)
             {
-                var service = PatchBridge.Service;
-                if (service == null)
+                var owners = PatchBridge.Pairs?.Select(pair => pair.Relationship) ?? new[] { PatchBridge.Service };
+                var allSucceeded = true;
+                foreach (var service in owners)
                 {
-                    return true;
+                    if (service == null) continue;
+                    var before = service.State;
+                    var succeeded = false;
+                    try { succeeded = service.GuardBoundary(trigger); }
+                    catch (Exception error) { PatchBridge.Logger?.Exception("Native world boundary retained pair cleanup", error); }
+                    finally
+                    {
+                        PatchBridge.LifecycleLedger?.Record(boundary, source, before, service.State,
+                            trigger, true, succeeded && service.State == RelationshipState.Unmounted);
+                    }
+                    if (!succeeded) allSucceeded = false;
                 }
-
-                var before = service.State;
-                var succeeded = false;
-                try
-                {
-                    succeeded = service.GuardBoundary(trigger);
-                    return succeeded;
-                }
-                finally
-                {
-                    PatchBridge.LifecycleLedger?.Record(
-                        boundary,
-                        source,
-                        before,
-                        service.State,
-                        trigger,
-                        true,
-                        succeeded && service.State == RelationshipState.Unmounted);
-                }
+                return allSucceeded;
             }
 
             private static bool AuthorizeSaveBoundary(RuntimeSaveOperation operation, SaveManager saveManager, SaveInfo saveInfo, ref IEnumerator<object> result)

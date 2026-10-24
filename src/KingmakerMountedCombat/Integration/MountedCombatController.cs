@@ -31,7 +31,8 @@ namespace KingmakerMountedCombat.Integration
         private readonly GameMountedRelationshipService relationship;
         private readonly DiagnosticSettings settings;
         private readonly HorsePrimaryAttackAnimationAdapter horsePrimaryAttackAnimation;
-        private readonly UnifiedMountedTurnCoordinator unifiedTurn;
+        private readonly MountedPairTurnParticipant unifiedTurn;
+        internal MountedPairTurnParticipant TurnParticipant => unifiedTurn;
         internal int TrackedActorAllocations => unifiedTurn.TrackedAllocationActorCount;
         private readonly MountedPairCommandScheduler pairedCommandScheduler;
         private readonly IModLogger logger;
@@ -43,11 +44,11 @@ namespace KingmakerMountedCombat.Integration
             new MountedAttackIntent<UnitEntityData, TurnController>();
         private UnitEntityData stockIntentTarget => stockIntent.Target;
         private TurnController stockIntentTurn => stockIntent.Turn;
-        private UnitEntityData observedStockRequestUnit;
-        private UnitEntityData observedStockRequestTarget;
-        private int observedStockRequestFrame = -1;
+        private readonly ObservedPlayerAttackRequest<UnitEntityData, UnitCommand> observedStockRequest =
+            new ObservedPlayerAttackRequest<UnitEntityData, UnitCommand>();
         private MountedDoorInteractionCommand activeDoorInteraction;
         private UnitMoveTo activeRiderTurnGroundMove;
+        private MountedPairOwner<UnitEntityData, GameMountedRelationshipService> groundMoveOwner;
         private UnitMoveTo observedNativeMountTurnMove;
         private UnitMoveTo projectedNativeMountTurnGroundMove;
         private int projectedNativeMountTurnGroundMoveFrame = -1;
@@ -61,7 +62,7 @@ namespace KingmakerMountedCombat.Integration
             GameMountedRelationshipService relationship,
             DiagnosticSettings settings,
             HorsePrimaryAttackAnimationAdapter horsePrimaryAttackAnimation,
-            UnifiedMountedTurnCoordinator unifiedTurn,
+            MountedPairTurnParticipant unifiedTurn,
             MountedPairCommandScheduler pairedCommandScheduler,
             IModLogger logger)
         {
@@ -73,6 +74,7 @@ namespace KingmakerMountedCombat.Integration
             this.pairedCommandScheduler = pairedCommandScheduler ??
                 throw new ArgumentNullException(nameof(pairedCommandScheduler));
             this.logger = logger ?? throw new ArgumentNullException(nameof(logger));
+            relationship.CombatOwner = this;
             relationship.Dismounting += HandleDismounting;
             relationship.ChargeCleanupBarrier = trigger => TryDrainChargeOwnership("relationship cleanup " + trigger);
         }
@@ -86,6 +88,10 @@ namespace KingmakerMountedCombat.Integration
         public MountedCombatRejectionCode[] LastRejectionCodes { get; private set; } = new MountedCombatRejectionCode[0];
 
         public bool HasActiveCommand => activeCommand != null && !activeCommand.IsFinished;
+
+        internal bool HasRetainedPairCommands => HasChargeOwnership || activeCommand != null ||
+            finishedCommandPendingSweep != null || activeDoorInteraction != null || activeRiderTurnGroundMove != null ||
+            riderTurnGroundMoveAdmissionPending || HasStockAttackIntent;
 
         internal bool PreservesApproachParent(UnitCommands commands, UnitCommand.CommandType type, bool interruptPaired)
         {
@@ -557,22 +563,32 @@ namespace KingmakerMountedCombat.Integration
 
         internal void ObserveStockAttackRequested(UnitEntityData unit, UnitEntityData target)
         {
+            // Either pair actor's native click is recorded as player provenance; admission below still
+            // requires the exact principal, selection and turn, so a hidden-mount click only earns
+            // its bounded feedback.
             if (disposed || relationship.State != RelationshipState.Mounted ||
                 unit == null || target == null ||
-                unit != relationship.Rider && !(unit == relationship.Mount &&
-                    CombatController.IsInTurnBasedCombat() &&
-                    (Game.Instance?.TurnBasedCombatController?.CurrentTurn?.Unit == unit ||
-                     unifiedTurn != null && unifiedTurn.CanAddressActor(unit, Game.Instance?.TurnBasedCombatController?.CurrentTurn))))
+                unit != relationship.Rider && unit != relationship.Mount)
             {
                 return;
             }
 
-            observedStockRequestUnit = unit;
-            observedStockRequestTarget = target;
-            observedStockRequestFrame = Time.frameCount;
+            observedStockRequest.Observe(unit, target, Time.frameCount);
             StockAttackNativeRequestCount++;
-            LastStockAttackObservation = "native-request;frame=" + observedStockRequestFrame +
+            LastStockAttackObservation = "native-request;frame=" + observedStockRequest.Frame +
                 ";unit=" + unit.UniqueId + ";target=" + target.UniqueId;
+        }
+
+        // First step of every native UnitCommands.Run on either pair actor, before any refusal: binds a
+        // same-frame click to the exact command its own synchronous Run carries.
+        internal void BindObservedStockRequest(UnitCommands commands, UnitCommand command)
+        {
+            var owner = commands == null ? null : commands == relationship.Rider?.Commands ? relationship.Rider :
+                commands == relationship.Mount?.Commands ? relationship.Mount : null;
+            if (owner != null)
+            {
+                observedStockRequest.Bind(owner, command, Time.frameCount);
+            }
         }
 
         internal void MarkPlayerFacingOverlayActivation(int frame)
@@ -640,7 +656,7 @@ namespace KingmakerMountedCombat.Integration
             }
 
             NativeSingleAttackWeaponSelection ignored;
-            var context = CaptureContext(action, null, out ignored, true);
+            var context = CaptureContext(action, null, out ignored, true, false, true);
             var availability = MountedCombatActionEvaluator.Evaluate(context);
             return new NativeMountedControlAvailability(true, availability.IsAllowed, availability.Feedback);
         }
@@ -656,7 +672,7 @@ namespace KingmakerMountedCombat.Integration
             }
             NativeSingleAttackWeaponSelection ignored;
             return MountedCombatActionEvaluator.Evaluate(
-                CaptureContext(action, target, out ignored)).IsAllowed;
+                CaptureContext(action, target, out ignored, false, false, true)).IsAllowed;
         }
 
         internal string DescribeNativeAbilityTargetRejection(
@@ -671,7 +687,7 @@ namespace KingmakerMountedCombat.Integration
             }
             NativeSingleAttackWeaponSelection ignored;
             return MountedCombatActionEvaluator.Evaluate(
-                CaptureContext(action, target, out ignored)).Feedback;
+                CaptureContext(action, target, out ignored, false, false, true)).Feedback;
         }
 
         internal MountedCombatClickResult TryExecuteNativeAbility(
@@ -713,7 +729,7 @@ namespace KingmakerMountedCombat.Integration
         {
             NativeSingleAttackWeaponSelection mountPrimary;
             var ordinaryIntent = inputSurface == "stock-hostile-click" && target == stockIntentTarget;
-            var context = CaptureContext(action, target, out mountPrimary, false, ordinaryIntent);
+            var context = CaptureContext(action, target, out mountPrimary, false, ordinaryIntent, abilityCaster != null);
             var availability = MountedCombatActionEvaluator.Evaluate(context);
             if (!availability.IsAllowed)
             {
@@ -897,12 +913,19 @@ namespace KingmakerMountedCombat.Integration
             {
                 // The native party click visits each owner separately. Consume only this pair's
                 // redundant mount request; never touch another party member's command or selection.
+                var hiddenMountClick = observedStockRequest.Consume(command);
                 if (!turnBased && selection != null && selection.Contains(rider))
                 {
                     return false;
                 }
                 LastFeedback = "Select the rider to attack, or use the mount on its own turn.";
                 LastRejectionCodes = new[] { MountedCombatRejectionCode.WrongActorOrSelection };
+                if (!hiddenMountClick)
+                {
+                    // A native party-brain proposal (retained ManualTarget), not player input: refuse silently.
+                    LastStockAttackObservation = "rejected-hidden-mount-proposal";
+                    return false;
+                }
                 LastStockAttackObservation = "rejected-hidden-mount-surface";
                 ShowStockFeedback();
                 return false;
@@ -910,22 +933,33 @@ namespace KingmakerMountedCombat.Integration
 
             var exactRiderSelected = UnifiedMountedStockAttackPolicy.ContainsExactPrincipal(selection, principal);
             var target = stockAttack.Target;
-            var exactObservedRequest = UnifiedMountedStockAttackPolicy.IsExactObservedPlayerRequest(
+            var playerCommand = observedStockRequest.IsPlayerCommand(command);
+            var exactObservedRequest = playerCommand && UnifiedMountedStockAttackPolicy.IsExactObservedPlayerRequest(
                 true,
                 ownerIsRider || ownerIsMount && turnBased && (turn?.Unit == mount || pairedActorTurn),
                 exactRiderSelected,
                 exactStockAttack,
-                observedStockRequestUnit == principal,
-                observedStockRequestTarget == target,
+                observedStockRequest.Unit == principal,
+                observedStockRequest.Target == target,
                 Time.frameCount,
-                observedStockRequestFrame);
-            ClearObservedStockRequest();
+                observedStockRequest.Frame);
+            // Only the click's own command consumes the observation; any other command leaves it intact.
+            observedStockRequest.Consume(command);
             if (!exactObservedRequest)
             {
                 LastFeedback = "Mounted stock attack rejected: no exact current native hostile-click request was observed.";
                 LastRejectionCodes = new[] { MountedCombatRejectionCode.CommandAdmissionFailure };
-                LastStockAttackObservation = "rejected-unobserved-command";
-                // AI/auto-use commands carry no native pointer provenance: do not spam the player.
+                if (!playerCommand)
+                {
+                    // AI/auto-use commands carry no native pointer provenance: refuse silently.
+                    LastStockAttackObservation = "rejected-unobserved-command";
+                    return false;
+                }
+                // The player's own click that fails exact admission (e.g. the rider is not the selected
+                // principal) keeps its bounded, once-per-click feedback.
+                LastFeedback = "Mounted stock attack rejected: select the rider of this pair to attack.";
+                LastStockAttackObservation = "rejected-inexact-player-click";
+                ShowStockFeedback();
                 return false;
             }
 
@@ -1147,9 +1181,7 @@ namespace KingmakerMountedCombat.Integration
 
         private void ClearObservedStockRequest()
         {
-            observedStockRequestUnit = null;
-            observedStockRequestTarget = null;
-            observedStockRequestFrame = -1;
+            observedStockRequest.Clear();
         }
 
         private void ShowStockFeedback()
@@ -1247,78 +1279,66 @@ namespace KingmakerMountedCombat.Integration
         {
             var pairedMountInput = unifiedTurn.MaySelectPairedPartner(requestedUnit) &&
                 SelectionManager.Instance?.SingleSelectedUnit == requestedUnit;
-            if (disposed || relationship.State != RelationshipState.Mounted || requestedUnit != relationship.Rider && !pairedMountInput)
+            // The decision is MountedGroundOrderAdmissionPolicy: an order for any unit that is not
+            // this pair's rider (or its selectable paired mount) passes through untouched; the save
+            // serialization refusal precedes the pair-local ground-command cancel; paused real-time orders
+            // queue natively while turn-based orders keep the rider-turn gates.
+            var disposition = MountedGroundOrderAdmissionPolicy.Decide(
+                disposed,
+                relationship.State == RelationshipState.Mounted,
+                requestedUnit == relationship.Rider,
+                pairedMountInput,
+                new GroundOrderFacts(this));
+            if (disposition == MountedGroundOrderDisposition.AdmitRiderTurnMovement)
             {
-                return true;
+                groundMoveOwner = relationship.PairOwner;
+                if (!relationship.IsCurrentPairOwner(groundMoveOwner)) return false;
+                riderTurnGroundMoveAdmissionPending = true;
+                unifiedTurn.RememberPairedMovementInput();
             }
-            if (TrySuppressPropagatedOverlayWorldClick())
+            var feedback = MountedGroundOrderAdmissionPolicy.Feedback(disposition, MountDisplayName);
+            var rejectionCodes = MountedGroundOrderAdmissionPolicy.RejectionCodes(disposition);
+            if (feedback != null) LastFeedback = feedback;
+            if (rejectionCodes != null) LastRejectionCodes = rejectionCodes;
+            return MountedGroundOrderAdmissionPolicy.LetsNativeOrderRun(disposition);
+        }
+
+        // The live native facts for one ground-order decision. The current turn is read once,
+        // on the first turn-based fact the decision reaches.
+        private sealed class GroundOrderFacts : IMountedGroundOrderFacts
+        {
+            private readonly MountedCombatController controller;
+            private bool turnRead;
+            private TurnController turn;
+
+            internal GroundOrderFacts(MountedCombatController controller) { this.controller = controller; }
+
+            private TurnController Turn
             {
-                return false;
+                get
+                {
+                    if (!turnRead)
+                    {
+                        turnRead = true;
+                        turn = Game.Instance?.TurnBasedCombatController?.CurrentTurn;
+                    }
+                    return turn;
+                }
             }
 
-            // The archive worker serializes live object graphs, including this
-            // actor's command queue, and entity execution stays suspended for its
-            // whole lifetime. Accepting a new owned command would still mutate
-            // that queue under the serializer, so the owned pair refuses until
-            // the save settles. This flag is held across both the ordinary
-            // completion path and an interrupted save that is still draining.
-            if (relationship.SaveSerializationSuspended)
-            {
-                LastFeedback = "A save is still being written; mounted actions resume when it finishes.";
-                LastRejectionCodes = new[] { MountedCombatRejectionCode.WrongActionState };
-                return false;
-            }
-
-            Cancel("ground command");
-
-            var game = Game.Instance;
-            if (game == null || !MountedGameModePolicy.CanAdmitMountedAction(game.CurrentMode.ToString()))
-            {
-                LastFeedback = "Mounted ground movement is available only in the active world view.";
-                LastRejectionCodes = new[] { MountedCombatRejectionCode.WrongActionState };
-                return false;
-            }
-
-            if (!CombatController.IsInTurnBasedCombat())
-            {
-                LastRejectionCodes = new MountedCombatRejectionCode[0];
-                return true;
-            }
-
-            var turn = game.TurnBasedCombatController?.CurrentTurn;
-            if (settings.EnablePairedActivation && !unifiedTurn.CanMovePairedMount(turn))
-            {
-                LastFeedback = "The mount has no movement available in this paired activation.";
-                LastRejectionCodes = new[] { MountedCombatRejectionCode.WrongActionState };
-                return false;
-            }
-            if (!MountedPairTurnPolicy.CanAdmitRiderGroundMovement(
-                true,
-                true,
-                true,
-                turn?.Unit == relationship.Rider,
-                turn != null && turn.Status == TurnController.TurnStatus.Preparing,
-                turn != null && turn.IsActing))
-            {
-                LastFeedback = "Move the mounted pair during the rider's turn.";
-                LastRejectionCodes = new[] { MountedCombatRejectionCode.WrongTurn };
-                return false;
-            }
-
-            if (relationship.Mount?.Commands == null ||
-                relationship.Mount.Commands.GetCommand(UnitCommand.CommandType.Move) != null ||
-                relationship.Mount.Commands.Queue.Count != 0)
-            {
-                LastFeedback = "Mounted ground movement rejected: the " + MountDisplayName + " Move slot is not idle.";
-                LastRejectionCodes = new[] { MountedCombatRejectionCode.AlreadyActiveCommand };
-                return false;
-            }
-
-            riderTurnGroundMoveAdmissionPending = true;
-            unifiedTurn.RememberPairedMovementInput();
-            LastRejectionCodes = new MountedCombatRejectionCode[0];
-            LastFeedback = "Mounted rider-turn ground movement admitted; " + MountDisplayName + " owns pathfinding.";
-            return true;
+            public bool TryConsumePropagatedOverlayWorldClick() => controller.TrySuppressPropagatedOverlayWorldClick();
+            public bool SaveSerializationSuspended => controller.relationship.SaveSerializationSuspended;
+            public void CancelPairCommands() => controller.Cancel("ground command");
+            public string CurrentModeName => Game.Instance?.CurrentMode.ToString();
+            public bool InTurnBasedCombat => CombatController.IsInTurnBasedCombat();
+            public bool PairedActivationEnabled => controller.settings.EnablePairedActivation;
+            public bool CanMovePairedMount() => controller.unifiedTurn.CanMovePairedMount(Turn);
+            public bool CurrentTurnUnitIsRider => Turn?.Unit == controller.relationship.Rider;
+            public bool RiderTurnPreparing => Turn != null && Turn.Status == TurnController.TurnStatus.Preparing;
+            public bool RiderTurnActing => Turn != null && Turn.IsActing;
+            public bool MountMoveSlotIdle => !(controller.relationship.Mount?.Commands == null ||
+                controller.relationship.Mount.Commands.GetCommand(UnitCommand.CommandType.Move) != null ||
+                controller.relationship.Mount.Commands.Queue.Count != 0);
         }
 
         public void CompleteGroundCommandAdmission(UnitEntityData routedUnit)
@@ -1329,7 +1349,8 @@ namespace KingmakerMountedCombat.Integration
             }
 
             riderTurnGroundMoveAdmissionPending = false;
-            var command = relationship.Mount?.Commands?.GetCommand(UnitCommand.CommandType.Move) as UnitMoveTo;
+            if (!relationship.IsCurrentPairOwner(groundMoveOwner)) { groundMoveOwner = null; return; }
+            var command = groundMoveOwner.Mount?.Commands?.GetCommand(UnitCommand.CommandType.Move) as UnitMoveTo;
             if (routedUnit != relationship.Mount || command == null || command.Executor != relationship.Mount ||
                 !command.CreatedByPlayer || relationship.Mount.Commands.Queue.Contains(command))
             {
@@ -1473,7 +1494,8 @@ namespace KingmakerMountedCombat.Integration
             UnitEntityData target,
             out NativeSingleAttackWeaponSelection mountPrimary,
             bool assumeTargetAvailable = false,
-            bool ordinaryIntent = false)
+            bool ordinaryIntent = false,
+            bool nativeActorIntent = false)
         {
             var rider = relationship.Rider;
             var mount = relationship.Mount;
@@ -1507,15 +1529,15 @@ namespace KingmakerMountedCombat.Integration
                 ExactMountedPair = relationship.State == RelationshipState.Mounted &&
                     rider != null && mount != null && rider.Descriptor?.Pet == mount &&
                     mount.Descriptor?.Master.Value == rider,
-                ExactRiderSelection = ordinaryIntent || MountedTurnSelectionPolicy.IsExpectedActionSelection(
+                ExactRiderSelection = ordinaryIntent || nativeActorIntent || MountedTurnSelectionPolicy.IsExpectedActionSelection(
                     turnBasedCombat,
                     action == MountedCombatActionKind.MountPrimaryNatural,
                     settings.UsePairedTurnControls,
                     exactRiderSelection,
                     exactMountSelection),
-                SupportedMountProfile = SupportedMountedProfiles.Resolve(mount) != null &&
+                SupportedMountProfile = SupportedMountedProfiles.Resolve(rider, mount) != null &&
                     string.Equals(relationship.Runtime.MountProfileId,
-                        SupportedMountedProfiles.Resolve(mount)?.Id,
+                        SupportedMountedProfiles.Resolve(rider, mount)?.Id,
                         StringComparison.Ordinal),
                 MountDisplayName = relationship.Runtime.MountDisplayName,
                 SupportedRiderBodyProfile = rider != null && rider.GetActivePolymorph() == null &&
@@ -1725,7 +1747,7 @@ namespace KingmakerMountedCombat.Integration
                 turn != null && (turn.Status == TurnController.TurnStatus.Preparing || turn.IsActing);
             var commands = relationship.Mount?.Commands;
             var rawMove = commands?.GetCommand(UnitCommand.CommandType.Move);
-            if (!exactTurn || rawMove != command && !command.IsFinished)
+            if (!relationship.IsCurrentPairOwner(groundMoveOwner) || !exactTurn || rawMove != command && !command.IsFinished)
             {
                 CancelRiderTurnGroundMovement();
                 LastFeedback = "Mounted ground movement cancelled: rider turn or exact " + MountDisplayName + " Move-slot ownership changed.";
@@ -1742,6 +1764,7 @@ namespace KingmakerMountedCombat.Integration
                 commands.RemoveFinishedAndUpdateQueue();
             }
             activeRiderTurnGroundMove = null;
+            groundMoveOwner = null;
             relationship.Runtime.CancelMountMovement();
             LastGroundMoveDriveCount = activeGroundMoveDriveCount;
             LastGroundMoveResult = command.Result.ToString();
@@ -1770,7 +1793,7 @@ namespace KingmakerMountedCombat.Integration
         {
             if (settings.EnablePairedActivation) return;
             var command = activeRiderTurnGroundMove;
-            if (command == null || command.IsFinished || !CombatController.IsInTurnBasedCombat())
+            if (command == null || command.IsFinished || !relationship.IsCurrentPairOwner(groundMoveOwner) || !CombatController.IsInTurnBasedCombat())
             {
                 return;
             }
@@ -1807,6 +1830,7 @@ namespace KingmakerMountedCombat.Integration
         private void CancelRiderTurnGroundMovement()
         {
             riderTurnGroundMoveAdmissionPending = false;
+            groundMoveOwner = null;
             var command = activeRiderTurnGroundMove;
             activeRiderTurnGroundMove = null;
             if (command != null && !command.IsFinished)

@@ -62,8 +62,9 @@ namespace KingmakerMountedCombat.Integration
             // ledger's own admit-to-settle window defers it as well. Together they
             // make the documented claim true by construction rather than by
             // reasoning about when a frame boundary can be observed.
-            return !unifiedTurn.HasUnsettledPreparation &&
+            return relationship.AllSaveOwnersReady && !unifiedTurn.HasUnsettledPreparation &&
                 !controls.HasUnsettledRelationshipTransition &&
+                !WorldRelationships.Any(controls.HasUnsettledShellFor) &&
                 !game.State.Units.Any(u => u.Commands.Raw.Concat(u.Commands.Queue)
                     .Any(NativeSaveEffectBoundary.CommandNeedsSettlement)) &&
                 !game.State.Units.Any(u => u.Commands.Raw.Concat(u.Commands.Queue)
@@ -79,7 +80,7 @@ namespace KingmakerMountedCombat.Integration
             // After this exact scope captured its header, queued lifecycle notifications
             // must wait for serialization to finish. They must not abort its worker or
             // start cleanup against the live graph. New captures still require no queue.
-            if (!(scope.Json == null ? combat.AcquireChargeSaveFence(scope) : combat.ContinueChargeSaveFence(scope)))
+            if (!(scope.Json == null ? AcquireWorldSaveFence(scope) : ContinueWorldSaveFence(scope)))
                 throw new InvalidOperationException("Save deferred: charge cleanup ownership is unresolved.");
         }
 
@@ -101,7 +102,7 @@ namespace KingmakerMountedCombat.Integration
             {
                 if (world != null && !ReferenceEquals(Game.Instance?.Player, world))
                     throw new InvalidOperationException("Save was not written: its native world was replaced.");
-                return combat.AcquireChargeSaveFence(scope) && fault?.Active != true && SaveEffectsReady();
+                return AcquireWorldSaveFence(scope) && fault?.Active != true && SaveEffectsReady();
             };
             return new DeferredSaveEnumerator<object>(routine, ready, () => timer.Elapsed.TotalSeconds,
                 () =>
@@ -119,7 +120,7 @@ namespace KingmakerMountedCombat.Integration
                     // ready() precedes the inner scope's begin. Cancellation/timeout there
                     // still releases this exact operation's fence. A started worker retains it
                     // through ReleaseSaveScope/the existing deferred-worker drain.
-                    if (!scope.Began) combat.ReleaseChargeSaveFence(scope);
+                    if (!scope.Began) ReleaseUnstartedSaveFence(scope);
                 });
         }
 

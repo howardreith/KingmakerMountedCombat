@@ -169,15 +169,25 @@ function Get-KmcPersistenceProfileCacheDelta {
                 beforeSha256=[string]$prior.sha256;afterSha256=[string]$current.sha256}
         }
     }
+    $unsettled=@()
     foreach($path in @($currentByPath.Keys)){
         if($priorByPath.ContainsKey($path)){continue}
         $current=$currentByPath[$path]
         if([long]$current.length-ne[long]$script:KmcNativeAchievementCacheSettledSize){
+            if([long]$current.length-eq0){$unsettled+=$path;continue}
             throw ('A new profile leaf used the achievement cache name without its settled native size: '+
                 $path+' '+$current.length)
         }
         $changes+=[pscustomobject]@{path=$path;change='created';length=[long]$current.length
             beforeSha256=$null;afterSha256=[string]$current.sha256}
+    }
+    if($unsettled.Count-gt0){
+        $first=[string](@($unsettled|Sort-Object -CaseSensitive)[0])
+        $units=[string]::Join(',',@([char[]]$first|ForEach-Object{([int][char]$_).ToString('x4')}))
+        $beforeExact=@($Before.entries|Where-Object{[StringComparer]::Ordinal.Equals([string]$_.path,$first)}).Count
+        $afterExact=@($After.entries|Where-Object{[StringComparer]::Ordinal.Equals([string]$_.path,$first)}).Count
+        throw ('A new profile leaf used the achievement cache name without its settled native size: '+
+            $first+'; utf16='+$units+'; beforeExact='+$beforeExact+'; afterExact='+$afterExact+' 0')
     }
     return $changes
 }
@@ -186,18 +196,37 @@ function Assert-KmcPersistenceProfileUnchanged {
     param($Snapshot)
     Assert-KmcNoGameProcesses
     $after=Get-KmcQualificationTreeInventory -Root $Snapshot.profile -Scope save-root -ExcludeRelativeRoots @('Saved Games','output_log.txt')
-    $cacheChanges=Get-KmcPersistenceProfileCacheDelta $Snapshot.inventory $after
-    $analyticsChanges=Get-KmcPersistenceProfileAnalyticsDelta $Snapshot.inventory $after
     if((Get-KmcPersistenceProfileIdentityDigest $after $Snapshot.inventory)-cne
         (Get-KmcPersistenceProfileIdentityDigest $Snapshot.inventory $after)){
         throw 'Native profile/cache bytes changed during the owned persistence process; exact intake backup retained, no automatic stale overwrite performed.'
     }
     if((Get-KmcSha256 $Snapshot.paramsPath)-cne$Snapshot.paramsSha256){throw 'UMM parameters changed during the owned persistence process.'}
     if((Get-KmcPersistencePlayerPrefs)-cne$Snapshot.playerPrefsJson){throw 'Native PlayerPrefs changed during the owned persistence process.'}
+    $analyticsChanges=Get-KmcPersistenceProfileAnalyticsDelta $Snapshot.inventory $after
+    $cacheChanges=Get-KmcPersistenceProfileCacheDelta $Snapshot.inventory $after
     # Admitted native cache churn and appended analytics batches, for the caller
     # to record as expected external changes with their exact hashes. An empty
     # result means the profile really is byte-equal.
     return @($cacheChanges)+@($analyticsChanges)
+}
+
+function Wait-KmcPersistenceProfileUnchanged {
+    param($Snapshot,[ValidateRange(0,60000)][int]$MaximumWaitMilliseconds=60000,
+        [ValidateRange(25,1000)][int]$PollMilliseconds=250)
+    $elapsed=[Diagnostics.Stopwatch]::StartNew()
+    while($true){
+        try{return @(Assert-KmcPersistenceProfileUnchanged $Snapshot)}
+        catch{
+            # Only a newly created, not-yet-populated native achievement cache
+            # receives a short read-only settlement window. Every other profile,
+            # settings or process violation fails on its first observation.
+            if(-not$_.Exception.Message.StartsWith('A new profile leaf used the achievement cache name without its settled native size:',
+                    [StringComparison]::Ordinal)-or
+                    -not$_.Exception.Message.EndsWith(' 0',[StringComparison]::Ordinal)-or
+                    $elapsed.ElapsedMilliseconds-ge$MaximumWaitMilliseconds){throw}
+            Start-Sleep -Milliseconds $PollMilliseconds
+        }
+    }
 }
 
 # One observed owned LoadGameException reset changed this exact boolean.
@@ -242,7 +271,10 @@ function Get-KmcPersistencePreferenceChanges {
 }
 
 function Assert-KmcNativeUmmStartupDelta {
-    param([string]$Before,[string]$After,[switch]$RemovalObserver)
+    param([string]$Before,[string]$After,[switch]$RemovalObserver,[switch]$BaseGameOnly,[switch]$WithObserver)
+    if($BaseGameOnly-and$RemovalObserver){throw 'Base-game and removal-observer settings authorities cannot be combined.'}
+    if($WithObserver-and-not$BaseGameOnly){throw 'The co-staged observer authority exists only in the isolated base-game mode.'}
+    if($BaseGameOnly){Assert-KmcBaseGameUmmStartupDelta -Before $Before -After $After -WithObserver:$WithObserver;return}
     [xml]$original=$Before;[xml]$current=$After
     # Unchanged parameters are the ordinary case now and the safest possible
     # outcome, so they pass on their own. This assertion was written when UMM
@@ -251,20 +283,29 @@ function Assert-KmcNativeUmmStartupDelta {
     # requiring the append made a byte-identical file fail.
     if($current.OuterXml-ceq$original.OuterXml){return}
     if($RemovalObserver){
-        # A removal-observer run stages the live Mods clone WITHOUT KMC and with
-        # the observer in its place, so UMM's startup rewrite drops the KMC entry
-        # and records the observer's entry exactly where KMC's stood. Only that
-        # replacement is admitted: renaming the observer entry back must give the
-        # original document byte for byte.
+        # UMM records the staged observer in place of an existing KMC entry, or
+        # appends it when the owner's settled parameters contain no KMC entry.
+        # Both cases must leave every other parsed parameter exactly unchanged.
         $kmcBefore=@($original.SelectNodes("//Mod[@Id='KingmakerMountedCombat']"))
         $observerBefore=@($original.SelectNodes("//Mod[@Id='KmcRemovalObserver']"))
         $kmcAfter=@($current.SelectNodes("//Mod[@Id='KingmakerMountedCombat']"))
         $observerAfter=@($current.SelectNodes("//Mod[@Id='KmcRemovalObserver']"))
-        if($kmcBefore.Count-ne1-or$observerBefore.Count-ne0-or$kmcAfter.Count-ne0-or$observerAfter.Count-ne1-or
+        if($kmcBefore.Count-gt1-or$observerBefore.Count-ne0-or$kmcAfter.Count-ne0-or$observerAfter.Count-ne1-or
             [string]$observerAfter[0].GetAttribute('Enabled')-cne'true'){
             throw 'UMM parameter delta is outside the removal-observer replacement.'
         }
-        $observerAfter[0].SetAttribute('Id','KingmakerMountedCombat')
+        if($kmcBefore.Count-eq1){
+            $observerAfter[0].SetAttribute('Id','KingmakerMountedCombat')
+        }else{
+            $modList=$current.SelectSingleNode('//ModParams')
+            if($null-eq$modList){$modList=$current.SelectSingleNode('//ModParamsList')}
+            if($null-eq$modList-or$observerAfter[0].ParentNode-ne$modList-or
+                $modList.LastChild-ne$observerAfter[0]-or$observerAfter[0].OuterXml-cne
+                '<Mod Id="KmcRemovalObserver" Enabled="true"><Hotkey><keyCode>None</keyCode><modifiers>0</modifiers></Hotkey></Mod>'){
+                throw 'UMM parameter delta is outside the exact removal-observer append.'
+            }
+            [void]$modList.RemoveChild($observerAfter[0])
+        }
         if($current.OuterXml-cne$original.OuterXml){throw 'UMM parameters include a change beyond the removal-observer replacement.'}
         return
     }
@@ -281,10 +322,19 @@ function Assert-KmcNativeUmmStartupDelta {
 
 function Restore-KmcPersistenceStartupSettings {
     [CmdletBinding(SupportsShouldProcess=$true,ConfirmImpact='High')]
-    param($Lock,$Snapshot,[string]$BackupRoot,[string]$ExpectedCurrentParamsSha256,[string]$ExpectedCurrentPrefsSha256,[switch]$RemovalObserver)
+    param($Lock,$Snapshot,[string]$BackupRoot,[string]$ExpectedCurrentParamsSha256,[string]$ExpectedCurrentPrefsSha256,[switch]$RemovalObserver,[switch]$BaseGameOnly)
     [void](Assert-KmcRuntimeLockOwner $Lock);Assert-KmcNoGameProcesses
     if($Lock.RunId-cne$Snapshot.runId-or$Lock.Token-cne$Snapshot.token){throw 'Profile restoration has no matching owned transaction.'}
     $intake=Read-KmcJson (Join-Path (Get-KmcLabRoot) 'environment-intake.json')
+    $withObserver=$false
+    if($BaseGameOnly){
+        if($RemovalObserver){throw 'Base-game and removal-observer settings authorities cannot be combined.'}
+        $baseStatePath=Get-KmcTransactionStatePath (Join-Path (Get-KmcLabRoot) 'runtime-state') ([string]$Lock.RunId)
+        $baseState=Read-KmcJson $baseStatePath
+        Assert-KmcBaseGameSettingsAuthority -State $baseState -RunId ([string]$Lock.RunId) -Token ([string]$Lock.Token) -GameRoot ([string]$intake.requestedLayout.kingmakerInstallDir)
+        # The co-staged entry set comes from durable owned state, never a caller switch.
+        $withObserver=[string]$baseState.stagingMode-ceq'base-game-only-kmc-observer'
+    }
     $expectedParams=[IO.Path]::GetFullPath((Join-Path $intake.requestedLayout.kingmakerInstallDir 'Kingmaker_Data/Managed/UnityModManager/Params.xml'))
     if([IO.Path]::GetFullPath($Snapshot.paramsPath)-cne$expectedParams-or
         [IO.Path]::GetFullPath($Snapshot.profile)-cne[IO.Path]::GetFullPath((Split-Path $intake.requestedLayout.kingmakerSaveRoot))){
@@ -305,7 +355,7 @@ function Restore-KmcPersistenceStartupSettings {
     $changes=@(Get-KmcPersistencePreferenceChanges -BeforeJson $Snapshot.playerPrefsJson -AfterJson $prefs -ObservedResetRunId $Snapshot.runId)
     $restoreParams=$paramsHash-cne$Snapshot.paramsSha256
     if($restoreParams){
-        Assert-KmcNativeUmmStartupDelta -Before ([IO.File]::ReadAllText($saved)) -After ([IO.File]::ReadAllText($expectedParams)) -RemovalObserver:$RemovalObserver
+        Assert-KmcNativeUmmStartupDelta -Before ([IO.File]::ReadAllText($saved)) -After ([IO.File]::ReadAllText($expectedParams)) -RemovalObserver:$RemovalObserver -BaseGameOnly:$BaseGameOnly -WithObserver:$withObserver
     }
     if(-not$PSCmdlet.ShouldProcess('exact Kingmaker UMM parameters and attributed native preference deltas',
         'restore verified actual intake after the attributed process exit')){return}

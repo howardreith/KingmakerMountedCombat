@@ -111,6 +111,46 @@ function Assert-KmcReadOnlyArtifactManifest {
             ($relativePath -ceq 'horse-native-controls-ux.json' -and $kind -ceq 'horse-native-controls-ux') -or
             ($relativePath -ceq 'chunk6a-mount-preamble.json' -and $kind -ceq 'chunk6a-mount-preamble') -or
             ($relativePath -ceq 'chunk6a-native-mammoth-profile.json' -and $kind -ceq 'chunk6a-native-mammoth-profile') -or
+            ($relativePath -ceq 'chunk7-small-fixture-evidence.json' -and $kind -ceq 'chunk7-small-fixture-evidence') -or
+            ($relativePath -ceq 'chunk7-small-fixture-cleanup-pending.json' -and $kind -ceq 'chunk7-small-fixture-cleanup-pending') -or
+            ($relativePath -ceq 'chunk7-stock-mammoth-fixture-evidence.json' -and $kind -ceq 'chunk7-stock-mammoth-fixture-evidence') -or
+            ($relativePath -ceq 'chunk7-stock-mammoth-fixture-cleanup-pending.json' -and $kind -ceq 'chunk7-stock-mammoth-fixture-cleanup-pending') -or
+            ($relativePath -ceq 'chunk7-assisted-cold-inventory-evidence.json' -and $kind -ceq 'chunk7-assisted-cold-inventory-evidence') -or
+            ($relativePath -ceq 'chunk7-assisted-cold-inventory-cleanup-pending.json' -and $kind -ceq 'chunk7-assisted-cold-inventory-cleanup-pending') -or
+            ($relativePath -ceq 'chunk7-assisted-fixture-evidence.json' -and $kind -ceq 'chunk7-assisted-fixture-evidence') -or
+            ($relativePath -ceq 'chunk7-assisted-fixture-cleanup-pending.json' -and $kind -ceq 'chunk7-assisted-fixture-cleanup-pending') -or
+            ($relativePath -ceq 'chunk7-acquired-manual-evidence.json' -and $kind -ceq 'chunk7-acquired-manual-evidence') -or
+            ($relativePath -ceq 'chunk7-manual-derived-evidence.json' -and $kind -ceq 'chunk7-manual-derived-evidence') -or
+            ($relativePath -ceq 'chunk7-cumulative-acquisition-evidence.json' -and $kind -ceq 'chunk7-cumulative-acquisition-evidence') -or
+            ($relativePath -ceq 'chunk7-acquired-manual-cleanup-pending.json' -and $kind -ceq 'chunk7-acquired-manual-cleanup-pending') -or
+            ($relativePath -ceq 'chunk7-manual-derived-cleanup-pending.json' -and $kind -ceq 'chunk7-manual-derived-cleanup-pending') -or
+            ($relativePath -ceq 'chunk7-cumulative-acquisition-cleanup-pending.json' -and $kind -ceq 'chunk7-cumulative-acquisition-cleanup-pending') -or
+            ($relativePath -ceq 'chunk7-manual-seed-evidence.json' -and $kind -ceq 'chunk7-manual-seed-evidence') -or
+            ($relativePath -ceq 'chunk7-manual-seed-cleanup-pending.json' -and $kind -ceq 'chunk7-manual-seed-cleanup-pending') -or
+            ($relativePath -ceq 'chunk7-bootstrap-inventory-evidence.json' -and $kind -ceq 'chunk7-bootstrap-inventory-evidence') -or
+            ($relativePath -ceq 'chunk7-bootstrap-inventory-cleanup-pending.json' -and $kind -ceq 'chunk7-bootstrap-inventory-cleanup-pending') -or
+            ($relativePath -ceq 'chunk7-native-bootstrap-evidence.json' -and $kind -ceq 'chunk7-native-bootstrap-evidence') -or
+            ($relativePath -ceq 'chunk7-native-bootstrap-cleanup-pending.json' -and $kind -ceq 'chunk7-native-bootstrap-cleanup-pending') -or
+            ($relativePath -ceq 'chunk7-small-calibration-evidence.json' -and $kind -ceq 'chunk7-small-calibration-evidence') -or
+            ($relativePath -ceq 'chunk7-small-calibration-cleanup-pending.json' -and $kind -ceq 'chunk7-small-calibration-cleanup-pending') -or
+            ($relativePath -ceq 'chunk7-progression-evidence.json' -and $kind -ceq 'chunk7-progression-evidence') -or
+            ($relativePath -ceq 'chunk7-progression-cleanup-pending.json' -and $kind -ceq 'chunk7-progression-cleanup-pending') -or
+            ($relativePath -ceq 'chunk7-ordinary-field-evidence.json' -and $kind -ceq 'chunk7-ordinary-field-evidence') -or
+            ($relativePath -ceq 'chunk7-ordinary-field-cleanup-pending.json' -and $kind -ceq 'chunk7-ordinary-field-cleanup-pending') -or
+            ($relativePath -ceq 'chunk7-ordinary-acquisition-evidence.json' -and $kind -ceq 'chunk7-ordinary-acquisition-evidence') -or
+            ($relativePath -ceq 'chunk7-ordinary-cleanup-pending.json' -and $kind -ceq 'chunk7-ordinary-cleanup-pending') -or
+            ($relativePath -ceq 'chunk7-world-evidence.json' -and $kind -ceq 'chunk7-world-evidence') -or
+            ($relativePath -ceq 'chunk7-matched-pool-measurements.json' -and $kind -ceq 'chunk7-matched-pool-measurements') -or
+            ($relativePath -ceq 'chunk7-persistence-evidence.json' -and $kind -ceq 'chunk7-persistence-evidence') -or
+            ($relativePath -ceq 'chunk7-world-cleanup-pending.json' -and $kind -ceq 'chunk7-world-cleanup-pending') -or
+            ($relativePath -ceq 'chunk7-persistence-cleanup-pending.json' -and $kind -ceq 'chunk7-persistence-cleanup-pending') -or
+            ($relativePath -ceq 'chunk7-combat-cleanup-pending.json' -and $kind -ceq 'chunk7-combat-cleanup-pending') -or
+            ($relativePath -ceq 'chunk7-native-life-evidence.json' -and $kind -ceq 'chunk7-native-life-evidence') -or
+            ($relativePath -ceq 'chunk7-realtime-evidence.json' -and $kind -ceq 'chunk7-realtime-evidence') -or
+            ($relativePath -ceq 'chunk7-combat-evidence.json' -and $kind -ceq 'chunk7-combat-evidence') -or
+            ($relativePath -ceq 'runtime-loader-inventory.json' -and $kind -ceq 'runtime-loader-inventory') -or
+            ($relativePath -ceq 'working-load-deserialization-evidence.json' -and $kind -ceq 'working-load-deserialization-evidence') -or
+            ($relativePath -ceq 'working-load-deserialization-pending.json' -and $kind -ceq 'working-load-deserialization-pending') -or
             ($relativePath -ceq 'phase3d-horse-scenario-evidence.json' -and $kind -ceq 'phase3d-horse-scenario-evidence') -or
             ($relativePath -cmatch '^movement-visuals/[A-Za-z0-9._-]+\.png$' -and $kind -ceq 'screenshot')
         if (-not $allowed) { throw "Runtime artifact manifest record is outside the exact allowlist: $relativePath ($kind)" }

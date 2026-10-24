@@ -13,6 +13,8 @@ param(
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot 'RuntimeHarness.Common.ps1')
+. (Join-Path $PSScriptRoot 'Chunk7SmallFixtureColdSource.ps1')
+. (Join-Path $PSScriptRoot 'RuntimeStartupEvidence.ps1')
 . (Join-Path $PSScriptRoot 'PersistenceSaveFixtures.ps1')
 . (Join-Path $PSScriptRoot 'PersistenceValidationFixtures.ps1')
 
@@ -74,6 +76,27 @@ function Assert-SubscenarioResults {
         'mounted-rider-melee-cleanup', 'non-mounted-melee-control'
     )
     $missionScenarios += @(Get-KmcPhase3dHorseRuntimeRows)
+    $missionScenarios += @(Get-KmcChunk7NormalPlayerRows)
+    $missionScenarios += @(Get-KmcChunk7NativeBootstrapRows)
+    $missionScenarios += @(Get-KmcChunk7AssistedColdInventoryRows)
+    $missionScenarios += @(Get-KmcChunk7AssistedFixtureRows)
+    $missionScenarios += @(Get-KmcChunk7BootstrapInventoryRows)
+    $missionScenarios += @(Get-KmcChunk7AcquiredManualRows)
+    $missionScenarios += @(Get-KmcChunk7SmallFixtureRows)
+    $missionScenarios += @(Get-KmcChunk7StockMammothFixtureRows)
+    $missionScenarios += @(Get-KmcChunk7ManualDerivedRows)
+    $missionScenarios += @(Get-KmcChunk7CumulativeRows)
+    $missionScenarios += @('chunk7-owned-two-pair-campaign','C7-owned-pairs-inherited-custody')
+    $missionScenarios += @(Get-KmcChunk7ManualSeedRows)
+    $missionScenarios += @(Get-KmcChunk7SmallRows)
+    $missionScenarios += @(Get-KmcChunk7ProgressionRows)
+    $missionScenarios += @(Get-KmcChunk7FieldRows)
+    $missionScenarios += @(Get-KmcChunk7OrdinaryRows)
+    $missionScenarios += @(Get-KmcChunk7WorldRows)
+    $missionScenarios += @(Get-KmcChunk7PersistenceRows)
+    $missionScenarios += @(Get-KmcChunk7CombatRuntimeRows)
+    $missionScenarios += @(Get-KmcChunk7RealtimeRuntimeRows | Where-Object { $missionScenarios -cnotcontains $_ })
+    $missionScenarios += @(Get-KmcChunk7NativeLifeRuntimeRows | Where-Object { $missionScenarios -cnotcontains $_ })
     if ($null -eq $Game.subscenarioResults -or $Game.subscenarioResults -is [string]) { throw 'Runtime game-result subscenarioResults must be an array.' }
     $items = @($Game.subscenarioResults)
     if ($items.Count -eq 0) { throw 'Runtime game-result contains no named subscenarios.' }
@@ -102,6 +125,7 @@ function Assert-SubscenarioResults {
         [int]$Game.assertionPassCount -ne $assertionPass -or [int]$Game.assertionFailCount -ne $assertionFail) {
         throw 'Runtime game-result subscenario totals do not match the named results.'
     }
+    Assert-KmcStockMammothSubscenarioSet $Game
     # A compound scenario (Get-KmcCompoundRuntimeScenarios) reports child case rows only; its dedicated validator owns the required case set.
     if (-not (Test-KmcCompoundRuntimeScenario ([string]$Game.scenario)) -and @($missionScenarios | Where-Object { $_ -ceq [string]$Game.scenario }).Count -eq 1 -and -not $names.Contains([string]$Game.scenario)) { throw 'Individual runtime scenario did not report its own named result.' }
 }
@@ -112,7 +136,7 @@ $game = Read-KmcJson $GameResultPath
 $request = Read-KmcJson $RequestPath
 $fingerprint = Read-KmcJson $FingerprintPath
 $schemaVersion = [int]$request.schemaVersion
-$commonRequired = @('schemaVersion','runId','scenario','status','branch','commit','productVersion','dllSha256','dllMvid','transactionToken','startedAtUtc','completedAtUtc','loadedModId','gameVersion','gameAssemblySha256','gameAssemblyMvid','ummVersion','ummSha256','harmony12Version','harmony12Sha256','relationshipState','movementExperimentEnabled','processId','currentGameMode','loadedAreaPresent','saveRequestCount','loadRequestCount','frameCount','elapsedSeconds','errors')
+$commonRequired = @('schemaVersion','runId','scenario','status','branch','commit','productVersion','dllSha256','dllMvid','transactionToken','startedAtUtc','completedAtUtc','loadedModId','gameVersion','gameAssemblySha256','gameAssemblyMvid','ummVersion','ummSha256','harmony12Version','harmony12Sha256','relationshipState','movementExperimentEnabled','processId','currentGameMode','loadedAreaPresent','saveRequestCount','loadRequestCount','frameCount','elapsedSeconds','errors') + @(if ($null -ne $game.PSObject.Properties['startupTrace']) { Assert-KmcRuntimeStartupTrace $game.startupTrace; 'startupTrace' })
 if ($schemaVersion -eq 1) {
     # The no-save smoke is purely observational: it changes nothing and publishes the
     # live state it read, including the defaults the loaded build shipped with. This
@@ -133,6 +157,10 @@ if ($schemaVersion -eq 1) {
 }
 elseif ($schemaVersion -eq 2) {
     $v2Fields = @('fixture','fixtureIdentityVerified','baselineLoadRequestCount','workingLoadRequestCount','workingSaveRequestCount','suppressedWorkingSaveRequestCount','unauthorizedLoadRequestCount','unauthorizedSaveRequestCount','subscenarioTotal','subscenarioPassCount','subscenarioFailCount','assertionPassCount','assertionFailCount','evidenceManifestSha256','subscenarioResults')
+    if($null-ne$game.PSObject.Properties['bootstrapDialogue']){
+        Assert-KmcChunk7BootstrapDialogueResult $game $request
+        $v2Fields+=@('bootstrapDialogue')
+    }
     Assert-KmcExactProperties $game @($commonRequired + $v2Fields) 'runtime game result v2'
 }
 else { throw 'Runtime game-result request schema is unsupported.' }
@@ -151,7 +179,7 @@ $harmony = @($fingerprint.kingmaker.files | Where-Object role -eq 'harmony')[0]
 if ([string]$game.status -cnotin @('PASS','FAIL') -or [string]$game.loadedModId -cne 'KingmakerMountedCombat' -or
     [string]$game.gameVersion -cne [string]$fingerprint.kingmaker.displayVersion -or
     [string]$game.gameAssemblySha256 -cne [string]$gameAuthority.sha256 -or [string]$game.gameAssemblyMvid -cne [string]$gameAuthority.mvid -or
-    [string]$game.ummVersion -cne '0.28.2.0' -or [string]$game.ummSha256 -cne [string]$umm.sha256 -or
+    [string]$game.ummVersion -cne '0.33.2.0' -or [string]$game.ummSha256 -cne [string]$umm.sha256 -or
     [string]$game.harmony12Version -cne '1.2.0.1' -or [string]$game.harmony12Sha256 -cne [string]$harmony.sha256) { throw 'Runtime game-result platform identity is not exact.' }
 if ([int]$game.processId -ne $ExpectedProcessId -or [string]::IsNullOrWhiteSpace([string]$game.currentGameMode) -or
     [int]$game.frameCount -lt 0 -or [double]$game.elapsedSeconds -lt 0.0 -or
@@ -222,6 +250,8 @@ if ($schemaVersion -eq 1) {
 
 Assert-FixtureEcho $game.fixture $request.fixture
 Assert-KmcReadOnlyArtifactManifest $request $game.evidenceManifestSha256 -GameResult
+. (Join-Path $PSScriptRoot 'WorkingLoadDeserializationEvidence.ps1')
+Assert-KmcWorkingLoadDeserializationArtifact $request $game
 if ([int]$game.loadRequestCount -ne ([int]$game.baselineLoadRequestCount + [int]$game.workingLoadRequestCount + [int]$game.unauthorizedLoadRequestCount) -or
     [int]$game.saveRequestCount -ne ([int]$game.workingSaveRequestCount + [int]$game.suppressedWorkingSaveRequestCount + [int]$game.unauthorizedSaveRequestCount)) { throw 'Save-backed runtime aggregate save/load counters do not reconcile.' }
 Assert-SubscenarioResults $game
@@ -235,9 +265,41 @@ Assert-KmcHorseCompanionBlueprintRegistrationEvidence -Request $request -Manifes
 Assert-KmcHorseCompanionUnmountedEvidence -Request $request -Manifest $validatedArtifactManifest -Status ([string]$game.status) -SubscenarioResults $game.subscenarioResults
 Assert-KmcPersistenceScenarioEvidence -Request $request -Manifest $validatedArtifactManifest -Status ([string]$game.status) -GameResult $game
 Assert-KmcNativeMammothArtifact -Request $request -Manifest $validatedArtifactManifest -Status ([string]$game.status)
+Assert-KmcChunk7NativeBootstrapArtifact -Request $request -Manifest $validatedArtifactManifest -Status ([string]$game.status)
+Assert-KmcChunk7AssistedColdInventoryArtifact -Request $request -Manifest $validatedArtifactManifest -Status ([string]$game.status)
+Assert-KmcChunk7AssistedFixtureArtifact -Request $request -Manifest $validatedArtifactManifest -Status ([string]$game.status)
+Assert-KmcChunk7BootstrapInventoryArtifact -Request $request -Manifest $validatedArtifactManifest -Status ([string]$game.status)
+Assert-KmcChunk7SmallFixtureArtifact -Request $request -Manifest $validatedArtifactManifest -Status ([string]$game.status)
+Assert-KmcChunk7StockMammothFixtureArtifact -Request $request -Manifest $validatedArtifactManifest -Status ([string]$game.status)
+Assert-KmcChunk7AcquiredManualArtifact -Request $request -Manifest $validatedArtifactManifest -Status ([string]$game.status)
+Assert-KmcChunk7ManualDerivedArtifact -Request $request -Manifest $validatedArtifactManifest -Status ([string]$game.status)
+Assert-KmcChunk7CumulativeArtifact -Request $request -Manifest $validatedArtifactManifest -Status ([string]$game.status)
+Assert-KmcChunk7ManualSeedArtifact -Request $request -Manifest $validatedArtifactManifest -Status ([string]$game.status)
+Assert-KmcChunk7SmallArtifact -Request $request -Manifest $validatedArtifactManifest -Status ([string]$game.status)
+Assert-KmcChunk7ProgressionArtifact -Request $request -Manifest $validatedArtifactManifest -Status ([string]$game.status)
+Assert-KmcChunk7FieldArtifact -Request $request -Manifest $validatedArtifactManifest -Status ([string]$game.status)
+Assert-KmcChunk7OrdinaryArtifact -Request $request -Manifest $validatedArtifactManifest -Status ([string]$game.status)
+Assert-KmcChunk7WorldArtifact -Request $request -Manifest $validatedArtifactManifest -Status ([string]$game.status)
+Assert-KmcMatchedPoolArtifact -Request $request -Manifest $validatedArtifactManifest -Status ([string]$game.status)
+Assert-KmcChunk7PersistenceArtifact -Request $request -Manifest $validatedArtifactManifest -Status ([string]$game.status)
+Assert-KmcChunk7CombatArtifact -Request $request -Manifest $validatedArtifactManifest -Status ([string]$game.status)
+Assert-KmcChunk7RealtimeArtifact -Request $request -Manifest $validatedArtifactManifest -Status ([string]$game.status)
+Assert-KmcChunk7NativeLifeArtifact -Request $request -Manifest $validatedArtifactManifest -Status ([string]$game.status)
+Assert-KmcChunk7CleanupArtifacts -Request $request -Manifest $validatedArtifactManifest -Status ([string]$game.status)
 Assert-KmcPhase3dHorseScenarioEvidence -Request $request -Manifest $validatedArtifactManifest -Status ([string]$game.status) -SubscenarioResults $game.subscenarioResults
 if ([string]$game.status -ceq 'PASS') {
-    if ($game.fixtureIdentityVerified -ne $true -or [string]$game.relationshipState -cne 'Unmounted') { throw 'Save-backed PASS did not finish with verified fixture identity and an unmounted relationship.' }
+    $nativeBootstrap=Test-KmcChunk7NativeBootstrapScenario $game.scenario
+    $assistedFixture=Test-KmcChunk7AssistedFixtureScenario $game.scenario
+    $assistedWriteCount=0
+    if($assistedFixture){
+        # The complete emitted contract was checked by the artifact validator above.
+        $assistedOutput=Read-KmcJson (Join-Path $request.evidenceRoot 'chunk7-assisted-fixture-evidence.json')
+        $assistedWriteCount=@($assistedOutput.observations.nativeWrites).Count
+        if($assistedWriteCount-notin@(2,3)){throw 'Assisted setup lacks its exact initial Auto, optional level-up Auto and final Manual count.'}
+    }
+    if($game.fixtureIdentityVerified-isnot[bool]-or$game.fixtureIdentityVerified-ne(-not($nativeBootstrap-or$assistedFixture))-or[string]$game.relationshipState-cne'Unmounted'){
+        throw 'PASS requires its exact fixture-deserialization disposition and an unmounted relationship.'
+    }
     $alternating=$game.scenario-cin @('persistence-p05-save','persistence-p05-load')-and$request.persistenceCase-ceq'alternating'
     # Campaign B writes A twice and B's engine autosave always; its manual save
     # in B happens only when the authored start allows one, which the run
@@ -253,8 +315,8 @@ if ([string]$game.status -ceq 'PASS') {
     # the native load, so the authorization prefixes that count loads and
     # writes are not installed: both quotas are exactly zero.
     $absentKmc=$game.scenario-ceq'persistence-p07-load'-and$request.persistenceCase-ceq'absent-kmc'
-    $expectedNativeWrites = if($game.scenario-ceq'persistence-p07-load'-and$request.persistenceCase-cin @('area-cross-entry-auto','area-cross-exit-auto')){1} elseif($campaignB){$campaignBWrites} elseif($game.scenario-ceq'persistence-p07-load'-and$request.persistenceCase-ceq'campaign-b'){1} elseif($game.scenario-ceq'persistence-p07-save'){if($request.persistenceCase-cin @('mounted-charge-area','mounted-charge-session','mounted-charge-disable')){0}elseif($request.persistenceCase-ceq'mounted-charge-removal'){2}elseif($request.persistenceCase-cin @('area-reload','area-cross-entry','area-cross-exit','serialization-cancel-output','prepare-removal','rider-death','mount-death','rider-size-change')){2}elseif($request.persistenceCase-ceq'disable-during-load'){1}else{3}} elseif($alternating){if($game.scenario-ceq'persistence-p05-save'){2}else{1}} elseif ([string]$game.scenario -ceq 'persistence-p05-save') { 3 } elseif ([string]$game.scenario -ceq 'persistence-p04-save' -and [string]$request.persistenceCase -ceq 'combat-mount-routes') { 3 } elseif ([string]$game.scenario -ceq 'persistence-p04-save' -and [string]$request.persistenceCase -ceq 'pending-mount-area') { 0 } elseif ([string]$game.scenario -cin @('persistence-p01-save','persistence-p02-save','persistence-p03-save','persistence-p04-save')) { 1 } else { 0 }
-    $expectedWorkingLoads = if($absentKmc){0} elseif($game.scenario-ceq'persistence-p06-load'-and$request.persistenceCase-cin @('combat-missing','combat-ai')){4} elseif($game.scenario-ceq'persistence-p07-save'){if($request.persistenceCase-cin @('area-reload','area-cross-entry','area-cross-exit','mounted-charge-area','mounted-charge-session','mounted-charge-disable','mounted-charge-removal')){1}elseif($request.persistenceCase-ceq'cancel-wait'){4}elseif($request.persistenceCase-cin @('serialization-cancel','serialization-cancel-output','disable-reenable','prepare-removal')){1}elseif($campaignB-or$request.persistenceCase-cin @('rider-death','mount-death','rider-size-change')){2}else{3}} elseif($game.scenario-ceq'persistence-p06-load'-and$request.persistenceCase-cin @('legacy','schema1','missing-rider','missing-mount','mismatched-profile','failed-area-load')){3} elseif($alternating-and$game.scenario-ceq'persistence-p05-load'){3} elseif ([string]$game.scenario -cin @('mounted-pair-load-safety','boundary-suite')) { 2 } else { 1 }
+    $expectedNativeWrites = if($assistedFixture){$assistedWriteCount} elseif(Test-KmcChunk7OwnedPairsScenario $game.scenario){Get-KmcChunk7OwnedWriteCount $request} elseif($game.scenario-ceq'chunk7-persistence-save'-and$request.persistenceCase-ceq'multi-owned-worker-cancel-manual'){2} elseif($game.scenario-ceq'chunk7-cumulative-acquisition'){1} elseif($game.scenario-ceq'chunk7-acquired-manual-derivative'){1} elseif(Test-KmcChunk7StockMammothFixtureScenario $game.scenario){1} elseif(Test-KmcChunk7SmallFixtureScenario $game.scenario){1} elseif($game.scenario-ceq'chunk7-manual-derived-acquisition'){1} elseif($game.scenario-ceq'chunk7-bootstrap-manual-seed'){1} elseif($nativeBootstrap){1} elseif(Test-KmcChunk7ProgressionScenario $game.scenario){$request.progression.expectedNativeWriteCount} elseif($game.scenario-cin@('chunk7-ordinary-acquisition','chunk7-persistence-save')-or($game.scenario-ceq'chunk7-persistence-load'-and$request.persistenceCase-cin@('legacy-schema1-resave-manual','legacy-mounted-pending-tb-manual'))){1} elseif($game.scenario-ceq'persistence-p07-load'-and$request.persistenceCase-cin @('area-cross-entry-auto','area-cross-exit-auto')){1} elseif($campaignB){$campaignBWrites} elseif($game.scenario-ceq'persistence-p07-load'-and$request.persistenceCase-ceq'campaign-b'){1} elseif($game.scenario-ceq'persistence-p07-save'){if($request.persistenceCase-cin @('mounted-charge-area','mounted-charge-session','mounted-charge-disable')){0}elseif($request.persistenceCase-ceq'mounted-charge-removal'){2}elseif($request.persistenceCase-cin @('area-reload','area-cross-entry','area-cross-exit','serialization-cancel-output','prepare-removal','rider-death','mount-death','rider-size-change')){2}elseif($request.persistenceCase-ceq'disable-during-load'){1}else{3}} elseif($alternating){if($game.scenario-ceq'persistence-p05-save'){2}else{1}} elseif ([string]$game.scenario -ceq 'persistence-p05-save') { 3 } elseif ([string]$game.scenario -ceq 'persistence-p04-save' -and [string]$request.persistenceCase -ceq 'combat-mount-routes') { 3 } elseif ([string]$game.scenario -ceq 'persistence-p04-save' -and [string]$request.persistenceCase -ceq 'pending-mount-area') { 0 } elseif ([string]$game.scenario -cin @('persistence-p01-save','persistence-p02-save','persistence-p03-save','persistence-p04-save')) { 1 } else { 0 }
+    $expectedWorkingLoads = if($nativeBootstrap-or$assistedFixture){0} elseif(Test-KmcChunk7OwnedPairsScenario $game.scenario){Get-KmcChunk7OwnedLoadCount $request} elseif($game.scenario-ceq'chunk7-persistence-load'-and$request.persistenceCase-ceq'multi-exploration-three-loads-manual'){3} elseif($absentKmc){0} elseif($game.scenario-ceq'persistence-p06-load'-and$request.persistenceCase-cin @('combat-missing','combat-ai')){4} elseif($game.scenario-ceq'persistence-p07-save'){if($request.persistenceCase-cin @('area-reload','area-cross-entry','area-cross-exit','mounted-charge-area','mounted-charge-session','mounted-charge-disable','mounted-charge-removal')){1}elseif($request.persistenceCase-ceq'cancel-wait'){4}elseif($request.persistenceCase-cin @('serialization-cancel','serialization-cancel-output','disable-reenable','prepare-removal')){1}elseif($campaignB-or$request.persistenceCase-cin @('rider-death','mount-death','rider-size-change')){2}else{3}} elseif($game.scenario-ceq'persistence-p06-load'-and$request.persistenceCase-cin @('legacy','schema1','missing-rider','missing-mount','mismatched-profile','failed-area-load')){3} elseif($alternating-and$game.scenario-ceq'persistence-p05-load'){3} elseif ([string]$game.scenario -cin @('mounted-pair-load-safety','boundary-suite')) { 2 } else { 1 }
     if ([int]$game.baselineLoadRequestCount -ne 0 -or [int]$game.unauthorizedLoadRequestCount -ne 0 -or
         [int]$game.unauthorizedSaveRequestCount -ne 0 -or [int]$game.workingLoadRequestCount -ne $expectedWorkingLoads -or
         [int]$game.loadRequestCount -ne $expectedWorkingLoads -or [int]$game.workingSaveRequestCount -ne $expectedNativeWrites) {

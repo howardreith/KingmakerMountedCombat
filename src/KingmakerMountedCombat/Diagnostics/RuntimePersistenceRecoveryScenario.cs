@@ -159,7 +159,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private SaveInfo RecoveryArchive()
         {
             var save = Game.Instance.SaveManager.Single(s => s.Name == "KMC_P01");
-            Check(save.Type == SaveInfo.SaveType.Manual && save.FileName == "Manual_300_KMC_P01.zks" &&
+            Check(save.Type == SaveInfo.SaveType.Manual && save.FileName == RuntimeRequest.P07OpeningLeaf(request) &&
                 save.HasFileOnDisk && save.OperationState == SaveInfo.StateType.None, "P07-exact-complete-native-manual-archive");
             return save;
         }

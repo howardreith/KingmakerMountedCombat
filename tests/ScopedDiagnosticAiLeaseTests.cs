@@ -10,6 +10,7 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("diagnostic AI lease suppresses and restores only the exact empty-command set", SuppressesAndRestoresExactSet);
             runner.Run("diagnostic AI lease rejects ambiguous or active-command candidates before mutation", RejectsUnsafeCandidates);
             runner.Run("diagnostic AI lease detects membership command and AI drift", DetectsActiveDrift);
+            runner.Run("diagnostic AI lease waives only the declared exact member's command and keeps its AI disabled", DeclaredMemberCommandIsExact);
             runner.Run("diagnostic AI lease restoration verifies original raw and effective state", RestorationVerifiesOriginalState);
             runner.Run("native mode AI reset reasserts exact idle scope and preserves original restoration", ReassertsNativeReset);
             runner.Run("fixture AI lease acquired before Mount keeps the mount isolated across a forced lifecycle Dismount", LeaseBeforeMountSurvivesForcedDismount);
@@ -147,6 +148,32 @@ namespace KingmakerMountedCombat.Tests
             second.RawAi = false;
             second.EffectiveAi = false;
             lease.Restore(new[] { first, second });
+        }
+
+        private static void DeclaredMemberCommandIsExact()
+        {
+            var companion = new FakeUnit("companion", true, true);
+            var other = new FakeUnit("other", true, true);
+            var outsider = new FakeUnit("outsider", false, false);
+            var lease = CreateLease();
+            lease.Acquire(new[] { companion, other });
+            companion.CommandsEmpty = false;
+            ExpectThrows(() => lease.ValidateActive(new[] { companion, other }), "Undeclared member command was accepted.");
+            lease.ValidateActive(new[] { companion, other }, companion);
+            TestRunner.True(lease.LastActiveValidationPassed, "Declared member command was refused.");
+            other.CommandsEmpty = false;
+            ExpectThrows(() => lease.ValidateActive(new[] { companion, other }, companion), "A second member's command rode on the declaration.");
+            other.CommandsEmpty = true;
+            ExpectThrows(() => lease.ValidateActive(new[] { companion, other }, outsider), "A non-member was accepted as the declared unit.");
+            companion.RawAi = true;
+            companion.EffectiveAi = true;
+            ExpectThrows(() => lease.ValidateActive(new[] { companion, other }, companion), "The declared member's AI was allowed to run.");
+            companion.RawAi = false;
+            companion.EffectiveAi = false;
+            companion.CommandsEmpty = true;
+            lease.ValidateActive(new[] { companion, other });
+            lease.Restore(new[] { companion, other });
+            TestRunner.True(companion.RawAi && other.RawAi && lease.LastRestoreVerified, "Declared-command lease did not restore the original AI.");
         }
 
         private static void RestorationVerifiesOriginalState()

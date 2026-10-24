@@ -208,7 +208,7 @@ function New-TbCompensationEnvelope {
     foreach($navigation in @('originNavigation','terminalNavigation')){Put-Value $ground.$navigation footprint $foot;Put-Value $ground.$navigation actingClearance $foot}
     Put-Value $a.observations chunk6aPreCombatPositioning $ground
     Put-Value $a.observations actorAllocationTrace ([pscustomobject]@{events=$ground.resourceWindow.events;observerHooks=$ground.resourceWindow.observerHooks;dropped=0;observationErrors=0})
-    $a.rows+=@{name='CM01-combat-mount-preparing-refused';status='PASS'}
+    $a.rows+=@{name='CM01-combat-mount-preparing-admitted';status='PASS'}
     return $a
 }
 foreach($version in @('0.1.0-chunk6a-preview.130','invalid','')){

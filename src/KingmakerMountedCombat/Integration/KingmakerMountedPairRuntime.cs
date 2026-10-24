@@ -13,6 +13,7 @@ using KingmakerMountedCombat.Diagnostics;
 using KingmakerMountedCombat.Domain;
 using KingmakerMountedCombat.Logging;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 namespace KingmakerMountedCombat.Integration
 {
@@ -47,6 +48,9 @@ namespace KingmakerMountedCombat.Integration
         private GameObject positionAnchorObject;
         private Transform positionAnchor;
         private MountedRiderPoseAdapter poseAdapter;
+        // Unity's List<T> overload preserves the exact component-cardinality
+        // check without allocating a new array on every mounted Update.
+        private readonly List<MountedRiderPoseAdapter> poseComponents = new List<MountedRiderPoseAdapter>(1);
         private bool poseComponentOwned;
         private bool poseBaselineRestoreVerified;
         private bool replacementRiderViewReleaseVerified;
@@ -69,6 +73,11 @@ namespace KingmakerMountedCombat.Integration
                 (transform, position) => transform.position = position,
                 (transform, rotation) => transform.rotation = rotation,
                 (transform, scale) => transform.localScale = scale,
+                SiblingContainer,
+                MoveToSiblingContainer,
+                CreateSiblingReservation,
+                SiblingReservationExists,
+                DestroySiblingReservation,
                 null,
                 new BoundedVector3Comparer(0.0001f),
                 new BoundedQuaternionComparer(0.01f),
@@ -114,17 +123,22 @@ namespace KingmakerMountedCombat.Integration
 
         public bool RiderParentMatchesAttachment => riderView != null && positionAnchor != null && riderView.transform.parent == positionAnchor;
 
-        public bool HasPresentationAttachmentResidue => riderAttachmentLease.IsAcquired || positionAnchorObject != null || positionAnchor != null ||
+        public bool HasPresentationAttachmentResidue => AttachmentLeaseCustodyRetained || positionAnchorObject != null || positionAnchor != null ||
             poseAdapter != null || poseComponentOwned;
 
         // Read-only residue observation. After a compensated combat mount nothing
         // owned may remain: no configured movement authority or presentation, no
-        // borrowed lease, no installed override, no anchor and no pose adapter.
+        // borrowed lease or sibling slot reservation, no installed override, no
+        // anchor and no pose adapter.
         public bool NoPreparedPairResidue => !movementAuthorityConfigured && !presentationConfigured &&
             !mountAiLeaseOwned && !avoidanceLeaseOwned && !riderForbidRotationLeaseOwned &&
-            !overrideInstalled && !overrideComponentOwned && !riderAttachmentLease.IsAcquired &&
+            !overrideInstalled && !overrideComponentOwned && !AttachmentLeaseCustodyRetained &&
             positionAnchorObject == null && positionAnchor == null && poseAdapter == null &&
             !poseComponentOwned;
+
+        // The lease keeps its sibling slot reservation until the rider verifies in
+        // front of it; that inert native object is owned custody like the lease.
+        private bool AttachmentLeaseCustodyRetained => riderAttachmentLease.IsAcquired || riderAttachmentLease.HoldsSiblingReservation;
 
         public bool PoseConfigured => poseAdapter != null && poseAdapter.IsConfigured;
 
@@ -184,6 +198,14 @@ namespace KingmakerMountedCombat.Integration
                 {
                     return "owned attachment anchor was destroyed while its rider lease remained active";
                 }
+                if (!riderAttachmentLease.SiblingReservationIntact)
+                {
+                    return "owned sibling slot reservation is unverified, destroyed or displaced while its rider lease remained active";
+                }
+                if (poseComponentOwned && poseBaselineRestoreVerified)
+                {
+                    return "presentation teardown retained attachment custody after verified pose baseline restoration";
+                }
                 if (!poseComponentOwned || poseAdapter == null)
                 {
                     return "owned rider pose adapter was destroyed or detached while mounted";
@@ -209,7 +231,7 @@ namespace KingmakerMountedCombat.Integration
 
             rider = riderUnit ?? throw new ArgumentNullException(nameof(riderUnit));
             mount = mountUnit ?? throw new ArgumentNullException(nameof(mountUnit));
-            supportedProfile = SupportedMountedProfiles.Resolve(mount);
+            supportedProfile = SupportedMountedProfiles.Resolve(rider, mount);
         }
 
         public MountedPairCandidate CreateCandidate()
@@ -232,7 +254,8 @@ namespace KingmakerMountedCombat.Integration
             var riderState = riderUnit.Descriptor?.State;
             var mountState = mountUnit.Descriptor?.State;
             var exactCompanion = riderUnit.Descriptor?.Pet == mountUnit && mountUnit.Descriptor?.Master.Value == riderUnit && mountUnit.Descriptor.IsPet;
-            var exactSupportedMount = SupportedMountedProfiles.Resolve(mountUnit) != null;
+            var candidateProfile = SupportedMountedProfiles.Resolve(riderUnit, mountUnit);
+            var exactSupportedMount = candidateProfile != null;
             return new MountedPairCandidate(riderUnit.UniqueId, mountUnit.UniqueId)
             {
                 RiderIsDirectlyControllable = riderUnit.IsInGame && riderUnit.IsDirectlyControllable,
@@ -251,12 +274,25 @@ namespace KingmakerMountedCombat.Integration
                 MountStockAgentEnabled = mountUnit.View != null && mountUnit.View.AgentASP != null && mountUnit.View.AgentASP.enabled,
                 RiderAgentOverrideAvailable = riderUnit.View != null && riderUnit.View.AgentOverride == null,
                 MountAgentOverrideAvailable = mountUnit.View != null && mountUnit.View.AgentOverride == null,
-                RiderIsExactlyMedium = riderState != null && (int)riderState.Size == 4,
+                RiderIsExactlyMedium = riderState != null && (int)riderState.Size == 4 && (int)riderUnit.Descriptor.OriginalSize == 4,
+                SmallRiderBodyMatch = SupportedMountedProfiles.MatchSmall(riderUnit, mountUnit, candidateProfile),
                 SafeMovementMode = Game.Instance != null && IsSafeMovementMode(Game.Instance.CurrentMode)
             };
         }
 
         public string ValidateMountedInvariants()
+        {
+            return ValidateMountedInvariants(false);
+        }
+
+        // Native save temporarily serializes the mount's pre-lease AI field.
+        // Keep every other mounted invariant while that exact save scope owns it.
+        internal string ValidateMountedSaveSerializationInvariants()
+        {
+            return ValidateMountedInvariants(true);
+        }
+
+        private string ValidateMountedInvariants(bool serializedAiLease)
         {
             if (rider == null || mount == null || riderView == null || mountView == null)
             {
@@ -270,15 +306,31 @@ namespace KingmakerMountedCombat.Integration
                 return "A mounted unit view was detached or replaced.";
             }
 
-            var modeDisposition = MountedGameModePolicy.Classify(Game.Instance?.CurrentMode.ToString());
+            var exactMode = Game.Instance == null ? "unavailable" : Game.Instance.CurrentMode.ToString();
+            var modeDisposition = MountedGameModePolicy.Classify(exactMode);
+            var riderActiveSelf = riderView.gameObject.activeSelf;
+            var mountActiveSelf = mountView.gameObject.activeSelf;
+            var riderActiveInHierarchy = riderView.gameObject.activeInHierarchy;
+            var mountActiveInHierarchy = mountView.gameObject.activeInHierarchy;
+            var nativePartySelector = Game.Instance?.UI?.Canvas?.GroupManager;
+            var nativePartySelectorActive = nativePartySelector != null &&
+                nativePartySelector.gameObject.activeSelf && nativePartySelector.gameObject.activeInHierarchy;
             if (!MountedViewActivityPolicy.IsAdmissible(
                 modeDisposition,
-                riderView.gameObject.activeSelf,
-                mountView.gameObject.activeSelf,
-                riderView.gameObject.activeInHierarchy,
-                mountView.gameObject.activeInHierarchy))
+                riderActiveSelf,
+                mountActiveSelf,
+                riderActiveInHierarchy,
+                mountActiveInHierarchy,
+                nativePartySelectorActive))
             {
-                return "Mounted rider/mount view activity is incoherent for the exact current game mode.";
+                // Only this failing boundary emits the activity values used by
+                // the decision. Do not change native view or cleanup behavior.
+                return "Mounted rider/mount view activity is incoherent for the exact current game mode: rider=" + rider.UniqueId +
+                    ";mount=" + mount.UniqueId + ";mode=" + exactMode +
+                    ";disposition=" + modeDisposition + ";riderSelf=" + riderActiveSelf +
+                    ";mountSelf=" + mountActiveSelf + ";riderHierarchy=" + riderActiveInHierarchy +
+                    ";mountHierarchy=" + mountActiveInHierarchy +
+                    ";nativePartySelectorActive=" + nativePartySelectorActive + ".";
             }
 
             if (rider.Descriptor?.Pet != mount || mount.Descriptor?.Master.Value != rider || !mount.Descriptor.IsPet)
@@ -296,12 +348,29 @@ namespace KingmakerMountedCombat.Integration
                 riderState == null || mountState == null || !riderState.IsConscious || !mountState.IsConscious ||
                 riderState.IsFinallyDead || mountState.IsFinallyDead)
             {
-                return "Mounted controllability or life-state invariant changed.";
+                try
+                {
+                    return "Mounted controllability or life-state invariant changed: rider=" + rider.UniqueId +
+                        ";mount=" + mount.UniqueId + ";riderInGame=" + rider.IsInGame +
+                        ";mountInGame=" + mount.IsInGame + ";riderControllable=" + rider.IsDirectlyControllable +
+                        ";mountControllable=" + mount.IsDirectlyControllable +
+                        ";riderConscious=" + (riderState != null && riderState.IsConscious) +
+                        ";mountConscious=" + (mountState != null && mountState.IsConscious) +
+                        ";riderFinallyDead=" + (riderState != null && riderState.IsFinallyDead) +
+                        ";mountFinallyDead=" + (mountState != null && mountState.IsFinallyDead) +
+                        ";nativePartySelectorActive=" + nativePartySelectorActive +
+                        ";riderSelf=" + riderActiveSelf + ";mountSelf=" + mountActiveSelf + ".";
+                }
+                catch (Exception observationError)
+                {
+                    return "Mounted controllability or life-state invariant changed; observation error=" +
+                        observationError.GetType().Name + ".";
+                }
             }
 
-            if ((int)riderState.Size != 4 || (int)mountState.Size <= (int)riderState.Size)
+            if (SupportedMountedProfiles.Resolve(rider, mount)?.Id != supportedProfile.Id || (int)mountState.Size <= (int)riderState.Size)
             {
-                return "Mounted current-size invariant changed.";
+                return "Mounted size or exact rider body profile invariant changed.";
             }
 
             if (Game.Instance == null || !MountedGameModePolicy.CanRetainMountedRelationship(Game.Instance.CurrentMode.ToString()))
@@ -321,7 +390,8 @@ namespace KingmakerMountedCombat.Integration
                 return "The authoritative mount movement agent changed.";
             }
 
-            if (!mountAiLeaseOwned || (bool)MammothAiBackingField.GetValue(mount))
+            if (!mountAiLeaseOwned || (bool)MammothAiBackingField.GetValue(mount) !=
+                (serializedAiLease && mountAiBackingWasEnabled))
             {
                 return "The scoped mount AI lease changed.";
             }
@@ -331,12 +401,23 @@ namespace KingmakerMountedCombat.Integration
                 riderView.transform.parent != positionAnchor || !poseComponentOwned || poseAdapter == null ||
                 !poseAdapter.IsHealthy || supportedProfile == null ||
                 poseAdapter.ProfileId != supportedProfile.RiderPoseProfile.Id ||
-                poseAdapter.BoneCount != 7 || riderView.GetComponents<MountedRiderPoseAdapter>().Length != 1)
+                poseAdapter.BoneCount != 7 || !HasExactOwnedPoseComponent())
             {
                 return "The scoped mount position attachment or exact supported rider pose is unavailable or changed.";
             }
 
             return null;
+        }
+
+        private bool HasExactOwnedPoseComponent()
+        {
+            poseComponents.Clear();
+            try
+            {
+                riderView.GetComponents(poseComponents);
+                return poseComponents.Count == 1 && ReferenceEquals(poseComponents[0], poseAdapter);
+            }
+            finally { poseComponents.Clear(); } // Do not retain a detached Unity component.
         }
 
         public void AcquireMovementAuthority(MountedPair pair)
@@ -417,7 +498,10 @@ namespace KingmakerMountedCombat.Integration
             positionAnchor.localRotation = Quaternion.identity;
             positionAnchor.localScale = Vector3.one;
 
-            riderAttachmentLease.Acquire(riderView.transform, positionAnchor);
+            ObserveAttachmentBoundary("acquire-before");
+            try { riderAttachmentLease.Acquire(riderView.transform, positionAnchor); }
+            catch { ObserveAttachmentBoundary("acquire-failed"); throw; }
+            ObserveAttachmentBoundary("acquire-after");
             riderOverride.Configure(
                 mount,
                 positionAnchor,
@@ -427,7 +511,7 @@ namespace KingmakerMountedCombat.Integration
             poseComponentOwned = true;
             poseBaselineRestoreVerified = false;
             poseAdapter.Configure(riderView, supportedProfile.RiderPoseProfile);
-            if (ReferenceEquals(supportedProfile, SupportedMountedProfiles.Horse))
+            if (supportedProfile.UsesAnimatedSaddle)
             {
                 poseAdapter.ConfigureAnimatedSaddle(mountView.transform, sourceAnchor,
                     ToUnity(supportedProfile.AnimatedSeatCorrection));
@@ -435,7 +519,7 @@ namespace KingmakerMountedCombat.Integration
             presentationConfigured = true;
             logger.Info("Rider presentation attached through an owned " + supportedProfile.DisplayName +
                 "-root mechanics lease and exact " + supportedProfile.RiderPoseProfile.Id + " procedural pose profile; animatedSeat=" +
-                ReferenceEquals(supportedProfile, SupportedMountedProfiles.Horse) + ".");
+                supportedProfile.UsesAnimatedSaddle + ".");
         }
 
         internal bool ReassertMountAiLeaseAfterNativeTurnBasedExit()
@@ -462,21 +546,26 @@ namespace KingmakerMountedCombat.Integration
             }
             try
             {
+                // Return the bones to their animation baseline before the rider
+                // leaves the carrier, but keep the deconfigured component owned until
+                // the attachment and its sibling slot verify. A failed restoration
+                // then retries against this exact component; Deconfigure is
+                // idempotent. A component destroyed after verification holds no pose.
                 if (poseComponentOwned)
                 {
-                    if (poseAdapter == null)
+                    if (poseAdapter != null)
+                    {
+                        poseAdapter.Deconfigure();
+                        if (poseAdapter.HasPoseResidue || !poseAdapter.BaselineRestoreVerified)
+                        {
+                            throw new InvalidOperationException("Owned rider pose adapter retained bone state after deconfiguration.");
+                        }
+                        poseBaselineRestoreVerified = true;
+                    }
+                    else if (!poseBaselineRestoreVerified)
                     {
                         throw new InvalidOperationException("Owned rider pose adapter was destroyed before baseline restoration could be verified.");
                     }
-                    poseAdapter.Deconfigure();
-                    if (poseAdapter.HasPoseResidue || !poseAdapter.BaselineRestoreVerified)
-                    {
-                        throw new InvalidOperationException("Owned rider pose adapter retained bone state after deconfiguration.");
-                    }
-                    poseBaselineRestoreVerified = true;
-                    UnityEngine.Object.Destroy(poseAdapter);
-                    poseComponentOwned = false;
-                    poseAdapter = null;
                 }
             }
             catch (Exception exception)
@@ -484,7 +573,7 @@ namespace KingmakerMountedCombat.Integration
                 first = first ?? exception;
             }
 
-            if (!poseComponentOwned && poseAdapter == null)
+            if (!poseComponentOwned || poseBaselineRestoreVerified)
             {
                 try
                 {
@@ -500,7 +589,33 @@ namespace KingmakerMountedCombat.Integration
 
                 try
                 {
-                    riderAttachmentLease.Restore();
+                    var observeRestore = riderAttachmentLease.IsAcquired;
+                    if (observeRestore) ObserveAttachmentBoundary("restore-before");
+                    try { riderAttachmentLease.Restore(); }
+                    catch { if (observeRestore) ObserveAttachmentBoundary("restore-failed"); throw; }
+                    if (observeRestore) ObserveAttachmentBoundary("restore-after");
+                    if (observeRestore && riderAttachmentLease.LastRestoreUsedCapturedOrdinal)
+                    {
+                        logger.Warning("Rider view returned to its parent by its captured sibling ordinal because its slot reservation was lost.");
+                    }
+                }
+                catch (Exception exception)
+                {
+                    first = first ?? exception;
+                }
+            }
+
+            if (!AttachmentLeaseCustodyRetained && poseComponentOwned && poseBaselineRestoreVerified)
+            {
+                try
+                {
+                    // Only a verified attachment and slot release the pose component.
+                    if (poseAdapter != null)
+                    {
+                        UnityEngine.Object.Destroy(poseAdapter);
+                    }
+                    poseComponentOwned = false;
+                    poseAdapter = null;
                 }
                 catch (Exception exception)
                 {
@@ -510,7 +625,7 @@ namespace KingmakerMountedCombat.Integration
 
             // Never destroy an attachment parent while a failed lease may still
             // own a rider beneath it. A coordinator retry will repeat restoration.
-            if (!poseComponentOwned && poseAdapter == null && !riderAttachmentLease.IsAcquired)
+            if (!poseComponentOwned && poseAdapter == null && !AttachmentLeaseCustodyRetained)
             {
                 try
                 {
@@ -533,7 +648,7 @@ namespace KingmakerMountedCombat.Integration
                 }
             }
 
-            if (first != null || riderAttachmentLease.IsAcquired || positionAnchorObject != null || positionAnchor != null ||
+            if (first != null || AttachmentLeaseCustodyRetained || positionAnchorObject != null || positionAnchor != null ||
                 poseAdapter != null || poseComponentOwned)
             {
                 throw new InvalidOperationException("Best-effort rider presentation restoration retained attachment residue.", first);
@@ -548,9 +663,21 @@ namespace KingmakerMountedCombat.Integration
             TryReleasePreparedReferences();
         }
 
+        private void ObserveAttachmentBoundary(string phase)
+        {
+            if (!SixPairAttachmentObservation.IsActive) return;
+            // Even Unity object lookup failure is observational only.
+            try
+            {
+                SixPairAttachmentObservation.Record(phase, rider?.UniqueId, riderView == null ? null : riderView.transform,
+                    riderAttachmentLease.OriginalParent, riderAttachmentLease.OriginalSiblingIndex, positionAnchor);
+            }
+            catch { }
+        }
+
         public void RestoreMovementAuthority(MountedPair pair, CleanupTrigger trigger)
         {
-            if (riderAttachmentLease.IsAcquired || positionAnchorObject != null || positionAnchor != null || poseAdapter != null || poseComponentOwned)
+            if (AttachmentLeaseCustodyRetained || positionAnchorObject != null || positionAnchor != null || poseAdapter != null || poseComponentOwned)
             {
                 // The coordinator performs best-effort cleanup even after a
                 // presentation failure. Do not re-enable the rider nav agent or
@@ -751,7 +878,7 @@ namespace KingmakerMountedCombat.Integration
         public void ClearPreparedPairWhenUnmounted()
         {
             if (!movementAuthorityConfigured && !presentationConfigured && !mountAiLeaseOwned && !avoidanceLeaseOwned && !riderForbidRotationLeaseOwned && !overrideInstalled && !overrideComponentOwned &&
-                !riderAttachmentLease.IsAcquired && positionAnchorObject == null && positionAnchor == null && poseAdapter == null && !poseComponentOwned)
+                !AttachmentLeaseCustodyRetained && positionAnchorObject == null && positionAnchor == null && poseAdapter == null && !poseComponentOwned)
             {
                 TryReleasePreparedReferences();
             }
@@ -760,7 +887,7 @@ namespace KingmakerMountedCombat.Integration
         private void TryReleasePreparedReferences()
         {
             if (movementAuthorityConfigured || presentationConfigured || mountAiLeaseOwned || avoidanceLeaseOwned || riderForbidRotationLeaseOwned || overrideInstalled || overrideComponentOwned ||
-                riderAttachmentLease.IsAcquired || positionAnchorObject != null || positionAnchor != null || poseAdapter != null || poseComponentOwned)
+                AttachmentLeaseCustodyRetained || positionAnchorObject != null || positionAnchor != null || poseAdapter != null || poseComponentOwned)
             {
                 return;
             }
@@ -1017,6 +1144,65 @@ namespace KingmakerMountedCombat.Integration
                 throw new MissingFieldException(typeof(UnitEntityData).FullName, "m_AiEnabled exact token " + MammothAiBackingFieldToken.ToString("X8"));
             }
             return field;
+        }
+
+        // Native views live under the dynamic or cross-area root; a parentless
+        // view is held in its scene's root list, which is its exact container.
+        private static object SiblingContainer(Transform transform)
+        {
+            var parent = transform.parent;
+            return parent != null ? (object)parent : transform.gameObject.scene;
+        }
+
+        private static void MoveToSiblingContainer(Transform transform, object container)
+        {
+            var parent = container as Transform;
+            if (parent != null)
+            {
+                transform.SetParent(parent, true);
+                return;
+            }
+            if (!(container is Scene) || !((Scene)container).IsValid() || !((Scene)container).isLoaded)
+            {
+                // Refuse before unparenting, so a failed return never strands the
+                // node as a root of whichever scene its current hierarchy lives in.
+                throw new InvalidOperationException("A sibling container must be a live native parent or a loaded scene.");
+            }
+            var scene = (Scene)container;
+            transform.SetParent(null, true);
+            if (transform.gameObject.scene != scene)
+            {
+                SceneManager.MoveGameObjectToScene(transform.gameObject, scene);
+            }
+        }
+
+        private static Transform CreateSiblingReservation()
+        {
+            // Inert slot holder: no components, inactive, never saved or listed.
+            var reservation = new GameObject("KMC_RiderSiblingSlot");
+            reservation.hideFlags = HideFlags.HideAndDontSave;
+            reservation.SetActive(false);
+            return reservation.transform;
+        }
+
+        private static bool SiblingReservationExists(Transform reservation)
+        {
+            return reservation != null;
+        }
+
+        private static void DestroySiblingReservation(Transform reservation)
+        {
+            var gameObject = reservation.gameObject;
+            // Leave the slot within this call; Unity completes Destroy at frame end.
+            if (reservation.parent != null)
+            {
+                reservation.SetParent(null, false);
+            }
+            else
+            {
+                UnityEngine.Object.DontDestroyOnLoad(gameObject);
+            }
+            UnityEngine.Object.Destroy(gameObject);
         }
 
         private static bool ShouldPlaceRiderAfterCleanup(CleanupTrigger trigger)

@@ -1,0 +1,136 @@
+# Bounded Small native calibration
+
+The accepted F09 batch53 cold artifact supplies a live **unmounted** default
+MaleHalfling rig and its reciprocal stock Horse. The read-only projection at
+`analysis-cache/chunk7-continuation/small-b53-neutral-geometry.json` (SHA-256
+`dcdc6cdce0265a221b2f3d890d34229385098235d2546df4a9c6a399239e48a9`)
+pins the original cold artifact SHA-256 `d688026b61aeabd874a2220d9f5642cd9fae2dd21b9b465531d73992acc7bd11`,
+the F09 native Manual SHA-256 `ddf2b9cf4c0c0a49c93a659d2628ae6622f02e0a400a2df287bd5713f12ed829`,
+the exact rider/Horse IDs, seven unique rider pose transforms and three unique
+Horse seat anchors. The rider's native pelvis height is `0.402972639` in its
+own observed root; Horse Chest and stirrup heights are `1.50314379` and about
+`1.3805` in the Horse root. These are distinct unmounted frames, not a measured
+mounted fit or a numeric pose declaration. The current calibration's Manual
+admission accepts `KMC_C7_ACQUIRED_FIELD` ancestry only, whereas this proven
+F09 source is `KMC_C7_SMALL_FIXTURE`. A new explicitly qualified F09 input case
+must preserve that honest lineage and separately observe the mounted pose;
+renaming the archive or relaxing the existing acquired-Manual gate would be
+incorrect. A read-only call of the existing complete F09 cold-source qualifier
+against the *historical producer's own candidate identity* revalidated the
+batch53 Manual and all nine receipt pins on October 20. A future current
+candidate may consume those bytes only through an explicit cross-candidate
+input case that keeps the producer identity separate and qualifies its own
+native load and mounted actions. This observation changes no product profile
+admission.
+
+The [initial private pose record](CHUNK7-SMALL-INITIAL-POSE-2026-10-20.json)
+transcribes the seven observed bone names and three Horse anchors, then proposes
+an explicit root/seat translation and thigh-relative foot targets for the first
+bounded mounted calibration. The selected root and animated-seat corrections
+sum to `-0.28` native Unity Y units for this calculation; their `-0.16`/`-0.12`
+split is a hypothesis, not a measured animation result. The values also assume
+zero Euler and aligned unit rider/Horse root axes during mounting. The proposed
+target is `stirrupFromChest - thighFromRiderRoot - (0,-0.28,0)`; the resulting
+predicted neutral pelvis is about `(-0.000025,0.122973,-0.002101)` from Chest,
+distinct from the selected rounded `(0,0.123,0)` seat target. The proposed
+target vectors have magnitudes about
+`0.339` in their assumed frame; the neutral native thigh-to-foot lengths are
+about `0.351`. This is a reach sanity check, not a measured mounted foot/stirrup
+distance. Root alignment, animated seat correction, knee behavior and visual
+fit remain unverified. The record is `IN PROGRESS`, has
+`mountedPoseQualified=false` and `normalPlayerEnabled=false`, and is not a
+qualified production Small catalogue declaration. Its values are now compiled
+only into a private F09 diagnostic declaration. The separate ordinary Small
+catalogue and saved-profile whitelist remain empty; activation requires the
+exact canonical rider and Horse object pair inside a current F09 source-world
+lease, which cleanup revokes. The record's `normalPlayerEnabled=false` remains
+status metadata; the exact-pair gate, not this field, closes ordinary admission.
+
+IN PROGRESS. The closed `chunk7-small-profile-calibration` diagnostic supports
+four distinct source cases. The private compiled declaration is an initial
+pose hypothesis; its source review and offline checks are not native evidence
+or a Small-profile acceptance gate. The qualified production Small catalogue
+remains empty.
+
+The cases retain distinct source and field-admission contracts:
+
+| Case | Qualified source | Field admission |
+| --- | --- | --- |
+| `compiled-small-horse-rt` | Ordinary paid Small acquisition artifact and unchanged remote `Auto_1.zks` | The owned native party selector brings the exact remote owner and reciprocal Horse into the field. |
+| `compiled-manual-derived-small-horse-rt` (**RETIRED 2026-10-24**, [record](CHUNK7-RETIRED-SMALL-MANUAL-CALIBRATION-2026-10-24.md)) | `preserve-acquired-field` Manual from the `paid-small-ranger-horse` Manual-derived chain | Native cold load restores the saved field roster; no party selector is opened. Exact owner, Horse, sourced facts, body, progression and resources are checked against the saved evidence. |
+| `compiled-assisted-two-owner-small-horse-rt` (**RETIRED 2026-10-24**, [record](CHUNK7-RETIRED-SMALL-MANUAL-CALIBRATION-2026-10-24.md)) | `preserve-two-acquired-field` Manual from the assisted paid Small chain | Native cold load restores both native pairs and exact inherited custody before Small calibration. |
+| `compiled-owner-seed-fixture-small-horse-rt` | Batch53's genuine `KMC_C7_SMALL_FIXTURE` Manual from preview.71, with its separate cold receipt and distinct current consumer identity | One read-only native Manual load restores seven actors and two pairs. Exact body, progression, saved native resources and neighboring main/Horse custody are checked before the same bounded mounted calibration. This is disclosed fixture setup, not acquired-field ancestry or ordinary acquisition proof. |
+
+Each source qualifier preserves its complete same-candidate ancestry, exact Working/Baseline pins, base-only qualification and restoration checks. The request selects only its corresponding source contract plus profile ID and immutable native inventory/declaration hashes. It cannot supply numeric pose parameters or register a profile dynamically. Bootstrap checks the compiled declaration before acquiring isolation or loading a world. Each case permits one source load and zero writable save leaves.
+
+The pre-existing acquired-Manual Small reader's cold-restoration hook names were
+corrected to the shared native-entry contract (`OnNewRound` on
+`Kingmaker.Controllers.Combat.UnitCombatState`). Its synthetic positive and
+negative checks pass; this reader correction has no Small mounted native
+result and does not admit the distinct F09 Manual yet.
+
+The read-only `Get-KmcChunk7SmallF09CalibrationSource` preflight pins the
+batch53 producer Manual to preview.71 (`8f7f8976` DLL), its genuine
+`KMC_C7_SMALL_FIXTURE` archive (`ddf2b9cf`), and the accepted separate cold
+reader-only receipt (`d188012f`). It checks the original cold outer FAIL and
+game/artifact PASS separately, all nine receipt input hashes, the seven-actor
+loaded roster and empty native preparation observation. A distinct consumer
+identity is required; this preflight returns `sameCandidate=false` and
+`nativeAuthorityGranted=false`. A local read-only positive and six pin/identity
+refusals passed 7/0. The distinct F09 calibration case now consumes that
+preflight through the existing locked runtime runner and one-load, zero-write
+authority. Its current exact 20-field body, seven-actor/native-resource and
+neighboring-pair reader checks pass synthetic positive and refusal tests;
+actual native mounted calibration has not run. The production catalogue
+remains empty. The separately reviewed private declaration now allows only
+the exact F09 diagnostic actor pair during its live source-world lease.
+Independent review passed on source SHA-256
+`68754937f51009b5c8ddbd6ee837a07c64163342707e3e1ac726b3a356fa2176`;
+the local read-only check receipt is
+`analysis-cache/chunk7-continuation/small-f09-cross-candidate-source-check.json`
+(SHA-256 `ca386594cb652f702343b086e6537673050a09c99d14f8c234e69a14ba22b89b`).
+
+After field admission, the cases exercise production Mount, native Horse ground movement after selection changes, one real-time rider primary, one real-time mount primary, native Dismount and bounded cleanup. No native Prepare, resource edits, free actions, money/XP grants, manual party insertion, or synthetic completion are selected. The real-time cost proof binds the exact UnitActionController cost-before/cost-after command pair; actor-cost hooks are turn-based only.
+
+The pose artifact records actual roots, seven declared rider bones, existing native Horse Chest/stirrup anchors, world/local coordinates, distances, production pose health and application counters during unmounted, idle, moving, arrived, both attacks and dismounted phases. The reader pins owner/generation/actor/rig identity and action windows, and recomputes distances. It does not invent a Small fit tolerance or turn a small/large stirrup gap into visual acceptance. HUMAN PLAY and visual/animation assessment remain separate. Performance and diagnostics-off proof are explicitly false.
+
+Every worker/loading/serialization, UI, command/process, preparation, pair owner, target/AI, observer, mode and selection lease remains held until its exact cleanup can settle. A timeout emits one immutable pending FAIL and cannot promote later physical cleanup to a passing scenario. Original acquired companions and their natural progression remain intact within the disposable process; neither read-only case resaves field placement.
+
+The read-only native inventory now also records Money, current custom-companion cost, PartyLevel, main-character XP/level, default hire XP, existing party IDs/capacity and Horse anchors. These are prerequisite observations and confer no purchase or six-pair authority.
+
+The reviewed private declaration uses the exact saved default Halfling/Horse
+body and neutral rig and pins the inventory SHA-256 `dcdc6cdce0265a221b2f3d890d34229385098235d2546df4a9c6a399239e48a9`
+and pose-record SHA-256 `7d2385144838cccc27082cc9792f338c716961ed25016e6fff986599196411db`.
+The corrected compiled DLL SHA-256 is
+`bb9f64c1b563a820fcd03bb75c6e47cad687be8747f737c5d212c3e636dcb985`;
+independent review, Small policy 44/0, Fast 2/0 and Candidate 6/0 passed.
+At that earlier checkpoint, the next step was to qualify the cross-candidate
+F09 Manual and run bounded mounted calibration. An earlier candidate's source
+was not relabeled as the new candidate. Those checks alone then granted neither
+native mounted PASS nor normal-player Small support.
+
+The first guarded native F09 consumer on preview.83 is an original
+**FAIL**, recorded in [batch68](CHUNK7-BATCH68-SMALL-CALIBRATION-2026-10-20.md).
+It admitted the exact Manual load but stopped at a neighboring main/Horse
+snapshot mismatch before any mounted-pose qualification. The exact transaction
+and startup profile were recovered separately. The next observer records the
+first differing field and native stage without changing the PASS assertion;
+no conclusion about the proposed Small pose follows from batch68.
+
+The [batch70 native run](CHUNK7-BATCH70-SMALL-NATIVE-2026-10-20.md) reached
+game PASS 9/9 on preview.85 for the exact default MaleHalfling/Horse body,
+including both primary-action orders, mounted motion and Dismount. Its
+original external-reader FAIL remains separate from the corrected reader-only
+PASS. The measured pose uses the same compiled declaration and pose-record
+identity above. The reviewed batch71 ordinary-profile implementation admits exactly
+this declaration for current-body and schema-3 profile recognition; it requires
+the measured native Horse size ordinal 5 and does not admit other Halfling
+presets, equipment, sizes, forms or mounts. Native
+ordinary-player save/load, additional presentation actions and final human
+visual/physical-input acceptance still require their own evidence.
+
+The [batch72 verification](CHUNK7-BATCH72-SMALL-ORDINARY-NATIVE-2026-10-20.md)
+ran preview.86 with that ordinary declaration. Game and outer reader passed
+9/9 on the pinned F09 Manual, including exact native Horse size 5 and the
+neighboring pair. The scenario made no mounted Small save. Additional
+presentation, genuine mounted save/cold load and human acceptance remain open.

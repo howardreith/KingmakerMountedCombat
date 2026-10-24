@@ -21,6 +21,7 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("request rejects save name in no-save mode", RequestRejectsSaveNameInNoSaveMode);
             runner.Run("request requires exact hash and MVID formats", RequestRequiresBuildIdentity);
             runner.Run("request accepts exact save-backed fixture", RequestAcceptsExactSaveBackedFixture);
+            runner.Run("F11 native observer request pins exact run-owned code and refuses other scenarios", F11NativeObserverRequestIsClosed);
             runner.Run("request accepts combat core control suite", RequestAcceptsCombatCoreControlSuite);
             runner.Run("request accepts observation-only horse native asset audit", RequestAcceptsHorseNativeAssetAudit);
             runner.Run("request accepts horse companion blueprint registration audit", RequestAcceptsHorseCompanionBlueprintRegistration);
@@ -40,6 +41,25 @@ namespace KingmakerMountedCombat.Tests
                         "Focused Horse registration missing: " + exactScenario);
                 });
             }
+            runner.Run("Chunk 7 two-pair completion retains cycle and sampling rows", () =>
+            {
+                var request = ValidSaveBackedRequest();
+                request.Scenario = "chunk7-two-pair-exploration";
+                TestRunner.Equal(0, request.Validate().Count, "Two-pair request rejected.");
+                var rows = new System.Collections.Generic.List<RuntimeSubscenarioResult>();
+                foreach (var name in new[] { "C7-world-fixture", "C7-world-native-acquisition",
+                    "C7-world-two-native-mounts", "C7-world-selection-routing",
+                    "C7-world-independent-dismount", "C7-world-cycles", "C7-world-sampling", "C7-world-cleanup" })
+                    rows.Add(new RuntimeSubscenarioResult { Name = name, Status = "PASS",
+                        AssertionPassCount = 1, Errors = new string[0] });
+                var result = ValidSaveBackedResult();
+                result.Scenario = request.Scenario;
+                result.SubscenarioResults = rows;
+                result.SubscenarioTotal = result.SubscenarioPassCount = result.AssertionPassCount = rows.Count;
+                TestRunner.Equal(0, result.Validate().Count, "Complete two-pair result rejected at serialization.");
+                rows[5].Name = "C7-world-unknown";
+                TestRunner.True(result.Validate().Count > 0, "Unknown two-pair result bypassed the exact allowlist.");
+            });
             runner.Run("Chunk 4 Charge envelopes retain every native row", () =>
             {
                 foreach (var scenario in new[] { "chunk4-charge-safety-rt", "chunk4-charge-safety-tb" })
@@ -90,8 +110,13 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("result rejects incomplete fixture restoration", ResultRejectsIncompleteFixtureRestoration);
             runner.Run("result rejects inconsistent subscenario totals", ResultRejectsInconsistentSubscenarioTotals);
             runner.Run("result requires lowercase evidence manifest SHA-256", ResultRequiresEvidenceManifestSha256);
+            MountedPairOwnershipTests.Register(runner);
             MountedRelationshipTests.Register(runner);
+            TransformAttachmentSlotTests.Register(runner);
             MountedPlayerActionTests.Register(runner);
+            SmallProfilePolicyTests.Register(runner);
+            StockMammothFixtureSelectionTests.Register(runner);
+            MountedPresentationReadinessTests.Register(runner);
             MountedCombatDomainTests.Register(runner);
             ActorAllocationLifetimeTests.Register(runner);
             PairedActivationTests.Register(runner);
@@ -397,6 +422,27 @@ namespace KingmakerMountedCombat.Tests
                     TestRunner.True(request.Validate().Count > 0, "A save-only removal case accepted a cold load.");
                 }
                 {
+                    var request = ValidSaveBackedRequest();
+                    request.Scenario = "persistence-p07-save"; request.PersistenceCase = "prepare-removal";
+                    request.OwnerStockRemoval = true;
+                    request.PersistenceLoad = new RuntimeSaveDescriptor {
+                        InternalName = "KMC_C7_STOCK_MAMMOTH", FileName = "Manual_304_KMC_C7_STOCK_MAMMOTH.zks",
+                        Sha256 = "e475d49c3590927c7f216d301aa8535f6dbbdc7af2066f4c01f58fff335866fa",
+                        Length = 1257468, LastWriteTimeUtcTicks = request.Fixture.Working.LastWriteTimeUtcTicks,
+                        GameId = "3f7381f7-aba6-43bf-bae6-39c6a66a7180", GameName = "Testy the Modless",
+                        Area = "b10e86516b6437d45a629931c30936fe" };
+                    TestRunner.Equal(0, request.Validate().Count, "Exact batch64 stock Mammoth removal source rejected.");
+                    TestRunner.Equal("Manual_305_KMC_P01.zks", RuntimeRequest.P07OpeningLeaf(request), "Owner removal opened the legacy Working leaf.");
+                    request.PersistenceLoad.Sha256 = new string('c', 64);
+                    TestRunner.True(request.Validate().Count > 0, "Owner removal accepted another source archive.");
+                    request.PersistenceLoad.Sha256 = "e475d49c3590927c7f216d301aa8535f6dbbdc7af2066f4c01f58fff335866fa";
+                    request.PersistenceCase = "disable-during-load";
+                    TestRunner.True(request.Validate().Count > 0, "Owner removal escaped its one positive cleanup case.");
+                    request.PersistenceCase = "prepare-removal"; request.OwnerStockRemoval = false;
+                    TestRunner.True(request.Validate().Count > 0, "Owner removal accepted a false opt-in flag.");
+                    TestRunner.Equal("Manual_300_KMC_P01.zks", RuntimeRequest.P07OpeningLeaf(request), "Legacy P07 opening leaf changed.");
+                }
+                {
                     var request = ValidSaveBackedRequest(); var f = request.Fixture.Working;
                     request.Scenario = "persistence-p07-save"; request.PersistenceCase = "absent-kmc";
                     TestRunner.True(request.Validate().Count > 0, "The integration-absent case accepted a writing scenario.");
@@ -424,6 +470,26 @@ namespace KingmakerMountedCombat.Tests
                     TestRunner.Equal(0, request.Validate().Count, "Exact no-DLL cold request rejected.");
                     request.PersistenceLoad.FileName = "Manual_300_KMC_P01.zks"; request.PersistenceLoad.InternalName = "KMC_P01";
                     TestRunner.True(request.Validate().Count > 0, "The no-DLL case accepted a mounted archive leaf.");
+                }
+                {
+                    var request = ValidSaveBackedRequest();
+                    request.Scenario = "persistence-p07-load"; request.PersistenceCase = "removal-no-dll";
+                    request.OwnerStockRemoval = true;
+                    request.PersistenceLoad = new RuntimeSaveDescriptor {
+                        InternalName = "KMC_CLEANUP", FileName = "Manual_306_KMC_CLEANUP.zks",
+                        Sha256 = "2c46c2700f117b3f0d50f688d2c89bd879de79d4b0b40eaf3b2502c1015bdfc2",
+                        Length = 1263594, LastWriteTimeUtcTicks = request.Fixture.Working.LastWriteTimeUtcTicks,
+                        GameId = "3f7381f7-aba6-43bf-bae6-39c6a66a7180", GameName = "Testy the Modless",
+                        Area = "b10e86516b6437d45a629931c30936fe" };
+                    TestRunner.Equal(0, request.Validate().Count, "Exact owner stock no-DLL cold source rejected.");
+                    request.PersistenceLoad.FileName = "Manual_301_KMC_CLEANUP.zks";
+                    TestRunner.True(request.Validate().Count > 0, "Owner stock no-DLL request accepted the legacy cleanup leaf.");
+                    request.PersistenceLoad.FileName = "Manual_306_KMC_CLEANUP.zks";
+                    request.PersistenceLoad.GameId = request.Fixture.Working.GameId;
+                    TestRunner.True(request.Validate().Count > 0, "Owner stock no-DLL request accepted Working campaign ancestry.");
+                    request.PersistenceLoad.GameId = "3f7381f7-aba6-43bf-bae6-39c6a66a7180";
+                    request.PersistenceCase = "absent-kmc";
+                    TestRunner.True(request.Validate().Count > 0, "Owner stock no-DLL source escaped the genuine observer case.");
                 }
                 // Death boundaries: a writing run and a cold load of the exact
                 // no-pair archive that run wrote, under its own name.
@@ -509,6 +575,7 @@ namespace KingmakerMountedCombat.Tests
             BoundaryFailureDrainTests.Register(runner);
             BoundaryScenarioEvidenceContractTests.Register(runner);
             MovementScreenshotCaptureTests.Register(runner);
+            MovementOverlayCustodyTests.Register(runner);
             MovementNavigationBoundaryPolicyTests.Register(runner);
             MovementRadialDistanceOrderTests.Register(runner);
             NavigationEndpointDistanceTrackerTests.Register(runner);
@@ -527,6 +594,7 @@ namespace KingmakerMountedCombat.Tests
             UnifiedMountedTurnPolicyTests.Register(runner);
             PairedCommandSchedulerTests.Register(runner);
             MountedStockAttackPolicyTests.Register(runner);
+            MountedGroundOrderAdmissionPolicyTests.Register(runner);
             runner.Run("Chunk 4 core native requests and leaves remain serializable", () =>
             {
                 foreach (var scenario in new[] { "chunk4-rider-incapacitation-tb", "chunk4-rider-death-tb", "chunk4-mount-death-tb",
@@ -569,6 +637,7 @@ namespace KingmakerMountedCombat.Tests
             HorseCompanionProgressionPolicyTests.Register(runner);
             HorseCompanionScenarioDeadlinePolicyTests.Register(runner);
             DiagnosticTurnTraversalPolicyTests.Register(runner);
+            MountedAreaControlRuleTests.Register(runner);
             return runner.Complete();
         }
 
@@ -576,9 +645,10 @@ namespace KingmakerMountedCombat.Tests
         {
             var settings = new DiagnosticSettings();
             TestRunner.Equal(true, settings.EnableUnsafeMovementExperiment, "Native mounted controls must default on for the enabled private alpha.");
-            TestRunner.Equal(false, settings.EnableUnifiedMountedTurn, "The bounded Phase 3E fallback must default to accepted Phase 3C separate turns.");
+            TestRunner.Equal(false, settings.EnableUnifiedMountedTurn, "The retired unified-turn experiment must default off.");
             TestRunner.Equal(false, settings.EnablePairedCommandScheduler, "The unqualified paired-command scheduler must default off.");
-            TestRunner.Equal(false, settings.EnablePairedActivation, "The paired prototype requires explicit developer opt-in.");
+            TestRunner.Equal(true, settings.EnablePairedActivation, "The supported transport preset must use paired activation by default.");
+            TestRunner.Equal(false, settings.EnableMountedCharge, "Optional real-time Mounted Charge must default off.");
             TestRunner.Equal(false, settings.EnableDiagnosticOverlay, "The legacy diagnostic overlay must default hidden.");
             TestRunner.Equal(0.10d, settings.MaximumAnchorResidualWorldUnits, "Residual threshold changed.");
             TestRunner.Equal(null, settings.Validate(), "Default settings must validate.");
@@ -630,6 +700,30 @@ namespace KingmakerMountedCombat.Tests
         {
             var request = ValidSaveBackedRequest();
             TestRunner.Equal(0, request.Validate().Count, "Valid save-backed fixture request was rejected.");
+        }
+
+        private static void F11NativeObserverRequestIsClosed()
+        {
+            var request = ValidSaveBackedRequest();
+            request.EvidenceRoot = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "kmc-f11-protocol", "runtime-evidence", request.RunId);
+            var selected = new F11NativeAllocationSelection {
+                Contract = F11NativeAllocationSelection.ContractId, BaseGameOnly = true,
+                Path = F11NativeAllocationSelection.ExpectedPath(request.RunId, request.EvidenceRoot),
+                Sha256 = F11NativeAllocationSelection.HelperSha256,
+                LoadedMonoPath = F11NativeAllocationSelection.ExpectedMonoPath(),
+                LoadedMonoSha256 = F11NativeAllocationSelection.MonoSha256
+            };
+            TestRunner.Equal(0, new System.Collections.Generic.List<string>(selected.Validate(request.RunId, request.EvidenceRoot)).Count,
+                "Exact native observer descriptor was rejected.");
+            request.F11AllocationProbe = selected;
+            TestRunner.True(request.Validate().Count > 0, "Another scenario admitted native helper loading.");
+            selected.Path = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "arbitrary.dll");
+            TestRunner.True(new System.Collections.Generic.List<string>(selected.Validate(request.RunId, request.EvidenceRoot)).Count > 0,
+                "Arbitrary native library path was admitted.");
+            selected.Path = F11NativeAllocationSelection.ExpectedPath(request.RunId, request.EvidenceRoot);
+            selected.Sha256 = Sha;
+            TestRunner.True(new System.Collections.Generic.List<string>(selected.Validate(request.RunId, request.EvidenceRoot)).Count > 0,
+                "A caller-supplied matching hash could replace the reviewed helper pin.");
         }
 
         private static void RequestRejectsMismatchedFixtureIdentity()

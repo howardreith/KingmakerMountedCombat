@@ -104,8 +104,10 @@ namespace KingmakerMountedCombat.Integration
             { "KMC.Horse.Upgrade.Description", "At animal-companion rank 4, the horse gains +2 Strength and +2 Constitution." }
         };
         private readonly List<UnityEngine.Object> ownedObjects = new List<UnityEngine.Object>();
-        private readonly Dictionary<string, string> observedActivationByOwner =
-            new Dictionary<string, string>(StringComparer.Ordinal);
+        private readonly Dictionary<string, HorseActivationObservation> observedActivationByOwner =
+            new Dictionary<string, HorseActivationObservation>(StringComparer.Ordinal);
+        private readonly HashSet<string> observedOwnersThisUpdate = new HashSet<string>(StringComparer.Ordinal);
+        private readonly List<string> expiredObservationOwners = new List<string>();
         private HorseCompanionBlueprintState state;
         private string failure;
         private bool selectionDesired;
@@ -196,52 +198,117 @@ namespace KingmakerMountedCombat.Integration
             }
         }
 
+        private struct HorseActivationObservation
+        {
+            private readonly int rank;
+            private readonly bool hasAddPet;
+            private readonly string petId, blueprintId, masterId, negativeSign;
+            internal string Signature;
+
+            internal HorseActivationObservation(int rank, bool hasAddPet, string petId,
+                string blueprintId, string masterId, string negativeSign)
+            {
+                this.rank = rank;
+                this.hasAddPet = hasAddPet;
+                this.petId = petId;
+                this.blueprintId = blueprintId;
+                this.masterId = masterId;
+                this.negativeSign = negativeSign;
+                Signature = null;
+            }
+
+            internal bool Matches(HorseActivationObservation other) =>
+                rank == other.rank && hasAddPet == other.hasAddPet &&
+                string.Equals(petId, other.petId, StringComparison.Ordinal) &&
+                string.Equals(blueprintId, other.blueprintId, StringComparison.Ordinal) &&
+                string.Equals(masterId, other.masterId, StringComparison.Ordinal) &&
+                string.Equals(negativeSign, other.negativeSign, StringComparison.Ordinal);
+
+            internal string FormatSignature() => "rank=" + rank +
+                ";addPet=" + hasAddPet + ";pet=" + petId +
+                ";blueprint=" + blueprintId + ";master=" + masterId;
+        }
+
         private void SynchronizeLiveHorseCompanionProgression()
         {
             var player = Game.Instance?.Player;
-            if (player?.PartyCharacters == null || horseFeature == null) { return; }
+            var party = player?.PartyCharacters;
+            if (party == null || horseFeature == null) { return; }
 
-            foreach (var reference in player.PartyCharacters)
+            observedOwnersThisUpdate.Clear();
+            expiredObservationOwners.Clear();
+            try
             {
-                var owner = reference.Value;
-                var fact = owner?.Descriptor?.GetFact(horseFeature);
-                var addPet = fact?.Get<HorseCompanionAddPet>();
-                if (fact != null)
+                foreach (var reference in party)
                 {
-                    var pet = owner.Descriptor.Pet;
-                    var signature = "rank=" + fact.GetRank() +
-                        ";addPet=" + (addPet != null) +
-                        ";pet=" + (pet?.UniqueId ?? "<null>") +
-                        ";blueprint=" + (pet?.Blueprint?.AssetGuid ?? "<null>") +
-                        ";master=" + (pet?.Descriptor?.Master.Value?.UniqueId ?? "<null>");
-                    string prior;
-                    if (!observedActivationByOwner.TryGetValue(owner.UniqueId, out prior) ||
-                        !string.Equals(prior, signature, StringComparison.Ordinal))
+                    var owner = reference.Value;
+                    var fact = owner?.Descriptor?.GetFact(horseFeature);
+                    var addPet = fact?.Get<HorseCompanionAddPet>();
+                    if (fact != null)
                     {
-                        observedActivationByOwner[owner.UniqueId] = signature;
-                        logger.Info("Observed live KMC Horse feature: owner=" + owner.UniqueId + ";" + signature + ".");
+                        observedOwnersThisUpdate.Add(owner.UniqueId);
+                        var pet = owner.Descriptor.Pet;
+                        var rank = fact.GetRank();
+                        // Int32 default formatting only varies by the negative sign.
+                        // Retain that value, not a culture or native object.
+                        var negativeSign = rank < 0
+                            ? System.Globalization.CultureInfo.CurrentCulture.NumberFormat.NegativeSign : null;
+                        var observation = new HorseActivationObservation(rank, addPet != null,
+                            pet?.UniqueId ?? "<null>", pet?.Blueprint?.AssetGuid ?? "<null>",
+                            pet?.Descriptor?.Master.Value?.UniqueId ?? "<null>", negativeSign);
+                        var observedOwnerId = owner.UniqueId;
+                        HorseActivationObservation prior;
+                        if (!observedActivationByOwner.TryGetValue(observedOwnerId, out prior) ||
+                            !prior.Matches(observation))
+                        {
+                            var signature = observation.FormatSignature();
+                            observation.Signature = signature;
+                            if (!string.Equals(prior.Signature, signature, StringComparison.Ordinal))
+                            {
+                                observedActivationByOwner[owner.UniqueId] = observation;
+                                logger.Info("Observed live KMC Horse feature: owner=" + owner.UniqueId + ";" + signature + ".");
+                            }
+                            else
+                            {
+                                // Preserve the prior string-based deduplication even
+                                // when different field values format identically.
+                                observedActivationByOwner[observedOwnerId] = observation;
+                            }
+                        }
                     }
-                }
-                if (addPet == null || !addPet.DeferredProgressionPending) { continue; }
+                    if (addPet == null || !addPet.DeferredProgressionPending) { continue; }
 
-                try
-                {
-                    addPet.TryDeferredProgressionSynchronization();
-                    if (addPet.TryMarkDeferredProgressionFailureReported())
+                    try
                     {
-                        logger.Error(
-                            "The exact KMC horse remained below its native AddPet rank mapping after the one bounded deferred retry: owner=" +
-                            owner.UniqueId + ", expected=" + addPet.ExpectedCharacterLevel +
-                            ", observed=" + addPet.DeferredCharacterLevelAfter + ".");
+                        addPet.TryDeferredProgressionSynchronization();
+                        if (addPet.TryMarkDeferredProgressionFailureReported())
+                        {
+                            logger.Error(
+                                "The exact KMC horse remained below its native AddPet rank mapping after the one bounded deferred retry: owner=" +
+                                owner.UniqueId + ", expected=" + addPet.ExpectedCharacterLevel +
+                                ", observed=" + addPet.DeferredCharacterLevelAfter + ".");
+                        }
+                    }
+                    catch (Exception exception)
+                    {
+                        if (addPet.TryMarkDeferredProgressionFailureReported())
+                        {
+                            logger.Exception("Deferred exact KMC horse AddPet synchronization", exception);
+                        }
                     }
                 }
-                catch (Exception exception)
-                {
-                    if (addPet.TryMarkDeferredProgressionFailureReported())
-                    {
-                        logger.Exception("Deferred exact KMC horse AddPet synchronization", exception);
-                    }
-                }
+
+                // This cache contains observation values only, never native progression
+                // or cleanup obligations. Retire absence only after a complete
+                // authoritative PartyCharacters enumeration, not a partial read.
+                foreach (var id in observedActivationByOwner.Keys)
+                    if (!observedOwnersThisUpdate.Contains(id)) expiredObservationOwners.Add(id);
+                foreach (var id in expiredObservationOwners) observedActivationByOwner.Remove(id);
+            }
+            finally
+            {
+                observedOwnersThisUpdate.Clear();
+                expiredObservationOwners.Clear();
             }
         }
 
@@ -330,6 +397,9 @@ namespace KingmakerMountedCombat.Integration
             // Blueprint facts may already be serialized into the active Working
             // process. Keep the exact KMC definitions in the in-memory library
             // until process exit; only the selectable Ranger surface is leased.
+            observedActivationByOwner.Clear();
+            observedOwnersThisUpdate.Clear();
+            expiredObservationOwners.Clear();
             disposed = true;
             state = HorseCompanionBlueprintState.Disposed;
         }
@@ -471,7 +541,7 @@ namespace KingmakerMountedCombat.Integration
             hoofName = hoof.name;
             // Installed BlueprintFeatureSelection.Items enumerates AllFeatures,
             // not Features. The live Ranger Features surface is not the same
-            // seven-entry runtime selection array, so it is intentionally left
+            // admitted runtime selection array, so it is intentionally left
             // untouched. Lease only the exact Items-authoritative surface.
             selectionLease = new ExactAppendOnlyArrayLease<BlueprintFeature>(
                 RequireExactRangerOptions(rangerSelection.AllFeatures, "AllFeatures"), horseFeature);
@@ -563,9 +633,23 @@ namespace KingmakerMountedCombat.Integration
             }
         }
 
-        private static BlueprintFeature[] RequireExactRangerOptions(BlueprintFeature[] features, string surface)
+        internal static void RequireNativeRangerOptions(BlueprintFeature[] features, BlueprintFeature horse)
         {
-            var expectedGuids = new[]
+            if (features == null || features.Length != 13 || horse == null ||
+                !string.Equals(horse.AssetGuid, FeatureGuid, StringComparison.Ordinal) ||
+                !ReferenceEquals(features[12], horse))
+            {
+                throw new InvalidOperationException("Base-only bootstrap requires the exact native Ranger append.");
+            }
+            RequireExactRangerOptions(features.Take(12).ToArray(), "native bootstrap prefix");
+        }
+
+        internal static BlueprintFeature[] RequireExactRangerOptions(BlueprintFeature[] features, string surface)
+        {
+            // These are two separately observed exact contracts. The historical
+            // seven-entry shape is a CotW rewrite; the independent native game
+            // exposes twelve. Neither admits an arbitrary extension or reordering.
+            var historicalGuids = new[]
             {
                 "472091361cf118049a2b4339c4ea836a",
                 DogFeatureGuid,
@@ -575,9 +659,30 @@ namespace KingmakerMountedCombat.Integration
                 "ece6bde3dfc76ba4791376428e70621a",
                 "67a9dc42b15d0954ca4689b13e8dedea"
             };
+            var nativeGuids = new[]
+            {
+                "472091361cf118049a2b4339c4ea836a",
+                "f6f1cdcc404f10c4493dc1e51208fd6f",
+                "afb817d80b843cc4fa7b12289e6ebe3d",
+                "f9ef7717531f5914a9b6ecacfad63f46",
+                DogFeatureGuid,
+                "e992949eba096644784592dc7f51a5c7",
+                "aa92fea676be33d4dafd176d699d7996",
+                "2ee2ba60850dd064e8b98bf5c2c946ba",
+                MammothFeatureGuid,
+                "ece6bde3dfc76ba4791376428e70621a",
+                "126712ef923ab204983d6f107629c895",
+                "67a9dc42b15d0954ca4689b13e8dedea"
+            };
+            var expectedGuids = features != null && features.Length == nativeGuids.Length
+                ? nativeGuids : historicalGuids;
             if (features == null || features.Length != expectedGuids.Length)
             {
-                throw new InvalidOperationException("The exact Ranger companion " + surface + " surface no longer has seven stock options.");
+                throw new InvalidOperationException("The exact Ranger companion " + surface +
+                    " surface matches neither historical seven nor native twelve options; observedCount=" +
+                    (features == null ? "null" : features.Length.ToString(System.Globalization.CultureInfo.InvariantCulture)) +
+                    "; observedFirst32=" + (features == null ? "<null>" : string.Join(",",
+                        features.Take(32).Select(feature => feature == null ? "<null>" : feature.AssetGuid))) + ".");
             }
             for (var index = 0; index < expectedGuids.Length; index++)
             {

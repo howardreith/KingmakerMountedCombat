@@ -14,21 +14,26 @@ namespace KingmakerMountedCombat.Logging
 
         public void Info(string message)
         {
+            Diagnostics.MountedRuntimeMeasurement.ObserveLog(message);
             logger.Log(message);
         }
 
         public void Warning(string message)
         {
+            Diagnostics.MountedRuntimeMeasurement.ObserveLog(message);
             logger.Warning(message);
         }
 
         public void Error(string message)
         {
+            Diagnostics.MountedRuntimeMeasurement.ObserveLog(message);
             logger.Error(message);
         }
 
         public void Exception(string context, Exception exception)
         {
+            if (Diagnostics.MountedRuntimeMeasurement.Current != null)
+                Diagnostics.MountedRuntimeMeasurement.ObserveLog(context + ": " + exception);
             logger.LogException(context, exception);
         }
     }

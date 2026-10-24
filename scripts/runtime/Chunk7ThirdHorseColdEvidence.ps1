@@ -1,0 +1,241 @@
+Set-StrictMode -Version Latest
+
+function Get-KmcChunk7ThirdHorseColdExpected($Producer,[bool]$Fourth=$false){
+ $o=$Producer.observations;$manual=$o.thirdHorseManual;$boundary=$manual.boundary;$field=$o.cleanup.partyAfter
+ $actorCount=if($Fourth){9}else{8};$horseCount=if($Fourth){4}else{3}
+ Assert-KmcAssistedArray $field $actorCount $actorCount 'Horse-world saved field'
+ Assert-KmcAssistedArray $boundary.actors $actorCount $actorCount 'Horse-world saved progression'
+ Assert-KmcAssistedSame $boundary $manual.arrangementAfterSave 'third-Horse native Manual boundary'
+ $rows=@(foreach($actor in $field){
+  $progress=@($boundary.actors|Where-Object actorId -CEQ $actor.id)
+  if($progress.Count-ne1-or$progress[0].blueprint-cne$actor.blueprint){throw 'Third-Horse saved field and progression disagree.'}
+  [pscustomobject]@{id=$actor.id;blueprint=$actor.blueprint;petId=$actor.petId;masterId=$actor.masterId;
+   characterLevel=$progress[0].characterLevel;experience=$progress[0].experience;
+   classes=@($progress[0].classes|ForEach-Object{[pscustomobject]@{guid=$_.classGuid;level=$_.level}})}
+ })
+ if(@($rows.id|Select-Object -Unique).Count-ne$actorCount){throw 'Horse-world producer roster repeats an actor.'}
+ $main='73681ef2-b281-4bc6-bc05-2de68c1616cb'
+ $characters=@($rows|Where-Object{$null-eq$_.masterId})
+ if($characters.Count-ne5-or@($characters|Where-Object id -CEQ $main).Count-ne1){throw 'Horse-world source does not retain five native characters and its main.'}
+ $sourceOwners=@($o.inheritedFixture.pairs|ForEach-Object{[pscustomobject]@{riderId=$_.riderId;mountId=$_.mountId;
+   featureGuid='7db7c50677e39f09feef56f3831fc723';blueprint='4016c7db400ab721ff125aef9e65e202';
+   sourceGuid=$_.sourceGuid;rank=$_.rank;reciprocal=$true}})
+ $horse=$o.thirdHorseSetup.nativeHorse
+ $sourceOwners+=,[pscustomobject]@{riderId=$horse.mountMasterId;mountId=$horse.mountId;featureGuid=$horse.featureGuid;
+  blueprint=$horse.blueprint;sourceGuid=$horse.sourceGuid;rank=$horse.rank;reciprocal=$true}
+ if($sourceOwners.Count-ne$horseCount-or@($sourceOwners.riderId|Select-Object -Unique).Count-ne$horseCount-or
+  @($sourceOwners.mountId|Select-Object -Unique).Count-ne$horseCount){throw 'Horse-world producer did not record distinct sourced Horses.'}
+ foreach($owner in $sourceOwners){
+  $r=@($rows|Where-Object id -CEQ $owner.riderId);$m=@($rows|Where-Object id -CEQ $owner.mountId)
+  if($r.Count-ne1-or$m.Count-ne1-or$r[0].petId-cne$owner.mountId-or$m[0].masterId-cne$owner.riderId-or
+   $m[0].blueprint-cne$owner.blueprint){throw 'Third-Horse source lacks saved reciprocal Horse roles.'}
+ }
+ [pscustomobject]@{world=[pscustomobject]@{mainActorId=$main;party=$rows};
+  readiness=[pscustomobject]@{staticPartyFacts=[pscustomobject]@{characters=@($characters|ForEach-Object{[pscustomobject]@{actorId=$_.id}})};
+   mainProgression=[pscustomobject]@{experience=@($rows|Where-Object id -CEQ $main)[0].experience}};
+  money=[long]$boundary.money;owners=$sourceOwners}
+}
+
+function Get-KmcChunk7FifthHorseColdExpected($Producer,[bool]$Sixth=$false){
+ $o=$Producer.observations;$prior=@($o.sourceNativeWorld.party);$saved=@($o.savedFieldWorld.party)
+ $progress=@($o.afterSaveArrangement.actors)+@($o.afterSaveArrangement.acquired)
+ $count=if($Sixth){12}else{11};$priorCount=if($Sixth){11}else{9};$horseCount=if($Sixth){6}else{5}
+ $factKey=if($Sixth){'fifthHorseFacts'}else{'fourthHorseFacts'}
+ $added=@($o.field.profileInventory.party);$facts=@($o.sourceManualObservations.$factKey)
+ Assert-KmcAssistedArray $prior $priorCount $priorCount 'paid Horse-world prior native roster'
+ Assert-KmcAssistedArray $saved $count $count 'paid Horse-world saved native roster'
+ Assert-KmcAssistedArray $progress ($priorCount+2) ($priorCount+2) 'paid Horse-world saved progression'
+ if(@($progress.actorId|Select-Object -Unique).Count-ne($priorCount+2)){throw 'Paid Horse-world progression repeats an actor.'}
+ Assert-KmcAssistedArray $added 2 2 'fifth-Horse paid native rider and pet'
+ Assert-KmcAssistedArray $facts ($horseCount-1) ($horseCount-1) 'paid Horse-world prior sourced Horse facts'
+ Assert-KmcAssistedSame $o.f09PriorHorsesBefore $o.f09PriorHorsesAfter 'fifth-Horse prior four native Horse identities'
+ $rows=@(foreach($actor in $saved){
+  $p=@($progress|Where-Object actorId -CEQ $actor.id)
+  $old=@($prior|Where-Object id -CEQ $actor.id);$new=@($added|Where-Object id -CEQ $actor.id)
+  if($p.Count-ne1-or$p[0].blueprint-cne$actor.blueprint-or($old.Count+$new.Count)-ne1){throw 'Fifth-Horse saved field and native progression disagree.'}
+  $link=if($old.Count-eq1){$old[0]}else{$new[0]}
+  if(($old.Count-eq1-and$link.blueprint-cne$actor.blueprint)-or($new.Count-eq1-and$link.blueprintGuid-cne$actor.blueprint)){throw 'Fifth-Horse saved blueprint differs from its source.'}
+  [pscustomobject]@{id=$actor.id;blueprint=$actor.blueprint;petId=$link.petId;masterId=$link.masterId;
+   characterLevel=$p[0].characterLevel;experience=$p[0].experience;
+   classes=@($p[0].classes|ForEach-Object{[pscustomobject]@{guid=$_.classGuid;level=$_.level}})}
+ })
+ if(@($rows.id|Select-Object -Unique).Count-ne$count){throw 'Paid Horse-world saved roster repeats an actor.'}
+ $main='73681ef2-b281-4bc6-bc05-2de68c1616cb'
+ $characters=@($rows|Where-Object{$null-eq$_.masterId})
+ if($characters.Count-ne6-or@($characters|Where-Object id -CEQ $main).Count-ne1){throw 'Fifth-Horse saved field does not contain six native characters and its main.'}
+ $owners=@($facts|ForEach-Object{[pscustomobject]@{riderId=$_.riderId;mountId=$_.mountId;
+  featureGuid=$_.featureGuid;blueprint=$_.blueprint;sourceGuid=$_.sourceGuid;rank=$_.rank;reciprocal=$true}})
+ $f=$o.field
+ $owners+=,[pscustomobject]@{riderId=$f.actorId;mountId=$f.petId;featureGuid=$f.featureBlueprint;
+  blueprint=$f.horseBlueprint;sourceGuid=$f.featureSourceGuid;rank=$f.rank;reciprocal=$true}
+ if($owners.Count-ne$horseCount-or@($owners.riderId|Select-Object -Unique).Count-ne$horseCount-or@($owners.mountId|Select-Object -Unique).Count-ne$horseCount){throw 'Paid Horse-world source lacks distinct sourced Horses.'}
+ foreach($owner in $owners){$r=@($rows|Where-Object id -CEQ $owner.riderId);$m=@($rows|Where-Object id -CEQ $owner.mountId)
+  if($r.Count-ne1-or$m.Count-ne1-or$r[0].petId-cne$owner.mountId-or$m[0].masterId-cne$owner.riderId-or$m[0].blueprint-cne$owner.blueprint){throw 'Fifth-Horse saved pet links are not reciprocal.'}}
+ $expected=[pscustomobject]@{world=[pscustomobject]@{mainActorId=$main;party=$rows};
+  readiness=[pscustomobject]@{staticPartyFacts=[pscustomobject]@{characters=@($characters|ForEach-Object{[pscustomobject]@{actorId=$_.id}})};
+   mainProgression=[pscustomobject]@{experience=@($rows|Where-Object id -CEQ $main)[0].experience}};
+  money=[long]$o.afterSaveArrangement.money;owners=$owners}
+ if($Sixth){
+  $id='8265f8cf-0969-4ec7-a266-2448de91c8c4';$old=@($prior|Where-Object id -CEQ $id);$p=@($progress|Where-Object actorId -CEQ $id)
+  if($old.Count-ne1-or$p.Count-ne1-or@($rows|Where-Object id -CEQ $id).Count-ne0){throw 'Sixth-Horse source lost exactly remote Linzi.'}
+  $old=$old[0];$p=$p[0]
+  if($null-ne$old.petId-or$null-ne$old.masterId-or$p.blueprint-cne$old.blueprint-or$p.characterLevel-ne$old.characterLevel-or$p.experience-ne$old.experience){throw 'Sixth-Horse remote source progression differs.'}
+  Assert-KmcAssistedSame @($p.classes|ForEach-Object{[pscustomobject]@{guid=$_.classGuid;level=$_.level}}) $old.classes 'remote Linzi original classes'
+  Assert-KmcAssistedSame $o.savedSixthRoster.remoteCompanionIds @($id) 'sixth-Horse saved remote roster'
+  Assert-KmcAssistedSame @($o.savedSixthRoster.partyCharacterIds|Sort-Object -CaseSensitive) @($characters.id|Sort-Object -CaseSensitive) 'sixth-Horse saved native characters'
+  Assert-KmcChunk7Boolean $o.savedSixthRoster.manualPartyMutation $false
+  $expected|Add-Member NoteProperty remote ([pscustomobject]@{id=$id;blueprint=$old.blueprint;petId=$null;masterId=$null;characterLevel=$p.characterLevel;experience=$p.experience;classes=$old.classes})
+ }
+ return $expected
+}
+function Get-KmcChunk7SixthHorseColdExpected($Producer){Get-KmcChunk7FifthHorseColdExpected $Producer $true}
+
+function Assert-KmcChunk7ThirdHorseColdEvidence($Request,$Artifact,$SourceArtifact){
+ $s=$Request.assistedColdInventory;$o=$Artifact.observations
+ $fourth=Test-KmcChunk7FourthHorseSourceSelection $s
+ $fifth=Test-KmcChunk7FifthHorseSourceSelection $s
+ $sixth=Test-KmcChunk7SixthHorseColdSelection $s
+ $departure=Test-KmcChunk7FifthHorseDepartureSelection $s
+ $qualified=if($sixth){Get-KmcChunk7SixthHorseColdSource $s $Request.fixture $Request}elseif($departure){Get-KmcChunk7FifthHorseDepartureSource $s $Request.fixture $Request}elseif($fifth){Get-KmcChunk7FifthHorseColdSource $s $Request.fixture $Request}elseif($fourth){Get-KmcChunk7FourthHorseColdSource $s $Request.fixture $Request}else{Get-KmcChunk7ThirdHorseColdSource $s $Request.fixture $Request}
+ Assert-KmcAssistedSame $SourceArtifact (Read-KmcJson $qualified.artifactPath) 'third-Horse immutable producer artifact'
+ $expected=if($sixth){Get-KmcChunk7SixthHorseColdExpected $SourceArtifact}elseif($fifth){Get-KmcChunk7FifthHorseColdExpected $SourceArtifact}else{Get-KmcChunk7ThirdHorseColdExpected $SourceArtifact $fourth}
+ $factKey=if($sixth){'sixthHorseFacts'}elseif($fifth){'fifthHorseFacts'}elseif($fourth){'fourthHorseFacts'}else{'thirdHorseFacts'}
+ $sourceKind=if($sixth){'reader-reevaluated-paid-sixth-horse-manual'}elseif($fifth){'qualified-paid-fifth-horse-manual'}elseif($fourth){'reader-reevaluated-assisted-fourth-horse-manual'}else{'qualified-assisted-third-horse-manual'}
+ $keys=@('processId','selection','source','sourceNativeWorld','sourceNativeMoney','beforeLoad',
+  'resourceWrites','xpWrites','moneyWrites','profileAdmissionChanged','ordinaryAcquisitionProven',
+  'sixPairFixtureQualified','mountRequests','choiceRequests','ordinaryProgressionProven','loadedWorld','loader',
+  'nativeProfileInventory','fixtureReadiness','archive','settledWorld','settledLoader','nativeLoad',
+  'noPreparation',$factKey,'cleanup')
+ if(Test-KmcChunk7FourthHorseSelectorSelection $s){$keys+=@('selectorProbe')}
+ if($departure){$keys+=@('nativeDeparture','departureRetention')}
+ if($sixth){$keys+=@('remoteAtLoad','remoteSettled')}
+ Assert-KmcAssistedObjectValue $o $keys 'Horse-world separate cold observations'
+ Assert-KmcAssistedSame $o.selection $s 'third-Horse exact cold selection'
+ Assert-KmcAssistedSame $o.sourceNativeWorld ([pscustomobject]@{gameId=$Request.persistenceLoad.gameId;
+  gameName=$Request.persistenceLoad.gameName;area=$Request.persistenceLoad.area;
+  mainActorId=$expected.world.mainActorId;party=$expected.world.party}) 'third-Horse saved world projection'
+ Assert-KmcOrdinaryInteger $o.processId 1 ([int]::MaxValue)
+ if($o.processId-eq$qualified.sourceProcessId){throw 'Third-Horse cold reused its native producer process.'}
+ foreach($key in @('resourceWrites','xpWrites','moneyWrites','mountRequests','choiceRequests')){Assert-KmcOrdinaryInteger $o.$key 0 0}
+ foreach($key in @('profileAdmissionChanged','ordinaryAcquisitionProven','sixPairFixtureQualified','ordinaryProgressionProven')){Assert-KmcChunk7Boolean $o.$key $false}
+ $root=Get-KmcAssistedSaveRoot $Request
+ Assert-KmcAssistedObjectValue $o.source @('runId','artifactSha256','archiveSha256','archiveLeaf','sameCandidate',
+  'assistedSetupOnly','copiedArtifactPath','diagnosticArchiveContentRead','kind') 'third-Horse cold source provenance'
+ foreach($pair in @(@('runId',$s.sourceRunId),@('artifactSha256',$s.sourceArtifactSha256),
+  @('archiveSha256',$s.sourceArchiveSha256),@('archiveLeaf',$Request.persistenceLoad.fileName),
+  @('copiedArtifactPath',(Join-Path (Split-Path $root -Parent) 'assisted-cold-source.json')),
+  @('kind',$sourceKind))){Assert-KmcBootstrapInventoryString $o.source.($pair[0]) $pair[1]}
+ Assert-KmcChunk7Boolean $o.source.sameCandidate $false
+ Assert-KmcChunk7Boolean $o.source.assistedSetupOnly $true
+ Assert-KmcChunk7Boolean $o.source.diagnosticArchiveContentRead $false
+ Assert-KmcOrdinaryInteger $o.sourceNativeMoney $expected.money $expected.money
+ $b=$o.beforeLoad;$w=$o.loadedWorld;$f=$o.settledWorld;$labels=Get-KmcAssistedColdLabels $o.nativeLoad
+ Assert-KmcAssistedObjectValue $b @('frame','game','saveManager','menuPlayer','loadedAreaPresent','nativeLoading','authority') 'third-Horse before-load owner'
+ Assert-KmcOrdinaryInteger $b.frame 0 ([int]::MaxValue)
+ foreach($key in @('loadedAreaPresent','nativeLoading')){Assert-KmcChunk7Boolean $b.$key $false}
+ foreach($key in @('game','saveManager','menuPlayer')){Assert-KmcAssistedLabel $b.$key $labels}
+ Assert-KmcAssistedColdAuthority $b.authority $root $b.authority.generation 0
+ Assert-KmcAssistedColdWorld $w $Request $labels $expected.world $expected.readiness $expected.money $b.frame
+ $finalExpected=$expected
+ if($departure){
+  $finalExpected=$expected|ConvertTo-Json -Depth 40|ConvertFrom-Json
+  $finalExpected.world.party=@($finalExpected.world.party|Where-Object id -CNE '8265f8cf-0969-4ec7-a266-2448de91c8c4')
+  $finalExpected.readiness.staticPartyFacts.characters=@($finalExpected.readiness.staticPartyFacts.characters|Where-Object actorId -CNE '8265f8cf-0969-4ec7-a266-2448de91c8c4')
+  if($finalExpected.world.party.Count-ne10-or$finalExpected.readiness.staticPartyFacts.characters.Count-ne5){throw 'Native departure source cannot describe the exact retained field.'}
+ }
+ Assert-KmcAssistedColdWorld $f $Request $labels $finalExpected.world $finalExpected.readiness $expected.money $w.frame
+ if($sixth){Assert-KmcChunk7SixthHorseColdRemote $o $expected.remote $labels}
+ foreach($world in @($w,$f)){
+  Assert-KmcAssistedColdAuthority $world.authority $root $b.authority.generation 1
+  foreach($key in @('game','saveManager')){Assert-KmcOrdinaryInteger $world.$key $b.$key $b.$key}
+ }
+ foreach($property in $w.PSObject.Properties){if($property.Name-cne'frame'-and(-not$departure-or$property.Name-cnotin@('party','partyCharacterIds','remoteCompanionIds'))){Assert-KmcAssistedSame $f.($property.Name) $property.Value ('third-Horse settled cold world '+$property.Name)}}
+ if($departure){Assert-KmcChunk7NativeFieldDeparture $o $w $f $expected.owners}
+ Assert-KmcAssistedColdLoader $o.loader $Request $w $labels $root $b.authority.generation
+ Assert-KmcAssistedColdLoader $o.settledLoader $Request $f $labels $root $b.authority.generation
+ Assert-KmcAssistedSame $o.settledLoader $o.loader 'third-Horse settled cold descriptor'
+ $prior=$b.frame
+ for($i=0;$i-lt2;$i++){
+  $entry=$o.nativeLoad.events[$i]
+  Assert-KmcAssistedObjectValue $entry @('kind','frame','game','saveManager','player','gameId','mainActorId') 'third-Horse native PostLoad event'
+  Assert-KmcBootstrapInventoryString $entry.kind $(if($i-eq0){'native-player-postload-before'}else{'native-player-postload-after'})
+  Assert-KmcOrdinaryInteger $entry.frame $prior $w.frame;$prior=$entry.frame
+  foreach($key in @('game','saveManager','player')){Assert-KmcAssistedLabel $entry.$key $labels;Assert-KmcOrdinaryInteger $entry.$key $w.$key $w.$key}
+  if($null-ne$entry.gameId){Assert-KmcBootstrapInventoryString $entry.gameId $Request.persistenceLoad.gameId}
+  if($i-eq1-or$null-ne$entry.mainActorId){Assert-KmcBootstrapInventoryString $entry.mainActorId $w.mainActorId}
+ }
+ if($o.nativeLoad.events[0].frame-ne$o.nativeLoad.events[1].frame){throw 'Third-Horse native PostLoad did not return synchronously.'}
+ Assert-KmcAssistedColdNoPreparation $o.noPreparation $Request
+ $archive=$o.archive;Assert-KmcAssistedObjectValue $archive @('schemaVersion','campaignId','areaId','pairs','participations','slots','combatPresent','nativeRestorationGrantedByDiagnostic') 'third-Horse empty mounted metadata'
+ Assert-KmcOrdinaryInteger $archive.schemaVersion 3 3
+ Assert-KmcBootstrapInventoryString $archive.campaignId $Request.persistenceLoad.gameId
+ Assert-KmcBootstrapInventoryString $archive.areaId $Request.persistenceLoad.area
+ foreach($key in @('pairs','participations','slots')){Assert-KmcOrdinaryInteger $archive.$key 0 0}
+ foreach($key in @('combatPresent','nativeRestorationGrantedByDiagnostic')){Assert-KmcChunk7Boolean $archive.$key $false}
+ Assert-KmcAssistedColdProfile $o.nativeProfileInventory $w
+ Assert-KmcOrdinaryInteger $o.nativeProfileInventory.ordinaryAcquisitionPrerequisites.nativeMoney $expected.money $expected.money
+ Assert-KmcAssistedColdFixtureReadiness $o.fixtureReadiness $Request $w $f $o.nativeProfileInventory $root
+ Assert-KmcAssistedSame $o.$factKey $expected.owners 'sourced native Horse facts/ranks survived cold load'
+ if(Test-KmcChunk7FourthHorseSelectorSelection $s){
+  $p=$o.selectorProbe
+  Assert-KmcAssistedObjectValue $p @('contract','actorId','action','openCount','switchCount','goCount',
+   'observedFrame','readyAlpha','activeInHierarchy','selectedActorIds','mainCharacter','lockedCompanion',
+   'mustBeInParty','requiredByOpenedSelector','eligibleForNativeRemoval','closeCount','closed') 'owned opened native selector'
+  Assert-KmcBootstrapInventoryString $p.contract 'installed-native-open-selector-optionality-v1'
+  Assert-KmcBootstrapInventoryString $p.action 'native-ShowPartySelection'
+  Assert-KmcBootstrapInventoryString $p.actorId '8265f8cf-0969-4ec7-a266-2448de91c8c4'
+  foreach($pair in @(@('openCount',1),@('closeCount',1),@('switchCount',0),@('goCount',0))){Assert-KmcOrdinaryInteger $p.($pair[0]) $pair[1] $pair[1]}
+  Assert-KmcOrdinaryInteger $p.observedFrame $w.frame $f.frame
+  if(-not(Test-KmcFiniteJsonNumber $p.readyAlpha)-or[double]$p.readyAlpha-ne1.0){throw 'Opened native selector was not fully ready.'}
+  foreach($key in @('activeInHierarchy','closed')){Assert-KmcChunk7Boolean $p.$key $true}
+  Assert-KmcChunk7Boolean $p.mainCharacter $false
+  foreach($key in @('lockedCompanion','mustBeInParty','requiredByOpenedSelector','eligibleForNativeRemoval')){if($p.$key-isnot[bool]){throw 'Opened selector eligibility is not a native boolean observation.'}}
+  if($p.requiredByOpenedSelector -ne ($p.mustBeInParty -and (-not $p.lockedCompanion)) -or
+     $p.eligibleForNativeRemoval -ne (-not $p.mustBeInParty)){throw 'Opened selector eligibility fields disagree.'}
+  Assert-KmcAssistedSame $p.selectedActorIds $w.partyCharacterIds 'opened native selector five-character roster'
+ }
+ Assert-KmcAssistedObjectValue $o.cleanup @('custodySettled','nativeWorkerSettled','observersReleased','worldAdmitted','sourcePinned','sourceUnchanged','authority') 'third-Horse cold cleanup'
+ foreach($key in @('custodySettled','nativeWorkerSettled','observersReleased','worldAdmitted','sourcePinned','sourceUnchanged')){Assert-KmcChunk7Boolean $o.cleanup.$key $true}
+ Assert-KmcAssistedColdAuthority $o.cleanup.authority $root $b.authority.generation 1
+}
+
+function Assert-KmcChunk7SixthHorseColdRemote($O,$Expected,$Labels){
+ foreach($world in @($O.loadedWorld,$O.settledWorld)){Assert-KmcAssistedSame $world.remoteCompanionIds @($Expected.id) 'cold exact remote Linzi roster'}
+ $roles=@($O.loadedWorld.party|ForEach-Object{$_.object;$_.descriptor;$_.view})
+ foreach($key in @('remoteAtLoad','remoteSettled')){
+  $r=$O.$key;Assert-KmcAssistedObjectValue $r @('semantics','object','descriptor') 'cold remote Linzi retention'
+  Assert-KmcAssistedSame $r.semantics $Expected 'cold remote Linzi original progression and links'
+  foreach($role in @('object','descriptor')){Assert-KmcAssistedLabel $r.$role $Labels;if($r.$role-in$roles){throw 'Remote Linzi identity aliases a field actor.'}}
+  if($r.object-eq$r.descriptor){throw 'Remote Linzi object and descriptor alias.'}
+ }
+ Assert-KmcAssistedSame $O.remoteSettled $O.remoteAtLoad 'settled exact remote Linzi object/descriptor/progression'
+}
+
+function Assert-KmcChunk7NativeFieldDeparture($O,$Before,$After,$HorseFacts){
+ $id='8265f8cf-0969-4ec7-a266-2448de91c8c4';$p=$O.nativeDeparture;$r=$O.departureRetention
+ Assert-KmcAssistedObjectValue $p @('contract','action','actorId','originalPartyCharacterIds','openCount',
+  'switchCount','goCount','manualPartyMutation','mustBeInParty','readyAlpha','readyActiveInHierarchy',
+  'selectedPartyCharacterIds','closedExactInstance','closedActiveSelf','remoteActorId','settledPartyCharacterIds','nativeDepartureProven') 'owned native field departure'
+ foreach($pair in @(@('contract','installed-native-single-field-departure-v1'),@('action','native-ShowPartySelection'),@('actorId',$id),@('remoteActorId',$id))){Assert-KmcBootstrapInventoryString $p.($pair[0]) $pair[1]}
+ foreach($key in @('openCount','switchCount','goCount')){Assert-KmcOrdinaryInteger $p.$key 1 1}
+ foreach($key in @('manualPartyMutation','mustBeInParty','closedActiveSelf')){Assert-KmcChunk7Boolean $p.$key $false}
+ foreach($key in @('readyActiveInHierarchy','closedExactInstance','nativeDepartureProven')){Assert-KmcChunk7Boolean $p.$key $true}
+ if(-not(Test-KmcFiniteJsonNumber $p.readyAlpha)-or[double]$p.readyAlpha-ne1.0){throw 'Native departure selector was not fully ready.'}
+ Assert-KmcAssistedSame $p.originalPartyCharacterIds $Before.partyCharacterIds 'native departure exact original characters'
+ $retainedIds=@($Before.partyCharacterIds|Where-Object{$_-cne$id})
+ foreach($ids in @($p.selectedPartyCharacterIds,$p.settledPartyCharacterIds,$After.partyCharacterIds)){Assert-KmcAssistedSame $ids $retainedIds 'native departure retained five-character order'}
+ Assert-KmcAssistedSame $Before.remoteCompanionIds @() 'native departure initially empty remote roster'
+ Assert-KmcAssistedSame $After.remoteCompanionIds @($id) 'native departure exact remote actor'
+ Assert-KmcAssistedSame $After.party @($Before.party|Where-Object id -CNE $id) 'native departure retained ten actor identities and state'
+ Assert-KmcAssistedObjectValue $r @('actorId','blueprint','object','descriptor','semanticsBefore','semanticsAfter','horseFactsAfter','retainedFieldActorCount','nativeWrites','archiveUnchanged') 'native departure retention'
+ $actor=@($Before.party|Where-Object id -CEQ $id)
+ if($actor.Count-ne1-or$null-ne$actor[0].petId-or$null-ne$actor[0].masterId){throw 'Native departure source is not the exact petless character.'}
+ foreach($pair in @(@('actorId','id'),@('blueprint','blueprint'),@('object','object'),@('descriptor','descriptor'))){Assert-KmcAssistedSame $r.($pair[0]) $actor[0].($pair[1]) 'native departure actor identity'}
+ $semantics=[pscustomobject]@{nativeMoney=$Before.nativeMoney;actors=@($Before.party|Sort-Object id|ForEach-Object{
+  [pscustomobject]@{id=$_.id;blueprint=$_.blueprint;petId=$_.petId;masterId=$_.masterId;level=$_.characterLevel;experience=$_.experience;classes=$_.classes}})}
+ Assert-KmcAssistedSame $r.semanticsBefore $semantics 'native departure all-source semantics'
+ Assert-KmcAssistedSame $r.semanticsAfter $r.semanticsBefore 'native departure preserves money and all original progression/pet semantics'
+ Assert-KmcAssistedSame $r.horseFactsAfter $HorseFacts 'native departure preserves all five sourced Horse facts'
+ Assert-KmcOrdinaryInteger $r.retainedFieldActorCount 10 10;Assert-KmcOrdinaryInteger $r.nativeWrites 0 0
+ Assert-KmcChunk7Boolean $r.archiveUnchanged $true
+}

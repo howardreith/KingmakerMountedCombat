@@ -298,6 +298,21 @@ if($Target-eq'Kingmaker'){
     $firstpass=[Reflection.Assembly]::ReflectionOnlyLoadFrom($firstpassPath)
     Assert-Contract ((Get-FileHash -Algorithm SHA256 -LiteralPath $firstpassPath).Hash.ToLowerInvariant()-ceq'069a7362ce5e3ccd597206174aec13743c2db5a1bfbc2a42f15a5fbd1ea30d30') 'Assembly-CSharp-firstpass SHA-256'
     Assert-Contract ($firstpass.ManifestModule.ModuleVersionId.ToString()-ceq'57f03756-55de-42f5-8bb3-e983306082b2') 'Assembly-CSharp-firstpass MVID'
+    # Owner-seed load observer hooks are resolved by pinned token: name-and-parameter
+    # lookup is ambiguous for TryGetBlueprint (TryGetBlueprint<T>(string) also matches).
+    $newtonsoft=[Reflection.Assembly]::ReflectionOnlyLoadFrom((Join-Path $managed 'Newtonsoft.Json.dll'))
+    foreach($hook in @(@($assembly,'Kingmaker.Blueprints.ResourcesLibrary',0x06009708,'TryGetBlueprint','Kingmaker.Blueprints.BlueprintScriptableObject','System.String'),
+        @($newtonsoft,'Newtonsoft.Json.Serialization.DefaultSerializationBinder',0x060004C8,'BindToType','System.Type','System.String,System.String'),
+        @($firstpass,'UberDebug',0x06000664,'LogException','System.Void','System.Exception,UnityEngine.Object'),
+        @($firstpass,'UberDebug',0x06000665,'LogExceptionChannel','System.Void','System.String,System.Exception,UnityEngine.Object'))){
+        $hookMethod=$hook[0].ManifestModule.ResolveMethod($hook[2])
+        Assert-Contract ($hookMethod.DeclaringType.FullName-ceq$hook[1]-and$hookMethod.Name-ceq$hook[3]-and-not$hookMethod.IsGenericMethodDefinition-and
+            $hookMethod.ReturnType.FullName-ceq$hook[4]-and((@($hookMethod.GetParameters()|ForEach-Object{$_.ParameterType.FullName})-join',')-ceq$hook[5])) ('owner-seed observer hook token '+$hook[2].ToString('X8')+' is exactly '+$hook[1]+'.'+$hook[3])
+    }
+    $blueprintLookup=$assembly.GetType('Kingmaker.Blueprints.ResourcesLibrary',$true)
+    Assert-Contract (@($blueprintLookup.GetMethods([Reflection.BindingFlags]'Public,NonPublic,Static')|Where-Object{$_.Name-ceq'TryGetBlueprint'-and@($_.GetParameters()).Count-eq1-and$_.GetParameters()[0].ParameterType.FullName-ceq'System.String'}).Count-eq2) 'TryGetBlueprint(string) has a generic twin, so the owner-seed observer must resolve it by token'
+    $featureParam=$assembly.GetType('Kingmaker.Blueprints.Classes.Selection.IFeatureSelectionItem',$true).GetProperty('Param').PropertyType
+    Assert-Contract ($featureParam.FullName-ceq'Kingmaker.Blueprints.Classes.Selection.FeatureParam'-and$featureParam.IsClass) 'IFeatureSelectionItem.Param is the reference type FeatureParam, so the ordinary build driver must treat a null Param as ordinary'
     Assert-Contract ($null-ne$firstpass.GetType('RootMotion.FinalIK.FullBodyBipedIK',$false) -and $null-ne$firstpass.GetType('RootMotion.SolverManager',$false)) 'native FullBodyBipedIK and post-animator solver surfaces present'
     $unityCorePath=Join-Path $managed 'UnityEngine.CoreModule.dll'
     $unityCore=[Reflection.Assembly]::ReflectionOnlyLoadFrom($unityCorePath)
@@ -315,9 +330,35 @@ if($Target-eq'Kingmaker'){
     }).Count-ge1) 'ImageConversion.LoadImage exact embedded-texture seam'
     $ummPath=Join-Path $managed 'UnityModManager\UnityModManager.dll'
     $ummAssembly=[Reflection.Assembly]::ReflectionOnlyLoadFrom($ummPath)
-    Assert-Contract ((Get-FileHash -Algorithm SHA256 -LiteralPath $ummPath).Hash.ToLowerInvariant()-ceq'75b96e25a3a9fbadb47dd14a4ab490cb8c98143a6242aff3bba6145cd3047f39') 'UnityModManager SHA-256'
-    Assert-Contract ($ummAssembly.ManifestModule.ModuleVersionId.ToString()-ceq'edf4be29-0c88-4482-876d-e946a0f9e363') 'UnityModManager MVID'
-    Assert-Contract ($ummAssembly.GetName().Version.ToString()-ceq'0.28.2.0') 'UnityModManager exact version'
+    Assert-Contract ((Get-FileHash -Algorithm SHA256 -LiteralPath $ummPath).Hash.ToLowerInvariant()-ceq'f6f7e18aff88910b01d23e3ce0829f3b4188c6784b0fcea56f9b3af8aa14d0a9') 'UnityModManager SHA-256'
+    Assert-Contract ($ummAssembly.ManifestModule.ModuleVersionId.ToString()-ceq'914c93ba-b0bd-409f-9d38-84e575289dc2') 'UnityModManager MVID'
+    Assert-Contract ($ummAssembly.GetName().Version.ToString()-ceq'0.33.2.0') 'UnityModManager exact version'
+    # KMC's compile-time UMM binding surface (Main.cs, Logging/UmmLogger.cs), checked by
+    # declaring type, name and exact signature instead of metadata token: a reinstall that
+    # keeps the API passes even when tokens move, while a removed, retyped or readonly
+    # member still fails. The exact identity above stays a separate pin.
+    function Get-UmmContractTypeShape($Type){if($null-eq$Type){return '<null>'};if($Type.IsGenericType){return $Type.GetGenericTypeDefinition().FullName+'['+((@($Type.GetGenericArguments())|ForEach-Object{Get-UmmContractTypeShape $_})-join',')+']'};return [string]$Type.FullName}
+    $ummModEntryName='UnityModManagerNet.UnityModManager+ModEntry'
+    $ummModEntry=$ummAssembly.GetType($ummModEntryName,$false)
+    foreach($expected in @(
+        @('Info','UnityModManagerNet.UnityModManager+ModInfo',$false),
+        @('Logger','UnityModManagerNet.UnityModManager+ModEntry+ModLogger',$false),
+        @('OnGUI',('System.Action`1['+$ummModEntryName+']'),$true),
+        @('OnSessionStop',('System.Action`1['+$ummModEntryName+']'),$true),
+        @('OnUpdate',('System.Action`2['+$ummModEntryName+',System.Single]'),$true),
+        @('OnUnload',('System.Func`2['+$ummModEntryName+',System.Boolean]'),$true),
+        @('OnToggle',('System.Func`3['+$ummModEntryName+',System.Boolean,System.Boolean]'),$true))){
+        $field=if($null-eq$ummModEntry){$null}else{$ummModEntry.GetField($expected[0],[Reflection.BindingFlags]'Public,Instance,DeclaredOnly')}
+        Assert-Contract ($null-ne$field -and $field.IsPublic -and -not $field.IsStatic -and (Get-UmmContractTypeShape $field.FieldType)-ceq$expected[1] -and (-not $expected[2] -or -not $field.IsInitOnly)) ('UMM API ModEntry.'+$expected[0]+' '+$expected[1]+$(if($expected[2]){' assignable'}else{' readable'}))
+    }
+    $ummModInfo=$ummAssembly.GetType('UnityModManagerNet.UnityModManager+ModInfo',$false)
+    $ummModInfoId=if($null-eq$ummModInfo){$null}else{$ummModInfo.GetField('Id',[Reflection.BindingFlags]'Public,Instance,DeclaredOnly')}
+    Assert-Contract ($null-ne$ummModInfoId -and $ummModInfoId.IsPublic -and -not $ummModInfoId.IsStatic -and $ummModInfoId.FieldType.FullName-ceq'System.String') 'UMM API ModInfo.Id System.String readable'
+    $ummModLogger=$ummAssembly.GetType('UnityModManagerNet.UnityModManager+ModEntry+ModLogger',$false)
+    foreach($expected in @(@('Log','System.String'),@('Warning','System.String'),@('Error','System.String'),@('LogException','System.String,System.Exception'))){
+        $methods=@(if($null-ne$ummModLogger){$ummModLogger.GetMethods([Reflection.BindingFlags]'Public,Instance,DeclaredOnly')|Where-Object{$_.Name-ceq$expected[0] -and ((@($_.GetParameters())|ForEach-Object{$_.ParameterType.FullName})-join',')-ceq$expected[1]}})
+        Assert-Contract ($methods.Count-eq1 -and $methods[0].ReturnType.FullName-ceq'System.Void' -and -not $methods[0].IsGenericMethodDefinition) ('UMM API ModLogger.'+$expected[0]+'('+$expected[1]+') void')
+    }
     foreach($name in @('Kingmaker.UnitLogic.Parts.UnitPartRider','Kingmaker.UnitLogic.Parts.UnitPartSaddled','Kingmaker.Controllers.Units.SaddledUnitController')){Assert-Contract ($null-eq$assembly.GetType($name,$false)) "mounted type absent: $name"}
     $gameVersionType=$assembly.GetType('Kingmaker.GameVersion',$false)
     $gameVersionMethod=if($null-eq$gameVersionType){$null}else{$gameVersionType.GetMethod('GetVersion',[Reflection.BindingFlags]'Public,Static')}
@@ -1293,11 +1334,12 @@ if($Target-eq'Kingmaker'){
     foreach($check in $unityChecks){$type=$unityCore.GetType($check[0],$false);$member=if($null-eq$type){$null}else{@($type.GetMembers([Reflection.BindingFlags]'Public,NonPublic,Instance,Static')|Where-Object MetadataToken -eq $check[1]|Select-Object -First 1)};$matches=$null-ne$member -and @($member).Count-eq1;if($matches){$matches=[string]@($member)[0].Name -ceq [string]$check[2]};Assert-Contract $matches "Unity token $($check[1].ToString('X8')) $($check[0]).$($check[2])"}
     $ummUi=$ummAssembly.GetType('UnityModManagerNet.UnityModManager+UI',$false)
     Assert-Contract ($null-ne$ummUi -and $ummUi.BaseType.FullName-ceq'UnityEngine.MonoBehaviour') 'UMM UI exact MonoBehaviour capture host'
+    # UMM 0.33.2.0 tokens (0.28.2.0 had 060000CA/060000CB/060000E3); the shape checks are unchanged.
     $ummUiChecks=@(
-        @(0x060000CA,'get_Instance'),
-        @(0x060000CB,'get_Opened'),
-        @(0x060000E3,'ToggleWindow'))
-    foreach($check in $ummUiChecks){$member=if($null-eq$ummUi){$null}else{@($ummUi.GetMembers([Reflection.BindingFlags]'Public,NonPublic,Instance,Static')|Where-Object MetadataToken -eq $check[0]|Select-Object -First 1)};$matches=$null-ne$member -and @($member).Count-eq1;if($matches){$matches=[string]@($member)[0].Name-ceq[string]$check[1]};if($matches -and [int]$check[0]-eq 0x060000CA){$matches=@($member)[0].IsPublic -and @($member)[0].IsStatic -and @($member)[0].ReturnType.FullName-ceq'UnityModManagerNet.UnityModManager+UI'};if($matches -and [int]$check[0]-eq 0x060000CB){$matches=@($member)[0].IsPublic -and -not @($member)[0].IsStatic -and @($member)[0].ReturnType.FullName-ceq'System.Boolean'};if($matches -and [int]$check[0]-eq 0x060000E3){$parameters=@(@($member)[0].GetParameters());$matches=@($member)[0].IsPublic -and -not @($member)[0].IsStatic -and @($member)[0].ReturnType.FullName-ceq'System.Void' -and $parameters.Count-eq1 -and $parameters[0].ParameterType.FullName-ceq'System.Boolean'};Assert-Contract $matches "UMM UI token $($check[0].ToString('X8')) $($check[1]) exact screenshot surface"}
+        @(0x06000151,'get_Instance'),
+        @(0x06000152,'get_Opened'),
+        @(0x0600016A,'ToggleWindow'))
+    foreach($check in $ummUiChecks){$member=if($null-eq$ummUi){$null}else{@($ummUi.GetMembers([Reflection.BindingFlags]'Public,NonPublic,Instance,Static')|Where-Object MetadataToken -eq $check[0]|Select-Object -First 1)};$matches=$null-ne$member -and @($member).Count-eq1;if($matches){$matches=[string]@($member)[0].Name-ceq[string]$check[1]};if($matches -and [int]$check[0]-eq 0x06000151){$matches=@($member)[0].IsPublic -and @($member)[0].IsStatic -and @($member)[0].ReturnType.FullName-ceq'UnityModManagerNet.UnityModManager+UI'};if($matches -and [int]$check[0]-eq 0x06000152){$matches=@($member)[0].IsPublic -and -not @($member)[0].IsStatic -and @($member)[0].ReturnType.FullName-ceq'System.Boolean'};if($matches -and [int]$check[0]-eq 0x0600016A){$parameters=@(@($member)[0].GetParameters());$matches=@($member)[0].IsPublic -and -not @($member)[0].IsStatic -and @($member)[0].ReturnType.FullName-ceq'System.Void' -and $parameters.Count-eq1 -and $parameters[0].ParameterType.FullName-ceq'System.Boolean'};Assert-Contract $matches "UMM UI token $($check[0].ToString('X8')) $($check[1]) exact screenshot surface"}
     $monoBehaviour=$unityCore.GetType('UnityEngine.MonoBehaviour',$false)
     $waitForEndOfFrame=$unityCore.GetType('UnityEngine.WaitForEndOfFrame',$false)
     $defaultExecutionOrder=$unityCore.GetType('UnityEngine.DefaultExecutionOrder',$false)
@@ -1309,6 +1351,60 @@ if($Target-eq'Kingmaker'){
     Assert-Contract ($null-ne$stopCoroutine -and @($stopCoroutine).Count-eq1 -and @($stopCoroutine)[0].GetParameters().Count-eq1 -and @($stopCoroutine)[0].GetParameters()[0].ParameterType.FullName-ceq'UnityEngine.Coroutine' -and @($stopCoroutine)[0].ReturnType.FullName-ceq'System.Void') 'Unity token 06000E3C MonoBehaviour.StopCoroutine(Coroutine)'
     Assert-Contract ($null-ne$waitConstructor -and @($waitConstructor).Count-eq1 -and @($waitConstructor)[0].GetParameters().Count-eq0) 'Unity token 0600156D WaitForEndOfFrame constructor'
     Assert-Contract ($null-ne$executionOrderConstructor -and @($executionOrderConstructor).Count-eq1 -and @($executionOrderConstructor)[0].GetParameters().Count-eq1 -and @($executionOrderConstructor)[0].GetParameters()[0].ParameterType.FullName-ceq'System.Int32') 'Unity token 060001F4 DefaultExecutionOrder(Int32) constructor'
+    # Chunk 7 cutscene-embedded COMMON dialog continue: a sole DialogRoot system answer renders on the separate
+    # DialogueSystemButton (never a TempOptionUI row, because Fill skips IsSystem answers). Advancing it through the
+    # button's real OnClick reproduces the exact player continue via the same DialogController.SelectAnswer.
+    foreach($expected in @(
+        @('Kingmaker.Blueprints.Root.DialogExtensions',0x0600977A,'IsSystem'),
+        @('Kingmaker.UI.Dialog.DialogCurrentPart',0x060045FF,'Fill'),
+        @('Kingmaker.UI.Dialog.DialogController',0x060045EF,'HandleOnCueShow'),
+        @('Kingmaker.UI.Dialog.DialogueSystemButton',0x0600460B,'Show'),
+        @('Kingmaker.UI.Dialog.DialogueSystemButton',0x0600460C,'Hide'),
+        @('Kingmaker.UI.Dialog.DialogueSystemButton',0x0600460D,'OnClick'),
+        @('Kingmaker.UI.Dialog.DialogueSystemButton',0x06004608,'get_IsEnable'),
+        @('Kingmaker.UI.Dialog.DialogueSystemButton',0x06004609,'set_IsEnable'),
+        @('Kingmaker.Controllers.Dialog.DialogController',0x06009314,'get_Answers'),
+        @('Kingmaker.Controllers.Dialog.DialogController',0x06009325,'SelectAnswer'),
+        @('Kingmaker.Controllers.Dialog.DialogController',0x06009326,'SelectNextCue'),
+        @('Kingmaker.Controllers.Dialog.DialogController',0x06009321,'ScheduleCue'),
+        @('Kingmaker.Controllers.Dialog.DialogController',0x06009324,'StopDialog'),
+        @('Kingmaker.UI.Dialog.TempOptionUI',0x06004616,'OnClick')
+    )){
+        $member=@(Find-Token $expected[0] $expected[1])
+        Assert-Contract ($member.Count-eq1 -and $member[0].Name-ceq$expected[2]) ('dialog continue native method '+$expected[0]+'.'+$expected[2])
+    }
+    foreach($expected in @(
+        @('Kingmaker.UI.Dialog.DialogController',0x04002EC0,'SystemButton','Kingmaker.UI.Dialog.DialogueSystemButton'),
+        @('Kingmaker.UI.Dialog.DialogueSystemButton',0x04002EDA,'m_IsEnable','System.Boolean'),
+        @('Kingmaker.UI.Dialog.DialogueSystemButton',0x04002EDC,'m_Answer','Kingmaker.DialogSystem.Blueprints.BlueprintAnswer'),
+        @('Kingmaker.Controllers.Dialog.DialogController',0x04005E68,'m_ContinueCue','Kingmaker.DialogSystem.Blueprints.BlueprintCueBase'),
+        @('Kingmaker.Blueprints.Root.BlueprintRoot',0x040060F5,'Dialog','Kingmaker.Blueprints.Root.DialogRoot'),
+        @('Kingmaker.Blueprints.Root.DialogRoot',0x0400618E,'ContinueAnswer','Kingmaker.DialogSystem.Blueprints.BlueprintAnswer'),
+        @('Kingmaker.Blueprints.Root.DialogRoot',0x0400618D,'ExitAnswer','Kingmaker.DialogSystem.Blueprints.BlueprintAnswer'),
+        @('Kingmaker.Blueprints.Root.DialogRoot',0x04006190,'InterchapterContinueAnswer','Kingmaker.DialogSystem.Blueprints.BlueprintAnswer'),
+        @('Kingmaker.Blueprints.Root.DialogRoot',0x0400618F,'InterchapterExitAnswer','Kingmaker.DialogSystem.Blueprints.BlueprintAnswer'),
+        @('Kingmaker.UI.Dialog.DialogCurrentPart',0x04002ED8,'m_AnswersList',$null)
+    )){
+        $field=@(Find-Token $expected[0] $expected[1])
+        $shape=$field.Count-eq1 -and $field[0]-is[Reflection.FieldInfo] -and $field[0].Name-ceq$expected[2]
+        if($shape -and $null-ne$expected[3]){$shape=$field[0].FieldType.FullName-ceq$expected[3]}
+        Assert-Contract $shape ('dialog continue native field '+$expected[0]+'.'+$expected[2])
+    }
+    $dialogIsSystem=$assembly.ManifestModule.ResolveMethod(0x0600977A)
+    Assert-Contract ($dialogIsSystem.IsStatic -and (Test-MethodIlContainsToken $dialogIsSystem 0x0400618E) -and (Test-MethodIlContainsToken $dialogIsSystem 0x0400618D) -and (Test-MethodIlContainsToken $dialogIsSystem 0x04006190) -and (Test-MethodIlContainsToken $dialogIsSystem 0x0400618F)) 'DialogExtensions.IsSystem compares exactly the four DialogRoot system answers'
+    $dialogFill=$assembly.ManifestModule.ResolveMethod(0x060045FF)
+    Assert-Contract ((Test-MethodIlContainsToken $dialogFill 0x0600977A) -and (Test-MethodIlContainsToken $dialogFill 0x04002ED8)) 'DialogCurrentPart.Fill consults IsSystem and builds TempOptionUI rows into m_AnswersList (system answers excluded)'
+    $dialogHandle=$assembly.ManifestModule.ResolveMethod(0x060045EF)
+    Assert-Contract ((Test-MethodIlContainsToken $dialogHandle 0x06009314) -and (Test-MethodIlContainsToken $dialogHandle 0x0600977A) -and (Test-MethodIlContainsToken $dialogHandle 0x04002EC0) -and (Test-MethodIlContainsToken $dialogHandle 0x0600460B) -and (Test-MethodIlContainsToken $dialogHandle 0x0600460C) -and (Test-MethodIlContainsToken $dialogHandle 0x060045FF)) 'HandleOnCueShow routes a system first answer to the DialogueSystemButton Show/Hide and otherwise Fills rows'
+    $dialogShow=$assembly.ManifestModule.ResolveMethod(0x0600460B)
+    Assert-Contract ((Test-MethodIlContainsToken $dialogShow 0x04002EDC) -and (Test-MethodIlContainsToken $dialogShow 0x06004609)) 'DialogueSystemButton.Show binds m_Answer and enables the button'
+    $dialogSystemClick=$assembly.ManifestModule.ResolveMethod(0x0600460D)
+    Assert-Contract ((Test-MethodIlContainsToken $dialogSystemClick 0x06004608) -and (Test-MethodIlContainsToken $dialogSystemClick 0x06009325)) 'DialogueSystemButton.OnClick selects its bound answer through DialogController.SelectAnswer when enabled'
+    $dialogRowClick=$assembly.ManifestModule.ResolveMethod(0x06004616)
+    Assert-Contract (Test-MethodIlContainsToken $dialogRowClick 0x06009325) 'TempOptionUI.OnClick selects its answer through the same DialogController.SelectAnswer'
+    $dialogSelect=$assembly.ManifestModule.ResolveMethod(0x06009325)
+    Assert-Contract ((Test-MethodIlContainsToken $dialogSelect 0x0600977A) -and (Test-MethodIlContainsToken $dialogSelect 0x04005E67) -and (Test-MethodIlContainsToken $dialogSelect 0x04005621) -and (Test-MethodIlContainsToken $dialogSelect 0x06009326) -and (Test-MethodIlContainsToken $dialogSelect 0x06009324) -and (Test-MethodIlContainsToken $dialogSelect 0x06009321)) 'SelectAnswer consults IsSystem against the m_Answers Contains check, runs the answer OnSelect, and schedules the next cue or stops the dialog'
+    Assert-Contract ($assembly.ManifestModule.ModuleVersionId.ToString()-ceq'07fa1e4d-8618-41b3-9b8d-faa17d3b26f7') 'dialog continue contract pinned to the diagnosed Assembly-CSharp MVID'
 }else{
     Assert-Contract ((Get-FileHash -Algorithm SHA256 -LiteralPath $assemblyPath).Hash.ToLowerInvariant()-ceq'2cb7160b7154d4ffacc77b9c51b1eb26199e1294300f04fdfc073367b2ef8953') 'Assembly-CSharp SHA-256'
     Assert-Contract ($assembly.ManifestModule.ModuleVersionId.ToString()-ceq'90a9869c-2792-4c7b-bfb7-5a8b33da7c82') 'Assembly-CSharp MVID'

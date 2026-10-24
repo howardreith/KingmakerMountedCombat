@@ -34,6 +34,73 @@ namespace KingmakerMountedCombat.Domain
         }
     }
 
+    // One native hostile click. The native click handler raises OnAttackRequested(unit, target) and
+    // then synchronously runs that unit's command in the same frame; the observation is bound to the
+    // exact command object that Run carries. Only that command may claim or consume it, so a native
+    // party-brain proposal can neither erase a pending click nor borrow its player provenance, and a
+    // click whose own Run carried something else (auto-use, a move, an earlier refusal) leaves
+    // nothing to borrow.
+    public sealed class ObservedPlayerAttackRequest<TUnit, TCommand>
+        where TUnit : class
+        where TCommand : class
+    {
+        public TUnit Unit { get; private set; }
+        public TUnit Target { get; private set; }
+        public int Frame { get; private set; } = -1;
+        public TCommand Command { get; private set; }
+
+        public void Observe(TUnit unit, TUnit target, int frame)
+        {
+            Unit = unit;
+            Target = target;
+            Frame = frame;
+            Command = null;
+        }
+
+        // Called first for every native Run on either pair actor's queue, before any refusal.
+        public void Bind(TUnit runOwner, TCommand command, int frame)
+        {
+            if (Unit == null || Command != null)
+            {
+                return;
+            }
+            if (frame != Frame)
+            {
+                // The click's own Run is synchronous; an unbound observation from another frame is stale.
+                Clear();
+                return;
+            }
+            if (ReferenceEquals(runOwner, Unit))
+            {
+                Command = command;
+            }
+        }
+
+        public bool IsPlayerCommand(TCommand command)
+        {
+            return command != null && ReferenceEquals(command, Command);
+        }
+
+        // Clears only for the click's own command; any other command leaves the observation intact.
+        public bool Consume(TCommand command)
+        {
+            if (!IsPlayerCommand(command))
+            {
+                return false;
+            }
+            Clear();
+            return true;
+        }
+
+        public void Clear()
+        {
+            Unit = null;
+            Target = null;
+            Frame = -1;
+            Command = null;
+        }
+    }
+
     public static class UnifiedMountedStockAttackPolicy
     {
         public const int MaximumInputFrameDelta = 1;

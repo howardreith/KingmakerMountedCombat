@@ -1,0 +1,176 @@
+using System;
+using System.Diagnostics;
+using System.Linq;
+using System.Threading;
+using KingmakerMountedCombat.Integration;
+using Newtonsoft.Json.Linq;
+using UnityEngine;
+
+namespace KingmakerMountedCombat.Diagnostics
+{
+    // A bounded, explicitly installed observer. Ordinary play has no observer,
+    // sampling buffers, timers or log counters. Heap change is not allocation rate.
+    internal sealed class MountedRuntimeMeasurement : IDisposable
+    {
+        internal const int WarmupFrames = 30;
+        internal const int SampleFrames = 120;
+        private static volatile MountedRuntimeMeasurement current;
+        internal static MountedRuntimeMeasurement Current => current;
+        private readonly MountedWorldService world;
+        private readonly string label;
+        private readonly long[] serviceTicks = new long[SampleFrames];
+        private readonly long[] pairUpdateTicks = new long[SampleFrames];
+        private readonly long[] turnUpdateTicks = new long[SampleFrames];
+        private readonly float[] frameSeconds = new float[SampleFrames];
+        private readonly JObject before;
+        private readonly JObject subscriptionsBefore;
+        private readonly F11NativeAllocationProbe allocationProbe;
+        private readonly F11NativeAllocationProbe.WindowResult[] nativeAllocations;
+        private int warmup, count, startFrame;
+        private bool nativeWindowOpen;
+        private long heapBefore, messages, characters;
+        private int[] collectionsBefore;
+        private bool disposed;
+        internal bool Ready => count == SampleFrames;
+        internal int Count => count;
+
+        internal MountedRuntimeMeasurement(string label, MountedWorldService world)
+            : this(label, world, null) { }
+
+        internal MountedRuntimeMeasurement(string label, MountedWorldService world,
+            F11NativeAllocationProbe allocationProbe)
+        {
+            if (current != null || world == null || MountedOptionalDiagnosticsWindow.IsActive)
+                throw new InvalidOperationException("Runtime measurement already owned, optional capture is suppressed, or world missing.");
+            this.label = label ?? throw new ArgumentNullException(nameof(label)); this.world = world;
+            this.allocationProbe = allocationProbe;
+            if (allocationProbe != null) nativeAllocations = new F11NativeAllocationProbe.WindowResult[SampleFrames];
+            before = CaptureOwners(world); subscriptionsBefore = Chunk4SubscriptionSnapshot.Capture();
+            current = this;
+        }
+        internal long BeginFrame()
+        {
+            if (disposed || Ready) return 0;
+            if (allocationProbe != null && warmup >= WarmupFrames)
+            {
+                allocationProbe.BeginUpdate();
+                nativeWindowOpen = true;
+            }
+            return Stopwatch.GetTimestamp();
+        }
+        // CompositionRoot closes the profiler immediately after UpdateCore,
+        // before EndFrame's heap/GC bookkeeping can allocate on the same thread.
+        internal void EndNativeAllocationWindow()
+        {
+            if (!nativeWindowOpen) return;
+            nativeWindowOpen = false;
+            nativeAllocations[count] = allocationProbe.EndUpdate();
+        }
+        // These two opt-in spans locate the measured per-pair Update increase.
+        // A zero entry means the ordinary disabled/save/area gate skipped it.
+        internal long BeginPhase() => disposed || Ready || warmup < WarmupFrames ? 0 : Stopwatch.GetTimestamp();
+        internal void EndPairUpdate(long started) => RecordPhase(started, pairUpdateTicks);
+        internal void EndTurnUpdate(long started) => RecordPhase(started, turnUpdateTicks);
+        private void RecordPhase(long started, long[] samples)
+        {
+            if (started != 0 && !disposed && !Ready) samples[count] = Stopwatch.GetTimestamp() - started;
+        }
+        internal void EndFrame(long started)
+        {
+            if (disposed || Ready || started == 0) return;
+            if (nativeWindowOpen) throw new InvalidOperationException("F11 native allocation window escaped KMC Update.");
+            if (warmup++ < WarmupFrames) return;
+            if (count == 0)
+            {
+                startFrame = Time.frameCount; heapBefore = GC.GetTotalMemory(false);
+                collectionsBefore = new[] { GC.CollectionCount(0), GC.CollectionCount(1), GC.CollectionCount(2) };
+                Interlocked.Exchange(ref messages, 0); Interlocked.Exchange(ref characters, 0);
+            }
+            serviceTicks[count] = Stopwatch.GetTimestamp() - started;
+            frameSeconds[count] = Time.unscaledDeltaTime;
+            count++;
+        }
+        internal static void ObserveLog(string message)
+        {
+            var active = current;
+            if (active == null || active.disposed || active.Ready || active.count == 0) return;
+            Interlocked.Increment(ref active.messages);
+            Interlocked.Add(ref active.characters, message?.Length ?? 0);
+        }
+        internal JObject Complete()
+        {
+            if (!Ready || disposed) throw new InvalidOperationException("Runtime sample did not reach its complete bounded window.");
+            var heapAfter = GC.GetTotalMemory(false);
+            var collectionsAfter = new[] { GC.CollectionCount(0), GC.CollectionCount(1), GC.CollectionCount(2) };
+            Dispose();
+            var ticks = serviceTicks.OrderBy(value => value).ToArray();
+            var frames = frameSeconds.OrderBy(value => value).ToArray();
+            var sample = new JObject {
+                ["label"] = label, ["warmupFrames"] = WarmupFrames, ["sampleFrames"] = count,
+                ["startFrame"] = startFrame, ["endFrame"] = Time.frameCount,
+                ["stopwatchFrequency"] = Stopwatch.Frequency,
+                ["serviceTicks"] = new JArray(serviceTicks), ["frameSeconds"] = new JArray(frameSeconds),
+                ["phaseContract"] = "chunk7-update-phases-v1",
+                ["pairUpdateTicks"] = new JArray(pairUpdateTicks), ["turnUpdateTicks"] = new JArray(turnUpdateTicks),
+                ["serviceMeanMs"] = serviceTicks.Average() * 1000d / Stopwatch.Frequency,
+                ["serviceP50Ms"] = ticks[(count - 1) / 2] * 1000d / Stopwatch.Frequency,
+                ["serviceP95Ms"] = ticks[(int)Math.Ceiling(count * .95d) - 1] * 1000d / Stopwatch.Frequency,
+                ["frameP50Ms"] = frames[(count - 1) / 2] * 1000d,
+                ["frameP95Ms"] = frames[(int)Math.Ceiling(count * .95d) - 1] * 1000d,
+                ["managedHeapBefore"] = heapBefore, ["managedHeapAfter"] = heapAfter,
+                ["managedHeapDelta"] = heapAfter - heapBefore, ["forcedCollection"] = false,
+                ["collectionsBefore"] = new JArray(collectionsBefore), ["collectionsAfter"] = new JArray(collectionsAfter),
+                ["kmcLogMessages"] = Interlocked.Read(ref messages), ["kmcLogCharacters"] = Interlocked.Read(ref characters),
+                ["ownersBefore"] = before, ["ownersAfter"] = CaptureOwners(world),
+                ["subscriptionsBefore"] = subscriptionsBefore, ["subscriptionsAfter"] = Chunk4SubscriptionSnapshot.Capture(),
+                ["limits"] = "Main-thread KMC Update and pair/turn spans include observer overhead; pair/turn spans exclude other KMC Update work. A zero span means its gate did not execute or resolution was insufficient. Frame delta includes native game/rendering. Managed heap delta is process-wide retained memory, not allocated bytes. No GC is forced. Other game/loader logs are excluded."
+            };
+            if (allocationProbe != null)
+            {
+                if (nativeWindowOpen || nativeAllocations.Any(row => row.Snapshot.WindowThreadId != allocationProbe.UpdateThreadId ||
+                    row.Snapshot.Active != 0 || row.Snapshot.Overflow != 0 || row.Snapshot.Reentrant != 0 ||
+                    row.CloseStatus != 1 && row.CloseStatus != 2))
+                    throw new InvalidOperationException("F11 native allocation sample is incomplete or invalid.");
+                var elapsedSeconds = frameSeconds.Sum(value => (double)value);
+                if (elapsedSeconds <= 0) throw new InvalidOperationException("F11 native allocation sample has no elapsed frame time.");
+                var totalBytes = nativeAllocations.Aggregate<F11NativeAllocationProbe.WindowResult, ulong>(0,
+                    (sum, row) => checked(sum + row.Snapshot.ObjectBytes));
+                sample["nativeAllocation"] = new JObject {
+                    ["contract"] = F11NativeAllocationSelection.ContractId,
+                    ["helperSha256"] = F11NativeAllocationSelection.HelperSha256,
+                    ["monoSha256"] = F11NativeAllocationSelection.MonoSha256,
+                    ["windowThreadId"] = allocationProbe.UpdateThreadId,
+                    ["handshakeCallbacks"] = allocationProbe.HandshakeCallbacks,
+                    ["handshakeObjectBytes"] = allocationProbe.HandshakeObjectBytes,
+                    ["callbacksPerUpdate"] = new JArray(nativeAllocations.Select(row => row.Snapshot.Callbacks)),
+                    ["objectBytesPerUpdate"] = new JArray(nativeAllocations.Select(row => row.Snapshot.ObjectBytes)),
+                    ["foreignCallbacksPerUpdate"] = new JArray(nativeAllocations.Select(row => row.Snapshot.ForeignThread)),
+                    ["overflowPerUpdate"] = new JArray(nativeAllocations.Select(row => row.Snapshot.Overflow)),
+                    ["reentrantPerUpdate"] = new JArray(nativeAllocations.Select(row => row.Snapshot.Reentrant)),
+                    ["activePerUpdate"] = new JArray(nativeAllocations.Select(row => row.Snapshot.Active)),
+                    ["threadIdPerUpdate"] = new JArray(nativeAllocations.Select(row => row.Snapshot.WindowThreadId)),
+                    ["closeStatusPerUpdate"] = new JArray(nativeAllocations.Select(row => row.CloseStatus)),
+                    ["totalObjectBytes"] = totalBytes,
+                    ["elapsedFrameSeconds"] = elapsedSeconds,
+                    ["objectBytesPerElapsedSecond"] = totalBytes / elapsedSeconds,
+                    ["limits"] = "Mono managed object sizes allocated on the CompositionRoot.Update OS thread only; process-global callback remains until disposable process exit. Other game threads, Unity/native allocations and KMC hooks outside Update are excluded. Allocation-enabled timings include observer overhead."
+                };
+            }
+            return sample;
+        }
+        private static JObject CaptureOwners(MountedWorldService world) => new JObject {
+            ["boundaries"] = world.BoundaryCount, ["failedConstructions"] = world.FailedConstructionCount,
+            ["owners"] = world.Registry.Owners.Length,
+            ["active"] = world.Registry.ActiveCount, ["allocationActors"] = world.UnifiedTurn.TrackedAllocationActorCount,
+            ["participants"] = world.UnifiedTurn.SnapshotParticipants.Length,
+            ["preparedOrViewResidue"] = world.Pairs.Count(pair => !pair.Relationship.Runtime.NoPreparedPairResidue),
+            ["liveControlBoundaries"] = world.Pairs.Count(pair => world.NativeControls?.HasUnsettledShellFor(pair.Relationship) == true)
+        };
+        public void Dispose()
+        {
+            if (disposed) return;
+            disposed = true;
+            if (ReferenceEquals(current, this)) current = null;
+        }
+    }
+}

@@ -199,6 +199,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 chunk6aDismountPriorReactionObservation = allocationTrace.ObserveReactionResources;
                 allocationTrace.ObserveReactionResources = true;
                 chunk6aDismountCompletion = new NativeTurnCompletionProbe(allocationTrace, rider, horse, combat);
+                chunk6aDismountCompletion.Install();
                 var before = CaptureChunk6aDismountBoundary();
                 chunk6aDismountTurn = new JObject {
                     ["contract"] = "full-tb-later-native-turn-dismount",

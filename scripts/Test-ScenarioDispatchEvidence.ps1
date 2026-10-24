@@ -58,5 +58,44 @@ foreach($scenario in @('chunk6e-reaction-rt','chunk6e-reaction-tb')) {
 foreach($scenario in @('C6D-move-cast-move','C6E-reaction-window','CHUNK6D-STAGED-RT')) {
  Check (-not(Test-KmcCompoundRuntimeScenario $scenario)) ('Row or inexact 6D/6E name treated as compound: '+$scenario)
 }
-Check (@(Get-KmcCompoundRuntimeScenarios).Count-eq8) 'Compound registry changed without a dedicated validator review'
+$chunk7Families = [ordered]@{
+ 'chunk7-owned-two-pair-campaign'='Test-KmcChunk7OwnedPairsScenario'
+ 'chunk7-native-main-bootstrap'='Test-KmcChunk7NativeBootstrapScenario'
+ 'chunk7-bootstrap-cold-inventory'='Test-KmcChunk7BootstrapInventoryScenario'
+ 'chunk7-cumulative-acquisition'='Test-KmcChunk7CumulativeScenario'
+ 'chunk7-acquired-manual-derivative'='Test-KmcChunk7AcquiredManualScenario'
+ 'chunk7-manual-derived-acquisition'='Test-KmcChunk7ManualDerivedScenario'
+ 'chunk7-bootstrap-manual-seed'='Test-KmcChunk7ManualSeedScenario'
+ 'chunk7-two-pair-exploration'='world-fixed-root'
+ 'chunk7-small-profile-calibration'='Test-KmcChunk7SmallScenario'
+ 'chunk7-ordinary-acquisition'='Test-KmcChunk7OrdinaryScenario'
+ 'chunk7-ordinary-field-admission'='Test-KmcChunk7FieldScenario'
+ 'chunk7-native-progression'='Test-KmcChunk7ProgressionScenario'
+ 'chunk7-persistence-save'='Test-KmcChunk7PersistenceScenario'
+ 'chunk7-persistence-load'='Test-KmcChunk7PersistenceScenario'
+ 'chunk7-two-pair-combat-rider-first'='Test-KmcChunk7CombatScenario'
+ 'chunk7-two-pair-combat-mount-first'='Test-KmcChunk7CombatScenario'
+ 'chunk7-two-pair-realtime-core'='Test-KmcChunk7RealtimeScenario'
+ 'chunk7-two-pair-realtime-casting'='Test-KmcChunk7RealtimeScenario'
+ 'chunk7-two-pair-realtime-charge'='Test-KmcChunk7RealtimeScenario'
+ 'chunk7-two-pair-native-life-cleanup'='Test-KmcChunk7NativeLifeScenario'
+}
+$expectedCompound = @('chunk6c-casting-rt','chunk6c-casting-tb','chunk6c-casting-unmounted-rt','chunk6c-casting-unmounted-tb','chunk6d-staged-rt','chunk6d-staged-tb','chunk6e-reaction-rt','chunk6e-reaction-tb') + @($chunk7Families.Keys)
+$actualCompound = @(Get-KmcCompoundRuntimeScenarios)
+Check ($actualCompound.Count-eq$expectedCompound.Count-and$null-eq(Compare-Object $expectedCompound $actualCompound -CaseSensitive)) 'Compound registry differs from reviewed exact families'
+foreach($scenario in $chunk7Families.Keys) {
+ Check (Test-KmcCompoundRuntimeScenario $scenario) ('Selected Chunk 7 compound request missing: '+$scenario)
+ Check (@(Get-KmcSaveBackedRuntimeScenarios|Where-Object {$_-ceq$scenario}).Count-eq1) ('Selected Chunk 7 request must be registered once: '+$scenario)
+ $readers=@($chunk7Families.Values|Where-Object {$_-cne'world-fixed-root'}|Select-Object -Unique|Where-Object {& $_ $scenario})
+ if($scenario-ceq'chunk7-two-pair-exploration'){
+  Check ($readers.Count-eq0-and@(Get-KmcChunk7WorldRows|Where-Object {$_-ceq$scenario}).Count-eq1) 'World fixed root crosses another reader family'
+ }else{
+  Check ($readers.Count-eq1-and$readers[0]-ceq$chunk7Families[$scenario]) ('Chunk 7 root lacks one exact dedicated evidence family: '+$scenario)
+ }
+ Check (-not(Test-KmcCompoundRuntimeScenario $scenario.ToUpperInvariant())) ('Inexact Chunk 7 root admitted: '+$scenario)
+}
+
+Check (Test-KmcCompoundRuntimeScenario 'chunk7-two-pair-exploration') 'Chunk 7 world compound request missing'
+Check (@(Get-KmcSaveBackedRuntimeScenarios|Where-Object {$_-ceq'chunk7-two-pair-exploration'}).Count-eq1) 'World request must be registered once'
+Check (-not(Test-KmcCompoundRuntimeScenario 'chunk7-two-pair-combat')) 'Unimplemented Chunk 7 combat case admitted'
 Write-Host ('TOTAL PASS='+$passed+' FAIL=0')

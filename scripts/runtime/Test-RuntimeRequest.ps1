@@ -90,6 +90,59 @@ function Assert-RuntimeFixture {
 
 Assert-NoDuplicateJsonObjectProperties $RequestPath 'runtime request'
 $request = Read-KmcJson $RequestPath
+$hasWorkingObservation = @($request.PSObject.Properties.Name) -ccontains 'observeWorkingDeserialization'
+$hasF11AllocationProbe = @($request.PSObject.Properties.Name) -ccontains 'f11AllocationProbe'
+$hasOwnerStockRemoval = @($request.PSObject.Properties.Name) -ccontains 'ownerStockRemoval'
+if($hasOwnerStockRemoval -and ($request.ownerStockRemoval -isnot [bool] -or $request.ownerStockRemoval -ne $true -or
+    -not(($request.scenario -ceq 'persistence-p07-save' -and $request.persistenceCase -ceq 'prepare-removal') -or
+         ($request.scenario -ceq 'persistence-p07-load' -and $request.persistenceCase -ceq 'removal-no-dll')))) {
+    throw 'Owner stock removal is exclusive to its closed P07 producer and no-DLL cold consumer.'
+}
+if($hasWorkingObservation -and ($request.observeWorkingDeserialization -isnot [bool] -or
+    $request.observeWorkingDeserialization -ne $true -or $request.scenario -isnot [string] -or
+    $request.scenario -cne 'export-mounted-contracts' -or -not(Test-JsonInteger $request.schemaVersion) -or $request.schemaVersion -ne 2)) {
+    throw 'Working observation requires one exact true Boolean in its schema-2 export request.'
+}
+if($hasF11AllocationProbe){
+    if($request.schemaVersion-ne2-or$request.scenario-cne'chunk7-owned-two-pair-campaign'-or
+        (Get-KmcChunk7SelectedScenario $request)-cne'chunk7-two-pair-exploration'){
+        throw 'F11 native allocation observation is exclusive to inherited two-pair exploration.'
+    }
+    $f11=$request.f11AllocationProbe
+    Assert-KmcExactProperties $f11 @('contract','baseGameOnly','path','sha256','loadedMonoPath','loadedMonoSha256') 'F11 native allocation selection'
+    $expectedF11Path=Join-Path (Join-Path (Join-Path 'C:\Dev\KingmakerMountedCombatLab\runtime-staging' ([string]$request.runId)) 'f11-native-probe') 'KmcF11AllocationProbe.dll'
+    $expectedMonoPath='C:\Program Files (x86)\Steam\steamapps\common\Pathfinder Kingmaker\MonoBleedingEdge\EmbedRuntime\mono-2.0-bdwgc.dll'
+    if($f11.contract-cne'f11-native-allocation-v1'-or$f11.baseGameOnly-isnot[bool]-or-not$f11.baseGameOnly-or
+        $f11.path-cne$expectedF11Path-or$f11.sha256-cne'fd7454205bc1b9be2e777f470b40559ed86c7c903dc9a338bd9cda41fab3c13d'-or
+        $f11.loadedMonoPath-cne$expectedMonoPath-or$f11.loadedMonoSha256-cne'9dde653c0eda16e02441437e64faa058cda6c5c8c82a193b17895249b2099534'){
+        throw 'F11 native selection differs from the reviewed run-owned helper or exact installed Mono.'
+    }
+    Assert-KmcNotReparsePoint $expectedF11Path 'F11 staged helper'; Assert-KmcNotHardLink $expectedF11Path 'F11 staged helper'
+    if((Get-KmcSha256 $expectedF11Path)-cne$f11.sha256-or(Get-KmcSha256 $expectedMonoPath)-cne$f11.loadedMonoSha256){
+        throw 'F11 staged helper or installed Mono bytes differ from the closed request.'
+    }
+    $isolationPath=Join-Path ([string]$request.evidenceRoot) 'base-game-isolation-admission.json'
+    if(-not(Test-Path -LiteralPath $isolationPath -PathType Leaf)){throw 'F11 native selection lacks base-only transaction admission.'}
+    $isolation=Read-KmcJson $isolationPath
+    if($isolation.runId-cne$request.runId-or$isolation.stagingMode-cne'base-game-only-kmc'){
+        throw 'F11 native selection does not match the base-only transaction.'
+    }
+}
+Assert-KmcChunk7OrdinarySelection $request
+Assert-KmcChunk7NativeBootstrapSelection $request
+Assert-KmcChunk7AssistedColdInventorySelection $request
+Assert-KmcChunk7AssistedFixtureSelection $request
+Assert-KmcChunk7BootstrapInventorySelection $request
+Assert-KmcChunk7AcquiredManualSelection $request
+Assert-KmcChunk7SmallFixtureSelection $request
+Assert-KmcChunk7StockMammothFixtureSelection $request
+Assert-KmcChunk7ManualDerivedSelection $request
+Assert-KmcChunk7CumulativeSelection $request
+Assert-KmcChunk7OwnedPairsSelection $request
+Assert-KmcChunk7ManualSeedSelection $request
+Assert-KmcChunk7SmallSelection $request
+Assert-KmcChunk7FieldSelection $request
+Assert-KmcChunk7ProgressionSelection $request
 $schemaVersion = [int]$request.schemaVersion
 $commonRequired = @('schemaVersion','runId','scenario','branch','commit','productVersion','dllSha256','dllMvid','transactionToken','evidenceRoot')
 if ($schemaVersion -eq 1) {
@@ -98,7 +151,50 @@ if ($schemaVersion -eq 1) {
 elseif ($schemaVersion -eq 2) {
     $validation=$request.scenario-ceq'persistence-p06-load'
     $hasPersistenceCase=@($request.PSObject.Properties.Name)-ccontains'persistenceCase'
-    if($request.scenario-cin @('persistence-p07-save','persistence-p07-load')){
+    if(Test-KmcChunk7NormalPlayerScenario $request.scenario){
+        if($hasPersistenceCase){throw 'The normal-player control selects no persistence case.'}
+        Assert-KmcChunk7NormalPlayerDescriptor $request
+    }elseif(Test-KmcChunk7OwnedPairsScenario $request.scenario){
+        Assert-KmcChunk7OwnedPairsDescriptor $request
+        Assert-KmcChunk7RepeatedWorldRequest $request
+    }elseif(Test-KmcChunk7AcquiredManualScenario $request.scenario){
+        if($hasPersistenceCase){throw 'Acquired Manual selects no foreign persistence case.'}
+        Assert-KmcChunk7AcquiredManualDescriptor $request
+    }elseif(Test-KmcChunk7ManualDerivedScenario $request.scenario){
+        if($hasPersistenceCase){throw 'Manual-derived acquisition selects no foreign persistence case.'}
+        Assert-KmcChunk7ManualDerivedDescriptor $request
+    }elseif(Test-KmcChunk7CumulativeScenario $request.scenario){
+        if($hasPersistenceCase){throw 'Manual-derived acquisition selects no foreign persistence case.'}
+        Assert-KmcChunk7CumulativeDescriptor $request
+    }elseif(Test-KmcChunk7ManualSeedScenario $request.scenario){
+        if($hasPersistenceCase){throw 'Manual seed selects no foreign persistence case.'}
+        Assert-KmcChunk7ManualSeedDescriptor $request
+    }elseif(Test-KmcChunk7AssistedColdInventoryScenario $request.scenario){
+        if($hasPersistenceCase){throw 'Assisted cold inventory selects no persistence case.'}
+        Assert-KmcChunk7AssistedColdInventoryDescriptor $request
+    }elseif(Test-KmcChunk7BootstrapInventoryScenario $request.scenario){
+        if($hasPersistenceCase){throw 'Bootstrap cold inventory selects no persistence case.'}
+        Assert-KmcChunk7BootstrapInventoryDescriptor $request
+    }elseif(Test-KmcChunk7SmallScenario $request.scenario){
+        if($hasPersistenceCase){throw 'Small calibration selects no native save or persistence case.'}
+        Assert-KmcChunk7SmallLoadDescriptor $request
+    }
+    elseif(Test-KmcChunk7ProgressionScenario $request.scenario){
+        if($hasPersistenceCase){throw 'Progression requires its own exact case family.'}
+        Assert-KmcChunk7ProgressionLoadDescriptor $request
+    }elseif(Test-KmcChunk7FieldScenario $request.scenario){
+        if($hasPersistenceCase){throw 'Field admission has no persistence case or native write selection.'}
+        Assert-KmcChunk7FieldLoadDescriptor $request
+    }elseif(Test-KmcChunk7PersistenceScenario $request.scenario){
+        if(-not$hasPersistenceCase-or$request.persistenceCase-cnotin(Get-KmcChunk7PersistenceCases)){throw 'Chunk 7 requires an exact declared native persistence case.'}
+        if(Test-KmcOwnedSchema1Case $request.persistenceCase){throw 'Owned schema-1 fixture cases require their separate inherited family.'}
+        if($request.persistenceCase-cin@('owner-seed-manticore-fixture-manual','owner-seed-tomb-door-fixture-manual','owner-seed-thorn-river-door-fixture-manual')){throw 'Area fixture preparation requires its separate source-only inherited family.'}
+        if(Test-KmcChunk7CapitalCase $request.persistenceCase){throw 'Capital arrival requires its separate owned cold persistence-load family.'}
+        Assert-KmcChunk7AreaTarget $request
+        Assert-KmcChunk7RepeatedWorldRequest $request
+        if($request.persistenceCase-ceq'legacy-schema1-resave-manual'){Assert-KmcChunk7Schema1Request $request}
+        if($request.scenario-ceq'chunk7-persistence-load'){Assert-KmcChunk7PersistenceLoadDescriptor $request}
+    }elseif($request.scenario-cin @('persistence-p07-save','persistence-p07-load')){
         if(-not$hasPersistenceCase-or$request.persistenceCase-cnotin @('timeout','cancel-wait','locked-replace','serialization-cancel','serialization-cancel-output','disable-reenable','campaign-b','prepare-removal','disable-during-load','mounted-charge-area','mounted-charge-session','mounted-charge-disable','mounted-charge-removal','absent-kmc','removal-no-dll','mounted-charge-removal-no-dll','rider-death','mount-death','rider-size-change','area-reload','area-cross-entry','area-cross-exit','area-cross-entry-auto','area-cross-exit-auto')){throw 'P07 requires its exact owned recovery case.'}
         if($request.persistenceCase-cin @('prepare-removal','disable-during-load','mounted-charge-area','mounted-charge-session','mounted-charge-disable','mounted-charge-removal')-and$request.scenario-cne'persistence-p07-save'){throw 'A removal or disable-during-load case is save-only.'}
         if($request.persistenceCase-cin @('absent-kmc','removal-no-dll','mounted-charge-removal-no-dll')-and$request.scenario-cne'persistence-p07-load'){throw 'The integration-absent and no-DLL cases are cold-load only.'}
@@ -115,9 +211,33 @@ elseif ($schemaVersion -eq 2) {
         $request.persistenceCase-cnotin @('partial-movement','rider-spent','between-partner-orders','exhausted','explicit-end','combat-mount-tb','casting-items'))){throw 'Persistence case is outside the exact P02 checkpoint contract.'}
     $alternating=$request.scenario-ceq'persistence-p05-load'-and$hasPersistenceCase-and$request.persistenceCase-ceq'alternating'
     $crossArea=$hasPersistenceCase-and$request.persistenceCase-cin @('area-cross-entry','area-cross-exit','area-cross-entry-auto','area-cross-exit-auto')
+    $chunk7Area=(Test-KmcChunk7PersistenceScenario (Get-KmcChunk7SelectedScenario $request))-and$hasPersistenceCase-and$request.persistenceCase-ceq'multi-area-autosave'
+    $capitalArea=(Test-KmcChunk7OwnedPairsScenario $request.scenario)-and$hasPersistenceCase-and(Test-KmcChunk7CapitalArrivalCase $request.persistenceCase)
     $transitionAuto=$hasPersistenceCase-and$request.persistenceCase-cin @('area-cross-entry-auto','area-cross-exit-auto')
-    $extra=@(if($alternating-or$validation){'persistenceAlternate'}; if($request.scenario -cin @('persistence-p07-load','persistence-p01-load','persistence-p02-load','persistence-p03-load','persistence-p04-load','persistence-p05-load','persistence-p06-load')){'persistenceLoad'}; if($hasPersistenceCase){'persistenceCase'}; if($crossArea){'persistenceAreaTarget'})
+    if($hasPersistenceCase-and(Test-KmcOwnedSchema1Case $request.persistenceCase)){Assert-KmcOwnedSchema1Request $request}
+    Assert-KmcOwnedSchema2Request $request
+    $loadRefusal=Test-KmcChunk7LoadRefusal $request
+    $extra=@(if(Test-KmcChunk7NormalPlayerScenario $request.scenario){'normalPlayer';'persistenceLoad'}; if(Test-KmcChunk7StockMammothFixtureScenario $request.scenario){'stockMammothFixture';'persistenceLoad'}; if(Test-KmcChunk7SmallFixtureScenario $request.scenario){'smallFixture';'persistenceLoad'}; if(Test-KmcChunk7AssistedColdInventoryScenario $request.scenario){'assistedColdInventory';'persistenceLoad'}; if(Test-KmcChunk7AssistedFixtureScenario $request.scenario){'assistedFixture'}; if(Test-KmcChunk7OwnedPairsScenario $request.scenario){'ownedPairs';'persistenceLoad'}; if(Test-KmcChunk7AcquiredManualScenario $request.scenario){'acquiredManual';'persistenceLoad'}; if(Test-KmcChunk7ManualDerivedScenario $request.scenario){'manualDerived';'persistenceLoad'}; if(Test-KmcChunk7CumulativeScenario $request.scenario){'cumulativeAcquisition';'persistenceLoad'}; if(Test-KmcChunk7ManualSeedScenario $request.scenario){'manualSeed';'persistenceLoad'}; if(Test-KmcChunk7BootstrapInventoryScenario $request.scenario){'bootstrapInventory';'persistenceLoad'}; if(Test-KmcChunk7NativeBootstrapScenario $request.scenario){'nativeBootstrap'}; if(Test-KmcChunk7ProgressionScenario $request.scenario){'progression';'persistenceLoad'}; if(Test-KmcChunk7SmallScenario $request.scenario){'smallCalibration';'persistenceLoad'}; if(Test-KmcChunk7FieldScenario $request.scenario){'ordinaryField';'persistenceLoad'}; if(Test-KmcChunk7OrdinaryScenario $request.scenario){'ordinaryAcquisition'}; if($alternating-or$validation){'persistenceAlternate'}; if($loadRefusal){'persistenceAlternate';'loadRefusalDerivationSha256'}; if($request.scenario -cin @('chunk7-persistence-load','persistence-p07-load','persistence-p01-load','persistence-p02-load','persistence-p03-load','persistence-p04-load','persistence-p05-load','persistence-p06-load')){'persistenceLoad'}; if($hasPersistenceCase){'persistenceCase'}; if($crossArea-or$chunk7Area-or$capitalArea){'persistenceAreaTarget'}; if($hasPersistenceCase-and$request.persistenceCase-ceq'multi-exploration-three-area-transfers-manual'){'persistenceReplayTargets'}; if($hasPersistenceCase-and(($request.scenario-ceq'chunk7-persistence-load'-and$request.persistenceCase-ceq'legacy-schema1-resave-manual')-or(Test-KmcOwnedSchema1ColdRequest $request))){'schema1DerivationSha256'}; if(Test-KmcOwnedSchema2ColdRequest $request){'schema2DerivationSha256'})
+    if($hasWorkingObservation){$extra+=@('observeWorkingDeserialization')}
+    if($hasF11AllocationProbe){$extra+=@('f11AllocationProbe')}
+    if($hasOwnerStockRemoval){$extra+='ownerStockRemoval';if($request.scenario-ceq'persistence-p07-save'){$extra+='persistenceLoad'}}
     Assert-KmcExactProperties $request @($commonRequired + @('fixture','qualificationSuite') + $extra) 'runtime request v2'
+    if($loadRefusal){Assert-KmcChunk7LoadRefusalDescriptor $request}
+    if(Test-KmcChunk7SmallFixtureScenario $request.scenario){Assert-KmcChunk7SmallFixtureDescriptor $request}
+    if(Test-KmcChunk7StockMammothFixtureScenario $request.scenario){Assert-KmcChunk7StockMammothFixtureDescriptor $request}
+    if($hasOwnerStockRemoval){
+        $d=$request.persistenceLoad
+        $ownerCold=$request.scenario-ceq'persistence-p07-load'
+        Assert-KmcExactProperties $d @('internalName','fileName','sha256','length','lastWriteTimeUtcTicks','gameId','gameName','area') 'owner stock removal source'
+        foreach($pair in @(@('internalName',$(if($ownerCold){'KMC_CLEANUP'}else{'KMC_C7_STOCK_MAMMOTH'})),
+            @('fileName',$(if($ownerCold){'Manual_306_KMC_CLEANUP.zks'}else{'Manual_304_KMC_C7_STOCK_MAMMOTH.zks'})),
+            @('sha256',$(if($ownerCold){'2c46c2700f117b3f0d50f688d2c89bd879de79d4b0b40eaf3b2502c1015bdfc2'}else{'e475d49c3590927c7f216d301aa8535f6dbbdc7af2066f4c01f58fff335866fa'})),
+            @('gameId','3f7381f7-aba6-43bf-bae6-39c6a66a7180'),@('gameName','Testy the Modless'),
+            @('area','b10e86516b6437d45a629931c30936fe'))){Assert-KmcBootstrapInventoryString $d.($pair[0]) $pair[1]}
+        if(-not(Test-JsonInteger $d.length)-or$d.length-ne$(if($ownerCold){1263594}else{1257468})-or-not(Test-JsonInteger $d.lastWriteTimeUtcTicks)-or
+            $d.lastWriteTimeUtcTicks-le0-or$d.lastWriteTimeUtcTicks-gt[DateTime]::MaxValue.Ticks-or
+            $d.gameId-ceq$request.fixture.working.gameId){throw 'Owner stock source bytes or campaign identity differ.'}
+    }
     if($crossArea){
         $t=$request.persistenceAreaTarget
         Assert-KmcExactProperties $t @('enterPoint','area','autoSaveMode') 'cross-area transition target'
@@ -146,12 +266,16 @@ elseif ($schemaVersion -eq 2) {
         # The foreign-header derivative is campaign B's own archive whose KMC
         # member claims A: its native header carries B's minted identity.
         $foreignHeader=$second-and$validation-and$request.persistenceCase-ceq'foreign-header-campaign'
-        $leaf=if($second-and$validation){if($request.persistenceCase-ceq'failed-area-load'){'Manual_813_KMC_P06_AREA.zks'}else{'Manual_812_KMC_P06.zks'}}elseif($second){'Manual_301_KMC_P05_UNMOUNTED.zks'}elseif($nativeSlot){if($request.persistenceCase-ceq'quick'){'Quick_1.zks'}else{'Auto_1.zks'}}elseif($cleanupCold){'Manual_301_KMC_CLEANUP.zks'}elseif($deathCold){'Manual_301_KMC_DEATH.zks'}elseif($sizeCold){'Manual_301_KMC_SIZE.zks'}elseif($campaignBCold){'Manual_302_KMC_B.zks'}elseif($request.scenario-ceq'persistence-p05-load'-and$request.persistenceCase-ceq'queued'){'Manual_302_KMC_P01.zks'}elseif($request.scenario-ceq'persistence-p05-load'-and$request.persistenceCase-ceq'manual-renamed'){'Manual_811_KMC_RENAMED.zks'}else{'Manual_300_KMC_P01.zks'}
+        $leaf=if($second-and$validation){if($request.persistenceCase-ceq'failed-area-load'){'Manual_813_KMC_P06_AREA.zks'}else{'Manual_812_KMC_P06.zks'}}elseif($second){'Manual_301_KMC_P05_UNMOUNTED.zks'}elseif($nativeSlot){if($request.persistenceCase-ceq'quick'){'Quick_1.zks'}else{'Auto_1.zks'}}elseif($cleanupCold){if($hasOwnerStockRemoval){'Manual_306_KMC_CLEANUP.zks'}else{'Manual_301_KMC_CLEANUP.zks'}}elseif($deathCold){'Manual_301_KMC_DEATH.zks'}elseif($sizeCold){'Manual_301_KMC_SIZE.zks'}elseif($campaignBCold){'Manual_302_KMC_B.zks'}elseif($request.scenario-ceq'persistence-p05-load'-and$request.persistenceCase-ceq'queued'){'Manual_302_KMC_P01.zks'}elseif($request.scenario-ceq'persistence-p05-load'-and$request.persistenceCase-ceq'manual-renamed'){'Manual_811_KMC_RENAMED.zks'}else{'Manual_300_KMC_P01.zks'}
         $nameOk=if($second-and$validation){if($foreignHeader){$d.internalName-ceq'KMC_B'}else{$d.internalName-ceq'KMC_P01'}}elseif($second){$d.internalName-ceq'KMC_P05_UNMOUNTED'}elseif($nativeSlot){$d.internalName-is[string]-and$d.internalName.Length-gt0-and$d.internalName.Length-le256-and$d.internalName-cnotmatch'[\x00-\x1f\x7f]'}elseif($cleanupCold){$d.internalName-ceq'KMC_CLEANUP'}elseif($deathCold){$d.internalName-ceq'KMC_DEATH'}elseif($sizeCold){$d.internalName-ceq'KMC_SIZE'}elseif($campaignBCold){$d.internalName-ceq'KMC_B'}else{$d.internalName-ceq'KMC_P01'}
         if(-not$nameOk-or$d.fileName-cne$leaf-or$d.sha256-cnotmatch'^[0-9a-f]{64}$'-or
             $d.sha256-ceq$request.fixture.baseline.sha256-or-not(Test-JsonInteger $d.length)-or$d.length-le0-or$d.length-gt256MB-or
             -not(Test-JsonInteger $d.lastWriteTimeUtcTicks)-or$d.lastWriteTimeUtcTicks-le0-or$d.lastWriteTimeUtcTicks-gt[DateTime]::MaxValue.Ticks){throw 'Cold archive identity is invalid.'}
-        if($campaignBCold-or$foreignHeader){
+        if($hasOwnerStockRemoval){
+            if($d.gameId-cne'3f7381f7-aba6-43bf-bae6-39c6a66a7180'-or$d.gameName-cne'Testy the Modless'){
+                throw 'Owner stock cold archive campaign differs.'
+            }
+        }elseif($campaignBCold-or$foreignHeader){
             # Campaign B's archive carries the identity the engine minted for B, never the fixture's.
             if($d.gameId-ceq$request.fixture.working.gameId-or$d.gameId-cnotmatch'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'-or$d.gameId-ceq'00000000-0000-0000-0000-000000000000'-or[string]::IsNullOrEmpty([string]$d.gameName)){throw 'Campaign B archive must carry B own minted identity.'}
         }else{
@@ -160,7 +284,9 @@ elseif ($schemaVersion -eq 2) {
         # A cross-area source is committed after the transfer, so its native
         # header carries the declared destination rather than the fixture area.
         $expectedArea=if($transitionAuto){if($request.persistenceCase-ceq'area-cross-entry-auto'){[string]$request.persistenceAreaTarget.area}else{[string]$request.fixture.working.area}}elseif($crossArea){[string]$request.persistenceAreaTarget.area}else{[string]$request.fixture.working.area}
-        if($campaignBCold-or$foreignHeader){
+        if($hasOwnerStockRemoval){
+            if($d.area-cne'b10e86516b6437d45a629931c30936fe'){throw 'Owner stock cold archive area differs.'}
+        }elseif($campaignBCold-or$foreignHeader){
             if($d.area-ceq$request.fixture.working.area-or$d.area-cnotmatch'^[0-9a-f]{32}$'){throw 'Campaign B archive area must be B own.'}
         }elseif($d.area-cne$expectedArea){throw 'Cold archive campaign differs.'}
         }
@@ -180,6 +306,7 @@ elseif ($schemaVersion -eq 2) {
 else { throw 'Runtime request schemaVersion must be 1 or 2.' }
 
 $missionScenarios = @(
+    'chunk7-normal-player-control','chunk7-stock-mammoth-fixture-preparation','chunk7-small-fixture-preparation','chunk7-assisted-cold-inventory','chunk7-assisted-fixture-preparation','chunk7-owned-two-pair-campaign','chunk7-cumulative-acquisition','chunk7-acquired-manual-derivative','chunk7-manual-derived-acquisition','chunk7-bootstrap-manual-seed','chunk7-bootstrap-cold-inventory','chunk7-native-main-bootstrap','chunk7-native-progression','chunk7-small-profile-calibration','chunk7-ordinary-field-admission','chunk7-ordinary-acquisition','chunk7-two-pair-exploration','chunk7-persistence-save','chunk7-persistence-load','chunk7-two-pair-combat-rider-first','chunk7-two-pair-combat-mount-first','chunk7-two-pair-realtime-core','chunk7-two-pair-realtime-casting','chunk7-two-pair-realtime-charge','chunk7-two-pair-native-life-cleanup',
     'chunk4-ground-arrival-rt',
     'mod-load-smoke', 'export-mounted-contracts', 'export-candidate-mount-rigs', 'observe-mount-diagnostic-availability', 'horse-native-asset-audit', 'horse-companion-blueprint-registration', 'horse-companion-unmounted-suite', 'horse-mounted-alpha-suite', 'horse-native-controls-ux-suite',
     'chunk6c-casting-rt','chunk6c-casting-tb','chunk6c-casting-unmounted-rt','chunk6c-casting-unmounted-tb',

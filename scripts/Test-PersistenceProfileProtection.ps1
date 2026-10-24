@@ -59,6 +59,23 @@ try{
         try{Assert-KmcNativeUmmStartupDelta $kmcBefore $bad -RemovalObserver:($bad-cne$observerAfter)}catch{$rejected=$true}
         if(!$rejected){throw 'A UMM delta outside the removal-observer replacement was accepted.'};$passes++
     }
+    # The settled owner profile in batch66 had no KMC parameter entry. The
+    # observer is an exact UMM default append, not a replacement in that case.
+    $ownerBefore='<Params><ModParamsList><Mod Id="Other" Enabled="true"/></ModParamsList></Params>'
+    $observerEntry='<Mod Id="KmcRemovalObserver" Enabled="true"><Hotkey><keyCode>None</keyCode><modifiers>0</modifiers></Hotkey></Mod>'
+    $ownerAfter=$ownerBefore.Replace('</ModParamsList>',$observerEntry+'</ModParamsList>')
+    Assert-KmcNativeUmmStartupDelta $ownerBefore $ownerAfter -RemovalObserver;$passes++
+    foreach($bad in @(
+        $ownerAfter.Replace('Id="Other" Enabled="true"','Id="Other" Enabled="false"'),
+        $ownerAfter.Replace('Id="KmcRemovalObserver" Enabled="true"','Id="KmcRemovalObserver" Enabled="false"'),
+        $ownerAfter.Replace('<keyCode>None</keyCode>','<keyCode>F10</keyCode>'),
+        $ownerAfter.Replace($observerEntry,'<Mod Id="Unexpected" Enabled="true"/>'+$observerEntry),
+        $ownerBefore.Replace('<Mod Id="Other" Enabled="true"/>',$observerEntry+'<Mod Id="Other" Enabled="true"/>')
+    )){
+        $rejected=$false
+        try{Assert-KmcNativeUmmStartupDelta $ownerBefore $bad -RemovalObserver}catch{$rejected=$true}
+        if(!$rejected){throw 'A UMM delta outside the exact removal-observer append was accepted.'};$passes++
+    }
     $known='20260921-chunk5-P03-condition-preparing-save-A'
     $old=[pscustomobject]@{name='EternalKingdom_h3591390253';kind='Binary';value='RmFsc2UA'}
     $new=[pscustomobject]@{name=$old.name;kind='Binary';value='VHJ1ZQA='}
@@ -95,6 +112,77 @@ try{
     # keep its exact length, and nothing may shrink, grow or disappear.
     $native=12288
     $ach=Join-Path $profile 'achievements.dat$'
+    [IO.File]::WriteAllBytes($ach,(New-Object byte[] 0))
+    $rejected=$false
+    try{[void](Wait-KmcPersistenceProfileUnchanged -Snapshot $snapshot -MaximumWaitMilliseconds 0)}catch{$rejected=$true}
+    if(-not$rejected){throw 'An unsettled native cache was accepted without waiting.'};$passes++
+    $lookalike='achievements.dat'+[char]0xd800+'@'
+    $sameDisplay='achievements.dat'+[char]0xfffd+'@'
+    $prior=[pscustomobject]@{entries=@([pscustomobject]@{kind='file';path=$sameDisplay;length=0;sha256='e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'})}
+    $later=[pscustomobject]@{entries=@($prior.entries+[pscustomobject]@{kind='file';path=$lookalike;length=0;sha256='e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'})}
+    $detail='';try{[void](Get-KmcPersistenceProfileCacheDelta $prior $later)}catch{$detail=$_.Exception.Message}
+    if($detail-notmatch'utf16=.*d800,0040; beforeExact=0; afterExact=1 0$'){
+        throw 'A distinct native cache name with a lossy display did not retain its exact UTF-16/membership diagnosis.'
+    };$passes++
+    $secondAch=Join-Path $profile 'achievements.dat~'
+    try{
+        [IO.File]::WriteAllBytes($secondAch,(New-Object byte[] 4096))
+        $clock=[Diagnostics.Stopwatch]::StartNew();$rejected=$false
+        try{[void](Wait-KmcPersistenceProfileUnchanged -Snapshot $snapshot -MaximumWaitMilliseconds 2000)}catch{$rejected=$true}
+        if(-not$rejected-or$clock.ElapsedMilliseconds-ge1000){throw 'An invalid second cache leaf hid behind an unsettled first leaf.'};$passes++
+    }finally{Remove-Item -LiteralPath $secondAch -Force -ErrorAction SilentlyContinue}
+    foreach($foreign in @($cache,$params)){
+        $prior=[IO.File]::ReadAllBytes($foreign)
+        try{
+            [IO.File]::WriteAllText($foreign,'changed')
+            $clock=[Diagnostics.Stopwatch]::StartNew();$rejected=$false
+            try{[void](Wait-KmcPersistenceProfileUnchanged -Snapshot $snapshot -MaximumWaitMilliseconds 2000)}catch{$rejected=$true}
+            if(-not$rejected-or$clock.ElapsedMilliseconds-ge1000){throw 'Unrelated profile/settings drift hid behind an unsettled cache.'}
+            $passes++
+        }finally{[IO.File]::WriteAllBytes($foreign,$prior)}
+    }
+    $job=Start-Job -ArgumentList $ach,$native -ScriptBlock {
+        param($path,$size)
+        Start-Sleep -Milliseconds 300
+        [IO.File]::WriteAllBytes($path,(New-Object byte[] $size))
+    }
+    try{
+        $settled=@(Wait-KmcPersistenceProfileUnchanged -Snapshot $snapshot -MaximumWaitMilliseconds 5000 -PollMilliseconds 100)
+        if($settled.Count-ne1-or$settled[0].change-cne'created'-or$settled[0].length-ne$native){
+            throw 'A genuinely settled native cache was not admitted with its exact bytes.'
+        }
+        $passes++
+    }finally{[void](Wait-Job $job);Receive-Job $job -ErrorAction Stop | Out-Null;Remove-Job $job}
+    [IO.File]::WriteAllBytes($secondAch,(New-Object byte[] 0))
+    $job=Start-Job -ArgumentList $secondAch,$native -ScriptBlock {
+        param($path,$size)
+        Start-Sleep -Milliseconds 11000
+        [IO.File]::WriteAllBytes($path,(New-Object byte[] $size))
+    }
+    try{
+        $settled=@(Wait-KmcPersistenceProfileUnchanged -Snapshot $snapshot -MaximumWaitMilliseconds 15000)
+        if($settled.Count-ne2-or@($settled|Where-Object {$_.change-cne'created'-or$_.length-ne$native}).Count-ne0){
+            throw 'A native cache settling after the former ten-second window was not admitted exactly.'
+        }
+        $passes++
+    }finally{[void](Wait-Job $job);Receive-Job $job -ErrorAction Stop | Out-Null;Remove-Job $job;Remove-Item -LiteralPath $secondAch -Force -ErrorAction SilentlyContinue}
+    [IO.File]::WriteAllBytes($secondAch,(New-Object byte[] 0))
+    $job=Start-Job -ArgumentList $secondAch -ScriptBlock {
+        param($path)
+        Start-Sleep -Milliseconds 11000
+        [IO.File]::Delete($path)
+    }
+    try{
+        $settled=@(Wait-KmcPersistenceProfileUnchanged -Snapshot $snapshot -MaximumWaitMilliseconds 15000)
+        if($settled.Count-ne1-or$settled[0].path-cne'achievements.dat$'-or$settled[0].length-ne$native){
+            throw 'A zero-length native cache disappearing after the former ten-second window was not checked against the exact snapshot.'
+        }
+        $passes++
+    }finally{[void](Wait-Job $job);Receive-Job $job -ErrorAction Stop | Out-Null;Remove-Job $job;Remove-Item -LiteralPath $secondAch -Force -ErrorAction SilentlyContinue}
+    [IO.File]::WriteAllBytes($ach,(New-Object byte[] 4096))
+    $clock=[Diagnostics.Stopwatch]::StartNew();$rejected=$false
+    try{[void](Wait-KmcPersistenceProfileUnchanged -Snapshot $snapshot -MaximumWaitMilliseconds 2000)}catch{$rejected=$true}
+    if(-not$rejected-or$clock.ElapsedMilliseconds-ge1000){throw 'A nonzero invalid native cache size was waited on or accepted.'};$passes++
     [IO.File]::WriteAllBytes($ach,(New-Object byte[] $native))
     $accepted=@(Assert-KmcPersistenceProfileUnchanged $snapshot)
     if($accepted.Count-ne1-or$accepted[0].change-cne'created'-or$accepted[0].path-cne'achievements.dat$'){

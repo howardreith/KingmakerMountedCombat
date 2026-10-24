@@ -589,136 +589,9 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void CreateHorseThroughNativeRangerLevelUp()
         {
-            var ranger = ResourcesLibrary.TryGetBlueprint<BlueprintCharacterClass>(RangerClassGuid);
-            var huntersBond = ResourcesLibrary.TryGetBlueprint<BlueprintFeatureSelection>(HuntersBondSelectionGuid);
-            var rangerCompanion = ResourcesLibrary.TryGetBlueprint<BlueprintFeatureSelection>(
-                HorseCompanionBlueprintService.RangerSelectionGuid);
-            if (ranger == null || huntersBond == null || rangerCompanion == null ||
-                !ReferenceEquals(rangerCompanion, ResourcesLibrary.LibraryObject.BlueprintsByAssetId[
-                    HorseCompanionBlueprintService.RangerSelectionGuid]))
-            {
-                throw new InvalidOperationException("The exact Ranger class/level-4 bond/companion selection contract is unavailable.");
-            }
-
-            var originalCharacterLevel = owner.Descriptor.Progression.CharacterLevel;
-            var originalRangerLevel = owner.Descriptor.Progression.GetClassLevel(ranger);
-            var originalAutoLevelup = SettingsRoot.Instance.AutoLevelup.CurrentValue;
-            var commits = 0;
-            var huntersBondSelectionLevel = -1;
-            var rangerCompanionSelectionLevel = -1;
-            if (originalRangerLevel != 0)
-            {
-                throw new InvalidOperationException("The disposable native-level-up owner already has Ranger levels: " + originalRangerLevel + ".");
-            }
-            try
-            {
-                // The Working fixture enables automatic plans globally. Disable
-                // that setting only while constructing each native controller so
-                // the diagnostic can exercise an explicit Ranger selection.
-                SettingsRoot.Instance.AutoLevelup.CurrentValue = AutolevelupState.Off;
-                for (var rangerLevel = 1; rangerLevel <= 4; rangerLevel++)
-                {
-                    LevelUpController controller = null;
-                    var committed = false;
-                    try
-                    {
-                        controller = LevelUpController.StartWithoutAssigningStaticInstance(owner.Descriptor);
-                        if (!controller.SelectClass(ranger))
-                        {
-                            throw new InvalidOperationException("Native Ranger class selection failed at Ranger level " + rangerLevel + ".");
-                        }
-
-                        if (rangerLevel == 4)
-                        {
-                            var bondState = FindExactSelection(controller, huntersBond);
-                            huntersBondSelectionLevel = bondState.Level;
-                            var companionItem = bondState.Selection.Items.SingleOrDefault(item =>
-                                ReferenceEquals(item.Feature, rangerCompanion));
-                            if (companionItem == null || !controller.SelectFeature(bondState, companionItem))
-                            {
-                                throw new InvalidOperationException("Native Hunter's Bond did not accept the exact Ranger companion selection.");
-                            }
-
-                            var companionState = FindExactSelection(controller, rangerCompanion);
-                            rangerCompanionSelectionLevel = companionState.Level;
-                            var horseItem = companionState.Selection.Items.SingleOrDefault(item =>
-                                ReferenceEquals(item.Feature, service.HorseFeature));
-                            if (horseItem == null || !controller.SelectFeature(companionState, horseItem))
-                            {
-                                throw new InvalidOperationException("Native Ranger companion selection did not accept the exact KMC Horse item.");
-                            }
-
-                            var previewFact = controller.Preview.GetFact(service.HorseFeature);
-                            logger.Info("Native Ranger horse preview selected: fact=" + (previewFact != null) +
-                                "; previewPet=" + (controller.Preview.Pet != null) + ".");
-                        }
-
-                        controller.Commit();
-                        committed = true;
-                        commits++;
-                        logger.Info("Native Ranger level-up committed: rangerLevel=" + rangerLevel +
-                            "; characterLevel=" + owner.Descriptor.Progression.CharacterLevel +
-                            "; horseFact=" + (owner.Descriptor.GetFact(service.HorseFeature) != null) +
-                            "; pet=" + (owner.Descriptor.Pet != null) + ".");
-                    }
-                    finally
-                    {
-                        if (controller != null && !committed)
-                        {
-                            controller.Cancel();
-                        }
-                    }
-                }
-            }
-            finally
-            {
-                SettingsRoot.Instance.AutoLevelup.CurrentValue = originalAutoLevelup;
-            }
-
-            var bondSelections = owner.Descriptor.Progression.GetSelections(huntersBond, huntersBondSelectionLevel);
-            var companionSelections = owner.Descriptor.Progression.GetSelections(
-                rangerCompanion, rangerCompanionSelectionLevel);
-            var feature = owner.Descriptor.GetFact(service.HorseFeature) as Feature;
-            var rank = owner.Descriptor.GetFact(service.LevelRank)?.GetRank() ?? 0;
-            var pet = owner.Descriptor.Pet;
-            observations["nativeRangerCommitCount"] = commits;
-            observations["huntersBondSelectionLevel"] = huntersBondSelectionLevel;
-            observations["rangerCompanionSelectionLevel"] = rangerCompanionSelectionLevel;
-            observations["horseFactRankAtCommit"] = rank;
-            observations["horsePresentAtNativeCommit"] = pet != null &&
-                string.Equals(pet.Blueprint?.AssetGuid, HorseCompanionBlueprintService.UnitGuid, StringComparison.Ordinal);
-            observations["horseFeatureSourceGuid"] = feature?.Source?.AssetGuid;
-            Check(
-                commits == 4 &&
-                owner.Descriptor.Progression.CharacterLevel == originalCharacterLevel + 4 &&
-                owner.Descriptor.Progression.GetClassLevel(ranger) == originalRangerLevel + 4 &&
-                huntersBondSelectionLevel == 4 && rangerCompanionSelectionLevel == 4 &&
-                bondSelections.Count(item => ReferenceEquals(item, rangerCompanion)) == 1 &&
-                companionSelections.Count(item => ReferenceEquals(item, service.HorseFeature)) == 1 &&
-                feature != null && feature.Source != null && rank == 1 && pet != null &&
-                string.Equals(pet.Blueprint?.AssetGuid, HorseCompanionBlueprintService.UnitGuid, StringComparison.Ordinal),
+            Check(NativeHorseFixtureAcquisition.Create(owner, service, logger, observations),
                 "native-ranger-level-up-commit",
                 "The exact native preview/select/commit pipeline recorded Hunter's Bond -> Ranger companion -> Horse at Ranger progression level 4, retained feature source, granted rank 1, and created the exact pet.");
-        }
-
-        private static FeatureSelectionState FindExactSelection(
-            LevelUpController controller,
-            BlueprintFeatureSelection selection)
-        {
-            var matches = controller.State.Selections.Where(state =>
-                ReferenceEquals(state.Selection, selection) && !state.Selected).ToArray();
-            if (matches.Length != 1)
-            {
-                var available = string.Join(", ", controller.State.Selections.Select(state =>
-                {
-                    var blueprint = state.Selection as BlueprintScriptableObject;
-                    return (blueprint == null ? state.Selection.GetType().FullName : blueprint.name + "/" + blueprint.AssetGuid) +
-                        ":selected=" + state.Selected;
-                }).ToArray());
-                throw new InvalidOperationException("Expected one unselected native " + selection.name +
-                    " state; observed " + matches.Length + ". Available: " + available + ".");
-            }
-            return matches[0];
         }
 
         private void AwaitHorseSpawn()
@@ -3658,10 +3531,14 @@ namespace KingmakerMountedCombat.Diagnostics
             var disabledSnapshot = service.CaptureSnapshot();
             var reenabled = service.SetSelectionEnabled(true);
             var reenabledSnapshot = service.CaptureSnapshot();
-            Check(disabled && reenabled && disabledSnapshot.RangerCurrentOptionCount == 7 &&
-                    reenabledSnapshot.RangerCurrentOptionCount == 8 && reenabledSnapshot.RangerAppendOwned,
+            Check(disabled && reenabled &&
+                    (disabledSnapshot.RangerOriginalOptionCount == 7 || disabledSnapshot.RangerOriginalOptionCount == 12) &&
+                    disabledSnapshot.RangerCurrentOptionCount == disabledSnapshot.RangerOriginalOptionCount &&
+                    reenabledSnapshot.RangerOriginalOptionCount == disabledSnapshot.RangerOriginalOptionCount &&
+                    reenabledSnapshot.RangerCurrentOptionCount == disabledSnapshot.RangerOriginalOptionCount + 1 &&
+                    reenabledSnapshot.RangerAppendOwned,
                 "respec-and-uninstall-surface",
-                "After exact horse removal, the Ranger append restored to seven stock options and re-enabled once without residue.");
+                "After exact horse removal, the Ranger append restored its admitted original options and re-enabled once without residue.");
             BeginCleanup();
         }
 
@@ -3837,7 +3714,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 "mode-pause-selection-restoration",
                 "Native mode, pause state, and the original exact selection were restored.");
             Check(unrelatedPetsExact && relationship.State == RelationshipState.Unmounted &&
-                    selectionSnapshot.RangerCurrentOptionCount == 8 && selectionSnapshot.RangerAppendOwned,
+                    (selectionSnapshot.RangerOriginalOptionCount == 7 || selectionSnapshot.RangerOriginalOptionCount == 12) &&
+                    selectionSnapshot.RangerCurrentOptionCount == selectionSnapshot.RangerOriginalOptionCount + 1 &&
+                    selectionSnapshot.RangerAppendOwned,
                 "non-horse-isolation",
                 "All unrelated party pet identities, the unmounted Mammoth subsystem, and the exact Ranger append remained unchanged.");
 
