@@ -71,7 +71,7 @@ namespace KingmakerMountedCombat.Domain
 
             if (!RiderIsDirectlyControllable || !MountIsDirectlyControllable)
             {
-                return "Both units must be directly controllable.";
+                return MountedAreaControlRule.ControlRefusal;
             }
 
             if (!RiderIsAliveAndConscious || !MountIsAliveAndConscious)

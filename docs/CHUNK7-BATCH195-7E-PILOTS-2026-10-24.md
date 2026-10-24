@@ -114,6 +114,34 @@ Proposed design for review (not implemented):
    save and persist the deferred pairs as schema-3 pending custody, restoring on load in a non-capital
    area. (b) needs archive, reader and migration work and its own native proof.
 
+**Owner decision and implementation (offline, needs review): dismount on arrival.**
+`MountedAreaPersistence.RestoreAreaPair` now classifies each saved pair before attaching any:
+- a pair with no refusal restores as before;
+- a pair refused **only** by the native capital control rule is retired: the area is a capital, the
+  refusal is exactly the control refusal, a hypothetical re-validation with control assumed refuses
+  nothing else, every uncontrollable unit is neither the main character nor the main character's
+  pet, and any unit the rule admits is still controllable (`Domain/MountedAreaControlRule`, which the
+  pair candidate now also uses for its refusal text);
+- any other refusal throws, so the all-pair failure, fail-closed and save blocking stay as today.
+Before anything attaches, each retired pair must show observed separation: settled saved
+participation (no activation, boundary, partner or pending split), no active registry owner, no
+world relationship still holding either unit or owned residue, distinct live views with neither
+parented under the other, finite positions and no installed agent override. A residue throws
+("Capital-arrival retirement was not clean") and fails closed. Nothing is granted or fabricated:
+suspension had already separated the pair through the normal `AreaSuspension` cleanup, and
+retirement only declines to re-attach it. Saving stays allowed. UMM reports one line per pair:
+"Mounted pair <rider> and <mount> was dismounted on arrival: the companion is not directly
+controllable in this area. Mount again after leaving." `AreaRetiredPairCount` counts them. The player
+guide has one line on it. Unit tests: eight new cases (877/0 in the Fast components run).
+
+**Native test design (matrix rows 58–59, not implemented):** the old Oleg's route is the stimulus. A
+new owned persistence case cold-loads a two-owner mounted Manual (x4s shape), makes one native
+transfer to Oleg's (`fd225a93…`) and writes one genuine Manual there. Its reader requires one
+retired pair (count 1 and the UMM line), the main pair restored without Mount or preparation, the
+non-main pair separated with no owner or residue, and the Manual written. A separate cold consumer
+loads that Manual: one mounted pair, the other unmounted, no residue. It needs a new case in the
+repeated-world or area engine plus a reader, so it is designed into the matrix rather than built here.
+
 **Why cleanup overran and the game could not quit.** After the refusal the pairs stayed in failed
 custody, so the scenario's settlement predicates could not complete. `Chunk7HostCompletionGate`
 records "exceeded its bounded drain" after 45 s and keeps the quit fenced by design (fail-closed: a
