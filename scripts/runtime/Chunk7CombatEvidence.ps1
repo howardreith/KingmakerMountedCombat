@@ -202,6 +202,32 @@ function Get-KmcChunk7AttackModeRapidBonus($Measurement){
  if($values.Count-gt1){throw 'Rapid Shot bonus sources are not uniform within one full attack.'}
  if($values.Count-eq0){0}else{[long]$values[0]}
 }
+# Native UnitAttack.OnAction returns Success with the last planned attack and the command then waits for
+# that attack's animation; UnitCommand.Interrupt(bool) overwrites the Success if it arrives meanwhile
+# (b202 am unmounted control: Interrupt one frame after its second and last shot). Contract v2 records
+# every Interrupt(bool) of the measured command with its prior terminal state and caller chain. A
+# plan-complete Interrupt is admitted only as exactly one native overwrite of an acted Success after the
+# last planned attack, with no KingmakerMountedCombat frame in its callers; a Success carries none; an
+# interrupt before the plan completes (the natural melee tail) must name its one recorded cause.
+function Assert-KmcChunk7AttackModeInterrupt($c,$plan,$attacks,[string]$Label,$modes){
+ $planComplete=$c.completedAttacks-ge@($plan).Count;$recorded=$modes.contract-ceq'owner-seed-attack-modes-v2';$watch=$c.PSObject.Properties['interruptWatch']
+ if($recorded-ne($null-ne$watch)){throw ('Attack mode '+$Label+' interrupt observation differs from its contract.')}
+ if(-not$recorded){if($c.result-ceq'Interrupt'-and$planComplete){throw 'Attack mode interrupt claims a completed plan without its recorded native cause.'};return}
+ $w=$watch.Value;Assert-KmcExactProperties $w @('watchedFromClick','interrupts','interruptAsSoonAsPossible','executorCanAct','targetInState','targetDead') 'attack mode interrupt watch'
+ Assert-KmcChunk7Boolean $w.watchedFromClick $true
+ foreach($f in @('interruptAsSoonAsPossible','executorCanAct','targetInState','targetDead')){if($w.$f-isnot[bool]){throw 'Attack mode interrupt watch state is missing or mistyped.'}}
+ if($w.interrupts-isnot[Array]){throw 'Attack mode interrupt watch lacks its interrupt list.'}
+ $rows=@($w.interrupts)
+ foreach($row in $rows){Assert-KmcExactProperties $row @('frame','round','command','resultBefore','actedBefore','finishedBefore','interruptAsSoonAsPossible','timeSinceStart','attackIndex','plannedAttacks','executorCanAct','targetInState','targetDead','callers') 'attack mode interrupt'
+  if(-not(Test-KmcExactJsonInteger $row.frame)-or$row.command-ne$c.identity-or$row.resultBefore-cnotin@('None','Fail','Interrupt','Success')-or$row.actedBefore-isnot[bool]-or$row.finishedBefore-isnot[bool]-or
+     -not(Test-KmcExactJsonInteger $row.attackIndex)-or$row.plannedAttacks-ne@($plan).Count-or$row.callers-isnot[string]-or-not$row.callers.StartsWith('callers=')){throw 'Attack mode interrupt record is not the measured native command.'}}
+ $effective=@($rows|Where-Object{-not$_.finishedBefore-and$_.resultBefore-cne'Interrupt'})
+ if($c.result-ceq'Success'){if($effective.Count-ne0){throw ('Attack mode '+$Label+' Success hides an effective native interrupt.')};return}
+ if($effective.Count-ne1){throw ('Attack mode '+$Label+' interrupt lacks its one recorded native cause.')}
+ if(-not$planComplete){return}
+ $x=$effective[0];$lastFrame=[long](@($attacks|ForEach-Object{[long]$_.frame})|Measure-Object -Maximum).Maximum
+ if($x.resultBefore-cne'Success'-or$x.actedBefore-ne$true-or$x.attackIndex-ne@($plan).Count-or$x.frame-lt$lastFrame-or$x.callers.Contains('KingmakerMountedCombat')){throw 'Attack mode interrupt claims a completed plan.'}
+}
 function Assert-KmcChunk7AttackModeMeasurement($m,[string]$Label,[bool]$Mounted,[bool]$Rapid,[long]$Round,$o,$roles,$modes){
  if($m.rapid.buff-ne$Rapid-or$m.rapid.isRunning-ne$Rapid-or$m.rapid.inCombat-ne$true){throw ('Attack mode '+$Label+' Rapid Shot was not natively running exactly when on.')}
  if($m.label-cne$Label-or$m.mounted-isnot[bool]-or$m.mounted-ne$Mounted-or$m.round-ne$Round-or$m.rapid.isOn-ne$Rapid-or$m.rapidAfter.isOn-ne$Rapid){throw ('Attack mode measurement '+$Label+' differs in mode, round or toggle.')}
@@ -218,7 +244,6 @@ function Assert-KmcChunk7AttackModeMeasurement($m,[string]$Label,[bool]$Mounted,
  for($i=0;$i-lt$plan.Count;$i++){if($plan[$i].index-ne$i-or$plan[$i].ranged-isnot[bool]-or$plan[$i].natural-isnot[bool]){throw 'Attack mode plan entries are not an ordered native plan.'}
   if($i-lt$rangedCount){if($plan[$i].ranged-ne$true-or$plan[$i].owner-cne$roles[0]-or$plan[$i].weapon-cne$modes.weapon){throw 'Attack mode plan does not lead with rider A''s own ranged weapon.'}}elseif($plan[$i].ranged-eq$true){throw 'Attack mode plan holds a ranged entry after its tail.'}}
  if($rangedCount-lt1-or$c.completedAttacks-lt$rangedCount){throw ('Attack mode '+$Label+' did not complete its ranged plan.')}
- if($c.result-ceq'Interrupt'-and$c.completedAttacks-ge$plan.Count){throw 'Attack mode interrupt claims a completed plan.'}
  $events=@($m.rules);$seq=[long]$m.ruleCountBefore
  foreach($e in $events){$seq++;if($e.sequence-ne$seq-or$e.target-cne$o.targetId-or$e.actor-cne$roles[0]){throw ('Attack mode '+$Label+' rule window is not rider A''s consecutive own attacks on the target.')}}
  $rolls=@(Get-KmcChunk7AttackModeRolls $m);$attacks=@($events|Where-Object kind -CEQ 'attack')
@@ -226,6 +251,7 @@ function Assert-KmcChunk7AttackModeMeasurement($m,[string]$Label,[bool]$Mounted,
  foreach($r in $rolls){$sources=@(@($r.bonuses)|Where-Object{$null-ne$_-and$_.source-ceq'0f310c1e709e15e4fa693db15a4baeb4'}).Count;if($sources-ne$(if($Rapid){1}else{0})){throw ('Attack mode '+$Label+' roll does not carry exactly its Rapid Shot source.')}}
  foreach($r in $rolls){if($r.ranged-ne$true-or$r.weapon-cne$modes.weapon-or-not(Test-KmcExactJsonInteger $r.attackBonus)-or-not(Test-KmcExactJsonInteger $r.nativeCalculation.innerResult)-or$r.bonuses-isnot[Array]){throw 'Attack mode roll lacks its native weapon or bonus calculation.'}}
  foreach($a in $attacks){if($a.fullAttack-ne$full-or$a.opportunity-ne$false-or$a.weapon-cne$modes.weapon){throw 'Attack mode weapon attack is not the native swing of the ranged weapon in its declared mode.'}}
+ Assert-KmcChunk7AttackModeInterrupt $c $plan $attacks $Label $modes
  $beforeRider=Get-KmcChunk7CombatActor $m.before $roles[0];$afterRider=Get-KmcChunk7CombatActor $m.after $roles[0]
  if($afterRider.standard-le$beforeRider.standard){throw ('Attack mode '+$Label+' did not spend rider A''s own native action.')}
  # Pair B never spends inside the window; its finished turns' cooldowns may only decay natively, as every
@@ -254,7 +280,7 @@ function Assert-KmcChunk7AttackModesCombat($Request,$Observations){
  $d=$inputs[0];if($d.casterId-cne$roles[0]-or$d.targetId-cne$roles[0]-or$d.abilityGuid-cne'3af2b81f4d72bbb30501fa730fcdf36e'-or$d.nativeCastDelta-ne1-or$d.nativeRefusalDelta-ne0){throw 'Attack modes Dismount escaped rider A''s own native input.'}
  Assert-KmcChunk7Boolean $d.clicked $true;Assert-KmcChunk7Boolean $d.terminal $true;Assert-KmcChunk7Boolean $d.processTerminal $true
  $modes=$o.attackModes
- if($modes.contract-cne'owner-seed-attack-modes-v1'-or$modes.riderId-cne$roles[0]-or$modes.mountId-cne$roles[1]-or$modes.rapidShotFeature-ne1-or$modes.rapidShotToggles-ne1-or
+ if($modes.contract-cnotin@('owner-seed-attack-modes-v1','owner-seed-attack-modes-v2')-or$modes.riderId-cne$roles[0]-or$modes.mountId-cne$roles[1]-or$modes.rapidShotFeature-ne1-or$modes.rapidShotToggles-ne1-or
     $modes.weaponRanged-ne$true-or$modes.weapon-cnotmatch'^[0-9a-f]{32}$'-or-not(Test-KmcChunk7FiniteNumber $modes.weaponRangeMeters)-or$modes.weaponRangeMeters-le0){throw 'Attack modes lack rider A''s native Rapid Shot feat, toggle or ranged weapon.'}
  Assert-KmcChunk7Boolean $modes.complete $true
  if($null-eq$modes.PSObject.Properties['rules']-or$modes.rules.dropped-ne0-or@($modes.rules.errors).Count-ne0){throw 'Attack modes rule observation dropped or failed.'}

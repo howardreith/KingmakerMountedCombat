@@ -320,6 +320,38 @@ namespace KingmakerMountedCombat.Diagnostics
             declaredCommandOwner = actor;
         }
         private bool ObservesCommandActor(UnitEntityData actor) => actor != null && (ObservedPairActors.Contains(actor) || ReferenceEquals(actor, declaredCommandOwner));
+        // One exact native command whose every UnitCommand.Interrupt(bool) entry is kept apart from
+        // the event stream (so existing sequences are unchanged), with the command's terminal state
+        // before the call and the managed caller chain. 7E C03 attack modes: an unpaired rider's
+        // command is otherwise unobserved, and native Interrupt overwrites a Success that OnAction
+        // already assigned while the last attack's animation runs. Observation only.
+        private UnitCommand watchedCommand;
+        private JArray watchedInterrupts;
+        internal void WatchCommandInterrupts(UnitCommand command)
+        {
+            if (command == null || watchedCommand != null) throw new InvalidOperationException("Exactly one native command interrupt watch may be open.");
+            watchedCommand = command; watchedInterrupts = new JArray();
+        }
+        internal JArray TakeWatchedInterrupts(UnitCommand command)
+        {
+            if (command == null || !ReferenceEquals(command, watchedCommand)) throw new InvalidOperationException("The native command interrupt watch names another command.");
+            var rows = watchedInterrupts; watchedCommand = null; watchedInterrupts = null; return rows;
+        }
+        private void RecordWatchedInterrupt(UnitCommand command, string callers)
+        {
+            try
+            {
+                var target = command.TargetUnit; var executor = command.Executor;
+                watchedInterrupts.Add(new JObject { ["frame"] = Time.frameCount,
+                    ["round"] = Game.Instance.TurnBasedCombatController?.RoundNumber, ["command"] = Id(command),
+                    ["resultBefore"] = command.Result.ToString(), ["actedBefore"] = command.IsActed, ["finishedBefore"] = command.IsFinished,
+                    ["interruptAsSoonAsPossible"] = command.InterruptAsSoonAsPossible, ["timeSinceStart"] = command.TimeSinceStart,
+                    ["attackIndex"] = (command as UnitAttack)?.GetAttackIndex(), ["plannedAttacks"] = (command as UnitAttack)?.AllAttacks.Count,
+                    ["executorCanAct"] = executor?.Descriptor.State.CanAct, ["targetInState"] = target?.IsInState,
+                    ["targetDead"] = target?.Descriptor.State.IsDead, ["callers"] = callers });
+            }
+            catch (Exception) { observationErrors++; }
+        }
         private UnitEntityData Owner(UnitCommands commands) =>
             ObservedPairActors.SingleOrDefault(actor => ReferenceEquals(actor.Commands, commands)) ??
             (declaredCommandOwner != null && ReferenceEquals(declaredCommandOwner.Commands, commands) ? declaredCommandOwner : null);
@@ -426,6 +458,7 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 var p = active;
                 if (p == null || __instance == null) return;
+                if (ReferenceEquals(__instance, p.watchedCommand)) p.RecordWatchedInterrupt(__instance, InterruptCallers());
                 var actor = __instance.Executor;
                 if (!p.ObservesCommandActor(actor)) return;
                 p.Record("command-interrupt-before", actor, __instance, detail: InterruptCallers());
