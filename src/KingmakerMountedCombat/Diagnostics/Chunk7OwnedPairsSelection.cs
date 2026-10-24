@@ -42,6 +42,8 @@ namespace KingmakerMountedCombat.Diagnostics
         public const string OwnerSeedAttackModesCase = "owner-seed-attack-modes";
         // 7E X1 C11: pair A disengages natively from the diagnostic target (one native attack of opportunity) on the TB rider-first engine.
         public const string OwnerSeedCombatReactionCase = "owner-seed-combat-reaction";
+        // 7E X1 F04: the Chunk 6D staged plans and the ranged approach row on the TB rider-first engine.
+        public const string OwnerSeedStagedCase = "owner-seed-staged";
         public const string OwnerSeedLoadRefusalCase = "owner-seed-load-refusal";
         internal const string OwnerSeedLoadRefusalLeaf = "Manual_812_KMC_C7_SEED_REFUSAL.zks";
         internal static bool LoadRefusalCheckpoint(string value) => value == "multi-malformed-refusal-manual" || value == "multi-future-refusal-manual";
@@ -239,7 +241,7 @@ namespace KingmakerMountedCombat.Diagnostics
         // Both kinds that load the owner's seed and run its disclosed native setup.
         internal bool OwnerSeedSetup => IsOwnerSeed || IsOwnerSeedManual;
         internal bool IsOwnerSeedDerivedCombat => Case == OwnerSeedRealtimeCase || Case == OwnerSeedRiderFirstCase || Case == OwnerSeedMountFirstCase || Case == OwnerSeedDisableCase ||
-            Case == OwnerSeedNativeLifeCase || Case == OwnerSeedNativeDeathCase || Case == OwnerSeedAttackModesCase || Case == OwnerSeedCombatReactionCase;
+            Case == OwnerSeedNativeLifeCase || Case == OwnerSeedNativeDeathCase || Case == OwnerSeedAttackModesCase || Case == OwnerSeedCombatReactionCase || Case == OwnerSeedStagedCase;
         internal bool IsOwnerSeedCheckpointSave => Case == OwnerSeedCheckpointSaveCase;
         internal bool IsOwnerSeedCheckpointLoad => Case == OwnerSeedCheckpointLoadCase;
         internal bool IsSmallFixtureSave => Case == SmallFixtureSaveCase;
@@ -290,6 +292,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     case OwnerSeedNativeDeathCase: return "chunk7-two-pair-native-life-cleanup";
                     case OwnerSeedAttackModesCase: return "chunk7-two-pair-combat-rider-first";
                     case OwnerSeedCombatReactionCase: return "chunk7-two-pair-combat-rider-first";
+                    case OwnerSeedStagedCase: return "chunk7-two-pair-combat-rider-first";
                     case OwnerSeedCheckpointSaveCase: return "chunk7-persistence-save";
                     case OwnerSeedCheckpointLoadCase: return "chunk7-persistence-load";
                     case SmallFixtureSaveCase: return "chunk7-persistence-save";

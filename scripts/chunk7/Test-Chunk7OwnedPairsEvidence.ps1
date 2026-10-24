@@ -792,6 +792,146 @@ Check-SeedReaction 'a relationship input' {$o=$args[0].artifact.observations;$o.
 Check-SeedReaction 'a foreign target' {$args[0].artifact.observations.reaction.targetId=$args[0].request.ownedPairs.riderBId} 'exact pair A and diagnostic target'
 Check-SeedReaction 'an approach that drew an attack' {$v=$args[0];$n=New-KmcSeedReactionFixture $true;$v.artifact.observations.reaction=$n.artifact.observations.reaction;$x=$v.artifact.observations.reaction;$x.approach.rules=@(Copy-Value $x.disengage.rules[0]);$x.disengage.ruleCountBefore=1;$x.disengage.rules[0].sequence=2;$e=Copy-Value $x.disengage.rules[0];$x.rules.events=@($x.approach.rules[0],$e)} 'approach drew an attack'
 Check-SeedReaction 'an approach although already threatened' {$v=$args[0];$n=New-KmcSeedReactionFixture $true;$v.artifact.observations.reaction=$n.artifact.observations.reaction;$v.artifact.observations.reaction.precondition.engagesMount=$true} 'already threatened'
+# 7E X1 F04 staged moving actions: C6D-move-cast-move (round 10), C6D-double-move-ranged (11, its scroll
+# control in 12) and the ranged approach row (12, approach shot in 13). Synthetic geometry: the target
+# at the origin, envelope 0.9 + 1.5 + 15.24 = 17.64 m, the pair starting 8 m away on the x axis.
+function New-KmcSeedStagedFixture{
+ $v=New-KmcOwnerSeedDerivedCombatFixture 'combat-rider-first';$r=$v.request;$o=$v.artifact.observations;$roles=@(Get-KmcChunk7OwnedPairIds $r)
+ $r.ownedPairs.case='owner-seed-staged'
+ foreach($key in @('r1','firstActionMount','localFailure','registeredDisable','removalRefusal','pendingSurvivor')){if($null-ne$o.PSObject.Properties[$key]){$o.PSObject.Properties.Remove($key)}}
+ $o.activations=@();$o.inputs=@()
+ $weapon='4de4658c0e9b0d146b9a08ed6f030f8a';$clw='5590652e1c2225c4ca30c4a699ab3649';$scrollBp='cd635d5720937b044a354dba17abad8d';$scrollItem=-4401
+ $trace=$o.allocationTrace;$script:stSeq=[long](@($trace.events)|Measure-Object -Property sequence -Maximum).Maximum
+ $ev={param([string]$boundary,[string]$actor,[long]$command,[double]$standard,[string]$commandActor=$null,[string]$commandType=$null)$script:stSeq++
+  $trace.events=@($trace.events)+@([pscustomobject][ordered]@{sequence=$script:stSeq;boundary=$boundary;frame=1;round=10;command=$command;commandActor=$commandActor;commandType=$commandType;state=[pscustomobject][ordered]@{actor=$actor;standard=$standard}})}
+ $item={param([long]$count)@([pscustomobject][ordered]@{item=$scrollItem;blueprint=$scrollBp;count=$count;exactSlot=$true})}
+ $st={param([string]$label,[long]$round,[long]$turn,[double]$rStd,[double]$mMove,[double[]]$pos,[bool]$used2,[long]$count)
+  $x=Copy-Value $o.snapshots[0];$x.label=$label;$x.round=$round;$x|Add-Member currentActor $roles[0] -Force
+  foreach($a in $x.actors){$a.standard=0.0;$a.move=0.0;$a.swift=0.0;if($a.id-ceq$roles[0]){$a.standard=$rStd};if($a.id-ceq$roles[1]){$a.move=$mMove}}
+  $p=@([double]$pos[0],0.0,[double]$pos[1]);$d=[Math]::Sqrt($pos[0]*$pos[0]+$pos[1]*$pos[1])
+  foreach($pair in @(@('turnStatus','Acting'),@('turn',$turn),@('relationship','Mounted'),@('mountUsedOneMove',($mMove-gt0)),@('mountUsedTwoMove',$used2),@('mountHasMove',($mMove-lt5.95)),@('riderHasStandard',($rStd-le0.001)),
+   @('riderCommandsEmpty',$true),@('mountCommandsEmpty',$true),@('activePairCommand',$false),@('pairMovement',$false),@('processesSettled',$true),@('nativeAbilitiesPending',$false),@('projectilesPending',$false),
+   @('riderPosition',$p),@('mountPosition',$p),@('targetDistance',$d),@('riderEngaged',$false),@('mountEngaged',$false),@('items',(&$item $count)))){$x|Add-Member $pair[0] $pair[1] -Force}
+  $x}
+ $carrier={param([long]$id,[bool]$finished)[pscustomobject][ordered]@{identity=$id;type='UnitMoveTo';executor=$roles[1];createdByPlayer=$true;started=$true;acted=$true;finished=$finished;result='Success';commandType='Move';timeSinceStart=1.0}}
+ $leg={param([int]$index,[long]$round,[long]$turn,[double]$moveFrom,[double]$moveTo,[double[]]$from,[double[]]$to,[bool]$used2,[long]$count,[long]$id,[bool]$refused=$false)
+  $b=$script:stSeq;if(-not$refused){&$ev 'admission-after' $roles[1] $id 0.0 $roles[1] 'Kingmaker.UnitLogic.Commands.UnitMoveTo'}
+  [pscustomobject][ordered]@{index=$index;destination=@($to[0],0.0,$to[1]);plannedDistance=1.0;proposals=@();before=(&$st 'leg-before' $round $turn 0.0 $moveFrom $from $false $count);traceSequenceBefore=$b;castEventsBefore=0
+   fiveFootStep=$false;singleActionMove=$false;inputPath=$(if($refused){'ground-handler'}else{'pointer'});cursorCycles=0;clicked=$true;carrier=$(if($refused){$null}else{&$carrier $id $false});riderMoveSlot=$false
+   afterInput=(&$st 'leg-after-input' $round $turn 0.0 $moveFrom $from $false $count);after=(&$st 'leg-after' $round $turn 0.0 $moveTo $to $used2 $count);terminal=$(if($refused){$null}else{&$carrier $id $true});traceSequenceAfter=$script:stSeq;castEvents=@();displacement=1.0}}
+ $steps=[Collections.Generic.List[object]]::new()
+ $moveStep={param([int]$index,[string]$row,[string]$kind,[long]$round,$legs)$f=@($legs)[0];$l=@($legs)[-1]
+  $steps.Add([pscustomobject][ordered]@{index=$index;row=$row;kind=$kind;round=$round;before=(Copy-Value $f.before);traceSequenceBefore=$f.traceSequenceBefore;castEventsBefore=0;ruleCountBefore=0;legs=@($legs)
+   after=(Copy-Value $l.after);traceSequenceAfter=$l.traceSequenceAfter;castEvents=@();rules=@();endDistance=$l.after.targetDistance})}
+ $castStep={param([int]$index,[string]$row,[long]$round,[long]$turn,[double]$mMove,[double[]]$pos,[bool]$used2,[long]$count,[long]$shell)
+  $b=$script:stSeq;&$ev 'cost-before' $roles[0] $shell 0.0;&$ev 'cost-after' $roles[0] $shell 6.0
+  $ability=[pscustomobject][ordered]@{identity=900+$shell;blueprint=$clw;caster=$roles[0];sourceItem=$scrollItem;sourceItemBlueprint=$scrollBp;runtimeActionType='Standard';available=$true;availableForCast=$true}
+  $casts=@([pscustomobject][ordered]@{kind='action-before';actor=$roles[0];identity=$shell;shell=[pscustomobject]@{timeSinceStart=0.55}},[pscustomobject][ordered]@{kind='cast-after';actor=$roles[0];identity=1;ability=[pscustomobject]@{blueprint=$clw};process=77;spellFailed=$false;arcaneFailed=$false},
+   [pscustomobject][ordered]@{kind='item-spend-after';actor=$roles[0];identity=$scrollItem;blueprint=$scrollBp;count=($count-1);charges=1;result=$true})
+  $steps.Add([pscustomobject][ordered]@{index=$index;row=$row;kind='cast-standard-scroll';round=$round;before=(&$st 'cast-before' $round $turn 0.0 $mMove $pos $used2 $count);traceSequenceBefore=$b;castEventsBefore=0;ruleCountBefore=0
+   ability=$ability;target=$roles[0];selected=$true;canTarget=$true;clicked=$true;admittedShellCount=1;shell=[pscustomobject]@{identity=1};costShell=$shell;afterInput=(&$st 'cast-after-input' $round $turn 0.0 $mMove $pos $used2 $count)
+   after=(&$st 'cast-after' $round $turn 6.0 $mMove $pos $used2 ($count-1));traceSequenceAfter=$script:stSeq;castEvents=$casts;rules=@();terminal=[pscustomobject][ordered]@{identity=$shell;type='UnitUseAbility';executor=$roles[0];createdByPlayer=$true;started=$true;acted=$true;finished=$true;result='Success';commandType='Standard';timeSinceStart=0.6};endDistance=8.0})}
+ $shotStep={param([int]$index,[string]$row,[string]$kind,[long]$round,[long]$turn,[double]$moveFrom,[double]$moveTo,[double[]]$from,[double[]]$to,[bool]$used2,[long]$count,[long]$id)
+  $b=$script:stSeq;if($kind-ceq'attack-ranged-approach'){&$ev 'admission-after' $roles[1] 990 0.0 $roles[1] 'Kingmaker.UnitLogic.Commands.UnitMoveTo'};&$ev 'cost-before' $roles[0] $id 0.0;&$ev 'cost-after' $roles[0] $id 6.0
+  $cmd={param([bool]$done)[pscustomobject][ordered]@{identity=$id;type='MountedPairAttackCommand';executor=$roles[0];createdByPlayer=$true;started=$done;acted=$done;finished=$done;result=$(if($done){'Success'}else{'None'});commandType='Standard';timeSinceStart=0.0}}
+  $before=&$st 'shot-before' $round $turn 0.0 $moveFrom $from $used2 $count;$after=&$st 'shot-after' $round $turn 6.0 $moveTo $to $used2 $count
+  $steps.Add([pscustomobject][ordered]@{index=$index;row=$row;kind=$kind;round=$round;before=$before;traceSequenceBefore=$b;castEventsBefore=0;ruleCountBefore=$index;envelope=17.64;startDistance=$before.targetDistance
+   fullAttackMode=$false;cursorCycles=0;clicked=$true;admitted=(&$cmd $false);rejectionCodes=@();rejectionFeedback='Mounted pair command accepted: RiderRanged.';afterInput=(Copy-Value $before);after=$after;traceSequenceAfter=$script:stSeq;castEvents=@()
+   rules=@([pscustomobject][ordered]@{sequence=1;kind='attack';identity=7000+$index;frame=1;round=$round;actor=$roles[0];target=$o.targetId;opportunity=$false;fullAttack=$false;weapon=$weapon;ranged=$true;natural=$false;actorPosition=@($to[0],0.0,$to[1]);targetPosition=@(0.0,0.0,0.0)})
+   terminal=(&$cmd $true);endDistance=$after.targetDistance})}
+ # Round 10: C6D-move-cast-move.
+ &$moveStep 0 'C6D-move-cast-move' 'move-short' 10 @(&$leg 0 10 501 0.0 0.5 @(8.0,0.0) @(8.0,2.0) $false 4 601)
+ &$castStep 1 'C6D-move-cast-move' 10 501 0.5 @(8.0,2.0) $false 4 -801
+ &$moveStep 2 'C6D-move-cast-move' 'move-short' 10 @(&$leg 0 10 501 0.5 1.0 @(8.0,2.0) @(8.0,0.0) $false 3 602)
+ # Round 11: C6D-double-move-ranged (two native Moves, then the in-range shot).
+ $l=@((&$leg 0 11 502 0.0 1.4 @(8.0,0.0) @(8.0,7.0) $false 3 603),(&$leg 1 11 502 1.4 2.8 @(8.0,7.0) @(8.0,0.0) $false 3 604),(&$leg 2 11 502 2.8 4.2 @(8.0,0.0) @(8.0,7.0) $true 3 605))
+ &$moveStep 3 'C6D-double-move-ranged' 'move-two-moves' 11 $l
+ &$shotStep 4 'C6D-double-move-ranged' 'attack-ranged' 11 502 4.2 4.2 @(8.0,7.0) @(8.0,7.0) $true 3 802
+ # Round 12: beyond range, native exhaustion and its refusal, then the scroll control.
+ &$moveStep 5 'C7-staged-ranged-approach' 'move-beyond-range' 12 @(&$leg 0 12 503 0.0 2.0 @(8.0,7.0) @(20.64,0.0) $false 3 606)
+ &$moveStep 6 'C7-staged-ranged-approach' 'move-exhaust' 12 @((&$leg 0 12 503 2.0 4.0 @(20.64,0.0) @(20.64,7.0) $true 3 607),(&$leg 1 12 503 4.0 6.0 @(20.64,7.0) @(20.64,0.0) $true 3 608))
+ &$moveStep 7 'C7-staged-ranged-approach' 'move-probe' 12 @(&$leg 0 12 503 6.0 6.0 @(20.64,0.0) @(20.64,0.0) $true 3 0 $true)
+ &$castStep 8 'C6D-double-move-ranged' 12 503 6.0 @(20.64,0.0) $true 3 803
+ # Round 13: the RiderRanged approach shot from beyond range.
+ &$shotStep 9 'C7-staged-ranged-approach' 'attack-ranged-approach' 13 504 0.0 1.0 @(20.64,0.0) @(17.64,0.0) $false 2 804
+ $plan=@(Get-KmcChunk7StagedPlan|ForEach-Object{[pscustomobject][ordered]@{row=$_[0];kind=$_[1];round=$_[2]}})
+ $events=@($steps|ForEach-Object{@($_.rules)})
+ $o|Add-Member staged ([pscustomobject][ordered]@{contract='owner-seed-staged-v1';riderId=$roles[0];mountId=$roles[1];weapon=$weapon;weaponRanged=$true;weaponRangeMeters=15.24;scrollUnits=4;plan=$plan
+  defensiveCheck=[pscustomobject]@{covered=$false;reason='The pair never stands inside the diagnostic target''s threatened area during a cast.'}
+  scrollAbility=[pscustomobject][ordered]@{blueprint=$clw;sourceItem=$scrollItem;sourceItemBlueprint=$scrollBp;caster=$roles[0];available=$true;availableForCast=$true}
+  envelope=17.64;mountCorpulence=0.9;targetCorpulence=1.5;steps=@($steps);firstRound=10;progress=$null
+  rules=[pscustomobject][ordered]@{dropped=0;errors=@();events=$events}
+  scroll=[pscustomobject][ordered]@{blueprint=$scrollBp;requestedCount=4;equipped=[pscustomobject]@{item=$scrollItem;exactSlot=$true;count=1};stacked=[pscustomobject]@{item=$scrollItem;exactSlot=$true;count=4}
+   beforeCleanup=[pscustomobject]@{item=$scrollItem;exactSlot=$true;count=2};ownedItemReleased=$true;disposed=$true;slotRestored=$true;noOwnedItemResident=$true}
+  castTrace=[pscustomobject][ordered]@{dropped=0;faults=0;identityRegistry=[pscustomobject]@{retainedCount=0;released=$true;faults=0}};complete=$true}) -Force
+ $v.name='combat-staged';$v
+}
+function Check-SeedStaged([string]$Name,[scriptblock]$Mutation,[string]$Pattern){$v=New-KmcSeedStagedFixture;&$Mutation $v;Check ('owner-seed staged refuses '+$Name) {Invoke-OwnedReader $v} $true $Pattern}
+function Get-StStep($v,[int]$i){$v.artifact.observations.staged.steps[$i]}
+function Get-StActor($w,[string]$id){@($w.actors|Where-Object id -CEQ $id)[0]}
+function Get-StEvent($v,[long]$command,[string]$boundary){@($v.artifact.observations.allocationTrace.events|Where-Object{$_.command-eq$command-and$_.boundary-ceq$boundary})[0]}
+Check 'owner-seed staged evidence accepted (move-cast-move, double-move-ranged, ranged approach)' {Invoke-OwnedReader (New-KmcSeedStagedFixture)}
+Check 'combat evidence refuses a staged record outside its case' {$v=New-KmcOwnerSeedDerivedCombatFixture 'combat-rider-first';$v.artifact.observations|Add-Member staged ([pscustomobject]@{}) -Force;Invoke-OwnedReader $v} $true 'belongs only to its closed owner-seed selection'
+Check-SeedStaged 'a missing ranged weapon' {$args[0].artifact.observations.staged.weaponRanged=$false} 'ranged weapon or the declared scroll stack'
+Check-SeedStaged 'a smaller scroll stack' {$args[0].artifact.observations.staged.scrollUnits=1} 'ranged weapon or the declared scroll stack'
+Check-SeedStaged 'a reordered plan' {$p=$args[0].artifact.observations.staged.plan;$t=$p[0];$p[0]=$p[1];$p[1]=$t} 'Staged plan differs'
+Check-SeedStaged 'a missing step' {$s=$args[0].artifact.observations.staged;$s.steps=@($s.steps|Select-Object -First 9)} 'every planned native step'
+Check-SeedStaged 'a step in another round' {(Get-StStep $args[0] 2).round=11} 'plan position or native round'
+Check-SeedStaged 'a step that left rider A''s turn' {(Get-StStep $args[0] 1).after.turn=999} 'left rider A''s native turn'
+Check-SeedStaged 'a wrong envelope' {$args[0].artifact.observations.staged.envelope=20.0} 'footprint plus weapon range'
+Check-SeedStaged 'a defensive check claimed covered' {$args[0].artifact.observations.staged.defensiveCheck.covered=$true} 'recorded as uncovered'
+Check-SeedStaged 'a scroll that is not Cure Light Wounds' {$args[0].artifact.observations.staged.scrollAbility.blueprint='0'*32} 'native Cure Light Wounds'
+Check-SeedStaged 'a rider charged for movement' {$v=$args[0];$l=(Get-StStep $v 0).legs[0];$e=Get-StEvent $v 601 'admission-after';$e.boundary='cost-after';$e.state.actor=$v.request.ownedPairs.riderAId} 'rider A was charged'
+Check-SeedStaged 'a leg not charged to the mount' {$l=(Get-StStep $args[0] 0).legs[0];(Get-StActor $l.after $args[0].request.ownedPairs.mountAId).move=0.0} 'did not increase'
+Check-SeedStaged 'a leg that did not move' {$l=(Get-StStep $args[0] 3).legs[1];$l.after.mountPosition=@($l.before.mountPosition)} 'did not move'
+Check-SeedStaged 'a leg carried by the rider' {$l=(Get-StStep $args[0] 0).legs[0];$l.carrier.executor=$args[0].request.ownedPairs.riderAId} 'exact mount carrier'
+Check-SeedStaged 'a five-foot step leg' {(Get-StStep $args[0] 0).legs[0].fiveFootStep=$true} 'Native evidence boolean'
+Check-SeedStaged 'a mount Standard spent on movement' {$l=(Get-StStep $args[0] 5).legs[0];(Get-StActor $l.after $args[0].request.ownedPairs.mountAId).standard=6.0} 'non-movement action'
+Check-SeedStaged 'pair B spending inside a step' {$s=Get-StStep $args[0] 4;(Get-StActor $s.after $args[0].request.ownedPairs.riderBId).standard=6.0} 'Unrelated native actor expenditure'
+Check-SeedStaged 'two short legs beyond one Move' {$l=(Get-StStep $args[0] 2).legs[0];(Get-StActor $l.after $args[0].request.ownedPairs.mountAId).move=3.5;(Get-StActor (Get-StStep $args[0] 2).after $args[0].request.ownedPairs.mountAId).move=3.5} 'exceeded one native Move'
+Check-SeedStaged 'a second leg that did not continue the allocation' {$l=(Get-StStep $args[0] 2).legs[0];(Get-StActor $l.before $args[0].request.ownedPairs.mountAId).move=0.0} 'same native Move allocation'
+Check-SeedStaged 'a cast without its native commitment' {$e=Get-StEvent $args[0] -801 'cost-after';$e.command=1} 'committed exactly once'
+Check-SeedStaged 'a cast that did not charge six seconds' {$e=Get-StEvent $args[0] -801 'cost-after';$e.state.standard=3.0} 'additive Standard debt'
+Check-SeedStaged 'a mount charged for the rider cast' {$v=$args[0];$s=Get-StStep $v 1;$e=Get-StEvent $v -801 'cost-before';$e.state.actor=$v.request.ownedPairs.mountAId} 'committed exactly once'
+Check-SeedStaged 'a cast that moved the pair' {$s=Get-StStep $args[0] 1;$s.after.mountPosition=@(8.0,0.0,2.5)} 'not stationary'
+Check-SeedStaged 'a cast from another item' {(Get-StStep $args[0] 1).ability.sourceItem=1} 'exact equipped disposable scroll'
+Check-SeedStaged 'a failed native cast' {@((Get-StStep $args[0] 1).castEvents|Where-Object kind -CEQ 'cast-after')[0].spellFailed=$true} 'failed or duplicated'
+Check-SeedStaged 'a stack that did not decrement' {$s=Get-StStep $args[0] 1;$s.after.items[0].count=4} 'decrement in place'
+Check-SeedStaged 'a measured spend from the last unit' {$s=Get-StStep $args[0] 8;$s.before.items[0].count=1;$s.after.items[0].count=0} 'decrement in place'
+Check-SeedStaged 'damage inside a cast without its concentration check' {$s=Get-StStep $args[0] 1;$s.castEvents=@($s.castEvents)+@([pscustomobject]@{kind='damage';actor=$args[0].artifact.observations.targetId;target=$args[0].request.ownedPairs.riderAId;damage=3})} 'concentration checks'
+Check-SeedStaged 'a skipped defensive check while engaged' {$s=Get-StStep $args[0] 8;$s.before.riderEngaged=$true;@($s.castEvents|Where-Object kind -CEQ 'action-before')[0].shell.timeSinceStart=1.5} 'skipped its native defensive check'
+Check-SeedStaged 'an engaged cast under the uncovered record' {$s=Get-StStep $args[0] 8;$s.before.riderEngaged=$true} 'contradicts the uncovered'
+Check-SeedStaged 'a stock ranged refusal' {(Get-StStep $args[0] 4).rejectionCodes=@('MountedRangedUnsupported')} 'RiderRanged pair command'
+Check-SeedStaged 'an interrupted shot' {(Get-StStep $args[0] 4).terminal.result='Interrupt'} 'did not finish successfully'
+Check-SeedStaged 'a shot charged to the mount' {$v=$args[0];$e=Get-StEvent $v 802 'cost-after';$e.state.actor=$v.request.ownedPairs.mountAId} 'single native Standard commitment'
+Check-SeedStaged 'an in-range shot that moved the mount' {$s=Get-StStep $args[0] 4;$s.after.mountPosition=@(8.0,0.0,8.0);$s.after.riderPosition=@(8.0,0.0,8.0);$s.rules[0].actorPosition=@(8.0,0.0,8.0)} 'moved or charged the mount'
+Check-SeedStaged 'a shot origin away from the rider' {(Get-StStep $args[0] 4).rules[0].actorPosition=@(8.0,0.0,6.0)} 'shot origin'
+Check-SeedStaged 'a second attack inside the shot' {$s=Get-StStep $args[0] 4;$s.rules=@($s.rules)+@(Copy-Value $s.rules[0])} 'one native ranged shot'
+Check-SeedStaged 'an attack of opportunity inside a staged window' {$s=Get-StStep $args[0] 3;$s.rules=@([pscustomobject]@{sequence=1;kind='attack';actor=$args[0].artifact.observations.targetId;target=$args[0].request.ownedPairs.mountAId;opportunity=$true;ranged=$false})} 'attack of opportunity or a foreign attack'
+Check-SeedStaged 'a shot without the two native Moves' {$s=Get-StStep $args[0] 4;$s.before.mountUsedTwoMove=$false} 'two native Moves'
+Check-SeedStaged 'a shot without the rider''s Standard' {$s=Get-StStep $args[0] 4;$s.before.riderHasStandard=$false} 'Standard was not available'
+Check-SeedStaged 'a scroll control without the renewed Standard' {$s=Get-StStep $args[0] 8;(Get-StActor $s.before $args[0].request.ownedPairs.riderAId).standard=6.0} 'renewed Standard'
+Check-SeedStaged 'a move that stayed inside weapon range' {(Get-StStep $args[0] 5).after.targetDistance=18.0} 'beyond weapon range'
+Check-SeedStaged 'movement that was not exhausted' {$l=@((Get-StStep $args[0] 6).legs)[-1];(Get-StActor $l.after $args[0].request.ownedPairs.mountAId).move=5.0} 'not exhausted'
+Check-SeedStaged 'an exhausted mount that still moved' {$l=(Get-StStep $args[0] 7).legs[0];$l.after.mountPosition=@(21.5,0.0,0.0)} 'exhausted mount still moved'
+Check-SeedStaged 'a refused move that committed a cost' {$v=$args[0];$l=(Get-StStep $v 7).legs[0];$e=Get-StEvent $v 803 'cost-before';$l.traceSequenceAfter=$e.sequence;(Get-StStep $v 7).traceSequenceAfter=$e.sequence} 'committed a cost|rider A was charged'
+Check-SeedStaged 'an approach shot from inside range' {(Get-StStep $args[0] 9).startDistance=17.0} 'did not start beyond weapon range'
+Check-SeedStaged 'an approach without the mount''s native move' {$v=$args[0];$e=Get-StEvent $v 990 'admission-after';$e.boundary='admission-before'} 'exactly one native mount move'
+Check-SeedStaged 'an approach not charged to the mount' {$s=Get-StStep $args[0] 9;(Get-StActor $s.after $args[0].request.ownedPairs.mountAId).move=0.0} 'not charged to the mount'
+Check-SeedStaged 'a shot fired before the approach' {(Get-StStep $args[0] 9).rules[0].actorPosition=@(20.64,0.0,0.0)} 'shot origin'
+Check-SeedStaged 'an approach that stopped out of range' {(Get-StStep $args[0] 9).endDistance=18.5} 'outside weapon range'
+Check-SeedStaged 'two rider costs in one activation' {$v=$args[0];$s=Get-StStep $v 2;$l=$s.legs[0];$script:stSeq=[long](@($v.artifact.observations.allocationTrace.events)|Measure-Object -Property sequence -Maximum).Maximum;$t=$v.artifact.observations.allocationTrace;$t.events=@($t.events)+@([pscustomobject][ordered]@{sequence=$script:stSeq+1;boundary='cost-after';frame=1;round=10;command=5;commandActor=$null;commandType=$null;state=[pscustomobject]@{actor=$v.request.ownedPairs.riderAId;standard=6.0}});foreach($i in 0..9){(Get-StStep $v $i).traceSequenceBefore+=0};$s.traceSequenceAfter=$script:stSeq+1;$l.traceSequenceAfter=$script:stSeq+1} 'rider A was charged|exactly one rider cost'
+Check-SeedStaged 'a turn transition inside an activation' {$v=$args[0];$e=Get-StEvent $v 602 'admission-after';$e.boundary='prepare-after'} 'turn transition|exact mount carrier'
+Check-SeedStaged 'a stack built off the equipped entity' {$args[0].artifact.observations.staged.scroll.stacked.item=1} 'built on its equipped entity'
+Check-SeedStaged 'a stack that does not conserve its spends' {$args[0].artifact.observations.staged.scroll.beforeCleanup.count=3} 'conserve its two observed native spends'
+Check-SeedStaged 'a retained disposable item' {$args[0].artifact.observations.staged.scroll.noOwnedItemResident=$false} 'Native evidence boolean'
+Check-SeedStaged 'an unretired cast observer' {$args[0].artifact.observations.staged.castTrace.identityRegistry.released=$false} 'not retired'
+Check-SeedStaged 'a dropped rule observation' {$args[0].artifact.observations.staged.rules.dropped=1} 'dropped or failed'
+Check-SeedStaged 'an incomplete run' {$args[0].artifact.observations.staged.complete=$false} 'Native evidence boolean'
+Check-SeedStaged 'a carried reaction record' {$args[0].artifact.observations|Add-Member reaction ([pscustomobject]@{}) -Force} 'cannot carry another combat case'
+Check-SeedStaged 'a relationship input' {$args[0].artifact.observations.inputs=@([pscustomobject]@{label='stray'})} 'no relationship input'
+Check-SeedStaged 'a single-action move leg' {(Get-StStep $args[0] 0).legs[0].singleActionMove=$true} 'Native evidence boolean'
+Check-SeedStaged 'an absent cast shell identity' {$s=Get-StStep $args[0] 8;$s.costShell=0;$s.terminal.identity=0} 'committed exactly once'
 Check 'owner-seed combat reaction accepts a negative native command identity' {$v=New-KmcSeedReactionFixture;(Get-RxLeg $v).command=-1234567;Invoke-OwnedReader $v}
 Check 'owner-seed combat reaction accepts an interrupted move that left the threatened area short of its clear distance' {$v=New-KmcSeedReactionFixture;$d=Get-RxLeg $v;$d.result='Interrupt';$d.targetAfter.mountDistance=6.0;Invoke-OwnedReader $v}
 Check 'owner-seed combat reaction accepts pair B cooldowns that only decayed natively' {$v=New-KmcSeedReactionFixture;$d=Get-RxLeg $v;(RActor $d.before $v.request.ownedPairs.riderBId).standard=6.0;(RActor $d.after $v.request.ownedPairs.riderBId).standard=5.5;Invoke-OwnedReader $v}
