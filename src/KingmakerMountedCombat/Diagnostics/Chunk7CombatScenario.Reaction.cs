@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using Kingmaker;
+using Kingmaker.Controllers.Combat;
 using Kingmaker.EntitySystem.Entities;
 using Kingmaker.UnitLogic.Commands;
 using Kingmaker.UnitLogic.Commands.Base;
@@ -36,6 +37,12 @@ namespace KingmakerMountedCombat.Diagnostics
             ["round"] = Game.Instance.TurnBasedCombatController.RoundNumber, ["frame"] = Time.frameCount,
             ["reactions"] = target.CombatState.AttackOfOpportunityCount, ["reactionsPerRound"] = target.CombatState.AttackOfOpportunityPerRound,
             ["canAttackOfOpportunity"] = target.CombatState.CanAttackOfOpportunity,
+            // The native AttackOfOpportunity gates beyond the counter (IL of 0x060093A1): able to act in combat (not waiting
+            // on initiative or surprised), able to act, a threat hand, and the moving unit's group memory of the attacker.
+            ["canActInCombat"] = target.CombatState.CanActInCombat, ["waitingInitiative"] = target.CombatState.IsWaitingInitiative,
+            ["initiativeCooldown"] = target.CombatState.Cooldown.Initiative, ["surprised"] = Game.Instance.TurnBasedCombatController.IsSurprised(target),
+            ["canAct"] = target.Descriptor.State.CanAct, ["threatHand"] = target.GetThreatHand() != null,
+            ["riderRemembersTarget"] = ar.Memory.Contains(target), ["mountRemembersTarget"] = am.Memory.Contains(target),
             ["standard"] = target.CombatState.Cooldown.StandardAction, ["move"] = target.CombatState.Cooldown.MoveAction,
             ["swift"] = target.CombatState.Cooldown.SwiftAction, ["prone"] = target.Descriptor.State.Prone.Active,
             ["proneRequested"] = target.Descriptor.State.Prone.ShouldBeActive, ["conscious"] = target.Descriptor.State.IsConscious,
@@ -46,7 +53,8 @@ namespace KingmakerMountedCombat.Diagnostics
         private JObject PairResidue() => new JObject { ["activeCommand"] = a.Combat.HasActiveCommand, ["groundMovement"] = a.Combat.HasActiveGroundMovement,
             ["riderCommandsEmpty"] = ar.Commands.Empty, ["mountCommandsEmpty"] = am.Commands.Empty, ["state"] = a.Relationship.State.ToString(),
             ["riderConscious"] = ar.Descriptor.State.IsConscious, ["mountConscious"] = am.Descriptor.State.IsConscious,
-            ["riderProne"] = ar.Descriptor.State.Prone.Active, ["mountProne"] = am.Descriptor.State.Prone.Active };
+            ["riderProne"] = ar.Descriptor.State.Prone.Active, ["mountProne"] = am.Descriptor.State.Prone.Active,
+            ["riderDamage"] = ar.Damage, ["riderMaxHp"] = ar.MaxHP, ["mountDamage"] = am.Damage, ["mountMaxHp"] = am.MaxHP };
         // A walkable native destination whose navmesh trace from the start reaches it (bounded fan of directions).
         private Vector3 NavmeshDestination(Vector3 start, Vector3 direction, float length, Func<Vector3, bool> accepts, JArray proposals)
         {
@@ -83,7 +91,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var turn = Game.Instance.TurnBasedCombatController.CurrentTurn;
             Chunk7NativeFixture.Select(ar); Game.Instance.IsPaused = true;
             reactionStart = am.Position;
-            var leg = new JObject { ["label"] = label, ["round"] = Game.Instance.TurnBasedCombatController.RoundNumber,
+            var leg = new JObject { ["label"] = label, ["pairBefore"] = PairResidue(), ["round"] = Game.Instance.TurnBasedCombatController.RoundNumber,
                 ["destination"] = Point(destination), ["requestedDistance"] = Flat(reactionStart, destination),
                 ["before"] = WorldSnapshot(label + "-before"), ["targetBefore"] = TargetReactionState(label + "-before"),
                 ["ruleCountBefore"] = reactionRules.EventCount, ["traceSequenceBefore"] = trace.EventCount };
@@ -97,7 +105,7 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             leg["clicked"] = clicked;
             reactionMove = am.Commands.Move as UnitMoveTo;
-            Require(clicked && reactionMove?.Executor == am && !turn.EnabledFiveFootStep, "Native paired ground input did not admit the exact ordinary mount move.");
+            Require(clicked && reactionMove?.Executor == am && !turn.EnabledFiveFootStep && !turn.EnabledSingleActionMove, "Native paired ground input did not admit the exact ordinary mount move.");
             issuedCommands.Add(reactionMove); leg["command"] = trace.ObjectIdentity(reactionMove);
             Chunk7NativeFixture.Select(br); Game.Instance.IsPaused = false;
             reactionLeg = leg; return leg;
@@ -125,12 +133,15 @@ namespace KingmakerMountedCombat.Diagnostics
             reaction["stage"] = reactionStage;
             if (reactionStage == 0)
             {
-                if (!ReadyPrincipal(a)) { if (turn?.Unit != target) EndNative(turn); return; }
+                // Rider A's own turn is never ended here; its partner context may still be binding.
+                if (!ReadyPrincipal(a)) { if (turn?.Unit != target && turn?.Unit != ar) EndNative(turn); return; }
                 reactionRound = controller.RoundNumber; reaction["firstRound"] = reactionRound; actingPair = a; actingIndex = 0; actingTurn = turn;
                 var state = TargetReactionState("precondition"); reaction["precondition"] = state;
                 Require(a.Relationship.State == RelationshipState.Mounted, "Pair A is not mounted at its first prepared turn.");
                 Require(target.CombatState.CanAttackOfOpportunity && target.CombatState.AttackOfOpportunityPerRound == 1 &&
-                    target.CombatState.AttackOfOpportunityCount == 1 && target.Descriptor.State.IsConscious && !target.Descriptor.State.Prone.Active,
+                    target.CombatState.AttackOfOpportunityCount == 1 && target.Descriptor.State.IsConscious && !target.Descriptor.State.Prone.Active &&
+                    (bool)state["canActInCombat"] && !(bool)state["waitingInitiative"] && !(bool)state["surprised"] && (bool)state["canAct"] &&
+                    (bool)state["threatHand"] && (bool)state["riderRemembersTarget"] && (bool)state["mountRemembersTarget"],
                     "The diagnostic target has no single available native attack of opportunity; C11 disengagement is uncovered on this fixture: " +
                     state.ToString(Newtonsoft.Json.Formatting.None));
                 if (target.CombatState.IsEngage(am) || target.CombatState.IsEngage(ar)) { ReactionStage(2); return; }
@@ -181,12 +192,19 @@ namespace KingmakerMountedCombat.Diagnostics
                 Require((float)leg["distance"] > .5f && (float)Actor(after, am)["move"] > (float)Actor(before, am)["move"] &&
                     new[] { "standard", "move", "swift" }.All(f => (float)Actor(after, ar)[f] == (float)Actor(before, ar)[f]) &&
                     (float)Actor(after, am)["standard"] == (float)Actor(before, am)["standard"] &&
-                    new[] { br, bm }.All(actor => SameActorBudget(Actor(before, actor), Actor(after, actor))) &&
+                    // Pair B never spends inside the window (a finished turn's cooldowns may only decay natively).
+                    new[] { br, bm }.All(actor => new[] { "standard", "move", "swift" }.All(f => (float)Actor(after, actor)[f] <= (float)Actor(before, actor)[f] + .001f) &&
+                        (int)Actor(after, actor)["reactions"] == (int)Actor(before, actor)["reactions"]) &&
                     new[] { "standard", "move", "swift" }.All(f => (float)targetAfter[f] <= (float)targetBefore[f] + .001f) &&
-                    !(bool)residue["activeCommand"] && !(bool)residue["groundMovement"] && (string)residue["state"] == "Mounted",
+                    !(bool)residue["activeCommand"] && !(bool)residue["groundMovement"] && (string)residue["state"] == "Mounted" &&
+                    (bool)residue["riderConscious"] && (bool)residue["mountConscious"] && !(bool)residue["riderProne"] && !(bool)residue["mountProne"] &&
+                    // An interrupted move must still have left the threatened area; a completed one reaches its clear distance.
+                    ((string)leg["result"] == "Interrupt" || (float)targetAfter["mountDistance"] >= (float)leg["clearDistance"] - .6f),
                     "Disengagement escaped the mount's own native move, refunded it or left pair residue.");
                 var capture = reactionRules.Capture();
-                Require((int)capture["dropped"] == 0 && ((JArray)capture["errors"]).Count == 0, "Reaction rule observation dropped or failed.");
+                var approachRules = (reaction["approach"]?["rules"] as JArray)?.Count ?? 0;
+                Require((int)capture["dropped"] == 0 && ((JArray)capture["errors"]).Count == 0 && ((JArray)capture["events"]).Count == approachRules + rules.Length,
+                    "Reaction rule observation dropped, failed or recorded attacks outside its windows.");
                 reaction["rules"] = capture; reactionRules.Dispose(); reactionRules = null;
                 reaction["complete"] = true; Pass("C7-combat-reaction-disengage-opportunity");
                 BeginCleanup();
