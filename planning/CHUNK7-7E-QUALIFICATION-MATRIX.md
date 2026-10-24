@@ -329,7 +329,8 @@ in U3.
 | Deliverable | Path (to write) | Contents |
 | --- | --- | --- |
 | Changelog | `docs/CHUNK7-CHANGELOG.md` | One concise list from preview.211 to F |
-| Support and configuration guide | extend `docs/CHUNK7-PLAYER-GUIDE.md` | Supported profiles, up to six pairs, settings, Charge default-off, diagnostics opt-in and inert, refusals |
+| Support and configuration guide | `docs/CHUNK7-SUPPORT-CONFIG.md`, linked from `docs/CHUNK7-PLAYER-GUIDE.md` (which carries the short settings, logs, capital and migration additions) | Supported profiles, up to six pairs, settings, Charge default-off, diagnostics opt-in and inert, logs, messages, refusals, uncovered combat behaviors, how to report |
+| Release notes | `docs/CHUNK7-RELEASE-NOTES.md` | Highlights, the preview.211 base-game Horse registration fix, what upgrade/rollback/removal did and did not prove, uncovered combat behaviors, known limits; package identity after the 7E freeze |
 | Migration, rollback and removal | `docs/CHUNK7-MIGRATION-ROLLBACK-REMOVAL.md` | Keep pre-migration saves; older binaries are not certified for new-format saves; clean-save preparation; a KMC Horse campaign needs the mod |
 | Owner play checklist | `docs/CHUNK7-OWNER-PLAY-CHECKLIST.md` | Exact package and save copy; **place Mount Companion and Dismount on the action bar by hand (KMC does not pre-fill slots)**; pointer feel, portraits, seat and contact, weapons, camera; one RT and one TB session; how to report |
 | Engineering closeout | `docs/CHUNK7-ENGINEERING-CLOSEOUT-<date>.md` | Artifacts by verified path and identity, row dispositions, limitations |
