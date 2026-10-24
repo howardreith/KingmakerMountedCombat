@@ -4,6 +4,7 @@ using Kingmaker;
 using Kingmaker.UI.Selection;
 using Kingmaker.UnitLogic;
 using Kingmaker.UnitLogic.Commands;
+using KingmakerMountedCombat.Domain;
 using KingmakerMountedCombat.Integration;
 using Newtonsoft.Json.Linq;
 using UnityEngine;
@@ -18,6 +19,55 @@ namespace KingmakerMountedCombat.Diagnostics
         private MountedPairAttackOutcome realtimeChargePriorOutcome;
         private UnitMoveTo realtimeNeighbourMove, realtimeRetreat;
         private Vector3 realtimeChargeOrigin;
+        internal static readonly float[] ChargeTargetDistances = { 8f, 7f, 9f, 6f };
+        internal const float ChargeTargetMaxRise = 1f, ChargeTargetMaxOffset = .3f, ChargeTargetMaxTraceResidual = .05f, ChargeLaneMargin = .5f;
+        // b201 k4: on the charge seed's start the fixed point 8 m along world +Z from mount A was not on a walkable
+        // native node (mount at y 0.78; the rider's 2.20 is its seat). The target point is now selected, never the
+        // party moved: the 8 m forward point first, then the rest of the circle and other charge distances, each a
+        // walkable navmesh point at the mount's level whose native straight navmesh trace from the mount reaches it,
+        // inside the bounded spawn range and the native charge range, with no other awake unit in the charge lane.
+        // Every candidate is recorded before any is chosen; none admitted refuses before any fixture mutation.
+        private Vector3 SelectChargeTargetPosition()
+        {
+            Require(AstarPath.active != null, "Active native navigation graph is unavailable for the charge target placement.");
+            var start = am.Position; var candidates = new JArray();
+            var minimum = a.Combat.GetMountedChargeMinimumRange(ar); var maximum = MountedChargeGeometry.MaximumRange(am);
+            var others = Game.Instance.State.AwakeUnits.Where(u => u != ar && u != am && u.View != null).ToArray();
+            var placement = new JObject { ["contract"] = "chunk7-rt-charge-target-placement-v1", ["mountPosition"] = Point(start),
+                ["riderPosition"] = Point(ar.Position), ["minimumChargeRange"] = minimum, ["maximumChargeRange"] = maximum,
+                ["laneClearanceRequired"] = am.View.Corpulence + ChargeLaneMargin, ["candidates"] = candidates };
+            evidence["chargeTargetPlacement"] = placement;
+            foreach (var distance in ChargeTargetDistances)
+                foreach (var angle in FullCircleFan)
+                {
+                    var requested = start + Quaternion.Euler(0f, angle, 0f) * Vector3.forward * distance;
+                    var nearest = AstarPath.active.GetNearest(requested);
+                    var walkable = nearest.node != null && nearest.node.Walkable; var goal = nearest.clampedPosition;
+                    var traced = walkable ? Kingmaker.View.ObstacleAnalyzer.TraceAlongNavmesh(start, goal) : start;
+                    var lane = others.Length == 0 ? float.PositiveInfinity :
+                        others.Min(u => FlatSegmentDistance(start, goal, u.Position) - u.View.Corpulence);
+                    var chargeDistance = Flat(start, goal); var riderDistance = Flat(ar.Position, goal);
+                    var eligible = walkable && Flat(goal, requested) <= ChargeTargetMaxOffset && Mathf.Abs(goal.y - start.y) <= ChargeTargetMaxRise &&
+                        Flat(traced, goal) <= ChargeTargetMaxTraceResidual && MountedCombatSpatialPolicy.IsWithinDiagnosticSpawnBounds(riderDistance) &&
+                        chargeDistance >= minimum + ChargeLaneMargin && chargeDistance <= maximum - ChargeLaneMargin && lane >= am.View.Corpulence + ChargeLaneMargin;
+                    candidates.Add(new JObject { ["angle"] = angle, ["distance"] = distance, ["requested"] = Point(requested), ["walkable"] = walkable,
+                        ["goal"] = Point(goal), ["offset"] = Flat(goal, requested), ["rise"] = goal.y - start.y, ["traceResidual"] = Flat(traced, goal),
+                        ["chargeDistance"] = chargeDistance, ["riderDistance"] = riderDistance,
+                        ["laneClearance"] = float.IsInfinity(lane) ? (JToken)JValue.CreateNull() : lane, ["eligible"] = eligible });
+                    if (!eligible) continue;
+                    placement["selected"] = candidates.Count - 1; placement["position"] = Point(goal);
+                    return goal;
+                }
+            placement["selected"] = null;
+            throw new InvalidOperationException("Diagnostic target placement refused before any measured step: no walkable same-level native charge target " +
+                "with a straight clear lane from mount A (" + candidates.Count + " candidates recorded); RT Charge is uncovered on this start.");
+        }
+        private static float FlatSegmentDistance(Vector3 from, Vector3 to, Vector3 point)
+        {
+            Vector2 a = new Vector2(from.x, from.z), b = new Vector2(to.x, to.z), p = new Vector2(point.x, point.z), ab = b - a;
+            var t = ab.sqrMagnitude < 1e-6f ? 0f : Mathf.Clamp01(Vector2.Dot(p - a, ab) / ab.sqrMagnitude);
+            return (a + ab * t - p).magnitude;
+        }
         private void TickRealtimeCharge()
         {
             switch (realtimeStage)

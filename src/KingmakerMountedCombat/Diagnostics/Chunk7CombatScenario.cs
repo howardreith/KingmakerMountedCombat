@@ -266,7 +266,8 @@ namespace KingmakerMountedCombat.Diagnostics
         private void PrepareEncounter()
         {
             Require(actors.All(Chunk7NativeFixture.Idle), "Initiative fixture requires the entire captured party idle before combat.");
-            var targetPosition = am.Position + Vector3.forward * (SelectedScenario == RealtimeCharge || StagedCase ? 8f : 3.5f);
+            var targetPosition = SelectedScenario == RealtimeCharge ? SelectChargeTargetPosition() :
+                am.Position + Vector3.forward * (StagedCase ? 8f : 3.5f);
             // Fail closed before any fixture mutation: the authorization basis and the native
             // placement (bounded, walkable) are proven before initiative, leases or observers.
             var targetBasis = AdmitTargetAuthorization(targetPosition);

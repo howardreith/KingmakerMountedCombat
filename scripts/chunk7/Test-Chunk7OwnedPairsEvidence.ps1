@@ -9,7 +9,9 @@ $clock=[Diagnostics.Stopwatch]::StartNew();$results=[Collections.Generic.List[ob
 $fixtures=(Get-Content -LiteralPath $FixturePath -Raw|ConvertFrom-Json).fixtures
 # The stored RT Charge fixture predates rider A's observed equipped-weapon record (7E X2); add the melee shape here.
 function New-KmcChargeWeaponState([long]$HandSet=0,[string]$Blueprint='35dfad6517f401145af54111be04d6cf'){[pscustomobject][ordered]@{handSet=$HandSet;primaryItem=4711;primaryBlueprint=$Blueprint;category='Longsword';melee=$true;ranged=$false;firstWeaponIsPrimary=$true}}
-foreach($fx in @($fixtures|Where-Object name -CEQ 'realtime-charge')){$fx.artifact.observations|Add-Member chargeWeapon ([pscustomobject][ordered]@{before=(New-KmcChargeWeaponState);after=(New-KmcChargeWeaponState)}) -Force}
+function New-KmcTestChargePlacement($Position){$g=@($Position|ForEach-Object{[double]$_});[pscustomobject][ordered]@{contract='chunk7-rt-charge-target-placement-v1';mountPosition=@($g[0],$g[1],($g[2]-8.0));riderPosition=@($g[0],($g[1]+1.4),($g[2]-8.0));minimumChargeRange=4.65;maximumChargeRange=30.48;laneClearanceRequired=1.4;candidates=@([pscustomobject][ordered]@{angle=0.0;distance=8.0;requested=@($g);walkable=$true;goal=@($g);offset=0.0;rise=0.0;traceResidual=0.0;chargeDistance=8.0;riderDistance=8.0;laneClearance=3.0;eligible=$true});selected=0;position=@($g)}}
+foreach($fx in @($fixtures|Where-Object name -CEQ 'realtime-charge')){$fx.artifact.observations|Add-Member chargeWeapon ([pscustomobject][ordered]@{before=(New-KmcChargeWeaponState);after=(New-KmcChargeWeaponState)}) -Force
+ $fx.artifact.observations|Add-Member chargeTargetPlacement (New-KmcTestChargePlacement $(if($null-ne$fx.artifact.observations.PSObject.Properties['targetAuthorization']){$fx.artifact.observations.targetAuthorization.position}else{@(0.0,0.0,8.0)})) -Force}
 function Copy-Value($v){$v|ConvertTo-Json -Depth 90|ConvertFrom-Json}
 . (Join-Path $repo 'tests/Chunk7Diagnostics/OwnerSeedCheckpointPreparationFixtures.ps1')
 if(-not$MigrationFixturePath){$MigrationFixturePath=Join-Path $repo 'tests/Chunk7Diagnostics/OwnerSeedMigrationFixtures.ps1'}
@@ -818,7 +820,8 @@ Check 'combat evidence refuses a reaction record outside its case' {$v=New-KmcOw
 function New-KmcSeedChargeFixture{
  $v=New-KmcOwnerSeedDerivedCombatFixture 'realtime-charge';$o=$v.artifact.observations;$c=Get-KmcChunk7ChargeSeed
  foreach($x in @($v.request.ownedPairs,$o.ownerSeedDerivedSource)){$x.seedId=$c.seedId;$x.seedSha256=$c.sha256};$o.targetAuthorization.seedSha256=$c.sha256
- foreach($k in 'before','after'){$o.chargeWeapon.$k=New-KmcChargeWeaponState $c.handSet $c.primaryWeapon};$v
+ foreach($k in 'before','after'){$o.chargeWeapon.$k=New-KmcChargeWeaponState $c.handSet $c.primaryWeapon}
+ $o.chargeTargetPlacement=New-KmcTestChargePlacement $o.targetAuthorization.position;$v
 }
 function Check-SeedCharge([string]$Name,[scriptblock]$Mutation,[string]$Pattern){$v=New-KmcSeedChargeFixture;&$Mutation $v;Check ('owner-seed real-time Charge refuses '+$Name) {Invoke-OwnedReader $v} $true $Pattern}
 Check 'owner-seed real-time Charge evidence accepted (charge seed lineage, saved melee hand set)' {Invoke-OwnedReader (New-KmcSeedChargeFixture)}
@@ -831,6 +834,8 @@ Check-SeedCharge 'another primary weapon' {foreach($k in 'before','after'){$args
 Check-SeedCharge 'a weapon switched during the case' {$args[0].artifact.observations.chargeWeapon.after.handSet=0} 'changed during the Charge case'
 Check-SeedCharge 'a missing weapon record' {$args[0].artifact.observations.PSObject.Properties.Remove('chargeWeapon')} 'observed equipped weapon'
 Check-SeedCharge 'a primary that is not the native first weapon' {$args[0].artifact.observations.chargeWeapon.before.firstWeaponIsPrimary=$false} 'Native evidence boolean'
+Check-SeedCharge 'a missing target placement' {$args[0].artifact.observations.PSObject.Properties.Remove('chargeTargetPlacement')} 'recorded target placement'
+Check-SeedCharge 'a target authorization at another point than the placement' {$args[0].artifact.observations.targetAuthorization.position=@(1.0,2.0,3.0)} 'did not place the selected candidate'
 Check-SeedCharge 'an extra weapon field' {$args[0].artifact.observations.chargeWeapon.before|Add-Member extra 1} 'charge weapon state'
 $script:chargeRepo=(Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 Check 'the charge seed constants agree across the C# selection, the PS reader and the registry' {$c=Get-KmcChunk7ChargeSeed;$cs=[IO.File]::ReadAllText((Join-Path $script:chargeRepo 'src\KingmakerMountedCombat\Diagnostics\Chunk7OwnedPairsSelection.cs'))
