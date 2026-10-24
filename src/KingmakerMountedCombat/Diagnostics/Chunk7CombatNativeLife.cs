@@ -485,6 +485,9 @@ namespace KingmakerMountedCombat.Diagnostics
         // Unmounted control: one labelled native RuleDealDamage in round N past HP+Constitution to a
         // non-main, non-essential, mortal party companion outside both pairs whose N+1 slot precedes
         // the surviving mount. No eligible companion leaves the derivation-only proof, recorded so.
+        // This runs after the death delivery: native SetLifeState(Dead) has already run LeaveCombat for
+        // the rider, so SortedUnits no longer lists it and every slot here indexes the order without the
+        // dead rider (b202 d1: survivor 4, not its damage-time index 5). Contract v2 records that order.
         private void DispatchDeathControl()
         {
             var order = Game.Instance.TurnBasedCombatController.SortedUnits.ToArray();
@@ -502,7 +505,8 @@ namespace KingmakerMountedCombat.Diagnostics
                     ["paired"] = world.Registry.FindActive(unit) != null, ["eligible"] = eligible });
                 if (eligible && chosen == null) chosen = unit;
             }
-            var control = new JObject { ["contract"] = "unmounted-dead-native-turn-control-v1", ["survivorSlot"] = survivorSlot,
+            var control = new JObject { ["contract"] = "unmounted-dead-native-turn-control-v2", ["survivorSlot"] = survivorSlot,
+                ["nativeOrderAfterDeath"] = new JArray(order.Select(unit => unit.UniqueId)),
                 ["candidates"] = rows, ["available"] = chosen != null };
             nativeLife["deathControl"] = control;
             if (chosen == null) return;
