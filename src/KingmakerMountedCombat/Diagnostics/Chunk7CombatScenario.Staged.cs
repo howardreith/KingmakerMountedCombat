@@ -27,7 +27,7 @@ namespace KingmakerMountedCombat.Diagnostics
     {
         internal const string StagedClwGuid = "5590652e1c2225c4ca30c4a699ab3649";
         private const int StagedScrollUnits = 4, StagedMaxLegs = 8;
-        private const float StagedShortLeg = 2f, StagedLongLeg = 7f, StagedExhaustedMove = 5.95f, StagedBeyondMargin = 3f;
+        private const float StagedShortLeg = 2f, StagedLongLeg = 7f, StagedExhaustedMove = 5.95f, StagedBeyondMargin = 3f, StagedExhaustShortLeg = 3.5f;
         private sealed class StagedStepSpec { internal string Row, Kind; internal int Round; }
         private static StagedStepSpec Spec(string row, string kind, int round) => new StagedStepSpec { Row = row, Kind = kind, Round = round };
         // Ordered native inputs; Round is the offset from rider A's first prepared round N.
@@ -180,7 +180,8 @@ namespace KingmakerMountedCombat.Diagnostics
             var leg = new JObject { ["index"] = legs.Count }; legs.Add(leg); stagedLeg = leg;
             var start = am.Position; var radial = start - target.Position; radial.y = 0f;
             var tangent = Quaternion.Euler(0f, 90f * stagedSide, 0f) * radial; stagedSide = -stagedSide;
-            var current = Flat(start, target.Position); var proposals = new JArray(); Vector3 destination;
+            // The proposals are recorded on the leg before the search, so a refusal keeps every proposal.
+            var current = Flat(start, target.Position); var proposals = new JArray(); leg["proposals"] = proposals; Vector3 destination;
             switch (spec.Kind)
             {
                 case "move-beyond-range":
@@ -189,16 +190,20 @@ namespace KingmakerMountedCombat.Diagnostics
                         p => Flat(p, target.Position) >= wanted - .5f && Flat(p, target.Position) <= wanted + 1.5f, proposals); break;
                 case "move-probe":
                     // The exhausted mount's own native refusal is the observation; any traced walkable point serves.
-                    destination = NavmeshDestination(start, tangent, StagedShortLeg, p => true, proposals); break;
+                    destination = NavmeshDestination(start, tangent, StagedShortLeg, p => true, proposals, FullCircleFan); break;
                 case "move-exhaust":
+                    // b201 st: after the beyond-range leg the forward tangential fan at 7 m held no traced point in the
+                    // declared band. The band is unchanged; the search covers the whole circle (back toward the start
+                    // included) and shorter legs, so exhaustion may take more (bounded) legs.
                     destination = NavmeshDestination(start, tangent, StagedLongLeg,
-                        p => Flat(p, target.Position) >= stagedEnvelope + 2f && Flat(p, target.Position) <= stagedEnvelope + 6f, proposals); break;
+                        p => Flat(p, target.Position) >= stagedEnvelope + 2f && Flat(p, target.Position) <= stagedEnvelope + 6f, proposals,
+                        FullCircleFan, new[] { 5f, StagedExhaustShortLeg }); break;
                 default:
                     // Inside weapon range and outside the target's reach: tangential legs around it.
                     destination = NavmeshDestination(start, tangent, spec.Kind == "move-short" ? StagedShortLeg : StagedLongLeg,
                         p => Flat(p, target.Position) >= 6.5f && Flat(p, target.Position) <= stagedEnvelope - 1.5f, proposals); break;
             }
-            leg["destination"] = Point(destination); leg["plannedDistance"] = Flat(start, destination); leg["proposals"] = proposals;
+            leg["destination"] = Point(destination); leg["plannedDistance"] = Flat(start, destination);
             leg["before"] = StagedState("leg-before"); leg["traceSequenceBefore"] = trace.EventCount; leg["castEventsBefore"] = stagedCasts.EventCount;
             var turn = Game.Instance.TurnBasedCombatController.CurrentTurn;
             Chunk7NativeFixture.Select(ar); Game.Instance.IsPaused = true;
