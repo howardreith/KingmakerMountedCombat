@@ -680,7 +680,7 @@ function New-KmcSeedAttackModesFixture{
  foreach($spec in @(@('mounted-off',$true,$false,0,@(7)),@('mounted-on',$true,$true,1,@(5,5)),@('unmounted-on',$false,$true,3,@(5,5)))){
   $round=10+[long]$spec[3];$inner=@($spec[4]);$events=@();$seq=$ruleCount
   for($i=0;$i-lt$inner.Count;$i++){
-   $seq++;$events+=[pscustomobject][ordered]@{sequence=$seq;kind='attack';identity=100+$seq;frame=1;round=$round;actor=$roles[0];target=$o.targetId;opportunity=$false;fullAttack=$true;firstAttack=($i-eq0);attackNumber=$i;attacksCount=$inner.Count;weapon=$weapon;ranged=$true;natural=$false}
+   $seq++;$events+=[pscustomobject][ordered]@{sequence=$seq;kind='attack';identity=100+$seq;frame=1;round=$round;actor=$roles[0];target=$o.targetId;opportunity=$false;fullAttack=($inner.Count-gt1);firstAttack=($i-eq0);attackNumber=$i;attacksCount=$inner.Count;weapon=$weapon;ranged=$true;natural=$false}
    $bonuses=@([pscustomobject]@{bonus=4;source=$null;sourceName=$null});if($spec[2]){$bonuses+=[pscustomobject]@{bonus=-2;source=$rapidBuff;sourceName='RapidShotBuff'}}
    $seq++;$events+=[pscustomobject][ordered]@{sequence=$seq;kind='roll';identity=200+$seq;frame=1;round=$round;actor=$roles[0];target=$o.targetId;attack=100+$seq-1;opportunity=$false;attackBonus=$inner[$i];iterativePenalty=0;weapon=$weapon;ranged=$true
     nativeCalculation=[pscustomobject]@{innerResult=$inner[$i];result=$inner[$i];concealment=0;flanking=0;shootIntoCombat=0;bab=4;playerFaction=$true;trueDeath=$false};bonuses=$bonuses}
@@ -688,7 +688,7 @@ function New-KmcSeedAttackModesFixture{
   $plan=@(for($i=0;$i-lt$inner.Count;$i++){[pscustomobject][ordered]@{index=$i;weapon=$weapon;ranged=$true;natural=$false;owner=$roles[0];iterativePenalty=0}})
   $tb=$base;$base++;$trace.events=@($trace.events)+@([pscustomobject]@{sequence=$base;boundary='cost-after';frame=1;round=$round;state=[pscustomobject]@{actor=$roles[0]}});$ta=$base
   $ms+=[pscustomobject][ordered]@{label=$spec[0];mounted=$spec[1];round=$round;rapid=(&$rapid $spec[2] $round $true);before=(&$snap ($spec[0]+'-before') 0.0 $round);ruleCountBefore=$ruleCount;traceSequenceBefore=$tb;pairState=$(if($spec[1]){'Mounted'}else{'Unmounted'})
-   clicked=$true;after=(&$snap ($spec[0]+'-after') 6.0 $round);command=[pscustomobject][ordered]@{identity=9000+$ruleCount;executor=$roles[0];target=$o.targetId;fullAttack=$true;singleAttack=$false;result='Success';completedAttacks=$inner.Count;plan=$plan}
+   clicked=$true;after=(&$snap ($spec[0]+'-after') 6.0 $round);nativeEstimate=[long]$inner.Count;expectedFull=($inner.Count-gt1);currentTurnEnabledFullAttack=($inner.Count-gt1);command=[pscustomobject][ordered]@{identity=9000+$ruleCount;executor=$roles[0];target=$o.targetId;fullAttack=($inner.Count-gt1);singleAttack=$false;result='Success';completedAttacks=$inner.Count;plan=$plan}
    rules=$events;traceSequenceAfter=$ta;rapidAfter=(&$rapid $spec[2] $round $true)}
   $ruleCount=$seq
  }
@@ -704,7 +704,7 @@ function Check-SeedAttackModes([string]$Name,[scriptblock]$Mutation,[string]$Pat
 function AM($v,[int]$i){$v.artifact.observations.attackModes.measurements[$i]}
 Check 'owner-seed attack modes evidence accepted (Rapid Shot off/on mounted, unmounted control)' {Invoke-OwnedReader (New-KmcSeedAttackModesFixture)}
 Check 'owner-seed attack modes accept a save that left Rapid Shot off (no pre-combat click)' {$v=New-KmcSeedAttackModesFixture;$m=$v.artifact.observations.attackModes;$m.rapidBefore.isOn=$false;$m.toggleClicks=@($m.toggleClicks[1]);Invoke-OwnedReader $v}
-Check 'owner-seed attack modes accept a native interrupt in the natural tail after the ranged plan' {$v=New-KmcSeedAttackModesFixture;$c=(AM $v 1).command;$c.plan=@($c.plan)+@([pscustomobject][ordered]@{index=2;weapon='35dfad6517f401145af54111be04d6cf';ranged=$false;natural=$true;owner=$v.request.ownedPairs.mountAId;iterativePenalty=0});$c.result='Interrupt';$c.completedAttacks=2
+Check 'owner-seed attack modes accept a native interrupt in the natural tail after the ranged plan' {$v=New-KmcSeedAttackModesFixture;$c=(AM $v 1).command;$c.plan=@($c.plan)+@([pscustomobject][ordered]@{index=2;weapon='35dfad6517f401145af54111be04d6cf';ranged=$false;natural=$true;owner=$v.request.ownedPairs.mountAId;iterativePenalty=0});$c.result='Interrupt';$c.completedAttacks=2;(AM $v 1).nativeEstimate=3
  $k=(AM $v 2).command;$k.plan=@($k.plan);Invoke-OwnedReader $v}
 Check 'combat evidence refuses an attack-modes record outside its case' {$v=New-KmcOwnerSeedDerivedCombatFixture 'combat-rider-first';$v.artifact.observations|Add-Member attackModes ([pscustomobject]@{}) -Force;Invoke-OwnedReader $v} $true 'belongs only to its closed owner-seed selection'
 Check-SeedAttackModes 'a missing Rapid Shot feat' {$args[0].artifact.observations.attackModes.rapidShotFeature=0} 'native Rapid Shot feat'
@@ -712,22 +712,29 @@ Check-SeedAttackModes 'a melee weapon' {$args[0].artifact.observations.attackMod
 Check-SeedAttackModes 'Rapid Shot still on before combat' {$args[0].artifact.observations.attackModes.rapidOff.isOn=$true} 'not off out of combat'
 Check-SeedAttackModes 'a toggle switched other than by its native slot clicks' {$m=$args[0].artifact.observations.attackModes;$m.toggleClicks=@($m.toggleClicks[0])} 'toggle clicks differ'
 Check-SeedAttackModes 'a slot click that did not switch' {$args[0].artifact.observations.attackModes.toggleClicks[1].after.isOn=$false} 'did not switch the native toggle'
-Check-SeedAttackModes 'a missing measurement' {$m=$args[0].artifact.observations.attackModes;$m.measurements=@($m.measurements[0],$m.measurements[1])} 'exactly three native full attacks'
+Check-SeedAttackModes 'a missing measurement' {$m=$args[0].artifact.observations.attackModes;$m.measurements=@($m.measurements[0],$m.measurements[1])} 'exactly three native ordinary attacks'
 Check-SeedAttackModes 'measurements out of order' {$m=$args[0].artifact.observations.attackModes;$m.measurements=@($m.measurements[1],$m.measurements[0],$m.measurements[2])} 'natively running exactly when on'
 Check-SeedAttackModes 'a control still mounted' {(AM $args[0] 2).mounted=$true} 'differs in mode, round or toggle'
 Check-SeedAttackModes 'a control in the dismount round' {(AM $args[0] 2).round=12} 'differs in mode, round or toggle'
-Check-SeedAttackModes 'a single attack instead of a full attack' {(AM $args[0] 0).command.fullAttack=$false} 'not one native full attack'
+Check-SeedAttackModes 'a single attack instead of a full attack' {(AM $args[0] 1).command.fullAttack=$false} 'not one native full attack'
+Check-SeedAttackModes 'a full attack claimed for a one-attack estimate' {(AM $args[0] 0).command.fullAttack=$true} 'not one native single attack'
+Check-SeedAttackModes 'an explicit single-attack command' {(AM $args[0] 0).command.singleAttack=$true} 'not one native single attack'
+Check-SeedAttackModes 'a Rapid Shot leg with a one-attack estimate' {$m=AM $args[0] 1;$m.nativeEstimate=1;$m.expectedFull=$false} 'estimate is missing or inconsistent'
+Check-SeedAttackModes 'an expectation that contradicts its native estimate' {(AM $args[0] 0).expectedFull=$true} 'estimate is missing or inconsistent'
+Check-SeedAttackModes 'a full plan longer than its native estimate' {(AM $args[0] 2).nativeEstimate=3} 'plan differs from its native estimate'
+Check-SeedAttackModes 'a missing native estimate' {(AM $args[0] 0).PSObject.Properties.Remove('nativeEstimate')} 'estimate is missing or inconsistent'
+Check-SeedAttackModes 'a single-attack swing labelled as a full attack' {@((AM $args[0] 0).rules|Where-Object kind -CEQ 'attack')[0].fullAttack=$true} 'declared mode'
 Check-SeedAttackModes 'a full attack by another executor' {(AM $args[0] 1).command.executor=$args[0].request.ownedPairs.mountAId} 'not one native full attack'
 Check-SeedAttackModes 'a roll missing from the ranged plan' {$m=AM $args[0] 1;$m.rules=@($m.rules|Select-Object -SkipLast 1)} 'rolls differ from its ranged plan'
 Check-SeedAttackModes 'a mount attack inside the rider window' {$m=AM $args[0] 0;$e=Copy-Value $m.rules[1];$e.sequence=99;$e.actor=$args[0].request.ownedPairs.mountAId;$m.rules=@($m.rules)+@($e)} 'consecutive own attacks'
 Check-SeedAttackModes 'an attack of opportunity counted as a plan attack' {$m=AM $args[0] 0;$m.rules[1].opportunity=$true} 'rolls differ from its ranged plan'
-Check-SeedAttackModes 'a ranged entry after the natural tail' {$c=(AM $args[0] 1).command;$c.plan=@([pscustomobject][ordered]@{index=0;weapon='35dfad6517f401145af54111be04d6cf';ranged=$false;natural=$true;owner=$args[0].request.ownedPairs.mountAId;iterativePenalty=0})+@($c.plan|ForEach-Object{$x=Copy-Value $_;$x.index++;$x})} 'lead with rider A'
+Check-SeedAttackModes 'a ranged entry after the natural tail' {$c=(AM $args[0] 1).command;$c.plan=@([pscustomobject][ordered]@{index=0;weapon='35dfad6517f401145af54111be04d6cf';ranged=$false;natural=$true;owner=$args[0].request.ownedPairs.mountAId;iterativePenalty=0})+@($c.plan|ForEach-Object{$x=Copy-Value $_;$x.index++;$x});(AM $args[0] 1).nativeEstimate=3} 'lead with rider A'
 Check-SeedAttackModes 'an incomplete ranged plan' {(AM $args[0] 1).command.completedAttacks=1} 'did not complete its ranged plan'
 Check-SeedAttackModes 'a Rapid Shot source while off' {$b=(AM $args[0] 0).rules[1];$b.bonuses=@($b.bonuses)+@([pscustomobject]@{bonus=-2;source='0f310c1e709e15e4fa693db15a4baeb4';sourceName='RapidShotBuff'})} 'does not carry exactly its Rapid Shot source'
-Check-SeedAttackModes 'Rapid Shot without its extra attack' {$m=AM $args[0] 1;$m.rules=@($m.rules[0],$m.rules[1]);$m.command.plan=@($m.command.plan[0]);$m.command.completedAttacks=1} 'exactly one attack at the highest bonus'
+Check-SeedAttackModes 'Rapid Shot without its extra attack' {$m=AM $args[0] 1;$m.rules=@($m.rules[0],$m.rules[1]);$m.command.plan=@($m.command.plan[0]);$m.command.completedAttacks=1} 'plan differs from its native estimate'
 Check-SeedAttackModes 'Rapid Shot bonuses that differ from the off attack' {foreach($r in @((AM $args[0] 1).rules|Where-Object kind -CEQ 'roll')){$r.nativeCalculation.innerResult=4}} 'exactly one attack at the highest bonus'
 Check-SeedAttackModes 'a mounted attack bonus different from the unmounted control' {$r=@((AM $args[0] 2).rules|Where-Object kind -CEQ 'roll')[1];$r.nativeCalculation.innerResult=6} 'differs from the unmounted control'
-Check-SeedAttackModes 'a control without the extra Rapid Shot attack' {$m=AM $args[0] 2;$m.rules=@($m.rules[0],$m.rules[1]);$m.command.plan=@($m.command.plan[0]);$m.command.completedAttacks=1} 'differs from the unmounted control'
+Check-SeedAttackModes 'a control without the extra Rapid Shot attack' {$m=AM $args[0] 2;$m.rules=@($m.rules[0],$m.rules[1]);$m.command.plan=@($m.command.plan[0]);$m.command.completedAttacks=1} 'plan differs from its native estimate'
 Check-SeedAttackModes 'a mount spending inside the rider full attack' {$m=AM $args[0] 1;$x=@($m.after.actors|Where-Object id -CEQ $args[0].request.ownedPairs.mountAId)[0];$x.standard=6.0} 'expenditure changed'
 Check-SeedAttackModes 'a full attack without rider A''s own native action' {$m=AM $args[0] 0;@($m.after.actors|Where-Object id -CEQ $args[0].request.ownedPairs.riderAId)[0].standard=0.0} 'did not spend rider A'
 Check-SeedAttackModes 'a mount native cost inside the rider window' {$v=$args[0];$m=AM $v 1;$e=@($v.artifact.observations.allocationTrace.events|Where-Object{$_.sequence-eq$m.traceSequenceAfter})[0];$e.state.actor=$v.request.ownedPairs.mountAId} 'no native cost on rider A or spent the mount'

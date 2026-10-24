@@ -193,7 +193,7 @@ function Assert-KmcChunk7CombatEvidence($Request,$Artifact,[string]$Status) {
 }
 
 # ---- 7E X1 C03 attack modes (owner-seed-attack-modes) --------------------------------------------
-# Rider A's native Rapid Shot off/on mounted full attacks and an unmounted control with it on. Every
+# Rider A's native Rapid Shot off/on mounted ordinary attacks and an unmounted control with it on. Every
 # value is recomputed from the recorded native rule and allocation observations.
 function Get-KmcChunk7AttackModeRolls($Measurement){@(@($Measurement.rules)|Where-Object{$_.kind-ceq'roll'-and$_.opportunity-eq$false})}
 function Get-KmcChunk7AttackModeInner($Measurement){@(Get-KmcChunk7AttackModeRolls $Measurement|ForEach-Object{[long]$_.nativeCalculation.innerResult})}
@@ -206,8 +206,15 @@ function Assert-KmcChunk7AttackModeMeasurement($m,[string]$Label,[bool]$Mounted,
  if($m.rapid.buff-ne$Rapid-or$m.rapid.isRunning-ne$Rapid-or$m.rapid.inCombat-ne$true){throw ('Attack mode '+$Label+' Rapid Shot was not natively running exactly when on.')}
  if($m.label-cne$Label-or$m.mounted-isnot[bool]-or$m.mounted-ne$Mounted-or$m.round-ne$Round-or$m.rapid.isOn-ne$Rapid-or$m.rapidAfter.isOn-ne$Rapid){throw ('Attack mode measurement '+$Label+' differs in mode, round or toggle.')}
  Assert-KmcChunk7Boolean $m.clicked $true
- $c=$m.command;if($c.executor-cne$roles[0]-or$c.target-cne$o.targetId-or$c.fullAttack-ne$true-or$c.result-cnotin@('Success','Interrupt')-or-not(Test-KmcExactJsonInteger $c.completedAttacks)){throw ('Attack mode '+$Label+' is not one native full attack by rider A on the target.')}
+ # Native TB offers its FullAttack cursor only for an estimate above one, so a one-attack routine is a native
+ # single attack, mounted or not; Rapid Shot always adds one attack, so every Rapid Shot leg is a full attack.
+ foreach($p in @('nativeEstimate','expectedFull','currentTurnEnabledFullAttack')){if($null-eq$m.PSObject.Properties[$p]){throw ('Attack mode '+$Label+' native full-attack estimate is missing or inconsistent.')}}
+ if(-not(Test-KmcExactJsonInteger $m.nativeEstimate)-or$m.nativeEstimate-lt1-or$m.expectedFull-isnot[bool]-or$m.expectedFull-ne($m.nativeEstimate-gt1)-or($Rapid-and-not$m.expectedFull)){throw ('Attack mode '+$Label+' native full-attack estimate is missing or inconsistent.')}
+ if($null-ne$m.currentTurnEnabledFullAttack-and$m.currentTurnEnabledFullAttack-isnot[bool]){throw ('Attack mode '+$Label+' native cursor observation is mistyped.')}
+ $full=[bool]$m.expectedFull
+ $c=$m.command;if($c.executor-cne$roles[0]-or$c.target-cne$o.targetId-or$c.fullAttack-ne$full-or$c.singleAttack-ne$false-or$c.result-cnotin@('Success','Interrupt')-or-not(Test-KmcExactJsonInteger $c.completedAttacks)){throw ('Attack mode '+$Label+' is not one native '+$(if($full){'full'}else{'single'})+' attack by rider A on the target.')}
  $plan=@($c.plan);$ranged=@($plan|Where-Object{$_.ranged-eq$true-and$_.owner-ceq$roles[0]});$rangedCount=$ranged.Count
+ if(($full-and$plan.Count-ne$m.nativeEstimate)-or(-not$full-and($plan.Count-ne1-or$rangedCount-ne1))){throw ('Attack mode '+$Label+' plan differs from its native estimate.')}
  for($i=0;$i-lt$plan.Count;$i++){if($plan[$i].index-ne$i-or$plan[$i].ranged-isnot[bool]-or$plan[$i].natural-isnot[bool]){throw 'Attack mode plan entries are not an ordered native plan.'}
   if($i-lt$rangedCount){if($plan[$i].ranged-ne$true-or$plan[$i].owner-cne$roles[0]-or$plan[$i].weapon-cne$modes.weapon){throw 'Attack mode plan does not lead with rider A''s own ranged weapon.'}}elseif($plan[$i].ranged-eq$true){throw 'Attack mode plan holds a ranged entry after its tail.'}}
  if($rangedCount-lt1-or$c.completedAttacks-lt$rangedCount){throw ('Attack mode '+$Label+' did not complete its ranged plan.')}
@@ -218,7 +225,7 @@ function Assert-KmcChunk7AttackModeMeasurement($m,[string]$Label,[bool]$Mounted,
  if($rolls.Count-ne$rangedCount-or$attacks.Count-ne$rangedCount-or@($events|Where-Object{$_.kind-ceq'roll'-and$_.opportunity-ne$false}).Count-ne0){throw ('Attack mode '+$Label+' rolls differ from its ranged plan.')}
  foreach($r in $rolls){$sources=@(@($r.bonuses)|Where-Object{$null-ne$_-and$_.source-ceq'0f310c1e709e15e4fa693db15a4baeb4'}).Count;if($sources-ne$(if($Rapid){1}else{0})){throw ('Attack mode '+$Label+' roll does not carry exactly its Rapid Shot source.')}}
  foreach($r in $rolls){if($r.ranged-ne$true-or$r.weapon-cne$modes.weapon-or-not(Test-KmcExactJsonInteger $r.attackBonus)-or-not(Test-KmcExactJsonInteger $r.nativeCalculation.innerResult)-or$r.bonuses-isnot[Array]){throw 'Attack mode roll lacks its native weapon or bonus calculation.'}}
- foreach($a in $attacks){if($a.fullAttack-ne$true-or$a.opportunity-ne$false-or$a.weapon-cne$modes.weapon){throw 'Attack mode weapon attack is not a native full-attack swing of the ranged weapon.'}}
+ foreach($a in $attacks){if($a.fullAttack-ne$full-or$a.opportunity-ne$false-or$a.weapon-cne$modes.weapon){throw 'Attack mode weapon attack is not the native swing of the ranged weapon in its declared mode.'}}
  $beforeRider=Get-KmcChunk7CombatActor $m.before $roles[0];$afterRider=Get-KmcChunk7CombatActor $m.after $roles[0]
  if($afterRider.standard-le$beforeRider.standard){throw ('Attack mode '+$Label+' did not spend rider A''s own native action.')}
  # Pair B never spends inside the window; its finished turns' cooldowns may only decay natively, as every
@@ -259,7 +266,7 @@ function Assert-KmcChunk7AttackModesCombat($Request,$Observations){
   $on=$k.label-ceq'round-n-on';if($k.before.isOn-ne(-not$on)-or$k.after.isOn-ne$on){throw 'A Rapid Shot slot click did not switch the native toggle as declared.'}
   if(-not$on-and$k.before.inCombat-ne$false){throw 'The pre-combat Rapid Shot click happened in combat.'}
   if($on-and($k.before.inCombat-ne$true-or$k.before.round-ne$modes.firstRound)){throw 'The Rapid Shot on click was not made in the first measured round.'}}
- $ms=@($modes.measurements);if($ms.Count-ne3){throw 'Attack modes need exactly three native full attacks.'}
+ $ms=@($modes.measurements);if($ms.Count-ne3){throw 'Attack modes need exactly three native ordinary attacks.'}
  if(-not(Test-KmcExactJsonInteger $modes.firstRound)){throw 'Attack modes lack their first native round.'};$n=[long]$modes.firstRound
  $off=Assert-KmcChunk7AttackModeMeasurement $ms[0] 'mounted-off' $true $false $n $o $roles $modes
  $on=Assert-KmcChunk7AttackModeMeasurement $ms[1] 'mounted-on' $true $true ($n+1) $o $roles $modes
