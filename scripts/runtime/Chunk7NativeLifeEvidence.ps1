@@ -29,6 +29,42 @@ function Assert-KmcChunk7LifeActor($Actor,[string]$Id,[bool]$Conscious){
  Assert-KmcChunk7Boolean $Actor.conscious $Conscious;Assert-KmcChunk7Boolean $Actor.dead $false
  if($Actor.life-cne$(if($Conscious){'Conscious'}else{'Unconscious'})){throw 'Native life state label differs.'}
 }
+# Native 2.1.7b gives a living unconscious unit one native Prepare and an empty turn that Tick
+# ends natively. The affected rider's N+1 slots derive from the native order at damage time.
+function Get-KmcChunk7LifeRiderSlots($Order,$Ids){
+ $order=@($Order);if($order.Count-lt3-or@($order|Select-Object -Unique).Count-ne$order.Count){throw 'Native next-round order is missing or duplicated.'}
+ $ia=[Array]::IndexOf($order,$Ids[0]);$ibr=[Array]::IndexOf($order,$Ids[2]);$ibm=[Array]::IndexOf($order,$Ids[3])
+ if($ia-lt0-or$ibr-lt0-or$ibm-lt0-or$ibr-ge$ibm){throw 'Native next-round order lacks the exact rider-first affected pair.'}
+ [pscustomobject]@{beforeRenewal=[long]$(if($ibr-lt$ia){1}else{0});betweenRenewalAndSurvivor=[long]$(if($ia-lt$ibr-and$ibr-lt$ibm){1}else{0});survivorSlot=$ibm}
+}
+function Get-KmcChunk7UnconsciousNativeTurn($Events,[string]$Actor,[long]$Round){
+ $events=@($Events|Where-Object{$null-ne$_.PSObject.Properties['round']-and$_.round-eq$Round-and$null-ne$_.PSObject.Properties['state']-and$null-ne$_.state-and$_.state.actor-ceq$Actor})
+ $start=-1;for($i=0;$i-lt$events.Count;$i++){if($events[$i].boundary-ceq'prepare-before'){$start=$i;break}}
+ $stop=-1;if($start-ge0){for($i=$start;$i-lt$events.Count;$i++){if($events[$i].boundary-ceq'completion-end-after'){$stop=$i;break}}}
+ $window=@(if($stop-ge0){$events[$start..$stop]})
+ $prepared=@($window|Where-Object boundary -CEQ 'prepare-after')|Select-Object -First 1;$ended=if($window.Count){$window[$window.Count-1]}else{$null}
+ $forbidden=@($events|Where-Object{$b=[string]$_.boundary;@('admission-','cost-','actor-cost-','command-','completion-force-to-end-','chunk7-end-input-')|Where-Object{$b.StartsWith($_,[StringComparison]::Ordinal)}}).Count
+ # The ledger identity counts from prepare-after on; before Prepare completes it names the previous activation.
+ $identities=[Collections.Generic.List[object]]::new();$afterPrepare=$false;foreach($e in $window){if($e.boundary-ceq'prepare-after'){$afterPrepare=$true};if(-not$afterPrepare){continue};$r=$e.state.retained;$id=if($r-is[pscustomobject]){[string]$r.GrantIdentity}else{$null};if(-not$identities.Contains($id)){$identities.Add($id)}}
+ [pscustomobject]@{prepareBefore=[long]@($events|Where-Object boundary -CEQ 'prepare-before').Count;prepareAfter=[long]@($events|Where-Object boundary -CEQ 'prepare-after').Count
+  ends=[long]@($events|Where-Object boundary -CEQ 'completion-end-before').Count;forbidden=[long]$forbidden
+  sequence=@($window|ForEach-Object{[string]$_.boundary}|Where-Object{-not$_.StartsWith('ready-handler-',[StringComparison]::Ordinal)})
+  grantIdentities=@($identities);pairedIdentities=[long]@($window|Where-Object{$null-ne$_.state.pairedGrantIdentity}).Count
+  statusAfterPrepare=$(if($prepared){[string]$prepared.turnStatus}else{$null});standardBefore=$(if($prepared){$prepared.state.standard}else{$null});standardAfterEnd=$(if($ended){$ended.state.standard}else{$null})}
+}
+function Assert-KmcChunk7UnconsciousNativeTurn($Recorded,$Events,[string]$Actor,[long]$Round,[bool]$NativeLedger){
+ Assert-KmcExactProperties $Recorded @('actorId','round','prepareBefore','prepareAfter','ends','forbidden','sequence','grantIdentities','pairedIdentities','statusAfterPrepare','standardBefore','standardAfterEnd','conscious','dead') 'unconscious native turn'
+ if($Recorded.actorId-cne$Actor-or$Recorded.round-ne$Round){throw 'Unconscious native turn identity or round differs.'}
+ $d=Get-KmcChunk7UnconsciousNativeTurn $Events $Actor $Round
+ foreach($f in @('prepareBefore','prepareAfter','ends','forbidden','pairedIdentities')){if(-not(Test-KmcExactJsonInteger $Recorded.$f)-or$Recorded.$f-ne$d.$f){throw "Unconscious native turn $f differs from its trace."}}
+ if((ConvertTo-KmcChunk7Canonical @($Recorded.sequence))-cne(ConvertTo-KmcChunk7Canonical @($d.sequence))-or(ConvertTo-KmcChunk7Canonical @($Recorded.grantIdentities))-cne(ConvertTo-KmcChunk7Canonical @($d.grantIdentities))-or
+    $Recorded.statusAfterPrepare-cne$d.statusAfterPrepare-or$Recorded.standardBefore-ne$d.standardBefore-or$Recorded.standardAfterEnd-ne$d.standardAfterEnd){throw 'Unconscious native turn differs from its trace.'}
+ Assert-KmcChunk7Boolean $Recorded.conscious $false;Assert-KmcChunk7Boolean $Recorded.dead $false
+ $ids=@($Recorded.grantIdentities)
+ if($Recorded.prepareBefore-ne1-or$Recorded.prepareAfter-ne1-or$Recorded.ends-ne1-or$Recorded.forbidden-ne0-or$Recorded.pairedIdentities-ne0-or$Recorded.statusAfterPrepare-cne'Preparing'-or
+    -not(Test-KmcChunk7FiniteNumber $Recorded.standardAfterEnd)-or$Recorded.standardAfterEnd-ne6-or
+    $(if($NativeLedger){$ids.Count-ne1-or$ids[0]-isnot[string]-or-not$ids[0].StartsWith('native:',[StringComparison]::Ordinal)}else{@($ids|Where-Object{$null-ne$_-and-not([string]$_).StartsWith('native:',[StringComparison]::Ordinal)}).Count-ne0})){throw 'Unconscious unit did not receive exactly one empty native Prepare ended natively.'}
+}
 function Assert-KmcChunk7NativeLifeEvidence($Request,$Artifact,[string]$Status){
  Assert-KmcChunk7ArtifactEnvelope $Request $Artifact 'chunk7-native-life-evidence'
  if(-not(Test-KmcChunk7NativeLifeScenario (Get-KmcChunk7SelectedScenario $Request))){throw 'Native life artifact has a foreign case.'}
@@ -112,8 +148,40 @@ function Assert-KmcChunk7NativeLifeEvidence($Request,$Artifact,[string]$Status){
  $renewed=$life.healthyRenewed;$independent=$life.independentSurvivor
  if($renewed.world.round-ne$life.damageRound+1-or$renewed.world.currentActor-cne$ids[0]-or$independent.world.round-ne$life.damageRound+1-or$independent.world.currentActor-cne$ids[3]-or$null-ne$independent.partnerContextActor){throw 'Native healthy/survivor continuation missed original next round.'}
  Assert-KmcChunk7LifeActor $independent.rider $ids[2] $false
+ $slots=Get-KmcChunk7LifeRiderSlots $life.nativeNextRoundOrder $ids
+ # Bind the recorded order to the native N+1 preparations actually observed for the three actors.
+ $prepares=@{};foreach($e in @($o.allocationTrace.events|Where-Object{$null-ne$_.PSObject.Properties['round']-and$_.round-eq([long]$life.damageRound+1)-and$_.boundary-ceq'prepare-before'})){$a=[string]$e.state.actor;if(-not$prepares.ContainsKey($a)){$prepares[$a]=[long]$e.sequence}}
+ foreach($pair in @(@($ids[0],$ids[3]),@($ids[2],$ids[3]))){if(-not$prepares.ContainsKey($pair[0])-or-not$prepares.ContainsKey($pair[1])-or$prepares[$pair[0]]-ge$prepares[$pair[1]]){throw 'Native N+1 preparations do not follow the recorded order.'}}
+ if(($prepares[$ids[2]]-lt$prepares[$ids[0]])-ne([bool]$slots.beforeRenewal)){throw 'Native N+1 rider preparation does not follow the recorded order.'}
+ if(-not(Test-KmcExactJsonInteger $life.riderSlotsBeforeRenewal)-or$life.riderSlotsBeforeRenewal-ne$slots.beforeRenewal-or
+    -not(Test-KmcExactJsonInteger $life.expectedRiderSlots)-or$life.expectedRiderSlots-ne$slots.betweenRenewalAndSurvivor){throw 'Native next-round rider slots differ from the recorded native order.'}
  foreach($i in 0..3){$baseline=Get-KmcChunk7LifeGrant $before $ids[$i];$fresh=Get-KmcChunk7LifeGrant $renewed $ids[$i];$last=Get-KmcChunk7LifeGrant $independent $ids[$i]
-  if($fresh-ne$baseline+$(if($i-lt2){1}else{0})-or$last-ne$baseline+$(if($i-ne2){1}else{0})){throw 'Native next-round grants were duplicated, omitted or delayed.'}}
+  $freshExpected=if($i-lt2){1}elseif($i-eq2){$slots.beforeRenewal}else{0};$lastExpected=if($i-ne2){1}else{$slots.beforeRenewal+$slots.betweenRenewalAndSurvivor}
+  if($fresh-ne$baseline+$freshExpected-or$last-ne$baseline+$lastExpected){throw 'Native next-round grants were duplicated, omitted or delayed.'}}
+ $nextRound=[long]$life.damageRound+1;$traceEvents=@($o.allocationTrace.events)
+ Assert-KmcChunk7UnconsciousNativeTurn $life.incapacitatedRiderTurn $traceEvents $ids[2] $nextRound $true
+ if($slots.beforeRenewal+$slots.betweenRenewalAndSurvivor-ne1){throw 'Rider-first native order must give the incapacitated rider exactly one native N+1 slot.'}
+ $control=$life.unconsciousControl
+ if($control.contract-cne'unmounted-unconscious-native-turn-control-v1'-or-not(Test-KmcExactJsonInteger $control.survivorSlot)-or$control.survivorSlot-ne$slots.survivorSlot){throw 'Unmounted unconscious control contract differs.'}
+ $rows=@($control.candidates);$eligible=@()
+ foreach($row in $rows){
+  Assert-KmcExactProperties $row @('actorId','slot','mainCharacter','pet','essential','immortal','allowDyingCondition','conscious','inCombat','paired','eligible') 'unconscious control candidate'
+  if($row.actorId-cin$ids-or-not(Test-KmcExactJsonInteger $row.slot)-or$row.slot-ne[Array]::IndexOf(@($life.nativeNextRoundOrder),$row.actorId)){throw 'Unconscious control candidate identity or slot differs.'}
+  $gate=-not$row.mainCharacter-and-not$row.pet-and-not$row.essential-and-not$row.immortal-and$row.allowDyingCondition-and$row.conscious-and$row.inCombat-and-not$row.paired-and$row.slot-ge0-and$row.slot-lt$slots.survivorSlot
+  Assert-KmcChunk7Boolean $row.eligible $gate;if($gate){$eligible+=$row}
+ }
+ if($rows.Count-ne@($rows|ForEach-Object{$_.actorId}|Select-Object -Unique).Count){throw 'Unconscious control candidates duplicated.'}
+ Assert-KmcChunk7Boolean $control.available ($eligible.Count-gt0)
+ if($control.available){
+  if($control.actorId-cne$eligible[0].actorId-or$control.slot-ne$eligible[0].slot){throw 'Unconscious control is not the first eligible companion in native order.'}
+  Assert-KmcChunk7LifeActor $control.before $control.actorId $true;Assert-KmcChunk7LifeActor $control.afterDamage $control.actorId $true
+  foreach($f in @('mainCharacter','essential','immortal')){Assert-KmcChunk7Boolean $control.before.$f $false};Assert-KmcChunk7Boolean $control.before.allowDyingCondition $true
+  if(-not(Test-KmcExactJsonInteger $control.requestedDamage)-or$control.requestedDamage-le0-or$control.nativeDamage-le0-or
+     $control.afterDamage.damage-lt$control.before.hp+1-or$control.afterDamage.damage-ge$control.before.hp+$control.before.constitution){throw 'Unconscious control damage is not one bounded living stimulus.'}
+  Assert-KmcChunk7UnconsciousNativeTurn $control.turn $traceEvents $control.actorId $nextRound $false
+  if((ConvertTo-KmcChunk7Canonical @($control.turn.sequence))-cne(ConvertTo-KmcChunk7Canonical @($life.incapacitatedRiderTurn.sequence))-or
+     $control.turn.standardBefore-ne$life.incapacitatedRiderTurn.standardBefore-or$control.turn.standardAfterEnd-ne$life.incapacitatedRiderTurn.standardAfterEnd){throw 'Unmounted unconscious control differs from the incapacitated rider native turn.'}
+ }else{foreach($f in @('actorId','slot','grantBefore','before','requestedDamage','nativeDamage','afterDamage','turn')){if($null-ne$control.PSObject.Properties[$f]){throw 'Unavailable unconscious control carries a stimulus.'}}}
  foreach($id in @($ids[0],$ids[1])){$actor=Get-KmcChunk7CombatActor $renewed.world $id;if($actor.standard-ne0-or$actor.move-ne0){throw 'Healthy native renewal lacks fresh native expenditure.'}}
  $survivor=Get-KmcChunk7CombatActor $independent.world $ids[3];if($survivor.standard-ne0-or$survivor.move-ne0-or@($independent.world.owners|Where-Object{$_.state-ceq'Active'-and(Test-KmcChunk7OwnerActorMatch $_.mountId $ids[3])}).Count-ne0){throw 'Surviving mount lacks an independent native allocation.'}
  Assert-KmcChunk7LifeOwner $before.world $renewed.world $ids[0] $ids[1]

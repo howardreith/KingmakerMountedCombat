@@ -18,6 +18,8 @@ namespace KingmakerMountedCombat.Diagnostics
         private int lifeStage, lifeInitialRound, lifeDamageRound;
         private long lifeLedgerOffset, lifeTransitionOffset;
         private int[] lifeGrants;
+        private int lifeRiderSlotsBeforeRenewal, lifeExpectedRiderSlots;
+        private UnitEntityData lifeControl;
         private void BeginNativeLife()
         {
             Require(lifecycle != null, "Native life case requires the exact existing production lifecycle subscriber.");
@@ -118,7 +120,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 nativeLife["traceSequenceAfterDelivery"] = (int?)trace.Capture()["events"].Last?["sequence"] ?? 0;
                 nativeLife["nativeEffects"] = lifeEffects.Capture();
                 lifeDelivery.Dispose(); lifeDelivery = null;
-                Pass("C7-life-native-callback"); LifeStage(8); return;
+                Pass("C7-life-native-callback"); DispatchUnconsciousControl(); LifeStage(8); return;
             }
             if (lifeStage == 8)
             {
@@ -126,7 +128,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (controller.RoundNumber != lifeDamageRound + 1 || !ReadyPrincipal(a))
                 { if (turn?.Unit?.Descriptor.State.IsConscious == true) EndNative(turn); return; }
                 Require(trace.GrantCount(ar) == lifeGrants[0] + 1 && trace.GrantCount(am) == lifeGrants[1] + 1 &&
-                    trace.GrantCount(br) == lifeGrants[2] && trace.GrantCount(bm) == lifeGrants[3],
+                    trace.GrantCount(br) == lifeGrants[2] + lifeRiderSlotsBeforeRenewal && trace.GrantCount(bm) == lifeGrants[3],
                     "Healthy pair renewal changed affected native preparation or granted an extra turn.");
                 nativeLife["healthyRenewed"] = LifeState("life-healthy-renewed");
                 actingPair = a; actingIndex = 0; actingTurn = turn;
@@ -145,9 +147,11 @@ namespace KingmakerMountedCombat.Diagnostics
                     "Native survivor continuation left its selected round or life window.");
                 if (turn?.Unit != bm || !Chunk7NativeFixture.ReadyForTurnInput(turn)) { if (turn?.Unit?.Descriptor.State.IsConscious == true) EndNative(turn); return; }
                 Require(controller.RoundNumber == lifeDamageRound + 1 && trace.GrantCount(bm) == lifeGrants[3] + 1 &&
-                    trace.GrantCount(br) == lifeGrants[2] && bm.CombatState.Cooldown.StandardAction == 0f &&
+                    trace.GrantCount(br) == lifeGrants[2] + lifeRiderSlotsBeforeRenewal + lifeExpectedRiderSlots &&
+                    bm.CombatState.Cooldown.StandardAction == 0f &&
                     bm.CombatState.Cooldown.MoveAction == 0f && world.Registry.FindActive(bm) == null && b.Participant.PartnerContext == null,
                     "Native surviving mount did not receive exactly one independent fresh turn in the original next round.");
+                RequireUnconsciousNativeTurns(controller.RoundNumber);
                 nativeLife["independentSurvivor"] = LifeState("life-independent-survivor");
                 nativeLife["complete"] = true; Pass("C7-life-independent-survivor"); BeginCleanup();
             }
@@ -168,6 +172,7 @@ namespace KingmakerMountedCombat.Diagnostics
             lifeLedgerOffset = lifecycle.SnapshotNativeDeliveries().Select(x => x.Sequence).DefaultIfEmpty().Max();
             lifeTransitionOffset = lifecycle.SnapshotPairLifeTransitions().Select(x => x.Sequence).DefaultIfEmpty().Max();
             lifeGrants = actors.Select(trace.GrantCount).ToArray();
+            RecordNativeNextRoundOrder();
             nativeLife["ledgerOffset"] = lifeLedgerOffset; nativeLife["lifeTransitionOffset"] = lifeTransitionOffset;
             nativeLife["beforeDamage"] = LifeState("life-before-native-damage");
             nativeLife["traceSequenceBeforeDamage"] = (int?)trace.Capture()["events"].Last?["sequence"] ?? 0;
@@ -185,6 +190,113 @@ namespace KingmakerMountedCombat.Diagnostics
                 SameBudgets((JObject)nativeLife["beforeDamage"]["world"], (JObject)nativeLife["afterDamage"]["world"]),
                 "Native damage failed its bounded living window or altered native action expenditure.");
             Pass("C7-life-safe-native-damage");
+        }
+        // Native 2.1.7b ChooseNextUnit/StartTurn/Prepare apply no consciousness filter: a living
+        // unconscious unit receives one native Prepare and an empty turn that Tick ends natively.
+        // The affected rider's N+1 slots are therefore derived from the native order at damage time.
+        private void RecordNativeNextRoundOrder()
+        {
+            var order = Game.Instance.TurnBasedCombatController.SortedUnits.ToArray();
+            int ia = Array.IndexOf(order, ar), ibr = Array.IndexOf(order, br), ibm = Array.IndexOf(order, bm);
+            Require(ia >= 0 && ibr >= 0 && ibm >= 0 && ibr < ibm, "Native next-round order lacks the exact rider-first affected pair.");
+            lifeRiderSlotsBeforeRenewal = ibr < ia ? 1 : 0;
+            lifeExpectedRiderSlots = ia < ibr && ibr < ibm ? 1 : 0;
+            nativeLife["nativeNextRoundOrder"] = new JArray(order.Select(unit => unit.UniqueId));
+            nativeLife["riderSlotsBeforeRenewal"] = lifeRiderSlotsBeforeRenewal;
+            nativeLife["expectedRiderSlots"] = lifeExpectedRiderSlots;
+        }
+        // Unmounted control: one labelled native RuleDealDamage in round N to a non-main,
+        // non-essential, dying-allowed party companion outside both pairs whose N+1 slot precedes
+        // the surviving mount. No eligible companion leaves the derivation-only proof, recorded so.
+        private void DispatchUnconsciousControl()
+        {
+            var order = Game.Instance.TurnBasedCombatController.SortedUnits.ToArray();
+            var survivorSlot = Array.IndexOf(order, bm); var main = Game.Instance.Player.MainCharacter.Value;
+            var rows = new JArray(); UnitEntityData chosen = null;
+            foreach (var unit in Game.Instance.Player.PartyCharacters.Select(reference => reference.Value)
+                .Where(unit => unit != null && !actors.Contains(unit)).OrderBy(unit => Array.IndexOf(order, unit)))
+            {
+                var slot = Array.IndexOf(order, unit); var state = unit.Descriptor.State;
+                var eligible = unit != main && !unit.Descriptor.IsPet && !unit.Descriptor.IsEssentialForGame && !state.Immortality &&
+                    state.AllowDyingCondition && state.IsConscious && !state.IsDead && unit.IsInCombat &&
+                    world.Registry.FindActive(unit) == null && slot >= 0 && slot < survivorSlot;
+                rows.Add(new JObject { ["actorId"] = unit.UniqueId, ["slot"] = slot, ["mainCharacter"] = unit == main,
+                    ["pet"] = unit.Descriptor.IsPet, ["essential"] = unit.Descriptor.IsEssentialForGame, ["immortal"] = (bool)state.Immortality,
+                    ["allowDyingCondition"] = (bool)state.AllowDyingCondition, ["conscious"] = state.IsConscious, ["inCombat"] = unit.IsInCombat,
+                    ["paired"] = world.Registry.FindActive(unit) != null, ["eligible"] = eligible });
+                if (eligible && chosen == null) chosen = unit;
+            }
+            var control = new JObject { ["contract"] = "unmounted-unconscious-native-turn-control-v1", ["survivorSlot"] = survivorSlot,
+                ["candidates"] = rows, ["available"] = chosen != null };
+            nativeLife["unconsciousControl"] = control;
+            if (chosen == null) return;
+            var difficulty = Game.Instance.Player.Difficulty.DamageToParty;
+            var hp = chosen.Stats.HitPoints.ModifiedValue; var deathThreshold = checked(hp + chosen.Stats.Constitution.ModifiedValue);
+            var temporaryHp = chosen.Stats.TemporaryHitPoints.ModifiedValue; var needed = checked(hp + 1 - chosen.Damage + temporaryHp);
+            Require(difficulty > 0f && !float.IsNaN(difficulty) && !float.IsInfinity(difficulty) && needed > 0,
+                "Unmounted control has no admitted incapacitation stimulus.");
+            var requested = checked((int)Math.Ceiling((needed + 1d) / difficulty));
+            Require(chosen.Damage + requested * difficulty - temporaryHp < deathThreshold,
+                "Unmounted control damage scale leaves no safe HP+1 to HP+Constitution window.");
+            lifeControl = chosen;
+            control["actorId"] = chosen.UniqueId; control["slot"] = Array.IndexOf(order, chosen);
+            control["grantBefore"] = trace.GrantCount(chosen); control["before"] = LifeActor(chosen); control["requestedDamage"] = requested;
+            var damage = Rulebook.Trigger(new RuleDealDamage(target, chosen,
+                new DamageBundle(new DirectDamage(new DiceFormula(0, DiceType.Zero), requested))));
+            control["nativeDamage"] = damage.Damage; control["afterDamage"] = LifeActor(chosen);
+            Require(damage.DamageBeforeDifficulty == requested && chosen.Damage >= hp + 1 && chosen.Damage < deathThreshold,
+                "Unmounted control damage failed its bounded living window.");
+        }
+        // One unit's N+1 trace: its own turn window (prepare-before to completion-end-after,
+        // UI ready handlers excluded) and every forbidden admission, cost, command or force-end.
+        // The ledger identity is read from prepare-after on: before native Prepare completes it
+        // still names the previous round's activation (b194 a1/p2).
+        private JObject UnconsciousNativeTurn(UnitEntityData unit, int round)
+        {
+            var events = ((JArray)trace.Capture()["events"]).OfType<JObject>()
+                .Where(e => (int?)e["round"] == round && (string)e["state"]?["actor"] == unit.UniqueId).ToArray();
+            var start = Array.FindIndex(events, e => (string)e["boundary"] == "prepare-before");
+            var stop = start < 0 ? -1 : Array.FindIndex(events, start, e => (string)e["boundary"] == "completion-end-after");
+            var window = stop < 0 ? new JObject[0] : events.Skip(start).Take(stop - start + 1).ToArray();
+            var prepared = window.FirstOrDefault(e => (string)e["boundary"] == "prepare-after");
+            var ended = window.LastOrDefault();
+            var forbidden = new[] { "admission-", "cost-", "actor-cost-", "command-", "completion-force-to-end-", "chunk7-end-input-" };
+            return new JObject { ["actorId"] = unit.UniqueId, ["round"] = round,
+                ["prepareBefore"] = events.Count(e => (string)e["boundary"] == "prepare-before"),
+                ["prepareAfter"] = events.Count(e => (string)e["boundary"] == "prepare-after"),
+                ["ends"] = events.Count(e => (string)e["boundary"] == "completion-end-before"),
+                ["forbidden"] = events.Count(e => forbidden.Any(prefix => ((string)e["boundary"] ?? "").StartsWith(prefix, StringComparison.Ordinal))),
+                ["sequence"] = new JArray(window.Select(e => (string)e["boundary"]).Where(b => !b.StartsWith("ready-handler-", StringComparison.Ordinal))),
+                ["grantIdentities"] = new JArray(window.SkipWhile(e => (string)e["boundary"] != "prepare-after")
+                    .Select(e => e["state"]?["retained"] is JObject retained ? (string)retained["GrantIdentity"] : null).Distinct()),
+                ["pairedIdentities"] = window.Count(e => e["state"]?["pairedGrantIdentity"] != null && e["state"]["pairedGrantIdentity"].Type != JTokenType.Null),
+                ["statusAfterPrepare"] = (string)prepared?["turnStatus"], ["standardBefore"] = (float?)prepared?["state"]?["standard"],
+                ["standardAfterEnd"] = (float?)ended?["state"]?["standard"], ["conscious"] = unit.Descriptor.State.IsConscious,
+                ["dead"] = unit.Descriptor.State.IsDead };
+        }
+        private static bool ExactUnconsciousNativeTurn(JObject turn, bool nativeLedger)
+        {
+            var identities = ((JArray)turn["grantIdentities"]).Select(x => (string)x).ToArray();
+            return (int)turn["prepareBefore"] == 1 && (int)turn["prepareAfter"] == 1 && (int)turn["ends"] == 1 && (int)turn["forbidden"] == 0 &&
+                (int)turn["pairedIdentities"] == 0 && (string)turn["statusAfterPrepare"] == "Preparing" &&
+                (float?)turn["standardAfterEnd"] == 6f && !(bool)turn["conscious"] && !(bool)turn["dead"] &&
+                (nativeLedger ? identities.Length == 1 && identities[0] != null && identities[0].StartsWith("native:", StringComparison.Ordinal)
+                    : identities.All(x => x == null || x.StartsWith("native:", StringComparison.Ordinal)));
+        }
+        private void RequireUnconsciousNativeTurns(int round)
+        {
+            var rider = UnconsciousNativeTurn(br, round); nativeLife["incapacitatedRiderTurn"] = rider;
+            var slots = lifeRiderSlotsBeforeRenewal + lifeExpectedRiderSlots;
+            Require(slots == 0 ? (int)rider["prepareBefore"] == 0 && (int)rider["prepareAfter"] == 0 && (int)rider["forbidden"] == 0
+                : slots == 1 && ExactUnconsciousNativeTurn(rider, true) && b.Participant.PartnerContext == null,
+                "Incapacitated rider's native next-round turn differs from its derived empty native slot: " + rider.ToString(Newtonsoft.Json.Formatting.None));
+            var control = (JObject)nativeLife["unconsciousControl"];
+            if (!(bool)control["available"]) return;
+            var observed = UnconsciousNativeTurn(lifeControl, round); control["turn"] = observed;
+            Require(ExactUnconsciousNativeTurn(observed, false) &&
+                JToken.DeepEquals(observed["sequence"], rider["sequence"]) &&
+                (float?)observed["standardBefore"] == (float?)rider["standardBefore"] && (float?)observed["standardAfterEnd"] == (float?)rider["standardAfterEnd"],
+                "Unmounted unconscious control's native next-round turn differs from the incapacitated rider's: " + observed.ToString(Newtonsoft.Json.Formatting.None));
         }
         // Owner records keep the registry's "N"-form actor key; actors keep the hyphenated UniqueId.
         private bool HealthyOwnerUnchanged(JObject before, JObject after)

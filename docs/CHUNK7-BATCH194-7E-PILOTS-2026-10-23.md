@@ -56,6 +56,45 @@ is a fair call for a human or reviewer to make. The decision is whether the nati
 unconscious unit is accepted engine behavior for this assertion. Until then rows 57 and the two-pair
 variant stay FAIL.
 
+**Decision (independent investigation): native behavior the test misjudged.** Native 2.1.7b
+`ChooseNextUnit`, `StartTurn` and `Prepare` apply no consciousness filter; `Tick` takes an
+unconscious unit from Preparing straight to its native End. So a living unconscious unit gets exactly
+one Prepare and an empty turn per round. KMC's Prepare prefix only recorded a `native:` ledger grant
+identity, and pair B's activation was already released. Rider B's slot precedes the mount's in both
+fixtures, so the failure was deterministic; the old Chunk 4/6 PASSes never observed that slot.
+
+**Exact derivation (offline, needs review; the "at most one" tolerance was not used):**
+- At damage time the product records the native order (`nativeNextRoundOrder`) and derives
+  `riderSlotsBeforeRenewal` (rider B before pair A) and `expectedRiderSlots` (rider B between pair A's
+  renewal and the surviving mount). The stage-8 clause requires `lifeGrants[2] + riderSlotsBeforeRenewal`,
+  the survivor clause `lifeGrants[2] + riderSlotsBeforeRenewal + expectedRiderSlots`.
+- Each derived slot must be exactly one empty native turn (`incapacitatedRiderTurn`): one
+  prepare-before and one prepare-after, a `native:` ledger identity from prepare-after on (before
+  Prepare completes the ledger still names the previous activation), no paired identity, no admission,
+  cost, command or end input, Preparing then a native End (no ForceToEnd), End setting Standard to 6,
+  the rider still unconscious, and no partner context.
+- **Unmounted control:** after the life callback, still in round N, one labelled native RuleDealDamage
+  to the first party companion outside both pairs that is not main, not a pet, not essential, not
+  immortal, dying-allowed, conscious, in combat, unpaired and before the surviving mount in the native
+  order. Its N+1 turn must be the same empty native turn, with the same boundary sequence (UI ready
+  handlers excluded) and Standard values as rider B's. If no companion passes the gates the artifact
+  records `available=false` with every candidate's gate row, and the proof is derivation-only.
+  **Control eligibility is decided at the next native run.** Zero-launch hint from the c5 lineage
+  save: the main is essential, `5dd7bd1d` is not; the dying and immortality flags are runtime state.
+- The reader (`Chunk7NativeLifeEvidence.ps1`) recomputes the slots from the recorded order, binds that
+  order to the observed N+1 preparations of pair A, rider B and the surviving mount, re-derives each
+  turn record from the trace, and checks the control's gate rows, choice and turn.
+
+**Re-judgment of the retained failures** (`analysis-cache/chunk7-continuation/b194-life-rejudgment.json`,
+SHA-256 `37fe9214…`), artifacts unchanged:
+
+| Run | Original | Revised reader | Offline derivation on the retained trace |
+| --- | --- | --- | --- |
+| a1 (`40e7c7cb…`) | FAIL | still **FAIL** (well-formed FAIL; no survivor snapshot, control or cleanup proof because the run stopped) | rider B: 0 slots before renewal, 1 between renewal and survivor; observed one native Prepare, `native:9f41…`, native End, Standard 6: **matches** |
+| p2 (`76c446cd…`) | FAIL | still **FAIL** (same reasons) | same derivation; observed `native:2d5f…` empty native turn: **matches** |
+
+Both original FAILs remain. A PASS needs a new native run on a reviewed candidate.
+
 ### X4: Horse subscriber expectation misses the Small Horse profile (fix committed, needs review)
 
 `RecordRepeatedWorld` expects one `HorseCompanionAddPet` subscriber per pair whose profile id is the
