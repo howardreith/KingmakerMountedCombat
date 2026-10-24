@@ -388,8 +388,16 @@ namespace KingmakerMountedCombat.Diagnostics
         // repeat from Unmounted). Every observation is read back; nothing is retried or forced.
         private void CompleteNativeDeathDelivery()
         {
-            if (!br.Descriptor.State.IsDead) return;
+            // DeathDoorCondition is read only: in native 2.1.7b it is consulted inside OnUnitDeath,
+            // after SetLifeState has already set Dead, so it never prevents the death itself. If the
+            // native tick nevertheless completes its life callback without death, fail explicitly.
             var probe = lifeDelivery.Capture();
+            if (!br.Descriptor.State.IsDead)
+            {
+                if (!(bool)probe["completedNativeTick"]) return;
+                nativeLife["deliveryProbe"] = probe; nativeLife["notDeadAfterNativeTick"] = DeadActor(br);
+                Require(false, "Native tick completed the life callback without killing the rider; death proper is uncovered on this fixture.");
+            }
             if (!(bool)probe["completedNativeTick"]) return;
             nativeLife["deliveryProbe"] = probe;
             var events = ((JArray)probe["events"]).OfType<JObject>().ToArray();
@@ -408,6 +416,13 @@ namespace KingmakerMountedCombat.Diagnostics
                 Require(HealthyOwnerUnchanged(before, after) && new[] { ar, am, bm }.All(actor => SameActorBudget(Actor(before, actor), Actor(after, actor))),
                     "Native death callback changed healthy ownership, healthy expenditure or surviving mount debt.");
             }
+            // Across the whole native tick (including native LeaveCombat and any production removal
+            // path before the callbacks) the healthy pair keeps its owner and expenditure.
+            var tickBefore = (JObject)events.First()["world"]; var tickAfter = (JObject)events.Last()["world"];
+            Require(HealthyOwnerUnchanged(tickBefore, tickAfter) && new[] { ar, am }.All(actor => SameActorBudget(Actor(tickBefore, actor), Actor(tickAfter, actor))),
+                "Native death tick changed healthy ownership or healthy expenditure.");
+            var forced = (JArray)trace.Capture()["forceToEnd"];
+            nativeLife["riderDamageRoundForceToEnd"] = forced.Count(f => (string)f["actor"] == br.UniqueId && (int?)f["round"] == lifeDamageRound);
             var deliveries = lifecycle.SnapshotNativeDeliveries().Where(x => x.Sequence > lifeLedgerOffset).ToArray();
             var transitions = lifecycle.SnapshotPairLifeTransitions().Where(x => x.Sequence > lifeTransitionOffset).ToArray();
             nativeLife["deliveries"] = ProjectLifeDeliveries(deliveries);
@@ -483,7 +498,9 @@ namespace KingmakerMountedCombat.Diagnostics
             var events = ((JArray)capture["events"]).OfType<JObject>()
                 .Where(e => (int?)e["round"] == round && (string)e["state"]?["actor"] == unit.UniqueId).ToArray();
             var forbidden = new[] { "admission-", "cost-", "actor-cost-", "command-", "completion-force-to-end-", "chunk7-end-input-" };
-            return new JObject { ["actorId"] = unit.UniqueId, ["round"] = round, ["events"] = events.Length,
+            // Bounded by the capture's own trace position: later hooks (cleanup, combat end, a native
+            // rise) may still tag this round; the reader recounts up to the same position.
+            return new JObject { ["actorId"] = unit.UniqueId, ["round"] = round, ["traceSequenceAtCapture"] = trace.EventCount, ["events"] = events.Length,
                 ["prepareBefore"] = events.Count(e => (string)e["boundary"] == "prepare-before"),
                 ["prepareAfter"] = events.Count(e => (string)e["boundary"] == "prepare-after"),
                 ["ends"] = events.Count(e => (string)e["boundary"] == "turn-end-before"),

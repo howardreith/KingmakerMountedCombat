@@ -225,20 +225,25 @@ function Assert-KmcChunk7DeadLifeActor($Actor,[string]$Id,[switch]$Extended){
  if($Extended){foreach($f in @('finallyDead','inCombat','inState')){if($Actor.$f-isnot[bool]){throw 'Native death actor flag is missing or mistyped.'}};Assert-KmcChunk7Boolean $Actor.inCombat $false}
 }
 # The smallest whole native request whose difficulty-scaled damage reaches HP+Constitution+1.
-function Get-KmcChunk7DeathRequest($Actor,[double]$Difficulty){[long][Math]::Ceiling(([double]($Actor.hp+$Actor.constitution-$Actor.damage+$Actor.temporaryHp)+1)/$Difficulty)}
-# A dead unit's N+1 on the trace's own hooks: every trace event of the unit in that round is
-# counted; there must be no native Prepare, end, forced end, admission, cost or command.
-function Get-KmcChunk7DeadNativeTurn($Trace,[string]$Actor,[long]$Round){
- $events=@($Trace.events|Where-Object{$null-ne$_.PSObject.Properties['round']-and$_.round-eq$Round-and$null-ne$_.PSObject.Properties['state']-and$null-ne$_.state-and$_.state.actor-ceq$Actor})
+# The producer divides by the native float widened to double; the JSON value is that float's shortest form.
+function Get-KmcChunk7DeathRequest($Actor,$Difficulty){[long][Math]::Ceiling(([double]($Actor.hp+$Actor.constitution-$Actor.damage+$Actor.temporaryHp)+1)/[double][single]$Difficulty)}
+# A dead unit's N+1 on the trace's own hooks: its trace events in that round up to the capture's own
+# trace position are recounted exactly; there must be no native Prepare, end, forced end, admission,
+# cost or command. Native Prepare, end and forced end are also refused over the whole round.
+function Get-KmcChunk7DeadNativeTurn($Trace,[string]$Actor,[long]$Round,[long]$Bound=[long]::MaxValue){
+ $events=@($Trace.events|Where-Object{$null-ne$_.PSObject.Properties['round']-and$_.round-eq$Round-and$null-ne$_.PSObject.Properties['state']-and$null-ne$_.state-and$_.state.actor-ceq$Actor-and$_.sequence-le$Bound})
  $forbidden=@($events|Where-Object{$b=[string]$_.boundary;@('admission-','cost-','actor-cost-','command-','completion-force-to-end-','chunk7-end-input-')|Where-Object{$b.StartsWith($_,[StringComparison]::Ordinal)}}).Count
  $forceList=@(if($null-ne$Trace.PSObject.Properties['forceToEnd']){$Trace.forceToEnd})
  [pscustomobject]@{events=[long]$events.Count;prepareBefore=[long]@($events|Where-Object boundary -CEQ 'prepare-before').Count;prepareAfter=[long]@($events|Where-Object boundary -CEQ 'prepare-after').Count
   ends=[long]@($events|Where-Object boundary -CEQ 'turn-end-before').Count;forcedEnds=[long]@($forceList|Where-Object{$null-ne$_-and$_.actor-ceq$Actor-and$_.round-eq$Round}).Count;forbidden=[long]$forbidden}
 }
 function Assert-KmcChunk7DeadNativeTurn($Recorded,$Trace,[string]$Actor,[long]$Round){
- Assert-KmcExactProperties $Recorded @('actorId','round','events','prepareBefore','prepareAfter','ends','forcedEnds','forbidden','conscious','dead','finallyDead','inCombat') 'dead native turn'
+ Assert-KmcExactProperties $Recorded @('actorId','round','traceSequenceAtCapture','events','prepareBefore','prepareAfter','ends','forcedEnds','forbidden','conscious','dead','finallyDead','inCombat') 'dead native turn'
  if($Recorded.actorId-cne$Actor-or$Recorded.round-ne$Round){throw 'Dead native turn identity or round differs.'}
- $d=Get-KmcChunk7DeadNativeTurn $Trace $Actor $Round
+ $last=[long](@($Trace.events|ForEach-Object{[long]$_.sequence})|Measure-Object -Maximum).Maximum
+ if(-not(Test-KmcExactJsonInteger $Recorded.traceSequenceAtCapture)-or$Recorded.traceSequenceAtCapture-lt1-or$Recorded.traceSequenceAtCapture-gt$last){throw 'Dead native turn capture position is outside its trace.'}
+ $d=Get-KmcChunk7DeadNativeTurn $Trace $Actor $Round ([long]$Recorded.traceSequenceAtCapture);$whole=Get-KmcChunk7DeadNativeTurn $Trace $Actor $Round
+ if($whole.prepareBefore-ne0-or$whole.prepareAfter-ne0-or$whole.ends-ne0-or$whole.forcedEnds-ne0){throw 'Dead unit received native next-round activity.'}
  foreach($f in @('events','prepareBefore','prepareAfter','ends','forcedEnds','forbidden')){if(-not(Test-KmcExactJsonInteger $Recorded.$f)-or$Recorded.$f-ne$d.$f){throw "Dead native turn $f differs from its trace."}}
  Assert-KmcChunk7Boolean $Recorded.conscious $false;Assert-KmcChunk7Boolean $Recorded.dead $true;Assert-KmcChunk7Boolean $Recorded.inCombat $false
  if($Recorded.finallyDead-isnot[bool]){throw 'Dead native turn finallyDead is missing or mistyped.'}
@@ -272,6 +277,7 @@ function Assert-KmcChunk7NativeDeathChain($Request,$o,$life,$ids){
     $probe.deathCallbackType-cne'KingmakerMountedCombat.Integration.MountedLifecycleSubscriber'-or$probe.deathCallbackName-cne'HandleUnitDeath'-or
     $probe.tickDepth-ne0-or$probe.setDepth-ne0-or@($probe.errors).Count-ne0){throw 'Exact native death observer identity or closure differs.'}
  Assert-KmcChunk7Boolean $probe.completedNativeTick $true
+ if($null-ne$life.PSObject.Properties['notDeadAfterNativeTick']){throw 'Native tick completed without killing the rider.'}
  $events=@($probe.events);$sequence=0
  foreach($e in $events){if($e.sequence-ne(++$sequence)-or$e.actorId-cne$ids[2]-or$e.round-ne$life.damageRound-or$e.frame-lt$after.world.frame){throw 'Death observer sequence/actor/round differs.'}}
  $names=@('native-tick-before','native-set-before','production-death-callback-before','production-death-callback-after','production-callback-before','production-callback-after','native-set-after','native-tick-after')
@@ -280,6 +286,10 @@ function Assert-KmcChunk7NativeDeathChain($Request,$o,$life,$ids){
  foreach($i in 2..5){if($events[$i].currentLife-cne'Dead'){throw 'Death callback did not observe the actual native Dead state.'}}
  if($null-ne$events[2].previousLife-or$null-ne$events[3].previousLife-or$events[4].previousLife-cne'Conscious'-or$events[5].previousLife-cne'Conscious'){throw 'Death callbacks did not report the actual native transition.'}
  $db=$events[2];$da=$events[3];$lb=$events[4];$la=$events[5]
+ # The whole tick, including native LeaveCombat before the callbacks, keeps the healthy pair's owner and expenditure.
+ Assert-KmcChunk7LifeOwner $events[0].world $events[7].world $ids[0] $ids[1];Assert-KmcChunk7SameCombatBudget $events[0].world $events[7].world @($ids[0],$ids[1])
+ $forcedRoundN=@(@($o.allocationTrace.forceToEnd)|Where-Object{$null-ne$_-and$_.actor-ceq$ids[2]-and$_.round-eq$life.damageRound}).Count
+ if(-not(Test-KmcExactJsonInteger $life.riderDamageRoundForceToEnd)-or$life.riderDamageRoundForceToEnd-gt$forcedRoundN){throw 'Recorded damage-round ForceToEnd of the rider differs from its trace.'}
  foreach($w in @(@($db,$da),@($lb,$la))){Assert-KmcChunk7LifeOwner $w[0].world $w[1].world $ids[0] $ids[1];Assert-KmcChunk7SameCombatBudget $w[0].world $w[1].world @($ids[0],$ids[1],$ids[3])}
  $owners=@(foreach($e in @($db,$da,$lb,$la)){,@($e.world.owners|Where-Object{Test-KmcChunk7OwnerActorMatch $_.riderId $ids[2]})})
  if(@($owners|Where-Object{@($_).Count-ne1}).Count-ne0){throw 'Actual native death cleanup lost detached actor custody.'}
@@ -380,6 +390,9 @@ function Assert-KmcChunk7DeathCleanup($c,$ids,$ControlId){
  if($null-ne$ControlId){if($null-eq$c.control-or$c.control.actorId-cne$ControlId-or$c.control.dead-isnot[bool]-or$c.control.inCombat-isnot[bool]-or$c.control.inCombat){throw 'Native death cleanup lacks the observed death control.'}}
  elseif($null-ne$c.control){throw 'Native death cleanup records an unavailable control.'}
  $beforeIds=@($c.selectionBefore);$selectable=@($c.selectableBefore);$afterIds=@($c.selectionAfter)
+ # The captured selection must be non-empty and still wholly selectable (in state with a view), so the
+ # restore check cannot pass on an empty set.
+ if($beforeIds.Count-lt1-or(ConvertTo-KmcChunk7Canonical $beforeIds)-cne(ConvertTo-KmcChunk7Canonical $selectable)){throw 'Native death cleanup captured no selection or lost a captured unit.'}
  if(@($selectable|Where-Object{$_-cnotin$beforeIds}).Count-ne0-or@($afterIds|Where-Object{$_-cnotin$selectable}).Count-ne0-or@($afterIds|Select-Object -Unique).Count-ne$afterIds.Count){throw 'Native death cleanup selection is not a subset of the captured selection.'}
  $deadIds=@(@($c.rider,$c.control)|Where-Object{$null-ne$_-and$_.dead-eq$true}|ForEach-Object{[string]$_.actorId})
  foreach($id in $selectable){if($id-cnotin$afterIds-and$id-cnotin$deadIds){throw 'Native death cleanup did not restore the captured selection.'}}

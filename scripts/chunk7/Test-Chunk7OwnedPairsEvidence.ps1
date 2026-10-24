@@ -554,7 +554,9 @@ function ConvertTo-KmcSeedNativeDeathFixture($v){
  $o.allocationTrace.events=@($o.allocationTrace.events|Where-Object{-not($null-ne$_.PSObject.Properties['round']-and$_.round-eq3-and$null-ne$_.state-and$_.state.actor-cin@($ids[2],$controlId))})
  $i=0;foreach($e in $o.allocationTrace.events){$i++;$e.sequence=$i}
  foreach($g in @($l.independentSurvivor.grants|Where-Object actorId -CEQ $ids[2])){$g.count=2}
- $dead={param([string]$id)[pscustomobject][ordered]@{actorId=$id;round=3;events=0;prepareBefore=0;prepareAfter=0;ends=0;forcedEnds=0;forbidden=0;conscious=$false;dead=$true;finallyDead=$false;inCombat=$false}}
+ $l|Add-Member riderDamageRoundForceToEnd 0 -Force
+ $capture=[long]@($o.allocationTrace.events).Count
+ $dead={param([string]$id)[pscustomobject][ordered]@{actorId=$id;round=3;traceSequenceAtCapture=$capture;events=0;prepareBefore=0;prepareAfter=0;ends=0;forcedEnds=0;forbidden=0;conscious=$false;dead=$true;finallyDead=$false;inCombat=$false}}
  $l.PSObject.Properties.Remove('incapacitatedRiderTurn');$l|Add-Member deadRiderTurn (&$dead $ids[2]) -Force
  $l.PSObject.Properties.Remove('unconsciousControl')
  $c.contract='unmounted-dead-native-turn-control-v1';$c.requestedDamage=43;$c.nativeDamage=43;$c.afterDamage.damage=43;$c.turn=(&$dead $controlId);$c.grantAfter=$c.grantBefore;$c.traceSequenceAtDamage=$atDamage
@@ -592,15 +594,30 @@ Check-SeedDeath 'a second cleanup from Mounted' {$args[0].artifact.observations.
 Check-SeedDeath 'a failed repeated delivery' {$args[0].artifact.observations.nativeLife.deliveries[1].succeeded=$false} 'idempotent success'
 Check-SeedDeath 'a non-consecutive delivery window' {$args[0].artifact.observations.nativeLife.deliveries[1].sequence=9} 'consecutive window'
 Check-SeedDeath 'an unconscious instead of dead transition' {$args[0].artifact.observations.nativeLife.lifeTransitions[0].currentLife='Unconscious'} 'one exact rider death'
-Check-SeedDeath 'a living rider after delivery' {$a=$args[0].artifact.observations.nativeLife.afterDelivery.rider;$a.life='Unconscious';$a.dead=$false} 'Native evidence boolean|state label'
+Check-SeedDeath 'a living rider after delivery' {$a=$args[0].artifact.observations.nativeLife.afterDelivery.rider;$a.life='Unconscious';$a.dead=$false} 'Native evidence boolean'
 Check-SeedDeath 'a dead rider still in combat after delivery' {$args[0].artifact.observations.nativeLife.deadRiderAfterDelivery.inCombat=$true} 'Native evidence boolean'
-Check-SeedDeath 'the healthy owner changed by the death callback' {$args[0].artifact.observations.nativeLife.deliveryProbe.events[3].world.actors[0].standard=0.0} 'budget|Native'
+Check-SeedDeath 'the healthy owner changed by the death callback' {$args[0].artifact.observations.nativeLife.deliveryProbe.events[3].world.actors[0].standard=0.0} 'Unrelated native actor expenditure changed'
+Check-SeedDeath 'healthy expenditure changed across the whole native tick' {$args[0].artifact.observations.nativeLife.deliveryProbe.events[7].world.actors[1].standard=0.0} 'Unrelated native actor expenditure changed'
+Check-SeedDeath 'a recorded damage-round ForceToEnd absent from the trace' {$args[0].artifact.observations.nativeLife.riderDamageRoundForceToEnd=1} 'damage-round ForceToEnd'
+Check-SeedDeath 'a dead-turn capture position beyond the trace' {$args[0].artifact.observations.nativeLife.deadRiderTurn.traceSequenceAtCapture=999999} 'capture position is outside'
+Check-SeedDeath 'a native N+1 Prepare of the dead rider after the capture' {$v=$args[0];Add-DeathTraceEvent $v $v.artifact.observations.actorIds[2] 'turn-end-before'} 'native next-round activity'
+Check-SeedDeath 'an empty captured selection' {$c=$args[0].artifact.observations.nativeLife.deathCleanup;$c.selectionBefore=@();$c.selectableBefore=@();$c.selectionAfter=@()} 'captured no selection'
+Check-SeedDeath 'a captured unit that lost its selectability' {$c=$args[0].artifact.observations.nativeLife.deathCleanup;$c.selectableBefore=@($c.selectableBefore[0])} 'captured no selection or lost'
+Check 'owner-seed native death accepts later native hooks of the dead rider after the capture' {$v=New-KmcSeedNativeDeathFixture;Add-DeathTraceEvent $v $v.artifact.observations.actorIds[2] 'remove-unit-before';Invoke-OwnedReader $v}
+Check 'owner-seed native death accepts the native leave-combat observation and a finally-dead repeat' {$v=New-KmcSeedNativeDeathFixture;$l=$v.artifact.observations.nativeLife
+ $l.deliveries=@([pscustomobject][ordered]@{sequence=6;boundary='CombatEnded';source='IUnitCombatHandler.HandleUnitLeaveCombat';stateBefore='Mounted';stateAfter='Mounted';trigger=$null;attempted=$false;succeeded=$true;errors=@()},
+  [pscustomobject][ordered]@{sequence=7;boundary='UnitDeath';source='IUnitHandler.HandleUnitDeath';stateBefore='Mounted';stateAfter='Unmounted';trigger='Death';attempted=$true;succeeded=$true;errors=@()},
+  [pscustomobject][ordered]@{sequence=8;boundary='UnitFinallyDead';source='IUnitFinallyDeadHandler.HandleUnitBecameFinallyDead';stateBefore='Unmounted';stateAfter='Unmounted';trigger='Death';attempted=$true;succeeded=$true;errors=@()},
+  [pscustomobject][ordered]@{sequence=9;boundary='UnitIncapacitated';source='IUnitLifeStateChanged.HandleUnitLifeStateChanged';stateBefore='Unmounted';stateAfter='Unmounted';trigger='Incapacitated';attempted=$true;succeeded=$true;errors=@()})
+ $e=$l.deliveryProbe.events;$e[2].ledgerSequence=6;$e[3].ledgerSequence=8;$e[4].ledgerSequence=8;foreach($i in 5..7){$e[$i].ledgerSequence=9};Invoke-OwnedReader $v}
+Check 'owner-seed native death accepts a native difficulty that is not exact in binary (0.6)' {$v=New-KmcSeedNativeDeathFixture;$l=$v.artifact.observations.nativeLife;$l.difficulty=0.6;$l.nativeDeathPolicy.damageToParty=0.6;$l.nativeDeathPolicyAtDamage.damageToParty=0.6
+ $l.requestedDamage=72;$l.nativeDamageBeforeDifficulty=72;foreach($e in @($l.nativeEffects.events)){if($e.kind-ceq'damage-after'){$e.beforeDifficulty=72}};$c=$l.deathControl;$c.requestedDamage=72;Invoke-OwnedReader $v}
 Check-SeedDeath 'a native N+1 preparation of the dead rider' {Add-DeathTraceEvent $args[0] $args[0].artifact.observations.actorIds[2] 'prepare-before'} 'prepare the dead rider'
-Check-SeedDeath 'a dead rider record that hides its trace' {Add-DeathTraceEvent $args[0] $args[0].artifact.observations.actorIds[2] 'round-state-before'} 'differs from its trace'
+Check-SeedDeath 'a dead rider record that hides a trace event before its capture' {$v=$args[0];Add-DeathTraceEvent $v $v.artifact.observations.actorIds[2] 'round-state-before';$v.artifact.observations.nativeLife.deadRiderTurn.traceSequenceAtCapture=@($v.artifact.observations.allocationTrace.events).Count} 'events differs from its trace'
 Check-SeedDeath 'a native N+1 slot claimed for the dead rider' {$args[0].artifact.observations.nativeLife.riderSlotsBeforeRenewal=1} 'no native next-round slot'
 Check-SeedDeath 'a granted dead rider' {@($args[0].artifact.observations.nativeLife.independentSurvivor.grants|Where-Object actorId -CEQ $args[0].artifact.observations.actorIds[2])[0].count=3} 'grants were duplicated'
 Check-SeedDeath 'a dead rider turn claiming combat' {$args[0].artifact.observations.nativeLife.deadRiderTurn.inCombat=$true} 'Native evidence boolean'
-Check-SeedDeath 'a dead control prepared natively' {$c=$args[0].artifact.observations.nativeLife.deathControl;Add-DeathTraceEvent $args[0] $c.actorId 'prepare-before'} 'differs from its trace'
+Check-SeedDeath 'a dead control prepared natively' {$c=$args[0].artifact.observations.nativeLife.deathControl;Add-DeathTraceEvent $args[0] $c.actorId 'prepare-before'} 'native next-round activity'
 Check-SeedDeath 'a dead control granted after its death' {$args[0].artifact.observations.nativeLife.deathControl.grantAfter=3} 'native preparation after its death'
 Check-SeedDeath 'a control that did not die' {$args[0].artifact.observations.nativeLife.deathControl.turn.dead=$false} 'Native evidence boolean'
 Check-SeedDeath 'control damage below its death threshold' {$args[0].artifact.observations.nativeLife.deathControl.afterDamage.damage=41} 'bounded death stimulus'
