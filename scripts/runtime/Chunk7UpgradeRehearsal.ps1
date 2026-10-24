@@ -18,6 +18,25 @@ function Get-KmcChunk7PreviousPackagePins {
   dllSha256='11e993093d2042f615cfc9d6aecc33d630d2e41e8125dd680656b6a1057a48ea';dllMvid='0aa68ba0-f293-480e-8ecb-d7bdaeca73d0'
   infoSha256='a52a335b21f356bcc02de29a158f2bc839ac0e09bd17e5d3461382040366c0bd';version='0.1.0-chunk6d-preview.211';commit='a0d70fa41f25498aa2f31dfdfebc1ad29750f4a6'}
 }
+# Known defects of the released preview.211 that it genuinely logs in this isolated
+# base-game-only tree. Its Horse registration admits only the seven-option Ranger
+# AllFeatures list that Call of the Wild writes; the base game has twelve, so the old
+# binary logs this exception at start (fixed in Chunk 7 by 81c191af). The u1 session-log
+# expectation describes exactly what the old binary does here; nothing else is admitted.
+function Get-KmcChunk7PreviousPackageKnownDefects {
+ @([pscustomobject][ordered]@{id='preview211-base-game-ranger-allfeatures-horse-registration'
+  line='[KingmakerMountedCombat] [Exception] Horse companion blueprint registration: InvalidOperationException - The exact Ranger companion AllFeatures surface no longer has seven stock options.'
+  expectedOccurrences=1;sourceFixCommit='81c191afec2fc3210b8777323447c0b4edb4ddb1';reference='docs/CHUNK7-RANGER-BOOTSTRAP-REPAIR.md'})
+}
+# Only the u1 first install of exactly the pinned preview.211 package admits them. u2 runs
+# the candidate and u3 keeps the strict quiet-start rule; any other step or package admits none.
+function Get-KmcChunk7UpgradeAdmittedLogDefects($UpgradeRehearsal){
+ if($null-eq$UpgradeRehearsal){return @()}
+ $pins=Get-KmcChunk7PreviousPackagePins;$s=$UpgradeRehearsal.stagedKmc
+ if([string]$UpgradeRehearsal.step-cne'u1-previous-install'-or$null-eq$s-or[string]$s.role-cne'previous'-or[string]$s.version-cne$pins.version-or[string]$s.commit-cne$pins.commit-or
+  [string]$s.packageSha256-cne$pins.packageSha256-or[string]$s.manifestSha256-cne$pins.manifestSha256-or[string]$s.dllSha256-cne$pins.dllSha256-or[string]$s.dllMvid-cne$pins.dllMvid){return @()}
+ Get-KmcChunk7PreviousPackageKnownDefects
+}
 function Get-KmcChunk7ZipMemberHashes([string]$Path){
  Add-Type -AssemblyName System.IO.Compression
  $stream=[IO.File]::Open($Path,[IO.FileMode]::Open,[IO.FileAccess]::Read,[IO.FileShare]::Read);$zip=$null

@@ -1564,8 +1564,9 @@ finally{
     }
     if($isNormalPlayer-and$processExited){
         # KMC's own one-session UMM log: ordinary load, quiet overlay, no accepted request, no error.
+        # Only u1 of the exact pinned preview.211 admits that release's known base-game defect line.
         try{
-            $ummLog=Get-KmcChunk7NormalPlayerUmmLogSummary ([string]$intake.requestedLayout.kingmakerInstallDir) $startedAt $(if($upgradeLoad){[string]$upgradePrevious.version}else{[string]$manifest.version})
+            $ummLog=Get-KmcChunk7NormalPlayerUmmLogSummary ([string]$intake.requestedLayout.kingmakerInstallDir) $startedAt $(if($upgradeLoad){[string]$upgradePrevious.version}else{[string]$manifest.version}) @(Get-KmcChunk7UpgradeAdmittedLogDefects $upgradeSection)
             Write-KmcJsonAtomic (Join-Path $evidenceRoot 'normal-player-umm-log.json') $ummLog
             if(-not$ummLog.passed){$errors.Add('KMC UMM session log is not an ordinary quiet no-request start: '+(($ummLog|ConvertTo-Json -Depth 3 -Compress)))}
         }catch{$errors.Add('KMC UMM session log check failed: '+$_.Exception.Message)}
