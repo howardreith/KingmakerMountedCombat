@@ -185,6 +185,8 @@ function Assert-KmcChunk7PersistenceObservation($Request,$Artifact,[string]$Stat
     if(Test-KmcChunk7OwnerSeedCurrentCheckpoint $Request.persistenceCase){Assert-KmcChunk7CurrentMigrationObservation $Request $Artifact;return}
     if(Test-KmcOwnedSchema1Case $Request.persistenceCase){Assert-KmcOwnedSchema1Observation $Request $Artifact;return}
     if(Test-KmcChunk7RepeatedWorldCase $Request.persistenceCase){Assert-KmcChunk7RepeatedWorldObservation $Request $Artifact;return}
+    if(Test-KmcChunk7CapitalArrivalCase $Request.persistenceCase){Assert-KmcChunk7CapitalArrivalObservation $Request $Artifact;return}
+    if(Test-KmcChunk7CapitalColdCase $Request.persistenceCase){Assert-KmcChunk7CapitalColdObservation $Request $Artifact;return}
     if($Request.persistenceCase-ceq'legacy-schema1-resave-manual'){Assert-KmcChunk7Schema1Observation $Request $Artifact;return}
     if(Test-KmcChunk7CombatPersistenceCase $Request.persistenceCase){Assert-KmcChunk7CombatPersistenceObservation $Request $Artifact;return}
     if((Test-KmcChunk7OwnedPairsScenario $Request.scenario)-and(Test-KmcChunk7SixPairPersistence $Request)){Assert-KmcChunk7SixPairPersistenceObservation $Request $Artifact;return}
@@ -321,7 +323,7 @@ function Assert-KmcChunk7PersistenceArtifact($Request,$Manifest,[string]$Status=
     if($present.Count-eq0-and$Status-cne'PASS'){return}
     $artifact=Read-KmcChunk7ManifestArtifact $Request $Manifest 'chunk7-persistence-evidence.json' 'chunk7-persistence-evidence'
     Assert-KmcChunk7PersistenceObservation $Request $artifact $Status
-    if($Status-ceq'PASS'-and((Get-KmcChunk7SelectedScenario $Request)-ceq'chunk7-persistence-save'-or((Get-KmcChunk7SelectedScenario $Request)-ceq'chunk7-persistence-load'-and$Request.persistenceCase-cin@('legacy-schema1-resave-manual','legacy-mounted-pending-tb-manual','owned-schema1-resave-manual')))) {
+    if($Status-ceq'PASS'-and((Get-KmcChunk7SelectedScenario $Request)-ceq'chunk7-persistence-save'-or((Get-KmcChunk7SelectedScenario $Request)-ceq'chunk7-persistence-load'-and$Request.persistenceCase-cin@('legacy-schema1-resave-manual','legacy-mounted-pending-tb-manual','owned-schema1-resave-manual','multi-exploration-capital-arrival-manual')))) {
         $w=$artifact.observations.nativeWrite
         $leaf=if(Test-KmcChunk7OwnedPairsScenario $Request.scenario){Get-KmcChunk7OwnedOutputLeaf $Request $artifact.observations}else{if((Get-KmcChunk7SelectedScenario $Request)-ceq'chunk7-persistence-load'-and$Request.persistenceCase-ceq'legacy-mounted-pending-tb-manual'){'Manual_301_KMC_C7_SCHEMA2.zks'}else{Get-KmcChunk7PersistenceLeaf $Request.persistenceCase}}
         $path=Join-Path (Get-KmcLabRoot) ('runtime-staging/persistence-'+$Request.runId+'/Saved Games/'+$leaf)

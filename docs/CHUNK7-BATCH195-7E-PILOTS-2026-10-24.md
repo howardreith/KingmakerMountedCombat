@@ -144,7 +144,13 @@ The Fast components run reported 877/0 in the repository; in a fresh archive cop
 876/1, the one failure being "queued native requests… Missing or oversized save identity", which is
 pre-existing at the parent commit and depends on the path length.
 
-**Native test design (matrix rows 58–59, not implemented):** the old Oleg's route is the stimulus. A
+**Rows 58–59 implemented offline (2026-10-23, after `10fbeab8`; native not run).** Case names
+`multi-exploration-capital-arrival-manual` (row 58) and `multi-exploration-capital-arrival-cold-manual` (row 59),
+both owned `persistence-load` selections; the capital admission is scoped to them in the runner
+(`Assert-KmcChunk7CapitalArrivalRoute`), the request reader and the in-game route, and every other route still refuses
+capitals. Row 58's lineage is same-candidate: it consumes an x4s-shaped Manual produced on the same candidate.
+
+**Native test design (matrix rows 58–59, original record):** the old Oleg's route is the stimulus. A
 new owned persistence case cold-loads a two-owner mounted Manual (x4s shape), makes one native
 transfer to Oleg's (`fd225a93…`) and writes one genuine Manual there. Its reader requires one
 retired pair (count 1 and the UMM line), the main pair restored without Mount or preparation, the

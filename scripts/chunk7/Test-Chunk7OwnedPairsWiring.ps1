@@ -224,11 +224,17 @@ Check 'capital source lineage: row 58 from the x4s Manual case, row 59 from row 
 Check 'capital route admits only the reviewed pin'{Assert-KmcChunk7CapitalArrivalRoute @($capitalPin.enterPoint) @($capitalPin.area)}
 foreach($route in @(@(@('1'*32),@($capitalPin.area)),@(@($capitalPin.enterPoint),@('b'*32)),@(@($capitalPin.enterPoint,$capitalPin.enterPoint),@($capitalPin.area,$capitalPin.area)),@(@(),@()))){Check ('capital route refuses '+($route[0]-join',')+'/'+($route[1]-join',')){Assert-KmcChunk7CapitalArrivalRoute $route[0] $route[1]} $true}
 Check 'every other route still refuses the capital pin'{try{Assert-KmcChunk7RouteAvoidsKnownCapitals @($capitalPin.enterPoint) @($capitalPin.area);throw 'admitted'}catch{if($_.Exception.Message-notmatch'known capital'){throw}}}
-Check 'runner admits capital cases as parameters and keeps refusing them before launch'{
+Check 'runner admits capital cases only for the owned cold selection and the exact pin, before the lock'{
  $set=@($metadata.Parameters.PersistenceCase.Attributes|Where-Object{$_-is[Management.Automation.ValidateSetAttribute]})[0].ValidValues
  foreach($case in @('multi-exploration-capital-arrival-manual','multi-exploration-capital-arrival-cold-manual')){if($case-cnotin$set){throw 'Runner parameter rejects a capital case.'}}
  $guard=@($runnerAst.FindAll({param($n)$n-is[Management.Automation.Language.IfStatementAst]-and$n.Clauses[0].Item1.Extent.Text-ceq'Test-KmcChunk7CapitalCase $PersistenceCase'},$true))
- if($guard.Count-ne1-or-not$guard[0].Extent.Text.Contains('Assert-KmcChunk7CapitalArrivalRoute $PersistenceAreaEnterPoint $PersistenceAreaTargetArea')-or-not$guard[0].Extent.Text.Contains("throw 'Capital-arrival rows 58-59 are wired, but their native engine and readers have not landed; refused before launch.'")){throw 'Runner capital guard differs.'}
+ if($guard.Count-ne1-or-not$guard[0].Extent.Text.Contains('Assert-KmcChunk7CapitalArrivalRoute $PersistenceAreaEnterPoint $PersistenceAreaTargetArea')-or-not$guard[0].Extent.Text.Contains("`$ownedPairsInput.selection.case-cne'persistence-load'")-or$guard[0].Extent.Text.Contains('refused before launch')){throw 'Runner capital guard differs.'}
+ $run=[scriptblock]::Create('param($Family,$Selected,$Entry,$Area,$Case) $Scenario=$Family;$ownedPairsInput=[pscustomobject]@{selection=[pscustomobject]@{case=$Selected}};$PersistenceAreaEnterPoint=$Entry;$PersistenceAreaTargetArea=$Area;$PersistenceCase=$Case'+[Environment]::NewLine+$guard[0].Extent.Text)
+ &$run 'chunk7-owned-two-pair-campaign' 'persistence-load' $capitalPin.enterPoint $capitalPin.area 'multi-exploration-capital-arrival-manual'
+ &$run 'chunk7-owned-two-pair-campaign' 'persistence-load' $null $null 'multi-exploration-capital-arrival-cold-manual'
+ foreach($bad in @(@('chunk7-persistence-load','persistence-load',$capitalPin.enterPoint,$capitalPin.area,'multi-exploration-capital-arrival-manual'),@('chunk7-owned-two-pair-campaign','persistence-save',$capitalPin.enterPoint,$capitalPin.area,'multi-exploration-capital-arrival-manual'),@('chunk7-owned-two-pair-campaign','persistence-load',('1'*32),$capitalPin.area,'multi-exploration-capital-arrival-manual'),@('chunk7-owned-two-pair-campaign','persistence-load',$capitalPin.enterPoint,('b'*32),'multi-exploration-capital-arrival-manual'))){
+  $refused=$false;try{&$run $bad[0] $bad[1] $bad[2] $bad[3] $bad[4]}catch{$refused=$true};if(-not$refused){throw ('Runner capital guard admitted '+($bad-join'/'))}
+ }
  $lockCall=@($runnerAst.FindAll({param($n)$n-is[Management.Automation.Language.CommandAst]-and$n.GetCommandName()-ceq'Open-KmcRuntimeLock'},$true))
  if($lockCall.Count-ne1-or$guard[0].Extent.EndOffset-ge$lockCall[0].Extent.StartOffset){throw 'Capital refusal is not before the transaction lock.'}
 }

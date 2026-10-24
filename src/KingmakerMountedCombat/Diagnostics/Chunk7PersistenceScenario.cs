@@ -202,6 +202,7 @@ namespace KingmakerMountedCombat.Diagnostics
                             if (RepeatedWorldCase) { BeginRepeatedWorld(); break; }
                             if (Schema1ResaveCase) { ObserveSchema1Cold(); RequestSave(); Next(40); break; }
                             if (OwnedSchema1CurrentCase) { ObserveOwnedSchema1Current(); Next(42); break; }
+                            if (CapitalColdCase) { ObserveCapitalCold(); BeginCleanup(); break; }
                             ObserveCold();
                             if (CapitalArrivalCase) { BeginCapitalArrival(); break; }
                             if (OwnerSeedLoadRefusalCase) { BeginLoadRefusal(); Next(80); break; }
@@ -432,7 +433,7 @@ namespace KingmakerMountedCombat.Diagnostics
             if (CombatCase) { AssertCombatOwners(); return; }
             if (SixPairCase) { AssertSixPairOwners(); return; }
             // One-pair worlds of rows 58-59: the main pair only, once the capital is adopted or cold-loaded.
-            if (capitalAdopted) { AssertCapitalOwners(); return; }
+            if (capitalAdopted || CapitalColdCase) { AssertCapitalOwners(); return; }
             Require(Mounted(firstRider, firstMount) && Mounted(secondRider, secondMount) && world.Registry.ActiveCount == 2 &&
                 world.Registry.Owners.Length == 2 && world.Registry.Owners.All(o => expectedOwners.TryGetValue(o.Id, out var generation) && generation == o.Generation),
                 "All-pair owner identity, generation or exact actor routing changed.");
