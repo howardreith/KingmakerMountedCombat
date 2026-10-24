@@ -1,6 +1,17 @@
 # Chunk 7B–7D — IN PROGRESS
 
-Claude [batch198](docs/CHUNK7-BATCH198-7E-PILOTS-2026-10-24.md) froze pilot candidate `767feaea`
+Claude [batch199](docs/CHUNK7-BATCH199-7E-PILOTS-2026-10-24.md) froze pilot candidate `3842ad94`
+(DLL `ec20ee8f…`, suite `chunk7e-b199-pilots-20261024`). Nine native launches, all with exact
+restoration. The acquired chain (c1–c5), the X4 producer and row 58 passed again. **Row 59 passed for
+the first time** (development pilot): with the lineage area pinned from row 58's record, Bind's readiness
+check passed for the three remote story companions. The capital Manual 309 then cold-loaded with exactly
+the main pair restored (`all-pair-presentation-restored`, no Mount or preparation) and pair B unmounted
+out of scene. The X5 rehearsal stopped at u1 (outer FAIL; observer 27/0): the released preview.211 logs a
+Horse blueprint registration exception on a base-game-only install, because it admits only the CotW
+seven-option Ranger list. So u1's quiet-start premise fails, and it needs a decision. u2 and u3 did not
+run. Standing mission remains IN PROGRESS.
+
+Historical: Claude [batch198](docs/CHUNK7-BATCH198-7E-PILOTS-2026-10-24.md) froze pilot candidate `767feaea`
 (DLL `870b6437…`, suite `chunk7e-b198-pilots-20261024`). Eight native launches, all with exact
 restoration. The acquired chain (c1–c5) and the X4 producer passed again. **Row 58 passed for the first
 time** (development pilot): native Oleg's again sent the three story companions and pair B to remote, the
