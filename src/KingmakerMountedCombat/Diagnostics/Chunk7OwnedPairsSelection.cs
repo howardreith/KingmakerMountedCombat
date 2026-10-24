@@ -157,6 +157,16 @@ namespace KingmakerMountedCombat.Diagnostics
         internal const string ThornRiverFixtureManualName = "KMC_C7_THORN_RIVER_DOOR_FIXTURE";
         internal const string ThornRiverFixtureArea = "7d72372ade2f14448a3fec6d61e06bd8";
         internal static bool IsManticoreManualCold(string checkpoint) => checkpoint == ManticoreManualColdCheckpoint;
+        // Matrix rows 58-59 (owner decision, b195 x4c): the one admitted capital route. Native
+        // IsDirectlyControllable in a capital admits only the main character and its pet, so the
+        // non-main pair is retired on arrival. Every other case keeps refusing capitals.
+        internal const string CapitalArrivalCheckpoint = "multi-exploration-capital-arrival-manual";
+        internal const string CapitalArrivalColdCheckpoint = "multi-exploration-capital-arrival-cold-manual";
+        internal const string CapitalArrivalManualName = "KMC_C7_CAPITAL";
+        // Oleg's Trading Post, observed destinationIsCapital=true (run 20261019-c7b-world48-ownerseed-b23s3-areaauto).
+        internal const string CapitalArrivalEntry = "fd225a93828d26449803a4847947f8c1";
+        internal const string CapitalArrivalArea = "ead426a6c23d39548a670ee515d77df4";
+        internal static bool CapitalCheckpoint(string checkpoint) => checkpoint == CapitalArrivalCheckpoint || checkpoint == CapitalArrivalColdCheckpoint;
         internal static bool IsOwnerSeedSourceOnlyCheckpoint(string checkpoint) => SupportedSaveBoundary(checkpoint) || OwnedSchema1Source(checkpoint) || checkpoint == ManticoreFixtureCheckpoint || checkpoint == TombFixtureCheckpoint || checkpoint == ThornRiverFixtureCheckpoint;
         // The connected combat checkpoints: genuine native Manuals written mid-combat from the restored
         // two-pair start under the owner-approved diagnostic target. Their native Manual name is distinct
@@ -167,7 +177,10 @@ namespace KingmakerMountedCombat.Diagnostics
             checkpoint == "legacy-mounted-pending-tb-manual";
         // The native Manual name a writing owned selection reserves; a non-Manual selection writes its slot name.
         internal string OwnedManualOutputName(string checkpoint) => IsSixPairSave ? SixPairManualName : IsFourthHorseSave ? FourthHorseManualName : IsSmallFixtureSave || IsSmallThirdHorseSave ? SmallFixtureManualName : IsMediumFixtureSave ? MediumFixtureManualName : IsOwnerSeedManual ? OwnerSeedManualName :
-            IsOwnerSeedCheckpointSave ? (checkpoint == ManticoreFixtureCheckpoint ? ManticoreFixtureManualName : checkpoint == TombFixtureCheckpoint ? TombFixtureManualName : checkpoint == ThornRiverFixtureCheckpoint ? ThornRiverFixtureManualName : OwnerSeedCheckpointManualName) : Cold ? (OwnedSchema1Cold(checkpoint) ? "KMC_C7_SCHEMA1" : "KMC_C7_SCHEMA2") : "KMC_C7_WORLD";
+            IsOwnerSeedCheckpointSave ? (checkpoint == ManticoreFixtureCheckpoint ? ManticoreFixtureManualName : checkpoint == TombFixtureCheckpoint ? TombFixtureManualName : checkpoint == ThornRiverFixtureCheckpoint ? ThornRiverFixtureManualName : OwnerSeedCheckpointManualName) : Cold ? (OwnedSchema1Cold(checkpoint) ? "KMC_C7_SCHEMA1" : IsCapitalArrivalProducer(checkpoint) ? CapitalArrivalManualName : "KMC_C7_SCHEMA2") : "KMC_C7_WORLD";
+        // Only the generic acquired-ancestry cold consumer admits the capital pair of checkpoints.
+        internal bool IsCapitalArrivalProducer(string checkpoint) => Case == "persistence-load" && checkpoint == CapitalArrivalCheckpoint;
+        internal bool IsCapitalArrivalCold(string checkpoint) => Case == "persistence-load" && checkpoint == CapitalArrivalColdCheckpoint;
         public string Case { get; set; }
         public string SourceRunId { get; set; }
         public string SourceArtifactSha256 { get; set; }
@@ -311,7 +324,7 @@ namespace KingmakerMountedCombat.Diagnostics
         internal bool RequiresCombatColdBind(string checkpoint) => Cold &&
             checkpoint != "multi-exploration-manual" && checkpoint != "multi-exploration-quick" &&
             checkpoint != "multi-exploration-auto" && checkpoint != "multi-area-autosave" &&
-            !RepeatedCheckpoint(checkpoint) && !IsManticoreManualCold(checkpoint) &&
+            !RepeatedCheckpoint(checkpoint) && !IsManticoreManualCold(checkpoint) && !CapitalCheckpoint(checkpoint) &&
             !OwnedSchema1Cold(checkpoint) && checkpoint != "owned-schema1-current-manual" &&
             !IsOwnerSeedLoadRefusal;
         internal int LoadCount(string checkpoint) => Cold && checkpoint == "multi-exploration-three-loads-manual" ? 3 : 1;
@@ -321,7 +334,7 @@ namespace KingmakerMountedCombat.Diagnostics
             IsOwnerSeedCheckpointSave ? (checkpoint == "multi-owned-worker-cancel-manual" ? 2 : 1) :
             IsOwnerSeedCheckpointLoad ? (checkpoint == "legacy-mounted-pending-tb-manual" || OwnedSchema1Cold(checkpoint) ? 1 : 0) :
             Case == "persistence-save" && checkpoint == "multi-owned-worker-cancel-manual" ? 2 : Case == "persistence-save" ||
-            Cold && (checkpoint == "legacy-mounted-pending-tb-manual" || OwnedSchema1Cold(checkpoint)) ? 1 : 0;
+            Cold && (checkpoint == "legacy-mounted-pending-tb-manual" || OwnedSchema1Cold(checkpoint)) || IsCapitalArrivalProducer(checkpoint) ? 1 : 0;
         public IReadOnlyList<string> Validate(string scenario, string runId, string checkpoint)
         {
             if (AreaRoute != null && (!(IsOwnerSeedCheckpointSave || IsOwnerSeedCheckpointLoad) ||
@@ -358,7 +371,8 @@ namespace KingmakerMountedCombat.Diagnostics
             if (PartyIds == null || PartyIds.Length < 4 || PartyIds.Length > 12 ||
                 !PartyIds.All(Chunk7ManualDerivedSelection.NativeId) || PartyIds.Distinct(StringComparer.Ordinal).Count() != PartyIds.Length ||
                 PairIds.Any(id => !PartyIds.Contains(id))) errors.Add("The bounded full native field roster must contain both exact pairs once.");
-            if (Persistence ? !SupportedCheckpoint(checkpoint) && !(Cold && (RepeatedCheckpoint(checkpoint) || OwnedSchema1Cold(checkpoint))) && (Cold || !SupportedSaveBoundary(checkpoint) && !OwnedSchema1Source(checkpoint)) : checkpoint != null)
+            if (Persistence ? !SupportedCheckpoint(checkpoint) && !(Cold && (RepeatedCheckpoint(checkpoint) || OwnedSchema1Cold(checkpoint))) &&
+                !IsCapitalArrivalProducer(checkpoint) && !IsCapitalArrivalCold(checkpoint) && (Cold || !SupportedSaveBoundary(checkpoint) && !OwnedSchema1Source(checkpoint)) : checkpoint != null)
                 errors.Add("Owned-pair cold persistence requires a core checkpoint; the two save boundaries are source-only.");
             var area = checkpoint == "multi-area-autosave";
             if (area ? !Regex.IsMatch(SourceArea ?? "", "^[a-f0-9]{32}$") || SourceArea == new string('0', 32) : SourceArea != null)
