@@ -225,6 +225,7 @@
     <Compile Include="Diagnostics\Chunk7CombatScenario.AttackModes.cs" />
     <Compile Include="Diagnostics\Chunk7AttackModesRuleObserver.cs" />
     <Compile Include="Diagnostics\Chunk7CombatScenario.Reaction.cs" />
+    <Compile Include="Diagnostics\Chunk7CombatScenario.Staged.cs" />
     <Compile Include="Diagnostics\Chunk7PairRuleObserver.cs" />
     <Compile Include="Diagnostics\Chunk7CombatRealtime.cs" />
     <Compile Include="Diagnostics\Chunk7CombatRealtimeCasting.cs" />

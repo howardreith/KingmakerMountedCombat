@@ -179,6 +179,7 @@ namespace KingmakerMountedCombat.Diagnostics
                             // Attack modes wait (bounded, native) for the save's Rapid Shot to stop before the encounter.
                             if (AttackModesCase) { PrepareAttackModes(); Next(79); break; }
                             if (ReactionCase) { PrepareEncounter(); Next(5); break; }
+                            if (StagedCase) { PrepareStaged(); PrepareEncounter(); Next(5); break; }
                             PrepareEncounter(); Next(RealtimeScenario ? 60 : 5); break;
                         }
                         if (!Chunk7NativeFixture.Idle(bm)) return;
@@ -199,6 +200,7 @@ namespace KingmakerMountedCombat.Diagnostics
                         if (SelectedScenario == NativeLifeCleanup) { BeginNativeLife(); Next(70); }
                         else if (AttackModesCase) { BeginAttackModes(); Next(80); }
                         else if (ReactionCase) { BeginReaction(); Next(85); }
+                        else if (StagedCase) { BeginStaged(); Next(90); }
                         else Next(checkpointOnly && checkpointKind == Chunk7CombatCheckpointKind.MountedPendingOnly ? 40 : 10); break;
                     case 10: TickFullActivations(); break;
                     case 50: TickRealtimeCheckpoint(); break;
@@ -207,6 +209,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     case 79: if (!AttackModesRapidSettled()) return; PrepareEncounter(); Next(5); break;
                     case 80: TickAttackModes(); break;
                     case 85: TickReaction(); break;
+                    case 90: TickStaged(); break;
                     case 20: TickRefresh(); break;
                     case 30:
                         if (!ReadyPrincipal(a)) { EndNative(Game.Instance.TurnBasedCombatController.CurrentTurn); return; }
@@ -263,7 +266,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private void PrepareEncounter()
         {
             Require(actors.All(Chunk7NativeFixture.Idle), "Initiative fixture requires the entire captured party idle before combat.");
-            var targetPosition = am.Position + Vector3.forward * (SelectedScenario == RealtimeCharge ? 8f : 3.5f);
+            var targetPosition = am.Position + Vector3.forward * (SelectedScenario == RealtimeCharge || StagedCase ? 8f : 3.5f);
             // Fail closed before any fixture mutation: the authorization basis and the native
             // placement (bounded, walkable) are proven before initiative, leases or observers.
             var targetBasis = AdmitTargetAuthorization(targetPosition);
