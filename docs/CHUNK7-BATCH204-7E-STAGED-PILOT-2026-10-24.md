@@ -106,7 +106,28 @@ The cause is **not diagnosed here**. It is not attributed to the product or to t
 - No `git config` was run against any worktree, and the frozen worktree stayed clean.
 - Final state: no Kingmaker process and no lock. Mods, saves and profile were restored.
 
-## Next
+## Later offline diagnosis (reader-only)
+
+This section was added after the run; the run record above is unchanged. Commits `fa68c97d` and `bc3a2b27`
+changed only the external reader and its tests. The product DLL is unchanged.
+
+- **The second `cast-after` is native.**
+  - The scroll ability `5590652e…` (CureLightWoundsCast) has `AbilityEffectStickyTouch` with `TouchDeliveryAbility` Cure Light Wounds
+    `47808d23…`. b136 recorded that relation natively.
+  - When the caster is the target, the pinned `Apply` triggers `RuleCastSpell` on the touch data at once, with no
+    command and no spend. Rider A's native damage was 0, so the heal is 0.
+  - preview.211's 6D staged evidence holds the same pair in every scroll window. The 6D reader filtered by blueprint,
+    so it never saw it.
+- **The step 4 shot origin is native too.** The re-evaluation then stopped at "the in-range shot origin moved"
+  (0.63 m).
+  - `MountedPairAttackCommand.StartChildAttack` calls `mount.ForceLookAt(target)`. The stationary mount turned about
+    84°, and the 0.467 m saddle point rotated with it to the target's bearing (−93.0°).
+- **The reader now admits exactly these shapes** (details in CURRENT.md).
+- **Verdicts.** The original outer FAIL is retained. Reader re-evaluation: old FAIL (step 1) → new **PASS**, receipt
+  `analysis-cache/chunk7-continuation/b204-st-reader-reevaluation.json`. This is not matrix credit; a fresh native run
+  is needed.
+
+## Next (as recorded at the run)
 
 1. Diagnose offline, from the recorded cast events, the second rider-A `cast-after` (`47808d23…`, no source item) in
    each scroll-cast window. Decide whether the native scroll cast emits a nested rule cast or whether something
