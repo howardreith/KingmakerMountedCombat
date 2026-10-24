@@ -670,6 +670,13 @@ function Get-KmcChunk7CapitalColdSource($Selection,[AllowNull()][string]$Persist
  $artifact=Read-KmcChunk7ManifestArtifact $request $set.manifest 'chunk7-persistence-evidence.json' 'chunk7-persistence-evidence'
  $path=Join-Path $set.root 'chunk7-persistence-evidence.json';$file=Get-Item -LiteralPath $path
  if($file.Length-le0-or$file.Length-gt16MB-or$set.pins[$path]-cne$Selection.checkpointSourceArtifactSha256){throw 'Capital producer receipt differs from its exact successful pin.'}
+ # The in-game lineage area pin: exactly the area row 58 started from (its loaded Manual and recorded
+ # capital-arrival source), which is the staged two-owner receipt's own write and field area.
+ $area=$Selection.sourceArea;$departure=if($null-ne$artifact.observations.PSObject.Properties['capitalArrival']){$artifact.observations.capitalArrival.sourceArea}else{$null}
+ if($area-isnot[string]-or$area-cne$request.persistenceLoad.area-or$departure-isnot[string]-or$departure-cne$area){throw 'Capital cold lineage area is not exactly the producer departure area.'}
+ if((Get-KmcSha256 $parent.artifactPath)-cne$Selection.sourceArtifactSha256){throw 'Capital cold lineage receipt differs from its exact immutable pin.'}
+ $lineage=(Read-KmcJson $parent.artifactPath).observations
+ if($lineage.nativeWrite.area-isnot[string]-or$lineage.nativeWrite.area-cne$area-or$lineage.fieldWorld.area-isnot[string]-or$lineage.fieldWorld.area-cne$area){throw 'Capital cold lineage receipt was not written in its pinned area.'}
  $w=$artifact.observations.nativeWrite;$leaf=Get-KmcChunk7OwnedOutputLeaf $request $artifact.observations
  $descriptor=[pscustomobject]@{internalName=$w.nativeName;fileName=$leaf;sha256=$w.sha256;length=$w.length;lastWriteTimeUtcTicks=[long](Get-Item -LiteralPath $w.path).LastWriteTimeUtc.Ticks;gameId=$parent.descriptor.gameId;gameName=$parent.descriptor.gameName;area=$w.archive.AreaId}
  Assert-KmcChunk7OwnedPairsDescriptor ([pscustomobject]@{scenario='chunk7-owned-two-pair-campaign';runId='unassigned-capital-cold';ownedPairs=$Selection;persistenceCase=$PersistenceCase;persistenceLoad=$descriptor;fixture=$Fixture})

@@ -22,7 +22,7 @@ $capitalPin=[pscustomobject][ordered]@{enterPoint='fd225a93828d26449803a4847947f
 foreach($case in @('multi-exploration-capital-arrival-manual','multi-exploration-capital-arrival-cold-manual')){
  $f=CopyValue @($fixtures|Where-Object name -CEQ 'persistence-load-multi-exploration-manual')[0];$f.name='persistence-load-'+$case;$f.request.persistenceCase=$case
  if($case-ceq'multi-exploration-capital-arrival-manual'){$f.request.ownedPairs.expectedNativeWriteCount=1;$f.request|Add-Member persistenceAreaTarget (CopyValue $capitalPin)}
- else{$f.request.persistenceLoad.internalName='KMC_C7_CAPITAL';$f.request.persistenceLoad.fileName='Manual_44_KMC_C7_CAPITAL.zks';$f.request.persistenceLoad.area=$capitalPin.area}
+ else{$f.request.ownedPairs|Add-Member sourceArea $f.request.persistenceLoad.area;$f.request.persistenceLoad.internalName='KMC_C7_CAPITAL';$f.request.persistenceLoad.fileName='Manual_44_KMC_C7_CAPITAL.zks';$f.request.persistenceLoad.area=$capitalPin.area}
  $fixtures+=@($f)
 }
 $leaves=@('Invoke-KingmakerRuntimeScenario.ps1','RuntimeHarness.Common.ps1','Test-RuntimeRequest.ps1','Test-RuntimeGameResult.ps1','Test-RuntimeResult.ps1','ScenarioDispatchEvidence.ps1','Chunk7OwnedPairsEvidence.ps1','Chunk7OwnedPairsFixtures.ps1')
@@ -215,6 +215,8 @@ $capitalColdNegative=[ordered]@{
  'cold outside the capital'={param($q)$q.persistenceLoad.area='a'*32}
  'cold world name'={param($q)$q.persistenceLoad.internalName='KMC_C7_WORLD';$q.persistenceLoad.fileName='Manual_44_KMC_C7_WORLD.zks'}
  'cold one write'={param($q)$q.ownedPairs.expectedNativeWriteCount=1}
+ 'cold without its lineage area'={param($q)$q.ownedPairs.PSObject.Properties.Remove('sourceArea')}
+ 'cold with the capital as its lineage area'={param($q)$q.ownedPairs.sourceArea=$capitalPin.area}
 }
 foreach($n in $capitalColdNegative.GetEnumerator()){Check ('full capital cold consumer refuses '+$n.Key){$q=Request 'persistence-load-multi-exploration-capital-arrival-cold-manual';&$n.Value $q;Validate $q} $true}
 foreach($case in @('multi-exploration-capital-arrival-manual','multi-exploration-capital-arrival-cold-manual')){Check ('capital checkpoint refused on the owned producer '+$case){$q=Request 'persistence-save-multi-exploration-manual';$q.persistenceCase=$case;Validate $q} $true}

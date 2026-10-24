@@ -396,6 +396,9 @@ function Assert-KmcChunk7CapitalColdSource($Request,$ProducerArtifact,$ColdArtif
     foreach($key in @('partyIds','currentCharacterIds','remoteCapturedIds','arrangement')){if((ConvertTo-KmcChunk7Canonical $prior.inheritedCleanup.$key)-cne(ConvertTo-KmcChunk7Canonical $cold.inheritedFixture.$key)){throw 'Capital cold source changed full-field ancestry or progression.'}}
     for($i=0;$i-lt2;$i++){foreach($key in @('riderId','mountId','sourceGuid','rank','profileId')){if((ConvertTo-KmcChunk7Canonical $prior.inheritedCleanup.pairs[$i].$key)-cne(ConvertTo-KmcChunk7Canonical $cold.inheritedFixture.pairs[$i].$key)){throw 'Capital cold source changed inherited role or fact provenance.'}}}
     foreach($key in @('retiredPairId','mainPairId')){if($prior.capitalArrival.$key-isnot[string]){throw 'Capital producer row lacks its pair identities.'}}
+    # The consumer's pinned lineage area is exactly the area the producer departed from.
+    $departure=$prior.capitalArrival.sourceArea;$lineage=$Request.ownedPairs.sourceArea
+    if($departure-isnot[string]-or$lineage-isnot[string]-or$departure-cne$lineage){throw 'Capital cold lineage area differs from the producer departure area.'}
     # Batch197 r58: the cold load keeps exactly the producer's admitted native remote companions, by identity.
     if((@($prior.capitalArrival.retiredOutOfScene.admittedNativeRemoteCompanions|ForEach-Object{$_.id})-join'|')-cne(@($cold.capitalCold.outOfScene.admittedNativeRemoteCompanions|ForEach-Object{$_.id})-join'|')){throw 'Capital cold native remote companions differ from the producer admission.'}
     Assert-KmcBootstrapInventoryString $cold.capitalCold.mainPairId $prior.capitalArrival.mainPairId
