@@ -53,8 +53,16 @@ namespace KingmakerMountedCombat.Diagnostics
             attackModesRapid = toggles[0];
             attackModes["rapidBefore"] = RapidState("save");
             if (attackModesRapid.IsOn) ToggleRapidShot(false, "pre-combat-off");
-            attackModes["rapidOff"] = RapidState("pre-combat");
-            Require(!attackModesRapid.IsOn && !(bool)attackModes["rapidOff"]["buff"], "Native Rapid Shot did not turn off out of combat.");
+            Require(!attackModesRapid.IsOn, "Native Rapid Shot did not turn off out of combat.");
+        }
+        // Native OnTurnOff may keep the ability running until its next native round tick; the
+        // encounter starts only once the toggle has natively stopped and its buff is gone.
+        private bool AttackModesRapidSettled()
+        {
+            Require(!attackModesRapid.IsOn && !ar.IsInCombat, "Native Rapid Shot was switched back on or rider A entered combat before the encounter.");
+            var state = RapidState("pre-combat");
+            if ((bool)state["isRunning"] || (bool)state["buff"]) return false;
+            attackModes["rapidOff"] = state; return true;
         }
         // The native player input: MechanicActionBarSlotActivableAbility.OnClick toggles IsOn when the
         // slot is possible (native turn-based gate included). Nothing else touches the toggle.
@@ -80,7 +88,8 @@ namespace KingmakerMountedCombat.Diagnostics
             var mounted = a.Relationship.State == RelationshipState.Mounted;
             var observation = new JObject { ["label"] = label, ["mounted"] = mounted, ["round"] = Game.Instance.TurnBasedCombatController.RoundNumber,
                 ["rapid"] = RapidState(label), ["before"] = WorldSnapshot(label + "-before"), ["ruleCountBefore"] = attackModesRules.EventCount,
-                ["traceSequenceBefore"] = trace.EventCount, ["pairState"] = a.Relationship.State.ToString() };
+                ["traceSequenceBefore"] = trace.EventCount, ["pairState"] = a.Relationship.State.ToString(),
+                ["stockObservationBefore"] = a.Combat.LastStockAttackObservation };
             attackModeObservation = observation; ((JArray)attackModes["measurements"]).Add(observation);
             Require(targetService.BeginExpectedAttackDispatch(target), "Exact diagnostic target attack authorization refused.");
             Game.Instance.IsPaused = true; Chunk7NativeFixture.Select(ar);
@@ -108,6 +117,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["target"] = command.Target?.UniqueId, ["fullAttack"] = command.IsFullAttack, ["singleAttack"] = command.IsSingleAttack,
                 ["result"] = command.Result.ToString(), ["completedAttacks"] = command.GetAttackIndex(), ["plan"] = new JArray(plan) };
             observation["rules"] = attackModesRules.Since((int)observation["ruleCountBefore"]);
+            observation["stockObservationAfter"] = a.Combat.LastStockAttackObservation;
             observation["traceSequenceAfter"] = trace.EventCount;
             observation["rapidAfter"] = RapidState((string)observation["label"] + "-after");
             var rolls = ((JArray)observation["rules"]).OfType<JObject>().Where(e => (string)e["kind"] == "roll").ToArray();
@@ -125,9 +135,14 @@ namespace KingmakerMountedCombat.Diagnostics
         }
         private static int[] InnerBonuses(JObject observation) => ((JArray)observation["rules"]).OfType<JObject>()
             .Where(e => (string)e["kind"] == "roll" && !(bool)e["opportunity"]).Select(e => (int)e["nativeCalculation"]["innerResult"]).ToArray();
-        private static int RapidBonus(JObject observation) => ((JArray)observation["rules"]).OfType<JObject>()
-            .Where(e => (string)e["kind"] == "roll").SelectMany(e => ((JArray)e["bonuses"] ?? new JArray()).OfType<JObject>())
-            .Where(b => (string)b["source"] == RapidShotBuffGuid).Select(b => (int)b["bonus"]).DefaultIfEmpty(0).Distinct().Single();
+        private static int RapidBonus(JObject observation)
+        {
+            var values = ((JArray)observation["rules"]).OfType<JObject>().Where(e => (string)e["kind"] == "roll" && !(bool)e["opportunity"])
+                .SelectMany(e => ((JArray)e["bonuses"] ?? new JArray()).OfType<JObject>())
+                .Where(b => (string)b["source"] == RapidShotBuffGuid).Select(b => (int)b["bonus"]).Distinct().ToArray();
+            Require(values.Length <= 1, "Rapid Shot bonus sources are not uniform within one full attack.");
+            return values.Length == 0 ? 0 : values[0];
+        }
         private void TickAttackModes()
         {
             var controller = Game.Instance.TurnBasedCombatController; var turn = controller.CurrentTurn;
@@ -195,6 +210,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (!FinishFullAttack()) return;
                 var measurements = (JArray)attackModes["measurements"];
                 var mountedOn = (JObject)measurements[1]; var control = (JObject)measurements[2];
+                var rules = attackModesRules.Capture();
+                Require((int)rules["dropped"] == 0 && ((JArray)rules["errors"]).Count == 0, "Attack modes rule observation dropped or failed.");
                 var mountedPlan = ((JArray)mountedOn["command"]["plan"]).OfType<JObject>().Count(e => (bool)e["ranged"] && (string)e["owner"] == ar.UniqueId);
                 var controlPlan = ((JArray)control["command"]["plan"]).OfType<JObject>().Count(e => (bool)e["ranged"] && (string)e["owner"] == ar.UniqueId);
                 Require(mountedPlan == controlPlan && InnerBonuses(mountedOn).SequenceEqual(InnerBonuses(control)) && RapidBonus(mountedOn) == RapidBonus(control),

@@ -183,6 +183,7 @@ function Get-KmcChunk7AttackModeRapidBonus($Measurement){
  if($values.Count-eq0){0}else{[long]$values[0]}
 }
 function Assert-KmcChunk7AttackModeMeasurement($m,[string]$Label,[bool]$Mounted,[bool]$Rapid,[long]$Round,$o,$roles,$modes){
+ if($m.rapid.buff-ne$Rapid-or$m.rapid.isRunning-ne$Rapid-or$m.rapid.inCombat-ne$true){throw ('Attack mode '+$Label+' Rapid Shot was not natively running exactly when on.')}
  if($m.label-cne$Label-or$m.mounted-isnot[bool]-or$m.mounted-ne$Mounted-or$m.round-ne$Round-or$m.rapid.isOn-ne$Rapid-or$m.rapidAfter.isOn-ne$Rapid){throw ('Attack mode measurement '+$Label+' differs in mode, round or toggle.')}
  Assert-KmcChunk7Boolean $m.clicked $true
  $c=$m.command;if($c.executor-cne$roles[0]-or$c.target-cne$o.targetId-or$c.fullAttack-ne$true-or$c.result-cnotin@('Success','Interrupt')-or-not(Test-KmcExactJsonInteger $c.completedAttacks)){throw ('Attack mode '+$Label+' is not one native full attack by rider A on the target.')}
@@ -195,6 +196,7 @@ function Assert-KmcChunk7AttackModeMeasurement($m,[string]$Label,[bool]$Mounted,
  foreach($e in $events){$seq++;if($e.sequence-ne$seq-or$e.target-cne$o.targetId-or$e.actor-cne$roles[0]){throw ('Attack mode '+$Label+' rule window is not rider A''s consecutive own attacks on the target.')}}
  $rolls=@(Get-KmcChunk7AttackModeRolls $m);$attacks=@($events|Where-Object kind -CEQ 'attack')
  if($rolls.Count-ne$rangedCount-or$attacks.Count-ne$rangedCount-or@($events|Where-Object{$_.kind-ceq'roll'-and$_.opportunity-ne$false}).Count-ne0){throw ('Attack mode '+$Label+' rolls differ from its ranged plan.')}
+ foreach($r in $rolls){$sources=@(@($r.bonuses)|Where-Object{$null-ne$_-and$_.source-ceq'0f310c1e709e15e4fa693db15a4baeb4'}).Count;if($sources-ne$(if($Rapid){1}else{0})){throw ('Attack mode '+$Label+' roll does not carry exactly its Rapid Shot source.')}}
  foreach($r in $rolls){if($r.ranged-ne$true-or$r.weapon-cne$modes.weapon-or-not(Test-KmcExactJsonInteger $r.attackBonus)-or-not(Test-KmcExactJsonInteger $r.nativeCalculation.innerResult)-or$r.bonuses-isnot[Array]){throw 'Attack mode roll lacks its native weapon or bonus calculation.'}}
  foreach($a in $attacks){if($a.fullAttack-ne$true-or$a.opportunity-ne$false-or$a.weapon-cne$modes.weapon){throw 'Attack mode weapon attack is not a native full-attack swing of the ranged weapon.'}}
  $beforeRider=Get-KmcChunk7CombatActor $m.before $roles[0];$afterRider=Get-KmcChunk7CombatActor $m.after $roles[0]
@@ -222,13 +224,15 @@ function Assert-KmcChunk7AttackModesCombat($Request,$Observations){
  if($modes.contract-cne'owner-seed-attack-modes-v1'-or$modes.riderId-cne$roles[0]-or$modes.mountId-cne$roles[1]-or$modes.rapidShotFeature-ne1-or$modes.rapidShotToggles-ne1-or
     $modes.weaponRanged-ne$true-or$modes.weapon-cnotmatch'^[0-9a-f]{32}$'-or-not(Test-KmcChunk7FiniteNumber $modes.weaponRangeMeters)-or$modes.weaponRangeMeters-le0){throw 'Attack modes lack rider A''s native Rapid Shot feat, toggle or ranged weapon.'}
  Assert-KmcChunk7Boolean $modes.complete $true
+ if($null-eq$modes.PSObject.Properties['rules']-or$modes.rules.dropped-ne0-or@($modes.rules.errors).Count-ne0){throw 'Attack modes rule observation dropped or failed.'}
  if($modes.rapidOff.isOn-ne$false-or$modes.rapidOff.buff-ne$false-or$modes.rapidOff.inCombat-ne$false-or$modes.rapidOff.toggle-cne'90a77bfe25ec2e14caf8bd5cde9febf2'){throw 'Rapid Shot was not off out of combat before the encounter.'}
  $clicks=@($modes.toggleClicks);$labels=@($clicks|ForEach-Object{[string]$_.label})
  $expectedLabels=@(if($modes.rapidBefore.isOn-eq$true){'pre-combat-off'};'round-n-on')
  if(($labels-join'|')-cne($expectedLabels-join'|')){throw 'Rapid Shot toggle clicks differ from the native off/on inputs.'}
  foreach($k in $clicks){Assert-KmcChunk7Boolean $k.possible $true
   $on=$k.label-ceq'round-n-on';if($k.before.isOn-ne(-not$on)-or$k.after.isOn-ne$on){throw 'A Rapid Shot slot click did not switch the native toggle as declared.'}
-  if(-not$on-and$k.before.inCombat-ne$false){throw 'The pre-combat Rapid Shot click happened in combat.'}}
+  if(-not$on-and$k.before.inCombat-ne$false){throw 'The pre-combat Rapid Shot click happened in combat.'}
+  if($on-and($k.before.inCombat-ne$true-or$k.before.round-ne$modes.firstRound)){throw 'The Rapid Shot on click was not made in the first measured round.'}}
  $ms=@($modes.measurements);if($ms.Count-ne3){throw 'Attack modes need exactly three native full attacks.'}
  if(-not(Test-KmcExactJsonInteger $modes.firstRound)){throw 'Attack modes lack their first native round.'};$n=[long]$modes.firstRound
  $off=Assert-KmcChunk7AttackModeMeasurement $ms[0] 'mounted-off' $true $false $n $o $roles $modes
