@@ -71,10 +71,14 @@ then `Recover-KingmakerRuntimeTransaction.ps1` (WhatIf, then real), then verify 
   allowlist passed). It closed the lock.
 - **Profile:** `Params.xml` equals the run's captured original (`7ff07d21…`; the force-stop avoided
   UMM's exit rewrite). `KingdomDifficulty` is unchanged. **Residual:** two Unity analytics PlayerPrefs
-  differ from the snapshot, `unity.player_session_count` (2005 → 2006) and `unity.player_sessionid`,
-  both in the reviewed native-startup set. They are not restored yet: the reviewed restore needs the
-  lock, which the transaction recovery closed. Decision pending (restore through a reviewed one-off,
-  as in the b3s2 precedent, or accept).
+  differed from the snapshot, `unity.player_session_count` (2005 → 2006) and `unity.player_sessionid`,
+  both in the reviewed native-startup set. The reviewed restore needs the lock, which the transaction
+  recovery had closed, so a reviewed one-off followed the b3s2 precedent:
+  `analysis-cache/chunk7-continuation/b195-x4c-recovery/restore-prefs.ps1` (`271bfcaf…`), pinned to the
+  snapshot (`c433ebb1…`) and the current PlayerPrefs (`3c6ade26…`), refusing unless no game or lock
+  exists, the transaction is restored, Params.xml equals the captured original and the only deltas are
+  those two keys. WhatIf passed; the coordinator reviewed it and ran it live: "PASS restored PlayerPrefs
+  exactly to the b195 x4c pre-launch snapshot". Profile restoration is now exact.
 - No Kingmaker process and no lock remain.
 
 ## Diagnosis
