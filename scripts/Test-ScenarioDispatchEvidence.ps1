@@ -79,6 +79,10 @@ $chunk7Families = [ordered]@{
  'chunk7-two-pair-realtime-casting'='Test-KmcChunk7RealtimeScenario'
  'chunk7-two-pair-realtime-charge'='Test-KmcChunk7RealtimeScenario'
  'chunk7-two-pair-native-life-cleanup'='Test-KmcChunk7NativeLifeScenario'
+ 'chunk7-assisted-fixture-preparation'='Test-KmcChunk7AssistedFixtureScenario'
+ 'chunk7-assisted-cold-inventory'='Test-KmcChunk7AssistedColdInventoryScenario'
+ 'chunk7-small-fixture-preparation'='Test-KmcChunk7SmallFixtureScenario'
+ 'chunk7-stock-mammoth-fixture-preparation'='Test-KmcChunk7StockMammothFixtureScenario'
 }
 $expectedCompound = @('chunk6c-casting-rt','chunk6c-casting-tb','chunk6c-casting-unmounted-rt','chunk6c-casting-unmounted-tb','chunk6d-staged-rt','chunk6d-staged-tb','chunk6e-reaction-rt','chunk6e-reaction-tb') + @($chunk7Families.Keys)
 $actualCompound = @(Get-KmcCompoundRuntimeScenarios)

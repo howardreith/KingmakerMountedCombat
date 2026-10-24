@@ -186,3 +186,9 @@ those four plus the 20 reviewed Chunk 7 families and the eight 6C/6D/6E roots. T
 first mismatch, so the later per-family reader checks did not run at HEAD. Fixing it means adding the
 four families with their dedicated readers to the list and confirming the later checks pass; this is a
 harness change, to be made before the 7E freeze or reported as classified.
+
+**Classification update (2026-10-24): fixed.** The four families are now in `$chunk7Families`, each with
+its one dedicated reader (`Test-KmcChunk7AssistedFixtureScenario`, `Test-KmcChunk7AssistedColdInventoryScenario`,
+`Test-KmcChunk7SmallFixtureScenario`, `Test-KmcChunk7StockMammothFixtureScenario`), matching the registry
+exactly; no matching was broadened and no product or reader changed. The later per-family checks now run
+and pass: **PASS 181/0** (165/0 at `ee2bdfc9~1` plus four checks for each added family).
