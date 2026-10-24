@@ -134,6 +134,8 @@ if ($schemaVersion -eq 1) {
 }
 elseif ($schemaVersion -eq 2) {
     $v2Fields = @('fixture','baselineImmutable','workingRestored','saveWriteAllowlistPassed','restoredSaveInventoryDigest','subscenarioTotal','subscenarioPassCount','subscenarioFailCount','assertionPassCount','assertionFailCount','evidenceManifestSha256','subscenarioResults')
+    # A normal-player result also records its UMM session receipt hash (absent on historical results).
+    if ((Test-KmcChunk7NormalPlayerScenario $request.scenario) -and $null -ne $result.PSObject.Properties['normalPlayerUmmReceiptSha256']) { $v2Fields += 'normalPlayerUmmReceiptSha256' }
     Assert-KmcExactProperties $result @($commonRequired + $v2Fields) 'runtime result v2'
 }
 else { throw 'Runtime result request schema is unsupported.' }
@@ -178,7 +180,7 @@ if ($result.baselineImmutable -ne $true -or $result.workingRestored -ne $true -o
 if ($result.saveProtectionPassed -ne ($result.baselineImmutable -and $result.workingRestored -and $result.saveWriteAllowlistPassed)) { throw 'Runtime result saveProtectionPassed does not equal its three fixture safety proofs.' }
 if ([string]$result.restoredSaveInventoryDigest -cnotmatch '^[0-9a-f]{64}$') { throw 'Runtime result lacks the restored save inventory digest.' }
 Assert-SubscenarioResults $result
-Assert-KmcChunk7NormalPlayerRuntimeBinding $request $gameEvidence ([string]$result.status)
+Assert-KmcChunk7NormalPlayerRuntimeBinding $request $gameEvidence ([string]$result.status) $result
 $validatedArtifactManifest = Read-KmcJson (Join-Path ([IO.Path]::GetFullPath([string]$request.evidenceRoot)) 'runtime-artifacts.json')
 Assert-KmcLifecycleScenarioEvidence -Request $request -Manifest $validatedArtifactManifest -Status ([string]$result.status) -SubscenarioResults $result.subscenarioResults
 Assert-KmcMovementScenarioEvidence -Request $request -Manifest $validatedArtifactManifest -Status ([string]$result.status) -SubscenarioResults $result.subscenarioResults

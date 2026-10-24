@@ -1562,12 +1562,15 @@ finally{
         try{Assert-KmcBaseGameDependencyReceipt $baseGameDependencies -VerifyFiles;$baseGameDependenciesUnchanged=$true}
         catch{$errors.Add('Base-game loader dependency verification failed: '+$_.Exception.Message)}
     }
+    $ummReceiptSha256=$null
     if($isNormalPlayer-and$processExited){
         # KMC's own one-session UMM log: ordinary load, quiet overlay, no accepted request, no error.
-        # Only u1 of the exact pinned preview.211 admits that release's known base-game defect line.
+        # Only u1/u3 of the exact pinned preview.211 admit that release's known base-game defect line.
+        # The receipt's SHA-256 is recorded in the outer result, which the reader verifies.
         try{
             $ummLog=Get-KmcChunk7NormalPlayerUmmLogSummary ([string]$intake.requestedLayout.kingmakerInstallDir) $startedAt $(if($upgradeLoad){[string]$upgradePrevious.version}else{[string]$manifest.version}) @(Get-KmcChunk7UpgradeAdmittedLogDefects $upgradeSection) $actualRunId
             Write-KmcJsonAtomic (Join-Path $evidenceRoot 'normal-player-umm-log.json') $ummLog
+            $ummReceiptSha256=Get-KmcSha256 (Join-Path $evidenceRoot 'normal-player-umm-log.json')
             if(-not$ummLog.passed){$errors.Add('KMC UMM session log is not an ordinary quiet no-request start: '+(($ummLog|ConvertTo-Json -Depth 3 -Compress)))}
         }catch{$errors.Add('KMC UMM session log check failed: '+$_.Exception.Message)}
     }
@@ -1607,6 +1610,7 @@ finally{
         }
         elseif($isSaveBacked){
             $final=New-KmcRuntimeResultV2 -Request $request -ValidatedGameResult $validatedGameResult -StartedAtUtc $startedAt -ModsRestored $modsRestored -BaselineImmutable $baselineImmutable -WorkingRestored $workingRestored -SaveWriteAllowlistPassed $saveWriteAllowlistPassed -RestoredSaveInventoryDigest $restoredSaveInventoryDigest -GameResultSha256 $gameResultHash -Errors $errorArray
+            if($isNormalPlayer){$final['normalPlayerUmmReceiptSha256']=$ummReceiptSha256}
         }
         else{
             $status=if($gamePassed-and$modsRestored-and$saveProtection-and$errorArray.Count-eq0){'PASS'}else{'FAIL'}
