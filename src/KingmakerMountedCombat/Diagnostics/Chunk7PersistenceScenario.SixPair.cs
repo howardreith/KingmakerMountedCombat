@@ -212,6 +212,10 @@ namespace KingmakerMountedCombat.Diagnostics
             if (persistence.FailedAreaPairCount != 0 && replayDestination != null &&
                 ReferenceEquals(Kingmaker.Game.Instance?.CurrentlyLoadedArea, replayDestination))
                 nativeScope.RequireDeclaredAreaDestination(replayDestination.AssetGuidThreadSafe, replayDestination);
+            // Row 58: an arrival that was refused or failed its exact proof before scope adoption.
+            else if (CapitalArrivalCase && capitalDispatched && !capitalAdopted && capitalDestination != null &&
+                ReferenceEquals(Kingmaker.Game.Instance?.CurrentlyLoadedArea, capitalDestination))
+                nativeScope.RequireDeclaredAreaDestination(capitalDestination.AssetGuidThreadSafe, capitalDestination);
             else nativeScope.RequireCurrent();
         }
         internal void RequireRetainedSixFailureScope()

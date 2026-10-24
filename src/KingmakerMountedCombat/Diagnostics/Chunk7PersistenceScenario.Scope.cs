@@ -50,6 +50,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (Game.Instance?.CurrentlyLoadedArea?.AssetGuidThreadSafe == request.PersistenceAreaTarget?.Area)
                     AdoptDeclaredAreaWorld();
             }
+            AdoptCapitalArrivalForCleanup();
             if (ManticoreFixtureCase && manticoreDispatched && !manticoreScopeAdopted &&
                 Game.Instance?.CurrentlyLoadedArea?.AssetGuidThreadSafe ==
                     (TombFixtureCase ? Chunk7OwnedPairsSelection.TombFixtureArea :

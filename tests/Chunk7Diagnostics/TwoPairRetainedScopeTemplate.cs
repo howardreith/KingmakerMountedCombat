@@ -34,6 +34,9 @@ namespace KingmakerMountedCombat.Diagnostics
         internal Scope nativeScope = new Scope();
         internal Persistence persistence = new Persistence();
         internal Kingmaker.BlueprintArea replayDestination;
+        // Row 58 capital arrival: dispatched into its declared capital but not yet adopted.
+        internal bool CapitalArrivalCase, capitalDispatched, capitalAdopted;
+        internal Kingmaker.BlueprintArea capitalDestination;
         private static void Require(bool condition, string message) { if (!condition) throw new InvalidOperationException(message); }
 
         /* SCOPE */
@@ -57,6 +60,15 @@ namespace KingmakerMountedCombat.Diagnostics
             destination = new Kingmaker.BlueprintArea { AssetGuidThreadSafe = "ead426a6c23d39548a670ee515d77df4" };
             var engine = new Chunk7PersistenceScenario { replayDestination = destination };
             engine.persistence.FailedAreaPairCount = 1; engine.nativeScope.RefuseCurrent = true;
+            Kingmaker.Game.Instance.CurrentlyLoadedArea = destination;
+            return engine;
+        }
+
+        private static Chunk7PersistenceScenario Capital(out Kingmaker.BlueprintArea destination)
+        {
+            destination = new Kingmaker.BlueprintArea { AssetGuidThreadSafe = "ead426a6c23d39548a670ee515d77df4" };
+            var engine = new Chunk7PersistenceScenario { CapitalArrivalCase = true, capitalDispatched = true, capitalDestination = destination };
+            engine.nativeScope.RefuseCurrent = true;
             Kingmaker.Game.Instance.CurrentlyLoadedArea = destination;
             return engine;
         }
@@ -92,6 +104,23 @@ namespace KingmakerMountedCombat.Diagnostics
             { var engine = Refused(out _); engine.cleanupProven = true; return Refused(engine, "No committed retained two-pair persistence failure owns this world."); });
             Check("an absent native scope is refused", () =>
             { var engine = Refused(out _); engine.nativeScope = null; return Refused(engine, "Captured native world authority is absent."); });
+            Check("an unadopted capital arrival in its declared capital is admitted through the exact destination check", () =>
+            {
+                var engine = Capital(out var destination); engine.RequireRetainedFailureScope();
+                return engine.nativeScope.DestinationCalls == 1 && engine.nativeScope.CurrentCalls == 0 &&
+                    engine.nativeScope.DestinationArea == destination.AssetGuidThreadSafe && ReferenceEquals(engine.nativeScope.DestinationBlueprint, destination);
+            });
+            Check("an adopted capital arrival keeps the current world check", () =>
+            { var engine = Capital(out _); engine.capitalAdopted = true; return Refused(engine, "Captured native area state changed.") && engine.nativeScope.DestinationCalls == 0; });
+            Check("an undispatched capital arrival keeps the original world check", () =>
+            { var engine = Capital(out _); engine.capitalDispatched = false; return Refused(engine, "Captured native area state changed.") && engine.nativeScope.DestinationCalls == 0; });
+            Check("a capital arrival outside its declared capital keeps the original world check", () =>
+            {
+                var engine = Capital(out _); Kingmaker.Game.Instance.CurrentlyLoadedArea = new Kingmaker.BlueprintArea { AssetGuidThreadSafe = "ead426a6c23d39548a670ee515d77df4" };
+                return Refused(engine, "Captured native area state changed.") && engine.nativeScope.DestinationCalls == 0;
+            });
+            Check("another case with a capital destination keeps the original world check", () =>
+            { var engine = Capital(out _); engine.CapitalArrivalCase = false; return Refused(engine, "Captured native area state changed.") && engine.nativeScope.DestinationCalls == 0; });
             Console.WriteLine("TWO-PAIR RETAINED SCOPE PASS=" + pass + " FAIL=" + fail);
             return fail == 0 ? 0 : 1;
         }

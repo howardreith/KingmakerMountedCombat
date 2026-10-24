@@ -93,8 +93,8 @@ namespace KingmakerMountedCombat.Diagnostics
             type == SaveInfo.SaveType.Manual && owned?.IsMediumFixtureSave == true ? Chunk7OwnedPairsSelection.MediumFixtureManualName :
             type == SaveInfo.SaveType.Manual && owned?.IsOwnerSeedCheckpointSave == true ? Chunk7OwnedPairsSelection.OwnerSeedCheckpointManualName : NativeName(type);
         internal static string NativeName(SaveInfo.SaveType type, Chunk7OwnedPairsSelection owned, string checkpoint) =>
-            type == SaveInfo.SaveType.Manual && (owned?.IsOwnerSeedCheckpointSave == true || owned?.IsSmallFixtureSave == true || owned?.IsSmallThirdHorseSave == true || owned?.IsFourthHorseSave == true || owned?.IsMediumFixtureSave == true || owned?.IsSixPairSave == true ||
-                owned?.IsCapitalArrivalProducer(checkpoint) == true) ?
+            type == SaveInfo.SaveType.Manual && (owned?.IsOwnerSeedCheckpointSave == true || owned?.IsSmallFixtureSave == true || owned?.IsSmallThirdHorseSave == true || owned?.IsFourthHorseSave == true || owned?.IsMediumFixtureSave == true ||
+                owned?.IsCapitalArrivalProducer(checkpoint) == true || owned?.IsSixPairSave == true) ?
                 owned.OwnedManualOutputName(checkpoint) : NativeName(type, owned);
         internal static string NativeLeaf(SaveInfo.SaveType type) => type == SaveInfo.SaveType.Manual ? "Manual_300_" + ManualName + ".zks" : type + "_1.zks";
 
@@ -146,7 +146,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 // save or cleanup authority until explicit destination adoption.
                 var declaredAreaLoading = AreaAutosaveCase && !Cold && stage == 30 && areaTransferDispatched && !areaScopeAdopted &&
                     (LoadingProcess.Instance.IsLoadingInProcess || LoadingProcess.Instance.QueuedNames.Any()) ||
-                    ManticoreFixtureCase && stage == 92 && manticoreDispatched && !manticoreScopeAdopted;
+                    ManticoreFixtureCase && stage == 92 && manticoreDispatched && !manticoreScopeAdopted ||
+                    CapitalArrivalCase && stage == 50 && capitalDispatched && !capitalAdopted;
                 if (declaredAreaLoading) nativeScope.RequireTransferWorld();
                 else RequireNativeWorld();
             }
@@ -159,8 +160,8 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 if (!started) Start();
                 if (cleanup) { PollCleanup(); return; }
-                var withinDeadline = clock.Elapsed.TotalSeconds <= (RepeatedWorldCase ? 600 : CombatCase || AreaAutosaveCase || ManticoreFixtureCase || SixPairCase ? 300 : 180) && clock.Elapsed.TotalSeconds - stageStarted <=
-                    (RepeatedWorldCase && stage == 70 ? 450 : CombatCase && (stage == 5 || stage == 20) || AreaAutosaveCase && stage == 30 || ManticoreFixtureCase && stage == 92 ? 150 : 35);
+                var withinDeadline = clock.Elapsed.TotalSeconds <= (RepeatedWorldCase ? 600 : CombatCase || AreaAutosaveCase || ManticoreFixtureCase || CapitalArrivalCase || SixPairCase ? 300 : 180) && clock.Elapsed.TotalSeconds - stageStarted <=
+                    (RepeatedWorldCase && stage == 70 ? 450 : CombatCase && (stage == 5 || stage == 20) || AreaAutosaveCase && stage == 30 || ManticoreFixtureCase && stage == 92 || CapitalArrivalCase && stage == 50 ? 150 : 35);
                 // The first ordinary Small cold load reached all four native PostLoads
                 // but not presentation. On a recurrence, retain the exact read-only
                 // boundary that withheld stage 0 before cleanup disposes the world.
@@ -185,6 +186,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 Require(withinDeadline, "Bounded native persistence deadline at stage " + stage + ".");
                 if (UpdateSaveBoundary()) return;
                 if (UpdateRepeatedWorld()) return;
+                if (UpdateCapitalArrival()) return;
                 if (UpdateAreaAutosave()) return;
                 if (UpdateManticoreFixture()) return;
                 if (UpdateLoadRefusal()) return;
@@ -201,6 +203,7 @@ namespace KingmakerMountedCombat.Diagnostics
                             if (Schema1ResaveCase) { ObserveSchema1Cold(); RequestSave(); Next(40); break; }
                             if (OwnedSchema1CurrentCase) { ObserveOwnedSchema1Current(); Next(42); break; }
                             ObserveCold();
+                            if (CapitalArrivalCase) { BeginCapitalArrival(); break; }
                             if (OwnerSeedLoadRefusalCase) { BeginLoadRefusal(); Next(80); break; }
                             if (OwnedSchema2CurrentCase) ObserveCurrentMigrationParent();
                             if (Schema2ResaveCase)
@@ -305,7 +308,7 @@ namespace KingmakerMountedCombat.Diagnostics
             Require(settings.EnablePairedActivation && settings.EnableUnsafeMovementExperiment && !settings.EnableUnifiedMountedTurn &&
                 !settings.EnablePairedCommandScheduler && !settings.EnableDiagnosticOverlay, "Paired production policy differs.");
             nativeScope = new Chunk7NativeWorldScope(request, SelectionManager.Instance.SelectedUnits,
-                Cold ? ExpectedArchiveArea : request.SelectedChunk7Fixture.Area);
+                Cold ? ColdInputArea : request.SelectedChunk7Fixture.Area);
             originalSelection = SelectionManager.Instance.SelectedUnits.ToArray(); originalPause = Game.Instance.IsPaused; captured = true;
             if (OwnedSchema1ColdCase) Game.Instance.IsPaused = true;
             MovementScreenshotCaptureCoordinator.AcquireClosedUmmLeaseRetained(out ummLease);
@@ -361,7 +364,7 @@ namespace KingmakerMountedCombat.Diagnostics
             if (SixPairCase) { ObserveSixPairCold(); return; }
             saved = persistence.LoadedArchive;
             Require(saved != null && saved.SchemaVersion == 3 && saved.Pairs.Length == 2 && saved.Participations.Length == 0 &&
-                saved.Combat == null && saved.AreaId == ExpectedArchiveArea && persistence.ArchiveRestorePhase == "all-pair-presentation-restored",
+                saved.Combat == null && saved.AreaId == ColdInputArea && persistence.ArchiveRestorePhase == "all-pair-presentation-restored",
                 "Entire exploration schema 3 graph was not restored from the selected native archive: " + persistence.Feedback);
             if (request.OwnedPairs != null)
             {
@@ -395,7 +398,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 restoration.Count("round-before", ids) == 0 && restoration.Count("restore-debt-before", ids) == 4 &&
                 restoration.Count("restore-debt-after", ids) == 4, "Cold native actor restoration invented preparation or lost its complete observer window.");
             AssertDebt(saved); evidence["coldRestoration"] = restoration.Capture();
-            if (!OwnerSeedLoadRefusalCase) { restoration.Dispose(); restoration = null; }
+            if (!OwnerSeedLoadRefusalCase && !CapitalArrivalCase) { restoration.Dispose(); restoration = null; }
             if (Chunk7OwnedPairsSelection.IsManticoreManualCold(request.PersistenceCase)) ObserveManticoreManualCold();
             else if (request.OwnedPairs?.IsOwnerSeedDerivedLoad == true || OwnerSeedLoadRefusalCase) ObserveOwnerSeedDerivedCold();
             evidence["loadedArchive"] = JObject.FromObject(saved, MountedSaveCodec.CreateSerializer());
@@ -428,6 +431,8 @@ namespace KingmakerMountedCombat.Diagnostics
             if (OwnedSchema1SourceCase) { AssertOwnedSchema1Owner(); return; }
             if (CombatCase) { AssertCombatOwners(); return; }
             if (SixPairCase) { AssertSixPairOwners(); return; }
+            // One-pair worlds of rows 58-59: the main pair only, once the capital is adopted or cold-loaded.
+            if (capitalAdopted) { AssertCapitalOwners(); return; }
             Require(Mounted(firstRider, firstMount) && Mounted(secondRider, secondMount) && world.Registry.ActiveCount == 2 &&
                 world.Registry.Owners.Length == 2 && world.Registry.Owners.All(o => expectedOwners.TryGetValue(o.Id, out var generation) && generation == o.Generation),
                 "All-pair owner identity, generation or exact actor routing changed.");
@@ -727,8 +732,10 @@ namespace KingmakerMountedCombat.Diagnostics
                 });
                 leasesRestored &= TryCleanup("selection", () =>
                 {
-                    SelectionManager.Instance.MultiSelect(originalSelection.Where(a => a.IsInState && a.View != null).Select(a => a.View), false);
-                    Require(SelectionManager.Instance.SelectedUnits.SequenceEqual(originalSelection), "Original selected native actors were not restored.");
+                    // In the adopted capital only directly controllable actors are selectable natively (row 58).
+                    var restoredSelection = capitalAdopted ? originalSelection.Where(a => a.IsDirectlyControllable).ToArray() : originalSelection;
+                    SelectionManager.Instance.MultiSelect(restoredSelection.Where(a => a.IsInState && a.View != null).Select(a => a.View), false);
+                    Require(SelectionManager.Instance.SelectedUnits.SequenceEqual(restoredSelection), "Original selected native actors were not restored.");
                 });
             }
             leasesRestored &= TryCleanup("UMM", () => { ummLease?.Dispose(); ummLease = null; });

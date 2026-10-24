@@ -8,7 +8,7 @@ class Clock{public TimeSpan Elapsed=TimeSpan.Zero;public bool IsRunning;public v
 class NativeProcess{public bool IsEnded;}
 class Command{public bool IsFinished;public int Interruptions;public void Interrupt(){Interruptions++;IsFinished=true;}}
 class UnitUseAbility:Command{public NativeProcess ExecutionProcess=new NativeProcess();}
-namespace Kingmaker.EntitySystem.Entities{class UnitEntityData{public Descriptor Descriptor=new Descriptor();public bool IsInState=true;public View View;public string UniqueId=Guid.NewGuid().ToString(),CharacterName="fixture";public UnitEntityData(){View=new View{Actor=this};}}}
+namespace Kingmaker.EntitySystem.Entities{class UnitEntityData{public Descriptor Descriptor=new Descriptor();public bool IsInState=true,IsDirectlyControllable=true;public View View;public string UniqueId=Guid.NewGuid().ToString(),CharacterName="fixture";public UnitEntityData(){View=new View{Actor=this};}}}
 class View{public Actor Actor;}
 class Descriptor{public Actor Pet;public Reference Master=new Reference();public Progression Progression=new Progression();}
 class Reference{public Actor Value;}
@@ -52,6 +52,8 @@ class PersistenceAdapter{
  void RequireRepeatedCleanupWorld(){}void RequireReplayAuthority(){}void RequireReplayInput(){}void EndReplayObservation(){retention?.Dispose();retention=null;}void CaptureRepeatedSettlement(){}void ReleaseOwnedAreaObservation(){}void CaptureAreaInterruption(){}void EndLoadRefusalObservation(){}
  void VerifySchema1InputImmutable(){}void RequestSchema1Resave(){schema1Saves++;}void VerifySchema2InputImmutable(){}void RequestSchema2Resave(){schema1Saves++;}void PrepareCombatSave(){}static SaveInfo.SaveType NativeType(string c){return SaveInfo.SaveType.Manual;}static string NativeName(SaveInfo.SaveType t){return ManualName;}static string NativeName(SaveInfo.SaveType t,Chunk7OwnedPairsSelection o){return NativeName(t);}static string NativeName(SaveInfo.SaveType t,Chunk7OwnedPairsSelection o,string c){return NativeName(t);}
  bool ManticoreFixtureCase,TombFixtureCase,ThornRiverFixtureCase,manticoreDispatched,manticoreScopeAdopted;void AdoptManticoreFixtureWorld(){throw new Exception("Manticore adoption has its own adapter");}void ReleaseManticoreObservation(){}
+ // Row 58 capital arrival: its exact adoption has its own engine; this cleanup adapter only sees the hooks.
+ bool CapitalArrivalCase,capitalDispatched,capitalAdopted;void AdoptCapitalArrivalForCleanup(){if(CapitalArrivalCase)throw new Exception("Capital adoption has its own engine");}
 __SCOPE_METHODS__
  bool cleanup,captured=true,completed,disposed,cleanupProven,pendingHostCustody,cleanupActions,originalPaired,originalMovement,originalPause,Cold;int repeatedCleanupActionsFrame=-1;double stageStarted;Clock clock=new Clock();Lease mode=new Lease(),ummLease=new Lease();Observer restoration;Checkpoint checkpoint;Persistence persistence=new Persistence();
  Command[] issued=new Command[]{new UnitUseAbility()};World world=new World();Controls controls=new Controls();Actor secondRider=new Actor(),secondMount=new Actor();Actor[] originalSelection=new Actor[0];object acquiredHorse=new object(),acquiredRank=new object();RuntimeRequest request=new RuntimeRequest();SavedDescriptor savedDescriptor;Settings settings=new Settings();JObject evidence=new JObject();List<string> errors=new List<string>();List<RuntimeSubscenarioResult> results=new List<RuntimeSubscenarioResult>();HashSet<string> cleanupFaults=new HashSet<string>();const string EvidenceFileName="fixture",EvidenceKind="fixture";int observerDisposals;
