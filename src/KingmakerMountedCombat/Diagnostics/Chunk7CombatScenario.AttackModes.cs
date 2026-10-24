@@ -157,9 +157,12 @@ namespace KingmakerMountedCombat.Diagnostics
             // only as exactly one such native overwrite (no KingmakerMountedCombat frame in its caller chain).
             var effective = interrupts.OfType<JObject>().Where(row => !(bool)row["finishedBefore"] && (string)row["resultBefore"] != "Interrupt").ToArray();
             var planComplete = command.GetAttackIndex() >= plan.Length;
-            Require(command.Result != UnitCommand.ResultType.Interrupt || (watched && !(bool)watchStart["finished"] && effective.Length == 1 &&
+            // Admitted means no KingmakerMountedCombat frame on the whole (untruncated) stack and no queued-command
+            // overwrite (InterruptAsSoonAsPossible); it does not prove which native rule interrupted.
+            Require(watched && !(bool)watchStart["finished"] && (command.Result != UnitCommand.ResultType.Interrupt || (effective.Length == 1 &&
                 (!planComplete || (string)effective[0]["resultBefore"] == "Success" && (bool)effective[0]["actedBefore"] &&
-                    !((string)effective[0]["callers"] ?? "KingmakerMountedCombat").Contains("KingmakerMountedCombat"))) &&
+                    !(bool)effective[0]["callersTruncated"] && !(bool)effective[0]["interruptAsSoonAsPossible"] &&
+                    !((string)effective[0]["callers"] ?? "KingmakerMountedCombat").Contains("KingmakerMountedCombat")))) &&
                 (command.Result != UnitCommand.ResultType.Success || effective.Length == 0),
                 "Native attack interrupt cause differs from one native terminal overwrite: " + observation["command"]["interruptWatch"].ToString(Newtonsoft.Json.Formatting.None));
             observation["rules"] = attackModesRules.Since((int)observation["ruleCountBefore"]);

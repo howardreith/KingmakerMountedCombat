@@ -60,7 +60,7 @@ namespace KingmakerMountedCombat.Diagnostics
         // The forward fan first, then the rest of the circle (including back toward the start).
         internal static readonly float[] FullCircleFan = ForwardFan.Concat(new[] { 90f, -90f, 112.5f, -112.5f, 135f, -135f, 157.5f, -157.5f, 180f }).ToArray();
         // A walkable native destination whose navmesh trace from the start reaches it (bounded fan of
-        // directions, longest requested length first). Every proposal is recorded, including on refusal.
+        // directions, the requested length first, then the extra lengths in their given order). Every proposal is recorded, including on refusal.
         private Vector3 NavmeshDestination(Vector3 start, Vector3 direction, float length, Func<Vector3, bool> accepts, JArray proposals,
             float[] angles = null, float[] shorterLengths = null) =>
             NavmeshDestinationRefusing(start, direction, length, p => accepts(p) ? null : "geometry", proposals, angles, shorterLengths);
@@ -71,8 +71,8 @@ namespace KingmakerMountedCombat.Diagnostics
             if (TryNavmeshDestination(start, direction, length, refuses, proposals, angles, shorterLengths, out goal)) return goal;
             throw new InvalidOperationException("No walkable native destination satisfied the declared geometry (" + (proposals?.Count ?? 0) + " proposals recorded).");
         }
-        // Each proposal records the first term that refused it (Chunk7StagedGeometry.Refusal) and, for a
-        // walkable node, the declared geometry's own refusal; eligibility is unchanged: walkable, native
+        // Each proposal records the first term that refused it (Chunk7StagedGeometry.Refusal) and, once the node,
+        // trace and length passed, the declared geometry's own refusal (geometryAccepted is now only set there); eligibility is unchanged: walkable, native
         // trace within 0.3 m, a leg over 0.5 m, and the declared geometry.
         private bool TryNavmeshDestination(Vector3 start, Vector3 direction, float length, Func<Vector3, string> refuses, JArray proposals,
             float[] angles, float[] shorterLengths, out Vector3 destination)
@@ -87,10 +87,11 @@ namespace KingmakerMountedCombat.Diagnostics
                     var walkable = nearest.node != null && nearest.node.Walkable;
                     var goal = nearest.clampedPosition;
                     var traced = walkable ? Kingmaker.View.ObstacleAnalyzer.TraceAlongNavmesh(start, goal) : start;
-                    var geometry = walkable ? refuses(goal) : null;
-                    var refusal = Chunk7StagedGeometry.Refusal(walkable, Flat(traced, goal), Flat(start, goal), geometry);
+                    // The declared geometry (which may run a lookahead) is evaluated only once every cheaper term passed.
+                    var refusal = Chunk7StagedGeometry.Refusal(walkable, Flat(traced, goal), Flat(start, goal), null);
+                    var geometry = refusal == null ? refuses(goal) : null; if (refusal == null) refusal = geometry;
                     proposals?.Add(new JObject { ["angle"] = angle, ["length"] = requestedLength, ["requested"] = Point(requested), ["goal"] = Point(goal),
-                        ["walkable"] = walkable, ["traceResidual"] = Flat(traced, goal), ["geometryAccepted"] = walkable && geometry == null,
+                        ["walkable"] = walkable, ["traceResidual"] = Flat(traced, goal), ["geometryAccepted"] = refusal == null,
                         ["geometryRefusal"] = geometry, ["refusal"] = refusal, ["eligible"] = refusal == null });
                     if (refusal == null) { destination = goal; return true; }
                 }

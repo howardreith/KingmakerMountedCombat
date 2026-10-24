@@ -206,8 +206,9 @@ function Get-KmcChunk7AttackModeRapidBonus($Measurement){
 # that attack's animation; UnitCommand.Interrupt(bool) overwrites the Success if it arrives meanwhile
 # (b202 am unmounted control: Interrupt one frame after its second and last shot). Contract v2 records
 # every Interrupt(bool) of the measured command with its prior terminal state and caller chain. A
-# plan-complete Interrupt is admitted only as exactly one native overwrite of an acted Success after the
-# last planned attack, with no KingmakerMountedCombat frame in its callers; a Success carries none; an
+# plan-complete Interrupt is admitted only as exactly one overwrite of an acted Success after the last planned
+# attack, with no KingmakerMountedCombat frame on its whole (untruncated) stack and no queued-command overwrite
+# (InterruptAsSoonAsPossible); this excludes a KMC caller on the stack, not every KMC state influence; a Success carries none; an
 # interrupt before the plan completes (the natural melee tail) must name its one recorded cause.
 function Assert-KmcChunk7AttackModeInterrupt($c,$plan,$attacks,[string]$Label,$modes){
  $planComplete=$c.completedAttacks-ge@($plan).Count;$recorded=$modes.contract-ceq'owner-seed-attack-modes-v2';$watch=$c.PSObject.Properties['interruptWatch']
@@ -223,15 +224,15 @@ function Assert-KmcChunk7AttackModeInterrupt($c,$plan,$attacks,[string]$Label,$m
  foreach($f in @('interruptAsSoonAsPossible','executorCanAct','targetInState','targetDead')){if($w.$f-isnot[bool]){throw 'Attack mode interrupt watch state is missing or mistyped.'}}
  if($w.interrupts-isnot[Array]){throw 'Attack mode interrupt watch lacks its interrupt list.'}
  $rows=@($w.interrupts)
- foreach($row in $rows){Assert-KmcExactProperties $row @('frame','round','command','resultBefore','actedBefore','finishedBefore','interruptAsSoonAsPossible','timeSinceStart','attackIndex','plannedAttacks','executorCanAct','targetInState','targetDead','callers') 'attack mode interrupt'
+ foreach($row in $rows){Assert-KmcExactProperties $row @('frame','round','command','resultBefore','actedBefore','finishedBefore','interruptAsSoonAsPossible','timeSinceStart','attackIndex','plannedAttacks','executorCanAct','targetInState','targetDead','callers','callersTruncated') 'attack mode interrupt'
   if(-not(Test-KmcExactJsonInteger $row.frame)-or$row.frame-lt$start.frame-or$row.command-ne$c.identity-or$row.resultBefore-cnotin@('None','Fail','Interrupt','Success')-or$row.actedBefore-isnot[bool]-or$row.finishedBefore-isnot[bool]-or
-     -not(Test-KmcExactJsonInteger $row.attackIndex)-or$row.plannedAttacks-ne@($plan).Count-or$row.callers-isnot[string]-or-not$row.callers.StartsWith('callers=')){throw 'Attack mode interrupt record is not the measured native command.'}}
+     -not(Test-KmcExactJsonInteger $row.attackIndex)-or$row.plannedAttacks-ne@($plan).Count-or$row.callers-isnot[string]-or-not$row.callers.StartsWith('callers=')-or$row.callersTruncated-isnot[bool]-or$row.interruptAsSoonAsPossible-isnot[bool]){throw 'Attack mode interrupt record is not the measured native command.'}}
  $effective=@($rows|Where-Object{-not$_.finishedBefore-and$_.resultBefore-cne'Interrupt'})
  if($c.result-ceq'Success'){if($effective.Count-ne0){throw ('Attack mode '+$Label+' Success hides an effective native interrupt.')};return}
  if($effective.Count-ne1){throw ('Attack mode '+$Label+' interrupt lacks its one recorded native cause.')}
  if(-not$planComplete){return}
  $x=$effective[0];$lastFrame=[long](@($attacks|ForEach-Object{[long]$_.frame})|Measure-Object -Maximum).Maximum
- if($x.resultBefore-cne'Success'-or$x.actedBefore-ne$true-or$x.attackIndex-ne@($plan).Count-or$x.frame-lt$lastFrame-or$x.callers.Contains('KingmakerMountedCombat')){throw 'Attack mode interrupt claims a completed plan.'}
+ if($x.resultBefore-cne'Success'-or$x.actedBefore-ne$true-or$x.attackIndex-ne@($plan).Count-or$x.frame-lt$lastFrame-or$x.callersTruncated-or$x.interruptAsSoonAsPossible-or$x.callers.Contains('KingmakerMountedCombat')){throw 'Attack mode interrupt claims a completed plan.'}
 }
 function Assert-KmcChunk7AttackModeMeasurement($m,[string]$Label,[bool]$Mounted,[bool]$Rapid,[long]$Round,$o,$roles,$modes){
  if($m.rapid.buff-ne$Rapid-or$m.rapid.isRunning-ne$Rapid-or$m.rapid.inCombat-ne$true){throw ('Attack mode '+$Label+' Rapid Shot was not natively running exactly when on.')}
