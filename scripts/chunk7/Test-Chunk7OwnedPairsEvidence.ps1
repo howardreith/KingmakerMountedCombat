@@ -786,6 +786,12 @@ Check-SeedCharge 'another primary weapon' {foreach($k in 'before','after'){$args
 Check-SeedCharge 'a weapon switched during the case' {$args[0].artifact.observations.chargeWeapon.after.handSet=0} 'changed during the Charge case'
 Check-SeedCharge 'a missing weapon record' {$args[0].artifact.observations.PSObject.Properties.Remove('chargeWeapon')} 'observed equipped weapon'
 Check-SeedCharge 'a primary that is not the native first weapon' {$args[0].artifact.observations.chargeWeapon.before.firstWeaponIsPrimary=$false} 'Native evidence boolean'
+Check-SeedCharge 'an extra weapon field' {$args[0].artifact.observations.chargeWeapon.before|Add-Member extra 1} 'charge weapon state'
+$script:chargeRepo=(Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
+Check 'the charge seed constants agree across the C# selection, the PS reader and the registry' {$c=Get-KmcChunk7ChargeSeed;$cs=[IO.File]::ReadAllText((Join-Path $script:chargeRepo 'src\KingmakerMountedCombat\Diagnostics\Chunk7OwnedPairsSelection.cs'))
+ $expected=[ordered]@{ChargeSeedId=('"'+$c.seedId+'"');ChargeSeedSha256=('"'+$c.sha256+'"');ChargeSeedHandSetIndex=[string]$c.handSet;ChargeSeedPrimaryWeapon=('"'+$c.primaryWeapon+'"')}
+ foreach($name in @($expected.Keys)){if($cs-notmatch([regex]::Escape($name)+'\s*=\s*'+[regex]::Escape($expected[$name])+';')){throw ('C# constant differs: '+$name)}}
+ $e=@(((Get-Content -LiteralPath (Join-Path $script:chargeRepo 'scripts\runtime\Chunk7OwnerSeedRegistry.json') -Raw)|ConvertFrom-Json).seeds|Where-Object seedId -CEQ $c.seedId);if($e.Count-ne1-or$e[0].sha256-cne$c.sha256){throw 'Registry charge seed entry differs.'}}
 foreach($kind in @('combat-rider-first','combat-mount-first','realtime-core')){
  Check ('owner-seed '+$kind+' refuses the charge seed') {$v=New-KmcOwnerSeedDerivedCombatFixture $kind;$c=Get-KmcChunk7ChargeSeed;$v.request.ownedPairs.seedId=$c.seedId;$v.request.ownedPairs.seedSha256=$c.sha256;Invoke-OwnedReader $v} $true 'only along the owner-seed real-time Charge lineage'}
 Check 'owner-seed selections admit the charge seed only along its lineage' {$c=Get-KmcChunk7ChargeSeed
