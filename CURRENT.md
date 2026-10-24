@@ -1,5 +1,12 @@
 # Chunk 7B–7D — IN PROGRESS
 
+Offline (product diagnostics changed; no launch): X1 death proper is implemented as the owner-seed case
+`owner-seed-native-death-cleanup` on the native life engine. One labelled native damage reaches HP+Con+1,
+and the stock tick kills. The reader requires one `UnitDeath` cleanup inside the death callback, no N+1
+slot for the dead rider, an unmounted dead control and the observed cleanup postconditions. An immortal
+or essential subject is refused before damage and recorded uncovered. The native pilot is pending; see
+[the X1 row](planning/CHUNK7-7E-QUALIFICATION-MATRIX.md).
+
 Offline (harness only, no launch): the X5 row consumers now exist. `Assert-KmcChunk7NormalPlayerRow42Binding`
 binds row 42 to one hash-pinned passed ordinary control and refuses every rehearsal step;
 `Assert-KmcChunk7UpgradeRehearsalComplete` binds rows 55–56 to one complete u1 → u2 → u3 rehearsal and

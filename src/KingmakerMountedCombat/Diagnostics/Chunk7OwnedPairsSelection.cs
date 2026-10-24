@@ -36,6 +36,8 @@ namespace KingmakerMountedCombat.Diagnostics
         public const string OwnerSeedDisableCase = "owner-seed-combat-disable";
         // 7E X1: the existing two-pair native life case on the same restored mounted start.
         public const string OwnerSeedNativeLifeCase = "owner-seed-native-life-cleanup";
+        // 7E X1 death proper: the same native life engine with one labelled native damage past HP+Constitution.
+        public const string OwnerSeedNativeDeathCase = "owner-seed-native-death-cleanup";
         public const string OwnerSeedLoadRefusalCase = "owner-seed-load-refusal";
         internal const string OwnerSeedLoadRefusalLeaf = "Manual_812_KMC_C7_SEED_REFUSAL.zks";
         internal static bool LoadRefusalCheckpoint(string value) => value == "multi-malformed-refusal-manual" || value == "multi-future-refusal-manual";
@@ -233,7 +235,7 @@ namespace KingmakerMountedCombat.Diagnostics
         // Both kinds that load the owner's seed and run its disclosed native setup.
         internal bool OwnerSeedSetup => IsOwnerSeed || IsOwnerSeedManual;
         internal bool IsOwnerSeedDerivedCombat => Case == OwnerSeedRealtimeCase || Case == OwnerSeedRiderFirstCase || Case == OwnerSeedMountFirstCase || Case == OwnerSeedDisableCase ||
-            Case == OwnerSeedNativeLifeCase;
+            Case == OwnerSeedNativeLifeCase || Case == OwnerSeedNativeDeathCase;
         internal bool IsOwnerSeedCheckpointSave => Case == OwnerSeedCheckpointSaveCase;
         internal bool IsOwnerSeedCheckpointLoad => Case == OwnerSeedCheckpointLoadCase;
         internal bool IsSmallFixtureSave => Case == SmallFixtureSaveCase;
@@ -281,6 +283,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     case OwnerSeedMountFirstCase: return "chunk7-two-pair-combat-mount-first";
                     case OwnerSeedDisableCase: return "chunk7-two-pair-combat-rider-first";
                     case OwnerSeedNativeLifeCase: return "chunk7-two-pair-native-life-cleanup";
+                    case OwnerSeedNativeDeathCase: return "chunk7-two-pair-native-life-cleanup";
                     case OwnerSeedCheckpointSaveCase: return "chunk7-persistence-save";
                     case OwnerSeedCheckpointLoadCase: return "chunk7-persistence-load";
                     case SmallFixtureSaveCase: return "chunk7-persistence-save";

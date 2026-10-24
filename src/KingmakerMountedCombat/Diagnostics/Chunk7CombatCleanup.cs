@@ -144,6 +144,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 settingsRestored &= TryCleanup("UMM", () => { umm?.Dispose(); umm = null; });
                 if (!settingsRestored) { AwaitCleanup(false, "Fixture settings have not restored."); return; }
                 Game.Instance.IsPaused = pauseBefore;
+                if (LifeDeath && nativeLife != null) nativeLife["deathCleanup"] = CaptureDeathCleanup();
             }
             var cleanupReady = initiativeBefore.All(x => x.Key.Stats.Initiative.BaseValue == x.Value) &&
                 (firstPairAi == null || firstPairAi.LastRestoreVerified) && mode == null && targetService == null;
@@ -163,7 +164,8 @@ namespace KingmakerMountedCombat.Diagnostics
             if (completed) return;
             evidence["elapsedSeconds"] = clock.Elapsed.TotalSeconds;
             evidence["nativeShellLifecycle"] = controls.DescribeNativeShellLifecycle();
-            evidence["fullRealtimeCombatProof"] = false; evidence["naturalUnconsciousStimulusProven"] = SelectedScenario == NativeLifeCleanup && (bool?)nativeLife?["complete"] == true;
+            evidence["fullRealtimeCombatProof"] = false; evidence["naturalUnconsciousStimulusProven"] = SelectedScenario == NativeLifeCleanup && !LifeDeath && (bool?)nativeLife?["complete"] == true;
+            if (SelectedScenario == NativeLifeCleanup && LifeDeath) evidence["naturalDeathStimulusProven"] = (bool?)nativeLife?["complete"] == true;
             if (!checkpointOnly) RuntimeLoaderInventory.WriteArtifact(request, SelectedScenario == NativeLifeCleanup ? "chunk7-native-life-evidence.json" : RealtimeScenario ? "chunk7-realtime-evidence.json" : EvidenceFileName,
                 SelectedScenario == NativeLifeCleanup ? "chunk7-native-life-evidence" : RealtimeScenario ? "chunk7-realtime-evidence" : EvidenceKind, errors.Count == 0 ? "PASS" : "FAIL", evidence, errors);
             completed = true;

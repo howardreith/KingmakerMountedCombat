@@ -521,6 +521,100 @@ foreach($label in @('r1-native-dismount-a','first-action-mount-a')){
 }
 Mutate 'acquired native life refuses a spoofed derived source alone' 'native-life-cleanup' {$args[0].artifact.observations|Add-Member ownerSeedDerivedSource ([pscustomobject]@{contract='owner-seed-derived-source-v1'}) -Force} 'Only the owner-seed-derived life case'
 Mutate 'acquired native life refuses a restored mounted-start claim' 'native-life-cleanup' {$args[0].artifact.observations|Add-Member mountedStart ([pscustomobject]@{contract='owner-seed-derived-mounted-start-v1'}) -Force} 'Only the owner-seed-derived life case'
+# 7E X1 death proper: the same restored mounted start, one native damage past HP+Constitution. The
+# synthetic death chain follows the native 2.1.7b order: SetLifeState(Dead) leaves TB combat, calls
+# OnUnitDeath (HandleUnitDeath: the one Mounted -> Unmounted cleanup), then raises the life-state
+# event (an idempotent repeat from Unmounted). The dead rider and the dead control get no N+1 turn.
+function ConvertTo-KmcSeedNativeDeathFixture($v){
+ $r=$v.request;$o=$v.artifact.observations;$l=$o.nativeLife;$ids=@($o.actorIds)
+ $r.ownedPairs.case='owner-seed-native-death-cleanup'
+ $o.naturalUnconsciousStimulusProven=$false;$o|Add-Member naturalDeathStimulusProven $true -Force
+ $l|Add-Member outcome 'death' -Force
+ $l.stimulus='one labelled native RuleDealDamage past HP+Constitution; stock UnitLifeController tick kills natively and delivers existing lifecycle subscribers'
+ $policy=[pscustomobject][ordered]@{trueDeath=$false;deathDoorCondition=$false;damageToParty=1.0}
+ $l|Add-Member nativeDeathPolicy $policy -Force;$l|Add-Member nativeDeathPolicyAtDamage (Copy-Value $policy) -Force
+ $l.requestedDamage=43;$l.nativeDamageBeforeDifficulty=43;$l.nativeDamage=43;$l.afterDamage.rider.damage=43
+ foreach($e in @($l.nativeEffects.events)){if($e.kind-ceq'damage-after'){$e.targetDamage=43;$e.damage=43;$e.beforeDifficulty=43}}
+ foreach($a in @($l.afterDelivery.rider,$l.independentSurvivor.rider)){$a.life='Dead';$a.conscious=$false;$a.dead=$true;$a.damage=43}
+ $dra=Copy-Value $l.afterDelivery.rider;$dra|Add-Member finallyDead $false;$dra|Add-Member inCombat $false;$dra|Add-Member inState $true;$l|Add-Member deadRiderAfterDelivery $dra -Force
+ $old=@($l.deliveryProbe.events)
+ $mk={param($src,[string]$boundary,$previous,[string]$current,[int]$ledger)$e=Copy-Value $src;$e.boundary=$boundary;$e.previousLife=$previous;$e.currentLife=$current;$e.ledgerSequence=$ledger;$e.damage=43;$e}
+ $events=@((&$mk $old[0] 'native-tick-before' $null 'Conscious' 5),(&$mk $old[1] 'native-set-before' $null 'Conscious' 5),(&$mk $old[2] 'production-death-callback-before' $null 'Dead' 5),
+  (&$mk $old[3] 'production-death-callback-after' $null 'Dead' 6),(&$mk $old[3] 'production-callback-before' 'Conscious' 'Dead' 6),(&$mk $old[3] 'production-callback-after' 'Conscious' 'Dead' 7),
+  (&$mk $old[4] 'native-set-after' $null 'Dead' 7),(&$mk $old[5] 'native-tick-after' $null 'Dead' 7))
+ for($i=0;$i-lt8;$i++){$events[$i].sequence=$i+1}
+ $l.deliveryProbe.events=$events
+ $l.deliveryProbe|Add-Member deathCallbackToken '06000401' -Force;$l.deliveryProbe|Add-Member deathCallbackMvid $r.dllMvid -Force
+ $l.deliveryProbe|Add-Member deathCallbackType 'KingmakerMountedCombat.Integration.MountedLifecycleSubscriber' -Force;$l.deliveryProbe|Add-Member deathCallbackName 'HandleUnitDeath' -Force
+ $l.deliveries=@([pscustomobject][ordered]@{sequence=6;boundary='UnitDeath';source='IUnitHandler.HandleUnitDeath';stateBefore='Mounted';stateAfter='Unmounted';trigger='Death';attempted=$true;succeeded=$true;errors=@()},
+  [pscustomobject][ordered]@{sequence=7;boundary='UnitIncapacitated';source='IUnitLifeStateChanged.HandleUnitLifeStateChanged';stateBefore='Unmounted';stateAfter='Unmounted';trigger='Incapacitated';attempted=$true;succeeded=$true;errors=@()})
+ $l.lifeTransitions[0].currentLife='Dead'
+ $l.riderSlotsBeforeRenewal=0;$l.expectedRiderSlots=0
+ $c=$l.unconsciousControl;$controlId=$c.actorId;$atDamage=[long]$l.incapacitatedRiderTurn.prepareSequence-1
+ $o.allocationTrace.events=@($o.allocationTrace.events|Where-Object{-not($null-ne$_.PSObject.Properties['round']-and$_.round-eq3-and$null-ne$_.state-and$_.state.actor-cin@($ids[2],$controlId))})
+ $i=0;foreach($e in $o.allocationTrace.events){$i++;$e.sequence=$i}
+ foreach($g in @($l.independentSurvivor.grants|Where-Object actorId -CEQ $ids[2])){$g.count=2}
+ $dead={param([string]$id)[pscustomobject][ordered]@{actorId=$id;round=3;events=0;prepareBefore=0;prepareAfter=0;ends=0;forcedEnds=0;forbidden=0;conscious=$false;dead=$true;finallyDead=$false;inCombat=$false}}
+ $l.PSObject.Properties.Remove('incapacitatedRiderTurn');$l|Add-Member deadRiderTurn (&$dead $ids[2]) -Force
+ $l.PSObject.Properties.Remove('unconsciousControl')
+ $c.contract='unmounted-dead-native-turn-control-v1';$c.requestedDamage=43;$c.nativeDamage=43;$c.afterDamage.damage=43;$c.turn=(&$dead $controlId);$c.grantAfter=$c.grantBefore;$c.traceSequenceAtDamage=$atDamage
+ $l|Add-Member deathControl $c -Force
+ $ext={param($a,[bool]$dead)$x=Copy-Value $a;if($dead){$x.life='Dead';$x.conscious=$false;$x.dead=$true;$x.damage=43};$x|Add-Member finallyDead $false;$x|Add-Member inCombat $false;$x|Add-Member inState $true;$x}
+ $l|Add-Member deathCleanup ([pscustomobject][ordered]@{pairState='Unmounted';pairOwnerReleased=$true;noPreparedPairResidue=$true;presentationResidue=$false;shellUnsettled=$false;relationshipTransitionUnsettled=$false;preparationUnsettled=$false
+  riderRegistryActive=$false;mountRegistryActive=$false;rider=(&$ext $l.beforeDamage.rider $true);mount=(&$ext $l.beforeDamage.mount $false);control=(&$ext $c.before $true)
+  selectionBefore=@($ids[0],$ids[2]);selectableBefore=@($ids[0],$ids[2]);selectionAfter=@($ids[0])}) -Force
+ $v
+}
+function New-KmcSeedNativeDeathFixture{ConvertTo-KmcSeedNativeDeathFixture (New-KmcOwnerSeedDerivedCombatFixture 'native-life-cleanup')}
+function Check-SeedDeath([string]$Name,[scriptblock]$Mutation,[string]$Pattern){$v=New-KmcSeedNativeDeathFixture;&$Mutation $v;Check ('owner-seed native death refuses '+$Name) {Invoke-OwnedReader $v} $true $Pattern}
+function Add-DeathTraceEvent($v,[string]$Actor,[string]$Boundary){$e=Copy-Value @($v.artifact.observations.allocationTrace.events|Where-Object{$null-ne$_.PSObject.Properties['round']-and$_.round-eq3})[0];$e.boundary=$Boundary;$e.state.actor=$Actor
+ $e.sequence=@($v.artifact.observations.allocationTrace.events).Count+1;$v.artifact.observations.allocationTrace.events=@($v.artifact.observations.allocationTrace.events)+@($e)}
+Check 'owner-seed native death evidence accepted (dead rider and dead control get no native N+1 turn)' {Invoke-OwnedReader (New-KmcSeedNativeDeathFixture)}
+Check 'owner-seed native death accepts a dead rider still selected after cleanup' {$v=New-KmcSeedNativeDeathFixture;$c=$v.artifact.observations.nativeLife.deathCleanup;$c.selectionAfter=@($c.selectableBefore);Invoke-OwnedReader $v}
+Check 'owner-seed native death accepts a rider natively raised after combat' {$v=New-KmcSeedNativeDeathFixture;$a=$v.artifact.observations.nativeLife.deathCleanup.rider;$a.dead=$false;$a.conscious=$true;$a.life='Conscious';$v.artifact.observations.nativeLife.deathCleanup.selectionAfter=@($v.artifact.observations.nativeLife.deathCleanup.selectableBefore);Invoke-OwnedReader $v}
+Check 'owner-seed native death accepts the derivation-only proof when the control is declared not required' {$v=New-KmcSeedNativeDeathFixture;$l=$v.artifact.observations.nativeLife;$l.deathControl=[pscustomobject][ordered]@{contract='unmounted-dead-native-turn-control-v1';survivorSlot=$l.deathControl.survivorSlot;candidates=@();available=$false};$l.deathCleanup.control=$null;$v.request|Add-Member nativeLifeControlRequired $false -Force;Invoke-OwnedReader $v}
+Check 'owner-seed native death refuses the incapacitation chain under the death case' {$v=New-KmcOwnerSeedDerivedCombatFixture 'native-life-cleanup';$v.request.ownedPairs.case='owner-seed-native-death-cleanup';Invoke-OwnedReader $v} $true 'Native evidence boolean'
+Check 'owner-seed native life refuses a death outcome under the incapacitation case' {$v=New-KmcSeedNativeDeathFixture;$v.request.ownedPairs.case='owner-seed-native-life-cleanup';$v.artifact.observations.naturalUnconsciousStimulusProven=$true;Invoke-OwnedReader $v} $true 'claims a death outcome'
+Check-SeedDeath 'a missing death outcome' {$args[0].artifact.observations.nativeLife.PSObject.Properties.Remove('outcome')} 'does not name its death outcome'
+Check-SeedDeath 'damage below the death threshold' {$args[0].artifact.observations.nativeLife.afterDamage.rider.damage=41} 'bounded death stimulus'
+Check-SeedDeath 'an oversized native request' {$l=$args[0].artifact.observations.nativeLife;$l.requestedDamage=60;$l.nativeDamageBeforeDifficulty=60} 'bounded death stimulus'
+Check-SeedDeath 'an immortal subject' {$args[0].artifact.observations.nativeLife.beforeDamage.rider.immortal=$true} 'Native evidence boolean'
+Check-SeedDeath 'an essential subject' {$args[0].artifact.observations.nativeLife.beforeDamage.rider.essential=$true} 'Native evidence boolean'
+Check-SeedDeath 'a native death policy that changed before the stimulus' {$args[0].artifact.observations.nativeLife.nativeDeathPolicyAtDamage.trueDeath=$true} 'policy changed'
+Check-SeedDeath 'a policy readout of another difficulty' {$l=$args[0].artifact.observations.nativeLife;$l.nativeDeathPolicy.damageToParty=0.5;$l.nativeDeathPolicyAtDamage.damageToParty=0.5} 'differs from the stimulus difficulty'
+Check-SeedDeath 'a missing native death callback' {$p=$args[0].artifact.observations.nativeLife.deliveryProbe;$p.events=@($p.events|Where-Object boundary -CNE 'production-death-callback-before')} 'sequence/actor/round|No exact native Tick'
+Check-SeedDeath 'a direct death callback outside the native tick' {$args[0].artifact.observations.nativeLife.deliveryProbe.events[2].nativeTickDepth=0} 'direct, reordered'
+Check-SeedDeath 'a death callback that did not observe Dead' {$args[0].artifact.observations.nativeLife.deliveryProbe.events[3].currentLife='Unconscious'} 'actual native Dead state'
+Check-SeedDeath 'a foreign death callback' {$args[0].artifact.observations.nativeLife.deliveryProbe.deathCallbackName='HandleUnitLifeStateChanged'} 'observer identity'
+Check-SeedDeath 'a cleanup booked by the life-state callback instead of the death delivery' {$d=$args[0].artifact.observations.nativeLife.deliveries;$d[0].boundary='UnitIncapacitated';$d[0].source='IUnitLifeStateChanged.HandleUnitLifeStateChanged';$d[0].trigger='Incapacitated'} 'inside the native death callback'
+Check-SeedDeath 'a death cleanup outside the death callback window' {$args[0].artifact.observations.nativeLife.deliveryProbe.events[3].ledgerSequence=5} 'inside the native death callback'
+Check-SeedDeath 'a second cleanup from Mounted' {$args[0].artifact.observations.nativeLife.deliveries[1].stateBefore='Mounted'} 'inside the native death callback'
+Check-SeedDeath 'a failed repeated delivery' {$args[0].artifact.observations.nativeLife.deliveries[1].succeeded=$false} 'idempotent success'
+Check-SeedDeath 'a non-consecutive delivery window' {$args[0].artifact.observations.nativeLife.deliveries[1].sequence=9} 'consecutive window'
+Check-SeedDeath 'an unconscious instead of dead transition' {$args[0].artifact.observations.nativeLife.lifeTransitions[0].currentLife='Unconscious'} 'one exact rider death'
+Check-SeedDeath 'a living rider after delivery' {$a=$args[0].artifact.observations.nativeLife.afterDelivery.rider;$a.life='Unconscious';$a.dead=$false} 'Native evidence boolean|state label'
+Check-SeedDeath 'a dead rider still in combat after delivery' {$args[0].artifact.observations.nativeLife.deadRiderAfterDelivery.inCombat=$true} 'Native evidence boolean'
+Check-SeedDeath 'the healthy owner changed by the death callback' {$args[0].artifact.observations.nativeLife.deliveryProbe.events[3].world.actors[0].standard=0.0} 'budget|Native'
+Check-SeedDeath 'a native N+1 preparation of the dead rider' {Add-DeathTraceEvent $args[0] $args[0].artifact.observations.actorIds[2] 'prepare-before'} 'prepare the dead rider'
+Check-SeedDeath 'a dead rider record that hides its trace' {Add-DeathTraceEvent $args[0] $args[0].artifact.observations.actorIds[2] 'round-state-before'} 'differs from its trace'
+Check-SeedDeath 'a native N+1 slot claimed for the dead rider' {$args[0].artifact.observations.nativeLife.riderSlotsBeforeRenewal=1} 'no native next-round slot'
+Check-SeedDeath 'a granted dead rider' {@($args[0].artifact.observations.nativeLife.independentSurvivor.grants|Where-Object actorId -CEQ $args[0].artifact.observations.actorIds[2])[0].count=3} 'grants were duplicated'
+Check-SeedDeath 'a dead rider turn claiming combat' {$args[0].artifact.observations.nativeLife.deadRiderTurn.inCombat=$true} 'Native evidence boolean'
+Check-SeedDeath 'a dead control prepared natively' {$c=$args[0].artifact.observations.nativeLife.deathControl;Add-DeathTraceEvent $args[0] $c.actorId 'prepare-before'} 'differs from its trace'
+Check-SeedDeath 'a dead control granted after its death' {$args[0].artifact.observations.nativeLife.deathControl.grantAfter=3} 'native preparation after its death'
+Check-SeedDeath 'a control that did not die' {$args[0].artifact.observations.nativeLife.deathControl.turn.dead=$false} 'Native evidence boolean'
+Check-SeedDeath 'control damage below its death threshold' {$args[0].artifact.observations.nativeLife.deathControl.afterDamage.damage=41} 'bounded death stimulus'
+Check-SeedDeath 'a control that is not the first eligible companion' {$args[0].artifact.observations.nativeLife.deathControl.actorId='5dd7bd1d-ae4c-4df7-9687-50fceb027344'} 'first eligible companion'
+Check-SeedDeath 'a required control declared unavailable' {$l=$args[0].artifact.observations.nativeLife;$l.deathControl=[pscustomobject][ordered]@{contract='unmounted-dead-native-turn-control-v1';survivorSlot=$l.deathControl.survivorSlot;candidates=@();available=$false};$l.deathCleanup.control=$null} 'Required unmounted death control is unavailable'
+Check-SeedDeath 'unobserved cleanup postconditions' {$args[0].artifact.observations.nativeLife.PSObject.Properties.Remove('deathCleanup')} 'were not observed'
+Check-SeedDeath 'a pair owner still bound at cleanup' {$args[0].artifact.observations.nativeLife.deathCleanup.pairOwnerReleased=$false} 'Native evidence boolean'
+Check-SeedDeath 'an unsettled relationship transition at cleanup' {$args[0].artifact.observations.nativeLife.deathCleanup.relationshipTransitionUnsettled=$true} 'Native evidence boolean'
+Check-SeedDeath 'a surviving mount still registered at cleanup' {$args[0].artifact.observations.nativeLife.deathCleanup.mountRegistryActive=$true} 'Native evidence boolean'
+Check-SeedDeath 'a mount lost at cleanup' {$a=$args[0].artifact.observations.nativeLife.deathCleanup.mount;$a.dead=$true;$a.conscious=$false;$a.life='Dead'} 'lost the surviving mount'
+Check-SeedDeath 'an inconsistent rider state at cleanup' {$args[0].artifact.observations.nativeLife.deathCleanup.rider.dead=$false} 'rider state is inconsistent'
+Check-SeedDeath 'a living unit dropped from the restored selection' {$args[0].artifact.observations.nativeLife.deathCleanup.selectionAfter=@()} 'did not restore the captured selection'
+Check-SeedDeath 'a selection outside the captured selection' {$args[0].artifact.observations.nativeLife.deathCleanup.selectionAfter=@($args[0].artifact.observations.actorIds[0],$args[0].artifact.observations.actorIds[1])} 'not a subset'
+Check-SeedDeath 'a cleanup without the observed dead control' {$args[0].artifact.observations.nativeLife.deathCleanup.control=$null} 'observed death control'
 Check-SeedCombat 'owner-seed-derived RT refuses a missing companion action' 'realtime-core' {$args[0].artifact.observations.PSObject.Properties.Remove('companionAction')} 'unrelated companion action'
 Check-SeedCombat 'owner-seed-derived RT refuses a reassigned pair command' 'realtime-core' {$args[0].artifact.observations.companionAction.after.pairCommands.b=@([pscustomobject]@{identity=8888;actorId=$args[0].request.ownedPairs.riderBId;type='Kingmaker.UnitLogic.Commands.UnitAttack';finished=$false})} 'reassigned or cancelled'
 Check-SeedCombat 'owner-seed-derived RT refuses a pair spending during the action' 'realtime-core' {$args[0].artifact.observations.companionAction.after.actors[2].standard=6} 'spent native resources'
