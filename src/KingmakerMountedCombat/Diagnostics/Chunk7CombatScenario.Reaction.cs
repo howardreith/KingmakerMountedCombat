@@ -13,7 +13,8 @@ using UnityEngine;
 namespace KingmakerMountedCombat.Diagnostics
 {
     // 7E X1 C11 reactions (owner-seed-combat-reaction, on the TB rider-first engine). On rider A's first
-    // prepared turn, mounted pair A stands inside the diagnostic target's native threatened area (an
+    // prepared turn (after one native same-round Delay behind the target if the target is still resolving its
+    // native initiative), mounted pair A stands inside the diagnostic target's native threatened area (an
     // ordinary native ground approach first only if it is not) and receives one ordinary native ground
     // order out of it. Stock UnitCombatState.Disengage owns the target's attack of opportunity, its
     // counter and its rolls; the scenario only clicks and observes. Nothing is granted, refunded or
@@ -23,7 +24,7 @@ namespace KingmakerMountedCombat.Diagnostics
     {
         private bool ReactionCase => request.OwnedPairs?.Case == Chunk7OwnedPairsSelection.OwnerSeedCombatReactionCase;
         private Chunk7PairRuleObserver reactionRules;
-        private JObject reaction, reactionLeg;
+        private JObject reaction, reactionLeg, reactionDelay;
         private UnitMoveTo reactionMove;
         private int reactionStage, reactionRound, reactionSettledFrames;
         private Vector3 reactionStart;
@@ -79,6 +80,7 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             Require(ReactionCase && OwnerSeedDerived && SelectedScenario == RiderFirst, "Reaction admission differs.");
             reactionRules = new Chunk7PairRuleObserver(ar, am, br, bm, target);
+            reactionDelay = null;
             reaction = new JObject { ["contract"] = "owner-seed-combat-reaction-v1", ["riderId"] = ar.UniqueId, ["mountId"] = am.UniqueId,
                 ["targetId"] = target.UniqueId, ["proneStandUp"] = new JObject { ["covered"] = false, ["reason"] = ProneHalfUncovered } };
             evidence["reaction"] = reaction;
@@ -136,6 +138,31 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (EndSurprisedRiderTurn(turn, reaction)) return;
                 // Rider A's own turn is never ended here; its partner context may still be binding.
                 if (!ReadyPrincipal(a)) { if (turn?.Unit != target && turn?.Unit != ar) EndNative(turn); return; }
+                if (reactionDelay != null)
+                    Require(controller.RoundNumber == (int)reactionDelay["round"], "Rider A did not resume its delayed native turn in the same round.");
+                if (reactionDelay == null && (target.CombatState.IsWaitingInitiative || controller.IsSurprised(target)))
+                {
+                    // b201 cr: in round 1 the target had not resolved its native initiative (waiting, cooldown 3.0),
+                    // so it could not make an attack of opportunity. Rider A's turn is never ended for it: rider A
+                    // uses the player's own native Delay behind the target (TurnController.DelayInitiaive, routed
+                    // through the product's paired Delay) and resumes in the same round once the target's own
+                    // turn has resolved its initiative. One Delay only; the pre-input gate below is unchanged.
+                    var units = controller.SortedUnits.ToList();
+                    reactionDelay = new JObject { ["round"] = controller.RoundNumber, ["targetBefore"] = TargetReactionState("delay-before"),
+                        ["canDelay"] = turn.CanDelay(), ["riderSlot"] = units.IndexOf(ar), ["targetSlot"] = units.IndexOf(target),
+                        ["targetWait"] = target.GetTimeToNextTurn(), ["nextRoundWait"] = controller.TimeToNextRound,
+                        ["before"] = WorldSnapshot("reaction-delay-before") };
+                    reaction["initiativeDelay"] = reactionDelay;
+                    Require(turn.CanDelay() && units.IndexOf(target) > units.IndexOf(ar) && target.GetTimeToNextTurn() < controller.TimeToNextRound,
+                        "The diagnostic target is still resolving its native initiative and rider A has no native same-round Delay behind it; " +
+                        "C11 disengagement is uncovered on this fixture: " + reactionDelay.ToString(Newtonsoft.Json.Formatting.None));
+                    turn.DelayInitiaive(target);
+                    reactionDelay["statusAfter"] = turn.Status.ToString(); reactionDelay["suspended"] = !ReferenceEquals(turn, controller.CurrentTurn);
+                    Require(turn.Status == TurnController.TurnStatus.Delayed && !ReferenceEquals(turn, controller.CurrentTurn),
+                        "Native Delay behind the diagnostic target did not suspend rider A's turn.");
+                    return;
+                }
+                if (reactionDelay != null) reactionDelay["resumed"] = WorldSnapshot("reaction-delay-resumed");
                 reactionRound = controller.RoundNumber; reaction["firstRound"] = reactionRound; actingPair = a; actingIndex = 0; actingTurn = turn;
                 var state = TargetReactionState("precondition"); reaction["precondition"] = state;
                 Require(a.Relationship.State == RelationshipState.Mounted, "Pair A is not mounted at its first prepared turn.");

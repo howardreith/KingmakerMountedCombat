@@ -335,6 +335,17 @@ function Assert-KmcChunk7ReactionCombat($Request,$Observations){
  if($null-eq$x.PSObject.Properties['rules']-or$null-eq$x.rules-or$x.rules.dropped-ne0-or@($x.rules.errors).Count-ne0){throw 'Reaction rule observation dropped or failed.'}
  if(-not(Test-KmcExactJsonInteger $x.firstRound)){throw 'Reaction lacks its first native round.'};$n=[long]$x.firstRound
  $p=$x.precondition;Assert-KmcChunk7ReactionTargetState $p $o.targetId
+ # b201 cr: a target still resolving its native initiative cannot make an attack of opportunity. Rider A then
+ # used one native same-round Delay behind it and resumed in the same round; its turn was never ended.
+ if($null-ne$x.PSObject.Properties['initiativeDelay']){$dl=$x.initiativeDelay
+  Assert-KmcExactProperties $dl @('round','targetBefore','canDelay','riderSlot','targetSlot','targetWait','nextRoundWait','before','statusAfter','suspended','resumed') 'reaction initiative delay'
+  Assert-KmcChunk7ReactionTargetState $dl.targetBefore $o.targetId
+  if($dl.round-ne$n-or$dl.targetBefore.round-ne$n-or-not($dl.targetBefore.waitingInitiative-eq$true-or$dl.targetBefore.surprised-eq$true)){throw 'Rider A delayed although the target had resolved its native initiative, or outside the measured round.'}
+  if($dl.canDelay-ne$true-or$dl.statusAfter-cne'Delayed'-or$dl.suspended-ne$true-or-not(Test-KmcExactJsonInteger $dl.riderSlot)-or-not(Test-KmcExactJsonInteger $dl.targetSlot)-or$dl.targetSlot-le$dl.riderSlot-or
+     -not(Test-KmcChunk7FiniteNumber $dl.targetWait)-or-not(Test-KmcChunk7FiniteNumber $dl.nextRoundWait)-or$dl.targetWait-ge$dl.nextRoundWait){throw 'Rider A''s native Delay was not one same-round suspension behind the later diagnostic target.'}
+  if($null-eq$dl.before-or$null-eq$dl.resumed-or$dl.before.round-ne$n-or$dl.resumed.round-ne$n-or$dl.resumed.currentActor-cne$roles[0]){throw 'Rider A did not resume its delayed native turn in the same round.'}
+  # Mount A's suspended paired grant is untouched by the Delay; pair B's own turns may end natively meanwhile.
+  Assert-KmcChunk7NeverSpentCombatBudget $dl.before $dl.resumed @($roles[1])}
  if($p.round-ne$n-or$p.reactions-ne1-or$p.reactionsPerRound-ne1-or$p.canAttackOfOpportunity-ne$true){throw 'The diagnostic target did not hold exactly one available native attack of opportunity at the stimulus.'}
  # The native AttackOfOpportunity gates beyond the counter, at the stimulus and at the disengagement.
  $gates=if($null-ne$x.PSObject.Properties['disengageGates']){$x.disengageGates}else{$null}
