@@ -245,7 +245,10 @@ namespace KingmakerMountedCombat.Diagnostics
             var damage = Rulebook.Trigger(new RuleDealDamage(target, chosen,
                 new DamageBundle(new DirectDamage(new DiceFormula(0, DiceType.Zero), requested))));
             control["nativeDamage"] = damage.Damage; control["afterDamage"] = LifeActor(chosen);
-            Require(damage.DamageBeforeDifficulty == requested && chosen.Damage >= hp + 1 && chosen.Damage < deathThreshold,
+            // Exact accounting: native damage first spends temporary HP; the rest is the damage delta.
+            var absorbed = temporaryHp - chosen.Stats.TemporaryHitPoints.ModifiedValue;
+            Require(damage.DamageBeforeDifficulty == requested && chosen.Damage >= hp + 1 && chosen.Damage < deathThreshold &&
+                (int)control["afterDamage"]["damage"] - (int)control["before"]["damage"] == damage.Damage - absorbed,
                 "Unmounted control damage failed its bounded living window.");
         }
         // One unit's N+1 trace, defined on the trace's own hooks for every unit: the window runs

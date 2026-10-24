@@ -187,7 +187,7 @@ function Assert-KmcChunk7UnconsciousNativeTurn($Recorded,$Trace,[string]$Actor,[
   Assert-KmcChunk7LifeActor $control.before $control.actorId $true;Assert-KmcChunk7LifeActor $control.afterDamage $control.actorId $true
   foreach($f in @('mainCharacter','essential','immortal')){Assert-KmcChunk7Boolean $control.before.$f $false};Assert-KmcChunk7Boolean $control.before.allowDyingCondition $true
   if(-not(Test-KmcExactJsonInteger $control.requestedDamage)-or$control.requestedDamage-le0-or-not(Test-KmcExactJsonInteger $control.nativeDamage)-or$control.nativeDamage-le0-or
-     $control.afterDamage.damage-ne$control.before.damage+$control.nativeDamage-or
+     $control.afterDamage.damage-ne$control.before.damage+$control.nativeDamage-($control.before.temporaryHp-$control.afterDamage.temporaryHp)-or$control.afterDamage.temporaryHp-gt$control.before.temporaryHp-or
      $control.afterDamage.damage-lt$control.before.hp+1-or$control.afterDamage.damage-ge$control.before.hp+$control.before.constitution){throw 'Unconscious control damage is not one bounded living stimulus.'}
   Assert-KmcChunk7UnconsciousNativeTurn $control.turn $lifeTrace $control.actorId $nextRound $false
   if((ConvertTo-KmcChunk7Canonical @($control.turn.sequence))-cne(ConvertTo-KmcChunk7Canonical @($life.incapacitatedRiderTurn.sequence))-or

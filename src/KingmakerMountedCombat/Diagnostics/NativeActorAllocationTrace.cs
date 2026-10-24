@@ -209,7 +209,8 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void RecordForceToEnd(UnitEntityData actor)
         {
-            if (actor == null || forceToEnd.Count >= 4096) return;
+            if (actor == null) return;
+            if (forceToEnd.Count >= 4096) { dropped++; return; }
             try
             {
                 forceToEnd.Add(new JObject { ["eventSequence"] = events.Count, ["actor"] = actor.UniqueId, ["frame"] = Time.frameCount,
