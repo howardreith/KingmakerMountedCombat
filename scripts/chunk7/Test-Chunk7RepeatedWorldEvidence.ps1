@@ -150,6 +150,13 @@ Reject 'ordered-dictionary-save-family' {$r=New-RepeatedRunnerRequest;$r['scenar
        'replaced-area-horse-subscriber' {@($r.worlds[1].subscriptions.entries|Where-Object type -CEQ 'KingmakerMountedCombat.Integration.HorseCompanionAddPet')[0].identity=76123}
     };Assert-KmcChunk7PersistenceObservation $areaRequest $a 'PASS'}
 }
+# b195 x4c: the reviewed capital pins are refused before launch and by the request reader.
+Check 'route refusal names the reviewed capital evidence' {$c=@(Get-KmcChunk7KnownCapitalAreaPins);if($c.Count-ne1-or$c[0].area-cne'ead426a6c23d39548a670ee515d77df4'-or$c[0].enterPoint-cne'fd225a93828d26449803a4847947f8c1'-or$c[0].evidenceRunId-cne'20261019-c7b-world48-ownerseed-b23s3-areaauto'){throw 'Capital pin list differs.'}}
+foreach($leg in 0..2){
+ Reject ('repeated route entering the capital at leg '+($leg+1)) {$q=Copy-Test $areaRequest;$q.persistenceReplayTargets[$leg].enterPoint='fd225a93828d26449803a4847947f8c1';$q.persistenceReplayTargets[$leg].area='ead426a6c23d39548a670ee515d77df4';Assert-KmcChunk7RepeatedWorldRequest $q}
+}
+Reject 'repeated route naming only the capital area' {$q=Copy-Test $areaRequest;$q.persistenceReplayTargets[1].area='ead426a6c23d39548a670ee515d77df4';Assert-KmcChunk7RepeatedWorldRequest $q}
+Check 'runner refuses known capital pins before intake' {$r=[IO.File]::ReadAllText((Join-Path $repo 'scripts/runtime/Invoke-KingmakerRuntimeScenario.ps1'));if($r-notmatch'Assert-KmcChunk7RouteAvoidsKnownCapitals \$PersistenceReplayAreaEnterPoints \$PersistenceReplayAreaAreas'){throw 'Runner lacks the prelaunch capital refusal.'};try{Assert-KmcChunk7RouteAvoidsKnownCapitals @('fd225a93828d26449803a4847947f8c1') @('b10e86516b6437d45a629931c30936fe');throw 'admitted'}catch{if($_.Exception.Message-notmatch'known capital entry point'){throw}}}
 # b194 x4c review: KMC Horse owners count every Horse-mounted profile, exactly as the product does.
 function HorsePair([string]$Profile){[pscustomobject]@{ProfileId=$Profile}}
 function HorseSubscriptions([int]$Count){

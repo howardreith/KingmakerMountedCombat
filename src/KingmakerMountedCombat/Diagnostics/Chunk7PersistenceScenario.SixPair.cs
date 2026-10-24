@@ -205,7 +205,14 @@ namespace KingmakerMountedCombat.Diagnostics
                 errors.Count != 0 && results.Any(row => row.Status == "FAIL"),
                 "No committed retained two-pair persistence failure owns this world.");
             Require(nativeScope != null, "Captured native world authority is absent.");
-            nativeScope.RequireCurrent();
+            // A refused area restore leaves the party in the declared destination (b195 x4c).
+            // Only then is the destination world admitted, through the scope's existing exact
+            // check: the same game, player, state, campaign and main character, the declared area
+            // blueprint and scene state, and every tracked actor identity unreplaced.
+            if (persistence.FailedAreaPairCount != 0 && replayDestination != null &&
+                ReferenceEquals(Kingmaker.Game.Instance?.CurrentlyLoadedArea, replayDestination))
+                nativeScope.RequireDeclaredAreaDestination(replayDestination.AssetGuidThreadSafe, replayDestination);
+            else nativeScope.RequireCurrent();
         }
         internal void RequireRetainedSixFailureScope()
         {

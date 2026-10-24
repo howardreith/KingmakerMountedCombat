@@ -171,16 +171,14 @@ namespace KingmakerMountedCombat.Integration
                 }
                 controls.ResumeAreaControls();
                 controls.RestorePersistentSlots(transfer.Slots);
-                foreach (var pair in retire)
-                {
-                    AreaRetiredPairCount++;
-                    Report("Mounted pair " + resolved[pair.RiderId].CharacterName + " and " + resolved[pair.MountId].CharacterName +
-                        " was dismounted on arrival: the companion is not directly controllable in this area. Mount again after leaving.");
-                }
+                AreaRetiredPairCount += retire.Count;
+                // Report keeps one feedback line, so the dismounted pairs are named in the summary itself.
                 Report(retire.Count == 0
                     ? "All " + transfer.Pairs.Length + " mounted relationships restored before area autosave without Mount or preparation."
-                    : restore.Count + " of " + transfer.Pairs.Length + " mounted relationships restored before area autosave without Mount or preparation; " +
-                        retire.Count + " dismounted by the native capital control rule.");
+                    : "Dismounted on arrival because the companion is not directly controllable in this area: " +
+                        string.Join(", ", retire.Select(pair => resolved[pair.RiderId].CharacterName + " and " + resolved[pair.MountId].CharacterName).ToArray()) +
+                        ". Mount again after leaving. " + restore.Count + " of " + transfer.Pairs.Length +
+                        " mounted relationships restored without Mount or preparation.");
             }
             catch (Exception error)
             {

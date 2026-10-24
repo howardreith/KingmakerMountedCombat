@@ -306,6 +306,7 @@ if(Test-KmcChunk7RepeatedWorldCase $PersistenceCase){
 }
 if($PersistenceCase-ceq'multi-exploration-three-area-transfers-manual'){
     if(@($PersistenceReplayAreaEnterPoints).Count-ne3-or@($PersistenceReplayAreaAreas).Count-ne3){throw 'Repeated area transfer requires exactly three caller-pinned enter points and destination areas.'}
+    Assert-KmcChunk7RouteAvoidsKnownCapitals $PersistenceReplayAreaEnterPoints $PersistenceReplayAreaAreas
 }elseif($PSBoundParameters.ContainsKey('PersistenceReplayAreaEnterPoints')-or$PSBoundParameters.ContainsKey('PersistenceReplayAreaAreas')){throw 'Only the repeated-area case accepts native route pins.'}
 if($PersistenceCase-ceq'legacy-schema1-resave-manual'-and$Scenario-cne'chunk7-persistence-load'){throw 'Schema-1 native resave is load-only.'}
 if((Test-KmcOwnedSchema1Case $PersistenceCase)-and$Scenario-cne'chunk7-owned-two-pair-campaign'){throw 'Owned schema-1 cases belong only to the closed inherited family.'}

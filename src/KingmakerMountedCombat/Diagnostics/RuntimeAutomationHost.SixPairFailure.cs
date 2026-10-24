@@ -48,10 +48,10 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool RetainedSixPairFailureExitReady()
         {
             var selection = request.OwnedPairs;
-            if (selection == null) return false;
+            if (selection == null) return Decline("the run has no owned-pair selection");
             var sixPair = selection.SixPairLineage;
             var twoPairPersistence = !sixPair && selection.Persistence && worldPersistenceEngine != null && worldEngine == null;
-            if (!sixPair && !twoPairPersistence) return false;
+            if (!sixPair && !twoPairPersistence) return Decline("the selection is neither six-pair lineage nor an owned persistence run");
             var stress = sixPair && selection.IsSixPairStress;
             var declaredWrites = sixPair ? (selection.IsSixPairSave ? 1 : 0) : selection.ExpectedNativeWriteCount;
             var declaredLoads = sixPair ? 1 : selection.ExpectedNativeLoadCount;
@@ -73,10 +73,10 @@ namespace KingmakerMountedCombat.Diagnostics
                 persistence.CompletedSaveCount != saveRequestCount || NativePersistenceIsolation.HasPendingWrites ||
                 relationship.World == null || relationship.World.SerializationBusy)
             {
-                return false;
+                return Decline("declared quotas, completion state or native save/load state are not settled");
             }
             var loading = LoadingProcess.Instance;
-            if (loading == null || loading.IsLoadingInProcess || loading.QueuedNames.Any()) return false;
+            if (loading == null || loading.IsLoadingInProcess || loading.QueuedNames.Any()) return Decline("native loading is in progress");
             try
             {
                 if (stress) worldEngine.RequireRetainedSixFailureScope();
@@ -89,25 +89,36 @@ namespace KingmakerMountedCombat.Diagnostics
                     !string.Equals(FindSingleArgument(arguments, TokenArgument), request.TransactionToken, StringComparison.Ordinal) ||
                     !string.Equals(ComputeSha256(requestFile), FindSingleArgument(arguments, RequestHashArgument), StringComparison.Ordinal))
                 {
-                    return false;
+                    return Decline("the launched request, token or request bytes differ");
                 }
                 var pending = Path.Combine(request.EvidenceRoot, stress ? Chunk7WorldScenarioEngine.CleanupPendingFileName :
                     Chunk7PersistenceScenario.CleanupPendingFileName);
                 var committed = stress ? worldEngine.RetainedFailureArtifactSha256 : worldPersistenceEngine.RetainedFailureArtifactSha256;
                 return !string.IsNullOrEmpty(committed) && File.Exists(pending) &&
-                    string.Equals(ComputeSha256(pending), committed, StringComparison.Ordinal);
+                    string.Equals(ComputeSha256(pending), committed, StringComparison.Ordinal) ||
+                    Decline("the committed retained-failure artifact is absent or changed");
             }
-            catch
+            catch (Exception error)
             {
-                return false;
+                return Decline("the retained failure scope was refused: " + error.Message);
             }
+        }
+
+        // Once the bounded drain has expired, name each distinct reason the exit declines, once.
+        private readonly System.Collections.Generic.HashSet<string> retainedExitDeclines =
+            new System.Collections.Generic.HashSet<string>(StringComparer.Ordinal);
+        private bool Decline(string reason)
+        {
+            if (chunk7Completion != null && chunk7Completion.DeadlineExceeded && retainedExitDeclines.Add(reason))
+                logger.Warning("Retained terminal FAIL exit declined: " + reason + ".");
+            return false;
         }
 
         private RuntimeGameResultV2 CreateRetainedSixPairFailure()
         {
             const string reason = "Disposable six-pair run failed with retained volatile cleanup custody after its bounded drain. " +
                 "No save, load or serialization work remains; a normal process exit is requested without claiming cleanup or qualification.";
-            const string twoPairReason = "Disposable two-pair persistence run failed with retained volatile cleanup custody after its bounded drain. " +
+            const string twoPairReason = "Disposable owned-pair persistence run failed with retained volatile cleanup custody after its bounded drain. " +
                 "No save, load or serialization work remains; a normal process exit is requested without claiming cleanup or qualification.";
             var sixPair = request.OwnedPairs.SixPairLineage;
             var exitReason = sixPair ? reason : twoPairReason;
