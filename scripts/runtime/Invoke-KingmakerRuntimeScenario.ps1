@@ -630,6 +630,7 @@ $restoredSaveInventoryDigest='0'*64
 $gamePassed=$false
 $validatedGameResult=$null
 $gameResultHash=$null
+$requestHash=$null
 $final=$null
 $lockedWorkingPath=$null
 $manualReady=$null
@@ -1590,6 +1591,15 @@ finally{
             limitation=$(if($isNormalPlayer){'Request-free control under an external observer: exactly two active UMM entries (KMC and the observer) and both assembly identities are observed in-process; installed loader files are verified on disk; the complete loaded-assembly inventory is not observed.'}else{'Qualification is limited to this exact selected scenario and candidate. Loaded UMM entries and assembly identities are observed; broader gameplay is not inferred.'})})}
         catch{$errors.Add('Base-game isolation receipt failed: '+$_.Exception.Message)}
     }
+    # The normal-player outer result binds its request (and so any u2/u3 carry source) by SHA-256;
+    # a request changed after launch is refused.
+    $normalPlayerRequestSha256=$null
+    if($isNormalPlayer-and(Test-Path -LiteralPath $requestPath -PathType Leaf)){
+        try{
+            $normalPlayerRequestSha256=Get-KmcSha256 $requestPath
+            if($null-ne$requestHash-and$normalPlayerRequestSha256-cne$requestHash){$errors.Add('Runtime request changed after launch.')}
+        }catch{$errors.Add('Normal-player request hash failed: '+$_.Exception.Message)}
+    }
     $errorArray=@($errors|ForEach-Object{[string]$_})
     if($null-ne$request){
         if($isManualReview){
@@ -1610,7 +1620,7 @@ finally{
         }
         elseif($isSaveBacked){
             $final=New-KmcRuntimeResultV2 -Request $request -ValidatedGameResult $validatedGameResult -StartedAtUtc $startedAt -ModsRestored $modsRestored -BaselineImmutable $baselineImmutable -WorkingRestored $workingRestored -SaveWriteAllowlistPassed $saveWriteAllowlistPassed -RestoredSaveInventoryDigest $restoredSaveInventoryDigest -GameResultSha256 $gameResultHash -Errors $errorArray
-            if($isNormalPlayer){$final['normalPlayerUmmReceiptSha256']=$ummReceiptSha256}
+            if($isNormalPlayer){$final['normalPlayerUmmReceiptSha256']=$ummReceiptSha256;$final['normalPlayerRequestSha256']=$normalPlayerRequestSha256}
         }
         else{
             $status=if($gamePassed-and$modsRestored-and$saveProtection-and$errorArray.Count-eq0){'PASS'}else{'FAIL'}

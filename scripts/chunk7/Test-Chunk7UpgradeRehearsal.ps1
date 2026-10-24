@@ -60,7 +60,7 @@ function Stage-Carry([scriptblock]$Mutate,[scriptblock]$PostWrite){
  $cache=Join-Path $after 'KingmakerMountedCombat.dll.4242.cache';[IO.File]::WriteAllBytes($cache,$dllBytes)
  $f=[pscustomobject]@{
   request=[pscustomobject]@{runId=$u1;scenario='chunk7-normal-player-control';normalPlayer=[pscustomobject]@{upgradeRehearsal=[pscustomobject]@{rehearsalId=$rid;step='u1-previous-install';stagedKmc=[pscustomobject]@{role='previous';version=$pins.version;commit=$pins.commit;packageSha256=$pins.packageSha256;manifestSha256=$pins.manifestSha256;dllSha256=$pins.dllSha256;dllMvid=$pins.dllMvid}}}}
-  result=[pscustomobject]@{runId=$u1;status='PASS';gameResultSha256=$null;normalPlayerUmmReceiptSha256=$null}
+  result=[pscustomobject]@{runId=$u1;status='PASS';gameResultSha256=$null;normalPlayerUmmReceiptSha256=$null;normalPlayerRequestSha256=$null}
   receipt=(Clone $carryReceipt)
   game=[pscustomobject]@{evidenceKind='kmc-normal-player-observer';status='PASS';runId=$u1;observerResultSha256=$null
    upgradeRehearsal=[pscustomobject]@{rehearsalId=$rid;step='u1-previous-install';stagedKmc=[pscustomobject]@{packageSha256=$pins.packageSha256;dllSha256=$pins.dllSha256};loadedKmc=[pscustomobject]@{dllSha256=$pins.dllSha256;dllMvid=$pins.dllMvid}}}
@@ -75,7 +75,7 @@ function Stage-Carry([scriptblock]$Mutate,[scriptblock]$PostWrite){
  Write-KmcJsonAtomic (Join-Path $ev 'observer-result.json') $f.observer
  $f.game.observerResultSha256=Get-KmcSha256 (Join-Path $ev 'observer-result.json');Write-KmcJsonAtomic (Join-Path $ev 'runtime-game-result.json') $f.game
  Write-KmcJsonAtomic (Join-Path $ev 'normal-player-umm-log.json') $f.receipt;$f.result.normalPlayerUmmReceiptSha256=Get-KmcSha256 (Join-Path $ev 'normal-player-umm-log.json')
- $f.result.gameResultSha256=Get-KmcSha256 (Join-Path $ev 'runtime-game-result.json');Write-KmcJsonAtomic (Join-Path $ev 'runtime-result.json') $f.result
+ $f.result.normalPlayerRequestSha256=Get-KmcSha256 (Join-Path $ev 'runtime-request.json');$f.result.gameResultSha256=Get-KmcSha256 (Join-Path $ev 'runtime-game-result.json');Write-KmcJsonAtomic (Join-Path $ev 'runtime-result.json') $f.result
  Write-KmcJsonAtomic (Join-Path $fakeLab ('runtime-state/transactions/'+$u1+'.json')) $f.state
  if($PostWrite){&$PostWrite $ev}
 }
@@ -112,6 +112,8 @@ Check 'carry refuses a game record that no longer matches the outer result' {Sta
 Check 'carry refuses an observer result that no longer matches the game record' {Stage-Carry $null {param($ev)[IO.File]::AppendAllText((Join-Path $ev 'observer-result.json'),' ')};[void](Read-CarrySource)} $true 'game record does not bind a passed u1'
 Check 'carry refuses a u1 receipt changed after its hash was recorded' {Stage-Carry $null {param($ev)[IO.File]::AppendAllText((Join-Path $ev 'normal-player-umm-log.json'),' ')};[void](Read-CarrySource)} $true 'does not match the SHA-256 its outer result records'
 Check 'carry refuses a u1 result that records no receipt hash' {Stage-Carry $null {param($ev)$p=Join-Path $ev 'runtime-result.json';$x=Read-KmcJson $p;$x.PSObject.Properties.Remove('normalPlayerUmmReceiptSha256');Write-KmcJsonAtomic $p $x};[void](Read-CarrySource)} $true 'does not record its UMM session receipt SHA-256'
+Check 'carry refuses a u1 result that records no request hash' {Stage-Carry $null {param($ev)$p=Join-Path $ev 'runtime-result.json';$x=Read-KmcJson $p;$x.PSObject.Properties.Remove('normalPlayerRequestSha256');Write-KmcJsonAtomic $p $x};[void](Read-CarrySource)} $true 'does not record its request SHA-256'
+Check 'carry refuses a u1 request changed after its hash was recorded' {Stage-Carry $null {param($ev)[IO.File]::AppendAllText((Join-Path $ev 'runtime-request.json'),' ')};[void](Read-CarrySource)} $true 'does not match the SHA-256 its outer result records'
 Check 'carry refuses a missing u1 game record' {Stage-Carry $null {param($ev)Remove-Item -LiteralPath (Join-Path $ev 'runtime-game-result.json')};[void](Read-CarrySource)} $true 'record is missing'
 Check 'carry refuses a staged-after tree outside the lab staging root' {Stage-Carry {param($f)$f.state.stagedAfter='C:\Windows\Temp\elsewhere'};[void](Read-Carry)} $true 'staged-after tree'
 Check 'carry refuses an invalid rehearsal id' {Stage-Carry $null;[void](Read-Carry 'bad id!')} $true 'rehearsal id is invalid'
@@ -493,7 +495,8 @@ $noReader={param($r,$q)}
 Check 'rows 55-56 bind the real b200 rehearsal (full external reader on each step)' {
  $b=Assert-KmcChunk7UpgradeRehearsalComplete $x5Rid (New-X5Pins)
  if($b.rehearsalId-cne$x5Rid-or(@($b.steps|ForEach-Object{$_.step})-join',')-cne($x5Order-join',')-or(@($b.steps|ForEach-Object{$_.stagedRole})-join',')-cne'previous,candidate,previous'-or
-  [string]$b.candidate.dllSha256-cne'ec20ee8f4e6824fb5530f386354fa1117da0920aff6c1a159c22b34a406ecc13'-or@($b.steps|Where-Object{[string]$_.ummReceiptSha256-cnotmatch'^[0-9a-f]{64}$'}).Count-ne0){throw 'Binding differs.'}
+  [string]$b.candidate.dllSha256-cne'ec20ee8f4e6824fb5530f386354fa1117da0920aff6c1a159c22b34a406ecc13'-or@($b.steps|Where-Object{[string]$_.ummReceiptSha256-cnotmatch'^[0-9a-f]{64}$'}).Count-ne0-or
+  (@($b.steps|ForEach-Object{$_.requestBinding})-join',')-cne'legacy-pinned,legacy-pinned,legacy-pinned'){throw 'Binding differs.'}
 }
 Check 'rows 55-56 run the external reader once per step, in order' {$seen=[Collections.Generic.List[string]]::new()
  [void](Assert-KmcChunk7UpgradeRehearsalComplete $x5Rid (New-X5Pins) {param($r,$q)$seen.Add((Split-Path -Leaf (Split-Path -Parent $r)))})
@@ -527,26 +530,42 @@ function Edit-X5Json([string]$RunId,[string]$Leaf,[scriptblock]$Edit){
  $p=if($Leaf-ceq'state'){Join-Path $x5Lab ('runtime-state/transactions/'+$RunId+'.json')}else{Join-Path $x5Lab ('runtime-evidence/'+$RunId+'/'+$Leaf)}
  $v=Read-KmcJson $p;&$Edit $v;[IO.File]::WriteAllText($p,($v|ConvertTo-Json -Depth 60),[Text.UTF8Encoding]::new($false))
 }
+# Records the current request hash in a copied run's outer result, as the runner now does, so a
+# mutation reaches the check it targets instead of the legacy request pin.
+function Bind-X5Request([string]$RunId){$d=Join-Path $x5Lab ('runtime-evidence/'+$RunId);Edit-X5Json $RunId 'runtime-result.json' {param($v)$v|Add-Member -NotePropertyName normalPlayerRequestSha256 -NotePropertyValue (Get-KmcSha256 (Join-Path $d 'runtime-request.json')) -Force}}
 function Invoke-X5Fake([scriptblock]$Mutate){Stage-X5 $Mutate;Use-Lab $x5Lab;try{Assert-KmcChunk7UpgradeRehearsalComplete $x5Rid (New-X5Pins) $noReader}finally{Restore-Lab}}
 # An unchanged copy passes every cross-run check and stops only where the carried files are
 # re-derived from u1's staged-after tree, which the copy does not hold: so each mutation below
 # is refused by its own check, not by the copy.
+# The result validator verifies a recorded request hash against the request bytes.
+function Invoke-X5ResultValidator([string]$RunId){$d=Join-Path $x5Lab ('runtime-evidence/'+$RunId);$null=& (Join-Path $PSScriptRoot '../runtime/Test-RuntimeResult.ps1') -ResultPath (Join-Path $d 'runtime-result.json') -RequestPath (Join-Path $d 'runtime-request.json') 6>$null}
+Check 'the result validator accepts a recorded request hash that matches its request' {Stage-X5 {Bind-X5Request $x5Ids[1]};Invoke-X5ResultValidator $x5Ids[1]}
+Check 'the result validator refuses a request changed after its hash was recorded' {Stage-X5 {Bind-X5Request $x5Ids[1];[IO.File]::AppendAllText((Join-Path $x5Lab ('runtime-evidence/'+$x5Ids[1]+'/runtime-request.json')),' ')};Invoke-X5ResultValidator $x5Ids[1]} $true 'normalPlayerRequestSha256 does not match its request bytes'
+Check 'the result validator refuses a malformed recorded request hash' {Stage-X5 {Edit-X5Json $x5Ids[1] 'runtime-result.json' {param($v)$v|Add-Member -NotePropertyName normalPlayerRequestSha256 -NotePropertyValue ('A'*64) -Force}};Invoke-X5ResultValidator $x5Ids[1]} $true 'normalPlayerRequestSha256 does not match its request bytes'
 Check 'an unchanged fake-lab copy reaches the carried-file re-derivation' {Invoke-X5Fake $null} $true 'u1 staged-after tree'
 foreach($m in @(
  @('a tampered u2 game record',{[IO.File]::AppendAllText((Join-Path $x5Lab ('runtime-evidence/'+$x5Ids[1]+'/runtime-game-result.json')),' ')},'not hash-bound result to game record'),
  @('a tampered u3 observer result',{[IO.File]::AppendAllText((Join-Path $x5Lab ('runtime-evidence/'+$x5Ids[2]+'/observer-result.json')),' ')},'not hash-bound result to game record'),
  @('a tampered u1 UMM receipt',{[IO.File]::AppendAllText((Join-Path $x5Lab ('runtime-evidence/'+$x5Ids[0]+'/normal-player-umm-log.json')),' ')},'does not match the SHA-256 its outer result records'),
- @('a u3 request of another rehearsal id',{Edit-X5Json $x5Ids[2] 'runtime-request.json' {param($v)$v.normalPlayer.upgradeRehearsal.rehearsalId='x5-other'}},'mixes steps or rehearsal ids'),
+ @('a u3 request of another rehearsal id',{Edit-X5Json $x5Ids[2] 'runtime-request.json' {param($v)$v.normalPlayer.upgradeRehearsal.rehearsalId='x5-other'};Bind-X5Request $x5Ids[2]},'mixes steps or rehearsal ids'),
  @('a u2 whose outer result failed',{Edit-X5Json $x5Ids[1] 'runtime-result.json' {param($v)$v.status='FAIL'}},'step did not pass: u2-upgrade'),
  @('a u2 PASS over a failed observer result (hash chain re-bound)',{$d=Join-Path $x5Lab ('runtime-evidence/'+$x5Ids[1])
   Edit-X5Json $x5Ids[1] 'observer-result.json' {param($v)$v.status='FAIL'}
   Edit-X5Json $x5Ids[1] 'runtime-game-result.json' {param($v)$v.observerResultSha256=(Get-KmcSha256 (Join-Path $d 'observer-result.json'))}
   Edit-X5Json $x5Ids[1] 'runtime-result.json' {param($v)$v.gameResultSha256=(Get-KmcSha256 (Join-Path $d 'runtime-game-result.json'))}},'disagree on the verdict: '),
- @('a u3 started before u2 completed',{Edit-X5Json $x5Ids[2] 'runtime-result.json' {param($v)$v.startedAtUtc='2026-10-24T10:46:30.0000000+00:00'}},'run in that order'),
- @('a u3 on another candidate',{Edit-X5Json $x5Ids[2] 'runtime-result.json' {param($v)$v.commit=('a'*40)}},'more than one candidate'),
- @('a u3 whose product version differs only in case',{Edit-X5Json $x5Ids[2] 'runtime-result.json' {param($v)$v.productVersion=([string]$v.productVersion).ToUpperInvariant()}},'more than one candidate: productVersion'),
- @('a u2 whose carry source pins another u1 game record',{Edit-X5Json $x5Ids[1] 'runtime-request.json' {param($v)$v.normalPlayer.upgradeRehearsal.carrySource.gameResultSha256=('0'*64)}},'does not bind the same u1'),
- @('a u3 whose carry source names another run',{Edit-X5Json $x5Ids[2] 'runtime-request.json' {param($v)$v.normalPlayer.upgradeRehearsal.carrySourceRunId=$x5Ids[1]}},'does not bind the same u1'),
+ @('a u3 started before u2 completed',{Edit-X5Json $x5Ids[2] 'runtime-result.json' {param($v)$v.startedAtUtc='2026-10-24T10:46:30.0000000+00:00'};Bind-X5Request $x5Ids[2]},'run in that order'),
+ @('a u3 on another candidate',{Edit-X5Json $x5Ids[2] 'runtime-result.json' {param($v)$v.commit=('a'*40)};Bind-X5Request $x5Ids[2]},'more than one candidate'),
+ @('a u3 whose product version differs only in case',{Edit-X5Json $x5Ids[2] 'runtime-result.json' {param($v)$v.productVersion=([string]$v.productVersion).ToUpperInvariant()};Bind-X5Request $x5Ids[2]},'more than one candidate: productVersion'),
+ @('a u2 whose carry source pins another u1 game record',{Edit-X5Json $x5Ids[1] 'runtime-request.json' {param($v)$v.normalPlayer.upgradeRehearsal.carrySource.gameResultSha256=('0'*64)};Bind-X5Request $x5Ids[1]},'does not bind the same u1'),
+ # The residual closed: a carry source edited after the run is refused by the request hash.
+ @('a legacy u2 request edited after its run (carry source)',{Edit-X5Json $x5Ids[1] 'runtime-request.json' {param($v)$v.normalPlayer.upgradeRehearsal.carrySource.gameResultSha256=('0'*64)}},'does not match the SHA-256 pinned for its legacy result'),
+ @('a legacy u3 request edited after its run (carry source run)',{Edit-X5Json $x5Ids[2] 'runtime-request.json' {param($v)$v.normalPlayer.upgradeRehearsal.carrySourceRunId=$x5Ids[1]}},'does not match the SHA-256 pinned for its legacy result'),
+ @('a legacy u1 request edited after its run',{[IO.File]::AppendAllText((Join-Path $x5Lab ('runtime-evidence/'+$x5Ids[0]+'/runtime-request.json')),' ')},'does not match the SHA-256 pinned for its legacy result'),
+ @('a runner-bound u2 request edited after its hash was recorded',{Bind-X5Request $x5Ids[1];[IO.File]::AppendAllText((Join-Path $x5Lab ('runtime-evidence/'+$x5Ids[1]+'/runtime-request.json')),' ')},'does not match the SHA-256 its outer result records'),
+ @('a recorded request hash that is not a SHA-256',{Edit-X5Json $x5Ids[2] 'runtime-result.json' {param($v)$v|Add-Member -NotePropertyName normalPlayerRequestSha256 -NotePropertyValue 'X' -Force}},'does not match the SHA-256 its outer result records'),
+ @('a recorded null request hash',{Edit-X5Json $x5Ids[2] 'runtime-result.json' {param($v)$v|Add-Member -NotePropertyName normalPlayerRequestSha256 -NotePropertyValue $null -Force}},'does not match the SHA-256 its outer result records'),
+ @('a changed u3 result that no longer matches its legacy pin',{Edit-X5Json $x5Ids[2] 'runtime-result.json' {param($v)$v.commit=('a'*40)}},'does not hash-bind its request'),
+ @('a u3 whose carry source names another run',{Edit-X5Json $x5Ids[2] 'runtime-request.json' {param($v)$v.normalPlayer.upgradeRehearsal.carrySourceRunId=$x5Ids[1]};Bind-X5Request $x5Ids[2]},'does not bind the same u1'),
  @('a u1 transaction state changed after u2 and u3 pinned it',{[IO.File]::AppendAllText((Join-Path $x5Lab ('runtime-state/transactions/'+$x5Ids[0]+'.json')),' ')},'does not bind the same u1: \S+ stateSha256'))){
  Check ('rows 55-56 refuse '+$m[0]) {Invoke-X5Fake $m[1]} $true $m[2]
 }
