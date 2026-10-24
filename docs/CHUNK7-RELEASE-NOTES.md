@@ -40,7 +40,10 @@ See [the changelog](CHUNK7-CHANGELOG.md) for the full list with commits,
 - **Mounted-state upgrade is qualified on migrated derivatives, not on an archive written by
   preview.211.** The upgrade path for saves is carried by the schema-1/2 to schema-3 migration chains
   (7E rows 17–22), whose inputs are derivatives made from schema-3 archives. No save written by
-  preview.211 with a mounted pair was upgraded.
+  preview.211 with a mounted pair was upgraded. **Loading a preview.211 save under this build is untested
+  by automation**; it is an owner check ([owner play checklist](CHUNK7-OWNER-PLAY-CHECKLIST.md) §11),
+  together with placing Mount Companion and Dismount on the action bar by hand (§2) and the capital
+  dismount on arrival and re-mount after leaving (§9).
 - The installation-level rehearsal (X5, batch200, development pilot) passed: u1 preview.211 install
   27/0, u2 upgrade 42/0, u3 rollback 27/0. Every run restored exactly.
 - **Rollback restores the pre-upgrade save, not a post-upgrade one.** Keep your pre-upgrade saves and the
@@ -54,24 +57,27 @@ See [the changelog](CHUNK7-CHANGELOG.md) for the full list with commits,
 
 ## Combat coverage
 
-Two-pair turn-based (both initiative orders) and real-time combat, Mount/Dismount in combat, and
-incapacitation of a mounted rider have development evidence. The following combat behaviours are
-recorded as **uncovered**:
+Two-pair turn-based (both initiative orders) and real-time combat, Mount/Dismount in combat,
+incapacitation and death of a mounted rider, Rapid Shot full attacks, the disengagement attack of
+opportunity, staged moving actions (move, cast, move; double move and shot; beyond range; exhausted
+movement) and real-time Charge with a melee weapon have development evidence (batches 197 and 205).
+Exact-package 7E qualification re-runs each of them on the final candidate.
+
+**Uncovered (final known set).** These are recorded, not waived, and are not tested by automation:
 
 - C11: the prone stand-up attack of opportunity. No deterministic native prone source exists on the
-  test saves. Disengagement is implemented.
+  test saves, and a scripted prone condition would be fabricated. Disengagement is tested.
 - F04: the defensive casting check. No cast runs while threatened past the native one-second window on
-  the test geometry. Staged moving actions are implemented.
-- C03: base attack bonus and haste variation. No native source exists, and synthetic stat edits are
-  not accepted. Rapid Shot is implemented.
+  the test geometry. Staged moving actions are tested.
+- C03: base attack bonus and haste variation, and a mounted full attack with Rapid Shot off (the test
+  Ranger has BAB 4, so the game offers it a single attack only; a full attack needs BAB 6). No native
+  source exists, and synthetic stat edits are not accepted. Rapid Shot is tested.
 - Prepared-spell casting while mounted. The leveled Ranger's level-1 slot is empty. Filling it needs a
   spellbook choice and the game's camp rest. That rest rolls a random encounter the harness cannot
-  bound, spends rations and runs skill checks. Items (scroll and potion) while mounted have
-  development evidence.
-
-Implemented offline, awaiting their first in-game pilot: death of a mounted rider, Rapid Shot full
-attacks, disengagement attacks of opportunity, staged moving actions, and real-time Charge with a
-melee weapon, retargeted to the owner's charge save.
+  bound, spends rations and runs skill checks. Items (scroll and potion) while mounted are tested.
+- Saves: the X3 residual (above) and the upgrade of a mounted save written by preview.211 (above).
+- The full Small rider calibration on a save made by the same build: the two cases that did it were
+  retired; the Small profile is covered by its own calibration and by mounted save and load.
 
 ## Known limits
 
