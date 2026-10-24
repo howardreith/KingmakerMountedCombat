@@ -44,6 +44,7 @@ namespace KingmakerMountedCombat.Diagnostics {
  internal sealed class TestLog { internal int Warnings; internal void Info(string value){ } internal void Warning(string value){Warnings++;} }
  internal sealed class RuntimeSaveDescriptor { public string InternalName{get;set;} public string FileName{get;set;} public string Sha256{get;set;} public long Length{get;set;} public long LastWriteTimeUtcTicks{get;set;} }
  internal sealed class RuntimeFixtureIdentity { public RuntimeSaveDescriptor Working{get;set;} }
+ internal sealed class F11NativeAllocationSelection { }
  internal sealed class RuntimeRequest {
   internal const int SaveBackedSchemaVersion=2;internal const string WorkingSaveName="KMC_AUTOMATION_WORKING";
   public int SchemaVersion{get;set;}=2;public string Scenario{get;set;}="export-mounted-contracts";
@@ -52,6 +53,7 @@ namespace KingmakerMountedCombat.Diagnostics {
   __OPTION_PROPERTY__
   public RuntimeSaveDescriptor PersistenceLoad{get;set;} public object PersistenceAlternate{get;set;}
   public object PersistenceCase{get;set;} public object PersistenceAreaTarget{get;set;} public object PersistenceReplayTargets{get;set;}
+  public object SmallFixture{get;set;} public object StockMammothFixture{get;set;}
   public object OwnedPairs{get;set;} public object AcquiredManual{get;set;} public object ManualDerived{get;set;} public object CumulativeAcquisition{get;set;}
   public object ManualSeed{get;set;} public object BootstrapInventory{get;set;} public object NativeBootstrap{get;set;} public object SmallCalibration{get;set;}
   public object OrdinaryField{get;set;} public object OrdinaryAcquisition{get;set;} public object Progression{get;set;}
