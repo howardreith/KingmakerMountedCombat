@@ -6,7 +6,7 @@ function ReplayWorld([int]$Load,[int]$AreaOrdinal,[bool]$Mounted=$true){
     $actors=@();for($i=0;$i-lt4;$i++){$actor=$native[$i];$idBase=$Load*100+$i*10;$rider=$i-cin@(0,2);$component=if($Mounted-and$rider){$idBase+6+$AreaOrdinal*1000}else{0}
         $actors+=[pscustomobject]@{id=$actor.Id;object=$idBase+1;descriptor=$idBase+2;view=$idBase+3;viewObject=$idBase+4;inState=$true;commandsEmpty=$true;overrides=@(if($Mounted-and$rider){$component});agentOverride=$component;native=(Copy-Test $actor)}}
     $nativeOwners=@();if($Mounted){$nativeOwners=@($owners|ForEach-Object{$v=Copy-Test $_;$v.riderId=([Guid]$v.riderId).ToString('N');$v.mountId=([Guid]$v.mountId).ToString('N');$v|Add-Member NoteProperty retainsObligations $true;$v})}
-    $horseFacts=@($archive.Pairs|Where-Object ProfileId -CEQ 'medium-humanoid-horse-v1').Count
+    $horseFacts=Get-KmcChunk7KmcHorseOwnerCount $archive.Pairs
     if($horseFacts-lt1-or$horseFacts-gt2){throw 'Synthetic replay archive needs one or two exact Horse feature facts.'}
     $subscriberEntries=@()
     foreach($interface in @('IAreaLoadingStagesHandler','IPartyLeaveAreaHandler','IPartyHandler','IGameModeHandler','IPartyCombatHandler','IUnitHandler','IUnitViewAttachedUIHandler','IUnitLifeStateChanged','IUnitCombatHandler','IUnitFinallyDeadHandler','IInGameHandler','ITurnBasedModeEnabledHandler','ISceneHandler')){
@@ -149,5 +149,29 @@ Reject 'ordered-dictionary-save-family' {$r=New-RepeatedRunnerRequest;$r['scenar
       'settled-still-callback' {$r.worlds[1].subscriptions.executing=$true}
        'replaced-area-horse-subscriber' {@($r.worlds[1].subscriptions.entries|Where-Object type -CEQ 'KingmakerMountedCombat.Integration.HorseCompanionAddPet')[0].identity=76123}
     };Assert-KmcChunk7PersistenceObservation $areaRequest $a 'PASS'}
+}
+# b194 x4c review: KMC Horse owners count every Horse-mounted profile, exactly as the product does.
+function HorsePair([string]$Profile){[pscustomobject]@{ProfileId=$Profile}}
+function HorseSubscriptions([int]$Count){
+ $s=Copy-Test (ReplayWorld 1 0).subscriptions;$horse='KingmakerMountedCombat.Integration.HorseCompanionAddPet'
+ $entries=@($s.entries|Where-Object type -CNE $horse)
+ for($i=0;$i-lt$Count;$i++){$entries+=[pscustomobject]@{interface='Kingmaker.PubSubSystem.ISceneHandler';type=$horse;identity=7000+$i}}
+ $s.entries=$entries;$s.uniqueOwnedSubscribers=2+$Count;$s.ownedInterfaceEntries=15+$Count;$s
+}
+Check 'KMC Horse owners: Small Halfling Horse plus Medium Horse is two' {if((Get-KmcChunk7KmcHorseOwnerCount @((HorsePair 'small-default-halfling-horse-v1'),(HorsePair 'medium-humanoid-horse-v1')))-ne2){throw 'Small plus Medium Horse owners differ from two.'}}
+Check 'KMC Horse owners: two Medium Horses is two' {if((Get-KmcChunk7KmcHorseOwnerCount @((HorsePair 'medium-humanoid-horse-v1'),(HorsePair 'medium-humanoid-horse-v1')))-ne2){throw 'Two Medium Horse owners differ from two.'}}
+Check 'KMC Horse owners: Mammoth plus Horse is one' {if((Get-KmcChunk7KmcHorseOwnerCount @((HorsePair 'medium-humanoid-mammoth-v1'),(HorsePair 'medium-humanoid-horse-v1')))-ne1){throw 'Mammoth plus Horse owners differ from one.'}}
+Check 'KMC Horse owners: unknown or malformed profiles do not count' {if((Get-KmcChunk7KmcHorseOwnerCount @((HorsePair 'small-other-horse-v9'),(HorsePair 'MEDIUM-HUMANOID-HORSE-V1'),[pscustomobject]@{ProfileId=1},$null))-ne0){throw 'Unknown profiles counted as KMC Horse owners.'}}
+Check 'two Horse subscribers pass for a Small plus Medium archive' {$count=Get-KmcChunk7KmcHorseOwnerCount @((HorsePair 'small-default-halfling-horse-v1'),(HorsePair 'medium-humanoid-horse-v1'));Assert-KmcChunk7RepeatedSubscriptionBoundary $null (HorseSubscriptions 2) $false $count}
+Check 'one Horse subscriber passes for a Mammoth plus Horse archive' {$count=Get-KmcChunk7KmcHorseOwnerCount @((HorsePair 'medium-humanoid-mammoth-v1'),(HorsePair 'medium-humanoid-horse-v1'));Assert-KmcChunk7RepeatedSubscriptionBoundary $null (HorseSubscriptions 1) $false $count}
+Check 'two Horse subscribers refused for a Mammoth plus Horse archive' {$count=Get-KmcChunk7KmcHorseOwnerCount @((HorsePair 'medium-humanoid-mammoth-v1'),(HorsePair 'medium-humanoid-horse-v1'));if($count-ne1){throw 'Mammoth plus Horse count differs from one.'};$refused=$false;try{Assert-KmcChunk7RepeatedSubscriptionBoundary $null (HorseSubscriptions 2) $false $count}catch{if($_.Exception.Message-notmatch'subscriber'){throw};$refused=$true};if(-not$refused){throw 'Two Horse subscribers were admitted for one KMC Horse owner.'}}
+Check 'reader Horse profile set matches the product declarations' {
+ $catalog=[IO.File]::ReadAllText((Join-Path $repo 'src/KingmakerMountedCombat/Domain/MountedRiderProfileCatalog.cs'))
+ $small=@([regex]::Matches($catalog,'const string id = "([a-z0-9-]+)"')|ForEach-Object{$_.Groups[1].Value})
+ if(($small-join',')-cne'small-default-halfling-horse-v1'){throw 'Declared Small profiles changed; update the reader Horse profile set.'}
+ if($catalog-notmatch'MediumHorseId = "medium-humanoid-horse-v1"'){throw 'Medium Horse profile id changed.'}
+ $profiles=[IO.File]::ReadAllText((Join-Path $repo 'src/KingmakerMountedCombat/Integration/SupportedMountedProfile.cs'))
+ if($profiles-notmatch'new SupportedMountedProfile\(declared\.Body\.ProfileId, SupportedMountedProfiles\.HorseBlueprintGuid'){throw 'Declared Small profiles no longer mount the KMC Horse blueprint.'}
+ if(((Get-KmcChunk7KmcHorseProfileIds)-join',')-cne'medium-humanoid-horse-v1,small-default-halfling-horse-v1'){throw 'Reader Horse profile set differs.'}
 }
 Write-Host ('CHUNK7 REPEATED WORLD READER PASS='+$passed+' FAIL=0; synthetic contract fixtures only, native route unqualified.')

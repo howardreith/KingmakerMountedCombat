@@ -40,6 +40,14 @@ function Assert-KmcChunk7ReplaySubscriptions($Value,[bool]$InNativeCallback=$fal
     }
     if($identities.Count-ne$Value.uniqueOwnedSubscribers){throw 'Subscription unique-owner count differs from raw identities.'}
 }
+# One native HorseCompanionAddPet subscriber per KMC Horse owner, matching the product's
+# Chunk7ReplayHorseOwners: every profile that mounts the KMC Horse blueprint (Medium Horse and the
+# declared Small Halfling Horse) counts; Mammoth and unknown profiles do not.
+function Get-KmcChunk7KmcHorseProfileIds { @('medium-humanoid-horse-v1','small-default-halfling-horse-v1') }
+function Get-KmcChunk7KmcHorseOwnerCount($Pairs) {
+    $ids=Get-KmcChunk7KmcHorseProfileIds
+    @(@($Pairs)|Where-Object{$null-ne$_-and$_.ProfileId-is[string]-and$_.ProfileId-cin$ids}).Count
+}
 function Assert-KmcChunk7RepeatedSubscriptionBoundary($Previous,$Current,[bool]$NativeLoad,[int]$HorseFacts) {
     $horse='KingmakerMountedCombat.Integration.HorseCompanionAddPet'
     $lifecycle='KingmakerMountedCombat.Integration.MountedLifecycleSubscriber'
@@ -201,7 +209,7 @@ function Assert-KmcChunk7RepeatedWorldObservation($Request,$Artifact) {
         foreach($field in @('gameObject','playerObject','stateObject','areaStateObject','mainStateObject')){if(-not$nativeIds.Contains($state.$field)){throw 'Native world label lacks retained exact-reference registration.'}}
         foreach($actor in $state.actors){foreach($field in @('object','descriptor','viewObject')){if(-not$nativeIds.Contains($actor.$field)){throw 'Native actor label lacks retained exact-reference registration.'}}}
     }
-    $horseFacts=@($archive.Pairs|Where-Object ProfileId -CEQ 'medium-humanoid-horse-v1').Count
+    $horseFacts=Get-KmcChunk7KmcHorseOwnerCount $archive.Pairs
     $initial=$r.worlds[0];$previous=$null
     for($index=0;$index-lt$r.worlds.Count;$index++){
         $w=$r.worlds[$index];$nativeLoads=if($areas){1}else{$index+1};$area=if($areas-and$index-gt0){$Request.persistenceReplayTargets[$index-1].area}else{$Request.persistenceLoad.area}

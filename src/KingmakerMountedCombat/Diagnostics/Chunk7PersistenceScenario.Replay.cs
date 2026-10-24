@@ -420,10 +420,9 @@ namespace KingmakerMountedCombat.Diagnostics
             var horses = entries.Where(e => (string)e["type"] == horse).Select(e => (int)e["identity"]).ToArray();
             var lifecycleIds = entries.Where(e => (string)e["type"] == lifecycle).Select(e => (int)e["identity"]).Distinct().ToArray();
             var controlIds = entries.Where(e => (string)e["type"] == controlsType).Select(e => (int)e["identity"]).Distinct().ToArray();
-            // One native HorseCompanionAddPet subscriber per KMC Horse owner: count pairs whose
-            // profile mounts the KMC Horse blueprint, Small Halfling Horse included (b194 x4c).
-            var expectedHorses = ((JArray)replayArchive["Pairs"]).Count(p =>
-                SupportedMountedProfiles.ResolveProfileId((string)p["ProfileId"])?.BlueprintGuid == SupportedMountedProfiles.HorseBlueprintGuid);
+            // One native HorseCompanionAddPet subscriber per KMC Horse owner (b194 x4c); see Chunk7ReplayHorseOwners.
+            var expectedHorses = Chunk7ReplayHorseOwners.Count(((JArray)replayArchive["Pairs"]).Select(p => (string)p["ProfileId"]),
+                id => SupportedMountedProfiles.ResolveProfileId(id)?.BlueprintGuid, SupportedMountedProfiles.HorseBlueprintGuid);
             var persistent = entries.Where(e => (string)e["type"] != horse)
                 .Select(e => (string)e["interface"] + "|" + (string)e["type"] + "|" + (int)e["identity"])
                 .OrderBy(s => s, StringComparer.Ordinal).ToArray();
@@ -439,9 +438,11 @@ namespace KingmakerMountedCombat.Diagnostics
                     (string)e["type"] == horse || (string)e["type"] == lifecycle || (string)e["type"] == controlsType) &&
                 (replaySubscriptionShape == null || replaySubscriptionShape == shape),
                 "Repeated world accumulated or lost native KMC subscriber roles: expected Horse owners " + expectedHorses +
-                ", unique " + (int)subscriptions["uniqueOwnedSubscribers"] + ", entries " + entries.Count +
-                ", Horse subscribers " + horses.Length + ", lifecycle " + entries.Count(e => (string)e["type"] == lifecycle) +
-                ", controls " + entries.Count(e => (string)e["type"] == controlsType) + ".");
+                ", unique " + (int)subscriptions["uniqueOwnedSubscribers"] + ", owned interface entries " + (int)subscriptions["ownedInterfaceEntries"] +
+                ", entries " + entries.Count + ", Horse subscribers " + horses.Length + " (distinct " + horses.Distinct().Count() +
+                "), lifecycle " + entries.Count(e => (string)e["type"] == lifecycle) + " (distinct " + lifecycleIds.Length +
+                "), controls " + entries.Count(e => (string)e["type"] == controlsType) + " (distinct " + controlIds.Length +
+                "), shape match " + (replaySubscriptionShape == null || replaySubscriptionShape == shape) + ".");
             if (replayLastWorld != null)
             {
                 var previous = (JArray)replayLastWorld["subscriptions"]["entries"];
