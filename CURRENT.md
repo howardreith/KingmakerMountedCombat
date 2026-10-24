@@ -1,10 +1,10 @@
 # Chunk 7B–7D — IN PROGRESS
 
-X5 follow-up (offline, harness only; product DLL unchanged): by lead decision, u1 now admits exactly
-preview.211's one known base-game Horse registration exception line, once, only for the exact pinned
-preview.211 package, recorded as `admittedOldVersionKnownDefects` (fix `81c191af`); u2 and u3 keep the
-strict quiet start and the external reader re-judges the UMM receipt on every PASS. u3 also stages
-preview.211 and needs its own decision. A fresh native u1 is next; see
+X5 follow-up (offline, harness only; product DLL unchanged): by lead decision, u1 and u3 (both stage the
+exact preview.211 package) now admit exactly its one known base-game Horse registration exception line,
+once, only for the exact pinned identity, recorded as `admittedOldVersionKnownDefects` (fix `81c191af`).
+u2 keeps the strict quiet start. The outer result records the UMM receipt's SHA-256 and the external
+reader verifies it and re-judges the receipt on every PASS. A fresh native u1, then u2 and u3, is next; see
 [the X5 row](planning/CHUNK7-7E-QUALIFICATION-MATRIX.md).
 
 Claude [batch199](docs/CHUNK7-BATCH199-7E-PILOTS-2026-10-24.md) froze pilot candidate `3842ad94`

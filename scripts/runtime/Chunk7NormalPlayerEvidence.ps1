@@ -194,10 +194,10 @@ function Assert-KmcChunk7NormalPlayerObserverResult($Request,$ObserverRequest,$R
 # attributed process exits, its one-session UMM log is KMC's own record of how it
 # started: the ordinary load line, the quiet overlay, no accepted automation
 # request and no error or exception line. The one exception is an admitted
-# known defect of the exact old package (u1 only; Get-KmcChunk7UpgradeAdmittedLogDefects):
+# known defect of the exact old package (u1/u3 only; Get-KmcChunk7UpgradeAdmittedLogDefects):
 # its pinned full line must then occur exactly as often as declared and be the only
 # error line. Known old-version defect lines are counted on every run, so any other
-# step (u2 on the candidate, u3) shows them absent or refuses.
+# step (u2 on the candidate) shows them absent or refuses.
 function Get-KmcChunk7NormalPlayerUmmLogSummary([string]$GameRoot,[DateTimeOffset]$NotBeforeUtc,[string]$ProductVersion,$AdmittedKnownDefects=@(),[string]$RunId=''){
  $path=Join-Path $GameRoot 'Kingmaker_Data/Managed/UnityModManager/Log.txt'
  Assert-KmcNotReparsePoint $path 'UMM session log'
@@ -253,7 +253,7 @@ function Assert-KmcChunk7NormalPlayerArchiveMembers([string]$SourcePath,[string]
 }
 
 # Outer binding: the composed game record names exactly this observer result.
-function Assert-KmcChunk7NormalPlayerRuntimeBinding($Request,$GameEvidence,[string]$Status){
+function Assert-KmcChunk7NormalPlayerRuntimeBinding($Request,$GameEvidence,[string]$Status,$OuterResult=$null){
  if(-not(Test-KmcChunk7NormalPlayerScenario $Request.scenario)){return}
  $root=[IO.Path]::GetFullPath([string]$Request.evidenceRoot)
  $resultPath=Join-Path $root 'observer-result.json'
@@ -270,14 +270,32 @@ function Assert-KmcChunk7NormalPlayerRuntimeBinding($Request,$GameEvidence,[stri
   (Get-KmcSha256 $resultPath)-cne[string]$GameEvidence.observerResultSha256-or[string]$GameEvidence.status-cne$Status-or$GameEvidence.kmcAutomationRequest-ne$false){
   throw ('Normal-player run result does not bind its exact observer result (observer result present='+(Test-Path -LiteralPath $resultPath -PathType Leaf)+').')
  }
- if($Status-ceq'PASS'){Assert-KmcChunk7NormalPlayerUmmReceipt $Request}
+ Assert-KmcChunk7NormalPlayerUmmReceiptHash $Request $OuterResult
+ if($Status-ceq'PASS'){Assert-KmcChunk7NormalPlayerUmmReceipt $Request $OuterResult}
 }
 # A PASS carries the runner's UMM session receipt, re-judged here by the same verdict
 # rule. Its admitted old-version defects must be exactly what the request's own step and
-# staged package admit (u1 of the pinned preview.211 only); every rehearsal step uses the
-# schema that counts known defect lines, so u2 and u3 show them absent.
-function Assert-KmcChunk7NormalPlayerUmmReceipt($Request){
- $path=Join-Path ([IO.Path]::GetFullPath([string]$Request.evidenceRoot)) 'normal-player-umm-log.json'
+# staged package admit (u1/u3 of the pinned preview.211 only); every rehearsal step uses the
+# schema that counts known defect lines, so u2 shows them absent.
+# The outer result records the receipt's SHA-256 (normalPlayerUmmReceiptSha256); whenever it
+# is recorded, the receipt file must match it, PASS or FAIL. Historical results (schema-1
+# receipts) predate the field and must not carry it.
+function Get-KmcChunk7NormalPlayerUmmReceiptPath($Request){Join-Path ([IO.Path]::GetFullPath([string]$Request.evidenceRoot)) 'normal-player-umm-log.json'}
+function Get-KmcChunk7NormalPlayerRecordedUmmReceiptSha256($OuterResult){
+ if($null-eq$OuterResult-or$null-eq$OuterResult.PSObject.Properties['normalPlayerUmmReceiptSha256']){return $null}
+ $v=$OuterResult.normalPlayerUmmReceiptSha256;if($null-eq$v){return '<null>'};[string]$v
+}
+function Assert-KmcChunk7NormalPlayerUmmReceiptHash($Request,$OuterResult){
+ $recorded=Get-KmcChunk7NormalPlayerRecordedUmmReceiptSha256 $OuterResult
+ if($null-eq$recorded-or$recorded-ceq'<null>'){return}
+ $path=Get-KmcChunk7NormalPlayerUmmReceiptPath $Request
+ if($recorded-cnotmatch'^[0-9a-f]{64}$'-or-not(Test-Path -LiteralPath $path -PathType Leaf)){throw 'Normal-player UMM session receipt does not match the SHA-256 its outer result records.'}
+ Assert-KmcNotReparsePoint $path 'UMM session receipt';Assert-KmcNotHardLink $path 'UMM session receipt'
+ if((Get-KmcSha256 $path)-cne$recorded){throw 'Normal-player UMM session receipt does not match the SHA-256 its outer result records.'}
+}
+function Assert-KmcChunk7NormalPlayerUmmReceipt($Request,$OuterResult=$null){
+ $path=Get-KmcChunk7NormalPlayerUmmReceiptPath $Request
+ $recordedSha=Get-KmcChunk7NormalPlayerRecordedUmmReceiptSha256 $OuterResult
  if(-not(Test-Path -LiteralPath $path -PathType Leaf)){throw 'Normal-player PASS lacks its UMM session receipt.'}
  Assert-KmcNotReparsePoint $path 'UMM session receipt';Assert-KmcNotHardLink $path 'UMM session receipt'
  $r=Read-KmcJson $path
@@ -285,13 +303,15 @@ function Assert-KmcChunk7NormalPlayerUmmReceipt($Request){
  $policy=@(@(Get-KmcChunk7UpgradeAdmittedLogDefects $declared)|Where-Object{$null-ne$_})
  $v1=@('schemaVersion','path','sha256','sessionHeaders','kmcLines','loadedLine','quietOverlayLine','automationAccepted','errorLines','firstKmcLines','passed')
  if([int]$r.schemaVersion-eq1-and$null-eq$declared){Assert-KmcExactProperties $r $v1 'UMM session receipt'
+  if($null-ne$recordedSha){throw 'A historical schema-1 UMM receipt cannot be bound by a receipt hash.'}
   if($r.passed-ne$true-or[int]$r.errorLines-ne0-or-not(Test-KmcChunk7NormalPlayerUmmLogVerdict ([pscustomobject]@{sessionHeaders=$r.sessionHeaders;loadedLine=$r.loadedLine;quietOverlayLine=$r.quietOverlayLine;automationAccepted=$r.automationAccepted;errorLines=$r.errorLines;knownOldVersionDefectLines=0;admittedOldVersionKnownDefects=@()}))){
    throw 'Normal-player UMM session receipt is not an ordinary quiet no-request start.'}
   return
  }
  Assert-KmcExactProperties $r @('schemaVersion','runId','path','sha256','sessionHeaders','kmcLines','loadedLine','quietOverlayLine','automationAccepted','errorLines','errorLineTexts',
   'knownOldVersionDefectLines','admittedOldVersionKnownDefects','firstKmcLines','passed') 'UMM session receipt'
- # The receipt names its own run; it is not separately hash-bound into the outer result.
+ # The receipt names its own run and its bytes are hash-bound into the outer result.
+ if($null-eq$recordedSha-or$recordedSha-ceq'<null>'){throw 'Normal-player PASS outer result does not record its UMM session receipt SHA-256.'}
  if([string]$r.runId-cne[string]$Request.runId){throw 'Normal-player UMM session receipt does not name this run.'}
  $recorded=@(@($r.admittedOldVersionKnownDefects)|Where-Object{$null-ne$_})
  foreach($d in $recorded){Assert-KmcExactProperties $d @('id','line','expectedOccurrences','observedOccurrences','sourceFixCommit','reference') 'admitted old-version defect'}
@@ -299,7 +319,7 @@ function Assert-KmcChunk7NormalPlayerUmmReceipt($Request){
  $have=@($recorded|ForEach-Object{[string]$_.id+'|'+[string]$_.line+'|'+[int]$_.expectedOccurrences+'|'+[string]$_.sourceFixCommit+'|'+[string]$_.reference})
  if([int]$r.schemaVersion-ne2-or($want-join"`n")-cne($have-join"`n")-or@($r.errorLineTexts).Count-ne[Math]::Min([int]$r.errorLines,32)){throw 'Normal-player UMM session receipt admits old-version defects other than exactly those of its own step and staged package.'}
  if($r.passed-ne$true-or-not(Test-KmcChunk7NormalPlayerUmmLogVerdict $r)){throw 'Normal-player UMM session receipt is not an ordinary quiet no-request start.'}
- if($null-ne$declared-and[string]$declared.step-cne'u1-previous-install'-and[int]$r.knownOldVersionDefectLines-ne0){throw 'A non-first-install rehearsal step logged a known old-version defect.'}
+ if($policy.Count-eq0-and[int]$r.knownOldVersionDefectLines-ne0){throw 'A step that admits no old-version defect logged a known old-version defect.'}
 }
 
 # Matrix row 42 (F11 request-free controls; F12 fresh install) consumes only an ordinary control

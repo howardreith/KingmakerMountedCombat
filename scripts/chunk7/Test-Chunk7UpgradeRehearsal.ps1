@@ -341,13 +341,22 @@ Check 'an unchanged JSON round-trip of the u1 section still admits the defect (c
 foreach($m in @(
  @('u1 naming another version',{$s=Clone ([pscustomobject]$u1Section);$s.stagedKmc.version='0.1.0-chunk6d-preview.210';$s}),
  @('u1 naming another commit',{$s=Clone ([pscustomobject]$u1Section);$s.stagedKmc.commit=('0'*40);$s}),
- @('u2 (the candidate)',{$u2Section}),@('u3 (rollback)',{$u3Section}),@('no rehearsal',{$null}),
+ @('u2 (the candidate)',{$u2Section}),@('no rehearsal',{$null}),
  @('u1 naming another package hash',{$s=Clone ([pscustomobject]$u1Section);$s.stagedKmc.packageSha256=('0'*64);$s}),
  @('u1 naming another DLL',{$s=Clone ([pscustomobject]$u1Section);$s.stagedKmc.dllSha256=('0'*64);$s}),
  @('u1 naming another MVID',{$s=Clone ([pscustomobject]$u1Section);$s.stagedKmc.dllMvid='00000000-0000-0000-0000-000000000000';$s}),
  @('u1 naming another manifest',{$s=Clone ([pscustomobject]$u1Section);$s.stagedKmc.manifestSha256=('0'*64);$s}),
  @('u1 staging the candidate role',{$s=Clone ([pscustomobject]$u1Section);$s.stagedKmc.role='candidate';$s}))){
  Check ('no known defect is admitted for '+$m[0]) {if(@(Get-KmcChunk7UpgradeAdmittedLogDefects (& $m[1])|Where-Object{$null-ne$_}).Count-ne0){throw 'admitted'}}
+}
+Check 'u3 rollback of the exact preview.211 package admits the same one pinned defect' {$a=@(Get-KmcChunk7UpgradeAdmittedLogDefects $u3Section);if($a.Count-ne1-or[string]$a[0].line-cne$defectLine-or[string]$a[0].id-cne[string]$u1Admitted[0].id){throw 'u3 admission differs.'}}
+Check 'an unchanged JSON round-trip of the u3 section still admits the defect (control for the mutations below)' {if(@(Get-KmcChunk7UpgradeAdmittedLogDefects (Clone ([pscustomobject]$u3Section))).Count-ne1){throw 'control refused'}}
+foreach($m in @(
+ @('package hash',{param($s)$s.stagedKmc.packageSha256=('0'*64)}),@('DLL',{param($s)$s.stagedKmc.dllSha256=('0'*64)}),
+ @('MVID',{param($s)$s.stagedKmc.dllMvid='00000000-0000-0000-0000-000000000000'}),@('manifest',{param($s)$s.stagedKmc.manifestSha256=('0'*64)}),
+ @('version',{param($s)$s.stagedKmc.version='0.1.0-chunk6d-preview.210'}),@('commit',{param($s)$s.stagedKmc.commit=('0'*40)}),
+ @('candidate role',{param($s)$s.stagedKmc.role='candidate'}))){
+ Check ('no known defect is admitted for u3 naming another '+$m[0]) {$s=Clone ([pscustomobject]$u3Section);&$m[1] $s;if(@(Get-KmcChunk7UpgradeAdmittedLogDefects $s|Where-Object{$null-ne$_}).Count-ne0){throw 'admitted'}}
 }
 $realU1=Umm-Summary $realU1Lines $u1Admitted
 Check 'the real b199 u1 preview.211 start now passes u1 and names its admitted defect' {
@@ -368,9 +377,19 @@ foreach($m in @(
  @('an extra Exception: line',@($realU1Lines+'[KingmakerMountedCombat] Persistence: System.InvalidOperationException: y'),$u1Admitted),
  @('an accepted automation request',@($realU1Lines+'[KingmakerMountedCombat] Runtime automation request accepted: x / y'),$u1Admitted),
  @('the same line under u2',$realU1Lines,@(Get-KmcChunk7UpgradeAdmittedLogDefects $u2Section)),
- @('the same line under u3',$realU1Lines,@(Get-KmcChunk7UpgradeAdmittedLogDefects $u3Section)),
  @('the same line with a non-preview.211 package',$realU1Lines,@(Get-KmcChunk7UpgradeAdmittedLogDefects $(& {$s=Clone ([pscustomobject]$u1Section);$s.stagedKmc.packageSha256=('0'*64);$s}))))){
  Check ('the u1 session check refuses '+$m[0]) {$s=Umm-Summary $m[1] $m[2];if($s.passed){throw 'accepted'}}
+}
+$u3Admitted=@(Get-KmcChunk7UpgradeAdmittedLogDefects $u3Section)
+Check 'the real preview.211 start passes u3 and names the same admitted defect' {$s=Umm-Summary $realU1Lines $u3Admitted
+ if($s.passed-ne$true-or@($s.admittedOldVersionKnownDefects).Count-ne1-or[int]@($s.admittedOldVersionKnownDefects)[0].observedOccurrences-ne1){throw 'u3 refused'}}
+foreach($m in @(
+ @('an altered defect text',@($realU1Lines|ForEach-Object{$_.Replace('seven stock options','eight stock options')}),$u3Admitted),
+ @('two occurrences',@($realU1Lines+$defectLine),$u3Admitted),
+ @('no occurrence',@($realU1Lines|Where-Object{$_-cne$defectLine}),$u3Admitted),
+ @('an extra KMC error line',@($realU1Lines+'[KingmakerMountedCombat] [Error] something failed'),$u3Admitted),
+ @('the same line with a non-preview.211 package',$realU1Lines,@(Get-KmcChunk7UpgradeAdmittedLogDefects $(& {$s=Clone ([pscustomobject]$u3Section);$s.stagedKmc.packageSha256=('0'*64);$s}))))){
+ Check ('the u3 session check refuses '+$m[0]) {$s=Umm-Summary $m[1] $m[2];if($s.passed){throw 'accepted'}}
 }
 $candidateQuiet=@('[Manager] Initialize.','[Manager] Version: 0.33.2.0.',('[KingmakerMountedCombat] Kingmaker Mounted Combat '+$candidateManifest.version+' loaded with transient private-alpha mounted melee services.'),
  '[KingmakerMountedCombat] Private-alpha services and native mounted abilities enabled; diagnostic overlay=False.','[KingmakerMountedCombat] Active.')
@@ -386,12 +405,15 @@ $bindRoot=Join-Path $OutputDirectory 'bind';[void][IO.Directory]::CreateDirector
 function Bind-Request{$r=Clone $request;$r.evidenceRoot=$bindRoot;$r}
 function Bind-Record([string]$Status='PASS'){$g=& $recordFor $request $Status;$g.observerResultSha256=Get-KmcSha256 (Join-Path $bindRoot 'observer-result.json');$g}
 Write-KmcJsonAtomic (Join-Path $bindRoot 'normal-player-umm-log.json') $realU1
+$bindReceipt=Join-Path $bindRoot 'normal-player-umm-log.json'
+# The outer result records the receipt's SHA-256; the reader verifies the file against it.
+function Bind-Result{[pscustomobject]@{normalPlayerUmmReceiptSha256=$(if(Test-Path -LiteralPath $bindReceipt){Get-KmcSha256 $bindReceipt}else{$null})}}
 Check 'the run binding refuses a rehearsal record without its step' {Assert-KmcChunk7NormalPlayerRuntimeBinding (Bind-Request) ([pscustomobject]@{evidenceKind='kmc-normal-player-observer';upgradeRehearsal=$null}) 'PASS'} $true 'does not record the rehearsal step'
 Check 'the run binding refuses a u1 PASS that observed the candidate loaded' {$g=Bind-Record;$g.upgradeRehearsal.loadedKmc.dllSha256=[string]$base.dllSha256;Assert-KmcChunk7NormalPlayerRuntimeBinding (Bind-Request) $g 'PASS'} $true 'does not record the rehearsal step'
 Check 'the run binding refuses a u1 PASS with another loaded MVID' {$g=Bind-Record;$g.upgradeRehearsal.loadedKmc.dllMvid='00000000-0000-0000-0000-000000000000';Assert-KmcChunk7NormalPlayerRuntimeBinding (Bind-Request) $g 'PASS'} $true 'does not record the rehearsal step'
 Check 'the run binding refuses a u1 PASS with no observed loaded assembly' {$g=Bind-Record;$g.upgradeRehearsal.loadedKmc=$null;Assert-KmcChunk7NormalPlayerRuntimeBinding (Bind-Request) $g 'PASS'} $true 'does not record the rehearsal step'
 Check 'the run binding refuses a record naming another staged package' {$g=Bind-Record;$g.upgradeRehearsal.stagedKmc=[pscustomobject]@{packageSha256=('e'*64);dllSha256=[string]$base.dllSha256};Assert-KmcChunk7NormalPlayerRuntimeBinding (Bind-Request) $g 'PASS'} $true 'does not record the rehearsal step'
-Check 'the run binding fully accepts an exact u1 PASS bound to its observer result' {Assert-KmcChunk7NormalPlayerRuntimeBinding (Bind-Request) (Bind-Record) 'PASS'}
+Check 'the run binding fully accepts an exact u1 PASS bound to its observer result' {Assert-KmcChunk7NormalPlayerRuntimeBinding (Bind-Request) (Bind-Record) 'PASS' (Bind-Result)}
 Check 'the run binding refuses a u1 FAIL that recorded a different loaded assembly' {$g=Bind-Record 'FAIL';$g.upgradeRehearsal.loadedKmc.dllSha256=[string]$base.dllSha256;Assert-KmcChunk7NormalPlayerRuntimeBinding (Bind-Request) $g 'FAIL'} $true 'does not record the rehearsal step'
 Check 'the run binding fully accepts a u1 FAIL that recorded no loaded presence' {$g=Bind-Record 'FAIL';$g.upgradeRehearsal.loadedKmc=$null;Assert-KmcChunk7NormalPlayerRuntimeBinding (Bind-Request) $g 'FAIL'}
 # The external reader re-judges the runner's UMM receipt on every PASS by the same rule.
@@ -400,8 +422,8 @@ function Write-Receipt($Summary,[scriptblock]$Mutate){$x=Clone $Summary;if($Muta
 function Bind-U2Request{$r=Clone $u2;$r.evidenceRoot=$bindRoot;$r}
 function Bind-U2Record{$g=& $recordFor $u2;$g.observerResultSha256=Get-KmcSha256 (Join-Path $bindRoot 'observer-result.json');$g}
 $u2Quiet=Umm-Summary $candidateQuiet @(Get-KmcChunk7UpgradeAdmittedLogDefects $u2Section) $candidateManifest.version
-Check 'the reader binds the real b199 u1 start with its admitted preview.211 defect' {Write-Receipt $realU1 $null;Assert-KmcChunk7NormalPlayerRuntimeBinding (Bind-Request) (Bind-Record) 'PASS'}
-Check 'the reader binds a quiet u2 candidate start' {Write-Receipt $u2Quiet $null;Assert-KmcChunk7NormalPlayerRuntimeBinding (Bind-U2Request) (Bind-U2Record) 'PASS'}
+Check 'the reader binds the real b199 u1 start with its admitted preview.211 defect' {Write-Receipt $realU1 $null;Assert-KmcChunk7NormalPlayerRuntimeBinding (Bind-Request) (Bind-Record) 'PASS' (Bind-Result)}
+Check 'the reader binds a quiet u2 candidate start' {Write-Receipt $u2Quiet $null;Assert-KmcChunk7NormalPlayerRuntimeBinding (Bind-U2Request) (Bind-U2Record) 'PASS' (Bind-Result)}
 foreach($m in @(
  @('a u1 PASS without its UMM receipt',{Bind-Request},{Bind-Record},{Remove-Item -LiteralPath $bindReceipt -Force},'lacks its UMM session receipt'),
  @('a u1 receipt that hides its admitted defect',{Bind-Request},{Bind-Record},{Write-Receipt $realU1 {param($x)$x.admittedOldVersionKnownDefects=@()}},'admits old-version defects other than'),
@@ -415,14 +437,36 @@ foreach($m in @(
  @('the u1 admission carried into a u2 receipt',{Bind-U2Request},{Bind-U2Record},{Write-Receipt $realU1 $null},'admits old-version defects other than'),
  @('a u2 receipt that logged the defect line marked passed',{Bind-U2Request},{Bind-U2Record},{Write-Receipt $u2Quiet {param($x)$x.errorLines=1;$x.errorLineTexts=@($defectLine);$x.knownOldVersionDefectLines=1}},'not an ordinary quiet no-request start'),
  @('a u2 receipt that counts the defect line but no error',{Bind-U2Request},{Bind-U2Record},{Write-Receipt $u2Quiet {param($x)$x.knownOldVersionDefectLines=1}},'not an ordinary quiet no-request start'))){
- Check ('the reader refuses '+$m[0]) {&$m[3];try{Assert-KmcChunk7NormalPlayerRuntimeBinding (& $m[1]) (& $m[2]) 'PASS'}finally{Write-Receipt $realU1 $null}} $true $m[4]
+ Check ('the reader refuses '+$m[0]) {&$m[3];try{Assert-KmcChunk7NormalPlayerRuntimeBinding (& $m[1]) (& $m[2]) 'PASS' (Bind-Result)}finally{Write-Receipt $realU1 $null}} $true $m[4]
 }
 Check 'the reader accepts a u1 FAIL without any UMM receipt' {Remove-Item -LiteralPath $bindReceipt -Force;try{$g=Bind-Record 'FAIL';$g.upgradeRehearsal.loadedKmc=$null;Assert-KmcChunk7NormalPlayerRuntimeBinding (Bind-Request) $g 'FAIL'}finally{Write-Receipt $realU1 $null}}
 Check 'the reader still accepts the historical schema-1 receipt of the passed b191 control' {
  $plain=Clone $u2;$plain.normalPlayer.PSObject.Properties.Remove('upgradeRehearsal');$plain.evidenceRoot=$bindRoot
  Copy-Item -LiteralPath (Join-Path $realLab 'runtime-evidence/20261023-c7b-world191-b191s2-normalplayer/normal-player-umm-log.json') -Destination $bindReceipt -Force
  try{$g=[pscustomobject]@{evidenceKind='kmc-normal-player-observer';status='PASS';kmcAutomationRequest=$false;observerResultSha256=(Get-KmcSha256 (Join-Path $bindRoot 'observer-result.json'))}
-  Assert-KmcChunk7NormalPlayerRuntimeBinding $plain $g 'PASS'}finally{Write-Receipt $realU1 $null}}
+  Assert-KmcChunk7NormalPlayerRuntimeBinding $plain $g 'PASS' (Read-KmcJson (Join-Path $realLab 'runtime-evidence/20261023-c7b-world191-b191s2-normalplayer/runtime-result.json'))}finally{Write-Receipt $realU1 $null}}
+Check 'the reader refuses a historical schema-1 receipt bound by a receipt hash' {
+ $plain=Clone $u2;$plain.normalPlayer.PSObject.Properties.Remove('upgradeRehearsal');$plain.evidenceRoot=$bindRoot
+ Copy-Item -LiteralPath (Join-Path $realLab 'runtime-evidence/20261023-c7b-world191-b191s2-normalplayer/normal-player-umm-log.json') -Destination $bindReceipt -Force
+ try{$g=[pscustomobject]@{evidenceKind='kmc-normal-player-observer';status='PASS';kmcAutomationRequest=$false;observerResultSha256=(Get-KmcSha256 (Join-Path $bindRoot 'observer-result.json'))}
+  Assert-KmcChunk7NormalPlayerRuntimeBinding $plain $g 'PASS' (Bind-Result)}finally{Write-Receipt $realU1 $null}} $true 'historical schema-1 UMM receipt cannot be bound'
+# u3 binds with the same admission; the receipt is hash-bound into the outer result.
+$u3Req=Clone $request;$u3Req.normalPlayer.upgradeRehearsal=Clone ([pscustomobject]$u3Section);$u3Req.evidenceRoot=$bindRoot
+function Bind-U3Record{$g=& $recordFor $u3Req;$g.observerResultSha256=Get-KmcSha256 (Join-Path $bindRoot 'observer-result.json');$g}
+$u3Receipt=Umm-Summary $realU1Lines $u3Admitted
+Check 'the reader binds a u3 preview.211 start with the same admitted defect' {Write-Receipt $u3Receipt $null;try{Assert-KmcChunk7NormalPlayerRuntimeBinding $u3Req (Bind-U3Record) 'PASS' (Bind-Result)}finally{Write-Receipt $realU1 $null}}
+Check 'the reader refuses a u3 receipt that hides its admitted defect' {Write-Receipt $u3Receipt {param($x)$x.admittedOldVersionKnownDefects=@()};try{Assert-KmcChunk7NormalPlayerRuntimeBinding $u3Req (Bind-U3Record) 'PASS' (Bind-Result)}finally{Write-Receipt $realU1 $null}} $true 'admits old-version defects other than'
+Check 'the reader refuses a u3 receipt with an extra error line' {Write-Receipt $u3Receipt {param($x)$x.errorLines=2;$x.errorLineTexts=@($defectLine,'[KingmakerMountedCombat] [Error] x')};try{Assert-KmcChunk7NormalPlayerRuntimeBinding $u3Req (Bind-U3Record) 'PASS' (Bind-Result)}finally{Write-Receipt $realU1 $null}} $true 'not an ordinary quiet no-request start'
+foreach($m in @(
+ @('a receipt changed after its hash was recorded (PASS)','PASS',{param($r)[IO.File]::AppendAllText($bindReceipt,' ')},'does not match the SHA-256 its outer result records'),
+ @('a receipt changed after its hash was recorded (FAIL)','FAIL',{param($r)[IO.File]::AppendAllText($bindReceipt,' ')},'does not match the SHA-256 its outer result records'),
+ @('a receipt removed after its hash was recorded','FAIL',{param($r)Remove-Item -LiteralPath $bindReceipt -Force},'does not match the SHA-256 its outer result records'),
+ @('a malformed recorded receipt hash','PASS',{param($r)$r.normalPlayerUmmReceiptSha256='X'},'does not match the SHA-256 its outer result records'),
+ @('a PASS whose outer result records a null receipt hash','PASS',{param($r)$r.normalPlayerUmmReceiptSha256=$null},'does not record its UMM session receipt SHA-256'),
+ @('a PASS whose outer result lacks the receipt hash','PASS',{param($r)$r.PSObject.Properties.Remove('normalPlayerUmmReceiptSha256')},'does not record its UMM session receipt SHA-256'))){
+ Check ('the reader refuses '+$m[0]) {Write-Receipt $realU1 $null;$res=Bind-Result;&$m[2] $res;try{$g=Bind-Record $m[1];if($m[1]-ceq'FAIL'){$g.upgradeRehearsal.loadedKmc=$null};Assert-KmcChunk7NormalPlayerRuntimeBinding (Bind-Request) $g $m[1] $res}finally{Write-Receipt $realU1 $null}} $true $m[3]
+}
+Check 'the reader accepts a u1 FAIL whose recorded receipt hash matches' {Write-Receipt $realU1 $null;$g=Bind-Record 'FAIL';$g.upgradeRehearsal.loadedKmc=$null;Assert-KmcChunk7NormalPlayerRuntimeBinding (Bind-Request) $g 'FAIL' (Bind-Result)}
 Check 'row 42 refuses a rehearsal step' {Assert-KmcChunk7NormalPlayerControlRow $u2 (& $recordFor $u2)} $true 'cannot stand in for the ordinary request-free control'
 Check 'row 42 refuses a record that claims a rehearsal step' {$plain=Clone $u2;$plain.normalPlayer.PSObject.Properties.Remove('upgradeRehearsal');Assert-KmcChunk7NormalPlayerControlRow $plain (& $recordFor $u2)} $true 'cannot stand in for the ordinary request-free control'
 Check 'row 42 admits an ordinary control record' {$plain=Clone $u2;$plain.normalPlayer.PSObject.Properties.Remove('upgradeRehearsal');Assert-KmcChunk7NormalPlayerControlRow $plain ([pscustomobject]@{evidenceKind='kmc-normal-player-observer';upgradeRehearsal=$null})}
