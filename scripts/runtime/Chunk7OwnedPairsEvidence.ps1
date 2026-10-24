@@ -21,6 +21,7 @@ function Get-KmcChunk7SelectedScenario($Request){
   'owner-seed-attack-modes'{'chunk7-two-pair-combat-rider-first'}
   'owner-seed-combat-reaction'{'chunk7-two-pair-combat-rider-first'}
   'owner-seed-staged'{'chunk7-two-pair-combat-rider-first'}
+  'owner-seed-realtime-charge'{'chunk7-two-pair-realtime-charge'}
   'owner-seed-checkpoint-save'{'chunk7-persistence-save'}
   'owner-seed-checkpoint-load'{'chunk7-persistence-load'}
   'small-fixture-persistence-save'{'chunk7-persistence-save'}
@@ -172,7 +173,7 @@ function Assert-KmcChunk7OwnedPairsMediumSelection($Request,$Selection,$Checkpoi
 }
 function Test-KmcChunk7OwnedPairsSeedDerivedLoad($Request){(Get-KmcChunk7OwnedPairsCase $Request)-ceq'owner-seed-persistence-load'}
 # Owner-seed-derived combat (scenarios 3-5): a disposable copy of the derived Manual, restored mounted.
-function Test-KmcChunk7OwnedPairsSeedDerivedCombat($Request){(Get-KmcChunk7OwnedPairsCase $Request)-cin@('owner-seed-realtime-core','owner-seed-combat-rider-first','owner-seed-combat-mount-first','owner-seed-combat-disable','owner-seed-native-life-cleanup','owner-seed-native-death-cleanup','owner-seed-attack-modes','owner-seed-combat-reaction','owner-seed-staged')}
+function Test-KmcChunk7OwnedPairsSeedDerivedCombat($Request){(Get-KmcChunk7OwnedPairsCase $Request)-cin@('owner-seed-realtime-core','owner-seed-combat-rider-first','owner-seed-combat-mount-first','owner-seed-combat-disable','owner-seed-native-life-cleanup','owner-seed-native-death-cleanup','owner-seed-attack-modes','owner-seed-combat-reaction','owner-seed-staged','owner-seed-realtime-charge')}
 function Test-KmcChunk7OwnedPairsAttackModes($Request){(Get-KmcChunk7OwnedPairsCase $Request)-ceq'owner-seed-attack-modes'}
 function Test-KmcChunk7OwnedPairsCombatReaction($Request){(Get-KmcChunk7OwnedPairsCase $Request)-ceq'owner-seed-combat-reaction'}
 function Test-KmcChunk7OwnedPairsStaged($Request){(Get-KmcChunk7OwnedPairsCase $Request)-ceq'owner-seed-staged'}
@@ -247,6 +248,18 @@ function Assert-KmcChunk7OwnerSeedPairsSelection($Request,$Selection,$Checkpoint
  Assert-KmcChunk7Boolean $s.baseGameOnly $true;Assert-KmcOrdinaryInteger $s.expectedNativeLoadCount 1 1
  if(($s.expectedNativeWriteCount-isnot[int]-and$s.expectedNativeWriteCount-isnot[long])-or$s.expectedNativeWriteCount-ne0){throw 'Owner-seed exploration selects zero native writes: the native game has no level-up autosave (LevelUpAutoSaveController is never registered).'}
 }
+# 7E X2 F02: the owner's KMC_C7_CHARGE_SEED (its main Ranger's saved active hand set holds a melee weapon) reaches
+# only the owner-seed real-time Charge lineage: the Manual producer, its multi-exploration-manual cold consumer and
+# the charge case, which requires exactly that seed. Every other owner-seed kind stays on its original seed.
+function Get-KmcChunk7ChargeSeed {[pscustomobject][ordered]@{seedId='KMC_C7_CHARGE_SEED';sha256='1ec2f3219102d1967e1e1e7f860543550062ef07f6c270be050d26d7059aba41';handSet=1;primaryWeapon='571c56d11dafbb04094cbaae659974b5'}}
+function Assert-KmcChunk7ChargeSeedBinding($Selection,$Checkpoint){
+ $c=Get-KmcChunk7ChargeSeed;$p=$Selection.PSObject.Properties
+ $id=if($null-ne$p['seedId']){$Selection.seedId}else{$null};$sha=if($null-ne$p['seedSha256']){$Selection.seedSha256}else{$null};$case=if($null-ne$p['case']){$Selection.case}else{$null}
+ $exact=($id-is[string]-and$id-ceq$c.seedId)-and($sha-is[string]-and$sha-ceq$c.sha256)
+ if($case-ceq'owner-seed-realtime-charge'){if(-not$exact){throw 'Owner-seed real-time Charge requires exactly the registered KMC_C7_CHARGE_SEED lineage.'};return}
+ if(($id-is[string]-and$id-ceq$c.seedId)-or($sha-is[string]-and$sha-ceq$c.sha256)){
+  if(-not$exact-or-not($case-ceq'owner-seed-persistence-save'-or($case-ceq'owner-seed-persistence-load'-and$Checkpoint-ceq'multi-exploration-manual'))){throw 'KMC_C7_CHARGE_SEED is admitted only along the owner-seed real-time Charge lineage.'}}
+}
 function Assert-KmcChunk7OwnedPairsSelection($Request){
  if($Request-is[Collections.IDictionary]){$Request=[pscustomobject]$Request}
  $has=$null-ne$Request.PSObject.Properties['ownedPairs']
@@ -256,6 +269,7 @@ function Assert-KmcChunk7OwnedPairsSelection($Request){
  if($null-ne$s.PSObject.Properties['areaRoute']-and
     ($s.areaRoute-isnot[string]-or$s.areaRoute-cne'manticore-to-spider-v1'-or$checkpoint-cne'multi-area-autosave'-or
      $s.case-cnotin@('owner-seed-checkpoint-save','owner-seed-checkpoint-load'))){throw 'Only the exact owner-seed area checkpoint admits the Manticore return route.'}
+ Assert-KmcChunk7ChargeSeedBinding $s $checkpoint
  if(Test-KmcChunk7OwnedPairsSeedSetup $Request){Assert-KmcChunk7OwnerSeedPairsSelection $Request $s $checkpoint;return}
  if(Test-KmcChunk7OwnedPairsSeedDerivedLoad $Request){Assert-KmcChunk7OwnerSeedDerivedLoadSelection $Request $s $checkpoint;return}
  if(Test-KmcChunk7OwnedPairsSeedDerivedCombat $Request){Assert-KmcChunk7OwnerSeedDerivedCombatSelection $Request $s $checkpoint;return}

@@ -7,6 +7,9 @@ if(-not$FixturePath){$FixturePath=Join-Path $repo 'tests/Chunk7Diagnostics/Owned
 if(-not$OutputDirectory){$OutputDirectory=Join-Path (Get-KmcLabRoot) ('analysis-cache/chunk7-owned-readers-'+[Guid]::NewGuid().ToString('N'))}
 $clock=[Diagnostics.Stopwatch]::StartNew();$results=[Collections.Generic.List[object]]::new()
 $fixtures=(Get-Content -LiteralPath $FixturePath -Raw|ConvertFrom-Json).fixtures
+# The stored RT Charge fixture predates rider A's observed equipped-weapon record (7E X2); add the melee shape here.
+function New-KmcChargeWeaponState([long]$HandSet=0,[string]$Blueprint='35dfad6517f401145af54111be04d6cf'){[pscustomobject][ordered]@{handSet=$HandSet;primaryItem=4711;primaryBlueprint=$Blueprint;category='Longsword';melee=$true;ranged=$false;firstWeaponIsPrimary=$true}}
+foreach($fx in @($fixtures|Where-Object name -CEQ 'realtime-charge')){$fx.artifact.observations|Add-Member chargeWeapon ([pscustomobject][ordered]@{before=(New-KmcChargeWeaponState);after=(New-KmcChargeWeaponState)}) -Force}
 function Copy-Value($v){$v|ConvertTo-Json -Depth 90|ConvertFrom-Json}
 . (Join-Path $repo 'tests/Chunk7Diagnostics/OwnerSeedCheckpointPreparationFixtures.ps1')
 if(-not$MigrationFixturePath){$MigrationFixturePath=Join-Path $repo 'tests/Chunk7Diagnostics/OwnerSeedMigrationFixtures.ps1'}
@@ -457,7 +460,7 @@ function New-KmcOwnerSeedDerivedCombatFixture([string]$Base){
  $baseMountA=@($o.inputs|Where-Object label -CEQ 'mount-a')|Select-Object -First 1
  $o.inputs=@($o.inputs|Where-Object{$_.label-cnotin@('mount-a','mount-b')})
  # Native life (7E X1) has no R1 Dismount, so no first-action Mount either.
- if(-not$rt-and$Base-cne'native-life-cleanup'){Add-KmcSeedFirstActionMount $v $baseMountA ($Base-ceq'combat-mount-first')}
+ if(-not$rt-and$Base-cne'native-life-cleanup'-and$Base-cne'realtime-charge'){Add-KmcSeedFirstActionMount $v $baseMountA ($Base-ceq'combat-mount-first')}
  $roles=@($p.riderAId,$p.mountAId,$p.riderBId,$p.mountBId);$world=Copy-Value $o.snapshots[0];$world.label='mounted-start'
  $owners=@(for($i=0;$i-lt2;$i++){$w=$world.owners[$i];[pscustomobject][ordered]@{ownerId=(ConvertTo-KmcChunk7PairIdN $w.id);generation=$w.generation;riderId=$roles[$i*2];mountId=$roles[$i*2+1]}})
  $o|Add-Member mountedStart ([pscustomobject][ordered]@{contract='owner-seed-derived-mounted-start-v1';restoredFromColdLoad=$true;nativeMountInputs=0;archivePhase='all-pair-presentation-restored';schemaVersion=3;semanticRestores=4;presentationRestores=2;nativePostLoads=4;nativeCastRequests=0;snapshots=0
@@ -766,6 +769,33 @@ Check 'owner-seed combat reaction evidence accepted (threatened start, one nativ
 Check 'owner-seed combat reaction accepts a native approach before the disengagement' {Invoke-OwnedReader (New-KmcSeedReactionFixture $true)}
 Check 'owner-seed combat reaction accepts the attack of opportunity on rider A' {$v=New-KmcSeedReactionFixture;$e=(Get-RxLeg $v).rules[0];$e.target=$v.request.ownedPairs.riderAId;$v.artifact.observations.reaction.rules.events[0].target=$e.target;Invoke-OwnedReader $v}
 Check 'combat evidence refuses a reaction record outside its case' {$v=New-KmcOwnerSeedDerivedCombatFixture 'combat-rider-first';$v.artifact.observations|Add-Member reaction ([pscustomobject]@{}) -Force;Invoke-OwnedReader $v} $true 'belongs only to its closed owner-seed selection'
+# 7E X2 F02: owner-seed real-time Charge on the owner's KMC_C7_CHARGE_SEED lineage (melee weapon as saved).
+function New-KmcSeedChargeFixture{
+ $v=New-KmcOwnerSeedDerivedCombatFixture 'realtime-charge';$o=$v.artifact.observations;$c=Get-KmcChunk7ChargeSeed
+ foreach($x in @($v.request.ownedPairs,$o.ownerSeedDerivedSource)){$x.seedId=$c.seedId;$x.seedSha256=$c.sha256};$o.targetAuthorization.seedSha256=$c.sha256
+ foreach($k in 'before','after'){$o.chargeWeapon.$k=New-KmcChargeWeaponState $c.handSet $c.primaryWeapon};$v
+}
+function Check-SeedCharge([string]$Name,[scriptblock]$Mutation,[string]$Pattern){$v=New-KmcSeedChargeFixture;&$Mutation $v;Check ('owner-seed real-time Charge refuses '+$Name) {Invoke-OwnedReader $v} $true $Pattern}
+Check 'owner-seed real-time Charge evidence accepted (charge seed lineage, saved melee hand set)' {Invoke-OwnedReader (New-KmcSeedChargeFixture)}
+Check 'generic acquired RT Charge evidence accepted with a melee weapon' {Invoke-OwnedReader (Copy-Value @($fixtures|Where-Object name -CEQ 'realtime-charge')[0])}
+Check-SeedCharge 'the original owner seed' {foreach($x in @($args[0].request.ownedPairs)){$x.seedId='KMC_C7_NO_MODS_OWNER_SEED';$x.seedSha256='3405d7c813668ad646788efd746a62c1b16e1438fad1bc4bcbebc961821b924f'}} 'exactly the registered KMC_C7_CHARGE_SEED'
+Check-SeedCharge 'the charge seed id with another hash' {$args[0].request.ownedPairs.seedSha256=('9'*64)} 'exactly the registered KMC_C7_CHARGE_SEED'
+Check-SeedCharge 'a ranged primary weapon' {foreach($k in 'before','after'){$s=$args[0].artifact.observations.chargeWeapon.$k;$s.melee=$false;$s.ranged=$true}} 'Native evidence boolean'
+Check-SeedCharge 'another active hand set' {foreach($k in 'before','after'){$args[0].artifact.observations.chargeWeapon.$k.handSet=0}} 'saved hand set and weapon'
+Check-SeedCharge 'another primary weapon' {foreach($k in 'before','after'){$args[0].artifact.observations.chargeWeapon.$k.primaryBlueprint='4de4658c0e9b0d146b9a08ed6f030f8a'}} 'saved hand set and weapon'
+Check-SeedCharge 'a weapon switched during the case' {$args[0].artifact.observations.chargeWeapon.after.handSet=0} 'changed during the Charge case'
+Check-SeedCharge 'a missing weapon record' {$args[0].artifact.observations.PSObject.Properties.Remove('chargeWeapon')} 'observed equipped weapon'
+Check-SeedCharge 'a primary that is not the native first weapon' {$args[0].artifact.observations.chargeWeapon.before.firstWeaponIsPrimary=$false} 'Native evidence boolean'
+foreach($kind in @('combat-rider-first','combat-mount-first','realtime-core')){
+ Check ('owner-seed '+$kind+' refuses the charge seed') {$v=New-KmcOwnerSeedDerivedCombatFixture $kind;$c=Get-KmcChunk7ChargeSeed;$v.request.ownedPairs.seedId=$c.seedId;$v.request.ownedPairs.seedSha256=$c.sha256;Invoke-OwnedReader $v} $true 'only along the owner-seed real-time Charge lineage'}
+Check 'owner-seed selections admit the charge seed only along its lineage' {$c=Get-KmcChunk7ChargeSeed
+ Assert-KmcChunk7ChargeSeedBinding ([pscustomobject]@{case='owner-seed-persistence-save';seedId=$c.seedId;seedSha256=$c.sha256}) 'multi-exploration-manual'
+ Assert-KmcChunk7ChargeSeedBinding ([pscustomobject]@{case='owner-seed-persistence-load';seedId=$c.seedId;seedSha256=$c.sha256}) 'multi-exploration-manual'
+ Assert-KmcChunk7ChargeSeedBinding ([pscustomobject]@{case='owner-seed-realtime-charge';seedId=$c.seedId;seedSha256=$c.sha256}) $null
+ foreach($bad in @(@('owner-seed-exploration',$null),@('owner-seed-persistence-load','multi-exploration-three-loads-manual'),@('owner-seed-checkpoint-save','multi-exploration-quick'),@('owner-seed-staged',$null),@('owner-seed-load-refusal','multi-malformed-refusal-manual'))){
+  $threw=$false;try{Assert-KmcChunk7ChargeSeedBinding ([pscustomobject]@{case=$bad[0];seedId=$c.seedId;seedSha256=$c.sha256}) $bad[1]}catch{$threw=$_.Exception.Message-like'*only along*'};if(-not$threw){throw ('Charge seed admitted for '+$bad[0])}}
+ $threw=$false;try{Assert-KmcChunk7ChargeSeedBinding ([pscustomobject]@{case='owner-seed-persistence-save';seedId='KMC_C7_NO_MODS_OWNER_SEED';seedSha256=$c.sha256}) 'multi-exploration-manual'}catch{$threw=$true};if(-not$threw){throw 'A charge hash under another seed id was admitted.'}
+ Assert-KmcChunk7ChargeSeedBinding ([pscustomobject]@{case='owner-seed-staged';seedId='KMC_C7_NO_MODS_OWNER_SEED';seedSha256='3405d7c813668ad646788efd746a62c1b16e1438fad1bc4bcbebc961821b924f'}) $null}
 Check 'attack modes refuse a carried reaction record' {$v=New-KmcSeedAttackModesFixture;$v.artifact.observations|Add-Member reaction ([pscustomobject]@{}) -Force;Invoke-OwnedReader $v} $true 'cannot carry another combat case'
 Check-SeedReaction 'no attack of opportunity' {$d=Get-RxLeg $args[0];$d.rules=@();$args[0].artifact.observations.reaction.rules.events=@()} 'other than exactly one attack'
 Check-SeedReaction 'two attacks of opportunity' {$d=Get-RxLeg $args[0];$e=Copy-Value $d.rules[0];$e.sequence=2;$d.rules=@($d.rules)+@($e);$args[0].artifact.observations.reaction.rules.events=@($d.rules)} 'other than exactly one attack'

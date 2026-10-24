@@ -44,6 +44,15 @@ namespace KingmakerMountedCombat.Diagnostics
         public const string OwnerSeedCombatReactionCase = "owner-seed-combat-reaction";
         // 7E X1 F04: the Chunk 6D staged plans and the ranged approach row on the TB rider-first engine.
         public const string OwnerSeedStagedCase = "owner-seed-staged";
+        // 7E X2 F02: opt-in RT Mounted Charge on the owner-seed-derived mounted start. Its lineage starts only from
+        // the owner's KMC_C7_CHARGE_SEED, whose main Ranger's saved active hand set holds a melee weapon; that seed
+        // is admitted for no other owner-seed kind except the two lineage steps (Manual producer and its cold consumer).
+        public const string OwnerSeedRealtimeChargeCase = "owner-seed-realtime-charge";
+        internal const string ChargeSeedId = "KMC_C7_CHARGE_SEED";
+        internal const string ChargeSeedSha256 = "1ec2f3219102d1967e1e1e7f860543550062ef07f6c270be050d26d7059aba41";
+        // The saved active hand set (weapon set 2) and its primary weapon, read offline from the seed's party.json.
+        internal const int ChargeSeedHandSetIndex = 1;
+        internal const string ChargeSeedPrimaryWeapon = "571c56d11dafbb04094cbaae659974b5";
         public const string OwnerSeedLoadRefusalCase = "owner-seed-load-refusal";
         internal const string OwnerSeedLoadRefusalLeaf = "Manual_812_KMC_C7_SEED_REFUSAL.zks";
         internal static bool LoadRefusalCheckpoint(string value) => value == "multi-malformed-refusal-manual" || value == "multi-future-refusal-manual";
@@ -241,7 +250,8 @@ namespace KingmakerMountedCombat.Diagnostics
         // Both kinds that load the owner's seed and run its disclosed native setup.
         internal bool OwnerSeedSetup => IsOwnerSeed || IsOwnerSeedManual;
         internal bool IsOwnerSeedDerivedCombat => Case == OwnerSeedRealtimeCase || Case == OwnerSeedRiderFirstCase || Case == OwnerSeedMountFirstCase || Case == OwnerSeedDisableCase ||
-            Case == OwnerSeedNativeLifeCase || Case == OwnerSeedNativeDeathCase || Case == OwnerSeedAttackModesCase || Case == OwnerSeedCombatReactionCase || Case == OwnerSeedStagedCase;
+            Case == OwnerSeedNativeLifeCase || Case == OwnerSeedNativeDeathCase || Case == OwnerSeedAttackModesCase || Case == OwnerSeedCombatReactionCase || Case == OwnerSeedStagedCase ||
+            Case == OwnerSeedRealtimeChargeCase;
         internal bool IsOwnerSeedCheckpointSave => Case == OwnerSeedCheckpointSaveCase;
         internal bool IsOwnerSeedCheckpointLoad => Case == OwnerSeedCheckpointLoadCase;
         internal bool IsSmallFixtureSave => Case == SmallFixtureSaveCase;
@@ -293,6 +303,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     case OwnerSeedAttackModesCase: return "chunk7-two-pair-combat-rider-first";
                     case OwnerSeedCombatReactionCase: return "chunk7-two-pair-combat-rider-first";
                     case OwnerSeedStagedCase: return "chunk7-two-pair-combat-rider-first";
+                    case OwnerSeedRealtimeChargeCase: return "chunk7-two-pair-realtime-charge";
                     case OwnerSeedCheckpointSaveCase: return "chunk7-persistence-save";
                     case OwnerSeedCheckpointLoadCase: return "chunk7-persistence-load";
                     case SmallFixtureSaveCase: return "chunk7-persistence-save";
@@ -354,6 +365,23 @@ namespace KingmakerMountedCombat.Diagnostics
             Case == "persistence-save" && checkpoint == "multi-owned-worker-cancel-manual" ? 2 : Case == "persistence-save" ||
             Cold && (checkpoint == "legacy-mounted-pending-tb-manual" || OwnedSchema1Cold(checkpoint)) || IsCapitalArrivalProducer(checkpoint) ? 1 : 0;
         public IReadOnlyList<string> Validate(string scenario, string runId, string checkpoint)
+        {
+            var errors = ValidateKind(scenario, runId, checkpoint);
+            var charge = ChargeSeedError(checkpoint);
+            return charge == null ? errors : new List<string>(errors) { charge };
+        }
+        internal bool CarriesChargeSeed => SeedId == ChargeSeedId || SeedSha256 == ChargeSeedSha256;
+        // The charge case requires exactly the registered charge seed; that seed reaches only the charge lineage.
+        private string ChargeSeedError(string checkpoint)
+        {
+            var exact = SeedId == ChargeSeedId && SeedSha256 == ChargeSeedSha256;
+            if (Case == OwnerSeedRealtimeChargeCase)
+                return exact ? null : "Owner-seed real-time Charge requires exactly the registered KMC_C7_CHARGE_SEED lineage.";
+            if (!CarriesChargeSeed) return null;
+            return exact && (IsOwnerSeedManual || IsOwnerSeedDerivedLoad && checkpoint == OwnerSeedCheckpoint) ? null :
+                "KMC_C7_CHARGE_SEED is admitted only along the owner-seed real-time Charge lineage.";
+        }
+        private IReadOnlyList<string> ValidateKind(string scenario, string runId, string checkpoint)
         {
             if (AreaRoute != null && (!(IsOwnerSeedCheckpointSave || IsOwnerSeedCheckpointLoad) ||
                 checkpoint != "multi-area-autosave" || !IsManticoreReturnArea))
