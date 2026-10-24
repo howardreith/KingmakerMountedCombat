@@ -92,7 +92,7 @@ function Assert-KmcChunk7RealtimeEvidence($Request,$Artifact,[string]$Status){
     for($i=0;$i-lt2;$i++){$m=$mounts[$i];if($m.casterId-cne$ids[$i*2]-or$m.targetId-cne$ids[$i*2+1]-or$m.abilityGuid-cne'f053faad986631688defa003cd7bda0e'-or$m.nativeCastDelta-ne1-or$m.nativeRefusalDelta-ne0-or$m.generationAtInit-lt0){throw 'Native RT mount binding differs.'};foreach($f in @('clicked','terminal','processTerminal')){Assert-KmcChunk7Boolean $m.$f $true}}}
     if((Get-KmcChunk7SelectedScenario $Request)-ceq'chunk7-two-pair-realtime-core') {Assert-KmcChunk7RealtimeCore $o $ids $trace;if($derived){Assert-KmcChunk7OwnerSeedCompanionAction $Request $o;Assert-KmcChunk7OwnerSeedPlayerClick $Request $o}elseif($null-ne$o.PSObject.Properties['companionAction']-or$null-ne$o.PSObject.Properties['playerClick']){throw 'Only owner-seed-derived RT records an unrelated companion action or player-click window.'}}
     elseif((Get-KmcChunk7SelectedScenario $Request)-ceq'chunk7-two-pair-realtime-casting'){Assert-KmcChunk7RealtimeCasting $o $ids $trace}
-    else{Assert-KmcChunk7RealtimeCharge $o $ids $trace;Assert-KmcChunk7ChargeWeapon $Request $o}
+    else{Assert-KmcChunk7RealtimeCharge $o $ids $trace;Assert-KmcChunk7ChargeWeapon $Request $o;Assert-KmcChunk7ChargeTargetPlacement $o}
     if($owned){foreach($field in @('pairResidueAbsent','nativeCombatEnded','initiativeInputsRestored','firstPairAiRestored','controlsSettled','inheritedPetsPreserved')){Assert-KmcChunk7Boolean $o.cleanup.$field $true};Assert-KmcChunk7Boolean $o.cleanup.ownedHorseRemoved $false;Assert-KmcChunk7Boolean $o.cleanup.nativeProgressionRequiresExternalWorkingRestoration $false}else{foreach($field in @('pairResidueAbsent','ownedHorseRemoved','nativeCombatEnded','initiativeInputsRestored','firstPairAiRestored','controlsSettled','nativeProgressionRequiresExternalWorkingRestoration')){Assert-KmcChunk7Boolean $o.cleanup.$field $true}}
     Assert-KmcChunk7Boolean $o.cleanup.nativeSaveWrittenByThisDriver $false;Assert-KmcChunk7Boolean $o.cleanup.delegatedPersistenceCleanup $false
 }
@@ -153,6 +153,30 @@ function Assert-KmcChunk7ChargeWeapon($Request,$o){
     if((ConvertTo-Json -InputObject $w.before -Compress -Depth 4)-cne(ConvertTo-Json -InputObject $w.after -Compress -Depth 4)){throw 'Rider A''s equipped hand set or weapon changed during the Charge case.'}
     if((Test-KmcChunk7OwnedPairsScenario $Request.scenario)-and$Request.ownedPairs.case-ceq'owner-seed-realtime-charge'){$c=Get-KmcChunk7ChargeSeed
         if($w.before.handSet-ne$c.handSet-or$w.before.primaryBlueprint-cne$c.primaryWeapon){throw 'Owner-seed Charge rider A does not wield the seed''s saved hand set and weapon.'}}
+}
+# b201 k4: the RT Charge target point is selected (never the party moved): candidates in the fixed order of
+# distances 8/7/9/6 m and the forward-first full circle, each recorded; the first eligible one is used. Every
+# candidate's eligibility is recomputed from its own recorded values, so none can be hidden or reordered.
+function Assert-KmcChunk7ChargeTargetPlacement($o){
+    if($null-eq$o.PSObject.Properties['chargeTargetPlacement']){throw 'RT Charge lacks its recorded target placement.'};$p=$o.chargeTargetPlacement
+    Assert-KmcExactProperties $p @('contract','mountPosition','riderPosition','minimumChargeRange','maximumChargeRange','laneClearanceRequired','candidates','selected','position') 'charge target placement'
+    if($p.contract-cne'chunk7-rt-charge-target-placement-v1'){throw 'Charge target placement contract differs.'}
+    foreach($f in @('minimumChargeRange','maximumChargeRange','laneClearanceRequired')){if(-not(Test-KmcChunk7FiniteNumber $p.$f)-or$p.$f-le0){throw 'Charge target placement bounds are invalid.'}}
+    $angles=@(0.0,22.5,-22.5,45.0,-45.0,67.5,-67.5,90.0,-90.0,112.5,-112.5,135.0,-135.0,157.5,-157.5,180.0);$order=@(foreach($d in @(8.0,7.0,9.0,6.0)){foreach($a in $angles){,@($d,$a)}})
+    $c=@($p.candidates);if($c.Count-lt1-or$c.Count-gt$order.Count-or-not(Test-KmcExactJsonInteger $p.selected)-or$p.selected-ne$c.Count-1){throw 'Charge target placement did not select its first eligible candidate.'}
+    for($i=0;$i-lt$c.Count;$i++){$k=$c[$i]
+        Assert-KmcExactProperties $k @('angle','distance','requested','walkable','goal','offset','rise','traceResidual','chargeDistance','riderDistance','laneClearance','eligible') 'charge target candidate'
+        if([double]$k.distance-ne$order[$i][0]-or[double]$k.angle-ne$order[$i][1]){throw 'Charge target candidates are not in the declared search order.'}
+        if($k.walkable-isnot[bool]-or$k.eligible-isnot[bool]){throw 'Charge target candidate flags are mistyped.'}
+        foreach($f in @('offset','rise','traceResidual','chargeDistance','riderDistance')){if(-not(Test-KmcChunk7FiniteNumber $k.$f)){throw 'Charge target candidate geometry is invalid.'}}
+        if($null-ne$k.laneClearance-and-not(Test-KmcChunk7FiniteNumber $k.laneClearance)){throw 'Charge target candidate lane clearance is invalid.'}
+        # Thresholds are the producer's single-precision constants.
+        $ok=$k.walkable-and$k.offset-le[double][single]0.3-and[Math]::Abs([double]$k.rise)-le1.0-and$k.traceResidual-le[double][single]0.05-and$k.riderDistance-ge3.0-and$k.riderDistance-le20.0-and
+            $k.chargeDistance-ge$p.minimumChargeRange+0.5-and$k.chargeDistance-le$p.maximumChargeRange-0.5-and($null-eq$k.laneClearance-or$k.laneClearance-ge$p.laneClearanceRequired)
+        if($k.eligible-ne$ok){throw 'Charge target candidate eligibility differs from its recorded geometry.'}
+        if($k.eligible-ne($i-eq$c.Count-1)){throw 'Charge target placement did not select its first eligible candidate.'}}
+    $sel=$c[-1];if((ConvertTo-Json -InputObject @($p.position) -Compress)-cne(ConvertTo-Json -InputObject @($sel.goal) -Compress)){throw 'Charge target position differs from its selected candidate.'}
+    if($null-ne$o.PSObject.Properties['targetAuthorization']-and(ConvertTo-Json -InputObject @($o.targetAuthorization.position) -Compress)-cne(ConvertTo-Json -InputObject @($p.position) -Compress)){throw 'Charge target authorization did not place the selected candidate.'}
 }
 function Assert-KmcChunk7RealtimeCharge($o,[string[]]$ids,$trace){
     $windows=@($o.realtimeWindows);if($windows.Count-ne2-or$windows[0].kind-cne'charge-success'-or$windows[1].kind-cne'charge-cancel'){throw 'Opt-in Charge success and cancellation windows required.'}
