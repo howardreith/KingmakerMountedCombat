@@ -49,7 +49,6 @@ namespace KingmakerMountedCombat.Diagnostics
             passed &= TryCleanup("attack modes rule observer", () => { attackModesRules?.Dispose(); attackModesRules = null; });
             passed &= TryCleanup("reaction rule observer", () => { reactionRules?.Dispose(); reactionRules = null; });
             passed &= TryCleanup("staged rule observer", () => { stagedRules?.Dispose(); stagedRules = null; });
-            passed &= TryCleanup("staged scroll stack and cast observer", ReleaseStagedFixture);
             passed &= TryCleanup("RT effects observer", () => { realtimeEffects?.Dispose(); realtimeEffects = null; });
             passed &= TryCleanup("completion observer", () => { completion?.Dispose(); completion = null; });
             passed &= TryCleanup("round observer", () => { rounds?.Dispose(); rounds = null; });
@@ -93,6 +92,9 @@ namespace KingmakerMountedCombat.Diagnostics
                     !controls.HasUnsettledShellFor(p.Relationship));
             if (!commandsSettled || world.UnifiedTurn.HasUnsettledPreparation || controls.HasUnsettledRelationshipTransition)
             { AwaitCleanup(false, "Native command, process, preparation or relationship transition has not settled."); return; }
+            // The staged scroll stack leaves only after every owned command and cast process has settled.
+            if (!TryCleanup("staged scroll stack and cast observer", ReleaseStagedFixture))
+            { AwaitCleanup(false, "The staged scroll stack or its original quick slots have not settled."); return; }
             if (!cleanupServicesSettled)
             {
                 var targetGone = false;

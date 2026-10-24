@@ -803,11 +803,11 @@ function New-KmcSeedStagedFixture{
  $weapon='4de4658c0e9b0d146b9a08ed6f030f8a';$clw='5590652e1c2225c4ca30c4a699ab3649';$scrollBp='cd635d5720937b044a354dba17abad8d';$scrollItem=-4401
  $trace=$o.allocationTrace;$script:stSeq=[long](@($trace.events)|Measure-Object -Property sequence -Maximum).Maximum
  $ev={param([string]$boundary,[string]$actor,[long]$command,[double]$standard,[string]$commandActor=$null,[string]$commandType=$null)$script:stSeq++
-  $trace.events=@($trace.events)+@([pscustomobject][ordered]@{sequence=$script:stSeq;boundary=$boundary;frame=1;round=10;command=$command;commandActor=$commandActor;commandType=$commandType;state=[pscustomobject][ordered]@{actor=$actor;standard=$standard}})}
+  $trace.events=@($trace.events)+@([pscustomobject][ordered]@{sequence=$script:stSeq;boundary=$boundary;frame=1;round=$script:stRound;turn=$script:stTurn;currentActor=$roles[0];turnStatus='Acting';command=$command;commandActor=$commandActor;commandType=$commandType;state=[pscustomobject][ordered]@{actor=$actor;standard=$standard}})}
  $item={param([long]$count)@([pscustomobject][ordered]@{item=$scrollItem;blueprint=$scrollBp;count=$count;exactSlot=$true})}
  $st={param([string]$label,[long]$round,[long]$turn,[double]$rStd,[double]$mMove,[double[]]$pos,[bool]$used2,[long]$count)
   $x=Copy-Value $o.snapshots[0];$x.label=$label;$x.round=$round;$x|Add-Member currentActor $roles[0] -Force
-  foreach($a in $x.actors){$a.standard=0.0;$a.move=0.0;$a.swift=0.0;if($a.id-ceq$roles[0]){$a.standard=$rStd};if($a.id-ceq$roles[1]){$a.move=$mMove}}
+  foreach($a in $x.actors){$a.standard=0.0;$a.move=0.0;$a.swift=0.0;if($a.id-ceq$roles[0]){$a.standard=$rStd};if($a.id-ceq$roles[1]){$a.move=$mMove;$a|Add-Member native ([pscustomobject]@{remainingNativeTime=(6.0-$mMove)}) -Force}}
   $p=@([double]$pos[0],0.0,[double]$pos[1]);$d=[Math]::Sqrt($pos[0]*$pos[0]+$pos[1]*$pos[1])
   foreach($pair in @(@('turnStatus','Acting'),@('turn',$turn),@('relationship','Mounted'),@('mountUsedOneMove',($mMove-gt0)),@('mountUsedTwoMove',$used2),@('mountHasMove',($mMove-lt5.95)),@('riderHasStandard',($rStd-le0.001)),
    @('riderCommandsEmpty',$true),@('mountCommandsEmpty',$true),@('activePairCommand',$false),@('pairMovement',$false),@('processesSettled',$true),@('nativeAbilitiesPending',$false),@('projectilesPending',$false),
@@ -840,19 +840,23 @@ function New-KmcSeedStagedFixture{
    rules=@([pscustomobject][ordered]@{sequence=1;kind='attack';identity=7000+$index;frame=1;round=$round;actor=$roles[0];target=$o.targetId;opportunity=$false;fullAttack=$false;weapon=$weapon;ranged=$true;natural=$false;actorPosition=@($to[0],0.0,$to[1]);targetPosition=@(0.0,0.0,0.0)})
    terminal=(&$cmd $true);endDistance=$after.targetDistance})}
  # Round 10: C6D-move-cast-move.
+ $script:stRound=10;$script:stTurn=501
  &$moveStep 0 'C6D-move-cast-move' 'move-short' 10 @(&$leg 0 10 501 0.0 0.5 @(8.0,0.0) @(8.0,2.0) $false 4 601)
  &$castStep 1 'C6D-move-cast-move' 10 501 0.5 @(8.0,2.0) $false 4 -801
  &$moveStep 2 'C6D-move-cast-move' 'move-short' 10 @(&$leg 0 10 501 0.5 1.0 @(8.0,2.0) @(8.0,0.0) $false 3 602)
  # Round 11: C6D-double-move-ranged (two native Moves, then the in-range shot).
+ $script:stRound=11;$script:stTurn=502
  $l=@((&$leg 0 11 502 0.0 1.4 @(8.0,0.0) @(8.0,7.0) $false 3 603),(&$leg 1 11 502 1.4 2.8 @(8.0,7.0) @(8.0,0.0) $false 3 604),(&$leg 2 11 502 2.8 4.2 @(8.0,0.0) @(8.0,7.0) $true 3 605))
  &$moveStep 3 'C6D-double-move-ranged' 'move-two-moves' 11 $l
  &$shotStep 4 'C6D-double-move-ranged' 'attack-ranged' 11 502 4.2 4.2 @(8.0,7.0) @(8.0,7.0) $true 3 802
  # Round 12: beyond range, native exhaustion and its refusal, then the scroll control.
+ $script:stRound=12;$script:stTurn=503
  &$moveStep 5 'C7-staged-ranged-approach' 'move-beyond-range' 12 @(&$leg 0 12 503 0.0 2.0 @(8.0,7.0) @(20.64,0.0) $false 3 606)
  &$moveStep 6 'C7-staged-ranged-approach' 'move-exhaust' 12 @((&$leg 0 12 503 2.0 4.0 @(20.64,0.0) @(20.64,7.0) $true 3 607),(&$leg 1 12 503 4.0 6.0 @(20.64,7.0) @(20.64,0.0) $true 3 608))
  &$moveStep 7 'C7-staged-ranged-approach' 'move-probe' 12 @(&$leg 0 12 503 6.0 6.0 @(20.64,0.0) @(20.64,0.0) $true 3 0 $true)
  &$castStep 8 'C6D-double-move-ranged' 12 503 6.0 @(20.64,0.0) $true 3 803
  # Round 13: the RiderRanged approach shot from beyond range.
+ $script:stRound=13;$script:stTurn=504
  &$shotStep 9 'C7-staged-ranged-approach' 'attack-ranged-approach' 13 504 0.0 1.0 @(20.64,0.0) @(17.64,0.0) $false 2 804
  $plan=@(Get-KmcChunk7StagedPlan|ForEach-Object{[pscustomobject][ordered]@{row=$_[0];kind=$_[1];round=$_[2]}})
  $events=@($steps|ForEach-Object{@($_.rules)})
@@ -863,7 +867,7 @@ function New-KmcSeedStagedFixture{
   rules=[pscustomobject][ordered]@{dropped=0;errors=@();events=$events}
   scroll=[pscustomobject][ordered]@{blueprint=$scrollBp;requestedCount=4;equipped=[pscustomobject]@{item=$scrollItem;exactSlot=$true;count=1};stacked=[pscustomobject]@{item=$scrollItem;exactSlot=$true;count=4}
    beforeCleanup=[pscustomobject]@{item=$scrollItem;exactSlot=$true;count=2};ownedItemReleased=$true;disposed=$true;slotRestored=$true;noOwnedItemResident=$true}
-  castTrace=[pscustomobject][ordered]@{dropped=0;faults=0;identityRegistry=[pscustomobject]@{retainedCount=0;released=$true;faults=0}};complete=$true}) -Force
+  castTrace=[pscustomobject][ordered]@{dropped=0;faults=0;identityRegistry=[pscustomobject]@{retainedCount=0;released=$true;faults=0}};originalSlots=[pscustomobject]@{restored=$true};complete=$true}) -Force
  $v.name='combat-staged';$v
 }
 function Check-SeedStaged([string]$Name,[scriptblock]$Mutation,[string]$Pattern){$v=New-KmcSeedStagedFixture;&$Mutation $v;Check ('owner-seed staged refuses '+$Name) {Invoke-OwnedReader $v} $true $Pattern}
@@ -930,6 +934,16 @@ Check-SeedStaged 'a dropped rule observation' {$args[0].artifact.observations.st
 Check-SeedStaged 'an incomplete run' {$args[0].artifact.observations.staged.complete=$false} 'Native evidence boolean'
 Check-SeedStaged 'a carried reaction record' {$args[0].artifact.observations|Add-Member reaction ([pscustomobject]@{}) -Force} 'cannot carry another combat case'
 Check-SeedStaged 'a relationship input' {$args[0].artifact.observations.inputs=@([pscustomobject]@{label='stray'})} 'no relationship input'
+Check-SeedStaged 'a turn end inside an activation' {$v=$args[0];$e=Get-StEvent $v 602 'admission-after';$e.boundary='turn-end-before'} 'turn transition|exact mount carrier'
+Check-SeedStaged 'a cost boundary of another native turn' {$e=Get-StEvent $args[0] 802 'cost-before';$e.turn=999} 'outside rider A''s own native activation'
+Check-SeedStaged 'a cost boundary after the turn ended' {$e=Get-StEvent $args[0] -801 'cost-after';$e.turnStatus='Ended'} 'outside rider A''s own native activation'
+Check-SeedStaged 'one native turn identity across two rounds' {$v=$args[0];foreach($i in 3,4){$s=Get-StStep $v $i;$s.before.turn=501;$s.after.turn=501;if($null-ne$s.PSObject.Properties["legs"]){foreach($l in @($s.legs)){$l.before.turn=501;$l.after.turn=501}}};foreach($e in @($v.artifact.observations.allocationTrace.events|Where-Object{$_.PSObject.Properties['turn']-and$_.turn-eq502})){$e.turn=501}} 'reuse one native turn identity'
+Check-SeedStaged 'a foreign attack of opportunity outside every window' {$r=$args[0].artifact.observations.staged.rules;$r.events=@($r.events)+@([pscustomobject]@{sequence=9;kind='attack';actor=$args[0].artifact.observations.targetId;target=$args[0].request.ownedPairs.mountAId;opportunity=$true;ranged=$false})} 'outside the step windows'
+Check-SeedStaged 'a cast observer that retains identities' {$args[0].artifact.observations.staged.castTrace.identityRegistry.retainedCount=7} 'not retired'
+Check-SeedStaged 'original quick slots not observed restored' {$args[0].artifact.observations.staged.originalSlots.restored=$false} 'quick slots were not observed restored'
+Check-SeedStaged 'a second leg before any Move was used' {(Get-StStep $args[0] 2).legs[0].before.mountUsedOneMove=$false} 'retained native movement time'
+Check-SeedStaged 'a second leg that consumed no native movement time' {$l=(Get-StStep $args[0] 2).legs[0];(Get-StActor $l.after $args[0].request.ownedPairs.mountAId).native.remainingNativeTime=5.5} 'retained native movement time'
+Check-SeedStaged 'a full attack as the shot' {(Get-StStep $args[0] 4).rules[0].fullAttack=$true;$args[0].artifact.observations.staged.rules.events=@((Get-StStep $args[0] 4).rules[0],(Get-StStep $args[0] 9).rules[0])} 'one native ranged shot'
 Check-SeedStaged 'a single-action move leg' {(Get-StStep $args[0] 0).legs[0].singleActionMove=$true} 'Native evidence boolean'
 Check-SeedStaged 'an absent cast shell identity' {$s=Get-StStep $args[0] 8;$s.costShell=0;$s.terminal.identity=0} 'committed exactly once'
 Check 'owner-seed combat reaction accepts a negative native command identity' {$v=New-KmcSeedReactionFixture;(Get-RxLeg $v).command=-1234567;Invoke-OwnedReader $v}
