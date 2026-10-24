@@ -132,6 +132,8 @@ Step 5 is `move-beyond-range` in round 3 (envelope 16.84 m). Rider A started at 
 | 10.48 | −67.5 (walkable, residual 0.41) | `trace-inexact` |
 
 - 15 proposals were not walkable, 5 were `below-band` and 1 was `trace-inexact`.
+  *Correction (offline, October 24): the recorded refusal terms are 16 not walkable, 4 `below-band` and 1
+  `trace-inexact`; the table above is right and this count was wrong.*
 - No proposal reached the lookahead term. None was `geometryAccepted` or eligible.
 - The 6.48 m base length equals the aim (envelope + 3 m = 19.84 m) minus the 13.36 m start distance.
 - This is the risk CURRENT.md recorded for `7b183f8b`: no walkable band strip on that side of the target from this
