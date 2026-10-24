@@ -176,7 +176,8 @@ namespace KingmakerMountedCombat.Diagnostics
                             if (!MountedStartReady()) return;
                             AdmitMountedStart(); Pass("C7-combat-restored-mounts");
                             if (RegisteredDisableCase) ExercisePermanentHorseRemovalRefusal();
-                            if (AttackModesCase) PrepareAttackModes();
+                            // Attack modes wait (bounded, native) for the save's Rapid Shot to stop before the encounter.
+                            if (AttackModesCase) { PrepareAttackModes(); Next(79); break; }
                             PrepareEncounter(); Next(RealtimeScenario ? 60 : 5); break;
                         }
                         if (!Chunk7NativeFixture.Idle(bm)) return;
@@ -201,6 +202,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     case 50: TickRealtimeCheckpoint(); break;
                     case 60: TickRealtime(); break;
                     case 70: TickNativeLife(); break;
+                    case 79: if (!AttackModesRapidSettled()) return; PrepareEncounter(); Next(5); break;
                     case 80: TickAttackModes(); break;
                     case 20: TickRefresh(); break;
                     case 30:

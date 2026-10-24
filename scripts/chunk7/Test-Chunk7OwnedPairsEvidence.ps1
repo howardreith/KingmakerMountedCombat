@@ -668,7 +668,8 @@ function New-KmcSeedAttackModesFixture{
  $clickOn=[pscustomobject][ordered]@{label='round-n-on';before=(&$rapid $false 10 $true);possible=$true;after=(&$rapid $true 10 $true)}
  $o|Add-Member attackModes ([pscustomobject][ordered]@{contract='owner-seed-attack-modes-v1';riderId=$roles[0];mountId=$roles[1];rapidShotFeature=1;rapidShotToggles=1;weapon=$weapon;weaponRanged=$true;weaponRangeMeters=15.24
   rapidBefore=(&$rapid $true 0 $false);rapidOff=(&$rapid $false 0 $false);toggleClicks=@($clickOff,$clickOn);measurements=$ms;firstRound=10;stage=7
-  dismountBefore=(&$snap 'attack-modes-dismount-before' 0.0 12);dismountAfter=(&$snap 'attack-modes-dismount-after' 0.0 12);complete=$true}) -Force
+  dismountBefore=(&$snap 'attack-modes-dismount-before' 0.0 12);dismountAfter=(&$snap 'attack-modes-dismount-after' 0.0 12);complete=$true
+  rules=[pscustomobject][ordered]@{dropped=0;errors=@();events=@($ms|ForEach-Object{@($_.rules)})}}) -Force
  $v.name='combat-attack-modes';$v
 }
 function Check-SeedAttackModes([string]$Name,[scriptblock]$Mutation,[string]$Pattern){$v=New-KmcSeedAttackModesFixture;&$Mutation $v;Check ('owner-seed attack modes refuses '+$Name) {Invoke-OwnedReader $v} $true $Pattern}
@@ -684,7 +685,7 @@ Check-SeedAttackModes 'Rapid Shot still on before combat' {$args[0].artifact.obs
 Check-SeedAttackModes 'a toggle switched other than by its native slot clicks' {$m=$args[0].artifact.observations.attackModes;$m.toggleClicks=@($m.toggleClicks[0])} 'toggle clicks differ'
 Check-SeedAttackModes 'a slot click that did not switch' {$args[0].artifact.observations.attackModes.toggleClicks[1].after.isOn=$false} 'did not switch the native toggle'
 Check-SeedAttackModes 'a missing measurement' {$m=$args[0].artifact.observations.attackModes;$m.measurements=@($m.measurements[0],$m.measurements[1])} 'exactly three native full attacks'
-Check-SeedAttackModes 'measurements out of order' {$m=$args[0].artifact.observations.attackModes;$m.measurements=@($m.measurements[1],$m.measurements[0],$m.measurements[2])} 'differs in mode, round or toggle'
+Check-SeedAttackModes 'measurements out of order' {$m=$args[0].artifact.observations.attackModes;$m.measurements=@($m.measurements[1],$m.measurements[0],$m.measurements[2])} 'natively running exactly when on'
 Check-SeedAttackModes 'a control still mounted' {(AM $args[0] 2).mounted=$true} 'differs in mode, round or toggle'
 Check-SeedAttackModes 'a control in the dismount round' {(AM $args[0] 2).round=12} 'differs in mode, round or toggle'
 Check-SeedAttackModes 'a single attack instead of a full attack' {(AM $args[0] 0).command.fullAttack=$false} 'not one native full attack'
@@ -694,7 +695,7 @@ Check-SeedAttackModes 'a mount attack inside the rider window' {$m=AM $args[0] 0
 Check-SeedAttackModes 'an attack of opportunity counted as a plan attack' {$m=AM $args[0] 0;$m.rules[1].opportunity=$true} 'rolls differ from its ranged plan'
 Check-SeedAttackModes 'a ranged entry after the natural tail' {$c=(AM $args[0] 1).command;$c.plan=@([pscustomobject][ordered]@{index=0;weapon='35dfad6517f401145af54111be04d6cf';ranged=$false;natural=$true;owner=$args[0].request.ownedPairs.mountAId;iterativePenalty=0})+@($c.plan|ForEach-Object{$x=Copy-Value $_;$x.index++;$x})} 'lead with rider A'
 Check-SeedAttackModes 'an incomplete ranged plan' {(AM $args[0] 1).command.completedAttacks=1} 'did not complete its ranged plan'
-Check-SeedAttackModes 'a Rapid Shot source while off' {$b=(AM $args[0] 0).rules[1];$b.bonuses=@($b.bonuses)+@([pscustomobject]@{bonus=-2;source='0f310c1e709e15e4fa693db15a4baeb4';sourceName='RapidShotBuff'})} 'applied while the native toggle was off'
+Check-SeedAttackModes 'a Rapid Shot source while off' {$b=(AM $args[0] 0).rules[1];$b.bonuses=@($b.bonuses)+@([pscustomobject]@{bonus=-2;source='0f310c1e709e15e4fa693db15a4baeb4';sourceName='RapidShotBuff'})} 'does not carry exactly its Rapid Shot source'
 Check-SeedAttackModes 'Rapid Shot without its extra attack' {$m=AM $args[0] 1;$m.rules=@($m.rules[0],$m.rules[1]);$m.command.plan=@($m.command.plan[0]);$m.command.completedAttacks=1} 'exactly one attack at the highest bonus'
 Check-SeedAttackModes 'Rapid Shot bonuses that differ from the off attack' {foreach($r in @((AM $args[0] 1).rules|Where-Object kind -CEQ 'roll')){$r.nativeCalculation.innerResult=4}} 'exactly one attack at the highest bonus'
 Check-SeedAttackModes 'a mounted attack bonus different from the unmounted control' {$r=@((AM $args[0] 2).rules|Where-Object kind -CEQ 'roll')[1];$r.nativeCalculation.innerResult=6} 'differs from the unmounted control'
@@ -705,7 +706,16 @@ Check-SeedAttackModes 'a mount native cost inside the rider window' {$v=$args[0]
 Check-SeedAttackModes 'a different native cost shape between modes' {$v=$args[0];$m=AM $v 2;$t=$v.artifact.observations.allocationTrace;$m.traceSequenceAfter++;$t.events=@($t.events)+@([pscustomobject]@{sequence=$m.traceSequenceAfter;boundary='cost-after';frame=1;round=13;state=[pscustomobject]@{actor=$v.request.ownedPairs.riderAId}})} 'cost shape'
 Check-SeedAttackModes 'a second relationship input' {$o=$args[0].artifact.observations;$o.inputs=@($o.inputs)+@($o.inputs[0])} 'exactly the one native Dismount input'
 Check-SeedAttackModes 'a carried primary activation' {$o=$args[0].artifact.observations;$o.activations=@([pscustomobject]@{pair=0})} 'record no primary pair activation'
-Check-SeedAttackModes 'an incomplete run' {$args[0].artifact.observations.attackModes.complete=$false} 'Native evidence boolean'
+Check-SeedAttackModes 'an incomplete run' {$args[0].artifact.observations.attackModes.complete=$false} 'Native evidence boolean is missing, mistyped or differs'
+Check-SeedAttackModes 'a dropped rule observation' {$args[0].artifact.observations.attackModes.rules.dropped=1} 'dropped or failed'
+Check-SeedAttackModes 'a failed rule observation' {$args[0].artifact.observations.attackModes.rules.errors=@('boom')} 'dropped or failed'
+Check-SeedAttackModes 'a missing rule observation' {$args[0].artifact.observations.attackModes.PSObject.Properties.Remove('rules')} 'dropped or failed'
+Check-SeedAttackModes 'a toggle that changed during the full attack' {(AM $args[0] 1).rapidAfter.isOn=$false} 'differs in mode, round or toggle'
+Check-SeedAttackModes 'Rapid Shot not running while on' {(AM $args[0] 1).rapid.isRunning=$false} 'natively running exactly when on'
+Check-SeedAttackModes 'a roll without its Rapid Shot source while on' {$r=@((AM $args[0] 2).rules|Where-Object kind -CEQ 'roll')[1];$r.bonuses=@($r.bonuses|Where-Object{$_.source-cne'0f310c1e709e15e4fa693db15a4baeb4'})} 'exactly its Rapid Shot source'
+Check-SeedAttackModes 'a plan weapon other than the equipped ranged weapon' {$p=(AM $args[0] 0).command.plan[0];$p.weapon='35dfad6517f401145af54111be04d6cf'} 'lead with rider A'
+Check-SeedAttackModes 'an interrupt that claims a completed plan' {(AM $args[0] 1).command.result='Interrupt'} 'interrupt claims a completed plan'
+Check-SeedAttackModes 'an on click outside the first measured round' {$args[0].artifact.observations.attackModes.toggleClicks[1].before.round=11} 'first measured round'
 Check-SeedAttackModes 'a Dismount outside its round' {$args[0].artifact.observations.attackModes.dismountAfter.round=13} 'outside its native round'
 Check-SeedCombat 'owner-seed-derived RT refuses a missing companion action' 'realtime-core' {$args[0].artifact.observations.PSObject.Properties.Remove('companionAction')} 'unrelated companion action'
 Check-SeedCombat 'owner-seed-derived RT refuses a reassigned pair command' 'realtime-core' {$args[0].artifact.observations.companionAction.after.pairCommands.b=@([pscustomobject]@{identity=8888;actorId=$args[0].request.ownedPairs.riderBId;type='Kingmaker.UnitLogic.Commands.UnitAttack';finished=$false})} 'reassigned or cancelled'
