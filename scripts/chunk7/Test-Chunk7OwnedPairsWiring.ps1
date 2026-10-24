@@ -17,6 +17,14 @@ foreach($case in @('multi-exploration-three-loads-manual','multi-exploration-thr
  $f=CopyValue @($fixtures|Where-Object name -CEQ 'persistence-load-multi-exploration-manual')[0];$f.name='persistence-load-'+$case;$f.request.persistenceCase=$case;$f.request.ownedPairs.expectedNativeLoadCount=if($case-ceq'multi-exploration-three-loads-manual'){3}else{1}
  if($case-ceq'multi-exploration-three-area-transfers-manual'){$f.request|Add-Member persistenceReplayTargets @(for($i=0;$i-lt3;$i++){[pscustomobject]@{enterPoint=@('1','2','3')[$i]*32;area=@('b','c','d')[$i]*32;autoSaveMode='None'}})};$fixtures+=@($f)
 }
+# Matrix rows 58-59: the scoped capital producer (pin, autoSaveMode None, one Manual) and its cold consumer.
+$capitalPin=[pscustomobject][ordered]@{enterPoint='fd225a93828d26449803a4847947f8c1';area='ead426a6c23d39548a670ee515d77df4';autoSaveMode='None'}
+foreach($case in @('multi-exploration-capital-arrival-manual','multi-exploration-capital-arrival-cold-manual')){
+ $f=CopyValue @($fixtures|Where-Object name -CEQ 'persistence-load-multi-exploration-manual')[0];$f.name='persistence-load-'+$case;$f.request.persistenceCase=$case
+ if($case-ceq'multi-exploration-capital-arrival-manual'){$f.request.ownedPairs.expectedNativeWriteCount=1;$f.request|Add-Member persistenceAreaTarget (CopyValue $capitalPin)}
+ else{$f.request.persistenceLoad.internalName='KMC_C7_CAPITAL';$f.request.persistenceLoad.fileName='Manual_44_KMC_C7_CAPITAL.zks';$f.request.persistenceLoad.area=$capitalPin.area}
+ $fixtures+=@($f)
+}
 $leaves=@('Invoke-KingmakerRuntimeScenario.ps1','RuntimeHarness.Common.ps1','Test-RuntimeRequest.ps1','Test-RuntimeGameResult.ps1','Test-RuntimeResult.ps1','ScenarioDispatchEvidence.ps1','Chunk7OwnedPairsEvidence.ps1','Chunk7OwnedPairsFixtures.ps1')
 foreach($leaf in $leaves){Check ('parse '+$leaf){[void](Ast (Join-Path $bridgeRuntime $leaf))}}
 Check 'closed family registered once as save-backed compound'{if(@(Get-KmcSaveBackedRuntimeScenarios|Where-Object{$_-ceq'chunk7-owned-two-pair-campaign'}).Count-ne1-or-not(Test-KmcCompoundRuntimeScenario 'chunk7-owned-two-pair-campaign')){throw 'Registration differs'}}
@@ -188,5 +196,51 @@ Check 'companion accounted boundaries are emitted by the allocation trace and mi
  if(($readerNames-join'|')-cne($names-join'|')){throw 'Reader accounted boundaries differ from the producer.'}
  if($traceText-cnotmatch'declaredCommandOwner'-or$scenario-cnotmatch'trace\.DeclareCommandOwner\(companion\);\s*companionTraceOffset = trace\.EventCount;'){throw 'Companion admissions are not declared to the trace before the window opens.'}
 }
+# Rows 58-59 through the actual full request validator: only the exact scoped capital shapes are admitted.
+$capitalNegative=[ordered]@{
+ 'producer target omitted'={param($q)$q.PSObject.Properties.Remove('persistenceAreaTarget')}
+ 'producer other entry'={param($q)$q.persistenceAreaTarget.enterPoint='1'*32}
+ 'producer other area'={param($q)$q.persistenceAreaTarget.area='b'*32}
+ 'producer AfterEntry'={param($q)$q.persistenceAreaTarget.autoSaveMode='AfterEntry'}
+ 'producer target key'={param($q)$q.persistenceAreaTarget|Add-Member route 'other'}
+ 'producer input already in the capital'={param($q)$q.persistenceLoad.area=$capitalPin.area}
+ 'producer zero writes'={param($q)$q.ownedPairs.expectedNativeWriteCount=0}
+ 'producer two writes'={param($q)$q.ownedPairs.expectedNativeWriteCount=2}
+ 'producer as save case'={param($q)$q.ownedPairs.case='persistence-save';$q.ownedPairs.checkpointSourceRunId=$null;$q.ownedPairs.checkpointSourceArtifactSha256=$null}
+ 'producer replay route'={param($q)$q|Add-Member persistenceReplayTargets @($capitalPin)}
+}
+foreach($n in $capitalNegative.GetEnumerator()){Check ('full capital producer refuses '+$n.Key){$q=Request 'persistence-load-multi-exploration-capital-arrival-manual';&$n.Value $q;Validate $q} $true}
+$capitalColdNegative=[ordered]@{
+ 'cold with a target'={param($q)$q|Add-Member persistenceAreaTarget (CopyValue $capitalPin)}
+ 'cold outside the capital'={param($q)$q.persistenceLoad.area='a'*32}
+ 'cold world name'={param($q)$q.persistenceLoad.internalName='KMC_C7_WORLD';$q.persistenceLoad.fileName='Manual_44_KMC_C7_WORLD.zks'}
+ 'cold one write'={param($q)$q.ownedPairs.expectedNativeWriteCount=1}
+}
+foreach($n in $capitalColdNegative.GetEnumerator()){Check ('full capital cold consumer refuses '+$n.Key){$q=Request 'persistence-load-multi-exploration-capital-arrival-cold-manual';&$n.Value $q;Validate $q} $true}
+foreach($case in @('multi-exploration-capital-arrival-manual','multi-exploration-capital-arrival-cold-manual')){Check ('capital checkpoint refused on the owned producer '+$case){$q=Request 'persistence-save-multi-exploration-manual';$q.persistenceCase=$case;Validate $q} $true}
+Check 'capital producer quota is one load and one Manual named KMC_C7_CAPITAL'{$q=Request 'persistence-load-multi-exploration-capital-arrival-manual';if((Get-KmcChunk7OwnedWriteCount $q)-ne1-or(Get-KmcChunk7OwnedLoadCount $q)-ne1-or(Get-KmcChunk7OwnedManualOutputName $q)-cne'KMC_C7_CAPITAL'-or(Get-KmcChunk7SelectedScenario $q)-cne'chunk7-persistence-load'-or(Get-KmcChunk7ExpectedArchiveArea $q)-cne$capitalPin.area){throw 'Capital producer quota, name, engine or area differs.'}}
+Check 'capital cold consumer quota is one load and zero writes in the capital'{$q=Request 'persistence-load-multi-exploration-capital-arrival-cold-manual';if((Get-KmcChunk7OwnedWriteCount $q)-ne0-or(Get-KmcChunk7OwnedLoadCount $q)-ne1-or(Get-KmcChunk7SelectedScenario $q)-cne'chunk7-persistence-load'-or(Get-KmcChunk7ExpectedArchiveArea $q)-cne$capitalPin.area){throw 'Capital cold quota, engine or area differs.'}}
+Check 'capital source lineage: row 58 from the x4s Manual case, row 59 from row 58'{if((Get-KmcChunk7PersistenceSourceCase 'multi-exploration-capital-arrival-manual')-cne'multi-exploration-manual'-or(Get-KmcChunk7PersistenceSourceCase 'multi-exploration-capital-arrival-cold-manual')-cne'multi-exploration-capital-arrival-manual'){throw 'Capital source lineage differs.'}}
+Check 'capital route admits only the reviewed pin'{Assert-KmcChunk7CapitalArrivalRoute @($capitalPin.enterPoint) @($capitalPin.area)}
+foreach($route in @(@(@('1'*32),@($capitalPin.area)),@(@($capitalPin.enterPoint),@('b'*32)),@(@($capitalPin.enterPoint,$capitalPin.enterPoint),@($capitalPin.area,$capitalPin.area)),@(@(),@()))){Check ('capital route refuses '+($route[0]-join',')+'/'+($route[1]-join',')){Assert-KmcChunk7CapitalArrivalRoute $route[0] $route[1]} $true}
+Check 'every other route still refuses the capital pin'{try{Assert-KmcChunk7RouteAvoidsKnownCapitals @($capitalPin.enterPoint) @($capitalPin.area);throw 'admitted'}catch{if($_.Exception.Message-notmatch'known capital'){throw}}}
+Check 'runner admits capital cases as parameters and keeps refusing them before launch'{
+ $set=@($metadata.Parameters.PersistenceCase.Attributes|Where-Object{$_-is[Management.Automation.ValidateSetAttribute]})[0].ValidValues
+ foreach($case in @('multi-exploration-capital-arrival-manual','multi-exploration-capital-arrival-cold-manual')){if($case-cnotin$set){throw 'Runner parameter rejects a capital case.'}}
+ $guard=@($runnerAst.FindAll({param($n)$n-is[Management.Automation.Language.IfStatementAst]-and$n.Clauses[0].Item1.Extent.Text-ceq'Test-KmcChunk7CapitalCase $PersistenceCase'},$true))
+ if($guard.Count-ne1-or-not$guard[0].Extent.Text.Contains('Assert-KmcChunk7CapitalArrivalRoute $PersistenceAreaEnterPoint $PersistenceAreaTargetArea')-or-not$guard[0].Extent.Text.Contains("throw 'Capital-arrival rows 58-59 are wired, but their native engine and readers have not landed; refused before launch.'")){throw 'Runner capital guard differs.'}
+ $lockCall=@($runnerAst.FindAll({param($n)$n-is[Management.Automation.Language.CommandAst]-and$n.GetCommandName()-ceq'Open-KmcRuntimeLock'},$true))
+ if($lockCall.Count-ne1-or$guard[0].Extent.EndOffset-ge$lockCall[0].Extent.StartOffset){throw 'Capital refusal is not before the transaction lock.'}
+}
+Check 'runner builds the capital target with exactly the pins and no native autosave'{
+ $assignment=@($runnerAst.FindAll({param($n)$n-is[Management.Automation.Language.AssignmentStatementAst]-and$n.Left.Extent.Text-ceq'$request[''persistenceAreaTarget'']'},$true))
+ if($assignment.Count-ne1){throw 'Exactly one runner target construction is required.'};$branch=$assignment[0].Parent;while($null-ne$branch-and$branch-isnot[Management.Automation.Language.IfStatementAst]){$branch=$branch.Parent}
+ $build=[scriptblock]::Create('param($Case) $request=[ordered]@{};$PersistenceCase=$Case;$PersistenceAreaEnterPoint="fd225a93828d26449803a4847947f8c1";$PersistenceAreaTargetArea="ead426a6c23d39548a670ee515d77df4"'+[Environment]::NewLine+$branch.Extent.Text+[Environment]::NewLine+'if($request.Contains("persistenceAreaTarget")){$request["persistenceAreaTarget"]}else{$null}')
+ $t=&$build 'multi-exploration-capital-arrival-manual';if((ConvertTo-KmcChunk7Canonical $t)-cne(ConvertTo-KmcChunk7Canonical $capitalPin)){throw 'Capital target construction differs.'}
+ if($null-ne(&$build 'multi-exploration-capital-arrival-cold-manual')){throw 'Capital cold consumer gained a target.'}
+ if((&$build 'multi-area-autosave').autoSaveMode-cne'AfterEntry'){throw 'Area autosave target mode changed.'}
+}
+. (Join-Path $bridgeRuntime 'PersistenceProfileAreasIsolation.ps1')
+foreach($case in @('multi-exploration-capital-arrival-manual','multi-exploration-capital-arrival-cold-manual')){Check ('capital case isolates the profile Areas cache '+$case){if(-not(Test-KmcPersistenceAreasIsolationSelection -Scenario 'chunk7-owned-two-pair-campaign' -PersistenceCase $case -ObserveWorkingDeserialization $false)){throw 'Capital case lacks Areas isolation.'}}}
 $clock.Stop();$passed=@($results|Where-Object pass).Count;$failed=$results.Count-$passed
 [IO.File]::WriteAllText((Join-Path $bridgeOutput 'receipt.json'),([pscustomobject]@{passed=$passed;failed=$failed;elapsedSeconds=$clock.Elapsed.TotalSeconds;gameLaunches=0;archivesCreated=0;archivesRead=0;scope='actual full request validator, named result functions, quota assignments and runner guard AST; OS repository/output binding substituted';results=@($results)}|ConvertTo-Json -Depth 12),[Text.UTF8Encoding]::new($false));Write-Output ('Owned wiring: '+$passed+' PASS / '+$failed+' FAIL');if($failed){exit 1}

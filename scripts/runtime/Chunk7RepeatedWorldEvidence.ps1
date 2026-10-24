@@ -1,7 +1,7 @@
 # Exact new-case readers only. Repeated loads do not qualify native area transfers.
 Set-StrictMode -Version Latest
 function Test-KmcChunk7RepeatedWorldCase([string]$Case) { $Case-cin@('multi-exploration-three-loads-manual','multi-exploration-three-area-transfers-manual') }
-function Get-KmcChunk7PersistenceSourceCase([string]$Case) { if($Case-ceq'owned-schema1-resave-manual'){return 'owned-schema1-manual'};if($Case-ceq'pending-schema3-control-manual'){return 'legacy-mounted-pending-tb-manual'};if(Test-KmcChunk7RepeatedWorldCase $Case){return 'multi-exploration-manual'};return $Case }
+function Get-KmcChunk7PersistenceSourceCase([string]$Case) { if($Case-ceq'owned-schema1-resave-manual'){return 'owned-schema1-manual'};if($Case-ceq'pending-schema3-control-manual'){return 'legacy-mounted-pending-tb-manual'};if(Test-KmcChunk7RepeatedWorldCase $Case){return 'multi-exploration-manual'};if($Case-ceq'multi-exploration-capital-arrival-manual'){return 'multi-exploration-manual'};if($Case-ceq'multi-exploration-capital-arrival-cold-manual'){return 'multi-exploration-capital-arrival-manual'};return $Case }
 # Reviewed capital destinations, from native evidence: run 20261019-c7b-world48-ownerseed-b23s3-areaauto
 # observed Oleg's Trading Post (area ead426a6..., entry fd225a93...) with destinationIsCapital=true. In a
 # capital native IsDirectlyControllable admits only the main character and its pet (b195 x4c), so an

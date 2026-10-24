@@ -347,7 +347,7 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private static SaveInfo.SaveType OwnedPairsOutputType(RuntimeRequest request) => request.OwnedPairs.Cold ? SaveInfo.SaveType.Manual : Chunk7PersistenceScenario.NativeType(request.PersistenceCase);
         // The owner-seed-derived Manual and the owner-seed checkpoint Manual keep their own native names, distinct from acquired ancestry.
-        private static string OwnedPairsOutputName(RuntimeRequest request) => request.OwnedPairs.IsOwnerSeedManual ? Chunk7OwnedPairsSelection.OwnerSeedManualName : request.OwnedPairs.Cold ? (Chunk7OwnedPairsSelection.OwnedSchema1Cold(request.PersistenceCase) ? "KMC_C7_SCHEMA1" : "KMC_C7_SCHEMA2") : Chunk7PersistenceScenario.NativeName(OwnedPairsOutputType(request), request.OwnedPairs, request.PersistenceCase);
+        private static string OwnedPairsOutputName(RuntimeRequest request) => request.OwnedPairs.IsOwnerSeedManual ? Chunk7OwnedPairsSelection.OwnerSeedManualName : request.OwnedPairs.Cold ? (Chunk7OwnedPairsSelection.OwnedSchema1Cold(request.PersistenceCase) ? "KMC_C7_SCHEMA1" : request.OwnedPairs.IsCapitalArrivalProducer(request.PersistenceCase) ? Chunk7OwnedPairsSelection.CapitalArrivalManualName : "KMC_C7_SCHEMA2") : Chunk7PersistenceScenario.NativeName(OwnedPairsOutputType(request), request.OwnedPairs, request.PersistenceCase);
 
         private static RuntimeSaveTarget Project(SaveInfo save) => save == null ? null : new RuntimeSaveTarget
         {

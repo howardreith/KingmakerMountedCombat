@@ -618,7 +618,11 @@ function Get-KmcChunk7OwnedPairsSource($Selection,[AllowNull()][string]$Persiste
  if($null-ne$Selection-and$null-ne$Selection.PSObject.Properties['case']-and$Selection.case-cin@('owner-seed-exploration','owner-seed-persistence-save')){return Get-KmcChunk7OwnedPairsOwnerSeedSource $Selection $PersistenceCase $Fixture $Candidate $AreaTarget}
  if($null-ne$Selection-and$null-ne$Selection.PSObject.Properties['case']-and$Selection.case-cin@('owner-seed-persistence-load','owner-seed-realtime-core','owner-seed-combat-rider-first','owner-seed-combat-mount-first','owner-seed-combat-disable','owner-seed-native-life-cleanup','owner-seed-checkpoint-save','owner-seed-load-refusal')){return Get-KmcChunk7OwnedPairsOwnerSeedDerivedSource $Selection $PersistenceCase $Fixture $Candidate $AreaTarget}
  if($null-ne$Selection-and$null-ne$Selection.PSObject.Properties['case']-and$Selection.case-ceq'owner-seed-checkpoint-load'){return Get-KmcChunk7OwnedPairsOwnerSeedCheckpointSource $Selection $PersistenceCase $Fixture $Candidate $AreaTarget}
- if($PersistenceCase-ceq'multi-area-autosave'){Assert-KmcChunk7AreaTarget ([pscustomobject]@{scenario='chunk7-owned-two-pair-campaign';persistenceCase=$PersistenceCase;ownedPairs=$Selection;persistenceAreaTarget=$AreaTarget})}elseif($null-ne$AreaTarget){throw 'Only owned area autosave may carry its exact destination.'}
+ if($PersistenceCase-ceq'multi-area-autosave'){Assert-KmcChunk7AreaTarget ([pscustomobject]@{scenario='chunk7-owned-two-pair-campaign';persistenceCase=$PersistenceCase;ownedPairs=$Selection;persistenceAreaTarget=$AreaTarget})}
+ elseif(Test-KmcChunk7CapitalArrivalCase $PersistenceCase){Assert-KmcChunk7CapitalArrivalTarget ([pscustomobject]@{persistenceCase=$PersistenceCase;persistenceAreaTarget=$AreaTarget})}
+ elseif($null-ne$AreaTarget){throw 'Only owned area autosave or the scoped capital arrival may carry its exact destination.'}
+ # Row 59's checkpoint parent is row 58, itself a cold consumer; it has its own exact source route.
+ if(Test-KmcChunk7CapitalColdCase $PersistenceCase){throw 'The capital-arrival cold consumer source is not connected yet.'}
  $manual=Get-KmcChunk7OwnedPairsManualSource $Selection $PersistenceCase $Fixture $Candidate
  if($Selection.case-cne'persistence-load'){return $manual}
  $sourceCase=Get-KmcChunk7PersistenceSourceCase $PersistenceCase

@@ -243,6 +243,7 @@ namespace KingmakerMountedCombat.Diagnostics
         internal static bool IsChunk7PersistenceCase(string value) => Array.IndexOf(new[] {
             "multi-exploration-manual", "multi-exploration-quick", "multi-exploration-auto", "multi-rt-debt-manual",
             "multi-tb-debt-manual", "zero-mounted-tb-retained-manual", "legacy-mounted-pending-tb-manual", "pending-schema3-control-manual", "multi-area-autosave", "legacy-schema1-resave-manual", "owned-schema1-manual", "owned-schema1-resave-manual", "owned-schema1-current-manual", "owned-schema2-pending-current-manual", "multi-exploration-three-loads-manual", "multi-exploration-three-area-transfers-manual",
+            Chunk7OwnedPairsSelection.CapitalArrivalCheckpoint, Chunk7OwnedPairsSelection.CapitalArrivalColdCheckpoint,
             "multi-nonselected-mount-unsettled-manual", "multi-owned-worker-cancel-manual", "multi-malformed-refusal-manual", "multi-future-refusal-manual",
             Chunk7OwnedPairsSelection.ManticoreFixtureCheckpoint, Chunk7OwnedPairsSelection.TombFixtureCheckpoint,
             Chunk7OwnedPairsSelection.ThornRiverFixtureCheckpoint,
@@ -251,6 +252,8 @@ namespace KingmakerMountedCombat.Diagnostics
         internal string ExpectedChunk7ArchiveArea => PersistenceCase == Chunk7OwnedPairsSelection.TombFixtureCheckpoint ? Chunk7OwnedPairsSelection.TombFixtureArea :
             PersistenceCase == Chunk7OwnedPairsSelection.ThornRiverFixtureCheckpoint ? Chunk7OwnedPairsSelection.ThornRiverFixtureArea :
             PersistenceCase == "multi-area-autosave" ? PersistenceAreaTarget?.Area :
+            // Row 58 writes in the capital it entered; row 59 cold-loads that Manual there.
+            Chunk7OwnedPairsSelection.CapitalCheckpoint(PersistenceCase) ? Chunk7OwnedPairsSelection.CapitalArrivalArea :
             (PersistenceCase == Chunk7OwnedPairsSelection.ManticoreFixtureCheckpoint ||
                 Chunk7OwnedPairsSelection.IsManticoreManualCold(PersistenceCase)) ? Chunk7OwnedPairsSelection.ManticoreFixtureArea : SelectedChunk7Fixture?.Area;
         internal string ExpectedNativeLoadType => (Scenario == Chunk7AcquiredManualSelection.Scenario && AcquiredManual?.Case == Chunk7AcquiredManualSelection.TwoOwnerCaseName && AcquiredManual.SourceMode == null || Scenario == Chunk7ManualSeedSelection.Scenario || Scenario == Chunk7BootstrapInventorySelection.Scenario || Scenario == Chunk7SmallCalibrationSelection.Scenario && SmallCalibration?.UsesColdManualField != true || Scenario == Chunk7OrdinaryFieldSelection.Scenario) ? "Auto" : SelectedChunk7Scenario == "chunk7-persistence-load" && PersistenceLoad != null && IsChunk7PersistenceCase(PersistenceCase) ?
@@ -567,6 +570,9 @@ namespace KingmakerMountedCombat.Diagnostics
             if (Chunk7OwnedPairsSelection.IsManticoreManualCold(PersistenceCase) &&
                 (Scenario != Chunk7OwnedPairsSelection.Scenario || OwnedPairs?.IsOwnerSeedDerivedLoad != true))
                 errors.Add("Manticore Manual cold load requires its exact one-load owner-seed-derived selection.");
+            if (Chunk7OwnedPairsSelection.CapitalCheckpoint(PersistenceCase) && (Scenario != Chunk7OwnedPairsSelection.Scenario ||
+                OwnedPairs == null || !OwnedPairs.IsCapitalArrivalProducer(PersistenceCase) && !OwnedPairs.IsCapitalArrivalCold(PersistenceCase)))
+                errors.Add("Capital arrival belongs only to its exact owned cold persistence-load selection.");
             if ((Chunk7OwnedPairsSelection.OwnedSchema1Source(PersistenceCase) || Chunk7OwnedPairsSelection.OwnedSchema1Cold(PersistenceCase)) &&
                 (Scenario != Chunk7OwnedPairsSelection.Scenario || OwnedPairs == null ||
                 (Chunk7OwnedPairsSelection.OwnedSchema1Cold(PersistenceCase) ?
@@ -742,6 +748,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     // A cold Manual is the generic acquired-ancestry KMC_C7_WORLD, or the owner-seed checkpoint producer's distinct Manual.
                     var coldManual = PersistenceCase == "owned-schema1-current-manual" ? "KMC_C7_SCHEMA1" :
                         PersistenceCase == "owned-schema2-pending-current-manual" ? "KMC_C7_SCHEMA2" :
+                        OwnedPairs.IsCapitalArrivalCold(PersistenceCase) ? Chunk7OwnedPairsSelection.CapitalArrivalManualName :
                         OwnedPairs.IsOwnerSeedCheckpointLoad ? Chunk7OwnedPairsSelection.OwnerSeedCheckpointManualName : "KMC_C7_WORLD";
                     var inputName = OwnedPairs.Cold ? (PersistenceCase == "multi-exploration-quick" || (PersistenceCase == "multi-exploration-auto" || PersistenceCase == "multi-area-autosave") ? PersistenceLoad.InternalName : coldManual) : Chunk7AcquiredManualSelection.OutputName;
                     var inputPattern = OwnedPairs.Cold ? (PersistenceCase == "multi-exploration-quick" ? "^Quick_1\\.zks$" : (PersistenceCase == "multi-exploration-auto" || PersistenceCase == "multi-area-autosave") ? "^Auto_1\\.zks$" : "^Manual_[1-9][0-9]*_" + coldManual + "\\.zks$") : "^Manual_[1-9][0-9]*_KMC_C7_ACQUIRED_FIELD\\.zks$";
@@ -749,6 +756,10 @@ namespace KingmakerMountedCombat.Diagnostics
                     if (PersistenceCase == "multi-area-autosave" && PersistenceLoad.Area !=
                         (OwnedPairs.Cold ? PersistenceAreaTarget?.Area : OwnedPairs.SourceArea))
                         errors.Add("Owned area input differs from the selected original Manual or completed destination Auto.");
+                    // Row 58 loads its Manual outside the capital; row 59 loads row 58's Manual inside it.
+                    if (OwnedPairs.IsCapitalArrivalProducer(PersistenceCase) && PersistenceLoad.Area == Chunk7OwnedPairsSelection.CapitalArrivalArea ||
+                        OwnedPairs.IsCapitalArrivalCold(PersistenceCase) && PersistenceLoad.Area != Chunk7OwnedPairsSelection.CapitalArrivalArea)
+                        errors.Add("Capital arrival input must start outside the capital; its cold consumer must load the Manual written there.");
                     if (Fixture?.Working == null || PersistenceLoad.GameId == Fixture.Working.GameId ||
                         !Guid.TryParseExact(PersistenceLoad.GameId, "D", out var inheritedGameId) || inheritedGameId == Guid.Empty ||
                         PersistenceLoad.Sha256 == Fixture.Working.Sha256 || PersistenceLoad.Sha256 == Fixture.Baseline?.Sha256 ||
@@ -1086,6 +1097,14 @@ namespace KingmakerMountedCombat.Diagnostics
                     PersistenceAreaTarget.AutoSaveMode !=
                     (PersistenceCase == "area-cross-entry-auto" ? "AfterEntry" : "BeforeExit"))
                     errors.Add("A transition autosave case must declare the mode that produced it.");
+            }
+            else if (chunk7 && PersistenceCase == Chunk7OwnedPairsSelection.CapitalArrivalCheckpoint)
+            {
+                // The one scoped capital admission: exactly the reviewed Oleg's pin, no native autosave.
+                if (PersistenceAreaTarget == null || PersistenceAreaTarget.EnterPoint != Chunk7OwnedPairsSelection.CapitalArrivalEntry ||
+                    PersistenceAreaTarget.Area != Chunk7OwnedPairsSelection.CapitalArrivalArea || PersistenceAreaTarget.AutoSaveMode != "None" ||
+                    PersistenceLoad == null || PersistenceLoad.Area == PersistenceAreaTarget.Area)
+                    errors.Add("Capital arrival requires exactly the reviewed capital entry and area with autoSaveMode None, from a non-capital input.");
             }
             else if (PersistenceAreaTarget != null)
                 errors.Add("Only an exact cross-area transfer may declare a native destination.");
@@ -1443,6 +1462,7 @@ namespace KingmakerMountedCombat.Diagnostics
             "C7-persistence-native-category-all-pair-archive", "C7-persistence-cold-all-pair-identity-and-no-prepare",
             "C7-persistence-owned-schema1-source", "C7-persistence-owner-seed-restored-start", "C7-persistence-schema1-native-restoration", "C7-persistence-schema1-native-resave", "C7-persistence-schema2-native-resave", "C7-persistence-current-migration-native-load", "C7-persistence-current-migration-continuation",
             "C7-persistence-three-native-loads", "C7-persistence-three-native-area-transfers",
+            "C7-persistence-capital-arrival-retirement", "C7-persistence-capital-arrival-native-manual", "C7-persistence-capital-arrival-cold",
             "C7-persistence-nonselected-mount-save-deferral", "C7-persistence-owned-worker-cancel-drain",
             "C7-persistence-native-continuation", "C7-persistence-all-pair-area-before-autosave", "C7-persistence-native-combat-continuation", "C7-persistence-cleanup", "C7-persistence-runtime", "C7-persistence-interrupted",
             "C7-persistence-six-native-mounts", "C7-persistence-six-mounted-archive", "C7-persistence-six-native-continuation",

@@ -49,6 +49,8 @@ function Get-KmcChunk7OwnedWriteCount($Request){
  if(Test-KmcChunk7OwnedPairsSeedCheckpointLoad $Request){if($Request.persistenceCase-cin@('legacy-mounted-pending-tb-manual','owned-schema1-resave-manual')){return 1};return 0}
  if(Test-KmcChunk7OwnedPairsSeedDerivedInput $Request){return 0}
  if($Request.ownedPairs.case-ceq'persistence-save'-and$Request.persistenceCase-ceq'multi-owned-worker-cancel-manual'){return 2}
+ # Row 58: the one genuine native Manual written in the capital after the cold load and transfer.
+ if($Request.ownedPairs.case-ceq'persistence-load'-and(Test-KmcChunk7CapitalArrivalCase $Request.persistenceCase)){return 1}
  if($Request.ownedPairs.case-ceq'persistence-save'-or($Request.ownedPairs.case-ceq'persistence-load'-and$Request.persistenceCase-cin@('legacy-mounted-pending-tb-manual','owned-schema1-resave-manual'))){return 1};return 0
 }
 function Get-KmcChunk7OwnedWriteArtifactLeaf($Request){
@@ -268,7 +270,7 @@ function Assert-KmcChunk7OwnedPairsSelection($Request){
  if($s.partyIds-isnot[Array]-or$s.partyIds.Count-lt4-or$s.partyIds.Count-gt12){throw 'Complete inherited field roster must be bounded.'}
  $party=[Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal);foreach($id in $s.partyIds){Assert-KmcOrdinaryGuid $id;if(-not$party.Add($id)){throw 'Inherited roster repeats an actor.'}}
  foreach($id in $ids){if(-not$party.Contains($id)){throw 'Inherited roster omits a selected pair role.'}}
- if($s.case-cin@('persistence-save','persistence-load')){if($checkpoint-isnot[string]-or($checkpoint-cnotin@('multi-exploration-manual','multi-exploration-quick','multi-exploration-auto','multi-rt-debt-manual','multi-tb-debt-manual','zero-mounted-tb-retained-manual','legacy-mounted-pending-tb-manual','multi-area-autosave')-and($s.case-cne'persistence-load'-or$checkpoint-cnotin@('multi-exploration-three-loads-manual','multi-exploration-three-area-transfers-manual','owned-schema1-resave-manual'))-and($s.case-cne'persistence-save'-or$checkpoint-cnotin@('multi-nonselected-mount-unsettled-manual','multi-owned-worker-cancel-manual','owned-schema1-manual')))){throw 'Inherited persistence retains its closed checkpoints; save boundaries are source-only.'}}
+ if($s.case-cin@('persistence-save','persistence-load')){if($checkpoint-isnot[string]-or($checkpoint-cnotin@('multi-exploration-manual','multi-exploration-quick','multi-exploration-auto','multi-rt-debt-manual','multi-tb-debt-manual','zero-mounted-tb-retained-manual','legacy-mounted-pending-tb-manual','multi-area-autosave')-and($s.case-cne'persistence-load'-or$checkpoint-cnotin@('multi-exploration-three-loads-manual','multi-exploration-three-area-transfers-manual','owned-schema1-resave-manual','multi-exploration-capital-arrival-manual','multi-exploration-capital-arrival-cold-manual'))-and($s.case-cne'persistence-save'-or$checkpoint-cnotin@('multi-nonselected-mount-unsettled-manual','multi-owned-worker-cancel-manual','owned-schema1-manual')))){throw 'Inherited persistence retains its closed checkpoints; save boundaries are source-only.'}}
  elseif($null-ne$checkpoint){throw 'Non-persistence inherited campaign cannot select a checkpoint.'}
  if($s.case-ceq'persistence-load'){
   if($s.checkpointSourceRunId-isnot[string]-or$s.checkpointSourceRunId-cnotmatch'^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$'-or$s.checkpointSourceRunId-cin@($Request.runId,$s.sourceRunId)-or$s.checkpointSourceArtifactSha256-isnot[string]-or$s.checkpointSourceArtifactSha256-cnotmatch'^[a-f0-9]{64}$'){throw 'Cold inherited checkpoint requires its exact separate successful source.'}
@@ -344,7 +346,7 @@ function Assert-KmcChunk7OwnedPairsDescriptor($Request){
  $cold=$Request.ownedPairs.case-ceq'persistence-load';$type=if($cold){Get-KmcChunk7PersistenceType $Request.persistenceCase}else{'Manual'}
  if($d.sha256-isnot[string]-or$d.sha256-cnotmatch'^[a-f0-9]{64}$'){throw 'Inherited archive hash is malformed.'};if(-not$cold){Assert-KmcBootstrapInventoryString $d.sha256 $Request.ownedPairs.sourceArchiveSha256}
  if($type-ceq'Manual'){
-  $name=if($cold){'KMC_C7_WORLD'}else{'KMC_C7_ACQUIRED_FIELD'};Assert-KmcBootstrapInventoryString $d.internalName $name
+  $name=if($cold){if(Test-KmcChunk7CapitalColdCase $Request.persistenceCase){Get-KmcChunk7CapitalArrivalManualName}else{'KMC_C7_WORLD'}}else{'KMC_C7_ACQUIRED_FIELD'};Assert-KmcBootstrapInventoryString $d.internalName $name
   if($d.fileName-isnot[string]-or$d.fileName-cnotmatch('^Manual_([1-9][0-9]*)_'+$name+'\.zks$')){throw 'Inherited native Manual name/number is not canonical.'}
   $number=0;if(-not[int]::TryParse($Matches[1],[Globalization.NumberStyles]::None,[Globalization.CultureInfo]::InvariantCulture,[ref]$number)-or$number-le0-or$d.fileName-cne('Manual_'+$number.ToString([Globalization.CultureInfo]::InvariantCulture)+'_'+$name+'.zks')){throw 'Inherited native number is out of range.'}
  }else{
@@ -354,6 +356,12 @@ function Assert-KmcChunk7OwnedPairsDescriptor($Request){
  Assert-KmcOrdinaryGuid $d.gameId
  if($d.gameName-isnot[string]-or[string]::IsNullOrWhiteSpace($d.gameName)-or$d.gameName.Length-gt256-or$d.gameName-match'[\x00-\x1f\x7f]'-or$d.area-isnot[string]-or$d.area-cnotmatch'^[a-f0-9]{32}$'-or$d.gameId-ceq$Request.fixture.working.gameId-or$d.sha256-ceq$Request.fixture.working.sha256-or$d.sha256-ceq$Request.fixture.baseline.sha256){throw 'Inherited native campaign must remain distinct from protected Working/Baseline.'}
  if($Request.PSObject.Properties['persistenceCase']-and$Request.persistenceCase-ceq'multi-area-autosave'){Assert-KmcChunk7AreaTarget $Request;$expectedArea=if($cold){$Request.persistenceAreaTarget.area}else{$Request.ownedPairs.sourceArea};Assert-KmcBootstrapInventoryString $d.area $expectedArea}
+ if($Request.PSObject.Properties['persistenceCase']-and(Test-KmcChunk7CapitalCase $Request.persistenceCase)){
+  # Row 58 starts outside the capital and declares the exact pin; row 59 loads the Manual written there.
+  if(-not$cold){throw 'Capital arrival belongs only to the owned cold persistence-load case.'}
+  Assert-KmcChunk7CapitalArrivalTarget $Request
+  if((Test-KmcChunk7CapitalArrivalCase $Request.persistenceCase)-eq($d.area-ceq(Get-KmcChunk7CapitalArrivalArea))){throw 'Capital arrival input must start outside the capital; its cold consumer must load the Manual written there.'}
+ }
  Assert-KmcOrdinaryInteger $d.length 1 268435456;Assert-KmcOrdinaryInteger $d.lastWriteTimeUtcTicks 1 ([DateTime]::MaxValue.Ticks)
 }
 function Assert-KmcChunk7InheritedSnapshot($Request,$Snapshot,[string]$Phase){
@@ -470,7 +478,7 @@ function Get-KmcChunk7OwnedManualOutputName($Request){
  if(Test-KmcChunk7OwnedPairsSeedCheckpointSave $Request){if(Test-KmcChunk7ManticoreFixture $Request){return 'KMC_C7_AREA_FIXTURE'};if(Test-KmcChunk7TombFixture $Request){return 'KMC_C7_TOMB_DOOR_FIXTURE'};if(Test-KmcChunk7ThornRiverFixture $Request){return 'KMC_C7_THORN_RIVER_DOOR_FIXTURE'};return Get-KmcChunk7OwnerSeedCheckpointManualName}
  if((Test-KmcChunk7OwnedPairsSeedCheckpointLoad $Request)-and$Request.persistenceCase-ceq'legacy-mounted-pending-tb-manual'){return 'KMC_C7_SCHEMA2'}
  if((Test-KmcChunk7OwnedPairsSeedCheckpointLoad $Request)-and$Request.persistenceCase-ceq'owned-schema1-resave-manual'){return 'KMC_C7_SCHEMA1'}
- if($Request.ownedPairs.case-ceq'persistence-load'){if($Request.persistenceCase-ceq'owned-schema1-resave-manual'){return 'KMC_C7_SCHEMA1'};return 'KMC_C7_SCHEMA2'}
+ if($Request.ownedPairs.case-ceq'persistence-load'){if($Request.persistenceCase-ceq'owned-schema1-resave-manual'){return 'KMC_C7_SCHEMA1'};if(Test-KmcChunk7CapitalArrivalCase $Request.persistenceCase){return Get-KmcChunk7CapitalArrivalManualName};return 'KMC_C7_SCHEMA2'}
  'KMC_C7_WORLD'
 }
 function Get-KmcChunk7OwnedOutputLeaf($Request,$Observations){

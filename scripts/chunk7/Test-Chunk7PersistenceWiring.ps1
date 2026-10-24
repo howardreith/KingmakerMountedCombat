@@ -46,6 +46,7 @@ foreach($case in Get-KmcChunk7PersistenceCases){foreach($scenario in @('chunk7-p
         Reject ($case+' requires its inherited cold family under '+$scenario) {Invoke-Request $q};continue
     }
     if(Test-KmcOwnedSchema1Case $case){Reject ($case+' requires its separate inherited family under '+$scenario) {Invoke-Request $q};continue}
+    if(Test-KmcChunk7CapitalCase $case){Reject ($case+' requires its owned cold persistence-load family under '+$scenario) {Invoke-Request $q};continue}
     if(($case-ceq'legacy-schema1-resave-manual'-or(Test-KmcChunk7RepeatedWorldCase $case))-and$scenario-ceq'chunk7-persistence-save'){Reject ($case+' cannot produce a fabricated source') {Invoke-Request $q};continue}
     if($case-ceq'multi-exploration-three-area-transfers-manual'){$q|Add-Member NoteProperty persistenceReplayTargets @(
         [pscustomobject]@{enterPoint='c'*32;area='b'*32;autoSaveMode='None'},

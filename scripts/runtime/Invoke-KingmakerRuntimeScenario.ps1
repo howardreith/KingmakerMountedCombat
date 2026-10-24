@@ -78,7 +78,7 @@ param(
     [ValidatePattern('^[A-Za-z0-9][A-Za-z0-9._-]{0,119}$')][string]$UpgradeCarrySourceRunId,
     # Shared by the three steps of one rehearsal; u2 and u3 require a passed u1 of the same id.
     [ValidatePattern('^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$')][string]$UpgradeRehearsalId,
-    [ValidateSet('multi-exploration-manual','multi-exploration-quick','multi-exploration-auto','multi-rt-debt-manual','multi-tb-debt-manual','zero-mounted-tb-retained-manual','legacy-mounted-pending-tb-manual','pending-schema3-control-manual','multi-area-autosave','legacy-schema1-resave-manual','multi-exploration-three-loads-manual','multi-exploration-three-area-transfers-manual','multi-nonselected-mount-unsettled-manual','multi-owned-worker-cancel-manual','owned-schema1-manual','owned-schema1-resave-manual','owned-schema1-current-manual','owned-schema2-pending-current-manual','multi-malformed-refusal-manual','multi-future-refusal-manual','owner-seed-manticore-fixture-manual','owner-seed-tomb-door-fixture-manual','owner-seed-thorn-river-door-fixture-manual','manticore-fixture-cold-manual','partial-movement','rider-spent','between-partner-orders','exhausted','explicit-end','combat-mount-tb','casting-items','step','conversion','round-effect','reaction','condition','condition-preparing','suspended','manual','quick','auto','manual-renamed','alternating','queued','unmounted-spent','mounted-spent','unmounted-attack','mounted-attack','unmounted-projectile','mounted-projectile','unmounted-approach','mounted-approach','unmounted-casting','mounted-casting','mounted-casting-items','combat-mount-rt','combat-dismount-rt','mounted-charge-pending','mounted-charge-settled','mounted-charge-cancelled','mounted-charge-failed','mounted-charge-drained','legacy','schema1','future','malformed','profile','campaign','missing-rider','missing-mount','mismatched-profile','policy','combat-missing','combat-ai','timeout','cancel-wait','locked-replace','serialization-cancel','serialization-cancel-output','disable-reenable','campaign-b','prepare-removal','disable-during-load','mounted-charge-area','mounted-charge-session','mounted-charge-disable','mounted-charge-removal','absent-kmc','removal-no-dll','mounted-charge-removal-no-dll','rider-death','mount-death','rider-size-change','area-reload','area-cross-entry','area-cross-exit','area-cross-entry-auto','area-cross-exit-auto','failed-area-load','foreign-header-campaign','combat-mount-routes','combat-mount-unsettled-save','combat-mount-area-reload','pending-mount-area')][string]$PersistenceCase,
+    [ValidateSet('multi-exploration-manual','multi-exploration-quick','multi-exploration-auto','multi-rt-debt-manual','multi-tb-debt-manual','zero-mounted-tb-retained-manual','legacy-mounted-pending-tb-manual','pending-schema3-control-manual','multi-area-autosave','legacy-schema1-resave-manual','multi-exploration-three-loads-manual','multi-exploration-three-area-transfers-manual','multi-exploration-capital-arrival-manual','multi-exploration-capital-arrival-cold-manual','multi-nonselected-mount-unsettled-manual','multi-owned-worker-cancel-manual','owned-schema1-manual','owned-schema1-resave-manual','owned-schema1-current-manual','owned-schema2-pending-current-manual','multi-malformed-refusal-manual','multi-future-refusal-manual','owner-seed-manticore-fixture-manual','owner-seed-tomb-door-fixture-manual','owner-seed-thorn-river-door-fixture-manual','manticore-fixture-cold-manual','partial-movement','rider-spent','between-partner-orders','exhausted','explicit-end','combat-mount-tb','casting-items','step','conversion','round-effect','reaction','condition','condition-preparing','suspended','manual','quick','auto','manual-renamed','alternating','queued','unmounted-spent','mounted-spent','unmounted-attack','mounted-attack','unmounted-projectile','mounted-projectile','unmounted-approach','mounted-approach','unmounted-casting','mounted-casting','mounted-casting-items','combat-mount-rt','combat-dismount-rt','mounted-charge-pending','mounted-charge-settled','mounted-charge-cancelled','mounted-charge-failed','mounted-charge-drained','legacy','schema1','future','malformed','profile','campaign','missing-rider','missing-mount','mismatched-profile','policy','combat-missing','combat-ai','timeout','cancel-wait','locked-replace','serialization-cancel','serialization-cancel-output','disable-reenable','campaign-b','prepare-removal','disable-during-load','mounted-charge-area','mounted-charge-session','mounted-charge-disable','mounted-charge-removal','absent-kmc','removal-no-dll','mounted-charge-removal-no-dll','rider-death','mount-death','rider-size-change','area-reload','area-cross-entry','area-cross-exit','area-cross-entry-auto','area-cross-exit-auto','failed-area-load','foreign-header-campaign','combat-mount-routes','combat-mount-unsettled-save','combat-mount-area-reload','pending-mount-area')][string]$PersistenceCase,
     [ValidatePattern('^[0-9a-f]{32}$')][string]$PersistenceAreaEnterPoint,
     [ValidatePattern('^[0-9a-f]{32}$')][string]$PersistenceAreaTargetArea,
     [ValidatePattern('^[0-9a-f]{32}$')][string[]]$PersistenceReplayAreaEnterPoints,
@@ -185,7 +185,7 @@ if(Test-KmcChunk7OwnedPairsScenario $Scenario){
     foreach($name in @('PersistenceSourceRunId','ExpectedPersistenceSourceSha256','ExpectedPersistenceAlternateSha256','PersistenceForeignSourceRunId')){
         if($PSBoundParameters.ContainsKey($name)){throw 'Inherited pairs select only their closed source and checkpoint cases.'}
     }
-    if(($PSBoundParameters.ContainsKey('PersistenceAreaEnterPoint')-or$PSBoundParameters.ContainsKey('PersistenceAreaTargetArea'))-and$PersistenceCase-cne'multi-area-autosave'){throw 'Only the exact owned area autosave may carry its original/destination pins.'}
+    if(($PSBoundParameters.ContainsKey('PersistenceAreaEnterPoint')-or$PSBoundParameters.ContainsKey('PersistenceAreaTargetArea'))-and$PersistenceCase-cne'multi-area-autosave'-and-not(Test-KmcChunk7CapitalArrivalCase $PersistenceCase)){throw 'Only the exact owned area autosave or the scoped capital arrival may carry its original/destination pins.'}
     if(($PSBoundParameters.ContainsKey('PersistenceReplayAreaEnterPoints')-or$PSBoundParameters.ContainsKey('PersistenceReplayAreaAreas'))-and$PersistenceCase-cne'multi-exploration-three-area-transfers-manual'){throw 'Only the exact owned repeated-area cold case may carry route pins.'}
     $ownedPairsInput=Read-KmcChunk7OwnedPairsSelectionFile $OwnedPairsSelectionPath $(if($RunId){$RunId}else{'unassigned-owned-pairs'}) $PersistenceCase
 }elseif($PSBoundParameters.ContainsKey('OwnedPairsSelectionPath')){throw 'Inherited pair selection is forbidden under another scenario.'}
@@ -308,6 +308,13 @@ if($PersistenceCase-ceq'multi-exploration-three-area-transfers-manual'){
     if(@($PersistenceReplayAreaEnterPoints).Count-ne3-or@($PersistenceReplayAreaAreas).Count-ne3){throw 'Repeated area transfer requires exactly three caller-pinned enter points and destination areas.'}
     Assert-KmcChunk7RouteAvoidsKnownCapitals $PersistenceReplayAreaEnterPoints $PersistenceReplayAreaAreas
 }elseif($PSBoundParameters.ContainsKey('PersistenceReplayAreaEnterPoints')-or$PSBoundParameters.ContainsKey('PersistenceReplayAreaAreas')){throw 'Only the repeated-area case accepts native route pins.'}
+# Matrix rows 58-59: the one scoped capital admission. Only the owned cold persistence-load selection may
+# name it, and row 58 must pin exactly the reviewed capital entry and area; every other case still refuses capitals.
+if(Test-KmcChunk7CapitalCase $PersistenceCase){
+    if(-not(Test-KmcChunk7OwnedPairsScenario $Scenario)-or$ownedPairsInput.selection.case-cne'persistence-load'){throw 'Capital arrival belongs only to the owned cold persistence-load selection.'}
+    if(Test-KmcChunk7CapitalArrivalCase $PersistenceCase){Assert-KmcChunk7CapitalArrivalRoute $PersistenceAreaEnterPoint $PersistenceAreaTargetArea}
+    throw 'Capital-arrival rows 58-59 are wired, but their native engine and readers have not landed; refused before launch.'
+}
 if($PersistenceCase-ceq'legacy-schema1-resave-manual'-and$Scenario-cne'chunk7-persistence-load'){throw 'Schema-1 native resave is load-only.'}
 if((Test-KmcOwnedSchema1Case $PersistenceCase)-and$Scenario-cne'chunk7-owned-two-pair-campaign'){throw 'Owned schema-1 cases belong only to the closed inherited family.'}
 if($PersistenceCase-cin@('owner-seed-manticore-fixture-manual','owner-seed-tomb-door-fixture-manual','owner-seed-thorn-river-door-fixture-manual')-and$Scenario-cne'chunk7-owned-two-pair-campaign'){throw 'Area fixture preparation belongs only to its source-only inherited checkpoint.'}
@@ -343,6 +350,8 @@ if($PersistenceCase-ceq'multi-area-autosave'-or$PersistenceCase-cin @('area-cros
     if([string]::IsNullOrEmpty($PersistenceAreaEnterPoint)-or[string]::IsNullOrEmpty($PersistenceAreaTargetArea)){
         throw 'A cross-area transfer requires its declared native enter point and destination area.'
     }
+}elseif(Test-KmcChunk7CapitalArrivalCase $PersistenceCase){
+    if([string]::IsNullOrEmpty($PersistenceAreaEnterPoint)-or[string]::IsNullOrEmpty($PersistenceAreaTargetArea)){throw 'Capital arrival requires its exact declared native enter point and destination area.'}
 }elseif(-not[string]::IsNullOrEmpty($PersistenceAreaEnterPoint)-or-not[string]::IsNullOrEmpty($PersistenceAreaTargetArea)){
     throw 'Only an exact cross-area transfer may declare a native destination.'
 }
@@ -495,7 +504,7 @@ if(Test-KmcChunk7OrdinaryScenario $Scenario){
 if(Test-KmcChunk7SmallScenario $Scenario){$smallSource=if(Test-KmcChunk7SmallF09Case $smallSelectionInput.selection){Get-KmcChunk7SmallF09CalibrationSource $smallSelectionInput.selection.fixtureSource $fixturePayload $manifest}elseif(Test-KmcChunk7SmallManualCase $smallSelectionInput.selection){Get-KmcChunk7SmallManualSource $smallSelectionInput.selection.manualSource $fixturePayload $manifest -Assisted:(Test-KmcChunk7SmallAssistedCase $smallSelectionInput.selection)}else{Get-KmcChunk7FieldSource $smallSelectionInput.selection.source $fixturePayload $manifest}}
 if(Test-KmcChunk7ProgressionScenario $Scenario){$progressionSource=Get-KmcChunk7ProgressionSource $progressionSelectionInput.selection $fixturePayload $manifest}
 if(Test-KmcChunk7FieldScenario $Scenario){$fieldSource=Get-KmcChunk7FieldSource $fieldSelectionInput.selection $fixturePayload $manifest}
-$ownedAreaTarget=if((Test-KmcChunk7OwnedPairsScenario $Scenario)-and$PersistenceCase-ceq'multi-area-autosave'){[pscustomobject]@{enterPoint=$PersistenceAreaEnterPoint;area=$PersistenceAreaTargetArea;autoSaveMode='AfterEntry'}}else{$null}
+$ownedAreaTarget=if((Test-KmcChunk7OwnedPairsScenario $Scenario)-and$PersistenceCase-ceq'multi-area-autosave'){[pscustomobject]@{enterPoint=$PersistenceAreaEnterPoint;area=$PersistenceAreaTargetArea;autoSaveMode='AfterEntry'}}elseif((Test-KmcChunk7OwnedPairsScenario $Scenario)-and(Test-KmcChunk7CapitalArrivalCase $PersistenceCase)){[pscustomobject]@{enterPoint=$PersistenceAreaEnterPoint;area=$PersistenceAreaTargetArea;autoSaveMode='None'}}else{$null}
 # F12 upgrade rehearsal: the exact previous package, the carried first-install folder
 # state, and the reference-free seed for the previous-package loads.
 $upgradePrevious=$null;$upgradeCarry=@();$upgradeCarrySource=$null;$upgradeSection=$null
@@ -671,10 +680,11 @@ try{
     if($PersistenceCase-ceq'multi-exploration-three-area-transfers-manual'){
         $request['persistenceReplayTargets']=@(for($leg=0;$leg-lt3;$leg++){[ordered]@{enterPoint=$PersistenceReplayAreaEnterPoints[$leg];area=$PersistenceReplayAreaAreas[$leg];autoSaveMode='None'}})
     }
-    if($PersistenceCase-ceq'multi-area-autosave'-or$PersistenceCase-cin @('area-cross-entry','area-cross-exit','area-cross-entry-auto','area-cross-exit-auto')){
+    # Row 58's scoped capital transfer requests no native autosave.
+    if($PersistenceCase-ceq'multi-area-autosave'-or$PersistenceCase-cin @('area-cross-entry','area-cross-exit','area-cross-entry-auto','area-cross-exit-auto','multi-exploration-capital-arrival-manual')){
         $request['persistenceAreaTarget']=[pscustomobject][ordered]@{
             enterPoint=$PersistenceAreaEnterPoint;area=$PersistenceAreaTargetArea
-            autoSaveMode=if($PersistenceCase-ceq'multi-area-autosave'-or$PersistenceCase-cin @('area-cross-entry','area-cross-entry-auto')){'AfterEntry'}else{'BeforeExit'}
+            autoSaveMode=if($PersistenceCase-ceq'multi-exploration-capital-arrival-manual'){'None'}elseif($PersistenceCase-ceq'multi-area-autosave'-or$PersistenceCase-cin @('area-cross-entry','area-cross-entry-auto')){'AfterEntry'}else{'BeforeExit'}
         }
     }
     if($isSaveBacked){
@@ -725,7 +735,7 @@ try{
     if(Test-KmcChunk7OwnedPairsScenario $Scenario){
         $currentOwnedInput=Read-KmcChunk7OwnedPairsSelectionFile $ownedPairsInput.path $actualRunId $PersistenceCase
         if($currentOwnedInput.sha256-cne$ownedPairsInput.sha256){throw 'Inherited two-owner selection changed before locked admission.'}
-        $currentOwnedSource=Get-KmcChunk7OwnedPairsSource $request.ownedPairs $PersistenceCase $fixturePayload $manifest $(if($PersistenceCase-ceq'multi-area-autosave'){$request.persistenceAreaTarget}else{$null})
+        $currentOwnedSource=Get-KmcChunk7OwnedPairsSource $request.ownedPairs $PersistenceCase $fixturePayload $manifest $(if($PersistenceCase-ceq'multi-area-autosave'-or(Test-KmcChunk7CapitalArrivalCase $PersistenceCase)){$request.persistenceAreaTarget}else{$null})
         if((ConvertTo-KmcChunk7Canonical $currentOwnedSource)-cne(ConvertTo-KmcChunk7Canonical $ownedPairsSource)){throw 'Inherited source lineage changed before locked admission.'}
         $ownedPairsSource=$currentOwnedSource
     }
@@ -1282,7 +1292,7 @@ try{
             Assert-KmcChunk7ProgressionNativeArchive $request $progressionArtifact
         }
         if($gamePassed-and(Test-KmcChunk7OwnedPairsScenario $Scenario)){
-            $verifiedOwnedSource=Get-KmcChunk7OwnedPairsSource $request.ownedPairs $PersistenceCase $fixturePayload $manifest $(if($PersistenceCase-ceq'multi-area-autosave'){$request.persistenceAreaTarget}else{$null})
+            $verifiedOwnedSource=Get-KmcChunk7OwnedPairsSource $request.ownedPairs $PersistenceCase $fixturePayload $manifest $(if($PersistenceCase-ceq'multi-area-autosave'-or(Test-KmcChunk7CapitalArrivalCase $PersistenceCase)){$request.persistenceAreaTarget}else{$null})
             if((ConvertTo-KmcChunk7Canonical $verifiedOwnedSource)-cne(ConvertTo-KmcChunk7Canonical $ownedPairsSource)){throw 'Inherited two-owner source lineage changed during native execution.'}
             $seedManualRun=Test-KmcChunk7OwnedPairsSeedManual ([pscustomobject]$request)
             if((Test-KmcChunk7OwnedPairsOwnerSeed ([pscustomobject]$request))-or$seedManualRun){
