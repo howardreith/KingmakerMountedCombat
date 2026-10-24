@@ -40,7 +40,7 @@ Nothing here is a FULL PASS. No assertion, threshold or reader was weakened.
 | --- | --- | --- |
 | `Test-Chunk6aLedgerProtocol`, `Test-Chunk6aRegressionLedger`, `Test-Chunk6aLegacyLedger`, `Test-Chunk6aAreaLedger`, `Test-UnrelatedFullLedger` | **Historical contract.** The released Chunk 6A ledger pins its reader harness; any changed reader refuses it. Already recorded in `CHUNK7-KNOWN-PRODUCT-DEBT.md`. | Fail identically at the preview.211 tag `7fa667b2` (LF and CRLF checkouts), in the frozen `worktrees/qualification211`, and at the ledger's recorded harness revision `7e49e034`. The closeout's FULL PASS could not be reproduced in the current lab; the cause is unresolved. |
 | `Test-Chunk6aSupportingEvidence` | **Historical evidence under a changed contract.** The current reader requires `CM01-combat-mount-preparing-admitted` (owner decision of October 18, `7930313e`); the retained preview.211 supporting artifacts hold the old `-refused` row. | Passes at the preview.211 tag. |
-| `Test-Chunk7SmallManualEvidence`, `Test-Chunk7SmallManualSource` | **Small Manual family pinned to the retired Auto-before-field source contract; not a fixture gap.** Reclassified on 2026-10-24, see the follow-up below. | Introduced by `ed40ef95` (October 21). |
+| `Test-Chunk7SmallManualEvidence`, `Test-Chunk7SmallManualSource` | **Resolved: the two cases they test are retired** (owner decision, 2026-10-24; [record](CHUNK7-RETIRED-SMALL-MANUAL-CALIBRATION-2026-10-24.md)). The umbrella now runs `Test-Chunk7RetiredSmallCalibrationCases.ps1` in their place. | Introduced by `ed40ef95` (October 21). |
 | `Test-Chunk7CombatCleanupAdapter`, `Test-Chunk7ObserverAcquisition` | **Fixed 2026-10-24** (follow-up below). | Introduced by `8a13f714`, `8685fb5f` and `33e729a8` (October 18 and 19). |
 
 ## For the 7E FULL run
@@ -141,7 +141,7 @@ family is retired like the other stale level-up Auto families.
 | Numeric seat, offset or scale threshold | no | no | no | no |
 | Same-candidate paid Small lineage | yes (same commit, DLL and MVID) | no; cross-candidate preview.71 | no; preview.71 | yes |
 
-**Recommendation: (a), scoped to A1 and A2.**
+**Decision (owner, 2026-10-24): (a), scoped to A1 and A2.** Implemented in the [retirement record](CHUNK7-RETIRED-SMALL-MANUAL-CALIBRATION-2026-10-24.md).
 - Retire the two cases the way the stale families were retired: a prelaunch refusal in the stale
   registry, and the two offline tests become refusal tests.
 - **Named replacement:** the F09 calibration for body, pose and action calibration; rows 33–34
