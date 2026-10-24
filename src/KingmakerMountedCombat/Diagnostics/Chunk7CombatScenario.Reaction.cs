@@ -62,7 +62,20 @@ namespace KingmakerMountedCombat.Diagnostics
         // A walkable native destination whose navmesh trace from the start reaches it (bounded fan of
         // directions, longest requested length first). Every proposal is recorded, including on refusal.
         private Vector3 NavmeshDestination(Vector3 start, Vector3 direction, float length, Func<Vector3, bool> accepts, JArray proposals,
+            float[] angles = null, float[] shorterLengths = null) =>
+            NavmeshDestinationRefusing(start, direction, length, p => accepts(p) ? null : "geometry", proposals, angles, shorterLengths);
+        private Vector3 NavmeshDestinationRefusing(Vector3 start, Vector3 direction, float length, Func<Vector3, string> refuses, JArray proposals,
             float[] angles = null, float[] shorterLengths = null)
+        {
+            Vector3 goal;
+            if (TryNavmeshDestination(start, direction, length, refuses, proposals, angles, shorterLengths, out goal)) return goal;
+            throw new InvalidOperationException("No walkable native destination satisfied the declared geometry (" + (proposals?.Count ?? 0) + " proposals recorded).");
+        }
+        // Each proposal records the first term that refused it (Chunk7StagedGeometry.Refusal) and, for a
+        // walkable node, the declared geometry's own refusal; eligibility is unchanged: walkable, native
+        // trace within 0.3 m, a leg over 0.5 m, and the declared geometry.
+        private bool TryNavmeshDestination(Vector3 start, Vector3 direction, float length, Func<Vector3, string> refuses, JArray proposals,
+            float[] angles, float[] shorterLengths, out Vector3 destination)
         {
             Require(AstarPath.active != null, "Active native navigation graph is unavailable.");
             direction.y = 0f; Require(direction.sqrMagnitude > .0001f, "Native destination direction is unavailable.");
@@ -74,13 +87,31 @@ namespace KingmakerMountedCombat.Diagnostics
                     var walkable = nearest.node != null && nearest.node.Walkable;
                     var goal = nearest.clampedPosition;
                     var traced = walkable ? Kingmaker.View.ObstacleAnalyzer.TraceAlongNavmesh(start, goal) : start;
-                    var accepted = walkable && accepts(goal);
-                    var eligible = walkable && Flat(traced, goal) <= .3f && Flat(start, goal) > .5f && accepted;
+                    var geometry = walkable ? refuses(goal) : null;
+                    var refusal = Chunk7StagedGeometry.Refusal(walkable, Flat(traced, goal), Flat(start, goal), geometry);
                     proposals?.Add(new JObject { ["angle"] = angle, ["length"] = requestedLength, ["requested"] = Point(requested), ["goal"] = Point(goal),
-                        ["walkable"] = walkable, ["traceResidual"] = Flat(traced, goal), ["geometryAccepted"] = accepted, ["eligible"] = eligible });
-                    if (eligible) return goal;
+                        ["walkable"] = walkable, ["traceResidual"] = Flat(traced, goal), ["geometryAccepted"] = walkable && geometry == null,
+                        ["geometryRefusal"] = geometry, ["refusal"] = refusal, ["eligible"] = refusal == null });
+                    if (refusal == null) { destination = goal; return true; }
                 }
-            throw new InvalidOperationException("No walkable native destination satisfied the declared geometry (" + (proposals?.Count ?? 0) + " proposals recorded).");
+            destination = start; return false;
+        }
+        // Whether one further leg (the given lengths over the full circle) from a candidate point is
+        // eligible under the band: a lookahead only, never recorded as proposals of its own.
+        private bool NavmeshContinuation(Vector3 from, float[] lengths, Func<Vector3, string> band)
+        {
+            var direction = from - target.Position; direction.y = 0f;
+            if (direction.sqrMagnitude <= .0001f) return false;
+            foreach (var requestedLength in lengths)
+                foreach (var angle in FullCircleFan)
+                {
+                    var nearest = AstarPath.active.GetNearest(from + Quaternion.Euler(0f, angle, 0f) * direction.normalized * requestedLength);
+                    if (nearest.node == null || !nearest.node.Walkable) continue;
+                    var goal = nearest.clampedPosition;
+                    if (Chunk7StagedGeometry.Refusal(true, Flat(Kingmaker.View.ObstacleAnalyzer.TraceAlongNavmesh(from, goal), goal),
+                        Flat(from, goal), band(goal)) == null) return true;
+                }
+            return false;
         }
         private void ReactionStage(int value) { reactionStage = value; reactionSettledFrames = 0; stepStarted = clock.Elapsed.TotalSeconds; }
         private void BeginReaction()
