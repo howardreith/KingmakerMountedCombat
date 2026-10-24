@@ -278,20 +278,22 @@ function Assert-KmcChunk7NormalPlayerRuntimeBinding($Request,$GameEvidence,[stri
 # staged package admit (u1/u3 of the pinned preview.211 only); every rehearsal step uses the
 # schema that counts known defect lines, so u2 shows them absent.
 # The outer result records the receipt's SHA-256 (normalPlayerUmmReceiptSha256); whenever it
-# is recorded, the receipt file must match it, PASS or FAIL. Historical results (schema-1
-# receipts) predate the field and must not carry it.
+# is recorded with a value, the receipt file must match it, PASS or FAIL. Historical results
+# (schema-1 receipts) predate the field and must not carry it. Residual: a plain control's
+# outer result is not itself hash-bound, so one edited to drop the field could pair with a
+# schema-1 receipt; rehearsal steps always require schema 2.
 function Get-KmcChunk7NormalPlayerUmmReceiptPath($Request){Join-Path ([IO.Path]::GetFullPath([string]$Request.evidenceRoot)) 'normal-player-umm-log.json'}
 function Get-KmcChunk7NormalPlayerRecordedUmmReceiptSha256($OuterResult){
- if($null-eq$OuterResult-or$null-eq$OuterResult.PSObject.Properties['normalPlayerUmmReceiptSha256']){return $null}
- $v=$OuterResult.normalPlayerUmmReceiptSha256;if($null-eq$v){return '<null>'};[string]$v
+ $present=$null-ne$OuterResult-and$null-ne$OuterResult.PSObject.Properties['normalPlayerUmmReceiptSha256']
+ [pscustomobject]@{present=$present;value=$(if($present-and$null-ne$OuterResult.normalPlayerUmmReceiptSha256){[string]$OuterResult.normalPlayerUmmReceiptSha256}else{$null})}
 }
 function Assert-KmcChunk7NormalPlayerUmmReceiptHash($Request,$OuterResult){
  $recorded=Get-KmcChunk7NormalPlayerRecordedUmmReceiptSha256 $OuterResult
- if($null-eq$recorded-or$recorded-ceq'<null>'){return}
+ if(-not$recorded.present-or$null-eq$recorded.value){return}
  $path=Get-KmcChunk7NormalPlayerUmmReceiptPath $Request
- if($recorded-cnotmatch'^[0-9a-f]{64}$'-or-not(Test-Path -LiteralPath $path -PathType Leaf)){throw 'Normal-player UMM session receipt does not match the SHA-256 its outer result records.'}
+ if($recorded.value-cnotmatch'^[0-9a-f]{64}$'-or-not(Test-Path -LiteralPath $path -PathType Leaf)){throw 'Normal-player UMM session receipt does not match the SHA-256 its outer result records.'}
  Assert-KmcNotReparsePoint $path 'UMM session receipt';Assert-KmcNotHardLink $path 'UMM session receipt'
- if((Get-KmcSha256 $path)-cne$recorded){throw 'Normal-player UMM session receipt does not match the SHA-256 its outer result records.'}
+ if((Get-KmcSha256 $path)-cne$recorded.value){throw 'Normal-player UMM session receipt does not match the SHA-256 its outer result records.'}
 }
 function Assert-KmcChunk7NormalPlayerUmmReceipt($Request,$OuterResult=$null){
  $path=Get-KmcChunk7NormalPlayerUmmReceiptPath $Request
@@ -303,7 +305,7 @@ function Assert-KmcChunk7NormalPlayerUmmReceipt($Request,$OuterResult=$null){
  $policy=@(@(Get-KmcChunk7UpgradeAdmittedLogDefects $declared)|Where-Object{$null-ne$_})
  $v1=@('schemaVersion','path','sha256','sessionHeaders','kmcLines','loadedLine','quietOverlayLine','automationAccepted','errorLines','firstKmcLines','passed')
  if([int]$r.schemaVersion-eq1-and$null-eq$declared){Assert-KmcExactProperties $r $v1 'UMM session receipt'
-  if($null-ne$recordedSha){throw 'A historical schema-1 UMM receipt cannot be bound by a receipt hash.'}
+  if($recordedSha.present){throw 'A historical schema-1 UMM receipt cannot be bound by a receipt hash.'}
   if($r.passed-ne$true-or[int]$r.errorLines-ne0-or-not(Test-KmcChunk7NormalPlayerUmmLogVerdict ([pscustomobject]@{sessionHeaders=$r.sessionHeaders;loadedLine=$r.loadedLine;quietOverlayLine=$r.quietOverlayLine;automationAccepted=$r.automationAccepted;errorLines=$r.errorLines;knownOldVersionDefectLines=0;admittedOldVersionKnownDefects=@()}))){
    throw 'Normal-player UMM session receipt is not an ordinary quiet no-request start.'}
   return
@@ -311,7 +313,7 @@ function Assert-KmcChunk7NormalPlayerUmmReceipt($Request,$OuterResult=$null){
  Assert-KmcExactProperties $r @('schemaVersion','runId','path','sha256','sessionHeaders','kmcLines','loadedLine','quietOverlayLine','automationAccepted','errorLines','errorLineTexts',
   'knownOldVersionDefectLines','admittedOldVersionKnownDefects','firstKmcLines','passed') 'UMM session receipt'
  # The receipt names its own run and its bytes are hash-bound into the outer result.
- if($null-eq$recordedSha-or$recordedSha-ceq'<null>'){throw 'Normal-player PASS outer result does not record its UMM session receipt SHA-256.'}
+ if(-not$recordedSha.present-or$null-eq$recordedSha.value){throw 'Normal-player PASS outer result does not record its UMM session receipt SHA-256.'}
  if([string]$r.runId-cne[string]$Request.runId){throw 'Normal-player UMM session receipt does not name this run.'}
  $recorded=@(@($r.admittedOldVersionKnownDefects)|Where-Object{$null-ne$_})
  foreach($d in $recorded){Assert-KmcExactProperties $d @('id','line','expectedOccurrences','observedOccurrences','sourceFixCommit','reference') 'admitted old-version defect'}

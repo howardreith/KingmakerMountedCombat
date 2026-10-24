@@ -50,13 +50,18 @@ $manifest=[pscustomobject]@{commit=('a'*40);version='0.1.0-chunk7e-final';dllSha
 Add-Type -AssemblyName System.IO.Compression.FileSystem;$zipFile=[IO.Compression.ZipFile]::OpenRead($realPackage)
 try{$dllEntry=@($zipFile.Entries|Where-Object{$_.FullName.Replace('\','/')-ceq'KingmakerMountedCombat/KingmakerMountedCombat.dll'})[0];$dllBytes=New-Object byte[] $dllEntry.Length;$in=$dllEntry.Open();try{$read=0;while($read-lt$dllBytes.Length){$read+=$in.Read($dllBytes,$read,$dllBytes.Length-$read)}}finally{$in.Dispose()}}finally{$zipFile.Dispose()}
 $rid='f12-a';$u1='20261024-c7e-f12-u1-synthetic';$staging=Join-Path $fakeLab ('runtime-staging/'+$u1);$after=Join-Path $staging 'Mods-staged-after/KingmakerMountedCombat'
+# u1's real b199 KMC lines as its UMM receipt, admitted for u1 and named for the synthetic run.
+$carryUmmGame=Join-Path $OutputDirectory 'carry-umm';$carryUmmDir=Join-Path $carryUmmGame 'Kingmaker_Data/Managed/UnityModManager';[void][IO.Directory]::CreateDirectory($carryUmmDir)
+[IO.File]::WriteAllText((Join-Path $carryUmmDir 'Log.txt'),((@('[Manager] Initialize.','[Manager] Version: 0.33.2.0.')+@((Read-KmcJson (Join-Path $realLab 'runtime-evidence/20261024-c7e-b199-x5-u1-previous/normal-player-umm-log.json')).firstKmcLines|ForEach-Object{[string]$_}))-join"`r`n"),[Text.UTF8Encoding]::new($false))
+$carryReceipt=Get-KmcChunk7NormalPlayerUmmLogSummary $carryUmmGame ([DateTimeOffset]::UtcNow.AddMinutes(-5)) $pins.version @(Get-KmcChunk7PreviousPackageKnownDefects) $u1
 function Stage-Carry([scriptblock]$Mutate,[scriptblock]$PostWrite){
  foreach($d in @('runtime-evidence','runtime-state','runtime-staging')){$x=Join-Path $fakeLab $d;if(Test-Path -LiteralPath $x){Remove-Item -LiteralPath $x -Recurse -Force}}
  [void][IO.Directory]::CreateDirectory($after);[void][IO.Directory]::CreateDirectory((Join-Path $fakeLab ('runtime-evidence/'+$u1)));[void][IO.Directory]::CreateDirectory((Join-Path $fakeLab 'runtime-state/transactions'))
  $cache=Join-Path $after 'KingmakerMountedCombat.dll.4242.cache';[IO.File]::WriteAllBytes($cache,$dllBytes)
  $f=[pscustomobject]@{
-  request=[pscustomobject]@{runId=$u1;scenario='chunk7-normal-player-control';normalPlayer=[pscustomobject]@{upgradeRehearsal=[pscustomobject]@{rehearsalId=$rid;step='u1-previous-install';stagedKmc=[pscustomobject]@{packageSha256=$pins.packageSha256}}}}
-  result=[pscustomobject]@{runId=$u1;status='PASS';gameResultSha256=$null}
+  request=[pscustomobject]@{runId=$u1;scenario='chunk7-normal-player-control';normalPlayer=[pscustomobject]@{upgradeRehearsal=[pscustomobject]@{rehearsalId=$rid;step='u1-previous-install';stagedKmc=[pscustomobject]@{role='previous';version=$pins.version;commit=$pins.commit;packageSha256=$pins.packageSha256;manifestSha256=$pins.manifestSha256;dllSha256=$pins.dllSha256;dllMvid=$pins.dllMvid}}}}
+  result=[pscustomobject]@{runId=$u1;status='PASS';gameResultSha256=$null;normalPlayerUmmReceiptSha256=$null}
+  receipt=(Clone $carryReceipt)
   game=[pscustomobject]@{evidenceKind='kmc-normal-player-observer';status='PASS';runId=$u1;observerResultSha256=$null
    upgradeRehearsal=[pscustomobject]@{rehearsalId=$rid;step='u1-previous-install';stagedKmc=[pscustomobject]@{packageSha256=$pins.packageSha256;dllSha256=$pins.dllSha256};loadedKmc=[pscustomobject]@{dllSha256=$pins.dllSha256;dllMvid=$pins.dllMvid}}}
   observer=[pscustomobject]@{status='PASS';runId=$u1;observations=[pscustomobject]@{presenceLoaded=[pscustomobject]@{kmcDllSha256=$pins.dllSha256;kmcMvid=$pins.dllMvid}}}
@@ -69,6 +74,7 @@ function Stage-Carry([scriptblock]$Mutate,[scriptblock]$PostWrite){
  $ev=Join-Path $fakeLab ('runtime-evidence/'+$u1)
  Write-KmcJsonAtomic (Join-Path $ev 'observer-result.json') $f.observer
  $f.game.observerResultSha256=Get-KmcSha256 (Join-Path $ev 'observer-result.json');Write-KmcJsonAtomic (Join-Path $ev 'runtime-game-result.json') $f.game
+ Write-KmcJsonAtomic (Join-Path $ev 'normal-player-umm-log.json') $f.receipt;$f.result.normalPlayerUmmReceiptSha256=Get-KmcSha256 (Join-Path $ev 'normal-player-umm-log.json')
  $f.result.gameResultSha256=Get-KmcSha256 (Join-Path $ev 'runtime-game-result.json');Write-KmcJsonAtomic (Join-Path $ev 'runtime-result.json') $f.result
  Write-KmcJsonAtomic (Join-Path $fakeLab ('runtime-state/transactions/'+$u1+'.json')) $f.state
  if($PostWrite){&$PostWrite $ev}
@@ -96,11 +102,16 @@ foreach($m in @(
  @('an observer that saw another assembly',{param($f)$f.observer.observations.presenceLoaded.kmcMvid='00000000-0000-0000-0000-000000000000'},'observer did not see exactly preview.211'),
  @('a failed observer result',{param($f)$f.observer.status='FAIL'},'observer did not see exactly preview.211'),
  @('a u1 of another rehearsal',{param($f)$f.request.normalPlayer.upgradeRehearsal.rehearsalId='f12-other'},'not a passed u1'),
+ @('a u1 receipt that hides its admitted defect',{param($f)$f.receipt.admittedOldVersionKnownDefects=@()},'admits old-version defects other than'),
+ @('a u1 receipt with an extra error line',{param($f)$f.receipt.errorLines=2;$f.receipt.errorLineTexts=@(@($f.receipt.errorLineTexts)+'[KingmakerMountedCombat] [Error] x')},'not an ordinary quiet no-request start'),
+ @('a u1 receipt of another run',{param($f)$f.receipt.runId='another-run'},'does not name this run'),
  @('no carried KMC file',{param($f)$f.state.runtimeExpectedWrites=@($f.state.runtimeExpectedWrites[1])},'holds no, or an unbounded set'))){
  Check ('carry refuses '+$m[0]) {Stage-Carry $m[1];[void](Read-Carry)} $true $m[2]
 }
 Check 'carry refuses a game record that no longer matches the outer result' {Stage-Carry $null {param($ev)[IO.File]::AppendAllText((Join-Path $ev 'runtime-game-result.json'),' ')};[void](Read-CarrySource)} $true 'game record does not bind a passed u1'
 Check 'carry refuses an observer result that no longer matches the game record' {Stage-Carry $null {param($ev)[IO.File]::AppendAllText((Join-Path $ev 'observer-result.json'),' ')};[void](Read-CarrySource)} $true 'game record does not bind a passed u1'
+Check 'carry refuses a u1 receipt changed after its hash was recorded' {Stage-Carry $null {param($ev)[IO.File]::AppendAllText((Join-Path $ev 'normal-player-umm-log.json'),' ')};[void](Read-CarrySource)} $true 'does not match the SHA-256 its outer result records'
+Check 'carry refuses a u1 result that records no receipt hash' {Stage-Carry $null {param($ev)$p=Join-Path $ev 'runtime-result.json';$x=Read-KmcJson $p;$x.PSObject.Properties.Remove('normalPlayerUmmReceiptSha256');Write-KmcJsonAtomic $p $x};[void](Read-CarrySource)} $true 'does not record its UMM session receipt SHA-256'
 Check 'carry refuses a missing u1 game record' {Stage-Carry $null {param($ev)Remove-Item -LiteralPath (Join-Path $ev 'runtime-game-result.json')};[void](Read-CarrySource)} $true 'record is missing'
 Check 'carry refuses a staged-after tree outside the lab staging root' {Stage-Carry {param($f)$f.state.stagedAfter='C:\Windows\Temp\elsewhere'};[void](Read-Carry)} $true 'staged-after tree'
 Check 'carry refuses an invalid rehearsal id' {Stage-Carry $null;[void](Read-Carry 'bad id!')} $true 'rehearsal id is invalid'
@@ -342,6 +353,7 @@ foreach($m in @(
  @('u1 naming another version',{$s=Clone ([pscustomobject]$u1Section);$s.stagedKmc.version='0.1.0-chunk6d-preview.210';$s}),
  @('u1 naming another commit',{$s=Clone ([pscustomobject]$u1Section);$s.stagedKmc.commit=('0'*40);$s}),
  @('u2 (the candidate)',{$u2Section}),@('no rehearsal',{$null}),
+ @('a u2 section crafted with role previous and every preview.211 pin',{$s=Clone ([pscustomobject]$u1Section);$s.step='u2-upgrade';$s}),
  @('u1 naming another package hash',{$s=Clone ([pscustomobject]$u1Section);$s.stagedKmc.packageSha256=('0'*64);$s}),
  @('u1 naming another DLL',{$s=Clone ([pscustomobject]$u1Section);$s.stagedKmc.dllSha256=('0'*64);$s}),
  @('u1 naming another MVID',{$s=Clone ([pscustomobject]$u1Section);$s.stagedKmc.dllMvid='00000000-0000-0000-0000-000000000000';$s}),
