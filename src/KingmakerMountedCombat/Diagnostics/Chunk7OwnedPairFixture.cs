@@ -103,6 +103,8 @@ namespace KingmakerMountedCombat.Diagnostics
             partyCharacters = game.Player.PartyCharacters.Select(value => value.Value).ToArray();
             Require(partyCharacters.All(actor => actor != null && partyCharacters.Count(value => ReferenceEquals(value, actor)) == 1),
                 "Inherited native character roster is null or duplicated.");
+            // Row 59: fix the capital's admitted native remote companions by identity before any custody check.
+            if (capitalOutOfScene != null) FixCapitalNativeRemote();
             descriptors = Actors.Select(actor => (object)actor.Descriptor).ToArray(); views = Actors.Select(actor => (object)actor.View).ToArray();
             facts = new object[InheritedPairCount]; ranks = new object[InheritedPairCount];
             for (var index = 0; index < InheritedPairCount; index++)

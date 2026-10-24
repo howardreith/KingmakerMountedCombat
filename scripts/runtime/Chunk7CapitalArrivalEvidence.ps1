@@ -154,7 +154,8 @@ function Assert-KmcChunk7CapitalArrivalShape($Request,$c,$loaded,$ColdEvents) {
 # The recorded out-of-scene custody of the companion pair, in one closed membership shape.
 function Assert-KmcChunk7CapitalOutOfSceneRecord($Record,$Request,[bool]$ViewsRequired) {
     $roles=@(Get-KmcChunk7OwnedPairIds $Request)
-    Assert-KmcExactProperties $Record @('ids','shape','actors') 'capital out-of-scene record'
+    Assert-KmcExactProperties $Record @('ids','shape','actors','admittedNativeRemoteCompanions') 'capital out-of-scene record'
+    Assert-KmcChunk7CapitalNativeRemoteRecord $Record.admittedNativeRemoteCompanions $Request
     if($Record.ids-isnot[Array]-or($Record.ids-join'|')-cne($roles[2]+'|'+$roles[3])){throw 'Capital out-of-scene record is not exactly the companion pair.'}
     if($Record.shape-isnot[string]-or$Record.shape-cnotin@('field','remote','absent')){throw 'Capital out-of-scene membership shape is not closed.'}
     if($Record.actors-isnot[Array]-or$Record.actors.Count-ne2){throw 'Capital out-of-scene record must describe both units.'}
@@ -165,22 +166,72 @@ function Assert-KmcChunk7CapitalOutOfSceneRecord($Record,$Request,[bool]$ViewsRe
         if($ViewsRequired){Assert-KmcChunk7Boolean $a.viewPresent $true}
     }
 }
+# Batch197 r58: native capital mode also moves the unpaired story companions to the remote party while
+# they stay in the game. The field checks an admitted actor's admission replaces, by name (the product's
+# Chunk7CapitalRemoteCompanionRule.SkippedChecks).
+function Get-KmcChunk7CapitalRemoteSkippedChecks {@('field-party-membership','field-character-membership','not-remote-companion')}
+function Get-KmcChunk7CapitalRemoteRecordFields {@('id','inParty','character','remote','inGame','inState','directlyControllable','viewPresent','mainCharacter','pairMember','skippedChecks')}
+# The recorded admitted native remote companions: exact flags, ordinal order, producer roster only, never
+# the main character or any KMC pair actor.
+function Assert-KmcChunk7CapitalNativeRemoteRecord($Admitted,$Request) {
+    if($Admitted-isnot[Array]){throw 'Capital native remote companions must be a recorded array.'}
+    $pairs=@(@(Get-KmcChunk7OwnedPairIds $Request)+@(Get-KmcChunk7InheritedPairIds $Request));$main=$Request.ownedPairs.riderAId;$prior=$null
+    foreach($a in $Admitted){
+        Assert-KmcExactProperties $a (Get-KmcChunk7CapitalRemoteRecordFields) 'capital native remote companion'
+        Assert-KmcOrdinaryGuid $a.id
+        if($a.id-cnotin@($Request.ownedPairs.partyIds)){throw 'Capital native remote companion is outside the producer roster.'}
+        if($a.id-ceq$main){throw 'Capital native remote companion is the main character.'}
+        if($a.id-cin$pairs){throw 'Capital native remote companion is a KMC paired actor.'}
+        if($null-ne$prior-and[string]::CompareOrdinal($prior,$a.id)-ge0){throw 'Capital native remote companions repeat or are not in ordinal order.'};$prior=$a.id
+        foreach($pair in @(@('inParty',$false),@('character',$false),@('remote',$true),@('inGame',$true),@('directlyControllable',$false),@('mainCharacter',$false),@('pairMember',$false))){Assert-KmcChunk7Boolean $a.($pair[0]) $pair[1]}
+        if($a.inState-isnot[bool]-or$a.viewPresent-isnot[bool]){throw 'Capital native remote companion state must be recorded booleans.'}
+        if($a.skippedChecks-isnot[Array]-or($a.skippedChecks-join'|')-cne((Get-KmcChunk7CapitalRemoteSkippedChecks)-join'|')){throw 'Capital native remote companion skipped checks are not exactly named.'}
+    }
+}
+# The admission derived independently from a capital world row's roster: every remote actor other than the
+# out-of-scene pair must be an unpaired, non-main producer-roster companion, out of the field, in the game and
+# uncontrollable, in the reviewed capital. Pair membership includes the loaded archive's pair records.
+function Get-KmcChunk7CapitalNativeRemoteCompanions($Row,$Request,$Archive) {
+    $roles=@(Get-KmcChunk7OwnedPairIds $Request);$main=$Request.ownedPairs.riderAId
+    $pairs=@(@($roles)+@(Get-KmcChunk7InheritedPairIds $Request)+@(@($Archive.Pairs)|ForEach-Object{$_.Rider.Id;$_.Mount.Id}))
+    if($Row.roster-isnot[Array]){throw 'Capital world roster is missing or incomplete.'}
+    $out=[Collections.Generic.List[object]]::new()
+    $remote=@($Row.roster|Where-Object{$_.remote-eq$true-and$_.id-cnotin@($roles[2],$roles[3])})
+    [string[]]$order=@($remote|ForEach-Object{[string]$_.id});[Array]::Sort($order,[StringComparer]::Ordinal)
+    foreach($r in @(foreach($id in $order){@($remote|Where-Object id -CEQ $id)[0]})){
+        if($Row.capital-isnot[bool]-or-not$Row.capital-or$Row.area-cne(Get-KmcChunk7CapitalArrivalArea)){throw ('Native remote companion outside a capital: '+$r.id)}
+        if($r.id-cnotin@($Request.ownedPairs.partyIds)){throw ('Capital native field roster gained an actor outside the producer roster: '+$r.id)}
+        if($r.id-ceq$main){throw ('The main character moved to the remote party: '+$r.id)}
+        if($r.id-cin$pairs){throw ('A KMC paired actor moved to the remote party: '+$r.id)}
+        if($r.inParty-ne$false-or$r.character-ne$false){throw ('A remote companion is still in the native field roster: '+$r.id)}
+        if($r.inGame-ne$true){throw ('A remote companion is out of the game: '+$r.id)}
+        if($r.directlyControllable-ne$false){throw ('A remote companion is directly controllable: '+$r.id)}
+        $out.Add([pscustomobject][ordered]@{id=$r.id;inParty=$r.inParty;character=$r.character;remote=$r.remote;inGame=$r.inGame;inState=$r.inState;directlyControllable=$r.directlyControllable;viewPresent=$r.viewPresent;mainCharacter=$false;pairMember=$false;skippedChecks=@(Get-KmcChunk7CapitalRemoteSkippedChecks)})
+    }
+    $out.ToArray()
+}
 # Native roster membership of every captured field actor at a capital world row, consistent with the record.
-function Assert-KmcChunk7CapitalRoster($Row,$Request,[AllowNull()][string]$Shape) {
+function Assert-KmcChunk7CapitalRoster($Row,$Request,[AllowNull()][string]$Shape,$Admitted=@(),$Archive=$null) {
     $roles=@(Get-KmcChunk7OwnedPairIds $Request);$ids=@($Request.ownedPairs.partyIds)
     if($Row.roster-isnot[Array]-or$Row.roster.Count-ne$ids.Count){throw 'Capital world roster is missing or incomplete.'}
+    Assert-KmcChunk7CapitalNativeRemoteRecord @($Admitted) $Request
+    $derived=if([string]::IsNullOrEmpty($Shape)){@()}else{@(Get-KmcChunk7CapitalNativeRemoteCompanions $Row $Request $Archive)}
+    $remoteIds=@($derived|ForEach-Object{$_.id})
     foreach($id in $ids){
         $r=@($Row.roster|Where-Object id -CEQ $id);if($r.Count-ne1){throw 'Capital world roster omits or repeats an actor.'};$r=$r[0]
         Assert-KmcExactProperties $r @('id','inParty','character','remote','inGame','inState','directlyControllable','viewPresent') 'capital roster actor'
-        if($id-cin@($roles[2],$roles[3])-and$null-ne$Shape){
+        # An admitted native remote companion was judged by the derivation above; its field checks are the named skips.
+        if($id-cin$remoteIds){continue}
+        if($id-cin@($roles[2],$roles[3])-and-not[string]::IsNullOrEmpty($Shape)){
             Assert-KmcChunk7Boolean $r.inGame $false;Assert-KmcChunk7Boolean $r.directlyControllable $false
             Assert-KmcChunk7Boolean $r.inParty ($Shape-ceq'field');Assert-KmcChunk7Boolean $r.character ($Shape-ceq'field'-and$id-ceq$roles[2]);Assert-KmcChunk7Boolean $r.remote ($Shape-ceq'remote'-and$id-ceq$roles[2])
         }else{
-            # Every other captured actor keeps the fixture's exact roster contract (in the field, not remote).
-            Assert-KmcChunk7Boolean $r.inParty $true;Assert-KmcChunk7Boolean $r.remote $false
-            if($id-cin@($roles[0],$roles[1])-or$null-eq$Shape){Assert-KmcChunk7Boolean $r.inGame $true}
+            # Every other captured actor keeps the fixture's exact roster contract (in the field, in the game, not remote).
+            Assert-KmcChunk7Boolean $r.inParty $true;Assert-KmcChunk7Boolean $r.remote $false;Assert-KmcChunk7Boolean $r.inGame $true
         }
     }
+    # The recorded admission must equal the admission derived from this row's roster, exactly.
+    if((ConvertTo-KmcChunk7Canonical @($derived))-cne(ConvertTo-KmcChunk7Canonical @($Admitted))){throw 'Recorded capital native remote companions differ from the observed roster.'}
 }
 # Inherited custody normalized from the capital's out-of-scene membership back to the full field contract.
 function ConvertFrom-KmcChunk7CapitalInheritedSnapshot($Request,$Snapshot) {
@@ -189,12 +240,16 @@ function ConvertFrom-KmcChunk7CapitalInheritedSnapshot($Request,$Snapshot) {
     $roles=@(Get-KmcChunk7OwnedPairIds $Request);$record=$s.capitalOutOfScene
     Assert-KmcChunk7CapitalOutOfSceneRecord $record $Request $false
     $out=@($roles[2],$roles[3]);$field=$record.shape-ceq'field'
-    $expected=@($s.partyIds|Where-Object{$field-or$_-cnotin$out}|Sort-Object -CaseSensitive)
-    if((ConvertTo-KmcChunk7Canonical @($s.currentPartyIds))-cne(ConvertTo-KmcChunk7Canonical $expected)){throw 'Capital inherited field roster differs beyond the out-of-scene pair.'}
+    # Batch197 r58: the recorded native remote companions are out of the field and remote, exactly.
+    $remote=@(@($record.admittedNativeRemoteCompanions)|ForEach-Object{$_.id})
+    $expected=@($s.partyIds|Where-Object{($field-or$_-cnotin$out)-and$_-cnotin$remote}|Sort-Object -CaseSensitive)
+    if((ConvertTo-KmcChunk7Canonical @($s.currentPartyIds))-cne(ConvertTo-KmcChunk7Canonical $expected)){throw 'Capital inherited field roster differs beyond the out-of-scene pair and admitted native remote companions.'}
     if((@($s.currentCharacterIds)-ccontains$roles[2])-ne$field){throw 'Capital inherited character roster differs from its out-of-scene shape.'}
-    if((ConvertTo-KmcChunk7Canonical @($s.remoteCapturedIds))-cne(ConvertTo-KmcChunk7Canonical @($(if($record.shape-ceq'remote'){$roles[2]})))){throw 'Capital remote companions differ from the out-of-scene shape.'}
+    foreach($id in $remote){if(@($s.currentCharacterIds)-ccontains$id){throw 'Capital inherited character roster keeps an admitted native remote companion.'}}
+    [string[]]$remoteExpected=@(@($(if($record.shape-ceq'remote'){$roles[2]}))+@($remote));[Array]::Sort($remoteExpected,[StringComparer]::Ordinal)
+    if((ConvertTo-KmcChunk7Canonical @($s.remoteCapturedIds))-cne(ConvertTo-KmcChunk7Canonical @($remoteExpected))){throw 'Capital remote companions differ from the out-of-scene shape and admitted native remote companions.'}
     $s.currentPartyIds=@($s.partyIds|Sort-Object -CaseSensitive)
-    $s.currentCharacterIds=@(@($s.currentCharacterIds)+@($(if(-not$field){$roles[2]}))|Sort-Object -CaseSensitive)
+    $s.currentCharacterIds=@(@($s.currentCharacterIds)+@($(if(-not$field){$roles[2]}))+@($remote)|Sort-Object -CaseSensitive)
     $s.remoteCapturedIds=@();$s.PSObject.Properties.Remove('capitalOutOfScene');$s
 }
 function Assert-KmcChunk7CapitalInheritedEvidence($Request,$Observations,[bool]$AdmittedInCapital) {
@@ -238,7 +293,7 @@ function Assert-KmcChunk7CapitalArrivalObservation($Request,$Artifact) {
     Assert-KmcChunk7CapitalArrivalShape $Request $c $loaded $o.coldRestoration.events
     # Forensic records added after batch196 r58: the exact out-of-scene custody and every actor's roster membership.
     Assert-KmcChunk7CapitalOutOfSceneRecord $c.retiredOutOfScene $Request $true
-    Assert-KmcChunk7CapitalRoster $c.before $Request $null;Assert-KmcChunk7CapitalRoster $c.after $Request $c.retiredOutOfScene.shape
+    Assert-KmcChunk7CapitalRoster $c.before $Request $null;Assert-KmcChunk7CapitalRoster $c.after $Request $c.retiredOutOfScene.shape @($c.retiredOutOfScene.admittedNativeRemoteCompanions) $loaded
     if((ConvertTo-KmcChunk7Canonical $o.inheritedCleanup.capitalOutOfScene)-cne(ConvertTo-KmcChunk7Canonical $c.retiredOutOfScene)){throw 'Capital out-of-scene custody changed between arrival and cleanup.'}
     $mainSlots=@($loaded.Slots|Where-Object ActorId -CEQ $roles[0])
     $settled=Get-KmcChunk7CapitalSnapshot $o 'capital-arrival-settled';Assert-KmcChunk7CapitalOneOwner $settled $main
@@ -308,7 +363,7 @@ function Assert-KmcChunk7CapitalColdObservation($Request,$Artifact) {
     Assert-KmcExactProperties $c @('contract','producerRunId','producerArtifactSha256','mainPairId','mainGeneration','unmountedRiderId','unmountedMountId','registryOwners','activeOwners','outOfScene','world') 'capital cold row'
     Assert-KmcChunk7CapitalOutOfSceneRecord $c.outOfScene $Request $false
     if((ConvertTo-KmcChunk7Canonical $o.inheritedFixture.capitalOutOfScene)-cne(ConvertTo-KmcChunk7Canonical $c.outOfScene)){throw 'Capital cold out-of-scene custody differs from its bind.'}
-    Assert-KmcChunk7CapitalRoster $c.world $Request $c.outOfScene.shape
+    Assert-KmcChunk7CapitalRoster $c.world $Request $c.outOfScene.shape @($c.outOfScene.admittedNativeRemoteCompanions) $loaded
     foreach($pair in @(@('contract','chunk7-capital-arrival-cold-v1'),@('producerRunId',$Request.ownedPairs.checkpointSourceRunId),@('producerArtifactSha256',$Request.ownedPairs.checkpointSourceArtifactSha256),@('mainPairId',$main.PairId),@('unmountedRiderId',$roles[2]),@('unmountedMountId',$roles[3]))){Assert-KmcBootstrapInventoryString $c.($pair[0]) $pair[1]}
     if($c.mainGeneration-ne$main.Generation){throw 'Capital cold owner generation differs.'}
     Assert-KmcOrdinaryInteger $c.registryOwners 1 1;Assert-KmcOrdinaryInteger $c.activeOwners 1 1
@@ -341,5 +396,7 @@ function Assert-KmcChunk7CapitalColdSource($Request,$ProducerArtifact,$ColdArtif
     foreach($key in @('partyIds','currentCharacterIds','remoteCapturedIds','arrangement')){if((ConvertTo-KmcChunk7Canonical $prior.inheritedCleanup.$key)-cne(ConvertTo-KmcChunk7Canonical $cold.inheritedFixture.$key)){throw 'Capital cold source changed full-field ancestry or progression.'}}
     for($i=0;$i-lt2;$i++){foreach($key in @('riderId','mountId','sourceGuid','rank','profileId')){if((ConvertTo-KmcChunk7Canonical $prior.inheritedCleanup.pairs[$i].$key)-cne(ConvertTo-KmcChunk7Canonical $cold.inheritedFixture.pairs[$i].$key)){throw 'Capital cold source changed inherited role or fact provenance.'}}}
     foreach($key in @('retiredPairId','mainPairId')){if($prior.capitalArrival.$key-isnot[string]){throw 'Capital producer row lacks its pair identities.'}}
+    # Batch197 r58: the cold load keeps exactly the producer's admitted native remote companions, by identity.
+    if((@($prior.capitalArrival.retiredOutOfScene.admittedNativeRemoteCompanions|ForEach-Object{$_.id})-join'|')-cne(@($cold.capitalCold.outOfScene.admittedNativeRemoteCompanions|ForEach-Object{$_.id})-join'|')){throw 'Capital cold native remote companions differ from the producer admission.'}
     Assert-KmcBootstrapInventoryString $cold.capitalCold.mainPairId $prior.capitalArrival.mainPairId
 }

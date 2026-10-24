@@ -39,10 +39,11 @@ namespace KingmakerMountedCombat.Diagnostics
             var prior = Scope;
             var candidate = new Chunk7NativeWorldScope(request, Party, destination.AssetGuidThreadSafe);
             // Read-only validation interval: the roster, pets, facts and views must hold, except that native
-            // capital mode may take exactly the retired companion pair (inherited pair B) out of the scene.
+            // capital mode may take exactly the retired companion pair (inherited pair B) out of the scene and
+            // move exactly the unpaired story companions to the remote party (batch197 r58), fixed here by identity.
             Scope = candidate; capitalOutOfScene = new[] { Actors[2], Actors[3] };
-            try { RequirePreserved(); }
-            catch { Scope = prior; capitalOutOfScene = null; throw; }
+            try { FixCapitalNativeRemote(); RequirePreserved(); }
+            catch { Scope = prior; capitalOutOfScene = null; capitalNativeRemote = null; throw; }
             capitalPending = false; capitalAdopted = true; capitalDestination = null;
         }
     }
