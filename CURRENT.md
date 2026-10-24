@@ -6,7 +6,14 @@ Claude (offline, no launch, October 24, pre-freeze gates G3/G6 of the [final run
 - **Rows 33/34 → 48, 50, 51: one pair suffices.** The progression source admission is read-only and records no consumption; the pilots used separate pairs only because they were separate candidates. Offline, one b108 pair was admitted for all three cases (3/3). No batch or launch change.
 - **New blocker G7 (row 32).** The runner admits only the batch65 cleanup Manual as the no-DLL source, so row 32 cannot consume F's r31. It needs either a reviewed harness change or an owner-accepted fixture-input exception.
 - The owner's FULL clarification is in plan §4: no successful child runs twice, the FULL FAIL stays FAIL, and Chunk 6 results are reported in four separate groups.
-- Fast 3/0. Review: see below.
+- Fast 3/0.
+- **Review.** One independent adversarial review covered `2fb2a7cf`, G3 and the deriver: FINDINGS, no must-fix. Three should-fixes are fixed:
+  - Row 31's runner parameters are stated.
+  - §4 now reuses the FULL prefix transcript and runs only the remaining steps; option (b) is gone, because it would have rerun passed children.
+  - Final mode accepts a predecessor only with a settled receipt in `final-runs.json`: the external reader verdict PASS, restoration verified, and a matching result SHA-256. The runner's own status no longer counts.
+
+  Notes acted on: cross-lineage now covers r02, r34, r36, r44, r45 and r54 (21/0); the r41 template is marked outer-FAIL; matrix row 32 points to G7; the closeout records that its audit is dependency-scoped. Reproduce is still 69/0, and the shared-pair proof 3/3.
+- **Gates.** G3 met; G6 met. G7 is open and blocks the freeze, as do G1, G2, G4 and G5, which are still to be confirmed at freeze time. No freeze or launch.
 
 Claude (offline, no launch, October 24): the [7E matrix](planning/CHUNK7-7E-QUALIFICATION-MATRIX.md) now lists every agreed case as a numbered row (1–74; new rows 60–74 for the acquired chain c1/c4/c5, X4 x4s/x4c, two-pair native life, Small items, death, attack modes, C11, F04 staged and the RT Charge k1–k4 lineage; rows 42 and 55–56 name their binders), and the uncovered halves are in its exclusions. The executable [final run plan](planning/CHUNK7-7E-FINAL-RUN-PLAN.md) orders 75 launches in 15 batches (about 12 h with the offline tiers); one independent review found a blocker (progression rows need same-candidate rows 33–36 first) and five should-fixes, all fixed. `Test-ScenarioDispatchEvidence.ps1` was reproduced in a temporary worktree: PASS at the preview.211 tag (82/0) and at `ee2bdfc9~1` (165/0), FAIL from `ee2bdfc9` on, classified as a stale family list in the [X6 inventory](docs/CHUNK7-7E-X6-OFFLINE-INVENTORY-2026-10-23.md). The changelog's progression [VERIFY] is resolved (retirement uses the lifecycle cleanup made per-pair in `58abe1a9`; dismissal has `7c6ba455`; no other product commit is progression-specific), and the release notes carry the final uncovered set. Next: the pre-freeze gates G1–G5, then the plan.
 
