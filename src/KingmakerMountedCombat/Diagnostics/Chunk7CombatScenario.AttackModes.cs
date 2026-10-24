@@ -32,7 +32,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private Chunk7AttackModesRuleObserver attackModesRules;
         private ActivatableAbility attackModesRapid;
         private JObject attackModes, attackModeObservation;
-        private UnitAttack attackModeCommand;
+        private UnitAttack attackModeCommand, attackModeWatched;
         private int attackModesStage, attackModesRound;
         private TurnController attackModesDismountTurn;
         private JObject RapidState(string label) => new JObject { ["label"] = label, ["toggle"] = attackModesRapid.Blueprint.AssetGuid,
@@ -47,7 +47,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var feat = ar.Descriptor.Progression.Features.Enumerable.Count(fact => fact.Blueprint.AssetGuid == RapidShotFeatureGuid);
             var toggles = ar.ActivatableAbilities.Enumerable.Where(item => item.Blueprint.AssetGuid == RapidShotToggleGuid).ToArray();
             var weapon = ar.GetFirstWeapon();
-            attackModes = new JObject { ["contract"] = "owner-seed-attack-modes-v1", ["riderId"] = ar.UniqueId, ["mountId"] = am.UniqueId,
+            attackModes = new JObject { ["contract"] = "owner-seed-attack-modes-v2", ["riderId"] = ar.UniqueId, ["mountId"] = am.UniqueId,
                 ["rapidShotFeature"] = feat, ["rapidShotToggles"] = toggles.Length, ["weapon"] = weapon?.Blueprint.AssetGuid,
                 ["weaponRanged"] = weapon?.Blueprint.IsRanged == true, ["weaponRangeMeters"] = weapon?.Blueprint.AttackRange.Meters };
             evidence["attackModes"] = attackModes;
@@ -112,6 +112,9 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             observation["clicked"] = clicked;
             attackModeCommand = ar.Commands.Raw.OfType<UnitAttack>().FirstOrDefault(command => ReferenceEquals(command.Target, target));
+            // Contract v2: every native Interrupt(bool) of the measured command is recorded with its prior
+            // terminal state and caller chain (b202 am: an unpaired rider's command is otherwise unobserved).
+            if (attackModeCommand != null) { trace.WatchCommandInterrupts(attackModeCommand); attackModeWatched = attackModeCommand; }
             Game.Instance.IsPaused = false;
             Require(clicked, "Native ordinary attack click on the target was refused.");
         }
@@ -128,9 +131,26 @@ namespace KingmakerMountedCombat.Diagnostics
             var observation = attackModeObservation; var command = attackModeCommand; attackModeCommand = null;
             var after = WorldSnapshot((string)observation["label"] + "-after"); observation["after"] = after;
             var plan = command.AllAttacks.Select(PlanEntry).ToArray();
+            var watched = ReferenceEquals(attackModeWatched, command);
+            var interrupts = attackModeWatched == null ? new JArray() : trace.TakeWatchedInterrupts(attackModeWatched);
+            if (!watched) interrupts = new JArray(); attackModeWatched = null;
+            var targetUnit = command.TargetUnit;
             observation["command"] = new JObject { ["identity"] = trace.ObjectIdentity(command), ["executor"] = command.Executor?.UniqueId,
                 ["target"] = command.Target?.UniqueId, ["fullAttack"] = command.IsFullAttack, ["singleAttack"] = command.IsSingleAttack,
-                ["result"] = command.Result.ToString(), ["completedAttacks"] = command.GetAttackIndex(), ["plan"] = new JArray(plan) };
+                ["result"] = command.Result.ToString(), ["completedAttacks"] = command.GetAttackIndex(), ["plan"] = new JArray(plan),
+                ["interruptWatch"] = new JObject { ["watchedFromClick"] = watched, ["interrupts"] = interrupts,
+                    ["interruptAsSoonAsPossible"] = command.InterruptAsSoonAsPossible, ["executorCanAct"] = ar.Descriptor.State.CanAct,
+                    ["targetInState"] = targetUnit?.IsInState, ["targetDead"] = targetUnit?.Descriptor.State.IsDead } };
+            // Native UnitAttack.OnAction returns Success with the last planned attack; UnitCommand.Interrupt(bool)
+            // then overwrites it while that attack's animation still runs. A plan-complete Interrupt is admitted
+            // only as exactly one such native overwrite (no KingmakerMountedCombat frame in its caller chain).
+            var effective = interrupts.OfType<JObject>().Where(row => !(bool)row["finishedBefore"] && (string)row["resultBefore"] != "Interrupt").ToArray();
+            var planComplete = command.GetAttackIndex() >= plan.Length;
+            Require(command.Result != UnitCommand.ResultType.Interrupt || (watched && effective.Length == 1 &&
+                (!planComplete || (string)effective[0]["resultBefore"] == "Success" && (bool)effective[0]["actedBefore"] &&
+                    !((string)effective[0]["callers"] ?? "KingmakerMountedCombat").Contains("KingmakerMountedCombat"))) &&
+                (command.Result != UnitCommand.ResultType.Success || effective.Length == 0),
+                "Native attack interrupt cause differs from one native terminal overwrite: " + observation["command"]["interruptWatch"].ToString(Newtonsoft.Json.Formatting.None));
             observation["rules"] = attackModesRules.Since((int)observation["ruleCountBefore"]);
             observation["stockObservationAfter"] = a.Combat.LastStockAttackObservation;
             observation["traceSequenceAfter"] = trace.EventCount;

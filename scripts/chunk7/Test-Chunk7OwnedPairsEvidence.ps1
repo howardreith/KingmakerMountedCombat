@@ -711,13 +711,14 @@ function New-KmcSeedAttackModesFixture{
   $plan=@(for($i=0;$i-lt$inner.Count;$i++){[pscustomobject][ordered]@{index=$i;weapon=$weapon;ranged=$true;natural=$false;owner=$roles[0];iterativePenalty=0}})
   $tb=$base;$base++;$trace.events=@($trace.events)+@([pscustomobject]@{sequence=$base;boundary='cost-after';frame=1;round=$round;state=[pscustomobject]@{actor=$roles[0]}});$ta=$base
   $ms+=[pscustomobject][ordered]@{label=$spec[0];mounted=$spec[1];round=$round;rapid=(&$rapid $spec[2] $round $true);before=(&$snap ($spec[0]+'-before') 0.0 $round);ruleCountBefore=$ruleCount;traceSequenceBefore=$tb;pairState=$(if($spec[1]){'Mounted'}else{'Unmounted'})
-   clicked=$true;after=(&$snap ($spec[0]+'-after') 6.0 $round);nativeEstimate=[long]$inner.Count;expectedFull=($inner.Count-gt1);currentTurnEnabledFullAttack=($inner.Count-gt1);command=[pscustomobject][ordered]@{identity=9000+$ruleCount;executor=$roles[0];target=$o.targetId;fullAttack=($inner.Count-gt1);singleAttack=$false;result='Success';completedAttacks=$inner.Count;plan=$plan}
+   clicked=$true;after=(&$snap ($spec[0]+'-after') 6.0 $round);nativeEstimate=[long]$inner.Count;expectedFull=($inner.Count-gt1);currentTurnEnabledFullAttack=($inner.Count-gt1);command=[pscustomobject][ordered]@{identity=9000+$ruleCount;executor=$roles[0];target=$o.targetId;fullAttack=($inner.Count-gt1);singleAttack=$false;result='Success';completedAttacks=$inner.Count;plan=$plan
+    interruptWatch=[pscustomobject][ordered]@{watchedFromClick=$true;interrupts=@();interruptAsSoonAsPossible=$false;executorCanAct=$true;targetInState=$true;targetDead=$false}}
    rules=$events;traceSequenceAfter=$ta;rapidAfter=(&$rapid $spec[2] $round $true)}
   $ruleCount=$seq
  }
  $clickOff=[pscustomobject][ordered]@{label='pre-combat-off';before=(&$rapid $true 0 $false);possible=$true;after=(&$rapid $false 0 $false)}
  $clickOn=[pscustomobject][ordered]@{label='round-n-on';before=(&$rapid $false 10 $true);possible=$true;after=(&$rapid $true 10 $true)}
- $o|Add-Member attackModes ([pscustomobject][ordered]@{contract='owner-seed-attack-modes-v1';riderId=$roles[0];mountId=$roles[1];rapidShotFeature=1;rapidShotToggles=1;weapon=$weapon;weaponRanged=$true;weaponRangeMeters=15.24
+ $o|Add-Member attackModes ([pscustomobject][ordered]@{contract='owner-seed-attack-modes-v2';riderId=$roles[0];mountId=$roles[1];rapidShotFeature=1;rapidShotToggles=1;weapon=$weapon;weaponRanged=$true;weaponRangeMeters=15.24
   rapidBefore=(&$rapid $true 0 $false);rapidOff=(&$rapid $false 0 $false);toggleClicks=@($clickOff,$clickOn);measurements=$ms;firstRound=10;stage=7
   dismountBefore=(&$snap 'attack-modes-dismount-before' 0.0 12);dismountAfter=(&$snap 'attack-modes-dismount-after' 0.0 12);complete=$true
   rules=[pscustomobject][ordered]@{dropped=0;errors=@();events=@($ms|ForEach-Object{@($_.rules)})}}) -Force
@@ -725,9 +726,28 @@ function New-KmcSeedAttackModesFixture{
 }
 function Check-SeedAttackModes([string]$Name,[scriptblock]$Mutation,[string]$Pattern){$v=New-KmcSeedAttackModesFixture;&$Mutation $v;Check ('owner-seed attack modes refuses '+$Name) {Invoke-OwnedReader $v} $true $Pattern}
 function AM($v,[int]$i){$v.artifact.observations.attackModes.measurements[$i]}
+# One recorded UnitCommand.Interrupt(bool) of the measured command (contract v2), native callers by default.
+function New-KmcAttackModeInterrupt($Command,[string]$ResultBefore,[bool]$Acted,[long]$AttackIndex,[string]$Callers='callers=MonoMod.Utils.DynamicMethodDefinition.Kingmaker.UnitLogic.Commands.Base.UnitCommand.Interrupt_Patch3 < Kingmaker.Controllers.Units.UnitActionController.TickCommand < Kingmaker.Controllers.Units.UnitActionController.TickOnUnit'){
+ [pscustomobject][ordered]@{frame=2;round=13;command=$Command.identity;resultBefore=$ResultBefore;actedBefore=$Acted;finishedBefore=$false;interruptAsSoonAsPossible=$false;timeSinceStart=3.1;attackIndex=$AttackIndex;plannedAttacks=@($Command.plan).Count;executorCanAct=$true;targetInState=$true;targetDead=$false;callers=$Callers}}
+# b202 am unmounted control: both planned shots resolved (OnAction Success), then one native Interrupt(bool) during the last animation.
+function Set-KmcAttackModeOverwrite($v,[int]$i=2){$c=(AM $v $i).command;$c.result='Interrupt';$c.interruptWatch.interrupts=@(New-KmcAttackModeInterrupt $c 'Success' $true @($c.plan).Count);$c}
+Check 'owner-seed attack modes accept a native interrupt that overwrote the completed plan''s Success (b202 unmounted shape)' {$v=New-KmcSeedAttackModesFixture;$null=Set-KmcAttackModeOverwrite $v;Invoke-OwnedReader $v}
+Check 'owner-seed attack modes accept an inert interrupt after the command finished beside a Success' {$v=New-KmcSeedAttackModesFixture;$c=(AM $v 1).command;$x=New-KmcAttackModeInterrupt $c 'Success' $true 2;$x.finishedBefore=$true;$c.interruptWatch.interrupts=@($x);Invoke-OwnedReader $v}
+Check-SeedAttackModes 'a v1 plan-complete interrupt (b202 evidence shape)' {$m=$args[0].artifact.observations.attackModes;$m.contract='owner-seed-attack-modes-v1';foreach($x in @($m.measurements)){$x.command.PSObject.Properties.Remove('interruptWatch')};$m.measurements[2].command.result='Interrupt'} 'completed plan without its recorded native cause'
+Check-SeedAttackModes 'a v1 measurement carrying an interrupt watch' {$args[0].artifact.observations.attackModes.contract='owner-seed-attack-modes-v1'} 'interrupt observation differs from its contract'
+Check-SeedAttackModes 'a v2 measurement without its interrupt watch' {(AM $args[0] 0).command.PSObject.Properties.Remove('interruptWatch')} 'interrupt observation differs from its contract'
+Check-SeedAttackModes 'a watch opened after the click' {$c=Set-KmcAttackModeOverwrite $args[0];$c.interruptWatch.watchedFromClick=$false} 'Native evidence boolean'
+Check-SeedAttackModes 'a plan-complete interrupt from a KingmakerMountedCombat frame' {$c=Set-KmcAttackModeOverwrite $args[0];$c.interruptWatch.interrupts[0].callers='callers=Kingmaker.UnitLogic.Commands.Base.UnitCommand.Interrupt < KingmakerMountedCombat.Integration.MountedCombatController.Cancel'} 'interrupt claims a completed plan'
+Check-SeedAttackModes 'a plan-complete interrupt before the last attack acted' {$c=Set-KmcAttackModeOverwrite $args[0];$c.interruptWatch.interrupts[0].resultBefore='None';$c.interruptWatch.interrupts[0].actedBefore=$false} 'interrupt claims a completed plan'
+Check-SeedAttackModes 'a plan-complete interrupt before the last attack frame' {$c=Set-KmcAttackModeOverwrite $args[0];$c.interruptWatch.interrupts[0].frame=0} 'interrupt claims a completed plan'
+Check-SeedAttackModes 'a plan-complete interrupt at another attack index' {$c=Set-KmcAttackModeOverwrite $args[0];$c.interruptWatch.interrupts[0].attackIndex=1} 'interrupt claims a completed plan'
+Check-SeedAttackModes 'two effective interrupts' {$c=Set-KmcAttackModeOverwrite $args[0];$c.interruptWatch.interrupts=@($c.interruptWatch.interrupts[0],(Copy-Value $c.interruptWatch.interrupts[0]))} 'lacks its one recorded native cause'
+Check-SeedAttackModes 'an interrupt record of another command' {$c=Set-KmcAttackModeOverwrite $args[0];$c.interruptWatch.interrupts[0].command=1} 'not the measured native command'
+Check-SeedAttackModes 'a Success that hides an effective interrupt' {$c=(AM $args[0] 1).command;$c.interruptWatch.interrupts=@(New-KmcAttackModeInterrupt $c 'Success' $true 2)} 'Success hides an effective native interrupt'
+Check-SeedAttackModes 'a natural-tail interrupt without its recorded cause' {$v=$args[0];$c=(AM $v 1).command;$c.plan=@($c.plan)+@([pscustomobject][ordered]@{index=2;weapon='35dfad6517f401145af54111be04d6cf';ranged=$false;natural=$true;owner=$v.request.ownedPairs.mountAId;iterativePenalty=0});$c.result='Interrupt';$c.completedAttacks=2;(AM $v 1).nativeEstimate=3} 'lacks its one recorded native cause'
 Check 'owner-seed attack modes evidence accepted (Rapid Shot off/on mounted, unmounted control)' {Invoke-OwnedReader (New-KmcSeedAttackModesFixture)}
 Check 'owner-seed attack modes accept a save that left Rapid Shot off (no pre-combat click)' {$v=New-KmcSeedAttackModesFixture;$m=$v.artifact.observations.attackModes;$m.rapidBefore.isOn=$false;$m.toggleClicks=@($m.toggleClicks[1]);Invoke-OwnedReader $v}
-Check 'owner-seed attack modes accept a native interrupt in the natural tail after the ranged plan' {$v=New-KmcSeedAttackModesFixture;$c=(AM $v 1).command;$c.plan=@($c.plan)+@([pscustomobject][ordered]@{index=2;weapon='35dfad6517f401145af54111be04d6cf';ranged=$false;natural=$true;owner=$v.request.ownedPairs.mountAId;iterativePenalty=0});$c.result='Interrupt';$c.completedAttacks=2;(AM $v 1).nativeEstimate=3
+Check 'owner-seed attack modes accept a native interrupt in the natural tail after the ranged plan' {$v=New-KmcSeedAttackModesFixture;$c=(AM $v 1).command;$c.plan=@($c.plan)+@([pscustomobject][ordered]@{index=2;weapon='35dfad6517f401145af54111be04d6cf';ranged=$false;natural=$true;owner=$v.request.ownedPairs.mountAId;iterativePenalty=0});$c.result='Interrupt';$c.completedAttacks=2;(AM $v 1).nativeEstimate=3;$c.interruptWatch.interrupts=@(New-KmcAttackModeInterrupt $c 'None' $false 2)
  $k=(AM $v 2).command;$k.plan=@($k.plan);Invoke-OwnedReader $v}
 Check 'combat evidence refuses an attack-modes record outside its case' {$v=New-KmcOwnerSeedDerivedCombatFixture 'combat-rider-first';$v.artifact.observations|Add-Member attackModes ([pscustomobject]@{}) -Force;Invoke-OwnedReader $v} $true 'belongs only to its closed owner-seed selection'
 Check-SeedAttackModes 'a missing Rapid Shot feat' {$args[0].artifact.observations.attackModes.rapidShotFeature=0} 'native Rapid Shot feat'
@@ -774,7 +794,7 @@ Check-SeedAttackModes 'a toggle that changed during the full attack' {(AM $args[
 Check-SeedAttackModes 'Rapid Shot not running while on' {(AM $args[0] 1).rapid.isRunning=$false} 'natively running exactly when on'
 Check-SeedAttackModes 'a roll without its Rapid Shot source while on' {$r=@((AM $args[0] 2).rules|Where-Object kind -CEQ 'roll')[1];$r.bonuses=@($r.bonuses|Where-Object{$_.source-cne'0f310c1e709e15e4fa693db15a4baeb4'})} 'exactly its Rapid Shot source'
 Check-SeedAttackModes 'a plan weapon other than the equipped ranged weapon' {$p=(AM $args[0] 0).command.plan[0];$p.weapon='35dfad6517f401145af54111be04d6cf'} 'lead with rider A'
-Check-SeedAttackModes 'an interrupt that claims a completed plan' {(AM $args[0] 1).command.result='Interrupt'} 'interrupt claims a completed plan'
+Check-SeedAttackModes 'an interrupt that claims a completed plan without a recorded cause' {(AM $args[0] 1).command.result='Interrupt'} 'lacks its one recorded native cause'
 Check-SeedAttackModes 'an on click outside the first measured round' {$args[0].artifact.observations.attackModes.toggleClicks[1].before.round=11} 'first measured round'
 Check-SeedAttackModes 'a Dismount outside its round' {$args[0].artifact.observations.attackModes.dismountAfter.round=13} 'outside its native round'
 # Pair B (and mount A once unmounted) never spends; finished turns' cooldowns decay natively for every unit.
