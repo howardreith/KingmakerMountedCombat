@@ -40,8 +40,8 @@ Nothing here is a FULL PASS. No assertion, threshold or reader was weakened.
 | --- | --- | --- |
 | `Test-Chunk6aLedgerProtocol`, `Test-Chunk6aRegressionLedger`, `Test-Chunk6aLegacyLedger`, `Test-Chunk6aAreaLedger`, `Test-UnrelatedFullLedger` | **Historical contract.** The released Chunk 6A ledger pins its reader harness; any changed reader refuses it. Already recorded in `CHUNK7-KNOWN-PRODUCT-DEBT.md`. | Fail identically at the preview.211 tag `7fa667b2` (LF and CRLF checkouts), in the frozen `worktrees/qualification211`, and at the ledger's recorded harness revision `7e49e034`. The closeout's FULL PASS could not be reproduced in the current lab; the cause is unresolved. |
 | `Test-Chunk6aSupportingEvidence` | **Historical evidence under a changed contract.** The current reader requires `CM01-combat-mount-preparing-admitted` (owner decision of October 18, `7930313e`); the retained preview.211 supporting artifacts hold the old `-refused` row. | Passes at the preview.211 tag. |
-| `Test-Chunk7SmallManualEvidence`, `Test-Chunk7SmallManualSource` | **Stale fixture, deferred.** The Small Manual fixture is built on the retired Auto-derived acquired field (`Manual_7`); since `ed40ef95` the reader admits only closed field Manuals (`Manual_2`/`304`). It needs a synthetic Manual projection like `Convert-Chunk7CumulativeManualFixture.ps1`, not a facade. | Introduced by `ed40ef95` (October 21). |
-| `Test-Chunk7CombatCleanupAdapter`, `Test-Chunk7ObserverAcquisition` | **Stale combat facades, deferred** to avoid colliding with the parallel X1 combat work. Missing `EndRegisteredDisableObservation` (`8a13f714`), `UnitCombatPrepareController` and `debtGame` (`8685fb5f`). | Introduced by those commits (October 18). |
+| `Test-Chunk7SmallManualEvidence`, `Test-Chunk7SmallManualSource` | **Small Manual family pinned to the retired Auto-before-field source contract; not a fixture gap.** Reclassified on 2026-10-24, see the follow-up below. | Introduced by `ed40ef95` (October 21). |
+| `Test-Chunk7CombatCleanupAdapter`, `Test-Chunk7ObserverAcquisition` | **Fixed 2026-10-24** (follow-up below). | Introduced by `8a13f714`, `8685fb5f` and `33e729a8` (October 18 and 19). |
 
 ## For the 7E FULL run
 
@@ -50,3 +50,53 @@ harness. Running them is a historical replay of the released ledger, not a quali
 final candidate. 7E reports them as classified, with this reproduction, unless the owner selects
 a Chunk 6A ledger re-qualification. The four deferred Chunk 7 checks must be repaired before
 the freeze.
+
+## Follow-up, 2026-10-24 (offline only)
+
+The Chunk 7 umbrella entries were re-run in their own child processes, continuing past failures.
+That run was at `37c09c68` plus this follow-up's facades.
+
+Fixed with test facades only. Product source, assertions and counts are unchanged. Each count
+equals the last passing count, measured at the commit just before the break.
+
+| Check | Cause | Facade | Count |
+| --- | --- | --- | --- |
+| `Test-Chunk7CombatCleanupAdapter` | `8a13f714`: cleanup releases the registered-disable observer | `EndRegisteredDisableObservation()`, a no-op: no registered-disable diagnostic is attached in the fixture | 40/0 (40/0 at `7c1bcadc`) |
+| `Test-WorkingLoadObservation` | Not in the original table. `38318d57` (October 19) added `SmallFixture`, `fbb1116a` added `StockMammothFixture` and `e1f500ce` added the `F11NativeAllocationSelection` property to the exact `RuntimeRequest` regions that the connection template splices in | Two null `RuntimeRequest` properties and an empty `F11NativeAllocationSelection` type in `WorkingLoadConnectionTests.cs.template` | 9 stages, connection 53/0 (identical at `9e9f8d5a`) |
+| `Test-Chunk7ObserverAcquisition` | `8685fb5f`, `33e729a8` | Fixed in `37c09c68` | 72/0 + 13/0 |
+
+### Small Manual: what is needed
+
+Both tests read `tests/Chunk7Diagnostics/SmallManualFixture.json`. Its embedded paid Small
+source (`source.acquiredManual.sourceAcquisition`) is the retired Auto-derived acquisition:
+`nativeWriteLeaf` `Auto_1.zks`, type `Auto`, `autoLevelup` true and `saveBeforeFieldSelection` true.
+Since `ed40ef95`, `Assert-KmcChunk7ManualDerivedSelection` admits only
+`Manual_2`/`304`/`307`/`308` Manual-derived leaves. `Test-Chunk7SmallManualSource.ps1` also
+builds its source request with `Auto_1.zks`.
+
+A clean projection is not possible. The Small Manual family still asserts the retired contract
+in both places:
+
+- **Reader:** `Chunk7SmallCalibrationEvidence.ps1`, lines 528 and 616, requires
+  `sourceAcquisition.nativeWrite.saveBeforeFieldSelection == true`.
+  `Assert-KmcCumulativePriorSource` requires the old profile-inventory shape, with `masterId`
+  on every party row.
+- **Product:** `Chunk7SmallCalibrationScenario.Manual.cs`, lines 109 and 231, requires the same
+  `saveBeforeFieldSelection == true`.
+
+The current Manual field acquisition writes after the field selection
+(`saveAfterFieldSelection`, `Chunk7ManualDerivedScenario.Build.cs` line 380). Its fixture
+(`AcquiredManualPaidFixture.json`) has no `saveBeforeFieldSelection` and no `masterId` rows.
+
+Two projections were tried offline in scratch and not committed:
+
+- **Transplanting the regenerated `AcquiredManualPaidFixture` observations** fails on the two
+  retired-contract assertions above.
+- **Renaming only the selection leaf to `Manual_2`** passes 71/0, but it leaves an observed write
+  of type `Auto`, `Auto_1.zks`, saved before the field selection, under a Manual-field
+  selection. It is internally inconsistent, so it was rejected.
+
+An owner decision is needed. Either the Small Manual product scenario and reader adopt the Manual
+field source contract (`saveAfterFieldSelection`, type `Manual`, the current inventory shape),
+after which the fixture can be regenerated from `AcquiredManualPaidFixture`; or the Small Manual
+family is retired like the other stale level-up Auto families.
