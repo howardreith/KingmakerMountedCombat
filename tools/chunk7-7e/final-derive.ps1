@@ -15,7 +15,8 @@ param(
 # Final: start from the named template request's selection and replace only lineage pins
 # (predecessor run ids, evidence artifact SHA-256, written archive SHA-256, minted actor ids,
 # capital sourceArea, assisted readiness facts) with values read from the final campaign's own
-# settled predecessor runs, named in -RunMapPath ({"tag":"runId"}). Every predecessor must be a
+# settled predecessor runs, named in -RunMapPath ({"tag":{"runId","resultSha256","readerVerdict":"PASS",
+# "restorationVerified":true}}, written only after the external reader and restoration checks). Every predecessor must be a
 # PASS on the final candidate (-Commit/-DllSha256/-DllMvid). Prints the compact selection.
 # Reproduce: the same code path, with each role bound to the run the template itself names; the
 # derived bytes must equal the template request's selection (and the retained selection file
@@ -191,7 +192,14 @@ function Derive([string]$T,[string]$DeriveMode,$RunMap){
   $field=$s.roles[$role][0];$tplRuns[$role]=Get-Run ([string](Get-PathValue $tplObj $field))
   if($DeriveMode-ceq'Reproduce'){$useRuns[$role]=$tplRuns[$role]}else{
    $pred=$s.map[$role];if(-not$RunMap.ContainsKey($pred)){throw "Predecessor $pred ($role of $T) has not settled in the run map."}
-   $id=[string]$RunMap[$pred];if($DeriveMode-ceq'Final'-and$id-cnotmatch('-c7e-final-B[0-9]+-'+[regex]::Escape($pred)+'r?$')){throw "Run map entry for $pred is not a final campaign run: $id"}
+   $entry=$RunMap[$pred];$id=if($entry-is[string]){$entry}else{[string]$entry.runId}
+   if($DeriveMode-ceq'Final'){
+    # Settled = the external Test-RuntimeResult verdict PASS plus the section 5 restoration checks,
+    # recorded by the executor with the result hash it read; the runner status alone is not enough.
+    if($entry-is[string]-or$entry.readerVerdict-cne'PASS'-or$entry.restorationVerified-ne$true-or[string]$entry.resultSha256-cnotmatch'^[0-9a-f]{64}$'){throw "Predecessor $pred lacks a settled verdict receipt (runId, resultSha256, readerVerdict PASS, restorationVerified true)."}
+    $rs=(Get-FileHash -LiteralPath (Join-Path (Join-Path $ev $id) 'runtime-result.json') -Algorithm SHA256).Hash.ToLowerInvariant()
+    if($rs-cne$entry.resultSha256){throw "Predecessor $pred result differs from its settled verdict receipt."}
+   }if($DeriveMode-ceq'Final'-and$id-cnotmatch('-c7e-final-B[0-9]+-'+[regex]::Escape($pred)+'r?$')){throw "Run map entry for $pred is not a final campaign run: $id"}
    $run=Get-Run $id
    if($run.result.status-cne'PASS'){throw "Predecessor $pred ($id) is not PASS."}
    foreach($k in @(@('commit',$Commit),@('dllSha256',$DllSha256),@('dllMvid',$DllMvid))){if($run.request.($k[0])-cne$k[1]){throw "Predecessor $pred ($id) is not on the final candidate ($($k[0]))."}}
@@ -240,7 +248,7 @@ if($Mode-ceq'Reproduce'){
  if($fail-ne0){exit 1};exit 0
 }
 if([string]::IsNullOrEmpty($RunMapPath)-or[string]::IsNullOrEmpty($Commit)-or[string]::IsNullOrEmpty($DllSha256)-or[string]::IsNullOrEmpty($DllMvid)){throw 'Final derivation requires -RunMapPath and the final candidate -Commit, -DllSha256 and -DllMvid.'}
-$map=@{};foreach($p in (Read-Json $RunMapPath).PSObject.Properties){$map[$p.Name]=[string]$p.Value}
+$map=@{};foreach($p in (Read-Json $RunMapPath).PSObject.Properties){$map[$p.Name]=$p.Value}
 $text=(Derive $Tag $Mode $map).text
 if($Mode-ceq'CrossLineage'-and-not[string]::IsNullOrEmpty($ExpectPath)){
  $want=[IO.File]::ReadAllText($ExpectPath);$same=$text-ceq$want

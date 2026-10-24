@@ -18,7 +18,7 @@ and the [X6 inventory](../docs/CHUNK7-7E-X6-OFFLINE-INVENTORY-2026-10-23.md).
 | G3 | **Met (2026-10-24).** `Test-ScenarioDispatchEvidence.ps1` is fixed, harness-only: the four Chunk 7 fixture/cold families registered by `ee2bdfc9` (`chunk7-assisted-fixture-preparation`, `chunk7-assisted-cold-inventory`), `38318d57` (`chunk7-small-fixture-preparation`) and `fbb1116a` (`chunk7-stock-mammoth-fixture-preparation`) are in its reviewed list, each with its one dedicated reader (`Test-KmcChunk7AssistedFixtureScenario`, `…AssistedColdInventoryScenario`, `…SmallFixtureScenario`, `…StockMammothFixtureScenario`). PASS 181/0 (165/0 at `ee2bdfc9~1` plus four checks per family). It is outside FULL and the Chunk 7 umbrella; run it once beside them. |
 | G4 | Branch `codex/mounted-combat-chunk7-successor` clean and pushed; the freeze commit is that pushed HEAD. **No commit lands on the root branch from step 1 until the closeout** (the package manifest binds the harness HEAD; b196 refused when root advanced). Batch notes go to `analysis-cache/chunk7-continuation/final-*` receipts, committed only at closeout. |
 | G5 | Preview.211 package `KingmakerMountedCombat-0.1.0-chunk6d-preview.211-chunk6-closeout211-b-diagnostic.zip` (`e89f431a…`, manifest `ca54c37c…`, DLL `11e99309…`) and the observer.6 source present and unchanged; owner seeds `KMC_C7_NO_MODS_OWNER_SEED` `3405d7c8…`, `KMC_C7_CHARGE_SEED` `1ec2f321…`, `KMC_C7_DOOR_SEED_OLD_SYCAMORE_OPEN` `90789101…` and every fixture source named below hash-verified. |
-| G6 | **Deriver written; review recorded in CURRENT.md.** `tools/chunk7-7e/final-derive.ps1` (in the repo, so the freeze commit pins it; it is a selection deriver only, never a run plan or launcher). Offline proofs (receipts in `analysis-cache/chunk7-continuation/`): `-Mode Reproduce -Tag all` re-derives all 69 selection tags from each template's own predecessor receipts, byte-identical to the template request's selection and to every retained selection file (`final-derive-reproduce-01.log`, 69/0); `final-derive-cross.ps1` re-pins templates onto earlier candidates' own runs and reproduces those batches' retained selections byte for byte (`final-derive-cross-02.log`, 13/0: b198 c2–c5, x4s, r58; b197 c3, c4, x4s, r58; b195/b194 x4c; b194 p2). **Rows 33/34 → 48, 50, 51: yes, one pair suffices.** The progression readers and source admission (`Assert-KmcChunk7OwnedProgressionSelection`, `Get-KmcChunk7PaidProgressionSource`, `Copy-KmcChunk7ProgressionInputs`) only read the producer and cold receipts and copy the archive into the consumer's own run; nothing marks a source consumed, and the pilots made separate pairs only because b89, b100 and b108 were different candidates (the b108 cold already fed rows 48 and 49, the b100 cold rows 51 and 52). `final-shared-small-pair-proof.ps1` derives r48, r50 and r51 from the one b108 pair and runs the selection and descriptor validators and the read-only source admission: 3/3 admitted (`final-shared-small-pair-proof-01.log`). No batch or launch count changes. |
+| G6 | **Deriver written; review recorded in CURRENT.md.** `tools/chunk7-7e/final-derive.ps1` (in the repo, so the freeze commit pins it; it is a selection deriver only, never a run plan or launcher). Offline proofs (receipts in `analysis-cache/chunk7-continuation/`): `-Mode Reproduce -Tag all` re-derives all 69 selection tags from each template's own predecessor receipts, byte-identical to the template request's selection and to every retained selection file (`final-derive-reproduce-01.log`, 69/0); `final-derive-cross.ps1` re-pins templates onto earlier candidates' own runs and reproduces those batches' retained selections or recorded request selections byte for byte (`final-derive-cross-04.log`, 21/0: b198 c2–c5, x4s, r58; b197 c3, c4, x4s, r58; b195/b194 x4c; b194 p2; world25 r02; b100/b89 r34; b117 r36, r54; b150 r44, r45; b151 r45). **Rows 33/34 → 48, 50, 51: yes, one pair suffices.** The progression readers and source admission (`Assert-KmcChunk7OwnedProgressionSelection`, `Get-KmcChunk7PaidProgressionSource`, `Copy-KmcChunk7ProgressionInputs`) only read the producer and cold receipts and copy the archive into the consumer's own run; nothing marks a source consumed, and the pilots made separate pairs only because b89, b100 and b108 were different candidates (the b108 cold already fed rows 48 and 49, the b100 cold rows 51 and 52). `final-shared-small-pair-proof.ps1` derives r48, r50 and r51 from the one b108 pair and runs the selection and descriptor validators and the read-only source admission: 3/3 admitted (`final-shared-small-pair-proof-01.log`). No batch or launch count changes. |
 | G7 | **Open (found 2026-10-24 while writing G6).** Row 32 cannot consume F's r31: the runner and `Get-KmcOwnerStockCleanupSource` admit only the batch65 cleanup Manual (`20261020-c7b-world81-b65s1-owner-stock-removal`, `2c46c270…`, product `aac0b9f9`/DLL `c722118f`; `Invoke-KingmakerRuntimeScenario.ps1` lines 205–207, `Chunk7OwnerStockRemovalFixtures.ps1` line 54). Before the freeze, either (a) a reviewed harness change admits a same-candidate F `persistence-p07-save`/`prepare-removal` run and its cleanup Manual as the no-DLL source (with positive and negative source-admission checks), or (b) the owner accepts the batch65 cleanup Manual as a declared fixture-input exception for row 32, which then proves the DLL-absent load of a preview.81-cleaned archive, not of F's (F's cleanup output is proven only by row 31's reference-free archive scan). Row 32 also needs `-ObserverPackagePath` (observer.6) and runs without `-BaseGameOnly`. |
 
 ## 1. Freeze and package (once)
@@ -56,12 +56,13 @@ the package, DLL, MVID and commit; a new product candidate needs a new SuiteId.
    (`Test.ps1` line 114, the first classified check). History: about 32 min. This FULL invocation is
    recorded as **FAIL**, never relabelled PASS.
 2. Because the umbrella stops there, complete the inventory **without re-running any child that already
-   passed** (owner clarification, 2026-10-24). Either (a) reuse the FULL prefix's successful child
-   receipts, each bound by hash to the same candidate, suite and commit, and run only the steps after
-   the stop, continuing past failures; or (b) run one reviewed complete per-step inventory (every step of
-   `scripts/Test.ps1` and every entry of `scripts/Test-Chunk7NativeDiagnostics.ps1` in its own child
-   process exactly as its umbrella invokes it, the X6 method) **instead of** the FULL prefix's children,
-   reporting every outcome. No successful child runs twice for the same inputs. About 40–70 min.
+   passed** (owner clarification, 2026-10-24). The FULL prefix outcomes are reused, not repeated: the
+   step-1 transcript (its file SHA-256 recorded, with the frozen commit, package and suite it ran on) holds
+   one PASS line per `scripts/Test.ps1` step before the stop; those steps count as passed from that
+   transcript. Then only the remaining steps run: every `scripts/Test.ps1` step from the stopping check on,
+   and every entry of `scripts/Test-Chunk7NativeDiagnostics.ps1` (FULL does not contain it), each in its own
+   child process exactly as its umbrella invokes it, continuing past failures (the X6 method), on the same
+   frozen worktree and build. Every outcome is reported; no successful child runs twice. About 40–60 min.
 3. **Expected failures, exactly and only**, reported in four separate groups (owner clarification): (a) the
    actual FULL failure (step 1); (b) the five historical ledger replays whose cause is unresolved in the
    current lab (`Test-Chunk6aLedgerProtocol`, `…RegressionLedger`, `…LegacyLedger`, `…AreaLedger`,
@@ -117,9 +118,13 @@ the package, DLL, MVID and commit; a new product candidate needs a new SuiteId.
   -DllSha256 <F.dll> -DllMvid <F.mvid>` prints the compact selection. It starts from the named template
   request's selection and changes only lineage pins (role run ids, evidence artifact and written archive
   SHA-256, minted actor ids, r59 `sourceArea`, r45 assisted readiness facts), each read from the final
-  campaign's own settled predecessor in `final-runs.json` (`{"tag":"runId"}`, appended as runs settle;
-  a retry `<tag>r` replaces its tag). It refuses a predecessor that is missing, not a final-campaign run
-  id, not PASS, or not on F's commit, DLL and MVID, and any changed field that is not a declared pin.
+  campaign's own settled predecessor in `final-runs.json`. **Settled** means the external
+  `Test-RuntimeResult` verdict PASS and every restoration check above passed (the runner's own `status`
+  is written before the external reader runs, so it is not enough). Only then the executor appends
+  `{"<tag>":{"runId":…,"resultSha256":<SHA-256 of runtime-result.json>,"readerVerdict":"PASS","restorationVerified":true}}`;
+  a retry `<tag>r` replaces its tag. The deriver refuses a predecessor that is missing, lacks that receipt,
+  whose result file differs from the recorded hash, is not a final-campaign run id, is not PASS, or is not
+  on F's commit, DLL and MVID, and any changed field that is not a declared pin.
   Selection tags are those with a "T:" column below; rows 31, 32, 42, 55 and 56 take only the runner
   parameters stated in B14/B15. Rows sourcing a same-batch output are derived after that run settles. Every owner-seed-derived combat or checkpoint row sourced from r01/r02 or k2/k3 must record
   `candidates.sameCandidate=true` (source and checkpoint produced on F), and the progression rows 48–54
@@ -297,7 +302,7 @@ rows 48, 50 and 51 (and is the inventory of 49 and 52); no extra pairs or batche
 | u1 | 55 | `chunk7-normal-player-control -UpgradeRehearsalStep u1-previous-install -UpgradeRehearsalId x5-final-<sha8>` (preview.211 `-b` staged, observer.6, `TimeoutSeconds` 900) | NO_MODS seed | `Test-RuntimeResult` (`Test-KmcNormalPlayerResult`) |
 | u2 | 55 | same id, `u2-upgrade -UpgradeCarrySourceRunId <u1>` (F) | u1; sixth-Horse Manual 308 (`…world185-b185s1-sixthhorse-cold` lineage) | same |
 | u3 | 56 | same id, `u3-rollback -UpgradeCarrySourceRunId <u1>` | u1 | same; then §7 binder |
-| r31 | 31 | `persistence-p07-save` (`prepare-removal`) | stock Mammoth fixture (b64) | `Assert-KmcCurrentRemovalEvidence` |
+| r31 | 31 | `persistence-p07-save` (`prepare-removal`), `-OwnerStockRemoval -BaseGameOnly`, no `-PersistenceSourceRunId`, `-ExpectedPersistenceSourceSha256` or `-ObserverPackagePath` | stock Mammoth fixture (b64) | `Assert-KmcCurrentRemovalEvidence` |
 | r32 | 32 | `persistence-p07-load` (`removal-no-dll`), `-OwnerStockRemoval -ObserverPackagePath <observer.6>`, no `-BaseGameOnly`, `-PersistenceSourceRunId`/`-ExpectedPersistenceSourceSha256` per G7 | r31 only after G7 (a); the batch65 cleanup Manual under G7 (b) | `Assert-KmcCurrentRemovalEvidence` (b67 reader) |
 
 T: `b200-x5-run.ps1` (u1–u3), `20261020-c7b-world81-b65s1-owner-stock-removal`,
@@ -310,7 +315,7 @@ T: `b200-x5-run.ps1` (u1–u3), `20261020-c7b-world81-b65s1-owner-stock-removal`
 | r38 | 38 | `six-horse-mounted-persistence-load` (`multi-exploration-manual`) | r37 | `…world189-b189s2-sixcold` | six-pair persistence |
 | r39 | 39 | `six-horse-cold-fixture-lifecycle-stress` (`TimeoutSeconds` 1200) | sixth-Horse Manual | `…world190-b190s1-sixmeasure` (`b188-sixslot-selection.json`) | `Assert-KmcChunk7SixPairStressEvidence` + §6 |
 | r40 | 40 | `owner-seed-exploration`, matched-pool windows 0/1/2/0 (profiler absent) | NO_MODS seed | `20261021-c7d-world156-b157s1-observer-off` | `Assert-KmcChunk7WorldEvidence` + `Assert-KmcMatchedPoolEvidence` + §6 |
-| r41 | 41 | `owner-seed-exploration` + `f11AllocationProbe` | NO_MODS seed | `…world156-b156s1-f11-native` | allocation family + §6 |
+| r41 | 41 | `owner-seed-exploration` + `-F11NativeAllocationProbe` | NO_MODS seed | `…world156-b156s1-f11-native` (outer FAIL run; used only as the selection template, never as a predecessor) | allocation family + §6 |
 | r42 | 42 | `chunk7-normal-player-control` (no rehearsal step; observer.6) | sixth-Horse Manual 308 `b1e817a6…` | `…world191-b191s2-normalplayer` | `Test-KmcNormalPlayerResult` + §7 row-42 binder |
 
 Six-pair stress takes 10–40 min of game time. Row 42 is last: it is the fresh-install control.
@@ -362,7 +367,7 @@ After B15, with every run restored and read:
 
 ## 9. Closeout
 
-`docs/CHUNK7-ENGINEERING-CLOSEOUT-<date>.md`: F identities (commit, package, manifest, DLL, MVID,
+`docs/CHUNK7-ENGINEERING-CLOSEOUT-<date>.md` (its audit claims are dependency-scoped per the owner directive, never whole-lab purity): F identities (commit, package, manifest, DLL, MVID,
 observer, suite), offline tier receipts and durations, the classified FULL list, per-batch run tables
 with restoration, each row's verdict and reader, the F11 table, uncovered halves, retries, and the
 owner HUMAN PLAY items still pending. Fill the `[TBD after 7E freeze]` identities in the changelog,
