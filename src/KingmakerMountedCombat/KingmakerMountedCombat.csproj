@@ -213,6 +213,7 @@
     <Compile Include="Diagnostics\Chunk7NativeDoorProbe.cs" />
     <Compile Include="Diagnostics\Chunk7WorldRetentionProbe.cs" />
     <Compile Include="Diagnostics\Chunk7PersistenceScenario.Replay.cs" />
+    <Compile Include="Diagnostics\Chunk7ReplayHorseOwners.cs" />
     <Compile Include="Diagnostics\Chunk7NativeWorldScope.cs" />
     <Compile Include="Diagnostics\Chunk7ArchiveNativeSnapshot.cs" />
     <Compile Include="Diagnostics\Chunk7CombatActions.cs" />

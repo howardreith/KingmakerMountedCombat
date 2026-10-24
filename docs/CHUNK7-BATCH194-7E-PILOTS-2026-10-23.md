@@ -69,6 +69,18 @@ original counts were not recorded, so the diagnosis is by code path; the re-pilo
 A source regression in `Test-Chunk7RepeatedWorldProtocol.ps1` refuses the old expression (checked
 against the previous source). Build clean, repeated-world protocol 27/0 plus runner 8/0, Fast 3/0.
 
+Review of `da00d297` returned blockers, fixed in the follow-up commit:
+- the external reader (`Chunk7RepeatedWorldEvidence.ps1`) and its synthetic fixture also counted only
+  the Medium Horse profile; both now count every KMC Horse profile (`Get-KmcChunk7KmcHorseOwnerCount`:
+  Medium Horse and the declared Small Halfling Horse; Mammoth and unknown profiles do not count);
+- the product count is a pure helper (`Chunk7ReplayHorseOwners.Count`) run behaviorally by
+  `tests/Chunk7Diagnostics/ReplayHorseOwnersTests.cs` (Small+Medium = 2, Medium+Medium = 2,
+  Mammoth+Horse = 1, unknown = 0, invalid input refused);
+- reader cases cover the same mixes and refuse two Horse subscribers against one KMC Horse owner,
+  and a source check ties the reader's profile set to the product declarations;
+- the failure message also reports owned interface entries, distinct identity counts and the shape
+  match; the helper documents why saved pairs stand in for Horse feature owners.
+
 ### X2 RT Charge: fixture limit
 
 KMC's refusal is correct product behavior. A charge pilot needs a source whose rider A wields a
