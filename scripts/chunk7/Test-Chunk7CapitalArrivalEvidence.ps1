@@ -20,10 +20,19 @@ $loaded=$base.artifact.observations.loadedArchive
 $mainPair=@($loaded.Pairs|Where-Object{$_.Rider.Id-ceq$roles[0]})[0];$retiredPair=@($loaded.Pairs|Where-Object{$_.Rider.Id-ceq$roles[2]})[0]
 $mainSlots=@($loaded.Slots|Where-Object ActorId -CEQ $roles[0])
 function OwnerRow($Pair){[pscustomobject][ordered]@{ownerId=$Pair.PairId;generation=$Pair.Generation;riderId=$Pair.Rider.Id;mountId=$Pair.Mount.Id;state='Active'}}
-function ViewRow([string]$Id,[int]$View,[bool]$Control,[int]$Agent,[int]$Agents){[pscustomobject][ordered]@{id=$Id;viewId=$View;baselineViewId=$View;directlyControllable=$Control;inGame=$true;masterId=$null;petId=$null;agentOverride=$Agent;riderAgents=$Agents;stockAgentEnabled=$true}}
-function WorldRow([string]$Label,[string]$Area,[bool]$Capital,[int[]]$Counts,$Owners,$Slots,$Views,[string]$Feedback){
+# Batch196 r58 observed shape: the uncontrollable companion pair in the capital is out of the scene (inGame false).
+$script:Shape='remote';$script:ColdViews=$true
+function OutRecord([string]$Shape,[bool]$Views){[pscustomobject][ordered]@{ids=@($roles[2],$roles[3]);shape=$Shape;actors=@(foreach($id in @($roles[2],$roles[3])){[pscustomobject][ordered]@{id=$id;inGame=$false;inState=$true;directlyControllable=$false;viewPresent=$Views;liveRigValidated=$false}})}}
+function RosterRows([AllowNull()][string]$Shape){@(foreach($id in $base.request.ownedPairs.partyIds){$out=$null-ne$Shape-and$id-cin@($roles[2],$roles[3]);[pscustomobject][ordered]@{id=$id;inParty=(-not$out-or$Shape-ceq'field');character=($id-cnotin@($roles[1],$roles[3])-and(-not$out-or$Shape-ceq'field'));remote=($out-and$Shape-ceq'remote'-and$id-ceq$roles[2]);inGame=(-not$out);inState=$true;directlyControllable=(-not$out-and($null-eq$Shape-or$id-cin@($roles[0],$roles[1])));viewPresent=$true}})}
+function CapitalInherited($Snapshot,[string]$Shape,[bool]$Views){$v=Copy-Value $Snapshot;$field=$Shape-ceq'field'
+ $v.currentPartyIds=@($v.partyIds|Where-Object{$field-or$_-cnotin@($roles[2],$roles[3])}|Sort-Object -CaseSensitive)
+ $v.currentCharacterIds=@($v.currentCharacterIds|Where-Object{$field-or$_-cne$roles[2]})
+ $v.remoteCapturedIds=@($(if($Shape-ceq'remote'){$roles[2]}))
+ $v|Add-Member capitalOutOfScene (OutRecord $Shape $Views);$v}
+function ViewRow([string]$Id,[int]$View,[bool]$Control,[int]$Agent,[int]$Agents){[pscustomobject][ordered]@{id=$Id;viewId=$View;baselineViewId=$View;directlyControllable=$Control;inGame=$Control;masterId=$null;petId=$null;agentOverride=$Agent;riderAgents=$Agents;stockAgentEnabled=$true}}
+function WorldRow([string]$Label,[string]$Area,[bool]$Capital,[int[]]$Counts,$Owners,$Slots,$Views,[string]$Feedback,[AllowNull()][string]$Shape=$null){
  $row=Copy-Value $base.artifact.observations.snapshots[0];$row.label=$Label;$row.owners=@($Owners)
- $extra=[ordered]@{area=$Area;capital=$Capital;mode='Default';suspensions=$Counts[0];resumes=$Counts[1];retired=$Counts[2];failedPairs=0;refusedTransfers=0;activeOwners=$Counts[3];saveAllowed=$true;feedback=$Feedback;slots=@($Slots);views=@($Views)};foreach($p in $extra.GetEnumerator()){$row|Add-Member -NotePropertyName $p.Key -NotePropertyValue $p.Value}
+ $extra=[ordered]@{area=$Area;capital=$Capital;mode='Default';suspensions=$Counts[0];resumes=$Counts[1];retired=$Counts[2];failedPairs=0;refusedTransfers=0;activeOwners=$Counts[3];saveAllowed=$true;feedback=$Feedback;slots=@($Slots);views=@($Views);roster=@(RosterRows $Shape)};foreach($p in $extra.GetEnumerator()){$row|Add-Member -NotePropertyName $p.Key -NotePropertyValue $p.Value}
  $row
 }
 $umm=Get-KmcChunk7CapitalFeedback 'Synthetic Rider' 'Synthetic Horse' 1 2
@@ -36,21 +45,21 @@ function New-Producer{
  $settled=Copy-Value $cold;$settled.label='capital-arrival-settled';$settled.owners=@(OwnerRow $mainPair);$settled.controls.ManagedHotbarSlotCount=2
  $written=Copy-Value $settled;$written.label='native-write-complete';$written.snapshots=1;$written.gameTicks=$loaded.GameTimeTicks+20000000
  $before=WorldRow 'before-native-transfer' $q.persistenceLoad.area $false @(0,0,0,2) @((OwnerRow $mainPair),(OwnerRow $retiredPair)) $loaded.Slots @((ViewRow $roles[0] 11 $true 101 1),(ViewRow $roles[1] 12 $true 0 0),(ViewRow $roles[2] 13 $true 201 1),(ViewRow $roles[3] 14 $true 0 0)) 'Saved mounted world restored all 2 attachments.'
- $after=WorldRow 'after-native-transfer' $capital $true @(1,1,1,1) @(OwnerRow $mainPair) $mainSlots @((ViewRow $roles[0] 11 $true 102 1),(ViewRow $roles[1] 12 $true 0 0),(ViewRow $roles[2] 13 $false 0 0),(ViewRow $roles[3] 14 $false 0 0)) $umm
+ $after=WorldRow 'after-native-transfer' $capital $true @(1,1,1,1) @(OwnerRow $mainPair) $mainSlots @((ViewRow $roles[0] 11 $true 102 1),(ViewRow $roles[1] 12 $true 0 0),(ViewRow $roles[2] 13 $false 0 0),(ViewRow $roles[3] 14 $false 0 0)) $umm $script:Shape
  $n=[int]([regex]::Match($q.persistenceLoad.fileName,'^Manual_([0-9]+)_').Groups[1].Value)+1;$leaf='Manual_'+$n+'_KMC_C7_CAPITAL.zks'
  $root=Join-Path (Join-Path (Join-Path (Split-Path (Split-Path $q.evidenceRoot -Parent) -Parent) 'runtime-staging') ('persistence-'+$q.runId)) 'Saved Games'
  $inputRow=[pscustomobject][ordered]@{fileName=$q.persistenceLoad.fileName;nativeName=$q.persistenceLoad.internalName;nativeType='Manual';gameId=$q.persistenceLoad.gameId;gameName=$q.persistenceLoad.gameName;area=$q.persistenceLoad.area;hasFileOnDisk=$true;isActuallySaved=$true;operation='None';autoLevelup=$false}
  $output=Copy-Value $inputRow;$output.fileName=$leaf;$output.nativeName='KMC_C7_CAPITAL';$output.area=$capital
  function Authority([int]$Writes){[pscustomobject][ordered]@{root=$root;loadCap=1;writeCap=1;nativeLoads=1;nativeWrites=$Writes;authorizedLoads=1;authorizedWrites=$Writes;reservationCount=1;number=$n;leaf=$leaf;nativeName='KMC_C7_CAPITAL';nativeType='Manual'}}
  $archive=[pscustomobject][ordered]@{SchemaVersion=3;CampaignId=$loaded.CampaignId;AreaId=$capital;GameTimeTicks=$loaded.GameTimeTicks+20000000;Policy=$loaded.Policy;RulesId=$loaded.RulesId;Pairs=@(Copy-Value $mainPair);Participations=@();Slots=@($mainSlots|ForEach-Object{Copy-Value $_});Combat=$null}
- $c=[pscustomobject][ordered]@{contract='chunk7-capital-arrival-v1';enterPoint=$pin.enterPoint;sourceArea=$q.persistenceLoad.area;destinationArea=$capital;autoSaveMode='None';destinationIsCapital=$true;mainPairId=$mainPair.PairId;retiredPairId=$retiredPair.PairId;retiredRiderName='Synthetic Rider';retiredMountName='Synthetic Horse';transferRequests=1;nativeAutosaveRequested=$false;before=$before;dispatchReturned=$true;awaitingNativeReady=[pscustomobject]@{frame=10};arrival=[pscustomobject]@{frame=11};restoration=(Copy-Value $s.coldRestoration);umm=$umm;after=$after;loadingTicks=3;suspensionObserved=$true}
+ $c=[pscustomobject][ordered]@{contract='chunk7-capital-arrival-v1';enterPoint=$pin.enterPoint;sourceArea=$q.persistenceLoad.area;destinationArea=$capital;autoSaveMode='None';destinationIsCapital=$true;mainPairId=$mainPair.PairId;retiredPairId=$retiredPair.PairId;retiredRiderName='Synthetic Rider';retiredMountName='Synthetic Horse';retiredOutOfScene=(OutRecord $script:Shape $true);transferRequests=1;nativeAutosaveRequested=$false;before=$before;dispatchReturned=$true;awaitingNativeReady=[pscustomobject]@{frame=10};arrival=[pscustomobject]@{frame=11};restoration=(Copy-Value $s.coldRestoration);umm=$umm;after=$after;loadingTicks=3;suspensionObserved=$true}
  $o=[ordered]@{checkpoint=$q.persistenceCase;cold=$true;sourceWorkingSha256=$null;inheritedManualSha256=$s.inheritedManualSha256;processId=1111;snapshots=@($cold,$settled,$written);inputs=@();movements=@();nativeProgressionRequiresExternalWorkingRestoration=$false;ordinaryRespecProven=$false;combatDebtProof=$false;nativeSchema=$s.nativeSchema;nativeCapacity=$s.nativeCapacity
   inheritedFixture=$s.inheritedFixture;coldRestoration=$s.coldRestoration;loadedArchive=$loaded;loadedDescriptor=$s.loadedDescriptor;capitalArrival=$c
   ownedOutputAdmission=[pscustomobject][ordered]@{method='FindUnusedSaveNumber';token='06008024';moduleMvid='07fa1e4d-8618-41b3-9b8d-faa17d3b26f7';number=$n;leaf=$leaf;nativeInventory=@($inputRow);authority=(Authority 0)}
   saveRequested=[pscustomobject][ordered]@{nativeType='Manual';nativeName='KMC_C7_CAPITAL';gameTicks=$archive.GameTimeTicks;snapshotCount=0;nativeSaveAllowed=$true;newSlot=$true}
   ownedOutputCompletion=[pscustomobject][ordered]@{completionSequence=1;callbackCount=1;nativeWorkerSettled=$true;nativeInventory=@($inputRow,$output);authority=(Authority 1)}
   nativeWrite=[pscustomobject][ordered]@{path=(Join-Path $root $leaf);sha256=('9'*64);length=2345;nativeType='Manual';nativeName='KMC_C7_CAPITAL';nativeCallback=$true;operation='None';snapshotCount=1;area=$capital;saveAllowedAfterWrite=$true;archive=$archive}
-  inheritedCleanup=$s.inheritedCleanup;cleanup=$s.cleanup;elapsedSeconds=42.5;nativeShellLifecycle=[pscustomobject]@{settled=$true}}
+  inheritedCleanup=(CapitalInherited $s.inheritedCleanup $script:Shape $true);cleanup=$s.cleanup;elapsedSeconds=42.5;nativeShellLifecycle=[pscustomobject]@{settled=$true}}
  $a.observations=Copy-Value ([pscustomobject]$o)
  [pscustomobject]@{request=$q;artifact=$a}
 }
@@ -63,11 +72,11 @@ function New-Consumer($Producer){
  $probe=Copy-Value $s.coldRestoration;$probe.events=@($probe.events|Where-Object{$_.actorId-cin@($roles[0],$roles[1])})
  $snapshot=Copy-Value @($s.snapshots|Where-Object label -CEQ 'cold-restored-before-input')[0];$snapshot.owners=@(OwnerRow $mainPair);$snapshot.semanticRestores=2;$snapshot.presentationRestores=1;$snapshot.nativePostLoads=2;$snapshot.controls.ManagedHotbarSlotCount=2
  $snapshot.actors=@($snapshot.actors|Where-Object{$_.native.Id-cin@($roles[0],$roles[1])});$snapshot.gameTicks=$w.archive.GameTimeTicks
- $world=WorldRow 'cold-restored-in-capital' $capital $true @(0,0,0,1) @(OwnerRow $mainPair) $mainSlots @((ViewRow $roles[0] 21 $true 301 1),(ViewRow $roles[1] 22 $true 0 0),(ViewRow $roles[2] 23 $false 0 0),(ViewRow $roles[3] 24 $false 0 0)) 'Saved mounted world restored all 1 attachments.'
+ $world=WorldRow 'cold-restored-in-capital' $capital $true @(0,0,0,1) @(OwnerRow $mainPair) $mainSlots @((ViewRow $roles[0] 21 $true 301 1),(ViewRow $roles[1] 22 $true 0 0),(ViewRow $roles[2] $(if($script:ColdViews){23}else{0}) $false 0 0),(ViewRow $roles[3] $(if($script:ColdViews){24}else{0}) $false 0 0)) 'Saved mounted world restored all 1 attachments.' $script:Shape
  foreach($v in $world.views){$v.baselineViewId=0}
- $c=[pscustomobject][ordered]@{contract='chunk7-capital-arrival-cold-v1';producerRunId=$r.ownedPairs.checkpointSourceRunId;producerArtifactSha256=$r.ownedPairs.checkpointSourceArtifactSha256;mainPairId=$mainPair.PairId;mainGeneration=$mainPair.Generation;unmountedRiderId=$roles[2];unmountedMountId=$roles[3];registryOwners=1;activeOwners=1;world=$world}
+ $c=[pscustomobject][ordered]@{contract='chunk7-capital-arrival-cold-v1';producerRunId=$r.ownedPairs.checkpointSourceRunId;producerArtifactSha256=$r.ownedPairs.checkpointSourceArtifactSha256;mainPairId=$mainPair.PairId;mainGeneration=$mainPair.Generation;unmountedRiderId=$roles[2];unmountedMountId=$roles[3];registryOwners=1;outOfScene=(OutRecord $script:Shape $script:ColdViews);activeOwners=1;world=$world}
  $o=[ordered]@{checkpoint=$r.persistenceCase;cold=$true;sourceWorkingSha256=$null;inheritedManualSha256=$s.inheritedManualSha256;processId=2222;snapshots=@($snapshot);inputs=@();movements=@();nativeProgressionRequiresExternalWorkingRestoration=$false;ordinaryRespecProven=$false;combatDebtProof=$false;nativeSchema=$s.nativeSchema;nativeCapacity=$s.nativeCapacity
-  inheritedFixture=$s.inheritedFixture;coldRestoration=$probe;loadedArchive=(Copy-Value $w.archive);loadedDescriptor=(Copy-Value $r.persistenceLoad);capitalColdBoundary=[pscustomobject]@{frame=31};capitalCold=$c;inheritedCleanup=$s.inheritedCleanup;cleanup=$s.cleanup;elapsedSeconds=21.5;nativeShellLifecycle=[pscustomobject]@{settled=$true}}
+  inheritedFixture=(CapitalInherited $s.inheritedFixture $script:Shape $script:ColdViews);coldRestoration=$probe;loadedArchive=(Copy-Value $w.archive);loadedDescriptor=(Copy-Value $r.persistenceLoad);capitalColdBoundary=[pscustomobject]@{frame=31};capitalCold=$c;inheritedCleanup=(CapitalInherited $s.inheritedCleanup $script:Shape $script:ColdViews);cleanup=$s.cleanup;elapsedSeconds=21.5;nativeShellLifecycle=[pscustomobject]@{settled=$true}}
  $a.observations=Copy-Value ([pscustomobject]$o)
  [pscustomobject]@{request=$r;artifact=$a}
 }
@@ -239,6 +248,54 @@ static class Program{static int Main(){
  if($LASTEXITCODE-ne0){throw 'Actual capital selection rule did not compile.'}
  $output=@(& $exe);if($LASTEXITCODE-ne0-or($output-join'')-cne'SELECTION FAIL=0'){throw ('Capital selection rule regressed: '+($output-join' '))}
 }
+# Batch196 r58: native capital mode takes the companion pair out of the scene. Each closed roster shape
+# passes end to end; the row 59 companion may have no spawned view; pair B may be the Small profile.
+foreach($shape in @('field','remote','absent')){
+ Check ('capital rows 58-59 pass with out-of-scene shape '+$shape) {$script:Shape=$shape;try{$p=New-Producer;$c=New-Consumer $p;Assert-KmcChunk7PersistenceObservation $p.request $p.artifact 'PASS';Assert-KmcChunk7CapitalColdSource $c.request (Producer-Artifact $p) $c.artifact}finally{$script:Shape='remote'}}
+}
+Check 'capital row 59 passes with no spawned companion view' {$script:ColdViews=$false;try{$c=New-Consumer (New-Producer);Assert-KmcChunk7CapitalColdObservation $c.request $c.artifact}finally{$script:ColdViews=$true}}
+Check 'capital rows 58-59 pass with a Small Halfling Horse pair B' {
+ $pairB=@($base.artifact.observations.loadedArchive.Pairs|Where-Object{$_.Rider.Id-ceq$roles[2]})[0];$prior=$pairB.ProfileId
+ $rows=@(@($base.artifact.observations.inheritedFixture.pairs)[1],@($base.artifact.observations.inheritedCleanup.pairs)[1])
+ try{$pairB.ProfileId='small-default-halfling-horse-v1';foreach($r in $rows){$r.profileId='small-default-halfling-horse-v1'}
+  $p=New-Producer;$c=New-Consumer $p
+  if(@($p.artifact.observations.loadedArchive.Pairs|Where-Object ProfileId -CEQ 'small-default-halfling-horse-v1').Count-ne1){throw 'Synthetic Small pair B is absent.'}
+  Assert-KmcChunk7PersistenceObservation $p.request $p.artifact 'PASS';Assert-KmcChunk7PersistenceObservation $c.request $c.artifact 'PASS';Assert-KmcChunk7CapitalColdSource $c.request (Producer-Artifact $p) $c.artifact
+ }finally{$pairB.ProfileId=$prior;foreach($r in $rows){$r.profileId=$prior}}
+}
+$outOfSceneProducer=[ordered]@{
+ 'companion still in the scene'=@({param($o)$o.capitalArrival.after.views[2].inGame=$true},'boolean')
+ 'main rider out of the scene'=@({param($o)$o.capitalArrival.after.views[0].inGame=$false},'boolean')
+ 'unclosed membership shape'=@({param($o)$o.capitalArrival.retiredOutOfScene.shape='detached'},'not closed')
+ 'record names the main pair'=@({param($o)$o.capitalArrival.retiredOutOfScene.ids=@($roles[0],$roles[1])},'companion pair')
+ 'record unit in the scene'=@({param($o)$o.capitalArrival.retiredOutOfScene.actors[1].inGame=$true},'boolean')
+ 'record without arrival views'=@({param($o)$o.capitalArrival.retiredOutOfScene.actors[0].viewPresent=$false},'boolean')
+ 'record claims a validated rig'=@({param($o)$o.capitalArrival.retiredOutOfScene.actors[0].liveRigValidated=$true},'boolean')
+ 'another actor left the field'=@({param($o)@($o.capitalArrival.after.roster|Where-Object id -CEQ $roles[1])[0].inParty=$false},'boolean')
+ 'companion remote under another shape'=@({param($o)@($o.capitalArrival.after.roster|Where-Object id -CEQ $roles[2])[0].remote=$false},'boolean')
+ 'roster omits an actor'=@({param($o)$o.capitalArrival.after.roster=@($o.capitalArrival.after.roster|Select-Object -Skip 1)},'missing or incomplete')
+ 'cleanup custody differs from arrival'=@({param($o)$o.inheritedCleanup.capitalOutOfScene.shape='absent';$o.inheritedCleanup.remoteCapturedIds=@()},'changed between arrival and cleanup')
+ 'cleanup roster keeps the companion'=@({param($o)$o.inheritedCleanup.currentPartyIds=@($o.inheritedCleanup.partyIds|Sort-Object -CaseSensitive)},'beyond the out-of-scene pair')
+ 'cleanup remote list differs'=@({param($o)$o.inheritedCleanup.remoteCapturedIds=@()},'remote companions')
+ 'admitted custody already out of scene'=@({param($o)$o.inheritedFixture|Add-Member capitalOutOfScene $o.capitalArrival.retiredOutOfScene},'lacks or invents')
+}
+foreach($m in $outOfSceneProducer.GetEnumerator()){Check ('capital producer refuses '+$m.Key) {$p=New-Producer;&$m.Value[0] $p.artifact.observations;Assert-KmcChunk7CapitalArrivalObservation $p.request $p.artifact} $true $m.Value[1]}
+$outOfSceneConsumer=[ordered]@{
+ 'companion in the scene'=@({param($o)$o.capitalCold.world.views[3].inGame=$true},'boolean')
+ 'bind lacks its out-of-scene custody'=@({param($o)$o.inheritedFixture.PSObject.Properties.Remove('capitalOutOfScene')},'lacks or invents')
+ 'cold record differs from the bind'=@({param($o)$o.capitalCold.outOfScene.actors[0].inState=$false},'differs from its bind')
+ 'view presence differs from custody'=@({param($o)$o.capitalCold.world.views[2].viewId=0},'view presence')
+ 'cleanup custody differs from the bind'=@({param($o)$o.inheritedCleanup.capitalOutOfScene.actors[1].viewPresent=$false},'changed across execution and cleanup')
+}
+foreach($m in $outOfSceneConsumer.GetEnumerator()){Check ('capital consumer refuses '+$m.Key) {$c=New-Consumer (New-Producer);&$m.Value[0] $c.artifact.observations;Assert-KmcChunk7CapitalColdObservation $c.request $c.artifact} $true $m.Value[1]}
+# The arrival portion of the native batch196 r58 evidence (read-only) passes the new shape check.
+$r58=Join-Path (Get-KmcLabRoot) 'runtime-evidence/20261024-c7e-b196-r58-capital-arrival'
+if(Test-Path -LiteralPath (Join-Path $r58 'chunk7-persistence-cleanup-pending.json')){
+ $nativeRequest=Read-KmcJson (Join-Path $r58 'runtime-request.json');$native=(Read-KmcJson (Join-Path $r58 'chunk7-persistence-cleanup-pending.json')).observations
+ Check 'batch196 r58 native arrival passes the observed-shape reader' {Assert-KmcChunk7CapitalArrivalShape $nativeRequest $native.capitalArrival $native.loadedArchive $native.coldRestoration.events}
+ Check 'batch196 r58 native arrival with the companion in the scene is refused' {$v=Copy-Value $native.capitalArrival;$v.after.views[2].inGame=$true;Assert-KmcChunk7CapitalArrivalShape $nativeRequest $v $native.loadedArchive $native.coldRestoration.events} $true 'boolean'
+ Check 'batch196 r58 native arrival restored without Mount: debt observer unchanged' {$v=Copy-Value $native.capitalArrival;$v.restoration.events+=@([pscustomobject]@{actorId=$v.after.views[0].id;kind='prepare-before'});Assert-KmcChunk7CapitalArrivalShape $nativeRequest $v $native.loadedArchive $native.coldRestoration.events} $true 'preparation'
+}else{Check 'batch196 r58 native evidence is present' {throw 'Batch196 r58 evidence is absent.'}}
 # The UMM summary contract: the product line, the in-game diagnostic expectation and the reader agree.
 Check 'UMM capital summary text agrees across product, engine and reader' {
  $product=[IO.File]::ReadAllText((Join-Path $repo 'src/KingmakerMountedCombat/Integration/MountedAreaPersistence.cs'))

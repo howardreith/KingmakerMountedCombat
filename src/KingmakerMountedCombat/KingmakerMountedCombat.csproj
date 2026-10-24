@@ -310,6 +310,7 @@
     <Compile Include="Diagnostics\Chunk7OwnedPairFixture.cs" />
     <Compile Include="Diagnostics\Chunk7OwnedPairFixture.Replay.cs" />
     <Compile Include="Diagnostics\Chunk7OwnedPairFixture.Capital.cs" />
+    <Compile Include="Diagnostics\Chunk7OwnedPairFixture.CapitalRoster.cs" />
     <Compile Include="Diagnostics\PersistenceSaveAuthorization.OwnedPairs.cs" />
     <Compile Include="Diagnostics\Chunk7PersistenceScenario.OwnedPairs.cs" />
     <Compile Include="Diagnostics\Chunk7PersistenceScenario.OwnerSeedCheckpoint.cs" />

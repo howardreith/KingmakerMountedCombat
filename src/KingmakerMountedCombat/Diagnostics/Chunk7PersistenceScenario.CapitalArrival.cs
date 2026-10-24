@@ -163,6 +163,7 @@ namespace KingmakerMountedCombat.Diagnostics
             // The prior scope is immutable. Only this completed declared transfer pins the capital world.
             inherited.AdoptCapitalArrival(capitalDestination);
             nativeScope = inherited.Scope; capitalAdopted = true;
+            capitalRow["retiredOutOfScene"] = inherited.CaptureCapitalOutOfScene();
             expectedOwners.Clear(); expectedOwners.Add(Guid.Parse(capitalMainPair.PairId), capitalMainPair.Generation);
             slots = saved.Slots.Where(slot => slot.ActorId == firstRider.UniqueId).ToArray();
             AssertCapitalOwners(); AssertCapitalMainPair(); AssertCapitalRetiredPair(); AssertSlots(); AssertAreaNativeDebt();
@@ -217,7 +218,7 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             var relation = world.Registry.FindActive(firstRider).Boundary; var runtime = relation.Runtime;
             var overrides = firstRider.View.GetComponents<RiderMovementAgent>();
-            Require(firstRider.IsDirectlyControllable && firstMount.IsDirectlyControllable &&
+            Require(firstRider.IsDirectlyControllable && firstMount.IsDirectlyControllable && firstRider.IsInGame && firstMount.IsInGame &&
                 actors.All(actor => actor.View != null && ReferenceEquals(actor.View.EntityData, actor) && actor.View.GetInstanceID() == capitalViewIds[actor.UniqueId]),
                 "Capital arrival replaced an original native view or lost main-pair control.");
             Require(runtime.MovementAgent != null && runtime.MovementAgent.GetInstanceID() != capitalMainAgentBaseline && overrides.Length == 1 &&
@@ -235,6 +236,9 @@ namespace KingmakerMountedCombat.Diagnostics
             Require(!secondRider.IsDirectlyControllable && !secondMount.IsDirectlyControllable &&
                 ReferenceEquals(secondRider.Descriptor.Pet, secondMount) && ReferenceEquals(secondMount.Descriptor.Master.Value, secondRider),
                 "Retired pair is not exactly the companion and its pet excluded by native capital control.");
+            // Batch196 r58: native capital mode takes the companion pair out of the scene.
+            Require(!secondRider.IsInGame && !secondMount.IsInGame && Game.Instance.CurrentlyLoadedArea.IsCapital,
+                "Retired pair is not exactly out of the scene in the capital.");
             Require(world.Registry.FindActive(secondRider) == null && world.Registry.FindActive(secondMount) == null &&
                 world.Pairs.All(pair => !(ReferenceEquals(pair.Relationship.Rider, secondRider) || ReferenceEquals(pair.Relationship.Mount, secondMount) ||
                     ReferenceEquals(pair.Relationship.Rider, secondMount) || ReferenceEquals(pair.Relationship.Mount, secondRider)) ||
@@ -242,13 +246,18 @@ namespace KingmakerMountedCombat.Diagnostics
                     pair.Relationship.Runtime.NoPreparedPairResidue && !pair.Relationship.Runtime.HasPresentationAttachmentResidue &&
                     !pair.Combat.HasRetainedPairCommands && !controls.HasUnsettledShellFor(pair.Relationship)),
                 "Retired pair retains an owner, a relationship or owned residue.");
-            Require(secondRider.View != null && secondMount.View != null &&
-                (!baselineViews || secondRider.View.GetInstanceID() == capitalViewIds[secondRider.UniqueId] && secondMount.View.GetInstanceID() == capitalViewIds[secondMount.UniqueId]) &&
-                !secondRider.View.transform.IsChildOf(secondMount.View.transform) && !secondMount.View.transform.IsChildOf(secondRider.View.transform) &&
-                secondRider.View.AgentOverride == null && secondMount.View.AgentOverride == null &&
-                secondRider.View.GetComponents<RiderMovementAgent>().Length == 0 && secondMount.View.GetComponents<RiderMovementAgent>().Length == 0 &&
-                CapitalFinite(secondRider.Position) && CapitalFinite(secondMount.Position),
-                "Retired pair views are not separate, unreplaced and free of movement authority.");
+            Require(CapitalFinite(secondRider.Position) && CapitalFinite(secondMount.Position), "Retired pair has a non-finite native position.");
+            // Row 58 arrives with both original views (observed in batch196 r58), so every view check applies.
+            // A cold load in the capital (row 59) may never have spawned an out-of-scene view; a missing view
+            // is recorded in the out-of-scene custody record and its view-only checks cannot apply.
+            Require(!baselineViews || secondRider.View != null && secondMount.View != null &&
+                secondRider.View.GetInstanceID() == capitalViewIds[secondRider.UniqueId] && secondMount.View.GetInstanceID() == capitalViewIds[secondMount.UniqueId],
+                "Retired pair views were replaced or lost during the transfer.");
+            Require((secondRider.View == null || secondMount.View == null ||
+                    !secondRider.View.transform.IsChildOf(secondMount.View.transform) && !secondMount.View.transform.IsChildOf(secondRider.View.transform)) &&
+                new[] { secondRider.View, secondMount.View }.Where(view => view != null).All(view =>
+                    view.AgentOverride == null && view.GetComponents<RiderMovementAgent>().Length == 0),
+                "Retired pair views are not separate and free of movement authority.");
         }
         private static bool CapitalFinite(UnityEngine.Vector3 v) => !float.IsNaN(v.x) && !float.IsInfinity(v.x) &&
             !float.IsNaN(v.y) && !float.IsInfinity(v.y) && !float.IsNaN(v.z) && !float.IsInfinity(v.z);
@@ -315,7 +324,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["producerRunId"] = request.OwnedPairs.CheckpointSourceRunId, ["producerArtifactSha256"] = request.OwnedPairs.CheckpointSourceArtifactSha256,
                 ["mainPairId"] = pair.PairId, ["mainGeneration"] = pair.Generation, ["unmountedRiderId"] = secondRider.UniqueId,
                 ["unmountedMountId"] = secondMount.UniqueId, ["registryOwners"] = world.Registry.Owners.Length,
-                ["activeOwners"] = world.Registry.ActiveCount, ["world"] = CaptureCapitalWorld("cold-restored-in-capital") };
+                ["activeOwners"] = world.Registry.ActiveCount, ["outOfScene"] = inherited.CaptureCapitalOutOfScene(),
+                ["world"] = CaptureCapitalWorld("cold-restored-in-capital") };
             snapshots.Add(Capture("cold-restored-before-input"));
             Require(ReferenceEquals(firstRider, main) && ReferenceEquals(firstMount.Descriptor.Master.Value, main) &&
                 !ReferenceEquals(secondRider, main) && ReferenceEquals(secondMount.Descriptor.Master.Value, secondRider) &&
@@ -355,6 +365,7 @@ namespace KingmakerMountedCombat.Diagnostics
             row["refusedTransfers"] = persistence.RefusedAreaTransferCount; row["activeOwners"] = world.Registry.ActiveCount;
             row["saveAllowed"] = game.SaveManager.IsSaveAllowed(); row["feedback"] = persistence.Feedback;
             row["slots"] = JArray.FromObject(controls.CapturePersistentSlots(), MountedSaveCodec.CreateSerializer());
+            row["roster"] = CaptureCapitalRoster();
             row["views"] = new JArray(actors.Select(actor => new JObject { ["id"] = actor.UniqueId,
                 ["viewId"] = actor.View == null ? 0 : actor.View.GetInstanceID(),
                 ["baselineViewId"] = capitalViewIds.TryGetValue(actor.UniqueId, out var baseline) ? baseline : 0,
@@ -364,6 +375,24 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["riderAgents"] = actor.View == null ? 0 : actor.View.GetComponents<RiderMovementAgent>().Length,
                 ["stockAgentEnabled"] = actor.View?.AgentASP?.enabled })) ;
             return row;
+        }
+
+        // Read-only roster membership of every captured inherited field actor; a native refusal is recorded, not thrown.
+        private JToken CaptureCapitalRoster()
+        {
+            if (inherited?.Party == null) return null;
+            try
+            {
+                var game = Game.Instance;
+                var party = Chunk7NativeFieldRoster.Capture(game.Player);
+                return new JArray(inherited.Party.Select(actor => new JObject { ["id"] = actor.UniqueId,
+                    ["inParty"] = party.Any(value => ReferenceEquals(value, actor)),
+                    ["character"] = game.Player.PartyCharacters.Any(value => ReferenceEquals(value.Value, actor)),
+                    ["remote"] = game.Player.RemoteCompanions.Any(value => ReferenceEquals(value.Value, actor)),
+                    ["inGame"] = actor.IsInGame, ["inState"] = actor.IsInState, ["directlyControllable"] = actor.IsDirectlyControllable,
+                    ["viewPresent"] = actor.View != null }));
+            }
+            catch (Exception error) { return new JObject { ["error"] = error.Message }; }
         }
 
         // Read-only bounded boundary record; grants no destination scope.
