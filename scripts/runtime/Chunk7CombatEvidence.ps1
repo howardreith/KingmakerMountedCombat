@@ -446,7 +446,7 @@ function Assert-KmcChunk7StagedRanged($Step,$o,$s,$roles,[bool]$Approach,[string
  if(-not(Test-KmcChunk7StagedClose $ma.standard $mb.standard)-or-not(Test-KmcChunk7StagedClose $ma.swift $mb.swift)){throw ($Why+': the mount spent a non-movement action during the rider''s shot.')}
  Assert-KmcChunk7StagedPairBIdle $Step.before $Step.after $roles
  $shots=@($Step.rules)
- if($shots.Count-ne1-or$shots[0].actor-cne$roles[0]-or$shots[0].target-cne$o.targetId-or$shots[0].opportunity-ne$false-or$shots[0].ranged-ne$true-or$shots[0].weapon-cne$s.weapon){throw ($Why+': the window holds other than rider A''s one native ranged shot.')}
+ if($shots.Count-ne1-or$shots[0].actor-cne$roles[0]-or$shots[0].target-cne$o.targetId-or$shots[0].opportunity-ne$false-or$shots[0].fullAttack-ne$false-or$shots[0].ranged-ne$true-or$shots[0].weapon-cne$s.weapon){throw ($Why+': the window holds other than rider A''s one native ranged shot.')}
  $origin=@($shots[0].actorPosition);$moved=Get-KmcChunk7StagedFlat $Step.before.mountPosition $Step.after.mountPosition
  if(-not(Test-KmcChunk7FiniteNumber $Step.startDistance)-or-not(Test-KmcChunk7FiniteNumber $Step.endDistance)-or-not(Test-KmcChunk7StagedClose $Step.envelope $s.envelope)){throw ($Why+': the shot geometry is missing.')}
  if((Get-KmcChunk7StagedFlat $origin $Step.after.riderPosition)-gt0.15){throw ($Why+': the shot origin is not the rider''s position after the pair''s movement.')}
@@ -508,19 +508,30 @@ function Assert-KmcChunk7StagedCombat($Request,$Observations){
  }
  # One native activation per declared round: the same turn identity, rider A's single cost commitment,
  # and no turn transition, preparation or round boundary between its first and last step.
- $transitions=@('prepare-before','prepare-after','clear-before','clear-after','combat-clear-before','combat-clear-after','round-state-before','round-state-after','round-handler-before','round-handler-after','ai-round-before','ai-round-after','chunk7-end-input-before','chunk7-end-input-after')
+ $transitions=@('prepare-before','prepare-after','clear-before','clear-after','combat-clear-before','combat-clear-after','round-state-before','round-state-after','round-handler-before','round-handler-after','ai-round-before','ai-round-after','turn-end-before','turn-end-after','chunk7-end-input-before','chunk7-end-input-after')
+ $turns=@()
  foreach($round in 0,1,2,3){
   $group=@(for($i=0;$i-lt$plan.Count;$i++){if($plan[$i][2]-eq$round){$steps[$i]}})
   if(@($group|ForEach-Object{[string]$_.before.turn}|Select-Object -Unique).Count-ne1){throw ('Staged round N+'+$round+' spans more than one native turn.')}
   $window=@(Get-KmcChunk7StagedTrace $o $group[0].traceSequenceBefore $group[-1].traceSequenceAfter)
   if(@($window|Where-Object{[string]$_.boundary-cin$transitions}).Count-ne0){throw ('Staged round N+'+$round+' holds a native turn transition inside its activation.')}
   if(@($window|Where-Object{$_.boundary-ceq'cost-after'-and$_.state.actor-ceq$roles[0]}).Count-ne1){throw ('Staged round N+'+$round+' does not carry exactly one rider cost commitment.')}
+  # Every pair cost boundary of the activation is stamped by the same rider turn, round and Preparing/Acting window.
+  $stamps=@($window|Where-Object{$_.boundary-cin@('cost-before','cost-after','actor-cost-before','actor-cost-after')-and$_.state.actor-cin@($roles[0],$roles[1])})
+  if(@($stamps|Where-Object{[string]$_.turn-cne[string]$group[0].before.turn-or$_.round-ne$n+$round-or$_.currentActor-cne$roles[0]-or[string]$_.turnStatus-cnotin@('Preparing','Acting')}).Count-ne0){throw ('Staged round N+'+$round+' has a cost boundary outside rider A''s own native activation.')}
+  $turns+=[string]$group[0].before.turn
  }
+ if(@($turns|Select-Object -Unique).Count-ne4){throw 'Staged rounds reuse one native turn identity.'}
+ # Exactly the two shots were recorded, each inside its own window.
+ if((ConvertTo-Json -InputObject @($s.rules.events) -Depth 10 -Compress)-cne(ConvertTo-Json -InputObject @($steps|ForEach-Object{@($_.rules)}) -Depth 10 -Compress)){throw 'The staged rule observer recorded attacks outside the step windows.'}
  # C6D-move-cast-move: both short legs fit the mount's first Move; the cast between them changed nothing for the mount.
  $l0=$steps[0].legs[0];$l2=$steps[2].legs[0]
  $m0=Get-KmcChunk7CombatActor $l0.after $roles[1];$m2b=Get-KmcChunk7CombatActor $l2.before $roles[1];$m2a=Get-KmcChunk7CombatActor $l2.after $roles[1]
  if($l2.after.mountUsedTwoMove-ne$false-or[double]$m2a.move-gt3.001){throw 'C6D-move-cast-move: two short legs exceeded one native Move.'}
  if(-not(Test-KmcChunk7StagedClose $m2b.move $m0.move)-or[double]$m2a.move-le[double]$m0.move+0.001){throw 'C6D-move-cast-move: the second leg did not continue the same native Move allocation.'}
+ # It starts from the first leg's retained allocation and consumes the remaining native movement time of that same allocation.
+ if($l2.before.mountUsedOneMove-ne$true-or-not(Test-KmcChunk7FiniteNumber $m2b.native.remainingNativeTime)-or-not(Test-KmcChunk7FiniteNumber $m2a.native.remainingNativeTime)-or
+    [double]$m2b.native.remainingNativeTime-ge5.999-or[double]$m2a.native.remainingNativeTime-ge[double]$m2b.native.remainingNativeTime-0.001){throw 'C6D-move-cast-move: the second leg did not consume the retained native movement time.'}
  # C6D-double-move-ranged: the shot follows the mount's two native Moves inside the same activation with the rider's Standard available.
  $shot=$steps[4];$r4=Get-KmcChunk7CombatActor $shot.before $roles[0];$m4=Get-KmcChunk7CombatActor $shot.before $roles[1]
  if([double]$r4.standard-gt0.001-or$shot.before.riderHasStandard-ne$true){throw 'C6D-double-move-ranged: rider A''s Standard was not available immediately before the shot.'}
@@ -538,7 +549,8 @@ function Assert-KmcChunk7StagedCombat($Request,$Observations){
  if($item.beforeCleanup.exactSlot-ne$true-or$item.beforeCleanup.count-ne4-$spends-or$spends-ne2){throw 'The disposable scroll stack does not conserve its two observed native spends.'}
  foreach($f in @('disposed','slotRestored','noOwnedItemResident','ownedItemReleased')){Assert-KmcChunk7Boolean $item.$f $true}
  $ct=$s.castTrace
- if($null-eq$ct-or$ct.faults-ne0-or$ct.dropped-ne0-or$ct.identityRegistry.faults-ne0-or$ct.identityRegistry.released-ne$true){throw 'The native cast observer is incomplete or not retired.'}
+ if($null-eq$ct-or$ct.faults-ne0-or$ct.dropped-ne0-or$ct.identityRegistry.faults-ne0-or$ct.identityRegistry.released-ne$true-or$ct.identityRegistry.retainedCount-ne0){throw 'The native cast observer is incomplete or not retired.'}
+ if($null-eq$s.PSObject.Properties['originalSlots']-or$null-eq$s.originalSlots-or$s.originalSlots.restored-ne$true){throw 'The original quick slots were not observed restored.'}
  foreach($field in @('pairResidueAbsent','nativeCombatEnded','initiativeInputsRestored','firstPairAiRestored','controlsSettled','inheritedPetsPreserved')){Assert-KmcChunk7Boolean $o.cleanup.$field $true}
  Assert-KmcChunk7Boolean $o.cleanup.ownedHorseRemoved $false;Assert-KmcChunk7Boolean $o.cleanup.nativeSaveWrittenByThisDriver $false;Assert-KmcChunk7Boolean $o.cleanup.delegatedPersistenceCleanup $false
 }

@@ -179,7 +179,7 @@ namespace KingmakerMountedCombat.Diagnostics
                             // Attack modes wait (bounded, native) for the save's Rapid Shot to stop before the encounter.
                             if (AttackModesCase) { PrepareAttackModes(); Next(79); break; }
                             if (ReactionCase) { PrepareEncounter(); Next(5); break; }
-                            if (StagedCase) { PrepareStaged(); PrepareEncounter(); Next(5); break; }
+                            if (StagedCase) { AdmitTargetAuthorization(am.Position + Vector3.forward * 8f); PrepareStaged(); PrepareEncounter(); Next(5); break; }
                             PrepareEncounter(); Next(RealtimeScenario ? 60 : 5); break;
                         }
                         if (!Chunk7NativeFixture.Idle(bm)) return;

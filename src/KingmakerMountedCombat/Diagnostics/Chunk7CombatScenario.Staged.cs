@@ -128,7 +128,7 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 if (stagedIndex == 0)
                 {
-                    if (!ReadyPrincipal(a)) { if (turn?.Unit != target) EndNative(turn); return; }
+                    if (!ReadyPrincipal(a)) { if (turn?.Unit != target && turn?.Unit != ar) EndNative(turn); return; }
                     stagedRound = controller.RoundNumber; staged["firstRound"] = stagedRound; actingPair = a; actingIndex = 0; actingTurn = turn;
                 }
                 else if (StagedSteps[stagedIndex - 1].Round == spec.Round)
@@ -141,7 +141,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 {
                     if (ReferenceEquals(turn, actingTurn)) { EndNative(turn); return; }
                     Require(controller.RoundNumber <= stagedRound + spec.Round, "Staged step " + spec.Kind + " missed its native round.");
-                    if (controller.RoundNumber != stagedRound + spec.Round || !ReadyPrincipal(a)) { if (turn?.Unit != target) EndNative(turn); return; }
+                    var dueRound = controller.RoundNumber == stagedRound + spec.Round;
+                    if (!dueRound || !ReadyPrincipal(a)) { if (turn?.Unit != target && (turn?.Unit != ar || !dueRound)) EndNative(turn); return; }
                     actingTurn = turn;
                 }
                 IssueStagedStep(spec); StagedStage(1); return;
@@ -321,10 +322,18 @@ namespace KingmakerMountedCombat.Diagnostics
         }
         // The exact disposable stack leaves its slot and the inventory, the original quick slots are
         // observed restored, then the cast observer retires. Also the cleanup path for an early failure.
+        // The cast observer is retained on purpose while the lease is unreleased: the lease's own
+        // evidence reads its identities, and a retained observer fails the next one closed.
         private void ReleaseStagedFixture()
         {
             if (stagedReleased || staged == null) return;
-            if (stagedScroll != null) { stagedScroll.Dispose(); staged["scroll"] = stagedScroll.Evidence; }
+            Require(stagedCasts == null || stagedCasts.ProcessesSettled && ar.Commands.Empty && am.Commands.Empty,
+                "The staged scroll stack is released only after the pair's casts and commands have settled.");
+            if (stagedScroll != null)
+            {
+                stagedScroll.ReleaseOwnedItem(); stagedSlots.Restore(); stagedScroll.Dispose();
+                staged["scroll"] = stagedScroll.Evidence; staged["originalSlots"] = stagedSlots.Evidence;
+            }
             if (stagedCasts != null) { stagedCasts.Dispose(); staged["castTrace"] = stagedCasts.Capture(); }
             stagedReleased = true;
         }
