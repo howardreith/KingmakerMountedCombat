@@ -78,8 +78,9 @@ KMC does **not** fill action-bar slots.
 
 ## 11. Upgrade from a preview.211 save
 
-- [ ] Load a save made under preview.211 (a copy). It loads. Any pair saved mounted is mounted again
-  (this case is not rehearsed in automation, so watch it closely).
+- [ ] Load a save made under preview.211 (a copy). It loads. Any pair saved mounted is mounted again.
+  **Automation has not tested this:** no save written by preview.211 was ever upgraded in the test lab
+  (only migrated test derivatives and the install/upgrade/rollback rehearsal), so watch it closely.
 - [ ] The UMM log does not show the "no longer has seven stock options" exception.
 
 ## 12. Removal

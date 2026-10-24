@@ -68,9 +68,12 @@ This list compares product source with `7fa667b2` and cites the Chunk 7 commits 
 - Opening the party selector keeps mounted riders seated (`61625d41`). Dismissing a mounted companion
   no longer merges inventories (`7c6ba455`).
 - "Prepare to disable / remove KMC" covers every pair (`947b8a2d`).
-- Progression: leveling keeps a pair. Dismissing, retraining or replacing the companion retires that
-  pair (development evidence, batches 48–54). [VERIFY: cite the product commit, if any; the evidence is
-  diagnostic]
+- Progression (tested behaviour, not a new feature): leveling keeps a pair; dismissing, retraining or
+  replacing the companion retires that pair. This was observed in development runs (batches 89, 99–100,
+  108 and 116–120; 7E rows 48–54 re-run it on the final candidate). No Chunk 7 commit is specific to
+  progression: retirement goes through the existing native lifecycle cleanup (a removed or invalidated
+  companion dismounts its pair, code from before preview.211) and the per-pair registry's retirement of
+  settled owners (`58abe1a9`). The dismissal inventory fix above is `7c6ba455`.
 
 ### Settings
 - The UMM page has one setting: **Enable optional real-time Mounted Charge**, off by default. You can
@@ -89,4 +92,6 @@ This list compares product source with `7fa667b2` and cites the Chunk 7 commits 
   settings. `UnifiedMountedTurnCoordinator` remains in use for movement accounting.
 - Development pilots: on DLL `ec20ee8f…`, the X5 upgrade and rollback rehearsal u1, u2 and u3 PASS
   (batch200) and capital rows 58 and 59 PASS (batch199). Incapacitation row 57 PASS was on an earlier
-  candidate (batch197, DLL `c0fa0ebe…`). **Exact-package 7E qualification has not run.**
+  candidate (batch197, DLL `c0fa0ebe…`). Death proper, Rapid Shot attack modes, the disengagement
+  attack of opportunity, staged moving actions and real-time Charge with a melee weapon PASS on DLL
+  `feca06e9…` (batch205). **Exact-package 7E qualification has not run.**

@@ -163,3 +163,26 @@ family is retired like the other stale level-up Auto families.
 
 Because it changes the product, it needs a new candidate, which costs a fresh campaign plus the
 matrix. The only gain is the same-candidate calibration noted above.
+
+## Follow-up, 2026-10-24: `Test-ScenarioDispatchEvidence.ps1` (offline only)
+
+This check is in neither `scripts/Test.ps1` nor the Chunk 7 umbrella, so FULL does not run it. Earlier
+records noted that it "fails identically at `9cf18707`". It was reproduced once more, in a temporary
+detached worktree (LF re-materialized, removed afterwards), with the root checkout untouched:
+
+| Commit | Result |
+| --- | --- |
+| preview.211 tag `7fa667b2` | PASS 82/0 |
+| `ee2bdfc9~1` | PASS 165/0 |
+| `ee2bdfc9` (October 14, "Add guarded assisted fixture preparation and cold inventory") | FAIL: "Compound registry differs from reviewed exact families" |
+| `9cf18707`, HEAD `c2c451d3` | FAIL, same message |
+
+**Classification: stale test expectation; harness-only; product unaffected.** `ee2bdfc9` registered
+`chunk7-assisted-fixture-preparation` and `chunk7-assisted-cold-inventory` as compound runtime scenarios
+in `scripts/runtime/ScenarioDispatchEvidence.ps1` without adding them to the test's reviewed family list
+(`$chunk7Families`). `38318d57` (`chunk7-small-fixture-preparation`) and `fbb1116a`
+(`chunk7-stock-mammoth-fixture-preparation`) added two more the same way. The registry at HEAD holds
+those four plus the 20 reviewed Chunk 7 families and the eight 6C/6D/6E roots. The check stops at that
+first mismatch, so the later per-family reader checks did not run at HEAD. Fixing it means adding the
+four families with their dedicated readers to the list and confirming the later checks pass; this is a
+harness change, to be made before the 7E freeze or reported as classified.
