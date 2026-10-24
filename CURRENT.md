@@ -1,6 +1,15 @@
 # Chunk 7B–7D — IN PROGRESS
 
-Claude [batch196](docs/CHUNK7-BATCH196-7E-PILOTS-2026-10-24.md) froze pilot candidate `241bbd8b`
+Claude [batch197](docs/CHUNK7-BATCH197-7E-PILOTS-2026-10-24.md) froze pilot candidate `c68fabd9`
+(DLL `c0fa0ebe…`, suite `chunk7e-b197-pilots-20261024`). Eleven native launches (one Steamworks
+startup failure retried once), all with exact restoration. **Row 57, the two-pair native life and the
+Small scroll/potion item pilot passed** for the first time; the unmounted unconscious control was
+available and matched in both life runs. The acquired chain and the X4 producer passed again. Row 58
+failed closed on the known risk: native Oleg's moves the three story companions to remote as well
+as the hired pair B, which is beyond the one admitted out-of-scene pair. Row 59 stays blocked pending a
+decision. Standing mission remains IN PROGRESS.
+
+Historical: Claude [batch196](docs/CHUNK7-BATCH196-7E-PILOTS-2026-10-24.md) froze pilot candidate `241bbd8b`
 (DLL `5a34f1c3…`, suite `chunk7e-b196-pilots-20261024`; executed from its frozen worktree on a local
 branch because the root branch moved to a doc-only commit during the freeze). Nine native runs, all
 with exact restoration. The acquired chain (c1–c5), the X4 producer and the **X4 three-area cold
