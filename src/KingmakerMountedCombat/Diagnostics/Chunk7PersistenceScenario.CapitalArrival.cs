@@ -109,9 +109,11 @@ namespace KingmakerMountedCombat.Diagnostics
                     capitalRow["awaitingNativeReady"] = CaptureCapitalBoundary();
                     return true;
                 }
-                // Read-only: wait for the product's single restore attempt and the transfer to close.
+                // Read-only: wait, within the stage deadline, for the product's single restore attempt, the
+                // transfer to close and the native default mode; adoption then requires every exact count.
                 if (persistence.AreaTransitionPending || NativePersistenceIsolation.HasPendingWrites || persistence.HasActiveSaveScope ||
-                    persistence.HasSaveAdmissionFence || persistence.AreaResumeCount + persistence.AreaRetiredPairCount + persistence.FailedAreaPairCount == 0)
+                    persistence.HasSaveAdmissionFence || persistence.AreaResumeCount + persistence.AreaRetiredPairCount + persistence.FailedAreaPairCount == 0 ||
+                    persistence.FailedAreaPairCount == 0 && Game.Instance.CurrentMode != GameModeType.Default)
                 {
                     capitalRow["awaitingNativeReady"] = CaptureCapitalBoundary();
                     return true;
@@ -265,6 +267,60 @@ namespace KingmakerMountedCombat.Diagnostics
             Pass("C7-persistence-capital-arrival-native-manual");
         }
 
+        // Matrix row 59: a separate process cold-loads row 58's capital Manual. Exactly the main pair is
+        // restored, with no Mount, preparation, round or extra debt restore; the companion pair stays
+        // unmounted with no owner, relationship, presentation, movement authority or control residue.
+        private bool CapitalColdCase => Cold && request.OwnedPairs?.IsCapitalArrivalCold(request.PersistenceCase) == true;
+        private void ObserveCapitalCold()
+        {
+            Require(CapitalColdCase && stage == 0 && inherited == null && restoration != null, "Capital cold proof runs once at its first restored frame.");
+            saved = persistence.LoadedArchive;
+            var game = Game.Instance;
+            Require(saved != null && saved.SchemaVersion == 3 && saved.Pairs.Length == 1 && saved.Participations.Length == 0 && saved.Combat == null &&
+                saved.Slots.Length == 2 && saved.CampaignId == request.PersistenceLoad.GameId && saved.AreaId == Chunk7OwnedPairsSelection.CapitalArrivalArea &&
+                persistence.ArchiveRestorePhase == "all-pair-presentation-restored" && game.CurrentlyLoadedArea.IsCapital &&
+                game.CurrentlyLoadedArea.AssetGuidThreadSafe == Chunk7OwnedPairsSelection.CapitalArrivalArea,
+                "Capital Manual did not restore exactly its one mounted pair in the capital: " + persistence.Feedback);
+            BindOwnedFixture(false);
+            var main = game.Player.MainCharacter.Value; var pair = saved.Pairs[0];
+            Require(ReferenceEquals(firstRider, main) && ReferenceEquals(firstMount.Descriptor.Master.Value, main) &&
+                !ReferenceEquals(secondRider, main) && ReferenceEquals(secondMount.Descriptor.Master.Value, secondRider) &&
+                pair.Rider.Id == firstRider.UniqueId && pair.Mount.Id == firstMount.UniqueId &&
+                pair.ProfileId == SupportedMountedProfiles.Resolve(firstRider, firstMount)?.Id &&
+                saved.Slots.All(slot => slot.ActorId == firstRider.UniqueId) && saved.Slots.Select(slot => slot.Kind).OrderBy(kind => kind).SequenceEqual(new[] { 2, 3 }),
+                "Capital cold archive is not the main character's pair with its own exact controls.");
+            expectedOwners.Add(Guid.Parse(pair.PairId), pair.Generation);
+            AssertCapitalOwners(); slots = saved.Slots; AssertSlots();
+            Require(firstRider.IsDirectlyControllable && firstMount.IsDirectlyControllable, "Capital cold load lost main-pair control.");
+            AssertCapitalRetiredPair(false);
+            Require(persistence.SemanticRestoreCount == 2 && persistence.PresentationRestoreCount == 1 && persistence.ArchivePostLoadObservedCount == 2 &&
+                persistence.AreaSuspensionCount == 0 && persistence.AreaResumeCount == 0 && persistence.AreaRetiredPairCount == 0 &&
+                persistence.FailedAreaPairCount == 0 && controls.NativeCastRequestCount == 0 && persistence.SnapshotCount == 0 &&
+                controls.CaptureSnapshot().DuplicateFactCount == 0 && !world.UnifiedTurn.HasUnsettledPreparation,
+                "Capital cold restore replayed attachment or native input, or restored another actor.");
+            var mainIds = new[] { firstRider.UniqueId, firstMount.UniqueId }; var otherIds = new[] { secondRider.UniqueId, secondMount.UniqueId };
+            var ids = mainIds.Concat(otherIds).ToArray();
+            Require(restoration.Complete && restoration.Count("prepare-before", ids) == 0 && restoration.Count("round-before", ids) == 0 &&
+                restoration.Count("restore-actor-before", ids) == 0 && restoration.Count("restore-debt-before", mainIds) == 2 &&
+                restoration.Count("restore-debt-after", mainIds) == 2 && restoration.Count("restore-debt-before", otherIds) == 0 &&
+                restoration.Count("restore-debt-after", otherIds) == 0,
+                "Capital cold restoration invented preparation or restored the unmounted pair.");
+            AssertDebt(saved); evidence["coldRestoration"] = restoration.Capture();
+            restoration.Dispose(); restoration = null;
+            evidence["loadedArchive"] = JObject.FromObject(saved, MountedSaveCodec.CreateSerializer());
+            var descriptor = request.PersistenceLoad;
+            evidence["loadedDescriptor"] = new JObject { ["internalName"] = descriptor.InternalName, ["fileName"] = descriptor.FileName,
+                ["sha256"] = descriptor.Sha256, ["length"] = descriptor.Length, ["lastWriteTimeUtcTicks"] = descriptor.LastWriteTimeUtcTicks,
+                ["gameId"] = descriptor.GameId, ["gameName"] = descriptor.GameName, ["area"] = descriptor.Area };
+            var cold = CaptureCapitalWorld("cold-restored-in-capital");
+            evidence["capitalCold"] = new JObject { ["contract"] = "chunk7-capital-arrival-cold-v1",
+                ["producerRunId"] = request.OwnedPairs.CheckpointSourceRunId, ["producerArtifactSha256"] = request.OwnedPairs.CheckpointSourceArtifactSha256,
+                ["mainPairId"] = pair.PairId, ["mainGeneration"] = pair.Generation, ["unmountedRiderId"] = secondRider.UniqueId,
+                ["unmountedMountId"] = secondMount.UniqueId, ["registryOwners"] = world.Registry.Owners.Length,
+                ["activeOwners"] = world.Registry.ActiveCount, ["world"] = cold };
+            snapshots.Add(Capture("cold-restored-before-input")); Pass("C7-persistence-capital-arrival-cold");
+        }
+
         private JObject CaptureCapitalWorld(string label)
         {
             var game = Game.Instance;
@@ -293,7 +349,7 @@ namespace KingmakerMountedCombat.Diagnostics
             ["nativeLoading"] = LoadingProcess.Instance.IsLoadingInProcess,
             ["queuedLoadNames"] = LoadingProcess.Instance.QueuedNames.Count(),
             ["area"] = Game.Instance.CurrentlyLoadedArea?.AssetGuidThreadSafe,
-            ["capital"] = Game.Instance.CurrentlyLoadedArea?.IsCapital,
+            ["capital"] = Game.Instance.CurrentlyLoadedArea?.IsCapital, ["mode"] = Game.Instance.CurrentMode.ToString(),
             ["suspensions"] = persistence.AreaSuspensionCount, ["resumes"] = persistence.AreaResumeCount,
             ["retired"] = persistence.AreaRetiredPairCount, ["failedPairs"] = persistence.FailedAreaPairCount,
             ["transitionPending"] = persistence.AreaTransitionPending, ["activeOwners"] = world.Registry.ActiveCount,

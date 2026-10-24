@@ -203,6 +203,7 @@ $selected = @(
     'Test-Chunk7RepeatedWorldAdapter.ps1',
     'Test-Chunk7RepeatedWorldProtocol.ps1',
     'Test-Chunk7RepeatedWorldEvidence.ps1',
+    'Test-Chunk7CapitalArrivalEvidence.ps1',
     'Test-Chunk7OwnedReplayEpochs.ps1',
     'Test-Chunk7OwnedReplayEvidence.ps1',
     'Test-Chunk7OwnedAreaAutosaveEvidence.ps1',

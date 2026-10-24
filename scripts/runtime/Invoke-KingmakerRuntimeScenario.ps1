@@ -313,7 +313,6 @@ if($PersistenceCase-ceq'multi-exploration-three-area-transfers-manual'){
 if(Test-KmcChunk7CapitalCase $PersistenceCase){
     if(-not(Test-KmcChunk7OwnedPairsScenario $Scenario)-or$ownedPairsInput.selection.case-cne'persistence-load'){throw 'Capital arrival belongs only to the owned cold persistence-load selection.'}
     if(Test-KmcChunk7CapitalArrivalCase $PersistenceCase){Assert-KmcChunk7CapitalArrivalRoute $PersistenceAreaEnterPoint $PersistenceAreaTargetArea}
-    throw 'Capital-arrival rows 58-59 are wired, but their native engine and readers have not landed; refused before launch.'
 }
 if($PersistenceCase-ceq'legacy-schema1-resave-manual'-and$Scenario-cne'chunk7-persistence-load'){throw 'Schema-1 native resave is load-only.'}
 if((Test-KmcOwnedSchema1Case $PersistenceCase)-and$Scenario-cne'chunk7-owned-two-pair-campaign'){throw 'Owned schema-1 cases belong only to the closed inherited family.'}
@@ -1327,6 +1326,12 @@ try{
                 $paidColdArtifact=Read-KmcJson (Join-Path $evidenceRoot 'chunk7-persistence-evidence.json')
                 if((Get-KmcSha256 $verifiedOwnedSource.checkpointArtifactPath)-cne$request.ownedPairs.checkpointSourceArtifactSha256){throw 'Paid mounted checkpoint producer receipt changed during cold execution.'}
                 Assert-KmcChunk7PaidMountedColdSource ([pscustomobject]$request) (Read-KmcJson $verifiedOwnedSource.checkpointArtifactPath) $paidColdArtifact
+            }
+            if(Test-KmcChunk7CapitalColdCase $PersistenceCase){
+                # Row 59: separate-process proof against row 58's own read-back of the capital Manual.
+                $capitalColdArtifact=Read-KmcJson (Join-Path $evidenceRoot 'chunk7-persistence-evidence.json')
+                if((Get-KmcSha256 $verifiedOwnedSource.checkpointArtifactPath)-cne$request.ownedPairs.checkpointSourceArtifactSha256){throw 'Capital-arrival producer receipt changed during the cold process.'}
+                Assert-KmcChunk7CapitalColdSource ([pscustomobject]$request) (Read-KmcJson $verifiedOwnedSource.checkpointArtifactPath) $capitalColdArtifact
             }
             if(Test-KmcChunk7SixPairLoad ([pscustomobject]$request)){
                 $sixColdArtifact=Read-KmcJson (Join-Path $evidenceRoot 'chunk7-persistence-evidence.json')

@@ -135,6 +135,48 @@ $areaBad=[ordered]@{
  'area cold parent pin drift'={param($c)$script:drift=Join-Path $c.checkpoint.root 'chunk7-persistence-evidence.json'}
 }
 function Clone-AreaSource($v){return ($v|ConvertTo-Json -Depth 30|ConvertFrom-Json)}
+# Matrix rows 58-59: row 58 is an owned cold consumer of the x4s-shaped mounted Manual with the scoped
+# capital target; row 59 consumes row 58's fresh capital Manual through row 58's own re-derived lineage.
+$capitalPin=[pscustomobject][ordered]@{enterPoint='fd225a93828d26449803a4847947f8c1';area='ead426a6c23d39548a670ee515d77df4';autoSaveMode='None'}
+function New-CapitalSource([bool]$ColdConsumer){
+ $c=New-Case $false $true;$c.persistenceCase='multi-exploration-capital-arrival-manual';$c.selection.expectedNativeWriteCount=1
+ $c|Add-Member target (Clone-AreaSource $capitalPin)
+ if(-not$ColdConsumer){return $c}
+ $v58=Get-KmcChunk7OwnedPairsSource $c.selection $c.persistenceCase $c.fixture $c.candidate $c.target
+ $r58=[ordered]@{scenario='chunk7-owned-two-pair-campaign';runId='synthetic-capital-arrival';evidenceRoot='';fixture=$c.fixture;ownedPairs=(Clone-AreaSource $c.selection);persistenceCase=$c.persistenceCase;persistenceLoad=$v58.descriptor;persistenceAreaTarget=(Clone-AreaSource $c.target)}
+ foreach($key in @('branch','commit','productVersion','dllSha256','dllMvid','transactionToken')){$r58[$key]=$c.candidate.$key};$r58=[pscustomobject]$r58
+ $n=[int]([regex]::Match($v58.descriptor.fileName,'^Manual_([0-9]+)_').Groups[1].Value)+1;$leaf='Manual_'+$n+'_KMC_C7_CAPITAL.zks'
+ $a58=[pscustomobject]@{observations=[pscustomobject]@{ownedOutputAdmission=[pscustomobject]@{number=$n;leaf=$leaf};nativeWrite=[pscustomobject]@{path='';nativeName='KMC_C7_CAPITAL';nativeType='Manual';sha256=('7'*64);length=2345;archive=[pscustomobject]@{AreaId=$capitalPin.area}}}}
+ $set58=Add-Set $r58 $a58 'chunk7-persistence-evidence.json' ('3'*64) $v58.descriptor.sha256 $c.persistenceCase
+ $a58.observations.nativeWrite.path=Join-Path (Join-Path $set58.profile 'Saved Games') $leaf;$script:hashes[$a58.observations.nativeWrite.path]='7'*64
+ [void](Add-AreaProfile $set58)
+ $s59=Clone-AreaSource $c.selection;$s59.checkpointSourceRunId=$r58.runId;$s59.checkpointSourceArtifactSha256='3'*64;$s59.expectedNativeWriteCount=0
+ $c|Add-Member capital ([pscustomobject]@{set=$set58;selection=$s59;leaf=$leaf});return $c
+}
+function Qualify-Capital($C){Get-KmcChunk7OwnedPairsSource $C.capital.selection 'multi-exploration-capital-arrival-cold-manual' $C.fixture $C.candidate}
+Check 'capital producer qualifies its x4s-shaped Manual with the exact capital target'{$c=New-CapitalSource $false;$v=Get-KmcChunk7OwnedPairsSource $c.selection $c.persistenceCase $c.fixture $c.candidate $c.target;if($v.descriptor.sha256-cne('9'*64)-or$v.checkpointArtifactSha256-cne$c.selection.checkpointSourceArtifactSha256-or$c.checkpoint.request.persistenceCase-cne'multi-exploration-manual'){throw 'Capital producer source changed parent identity.'};if(-not$script:calls.Contains('strict-checkpoint-artifact')){throw 'Capital producer skipped the checkpoint artifact guard.'}}
+foreach($bad in @('no-target','other-entry','other-area','after-entry')){Check ('capital producer refuses target '+$bad){$c=New-CapitalSource $false;switch($bad){'no-target'{$c.target=$null}'other-entry'{$c.target.enterPoint='1'*32}'other-area'{$c.target.area='b'*32}'after-entry'{$c.target.autoSaveMode='AfterEntry'}};[void](Get-KmcChunk7OwnedPairsSource $c.selection $c.persistenceCase $c.fixture $c.candidate $c.target)} $true}
+Check 'capital cold consumer qualifies row 58 Manual through row 58 lineage'{$c=New-CapitalSource $true;$v=Qualify-Capital $c;$d=$v.descriptor
+ if($d.sha256-cne('7'*64)-or$d.fileName-cne$c.capital.leaf-or$d.internalName-cne'KMC_C7_CAPITAL'-or$d.area-cne$capitalPin.area-or$v.checkpointArtifactSha256-cne('3'*64)-or$v.artifactSha256-cne$c.selection.sourceArtifactSha256){throw 'Capital cold source differs from row 58 output or lineage.'}
+ if(@($script:calls|Where-Object{$_-ceq'strict-checkpoint-artifact'}).Count-lt2){throw 'Capital cold source skipped a producer artifact guard.'}}
+$capitalColdMutations=[ordered]@{
+ 'consumer declares a target'={param($c)$c|Add-Member coldTarget $capitalPin}
+ 'producer not a cold consumer'={param($c)$c.capital.set.request.ownedPairs.case='persistence-save'}
+ 'producer other checkpoint'={param($c)$c.capital.set.request.persistenceCase='multi-exploration-manual'}
+ 'producer owner other checkpoint'={param($c)$c.capital.set.owner.persistenceCase='multi-exploration-manual'}
+ 'producer autosave target'={param($c)$c.capital.set.request.persistenceAreaTarget.autoSaveMode='AfterEntry'}
+ 'producer other Manual'={param($c)$c.capital.set.request.persistenceLoad.length++}
+ 'producer second write'={param($c)$c.capital.set.game.saveRequestCount=2}
+ 'producer failed'={param($c)$c.capital.set.result.status='FAIL'}
+ 'producer profile not restored'={param($c)($script:documents[(Join-Path $c.capital.set.root 'profile-cache-changes.json')]).profileBytesRestoredExactly=$false}
+ 'producer artifact pin'={param($c)$c.capital.selection.checkpointSourceArtifactSha256='0'*64}
+ 'producer output outside the capital'={param($c)$c.capital.set.artifact.observations.nativeWrite.archive.AreaId='a'*32}
+ 'producer output name'={param($c)$c.capital.set.artifact.observations.nativeWrite.nativeName='KMC_C7_WORLD'}
+ 'producer changes ancestor'={param($c)$c.capital.set.request.ownedPairs.sourceArtifactSha256='0'*64}
+ 'consumer roster'={param($c)$c.capital.selection.partyIds+=@('aaaaaaaa-3333-4333-8333-333333333333')}
+ 'consumer write'={param($c)$c.capital.selection.expectedNativeWriteCount=1}
+}
+foreach($m in $capitalColdMutations.GetEnumerator()){Check ('capital cold source refuses '+$m.Key){$c=New-CapitalSource $true;&$m.Value $c;$t=if($null-ne$c.PSObject.Properties['coldTarget']){$c.coldTarget}else{$null};[void](Get-KmcChunk7OwnedPairsSource $c.capital.selection 'multi-exploration-capital-arrival-cold-manual' $c.fixture $c.candidate $t)} $true}
 foreach($m in $areaBad.GetEnumerator()){Check $m.Key {$c=New-AreaSource $true;&$m.Value $c;[void](Get-KmcChunk7OwnedPairsSource $c.selection $c.persistenceCase $c.fixture $c.candidate $c.areaTarget)} $true}
 # Owner-seed kind: the owned qualifier delegates to the established cold owner-seed
 # source (registry/master/intake/header gate, substituted here) with an exact cold

@@ -622,7 +622,7 @@ function Get-KmcChunk7OwnedPairsSource($Selection,[AllowNull()][string]$Persiste
  elseif(Test-KmcChunk7CapitalArrivalCase $PersistenceCase){Assert-KmcChunk7CapitalArrivalTarget ([pscustomobject]@{persistenceCase=$PersistenceCase;persistenceAreaTarget=$AreaTarget})}
  elseif($null-ne$AreaTarget){throw 'Only owned area autosave or the scoped capital arrival may carry its exact destination.'}
  # Row 59's checkpoint parent is row 58, itself a cold consumer; it has its own exact source route.
- if(Test-KmcChunk7CapitalColdCase $PersistenceCase){throw 'The capital-arrival cold consumer source is not connected yet.'}
+ if(Test-KmcChunk7CapitalColdCase $PersistenceCase){return Get-KmcChunk7CapitalColdSource $Selection $PersistenceCase $Fixture $Candidate $AreaTarget}
  $manual=Get-KmcChunk7OwnedPairsManualSource $Selection $PersistenceCase $Fixture $Candidate
  if($Selection.case-cne'persistence-load'){return $manual}
  $sourceCase=Get-KmcChunk7PersistenceSourceCase $PersistenceCase
@@ -647,6 +647,34 @@ function Get-KmcChunk7OwnedPairsSource($Selection,[AllowNull()][string]$Persiste
  Assert-KmcChunk7OwnedPairsDescriptor ([pscustomobject]@{scenario='chunk7-owned-two-pair-campaign';runId='unassigned-owned-cold';ownedPairs=$Selection;persistenceCase=$PersistenceCase;persistenceLoad=$descriptor;fixture=$Fixture;persistenceAreaTarget=$AreaTarget})
  Assert-KmcChunk7OwnedReceiptPins $set
  [pscustomobject]@{path=$w.path;descriptor=$descriptor;artifactPath=$manual.artifactPath;artifactSha256=$manual.artifactSha256;artifactLength=$manual.artifactLength;sourceRunId=$manual.sourceRunId;ancestry=$manual.ancestry;checkpointArtifactPath=$path;checkpointArtifactSha256=$Selection.checkpointSourceArtifactSha256;checkpointArtifactLength=[long]$file.Length;checkpointCandidate=[pscustomobject]@{commit=$request.commit;dllSha256=$request.dllSha256;dllMvid=$request.dllMvid}}
+}
+# Row 59: the cold consumer of row 58's capital Manual. Row 58 is itself an owned cold consumer, so its
+# own exact source route (acquired two-owner Manual, x4s-shaped mounted Manual, capital pin) is re-derived
+# first; the input is row 58's fresh native Manual in the capital, described from its own read-back.
+function Get-KmcChunk7CapitalColdSource($Selection,[AllowNull()][string]$PersistenceCase,$Fixture,$Candidate,$AreaTarget=$null){
+ if(-not(Test-KmcChunk7CapitalColdCase $PersistenceCase)){throw 'The capital cold source belongs only to row 59.'}
+ if($null-ne$AreaTarget){throw 'The capital cold consumer declares no area transfer.'}
+ Assert-KmcChunk7OwnedPairsSelection ([pscustomobject]@{scenario='chunk7-owned-two-pair-campaign';runId='unassigned-capital-cold';ownedPairs=$Selection;persistenceCase=$PersistenceCase})
+ $set=Get-KmcChunk7OwnedReceiptSet $Selection.checkpointSourceRunId 'chunk7-persistence-evidence.json';$request=$set.request
+ Assert-KmcBootstrapInventoryString $request.scenario 'chunk7-owned-two-pair-campaign';Assert-KmcBootstrapInventoryString $request.ownedPairs.case 'persistence-load'
+ Assert-KmcBootstrapInventoryString $request.persistenceCase (Get-KmcChunk7PersistenceSourceCase $PersistenceCase)
+ foreach($key in @('sourceRunId','sourceArtifactSha256','sourceArchiveSha256','riderAId','mountAId','riderBId','mountBId')){Assert-KmcBootstrapInventoryString $request.ownedPairs.$key $Selection.$key}
+ if((ConvertTo-KmcChunk7Canonical $request.ownedPairs.partyIds)-cne(ConvertTo-KmcChunk7Canonical $Selection.partyIds)){throw 'Capital producer substituted the inherited field roster.'}
+ $parent=Get-KmcChunk7OwnedPairsSource $request.ownedPairs $request.persistenceCase $Fixture $Candidate $request.persistenceAreaTarget
+ if((ConvertTo-KmcChunk7Canonical $request.persistenceLoad)-cne(ConvertTo-KmcChunk7Canonical $parent.descriptor)){throw 'Capital producer did not load its exact qualified mounted Manual.'}
+ Assert-KmcChunk7OwnedSourceCompletion $set $Selection.checkpointSourceRunId 'chunk7-owned-two-pair-campaign' $Fixture $Candidate $request.persistenceLoad.sha256 1
+ Assert-KmcBootstrapInventoryString $set.owner.persistenceCase $request.persistenceCase
+ # Row 58 changed area: its profile and native caches must have been restored exactly.
+ Assert-KmcChunk7OwnedAreaProfileRestoration $set $Selection.checkpointSourceRunId
+ Assert-KmcChunk7PersistenceArtifact $request $set.manifest 'PASS'
+ $artifact=Read-KmcChunk7ManifestArtifact $request $set.manifest 'chunk7-persistence-evidence.json' 'chunk7-persistence-evidence'
+ $path=Join-Path $set.root 'chunk7-persistence-evidence.json';$file=Get-Item -LiteralPath $path
+ if($file.Length-le0-or$file.Length-gt16MB-or$set.pins[$path]-cne$Selection.checkpointSourceArtifactSha256){throw 'Capital producer receipt differs from its exact successful pin.'}
+ $w=$artifact.observations.nativeWrite;$leaf=Get-KmcChunk7OwnedOutputLeaf $request $artifact.observations
+ $descriptor=[pscustomobject]@{internalName=$w.nativeName;fileName=$leaf;sha256=$w.sha256;length=$w.length;lastWriteTimeUtcTicks=[long](Get-Item -LiteralPath $w.path).LastWriteTimeUtc.Ticks;gameId=$parent.descriptor.gameId;gameName=$parent.descriptor.gameName;area=$w.archive.AreaId}
+ Assert-KmcChunk7OwnedPairsDescriptor ([pscustomobject]@{scenario='chunk7-owned-two-pair-campaign';runId='unassigned-capital-cold';ownedPairs=$Selection;persistenceCase=$PersistenceCase;persistenceLoad=$descriptor;fixture=$Fixture})
+ Assert-KmcChunk7OwnedReceiptPins $set
+ [pscustomobject]@{path=$w.path;descriptor=$descriptor;artifactPath=$parent.artifactPath;artifactSha256=$parent.artifactSha256;artifactLength=$parent.artifactLength;sourceRunId=$parent.sourceRunId;ancestry=$parent.ancestry;checkpointArtifactPath=$path;checkpointArtifactSha256=$Selection.checkpointSourceArtifactSha256;checkpointArtifactLength=[long]$file.Length;checkpointCandidate=[pscustomobject]@{commit=$request.commit;dllSha256=$request.dllSha256;dllMvid=$request.dllMvid}}
 }
 function Copy-KmcChunk7OwnedPairsSourceArtifact($Source,[string]$ProfileRoot,$Lock){
  [void](Assert-KmcRuntimeLockOwner $Lock)

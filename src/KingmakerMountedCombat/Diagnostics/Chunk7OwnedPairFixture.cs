@@ -106,7 +106,9 @@ namespace KingmakerMountedCombat.Diagnostics
             for (var index = 0; index < InheritedPairCount; index++)
             {
                 var rider = Actors[index * 2]; var mount = Actors[index * 2 + 1]; var row = ownerRows[index];
-                Require(rider.IsDirectlyControllable && !rider.Descriptor.IsPet && mount.Blueprint == horses.HorseUnit &&
+                Require((selection.IsCapitalArrivalCold(request.PersistenceCase) && game.CurrentlyLoadedArea.IsCapital ?
+                    rider.IsDirectlyControllable == ReferenceEquals(rider, game.Player.MainCharacter.Value) : rider.IsDirectlyControllable) &&
+                    !rider.Descriptor.IsPet && mount.Blueprint == horses.HorseUnit &&
                     ReferenceEquals(rider.Descriptor.Pet, mount) && ReferenceEquals(mount.Descriptor.Master.Value, rider) &&
                     game.Player.PartyCharacters.Count(value => ReferenceEquals(value.Value, rider)) == 1 &&
                     !game.Player.RemoteCompanions.Any(value => ReferenceEquals(value.Value, rider)), "An inherited Horse is not the exact reciprocal field companion.");
