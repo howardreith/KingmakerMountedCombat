@@ -136,6 +136,8 @@ namespace KingmakerMountedCombat.Diagnostics
             // native speed and position (the selected plan simulated again and recorded), or the case refuses.
             Require(stagedSelection != null && Math.Abs(stagedEnvelope - stagedSelection.Envelope) <= .01,
                 "The spawned target's weapon envelope differs from the planned one; the staged plan is void (refused before input).");
+            Require(Flat(am.Position, Vp(stagedSelection.MountStart)) <= .05f,
+                "Mount A moved between the geometry plan and combat start (refused before input).");
             Require(Flat(target.Position, stagedTarget) <= Chunk7StagedGeometry.PlacementMaxOffset,
                 "The diagnostic target did not spawn at its planned placement (refused before input).");
             stagedPlan = Chunk7StagedGeometry.Inputs(Sp(target.Position), stagedEnvelope, am.CurrentSpeedMps, StagedPlanSteps);
@@ -255,7 +257,8 @@ namespace KingmakerMountedCombat.Diagnostics
             StagedProposals(search, proposals); var recorded = proposals.Count;
             if (search.Chosen < 0)
             {
-                var fallback = new JArray(); leg["fallbackProposals"] = fallback;
+                // The plan is abandoned from here: the native result left it and no proposal continues it.
+                var fallback = new JArray(); leg["fallbackProposals"] = fallback; leg["planAbandoned"] = true;
                 search = Chunk7StagedGeometry.SearchLeg(stagedPlan, stagedNav, cursor, null);
                 StagedProposals(search, fallback); recorded += fallback.Count;
             }

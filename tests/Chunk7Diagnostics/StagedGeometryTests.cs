@@ -266,6 +266,12 @@ namespace KingmakerMountedCombat.Tests
             Check(Chunk7StagedGeometry.Geometry("move-beyond-range", new StagedPoint(0, 0, -13), new StagedPoint(0, 0, -19.84), t0, 16.84) == null,
                 "a radial beyond-range goal at the aim keeps the reader floor with its margin (19.34 m)");
             Check(Chunk7StagedGeometry.Geometry("move-beyond-range", new StagedPoint(0, 0, -13), new StagedPoint(0, 0, -19.83), t0, 16.84) == Chunk7StagedGeometry.BelowBand, "the aim band is unchanged");
+            // The exhaustion tail (review 74fdc951): a leg ending at 5.92 s leaves 0.41 m of budget, so the native loop's next
+            // leg could not move the 0.5 m the reader requires; ending at 5.5 s (2.54 m left) or at the budget is admitted.
+            var tailPlan = Chunk7StagedGeometry.Inputs(t0, 16.84, Speed, Steps); var tailCursor = new StagedCursor { Step = 6, Leg = 1, Time = 5, Side = 1, Position = new StagedPoint(0, 0, -20) };
+            Check(Chunk7StagedGeometry.ExhaustTailTerm(tailPlan, tailCursor, new StagedPoint(.92 * Speed, 0, -20)) == Chunk7StagedGeometry.ExhaustTail, "an exhaustion leg leaving a sub-metre tail is refused");
+            Check(Chunk7StagedGeometry.ExhaustTailTerm(tailPlan, tailCursor, new StagedPoint(.5 * Speed, 0, -20)) == null &&
+                Chunk7StagedGeometry.ExhaustTailTerm(tailPlan, tailCursor, new StagedPoint(1.2 * Speed, 0, -20)) == null, "legs leaving a real tail or reaching the budget are admitted");
             // The 8-leg limit: at 100 m/s the double move never reaches its second native Move within eight legs.
             var fast = Chunk7StagedGeometry.Simulate(Chunk7StagedGeometry.Inputs(free.Chosen.Goal, PlanEnvelope, 100, Steps), open, Chunk7StagedGeometry.Start(MountStart));
             Check(!fast.Feasible && fast.RefusalTerm == Chunk7StagedGeometry.LegLimit && fast.RefusalStep == 3 && fast.RefusalLeg == 8, "the 8-leg limit refuses a step that cannot finish");

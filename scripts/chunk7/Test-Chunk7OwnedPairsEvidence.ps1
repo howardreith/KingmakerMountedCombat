@@ -952,7 +952,7 @@ function New-KmcSeedStagedFixture{
  $r.ownedPairs.case='owner-seed-staged'
  $sp=Get-Content -LiteralPath (Join-Path $repo 'tests/Chunk7Diagnostics/StagedGeometryPlanFixture.json') -Raw|ConvertFrom-Json
  $script:stEnvelope=[double]$sp.confirmation.envelope;$script:stSpeed=[double]$sp.confirmation.speed
- $o.targetAuthorization.position=@($sp.plan.candidates[[int]$sp.plan.selected].goal|ForEach-Object{[double]$_})
+ $o.targetAuthorization.position=@($sp.plan.candidates[[int]$sp.plan.selected].goal|ForEach-Object{[double]$_});$o.targetAuthorization.riderPosition=@($sp.plan.riderStart|ForEach-Object{[double]$_})
  foreach($key in @('r1','firstActionMount','localFailure','registeredDisable','removalRefusal','pendingSurvivor')){if($null-ne$o.PSObject.Properties[$key]){$o.PSObject.Properties.Remove($key)}}
  $o.activations=@();$o.inputs=@()
  $weapon='4de4658c0e9b0d146b9a08ed6f030f8a';$clw='5590652e1c2225c4ca30c4a699ab3649';$scrollBp='cd635d5720937b044a354dba17abad8d';$scrollItem=-4401
@@ -1037,6 +1037,7 @@ Check-SeedStaged 'a target authorization away from the selected placement' {$arg
 Check-SeedStaged 'a planned envelope off its inputs' {$args[0].artifact.observations.staged.geometryPlan.mountCorpulence=0.5} 'planned envelope is not'
 Check-SeedStaged 'a plan selection past its first feasible candidate' {$p=$args[0].artifact.observations.staged.geometryPlan;$p.selected=[int]$p.selected+1} 'first feasible'
 Check-SeedStaged 'a tampered plan proposal' {$p=$args[0].artifact.observations.staged.geometryPlan;$l=@($p.candidates[[int]$p.selected].simulation.legs)[0];$l.proposals[$l.chosen][12]='below-band'} 'recomputes'
+Check-SeedStaged 'a plan rider start off the authorized rider' {$args[0].artifact.observations.targetAuthorization.riderPosition=@(8.0,1.4,1.0)} 'authorized rider position'
 Check-SeedStaged 'a missing in-combat confirmation' {$args[0].artifact.observations.staged.geometryConfirmation=$null} 'in-combat plan confirmation'
 Check-SeedStaged 'a confirmation from another start' {$args[0].artifact.observations.staged.geometryConfirmation.mountStart=@(9.0,0.0,0.0)} 'did not start from mount A'
 Check-SeedStaged 'a confirmation off the native mount speed' {$v=$args[0];(Get-StActor (Get-StStep $v 0).before $v.request.ownedPairs.mountAId).native.speedMps=6.0} 'native speed'
