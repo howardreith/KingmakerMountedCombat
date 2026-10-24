@@ -97,23 +97,6 @@ namespace KingmakerMountedCombat.Diagnostics
                 }
             destination = start; return false;
         }
-        // Whether one further leg (the given lengths over the full circle) from a candidate point is
-        // eligible under the band: a lookahead only, never recorded as proposals of its own.
-        private bool NavmeshContinuation(Vector3 from, float[] lengths, Func<Vector3, string> band)
-        {
-            var direction = from - target.Position; direction.y = 0f;
-            if (direction.sqrMagnitude <= .0001f) return false;
-            foreach (var requestedLength in lengths)
-                foreach (var angle in FullCircleFan)
-                {
-                    var nearest = AstarPath.active.GetNearest(from + Quaternion.Euler(0f, angle, 0f) * direction.normalized * requestedLength);
-                    if (nearest.node == null || !nearest.node.Walkable) continue;
-                    var goal = nearest.clampedPosition;
-                    if (Chunk7StagedGeometry.Refusal(true, Flat(Kingmaker.View.ObstacleAnalyzer.TraceAlongNavmesh(from, goal), goal),
-                        Flat(from, goal), band(goal)) == null) return true;
-                }
-            return false;
-        }
         private void ReactionStage(int value) { reactionStage = value; reactionSettledFrames = 0; stepStarted = clock.Elapsed.TotalSeconds; }
         private void BeginReaction()
         {

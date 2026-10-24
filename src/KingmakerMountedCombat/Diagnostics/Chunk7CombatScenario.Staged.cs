@@ -26,8 +26,8 @@ namespace KingmakerMountedCombat.Diagnostics
     internal sealed partial class Chunk7CombatScenario
     {
         internal const string StagedClwGuid = "5590652e1c2225c4ca30c4a699ab3649";
-        private const int StagedScrollUnits = 4, StagedMaxLegs = 8;
-        private const float StagedShortLeg = 2f, StagedLongLeg = 7f, StagedExhaustedMove = 5.95f, StagedBeyondMargin = Chunk7StagedGeometry.BeyondMargin, StagedExhaustShortLeg = 3.5f;
+        private const int StagedScrollUnits = 4, StagedMaxLegs = Chunk7StagedGeometry.MaxLegs;
+        private const float StagedExhaustedMove = (float)Chunk7StagedGeometry.ExhaustedMove;
         private sealed class StagedStepSpec { internal string Row, Kind; internal int Round; }
         private static StagedStepSpec Spec(string row, string kind, int round) => new StagedStepSpec { Row = row, Kind = kind, Round = round };
         // Ordered native inputs; Round is the offset from rider A's first prepared round N.
@@ -50,6 +50,55 @@ namespace KingmakerMountedCombat.Diagnostics
         private int stagedIndex, stagedStage, stagedRound, stagedSettledFrames, stagedSide = 1;
         private float stagedEnvelope;
         private bool stagedReleased;
+        // The up-front geometry plan: the selection (before any lease, placement or input), its record, the
+        // selected target point, and the in-combat confirmed inputs and simulation the native legs follow.
+        private readonly StagedNativeNavmesh stagedNav = new StagedNativeNavmesh();
+        private StagedPlanSelection stagedSelection;
+        private StagedPlanInputs stagedPlan;
+        private StagedSimulation stagedConfirmation;
+        private JObject stagedPlanRecord;
+        private Vector3 stagedTarget;
+        private static StagedPlanStep[] StagedPlanSteps => StagedSteps.Select(s => new StagedPlanStep(s.Kind, s.Round)).ToArray();
+        private static StagedPoint Sp(Vector3 value) => new StagedPoint(value.x, value.y, value.z);
+        private static Vector3 Vp(StagedPoint value) => new Vector3((float)value.X, (float)value.Y, (float)value.Z);
+        private static JArray Point(StagedPoint value) => new JArray(value.X, value.Y, value.Z);
+        // The two native navigation queries of every staged proposal (the same ones the earlier leg search used).
+        private sealed class StagedNativeNavmesh : IStagedNavmesh
+        {
+            public bool Nearest(StagedPoint requested, out StagedPoint goal)
+            {
+                var nearest = AstarPath.active.GetNearest(Vp(requested));
+                goal = Sp(nearest.clampedPosition); return nearest.node != null && nearest.node.Walkable;
+            }
+            public StagedPoint Trace(StagedPoint from, StagedPoint to) => Sp(Kingmaker.View.ObstacleAnalyzer.TraceAlongNavmesh(Vp(from), Vp(to)));
+        }
+        // b201-b203 st: the leg-by-leg search walked into navmesh edges (round 3, Spider Cave): the exhaustion
+        // band was unreachable from a 19.24 m edge point (b201/b202), then the beyond-range leg found no
+        // walkable band point from 13.36 m (b203). The geometry of the WHOLE plan is now chosen up front,
+        // before any lease, target placement or input: target placements around mount A's start in a fixed
+        // recorded order, each admitted only when every declared leg (move-cast-move, double move and shot,
+        // beyond range, exhaustion, probe, approach) simulates eligible from the start under the unchanged
+        // bands, the stop-short margin, the native move budgets and the 8-leg limit. Every candidate and the
+        // first refusing leg and term of each are recorded; none admitted refuses as uncovered on this fixture.
+        private Vector3 SelectStagedGeometry()
+        {
+            Require(AstarPath.active != null, "Active native navigation graph is unavailable for the staged geometry plan.");
+            var weapon = ar.GetFirstWeapon();
+            Require(weapon != null && weapon.Blueprint.IsRanged,
+                "Rider A has no equipped native ranged weapon; the F04 ranged rows are uncovered on this fixture.");
+            var range = weapon.Blueprint.AttackRange.Meters;
+            var envelope = am.View.Corpulence + Chunk7StagedGeometry.PlannedTargetCorpulence + range;
+            var selection = Chunk7StagedGeometry.Select(Sp(am.Position), Sp(ar.Position), envelope, am.CurrentSpeedMps, StagedPlanSteps, stagedNav);
+            stagedPlanRecord = JObject.Parse(Chunk7StagedGeometry.PlanJson(selection, range, am.View.Corpulence));
+            if (selection.Chosen == null)
+            {
+                evidence["staged"] = new JObject { ["contract"] = "owner-seed-staged-v1", ["geometryPlan"] = stagedPlanRecord, ["complete"] = false };
+                throw new InvalidOperationException("Staged geometry refused before any input: no target placement admits the whole declared leg plan (" +
+                    selection.Candidates.Count + " candidates recorded); owner-seed-staged is uncovered on this fixture.");
+            }
+            stagedSelection = selection;
+            return Vp(selection.Chosen.Goal);
+        }
 
         // Out of combat, before the encounter: rider A's own ranged weapon is verified and the one
         // disposable native scroll stack is built on its equipped quick-slot entity.
@@ -58,7 +107,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var weapon = ar.GetFirstWeapon();
             staged = new JObject { ["contract"] = "owner-seed-staged-v1", ["riderId"] = ar.UniqueId, ["mountId"] = am.UniqueId,
                 ["weapon"] = weapon?.Blueprint.AssetGuid, ["weaponRanged"] = weapon?.Blueprint.IsRanged == true,
-                ["weaponRangeMeters"] = weapon?.Blueprint.AttackRange.Meters, ["scrollUnits"] = StagedScrollUnits,
+                ["weaponRangeMeters"] = weapon?.Blueprint.AttackRange.Meters, ["scrollUnits"] = StagedScrollUnits, ["geometryPlan"] = stagedPlanRecord,
                 ["plan"] = new JArray(StagedSteps.Select(s => new JObject { ["row"] = s.Row, ["kind"] = s.Kind, ["round"] = s.Round })),
                 ["defensiveCheck"] = new JObject { ["covered"] = false, ["reason"] = StagedDefensiveUncovered } };
             evidence["staged"] = staged;
@@ -74,7 +123,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 ability.IsAvailableForCast, "Rider A cannot use the native Cure Light Wounds scroll; the F04 cast parts are uncovered on this fixture.");
         }
         internal const string StagedDefensiveUncovered = "The pair never stands inside the diagnostic target's threatened area during a cast " +
-            "(target placed 8 m away), and a self-targeted Cure Light Wounds scroll acts at about 0.55 s, before the native one-second " +
+            "(target placed 7 to 10 m away by the up-front geometry plan), and a self-targeted Cure Light Wounds scroll acts at about 0.55 s, before the native one-second " +
             "casting-defensively window; the defensive check is not exercised here. Concentration runs natively only if damage lands during a cast.";
         private void BeginStaged()
         {
@@ -83,6 +132,18 @@ namespace KingmakerMountedCombat.Diagnostics
             stagedEnvelope = am.View.Corpulence + target.View.Corpulence + ar.GetFirstWeapon().Blueprint.AttackRange.Meters;
             staged["envelope"] = stagedEnvelope; staged["mountCorpulence"] = am.View.Corpulence; staged["targetCorpulence"] = target.View.Corpulence;
             stagedRecords = new JArray(); staged["steps"] = stagedRecords;
+            // Before any input: the plan holds for the spawned target, its actual envelope, the mount's in-combat
+            // native speed and position (the selected plan simulated again and recorded), or the case refuses.
+            Require(stagedSelection != null && Math.Abs(stagedEnvelope - stagedSelection.Envelope) <= .01,
+                "The spawned target's weapon envelope differs from the planned one; the staged plan is void (refused before input).");
+            Require(Flat(target.Position, stagedTarget) <= Chunk7StagedGeometry.PlacementMaxOffset,
+                "The diagnostic target did not spawn at its planned placement (refused before input).");
+            stagedPlan = Chunk7StagedGeometry.Inputs(Sp(target.Position), stagedEnvelope, am.CurrentSpeedMps, StagedPlanSteps);
+            stagedSide = 1;
+            stagedConfirmation = Chunk7StagedGeometry.Simulate(stagedPlan, stagedNav, Chunk7StagedGeometry.Start(Sp(am.Position)));
+            staged["geometryConfirmation"] = JObject.Parse(Chunk7StagedGeometry.ConfirmationJson(Sp(am.Position), stagedPlan, stagedConfirmation));
+            Require(stagedConfirmation.Feasible, "The selected staged plan is not feasible from the in-combat start (" + stagedConfirmation.Describe() +
+                "); refused before input.");
             stagedIndex = 0; StagedStage(0);
         }
         private void StagedStage(int value) { stagedStage = value; stagedSettledFrames = 0; stepStarted = clock.Elapsed.TotalSeconds; }
@@ -178,44 +239,30 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             var legs = (JArray)stagedStep["legs"];
             var leg = new JObject { ["index"] = legs.Count }; legs.Add(leg); stagedLeg = leg;
-            var start = am.Position; var radial = start - target.Position; radial.y = 0f;
-            var tangent = Quaternion.Euler(0f, 90f * stagedSide, 0f) * radial; stagedSide = -stagedSide;
-            // The proposals are recorded on the leg before the search, so a refusal keeps every proposal.
-            var current = Flat(start, target.Position); var proposals = new JArray(); leg["proposals"] = proposals; Vector3 destination;
-            switch (spec.Kind)
+            // The native leg follows the confirmed plan: the same ordered search from the mount's actual position,
+            // movement time and side, each proposal admitted only when the remainder of the declared plan still
+            // simulates eligible from its goal (the plan continuation term; it subsumes the earlier exhaustion
+            // lookahead). When the native result left the plan (a mover stopping short), the declared geometry
+            // alone is searched again (recorded apart as fallbackProposals). Every proposal records its first
+            // refusing term; the proposals are recorded before the search, so a refusal keeps every proposal.
+            var start = am.Position; var proposals = new JArray(); leg["proposals"] = proposals;
+            var cursor = new StagedCursor { Step = stagedIndex, Leg = legs.Count - 1, Time = am.CombatState.Cooldown.MoveAction, Side = stagedSide, Position = Sp(start) };
+            stagedSide = -stagedSide;
+            leg["cursor"] = new JObject { ["step"] = cursor.Step, ["leg"] = cursor.Leg, ["time"] = cursor.Time, ["side"] = cursor.Side };
+            var planned = stagedConfirmation.Legs.FirstOrDefault(l => l.Step == cursor.Step && l.Leg == cursor.Leg && l.Chosen >= 0);
+            leg["plannedGoal"] = planned == null ? null : Point(planned.Proposals[planned.Chosen].Goal);
+            var search = Chunk7StagedGeometry.SearchLeg(stagedPlan, stagedNav, cursor, (c, p) => Chunk7StagedGeometry.Continuation(stagedPlan, stagedNav, c, p));
+            StagedProposals(search, proposals); var recorded = proposals.Count;
+            if (search.Chosen < 0)
             {
-                case "move-beyond-range":
-                    // b202 st: this leg ended at the walkable edge 19.24 m from the target (its goal accepted from
-                    // envelope + 2.5 m, and the mover stopped 0.27 m short). Every walkable exact-trace point within
-                    // 7 m of there lay inward, at most 18.19 m from the target, below the exhaustion band's floor
-                    // (envelope + 2 m = 18.84 m): the band was unreachable from that placement. Both bands are kept;
-                    // the goal is accepted from the aim upward, and only where at least one exhaustion leg in its
-                    // band stays eligible from it. Longer legs widen the forward search across the same band.
-                    var wanted = stagedEnvelope + StagedBeyondMargin; var beyondLength = Math.Max(.6f, wanted - current);
-                    destination = NavmeshDestinationRefusing(start, radial, beyondLength,
-                        p => Chunk7StagedGeometry.BeyondBand(Flat(p, target.Position), stagedEnvelope) ?? StagedExhaustContinuation(p),
-                        proposals, null, new[] { beyondLength + 2f, beyondLength + 4f }); break;
-                case "move-probe":
-                    // The exhausted mount's own native refusal is the observation; any traced walkable point serves.
-                    destination = NavmeshDestination(start, tangent, StagedShortLeg, p => true, proposals, FullCircleFan); break;
-                case "move-exhaust":
-                    // b201 st: after the beyond-range leg the forward tangential fan at 7 m held no traced point in the
-                    // declared band. The band is unchanged; the search covers the whole circle (back toward the start
-                    // included) and shorter legs, so exhaustion may take more (bounded) legs. A point from which a
-                    // further leg stays in the band is preferred; only when none exists is the band alone searched
-                    // again (recorded apart as fallbackProposals), since the leg may be the one that exhausts the move.
-                    if (!TryNavmeshDestination(start, tangent, StagedLongLeg, p => StagedExhaustBand(p) ?? StagedExhaustContinuation(p),
-                        proposals, FullCircleFan, StagedExhaustShorter, out destination))
-                    {
-                        var fallback = new JArray(); leg["fallbackProposals"] = fallback;
-                        destination = NavmeshDestinationRefusing(start, tangent, StagedLongLeg, StagedExhaustBand, fallback, FullCircleFan, StagedExhaustShorter);
-                    }
-                    break;
-                default:
-                    // Inside weapon range and outside the target's reach: tangential legs around it.
-                    destination = NavmeshDestination(start, tangent, spec.Kind == "move-short" ? StagedShortLeg : StagedLongLeg,
-                        p => Flat(p, target.Position) >= 6.5f && Flat(p, target.Position) <= stagedEnvelope - 1.5f, proposals); break;
+                var fallback = new JArray(); leg["fallbackProposals"] = fallback;
+                search = Chunk7StagedGeometry.SearchLeg(stagedPlan, stagedNav, cursor, null);
+                StagedProposals(search, fallback); recorded += fallback.Count;
             }
+            if (search.Chosen < 0)
+                throw new InvalidOperationException("No walkable native destination satisfied the declared geometry (" + recorded + " proposals recorded).");
+            var destination = Vp(search.Proposals[search.Chosen].Goal);
+            leg["matchesPlan"] = planned != null && Flat(destination, Vp(planned.Proposals[planned.Chosen].Goal)) <= .001f;
             leg["destination"] = Point(destination); leg["plannedDistance"] = Flat(start, destination);
             leg["before"] = StagedState("leg-before"); leg["traceSequenceBefore"] = trace.EventCount; leg["castEventsBefore"] = stagedCasts.EventCount;
             var turn = Game.Instance.TurnBasedCombatController.CurrentTurn;
@@ -254,11 +301,14 @@ namespace KingmakerMountedCombat.Diagnostics
             stagedLeg["displacement"] = Flat(Vec((JArray)stagedLeg["before"]["mountPosition"]), am.Position);
             stagedCommand = null;
         }
-        private static readonly float[] StagedExhaustShorter = { 5f, StagedExhaustShortLeg };
-        private static readonly float[] StagedExhaustLengths = { StagedLongLeg, 5f, StagedExhaustShortLeg };
-        private string StagedExhaustBand(Vector3 p) => Chunk7StagedGeometry.ExhaustBand(Flat(p, target.Position), stagedEnvelope);
-        private string StagedExhaustContinuation(Vector3 p) =>
-            NavmeshContinuation(p, StagedExhaustLengths, StagedExhaustBand) ? null : Chunk7StagedGeometry.NoExhaustContinuation;
+        // The earlier per-proposal record shape, plus the plan continuation's first refusing leg and term.
+        private static void StagedProposals(StagedLeg search, JArray into)
+        {
+            foreach (var p in search.Proposals)
+                into.Add(new JObject { ["angle"] = p.Angle, ["length"] = p.Length, ["requested"] = Point(p.Requested), ["goal"] = Point(p.Goal),
+                    ["walkable"] = p.Walkable, ["traceResidual"] = Chunk7StagedGeometry.Flat(p.Trace, p.Goal), ["geometryAccepted"] = p.Refusal == null,
+                    ["geometryRefusal"] = p.BaseAccepted ? p.Refusal : null, ["refusal"] = p.Refusal, ["eligible"] = p.Refusal == null, ["continuation"] = p.Continuation });
+        }
         private static Vector3 Vec(JArray p) => new Vector3((float)p[0], (float)p[1], (float)p[2]);
         // TB budget legs: legs repeat (bounded) until the mount itself reports its second Move or its
         // exhausted native movement budget; exhaustion is measured on the cooldown (frozen 203 TB).
