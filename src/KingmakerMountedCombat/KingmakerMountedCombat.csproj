@@ -232,6 +232,7 @@
     <Compile Include="Diagnostics\Chunk7HostCompletionGate.cs" />
     <Compile Include="Diagnostics\Chunk7NativeFixture.cs" />
     <Compile Include="Diagnostics\Chunk7PersistenceScenario.Area.cs" />
+    <Compile Include="Diagnostics\Chunk7PersistenceScenario.CapitalArrival.cs" />
     <Compile Include="Diagnostics\Chunk7PersistenceScenario.Schema1.cs" />
     <Compile Include="Diagnostics\Chunk7PersistenceScenario.Schema2.cs" />
     <Compile Include="Diagnostics\Chunk7PersistenceScenario.Scope.cs" />
@@ -308,6 +309,7 @@
     <Compile Include="Diagnostics\Chunk7OwnedPairsSelection.cs" />
     <Compile Include="Diagnostics\Chunk7OwnedPairFixture.cs" />
     <Compile Include="Diagnostics\Chunk7OwnedPairFixture.Replay.cs" />
+    <Compile Include="Diagnostics\Chunk7OwnedPairFixture.Capital.cs" />
     <Compile Include="Diagnostics\PersistenceSaveAuthorization.OwnedPairs.cs" />
     <Compile Include="Diagnostics\Chunk7PersistenceScenario.OwnedPairs.cs" />
     <Compile Include="Diagnostics\Chunk7PersistenceScenario.OwnerSeedCheckpoint.cs" />

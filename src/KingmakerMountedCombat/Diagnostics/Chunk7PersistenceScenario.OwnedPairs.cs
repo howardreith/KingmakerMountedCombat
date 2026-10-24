@@ -99,7 +99,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 descriptors.Count(value => ReferenceEquals(value, savedDescriptor)) == 1 && savedDescriptor.FileName == replaySaveAuthority.OwnedPairsOutputLeaf &&
                 savedDescriptor.Name == replaySaveAuthority.OwnedPairsOutputName && savedDescriptor.Type.ToString() == replaySaveAuthority.OwnedPairsOutputType &&
                 savedDescriptor.GameId == request.PersistenceLoad.GameId && savedDescriptor.GameName == request.PersistenceLoad.GameName &&
-                savedDescriptor.Area?.AssetGuidThreadSafe == (ManticoreFixtureCase ? ExpectedArchiveArea : request.PersistenceLoad.Area) && savedDescriptor.HasFileOnDisk && savedDescriptor.IsActuallySaved &&
+                savedDescriptor.Area?.AssetGuidThreadSafe == (ManticoreFixtureCase || CapitalArrivalCase ? ExpectedArchiveArea : request.PersistenceLoad.Area) && savedDescriptor.HasFileOnDisk && savedDescriptor.IsActuallySaved &&
                 savedDescriptor.OperationState == SaveInfo.StateType.None, "Inherited native output did not settle the exact two-entry isolated inventory.");
             evidence["ownedOutputCompletion"] = new JObject { ["completionSequence"] = completion.Sequence, ["callbackCount"] = ownedSaveCallbacks,
                 ["nativeWorkerSettled"] = true, ["nativeInventory"] = new JArray(descriptors.OrderBy(value => value.FileName, StringComparer.Ordinal).Select(OwnedNativeDescriptor)),

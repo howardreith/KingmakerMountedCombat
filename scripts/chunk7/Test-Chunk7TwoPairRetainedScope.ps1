@@ -22,4 +22,4 @@ $exe=Join-Path $OutputDirectory 'TwoPairRetainedScope.exe'
 & $compiler /nologo /target:exe /langversion:7.3 "/out:$exe" $adapter
 if($LASTEXITCODE-ne0){throw 'Actual two-pair retained scope compilation failed.'}
 $lines=@(& $exe);$code=$LASTEXITCODE;$lines|Write-Output
-if($code-ne0-or@($lines|Where-Object{$_-cmatch'^FAIL '}).Count-ne0-or@($lines|Where-Object{$_-cmatch'^PASS '}).Count-ne11){throw 'Actual two-pair retained scope regressed.'}
+if($code-ne0-or@($lines|Where-Object{$_-cmatch'^FAIL '}).Count-ne0-or@($lines|Where-Object{$_-cmatch'^PASS '}).Count-ne16){throw 'Actual two-pair retained scope regressed.'}
