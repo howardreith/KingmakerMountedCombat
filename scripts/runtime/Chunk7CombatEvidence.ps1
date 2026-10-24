@@ -7,7 +7,7 @@ function Get-KmcChunk7CombatRows([string]$Scenario) {
     if(-not(Test-KmcChunk7CombatScenario $Scenario)){throw 'Unknown native combat scenario.'}
     @($Scenario,'C7-combat-fixture','C7-combat-native-mounts','C7-combat-restored-mounts','C7-combat-native-orders','C7-combat-pair-a-full-activation',
       'C7-combat-pair-b-full-activation','C7-combat-tb-charge-refusal','C7-combat-refresh','C7-combat-r1-round-release','C7-combat-first-action-mount',
-      'C7-combat-native-pending-survivor','C7-combat-local-cleanup-failure','C7-combat-permanent-horse-removal-refusal','C7-combat-registered-disable-local-failure','C7-combat-cleanup','C7-combat-runtime','C7-combat-interrupted')
+      'C7-combat-native-pending-survivor','C7-combat-local-cleanup-failure','C7-combat-permanent-horse-removal-refusal','C7-combat-registered-disable-local-failure','C7-combat-attack-modes-mounted-off','C7-combat-attack-modes-mounted-on','C7-combat-attack-modes-unmounted-control','C7-combat-cleanup','C7-combat-runtime','C7-combat-interrupted')
 }
 function Get-KmcChunk7CombatRuntimeRows {
     @('chunk7-two-pair-combat-rider-first','chunk7-two-pair-combat-mount-first' | ForEach-Object { Get-KmcChunk7CombatRows $_ } | Select-Object -Unique)
@@ -89,6 +89,8 @@ function Assert-KmcChunk7CombatEvidence($Request,$Artifact,[string]$Status) {
         if($r-lt0-or$m-lt0-or(($r-lt$m)-ne$riderFirst)){throw 'Actual native initiative order does not match selected arrangement.'}
     }
     if($owned-and(Test-KmcChunk7OwnedPairsRegisteredDisable $Request)){Assert-KmcChunk7RegisteredDisableCombat $Request $o;return}
+    if($owned-and(Test-KmcChunk7OwnedPairsAttackModes $Request)){Assert-KmcChunk7AttackModesCombat $Request $o;return}
+    if($null-ne$o.PSObject.Properties['attackModes']){throw 'Attack modes evidence belongs only to its closed owner-seed selection.'}
     foreach($field in @('registeredDisable','removalRefusal')){if($null-ne$o.PSObject.Properties[$field]){throw 'Registered disable/removal evidence belongs only to its closed owner-seed selection.'}}
     $commands=[Collections.Generic.HashSet[long]]::new()
     # Owner-seed-derived combat restored both pairs mounted: only the R1 native Dismount is an input.
@@ -168,4 +170,76 @@ function Assert-KmcChunk7CombatEvidence($Request,$Artifact,[string]$Status) {
     $held=@($fault.held.owners|Where-Object{Test-KmcChunk7OwnerActorMatch $_.riderId $ids[2]});if($held.Count-ne1-or$held[0].retainsObligations-ne$true){throw 'Failed cleanup lost exact pair B custody.'}
     if($owned){foreach($field in @('pairResidueAbsent','nativeCombatEnded','initiativeInputsRestored','firstPairAiRestored','controlsSettled','inheritedPetsPreserved')){Assert-KmcChunk7Boolean $o.cleanup.$field $true};Assert-KmcChunk7Boolean $o.cleanup.ownedHorseRemoved $false;Assert-KmcChunk7Boolean $o.cleanup.nativeProgressionRequiresExternalWorkingRestoration $false}else{foreach($field in @('pairResidueAbsent','ownedHorseRemoved','nativeCombatEnded','initiativeInputsRestored','firstPairAiRestored','controlsSettled','nativeProgressionRequiresExternalWorkingRestoration')){Assert-KmcChunk7Boolean $o.cleanup.$field $true}}
     foreach($field in @('nativeSaveWrittenByThisDriver','delegatedPersistenceCleanup')){Assert-KmcChunk7Boolean $o.cleanup.$field $false}
+}
+
+# ---- 7E X1 C03 attack modes (owner-seed-attack-modes) --------------------------------------------
+# Rider A's native Rapid Shot off/on mounted full attacks and an unmounted control with it on. Every
+# value is recomputed from the recorded native rule and allocation observations.
+function Get-KmcChunk7AttackModeRolls($Measurement){@(@($Measurement.rules)|Where-Object{$_.kind-ceq'roll'-and$_.opportunity-eq$false})}
+function Get-KmcChunk7AttackModeInner($Measurement){@(Get-KmcChunk7AttackModeRolls $Measurement|ForEach-Object{[long]$_.nativeCalculation.innerResult})}
+function Get-KmcChunk7AttackModeRapidBonus($Measurement){
+ $values=@(Get-KmcChunk7AttackModeRolls $Measurement|ForEach-Object{@($_.bonuses)|Where-Object{$null-ne$_-and$_.source-ceq'0f310c1e709e15e4fa693db15a4baeb4'}|ForEach-Object{[long]$_.bonus}}|Select-Object -Unique)
+ if($values.Count-gt1){throw 'Rapid Shot bonus sources are not uniform within one full attack.'}
+ if($values.Count-eq0){0}else{[long]$values[0]}
+}
+function Assert-KmcChunk7AttackModeMeasurement($m,[string]$Label,[bool]$Mounted,[bool]$Rapid,[long]$Round,$o,$roles,$modes){
+ if($m.label-cne$Label-or$m.mounted-isnot[bool]-or$m.mounted-ne$Mounted-or$m.round-ne$Round-or$m.rapid.isOn-ne$Rapid-or$m.rapidAfter.isOn-ne$Rapid){throw ('Attack mode measurement '+$Label+' differs in mode, round or toggle.')}
+ Assert-KmcChunk7Boolean $m.clicked $true
+ $c=$m.command;if($c.executor-cne$roles[0]-or$c.target-cne$o.targetId-or$c.fullAttack-ne$true-or$c.result-cnotin@('Success','Interrupt')-or-not(Test-KmcExactJsonInteger $c.completedAttacks)){throw ('Attack mode '+$Label+' is not one native full attack by rider A on the target.')}
+ $plan=@($c.plan);$ranged=@($plan|Where-Object{$_.ranged-eq$true-and$_.owner-ceq$roles[0]});$rangedCount=$ranged.Count
+ for($i=0;$i-lt$plan.Count;$i++){if($plan[$i].index-ne$i-or$plan[$i].ranged-isnot[bool]-or$plan[$i].natural-isnot[bool]){throw 'Attack mode plan entries are not an ordered native plan.'}
+  if($i-lt$rangedCount){if($plan[$i].ranged-ne$true-or$plan[$i].owner-cne$roles[0]-or$plan[$i].weapon-cne$modes.weapon){throw 'Attack mode plan does not lead with rider A''s own ranged weapon.'}}elseif($plan[$i].ranged-eq$true){throw 'Attack mode plan holds a ranged entry after its tail.'}}
+ if($rangedCount-lt1-or$c.completedAttacks-lt$rangedCount){throw ('Attack mode '+$Label+' did not complete its ranged plan.')}
+ if($c.result-ceq'Interrupt'-and$c.completedAttacks-ge$plan.Count){throw 'Attack mode interrupt claims a completed plan.'}
+ $events=@($m.rules);$seq=[long]$m.ruleCountBefore
+ foreach($e in $events){$seq++;if($e.sequence-ne$seq-or$e.target-cne$o.targetId-or$e.actor-cne$roles[0]){throw ('Attack mode '+$Label+' rule window is not rider A''s consecutive own attacks on the target.')}}
+ $rolls=@(Get-KmcChunk7AttackModeRolls $m);$attacks=@($events|Where-Object kind -CEQ 'attack')
+ if($rolls.Count-ne$rangedCount-or$attacks.Count-ne$rangedCount-or@($events|Where-Object{$_.kind-ceq'roll'-and$_.opportunity-ne$false}).Count-ne0){throw ('Attack mode '+$Label+' rolls differ from its ranged plan.')}
+ foreach($r in $rolls){if($r.ranged-ne$true-or$r.weapon-cne$modes.weapon-or-not(Test-KmcExactJsonInteger $r.attackBonus)-or-not(Test-KmcExactJsonInteger $r.nativeCalculation.innerResult)-or$r.bonuses-isnot[Array]){throw 'Attack mode roll lacks its native weapon or bonus calculation.'}}
+ foreach($a in $attacks){if($a.fullAttack-ne$true-or$a.opportunity-ne$false-or$a.weapon-cne$modes.weapon){throw 'Attack mode weapon attack is not a native full-attack swing of the ranged weapon.'}}
+ $beforeRider=Get-KmcChunk7CombatActor $m.before $roles[0];$afterRider=Get-KmcChunk7CombatActor $m.after $roles[0]
+ if($afterRider.standard-le$beforeRider.standard){throw ('Attack mode '+$Label+' did not spend rider A''s own native action.')}
+ Assert-KmcChunk7SameCombatBudget $m.before $m.after @($roles[1],$roles[2],$roles[3])
+ foreach($f in @('traceSequenceBefore','traceSequenceAfter','ruleCountBefore')){if(-not(Test-KmcExactJsonInteger $m.$f)-or$m.$f-lt0){throw 'Attack mode window bounds are invalid.'}}
+ if($m.traceSequenceAfter-lt$m.traceSequenceBefore){throw 'Attack mode trace window runs backwards.'}
+ $window=@($o.allocationTrace.events|Where-Object{$_.sequence-gt$m.traceSequenceBefore-and$_.sequence-le$m.traceSequenceAfter-and$_.boundary-ceq'cost-after'-and$null-ne$_.state})
+ $riderCosts=@($window|Where-Object{$_.state.actor-ceq$roles[0]}).Count;$mountCosts=@($window|Where-Object{$_.state.actor-ceq$roles[1]}).Count
+ if($riderCosts-lt1-or$mountCosts-ne0){throw ('Attack mode '+$Label+' has no native cost on rider A or spent the mount.')}
+ [pscustomobject]@{rangedCount=$rangedCount;inner=@(Get-KmcChunk7AttackModeInner $m);rapid=(Get-KmcChunk7AttackModeRapidBonus $m);riderCosts=$riderCosts}
+}
+function Assert-KmcChunk7AttackModesCombat($Request,$Observations){
+ if(-not(Test-KmcChunk7OwnedPairsAttackModes $Request)){throw 'Attack modes evidence requires its closed owner-seed selection.'}
+ Assert-KmcChunk7OwnedPairsSelection $Request
+ if((Get-KmcChunk7OwnedLoadCount $Request)-ne1-or(Get-KmcChunk7OwnedWriteCount $Request)-ne0){throw 'Attack modes retain one native load and zero writes.'}
+ $o=$Observations;$roles=@(Get-KmcChunk7OwnedPairIds $Request)
+ Assert-KmcChunk7OwnerSeedDerivedCombatStart $Request $o
+ foreach($key in @('r1','firstActionMount','localFailure','registeredDisable','removalRefusal','pendingSurvivor','nativeLife')){if($null-ne$o.PSObject.Properties[$key]){throw 'Attack modes cannot carry another combat case''s evidence.'}}
+ if(@($o.activations).Count-ne0){throw 'Attack modes record no primary pair activation.'}
+ $inputs=@($o.inputs);if($inputs.Count-ne1-or$inputs[0].label-cne'attack-modes-native-dismount-a'){throw 'Attack modes admit exactly the one native Dismount input.'}
+ $d=$inputs[0];if($d.casterId-cne$roles[0]-or$d.targetId-cne$roles[0]-or$d.abilityGuid-cne'3af2b81f4d72bbb30501fa730fcdf36e'-or$d.nativeCastDelta-ne1-or$d.nativeRefusalDelta-ne0){throw 'Attack modes Dismount escaped rider A''s own native input.'}
+ Assert-KmcChunk7Boolean $d.clicked $true;Assert-KmcChunk7Boolean $d.terminal $true;Assert-KmcChunk7Boolean $d.processTerminal $true
+ $modes=$o.attackModes
+ if($modes.contract-cne'owner-seed-attack-modes-v1'-or$modes.riderId-cne$roles[0]-or$modes.mountId-cne$roles[1]-or$modes.rapidShotFeature-ne1-or$modes.rapidShotToggles-ne1-or
+    $modes.weaponRanged-ne$true-or$modes.weapon-cnotmatch'^[0-9a-f]{32}$'-or-not(Test-KmcChunk7FiniteNumber $modes.weaponRangeMeters)-or$modes.weaponRangeMeters-le0){throw 'Attack modes lack rider A''s native Rapid Shot feat, toggle or ranged weapon.'}
+ Assert-KmcChunk7Boolean $modes.complete $true
+ if($modes.rapidOff.isOn-ne$false-or$modes.rapidOff.buff-ne$false-or$modes.rapidOff.inCombat-ne$false-or$modes.rapidOff.toggle-cne'90a77bfe25ec2e14caf8bd5cde9febf2'){throw 'Rapid Shot was not off out of combat before the encounter.'}
+ $clicks=@($modes.toggleClicks);$labels=@($clicks|ForEach-Object{[string]$_.label})
+ $expectedLabels=@(if($modes.rapidBefore.isOn-eq$true){'pre-combat-off'};'round-n-on')
+ if(($labels-join'|')-cne($expectedLabels-join'|')){throw 'Rapid Shot toggle clicks differ from the native off/on inputs.'}
+ foreach($k in $clicks){Assert-KmcChunk7Boolean $k.possible $true
+  $on=$k.label-ceq'round-n-on';if($k.before.isOn-ne(-not$on)-or$k.after.isOn-ne$on){throw 'A Rapid Shot slot click did not switch the native toggle as declared.'}
+  if(-not$on-and$k.before.inCombat-ne$false){throw 'The pre-combat Rapid Shot click happened in combat.'}}
+ $ms=@($modes.measurements);if($ms.Count-ne3){throw 'Attack modes need exactly three native full attacks.'}
+ if(-not(Test-KmcExactJsonInteger $modes.firstRound)){throw 'Attack modes lack their first native round.'};$n=[long]$modes.firstRound
+ $off=Assert-KmcChunk7AttackModeMeasurement $ms[0] 'mounted-off' $true $false $n $o $roles $modes
+ $on=Assert-KmcChunk7AttackModeMeasurement $ms[1] 'mounted-on' $true $true ($n+1) $o $roles $modes
+ $control=Assert-KmcChunk7AttackModeMeasurement $ms[2] 'unmounted-on' $false $true ($n+3) $o $roles $modes
+ if($off.rapid-ne0){throw 'A Rapid Shot bonus source applied while the native toggle was off.'}
+ $adjusted=@($on.inner|ForEach-Object{$_-$on.rapid}|Sort-Object);$expected=@(@($off.inner)+@(($off.inner|Measure-Object -Maximum).Maximum)|Sort-Object)
+ if($on.rapid-ge0-or$on.rangedCount-ne$off.rangedCount+1-or($adjusted-join',')-cne($expected-join',')){throw 'Native Rapid Shot did not add exactly one attack at the highest bonus with its own uniform bonus source.'}
+ if($control.rangedCount-ne$on.rangedCount-or(@($control.inner)-join',')-cne(@($on.inner)-join',')-or$control.rapid-ne$on.rapid){throw 'Mounted native full attack differs from the unmounted control under the same Rapid Shot toggle.'}
+ if($off.riderCosts-ne$on.riderCosts-or$on.riderCosts-ne$control.riderCosts){throw 'Native cost shape of the full attack differs between modes.'}
+ foreach($w in @($modes.dismountBefore,$modes.dismountAfter)){if($null-eq$w-or$w.round-ne$n+2){throw 'Attack modes Dismount lies outside its native round.'}}
+ foreach($field in @('pairResidueAbsent','nativeCombatEnded','initiativeInputsRestored','firstPairAiRestored','controlsSettled','inheritedPetsPreserved')){Assert-KmcChunk7Boolean $o.cleanup.$field $true}
+ Assert-KmcChunk7Boolean $o.cleanup.ownedHorseRemoved $false;Assert-KmcChunk7Boolean $o.cleanup.nativeSaveWrittenByThisDriver $false;Assert-KmcChunk7Boolean $o.cleanup.delegatedPersistenceCleanup $false
 }

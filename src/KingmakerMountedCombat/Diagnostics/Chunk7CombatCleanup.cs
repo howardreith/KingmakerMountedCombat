@@ -46,6 +46,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var passed = TryCleanup("registered disable observer and re-enable custody", EndRegisteredDisableObservation);
             passed &= TryCleanup("native life delivery observer", () => { lifeDelivery?.Dispose(); lifeDelivery = null; });
             passed &= TryCleanup("native life effects observer", () => { lifeEffects?.Dispose(); lifeEffects = null; });
+            passed &= TryCleanup("attack modes rule observer", () => { attackModesRules?.Dispose(); attackModesRules = null; });
             passed &= TryCleanup("RT effects observer", () => { realtimeEffects?.Dispose(); realtimeEffects = null; });
             passed &= TryCleanup("completion observer", () => { completion?.Dispose(); completion = null; });
             passed &= TryCleanup("round observer", () => { rounds?.Dispose(); rounds = null; });

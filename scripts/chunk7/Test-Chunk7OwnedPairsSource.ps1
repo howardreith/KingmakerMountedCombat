@@ -282,7 +282,7 @@ function New-SeedCombatSource([string]$Case='owner-seed-combat-rider-first'){
  [pscustomobject]@{selection=$s;fixture=$c.fixture;candidate=$c.candidate;producer=$c.producer;consumer=$consumer;persistenceCase=$null}
 }
 function Qualify-Combat($C){Get-KmcChunk7OwnedPairsSource $C.selection $C.persistenceCase $C.fixture $C.candidate}
-foreach($combatCase in @('owner-seed-realtime-core','owner-seed-combat-rider-first','owner-seed-combat-mount-first','owner-seed-combat-disable','owner-seed-native-life-cleanup','owner-seed-native-death-cleanup')){
+foreach($combatCase in @('owner-seed-realtime-core','owner-seed-combat-rider-first','owner-seed-combat-mount-first','owner-seed-combat-disable','owner-seed-native-life-cleanup','owner-seed-native-death-cleanup','owner-seed-attack-modes')){
  Check ('owner-seed-derived combat qualifies the producer and the accepted consumer '+$combatCase) {$c=New-SeedCombatSource $combatCase;$v=Qualify-Combat $c
   if($v.ownerSeedDerived-ne$true-or$v.descriptor.sha256-cne('5'*64)-or$v.artifactSha256-cne('6'*64)-or$v.consumerRunId-cne'synthetic-owner-seed-cold'-or$v.consumerArtifactSha256-cne('7'*64)-or$v.candidates.sameCandidate-ne$true-or$v.candidates.producer.commit-cne$c.producer.request.commit-or$v.candidates.consumer.dllSha256-cne$c.consumer.request.dllSha256){throw 'Combat source lost the producer/consumer chain or the candidate fact'}
   foreach($gate in @('owner-seed-registry-master-intake-header','strict-producer-world-artifact','strict-checkpoint-artifact','consumer-cold-proof')){if(-not$script:calls.Contains($gate)){throw ('combat source omitted required gate '+$gate)}}}
