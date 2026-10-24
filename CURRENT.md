@@ -3,7 +3,7 @@
 Offline (harness only, no launch): the X5 row consumers now exist. `Assert-KmcChunk7NormalPlayerRow42Binding`
 binds row 42 to one hash-pinned passed ordinary control and refuses every rehearsal step;
 `Assert-KmcChunk7UpgradeRehearsalComplete` binds rows 55–56 to one complete u1 → u2 → u3 rehearsal and
-accepts the real b200 `x5-b200-20261024` (`Test-Chunk7UpgradeRehearsal.ps1` 220/0). See
+accepts the real b200 `x5-b200-20261024` (`Test-Chunk7UpgradeRehearsal.ps1` 222/0; residual: the u2/u3 carry-source request is not hash-bound). See
 [the X5 row](planning/CHUNK7-7E-QUALIFICATION-MATRIX.md).
 
 Claude [batch200](docs/CHUNK7-BATCH200-7E-X5-2026-10-24.md) froze candidate `b9ce53d5` (DLL `ec20ee8f…`,
