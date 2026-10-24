@@ -30,6 +30,13 @@ function Assert-KmcChunk7SameCombatBudget($Before,$After,[string[]]$Ids) {
     foreach($id in $Ids){$a=Get-KmcChunk7CombatActor $Before $id;$b=Get-KmcChunk7CombatActor $After $id
         foreach($field in @('standard','move','swift','reactions','reactionCooldown')){if($a.$field-ne$b.$field){throw 'Unrelated native actor expenditure changed.'}}}
 }
+# An actor that never spends inside a window: no cooldown grows and the reaction count is unchanged. Native
+# TB cooldowns of every unit decay while another actor's command runs, so a decrease is native, not a refund.
+function Assert-KmcChunk7NeverSpentCombatBudget($Before,$After,[string[]]$Ids) {
+    foreach($id in $Ids){$a=Get-KmcChunk7CombatActor $Before $id;$b=Get-KmcChunk7CombatActor $After $id
+        foreach($field in @('standard','move','swift','reactionCooldown')){if([double]$b.$field-gt[double]$a.$field+0.001){throw 'Unrelated native actor expenditure changed.'}}
+        if($b.reactions-ne$a.reactions){throw 'Unrelated native actor expenditure changed.'}}
+}
 function Assert-KmcChunk7CombatAttack($Attack,$Trace,[string]$Actor,[string]$Caster,[string]$Target,[string[]]$Ids) {
     if($Attack.casterId-cne$Caster-or$Attack.executorId-cne$Caster-or$Attack.selectionAfterInput-ceq$Caster-or$Attack.selectionAfterInput-cnotin$Ids-or
        $Attack.nativeCastDelta-ne1-or$Attack.nativeRefusalDelta-ne0-or$Attack.command-eq0-or$Attack.outcome.actorId-cne$Actor-or
@@ -205,7 +212,12 @@ function Assert-KmcChunk7AttackModeMeasurement($m,[string]$Label,[bool]$Mounted,
  foreach($a in $attacks){if($a.fullAttack-ne$true-or$a.opportunity-ne$false-or$a.weapon-cne$modes.weapon){throw 'Attack mode weapon attack is not a native full-attack swing of the ranged weapon.'}}
  $beforeRider=Get-KmcChunk7CombatActor $m.before $roles[0];$afterRider=Get-KmcChunk7CombatActor $m.after $roles[0]
  if($afterRider.standard-le$beforeRider.standard){throw ('Attack mode '+$Label+' did not spend rider A''s own native action.')}
- Assert-KmcChunk7SameCombatBudget $m.before $m.after @($roles[1],$roles[2],$roles[3])
+ # Pair B never spends inside the window; its finished turns' cooldowns may only decay natively, as every
+ # unit's TB cooldowns do while another actor's command runs. Mount A is compared exactly while it carries
+ # rider A; in the unmounted control it is an independent unit whose finished paired turn (N+2) may still
+ # decay, so it is compared as never spending, and its native cost calls stay refused below.
+ Assert-KmcChunk7NeverSpentCombatBudget $m.before $m.after @($roles[2],$roles[3])
+ if($Mounted){Assert-KmcChunk7SameCombatBudget $m.before $m.after @($roles[1])}else{Assert-KmcChunk7NeverSpentCombatBudget $m.before $m.after @($roles[1])}
  foreach($f in @('traceSequenceBefore','traceSequenceAfter','ruleCountBefore')){if(-not(Test-KmcExactJsonInteger $m.$f)-or$m.$f-lt0){throw 'Attack mode window bounds are invalid.'}}
  if($m.traceSequenceAfter-lt$m.traceSequenceBefore){throw 'Attack mode trace window runs backwards.'}
  $window=@($o.allocationTrace.events|Where-Object{$_.sequence-gt$m.traceSequenceBefore-and$_.sequence-le$m.traceSequenceAfter-and$_.boundary-ceq'cost-after'-and$null-ne$_.state})
