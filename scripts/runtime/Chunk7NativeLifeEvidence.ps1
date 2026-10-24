@@ -39,6 +39,15 @@ function Get-KmcChunk7LifeRiderSlots($Order,$Ids){
  if($ia-lt0-or$ibr-lt0-or$ibm-lt0-or$ibr-ge$ibm){throw 'Native next-round order lacks the exact rider-first affected pair.'}
  [pscustomobject]@{beforeRenewal=[long]$(if($ibr-lt$ia){1}else{0});betweenRenewalAndSurvivor=[long]$(if($ia-lt$ibr-and$ibr-lt$ibm){1}else{0});survivorSlot=$ibm}
 }
+# The death control is chosen after the native death delivery. Native SetLifeState(Dead) has run
+# UnitEntityData.LeaveCombat for the rider by then, so the control reads the native SortedUnits
+# without the dead rider: exactly the recorded damage-time order with that one rider removed
+# (b202 d1: survivor 5 -> 4, candidates 2 -> 1 and 4 -> 3). Its survivor and candidate slots index
+# this order. Contract v2 also records the order the producer read, which must equal it.
+function Get-KmcChunk7DeathControlOrder($Order,[string]$DeadRider){
+ $order=@($Order);if([Array]::IndexOf($order,$DeadRider)-lt0){throw 'Native next-round order lacks the dead rider at damage time.'}
+ ,[string[]]@($order|Where-Object{$_-cne$DeadRider})
+}
 # One unit's N+1 turn on the trace's own hooks for every unit: native Prepare entry to the first
 # turn-end-after (End). Paired-only completion probes and UI ready handlers are excluded, so the
 # rider and an unpaired control compare on identical boundaries. ForceToEnd is the trace's separate
@@ -350,12 +359,18 @@ function Assert-KmcChunk7NativeDeathChain($Request,$o,$life,$ids){
  Assert-KmcChunk7DeadNativeTurn $life.deadRiderTurn $lifeTrace $ids[2] $nextRound
  # Unmounted control: an unpaired mortal companion killed by the same native route behaves identically.
  $control=$life.deathControl
- if($control.contract-cne'unmounted-dead-native-turn-control-v1'-or-not(Test-KmcExactJsonInteger $control.survivorSlot)-or$control.survivorSlot-ne$slots.survivorSlot){throw 'Unmounted death control contract differs.'}
+ $controlOrder=Get-KmcChunk7DeathControlOrder $life.nativeNextRoundOrder $ids[2];$controlSurvivor=[Array]::IndexOf($controlOrder,[string]$ids[3])
+ $recordsOrder=$control.contract-ceq'unmounted-dead-native-turn-control-v2'
+ if(($control.contract-cne'unmounted-dead-native-turn-control-v1'-and-not$recordsOrder)-or-not(Test-KmcExactJsonInteger $control.survivorSlot)-or$control.survivorSlot-ne$controlSurvivor){throw 'Unmounted death control contract differs.'}
+ $readOrder=$control.PSObject.Properties['nativeOrderAfterDeath']
+ if($recordsOrder){$read=@(if($null-ne$readOrder){$readOrder.Value});if($null-eq$readOrder-or$readOrder.Value-isnot[Array]-or$read.Count-ne$controlOrder.Count){throw 'Death control did not read the native order without the dead rider.'}
+  for($i=0;$i-lt$read.Count;$i++){if($read[$i]-isnot[string]-or$read[$i]-cne$controlOrder[$i]){throw 'Death control did not read the native order without the dead rider.'}}}
+ elseif($null-ne$readOrder){throw 'Unmounted death control contract differs.'}
  $rows=@($control.candidates);$eligible=@()
  foreach($row in $rows){
   Assert-KmcExactProperties $row @('actorId','slot','mainCharacter','pet','essential','immortal','allowDyingCondition','conscious','inCombat','paired','eligible') 'death control candidate'
-  if($row.actorId-cin$ids-or-not(Test-KmcExactJsonInteger $row.slot)-or$row.slot-ne[Array]::IndexOf(@($life.nativeNextRoundOrder),$row.actorId)){throw 'Death control candidate identity or slot differs.'}
-  $gate=-not$row.mainCharacter-and-not$row.pet-and-not$row.essential-and-not$row.immortal-and$row.conscious-and$row.inCombat-and-not$row.paired-and$row.slot-ge0-and$row.slot-lt$slots.survivorSlot
+  if($row.actorId-cin$ids-or-not(Test-KmcExactJsonInteger $row.slot)-or$row.slot-ne[Array]::IndexOf($controlOrder,[string]$row.actorId)){throw 'Death control candidate identity or slot differs.'}
+  $gate=-not$row.mainCharacter-and-not$row.pet-and-not$row.essential-and-not$row.immortal-and$row.conscious-and$row.inCombat-and-not$row.paired-and$row.slot-ge0-and$row.slot-lt$controlSurvivor
   Assert-KmcChunk7Boolean $row.eligible $gate;if($gate){$eligible+=$row}
  }
  if($rows.Count-ne@($rows|ForEach-Object{$_.actorId}|Select-Object -Unique).Count){throw 'Death control candidates duplicated.'}
@@ -364,7 +379,7 @@ function Assert-KmcChunk7NativeDeathChain($Request,$o,$life,$ids){
  $controlRequired=$true;if($null-ne$Request.PSObject.Properties['nativeLifeControlRequired']){if($Request.nativeLifeControlRequired-isnot[bool]){throw 'Native life control requirement must be a boolean.'};$controlRequired=$Request.nativeLifeControlRequired}
  if($controlRequired-and-not$control.available){throw 'Required unmounted death control is unavailable.'}
  if($control.available){
-  Assert-KmcExactProperties $control @('contract','survivorSlot','candidates','available','actorId','slot','grantBefore','traceSequenceAtDamage','before','requestedDamage','nativeDamage','afterDamage','turn','grantAfter') 'death control'
+  Assert-KmcExactProperties $control @(@('contract','survivorSlot')+@(if($recordsOrder){'nativeOrderAfterDeath'})+@('candidates','available','actorId','slot','grantBefore','traceSequenceAtDamage','before','requestedDamage','nativeDamage','afterDamage','turn','grantAfter')) 'death control'
   if($control.actorId-cne$eligible[0].actorId-or$control.slot-ne$eligible[0].slot){throw 'Death control is not the first eligible companion in native order.'}
   Assert-KmcChunk7LifeActor $control.before $control.actorId $true
   foreach($f in @('mainCharacter','essential','immortal')){Assert-KmcChunk7Boolean $control.before.$f $false}

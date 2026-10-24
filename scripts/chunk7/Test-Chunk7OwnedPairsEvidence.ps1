@@ -578,7 +578,11 @@ function ConvertTo-KmcSeedNativeDeathFixture($v){
  $dead={param([string]$id)[pscustomobject][ordered]@{actorId=$id;round=3;traceSequenceAtCapture=$capture;events=0;prepareBefore=0;prepareAfter=0;ends=0;forcedEnds=0;forbidden=0;conscious=$false;dead=$true;finallyDead=$false;inCombat=$false}}
  $l.PSObject.Properties.Remove('incapacitatedRiderTurn');$l|Add-Member deadRiderTurn (&$dead $ids[2]) -Force
  $l.PSObject.Properties.Remove('unconsciousControl')
- $c.contract='unmounted-dead-native-turn-control-v1';$c.requestedDamage=43;$c.nativeDamage=43;$c.afterDamage.damage=43;$c.turn=(&$dead $controlId);$c.grantAfter=$c.grantBefore;$c.traceSequenceAtDamage=$atDamage
+ # The death control reads the native order after the rider left combat (b202 d1): slots index that order.
+ $after=@(@($l.nativeNextRoundOrder)|Where-Object{$_-cne$ids[2]});$c.survivorSlot=[Array]::IndexOf([string[]]$after,[string]$ids[3])
+ foreach($row in @($c.candidates)){$row.slot=[Array]::IndexOf([string[]]$after,[string]$row.actorId)};$c.slot=[Array]::IndexOf([string[]]$after,[string]$c.actorId)
+ $copy=[ordered]@{};foreach($p in $c.PSObject.Properties){$copy[$p.Name]=$p.Value;if($p.Name-ceq'survivorSlot'){$copy['nativeOrderAfterDeath']=[object[]]$after}};$c=[pscustomobject]$copy
+ $c.contract='unmounted-dead-native-turn-control-v2';$c.requestedDamage=43;$c.nativeDamage=43;$c.afterDamage.damage=43;$c.turn=(&$dead $controlId);$c.grantAfter=$c.grantBefore;$c.traceSequenceAtDamage=$atDamage
  $l|Add-Member deathControl $c -Force
  $ext={param($a,[bool]$dead)$x=Copy-Value $a;if($dead){$x.life='Dead';$x.conscious=$false;$x.dead=$true;$x.damage=43};$x|Add-Member finallyDead $false;$x|Add-Member inCombat $false;$x|Add-Member inState $true;$x}
  $l|Add-Member deathCleanup ([pscustomobject][ordered]@{pairState='Unmounted';pairOwnerReleased=$true;noPreparedPairResidue=$true;presentationResidue=$false;shellUnsettled=$false;relationshipTransitionUnsettled=$false;preparationUnsettled=$false
@@ -654,6 +658,22 @@ Check-SeedDeath 'a control that did not die' {$args[0].artifact.observations.nat
 Check-SeedDeath 'control damage below its death threshold' {$args[0].artifact.observations.nativeLife.deathControl.afterDamage.damage=41} 'bounded death stimulus'
 Check-SeedDeath 'a control that is not the first eligible companion' {$args[0].artifact.observations.nativeLife.deathControl.actorId='5dd7bd1d-ae4c-4df7-9687-50fceb027344'} 'first eligible companion'
 Check-SeedDeath 'a required control declared unavailable' {$l=$args[0].artifact.observations.nativeLife;$l.deathControl=[pscustomobject][ordered]@{contract='unmounted-dead-native-turn-control-v1';survivorSlot=$l.deathControl.survivorSlot;candidates=@();available=$false};$l.deathCleanup.control=$null} 'Required unmounted death control is unavailable'
+# b202 d1: the control is chosen after the rider left native combat, so its slots index the recorded
+# damage-time order without the dead rider. Real b202 ids and values; v1 (no recorded order) and v2.
+$b202Order=@('73681ef2-b281-4bc6-bc05-2de68c1616cb','fd213210-71cd-41b0-b35b-68e1b18e9b43','8265f8cf-0969-4ec7-a266-2448de91c8c4','29f3c260-78d1-4c19-9445-97a4fac3b524','5dd7bd1d-ae4c-4df7-9687-50fceb027344','e9cd259e-69d5-4c11-9fcb-f25cc381bc8e','e3a3be8b-b035-4d7d-80b3-6670f3dc0183')
+Check 'b202 death control order is the recorded order without the dead rider (survivor 4, candidates 1 and 3)' {$o=Get-KmcChunk7DeathControlOrder $b202Order 'fd213210-71cd-41b0-b35b-68e1b18e9b43'
+ if($o.Count-ne6-or[Array]::IndexOf($o,'e9cd259e-69d5-4c11-9fcb-f25cc381bc8e')-ne4-or[Array]::IndexOf($o,'8265f8cf-0969-4ec7-a266-2448de91c8c4')-ne1-or[Array]::IndexOf($o,'5dd7bd1d-ae4c-4df7-9687-50fceb027344')-ne3-or[Array]::IndexOf($o,'fd213210-71cd-41b0-b35b-68e1b18e9b43')-ne-1){throw 'b202 control order derivation differs.'}}
+Check 'death control order refuses a dead rider absent from the damage-time order' {Get-KmcChunk7DeathControlOrder @($b202Order|Select-Object -Skip 2) 'fd213210-71cd-41b0-b35b-68e1b18e9b43'} $true 'lacks the dead rider'
+function Set-KmcSeedDeathControlV1($v){$c=$v.artifact.observations.nativeLife.deathControl;$c.contract='unmounted-dead-native-turn-control-v1';$c.PSObject.Properties.Remove('nativeOrderAfterDeath')}
+function Get-KmcSeedDeathDamageTimeIndex($v,[string]$Id){[Array]::IndexOf([string[]]@($v.artifact.observations.nativeLife.nativeNextRoundOrder),$Id)}
+Check 'owner-seed native death accepts a v1 control without its recorded order (b202 shape)' {$v=New-KmcSeedNativeDeathFixture;Set-KmcSeedDeathControlV1 $v;Invoke-OwnedReader $v}
+Check-SeedDeath 'a v1 control survivor slot at its damage-time index' {Set-KmcSeedDeathControlV1 $args[0];$l=$args[0].artifact.observations.nativeLife;$l.deathControl.survivorSlot=Get-KmcSeedDeathDamageTimeIndex $args[0] $args[0].artifact.observations.actorIds[3]} 'Unmounted death control contract differs'
+Check-SeedDeath 'a v2 control survivor slot at its damage-time index' {$l=$args[0].artifact.observations.nativeLife;$l.deathControl.survivorSlot=Get-KmcSeedDeathDamageTimeIndex $args[0] $args[0].artifact.observations.actorIds[3]} 'Unmounted death control contract differs'
+Check-SeedDeath 'a v2 control whose recorded order still lists the dead rider' {$l=$args[0].artifact.observations.nativeLife;$l.deathControl.nativeOrderAfterDeath=@($l.nativeNextRoundOrder)} 'native order without the dead rider'
+Check-SeedDeath 'a v2 control whose recorded order is reordered' {$l=$args[0].artifact.observations.nativeLife;$r=@($l.deathControl.nativeOrderAfterDeath);[Array]::Reverse($r);$l.deathControl.nativeOrderAfterDeath=$r} 'native order without the dead rider'
+Check-SeedDeath 'a v2 control without its recorded order' {$args[0].artifact.observations.nativeLife.deathControl.PSObject.Properties.Remove('nativeOrderAfterDeath')} 'native order without the dead rider'
+Check-SeedDeath 'a v1 control carrying a recorded order' {$args[0].artifact.observations.nativeLife.deathControl.contract='unmounted-dead-native-turn-control-v1'} 'Unmounted death control contract differs'
+Check-SeedDeath 'a control candidate slot at its damage-time index' {$v=$args[0];$c=$v.artifact.observations.nativeLife.deathControl;$row=@($c.candidates)[0];$row.slot=Get-KmcSeedDeathDamageTimeIndex $v $row.actorId;if($row.slot-eq[Array]::IndexOf([string[]]@($c.nativeOrderAfterDeath),[string]$row.actorId)){$row.slot++}} 'candidate identity or slot differs'
 Check-SeedDeath 'unobserved cleanup postconditions' {$args[0].artifact.observations.nativeLife.PSObject.Properties.Remove('deathCleanup')} 'were not observed'
 Check-SeedDeath 'a pair owner still bound at cleanup' {$args[0].artifact.observations.nativeLife.deathCleanup.pairOwnerReleased=$false} 'Native evidence boolean'
 Check-SeedDeath 'an unsettled relationship transition at cleanup' {$args[0].artifact.observations.nativeLife.deathCleanup.relationshipTransitionUnsettled=$true} 'Native evidence boolean'
