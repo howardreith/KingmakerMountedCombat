@@ -13443,7 +13443,7 @@
                   "reactionCooldown": 0.0,
                   "pairedGrantIdentity": null,
                   "retained": {
-                    "GrantIdentity": "native:rider-b-n1"
+                    "GrantIdentity": "exact-b:2"
                   }
                 },
                 "frame": 88,
@@ -13502,6 +13502,236 @@
               },
               {
                 "sequence": 26,
+                "boundary": "round-state-before",
+                "state": {
+                  "actor": "30303030-3030-4030-8030-303030303030",
+                  "standard": 0.0,
+                  "move": 0.0,
+                  "swift": 0.0,
+                  "reactions": 1,
+                  "reactionCooldown": 0.0,
+                  "pairedGrantIdentity": null,
+                  "retained": {
+                    "GrantIdentity": "native:rider-b-n1"
+                  }
+                },
+                "frame": 88,
+                "command": null,
+                "commandActor": null,
+                "commandType": null,
+                "actionType": null,
+                "round": 3,
+                "turnStatus": "None"
+              },
+              {
+                "sequence": 27,
+                "boundary": "round-state-after",
+                "state": {
+                  "actor": "30303030-3030-4030-8030-303030303030",
+                  "standard": 0.0,
+                  "move": 0.0,
+                  "swift": 0.0,
+                  "reactions": 1,
+                  "reactionCooldown": 0.0,
+                  "pairedGrantIdentity": null,
+                  "retained": {
+                    "GrantIdentity": "native:rider-b-n1"
+                  }
+                },
+                "frame": 88,
+                "command": null,
+                "commandActor": null,
+                "commandType": null,
+                "actionType": null,
+                "round": 3,
+                "turnStatus": "None"
+              },
+              {
+                "sequence": 28,
+                "boundary": "round-handler-before",
+                "state": {
+                  "actor": "30303030-3030-4030-8030-303030303030",
+                  "standard": 0.0,
+                  "move": 0.0,
+                  "swift": 0.0,
+                  "reactions": 1,
+                  "reactionCooldown": 0.0,
+                  "pairedGrantIdentity": null,
+                  "retained": {
+                    "GrantIdentity": "native:rider-b-n1"
+                  }
+                },
+                "frame": 88,
+                "command": null,
+                "commandActor": null,
+                "commandType": null,
+                "actionType": null,
+                "round": 3,
+                "turnStatus": "None"
+              },
+              {
+                "sequence": 29,
+                "boundary": "round-handler-after",
+                "state": {
+                  "actor": "30303030-3030-4030-8030-303030303030",
+                  "standard": 0.0,
+                  "move": 0.0,
+                  "swift": 0.0,
+                  "reactions": 1,
+                  "reactionCooldown": 0.0,
+                  "pairedGrantIdentity": null,
+                  "retained": {
+                    "GrantIdentity": "native:rider-b-n1"
+                  }
+                },
+                "frame": 88,
+                "command": null,
+                "commandActor": null,
+                "commandType": null,
+                "actionType": null,
+                "round": 3,
+                "turnStatus": "None"
+              },
+              {
+                "sequence": 30,
+                "boundary": "round-handler-before",
+                "state": {
+                  "actor": "30303030-3030-4030-8030-303030303030",
+                  "standard": 0.0,
+                  "move": 0.0,
+                  "swift": 0.0,
+                  "reactions": 1,
+                  "reactionCooldown": 0.0,
+                  "pairedGrantIdentity": null,
+                  "retained": {
+                    "GrantIdentity": "native:rider-b-n1"
+                  }
+                },
+                "frame": 88,
+                "command": null,
+                "commandActor": null,
+                "commandType": null,
+                "actionType": null,
+                "round": 3,
+                "turnStatus": "None"
+              },
+              {
+                "sequence": 31,
+                "boundary": "round-handler-after",
+                "state": {
+                  "actor": "30303030-3030-4030-8030-303030303030",
+                  "standard": 0.0,
+                  "move": 0.0,
+                  "swift": 0.0,
+                  "reactions": 1,
+                  "reactionCooldown": 0.0,
+                  "pairedGrantIdentity": null,
+                  "retained": {
+                    "GrantIdentity": "native:rider-b-n1"
+                  }
+                },
+                "frame": 88,
+                "command": null,
+                "commandActor": null,
+                "commandType": null,
+                "actionType": null,
+                "round": 3,
+                "turnStatus": "None"
+              },
+              {
+                "sequence": 32,
+                "boundary": "ai-round-before",
+                "state": {
+                  "actor": "30303030-3030-4030-8030-303030303030",
+                  "standard": 0.0,
+                  "move": 0.0,
+                  "swift": 0.0,
+                  "reactions": 1,
+                  "reactionCooldown": 0.0,
+                  "pairedGrantIdentity": null,
+                  "retained": {
+                    "GrantIdentity": "native:rider-b-n1"
+                  }
+                },
+                "frame": 88,
+                "command": null,
+                "commandActor": null,
+                "commandType": null,
+                "actionType": null,
+                "round": 3,
+                "turnStatus": "None"
+              },
+              {
+                "sequence": 33,
+                "boundary": "ai-round-after",
+                "state": {
+                  "actor": "30303030-3030-4030-8030-303030303030",
+                  "standard": 0.0,
+                  "move": 0.0,
+                  "swift": 0.0,
+                  "reactions": 1,
+                  "reactionCooldown": 0.0,
+                  "pairedGrantIdentity": null,
+                  "retained": {
+                    "GrantIdentity": "native:rider-b-n1"
+                  }
+                },
+                "frame": 88,
+                "command": null,
+                "commandActor": null,
+                "commandType": null,
+                "actionType": null,
+                "round": 3,
+                "turnStatus": "None"
+              },
+              {
+                "sequence": 34,
+                "boundary": "native-confusion-before",
+                "state": {
+                  "actor": "30303030-3030-4030-8030-303030303030",
+                  "standard": 0.0,
+                  "move": 0.0,
+                  "swift": 0.0,
+                  "reactions": 1,
+                  "reactionCooldown": 0.0,
+                  "pairedGrantIdentity": null,
+                  "retained": {
+                    "GrantIdentity": "native:rider-b-n1"
+                  }
+                },
+                "frame": 88,
+                "command": null,
+                "commandActor": null,
+                "commandType": null,
+                "actionType": null,
+                "round": 3,
+                "turnStatus": "None"
+              },
+              {
+                "sequence": 35,
+                "boundary": "native-confusion-after",
+                "state": {
+                  "actor": "30303030-3030-4030-8030-303030303030",
+                  "standard": 0.0,
+                  "move": 0.0,
+                  "swift": 0.0,
+                  "reactions": 1,
+                  "reactionCooldown": 0.0,
+                  "pairedGrantIdentity": null,
+                  "retained": {
+                    "GrantIdentity": "native:rider-b-n1"
+                  }
+                },
+                "frame": 88,
+                "command": null,
+                "commandActor": null,
+                "commandType": null,
+                "actionType": null,
+                "round": 3,
+                "turnStatus": "None"
+              },
+              {
+                "sequence": 36,
                 "boundary": "ready-handler-before",
                 "state": {
                   "actor": "30303030-3030-4030-8030-303030303030",
@@ -13524,7 +13754,7 @@
                 "turnStatus": "Preparing"
               },
               {
-                "sequence": 27,
+                "sequence": 37,
                 "boundary": "ready-handler-after",
                 "state": {
                   "actor": "30303030-3030-4030-8030-303030303030",
@@ -13547,7 +13777,513 @@
                 "turnStatus": "Preparing"
               },
               {
-                "sequence": 28,
+                "sequence": 38,
+                "boundary": "ready-handler-before",
+                "state": {
+                  "actor": "30303030-3030-4030-8030-303030303030",
+                  "standard": 0.0,
+                  "move": 0.0,
+                  "swift": 0.0,
+                  "reactions": 1,
+                  "reactionCooldown": 0.0,
+                  "pairedGrantIdentity": null,
+                  "retained": {
+                    "GrantIdentity": "native:rider-b-n1"
+                  }
+                },
+                "frame": 88,
+                "command": null,
+                "commandActor": null,
+                "commandType": null,
+                "actionType": null,
+                "round": 3,
+                "turnStatus": "Preparing"
+              },
+              {
+                "sequence": 39,
+                "boundary": "ready-handler-after",
+                "state": {
+                  "actor": "30303030-3030-4030-8030-303030303030",
+                  "standard": 0.0,
+                  "move": 0.0,
+                  "swift": 0.0,
+                  "reactions": 1,
+                  "reactionCooldown": 0.0,
+                  "pairedGrantIdentity": null,
+                  "retained": {
+                    "GrantIdentity": "native:rider-b-n1"
+                  }
+                },
+                "frame": 88,
+                "command": null,
+                "commandActor": null,
+                "commandType": null,
+                "actionType": null,
+                "round": 3,
+                "turnStatus": "Preparing"
+              },
+              {
+                "sequence": 40,
+                "boundary": "ready-handler-before",
+                "state": {
+                  "actor": "30303030-3030-4030-8030-303030303030",
+                  "standard": 0.0,
+                  "move": 0.0,
+                  "swift": 0.0,
+                  "reactions": 1,
+                  "reactionCooldown": 0.0,
+                  "pairedGrantIdentity": null,
+                  "retained": {
+                    "GrantIdentity": "native:rider-b-n1"
+                  }
+                },
+                "frame": 88,
+                "command": null,
+                "commandActor": null,
+                "commandType": null,
+                "actionType": null,
+                "round": 3,
+                "turnStatus": "Preparing"
+              },
+              {
+                "sequence": 41,
+                "boundary": "ready-handler-after",
+                "state": {
+                  "actor": "30303030-3030-4030-8030-303030303030",
+                  "standard": 0.0,
+                  "move": 0.0,
+                  "swift": 0.0,
+                  "reactions": 1,
+                  "reactionCooldown": 0.0,
+                  "pairedGrantIdentity": null,
+                  "retained": {
+                    "GrantIdentity": "native:rider-b-n1"
+                  }
+                },
+                "frame": 88,
+                "command": null,
+                "commandActor": null,
+                "commandType": null,
+                "actionType": null,
+                "round": 3,
+                "turnStatus": "Preparing"
+              },
+              {
+                "sequence": 42,
+                "boundary": "ready-handler-before",
+                "state": {
+                  "actor": "30303030-3030-4030-8030-303030303030",
+                  "standard": 0.0,
+                  "move": 0.0,
+                  "swift": 0.0,
+                  "reactions": 1,
+                  "reactionCooldown": 0.0,
+                  "pairedGrantIdentity": null,
+                  "retained": {
+                    "GrantIdentity": "native:rider-b-n1"
+                  }
+                },
+                "frame": 88,
+                "command": null,
+                "commandActor": null,
+                "commandType": null,
+                "actionType": null,
+                "round": 3,
+                "turnStatus": "Preparing"
+              },
+              {
+                "sequence": 43,
+                "boundary": "ready-handler-after",
+                "state": {
+                  "actor": "30303030-3030-4030-8030-303030303030",
+                  "standard": 0.0,
+                  "move": 0.0,
+                  "swift": 0.0,
+                  "reactions": 1,
+                  "reactionCooldown": 0.0,
+                  "pairedGrantIdentity": null,
+                  "retained": {
+                    "GrantIdentity": "native:rider-b-n1"
+                  }
+                },
+                "frame": 88,
+                "command": null,
+                "commandActor": null,
+                "commandType": null,
+                "actionType": null,
+                "round": 3,
+                "turnStatus": "Preparing"
+              },
+              {
+                "sequence": 44,
+                "boundary": "ready-handler-before",
+                "state": {
+                  "actor": "30303030-3030-4030-8030-303030303030",
+                  "standard": 0.0,
+                  "move": 0.0,
+                  "swift": 0.0,
+                  "reactions": 1,
+                  "reactionCooldown": 0.0,
+                  "pairedGrantIdentity": null,
+                  "retained": {
+                    "GrantIdentity": "native:rider-b-n1"
+                  }
+                },
+                "frame": 88,
+                "command": null,
+                "commandActor": null,
+                "commandType": null,
+                "actionType": null,
+                "round": 3,
+                "turnStatus": "Preparing"
+              },
+              {
+                "sequence": 45,
+                "boundary": "ready-handler-after",
+                "state": {
+                  "actor": "30303030-3030-4030-8030-303030303030",
+                  "standard": 0.0,
+                  "move": 0.0,
+                  "swift": 0.0,
+                  "reactions": 1,
+                  "reactionCooldown": 0.0,
+                  "pairedGrantIdentity": null,
+                  "retained": {
+                    "GrantIdentity": "native:rider-b-n1"
+                  }
+                },
+                "frame": 88,
+                "command": null,
+                "commandActor": null,
+                "commandType": null,
+                "actionType": null,
+                "round": 3,
+                "turnStatus": "Preparing"
+              },
+              {
+                "sequence": 46,
+                "boundary": "ready-handler-before",
+                "state": {
+                  "actor": "30303030-3030-4030-8030-303030303030",
+                  "standard": 0.0,
+                  "move": 0.0,
+                  "swift": 0.0,
+                  "reactions": 1,
+                  "reactionCooldown": 0.0,
+                  "pairedGrantIdentity": null,
+                  "retained": {
+                    "GrantIdentity": "native:rider-b-n1"
+                  }
+                },
+                "frame": 88,
+                "command": null,
+                "commandActor": null,
+                "commandType": null,
+                "actionType": null,
+                "round": 3,
+                "turnStatus": "Preparing"
+              },
+              {
+                "sequence": 47,
+                "boundary": "ready-handler-after",
+                "state": {
+                  "actor": "30303030-3030-4030-8030-303030303030",
+                  "standard": 0.0,
+                  "move": 0.0,
+                  "swift": 0.0,
+                  "reactions": 1,
+                  "reactionCooldown": 0.0,
+                  "pairedGrantIdentity": null,
+                  "retained": {
+                    "GrantIdentity": "native:rider-b-n1"
+                  }
+                },
+                "frame": 88,
+                "command": null,
+                "commandActor": null,
+                "commandType": null,
+                "actionType": null,
+                "round": 3,
+                "turnStatus": "Preparing"
+              },
+              {
+                "sequence": 48,
+                "boundary": "ready-handler-before",
+                "state": {
+                  "actor": "30303030-3030-4030-8030-303030303030",
+                  "standard": 0.0,
+                  "move": 0.0,
+                  "swift": 0.0,
+                  "reactions": 1,
+                  "reactionCooldown": 0.0,
+                  "pairedGrantIdentity": null,
+                  "retained": {
+                    "GrantIdentity": "native:rider-b-n1"
+                  }
+                },
+                "frame": 88,
+                "command": null,
+                "commandActor": null,
+                "commandType": null,
+                "actionType": null,
+                "round": 3,
+                "turnStatus": "Preparing"
+              },
+              {
+                "sequence": 49,
+                "boundary": "ready-handler-after",
+                "state": {
+                  "actor": "30303030-3030-4030-8030-303030303030",
+                  "standard": 0.0,
+                  "move": 0.0,
+                  "swift": 0.0,
+                  "reactions": 1,
+                  "reactionCooldown": 0.0,
+                  "pairedGrantIdentity": null,
+                  "retained": {
+                    "GrantIdentity": "native:rider-b-n1"
+                  }
+                },
+                "frame": 88,
+                "command": null,
+                "commandActor": null,
+                "commandType": null,
+                "actionType": null,
+                "round": 3,
+                "turnStatus": "Preparing"
+              },
+              {
+                "sequence": 50,
+                "boundary": "ready-handler-before",
+                "state": {
+                  "actor": "30303030-3030-4030-8030-303030303030",
+                  "standard": 0.0,
+                  "move": 0.0,
+                  "swift": 0.0,
+                  "reactions": 1,
+                  "reactionCooldown": 0.0,
+                  "pairedGrantIdentity": null,
+                  "retained": {
+                    "GrantIdentity": "native:rider-b-n1"
+                  }
+                },
+                "frame": 88,
+                "command": null,
+                "commandActor": null,
+                "commandType": null,
+                "actionType": null,
+                "round": 3,
+                "turnStatus": "Preparing"
+              },
+              {
+                "sequence": 51,
+                "boundary": "ready-handler-after",
+                "state": {
+                  "actor": "30303030-3030-4030-8030-303030303030",
+                  "standard": 0.0,
+                  "move": 0.0,
+                  "swift": 0.0,
+                  "reactions": 1,
+                  "reactionCooldown": 0.0,
+                  "pairedGrantIdentity": null,
+                  "retained": {
+                    "GrantIdentity": "native:rider-b-n1"
+                  }
+                },
+                "frame": 88,
+                "command": null,
+                "commandActor": null,
+                "commandType": null,
+                "actionType": null,
+                "round": 3,
+                "turnStatus": "Preparing"
+              },
+              {
+                "sequence": 52,
+                "boundary": "ready-handler-before",
+                "state": {
+                  "actor": "30303030-3030-4030-8030-303030303030",
+                  "standard": 0.0,
+                  "move": 0.0,
+                  "swift": 0.0,
+                  "reactions": 1,
+                  "reactionCooldown": 0.0,
+                  "pairedGrantIdentity": null,
+                  "retained": {
+                    "GrantIdentity": "native:rider-b-n1"
+                  }
+                },
+                "frame": 88,
+                "command": null,
+                "commandActor": null,
+                "commandType": null,
+                "actionType": null,
+                "round": 3,
+                "turnStatus": "Preparing"
+              },
+              {
+                "sequence": 53,
+                "boundary": "ready-handler-after",
+                "state": {
+                  "actor": "30303030-3030-4030-8030-303030303030",
+                  "standard": 0.0,
+                  "move": 0.0,
+                  "swift": 0.0,
+                  "reactions": 1,
+                  "reactionCooldown": 0.0,
+                  "pairedGrantIdentity": null,
+                  "retained": {
+                    "GrantIdentity": "native:rider-b-n1"
+                  }
+                },
+                "frame": 88,
+                "command": null,
+                "commandActor": null,
+                "commandType": null,
+                "actionType": null,
+                "round": 3,
+                "turnStatus": "Preparing"
+              },
+              {
+                "sequence": 54,
+                "boundary": "ready-handler-before",
+                "state": {
+                  "actor": "30303030-3030-4030-8030-303030303030",
+                  "standard": 0.0,
+                  "move": 0.0,
+                  "swift": 0.0,
+                  "reactions": 1,
+                  "reactionCooldown": 0.0,
+                  "pairedGrantIdentity": null,
+                  "retained": {
+                    "GrantIdentity": "native:rider-b-n1"
+                  }
+                },
+                "frame": 88,
+                "command": null,
+                "commandActor": null,
+                "commandType": null,
+                "actionType": null,
+                "round": 3,
+                "turnStatus": "Preparing"
+              },
+              {
+                "sequence": 55,
+                "boundary": "ready-handler-after",
+                "state": {
+                  "actor": "30303030-3030-4030-8030-303030303030",
+                  "standard": 0.0,
+                  "move": 0.0,
+                  "swift": 0.0,
+                  "reactions": 1,
+                  "reactionCooldown": 0.0,
+                  "pairedGrantIdentity": null,
+                  "retained": {
+                    "GrantIdentity": "native:rider-b-n1"
+                  }
+                },
+                "frame": 88,
+                "command": null,
+                "commandActor": null,
+                "commandType": null,
+                "actionType": null,
+                "round": 3,
+                "turnStatus": "Preparing"
+              },
+              {
+                "sequence": 56,
+                "boundary": "ready-handler-before",
+                "state": {
+                  "actor": "30303030-3030-4030-8030-303030303030",
+                  "standard": 0.0,
+                  "move": 0.0,
+                  "swift": 0.0,
+                  "reactions": 1,
+                  "reactionCooldown": 0.0,
+                  "pairedGrantIdentity": null,
+                  "retained": {
+                    "GrantIdentity": "native:rider-b-n1"
+                  }
+                },
+                "frame": 88,
+                "command": null,
+                "commandActor": null,
+                "commandType": null,
+                "actionType": null,
+                "round": 3,
+                "turnStatus": "Preparing"
+              },
+              {
+                "sequence": 57,
+                "boundary": "ready-handler-after",
+                "state": {
+                  "actor": "30303030-3030-4030-8030-303030303030",
+                  "standard": 0.0,
+                  "move": 0.0,
+                  "swift": 0.0,
+                  "reactions": 1,
+                  "reactionCooldown": 0.0,
+                  "pairedGrantIdentity": null,
+                  "retained": {
+                    "GrantIdentity": "native:rider-b-n1"
+                  }
+                },
+                "frame": 88,
+                "command": null,
+                "commandActor": null,
+                "commandType": null,
+                "actionType": null,
+                "round": 3,
+                "turnStatus": "Preparing"
+              },
+              {
+                "sequence": 58,
+                "boundary": "ready-handler-before",
+                "state": {
+                  "actor": "30303030-3030-4030-8030-303030303030",
+                  "standard": 0.0,
+                  "move": 0.0,
+                  "swift": 0.0,
+                  "reactions": 1,
+                  "reactionCooldown": 0.0,
+                  "pairedGrantIdentity": null,
+                  "retained": {
+                    "GrantIdentity": "native:rider-b-n1"
+                  }
+                },
+                "frame": 88,
+                "command": null,
+                "commandActor": null,
+                "commandType": null,
+                "actionType": null,
+                "round": 3,
+                "turnStatus": "Preparing"
+              },
+              {
+                "sequence": 59,
+                "boundary": "ready-handler-after",
+                "state": {
+                  "actor": "30303030-3030-4030-8030-303030303030",
+                  "standard": 0.0,
+                  "move": 0.0,
+                  "swift": 0.0,
+                  "reactions": 1,
+                  "reactionCooldown": 0.0,
+                  "pairedGrantIdentity": null,
+                  "retained": {
+                    "GrantIdentity": "native:rider-b-n1"
+                  }
+                },
+                "frame": 88,
+                "command": null,
+                "commandActor": null,
+                "commandType": null,
+                "actionType": null,
+                "round": 3,
+                "turnStatus": "Preparing"
+              },
+              {
+                "sequence": 60,
                 "boundary": "prepare-after",
                 "state": {
                   "actor": "30303030-3030-4030-8030-303030303030",
@@ -13570,7 +14306,7 @@
                 "turnStatus": "Preparing"
               },
               {
-                "sequence": 29,
+                "sequence": 61,
                 "boundary": "turn-end-before",
                 "state": {
                   "actor": "30303030-3030-4030-8030-303030303030",
@@ -13593,7 +14329,7 @@
                 "turnStatus": "Ending"
               },
               {
-                "sequence": 30,
+                "sequence": 62,
                 "boundary": "completion-end-before",
                 "state": {
                   "actor": "30303030-3030-4030-8030-303030303030",
@@ -13616,7 +14352,7 @@
                 "turnStatus": "Ending"
               },
               {
-                "sequence": 31,
+                "sequence": 63,
                 "boundary": "turn-end-after",
                 "state": {
                   "actor": "30303030-3030-4030-8030-303030303030",
@@ -13639,7 +14375,7 @@
                 "turnStatus": "Ended"
               },
               {
-                "sequence": 32,
+                "sequence": 64,
                 "boundary": "completion-end-after",
                 "state": {
                   "actor": "30303030-3030-4030-8030-303030303030",
@@ -13662,7 +14398,847 @@
                 "turnStatus": "Ended"
               },
               {
-                "sequence": 33,
+                "sequence": 65,
+                "boundary": "prepare-before",
+                "state": {
+                  "actor": "8265f8cf-0969-4ec7-a266-2448de91c8c4",
+                  "standard": 0.0,
+                  "move": 0.0,
+                  "swift": 0.0,
+                  "reactions": 1,
+                  "reactionCooldown": 0.0,
+                  "pairedGrantIdentity": null,
+                  "retained": null
+                },
+                "frame": 88,
+                "command": null,
+                "commandActor": null,
+                "commandType": null,
+                "actionType": null,
+                "round": 3,
+                "turnStatus": "None"
+              },
+              {
+                "sequence": 66,
+                "boundary": "clear-before",
+                "state": {
+                  "actor": "8265f8cf-0969-4ec7-a266-2448de91c8c4",
+                  "standard": 0.0,
+                  "move": 0.0,
+                  "swift": 0.0,
+                  "reactions": 1,
+                  "reactionCooldown": 0.0,
+                  "pairedGrantIdentity": null,
+                  "retained": null
+                },
+                "frame": 88,
+                "command": null,
+                "commandActor": null,
+                "commandType": null,
+                "actionType": null,
+                "round": 3,
+                "turnStatus": "None"
+              },
+              {
+                "sequence": 67,
+                "boundary": "clear-after",
+                "state": {
+                  "actor": "8265f8cf-0969-4ec7-a266-2448de91c8c4",
+                  "standard": 0.0,
+                  "move": 0.0,
+                  "swift": 0.0,
+                  "reactions": 1,
+                  "reactionCooldown": 0.0,
+                  "pairedGrantIdentity": null,
+                  "retained": null
+                },
+                "frame": 88,
+                "command": null,
+                "commandActor": null,
+                "commandType": null,
+                "actionType": null,
+                "round": 3,
+                "turnStatus": "None"
+              },
+              {
+                "sequence": 68,
+                "boundary": "round-state-before",
+                "state": {
+                  "actor": "8265f8cf-0969-4ec7-a266-2448de91c8c4",
+                  "standard": 0.0,
+                  "move": 0.0,
+                  "swift": 0.0,
+                  "reactions": 1,
+                  "reactionCooldown": 0.0,
+                  "pairedGrantIdentity": null,
+                  "retained": null
+                },
+                "frame": 88,
+                "command": null,
+                "commandActor": null,
+                "commandType": null,
+                "actionType": null,
+                "round": 3,
+                "turnStatus": "None"
+              },
+              {
+                "sequence": 69,
+                "boundary": "round-state-after",
+                "state": {
+                  "actor": "8265f8cf-0969-4ec7-a266-2448de91c8c4",
+                  "standard": 0.0,
+                  "move": 0.0,
+                  "swift": 0.0,
+                  "reactions": 1,
+                  "reactionCooldown": 0.0,
+                  "pairedGrantIdentity": null,
+                  "retained": null
+                },
+                "frame": 88,
+                "command": null,
+                "commandActor": null,
+                "commandType": null,
+                "actionType": null,
+                "round": 3,
+                "turnStatus": "None"
+              },
+              {
+                "sequence": 70,
+                "boundary": "round-handler-before",
+                "state": {
+                  "actor": "8265f8cf-0969-4ec7-a266-2448de91c8c4",
+                  "standard": 0.0,
+                  "move": 0.0,
+                  "swift": 0.0,
+                  "reactions": 1,
+                  "reactionCooldown": 0.0,
+                  "pairedGrantIdentity": null,
+                  "retained": null
+                },
+                "frame": 88,
+                "command": null,
+                "commandActor": null,
+                "commandType": null,
+                "actionType": null,
+                "round": 3,
+                "turnStatus": "None"
+              },
+              {
+                "sequence": 71,
+                "boundary": "round-handler-after",
+                "state": {
+                  "actor": "8265f8cf-0969-4ec7-a266-2448de91c8c4",
+                  "standard": 0.0,
+                  "move": 0.0,
+                  "swift": 0.0,
+                  "reactions": 1,
+                  "reactionCooldown": 0.0,
+                  "pairedGrantIdentity": null,
+                  "retained": null
+                },
+                "frame": 88,
+                "command": null,
+                "commandActor": null,
+                "commandType": null,
+                "actionType": null,
+                "round": 3,
+                "turnStatus": "None"
+              },
+              {
+                "sequence": 72,
+                "boundary": "round-handler-before",
+                "state": {
+                  "actor": "8265f8cf-0969-4ec7-a266-2448de91c8c4",
+                  "standard": 0.0,
+                  "move": 0.0,
+                  "swift": 0.0,
+                  "reactions": 1,
+                  "reactionCooldown": 0.0,
+                  "pairedGrantIdentity": null,
+                  "retained": null
+                },
+                "frame": 88,
+                "command": null,
+                "commandActor": null,
+                "commandType": null,
+                "actionType": null,
+                "round": 3,
+                "turnStatus": "None"
+              },
+              {
+                "sequence": 73,
+                "boundary": "round-handler-after",
+                "state": {
+                  "actor": "8265f8cf-0969-4ec7-a266-2448de91c8c4",
+                  "standard": 0.0,
+                  "move": 0.0,
+                  "swift": 0.0,
+                  "reactions": 1,
+                  "reactionCooldown": 0.0,
+                  "pairedGrantIdentity": null,
+                  "retained": null
+                },
+                "frame": 88,
+                "command": null,
+                "commandActor": null,
+                "commandType": null,
+                "actionType": null,
+                "round": 3,
+                "turnStatus": "None"
+              },
+              {
+                "sequence": 74,
+                "boundary": "ai-round-before",
+                "state": {
+                  "actor": "8265f8cf-0969-4ec7-a266-2448de91c8c4",
+                  "standard": 0.0,
+                  "move": 0.0,
+                  "swift": 0.0,
+                  "reactions": 1,
+                  "reactionCooldown": 0.0,
+                  "pairedGrantIdentity": null,
+                  "retained": null
+                },
+                "frame": 88,
+                "command": null,
+                "commandActor": null,
+                "commandType": null,
+                "actionType": null,
+                "round": 3,
+                "turnStatus": "None"
+              },
+              {
+                "sequence": 75,
+                "boundary": "ai-round-after",
+                "state": {
+                  "actor": "8265f8cf-0969-4ec7-a266-2448de91c8c4",
+                  "standard": 0.0,
+                  "move": 0.0,
+                  "swift": 0.0,
+                  "reactions": 1,
+                  "reactionCooldown": 0.0,
+                  "pairedGrantIdentity": null,
+                  "retained": null
+                },
+                "frame": 88,
+                "command": null,
+                "commandActor": null,
+                "commandType": null,
+                "actionType": null,
+                "round": 3,
+                "turnStatus": "None"
+              },
+              {
+                "sequence": 76,
+                "boundary": "native-confusion-before",
+                "state": {
+                  "actor": "8265f8cf-0969-4ec7-a266-2448de91c8c4",
+                  "standard": 0.0,
+                  "move": 0.0,
+                  "swift": 0.0,
+                  "reactions": 1,
+                  "reactionCooldown": 0.0,
+                  "pairedGrantIdentity": null,
+                  "retained": null
+                },
+                "frame": 88,
+                "command": null,
+                "commandActor": null,
+                "commandType": null,
+                "actionType": null,
+                "round": 3,
+                "turnStatus": "None"
+              },
+              {
+                "sequence": 77,
+                "boundary": "native-confusion-after",
+                "state": {
+                  "actor": "8265f8cf-0969-4ec7-a266-2448de91c8c4",
+                  "standard": 0.0,
+                  "move": 0.0,
+                  "swift": 0.0,
+                  "reactions": 1,
+                  "reactionCooldown": 0.0,
+                  "pairedGrantIdentity": null,
+                  "retained": null
+                },
+                "frame": 88,
+                "command": null,
+                "commandActor": null,
+                "commandType": null,
+                "actionType": null,
+                "round": 3,
+                "turnStatus": "None"
+              },
+              {
+                "sequence": 78,
+                "boundary": "ready-handler-before",
+                "state": {
+                  "actor": "8265f8cf-0969-4ec7-a266-2448de91c8c4",
+                  "standard": 0.0,
+                  "move": 0.0,
+                  "swift": 0.0,
+                  "reactions": 1,
+                  "reactionCooldown": 0.0,
+                  "pairedGrantIdentity": null,
+                  "retained": null
+                },
+                "frame": 88,
+                "command": null,
+                "commandActor": null,
+                "commandType": null,
+                "actionType": null,
+                "round": 3,
+                "turnStatus": "Preparing"
+              },
+              {
+                "sequence": 79,
+                "boundary": "ready-handler-after",
+                "state": {
+                  "actor": "8265f8cf-0969-4ec7-a266-2448de91c8c4",
+                  "standard": 0.0,
+                  "move": 0.0,
+                  "swift": 0.0,
+                  "reactions": 1,
+                  "reactionCooldown": 0.0,
+                  "pairedGrantIdentity": null,
+                  "retained": null
+                },
+                "frame": 88,
+                "command": null,
+                "commandActor": null,
+                "commandType": null,
+                "actionType": null,
+                "round": 3,
+                "turnStatus": "Preparing"
+              },
+              {
+                "sequence": 80,
+                "boundary": "ready-handler-before",
+                "state": {
+                  "actor": "8265f8cf-0969-4ec7-a266-2448de91c8c4",
+                  "standard": 0.0,
+                  "move": 0.0,
+                  "swift": 0.0,
+                  "reactions": 1,
+                  "reactionCooldown": 0.0,
+                  "pairedGrantIdentity": null,
+                  "retained": null
+                },
+                "frame": 88,
+                "command": null,
+                "commandActor": null,
+                "commandType": null,
+                "actionType": null,
+                "round": 3,
+                "turnStatus": "Preparing"
+              },
+              {
+                "sequence": 81,
+                "boundary": "ready-handler-after",
+                "state": {
+                  "actor": "8265f8cf-0969-4ec7-a266-2448de91c8c4",
+                  "standard": 0.0,
+                  "move": 0.0,
+                  "swift": 0.0,
+                  "reactions": 1,
+                  "reactionCooldown": 0.0,
+                  "pairedGrantIdentity": null,
+                  "retained": null
+                },
+                "frame": 88,
+                "command": null,
+                "commandActor": null,
+                "commandType": null,
+                "actionType": null,
+                "round": 3,
+                "turnStatus": "Preparing"
+              },
+              {
+                "sequence": 82,
+                "boundary": "ready-handler-before",
+                "state": {
+                  "actor": "8265f8cf-0969-4ec7-a266-2448de91c8c4",
+                  "standard": 0.0,
+                  "move": 0.0,
+                  "swift": 0.0,
+                  "reactions": 1,
+                  "reactionCooldown": 0.0,
+                  "pairedGrantIdentity": null,
+                  "retained": null
+                },
+                "frame": 88,
+                "command": null,
+                "commandActor": null,
+                "commandType": null,
+                "actionType": null,
+                "round": 3,
+                "turnStatus": "Preparing"
+              },
+              {
+                "sequence": 83,
+                "boundary": "ready-handler-after",
+                "state": {
+                  "actor": "8265f8cf-0969-4ec7-a266-2448de91c8c4",
+                  "standard": 0.0,
+                  "move": 0.0,
+                  "swift": 0.0,
+                  "reactions": 1,
+                  "reactionCooldown": 0.0,
+                  "pairedGrantIdentity": null,
+                  "retained": null
+                },
+                "frame": 88,
+                "command": null,
+                "commandActor": null,
+                "commandType": null,
+                "actionType": null,
+                "round": 3,
+                "turnStatus": "Preparing"
+              },
+              {
+                "sequence": 84,
+                "boundary": "ready-handler-before",
+                "state": {
+                  "actor": "8265f8cf-0969-4ec7-a266-2448de91c8c4",
+                  "standard": 0.0,
+                  "move": 0.0,
+                  "swift": 0.0,
+                  "reactions": 1,
+                  "reactionCooldown": 0.0,
+                  "pairedGrantIdentity": null,
+                  "retained": null
+                },
+                "frame": 88,
+                "command": null,
+                "commandActor": null,
+                "commandType": null,
+                "actionType": null,
+                "round": 3,
+                "turnStatus": "Preparing"
+              },
+              {
+                "sequence": 85,
+                "boundary": "ready-handler-after",
+                "state": {
+                  "actor": "8265f8cf-0969-4ec7-a266-2448de91c8c4",
+                  "standard": 0.0,
+                  "move": 0.0,
+                  "swift": 0.0,
+                  "reactions": 1,
+                  "reactionCooldown": 0.0,
+                  "pairedGrantIdentity": null,
+                  "retained": null
+                },
+                "frame": 88,
+                "command": null,
+                "commandActor": null,
+                "commandType": null,
+                "actionType": null,
+                "round": 3,
+                "turnStatus": "Preparing"
+              },
+              {
+                "sequence": 86,
+                "boundary": "ready-handler-before",
+                "state": {
+                  "actor": "8265f8cf-0969-4ec7-a266-2448de91c8c4",
+                  "standard": 0.0,
+                  "move": 0.0,
+                  "swift": 0.0,
+                  "reactions": 1,
+                  "reactionCooldown": 0.0,
+                  "pairedGrantIdentity": null,
+                  "retained": null
+                },
+                "frame": 88,
+                "command": null,
+                "commandActor": null,
+                "commandType": null,
+                "actionType": null,
+                "round": 3,
+                "turnStatus": "Preparing"
+              },
+              {
+                "sequence": 87,
+                "boundary": "ready-handler-after",
+                "state": {
+                  "actor": "8265f8cf-0969-4ec7-a266-2448de91c8c4",
+                  "standard": 0.0,
+                  "move": 0.0,
+                  "swift": 0.0,
+                  "reactions": 1,
+                  "reactionCooldown": 0.0,
+                  "pairedGrantIdentity": null,
+                  "retained": null
+                },
+                "frame": 88,
+                "command": null,
+                "commandActor": null,
+                "commandType": null,
+                "actionType": null,
+                "round": 3,
+                "turnStatus": "Preparing"
+              },
+              {
+                "sequence": 88,
+                "boundary": "ready-handler-before",
+                "state": {
+                  "actor": "8265f8cf-0969-4ec7-a266-2448de91c8c4",
+                  "standard": 0.0,
+                  "move": 0.0,
+                  "swift": 0.0,
+                  "reactions": 1,
+                  "reactionCooldown": 0.0,
+                  "pairedGrantIdentity": null,
+                  "retained": null
+                },
+                "frame": 88,
+                "command": null,
+                "commandActor": null,
+                "commandType": null,
+                "actionType": null,
+                "round": 3,
+                "turnStatus": "Preparing"
+              },
+              {
+                "sequence": 89,
+                "boundary": "ready-handler-after",
+                "state": {
+                  "actor": "8265f8cf-0969-4ec7-a266-2448de91c8c4",
+                  "standard": 0.0,
+                  "move": 0.0,
+                  "swift": 0.0,
+                  "reactions": 1,
+                  "reactionCooldown": 0.0,
+                  "pairedGrantIdentity": null,
+                  "retained": null
+                },
+                "frame": 88,
+                "command": null,
+                "commandActor": null,
+                "commandType": null,
+                "actionType": null,
+                "round": 3,
+                "turnStatus": "Preparing"
+              },
+              {
+                "sequence": 90,
+                "boundary": "ready-handler-before",
+                "state": {
+                  "actor": "8265f8cf-0969-4ec7-a266-2448de91c8c4",
+                  "standard": 0.0,
+                  "move": 0.0,
+                  "swift": 0.0,
+                  "reactions": 1,
+                  "reactionCooldown": 0.0,
+                  "pairedGrantIdentity": null,
+                  "retained": null
+                },
+                "frame": 88,
+                "command": null,
+                "commandActor": null,
+                "commandType": null,
+                "actionType": null,
+                "round": 3,
+                "turnStatus": "Preparing"
+              },
+              {
+                "sequence": 91,
+                "boundary": "ready-handler-after",
+                "state": {
+                  "actor": "8265f8cf-0969-4ec7-a266-2448de91c8c4",
+                  "standard": 0.0,
+                  "move": 0.0,
+                  "swift": 0.0,
+                  "reactions": 1,
+                  "reactionCooldown": 0.0,
+                  "pairedGrantIdentity": null,
+                  "retained": null
+                },
+                "frame": 88,
+                "command": null,
+                "commandActor": null,
+                "commandType": null,
+                "actionType": null,
+                "round": 3,
+                "turnStatus": "Preparing"
+              },
+              {
+                "sequence": 92,
+                "boundary": "ready-handler-before",
+                "state": {
+                  "actor": "8265f8cf-0969-4ec7-a266-2448de91c8c4",
+                  "standard": 0.0,
+                  "move": 0.0,
+                  "swift": 0.0,
+                  "reactions": 1,
+                  "reactionCooldown": 0.0,
+                  "pairedGrantIdentity": null,
+                  "retained": null
+                },
+                "frame": 88,
+                "command": null,
+                "commandActor": null,
+                "commandType": null,
+                "actionType": null,
+                "round": 3,
+                "turnStatus": "Preparing"
+              },
+              {
+                "sequence": 93,
+                "boundary": "ready-handler-after",
+                "state": {
+                  "actor": "8265f8cf-0969-4ec7-a266-2448de91c8c4",
+                  "standard": 0.0,
+                  "move": 0.0,
+                  "swift": 0.0,
+                  "reactions": 1,
+                  "reactionCooldown": 0.0,
+                  "pairedGrantIdentity": null,
+                  "retained": null
+                },
+                "frame": 88,
+                "command": null,
+                "commandActor": null,
+                "commandType": null,
+                "actionType": null,
+                "round": 3,
+                "turnStatus": "Preparing"
+              },
+              {
+                "sequence": 94,
+                "boundary": "ready-handler-before",
+                "state": {
+                  "actor": "8265f8cf-0969-4ec7-a266-2448de91c8c4",
+                  "standard": 0.0,
+                  "move": 0.0,
+                  "swift": 0.0,
+                  "reactions": 1,
+                  "reactionCooldown": 0.0,
+                  "pairedGrantIdentity": null,
+                  "retained": null
+                },
+                "frame": 88,
+                "command": null,
+                "commandActor": null,
+                "commandType": null,
+                "actionType": null,
+                "round": 3,
+                "turnStatus": "Preparing"
+              },
+              {
+                "sequence": 95,
+                "boundary": "ready-handler-after",
+                "state": {
+                  "actor": "8265f8cf-0969-4ec7-a266-2448de91c8c4",
+                  "standard": 0.0,
+                  "move": 0.0,
+                  "swift": 0.0,
+                  "reactions": 1,
+                  "reactionCooldown": 0.0,
+                  "pairedGrantIdentity": null,
+                  "retained": null
+                },
+                "frame": 88,
+                "command": null,
+                "commandActor": null,
+                "commandType": null,
+                "actionType": null,
+                "round": 3,
+                "turnStatus": "Preparing"
+              },
+              {
+                "sequence": 96,
+                "boundary": "ready-handler-before",
+                "state": {
+                  "actor": "8265f8cf-0969-4ec7-a266-2448de91c8c4",
+                  "standard": 0.0,
+                  "move": 0.0,
+                  "swift": 0.0,
+                  "reactions": 1,
+                  "reactionCooldown": 0.0,
+                  "pairedGrantIdentity": null,
+                  "retained": null
+                },
+                "frame": 88,
+                "command": null,
+                "commandActor": null,
+                "commandType": null,
+                "actionType": null,
+                "round": 3,
+                "turnStatus": "Preparing"
+              },
+              {
+                "sequence": 97,
+                "boundary": "ready-handler-after",
+                "state": {
+                  "actor": "8265f8cf-0969-4ec7-a266-2448de91c8c4",
+                  "standard": 0.0,
+                  "move": 0.0,
+                  "swift": 0.0,
+                  "reactions": 1,
+                  "reactionCooldown": 0.0,
+                  "pairedGrantIdentity": null,
+                  "retained": null
+                },
+                "frame": 88,
+                "command": null,
+                "commandActor": null,
+                "commandType": null,
+                "actionType": null,
+                "round": 3,
+                "turnStatus": "Preparing"
+              },
+              {
+                "sequence": 98,
+                "boundary": "ready-handler-before",
+                "state": {
+                  "actor": "8265f8cf-0969-4ec7-a266-2448de91c8c4",
+                  "standard": 0.0,
+                  "move": 0.0,
+                  "swift": 0.0,
+                  "reactions": 1,
+                  "reactionCooldown": 0.0,
+                  "pairedGrantIdentity": null,
+                  "retained": null
+                },
+                "frame": 88,
+                "command": null,
+                "commandActor": null,
+                "commandType": null,
+                "actionType": null,
+                "round": 3,
+                "turnStatus": "Preparing"
+              },
+              {
+                "sequence": 99,
+                "boundary": "ready-handler-after",
+                "state": {
+                  "actor": "8265f8cf-0969-4ec7-a266-2448de91c8c4",
+                  "standard": 0.0,
+                  "move": 0.0,
+                  "swift": 0.0,
+                  "reactions": 1,
+                  "reactionCooldown": 0.0,
+                  "pairedGrantIdentity": null,
+                  "retained": null
+                },
+                "frame": 88,
+                "command": null,
+                "commandActor": null,
+                "commandType": null,
+                "actionType": null,
+                "round": 3,
+                "turnStatus": "Preparing"
+              },
+              {
+                "sequence": 100,
+                "boundary": "ready-handler-before",
+                "state": {
+                  "actor": "8265f8cf-0969-4ec7-a266-2448de91c8c4",
+                  "standard": 0.0,
+                  "move": 0.0,
+                  "swift": 0.0,
+                  "reactions": 1,
+                  "reactionCooldown": 0.0,
+                  "pairedGrantIdentity": null,
+                  "retained": null
+                },
+                "frame": 88,
+                "command": null,
+                "commandActor": null,
+                "commandType": null,
+                "actionType": null,
+                "round": 3,
+                "turnStatus": "Preparing"
+              },
+              {
+                "sequence": 101,
+                "boundary": "ready-handler-after",
+                "state": {
+                  "actor": "8265f8cf-0969-4ec7-a266-2448de91c8c4",
+                  "standard": 0.0,
+                  "move": 0.0,
+                  "swift": 0.0,
+                  "reactions": 1,
+                  "reactionCooldown": 0.0,
+                  "pairedGrantIdentity": null,
+                  "retained": null
+                },
+                "frame": 88,
+                "command": null,
+                "commandActor": null,
+                "commandType": null,
+                "actionType": null,
+                "round": 3,
+                "turnStatus": "Preparing"
+              },
+              {
+                "sequence": 102,
+                "boundary": "prepare-after",
+                "state": {
+                  "actor": "8265f8cf-0969-4ec7-a266-2448de91c8c4",
+                  "standard": 0.0,
+                  "move": 0.0,
+                  "swift": 0.0,
+                  "reactions": 1,
+                  "reactionCooldown": 0.0,
+                  "pairedGrantIdentity": null,
+                  "retained": null
+                },
+                "frame": 88,
+                "command": null,
+                "commandActor": null,
+                "commandType": null,
+                "actionType": null,
+                "round": 3,
+                "turnStatus": "Preparing"
+              },
+              {
+                "sequence": 103,
+                "boundary": "turn-end-before",
+                "state": {
+                  "actor": "8265f8cf-0969-4ec7-a266-2448de91c8c4",
+                  "standard": 0.0,
+                  "move": 0.0,
+                  "swift": 0.0,
+                  "reactions": 1,
+                  "reactionCooldown": 0.0,
+                  "pairedGrantIdentity": null,
+                  "retained": null
+                },
+                "frame": 88,
+                "command": null,
+                "commandActor": null,
+                "commandType": null,
+                "actionType": null,
+                "round": 3,
+                "turnStatus": "Ending"
+              },
+              {
+                "sequence": 104,
+                "boundary": "turn-end-after",
+                "state": {
+                  "actor": "8265f8cf-0969-4ec7-a266-2448de91c8c4",
+                  "standard": 6.0,
+                  "move": 0.0,
+                  "swift": 0.0,
+                  "reactions": 1,
+                  "reactionCooldown": 0.0,
+                  "pairedGrantIdentity": null,
+                  "retained": null
+                },
+                "frame": 88,
+                "command": null,
+                "commandActor": null,
+                "commandType": null,
+                "actionType": null,
+                "round": 3,
+                "turnStatus": "Ended"
+              },
+              {
+                "sequence": 105,
                 "boundary": "prepare-before",
                 "state": {
                   "actor": "40404040-4040-4040-8040-404040404040",
@@ -13685,7 +15261,7 @@
                 "turnStatus": "None"
               },
               {
-                "sequence": 34,
+                "sequence": 106,
                 "boundary": "prepare-after",
                 "state": {
                   "actor": "40404040-4040-4040-8040-404040404040",
@@ -13736,7 +15312,8 @@
                 "token": "0600939D",
                 "moduleMvid": "07fa1e4d-8618-41b3-9b8d-faa17d3b26f7"
               }
-            ]
+            ],
+            "forceToEnd": []
           },
           "nativeCompletion": {
             "errors": [],
@@ -18695,6 +20272,7 @@
               "10101010-1010-4010-8010-101010101010",
               "30303030-3030-4030-8030-303030303030",
               "88888888-8888-4888-8888-888888888888",
+              "8265f8cf-0969-4ec7-a266-2448de91c8c4",
               "40404040-4040-4040-8040-404040404040",
               "20202020-2020-4020-8020-202020202020"
             ],
@@ -18706,21 +20284,31 @@
               "prepareBefore": 1,
               "prepareAfter": 1,
               "ends": 1,
+              "forcedEnds": 0,
               "forbidden": 0,
               "sequence": [
                 "prepare-before",
                 "clear-before",
                 "clear-after",
+                "round-state-before",
+                "round-state-after",
+                "round-handler-before",
+                "round-handler-after",
+                "round-handler-before",
+                "round-handler-after",
+                "ai-round-before",
+                "ai-round-after",
+                "native-confusion-before",
+                "native-confusion-after",
                 "prepare-after",
                 "turn-end-before",
-                "completion-end-before",
-                "turn-end-after",
-                "completion-end-after"
+                "turn-end-after"
               ],
               "grantIdentities": [
                 "native:rider-b-n1"
               ],
               "pairedIdentities": 0,
+              "prepareSequence": 23,
               "statusAfterPrepare": "Preparing",
               "standardBefore": 0.0,
               "standardAfterEnd": 6.0,
@@ -18729,9 +20317,95 @@
             },
             "unconsciousControl": {
               "contract": "unmounted-unconscious-native-turn-control-v1",
-              "survivorSlot": 3,
-              "candidates": [],
-              "available": false
+              "survivorSlot": 4,
+              "candidates": [
+                {
+                  "actorId": "8265f8cf-0969-4ec7-a266-2448de91c8c4",
+                  "slot": 3,
+                  "mainCharacter": false,
+                  "pet": false,
+                  "essential": false,
+                  "immortal": false,
+                  "allowDyingCondition": true,
+                  "conscious": true,
+                  "inCombat": true,
+                  "paired": false,
+                  "eligible": true
+                }
+              ],
+              "available": true,
+              "actorId": "8265f8cf-0969-4ec7-a266-2448de91c8c4",
+              "slot": 3,
+              "grantBefore": 2,
+              "traceSequenceAtDamage": 64,
+              "before": {
+                "actorId": "8265f8cf-0969-4ec7-a266-2448de91c8c4",
+                "life": "Conscious",
+                "conscious": true,
+                "dead": false,
+                "damage": 0,
+                "hp": 30,
+                "constitution": 12,
+                "temporaryHp": 0,
+                "mainCharacter": false,
+                "essential": false,
+                "immortal": false,
+                "allowDyingCondition": true
+              },
+              "requestedDamage": 32,
+              "nativeDamage": 32,
+              "afterDamage": {
+                "actorId": "8265f8cf-0969-4ec7-a266-2448de91c8c4",
+                "life": "Conscious",
+                "conscious": true,
+                "dead": false,
+                "damage": 32,
+                "hp": 30,
+                "constitution": 12,
+                "temporaryHp": 0,
+                "mainCharacter": false,
+                "essential": false,
+                "immortal": false,
+                "allowDyingCondition": true
+              },
+              "turn": {
+                "actorId": "8265f8cf-0969-4ec7-a266-2448de91c8c4",
+                "round": 3,
+                "prepareBefore": 1,
+                "prepareAfter": 1,
+                "ends": 1,
+                "forcedEnds": 0,
+                "forbidden": 0,
+                "sequence": [
+                  "prepare-before",
+                  "clear-before",
+                  "clear-after",
+                  "round-state-before",
+                  "round-state-after",
+                  "round-handler-before",
+                  "round-handler-after",
+                  "round-handler-before",
+                  "round-handler-after",
+                  "ai-round-before",
+                  "ai-round-after",
+                  "native-confusion-before",
+                  "native-confusion-after",
+                  "prepare-after",
+                  "turn-end-before",
+                  "turn-end-after"
+                ],
+                "grantIdentities": [
+                  null
+                ],
+                "pairedIdentities": 0,
+                "prepareSequence": 65,
+                "statusAfterPrepare": "Preparing",
+                "standardBefore": 0.0,
+                "standardAfterEnd": 6.0,
+                "conscious": false,
+                "dead": false
+              },
+              "grantAfter": 3
             }
           },
           "inheritedFixture": {

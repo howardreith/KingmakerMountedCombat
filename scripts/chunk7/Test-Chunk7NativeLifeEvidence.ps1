@@ -35,59 +35,86 @@ function NextRoundEvent([string]$Boundary,[string]$Actor,[string]$Status,[double
   state=[pscustomobject]@{actor=$Actor;standard=$Standard;move=0.0;swift=0.0;reactions=1;reactionCooldown=0.0;pairedGrantIdentity=$Paired;retained=$(if($null-eq$Ledger){$null}else{[pscustomobject]@{GrantIdentity=$Ledger}})}}
  $v.observations.allocationTrace.events+=,$e
 }
-function EmptyNativeTurn([string]$Actor,$Ledger){
- foreach($row in @(@('prepare-before','None',0.0),@('clear-before','None',0.0),@('clear-after','None',0.0),@('ready-handler-before','Preparing',0.0),@('ready-handler-after','Preparing',0.0),
-   @('prepare-after','Preparing',0.0),@('turn-end-before','Ending',0.0),@('completion-end-before','Ending',0.0),@('turn-end-after','Ended',6.0),@('completion-end-after','Ended',6.0))){$id=if($null-ne$Ledger-and$row[0]-cin@('prepare-before','clear-before','clear-after')){'exact-b:2'}else{$Ledger};NextRoundEvent $row[0] $Actor $row[1] $row[2] $id $null}
-}
-function EmptyTurnRecord([string]$Actor,$Ledger){[pscustomobject]@{actorId=$Actor;round=3;prepareBefore=1;prepareAfter=1;ends=1;forbidden=0;
- sequence=@('prepare-before','clear-before','clear-after','prepare-after','turn-end-before','completion-end-before','turn-end-after','completion-end-after');
- grantIdentities=@($Ledger);pairedIdentities=0;statusAfterPrepare='Preparing';standardBefore=0.0;standardAfterEnd=6.0;conscious=$false;dead=$false}}
+# Real b194 a1 shapes. Rider B's empty native N+1 turn is seq 921-974 (42 own events): its ledger
+# entry still names pair B's previous activation at prepare-before and is native from clear-before
+# on; the paired-only completion probe adds completion-end-* around the native End. An unpaired
+# companion has no completion probe events (a1 8265 round 2, seq 757-810); unconscious, native Tick
+# ends its turn with no end input, so its shape is the rider's without completion-* events.
+$realRiderTurn=@(@('prepare-before','None',0.0),@('clear-before','None',0.0),@('clear-after','None',0.0),@('round-state-before','None',0.0),@('round-state-after','None',0.0),
+ @('round-handler-before','None',0.0),@('round-handler-after','None',0.0),@('round-handler-before','None',0.0),@('round-handler-after','None',0.0),@('ai-round-before','None',0.0),@('ai-round-after','None',0.0),
+ @('native-confusion-before','None',0.0),@('native-confusion-after','None',0.0))+@(1..12|ForEach-Object{,@('ready-handler-before','Preparing',0.0);,@('ready-handler-after','Preparing',0.0)})+
+ @(@('prepare-after','Preparing',0.0),@('turn-end-before','Ending',0.0),@('completion-end-before','Ending',0.0),@('turn-end-after','Ended',6.0),@('completion-end-after','Ended',6.0))
+if($realRiderTurn.Count-ne42){throw 'Synthetic rider turn no longer mirrors the real a1 shape.'}
+$realControlTurn=@($realRiderTurn|Where-Object{-not$_[0].StartsWith('completion-',[StringComparison]::Ordinal)})
+function EmptyNativeTurn([string]$Actor,$Ledger,$Rows){$first=$true;foreach($row in $Rows){$id=if($null-ne$Ledger-and$first){'exact-b:2'}else{$Ledger};$first=$false;NextRoundEvent $row[0] $Actor $row[1] $row[2] $id $null}}
+$comparedTurn=@($realControlTurn|Where-Object{-not$_[0].StartsWith('ready-handler-',[StringComparison]::Ordinal)}|ForEach-Object{$_[0]})
+function EmptyTurnRecord([string]$Actor,$Ledger,[long]$Start){[pscustomobject]@{actorId=$Actor;round=3;prepareBefore=1;prepareAfter=1;ends=1;forcedEnds=0;forbidden=0;
+ sequence=$comparedTurn;grantIdentities=@($Ledger);pairedIdentities=0;prepareSequence=$Start;statusAfterPrepare='Preparing';standardBefore=0.0;standardAfterEnd=6.0;conscious=$false;dead=$false}}
+$controlId='8265f8cf-0969-4ec7-a266-2448de91c8c4'
+$v.observations.allocationTrace|Add-Member NoteProperty forceToEnd @()
 NextRoundEvent 'prepare-before' $ids[0] 'None' 0.0 'exact-a:3' 'exact-a:3';NextRoundEvent 'prepare-after' $ids[0] 'Preparing' 0.0 'exact-a:3' 'exact-a:3'
-EmptyNativeTurn $ids[2] 'native:rider-b-n1'
+$riderStart=[long](@($v.observations.allocationTrace.events).Count+1);EmptyNativeTurn $ids[2] 'native:rider-b-n1' $realRiderTurn
+$controlDamageSequence=[long]@($v.observations.allocationTrace.events).Count
+$controlStart=[long](@($v.observations.allocationTrace.events).Count+1);EmptyNativeTurn $controlId $null $realControlTurn
 NextRoundEvent 'prepare-before' $ids[3] 'None' 0.0 'native:survivor-n1' $null;NextRoundEvent 'prepare-after' $ids[3] 'Preparing' 0.0 'native:survivor-n1' $null
 $life.independentSurvivor.grants[2].count=3
-$life|Add-Member NoteProperty nativeNextRoundOrder @($v.observations.nativeInitialOrder);$life|Add-Member NoteProperty riderSlotsBeforeRenewal 0;$life|Add-Member NoteProperty expectedRiderSlots 1
-$life|Add-Member NoteProperty incapacitatedRiderTurn (EmptyTurnRecord $ids[2] 'native:rider-b-n1')
-$life|Add-Member NoteProperty unconsciousControl ([pscustomobject]@{contract='unmounted-unconscious-native-turn-control-v1';survivorSlot=3;candidates=@();available=$false})
+$life|Add-Member NoteProperty nativeNextRoundOrder @($ids[0],$ids[2],$target,$controlId,$ids[3],$ids[1]);$life|Add-Member NoteProperty riderSlotsBeforeRenewal 0;$life|Add-Member NoteProperty expectedRiderSlots 1
+$life|Add-Member NoteProperty incapacitatedRiderTurn (EmptyTurnRecord $ids[2] 'native:rider-b-n1' $riderStart)
+$life|Add-Member NoteProperty unconsciousControl ([pscustomobject]@{contract='unmounted-unconscious-native-turn-control-v1';survivorSlot=4;available=$true;
+ candidates=@([pscustomobject]@{actorId=$controlId;slot=3;mainCharacter=$false;pet=$false;essential=$false;immortal=$false;allowDyingCondition=$true;conscious=$true;inCombat=$true;paired=$false;eligible=$true});
+ actorId=$controlId;slot=3;grantBefore=2;traceSequenceAtDamage=$controlDamageSequence;before=(LifeActor $controlId);requestedDamage=32;nativeDamage=32;afterDamage=(LifeActor $controlId 32);
+ turn=(EmptyTurnRecord $controlId $null $controlStart);grantAfter=3})
 $lifeGood=Copy-Value $v
-# The same campaign with an eligible unmounted companion knocked unconscious in round N.
-$controlId='8265f8cf-0969-4ec7-a266-2448de91c8c4'
-EmptyNativeTurn $controlId $null
-$v.observations.nativeLife.nativeNextRoundOrder=@($ids[0],$ids[2],$controlId,$target,$ids[3],$ids[1])
-$v.observations.nativeLife.unconsciousControl=[pscustomobject]@{contract='unmounted-unconscious-native-turn-control-v1';survivorSlot=4;available=$true;
- candidates=@([pscustomobject]@{actorId=$controlId;slot=2;mainCharacter=$false;pet=$false;essential=$false;immortal=$false;allowDyingCondition=$true;conscious=$true;inCombat=$true;paired=$false;eligible=$true});
- actorId=$controlId;slot=2;grantBefore=2;before=(LifeActor $controlId);requestedDamage=32;nativeDamage=32;afterDamage=(LifeActor $controlId 32);turn=(EmptyTurnRecord $controlId $null)}
-$lifeControlGood=Copy-Value $v;$v=Copy-Value $lifeGood
-Check 'complete synthetic native life cleanup chain' {Assert-KmcChunk7NativeLifeEvidence $request $lifeGood 'PASS'}
-Check 'unmounted unconscious control matching the incapacitated rider native turn' {Assert-KmcChunk7NativeLifeEvidence $request $lifeControlGood 'PASS'}
-Check 'rider slot before the healthy renewal is derived and accepted' {$x=Copy-Value $lifeGood;$l=$x.observations.nativeLife;$l.nativeNextRoundOrder=@($ids[2],$ids[0],$target,$ids[3],$ids[1]);$l.riderSlotsBeforeRenewal=1;$l.expectedRiderSlots=0;$l.healthyRenewed.grants[2].count=3
- $ev=@($x.observations.allocationTrace.events);$a=@($ev|Where-Object{$null-ne$_.PSObject.Properties['round']-and$_.round-eq3-and$_.state.actor-ceq$ids[0]});$r=@($ev|Where-Object{$null-ne$_.PSObject.Properties['round']-and$_.round-eq3-and$_.state.actor-ceq$ids[2]});$s=$a[0].sequence;$i=0
- foreach($e in $r){$e.sequence=$s+$i;$i++};foreach($e in $a){$e.sequence=$s+$i;$i++};$x.observations.allocationTrace.events=@($ev|Sort-Object sequence);Assert-KmcChunk7NativeLifeEvidence $request $x 'PASS'}
-function RejectLife([string]$Name,[string]$Reason,[scriptblock]$Mutate,$Base=$lifeGood){
+# Derivation-only shape: no eligible companion, admitted only when the request declares the control not required.
+$x=Copy-Value $lifeGood;$x.observations.allocationTrace.events=@($x.observations.allocationTrace.events|Where-Object{-not($null-ne$_.PSObject.Properties['round']-and$_.state.actor-ceq$controlId)})
+$i=0;foreach($ev in $x.observations.allocationTrace.events){$i++;$ev.sequence=$i}
+$x.observations.nativeLife.nativeNextRoundOrder=@($ids[0],$ids[2],$target,$ids[3],$ids[1])
+$x.observations.nativeLife.incapacitatedRiderTurn.prepareSequence=@($x.observations.allocationTrace.events|Where-Object{$null-ne$_.PSObject.Properties['round']-and$_.state.actor-ceq$ids[2]})[0].sequence
+$x.observations.nativeLife.unconsciousControl=[pscustomobject]@{contract='unmounted-unconscious-native-turn-control-v1';survivorSlot=3;candidates=@();available=$false}
+$lifeNoControl=$x;$requestNoControl=Copy-Value $request;$requestNoControl|Add-Member NoteProperty nativeLifeControlRequired $false
+Check 'complete synthetic native life cleanup chain with its unmounted unconscious control' {Assert-KmcChunk7NativeLifeEvidence $request $lifeGood 'PASS'}
+Check 'derivation-only proof admitted when the request declares the control not required' {Assert-KmcChunk7NativeLifeEvidence $requestNoControl $lifeNoControl 'PASS'}
+Check 'rider slot before the healthy renewal is derived and accepted' {$x=Copy-Value $lifeGood;$l=$x.observations.nativeLife;$l.nativeNextRoundOrder=@($ids[2],$ids[0],$target,$controlId,$ids[3],$ids[1]);$l.riderSlotsBeforeRenewal=1;$l.expectedRiderSlots=0;$l.healthyRenewed.grants[2].count=3
+ $l.unconsciousControl.survivorSlot=4;$ev=@($x.observations.allocationTrace.events);$a=@($ev|Where-Object{$null-ne$_.PSObject.Properties['round']-and$_.round-eq3-and$_.state.actor-ceq$ids[0]});$r=@($ev|Where-Object{$null-ne$_.PSObject.Properties['round']-and$_.round-eq3-and$_.state.actor-ceq$ids[2]});$s=$a[0].sequence;$i=0
+ foreach($e in $r){$e.sequence=$s+$i;$i++};foreach($e in $a){$e.sequence=$s+$i;$i++};$x.observations.allocationTrace.events=@($ev|Sort-Object sequence);$l.incapacitatedRiderTurn.prepareSequence=$s;Assert-KmcChunk7NativeLifeEvidence $request $x 'PASS'}
+function RejectLife([string]$Name,[string]$Reason,[scriptblock]$Mutate,$Base=$lifeGood,$Req=$request){
  $x=Copy-Value $Base;& $Mutate $x;$refused=$false
- try{Assert-KmcChunk7NativeLifeEvidence $request $x 'PASS'}catch{if($_.Exception.Message-notmatch$Reason){throw "$Name refused for another reason: $($_.Exception.Message)"};$refused=$true}
+ try{Assert-KmcChunk7NativeLifeEvidence $Req $x 'PASS'}catch{if($_.Exception.Message-cne$Reason){throw "$Name refused for another reason: $($_.Exception.Message)"};$refused=$true}
  if(-not$refused){throw "$Name was admitted."};$script:passed++;Write-Host "PASS refuses $Name"
 }
-RejectLife 'rider grant without its derived slot' 'grants were duplicated' {param($x)$x.observations.nativeLife.independentSurvivor.grants[2].count=2}
-RejectLife 'second native rider grant' 'grants were duplicated' {param($x)$x.observations.nativeLife.independentSurvivor.grants[2].count=4}
-RejectLife 'derived slots inconsistent with the order' 'rider slots differ' {param($x)$x.observations.nativeLife.riderSlotsBeforeRenewal=1}
-RejectLife 'recorded order not followed by native preparations' 'follow the recorded order' {param($x)$x.observations.nativeLife.nativeNextRoundOrder=@($ids[2],$ids[0],$target,$ids[3],$ids[1]);$x.observations.nativeLife.riderSlotsBeforeRenewal=1;$x.observations.nativeLife.expectedRiderSlots=0}
-RejectLife 'rider turn ended by ForceToEnd' 'differs from its trace|exactly one empty native Prepare' {param($x)foreach($e in @($x.observations.allocationTrace.events|Where-Object{$null-ne$_.PSObject.Properties['round']-and$_.round-eq3-and$_.state.actor-ceq$ids[2]-and$_.boundary-clike'completion-end-*'})){$e.boundary=$e.boundary.Replace('completion-end','completion-force-to-end')}}
-RejectLife 'rider turn with a paired grant identity' 'differs from its trace|exactly one empty native Prepare' {param($x)foreach($e in @($x.observations.allocationTrace.events|Where-Object{$null-ne$_.PSObject.Properties['round']-and$_.round-eq3-and$_.state.actor-ceq$ids[2]})){$e.state.pairedGrantIdentity='exact-b:3'}}
-RejectLife 'rider turn with a KMC ledger grant' 'exactly one empty native Prepare' {param($x)foreach($e in @($x.observations.allocationTrace.events|Where-Object{$null-ne$_.PSObject.Properties['round']-and$_.round-eq3-and$_.state.actor-ceq$ids[2]})){$e.state.retained.GrantIdentity='exact-b:3'};$x.observations.nativeLife.incapacitatedRiderTurn.grantIdentities=@('exact-b:3')}
-RejectLife 'rider ledger not native after Prepare' 'exactly one empty native Prepare' {param($x)foreach($e in @($x.observations.allocationTrace.events|Where-Object{$null-ne$_.PSObject.Properties['round']-and$_.round-eq3-and$_.state.actor-ceq$ids[2]-and$_.boundary-ceq'completion-end-after'})){$e.state.retained.GrantIdentity='exact-b:2'};$x.observations.nativeLife.incapacitatedRiderTurn.grantIdentities=@('native:rider-b-n1','exact-b:2')}
-RejectLife 'rider turn with a native command' 'differs from its trace|exactly one empty native Prepare' {param($x)$e=Copy-Value @($x.observations.allocationTrace.events|Where-Object{$null-ne$_.PSObject.Properties['round']-and$_.round-eq3-and$_.state.actor-ceq$ids[2]})[1];$e.boundary='command-end-before';$e.sequence=@($x.observations.allocationTrace.events).Count+1;$x.observations.allocationTrace.events+=,$e}
-RejectLife 'rider turn with an admission' 'differs from its trace|exactly one empty native Prepare' {param($x)$e=Copy-Value @($x.observations.allocationTrace.events|Where-Object{$null-ne$_.PSObject.Properties['round']-and$_.round-eq3-and$_.state.actor-ceq$ids[2]})[1];$e.boundary='admission-before';$e.sequence=@($x.observations.allocationTrace.events).Count+1;$x.observations.allocationTrace.events+=,$e}
-RejectLife 'rider turn with a native cost' 'differs from its trace|exactly one empty native Prepare' {param($x)$e=Copy-Value @($x.observations.allocationTrace.events|Where-Object{$null-ne$_.PSObject.Properties['round']-and$_.round-eq3-and$_.state.actor-ceq$ids[2]})[1];$e.boundary='cost-before';$e.sequence=@($x.observations.allocationTrace.events).Count+1;$x.observations.allocationTrace.events+=,$e}
-RejectLife 'rider turn not left Preparing' 'differs from its trace|exactly one empty native Prepare' {param($x)foreach($e in @($x.observations.allocationTrace.events|Where-Object{$null-ne$_.PSObject.Properties['round']-and$_.round-eq3-and$_.state.actor-ceq$ids[2]-and$_.boundary-ceq'prepare-after'})){$e.turnStatus='Acting'}}
-RejectLife 'rider native End did not set Standard' 'differs from its trace|exactly one empty native Prepare' {param($x)foreach($e in @($x.observations.allocationTrace.events|Where-Object{$null-ne$_.PSObject.Properties['round']-and$_.round-eq3-and$_.state.actor-ceq$ids[2]-and$_.boundary-ceq'completion-end-after'})){$e.state.standard=5.0}}
-RejectLife 'rider conscious during its native turn' 'Native boolean|boolean' {param($x)$x.observations.nativeLife.incapacitatedRiderTurn.conscious=$true}
-RejectLife 'rider turn record differs from the trace' 'differs from its trace' {param($x)$x.observations.nativeLife.incapacitatedRiderTurn.sequence=@('prepare-before','prepare-after','completion-end-after')}
-RejectLife 'control hidden although a companion was eligible' 'Native boolean|boolean' {param($x)$x.observations.nativeLife.unconsciousControl.candidates=@([pscustomobject]@{actorId='8265f8cf-0969-4ec7-a266-2448de91c8c4';slot=-1;mainCharacter=$false;pet=$false;essential=$false;immortal=$false;allowDyingCondition=$true;conscious=$true;inCombat=$true;paired=$false;eligible=$true})}
-RejectLife 'control turn differs from the rider turn' 'differs from the incapacitated rider' {param($x)foreach($e in @($x.observations.allocationTrace.events|Where-Object{$null-ne$_.PSObject.Properties['round']-and$_.round-eq3-and$_.state.actor-ceq'8265f8cf-0969-4ec7-a266-2448de91c8c4'-and$_.boundary-clike'clear-*'})){$e.boundary='round-state'+$e.boundary.Substring(5)};$x.observations.nativeLife.unconsciousControl.turn.sequence=@('prepare-before','round-state-before','round-state-after','prepare-after','turn-end-before','completion-end-before','turn-end-after','completion-end-after')} $lifeControlGood
-RejectLife 'control not the first eligible companion' 'first eligible' {param($x)$x.observations.nativeLife.unconsciousControl.actorId='5dd7bd1d-ae4c-4df7-9687-50fceb027344'} $lifeControlGood
-RejectLife 'control turn force-ended instead of a native End' 'differs from its trace|exactly one empty native Prepare' {param($x)foreach($e in @($x.observations.allocationTrace.events|Where-Object{$null-ne$_.PSObject.Properties['round']-and$_.round-eq3-and$_.state.actor-ceq'8265f8cf-0969-4ec7-a266-2448de91c8c4'-and$_.boundary-clike'completion-end-*'})){$e.boundary=$e.boundary.Replace('completion-end','completion-force-to-end')}} $lifeControlGood
-RejectLife 'unavailable control carrying a stimulus' 'carries a stimulus' {param($x)$x.observations.nativeLife.unconsciousControl|Add-Member NoteProperty requestedDamage 32}
+function RiderTurnEvents($x,[string]$Boundary){@($x.observations.allocationTrace.events|Where-Object{$null-ne$_.PSObject.Properties['round']-and$_.round-eq3-and$_.state.actor-ceq$ids[2]-and$_.boundary-ceq$Boundary})}
+function ControlTurnEvents($x,[string]$Boundary){@($x.observations.allocationTrace.events|Where-Object{$null-ne$_.PSObject.Properties['round']-and$_.round-eq3-and$_.state.actor-ceq$controlId-and$_.boundary-ceq$Boundary})}
+function AppendLike($x,$Source,[string]$Boundary){$e=Copy-Value $Source;$e.boundary=$Boundary;$e.sequence=@($x.observations.allocationTrace.events).Count+1;$x.observations.allocationTrace.events+=,$e}
+$turnMismatch='Unconscious unit did not receive exactly one empty native Prepare ended natively.'
+RejectLife 'rider grant without its derived slot' 'Native next-round grants were duplicated, omitted or delayed.' {param($x)$x.observations.nativeLife.independentSurvivor.grants[2].count=2}
+RejectLife 'second native rider grant' 'Native next-round grants were duplicated, omitted or delayed.' {param($x)$x.observations.nativeLife.independentSurvivor.grants[2].count=4}
+RejectLife 'derived slots inconsistent with the order' 'Native next-round rider slots differ from the recorded native order.' {param($x)$x.observations.nativeLife.riderSlotsBeforeRenewal=1}
+RejectLife 'recorded order not followed by native preparations' 'Native N+1 rider preparation does not follow the recorded order.' {param($x)$x.observations.nativeLife.nativeNextRoundOrder=@($ids[2],$ids[0],$target,$controlId,$ids[3],$ids[1]);$x.observations.nativeLife.riderSlotsBeforeRenewal=1;$x.observations.nativeLife.expectedRiderSlots=0}
+RejectLife 'rider turn ended by ForceToEnd' $turnMismatch {param($x)$x.observations.allocationTrace.forceToEnd=@([pscustomobject]@{eventSequence=200;actor=$ids[2];frame=88;round=3});$x.observations.nativeLife.incapacitatedRiderTurn.forcedEnds=1}
+RejectLife 'ForceToEnd observation missing from the trace' 'Native life trace lacks its ForceToEnd observation.' {param($x)$x.observations.allocationTrace.PSObject.Properties.Remove('forceToEnd')}
+RejectLife 'rider turn with a paired grant identity' $turnMismatch {param($x)foreach($e in @($x.observations.allocationTrace.events|Where-Object{$null-ne$_.PSObject.Properties['round']-and$_.round-eq3-and$_.state.actor-ceq$ids[2]})){$e.state.pairedGrantIdentity='exact-b:3'};$x.observations.nativeLife.incapacitatedRiderTurn.pairedIdentities=$realRiderTurn.Count-1}
+RejectLife 'rider turn with a KMC ledger grant' $turnMismatch {param($x)foreach($e in @($x.observations.allocationTrace.events|Where-Object{$null-ne$_.PSObject.Properties['round']-and$_.round-eq3-and$_.state.actor-ceq$ids[2]})){$e.state.retained.GrantIdentity='exact-b:3'};$x.observations.nativeLife.incapacitatedRiderTurn.grantIdentities=@('exact-b:3')}
+RejectLife 'rider ledger not native after prepare-before' $turnMismatch {param($x)(RiderTurnEvents $x 'clear-before')[0].state.retained.GrantIdentity='exact-b:2';$x.observations.nativeLife.incapacitatedRiderTurn.grantIdentities=@('exact-b:2','native:rider-b-n1')}
+RejectLife 'rider turn with a native command' 'Unconscious native turn forbidden differs from its trace.' {param($x)AppendLike $x (RiderTurnEvents $x 'clear-before')[0] 'command-end-before'}
+RejectLife 'rider turn with an admission' 'Unconscious native turn forbidden differs from its trace.' {param($x)AppendLike $x (RiderTurnEvents $x 'clear-before')[0] 'admission-before'}
+RejectLife 'rider turn with a native cost' 'Unconscious native turn forbidden differs from its trace.' {param($x)AppendLike $x (RiderTurnEvents $x 'clear-before')[0] 'cost-before'}
+RejectLife 'rider turn not left Preparing' 'Unconscious native turn record differs from its trace.' {param($x)(RiderTurnEvents $x 'prepare-after')[0].turnStatus='Acting'}
+RejectLife 'rider native End did not set Standard' 'Unconscious native turn record differs from its trace.' {param($x)(RiderTurnEvents $x 'turn-end-after')[0].state.standard=5.0}
+RejectLife 'rider conscious during its native turn' 'Native evidence boolean is missing, mistyped or differs.' {param($x)$x.observations.nativeLife.incapacitatedRiderTurn.conscious=$true}
+RejectLife 'rider turn record differs from the trace' 'Unconscious native turn record differs from its trace.' {param($x)$x.observations.nativeLife.incapacitatedRiderTurn.sequence=@('prepare-before','prepare-after','turn-end-after')}
+RejectLife 'required control declared unavailable' 'Required unmounted unconscious control is unavailable.' {param($x)} $lifeNoControl
+RejectLife 'control declared unavailable although a companion is eligible' 'Native evidence boolean is missing, mistyped or differs.' {param($x)$x.observations.nativeLife.unconsciousControl.candidates=@([pscustomobject]@{actorId=$controlId;slot=-1;mainCharacter=$false;pet=$false;essential=$false;immortal=$false;allowDyingCondition=$true;conscious=$true;inCombat=$true;paired=$false;eligible=$true})} $lifeNoControl $requestNoControl
+RejectLife 'control turn differs from the rider turn' 'Unmounted unconscious control differs from the incapacitated rider native turn.' {param($x)foreach($e in @(ControlTurnEvents $x 'clear-before')+@(ControlTurnEvents $x 'clear-after')){$e.boundary='round-state'+$e.boundary.Substring(5)};$c=$x.observations.nativeLife.unconsciousControl.turn;$c.sequence=@($c.sequence|ForEach-Object{if($_-clike'clear-*'){'round-state'+$_.Substring(5)}else{$_}})}
+RejectLife 'control not the first eligible companion' 'Unconscious control is not the first eligible companion in native order.' {param($x)$x.observations.nativeLife.unconsciousControl.actorId='5dd7bd1d-ae4c-4df7-9687-50fceb027344'}
+RejectLife 'control turn ended by ForceToEnd' $turnMismatch {param($x)$x.observations.allocationTrace.forceToEnd=@([pscustomobject]@{eventSequence=200;actor=$controlId;frame=88;round=3});$x.observations.nativeLife.unconsciousControl.turn.forcedEnds=1}
+RejectLife 'control candidates out of native slot order' 'Unconscious control candidates are not in native slot order.' {param($x)$c=$x.observations.nativeLife.unconsciousControl;$c.candidates=@($c.candidates)+@([pscustomobject]@{actorId='5dd7bd1d-ae4c-4df7-9687-50fceb027344';slot=-1;mainCharacter=$false;pet=$false;essential=$false;immortal=$false;allowDyingCondition=$true;conscious=$true;inCombat=$true;paired=$false;eligible=$false})}
+RejectLife 'control damage not equal to its damage delta' 'Unconscious control damage is not one bounded living stimulus.' {param($x)$x.observations.nativeLife.unconsciousControl.nativeDamage=31}
+RejectLife 'control grants not matching its native preparations' 'Unconscious control grants differ from its observed native preparations.' {param($x)$x.observations.nativeLife.unconsciousControl.grantAfter=4}
+RejectLife 'control turn after the surviving mount' 'Unconscious control native turn does not precede the surviving mount.' {param($x)$ev=@($x.observations.allocationTrace.events);$c=@($ev|Where-Object{$null-ne$_.PSObject.Properties['round']-and$_.state.actor-ceq$controlId});$m=@($ev|Where-Object{$null-ne$_.PSObject.Properties['round']-and$_.round-eq3-and$_.state.actor-ceq$ids[3]});$s=$c[0].sequence;$i=0
+ foreach($e in $m){$e.sequence=$s+$i;$i++};foreach($e in $c){$e.sequence=$s+$i;$i++};$x.observations.allocationTrace.events=@($ev|Sort-Object sequence);$x.observations.nativeLife.unconsciousControl.turn.prepareSequence=$s+2}
+RejectLife 'unavailable control carrying a stimulus' 'Unavailable unconscious control carries a stimulus.' {param($x)$x.observations.nativeLife.unconsciousControl|Add-Member NoteProperty requestedDamage 32} $lifeNoControl $requestNoControl
+$requestTextControl=Copy-Value $requestNoControl;$requestTextControl.nativeLifeControlRequired='false'
+RejectLife 'non-boolean control requirement' 'Native life control requirement must be a boolean.' {param($x)} $lifeNoControl $requestTextControl
 $cases=@(
  @('direct life callback without native tick',{$args[0].observations.nativeLife.deliveryProbe.events[2].nativeTickDepth=0}),
  @('direct SetLifeState without tick',{$args[0].observations.nativeLife.deliveryProbe.events[1].nativeTickDepth=0}),
