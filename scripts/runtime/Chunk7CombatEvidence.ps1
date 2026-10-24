@@ -543,6 +543,153 @@ function Assert-KmcChunk7StagedRanged($Step,$o,$s,$roles,[bool]$Approach,[string
  }
  Assert-KmcChunk7StagedSettled $Step.after ($Why+' after')
 }
+# The up-front geometry plan (owner-seed-staged-geometry-plan-v1, Chunk7StagedGeometry). The reader replays every
+# recorded candidate from its recorded points: the fixed candidate order, each requested point, each proposal's first
+# refusing term (walkable node, exact trace, a real leg, the declared band, the stop-short margin), the chosen leg,
+# the simulated end and native movement time, the double move's second Move, exhaustion at 5.95 s, the 8-leg limit,
+# the shot's range and the approach trace. Walkable flags, goals and trace ends are native observations it cannot
+# recompute; everything derived from them it does.
+$script:KmcStagedFan=@(0.0,22.5,-22.5,45.0,-45.0,67.5,-67.5,90.0,-90.0,112.5,-112.5,135.0,-135.0,157.5,-157.5,180.0)
+$script:KmcStagedPlacementDistances=@(8.0,9.0,7.0,10.0)
+$script:KmcStagedMaxResidual=[double][float]0.3
+function Get-KmcChunk7StagedVector($P,[string]$Why){
+ if(@($P).Count-ne3-or@($P|Where-Object{-not(Test-KmcChunk7FiniteNumber $_)}).Count-ne0){throw ($Why+': a recorded point is missing or not finite.')}
+ ,@([double]$P[0],[double]$P[1],[double]$P[2])
+}
+function Get-KmcChunk7StagedRotation([double]$X,[double]$Z,[double]$Degrees){$r=$Degrees*[Math]::PI/180.0;$c=[Math]::Cos($r);$s=[Math]::Sin($r);,@(($X*$c+$Z*$s),(-$X*$s+$Z*$c))}
+function Test-KmcChunk7StagedNear($A,$B,[double]$Tolerance=1e-6){[Math]::Abs([double]$A[0]-[double]$B[0])-le$Tolerance-and[Math]::Abs([double]$A[1]-[double]$B[1])-le$Tolerance-and[Math]::Abs([double]$A[2]-[double]$B[2])-le$Tolerance}
+function Get-KmcChunk7StagedBand([double]$D,[double]$Floor,[double]$Ceiling){if($D-lt$Floor){'below-band'}elseif($D-gt$Ceiling){'above-band'}else{$null}}
+function Get-KmcChunk7StagedLegGeometry([string]$Kind,$Start,$Goal,$Target,[double]$Envelope){
+ $d=Get-KmcChunk7StagedFlat $Goal $Target;$length=Get-KmcChunk7StagedFlat $Start $Goal
+ $stop=@(([double]$Goal[0]-([double]$Goal[0]-[double]$Start[0])/$length*0.5),[double]$Goal[1],([double]$Goal[2]-([double]$Goal[2]-[double]$Start[2])/$length*0.5))
+ $sd=Get-KmcChunk7StagedFlat $stop $Target
+ switch -CaseSensitive($Kind){
+  {$_-cin@('move-short','move-two-moves')}{$band=Get-KmcChunk7StagedBand $d 6.5 ($Envelope-1.5);$margin=Get-KmcChunk7StagedBand $sd 6.5 ($Envelope-1.5)}
+  'move-beyond-range'{$band=Get-KmcChunk7StagedBand $d ($Envelope+3.0-0.0) ($Envelope+3.0+1.5);$margin=Get-KmcChunk7StagedBand $sd ($Envelope+2.5) ($Envelope+3.0+1.5)}
+  'move-exhaust'{$band=Get-KmcChunk7StagedBand $d ($Envelope+2.0) ($Envelope+6.0);$margin=Get-KmcChunk7StagedBand $sd ($Envelope+2.0) ($Envelope+6.0)}
+  default{return $null}
+ }
+ if($null-ne$band){$band}elseif($null-ne$margin){'stop-short-'+$margin}else{$null}
+}
+function Get-KmcChunk7StagedLengths([string]$Kind,[double]$StartDistance,[double]$Envelope){
+ switch -CaseSensitive($Kind){'move-short'{,@(2.0)}'move-probe'{,@(2.0)}'move-two-moves'{,@(7.0)}'move-exhaust'{,@(7.0,5.0,3.5)}
+  'move-beyond-range'{$l=[Math]::Max(0.6,$Envelope+3.0-$StartDistance);,@($l,($l+2.0),($l+4.0))}default{throw ('Unknown staged movement kind '+$Kind+'.')}}
+}
+# One recorded proposal checked against its replayed request and recomputed term; returns the term.
+function Get-KmcChunk7StagedProposalTerm($P,[double]$Angle,[double]$Length,$Requested,$Start,[string]$Why){
+ if(@($P).Count-ne13){throw ($Why+': a proposal record is malformed.')}
+ if([double]$P[0]-ne$Angle-or[Math]::Abs([double]$P[1]-$Length)-gt1e-9){throw ($Why+': the proposal order differs from the declared lengths and fan.')}
+ $req=@([double]$P[2],[double]$P[3],[double]$P[4]);if(-not(Test-KmcChunk7StagedNear $req $Requested)){throw ($Why+': a requested point differs from the declared geometry.')}
+ if($P[5]-isnot[bool]){throw ($Why+': a walkable flag is mistyped.')}
+ $goal=Get-KmcChunk7StagedVector @($P[6],$P[7],$P[8]) $Why;$trace=Get-KmcChunk7StagedVector @($P[9],$P[10],$P[11]) $Why
+ if(-not$P[5]-and-not(Test-KmcChunk7StagedNear $trace $Start)){throw ($Why+': an unwalkable proposal records a trace.')}
+ $term=if(-not$P[5]){'not-walkable'}elseif((Get-KmcChunk7StagedFlat $trace $goal)-gt$script:KmcStagedMaxResidual){'trace-inexact'}elseif((Get-KmcChunk7StagedFlat $Start $goal)-le0.5){'too-short'}else{$null}
+ ,@($term,$goal)
+}
+# Replays one recorded simulation of the declared plan from a start; throws on any inconsistency, returns $true
+# when every leg was eligible (feasible) and $false when it refused at its recorded first refusing leg and term.
+function Test-KmcChunk7StagedSimulation($Sim,$MountStart,$Target,[double]$Envelope,[double]$Speed,[string]$Why){
+ if($null-eq$Sim){throw ($Why+': the simulation is missing.')}
+ if(-not(Test-KmcChunk7StagedNear (Get-KmcChunk7StagedVector $Sim.target $Why) $Target)){throw ($Why+': the simulated target differs.')}
+ $plan=@(Get-KmcChunk7StagedPlan);$legs=@($Sim.legs);$li=0;$step=0;$leg=0;$time=0.0;$side=1;$pos=$MountStart
+ $refuse={param([string]$Kind,[string]$Term)$r=$Sim.refusal
+  if($null-eq$r-or$r.step-ne$step-or$r.kind-cne$Kind-or$r.leg-ne$leg-or$r.term-cne$Term-or$li-ne$legs.Count){throw ($Why+': the recorded refusal differs from the replayed first refusing leg ('+$step+' '+$Kind+' '+$leg+' '+$Term+').')}}
+ $next={$round=$plan[$step][2];$step++;$leg=0;if($step-lt$plan.Count-and$plan[$step][2]-ne$round){$time=0.0}}
+ while($step-lt$plan.Count){$kind=[string]$plan[$step][1]
+  if(-not$kind.StartsWith('move-',[StringComparison]::Ordinal)){
+   if($kind-cin@('attack-ranged','attack-ranged-approach')){
+    if($li-ge$legs.Count){throw ($Why+': a planned check is missing.')};$l=$legs[$li];$li++
+    if($l.step-ne$step-or$l.kind-cne$kind-or$l.leg-ne0-or-not(Test-KmcChunk7StagedNear (Get-KmcChunk7StagedVector $l.start $Why) $pos)){throw ($Why+': a check is out of place.')}
+    $d=Get-KmcChunk7StagedFlat $pos $Target;$check=$null;$chosen=$null;$props=@($l.proposals)
+    if($kind-ceq'attack-ranged'){if($d-gt$Envelope){$check='shot-out-of-range'};if($props.Count-ne0){throw ($Why+': the shot check records proposals.')}}
+    elseif($d-le$Envelope+0.5+0.5){$check='approach-start-in-range';if($props.Count-ne0){throw ($Why+': an in-range approach records proposals.')}}
+    else{$ux=([double]$pos[0]-[double]$Target[0])/$d;$uz=([double]$pos[2]-[double]$Target[2])/$d;$k=0
+     foreach($inside in @(1.0,3.0,5.0)){$along=$Envelope-$inside
+      if($k-ge$props.Count){throw ($Why+': the approach stopped before its first eligible point.')}
+      $r=Get-KmcChunk7StagedProposalTerm $props[$k] 0.0 $inside @(([double]$Target[0]+$ux*$along),[double]$pos[1],([double]$Target[2]+$uz*$along)) $pos ($Why+' approach')
+      $term=$r[0];if($null-eq$term-and(Get-KmcChunk7StagedFlat $r[1] $Target)-gt$Envelope){$term='approach-outside-range'}
+      if([string]$props[$k][12]-cne[string]$term-or($null-eq$term)-ne($null-eq$props[$k][12])){throw ($Why+': an approach term differs from its recomputation.')}
+      $k++;if($null-eq$term){$chosen=$k-1;break}}
+     if($k-ne$props.Count){throw ($Why+': the approach records proposals past its first eligible point.')}
+     if($null-eq$chosen){$check='no-destination'}}
+    if([string]$l.check-cne[string]$check-or($null-eq$l.check)-ne($null-eq$check)-or($null-eq$chosen)-ne($null-eq$l.chosen)-or($null-ne$chosen-and$l.chosen-ne$chosen)){throw ($Why+': a check differs from its recomputation.')}
+    if($null-ne$check){&$refuse $kind $check;return $false}
+   }
+   . $next;continue
+  }
+  if($li-ge$legs.Count){throw ($Why+': a planned leg is missing.')};$l=$legs[$li];$li++;$lw=$Why+' step '+$step+' leg '+$leg
+  if($l.step-ne$step-or$l.kind-cne$kind-or$l.leg-ne$leg-or$l.side-ne$side-or[Math]::Abs([double]$l.time-$time)-gt1e-9-or-not(Test-KmcChunk7StagedNear (Get-KmcChunk7StagedVector $l.start $lw) $pos)){throw ($lw+': the leg is out of place.')}
+  $rx=[double]$pos[0]-[double]$Target[0];$rz=[double]$pos[2]-[double]$Target[2]
+  if($rx*$rx+$rz*$rz-le1e-8){if($l.check-cne'no-direction'){throw ($lw+': the missing direction is not recorded.')};&$refuse $kind 'no-direction';return $false}
+  $dir=if($kind-ceq'move-beyond-range'){@($rx,$rz)}else{Get-KmcChunk7StagedRotation $rx $rz (90.0*$side)}
+  $norm=[Math]::Sqrt($dir[0]*$dir[0]+$dir[1]*$dir[1]);$dx=$dir[0]/$norm;$dz=$dir[1]/$norm
+  $props=@($l.proposals);$k=0;$chosen=$null;$goal=$null
+  :search foreach($length in (Get-KmcChunk7StagedLengths $kind (Get-KmcChunk7StagedFlat $pos $Target) $Envelope)){foreach($angle in $script:KmcStagedFan){
+   if($k-ge$props.Count){throw ($lw+': the leg stopped before its first eligible proposal.')}
+   $u=Get-KmcChunk7StagedRotation $dx $dz $angle
+   $r=Get-KmcChunk7StagedProposalTerm $props[$k] $angle $length @(([double]$pos[0]+$u[0]*$length),[double]$pos[1],([double]$pos[2]+$u[1]*$length)) $pos $lw
+   $term=$r[0];if($null-eq$term){$term=Get-KmcChunk7StagedLegGeometry $kind $pos $r[1] $Target $Envelope}
+   if([string]$props[$k][12]-cne[string]$term-or($null-eq$term)-ne($null-eq$props[$k][12])){throw ($lw+': proposal '+$k+' records '+$props[$k][12]+' but recomputes '+$term+'.')}
+   $k++;if($null-eq$term){$chosen=$k-1;$goal=$r[1];break search}}}
+  if($k-ne$props.Count){throw ($lw+': proposals are recorded past the first eligible one.')}
+  if($null-eq$chosen){if($null-ne$l.chosen){throw ($lw+': a refused leg records a choice.')};&$refuse $kind 'no-destination';return $false}
+  if($l.chosen-ne$chosen){throw ($lw+': the recorded choice is not the first eligible proposal.')}
+  if($kind-cne'move-probe'){$legTime=(Get-KmcChunk7StagedFlat $pos $goal)/$Speed
+   if($time+$legTime-gt6.0){$f=(6.0-$time)/$legTime;$pos=@(([double]$pos[0]+([double]$goal[0]-[double]$pos[0])*$f),([double]$pos[1]+([double]$goal[1]-[double]$pos[1])*$f),([double]$pos[2]+([double]$goal[2]-[double]$pos[2])*$f));$time=6.0}
+   else{$pos=$goal;$time+=$legTime}}
+  if(-not(Test-KmcChunk7StagedNear (Get-KmcChunk7StagedVector $l.end $lw) $pos)-or[Math]::Abs([double]$l.timeAfter-$time)-gt1e-9){throw ($lw+': the simulated end or movement time differs.')}
+  $side=-$side;$leg++
+  $wants=if($kind-ceq'move-two-moves'){$time-le3.0}elseif($kind-ceq'move-exhaust'){$time-lt5.95}else{$false}
+  if(-not$wants){. $next}
+  elseif($leg-ge8){&$refuse $kind 'leg-limit';return $false}
+ }
+ if($li-ne$legs.Count-or$null-ne$Sim.refusal){throw ($Why+': a feasible simulation records a refusal or extra legs.')}
+ return $true
+}
+# The recorded selection: every candidate in the fixed order (distances 8, 9, 7, 10 m, each over the fan) with its
+# placement terms and simulation replayed; the selected one is the first feasible. Returns the selected candidate.
+function Get-KmcChunk7StagedPlanSelection($Plan){
+ if($null-eq$Plan-or$Plan.contract-cne'owner-seed-staged-geometry-plan-v1'){throw 'Staged actions lack their up-front geometry plan.'}
+ foreach($f in @('weaponRange','mountCorpulence','plannedTargetCorpulence','envelope','speed')){if(-not(Test-KmcChunk7FiniteNumber $Plan.$f)-or[double]$Plan.$f-le0){throw 'The staged geometry plan lacks its inputs.'}}
+ if([double]$Plan.plannedTargetCorpulence-ne0.7-or[double]$Plan.stopShortMargin-ne0.5-or$Plan.maxLegs-ne8-or
+    (ConvertTo-Json -InputObject @($Plan.placementDistances|ForEach-Object{[double]$_}) -Compress)-cne(ConvertTo-Json -InputObject $script:KmcStagedPlacementDistances -Compress)-or
+    (ConvertTo-Json -InputObject @($Plan.angles|ForEach-Object{[double]$_}) -Compress)-cne(ConvertTo-Json -InputObject $script:KmcStagedFan -Compress)){throw 'The staged geometry plan''s declared parameters differ.'}
+ if([Math]::Abs([double]$Plan.envelope-([double]$Plan.mountCorpulence+[double]$Plan.plannedTargetCorpulence+[double]$Plan.weaponRange))-gt1e-6){throw 'The planned envelope is not the mount footprint, the planned target footprint and the weapon range.'}
+ $mount=Get-KmcChunk7StagedVector $Plan.mountStart 'Staged plan';$rider=Get-KmcChunk7StagedVector $Plan.riderStart 'Staged plan'
+ $candidates=@($Plan.candidates);$i=0;$selected=$null
+ foreach($distance in $script:KmcStagedPlacementDistances){foreach($angle in $script:KmcStagedFan){
+  if($i-ge$candidates.Count){break};$c=$candidates[$i];$why='Staged plan candidate '+$i
+  if([double]$c.angle-ne$angle-or[double]$c.distance-ne$distance){throw ($why+': the candidate order differs from the declared order.')}
+  $u=Get-KmcChunk7StagedRotation 0.0 1.0 $angle;$req=@(($mount[0]+$u[0]*$distance),$mount[1],($mount[2]+$u[1]*$distance))
+  if(-not(Test-KmcChunk7StagedNear (Get-KmcChunk7StagedVector $c.requested $why) $req)){throw ($why+': the requested placement differs.')}
+  if($c.walkable-isnot[bool]){throw ($why+': the walkable flag is mistyped.')};$goal=Get-KmcChunk7StagedVector $c.goal $why;$rd=Get-KmcChunk7StagedFlat $rider $goal
+  $term=if(-not$c.walkable){'not-walkable'}elseif((Get-KmcChunk7StagedFlat $goal $req)-gt0.3){'placement-offset'}elseif([Math]::Abs($goal[1]-$mount[1])-gt1.0){'placement-rise'}elseif($rd-lt3.0-or$rd-gt20.0){'placement-spawn-range'}else{$null}
+  if($null-eq$term){if(-not(Test-KmcChunk7StagedSimulation $c.simulation $mount $goal ([double]$Plan.envelope) ([double]$Plan.speed) $why)){$term='plan-infeasible'}}
+  elseif($null-ne$c.simulation){throw ($why+': a placement-refused candidate records a simulation.')}
+  if([string]$c.refusal-cne[string]$term-or($null-eq$c.refusal)-ne($null-eq$term)){throw ($why+': the recorded refusal differs from its recomputation.')}
+  $i++;if($null-eq$term){$selected=$c;break}}
+  if($null-ne$selected){break}}
+ if($i-ne$candidates.Count){throw 'The staged plan records candidates past the first feasible one or outside the declared order.'}
+ if($null-eq$selected){if($null-ne$Plan.selected-or$candidates.Count-ne64){throw 'A refused staged plan must record every declared candidate and no selection.'};return $null}
+ if($Plan.selected-ne$i-1){throw 'The staged plan did not select its first feasible candidate.'}
+ $selected
+}
+# The plan bound to the run: the selected placement is the authorized target point, the planned envelope is the
+# spawned target's, and the in-combat confirmation replays feasible from the mount's start of the first step.
+function Assert-KmcChunk7StagedGeometryPlan($s,$o,$roles){
+ $p=$s.geometryPlan;$selected=Get-KmcChunk7StagedPlanSelection $p
+ if($null-eq$selected){throw 'The staged geometry plan admitted no placement; the case is uncovered on this fixture.'}
+ # The authorization records the native float point; the plan the same point widened to double.
+ if(-not(Test-KmcChunk7StagedNear (Get-KmcChunk7StagedVector $o.targetAuthorization.position 'Staged target authorization') (Get-KmcChunk7StagedVector $selected.goal 'Staged plan') 1e-4)){throw 'The target authorization did not place the selected staged candidate.'}
+ if([Math]::Abs([double]$p.weaponRange-[double]$s.weaponRangeMeters)-gt1e-4-or[Math]::Abs([double]$p.mountCorpulence-[double]$s.mountCorpulence)-gt1e-4-or[Math]::Abs([double]$s.envelope-[double]$p.envelope)-gt0.01){throw 'The spawned target''s envelope differs from the planned one.'}
+ $c=$s.geometryConfirmation;if($null-eq$c){throw 'Staged actions lack their in-combat plan confirmation.'}
+ $start=Get-KmcChunk7StagedVector $c.mountStart 'Staged confirmation';$target=Get-KmcChunk7StagedVector $c.target 'Staged confirmation';$first=$s.steps[0].before
+ $m=Get-KmcChunk7CombatActor $first $roles[1]
+ if((Get-KmcChunk7StagedFlat $start $first.mountPosition)-gt0.05-or(Get-KmcChunk7StagedFlat $start $p.mountStart)-gt0.05){throw 'The staged confirmation did not start from mount A''s position.'}
+ if((Get-KmcChunk7StagedFlat $target $selected.goal)-gt0.3-or[Math]::Abs((Get-KmcChunk7StagedFlat $first.mountPosition $target)-[double]$first.targetDistance)-gt0.01){throw 'The staged confirmation target is not the spawned target at its planned placement.'}
+ if([Math]::Abs([double]$c.envelope-[double]$s.envelope)-gt1e-4-or$null-eq$m.native-or[Math]::Abs([double]$c.speed-[double]$m.native.speedMps)-gt1e-4){throw 'The staged confirmation does not use the actual envelope and the mount''s native speed.'}
+ if(-not(Test-KmcChunk7StagedSimulation $c.simulation $start $target ([double]$c.envelope) ([double]$c.speed) 'Staged confirmation')){throw 'The selected staged plan was not feasible from the in-combat start.'}
+}
 function Assert-KmcChunk7StagedCombat($Request,$Observations){
  if(-not(Test-KmcChunk7OwnedPairsStaged $Request)){throw 'Staged evidence requires its closed owner-seed selection.'}
  Assert-KmcChunk7OwnedPairsSelection $Request
@@ -565,6 +712,8 @@ function Assert-KmcChunk7StagedCombat($Request,$Observations){
  for($i=0;$i-lt$plan.Count;$i++){if($declared[$i].row-cne$plan[$i][0]-or$declared[$i].kind-cne$plan[$i][1]-or$declared[$i].round-ne$plan[$i][2]){throw 'Staged plan differs.'}}
  if(-not(Test-KmcExactJsonInteger $s.firstRound)){throw 'Staged actions lack their first native round.'};$n=[long]$s.firstRound
  $steps=@($s.steps);if($steps.Count-ne$plan.Count){throw 'Staged actions need every planned native step.'}
+ # The whole leg plan was chosen up front, before any lease, placement or input, and confirmed in combat.
+ Assert-KmcChunk7StagedGeometryPlan $s $o $roles
  $spends=0
  for($i=0;$i-lt$steps.Count;$i++){$step=$steps[$i];$why='Staged step '+$i+' '+$plan[$i][1]
   if($step.index-ne$i-or$step.row-cne$plan[$i][0]-or$step.kind-cne$plan[$i][1]-or$step.round-ne$n+$plan[$i][2]){throw ($why+': plan position or native round differs.')}

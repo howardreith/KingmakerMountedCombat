@@ -944,10 +944,15 @@ Check-SeedReaction 'an approach that drew an attack' {$v=$args[0];$n=New-KmcSeed
 Check-SeedReaction 'an approach although already threatened' {$v=$args[0];$n=New-KmcSeedReactionFixture $true;$v.artifact.observations.reaction=$n.artifact.observations.reaction;$v.artifact.observations.reaction.precondition.engagesMount=$true} 'already threatened'
 # 7E X1 F04 staged moving actions: C6D-move-cast-move (round 10), C6D-double-move-ranged (11, its scroll
 # control in 12) and the ranged approach row (12, approach shot in 13). Synthetic geometry: the target
-# at the origin, envelope 0.9 + 1.5 + 15.24 = 17.64 m, the pair starting 8 m away on the x axis.
+# at the origin, envelope 0.9 + 0.7 + 15.24 = 16.84 m, the pair starting 8 m away on the x axis. The up-front geometry
+# plan and its in-combat confirmation are the C# planner's own record (tests/Chunk7Diagnostics/StagedGeometryPlanFixture.json,
+# regenerated and compared by Test-Chunk7StagedGeometry.ps1): the ninth placement (the origin) is selected.
 function New-KmcSeedStagedFixture{
  $v=New-KmcOwnerSeedDerivedCombatFixture 'combat-rider-first';$r=$v.request;$o=$v.artifact.observations;$roles=@(Get-KmcChunk7OwnedPairIds $r)
  $r.ownedPairs.case='owner-seed-staged'
+ $sp=Get-Content -LiteralPath (Join-Path $repo 'tests/Chunk7Diagnostics/StagedGeometryPlanFixture.json') -Raw|ConvertFrom-Json
+ $script:stEnvelope=[double]$sp.confirmation.envelope;$script:stSpeed=[double]$sp.confirmation.speed
+ $o.targetAuthorization.position=@($sp.plan.candidates[[int]$sp.plan.selected].goal|ForEach-Object{[double]$_})
  foreach($key in @('r1','firstActionMount','localFailure','registeredDisable','removalRefusal','pendingSurvivor')){if($null-ne$o.PSObject.Properties[$key]){$o.PSObject.Properties.Remove($key)}}
  $o.activations=@();$o.inputs=@()
  $weapon='4de4658c0e9b0d146b9a08ed6f030f8a';$clw='5590652e1c2225c4ca30c4a699ab3649';$scrollBp='cd635d5720937b044a354dba17abad8d';$scrollItem=-4401
@@ -957,7 +962,7 @@ function New-KmcSeedStagedFixture{
  $item={param([long]$count)@([pscustomobject][ordered]@{item=$scrollItem;blueprint=$scrollBp;count=$count;exactSlot=$true})}
  $st={param([string]$label,[long]$round,[long]$turn,[double]$rStd,[double]$mMove,[double[]]$pos,[bool]$used2,[long]$count)
   $x=Copy-Value $o.snapshots[0];$x.label=$label;$x.round=$round;$x|Add-Member currentActor $roles[0] -Force
-  foreach($a in $x.actors){$a.standard=0.0;$a.move=0.0;$a.swift=0.0;if($a.id-ceq$roles[0]){$a.standard=$rStd};if($a.id-ceq$roles[1]){$a.move=$mMove;$a|Add-Member native ([pscustomobject]@{remainingNativeTime=(6.0-$mMove)}) -Force}}
+  foreach($a in $x.actors){$a.standard=0.0;$a.move=0.0;$a.swift=0.0;if($a.id-ceq$roles[0]){$a.standard=$rStd};if($a.id-ceq$roles[1]){$a.move=$mMove;$a|Add-Member native ([pscustomobject]@{remainingNativeTime=(6.0-$mMove);speedMps=$script:stSpeed}) -Force}}
   $p=@([double]$pos[0],0.0,[double]$pos[1]);$d=[Math]::Sqrt($pos[0]*$pos[0]+$pos[1]*$pos[1])
   foreach($pair in @(@('turnStatus','Acting'),@('turn',$turn),@('relationship','Mounted'),@('mountUsedOneMove',($mMove-gt0)),@('mountUsedTwoMove',$used2),@('mountHasMove',($mMove-lt5.95)),@('riderHasStandard',($rStd-le0.001)),
    @('riderCommandsEmpty',$true),@('mountCommandsEmpty',$true),@('activePairCommand',$false),@('pairMovement',$false),@('processesSettled',$true),@('nativeAbilitiesPending',$false),@('projectilesPending',$false),
@@ -985,7 +990,7 @@ function New-KmcSeedStagedFixture{
   $b=$script:stSeq;if($kind-ceq'attack-ranged-approach'){&$ev 'admission-after' $roles[1] 990 0.0 $roles[1] 'Kingmaker.UnitLogic.Commands.UnitMoveTo'};&$ev 'cost-before' $roles[0] $id 0.0;&$ev 'cost-after' $roles[0] $id 6.0
   $cmd={param([bool]$done)[pscustomobject][ordered]@{identity=$id;type='MountedPairAttackCommand';executor=$roles[0];createdByPlayer=$true;started=$done;acted=$done;finished=$done;result=$(if($done){'Success'}else{'None'});commandType='Standard';timeSinceStart=0.0}}
   $before=&$st 'shot-before' $round $turn 0.0 $moveFrom $from $used2 $count;$after=&$st 'shot-after' $round $turn 6.0 $moveTo $to $used2 $count
-  $steps.Add([pscustomobject][ordered]@{index=$index;row=$row;kind=$kind;round=$round;before=$before;traceSequenceBefore=$b;castEventsBefore=0;ruleCountBefore=$index;envelope=17.64;startDistance=$before.targetDistance
+  $steps.Add([pscustomobject][ordered]@{index=$index;row=$row;kind=$kind;round=$round;before=$before;traceSequenceBefore=$b;castEventsBefore=0;ruleCountBefore=$index;envelope=$script:stEnvelope;startDistance=$before.targetDistance
    fullAttackMode=$false;cursorCycles=0;clicked=$true;admitted=(&$cmd $false);rejectionCodes=@();rejectionFeedback='Mounted pair command accepted: RiderRanged.';afterInput=(Copy-Value $before);after=$after;traceSequenceAfter=$script:stSeq;castEvents=@()
    rules=@([pscustomobject][ordered]@{sequence=1;kind='attack';identity=7000+$index;frame=1;round=$round;actor=$roles[0];target=$o.targetId;opportunity=$false;fullAttack=$false;weapon=$weapon;ranged=$true;natural=$false;actorPosition=@($to[0],0.0,$to[1]);targetPosition=@(0.0,0.0,0.0)})
    terminal=(&$cmd $true);endDistance=$after.targetDistance})}
@@ -1007,13 +1012,13 @@ function New-KmcSeedStagedFixture{
  &$castStep 8 'C6D-double-move-ranged' 12 503 6.0 @(20.64,0.0) $true 3 803
  # Round 13: the RiderRanged approach shot from beyond range.
  $script:stRound=13;$script:stTurn=504
- &$shotStep 9 'C7-staged-ranged-approach' 'attack-ranged-approach' 13 504 0.0 1.0 @(20.64,0.0) @(17.64,0.0) $false 2 804
+ &$shotStep 9 'C7-staged-ranged-approach' 'attack-ranged-approach' 13 504 0.0 1.0 @(20.64,0.0) @(16.64,0.0) $false 2 804
  $plan=@(Get-KmcChunk7StagedPlan|ForEach-Object{[pscustomobject][ordered]@{row=$_[0];kind=$_[1];round=$_[2]}})
  $events=@($steps|ForEach-Object{@($_.rules)})
  $o|Add-Member staged ([pscustomobject][ordered]@{contract='owner-seed-staged-v1';riderId=$roles[0];mountId=$roles[1];weapon=$weapon;weaponRanged=$true;weaponRangeMeters=15.24;scrollUnits=4;plan=$plan
   defensiveCheck=[pscustomobject]@{covered=$false;reason='The pair never stands inside the diagnostic target''s threatened area during a cast.'}
   scrollAbility=[pscustomobject][ordered]@{blueprint=$clw;sourceItem=$scrollItem;sourceItemBlueprint=$scrollBp;caster=$roles[0];available=$true;availableForCast=$true}
-  envelope=17.64;mountCorpulence=0.9;targetCorpulence=1.5;steps=@($steps);firstRound=10;progress=$null
+  envelope=$script:stEnvelope;mountCorpulence=0.9;targetCorpulence=0.7;geometryPlan=$sp.plan;geometryConfirmation=$sp.confirmation;steps=@($steps);firstRound=10;progress=$null
   rules=[pscustomobject][ordered]@{dropped=0;errors=@();events=$events}
   scroll=[pscustomobject][ordered]@{blueprint=$scrollBp;requestedCount=4;equipped=[pscustomobject]@{item=$scrollItem;exactSlot=$true;count=1};stacked=[pscustomobject]@{item=$scrollItem;exactSlot=$true;count=4}
    beforeCleanup=[pscustomobject]@{item=$scrollItem;exactSlot=$true;count=2};ownedItemReleased=$true;disposed=$true;slotRestored=$true;noOwnedItemResident=$true}
@@ -1026,6 +1031,17 @@ function Get-StActor($w,[string]$id){@($w.actors|Where-Object id -CEQ $id)[0]}
 function Get-StEvent($v,[long]$command,[string]$boundary){@($v.artifact.observations.allocationTrace.events|Where-Object{$_.command-eq$command-and$_.boundary-ceq$boundary})[0]}
 Check 'owner-seed staged evidence accepted (move-cast-move, double-move-ranged, ranged approach)' {Invoke-OwnedReader (New-KmcSeedStagedFixture)}
 Check 'combat evidence refuses a staged record outside its case' {$v=New-KmcOwnerSeedDerivedCombatFixture 'combat-rider-first';$v.artifact.observations|Add-Member staged ([pscustomobject]@{}) -Force;Invoke-OwnedReader $v} $true 'belongs only to its closed owner-seed selection'
+Check 'owner-seed staged accepts the authorization''s native float point for the planned double point' {$v=New-KmcSeedStagedFixture;$t=$v.artifact.observations.targetAuthorization;$t.position=@($t.position|ForEach-Object{[double]$_+0.000004});Invoke-OwnedReader $v}
+Check-SeedStaged 'a missing geometry plan' {$args[0].artifact.observations.staged.geometryPlan=$null} 'up-front geometry plan'
+Check-SeedStaged 'a target authorization away from the selected placement' {$args[0].artifact.observations.targetAuthorization.position=@(1.0,0.0,0.0)} 'did not place the selected staged candidate'
+Check-SeedStaged 'a planned envelope off its inputs' {$args[0].artifact.observations.staged.geometryPlan.mountCorpulence=0.5} 'planned envelope is not'
+Check-SeedStaged 'a plan selection past its first feasible candidate' {$p=$args[0].artifact.observations.staged.geometryPlan;$p.selected=[int]$p.selected+1} 'first feasible'
+Check-SeedStaged 'a tampered plan proposal' {$p=$args[0].artifact.observations.staged.geometryPlan;$l=@($p.candidates[[int]$p.selected].simulation.legs)[0];$l.proposals[$l.chosen][12]='below-band'} 'recomputes'
+Check-SeedStaged 'a missing in-combat confirmation' {$args[0].artifact.observations.staged.geometryConfirmation=$null} 'in-combat plan confirmation'
+Check-SeedStaged 'a confirmation from another start' {$args[0].artifact.observations.staged.geometryConfirmation.mountStart=@(9.0,0.0,0.0)} 'did not start from mount A'
+Check-SeedStaged 'a confirmation off the native mount speed' {$v=$args[0];(Get-StActor (Get-StStep $v 0).before $v.request.ownedPairs.mountAId).native.speedMps=6.0} 'native speed'
+Check-SeedStaged 'a confirmation recorded infeasible' {$c=$args[0].artifact.observations.staged.geometryConfirmation;$c.simulation.refusal=[pscustomobject]@{step=5;kind='move-beyond-range';leg=0;term='no-destination'}} 'records a refusal'
+Check-SeedStaged 'a tampered confirmation leg' {$c=$args[0].artifact.observations.staged.geometryConfirmation;$l=@($c.simulation.legs)[3];$l.end[2]=[double]$l.end[2]+0.5} 'end or movement time differs'
 Check-SeedStaged 'a missing ranged weapon' {$args[0].artifact.observations.staged.weaponRanged=$false} 'ranged weapon or the declared scroll stack'
 Check-SeedStaged 'a smaller scroll stack' {$args[0].artifact.observations.staged.scrollUnits=1} 'ranged weapon or the declared scroll stack'
 Check-SeedStaged 'a reordered plan' {$p=$args[0].artifact.observations.staged.plan;$t=$p[0];$p[0]=$p[1];$p[1]=$t} 'Staged plan differs'

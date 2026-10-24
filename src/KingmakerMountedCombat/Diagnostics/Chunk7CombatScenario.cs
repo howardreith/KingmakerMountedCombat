@@ -179,7 +179,7 @@ namespace KingmakerMountedCombat.Diagnostics
                             // Attack modes wait (bounded, native) for the save's Rapid Shot to stop before the encounter.
                             if (AttackModesCase) { PrepareAttackModes(); Next(79); break; }
                             if (ReactionCase) { PrepareEncounter(); Next(5); break; }
-                            if (StagedCase) { AdmitTargetAuthorization(am.Position + Vector3.forward * 8f); PrepareStaged(); PrepareEncounter(); Next(5); break; }
+                            if (StagedCase) { stagedTarget = SelectStagedGeometry(); AdmitTargetAuthorization(stagedTarget); PrepareStaged(); PrepareEncounter(); Next(5); break; }
                             PrepareEncounter(); Next(RealtimeScenario ? 60 : 5); break;
                         }
                         if (!Chunk7NativeFixture.Idle(bm)) return;
@@ -267,7 +267,7 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             Require(actors.All(Chunk7NativeFixture.Idle), "Initiative fixture requires the entire captured party idle before combat.");
             var targetPosition = SelectedScenario == RealtimeCharge ? SelectChargeTargetPosition() :
-                am.Position + Vector3.forward * (StagedCase ? 8f : 3.5f);
+                StagedCase ? stagedTarget : am.Position + Vector3.forward * 3.5f;
             // Fail closed before any fixture mutation: the authorization basis and the native
             // placement (bounded, walkable) are proven before initiative, leases or observers.
             var targetBasis = AdmitTargetAuthorization(targetPosition);
