@@ -198,7 +198,7 @@ function Assert-KmcChunk7NormalPlayerObserverResult($Request,$ObserverRequest,$R
 # its pinned full line must then occur exactly as often as declared and be the only
 # error line. Known old-version defect lines are counted on every run, so any other
 # step (u2 on the candidate, u3) shows them absent or refuses.
-function Get-KmcChunk7NormalPlayerUmmLogSummary([string]$GameRoot,[DateTimeOffset]$NotBeforeUtc,[string]$ProductVersion,$AdmittedKnownDefects=@()){
+function Get-KmcChunk7NormalPlayerUmmLogSummary([string]$GameRoot,[DateTimeOffset]$NotBeforeUtc,[string]$ProductVersion,$AdmittedKnownDefects=@(),[string]$RunId=''){
  $path=Join-Path $GameRoot 'Kingmaker_Data/Managed/UnityModManager/Log.txt'
  Assert-KmcNotReparsePoint $path 'UMM session log'
  $item=Get-Item -LiteralPath $path
@@ -210,18 +210,20 @@ function Get-KmcChunk7NormalPlayerUmmLogSummary([string]$GameRoot,[DateTimeOffse
  $known=@(Get-KmcChunk7PreviousPackageKnownDefects|ForEach-Object{[string]$_.line})
  $admitted=@(@($AdmittedKnownDefects)|Where-Object{$null-ne$_}|ForEach-Object{$d=$_
   [ordered]@{id=[string]$d.id;line=[string]$d.line;expectedOccurrences=[int]$d.expectedOccurrences
-   observedOccurrences=@($kmc|Where-Object{$_-ceq[string]$d.line}).Count;sourceFixCommit=[string]$d.sourceFixCommit;reference=[string]$d.reference}})
- $summary=[ordered]@{schemaVersion=2;path=$path;sha256=(Get-KmcSha256 $path);sessionHeaders=@($lines|Where-Object{$_.StartsWith('[Manager] Version: ',[StringComparison]::Ordinal)}).Count
+   observedOccurrences=(Get-KmcOrdinalLineCount $kmc ([string]$d.line));sourceFixCommit=[string]$d.sourceFixCommit;reference=[string]$d.reference}})
+ $summary=[ordered]@{schemaVersion=2;runId=$RunId;path=$path;sha256=(Get-KmcSha256 $path);sessionHeaders=@($lines|Where-Object{$_.StartsWith('[Manager] Version: ',[StringComparison]::Ordinal)}).Count
   kmcLines=$kmc.Count;loadedLine=@($kmc|Where-Object{$_.Contains('Kingmaker Mounted Combat '+$ProductVersion+' loaded')}).Count
   quietOverlayLine=@($kmc|Where-Object{$_.Contains('diagnostic overlay=False')}).Count
   automationAccepted=@($kmc|Where-Object{$_.Contains('Runtime automation request accepted')}).Count
   errorLines=$errors.Count;errorLineTexts=@($errors|Select-Object -First 32)
-  knownOldVersionDefectLines=@($kmc|Where-Object{$known-ccontains$_}).Count
+  knownOldVersionDefectLines=@($kmc|Where-Object{$x=$_;@($known|Where-Object{[string]::Equals($_,$x,[StringComparison]::Ordinal)}).Count-ne0}).Count
   admittedOldVersionKnownDefects=$admitted
   firstKmcLines=@($kmc|Select-Object -First 12)}
  $summary['passed']=(Test-KmcChunk7NormalPlayerUmmLogVerdict $summary)
  [pscustomobject]$summary
 }
+# Ordinal full-line equality: culture comparison (-ceq) ignores characters such as a soft hyphen.
+function Get-KmcOrdinalLineCount($Lines,[string]$Line){@(@($Lines)|Where-Object{[string]::Equals([string]$_,$Line,[StringComparison]::Ordinal)}).Count}
 # The one verdict rule, shared by the runner and the external reader. Without an
 # admission: no error line and no known old-version defect line. With one: every error
 # line is an admitted pinned line, each observed exactly its declared count.
@@ -231,11 +233,11 @@ function Test-KmcChunk7NormalPlayerUmmLogVerdict($Summary){
  if($admitted.Count-eq0){return ($base-and[int]$Summary.errorLines-eq0-and[int]$Summary.knownOldVersionDefectLines-eq0)}
  $texts=@($Summary.errorLineTexts);$expected=0
  foreach($d in $admitted){
-  if([int]$d.expectedOccurrences-lt1-or[int]$d.observedOccurrences-ne[int]$d.expectedOccurrences-or@($texts|Where-Object{$_-ceq[string]$d.line}).Count-ne[int]$d.expectedOccurrences){return $false}
+  if([int]$d.expectedOccurrences-lt1-or[int]$d.observedOccurrences-ne[int]$d.expectedOccurrences-or(Get-KmcOrdinalLineCount $texts ([string]$d.line))-ne[int]$d.expectedOccurrences){return $false}
   $expected+=[int]$d.expectedOccurrences
  }
  $lines=@($admitted|ForEach-Object{[string]$_.line})
- $base-and[int]$Summary.errorLines-eq$expected-and$texts.Count-eq$expected-and@($texts|Where-Object{$lines-cnotcontains$_}).Count-eq0-and[int]$Summary.knownOldVersionDefectLines-eq$expected
+ $base-and[int]$Summary.errorLines-eq$expected-and$texts.Count-eq$expected-and@($texts|Where-Object{$x=[string]$_;@($lines|Where-Object{[string]::Equals($_,$x,[StringComparison]::Ordinal)}).Count-eq0}).Count-eq0-and[int]$Summary.knownOldVersionDefectLines-eq$expected
 }
 
 # The engine's own load rewrites only the archive's header member. Every other
@@ -287,8 +289,10 @@ function Assert-KmcChunk7NormalPlayerUmmReceipt($Request){
    throw 'Normal-player UMM session receipt is not an ordinary quiet no-request start.'}
   return
  }
- Assert-KmcExactProperties $r @('schemaVersion','path','sha256','sessionHeaders','kmcLines','loadedLine','quietOverlayLine','automationAccepted','errorLines','errorLineTexts',
+ Assert-KmcExactProperties $r @('schemaVersion','runId','path','sha256','sessionHeaders','kmcLines','loadedLine','quietOverlayLine','automationAccepted','errorLines','errorLineTexts',
   'knownOldVersionDefectLines','admittedOldVersionKnownDefects','firstKmcLines','passed') 'UMM session receipt'
+ # The receipt names its own run; it is not separately hash-bound into the outer result.
+ if([string]$r.runId-cne[string]$Request.runId){throw 'Normal-player UMM session receipt does not name this run.'}
  $recorded=@(@($r.admittedOldVersionKnownDefects)|Where-Object{$null-ne$_})
  foreach($d in $recorded){Assert-KmcExactProperties $d @('id','line','expectedOccurrences','observedOccurrences','sourceFixCommit','reference') 'admitted old-version defect'}
  $want=@($policy|ForEach-Object{[string]$_.id+'|'+[string]$_.line+'|'+[int]$_.expectedOccurrences+'|'+[string]$_.sourceFixCommit+'|'+[string]$_.reference})

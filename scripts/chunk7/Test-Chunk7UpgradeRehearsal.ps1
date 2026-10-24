@@ -327,7 +327,7 @@ $defectLine='[KingmakerMountedCombat] [Exception] Horse companion blueprint regi
 $realU1Lines=@('[Manager] Initialize.','[Manager] Version: 0.33.2.0.')+@($b199.firstKmcLines|ForEach-Object{[string]$_})
 $ummGame=Join-Path $OutputDirectory 'umm-game';$ummDir=Join-Path $ummGame 'Kingmaker_Data/Managed/UnityModManager';[void][IO.Directory]::CreateDirectory($ummDir)
 function Umm-Summary([string[]]$Lines,$Admitted,[string]$Version=$pins.version){[IO.File]::WriteAllText((Join-Path $ummDir 'Log.txt'),($Lines-join"`r`n"),[Text.UTF8Encoding]::new($false))
- Get-KmcChunk7NormalPlayerUmmLogSummary $ummGame ([DateTimeOffset]::UtcNow.AddMinutes(-5)) $Version $Admitted}
+ Get-KmcChunk7NormalPlayerUmmLogSummary $ummGame ([DateTimeOffset]::UtcNow.AddMinutes(-5)) $Version $Admitted ([string]$request.runId)}
 $u1Admitted=@(Get-KmcChunk7UpgradeAdmittedLogDefects $u1Section)
 $u3Section=New-KmcChunk7UpgradeRehearsalSection 'u3-rollback' $rid $previous $candidateManifest $carrySource $carry
 Check 'the real b199 u1 receipt is the retained record with all ten KMC lines and its one exact defect line' {
@@ -337,7 +337,10 @@ Check 'u1 of the exact preview.211 package admits exactly the one pinned defect'
  if($u1Admitted.Count-ne1-or[string]$u1Admitted[0].line-cne$defectLine-or[int]$u1Admitted[0].expectedOccurrences-ne1-or
   [string]$u1Admitted[0].sourceFixCommit-cne'81c191afec2fc3210b8777323447c0b4edb4ddb1'-or[string]$u1Admitted[0].id-cne'preview211-base-game-ranger-allfeatures-horse-registration'){throw 'u1 admission differs.'}}
 Check 'the real b199 u1 request section admits the same defect' {$a=@(Get-KmcChunk7UpgradeAdmittedLogDefects (Read-KmcJson $b199Request).normalPlayer.upgradeRehearsal);if($a.Count-ne1-or[string]$a[0].line-cne$defectLine){throw 'b199 request admission differs.'}}
+Check 'an unchanged JSON round-trip of the u1 section still admits the defect (control for the mutations below)' {if(@(Get-KmcChunk7UpgradeAdmittedLogDefects (Clone ([pscustomobject]$u1Section))).Count-ne1){throw 'control refused'}}
 foreach($m in @(
+ @('u1 naming another version',{$s=Clone ([pscustomobject]$u1Section);$s.stagedKmc.version='0.1.0-chunk6d-preview.210';$s}),
+ @('u1 naming another commit',{$s=Clone ([pscustomobject]$u1Section);$s.stagedKmc.commit=('0'*40);$s}),
  @('u2 (the candidate)',{$u2Section}),@('u3 (rollback)',{$u3Section}),@('no rehearsal',{$null}),
  @('u1 naming another package hash',{$s=Clone ([pscustomobject]$u1Section);$s.stagedKmc.packageSha256=('0'*64);$s}),
  @('u1 naming another DLL',{$s=Clone ([pscustomobject]$u1Section);$s.stagedKmc.dllSha256=('0'*64);$s}),
@@ -354,6 +357,9 @@ Check 'the real b199 u1 preview.211 start now passes u1 and names its admitted d
 Check 'the same real u1 start without the admission keeps the old refusal verdict' {$s=Umm-Summary $realU1Lines @();if($s.passed-or[int]$s.errorLines-ne1){throw 'accepted'}}
 foreach($m in @(
  @('an altered defect text',@($realU1Lines|ForEach-Object{$_.Replace('seven stock options','eight stock options')}),$u1Admitted),
+ @('a soft hyphen inside the defect line',@($realU1Lines|ForEach-Object{if($_-ceq$defectLine){$_.Replace('Horse companion',('Horse'+[char]0xAD+' companion'))}else{$_}}),$u1Admitted),
+ @('the defect line plus a soft-hyphen variant',@($realU1Lines+$defectLine.Replace('Horse companion',('Horse'+[char]0xAD+' companion'))),$u1Admitted),
+ @('more error lines than the receipt captures',@($realU1Lines+@(1..33|ForEach-Object{'[KingmakerMountedCombat] [Error] e'+$_})),$u1Admitted),
  @('a trailing space on the defect line',@($realU1Lines|ForEach-Object{if($_-ceq$defectLine){$_+' '}else{$_}}),$u1Admitted),
  @('two occurrences',@($realU1Lines+$defectLine),$u1Admitted),
  @('no occurrence',@($realU1Lines|Where-Object{$_-cne$defectLine}),$u1Admitted),
@@ -404,6 +410,7 @@ foreach($m in @(
  @('a u1 receipt whose error text differs',{Bind-Request},{Bind-Record},{Write-Receipt $realU1 {param($x)$x.errorLineTexts=@($defectLine.Replace('seven','eight'))}},'not an ordinary quiet no-request start'),
  @('a u1 receipt with an extra error line',{Bind-Request},{Bind-Record},{Write-Receipt $realU1 {param($x)$x.errorLines=2;$x.errorLineTexts=@($defectLine,'[KingmakerMountedCombat] [Error] x')}},'not an ordinary quiet no-request start'),
  @('a u1 receipt that says it failed',{Bind-Request},{Bind-Record},{Write-Receipt $realU1 {param($x)$x.passed=$false}},'not an ordinary quiet no-request start'),
+ @('a u1 receipt of another run',{Bind-Request},{Bind-Record},{Write-Receipt $realU1 {param($x)$x.runId='another-run'}},'does not name this run'),
  @('a u1 receipt in the historical schema',{Bind-Request},{Bind-Record},{Write-Receipt $realU1 {param($x)$x.schemaVersion=1}},'admits old-version defects other than'),
  @('the u1 admission carried into a u2 receipt',{Bind-U2Request},{Bind-U2Record},{Write-Receipt $realU1 $null},'admits old-version defects other than'),
  @('a u2 receipt that logged the defect line marked passed',{Bind-U2Request},{Bind-U2Record},{Write-Receipt $u2Quiet {param($x)$x.errorLines=1;$x.errorLineTexts=@($defectLine);$x.knownOldVersionDefectLines=1}},'not an ordinary quiet no-request start'),
