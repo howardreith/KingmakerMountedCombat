@@ -1,6 +1,13 @@
 # Chunk 7B–7D — IN PROGRESS
 
-Claude [batch194](docs/CHUNK7-BATCH194-7E-PILOTS-2026-10-23.md) ran the second 7E pilot pass on
+Claude [batch195](docs/CHUNK7-BATCH195-7E-PILOTS-2026-10-24.md) froze pilot candidate `6b80d9a6` and
+passed the acquired chain (c1–c5) and the X4 Manual producer. The three-area cold pilot then hung:
+after the first transfer (Spider Cave → Oleg's) KMC refused all-pair area restoration because a unit
+was not directly controllable, cleanup fenced the quit, and the run ended restoration-blocked with
+the game still running and the lab lock held. Ending that process is pending a decision; recovery
+follows the recorded profile-then-transaction order. Standing mission remains IN PROGRESS.
+
+Historical: Claude [batch194](docs/CHUNK7-BATCH194-7E-PILOTS-2026-10-23.md) ran the second 7E pilot pass on
 candidate `1eecc9bb` (DLL `c7e0258f…`): eleven native runs, all with exact restoration. The acquired
 chain (owner-seed cold → Ranger 4 Horse → acquired cold → paid Small Ranger → two-owner Manual)
 passed on one candidate, as did the X4 Manual producer (one Steamworks startup failure retried).
