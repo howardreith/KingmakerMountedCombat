@@ -118,7 +118,8 @@ namespace KingmakerMountedCombat.Diagnostics
         private void BeginProneTargetTurn(CombatController controller, TurnController turn)
         {
             var before = ProneTarget("target-turn-before"); var engaged = target.CombatState.IsEngage(br);
-            proneTargetTurn = new JObject { ["round"] = controller.RoundNumber, ["targetBefore"] = before, ["engagedBefore"] = engaged, ["approached"] = !engaged };
+            proneTargetTurn = new JObject { ["round"] = controller.RoundNumber, ["targetBefore"] = before, ["engagedBefore"] = engaged, ["approached"] = !engaged,
+                ["traceSequenceBefore"] = trace.EventCount };
             prone["targetTurn"] = proneTargetTurn;
             if (engaged) { EndNative(turn); return; }
             var hand = target.GetThreatHand(); var weapon = hand?.MaybeWeapon;
@@ -194,6 +195,48 @@ namespace KingmakerMountedCombat.Diagnostics
             if (ReferenceEquals(controller.CurrentTurn, proneTargetController)) EndNative(proneTargetController);
             LifeStage(14);
         }
+        // b208 r57: the native order put rider B's next turn after the heal before the target's (rider A, rider B, target, healer, ...),
+        // so the stand-up came before the target could approach. When the target has not acted since the heal and does not engage
+        // rider B, rider B's turn is given up with no input through the native End Turn (Game.PauseBind admits it only through
+        // TurnController.CanEndTurnAndNoActing and runs ForceToEnd: Standard 6, Move 3, Swift 6, the native forfeit of the turn).
+        // No command, movement or attack is issued; rider B stays natively prone into its next turn, where it stands up.
+        private JObject proneRiderSkip;
+        private TurnController proneSkipController;
+        private Vector3 proneSkipStart;
+        private JObject ProneRiderTurnCost(TurnController turn) => new JObject { ["actorId"] = turn.Unit?.UniqueId,
+            ["currentActor"] = Game.Instance.TurnBasedCombatController.CurrentTurn?.Unit?.UniqueId, ["status"] = turn.Status.ToString(), ["timeMoved"] = turn.TimeMoved,
+            ["acted"] = turn.IsActed(), ["standard"] = br.CombatState.Cooldown.StandardAction, ["move"] = br.CombatState.Cooldown.MoveAction,
+            ["swift"] = br.CombatState.Cooldown.SwiftAction, ["commandsEmpty"] = br.Commands.Empty };
+        private void BeginProneRiderSkip(CombatController controller, TurnController turn)
+        {
+            var rider = ProneRider("skip-before");
+            proneRiderSkip = new JObject { ["round"] = controller.RoundNumber, ["rider"] = rider, ["targetBefore"] = ProneTarget("skip-before"),
+                ["before"] = WorldSnapshot("prone-skip-before"), ["ruleCountBefore"] = proneRules.EventCount, ["traceSequenceBefore"] = trace.EventCount,
+                ["turnBefore"] = ProneRiderTurnCost(turn) };
+            prone["riderSkip"] = proneRiderSkip;
+            Require(br.Descriptor.State.IsConscious && br.Descriptor.State.Prone.Active,
+                "The healed rider is not natively prone on its own turn; the C11 prone stand-up is uncovered on this fixture: " + rider.ToString(Newtonsoft.Json.Formatting.None));
+            Require(!turn.IsActed() && turn.TimeMoved == 0f && br.Commands.Empty && b.Relationship.State == RelationshipState.Unmounted && world.Registry.FindActive(br) == null,
+                "Rider B's turn before the skip is not an untouched unpaired native turn.");
+            proneSkipController = turn; proneSkipStart = br.Position; LifeStage(17);
+        }
+        private void TickProneRiderSkip(CombatController controller)
+        {
+            Require(ReferenceEquals(controller.CurrentTurn, proneSkipController), "Rider B's native turn ended before its native End Turn.");
+            if (!EndNative(proneSkipController)) return;
+            var record = proneRiderSkip;
+            record["turnAfter"] = ProneRiderTurnCost(proneSkipController); record["riderAfter"] = ProneRider("skip-after");
+            record["after"] = WorldSnapshot("prone-skip-after"); record["rules"] = proneRules.Since((int)record["ruleCountBefore"]);
+            record["traceSequenceAfter"] = trace.EventCount; record["displacement"] = Flat(proneSkipStart, br.Position);
+            var cost = (JObject)record["turnAfter"];
+            Require(((JArray)record["rules"]).Count == 0 && (float)record["displacement"] <= .05f && br.Commands.Empty && (float)cost["timeMoved"] == 0f &&
+                (float)cost["standard"] == 6f && (float)cost["move"] == 3f && (float)cost["swift"] == 6f &&
+                br.Descriptor.State.IsConscious && br.Descriptor.State.Prone.Active &&
+                new[] { ar, am, bm }.All(actor => NeverSpentNatively((JObject)record["before"], (JObject)record["after"], actor)),
+                "Rider B's native End Turn was not a clean forfeit (an attack, a command, movement, a lost prone state or another actor's spend): " +
+                cost.ToString(Newtonsoft.Json.Formatting.None));
+            LifeStage(14);
+        }
         private void TickProneFold(CombatController controller, TurnController turn)
         {
             prone["stage"] = lifeStage;
@@ -242,9 +285,12 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 // Rider B's own native turn after the heal: the native stand-up needs its own action attempt.
                 if (ReferenceEquals(turn, proneHealTurn)) { EndNative(turn); return; }
-                Require(controller.RoundNumber <= proneHealRound + 1, "Rider B's native turn after the heal missed its round.");
+                // One forfeited rider-B turn (below) moves its stand-up one round later; never more.
+                Require(controller.RoundNumber <= (proneRiderSkip != null ? (int)proneRiderSkip["round"] + 1 : proneHealRound + 1), "Rider B's native turn after the heal missed its round.");
                 // The target's own native turn between the heal and rider B's turn (b207 r57: it did not threaten the rider).
                 if (turn?.Unit == target && proneTargetTurn == null && Chunk7NativeFixture.ReadyForTurnInput(turn)) { BeginProneTargetTurn(controller, turn); return; }
+                if (turn?.Unit == br && proneTargetTurn == null && proneRiderSkip == null && Chunk7NativeFixture.ReadyForTurnInput(turn) && !target.CombatState.IsEngage(br))
+                { BeginProneRiderSkip(controller, turn); return; }
                 if (turn?.Unit != br || !Chunk7NativeFixture.ReadyForTurnInput(turn)) { if (turn?.Unit?.Descriptor.State.IsConscious == true && turn.Unit != br) EndNative(turn); return; }
                 var rider = ProneRider("stand-precondition"); var gates = ProneTarget("stand-precondition");
                 proneStand = new JObject { ["round"] = controller.RoundNumber, ["rider"] = rider, ["gates"] = gates }; prone["standUp"] = proneStand;
@@ -281,6 +327,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 proneFrames = 0; LifeStage(15); return;
             }
             if (lifeStage == 16) { TickProneTargetApproach(controller, turn); return; }
+            if (lifeStage == 17) { TickProneRiderSkip(controller); return; }
             if (lifeStage == 15)
             {
                 var settled = (proneMove == null || proneMove.IsFinished) && br.Commands.Empty && target.Commands.Empty && !br.AreHandsBusyWithAnimation &&
