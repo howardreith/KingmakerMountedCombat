@@ -62,12 +62,13 @@ opportunity, staged moving actions (move, cast, move; double move and shot; beyo
 movement) and real-time Charge with a melee weapon have development evidence (batches 197 and 205).
 Exact-package 7E qualification re-runs each of them on the final candidate.
 
+Added to the 7E campaign on October 24, with no development run yet: a scroll cast from inside an enemy's
+reach (the game's casting-defensively check), folded into the disengagement row.
+
 **Uncovered (final known set).** These are recorded, not waived, and are not tested by automation:
 
 - C11: the prone stand-up attack of opportunity. No deterministic native prone source exists on the
   test saves, and a scripted prone condition would be fabricated. Disengagement has development evidence.
-- F04: the defensive casting check. No cast runs while threatened past the native one-second window on
-  the test geometry. Staged moving actions have development evidence.
 - C03: base attack bonus variation and a mounted full attack with Rapid Shot off (the test Ranger has
   BAB 4, so the game offers it a single attack only; a full attack needs BAB 6). Synthetic stat edits are
   not accepted. Rapid Shot has development evidence. Haste variation is excluded by owner decision.

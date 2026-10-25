@@ -178,7 +178,7 @@ namespace KingmakerMountedCombat.Diagnostics
                             if (RegisteredDisableCase) ExercisePermanentHorseRemovalRefusal();
                             // Attack modes wait (bounded, native) for the save's Rapid Shot to stop before the encounter.
                             if (AttackModesCase) { PrepareAttackModes(); Next(79); break; }
-                            if (ReactionCase) { PrepareEncounter(); Next(5); break; }
+                            if (ReactionCase) { PrepareReactionCast(); PrepareEncounter(); Next(5); break; }
                             if (StagedCase) { stagedTarget = SelectStagedGeometry(); AdmitTargetAuthorization(stagedTarget); PrepareStaged(); PrepareEncounter(); Next(5); break; }
                             PrepareEncounter(); Next(RealtimeScenario ? 60 : 5); break;
                         }

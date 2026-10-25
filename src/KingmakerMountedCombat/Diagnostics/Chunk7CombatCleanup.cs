@@ -95,6 +95,8 @@ namespace KingmakerMountedCombat.Diagnostics
             // The staged scroll stack leaves only after every owned command and cast process has settled.
             if (!TryCleanup("staged scroll stack and cast observer", ReleaseStagedFixture))
             { AwaitCleanup(false, "The staged scroll stack or its original quick slots have not settled."); return; }
+            if (!TryCleanup("folded scroll stacks and cast observers", ReleaseFoldedScrollFixtures))
+            { AwaitCleanup(false, "A folded scroll stack or its original quick slots have not settled."); return; }
             if (!cleanupServicesSettled)
             {
                 var targetGone = false;

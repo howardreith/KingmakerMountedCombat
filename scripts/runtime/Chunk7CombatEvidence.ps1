@@ -362,7 +362,7 @@ function Assert-KmcChunk7ReactionCombat($Request,$Observations){
  foreach($key in @('r1','firstActionMount','localFailure','registeredDisable','removalRefusal','pendingSurvivor','nativeLife','attackModes','staged')){if($null-ne$o.PSObject.Properties[$key]){throw 'Reaction cannot carry another combat case''s evidence.'}}
  if(@($o.activations).Count-ne0-or@($o.inputs).Count-ne0){throw 'Reaction records no primary activation and no relationship input.'}
  $x=$o.reaction
- if($null-eq$x-or$x.contract-cne'owner-seed-combat-reaction-v1'-or$x.riderId-cne$roles[0]-or$x.mountId-cne$roles[1]-or$x.targetId-cne$o.targetId){throw 'Reaction evidence lacks its exact pair A and diagnostic target.'}
+ if($null-eq$x-or$x.contract-cne'owner-seed-combat-reaction-v2'-or$x.riderId-cne$roles[0]-or$x.mountId-cne$roles[1]-or$x.targetId-cne$o.targetId){throw 'Reaction evidence lacks its exact pair A and diagnostic target.'}
  Assert-KmcChunk7Boolean $x.complete $true
  if($null-eq$x.PSObject.Properties['rules']-or$null-eq$x.rules-or$x.rules.dropped-ne0-or@($x.rules.errors).Count-ne0){throw 'Reaction rule observation dropped or failed.'}
  if(-not(Test-KmcExactJsonInteger $x.firstRound)){throw 'Reaction lacks its first native round.'};$n=[long]$x.firstRound
@@ -409,12 +409,67 @@ function Assert-KmcChunk7ReactionCombat($Request,$Observations){
  if((ConvertTo-Json -InputObject @($x.rules.events) -Depth 10 -Compress)-cne(ConvertTo-Json -InputObject @(@($approachRules)+@($dr)) -Depth 10 -Compress)){throw 'The rule observer recorded attacks outside the reaction windows.'}
  # An interrupted move must still have left the threatened area (checked above); a completed one reaches its clear distance.
  if(-not(Test-KmcChunk7FiniteNumber $d.clearDistance)-or($d.result-ceq'Success'-and$d.targetAfter.mountDistance-lt$d.clearDistance-0.6)){throw 'The disengagement did not reach its declared clear distance.'}
+ # F04 defensive casting folded into this case (round N+1, the 7E row 69 measurement).
+ Assert-KmcChunk7ReactionDefensiveCast $(if($null-ne$x.PSObject.Properties['defensiveCast']){$x.defensiveCast}else{$null}) $x $n $o $roles
  $prone=$x.proneStandUp
  if($null-eq$prone-or$prone.covered-ne$false-or$prone.reason-isnot[string]-or-not$prone.reason.StartsWith('No deterministic native prone source',[StringComparison]::Ordinal)){throw 'The prone stand-up half must be recorded as uncovered with its reason.'}
  foreach($field in @('pairResidueAbsent','nativeCombatEnded','initiativeInputsRestored','firstPairAiRestored','controlsSettled','inheritedPetsPreserved')){Assert-KmcChunk7Boolean $o.cleanup.$field $true}
  Assert-KmcChunk7Boolean $o.cleanup.ownedHorseRemoved $false;Assert-KmcChunk7Boolean $o.cleanup.nativeSaveWrittenByThisDriver $false;Assert-KmcChunk7Boolean $o.cleanup.delegatedPersistenceCleanup $false
 }
 
+# ---- 7E row 69 F04 defensive casting (round N+1 of owner-seed-combat-reaction) --------------------
+# Rider A casts the disposable native Cure Light Wounds scroll at mount A from inside the target's threatened
+# area. The native casting-defensively check must run exactly once with its DC, roll and outcome; the exact
+# stack spends exactly once in place whatever the outcome; a failed check may draw at most one native attack of
+# opportunity from the target (none on success); mount A and pair B never spend; rider A is never refunded.
+$script:KmcReactionScrollAbility='5590652e1c2225c4ca30c4a699ab3649';$script:KmcReactionScrollItem='cd635d5720937b044a354dba17abad8d'
+function Assert-KmcChunk7ReactionDefensiveCast($D,$X,[long]$N,$o,$roles){
+ if($null-eq$D-or$D.contract-cne'reaction-defensive-cast-v1'-or$D.riderId-cne$roles[0]-or$D.mountId-cne$roles[1]-or$D.casterId-cne$roles[0]){throw 'The defensive casting measurement is missing or names another caster.'}
+ Assert-KmcChunk7Boolean $D.complete $true
+ if($D.round-ne$N+1){throw 'The defensive cast is not on rider A''s next native round.'}
+ if($D.scrollUnits-ne4-or$D.scrollBlueprint-cne$script:KmcReactionScrollItem-or$null-eq$D.scrollAbility-or$D.scrollAbility.blueprint-cne$script:KmcReactionScrollAbility-or$D.scrollAbility.caster-cne$roles[0]){throw 'The defensive cast does not use the one disposable native scroll stack on rider A.'}
+ $p=$D.precondition;Assert-KmcChunk7ReactionTargetState $p $o.targetId
+ if($p.round-ne$N+1-or$p.reactions-ne1-or$p.canAttackOfOpportunity-ne$true-or$p.canActInCombat-ne$true-or$p.waitingInitiative-ne$false-or$p.surprised-ne$false-or$p.canAct-ne$true-or$p.threatHand-ne$true){throw 'The target did not hold its one native attack of opportunity before the defensive cast.'}
+ $approachRules=@()
+ if($null-ne$D.PSObject.Properties['approach']){
+  if($p.engagesRider-or$p.engagesMount){throw 'A native approach ran although pair A was already threatened in N+1.'}
+  $approachRules=@(Assert-KmcChunk7ReactionLeg $D.approach 'defensive-approach' ($N+1) $o $roles)
+  if($approachRules.Count-ne0-or-not($D.approach.targetAfter.engagesRider-or$D.approach.targetAfter.engagesMount)){throw 'The N+1 approach drew an attack or did not re-enter the threatened area.'}
+ }elseif(-not($p.engagesRider-or$p.engagesMount)){throw 'Pair A was not threatened in N+1 and no native approach ran.'}
+ $c=$D.cast
+ if($null-eq$c-or$c.round-ne$N+1-or-not($c.riderEngaged-eq$true-or$c.mountEngaged-eq$true)){throw 'Rider A did not cast from inside the target''s threatened area.'}
+ Assert-KmcChunk7Boolean $c.clicked $true;Assert-KmcChunk7Boolean $c.selected $true;Assert-KmcChunk7Boolean $c.canTarget $true
+ if($c.admittedShellCount-ne1-or$c.target-cne$roles[1]-or$null-eq$c.ability-or$c.ability.blueprint-cne$script:KmcReactionScrollAbility-or$c.ability.caster-cne$roles[0]-or$c.ability.sourceItemBlueprint-cne$script:KmcReactionScrollItem-or-not(Test-KmcExactJsonInteger $c.ability.sourceItem)-or$c.ability.sourceItem-eq0){throw 'The defensive cast is not one native scroll click by rider A on mount A.'}
+ Assert-KmcChunk7ReactionTargetState $c.targetBefore $o.targetId;Assert-KmcChunk7ReactionTargetState $c.targetAfter $o.targetId
+ $ev=@($c.castEvents);$hooks=@($ev|Where-Object{$_.kind-ceq'defensive-before'-and$_.actor-ceq$roles[0]});$rule=@($ev|Where-Object{$_.kind-ceq'defensive-rule-after'-and$_.actor-ceq$roles[0]})
+ if($hooks.Count-ne1-or$rule.Count-ne1-or-not(Test-KmcExactJsonInteger $rule[0].dc)-or-not(Test-KmcExactJsonInteger $rule[0].roll)-or$rule[0].success-isnot[bool]){throw 'The native casting-defensively check did not run exactly once with its DC, roll and outcome.'}
+ if(@($ev|Where-Object{$_.kind-cin@('defensive-before','defensive-rule-after')-and$_.actor-cne$roles[0]}).Count-ne0){throw 'A casting-defensively check ran on another unit.'}
+ $k=$D.check
+ if($null-eq$k-or$k.kind-cne'casting-defensively'-or$k.dc-ne$rule[0].dc-or$k.roll-ne$rule[0].roll-or$k.success-ne$rule[0].success-or$D.outcome-cne$(if($rule[0].success){'success'}else{'failure'})){throw 'The recorded defensive check differs from its native rule.'}
+ $spends=@($ev|Where-Object{$_.kind-ceq'item-spend-after'-and$_.actor-ceq$roles[0]-and$_.identity-eq$c.ability.sourceItem})
+ $foreign=@($ev|Where-Object{$_.kind-ceq'item-spend-after'-and$_.identity-ne$c.ability.sourceItem})
+ if($spends.Count-ne1-or$spends[0].result-ne$true-or$foreign.Count-ne0){throw 'The exact scroll stack did not spend exactly once.'}
+ $ib=$c.itemsBefore;$ia=$c.itemsAfter
+ if($ib.exactSlot-ne$true-or$ia.exactSlot-ne$true-or$ib.item-ne$c.ability.sourceItem-or$ia.item-ne$ib.item-or$ib.count-lt2-or$ia.count-ne$ib.count-1){throw 'The exact equipped scroll stack did not decrement in place exactly once.'}
+ $rules=@($c.rules);$aoo=@($rules|Where-Object{$_.kind-ceq'attack'-and$_.opportunity-eq$true-and$_.actor-ceq$o.targetId-and$_.target-cin@($roles[0],$roles[1])-and$_.round-eq$N+1})
+ if($rules.Count-ne$aoo.Count-or$(if($rule[0].success){$aoo.Count-ne0}else{$aoo.Count-gt1})){throw 'The defensive check''s native attacks of opportunity differ from its outcome.'}
+ if($c.targetAfter.reactions-ne$c.targetBefore.reactions-$aoo.Count){throw 'The target''s attack-of-opportunity count does not match the defensive outcome.'}
+ # Damage inside the running cast shows its native concentration check; none without damage.
+ $damage=@($ev|Where-Object{$_.kind-ceq'damage'-and$_.target-ceq$roles[0]-and$_.damage-gt0});$conc=@($ev|Where-Object{$_.kind-ceq'concentration-rule-after'-and$_.actor-ceq$roles[0]})
+ if(($damage.Count-eq0-and$conc.Count-ne0)-or$conc.Count-gt$damage.Count){throw 'A concentration check ran without damage inside the cast.'}
+ if($rule[0].success-and@($ev|Where-Object{$_.kind-ceq'cast-after'-and$_.actor-ceq$roles[0]-and$_.ability.blueprint-ceq$script:KmcReactionScrollAbility}).Count-ne1){throw 'A successful defensive check did not cast the scroll exactly once.'}
+ $t=$c.terminal;if($null-eq$t-or$t.finished-ne$true-or$t.executor-cne$roles[0]){throw 'The defensive cast shell did not finish on rider A.'}
+ Assert-KmcChunk7NeverSpentCombatBudget $c.before $c.after @($roles[1],$roles[2],$roles[3])
+ $elapsed=([double]$c.after.gameTicks-[double]$c.before.gameTicks)/10000000.0;$rb=Get-KmcChunk7CombatActor $c.before $roles[0];$ra=Get-KmcChunk7CombatActor $c.after $roles[0]
+ foreach($f in @('move','swift')){if([double]$ra.$f-gt[double]$rb.$f+0.001){throw 'Rider A spent a move or swift action on its scroll cast.'}}
+ if([double]$ra.standard-lt[double]$rb.standard-$elapsed*1.1-0.001){throw 'Rider A''s native Standard was refunded by the defensive cast.'}
+ $res=$c.residue;foreach($f in @('activeCommand','groundMovement')){Assert-KmcChunk7Boolean $res.$f $false};if($res.state-cne'Mounted'){throw 'Pair A did not stay mounted through the defensive cast.'}
+ # Consecutive rule windows: N disengagement, then the N+1 approach (if any) and the cast.
+ $cap=$D.rulesCapture
+ if($null-eq$cap-or$cap.dropped-ne0-or@($cap.errors).Count-ne0){throw 'Defensive cast rule observation dropped or failed.'}
+ if((ConvertTo-Json -InputObject @($cap.events) -Depth 10 -Compress)-cne(ConvertTo-Json -InputObject @(@($X.rules.events)+@($approachRules)+@($rules)) -Depth 10 -Compress)){throw 'The rule observer recorded attacks outside the reaction and defensive windows.'}
+ if($null-eq$D.scroll-or$D.scroll.ownedItemReleased-ne$true-or$D.scroll.disposed-ne$true-or$null-eq$D.originalSlots-or$null-eq$D.castTrace-or$D.castTrace.dropped-ne0-or$D.castTrace.faults-ne0){throw 'The defensive scroll stack was not released or its cast observer was incomplete.'}
+}
 # ---- 7E X1 F04 staged moving actions (owner-seed-staged) ----------------------------------------
 # The Chunk 6D plans on the owner-seed-derived mounted start: C6D-move-cast-move (round N),
 # C6D-double-move-ranged (N+1, its scroll cast the next-turn control in N+2) and the ranged approach
