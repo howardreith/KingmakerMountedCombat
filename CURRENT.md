@@ -1,5 +1,26 @@
 # Chunk 7B–7D — IN PROGRESS
 
+**Final F2 r15 reader-only defect fixed and re-evaluated (offline; harness only, `src/` untouched; no launch).** r15
+(`20261025-c7e-final-B4-r15`, zero-mounted TB checkpoint save, preview.94) game PASS 4/0, runner FAIL "Retained native actor was
+released before or after its first legitimate native round." (`final2-B4-r15-reader-defect.json`).
+- Cause and discriminator: `d96a4b06` changed the checkpoint driver's independent-turn label from `independent-native-mount-<id>` to
+  `independent-native-actor-<id>` and, in the same commit, the product from chunk7b-preview.54 to .55; the reviewer's sweep of every
+  version-bumping commit confirmed .3–.54 write only mount and .55–.94 only actor. The evidence has no label schema, so its own product
+  revision (productVersion, DLL-bound) selects one family for every kind, source and cold (`95a69cfc`); the other family and
+  unrecognised version schemes refuse; synthetic fixtures keep mount. The only reader of the family is
+  `Chunk7CombatPersistenceEvidence.ps1` (r16's cold consumer runs through the same function).
+- Re-evaluation (read-only, run directory hashes and write times unchanged): old reader `fa819113` FAIL (same message), new reader
+  `95a69cfc` PASS (all scenario evidence). Receipt `analysis-cache/chunk7-continuation/final2-B4-r15-reader-reevaluation.json`
+  (SHA-256 `6b4cf9e9…`; result `ee59a838…`, evidence `9bcb9cca…`). The runner FAIL stays.
+- Deriver (`2548e293`, `7b5b68a7`): Final mode admits a runner-FAIL predecessor only with a run-map `reevaluation` reference to that
+  receipt, checks it against the run, and proves it itself (corrected commit in its clean history, descending from the run's commit
+  with no product change, and its own reader PASSing the evidence in a child process). Proof: r16 derives from `{r01, r15+reevaluation}`;
+  without the reference "is not PASS"; with a wrong receipt hash refused (`final2-r16-derive-reevaluation-proof.log`). Reproduce 73/0.
+- Review: no must-fix on the reader; deriver must-fix (it trusted the receipt's verdicts) fixed by the independent proof; should-fix
+  (game-result hash, all restoration flags, one revision helper with explicit refusal) fixed.
+- Tests: combat persistence observation 190/0 (16 new label checks), combat persistence reader 55/0, owned reader 1272/0, deriver
+  Reproduce 73/0, Fast 3/0. The deriver change after the review was not re-reviewed.
+
 **Final 7E freeze attempt 1 stopped at B1 c4; harness fixed for the refreeze (offline; harness only, `src/` untouched; no launch).**
 F1 (`651ae757`, package `cf2a44e7…`): FULL FAIL (retained), B1 c1–c3 PASS, c4 game PASS 7/0 but outer FAIL on the profile guard (a NEW
 zero-length native achievement-cache leaf never reached 12288; lock held, Params/PlayerPrefs startup drift unrestored;
