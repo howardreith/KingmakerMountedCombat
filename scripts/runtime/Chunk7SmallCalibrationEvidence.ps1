@@ -85,6 +85,30 @@ function Assert-KmcChunk7SmallTrace($Request,$Observation){
  }
  Assert-KmcChunk7CheckpointTrace $trace $Request
 }
+# b210 s1: attaching the rider view to the Small mount re-parents its avatar transform, and Unity re-derives the local scale in
+# single precision: (1, 1, 1) read back as (1.00000024, 1, 1.00000024), two float32 ulps at 1.0 (ulp 1.19e-7). The mounted body
+# is therefore the field body exactly except the avatar local scale, which matches per axis within 1e-5 (about 84 ulps at 1.0,
+# a hundred times below a 0.1% size change). The scale's key and axis names must still match exactly.
+function Test-KmcChunk7SmallBodySame($Actual,$Expected,[double]$ScaleTolerance=0.00001){
+ if($null-eq$Actual-or$null-eq$Expected){return $false}
+ $scaleKeys=@('avatarLocalScale','AvatarLocalScale')
+ $actualNames=@($Actual.PSObject.Properties.Name);$expectedNames=@($Expected.PSObject.Properties.Name)
+ if((ConvertTo-Json -InputObject $actualNames -Compress)-cne(ConvertTo-Json -InputObject $expectedNames -Compress)){return $false}
+ $rest=[ordered]@{};$restExpected=[ordered]@{};$scaleKey=$null
+ foreach($name in $expectedNames){if($name-cin$scaleKeys){if($null-ne$scaleKey){return $false};$scaleKey=$name}else{$rest[$name]=$Actual.$name;$restExpected[$name]=$Expected.$name}}
+ if((ConvertTo-KmcChunk7Canonical ([pscustomobject]$rest))-cne(ConvertTo-KmcChunk7Canonical ([pscustomobject]$restExpected))){return $false}
+ if($null-eq$scaleKey){return $true}
+ $a=$Actual.$scaleKey;$e=$Expected.$scaleKey
+ if($null-eq$a-or$null-eq$e-or$a-isnot[pscustomobject]-or$e-isnot[pscustomobject]){return $false}
+ $axes=@($e.PSObject.Properties.Name)
+ if((ConvertTo-Json -InputObject @($a.PSObject.Properties.Name) -Compress)-cne(ConvertTo-Json -InputObject $axes -Compress)-or
+  ((ConvertTo-Json -InputObject $axes -Compress)-cne'["x","y","z"]'-and(ConvertTo-Json -InputObject $axes -Compress)-cne'["X","Y","Z"]')){return $false}
+ foreach($axis in $axes){
+  if(-not(Test-KmcChunk7FiniteNumber $a.$axis)-or-not(Test-KmcChunk7FiniteNumber $e.$axis)){return $false}
+  if([Math]::Abs([double]$a.$axis-[double]$e.$axis)-gt$ScaleTolerance){return $false}
+ }
+ return $true
+}
 function Assert-KmcChunk7SmallMountedEvidence($Request,$o){
  $s=$Request.smallCalibration;$source=Get-KmcChunk7SmallSelectedSource $s;$d=$o.declaration
  if($d.profileId-cne$s.profileId-or$d.nativeInventorySha256-cne$s.nativeInventorySha256-or$d.nativeCalibrationSha256-cne$s.nativeCalibrationSha256-or$d.qualificationStatus-cne'IN PROGRESS'-or$d.pose.Id-cne$s.profileId){throw 'Observed compiled declaration differs or claims prior acceptance.'}
@@ -155,7 +179,7 @@ function Assert-KmcChunk7SmallMountedEvidence($Request,$o){
  for($i=0;$i-lt$phases.Count;$i++){
   $row=$o.poses[$i];$p=$row.observation
   if($row.phase-cne$phases[$i]-or$p.riderId-cne$source.actorId-or$p.mountId-cne$source.petId-or$p.profileId-cne$s.profileId-or$p.inventorySha256-cne$s.nativeInventorySha256-or$p.declarationSha256-cne$s.nativeCalibrationSha256-or$p.coordinateConvention-cne'native-Unity'-or$p.qualificationStatus-cne'IN PROGRESS'){throw 'Pose phase/body/declaration provenance differs.'}
-  if((ConvertTo-KmcChunk7Canonical $p.body)-cne(ConvertTo-KmcChunk7Canonical $o.bodyObservation)){throw 'Mounted phase changed the exact observed native Small body.'}
+  if(-not(Test-KmcChunk7SmallBodySame $p.body $o.bodyObservation)){throw 'Mounted phase changed the exact observed native Small body.'}
   Assert-KmcChunk7Boolean $p.visualAcceptanceProven $false;Assert-KmcOrdinaryInteger $p.frame $last ([int]::MaxValue);$last=$p.frame
   $windows=@(@(0,$o.inputs[0].before.frame),@($o.inputs[0].after.frame,$m.before.frame),@($m.before.frame,$m.after.frame),@($m.after.frame,$m.after.frame),@($o.inputs[1].after.frame,$o.inputs[1].after.frame),@($o.inputs[2].after.frame,$o.inputs[2].after.frame),@($o.inputs[3].after.frame,$o.inputs[3].after.frame))
   if($p.frame-lt$windows[$i][0]-or$p.frame-gt$windows[$i][1]){throw 'Pose was not observed in its exact native action window.'}
