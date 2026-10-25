@@ -24,18 +24,26 @@ namespace KingmakerMountedCombat.Diagnostics
                 var combatants = game.State.Units.Where(unit => unit != null && unit.IsInCombat).ToArray();
                 var hostile = combatants.Count(unit =>
                     Chunk7SixPairCombatEntry.IsHostileCombatant(pairActors.Contains(unit), party.Contains(unit), unit.IsPlayerFaction));
-                var commandFree = pairActors.All(actor => actor != null && actor.IsInState && actor.Descriptor.State.IsConscious &&
-                    actor.Commands != null && actor.Commands.Empty);
+                // KMC custody only: the party's native AI queues its own commands on the combat-entry frame.
+                var issuedSettled = NativeCommandsSettled(); var pairsSettled = world.Pairs.All(PairCommandsSettled);
+                var kmcSettled = issuedSettled && pairsSettled;
+                var pairActorsCommandFree = pairActors.All(actor => actor != null && actor.Commands != null && actor.Commands.Empty);
                 var inFlight = shell != null || quietWindow != null || controls.HasUnsettledRelationshipTransition ||
                     world.UnifiedTurn.HasUnsettledPreparation;
-                classification = Chunk7SixPairCombatEntry.Classify(hostile, commandFree, inFlight);
+                classification = Chunk7SixPairCombatEntry.Classify(hostile, kmcSettled, inFlight);
                 var record = new JObject { ["classification"] = classification, ["frame"] = Time.frameCount,
                     ["gameTicks"] = game.TimeController.GameTime.Ticks, ["step"] = step, ["cycle"] = sixCycle, ["index"] = sixIndex,
                     ["sampleGroup"] = sixSampleGroup, ["sampleWindow"] = sixSampleWindow, ["samplingOpen"] = measurement != null,
-                    ["activePairs"] = sixActive.Count, ["activeInput"] = activeInput, ["inputShellOpen"] = shell != null,
+                    ["activePairs"] = sixActive.Count, ["activeInput"] = shell != null ? activeInput : null, ["lastInput"] = activeInput, ["inputShellOpen"] = shell != null,
                     ["groundMoveOpen"] = quietWindow != null, ["unsettledRelationshipTransition"] = controls.HasUnsettledRelationshipTransition,
                     ["unsettledPreparation"] = world.UnifiedTurn.HasUnsettledPreparation,
-                    ["pairActorsCommandFree"] = commandFree, ["kmcInputInFlight"] = inFlight, ["hostileCombatants"] = hostile,
+                    ["issuedCommandsSettled"] = issuedSettled, ["pairCommandsSettled"] = pairsSettled,
+                    ["kmcCommandsSettled"] = kmcSettled, ["pairActorsCommandFree"] = pairActorsCommandFree,
+                    ["pairActorCommands"] = new JArray(pairActors.Where(actor => actor?.Commands != null && !actor.Commands.Empty).Select(actor =>
+                        new JObject { ["id"] = actor.UniqueId, ["commands"] = new JArray(actor.Commands.Raw.Where(command => command != null)
+                            .Select(command => new JObject { ["type"] = command.GetType().FullName, ["finished"] = command.IsFinished,
+                                ["kmcIssued"] = issuedCommands.Any(issued => ReferenceEquals(issued, command)) })) })),
+                    ["kmcInputInFlight"] = inFlight, ["hostileCombatants"] = hostile,
                     ["turnBased"] = CombatController.IsInTurnBasedCombat(), ["combatants"] = new JArray(combatants.Select(unit =>
                     {
                         UnitEntityData nearest = null; var distance = float.MaxValue;
@@ -50,6 +58,7 @@ namespace KingmakerMountedCombat.Diagnostics
                             ["inParty"] = party.Contains(unit), ["pairActor"] = pairActors.Contains(unit), ["awake"] = awake.Contains(unit),
                             ["conscious"] = unit.Descriptor.State.IsConscious, ["inFog"] = unit.IsInFogOfWar, ["position"] = Point(unit.Position),
                             ["nearestPairActor"] = nearest?.UniqueId, ["nearestPairDistance"] = nearest == null ? (JToken)null : distance,
+                            ["clearanceAtBegin"] = sixClearanceAtBegin.TryGetValue(unit.UniqueId, out var begin) ? (JToken)begin : null,
                             ["groupMemoryEnemies"] = new JArray(unit.Memory.Enemies.Where(item => item.Unit != null)
                                 .Select(item => item.Unit.UniqueId).Distinct().OrderBy(id => id, StringComparer.Ordinal)) };
                     })) };

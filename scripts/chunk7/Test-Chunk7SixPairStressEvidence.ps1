@@ -123,6 +123,18 @@ Check 'strict six-pair reader refuses a mistyped v2 custody declaration' {$v=New
 Check 'strict six-pair reader refuses v1 carrying the v2 declaration' {$v=Clone $artifact;$v.observations.sixPairStress|Add-Member measuredFramesCarryFullCustody $false;Assert-KmcChunk7WorldEvidence $request $v 'PASS'} $true
 Check 'strict six-pair reader refuses an unknown contract version' {$v=Clone $artifact;$v.observations.sixPairStress.contract='cold-qualified-six-pair-lifecycle-v3';Assert-KmcChunk7WorldEvidence $request $v 'PASS'} $true
 foreach($key in @('sixPairCombatEntry','sixPairCombatEntryError')){Check ('strict six-pair reader refuses PASS evidence carrying '+$key) {$v=New-V2Artifact;$v.observations|Add-Member $key ([pscustomobject]@{classification='unclassified-six-pair-combat-entry'});Assert-KmcChunk7WorldEvidence $request $v 'PASS'} $true}
+function New-ClearanceArtifact{$v=New-V2Artifact;$v.observations|Add-Member sixPairHostileClearance ([pscustomobject]@{contract='six-pair-native-vision-clearance-v1';phase='before-stress';frame=120;gameTicks=2245000000000;combatVisionMeters=11.7;marginMeters=3;points=18
+ units=@([pscustomobject]@{id='4fb0d949-ec60-495c-bde8-812d08872323';blueprint='23df787f0da21d44093f4822a6cc0628';faction='b1525b4b33efe0241b4cbf28486cd2cc';peacefulFaction=$false;groupId='d6aa1e8c-e3d2-47af-a4f8-ba41e3252eb5';awake=$true;inFog=$false
+  position=[pscustomobject]@{x=24.0;y=0.0;z=5.6};visionRangeMeters=8.5;requiredClearanceMeters=11.5;nearestPoint='waypoint:d8c2f840-9d59-4b5e-9250-c628a36c5589';nearestDistance2D=19.4;extendedVisionCoversPoint=$false;clear=$true});breaches=@();clear=$true});$v}
+Check 'six-pair evidence with a clear before-stress native vision clearance' {Assert-KmcChunk7WorldEvidence $request (New-ClearanceArtifact) 'PASS'}
+Check 'six-pair evidence with no units near the placement' {$v=New-ClearanceArtifact;$v.observations.sixPairHostileClearance.units=@();Assert-KmcChunk7WorldEvidence $request $v 'PASS'}
+foreach($fault in @('inside-vision','inside-margin','breach-listed','not-clear','unit-not-clear','extended-vision','wrong-required','wrong-margin','wrong-points','wrong-phase','extra-field','text-distance','repeated-unit','missing-units')){
+ Check ('strict six-pair reader refuses clearance '+$fault) {$v=New-ClearanceArtifact;$c=$v.observations.sixPairHostileClearance;$u=$c.units[0]
+  switch($fault){'inside-vision'{$u.nearestDistance2D=8.304787};'inside-margin'{$u.nearestDistance2D=11.49};'breach-listed'{$c.breaches=@($u.id)};'not-clear'{$c.clear=$false};'unit-not-clear'{$u.clear=$false}
+   'extended-vision'{$u.extendedVisionCoversPoint=$true};'wrong-required'{$u.requiredClearanceMeters=8.5;$u.nearestDistance2D=9.0};'wrong-margin'{$c.marginMeters=0};'wrong-points'{$c.points=12};'wrong-phase'{$c.phase='during-stress'}
+   'extra-field'{$c|Add-Member note 'x'};'text-distance'{$u.nearestDistance2D='19.4'};'repeated-unit'{$c.units=@($u,$u)};'missing-units'{$c.PSObject.Properties.Remove('units')}}
+  Assert-KmcChunk7WorldEvidence $request $v 'PASS'} $true
+}
 foreach($fault in @('missing-sixth-owner','duplicate-mounted-role','wrong-sixth-profile','remote-XP','remote-descriptor','remote-field-alias','changed-source-class','wrong-producer',
  'load2','write1','missing-input','duplicated-shell','foreign-caster','wrong-selected-neighbor','debt-refund','prepared-change','missing-move','neighbor-command','wrong-ground-call',
  'raw-missing-twelfth','raw-missing-command','raw-neighbor-command','raw-truncated','raw-read-failure',

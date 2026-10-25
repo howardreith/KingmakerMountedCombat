@@ -7,6 +7,7 @@
     <Compile Include="Diagnostics\Chunk7WorldScenarioEngine.SixPairSiblings.cs" />
     <Compile Include="Diagnostics\Chunk7SixPairCombatEntry.cs" />
     <Compile Include="Diagnostics\Chunk7WorldScenarioEngine.SixPairCombatEntry.cs" />
+    <Compile Include="Diagnostics\Chunk7WorldScenarioEngine.SixPairClearance.cs" />
     <Compile Include="Diagnostics\SixPairAttachmentObservation.cs" />
     <Compile Include="Diagnostics\RuntimeAutomationHost.SixPairFailure.cs" />
     <Compile Include="Diagnostics\Chunk7WorldScenarioEngine.ThirdHorseManual.cs" />
