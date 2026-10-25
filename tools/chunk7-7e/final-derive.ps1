@@ -89,6 +89,11 @@ $Spec=[ordered]@{
  am =S '20261024-c7e-b205-am-owner-seed-attack-modes' $O $OP @{source='r01';checkpoint='r02'} $scp $ownCp $pairIds 'b205-am-selection.json'
  cr =S '20261024-c7e-b205-cr-owner-seed-combat-reaction' $O $OP @{source='r01';checkpoint='r02'} $scp $ownCp $pairIds 'b205-cr-selection.json'
  st =S '20261024-c7e-b205-st-owner-seed-staged' $O $OP @{source='r01';checkpoint='r02'} $scp $ownCp $pairIds 'b205-st-selection.json'
+ # B17 mounted6 lineage (rows 79-81): m1 and m2 are literals in the plan; m3-m5 re-pin the b207 pilot's m2 (and m3) lineage.
+ # m5's template (b207 m5, a false uncovered refusal before any input) is used only for the selection shape, never as a predecessor.
+ m3 =S '20261025-c7e-b207-m3-mounted6-load' $O $OP @{source='m2'} $sp $ownSrc $pairIds 'b207-m3-selection.json'
+ m4 =S '20261025-c7e-b207-m4-mounted6-prepared-casting' $O $OP @{source='m2';checkpoint='m3'} $scp $ownCp $pairIds 'b207-m4-selection.json'
+ m5 =S '20261025-c7e-b207-m5-mounted6-attack-modes' $O $OP @{source='m2';checkpoint='m3'} $scp $ownCp $pairIds 'b207-m5-selection.json'
  k1 =S '20261024-c7e-b201-k1-chargeseed-cold' 'assistedColdInventory' 'AssistedColdInventorySelectionPath' @{} -file 'b201-k1-selection.json'
  k2 =S '20261024-c7e-b201-k2-chargeseed-save' $O $OP @{} -file 'b201-k2-selection.json'
  k3 =S '20261024-c7e-b201-k3-chargeseed-load' $O $OP @{source='k2'} $sp $ownSrc $pairIds 'b201-k3-selection.json'
