@@ -67,8 +67,9 @@ function Get-KmcBaseGameDependencyDigest {
     param([Parameter(Mandatory=$true)]$Receipt)
     [string[]]$rows=@($Receipt.files|ForEach-Object {'{0}|{1}|{2}' -f $_.relativePath,$_.length,$_.sha256})
     [Array]::Sort($rows,[StringComparer]::Ordinal)
-    return Get-KmcTextSha256 ((@([string]$Receipt.gameRoot,[string]$Receipt.configSha256)+$rows)-join "
-")
+    # An explicit LF separator: a literal line break inside the string made the digest follow the checkout's line endings
+    # (a CRLF worktree computed 93f28715... where the LF trees stored db2c3901...). LF keeps every existing receipt valid.
+    return Get-KmcTextSha256 ((@([string]$Receipt.gameRoot,[string]$Receipt.configSha256)+$rows)-join "`n")
 }
 
 function Assert-KmcBaseGameDependencyReceipt {
