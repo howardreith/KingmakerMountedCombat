@@ -1,5 +1,44 @@
 # Chunk 7B–7D — IN PROGRESS
 
+**b207 development pilot findings fixed (offline; product diagnostics changed; no launch).** b207 ran 7 launches on `e096038a`
+(package `b76b1ae1…`, suite `chunk7e-b207-pilots-20261025`): m1–m4 and cr PASS, m5 and r57 refused as uncovered.
+- **m5 false refusal (hand sets).** Kingmaker 2.1.7b contract (local metadata, summarized): `WeaponSlot.MaybeWeapon` answers
+  `Owner.Body.EmptyHandWeapon` for a slot that is not `Active`; `HandSlot.UpdateActive` sets `Active = !Disabled && set ==
+  CurrentHandsEquipmentSet`; `ItemSlot.MaybeItem` is the stored item regardless of `Active`; `BlueprintItemWeapon.IsRanged` is the weapon
+  type's `AttackType` Ranged or RangedTouch; the public `UnitBody.CurrentHandEquipmentSetIndex` setter updates both sets' `Active`
+  synchronously. The check read the inactive ranged set 0 through `MaybeWeapon` (the empty hand). Fixed: the pure predicate
+  `Chunk7OwnedPairsSelection.Mounted6HandSetsAdmitted` over the stored items; `savedSets` records every clause (count, current,
+  polymorphed, empty-hand weapon, per set hasItem/active/disabled/item/weapon/weaponRanged/maybeWeapon), also in the refusal text; the
+  reader recomputes them (native current-set rule, inactive slots answer the empty hand). Regressions: C# predicate (b207 shape
+  admitted, empty-hand answer, a polymorphed rider and 8 mutations refused), 11 reader refusals and a source guard.
+- **r57 prone stand-up geometry.** Contract: `UnitCombatEngagementController.TickUnit` engages a conscious enemy from the attacker's
+  group memory when `UnitEngagementExtension.IsEngage` holds (CanAct, threat hand, `DistanceTo` < both corpulences + weapon
+  `AttackRange.Meters`, LOS, not total concealment); the stand-up provokes through `HandleUnitWillGetUp` → each `EngagedBy` unit's
+  `AttackOfOpportunity`; TB movement is costed by `TurnController.TickMovement`. b207 recorded the target engaging nobody (rider B
+  2.06 m, mount A 2.75 m); b207 cr shows the same target engaging mount A at 2.00 m but not 2.75/3.50 m. Design chosen: on the
+  brain-leased target's own native turn between the heal and rider B's turn (b207 order puts it there), a target not yet engaging
+  rider B makes one native `UnitMoveTo` toward it (the TB hostile-command precedent), to a navmesh destination predicted inside reach
+  that keeps every current engager's native reach (band: 5 cm clear of rider B, 15 cm inside the entity reach `ItemEntityWeapon.AttackRange`, which includes ReachRange); natively costed (TimeMoved and Move or five-foot meters); no attack and no pair
+  spend (FAIL otherwise); rider B never moves. Uncovered before input: no group memory of rider B, no threat hand, cannot act, a
+  pending command, no destination band, or already in reach and LOS without engaging; uncovered when the move does not complete (`Success`) or a completed move still does not engage. The target's turn ends natively once it idles (`TurnController.ContinueActing`), so the window is read at the first frame its move has finished, from its own TurnController object. The
+  target records now carry `targetRemembersSubject`, `threatReachMeters`, `subjectCorpulence`, `subjectMechanicsDistance`,
+  `subjectLineOfSight`. The incapacitation half is unchanged. Reader `Assert-KmcChunk7ProneTargetTurn` (22 new checks).
+  **Residual:** b207 did not record which engagement term failed; if the target's group memory lacks rider B, the case still refuses
+  as uncovered (now diagnosably) and needs a new decision.
+- Plan B17: m2 literal = b207 m2's selection (five native field ids in r01 order plus the Horse); m1 = b207 m1; m3–m5 are deriver tags.
+- Deriver tags `m3`–`m5` (b207 templates; m5 selection shape only): Reproduce 73/0 (`final-derive-reproduce-b207-m3m5.log`).
+- **Independent review of the working diff: FINDINGS (1 must-fix, 6 should-fix); all fixed before commit.** M1: the approach required the
+  target's turn to survive 10 settle frames, but a not-directly-controllable unit's turn ends natively ~0.2 s after it idles; now read at
+  the first settled frame and the turn may end natively (recorded `turnEndedNatively`). S1: entity reach instead of blueprint reach. S2:
+  the reader recomputes the geometry and the "only distance can change" precondition and types the record. S3: the approach must lie
+  between the restoring heal's and the stand-up's trace sequences. S4: destination band margins (no overlap, middle of the band) and a C#
+  rider-B position check. S5: a polymorphed rider refuses as uncovered in the predicate. S6: plan wording (four field ids plus the Horse).
+  Also fixed while testing: the reader now accepts PowerShell 5.1's decimal JSON numbers (the fixture round-trips through JSON).
+  Residuals (notes): the saved-sets and target-approach shapes have never been observed natively; an AoO from a party unit engaged
+  mid-path FAILs rather than refusing; the target's own Standard/Swift are recorded, not asserted; the source guard is text-based.
+- Tests: owned reader 1235/0 (34 new), owned authority 756/0 (9 new), native life 85/0, combat 53/0, components 881/0,
+  Validate-Source 149/0, deriver Reproduce 73/0, Fast 3/0, Release build (`ac8792f5…`). No native run: both fixes need the next pilot.
+
 **Owner decision of October 24 ("I'll make a mod seed"): `KMC_C7_MOUNTED6_SEED` registered and its lineage built (offline; product diagnostics changed; no launch).**
 - Seed: master `2ef426c4…` (1,204,811 bytes, byte-identical to the owner's `Manual_308_KMC_C7_MOUNTED6_SEED.zks`, only hashed), intake `f4e8afd3…` read-only beside it, registry entry added. The real registry/master/intake/header gate passes offline (charge and level-6 seeds too; the mounted6 id under another hash is refused).
 - Census (party.json read in memory): main Ranger `73681ef2` level 6 (XP 35,022, level 7 pending), BAB 6, Rapid Shot feat and toggle (on), active hand set 1 (longsword `571c56d1…`), set 0 the ranged `4de4658c…`; memorized available level-1 slots Cure Light Wounds `5590652e…` and `3e9d1119…`; one pet `6eb039a1…`, blueprint `4016c7db…` (the KMC Horse), level 6, reciprocal; KMC Horse feature (selected at Ranger 4 from the native Ranger companion selection) and companion rank 6 (the level-6 seed had rank 3; the level-5 feat `8fc01f06…` most plausibly Boon Companion, not resolved by name). Linzi 7 knows Haste. Rider B `fd213210` is level 4 with XP 35,022 (ready 7), Ranger 0. `kmc-mounted-state` is an empty schema-3 archive (no pairs, participations, slots or combat).
