@@ -164,7 +164,7 @@ foreach($case in $cases){$bad=Copy-Value $lifeGood;& $case[1] $bad;Reject $case[
 Check 'a non-owned native life request is never the death case' {if(Test-KmcChunk7NativeDeathCase $request){throw 'Legacy request selected the death branch.'}}
 RejectLife 'incapacitation evidence claiming a death outcome' 'Native incapacitation evidence claims a death outcome.' {param($x)$x.observations.nativeLife|Add-Member NoteProperty outcome 'death'}
 RejectLife 'incapacitation evidence claiming a natural death stimulus' 'Native incapacitation evidence claims a death outcome.' {param($x)$x.observations|Add-Member NoteProperty naturalDeathStimulusProven $true}
-Check 'native life closed rows' {if(@(Get-KmcChunk7NativeLifeRuntimeRows).Count-ne12){throw 'Wrong life row count.'}}
+Check 'native life closed rows' {if(@(Get-KmcChunk7NativeLifeRuntimeRows).Count-ne14){throw 'Wrong life row count.'}}
 Reject 'unknown life scenario' {Get-KmcChunk7NativeLifeRows 'chunk7-two-pair-life-anything'}
 Check 'native life partial FAIL preserved' {$bad=Copy-Value $lifeGood;$bad.status='FAIL';$bad.errors=@('fixture native life policy unavailable');$bad.observations=[pscustomobject]@{};Assert-KmcChunk7NativeLifeEvidence $request $bad 'FAIL'}
 Reject 'native life FAIL cannot fulfill PASS' {$bad=Copy-Value $lifeGood;$bad.status='FAIL';$bad.errors=@('fixture unavailable');Assert-KmcChunk7NativeLifeEvidence $request $bad 'PASS'}
