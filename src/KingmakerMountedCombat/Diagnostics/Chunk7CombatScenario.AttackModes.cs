@@ -72,9 +72,11 @@ namespace KingmakerMountedCombat.Diagnostics
         // weapon is refused before any input and records the behavior as uncovered.
         private void PrepareAttackModes()
         {
-            var mounted6 = Mounted6AttackModes ? PrepareMounted6AttackModes() : null;
             var feat = ar.Descriptor.Progression.Features.Enumerable.Count(fact => fact.Blueprint.AssetGuid == RapidShotFeatureGuid);
             var toggles = ar.ActivatableAbilities.Enumerable.Where(item => item.Blueprint.AssetGuid == RapidShotToggleGuid).ToArray();
+            // The feat and toggle are checked before the mounted6 hand-set selection, so a gap refuses before any mutation.
+            Require(!Mounted6AttackModes || feat == 1 && toggles.Length == 1, "Rider A lacks its native Rapid Shot feat or toggle; C03 attack modes are uncovered on this fixture.");
+            var mounted6 = Mounted6AttackModes ? PrepareMounted6AttackModes() : null;
             var weapon = ar.GetFirstWeapon();
             attackModes = new JObject { ["contract"] = "owner-seed-attack-modes-v2", ["riderId"] = ar.UniqueId, ["mountId"] = am.UniqueId,
                 ["rapidShotFeature"] = feat, ["rapidShotToggles"] = toggles.Length, ["weapon"] = weapon?.Blueprint.AssetGuid,
@@ -95,6 +97,8 @@ namespace KingmakerMountedCombat.Diagnostics
             Require(!attackModesRapid.IsOn && !ar.IsInCombat, "Native Rapid Shot was switched back on or rider A entered combat before the encounter.");
             var state = RapidState("pre-combat");
             if ((bool)state["isRunning"] || (bool)state["buff"]) return false;
+            // A mounted6 hand-set selection settles natively (no scheduled hands update, no hand animation) before the encounter.
+            if (Mounted6AttackModes && (Game.Instance.HandsEquipmentController.IsUpdateScheduledFor(ar) || ar.AreHandsBusyWithAnimation)) return false;
             attackModes["rapidOff"] = state; return true;
         }
         // The native player input: MechanicActionBarSlotActivableAbility.OnClick toggles IsOn when the

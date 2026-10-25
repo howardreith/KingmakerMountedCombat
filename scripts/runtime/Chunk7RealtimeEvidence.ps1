@@ -136,6 +136,7 @@ function Assert-KmcChunk7OwnerSeedPreparedCaster($Request,$o,[string[]]$ids){
     if(-not$prepared){return}
     if($o.casting.casterId-cne$ids[0]){throw 'Owner-seed prepared casting was not cast by rider A.'}
     $rows=@($o.castingInventory|Where-Object actorId -CEQ $ids[0]);if($rows.Count-ne1-or@($rows[0].preparedSpells|Where-Object{$_.blueprint-ceq'5590652e1c2225c4ca30c4a699ab3649'}).Count-ne1){throw 'Owner-seed prepared casting rider A did not hold exactly one memorized prepared healing slot.'}
+    if(@($o.castingInventory|Where-Object{$_.actorId-cne$ids[0]-and@($_.preparedSpells|Where-Object{$_.blueprint-ceq'5590652e1c2225c4ca30c4a699ab3649'}).Count-gt0}).Count-ne0){throw 'Owner-seed prepared casting found the prepared healing spell on another rider.'}
 }
 function Assert-KmcChunk7RealtimeCasting($o,[string[]]$ids,$trace){
     foreach($i in 0..1){Assert-KmcChunk7RealtimeOwnerStable $o.casting.before $o.casting.after $ids[2*$i] $ids[2*$i+1]}
