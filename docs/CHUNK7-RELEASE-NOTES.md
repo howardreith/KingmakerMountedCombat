@@ -69,9 +69,9 @@ Exact-package 7E qualification re-runs each of them on the final candidate.
   test saves, and a scripted prone condition would be fabricated. Disengagement has development evidence.
 - F04: the defensive casting check. No cast runs while threatened past the native one-second window on
   the test geometry. Staged moving actions have development evidence.
-- C03: base attack bonus and haste variation, and a mounted full attack with Rapid Shot off (the test
-  Ranger has BAB 4, so the game offers it a single attack only; a full attack needs BAB 6). No native
-  source exists, and synthetic stat edits are not accepted. Rapid Shot has development evidence.
+- C03: base attack bonus variation and a mounted full attack with Rapid Shot off (the test Ranger has
+  BAB 4, so the game offers it a single attack only; a full attack needs BAB 6). Synthetic stat edits are
+  not accepted. Rapid Shot has development evidence. Haste variation is excluded by owner decision.
 - Prepared-spell casting while mounted. The leveled Ranger's level-1 slot is empty. Filling it needs a
   spellbook choice and the game's camp rest. That rest rolls a random encounter the harness cannot
   bound, spends rations and runs skill checks. Items (scroll and potion) while mounted have development evidence.
@@ -79,11 +79,26 @@ Exact-package 7E qualification re-runs each of them on the final candidate.
 - The full Small rider calibration on a save made by the same build: the two cases that did it were
   retired; the Small profile is covered by its own calibration and by mounted save and load.
 
+## Owner decisions (October 24, 2026)
+
+Recorded verbatim; the owner answered a direct question:
+
+- Haste attack variation: "Approve exclusion".
+- Main-menu character creation for your own main character, the retired level-up autosave families, the
+  legacy Manual 302→303 route, and six-pair combat (six pairs are qualified for performance and save/load
+  only): "Approve all four" as exclusions.
+- The five Chunk 6A historical replay failures (LedgerProtocol, RegressionLedger, LegacyLedger, AreaLedger,
+  UnrelatedFullLedger): "Report as classified". They stay FAIL with an unresolved cause, separate from
+  Chunk 7, and are not re-qualified; the current behaviour checks must pass.
+- Prepared-spell casting and a full attack at base attack bonus 6 or more: the owner chose to supply a
+  new no-mods test save (a level-6 Ranger with a memorized, rested level-1 spell). Pending at the time.
+
 ## Known limits
 
 - Turn-based Charge is unavailable (it refuses without spending actions). The defensive Mounted Combat
   feat is not implemented.
-- Six-pair combat is not qualified.
+- Six-pair combat is not qualified (owner decision, October 24: six pairs are qualified for performance
+  and save/load only).
 - Other mod combinations are not tested.
 - Performance acceptance (F11) is pending on the final candidate.
 - Visuals, physical input and feel need owner/HUMAN PLAY acceptance, which is **pending**.

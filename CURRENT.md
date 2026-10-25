@@ -1,5 +1,19 @@
 # Chunk 7B–7D — IN PROGRESS
 
+Owner decisions of October 24, 2026 (the owner answered a direct question; recorded verbatim in the
+[7E matrix exclusions](planning/CHUNK7-7E-QUALIFICATION-MATRIX.md) and the [release notes](docs/CHUNK7-RELEASE-NOTES.md)):
+- (a) Haste attack variation (C03): "Approve exclusion".
+- (b) Main-menu CharGen, the stale level-up Auto families, the legacy Manual 302→303 route, and six-pair
+  combat (six pairs qualified for performance and save/load only): "Approve all four" as exclusions.
+- (c) The five Chunk 6A historical replay failures (LedgerProtocol, RegressionLedger, LegacyLedger,
+  AreaLedger, UnrelatedFullLedger): "Report as classified". They stay FAIL with unresolved cause, separate
+  from Chunk 7, no re-qualification; the current behaviour checks must pass.
+- (d) Prepared-spell casting and a BAB ≥ 6 full attack: the owner chose to supply a new no-mods seed (Ranger
+  level 6, a memorized rested level-1 Ranger spell); pending at the time of the decision.
+
+The matrix exclusions table no longer says "agreed": every row cites its owner decision or mission text,
+and the uncovered rows (C11 prone, F04 defensive check, X3 residual) say they are not approved exclusions.
+
 Claude (offline, no launch, October 24, pre-freeze gates G3/G6 of the [final run plan](planning/CHUNK7-7E-FINAL-RUN-PLAN.md)):
 - **G3 met.** `Test-ScenarioDispatchEvidence.ps1` lists the four Chunk 7 fixture/cold families registered by `ee2bdfc9`, `38318d57` and `fbb1116a`, each with its one dedicated reader: PASS 181/0. Harness-only; [X6](docs/CHUNK7-7E-X6-OFFLINE-INVENTORY-2026-10-23.md) now says fixed.
 - **G6: selection deriver `tools/chunk7-7e/final-derive.ps1`.** It changes only declared lineage pins and refuses anything else. Reproduce: all 69 selection tags are byte-identical to their template selections (69/0). Cross-lineage re-pins onto b194–b198 runs reproduce those batches' retained selections (13/0). Negative checks refuse non-final run ids, a foreign candidate and a missing predecessor.

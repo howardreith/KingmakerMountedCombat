@@ -66,7 +66,8 @@ the package, DLL, MVID and commit; a new product candidate needs a new SuiteId.
 3. **Expected failures, exactly and only**, reported in four separate groups (owner clarification): (a) the
    actual FULL failure (step 1); (b) the five historical ledger replays whose cause is unresolved in the
    current lab (`Test-Chunk6aLedgerProtocol`, `…RegressionLedger`, `…LegacyLedger`, `…AreaLedger`,
-   `Test-UnrelatedFullLedger`); (c) the superseded Preparing expectation (`Test-Chunk6aSupportingEvidence`:
+   `Test-UnrelatedFullLedger`; owner decision 2026-10-24 (c), "Report as classified": they stay FAIL with
+   unresolved cause, separate from Chunk 7, with no re-qualification); (c) the superseded Preparing expectation (`Test-Chunk6aSupportingEvidence`:
    CM01 `-refused` → `-admitted`, owner decision `7930313e`) together with its current replacement check;
    (d) every applicable current behaviour check, which must pass. The old Chunk 6 campaign is not restarted.
 
