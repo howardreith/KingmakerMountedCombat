@@ -274,6 +274,22 @@ function Assert-KmcChunk7AttackModeMeasurement($m,[string]$Label,[bool]$Mounted,
  if($riderCosts-lt1-or$mountCosts-ne0){throw ('Attack mode '+$Label+' has no native cost on rider A or spent the mount.')}
  [pscustomobject]@{rangedCount=$rangedCount;inner=@(Get-KmcChunk7AttackModeInner $m);rapid=(Get-KmcChunk7AttackModeRapidBonus $m);riderCosts=$riderCosts}
 }
+# Mounted6 lineage (C03 BAB variation): rider A's native BAB is at least 6, the seed's saved ranged hand set was
+# selected out of combat (from its saved longsword set, or already active), and the mounted Rapid Shot off leg is a
+# native full attack with an iterative second ranged attack. Every other seed records no mounted6 block.
+function Assert-KmcChunk7AttackModesMounted6($Request,$Modes,$OffMeasurement,$Off){
+ $m6seed=Test-KmcChunk7Mounted6Selection $Request.ownedPairs;$has=$null-ne$Modes.PSObject.Properties['mounted6']
+ if(-not$m6seed){if($has){throw 'Only the mounted6 lineage records a BAB and hand-set selection block.'};return}
+ if(-not$has){throw 'Mounted6 attack modes lack their BAB and hand-set selection record.'};$c=Get-KmcChunk7Mounted6Seed;$m=$Modes.mounted6
+ Assert-KmcExactProperties $m @('baseAttackBonus','before','switched','nativeApi','after') 'mounted6 attack modes selection'
+ Assert-KmcOrdinaryInteger $m.baseAttackBonus $c.minimumBab 40;Assert-KmcBootstrapInventoryString $m.nativeApi 'Kingmaker.Items.UnitBody.CurrentHandEquipmentSetIndex (public setter, out of combat)'
+ foreach($k in @('before','after')){Assert-KmcExactProperties $m.$k @('handSet','primaryBlueprint','firstWeapon','firstWeaponRanged','inCombat') ('mounted6 hand set '+$k);Assert-KmcChunk7Boolean $m.$k.inCombat $false}
+ if($m.switched-isnot[bool]){throw 'Mounted6 hand-set switch flag is not boolean.'}
+ if($m.switched){if($m.before.handSet-ne$c.meleeHandSet-or$m.before.primaryBlueprint-cne$c.meleeWeapon){throw 'Mounted6 hand-set switch did not start from the seed''s saved longsword set.'}}
+ elseif($m.before.handSet-ne$c.rangedHandSet-or$m.before.firstWeapon-cne$c.rangedWeapon){throw 'Mounted6 attack modes skipped a needed hand-set selection.'}
+ if($m.after.handSet-ne$c.rangedHandSet-or$m.after.primaryBlueprint-cne$c.rangedWeapon-or$m.after.firstWeapon-cne$c.rangedWeapon-or$m.after.firstWeaponRanged-ne$true-or$Modes.weapon-cne$c.rangedWeapon){throw 'Mounted6 attack modes did not use the seed''s saved ranged weapon.'}
+ if($OffMeasurement.expectedFull-ne$true-or$OffMeasurement.nativeEstimate-lt2-or$Off.rangedCount-lt2){throw 'Mounted Rapid Shot off attack at BAB >= 6 was not a native full attack with an iterative second ranged attack.'}
+}
 function Assert-KmcChunk7AttackModesCombat($Request,$Observations){
  if(-not(Test-KmcChunk7OwnedPairsAttackModes $Request)){throw 'Attack modes evidence requires its closed owner-seed selection.'}
  Assert-KmcChunk7OwnedPairsSelection $Request
@@ -304,6 +320,7 @@ function Assert-KmcChunk7AttackModesCombat($Request,$Observations){
  $on=Assert-KmcChunk7AttackModeMeasurement $ms[1] 'mounted-on' $true $true ($n+1) $o $roles $modes
  $control=Assert-KmcChunk7AttackModeMeasurement $ms[2] 'unmounted-on' $false $true ($n+3) $o $roles $modes
  if($off.rapid-ne0){throw 'A Rapid Shot bonus source applied while the native toggle was off.'}
+ Assert-KmcChunk7AttackModesMounted6 $Request $modes $ms[0] $off
  $adjusted=@($on.inner|ForEach-Object{$_-$on.rapid}|Sort-Object);$expected=@(@($off.inner)+@(($off.inner|Measure-Object -Maximum).Maximum)|Sort-Object)
  if($on.rapid-ge0-or$on.rangedCount-ne$off.rangedCount+1-or($adjusted-join',')-cne($expected-join',')){throw 'Native Rapid Shot did not add exactly one attack at the highest bonus with its own uniform bonus source.'}
  if($control.rangedCount-ne$on.rangedCount-or(@($control.inner)-join',')-cne(@($on.inner)-join',')-or$control.rapid-ne$on.rapid){throw 'Mounted native full attack differs from the unmounted control under the same Rapid Shot toggle.'}

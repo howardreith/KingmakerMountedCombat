@@ -750,7 +750,8 @@ Check-SeedDeath 'a cleanup without the observed dead control' {$args[0].artifact
 # 7E X1 C03 attack modes: rider A's native Rapid Shot off/on mounted full attacks and an unmounted
 # control (round N, N+1, Dismount in N+2, N+3). Synthetic shapes: BAB-4 ranged rider, one attack
 # at +7 off; Rapid Shot -2 adds one attack, so +5/+5 on (mounted and unmounted alike).
-function New-KmcSeedAttackModesFixture{
+function New-KmcSeedAttackModesFixture([bool]$Bab6=$false){
+ # Bab6: rider A has BAB 6, so the Rapid Shot off leg is an iterative full attack (+7/+2) and each Rapid Shot leg adds one at the highest bonus.
  $v=New-KmcOwnerSeedDerivedCombatFixture 'combat-rider-first';$r=$v.request;$o=$v.artifact.observations;$roles=@(Get-KmcChunk7OwnedPairIds $r)
  $r.ownedPairs.case='owner-seed-attack-modes'
  foreach($key in @('r1','firstActionMount','localFailure','registeredDisable','removalRefusal','pendingSurvivor')){if($null-ne$o.PSObject.Properties[$key]){$o.PSObject.Properties.Remove($key)}}
@@ -764,7 +765,8 @@ function New-KmcSeedAttackModesFixture{
  $snap={param([string]$label,[double]$riderStandard,[long]$round)$x=Copy-Value $o.snapshots[0];$x.label=$label;$x.round=$round;foreach($a in $x.actors){$a.standard=0.0;$a.move=0.0;if($a.id-ceq$roles[0]){$a.standard=$riderStandard}};$x}
  $rapid={param([bool]$on,[long]$round,[bool]$combat)[pscustomobject][ordered]@{label='x';toggle='90a77bfe25ec2e14caf8bd5cde9febf2';isOn=$on;isRunning=$on;buff=$on;inCombat=$combat;round=$round}}
  $ruleCount=0;$ms=@()
- foreach($spec in @(@('mounted-off',$true,$false,0,@(7)),@('mounted-on',$true,$true,1,@(5,5)),@('unmounted-on',$false,$true,3,@(5,5)))){
+ $specs=if($Bab6){@(@('mounted-off',$true,$false,0,@(7,2)),@('mounted-on',$true,$true,1,@(5,5,0)),@('unmounted-on',$false,$true,3,@(5,5,0)))}else{@(@('mounted-off',$true,$false,0,@(7)),@('mounted-on',$true,$true,1,@(5,5)),@('unmounted-on',$false,$true,3,@(5,5)))}
+ foreach($spec in $specs){
   $round=10+[long]$spec[3];$inner=@($spec[4]);$events=@();$seq=$ruleCount
   for($i=0;$i-lt$inner.Count;$i++){
    $seq++;$events+=[pscustomobject][ordered]@{sequence=$seq;kind='attack';identity=100+$seq;frame=1;round=$round;actor=$roles[0];target=$o.targetId;opportunity=$false;fullAttack=($inner.Count-gt1);firstAttack=($i-eq0);attackNumber=$i;attacksCount=$inner.Count;weapon=$weapon;ranged=$true;natural=$false}
@@ -994,6 +996,104 @@ Check 'owner-seed real-time Charge evidence accepted (charge seed lineage, saved
 # Owner decision (d): KMC_C7_LEVEL6_SEED reaches no owned two-pair case (rider A owns a native animal companion).
 foreach($kind in @('realtime-charge','combat-rider-first','combat-mount-first','native-life-cleanup')){$lk=$kind;Check ('level-6 seed refused for owner-seed '+$lk) {$v=New-KmcOwnerSeedDerivedCombatFixture $lk;$c=Get-KmcChunk7Level6Seed;$v.request.ownedPairs.seedId=$c.seedId;$v.request.ownedPairs.seedSha256=$c.sha256;Invoke-OwnedReader $v} $true 'KMC_C7_LEVEL6_SEED is refused'}
 Check 'level-6 seed hash under another id refused' {$v=New-KmcOwnerSeedDerivedCombatFixture 'combat-rider-first';$v.request.ownedPairs.seedSha256=(Get-KmcChunk7Level6Seed).sha256;Invoke-OwnedReader $v} $true 'KMC_C7_LEVEL6_SEED is refused'
+# Owner decision of October 24 ("I'll make a mod seed"): KMC_C7_MOUNTED6_SEED reaches only its own lineage.
+$script:m6repo=(Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
+Check 'mounted6 seed constants agree across the C# selection, the PS readers, the cold reader and the registry' {$c=Get-KmcChunk7Mounted6Seed;$cs=[IO.File]::ReadAllText((Join-Path $script:m6repo 'src\KingmakerMountedCombat\Diagnostics\Chunk7OwnedPairsSelection.cs'))
+ $expected=[ordered]@{Mounted6SeedId=('"'+$c.seedId+'"');Mounted6SeedSha256=('"'+$c.sha256+'"');Mounted6RiderA=('"'+$c.riderAId+'"');Mounted6RiderAHorse=('"'+$c.horseId+'"');Mounted6MeleeWeapon=('"'+$c.meleeWeapon+'"');Mounted6RangedWeapon=('"'+$c.rangedWeapon+'"');Mounted6MinimumBaseAttackBonus=[string]$c.minimumBab}
+ foreach($name in @($expected.Keys)){if($cs-notmatch([regex]::Escape($name)+'\s*=\s*'+[regex]::Escape($expected[$name])+'[;,]')){throw ('C# constant differs: '+$name)}}
+ if($cs-notmatch('Mounted6MeleeHandSet = '+$c.meleeHandSet+', Mounted6RangedHandSet = '+$c.rangedHandSet+';')){throw 'C# hand-set constants differ.'}
+ $e=@(((Get-Content -LiteralPath (Join-Path $script:m6repo 'scripts\runtime\Chunk7OwnerSeedRegistry.json') -Raw)|ConvertFrom-Json).seeds|Where-Object seedId -CEQ $c.seedId);if($e.Count-ne1-or$e[0].sha256-cne$c.sha256-or$e[0].fileName-cne'Manual_308_KMC_C7_MOUNTED6_SEED.zks'){throw 'Registry mounted6 seed entry differs.'}
+ if(-not(Test-KmcChunk7OwnerMadeSeedEntry $e[0])){throw 'The cold reader does not admit the registered mounted6 entry.'}
+ foreach($other in @('KMC_C7_CHARGE_SEED','KMC_C7_LEVEL6_SEED','KMC_C7_NO_MODS_OWNER_SEED')){$x=@(((Get-Content -LiteralPath (Join-Path $script:m6repo 'scripts\runtime\Chunk7OwnerSeedRegistry.json') -Raw)|ConvertFrom-Json).seeds|Where-Object seedId -CEQ $other)[0];if(Test-KmcChunk7OwnerMadeSeedEntry $x){throw ('Owner-made metadata admitted for '+$other)}}
+ $forged=Copy-Value $e[0];$forged.sha256=('7'*64);if(Test-KmcChunk7OwnerMadeSeedEntry $forged){throw 'Owner-made metadata admitted for another master hash.'}}
+Check 'mounted6 seed admitted only along its lineage' {$c=Get-KmcChunk7Mounted6Seed
+ Assert-KmcChunk7Mounted6SeedBinding ([pscustomobject]@{case='owner-seed-persistence-save';seedId=$c.seedId;seedSha256=$c.sha256}) 'multi-exploration-manual'
+ Assert-KmcChunk7Mounted6SeedBinding ([pscustomobject]@{case='owner-seed-persistence-load';seedId=$c.seedId;seedSha256=$c.sha256}) 'multi-exploration-manual'
+ Assert-KmcChunk7Mounted6SeedBinding ([pscustomobject]@{case='owner-seed-prepared-casting';seedId=$c.seedId;seedSha256=$c.sha256}) $null
+ Assert-KmcChunk7Mounted6SeedBinding ([pscustomobject]@{case='owner-seed-attack-modes';seedId=$c.seedId;seedSha256=$c.sha256}) $null
+ foreach($bad in @(@('owner-seed-exploration',$null),@('owner-seed-persistence-load','multi-exploration-three-loads-manual'),@('owner-seed-checkpoint-save','multi-exploration-quick'),@('owner-seed-combat-rider-first',$null),@('owner-seed-realtime-charge',$null),@('owner-seed-native-life-cleanup',$null),@('owner-seed-combat-reaction',$null),@('owner-seed-staged',$null),@('owner-seed-load-refusal','multi-malformed-refusal-manual'))){
+  $threw=$false;try{Assert-KmcChunk7Mounted6SeedBinding ([pscustomobject]@{case=$bad[0];seedId=$c.seedId;seedSha256=$c.sha256}) $bad[1]}catch{$threw=$_.Exception.Message-like'*only along its own lineage*'};if(-not$threw){throw ('Mounted6 seed admitted for '+$bad[0])}}
+ foreach($forged in @(@($c.seedId,('7'*64)),@('KMC_C7_NO_MODS_OWNER_SEED',$c.sha256))){$threw=$false;try{Assert-KmcChunk7Mounted6SeedBinding ([pscustomobject]@{case='owner-seed-attack-modes';seedId=$forged[0];seedSha256=$forged[1]}) $null}catch{$threw=$true};if(-not$threw){throw 'A forged mounted6 identity was admitted.'}}
+ foreach($seed in @(@('KMC_C7_CHARGE_SEED','1ec2f3219102d1967e1e1e7f860543550062ef07f6c270be050d26d7059aba41'),@('KMC_C7_NO_MODS_OWNER_SEED','3405d7c813668ad646788efd746a62c1b16e1438fad1bc4bcbebc961821b924f'))){$threw=$false;try{Assert-KmcChunk7Mounted6SeedBinding ([pscustomobject]@{case='owner-seed-prepared-casting';seedId=$seed[0];seedSha256=$seed[1]}) $null}catch{$threw=$_.Exception.Message-like'*requires exactly the registered KMC_C7_MOUNTED6_SEED*'};if(-not$threw){throw ('Prepared casting admitted '+$seed[0])}}
+ Assert-KmcChunk7Mounted6SeedBinding ([pscustomobject]@{case='owner-seed-combat-rider-first';seedId='KMC_C7_NO_MODS_OWNER_SEED';seedSha256='3405d7c813668ad646788efd746a62c1b16e1438fad1bc4bcbebc961821b924f'}) $null}
+foreach($kind in @('combat-rider-first','combat-mount-first','native-life-cleanup')){$lk=$kind;Check ('mounted6 seed refused for owner-seed '+$lk) {$v=New-KmcOwnerSeedDerivedCombatFixture $lk;$c=Get-KmcChunk7Mounted6Seed;$v.request.ownedPairs.seedId=$c.seedId;$v.request.ownedPairs.seedSha256=$c.sha256;Invoke-OwnedReader $v} $true 'only along its own lineage'}
+# Windows PowerShell 5.1 serializes a PSObject-wrapped array as {value,Count}; restore the plain arrays after a JSON round trip.
+function Repair-KmcJsonArrays($x){if($x-is[Array]){return ,@($x|ForEach-Object{Repair-KmcJsonArrays $_})};if($null-eq$x-or$x.PSObject.BaseObject-isnot[Management.Automation.PSCustomObject]){return $x};$n=@($x.PSObject.Properties.Name)
+ if($n.Count-eq2-and$n-ccontains'value'-and$n-ccontains'Count'){return ,@(@($x.value)|ForEach-Object{Repair-KmcJsonArrays $_})}
+ foreach($p in @($x.PSObject.Properties)){$x.($p.Name)=Repair-KmcJsonArrays $p.Value};$x}
+# The mounted6 Manual producer: the owner-seed Manual fixture with rider A's pinned pre-owned Horse (verified, never built),
+# the owner-made empty schema-3 archive and rider B's pending levels short of Ranger 4 (exact minimal XP to level 8).
+function New-KmcMounted6ManualFixture{
+ $v=New-KmcOwnerSeedManualFixture;$c=Get-KmcChunk7Mounted6Seed;$p=$v.request.ownedPairs;$oldA=$p.riderAId;$oldHorse=$v.artifact.observations.ownerSeedSetup.riders[0].horseId
+ $json=$v|ConvertTo-Json -Depth 90
+ foreach($pair in @(@($oldA,$c.riderAId),@($oldHorse,$c.horseId),@($oldA.Replace('-',''),$c.riderAId.Replace('-','')),@($oldHorse.Replace('-',''),$c.horseId.Replace('-','')),@('Manual_302_KMC_C7_OWNER_SEED.zks','Manual_308_KMC_C7_MOUNTED6_SEED.zks'),@('KMC_C7_OWNER_SEED',$c.seedId),@(('9'*64),$c.sha256),@('Manual_303_KMC_C7_SEED_WORLD','Manual_309_KMC_C7_SEED_WORLD'))){$json=$json.Replace($pair[0],$pair[1])}
+ $v=Repair-KmcJsonArrays (ConvertFrom-Json $json);$r=$v.request;$o=$v.artifact.observations;$s=$r.ownedPairs;$u=$o.ownerSeedSetup;$a=$s.riderAId;$b=$s.riderBId
+ # The seed is Manual 308, so the engine's next Manual number is 309.
+ foreach($n in @($o.setupComplete.measuredOutputReservation,$o.ownedOutputAdmission,$o.ownedOutputAdmission.authority,$o.ownedOutputCompletion.authority)){$n.number=309}
+ $s|Add-Member mountAId $c.horseId -Force;$s.partyIds=@(@($s.partyIds)+@($c.horseId))
+ $o.partyBefore=@(@($o.partyBefore|ForEach-Object{if($_.id-ceq$a){$_.petId=$c.horseId};$_})+@([pscustomobject][ordered]@{id=$c.horseId;blueprint='4016c7db400ab721ff125aef9e65e202';petId=$null;masterId=$a}))
+ $chars=@(@($s.partyIds|Where-Object{$_-cne$c.horseId})|Sort-Object -CaseSensitive);$u.economyBefore.characterIds=$chars;$o.setupComplete.economy.characterIds=$chars
+ $u.disclosure=Get-KmcChunk7OwnerSeedPreOwnedManualDisclosure;$u.loadedArchiveKind='Current';$u.loadedArchiveCanRestore=$true
+ $u|Add-Member ownerMadeEmptyArchive ([pscustomobject][ordered]@{schemaVersion=3;campaignId=$r.persistenceLoad.gameId;areaId=$r.persistenceLoad.area;pairs=0;participations=0;slots=0;combatPresent=$false;nativeRestorationGrantedByDiagnostic=$false}) -Force
+ $u|Add-Member preOwnedRiderA ([pscustomobject][ordered]@{riderId=$a;horseId=$c.horseId;petIsKmcHorse=$true;petReciprocal=$true;petInField=$true;horseFeature=$true;horseRank=$true;characterLevel=6;rangerLevel=6;experience=35022;readyLevel=7;source='taken by the owner in ordinary play with KMC installed; verified only'}) -Force
+ $fa=$u.riderFacts[0];$fa.petless=$false;$fa.characterLevel=6;$fa.rangerLevel=6;$fa.experience=35022;$fa.readyLevel=7;$fa.eligibleWithoutAssistance=$true;$fa.minimalTargetLevel=4
+ $fb=$u.riderFacts[1];$fb.characterLevel=4;$fb.rangerLevel=0;$fb.experience=35022;$fb.readyLevel=7;$fb.eligibleWithoutAssistance=$false;$fb.minimalTargetLevel=8
+ $ra=$u.riders[0];$ra.before=Prog 6 35022 6;$ra.after=Prog 6 35022 6;$ra.nativeCommits=0;$ra.nativeChoices=0;$ra.nativeAutoLevelupOverrides=0;$ra.presentation='owner-pre-owned'
+ $u.riders[1].before=Prog 4 51000 0;$u.riders[1].after=Prog 8 51000 4
+ $u.riderBExperience=[pscustomobject][ordered]@{assisted=$true;targetCharacterLevel=8;before=35022;after=51000;delta=15978;threshold=51000;characterLevelBefore=4;characterLevelAfter=4;levelReadyAfter=$true;readyLevelAfter=8}
+ $u.nativeLevelUpAutosave.riderBuilds=1;$u.setupAutosaves=@($u.setupAutosaves[1]);$u.setupAutosaves[0].sequence=1
+ $items=@($u.assistance|Where-Object{-not($_.kind-ceq'native-ordinary-ranger-levels'-and$_.unitId-ceq$a)});foreach($item in $items){if($item.kind-ceq'native-xp'){$item.before=35022;$item.after=51000;$item.amount=15978}};$u.assistance=$items
+ $o.setupComplete.assistanceCount=$items.Count;$o.ownerSeedManual.assistanceCount=$items.Count;$o.ownerSeedManual.twoOwners[0].presentation='owner-pre-owned'
+ $v
+}
+function Check-Mounted6Manual([string]$Name,[scriptblock]$Mutation,[string]$Pattern=''){$v=New-KmcMounted6ManualFixture;&$Mutation $v;Check ('mounted6 Manual producer refuses '+$Name) {Assert-KmcChunk7WorldEvidence $v.request $v.artifact 'PASS'} $true $Pattern}
+Check 'mounted6 Manual producer evidence accepted (pre-owned rider A, rider B built with pending levels)' {$v=New-KmcMounted6ManualFixture;Assert-KmcChunk7WorldEvidence $v.request $v.artifact 'PASS'}
+Check-Mounted6Manual 'the Missing metadata path' {$args[0].artifact.observations.ownerSeedSetup.loadedArchiveKind='Missing'}
+Check-Mounted6Manual 'a non-empty owner-made archive' {$args[0].artifact.observations.ownerSeedSetup.ownerMadeEmptyArchive.pairs=1}
+Check-Mounted6Manual 'an archive of another campaign' {$args[0].artifact.observations.ownerSeedSetup.ownerMadeEmptyArchive.campaignId='00000000-0000-0000-0000-000000000009'}
+Check-Mounted6Manual 'a missing pre-owned disclosure' {$args[0].artifact.observations.ownerSeedSetup.PSObject.Properties.Remove('preOwnedRiderA')}
+Check-Mounted6Manual 'another pre-owned Horse' {$args[0].artifact.observations.ownerSeedSetup.preOwnedRiderA.horseId='7347ab0c-d284-44a1-8c5a-d3c322488404'}
+Check-Mounted6Manual 'a pre-owned Horse that is not the KMC Horse' {$args[0].artifact.observations.ownerSeedSetup.preOwnedRiderA.petIsKmcHorse=$false}
+Check-Mounted6Manual 'a pre-owned rider below Ranger 4' {$q=$args[0].artifact.observations.ownerSeedSetup.preOwnedRiderA;$q.rangerLevel=3}
+Check-Mounted6Manual 'a built rider A (native commits)' {$args[0].artifact.observations.ownerSeedSetup.riders[0].nativeCommits=1}
+Check-Mounted6Manual 'a changed rider A progression' {$args[0].artifact.observations.ownerSeedSetup.riders[0].after=Prog 7 35022 7}
+Check-Mounted6Manual 'a rider A fixture-setup presentation' {$args[0].artifact.observations.ownerSeedSetup.riders[0].presentation='fixture-setup'}
+Check-Mounted6Manual 'two rider builds' {$args[0].artifact.observations.ownerSeedSetup.nativeLevelUpAutosave.riderBuilds=2}
+Check-Mounted6Manual 'a rider A build item' {$u=$args[0].artifact.observations.ownerSeedSetup;$u.assistance=@([pscustomobject][ordered]@{unitId=$args[0].request.ownedPairs.riderAId;kind='native-ordinary-ranger-levels';nativeApi='x';before=6;after=6;amount=0;detail='synthetic'})+@($u.assistance)}
+Check-Mounted6Manual 'a petless rider A before setup' {foreach($row in @($args[0].artifact.observations.partyBefore)){if($row.id-ceq$args[0].request.ownedPairs.riderAId){$row.petId=$null}}}
+Check-Mounted6Manual 'a selection without the pinned Horse' {$args[0].request.ownedPairs.PSObject.Properties.Remove('mountAId')}
+Check-Mounted6Manual 'a selection pinning another Horse' {$args[0].request.ownedPairs.mountAId='7347ab0c-d284-44a1-8c5a-d3c322488404'}
+Check-Mounted6Manual 'rider B XP beyond its minimal target' {$x=$args[0].artifact.observations.ownerSeedSetup.riderBExperience;$x.before=51000;$x.delta=0}
+Check-Mounted6Manual 'a fixture-setup owner row for rider A' {$args[0].artifact.observations.ownerSeedManual.twoOwners[0].presentation='fixture-setup'}
+Check 'the pre-owned shape is refused on any other owner seed' {$v=New-KmcMounted6ManualFixture;$v.request.ownedPairs.seedId='KMC_C7_NO_MODS_OWNER_SEED';$v.request.ownedPairs.seedSha256='3405d7c813668ad646788efd746a62c1b16e1438fad1bc4bcbebc961821b924f';Assert-KmcChunk7OwnedPairsSelection $v.request} $true 'owner-seed two-pair selection'
+Check 'the original owner-seed Manual producer still refuses a carried Horse pin' {$v=New-KmcOwnerSeedManualFixture;$v.request.ownedPairs|Add-Member mountAId '6eb039a1-d500-405e-987c-5a823ee41626';Assert-KmcChunk7OwnedPairsSelection $v.request} $true 'owner-seed two-pair selection'
+# Mounted6 attack modes (C03 BAB variation): BAB 6, the seed's saved ranged hand set selected out of combat, an iterative
+# Rapid Shot off full attack. Other seeds carry no mounted6 block.
+function New-KmcMounted6AttackModesFixture([bool]$Bab6=$true){$c=Get-KmcChunk7Mounted6Seed;$json=(New-KmcSeedAttackModesFixture $Bab6)|ConvertTo-Json -Depth 90
+ $v=Repair-KmcJsonArrays (ConvertFrom-Json $json.Replace('KMC_C7_OWNER_SEED',$c.seedId).Replace(('9'*64),$c.sha256))
+ $hs={param($set,$bp)[pscustomobject][ordered]@{handSet=$set;primaryBlueprint=$bp;firstWeapon=$bp;firstWeaponRanged=($bp-ceq$c.rangedWeapon);inCombat=$false}}
+ $v.artifact.observations.attackModes|Add-Member mounted6 ([pscustomobject][ordered]@{baseAttackBonus=6;before=(&$hs 1 $c.meleeWeapon);switched=$true;nativeApi='Kingmaker.Items.UnitBody.CurrentHandEquipmentSetIndex (public setter, out of combat)';after=(&$hs 0 $c.rangedWeapon)}) -Force;$v}
+function Check-Mounted6Attack([string]$Name,[scriptblock]$Mutation,[string]$Pattern){$v=New-KmcMounted6AttackModesFixture;&$Mutation $v;Check ('mounted6 attack modes refuses '+$Name) {Invoke-OwnedReader $v} $true $Pattern}
+Check 'mounted6 attack modes accepted (BAB 6, saved ranged set selected, iterative Rapid Shot off full attack)' {Invoke-OwnedReader (New-KmcMounted6AttackModesFixture)}
+Check 'mounted6 attack modes accepted with the ranged set already active' {$v=New-KmcMounted6AttackModesFixture;$m=$v.artifact.observations.attackModes.mounted6;$m.switched=$false;$m.before=Copy-Value $m.after;Invoke-OwnedReader $v}
+Check 'mounted6 prepared casting maps to the unchanged RT casting engine' {$pv=New-KmcMounted6AttackModesFixture;$pv.request.ownedPairs.case='owner-seed-prepared-casting';if((Get-KmcChunk7SelectedScenario $pv.request)-cne'chunk7-two-pair-realtime-casting'){throw 'Prepared casting scenario mapping differs.'}}
+Check 'BAB 6 attack modes on the original seed accepted without a mounted6 block' {Invoke-OwnedReader (New-KmcSeedAttackModesFixture $true)}
+Check-Mounted6Attack 'a missing mounted6 record' {$args[0].artifact.observations.attackModes.PSObject.Properties.Remove('mounted6')} 'lack their BAB'
+Check-Mounted6Attack 'BAB 5' {$args[0].artifact.observations.attackModes.mounted6.baseAttackBonus=5} 'Integer|integer|range'
+Check-Mounted6Attack 'a switch from another hand set' {$args[0].artifact.observations.attackModes.mounted6.before.handSet=2} 'saved longsword set'
+Check-Mounted6Attack 'a skipped needed switch' {$args[0].artifact.observations.attackModes.mounted6.switched=$false} 'skipped a needed hand-set selection'
+Check-Mounted6Attack 'another weapon after the switch' {$m=$args[0].artifact.observations.attackModes.mounted6;$m.after.primaryBlueprint='35dfad6517f401145af54111be04d6cf'} 'saved ranged weapon'
+Check-Mounted6Attack 'a selection made in combat' {$args[0].artifact.observations.attackModes.mounted6.after.inCombat=$true} 'boolean|Boolean'
+Check 'mounted6 attack modes refuses a single Rapid Shot off attack (BAB below 6 shape)' {Invoke-OwnedReader (New-KmcMounted6AttackModesFixture $false)} $true 'iterative second ranged attack'
+Check 'attack modes on another seed refuse a mounted6 block' {$v=New-KmcSeedAttackModesFixture $true;$v.artifact.observations.attackModes|Add-Member mounted6 ([pscustomobject]@{baseAttackBonus=6}) -Force;Invoke-OwnedReader $v} $true 'Only the mounted6 lineage'
+# Mounted6 prepared casting: rider A is the one caster of its one memorized prepared healing slot.
+function New-KmcPreparedCastObservation([string]$Caster,[int]$Slots=1){$ids=@('a1','m1','b1','m2')
+ [pscustomobject]@{casting=[pscustomobject]@{casterId=$Caster};castingInventory=@([pscustomobject]@{actorId='a1';preparedSpells=@(1..$Slots|ForEach-Object{[pscustomobject]@{blueprint='5590652e1c2225c4ca30c4a699ab3649';available=$true}})+@([pscustomobject]@{blueprint='3e9d1119d43d07c4c8ba9ebfd1671952';available=$true})},[pscustomobject]@{actorId='b1';preparedSpells=@()})}}
+$script:pcReq=[pscustomobject]@{scenario='chunk7-owned-two-pair-campaign';ownedPairs=[pscustomobject]@{case='owner-seed-prepared-casting'}}
+Check 'mounted6 prepared casting by rider A accepted' {Assert-KmcChunk7OwnerSeedPreparedCaster $script:pcReq (New-KmcPreparedCastObservation 'a1') @('a1','m1','b1','m2')}
+Check 'mounted6 prepared casting refuses rider B as caster' {Assert-KmcChunk7OwnerSeedPreparedCaster $script:pcReq (New-KmcPreparedCastObservation 'b1') @('a1','m1','b1','m2')} $true 'not cast by rider A'
+Check 'mounted6 prepared casting refuses two prepared healing slots on rider A' {Assert-KmcChunk7OwnerSeedPreparedCaster $script:pcReq (New-KmcPreparedCastObservation 'a1' 2) @('a1','m1','b1','m2')} $true 'exactly one memorized'
+Check 'the generic acquired casting case keeps its either-rider rule' {Assert-KmcChunk7OwnerSeedPreparedCaster ([pscustomobject]@{scenario='chunk7-owned-two-pair-campaign';ownedPairs=[pscustomobject]@{case='realtime-casting'}}) (New-KmcPreparedCastObservation 'b1') @('a1','m1','b1','m2')}
 Check 'generic acquired RT Charge evidence accepted with a melee weapon' {Invoke-OwnedReader (Copy-Value @($fixtures|Where-Object name -CEQ 'realtime-charge')[0])}
 Check-SeedCharge 'the original owner seed' {foreach($x in @($args[0].request.ownedPairs)){$x.seedId='KMC_C7_NO_MODS_OWNER_SEED';$x.seedSha256='3405d7c813668ad646788efd746a62c1b16e1438fad1bc4bcbebc961821b924f'}} 'exactly the registered KMC_C7_CHARGE_SEED'
 Check-SeedCharge 'the charge seed id with another hash' {$args[0].request.ownedPairs.seedSha256=('9'*64)} 'exactly the registered KMC_C7_CHARGE_SEED'

@@ -316,7 +316,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 "Owner-seed Manual pair lost its reciprocal Horse, sourced feature or rank.");
             return new JObject { ["actorId"] = rider.UniqueId, ["petId"] = mount.UniqueId, ["sourceGuid"] = feature.Source.AssetGuid,
                 ["featureGuid"] = horses.HorseFeature.AssetGuid, ["rank"] = rank.GetRank(),
-                ["profileId"] = SupportedMountedProfiles.Resolve(rider, mount)?.Id, ["presentation"] = "fixture-setup", ["acquisitionProof"] = false };
+                ["profileId"] = SupportedMountedProfiles.Resolve(rider, mount)?.Id,
+                // The mounted6 rider A Horse was taken by the owner in play; every other setup Horse is fixture setup.
+                ["presentation"] = index == 0 && request.OwnedPairs.PreOwnedRiderA ? "owner-pre-owned" : "fixture-setup", ["acquisitionProof"] = false };
         }
 
         private JObject CaptureManualBoundary()

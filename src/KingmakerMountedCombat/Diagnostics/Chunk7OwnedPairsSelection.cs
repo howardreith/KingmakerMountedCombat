@@ -63,6 +63,29 @@ namespace KingmakerMountedCombat.Diagnostics
         internal const string Level6SeedId = "KMC_C7_LEVEL6_SEED";
         internal const string Level6SeedSha256 = "b1447ae77246d418256ec4aae9be1ee97828880a30376ae1985ca880a80e37d5";
         internal const string Level6SeedRefusal = "KMC_C7_LEVEL6_SEED is refused for every owned two-pair case before input: its main Ranger already owns a native animal companion (owner: Smilodon) and is Ranger 6, so the owner-seed Horse setup (a petless rider reaching exactly Ranger 4) cannot run; prepared casting and a BAB >= 6 mounted full attack stay uncovered on it and need an owner decision.";
+        // Owner decision of October 24, 2026 ("I'll make a mod seed"): KMC_C7_MOUNTED6_SEED, made by the owner with the
+        // b205 candidate installed from KMC_C7_CHARGE_SEED. Its main Ranger (rider A) took the KMC Horse at Ranger 4 in
+        // ordinary play and is Ranger 6 with BAB 6 and memorized rested level-1 slots; the Ranger is dismounted and the
+        // Horse is in the party. It is a KMC-made save (an empty schema-3 kmc-mounted-state entry), never a mod-absent
+        // control. It is admitted only along its own lineage: the read-only cold inventory, the Manual producer (rider A
+        // keeps its pre-owned Horse; only rider B is built), that Manual's cold consumer, prepared casting and attack modes.
+        internal const string Mounted6SeedId = "KMC_C7_MOUNTED6_SEED";
+        internal const string Mounted6SeedSha256 = "2ef426c408e7271c850baab17c4f61a59e2fa34445d297b4b104b88917938f7c";
+        internal const string Mounted6RiderA = "73681ef2-b281-4bc6-bc05-2de68c1616cb";
+        internal const string Mounted6RiderAHorse = "6eb039a1-d500-405e-987c-5a823ee41626";
+        // Saved hand sets (party.json, read offline): set 1 (active) holds the longsword, set 0 the ranged weapon.
+        internal const int Mounted6MeleeHandSet = 1, Mounted6RangedHandSet = 0;
+        internal const string Mounted6MeleeWeapon = "571c56d11dafbb04094cbaae659974b5";
+        internal const string Mounted6RangedWeapon = "4de4658c0e9b0d146b9a08ed6f030f8a";
+        internal const int Mounted6MinimumBaseAttackBonus = 6;
+        // F03 prepared casting while mounted: the unchanged chunk7-two-pair-realtime-casting engine on the mounted6
+        // owner-seed-derived start; rider A must be the one caster of its one memorized prepared healing slot.
+        public const string OwnerSeedPreparedCastingCase = "owner-seed-prepared-casting";
+        internal static bool IsMounted6Seed(string seedId, string seedSha256) => seedId == Mounted6SeedId && seedSha256 == Mounted6SeedSha256;
+        internal bool IsMounted6 => IsMounted6Seed(SeedId, SeedSha256);
+        internal bool CarriesMounted6Seed => SeedId == Mounted6SeedId || SeedSha256 == Mounted6SeedSha256;
+        // The mounted6 Manual producer: rider A keeps its pre-owned Horse (no build, no assistance); only rider B is built.
+        internal bool PreOwnedRiderA => IsMounted6 && IsOwnerSeedManual;
         public const string OwnerSeedLoadRefusalCase = "owner-seed-load-refusal";
         internal const string OwnerSeedLoadRefusalLeaf = "Manual_812_KMC_C7_SEED_REFUSAL.zks";
         internal static bool LoadRefusalCheckpoint(string value) => value == "multi-malformed-refusal-manual" || value == "multi-future-refusal-manual";
@@ -261,7 +284,7 @@ namespace KingmakerMountedCombat.Diagnostics
         internal bool OwnerSeedSetup => IsOwnerSeed || IsOwnerSeedManual;
         internal bool IsOwnerSeedDerivedCombat => Case == OwnerSeedRealtimeCase || Case == OwnerSeedRiderFirstCase || Case == OwnerSeedMountFirstCase || Case == OwnerSeedDisableCase ||
             Case == OwnerSeedNativeLifeCase || Case == OwnerSeedNativeDeathCase || Case == OwnerSeedAttackModesCase || Case == OwnerSeedCombatReactionCase || Case == OwnerSeedStagedCase ||
-            Case == OwnerSeedRealtimeChargeCase;
+            Case == OwnerSeedRealtimeChargeCase || Case == OwnerSeedPreparedCastingCase;
         internal bool IsOwnerSeedCheckpointSave => Case == OwnerSeedCheckpointSaveCase;
         internal bool IsOwnerSeedCheckpointLoad => Case == OwnerSeedCheckpointLoadCase;
         internal bool IsSmallFixtureSave => Case == SmallFixtureSaveCase;
@@ -314,6 +337,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     case OwnerSeedCombatReactionCase: return "chunk7-two-pair-combat-rider-first";
                     case OwnerSeedStagedCase: return "chunk7-two-pair-combat-rider-first";
                     case OwnerSeedRealtimeChargeCase: return "chunk7-two-pair-realtime-charge";
+                    case OwnerSeedPreparedCastingCase: return "chunk7-two-pair-realtime-casting";
                     case OwnerSeedCheckpointSaveCase: return "chunk7-persistence-save";
                     case OwnerSeedCheckpointLoadCase: return "chunk7-persistence-load";
                     case SmallFixtureSaveCase: return "chunk7-persistence-save";
@@ -379,11 +403,23 @@ namespace KingmakerMountedCombat.Diagnostics
             var errors = ValidateKind(scenario, runId, checkpoint);
             var charge = ChargeSeedError(checkpoint);
             var level6 = SeedId == Level6SeedId || SeedSha256 == Level6SeedSha256 ? Level6SeedRefusal : null;
-            if (charge == null && level6 == null) return errors;
+            var mounted6 = Mounted6SeedError(checkpoint);
+            if (charge == null && level6 == null && mounted6 == null) return errors;
             var all = new List<string>(errors);
             if (charge != null) all.Add(charge);
             if (level6 != null) all.Add(level6);
+            if (mounted6 != null) all.Add(mounted6);
             return all;
+        }
+        internal const string Mounted6LineageRefusal = "KMC_C7_MOUNTED6_SEED is admitted only along its own lineage (exact registered identity): the Manual producer, its multi-exploration-manual cold consumer, owner-seed prepared casting and owner-seed attack modes.";
+        // The mounted6 seed reaches only its own lineage; prepared casting requires exactly that seed.
+        private string Mounted6SeedError(string checkpoint)
+        {
+            if (Case == OwnerSeedPreparedCastingCase)
+                return IsMounted6 ? null : "Owner-seed prepared casting requires exactly the registered KMC_C7_MOUNTED6_SEED lineage.";
+            if (!CarriesMounted6Seed) return null;
+            return IsMounted6 && (IsOwnerSeedManual || IsOwnerSeedDerivedLoad && checkpoint == OwnerSeedCheckpoint || Case == OwnerSeedAttackModesCase) ? null :
+                Mounted6LineageRefusal;
         }
         internal bool CarriesChargeSeed => SeedId == ChargeSeedId || SeedSha256 == ChargeSeedSha256;
         // The charge case requires exactly the registered charge seed; that seed reaches only the charge lineage.
@@ -574,8 +610,13 @@ namespace KingmakerMountedCombat.Diagnostics
             var errors = new List<string>();
             if (scenario != Scenario) errors.Add("Owner-seed two-pair exploration requires its exact closed native campaign family.");
             if (SourceRunId != null || SourceArtifactSha256 != null || SourceArchiveSha256 != null || CheckpointSourceRunId != null ||
-                CheckpointSourceArtifactSha256 != null || MountAId != null || MountBId != null || SourceArea != null || CompanionId != null)
+                CheckpointSourceArtifactSha256 != null || MountBId != null || SourceArea != null || CompanionId != null)
                 errors.Add("Owner-seed two-pair exploration has no producer, checkpoint, area, companion or pre-granted pet pins.");
+            // Only the mounted6 Manual producer pins rider A's pre-owned native KMC Horse (taken by the owner in play);
+            // every other owner seed keeps a petless rider A whose Horse the disclosed setup creates.
+            if (PreOwnedRiderA ? RiderAId != Mounted6RiderA || MountAId != Mounted6RiderAHorse || PartyIds == null || !PartyIds.Contains(MountAId) : MountAId != null)
+                errors.Add(PreOwnedRiderA ? "The mounted6 Manual producer pins exactly rider A and its pre-owned native KMC Horse, a member of the selected field roster." :
+                    "Owner-seed two-pair exploration has no producer, checkpoint, area, companion or pre-granted pet pins.");
             if (!Run(SeedId) || SeedId == runId) errors.Add("An exact registered owner seed identity is required.");
             if (!Hash(SeedSha256)) errors.Add("An exact owner seed SHA256 is required.");
             if (!Chunk7ManualDerivedSelection.NativeId(RiderAId) || !Chunk7ManualDerivedSelection.NativeId(RiderBId) ||
@@ -715,6 +756,12 @@ namespace KingmakerMountedCombat.Diagnostics
         internal int Experience { get; set; }
         internal int ReadyLevel { get; set; }
         internal int ExperienceRate { get; set; }
+        // Pre-owned Horse facts (read only; used only for the mounted6 producer's rider A).
+        internal string PetId { get; set; }
+        internal bool PetIsKmcHorse { get; set; }
+        internal bool PetReciprocal { get; set; }
+        internal bool PetInField { get; set; }
+        internal bool HasHorseFeature { get; set; }
     }
 
     // Pure owner-seed setup planning under the ordinary build driver's own Ranger
@@ -753,6 +800,24 @@ namespace KingmakerMountedCombat.Diagnostics
         // in run 20261017-c7b-world19-ownerseed-b2s1-twopair (completionEntries=0,
         // saveRequests=0, preparedWrites=0). Setup expects zero writes for every setting.
         internal static int ExpectedSetupWrites(bool autosaveEnabled, int riderBuilds) => 0;
+        // Mounted6 rider A: the owner took the KMC Horse in ordinary play. Nothing is built, granted or levelled for it;
+        // the fixture only verifies, before any mutation, that the exact pre-owned reciprocal Horse is present.
+        internal static IReadOnlyList<string> PreOwnedHorseErrors(Chunk7OwnerSeedRiderFacts rider, string role, string expectedHorseId)
+        {
+            var errors = new List<string>();
+            if (rider == null) { errors.Add("Rider " + role + " is absent from the loaded native party."); return errors; }
+            if (!rider.InParty) errors.Add("Rider " + role + " is not in the exact loaded native party.");
+            if (rider.Size != "Medium" || rider.OriginalSize != "Medium" || rider.Polymorphed)
+                errors.Add("Rider " + role + " is not an unpolymorphed Medium body; only medium-humanoid-horse-v1 is supported.");
+            if (!rider.Controllable || rider.IsPet || rider.InCombat || !rider.Idle)
+                errors.Add("Rider " + role + " is not a controllable idle non-pet actor outside combat.");
+            if (!rider.HasPet || rider.PetId != expectedHorseId || !rider.PetIsKmcHorse || !rider.PetReciprocal || !rider.PetInField ||
+                !rider.HasHorseFeature || !rider.HasHorseRank || rider.HasDualCompanion)
+                errors.Add("Rider " + role + " does not own exactly its pinned pre-owned reciprocal KMC Horse (Horse feature and rank) in the field; this fixture is uncovered on this seed.");
+            if (rider.CharacterLevel < RequiredRangerLevel || rider.RangerLevel < RequiredRangerLevel || rider.RangerLevel > rider.CharacterLevel || rider.ReadyLevel < rider.CharacterLevel)
+                errors.Add("Rider " + role + " native progression is not a Ranger of at least level 4 with a consistent observation.");
+            return errors;
+        }
         internal static IReadOnlyList<string> WriteErrors(Chunk7OwnedPairsSelection selection, bool autosaveEnabled, bool onlyOneSave, int riderBuilds)
         {
             var errors = new List<string>();
@@ -774,7 +839,9 @@ namespace KingmakerMountedCombat.Diagnostics
             var errors = new List<string>();
             if (selection == null || !selection.OwnerSeedSetup || riderA == null || riderB == null) { errors.Add("Owner-seed setup plan lacks its selection or riders."); return errors; }
             if (riderA.Id != selection.RiderAId || riderB.Id != selection.RiderBId) errors.Add("Observed riders differ from the selected rider roles.");
-            if (!EligibleWithoutAssistance(riderA))
+            // The mounted6 producer's rider A is never built (PreOwnedHorseErrors decides it); every other rider A is built.
+            if (selection.PreOwnedRiderA) { }
+            else if (!EligibleWithoutAssistance(riderA))
                 errors.Add("Rider A is not eligible for Ranger 4 / Hunter's Bond from its own native XP; no assistance is authorized for rider A.");
             else if (!ExactlyRangerFour(riderA)) errors.Add("Rider A's native XP would carry it beyond Ranger 4; extra levels are refused.");
             var assistance = selection.XpAssistance;
@@ -784,8 +851,13 @@ namespace KingmakerMountedCombat.Diagnostics
                 else if (!ExactlyRangerFour(riderB)) errors.Add("Rider B's native XP would carry it beyond Ranger 4; extra levels are refused.");
                 return errors;
             }
-            if (riderB.ReadyLevel != riderB.CharacterLevel) errors.Add("Assisted rider B must start inside its current level's XP band (no pending level).");
             var minimal = MinimalTargetLevel(riderB);
+            // Rider B normally starts inside its current level's band. On the mounted6 seed the owner's party shares the
+            // main character's XP, so rider B already holds pending levels (ready level above its character level) that
+            // still fall short of Ranger 4; the exact minimal XP to the minimal target level stays the only assistance.
+            if (selection.PreOwnedRiderA ? riderB.ReadyLevel < riderB.CharacterLevel || riderB.ReadyLevel >= minimal : riderB.ReadyLevel != riderB.CharacterLevel)
+                errors.Add(selection.PreOwnedRiderA ? "Assisted rider B must start below its minimal eligible level (its pending levels alone cannot reach Ranger 4)." :
+                    "Assisted rider B must start inside its current level's XP band (no pending level).");
             if (assistance == null) errors.Add("Rider B needs native XP to character level " + minimal + " but no assistance was selected.");
             else if (assistance.UnitId != riderB.Id) errors.Add("XP assistance names an actor other than rider B.");
             else if (assistance.TargetCharacterLevel != minimal)

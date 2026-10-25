@@ -39,17 +39,47 @@ namespace KingmakerMountedCombat.Diagnostics
             ["isOn"] = attackModesRapid.IsOn, ["isRunning"] = attackModesRapid.IsRunning,
             ["buff"] = ar.Buffs.Enumerable.Any(buff => buff.Blueprint.AssetGuid == RapidShotBuffGuid), ["inCombat"] = ar.IsInCombat,
             ["round"] = Game.Instance.TurnBasedCombatController.RoundNumber };
+        private bool Mounted6AttackModes => AttackModesCase && request.OwnedPairs.IsMounted6;
+        private JObject HandSetState() => new JObject { ["handSet"] = ar.Body.CurrentHandEquipmentSetIndex,
+            ["primaryBlueprint"] = ar.Body.PrimaryHand.MaybeWeapon?.Blueprint.AssetGuid, ["firstWeapon"] = ar.GetFirstWeapon()?.Blueprint.AssetGuid,
+            ["firstWeaponRanged"] = ar.GetFirstWeapon()?.Blueprint.IsRanged == true, ["inCombat"] = ar.IsInCombat };
+        // Mounted6 lineage (C03 BAB variation): rider A must have BAB >= 6, so with Rapid Shot off the native routine has
+        // an iterative second attack. The seed saved hand set 1 (the longsword) active; out of combat, before the encounter,
+        // the saved ranged hand set 0 is selected through the public native UnitBody.CurrentHandEquipmentSetIndex setter
+        // (the Phase 3D ranged-set precedent), recorded before and after. No item is created, moved or equipped.
+        private JObject PrepareMounted6AttackModes()
+        {
+            var bab = ar.Stats.BaseAttackBonus.ModifiedValue; var selection = new JObject { ["baseAttackBonus"] = bab, ["before"] = HandSetState() };
+            Require(bab >= Chunk7OwnedPairsSelection.Mounted6MinimumBaseAttackBonus,
+                "Rider A's native BAB is below 6; the C03 BAB variation (Rapid Shot off full attack) is uncovered on this fixture.");
+            var sets = ar.Body.HandsEquipmentSets; var current = ar.Body.CurrentHandEquipmentSetIndex;
+            Require(!ar.IsInCombat && sets.Count > Chunk7OwnedPairsSelection.Mounted6MeleeHandSet &&
+                sets[Chunk7OwnedPairsSelection.Mounted6RangedHandSet].PrimaryHand.MaybeWeapon?.Blueprint.AssetGuid == Chunk7OwnedPairsSelection.Mounted6RangedWeapon &&
+                sets[Chunk7OwnedPairsSelection.Mounted6RangedHandSet].PrimaryHand.MaybeWeapon.Blueprint.IsRanged &&
+                (current == Chunk7OwnedPairsSelection.Mounted6RangedHandSet ||
+                 current == Chunk7OwnedPairsSelection.Mounted6MeleeHandSet && ar.Body.PrimaryHand.MaybeWeapon?.Blueprint.AssetGuid == Chunk7OwnedPairsSelection.Mounted6MeleeWeapon),
+                "Rider A's saved hand sets differ from the mounted6 seed's (set 0 ranged, set 1 longsword); C03 attack modes are uncovered on this fixture: " + selection["before"].ToString(Newtonsoft.Json.Formatting.None));
+            selection["switched"] = current != Chunk7OwnedPairsSelection.Mounted6RangedHandSet;
+            selection["nativeApi"] = "Kingmaker.Items.UnitBody.CurrentHandEquipmentSetIndex (public setter, out of combat)";
+            if ((bool)selection["switched"]) ar.Body.CurrentHandEquipmentSetIndex = Chunk7OwnedPairsSelection.Mounted6RangedHandSet;
+            selection["after"] = HandSetState();
+            Require(ar.Body.CurrentHandEquipmentSetIndex == Chunk7OwnedPairsSelection.Mounted6RangedHandSet && ar.GetFirstWeapon()?.Blueprint.AssetGuid == Chunk7OwnedPairsSelection.Mounted6RangedWeapon,
+                "Native hand-set selection did not make the saved ranged weapon rider A's first weapon.");
+            return selection;
+        }
         // Out of combat, before the encounter: rider A's own native facts are verified and Rapid Shot is
         // switched off through the native slot if the save left it on. A missing feat, toggle or ranged
         // weapon is refused before any input and records the behavior as uncovered.
         private void PrepareAttackModes()
         {
+            var mounted6 = Mounted6AttackModes ? PrepareMounted6AttackModes() : null;
             var feat = ar.Descriptor.Progression.Features.Enumerable.Count(fact => fact.Blueprint.AssetGuid == RapidShotFeatureGuid);
             var toggles = ar.ActivatableAbilities.Enumerable.Where(item => item.Blueprint.AssetGuid == RapidShotToggleGuid).ToArray();
             var weapon = ar.GetFirstWeapon();
             attackModes = new JObject { ["contract"] = "owner-seed-attack-modes-v2", ["riderId"] = ar.UniqueId, ["mountId"] = am.UniqueId,
                 ["rapidShotFeature"] = feat, ["rapidShotToggles"] = toggles.Length, ["weapon"] = weapon?.Blueprint.AssetGuid,
                 ["weaponRanged"] = weapon?.Blueprint.IsRanged == true, ["weaponRangeMeters"] = weapon?.Blueprint.AttackRange.Meters };
+            if (mounted6 != null) attackModes["mounted6"] = mounted6;
             evidence["attackModes"] = attackModes;
             Require(feat == 1 && toggles.Length == 1 && weapon != null && weapon.Blueprint.IsRanged,
                 "Rider A lacks its native Rapid Shot feat, toggle or equipped ranged weapon; C03 attack modes are uncovered on this fixture.");
@@ -226,6 +256,10 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (!FinishFullAttack()) return;
                 var off = (JObject)attackModes["measurements"][0];
                 Require(RapidBonus(off) == 0, "A Rapid Shot bonus source applied while the native toggle was off.");
+                // Mounted6 (BAB >= 6): with Rapid Shot off the native routine is a full attack with an iterative second ranged attack.
+                if (Mounted6AttackModes)
+                    Require((bool)off["expectedFull"] && (int)off["nativeEstimate"] >= 2 && ((JArray)off["command"]["plan"]).OfType<JObject>().Count(e => (bool)e["ranged"] && (string)e["owner"] == ar.UniqueId) >= 2,
+                        "Mounted Rapid Shot off attack at BAB >= 6 was not a native full attack with an iterative second ranged attack.");
                 Pass("C7-combat-attack-modes-mounted-off");
                 // Switched on in the same activation, after the attack, so the native toggle runs into N+1.
                 ToggleRapidShot(true, "round-n-on"); AttackModesStage(2); return;
