@@ -134,26 +134,45 @@ unchanged ([record](../docs/CHUNK7-RETIRED-SMALL-MANUAL-CALIBRATION-2026-10-24.m
 
 Rows not yet runnable are listed under Blockers.
 
-## Explicit exclusions (agreed; not hidden failures)
+## Explicit exclusions (each row cites the owner decision or mission text it rests on; not hidden failures)
 
-| Item | Disposition |
-| --- | --- |
-| TB Charge delivery | Deferred. Its **cost-free refusal is tested** in rows 7–8. |
-| RT Charge | Default-off is **tested** in row 9. Enabled RT Charge delivery is its existing supported contract; see blocker X2. |
-| Prepared-spell casting while mounted (F03) | **Uncovered** (October 24): no rider holds a memorized spell, and the only native fill route (spellbook choice plus camp rest) rolls an unbounded random encounter and spends rations; see X2. Items while mounted have development evidence (b197). |
-| Defensive Mounted Combat feat (F05) | Not implemented. Deferred by owner scope. F05 has no row. |
-| Paladin Divine Steed and other class grants | Outside this release (original scope). |
-| Main-menu CharGen for the player's own main | Not selected. A level-1 main never reaches the Ranger seam, so it is covered by rows 45–46 ([F10 reconciliation](../docs/CHUNK7-F10-RECONCILIATION-2026-10-23.md)). |
-| Retired stale level-up Auto families; legacy Manual 302→303 | Retired. Their prelaunch refusals are tested offline (`Test-Chunk7StaleLevelUpFamilies.ps1`). |
-| Small calibration `compiled-manual-derived-small-horse-rt`, `compiled-assisted-two-owner-small-horse-rt` | Retired (2026-10-24). Refused before selection admission (`Test-Chunk7RetiredSmallCalibrationCases.ps1`). Replaced by the F09 calibration, rows 33–34 and the owner-seed chain. Lost: the full calibration on a same-candidate paid source ([record](../docs/CHUNK7-RETIRED-SMALL-MANUAL-CALIBRATION-2026-10-24.md)). |
-| C11 prone stand-up attack of opportunity | **Uncovered.** No deterministic native prone source exists for the diagnostic target on these fixtures; a scripted `Prone` condition would be fabricated. Row 69 records `proneStandUp.covered=false` and its reader refuses any other value. Disengagement is row 69. |
-| F04 defensive casting check | **Uncovered.** The plan never casts inside the target's threatened area, and the self-targeted scroll acts at about 0.55 s, before the native one-second window. Row 70 records `defensiveCheck.covered=false`; its reader still refuses any skipped native check. |
-| C03 BAB and haste variation; a mounted full attack with Rapid Shot off | **Uncovered.** Rider A has BAB 4, so with Rapid Shot off native TB offers no full-attack cursor (`EstimateFullAttacks` ≤ 1); it needs BAB ≥ 6. No native BAB or haste source exists on the fixtures and synthetic stat edits are not accepted. Rapid Shot is row 68. |
-| X3 residual: cold load of a pending-only archive written by the live producer (genuine PairId and generation) | **Uncovered.** The schema-3 control was retired ([record](../docs/CHUNK7-RETIRED-SCHEMA3-CONTROL-2026-10-23.md)). Row 19 loads row 18's resave through the schema-2 adapter at generation 1; rows 13–14 cover the live-producer cold load only in the TB-debt shape. |
-| Upgrade of a mounted archive written by preview.211 | **Uncovered** (X5 Option A, owner decision). Rows 55–56 rehearse the installation; save-format upgrade is carried by the migration rows 17–22 on derivatives. The owner checklist covers loading a preview.211 save by hand. |
-| Full Small calibration on a same-candidate paid source | Lost with the retired Small calibration cases (row above); rows 33–34, 61–64 and 66 carry the replacement proofs. |
-| Optional extra mod combination | Not selected by the mission. |
-| C12 and HUMAN PLAY (visuals, physical input, feel) | Owner-only. Automation does not generate it. See the owner checklist below. |
+Nothing here is excluded without a quoted owner decision or the governing mission/directive text. A row
+marked **Uncovered** is a behaviour the automation does not exercise, recorded with its reason; it is
+not an owner-approved exclusion unless its Decision cell quotes one.
+
+**Owner decisions of October 24, 2026** (answering a direct question; recorded verbatim):
+- (a) Haste attack variation (C03): "Approve exclusion".
+- (b) Main-menu CharGen, the stale level-up Auto families, the legacy Manual 302→303 route, and six-pair
+  combat (six pairs qualified for performance and save/load only): "Approve all four" as exclusions.
+- (c) The five Chunk 6A historical replay failures (`Test-Chunk6aLedgerProtocol`, `Test-Chunk6aRegressionLedger`,
+  `Test-Chunk6aLegacyLedger`, `Test-Chunk6aAreaLedger`, `Test-UnrelatedFullLedger`): "Report as classified".
+  They stay FAIL with unresolved cause, separate from Chunk 7, with no re-qualification; the current
+  behaviour checks must pass.
+- (d) Prepared-spell casting and a BAB ≥ 6 full attack: the owner chose to supply a new no-mods seed
+  (Ranger level 6, a memorized rested level-1 Ranger spell). Pending at the time of the decision.
+
+| Item | Disposition | Decision |
+| --- | --- | --- |
+| TB Charge delivery | Deferred. Its **cost-free refusal is tested** in rows 7–8. | Mission ([CHUNK7-COMPLETION-MISSION.md](CHUNK7-COMPLETION-MISSION.md) :398, "Do not add … TB Charge delivery"); [owner directives](../docs/CHUNK7-OWNER-DIRECTIVES-2026-10-16.md) :501 ("TB Charge remains its cost-free refusal") |
+| RT Charge | Default-off is **tested** in row 9. Enabled RT Charge with a melee weapon is row 74. | Mission :398 ("Preserve RT Charge's default-off disposition and its existing supported contract"); directives :501 |
+| Defensive Mounted Combat feat (F05) | Not implemented. F05 has no row. | Mission :37 and :398 ("the defensive Mounted Combat feat"); directives :501 ("the defensive feat remains deferred") |
+| Paladin Divine Steed and other class grants | Outside this release (original scope). | Mission :37 ("deferred … class grants (Paladin Divine Steed)") and :398 ("optional class grants") |
+| Optional extra mod combination | Not selected. | Mission :398 ("The optional extra mod combination is **not selected** by this mission") |
+| C12 and HUMAN PLAY (visuals, physical input, feel) | Owner-only. Automation does not generate it. See the owner checklist below. | Mission :37 ("HUMAN PLAY stays owner-only") |
+| Main-menu CharGen for the player's own main | Excluded. A level-1 main never reaches the Ranger seam; rows 45–46 cover CharGen and the existing-campaign Horse choice ([F10 reconciliation](../docs/CHUNK7-F10-RECONCILIATION-2026-10-23.md)). | Owner, 2026-10-24, decision (b): "Approve all four" |
+| Retired stale level-up Auto families | Excluded. Their prelaunch refusals are tested offline (`Test-Chunk7StaleLevelUpFamilies.ps1`). | Owner, 2026-10-24, decision (b): "Approve all four" |
+| Legacy Manual 302→303 route | Excluded. Its prelaunch refusal is tested offline (`Test-Chunk7StaleLevelUpFamilies.ps1`). | Owner, 2026-10-24, decision (b): "Approve all four" |
+| Six-pair combat | Excluded. Six pairs are qualified for performance and save/load only (rows 37–39); combat is qualified with two pairs. | Owner, 2026-10-24, decision (b): "Approve all four" (six pairs qualified for performance and save/load only) |
+| C03 haste variation | Excluded. | Owner, 2026-10-24, decision (a): "Approve exclusion" |
+| Chunk 6A historical replay failures (five ledgers) | Reported as classified, never relabelled: FAIL with unresolved cause, separate from Chunk 7, no re-qualification; every applicable current behaviour check must pass (run plan §4). | Owner, 2026-10-24, decision (c): "Report as classified" |
+| Small calibration `compiled-manual-derived-small-horse-rt`, `compiled-assisted-two-owner-small-horse-rt` | Retired. Refused before selection admission (`Test-Chunk7RetiredSmallCalibrationCases.ps1`). Replaced by the F09 calibration, rows 33–34 and the owner-seed chain ([record](../docs/CHUNK7-RETIRED-SMALL-MANUAL-CALIBRATION-2026-10-24.md)). | Owner, 2026-10-24, option (a) (`7ea1ab00`) |
+| Full Small calibration on a same-candidate paid source | Lost with the retired cases above; rows 33–34, 61–64 and 66 carry the replacement proofs. | Owner, 2026-10-24, option (a) (`7ea1ab00`) |
+| Upgrade of a mounted archive written by preview.211 | **Uncovered** by automation. Rows 55–56 rehearse the installation; the save-format upgrade is carried by the migration rows 17–22 on derivatives. The owner checklist covers loading a preview.211 save by hand. | Owner, October 23: X5 Option A (this matrix, X5 design, "Decision (owner, October 23)") |
+| Prepared-spell casting while mounted (F03) | **Uncovered** on the current seeds: no rider holds a memorized spell, and the only native fill route (spellbook choice plus camp rest) rolls an unbounded random encounter and spends rations; see X2. Items while mounted have development evidence (b197). | Not excluded. Owner, 2026-10-24, decision (d): a new no-mods seed is to be supplied |
+| C03 BAB variation; a mounted full attack with Rapid Shot off | **Uncovered** on the current seeds: rider A has BAB 4, so with Rapid Shot off native TB offers no full-attack cursor (`EstimateFullAttacks` ≤ 1); it needs BAB ≥ 6. Synthetic stat edits are not accepted. Rapid Shot is row 68. | Not excluded. Owner, 2026-10-24, decision (d): a new no-mods seed is to be supplied |
+| C11 prone stand-up attack of opportunity | **Uncovered.** No deterministic native prone source exists for the diagnostic target on these fixtures; a scripted `Prone` condition would be fabricated. Row 69 records `proneStandUp.covered=false` and its reader refuses any other value. Disengagement is row 69. | None: an uncovered behaviour, not an approved exclusion |
+| F04 defensive casting check | **Uncovered.** The plan never casts inside the target's threatened area, and the self-targeted scroll acts at about 0.55 s, before the native one-second window. Row 70 records `defensiveCheck.covered=false`; its reader still refuses any skipped native check. | None: an uncovered behaviour, not an approved exclusion |
+| X3 residual: cold load of a pending-only archive written by the live producer (genuine PairId and generation) | **Uncovered.** The schema-3 control was retired ([record](../docs/CHUNK7-RETIRED-SCHEMA3-CONTROL-2026-10-23.md)). Row 19 loads row 18's resave through the schema-2 adapter at generation 1; rows 13–14 cover the live-producer cold load only in the TB-debt shape. | None: an uncovered behaviour, not an approved exclusion |
 
 ## Blockers before the matrix is complete
 
