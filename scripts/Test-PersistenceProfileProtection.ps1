@@ -76,6 +76,25 @@ try{
         try{Assert-KmcNativeUmmStartupDelta $ownerBefore $bad -RemovalObserver}catch{$rejected=$true}
         if(!$rejected){throw 'A UMM delta outside the exact removal-observer append was accepted.'};$passes++
     }
+    # F2 r32: with the owner's stale CheatMenu entry and no CheatMenu folder, UMM's removal-observer startup also prunes that
+    # entry and moves LastUpdateCheck forward. Admitted only for entries absent from the run's own staged Mods ids.
+    $hot='<Hotkey><keyCode>None</keyCode><modifiers>0</modifiers></Hotkey>'
+    $r32Before='<Param><LastUpdateCheck>2026-10-24T08:32:00.0000000-04:00</LastUpdateCheck><ModParams><Mod Id="CheatMenu" Enabled="true">'+$hot+'</Mod><Mod Id="KingmakerMountedCombat" Enabled="true">'+$hot+'</Mod></ModParams></Param>'
+    $r32After='<Param><LastUpdateCheck>2026-10-25T16:08:00.0000000-04:00</LastUpdateCheck><ModParams><Mod Id="KmcRemovalObserver" Enabled="true">'+$hot+'</Mod></ModParams></Param>'
+    Assert-KmcNativeUmmStartupDelta $r32Before $r32After -RemovalObserver -StagedModIds @('KmcRemovalObserver');$passes++
+    Assert-KmcNativeUmmStartupDelta $r32Before $r32Before.Replace('Id="KingmakerMountedCombat"','Id="KmcRemovalObserver"') -RemovalObserver -StagedModIds @('KmcRemovalObserver');$passes++
+    foreach($case in @(
+        @{name='a prune of a mod whose folder was staged';after=$r32After;ids=@('KmcRemovalObserver','CheatMenu')},
+        @{name='a prune of a mod staged under a differently cased folder';after=$r32After;ids=@('KmcRemovalObserver','cheatmenu')},
+        @{name='a prune without the run''s staged ids';after=$r32After;ids=$null},
+        @{name='a LastUpdateCheck moved backwards';after=$r32After.Replace('2026-10-25T16:08','2026-10-23T16:08');ids=@('KmcRemovalObserver')},
+        @{name='a prune beside a changed observer attribute';after=$r32After.Replace('Id="KmcRemovalObserver" Enabled="true"','Id="KmcRemovalObserver" Enabled="false"');ids=@('KmcRemovalObserver')},
+        @{name='a prune beside an added foreign entry';after=$r32After.Replace('</ModParams>','<Mod Id="Unexpected" Enabled="true"/></ModParams>');ids=@('KmcRemovalObserver','Unexpected')},
+        @{name='a kept stale entry with a changed attribute';after=$r32Before.Replace('Id="KingmakerMountedCombat"','Id="KmcRemovalObserver"').Replace('Id="CheatMenu" Enabled="true"','Id="CheatMenu" Enabled="false"');ids=@('KmcRemovalObserver')})){
+        $rejected=$false
+        try{if($null-eq$case.ids){Assert-KmcNativeUmmStartupDelta $r32Before $case.after -RemovalObserver}else{Assert-KmcNativeUmmStartupDelta $r32Before $case.after -RemovalObserver -StagedModIds $case.ids}}catch{$rejected=$true}
+        if(!$rejected){throw ('Removal-observer startup delta accepted '+$case.name+'.')};$passes++
+    }
     $known='20260921-chunk5-P03-condition-preparing-save-A'
     $old=[pscustomobject]@{name='EternalKingdom_h3591390253';kind='Binary';value='RmFsc2UA'}
     $new=[pscustomobject]@{name=$old.name;kind='Binary';value='VHJ1ZQA='}

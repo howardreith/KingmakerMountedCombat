@@ -51,7 +51,8 @@ if(Test-Path -LiteralPath $modsStatePath -PathType Leaf){
         $baseGameOnly=$true;$withObserver=[string]$modsState.stagingMode-ceq'base-game-only-kmc-observer'
     }
 }
-Assert-KmcNativeUmmStartupDelta -Before ([IO.File]::ReadAllText($original)) -After ([IO.File]::ReadAllText($snapshot.paramsPath)) -RemovalObserver:$removalObserver -BaseGameOnly:$baseGameOnly -WithObserver:$withObserver
+if($removalObserver){Assert-KmcNativeUmmStartupDelta -Before ([IO.File]::ReadAllText($original)) -After ([IO.File]::ReadAllText($snapshot.paramsPath)) -RemovalObserver -StagedModIds (Get-KmcRunStagedModIds $RunId)}
+else{Assert-KmcNativeUmmStartupDelta -Before ([IO.File]::ReadAllText($original)) -After ([IO.File]::ReadAllText($snapshot.paramsPath)) -BaseGameOnly:$baseGameOnly -WithObserver:$withObserver}
 if($dryRun-or-not$PSCmdlet.ShouldProcess($RunId,'restore exact observed startup settings drift and release otherwise-restored runtime lock')){
     Write-Host 'PROFILE RECOVERY WHATIF PASS; no file, registry or lock mutation.'
     return
