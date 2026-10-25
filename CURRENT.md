@@ -1,5 +1,30 @@
 # Chunk 7B–7D — IN PROGRESS
 
+**b210 pilot fixes (offline; no launch).** b210 on `187282c7`: r09, r32, c1 and c2 PASS. Three fixes follow.
+- c3 profile recovery (`8ca622c8`, harness). c3 crashed natively (system commit exhausted). Transaction recovery PASS; two Unity session
+  PlayerPrefs counters remain (`b210-c3-incident.json`). New `-AfterTransactionRecovery` mode of `Recover-KmcPersistenceProfile.ps1`:
+  - Admission requires: the completed transaction for the snapshot token (combined, Mods and save states all restored, every
+    proof true); no profile-recovery receipt; no lock, or only this run's own stale profile-recovery lock.
+  - It takes or adopts a 'profile-recovery' lock and re-checks everything through the held handle; restore then runs through
+    `Restore-KmcPersistenceStartupSettings` and `Assert-KmcPersistenceProfileUnchanged`.
+  - WhatIf against c3: PASS. Executor command (no lock held, no Kingmaker process):
+    `Recover-KmcPersistenceProfile.ps1 -RunId 20261026-c7e-b210-c3 -SnapshotSha256 15805cd2e7989b7274b82d813a06d138318aef0f6c107f927a143a4d113bbf27
+    -CurrentParamsSha256 ca5d402248723c3578c4a35a21d69b749d7459a4a74c6f406e16f0d2fa9386c4 -CurrentPrefsSha256
+    ee15261614aaef3b36fec5d6cadf07878ba4617b7318e4de44bf75a6f3d2eed5 -AfterTransactionRecovery -Confirm:$false`
+- s1 reader (`1685ebb1`). Row 66: the mounted `avatarLocalScale` (1.00000024, 1, 1.00000024) is float32 re-parenting rounding.
+  Per-axis tolerance 1e-5; every other body field stays exact; 1.001 refuses (`b210-s1-incident.json`).
+- r39 cause (`c431df8c`, product diagnostics). A native hostile group (faction b1525b4b…) aggroed at 8.30 m, inside its 8.5 m vision.
+  - Before any input, the stress requires every conscious non-player-faction unit to keep its own native `VisionRangeMeters`
+    + 3 m (2D) from the 12 pair actors and the 6 waypoints (`evidence.sixPairHostileClearance`); a breach refuses as uncovered.
+  - The classifier now judges KMC-issued and pair commands; on r39's combat frame the party's native AI had already queued its own.
+  - The reader validates the clearance when present. Known limitation: the record is optional, because older accepted evidence
+    predates it. Also not addressed (low): the record's `kmcIssued` flag covers only the harness's own commands.
+- Review: CHANGES REQUIRED twice (an unrecoverable stale profile lock, then a second handle on the held lock), then APPROVE.
+- Tests: profile protection 130/0, base-game isolation 98/0, F09 Small 69/0, six-pair reader 68/0, orchestration 24/0,
+  OwnedPairs 763/0, build 149/0, unit 881/0, Fast 3/0. Pre-existing at HEAD: SmallManualEvidence 70/1.
+- New Release DLL `35b3829cb7fc02dff78a31838862969b8e0b05e6dad2593738eb3be1b6da6db5`. Product-diagnostics changes since `fa819113`:
+  r09 `5dfdc897`, r39 `ba545808` and `c431df8c`.
+
 **F2 r39 six-pair combat entry now recorded (offline; product diagnostics plus reader; no launch).**
 - r39 (`20261025-c7e-final-B15-r39`, row 39, six-pair F11 stress) game 4/1: "Six-pair exploration entered unexpected native combat."
   after sample 5 in cycle 3. The timing and ground positions are identical to b190's, and the evidence held no hostile or initiator data,
