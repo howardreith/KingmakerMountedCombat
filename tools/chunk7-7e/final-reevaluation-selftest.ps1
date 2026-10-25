@@ -6,7 +6,7 @@ $ErrorActionPreference='Stop';Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot 'final-reevaluation.ps1')
 $repo=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))
 $runCommit='fa8191138118a61708e6fce9d02906f30dc2bf91'       # F2 freeze commit (product unchanged since)
-$readerCommit='95a69cfc'                                     # the corrected reader
+$readerCommit='HEAD'                                         # the corrected reader and verifier (this tree)
 $productCommit='3b0e4f6a'                                    # before 2e48f452, which changed src/
 $readerCommit=(Invoke-KmcReevaluationGit $repo @('rev-parse',$readerCommit)).text;$productCommit=(Invoke-KmcReevaluationGit $repo @('rev-parse',$productCommit)).text
 $root=Join-Path ([IO.Path]::GetTempPath()) ('kmc-reeval-selftest-'+[guid]::NewGuid().ToString('N'));$ev=Join-Path $root 'runtime-evidence';$cache=Join-Path $root 'cache'
