@@ -433,6 +433,15 @@ After B15, with every run restored and read:
 - **Reader-only defect:** re-evaluate the immutable evidence when every needed observation exists; keep
   old and new verdicts. The corrected reader changes the harness commit, so later batches need a new
   package and suite binding the same DLL (b205 precedent); runs already made keep their package.
+  A re-evaluated run (game PASS, restoration verified, runner FAIL on that defect alone) settles as a
+  predecessor only through its receipt `final<n>-B<k>-<tag>-reader-reevaluation.json` in `analysis-cache/chunk7-continuation/`
+  (run id, result and evidence SHA-256, the single runner error, game PASS, old reader = the run's commit FAIL with that
+  error, new reader = the corrected commit PASS). Its `final-runs.json` entry keeps `readerVerdict:"PASS"` (the new verdict)
+  and adds `"reevaluation":{"receipt":<leaf>,"receiptSha256":<sha256>}`. The deriver's Final mode (`Test-ReaderReevaluation`)
+  checks the receipt against the run (result, evidence and game-result hashes, the single error, all restoration flags) and
+  proves the rest itself: the corrected reader commit is in its own clean history, descends from the run's commit with no
+  product change (`src/`, `Info.json`, `version.json`), and its own reader, run in a child process on the run's request and
+  immutable evidence, PASSes. Otherwise a runner FAIL is still refused. The runner result stays FAIL.
 - **Observer or fixture change:** re-run the affected native rows.
 - **Unrestored run:** stop; profile recovery before transaction recovery; never a PASS.
 
