@@ -583,12 +583,12 @@ Check-SeedProne 'an unreleased healer stack' {(Get-Prone $args[0]).healerScroll.
 # b207 r57: the healed rider lay outside the target's threat; the target's own native turn approaches it (natively costed, no attack).
 function Add-KmcProneTargetApproach($v,[bool]$Approached=$true){$P=Get-Prone $v;$st=$P.standUp;$round=[long]$P.healedRound
  $tg={param([string]$label,[bool]$engaged)$x=Copy-Value $st.gates;$x.label=$label;$x.engagesSubject=$engaged;$x.engagedUnits=@(if($engaged){$v.request.ownedPairs.riderBId});$x|Add-Member targetRemembersSubject $true;$x|Add-Member threatReachMeters 0.3048;$x|Add-Member subjectCorpulence 0.5;$x|Add-Member subjectMechanicsDistance 2.06;$x|Add-Member subjectLineOfSight $true;$x}
- $t=[pscustomobject][ordered]@{round=$round;targetBefore=(&$tg 'target-turn-before' (-not$Approached));engagedBefore=(-not$Approached);approached=$Approached}
+ $t=[pscustomobject][ordered]@{round=$round;targetBefore=(&$tg 'target-turn-before' (-not$Approached));engagedBefore=(-not$Approached);approached=$Approached;traceSequenceBefore=915}
  if($Approached){$wb=Copy-Value $st.before;$wb.label='prone-target-before';$wb.gameTicks=2050000000;$wa=Copy-Value $st.before;$wa.label='prone-target-after';$wa.gameTicks=2060000000
   $rider=Copy-Value $st.rider;$rider.label='target-turn-after';$rider.engagedByTarget=$true
   $proposal=[pscustomobject][ordered]@{angle=0.0;length=0.6;requested=@(0.0,0.0,2.7);goal=@(0.0,0.0,2.7);walkable=$true;traceResidual=0.0;geometryAccepted=$true;geometryRefusal=$null;refusal=$null;eligible=$true}
   $cost={param([double]$time,[double]$move)[pscustomobject][ordered]@{timeMoved=$time;metersFiveFootStep=0.0;fiveFootStep=$false;move=$move;standard=0.0;swift=0.0}}
-  foreach($kv in ([ordered]@{geometry=[pscustomobject][ordered]@{corpulence=1.0;weaponReachMeters=0.3048;reach=1.3048;near=1.05;far=1.1548;gap=1.1024;engagers=@()};proposals=@($proposal);destination=@(0.0,0.0,2.7);before=$wb;ruleCountBefore=0;traceSequenceBefore=915;turnBefore=(&$cost 0.0 0.0);command=7788
+  foreach($kv in ([ordered]@{geometry=[pscustomobject][ordered]@{corpulence=1.0;weaponReachMeters=0.3048;reach=1.3048;near=1.05;far=1.1548;gap=1.1024;engagers=@()};proposals=@($proposal);destination=@(0.0,0.0,2.7);before=$wb;ruleCountBefore=0;turnBefore=(&$cost 0.0 0.0);command=7788
    after=$wa;targetAfter=(&$tg 'target-turn-after' $true);riderAfter=$rider;turnAfter=(&$cost 0.4 0.4);turnEndedNatively=$false;rules=@();traceSequenceAfter=918;displacement=0.6;commandResult='Success';engagedAfter=$true}).GetEnumerator()){$t|Add-Member $kv.Key $kv.Value}}
  # One JSON round trip, so numbers carry the native reader shape (PowerShell 5.1 parses fractions as decimal).
  $P|Add-Member targetTurn (Copy-Value $t) -Force;$v}
@@ -615,6 +615,42 @@ Check-ProneTarget 'an approach recorded after the stand-up began' {(Get-Prone $a
 Check-ProneTarget 'an interrupted approach' {(Get-Prone $args[0]).targetTurn.commandResult='Interrupt'} 'one native move'
 Check-ProneTarget 'an approach without its native turn-end flag' {(Get-Prone $args[0]).targetTurn.PSObject.Properties.Remove('turnEndedNatively')} 'prone target approach'
 Check-ProneTarget 'an unapproached turn carrying an approach' {$t=(Get-Prone $args[0]).targetTurn;$t.approached=$false;$t.engagedBefore=$true;$t.targetBefore.engagesSubject=$true} 'prone target turn'
+# b208 r57: rider B's turn came before the target's; that one turn is forfeited through the native End Turn, then the target approaches.
+function Add-KmcProneRiderSkip($v){$v=Add-KmcProneTargetApproach $v;$P=Get-Prone $v;$st=$P.standUp;$next=[long]$P.healedRound+1
+ $P.targetTurn.round=$next;$st.round=$next;$st.rules[0].round=$next;$P.rules.events[0].round=$next
+ $wb=Copy-Value $st.before;$wb.label='prone-skip-before';$wb.gameTicks=2030000000;$wa=Copy-Value $st.before;$wa.label='prone-skip-after';$wa.gameTicks=2030000000;foreach($x in @($wa.actors|Where-Object id -CEQ $v.request.ownedPairs.riderBId)){$x.standard=6.0;$x.move=3.0;$x.swift=6.0}
+ $rbId=$v.request.ownedPairs.riderBId
+ $r0=Copy-Value $st.rider;$r0.label='skip-before';$r0.round=[long]$P.healedRound;$r1=Copy-Value $r0;$r1.label='skip-after'
+ $tb=Copy-Value $P.targetTurn.targetBefore;$tb.label='skip-before'
+ $k=[pscustomobject][ordered]@{round=[long]$P.healedRound;rider=$r0;targetBefore=$tb;before=$wb;ruleCountBefore=0;traceSequenceBefore=911
+  turnBefore=[pscustomobject][ordered]@{actorId=$rbId;currentActor=$rbId;status='Preparing';timeMoved=0.0;acted=$false;standard=0.0;move=0.0;swift=0.0;commandsEmpty=$true}
+  turnAfter=[pscustomobject][ordered]@{actorId=$rbId;currentActor=$rbId;status='Ending';timeMoved=0.0;acted=$true;standard=6.0;move=3.0;swift=6.0;commandsEmpty=$true}
+  riderAfter=$r1;after=$wa;rules=@();traceSequenceAfter=913;displacement=0.0}
+ $P|Add-Member riderSkip (Copy-Value $k) -Force;$v}
+function Check-ProneSkip([string]$Name,[scriptblock]$Mutation,[string]$Pattern){$v=Add-KmcProneRiderSkip (New-KmcOwnerSeedDerivedCombatFixture 'native-life-cleanup');&$Mutation $v;Check ('owner-seed prone rider skip refuses '+$Name) {Invoke-OwnedReader $v} $true $Pattern}
+Check 'owner-seed prone stand-up accepts one forfeited rider-B turn before the target''s approach' {Invoke-OwnedReader (Add-KmcProneRiderSkip (New-KmcOwnerSeedDerivedCombatFixture 'native-life-cleanup'))}
+Check 'owner-seed prone stand-up refuses a stand-up two rounds after the heal without a skipped turn' {$v=Add-KmcProneRiderSkip (New-KmcOwnerSeedDerivedCombatFixture 'native-life-cleanup');$P=Get-Prone $v;$P.PSObject.Properties.Remove('riderSkip');$P.standUp.round=[long]$P.healedRound+2;$P.standUp.rules[0].round=$P.standUp.round;$P.rules.events[0].round=$P.standUp.round;$P.targetTurn.round=$P.standUp.round;Invoke-OwnedReader $v} $true 'own native turn after the heal'
+Check-ProneSkip 'a skip without the target''s turn after it' {(Get-Prone $args[0]).PSObject.Properties.Remove('targetTurn')} 'without the target'
+Check-ProneSkip 'a skip although the target already threatened rider B' {(Get-Prone $args[0]).riderSkip.targetBefore.engagesSubject=$true} 'already threatened'
+Check-ProneSkip 'a skip with movement' {(Get-Prone $args[0]).riderSkip.displacement=0.3} 'moved in its skipped turn'
+Check-ProneSkip 'a skip that drew an attack' {$P=Get-Prone $args[0];$P.riderSkip.rules=@(Copy-Value $P.standUp.rules[0])} 'drew an attack'
+Check-ProneSkip 'a skip that was not the native forfeit' {(Get-Prone $args[0]).riderSkip.turnAfter.move=2.0} 'native End Turn forfeit'
+Check-ProneSkip 'a skip after movement in the turn' {(Get-Prone $args[0]).riderSkip.turnBefore.timeMoved=0.5} 'untouched'
+Check-ProneSkip 'a skip with a pending command' {(Get-Prone $args[0]).riderSkip.riderAfter.commandsEmpty=$false} 'idle native actor'
+Check-ProneSkip 'a rider no longer prone after the skip' {(Get-Prone $args[0]).riderSkip.riderAfter.prone=$false} 'idle native actor'
+Check-ProneSkip 'a skip recorded before the heal' {(Get-Prone $args[0]).riderSkip.traceSequenceBefore=905} 'between the heal and its stand-up'
+Check-ProneSkip 'a stand-up not on the turn after the skip' {(Get-Prone $args[0]).riderSkip.round=[long](Get-Prone $args[0]).healedRound+1} 'one turn between'
+Check-ProneSkip 'pair A spending in the skip window' {@((Get-Prone $args[0]).riderSkip.after.actors|Where-Object id -CEQ $args[0].request.ownedPairs.riderAId)[0].move=3.0} 'expenditure changed'
+Check-ProneSkip 'a forfeited turn of another unit' {(Get-Prone $args[0]).riderSkip.turnAfter.actorId=$args[0].request.ownedPairs.riderAId} 'rider B''s own current'
+Check-ProneSkip 'a forfeit while another unit held the current turn' {(Get-Prone $args[0]).riderSkip.turnBefore.currentActor=$args[0].request.ownedPairs.riderAId} 'rider B''s own current'
+Check-ProneSkip 'a world record without the forfeit' {@((Get-Prone $args[0]).riderSkip.after.actors|Where-Object id -CEQ $args[0].request.ownedPairs.riderBId)[0].move=0.0} 'native End Turn forfeit'
+Check-ProneSkip 'a turn already acted before the skip' {(Get-Prone $args[0]).riderSkip.turnBefore.acted=$true} 'untouched'
+Check-ProneSkip 'a nonzero cooldown before the skip' {(Get-Prone $args[0]).riderSkip.turnBefore.swift=1.0} 'untouched'
+Check-ProneSkip 'a skip from a non-acting turn status' {(Get-Prone $args[0]).riderSkip.turnBefore.status='Delayed'} 'untouched'
+Check-ProneSkip 'a forfeit that did not end the turn' {(Get-Prone $args[0]).riderSkip.turnAfter.status='Acting'} 'native End Turn forfeit'
+Check-ProneSkip 'a target turn recorded before the skipped round' {(Get-Prone $args[0]).targetTurn.round=[long](Get-Prone $args[0]).healedRound-1} 'without the target|between the heal'
+Check 'owner-seed prone stand-up accepts a skip followed by a target that already threatened rider B' {$v=Add-KmcProneRiderSkip (New-KmcOwnerSeedDerivedCombatFixture 'native-life-cleanup');$P=Get-Prone $v;$t=$P.targetTurn;$keep=[pscustomobject][ordered]@{round=$t.round;targetBefore=(Copy-Value $t.targetAfter);engagedBefore=$true;approached=$false;traceSequenceBefore=$t.traceSequenceBefore};$P|Add-Member targetTurn $keep -Force;Invoke-OwnedReader $v}
+Check-ProneSkip 'an unrecorded field' {(Get-Prone $args[0]).riderSkip|Add-Member refunded $true} 'prone rider skipped turn'
 Check 'prone fold refused outside the owner-seed incapacitation case' {$v=Copy-Value @($fixtures|Where-Object name -CEQ 'native-life-cleanup')[0];$v.artifact.observations|Add-Member proneStandUp ([pscustomobject]@{contract='owner-seed-prone-stand-up-v1'}) -Force;Invoke-OwnedReader $v} $true 'Only the owner-seed incapacitation case'Check 'owner-seed-derived native life evidence accepted' {Invoke-OwnedReader (New-KmcOwnerSeedDerivedCombatFixture 'native-life-cleanup')}
 Check-SeedCombat 'owner-seed-derived native life refuses a native Mount input' 'native-life-cleanup' {$o=$args[0].artifact.observations;$o.inputs=@($o.inputs)+@((Copy-Value @($fixtures|Where-Object name -CEQ 'native-life-cleanup')[0]).artifact.observations.inputs|Where-Object label -CEQ 'mount-a')} 'native Mount input is not admitted'
 Check-SeedCombat 'owner-seed-derived native life refuses a missing mounted start' 'native-life-cleanup' {$args[0].artifact.observations.PSObject.Properties.Remove('mountedStart')} 'mounted-start admission'
