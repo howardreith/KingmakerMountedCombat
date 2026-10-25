@@ -42,6 +42,8 @@ namespace KingmakerMountedCombat.Diagnostics {
   void FinishInput(){Require(InputSettled(),"unfinished native shell");finishedInputs++;shell=null;}
   void Move(Actor a,Actor b,Vector3 goal,Actor next,string label){Require(movementFrames==0,"native movement replay");groundInputs.Add(new JObject{{"label",label}});moves++;movementFrames=3;}
   bool MovementSettled()=>movementFrames==0;
+  // The read-only combat-entry capture partial needs the native census; its facade keeps the guard's throw and records the call.
+  int combatEntryRefusals;void RefuseSixPairCombatEntry(){combatEntryRefusals++;throw new InvalidOperationException(Chunk7SixPairCombatEntry.Message(Chunk7SixPairCombatEntry.Unclassified));}
   void BeginCleanup(){cleanup=true;ReleaseSixSamplePins();}
   void Pass(string name){passed.Add(name);}
   int siblingCaptures,siblingChecks;void CaptureSixSiblingOrder(){siblingCaptures++;}void RequireSixSiblingOrder(){Require(siblingCaptures==1,"sibling order verified before capture");siblingChecks++;}
@@ -79,6 +81,8 @@ namespace KingmakerMountedCombat.Diagnostics {
    Refuse("wrong native capacity refuses before input",x=>Integration.GameMountedRelationshipService.NativePairCapacity=2);
    Refuse("eleven field roles refuse before input",x=>x.inherited.Actors=x.inherited.Actors.Take(11).ToArray());
    Refuse("native combat refuses without issuing input",x=>Kingmaker.Game.Instance.Player.IsInCombat=true,true);
+   var c=Create();c.BeginSixPairStress();Kingmaker.Game.Instance.Player.IsInCombat=true;string combatMessage=null;try{c.TickNative();c.UpdateSixPairStress();}catch(InvalidOperationException error){combatMessage=error.Message;}
+   Check(c.combatEntryRefusals==1&&combatMessage=="Six-pair exploration entered unexpected native combat."&&c.inputs.Count==0&&!c.cleanup,"native combat routes once through the combat-entry refusal with the unchanged guard message");
    Refuse("changed inherited custody refuses without issuing input",x=>x.inherited.Reject=true,true);
    Refuse("unrelated active ownership refuses before first input",x=>x.world.Registry.Items.Add(new Owner{Rider=new Actor(),Mount=new Actor()}),true);
    var p=Create();p.BeginSixPairStress();for(int i=0;i<1000&&p.sixPins==null;i++){p.TickNative();p.UpdateSixPairStress();}p.inherited.Actors[11].View=new object();bool replaced=false;try{p.TickNative();p.UpdateSixPairStress();}catch(InvalidOperationException){replaced=true;}Check(replaced&&!p.cleanup,"replaced sixth-Horse native view refuses retained sampling");

@@ -125,6 +125,8 @@ function Assert-KmcChunk7SixPairStressEvidence($Request,$O){
  Assert-KmcChunk7InheritedEvidence $Request $O
  Assert-KmcAssistedSame $O.inheritedFixture.remote $O.inheritedCleanup.remote 'six-pair remote native identity/progression retention'
  $roles=@(Get-KmcChunk7SixPairRoles);$s=$O.sixPairStress
+ # F2 r39: the guard records a combat entry only on its refused path; PASS evidence never carries one.
+ foreach($key in @('sixPairCombatEntry','sixPairCombatEntryError')){if($null-ne$O.PSObject.Properties[$key]){throw ('Six-pair evidence carries its refused-path record '+$key+'.')}}
  # v1 (batch186-188) verified full inherited custody on every measured frame; v2 verifies it
  # at sampling-window boundaries and declares that its measured frames carry only the guard.
  $fields=@('contract','archiveProducerRunId','coldQualificationRunId','fixtureSetupWrites','nativeSaveRequests','nativeLoadRequests',

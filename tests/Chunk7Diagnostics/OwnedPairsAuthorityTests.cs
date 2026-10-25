@@ -242,6 +242,20 @@ namespace KingmakerMountedCombat.Tests
     string r=Chunk7OwnedPairsSelection.Mounted6RangedWeapon,m=Chunk7OwnedPairsSelection.Mounted6MeleeWeapon,cur=m;bool combat=false,poly=false,ranged=true;int count=4,current=1;
     switch(mutation){case "in-combat":combat=true;break;case "polymorphed":poly=true;break;case "one-set":count=1;break;case "no-ranged":r=null;ranged=false;break;case "not-ranged":ranged=false;break;case "other-melee":m="35dfad6517f401145af54111be04d6cf";break;case "current-not-melee":cur=null;break;default:current=2;break;}
     TestRunner.True(!Chunk7OwnedPairsSelection.Mounted6HandSetsAdmitted(combat,poly,count,current,r,ranged,m,cur),"Mounted6 hand sets admitted "+mutation);});
+   // F2 r39: the six-pair combat guard names an uncovered native hostile engagement only while the pairs are idle with no KMC input in flight.
+   t.Run("six-pair combat entry: idle pairs and a hostile combatant are an uncovered native hostile engagement",()=>{
+    TestRunner.Equal(Chunk7SixPairCombatEntry.UncoveredNativeHostileEngagement,Chunk7SixPairCombatEntry.Classify(1,true,false),"Idle hostile engagement was not named.");
+    TestRunner.True(Chunk7SixPairCombatEntry.Message(Chunk7SixPairCombatEntry.UncoveredNativeHostileEngagement).StartsWith("Six-pair exploration entered unexpected native combat: uncovered native hostile engagement"),"Uncovered message lost its guard prefix.");});
+   t.Run("six-pair combat entry counts only units that are not pair actors, party members or player faction as hostile",()=>{
+    TestRunner.True(Chunk7SixPairCombatEntry.IsHostileCombatant(false,false,false),"A foreign combatant was not hostile.");
+    TestRunner.True(!Chunk7SixPairCombatEntry.IsHostileCombatant(true,false,true),"A pair Horse pet outside Player.Party was counted hostile.");
+    TestRunner.True(!Chunk7SixPairCombatEntry.IsHostileCombatant(true,false,false),"A pair actor was counted hostile.");
+    TestRunner.True(!Chunk7SixPairCombatEntry.IsHostileCombatant(false,true,true),"A party member was counted hostile.");
+    TestRunner.True(!Chunk7SixPairCombatEntry.IsHostileCombatant(false,false,true),"A player-faction non-party unit was counted hostile.");});
+   foreach(var c in new[]{"no-hostile-only-party-pets-or-player-faction","commands-open","input-in-flight","both"})t.Run("six-pair combat entry stays an unclassified FAIL when "+c,()=>{
+    var n=c=="no-hostile-only-party-pets-or-player-faction"?0:2;var free=c!="commands-open"&&c!="both";var flight=c=="input-in-flight"||c=="both";
+    TestRunner.Equal(Chunk7SixPairCombatEntry.Unclassified,Chunk7SixPairCombatEntry.Classify(n,free,flight),"Combat entry was classified as uncovered: "+c);
+    TestRunner.Equal("Six-pair exploration entered unexpected native combat.",Chunk7SixPairCombatEntry.Message(Chunk7SixPairCombatEntry.Unclassified),"Unclassified guard message changed.");});
    // The census facts of the mounted6 seed: rider A Ranger 6 with its pinned pre-owned KMC Horse; rider B with pending levels.
    Func<Chunk7OwnerSeedRiderFacts> m6a=()=>new Chunk7OwnerSeedRiderFacts{Id=Chunk7OwnedPairsSelection.Mounted6RiderA,InParty=true,Size="Medium",OriginalSize="Medium",Controllable=true,Idle=true,HasPet=true,PetId=Chunk7OwnedPairsSelection.Mounted6RiderAHorse,PetIsKmcHorse=true,PetReciprocal=true,PetInField=true,HasHorseFeature=true,HasHorseRank=true,CharacterLevel=6,RangerLevel=6,Experience=35022,ReadyLevel=7,ExperienceRate=100};
    Func<Chunk7OwnerSeedRiderFacts> m6b=()=>new Chunk7OwnerSeedRiderFacts{Id="fd213210-71cd-41b0-b35b-68e1b18e9b43",InParty=true,Size="Medium",OriginalSize="Medium",Controllable=true,Idle=true,CharacterLevel=4,RangerLevel=0,Experience=35022,ReadyLevel=7,ExperienceRate=100};
