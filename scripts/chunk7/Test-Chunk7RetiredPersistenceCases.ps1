@@ -1,8 +1,9 @@
 [CmdletBinding()]
 param([string]$RepositoryRoot,[string]$RuntimeDirectory)
-# The retired schema-3 pending control is refused by the actual runner before any selection
-# intake, approval, lock, transaction, Mods swap or launch, while every other persistence case
-# still passes this gate. Runner invocations are real child processes that fail fast.
+# The retired-case gate stays ahead of selection intake, approval, lock, transaction, Mods swap and launch.
+# The schema-3 pending control (pending-schema3-control-manual) was reinstated on October 24 as 7E row 75,
+# the X3 residual cold consumer of row 17's genuine live-producer Manual, so no persistence case is retired
+# now; every runner case passes the gate. Runner invocations are real child processes that fail fast.
 $ErrorActionPreference='Stop';Set-StrictMode -Version Latest
 if(-not$PSBoundParameters.ContainsKey('RepositoryRoot')){$RepositoryRoot=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))}
 if(-not$PSBoundParameters.ContainsKey('RuntimeDirectory')){$RuntimeDirectory=Join-Path $PSScriptRoot '../runtime'}
@@ -23,20 +24,19 @@ function Invoke-Runner([string[]]$Arguments){
     if(((Get-EvidenceNames)-join'|')-cne($before-join'|')-or(Test-Path -LiteralPath $lockSentinel)-ne$lockBefore){throw 'A runner invocation changed runtime evidence or the transaction sentinel.'}
     [pscustomobject]@{code=$code;text=($text-replace'\s+',' ')}
 }
-$retired='pending-schema3-control-manual'
-$reason=Get-KmcChunk7RetiredPersistenceCaseReason $retired
-if([string]::IsNullOrEmpty($reason)-or-not$reason.Contains('is retired and not selected')-or-not$reason.Contains('docs/CHUNK7-RETIRED-SCHEMA3-CONTROL-2026-10-23.md')){throw 'Retired control reason differs.'}
-Pass 'retired control has its exact refusal'
+$reinstated='pending-schema3-control-manual'
+if($null-ne(Get-KmcChunk7RetiredPersistenceCaseReason $reinstated)){throw 'Reinstated schema-3 control (7E row 75) is still refused.'}
+Pass 'reinstated schema-3 control (row 75) has no retirement refusal'
 
-# Every other closed persistence case passes this gate; inexact names are not matched.
+# Every closed persistence case passes this gate; inexact names are not matched either.
 $ast=[Management.Automation.Language.Parser]::ParseFile($runner,[ref]$null,[ref]$null)
 $parameter=@($ast.ParamBlock.Parameters|Where-Object{$_.Name.VariablePath.UserPath-ceq'PersistenceCase'})[0]
 $set=@($parameter.Attributes|Where-Object{$_.TypeName.Name-ceq'ValidateSet'})[0]
 $cases=@($set.PositionalArguments|ForEach-Object{$_.Value})
-if($cases.Count-lt10-or$retired-cnotin$cases){throw 'Runner persistence case set does not contain the retired control.'}
-foreach($case in $cases){if($case-cne$retired-and$null-ne(Get-KmcChunk7RetiredPersistenceCaseReason $case)){throw ('Selected persistence case refused: '+$case)}}
+if($cases.Count-lt10-or$reinstated-cnotin$cases){throw 'Runner persistence case set does not contain the schema-3 control.'}
+foreach($case in $cases){if($null-ne(Get-KmcChunk7RetiredPersistenceCaseReason $case)){throw ('Selected persistence case refused: '+$case)}}
 foreach($case in @($null,'','PENDING-SCHEMA3-CONTROL-MANUAL','pending-schema3-control-manual ')){if($null-ne(Get-KmcChunk7RetiredPersistenceCaseReason $case)){throw ('Inexact case matched: '+$case)}}
-Pass ('every other runner persistence case ('+($cases.Count-1)+') and inexact names pass the gate')
+Pass ('every runner persistence case ('+$cases.Count+') and inexact names pass the gate')
 
 # The gate sits right after the scenario readiness gate, before intake, approval, lock and launch.
 $commands={param($Name)@($ast.FindAll({param($n)$n-is[Management.Automation.Language.CommandAst]-and$n.GetCommandName()-ceq$Name},$true))}
@@ -49,21 +49,13 @@ if($gate.Count-ne1-or$gate[0].Extent.Text-cne'Assert-KmcChunk7PersistenceCaseSel
     $gate[0].Extent.StartOffset-le$ready[0].Extent.StartOffset-or$gate[0].Extent.StartOffset-ge$first-or$gate[0].Extent.StartOffset-ge$approval[0].Extent.StartOffset){
     throw 'Retired persistence case gate is not ahead of intake, approval, lock and launch.'
 }
-Pass 'runner refuses the retired case before selection intake, approval, lock, transaction and launch'
+Pass 'retired-case gate stays ahead of selection intake, approval, lock, transaction and launch'
 
-# Actual runner: refused with its exact reason, with and without plausible arguments and -WhatIf.
-$missing=Join-Path ([IO.Path]::GetTempPath()) ('never-read-'+[Guid]::NewGuid().ToString('N')+'.json')
-foreach($extra in @(@('-WhatIf'),@('-BaseGameOnly','-SaveAccessAllowed','-OwnedPairsSelectionPath',$missing),@('-BaseGameOnly','-SaveAccessAllowed','-OwnedPairsSelectionPath',$missing,'-WhatIf'))){
-    foreach($scenario in @('chunk7-owned-two-pair-campaign','chunk7-persistence-load')){
-        $r=Invoke-Runner (@('-Scenario',$scenario,'-PersistenceCase',$retired)+$extra)
-        if($r.code-eq0-or-not$r.text.Contains($reason)){throw ('Runner did not refuse the retired control under '+$scenario+': '+$r.text)}
-    }
-}
-Pass 'actual runner refuses the retired control before reading any selection'
-foreach($case in @('legacy-mounted-pending-tb-manual','owned-schema2-pending-current-manual')){
+# Actual runner: the pending-only chain, now including the reinstated control, reaches its own intake checks.
+foreach($case in @('legacy-mounted-pending-tb-manual','owned-schema2-pending-current-manual','pending-schema3-control-manual')){
     $r=Invoke-Runner @('-Scenario','chunk7-owned-two-pair-campaign','-PersistenceCase',$case,'-WhatIf')
     if($r.code-eq0-or$r.text.Contains('is retired')-or-not$r.text.Contains('Inherited two-pair campaign requires explicit base-only staging')){throw ('Selected pending case did not pass the gate: '+$case+': '+$r.text)}
 }
-Pass 'actual runner admits the selected pending-only chain to its own intake checks'
-Write-Host ('TOTAL PASS '+$script:passes+' FAIL 0; actual runner refusal and shared decision only; no lock, transaction, Mods or launch')
+Pass 'actual runner admits the pending-only chain and the reinstated control to their own intake checks'
+Write-Host ('TOTAL PASS '+$script:passes+' FAIL 0; actual runner gate and shared decision only; no lock, transaction, Mods or launch')
 exit 0

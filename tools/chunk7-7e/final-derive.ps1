@@ -61,6 +61,9 @@ $Spec=[ordered]@{
  r17=S '20261019-c7b-directive4-b41s1-schema3-producer' $O $OP @{source='r01';checkpoint='r02'} $scp $ownCp $pairIds
  r18=S '20261019-c7b-directive4-b41s2-schema2-resave' $O $OP @{source='r01';checkpoint='r17'} $scp $ownCp $pairIds
  r19=S '20261019-c7b-directive4-b42s1-schema2-current-cold' $O $OP @{source='r01';checkpoint='r18'} $scp $ownCp $pairIds
+ # X3 residual (row 75): the reinstated pending-schema3-control-manual cold consumer of r17's own genuine Manual.
+ # Its template b37s1 is an outer-FAIL development run used only for the selection shape, never as a predecessor.
+ x3 =S '20261019-c7b-directive4-b37s1-schema3-corrected' $O $OP @{source='r01';checkpoint='r17'} $scp $ownCp $pairIds
  r20=S '20261019-c7b-world45-ownerseed-b19s4-schema1save' $O $OP @{source='r01';checkpoint='r02'} $scp $ownCp $pairIds
  r21=S '20261019-c7b-world45-ownerseed-b19s5-schema1cold' $O $OP @{source='r01';checkpoint='r20'} $scp $ownCp $pairIds
  r22=S '20261019-c7b-world45-ownerseed-b20s1-schema1current' $O $OP @{source='r01';checkpoint='r21'} $scp $ownCp $pairIds

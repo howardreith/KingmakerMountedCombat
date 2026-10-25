@@ -49,9 +49,8 @@ See [the changelog](CHUNK7-CHANGELOG.md) for the full list with commits,
 - **Rollback restores the pre-upgrade save, not a post-upgrade one.** Keep your pre-upgrade saves and the
   preview.211 package. A save written by Chunk 7 is not certified under preview.211, and u3 does not load
   one.
-- **X3 residual gap:** no cold load of a pending-only archive written by the live producer (genuine
-  PairId and generation) was run. The retired schema-3 control was the only such case. Rows 13–14 cover
-  the live-producer cold load only in the turn-based action-debt shape.
+- **Pending-only save written by the live build:** the 7E campaign now includes a cold load of that save
+  exactly as written (genuine pair identity and generation, no migration), 7E row 75.
 - A campaign containing a KMC Horse still requires the mod. Use "Prepare to disable / remove KMC" before
   removing it. Removal was rehearsed only for a stock-Mammoth campaign.
 
@@ -75,7 +74,7 @@ Exact-package 7E qualification re-runs each of them on the final candidate.
 - Prepared-spell casting while mounted. The leveled Ranger's level-1 slot is empty. Filling it needs a
   spellbook choice and the game's camp rest. That rest rolls a random encounter the harness cannot
   bound, spends rations and runs skill checks. Items (scroll and potion) while mounted have development evidence.
-- Saves: the X3 residual (above) and the upgrade of a mounted save written by preview.211 (above).
+- Saves: the upgrade of a mounted save written by preview.211 (above).
 - The full Small rider calibration on a save made by the same build: the two cases that did it were
   retired; the Small profile is covered by its own calibration and by mounted save and load.
 

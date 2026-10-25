@@ -321,6 +321,13 @@ T: `b200-x5-run.ps1` (u1–u3), `20261020-c7b-world81-b65s1-owner-stock-removal`
 
 Six-pair stress takes 10–40 min of game time. Row 42 is last: it is the fresh-install control.
 
+### B16 — rows added on October 24 (X3 closure; folded combat measurements run inside B8/B9 rows)
+
+| Tag | Row | Case (PersistenceCase) | Source / checkpoint | T: | Reader |
+| --- | --- | --- | --- | --- | --- |
+| x3 | 75 | `owner-seed-checkpoint-load` (`pending-schema3-control-manual`) | r01 / r17 (B4, same candidate) | `20261019-c7b-directive4-b37s1-schema3-corrected` (outer-FAIL development run; selection shape only, never a predecessor) | owned control branch + combat-persistence reader |
+
+x3 may run in any batch after B4 settles; it is placed here so no earlier batch exceeds five launches.
 ## 6. F11 acceptance (rows 39–42; criteria fixed, never moved)
 
 Computed from the recorded windows of r39 (0/1/2/6/0 pairs, three windows each) and r40 (0/1/2/0), with
