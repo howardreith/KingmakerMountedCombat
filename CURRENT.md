@@ -1,5 +1,15 @@
 # Chunk 7B–7D — IN PROGRESS
 
+**Two harness fixes before F3 (offline; no launch).**
+- `6af5e960`: `Get-KmcBaseGameDependencyDigest` joins its rows with an explicit LF. Before, a literal line break in the source made a CRLF
+  worktree compute `93f28715…` instead of the stored `db2c3901…`, and recovery refused. c3's stored receipt recomputes to `db2c3901`.
+  A regression loads the source normalised to CRLF and to LF; the sweep found no other digest builder with a multi-line literal.
+  Base-game isolation 99/0.
+- `322f47d7`: `Test-Chunk7SmallManualEvidence`/`-Source` cover the cases retired on 2026-10-24 and are not in FULL/X6 (the umbrella runs
+  `Test-Chunk7RetiredSmallCalibrationCases`). Their fixture encodes the Auto-derived contract that `ed40ef95` closed, so the positive
+  checks failed and the mutation matrices were vacuous. Each now asserts the reader's exact closed-mode refusal; no reader changed.
+- Reviews: both APPROVE.
+
 **b210 pilot fixes (offline; no launch).** b210 on `187282c7`: r09, r32, c1 and c2 PASS. Three fixes follow.
 - c3 profile recovery (`8ca622c8`, harness). c3 crashed natively (system commit exhausted). Transaction recovery PASS; two Unity session
   PlayerPrefs counters remain (`b210-c3-incident.json`). New `-AfterTransactionRecovery` mode of `Recover-KmcPersistenceProfile.ps1`:
