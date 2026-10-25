@@ -9,6 +9,7 @@ namespace KingmakerMountedCombat.Diagnostics
     {
         private const string StockAttackType = "Kingmaker.UnitLogic.Commands.UnitAttack";
 /*ACTUAL_METHOD*/
+/*ACTUAL_OPPORTUNITY*/
     }
 
     internal static class RefusedPairProposalsRegression
@@ -83,6 +84,64 @@ namespace KingmakerMountedCombat.Diagnostics
                 companionAttack, Slots(), 0, 2);
             Expect("companion-only rows", new[] { Row("admission-before", Companion, companionAttack, Companion), Row("admission-after", Companion, companionAttack, Companion) },
                 companionAttack, Slots(), 0, 0);
+            // F2 r09 native engagement-controller attack of opportunity by an engaged pair actor (shape of the r09 trace rows).
+            const string Target = "5b50d370-0000-0000-0000-000000000005";
+            const string Callers = "callers=MonoMod.Utils.DynamicMethodDefinition.Kingmaker.UnitLogic.Commands.UnitCommands.Run_Patch3 < MonoMod.Utils.DynamicMethodDefinition.Kingmaker.Controllers.Combat.UnitCombatState.AttackOfOpportunity_Patch3 < Kingmaker.Controllers.Combat.UnitCombatEngagementController+<>c__DisplayClass4_0.<Tick>b__0 < Kingmaker.Utility.LinqExtensions.ForEach < Kingmaker.Controllers.Combat.UnitCombatEngagementController.Tick < Kingmaker.GameModes.GameMode.Tick < Kingmaker.Game.Tick < Kingmaker.Runner.Update";
+            Func<string, int, string, int, int, double, JObject> aooRow = (boundary, command, executor, reactions, unused, standard) => {
+                var row = Row(boundary, HorseA, command, executor, boundary.StartsWith("cost"), boundary.StartsWith("cost") ? "Success" : "None", ActualRefusedPairProposals.OpportunityAttackType);
+                row["acted"] = (bool?)boundary.StartsWith("cost"); row["finished"] = (bool?)boundary.StartsWith("cost"); row["actionType"] = "Free"; row["commandTarget"] = Target;
+                row["detail"] = boundary == "admission-before" ? Callers : null;
+                row["state"] = new JObject { ["actor"] = HorseA, ["reactions"] = reactions, ["standard"] = standard, ["move"] = 0.0, ["swift"] = 0.0, ["reactionCooldown"] = boundary.StartsWith("cost") ? 5.4 : 0.0 };
+                row["gameTicks"] = 1000000000L; return row; };
+            Action<string, bool> check = (name, ok) => { Console.WriteLine((ok ? "PASS " : "FAIL ") + name); if (!ok) failures++; };
+            Func<int, JObject[]> aoo = command => new[] { aooRow("admission-before", command, null, 1, 0, 2.88), aooRow("admission-after", command, HorseA, 1, 0, 2.88),
+                aooRow("cost-before", command, HorseA, 0, 0, 2.88), aooRow("cost-after", command, HorseA, 0, 0, 2.88) };
+            Action<string, JObject[], string, int, int> expectAoo = (name, rows, provoker, accounted, touched) => {
+                var found = ActualRefusedPairProposals.NativeOpportunityAttacks(rows, new[] { RiderA, HorseA, RiderB }, provoker, Slots(), new[] { HorseA }, out var seen);
+                ActualRefusedPairProposals.RefusedPairProposals(rows.Where(e => !seen.Contains((int)e["sequence"])).ToArray(), new[] { RiderA, HorseA, RiderB }, companionAttack, Slots(), out var pairTouched);
+                var ok = found.Count == accounted && pairTouched == touched;
+                Console.WriteLine((ok ? "PASS " : "FAIL ") + name + " opportunity=" + found.Count + " pairTouched=" + pairTouched); if (!ok) failures++; };
+            expectAoo("native engagement attack of opportunity on the provoking target is accounted", aoo(30), Target, 1, 0);
+            expectAoo("an attack of opportunity on another unit stays a pair touch", aoo(31), RiderB, 0, 4);
+            var kmcCaller = aoo(32); kmcCaller[0]["detail"] = Callers.Replace("Kingmaker.Runner.Update", "KingmakerMountedCombat.Integration.X.Y");
+            expectAoo("a KingmakerMountedCombat frame in the caller chain stays a pair touch", kmcCaller, Target, 0, 4);
+            var otherPath = aoo(33); otherPath[0]["detail"] = "callers=Kingmaker.UnitLogic.Commands.UnitCommands.Run < Kingmaker.UI.Selection.ClickUnitHandler.OnClick";
+            expectAoo("a stock attack-of-opportunity type outside the native path stays a pair touch", otherPath, Target, 0, 4);
+            var noReaction = aoo(34); foreach (var r in noReaction) r["state"]["reactions"] = 0;
+            expectAoo("an attack of opportunity without a reaction to spend stays a pair touch", noReaction, Target, 0, 4);
+            var notSpent = aoo(35); notSpent[3]["state"]["reactions"] = 1;
+            expectAoo("an attack of opportunity that spent no reaction stays a pair touch", notSpent, Target, 0, 4);
+            var standardRise = aoo(36); standardRise[3]["state"]["standard"] = 6.0;
+            expectAoo("an attack of opportunity that raised Standard stays a pair touch", standardRise, Target, 0, 4);
+            expectAoo("a fifth row of the same identity stays a pair touch", aoo(37).Concat(new[] { aooRow("command-interrupt-before", 37, HorseA, 0, 0, 2.88) }).ToArray(), Target, 0, 5);
+            var unfinished = aoo(38); unfinished[3]["finished"] = (bool?)false;
+            expectAoo("an unfinished attack of opportunity stays a pair touch", unfinished, Target, 0, 4);
+            expectAoo("two native attacks of opportunity are both accounted", aoo(39).Concat(aoo(40)).ToArray(), Target, 2, 0);
+            var truncated = aoo(41); truncated[0]["detail"] = Callers.Replace(" < Kingmaker.Runner.Update", "");
+            expectAoo("a caller chain that does not reach the frame loop (possibly truncated) stays a pair touch", truncated, Target, 0, 4);
+            var notFree = aoo(42); foreach (var r in notFree) r["actionType"] = "Standard";
+            expectAoo("a non-Free attack of opportunity stays a pair touch", notFree, Target, 0, 4);
+            var mismatched = aoo(43); mismatched[1]["commandActor"] = RiderA;
+            expectAoo("a mismatched command actor stays a pair touch", mismatched, Target, 0, 4);
+            var notEngine = aoo(44); notEngine[0]["detail"] = Callers.Replace("Kingmaker.Controllers.Combat.UnitCombatEngagementController+<>c__DisplayClass4_0.<Tick>b__0", "Kingmaker.Controllers.Combat.UnitCombatState.ShouldAttackOnDisengage");
+            expectAoo("a chain whose third frame is not the engagement controller stays a pair touch", notEngine, Target, 0, 4);
+            var failed = aoo(45); failed[3]["result"] = "Fail";
+            expectAoo("a cost row without native Success stays a pair touch", failed, Target, 0, 4);
+            {   var found = ActualRefusedPairProposals.NativeOpportunityAttacks(aoo(46), new[] { RiderA, HorseA, RiderB }, Target, Slots(46), new[] { HorseA }, out var seen);
+                check("an attack of opportunity held in a pair command slot stays unaccounted", found.Count == 0); }
+            {   var found = ActualRefusedPairProposals.NativeOpportunityAttacks(aoo(47), new[] { RiderA, HorseA, RiderB }, Target, Slots(), new string[0], out var seen);
+                check("an attack of opportunity by a pair actor not engaging the target before the window stays unaccounted", found.Count == 0); }
+            {   var found = ActualRefusedPairProposals.NativeOpportunityAttacks(aoo(48), new[] { RiderA, RiderB }, Target, Slots(), new[] { HorseA }, out var seen);
+                check("an attack of opportunity by a non-pair actor is not accounted", found.Count == 0); }
+            var before = new JObject { ["reactions"] = 1, ["reactionCooldown"] = 0.0 };
+            Func<int, double, JObject> after = (r, c) => new JObject { ["reactions"] = r, ["reactionCooldown"] = c };
+            var last = new JObject { ["costGameTicks"] = 1000000000L, ["costReactionCooldown"] = 5.4 };
+            check("one attack of opportunity spends exactly one reaction", ActualRefusedPairProposals.ReactionsAccounted(before, after(0, 0.49), 1, 1049000000L, last, false));
+            check("a reaction natively restored after its full cooldown elapsed is admitted", ActualRefusedPairProposals.ReactionsAccounted(before, after(1, 0.0), 1, 1054000000L, last, false));
+            check("a reaction restored before its cooldown elapsed is refused", !ActualRefusedPairProposals.ReactionsAccounted(before, after(1, 0.0), 1, 1030000000L, last, false));
+            check("a reaction restored next to a prepare or clear of the actor is refused", !ActualRefusedPairProposals.ReactionsAccounted(before, after(1, 0.0), 1, 1054000000L, last, true));
+            check("a reaction spent without an attack of opportunity is refused", !ActualRefusedPairProposals.ReactionsAccounted(before, after(0, 0.49), 0, 1049000000L, null, false));
+            check("an unchanged reaction count with cooldown left is refused", !ActualRefusedPairProposals.ReactionsAccounted(before, after(1, 3.0), 1, 1054000000L, last, false));
             Console.WriteLine("TOTAL failures=" + failures);
             return failures == 0 ? 0 : 1;
         }

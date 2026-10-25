@@ -1395,13 +1395,53 @@ function Assert-KmcChunk7OwnerSeedTargetAuthorization($Request,$Target){
  foreach($pair in @(@('seedSha256','seedSha256'),@('derivedManualSha256','sourceArchiveSha256'),@('producerRunId','sourceRunId'),@('producerArtifactSha256','sourceArtifactSha256'),@('consumerRunId','checkpointSourceRunId'),@('consumerArtifactSha256','checkpointSourceArtifactSha256'))){Assert-KmcBootstrapInventoryString $t.($pair[0]) $s.($pair[1])}
  Assert-KmcBootstrapInventoryString $t.area $Request.persistenceLoad.area;Assert-KmcChunk7Boolean $t.placementValidated $true
 }
+# F2 r09: a pair actor already engaging the diagnostic target makes the native engagement-controller attack of
+# opportunity when the target provokes inside a window. Derived independently of the producer, strictly: one closed stock
+# UnitAttackOfOpportunity (Free) per identity with exactly admission-before, admission-after, cost-before, cost-after of
+# one pair actor and no other row, aimed at the provoker, entered only through Run < UnitCombatState.AttackOfOpportunity <
+# UnitCombatEngagementController (Tick, no KingmakerMountedCombat frame), finished, one reaction spent (n -> n-1, n >= 1),
+# no Standard/Move/Swift rise, in no pair command slot.
+# The actor must already engage the target in the window's before snapshot; the capped caller chain must reach Kingmaker.Runner.Update.
+function Get-KmcChunk7NativeOpportunityAttacks($Window,[string[]]$PairIds,[string]$Provoker,$Slotted,[string[]]$EngagedBefore){
+ $found=[Collections.Generic.List[object]]::new();$sequences=[Collections.Generic.HashSet[long]]::new()
+ $type='Kingmaker.UnitLogic.Commands.UnitAttackOfOpportunity';$shape='admission-before|admission-after|cost-before|cost-after'
+ foreach($group in @($Window|Where-Object{($_.command-is[long]-or$_.command-is[int])-and$_.commandType-ceq$type}|Group-Object{[long]$_.command})){
+  $identity=[long]$group.Name;$rows=@($Window|Where-Object{($_.command-is[long]-or$_.command-is[int])-and[long]$_.command-eq$identity}|Sort-Object sequence);$actor=[string]$rows[0].state.actor
+  if($rows.Count-ne4-or(@($rows|ForEach-Object boundary)-join'|')-cne$shape-or$actor-cnotin$PairIds-or$identity-in$Slotted-or$actor-cnotin@($EngagedBefore)){continue}
+  $ok=$true
+  foreach($row in $rows){if([string]$row.state.actor-cne$actor-or$row.commandType-cne$type-or$row.actionType-cne'Free'-or$row.commandTarget-cne$Provoker){$ok=$false}}
+  $detail=[string]$rows[0].detail
+  if(-not$detail.StartsWith('callers=',[StringComparison]::Ordinal)-or$detail.Contains('KingmakerMountedCombat')){$ok=$false}else{
+   $frames=$detail.Substring(8)-split' < '
+   if($frames.Count-lt3-or$frames[-1]-cne'Kingmaker.Runner.Update'-or-not$frames[0].Contains('Kingmaker.UnitLogic.Commands.UnitCommands.Run')-or-not$frames[1].Contains('Kingmaker.Controllers.Combat.UnitCombatState.AttackOfOpportunity')-or
+      -not$frames[2].StartsWith('Kingmaker.Controllers.Combat.UnitCombatEngagementController',[StringComparison]::Ordinal)-or$frames-cnotcontains'Kingmaker.Controllers.Combat.UnitCombatEngagementController.Tick'){$ok=$false}}
+  foreach($row in @($rows|Select-Object -Skip 1)){if($row.commandActor-cne$actor){$ok=$false}}
+  foreach($row in @($rows|Select-Object -Skip 2)){if($row.started-ne$true-or$row.acted-ne$true-or$row.finished-ne$true-or$row.result-cne'Success'){$ok=$false}}
+  $n=$rows[0].state.reactions;if(-not(Test-KmcExactJsonInteger $n)-or$n-lt1){$ok=$false}
+  else{foreach($row in @($rows|Select-Object -Skip 2)){if($row.state.reactions-ne$n-1){$ok=$false}}
+   foreach($row in $rows){foreach($f in @('standard','move','swift')){if([double]$row.state.$f-gt[double]$rows[0].state.$f+0.001){$ok=$false}}}}
+  if(-not$ok){continue}
+  foreach($row in $rows){[void]$sequences.Add([long]$row.sequence)}
+  $found.Add([pscustomobject][ordered]@{actorId=$actor;command=$identity;provokerId=$Provoker;sequences=@($rows|ForEach-Object{[long]$_.sequence});reactionsBefore=[long]$n;reactionsAfter=[long]$n-1;costGameTicks=$rows[3].gameTicks;costReactionCooldown=$rows[3].state.reactionCooldown})}
+ [pscustomobject]@{attacks=@($found);sequences=$sequences}
+}
+# Native RT contract: AttackOfOpportunity sets Cooldown.AttackOfOpportunity 5.4 s on first use; UnitCombatCooldownsController ticks it
+# by game time and restores AttackOfOpportunityCount at zero. Restoration is admitted only after the cooldown recorded at the last
+# attack fully elapsed by the after snapshot (0.1 s slack) and with no prepare or clear of the actor in the window.
+function Test-KmcChunk7ReactionsAccounted($Before,$After,[int]$Attacks,[long]$AfterTicks,$Last,[bool]$ResetSeen){
+ if([long]$After.reactions-eq[long]$Before.reactions-$Attacks){return $true}
+ if($Attacks-le0-or$ResetSeen-or$null-eq$Last-or[long]$After.reactions-ne[long]$Before.reactions-or-not(Test-KmcChunk7FiniteNumber $After.reactionCooldown)-or[double]$After.reactionCooldown-gt0.001){return $false}
+ if(-not(Test-KmcExactJsonInteger $Last.costGameTicks)-or-not(Test-KmcChunk7FiniteNumber $Last.costReactionCooldown)){return $false}
+ (([double]$AfterTicks-[double]$Last.costGameTicks)/10000000.0)-ge([double]$Last.costReactionCooldown-0.1)
+}
+function Test-KmcChunk7ReactionResetSeen($Events,[string]$Actor){@($Events|Where-Object{$_.boundary-cin@('prepare-before','prepare-after','clear-before','clear-after','combat-clear-before','combat-clear-after')-and$_.state.actor-ceq$Actor}).Count-ne0}
 # Scenario 3's unrelated companion: exactly one ordinary native command with its own single
 # native cost, and no admission, cancellation, cost or command change on either pair.
 function Assert-KmcChunk7OwnerSeedCompanionAction($Request,$Observations){
  $o=$Observations;$s=$Request.ownedPairs;$roles=Get-KmcChunk7OwnedPairIds $Request
  if($null-eq$o.PSObject.Properties['companionAction']){throw 'Owner-seed-derived RT lacks its unrelated companion action.'}
  $c=$o.companionAction
- Assert-KmcExactProperties $c @('contract','kind','justification','actorId','targetId','traceSequenceBefore','before','clicked','command','commandType','admitted','selectionAfterInput','after','traceSequenceAfter','accountedEvents','companionCommandCount','companionCostEvents','pairRefusedProposals','pairAccountedEvents','foreignCompanionEvents','nativeStop','companionInputs','declaredLeaseCommands','terminal') 'owner-seed companion action'
+ Assert-KmcExactProperties $c @('contract','kind','justification','actorId','targetId','traceSequenceBefore','before','clicked','command','commandType','admitted','selectionAfterInput','after','traceSequenceAfter','accountedEvents','companionCommandCount','companionCostEvents','pairRefusedProposals','pairNativeOpportunityAttacks','pairAccountedEvents','foreignCompanionEvents','nativeStop','companionInputs','declaredLeaseCommands','terminal') 'owner-seed companion action'
  Assert-KmcBootstrapInventoryString $c.contract 'owner-seed-unrelated-companion-action-v1';Assert-KmcBootstrapInventoryString $c.kind 'ordinary-native-attack'
  Assert-KmcBootstrapInventoryString $c.actorId $s.companionId;Assert-KmcBootstrapInventoryString $c.targetId $o.targetId;Assert-KmcBootstrapInventoryString $c.commandType 'Kingmaker.UnitLogic.Commands.UnitAttack'
  if($c.actorId-cin$roles-or$c.selectionAfterInput-cnotin$roles-or[string]::IsNullOrWhiteSpace($c.justification)){throw 'The companion action escaped its unrelated actor or selection.'}
@@ -1417,7 +1457,10 @@ function Assert-KmcChunk7OwnerSeedCompanionAction($Request,$Observations){
  $settled=$c.before.PSObject.Properties['target'];if($null-eq$settled){throw 'Companion window lacks the diagnostic target state.'};$settled=$settled.Value;Assert-KmcBootstrapInventoryString $settled.id $c.targetId
  foreach($key in @('prone','proneRequested')){Assert-KmcChunk7Boolean $settled.$key $false};foreach($key in @('conscious','commandsEmpty')){Assert-KmcChunk7Boolean $settled.$key $true}
  $slotted=@(foreach($w in @($c.before,$c.admitted,$c.after)){foreach($side in @('a','b')){foreach($slot in @($w.pairCommands.$side)){$slot.identity}}})
- $pair=@($window|Where-Object{$_.commandActor-cin$roles-or$_.state.actor-cin$roles});$refused=[Collections.Generic.List[object]]::new();$accepted=[Collections.Generic.HashSet[long]]::new()
+ $aoo=Get-KmcChunk7NativeOpportunityAttacks $window $roles $c.targetId $slotted @($c.before.target.engagedBy)
+ $fullWindow=@($o.allocationTrace.events|Where-Object{$_.sequence-gt$c.traceSequenceBefore-and$_.sequence-le$c.traceSequenceAfter})
+ if((ConvertTo-KmcChunk7Canonical @($aoo.attacks))-cne(ConvertTo-KmcChunk7Canonical @($c.pairNativeOpportunityAttacks))){throw 'The recorded native attacks of opportunity differ from the native trace.'}
+ $pair=@($window|Where-Object{($_.commandActor-cin$roles-or$_.state.actor-cin$roles)-and-not$aoo.sequences.Contains([long]$_.sequence)});$refused=[Collections.Generic.List[object]]::new();$accepted=[Collections.Generic.HashSet[long]]::new()
  foreach($group in @($pair|Where-Object{$_.command-is[long]-or$_.command-is[int]}|Group-Object{[long]$_.command})){
   $rows=@($group.Group|Sort-Object sequence);$identity=[long]$group.Name;$all=@($window|Where-Object{$null-ne$_.command-and[long]$_.command-eq$identity});$actor=$rows[0].state.actor
   $closed=$rows.Count-eq2-and$all.Count-eq2-and$rows[0].boundary-ceq'admission-before'-and$rows[1].boundary-ceq'admission-after'-and$identity-ne[long]$c.command-and$identity-notin$slotted-and$actor-cin$roles
@@ -1441,7 +1484,7 @@ function Assert-KmcChunk7OwnerSeedCompanionAction($Request,$Observations){
  Assert-KmcOrdinaryInteger $stop.traceSequenceBefore ([int]$after[0].sequence) ([int]$c.traceSequenceAfter);Assert-KmcOrdinaryInteger $stop.traceSequenceAfter ([int]$stop.traceSequenceBefore) ([int]$c.traceSequenceAfter)
  if(@($mine|Where-Object{$_.sequence-gt$stop.traceSequenceBefore}).Count-ne0){throw 'The companion native Stop admitted, charged or interrupted a command.'} if((ConvertTo-KmcChunk7Canonical $c.before.pairCommands)-cne(ConvertTo-KmcChunk7Canonical $c.after.pairCommands)-or(ConvertTo-KmcChunk7Canonical $c.before.pairCommands)-cne(ConvertTo-KmcChunk7Canonical $c.admitted.pairCommands)){throw 'The companion action reassigned or cancelled a pair command.'}
  foreach($id in $roles){$a=Get-KmcChunk7CombatActor $c.before $id;$b=Get-KmcChunk7CombatActor $c.after $id
-  foreach($field in @('standard','move','swift')){if([double]$b.$field-gt[double]$a.$field+0.001){throw 'A pair actor spent native resources during the companion action.'}};if($a.reactions-ne$b.reactions){throw 'A pair actor spent a reaction during the companion action.'}}
+  foreach($field in @('standard','move','swift')){if([double]$b.$field-gt[double]$a.$field+0.001){throw 'A pair actor spent native resources during the companion action.'}};$mineAoo=@($aoo.attacks|Where-Object actorId -CEQ $id);$n=$mineAoo.Count;if($n-gt[long]$a.reactions-or-not(Test-KmcChunk7ReactionsAccounted $a $b $n ([long]$c.after.gameTicks) $(if($n){$mineAoo[-1]}else{$null}) (Test-KmcChunk7ReactionResetSeen $fullWindow $id))){throw 'A pair actor spent a reaction during the companion action.'}}
  $ownersBefore=@($c.before.owners|ForEach-Object{(ConvertTo-KmcChunk7PairIdN $_.id)+'|'+$_.generation+'|'+$_.state}|Sort-Object -CaseSensitive);$ownersAfter=@($c.after.owners|ForEach-Object{(ConvertTo-KmcChunk7PairIdN $_.id)+'|'+$_.generation+'|'+$_.state}|Sort-Object -CaseSensitive)
  if(($ownersBefore-join';')-cne($ownersAfter-join';')-or@($c.after.owners|Where-Object state -CEQ 'Active').Count-ne2){throw 'The companion action changed pair custody.'}
 }
@@ -1495,8 +1538,12 @@ function Assert-KmcChunk7OwnerSeedPlayerClick($Request,$Observations){
  if(@($p.riderAttackCosts).Count-ne1-or$p.riderAttackCosts[0].sequence-ne$costs[0].sequence){throw 'The recorded player-click attack differs from the native trace.'}
  if(@($window|Where-Object{$_.commandType-ceq$pairAttack-and$_.state.actor-cin@($s.riderBId,$s.mountBId)}).Count-ne0-or$p.pairBKmcCommandRows-ne0){throw 'Pair B received a KMC attack command during the player click.'}
  if(@($p.warnings).Count-ne0){throw 'A player-facing warning appeared while only native proposals were refused.'}
+ if($null-eq$p.PSObject.Properties['pairBNativeOpportunityAttacks']){throw 'Player-click window lacks its pair B native attack-of-opportunity accounting.'}
+ $pslotted=@(foreach($w in @($p.before,$p.admitted,$p.after)){foreach($side in @($w.pairCommands.PSObject.Properties)){foreach($slot in @($side.Value)){$slot.identity}}})
+ $paoo=Get-KmcChunk7NativeOpportunityAttacks @($window|Where-Object{$_.boundary-cin@('admission-before','admission-after','cost-before','cost-after','actor-cost-before','actor-cost-after','command-interrupt-before','command-interrupt-after')}) @($s.riderBId,$s.mountBId) $o.targetId $pslotted @($p.before.target.engagedBy)
+ if((ConvertTo-KmcChunk7Canonical @($paoo.attacks))-cne(ConvertTo-KmcChunk7Canonical @($p.pairBNativeOpportunityAttacks))){throw 'The recorded pair B native attacks of opportunity differ from the native trace.'}
  foreach($id in @($s.riderBId,$s.mountBId)){$a=Get-KmcChunk7CombatActor $p.before $id;$b=Get-KmcChunk7CombatActor $p.after $id
-  foreach($field in @('standard','move','swift')){if([double]$b.$field-gt[double]$a.$field+0.001){throw 'Pair B spent native resources during the player click.'}};if($a.reactions-ne$b.reactions){throw 'Pair B spent a reaction during the player click.'}}
+  foreach($field in @('standard','move','swift')){if([double]$b.$field-gt[double]$a.$field+0.001){throw 'Pair B spent native resources during the player click.'}};$mineAoo=@($paoo.attacks|Where-Object actorId -CEQ $id);$n=$mineAoo.Count;if($n-gt[long]$a.reactions-or-not(Test-KmcChunk7ReactionsAccounted $a $b $n ([long]$p.after.gameTicks) $(if($n){$mineAoo[-1]}else{$null}) (Test-KmcChunk7ReactionResetSeen $window $id))){throw 'Pair B spent a reaction during the player click.'}}
  $ownersBefore=@($p.before.owners|ForEach-Object{(ConvertTo-KmcChunk7PairIdN $_.id)+'|'+$_.generation+'|'+$_.state}|Sort-Object -CaseSensitive);$ownersAfter=@($p.after.owners|ForEach-Object{(ConvertTo-KmcChunk7PairIdN $_.id)+'|'+$_.generation+'|'+$_.state}|Sort-Object -CaseSensitive)
  if(($ownersBefore-join';')-cne($ownersAfter-join';')){throw 'The player click changed pair custody.'}
 }
