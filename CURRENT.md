@@ -11,6 +11,12 @@ Owner decisions of October 24, 2026 (the owner answered a direct question; recor
 - (d) Prepared-spell casting and a BAB ≥ 6 full attack: the owner chose to supply a new no-mods seed (Ranger
   level 6, a memorized rested level-1 Ranger spell); pending at the time of the decision.
 
+**Plan totals (October 24, offline):** 77 native launches in 16 batches (B1–B15 five each; B16: x3 row 75 and
+l6 row 76), about 12 h with the offline tiers; the folds keep their rows' launches (r57, cr) and lengthen them
+by an estimated 2–4 min each. Deriver reproduce 70/0 (tag `x3` added). Gates: G3, G6, G7 met; G1 (docs and
+X1–X6) still to be confirmed at freeze, G2 (F11 arithmetic) open, G4/G5 checked at freeze. The folded halves of
+rows 57 and 69 and rows 75–76 have no development run; a first refusal there goes to the owner.
+
 **C11 prone stand-up folded into row 57 (offline; product diagnostics changed; no launch).**
 `owner-seed-native-life-cleanup` keeps the incapacitation measurement unchanged; after the surviving mount's
 N+1 turn, from round N+2: a party actor outside both pairs that uses the scroll without Use Magic Device
