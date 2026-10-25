@@ -110,10 +110,12 @@ the package, DLL, MVID and commit; a new product candidate needs a new SuiteId.
   not restored is **not passed**; follow profile recovery before transaction recovery.
 - **Verdict:** the frozen external `scripts\runtime\Test-RuntimeResult.ps1 -ResultPath … -RequestPath …`
   on the run folder (it dispatches the family reader named per row), plus the row binders in §7. Game
-  PASS alone is never a row PASS. **One rule for a pre-input "uncovered" refusal** (rows 57, 67, 69, 70):
+  PASS alone is never a row PASS. **One rule for a pre-input "uncovered" refusal** (rows 57, 67, 69, 70, including the folded prone and defensive-cast halves of 57 and 69):
   it is recorded by hand as uncovered, never PASS, and it is **not** completion. Every one of these cases
   passed on its fixture in b205, so such a refusal on F is a new observation: stop and diagnose before
-  any further run of that row.
+  any further run of that row. The folded halves added on October 24 (row 57 prone stand-up, row 69
+  defensive cast) have **no development run**: a first refusal or failure there is expected to be possible;
+  it is retained, diagnosed, and an "uncovered" outcome is taken to the owner for a decision.
 - **Selections:** derived per launch by the one unchanged deriver `tools/chunk7-7e/final-derive.ps1`
   from the frozen worktree: `-Tag <tag> -Mode Final -RunMapPath <final-runs.json> -Commit <F.sha>
   -DllSha256 <F.dll> -DllMvid <F.mvid>` prints the compact selection. It starts from the named template
@@ -230,7 +232,7 @@ Reader: owned + area family.
 | r08 | 8 | `owner-seed-combat-mount-first` | r01 / r02 | `…b8s3-tbmount` | owned + cleanup |
 | r09 | 9 | `owner-seed-realtime-core` | r01 / r02 | `…b8s1-rt` | `Assert-KmcChunk7RealtimeEvidence` |
 | r10 | 10 | `owner-seed-combat-disable` | r01 / r02 | `…world52-ownerseed-b27s1-disable` | owned + cleanup |
-| r57 | 57 | `owner-seed-native-life-cleanup` | r01 / r02 | `…b197-r57-ownerseed-life` | `Assert-KmcChunk7NativeLifeEvidence` + `Assert-KmcChunk7OwnerSeedDerivedCombatStart` |
+| r57 | 57 | `owner-seed-native-life-cleanup` (with the folded prone stand-up from round N+2) | r01 / r02 | `…b197-r57-ownerseed-life` (selection unchanged; the fold is producer behaviour) | `Assert-KmcChunk7NativeLifeEvidence` (incl. `Assert-KmcChunk7ProneStandUp`) + `Assert-KmcChunk7OwnerSeedDerivedCombatStart` |
 
 ### B9 — native life on the acquired field and the X1 cases (~30 min)
 

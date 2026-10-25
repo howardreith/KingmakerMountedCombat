@@ -62,6 +62,7 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             var controller = Game.Instance.TurnBasedCombatController; var turn = controller.CurrentTurn;
             nativeLife["stage"] = lifeStage;
+            if (lifeStage >= 12) { TickProneFold(controller, turn); return; }
             if (lifeStage == 0)
             {
                 if (controller.RoundNumber == lifeInitialRound) { EndNative(turn); return; }
@@ -169,7 +170,10 @@ namespace KingmakerMountedCombat.Diagnostics
                     "Native surviving mount did not receive exactly one independent fresh turn in the original next round.");
                 if (LifeDeath) RequireDeadNativeTurns(controller.RoundNumber); else RequireUnconsciousNativeTurns(controller.RoundNumber);
                 nativeLife["independentSurvivor"] = LifeState("life-independent-survivor");
-                nativeLife["complete"] = true; Pass("C7-life-independent-survivor"); BeginCleanup();
+                Pass("C7-life-independent-survivor");
+                // 7E row 57 fold: the healed prone rider's native stand-up attack of opportunity (owner-seed incapacitation only).
+                if (ProneFoldCase && !LifeDeath) { BeginProneFold(); LifeStage(12); return; }
+                nativeLife["complete"] = true; BeginCleanup();
             }
         }
         private void DispatchSafeLifeDamage()
@@ -237,11 +241,14 @@ namespace KingmakerMountedCombat.Diagnostics
                 var slot = Array.IndexOf(order, unit); var state = unit.Descriptor.State;
                 var eligible = unit != main && !unit.Descriptor.IsPet && !unit.Descriptor.IsEssentialForGame && !state.Immortality &&
                     state.AllowDyingCondition && state.IsConscious && !state.IsDead && unit.IsInCombat &&
-                    world.Registry.FindActive(unit) == null && slot >= 0 && slot < survivorSlot;
-                rows.Add(new JObject { ["actorId"] = unit.UniqueId, ["slot"] = slot, ["mainCharacter"] = unit == main,
+                    world.Registry.FindActive(unit) == null && slot >= 0 && slot < survivorSlot && unit != lifeHealer;
+                var row = new JObject { ["actorId"] = unit.UniqueId, ["slot"] = slot, ["mainCharacter"] = unit == main,
                     ["pet"] = unit.Descriptor.IsPet, ["essential"] = unit.Descriptor.IsEssentialForGame, ["immortal"] = (bool)state.Immortality,
                     ["allowDyingCondition"] = (bool)state.AllowDyingCondition, ["conscious"] = state.IsConscious, ["inCombat"] = unit.IsInCombat,
-                    ["paired"] = world.Registry.FindActive(unit) != null, ["eligible"] = eligible });
+                    ["paired"] = world.Registry.FindActive(unit) != null, ["eligible"] = eligible };
+                // The prone-fold healer keeps its consciousness for the heal; it is never the unconscious control.
+                if (lifeHealer != null) row["healer"] = unit == lifeHealer;
+                rows.Add(row);
                 if (eligible && chosen == null) chosen = unit;
             }
             var control = new JObject { ["contract"] = "unmounted-unconscious-native-turn-control-v1", ["survivorSlot"] = survivorSlot,

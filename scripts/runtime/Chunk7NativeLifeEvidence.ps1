@@ -186,9 +186,11 @@ function Assert-KmcChunk7UnconsciousNativeTurn($Recorded,$Trace,[string]$Actor,[
  if($control.contract-cne'unmounted-unconscious-native-turn-control-v1'-or-not(Test-KmcExactJsonInteger $control.survivorSlot)-or$control.survivorSlot-ne$slots.survivorSlot){throw 'Unmounted unconscious control contract differs.'}
  $rows=@($control.candidates);$eligible=@()
  foreach($row in $rows){
-  Assert-KmcExactProperties $row @('actorId','slot','mainCharacter','pet','essential','immortal','allowDyingCondition','conscious','inCombat','paired','eligible') 'unconscious control candidate'
+  $healerRow=$null-ne$row.PSObject.Properties['healer']
+  Assert-KmcExactProperties $row @(@('actorId','slot','mainCharacter','pet','essential','immortal','allowDyingCondition','conscious','inCombat','paired','eligible')+@(if($healerRow){'healer'})) 'unconscious control candidate'
+  if($healerRow-and$row.healer-isnot[bool]){throw 'Unconscious control healer flag is mistyped.'}
   if($row.actorId-cin$ids-or-not(Test-KmcExactJsonInteger $row.slot)-or$row.slot-ne[Array]::IndexOf(@($life.nativeNextRoundOrder),$row.actorId)){throw 'Unconscious control candidate identity or slot differs.'}
-  $gate=-not$row.mainCharacter-and-not$row.pet-and-not$row.essential-and-not$row.immortal-and$row.allowDyingCondition-and$row.conscious-and$row.inCombat-and-not$row.paired-and$row.slot-ge0-and$row.slot-lt$slots.survivorSlot
+  $gate=-not$row.mainCharacter-and-not$row.pet-and-not$row.essential-and-not$row.immortal-and$row.allowDyingCondition-and$row.conscious-and$row.inCombat-and-not$row.paired-and$row.slot-ge0-and$row.slot-lt$slots.survivorSlot-and-not($healerRow-and$row.healer)
   Assert-KmcChunk7Boolean $row.eligible $gate;if($gate){$eligible+=$row}
  }
  if($rows.Count-ne@($rows|ForEach-Object{$_.actorId}|Select-Object -Unique).Count){throw 'Unconscious control candidates duplicated.'}
@@ -213,6 +215,11 @@ function Assert-KmcChunk7UnconsciousNativeTurn($Recorded,$Trace,[string]$Actor,[
   $controlPrepares=@($lifeTrace.events|Where-Object{$_.sequence-gt$control.traceSequenceAtDamage-and$_.boundary-ceq'prepare-before'-and$null-ne$_.state-and$_.state.actor-ceq$control.actorId}).Count
   if($control.grantAfter-ne$control.grantBefore+$controlPrepares-or$control.traceSequenceAtDamage-ge$control.turn.prepareSequence){throw 'Unconscious control grants differ from its observed native preparations.'}
  }else{foreach($f in @('actorId','slot','grantBefore','traceSequenceAtDamage','before','requestedDamage','nativeDamage','afterDamage','turn','grantAfter')){if($null-ne$control.PSObject.Properties[$f]){throw 'Unavailable unconscious control carries a stimulus.'}}}
+ # 7E row 57 fold: the owner-seed incapacitation case carries the healed rider's native prone stand-up; no other case may.
+ $proneCase=$owned-and(Get-KmcChunk7OwnedPairsCase $Request)-ceq'owner-seed-native-life-cleanup'
+ $healerFlags=@($rows|Where-Object{$null-ne$_.PSObject.Properties['healer']})
+ if($proneCase){Assert-KmcChunk7ProneStandUp $(if($null-ne$o.PSObject.Properties['proneStandUp']){$o.proneStandUp}else{$null}) $o $life $ids $control $rows}
+ elseif($null-ne$o.PSObject.Properties['proneStandUp']-or$healerFlags.Count-ne0){throw 'Only the owner-seed incapacitation case carries the prone stand-up fold.'}
  foreach($id in @($ids[0],$ids[1])){$actor=Get-KmcChunk7CombatActor $renewed.world $id;if($actor.standard-ne0-or$actor.move-ne0){throw 'Healthy native renewal lacks fresh native expenditure.'}}
  $survivor=Get-KmcChunk7CombatActor $independent.world $ids[3];if($survivor.standard-ne0-or$survivor.move-ne0-or@($independent.world.owners|Where-Object{$_.state-ceq'Active'-and(Test-KmcChunk7OwnerActorMatch $_.mountId $ids[3])}).Count-ne0){throw 'Surviving mount lacks an independent native allocation.'}
  Assert-KmcChunk7LifeOwner $before.world $renewed.world $ids[0] $ids[1]
@@ -222,6 +229,69 @@ function Assert-KmcChunk7UnconsciousNativeTurn($Recorded,$Trace,[string]$Actor,[
  }
  if($owned){foreach($field in @('pairResidueAbsent','nativeCombatEnded','initiativeInputsRestored','firstPairAiRestored','controlsSettled','inheritedPetsPreserved')){Assert-KmcChunk7Boolean $o.cleanup.$field $true};Assert-KmcChunk7Boolean $o.cleanup.ownedHorseRemoved $false;Assert-KmcChunk7Boolean $o.cleanup.nativeProgressionRequiresExternalWorkingRestoration $false}else{foreach($field in @('pairResidueAbsent','ownedHorseRemoved','nativeCombatEnded','initiativeInputsRestored','firstPairAiRestored','controlsSettled','nativeProgressionRequiresExternalWorkingRestoration')){Assert-KmcChunk7Boolean $o.cleanup.$field $true}}
  Assert-KmcChunk7Boolean $o.cleanup.nativeSaveWrittenByThisDriver $false;Assert-KmcChunk7Boolean $o.cleanup.delegatedPersistenceCleanup $false
+}
+# ---- 7E row 57 fold: C11 prone stand-up attack of opportunity (owner-seed-native-life-cleanup) -------
+# From round N+2: a party actor outside both pairs that uses the scroll without Use Magic Device heals the
+# unconscious rider B with one native Cure Light Wounds scroll click (at most two attempts, each on its own
+# turn, one in-place spend each); then, on rider B's own native turn, one ordinary native ground order is its
+# action attempt: the native stand-up spends its Move and the threatening target makes exactly one native
+# attack of opportunity. No refund, no other actor's spend, no pair command authority.
+function Assert-KmcChunk7ProneStandUp($P,$o,$life,$ids,$control,$controlRows){
+ if($null-eq$P-or$P.contract-cne'owner-seed-prone-stand-up-v1'-or$P.riderId-cne$ids[2]-or$P.healAttemptsAllowed-ne2){throw 'The owner-seed incapacitation case lacks its prone stand-up measurement.'}
+ Assert-KmcChunk7Boolean $P.complete $true
+ $rows=@($P.healerCandidates);$eligible=@()
+ foreach($r in $rows){
+  Assert-KmcExactProperties $r @('actorId','pet','conscious','inGame','controllable','needsUseMagicDevice','eligible') 'prone healer candidate'
+  if($r.actorId-cin$ids){throw 'A pair actor was offered as the prone healer.'}
+  $g=-not$r.pet-and$r.conscious-and$r.inGame-and$r.controllable-and-not$r.needsUseMagicDevice
+  if($r.eligible-isnot[bool]){throw 'Prone healer eligibility is mistyped.'}
+  # Commands and combat were empty out of combat; the producer's own extra conditions may only narrow.
+  if($r.eligible-and-not$g){throw 'An ineligible prone healer was admitted.'};if($r.eligible){$eligible+=$r}
+ }
+ if($eligible.Count-lt1-or$P.healerId-cne$eligible[0].actorId){throw 'The prone healer is not the first eligible party actor.'}
+ $hr=@($controlRows|Where-Object actorId -CEQ $P.healerId)
+ foreach($r in @($controlRows)){if($null-eq$r.PSObject.Properties['healer']-or$r.healer-ne($r.actorId-ceq$P.healerId)){throw 'Unconscious control candidates do not mark the prone healer exactly.'}}
+ if($hr.Count-gt1-or($hr.Count-eq1-and$hr[0].eligible)-or($control.available-and$control.actorId-ceq$P.healerId)){throw 'The prone healer was used as the unconscious control.'}
+ $s=$P.healerScroll
+ if($null-eq$s-or$s.casterId-cne$P.healerId-or$s.scrollUnits-ne4-or$s.scrollBlueprint-cne'cd635d5720937b044a354dba17abad8d'-or$s.scrollAbility.blueprint-cne'5590652e1c2225c4ca30c4a699ab3649'-or$s.scrollAbility.caster-cne$P.healerId){throw 'The prone heal does not use the healer''s one disposable native scroll stack.'}
+ if($null-eq$s.scroll-or$s.scroll.ownedItemReleased-ne$true-or$s.scroll.disposed-ne$true-or$null-eq$s.castTrace-or$s.castTrace.dropped-ne0-or$s.castTrace.faults-ne0-or$null-eq$s.originalSlots){throw 'The healer''s scroll stack was not released or its cast observer was incomplete.'}
+ $attempts=@($P.healAttempts);if($attempts.Count-lt1-or$attempts.Count-gt2){throw 'The prone heal took other than one or two native attempts.'}
+ $allRules=@();$item=$null;$lastRound=-1
+ for($i=0;$i-lt$attempts.Count;$i++){$a=$attempts[$i];$last=$i-eq$attempts.Count-1
+  if(-not(Test-KmcExactJsonInteger $a.round)-or$a.round-lt[long]$life.damageRound+2-or$a.round-le$lastRound){throw 'A prone heal attempt ran before round N+2 or twice in one round.'};$lastRound=$a.round
+  Assert-KmcChunk7Boolean $a.clicked $true;Assert-KmcChunk7Boolean $a.selected $true;Assert-KmcChunk7Boolean $a.canTarget $true
+  if($a.admittedShellCount-ne1-or$a.target-cne$ids[2]-or$a.ability.blueprint-cne'5590652e1c2225c4ca30c4a699ab3649'-or$a.ability.caster-cne$P.healerId-or$a.ability.sourceItemBlueprint-cne'cd635d5720937b044a354dba17abad8d'){throw 'A prone heal attempt is not one native scroll click by the healer on rider B.'}
+  if($null-eq$item){$item=$a.ability.sourceItem}elseif($a.ability.sourceItem-ne$item){throw 'Prone heal attempts used different stacks.'}
+  if($a.riderBefore.life.conscious-ne$false-or$a.riderBefore.life.dead-ne$false){throw 'A prone heal attempt did not start on the unconscious living rider.'}
+  $ev=@($a.castEvents);$sp=@($ev|Where-Object{$_.kind-ceq'item-spend-after'-and$_.actor-ceq$P.healerId-and$_.identity-eq$item})
+  if($sp.Count-ne1-or$sp[0].result-ne$true-or$a.itemsBefore.exactSlot-ne$true-or$a.itemsAfter.exactSlot-ne$true-or$a.itemsBefore.count-lt2-or$a.itemsAfter.count-ne$a.itemsBefore.count-1){throw 'A prone heal attempt did not spend the exact stack exactly once in place.'}
+  if($a.riderConsciousAfter-isnot[bool]-or$a.riderConsciousAfter-ne$last-or$a.riderAfter.life.conscious-ne$last-or$a.riderAfter.life.dead-ne$false){throw 'Prone heal attempts do not end exactly when rider B is conscious.'}
+  if($last-and@($ev|Where-Object{$_.kind-ceq'heal'-and$_.target-ceq$ids[2]-and$_.value-gt0}).Count-lt1){throw 'The restoring heal shows no native heal on rider B.'}
+  if($a.riderAfter.life.damage-gt$a.riderBefore.life.damage){throw 'A heal attempt damaged rider B.'}
+  $rules=@($a.rules);foreach($e in $rules){if($e.opportunity-ne$true-or$e.actor-cne$o.targetId-or$e.target-cne$P.healerId){throw 'A prone heal attempt drew an attack other than the target''s native attack of opportunity on the healer.'}}
+  if($rules.Count-gt1){throw 'A prone heal attempt drew more than one attack.'};$allRules+=$rules
+ }
+ if($P.healedRound-ne$attempts[-1].round){throw 'The recorded heal round differs from the restoring attempt.'}
+ $st=$P.standUp
+ if($null-eq$st-or-not(Test-KmcExactJsonInteger $st.round)-or$st.round-lt$P.healedRound-or$st.round-gt$P.healedRound+1){throw 'Rider B''s stand-up is not on its own native turn after the heal.'}
+ $r=$st.rider
+ if($r.life.conscious-ne$true-or$r.prone-ne$true-or$r.engagedByTarget-ne$true-or$r.remembersTarget-ne$true-or$r.pairState-cne'Unmounted'-or$r.registryActive-ne$false-or$r.pairCommandA-ne$false-or$r.pairCommandB-ne$false){throw 'Rider B was not a conscious, prone, threatened, unpaired native actor before its stand-up.'}
+ $g=$st.gates
+ if($g.reactions-ne1-or$g.canAttackOfOpportunity-ne$true-or$g.canActInCombat-ne$true-or$g.waitingInitiative-ne$false-or$g.surprised-ne$false-or$g.canAct-ne$true-or$g.threatHand-ne$true-or$g.engagesSubject-ne$true-or$g.subjectRemembersTarget-ne$true-or$g.prone-ne$false-or$g.conscious-ne$true){throw 'The target did not hold one available native attack of opportunity threatening rider B.'}
+ Assert-KmcChunk7Boolean $st.clicked $true;Assert-KmcChunk7Boolean $st.fiveFootStep $false;Assert-KmcChunk7Boolean $st.singleActionMove $false
+ $sr=@($st.rules)
+ if($sr.Count-ne1-or$sr[0].kind-cne'attack'-or$sr[0].opportunity-ne$true-or$sr[0].actor-cne$o.targetId-or$sr[0].target-cne$ids[2]-or$sr[0].ranged-ne$false-or$sr[0].round-ne$st.round){throw 'The native stand-up did not draw exactly one attack of opportunity from the target on rider B.'}
+ if($st.targetAfter.reactions-ne0){throw 'The target''s attack-of-opportunity count did not drop to zero.'}
+ $re=$st.reIncapacitatedByAttack;if($re-isnot[bool]){throw 'The stand-up record lacks its re-incapacitation flag.'}
+ if($st.riderAfter.life.damage-lt$r.life.damage-or($re-and$st.riderAfter.life.damage-le$r.life.damage)-or(-not$re-and$st.riderAfter.prone-ne$false)-or$st.riderAfter.life.dead-ne$false){throw 'Rider B did not stand up natively, was healed by the attack, or died.'}
+ $rb=Get-KmcChunk7CombatActor $st.before $ids[2];$ra=Get-KmcChunk7CombatActor $st.after $ids[2]
+ if([double]$ra.move-le[double]$rb.move){throw 'The native stand-up did not spend rider B''s Move.'}
+ foreach($f in @('standard','swift')){if([double]$ra.$f-gt[double]$rb.$f+0.001){throw 'Rider B spent another action on its stand-up.'}}
+ Assert-KmcChunk7NeverSpentCombatBudget $st.before $st.after @($ids[0],$ids[1],$ids[3])
+ if($st.riderAfter.pairState-cne'Unmounted'-or$st.riderAfter.registryActive-ne$false-or$st.riderAfter.pairCommandA-ne$false-or$st.riderAfter.pairCommandB-ne$false){throw 'The stand-up created pair command authority or re-paired rider B.'}
+ $cap=$P.rules
+ if($null-eq$cap-or$cap.dropped-ne0-or@($cap.errors).Count-ne0){throw 'Prone stand-up rule observation dropped or failed.'}
+ if((ConvertTo-Json -InputObject @($cap.events) -Depth 10 -Compress)-cne(ConvertTo-Json -InputObject @(@($allRules)+@($sr)) -Depth 10 -Compress)){throw 'The prone rule observer recorded attacks outside its windows.'}
 }
 # ---- 7E X1 death proper (owner-seed-native-death-cleanup) ---------------------------------------
 # A dead actor record: life label Dead, dead, not conscious; the extended record adds finallyDead,
@@ -391,6 +461,11 @@ function Assert-KmcChunk7NativeDeathChain($Request,$o,$life,$ids){
   $controlPrepares=@($lifeTrace.events|Where-Object{$_.sequence-gt$control.traceSequenceAtDamage-and$_.boundary-ceq'prepare-before'-and$null-ne$_.state-and$_.state.actor-ceq$control.actorId}).Count
   if($controlPrepares-ne0-or$control.grantAfter-ne$control.grantBefore){throw 'Dead control received native preparation after its death.'}
  }else{foreach($f in @('actorId','slot','grantBefore','traceSequenceAtDamage','before','requestedDamage','nativeDamage','afterDamage','turn','grantAfter')){if($null-ne$control.PSObject.Properties[$f]){throw 'Unavailable death control carries a stimulus.'}}}
+ # 7E row 57 fold: the owner-seed incapacitation case carries the healed rider's native prone stand-up; no other case may.
+ $proneCase=$owned-and(Get-KmcChunk7OwnedPairsCase $Request)-ceq'owner-seed-native-life-cleanup'
+ $healerFlags=@($rows|Where-Object{$null-ne$_.PSObject.Properties['healer']})
+ if($proneCase){Assert-KmcChunk7ProneStandUp $(if($null-ne$o.PSObject.Properties['proneStandUp']){$o.proneStandUp}else{$null}) $o $life $ids $control $rows}
+ elseif($null-ne$o.PSObject.Properties['proneStandUp']-or$healerFlags.Count-ne0){throw 'Only the owner-seed incapacitation case carries the prone stand-up fold.'}
  foreach($id in @($ids[0],$ids[1])){$actor=Get-KmcChunk7CombatActor $renewed.world $id;if($actor.standard-ne0-or$actor.move-ne0){throw 'Healthy native renewal lacks fresh native expenditure.'}}
  $survivor=Get-KmcChunk7CombatActor $independent.world $ids[3];if($survivor.standard-ne0-or$survivor.move-ne0-or@($independent.world.owners|Where-Object{$_.state-ceq'Active'-and(Test-KmcChunk7OwnerActorMatch $_.mountId $ids[3])}).Count-ne0){throw 'Surviving mount lacks an independent native allocation.'}
  Assert-KmcChunk7LifeOwner $before.world $renewed.world $ids[0] $ids[1]
