@@ -1,5 +1,21 @@
 # Chunk 7B–7D — IN PROGRESS
 
+**b209 r57 reader defect fixed (offline; reader only, no product change; no launch).** b209 on `99b84c8c`: r57 passed in game 11/0
+(target approach 2.057 m → 1.448 m inside its 1.81 m reach; the stand-up drew exactly one AoO, 1 damage; no skip, the healer
+preceded the target). The outer verdict FAILed on a reader defect: the life-stimulus filters counted every target→rider-B damage
+event in the whole observer stream, and the folded AoO added a second pair (identity 2116413568, frame 8071, 90 → 91).
+- `c3a6a1f1`: the stimulus is bound to its own frame (`beforeDamage.world.frame`; no stimulus rule identity is recorded) in the life
+  and death chains. Outside the prone fold, and after a death, any later target damage on rider B still refuses. Inside the fold the
+  new `Assert-KmcChunk7ProneAttackDamage` admits it only as the stand-up attack: identity-paired before/after in the attack rule's
+  own frame inside the stand-up window (after the stimulus), weapon damage (no ability or area source), at most one per attack,
+  chained from rider B's stand-up damage and summing to its recorded damage; with no damage rule the recorded damage is unchanged.
+- **Re-evaluation of the retained b209 evidence** (read-only; run directory hashes and timestamps unchanged; evidence
+  `ee27c48f…`): old reader `99b84c8c` FAIL (the same error), new reader `c3a6a1f1` PASS. The runner verdict FAIL stays retained;
+  receipt `analysis-cache/chunk7-continuation/b209-r57-reader-reevaluation.json`.
+- Independent review: no must-fix; should-fix (tie the damage to the attack rule's frame and a weapon source; realistic fixture
+  frames; four missing regressions) all fixed. Note: evidence without per-event `frame` now refuses (b207+ producers emit it).
+- Tests: owned reader 1272/0 (14 new), native life 85/0, combat 53/0, Fast 3/0.
+
 **b208 r57 sequencing fixed (offline; product diagnostics changed; no launch).** b208 on `3b0e4f6a`: m5 PASS (set 0's native
 `maybeWeapon` was the empty hand `20375b5a…`, confirming the stored-item fix; BAB 6 gave off [14, 9], on [12, 12, 7]); r57 refused
 as uncovered again before the approach could run: native order rider A, rider B, target, healer, 5dd7, mount B, mount A, so rider
