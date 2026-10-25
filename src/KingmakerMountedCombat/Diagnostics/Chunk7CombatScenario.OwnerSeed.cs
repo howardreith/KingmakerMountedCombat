@@ -222,6 +222,65 @@ namespace KingmakerMountedCombat.Diagnostics
             return refused;
         }
 
+        // F2 r09: a pair actor already engaging the diagnostic target makes the native engagement-controller attack of
+        // opportunity when the target provokes inside a window (UnitCombatEngagementController.Tick ->
+        // UnitCombatState.AttackOfOpportunity -> UnitCommands.Run, its own native reaction). It is accounted apart, strictly:
+        // one closed stock UnitAttackOfOpportunity (Free) per identity, exactly admission-before, admission-after,
+        // cost-before, cost-after of one pair actor and no other row, aimed at the provoker, entered only through that native
+        // caller chain (no KingmakerMountedCombat frame), finished, its own reaction spent once (reactions n -> n-1, n >= 1),
+        // no Standard, Move or Swift rise and in no pair command slot. Everything else stays a pair touch.
+        internal const string OpportunityAttackType = "Kingmaker.UnitLogic.Commands.UnitAttackOfOpportunity";
+        internal static readonly string[] OpportunityBoundaries = { "admission-before", "admission-after", "cost-before", "cost-after" };
+        internal static bool NativeOpportunityCallers(string detail)
+        {
+            if (detail == null || !detail.StartsWith("callers=", StringComparison.Ordinal) || detail.Contains("KingmakerMountedCombat")) return false;
+            var frames = detail.Substring(8).Split(new[] { " < " }, StringSplitOptions.None);
+            // The chain is capped (InterruptCallers, 14 frames, no truncation flag): it must reach the frame loop itself, so no
+            // KingmakerMountedCombat frame can hide beyond the cap.
+            return frames.Length >= 3 && frames[frames.Length - 1] == "Kingmaker.Runner.Update" && frames[0].Contains("Kingmaker.UnitLogic.Commands.UnitCommands.Run") &&
+                frames[1].Contains("Kingmaker.Controllers.Combat.UnitCombatState.AttackOfOpportunity") &&
+                frames[2].StartsWith("Kingmaker.Controllers.Combat.UnitCombatEngagementController", StringComparison.Ordinal) &&
+                frames.Any(f => f == "Kingmaker.Controllers.Combat.UnitCombatEngagementController.Tick");
+        }
+        internal static JArray NativeOpportunityAttacks(JObject[] accounted, string[] pairIds, string provokerId, JToken[] pairCommandSets, string[] engagedBefore, out HashSet<int> sequences)
+        {
+            var slotted = new HashSet<int>(pairCommandSets.SelectMany(set => set.SelectMany(slot => ((JArray)slot).Select(c => (int)c["identity"]))));
+            var found = new JArray(); sequences = new HashSet<int>();
+            foreach (var group in accounted.Where(e => e["command"]?.Type == JTokenType.Integer && (string)e["commandType"] == OpportunityAttackType).GroupBy(e => (int)e["command"]))
+            {
+                var rows = accounted.Where(e => e["command"]?.Type == JTokenType.Integer && (int)e["command"] == group.Key).OrderBy(e => (int)e["sequence"]).ToArray();
+                var actor = (string)rows[0]["state"]?["actor"];
+                if (rows.Length != 4 || !rows.Select(e => (string)e["boundary"]).SequenceEqual(OpportunityBoundaries) || !pairIds.Contains(actor) || slotted.Contains(group.Key) ||
+                    !engagedBefore.Contains(actor) ||
+                    !rows.All(e => (string)e["state"]?["actor"] == actor && (string)e["commandType"] == OpportunityAttackType && (string)e["actionType"] == "Free" &&
+                        (string)e["commandTarget"] == provokerId) ||
+                    !NativeOpportunityCallers((string)rows[0]["detail"]) ||
+                    !rows.Skip(1).All(e => (string)e["commandActor"] == actor) ||
+                    !rows.Skip(2).All(e => (bool?)e["started"] == true && (bool?)e["acted"] == true && (bool?)e["finished"] == true && (string)e["result"] == "Success")) continue;
+                var spent = rows[0]["state"]; int reactions = (int?)spent?["reactions"] ?? -1;
+                if (reactions < 1 || !rows.Skip(2).All(e => (int?)e["state"]?["reactions"] == reactions - 1) ||
+                    !new[] { "standard", "move", "swift" }.All(f => rows.All(e => (double?)e["state"]?[f] <= (double?)spent[f] + .001))) continue;
+                foreach (var row in rows) sequences.Add((int)row["sequence"]);
+                found.Add(new JObject { ["actorId"] = actor, ["command"] = group.Key, ["provokerId"] = provokerId,
+                    ["sequences"] = new JArray(rows.Select(e => (int)e["sequence"])), ["reactionsBefore"] = reactions, ["reactionsAfter"] = reactions - 1,
+                    ["costGameTicks"] = rows[3]["gameTicks"], ["costReactionCooldown"] = rows[3]["state"]?["reactionCooldown"] });
+            }
+            return found;
+        }
+        // The pair actor's reactions across a window that admitted n native attacks of opportunity: exactly n fewer, or (only with
+        // n >= 1) restored by the native RT contract: UnitCombatState.AttackOfOpportunity sets Cooldown.AttackOfOpportunity 5.4 s
+        // on the first use, and UnitCombatCooldownsController ticks it down by game time and restores AttackOfOpportunityCount
+        // to PerRound at zero. Admitted only with no cooldown left, the cooldown recorded at the last attack fully elapsed in game
+        // time by the after snapshot (one 0.1 s frame of slack), and no prepare or clear of that actor in the window.
+        internal static bool ReactionsAccounted(JObject before, JObject after, int opportunityAttacks, long afterGameTicks, JObject lastAttack, bool resetSeen) =>
+            (int)after["reactions"] == (int)before["reactions"] - opportunityAttacks ||
+            opportunityAttacks > 0 && !resetSeen && lastAttack != null && (int)after["reactions"] == (int)before["reactions"] && (double)after["reactionCooldown"] <= .001 &&
+            (afterGameTicks - (long)lastAttack["costGameTicks"]) / 10000000.0 >= (double)lastAttack["costReactionCooldown"] - .1;
+        internal static readonly string[] ReactionResetBoundaries = { "prepare-before", "prepare-after", "clear-before", "clear-after", "combat-clear-before", "combat-clear-after" };
+        internal static bool ReactionResetSeen(IEnumerable<JObject> windowEvents, string actorId) =>
+            windowEvents.Any(e => ReactionResetBoundaries.Contains((string)e["boundary"]) && (string)e["state"]?["actor"] == actorId);
+        internal static string[] EngagedBy(JToken window) => ((JArray)window?["target"]?["engagedBy"])?.Select(x => (string)x).ToArray() ?? new string[0];
+
         private bool FinishCompanionAction()
         {
             Require(PairIdle(a) && PairIdle(b) && RestoredOrLiveOwnersUnchanged(), "A pair received work or changed custody during the companion's action.");
@@ -241,9 +300,10 @@ namespace KingmakerMountedCombat.Diagnostics
             var pairIds = actors.Select(x => x.UniqueId).ToArray();
             var accounted = events.Cast<JObject>().Where(e => CompanionAccountedBoundaries.Contains((string)e["boundary"])).ToArray();
             companionAction["after"] = CompanionWindow("companion-after"); companionAction["traceSequenceAfter"] = trace.EventCount;
-            var refused = RefusedPairProposals(accounted, pairIds, command,
-                new[] { companionAction["before"]["pairCommands"], companionAction["admitted"]["pairCommands"], companionAction["after"]["pairCommands"] }
-                    .Select(x => (JToken)new JArray(((JObject)x).Properties().Select(prop => prop.Value))).ToArray(), out var pairTouched);
+            var slots = new[] { companionAction["before"]["pairCommands"], companionAction["admitted"]["pairCommands"], companionAction["after"]["pairCommands"] }
+                .Select(x => (JToken)new JArray(((JObject)x).Properties().Select(prop => prop.Value))).ToArray();
+            var opportunity = NativeOpportunityAttacks(accounted, pairIds, target.UniqueId, slots, EngagedBy(companionAction["before"]), out var opportunityRows);
+            var refused = RefusedPairProposals(accounted.Where(e => !opportunityRows.Contains((int)e["sequence"])).ToArray(), pairIds, command, slots, out var pairTouched);
             var companionRows = accounted.Where(e => (string)e["commandActor"] == companion.UniqueId || (string)e["state"]?["actor"] == companion.UniqueId).ToArray();
             var admissions = companionRows.Where(e => (string)e["boundary"] == "admission-after").ToArray();
             var costBefore = companionRows.Where(e => (string)e["boundary"] == "cost-before" && (int?)e["command"] == command).ToArray();
@@ -251,7 +311,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var foreign = companionRows.Where(e => (int?)e["command"] != command).ToArray();
             companionAction["accountedEvents"] = new JArray(accounted.Select(e => e.DeepClone()));
             companionAction["companionCommandCount"] = admissions.Length; companionAction["companionCostEvents"] = costBefore.Length + costAfter.Length;
-            companionAction["pairRefusedProposals"] = refused;
+            companionAction["pairRefusedProposals"] = refused; companionAction["pairNativeOpportunityAttacks"] = opportunity;
             companionAction["pairAccountedEvents"] = pairTouched; companionAction["foreignCompanionEvents"] = foreign.Length;
             Require(admissions.Length == 1 && (int?)admissions[0]["command"] == command && (string)admissions[0]["commandActor"] == companion.UniqueId &&
                 costBefore.Length == 1 && costAfter.Length == 1 && foreign.Length == 0,
@@ -262,7 +322,10 @@ namespace KingmakerMountedCombat.Diagnostics
             foreach (var actor in actors)
             {
                 var before = Actor((JObject)companionAction["before"], actor); var after = Actor((JObject)companionAction["after"], actor);
-                Require(new[] { "standard", "move", "swift" }.All(f => (double)after[f] <= (double)before[f] + .001) && JToken.DeepEquals(before["reactions"], after["reactions"]),
+                var mine = opportunity.Where(x => (string)x["actorId"] == actor.UniqueId).ToArray(); var aoo = mine.Length;
+                Require(aoo <= (int)before["reactions"], "A pair actor made more native attacks of opportunity than it had reactions during the companion's action.");
+                Require(new[] { "standard", "move", "swift" }.All(f => (double)after[f] <= (double)before[f] + .001) && ReactionsAccounted(before, after, aoo, (long)companionAction["after"]["gameTicks"],
+                        (JObject)mine.LastOrDefault(), ReactionResetSeen(events.Cast<JObject>(), actor.UniqueId)),
                     "A pair actor's native expenditure rose during the companion's action.");
             }
             Require(targetService.NonPairPartyAiLease.EndDeclaredMemberCommand(companion), "The companion's declared command did not settle back into the AI lease.");

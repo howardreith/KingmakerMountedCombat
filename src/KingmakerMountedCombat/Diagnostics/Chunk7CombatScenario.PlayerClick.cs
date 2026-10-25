@@ -98,9 +98,13 @@ namespace KingmakerMountedCombat.Diagnostics
             var pairBKmc = events.Where(e => (string)e["commandType"] == PairAttackType &&
                 ((string)e["state"]?["actor"] == br.UniqueId || (string)e["state"]?["actor"] == bm.UniqueId)).ToArray();
             var accounted = events.Where(e => CompanionAccountedBoundaries.Contains((string)e["boundary"])).ToArray();
-            var refused = RefusedPairProposals(accounted, new[] { ar.UniqueId, am.UniqueId, br.UniqueId, bm.UniqueId }, 0,
-                new[] { playerClick["before"]["pairCommands"], playerClick["admitted"]["pairCommands"], playerClick["after"]["pairCommands"] }
-                    .Select(x => (JToken)new JArray(((JObject)x).Properties().Select(prop => prop.Value))).ToArray(), out var unusedTouched);
+            var slots = new[] { playerClick["before"]["pairCommands"], playerClick["admitted"]["pairCommands"], playerClick["after"]["pairCommands"] }
+                .Select(x => (JToken)new JArray(((JObject)x).Properties().Select(prop => prop.Value))).ToArray();
+            // F2 r09: pair B, if it engages the target, may make the native engagement-controller attack of opportunity here too.
+            var opportunity = NativeOpportunityAttacks(accounted, new[] { br.UniqueId, bm.UniqueId }, target.UniqueId, slots, EngagedBy(playerClick["before"]), out var opportunityRows);
+            var refused = RefusedPairProposals(accounted.Where(e => !opportunityRows.Contains((int)e["sequence"])).ToArray(), new[] { ar.UniqueId, am.UniqueId, br.UniqueId, bm.UniqueId }, 0,
+                slots, out var unusedTouched);
+            playerClick["pairBNativeOpportunityAttacks"] = opportunity;
             playerClick["pairRefusedProposals"] = refused; playerClick["pairBKmcCommandRows"] = pairBKmc.Length;
             Require(clickCosts.Length == 1 && (string)clickCosts[0]["commandTarget"] == target.UniqueId,
                 "The player click did not cause exactly one rider-A native attack on its own target before Stop.");
@@ -110,7 +114,10 @@ namespace KingmakerMountedCombat.Diagnostics
             foreach (var actor in new[] { br, bm })
             {
                 var before = Actor((JObject)playerClick["before"], actor); var after = Actor((JObject)playerClick["after"], actor);
-                Require(new[] { "standard", "move", "swift" }.All(f => (double)after[f] <= (double)before[f] + .001) && JToken.DeepEquals(before["reactions"], after["reactions"]),
+                var mine = opportunity.Where(x => (string)x["actorId"] == actor.UniqueId).ToArray(); var aoo = mine.Length;
+                Require(aoo <= (int)before["reactions"] && new[] { "standard", "move", "swift" }.All(f => (double)after[f] <= (double)before[f] + .001) &&
+                    ReactionsAccounted(before, after, aoo, (long)playerClick["after"]["gameTicks"], (JObject)mine.LastOrDefault(),
+                        ReactionResetSeen(events.Cast<JObject>(), actor.UniqueId)),
                     "Pair B's native expenditure rose during the player click.");
             }
             Require(RestoredOrLiveOwnersUnchanged(), "Pair custody changed during the player click.");

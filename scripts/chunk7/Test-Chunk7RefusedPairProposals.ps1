@@ -12,7 +12,10 @@ $open=$text.IndexOf('{',$start);$depth=1;$end=$open+1
 while($depth-gt0-and$end-lt$text.Length){if($text[$end]-ceq'{'){$depth++}elseif($text[$end]-ceq'}'){$depth--};$end++}
 if($depth-ne0){throw 'Unbalanced RefusedPairProposals extraction'}
 $templatePath=Join-Path $RepositoryRoot 'tests/Chunk7Diagnostics/RefusedPairProposalsTemplate.cs'
-$body=[IO.File]::ReadAllText($templatePath).Replace('/*ACTUAL_METHOD*/',$text.Substring($start,$end-$start))
+# F2 r09: the native attack-of-opportunity accounting block, extracted whole (constants and methods before FinishCompanionAction).
+$aooStart=$text.IndexOf('        internal const string OpportunityAttackType',[StringComparison]::Ordinal);$aooEnd=$text.IndexOf('        private bool FinishCompanionAction()',[StringComparison]::Ordinal)
+if($aooStart-lt0-or$aooEnd-le$aooStart){throw 'Missing actual native attack-of-opportunity accounting'}
+$body=[IO.File]::ReadAllText($templatePath).Replace('/*ACTUAL_METHOD*/',$text.Substring($start,$end-$start)).Replace('/*ACTUAL_OPPORTUNITY*/',$text.Substring($aooStart,$aooEnd-$aooStart))
 $adapter=Join-Path $OutputDirectory 'ActualRefusedPairProposals.cs';[IO.File]::WriteAllText($adapter,$body,[Text.UTF8Encoding]::new($false))
 $framework='C:/Program Files (x86)/Reference Assemblies/Microsoft/Framework/.NETFramework/v4.7';$compiler='C:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/MSBuild/Current/Bin/Roslyn/csc.exe'
 $json='C:/Program Files (x86)/Steam/steamapps/common/Pathfinder Kingmaker/Kingmaker_Data/Managed/Newtonsoft.Json.dll'
